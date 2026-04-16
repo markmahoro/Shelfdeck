@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -146,6 +146,122 @@ async function getUnplayedItems({ config, sectionId }) {
   }));
 }
 
+function normalizePlayedType(item) {
+  const type = String(item?.Type || item?.type || '').trim();
+  if (type === 'Movie') return 'Movie';
+  if (type === 'Episode' || type === 'Series') return 'Episode';
+  if (type) return 'Other';
+  return 'Unknown';
+}
+
+function pickDatePlayedFromDto(x) {
+  if (x.DatePlayed) return String(x.DatePlayed);
+  const ud = x.UserData;
+  if (ud && ud.LastPlayedDate) return String(ud.LastPlayedDate);
+  if (ud && ud.PlayedDate) return String(ud.PlayedDate);
+  return undefined;
+}
+
+function mapPlayedItemDto(x, librarySectionId, libraryName) {
+  const pIdx = x.ParentIndexNumber;
+  const idx = x.IndexNumber;
+  let indexLabel;
+  if (Number.isFinite(Number(pIdx)) && Number.isFinite(Number(idx))) {
+    indexLabel = `S${String(Number(pIdx)).padStart(2, '0')}E${String(Number(idx)).padStart(2, '0')}`;
+  }
+  return {
+    id: String(x.Id || ''),
+    name: String(x.Name || ''),
+    seriesName: x.SeriesName ? String(x.SeriesName) : undefined,
+    indexLabel,
+    sectionId: librarySectionId,
+    sectionName: libraryName || undefined,
+    datePlayed: pickDatePlayedFromDto(x),
+    type: normalizePlayedType(x),
+  };
+}
+
+async function fetchPlayedJsonForSection(config, sid, query) {
+  try {
+    return await httpJson(
+      buildApiUrl(config, `/Users/${encodeURIComponent(config.userId)}/Sections/${encodeURIComponent(sid)}/Items`, query),
+    );
+  } catch (err) {
+    const msg = String(err);
+    if (!msg.includes('HTTP 404')) throw err;
+    return httpJson(
+      buildApiUrl(config, `/Users/${encodeURIComponent(config.userId)}/Items`, { ...query, ParentId: sid }),
+    );
+  }
+}
+
+async function getPlayedItems({ config, days = 30, sectionId, type = 'all' }) {
+  const folderList = await getMediaFolders(config);
+  const folderMap = new Map(folderList.map((f) => [f.id, f.name]));
+  const enabled = (config.enabledSectionIds || []).map((x) => String(x)).filter(Boolean);
+  const filterSid = sectionId ? String(sectionId) : '';
+  const targetSectionIds = filterSid ? [filterSid] : enabled;
+
+  const queryBase = {
+    Recursive: true,
+    IncludeItemTypes: 'Movie,Episode',
+    Filters: 'IsPlayed',
+    Limit: 250,
+    SortBy: 'DatePlayed',
+    SortOrder: 'Descending',
+    Fields: 'DatePlayed,Type,SeriesName,ParentIndexNumber,IndexNumber,SeasonName,ParentId,UserData',
+  };
+
+  let rows = [];
+  if (targetSectionIds.length > 0) {
+    const parts = await Promise.all(
+      targetSectionIds.map(async (sid) => {
+        const json = await fetchPlayedJsonForSection(config, sid, queryBase);
+        const libName = folderMap.get(sid) || '';
+        return (json.Items || []).map((x) => mapPlayedItemDto(x, sid, libName));
+      }),
+    );
+    rows = parts.flat();
+  } else {
+    const url = buildApiUrl(config, `/Users/${encodeURIComponent(config.userId)}/Items`, queryBase);
+    const json = await httpJson(url);
+    rows = (json.Items || []).map((x) =>
+      mapPlayedItemDto(x, x.ParentId ? String(x.ParentId) : undefined, undefined),
+    );
+  }
+
+  const byId = new Map();
+  for (const r of rows) {
+    const prev = byId.get(r.id);
+    if (!prev) {
+      byId.set(r.id, r);
+      continue;
+    }
+    const t1 = r.datePlayed ? new Date(r.datePlayed).getTime() : 0;
+    const t2 = prev.datePlayed ? new Date(prev.datePlayed).getTime() : 0;
+    if (t1 >= t2) byId.set(r.id, r);
+  }
+  rows = Array.from(byId.values());
+
+  if (days && Number(days) > 0) {
+    const cutoff = Date.now() - Number(days) * 24 * 3600 * 1000;
+    rows = rows.filter((r) => {
+      if (!r.datePlayed) return true;
+      return new Date(r.datePlayed).getTime() >= cutoff;
+    });
+  }
+
+  rows.sort((a, b) => {
+    const ta = a.datePlayed ? new Date(a.datePlayed).getTime() : 0;
+    const tb = b.datePlayed ? new Date(b.datePlayed).getTime() : 0;
+    return tb - ta;
+  });
+  rows = rows.slice(0, 300);
+
+  if (type === 'all') return rows;
+  return rows.filter((x) => x.type === type);
+}
+
 async function resolvePlayablePath(config, itemId) {
   const json = await httpJson(
     buildApiUrl(config, `/Items/${encodeURIComponent(itemId)}/PlaybackInfo`, {
@@ -210,7 +326,21 @@ async function markPlayed(config, itemId) {
   logEvent('mark_played', { itemId, userId: config.userId });
 }
 
+async function markUnplayed(config, itemId) {
+  const url = buildApiUrl(
+    config,
+    `/Users/${encodeURIComponent(config.userId)}/PlayedItems/${encodeURIComponent(itemId)}`,
+  );
+  const res = await fetch(url, { method: 'DELETE', headers: { Accept: 'application/json' } });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`);
+  }
+  logEvent('mark_unplayed', { itemId, userId: config.userId });
+}
+
 function createWindow() {
+  Menu.setApplicationMenu(null);
   mainWindow = new BrowserWindow({
     width: 1300,
     height: 820,
@@ -220,6 +350,8 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+  mainWindow.setMenuBarVisibility(false);
+  mainWindow.maximize();
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     logEvent('did-fail-load', { errorCode, errorDescription, validatedURL });
   });
@@ -251,8 +383,10 @@ app.whenReady().then(() => {
   ipcMain.handle('emby:getUsers', (_e, config) => getUsers(config));
   ipcMain.handle('emby:getMediaFolders', (_e, config) => getMediaFolders(config));
   ipcMain.handle('emby:getUnplayedItems', (_e, args) => getUnplayedItems(args));
+  ipcMain.handle('emby:getPlayedItems', (_e, args) => getPlayedItems(args));
   ipcMain.handle('emby:launchPlayer', (_e, args) => launchPlayer(args));
   ipcMain.handle('emby:markPlayed', (_e, args) => markPlayed(args.config, args.itemId));
+  ipcMain.handle('emby:markUnplayed', (_e, args) => markUnplayed(args.config, args.itemId));
 });
 
 app.on('window-all-closed', () => {

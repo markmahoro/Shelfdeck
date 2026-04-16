@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const STORAGE_KEY = 'embyDesktopPlayerConfigV1';
+const LOCAL_MARKED_PLAYED_KEY = 'embyDesktopPlayerLocalMarkedPlayedV1';
 
-type AppPage = 'config' | 'wall';
+type AppPage = 'config' | 'wall' | 'history';
 
 const defaultConfig: EmbyConfig = {
   baseUrl: 'http://localhost:8096/emby',
@@ -61,6 +62,91 @@ function isConfigReady(config: EmbyConfig, connected: boolean) {
   );
 }
 
+function formatPlayedAt(iso?: string) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
+function playedTypeLabel(t: PlayedItem['type']) {
+  if (t === 'Movie') return '电影';
+  if (t === 'Episode') return '剧集';
+  if (t === 'Other') return '其他';
+  return '未知';
+}
+
+function playedTimeMs(iso?: string) {
+  if (!iso) return 0;
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function loadLocalMarkedPlayed(): PlayedItem[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_MARKED_PLAYED_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (x): x is PlayedItem =>
+        !!x &&
+        typeof x === 'object' &&
+        typeof (x as PlayedItem).id === 'string' &&
+        typeof (x as PlayedItem).name === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalMarkedPlayed(entry: PlayedItem) {
+  try {
+    const prev = loadLocalMarkedPlayed();
+    const next = [entry, ...prev.filter((x) => x.id !== entry.id)].slice(0, 80);
+    localStorage.setItem(LOCAL_MARKED_PLAYED_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+function removeLocalMarkedPlayed(itemId: string) {
+  try {
+    const prev = loadLocalMarkedPlayed();
+    const next = prev.filter((x) => x.id !== itemId);
+    localStorage.setItem(LOCAL_MARKED_PLAYED_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+function mergePlayedHistoryServerWithLocal(server: PlayedItem[]): PlayedItem[] {
+  const local = loadLocalMarkedPlayed();
+  const byId = new Map<string, PlayedItem>();
+  for (const x of server) byId.set(x.id, x);
+  for (const x of local) {
+    const prev = byId.get(x.id);
+    if (!prev) {
+      byId.set(x.id, x);
+      continue;
+    }
+    if (playedTimeMs(x.datePlayed) >= playedTimeMs(prev.datePlayed)) {
+      byId.set(x.id, { ...prev, ...x, datePlayed: x.datePlayed || prev.datePlayed });
+    }
+  }
+  return Array.from(byId.values())
+    .sort((a, b) => playedTimeMs(b.datePlayed) - playedTimeMs(a.datePlayed))
+    .slice(0, 300);
+}
+
 function buildPosterUrl(config: EmbyConfig, item: UnplayedItem) {
   const tag = item.posterTag ? `&tag=${encodeURIComponent(item.posterTag)}` : '';
   return `${config.baseUrl.replace(/\/$/, '')}/Items/${encodeURIComponent(item.id)}/Images/Primary?width=220&api_key=${encodeURIComponent(
@@ -73,6 +159,7 @@ export default function App() {
   const [sections, setSections] = useState<EmbyMediaFolder[]>([]);
   const [users, setUsers] = useState<EmbyUser[]>([]);
   const [items, setItems] = useState<UnplayedItem[]>([]);
+  const [playedItems, setPlayedItems] = useState<PlayedItem[]>([]);
   const [connected, setConnected] = useState(false);
   const [page, setPage] = useState<AppPage>('config');
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +176,11 @@ export default function App() {
     elapsedMinutes: number;
     runtimeMinutes?: number;
   } | null>(null);
+  const [historyDays, setHistoryDays] = useState<7 | 30 | 0>(30);
+  const [historyType, setHistoryType] = useState<'all' | 'Movie' | 'Episode'>('all');
+  const [historySectionId, setHistorySectionId] = useState('');
+  const [historyActionBusyId, setHistoryActionBusyId] = useState<string | null>(null);
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
 
   const enabledSet = useMemo(() => new Set(config.enabledSectionIds), [config.enabledSectionIds]);
 
@@ -111,6 +203,59 @@ export default function App() {
     void autoEnterWallIfAvailable();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (page !== 'history') return;
+    if (sections.length > 0 || !config.baseUrl.trim() || !config.apiKey.trim()) return;
+    void window.embyApi
+      .getMediaFolders({ baseUrl: config.baseUrl.trim(), apiKey: config.apiKey.trim() })
+      .then(setSections)
+      .catch(() => {});
+  }, [page, sections.length, config.baseUrl, config.apiKey]);
+
+  useEffect(() => {
+    if (page !== 'history') return;
+    void refreshPlayedHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, historyDays, historyType, historySectionId]);
+
+  useEffect(() => {
+    if (page !== 'wall') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (confirm) {
+        if (e.key === 'Escape') setConfirm(null);
+        return;
+      }
+      if (e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        void refreshUnplayed();
+        return;
+      }
+      if (e.key === 'Escape') {
+        setFocusedIndex(-1);
+        return;
+      }
+      if (items.length === 0) return;
+      const current = focusedIndex >= 0 ? focusedIndex : 0;
+      const cols = Math.max(1, Math.floor(window.innerWidth / 220));
+      let next = current;
+      if (e.key === 'ArrowRight') next = Math.min(items.length - 1, current + 1);
+      if (e.key === 'ArrowLeft') next = Math.max(0, current - 1);
+      if (e.key === 'ArrowDown') next = Math.min(items.length - 1, current + cols);
+      if (e.key === 'ArrowUp') next = Math.max(0, current - cols);
+      if (next !== current || focusedIndex === -1) {
+        e.preventDefault();
+        setFocusedIndex(next);
+        return;
+      }
+      if (e.key === 'Enter' && items[current]) {
+        e.preventDefault();
+        void onPlay(items[current]);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [page, items, focusedIndex, confirm]);
 
   function saveConfig(next: EmbyConfig) {
     setConfig(next);
@@ -170,6 +315,64 @@ export default function App() {
     }
   }
 
+  async function refreshPlayedHistory() {
+    if (!isConfigReady(config, connected)) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await window.embyApi.getPlayedItems({
+        config,
+        days: historyDays,
+        type: historyType,
+        sectionId: historySectionId.trim() || undefined,
+      });
+      let merged = mergePlayedHistoryServerWithLocal(data);
+      const sid = historySectionId.trim();
+      if (sid) merged = merged.filter((x) => x.sectionId === sid);
+      if (historyType !== 'all') merged = merged.filter((x) => x.type === historyType);
+      setPlayedItems(merged);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function historyMarkWatched(it: PlayedItem) {
+    if (!isConfigReady(config, connected)) return;
+    setHistoryActionBusyId(it.id);
+    setError(null);
+    try {
+      await window.embyApi.markPlayed({ config, itemId: it.id });
+      const sectionName = it.sectionName ?? sections.find((s) => s.id === it.sectionId)?.name;
+      saveLocalMarkedPlayed({
+        ...it,
+        datePlayed: new Date().toISOString(),
+        sectionName: sectionName ?? it.sectionName,
+      });
+      await refreshPlayedHistory();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setHistoryActionBusyId(null);
+    }
+  }
+
+  async function historyMarkUnwatched(it: PlayedItem) {
+    if (!isConfigReady(config, connected)) return;
+    setHistoryActionBusyId(it.id);
+    setError(null);
+    try {
+      await window.embyApi.markUnplayed({ config, itemId: it.id });
+      removeLocalMarkedPlayed(it.id);
+      await refreshPlayedHistory();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setHistoryActionBusyId(null);
+    }
+  }
+
   async function onPlay(item: UnplayedItem) {
     try {
       const result = await window.embyApi.launchPlayer({ config, item });
@@ -214,6 +417,24 @@ export default function App() {
     setActiveSession(null);
     setConfirm(null);
     setError('已保留为未看完，未执行回写。');
+  }
+
+  function addLocalPlayedHistory(item: UnplayedItem) {
+    const nowIso = new Date().toISOString();
+    const sectionName = sections.find((s) => s.id === item.sectionId)?.name;
+    const optimistic: PlayedItem = {
+      id: item.id,
+      name: item.name,
+      sectionId: item.sectionId,
+      sectionName,
+      datePlayed: nowIso,
+      type: 'Movie',
+    };
+    saveLocalMarkedPlayed(optimistic);
+    setPlayedItems((prev) => {
+      const withoutDup = prev.filter((x) => x.id !== optimistic.id);
+      return [optimistic, ...withoutDup].slice(0, 300);
+    });
   }
 
   if (page === 'config') {
@@ -329,12 +550,114 @@ export default function App() {
     );
   }
 
+  if (page === 'history') {
+    return (
+      <div className="app">
+        <div className="topbar">
+          <div style={{ fontWeight: 800 }}>播放记录</div>
+          <div className="actions">
+            <button onClick={() => setPage('wall')}>返回海报墙</button>
+            <select
+              value={historyDays}
+              onChange={(e) => setHistoryDays(Number(e.target.value) as 7 | 30 | 0)}
+              className="selectLike"
+            >
+              <option value={7}>最近 7 天</option>
+              <option value={30}>最近 30 天</option>
+              <option value={0}>全部</option>
+            </select>
+            <select
+              value={historyType}
+              onChange={(e) => setHistoryType(e.target.value as 'all' | 'Movie' | 'Episode')}
+              className="selectLike"
+            >
+              <option value="all">全部类型</option>
+              <option value="Movie">电影</option>
+              <option value="Episode">剧集</option>
+            </select>
+            <select
+              value={historySectionId}
+              onChange={(e) => setHistorySectionId(e.target.value)}
+              className="selectLike"
+              title="按已配置的媒体库筛选"
+            >
+              <option value="">全部媒体库</option>
+              {sections
+                .filter((s) => enabledSet.has(s.id))
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+            </select>
+            <button onClick={() => void refreshPlayedHistory()}>{loading ? '刷新中...' : '刷新记录'}</button>
+          </div>
+        </div>
+        <div className="content">
+          <div className="panel">
+            {playedItems.length === 0 ? (
+              <div className="hint">暂无播放记录</div>
+            ) : (
+              <div className="historyList">
+                {playedItems.map((it) => (
+                  <div key={it.id} className="historyItem">
+                    <div style={{ fontWeight: 700 }}>{it.name}</div>
+                    <div className="hint">{playedTypeLabel(it.type)}</div>
+                    <div className="hint">{it.sectionName?.trim() ? it.sectionName : '—'}</div>
+                    <div className="hint">
+                      {it.type === 'Episode'
+                        ? [it.seriesName, it.indexLabel].filter(Boolean).join(' · ') || '—'
+                        : '—'}
+                    </div>
+                    <div className="hint tabular-nums">{formatPlayedAt(it.datePlayed)}</div>
+                    <div className="historyRowActions">
+                      <button
+                        type="button"
+                        disabled={loading || historyActionBusyId === it.id}
+                        onClick={() => void historyMarkWatched(it)}
+                      >
+                        标记为已观看
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading || historyActionBusyId === it.id}
+                        onClick={() => void historyMarkUnwatched(it)}
+                      >
+                        标记为未观看
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading || historyActionBusyId === it.id}
+                        onClick={async () => {
+                          const item = items.find((x) => x.id === it.id) ?? ({
+                            id: it.id,
+                            name: it.name,
+                            sectionId: it.sectionId ?? config.enabledSectionIds[0] ?? '',
+                          } as UnplayedItem);
+                          await onPlay(item);
+                        }}
+                      >
+                        重新播放
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        {error ? <div className="hint" style={{ color: '#fca5a5', padding: 16 }}>{error}</div> : null}
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <div className="topbar">
         <div style={{ fontWeight: 800 }}>未播放海报墙</div>
         <div className="actions">
           <button onClick={() => setPage('config')}>更改配置</button>
+          <button onClick={() => setPage('history')}>播放记录</button>
           <button onClick={() => void refreshUnplayed()}>{loading ? '刷新中...' : '刷新未播放'}</button>
           {activeSession ? (
             <>
@@ -346,13 +669,20 @@ export default function App() {
       </div>
       <div className="content">
         <div className="panel">
+          <div className="hint">
+            键盘：方向键移动焦点，Enter 播放，R 刷新，Esc 取消焦点
+          </div>
           {items.length === 0 ? (
             <div className="hint">暂无未播放条目</div>
           ) : (
             <div className="grid">
-              {items.map((item) => (
+              {items.map((item, idx) => (
                 <div key={`${item.sectionId}:${item.id}`} className="card">
-                  <button onClick={() => void onPlay(item)}>
+                  <button
+                    className={focusedIndex === idx ? 'focused' : ''}
+                    onFocus={() => setFocusedIndex(idx)}
+                    onClick={() => void onPlay(item)}
+                  >
                     <img className="poster" src={buildPosterUrl(config, item)} alt={item.name} />
                     <div className="cardTitle">{item.name}</div>
                   </button>
@@ -376,10 +706,18 @@ export default function App() {
               <button
                 className="primary"
                 onClick={async () => {
-                  await window.embyApi.markPlayed({ config, itemId: confirm.item.id });
-                  setConfirm(null);
-                  setActiveSession(null);
-                  await refreshUnplayed();
+                  try {
+                    setError(null);
+                    const playedItem = confirm.item;
+                    await window.embyApi.markPlayed({ config, itemId: playedItem.id });
+                    addLocalPlayedHistory(playedItem);
+                    setConfirm(null);
+                    setActiveSession(null);
+                    await refreshUnplayed();
+                    void refreshPlayedHistory();
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : String(e));
+                  }
                 }}
               >
                 确认回写
