@@ -17,11 +17,34 @@ const defaultConfig: EmbyConfig = {
   fallbackMinSeconds: 600,
 };
 
+function normalizeConfig(raw: Partial<EmbyConfig>): EmbyConfig {
+  return {
+    baseUrl: typeof raw.baseUrl === 'string' ? raw.baseUrl : defaultConfig.baseUrl,
+    apiKey: typeof raw.apiKey === 'string' ? raw.apiKey : defaultConfig.apiKey,
+    userId: typeof raw.userId === 'string' ? raw.userId : defaultConfig.userId,
+    enabledSectionIds: Array.isArray(raw.enabledSectionIds)
+      ? raw.enabledSectionIds.filter((x): x is string => typeof x === 'string')
+      : defaultConfig.enabledSectionIds,
+    playerExePath: typeof raw.playerExePath === 'string' ? raw.playerExePath : defaultConfig.playerExePath,
+    argsTemplate: typeof raw.argsTemplate === 'string' ? raw.argsTemplate : defaultConfig.argsTemplate,
+    pathMapFrom: typeof raw.pathMapFrom === 'string' ? raw.pathMapFrom : defaultConfig.pathMapFrom,
+    pathMapTo: typeof raw.pathMapTo === 'string' ? raw.pathMapTo : defaultConfig.pathMapTo,
+    markPlayedThresholdPercent:
+      typeof raw.markPlayedThresholdPercent === 'number' && Number.isFinite(raw.markPlayedThresholdPercent)
+        ? raw.markPlayedThresholdPercent
+        : defaultConfig.markPlayedThresholdPercent,
+    fallbackMinSeconds:
+      typeof raw.fallbackMinSeconds === 'number' && Number.isFinite(raw.fallbackMinSeconds)
+        ? raw.fallbackMinSeconds
+        : defaultConfig.fallbackMinSeconds,
+  };
+}
+
 function loadSavedConfig(): EmbyConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultConfig;
-    return { ...defaultConfig, ...(JSON.parse(raw) as Partial<EmbyConfig>) };
+    return normalizeConfig(JSON.parse(raw) as Partial<EmbyConfig>);
   } catch {
     return defaultConfig;
   }

@@ -220,12 +220,28 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    logEvent('did-fail-load', { errorCode, errorDescription, validatedURL });
+  });
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    logEvent('render-process-gone', details);
+  });
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    logEvent('renderer-console', { level, message, line, sourceId });
+  });
+  mainWindow.webContents.on('did-finish-load', () => {
+    logEvent('did-finish-load');
+  });
+
   const isDev = process.env.NODE_ENV === 'development';
   if (isDev) {
     const url = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
+    logEvent('load-dev-url', { url });
     mainWindow.loadURL(url);
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+    logEvent('load-prod-file', { indexPath, exists: fs.existsSync(indexPath) });
+    mainWindow.loadFile(indexPath);
   }
 }
 
