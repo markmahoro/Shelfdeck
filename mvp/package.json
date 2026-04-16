@@ -1,0 +1,32 @@
+{
+  "name": "mvp",
+  "version": "1.0.0",
+  "description": "Emby desktop player MVP",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:renderer": "vite",
+    "dev:electron": "cross-env NODE_ENV=development electron .",
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
+    "build": "vite build",
+    "start": "cross-env NODE_ENV=production electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^41.2.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.8"
+  }
+}
