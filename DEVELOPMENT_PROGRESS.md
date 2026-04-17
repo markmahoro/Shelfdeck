@@ -8,12 +8,14 @@
 
 ## 时间线（仓库提交与里程碑）
 
-| 时间点（UTC+8） | 事件 |
-|----------------|------|
-| **2026-04-17 16:05:44** | 仓库基线初始化（`chore: initialize repository baseline`） |
-| **2026-04-17 20:30:03** | 补充任务中心单一事实来源文档（`docs: add task center SSOT`，`TASK_CENTER_FULL_LOGIC.md`） |
-| **2026-04-17 20:46:30** | 开发中版本快照：PRD 对齐 SSOT、五页壳层、任务调度 MVP 等（`chore: dev snapshot — PRD对齐任务中心SSOT、五页壳与调度MVP`，提交 `cfa6884`） |
-| **2026-04-17 ~21:12** | **合并**：将 `C:\emby_third_party` 上 `release/v1.0.0` 的提交与 `E:\my_project\emby_third_party` 的 `master`（含 beta.3 等历史）做 `allow-unrelated-histories` 合并；冲突在 `mvp/` 与今日分支对齐；提交 `176a599`。本地分支 `release/v1.0.0` 已与 `master` 同指向该合并结果。 |
+
+| 时间点（UTC+8）              | 事件                                                                                                                                                                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **2026-04-17 16:05:44** | 仓库基线初始化（`chore: initialize repository baseline`）                                                                                                                                                                             |
+| **2026-04-17 20:30:03** | 补充任务中心单一事实来源文档（`docs: add task center SSOT`，`TASK_CENTER_FULL_LOGIC.md`）                                                                                                                                                     |
+| **2026-04-17 20:46:30** | 开发中版本快照：PRD 对齐 SSOT、五页壳层、任务调度 MVP 等（`chore: dev snapshot — PRD对齐任务中心SSOT、五页壳与调度MVP`，提交 `cfa6884`）                                                                                                                            |
+| **2026-04-17 ~21:12**   | **合并**：将 `C:\emby_third_party` 上 `release/v1.0.0` 的提交与 `E:\my_project\emby_third_party` 的 `master`（含 beta.3 等历史）做 `allow-unrelated-histories` 合并；冲突在 `mvp/` 与今日分支对齐；提交 `176a599`。本地分支 `release/v1.0.0` 已与 `master` 同指向该合并结果。 |
+
 
 *说明：更早的 beta.1～beta.3 能力见 PRD §14；本表仅列本仓库近期可追溯的 Git 时间点。*
 
@@ -24,7 +26,7 @@
 ### 产品与文档
 
 - PRD 已刷新：五页信息架构、配置中心承载调度参数、任务中心专责调度操作；独立「质量审阅」顶页废弃，补源确认走弹窗。
-- 任务中心行为与 **`TASK_CENTER_FULL_LOGIC.md`** 对表（执行/暂停、软停、批量操作、侧栏按钮语义等）。
+- 任务中心行为与 `**TASK_CENTER_FULL_LOGIC.md`** 对表（执行/暂停、软停、批量操作、侧栏按钮语义等）。
 
 ### 前端 MVP（`mvp/`）
 
