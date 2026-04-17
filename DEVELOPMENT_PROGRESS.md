@@ -1,7 +1,7 @@
 # Emby Desktop Player — 开发进度总结
 
 > **文档性质**：与仓库实现、PRD（`EmbyDesktopPlayer_PRD_v1.0.0.md`）及任务中心 SSOT（`TASK_CENTER_FULL_LOGIC.md`）对照的阶段性记录。  
-> **最近更新**：2026-04-17（+08:00）；**标签 `v1.0.0-beta.6`**：豆瓣电影「看过」个人评分抓取（collect 网格 HTML 分页解析）、本地缓存与片名匹配；**有效星级**以豆瓣优先驱动码率策略；配置中心「豆瓣个人评分（实验）」与媒体库列表列展示。其前 **`v1.0.0-beta.5`**：媒体库治理闭环、原盘识别与列表缓存等。再前 **`v1.0.0-beta.4`**：真实 Emby 主进程集成、播放记录与回写修复。  
+> **最近更新**：2026-04-18（+08:00）；**标签 `v1.0.0-beta.7`**：分星级治理规则（**1–2★** 删除档；**3★**仅转码；**4★** 转码 + 低于目标 **80%** 洗版；**5★** 不转码、**1080p** 必洗版、**4K** 同 **80%** 阈值）；**5★1080p** 目标码率/预测按 **4K 档**；默认码率梯度下调；媒体库表 **预测体积**与侧栏 **电影预测占用**；PRD **§4.5** / §14.7对齐。其前 **`v1.0.0-beta.6`**：豆瓣看过评分与有效星级。再前 **`v1.0.0-beta.5`**：媒体库治理、原盘、列表缓存。  
 > **主工作副本（Canonical）**：`E:\my_project\emby_third_party`（请将 Cursor / 终端默认目录统一到此路径；`C:\emby_third_party` 仅为迁移前副本，可归档或删除以避免混淆。）
 
 ---
@@ -19,6 +19,7 @@
 | **2026-04-17（深夜）**      | `**v1.0.0-beta.5`**（`d6bf834`）：媒体库管理全库列表（含已观看）、侧栏搜索与多维筛选（码率相对目标、分辨率、编码、观看记录、蓝光原盘）、库容量与类型统计；表格行组件与性能优化；条目展示**体积（GB）**与**原盘**标记；主进程 `inferIsBluRayDisc`（`.iso`、路径 `BDMV`、本机 `BDMV` 目录探测，并应用配置中心 pathMapFrom/To与增强版 `applyPathMap`）；原盘条目禁止码率压缩/洗版**单条/批量/海报自动入队**；`devEmbyStub` 与类型定义同步；`DEVELOPMENT_PLAN` 更新。 |
 | **2026-04-17（深夜）**      | **媒体库列表本地缓存**：`localStorage` 键 `embyDesktopPlayerLibraryManageCacheV1`（`version: 1` + `fingerprint` + `savedAt` + `items`）；指纹为规范化 `baseUrl`、`userId`、已勾选 `enabledSectionIds` 排序序列化，任一变化则丢弃旧缓存；启动与进入媒体库管理页仅从缓存恢复，**不自动**请求 Emby；「刷新媒体库列表」成功后再写入缓存并更新 `savedAt`。观看状态回写等路径上仍会按需静默刷新列表（`quietIfIncomplete`）。    |
 | **2026-04-17（收尾）**      | `**v1.0.0-beta.6`**：豆瓣 `movie.douban.com/people/{id}/collect`（`type=movie`、`mode=grid`）分页抓取，解析 `comment-item` / `ratingN-t` / `subjectId`；**增量**（整页 subjectId 均在同步前缓存中则停）与约 **14 天**一次**全量**（`embyDesktopPlayerDoubanLastFullSyncAtMs`）；页间隔 ~800ms；会话 `douban-session.json`，条目缓存 `embyDesktopPlayerDoubanRatingEntriesV1`。`doubanUtils`：豆瓣按 `/` 分段键、Emby 按冒号/竖线拆段、最长键优先匹配；仅 **Movie**。`effectiveRatingForPolicy`：**豆瓣星优先**于本地标注星级，驱动 `targetBitrate` / `recommendedAction` / 筛选。UI：配置中心豆瓣分区（可选 Cookie 折叠）、媒体库表豆瓣列与有效星级；根目录 `douban-to-imdb/` 已 `.gitignore`（独立仓库）。 |
+| **2026-04-18**              | `**v1.0.0-beta.7`**：`mediaManager` — `isDeleteTierRating`（1–2★ 删除档）、`UPGRADE_EQ_BELOW_TARGET_RATIO`、`recommendedAction` 分星规则、`targetBitrateFor`（5★1080p→4K 档）、`predictedSizeGbAtPolicyTarget`；默认 `defaultMediaPolicy` 梯度下调。UI：`MediaLibraryManageRow` 预测体积列、`App` 侧栏电影预测占用与筛选「删除档（1–2 星）」。PRD v1.0.0 **§4.1～§4.5**、§14.7；`mvp/package.json` **version** 同步 **1.0.0-beta.7**。 |
 
 
 *说明：更早的 beta.1～beta.3 能力见 PRD §14；本表仅列本仓库近期可追溯的 Git 时间点。*
@@ -42,6 +43,7 @@
 - **媒体库管理页（beta.5）**：`getLibraryItemsForManage` 拉取已启用库内电影/剧集（含已看）；侧栏片名搜索、定位首条高亮；筛选含**蓝光原盘**；列表列含体积、原盘、星级、观看、任务与单条操作；`MediaLibraryManageRow` 独立组件；原盘（ISO/BDMV，映射后本机探测）**拦截**转码/洗版入队；批量入队跳过原盘并提示；海报墙打分自动入队对原盘友好提示。
 - **媒体库列表缓存**：全量列表持久化到 `localStorage`（`embyDesktopPlayerLibraryManageCacheV1`），与连接指纹绑定；进入管理页不自动拉取，依赖用户手动「刷新媒体库列表」与 Emby 对齐；配置变更时自动重hydrate（无效指纹则清空展示）。
 - **豆瓣个人评分（beta.6）**：主进程 `doubanService.js` + IPC；渲染进程匹配与缓存；策略层 `effectiveRatingForPolicy`；详见 PRD v1.0.0 **§4.4**。
+- **分星级治理与容量预测（beta.7）**：`mediaManager` 删除档、转码/洗版分星规则、5★1080p 的 4K 目标对齐、电影预测体积与侧栏汇总；详见 PRD **§4.5**、§14.7。
 - **开发体验**：Vite 默认端口5174、`strictPort: false` 顺延端口；`write-dev-server-url` + `scripts/run-electron-dev.js` 将实际 URL 注入 Electron。
 
 ### 工程
@@ -60,7 +62,7 @@
 
 ## 版本与分支参考
 
-- **里程碑标签**：`v1.0.0-beta.6`（豆瓣看过抓取 + 有效星级 + 配置/UI）；其前 `v1.0.0-beta.5`（媒体库治理 + 原盘 + 列表缓存）；再前 `v1.0.0-beta.4`（真实 Emby 前台闭环 + 播放记录 + 回写格式修复）
+- **里程碑标签**：`v1.0.0-beta.7`（分星级治理 + 预测体积 + PRD §4.5）；其前 `v1.0.0-beta.6`（豆瓣 + 有效星级）；再前 `v1.0.0-beta.5`（媒体库治理 + 原盘 + 列表缓存）；再前 `v1.0.0-beta.4`（真实 Emby 前台闭环 + 播放记录 + 回写格式修复）
 - **分支**：`master`（可与 `release/v1.0.0` 对齐）
 - **此前合并提交**：`176a599`（2026-04-17）
 

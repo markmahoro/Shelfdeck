@@ -1,6 +1,6 @@
 {
   "name": "mvp",
-  "version": "1.0.0-beta.4",
+  "version": "1.0.0-beta.7",
   "description": "Emby desktop player MVP",
   "main": "electron/main.js",
   "scripts": {

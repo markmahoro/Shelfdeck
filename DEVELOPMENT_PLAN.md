@@ -1,7 +1,7 @@
 # Emby Desktop Player — 开发计划
 
 > **文档性质**：基于当前仓库实现、`DEVELOPMENT_PROGRESS.md`、`EmbyDesktopPlayer_PRD_v1.0.0.md` 与 `TASK_CENTER_FULL_LOGIC.md` 整理的阶段性开发路线。  
-> **生成日期**：2026-04-17（+08:00）
+> **生成日期**：2026-04-18（+08:00）；**当前里程碑**：`v1.0.0-beta.7`（分星级治理、容量预测、PRD §4.5）
 
 ---
 
@@ -25,7 +25,7 @@
 | **壳层与导航**            | 顶栏五页：配置中心、海报墙、媒体库管理、任务中心、播放记录；每页左侧栏 + 右侧主区；暗色主题与基础样式（`mvp/src/App.tsx`、`mvp/src/styles.css`）。                                   |
 | **任务中心（前端逻辑）**       | 本地持久化队列（`mvp/src/taskQueue.ts`）、状态筛选、转码/补源双队列与并发上限、调度推进与软停（`pauseRequested`）、单条/批量执行与暂停、信息确认弹窗、调试种子任务（`mvp/src/debugSeed.ts`）等。 |
 | **配置中心**             | Emby 连接/播放器相关表单；媒体策略与任务调度（并发、等待重试节奏、`wallRatingAutoEnqueue` 等）集中在配置页。                                                           |
-| **媒体治理（前端侧）**        | `mvp/src/mediaManager.ts`：等效码率估算、目标码率、推荐动作等业务规则，支撑列表与入队决策的前端演算。                                                                 |
+| **媒体治理（前端侧）**        | `mvp/src/mediaManager.ts`：等效码率估算、`targetBitrateFor`（含 5★1080p→4K 档）、`isDeleteTierRating`（1–2★删除档）、`recommendedAction`（§4.5：3★仅压、4★压+80% 洗版、5★不压与洗版规则）、`predictedSizeGbAtPolicyTarget`；默认梯度见 PRD §4.2。 |
 | **工程**               | Electron + React（Vite）可开发构建；`mvp/electron/main.js` 负责窗口、开发期连 Vite、生产加载 `dist`；`mvp/package.json` 含 Windows portable 构建脚本。       |
 | **Electron 预加载**       | `mvp/electron/preload.js` 暴露 `window.embyApi`（真实 IPC 至 `embyService`）与 `window.doubanApi`（会话与抓取进度）；无 Electron 时浏览器可走 `mvp/src/devEmbyStub.ts`。`taskControl` 仍以主进程占位为主。 |
 | **豆瓣个人评分（实验）**    | `doubanService.js` 拉取 collect 分页；`doubanUtils.ts` / `mediaManager.effectiveRatingForPolicy`；配置页与媒体库列表 UI。详见 PRD §4.4。                                        |
@@ -72,6 +72,7 @@
 2. **checkpoint 与中断恢复**：与真实执行步骤绑定，持久化到磁盘。
 3. **批量执行前预估**：基于队列、历史转码速度、磁盘可用空间、并发配置的粗估 UI。
 4. **任务日志**：结构化落盘 + 任务中心内可检索（可分步：先文件日志，再 UI）。
+5. **渲染进程缓存 →主进程持久化**：当前大量状态在渲染层 `localStorage`（如 `App.tsx` 中的 Emby 配置、媒体库列表缓存、豆瓣评分条目、任务队列 `taskQueue.ts`、本地已标记播放等）。开发期 Vite 端口变化会导致 **origin 切换、`localStorage` 看似「清空」**；生产与调试环境也不易共用同一套数据。后续应分批迁移：**主进程 `userData` 落盘（JSON或 `electron-store` 等）+ `preload` IPC读写**，渲染层仅缓存与 UI 强相关的临时状态；迁移时需定义版本号与一次性从 `localStorage` 导入的升级路径。
 
 ### 并行维护
 
