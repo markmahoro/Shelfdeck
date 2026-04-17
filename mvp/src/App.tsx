@@ -2422,7 +2422,7 @@ export default function App() {
         <div className="sidebarDivider" />
         <div className="sidebarMuted">豆瓣评分（实验）</div>
         <p className="sidebarHint">
-          在配置中心保存 Cookie 与用户 ID 后同步。匹配规则：剔除片名中的标点、符号与空白后<strong>严格相等</strong>；仅统计<strong>电影</strong>行。
+          在配置中心保存 Cookie 与用户 ID 后同步。豆瓣标题多为「中文 / 英文 / 别名」，已按斜杠分段分别匹配；剔除标点后<strong>严格相等</strong>。仅统计<strong>电影</strong>行。
         </p>
         <div className="sidebarStat" style={{ fontVariantNumeric: 'tabular-nums' }}>
           {libraryManageCapacity.movieCount === 0

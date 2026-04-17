@@ -13,11 +13,33 @@ export function normalizeTitleForDoubanMatch(title: string): string {
   return s;
 }
 
+/**
+ * 豆瓣条目标题常为「中文 / 英文 / 港译…」；须按每一段分别参与匹配，
+ * 否则整串去掉标点后与 Emby 单语种片名无法相等。
+ */
+export function doubanTitleNormalizedKeys(rawTitle: string): string[] {
+  const t = rawTitle.normalize('NFKC').trim();
+  if (!t) return [];
+  const segments = t
+    .split(/\s*\/\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const keys = new Set<string>();
+  for (const seg of segments.length > 0 ? segments : [t]) {
+    const k = normalizeTitleForDoubanMatch(seg);
+    if (k) keys.add(k);
+  }
+  const whole = normalizeTitleForDoubanMatch(t);
+  if (whole) keys.add(whole);
+  return [...keys];
+}
+
 export function buildDoubanStarsByNormalizedTitle(entries: DoubanRatingEntry[]): Map<string, MediaRating> {
   const map = new Map<string, MediaRating>();
   for (const e of entries) {
-    const k = normalizeTitleForDoubanMatch(e.title);
-    if (k) map.set(k, e.stars);
+    for (const k of doubanTitleNormalizedKeys(e.title)) {
+      map.set(k, e.stars);
+    }
   }
   return map;
 }

@@ -140,9 +140,12 @@ function parseRatingsPage(html) {
       /<a[^>]+href=["']https?:\/\/movie\.douban\.com\/subject\/\d+\/["'][^>]*>([\s\S]*?)<\/a>/,
     );
     if (linkTitle) title = stripTags(linkTitle[1]);
-    if (!title) {
-      const imgAlt = chunk.match(/<img[^>]+alt=["']([^"']{1,300})["']/i);
-      if (imgAlt) title = imgAlt[1].trim();
+    const imgAlt = chunk.match(/<img[^>]+alt=["']([^"']{1,300})["']/i);
+    const alt = imgAlt ? imgAlt[1].trim() : '';
+    if (!title) title = alt;
+    else if (alt && alt !== title && !title.includes(alt)) {
+      /** 海报 alt 常为短中文名，与链接长标题互补，便于与 Emby 单名对齐 */
+      title = `${title} / ${alt}`;
     }
     const stars = parseStarsFromChunk(chunk);
     if (title && stars != null && !seen.has(subjectId)) {
