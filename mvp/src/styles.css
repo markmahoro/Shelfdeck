@@ -448,3 +448,44 @@ button:disabled { opacity: .5; cursor: not-allowed; }
     min-width: 66rem;
   }
 }
+
+.doubanLogSessions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.doubanLogSession {
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #0b1220;
+}
+
+.doubanLogScroll {
+  max-height: min(420px, 55vh);
+  overflow: auto;
+  margin-top: 8px;
+}
+
+.doubanLogTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.doubanLogTable th,
+.doubanLogTable td {
+  border: 1px solid #1f2937;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.doubanLogTable thead th {
+  font-weight: 700;
+  background: #111827;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}

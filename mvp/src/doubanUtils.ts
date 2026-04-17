@@ -56,3 +56,55 @@ export function movieDoubanStars(
   const s = byNormTitle.get(k);
   return s ?? null;
 }
+
+export type DoubanMatchExplainReason =
+  | 'matched'
+  | 'not_movie'
+  | 'empty_emby_key'
+  | 'no_douban_data'
+  | 'no_key_hit';
+
+export type DoubanMatchExplain = {
+  reason: DoubanMatchExplainReason;
+  embyNormKey: string;
+  stars: MediaRating | null;
+  matchedEntry: DoubanRatingEntry | null;
+  /** 命中的豆瓣标题分段（斜杠分隔之一） */
+  matchedSegment: string | null;
+};
+
+/** 用于日志页：说明某条 Emby 目录项为何能/不能匹配当前豆瓣缓存 */
+export function explainMovieDoubanMatch(
+  embyName: string,
+  itemType: 'Movie' | 'Episode' | 'Other' | undefined,
+  entries: DoubanRatingEntry[],
+): DoubanMatchExplain {
+  const embyK = normalizeTitleForDoubanMatch(embyName);
+  if (itemType !== 'Movie') {
+    return { reason: 'not_movie', embyNormKey: embyK, stars: null, matchedEntry: null, matchedSegment: null };
+  }
+  if (!embyK) {
+    return { reason: 'empty_emby_key', embyNormKey: '', stars: null, matchedEntry: null, matchedSegment: null };
+  }
+  if (entries.length === 0) {
+    return { reason: 'no_douban_data', embyNormKey: embyK, stars: null, matchedEntry: null, matchedSegment: null };
+  }
+  const map = buildDoubanStarsByNormalizedTitle(entries);
+  const stars = map.get(embyK) ?? null;
+  if (stars == null) {
+    return { reason: 'no_key_hit', embyNormKey: embyK, stars: null, matchedEntry: null, matchedSegment: null };
+  }
+  for (const e of entries) {
+    const segs = e.title
+      .split(/\s*\/\s*/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const candidates = segs.length > 0 ? [...segs, e.title] : [e.title];
+    for (const seg of candidates) {
+      if (normalizeTitleForDoubanMatch(seg) === embyK) {
+        return { reason: 'matched', embyNormKey: embyK, stars, matchedEntry: e, matchedSegment: seg };
+      }
+    }
+  }
+  return { reason: 'matched', embyNormKey: embyK, stars, matchedEntry: null, matchedSegment: null };
+}
