@@ -31,8 +31,9 @@ function readSessionFile() {
 function saveSession(payload) {
   const cookieHeader = typeof payload.cookieHeader === 'string' ? payload.cookieHeader.trim() : '';
   const userId = typeof payload.userId === 'string' ? payload.userId.trim() : '';
-  if (!/^\d+$/.test(userId)) {
-    throw new Error('豆瓣用户 ID 须为纯数字（个人主页 movie.douban.com/people/ 后的数字）。');
+  /** 与豆瓣电影「看过」页 URL 一致：movie.douban.com/people/{id}/collect ，id 多为纯数字，亦可为账号路径段 */
+  if (!/^[a-zA-Z0-9_-]+$/.test(userId)) {
+    throw new Error('豆瓣用户 ID 无效：请填写电影主页 movie.douban.com/people/ 与 /collect 之间的一段（多为纯数字）。');
   }
   fs.writeFileSync(sessionPath(), JSON.stringify({ cookieHeader, userId }, null, 0), 'utf8');
   return { cookieHeader, userId };
@@ -71,7 +72,11 @@ function httpsGetText(url, headers) {
         res.on('data', (c) => chunks.push(c));
         res.on('end', () => {
           if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 400)) {
-            reject(new Error(`豆瓣 HTTP ${res.statusCode}`));
+            const hint =
+              res.statusCode === 404
+                ? '（若为404：请确认用户 ID 与浏览器打开的「看过」页一致，路径应为 …/people/你的ID/collect）'
+                : '';
+            reject(new Error(`豆瓣 HTTP ${res.statusCode} ${hint}\n请求：${url}`));
             return;
           }
           resolve(Buffer.concat(chunks).toString('utf8'));
@@ -123,7 +128,12 @@ function parseRatingsPage(html) {
     }
     const subjectId = m[1];
     const nextIdx = norm.indexOf('movie.douban.com/subject/', idx + 30);
-    const chunk = nextIdx === -1 ? norm.slice(idx) : norm.slice(idx, nextIdx);
+    let chunk = nextIdx === -1 ? norm.slice(idx) : norm.slice(idx, nextIdx);
+    /** list 布局下星级偶发在条目链接之前，向前扩一段再解析 */
+    if (parseStarsFromChunk(chunk) == null) {
+      const back = Math.max(0, idx - 900);
+      chunk = nextIdx === -1 ? norm.slice(back) : norm.slice(back, nextIdx);
+    }
 
     let title = '';
     const linkTitle = chunk.match(
@@ -150,8 +160,8 @@ function parseRatingsPage(html) {
 async function fetchRatings(webContents) {
   stopRequested = false;
   const { cookieHeader, userId } = readSessionFile();
-  if (!userId || !/^\d+$/.test(userId)) {
-    throw new Error('请先在配置中心保存有效的豆瓣用户 ID。');
+  if (!userId || !/^[a-zA-Z0-9_-]+$/.test(userId)) {
+    throw new Error('请先在配置中心保存有效的豆瓣用户 ID（movie.douban.com/people/ 与 /collect 之间的一段）。');
   }
   if (!cookieHeader) {
     throw new Error('请先在配置中心保存豆瓣 Cookie。');
@@ -168,7 +178,8 @@ async function fetchRatings(webContents) {
   };
 
   while (!stopRequested) {
-    const url = `https://movie.douban.com/people/${encodeURIComponent(userId)}/ratings?start=${start}`;
+    /** 豆瓣已弃用 /ratings（404）；「看过」列表为 /collect */
+    const url = `https://movie.douban.com/people/${encodeURIComponent(userId)}/collect?start=${start}&sort=time`;
     const body = await httpsGetText(url, { Cookie: cookieHeader });
     if (/sec\.douban\.com|验证码|登录豆瓣/i.test(body) && /accounts\.douban\.com/i.test(body)) {
       throw new Error('豆瓣返回登录/验证页：请检查 Cookie 是否过期或需重新登录后复制。');

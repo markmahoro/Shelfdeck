@@ -2145,11 +2145,11 @@ export default function App() {
                 </p>
               ) : null}
               <div className="field" style={{ marginTop: 16 }}>
-                <div className="label">豆瓣用户 ID（纯数字）</div>
+                <div className="label">豆瓣用户 ID（电影「看过」页 URL 中 people/ 与 /collect 之间）</div>
                 <input
                   value={doubanUserIdDraft}
                   onChange={(e) => setDoubanUserIdDraft(e.target.value)}
-                  placeholder="例如：123456789"
+                  placeholder="多为纯数字，例如3235934；与浏览器地址栏一致"
                   autoComplete="off"
                 />
               </div>
