@@ -349,11 +349,22 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 .mediaManageGrid {
   display: grid;
-  grid-template-columns: minmax(12rem, 1.35fr) 4.5rem 3.5rem 5.5rem 5.5rem 6.75rem 4.25rem 4.25rem 4rem 5.75rem minmax(17rem, 1.35fr);
+  grid-template-columns:
+    minmax(12rem, 1.35fr) 4.5rem 3.5rem 5.5rem 5.5rem 6.75rem minmax(7.25rem, 9.5rem) minmax(6.25rem, 8.5rem) 4rem 5.75rem
+    minmax(17rem, 1.35fr);
   gap: 8px 12px;
   align-items: center;
   padding: 10px 12px;
   font-size: 13px;
+}
+
+/** 星级状态 / 豆瓣：单行展示，极窄时省略号 */
+.mediaManageStarStatusCell,
+.mediaManageDoubanCell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .mediaManageHead {
@@ -445,47 +456,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 @media (max-width: 1100px) {
   .mediaManageGrid {
-    min-width: 66rem;
+    min-width: 70rem;
   }
 }
 
-.doubanLogSessions {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.doubanLogSession {
-  border: 1px solid #1f2937;
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: #0b1220;
-}
-
-.doubanLogScroll {
-  max-height: min(420px, 55vh);
-  overflow: auto;
-  margin-top: 8px;
-}
-
-.doubanLogTable {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.doubanLogTable th,
-.doubanLogTable td {
-  border: 1px solid #1f2937;
-  padding: 8px 10px;
-  text-align: left;
-  vertical-align: top;
-}
-
-.doubanLogTable thead th {
-  font-weight: 700;
-  background: #111827;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}

@@ -191,7 +191,7 @@ export function installDevEmbyStub() {
     async stopFetch() {
       return;
     },
-    async fetchRatings() {
+    async fetchRatings(_opts?: { incremental?: boolean; existingEntries?: unknown[] }) {
       return { entries: [], cancelled: false };
     },
     onProgress() {

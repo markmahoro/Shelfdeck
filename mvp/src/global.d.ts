@@ -98,10 +98,22 @@ declare global {
       taskControl?: (args: { action: TaskControlAction; settings?: TaskSchedulerSettings }) => Promise<void>;
     };
     doubanApi?: {
-      saveSession: (payload: { cookieHeader: string; userId: string }) => Promise<{ cookieHeader: string; userId: string }>;
-      getSession: () => Promise<{ cookieHeader: string; userId: string } | null>;
+      saveSession: (payload: { cookieHeader: string; userId: string; interestsRssUrl?: string }) => Promise<{
+        cookieHeader: string;
+        userId: string;
+        interestsRssUrl?: string;
+      }>;
+      getSession: () => Promise<{
+        cookieHeader: string;
+        userId: string;
+        interestsRssUrl?: string;
+      } | null>;
       stopFetch: () => Promise<void>;
-      fetchRatings: () => Promise<{ entries: DoubanRatingEntryWire[]; cancelled: boolean }>;
+      fetchRatings: (opts?: {
+        /** 默认 true：与 existingEntries 合并，遇整页 subjectId 均已缓存则提前结束 */
+        incremental?: boolean;
+        existingEntries?: DoubanRatingEntryWire[];
+      }) => Promise<{ entries: DoubanRatingEntryWire[]; cancelled: boolean }>;
       onProgress: (listener: (payload: DoubanFetchProgressPayload) => void) => () => void;
     };
   }

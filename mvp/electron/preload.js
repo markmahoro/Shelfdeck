@@ -17,7 +17,7 @@ const doubanApi = {
   saveSession: (payload) => ipcRenderer.invoke('douban:saveSession', payload),
   getSession: () => ipcRenderer.invoke('douban:getSession'),
   stopFetch: () => ipcRenderer.invoke('douban:stopFetch'),
-  fetchRatings: () => ipcRenderer.invoke('douban:fetchRatings'),
+  fetchRatings: (opts) => ipcRenderer.invoke('douban:fetchRatings', opts ?? {}),
   onProgress: (listener) => {
     const handler = (_event, payload) => listener(payload);
     ipcRenderer.on('douban:fetchProgress', handler);

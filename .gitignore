@@ -21,3 +21,6 @@ mvp/node_modules/
 mvp/dist/
 mvp/release/
 mvp/.vite-dev-server-url
+
+# 第三方克隆工具目录（内含独立 .git），勿纳入本仓库
+douban-to-imdb/

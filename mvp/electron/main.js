@@ -134,7 +134,7 @@ ipcMain.handle('douban:getSession', () => doubanService.getSession());
 ipcMain.handle('douban:stopFetch', () => {
   doubanService.requestStop();
 });
-ipcMain.handle('douban:fetchRatings', (event) => doubanService.fetchRatings(event.sender));
+ipcMain.handle('douban:fetchRatings', (event, opts) => doubanService.fetchRatings(event.sender, opts ?? {}));
 
 app.whenReady().then(() => {
   createWindow();

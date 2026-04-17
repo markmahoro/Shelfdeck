@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import {
+  effectiveRatingForPolicy,
   estimateEquivalentBitrate,
   recommendedAction,
   targetBitrateFor,
@@ -10,9 +11,10 @@ import {
 } from './mediaManager';
 import { taskStatusLabelZh, type MediaTask } from './taskQueue';
 
-function formatRatingDisplay(rating: MediaRating | null) {
-  if (rating == null) return '未标注';
-  return `${rating} 星`;
+function formatStarStatus(item: ManagedMediaItem) {
+  if (item.doubanStars != null) return `${item.doubanStars} 星（豆瓣）`;
+  if (item.rating != null) return `${item.rating} 星（本地）`;
+  return '未标注';
 }
 
 function formatDoubanDisplay(doubanStars: MediaRating | null) {
@@ -47,11 +49,11 @@ function MediaLibraryManageRowInner({
   onEnqueue,
   onOpenDeleteExplain,
 }: MediaLibraryManageRowProps) {
+  const eff = effectiveRatingForPolicy(item);
   const target = targetBitrateFor(item, mediaPolicy);
   const eq = estimateEquivalentBitrate(item);
   const action = recommendedAction(item, mediaPolicy);
-  const targetHint =
-    item.rating == null ? '—' : item.rating === 1 ? '删除档' : target ? `${target.toFixed(1)} Mbps` : '—';
+  const targetHint = eff == null ? '—' : eff === 1 ? '删除档' : target ? `${target.toFixed(1)} Mbps` : '—';
   const formatLabel = `${item.resolution} · ${item.codec.toUpperCase()}`;
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
@@ -84,8 +86,18 @@ function MediaLibraryManageRowInner({
       <div className="tabular-nums">{eq.toFixed(1)} Mbps</div>
       <div className="tabular-nums">{targetHint}</div>
       <div>{formatLabel}</div>
-      <div>{formatRatingDisplay(item.rating)}</div>
-      <div title="豆瓣「看过」个人评分；片名剔除标点后严格匹配">{formatDoubanDisplay(item.doubanStars)}</div>
+      <div
+        className="mediaManageStarStatusCell"
+        title={`用于策略与目标码率：有豆瓣分时优先豆瓣，否则为本地标注 — ${formatStarStatus(item)}`}
+      >
+        {formatStarStatus(item)}
+      </div>
+      <div
+        className="mediaManageDoubanCell"
+        title={`豆瓣「看过」个人评分（原始匹配） — ${formatDoubanDisplay(item.doubanStars)}`}
+      >
+        {formatDoubanDisplay(item.doubanStars)}
+      </div>
       <div>{item.watched ? '已观看' : '未观看'}</div>
       <div className="tabular-nums" style={{ fontSize: 12 }}>
         {taskCell}
@@ -122,8 +134,8 @@ function MediaLibraryManageRowInner({
         </div>
         <div className="mediaManageActionGroup">
           <span className="mediaManageActionLabel">码率优化</span>
-          {item.rating == null ? (
-            <span className="hint">需标注星级</span>
+          {eff == null ? (
+            <span className="hint">需豆瓣或本地星级</span>
           ) : action === 'delete' ? (
             <div className="mediaManageActionGroup">
               <span className="hint">策略：待删除</span>

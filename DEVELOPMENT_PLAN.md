@@ -12,7 +12,7 @@
 - **前台**：未播放 → 第三方播放器 → 回写已播放的闭环。
 - **后台**：按星级策略的媒体库治理（转码 / 补源）与可恢复、可审计的任务调度。
 
-当前 `**mvp/`** 已具备与 PRD / SSOT 对齐的 **五页壳层**、**任务中心调度 MVP（模拟）**、**配置与媒体策略 UI**。**真实 Emby API、FFmpeg、MoviePilot、托盘与主进程 worker** 仍以占位或规划为主。
+当前 `**mvp/`** 已具备与 PRD / SSOT 对齐的 **五页壳层**、**任务中心调度 MVP（模拟）**、**配置与媒体策略 UI**、**真实 Emby REST（`embyService` + `preload` IPC）** 与 **豆瓣 collect 抓取（`doubanService` + `doubanApi`）**。**FFmpeg、MoviePilot、托盘与主进程 worker** 仍以占位或规划为主。
 
 ---
 
@@ -27,7 +27,8 @@
 | **配置中心**             | Emby 连接/播放器相关表单；媒体策略与任务调度（并发、等待重试节奏、`wallRatingAutoEnqueue` 等）集中在配置页。                                                           |
 | **媒体治理（前端侧）**        | `mvp/src/mediaManager.ts`：等效码率估算、目标码率、推荐动作等业务规则，支撑列表与入队决策的前端演算。                                                                 |
 | **工程**               | Electron + React（Vite）可开发构建；`mvp/electron/main.js` 负责窗口、开发期连 Vite、生产加载 `dist`；`mvp/package.json` 含 Windows portable 构建脚本。       |
-| **Electron 预加载（现状）** | `mvp/electron/preload.js` 暴露 `window.embyApi`，但多为调试桩；`taskControl` 仅 IPC 到主进程空实现。浏览器调试可走 `mvp/src/devEmbyStub.ts`。              |
+| **Electron 预加载**       | `mvp/electron/preload.js` 暴露 `window.embyApi`（真实 IPC 至 `embyService`）与 `window.doubanApi`（会话与抓取进度）；无 Electron 时浏览器可走 `mvp/src/devEmbyStub.ts`。`taskControl` 仍以主进程占位为主。 |
+| **豆瓣个人评分（实验）**    | `doubanService.js` 拉取 collect 分页；`doubanUtils.ts` / `mediaManager.effectiveRatingForPolicy`；配置页与媒体库列表 UI。详见 PRD §4.4。                                        |
 
 
 ---
@@ -39,7 +40,7 @@
 | ---------------------------- | --------------------------------------------------------------------- |
 | **真实后台执行**                   | FFmpeg 转码、临时文件与原子替换、MoviePilot 搜索与候选排序等未接入；任务生命周期在渲染进程内模拟推进。          |
 | **进程分层（PRD §8）**             | 设计为 main 调度中枢 + worker 执行；当前无独立 worker，调度核心在 `taskScheduler.ts`（渲染层）。 |
-| **真实 Emby 集成**               | 预加载层未实现真实 REST：连接、用户、媒体列表、`markPlayed` 等仍为桩或空操作。                      |
+| **豆瓣抓取稳定性**               | 依赖豆瓣网页结构；账号隐私、风控、Cookie 过期等需用户自行处理；剧集等非电影 collect 不在范围内。 |
 | **托盘与窗口策略（PRD §8.3）**        | 无托盘；`window-all-closed` 在非 macOS 上直接退出，与「关窗最小化到托盘」不一致。                |
 | **中断恢复与 checkpoint（PRD §9）** | 文档已定义，完整实现待迭代。                                                        |
 | **批量执行前预估（PRD §7.4）**        | 耗时、磁盘、负载提示未产品化。                                                       |
@@ -53,7 +54,9 @@
 
 ### 阶段 A — 主进程与真实 Emby（打通前台闭环）
 
-1. 在主进程实现 Emby REST（或专用模块）：连接探测、用户/媒体库、未播放与已播放列表、路径解析、`markPlayed` / `markUnplayed`。
+> **现状**：`embyService.js` + `preload` 已在 beta.4+ 打通核心 REST与播放回写；下列条目保留为路线图核对项。
+
+1. 持续维护主进程 Emby REST：连接探测、用户/媒体库、未播放与已播放列表、路径解析、`markPlayed` / `markUnplayed` 及版本差异兼容。
 2. 扩展 `preload.js`：将现有桩替换为 IPC 桥接到主进程；保留可选「调试桩」开关便于无服务器开发。
 3. 实现真实 `launchPlayer`：路径映射、参数拼装、启动外部播放器、会话时长与阈值判断（与配置中 `markPlayedThresholdPercent` 等对齐）。
 

@@ -1,7 +1,7 @@
 # Emby Desktop Player — 开发进度总结
 
 > **文档性质**：与仓库实现、PRD（`EmbyDesktopPlayer_PRD_v1.0.0.md`）及任务中心 SSOT（`TASK_CENTER_FULL_LOGIC.md`）对照的阶段性记录。  
-> **最近更新**：2026-04-17（+08:00）；**标签 `v1.0.0-beta.5`**：媒体库管理页治理闭环（列表/筛选/体积与原盘/原盘禁入队）、BDMV 本机识别与配置中心路径映射对齐；**媒体库全量列表**支持 `localStorage` 结构化缓存与配置指纹绑定，进入管理页不自动打 Emby，需用户点击「刷新媒体库列表」与服务器对齐。上一里程碑 `**v1.0.0-beta.4**`：真实 Emby 主进程集成、播放记录页与回写修复。  
+> **最近更新**：2026-04-17（+08:00）；**标签 `v1.0.0-beta.6`**：豆瓣电影「看过」个人评分抓取（collect 网格 HTML 分页解析）、本地缓存与片名匹配；**有效星级**以豆瓣优先驱动码率策略；配置中心「豆瓣个人评分（实验）」与媒体库列表列展示。其前 **`v1.0.0-beta.5`**：媒体库治理闭环、原盘识别与列表缓存等。再前 **`v1.0.0-beta.4`**：真实 Emby 主进程集成、播放记录与回写修复。  
 > **主工作副本（Canonical）**：`E:\my_project\emby_third_party`（请将 Cursor / 终端默认目录统一到此路径；`C:\emby_third_party` 仅为迁移前副本，可归档或删除以避免混淆。）
 
 ---
@@ -17,7 +17,8 @@
 | **2026-04-17 ~21:12**   | **合并**：将 `C:\emby_third_party` 上 `release/v1.0.0` 的提交与 `E:\my_project\emby_third_party` 的 `master`（含 beta.3 等历史）做 `allow-unrelated-histories` 合并；冲突在 `mvp/` 与今日分支对齐；提交 `176a599`。本地分支 `release/v1.0.0` 已与 `master` 同指向该合并结果。                                                                                |
 | **2026-04-17（晚间）**      | `**v1.0.0-beta.4`**：主进程 `embyService`打通 Emby REST（联通、库、未播放/已播放、PlaybackInfo、PotPlayer 启动）；预加载改为 IPC；播放记录页海报与筛选、列表拉取与合并逻辑修复；`markPlayed` 按官方文档使用查询参数 `DatePlayed=yyyyMMddHHmmss`；Vite 开发端口与 `wait-on` 对齐，插件写入实际 dev URL 以支持端口顺延。                                                                             |
 | **2026-04-17（深夜）**      | `**v1.0.0-beta.5`**（`d6bf834`）：媒体库管理全库列表（含已观看）、侧栏搜索与多维筛选（码率相对目标、分辨率、编码、观看记录、蓝光原盘）、库容量与类型统计；表格行组件与性能优化；条目展示**体积（GB）**与**原盘**标记；主进程 `inferIsBluRayDisc`（`.iso`、路径 `BDMV`、本机 `BDMV` 目录探测，并应用配置中心 pathMapFrom/To与增强版 `applyPathMap`）；原盘条目禁止码率压缩/洗版**单条/批量/海报自动入队**；`devEmbyStub` 与类型定义同步；`DEVELOPMENT_PLAN` 更新。 |
-| **2026-04-17（深夜）**      | **媒体库列表本地缓存**：`localStorage` 键 `embyDesktopPlayerLibraryManageCacheV1`（`version: 1` + `fingerprint` + `savedAt` + `items`）；指纹为规范化 `baseUrl`、`userId`、已勾选 `enabledSectionIds` 排序序列化，任一变化则丢弃旧缓存；启动与进入媒体库管理页仅从缓存恢复，**不自动**请求 Emby；「刷新媒体库列表」成功后再写入缓存并更新 `savedAt`。观看状态回写等路径上仍会按需静默刷新列表（`quietIfIncomplete`）。 |
+| **2026-04-17（深夜）**      | **媒体库列表本地缓存**：`localStorage` 键 `embyDesktopPlayerLibraryManageCacheV1`（`version: 1` + `fingerprint` + `savedAt` + `items`）；指纹为规范化 `baseUrl`、`userId`、已勾选 `enabledSectionIds` 排序序列化，任一变化则丢弃旧缓存；启动与进入媒体库管理页仅从缓存恢复，**不自动**请求 Emby；「刷新媒体库列表」成功后再写入缓存并更新 `savedAt`。观看状态回写等路径上仍会按需静默刷新列表（`quietIfIncomplete`）。    |
+| **2026-04-17（收尾）**      | `**v1.0.0-beta.6`**：豆瓣 `movie.douban.com/people/{id}/collect`（`type=movie`、`mode=grid`）分页抓取，解析 `comment-item` / `ratingN-t` / `subjectId`；**增量**（整页 subjectId 均在同步前缓存中则停）与约 **14 天**一次**全量**（`embyDesktopPlayerDoubanLastFullSyncAtMs`）；页间隔 ~800ms；会话 `douban-session.json`，条目缓存 `embyDesktopPlayerDoubanRatingEntriesV1`。`doubanUtils`：豆瓣按 `/` 分段键、Emby 按冒号/竖线拆段、最长键优先匹配；仅 **Movie**。`effectiveRatingForPolicy`：**豆瓣星优先**于本地标注星级，驱动 `targetBitrate` / `recommendedAction` / 筛选。UI：配置中心豆瓣分区（可选 Cookie 折叠）、媒体库表豆瓣列与有效星级；根目录 `douban-to-imdb/` 已 `.gitignore`（独立仓库）。 |
 
 
 *说明：更早的 beta.1～beta.3 能力见 PRD §14；本表仅列本仓库近期可追溯的 Git 时间点。*
@@ -40,6 +41,7 @@
 - **播放记录页（beta.4）**：已播放列表（多库合并、时间窗与类型筛选、海报行、与本地已确认记录合并）；修复误用 `sectionId` 二次过滤与缺日期元数据导致列表为空的问题。
 - **媒体库管理页（beta.5）**：`getLibraryItemsForManage` 拉取已启用库内电影/剧集（含已看）；侧栏片名搜索、定位首条高亮；筛选含**蓝光原盘**；列表列含体积、原盘、星级、观看、任务与单条操作；`MediaLibraryManageRow` 独立组件；原盘（ISO/BDMV，映射后本机探测）**拦截**转码/洗版入队；批量入队跳过原盘并提示；海报墙打分自动入队对原盘友好提示。
 - **媒体库列表缓存**：全量列表持久化到 `localStorage`（`embyDesktopPlayerLibraryManageCacheV1`），与连接指纹绑定；进入管理页不自动拉取，依赖用户手动「刷新媒体库列表」与 Emby 对齐；配置变更时自动重hydrate（无效指纹则清空展示）。
+- **豆瓣个人评分（beta.6）**：主进程 `doubanService.js` + IPC；渲染进程匹配与缓存；策略层 `effectiveRatingForPolicy`；详见 PRD v1.0.0 **§4.4**。
 - **开发体验**：Vite 默认端口5174、`strictPort: false` 顺延端口；`write-dev-server-url` + `scripts/run-electron-dev.js` 将实际 URL 注入 Electron。
 
 ### 工程
@@ -58,7 +60,7 @@
 
 ## 版本与分支参考
 
-- **里程碑标签**：`v1.0.0-beta.5`（媒体库治理 + 原盘识别与路径映射 + 入队限制）；其前 `**v1.0.0-beta.4`**（真实 Emby 前台闭环 + 播放记录 + 回写格式修复）
+- **里程碑标签**：`v1.0.0-beta.6`（豆瓣看过抓取 + 有效星级 + 配置/UI）；其前 `v1.0.0-beta.5`（媒体库治理 + 原盘 + 列表缓存）；再前 `v1.0.0-beta.4`（真实 Emby 前台闭环 + 播放记录 + 回写格式修复）
 - **分支**：`master`（可与 `release/v1.0.0` 对齐）
 - **此前合并提交**：`176a599`（2026-04-17）
 

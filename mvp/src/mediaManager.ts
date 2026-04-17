@@ -44,15 +44,25 @@ export function estimateEquivalentBitrate(item: ManagedMediaItem): number {
   return Number((videoMbps * codecToH265Factor(item.codec)).toFixed(2));
 }
 
+/**
+ * 码率策略与列表「星级状态」：已匹配到豆瓣分时优先用豆瓣，否则用用户在媒体库中标注的星级。
+ */
+export function effectiveRatingForPolicy(item: ManagedMediaItem): MediaRating | null {
+  if (item.doubanStars != null) return item.doubanStars;
+  return item.rating;
+}
+
 export function targetBitrateFor(item: ManagedMediaItem, policy: MediaPolicy): number | null {
-  if (item.rating == null || item.rating === 1) return null;
+  const r = effectiveRatingForPolicy(item);
+  if (r == null || r === 1) return null;
   const ladder = item.resolution === '4K' ? policy.target4k : policy.target1080p;
-  return ladder[item.rating];
+  return ladder[r];
 }
 
 export function recommendedAction(item: ManagedMediaItem, policy: MediaPolicy): MediaAction {
-  if (item.rating == null) return 'keep';
-  if (item.rating === 1) return 'delete';
+  const r = effectiveRatingForPolicy(item);
+  if (r == null) return 'keep';
+  if (r === 1) return 'delete';
   const target = targetBitrateFor(item, policy);
   if (!target) return 'keep';
   const eq = estimateEquivalentBitrate(item);

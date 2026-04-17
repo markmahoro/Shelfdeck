@@ -22,6 +22,7 @@ import {
 import {
   buildTaskPreview,
   defaultMediaPolicy,
+  effectiveRatingForPolicy,
   nextManualRefreshInfo,
   recommendedAction,
   type ManagedMediaItem,
@@ -30,14 +31,7 @@ import {
   type MediaRating,
 } from './mediaManager';
 import { createDebugSeedTasks } from './debugSeed';
-import {
-  buildDoubanStarsByNormalizedTitle,
-  doubanTitleNormalizedKeys,
-  explainMovieDoubanMatch,
-  movieDoubanStars,
-  type DoubanMatchExplainReason,
-  type DoubanRatingEntry,
-} from './doubanUtils';
+import { buildDoubanStarsByNormalizedTitle, movieDoubanStars, type DoubanRatingEntry } from './doubanUtils';
 import { MediaLibraryManageRow } from './MediaLibraryManageRow';
 
 const STORAGE_KEY = 'embyDesktopPlayerConfigV1';
@@ -125,6 +119,9 @@ function saveLibraryManageCache(cfg: EmbyConfig, items: UnplayedItem[]): string 
 }
 
 const DOUBAN_ENTRIES_CACHE_KEY = 'embyDesktopPlayerDoubanRatingEntriesV1';
+/** 无界面开关：距上次全量同步超过该间隔则本次自动全量拉取（仍与本地条目合并） */
+const DOUBAN_LAST_FULL_SYNC_KEY = 'embyDesktopPlayerDoubanLastFullSyncAtMs';
+const DOUBAN_FULL_SYNC_INTERVAL_MS = 14 * 24 * 60 * 60 * 1000;
 
 function loadDoubanRatingEntries(): DoubanRatingEntry[] {
   try {
@@ -152,79 +149,6 @@ function saveDoubanRatingEntries(entries: DoubanRatingEntry[]) {
   localStorage.setItem(DOUBAN_ENTRIES_CACHE_KEY, JSON.stringify({ syncedAt: new Date().toISOString(), entries }));
 }
 
-const DOUBAN_SYNC_LOG_KEY = 'embyDesktopPlayerDoubanSyncSessionsV1';
-const MAX_DOUBAN_SYNC_SESSIONS = 20;
-
-type DoubanSyncLogSession = {
-  id: string;
-  finishedAt: string;
-  cancelled: boolean;
-  lastPageIndex: number;
-  entryCount: number;
-  entries: DoubanRatingEntry[];
-};
-
-function loadDoubanSyncSessions(): DoubanSyncLogSession[] {
-  try {
-    const raw = localStorage.getItem(DOUBAN_SYNC_LOG_KEY);
-    if (!raw) return [];
-    const p = JSON.parse(raw) as unknown;
-    if (!Array.isArray(p)) return [];
-    const out: DoubanSyncLogSession[] = [];
-    for (const x of p) {
-      if (!x || typeof x !== 'object') continue;
-      const o = x as Record<string, unknown>;
-      const id = typeof o.id === 'string' ? o.id : '';
-      const finishedAt = typeof o.finishedAt === 'string' ? o.finishedAt : '';
-      if (!id || !finishedAt) continue;
-      const entries: DoubanRatingEntry[] = [];
-      if (Array.isArray(o.entries)) {
-        for (const e of o.entries) {
-          if (!e || typeof e !== 'object') continue;
-          const er = e as Record<string, unknown>;
-          const title = typeof er.title === 'string' ? er.title.trim() : '';
-          const subjectId = typeof er.subjectId === 'string' ? er.subjectId.trim() : '';
-          const stars = typeof er.stars === 'number' ? er.stars : Number(er.stars);
-          if (!title || !subjectId || !Number.isInteger(stars) || stars < 1 || stars > 5) continue;
-          entries.push({ title, stars: stars as MediaRating, subjectId });
-        }
-      }
-      out.push({
-        id,
-        finishedAt,
-        cancelled: o.cancelled === true,
-        lastPageIndex: typeof o.lastPageIndex === 'number' ? o.lastPageIndex : 0,
-        entryCount: typeof o.entryCount === 'number' ? o.entryCount : entries.length,
-        entries,
-      });
-    }
-    return out;
-  } catch {
-    return [];
-  }
-}
-
-function persistDoubanSyncSessions(sessions: DoubanSyncLogSession[]) {
-  localStorage.setItem(DOUBAN_SYNC_LOG_KEY, JSON.stringify(sessions.slice(0, MAX_DOUBAN_SYNC_SESSIONS)));
-}
-
-function doubanMatchReasonZh(r: DoubanMatchExplainReason): string {
-  switch (r) {
-    case 'matched':
-      return '已匹配';
-    case 'not_movie':
-      return '非电影（跳过）';
-    case 'empty_emby_key':
-      return 'Emby 片名规范化后为空';
-    case 'no_douban_data':
-      return '无豆瓣缓存';
-    case 'no_key_hit':
-      return '无相同规范化键';
-    default:
-      return r;
-  }
-}
-
 function wireToDoubanEntries(raw: DoubanRatingEntryWire[]): DoubanRatingEntry[] {
   const out: DoubanRatingEntry[] = [];
   for (const o of raw) {
@@ -242,7 +166,7 @@ type ManagedItemMeta = {
   watched?: boolean;
 };
 
-type AppPage = 'config' | 'wall' | 'history' | 'mediaManage' | 'taskCenter' | 'doubanLog';
+type AppPage = 'config' | 'wall' | 'history' | 'mediaManage' | 'taskCenter';
 
 type MainNavPage = AppPage;
 
@@ -258,7 +182,6 @@ const MAIN_NAV: { id: MainNavPage; label: string }[] = [
   { id: 'config', label: '配置中心' },
   { id: 'wall', label: '海报墙' },
   { id: 'mediaManage', label: '媒体库管理' },
-  { id: 'doubanLog', label: '豆瓣日志' },
   { id: 'taskCenter', label: '任务中心' },
   { id: 'history', label: '播放记录' },
 ];
@@ -651,7 +574,6 @@ export default function App() {
   const [doubanSettingsHint, setDoubanSettingsHint] = useState<string | null>(null);
   const [doubanSyncBusy, setDoubanSyncBusy] = useState(false);
   const [doubanFetchStatus, setDoubanFetchStatus] = useState<string | null>(null);
-  const [doubanSyncSessions, setDoubanSyncSessions] = useState<DoubanSyncLogSession[]>(() => loadDoubanSyncSessions());
 
   const enabledSet = useMemo(() => new Set(config.enabledSectionIds), [config.enabledSectionIds]);
   const doubanStarsByNormTitle = useMemo(
@@ -718,17 +640,18 @@ export default function App() {
     if (manageBitrateFilter !== 'all') {
       list = list.filter((it) => {
         const a = recommendedAction(it, mediaPolicy);
+        const eff = effectiveRatingForPolicy(it);
         switch (manageBitrateFilter) {
           case 'transcode':
             return a === 'transcode';
           case 'upgrade':
             return a === 'upgrade';
           case 'keep':
-            return a === 'keep' && it.rating != null && it.rating !== 1;
+            return a === 'keep' && eff != null && eff !== 1;
           case 'no_rating':
-            return it.rating == null;
+            return eff == null;
           case 'delete':
-            return it.rating === 1;
+            return eff === 1;
           default:
             return true;
         }
@@ -788,29 +711,6 @@ export default function App() {
     }
     return { matched, total };
   }, [libraryManageItems, libraryManageCapacity.movieCount, doubanStarsByNormTitle]);
-
-  const doubanLogDiagnostics = useMemo(
-    () =>
-      libraryManageItems.map((it) => {
-        const ex = explainMovieDoubanMatch(it.name, it.itemType, doubanRatingEntries);
-        return {
-          id: it.id,
-          embyName: it.name,
-          itemType: it.itemType,
-          ...ex,
-        };
-      }),
-    [libraryManageItems, doubanRatingEntries],
-  );
-
-  const doubanLogEntryDetailRows = useMemo(
-    () =>
-      doubanRatingEntries.map((e) => ({
-        ...e,
-        normKeys: doubanTitleNormalizedKeys(e.title).join(' · ') || '—',
-      })),
-    [doubanRatingEntries],
-  );
 
   const isTaskBatchToggleable = (t: MediaTask) => !isTaskTerminal(t);
 
@@ -1506,7 +1406,7 @@ export default function App() {
         cookieHeader: doubanCookieDraft.trim(),
         userId: doubanUserIdDraft.trim(),
       });
-      setDoubanSettingsHint('已写入本机应用数据目录；请勿将 Cookie 分享给他人。');
+      setDoubanSettingsHint('已写入本机应用数据目录；若填写了 Cookie，请勿分享给他人。');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -1518,9 +1418,18 @@ export default function App() {
       setError('豆瓣同步仅能在 Electron 桌面版使用。');
       return;
     }
+    let thisSyncIsFull = false;
+    try {
+      const lastFullRaw = localStorage.getItem(DOUBAN_LAST_FULL_SYNC_KEY);
+      const lastFullAt = lastFullRaw ? Number(lastFullRaw) : 0;
+      thisSyncIsFull = !lastFullAt || Number.isNaN(lastFullAt) || Date.now() - lastFullAt > DOUBAN_FULL_SYNC_INTERVAL_MS;
+    } catch {
+      thisSyncIsFull = true;
+    }
+
     setDoubanSyncBusy(true);
     setError(null);
-    setDoubanFetchStatus('连接豆瓣…');
+    setDoubanFetchStatus(thisSyncIsFull ? '连接豆瓣（定期全量同步）…' : '连接豆瓣…');
     const unsub = api.onProgress((p) => {
       if (Array.isArray(p.allEntries)) {
         const normalized = wireToDoubanEntries(p.allEntries);
@@ -1528,30 +1437,33 @@ export default function App() {
         setDoubanRatingEntries(normalized);
       }
       if (!p.done) {
-        setDoubanFetchStatus(`已抓取 ${p.allEntries?.length ?? 0} 条评分 · 第 ${p.pageIndex + 1} 批（本批 ${p.pageSize} 条）`);
+        setDoubanFetchStatus(
+          `已合并 ${p.allEntries?.length ?? 0} 条评分 · 第 ${p.pageIndex + 1} 页（本页 ${p.pageSize} 条）`,
+        );
       } else {
+        if (!p.cancelled && thisSyncIsFull) {
+          try {
+            localStorage.setItem(DOUBAN_LAST_FULL_SYNC_KEY, String(Date.now()));
+          } catch {
+            // ignore
+          }
+        }
         setDoubanFetchStatus(
           p.cancelled
             ? `已停止 · 本地保留 ${p.allEntries?.length ?? 0} 条`
             : `已完成 · 共 ${p.allEntries?.length ?? 0} 条`,
         );
-        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-        const sess = {
-          finishedAt: new Date().toISOString(),
-          cancelled: !!p.cancelled,
-          lastPageIndex: typeof p.pageIndex === 'number' ? p.pageIndex : 0,
-          entryCount: Array.isArray(p.allEntries) ? p.allEntries.length : 0,
-          entries: wireToDoubanEntries(p.allEntries ?? []),
-        };
-        setDoubanSyncSessions((prev) => {
-          const next = [{ id, ...sess }, ...prev].slice(0, MAX_DOUBAN_SYNC_SESSIONS);
-          persistDoubanSyncSessions(next);
-          return next;
-        });
       }
     });
     try {
-      const result = await api.fetchRatings();
+      const result = await api.fetchRatings({
+        incremental: !thisSyncIsFull,
+        existingEntries: doubanRatingEntries.map((e) => ({
+          subjectId: e.subjectId,
+          title: e.title,
+          stars: e.stars,
+        })),
+      });
       if (result?.entries?.length) {
         const normalized = wireToDoubanEntries(result.entries);
         saveDoubanRatingEntries(normalized);
@@ -1568,11 +1480,6 @@ export default function App() {
 
   function stopDoubanSync() {
     void window.doubanApi?.stopFetch();
-  }
-
-  function clearDoubanSyncSessionLogs() {
-    localStorage.removeItem(DOUBAN_SYNC_LOG_KEY);
-    setDoubanSyncSessions([]);
   }
 
   useEffect(() => {
@@ -2030,7 +1937,10 @@ export default function App() {
           {configSection === 'policy' ? (
             <>
               <h3>目标码率策略（H265 等效）</h3>
-              <p className="hint">用于媒体库管理与任务预览；编辑后请点击下方保存写入本地。</p>
+              <p className="hint">
+                用于媒体库管理与任务预览。条目选用哪一档梯度：已匹配豆瓣分的<strong>电影</strong>以<strong>豆瓣星级</strong>为准，否则以<strong>本地标注</strong>为准；1
+                星为删除档。编辑后请保存。
+              </p>
               <h4 style={{ marginTop: 16, marginBottom: 8 }}>1080p</h4>
               <div className="row">
                 {([2, 3] as const).map((r) => (
@@ -2260,7 +2170,7 @@ export default function App() {
             <>
               <h3>豆瓣个人评分同步（实验）</h3>
               <p className="hint" style={{ lineHeight: 1.55 }}>
-                从豆瓣电影「我看过的评分」列表抓取<strong>你本人账号</strong>的打分，写入本机后与媒体库列表中的<strong>电影</strong>片名匹配（剔除标点后严格相等）。自动化访问可能违反豆瓣服务条款，请自担风险并控制频率；翻页间隔约 1.2 秒。Cookie 仅保存在本机应用数据目录。
+                从豆瓣电影「看过」公开列表（仅电影、按时间排序）解析个人星标，写入本机后与媒体库中的<strong>电影</strong>片名匹配。同步与<strong>本地缓存合并</strong>；平时增量翻页，约每14 天自动全量一次。一般<strong>只需填写用户 ID</strong>即可；自动化访问可能违反豆瓣服务条款，请自担风险，翻页间隔约 0.8 秒。
               </p>
               {doubanSettingsHint ? (
                 <p className="hint" style={{ color: '#86efac' }}>
@@ -2276,17 +2186,25 @@ export default function App() {
                   autoComplete="off"
                 />
               </div>
-              <div className="field" style={{ marginTop: 12 }}>
-                <div className="label">Cookie（整段请求头内容）</div>
-                <textarea
-                  value={doubanCookieDraft}
-                  onChange={(e) => setDoubanCookieDraft(e.target.value)}
-                  placeholder="从浏览器复制的 Cookie 字符串"
-                  rows={5}
-                  style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
-                  autoComplete="off"
-                />
-              </div>
+              <details style={{ marginTop: 14 }} className="doubanCookieOptional">
+                <summary style={{ cursor: 'pointer', fontWeight: 600, userSelect: 'none' }}>
+                  可选：Cookie（多数情况请留空）
+                </summary>
+                <p className="hint" style={{ marginTop: 10, lineHeight: 1.5 }}>
+                  公开「看过」列表无需登录即可抓取。若同步条数明显偏少、频繁失败，或你的看过列表仅登录后可见，可粘贴浏览器里豆瓣域名的 Cookie；仍仅保存在本机应用数据目录。
+                </p>
+                <div className="field" style={{ marginTop: 8 }}>
+                  <div className="label">Cookie字符串</div>
+                  <textarea
+                    value={doubanCookieDraft}
+                    onChange={(e) => setDoubanCookieDraft(e.target.value)}
+                    placeholder="留空即可；需要时再粘贴"
+                    rows={4}
+                    style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
+                    autoComplete="off"
+                  />
+                </div>
+              </details>
               <div className="actions">
                 <button
                   type="button"
@@ -2545,7 +2463,7 @@ export default function App() {
         <div className="sidebarDivider" />
         <div className="sidebarMuted">豆瓣评分（实验）</div>
         <p className="sidebarHint">
-          在配置中心保存 Cookie 与用户 ID 后同步。豆瓣标题多为「中文 / 英文 / 别名」，已按斜杠分段分别匹配；剔除标点后<strong>严格相等</strong>。仅统计<strong>电影</strong>行。
+          在配置中心保存用户 ID 后同步。匹配到豆瓣分的电影，<strong>码率策略与列表「星级状态」优先用豆瓣星</strong>；无豆瓣分时用本地标注。仅<strong>电影</strong>行参与豆瓣匹配。
         </p>
         <div className="sidebarStat" style={{ fontVariantNumeric: 'tabular-nums' }}>
           {libraryManageCapacity.movieCount === 0
@@ -2575,9 +2493,6 @@ export default function App() {
           onClick={() => stopDoubanSync()}
         >
           停止抓取
-        </button>
-        <button type="button" className="sidebarFullWidth" onClick={() => setPage('doubanLog')}>
-          打开豆瓣日志
         </button>
         <div className="sidebarDivider" />
         <div className="sidebarMuted">批量操作</div>
@@ -2662,7 +2577,9 @@ export default function App() {
         <p className="sidebarHint">
           列表覆盖<strong>已启用媒体库</strong>内的电影/剧集，<strong>含已观看</strong>；与海报墙「仅未播放」不同。展示数据来自本地缓存；与 Emby 对齐须主动点侧栏「刷新媒体库列表」（进入本页不会自动拉取）。
         </p>
-        <p className="sidebarHint">目标码率梯度以配置中心<strong>媒体策略</strong>为准；单条目策略覆盖本版未实现。</p>
+        <p className="sidebarHint">
+          目标码率梯度以配置中心<strong>媒体策略</strong>为准；星级取豆瓣优先、否则本地（见列表「星级状态」）。
+        </p>
       </>
     );
 
@@ -2702,7 +2619,7 @@ export default function App() {
                   <div>当前码率</div>
                   <div>目标码率</div>
                   <div>视频格式</div>
-                  <div>星级</div>
+                  <div>星级状态</div>
                   <div>豆瓣</div>
                   <div>播放</div>
                   <div>任务</div>
@@ -3016,153 +2933,6 @@ export default function App() {
           </div>
         ) : null}
       </>
-    );
-  }
-
-  if (page === 'doubanLog') {
-    const movieDiagRows = doubanLogDiagnostics.filter((d) => d.itemType === 'Movie');
-    const matchedMovieCount = movieDiagRows.filter((d) => d.reason === 'matched').length;
-    const logSidebar = (
-      <>
-        <div className="sidebarHeading">豆瓣日志</div>
-        <p className="sidebarHint">
-          每次同步结束会追加一条历史快照（最多 {MAX_DOUBAN_SYNC_SESSIONS} 条）。下方诊断与当前「媒体库列表缓存」及「豆瓣缓存」一致。
-        </p>
-        <div className="sidebarStat">
-          豆瓣缓存 {doubanRatingEntries.length} 条 · 目录 {libraryManageItems.length} 条 · 电影匹配 {matchedMovieCount} /{' '}
-          {movieDiagRows.length}
-        </div>
-        <button
-          type="button"
-          className="sidebarFullWidth"
-          disabled={doubanSyncSessions.length === 0}
-          onClick={() => clearDoubanSyncSessionLogs()}
-        >
-          清空同步历史
-        </button>
-        <p className="sidebarHint">仅删除本页「历史同步」快照，不会清空当前使用的豆瓣评分缓存。</p>
-      </>
-    );
-
-    return (
-      <AppShell page={page} setPage={setPage} sidebar={logSidebar} error={error}>
-        <div className="panel">
-          <h3>豆瓣 · 抓取与匹配日志</h3>
-          <p className="hint" style={{ lineHeight: 1.55 }}>
-            「规范化键」规则与匹配逻辑一致：NFKC 后去掉标点、符号与空白；豆瓣标题按「 / 」拆成多段分别生成键。对照下表可排查片名差异或类型（非电影）问题。
-          </p>
-
-          <h4 style={{ marginTop: 22 }}>① 历史同步（每次抓取结束一条）</h4>
-          {doubanSyncSessions.length === 0 ? (
-            <p className="hint">尚无记录。请在「媒体库管理」侧栏执行「同步豆瓣评分」，完成后自动追加。</p>
-          ) : (
-            <div className="doubanLogSessions">
-              {doubanSyncSessions.map((s) => (
-                <details key={s.id} className="doubanLogSession" open={s.id === doubanSyncSessions[0]?.id}>
-                  <summary style={{ cursor: 'pointer', fontWeight: 700, marginBottom: 8 }}>
-                    {formatPlayedAt(s.finishedAt)} · {s.entryCount} 条{s.cancelled ? ' · 已停止' : ''} · 末批 pageIndex {s.lastPageIndex}
-                  </summary>
-                  <div className="doubanLogScroll">
-                    <table className="doubanLogTable">
-                      <thead>
-                        <tr>
-                          <th>subject</th>
-                          <th>星</th>
-                          <th>抓取标题（原始）</th>
-                          <th>规范化键</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {s.entries.map((e) => (
-                          <tr key={`${s.id}-${e.subjectId}`}>
-                            <td className="tabular-nums">{e.subjectId}</td>
-                            <td>{e.stars}</td>
-                            <td style={{ maxWidth: 340, wordBreak: 'break-word' }}>{e.title}</td>
-                            <td style={{ maxWidth: 300, wordBreak: 'break-all', fontSize: 11, opacity: 0.92 }}>
-                              {doubanTitleNormalizedKeys(e.title).join(' · ') || '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              ))}
-            </div>
-          )}
-
-          <h4 style={{ marginTop: 26 }}>② 当前本地豆瓣缓存</h4>
-          {doubanLogEntryDetailRows.length === 0 ? (
-            <p className="hint">本地尚无豆瓣条目，请先同步。</p>
-          ) : (
-            <div className="doubanLogScroll">
-              <table className="doubanLogTable">
-                <thead>
-                  <tr>
-                    <th>subject</th>
-                    <th>星</th>
-                    <th>标题</th>
-                    <th>规范化键</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {doubanLogEntryDetailRows.map((e) => (
-                    <tr key={e.subjectId}>
-                      <td className="tabular-nums">{e.subjectId}</td>
-                      <td>{e.stars}</td>
-                      <td style={{ maxWidth: 380, wordBreak: 'break-word' }}>{e.title}</td>
-                      <td style={{ maxWidth: 320, wordBreak: 'break-all', fontSize: 11 }}>{e.normKeys}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <h4 style={{ marginTop: 26 }}>③ 当前媒体库 · 匹配诊断</h4>
-          {libraryManageItems.length === 0 ? (
-            <p className="hint">无媒体库列表缓存。请先在「媒体库管理」点击「刷新媒体库列表」。</p>
-          ) : (
-            <div className="doubanLogScroll">
-              <table className="doubanLogTable">
-                <thead>
-                  <tr>
-                    <th>类型</th>
-                    <th>Emby 名称</th>
-                    <th>Emby 规范化键</th>
-                    <th>诊断</th>
-                    <th>豆瓣星</th>
-                    <th>命中分段 / 豆瓣标题</th>
-                    <th>subject</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {doubanLogDiagnostics.map((d) => (
-                    <tr key={d.id}>
-                      <td>{d.itemType ?? '—'}</td>
-                      <td style={{ maxWidth: 260, wordBreak: 'break-word' }}>{d.embyName}</td>
-                      <td style={{ maxWidth: 220, wordBreak: 'break-all', fontSize: 11 }}>{d.embyNormKey || '—'}</td>
-                      <td>{doubanMatchReasonZh(d.reason)}</td>
-                      <td>{d.stars ?? '—'}</td>
-                      <td style={{ maxWidth: 300, wordBreak: 'break-word', fontSize: 12 }}>
-                        {d.matchedSegment ? <div>{d.matchedSegment}</div> : null}
-                        {d.matchedEntry ? (
-                          <div style={{ opacity: 0.8, marginTop: 4, fontSize: 11 }}>{d.matchedEntry.title}</div>
-                        ) : d.reason === 'matched' ? (
-                          <span style={{ opacity: 0.7 }}>—</span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="tabular-nums">{d.matchedEntry?.subjectId ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </AppShell>
     );
   }
 
