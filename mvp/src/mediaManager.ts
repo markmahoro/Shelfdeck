@@ -29,9 +29,14 @@ export type MediaPolicy = {
   target4k: Record<2 | 3 | 4 | 5, number>;
 };
 
+/**
+ * 默认目标视频码率（Mbps），与 estimateEquivalentBitrate / 容量预测共用。
+ * 校准参考：典型 4K UHD H265 成片约 45GB/2h → 容器 ~51 Mbps、视频约 50 Mbps（扣 0.5音轨后）；
+ * 旧版 5★4K=35 与源差距偏小，预测「可省空间」偏保守，故整体下调一档以利码率优化与预测对齐现实片源。
+ */
 export const defaultMediaPolicy: MediaPolicy = {
-  target1080p: { 2: 3, 3: 6, 4: 10, 5: 16 },
-  target4k: { 2: 8, 3: 14, 4: 22, 5: 35 },
+  target1080p: { 2: 2, 3: 4, 4: 7, 5: 12 },
+  target4k: { 2: 5, 3: 10, 4: 16, 5: 25 },
 };
 
 /** 与 estimateEquivalentBitrate 中从容器总码率里扣减的音轨估算（Mbps）一致 */
