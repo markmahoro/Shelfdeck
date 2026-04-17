@@ -24,3 +24,6 @@ mvp/.vite-dev-server-url
 
 # 第三方克隆工具目录（内含独立 .git），勿纳入本仓库
 douban-to-imdb/
+
+# 本地归档（历史 PRD 变体等；不入库）
+archive/

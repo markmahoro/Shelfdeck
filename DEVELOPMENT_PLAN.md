@@ -1,6 +1,6 @@
 # Emby Desktop Player — 开发计划
 
-> **文档性质**：基于当前仓库实现、`DEVELOPMENT_PROGRESS.md`、`EmbyDesktopPlayer_PRD_v1.0.0.md` 与 `TASK_CENTER_FULL_LOGIC.md` 整理的阶段性开发路线。  
+> **文档性质**：基于当前仓库实现、`DEVELOPMENT_PROGRESS.md`、`EmbyDesktopPlayer_PRD_v1.0.0_modules.md` 与 `TASK_CENTER_FULL_LOGIC.md` 整理的阶段性开发路线。  
 > **生成日期**：2026-04-18（+08:00）；**当前里程碑**：`v1.0.0-beta.8`（删除任务 Flow、Emby 真删、用户访问令牌鉴权）
 
 ---
@@ -101,6 +101,6 @@
 | 文件                                | 用途             |
 | --------------------------------- | -------------- |
 | `DEVELOPMENT_PROGRESS.md`         | 仓库进度与时间线 SSOT  |
-| `EmbyDesktopPlayer_PRD_v1.0.0.md` | 产品能力定义         |
+| `EmbyDesktopPlayer_PRD_v1.0.0_modules.md` | 产品能力定义（按模块编排；附录含原 MVP 基线） |
 | `TASK_CENTER_FULL_LOGIC.md`       | 任务中心与调度逻辑 SSOT（含 **§2.3** 删除 Flow：仅 Emby、确认停泊、验收 404） |
 | `mvp/`                            | 可运行 MVP 工程     |

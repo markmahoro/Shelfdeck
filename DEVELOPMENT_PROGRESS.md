@@ -1,6 +1,6 @@
 # Emby Desktop Player — 开发进度总结
 
-> **文档性质**：与仓库实现、PRD（`EmbyDesktopPlayer_PRD_v1.0.0.md`）及任务中心 SSOT（`TASK_CENTER_FULL_LOGIC.md`）对照的阶段性记录。  
+> **文档性质**：与仓库实现、PRD（`EmbyDesktopPlayer_PRD_v1.0.0_modules.md`）及任务中心 SSOT（`TASK_CENTER_FULL_LOGIC.md`）对照的阶段性记录。  
 > **最近更新**：2026-04-18（+08:00）；**标签 `v1.0.0-beta.8`**：**删除任务 Flow** 端到端（任务中心 +媒体库入队、Emby 真删、`flowLog`）；**`DELETE /Items/{id}`** 需用户 **`AccessToken`** 时通过配置 **`embyUserPassword`** + **`Users/AuthenticateByName`** 换取令牌；`embyService` IPC与 PRD **§7.3.1** / §14.8 对齐。其前 **`v1.0.0-beta.7`**：分星级治理、预测体积、PRD §4.5。再前 **`v1.0.0-beta.6`**：豆瓣与有效星级；**`beta.5`**：媒体库治理、原盘、列表缓存。  
 > **主工作副本（Canonical）**：`E:\my_project\emby_third_party`（请将 Cursor / 终端默认目录统一到此路径；`C:\emby_third_party` 仅为迁移前副本，可归档或删除以避免混淆。）
 
@@ -20,7 +20,7 @@
 | **2026-04-17（深夜）**      | **媒体库列表本地缓存**：`localStorage` 键 `embyDesktopPlayerLibraryManageCacheV1`（`version: 1` + `fingerprint` + `savedAt` + `items`）；指纹为规范化 `baseUrl`、`userId`、已勾选 `enabledSectionIds` 排序序列化，任一变化则丢弃旧缓存；启动与进入媒体库管理页仅从缓存恢复，**不自动**请求 Emby；「刷新媒体库列表」成功后再写入缓存并更新 `savedAt`。观看状态回写等路径上仍会按需静默刷新列表（`quietIfIncomplete`）。    |
 | **2026-04-17（收尾）**      | `**v1.0.0-beta.6`**：豆瓣 `movie.douban.com/people/{id}/collect`（`type=movie`、`mode=grid`）分页抓取，解析 `comment-item` / `ratingN-t` / `subjectId`；**增量**（整页 subjectId 均在同步前缓存中则停）与约 **14 天**一次**全量**（`embyDesktopPlayerDoubanLastFullSyncAtMs`）；页间隔 ~800ms；会话 `douban-session.json`，条目缓存 `embyDesktopPlayerDoubanRatingEntriesV1`。`doubanUtils`：豆瓣按 `/` 分段键、Emby 按冒号/竖线拆段、最长键优先匹配；仅 **Movie**。`effectiveRatingForPolicy`：**豆瓣星优先**于本地标注星级，驱动 `targetBitrate` / `recommendedAction` / 筛选。UI：配置中心豆瓣分区（可选 Cookie 折叠）、媒体库表豆瓣列与有效星级；根目录 `douban-to-imdb/` 已 `.gitignore`（独立仓库）。 |
 | **2026-04-18**              | `**v1.0.0-beta.7`**：`mediaManager` — `isDeleteTierRating`（1–2★ 删除档）、`UPGRADE_EQ_BELOW_TARGET_RATIO`、`recommendedAction` 分星规则、`targetBitrateFor`（5★1080p→4K 档）、`predictedSizeGbAtPolicyTarget`；默认 `defaultMediaPolicy` 梯度下调。UI：`MediaLibraryManageRow` 预测体积列、`App` 侧栏电影预测占用与筛选「删除档（1–2 星）」。PRD v1.0.0 **§4.1～§4.5**、§14.7；`mvp/package.json` **version** 同步 **1.0.0-beta.7**。 |
-| **2026-04-18**              | `**v1.0.0-beta.8`**：**删除 Flow** 落地 — `taskQueue`/`taskScheduler`/`App.tsx`（预检、`awaiting_user_confirm`、`executing`、`verify`、`flowLog`）、`MediaLibraryManageRow` 与 `mediaManager.buildTaskPreview` 入队；`embyService`：`getLibraryItem`、`getItemDeleteInfo`、`authenticateEmbyUserAccessToken`、`deleteLibraryItem`、`libraryItemExists` 与 IPC；配置 **`embyUserPassword`**（可选）解决 API Key 下删除 `Parameter 'user' null`。PRD v1.0.0 **§7.3.1**、§14.8；`EmbyDesktopPlayer_PRD.md` §6.5；`mvp/package.json` **1.0.0-beta.8**。 |
+| **2026-04-18**              | `**v1.0.0-beta.8`**：**删除 Flow** 落地 — `taskQueue`/`taskScheduler`/`App.tsx`（预检、`awaiting_user_confirm`、`executing`、`verify`、`flowLog`）、`MediaLibraryManageRow` 与 `mediaManager.buildTaskPreview` 入队；`embyService`：`getLibraryItem`、`getItemDeleteInfo`、`authenticateEmbyUserAccessToken`、`deleteLibraryItem`、`libraryItemExists` 与 IPC；配置 **`embyUserPassword`**（可选）解决 API Key 下删除 `Parameter 'user' null`。PRD **`EmbyDesktopPlayer_PRD_v1.0.0_modules.md`** **§7.3.1**、§11（小节 14.8，beta.8）；前台删除 API 表见 **§4.3.5**（原线性版 §16.5）；`mvp/package.json` **1.0.0-beta.8**。 |
 
 
 *说明：更早的 beta.1～beta.3 能力见 PRD §14；本表仅列本仓库近期可追溯的 Git 时间点。*
