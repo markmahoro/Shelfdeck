@@ -25,6 +25,7 @@ import {
   effectiveRatingForPolicy,
   nextManualRefreshInfo,
   predictedSizeGbAtPolicyTarget,
+  isDeleteTierRating,
   recommendedAction,
   type ManagedMediaItem,
   type MediaAction,
@@ -648,11 +649,11 @@ export default function App() {
           case 'upgrade':
             return a === 'upgrade';
           case 'keep':
-            return a === 'keep' && eff != null && eff !== 1;
+            return a === 'keep' && eff != null && !isDeleteTierRating(eff);
           case 'no_rating':
             return eff == null;
           case 'delete':
-            return eff === 1;
+            return isDeleteTierRating(eff);
           default:
             return true;
         }
@@ -1962,7 +1963,7 @@ export default function App() {
             <>
               <h3>目标码率策略（H265 等效）</h3>
               <p className="hint">
-                用于媒体库管理与任务预览。星级来源：已匹配豆瓣分的<strong>电影</strong>以<strong>豆瓣星级</strong>为准，否则以<strong>本地标注</strong>为准。<strong>1★</strong>删除档；<strong>2–3★</strong>仅当等价码率明显高于本档目标时可<strong>转码压缩</strong>，偏低不洗版；<strong>4★</strong>可转码，且当等价码率低于本档目标的
+                用于媒体库管理与任务预览。星级来源：已匹配豆瓣分的<strong>电影</strong>以<strong>豆瓣星级</strong>为准，否则以<strong>本地标注</strong>为准。<strong>1–2★</strong>删除档；<strong>3★</strong>仅当等价码率明显高于本档目标时可<strong>转码压缩</strong>，偏低不洗版；<strong>4★</strong>可转码，且当等价码率低于本档目标的
                 <strong> 80% </strong>
                 时可<strong>洗版补源</strong>（与 5★4K 共用该比例）；<strong>5★</strong>不压缩，其中<strong>1080p 一律建议洗版</strong>，<strong>4K</strong>则仅在低于该80% 阈值时洗版。列表中的<strong>目标码率 / 预测体积</strong>：5★ 且当前为 1080p 时按<strong>4K 档目标</strong>估算（洗版后预期）。编辑后请保存。
               </p>
@@ -2437,7 +2438,7 @@ export default function App() {
             <option value="upgrade">偏低 · 需洗版</option>
             <option value="keep">已达标（已标星级）</option>
             <option value="no_rating">未标注星级</option>
-            <option value="delete">删除档（1 星）</option>
+            <option value="delete">删除档（1–2 星）</option>
           </select>
         </div>
         <div className="sidebarField">
@@ -2618,7 +2619,7 @@ export default function App() {
           <div className="label" style={{ marginTop: 8 }}>相对当前电影占用</div>
           <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', opacity: 0.92 }}>{movieTargetCompareLine}</div>
           <p className="sidebarHint" style={{ marginTop: 6, marginBottom: 0 }}>
-            每条电影按侧栏策略<strong>目标视频码率</strong>加0.5 Mbps 音轨估算重算体积；无星级条目保持当前体积，1 星按删除档计0。
+            每条电影按侧栏策略<strong>目标视频码率</strong>加0.5 Mbps 音轨估算重算体积；无星级条目保持当前体积，1–2 星按删除档计0。
             剧集不在此汇总。容器开销未计，原盘多文件结构仅供参考。
           </p>
         </div>
@@ -2626,7 +2627,7 @@ export default function App() {
           列表覆盖<strong>已启用媒体库</strong>内的电影/剧集，<strong>含已观看</strong>；与海报墙「仅未播放」不同。展示数据来自本地缓存；与 Emby 对齐须主动点侧栏「刷新媒体库列表」（进入本页不会自动拉取）。
         </p>
         <p className="sidebarHint">
-          目标码率梯度以配置中心<strong>媒体策略</strong>为准；星级取豆瓣优先、否则本地（见列表「星级状态」）。动作规则：1★删除档；2–3★仅压缩；4★可压缩或低于目标80%时洗版；5★不压缩、1080p 必洗版、4K 低于80% 时洗版。5★且当前为1080p 时，目标码率/预测体积按<strong>4K 档</strong>估算。
+          目标码率梯度以配置中心<strong>媒体策略</strong>为准；星级取豆瓣优先、否则本地（见列表「星级状态」）。动作规则：1–2★删除档；3★仅压缩；4★可压缩或低于目标80%时洗版；5★不压缩、1080p 必洗版、4K 低于80% 时洗版。5★且当前为1080p 时，目标码率/预测体积按<strong>4K 档</strong>估算。
         </p>
       </>
     );
@@ -2740,9 +2741,9 @@ export default function App() {
       {manageDeleteExplainOpen ? (
         <div className="overlay">
           <div className="overlayBox">
-            <div style={{ fontWeight: 800 }}>1 星 · 删除档说明</div>
+            <div style={{ fontWeight: 800 }}>1–2 星 · 删除档说明</div>
             <p className="hint" style={{ marginTop: 10, lineHeight: 1.55 }}>
-              产品定义：1 星表示计划从库中移除该片，正式流程将包含<strong>回收站/二次确认</strong>等受控删除步骤，且不会在未确认时自动物理删文件。
+              产品定义：1–2 星表示计划从库中移除该片（低质片源不再保留），正式流程将包含<strong>回收站/二次确认</strong>等受控删除步骤，且不会在未确认时自动物理删文件。
             </p>
             <p className="hint" style={{ lineHeight: 1.55 }}>
               <strong>当前 MVP</strong>仅将条目标为「删除档」策略，<strong>不会</strong>入队转码/洗版，也<strong>不会</strong>调用删除接口；后续版本再接入完整删除与审计。

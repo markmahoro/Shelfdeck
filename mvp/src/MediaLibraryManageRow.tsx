@@ -2,6 +2,7 @@ import { memo } from 'react';
 import {
   effectiveRatingForPolicy,
   estimateEquivalentBitrate,
+  isDeleteTierRating,
   predictedSizeGbAtPolicyTarget,
   recommendedAction,
   targetBitrateFor,
@@ -54,14 +55,14 @@ function MediaLibraryManageRowInner({
   const target = targetBitrateFor(item, mediaPolicy);
   const eq = estimateEquivalentBitrate(item);
   const action = recommendedAction(item, mediaPolicy);
-  const targetHint = eff == null ? '—' : eff === 1 ? '删除档' : target ? `${target.toFixed(1)} Mbps` : '—';
+  const targetHint = eff == null ? '—' : isDeleteTierRating(eff) ? '删除档' : target ? `${target.toFixed(1)} Mbps` : '—';
   const predictGb = item.itemType === 'Movie' ? predictedSizeGbAtPolicyTarget(item, mediaPolicy) : null;
   const predictHint =
     item.itemType !== 'Movie'
       ? '仅电影行按策略目标码率估算'
       : eff == null
         ? '无星级：保持当前体积'
-        : eff === 1
+        : isDeleteTierRating(eff)
           ? '删除档：按 0 计'
           : `按目标视频 ${target != null ? `${target.toFixed(1)} Mbps` : '—'} + 0.5 Mbps 音轨估算`;
   const formatLabel = `${item.resolution} · ${item.codec.toUpperCase()}`;

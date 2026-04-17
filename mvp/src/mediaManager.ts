@@ -56,12 +56,12 @@ export function estimateEquivalentBitrate(item: ManagedMediaItem): number {
 
 /**
  * 假设视频轨按策略目标码率重编码（音轨等按固定 Mbps 估算），得到的单条目体积（GB）。
- * 无有效星级时无法对齐策略，返回当前体积；1 星（删除档）视为 0。
+ * 无有效星级时无法对齐策略，返回当前体积；删除档（1–2★）视为 0。
  */
 export function predictedSizeGbAtPolicyTarget(item: ManagedMediaItem, policy: MediaPolicy): number {
-  const r = effectiveRatingForPolicy(item);
+   const r = effectiveRatingForPolicy(item);
   if (r == null) return item.sizeGb;
-  if (r === 1) return 0;
+  if (isDeleteTierRating(r)) return 0;
   const target = targetBitrateFor(item, policy);
   if (target == null) return item.sizeGb;
   const totalMbps = target + AUDIO_MBPS_LUMP;
@@ -77,6 +77,11 @@ export function effectiveRatingForPolicy(item: ManagedMediaItem): MediaRating | 
   return item.rating;
 }
 
+/** 1★、2★：删除档（低质片源不再保留/转码） */
+export function isDeleteTierRating(r: MediaRating | null): r is 1 | 2 {
+  return r === 1 || r === 2;
+}
+
 /**
  * 策略目标视频码率（Mbps）。选用哪一档梯度表：
  * - 片源为 4K → `target4k`
@@ -84,7 +89,8 @@ export function effectiveRatingForPolicy(item: ManagedMediaItem): MediaRating | 
  */
 export function targetBitrateFor(item: ManagedMediaItem, policy: MediaPolicy): number | null {
   const r = effectiveRatingForPolicy(item);
-  if (r == null || r === 1) return null;
+  if (r == null) return null;
+  if (isDeleteTierRating(r)) return null;
   const use4KPolicyTier = item.resolution === '4K' || (r === 5 && item.resolution === '1080p');
   const ladder = use4KPolicyTier ? policy.target4k : policy.target1080p;
   return ladder[r];
@@ -101,15 +107,15 @@ export const UPGRADE_EQ_BELOW_TARGET_RATIO = 0.8;
 
 /**
  * 按星级的动作空间：
- * - 1★：删除档
- * - 2–3★：仅当明显高于目标时可转码；偏低不洗版
+ * - 1–2★：删除档
+ * - 3★：仅当明显高于目标时可转码；偏低不洗版
  * - 4★：可转码；偏低且等价码率低于目标×{@link UPGRADE_EQ_BELOW_TARGET_RATIO} 时可洗版
  * - 5★：不压缩；1080p 一律洗版；4K 时等价码率低于目标×{@link UPGRADE_EQ_BELOW_TARGET_RATIO} 时洗版
  */
 export function recommendedAction(item: ManagedMediaItem, policy: MediaPolicy): MediaAction {
   const r = effectiveRatingForPolicy(item);
   if (r == null) return 'keep';
-  if (r === 1) return 'delete';
+  if (isDeleteTierRating(r)) return 'delete';
   const target = targetBitrateFor(item, policy);
   if (!target) return 'keep';
   const eq = estimateEquivalentBitrate(item);
@@ -122,7 +128,7 @@ export function recommendedAction(item: ManagedMediaItem, policy: MediaPolicy): 
     return 'keep';
   }
 
-  if (r === 2 || r === 3) {
+  if (r === 3) {
     if (eq > target + h) return 'transcode';
     return 'keep';
   }
