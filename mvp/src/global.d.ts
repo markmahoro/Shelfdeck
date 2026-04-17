@@ -72,6 +72,17 @@ declare global {
     wallRatingAutoEnqueue: boolean;
   };
 
+  type DoubanRatingEntryWire = { title: string; stars: number; subjectId: string };
+
+  type DoubanFetchProgressPayload = {
+    pageIndex: number;
+    start: number;
+    pageSize: number;
+    allEntries: DoubanRatingEntryWire[];
+    done: boolean;
+    cancelled: boolean;
+  };
+
   interface Window {
     embyApi: {
       testConnection: (config: { baseUrl: string; apiKey: string }) => Promise<{ serverName?: string; version?: string }>;
@@ -85,6 +96,13 @@ declare global {
       markPlayed: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;
       markUnplayed: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;
       taskControl?: (args: { action: TaskControlAction; settings?: TaskSchedulerSettings }) => Promise<void>;
+    };
+    doubanApi?: {
+      saveSession: (payload: { cookieHeader: string; userId: string }) => Promise<{ cookieHeader: string; userId: string }>;
+      getSession: () => Promise<{ cookieHeader: string; userId: string } | null>;
+      stopFetch: () => Promise<void>;
+      fetchRatings: () => Promise<{ entries: DoubanRatingEntryWire[]; cancelled: boolean }>;
+      onProgress: (listener: (payload: DoubanFetchProgressPayload) => void) => () => void;
     };
   }
 }

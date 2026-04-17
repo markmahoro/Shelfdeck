@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const embyService = require('./embyService');
+const doubanService = require('./doubanService');
 
 const isDev = process.env.NODE_ENV === 'development';
 let mainWindow = null;
@@ -127,6 +128,13 @@ ipcMain.handle('emby:getPlayedItems', (_evt, payload) => embyService.getPlayedIt
 ipcMain.handle('emby:launchPlayer', (_evt, payload) => embyService.launchPlayer(payload));
 ipcMain.handle('emby:markPlayed', (_evt, payload) => embyService.markPlayed(payload));
 ipcMain.handle('emby:markUnplayed', (_evt, payload) => embyService.markUnplayed(payload));
+
+ipcMain.handle('douban:saveSession', (_evt, payload) => doubanService.saveSession(payload));
+ipcMain.handle('douban:getSession', () => doubanService.getSession());
+ipcMain.handle('douban:stopFetch', () => {
+  doubanService.requestStop();
+});
+ipcMain.handle('douban:fetchRatings', (event) => doubanService.fetchRatings(event.sender));
 
 app.whenReady().then(() => {
   createWindow();

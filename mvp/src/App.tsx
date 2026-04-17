@@ -30,6 +30,7 @@ import {
   type MediaRating,
 } from './mediaManager';
 import { createDebugSeedTasks } from './debugSeed';
+import { buildDoubanStarsByNormalizedTitle, movieDoubanStars, type DoubanRatingEntry } from './doubanUtils';
 import { MediaLibraryManageRow } from './MediaLibraryManageRow';
 
 const STORAGE_KEY = 'embyDesktopPlayerConfigV1';
@@ -116,6 +117,46 @@ function saveLibraryManageCache(cfg: EmbyConfig, items: UnplayedItem[]): string 
   return savedAt;
 }
 
+const DOUBAN_ENTRIES_CACHE_KEY = 'embyDesktopPlayerDoubanRatingEntriesV1';
+
+function loadDoubanRatingEntries(): DoubanRatingEntry[] {
+  try {
+    const raw = localStorage.getItem(DOUBAN_ENTRIES_CACHE_KEY);
+    if (!raw) return [];
+    const p = JSON.parse(raw) as { entries?: unknown };
+    if (!p || !Array.isArray(p.entries)) return [];
+    const out: DoubanRatingEntry[] = [];
+    for (const x of p.entries) {
+      if (!x || typeof x !== 'object') continue;
+      const o = x as Record<string, unknown>;
+      const title = typeof o.title === 'string' ? o.title.trim() : '';
+      const subjectId = typeof o.subjectId === 'string' ? o.subjectId.trim() : '';
+      const stars = typeof o.stars === 'number' ? o.stars : Number(o.stars);
+      if (!title || !subjectId || !Number.isInteger(stars) || stars < 1 || stars > 5) continue;
+      out.push({ title, stars: stars as MediaRating, subjectId });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function saveDoubanRatingEntries(entries: DoubanRatingEntry[]) {
+  localStorage.setItem(DOUBAN_ENTRIES_CACHE_KEY, JSON.stringify({ syncedAt: new Date().toISOString(), entries }));
+}
+
+function wireToDoubanEntries(raw: DoubanRatingEntryWire[]): DoubanRatingEntry[] {
+  const out: DoubanRatingEntry[] = [];
+  for (const o of raw) {
+    const title = typeof o.title === 'string' ? o.title.trim() : '';
+    const subjectId = typeof o.subjectId === 'string' ? o.subjectId.trim() : '';
+    const stars = typeof o.stars === 'number' ? o.stars : Number(o.stars);
+    if (!title || !subjectId || !Number.isInteger(stars) || stars < 1 || stars > 5) continue;
+    out.push({ title, stars: stars as MediaRating, subjectId });
+  }
+  return out;
+}
+
 type ManagedItemMeta = {
   rating?: MediaRating | null;
   watched?: boolean;
@@ -125,7 +166,7 @@ type AppPage = 'config' | 'wall' | 'history' | 'mediaManage' | 'taskCenter';
 
 type MainNavPage = AppPage;
 
-type ConfigSection = 'emby' | 'policy' | 'scheduler';
+type ConfigSection = 'emby' | 'policy' | 'scheduler' | 'douban';
 
 type ManageBitrateFilterKey = 'all' | 'transcode' | 'upgrade' | 'keep' | 'no_rating' | 'delete';
 type ManageResolutionFilterKey = 'all' | '1080p' | '4K';
@@ -523,8 +564,18 @@ export default function App() {
   const [configSection, setConfigSection] = useState<ConfigSection>('emby');
   /** 媒体库多选区：获取列表前折叠，成功拉取后自动展开 */
   const [libraryPanelExpanded, setLibraryPanelExpanded] = useState(false);
+  const [doubanRatingEntries, setDoubanRatingEntries] = useState<DoubanRatingEntry[]>(() => loadDoubanRatingEntries());
+  const [doubanCookieDraft, setDoubanCookieDraft] = useState('');
+  const [doubanUserIdDraft, setDoubanUserIdDraft] = useState('');
+  const [doubanSettingsHint, setDoubanSettingsHint] = useState<string | null>(null);
+  const [doubanSyncBusy, setDoubanSyncBusy] = useState(false);
+  const [doubanFetchStatus, setDoubanFetchStatus] = useState<string | null>(null);
 
   const enabledSet = useMemo(() => new Set(config.enabledSectionIds), [config.enabledSectionIds]);
+  const doubanStarsByNormTitle = useMemo(
+    () => buildDoubanStarsByNormalizedTitle(doubanRatingEntries),
+    [doubanRatingEntries],
+  );
   const libraryManageCacheFingerprint = useMemo(
     () => (hasConfigForLibraryFetch(config) ? libraryManageFingerprint(config) : ''),
     [config.baseUrl, config.userId, config.enabledSectionIds],
@@ -644,6 +695,17 @@ export default function App() {
     const otherCount = Math.max(0, count - movieCount - episodeCount);
     return { totalGb, count, movieCount, episodeCount, otherCount };
   }, [libraryManageItems]);
+
+  /** 豆瓣匹配进度：分子为电影行中匹配到 1～5 星的数量，分母同侧栏「总电影数」 */
+  const doubanMovieMatchStats = useMemo(() => {
+    let matched = 0;
+    const total = libraryManageCapacity.movieCount;
+    for (const it of libraryManageItems) {
+      if (it.itemType !== 'Movie') continue;
+      if (movieDoubanStars(it.name, it.itemType, doubanStarsByNormTitle) != null) matched += 1;
+    }
+    return { matched, total };
+  }, [libraryManageItems, libraryManageCapacity.movieCount, doubanStarsByNormTitle]);
 
   const isTaskBatchToggleable = (t: MediaTask) => !isTaskTerminal(t);
 
@@ -769,6 +831,7 @@ export default function App() {
                 ? item.embyPlayed
                 : inPlayedHistory;
         const isBluRayDisc = item.isBluRayDisc === true;
+        const doubanStars = movieDoubanStars(item.name, item.itemType, doubanStarsByNormTitle);
         return {
           id: item.id,
           name: item.name,
@@ -780,11 +843,12 @@ export default function App() {
           sizeGb,
           isBluRayDisc,
           rating,
+          doubanStars,
           watched,
         } satisfies ManagedMediaItem;
       });
     });
-  }, [libraryManageItems, playedItems, sectionNameMap]);
+  }, [libraryManageItems, playedItems, sectionNameMap, doubanStarsByNormTitle]);
 
   useEffect(() => {
     if (!batchRunning) return;
@@ -1166,6 +1230,7 @@ export default function App() {
     const item = wallRatingItem;
     const rating = wallRatingChoice;
     const durationSec = Math.max(3600, Math.round((item.runTimeTicks ?? 36_000_000_000) / 10_000_000));
+    const doubanStars = movieDoubanStars(item.name, item.itemType ?? 'Movie', doubanStarsByNormTitle);
     const managed: ManagedMediaItem = {
       id: item.id,
       name: item.name,
@@ -1177,6 +1242,7 @@ export default function App() {
       sizeGb: 9.6,
       isBluRayDisc: item.isBluRayDisc === true,
       rating,
+      doubanStars,
       watched: true,
     };
     saveManagedItemMetaPatch({ [item.id]: { rating, watched: true } });
@@ -1322,6 +1388,86 @@ export default function App() {
     localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(schedulerSettings));
     setError(null);
   }
+
+  async function saveDoubanSessionPage() {
+    if (!window.doubanApi) {
+      setError('豆瓣会话仅能在 Electron 桌面版保存（浏览器调试无此能力）。');
+      return;
+    }
+    setError(null);
+    setDoubanSettingsHint(null);
+    try {
+      await window.doubanApi.saveSession({
+        cookieHeader: doubanCookieDraft.trim(),
+        userId: doubanUserIdDraft.trim(),
+      });
+      setDoubanSettingsHint('已写入本机应用数据目录；请勿将 Cookie 分享给他人。');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function syncDoubanRatingsFromWeb() {
+    const api = window.doubanApi;
+    if (!api) {
+      setError('豆瓣同步仅能在 Electron 桌面版使用。');
+      return;
+    }
+    setDoubanSyncBusy(true);
+    setError(null);
+    setDoubanFetchStatus('连接豆瓣…');
+    const unsub = api.onProgress((p) => {
+      if (Array.isArray(p.allEntries)) {
+        const normalized = wireToDoubanEntries(p.allEntries);
+        saveDoubanRatingEntries(normalized);
+        setDoubanRatingEntries(normalized);
+      }
+      if (!p.done) {
+        setDoubanFetchStatus(`已抓取 ${p.allEntries?.length ?? 0} 条评分 · 第 ${p.pageIndex + 1} 批（本批 ${p.pageSize} 条）`);
+      } else {
+        setDoubanFetchStatus(
+          p.cancelled
+            ? `已停止 · 本地保留 ${p.allEntries?.length ?? 0} 条`
+            : `已完成 · 共 ${p.allEntries?.length ?? 0} 条`,
+        );
+      }
+    });
+    try {
+      const result = await api.fetchRatings();
+      if (result?.entries?.length) {
+        const normalized = wireToDoubanEntries(result.entries);
+        saveDoubanRatingEntries(normalized);
+        setDoubanRatingEntries(normalized);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      unsub();
+      setDoubanSyncBusy(false);
+      window.setTimeout(() => setDoubanFetchStatus(null), 8000);
+    }
+  }
+
+  function stopDoubanSync() {
+    void window.doubanApi?.stopFetch();
+  }
+
+  useEffect(() => {
+    if (configSection !== 'douban') return;
+    const api = window.doubanApi;
+    if (!api) return;
+    void (async () => {
+      try {
+        const s = await api.getSession();
+        if (s) {
+          setDoubanCookieDraft(s.cookieHeader);
+          setDoubanUserIdDraft(s.userId);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, [configSection]);
 
   async function testConnection() {
     if (!config.baseUrl.trim()) {
@@ -1587,6 +1733,7 @@ export default function App() {
               ['emby', 'Emby 与播放器'] as const,
               ['policy', '码率策略'] as const,
               ['scheduler', '任务调度与补源'] as const,
+              ['douban', '豆瓣个人评分（实验）'] as const,
             ] as const
           ).map(([id, label]) => (
             <button
@@ -1985,6 +2132,53 @@ export default function App() {
               </div>
             </>
           ) : null}
+
+          {configSection === 'douban' ? (
+            <>
+              <h3>豆瓣个人评分同步（实验）</h3>
+              <p className="hint" style={{ lineHeight: 1.55 }}>
+                从豆瓣电影「我看过的评分」列表抓取<strong>你本人账号</strong>的打分，写入本机后与媒体库列表中的<strong>电影</strong>片名匹配（剔除标点后严格相等）。自动化访问可能违反豆瓣服务条款，请自担风险并控制频率；翻页间隔约 1.2 秒。Cookie 仅保存在本机应用数据目录。
+              </p>
+              {doubanSettingsHint ? (
+                <p className="hint" style={{ color: '#86efac' }}>
+                  {doubanSettingsHint}
+                </p>
+              ) : null}
+              <div className="field" style={{ marginTop: 16 }}>
+                <div className="label">豆瓣用户 ID（纯数字）</div>
+                <input
+                  value={doubanUserIdDraft}
+                  onChange={(e) => setDoubanUserIdDraft(e.target.value)}
+                  placeholder="例如：123456789"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="field" style={{ marginTop: 12 }}>
+                <div className="label">Cookie（整段请求头内容）</div>
+                <textarea
+                  value={doubanCookieDraft}
+                  onChange={(e) => setDoubanCookieDraft(e.target.value)}
+                  placeholder="从浏览器复制的 Cookie 字符串"
+                  rows={5}
+                  style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="actions">
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={!window.doubanApi}
+                  onClick={() => void saveDoubanSessionPage()}
+                >
+                  保存豆瓣会话到本机
+                </button>
+              </div>
+              {!window.doubanApi ? (
+                <p className="hint">当前为浏览器预览模式，无法保存会话；请运行 Electron 桌面版。</p>
+              ) : null}
+            </>
+          ) : null}
         </div>
       </AppShell>
     );
@@ -2226,6 +2420,40 @@ export default function App() {
         </button>
         <p className="sidebarHint">列表随输入实时过滤；「定位」滚动到当前结果第一项并短暂高亮。</p>
         <div className="sidebarDivider" />
+        <div className="sidebarMuted">豆瓣评分（实验）</div>
+        <p className="sidebarHint">
+          在配置中心保存 Cookie 与用户 ID 后同步。匹配规则：剔除片名中的标点、符号与空白后<strong>严格相等</strong>；仅统计<strong>电影</strong>行。
+        </p>
+        <div className="sidebarStat" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {libraryManageCapacity.movieCount === 0
+            ? '— / —（请先刷新媒体库列表）'
+            : `${doubanMovieMatchStats.matched} / ${doubanMovieMatchStats.total}（已匹配电影 / 总电影数）`}
+        </div>
+        {doubanFetchStatus ? (
+          <p className="sidebarHint" style={{ marginTop: 6, marginBottom: 0, color: '#93c5fd' }}>
+            {doubanFetchStatus}
+          </p>
+        ) : null}
+        <div className="sidebarButtonRow" style={{ marginTop: 8 }}>
+          <button
+            type="button"
+            className="sidebarFullWidth"
+            style={{ flex: 1 }}
+            disabled={doubanSyncBusy || !window.doubanApi}
+            onClick={() => void syncDoubanRatingsFromWeb()}
+          >
+            {doubanSyncBusy ? '同步中…' : '同步豆瓣评分'}
+          </button>
+        </div>
+        <button
+          type="button"
+          className="sidebarFullWidth"
+          disabled={!doubanSyncBusy || !window.doubanApi}
+          onClick={() => stopDoubanSync()}
+        >
+          停止抓取
+        </button>
+        <div className="sidebarDivider" />
         <div className="sidebarMuted">批量操作</div>
         <p className="sidebarHint">以下仅对列表中勾选的条目生效。码率策略与任务调度在「配置中心」。</p>
         <div className="sidebarStat">已选 {manageSelectedIds.size} 条</div>
@@ -2349,6 +2577,7 @@ export default function App() {
                   <div>目标码率</div>
                   <div>视频格式</div>
                   <div>星级</div>
+                  <div>豆瓣</div>
                   <div>播放</div>
                   <div>任务</div>
                   <div>操作</div>

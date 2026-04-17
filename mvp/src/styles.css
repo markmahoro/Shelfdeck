@@ -349,7 +349,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 .mediaManageGrid {
   display: grid;
-  grid-template-columns: minmax(12rem, 1.35fr) 4.5rem 3.5rem 5.5rem 5.5rem 6.75rem 4.25rem 4rem 5.75rem minmax(17rem, 1.35fr);
+  grid-template-columns: minmax(12rem, 1.35fr) 4.5rem 3.5rem 5.5rem 5.5rem 6.75rem 4.25rem 4.25rem 4rem 5.75rem minmax(17rem, 1.35fr);
   gap: 8px 12px;
   align-items: center;
   padding: 10px 12px;

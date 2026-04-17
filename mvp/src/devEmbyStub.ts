@@ -180,4 +180,22 @@ export function installDevEmbyStub() {
       return;
     },
   };
+
+  window.doubanApi = {
+    async saveSession(payload) {
+      return { cookieHeader: payload.cookieHeader.trim(), userId: payload.userId.trim() };
+    },
+    async getSession() {
+      return null;
+    },
+    async stopFetch() {
+      return;
+    },
+    async fetchRatings() {
+      return { entries: [], cancelled: false };
+    },
+    onProgress() {
+      return () => {};
+    },
+  };
 }

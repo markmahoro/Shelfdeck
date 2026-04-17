@@ -13,4 +13,17 @@ const embyApi = {
   taskControl: (args) => ipcRenderer.invoke('taskControl', args),
 };
 
+const doubanApi = {
+  saveSession: (payload) => ipcRenderer.invoke('douban:saveSession', payload),
+  getSession: () => ipcRenderer.invoke('douban:getSession'),
+  stopFetch: () => ipcRenderer.invoke('douban:stopFetch'),
+  fetchRatings: () => ipcRenderer.invoke('douban:fetchRatings'),
+  onProgress: (listener) => {
+    const handler = (_event, payload) => listener(payload);
+    ipcRenderer.on('douban:fetchProgress', handler);
+    return () => ipcRenderer.removeListener('douban:fetchProgress', handler);
+  },
+};
+
 contextBridge.exposeInMainWorld('embyApi', embyApi);
+contextBridge.exposeInMainWorld('doubanApi', doubanApi);

@@ -16,6 +16,8 @@ export type ManagedMediaItem = {
   isBluRayDisc: boolean;
   /** null 表示未标注 */
   rating: MediaRating | null;
+  /**豆瓣个人评分：null 表示未抓取到（含未同步、无匹配、非电影行） */
+  doubanStars: MediaRating | null;
   /** Emby 观看状态（与未播放列表可能不同步，以本地与接口为准） */
   watched: boolean;
 };

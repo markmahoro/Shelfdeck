@@ -15,6 +15,11 @@ function formatRatingDisplay(rating: MediaRating | null) {
   return `${rating} 星`;
 }
 
+function formatDoubanDisplay(doubanStars: MediaRating | null) {
+  if (doubanStars == null) return '未抓取到';
+  return `${doubanStars} 星`;
+}
+
 export type MediaLibraryManageRowProps = {
   item: ManagedMediaItem;
   isSelected: boolean;
@@ -80,6 +85,7 @@ function MediaLibraryManageRowInner({
       <div className="tabular-nums">{targetHint}</div>
       <div>{formatLabel}</div>
       <div>{formatRatingDisplay(item.rating)}</div>
+      <div title="豆瓣「看过」个人评分；片名剔除标点后严格匹配">{formatDoubanDisplay(item.doubanStars)}</div>
       <div>{item.watched ? '已观看' : '未观看'}</div>
       <div className="tabular-nums" style={{ fontSize: 12 }}>
         {taskCell}
