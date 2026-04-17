@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const embyService = require('./embyService');
 
 const isDev = process.env.NODE_ENV === 'development';
 let mainWindow = null;
@@ -10,7 +11,10 @@ function devUrlCandidates() {
   const fromEnv = process.env.VITE_DEV_SERVER_URL;
   const list = [];
   if (fromEnv) list.push(fromEnv.replace(/\/$/, ''));
-  list.push('http://127.0.0.1:5173');
+  /** 与 Vite `strictPort: false` 顺延端口一致，便于单独起 Electron 时仍能连上 */
+  for (let p = 5174; p <= 5184; p += 1) {
+    list.push(`http://127.0.0.1:${p}`);
+  }
   return [...new Set(list)];
 }
 
@@ -103,7 +107,7 @@ async function loadFirstReachableDevUrl(win) {
     await new Promise((r) => setTimeout(r, 250));
   }
   const hint = encodeURIComponent(
-    'Vite must be on http://127.0.0.1:5173 (strictPort). Free port 5173 if busy, then run: npm run dev',
+    'Cannot reach Vite dev server (127.0.0.1:5174–5184). Run npm run dev, or npm run dev:renderer then dev:electron with VITE_DEV_SERVER_URL set.',
   );
   win.loadURL(
     `data:text/html;charset=utf-8,<h2 style="font-family:Segoe UI">Unable to connect Vite dev server</h2><p>${hint}</p>`,
@@ -113,6 +117,15 @@ async function loadFirstReachableDevUrl(win) {
 ipcMain.handle('taskControl', async (_evt, _args) => {
   return;
 });
+
+ipcMain.handle('emby:testConnection', (_evt, payload) => embyService.testConnection(payload));
+ipcMain.handle('emby:getUsers', (_evt, payload) => embyService.getUsers(payload));
+ipcMain.handle('emby:getMediaFolders', (_evt, payload) => embyService.getMediaFolders(payload));
+ipcMain.handle('emby:getUnplayedItems', (_evt, payload) => embyService.getUnplayedItems(payload));
+ipcMain.handle('emby:getPlayedItems', (_evt, payload) => embyService.getPlayedItems(payload));
+ipcMain.handle('emby:launchPlayer', (_evt, payload) => embyService.launchPlayer(payload));
+ipcMain.handle('emby:markPlayed', (_evt, payload) => embyService.markPlayed(payload));
+ipcMain.handle('emby:markUnplayed', (_evt, payload) => embyService.markUnplayed(payload));
 
 app.whenReady().then(() => {
   createWindow();

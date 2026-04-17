@@ -1,3 +1,6 @@
+# 勿在仓库根目录执行 npm install（应用目录为 mvp/）；忽略误生成的空 lockfile
+/package-lock.json
+
 node_modules/
 dist/
 release/
@@ -17,3 +20,4 @@ Thumbs.db
 mvp/node_modules/
 mvp/dist/
 mvp/release/
+mvp/.vite-dev-server-url

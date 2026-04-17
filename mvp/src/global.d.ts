@@ -13,6 +13,7 @@ declare global {
   type PlayedItem = {
     id: string;
     name: string;
+    posterTag?: string;
     seriesName?: string;
     indexLabel?: string;
     sectionId?: string;

@@ -10,6 +10,7 @@ export function installDevEmbyStub() {
     {
       id: 'debug-ph-1',
       name: '[模拟] 已看电影 Alpha',
+      posterTag: 'p1',
       sectionId: 'debug-section-1',
       sectionName: 'Movies',
       datePlayed: daysAgoIso(1),
@@ -18,6 +19,7 @@ export function installDevEmbyStub() {
     {
       id: 'debug-ph-2',
       name: '[模拟] 已看剧集 S01E01',
+      posterTag: 'p2',
       sectionId: 'debug-section-2',
       sectionName: 'TV Shows',
       datePlayed: daysAgoIso(3),
@@ -28,6 +30,7 @@ export function installDevEmbyStub() {
     {
       id: 'debug-ph-3',
       name: '[模拟] 上周电影 Beta',
+      posterTag: 'p3',
       sectionId: 'debug-section-1',
       sectionName: 'Movies',
       datePlayed: daysAgoIso(9),

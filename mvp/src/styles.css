@@ -217,16 +217,43 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .card button.focused { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 8px; }
 .poster { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; border: 1px solid #1f2937; background: #0f172a; }
 .cardTitle { margin-top: 8px; font-size: 14px; line-height: 1.3; }
-.historyList { display: grid; gap: 8px; margin-top: 8px; }
+.historyList { display: grid; gap: 10px; margin-top: 8px; }
 .historyItem {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) 72px minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 7.5rem) minmax(13rem, auto);
-  gap: 10px;
+  grid-template-columns: 52px minmax(0, 1fr) minmax(12rem, auto);
+  gap: 12px;
   align-items: center;
   border: 1px solid #1f2937;
   border-radius: 8px;
-  padding: 10px;
+  padding: 10px 12px;
+  background: #0b1220;
 }
+.historyPoster {
+  width: 52px;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #1f2937;
+  background: #0f172a;
+}
+.historyItemBody { min-width: 0; }
+.historyItemTitle {
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.historyItemMeta {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.78;
+  line-height: 1.45;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 2px;
+}
+.historyMetaSep { opacity: 0.45; padding: 0 2px; }
 .historyRowActions {
   display: flex;
   flex-wrap: wrap;
@@ -239,8 +266,12 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 }
 @media (max-width: 960px) {
   .historyItem {
-    grid-template-columns: 1fr;
-    gap: 6px;
+    grid-template-columns: 52px 1fr;
+    grid-template-rows: auto auto;
+  }
+  .historyItem .historyRowActions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 }
 .overlay {

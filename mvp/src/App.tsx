@@ -189,15 +189,19 @@ function isConfigReady(config: EmbyConfig, connected: boolean) {
   );
 }
 
-/** 与 isConfigReady 相同字段要求，但不依赖「已测试联通」标记；用于进入页面时自动拉列表并在拉取前尝试联通。 */
-function hasConfigForLibraryFetch(config: EmbyConfig): boolean {
+/** 拉取 Emby 列表（未播放 / 已播放等）所需的最低配置，不要求已填播放器路径。 */
+function hasEmbyCoreConfig(config: EmbyConfig): boolean {
   return (
     !!config.baseUrl.trim() &&
     !!config.apiKey.trim() &&
     !!config.userId.trim() &&
-    !!config.playerExePath.trim() &&
     config.enabledSectionIds.length > 0
   );
+}
+
+/** 含播放器路径；用于海报墙播放、任务等。 */
+function hasConfigForLibraryFetch(config: EmbyConfig): boolean {
+  return hasEmbyCoreConfig(config) && !!config.playerExePath.trim();
 }
 
 function formatPlayedAt(iso?: string) {
@@ -285,9 +289,9 @@ function mergePlayedHistoryServerWithLocal(server: PlayedItem[]): PlayedItem[] {
     .slice(0, 300);
 }
 
-function buildPosterUrl(config: EmbyConfig, item: UnplayedItem) {
+function buildPosterUrl(config: EmbyConfig, item: { id: string; posterTag?: string }, width = 220) {
   const tag = item.posterTag ? `&tag=${encodeURIComponent(item.posterTag)}` : '';
-  return `${config.baseUrl.replace(/\/$/, '')}/Items/${encodeURIComponent(item.id)}/Images/Primary?width=220&api_key=${encodeURIComponent(
+  return `${config.baseUrl.replace(/\/$/, '')}/Items/${encodeURIComponent(item.id)}/Images/Primary?width=${width}&api_key=${encodeURIComponent(
     config.apiKey,
   )}${tag}`;
 }
@@ -1097,9 +1101,9 @@ export default function App() {
   }
 
   async function refreshPlayedHistory(options?: { quietIfIncomplete?: boolean }) {
-    if (!hasConfigForLibraryFetch(config)) {
+    if (!hasEmbyCoreConfig(config)) {
       if (!options?.quietIfIncomplete) {
-        setError('请先完成并保存 Emby 与播放器配置（含用户、媒体库、播放器路径），再刷新播放记录。');
+        setError('请先完成并保存：Emby Base URL、API Key、用户，并勾选至少一个媒体库，再刷新播放记录。');
       }
       return;
     }
@@ -1118,8 +1122,7 @@ export default function App() {
         sectionId: historySectionId.trim() || undefined,
       });
       let merged = mergePlayedHistoryServerWithLocal(data);
-      const sid = historySectionId.trim();
-      if (sid) merged = merged.filter((x) => x.sectionId === sid);
+      /** 不在此按 sectionId 再滤：Emby 返回的 ParentId 常为季/子文件夹，与库根 id 不一致，会误杀全部记录。 */
       if (historyType !== 'all') merged = merged.filter((x) => x.type === historyType);
       setPlayedItems(merged);
     } catch (e) {
@@ -1130,7 +1133,7 @@ export default function App() {
   }
 
   async function historyMarkWatched(it: PlayedItem) {
-    if (!isConfigReady(config, connected)) return;
+    if (!hasEmbyCoreConfig(config)) return;
     setHistoryActionBusyId(it.id);
     setError(null);
     try {
@@ -1150,7 +1153,7 @@ export default function App() {
   }
 
   async function historyMarkUnwatched(it: PlayedItem) {
-    if (!isConfigReady(config, connected)) return;
+    if (!hasEmbyCoreConfig(config)) return;
     setHistoryActionBusyId(it.id);
     setError(null);
     try {
@@ -1694,57 +1697,88 @@ export default function App() {
       </>
     );
 
+    const canReplay = !!config.playerExePath.trim();
+
     return (
       <AppShell page={page} setPage={setPage} sidebar={historySidebar} error={error}>
         <div className="panel">
+          <div className="hint" style={{ marginBottom: 8 }}>
+            展示当前 Emby 用户在已选媒体库中的已播放影片/剧集；可与服务器同步观看状态。「重新播放」需配置播放器路径。
+          </div>
           {playedItems.length === 0 ? (
-            <div className="hint">暂无播放记录</div>
+            <div className="hint">暂无播放记录。请确认已保存 Emby 配置并勾选媒体库，或调整左侧时间范围后刷新。</div>
           ) : (
             <div className="historyList">
-              {playedItems.map((it) => (
-                <div key={it.id} className="historyItem">
-                  <div style={{ fontWeight: 700 }}>{it.name}</div>
-                  <div className="hint">{playedTypeLabel(it.type)}</div>
-                  <div className="hint">{it.sectionName?.trim() ? it.sectionName : '—'}</div>
-                  <div className="hint">
-                    {it.type === 'Episode'
-                      ? [it.seriesName, it.indexLabel].filter(Boolean).join(' · ') || '—'
-                      : '—'}
+              {playedItems.map((it) => {
+                const sectionLabel =
+                  it.sectionName?.trim() ||
+                  (it.sectionId ? sectionNameMap.get(it.sectionId) : undefined) ||
+                  '—';
+                const episodeLine =
+                  it.type === 'Episode'
+                    ? [it.seriesName, it.indexLabel].filter(Boolean).join(' · ') || null
+                    : null;
+                return (
+                  <div key={it.id} className="historyItem">
+                    <img
+                      className="historyPoster"
+                      src={buildPosterUrl(config, it, 120)}
+                      alt=""
+                      loading="lazy"
+                    />
+                    <div className="historyItemBody">
+                      <div className="historyItemTitle">{it.name}</div>
+                      <div className="historyItemMeta">
+                        <span>{playedTypeLabel(it.type)}</span>
+                        <span className="historyMetaSep">·</span>
+                        <span title="媒体库">{sectionLabel}</span>
+                        {episodeLine ? (
+                          <>
+                            <span className="historyMetaSep">·</span>
+                            <span>{episodeLine}</span>
+                          </>
+                        ) : null}
+                        <span className="historyMetaSep">·</span>
+                        <span className="tabular-nums">{formatPlayedAt(it.datePlayed)}</span>
+                      </div>
+                    </div>
+                    <div className="historyRowActions">
+                      <button
+                        type="button"
+                        disabled={loading || historyActionBusyId === it.id}
+                        onClick={() => void historyMarkWatched(it)}
+                      >
+                        标记为已观看
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading || historyActionBusyId === it.id}
+                        onClick={() => void historyMarkUnwatched(it)}
+                      >
+                        标记为未观看
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading || historyActionBusyId === it.id || !canReplay}
+                        title={canReplay ? undefined : '请先在配置中心填写第三方播放器可执行文件路径'}
+                        onClick={async () => {
+                          const item =
+                            items.find((x) => x.id === it.id) ??
+                            ({
+                              id: it.id,
+                              name: it.name,
+                              posterTag: it.posterTag,
+                              sectionId: it.sectionId ?? config.enabledSectionIds[0] ?? '',
+                            } as UnplayedItem);
+                          await onPlay(item);
+                        }}
+                      >
+                        重新播放
+                      </button>
+                    </div>
                   </div>
-                  <div className="hint tabular-nums">{formatPlayedAt(it.datePlayed)}</div>
-                  <div className="historyRowActions">
-                    <button
-                      type="button"
-                      disabled={loading || historyActionBusyId === it.id}
-                      onClick={() => void historyMarkWatched(it)}
-                    >
-                      标记为已观看
-                    </button>
-                    <button
-                      type="button"
-                      disabled={loading || historyActionBusyId === it.id}
-                      onClick={() => void historyMarkUnwatched(it)}
-                    >
-                      标记为未观看
-                    </button>
-                    <button
-                      type="button"
-                      disabled={loading || historyActionBusyId === it.id}
-                      onClick={async () => {
-                        const item = items.find((x) => x.id === it.id) ??
-                          ({
-                            id: it.id,
-                            name: it.name,
-                            sectionId: it.sectionId ?? config.enabledSectionIds[0] ?? '',
-                          } as UnplayedItem);
-                        await onPlay(item);
-                      }}
-                    >
-                      重新播放
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

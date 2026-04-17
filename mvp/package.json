@@ -1,12 +1,13 @@
 {
   "name": "mvp",
-  "version": "1.0.0-beta.3",
+  "version": "1.0.0-beta.4",
   "description": "Emby desktop player MVP",
   "main": "electron/main.js",
   "scripts": {
     "dev:renderer": "vite",
     "dev:electron": "cross-env NODE_ENV=development electron .",
-    "dev": "concurrently -k \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5173 && npm run dev:electron\"",
+    "dev:clean-url": "node -e \"try { require('fs').unlinkSync(require('path').join(process.cwd(), '.vite-dev-server-url')); } catch (_) {}\"",
+    "dev": "npm run dev:clean-url && concurrently -k \"npm run dev:renderer\" \"wait-on file:.vite-dev-server-url && node scripts/run-electron-dev.js\"",
     "build": "cross-env NODE_ENV=production vite build",
     "start": "cross-env NODE_ENV=production electron .",
     "dist:win": "npm run build && electron-builder --win portable"
