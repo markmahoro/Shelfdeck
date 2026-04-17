@@ -1,7 +1,7 @@
 # Emby Desktop Player — 开发进度总结
 
 > **文档性质**：与仓库实现、PRD（`EmbyDesktopPlayer_PRD_v1.0.0.md`）及任务中心 SSOT（`TASK_CENTER_FULL_LOGIC.md`）对照的阶段性记录。  
-> **最近更新**：2026-04-17（+08:00）；**标签 `v1.0.0-beta.4`**：真实 Emby 主进程集成、播放记录页与回写修复。  
+> **最近更新**：2026-04-17（+08:00）；**标签 `v1.0.0-beta.5`**：媒体库管理页治理闭环（列表/筛选/体积与原盘/原盘禁入队）、BDMV 本机识别与配置中心路径映射对齐。上一里程碑 **`v1.0.0-beta.4`**：真实 Emby 主进程集成、播放记录页与回写修复。  
 > **主工作副本（Canonical）**：`E:\my_project\emby_third_party`（请将 Cursor / 终端默认目录统一到此路径；`C:\emby_third_party` 仅为迁移前副本，可归档或删除以避免混淆。）
 
 ---
@@ -16,6 +16,7 @@
 | **2026-04-17 20:46:30** | 开发中版本快照：PRD 对齐 SSOT、五页壳层、任务调度 MVP 等（`chore: dev snapshot — PRD对齐任务中心SSOT、五页壳与调度MVP`，提交 `cfa6884`）                                                                                                                               |
 | **2026-04-17 ~21:12**   | **合并**：将 `C:\emby_third_party` 上 `release/v1.0.0` 的提交与 `E:\my_project\emby_third_party` 的 `master`（含 beta.3 等历史）做 `allow-unrelated-histories` 合并；冲突在 `mvp/` 与今日分支对齐；提交 `176a599`。本地分支 `release/v1.0.0` 已与 `master` 同指向该合并结果。    |
 | **2026-04-17（晚间）**      | `**v1.0.0-beta.4`**：主进程 `embyService`打通 Emby REST（联通、库、未播放/已播放、PlaybackInfo、PotPlayer 启动）；预加载改为 IPC；播放记录页海报与筛选、列表拉取与合并逻辑修复；`markPlayed` 按官方文档使用查询参数 `DatePlayed=yyyyMMddHHmmss`；Vite 开发端口与 `wait-on` 对齐，插件写入实际 dev URL 以支持端口顺延。 |
+| **2026-04-17（深夜）**      | `**v1.0.0-beta.5`**（`d6bf834`）：媒体库管理全库列表（含已观看）、侧栏搜索与多维筛选（码率相对目标、分辨率、编码、观看记录、**蓝光原盘**）、库容量与类型统计；表格行组件与性能优化；条目展示**体积（GB）**与**原盘**标记；主进程 `inferIsBluRayDisc`（`.iso`、路径 `BDMV`、本机 `BDMV` 目录探测，**并应用配置中心 pathMapFrom/To**与增强版 `applyPathMap`）；原盘条目禁止码率压缩/洗版**单条/批量/海报自动入队**；`devEmbyStub` 与类型定义同步；`DEVELOPMENT_PLAN` 更新。 |
 
 
 *说明：更早的 beta.1～beta.3 能力见 PRD §14；本表仅列本仓库近期可追溯的 Git 时间点。*
@@ -36,6 +37,7 @@
 - **配置**：媒体策略与任务调度相关表单向配置中心集中。
 - **真实 Emby 与播放（beta.4）**：`electron/embyService.js` 实现 REST；海报墙拉取未播放、PlaybackInfo 解析路径、路径映射与参数模板启动第三方播放器；`markPlayed` / `markUnplayed` 与服务器同步。
 - **播放记录页（beta.4）**：已播放列表（多库合并、时间窗与类型筛选、海报行、与本地已确认记录合并）；修复误用 `sectionId` 二次过滤与缺日期元数据导致列表为空的问题。
+- **媒体库管理页（beta.5）**：`getLibraryItemsForManage` 拉取已启用库内电影/剧集（含已看）；侧栏片名搜索、定位首条高亮；筛选含**蓝光原盘**；列表列含体积、原盘、星级、观看、任务与单条操作；`MediaLibraryManageRow` 独立组件；原盘（ISO/BDMV，映射后本机探测）**拦截**转码/洗版入队；批量入队跳过原盘并提示；海报墙打分自动入队对原盘友好提示。
 - **开发体验**：Vite 默认端口5174、`strictPort: false` 顺延端口；`write-dev-server-url` + `scripts/run-electron-dev.js` 将实际 URL 注入 Electron。
 
 ### 工程
@@ -54,7 +56,7 @@
 
 ## 版本与分支参考
 
-- **里程碑标签**：`v1.0.0-beta.4`（真实 Emby 前台闭环 + 播放记录 + 回写格式修复）
+- **里程碑标签**：`v1.0.0-beta.5`（媒体库治理 + 原盘识别与路径映射 + 入队限制）；其前 **`v1.0.0-beta.4`**（真实 Emby 前台闭环 + 播放记录 + 回写格式修复）
 - **分支**：`master`（可与 `release/v1.0.0` 对齐）
 - **此前合并提交**：`176a599`（2026-04-17）
 
