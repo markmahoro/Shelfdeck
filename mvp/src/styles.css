@@ -350,8 +350,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .mediaManageGrid {
   display: grid;
   grid-template-columns:
-    minmax(12rem, 1.35fr) 4.5rem 3.5rem 5.5rem 5.5rem 6.75rem minmax(7.25rem, 9.5rem) minmax(6.25rem, 8.5rem) 4rem 5.75rem
-    minmax(17rem, 1.35fr);
+    minmax(12rem, 1.35fr) 4.5rem 3.5rem 5.5rem 5.5rem 5.5rem 6.75rem minmax(7.25rem, 9.5rem) minmax(6.25rem, 8.5rem) 4rem
+    5.75rem minmax(17rem, 1.35fr);
   gap: 8px 12px;
   align-items: center;
   padding: 10px 12px;
@@ -456,7 +456,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 @media (max-width: 1100px) {
   .mediaManageGrid {
-    min-width: 70rem;
+    min-width: 75rem;
   }
 }
 

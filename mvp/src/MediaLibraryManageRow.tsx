@@ -2,6 +2,7 @@ import { memo } from 'react';
 import {
   effectiveRatingForPolicy,
   estimateEquivalentBitrate,
+  predictedSizeGbAtPolicyTarget,
   recommendedAction,
   targetBitrateFor,
   type ManagedMediaItem,
@@ -54,6 +55,15 @@ function MediaLibraryManageRowInner({
   const eq = estimateEquivalentBitrate(item);
   const action = recommendedAction(item, mediaPolicy);
   const targetHint = eff == null ? '—' : eff === 1 ? '删除档' : target ? `${target.toFixed(1)} Mbps` : '—';
+  const predictGb = item.itemType === 'Movie' ? predictedSizeGbAtPolicyTarget(item, mediaPolicy) : null;
+  const predictHint =
+    item.itemType !== 'Movie'
+      ? '仅电影行按策略目标码率估算'
+      : eff == null
+        ? '无星级：保持当前体积'
+        : eff === 1
+          ? '删除档：按 0 计'
+          : `按目标视频 ${target != null ? `${target.toFixed(1)} Mbps` : '—'} + 0.5 Mbps 音轨估算`;
   const formatLabel = `${item.resolution} · ${item.codec.toUpperCase()}`;
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
@@ -85,6 +95,9 @@ function MediaLibraryManageRowInner({
       </div>
       <div className="tabular-nums">{eq.toFixed(1)} Mbps</div>
       <div className="tabular-nums">{targetHint}</div>
+      <div className="tabular-nums" title={predictHint}>
+        {predictGb != null ? `${predictGb.toFixed(1)} GB` : '—'}
+      </div>
       <div>{formatLabel}</div>
       <div
         className="mediaManageStarStatusCell"

@@ -24,6 +24,7 @@ import {
   defaultMediaPolicy,
   effectiveRatingForPolicy,
   nextManualRefreshInfo,
+  predictedSizeGbAtPolicyTarget,
   recommendedAction,
   type ManagedMediaItem,
   type MediaAction,
@@ -701,6 +702,25 @@ export default function App() {
     return { totalGb, count, movieCount, episodeCount, otherCount };
   }, [libraryManageItems]);
 
+  /** 电影：按策略目标码率（+ 音轨估算）预测转码后的体积总和，供侧栏与列表对照 */
+  const moviePolicyTargetCapacity = useMemo(() => {
+    let currentGb = 0;
+    let predictedGb = 0;
+    let movieCount = 0;
+    for (const it of managedItems) {
+      if (it.itemType !== 'Movie') continue;
+      movieCount++;
+      currentGb += it.sizeGb;
+      predictedGb += predictedSizeGbAtPolicyTarget(it, mediaPolicy);
+    }
+    return {
+      movieCount,
+      currentGb,
+      predictedGb,
+      deltaGb: currentGb - predictedGb,
+    };
+  }, [managedItems, mediaPolicy]);
+
   /** 豆瓣匹配进度：分子为电影行中匹配到 1～5 星的数量，分母同侧栏「总电影数」 */
   const doubanMovieMatchStats = useMemo(() => {
     let matched = 0;
@@ -837,11 +857,14 @@ export default function App() {
                 : inPlayedHistory;
         const isBluRayDisc = item.isBluRayDisc === true;
         const doubanStars = movieDoubanStars(item.name, item.itemType, doubanStarsByNormTitle);
+        const itemType =
+          item.itemType === 'Movie' || item.itemType === 'Episode' || item.itemType === 'Other' ? item.itemType : undefined;
         return {
           id: item.id,
           name: item.name,
           sectionId: item.sectionId,
           sectionName,
+          itemType,
           resolution,
           codec,
           durationSec,
@@ -1241,6 +1264,7 @@ export default function App() {
       name: item.name,
       sectionId: item.sectionId,
       sectionName: sectionNameMap.get(item.sectionId),
+      itemType: item.itemType === 'Movie' || item.itemType === 'Episode' || item.itemType === 'Other' ? item.itemType : 'Movie',
       resolution: '1080p',
       codec: 'h264',
       durationSec,
@@ -2368,6 +2392,15 @@ export default function App() {
   }
 
   if (page === 'mediaManage') {
+    let movieTargetCompareLine = '—';
+    if (moviePolicyTargetCapacity.movieCount > 0) {
+      const d = moviePolicyTargetCapacity.deltaGb;
+      const deltaWord = d >= 0 ? '约省' : '约增';
+      const deltaAbs = formatAggregateLibrarySizeGb(Math.abs(d));
+      movieTargetCompareLine = `${formatAggregateLibrarySizeGb(moviePolicyTargetCapacity.currentGb)} → ${formatAggregateLibrarySizeGb(
+        moviePolicyTargetCapacity.predictedGb,
+      )}（${deltaWord} ${deltaAbs}）`;
+    }
     const mediaSidebar = (
       <>
         <div className="sidebarHeading">媒体库管理</div>
@@ -2574,6 +2607,20 @@ export default function App() {
                 }）；与上方刷新同步更新。`}
           </p>
         </div>
+        <div className="sidebarField" style={{ marginTop: 10 }}>
+          <div className="label">电影 · 按目标码率预测占用</div>
+          <div style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+            {moviePolicyTargetCapacity.movieCount === 0
+              ? '—'
+              : formatAggregateLibrarySizeGb(moviePolicyTargetCapacity.predictedGb)}
+          </div>
+          <div className="label" style={{ marginTop: 8 }}>相对当前电影占用</div>
+          <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', opacity: 0.92 }}>{movieTargetCompareLine}</div>
+          <p className="sidebarHint" style={{ marginTop: 6, marginBottom: 0 }}>
+            每条电影按侧栏策略<strong>目标视频码率</strong>加0.5 Mbps 音轨估算重算体积；无星级条目保持当前体积，1 星按删除档计0。
+            剧集不在此汇总。容器开销未计，原盘多文件结构仅供参考。
+          </p>
+        </div>
         <p className="sidebarHint">
           列表覆盖<strong>已启用媒体库</strong>内的电影/剧集，<strong>含已观看</strong>；与海报墙「仅未播放」不同。展示数据来自本地缓存；与 Emby 对齐须主动点侧栏「刷新媒体库列表」（进入本页不会自动拉取）。
         </p>
@@ -2618,6 +2665,7 @@ export default function App() {
                   <div>原盘</div>
                   <div>当前码率</div>
                   <div>目标码率</div>
+                  <div>预测体积</div>
                   <div>视频格式</div>
                   <div>星级状态</div>
                   <div>豆瓣</div>

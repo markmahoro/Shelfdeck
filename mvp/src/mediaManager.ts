@@ -8,6 +8,8 @@ export type ManagedMediaItem = {
   name: string;
   sectionId: string;
   sectionName?: string;
+  /** Emby 类型；用于电影专属的容量预测汇总 */
+  itemType?: 'Movie' | 'Episode' | 'Other';
   resolution: '1080p' | '4K';
   codec: 'h264' | 'h265' | 'av1';
   durationSec: number;
@@ -32,6 +34,9 @@ export const defaultMediaPolicy: MediaPolicy = {
   target4k: { 2: 8, 3: 14, 4: 22, 5: 35 },
 };
 
+/** 与 estimateEquivalentBitrate 中从容器总码率里扣减的音轨估算（Mbps）一致 */
+const AUDIO_MBPS_LUMP = 0.5;
+
 function codecToH265Factor(codec: ManagedMediaItem['codec']): number {
   if (codec === 'h264') return 1.35;
   if (codec === 'av1') return 0.85;
@@ -40,8 +45,23 @@ function codecToH265Factor(codec: ManagedMediaItem['codec']): number {
 
 export function estimateEquivalentBitrate(item: ManagedMediaItem): number {
   const totalMbps = (item.sizeGb * 8192) / Math.max(1, item.durationSec);
-  const videoMbps = Math.max(0.3, totalMbps - 0.5);
+  const videoMbps = Math.max(0.3, totalMbps - AUDIO_MBPS_LUMP);
   return Number((videoMbps * codecToH265Factor(item.codec)).toFixed(2));
+}
+
+/**
+ * 假设视频轨按策略目标码率重编码（音轨等按固定 Mbps 估算），得到的单条目体积（GB）。
+ * 无有效星级时无法对齐策略，返回当前体积；1 星（删除档）视为 0。
+ */
+export function predictedSizeGbAtPolicyTarget(item: ManagedMediaItem, policy: MediaPolicy): number {
+  const r = effectiveRatingForPolicy(item);
+  if (r == null) return item.sizeGb;
+  if (r === 1) return 0;
+  const target = targetBitrateFor(item, policy);
+  if (target == null) return item.sizeGb;
+  const totalMbps = target + AUDIO_MBPS_LUMP;
+  const sec = Math.max(1, item.durationSec);
+  return (totalMbps * sec) / 8192;
 }
 
 /**
