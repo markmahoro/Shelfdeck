@@ -37,8 +37,89 @@ const LOCAL_MARKED_PLAYED_KEY = 'embyDesktopPlayerLocalMarkedPlayedV1';
 const TASK_SCHEDULER_SETTINGS_KEY = 'embyDesktopPlayerTaskSchedulerSettingsV1';
 const MEDIA_POLICY_KEY = 'embyDesktopPlayerMediaPolicyV1';
 const MANAGED_ITEM_META_KEY = 'embyDesktopPlayerManagedItemMetaV1';
+/** 媒体库管理：最近一次从 Emby 拉取的全量列表（结构化 JSON） */
+const LIBRARY_MANAGE_CACHE_KEY = 'embyDesktopPlayerLibraryManageCacheV1';
 
-type ManagedItemMeta = { rating?: MediaRating | null; watched?: boolean };
+type LibraryManageCacheV1 = {
+  version: 1;
+  /** 与当前 Emby 用户、Base URL、已勾选媒体库列表绑定；任一变化则弃用缓存 */
+  fingerprint: string;
+  savedAt: string;
+  items: UnplayedItem[];
+};
+
+function libraryManageFingerprint(cfg: EmbyConfig): string {
+  const base = cfg.baseUrl.trim().replace(/\/+$/, '');
+  const u = cfg.userId.trim();
+  const s = [...cfg.enabledSectionIds].map((x) => String(x).trim()).filter(Boolean).sort();
+  return JSON.stringify({ b: base, u, s });
+}
+
+function coerceUnplayedItem(x: unknown): UnplayedItem | null {
+  if (!x || typeof x !== 'object') return null;
+  const o = x as Record<string, unknown>;
+  const id = typeof o.id === 'string' ? o.id.trim() : '';
+  const name = typeof o.name === 'string' ? o.name : '';
+  const sectionId = typeof o.sectionId === 'string' ? o.sectionId.trim() : '';
+  if (!id || !sectionId) return null;
+  const out: UnplayedItem = { id, name: name.trim() || id, sectionId };
+  if (typeof o.posterTag === 'string' && o.posterTag) out.posterTag = o.posterTag;
+  if (typeof o.runTimeTicks === 'number' && o.runTimeTicks > 0) out.runTimeTicks = o.runTimeTicks;
+  if (typeof o.durationSec === 'number' && o.durationSec > 0) out.durationSec = o.durationSec;
+  if (typeof o.sizeGb === 'number' && o.sizeGb > 0) out.sizeGb = o.sizeGb;
+  if (o.resolution === '1080p' || o.resolution === '4K') out.resolution = o.resolution;
+  if (o.codec === 'h264' || o.codec === 'h265' || o.codec === 'av1') out.codec = o.codec;
+  if (typeof o.embyPlayed === 'boolean') out.embyPlayed = o.embyPlayed;
+  if (o.itemType === 'Movie' || o.itemType === 'Episode' || o.itemType === 'Other') out.itemType = o.itemType;
+  if (typeof o.isBluRayDisc === 'boolean') out.isBluRayDisc = o.isBluRayDisc;
+  return out;
+}
+
+function readLibraryManageCacheBlob(): LibraryManageCacheV1 | null {
+  try {
+    const raw = localStorage.getItem(LIBRARY_MANAGE_CACHE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as Partial<LibraryManageCacheV1>;
+    if (!p || p.version !== 1 || typeof p.fingerprint !== 'string' || typeof p.savedAt !== 'string' || !Array.isArray(p.items)) {
+      return null;
+    }
+    return p as LibraryManageCacheV1;
+  } catch {
+    return null;
+  }
+}
+
+function hydrateLibraryManageFromStorage(cfg: EmbyConfig): { items: UnplayedItem[]; savedAt: string | null } {
+  if (!hasConfigForLibraryFetch(cfg)) return { items: [], savedAt: null };
+  const blob = readLibraryManageCacheBlob();
+  const fp = libraryManageFingerprint(cfg);
+  if (!blob || blob.fingerprint !== fp) return { items: [], savedAt: null };
+  const items = blob.items.map(coerceUnplayedItem).filter((x): x is UnplayedItem => x != null);
+  return { items, savedAt: blob.savedAt };
+}
+
+function saveLibraryManageCache(cfg: EmbyConfig, items: UnplayedItem[]): string | null {
+  if (!hasConfigForLibraryFetch(cfg)) return null;
+  const savedAt = new Date().toISOString();
+  const blob: LibraryManageCacheV1 = {
+    version: 1,
+    fingerprint: libraryManageFingerprint(cfg),
+    savedAt,
+    items,
+  };
+  try {
+    localStorage.setItem(LIBRARY_MANAGE_CACHE_KEY, JSON.stringify(blob));
+  } catch (e) {
+    console.warn('[library cache] save failed', e);
+    return null;
+  }
+  return savedAt;
+}
+
+type ManagedItemMeta = {
+  rating?: MediaRating | null;
+  watched?: boolean;
+};
 
 type AppPage = 'config' | 'wall' | 'history' | 'mediaManage' | 'taskCenter';
 
@@ -129,7 +210,7 @@ function saveManagedItemMetaPatch(patch: Record<string, Partial<ManagedItemMeta>
   for (const [id, delta] of Object.entries(patch)) {
     prev[id] = { ...prev[id], ...delta };
   }
-  localStorage.setItem(MANAGED_ITEM_META_KEY, JSON.stringify(prev));
+   localStorage.setItem(MANAGED_ITEM_META_KEY, JSON.stringify(prev));
 }
 
 const defaultConfig: EmbyConfig = {
@@ -384,8 +465,14 @@ export default function App() {
   const [sections, setSections] = useState<EmbyMediaFolder[]>([]);
   const [users, setUsers] = useState<EmbyUser[]>([]);
   const [items, setItems] = useState<UnplayedItem[]>([]);
-  /** 媒体库管理：已启用库内全部影片/剧集（含已观看），与海报墙未播放列表分离 */
-  const [libraryManageItems, setLibraryManageItems] = useState<UnplayedItem[]>([]);
+  /** 媒体库管理：已启用库内全部影片/剧集（含已观看），与海报墙未播放列表分离；启动时尽量从本地缓存恢复 */
+  const [libraryManageItems, setLibraryManageItems] = useState<UnplayedItem[]>(() => {
+    return hydrateLibraryManageFromStorage(loadSavedConfig()).items;
+  });
+  /** 本地列表缓存写入时间（ISO）；仅「刷新媒体库列表」成功后会更新 */
+  const [libraryManageCacheSavedAt, setLibraryManageCacheSavedAt] = useState<string | null>(() => {
+    return hydrateLibraryManageFromStorage(loadSavedConfig()).savedAt;
+  });
   const [playedItems, setPlayedItems] = useState<PlayedItem[]>([]);
   const [connected, setConnected] = useState(false);
   const [page, setPage] = useState<AppPage>('config');
@@ -438,11 +525,29 @@ export default function App() {
   const [libraryPanelExpanded, setLibraryPanelExpanded] = useState(false);
 
   const enabledSet = useMemo(() => new Set(config.enabledSectionIds), [config.enabledSectionIds]);
+  const libraryManageCacheFingerprint = useMemo(
+    () => (hasConfigForLibraryFetch(config) ? libraryManageFingerprint(config) : ''),
+    [config.baseUrl, config.userId, config.enabledSectionIds],
+  );
   const sectionNameMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const s of sections) map.set(s.id, s.name);
     return map;
   }, [sections]);
+
+  const configRef = useRef(config);
+  configRef.current = config;
+  useEffect(() => {
+    const cfg = configRef.current;
+    if (!libraryManageCacheFingerprint) {
+      setLibraryManageItems([]);
+      setLibraryManageCacheSavedAt(null);
+      return;
+    }
+    const { items, savedAt } = hydrateLibraryManageFromStorage(cfg);
+    setLibraryManageItems(items);
+    setLibraryManageCacheSavedAt(savedAt);
+  }, [libraryManageCacheFingerprint]);
   const taskSummary = useMemo(() => {
     const byStatus = new Map<string, number>();
     for (const t of tasks) byStatus.set(t.status, (byStatus.get(t.status) ?? 0) + 1);
@@ -1154,13 +1259,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, config.baseUrl, config.apiKey, config.userId, config.enabledSectionIds.join(',')]);
 
-  /** 进入媒体库管理时拉全量库列表（含已观看） */
-  useEffect(() => {
-    if (page !== 'mediaManage') return;
-    if (!hasConfigForLibraryFetch(config)) return;
-    void refreshLibraryManageList({ quietIfIncomplete: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, config.baseUrl, config.apiKey, config.userId, config.enabledSectionIds.join(',')]);
+  /** 媒体库管理：不在进入页面时自动请求 Emby（大库切换页会卡）；依赖本地缓存 + 用户手动「刷新媒体库列表」。 */
 
   useEffect(() => {
     if (page !== 'wall') return;
@@ -1336,6 +1435,8 @@ export default function App() {
       }
       const list = await window.embyApi.getLibraryItemsForManage({ config });
       setLibraryManageItems(list);
+      const at = saveLibraryManageCache(config, list);
+      if (at) setLibraryManageCacheSavedAt(at);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -2182,6 +2283,11 @@ export default function App() {
         >
           {loading ? '刷新中…' : '刷新媒体库列表'}
         </button>
+        <p className="sidebarHint" style={{ marginTop: 8, marginBottom: 0 }}>
+          {libraryManageCacheSavedAt
+            ? `本地列表已缓存（${formatPlayedAt(libraryManageCacheSavedAt)}）。重启或从其它页进入本页不会自动请求 Emby；需与服务器一致时请点上方「刷新媒体库列表」。`
+            : '尚无本地列表缓存：请点击「刷新媒体库列表」从 Emby 拉取并写入本机（结构化 JSON，存于浏览器 localStorage）。'}
+        </p>
         <div className="sidebarField" style={{ marginTop: 10 }}>
           <div className="label">当前媒体库容量（估算）</div>
           <div style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
@@ -2200,7 +2306,7 @@ export default function App() {
           </p>
         </div>
         <p className="sidebarHint">
-          列表覆盖<strong>已启用媒体库</strong>内的电影/剧集，<strong>含已观看</strong>；与海报墙「仅未播放」不同。刷新后体积与编码等与服务器对齐。
+          列表覆盖<strong>已启用媒体库</strong>内的电影/剧集，<strong>含已观看</strong>；与海报墙「仅未播放」不同。展示数据来自本地缓存；与 Emby 对齐须主动点侧栏「刷新媒体库列表」（进入本页不会自动拉取）。
         </p>
         <p className="sidebarHint">目标码率梯度以配置中心<strong>媒体策略</strong>为准；单条目策略覆盖本版未实现。</p>
       </>

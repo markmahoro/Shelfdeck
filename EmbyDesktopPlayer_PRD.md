@@ -145,7 +145,16 @@ flowchart TD
 - 用户确认后调用：
   - `POST /Users/{UserId}/PlayedItems/{ItemId}`
 
-### 5.6 日志与调试
+### 5.6 媒体库管理全量列表本地缓存（扩展能力）
+
+当产品包含「媒体库管理」全量列表时，为减少重复请求与支撑离线浏览最近一次结果，列表以结构化 JSON 缓存在浏览器 `localStorage`：
+
+- **存储键**：`embyDesktopPlayerLibraryManageCacheV1`。
+- **载荷**：`version: 1`、`savedAt`（ISO 时间）、`items`（与 `getLibraryItemsForManage` 一致的条目字段子集）、`fingerprint`（由规范化 `baseUrl`、`userId`、已勾选 `enabledSectionIds` 排序后序列化得到）。
+- **失效**：当前配置对应的指纹与缓存中 `fingerprint` 不一致时，不使用缓存（视为空列表，直至用户手动刷新）。
+- **刷新策略**：进入媒体库管理页**不自动**请求 Emby；用户点击「刷新媒体库列表」且请求成功后写入缓存并更新 `savedAt`。其它模块在回写观看状态等场景下可触发静默刷新以尽量与服务器一致（不强制弹错）。
+
+### 5.7 日志与调试
 
 - 本地日志必须记录关键链路：
   - 播放请求与参数（脱敏）
