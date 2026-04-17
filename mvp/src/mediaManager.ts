@@ -84,18 +84,21 @@ export function targetBitrateFor(item: ManagedMediaItem, policy: MediaPolicy): n
   return ladder[r];
 }
 
-/** 等价码率与目标相差超过此值（Mbps）才建议转码或（5★）洗版，减少边界抖动 */
+/** 等价码率与目标相差超过此值（Mbps）才建议转码，减少边界抖动 */
 const BITRATE_RECOMMEND_HYSTERESIS_MBPS = 1;
 
-/** 4★：仅当等价码率低于「目标 × 此比例」时建议洗版补源 */
-export const FOUR_STAR_UPGRADE_EQ_RATIO = 0.8;
+/**
+ * 4★ 与 5★（4K）共用：等价码率低于「目标 × 此比例」时建议洗版补源。
+ * 5★ 1080p 另见 recommendedAction 中「一律洗版」规则。
+ */
+export const UPGRADE_EQ_BELOW_TARGET_RATIO = 0.8;
 
 /**
  * 按星级的动作空间：
  * - 1★：删除档
  * - 2–3★：仅当明显高于目标时可转码；偏低不洗版
- * - 4★：可转码；偏低且等价码率低于目标之 {@link FOUR_STAR_UPGRADE_EQ_RATIO}（默认 0.8）时可洗版
- * - 5★：仅当明显低于目标时洗版；偏高不转码
+ * - 4★：可转码；偏低且等价码率低于目标×{@link UPGRADE_EQ_BELOW_TARGET_RATIO} 时可洗版
+ * - 5★：不压缩；1080p 一律洗版；4K 时等价码率低于目标×{@link UPGRADE_EQ_BELOW_TARGET_RATIO} 时洗版
  */
 export function recommendedAction(item: ManagedMediaItem, policy: MediaPolicy): MediaAction {
   const r = effectiveRatingForPolicy(item);
@@ -105,9 +108,11 @@ export function recommendedAction(item: ManagedMediaItem, policy: MediaPolicy): 
   if (!target) return 'keep';
   const eq = estimateEquivalentBitrate(item);
   const h = BITRATE_RECOMMEND_HYSTERESIS_MBPS;
+  const belowRatio = UPGRADE_EQ_BELOW_TARGET_RATIO;
 
   if (r === 5) {
-    if (eq < target - h) return 'upgrade';
+    if (item.resolution === '1080p') return 'upgrade';
+    if (eq < target * belowRatio) return 'upgrade';
     return 'keep';
   }
 
@@ -118,7 +123,7 @@ export function recommendedAction(item: ManagedMediaItem, policy: MediaPolicy): 
 
   if (r === 4) {
     if (eq > target + h) return 'transcode';
-    if (eq < target * FOUR_STAR_UPGRADE_EQ_RATIO) return 'upgrade';
+    if (eq < target * belowRatio) return 'upgrade';
     return 'keep';
   }
 
