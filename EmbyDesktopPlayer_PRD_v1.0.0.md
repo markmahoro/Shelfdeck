@@ -128,7 +128,7 @@
 
 ### 6.2 结果判定
 
-- 若出现候选满足 `estimatedBitrate >= targetMin` 且质量评分优于当前资源：进入可执行/可确认路径（实现上经调度与 Flow 协作；可能表现为入队或 **`awaiting_user_confirm`（待信息确认）** 等停泊态，**不以独立页面为必经入口**）。
+- 若出现候选满足 `estimatedBitrate >= targetMin` 且质量评分优于当前资源：进入可执行/可确认路径（实现上经调度与 Flow 协作；可能表现为入队或 `**awaiting_user_confirm`（待信息确认）** 等停泊态，**不以独立页面为必经入口**）。
 - 否则保留 `waiting_media_source` 并刷新 `nextSearchAt`
 
 ### 6.3 示例场景
@@ -151,7 +151,7 @@
 
 - **暂停**冻结调度推进；恢复**仅**通过**执行**（单条或批量）。
 - **占槽时软停**：当前步骤正常收尾，**本步结束后**再进入 `paused` 并释放槽位；实现可借助 `pause_requested` 类标记（见 SSOT §9）。
-- **`awaiting_user_confirm` / `waiting_media_source`**：允许暂停；`pending_manual`：禁止暂停并提示未启动。
+- `**awaiting_user_confirm` / `waiting_media_source`**：允许暂停；`pending_manual`：禁止暂停并提示未启动。
 - **批量暂停** = 单条暂停语义 × 选中集合。
 
 ### 7.3 双队列与并发
