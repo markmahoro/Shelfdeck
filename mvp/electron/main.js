@@ -122,6 +122,7 @@ ipcMain.handle('emby:testConnection', (_evt, payload) => embyService.testConnect
 ipcMain.handle('emby:getUsers', (_evt, payload) => embyService.getUsers(payload));
 ipcMain.handle('emby:getMediaFolders', (_evt, payload) => embyService.getMediaFolders(payload));
 ipcMain.handle('emby:getUnplayedItems', (_evt, payload) => embyService.getUnplayedItems(payload));
+ipcMain.handle('emby:getLibraryItemsForManage', (_evt, payload) => embyService.getLibraryItemsForManage(payload));
 ipcMain.handle('emby:getPlayedItems', (_evt, payload) => embyService.getPlayedItems(payload));
 ipcMain.handle('emby:launchPlayer', (_evt, payload) => embyService.launchPlayer(payload));
 ipcMain.handle('emby:markPlayed', (_evt, payload) => embyService.markPlayed(payload));

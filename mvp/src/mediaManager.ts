@@ -12,6 +12,8 @@ export type ManagedMediaItem = {
   codec: 'h264' | 'h265' | 'av1';
   durationSec: number;
   sizeGb: number;
+  /** ISO / BDMV 等原盘结构；为 true 时禁止码率优化入队 */
+  isBluRayDisc: boolean;
   /** null 表示未标注 */
   rating: MediaRating | null;
   /** Emby 观看状态（与未播放列表可能不同步，以本地与接口为准） */
@@ -58,6 +60,7 @@ export function recommendedAction(item: ManagedMediaItem, policy: MediaPolicy): 
 }
 
 export function buildTaskPreview(item: ManagedMediaItem, action: MediaAction): Pick<MediaTask, 'itemId' | 'itemName' | 'actionType'> | null {
+  if (item.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) return null;
   if (action === 'transcode') return { itemId: item.id, itemName: item.name, actionType: 'transcode' };
   if (action === 'upgrade') return { itemId: item.id, itemName: item.name, actionType: 'upgrade' };
   return null;

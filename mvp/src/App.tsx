@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   canUserExecuteTask,
   canUserPauseTask,
@@ -22,16 +22,15 @@ import {
 import {
   buildTaskPreview,
   defaultMediaPolicy,
-  estimateEquivalentBitrate,
   nextManualRefreshInfo,
   recommendedAction,
-  targetBitrateFor,
   type ManagedMediaItem,
   type MediaAction,
   type MediaPolicy,
   type MediaRating,
 } from './mediaManager';
 import { createDebugSeedTasks } from './debugSeed';
+import { MediaLibraryManageRow } from './MediaLibraryManageRow';
 
 const STORAGE_KEY = 'embyDesktopPlayerConfigV1';
 const LOCAL_MARKED_PLAYED_KEY = 'embyDesktopPlayerLocalMarkedPlayedV1';
@@ -46,6 +45,12 @@ type AppPage = 'config' | 'wall' | 'history' | 'mediaManage' | 'taskCenter';
 type MainNavPage = AppPage;
 
 type ConfigSection = 'emby' | 'policy' | 'scheduler';
+
+type ManageBitrateFilterKey = 'all' | 'transcode' | 'upgrade' | 'keep' | 'no_rating' | 'delete';
+type ManageResolutionFilterKey = 'all' | '1080p' | '4K';
+type ManageCodecFilterKey = 'all' | 'h264' | 'h265' | 'av1';
+type ManageWatchedFilterKey = 'all' | 'watched' | 'unwatched';
+type ManageBluRayFilterKey = 'all' | 'disc' | 'not_disc';
 
 const MAIN_NAV: { id: MainNavPage; label: string }[] = [
   { id: 'config', label: '配置中心' },
@@ -127,11 +132,6 @@ function saveManagedItemMetaPatch(patch: Record<string, Partial<ManagedItemMeta>
   localStorage.setItem(MANAGED_ITEM_META_KEY, JSON.stringify(prev));
 }
 
-function formatRatingDisplay(rating: MediaRating | null) {
-  if (rating == null) return '未标注';
-  return `${rating} 星`;
-}
-
 const defaultConfig: EmbyConfig = {
   baseUrl: 'http://localhost:8096/emby',
   apiKey: '',
@@ -199,9 +199,16 @@ function hasEmbyCoreConfig(config: EmbyConfig): boolean {
   );
 }
 
-/** 含播放器路径；用于海报墙播放、任务等。 */
+/** 拉取未播放列表：仅需 Emby 核心配置（不要求已填播放器路径）。 */
 function hasConfigForLibraryFetch(config: EmbyConfig): boolean {
-  return hasEmbyCoreConfig(config) && !!config.playerExePath.trim();
+  return hasEmbyCoreConfig(config);
+}
+
+/** 治理列表：各条目 sizeGb 累加后的展示（刷新媒体库列表时重算） */
+function formatAggregateLibrarySizeGb(totalGb: number): string {
+  if (!Number.isFinite(totalGb) || totalGb <= 0) return '0 GB';
+  if (totalGb >= 1024) return `${(totalGb / 1024).toFixed(2)} TB（约 ${totalGb.toFixed(0)} GB）`;
+  return `${totalGb.toFixed(1)} GB`;
 }
 
 function formatPlayedAt(iso?: string) {
@@ -377,6 +384,8 @@ export default function App() {
   const [sections, setSections] = useState<EmbyMediaFolder[]>([]);
   const [users, setUsers] = useState<EmbyUser[]>([]);
   const [items, setItems] = useState<UnplayedItem[]>([]);
+  /** 媒体库管理：已启用库内全部影片/剧集（含已观看），与海报墙未播放列表分离 */
+  const [libraryManageItems, setLibraryManageItems] = useState<UnplayedItem[]>([]);
   const [playedItems, setPlayedItems] = useState<PlayedItem[]>([]);
   const [connected, setConnected] = useState(false);
   const [page, setPage] = useState<AppPage>('config');
@@ -408,6 +417,17 @@ export default function App() {
   const [manageRatingOverlay, setManageRatingOverlay] = useState(false);
   const [managePendingRating, setManagePendingRating] = useState<MediaRating | null>(3);
   const [enqueueHint, setEnqueueHint] = useState<string | null>(null);
+  const [manageDeleteExplainOpen, setManageDeleteExplainOpen] = useState(false);
+  const [manageSearchQuery, setManageSearchQuery] = useState('');
+  const [manageBitrateFilter, setManageBitrateFilter] = useState<ManageBitrateFilterKey>('all');
+  const [manageResolutionFilter, setManageResolutionFilter] = useState<ManageResolutionFilterKey>('all');
+  const [manageCodecFilter, setManageCodecFilter] = useState<ManageCodecFilterKey>('all');
+  const [manageWatchedFilter, setManageWatchedFilter] = useState<ManageWatchedFilterKey>('all');
+  const [manageBluRayFilter, setManageBluRayFilter] = useState<ManageBluRayFilterKey>('all');
+  const [manageHighlightId, setManageHighlightId] = useState<string | null>(null);
+  const mediaManageTableRef = useRef<HTMLDivElement | null>(null);
+  const setManagedWatchStateRef = useRef<(it: ManagedMediaItem, watched: boolean) => Promise<void>>(async () => {});
+  const enqueueManagedActionRef = useRef<(item: ManagedMediaItem, action: MediaAction) => void>(() => {});
   const [infoConfirmTaskId, setInfoConfirmTaskId] = useState<string | null>(null);
   const [taskFilter, setTaskFilter] = useState<'all' | MediaTask['status']>('all');
   const [batchRunSelectedIds, setBatchRunSelectedIds] = useState<Set<string>>(() => new Set());
@@ -440,6 +460,85 @@ export default function App() {
     () => (taskFilter === 'all' ? tasks : tasks.filter((t) => t.status === taskFilter)),
     [tasks, taskFilter],
   );
+
+  /** 媒体库行展示：每条视频至多一条未结案任务（互斥） */
+  const activeTaskByItemId = useMemo(() => {
+    const m = new Map<string, MediaTask>();
+    for (const t of tasks) {
+      if (isTaskTerminal(t)) continue;
+      if (!m.has(t.itemId)) m.set(t.itemId, t);
+    }
+    return m;
+  }, [tasks]);
+
+  const managedItemsFiltered = useMemo(() => {
+    let list = managedItems;
+    const q = manageSearchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((it) => it.name.toLowerCase().includes(q));
+    }
+    if (manageBitrateFilter !== 'all') {
+      list = list.filter((it) => {
+        const a = recommendedAction(it, mediaPolicy);
+        switch (manageBitrateFilter) {
+          case 'transcode':
+            return a === 'transcode';
+          case 'upgrade':
+            return a === 'upgrade';
+          case 'keep':
+            return a === 'keep' && it.rating != null && it.rating !== 1;
+          case 'no_rating':
+            return it.rating == null;
+          case 'delete':
+            return it.rating === 1;
+          default:
+            return true;
+        }
+      });
+    }
+    if (manageResolutionFilter !== 'all') {
+      list = list.filter((it) => it.resolution === manageResolutionFilter);
+    }
+    if (manageCodecFilter !== 'all') {
+      list = list.filter((it) => it.codec === manageCodecFilter);
+    }
+    if (manageWatchedFilter === 'watched') {
+      list = list.filter((it) => it.watched);
+    } else if (manageWatchedFilter === 'unwatched') {
+      list = list.filter((it) => !it.watched);
+    }
+    if (manageBluRayFilter === 'disc') {
+      list = list.filter((it) => it.isBluRayDisc);
+    } else if (manageBluRayFilter === 'not_disc') {
+      list = list.filter((it) => !it.isBluRayDisc);
+    }
+    return list;
+  }, [
+    managedItems,
+    manageSearchQuery,
+    manageBitrateFilter,
+    manageResolutionFilter,
+    manageCodecFilter,
+    manageWatchedFilter,
+    manageBluRayFilter,
+    mediaPolicy,
+  ]);
+
+  /** 已启用媒体库全量列表体积总和（与「刷新媒体库列表」数据源一致） */
+  const libraryManageCapacity = useMemo(() => {
+    let totalGb = 0;
+    let movieCount = 0;
+    let episodeCount = 0;
+    for (const it of libraryManageItems) {
+      const g = it.sizeGb;
+      if (typeof g === 'number' && Number.isFinite(g) && g > 0) totalGb += g;
+      if (it.itemType === 'Movie') movieCount++;
+      else if (it.itemType === 'Episode') episodeCount++;
+    }
+    const count = libraryManageItems.length;
+    const otherCount = Math.max(0, count - movieCount - episodeCount);
+    return { totalGb, count, movieCount, episodeCount, otherCount };
+  }, [libraryManageItems]);
 
   const isTaskBatchToggleable = (t: MediaTask) => !isTaskTerminal(t);
 
@@ -525,22 +624,46 @@ export default function App() {
   }, [tasks]);
 
   useEffect(() => {
-    if (items.length === 0) return;
+    const meta = loadManagedItemMeta();
+    if (libraryManageItems.length === 0) {
+      setManagedItems([]);
+      return;
+    }
     setManagedItems((prev) => {
       const existing = new Map(prev.map((x) => [x.id, x]));
-      const meta = loadManagedItemMeta();
-      const next = items.map((item, idx) => {
+      return libraryManageItems.map((item, idx) => {
         const old = existing.get(item.id);
-        if (old) return old;
         const saved = meta[item.id];
         const inPlayedHistory = playedItems.some((p) => p.id === item.id);
-        const durationSec = Math.max(3600, Math.round((item.runTimeTicks ?? 36_000_000_000) / 10_000_000));
-        const sizeGb = Number((3.5 + (idx % 7) * 1.9 + (durationSec / 3600) * 1.8).toFixed(1));
-        const resolution = idx % 3 === 0 ? '4K' : '1080p';
-        const codec = idx % 4 === 0 ? 'h264' : idx % 4 === 1 ? 'h265' : 'av1';
+        const durationSec =
+          typeof item.durationSec === 'number' && item.durationSec > 0
+            ? item.durationSec
+            : Math.max(3600, Math.round((item.runTimeTicks ?? 36_000_000_000) / 10_000_000));
+        const sizeGb =
+          typeof item.sizeGb === 'number' && item.sizeGb > 0
+            ? item.sizeGb
+            : Number((3.5 + (idx % 7) * 1.9 + (durationSec / 3600) * 1.8).toFixed(1));
+        const resolution: ManagedMediaItem['resolution'] =
+          item.resolution === '4K' || item.resolution === '1080p' ? item.resolution : idx % 3 === 0 ? '4K' : '1080p';
+        const codec: ManagedMediaItem['codec'] =
+          item.codec === 'h264' || item.codec === 'h265' || item.codec === 'av1'
+            ? item.codec
+            : idx % 4 === 0
+              ? 'h264'
+              : idx % 4 === 1
+                ? 'h265'
+                : 'av1';
         const sectionName = sectionNameMap.get(item.sectionId);
-        const rating = saved && 'rating' in saved ? saved.rating ?? null : null;
-        const watched = saved && typeof saved.watched === 'boolean' ? saved.watched : inPlayedHistory;
+        const rating = old ? old.rating : saved && 'rating' in saved ? saved.rating ?? null : null;
+        const watched =
+          old
+            ? old.watched
+            : saved && typeof saved.watched === 'boolean'
+              ? saved.watched
+              : typeof item.embyPlayed === 'boolean'
+                ? item.embyPlayed
+                : inPlayedHistory;
+        const isBluRayDisc = item.isBluRayDisc === true;
         return {
           id: item.id,
           name: item.name,
@@ -550,13 +673,13 @@ export default function App() {
           codec,
           durationSec,
           sizeGb,
+          isBluRayDisc,
           rating,
           watched,
         } satisfies ManagedMediaItem;
       });
-      return next;
     });
-  }, [items, playedItems, sectionNameMap]);
+  }, [libraryManageItems, playedItems, sectionNameMap]);
 
   useEffect(() => {
     if (!batchRunning) return;
@@ -591,21 +714,48 @@ export default function App() {
     if (!batchRunning) setBatchRunning(true);
   }, [schedulerSettings.runMode, tasks, batchRunning]);
 
-  function toggleManageSelect(itemId: string) {
+  const toggleManageSelect = useCallback((itemId: string) => {
     setManageSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(itemId)) next.delete(itemId);
       else next.add(itemId);
       return next;
     });
-  }
+  }, []);
 
   function selectAllManaged() {
-    setManageSelectedIds(new Set(managedItems.map((x) => x.id)));
+    setManageSelectedIds(new Set(managedItemsFiltered.map((x) => x.id)));
   }
 
   function clearManageSelection() {
     setManageSelectedIds(new Set());
+  }
+
+  function resetManageFilters() {
+    setManageSearchQuery('');
+    setManageBitrateFilter('all');
+    setManageResolutionFilter('all');
+    setManageCodecFilter('all');
+    setManageWatchedFilter('all');
+    setManageBluRayFilter('all');
+    setError(null);
+  }
+
+  function locateFirstManageHit() {
+    if (managedItemsFiltered.length === 0) {
+      setError('当前搜索与筛选条件下没有可定位的条目。');
+      return;
+    }
+    setError(null);
+    const id = managedItemsFiltered[0].id;
+    setManageHighlightId(id);
+    window.requestAnimationFrame(() => {
+      const root = mediaManageTableRef.current;
+      const escaped = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(id) : id.replace(/["\\]/g, '');
+      const el = root?.querySelector<HTMLElement>(`[data-manage-item-id="${escaped}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    window.setTimeout(() => setManageHighlightId(null), 2600);
   }
 
   function applyRatingToSelection(rating: MediaRating | null) {
@@ -624,11 +774,23 @@ export default function App() {
     setError(null);
   }
 
-  function setSingleManagedRating(it: ManagedMediaItem, rating: MediaRating | null) {
+  const setSingleManagedRating = useCallback((it: ManagedMediaItem, rating: MediaRating | null) => {
     saveManagedItemMetaPatch({ [it.id]: { rating } });
     setManagedItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, rating } : x)));
     setError(null);
-  }
+  }, []);
+
+  const onWatchChangeStable = useCallback((it: ManagedMediaItem, watched: boolean) => {
+    void setManagedWatchStateRef.current(it, watched);
+  }, []);
+
+  const onEnqueueStable = useCallback((item: ManagedMediaItem, action: MediaAction) => {
+    enqueueManagedActionRef.current(item, action);
+  }, []);
+
+  const onOpenDeleteExplainStable = useCallback(() => {
+    setManageDeleteExplainOpen(true);
+  }, []);
 
   async function batchApplyWatchToSelection(watched: boolean) {
     if (manageSelectedIds.size === 0) {
@@ -667,6 +829,7 @@ export default function App() {
           removeLocalMarkedPlayed(it.id);
         }
         await refreshUnplayed();
+        void refreshLibraryManageList({ quietIfIncomplete: true });
         void refreshPlayedHistory();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -676,24 +839,36 @@ export default function App() {
     saveManagedItemMetaPatch({ [it.id]: { watched } });
     setManagedItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, watched } : x)));
   }
+  setManagedWatchStateRef.current = setManagedWatchState;
 
   function enqueueManagedAction(item: ManagedMediaItem, action: MediaAction) {
+    if (item.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) {
+      setError(
+        `「${item.name}」识别为蓝光/原盘（.iso 或含 BDMV 目录），不支持码率优化或洗版入队。请先提取或转封装为普通视频文件后再操作。`,
+      );
+      return;
+    }
     const preview = buildTaskPreview(item, action);
     if (!preview) return;
-    setError(null);
     setTasks((prev) => {
       if (hasActiveTaskForItem(prev, preview.itemId)) {
-        setError(`无法添加任务：「${item.name}」已有进行中的任务（同视频互斥）。`);
+        window.setTimeout(() => {
+          setError(`无法添加任务：「${item.name}」已有进行中的任务（同视频互斥）。`);
+        }, 0);
         return prev;
       }
       const created = enqueueTask(preview, schedulerSettings.runMode);
-      setEnqueueHint(
-        `已提交 1 条：${item.name}（${preview.actionType === 'transcode' ? '码率压缩' : '洗版优化'}）。请到任务中心查看，筛选请选「全部」。`,
-      );
-      window.setTimeout(() => setEnqueueHint(null), 5000);
+      window.setTimeout(() => {
+        setError(null);
+        setEnqueueHint(
+          `已提交 1 条：${item.name}（${preview.actionType === 'transcode' ? '码率压缩' : '洗版优化'}）。请到任务中心查看，筛选请选「全部」。`,
+        );
+        window.setTimeout(() => setEnqueueHint(null), 5000);
+      }, 0);
       return [created, ...prev].slice(0, 300);
     });
   }
+  enqueueManagedActionRef.current = enqueueManagedAction;
 
   function enqueueRecommendedBatch() {
     if (manageSelectedIds.size === 0) {
@@ -703,31 +878,62 @@ export default function App() {
     setError(null);
     setTasks((prev) => {
       const creations: MediaTask[] = [];
-      const blocked: string[] = [];
+      let blocked = 0;
+      let skipped = 0;
+      let discSkipped = 0;
       for (const item of managedItems) {
         if (!manageSelectedIds.has(item.id)) continue;
+        if (item.isBluRayDisc) {
+          discSkipped++;
+          continue;
+        }
         const action = recommendedAction(item, mediaPolicy);
+        if (action !== 'transcode' && action !== 'upgrade') {
+          skipped++;
+          continue;
+        }
         const preview = buildTaskPreview(item, action);
-        if (!preview) continue;
+        if (!preview) {
+          skipped++;
+          continue;
+        }
         if (hasActiveTaskForItem(prev, preview.itemId) || creations.some((c) => c.itemId === preview.itemId)) {
-          blocked.push(item.name);
+          blocked++;
           continue;
         }
         creations.push(enqueueTask(preview, schedulerSettings.runMode));
       }
-      if (blocked.length > 0) {
-        setError(`部分条目已有进行中任务，已跳过：${blocked.slice(0, 5).join('、')}${blocked.length > 5 ? '…' : ''}`);
-      }
-      if (creations.length === 0) {
-        setError(
-          blocked.length > 0
-            ? `选中条目均无法入队（可能未标注星级、已达标、为删除档，或均与进行中任务冲突）。`
-            : '选中条目中暂无需要排队的项（可能未标注星级、已达标或为删除档）。',
-        );
-        return prev;
-      }
-      setEnqueueHint(`已按策略提交 ${creations.length} 条码率优化任务。请到任务中心查看，筛选请选「全部」。`);
-      window.setTimeout(() => setEnqueueHint(null), 6000);
+
+      window.setTimeout(() => {
+        if (creations.length === 0) {
+          setError(
+            blocked > 0
+              ? '选中条目均无法入队（可能与进行中任务互斥，或未标注/已达标/删除档）。'
+              : discSkipped > 0 && skipped === 0 && blocked === 0
+                ? `选中条目中 ${discSkipped} 条为蓝光/原盘（.iso 或 BDMV），不支持入队；其余无需排队。`
+                : '选中条目中暂无需要排队的项（可能未标注星级、已达标、为删除档或为蓝光/原盘）。',
+          );
+          return;
+        }
+        const msg = [
+          `已提交 ${creations.length} 条`,
+          discSkipped > 0 ? `跳过 ${discSkipped} 条（蓝光/原盘）` : '',
+          skipped > 0 ? `跳过 ${skipped} 条（未标注、已达标或删除档）` : '',
+          blocked > 0 ? `互斥跳过 ${blocked} 条` : '',
+          '请到任务中心查看，筛选请选「全部」。',
+        ]
+          .filter(Boolean)
+          .join('；');
+        setEnqueueHint(msg);
+        window.setTimeout(() => setEnqueueHint(null), 8000);
+        if (blocked > 0) {
+          setError(`部分条目因互斥未入队（共 ${blocked} 条）。`);
+        } else {
+          setError(null);
+        }
+      }, 0);
+
+      if (creations.length === 0) return prev;
       return [...creations, ...prev].slice(0, 300);
     });
   }
@@ -864,6 +1070,7 @@ export default function App() {
       codec: 'h264',
       durationSec,
       sizeGb: 9.6,
+      isBluRayDisc: item.isBluRayDisc === true,
       rating,
       watched: true,
     };
@@ -873,28 +1080,34 @@ export default function App() {
       return [managed, ...rest];
     });
     if (schedulerSettings.wallRatingAutoEnqueue) {
-      const action = recommendedAction(managed, mediaPolicy);
-      const preview = buildTaskPreview(managed, action);
-      if (!preview) {
-        setEnqueueHint('已保存星级；当前策略下无需自动入队。');
-        window.setTimeout(() => setEnqueueHint(null), 5000);
+      if (managed.isBluRayDisc) {
+        setEnqueueHint('已保存星级；该条目为蓝光/原盘，不支持自动入队。');
+        window.setTimeout(() => setEnqueueHint(null), 6000);
       } else {
-        setTasks((prev) => {
-          if (hasActiveTaskForItem(prev, preview.itemId)) {
-            setEnqueueHint('已保存星级；该条目已有进行中任务，未重复入队。');
-            window.setTimeout(() => setEnqueueHint(null), 5000);
-            return prev;
-          }
-          const created = enqueueTask(preview, schedulerSettings.runMode);
-          setEnqueueHint(`已保存星级并自动入队：${item.name}。`);
-          window.setTimeout(() => setEnqueueHint(null), 6000);
-          return [created, ...prev].slice(0, 300);
-        });
+        const action = recommendedAction(managed, mediaPolicy);
+        const preview = buildTaskPreview(managed, action);
+        if (!preview) {
+          setEnqueueHint('已保存星级；当前策略下无需自动入队。');
+          window.setTimeout(() => setEnqueueHint(null), 5000);
+        } else {
+          setTasks((prev) => {
+            if (hasActiveTaskForItem(prev, preview.itemId)) {
+              setEnqueueHint('已保存星级；该条目已有进行中任务，未重复入队。');
+              window.setTimeout(() => setEnqueueHint(null), 5000);
+              return prev;
+            }
+            const created = enqueueTask(preview, schedulerSettings.runMode);
+            setEnqueueHint(`已保存星级并自动入队：${item.name}。`);
+            window.setTimeout(() => setEnqueueHint(null), 6000);
+            return [created, ...prev].slice(0, 300);
+          });
+        }
       }
     } else {
       setEnqueueHint('已保存星级。可在配置中心开启「观看后打分自动入队」以自动创建任务。');
       window.setTimeout(() => setEnqueueHint(null), 6000);
     }
+    void refreshLibraryManageList({ quietIfIncomplete: true });
     setWallRatingItem(null);
   }
 
@@ -933,13 +1146,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, historyDays, historyType, historySectionId]);
 
-  /** 进入海报墙 / 媒体库管理时自动拉未播放列表（替代已移除的「进入未播放海报墙」里顺带触发的 refresh）。 */
+  /** 进入海报墙时自动拉未播放列表 */
   useEffect(() => {
-    if (page !== 'wall' && page !== 'mediaManage') return;
+    if (page !== 'wall') return;
     if (!hasConfigForLibraryFetch(config)) return;
     void refreshUnplayed({ quietIfIncomplete: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, config.baseUrl, config.apiKey, config.userId, config.playerExePath, config.enabledSectionIds.join(',')]);
+  }, [page, config.baseUrl, config.apiKey, config.userId, config.enabledSectionIds.join(',')]);
+
+  /** 进入媒体库管理时拉全量库列表（含已观看） */
+  useEffect(() => {
+    if (page !== 'mediaManage') return;
+    if (!hasConfigForLibraryFetch(config)) return;
+    void refreshLibraryManageList({ quietIfIncomplete: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, config.baseUrl, config.apiKey, config.userId, config.enabledSectionIds.join(',')]);
 
   useEffect(() => {
     if (page !== 'wall') return;
@@ -1075,9 +1296,7 @@ export default function App() {
   async function refreshUnplayed(options?: { quietIfIncomplete?: boolean }) {
     if (!hasConfigForLibraryFetch(config)) {
       if (!options?.quietIfIncomplete) {
-        setError(
-          '请先完成并保存本页：Base URL、API Key、选择用户、勾选至少一个媒体库、填写播放器路径。保存后进入海报墙会自动拉取未播放列表。',
-        );
+        setError('请先完成并保存：Base URL、API Key、选择用户，并勾选至少一个媒体库，再刷新列表。');
       }
       return;
     }
@@ -1093,6 +1312,30 @@ export default function App() {
         config.enabledSectionIds.map((sectionId) => window.embyApi.getUnplayedItems({ config, sectionId })),
       );
       setItems(all.flat());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function refreshLibraryManageList(options?: { quietIfIncomplete?: boolean }) {
+    if (!hasConfigForLibraryFetch(config)) {
+      if (!options?.quietIfIncomplete) {
+        setError('请先完成并保存：Base URL、API Key、选择用户，并勾选至少一个媒体库，再刷新列表。');
+      }
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const ok = await ensureConnectedForFetch();
+      if (!ok) {
+        setError('无法联通 Emby，请检查 Base URL / API Key，或在配置页点击「测试联通」。');
+        return;
+      }
+      const list = await window.embyApi.getLibraryItemsForManage({ config });
+      setLibraryManageItems(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1145,6 +1388,7 @@ export default function App() {
         sectionName: sectionName ?? it.sectionName,
       });
       await refreshPlayedHistory();
+      void refreshLibraryManageList({ quietIfIncomplete: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1160,6 +1404,7 @@ export default function App() {
       await window.embyApi.markUnplayed({ config, itemId: it.id });
       removeLocalMarkedPlayed(it.id);
       await refreshPlayedHistory();
+      void refreshLibraryManageList({ quietIfIncomplete: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1789,8 +2034,99 @@ export default function App() {
   if (page === 'mediaManage') {
     const mediaSidebar = (
       <>
-        <div className="sidebarHeading">媒体库管理 · 批量</div>
-        <p className="sidebarHint">以下操作仅对列表中勾选的条目生效。码率策略与任务调度在「配置中心」。</p>
+        <div className="sidebarHeading">媒体库管理</div>
+        <div className="sidebarMuted">搜索与筛选</div>
+        <div className="sidebarField">
+          <div className="label">片名关键字</div>
+          <input
+            value={manageSearchQuery}
+            onChange={(e) => setManageSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                locateFirstManageHit();
+              }
+            }}
+            placeholder="支持部分匹配"
+            aria-label="按片名搜索"
+          />
+        </div>
+        <button type="button" className="sidebarFullWidth" onClick={() => locateFirstManageHit()}>
+          定位到首条结果
+        </button>
+        <div className="sidebarField">
+          <div className="label">码率相对目标</div>
+          <select
+            className="selectLike sidebarFullWidth"
+            value={manageBitrateFilter}
+            onChange={(e) => setManageBitrateFilter(e.target.value as ManageBitrateFilterKey)}
+            aria-label="按码率策略筛选"
+          >
+            <option value="all">全部</option>
+            <option value="transcode">偏高 · 需压缩</option>
+            <option value="upgrade">偏低 · 需洗版</option>
+            <option value="keep">已达标（已标星级）</option>
+            <option value="no_rating">未标注星级</option>
+            <option value="delete">删除档（1 星）</option>
+          </select>
+        </div>
+        <div className="sidebarField">
+          <div className="label">分辨率</div>
+          <select
+            className="selectLike sidebarFullWidth"
+            value={manageResolutionFilter}
+            onChange={(e) => setManageResolutionFilter(e.target.value as ManageResolutionFilterKey)}
+          >
+            <option value="all">全部</option>
+            <option value="1080p">1080p</option>
+            <option value="4K">4K</option>
+          </select>
+        </div>
+        <div className="sidebarField">
+          <div className="label">视频编码</div>
+          <select
+            className="selectLike sidebarFullWidth"
+            value={manageCodecFilter}
+            onChange={(e) => setManageCodecFilter(e.target.value as ManageCodecFilterKey)}
+          >
+            <option value="all">全部</option>
+            <option value="h264">H.264</option>
+            <option value="h265">H.265 / HEVC</option>
+            <option value="av1">AV1</option>
+          </select>
+        </div>
+        <div className="sidebarField">
+          <div className="label">播放记录</div>
+          <select
+            className="selectLike sidebarFullWidth"
+            value={manageWatchedFilter}
+            onChange={(e) => setManageWatchedFilter(e.target.value as ManageWatchedFilterKey)}
+          >
+            <option value="all">全部</option>
+            <option value="watched">已观看</option>
+            <option value="unwatched">未观看</option>
+          </select>
+        </div>
+        <div className="sidebarField">
+          <div className="label">蓝光原盘</div>
+          <select
+            className="selectLike sidebarFullWidth"
+            value={manageBluRayFilter}
+            onChange={(e) => setManageBluRayFilter(e.target.value as ManageBluRayFilterKey)}
+            aria-label="按是否为蓝光原盘筛选"
+          >
+            <option value="all">全部</option>
+            <option value="disc">仅原盘（ISO / BDMV）</option>
+            <option value="not_disc">非原盘</option>
+          </select>
+        </div>
+        <button type="button" className="sidebarFullWidth" onClick={() => resetManageFilters()}>
+          重置搜索与筛选
+        </button>
+        <p className="sidebarHint">列表随输入实时过滤；「定位」滚动到当前结果第一项并短暂高亮。</p>
+        <div className="sidebarDivider" />
+        <div className="sidebarMuted">批量操作</div>
+        <p className="sidebarHint">以下仅对列表中勾选的条目生效。码率策略与任务调度在「配置中心」。</p>
         <div className="sidebarStat">已选 {manageSelectedIds.size} 条</div>
         <div className="sidebarButtonRow">
           <button type="button" onClick={() => selectAllManaged()}>
@@ -1837,6 +2173,36 @@ export default function App() {
         >
           批量码率优化
         </button>
+        <div className="sidebarDivider" />
+        <button
+          type="button"
+          className="sidebarFullWidth"
+          disabled={loading || !hasConfigForLibraryFetch(config)}
+          onClick={() => void refreshLibraryManageList()}
+        >
+          {loading ? '刷新中…' : '刷新媒体库列表'}
+        </button>
+        <div className="sidebarField" style={{ marginTop: 10 }}>
+          <div className="label">当前媒体库容量（估算）</div>
+          <div style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+            {libraryManageCapacity.count === 0 ? '—' : formatAggregateLibrarySizeGb(libraryManageCapacity.totalGb)}
+          </div>
+          <div className="label" style={{ marginTop: 12 }}>总电影数</div>
+          <div style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+            {libraryManageCapacity.count === 0 ? '—' : libraryManageCapacity.movieCount}
+          </div>
+          <p className="sidebarHint" style={{ marginTop: 6, marginBottom: 0 }}>
+            {libraryManageCapacity.count === 0
+              ? '刷新列表后，将汇总已启用库内全部条目的文件体积与类型。'
+              : `共 ${libraryManageCapacity.count} 条（电影 ${libraryManageCapacity.movieCount}，剧集单集 ${libraryManageCapacity.episodeCount}${
+                  libraryManageCapacity.otherCount > 0 ? `，其它 ${libraryManageCapacity.otherCount}` : ''
+                }）；与上方刷新同步更新。`}
+          </p>
+        </div>
+        <p className="sidebarHint">
+          列表覆盖<strong>已启用媒体库</strong>内的电影/剧集，<strong>含已观看</strong>；与海报墙「仅未播放」不同。刷新后体积与编码等与服务器对齐。
+        </p>
+        <p className="sidebarHint">目标码率梯度以配置中心<strong>媒体策略</strong>为准；单条目策略覆盖本版未实现。</p>
       </>
     );
 
@@ -1844,101 +2210,58 @@ export default function App() {
       <>
       <AppShell page={page} setPage={setPage} sidebar={mediaSidebar} error={error}>
         <div className="panel">
-          <div className="hint">当前任务池：共 {taskSummary.total} 条，排队 {taskSummary.queued}，执行中 {taskSummary.running}。</div>
+          <div className="hint">
+            执行转码/洗版在任务中心操作。当前任务池：共 {taskSummary.total} 条，排队 {taskSummary.queued}，执行中 {taskSummary.running}。
+            {managedItems.length > 0 ? (
+              <>
+                {' '}
+                列表显示 {managedItemsFiltered.length} / {managedItems.length} 条（受侧栏搜索与筛选影响）。
+              </>
+            ) : null}
+          </div>
           {enqueueHint ? (
             <div className="hint" style={{ marginTop: 8, color: '#86efac' }}>
               {enqueueHint}
             </div>
           ) : null}
           {managedItems.length === 0 ? (
-            <div className="hint" style={{ marginTop: 12 }}>暂无可管理条目。先到海报墙刷新未播放列表后再回来。</div>
+            <div className="hint" style={{ marginTop: 12 }}>
+              暂无可管理条目。请在配置中心勾选媒体库并保存，再点侧栏「刷新媒体库列表」。
+            </div>
+          ) : managedItemsFiltered.length === 0 ? (
+            <div className="hint" style={{ marginTop: 12 }}>
+              当前搜索与筛选条件下没有条目。请调整侧栏条件或点击「重置搜索与筛选」。
+            </div>
           ) : (
             <>
-              <div className="mediaManageTable">
+              <div className="mediaManageTable" ref={mediaManageTableRef}>
                 <div className="mediaManageGrid mediaManageHead" aria-hidden>
                   <div>条目</div>
+                  <div>体积</div>
+                  <div>原盘</div>
                   <div>当前码率</div>
                   <div>目标码率</div>
                   <div>视频格式</div>
                   <div>星级</div>
                   <div>播放</div>
+                  <div>任务</div>
                   <div>操作</div>
                 </div>
-                {managedItems.map((it) => {
-                  const target = targetBitrateFor(it, mediaPolicy);
-                  const eq = estimateEquivalentBitrate(it);
-                  const action = recommendedAction(it, mediaPolicy);
-                  const targetHint =
-                    it.rating == null ? '—' : it.rating === 1 ? '删除档' : target ? `${target.toFixed(1)} Mbps` : '—';
-                  const formatLabel = `${it.resolution} · ${it.codec.toUpperCase()}`;
-                  return (
-                    <div key={it.id} className="mediaManageGrid mediaManageRow">
-                      <div className="mediaManageTitleCell">
-                        <input
-                          type="checkbox"
-                          checked={manageSelectedIds.has(it.id)}
-                          onChange={() => toggleManageSelect(it.id)}
-                          title="勾选后可参与左侧批量操作"
-                        />
-                        <span className="mediaManageTitle">{it.name}</span>
-                      </div>
-                      <div className="tabular-nums">{eq.toFixed(1)} Mbps</div>
-                      <div className="tabular-nums">{targetHint}</div>
-                      <div>{formatLabel}</div>
-                      <div>{formatRatingDisplay(it.rating)}</div>
-                      <div>{it.watched ? '已观看' : '未观看'}</div>
-                      <div className="mediaManageRowActions">
-                        <div className="mediaManageActionGroup">
-                          <span className="mediaManageActionLabel">观看</span>
-                          <div className="mediaManageActionBtns">
-                            <button type="button" disabled={it.watched} onClick={() => void setManagedWatchState(it, true)}>
-                              已看
-                            </button>
-                            <button type="button" disabled={!it.watched} onClick={() => void setManagedWatchState(it, false)}>
-                              未看
-                            </button>
-                          </div>
-                        </div>
-                        <div className="mediaManageActionGroup">
-                          <span className="mediaManageActionLabel">星级</span>
-                          <select
-                            className="selectLike mediaManageSelect"
-                            value={it.rating == null ? '' : String(it.rating)}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setSingleManagedRating(it, v === '' ? null : (Number(v) as MediaRating));
-                            }}
-                          >
-                            <option value="">未标注</option>
-                            {([1, 2, 3, 4, 5] as const).map((s) => (
-                              <option key={s} value={s}>
-                                {s} 星
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="mediaManageActionGroup">
-                          <span className="mediaManageActionLabel">码率优化</span>
-                          {it.rating == null ? (
-                            <span className="hint">需标注星级</span>
-                          ) : action === 'delete' ? (
-                            <span className="hint">策略：待删除</span>
-                          ) : action === 'keep' ? (
-                            <span className="hint">已达标</span>
-                          ) : action === 'transcode' ? (
-                            <button type="button" onClick={() => enqueueManagedAction(it, action)}>
-                              码率压缩
-                            </button>
-                          ) : (
-                            <button type="button" onClick={() => enqueueManagedAction(it, action)}>
-                              洗版优化
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {managedItemsFiltered.map((it) => (
+                  <MediaLibraryManageRow
+                    key={it.id}
+                    item={it}
+                    isSelected={manageSelectedIds.has(it.id)}
+                    isHighlighted={manageHighlightId === it.id}
+                    mediaPolicy={mediaPolicy}
+                    rowTask={activeTaskByItemId.get(it.id)}
+                    onToggleSelect={toggleManageSelect}
+                    onWatchChange={onWatchChangeStable}
+                    onRatingChange={setSingleManagedRating}
+                    onEnqueue={onEnqueueStable}
+                    onOpenDeleteExplain={onOpenDeleteExplainStable}
+                  />
+                ))}
               </div>
             </>
             )}
@@ -1982,6 +2305,24 @@ export default function App() {
                 }}
               >
                 关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {manageDeleteExplainOpen ? (
+        <div className="overlay">
+          <div className="overlayBox">
+            <div style={{ fontWeight: 800 }}>1 星 · 删除档说明</div>
+            <p className="hint" style={{ marginTop: 10, lineHeight: 1.55 }}>
+              产品定义：1 星表示计划从库中移除该片，正式流程将包含<strong>回收站/二次确认</strong>等受控删除步骤，且不会在未确认时自动物理删文件。
+            </p>
+            <p className="hint" style={{ lineHeight: 1.55 }}>
+              <strong>当前 MVP</strong>仅将条目标为「删除档」策略，<strong>不会</strong>入队转码/洗版，也<strong>不会</strong>调用删除接口；后续版本再接入完整删除与审计。
+            </p>
+            <div className="actions" style={{ marginTop: 14 }}>
+              <button type="button" className="primary" onClick={() => setManageDeleteExplainOpen(false)}>
+                已知悉
               </button>
             </div>
           </div>
@@ -2315,6 +2656,7 @@ export default function App() {
                     setConfirm(null);
                     setActiveSession(null);
                     await refreshUnplayed();
+                    void refreshLibraryManageList({ quietIfIncomplete: true });
                     void refreshPlayedHistory();
                     setWallRatingChoice(3);
                     setWallRatingItem(playedItem);

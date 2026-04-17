@@ -38,6 +38,62 @@ export function installDevEmbyStub() {
     },
   ];
 
+  const mockUnplayedForSection = (sectionId?: string): UnplayedItem[] => {
+    const base = sectionId || 'debug-section-1';
+    const rt = (h: number) => Math.round(h * 3600 * 10_000_000);
+    return [
+      {
+        id: `${base}:m1`,
+        name: '[模拟] 未看长片 A',
+        sectionId: base,
+        posterTag: 'a',
+        runTimeTicks: rt(2.1),
+        durationSec: Math.round(2.1 * 3600),
+        sizeGb: 18.2,
+        resolution: '4K' as const,
+        codec: 'h264' as const,
+        itemType: 'Movie' as const,
+      },
+      {
+        id: `${base}:m2`,
+        name: '[模拟] 未看长片 B（stub 标记为原盘，用于测入队拦截）',
+        sectionId: base,
+        posterTag: 'b',
+        runTimeTicks: rt(1.5),
+        durationSec: Math.round(1.5 * 3600),
+        sizeGb: 6.4,
+        resolution: '1080p' as const,
+        codec: 'h265' as const,
+        itemType: 'Movie' as const,
+        isBluRayDisc: true,
+      },
+      {
+        id: `${base}:m3`,
+        name: '[模拟] 未看长片 C',
+        sectionId: base,
+        posterTag: 'c',
+        runTimeTicks: rt(2.8),
+        durationSec: Math.round(2.8 * 3600),
+        sizeGb: 4.1,
+        resolution: '1080p' as const,
+        codec: 'h264' as const,
+        itemType: 'Movie' as const,
+      },
+      {
+        id: `${base}:m4`,
+        name: '[模拟] 未看短片 D',
+        sectionId: base,
+        posterTag: 'd',
+        runTimeTicks: rt(0.9),
+        durationSec: Math.round(0.9 * 3600),
+        sizeGb: 2.2,
+        resolution: '1080p' as const,
+        codec: 'av1' as const,
+        itemType: 'Movie' as const,
+      },
+    ];
+  };
+
   window.embyApi = {
     async testConnection() {
       return { serverName: 'Dev Stub (Vite)', version: 'browser-dev' };
@@ -48,21 +104,48 @@ export function installDevEmbyStub() {
         { id: 'debug-user-2', name: 'Guest User' },
       ];
     },
-    async getMediaFolders() {
+       async getMediaFolders() {
       return [
         { id: 'debug-section-1', name: 'Movies' },
         { id: 'debug-section-2', name: 'TV Shows' },
       ];
     },
     async getUnplayedItems({ sectionId }) {
-      const base = sectionId || 'debug-section-1';
-      const rt = (h: number) => Math.round(h * 3600 * 10_000_000);
-      return [
-        { id: `${base}:m1`, name: '[模拟] 未看长片 A', sectionId: base, posterTag: 'a', runTimeTicks: rt(2.1) },
-        { id: `${base}:m2`, name: '[模拟] 未看长片 B', sectionId: base, posterTag: 'b', runTimeTicks: rt(1.5) },
-        { id: `${base}:m3`, name: '[模拟] 未看长片 C', sectionId: base, posterTag: 'c', runTimeTicks: rt(2.8) },
-        { id: `${base}:m4`, name: '[模拟] 未看短片 D', sectionId: base, posterTag: 'd', runTimeTicks: rt(0.9) },
-      ];
+      return mockUnplayedForSection(sectionId).map((x) => ({ ...x, embyPlayed: false }));
+    },
+    async getLibraryItemsForManage({ config }) {
+      const sections =
+        config.enabledSectionIds && config.enabledSectionIds.length > 0
+          ? config.enabledSectionIds
+          : ['debug-section-1', 'debug-section-2'];
+      const byId = new Map<string, UnplayedItem>();
+      for (const sid of sections) {
+        for (const it of mockUnplayedForSection(sid)) {
+          byId.set(it.id, { ...it, embyPlayed: false });
+        }
+      }
+      for (const p of mockPlayed) {
+        const sid = p.sectionId || 'debug-section-1';
+        const existing = byId.get(p.id);
+        if (existing) {
+          byId.set(p.id, { ...existing, embyPlayed: true });
+        } else {
+          byId.set(p.id, {
+            id: p.id,
+            name: p.name,
+            sectionId: sid,
+            posterTag: p.posterTag,
+            runTimeTicks: Math.round(1.85 * 3600 * 10_000_000),
+            durationSec: Math.round(1.85 * 3600),
+            sizeGb: 7.2,
+            resolution: '1080p',
+            codec: 'h265',
+            embyPlayed: true,
+            itemType: p.type === 'Episode' ? 'Episode' : 'Movie',
+          });
+        }
+      }
+      return Array.from(byId.values());
     },
     async getPlayedItems(args) {
       let rows = [...mockPlayed];

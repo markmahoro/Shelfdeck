@@ -5,6 +5,7 @@ const embyApi = {
   getUsers: (config) => ipcRenderer.invoke('emby:getUsers', config),
   getMediaFolders: (config) => ipcRenderer.invoke('emby:getMediaFolders', config),
   getUnplayedItems: (args) => ipcRenderer.invoke('emby:getUnplayedItems', args),
+  getLibraryItemsForManage: (args) => ipcRenderer.invoke('emby:getLibraryItemsForManage', args),
   getPlayedItems: (args) => ipcRenderer.invoke('emby:getPlayedItems', args),
   launchPlayer: (args) => ipcRenderer.invoke('emby:launchPlayer', args),
   markPlayed: (args) => ipcRenderer.invoke('emby:markPlayed', args),

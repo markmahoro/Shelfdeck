@@ -174,6 +174,16 @@ body { margin: 0; background: #111827; color: #e5e7eb; }
   margin-bottom: 6px;
 }
 
+.sidebarField input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px;
+  border-radius: 8px;
+  border: 1px solid #374151;
+  background: #0b1220;
+  color: #fff;
+}
+
 .sidebarButtonRow {
   display: flex;
   gap: 8px;
@@ -339,7 +349,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 .mediaManageGrid {
   display: grid;
-  grid-template-columns: minmax(12rem, 1.45fr) 5.5rem 5.5rem 6.75rem 4.25rem 4rem minmax(17rem, 1.45fr);
+  grid-template-columns: minmax(12rem, 1.35fr) 4.5rem 3.5rem 5.5rem 5.5rem 6.75rem 4.25rem 4rem 5.75rem minmax(17rem, 1.35fr);
   gap: 8px 12px;
   align-items: center;
   padding: 10px 12px;
@@ -360,6 +370,15 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   border-radius: 8px;
   margin-bottom: 8px;
   background: #0b1220;
+  /* 长列表：略过视口外行的渲染工作（行高约88px，仅作提示） */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 88px;
+}
+
+.mediaManageRowHighlight {
+  box-shadow: 0 0 0 2px #38bdf8;
+  border-color: #0ea5e9;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .mediaManageTitleCell {
@@ -426,6 +445,6 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 @media (max-width: 1100px) {
   .mediaManageGrid {
-    min-width: 58rem;
+    min-width: 66rem;
   }
 }

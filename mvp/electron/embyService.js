@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const { spawn } = require('child_process');
 
 function log(...args) {
@@ -62,6 +63,215 @@ function mapEmbyType(t) {
   return 'Unknown';
 }
 
+/**
+ * 列表接口常返回 Type=Video（泛型视频），不能仅靠 Movie/Episode 字符串判断。
+ * 参考：Emby 文档中 Video 与 Movie/Episode 的层次关系；剧集通常带 SeriesId/SeriesName 或季集序号。
+ * @returns {'Movie'|'Episode'|'Other'}
+ */
+function classifyManageListItemType(item) {
+  const raw = item.Type ?? item.type;
+  const typeStr = typeof raw === 'string' ? raw.trim() : '';
+  const lc = typeStr.toLowerCase();
+
+  if (lc === 'episode') return 'Episode';
+  if (lc === 'movie') return 'Movie';
+
+  const seriesId = item.SeriesId ?? item.seriesId;
+  const seriesName = item.SeriesName ?? item.seriesName;
+  const hasSeriesId = seriesId != null && String(seriesId).trim().length > 0;
+  const hasSeriesName = typeof seriesName === 'string' && seriesName.trim().length > 0;
+  const hasEpisodeIndexing =
+    typeof item.ParentIndexNumber === 'number' || typeof item.IndexNumber === 'number';
+
+  const isVideoLike =
+    lc === 'video' ||
+    (item.MediaType ?? item.mediaType) === 'Video' ||
+    (item.MediaType ?? item.mediaType) === 'video';
+
+  if (item.IsMovie === true || item.isMovie === true) return 'Movie';
+
+  if (isVideoLike || typeStr === '') {
+    if (hasSeriesId || hasSeriesName || hasEpisodeIndexing) return 'Episode';
+    return 'Movie';
+  }
+
+  const mapped = mapEmbyType(typeStr);
+  if (mapped === 'Movie' || mapped === 'Episode') return mapped;
+  return 'Other';
+}
+
+function normalizeFsPath(p) {
+  return String(p || '').replace(/\\/g, '/').toLowerCase();
+}
+
+function isDirectorySync(p) {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Emby 对 BDMV 文件夹原盘常把 Path 指到片库根目录，路径里不含「BDMV」，需在磁盘上判断。 */
+const bdmvImmediateCache = new Map();
+
+function dirHasImmediateBdmv(dir) {
+  if (!dir || typeof dir !== 'string') return false;
+  let key;
+  try {
+    key = path.resolve(dir).toLowerCase();
+  } catch {
+    key = path.normalize(dir).toLowerCase();
+  }
+  if (bdmvImmediateCache.has(key)) return bdmvImmediateCache.get(key);
+  const ok = isDirectorySync(path.join(dir, 'BDMV'));
+  bdmvImmediateCache.set(key, ok);
+  return ok;
+}
+
+function pathToFilesystemDir(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  try {
+    const st = fs.statSync(s);
+    if (st.isDirectory()) return s;
+    if (st.isFile()) return path.dirname(s);
+  } catch {
+    // 路径不可访问时：有常见视频扩展名则视为文件并取父目录
+    const ext = path.extname(s).toLowerCase();
+    if (
+      [
+        '.m2ts',
+        '.mts',
+        '.ssif',
+        '.mpls',
+        '.clpi',
+        '.bdmv',
+        '.iso',
+        '.mkv',
+        '.mp4',
+        '.ts',
+        '.m4v',
+        '.avi',
+      ].includes(ext)
+    ) {
+      return path.dirname(s);
+    }
+  }
+  return s;
+}
+
+/** 从当前目录沿父链查找是否存在 BDMV；并检查一层子目录下是否有 BDMV（如 disc/BDMV）。 */
+function pathOnDiskImpliesBdmvFolder(rawPath) {
+  const start = pathToFilesystemDir(rawPath);
+  if (!start) return false;
+
+  try {
+    if (isDirectorySync(start)) {
+      const entries = fs.readdirSync(start, { withFileTypes: true });
+      for (const ent of entries) {
+        if (!ent.isDirectory()) continue;
+        if (dirHasImmediateBdmv(path.join(start, ent.name))) return true;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  let dir = start;
+  let depth = 0;
+  const seen = new Set();
+  while (dir && depth < 14) {
+    let norm;
+    try {
+      norm = path.resolve(dir).toLowerCase();
+    } catch {
+      norm = path.normalize(dir).toLowerCase();
+    }
+    if (seen.has(norm)) break;
+    seen.add(norm);
+    if (dirHasImmediateBdmv(dir)) return true;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+    depth += 1;
+  }
+  return false;
+}
+
+/**
+ * 蓝光/原盘结构：.iso、含 BDMV 目录，或 Emby 标记的蓝光/ISO 类型。
+ * 此类条目不支持在应用内发起码率优化任务（需先提取或转封装为普通片源）。
+ * @param {object} [config] 与 launchPlayer 相同，使用 pathMapFrom/To 将 Emby 路径映射到本机可访问路径后再做磁盘探测。
+ */
+function inferIsBluRayDisc(item, config) {
+  const from = config && config.pathMapFrom;
+  const to = config && config.pathMapTo;
+
+  const collectPathsForDiscCheck = () => {
+    const out = [];
+    const seen = new Set();
+    const add = (p) => {
+      const s = String(p || '').trim();
+      if (!s) return;
+      const mapped = applyPathMap(s, from, to).trim();
+      const candidates = mapped !== s ? [s, mapped] : [mapped];
+      for (const cand of candidates) {
+        const key = cand.replace(/\\/g, '/').toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(cand);
+      }
+    };
+    if (item.Path) add(item.Path);
+    if (Array.isArray(item.MediaSources)) {
+      for (const src of item.MediaSources) {
+        if (src && src.Path) add(src.Path);
+      }
+    }
+    return out;
+  };
+
+  const paths = collectPathsForDiscCheck();
+
+  for (const raw of paths) {
+    const n = normalizeFsPath(raw);
+    if (!n) continue;
+    if (n.endsWith('.iso')) return true;
+    if (n.includes('/bdmv/') || n.endsWith('/bdmv')) return true;
+  }
+
+  for (const raw of paths) {
+    if (!String(raw || '').trim()) continue;
+    try {
+      if (pathOnDiskImpliesBdmvFolder(raw)) return true;
+    } catch {
+      /*网络盘未挂载等 */
+    }
+  }
+
+  const isoType = item.IsoType ?? item.isoType;
+  if (isoType === 'BluRay' || isoType === 'Dvd') return true;
+
+  const videoType = item.VideoType ?? item.videoType;
+  if (typeof videoType === 'string') {
+    const v = videoType.toLowerCase();
+    if (v === 'bluray' || v === 'iso') return true;
+  }
+
+  if (Array.isArray(item.MediaSources)) {
+    for (const src of item.MediaSources) {
+      if (!src) continue;
+      const svt = (src.VideoType ?? src.videoType ?? '').toString().toLowerCase();
+      if (svt === 'bluray' || svt === 'iso') return true;
+      const c = (src.Container ?? src.container ?? '').toString().toLowerCase();
+      if (c === 'iso') return true;
+    }
+  }
+
+  return false;
+}
+
 function episodeIndexLabel(item) {
   const pi = item.ParentIndexNumber;
   const idx = item.IndexNumber;
@@ -72,11 +282,25 @@ function episodeIndexLabel(item) {
 }
 
 function applyPathMap(filePath, from, to) {
+  const fp = String(filePath || '');
   const prefix = String(from || '').trim();
-  if (!prefix) return filePath;
+  if (!prefix) return fp;
   const dest = String(to || '').trim();
-  if (filePath.startsWith(prefix)) return dest + filePath.slice(prefix.length);
-  return filePath;
+
+  if (fp.startsWith(prefix)) return dest + fp.slice(prefix.length);
+
+  const fpN = fp.replace(/\\/g, '/');
+  const prN = prefix.replace(/\\/g, '/');
+  const mapNorm = () => {
+    const rest = fpN.slice(prN.length).replace(/^\/+/, '');
+    if (!rest) return path.normalize(dest);
+    return path.normalize(path.join(dest, ...rest.split('/').filter(Boolean)));
+  };
+
+  if (fpN.startsWith(prN)) return mapNorm();
+  if (process.platform === 'win32' && fpN.toLowerCase().startsWith(prN.toLowerCase())) return mapNorm();
+
+  return fp;
 }
 
 /**简易引号感知拆分，用于播放器参数模板（Windows） */
@@ -161,6 +385,61 @@ async function getMediaFolders({ baseUrl, apiKey }) {
 const ITEM_FIELDS =
   'BasicSyncInfo,RunTimeTicks,ImageTags,Type,SeriesName,ParentIndexNumber,IndexNumber,ParentId,MediaSources';
 
+/** 治理列表需已播状态（UserData.Played）；Path/VideoType 等用于原盘识别 */
+const ITEM_FIELDS_MANAGE =
+  'BasicSyncInfo,RunTimeTicks,ImageTags,Type,MediaType,Path,VideoType,IsoType,SeriesName,SeriesId,ParentIndexNumber,IndexNumber,ParentId,MediaSources,UserData';
+
+function normalizeVideoCodec(raw) {
+  const c = String(raw || '').toLowerCase();
+  if (c === 'hevc' || c.includes('h265') || c === 'h265') return 'h265';
+  if (c === 'h264' || c === 'avc' || c.includes('h264')) return 'h264';
+  if (c === 'av1') return 'av1';
+  return 'h264';
+}
+
+function inferResolution(width, height) {
+  const h = typeof height === 'number' ? height : 0;
+  const w = typeof width === 'number' ? width : 0;
+  if (h >= 2000 || w >= 3800) return '4K';
+  return '1080p';
+}
+
+/** 从 Items 接口返回的 MediaSources / MediaStreams 推导治理页用码率估算字段 */
+function extractLibraryItemStats(item) {
+  const ticks = typeof item.RunTimeTicks === 'number' ? item.RunTimeTicks : 0;
+  const durationSec = ticks > 0 ? Math.max(1, Math.round(ticks / 10_000_000)) : 3600;
+  const sources = Array.isArray(item.MediaSources) ? item.MediaSources : [];
+  const src = sources[0];
+  let sizeGb = 0;
+  let width;
+  let height;
+  let codec = 'h264';
+  if (src) {
+    if (typeof src.Size === 'number' && src.Size > 0) {
+      sizeGb = Number((src.Size / (1024 * 1024 * 1024)).toFixed(2));
+    }
+    const streams = Array.isArray(src.MediaStreams) ? src.MediaStreams : [];
+    const video = streams.find((s) => s && s.Type === 'Video');
+    if (video) {
+      width = video.Width;
+      height = video.Height;
+      codec = normalizeVideoCodec(video.Codec);
+    }
+  }
+  if (sizeGb <= 0 && src && typeof src.Bitrate === 'number' && src.Bitrate > 0 && durationSec > 0) {
+    sizeGb = Number(((src.Bitrate * durationSec) / 8 / (1024 * 1024 * 1024)).toFixed(2));
+  }
+  if (sizeGb <= 0) {
+    sizeGb = Number((2.5 + durationSec / 3600).toFixed(2));
+  }
+  return {
+    durationSec,
+    sizeGb: Math.max(0.05, sizeGb),
+    resolution: inferResolution(width, height),
+    codec,
+  };
+}
+
 async function getUnplayedForSection(config, sectionId) {
   const uid = encodeURIComponent(config.userId.trim());
   const query = {
@@ -175,19 +454,77 @@ async function getUnplayedForSection(config, sectionId) {
   };
   const data = await embyFetchJson(config, `Users/${uid}/Items`, {}, query);
   const items = data && Array.isArray(data.Items) ? data.Items : [];
-  return items.map((item) => ({
-    id: item.Id,
-    name: item.Name || item.Id,
-    posterTag: item.ImageTags && item.ImageTags.Primary,
-    runTimeTicks: typeof item.RunTimeTicks === 'number' ? item.RunTimeTicks : undefined,
-    sectionId,
-  }));
+  return items.map((item) => {
+    const stats = extractLibraryItemStats(item);
+    return {
+      id: item.Id,
+      name: item.Name || item.Id,
+      posterTag: item.ImageTags && item.ImageTags.Primary,
+      runTimeTicks: typeof item.RunTimeTicks === 'number' ? item.RunTimeTicks : undefined,
+      sectionId,
+      durationSec: stats.durationSec,
+      sizeGb: stats.sizeGb,
+      resolution: stats.resolution,
+      codec: stats.codec,
+    };
+  });
 }
 
 async function getUnplayedItems({ config, sectionId }) {
   const rows = await getUnplayedForSection(config, sectionId);
   log('getUnplayedItems', sectionId, rows.length);
   return rows;
+}
+
+/** 已启用媒体库内全部电影/剧集（含已观看），供媒体库管理页 */
+async function getLibraryItemsForManageSection(config, sectionId) {
+  const uid = encodeURIComponent(config.userId.trim());
+  const query = {
+    ParentId: sectionId,
+    Recursive: 'true',
+    IncludeItemTypes: 'Movie,Episode',
+    Fields: ITEM_FIELDS_MANAGE,
+    SortBy: 'SortName',
+    SortOrder: 'Ascending',
+    Limit: '2000',
+  };
+  const data = await embyFetchJson(config, `Users/${uid}/Items`, {}, query);
+  const items = data && Array.isArray(data.Items) ? data.Items : [];
+  return items.map((item) => {
+    const stats = extractLibraryItemStats(item);
+    const embyPlayed = !!(item.UserData && item.UserData.Played);
+    const itemType = classifyManageListItemType(item);
+    const isBluRayDisc = inferIsBluRayDisc(item, config);
+    return {
+      id: item.Id,
+      name: item.Name || item.Id,
+      posterTag: item.ImageTags && item.ImageTags.Primary,
+      runTimeTicks: typeof item.RunTimeTicks === 'number' ? item.RunTimeTicks : undefined,
+      sectionId,
+      durationSec: stats.durationSec,
+      sizeGb: stats.sizeGb,
+      resolution: stats.resolution,
+      codec: stats.codec,
+      embyPlayed,
+      itemType,
+      isBluRayDisc,
+    };
+  });
+}
+
+async function getLibraryItemsForManage({ config }) {
+  const ids = Array.isArray(config.enabledSectionIds) ? config.enabledSectionIds.filter((x) => x && String(x).trim()) : [];
+  if (ids.length === 0) return [];
+  const chunks = await Promise.all(ids.map((sid) => getLibraryItemsForManageSection(config, sid)));
+  const byId = new Map();
+  for (const chunk of chunks) {
+    for (const it of chunk) {
+      if (!byId.has(it.id)) byId.set(it.id, it);
+    }
+  }
+  const list = Array.from(byId.values());
+  log('getLibraryItemsForManage', list.length);
+  return list;
 }
 
 async function fetchPlayedPage(config, sectionId, type) {
@@ -390,6 +727,7 @@ module.exports = {
   getUsers,
   getMediaFolders,
   getUnplayedItems,
+  getLibraryItemsForManage,
   getPlayedItems,
   launchPlayer,
   markPlayed,

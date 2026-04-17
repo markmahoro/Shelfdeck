@@ -9,6 +9,17 @@ declare global {
     posterTag?: string;
     runTimeTicks?: number;
     sectionId: string;
+    /** 来自 Emby MediaSources（或调试桩）；用于治理页码率估算 */
+    durationSec?: number;
+    sizeGb?: number;
+    resolution?: '1080p' | '4K';
+    codec?: 'h264' | 'h265' | 'av1';
+    /** Emby UserData.Played；治理列表已看状态以服务器为准时的来源 */
+    embyPlayed?: boolean;
+    /** Emby Item.Type：电影 / 剧集单集 / 其它 */
+    itemType?: 'Movie' | 'Episode' | 'Other';
+    /** ISO / BDMV 等原盘（Path 与类型推断） */
+    isBluRayDisc?: boolean;
   };
   type PlayedItem = {
     id: string;
@@ -67,6 +78,8 @@ declare global {
       getUsers: (config: { baseUrl: string; apiKey: string }) => Promise<EmbyUser[]>;
       getMediaFolders: (config: { baseUrl: string; apiKey: string }) => Promise<EmbyMediaFolder[]>;
       getUnplayedItems: (args: { config: EmbyConfig; sectionId: string }) => Promise<UnplayedItem[]>;
+      /** 已启用库内全部影片/剧集（含已观看），媒体库管理专用 */
+      getLibraryItemsForManage: (args: { config: EmbyConfig }) => Promise<UnplayedItem[]>;
       getPlayedItems: (args: { config: EmbyConfig; days?: 7 | 30 | 0; sectionId?: string; type?: 'all' | 'Movie' | 'Episode' }) => Promise<PlayedItem[]>;
       launchPlayer: (args: { config: EmbyConfig; item: UnplayedItem }) => Promise<LaunchResult>;
       markPlayed: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;
