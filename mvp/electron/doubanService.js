@@ -99,6 +99,71 @@ function stripTags(s) {
   return s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 }
 
+function hasCJK(s) {
+  return /[\u3400-\u9FFF\u3007]/.test(String(s || ''));
+}
+
+function scoreTitleCandidate(t) {
+  const s = String(t || '').trim();
+  if (!s) return -1;
+  let score = Math.min(s.length, 400);
+  if (hasCJK(s)) score += 3000;
+  return score;
+}
+
+/**
+ * 同一 subject 在「看过」列表里常有多个 <a>（海报、标题行等），只取第一个常会落到纯英文或空（海报链里只有 <img>）。
+ * 合并本块内该 id 下所有链接文本 + 所有 img alt，去重后把含中文的片段排在前面，便于阅读和与 Emby 中文片名对齐。
+ */
+function extractTitleForSubjectChunk(chunk, subjectId) {
+  const esc = subjectId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const linkRe = new RegExp(
+    `<a[^>]+href=["']https?:\\/\\/movie\\.douban\\.com\\/subject\\/${esc}\\/["'][^>]*>([\\s\\S]*?)<\\/a>`,
+    'gi',
+  );
+  let bestLink = '';
+  let bestScore = -1;
+  let m;
+  while ((m = linkRe.exec(chunk)) !== null) {
+    const t = stripTags(m[1]).trim();
+    const sc = scoreTitleCandidate(t);
+    if (sc > bestScore) {
+      bestScore = sc;
+      bestLink = t;
+    }
+  }
+
+  const alts = [];
+  const altRe = /<img[^>]+alt=["']([^"']{1,400})["']/gi;
+  while ((m = altRe.exec(chunk)) !== null) {
+    const a = m[1].trim();
+    if (a && !/^https?:\/\//i.test(a) && !/^data:/i.test(a)) alts.push(a);
+  }
+
+  const seenSeg = new Set();
+  const ordered = [];
+  const addPart = (raw) => {
+    for (const seg of String(raw)
+      .split(/\s*\/\s*/)
+      .map((x) => x.trim())
+      .filter(Boolean)) {
+      if (!seenSeg.has(seg)) {
+        seenSeg.add(seg);
+        ordered.push(seg);
+      }
+    }
+  };
+  for (const a of alts) addPart(a);
+  if (bestLink) addPart(bestLink);
+
+  ordered.sort((a, b) => {
+    if (hasCJK(b) !== hasCJK(a)) return hasCJK(b) ? 1 : -1;
+    return b.length - a.length;
+  });
+
+  return ordered.length > 0 ? ordered.join(' / ') : bestLink || alts[0] || '';
+}
+
 function parseStarsFromChunk(chunk) {
   const r1 = chunk.match(/rating(\d)-t/);
   if (r1) {
@@ -135,18 +200,7 @@ function parseRatingsPage(html) {
       chunk = nextIdx === -1 ? norm.slice(back) : norm.slice(back, nextIdx);
     }
 
-    let title = '';
-    const linkTitle = chunk.match(
-      /<a[^>]+href=["']https?:\/\/movie\.douban\.com\/subject\/\d+\/["'][^>]*>([\s\S]*?)<\/a>/,
-    );
-    if (linkTitle) title = stripTags(linkTitle[1]);
-    const imgAlt = chunk.match(/<img[^>]+alt=["']([^"']{1,300})["']/i);
-    const alt = imgAlt ? imgAlt[1].trim() : '';
-    if (!title) title = alt;
-    else if (alt && alt !== title && !title.includes(alt)) {
-      /** 海报 alt 常为短中文名，与链接长标题互补，便于与 Emby 单名对齐 */
-      title = `${title} / ${alt}`;
-    }
+    const title = extractTitleForSubjectChunk(chunk, subjectId);
     const stars = parseStarsFromChunk(chunk);
     if (title && stars != null && !seen.has(subjectId)) {
       seen.add(subjectId);
