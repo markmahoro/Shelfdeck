@@ -1,0 +1,55 @@
+{
+  "name": "mvp",
+  "version": "1.0.0-beta.3",
+  "description": "Emby desktop player MVP",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:renderer": "vite",
+    "dev:electron": "cross-env NODE_ENV=development electron .",
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
+    "build": "cross-env NODE_ENV=production vite build",
+    "start": "cross-env NODE_ENV=production electron .",
+    "dist:win": "npm run build && electron-builder --win portable"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^41.2.1",
+    "electron-builder": "^25.1.8",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.8"
+  },
+  "build": {
+    "appId": "com.emby.thirdparty.mvp",
+    "productName": "EmbyDesktopPlayer",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "forceCodeSigning": false,
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "win": {
+      "target": "portable",
+      "signAndEditExecutable": false
+    }
+  }
+}
