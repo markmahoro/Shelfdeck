@@ -77,10 +77,16 @@ export function effectiveRatingForPolicy(item: ManagedMediaItem): MediaRating | 
   return item.rating;
 }
 
+/**
+ * 策略目标视频码率（Mbps）。选用哪一档梯度表：
+ * - 片源为 4K → `target4k`
+ * - 片源为 1080p → 默认 `target1080p`；**5★ 例外**：按洗版预期对齐 4K 档，使用 `target4k[5]`，避免列表目标码率与体积预测仍按 1080p 档（偏小）。
+ */
 export function targetBitrateFor(item: ManagedMediaItem, policy: MediaPolicy): number | null {
   const r = effectiveRatingForPolicy(item);
   if (r == null || r === 1) return null;
-  const ladder = item.resolution === '4K' ? policy.target4k : policy.target1080p;
+  const use4KPolicyTier = item.resolution === '4K' || (r === 5 && item.resolution === '1080p');
+  const ladder = use4KPolicyTier ? policy.target4k : policy.target1080p;
   return ladder[r];
 }
 
