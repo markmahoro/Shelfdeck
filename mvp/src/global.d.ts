@@ -45,6 +45,21 @@ declare global {
     };
   };
 
+  type TaskRunMode = 'manual' | 'scheduled';
+  type TaskControlAction = 'start' | 'pause' | 'simulateExit' | 'resumeInterrupted';
+  type TaskSchedulerSettings = {
+    transcodeConcurrency: number;
+    upgradeConcurrency: number;
+    runMode: TaskRunMode;
+    waitingFastRetryCount: number;
+    waitingFastIntervalHours: number;
+    waitingMidRetryCount: number;
+    waitingMidIntervalDays: number;
+    waitingSlowIntervalDays: number;
+    /** 海报墙：观看确认并打完分后是否按策略自动入队（§4.4） */
+    wallRatingAutoEnqueue: boolean;
+  };
+
   interface Window {
     embyApi: {
       testConnection: (config: { baseUrl: string; apiKey: string }) => Promise<{ serverName?: string; version?: string }>;
@@ -55,6 +70,7 @@ declare global {
       launchPlayer: (args: { config: EmbyConfig; item: UnplayedItem }) => Promise<LaunchResult>;
       markPlayed: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;
       markUnplayed: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;
+      taskControl?: (args: { action: TaskControlAction; settings?: TaskSchedulerSettings }) => Promise<void>;
     };
   }
 }

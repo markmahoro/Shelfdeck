@@ -4,8 +4,9 @@
 
 - 产品名：`Emby Desktop Player`
 - 平台范围：`Windows`（v1.0.0）
-- 本文重点：`v1.0.0 正式版`能力定义与落地方案
-- 兼容说明：文末附 `beta.1 ~ beta.3` 已实现能力简述
+- 本文重点：`v1.0.0 正式版`能力定义与落地方案；与实现细节冲突时，**任务调度与任务中心交互**以 `TASK_CENTER_FULL_LOGIC.md` 为单一事实来源（SSOT）。
+- 兼容说明：文末附 `beta.1 ~ beta.3` 已实现能力简述及**当前开发中**快照。
+- **修订（2026-04）**：对齐五页壳层与配置集中化；任务中心执行/暂停（含软停）、批量操作与信息确认弹窗；废弃独立「质量审阅」顶层入口。
 
 ---
 
@@ -35,17 +36,20 @@
 
 ## 2. v1.0.0 页面清单
 
-### 2.1 现有页面（保留）
+### 2.1 顶层信息架构（五页 + 壳层）
 
-1. 配置页（Config）
-2. 未播放海报墙（Wall）
-3. 播放记录页（History）
+应用采用**统一壳层**：顶部主导航约五页，每页**左侧为操作侧栏**、右侧为主内容区（开发中实现与 PRD 对齐）。
 
-### 2.2 新增页面（v1.0.0）
+1. **配置中心（Config）**：连接与播放器、**任务调度与补源**（执行模式、双队列并发、补源重试节奏、海报墙打分自动入队等）及其他配置分区。
+2. **未播放海报墙（Wall）**：观影入口；观看结束打分后，可按策略自动创建任务（受配置开关约束）。
+3. **播放记录页（History）**：行为回放；**不再**承担「添加任务」类重入口（与媒体库重复者已收敛）。
+4. **媒体库管理页（MediaManage）**：资产治理；单条/批量入队、星级与策略。
+5. **任务中心页（TaskCenter）**：任务列表、状态筛选、单条/批量**调度类**操作（移除、暂停、执行、批量执行等）；**补源信息确认**以**弹窗**完成。
 
-1. 媒体库管理页（MediaManage）
-2. 任务中心页（TaskCenter）
-3. 质量审阅页（QualityReview）
+### 2.2 非顶层页面 / 已调整项
+
+- **质量审阅**：不再作为独立顶层页面与路由入口；候选确认纳入任务中心 **「信息确认」** 流程（与 SSOT §11.3 一致）。
+- **任务日志**：任务中心内**首版占位**，完整采集与检索为后续迭代。
 
 ---
 
@@ -64,9 +68,9 @@
 
 ### 3.3 操作关系
 
-- 播放记录页允许轻操作：重新播放、已看/未看修正、加入优化池快捷入口。
+- 播放记录页允许轻操作：重新播放、已看/未看修正、跳转媒体库等（**不**在播放记录页执行重任务或任务控制）。
 - 媒体库管理页负责重操作：星级调整、策略覆盖、批量入队。
-- 任务执行控制统一在任务中心页，不在播放记录页执行重任务。
+- **任务执行控制**（执行、暂停、批量执行、批量暂停、移除等）**统一在任务中心**；配置项在**配置中心 → 任务调度与补源**维护。
 
 ---
 
@@ -105,7 +109,7 @@
 
 ### 5.3 无高码率资源时的处理
 
-- 不判定为终态失败，状态设为 `waiting_source`。
+- 不判定为终态失败，状态设为 `waiting_media_source`。
 - 记录：`lastSearchAt`、`nextSearchAt`、`searchAttempt`、`bestCandidateScore`。
 - 触发再搜：
   - 到期自动重搜
@@ -124,34 +128,45 @@
 
 ### 6.2 结果判定
 
-- 若出现候选满足 `estimatedBitrate >= targetMin` 且质量评分优于当前资源：
-  - 状态转 `ready_to_upgrade`
-  - 进入批量执行队列
-- 否则保留 `waiting_source` 并刷新 `nextSearchAt`
+- 若出现候选满足 `estimatedBitrate >= targetMin` 且质量评分优于当前资源：进入可执行/可确认路径（实现上经调度与 Flow 协作；可能表现为入队或 **`awaiting_user_confirm`（待信息确认）** 等停泊态，**不以独立页面为必经入口**）。
+- 否则保留 `waiting_media_source` 并刷新 `nextSearchAt`
 
 ### 6.3 示例场景
 
-- 1 月 5 日：用户设为 5 星，无达标资源 -> `waiting_source`
-- 3 月 5 日：应用启动触发到期重搜，出现达标资源 -> `ready_to_upgrade` -> 入队执行
+- 1 月 5 日：用户设为 5 星，无达标资源 -> `waiting_media_source`
+- 3 月 5 日：应用启动触发到期重搜，出现达标资源 -> 进入可执行/信息确认路径 -> 入队或由用户确认后继续 Flow
 
 ---
 
 ## 7. 调度与执行模式
 
-### 7.1 双模式执行
+### 7.1 执行模式（与 SSOT 一致）
 
-- 手动模式：用户在任务中心点击“批量执行”。
-- 定时模式：按用户配置窗口自动执行（夜间仅是默认建议，不强制）。
+- **自动模式**：新任务在**添加瞬间**即获准调度（如进入「排队等槽」语义，典型 `queued`），由调度器按并发与 Flow 推进。
+- **手动模式**：新任务初始为**待启动**（如 `pending_manual`）；用户须通过任务中心 **单条「执行」** 或侧栏 **「批量执行」**（对勾选集合）发令后，任务才进入可调度就绪态。
+- **批量执行**与**单条执行**语义相同，仅作用范围不同；占槽中（`precheck` / `executing` / `verify`）点执行无效（置灰）。`awaiting_user_confirm`、`waiting_media_source` 上执行置灰，推进由信息确认或 Flow 重试负责。
+- **定时/时间窗口**：可作为后续增强（按用户配置窗口自动允许调度）；与「自动/手动」正交，不以本文旧稿「定时模式」单独替代「自动模式」。
 
-### 7.2 批量执行前提示
+### 7.2 暂停（调度层冻结）
+
+- **暂停**冻结调度推进；恢复**仅**通过**执行**（单条或批量）。
+- **占槽时软停**：当前步骤正常收尾，**本步结束后**再进入 `paused` 并释放槽位；实现可借助 `pause_requested` 类标记（见 SSOT §9）。
+- **`awaiting_user_confirm` / `waiting_media_source`**：允许暂停；`pending_manual`：禁止暂停并提示未启动。
+- **批量暂停** = 单条暂停语义 × 选中集合。
+
+### 7.3 双队列与并发
+
+- 转码与补源为**两条逻辑队列**，各有 FIFO 与**独立占槽上限**（配置项如 `transcodeConcurrency`、`upgradeConcurrency`）；**同视频互斥**（未结案任务存在时禁止同 `itemId` 再建任务）。
+
+### 7.4 批量执行前提示（目标）
 
 - 预计耗时
 - 预计磁盘占用
 - 预计负载影响（CPU/IO）
 
-### 7.3 优先级建议
+### 7.5 优先级建议
 
-- 1 星删除确认 > 已观看不达标 > 未观看不达标
+- 显式**任务优先级队列/抢占**：当前阶段**不实现**（以 SSOT 为准）；产品侧仍可保留「1 星删除确认 > 已观看不达标 > 未观看不达标」作为**默认处理习惯**描述。
 
 ---
 
@@ -179,16 +194,12 @@
 
 ## 9. 任务状态机与中断恢复
 
-### 9.1 统一状态机
+### 9.1 状态与主路径（扁平 `status`，与 SSOT 对齐）
 
-`queued -> precheck -> executing -> verify -> done`
-
-异常分支：
-
-- `failed_hard`（系统性错误）
-- `waiting_source`（补源无可用高质量资源）
-- `interrupted`（执行中应用退出/崩溃）
-- `resume_pending`（重启后待用户选择）
+- **主路径（示意）**：`queued` → `precheck` → `executing` → `verify` → `done`（洗版等 Flow 在 `verify` 之后可能进入 `awaiting_user_confirm` 而非直接 `done`，以 SSOT / Flow 为准）。
+- **停泊（不占活跃槽或待发令）**：`pending_manual`（手动模式下待启动）、`paused`、`awaiting_user_confirm`、`waiting_media_source` 等。
+- **占槽**：`precheck`、`executing`、`verify`。
+- **异常 / 辅助**：`failed_hard`；`interrupted` / `resume_pending`。
 
 ### 9.2 中断恢复机制
 
@@ -227,7 +238,7 @@
 ### 10.3 结果处理
 
 - 候选达标：入队执行
-- 候选不达标：`waiting_source`
+- 候选不达标：`waiting_media_source`
 - 接口鉴权或系统错误：`failed_hard`
 
 ---
@@ -236,10 +247,10 @@
 
 ```mermaid
 flowchart TD
-  configPage[ConfigPage] --> wallPage[WallPage]
-  wallPage --> historyPage[HistoryPage]
-  historyPage --> mediaManagePage[MediaManagePage]
-  historyPage -->|QuickAddToPool| mediaManagePage
+  configPage[ConfigCenter] --> wallPage[Wall]
+  wallPage --> historyPage[History]
+  historyPage --> mediaManagePage[MediaManage]
+  historyPage --> mediaManagePage
   mediaManagePage --> scoreAssign[AssignStar1to5]
   scoreAssign --> decisionNode{BitrateVsTarget}
   decisionNode -->|"AboveTarget"| transcodeQueue[CreateTranscodeTask]
@@ -247,14 +258,15 @@ flowchart TD
   moviepilotSearch --> estimateStage[EstimateBitrateBySizeDurationCodec]
   estimateStage --> sourceCheck{TargetSourceFound}
   sourceCheck -->|Yes| downloadQueue[CreateUpgradeTask]
-  sourceCheck -->|No| waitingSource[SetWaitingSourceState]
-  waitingSource --> refreshTrigger{RefreshTriggered}
+  sourceCheck -->|No| waitingMediaSource[waiting_media_source]
+  waitingMediaSource --> refreshTrigger{RefreshTriggered}
   refreshTrigger -->|ScheduledOrManual| moviepilotSearch
-  transcodeQueue --> taskCenter[TaskCenterPage]
+  transcodeQueue --> taskCenter[TaskCenter]
   downloadQueue --> taskCenter
-  taskCenter --> triggerMode{RunMode}
-  triggerMode -->|ManualBatchStart| batchRunner[BatchRunner]
-  triggerMode -->|ScheduledWindow| batchRunner
+  taskCenter --> infoConfirm[InfoConfirmModal]
+  infoConfirm --> taskCenter
+  taskCenter --> triggerMode{AutoOrManualExecute}
+  triggerMode --> batchRunner[SchedulerBatchRunner]
   batchRunner --> trayMinimize[CloseToTrayDefault]
   trayMinimize --> batchRunner
   batchRunner --> interruptedState[InterruptedOnExplicitExit]
@@ -270,12 +282,12 @@ flowchart TD
 
 ## 12. 验收标准（v1.0.0）
 
-1. 用户可在 6 个页面完成“观影 + 治理”完整闭环。
+1. 用户可在**顶层五页**（配置、海报墙、播放记录、媒体库、任务中心）完成「观影 + 治理」闭环；补源确认走任务中心弹窗，**不依赖**独立质量审阅顶页。
 2. 星级策略可正确驱动删除、压缩、补源三类动作。
 3. 高码率压缩任务可稳定执行并完成验收替换。
 4. 低码率补源可执行搜索、估算、筛选与入队。
-5. 无达标补源时任务进入 `waiting_source`，并可自动/手动再触发。
-6. 任务支持手动批量执行与定时执行双模式。
+5. 无达标补源时任务进入 `waiting_media_source`，并可自动/手动再触发。
+6. 任务支持 **自动/手动执行模式**、单条与批量**执行/暂停**（含占槽软停语义），双队列并发可配置。
 7. 关闭窗口默认最小化到托盘，不中断后台进程。
 8. 显式退出后，任务状态可恢复，且不重复下发、不污染媒体文件。
 
@@ -285,7 +297,7 @@ flowchart TD
 
 - 码率估算误差：引入目标区间与可信度分级，低可信候选走人工审阅。
 - 后台占用影响观影：双轨架构 + 观影会话降载 + 低并发默认策略。
-- 长期无优质源导致任务遗忘：`waiting_source` + 周期重搜 + 到期提醒。
+- 长期无优质源导致任务遗忘：`waiting_media_source` + 周期重搜 + 到期提醒。
 - 任务中断导致数据不一致：checkpoint 落盘 + 幂等键 + 原子替换。
 
 ---
@@ -307,6 +319,13 @@ flowchart TD
 - 新增播放记录页面与筛选能力。
 - 支持已看/未看状态同步与重新播放。
 - 增强本地历史与服务器历史合并，提升记录稳定性。
+
+### 14.4 当前开发中快照（非发行说明，截至 2026-04）
+
+- **壳层与导航**：五页顶栏 + 各页左侧侧栏 + 右侧主区；暗色主题与基础响应式样式。
+- **配置集中化**：媒体策略与任务调度相关表单迁入**配置中心**；任务中心侧栏聚焦列表与调度操作。
+- **任务中心（前端 MVP）**：本地持久化队列、状态筛选、双队列调度模拟、`pauseRequested` 软停、信息确认弹窗；行为与 `TASK_CENTER_FULL_LOGIC.md` 对表。
+- **工程**：Electron + React（`mvp/`）持续迭代；部分后端/FFmpeg/MoviePilot 集成仍为规划或占位。
 
 ---
 
