@@ -21,6 +21,36 @@
 
 - 新增 **`TASK_CENTER_FULL_LOGIC.md`**：任务中心端到端逻辑 **SSOT**（调度与 Flow 边界、状态/停泊/槽位、转码与补源双队列、配置中心项、三种添加入口与同视频互斥、用户操作 **执行/暂停** 定稿、移除概要、任务中心 UI、前后端职责、Flow 协作与 MVP 迁移提示）。引入该文件的提交可通过 `git log --follow -1 -- TASK_CENTER_FULL_LOGIC.md` 查看。
 
+**日期：** 2026-04-18
+
+- 更新 **`TASK_CENTER_FULL_LOGIC.md`**：定稿 **三种任务类型 / 三条 Flow**（`delete`、`transcode`、`upgrade`）；**多逻辑队列** 与 **`deleteConcurrency` 等**配置约定；**Flow 可扩展与隔离**（§2.1–§2.2）；澄清 §7.3「从任务中心移除任务」与 **删除类 Flow** 的用语。**`EmbyDesktopPlayer_PRD_v1.0.0.md`**、**`DEVELOPMENT_PLAN.md`** 已与之对齐。
+- **`TASK_CENTER_FULL_LOGIC.md` §2.3**（及 PRD §7.1、§7.3.1）：**删除 Flow**——仅 **Emby** 删除；**自动模式不得跳过** `awaiting_user_confirm`；未确认则 **长期**停泊该状态；**`verify` 仅以条目不存在（如 404）** 为准。
+
+---
+
+## v1.0.0-beta.8
+
+**标签：** `v1.0.0-beta.8`  
+**日期：** 2026-04-18（+08:00）
+
+### 用户可见
+
+- **删除任务 Flow**：可从媒体库入队，在任务中心完成预检、删除前确认、Emby 删除与 **404 验收**；任务卡片展示 **执行日志（`flowLog`）**。
+- **配置**：**所选用户登录密码**（可选）— 用于删除前 **`AuthenticateByName`** 换取用户 **AccessToken**；解决仅用 API Key 时删除接口 **`Parameter 'user' null`** 的问题。
+
+### 技术与集成
+
+- **`mvp/electron/embyService.js`**：`authenticateEmbyUserAccessToken`、`deleteLibraryItem`、`getLibraryItem`、`getItemDeleteInfo`、`libraryItemExists`；`EmbyConfig.embyUserPassword` 经 IPC 传入。
+- **前端**：`App.tsx` 删除 Flow 与手动调度；`MediaLibraryManageRow` / `mediaManager` 删除入队；`taskQueue` / `taskScheduler` 删除并发与状态机。
+
+### 文档
+
+- `EmbyDesktopPlayer_PRD_v1.0.0.md` §7.3.1、§14.8；`EmbyDesktopPlayer_PRD.md` §5.1、§6.5；`DEVELOPMENT_PROGRESS.md`、`DEVELOPMENT_PLAN.md`。
+
+### 已知限制
+
+- 密码与 API Key 同为本地明文存储；后台 FFmpeg / MoviePilot 仍为模拟或占位。
+
 ---
 
 ## v1.0.0-beta.3
@@ -88,22 +118,15 @@
 
 ## 版本对照（快速索引）
 
-<<<<<<< HEAD
-| 版本号        | Git 标签        | 说明摘要                     |
-|---------------|-----------------|------------------------------|
-| 1.0.0-beta.1  | `v1.0.0-beta.1` | MVP 基线 + PRD 初稿          |
-| 1.0.0-beta.2  | `v1.0.0-beta.2` | 打包/生产启动与配置页收敛    |
-| 1.0.0-beta.3  | `v1.0.0-beta.3` | 播放记录与行级已看/未看同步  |
+| 版本号 | Git 标签          | 说明摘要 |
+| -------------- | ----------------- | -------- |
+| 1.0.0-beta.8   | `v1.0.0-beta.8`   | 删除 Flow、Emby 真删、用户令牌鉴权 |
+| 1.0.0-beta.7   | `v1.0.0-beta.7`   | 分星级治理、预测体积、PRD §4.5 |
+| 1.0.0-beta.6   | `v1.0.0-beta.6`   | 豆瓣评分与有效星级 |
+| 1.0.0-beta.5   | `v1.0.0-beta.5`   | 媒体库治理、原盘、列表缓存 |
+| 1.0.0-beta.4   | `v1.0.0-beta.4`   | 真实 Emby 前台闭环、播放记录 |
+| 1.0.0-beta.3   | `v1.0.0-beta.3`   | 播放记录与行级已看/未看同步 |
+| 1.0.0-beta.2   | `v1.0.0-beta.2`   | 打包/生产启动与配置页收敛 |
+| 1.0.0-beta.1   | `v1.0.0-beta.1`   | MVP 基线 + PRD 初稿 |
 
-若需核对某标签指向的提交：`git show v1.0.0-beta.3 --no-patch`。
-=======
-
-| 版本号          | Git 标签          | 说明摘要            |
-| ------------ | --------------- | --------------- |
-| 1.0.0-beta.1 | `v1.0.0-beta.1` | MVP 基线 + PRD 初稿 |
-| 1.0.0-beta.2 | `v1.0.0-beta.2` | 打包/生产启动与配置页收敛   |
-| 1.0.0-beta.3 | `v1.0.0-beta.3` | 播放记录与行级已看/未看同步  |
-
-
-若需核对某标签指向的提交：`git show v1.0.0-beta.3 --no-patch`。
->>>>>>> c-work/release/v1.0.0
+若需核对某标签指向的提交：`git show v1.0.0-beta.8 --no-patch`。

@@ -10,6 +10,10 @@ const embyApi = {
   launchPlayer: (args) => ipcRenderer.invoke('emby:launchPlayer', args),
   markPlayed: (args) => ipcRenderer.invoke('emby:markPlayed', args),
   markUnplayed: (args) => ipcRenderer.invoke('emby:markUnplayed', args),
+  getLibraryItem: (args) => ipcRenderer.invoke('emby:getLibraryItem', args),
+  getItemDeleteInfo: (args) => ipcRenderer.invoke('emby:getItemDeleteInfo', args),
+  deleteLibraryItem: (args) => ipcRenderer.invoke('emby:deleteLibraryItem', args),
+  libraryItemExists: (args) => ipcRenderer.invoke('emby:libraryItemExists', args),
   taskControl: (args) => ipcRenderer.invoke('taskControl', args),
 };
 

@@ -115,28 +115,40 @@ async function loadFirstReachableDevUrl(win) {
   );
 }
 
-ipcMain.handle('taskControl', async (_evt, _args) => {
-  return;
-});
+function registerIpcHandlers() {
+  console.log('[main] registerIpcHandlers cwd=', process.cwd());
+  ipcMain.handle('taskControl', async (_evt, _args) => {
+    return;
+  });
 
-ipcMain.handle('emby:testConnection', (_evt, payload) => embyService.testConnection(payload));
-ipcMain.handle('emby:getUsers', (_evt, payload) => embyService.getUsers(payload));
-ipcMain.handle('emby:getMediaFolders', (_evt, payload) => embyService.getMediaFolders(payload));
-ipcMain.handle('emby:getUnplayedItems', (_evt, payload) => embyService.getUnplayedItems(payload));
-ipcMain.handle('emby:getLibraryItemsForManage', (_evt, payload) => embyService.getLibraryItemsForManage(payload));
-ipcMain.handle('emby:getPlayedItems', (_evt, payload) => embyService.getPlayedItems(payload));
-ipcMain.handle('emby:launchPlayer', (_evt, payload) => embyService.launchPlayer(payload));
-ipcMain.handle('emby:markPlayed', (_evt, payload) => embyService.markPlayed(payload));
-ipcMain.handle('emby:markUnplayed', (_evt, payload) => embyService.markUnplayed(payload));
+  ipcMain.handle('emby:testConnection', (_evt, payload) => embyService.testConnection(payload));
+  ipcMain.handle('emby:getUsers', (_evt, payload) => embyService.getUsers(payload));
+  ipcMain.handle('emby:getMediaFolders', (_evt, payload) => embyService.getMediaFolders(payload));
+  ipcMain.handle('emby:getUnplayedItems', (_evt, payload) => embyService.getUnplayedItems(payload));
+  ipcMain.handle('emby:getLibraryItemsForManage', (_evt, payload) => embyService.getLibraryItemsForManage(payload));
+  ipcMain.handle('emby:getPlayedItems', (_evt, payload) => embyService.getPlayedItems(payload));
+  ipcMain.handle('emby:launchPlayer', (_evt, payload) => embyService.launchPlayer(payload));
+  ipcMain.handle('emby:markPlayed', (_evt, payload) => embyService.markPlayed(payload));
+  ipcMain.handle('emby:markUnplayed', (_evt, payload) => embyService.markUnplayed(payload));
+  ipcMain.handle('emby:getLibraryItem', (_evt, payload) => embyService.getLibraryItem(payload));
+  ipcMain.handle('emby:getItemDeleteInfo', (_evt, payload) => embyService.getItemDeleteInfo(payload));
+  ipcMain.handle('emby:deleteLibraryItem', (_evt, payload) => embyService.deleteLibraryItem(payload));
+  ipcMain.handle('emby:libraryItemExists', (_evt, payload) => embyService.libraryItemExists(payload));
 
-ipcMain.handle('douban:saveSession', (_evt, payload) => doubanService.saveSession(payload));
-ipcMain.handle('douban:getSession', () => doubanService.getSession());
-ipcMain.handle('douban:stopFetch', () => {
-  doubanService.requestStop();
-});
-ipcMain.handle('douban:fetchRatings', (event, opts) => doubanService.fetchRatings(event.sender, opts ?? {}));
+  ipcMain.handle('douban:saveSession', (_evt, payload) => doubanService.saveSession(payload));
+  ipcMain.handle('douban:getSession', () => doubanService.getSession());
+  ipcMain.handle('douban:stopFetch', () => {
+    doubanService.requestStop();
+  });
+  ipcMain.handle('douban:fetchRatings', (event, opts) => doubanService.fetchRatings(event.sender, opts ?? {}));
+
+  console.log(
+    '[main] IPC handlers registered (incl. emby:getLibraryItem, emby:getItemDeleteInfo, emby:deleteLibraryItem, emby:libraryItemExists)',
+  );
+}
 
 app.whenReady().then(() => {
+  registerIpcHandlers();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

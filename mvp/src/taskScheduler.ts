@@ -1,6 +1,7 @@
 import { nextStatusFor, shouldRefreshWaitingMediaSource, type MediaTask, type TaskActionType } from './taskQueue';
 
 const DEFAULT_SETTINGS: TaskSchedulerSettings = {
+  deleteConcurrency: 1,
   transcodeConcurrency: 1,
   upgradeConcurrency: 1,
   runMode: 'manual',
@@ -13,13 +14,14 @@ const DEFAULT_SETTINGS: TaskSchedulerSettings = {
 };
 
 type TaskBuckets = {
+  delete: number;
   transcode: number;
   upgrade: number;
 };
 
 /** 占活跃执行槽（§3.5） */
 function activeBuckets(tasks: MediaTask[]): TaskBuckets {
-  const buckets: TaskBuckets = { transcode: 0, upgrade: 0 };
+  const buckets: TaskBuckets = { delete: 0, transcode: 0, upgrade: 0 };
   for (const task of tasks) {
     if (task.status === 'precheck' || task.status === 'executing' || task.status === 'verify') {
       buckets[task.actionType] += 1;
@@ -44,6 +46,7 @@ export type AdvanceTaskQueueOptions = {
 };
 
 function canStart(taskType: TaskActionType, buckets: TaskBuckets, settings: TaskSchedulerSettings): boolean {
+  if (taskType === 'delete') return buckets.delete < Math.max(1, settings.deleteConcurrency);
   if (taskType === 'transcode') return buckets.transcode < Math.max(1, settings.transcodeConcurrency);
   return buckets.upgrade < Math.max(1, settings.upgradeConcurrency);
 }
@@ -80,6 +83,12 @@ export function advanceTaskQueue(
     if (!inManualScope(task)) return task;
     if (task.status === 'paused' || task.status === 'pending_manual' || task.status === 'awaiting_user_confirm') return task;
     if (!runnableTask(task)) return task;
+    if (
+      task.actionType === 'delete' &&
+      (task.status === 'precheck' || task.status === 'executing' || task.status === 'verify')
+    ) {
+      return task;
+    }
     if (
       (task.status === 'queued' || task.status === 'resume_pending') &&
       !canStart(task.actionType, buckets, settings)

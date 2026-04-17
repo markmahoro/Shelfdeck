@@ -1,7 +1,33 @@
 const TASK_STORAGE_KEY = 'embyDesktopPlayerTaskQueueV1';
 
-export type TaskActionType = 'transcode' | 'upgrade';
+export type TaskActionType = 'delete' | 'transcode' | 'upgrade';
 export type TaskRunMode = 'manual' | 'scheduled';
+
+export type TaskFlowLogLevel = 'info' | 'warn' | 'error';
+
+export type TaskFlowLogEntry = {
+  ts: string;
+  level: TaskFlowLogLevel;
+  /** 机器可读片段，如 delete.precheck.start */
+  code: string;
+  message: string;
+};
+
+const FLOW_LOG_MAX = 400;
+
+export function appendFlowLog(task: MediaTask, code: string, message: string, level: TaskFlowLogLevel = 'info'): MediaTask {
+  const ts = new Date().toISOString();
+  const entry: TaskFlowLogEntry = { ts, level, code, message };
+  const flowLog = [...(task.flowLog ?? []), entry].slice(-FLOW_LOG_MAX);
+  return { ...task, flowLog };
+}
+
+export function formatFlowLogLine(e: TaskFlowLogEntry): string {
+  const t = new Date(e.ts);
+  const p = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}.${String(t.getMilliseconds()).padStart(3, '0')}`;
+  return `[${stamp}] [${e.level}] ${e.code} | ${e.message}`;
+}
 
 export type TaskStatus =
   | 'pending_manual'
@@ -31,6 +57,10 @@ export interface MediaTask {
   nextSearchAt?: string;
   /** 占槽阶段软停（§9）：本步结束后进入 paused */
   pauseRequested?: boolean;
+  /** delete Flow：预检后写入，供确认弹窗展示 */
+  deleteConfirmLines?: string[];
+  /** 任务级执行日志（持久化，用于高危 Flow 排查） */
+  flowLog?: TaskFlowLogEntry[];
 }
 
 export function isTaskTerminal(task: MediaTask): boolean {
@@ -111,7 +141,7 @@ export function nextStatusFor(task: MediaTask): TaskStatus {
   if (task.status === 'queued') return 'precheck';
   if (task.status === 'precheck') return 'executing';
   if (task.status === 'executing') return 'verify';
-  if (task.status === 'verify') {
+    if (task.status === 'verify') {
     if (task.actionType === 'upgrade' && task.retryCount === 0) return 'awaiting_user_confirm';
     return 'done';
   }

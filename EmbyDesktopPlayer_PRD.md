@@ -104,6 +104,7 @@ flowchart TD
   - `baseUrl`
   - `apiKey`
   - `userId`（来自用户选择）
+  - `embyUserPassword`（可选；所选用户 Emby 登录密码，仅存本机；**删除库条目**等写操作用于换取用户 `AccessToken`，见 §6.5）
   - `enabledSectionIds`
   - `playerExePath`
   - `argsTemplate`（支持 `{path}`、`{itemId}`）
@@ -188,6 +189,12 @@ flowchart TD
 
 - `POST /Users/{UserId}/PlayedItems/{Id}`
 - 可带 `DatePlayed`（按 Emby 要求格式）
+
+### 6.5 库条目删除（扩展能力）
+
+- 删除媒体库条目：`DELETE /Items/{ItemId}`（与官方 Library API 一致）。
+- 多数 Emby/Jellyfin 版本要求请求携带 **用户 AccessToken**；仅使用 API Key 可能出现 `Parameter 'user' null`。推荐流程：若配置中提供 **`embyUserPassword`**，先 `POST /Users/AuthenticateByName`（`Username` + `Pw`）获取 **`AccessToken`**，再以该令牌作为 `X-Emby-Token` / `api_key` 调用删除；否则可尝试 API Key 并附带查询参数 `UserId`。
+- 预检可调用 `GET /Items/{ItemId}/DeleteInfo`（可选）与 `GET /Users/{UserId}/Items/{ItemId}` 以生成确认文案。
 
 ## 7. 判定规则（MVP）
 

@@ -4,6 +4,8 @@
 export function installDevEmbyStub() {
   if (typeof window === 'undefined' || typeof window.embyApi !== 'undefined') return;
 
+  const deletedItemIds = new Set<string>();
+
   const daysAgoIso = (d: number) => new Date(Date.now() - d * 86400000).toISOString();
 
   const mockPlayed: PlayedItem[] = [
@@ -178,6 +180,26 @@ export function installDevEmbyStub() {
     },
     async markUnplayed() {
       return;
+    },
+    async getLibraryItem({ itemId }) {
+      if (deletedItemIds.has(itemId)) {
+        throw new Error('Dev stub: 条目已删除');
+      }
+      return {
+        Name: `[stub] item ${itemId}`,
+        Type: 'Movie',
+        Path: `D:\\\\Media\\\\Stub\\\\${itemId}.mkv`,
+      };
+    },
+    async getItemDeleteInfo({ itemId }) {
+      if (deletedItemIds.has(itemId)) return null;
+      return { Paths: [`D:\\\\Media\\\\Stub\\\\${itemId}`] };
+    },
+    async deleteLibraryItem({ itemId }) {
+      deletedItemIds.add(itemId);
+    },
+    async libraryItemExists({ itemId }) {
+      return !deletedItemIds.has(itemId);
     },
   };
 

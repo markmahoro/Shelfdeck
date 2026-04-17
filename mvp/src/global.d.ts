@@ -37,6 +37,8 @@ declare global {
     baseUrl: string;
     apiKey: string;
     userId: string;
+    /** 所选 Emby 用户登录密码（仅本地存储）；用于删除等媒体写操作换取用户 AccessToken，避免 API Key 下 Parameter user null */
+    embyUserPassword: string;
     enabledSectionIds: string[];
     playerExePath: string;
     argsTemplate: string;
@@ -60,6 +62,7 @@ declare global {
   type TaskRunMode = 'manual' | 'scheduled';
   type TaskControlAction = 'start' | 'pause' | 'simulateExit' | 'resumeInterrupted';
   type TaskSchedulerSettings = {
+    deleteConcurrency: number;
     transcodeConcurrency: number;
     upgradeConcurrency: number;
     runMode: TaskRunMode;
@@ -95,6 +98,11 @@ declare global {
       launchPlayer: (args: { config: EmbyConfig; item: UnplayedItem }) => Promise<LaunchResult>;
       markPlayed: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;
       markUnplayed: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;
+      /** 治理：删除 Flow（Emby Items API） */
+      getLibraryItem: (args: { config: EmbyConfig; itemId: string }) => Promise<Record<string, unknown>>;
+      getItemDeleteInfo: (args: { config: EmbyConfig; itemId: string }) => Promise<Record<string, unknown> | null>;
+      deleteLibraryItem: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;
+      libraryItemExists: (args: { config: EmbyConfig; itemId: string }) => Promise<boolean>;
       taskControl?: (args: { action: TaskControlAction; settings?: TaskSchedulerSettings }) => Promise<void>;
     };
     doubanApi?: {

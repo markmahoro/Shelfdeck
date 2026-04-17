@@ -146,6 +146,7 @@ export function buildTaskPreview(item: ManagedMediaItem, action: MediaAction): P
   if (item.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) return null;
   if (action === 'transcode') return { itemId: item.id, itemName: item.name, actionType: 'transcode' };
   if (action === 'upgrade') return { itemId: item.id, itemName: item.name, actionType: 'upgrade' };
+  if (action === 'delete') return { itemId: item.id, itemName: item.name, actionType: 'delete' };
   return null;
 }
 

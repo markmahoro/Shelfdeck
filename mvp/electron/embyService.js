@@ -722,6 +722,114 @@ async function markUnplayed({ config, itemId }) {
   log('markUnplayed', itemId);
 }
 
+/**
+ * Emby/Jellyfin 的 DELETE /Items/{id} 在服务端需要「用户」上下文；纯 API Key 常导致 Parameter 'user' null。
+ * 使用所选用户在配置中填写的登录密码调用 AuthenticateByName，换取 AccessToken 再执行删除。
+ */
+async function authenticateEmbyUserAccessToken(config) {
+  const pw = String(config.embyUserPassword || '').trim();
+  const userId = String(config.userId || '').trim();
+  if (!pw || !userId) return null;
+  const list = await getUsers({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+  const row = list.find((u) => u.id === userId);
+  const username = row && typeof row.name === 'string' ? row.name.trim() : '';
+  if (!username) {
+    throw new Error('无法解析所选用户的登录名：请重新「获取媒体库及用户列表」并选择用户。');
+  }
+  const url = buildUrl(config, 'Users/AuthenticateByName', {});
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Emby-Token': config.apiKey.trim(),
+    },
+    body: JSON.stringify({ Username: username, Pw: pw }),
+  });
+  const text = await res.text().catch(() => '');
+  if (!res.ok) {
+    throw new Error(
+      `Emby 登录所选用户失败 (${res.status})，无法获取删除用访问令牌：${text.slice(0, 200) || res.statusText}。请确认密码为该用户在 Emby 中的登录密码。`,
+    );
+  }
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('Emby 登录响应无法解析为 JSON，无法继续删除。');
+  }
+  const tok = data.AccessToken || data.accessToken;
+  if (!tok || !String(tok).trim()) {
+    throw new Error('Emby 登录响应中缺少 AccessToken，无法继续删除。');
+  }
+  return String(tok).trim();
+}
+
+async function getLibraryItem({ config, itemId }) {
+  const uid = encodeURIComponent(config.userId.trim());
+  const iid = encodeURIComponent(itemId);
+  return embyFetchJson(config, `Users/${uid}/Items/${iid}`, {});
+}
+
+async function getItemDeleteInfo({ config, itemId }) {
+  const userId = String(config.userId || '').trim();
+  const iid = encodeURIComponent(itemId);
+  try {
+    /** 查询串 UserId 传原始 GUID：与 fetchPlaybackPath 一致；勿先 encodeURIComponent，否则经 searchParams 二次编码后服务端可能无法解析用户。 */
+    return await embyFetchJson(config, `Items/${iid}/DeleteInfo`, {}, userId ? { UserId: userId } : {});
+  } catch (e) {
+    log('getItemDeleteInfo optional fail', e?.message || e);
+    return null;
+  }
+}
+
+async function deleteLibraryItem({ config, itemId }) {
+  const userId = String(config.userId || '').trim();
+  if (!userId) {
+    throw new Error('未配置 Emby 用户 ID：请在配置中心选择用户后再执行删除（用于权限校验）。');
+  }
+  const iid = encodeURIComponent(itemId);
+  const pw = String(config.embyUserPassword || '').trim();
+  let deleteCfg = config;
+  let extraQuery = { UserId: userId };
+  if (pw) {
+    const accessToken = await authenticateEmbyUserAccessToken(config);
+    deleteCfg = { ...config, apiKey: accessToken };
+    extraQuery = {};
+  }
+  try {
+    await embyFetchOk(deleteCfg, `Items/${iid}`, { method: 'DELETE' }, extraQuery);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!pw && /\(400\)/.test(msg) && /user/i.test(msg) && /null|Parameter/i.test(msg)) {
+      throw new Error(
+        `${msg} 提示：此类错误多为「删除接口需要用户访问令牌」。请在配置页的「所选用户登录密码」中填写该用户在 Emby 的登录密码并保存后再试。`,
+      );
+    }
+    throw e;
+  }
+  log('deleteLibraryItem', { itemId, userId, usedUserToken: !!pw });
+}
+
+async function libraryItemExists({ config, itemId }) {
+  const uid = encodeURIComponent(config.userId.trim());
+  const iid = encodeURIComponent(itemId);
+  const url = buildUrl(config, `Users/${uid}/Items/${iid}`, {});
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      'X-Emby-Token': config.apiKey.trim(),
+    },
+  });
+  if (res.status === 404) return false;
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Emby 查询条目失败 (${res.status}): ${text.slice(0, 280) || res.statusText}`);
+  }
+  return true;
+}
+
 module.exports = {
   testConnection,
   getUsers,
@@ -732,4 +840,8 @@ module.exports = {
   launchPlayer,
   markPlayed,
   markUnplayed,
+  getLibraryItem,
+  getItemDeleteInfo,
+  deleteLibraryItem,
+  libraryItemExists,
 };

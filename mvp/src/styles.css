@@ -274,6 +274,37 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   padding: 6px 8px;
   font-size: 12px;
 }
+
+.taskFlowLogDetails {
+  border-top: 1px solid #1f2937;
+  padding-top: 8px;
+  margin-top: 6px;
+}
+.taskFlowLogDetails summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #94a3b8;
+  user-select: none;
+  list-style: none;
+}
+.taskFlowLogDetails summary::-webkit-details-marker {
+  display: none;
+}
+.taskFlowLogPre {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.45;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color: #cbd5e1;
+}
 @media (max-width: 960px) {
   .historyItem {
     grid-template-columns: 52px 1fr;

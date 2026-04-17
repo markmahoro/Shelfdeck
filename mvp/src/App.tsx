@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  appendFlowLog,
   canUserExecuteTask,
   canUserPauseTask,
   enqueueTask,
+  formatFlowLogLine,
   hasActiveTaskForItem,
   isTaskTerminal,
   loadTaskQueue,
@@ -18,6 +20,7 @@ import {
   defaultSchedulerSettings,
   refreshWaitingTasks,
   waitingMediaDelayMs,
+  type AdvanceTaskQueueOptions,
 } from './taskScheduler';
 import {
   buildTaskPreview,
@@ -33,6 +36,20 @@ import {
   type MediaRating,
 } from './mediaManager';
 import { createDebugSeedTasks } from './debugSeed';
+
+function applyAdvanceWithFlowLog(
+  prev: MediaTask[],
+  settings: TaskSchedulerSettings,
+  only?: AdvanceTaskQueueOptions,
+): MediaTask[] {
+  const next = advanceTaskQueue(prev, settings, only);
+  const prevMap = new Map(prev.map((t) => [t.id, t]));
+  return next.map((t) => {
+    const old = prevMap.get(t.id);
+    if (!old || old.status === t.status) return t;
+    return appendFlowLog(t, 'scheduler.tick', `调度推进：${old.status} → ${t.status}（占槽/模拟）`);
+  });
+}
 import { buildDoubanStarsByNormalizedTitle, movieDoubanStars, type DoubanRatingEntry } from './doubanUtils';
 import { MediaLibraryManageRow } from './MediaLibraryManageRow';
 
@@ -264,6 +281,7 @@ const defaultConfig: EmbyConfig = {
   baseUrl: 'http://localhost:8096/emby',
   apiKey: '',
   userId: '',
+  embyUserPassword: '',
   enabledSectionIds: [],
   playerExePath: '',
   argsTemplate: '"{path}" /new',
@@ -278,6 +296,8 @@ function normalizeConfig(raw: Partial<EmbyConfig>): EmbyConfig {
     baseUrl: typeof raw.baseUrl === 'string' ? raw.baseUrl : defaultConfig.baseUrl,
     apiKey: typeof raw.apiKey === 'string' ? raw.apiKey : defaultConfig.apiKey,
     userId: typeof raw.userId === 'string' ? raw.userId : defaultConfig.userId,
+    embyUserPassword:
+      typeof raw.embyUserPassword === 'string' ? raw.embyUserPassword : defaultConfig.embyUserPassword,
     enabledSectionIds: Array.isArray(raw.enabledSectionIds)
       ? raw.enabledSectionIds.filter((x): x is string => typeof x === 'string')
       : defaultConfig.enabledSectionIds,
@@ -325,6 +345,31 @@ function hasEmbyCoreConfig(config: EmbyConfig): boolean {
     !!config.userId.trim() &&
     config.enabledSectionIds.length > 0
   );
+}
+
+/** 删除 Flow 调 Emby：仅需核心连接与用户，不要求已填播放器路径 */
+function hasEmbyCoreForDeleteFlow(config: EmbyConfig, connected: boolean): boolean {
+  return connected && !!config.baseUrl.trim() && !!config.apiKey.trim() && !!config.userId.trim();
+}
+
+function formatDeleteConfirmLines(item: Record<string, unknown>, deleteInfo: Record<string, unknown> | null): string[] {
+  const lines: string[] = [];
+  const name = item.Name ?? item.name;
+  if (typeof name === 'string' && name.trim()) lines.push(`标题：${name.trim()}`);
+  const typ = item.Type ?? item.type;
+  if (typeof typ === 'string' && typ.trim()) lines.push(`类型：${typ.trim()}`);
+  const path = item.Path ?? item.path;
+  if (typeof path === 'string' && path.trim()) lines.push(`路径：${path.trim()}`);
+  if (deleteInfo && typeof deleteInfo === 'object') {
+    const paths = deleteInfo.Paths ?? deleteInfo.paths;
+    if (Array.isArray(paths) && paths.length > 0) {
+      const ps = paths.filter((p): p is string => typeof p === 'string').slice(0, 12);
+      if (ps.length) lines.push(`DeleteInfo 路径（节选）：${ps.join('；')}`);
+    }
+  }
+  if (lines.length === 0) lines.push('（服务器未返回详细路径，仍以 Emby 将删除该条目为准。）');
+  lines.push('确认后将从 Emby 库与磁盘删除（以服务器行为为准），不可撤销。');
+  return lines;
 }
 
 /** 拉取未播放列表：仅需 Emby 核心配置（不要求已填播放器路径）。 */
@@ -434,6 +479,10 @@ function buildPosterUrl(config: EmbyConfig, item: { id: string; posterTag?: stri
 function normalizeSchedulerSettings(raw: Partial<TaskSchedulerSettings>): TaskSchedulerSettings {
   const fallback = defaultSchedulerSettings();
   return {
+    deleteConcurrency:
+      typeof raw.deleteConcurrency === 'number' && Number.isFinite(raw.deleteConcurrency)
+        ? Math.max(1, Math.floor(raw.deleteConcurrency))
+        : fallback.deleteConcurrency,
     transcodeConcurrency:
       typeof raw.transcodeConcurrency === 'number' && Number.isFinite(raw.transcodeConcurrency)
         ? Math.max(1, Math.floor(raw.transcodeConcurrency))
@@ -563,6 +612,8 @@ export default function App() {
   const setManagedWatchStateRef = useRef<(it: ManagedMediaItem, watched: boolean) => Promise<void>>(async () => {});
   const enqueueManagedActionRef = useRef<(item: ManagedMediaItem, action: MediaAction) => void>(() => {});
   const [infoConfirmTaskId, setInfoConfirmTaskId] = useState<string | null>(null);
+  const deleteFlowBusyRef = useRef<Set<string>>(new Set());
+  const refreshLibraryManageListRef = useRef<((opts?: { quietIfIncomplete?: boolean }) => Promise<void>) | null>(null);
   const [taskFilter, setTaskFilter] = useState<'all' | MediaTask['status']>('all');
   const [batchRunSelectedIds, setBatchRunSelectedIds] = useState<Set<string>>(() => new Set());
   const [wallRatingItem, setWallRatingItem] = useState<UnplayedItem | null>(null);
@@ -817,6 +868,207 @@ export default function App() {
   }, [tasks]);
 
   useEffect(() => {
+    const cfg = configRef.current;
+    const embyOk = hasEmbyCoreForDeleteFlow(cfg, connected);
+
+    if (!embyOk) {
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.actionType !== 'delete' || t.status !== 'precheck') return t;
+          const last = (t.flowLog ?? []).slice(-1)[0];
+          if (last?.code === 'delete.blocked.no_emby' && Date.now() - new Date(last.ts).getTime() < 15000) return t;
+          return appendFlowLog(
+            t,
+            'delete.blocked.no_emby',
+            '删除预检未启动：Emby 未就绪（需已「测试联通」且配置 baseUrl / apiKey / userId）。',
+            'warn',
+          );
+        }),
+      );
+      return;
+    }
+
+    const runPrecheck = (task: MediaTask) => {
+      if (deleteFlowBusyRef.current.has(task.id)) return;
+      deleteFlowBusyRef.current.add(task.id);
+      void (async () => {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id && t.status === 'precheck'
+              ? appendFlowLog(t, 'delete.precheck.start', '调用 GetLibraryItem / GetItemDeleteInfo …')
+              : t,
+          ),
+        );
+        try {
+          const item = await window.embyApi.getLibraryItem({ config: cfg, itemId: task.itemId });
+          const delInfo = await window.embyApi.getItemDeleteInfo({ config: cfg, itemId: task.itemId });
+          const lines = formatDeleteConfirmLines(item, delInfo);
+          const nowIso = new Date().toISOString();
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id !== task.id || t.status !== 'precheck') return t;
+              const logged = appendFlowLog(
+                t,
+                'delete.precheck.ok',
+                '预检成功：已生成删除确认文案，进入 awaiting_user_confirm',
+              );
+              return {
+                ...logged,
+                status: 'awaiting_user_confirm',
+                deleteConfirmLines: lines,
+                progress: 25,
+                updatedAt: nowIso,
+              };
+            }),
+          );
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const nowIso = new Date().toISOString();
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id !== task.id || t.status !== 'precheck') return t;
+              const logged = appendFlowLog(t, 'delete.precheck.error', msg, 'error');
+              return { ...logged, status: 'failed_hard', progress: 0, updatedAt: nowIso };
+            }),
+          );
+          setError(`删除预检失败：${msg}`);
+        } finally {
+          deleteFlowBusyRef.current.delete(task.id);
+        }
+      })();
+    };
+
+    const runDelete = (task: MediaTask) => {
+      if (deleteFlowBusyRef.current.has(task.id)) return;
+      deleteFlowBusyRef.current.add(task.id);
+      void (async () => {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id && t.status === 'executing'
+              ? appendFlowLog(
+                  t,
+                  'delete.api.start',
+                  '调用 DELETE /Items/{id}：若已填写「所选用户登录密码」则先 AuthenticateByName 换取用户访问令牌再删；否则带 UserId 查询参数以 API Key 尝试…',
+                )
+              : t,
+          ),
+        );
+        try {
+          await window.embyApi.deleteLibraryItem({ config: cfg, itemId: task.itemId });
+          const nowIso = new Date().toISOString();
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id !== task.id || t.status !== 'executing') return t;
+              const logged = appendFlowLog(t, 'delete.api.ok', 'Emby 删除请求已返回，进入验收 verify');
+              return { ...logged, status: 'verify', progress: 85, updatedAt: nowIso };
+            }),
+          );
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const nowIso = new Date().toISOString();
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id !== task.id || t.status !== 'executing') return t;
+              const logged = appendFlowLog(t, 'delete.api.error', msg, 'error');
+              return { ...logged, status: 'failed_hard', progress: 0, updatedAt: nowIso };
+            }),
+          );
+          setError(`Emby 删除请求失败：${msg}`);
+        } finally {
+          deleteFlowBusyRef.current.delete(task.id);
+        }
+      })();
+    };
+
+    const runVerify = (task: MediaTask) => {
+      if (deleteFlowBusyRef.current.has(task.id)) return;
+      deleteFlowBusyRef.current.add(task.id);
+      void (async () => {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id && t.status === 'verify'
+              ? appendFlowLog(
+                  t,
+                  'delete.verify.start',
+                  '验收：轮询 libraryItemExists，直至条目不存在（最多 12 次 × 1.5s）',
+                )
+              : t,
+          ),
+        );
+        try {
+          let gone = false;
+          for (let i = 0; i < 12; i++) {
+            const exists = await window.embyApi.libraryItemExists({ config: cfg, itemId: task.itemId });
+            setTasks((prev) =>
+              prev.map((t) =>
+                t.id === task.id && t.status === 'verify'
+                  ? appendFlowLog(
+                      t,
+                      'delete.verify.poll',
+                      `第 ${i + 1}/12 次查询：libraryItemExists=${exists}`,
+                      exists ? 'warn' : 'info',
+                    )
+                  : t,
+              ),
+            );
+            if (!exists) {
+              gone = true;
+              break;
+            }
+            await new Promise((r) => setTimeout(r, 1500));
+          }
+          if (gone) {
+            const nowIso = new Date().toISOString();
+            setTasks((prev) =>
+              prev.map((t) => {
+                if (t.id !== task.id || t.status !== 'verify') return t;
+                const logged = appendFlowLog(t, 'delete.verify.ok', '条目已不存在，结案 done');
+                return { ...logged, status: 'done', progress: 100, updatedAt: nowIso };
+              }),
+            );
+            void refreshLibraryManageListRef.current?.({ quietIfIncomplete: true });
+          } else {
+            const nowIso = new Date().toISOString();
+            setTasks((prev) =>
+              prev.map((t) => {
+                if (t.id !== task.id || t.status !== 'verify') return t;
+                const logged = appendFlowLog(
+                  t,
+                  'delete.verify.timeout',
+                  '多次查询后条目仍存在，标记 failed_hard',
+                  'error',
+                );
+                return { ...logged, status: 'failed_hard', progress: 0, updatedAt: nowIso };
+              }),
+            );
+            setError('删除后校验：条目仍存在，已标记失败（可检查 Emby 日志与权限）。');
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const nowIso = new Date().toISOString();
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id !== task.id || t.status !== 'verify') return t;
+              const logged = appendFlowLog(t, 'delete.verify.error', msg, 'error');
+              return { ...logged, status: 'failed_hard', progress: 0, updatedAt: nowIso };
+            }),
+          );
+          setError(`删除校验失败：${msg}`);
+        } finally {
+          deleteFlowBusyRef.current.delete(task.id);
+        }
+      })();
+    };
+
+    for (const task of tasks) {
+      if (task.actionType !== 'delete') continue;
+      if (task.status === 'precheck') runPrecheck(task);
+      else if (task.status === 'executing') runDelete(task);
+      else if (task.status === 'verify') runVerify(task);
+    }
+  }, [tasks, connected]);
+
+  useEffect(() => {
     const meta = loadManagedItemMeta();
     if (libraryManageItems.length === 0) {
       setManagedItems([]);
@@ -883,7 +1135,7 @@ export default function App() {
     if (!batchRunning) return;
     const timer = window.setInterval(() => {
       setTasks((prev) =>
-        advanceTaskQueue(
+        applyAdvanceWithFlowLog(
           prev,
           schedulerSettings,
           schedulerSettings.runMode === 'manual' ? { onlyTaskIds: batchRunSelectedIds } : undefined,
@@ -1055,12 +1307,20 @@ export default function App() {
         }, 0);
         return prev;
       }
-      const created = enqueueTask(preview, schedulerSettings.runMode);
+      const created = appendFlowLog(
+        enqueueTask(preview, schedulerSettings.runMode),
+        'task.created',
+        `任务已创建；执行模式 ${schedulerSettings.runMode === 'scheduled' ? '自动(入队即发令)' : '手动(待启动)'}；类型 ${preview.actionType}`,
+      );
+      const typeLabel =
+        preview.actionType === 'transcode'
+          ? '码率压缩'
+          : preview.actionType === 'upgrade'
+            ? '洗版优化'
+            : '从 Emby 删除';
       window.setTimeout(() => {
         setError(null);
-        setEnqueueHint(
-          `已提交 1 条：${item.name}（${preview.actionType === 'transcode' ? '码率压缩' : '洗版优化'}）。请到任务中心查看，筛选请选「全部」。`,
-        );
+        setEnqueueHint(`已提交 1 条：${item.name}（${typeLabel}）。请到任务中心查看，筛选请选「全部」。`);
         window.setTimeout(() => setEnqueueHint(null), 5000);
       }, 0);
       return [created, ...prev].slice(0, 300);
@@ -1081,12 +1341,12 @@ export default function App() {
       let discSkipped = 0;
       for (const item of managedItems) {
         if (!manageSelectedIds.has(item.id)) continue;
-        if (item.isBluRayDisc) {
+        const action = recommendedAction(item, mediaPolicy);
+        if (item.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) {
           discSkipped++;
           continue;
         }
-        const action = recommendedAction(item, mediaPolicy);
-        if (action !== 'transcode' && action !== 'upgrade') {
+        if (action !== 'transcode' && action !== 'upgrade' && action !== 'delete') {
           skipped++;
           continue;
         }
@@ -1099,17 +1359,23 @@ export default function App() {
           blocked++;
           continue;
         }
-        creations.push(enqueueTask(preview, schedulerSettings.runMode));
+        creations.push(
+          appendFlowLog(
+            enqueueTask(preview, schedulerSettings.runMode),
+            'task.created',
+            `批量入队；${preview.actionType}；模式 ${schedulerSettings.runMode}`,
+          ),
+        );
       }
 
       window.setTimeout(() => {
         if (creations.length === 0) {
           setError(
             blocked > 0
-              ? '选中条目均无法入队（可能与进行中任务互斥，或未标注/已达标/删除档）。'
+              ? '选中条目均无法入队（可能与进行中任务互斥，或未标注/已达标/无删除档等）。'
               : discSkipped > 0 && skipped === 0 && blocked === 0
-                ? `选中条目中 ${discSkipped} 条为蓝光/原盘（.iso 或 BDMV），不支持入队；其余无需排队。`
-                : '选中条目中暂无需要排队的项（可能未标注星级、已达标、为删除档或为蓝光/原盘）。',
+                ? `选中条目中 ${discSkipped} 条为蓝光/原盘（.iso 或 BDMV），不支持压缩/洗版入队；其余无需排队。`
+                : '选中条目中暂无需要排队的项（可能未标注星级、已达标、或无可执行动作）。',
           );
           return;
         }
@@ -1148,15 +1414,23 @@ export default function App() {
     setError(null);
     const ids = batchRunSelectedIds;
     const nowIso = new Date().toISOString();
-    setTasks((prev) =>
-      prev.map((t) => {
+    setTasks((prev) => {
+      let next = prev.map((t) => {
         if (!ids.has(t.id)) return t;
         if (t.status === 'pending_manual' || t.status === 'paused') {
-          return { ...t, status: 'queued', pauseRequested: false, updatedAt: nowIso };
+          const u = appendFlowLog(
+            { ...t, status: 'queued', pauseRequested: false, updatedAt: nowIso },
+            'user.batch_execute',
+            '批量执行：进入排队',
+          );
+          return u;
         }
         return t;
-      }),
-    );
+      });
+      const only = schedulerSettings.runMode === 'manual' ? { onlyTaskIds: ids } : undefined;
+      next = applyAdvanceWithFlowLog(next, schedulerSettings, only);
+      return next;
+    });
     setBatchRunning(true);
     if (window.embyApi.taskControl) {
       await window.embyApi.taskControl({ action: 'start', settings: schedulerSettings });
@@ -1203,12 +1477,18 @@ export default function App() {
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id !== taskId) return t;
+        const nowIso = new Date().toISOString();
+        const logged = appendFlowLog(
+          t,
+          'upgrade.confirm.candidate',
+          `已确认补源候选并重新排队：${candidateTitle}`,
+        );
         return {
-          ...t,
+          ...logged,
           status: 'queued',
           progress: 0,
           pauseRequested: false,
-          updatedAt: new Date().toISOString(),
+          updatedAt: nowIso,
           retryCount: t.retryCount + 1,
         };
       }),
@@ -1230,15 +1510,57 @@ export default function App() {
     window.setTimeout(() => setEnqueueHint(null), 5000);
   }
 
-  function executeTaskRow(taskId: string) {
+  function confirmDeleteTaskExecute(taskId: string) {
     const nowIso = new Date().toISOString();
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id !== taskId) return t;
-        if (!canUserExecuteTask(t)) return t;
-        return { ...t, status: 'queued', pauseRequested: false, updatedAt: nowIso };
+        if (t.actionType !== 'delete' || t.status !== 'awaiting_user_confirm') return t;
+        const logged = appendFlowLog(t, 'delete.user.confirm', '用户已确认删除，进入 executing');
+        return { ...logged, status: 'executing', progress: 55, pauseRequested: false, updatedAt: nowIso };
       }),
     );
+    setInfoConfirmTaskId(null);
+    setError(null);
+  }
+
+  function executeTaskRow(taskId: string) {
+    const target = tasks.find((x) => x.id === taskId);
+    if (!target || !canUserExecuteTask(target)) return;
+    const nowIso = new Date().toISOString();
+    setBatchRunning(true);
+    setBatchRunSelectedIds((prev) => new Set(prev).add(taskId));
+    setTasks((prev) => {
+      const manualScope =
+        schedulerSettings.runMode === 'manual'
+          ? new Set<string>([...Array.from(batchRunSelectedIds), taskId])
+          : undefined;
+      let next = prev.map((t) => {
+        if (t.id !== taskId) return t;
+        if (!canUserExecuteTask(t)) return t;
+        const u = appendFlowLog(
+          { ...t, status: 'queued', pauseRequested: false, updatedAt: nowIso },
+          'user.execute',
+          '单条执行：已进入排队，并已纳入手动调度范围；立即尝试调度推进',
+        );
+        return u;
+      });
+      next = applyAdvanceWithFlowLog(next, schedulerSettings, manualScope ? { onlyTaskIds: manualScope } : undefined);
+      const afterTask = next.find((x) => x.id === taskId);
+      if (afterTask?.status === 'queued') {
+        next = next.map((t) =>
+          t.id === taskId
+            ? appendFlowLog(
+                t,
+                'scheduler.queued',
+                '仍为排队中：可能并发槽已满，等待下次调度 tick；或检查 delete/transcode/upgrade 并发配置',
+                'warn',
+              )
+            : t,
+        );
+      }
+      return next;
+    });
   }
 
   function pauseTaskRow(taskId: string) {
@@ -1281,11 +1603,11 @@ export default function App() {
       return [managed, ...rest];
     });
     if (schedulerSettings.wallRatingAutoEnqueue) {
-      if (managed.isBluRayDisc) {
-        setEnqueueHint('已保存星级；该条目为蓝光/原盘，不支持自动入队。');
+      const action = recommendedAction(managed, mediaPolicy);
+      if (managed.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) {
+        setEnqueueHint('已保存星级；该条目为蓝光/原盘，不支持压缩/洗版自动入队。');
         window.setTimeout(() => setEnqueueHint(null), 6000);
       } else {
-        const action = recommendedAction(managed, mediaPolicy);
         const preview = buildTaskPreview(managed, action);
         if (!preview) {
           setEnqueueHint('已保存星级；当前策略下无需自动入队。');
@@ -1297,7 +1619,11 @@ export default function App() {
               window.setTimeout(() => setEnqueueHint(null), 5000);
               return prev;
             }
-            const created = enqueueTask(preview, schedulerSettings.runMode);
+            const created = appendFlowLog(
+              enqueueTask(preview, schedulerSettings.runMode),
+              'task.created',
+              `海报墙打分自动入队；${preview.actionType}`,
+            );
             setEnqueueHint(`已保存星级并自动入队：${item.name}。`);
             window.setTimeout(() => setEnqueueHint(null), 6000);
             return [created, ...prev].slice(0, 300);
@@ -1645,6 +1971,8 @@ export default function App() {
     }
   }
 
+  refreshLibraryManageListRef.current = refreshLibraryManageList;
+
   async function refreshPlayedHistory(options?: { quietIfIncomplete?: boolean }) {
     if (!hasEmbyCoreConfig(config)) {
       if (!options?.quietIfIncomplete) {
@@ -1846,6 +2174,19 @@ export default function App() {
                         <span style={{ marginLeft: 'auto', opacity: 0.6 }}>{u.id}</span>
                       </label>
                     ))}
+                  </div>
+                  <div className="field" style={{ marginTop: 12 }}>
+                    <div className="label">所选用户登录密码（可选，删除等媒体写操作用）</div>
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="与 Emby 网页登录相同；仅保存在本机，用于换取用户 AccessToken"
+                      value={config.embyUserPassword}
+                      onChange={(e) => setConfig({ ...config, embyUserPassword: e.target.value })}
+                    />
+                    <p className="hint" style={{ marginTop: 6 }}>
+                      若删除接口报 Parameter &apos;user&apos; null：请填写此项。API Key 无法代替「以用户身份」删除。
+                    </p>
                   </div>
                 </>
               ) : (
@@ -2076,6 +2417,20 @@ export default function App() {
                   />
                   <span>海报墙：已观看并打完分后自动按策略入队</span>
                 </label>
+                <div className="field">
+                  <div className="label">删除并发</div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={schedulerSettings.deleteConcurrency}
+                    onChange={(e) =>
+                      setSchedulerSettings((prev) => ({
+                        ...prev,
+                        deleteConcurrency: Math.max(1, Number(e.target.value) || 1),
+                      }))
+                    }
+                  />
+                </div>
                 <div className="field">
                   <div className="label">压缩并发</div>
                   <input
@@ -2574,9 +2929,9 @@ export default function App() {
           className="primary sidebarFullWidth"
           disabled={manageSelectedIds.size === 0}
           onClick={() => enqueueRecommendedBatch()}
-          title="对勾选条目按策略批量提交码率优化（仅包含需码率压缩或洗版优化的项）"
+          title="对勾选条目按策略批量入队（含删除档、压缩、洗版）"
         >
-          批量码率优化
+          按策略批量入队
         </button>
         <div className="sidebarDivider" />
         <button
@@ -2637,7 +2992,7 @@ export default function App() {
       <AppShell page={page} setPage={setPage} sidebar={mediaSidebar} error={error}>
         <div className="panel">
           <div className="hint">
-            执行转码/洗版在任务中心操作。当前任务池：共 {taskSummary.total} 条，排队 {taskSummary.queued}，执行中 {taskSummary.running}。
+            转码、洗版与删除任务在任务中心操作。当前任务池：共 {taskSummary.total} 条，排队 {taskSummary.queued}，执行中 {taskSummary.running}。
             {managedItems.length > 0 ? (
               <>
                 {' '}
@@ -2743,10 +3098,10 @@ export default function App() {
           <div className="overlayBox">
             <div style={{ fontWeight: 800 }}>1–2 星 · 删除档说明</div>
             <p className="hint" style={{ marginTop: 10, lineHeight: 1.55 }}>
-              产品定义：1–2 星表示计划从库中移除该片（低质片源不再保留），正式流程将包含<strong>回收站/二次确认</strong>等受控删除步骤，且不会在未确认时自动物理删文件。
+              产品定义：1–2 星表示计划从库中移除该片（低质片源不再保留）。删除走<strong>任务中心</strong>：预检 → <strong>信息确认</strong>（必须手动确认，自动模式也不会跳过）→ 调用 <strong>Emby</strong> 删除条目（库与磁盘以服务器行为为准）。
             </p>
             <p className="hint" style={{ lineHeight: 1.55 }}>
-              <strong>当前 MVP</strong>仅将条目标为「删除档」策略，<strong>不会</strong>入队转码/洗版，也<strong>不会</strong>调用删除接口；后续版本再接入完整删除与审计。
+              请点击行内「加入删除任务」，在任务中心完成确认与执行；验收以 Emby 上该条目已不存在为准。详见仓库 <code>TASK_CENTER_FULL_LOGIC.md</code> §2.3。
             </p>
             <div className="actions" style={{ marginTop: 14 }}>
               <button type="button" className="primary" onClick={() => setManageDeleteExplainOpen(false)}>
@@ -2766,7 +3121,7 @@ export default function App() {
         <div className="sidebarHeading">任务中心</div>
         <p className="sidebarHint">执行模式、并发、补源节奏与海报墙自动入队在「配置中心 → 任务调度与补源」。</p>
         <p className="sidebarHint">
-          <strong>手动模式</strong>：先勾选「参与手动批量」；点侧栏<strong>批量执行</strong>将对勾选中的<strong>待启动 / 已暂停</strong>发令（→排队中）并启动调度计时；占槽中点<strong>暂停</strong>为软停（本步收尾后再暂停）。
+          <strong>手动模式</strong>：可勾选「参与手动批量」后点<strong>批量执行</strong>；也可对单条点<strong>执行</strong>（会自动纳入调度范围并尝试立即推进）。占槽中点<strong>暂停</strong>为软停（本步收尾后再暂停）。
         </p>
         <p className="sidebarHint">
           <strong>自动模式</strong>：新任务入队即为排队中；<strong>批量执行</strong>可对勾选条目做同上发令，并启动/保持调度计时。
@@ -2860,7 +3215,7 @@ export default function App() {
             </p>
             <h3 style={{ marginTop: 20 }}>任务操作与明细</h3>
             <p className="hint">
-              勾选后可侧栏批量移除 / 暂停 / 执行（与单条同语义，见 SSOT §8–§11）。单条：移除、暂停、执行、信息确认（待信息确认时）。
+              每条任务下方展开<strong>执行日志</strong>，实时记录调度与 Flow（含删除预检/Emby API/验收轮询），持久化在本地队列便于高危操作排查。
             </p>
             {enqueueHint ? (
               <div className="hint" style={{ marginTop: 8, color: '#86efac' }}>
@@ -2901,7 +3256,13 @@ export default function App() {
                           参与手动批量
                         </label>
                       </div>
-                      <div className="hint">{t.actionType === 'transcode' ? '码率压缩' : '洗版优化'}</div>
+                      <div className="hint">
+                        {t.actionType === 'transcode'
+                          ? '码率压缩'
+                          : t.actionType === 'upgrade'
+                            ? '洗版优化'
+                            : '从 Emby 删除'}
+                      </div>
                       <div className="hint">
                         {statusZh} <span style={{ opacity: 0.65 }}>({t.status})</span>
                         {t.pauseRequested ? (
@@ -2931,54 +3292,103 @@ export default function App() {
                           信息确认
                         </button>
                       </div>
+                      <details className="taskFlowLogDetails" open={!isTaskTerminal(t)} style={{ gridColumn: '1 / -1' }}>
+                        <summary>
+                          执行日志 {t.flowLog?.length ? `（${t.flowLog.length} 条）` : '（尚无）'}
+                        </summary>
+                        <pre className="taskFlowLogPre">
+                          {(t.flowLog ?? []).length === 0
+                            ? '暂无日志；创建任务、点击执行或调度推进后将追加记录。'
+                            : (t.flowLog ?? []).map((e) => formatFlowLogLine(e)).join('\n')}
+                        </pre>
+                      </details>
                     </div>
                   );
                 })}
               </div>
             )}
-            <h3 style={{ marginTop: 24 }}>任务日志</h3>
-            <p className="hint">首版占位：后续接入执行日志与检索。</p>
+            <h3 style={{ marginTop: 24 }}>全局说明</h3>
+            <p className="hint">
+              完整执行轨迹见上表各任务的「执行日志」。后续如需全局检索、导出或主进程落盘，可在现结构上扩展。
+            </p>
           </div>
         </AppShell>
         {infoConfirmTaskId ? (
           <div className="overlay" role="dialog" aria-modal="true" aria-label="信息确认">
             <div className="overlayBox" style={{ maxWidth: 520 }}>
-              <div style={{ fontWeight: 800 }}>补源 · 信息确认</div>
-              <p className="hint" style={{ marginTop: 8 }}>
-                候选资源对比（模拟数据）。采用后任务重新排队；若无合格媒体片源则进入等待重试。
-              </p>
-              {infoConfirmCandidates.length === 0 ? (
-                <p className="hint">暂无候选或任务已失效。</p>
-              ) : (
-                <div className="historyList" style={{ marginTop: 12 }}>
-                  {infoConfirmCandidates.map((c) => (
-                    <div key={c.id} className="historyItem">
-                      <div style={{ fontWeight: 700 }}>{c.title}</div>
-                      <div className="hint">{c.codec.toUpperCase()} · {c.sizeGb.toFixed(1)} GB · 置信度 {c.confidence}%</div>
-                      <div className="historyRowActions">
+              {(() => {
+                const confirmTask = tasks.find((x) => x.id === infoConfirmTaskId);
+                if (confirmTask?.actionType === 'delete') {
+                  return (
+                    <>
+                      <div style={{ fontWeight: 800 }}>删除 · 信息确认</div>
+                      <p className="hint" style={{ marginTop: 8 }}>
+                        将调用 Emby 删除条目「{confirmTask.itemName}」。请核对服务器返回的信息后确认。
+                      </p>
+                      <div
+                        className="hint"
+                        style={{ marginTop: 12, whiteSpace: 'pre-wrap', lineHeight: 1.5, maxHeight: 280, overflow: 'auto' }}
+                      >
+                        {(confirmTask.deleteConfirmLines ?? ['（预检信息暂缺，请关闭后检查任务状态）']).join('\n')}
+                      </div>
+                      <div className="actions" style={{ marginTop: 16 }}>
                         <button
                           type="button"
                           className="primary"
-                          onClick={() => infoConfirmTaskId && approveQualityCandidate(infoConfirmTaskId, c.title)}
+                          onClick={() => infoConfirmTaskId && confirmDeleteTaskExecute(infoConfirmTaskId)}
                         >
-                          采用并排队
+                          确认从 Emby 删除
+                        </button>
+                        <button type="button" onClick={() => setInfoConfirmTaskId(null)}>
+                          关闭（任务保持待确认）
                         </button>
                       </div>
+                    </>
+                  );
+                }
+                return (
+                  <>
+                    <div style={{ fontWeight: 800 }}>补源 · 信息确认</div>
+                    <p className="hint" style={{ marginTop: 8 }}>
+                      候选资源对比（模拟数据）。采用后任务重新排队；若无合格媒体片源则进入等待重试。
+                    </p>
+                    {infoConfirmCandidates.length === 0 ? (
+                      <p className="hint">暂无候选或任务已失效。</p>
+                    ) : (
+                      <div className="historyList" style={{ marginTop: 12 }}>
+                        {infoConfirmCandidates.map((c) => (
+                          <div key={c.id} className="historyItem">
+                            <div style={{ fontWeight: 700 }}>{c.title}</div>
+                            <div className="hint">
+                              {c.codec.toUpperCase()} · {c.sizeGb.toFixed(1)} GB · 置信度 {c.confidence}%
+                            </div>
+                            <div className="historyRowActions">
+                              <button
+                                type="button"
+                                className="primary"
+                                onClick={() => infoConfirmTaskId && approveQualityCandidate(infoConfirmTaskId, c.title)}
+                              >
+                                采用并排队
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="actions" style={{ marginTop: 16 }}>
+                      <button
+                        type="button"
+                        onClick={() => infoConfirmTaskId && rejectCandidateNoMediaSource(infoConfirmTaskId)}
+                      >
+                        暂无合格媒体片源
+                      </button>
+                      <button type="button" onClick={() => setInfoConfirmTaskId(null)}>
+                        关闭
+                      </button>
                     </div>
-                  ))}
-                </div>
-              )}
-              <div className="actions" style={{ marginTop: 16 }}>
-                <button
-                  type="button"
-                  onClick={() => infoConfirmTaskId && rejectCandidateNoMediaSource(infoConfirmTaskId)}
-                >
-                  暂无合格媒体片源
-                </button>
-                <button type="button" onClick={() => setInfoConfirmTaskId(null)}>
-                  关闭
-                </button>
-              </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         ) : null}

@@ -68,7 +68,9 @@ function MediaLibraryManageRowInner({
   const formatLabel = `${item.resolution} · ${item.codec.toUpperCase()}`;
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
-      {taskStatusLabelZh(rowTask.status)}（{rowTask.actionType === 'transcode' ? '压缩' : '洗版'}）
+      {taskStatusLabelZh(rowTask.status)}（
+      {rowTask.actionType === 'transcode' ? '压缩' : rowTask.actionType === 'upgrade' ? '洗版' : '删除'}
+）
     </span>
   ) : (
     '—'
@@ -151,8 +153,16 @@ function MediaLibraryManageRowInner({
           {eff == null ? (
             <span className="hint">需豆瓣或本地星级</span>
           ) : action === 'delete' ? (
-            <div className="mediaManageActionGroup">
+            <div className="mediaManageActionBtns" style={{ flexWrap: 'wrap', gap: 6 }}>
               <span className="hint">策略：待删除</span>
+              <button
+                type="button"
+                disabled={!!rowTask}
+                title={rowTask ? '该条目已有未结案任务（同视频互斥）' : undefined}
+                onClick={() => onEnqueue(item, 'delete')}
+              >
+                加入删除任务
+              </button>
               <button type="button" onClick={onOpenDeleteExplain}>
                 说明
               </button>
