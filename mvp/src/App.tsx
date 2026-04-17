@@ -1962,8 +1962,9 @@ export default function App() {
             <>
               <h3>目标码率策略（H265 等效）</h3>
               <p className="hint">
-                用于媒体库管理与任务预览。条目选用哪一档梯度：已匹配豆瓣分的<strong>电影</strong>以<strong>豆瓣星级</strong>为准，否则以<strong>本地标注</strong>为准；1
-                星为删除档。编辑后请保存。
+                用于媒体库管理与任务预览。星级来源：已匹配豆瓣分的<strong>电影</strong>以<strong>豆瓣星级</strong>为准，否则以<strong>本地标注</strong>为准。<strong>1★</strong>删除档；<strong>2–3★</strong>仅当等价码率明显高于本档目标时可<strong>转码压缩</strong>，偏低不洗版；<strong>4★</strong>可转码，且当等价码率低于本档目标的
+                <strong> 80% </strong>
+                时可<strong>洗版补源</strong>；<strong>5★</strong>仅当明显低于目标时洗版，偏高不压缩。编辑后请保存。
               </p>
               <h4 style={{ marginTop: 16, marginBottom: 8 }}>1080p</h4>
               <div className="row">
@@ -2625,7 +2626,7 @@ export default function App() {
           列表覆盖<strong>已启用媒体库</strong>内的电影/剧集，<strong>含已观看</strong>；与海报墙「仅未播放」不同。展示数据来自本地缓存；与 Emby 对齐须主动点侧栏「刷新媒体库列表」（进入本页不会自动拉取）。
         </p>
         <p className="sidebarHint">
-          目标码率梯度以配置中心<strong>媒体策略</strong>为准；星级取豆瓣优先、否则本地（见列表「星级状态」）。
+          目标码率梯度以配置中心<strong>媒体策略</strong>为准；星级取豆瓣优先、否则本地（见列表「星级状态」）。动作规则：1★删除档；2–3★仅压缩；4★可压缩或低于目标80%时洗版；5★仅洗版、不压缩。
         </p>
       </>
     );
