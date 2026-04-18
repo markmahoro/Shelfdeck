@@ -1,5 +1,7 @@
 # 版本变更记录
 
+> **归档位置**：本文件位于 `archive/`。现行版本叙事与过程锚点见仓库根目录 **`../PROJECT_MANAGEMENT.md`**。
+
 本文档汇总 **每个已打标签版本** 相对上一版的关键改动，便于发布说明与回归对照。  
 版本号与 `mvp/package.json` 的 `version`、Git 附注标签 `v*` 对齐。
 
@@ -19,15 +21,15 @@
 
 **日期：** 2026-04-17
 
-- 新增 `**TASK_CENTER_FULL_LOGIC.md`**：任务中心端到端逻辑 **SSOT**（调度与 Flow 边界、状态/停泊/槽位、转码与补源双队列、配置中心项、三种添加入口与同视频互斥、用户操作 **执行/暂停** 定稿、移除概要、任务中心 UI、前后端职责、Flow 协作与 MVP 迁移提示）。引入该文件的提交可通过 `git log --follow -1 -- TASK_CENTER_FULL_LOGIC.md` 查看。
+- 新增 `**../TASK_CENTER_FULL_LOGIC.md`**：任务中心端到端逻辑 **SSOT**（调度与 Flow 边界、状态/停泊/槽位、转码与补源双队列、配置中心项、三种添加入口与同视频互斥、用户操作 **执行/暂停** 定稿、移除概要、任务中心 UI、前后端职责、Flow 协作与前端实现迁移提示）。引入该文件的提交可通过 `git log --follow -1 -- TASK_CENTER_FULL_LOGIC.md` 查看。
 
 **日期：** 2026-04-18
 
-- **产品 PRD 单一来源**：仓库内正式条文仅保留 **`EmbyDesktopPlayer_PRD_v1.0.0_modules.md`**（按模块 A–G 编排；附录 A 为完整修订历史）。原线性版 `EmbyDesktopPlayer_PRD_v1.0.0.md`、结构化副本、模块梳理稿等请置于本地 **`archive/`**（已加入 `.gitignore`，不入库）；`scripts/build_prd_modules_md.py` / `build_structured_prd.py` 从 `archive/EmbyDesktopPlayer_PRD_v1.0.0.md` 再生辅助稿（需本地归档文件）。
-- 更新 `**TASK_CENTER_FULL_LOGIC.md`**：定稿 **三种任务类型 / 三条 Flow**（`delete`、`transcode`、`upgrade`）；**多逻辑队列** 与 `**deleteConcurrency` 等**配置约定；**Flow 可扩展与隔离**（§2.1–§2.2）；澄清 §7.3「从任务中心移除任务」与 **删除类 Flow** 的用语。`**EmbyDesktopPlayer_PRD_v1.0.0_modules.md`**、`**DEVELOPMENT_PLAN.md**` 已与之对齐。
-- `**TASK_CENTER_FULL_LOGIC.md` §2.3**（及 PRD §7.1、§7.3.1）：**删除 Flow**——仅 **Emby** 删除；**自动模式不得跳过** `awaiting_user_confirm`；未确认则 **长期**停泊该状态；`**verify` 仅以条目不存在（如 404）** 为准。
-- **文档分工（2026-04-18）**：**`transcode` Flow 技术实现**（含 DV、编码器/资源池、临时目录与 replace、异常 A1～F3 等）以 **`TASK_CENTER_FULL_LOGIC.md` §2.4、§17** 为 **SSOT**；**`DEVELOPMENT_PLAN.md`** 仅保留 **项目管理**（阶段、里程碑、参考索引），**不**承载上述实现细则。
-- **PRD 模块 F 合并（2026-04-18）**：原 **`EmbyDesktopPlayer_PRD_v1.0.0_modules.md` 模块 F** 可执行条文 **全部迁入** `TASK_CENTER_FULL_LOGIC.md`（含 **§2.5.6**、**§19** mermaid、**§20** 文档维护）；PRD **§7** 仅 **摘要与索引**；删除鉴权引用统一为 SSOT **§2.3.5**。仓库打附注标签 **`v1.0.0-docs.20260418`** 标记该文档里程碑（对应提交短哈希：`git log -1 --format=%h v1.0.0-docs.20260418`）。
+- **产品 PRD 单一来源**：仓库内正式条文仅保留 `**../EmbyDesktopPlayer_PRD_v1.0.0_modules.md`**（按模块 A–G 编排；附录修订流水已迁 **项目管理**）。原线性版 `EmbyDesktopPlayer_PRD_v1.0.0.md`、结构化副本、模块梳理稿等请置于本目录（`archive/`）或本地；`scripts/build_prd_modules_md.py` / `build_structured_prd.py` 从 `archive/EmbyDesktopPlayer_PRD_v1.0.0.md` 再生辅助稿（需本地归档文件）。
+- 更新 `**../TASK_CENTER_FULL_LOGIC.md`**：定稿 三种任务类型 / 三条 Flow（`delete`、`transcode`、`upgrade`）；多逻辑队列 与 `**deleteConcurrency` 等**配置约定；**Flow 可扩展与隔离**（§2.1–§2.2）；澄清 §7.3「从任务中心移除任务」与 **删除类 Flow** 的用语。`**../EmbyDesktopPlayer_PRD_v1.0.0_modules.md`**、历史 **`DEVELOPMENT_PLAN.md`** 已与之对齐。
+- `**../TASK_CENTER_FULL_LOGIC.md` §2.3**（及 PRD §7.1、§7.3.1）：**删除 Flow**——仅 **Emby** 删除；**自动模式不得跳过** `awaiting_user_confirm`；未确认则 **长期**停泊该状态；`**verify` 仅以条目不存在（如 404）** 为准。
+- **文档分工（2026-04-18）**：`**transcode` Flow 技术实现**（含 DV、编码器/资源池、临时目录与 replace、异常 A1～F3 等）以 `**../TASK_CENTER_FULL_LOGIC.md` §2.4、§17** 为 **SSOT**；历史 **`DEVELOPMENT_PLAN.md`** 仅作 **项目管理**稿，**不**承载上述实现细则；现行见 **`../PROJECT_MANAGEMENT.md`**。
+- **PRD 模块 F 合并（2026-04-18）**：原 `**../EmbyDesktopPlayer_PRD_v1.0.0_modules.md` 模块 F** 可执行条文 **全部迁入** `../TASK_CENTER_FULL_LOGIC.md`（含 **§2.5.6**、**§19** mermaid、**§20** 文档维护）；PRD **§7** 仅 **摘要与索引**；删除鉴权引用统一为 SSOT **§2.3.5**。仓库打附注标签 `**v1.0.0-docs.20260418`** 标记该文档里程碑（对应提交短哈希：`git log -1 --format=%h v1.0.0-docs.20260418`）。
 
 ---
 
@@ -43,12 +45,12 @@
 
 ### 技术与集成
 
-- `**mvp/electron/embyService.js**`：`authenticateEmbyUserAccessToken`、`deleteLibraryItem`、`getLibraryItem`、`getItemDeleteInfo`、`libraryItemExists`；`EmbyConfig.embyUserPassword` 经 IPC 传入。
+- `**mvp/electron/embyService.js`**：`authenticateEmbyUserAccessToken`、`deleteLibraryItem`、`getLibraryItem`、`getItemDeleteInfo`、`libraryItemExists`；`EmbyConfig.embyUserPassword` 经 IPC 传入。
 - **前端**：`App.tsx` 删除 Flow 与手动调度；`MediaLibraryManageRow` / `mediaManager` 删除入队；`taskQueue` / `taskScheduler` 删除并发与状态机。
 
 ### 文档
 
-- `EmbyDesktopPlayer_PRD_v1.0.0_modules.md` §7.3.1、§11（小节 14.8）；`DEVELOPMENT_PROGRESS.md`；`DEVELOPMENT_PLAN.md`（项目管理）；`TASK_CENTER_FULL_LOGIC.md`（SSOT，含 §2.4 转码）。
+- `../EmbyDesktopPlayer_PRD_v1.0.0_modules.md` §7.3.1、当时 §11（小节 14.8）；同目录 `DEVELOPMENT_PROGRESS.md`；历史 `DEVELOPMENT_PLAN.md`；`../TASK_CENTER_FULL_LOGIC.md`（SSOT，含 §2.4 转码）；现行项目管理见 `../PROJECT_MANAGEMENT.md`。
 
 ### 已知限制
 
@@ -89,7 +91,7 @@
 
 ### 用户可见
 
-- 配置页对部分 **高级 MVP 字段** 做隐藏/收敛，降低误操作面。
+- 配置页对部分 **高级实验字段** 做隐藏/收敛，降低误操作面。
 
 ### 技术与集成
 
@@ -107,7 +109,7 @@
 
 ### 用户可见
 
-- **首个可运行的 MVP 基线**：Electron 桌面壳 + React（Vite）前端。
+- **首个可运行的应用基线**：Electron 桌面壳 + React（Vite）前端。
 - **Emby 集成**：Base URL、API Key、用户与媒体库（Section）选择并持久化到本地。
 - **未播放海报墙**：按已选媒体库拉取未播放电影列表并展示海报；调用本机配置的 **第三方播放器**（如 PotPlayer）路径与参数模板启动播放。
 - **观看结束流程**：基于会话时长估算进度，**用户确认**后向 Emby **回写已播放**。
@@ -131,7 +133,7 @@
 | 1.0.0-beta.4 | `v1.0.0-beta.4` | 真实 Emby 前台闭环、播放记录      |
 | 1.0.0-beta.3 | `v1.0.0-beta.3` | 播放记录与行级已看/未看同步         |
 | 1.0.0-beta.2 | `v1.0.0-beta.2` | 打包/生产启动与配置页收敛          |
-| 1.0.0-beta.1 | `v1.0.0-beta.1` | MVP 基线 + PRD 初稿        |
+| 1.0.0-beta.1 | `v1.0.0-beta.1` | 首版可运行基线 + PRD 初稿        |
 
 
 若需核对某标签指向的提交：`git show v1.0.0-beta.8 --no-patch`。

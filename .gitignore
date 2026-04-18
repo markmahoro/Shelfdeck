@@ -25,5 +25,8 @@ mvp/.vite-dev-server-url
 # 第三方克隆工具目录（内含独立 .git），勿纳入本仓库
 douban-to-imdb/
 
-# 本地归档（历史 PRD 变体等；不入库）
-archive/
+# 归档目录 `archive/`：现行说明见下述 README；下列为可选「本地再生」PRD 稿（默认不入库，需要时可删行以跟踪）
+archive/EmbyDesktopPlayer_PRD.md
+archive/EmbyDesktopPlayer_PRD_v1.0.0.md
+archive/EmbyDesktopPlayer_PRD_v1.0.0_structured.md
+archive/EmbyDesktopPlayer_PRODUCT_MODULES_v1.0.0.md
