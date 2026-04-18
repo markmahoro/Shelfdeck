@@ -844,4 +844,6 @@ module.exports = {
   getItemDeleteInfo,
   deleteLibraryItem,
   libraryItemExists,
+  fetchPlaybackPath,
+  applyPathMap,
 };

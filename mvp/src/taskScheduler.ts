@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS: TaskSchedulerSettings = {
   waitingMidIntervalDays: 3,
   waitingSlowIntervalDays: 7,
   wallRatingAutoEnqueue: false,
+  transcodeAutoReplace: false,
+  transcodeEncodePoolSlots: 1,
 };
 
 type TaskBuckets = {
@@ -84,7 +86,7 @@ export function advanceTaskQueue(
     if (task.status === 'paused' || task.status === 'pending_manual' || task.status === 'awaiting_user_confirm') return task;
     if (!runnableTask(task)) return task;
     if (
-      task.actionType === 'delete' &&
+      (task.actionType === 'delete' || task.actionType === 'transcode') &&
       (task.status === 'precheck' || task.status === 'executing' || task.status === 'verify')
     ) {
       return task;

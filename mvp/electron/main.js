@@ -4,6 +4,7 @@ const fs = require('fs');
 const http = require('http');
 const embyService = require('./embyService');
 const doubanService = require('./doubanService');
+const transcodeService = require('./transcodeService');
 
 const isDev = process.env.NODE_ENV === 'development';
 let mainWindow = null;
@@ -117,7 +118,10 @@ async function loadFirstReachableDevUrl(win) {
 
 function registerIpcHandlers() {
   console.log('[main] registerIpcHandlers cwd=', process.cwd());
-  ipcMain.handle('taskControl', async (_evt, _args) => {
+  ipcMain.handle('taskControl', async (_evt, args) => {
+    if (args && args.action === 'simulateExit') {
+      transcodeService.abortAllEncodes();
+    }
     return;
   });
 
@@ -142,8 +146,32 @@ function registerIpcHandlers() {
   });
   ipcMain.handle('douban:fetchRatings', (event, opts) => doubanService.fetchRatings(event.sender, opts ?? {}));
 
+  ipcMain.handle('transcode:validateTools', (_evt, payload) =>
+    transcodeService.validateTranscodeTools(payload.config, payload.encoderPreference ?? 'auto'),
+  );
+  ipcMain.handle('transcode:precheck', (_evt, payload) => transcodeService.precheck(payload));
+  ipcMain.handle('transcode:startEncode', (event, payload) => transcodeService.startEncode(event.sender, payload));
+  ipcMain.handle('transcode:abort', (_evt, payload) => ({ ok: transcodeService.abortTask(payload.taskId) }));
+  ipcMain.handle('transcode:probe', (_evt, payload) => transcodeService.probeSummary(payload.config, payload.filePath));
+  ipcMain.handle('transcode:replace', (_evt, payload) =>
+    transcodeService.replaceWithRetries({
+      config: payload.config,
+      targetPath: payload.targetPath,
+      partialPath: payload.partialPath,
+    }),
+  );
+  ipcMain.handle('transcode:cleanupTaskWorkdir', async (_evt, payload) => {
+    await transcodeService.cleanupTaskWorkdir(payload.tempDir);
+    return { ok: true };
+  });
+  ipcMain.handle('transcode:scanOrphans', (_evt, payload) => transcodeService.scanOrphans(payload.tempRoot));
+  ipcMain.handle('transcode:deletePaths', async (_evt, payload) => {
+    await transcodeService.deletePaths(payload.paths ?? []);
+    return { ok: true };
+  });
+
   console.log(
-    '[main] IPC handlers registered (incl. emby:getLibraryItem, emby:getItemDeleteInfo, emby:deleteLibraryItem, emby:libraryItemExists)',
+    '[main] IPC handlers registered (incl. emby:getLibraryItem, emby:getItemDeleteInfo, emby:deleteLibraryItem, emby:libraryItemExists, transcode:*)',
   );
 }
 

@@ -71,6 +71,26 @@ export interface MediaTask {
    * verify 通过且输出体积小于原体积时写入；用于任务卡展示节省容量。
    */
   transcodeResultSizeGb?: number;
+  /** replace 前旧版目标成片摘要（§2.4.4）；首版可用 sha256 十六进制 */
+  preReplaceHash?: string;
+  /** replace 子流程累计失败次数（用于 UI；整段重试在 main 内最多 3 次） */
+  transcodeReplaceAttempt?: number;
+  /** 任务级临时工作目录（临时根下子目录） */
+  transcodeTempDir?: string;
+  /**  growing partial 绝对路径 */
+  transcodePartialPath?: string;
+  /** 最终成片绝对路径（与源同路径，替换目标） */
+  transcodeTargetPath?: string;
+  /** executing 阶段：encode=压制；replace=原子替换链 */
+  transcodeSubstage?: 'encode' | 'replace';
+  /** 预检识别为杜比视界片源 */
+  transcodeIsDolbyVision?: boolean;
+  /** 用户已在任务中心确认 DV 受控转码风险 */
+  transcodeDvAcknowledged?: boolean;
+  /** awaiting_user_confirm：dolby_vision | replace */
+  transcodeConfirmKind?: 'dolby_vision' | 'replace';
+  /** ffprobe 片长（秒），用于压制进度估算 */
+  transcodeDurationSec?: number;
 }
 
 /** 任务卡「压制体积」展示文案；无记账数据时返回 null */
@@ -168,8 +188,12 @@ export function nextStatusFor(task: MediaTask): TaskStatus {
   if (task.status === 'awaiting_user_confirm') return 'awaiting_user_confirm';
   if (task.status === 'queued') return 'precheck';
   if (task.status === 'precheck') return 'executing';
-  if (task.status === 'executing') return 'verify';
-    if (task.status === 'verify') {
+  if (task.status === 'executing') {
+    if (task.actionType === 'transcode') return 'executing';
+    return 'verify';
+  }
+  if (task.status === 'verify') {
+    if (task.actionType === 'transcode') return 'verify';
     if (task.actionType === 'upgrade' && task.retryCount === 0) return 'awaiting_user_confirm';
     return 'done';
   }

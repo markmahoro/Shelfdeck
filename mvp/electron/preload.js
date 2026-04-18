@@ -15,6 +15,20 @@ const embyApi = {
   deleteLibraryItem: (args) => ipcRenderer.invoke('emby:deleteLibraryItem', args),
   libraryItemExists: (args) => ipcRenderer.invoke('emby:libraryItemExists', args),
   taskControl: (args) => ipcRenderer.invoke('taskControl', args),
+  transcodeValidateTools: (args) => ipcRenderer.invoke('transcode:validateTools', args),
+  transcodePrecheck: (args) => ipcRenderer.invoke('transcode:precheck', args),
+  transcodeStartEncode: (args) => ipcRenderer.invoke('transcode:startEncode', args),
+  transcodeAbort: (args) => ipcRenderer.invoke('transcode:abort', args),
+  transcodeProbe: (args) => ipcRenderer.invoke('transcode:probe', args),
+  transcodeReplace: (args) => ipcRenderer.invoke('transcode:replace', args),
+  transcodeCleanupTaskWorkdir: (args) => ipcRenderer.invoke('transcode:cleanupTaskWorkdir', args),
+  transcodeScanOrphans: (args) => ipcRenderer.invoke('transcode:scanOrphans', args),
+  transcodeDeletePaths: (args) => ipcRenderer.invoke('transcode:deletePaths', args),
+  onTranscodeProgress: (listener) => {
+    const handler = (_event, payload) => listener(payload);
+    ipcRenderer.on('transcode:progress', handler);
+    return () => ipcRenderer.removeListener('transcode:progress', handler);
+  },
 };
 
 const doubanApi = {

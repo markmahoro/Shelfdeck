@@ -33,6 +33,8 @@ declare global {
     type: 'Movie' | 'Episode' | 'Other' | 'Unknown';
   };
 
+  type TranscodeEncoderPreference = 'auto' | 'cpu' | 'nvenc' | 'qsv' | 'amf';
+
   type EmbyConfig = {
     baseUrl: string;
     apiKey: string;
@@ -46,6 +48,19 @@ declare global {
     pathMapTo: string;
     markPlayedThresholdPercent: number;
     fallbackMinSeconds: number;
+    /** 转码临时根目录（每任务子目录）；必填方可执行真实转码 */
+    transcodeTempRoot: string;
+    /** 可选：ffmpeg 可执行文件绝对路径 */
+    ffmpegPath: string;
+    /** 可选：ffprobe 可执行文件绝对路径 */
+    ffprobePath: string;
+    /** 压制编码器偏好（auto 时主进程探测） */
+    transcodeEncoder: TranscodeEncoderPreference;
+    /**
+     * NVENC 等：CUDA 设备序号（映射为进程级 CUDA_VISIBLE_DEVICES）；-1 表示不指定。
+     * libplacebo / Vulkan 设备精细绑定见 TASK_CENTER §2.4.7，首版仅 NVENC 路径生效。
+     */
+    transcodeGpuDeviceIndex: number;
   };
 
   type LaunchResult = {
@@ -73,6 +88,27 @@ declare global {
     waitingSlowIntervalDays: number;
     /** 海报墙：观看确认并打完分后是否按策略自动入队（§4.4） */
     wallRatingAutoEnqueue: boolean;
+    /** 转码：校验通过后不经「替换前确认」直接执行 replace */
+    transcodeAutoReplace: boolean;
+    /**
+     * 转码编码资源池（§2.4.1 / §2.4.10）：同时处于「压制」阶段的 FFmpeg 进程上限；
+     * 可与 transcodeConcurrency（逻辑占槽）分别配置，例如并发 2 路任务但仅 1 路开压。
+     */
+    transcodeEncodePoolSlots: number;
+  };
+
+  type TranscodeValidateToolsResult = {
+    ffmpeg: string;
+    ffprobe: string;
+    resolvedEncoder: string;
+    libplacebo: boolean;
+  };
+
+  type TranscodeOrphanEntry = { path: string; size: number };
+
+  type TranscodeReplaceResult = {
+    preReplaceHash: string;
+    resultSizeBytes: number;
   };
 
   type DoubanRatingEntryWire = { title: string; stars: number; subjectId: string };
@@ -104,6 +140,42 @@ declare global {
       deleteLibraryItem: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;
       libraryItemExists: (args: { config: EmbyConfig; itemId: string }) => Promise<boolean>;
       taskControl?: (args: { action: TaskControlAction; settings?: TaskSchedulerSettings }) => Promise<void>;
+      transcodeValidateTools?: (args: {
+        config: EmbyConfig;
+        encoderPreference?: TranscodeEncoderPreference;
+      }) => Promise<TranscodeValidateToolsResult>;
+      transcodePrecheck?: (args: {
+        config: EmbyConfig;
+        task: { id: string; itemId: string; transcodeDvAcknowledged?: boolean };
+      }) => Promise<Record<string, unknown>>;
+      transcodeStartEncode?: (args: {
+        config: EmbyConfig;
+        taskId: string;
+        sourcePath: string;
+        partialPath: string;
+        encoderPreference: TranscodeEncoderPreference;
+        isDolbyVision: boolean;
+        dvAcknowledged: boolean;
+        durationSec?: number;
+        /** §2.4.10 编码资源池 Gate：同时压制进程上限 */
+        encodePoolMax?: number;
+      }) => Promise<{ ok: boolean; encoderUsed?: string }>;
+      transcodeAbort?: (args: { taskId: string }) => Promise<{ ok: boolean }>;
+      transcodeProbe?: (args: { config: EmbyConfig; filePath: string }) => Promise<{
+        durationSec: number;
+        videoCodec: string;
+        width: number;
+        height: number;
+      }>;
+      transcodeReplace?: (args: {
+        config: EmbyConfig;
+        targetPath: string;
+        partialPath: string;
+      }) => Promise<TranscodeReplaceResult>;
+      transcodeCleanupTaskWorkdir?: (args: { tempDir: string }) => Promise<{ ok: boolean }>;
+      transcodeScanOrphans?: (args: { tempRoot: string }) => Promise<{ entries: TranscodeOrphanEntry[] }>;
+      transcodeDeletePaths?: (args: { paths: string[] }) => Promise<{ ok: boolean }>;
+      onTranscodeProgress?: (listener: (payload: { taskId: string; progress: number; line?: string }) => void) => () => void;
     };
     doubanApi?: {
       saveSession: (payload: { cookieHeader: string; userId: string; interestsRssUrl?: string }) => Promise<{

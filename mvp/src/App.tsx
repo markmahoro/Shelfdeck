@@ -290,6 +290,11 @@ const defaultConfig: EmbyConfig = {
   pathMapTo: '',
   markPlayedThresholdPercent: 90,
   fallbackMinSeconds: 600,
+  transcodeTempRoot: '',
+  ffmpegPath: '',
+  ffprobePath: '',
+  transcodeEncoder: 'auto',
+  transcodeGpuDeviceIndex: -1,
 };
 
 function normalizeConfig(raw: Partial<EmbyConfig>): EmbyConfig {
@@ -314,6 +319,21 @@ function normalizeConfig(raw: Partial<EmbyConfig>): EmbyConfig {
       typeof raw.fallbackMinSeconds === 'number' && Number.isFinite(raw.fallbackMinSeconds)
         ? raw.fallbackMinSeconds
         : defaultConfig.fallbackMinSeconds,
+    transcodeTempRoot:
+      typeof raw.transcodeTempRoot === 'string' ? raw.transcodeTempRoot : defaultConfig.transcodeTempRoot,
+    ffmpegPath: typeof raw.ffmpegPath === 'string' ? raw.ffmpegPath : defaultConfig.ffmpegPath,
+    ffprobePath: typeof raw.ffprobePath === 'string' ? raw.ffprobePath : defaultConfig.ffprobePath,
+    transcodeEncoder:
+      raw.transcodeEncoder === 'cpu' ||
+      raw.transcodeEncoder === 'nvenc' ||
+      raw.transcodeEncoder === 'qsv' ||
+      raw.transcodeEncoder === 'amf'
+        ? raw.transcodeEncoder
+        : 'auto',
+    transcodeGpuDeviceIndex:
+      typeof raw.transcodeGpuDeviceIndex === 'number' && Number.isFinite(raw.transcodeGpuDeviceIndex)
+        ? Math.floor(raw.transcodeGpuDeviceIndex)
+        : defaultConfig.transcodeGpuDeviceIndex,
   };
 }
 
@@ -515,6 +535,14 @@ function normalizeSchedulerSettings(raw: Partial<TaskSchedulerSettings>): TaskSc
       typeof raw.waitingSlowIntervalDays === 'number' && Number.isFinite(raw.waitingSlowIntervalDays)
         ? Math.max(1, Math.floor(raw.waitingSlowIntervalDays))
         : fallback.waitingSlowIntervalDays,
+    transcodeAutoReplace:
+      typeof raw.transcodeAutoReplace === 'boolean' ? raw.transcodeAutoReplace : fallback.transcodeAutoReplace,
+    transcodeEncodePoolSlots:
+      typeof raw.transcodeEncodePoolSlots === 'number' && Number.isFinite(raw.transcodeEncodePoolSlots)
+        ? Math.max(1, Math.floor(raw.transcodeEncodePoolSlots))
+        : typeof raw.transcodeConcurrency === 'number' && Number.isFinite(raw.transcodeConcurrency)
+          ? Math.max(1, Math.floor(raw.transcodeConcurrency))
+          : fallback.transcodeEncodePoolSlots,
   };
 }
 
@@ -614,6 +642,10 @@ export default function App() {
   const enqueueManagedActionRef = useRef<(item: ManagedMediaItem, action: MediaAction) => void>(() => {});
   const [infoConfirmTaskId, setInfoConfirmTaskId] = useState<string | null>(null);
   const deleteFlowBusyRef = useRef<Set<string>>(new Set());
+  const transcodeFlowBusyRef = useRef<Set<string>>(new Set());
+  const [transcodeOrphans, setTranscodeOrphans] = useState<{ path: string; size: number }[]>([]);
+  const [transcodeOrphanSelected, setTranscodeOrphanSelected] = useState<Set<string>>(() => new Set());
+  const [transcodeValidateHint, setTranscodeValidateHint] = useState<string | null>(null);
   const refreshLibraryManageListRef = useRef<((opts?: { quietIfIncomplete?: boolean }) => Promise<void>) | null>(null);
   const [taskFilter, setTaskFilter] = useState<'all' | MediaTask['status']>('all');
   const [batchRunSelectedIds, setBatchRunSelectedIds] = useState<Set<string>>(() => new Set());
@@ -657,6 +689,40 @@ export default function App() {
     setLibraryManageItems(items);
     setLibraryManageCacheSavedAt(savedAt);
   }, [libraryManageCacheFingerprint]);
+
+  useEffect(() => {
+    const off = window.embyApi?.onTranscodeProgress?.((payload) => {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === payload.taskId && t.actionType === 'transcode' && t.status === 'executing'
+            ? { ...t, progress: Math.max(t.progress, payload.progress) }
+            : t,
+        ),
+      );
+    });
+    return () => {
+      off?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (page !== 'taskCenter' && page !== 'config') return;
+    const root = config.transcodeTempRoot?.trim();
+    const scanOrphans = window.embyApi?.transcodeScanOrphans;
+    if (!root || !scanOrphans) {
+      setTranscodeOrphans([]);
+      return;
+    }
+    void (async () => {
+      try {
+        const r = await scanOrphans({ tempRoot: root });
+        setTranscodeOrphans(r.entries ?? []);
+      } catch {
+        setTranscodeOrphans([]);
+      }
+    })();
+  }, [page, config.transcodeTempRoot]);
+
   const taskSummary = useMemo(() => {
     const byStatus = new Map<string, number>();
     for (const t of tasks) byStatus.set(t.status, (byStatus.get(t.status) ?? 0) + 1);
@@ -1070,6 +1136,325 @@ export default function App() {
   }, [tasks, connected]);
 
   useEffect(() => {
+    const cfg = configRef.current;
+    const api = window.embyApi;
+    if (!api?.transcodePrecheck || !api.transcodeStartEncode || !api.transcodeProbe || !api.transcodeReplace) {
+      return;
+    }
+
+    if (!hasEmbyCoreForDeleteFlow(cfg, connected)) {
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.actionType !== 'transcode' || t.status !== 'precheck') return t;
+          const last = (t.flowLog ?? []).slice(-1)[0];
+          if (last?.code === 'transcode.blocked.no_emby' && Date.now() - new Date(last.ts).getTime() < 15000) return t;
+          return appendFlowLog(
+            t,
+            'transcode.blocked.no_emby',
+            '转码预检未启动：Emby 未就绪（需已「测试联通」且配置 baseUrl / apiKey / userId）。',
+            'warn',
+          );
+        }),
+      );
+      return;
+    }
+
+    const runTcPrecheck = (task: MediaTask) => {
+      if (transcodeFlowBusyRef.current.has(task.id)) return;
+      transcodeFlowBusyRef.current.add(task.id);
+      void (async () => {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id && t.status === 'precheck'
+              ? appendFlowLog(t, 'transcode.precheck.start', '预检：临时根、源路径、ffprobe、DV 识别…')
+              : t,
+          ),
+        );
+        try {
+          const r = (await api.transcodePrecheck!({
+            config: cfg,
+            task: {
+              id: task.id,
+              itemId: task.itemId,
+              transcodeDvAcknowledged: task.transcodeDvAcknowledged === true,
+            },
+          })) as Record<string, unknown>;
+          const nowIso = new Date().toISOString();
+          if (r.needsDvConfirm === true) {
+            setTasks((prev) =>
+              prev.map((t) => {
+                if (t.id !== task.id || t.status !== 'precheck') return t;
+                const logged = appendFlowLog(
+                  t,
+                  'transcode.precheck.dv_hold',
+                  '识别为杜比视界片源：须在任务中心确认受控转码后方可压制。',
+                  'warn',
+                );
+                return {
+                  ...logged,
+                  status: 'awaiting_user_confirm',
+                  transcodeConfirmKind: 'dolby_vision' as const,
+                  transcodeTempDir: String(r.tempDir ?? ''),
+                  transcodePartialPath: String(r.partialPath ?? ''),
+                  transcodeTargetPath: String(r.targetPath ?? ''),
+                  transcodeOriginalSizeGb: typeof r.originalSizeGb === 'number' ? r.originalSizeGb : t.transcodeOriginalSizeGb,
+                  transcodeDurationSec: typeof r.durationSec === 'number' ? r.durationSec : t.transcodeDurationSec,
+                  transcodeIsDolbyVision: true,
+                  progress: 12,
+                  updatedAt: nowIso,
+                };
+              }),
+            );
+          } else {
+            setTasks((prev) =>
+              prev.map((t) => {
+                if (t.id !== task.id || t.status !== 'precheck') return t;
+                const logged = appendFlowLog(t, 'transcode.precheck.ok', '预检通过，进入压制 executing');
+                return {
+                  ...logged,
+                  status: 'executing',
+                  transcodeSubstage: 'encode' as const,
+                  transcodeTempDir: String(r.tempDir ?? ''),
+                  transcodePartialPath: String(r.partialPath ?? ''),
+                  transcodeTargetPath: String(r.targetPath ?? ''),
+                  transcodeOriginalSizeGb: typeof r.originalSizeGb === 'number' ? r.originalSizeGb : undefined,
+                  transcodeDurationSec: typeof r.durationSec === 'number' ? r.durationSec : undefined,
+                  transcodeIsDolbyVision: r.isDolbyVision === true,
+                  progress: 15,
+                  updatedAt: nowIso,
+                };
+              }),
+            );
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const nowIso = new Date().toISOString();
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id !== task.id || t.status !== 'precheck') return t;
+              const logged = appendFlowLog(t, 'transcode.precheck.error', msg, 'error');
+              return { ...logged, status: 'failed_hard', progress: 0, updatedAt: nowIso };
+            }),
+          );
+          setError(`转码预检失败：${msg}`);
+        } finally {
+          transcodeFlowBusyRef.current.delete(task.id);
+        }
+      })();
+    };
+
+    const runTcEncode = (task: MediaTask) => {
+      if (transcodeFlowBusyRef.current.has(task.id)) return;
+      const partialPath = task.transcodePartialPath;
+      const sourcePath = task.transcodeTargetPath;
+      if (!partialPath || !sourcePath) return;
+      transcodeFlowBusyRef.current.add(task.id);
+      void (async () => {
+        try {
+          await api.transcodeStartEncode!({
+            config: cfg,
+            taskId: task.id,
+            sourcePath,
+            partialPath,
+            encoderPreference: cfg.transcodeEncoder,
+            isDolbyVision: task.transcodeIsDolbyVision === true,
+            dvAcknowledged: task.transcodeDvAcknowledged === true,
+            durationSec: task.transcodeDurationSec,
+            encodePoolMax: schedulerSettings.transcodeEncodePoolSlots,
+          });
+          const nowIso = new Date().toISOString();
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id !== task.id || t.status !== 'executing') return t;
+              if ((t.transcodeSubstage ?? 'encode') !== 'encode') return t;
+              if (t.pauseRequested) {
+                return {
+                  ...appendFlowLog(t, 'transcode.encode.pause_after_step', '压制结束：检测到暂停请求，进入 paused'),
+                  status: 'paused' as const,
+                  pauseRequested: false,
+                  progress: 0,
+                  updatedAt: nowIso,
+                };
+              }
+              const logged = appendFlowLog(t, 'transcode.encode.ok', '压制完成，进入 ffprobe 校验 verify');
+              return { ...logged, status: 'verify', progress: 88, updatedAt: nowIso };
+            }),
+          );
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const nowIso = new Date().toISOString();
+          try {
+            if (task.transcodePartialPath) await api.transcodeDeletePaths?.({ paths: [task.transcodePartialPath] });
+            if (task.transcodeTempDir) await api.transcodeCleanupTaskWorkdir?.({ tempDir: task.transcodeTempDir });
+          } catch {
+            /* ignore */
+          }
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id !== task.id) return t;
+              const logged = appendFlowLog(t, 'transcode.encode.error', msg, 'error');
+              return { ...logged, status: 'failed_hard', progress: 0, updatedAt: nowIso };
+            }),
+          );
+          setError(`转码压制失败：${msg}`);
+        } finally {
+          transcodeFlowBusyRef.current.delete(task.id);
+        }
+      })();
+    };
+
+    const runTcVerify = (task: MediaTask) => {
+      if (transcodeFlowBusyRef.current.has(task.id)) return;
+      if (!task.transcodePartialPath) return;
+      transcodeFlowBusyRef.current.add(task.id);
+      void (async () => {
+        try {
+          const info = await api.transcodeProbe!({ config: cfg, filePath: task.transcodePartialPath! });
+          const nowIso = new Date().toISOString();
+          if (!info.videoCodec || info.durationSec <= 0) {
+            throw new Error('校验：partial 无有效视频轨');
+          }
+          setTasks((prev) => {
+            const cur = prev.find((x) => x.id === task.id);
+            if (!cur || cur.status !== 'verify') return prev;
+            if (cur.pauseRequested) {
+              return prev.map((x) =>
+                x.id === task.id
+                  ? {
+                      ...appendFlowLog(x, 'transcode.verify.paused', '校验前暂停：进入 paused'),
+                      status: 'paused' as const,
+                      pauseRequested: false,
+                      updatedAt: nowIso,
+                    }
+                  : x,
+              );
+            }
+            const loggedOk = appendFlowLog(
+              cur,
+              'transcode.verify.partial_ok',
+              `partial 校验通过（${info.videoCodec}，时长 ${info.durationSec.toFixed(1)}s）`,
+            );
+            if (schedulerSettings.transcodeAutoReplace) {
+              return prev.map((x) =>
+                x.id === task.id
+                  ? {
+                      ...loggedOk,
+                      status: 'executing' as const,
+                      transcodeSubstage: 'replace' as const,
+                      progress: 94,
+                      updatedAt: nowIso,
+                    }
+                  : x,
+              );
+            }
+            return prev.map((x) =>
+              x.id === task.id
+                ? {
+                    ...loggedOk,
+                    status: 'awaiting_user_confirm' as const,
+                    transcodeConfirmKind: 'replace' as const,
+                    progress: 95,
+                    updatedAt: nowIso,
+                  }
+                : x,
+            );
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const nowIso = new Date().toISOString();
+          try {
+            if (task.transcodePartialPath) await api.transcodeDeletePaths?.({ paths: [task.transcodePartialPath] });
+            if (task.transcodeTempDir) await api.transcodeCleanupTaskWorkdir?.({ tempDir: task.transcodeTempDir });
+          } catch {
+            /* ignore */
+          }
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id !== task.id) return t;
+              const logged = appendFlowLog(t, 'transcode.verify.error', msg, 'error');
+              return { ...logged, status: 'failed_hard', progress: 0, updatedAt: nowIso };
+            }),
+          );
+          setError(`转码校验失败：${msg}`);
+        } finally {
+          transcodeFlowBusyRef.current.delete(task.id);
+        }
+      })();
+    };
+
+    const runTcReplace = (task: MediaTask) => {
+      if (transcodeFlowBusyRef.current.has(task.id)) return;
+      if (!task.transcodePartialPath || !task.transcodeTargetPath) return;
+      transcodeFlowBusyRef.current.add(task.id);
+      void (async () => {
+        try {
+          const rep = await api.transcodeReplace!({
+            config: cfg,
+            targetPath: task.transcodeTargetPath!,
+            partialPath: task.transcodePartialPath!,
+          });
+          const nowIso = new Date().toISOString();
+          const resultGb = rep.resultSizeBytes / (1024 * 1024 * 1024);
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id !== task.id || t.status !== 'executing' || t.transcodeSubstage !== 'replace') return t;
+              const logged = appendFlowLog(t, 'transcode.replace.ok', '原子替换完成，结案 done');
+              return {
+                ...logged,
+                status: 'done',
+                progress: 100,
+                preReplaceHash: rep.preReplaceHash || undefined,
+                transcodeResultSizeGb: Number(resultGb.toFixed(4)),
+                transcodeReplaceAttempt: 0,
+                transcodeSubstage: undefined,
+                updatedAt: nowIso,
+              };
+            }),
+          );
+          try {
+            if (task.transcodeTempDir) await api.transcodeCleanupTaskWorkdir?.({ tempDir: task.transcodeTempDir });
+          } catch {
+            /* ignore */
+          }
+          void refreshLibraryManageListRef.current?.({ quietIfIncomplete: true });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const nowIso = new Date().toISOString();
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (t.id !== task.id) return t;
+              const logged = appendFlowLog(
+                t,
+                'transcode.replace.error',
+                `${msg}（replace 已在主进程重试至多 3 次；请检查 .etp.new/.etp.bak 残留并谨慎清理）`,
+                'error',
+              );
+              return {
+                ...logged,
+                status: 'failed_hard',
+                progress: 0,
+                transcodeReplaceAttempt: 3,
+                updatedAt: nowIso,
+              };
+            }),
+          );
+          setError(`转码替换失败：${msg}`);
+        } finally {
+          transcodeFlowBusyRef.current.delete(task.id);
+        }
+      })();
+    };
+
+    for (const task of tasks) {
+      if (task.actionType !== 'transcode') continue;
+      if (task.status === 'precheck') runTcPrecheck(task);
+      else if (task.status === 'executing' && (task.transcodeSubstage ?? 'encode') === 'encode') runTcEncode(task);
+      else if (task.status === 'verify') runTcVerify(task);
+      else if (task.status === 'executing' && task.transcodeSubstage === 'replace') runTcReplace(task);
+    }
+  }, [tasks, connected, schedulerSettings]);
+
+  useEffect(() => {
     const meta = loadManagedItemMeta();
     if (libraryManageItems.length === 0) {
       setManagedItems([]);
@@ -1440,10 +1825,10 @@ export default function App() {
 
   async function markInterruptedAll() {
     setBatchRunning(false);
-    setTasks((prev) => applyControl(prev, 'simulateExit'));
     if (window.embyApi.taskControl) {
       await window.embyApi.taskControl({ action: 'simulateExit' });
     }
+    setTasks((prev) => applyControl(prev, 'simulateExit'));
   }
 
   async function resumeInterrupted() {
@@ -1472,6 +1857,36 @@ export default function App() {
       next.delete(taskId);
       return next;
     });
+  }
+
+  function toggleTranscodeOrphanPath(p: string) {
+    setTranscodeOrphanSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  }
+
+  async function deleteSelectedTranscodeOrphans() {
+    const paths = Array.from(transcodeOrphanSelected);
+    if (paths.length === 0) return;
+    if (!window.embyApi?.transcodeDeletePaths) {
+      setError('孤儿文件清理仅能在 Electron 桌面版执行。');
+      return;
+    }
+    try {
+      await window.embyApi.transcodeDeletePaths({ paths });
+      setTranscodeOrphanSelected(new Set());
+      const root = config.transcodeTempRoot?.trim();
+      if (root && window.embyApi.transcodeScanOrphans) {
+        const r = await window.embyApi.transcodeScanOrphans({ tempRoot: root });
+        setTranscodeOrphans(r.entries ?? []);
+      }
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   function approveQualityCandidate(taskId: string, candidateTitle: string) {
@@ -1509,6 +1924,54 @@ export default function App() {
     setError(null);
     setEnqueueHint('已标记为暂无合格媒体片源，进入等待重试节奏。');
     window.setTimeout(() => setEnqueueHint(null), 5000);
+  }
+
+  function confirmTranscodeDvTask(taskId: string) {
+    const nowIso = new Date().toISOString();
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+        if (t.actionType !== 'transcode' || t.transcodeConfirmKind !== 'dolby_vision') return t;
+        const logged = appendFlowLog(
+          t,
+          'transcode.dv.user.confirm',
+          '用户已确认杜比视界受控转码风险，重新进入预检',
+        );
+        return {
+          ...logged,
+          status: 'precheck',
+          transcodeDvAcknowledged: true,
+          transcodeConfirmKind: undefined,
+          pauseRequested: false,
+          progress: 5,
+          updatedAt: nowIso,
+        };
+      }),
+    );
+    setInfoConfirmTaskId(null);
+    setError(null);
+  }
+
+  function confirmTranscodeReplaceTask(taskId: string) {
+    const nowIso = new Date().toISOString();
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+        if (t.actionType !== 'transcode' || t.transcodeConfirmKind !== 'replace') return t;
+        const logged = appendFlowLog(t, 'transcode.replace.user.confirm', '用户确认替换成片，进入原子替换');
+        return {
+          ...logged,
+          status: 'executing',
+          transcodeSubstage: 'replace',
+          transcodeConfirmKind: undefined,
+          pauseRequested: false,
+          progress: Math.max(t.progress, 94),
+          updatedAt: nowIso,
+        };
+      }),
+    );
+    setInfoConfirmTaskId(null);
+    setError(null);
   }
 
   function confirmDeleteTaskExecute(taskId: string) {
@@ -1572,6 +2035,41 @@ export default function App() {
       return;
     }
     if (!canUserPauseTask(target)) return;
+    if (target.actionType === 'transcode' && target.status === 'executing') {
+      const ok = window.confirm(
+        '暂停将终止当前转码步骤（压制或替换）：进程会被结束，临时 partial 将删除，原成片不会被替换。是否继续？',
+      );
+      if (!ok) return;
+      setError(null);
+      void (async () => {
+        await window.embyApi?.transcodeAbort?.({ taskId });
+        const partial = target.transcodePartialPath;
+        if (partial) await window.embyApi?.transcodeDeletePaths?.({ paths: [partial] });
+        if (target.transcodeTempDir) {
+          await window.embyApi?.transcodeCleanupTaskWorkdir?.({ tempDir: target.transcodeTempDir });
+        }
+        const nowIso = new Date().toISOString();
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? appendFlowLog(
+                  {
+                    ...t,
+                    status: 'paused',
+                    pauseRequested: false,
+                    progress: 0,
+                    transcodeSubstage: undefined,
+                    updatedAt: nowIso,
+                  },
+                  'transcode.user.pause_abort',
+                  '用户确认暂停：已中止并清理本条临时产物（§9.7）',
+                )
+              : t,
+          ),
+        );
+      })();
+      return;
+    }
     setError(null);
     const nowIso = new Date().toISOString();
     setTasks((prev) => prev.map((t) => (t.id === taskId ? applyPauseTransition(t, nowIso) : t)));
@@ -1731,9 +2229,45 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   }
 
-  function saveEmbyPlayerPage() {
+   async function saveEmbyPlayerPage() {
+    const root = config.transcodeTempRoot?.trim();
+    if (root && window.embyApi?.transcodeValidateTools) {
+      try {
+        await window.embyApi.transcodeValidateTools({
+          config,
+          encoderPreference: config.transcodeEncoder,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+        setTranscodeValidateHint('未保存：已填写转码临时根目录时须通过编码资源池首次检验（C11）。请修正后重试。');
+        return;
+      }
+    }
     saveConfig(config);
     setError(null);
+    setTranscodeValidateHint(root ? '已保存；工具链 / 资源池检验（C11）已通过。' : null);
+  }
+
+  async function validateTranscodeToolsAction() {
+    if (!window.embyApi?.transcodeValidateTools) {
+      setTranscodeValidateHint(null);
+      setError('转码工具链检验仅能在 Electron 桌面版执行。');
+      return;
+    }
+    setTranscodeValidateHint(null);
+    setError(null);
+    try {
+      const r = await window.embyApi.transcodeValidateTools({
+        config,
+        encoderPreference: config.transcodeEncoder,
+      });
+      setTranscodeValidateHint(
+        `检验通过：ffmpeg=${r.ffmpeg}；ffprobe=${r.ffprobe}；解析编码器=${r.resolvedEncoder}；libplacebo=${r.libplacebo ? '可用' : '不可用（DV 路径需此滤镜）'}`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   function saveMediaPolicyPage() {
@@ -1741,9 +2275,28 @@ export default function App() {
     setError(null);
   }
 
-  function saveSchedulerPage() {
+  async function saveSchedulerPage() {
+    const root = config.transcodeTempRoot?.trim();
+    if (root && window.embyApi?.transcodeValidateTools) {
+      try {
+        await window.embyApi.transcodeValidateTools({
+          config,
+          encoderPreference: config.transcodeEncoder,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+        setTranscodeValidateHint(
+          '未保存：已填写转码临时根目录时须通过编码资源池首次检验（C11）。请修正后重试。',
+        );
+        return;
+      }
+    }
     localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(schedulerSettings));
     setError(null);
+    if (root) {
+      setTranscodeValidateHint('已保存；工具链 / 资源池检验（C11）已通过。');
+    }
   }
 
   async function saveDoubanSessionPage() {
@@ -2293,9 +2846,88 @@ export default function App() {
                 </div>
               </div>
 
+              <h3 style={{ marginTop: 24 }}>转码与工具链（任务中心 · 压缩 Flow）</h3>
+              <p className="hint" style={{ lineHeight: 1.55 }}>
+                临时目录须为<strong>本机可写</strong>路径；partial 使用 <code>*.etp.partial</code>，替换链使用 <code>*.etp.new</code> /{' '}
+                <code>*.etp.bak</code>。                ffmpeg / ffprobe 已随应用打包（<code>ffmpeg-static</code>、<code>@ffprobe-installer/ffprobe</code>
+                ）；下方路径<strong>留空</strong>时优先用内置二进制，仍可通过环境变量 <code>FFMPEG_PATH</code> / <code>FFPROBE_PATH</code> 或手动路径覆盖。
+若填写了<strong>转码临时根目录</strong>，点击保存本页时将执行 <strong>C11 编码资源池首次检验</strong>（与 TASK_CENTER §2.4.8 对表）；不通过则不会写入配置。也可单独点「检验工具链」先试。
+              </p>
+              <div className="field">
+                <div className="label">转码临时根目录（必填方可真实压制）</div>
+                <input
+                  value={config.transcodeTempRoot}
+                  onChange={(e) => setConfig({ ...config, transcodeTempRoot: e.target.value })}
+                  placeholder={'例如：D:\\\\Temp\\\\EmbyTranscode'}
+                />
+              </div>
+              <div className="row">
+                <div className="field">
+                  <div className="label">ffmpeg 路径（可选，覆盖内置）</div>
+                  <input
+                    value={config.ffmpegPath}
+                    onChange={(e) => setConfig({ ...config, ffmpegPath: e.target.value })}
+                    placeholder="留空：内置 ffmpeg → 否则 FFMPEG_PATH → 否则系统 PATH"
+                  />
+                </div>
+                <div className="field">
+                  <div className="label">ffprobe 路径（可选，覆盖内置）</div>
+                  <input
+                    value={config.ffprobePath}
+                    onChange={(e) => setConfig({ ...config, ffprobePath: e.target.value })}
+                    placeholder="留空：内置 ffprobe → 否则 FFPROBE_PATH → 否则系统 PATH"
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="label">压制编码器</div>
+                <select
+                  className="selectLike"
+                  value={config.transcodeEncoder}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      transcodeEncoder: e.target.value as EmbyConfig['transcodeEncoder'],
+                    })
+                  }
+                >
+                  <option value="auto">自动（探测 NVENC → QSV → AMF → CPU）</option>
+                  <option value="cpu">CPU · libx265（画质基准）</option>
+                  <option value="nvenc">NVIDIA NVENC</option>
+                  <option value="qsv">Intel QSV</option>
+                  <option value="amf">AMD AMF</option>
+                </select>
+              </div>
+              <div className="field">
+                <div className="label">NVENC · CUDA 设备序号（可选，§2.4.7）</div>
+                <input
+                  type="number"
+                  min={-1}
+                  value={config.transcodeGpuDeviceIndex}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      transcodeGpuDeviceIndex: Number(e.target.value),
+                    })
+                  }
+                />
+                <p className="hint" style={{ marginTop: 6 }}>
+                  填 <strong>-1</strong> 表示由驱动默认；填 <strong>0、1…</strong> 时在 NVENC 压制子进程中设置{' '}
+                  <code>CUDA_VISIBLE_DEVICES</code>。libplacebo / Vulkan 设备选择仍以 FFmpeg 构建为准，后续可扩展。
+                </p>
+              </div>
+              {transcodeValidateHint ? (
+                <p className="hint" style={{ color: '#86efac', marginTop: 8 }}>
+                  {transcodeValidateHint}
+                </p>
+              ) : null}
+
               <div className="actions">
-                <button type="button" className="primary" onClick={() => saveEmbyPlayerPage()}>
-                  保存本页（Emby / 播放器 / 阈值 / 路径映射）
+                <button type="button" className="primary" onClick={() => void saveEmbyPlayerPage()}>
+                  保存本页（Emby / 播放器 / 阈值 / 路径映射 / 转码）
+                </button>
+                <button type="button" onClick={() => void validateTranscodeToolsAction()}>
+                  检验转码工具链 (C11)
                 </button>
               </div>
             </>
@@ -2418,6 +3050,16 @@ export default function App() {
                   />
                   <span>海报墙：已观看并打完分后自动按策略入队</span>
                 </label>
+                <label className="sectionItem" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={schedulerSettings.transcodeAutoReplace}
+                    onChange={(e) =>
+                      setSchedulerSettings((p) => ({ ...p, transcodeAutoReplace: e.target.checked }))
+                    }
+                  />
+                  <span>转码：partial 校验通过后自动执行原子替换（跳过「替换前确认」）</span>
+                </label>
                 <div className="field">
                   <div className="label">删除并发</div>
                   <input
@@ -2433,7 +3075,7 @@ export default function App() {
                   />
                 </div>
                 <div className="field">
-                  <div className="label">压缩并发</div>
+                  <div className="label">压缩并发（逻辑队列占槽）</div>
                   <input
                     type="number"
                     min={1}
@@ -2445,6 +3087,24 @@ export default function App() {
                       }))
                     }
                   />
+                </div>
+                <div className="field">
+                  <div className="label">转码编码资源池（同时压制进程上限）</div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={schedulerSettings.transcodeEncodePoolSlots}
+                    onChange={(e) =>
+                      setSchedulerSettings((prev) => ({
+                        ...prev,
+                        transcodeEncodePoolSlots: Math.max(1, Number(e.target.value) || 1),
+                      }))
+                    }
+                  />
+                  <p className="hint" style={{ marginTop: 6, lineHeight: 1.5 }}>
+与上一项「压缩并发」区别见 TASK_CENTER <strong>§2.4.1</strong>：前者为任务调度占槽，本项为压制阶段{' '}
+                    <strong>编码资源池 Gate</strong>（FFmpeg 实例数）。可设为小于逻辑并发，避免多路同时开压占满 GPU/CPU。
+                  </p>
                 </div>
               </div>
               <div className="row">
@@ -2541,7 +3201,7 @@ export default function App() {
                 </div>
               </div>
               <div className="actions">
-                <button type="button" className="primary" onClick={() => saveSchedulerPage()}>
+                <button type="button" className="primary" onClick={() => void saveSchedulerPage()}>
                   保存任务调度设置
                 </button>
               </div>
@@ -3324,6 +3984,41 @@ export default function App() {
                 })}
               </div>
             )}
+            <h3 style={{ marginTop: 24 }}>转码孤儿文件（安全后缀扫描）</h3>
+            <p className="hint" style={{ lineHeight: 1.55 }}>
+              在配置的临时根下扫描 <code>*.etp.partial</code>、<code>*.etp.new</code>、<code>*.etp.bak</code> 及{' '}
+              <code>etp-task-*</code> 子目录；不会匹配普通成片扩展名。进入本页或配置页时自动刷新。
+            </p>
+            {transcodeOrphans.length === 0 ? (
+              <p className="hint">未发现孤儿文件，或尚未配置临时根 / 非桌面版。</p>
+            ) : (
+              <>
+                <div className="historyList" style={{ marginTop: 8 }}>
+                  {transcodeOrphans.map((o) => (
+                    <label key={o.path} className="historyItem" style={{ cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={transcodeOrphanSelected.has(o.path)}
+                        onChange={() => toggleTranscodeOrphanPath(o.path)}
+                      />
+                      <span className="hint" style={{ marginLeft: 8, wordBreak: 'break-all' }}>
+                        {o.path} <span className="tabular-nums">({(o.size / (1024 * 1024)).toFixed(2)} MB)</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <div className="actions" style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={transcodeOrphanSelected.size === 0}
+                    onClick={() => void deleteSelectedTranscodeOrphans()}
+                  >
+                    删除所选孤儿文件
+                  </button>
+                </div>
+              </>
+            )}
             <h3 style={{ marginTop: 24 }}>全局说明</h3>
             <p className="hint">
               完整执行轨迹见上表各任务的「执行日志」。后续如需全局检索、导出或主进程落盘，可在现结构上扩展。
@@ -3335,6 +4030,62 @@ export default function App() {
             <div className="overlayBox" style={{ maxWidth: 520 }}>
               {(() => {
                 const confirmTask = tasks.find((x) => x.id === infoConfirmTaskId);
+                if (confirmTask?.actionType === 'transcode' && confirmTask.transcodeConfirmKind === 'dolby_vision') {
+                  return (
+                    <>
+                      <div style={{ fontWeight: 800 }}>转码 · 杜比视界确认</div>
+                      <p className="hint" style={{ marginTop: 8, lineHeight: 1.55 }}>
+                        条目「{confirmTask.itemName}」预检识别为<strong>杜比视界</strong>片源。受控转码将尝试经 libplacebo 等进行色调映射后再压制 x265；需完整
+                        FFmpeg 能力。请确认你已了解画质与耗时风险。
+                      </p>
+                      {confirmTask.transcodeTargetPath ? (
+                        <p className="hint" style={{ marginTop: 8 }}>
+                          目标成片路径（映射后）：{confirmTask.transcodeTargetPath}
+                        </p>
+                      ) : null}
+                      <div className="actions" style={{ marginTop: 16 }}>
+                        <button
+                          type="button"
+                          className="primary"
+                          onClick={() => infoConfirmTaskId && confirmTranscodeDvTask(infoConfirmTaskId)}
+                        >
+                          确认并继续预检/压制
+                        </button>
+                        <button type="button" onClick={() => setInfoConfirmTaskId(null)}>
+                          关闭（任务保持待确认）
+                        </button>
+                      </div>
+                    </>
+                  );
+                }
+                if (confirmTask?.actionType === 'transcode' && confirmTask.transcodeConfirmKind === 'replace') {
+                  return (
+                    <>
+                      <div style={{ fontWeight: 800 }}>转码 · 替换前确认</div>
+                      <p className="hint" style={{ marginTop: 8, lineHeight: 1.55 }}>
+                        partial 已通过校验。即将把新成片以 <code>.etp.new</code> / 改名链替换到原路径（存在旧文件时会写{' '}
+                        <code>.etp.bak</code>）。此操作不可自动撤销。
+                      </p>
+                      <div className="hint" style={{ marginTop: 10, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                        {`目标：${confirmTask.transcodeTargetPath ?? '（未知）'}\npartial：${confirmTask.transcodePartialPath ?? '（未知）'}\n源体积：${
+                          confirmTask.transcodeOriginalSizeGb != null ? `${confirmTask.transcodeOriginalSizeGb.toFixed(2)} GB` : '—'
+                        }`}
+                      </div>
+                      <div className="actions" style={{ marginTop: 16 }}>
+                        <button
+                          type="button"
+                          className="primary"
+                          onClick={() => infoConfirmTaskId && confirmTranscodeReplaceTask(infoConfirmTaskId)}
+                        >
+                          确认替换
+                        </button>
+                        <button type="button" onClick={() => setInfoConfirmTaskId(null)}>
+                          关闭
+                        </button>
+                      </div>
+                    </>
+                  );
+                }
                 if (confirmTask?.actionType === 'delete') {
                   return (
                     <>
