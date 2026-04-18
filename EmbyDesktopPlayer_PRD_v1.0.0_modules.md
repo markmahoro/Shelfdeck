@@ -9,7 +9,7 @@
 - 产品名：`Emby Desktop Player`
 - 平台范围：`Windows`（v1.0.0）
 - 本文重点：`v1.0.0 正式版`能力定义与落地方案；与实现细节冲突时，**任务调度与任务中心交互**以 `TASK_CENTER_FULL_LOGIC.md` 为单一事实来源（SSOT）。
-- 工程进度类快照（原 §7 实现摘录、§8.1.4、§11 发行说明式叙述、附录 A 流水）已迁至 `**PROJECT_MANAGEMENT.md` §4**，本文不重复。
+- **工程实现摘要**（beta 系列相对 v1.0.0 目标之落地情况、与正式版条文差异）见本文 **§11**；**发版标签、用户叙事代际与开发时间线**仍只在 `PROJECT_MANAGEMENT.md` §2～§4 维护。
 
 ---
 
@@ -267,7 +267,7 @@ flowchart TD
 
 ### 4.3.10 窗口、键盘与播放记录页详设（原独立附录归档）
 
-以下为早期**附录草案并入正式 PRD**阶段对壳层与播放记录页的细化，与当前 **五页架构（§2）** 兼容；若与 §2 或工程快照叙述冲突，以 **§2** 及 `**PROJECT_MANAGEMENT.md` §4** 所收束之工程记录为准。
+以下为早期**附录草案并入正式 PRD**阶段对壳层与播放记录页的细化，与当前 **五页架构（§2）** 兼容；若与 §2 或 **beta 工程落地**叙述冲突，以 **§2**、本文 **§11** 及 `PROJECT_MANAGEMENT.md` §4 **时间线所锚版本**为准。
 
 - **窗口**：启动时窗口最大化（`maximize`），隐藏默认 `File/Edit/...` 菜单栏；恢复/最小化后再次激活时维持最大化（除非用户主动还原）。
 - **海报墙键盘**（在无弹窗聚焦时）：方向键按网格移动焦点；`Enter` 播放；`R` 刷新列表；`Esc` 关闭弹窗或取消焦点；焦点移动时顶部可显示当前条目名称。
@@ -495,13 +495,21 @@ flowchart TD
 
 ## 8. 模块 G — 工程架构、集成与后台形态
 
-### 8.1.1 前后台双轨技术方案
+### 8.1.1 前后台双轨技术方案（目标形态）
 
 ### 8.1 进程分层
 
 - `renderer`：页面交互与轻状态，不执行重任务。
 - `main`：调度中枢（队列、生命周期、托盘、恢复逻辑）。
 - `worker`：后台执行（`**transcode` Flow** 的 FFmpeg 压制、`**upgrade` Flow** 的补源搜索与落盘校验等、任务刷新）；其中 **洗版** **不** 与 **高码率压缩** 共用同一套重编码资源池定义（见 §5.4.2 与 `TASK_CENTER_FULL_LOGIC.md` **§2.4.1、§2.4.9（B10）**）。
+
+### 8.1.4 当前 mvp 实现与目标形态之差（截至 `1.0.0-beta.9`）
+
+>下列为 **Electron mvp** 与上文「目标形态」对照的摘要；与发版标签、时间线交叉验证见 **§11**。
+
+- **无独立 `worker` 进程**：`**transcode` Flow** 的 FFmpeg/ffprobe 子进程与占槽逻辑在 **`main`**（`mvp/electron/transcodeService.js`）；`**upgrade` Flow** 仍主要为渲染进程调度占位，未接补源执行体。
+- **队列与配置**：任务列表、调度 tick、`flowLog` 等以 **渲染进程**（React）为主；持久化依赖浏览器 **`localStorage`**，**非**主进程全量队列落盘（与 §8.1「main 为调度中枢」之目标仍有差距）。
+- **IPC**：`transcode:*`、`emby:*` 等由 preload 暴露至 `window.embyApi`；条文与状态机仍以 `TASK_CENTER_FULL_LOGIC.md` 为 SSOT。
 
 ### 8.1.2 资源占用控制
 
@@ -562,7 +570,38 @@ flowchart TD
 
 ## 11. beta 版本与工程快照（原 §14）
 
-各 `v1.0.0-beta.`* 发版节点、用户叙事代际锚点及「工程侧备忘」见 `**PROJECT_MANAGEMENT.md` §2、§4**；本文 **§2～§10** 为正式版目标与能力定义，不随迭代重复发行说明。
+### 11.1 发版叙事与 Git 锚点
+
+各 `v1.0.0-beta.`* **附注标签**、**用户叙事 v0.x** 代际说明及 **§4 开发过程时间线** 仅在 `PROJECT_MANAGEMENT.md` 维护；本文 **§2～§10** 仍为 **v1.0.0 正式版**目标与能力定义，不重复发行流水。
+
+### 11.2 当前工程实现摘要（对照 v1.0.0，截至 `package.json` `1.0.0-beta.9`）
+
+下列为 **可核对代码库** 的实现边界，与 SSOT 条文并存；若与 `TASK_CENTER_FULL_LOGIC.md` 冲突，**以 SSOT 为行为规格**，以本节为 **mvp 落地说明**。
+
+- **`delete`（删除类）**  
+  - 主进程经 Emby HTTP 完成预检、`DELETE` 媒体、轮询 `libraryItemExists` 验收；可选 `embyUserPassword` 解决 API Key 场景下写操作鉴权（规格见 SSOT **§2.3.5**）。
+
+- **`transcode`（压缩类）**  
+  - **源路径**：`PlaybackInfo` + `pathMapFrom` / `pathMapTo` 得本机可访问路径。  
+  - **临时产物**：配置项 `transcodeTempRoot` 下按任务隔离；partial 文件命名须满足 FFmpeg muxer 规则（实现采用 `*.etp.partial` + 原扩展名后缀等形式，避免 `foo.mkv.partial` 类非法组合）。  
+  - **压制**：`ffmpeg-static` 拉起子进程；支持 NVENC / QSV / AMF / libx265（含 DV 受控转码时 libplacebo + CPU 路径等，以实现代码为准）。  
+  - **编码资源池**：渲染侧 `transcodePool.ts` 与主进程 **stableKey**、占槽、`cpuParticipation` 等与 SSOT **§5.1** 系一致。  
+  - **校验**：`@ffprobe-installer/ffprobe` 对 partial 做时长/视频轨探测通过后进入替换或用户确认。  
+  - **替换**：主进程 **`replaceWithRetries`** 对「映射后的目标媒体文件路径」做原子落盘替换（含 `.etp.new`/`.etp.bak` 重试语义，以实现为准）；**非**向 Emby 上传新容器再由服务端置换路径。  
+  - **驱动方**：渲染进程 `App.tsx` 中 **transcode Flow** 分阶段调用 `transcodePrecheck` / `transcodeStartEncode` / `transcodeProbe` / `transcodeReplace` 等 IPC。
+
+- **`upgrade`（洗版类）**  
+  - 队列、并发配置与界面仍存在；**真实**搜种、下载、媒体替换主路径 **未**接入，与 MoviePilot 等集成 **未** 落地。
+
+- **横切**  
+  - **凭据与隐私**：Emby 与豆瓣等配置存本机；无云端账户体系。  
+  - **任务日志**：`flowLog` 随任务对象在 UI 侧展示；**无** PRD 所述系统级落盘日志、可检索审计与 **checkpoint** 全链路恢复。  
+  - **托盘 / 观影降载 / 显式退出恢复**：仍以前文 §8 目标为准，**beta.9 未**完整达到。  
+  - **开发体验**：Vite 仅开发构建；生产为 Electron 打包（Windows）。
+
+### 11.3 相对 v1.0.0 仍突出的产品/工程差距
+
+洗版与补源闭环、MoviePilot（或等价）集成、托盘与后台可靠性、主进程持久化队列、checkpoint 与幂等落盘、批量执行前耗时/磁盘粗估等——与 **§9 验收标准**、**§10风险** 对表仍部分未闭合；后续迭代以 SSOT 与本文正式版章节为验收口径。
 
 ---
 
@@ -578,7 +617,7 @@ flowchart TD
 
 ## 附录 A — 修订历史
 
-原「完整修订条目」流水已迁至 `**PROJECT_MANAGEMENT.md` §4**（与发版/文档合并相关的节点由该表时间线覆盖）。**当前有效产品定义**以本文 **§1～§12** 模块正文及 `**TASK_CENTER_FULL_LOGIC.md`** 为准。
+原「完整修订条目」流水已迁至 `**PROJECT_MANAGEMENT.md` §4**（与发版/文档合并相关的节点由该表时间线覆盖）。**当前有效产品定义**以本文 **§1～§12** 模块正文及 `**TASK_CENTER_FULL_LOGIC.md`** 为准；**beta 工程落地边界**以 **§11.2** 为准。
 
 ---
 
