@@ -1,8 +1,16 @@
 # Emby Desktop Player — 开发进度总结
 
-> **文档性质**：与仓库实现、PRD（`EmbyDesktopPlayer_PRD_v1.0.0_modules.md`）及任务中心 SSOT（`TASK_CENTER_FULL_LOGIC.md`）对照的阶段性记录。  
-> **最近更新**：2026-04-18（+08:00）；**标签 `v1.0.0-beta.8`**：**删除任务 Flow** 端到端（任务中心 +媒体库入队、Emby 真删、`flowLog`）；**`DELETE /Items/{id}`** 需用户 **`AccessToken`** 时通过配置 **`embyUserPassword`** + **`Users/AuthenticateByName`** 换取令牌；`embyService` IPC与 PRD **§7.3.1** / §14.8 对齐。其前 **`v1.0.0-beta.7`**：分星级治理、预测体积、PRD §4.5。再前 **`v1.0.0-beta.6`**：豆瓣与有效星级；**`beta.5`**：媒体库治理、原盘、列表缓存。  
-> **主工作副本（Canonical）**：`E:\my_project\emby_third_party`（请将 Cursor / 终端默认目录统一到此路径；`C:\emby_third_party` 仅为迁移前副本，可归档或删除以避免混淆。）
+> **文档性质**：与仓库实现、PRD（`EmbyDesktopPlayer_PRD_v1.0.0_modules.md`）、任务中心 SSOT（`TASK_CENTER_FULL_LOGIC.md`，含 **转码 Flow** §2.4）及 **`DEVELOPMENT_PLAN.md`（仅项目管理）** 对照的阶段性记录。  
+> **最近更新**：2026-04-18（+08:00）；**标签 `v1.0.0-docs.20260418`**：**文档 SSOT 收束**——`TASK_CENTER_FULL_LOGIC.md` 合并 PRD **模块 F** 全文并扩写（§2.5.6、§19 mermaid、§20 文档维护顺延）；PRD **§7** 仅摘要+索引；`DEVELOPMENT_PLAN.md` 引用更新；删除鉴权条文统一指向 SSOT **§2.3.5**。另：**MVP** `taskQueue` 增加 `transcodeOriginalSizeGb` / `transcodeResultSizeGb` 与任务卡展示辅助（与 SSOT §2.4.9 对表）。其前 **`v1.0.0-beta.8`**：删除 Flow 端到端；**`DELETE /Items/{id}`** 鉴权见 **`TASK_CENTER_FULL_LOGIC.md` §2.3.5** 与 PRD §14.8。再前 **`v1.0.0-beta.7`**：分星级治理、预测体积。  
+> **默认工作目录**：见下节「默认工作目录」。
+
+---
+
+## 默认工作目录
+
+- **Canonical 仓库根路径**：`E:\my_project\emby_third_party`
+- 请将 **Cursor 工作区**与终端默认 **`cwd`** 统一为上述路径（或你本机克隆的**唯一**仓库根路径）。
+- 旧路径 `C:\emby_third_party` 仅为迁移前副本，可归档或删除，避免与当前主副本混淆。
 
 ---
 
@@ -21,6 +29,8 @@
 | **2026-04-17（收尾）**      | `**v1.0.0-beta.6`**：豆瓣 `movie.douban.com/people/{id}/collect`（`type=movie`、`mode=grid`）分页抓取，解析 `comment-item` / `ratingN-t` / `subjectId`；**增量**（整页 subjectId 均在同步前缓存中则停）与约 **14 天**一次**全量**（`embyDesktopPlayerDoubanLastFullSyncAtMs`）；页间隔 ~800ms；会话 `douban-session.json`，条目缓存 `embyDesktopPlayerDoubanRatingEntriesV1`。`doubanUtils`：豆瓣按 `/` 分段键、Emby 按冒号/竖线拆段、最长键优先匹配；仅 **Movie**。`effectiveRatingForPolicy`：**豆瓣星优先**于本地标注星级，驱动 `targetBitrate` / `recommendedAction` / 筛选。UI：配置中心豆瓣分区（可选 Cookie 折叠）、媒体库表豆瓣列与有效星级；根目录 `douban-to-imdb/` 已 `.gitignore`（独立仓库）。 |
 | **2026-04-18**              | `**v1.0.0-beta.7`**：`mediaManager` — `isDeleteTierRating`（1–2★ 删除档）、`UPGRADE_EQ_BELOW_TARGET_RATIO`、`recommendedAction` 分星规则、`targetBitrateFor`（5★1080p→4K 档）、`predictedSizeGbAtPolicyTarget`；默认 `defaultMediaPolicy` 梯度下调。UI：`MediaLibraryManageRow` 预测体积列、`App` 侧栏电影预测占用与筛选「删除档（1–2 星）」。PRD v1.0.0 **§4.1～§4.5**、§14.7；`mvp/package.json` **version** 同步 **1.0.0-beta.7**。 |
 | **2026-04-18**              | `**v1.0.0-beta.8`**：**删除 Flow** 落地 — `taskQueue`/`taskScheduler`/`App.tsx`（预检、`awaiting_user_confirm`、`executing`、`verify`、`flowLog`）、`MediaLibraryManageRow` 与 `mediaManager.buildTaskPreview` 入队；`embyService`：`getLibraryItem`、`getItemDeleteInfo`、`authenticateEmbyUserAccessToken`、`deleteLibraryItem`、`libraryItemExists` 与 IPC；配置 **`embyUserPassword`**（可选）解决 API Key 下删除 `Parameter 'user' null`。PRD **`EmbyDesktopPlayer_PRD_v1.0.0_modules.md`** **§7.3.1**、§11（小节 14.8，beta.8）；前台删除 API 表见 **§4.3.5**（原线性版 §16.5）；`mvp/package.json` **1.0.0-beta.8**。 |
+| **2026-04-18（文档）**       | **`TASK_CENTER_FULL_LOGIC.md`** 收拢 **转码/replace** 全部技术定稿（新增 **§2.4.6～§2.4.11**：DV、编码器/资源池、配置检验 C11/C12/C13、E17/E20/E21、版本范围、远端池备忘等）；**`DEVELOPMENT_PLAN.md`** 缩为 **项目管理**；PRD 引用同步。 |
+| **2026-04-18（文档+标签）**  | **Git 附注标签 `v1.0.0-docs.20260418`**（提交短哈希：`git log -1 --format=%h v1.0.0-docs.20260418`）：**PRD 模块 F** 可执行条文 **并入** `TASK_CENTER_FULL_LOGIC.md`（含 **§2.5**与 PRD §7.7 对齐、**§2.5.6** 示例、**§19** 跨页 mermaid、**§19.1** 冲突以 SSOT 为准；PRD **§7** 改为 **摘要+索引表**；`VERSION_HISTORY.md`、`DEVELOPMENT_PLAN.md` 同步。MVP：`MediaTask` 增加 **`transcodeOriginalSizeGb` / `transcodeResultSizeGb`**、`transcodeVolumeSummaryLine`，`App.tsx` / `debugSeed.ts` 衔接任务卡展示（对齐 SSOT §2.4.9）。 |
 
 
 *说明：更早的 beta.1～beta.3 能力见 PRD §14；本表仅列本仓库近期可追溯的 Git 时间点。*
@@ -32,7 +42,7 @@
 ### 产品与文档
 
 - PRD 已刷新：五页信息架构、配置中心承载调度参数、任务中心专责调度操作；独立「质量审阅」顶页废弃，补源确认走弹窗。
-- 任务中心行为与 `**TASK_CENTER_FULL_LOGIC.md`** 对表（执行/暂停、软停、批量操作、侧栏按钮语义等）。**§2.3** 删除 Flow（仅 Emby、自动模式仍须确认、`verify` 以条目不存在为准）已定稿，**已于 `v1.0.0-beta.8` 实现**（含用户令牌鉴权策略，见 PRD §7.3.1）。
+- 任务中心行为与 `**TASK_CENTER_FULL_LOGIC.md`** 对表（执行/暂停、软停、批量操作、侧栏按钮语义等）。**§2.3** 删除 Flow（仅 Emby、自动模式仍须确认、`verify` 以条目不存在为准）已定稿，**已于 `v1.0.0-beta.8` 实现**（鉴权见 SSOT **§2.3.5**，PRD §14.8）。**`transcode` / `upgrade` / 调度全文**以 SSOT 为准（**§2.4～§2.5、§6～§20**）；PRD **§7** 仅摘要。**`DEVELOPMENT_PLAN.md`** 仅阶段/里程碑。文档里程碑标签：**`v1.0.0-docs.20260418`**。
 
 ### 前端 MVP（`mvp/`）
 
@@ -56,7 +66,7 @@
 
 ## 进行中 / 未闭合（相对 PRD 正式版）
 
-- **真实后台执行**：FFmpeg 转码、MoviePilot 联动、主进程调度与 worker 等仍以 PRD 目标描述为主，当前多为占位或模拟。
+- **真实后台执行**：FFmpeg 转码、MoviePilot 联动、主进程调度与 worker 等；转码定稿见 **`TASK_CENTER_FULL_LOGIC.md` §2.4**；当前多为占位或模拟。
 - **托盘、中断恢复、checkpoint**：PRD 已定义，完整实现待后续迭代对齐。
 - **批量执行前耗时/磁盘/负载预估**：PRD 目标能力，尚未产品化。
 
@@ -64,7 +74,7 @@
 
 ## 版本与分支参考
 
-- **里程碑标签**：`v1.0.0-beta.8`（删除 Flow + Emby 真删 + 用户令牌鉴权）；其前 `v1.0.0-beta.7`（分星级治理 + 预测体积 + PRD §4.5）；再前 `v1.0.0-beta.6`（豆瓣 + 有效星级）；再前 `v1.0.0-beta.5`（媒体库治理 + 原盘 + 列表缓存）；再前 `v1.0.0-beta.4`（真实 Emby 前台闭环 + 播放记录 + 回写格式修复）
+- **里程碑标签**：`v1.0.0-docs.20260418`（文档 SSOT：PRD模块 F 并入 `TASK_CENTER_FULL_LOGIC.md` 等；短哈希见 `git log -1 --format=%h v1.0.0-docs.20260418`）；`v1.0.0-beta.8`（删除 Flow + Emby 真删 + 用户令牌鉴权）；其前 `v1.0.0-beta.7`（分星级治理 + 预测体积 + PRD §4.5）；再前 `v1.0.0-beta.6`（豆瓣 + 有效星级）；再前 `v1.0.0-beta.5`（媒体库治理 + 原盘 + 列表缓存）；再前 `v1.0.0-beta.4`（真实 Emby 前台闭环 + 播放记录 + 回写格式修复）
 - **分支**：`master`（可与 `release/v1.0.0` 对齐）
 - **此前合并提交**：`176a599`（2026-04-17）
 

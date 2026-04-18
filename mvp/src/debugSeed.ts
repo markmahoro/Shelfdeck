@@ -39,6 +39,7 @@ export function createDebugSeedTasks(): MediaTask[] {
       actionType: 'transcode',
       status: 'executing',
       progress: 42,
+      transcodeOriginalSizeGb: 18.35,
     }),
     mk({
       id: 'debug-seed:verify-u',
@@ -82,6 +83,8 @@ export function createDebugSeedTasks(): MediaTask[] {
       actionType: 'transcode',
       status: 'done',
       progress: 100,
+      transcodeOriginalSizeGb: 22.4,
+      transcodeResultSizeGb: 14.8,
     }),
     mk({
       id: 'debug-seed:fail-u',

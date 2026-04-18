@@ -1,6 +1,6 @@
 # Emby Desktop Player PRD（v1.0.0 正式版 · 按模块编排）
 
-> **编排说明**：本文按 **模块 A～G** 重组旧版线性条文；**技术内容自旧版迁移，不删减**。任务调度与任务中心**交互细则**以 `TASK_CENTER_FULL_LOGIC.md` 为 SSOT。  
+> **编排说明**：本文按 **模块 A～G** 重组旧版线性条文。**模块 F（任务中心）** 的 **可执行条文** 已全部在 `**TASK_CENTER_FULL_LOGIC.md`**；本文 **§7** 仅 **摘要与索引**。其余模块技术内容自旧版迁移。任务调度与任务中心 **交互与实现** 以 `TASK_CENTER_FULL_LOGIC.md` 为 SSOT。  
 > **完整修订列表**见 **附录 A**（§0 仅保留摘要）。
 
 ---
@@ -81,7 +81,7 @@
 
 ## 3. 模块 B — 配置中心
 
-> 聚合「配置中心」在架构中的职责、**原 §16.4.1** 配置字段摘要，以及指向模块 F 的调度类配置说明。
+> 聚合「配置中心」在架构中的职责、**原 §16.4.1** 配置字段摘要，以及指向 `**TASK_CENTER_FULL_LOGIC.md` §6** / 本文 **§7** 摘要的调度类配置说明。
 
 ### 3.1 配置中心在顶层架构中的定义（原 §2.1 条 1）
 
@@ -89,14 +89,14 @@
 
 ### 3.2 前台与治理相关配置字段（原 §16.4.1）
 
-- `baseUrl`、`apiKey`、`userId`（来自用户选择）、`embyUserPassword`（可选；删除等写操作鉴权见 **§7.3.1**）
+- `baseUrl`、`apiKey`、`userId`（来自用户选择）、`embyUserPassword`（可选；删除等写操作鉴权见 `**TASK_CENTER_FULL_LOGIC.md` §2.3.5**）
 - `enabledSectionIds`、`playerExePath`、`argsTemplate`（支持 `{path}`、`{itemId}`）
 - `pathMapFrom` / `pathMapTo`
 - `markPlayedThresholdPercent`（默认 90）、`fallbackMinSeconds`
 
-### 3.3 任务调度与补源类配置（指向 §7）
+### 3.3 任务调度与补源类配置（指向 SSOT）
 
-- 执行模式、删除/转码/洗版并发、`wallRatingAutoEnqueue`、补源重试节奏等由**配置中心 → 任务调度与补源**维护；条文见 **§7**（模块 F）。
+- 执行模式、删除/转码/洗版并发、`wallRatingAutoEnqueue`、补源重试节奏等由**配置中心 → 任务调度与补源**维护；条文见 `**TASK_CENTER_FULL_LOGIC.md` §6**；模块 F 摘要见本文 **§7**。
 
 ---
 
@@ -104,11 +104,11 @@
 
 ### 4.1 未播放海报墙（原 §2.1 条 2）
 
-2. **未播放海报墙（Wall）**：观影入口；观看结束打分后，可按策略自动创建任务（受配置开关约束）。
+1. **未播放海报墙（Wall）**：观影入口；观看结束打分后，可按策略自动创建任务（受配置开关约束）。
 
 ### 4.2 播放记录页（原 §2.1 条 3）
 
-3. **播放记录页（History）**：行为回放；**不再**承担「添加任务」类重入口（与媒体库重复者已收敛）。
+1. **播放记录页（History）**：行为回放；**不再**承担「添加任务」类重入口（与媒体库重复者已收敛）。
 
 ### 4.3 附录：前台 MVP 基线（原 §16）
 
@@ -116,9 +116,7 @@
 
 > 下列自原 §16 迁入；文中若仍写「§12」「§2」等，指**旧版线性编号**。
 
-
-
-> **说明**：下列内容来自早期 **MVP 重构版** PRD，聚焦于**前台播放闭环**的细节流程、API 清单与验收辅助材料。全文产品定义、五页架构、任务中心与治理策略以 **§1～§15** 为准；**删除类接口与鉴权**以 **§7.3.1** 为准（替代旧文档中与正式版不一致的删除 API 表述）。
+> **说明**：下列内容来自早期 **MVP 重构版** PRD，聚焦于**前台播放闭环**的细节流程、API 清单与验收辅助材料。全文产品定义、五页架构、任务中心与治理策略以 **§1～§12** 及 `**TASK_CENTER_FULL_LOGIC.md`** 为准；**删除类接口与鉴权**以 `**TASK_CENTER_FULL_LOGIC.md` §2.3.5** 为准（替代旧文档中与正式版不一致的删除 API 表述）。
 
 ### 4.3.1 背景与核心痛点
 
@@ -198,7 +196,7 @@ flowchart TD
 
 **16.4.1 配置项（字段名与实现一致）**
 
-- `baseUrl`、`apiKey`、`userId`（来自用户选择）、`embyUserPassword`（可选；删除等写操作鉴权见 **§7.3.1**）
+- `baseUrl`、`apiKey`、`userId`（来自用户选择）、`embyUserPassword`（可选；删除等写操作鉴权见 `**TASK_CENTER_FULL_LOGIC.md` §2.3.5**）
 - `enabledSectionIds`、`playerExePath`、`argsTemplate`（支持 `{path}`、`{itemId}`）
 - `pathMapFrom` / `pathMapTo`
 - `markPlayedThresholdPercent`（默认 90）、`fallbackMinSeconds`
@@ -215,7 +213,7 @@ flowchart TD
 
 ### 4.3.5 Emby API 清单（前台最小集）
 
-与具体 Emby 版本差异时允许降级；**删除媒体**的请求鉴权与流程以 **§7.3.1** 为准，下表「删除」一行仅作端点索引。
+与具体 Emby 版本差异时允许降级；**删除媒体**的请求鉴权与流程以 `**TASK_CENTER_FULL_LOGIC.md` §2.3.5** 为准，下表「删除」一行仅作端点索引。
 
 
 | 用途       | 方法 / 路径                                                                                                                  |
@@ -226,7 +224,7 @@ flowchart TD
 | 未播放列表    | 首选 `GET /Users/{UserId}/Sections/{SectionId}/Items`；不可用则 `GET /Users/{UserId}/Items?ParentId={SectionId}&Recursive=true` |
 | 播放路径与时长  | `GET /Items/{Id}/PlaybackInfo?UserId={UserId}`；补充 `GET /Items/{Id}`                                                      |
 | 已播放回写    | `POST /Users/{UserId}/PlayedItems/{Id}`（可带 `DatePlayed`）                                                                 |
-| 删除条目（治理） | `DELETE /Items/{ItemId}`；鉴权见 **§7.3.1**；可选 `GET /Items/{ItemId}/DeleteInfo` 预检                                           |
+| 删除条目（治理） | `DELETE /Items/{ItemId}`；鉴权见 `**TASK_CENTER_FULL_LOGIC.md` §2.3.5**；可选 `GET /Items/{ItemId}/DeleteInfo` 预检               |
 
 
 ### 4.3.6 完成度与回写判定
@@ -286,11 +284,11 @@ flowchart TD
 
 ## 5. 模块 D — 媒体库治理（列表、码率策略与治理动作）
 
-> 不含豆瓣专章（**§6**）；不含补源周期策略（**§7.7**，属 Flow）。
+> 不含豆瓣专章（**§6**）；不含补源周期策略（见 `**TASK_CENTER_FULL_LOGIC.md` §2.5.4**，属 `upgrade` Flow）。
 
 ### 5.1 媒体库管理页能力摘要（原 §2.1 条 4）
 
-4. **媒体库管理页（MediaManage）**：资产治理；全库列表（含已观看）、搜索与多维筛选（含**是否蓝光/原盘**）、单条/批量入队、星级与策略；列表展示**体积**、**原盘**、**当前/目标码率**、**预测体积**（电影行；按 §4.5 与策略目标估算）、**豆瓣个人评分（匹配结果）与有效星级状态**（用于策略的星级：豆瓣优先）；侧栏汇总**当前库容量**与**电影按目标码率预测占用**（洗版/删除档规则见 §4.5）；**原盘条目**不提供码率压缩/洗版入队（需先提取或转封装为常规片源）。列表数据可持久化到本机 `localStorage`（`embyDesktopPlayerLibraryManageCacheV1`），与当前连接指纹绑定；**进入本页不自动拉取 Emby**，需用户主动「刷新媒体库列表」与服务器对齐（回写观看状态等流程可附带静默刷新以保持接近一致）。
+1. **媒体库管理页（MediaManage）**：资产治理；全库列表（含已观看）、搜索与多维筛选（含**是否蓝光/原盘**）、单条/批量入队、星级与策略；列表展示**体积**、**原盘**、**当前/目标码率**、**预测体积**（电影行；按 §4.5 与策略目标估算）、**豆瓣个人评分（匹配结果）与有效星级状态**（用于策略的星级：豆瓣优先）；侧栏汇总**当前库容量**与**电影按目标码率预测占用**（洗版/删除档规则见 §4.5）；**原盘条目**不提供码率压缩/洗版入队（需先提取或转封装为常规片源）。列表数据可持久化到本机 `localStorage`（`embyDesktopPlayerLibraryManageCacheV1`），与当前连接指纹绑定；**进入本页不自动拉取 Emby**，需用户主动「刷新媒体库列表」与服务器对齐（回写观看状态等流程可附带静默刷新以保持接近一致）。
 
 ### 5.2 星级、目标码率与 H265 等效（原 §4.1～§4.3）
 
@@ -360,6 +358,7 @@ flowchart TD
 | **§4.3 `eq`** | 当前片源在 **同一 H265 标尺**下的等效占用，用于和 **目标 + 规则** 比较。           |
 | **§4.5 推荐动作** | 在 `eq`、目标、`±1 Mbps`、洗版比例等规则下的 **转码 / 洗版 / 保持 / 删除档** 输出。 |
 
+
 ### 5.3 分星级推荐动作（MVP 前端演算）
 
 以下与 `mediaManager.recommendedAction`、**H265 等效码率**及 **±1 Mbps** 转码滞回一致；洗版比例常数 `**UPGRADE_EQ_BELOW_TARGET_RATIO = 0.8`**（4★ 与 **5★4K** 共用）。
@@ -393,8 +392,10 @@ flowchart TD
 
 - **MVP 前端**：是否建议转码以 **§4.5** 为准（例如 **5★ 永不**、**删除档 永不**）。
 - **通用条件（正式执行层）**：`currentEquivalentBitrate > targetBitrate + safetyMargin`
-- 动作：创建转码任务（FFmpeg），输出临时文件，校验通过后原子替换。
-- 失败：进入重试/人工复核队列。
+- **动作（正式版执行链路摘要）**：创建转码任务 → 按 `TASK_CENTER_FULL_LOGIC.md` **§2.4** 执行：**预检**（连接、路径映射、**用户配置的临时根**、源可读、**源占用/锁定**、DV 等专检）→ **占用转码队列槽** 与 **编码资源池（GPU/CPU，与 `upgrade` 隔离，见 §5.4.2）** → **FFmpeg 压制** 至临时目录下 **每任务隔离** 路径，输出使用 `***.etp.partial` 等约定名**，**禁止**与目标成片最终 basename **同名** → **压制后校验**（ffprobe / 策略 / DV 附加检；**失败则删除 partial，不支持断点续压**）→ **（默认）替换前信息确认**（配置可开「校验通过后自动替换」）→ **replace 子流程**（**仅对将被覆盖的旧版 `Target` 计算 `pre_replace_hash` 并写入任务持久化**；**不对** staging 新文件与替换后新成片算 hash；`partial` → `Target.etp.new` → 校验 `.new`（不算 hash）→ `Target`→`Target.etp.bak` → `Target.etp.new`→`Target`；跨盘以拷贝+rename 为主，同卷可用 move/rename 优化；**整段 replace 自动重试 3 次**，仍失败 **人工介入**；**孤儿扫描/一键清理** 见 SSOT §2.4.5）→ **清理临时** → 结案。
+- **空间**：开压前 **粗检**；**partial 落地后** 用 **实际大小** 做 replace 前 **临时卷/目标卷峰值**检（详见 `TASK_CENTER_FULL_LOGIC.md` **§2.4.4**）。
+- **失败 / 异常**：**任务异常分类 A1～F3** 见 `TASK_CENTER_FULL_LOGIC.md` **§17**；用户于压制中 **暂停** 见 SSOT **§9.7**（终止压制、删临时、原片不替换）。
+- **失败（概要）**：除 replace **整段 3 次重试** 外，压制/校验失败以 **删 partial、结案或有限重试** 为主，不以「编码断点续跑」为 v1 能力。
 
 ### 5.4.2 低码率补源（Upgrade）
 
@@ -402,6 +403,7 @@ flowchart TD
 - **通用条件（正式执行层）**：`currentEquivalentBitrate` 明显低于目标且候选优于当前（含 MoviePilot 搜索与排序）。
 - 动作：通过 MoviePilot 搜索候选，按“体积 + 时长 + 编码”估算码率并排序。
 - 命中：创建补源任务并入队执行。
+- **与转码的边界**：洗版（`upgrade`）Flow **不以** 与 **§5.4.1 高码率压缩** 相同的 **FFmpeg 重编码压制** 为必经步骤；**不**占用为 `transcode` 定义的 **编码资源池**（GPU/CPU 压制配额）。落盘以 **获取合格片源、校验与替换/入库路径** 为主；若未来增加「补源后再压」类步骤，须 **单独** 扩展产品与资源模型。
 
 ### 5.4.3 无高码率资源时的处理
 
@@ -460,132 +462,35 @@ flowchart TD
 
 ---
 
-## 7. 模块 F — 任务中心、调度与 Flow 规划
+## 7. 模块 F — 任务中心、调度与 Flow（摘要）
 
-> 任务中心 UI/按钮语义等以 **SSOT** 为准。删除 API 与鉴权见 **§7.3.1**（本节内）。
+> **单一事实来源（SSOT）**：任务中心、三条 `actionType` Flow、调度语义、状态机、删除/转码/洗版技术条文、checkpoint/幂等/恢复、跨页流程示意等，**全部以仓库内 `TASK_CENTER_FULL_LOGIC.md` 为准**。  
+> **冲突处理**：若本文其它模块与 SSOT 表述不一致，**以 SSOT 为准**。
 
-### 7.1 执行模式（与 SSOT 一致）
-
-- **自动模式**：新任务在**添加瞬间**即获准调度（如进入「排队等槽」语义，典型 `queued`），由调度器按并发与 Flow 推进。**删除类任务（`delete`）例外**：即使处于自动模式，也 **不得** 在无人确认的情况下一路推进直至结案；**必须** 在 `**awaiting_user_confirm`** 停泊并完成删除前信息确认后，方可调用 Emby 删除（详见 SSOT §2.3.2、§6.1）。
-- **手动模式**：新任务初始为**待启动**（如 `pending_manual`）；用户须通过任务中心 **单条「执行」** 或侧栏 **「批量执行」**（对勾选集合）发令后，任务才进入可调度就绪态。
-- **批量执行**与**单条执行**语义相同，仅作用范围不同；占槽中（`precheck` / `executing` / `verify`）点执行无效（置灰）。`awaiting_user_confirm`、`waiting_media_source` 上执行置灰，推进由信息确认或 Flow 重试负责。
-- **定时/时间窗口**：可作为后续增强（按用户配置窗口自动允许调度）；与「自动/手动」正交，不以本文旧稿「定时模式」单独替代「自动模式」。
-
-### 7.2 暂停（调度层冻结）
-
-- **暂停**冻结调度推进；恢复**仅**通过**执行**（单条或批量）。
-- **占槽时软停**：当前步骤正常收尾，**本步结束后**再进入 `paused` 并释放槽位；实现可借助 `pause_requested` 类标记（见 SSOT §9）。
-- `**awaiting_user_confirm` / `waiting_media_source`**：允许暂停；`pending_manual`：禁止暂停并提示未启动。
-- **批量暂停** = 单条暂停语义 × 选中集合。
-
-### 7.3 多逻辑队列与并发
-
-- **删除、转码、洗版** 各为**一条逻辑队列**（与 `actionType` 一一对应），各有 FIFO 与**独立占槽上限**（配置项示例：`deleteConcurrency`、`transcodeConcurrency`、`upgradeConcurrency`，以实现与配置中心为准）；**同视频互斥**（未结案任务存在时禁止同 `itemId` 再建任务）。
-- 未来可 **追加** 新的任务类型与队列，**不** 改变既有三条 Flow 的语义边界（SSOT §2.2）。
-
-### 7.3.1 删除类任务（`delete`）行为摘要
-
-- **执行路径**：仅调用 **Emby** 删除该 `**itemId`**（`DELETE /Items/{id}`）；客户端 **不** 按本机路径删除整包影片目录。
-- **鉴权（beta.8起）**：服务端常要求删除请求具备 **用户会话**（用户 `AccessToken`）。应用支持在配置中填写 **所选用户的 Emby 登录密码**（字段 `embyUserPassword`，本地持久化，与 API Key 同级敏感）；若已填写，则在删除前调用 `**POST /Users/AuthenticateByName`**（`Username` 来自用户列表中与当前 `userId` 对应的显示名、`Pw` 为所填密码）获取 `**AccessToken`**，并以该令牌作为后续删除请求的 `api_key` / `X-Emby-Token`。若未填密码，则仍以 API Key 发起删除并附带查询参数 `**UserId**`；若返回类似 `Parameter 'user' null`，UI 提示用户配置密码后重试。
-- **确认与停泊**：删除前须 **信息确认**；用户关闭或未确认时任务 **保持** `awaiting_user_confirm`，不自动暂停或移除。
-- **验收**：删除后以 Emby **查询该条目不存在**（如 **404**）为 `verify` 通过条件；不要求客户端扫盘验证文件夹是否已空。细节与 `status` 逐步对照见 SSOT **§2.3**。
-
-### 7.4 批量执行前提示（目标）
-
-- 预计耗时
-- 预计磁盘占用
-- 预计负载影响（CPU/IO）
-
-### 7.5 优先级建议
-
-- 显式**任务优先级队列/抢占**：当前阶段**不实现**（以 SSOT 为准）；产品侧仍可保留「**1–2 星**删除确认 > 已观看不达标 > 未观看不达标」作为**默认处理习惯**描述。
-
----
-
-### 7.6 任务状态机与中断恢复
-
-### 7.6.1 状态与主路径（扁平 `status`，与 SSOT 对齐）
-
-- **主路径（示意）**：`queued` → `precheck` → `executing` → `verify` → `done`（洗版等 Flow 在 `verify` 之后可能进入 `awaiting_user_confirm` 而非直接 `done`，以 SSOT / Flow 为准）。
-- **停泊（不占活跃槽或待发令）**：`pending_manual`（手动模式下待启动）、`paused`、`awaiting_user_confirm`、`waiting_media_source` 等。
-- **占槽**：`precheck`、`executing`、`verify`。
-- **异常 / 辅助**：`failed_hard`；`interrupted` / `resume_pending`。
-
-### 7.6.2 中断恢复机制
-
-- 执行中每阶段 checkpoint 落盘。
-- 启动时将 `running` 重置为 `interrupted` 并提示：
-  - 继续
-  - 重试
-  - 终止
-
-### 7.6.3 幂等与文件安全
-
-- 幂等键：`taskId + itemId + actionType + sourceHash`
-- 转码输出写 `.partial` 临时文件，验收后原子替换。
-- 中断时保留原片并清理过期临时文件。
-
-### 7.6.4 v1 恢复简化策略
-
-- 转码任务：从头重跑（不做编码断点续跑）。
-- 补源任务：已下发下载时仅恢复追踪，不重复下发。
-
----
-
-### 7.7 补源刷新策略（原 §6，Flow 侧规划）
-
-### 7.7.1 周期重搜
-
-- 第 1~3 次：每 24 小时
-- 第 4~10 次：每 3 天
-- 第 11 次后：每 7 天（低频监控态）
-
-### 7.7.2 结果判定
-
-- 若出现候选满足 `estimatedBitrate >= targetMin` 且质量评分优于当前资源：进入可执行/可确认路径（实现上经调度与 Flow 协作；可能表现为入队或 `**awaiting_user_confirm`（待信息确认）** 等停泊态，**不以独立页面为必经入口**）。
-- 否则保留 `waiting_media_source` 并刷新 `nextSearchAt`
-
-### 7.7.3 示例场景
-
-- 1 月 5 日：用户设为 5 星，无达标资源 -> `waiting_media_source`
-- 3 月 5 日：应用启动触发到期重搜，出现达标资源 -> 进入可执行/信息确认路径 -> 入队或由用户确认后继续 Flow
-
----
-
-### 7.8 用户操作流程总览（原 §11）
-
-```mermaid
-flowchart TD
-  configPage[ConfigCenter] --> wallPage[Wall]
-  wallPage --> historyPage[History]
-  historyPage --> mediaManagePage[MediaManage]
-  historyPage --> mediaManagePage
-  mediaManagePage --> scoreAssign[AssignStar1to5]
-  scoreAssign --> decisionNode{BitrateVsTarget}
-  decisionNode -->|"AboveTarget"| transcodeQueue[CreateTranscodeTask]
-  decisionNode -->|"BelowTarget"| moviepilotSearch[SearchViaMoviePilot]
-  moviepilotSearch --> estimateStage[EstimateBitrateBySizeDurationCodec]
-  estimateStage --> sourceCheck{TargetSourceFound}
-  sourceCheck -->|Yes| downloadQueue[CreateUpgradeTask]
-  sourceCheck -->|No| waitingMediaSource[waiting_media_source]
-  waitingMediaSource --> refreshTrigger{RefreshTriggered}
-  refreshTrigger -->|ScheduledOrManual| moviepilotSearch
-  transcodeQueue --> taskCenter[TaskCenter]
-  downloadQueue --> taskCenter
-  taskCenter --> infoConfirm[InfoConfirmModal]
-  infoConfirm --> taskCenter
-  taskCenter --> triggerMode{AutoOrManualExecute}
-  triggerMode --> batchRunner[SchedulerBatchRunner]
-  batchRunner --> trayMinimize[CloseToTrayDefault]
-  trayMinimize --> batchRunner
-  batchRunner --> interruptedState[InterruptedOnExplicitExit]
-  interruptedState --> resumeFlow[ResumeOrRetryOnRestart]
-  resumeFlow --> verifyStage[VerifyAfterProcess]
-  verifyStage --> compliantDone[Compliant]
-  verifyStage --> retryOrManual[RetryOrManualReview]
-```
+**条文索引（SSOT）**
 
 
+| 主题                                                        | `TASK_CENTER_FULL_LOGIC.md` |
+| --------------------------------------------------------- | --------------------------- |
+| 范围、术语、三类 Flow总表                                           | §1、§2.1～§2.2                |
+| `delete` Flow（含 HTTP/鉴权 `**§2.3.5`**）                     | §2.3                        |
+| `transcode` Flow（资源池、replace、DV…）                         | §2.4、§17                    |
+| `upgrade` Flow（MoviePilot、`waiting_media_source`、重搜节奏、示例） | §2.5（含 **§2.5.6**）          |
+| 任务数据模型字段                                                  | §3                          |
+| 停泊 / 占槽 / `status` 摘要                                     | §4                          |
+| 多队列 FIFO、同视频互斥、非抢占习惯                                      | §5                          |
+| 配置中心：执行模式、并发、定时窗口（非本期）                                    | §6                          |
+| 添加入口、互斥、**原盘不得入队**、移除任务                                   | §7                          |
+| 用户操作：执行 / 暂停（含 **§9.7** 转码例外）/ 移除                         | §8～§10                      |
+| 任务中心 UI、批量执行前提示目标                                         | §11                         |
+| 前后端职责、**进程分层与磁盘/观影策略**                                    | §12、§13（**§13.1**）          |
+| Flow ↔ 调度协作、错误提示、MVP 差异                                   | §14～§16                     |
+| 任务异常 A1～F3                                                | §17                         |
+| checkpoint、幂等、v1 恢复                                       | §18                         |
+| **跨应用用户旅程 mermaid（原 §7.8）**                               | **§19**                     |
+
+
+**产品侧保留**：五页架构中 **任务中心** 负责列表与 **调度类**操作；**信息确认**一律弹窗（无独立质量审阅顶页）；**删除**仅经 Emby API，不得直删影片文件夹。
 
 ---
 
@@ -597,7 +502,7 @@ flowchart TD
 
 - `renderer`：页面交互与轻状态，不执行重任务。
 - `main`：调度中枢（队列、生命周期、托盘、恢复逻辑）。
-- `worker`：后台执行（FFmpeg 转码、补源搜索、刷新任务）。
+- `worker`：后台执行（`**transcode` Flow** 的 FFmpeg 压制、`**upgrade` Flow** 的补源搜索与落盘校验等、任务刷新）；其中 **洗版** **不** 与 **高码率压缩** 共用同一套重编码资源池定义（见 §5.4.2 与 `TASK_CENTER_FULL_LOGIC.md` **§2.4.1、§2.4.9（B10）**）。
 
 ### 8.1.2 资源占用控制
 
@@ -707,7 +612,7 @@ flowchart TD
 - **任务中心**：`taskQueue.ts` / `taskScheduler.ts` 删除类型与调度；`App.tsx` 删除 Flow（预检、确认、`executing`、`verify`、`**flowLog`**）；手动模式单条执行与调度推进修复。
 - **媒体库**：`MediaLibraryManageRow` / `mediaManager.buildTaskPreview` 支持删除入队。
 - **配置**：`EmbyConfig.embyUserPassword`（可选）；配置页说明与 API Key 同级本地敏感存储。
-- **PRD /进度**：本文 **§7.3.1**、**§4.3.5**、`DEVELOPMENT_PROGRESS.md`、`VERSION_HISTORY.md` 同步。
+- **PRD /进度**：删除鉴权见 `**TASK_CENTER_FULL_LOGIC.md` §2.3.5**；本文 **§4.3.5**、`DEVELOPMENT_PROGRESS.md`、`VERSION_HISTORY.md` 同步。
 
 ---
 
@@ -730,25 +635,30 @@ flowchart TD
 - **修订（2026-04-18）**：`**v1.0.0-beta.7`**：分星级治理规则细化（见 §4.5）；默认目标码率梯度下调以更贴近常见 UHD H265 片源（§4.2）；媒体库列表增加**预测体积**列与侧栏**电影按目标码率预测占用**；**1–2★** 统一为**删除档**（低质片源不再转码/洗版，容量预测按 0）；**5★** 不压缩、**1080p 一律洗版**、**4K** 与 **4★** 共用「低于目标 **80%**」洗版阈值；**5★ 且当前为 1080p** 时，列表目标码率与体积预测按 **4K 档**对齐洗版预期。
 - **修订（2026-04-18，任务模型）**：与 `TASK_CENTER_FULL_LOGIC.md` 对齐——可入池治理任务为 **三种类型 / 三条 Flow**：**删除（`delete`）**、**转码（`transcode`）**、**洗版（`upgrade`）**；调度层为 **多逻辑队列**（各类型 FIFO + 独立占槽上限）；框架上 **可追加** 新 `actionType` 与 Flow，**各 Flow 独立演进**（详见 SSOT §2.1–§2.2、§5）。
 - **修订（2026-04-18，删除 Flow）**：删除类任务 **仅通过 Emby** 删除条目（不经客户端直删影片文件夹）；**自动执行模式不得跳过**删除前 `**awaiting_user_confirm`**；用户未确认时 长期停泊 该状态；验收 `**verify`** **仅以** Emby 再查 `**itemId` 不存在（如 404）** 为准。全文见 SSOT **§2.3**。
-- **修订（2026-04-18）**：**v1.0.0-beta.8** — 删除 Flow **端到端落地**（任务中心 +媒体库入队、`embyService` IPC、`flowLog` 可观测性）；**删除 API 鉴权**：多数 Emby/Jellyfin 上 `DELETE /Items/{id}` 需 **用户 AccessToken**，纯 API Key 易出现 `Parameter 'user' null`；配置中心增加 **所选用户登录密码**（`embyUserPassword`，仅存本机），删除前 `**POST /Users/AuthenticateByName`** 换令牌再删；未填密码时仍尝试 API Key + `UserId` 查询参数并给出配置提示。详见 **§7.3.1**、**§11**（小节 **14.8**）、**§4.3.5**。
+- **修订（2026-04-18）**：**v1.0.0-beta.8** — 删除 Flow **端到端落地**（任务中心 +媒体库入队、`embyService` IPC、`flowLog` 可观测性）；**删除 API 鉴权**：多数 Emby/Jellyfin 上 `DELETE /Items/{id}` 需 **用户 AccessToken**，纯 API Key 易出现 `Parameter 'user' null`；配置中心增加 **所选用户登录密码**（`embyUserPassword`，仅存本机），删除前 `**POST /Users/AuthenticateByName`** 换令牌再删；未填密码时仍尝试 API Key + `UserId` 查询参数并给出配置提示。详见 `**TASK_CENTER_FULL_LOGIC.md` §2.3.5**、**§11**（小节 **14.8**）、**§4.3.5**。
 - **文档合并（2026-04-18）**：原独立文件 `**EmbyDesktopPlayer_PRD.md`（MVP 重构版）** 的条文已吸收为本文 **§4（模块 C）** 中前台闭环与历史详设（尤见 **§4.3**）。**条款冲突时以本文 §1～§12 及 `TASK_CENTER_FULL_LOGIC.md` 为准**。
 - **修订（2026-04-18，§4.3）**：补充 **H265 等效码率** 的计算步骤、**编码折算系数**与**音轨扣减**等实现参数；阐述等效换算要解决的问题、对推荐动作（转码/洗版/保持）的影响，及与 **§4.2 目标码率**、**预测体积** 的边界区分。
+- **修订（2026-04-18，转码/replace）**：**§5.4.1** 扩充为正式版 **端到端执行链路**（临时根、`*.etp.partial`、编码资源池与 `upgrade` 隔离、`**pre_replace_hash` 仅旧版且仅存任务持久化**、`.etp.new`/`.etp.bak`、**replace 整段重试 3 次**、孤儿清理约束）；幂等与文件安全与 `TASK_CENTER_FULL_LOGIC.md` **§18.3**、**§2.4、§17** 对表。  
+- **修订（2026-04-18，文档分工）**：`**transcode` Flow 技术细则** 以 `TASK_CENTER_FULL_LOGIC.md` **§2.4、§17** 为 SSOT；`DEVELOPMENT_PLAN.md` **仅项目管理**。  
+- **修订（2026-04-18，模块 F）**：原 **§7 全文** 迁入 `**TASK_CENTER_FULL_LOGIC.md`**（含 §2.5.6示例、**§19** mermaid）；本文 **§7** 仅 **摘要 + 索引**。
 
 ---
 
 ## 附录 B — 旧版章节编号对照
 
-| 旧版线性 PRD 章节 | 本文章节 |
-|------------------|----------|
-| §0 修订全文 | 附录 A；§0 仅摘要 |
-| §1 | §1 |
-| §2、§3 | §2（模块 A，含原 §3 为 §2.3） |
-| §2.1 配置中心句、§16.4.1 字段 | §3（模块 B） |
-| §2.1 海报墙/播放记录、§16 附录 | §4（模块 C） |
-| §4（除 §4.4）、§5 | §5（模块 D） |
-| §4.4 | §6（模块 E） |
-| §7、§6、§9、§11 | §7（模块 F） |
-| §8、§10 | §8（模块 G） |
-| §12、§13 | §9、§10 |
-| §14、§15 | §11、§12 |
+
+| 旧版线性 PRD 章节           | 本文章节                                             |
+| --------------------- | ------------------------------------------------ |
+| §0 修订全文               | 附录 A；§0 仅摘要                                      |
+| §1                    | §1                                               |
+| §2、§3                 | §2（模块 A，含原 §3 为 §2.3）                            |
+| §2.1 配置中心句、§16.4.1 字段 | §3（模块 B）                                         |
+| §2.1 海报墙/播放记录、§16 附录  | §4（模块 C）                                         |
+| §4（除 §4.4）、§5         | §5（模块 D）                                         |
+| §4.4                  | §6（模块 E）                                         |
+| §7、§6、§9、§11          | §7（模块 F，摘要）；**SSOT**：`TASK_CENTER_FULL_LOGIC.md` |
+| §8、§10                | §8（模块 G）                                         |
+| §12、§13               | §9、§10                                           |
+| §14、§15               | §11、§12                                          |
+
 

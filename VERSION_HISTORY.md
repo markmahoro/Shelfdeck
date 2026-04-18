@@ -26,6 +26,8 @@
 - **产品 PRD 单一来源**：仓库内正式条文仅保留 **`EmbyDesktopPlayer_PRD_v1.0.0_modules.md`**（按模块 A–G 编排；附录 A 为完整修订历史）。原线性版 `EmbyDesktopPlayer_PRD_v1.0.0.md`、结构化副本、模块梳理稿等请置于本地 **`archive/`**（已加入 `.gitignore`，不入库）；`scripts/build_prd_modules_md.py` / `build_structured_prd.py` 从 `archive/EmbyDesktopPlayer_PRD_v1.0.0.md` 再生辅助稿（需本地归档文件）。
 - 更新 `**TASK_CENTER_FULL_LOGIC.md`**：定稿 **三种任务类型 / 三条 Flow**（`delete`、`transcode`、`upgrade`）；**多逻辑队列** 与 `**deleteConcurrency` 等**配置约定；**Flow 可扩展与隔离**（§2.1–§2.2）；澄清 §7.3「从任务中心移除任务」与 **删除类 Flow** 的用语。`**EmbyDesktopPlayer_PRD_v1.0.0_modules.md`**、`**DEVELOPMENT_PLAN.md**` 已与之对齐。
 - `**TASK_CENTER_FULL_LOGIC.md` §2.3**（及 PRD §7.1、§7.3.1）：**删除 Flow**——仅 **Emby** 删除；**自动模式不得跳过** `awaiting_user_confirm`；未确认则 **长期**停泊该状态；`**verify` 仅以条目不存在（如 404）** 为准。
+- **文档分工（2026-04-18）**：**`transcode` Flow 技术实现**（含 DV、编码器/资源池、临时目录与 replace、异常 A1～F3 等）以 **`TASK_CENTER_FULL_LOGIC.md` §2.4、§17** 为 **SSOT**；**`DEVELOPMENT_PLAN.md`** 仅保留 **项目管理**（阶段、里程碑、参考索引），**不**承载上述实现细则。
+- **PRD 模块 F 合并（2026-04-18）**：原 **`EmbyDesktopPlayer_PRD_v1.0.0_modules.md` 模块 F** 可执行条文 **全部迁入** `TASK_CENTER_FULL_LOGIC.md`（含 **§2.5.6**、**§19** mermaid、**§20** 文档维护）；PRD **§7** 仅 **摘要与索引**；删除鉴权引用统一为 SSOT **§2.3.5**。仓库打附注标签 **`v1.0.0-docs.20260418`** 标记该文档里程碑（对应提交短哈希：`git log -1 --format=%h v1.0.0-docs.20260418`）。
 
 ---
 
@@ -46,7 +48,7 @@
 
 ### 文档
 
-- `EmbyDesktopPlayer_PRD_v1.0.0_modules.md` §7.3.1、§11（小节 14.8）；`DEVELOPMENT_PROGRESS.md`、`DEVELOPMENT_PLAN.md`。
+- `EmbyDesktopPlayer_PRD_v1.0.0_modules.md` §7.3.1、§11（小节 14.8）；`DEVELOPMENT_PROGRESS.md`；`DEVELOPMENT_PLAN.md`（项目管理）；`TASK_CENTER_FULL_LOGIC.md`（SSOT，含 §2.4 转码）。
 
 ### 已知限制
 

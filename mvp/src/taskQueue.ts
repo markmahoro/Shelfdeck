@@ -61,6 +61,34 @@ export interface MediaTask {
   deleteConfirmLines?: string[];
   /** 任务级执行日志（持久化，用于高危 Flow 排查） */
   flowLog?: TaskFlowLogEntry[];
+  /**
+   * transcode Flow：压制前源文件总大小（GB，整文件，含未重编码的音轨/字幕）。
+   * 由执行层在预检或开压前写入本地队列；与 Emby 刷新无关。
+   */
+  transcodeOriginalSizeGb?: number;
+  /**
+   * transcode Flow：压制完成且验收通过、原子替换后的文件总大小（GB）。
+   * verify 通过且输出体积小于原体积时写入；用于任务卡展示节省容量。
+   */
+  transcodeResultSizeGb?: number;
+}
+
+/** 任务卡「压制体积」展示文案；无记账数据时返回 null */
+export function transcodeVolumeSummaryLine(task: MediaTask): string | null {
+  if (task.actionType !== 'transcode') return null;
+  const o = task.transcodeOriginalSizeGb;
+  const r = task.transcodeResultSizeGb;
+  if (o == null && r == null) return null;
+  if (o != null && r != null) {
+    const saved = o - r;
+    if (saved > 0) {
+      return `压制体积：${o.toFixed(2)} GB → ${r.toFixed(2)} GB · 节省 ${saved.toFixed(2)} GB`;
+    }
+    return `压制体积：${o.toFixed(2)} GB → ${r.toFixed(2)} GB（未缩小，按规则不采纳）`;
+  }
+  if (o != null) return `源文件体积（已记账）：${o.toFixed(2)} GB`;
+  if (r != null) return `转码后体积（已记账）：${r.toFixed(2)} GB`;
+  return null;
 }
 
 export function isTaskTerminal(task: MediaTask): boolean {

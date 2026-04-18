@@ -12,6 +12,7 @@ import {
   saveTaskQueue,
   taskOccupiesActiveSlot,
   taskStatusLabelZh,
+  transcodeVolumeSummaryLine,
   type MediaTask,
 } from './taskQueue';
 import {
@@ -3233,6 +3234,7 @@ export default function App() {
                 {filteredTasks.map((t) => {
                   const batchToggleable = isTaskBatchToggleable(t);
                   const statusZh = taskStatusLabelZh(t.status);
+                  const transcodeVolLine = transcodeVolumeSummaryLine(t);
                   return (
                     <div key={t.id} className="historyItem">
                       <div style={{ fontWeight: 700, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -3270,6 +3272,21 @@ export default function App() {
                         ) : null}
                       </div>
                       <div className="hint tabular-nums">进度 {t.progress}%</div>
+                      {transcodeVolLine ? (
+                        <div
+                          className="hint tabular-nums"
+                          style={{
+                            color:
+                              t.transcodeOriginalSizeGb != null &&
+                              t.transcodeResultSizeGb != null &&
+                              t.transcodeOriginalSizeGb > t.transcodeResultSizeGb
+                                ? '#86efac'
+                                : undefined,
+                          }}
+                        >
+                          {transcodeVolLine}
+                        </div>
+                      ) : null}
                       <div className="hint tabular-nums">
                         {formatPlayedAt(t.updatedAt)}
                         {t.status === 'waiting_media_source' ? ` · ${nextManualRefreshInfo(t.retryCount, schedulerSettings)}` : ''}
