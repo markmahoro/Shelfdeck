@@ -1,7 +1,7 @@
 {
   "name": "mvp",
   "version": "1.0.0-beta.8",
-  "description": "Emby desktop player MVP",
+  "description": "Emby Desktop Player (Windows, beta)",
   "main": "electron/main.js",
   "scripts": {
     "dev:renderer": "vite",
