@@ -24,6 +24,15 @@ import {
   type AdvanceTaskQueueOptions,
 } from './taskScheduler';
 import {
+  describeTranscodePoolForUser,
+  mergeProbeIntoPool,
+  orderedInPoolCandidates,
+  reorderEncodePoolEntries,
+  sortEncodePoolEntriesForDisplay,
+  suggestPoolPrioritiesFromProbeOrder,
+  type TranscodeEncodePoolSettings,
+} from './transcodePool';
+import {
   buildTaskPreview,
   defaultMediaPolicy,
   effectiveRatingForPolicy,
@@ -293,8 +302,6 @@ const defaultConfig: EmbyConfig = {
   transcodeTempRoot: '',
   ffmpegPath: '',
   ffprobePath: '',
-  transcodeEncoder: 'auto',
-  transcodeGpuDeviceIndex: -1,
 };
 
 function normalizeConfig(raw: Partial<EmbyConfig>): EmbyConfig {
@@ -323,17 +330,6 @@ function normalizeConfig(raw: Partial<EmbyConfig>): EmbyConfig {
       typeof raw.transcodeTempRoot === 'string' ? raw.transcodeTempRoot : defaultConfig.transcodeTempRoot,
     ffmpegPath: typeof raw.ffmpegPath === 'string' ? raw.ffmpegPath : defaultConfig.ffmpegPath,
     ffprobePath: typeof raw.ffprobePath === 'string' ? raw.ffprobePath : defaultConfig.ffprobePath,
-    transcodeEncoder:
-      raw.transcodeEncoder === 'cpu' ||
-      raw.transcodeEncoder === 'nvenc' ||
-      raw.transcodeEncoder === 'qsv' ||
-      raw.transcodeEncoder === 'amf'
-        ? raw.transcodeEncoder
-        : 'auto',
-    transcodeGpuDeviceIndex:
-      typeof raw.transcodeGpuDeviceIndex === 'number' && Number.isFinite(raw.transcodeGpuDeviceIndex)
-        ? Math.floor(raw.transcodeGpuDeviceIndex)
-        : defaultConfig.transcodeGpuDeviceIndex,
   };
 }
 
@@ -497,8 +493,31 @@ function buildPosterUrl(config: EmbyConfig, item: { id: string; posterTag?: stri
   )}${tag}`;
 }
 
+function normalizeTranscodeEncodePool(
+  raw: Partial<TranscodeEncodePoolSettings> | undefined,
+  fallback: TranscodeEncodePoolSettings,
+): TranscodeEncodePoolSettings {
+  if (!raw || typeof raw !== 'object') return { cpuParticipation: fallback.cpuParticipation, entries: [] };
+  const cpu: 1 | 2 = raw.cpuParticipation === 2 ? 2 : 1;
+  const entriesIn = Array.isArray(raw.entries) ? raw.entries : [];
+  const entries = entriesIn
+    .map((e, i) => ({
+      stableKey: typeof e?.stableKey === 'string' ? e.stableKey : '',
+      inPool: e?.inPool === true,
+      maxSlots:
+        typeof e?.maxSlots === 'number' && Number.isFinite(e.maxSlots) ? Math.max(1, Math.floor(e.maxSlots)) : 1,
+      priority: typeof e?.priority === 'number' && Number.isFinite(e.priority) ? e.priority : i * 10,
+    }))
+    .filter((e) => e.stableKey.length > 0);
+  return { cpuParticipation: cpu, entries };
+}
+
 function normalizeSchedulerSettings(raw: Partial<TaskSchedulerSettings>): TaskSchedulerSettings {
   const fallback = defaultSchedulerSettings();
+  const poolRaw =
+    raw.transcodeEncodePool && typeof raw.transcodeEncodePool === 'object'
+      ? raw.transcodeEncodePool
+      : fallback.transcodeEncodePool;
   return {
     deleteConcurrency:
       typeof raw.deleteConcurrency === 'number' && Number.isFinite(raw.deleteConcurrency)
@@ -537,12 +556,10 @@ function normalizeSchedulerSettings(raw: Partial<TaskSchedulerSettings>): TaskSc
         : fallback.waitingSlowIntervalDays,
     transcodeAutoReplace:
       typeof raw.transcodeAutoReplace === 'boolean' ? raw.transcodeAutoReplace : fallback.transcodeAutoReplace,
-    transcodeEncodePoolSlots:
-      typeof raw.transcodeEncodePoolSlots === 'number' && Number.isFinite(raw.transcodeEncodePoolSlots)
-        ? Math.max(1, Math.floor(raw.transcodeEncodePoolSlots))
-        : typeof raw.transcodeConcurrency === 'number' && Number.isFinite(raw.transcodeConcurrency)
-          ? Math.max(1, Math.floor(raw.transcodeConcurrency))
-          : fallback.transcodeEncodePoolSlots,
+    transcodeEncodePool: normalizeTranscodeEncodePool(
+      poolRaw as Partial<TranscodeEncodePoolSettings>,
+      fallback.transcodeEncodePool,
+    ),
   };
 }
 
@@ -646,6 +663,7 @@ export default function App() {
   const [transcodeOrphans, setTranscodeOrphans] = useState<{ path: string; size: number }[]>([]);
   const [transcodeOrphanSelected, setTranscodeOrphanSelected] = useState<Set<string>>(() => new Set());
   const [transcodeValidateHint, setTranscodeValidateHint] = useState<string | null>(null);
+  const [transcodeFlowSaveHint, setTranscodeFlowSaveHint] = useState<string | null>(null);
   const refreshLibraryManageListRef = useRef<((opts?: { quietIfIncomplete?: boolean }) => Promise<void>) | null>(null);
   const [taskFilter, setTaskFilter] = useState<'all' | MediaTask['status']>('all');
   const [batchRunSelectedIds, setBatchRunSelectedIds] = useState<Set<string>>(() => new Set());
@@ -1251,16 +1269,26 @@ export default function App() {
       transcodeFlowBusyRef.current.add(task.id);
       void (async () => {
         try {
+          const cpuOnly = task.transcodeIsDolbyVision === true && task.transcodeDvAcknowledged === true;
+          const gpuOk = !cpuOnly;
+          const candidates = orderedInPoolCandidates(schedulerSettings.transcodeEncodePool, { cpuOnly, gpuOk });
+          if (candidates.length === 0) {
+            throw new Error(
+              cpuOnly
+                ? '编码资源池无可用 CPU 行（DV 受控转码须入池 cpu:libx265，§5.6）'
+                : '编码资源池无可用设备行（请入池 GPU 或调整 CPU 参与策略 §5.1.2）',
+            );
+          }
+          const orderedDeviceSlots = candidates.map((c) => ({ deviceId: c.stableKey, maxSlots: c.maxSlots }));
           await api.transcodeStartEncode!({
             config: cfg,
             taskId: task.id,
             sourcePath,
             partialPath,
-            encoderPreference: cfg.transcodeEncoder,
+            orderedDeviceSlots,
             isDolbyVision: task.transcodeIsDolbyVision === true,
             dvAcknowledged: task.transcodeDvAcknowledged === true,
             durationSec: task.transcodeDurationSec,
-            encodePoolMax: schedulerSettings.transcodeEncodePoolSlots,
           });
           const nowIso = new Date().toISOString();
           setTasks((prev) =>
@@ -2229,41 +2257,29 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   }
 
-   async function saveEmbyPlayerPage() {
-    const root = config.transcodeTempRoot?.trim();
-    if (root && window.embyApi?.transcodeValidateTools) {
-      try {
-        await window.embyApi.transcodeValidateTools({
-          config,
-          encoderPreference: config.transcodeEncoder,
-        });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        setError(msg);
-        setTranscodeValidateHint('未保存：已填写转码临时根目录时须通过编码资源池首次检验（C11）。请修正后重试。');
-        return;
-      }
-    }
+  async function saveEmbyPlayerPage() {
     saveConfig(config);
     setError(null);
-    setTranscodeValidateHint(root ? '已保存；工具链 / 资源池检验（C11）已通过。' : null);
+    setTranscodeValidateHint(null);
   }
 
   async function validateTranscodeToolsAction() {
     if (!window.embyApi?.transcodeValidateTools) {
       setTranscodeValidateHint(null);
+      setTranscodeFlowSaveHint(null);
       setError('转码工具链检验仅能在 Electron 桌面版执行。');
       return;
     }
     setTranscodeValidateHint(null);
+    setTranscodeFlowSaveHint(null);
     setError(null);
     try {
       const r = await window.embyApi.transcodeValidateTools({
         config,
-        encoderPreference: config.transcodeEncoder,
+        encodePool: schedulerSettings.transcodeEncodePool,
       });
       setTranscodeValidateHint(
-        `检验通过：ffmpeg=${r.ffmpeg}；ffprobe=${r.ffprobe}；解析编码器=${r.resolvedEncoder}；libplacebo=${r.libplacebo ? '可用' : '不可用（DV 路径需此滤镜）'}`,
+        `检验通过：ffmpeg=${r.ffmpeg}；ffprobe=${r.ffprobe}；入池设备=${r.inPoolCount}；libplacebo=${r.libplacebo ? '可用' : '不可用（DV 路径需此滤镜）'}`,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -2275,28 +2291,75 @@ export default function App() {
     setError(null);
   }
 
-  async function saveSchedulerPage() {
+  /** §7 任务中心：持久化调度 + 转码路径与资源池；有临时根时跑 §5.8 C11 */
+  async function saveTaskCenterPage() {
     const root = config.transcodeTempRoot?.trim();
     if (root && window.embyApi?.transcodeValidateTools) {
       try {
         await window.embyApi.transcodeValidateTools({
           config,
-          encoderPreference: config.transcodeEncoder,
+          encodePool: schedulerSettings.transcodeEncodePool,
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setError(msg);
-        setTranscodeValidateHint(
-          '未保存：已填写转码临时根目录时须通过编码资源池首次检验（C11）。请修正后重试。',
-        );
+        setTranscodeValidateHint('未保存：已填写转码临时根目录时须通过资源池首次检验（§5.8）。请修正后重试。');
         return;
       }
     }
     localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(schedulerSettings));
+    saveConfig(config);
     setError(null);
-    if (root) {
-      setTranscodeValidateHint('已保存；工具链 / 资源池检验（C11）已通过。');
+    setTranscodeFlowSaveHint(null);
+    setTranscodeValidateHint(root ? '已保存；工具链与入池设备检验（§5.8）已通过。' : null);
+  }
+
+  /** 仅合并写入转码 Flow 字段（§7.4）；磁盘上任务调度其它键保留为上次「保存任务中心」或默认值 */
+  async function saveTranscodeFlowPage() {
+    const root = config.transcodeTempRoot?.trim();
+    setTranscodeFlowSaveHint(null);
+    setError(null);
+    setTranscodeValidateHint(null);
+    if (root && window.embyApi?.transcodeValidateTools) {
+      try {
+        await window.embyApi.transcodeValidateTools({
+          config,
+          encodePool: schedulerSettings.transcodeEncodePool,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+        setTranscodeValidateHint('未保存：已填写转码临时根目录时须通过资源池首次检验（§5.8）。请修正后重试。');
+        return;
+      }
     }
+    const diskSchedRaw = localStorage.getItem(TASK_SCHEDULER_SETTINGS_KEY);
+    const diskSched = diskSchedRaw
+      ? normalizeSchedulerSettings(JSON.parse(diskSchedRaw) as Partial<TaskSchedulerSettings>)
+      : defaultSchedulerSettings();
+    const mergedSched: TaskSchedulerSettings = {
+      ...diskSched,
+      transcodeAutoReplace: schedulerSettings.transcodeAutoReplace,
+      transcodeEncodePool: schedulerSettings.transcodeEncodePool,
+    };
+    localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(mergedSched));
+
+    const diskCfgRaw = localStorage.getItem(STORAGE_KEY);
+    const diskCfg = diskCfgRaw ? normalizeConfig(JSON.parse(diskCfgRaw) as Partial<EmbyConfig>) : defaultConfig;
+    const mergedCfg: EmbyConfig = {
+      ...diskCfg,
+      transcodeTempRoot: config.transcodeTempRoot,
+      ffmpegPath: config.ffmpegPath,
+      ffprobePath: config.ffprobePath,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedCfg));
+
+    const validated = Boolean(root && window.embyApi?.transcodeValidateTools);
+    setTranscodeFlowSaveHint(
+      validated
+        ? '转码 Flow 相关项已合并写入本机（模块一任务调度等未保存的改动仍保留在界面上，直至你点击「保存任务中心」）。§5.8 工具链与入池设备检验已通过。当前转码资源池配置已保存成功。'
+        : '转码 Flow 相关项已合并写入本机（模块一任务调度等未保存的改动仍保留在界面上，直至你点击「保存任务中心」）。当前未填写转码临时根或未在 Electron 中运行，未执行 §5.8 工具链检验。当前转码资源池配置已保存成功。',
+    );
   }
 
   async function saveDoubanSessionPage() {
@@ -2669,7 +2732,7 @@ export default function App() {
             [
               ['emby', 'Emby 与播放器'] as const,
               ['policy', '码率策略'] as const,
-              ['scheduler', '任务调度与补源'] as const,
+              ['scheduler', '任务中心'] as const,
               ['douban', '豆瓣个人评分（实验）'] as const,
             ] as const
           ).map(([id, label]) => (
@@ -2846,88 +2909,9 @@ export default function App() {
                 </div>
               </div>
 
-              <h3 style={{ marginTop: 24 }}>转码与工具链（任务中心 · 压缩 Flow）</h3>
-              <p className="hint" style={{ lineHeight: 1.55 }}>
-                临时目录须为<strong>本机可写</strong>路径；partial 使用 <code>*.etp.partial</code>，替换链使用 <code>*.etp.new</code> /{' '}
-                <code>*.etp.bak</code>。                ffmpeg / ffprobe 已随应用打包（<code>ffmpeg-static</code>、<code>@ffprobe-installer/ffprobe</code>
-                ）；下方路径<strong>留空</strong>时优先用内置二进制，仍可通过环境变量 <code>FFMPEG_PATH</code> / <code>FFPROBE_PATH</code> 或手动路径覆盖。
-若填写了<strong>转码临时根目录</strong>，点击保存本页时将执行 <strong>C11 编码资源池首次检验</strong>（与 TASK_CENTER §2.4.8 对表）；不通过则不会写入配置。也可单独点「检验工具链」先试。
-              </p>
-              <div className="field">
-                <div className="label">转码临时根目录（必填方可真实压制）</div>
-                <input
-                  value={config.transcodeTempRoot}
-                  onChange={(e) => setConfig({ ...config, transcodeTempRoot: e.target.value })}
-                  placeholder={'例如：D:\\\\Temp\\\\EmbyTranscode'}
-                />
-              </div>
-              <div className="row">
-                <div className="field">
-                  <div className="label">ffmpeg 路径（可选，覆盖内置）</div>
-                  <input
-                    value={config.ffmpegPath}
-                    onChange={(e) => setConfig({ ...config, ffmpegPath: e.target.value })}
-                    placeholder="留空：内置 ffmpeg → 否则 FFMPEG_PATH → 否则系统 PATH"
-                  />
-                </div>
-                <div className="field">
-                  <div className="label">ffprobe 路径（可选，覆盖内置）</div>
-                  <input
-                    value={config.ffprobePath}
-                    onChange={(e) => setConfig({ ...config, ffprobePath: e.target.value })}
-                    placeholder="留空：内置 ffprobe → 否则 FFPROBE_PATH → 否则系统 PATH"
-                  />
-                </div>
-              </div>
-              <div className="field">
-                <div className="label">压制编码器</div>
-                <select
-                  className="selectLike"
-                  value={config.transcodeEncoder}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      transcodeEncoder: e.target.value as EmbyConfig['transcodeEncoder'],
-                    })
-                  }
-                >
-                  <option value="auto">自动（探测 NVENC → QSV → AMF → CPU）</option>
-                  <option value="cpu">CPU · libx265（画质基准）</option>
-                  <option value="nvenc">NVIDIA NVENC</option>
-                  <option value="qsv">Intel QSV</option>
-                  <option value="amf">AMD AMF</option>
-                </select>
-              </div>
-              <div className="field">
-                <div className="label">NVENC · CUDA 设备序号（可选，§2.4.7）</div>
-                <input
-                  type="number"
-                  min={-1}
-                  value={config.transcodeGpuDeviceIndex}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      transcodeGpuDeviceIndex: Number(e.target.value),
-                    })
-                  }
-                />
-                <p className="hint" style={{ marginTop: 6 }}>
-                  填 <strong>-1</strong> 表示由驱动默认；填 <strong>0、1…</strong> 时在 NVENC 压制子进程中设置{' '}
-                  <code>CUDA_VISIBLE_DEVICES</code>。libplacebo / Vulkan 设备选择仍以 FFmpeg 构建为准，后续可扩展。
-                </p>
-              </div>
-              {transcodeValidateHint ? (
-                <p className="hint" style={{ color: '#86efac', marginTop: 8 }}>
-                  {transcodeValidateHint}
-                </p>
-              ) : null}
-
               <div className="actions">
                 <button type="button" className="primary" onClick={() => void saveEmbyPlayerPage()}>
-                  保存本页（Emby / 播放器 / 阈值 / 路径映射 / 转码）
-                </button>
-                <button type="button" onClick={() => void validateTranscodeToolsAction()}>
-                  检验转码工具链 (C11)
+                  保存本页（Emby / 播放器 / 阈值 / 路径映射）
                 </button>
               </div>
             </>
@@ -3021,8 +3005,14 @@ export default function App() {
 
           {configSection === 'scheduler' ? (
             <>
-              <h3>任务调度与补源刷新</h3>
-              <p className="hint">与任务模拟、waiting_media_source 重试节奏一致；编辑后请点击下方保存写入本地。</p>
+              <h3>任务中心</h3>
+              <p className="hint" style={{ lineHeight: 1.55 }}>
+                与 <code>TASK_CENTER_FULL_LOGIC.md</code> <strong>§7</strong> 对表：调度、各 Flow 配置集中在此页。保存将写入任务调度 JSON 与 Emby
+                配置中的转码路径字段；若填写了<strong>转码临时根</strong>，保存前执行 <strong>§5.8</strong> 资源池检验。
+              </p>
+
+              <h3 className="configSubSectionTitle">模块一 · 任务调度（§7.2）</h3>
+              <p className="hint">执行模式、类型任务槽（<code>…Concurrency</code>）、洗版补源重试节奏。</p>
               <div className="row" style={{ marginTop: 12 }}>
                 <div className="field">
                   <div className="label">执行模式</div>
@@ -3048,17 +3038,7 @@ export default function App() {
                       setSchedulerSettings((p) => ({ ...p, wallRatingAutoEnqueue: e.target.checked }))
                     }
                   />
-                  <span>海报墙：已观看并打完分后自动按策略入队</span>
-                </label>
-                <label className="sectionItem" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={schedulerSettings.transcodeAutoReplace}
-                    onChange={(e) =>
-                      setSchedulerSettings((p) => ({ ...p, transcodeAutoReplace: e.target.checked }))
-                    }
-                  />
-                  <span>转码：partial 校验通过后自动执行原子替换（跳过「替换前确认」）</span>
+                  <span>海报墙：已观看并打完分后自动按策略入队（§7.2.3）</span>
                 </label>
                 <div className="field">
                   <div className="label">删除并发</div>
@@ -3075,7 +3055,7 @@ export default function App() {
                   />
                 </div>
                 <div className="field">
-                  <div className="label">压缩并发（逻辑队列占槽）</div>
+                  <div className="label">转码类型任务槽（<code>transcodeConcurrency</code>）</div>
                   <input
                     type="number"
                     min={1}
@@ -3087,29 +3067,14 @@ export default function App() {
                       }))
                     }
                   />
-                </div>
-                <div className="field">
-                  <div className="label">转码编码资源池（同时压制进程上限）</div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={schedulerSettings.transcodeEncodePoolSlots}
-                    onChange={(e) =>
-                      setSchedulerSettings((prev) => ({
-                        ...prev,
-                        transcodeEncodePoolSlots: Math.max(1, Number(e.target.value) || 1),
-                      }))
-                    }
-                  />
-                  <p className="hint" style={{ marginTop: 6, lineHeight: 1.5 }}>
-与上一项「压缩并发」区别见 TASK_CENTER <strong>§2.4.1</strong>：前者为任务调度占槽，本项为压制阶段{' '}
-                    <strong>编码资源池 Gate</strong>（FFmpeg 实例数）。可设为小于逻辑并发，避免多路同时开压占满 GPU/CPU。
+                  <p className="hint" style={{ marginTop: 6 }}>
+                    与下方<strong>编码资源池每设备子槽</strong>（§5.1）同时生效，取更紧的一层。
                   </p>
                 </div>
               </div>
               <div className="row">
                 <div className="field">
-                  <div className="label">补源并发</div>
+                  <div className="label">洗版并发</div>
                   <input
                     type="number"
                     min={1}
@@ -3200,9 +3165,238 @@ export default function App() {
                   />
                 </div>
               </div>
-              <div className="actions">
-                <button type="button" className="primary" onClick={() => void saveSchedulerPage()}>
-                  保存任务调度设置
+
+              <h3 className="configSubSectionTitle" style={{ marginTop: 28 }}>
+                模块二 · 删除 Flow（§7.3）
+              </h3>
+              <p className="hint">占位：删除类专有条目（确认流、API 等）将在此扩展；当前逻辑见 §4。</p>
+
+              <h3 className="configSubSectionTitle" style={{ marginTop: 28 }}>
+                模块三 · 转码 Flow（§7.4 / §5）
+              </h3>
+              <p className="hint" style={{ lineHeight: 1.55 }}>
+                临时目录、ffmpeg/ffprobe 覆盖、<strong>编码资源池</strong>（§5.1.0 探测 → 入池 / 子槽 / 优先级 / CPU 参与策略）。已移除与资源池冲突的全局「自动编码器」下拉（§5.7）。
+              </p>
+              <label className="sectionItem" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={schedulerSettings.transcodeAutoReplace}
+                  onChange={(e) =>
+                    setSchedulerSettings((p) => ({ ...p, transcodeAutoReplace: e.target.checked }))
+                  }
+                />
+                <span>校验通过后自动 replace（跳过替换前确认，§5.3）</span>
+              </label>
+              <div className="field" style={{ marginTop: 12 }}>
+                <div className="label">转码临时根目录（§5.2）</div>
+                <input
+                  value={config.transcodeTempRoot}
+                  onChange={(e) => setConfig({ ...config, transcodeTempRoot: e.target.value })}
+                  placeholder={'例如：D:\\\\Temp\\\\EmbyTranscode'}
+                />
+              </div>
+              <div className="row">
+                <div className="field">
+                  <div className="label">ffmpeg 路径（可选）</div>
+                  <input
+                    value={config.ffmpegPath}
+                    onChange={(e) => setConfig({ ...config, ffmpegPath: e.target.value })}
+                    placeholder="留空：内置 / 环境变量 / PATH"
+                  />
+                </div>
+                <div className="field">
+                  <div className="label">ffprobe 路径（可选）</div>
+                  <input
+                    value={config.ffprobePath}
+                    onChange={(e) => setConfig({ ...config, ffprobePath: e.target.value })}
+                    placeholder="留空：内置 / 环境变量 / PATH"
+                  />
+                </div>
+              </div>
+              <div className="actions" style={{ marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void (async () => {
+                      if (!window.embyApi?.transcodeProbeEncodeDevices) {
+                        setError('编码设备探测仅支持 Electron 桌面版。');
+                        return;
+                      }
+                      setError(null);
+                      try {
+                        const r = await window.embyApi.transcodeProbeEncodeDevices({ config });
+                        setSchedulerSettings((prev) => ({
+                          ...prev,
+                          transcodeEncodePool: mergeProbeIntoPool(r.devices, prev.transcodeEncodePool),
+                        }));
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : String(e));
+                      }
+                    })();
+                  }}
+                >
+                  刷新编码设备探测（§5.1.0）
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSchedulerSettings((p) => ({
+                      ...p,
+                      transcodeEncodePool: suggestPoolPrioritiesFromProbeOrder(p.transcodeEncodePool),
+                    }))
+                  }
+                >
+                  将优先级与当前顺序对齐（0,10,20…）
+                </button>
+              </div>
+              <div className="field" style={{ marginTop: 16 }}>
+                <div className="label">CPU 参与策略（§5.1.2）</div>
+                <select
+                  className="selectLike"
+                  value={schedulerSettings.transcodeEncodePool.cpuParticipation}
+                  onChange={(e) =>
+                    setSchedulerSettings((p) => ({
+                      ...p,
+                      transcodeEncodePool: {
+                        ...p.transcodeEncodePool,
+                        cpuParticipation: Number(e.target.value) === 2 ? 2 : 1,
+                      },
+                    }))
+                  }
+                >
+                  <option value={1}>策略 1：CPU 与 GPU 一样按优先级参与池</option>
+                  <option value={2}>策略 2：CPU 仅服务「只能 CPU 压」的任务（如 DV 确认后）</option>
+                </select>
+              </div>
+              <p className="hint" style={{ marginTop: 8 }}>
+                设备表：勾选<strong>入池</strong>、设置<strong>子槽上限</strong>（该设备同时几路压制）。<strong>顺序</strong>：拖拽左侧手柄排序，<strong>越靠上越优先</strong>尝试占槽（保存后写入 priority 字段）。
+              </p>
+              <div style={{ overflowX: 'auto', marginTop: 8 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, border: '1px solid rgba(255,255,255,0.12)' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding: 6, width: 40 }} aria-label="拖拽排序" />
+                      <th style={{ padding: 6, width: 48 }}>顺序</th>
+                      <th style={{ textAlign: 'left', padding: 6 }}>设备键</th>
+                      <th style={{ padding: 6 }}>入池</th>
+                      <th style={{ padding: 6 }}>子槽</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schedulerSettings.transcodeEncodePool.entries.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ padding: 12, opacity: 0.75 }}>
+                          尚无探测结果。请点击「刷新编码设备探测」，或保存后于 Electron 中重试。
+                        </td>
+                      </tr>
+                    ) : (
+                      sortEncodePoolEntriesForDisplay(schedulerSettings.transcodeEncodePool.entries).map((row, displayIndex) => (
+                        <tr
+                          key={row.stableKey}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const from = e.dataTransfer.getData('application/x-etp-pool-key');
+                            if (!from || from === row.stableKey) return;
+                            setSchedulerSettings((p) => ({
+                              ...p,
+                              transcodeEncodePool: {
+                                ...p.transcodeEncodePool,
+                                entries: reorderEncodePoolEntries(p.transcodeEncodePool.entries, from, row.stableKey),
+                              },
+                            }));
+                          }}
+                        >
+                          <td
+                            style={{ padding: 6, textAlign: 'center', cursor: 'grab', userSelect: 'none', opacity: 0.85 }}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('application/x-etp-pool-key', row.stableKey);
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            title="拖拽以调整优先级（越靠上越优先）"
+                          >
+                            <span aria-hidden style={{ fontSize: 15, lineHeight: 1, opacity: 0.95 }}>
+                              {'\u22EE'}
+                              {'\u22EE'}
+                            </span>
+                          </td>
+                          <td style={{ padding: 6, textAlign: 'center', opacity: 0.9 }}>{displayIndex + 1}</td>
+                          <td style={{ padding: 6, fontFamily: 'monospace' }}>{row.stableKey}</td>
+                          <td style={{ padding: 6, textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={row.inPool}
+                              onChange={(e) =>
+                                setSchedulerSettings((p) => ({
+                                  ...p,
+                                  transcodeEncodePool: {
+                                    ...p.transcodeEncodePool,
+                                    entries: p.transcodeEncodePool.entries.map((x) =>
+                                      x.stableKey === row.stableKey ? { ...x, inPool: e.target.checked } : x,
+                                    ),
+                                  },
+                                }))
+                              }
+                            />
+                          </td>
+                          <td style={{ padding: 6 }}>
+                            <input
+                              type="number"
+                              min={1}
+                              style={{ width: 64 }}
+                              value={row.maxSlots}
+                              onChange={(e) =>
+                                setSchedulerSettings((p) => ({
+                                  ...p,
+                                  transcodeEncodePool: {
+                                    ...p.transcodeEncodePool,
+                                    entries: p.transcodeEncodePool.entries.map((x) =>
+                                      x.stableKey === row.stableKey
+                                        ? { ...x, maxSlots: Math.max(1, Number(e.target.value) || 1) }
+                                        : x,
+                                    ),
+                                  },
+                                }))
+                              }
+                            />
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="actions" style={{ marginTop: 14 }}>
+                <button type="button" className="primary" onClick={() => void saveTranscodeFlowPage()}>
+                  保存转码 Flow 配置
+                </button>
+              </div>
+              <p className="hint" style={{ marginTop: 12, lineHeight: 1.55, whiteSpace: 'pre-line' }}>
+                {describeTranscodePoolForUser(schedulerSettings.transcodeEncodePool)}
+              </p>
+              {transcodeFlowSaveHint ? (
+                <p className="hint" style={{ color: '#86efac', marginTop: 10, whiteSpace: 'pre-line' }}>
+                  {transcodeFlowSaveHint}
+                </p>
+              ) : null}
+              {transcodeValidateHint ? (
+                <p className="hint" style={{ color: '#86efac', marginTop: 10, whiteSpace: 'pre-line' }}>
+                  {transcodeValidateHint}
+                </p>
+              ) : null}
+
+              <h3 className="configSubSectionTitle" style={{ marginTop: 28 }}>
+                模块四 · 洗版 Flow（§7.5）
+              </h3>
+              <p className="hint">占位：MoviePilot、补源参数等将在此与 §6 对表扩展。洗版不占转码编码池（§5.9）。</p>
+
+              <div className="actions" style={{ marginTop: 20 }}>
+                <button type="button" className="primary" onClick={() => void saveTaskCenterPage()}>
+                  保存任务中心
+                </button>
+                <button type="button" onClick={() => void validateTranscodeToolsAction()}>
+                  检验转码资源池（§5.8）
                 </button>
               </div>
             </>
@@ -3780,7 +3974,7 @@ export default function App() {
     const taskSidebar = (
       <>
         <div className="sidebarHeading">任务中心</div>
-        <p className="sidebarHint">执行模式、并发、补源节奏与海报墙自动入队在「配置中心 → 任务调度与补源」。</p>
+        <p className="sidebarHint">执行模式、并发、补源节奏与海报墙自动入队在「配置中心 → 任务中心」。</p>
         <p className="sidebarHint">
           <strong>手动模式</strong>：可勾选「参与手动批量」后点<strong>批量执行</strong>；也可对单条点<strong>执行</strong>（会自动纳入调度范围并尝试立即推进）。占槽中点<strong>暂停</strong>为软停（本步收尾后再暂停）。
         </p>

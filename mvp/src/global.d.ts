@@ -33,7 +33,27 @@ declare global {
     type: 'Movie' | 'Episode' | 'Other' | 'Unknown';
   };
 
-  type TranscodeEncoderPreference = 'auto' | 'cpu' | 'nvenc' | 'qsv' | 'amf';
+  type TranscodeEncodeBackend = 'nvenc' | 'qsv' | 'amf' | 'cpu';
+
+  type TranscodeProbeDeviceRow = {
+    stableKey: string;
+    label: string;
+    backend: TranscodeEncodeBackend;
+    gpuIndex: number;
+  };
+
+  type TranscodeEncodePoolEntry = {
+    stableKey: string;
+    inPool: boolean;
+    maxSlots: number;
+    priority: number;
+  };
+
+  /** §5.1 / §7.4 */
+  type TranscodeEncodePoolSettings = {
+    cpuParticipation: 1 | 2;
+    entries: TranscodeEncodePoolEntry[];
+  };
 
   type EmbyConfig = {
     baseUrl: string;
@@ -54,13 +74,6 @@ declare global {
     ffmpegPath: string;
     /** 可选：ffprobe 可执行文件绝对路径 */
     ffprobePath: string;
-    /** 压制编码器偏好（auto 时主进程探测） */
-    transcodeEncoder: TranscodeEncoderPreference;
-    /**
-     * NVENC 等：CUDA 设备序号（映射为进程级 CUDA_VISIBLE_DEVICES）；-1 表示不指定。
-     * libplacebo / Vulkan 设备精细绑定见 TASK_CENTER §2.4.7，首版仅 NVENC 路径生效。
-     */
-    transcodeGpuDeviceIndex: number;
   };
 
   type LaunchResult = {
@@ -90,18 +103,15 @@ declare global {
     wallRatingAutoEnqueue: boolean;
     /** 转码：校验通过后不经「替换前确认」直接执行 replace */
     transcodeAutoReplace: boolean;
-    /**
-     * 转码编码资源池（§2.4.1 / §2.4.10）：同时处于「压制」阶段的 FFmpeg 进程上限；
-     * 可与 transcodeConcurrency（逻辑占槽）分别配置，例如并发 2 路任务但仅 1 路开压。
-     */
-    transcodeEncodePoolSlots: number;
+    /** §5.1 编码资源池（每设备子槽 + CPU 参与策略） */
+    transcodeEncodePool: TranscodeEncodePoolSettings;
   };
 
   type TranscodeValidateToolsResult = {
     ffmpeg: string;
     ffprobe: string;
-    resolvedEncoder: string;
     libplacebo: boolean;
+    inPoolCount: number;
   };
 
   type TranscodeOrphanEntry = { path: string; size: number };
@@ -142,8 +152,9 @@ declare global {
       taskControl?: (args: { action: TaskControlAction; settings?: TaskSchedulerSettings }) => Promise<void>;
       transcodeValidateTools?: (args: {
         config: EmbyConfig;
-        encoderPreference?: TranscodeEncoderPreference;
+        encodePool: TranscodeEncodePoolSettings;
       }) => Promise<TranscodeValidateToolsResult>;
+      transcodeProbeEncodeDevices?: (args: { config: EmbyConfig }) => Promise<{ devices: TranscodeProbeDeviceRow[] }>;
       transcodePrecheck?: (args: {
         config: EmbyConfig;
         task: { id: string; itemId: string; transcodeDvAcknowledged?: boolean };
@@ -153,13 +164,12 @@ declare global {
         taskId: string;
         sourcePath: string;
         partialPath: string;
-        encoderPreference: TranscodeEncoderPreference;
+        /** §5.1.2 按优先级排序的占槽候选 */
+        orderedDeviceSlots: { deviceId: string; maxSlots: number }[];
         isDolbyVision: boolean;
         dvAcknowledged: boolean;
         durationSec?: number;
-        /** §2.4.10 编码资源池 Gate：同时压制进程上限 */
-        encodePoolMax?: number;
-      }) => Promise<{ ok: boolean; encoderUsed?: string }>;
+      }) => Promise<{ ok: boolean; encoderUsed?: string; resolvedDeviceId?: string }>;
       transcodeAbort?: (args: { taskId: string }) => Promise<{ ok: boolean }>;
       transcodeProbe?: (args: { config: EmbyConfig; filePath: string }) => Promise<{
         durationSec: number;

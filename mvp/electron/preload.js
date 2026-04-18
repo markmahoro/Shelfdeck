@@ -16,6 +16,7 @@ const embyApi = {
   libraryItemExists: (args) => ipcRenderer.invoke('emby:libraryItemExists', args),
   taskControl: (args) => ipcRenderer.invoke('taskControl', args),
   transcodeValidateTools: (args) => ipcRenderer.invoke('transcode:validateTools', args),
+  transcodeProbeEncodeDevices: (args) => ipcRenderer.invoke('transcode:probeEncodeDevices', args),
   transcodePrecheck: (args) => ipcRenderer.invoke('transcode:precheck', args),
   transcodeStartEncode: (args) => ipcRenderer.invoke('transcode:startEncode', args),
   transcodeAbort: (args) => ipcRenderer.invoke('transcode:abort', args),

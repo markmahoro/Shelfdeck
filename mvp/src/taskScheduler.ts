@@ -12,7 +12,7 @@ const DEFAULT_SETTINGS: TaskSchedulerSettings = {
   waitingSlowIntervalDays: 7,
   wallRatingAutoEnqueue: false,
   transcodeAutoReplace: false,
-  transcodeEncodePoolSlots: 1,
+  transcodeEncodePool: { cpuParticipation: 1, entries: [] },
 };
 
 type TaskBuckets = {

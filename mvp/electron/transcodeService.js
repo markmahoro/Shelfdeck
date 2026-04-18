@@ -13,34 +13,86 @@ function log(...args) {
 /** @type {Map<string, import('child_process').ChildProcess>} */
 const encodeJobs = new Map();
 
-/** §2.4.10 编码资源池 Gate：限制同时压制的 FFmpeg 进程数 */
-let encodePoolInUse = 0;
-let encodePoolMaxConfigured = 1;
+/** §5.1.1 每设备子槽 Gate（stableKey → 占用计数） */
+/** @type {Map<string, { inUse: number; waiters: Array<() => void> }>} */
+const encodeDevicePools = new Map();
 /** @type {Array<() => void>} */
-const encodePoolWaiters = [];
+const globalDeviceWaiters = [];
 
-function acquireEncodePoolSlot(maxSlots) {
-  encodePoolMaxConfigured = Math.max(1, maxSlots | 0);
-  return new Promise((resolve) => {
-    if (encodePoolInUse < encodePoolMaxConfigured) {
-      encodePoolInUse += 1;
-      log('encode pool slot acquired', encodePoolInUse, '/', encodePoolMaxConfigured);
-      resolve();
-    } else {
-      encodePoolWaiters.push(() => {
-        encodePoolInUse += 1;
-        log('encode pool slot acquired (after wait)', encodePoolInUse, '/', encodePoolMaxConfigured);
-        resolve();
-      });
-    }
-  });
+function getOrCreateDevicePool(deviceId) {
+  let p = encodeDevicePools.get(deviceId);
+  if (!p) {
+    p = { inUse: 0, waiters: [] };
+    encodeDevicePools.set(deviceId, p);
+  }
+  return p;
 }
 
-function releaseEncodePoolSlot() {
-  encodePoolInUse = Math.max(0, encodePoolInUse - 1);
-  log('encode pool slot released', encodePoolInUse, '/', encodePoolMaxConfigured);
-  const next = encodePoolWaiters.shift();
+function notifyGlobalDeviceWaiters() {
+  const q = globalDeviceWaiters.splice(0, globalDeviceWaiters.length);
+  for (const fn of q) {
+    try {
+      fn();
+    } catch (e) {
+      log('global device waiter error', e);
+    }
+  }
+}
+
+function tryTakeDeviceSlot(deviceId, maxSlots) {
+  const p = getOrCreateDevicePool(deviceId);
+  const cap = Math.max(1, maxSlots | 0);
+  if (p.inUse < cap) {
+    p.inUse += 1;
+    log('device slot acquired', deviceId, p.inUse, '/', cap);
+    return true;
+  }
+  return false;
+}
+
+function releaseEncodeDeviceSlot(deviceId) {
+  const p = encodeDevicePools.get(deviceId);
+  if (!p) return;
+  p.inUse = Math.max(0, p.inUse - 1);
+  log('device slot released', deviceId, p.inUse);
+  const next = p.waiters.shift();
   if (next) next();
+  else notifyGlobalDeviceWaiters();
+}
+
+/**
+ * §5.1.2：按优先级依次尝试非阻塞占槽；全部满则挂起，任一设备释槽后重试。
+ * @param {Array<{ deviceId: string; maxSlots: number }>} orderedDeviceSlots
+ */
+async function acquireFirstAvailableAmong(orderedDeviceSlots) {
+  const list = Array.isArray(orderedDeviceSlots) ? orderedDeviceSlots : [];
+  for (;;) {
+    for (const row of list) {
+      const id = String(row.deviceId || '').trim();
+      if (!id) continue;
+      const maxSlots = Math.max(1, Number(row.maxSlots) || 1);
+      if (tryTakeDeviceSlot(id, maxSlots)) return id;
+    }
+    await new Promise((resolve) => globalDeviceWaiters.push(resolve));
+  }
+}
+
+function parseStableKey(stableKey) {
+  const s = String(stableKey || '');
+  if (s.startsWith('cpu:')) return { backend: 'cpu', gpuIndex: -1 };
+  if (s.startsWith('nvenc:')) {
+    const n = Number(s.slice(7));
+    return { backend: 'nvenc', gpuIndex: Number.isFinite(n) ? n : 0 };
+  }
+  if (s.startsWith('qsv:')) {
+    const n = Number(s.slice(4));
+    return { backend: 'qsv', gpuIndex: Number.isFinite(n) ? n : 0 };
+  }
+  if (s.startsWith('amf:')) {
+    const n = Number(s.slice(4));
+    return { backend: 'amf', gpuIndex: Number.isFinite(n) ? n : 0 };
+  }
+  throw new Error(`未知编码设备键：${stableKey}`);
 }
 
 /** Electron 打包后可执行文件在 app.asar.unpacked，路径需修正（与 @ffprobe-installer 文档一致） */
@@ -158,6 +210,15 @@ function sanitizeTaskId(id) {
   return String(id || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
 }
 
+/** FFmpeg 从输出后缀推断 muxer；`foo.mkv.etp.partial` 会报 Invalid argument，故用 `foo.etp.partial.mkv` */
+function partialEncodeTempFilename(sourcePath) {
+  const base = path.basename(sourcePath);
+  const ext = path.extname(base);
+  if (!ext) return `${base}.etp.partial`;
+  const stem = base.slice(0, -ext.length);
+  return `${stem}.etp.partial${ext}`;
+}
+
 function fileHashSha256(fp) {
   return new Promise((resolve, reject) => {
     const h = crypto.createHash('sha256');
@@ -166,77 +227,6 @@ function fileHashSha256(fp) {
     rs.on('data', (d) => h.update(d));
     rs.on('end', () => resolve(h.digest('hex')));
   });
-}
-
-async function resolveEncoderMode(config, requested) {
-  const req = String(requested || 'auto').toLowerCase();
-  if (req !== 'auto') return req;
-  const ff = resolveFfmpegBin(config);
-  const tryEnc = async (args) => {
-    const r = await runCmd(ff, args);
-    return r.code === 0;
-  };
-  if (
-    await tryEnc([
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-f',
-      'lavfi',
-      '-i',
-      'color=c=black:s=64x64:r=1',
-      '-frames:v',
-      '1',
-      '-c:v',
-      'hevc_nvenc',
-      '-f',
-      'null',
-      '-',
-    ])
-  ) {
-    return 'nvenc';
-  }
-  if (
-    await tryEnc([
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-f',
-      'lavfi',
-      '-i',
-      'color=c=black:s=64x64:r=1',
-      '-frames:v',
-      '1',
-      '-c:v',
-      'hevc_qsv',
-      '-f',
-      'null',
-      '-',
-    ])
-  ) {
-    return 'qsv';
-  }
-  if (
-    await tryEnc([
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-f',
-      'lavfi',
-      '-i',
-      'color=c=black:s=64x64:r=1',
-      '-frames:v',
-      '1',
-      '-c:v',
-      'hevc_amf',
-      '-f',
-      'null',
-      '-',
-    ])
-  ) {
-    return 'amf';
-  }
-  return 'cpu';
 }
 
 function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolbyVision, dvAcknowledged }) {
@@ -272,42 +262,121 @@ function parseFfmpegTimeMs(line) {
   return ((h * 60 + min) * 60 + sec) * 1000;
 }
 
-async function validateTranscodeTools(config, encoderPreference) {
+/** lavfi 自检源；过小会导致 hevc_nvenc 报「Frame dimensions are less than the minimum supported value」 */
+const ENCODER_SELFTEST_LAVFI = 'color=c=black:s=256x256:r=1';
+
+async function encoderSelfTest(ff, encArgs, env) {
+  const r = await runCmd(
+    ff,
+    [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      ENCODER_SELFTEST_LAVFI,
+      '-frames:v',
+      '1',
+      ...encArgs,
+      '-f',
+      'null',
+      '-',
+    ],
+    { env: env || process.env },
+  );
+  return r.code === 0;
+}
+
+/** §5.1.0 本机编码能力探测（候选行，非用户配置） */
+async function probeEncodeDevices(config) {
+  const ff = resolveFfmpegBin(config);
+  const devices = [];
+
+  if (await encoderSelfTest(ff, ['-c:v', 'libx265'])) {
+    devices.push({
+      stableKey: 'cpu:libx265',
+      label: 'CPU · libx265（软件）',
+      backend: 'cpu',
+      gpuIndex: -1,
+    });
+  }
+
+  for (let i = 0; i < 8; i += 1) {
+    const env = { ...process.env, CUDA_VISIBLE_DEVICES: String(i) };
+    if (await encoderSelfTest(ff, ['-c:v', 'hevc_nvenc'], env)) {
+      devices.push({
+        stableKey: `nvenc:${i}`,
+        label: `NVIDIA NVENC（CUDA ${i}）`,
+        backend: 'nvenc',
+        gpuIndex: i,
+      });
+    }
+  }
+
+  if (await encoderSelfTest(ff, ['-c:v', 'hevc_qsv'])) {
+    devices.push({
+      stableKey: 'qsv:0',
+      label: 'Intel Quick Sync（QSV）',
+      backend: 'qsv',
+      gpuIndex: 0,
+    });
+  }
+
+  if (await encoderSelfTest(ff, ['-c:v', 'hevc_amf'])) {
+    devices.push({
+      stableKey: 'amf:0',
+      label: 'AMD AMF',
+      backend: 'amf',
+      gpuIndex: 0,
+    });
+  }
+
+  return { devices };
+}
+
+/** §5.8：按入池设备逐项检验 */
+async function validateTranscodeTools(config, encodePool) {
   const ff = resolveFfmpegBin(config);
   const probe = resolveFfprobeBin(config);
   const rProbe = await runCmd(probe, ['-hide_banner', '-version']);
   if (rProbe.code !== 0) throw new Error(`ffprobe 不可用（请配置路径或 PATH）：${probe}`);
   const rFf = await runCmd(ff, ['-hide_banner', '-version']);
   if (rFf.code !== 0) throw new Error(`ffmpeg 不可用（请配置路径或 PATH）：${ff}`);
-  const mode = await resolveEncoderMode(config, encoderPreference);
-  const vargs =
-    mode === 'nvenc'
-      ? ['-c:v', 'hevc_nvenc', '-frames:v', '1', '-f', 'null', '-']
-      : mode === 'qsv'
-        ? ['-c:v', 'hevc_qsv', '-frames:v', '1', '-f', 'null', '-']
-        : mode === 'amf'
-          ? ['-c:v', 'hevc_amf', '-frames:v', '1', '-f', 'null', '-']
-          : ['-c:v', 'libx265', '-frames:v', '1', '-f', 'null', '-'];
-  const rTest = await runCmd(ff, [
-    '-hide_banner',
-    '-loglevel',
-    'error',
-    '-f',
-    'lavfi',
-    '-i',
-    'color=c=black:s=64x64:r=1',
-    ...vargs,
-  ]);
-  if (rTest.code !== 0) {
-    throw new Error(`编码器探测失败（${mode}）：${(rTest.err || '').slice(0, 320)}`);
+
+  if (!encodePool || !Array.isArray(encodePool.entries)) {
+    throw new Error('缺少编码资源池配置（任务中心 · 转码 Flow · §7.4）');
   }
+  const inPool = encodePool.entries.filter((e) => e && e.inPool);
+  if (inPool.length === 0) throw new Error('请至少勾选一台「入池」编码设备');
+
+  for (const e of inPool) {
+    const { backend, gpuIndex } = parseStableKey(e.stableKey);
+    const env = { ...process.env };
+    if (backend === 'nvenc' && gpuIndex >= 0) env.CUDA_VISIBLE_DEVICES = String(gpuIndex);
+    const tail =
+      backend === 'nvenc'
+        ? ['-c:v', 'hevc_nvenc', '-frames:v', '1', '-f', 'null', '-']
+        : backend === 'qsv'
+          ? ['-c:v', 'hevc_qsv', '-frames:v', '1', '-f', 'null', '-']
+          : backend === 'amf'
+            ? ['-c:v', 'hevc_amf', '-frames:v', '1', '-f', 'null', '-']
+            : ['-c:v', 'libx265', '-frames:v', '1', '-f', 'null', '-'];
+    const rTest = await runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', ENCODER_SELFTEST_LAVFI, ...tail], {
+      env,
+    });
+    if (rTest.code !== 0) {
+      throw new Error(`入池设备「${e.stableKey}」检验失败：${(rTest.err || '').slice(0, 280)}`);
+    }
+  }
+
   const lp = await hasLibplaceboFilter(config);
-  return { ffmpeg: ff, ffprobe: probe, resolvedEncoder: mode, libplacebo: lp };
+  return { ffmpeg: ff, ffprobe: probe, libplacebo: lp, inPoolCount: inPool.length };
 }
 
 async function precheck({ config, task }) {
   const tempRoot = String(config.transcodeTempRoot || '').trim();
-  if (!tempRoot) throw new Error('未配置转码临时根目录（配置中心 → 转码与工具链）');
+  if (!tempRoot) throw new Error('未配置转码临时根目录（任务中心 · 转码 Flow · §5.2）');
   let stRoot;
   try {
     stRoot = fs.statSync(tempRoot);
@@ -340,8 +409,7 @@ async function precheck({ config, task }) {
   if (isDv && !task.transcodeDvAcknowledged) {
     const taskWorkDir = path.join(tempRoot, `etp-task-${sanitizeTaskId(task.id)}`);
     fs.mkdirSync(taskWorkDir, { recursive: true });
-    const base = path.basename(sourcePath);
-    const partialPath = path.join(taskWorkDir, `${base}.etp.partial`);
+    const partialPath = path.join(taskWorkDir, partialEncodeTempFilename(sourcePath));
     return {
       ok: true,
       needsDvConfirm: true,
@@ -363,8 +431,7 @@ async function precheck({ config, task }) {
 
   const taskWorkDir = path.join(tempRoot, `etp-task-${sanitizeTaskId(task.id)}`);
   fs.mkdirSync(taskWorkDir, { recursive: true });
-  const base = path.basename(sourcePath);
-  const partialPath = path.join(taskWorkDir, `${base}.etp.partial`);
+  const partialPath = path.join(taskWorkDir, partialEncodeTempFilename(sourcePath));
   const targetPath = sourcePath;
 
   return {
@@ -381,27 +448,28 @@ async function precheck({ config, task }) {
 }
 
 async function startEncode(sender, payload) {
-  const {
-    config,
-    taskId,
-    sourcePath,
-    partialPath,
-    encoderPreference,
-    isDolbyVision,
-    dvAcknowledged,
-    durationSec,
-    encodePoolMax,
-  } = payload;
+  const { config, taskId, sourcePath, partialPath, orderedDeviceSlots, isDolbyVision, dvAcknowledged, durationSec } =
+    payload;
   const tid = String(taskId || '');
   if (encodeJobs.has(tid)) throw new Error('该任务已有进行中的压制进程');
-  await acquireEncodePoolSlot(encodePoolMax);
+  const slots = Array.isArray(orderedDeviceSlots) ? orderedDeviceSlots : [];
+  if (slots.length === 0) throw new Error('无可用编码设备顺序（请配置任务中心 · 编码资源池 §5.1）');
+
+  const deviceId = await acquireFirstAvailableAmong(slots);
   try {
     try {
       if (fs.existsSync(partialPath)) fs.unlinkSync(partialPath);
     } catch {
       /* ignore */
     }
-    const encoderMode = await resolveEncoderMode(config, encoderPreference || 'auto');
+    const { backend: devBack, gpuIndex: devGpu } = parseStableKey(deviceId);
+    if (isDolbyVision && dvAcknowledged && devBack !== 'cpu') {
+      releaseEncodeDeviceSlot(deviceId);
+      throw new Error(
+        '杜比视界受控转码须使用 CPU 池内设备（请勾选入池 cpu:libx265，§5.6 / §5.7）',
+      );
+    }
+    const encoderMode = devBack;
     const { ffmpegBin, args } = buildEncodeArgs({
       config,
       sourcePath,
@@ -410,16 +478,12 @@ async function startEncode(sender, payload) {
       isDolbyVision: !!isDolbyVision,
       dvAcknowledged: !!dvAcknowledged,
     });
-    log('startEncode', tid, ffmpegBin, args.join(' '));
+    log('startEncode', tid, deviceId, encoderMode, ffmpegBin, args.join(' '));
 
     const spawnEnv = { ...process.env };
-    const gpuIdx =
-      config && typeof config.transcodeGpuDeviceIndex === 'number' && Number.isFinite(config.transcodeGpuDeviceIndex)
-        ? Math.floor(config.transcodeGpuDeviceIndex)
-        : -1;
-    if (gpuIdx >= 0 && encoderMode === 'nvenc') {
-      spawnEnv.CUDA_VISIBLE_DEVICES = String(gpuIdx);
-      log('NVENC CUDA_VISIBLE_DEVICES=', gpuIdx);
+    if (devBack === 'nvenc' && devGpu >= 0) {
+      spawnEnv.CUDA_VISIBLE_DEVICES = String(devGpu);
+      log('NVENC CUDA_VISIBLE_DEVICES=', devGpu);
     }
 
     const child = spawn(ffmpegBin, args, { windowsHide: true, env: spawnEnv });
@@ -451,12 +515,12 @@ async function startEncode(sender, payload) {
       });
       child.on('close', (code) => {
         encodeJobs.delete(tid);
-        if (code === 0) resolve({ ok: true, encoderUsed: encoderMode });
+        if (code === 0) resolve({ ok: true, encoderUsed: encoderMode, resolvedDeviceId: deviceId });
         else reject(new Error(`ffmpeg 退出码 ${code}`));
       });
     });
   } finally {
-    releaseEncodePoolSlot();
+    releaseEncodeDeviceSlot(deviceId);
   }
 }
 
@@ -566,6 +630,13 @@ async function cleanupTaskWorkdir(tempDir) {
 
 const ORPHAN_SUFFIXES = ['.etp.partial', '.etp.new', '.etp.bak'];
 
+function isOrphanTempArtifactName(fileName) {
+  const lower = String(fileName || '').toLowerCase();
+  if (ORPHAN_SUFFIXES.some((s) => lower.endsWith(s))) return true;
+  if (lower.includes('.etp.partial.')) return true;
+  return false;
+}
+
 async function scanOrphans(tempRoot) {
   const root = String(tempRoot || '').trim();
   if (!root || !fs.existsSync(root)) return { entries: [] };
@@ -587,8 +658,7 @@ async function scanOrphans(tempRoot) {
         continue;
       }
       if (!ent.isFile()) continue;
-      const lower = ent.name.toLowerCase();
-      if (ORPHAN_SUFFIXES.some((s) => lower.endsWith(s))) {
+      if (isOrphanTempArtifactName(ent.name)) {
         let sz = 0;
         try {
           sz = (await fs.promises.stat(full)).size;
@@ -615,6 +685,7 @@ async function deletePaths(paths) {
 
 module.exports = {
   validateTranscodeTools,
+  probeEncodeDevices,
   precheck,
   startEncode,
   abortTask,
@@ -624,6 +695,6 @@ module.exports = {
   cleanupTaskWorkdir,
   scanOrphans,
   deletePaths,
-  resolveEncoderMode,
+  parseStableKey,
   hasLibplaceboFilter,
 };

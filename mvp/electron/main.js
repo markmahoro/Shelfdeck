@@ -147,7 +147,10 @@ function registerIpcHandlers() {
   ipcMain.handle('douban:fetchRatings', (event, opts) => doubanService.fetchRatings(event.sender, opts ?? {}));
 
   ipcMain.handle('transcode:validateTools', (_evt, payload) =>
-    transcodeService.validateTranscodeTools(payload.config, payload.encoderPreference ?? 'auto'),
+    transcodeService.validateTranscodeTools(payload.config, payload.encodePool),
+  );
+  ipcMain.handle('transcode:probeEncodeDevices', (_evt, payload) =>
+    transcodeService.probeEncodeDevices(payload.config),
   );
   ipcMain.handle('transcode:precheck', (_evt, payload) => transcodeService.precheck(payload));
   ipcMain.handle('transcode:startEncode', (event, payload) => transcodeService.startEncode(event.sender, payload));
