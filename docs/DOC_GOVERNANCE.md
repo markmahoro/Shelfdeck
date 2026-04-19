@@ -26,6 +26,20 @@
 | 用户文档 | `docs/user/USER_*.md` | 用户侧说明（按需） |
 | 模板 | `docs/templates/TPL_*.md` | 新建文档时复制的 H2 骨架 |
 
+## ShelfDeck 产品与模块命名（定稿）
+
+| 项 | 定稿 |
+|----|------|
+| 品牌名（显示/营销） | **ShelfDeck** |
+| 中文品牌名 | **无**（不单独起中文商品名） |
+
+| 模块 | 中文称呼（文档/口头） | 目录 slug | `package.json` name |
+|------|----------------------|-----------|---------------------|
+| 桌面端（Electron + UI） | **桌面客户端** | `media-desktop` | **`shelfdeck-media-desktop`** |
+| 后端（Node 服务） | **媒体管理服务** | `media-service` | **`shelfdeck-media-service`** |
+
+**叙述用语**：原「媒体控制面」在现行文档中统一为 **媒体管理服务**；环境变量名仍可使用历史名称（如 `CONTROL_PLANE_URL`），与 `MEDIA_SERVICE_URL` / `VITE_MEDIA_SERVICE_URL` **同义**（若同时设置，以实现代码中的优先级为准）。OpenAPI、REST、URL 等技术词保留。
+
 ## SSOT 与冲突处理
 
 1. **产品范围与用户叙事**：以 `REQ_*` 为准。  
@@ -66,10 +80,10 @@
 
 - 仓库内相对链接统一使用 **正斜杠**。
 
-## 运行时数据与 Git（control-plane）
+## 运行时数据与 Git（media-service）
 
-- **`control-plane/data/`**（如 `control-plane-state.json`、会话文件）为 **本地/部署环境运行时状态**，默认 **不视为文档 SSOT**。  
-- **建议**：将 `control-plane/data/*.json`（除可选 `.gitkeep` 或示例）**加入 `.gitignore`**，避免个人队列与密钥类数据进入版本库；若团队需共享「空态示例」，使用 `*.example.json` 并单独跟踪。  
+- **`media-service/data/`**（如 `control-plane-state.json`、豆瓣会话文件等）为 **本地/部署环境运行时状态**，默认 **不视为文档 SSOT**。状态文件名 `control-plane-state.json` 为历史兼容保留。  
+- **建议**：将 `media-service/data/*.json`（除可选 `.gitkeep` 或示例）**加入 `.gitignore`**，避免个人队列与密钥类数据进入版本库；若团队需共享「空态示例」，使用 `*.example.json` 并单独跟踪。  
 - 具体忽略条目以实现阶段在 `.gitignore` 与本文同步更新为准。
 
 ## 可选文档（启用时仍须前缀）

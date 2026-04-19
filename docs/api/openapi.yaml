@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Emby Desktop — Media Control Plane API
+  title: ShelfDeck — Media Service API
   description: |
-    控制面 HTTP API（目标态）。与 Electron 客户端、未来 MCP 工具共用领域服务。
+    媒体管理服务 HTTP API（目标态）。与 Electron 客户端、未来 MCP 工具共用领域服务。
     任务行为以 `docs/design/DESIGN_TASK_CENTER.md` 为 SSOT；战略与 MCP 见 `docs/architecture/ARCH_SYSTEM_OVERVIEW.md`。
   version: 0.1.0
 
@@ -16,11 +16,11 @@ tags:
   - name: Health
     description: 存活与版本
   - name: Config
-    description: 控制面配置（服务端点、策略缓存键等）
+    description: 媒体管理服务配置（服务端点、策略缓存键等）
   - name: Library
     description: 片库查询与 Emby 写回（与现 `emby:*` IPC 对齐）
   - name: Revisit
-    description: 经典回顾队列（控制面 P0）
+    description: 经典回顾队列（媒体管理服务 P0）
   - name: Tasks
     description: 治理任务入队与查询（目标态持久化；对齐任务中心 SSOT）
   - name: Transcode
@@ -49,7 +49,7 @@ paths:
   /v1/config:
     get:
       tags: [Config]
-      summary: 获取控制面配置
+      summary: 获取媒体管理服务配置
       responses:
         '200':
           description: 当前配置快照
@@ -128,7 +128,7 @@ paths:
     post:
       tags: [Library]
       summary: 单条片目详情（紧凑载荷，与现 preload 一致）
-      description: Body 含完整 `{ config, itemId }`；不依赖控制面已缓存的 `embyClient`。
+      description: Body 含完整 `{ config, itemId }`；不依赖媒体管理服务已缓存的 `embyClient`。
       requestBody:
         required: true
         content:
@@ -473,7 +473,7 @@ paths:
       tags: [Library]
       summary: 启动本机第三方播放器（可选；首选仍由 Electron IPC 处理）
       description: |
-        若控制面不部署在与用户会话同一桌面环境，此端点可不实现；客户端本地 `emby:launchPlayer` 保留。
+        若媒体管理服务不部署在与用户会话同一桌面环境，此端点可不实现；客户端本地 `emby:launchPlayer` 保留。
       requestBody:
         required: true
         content:
@@ -986,7 +986,7 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
-      description: 控制面 API Key（与 `docs/architecture/ARCH_SYSTEM_OVERVIEW.md` §2 一致）
+      description: 媒体管理服务 API Key（与 `docs/architecture/ARCH_SYSTEM_OVERVIEW.md` §2 一致）
     BearerAuth:
       type: http
       scheme: bearer
@@ -1056,7 +1056,7 @@ components:
           example: ok
         version:
           type: string
-          description: 控制面构建版本
+          description: 媒体管理服务构建版本
 
     ControlPlaneConfig:
       type: object
@@ -1088,7 +1088,7 @@ components:
       properties:
         id:
           type: string
-          description: 控制面条目 id（可与复合键不同）
+          description: 媒体管理服务条目 id（可与复合键不同）
         userId:
           type: string
         embyItemId:

@@ -4,7 +4,10 @@ const fs = require('fs');
 const path = require('path');
 
 function defaultStatePath() {
-  const root = process.env.CONTROL_PLANE_DATA_DIR || path.join(__dirname, '..', 'data');
+  const root =
+    process.env.MEDIA_SERVICE_DATA_DIR ||
+    process.env.CONTROL_PLANE_DATA_DIR ||
+    path.join(__dirname, '..', 'data');
   return path.join(root, 'control-plane-state.json');
 }
 

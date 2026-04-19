@@ -8,7 +8,7 @@
 
 ## 上下文与目标
 
-- **目标**：在单机桌面 + 可选控制面部署下，安全、可维护地对接外部系统；避免在多处重复业务规则（REST、MCP、UI 应共享同一领域语义）。
+- **目标**：在单机桌面 + 可选媒体管理服务部署下，安全、可维护地对接外部系统；避免在多处重复业务规则（REST、MCP、UI 应共享同一领域语义）。
 - **非目标**：替代 Emby/OpenAPI 官方文档；不展开各第三方 API 的字段级参考（以联调代码与 `[openapi.yaml](../api/openapi.yaml)` 为准）。
 
 ---
@@ -49,7 +49,7 @@
 
 ## 接口与集成边界
 
-- **HTTP 契约**（控制面自有 API）：`[openapi.yaml](../api/openapi.yaml)`、`[API_README.md](../api/API_README.md)`。
+- **HTTP 契约**（媒体管理服务自有 API）：`[openapi.yaml](../api/openapi.yaml)`、`[API_README.md](../api/API_README.md)`。
 - **配置与密钥**：Emby、豆瓣 Cookie、MoviePilot 等仅存本机；不向产品方自有云端上传片库内容（除非用户另行配置同步工具）。
 - **错误与降级**：外部不可达时，前台应阻断依赖该外部的动作并提示；治理任务进入可恢复状态（如 `waiting_media_source`）而非静默失败。
 

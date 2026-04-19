@@ -9,7 +9,7 @@
 - 媒体库、星级、豆瓣与治理动作（非 Flow 步骤级）：[`DESIGN_LIBRARY_AND_QUEUE.md`](../design/DESIGN_LIBRARY_AND_QUEUE.md)
 - 任务中心、调度与 Flow：[`DESIGN_TASK_CENTER.md`](../design/DESIGN_TASK_CENTER.md)
 - 外部集成（Emby / 豆瓣 / MoviePilot / MCP）：[`ARCH_INTEGRATIONS.md`](../architecture/ARCH_INTEGRATIONS.md)
-- 控制面 REST：[`openapi.yaml`](../api/openapi.yaml) · [`API_README.md`](../api/API_README.md)
+- 媒体管理服务 REST：[`openapi.yaml`](../api/openapi.yaml) · [`API_README.md`](../api/API_README.md)
 
 ---
 
@@ -89,7 +89,7 @@ MoviePilot 联动原则与结果处理、集成清单与边界见 [**ARCH_INTEGR
 
 ### 工程形态（摘要）
 
-前后端分离目标、Electron mvp 进程与队列现状、控制面 REST 迁移策略见 [**ARCH_SYSTEM_OVERVIEW**](../architecture/ARCH_SYSTEM_OVERVIEW.md) **§6 及 §6.1**。
+前后端分离目标、Electron 桌面客户端（`media-desktop/`）进程与队列现状、媒体管理服务 REST 迁移策略见 [**ARCH_SYSTEM_OVERVIEW**](../architecture/ARCH_SYSTEM_OVERVIEW.md) **§6 及 §6.1**。
 
 ---
 
@@ -145,7 +145,7 @@ MoviePilot 联动原则与结果处理、集成清单与边界见 [**ARCH_INTEGR
 - **`transcode`**：`PlaybackInfo` + 路径映射；`transcodeTempRoot` 下任务隔离；FFmpeg/ffprobe 子进程在 `main`；编码资源池与 DESIGN_TASK_CENTER **§5.1** 系一致；替换语义含 `.etp.new`/`.etp.bak`；驱动以渲染进程分阶段调用 IPC 为主。
 - **`upgrade`**：队列与界面存在；**真实**搜种、下载、媒体替换主路径与 MoviePilot **未**完整接入。
 - **横切**：`flowLog` 在 UI 侧；**无**系统级落盘审计日志与全链路 checkpoint 恢复；托盘/观影降载/显式退出恢复 **未**完整达到目标态。
-- **控制面 REST**：对外 HTTP 形状以 **openapi.yaml** 为准；**当前发版**业务仍以 IPC/主进程摘要为准，迁移见 ARCH_SYSTEM_OVERVIEW **§6**。
+- **媒体管理服务 REST**：对外 HTTP 形状以 **openapi.yaml** 为准；**当前发版**业务仍以 IPC/主进程摘要为准，迁移见 ARCH_SYSTEM_OVERVIEW **§6**。
 
 ### 相对 v1.0.0 仍突出的差距
 
@@ -173,7 +173,7 @@ MoviePilot 联动原则与结果处理、集成清单与边界见 [**ARCH_INTEGR
 | [`DESIGN_LIBRARY_AND_QUEUE.md`](../design/DESIGN_LIBRARY_AND_QUEUE.md) | 媒体库与豆瓣 |
 | [`DESIGN_TASK_CENTER.md`](../design/DESIGN_TASK_CENTER.md) | 任务中心 SSOT |
 | [`ARCH_INTEGRATIONS.md`](../architecture/ARCH_INTEGRATIONS.md) | 外部集成 |
-| [`ARCH_SYSTEM_OVERVIEW.md`](../architecture/ARCH_SYSTEM_OVERVIEW.md) | 系统架构与 mvp 现状 |
+| [`ARCH_SYSTEM_OVERVIEW.md`](../architecture/ARCH_SYSTEM_OVERVIEW.md) | 系统架构与 `media-desktop` 现状 |
 | [`ARCH_DEPLOYMENT.md`](../architecture/ARCH_DEPLOYMENT.md) | 部署 |
 | [`openapi.yaml`](../api/openapi.yaml) / [`API_README.md`](../api/API_README.md) | REST |
 | [`PRJ_MANAGEMENT.md`](../project/PRJ_MANAGEMENT.md) | 版本与时间线 |

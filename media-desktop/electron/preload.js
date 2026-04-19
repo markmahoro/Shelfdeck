@@ -13,8 +13,11 @@ function deriveReplaceBackupPath(targetPath) {
   return dir ? `${dir}${sep}${base}.etp.bak` : `${base}.etp.bak`;
 }
 
-const CP_BASE = (process.env.CONTROL_PLANE_URL || 'http://127.0.0.1:18080').replace(/\/$/, '');
-const CP_KEY = process.env.CONTROL_PLANE_API_KEY || '';
+const CP_BASE = (process.env.MEDIA_SERVICE_URL || process.env.CONTROL_PLANE_URL || 'http://127.0.0.1:18080').replace(
+  /\/$/,
+  '',
+);
+const CP_KEY = process.env.MEDIA_SERVICE_API_KEY || process.env.CONTROL_PLANE_API_KEY || '';
 
 async function cpJson(path, options = {}) {
   const url = `${CP_BASE}${path}`;

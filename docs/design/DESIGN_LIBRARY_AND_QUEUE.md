@@ -38,7 +38,7 @@
 
 #### 2.3.2 定义与计算步骤（与实现对齐）
 
-实现参考：`mvp/src/mediaManager.ts`（`estimateEquivalentBitrate`、`codecToH265Factor`）。下列参数随版本可微调，**以仓库实现为准**；本文记录**当前约定**。
+实现参考：`media-desktop/src/mediaManager.ts`（`estimateEquivalentBitrate`、`codecToH265Factor`）。下列参数随版本可微调，**以仓库实现为准**；本文记录**当前约定**。
 
 1. **容器总码率（Mbps）**
   `totalMbps = sizeGb × 8192 / max(1, durationSec)`  

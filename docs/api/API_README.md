@@ -1,12 +1,12 @@
-# API_README — 媒体控制面 REST API（契约）
+# API_README — 媒体管理服务 REST API（契约）
 
 > **SSOT 路径**：[`API_README.md`](./API_README.md) · 文档索引 [`DOC_GOVERNANCE.md`](../DOC_GOVERNANCE.md)
 
-本目录存放 **控制面 HTTP API** 的机器可读契约与索引。仓库内 `control-plane/`（Node + Fastify）实现本契约中与 beta.9 对齐的领域路径；**Electron 桌面**通过 `preload` 的 `fetch` 调用控制面，**仅保留** `emby:launchPlayer` 等强本地 IPC（见下表「启动播放器」）。
+本目录存放 **媒体管理服务 HTTP API** 的机器可读契约与索引。仓库内 `media-service/`（Node + Fastify；历史目录名 `control-plane/`）实现本契约中与 beta.9 对齐的领域路径；**ShelfDeck 桌面客户端**通过 `preload` 的 `fetch` 调用媒体管理服务，**仅保留** `emby:launchPlayer` 等强本地 IPC（见下表「启动播放器」）。
 
 ## 最近更新
 
-- **2026-04-20**：产品迭代「转码备份与临时文件清理」合入（需求：`docs/requirements/REQ_FEATURE_transcode-backup-and-temp-cleanup.md`）；对齐 `POST /v1/transcode/actions/stat-paths` 等与任务中心「替换前备份」「临时目录残留」相关能力；桌面 `preload` 约束见 `docs/dev/DEV_ELECTRON_PRELOAD.md`（**未**升 `mvp/package.json`）。
+- **2026-04-20**：产品迭代「转码备份与临时文件清理」合入（需求：`docs/requirements/REQ_FEATURE_transcode-backup-and-temp-cleanup.md`）；对齐 `POST /v1/transcode/actions/stat-paths` 等与任务中心「替换前备份」「临时目录残留」相关能力；桌面 `preload` 约束见 `docs/dev/DEV_ELECTRON_PRELOAD.md`（**未**升 `media-desktop/package.json`）。
 
 ## 契约文件
 
@@ -38,7 +38,7 @@ npx --yes @redocly/cli lint docs/api/openapi.yaml --config docs/api/redocly.yaml
 | 五页架构、前台播放闭环              | [`docs/design/DESIGN_FRONT_PLAYBACK.md`](../design/DESIGN_FRONT_PLAYBACK.md)                             |
 | 外部集成（MoviePilot 等）         | [`docs/architecture/ARCH_INTEGRATIONS.md`](../architecture/ARCH_INTEGRATIONS.md)                        |
 | 里程碑、用户叙事、维护制度                | [`docs/project/PRJ_MANAGEMENT.md`](../project/PRJ_MANAGEMENT.md)                                         |
-| 控制面战略、部署、MCP 工具语义与分阶段        | [`docs/architecture/ARCH_SYSTEM_OVERVIEW.md`](../architecture/ARCH_SYSTEM_OVERVIEW.md)                   |
+| 媒体管理服务战略、部署、MCP 工具语义与分阶段        | [`docs/architecture/ARCH_SYSTEM_OVERVIEW.md`](../architecture/ARCH_SYSTEM_OVERVIEW.md)                   |
 | **REST 路径、请求/响应形状、HTTP 错误码** | **本目录 `openapi.yaml`**                                                                                   |
 | 全库索引与命名规则                    | [`docs/DOC_GOVERNANCE.md`](../DOC_GOVERNANCE.md)                                                         |
 
@@ -47,20 +47,20 @@ npx --yes @redocly/cli lint docs/api/openapi.yaml --config docs/api/redocly.yaml
 
 ## 路径映射与配置（产品约定）
 
-与 **读源、写临时目录、替换文件** 相关的路径映射及 `transcodeTempRoot` 等，**以控制面持久化配置为 SSOT**；Electron 设置页仅 **展示与编辑** 并经 API（如 `GET/PATCH /v1/config`）写回，**不在本地另存一套映射真相**。主界面须写清 **Worker 用映射**；仅当控制面与桌面环境不一致时，提供 **可选的「本机播放附加映射」** 区块。预检与转码 Worker **与上述规则同源**，避免「能播不能压」。战略条文见 `[docs/architecture/ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)` **§3.4**。
+与 **读源、写临时目录、替换文件** 相关的路径映射及 `transcodeTempRoot` 等，**以媒体管理服务持久化配置为 SSOT**；Electron 设置页仅 **展示与编辑** 并经 API（如 `GET/PATCH /v1/config`）写回，**不在本地另存一套映射真相**。主界面须写清 **Worker 用映射**；仅当媒体管理服务与桌面环境不一致时，提供 **可选的「本机播放附加映射」** 区块。预检与转码 Worker **与上述规则同源**，避免「能播不能压」。战略条文见 `[docs/architecture/ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)` **§3.4**。
 
 ## MCP 与 REST（后续里程碑）
 
-MCP 工具应 **调用与控制面 REST 相同的领域服务**，禁止维护两套业务规则；工具名与 REST 的对照表在 **MCP 搭建** 阶段补全。原则见 `[docs/architecture/ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)` §4.1。
+MCP 工具应 **调用与媒体管理服务 REST 相同的领域服务**，禁止维护两套业务规则；工具名与 REST 的对照表在 **MCP 搭建** 阶段补全。原则见 `[docs/architecture/ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)` §4.1。
 
 ## IPC（历史）→ REST（已迁移）对照
 
-渲染进程仍经 `[mvp/electron/preload.js](../../mvp/electron/preload.js)` 暴露 `window.embyApi` / `window.doubanApi`，但 **业务调用已改为 HTTP**（默认 `CONTROL_PLANE_URL` / `VITE_CONTROL_PLANE_URL` → `http://127.0.0.1:18080`）。`[mvp/electron/main.js](../../mvp/electron/main.js)` 仅注册 `emby:launchPlayer` 与 `cp-bridge-progress`（把轮询得到的进度转发为原 `transcode:progress` / `douban:fetchProgress` 事件，减少 `App.tsx` 改动面）。
+渲染进程仍经 `[media-desktop/electron/preload.js](../../media-desktop/electron/preload.js)` 暴露 `window.embyApi` / `window.doubanApi`，但 **业务调用已改为 HTTP**（默认 `MEDIA_SERVICE_URL` / `CONTROL_PLANE_URL` 与 `VITE_MEDIA_SERVICE_URL` / `VITE_CONTROL_PLANE_URL` → `http://127.0.0.1:18080`，**同义变量以 `MEDIA_SERVICE_*` 优先**）。`[media-desktop/electron/main.js](../../media-desktop/electron/main.js)` 仅注册 `emby:launchPlayer` 与 `cp-bridge-progress`（把轮询得到的进度转发为原 `transcode:progress` / `douban:fetchProgress` 事件，减少 `App.tsx` 改动面）。
 
-下表为 **IPC 概念 → 控制面 REST** 对照；**路径与方法以 `openapi.yaml` 为准**。
+下表为 **IPC 概念 → 媒体管理服务 REST** 对照；**路径与方法以 `openapi.yaml` 为准**。
 
 
-| IPC 通道                          | preload / 调用方                         | 建议 REST（控制面）                                                                    | 备注                                                                 |
+| IPC 通道                          | preload / 调用方                         | 建议 REST（媒体管理服务）                                                                    | 备注                                                                 |
 | ------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | `emby:testConnection`           | `embyApi.testConnection`              | `POST /v1/emby/actions/test-connection`                                         | Body：连接参数（与现 `payload` 对齐）                                         |
 | `emby:getUsers`                 | `embyApi.getUsers`                    | `POST /v1/emby/actions/list-users`                                              | 同上（含服务端点与密钥）                                                       |
@@ -68,7 +68,7 @@ MCP 工具应 **调用与控制面 REST 相同的领域服务**，禁止维护�
 | `emby:getUnplayedItems`         | `embyApi.getUnplayedItems`            | `POST /v1/library/queries/unplayed`                                             | 列表/分页与筛选                                                           |
 | `emby:getLibraryItemsForManage` | `embyApi.getLibraryItemsForManage`    | `POST /v1/library/queries/manage`                                               | 媒体库治理列表                                                            |
 | `emby:getPlayedItems`           | `embyApi.getPlayedItems`              | `POST /v1/library/queries/played`                                               | 播放记录                                                               |
-| `emby:getLibraryItem`           | `embyApi.getLibraryItem`              | `POST /v1/library/actions/get-item`（紧凑 body） / `GET /v1/library/items/{itemId}` | 桌面 preload 走 **POST**；GET 需控制面已缓存 `embyClient`（`PATCH /v1/config`） |
+| `emby:getLibraryItem`           | `embyApi.getLibraryItem`              | `POST /v1/library/actions/get-item`（紧凑 body） / `GET /v1/library/items/{itemId}` | 桌面 preload 走 **POST**；GET 需媒体管理服务已缓存 `embyClient`（`PATCH /v1/config`） |
 | `emby:getItemDeleteInfo`        | `embyApi.getItemDeleteInfo`           | `POST /v1/library/actions/delete-info` / `GET .../delete-info`                  | 同上                                                                 |
 | `emby:deleteLibraryItem`        | `embyApi.deleteLibraryItem`           | `POST /v1/library/actions/delete-item` / `DELETE /v1/library/items/{itemId}`    | 同上                                                                 |
 | `emby:libraryItemExists`        | `embyApi.libraryItemExists`           | `POST /v1/library/actions/exists` / `GET .../exists`                            | 同上                                                                 |
@@ -76,7 +76,7 @@ MCP 工具应 **调用与控制面 REST 相同的领域服务**，禁止维护�
 | `emby:markUnplayed`             | `embyApi.markUnplayed`                | `POST /v1/library/actions/mark-unplayed` / `DELETE .../played`                  | 同上                                                                 |
 | `emby:launchPlayer`             | `embyApi.launchPlayer`                | **仅 Electron** `ipcMain`；`POST /v1/client/actions/launch-player` 实现为 **501**    | 与契约一致：起进程以桌面会话为准                                                   |
 | `taskControl`                   | `embyApi.taskControl`                 | `POST /v1/transcode/actions/abort-all`                                          | 现仅 `action: simulateExit` 时 `abortAllEncodes`                      |
-| `douban:saveSession`            | `doubanApi.saveSession`               | `PUT /v1/integrations/douban/session`                                           | 会话持久化由控制面存储                                                        |
+| `douban:saveSession`            | `doubanApi.saveSession`               | `PUT /v1/integrations/douban/session`                                           | 会话持久化由媒体管理服务存储                                                        |
 | `douban:getSession`             | `doubanApi.getSession`                | `GET /v1/integrations/douban/session`                                           |                                                                    |
 | `douban:stopFetch`              | `doubanApi.stopFetch`                 | `POST /v1/integrations/douban/fetch/stop`                                       |                                                                    |
 | `douban:fetchRatings`           | `doubanApi.fetchRatings`              | `POST /v1/integrations/douban/fetch/ratings`                                    | 进度事件见下「事件」                                                         |
@@ -102,15 +102,15 @@ MCP 工具应 **调用与控制面 REST 相同的领域服务**，禁止维护�
 | `douban:fetchProgress` | 同上                                             | **轮询** `GET /v1/integrations/douban/fetch/jobs/{jobId}` → `douban:fetchProgress` |
 
 
-## 本地启动（桌面 + 控制面）
+## 本地启动（桌面 + 媒体管理服务）
 
-1. 终端 A：仓库根下 `cd control-plane && npm install && npm start`（默认 **18080**）。
-2. 终端 B：`cd mvp && npm install && npm run dev`（`dev:electron` 已带 `CONTROL_PLANE_URL`；Vite 侧见 `mvp/.env.development` / `.env.production` 的 `VITE_CONTROL_PLANE_URL`）。
-3. 可选：设置 `CONTROL_PLANE_API_KEY` / `VITE_CONTROL_PLANE_API_KEY` 时，两处需一致。
+1. 终端 A：仓库根下 `cd media-service && npm install && npm start`（默认 **18080**）。
+2. 终端 B：`cd media-desktop && npm install && npm run dev`（`dev:electron` 已带 `CONTROL_PLANE_URL`；Vite 侧见 `media-desktop/.env.development` / `.env.production` 的 `VITE_*` URL，与 `MEDIA_SERVICE_*` 同义）。
+3. 可选：设置 `CONTROL_PLANE_API_KEY` / `VITE_CONTROL_PLANE_API_KEY`（或 `MEDIA_SERVICE_*` 对应项）时，各处需一致。
 
-集成测试：`cd control-plane && npm test`（Fastify `inject`，无需监听端口）。
+集成测试：`cd media-service && npm test`（Fastify `inject`，无需监听端口）。
 
-## 经典回顾（控制面 P0，当前无对等 IPC）
+## 经典回顾（媒体管理服务 P0，当前无对等 IPC）
 
 见 `openapi.yaml` 中 `Revisit` tag：`GET/POST/DELETE /v1/revisit/...`，与 [`ARCH_SYSTEM_OVERVIEW.md`](../architecture/ARCH_SYSTEM_OVERVIEW.md) **§3** 一致。
 

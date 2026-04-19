@@ -7,7 +7,7 @@ const embyService = require('./embyService');
 const isDev = process.env.NODE_ENV === 'development';
 let mainWindow = null;
 
-/** 控制面进度经主进程转发到与旧 IPC 相同的 channel，避免改 App 订阅逻辑 */
+/** 媒体管理服务进度经主进程转发到与旧 IPC 相同的 channel，避免改 App 订阅逻辑 */
 ipcMain.on('cp-bridge-progress', (event, channel, payload) => {
   if (event.sender.isDestroyed()) return;
   if (channel === 'transcode') event.sender.send('transcode:progress', payload);
@@ -121,7 +121,7 @@ async function loadFirstReachableDevUrl(win) {
 }
 
 function registerIpcHandlers() {
-  console.log('[main] IPC: launchPlayer + cp-bridge only (业务已迁控制面)');
+  console.log('[main] IPC: launchPlayer + cp-bridge only (业务已迁媒体管理服务)');
   ipcMain.handle('emby:launchPlayer', (_evt, payload) => embyService.launchPlayer(payload));
 }
 

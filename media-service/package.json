@@ -1,8 +1,8 @@
 {
-  "name": "emby-media-control-plane",
+  "name": "shelfdeck-media-service",
   "version": "0.1.0",
   "private": true,
-  "description": "Media control plane (REST) for Emby Desktop Player",
+  "description": "ShelfDeck media management service (REST)",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {

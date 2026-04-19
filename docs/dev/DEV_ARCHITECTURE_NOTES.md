@@ -4,12 +4,12 @@
 
 ## 目录
 
-- `**mvp/**`：Electron 壳、渲染进程（Vite/React）、与本机播放相关的 IPC。
-- `**control-plane/**`：媒体控制面 HTTP 服务、任务与转码等领域逻辑。
+- `**media-desktop/**`：Electron 壳、渲染进程（Vite/React）、与本机播放相关的 IPC。
+- `**media-service/**`：**媒体管理服务** HTTP 服务、任务与转码等领域逻辑（历史目录名 `control-plane/`）。
 
 ## 联调
 
-业务请求默认走 **HTTP** 至控制面；详见 `[API_README.md](../api/API_README.md)` 中 IPC→REST 对照表。
+业务请求默认走 **HTTP** 至媒体管理服务；详见 `[API_README.md](../api/API_README.md)` 中 IPC→REST 对照表。
 
 ## 模拟数据
 

@@ -1,4 +1,4 @@
-# 勿在仓库根目录执行 npm install（应用目录为 mvp/）；忽略误生成的空 lockfile
+# 勿在仓库根目录执行 npm install（应用目录为 media-desktop/）；忽略误生成的空 lockfile
 /package-lock.json
 
 node_modules/
@@ -17,10 +17,10 @@ Thumbs.db
 .env
 .env.*
 
-mvp/node_modules/
-mvp/dist/
-mvp/release/
-mvp/.vite-dev-server-url
+media-desktop/node_modules/
+media-desktop/dist/
+media-desktop/release/
+media-desktop/.vite-dev-server-url
 
 # 第三方克隆工具目录（内含独立 .git），勿纳入本仓库
 douban-to-imdb/
@@ -31,6 +31,6 @@ archive/EmbyDesktopPlayer_PRD_v1.0.0.md
 archive/EmbyDesktopPlayer_PRD_v1.0.0_structured.md
 archive/EmbyDesktopPlayer_PRODUCT_MODULES_v1.0.0.md
 
-# 控制面运行时状态（本地队列/会话；见 docs/DOC_GOVERNANCE.md）
-control-plane/data/control-plane-state.json
-control-plane/data/douban-session.json
+# 媒体管理服务运行时状态（本地队列/会话；见 docs/DOC_GOVERNANCE.md）
+media-service/data/control-plane-state.json
+media-service/data/douban-session.json

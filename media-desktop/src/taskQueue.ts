@@ -164,45 +164,53 @@ function loadTaskQueueFromLocalStorage(): MediaTask[] {
 }
 
 /**
- * 配置 `VITE_CONTROL_PLANE_URL`（桌面 dev/prod 默认已配）时任务队列 **仅** 走控制面，与 `TASK_STORAGE_KEY` 脱钩。
+ * 配置 `VITE_MEDIA_SERVICE_URL` 或 `VITE_CONTROL_PLANE_URL`（桌面 dev/prod 默认已配其一）时任务队列 **仅** 走媒体管理服务，与 `TASK_STORAGE_KEY` 脱钩。
  * 纯浏览器调试（未配置 base）仍用 localStorage。
  */
 export async function loadTaskQueue(): Promise<MediaTask[]> {
-  const base = import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined;
+  const base = (import.meta.env.VITE_MEDIA_SERVICE_URL || import.meta.env.VITE_CONTROL_PLANE_URL) as
+    | string
+    | undefined;
   if (base) {
     const url = `${String(base).replace(/\/$/, '')}/v1/sync/task-queue`;
     const headers: Record<string, string> = {};
-    const k = import.meta.env.VITE_CONTROL_PLANE_API_KEY as string | undefined;
+    const k = (import.meta.env.VITE_MEDIA_SERVICE_API_KEY || import.meta.env.VITE_CONTROL_PLANE_API_KEY) as
+      | string
+      | undefined;
     if (k) headers['X-API-Key'] = k;
     try {
       const r = await fetch(url, { headers });
       if (!r.ok) {
-        console.error('[taskQueue] control plane GET /v1/sync/task-queue failed', r.status);
-        throw new Error(`任务队列从控制面加载失败（HTTP ${r.status}），请确认控制面已启动。`);
+        console.error('[taskQueue] media-service GET /v1/sync/task-queue failed', r.status);
+        throw new Error(`任务队列从媒体管理服务加载失败（HTTP ${r.status}），请确认媒体管理服务已启动。`);
       }
       const parsed = await r.json();
       if (Array.isArray(parsed)) return normalizeImportedTasks(parsed);
-      throw new Error('任务队列从控制面加载失败：响应格式无效。');
+      throw new Error('任务队列从媒体管理服务加载失败：响应格式无效。');
     } catch (e) {
-      if (e instanceof Error && e.message.startsWith('任务队列从控制面加载失败')) throw e;
-      console.error('[taskQueue] control plane GET /v1/sync/task-queue unreachable', e);
-      throw new Error('任务队列从控制面加载失败：网络不可达或控制面未启动。');
+      if (e instanceof Error && e.message.startsWith('任务队列从媒体管理服务加载失败')) throw e;
+      console.error('[taskQueue] media-service GET /v1/sync/task-queue unreachable', e);
+      throw new Error('任务队列从媒体管理服务加载失败：网络不可达或服务未启动。');
     }
   }
   return loadTaskQueueFromLocalStorage();
 }
 
 export async function saveTaskQueue(tasks: MediaTask[]): Promise<void> {
-  const base = import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined;
+  const base = (import.meta.env.VITE_MEDIA_SERVICE_URL || import.meta.env.VITE_CONTROL_PLANE_URL) as
+    | string
+    | undefined;
   if (base) {
     const url = `${String(base).replace(/\/$/, '')}/v1/sync/task-queue`;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const k = import.meta.env.VITE_CONTROL_PLANE_API_KEY as string | undefined;
+    const k = (import.meta.env.VITE_MEDIA_SERVICE_API_KEY || import.meta.env.VITE_CONTROL_PLANE_API_KEY) as
+      | string
+      | undefined;
     if (k) headers['X-API-Key'] = k;
     const r = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(tasks) });
     if (!r.ok) {
-      console.error('[taskQueue] control plane PUT /v1/sync/task-queue failed', r.status);
-      throw new Error('任务队列同步到控制面失败，请确认控制面已启动。');
+      console.error('[taskQueue] media-service PUT /v1/sync/task-queue failed', r.status);
+      throw new Error('任务队列同步到媒体管理服务失败，请确认媒体管理服务已启动。');
     }
     return;
   }

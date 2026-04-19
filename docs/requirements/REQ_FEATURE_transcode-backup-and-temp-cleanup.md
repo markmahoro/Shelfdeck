@@ -69,7 +69,7 @@
 ## 7. 文档与实现
 
 - 任务中心转码与 replace 语义：`[DESIGN_TASK_CENTER.md](../design/DESIGN_TASK_CENTER.md)`。
-- 实现见：`mvp/src/App.tsx`、`mvp/electron/preload.js`、`mvp/electron/transcodeService.js`、`control-plane/src/services/transcodeService.js`、`control-plane/src/app.js`；API：`[API_README.md](../api/API_README.md)`、`[openapi.yaml](../api/openapi.yaml)`。
+- 实现见：`media-desktop/src/App.tsx`、`media-desktop/electron/preload.js`、`media-desktop/electron/transcodeService.js`、`media-service/src/services/transcodeService.js`、`media-service/src/app.js`；API：`[API_README.md](../api/API_README.md)`、`[openapi.yaml](../api/openapi.yaml)`。
 - Electron preload **沙盒**约束与排障见：`[DEV_ELECTRON_PRELOAD.md](../dev/DEV_ELECTRON_PRELOAD.md)`。
 
 ## 8. 交付与状态

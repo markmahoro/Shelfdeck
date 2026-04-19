@@ -32,7 +32,7 @@
 
 ## 路径映射（产品约定）
 
-- **Playback / 预检 / 转码** 使用的 **本机可读路径** 均经 `pathMapFrom` → `pathMapTo` 解析；映射 **权威** 以控制面持久化配置为 SSOT（见 ARCH_SYSTEM_OVERVIEW **§3.4**）；Electron 设置页仅展示与编辑并经 API 写回。
+- **Playback / 预检 / 转码** 使用的 **本机可读路径** 均经 `pathMapFrom` → `pathMapTo` 解析；映射 **权威** 以媒体管理服务持久化配置为 SSOT（见 ARCH_SYSTEM_OVERVIEW **§3.4**）；Electron 设置页仅展示与编辑并经 API 写回。
 - **媒体库列表** 刷新时结合映射解析本机路径，用于原盘类（ISO/BDMV）判定；判定规则与任务中心互斥见 DESIGN_TASK_CENTER **§3.7.3**。
 
 ---

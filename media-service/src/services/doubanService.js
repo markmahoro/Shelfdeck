@@ -3,7 +3,11 @@ const path = require('path');
 const https = require('https');
 
 function dataRoot() {
-  return process.env.CONTROL_PLANE_DATA_DIR || path.join(__dirname, '..', '..', 'data');
+  return (
+    process.env.MEDIA_SERVICE_DATA_DIR ||
+    process.env.CONTROL_PLANE_DATA_DIR ||
+    path.join(__dirname, '..', '..', 'data')
+  );
 }
 
 /** 电影「看过」列表每页条数（豆瓣 grid） */

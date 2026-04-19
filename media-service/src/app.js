@@ -90,7 +90,7 @@ function registerRoutes(app, store) {
     reply.code(204).send();
   });
 
-  /** OpenAPI：使用控制面已缓存的 embyClient（由桌面 PATCH /v1/config 同步） */
+  /** OpenAPI：使用媒体管理服务已缓存的 embyClient（由桌面 PATCH /v1/config 同步） */
   app.get('/v1/library/items/:itemId', async (req, reply) => {
     const config = resolveEmbyClientFromStore(store, req.query);
     if (!config) {
@@ -388,10 +388,16 @@ function registerRoutes(app, store) {
  */
 async function buildApp(opts = {}) {
   process.env.CONTROL_PLANE_DATA_DIR =
-    opts.dataDir || process.env.CONTROL_PLANE_DATA_DIR || require('path').join(__dirname, '..', 'data');
+    opts.dataDir ||
+    process.env.MEDIA_SERVICE_DATA_DIR ||
+    process.env.CONTROL_PLANE_DATA_DIR ||
+    require('path').join(__dirname, '..', 'data');
 
   const store = new FileStore();
-  const API_KEY = opts.apiKey !== undefined ? opts.apiKey : process.env.CONTROL_PLANE_API_KEY || '';
+  const API_KEY =
+    opts.apiKey !== undefined
+      ? opts.apiKey
+      : process.env.MEDIA_SERVICE_API_KEY || process.env.CONTROL_PLANE_API_KEY || '';
 
   const app = Fastify({ logger: opts.logger !== undefined ? opts.logger : true });
   await app.register(cors, { origin: true });

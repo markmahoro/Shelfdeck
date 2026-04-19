@@ -11,7 +11,7 @@
 | 维度       | Windows（优先）                                                  | 飞牛 fnOS（优先）                                                                                                      |
 | -------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | **形态**   | 服务进程（如 Windows Service / NSSM）或 **Docker Desktop**（若团队统一用容器） | **Docker Compose** 为主                                                                                            |
-| **配置**   | 环境变量 + 本地配置文件；数据目录可定 `D:\...\control-plane-data`             | 环境变量 + 卷挂载（数据库、临时转码目录、日志）                                                                                        |
+| **配置**   | 环境变量 + 本地配置文件；数据目录可定 `D:\...\media-service-data`             | 环境变量 + 卷挂载（数据库、临时转码目录、日志）                                                                                        |
 | **媒体路径** | 盘符、SMB 映射；需与 Emby 所见路径一致或可配置映射                               | 飞牛共享文件夹挂载进容器，与 Emby 一致                                                                                           |
 | **GPU**  | NVIDIA/AMD 依本机驱动；若用 Docker on Windows 需 WSL2 + GPU 透传策略      | **NVIDIA**：宿主机驱动 + `nvidia-container-toolkit`，Compose 声明 GPU；**AMD 核显**：`/dev/dri` 等（需按机型与系统版本实测）；失败则 **CPU 兜底** |
 | **发布物**  | 安装包或 zip + 说明；可选附带 `docker-compose.windows.yml`              | `docker-compose.yml` + 飞牛论坛可参考的 GPU 前置步骤链接（文档内说明）                                                                |
@@ -29,5 +29,5 @@
 | 文档                                                                         | 关系      |
 | -------------------------------------------------------------------------- | ------- |
 | `[ARCH_SYSTEM_OVERVIEW.md](./ARCH_SYSTEM_OVERVIEW.md)`                     | 战略与路径原则 |
-| `[OPS_DEPLOY_CONTROL_PLANE.md](../operations/OPS_DEPLOY_CONTROL_PLANE.md)` | 控制面运行备忘 |
+| `[OPS_DEPLOY_CONTROL_PLANE.md](../operations/OPS_DEPLOY_CONTROL_PLANE.md)` | 媒体管理服务运行备忘（文件名沿用历史） |
 | `[openapi.yaml](../api/openapi.yaml)`                                      | REST 契约 |

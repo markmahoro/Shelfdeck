@@ -1,19 +1,19 @@
-# Emby Desktop Player — 项目管理
+# ShelfDeck — 项目管理
 
 > **定位**：本文件是 **项目管理信息的唯一维护入口**（版本、功能点实现情况、开发过程记录、想法、维护制度）。  
 > **原则**：下文已内嵌原分散在多处的同类信息，后续迭代 **只改本文件** 即可保持 **项目管理**闭环（里程碑表、时间线、维护制度）。  
-> **产品条文与工程实现**：需求基线 `[REQ_PRODUCT_BASELINE_v1.0.0.md](../requirements/REQ_PRODUCT_BASELINE_v1.0.0.md)` 承载 **v1.0.0 范围/验收** 与 **工程实现快照（beta）**；域内细则见 `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)` 文档地图所列 `DESIGN_*` / `ARCH_*`。任务中心可执行条文以 `[DESIGN_TASK_CENTER.md](../design/DESIGN_TASK_CENTER.md)` 为 SSOT。全库文档索引见 `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`。本文件 **不**展开实现级技术细节，避免与上述材料重复。
+> **产品条文与工程实现**：需求基线 `[REQ_PRODUCT_BASELINE_v1.0.0.md](../requirements/REQ_PRODUCT_BASELINE_v1.0.0.md)` 承载 **v1.0.0 范围/验收** 与 **工程实现快照（beta）**；域内细则见 `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)` 文档地图所列 `DESIGN_*` / `ARCH_*`。任务中心可执行条文以 `[DESIGN_TASK_CENTER.md](../design/DESIGN_TASK_CENTER.md)` 为 SSOT。全库文档索引见 `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`。品牌与目录/`package.json` 定稿对照见 `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)` **ShelfDeck 产品与模块命名**。本文件 **不**展开实现级技术细节，避免与上述材料重复。
 
 **当前快照（撰写时）**  
 
-- Git：`master`；**HEAD** 为克隆上**最新**提交（**超前**于 **可安装包**附注标签 `v1.0.0-beta.9` → `b9c8a37`；其间为文档与仓库维护，**未** bump `version`；短哈希以本地 `git` 为准）。`v1.0.0-docs.20260418` 仍钉在 `635da48`；beta.8 及此前能力见 **§4** 各标签行。  
-- 应用包版本（`mvp/package.json`）：`1.0.0-beta.9`（末次**升版**与 `v1.0.0-beta.9` 对齐；其后提交未升版）。
+- Git：`master`；**HEAD** 已含 **ShelfDeck** 品牌与工程目录迁移（`media-desktop` / `media-service`）合入；相对 **可安装包**附注标签 `v1.0.0-beta.9` → `b9c8a37` 仍为文档与仓库维护向提交累积（**未** bump 应用 `version`；锚点见 **§4** 末行）。`v1.0.0-docs.20260418` 仍钉在 `635da48`；beta.8 及此前能力见 **§4** 各标签行。  
+- 应用包版本（`media-desktop/package.json`）：`1.0.0-beta.9`（末次**升版**与 `v1.0.0-beta.9` 对齐；其后提交未升版）。
 
 ---
 
 ## 1. 项目概况
 
-**Emby Desktop Player**（Windows 目标）：
+**ShelfDeck** 桌面客户端（Windows 目标）：
 
 - **前台**：未播放列表 → 第三方播放器 → 用户确认后向 Emby **回写已播放**。
 - **后台**：按星级与码率策略的媒体库治理（压缩、洗版、删除等）与任务调度。**各动作真实落地边界**（API、压制、替换、未实现项）以需求基线 **工程实现快照（beta）** 为准，本文件仅通过 **§2～§3** 做里程碑级概括。
@@ -24,12 +24,12 @@
 
 ## 2. 用户叙事版本
 
-下列 **v0.x** 为面向用户的能力代际（与 `mvp/package.json` 的 `1.0.0-beta.`* **并行**，工程钉定见 §4）。**v1.0** 表示需求基线所列功能点全部落地后的目标代际（未达成）。
+下列 **v0.x** 为面向用户的能力代际（与 `media-desktop/package.json` 的 `1.0.0-beta.`* **并行**，工程钉定见 §4）。**v1.0** 表示需求基线所列功能点全部落地后的目标代际（未达成）。
 
-表中 **工程版本号** 为 `mvp/package.json` 的 `version`（semver，**无** `v` 前缀）；**Git 锚点** 为约定中的附注标签（`v` + 同版本号）及其指向的提交短哈希。
+表中 **工程版本号** 为 `media-desktop/package.json` 的 `version`（semver，**无** `v` 前缀）；**Git 锚点** 为约定中的附注标签（`v` + 同版本号）及其指向的提交短哈希。
 
 
-| 用户版本     | 版本名           | 工程版本号（`mvp/package.json` 的 `version`） | 本版本用户能做什么                                                                  | 与上一用户版本相比                                       | Git 锚点（附注标签 → 提交短哈希）            |
+| 用户版本     | 版本名           | 工程版本号（`media-desktop/package.json` 的 `version`） | 本版本用户能做什么                                                                  | 与上一用户版本相比                                       | Git 锚点（附注标签 → 提交短哈希）            |
 | -------- | ------------- | ------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------- |
 | **v0.1** | 前台可用（真实 Emby） | `1.0.0-beta.4`                        | 主进程对接 Emby：未播放、播放路径与映射、第三方播放器、已播放/未播放回写；播放记录页与列表侧同步。                       | **首代**用户叙事（无上一代）。                               | `v1.0.0-beta.4` → `20f735b`     |
 | **v0.2** | 库与策略治理        | `1.0.0-beta.7`                        | 媒体库全量列表与筛选、体积/原盘、列表缓存与入队限制；豆瓣「看过」与有效星级；分星级规则与容量预测等。                        | 在 v0.1 上，从「能观影」扩展到 **管库 + 外部评分进策略 + 按星算动作与空间**。 | `v1.0.0-beta.7` → `659ab03`     |
@@ -61,7 +61,7 @@
 | MoviePilot（或等价）补源集成                                                                                                                                                                            | 否                                  | 否       | —                                                                   |
 | 托盘、关窗驻留、观影时降低后台负载                                                                                                                                                                              | 否                                  | 否       | —                                                                   |
 | 任务中断恢复（checkpoint）与可审计的**落盘**任务日志                                                                                                                                                              | 否                                  | 否       | —                                                                   |
-| 配置与任务队列：**控制面落盘持久化**（`control-plane/data`，任务队列经 `PUT /v1/sync/task-queue`；非仅浏览器 localStorage）                                                                                                  | 否                                  | **部分**  | 2026-04-19 起：`control-plane` 文件存储承载队列与配置快照；与条文「主进程 SQLite」理想模型仍可迭代。 |
+| 配置与任务队列：**媒体管理服务落盘持久化**（`media-service/data`，任务队列经 `PUT /v1/sync/task-queue`；非仅浏览器 localStorage）                                                                                                  | 否                                  | **部分**  | 2026-04-19 起：`media-service` 文件存储承载队列与配置快照；与条文「主进程 SQLite」理想模型仍可迭代。 |
 | 批量执行前的耗时/磁盘/负载粗估提示                                                                                                                                                                             | 否                                  | 否       | —                                                                   |
 
 
@@ -96,13 +96,14 @@
 | 2026-04-18 04:21:02                     | 模块化产品条文成为仓库内唯一长文需求基线（现拆分为母版 + 多份 `DESIGN_*` / `ARCH_*`）                                                                                                                                                                                                                                                                         | 否        | `13742b1`                         |
 | 2026-04-19 01:07:13                     | 附注标签 `v1.0.0-docs.20260418`：任务中心可执行条文与产品侧任务章节对齐方式调整；任务对象转码体积字段                                                                                                                                                                                                                                                                  | **是**    | `635da48`（`v1.0.0-docs.20260418`） |
 | 2026-04-19（接续）                          | 同日接续：辅助文档归档与根目录主文档定型、`DESIGN_TASK_CENTER`（时名 TASK_CENTER_FULL_LOGIC）调度章节重组、Electron **转码主链路**与资源池合入、`package.json`/脚本锚点及项目管理迭代（**实现条文**见需求基线 **工程实现快照** 与 ARCH_SYSTEM_OVERVIEW）。                                                                                                                                                | 否        | `b8cc91e` … `b1aebd2`             |
-| 2026-04-19（发版）                          | **用户叙事 v0.4**：附注标签 `v1.0.0-beta.9`，`mvp/package.json` 升至 **1.0.0-beta.9**，与 **转码主链路** 能力发版对齐；项目管理快照同步。                                                                                                                                                                                                                          | **是**    | `b9c8a37`（`v1.0.0-beta.9`）        |
-| 2026-04-19（文档·beta.9 后）                 | 文档与仓库维护：**工程实现快照** / 项目管理分工、`DESIGN_TASK_CENTER` 文首索引；`[ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)`（控制面 / OpenClaw / 架构再审视）；脚本辅助物入库；项目管理快照迭代（**未**升版；其后可有仅刷新本文件之提交）。                                                                                                                                     | 否        | `f9f2a89` … `b9b378e`             |
-| 2026-04-19（文档·REST 契约）                  | 媒体控制面 **REST SSOT** 落库：`docs/api/openapi.yaml`、`../api/API_README.md`（IPC→REST 对照）、`docs/api/redocly.yaml`；与 `../architecture/ARCH_SYSTEM_OVERVIEW.md`、需求基线 **工程实现快照** 等互链（**未**升版）。                                                                                                                                            | 否        | —                                 |
+| 2026-04-19（发版）                          | **用户叙事 v0.4**：附注标签 `v1.0.0-beta.9`，`media-desktop/package.json`（当时为 `mvp/package.json`）升至 **1.0.0-beta.9**，与 **转码主链路** 能力发版对齐；项目管理快照同步。                                                                                                                                                                                                                          | **是**    | `b9c8a37`（`v1.0.0-beta.9`）        |
+| 2026-04-19（文档·beta.9 后）                 | 文档与仓库维护：**工程实现快照** / 项目管理分工、`DESIGN_TASK_CENTER` 文首索引；`[ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)`（媒体管理服务 / OpenClaw / 架构再审视）；脚本辅助物入库；项目管理快照迭代（**未**升版；其后可有仅刷新本文件之提交）。                                                                                                                                     | 否        | `f9f2a89` … `b9b378e`             |
+| 2026-04-19（文档·REST 契约）                  | 媒体管理服务 **REST SSOT** 落库：`docs/api/openapi.yaml`、`../api/API_README.md`（IPC→REST 对照）、`docs/api/redocly.yaml`；与 `../architecture/ARCH_SYSTEM_OVERVIEW.md`、需求基线 **工程实现快照** 等互链（**未**升版）。                                                                                                                                            | 否        | —                                 |
 | 2026-04-19（文档·路径映射）                     | **路径映射与配置 SSOT** 成文：`../architecture/ARCH_SYSTEM_OVERVIEW.md` **§3.4**；`../api/API_README.md`、`../requirements/REQ_PRODUCT_BASELINE_v1.0.0.md` **工程实现快照**、`[DESIGN_CONFIG_AND_PATHS.md](../design/DESIGN_CONFIG_AND_PATHS.md)`、本文 **§6** 互链；迁移计划同步（**未**升版）。                                                                    | 否        | —                                 |
-| 2026-04-19（工程·控制面）                      | `**control-plane/`** Node 服务落地：`docs/api/openapi.yaml` 对齐路径（含 `POST /v1/library/actions/*`、`/v1/sync/task-queue`、`501` launch-player）；Electron **业务走 HTTP**，主进程仅 `launchPlayer` + 进度桥接；`npm run dev` 联调文档见 `../api/API_README.md`（**未**升版）。                                                                                     | **是**    | —                                 |
+| 2026-04-19（工程·媒体管理服务）                      | `**media-service/`**（当时目录名为 `control-plane/`）Node 服务落地：`docs/api/openapi.yaml` 对齐路径（含 `POST /v1/library/actions/*`、`/v1/sync/task-queue`、`501` launch-player）；Electron **业务走 HTTP**，主进程仅 `launchPlayer` + 进度桥接；`npm run dev` 联调文档见 `../api/API_README.md`（**未**升版）。                                                                                     | **是**    | —                                 |
 | 2026-04～18（收束）                          | 原长文产品条文「附录 A」修订流水迁出；发版与文档节点由上表覆盖。**产品定义与 beta 工程落地边界**以需求基线（含 **工程实现快照**）及 `../design/DESIGN_TASK_CENTER.md` 为准。                                                                                                                                                                                                                | 否        | —                                 |
-| 2026-04-20                              | **产品迭代**：转码「替换前备份」与「临时目录残留」清理合入（`[REQ_FEATURE_transcode-backup-and-temp-cleanup.md](../requirements/REQ_FEATURE_transcode-backup-and-temp-cleanup.md)`）；控制面 `stat-paths` 等与任务中心 UI、`mvp/electron/preload` 对齐；**preload 沙盒**避坑成文 `../dev/DEV_ELECTRON_PRELOAD.md`（**未**升 `mvp/package.json`）；Git 短哈希以 `git log -1 --oneline` 为准。 | 否        | —                                 |
+| 2026-04-20                              | **产品迭代**：转码「替换前备份」与「临时目录残留」清理合入（`[REQ_FEATURE_transcode-backup-and-temp-cleanup.md](../requirements/REQ_FEATURE_transcode-backup-and-temp-cleanup.md)`）；媒体管理服务 `stat-paths` 等与任务中心 UI、`media-desktop/electron/preload` 对齐；**preload 沙盒**避坑成文 `../dev/DEV_ELECTRON_PRELOAD.md`（**未**升 `media-desktop/package.json`）；Git 短哈希以 `git log -1 --oneline` 为准。 | 否        | —                                 |
+| 2026-04-20（UTC+8·续）                  | **工程与文档**：**ShelfDeck** 品牌与模块命名定稿落地（对照表见 `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`）；目录 `mvp`→`media-desktop`、`control-plane`→`media-service`；`package.json` 分别为 **`shelfdeck-media-desktop`** / **`shelfdeck-media-service`**；electron-builder **`appId`** / **`productName`** 调整（升级识别见本文 **§6** 第 7 条）；`MEDIA_SERVICE_*` 与 `CONTROL_PLANE_*` 等环境变量同义兼容；根 `README`、联调/API/架构类文档与 `openapi.yaml` 用语刷新（**未** bump 应用 `version`）。 | 否        | —                                 |
 
 
 ---
@@ -112,7 +113,7 @@
 - **应用内播放（mpv / libmpv 等）**  
 - **单条媒体自定义转码参数**（数据模型与 UI 未立项）  
 - **远端编码节点 / 资源池横向扩容**（远期，本期不做）  
-- **控制面 Emby 片库缓存 / 本地索引**（可选，**未排期**）：为减轻 Emby 请求、加速列表或检索、或支撑智能体侧聚合时，可在控制面增加 **读模型 / TTL 缓存**；**不是** 前后端分离交付的必选项，当前仓库文档亦 **未** 将其列为硬性需求。若立项需单独约定 **同步策略、失效与「以 Emby 为准」的冲突规则**，并同步 `docs/api` / 需求基线等条文。  
+- **媒体管理服务 Emby 片库缓存 / 本地索引**（可选，**未排期**）：为减轻 Emby 请求、加速列表或检索、或支撑智能体侧聚合时，可在媒体管理服务增加 **读模型 / TTL 缓存**；**不是** 前后端分离交付的必选项，当前仓库文档亦 **未** 将其列为硬性需求。若立项需单独约定 **同步策略、失效与「以 Emby 为准」的冲突规则**，并同步 `docs/api` / 需求基线等条文。  
 - **任务中心 · 转码并发提示文案**：配置里「转码类型任务槽」旁关于与编码资源池子槽**同时生效、取更紧一层**的说明，属于调度/资源双层限制的实现向解释，**不必对用户展示**；后续改版时删除该提示或改写为更口语、更短的引导（若有必要）。**业务逻辑与任务中心 SSOT 条文一致**；**当前界面代码刻意不改**，待排期再动。
 
 ---
@@ -120,9 +121,10 @@
 ## 6. 维护制度
 
 1. **唯一入口**：用户叙事（§2）、功能点（§3）、开发过程锚点（§4）、想法池（§5）**只在本文件维护**；**实现级条文**不在此扩写，见文首「产品条文与工程实现」。
-2. **应用包发版（`package.json` 升版）**：修改 `mvp/package.json` 的 `version` → 打附注标签 `**v` + 与 `version` 完全相同的 semver**（例如 `1.0.0-beta.8` → `v1.0.0-beta.8`），与历史一致 → 在 **§4** 增行（若本次升版对应用户叙事代际或功能里程碑，再同步 **§2** / **§3**）。可选：`git log --oneline <上一应用包标签>..HEAD` 辅助写变更说明。保证 **§2～§4** 与**可安装包所宣称的版本**一致。
-3. **非包版本的工程钉定**：仅文档、契约或仓库内对照里程碑、**未** bump `mvp/package.json` 时，**不要**要求标签名与 `version` 对齐；若仍打 Git 标签（例如 `v1.0.0-docs.20260418`），在 **§4** 写清**语义**（对照何提交、是否代表可安装包），避免与第 2 条混淆。
-4. **迭代节奏**：有可对外演示的进展时更新 **§3**；触及用户叙事或里程碑时更新 **§2** / **§4**；文首 **「当前快照」**（`master` 指针与 `mvp/package.json`）在合意时机刷新，避免长期与默认分支脱节。
+2. **应用包发版（`package.json` 升版）**：修改 `media-desktop/package.json` 的 `version` → 打附注标签 `**v` + 与 `version` 完全相同的 semver**（例如 `1.0.0-beta.8` → `v1.0.0-beta.8`），与历史一致 → 在 **§4** 增行（若本次升版对应用户叙事代际或功能里程碑，再同步 **§2** / **§3**）。可选：`git log --oneline <上一应用包标签>..HEAD` 辅助写变更说明。保证 **§2～§4** 与**可安装包所宣称的版本**一致。
+3. **非包版本的工程钉定**：仅文档、契约或仓库内对照里程碑、**未** bump `media-desktop/package.json` 时，**不要**要求标签名与 `version` 对齐；若仍打 Git 标签（例如 `v1.0.0-docs.20260418`），在 **§4** 写清**语义**（对照何提交、是否代表可安装包），避免与第 2 条混淆。
+4. **迭代节奏**：有可对外演示的进展时更新 **§3**；触及用户叙事或里程碑时更新 **§2** / **§4**；文首 **「当前快照」**（`master` 指针与 `media-desktop/package.json`）在合意时机刷新，避免长期与默认分支脱节。
 5. **其它仓库文档**：不以本文件为 SSOT 的材料可继续存在；**项目管理口径**（里程碑、时间线）冲突时以本文件为准；**产品/工程条文**冲突时以需求基线 `[REQ_PRODUCT_BASELINE_v1.0.0.md](../requirements/REQ_PRODUCT_BASELINE_v1.0.0.md)` 与 `../design/DESIGN_TASK_CENTER.md` 为准，并在其它材料中手工对齐。
-6. **控制面 REST 契约**：`docs/api/openapi.yaml` 为媒体控制面 **HTTP 接口** SSOT；契约或边界有重大调整时，在 **§4** 增一行锚点（可与第 3 条「非包版本钉定」同属文档节点；**无需**与 `mvp/package.json` 升版绑定）。**路径映射与配置 SSOT**（避免「能播不能压」）以 `../architecture/ARCH_SYSTEM_OVERVIEW.md` **§3.4** 为准。
+6. **媒体管理服务 REST 契约**：`docs/api/openapi.yaml` 为 **HTTP 接口** SSOT；契约或边界有重大调整时，在 **§4** 增一行锚点（可与第 3 条「非包版本钉定」同属文档节点；**无需**与 `media-desktop/package.json` 升版绑定）。**路径映射与配置 SSOT**（避免「能播不能压」）以 `../architecture/ARCH_SYSTEM_OVERVIEW.md` **§3.4** 为准。
+7. **安装包标识（electron-builder）**：`media-desktop` 现用 `appId` **`com.shelfdeck.media.desktop`**、`productName` **ShelfDeck**（历史为 `com.emby.thirdparty.mvp` / `EmbyDesktopPlayer`）。若用户依赖「同 appId」覆盖安装升级，需在发版说明中交代：**appId 变更可能导致系统将其视为不同应用**；便携版用户建议迁移配置或显式停用旧快捷方式。
 

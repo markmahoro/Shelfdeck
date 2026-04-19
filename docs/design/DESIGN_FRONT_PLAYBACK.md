@@ -227,6 +227,6 @@ flowchart TD
 | `[DESIGN_CONFIG_AND_PATHS.md](./DESIGN_CONFIG_AND_PATHS.md)`                       | 配置字段与路径映射      |
 | `[DESIGN_LIBRARY_AND_QUEUE.md](./DESIGN_LIBRARY_AND_QUEUE.md)`                     | 媒体库与星级策略       |
 | `[DESIGN_TASK_CENTER.md](./DESIGN_TASK_CENTER.md)`                                 | 任务中心与删除鉴权 SSOT |
-| `[API_README.md](../api/API_README.md)` / `[openapi.yaml](../api/openapi.yaml)`    | 控制面 REST（如适用）  |
+| `[API_README.md](../api/API_README.md)` / `[openapi.yaml](../api/openapi.yaml)`    | 媒体管理服务 REST（如适用）  |
 
 
