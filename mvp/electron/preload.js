@@ -2,6 +2,17 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+/** 与 `App.tsx` 中 deriveReplaceBackupPath 一致；preload 沙盒下不可用 Node `path` 模块 */
+function deriveReplaceBackupPath(targetPath) {
+  const s = String(targetPath);
+  const norm = s.replace(/[/\\]+$/, '');
+  const i = Math.max(norm.lastIndexOf('/'), norm.lastIndexOf('\\'));
+  const dir = i >= 0 ? norm.slice(0, i) : '';
+  const base = i >= 0 ? norm.slice(i + 1) : norm;
+  const sep = s.includes('\\') && !s.includes('/') ? '\\' : '/';
+  return dir ? `${dir}${sep}${base}.etp.bak` : `${base}.etp.bak`;
+}
+
 const CP_BASE = (process.env.CONTROL_PLANE_URL || 'http://127.0.0.1:18080').replace(/\/$/, '');
 const CP_KEY = process.env.CONTROL_PLANE_API_KEY || '';
 
@@ -115,6 +126,9 @@ const embyApi = {
     cpJson('/v1/transcode/actions/cleanup-workdir', { method: 'POST', body: JSON.stringify(args) }),
   transcodeScanOrphans: (args) =>
     cpJson('/v1/transcode/actions/scan-orphans', { method: 'POST', body: JSON.stringify(args) }),
+  transcodeStatPaths: (args) =>
+    cpJson('/v1/transcode/actions/stat-paths', { method: 'POST', body: JSON.stringify(args) }),
+  transcodeDeriveReplaceBackupPath: (targetPath) => deriveReplaceBackupPath(targetPath),
   transcodeDeletePaths: (args) =>
     cpJson('/v1/transcode/actions/delete-paths', { method: 'POST', body: JSON.stringify(args) }),
   onTranscodeProgress: (listener) => {

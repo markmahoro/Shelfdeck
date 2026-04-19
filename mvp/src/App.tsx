@@ -48,6 +48,35 @@ import {
 } from './mediaManager';
 import { createDebugSeedTasks } from './debugSeed';
 
+type ReplaceBackupRow = {
+  taskId: string;
+  itemName: string;
+  targetPath: string;
+  backupPath: string;
+  backupBasename: string;
+  size: number;
+  closedAt: string;
+};
+
+function deriveReplaceBackupPath(targetPath: string): string {
+  const bridge = window.embyApi?.transcodeDeriveReplaceBackupPath;
+  if (bridge) return bridge(targetPath);
+  const norm = targetPath.replace(/[/\\]+$/, '');
+  const i = Math.max(norm.lastIndexOf('/'), norm.lastIndexOf('\\'));
+  const dir = i >= 0 ? norm.slice(0, i) : '';
+  const base = i >= 0 ? norm.slice(i + 1) : norm;
+  const sep = targetPath.includes('\\') && !targetPath.includes('/') ? '\\' : '/';
+  return dir ? `${dir}${sep}${base}.etp.bak` : `${base}.etp.bak`;
+}
+
+function formatByteSizeLabel(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(3)} GB`;
+}
+
 function applyAdvanceWithFlowLog(
   prev: MediaTask[],
   settings: TaskSchedulerSettings,
@@ -662,8 +691,16 @@ export default function App() {
   const [infoConfirmTaskId, setInfoConfirmTaskId] = useState<string | null>(null);
   const deleteFlowBusyRef = useRef<Set<string>>(new Set());
   const transcodeFlowBusyRef = useRef<Set<string>>(new Set());
-  const [transcodeOrphans, setTranscodeOrphans] = useState<{ path: string; size: number }[]>([]);
-  const [transcodeOrphanSelected, setTranscodeOrphanSelected] = useState<Set<string>>(() => new Set());
+  const taskQueueRemoteLoadOkRef = useRef(false);
+  const [replaceBackupRows, setReplaceBackupRows] = useState<ReplaceBackupRow[]>([]);
+  const [replaceBackupSelected, setReplaceBackupSelected] = useState<Set<string>>(() => new Set());
+  const [replaceBackupRefreshKey, setReplaceBackupRefreshKey] = useState(0);
+  const [tempResidueEntries, setTempResidueEntries] = useState<TranscodeOrphanEntry[]>([]);
+  const [tempResiduePhase, setTempResiduePhase] = useState<'idle' | 'loading' | 'ready'>('idle');
+  const [tempResidueEmptyKind, setTempResidueEmptyKind] = useState<
+    null | 'no_desktop' | 'no_temp_root' | 'empty' | 'scan_failed'
+  >(null);
+  const [tempResidueSelected, setTempResidueSelected] = useState<Set<string>>(() => new Set());
   const [transcodeValidateHint, setTranscodeValidateHint] = useState<string | null>(null);
   const [transcodeFlowSaveHint, setTranscodeFlowSaveHint] = useState<string | null>(null);
   const refreshLibraryManageListRef = useRef<((opts?: { quietIfIncomplete?: boolean }) => Promise<void>) | null>(null);
@@ -702,12 +739,15 @@ export default function App() {
     void loadTaskQueue()
       .then((t) => {
         setTasks(t);
+        taskQueueRemoteLoadOkRef.current = true;
         setTasksHydrated(true);
       })
       .catch((e) => {
         console.error('[taskQueue] loadTaskQueue failed', e);
+        taskQueueRemoteLoadOkRef.current = false;
         setTasks([]);
         setTasksHydrated(true);
+        setError(e instanceof Error ? e.message : String(e));
       });
   }, []);
 
@@ -743,22 +783,95 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (page !== 'taskCenter' && page !== 'config') return;
-    const root = config.transcodeTempRoot?.trim();
-    const scanOrphans = window.embyApi?.transcodeScanOrphans;
-    if (!root || !scanOrphans) {
-      setTranscodeOrphans([]);
+    if (page !== 'taskCenter' && page !== 'config') {
+      setTempResiduePhase('idle');
       return;
     }
+    const root = config.transcodeTempRoot?.trim();
+    const scanOrphans = window.embyApi?.transcodeScanOrphans;
+    if (!scanOrphans) {
+      setTempResidueEntries([]);
+      setTempResidueEmptyKind('no_desktop');
+      setTempResiduePhase('ready');
+      return;
+    }
+    if (!root) {
+      setTempResidueEntries([]);
+      setTempResidueEmptyKind('no_temp_root');
+      setTempResiduePhase('ready');
+      return;
+    }
+    setTempResidueEmptyKind(null);
+    setTempResiduePhase('loading');
     void (async () => {
       try {
         const r = await scanOrphans({ tempRoot: root });
-        setTranscodeOrphans(r.entries ?? []);
+        const entries = r.entries ?? [];
+        setTempResidueEntries(entries);
+        setTempResidueEmptyKind(entries.length === 0 ? 'empty' : null);
       } catch {
-        setTranscodeOrphans([]);
+        setTempResidueEntries([]);
+        setTempResidueEmptyKind('scan_failed');
+      } finally {
+        setTempResiduePhase('ready');
       }
     })();
   }, [page, config.transcodeTempRoot]);
+
+  useEffect(() => {
+    const ok = new Set(tempResidueEntries.map((e) => e.path));
+    setTempResidueSelected((prev) => {
+      const next = new Set([...prev].filter((p) => ok.has(p)));
+      return next.size === prev.size && [...prev].every((p) => next.has(p)) ? prev : next;
+    });
+  }, [tempResidueEntries]);
+
+  useEffect(() => {
+    if (page !== 'taskCenter' && page !== 'config') return;
+    if (!tasksHydrated) return;
+    const statPaths = window.embyApi?.transcodeStatPaths;
+    const candidates = tasks.filter(
+      (t) =>
+        t.actionType === 'transcode' &&
+        t.status === 'done' &&
+        Boolean(t.preReplaceHash) &&
+        Boolean(t.transcodeTargetPath),
+    );
+    if (!statPaths || candidates.length === 0) {
+      setReplaceBackupRows([]);
+      return;
+    }
+    void (async () => {
+      const pairs = candidates.map((t) => ({
+        task: t,
+        path: deriveReplaceBackupPath(String(t.transcodeTargetPath)),
+      }));
+      const paths = pairs.map((p) => p.path);
+      try {
+        const r = await statPaths({ paths });
+        const entries = r.entries ?? [];
+        const byPath = new Map(entries.map((e) => [e.path, e]));
+        const rows: ReplaceBackupRow[] = [];
+        for (const { task, path: bakPath } of pairs) {
+          const st = byPath.get(bakPath);
+          if (!st?.exists || !bakPath.endsWith('.etp.bak')) continue;
+          if (deriveReplaceBackupPath(String(task.transcodeTargetPath)) !== bakPath) continue;
+          rows.push({
+            taskId: task.id,
+            itemName: task.itemName,
+            targetPath: String(task.transcodeTargetPath),
+            backupPath: bakPath,
+            backupBasename: bakPath.replace(/^.*[/\\]/, ''),
+            size: typeof st.size === 'number' ? st.size : 0,
+            closedAt: task.updatedAt,
+          });
+        }
+        setReplaceBackupRows(rows);
+      } catch {
+        setReplaceBackupRows([]);
+      }
+    })();
+  }, [page, tasks, tasksHydrated, replaceBackupRefreshKey]);
 
   const taskSummary = useMemo(() => {
     const byStatus = new Map<string, number>();
@@ -914,9 +1027,36 @@ export default function App() {
     return { ...t, status: 'paused', pauseRequested: false, updatedAt: nowIso };
   }
 
-  function batchRemoveSelected() {
+  async function batchRemoveSelected() {
     const ids = batchRunSelectedIds;
     if (ids.size === 0) return;
+    const picked = tasks.filter((t) => ids.has(t.id));
+    const needCleanup = picked.filter(
+      (t) =>
+        t.actionType === 'transcode' &&
+        (t.status === 'executing' ||
+          Boolean(t.transcodePartialPath) ||
+          Boolean(t.transcodeTempDir)),
+    );
+    if (needCleanup.length > 0) {
+      const ok = window.confirm(
+        `所选 ${picked.length} 条中包含 ${needCleanup.length} 条转码任务仍有临时产物或正在执行。批量移除将尝试中止并清理临时文件，不会删除成片目录中的「替换前备份」（*.etp.bak）。是否继续？`,
+      );
+      if (!ok) return;
+      try {
+        for (const t of needCleanup) {
+          await window.embyApi?.transcodeAbort?.({ taskId: t.id });
+          const partial = t.transcodePartialPath;
+          if (partial) await window.embyApi?.transcodeDeletePaths?.({ paths: [partial] });
+          if (t.transcodeTempDir) {
+            await window.embyApi?.transcodeCleanupTaskWorkdir?.({ tempDir: t.transcodeTempDir });
+          }
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        return;
+      }
+    }
     setTasks((prev) => prev.filter((t) => !ids.has(t.id)));
     if (infoConfirmTaskId && ids.has(infoConfirmTaskId)) setInfoConfirmTaskId(null);
     setBatchRunSelectedIds((prev) => {
@@ -969,6 +1109,8 @@ export default function App() {
 
   useEffect(() => {
     if (!tasksHydrated) return;
+    const base = import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined;
+    if (base && !taskQueueRemoteLoadOkRef.current) return;
     void saveTaskQueue(tasks).catch((e) => {
       console.error('[taskQueue]', e);
     });
@@ -1899,7 +2041,31 @@ export default function App() {
     window.setTimeout(() => setEnqueueHint(null), 6000);
   }
 
-  function removeTask(taskId: string) {
+  async function removeTask(taskId: string) {
+    const target = tasks.find((x) => x.id === taskId);
+    if (!target) return;
+    const transcodeNeedsCleanup =
+      target.actionType === 'transcode' &&
+      (target.status === 'executing' ||
+        Boolean(target.transcodePartialPath) ||
+        Boolean(target.transcodeTempDir));
+    if (transcodeNeedsCleanup) {
+      const ok = window.confirm(
+        '该转码任务在临时目录中仍有产物，或正在执行。移除将尝试中止转码并清理临时文件（partial、任务临时目录等），不会删除成片目录中的「替换前备份」（*.etp.bak）。是否继续？',
+      );
+      if (!ok) return;
+      try {
+        await window.embyApi?.transcodeAbort?.({ taskId });
+        const partial = target.transcodePartialPath;
+        if (partial) await window.embyApi?.transcodeDeletePaths?.({ paths: [partial] });
+        if (target.transcodeTempDir) {
+          await window.embyApi?.transcodeCleanupTaskWorkdir?.({ tempDir: target.transcodeTempDir });
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        return;
+      }
+    }
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     if (infoConfirmTaskId === taskId) setInfoConfirmTaskId(null);
     setBatchRunSelectedIds((prev) => {
@@ -1909,8 +2075,8 @@ export default function App() {
     });
   }
 
-  function toggleTranscodeOrphanPath(p: string) {
-    setTranscodeOrphanSelected((prev) => {
+  function toggleTempResiduePath(p: string) {
+    setTempResidueSelected((prev) => {
       const next = new Set(prev);
       if (next.has(p)) next.delete(p);
       else next.add(p);
@@ -1918,21 +2084,105 @@ export default function App() {
     });
   }
 
-  async function deleteSelectedTranscodeOrphans() {
-    const paths = Array.from(transcodeOrphanSelected);
+  function toggleReplaceBackupPath(p: string) {
+    setReplaceBackupSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  }
+
+  async function deleteSelectedTempResidue() {
+    const paths = Array.from(tempResidueSelected);
     if (paths.length === 0) return;
     if (!window.embyApi?.transcodeDeletePaths) {
-      setError('孤儿文件清理仅能在 Electron 桌面版执行。');
+      setError('临时目录残留清理仅能在 Electron 桌面版执行。');
       return;
     }
     try {
       await window.embyApi.transcodeDeletePaths({ paths });
-      setTranscodeOrphanSelected(new Set());
+      setTempResidueSelected(new Set());
       const root = config.transcodeTempRoot?.trim();
       if (root && window.embyApi.transcodeScanOrphans) {
         const r = await window.embyApi.transcodeScanOrphans({ tempRoot: root });
-        setTranscodeOrphans(r.entries ?? []);
+        const entries = r.entries ?? [];
+        setTempResidueEntries(entries);
+        setTempResidueEmptyKind(entries.length === 0 ? 'empty' : null);
       }
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function deleteSelectedReplaceBackups() {
+    const api = window.embyApi;
+    if (!api?.transcodeDeletePaths) {
+      setError('删除替换前备份仅能在 Electron 桌面版执行。');
+      return;
+    }
+    const paths = Array.from(replaceBackupSelected);
+    if (paths.length === 0) return;
+    const rows = replaceBackupRows.filter((r) => paths.includes(r.backupPath));
+    if (rows.length !== paths.length) {
+      setError('备份选择已过期，请刷新列表后重试。');
+      return;
+    }
+    for (const r of rows) {
+      if (!r.backupPath.endsWith('.etp.bak')) {
+        setError('安全校验未通过：仅允许删除以 .etp.bak 结尾的备份文件。');
+        return;
+      }
+      if (deriveReplaceBackupPath(r.targetPath) !== r.backupPath) {
+        setError('安全校验未通过：备份路径与任务推导不一致。');
+        return;
+      }
+    }
+    const names = rows.map((r) => `「${r.itemName}」· ${r.backupBasename}`).join('\n');
+    if (!window.confirm(`将永久删除以下替换前备份（不可恢复）：\n${names}\n\n是否继续？`)) return;
+    try {
+      await api.transcodeDeletePaths({ paths: rows.map((r) => r.backupPath) });
+      setReplaceBackupSelected(new Set());
+      setReplaceBackupRefreshKey((k) => k + 1);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function deleteAllReplaceBackups() {
+    const api = window.embyApi;
+    if (!api?.transcodeDeletePaths) {
+      setError('删除替换前备份仅能在 Electron 桌面版执行。');
+      return;
+    }
+    const rows = replaceBackupRows;
+    if (rows.length === 0) return;
+    for (const r of rows) {
+      if (!r.backupPath.endsWith('.etp.bak') || deriveReplaceBackupPath(r.targetPath) !== r.backupPath) {
+        setError('安全校验未通过：列表含非法备份项，请刷新后重试。');
+        return;
+      }
+    }
+    const total = rows.reduce((s, r) => s + r.size, 0);
+    const summary =
+      rows.length <= 5
+        ? rows.map((r) => `「${r.itemName}」· ${r.backupBasename}`).join('、')
+        : `${rows
+            .slice(0, 4)
+            .map((r) => `「${r.itemName}」`)
+            .join('、')} 等 ${rows.length} 条`;
+    if (
+      !window.confirm(
+        `将删除当前列表中的全部 ${rows.length} 个替换前备份（合计约 ${formatByteSizeLabel(total)}）。\n${summary}\n\n是否继续？`,
+      )
+    )
+      return;
+    try {
+      await api.transcodeDeletePaths({ paths: rows.map((r) => r.backupPath) });
+      setReplaceBackupSelected(new Set());
+      setReplaceBackupRefreshKey((k) => k + 1);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -2087,7 +2337,7 @@ export default function App() {
     if (!canUserPauseTask(target)) return;
     if (target.actionType === 'transcode' && target.status === 'executing') {
       const ok = window.confirm(
-        '暂停将终止当前转码步骤（压制或替换）：进程会被结束，临时 partial 将删除，原成片不会被替换。是否继续？',
+        '暂停将终止当前转码步骤（压制或替换）：进程会被结束，临时 partial 将删除，任务临时目录将清理。此操作仅处理临时目录内产物，不会删除成片目录中的「替换前备份」（*.etp.bak），原成片不会被替换。是否继续？',
       );
       if (!ok) return;
       setError(null);
@@ -4013,7 +4263,12 @@ export default function App() {
         <button type="button" className="sidebarFullWidth" onClick={() => clearBatchRunSelection()}>
           取消全选
         </button>
-        <button type="button" className="sidebarFullWidth" onClick={() => batchRemoveSelected()} disabled={batchRunSelectedIds.size === 0}>
+        <button
+          type="button"
+          className="sidebarFullWidth"
+          onClick={() => void batchRemoveSelected()}
+          disabled={batchRunSelectedIds.size === 0}
+        >
           批量移除
         </button>
         <button type="button" className="sidebarFullWidth" onClick={() => batchPauseSelected()} disabled={batchRunSelectedIds.size === 0}>
@@ -4169,7 +4424,7 @@ export default function App() {
                         {t.status === 'waiting_media_source' ? ` · ${nextManualRefreshInfo(t.retryCount, schedulerSettings)}` : ''}
                       </div>
                       <div className="historyRowActions" style={{ flexWrap: 'wrap', gap: 8 }}>
-                        <button type="button" onClick={() => removeTask(t.id)}>
+                        <button type="button" onClick={() => void removeTask(t.id)}>
                           移除
                         </button>
                         <button type="button" onClick={() => pauseTaskRow(t.id)} disabled={!canUserPauseTask(t)}>
@@ -4201,22 +4456,68 @@ export default function App() {
                 })}
               </div>
             )}
-            <h3 style={{ marginTop: 24 }}>转码孤儿文件（安全后缀扫描）</h3>
+            <h3 style={{ marginTop: 24 }}>替换前备份</h3>
             <p className="hint" style={{ lineHeight: 1.55 }}>
-              在配置的临时根下扫描 <code>*.etp.partial</code>、<code>*.etp.new</code>、<code>*.etp.bak</code> 及{' '}
-              <code>etp-task-*</code> 子目录；不会匹配普通成片扩展名。进入本页或配置页时自动刷新。
+              列出已结案且发生过覆盖式替换的转码任务在成片同目录下的 <code>*.etp.bak</code>（若文件仍存在）。删除前会校验路径与任务推导一致；不会动临时目录。
             </p>
-            {transcodeOrphans.length === 0 ? (
-              <p className="hint">未发现孤儿文件，或尚未配置临时根 / 非桌面版。</p>
+            {replaceBackupRows.length === 0 ? (
+              <p className="hint">当前没有可展示的替换前备份（无符合条件任务、备份已删除，或非桌面版无法探测）。</p>
             ) : (
               <>
                 <div className="historyList" style={{ marginTop: 8 }}>
-                  {transcodeOrphans.map((o) => (
+                  {replaceBackupRows.map((r) => (
+                    <label key={r.backupPath} className="historyItem" style={{ cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={replaceBackupSelected.has(r.backupPath)}
+                        onChange={() => toggleReplaceBackupPath(r.backupPath)}
+                      />
+                      <span className="hint" style={{ marginLeft: 8, wordBreak: 'break-all' }}>
+                        <strong>{r.itemName}</strong> · {r.backupBasename}{' '}
+                        <span className="tabular-nums">({formatByteSizeLabel(r.size)})</span> · 结案{' '}
+                        {formatPlayedAt(r.closedAt)}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <div className="actions" style={{ marginTop: 12, gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={replaceBackupSelected.size === 0}
+                    onClick={() => void deleteSelectedReplaceBackups()}
+                  >
+                    删除所选备份
+                  </button>
+                  <button type="button" onClick={() => void deleteAllReplaceBackups()}>
+                    删除列表中全部备份
+                  </button>
+                </div>
+              </>
+            )}
+            <h3 style={{ marginTop: 24 }}>临时目录残留</h3>
+            <p className="hint" style={{ lineHeight: 1.55 }}>
+              仅在转码临时根及 <code>etp-task-*</code> 子树下扫描约定后缀（如 <code>*.etp.partial</code>、<code>*.etp.new</code> 等），不包含成片目录下的备份文件。进入本页或配置页时自动刷新。
+            </p>
+            {tempResiduePhase === 'loading' ? (
+              <p className="hint">正在扫描临时目录…</p>
+            ) : tempResidueEmptyKind === 'no_desktop' ? (
+              <p className="hint">当前环境非桌面版或未桥接控制面，无法扫描临时目录。</p>
+            ) : tempResidueEmptyKind === 'no_temp_root' ? (
+              <p className="hint">尚未在配置中填写转码临时根目录，无法扫描。</p>
+            ) : tempResidueEmptyKind === 'scan_failed' ? (
+              <p className="hint">扫描临时目录失败，请确认临时根路径有效且控制面可用。</p>
+            ) : tempResidueEntries.length === 0 ? (
+              <p className="hint">当前临时根下未发现约定后缀的残留文件。</p>
+            ) : (
+              <>
+                <div className="historyList" style={{ marginTop: 8 }}>
+                  {tempResidueEntries.map((o) => (
                     <label key={o.path} className="historyItem" style={{ cursor: 'pointer' }}>
                       <input
                         type="checkbox"
-                        checked={transcodeOrphanSelected.has(o.path)}
-                        onChange={() => toggleTranscodeOrphanPath(o.path)}
+                        checked={tempResidueSelected.has(o.path)}
+                        onChange={() => toggleTempResiduePath(o.path)}
                       />
                       <span className="hint" style={{ marginLeft: 8, wordBreak: 'break-all' }}>
                         {o.path} <span className="tabular-nums">({(o.size / (1024 * 1024)).toFixed(2)} MB)</span>
@@ -4228,10 +4529,10 @@ export default function App() {
                   <button
                     type="button"
                     className="primary"
-                    disabled={transcodeOrphanSelected.size === 0}
-                    onClick={() => void deleteSelectedTranscodeOrphans()}
+                    disabled={tempResidueSelected.size === 0}
+                    onClick={() => void deleteSelectedTempResidue()}
                   >
-                    删除所选孤儿文件
+                    删除所选残留文件
                   </button>
                 </div>
               </>

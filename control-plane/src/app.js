@@ -191,6 +191,10 @@ function registerRoutes(app, store) {
     transcodeService.scanOrphans(req.body.tempRoot),
   );
 
+  app.post('/v1/transcode/actions/stat-paths', async (req) =>
+    transcodeService.statPaths(req.body.paths ?? []),
+  );
+
   app.post('/v1/transcode/actions/delete-paths', async (req) => {
     await transcodeService.deletePaths(req.body.paths ?? []);
     return { ok: true };

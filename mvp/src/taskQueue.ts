@@ -178,14 +178,15 @@ export async function loadTaskQueue(): Promise<MediaTask[]> {
       const r = await fetch(url, { headers });
       if (!r.ok) {
         console.error('[taskQueue] control plane GET /v1/sync/task-queue failed', r.status);
-        return [];
+        throw new Error(`任务队列从控制面加载失败（HTTP ${r.status}），请确认控制面已启动。`);
       }
       const parsed = await r.json();
       if (Array.isArray(parsed)) return normalizeImportedTasks(parsed);
-      return [];
+      throw new Error('任务队列从控制面加载失败：响应格式无效。');
     } catch (e) {
+      if (e instanceof Error && e.message.startsWith('任务队列从控制面加载失败')) throw e;
       console.error('[taskQueue] control plane GET /v1/sync/task-queue unreachable', e);
-      return [];
+      throw new Error('任务队列从控制面加载失败：网络不可达或控制面未启动。');
     }
   }
   return loadTaskQueueFromLocalStorage();

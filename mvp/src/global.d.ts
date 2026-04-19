@@ -116,6 +116,8 @@ declare global {
 
   type TranscodeOrphanEntry = { path: string; size: number };
 
+  type TranscodeStatPathEntry = { path: string; exists: boolean; size: number };
+
   type TranscodeReplaceResult = {
     preReplaceHash: string;
     resultSizeBytes: number;
@@ -184,6 +186,8 @@ declare global {
       }) => Promise<TranscodeReplaceResult>;
       transcodeCleanupTaskWorkdir?: (args: { tempDir: string }) => Promise<{ ok: boolean }>;
       transcodeScanOrphans?: (args: { tempRoot: string }) => Promise<{ entries: TranscodeOrphanEntry[] }>;
+      transcodeStatPaths?: (args: { paths: string[] }) => Promise<{ entries: TranscodeStatPathEntry[] }>;
+      transcodeDeriveReplaceBackupPath?: (targetPath: string) => string;
       transcodeDeletePaths?: (args: { paths: string[] }) => Promise<{ ok: boolean }>;
       onTranscodeProgress?: (listener: (payload: { taskId: string; progress: number; line?: string }) => void) => () => void;
     };

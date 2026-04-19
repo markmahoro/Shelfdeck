@@ -673,10 +673,35 @@ async function scanOrphans(tempRoot) {
   return { entries: out };
 }
 
-async function deletePaths(paths) {
-  for (const p of paths) {
+function normalizeToArrayOfStrings(input) {
+  if (input == null) return [];
+  const raw = Array.isArray(input) ? input : [input];
+  return raw.map((x) => String(x ?? '')).filter(Boolean);
+}
+
+async function statPaths(paths) {
+  const list = normalizeToArrayOfStrings(paths);
+  const out = [];
+  for (const p of list) {
+    let exists = false;
+    let size = 0;
     try {
-      await fs.promises.unlink(String(p));
+      const st = await fs.promises.stat(p);
+      exists = true;
+      size = st.isFile() ? st.size : 0;
+    } catch {
+      /* missing or unreadable */
+    }
+    out.push({ path: p, exists, size });
+  }
+  return { entries: out };
+}
+
+async function deletePaths(paths) {
+  const list = normalizeToArrayOfStrings(paths);
+  for (const p of list) {
+    try {
+      await fs.promises.unlink(p);
     } catch {
       /* ignore */
     }
@@ -694,6 +719,7 @@ module.exports = {
   replaceWithRetries,
   cleanupTaskWorkdir,
   scanOrphans,
+  statPaths,
   deletePaths,
   parseStableKey,
   hasLibplaceboFilter,

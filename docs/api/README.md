@@ -2,6 +2,10 @@
 
 本目录存放 **控制面 HTTP API** 的机器可读契约与索引。仓库内 `**control-plane/`**（Node + Fastify）实现本契约中与 beta.9 对齐的领域路径；**Electron 桌面**通过 `preload` 的 `fetch` 调用控制面，**仅保留** `emby:launchPlayer` 等强本地 IPC（见下表「启动播放器」）。
 
+## 最近更新
+
+- **2026-04-20**：产品迭代「转码备份与临时文件清理」合入（PRD：`docs/prd/PRD_TRANSCODE_BACKUP_AND_TEMP_CLEANUP.md`）；对齐 `POST /v1/transcode/actions/stat-paths` 等与任务中心「替换前备份」「临时目录残留」相关能力；桌面 `preload` 约束见 `docs/dev/ELECTRON_PRELOAD.md`（**未**升 `mvp/package.json`）。
+
 ## 契约文件
 
 
@@ -44,7 +48,7 @@ MCP 工具应 **调用与控制面 REST 相同的领域服务**，禁止维护�
 
 ## IPC（历史）→ REST（已迁移）对照
 
-渲染进程仍经 `[mvp/electron/preload.js](../../mvp/electron/preload.js)` 暴露 `window.embyApi` / `window.doubanApi`，但 **业务调用已改为 HTTP**（默认 `CONTROL_PLANE_URL` / `VITE_CONTROL_PLANE_URL` → `http://127.0.0.1:18080`）。`[mvp/electron/main.js](../../mvp/electron/main.js)` 仅注册 `**emby:launchPlayer`** 与 `**cp-bridge-progress**`（把轮询得到的进度转发为原 `transcode:progress` / `douban:fetchProgress` 事件，减少 `App.tsx` 改动面）。
+渲染进程仍经 `[mvp/electron/preload.js](../../mvp/electron/preload.js)` 暴露 `window.embyApi` / `window.doubanApi`，但 **业务调用已改为 HTTP**（默认 `CONTROL_PLANE_URL` / `VITE_CONTROL_PLANE_URL` → `http://127.0.0.1:18080`）。`[mvp/electron/main.js](../../mvp/electron/main.js)` 仅注册 `**emby:launchPlayer`** 与 `**cp-bridge-progress`**（把轮询得到的进度转发为原 `transcode:progress` / `douban:fetchProgress` 事件，减少 `App.tsx` 改动面）。
 
 下表为 **IPC 概念 → 控制面 REST** 对照；**路径与方法以 `openapi.yaml` 为准**。
 
@@ -78,6 +82,7 @@ MCP 工具应 **调用与控制面 REST 相同的领域服务**，禁止维护�
 | `transcode:replace`             | `embyApi.transcodeReplace`            | `POST /v1/transcode/actions/replace`                                            | 产出替换                                                               |
 | `transcode:cleanupTaskWorkdir`  | `embyApi.transcodeCleanupTaskWorkdir` | `POST /v1/transcode/actions/cleanup-workdir`                                    |                                                                    |
 | `transcode:scanOrphans`         | `embyApi.transcodeScanOrphans`        | `POST /v1/transcode/actions/scan-orphans`                                       |                                                                    |
+| `transcode:statPaths`           | `embyApi.transcodeStatPaths`          | `POST /v1/transcode/actions/stat-paths`                                         | 存在性 + 文件大小（用于替换前备份列表）                                              |
 | `transcode:deletePaths`         | `embyApi.transcodeDeletePaths`        | `POST /v1/transcode/actions/delete-paths`                                       |                                                                    |
 
 

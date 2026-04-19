@@ -56,6 +56,7 @@
 | 任务中心：任务列表、状态筛选、删除/转码/洗版并发配置、执行/暂停与批量操作  | 是                                  | 部分（见下行） | 持续迭代；删除类见下行；转码类见下行；洗版类仍以占位调度为主。                  |
 | 删除类治理：入队、预检、确认、Emby 删除与验收、执行日志（flowLog） | 是（用户叙事 **v0.3**）                   | 是       | 2026-04-18 03:42:05（`v1.0.0-beta.8`）             |
 | 转码类任务：**真实** FFmpeg 压制与产出替换（非界面模拟）      | 是（用户叙事 **v0.4**；达 **v1.0** 必要条件之一） | 是       | 2026-04-19（**发版** `v1.0.0-beta.9`）               |
+| 任务中心：转码「替换前备份」（`*.etp.bak`）列表与安全删除；「临时目录残留」扫描与用户向文案；暂停/移除时的临时文件清理（PRD：`docs/prd/PRD_TRANSCODE_BACKUP_AND_TEMP_CLEANUP.md`） | 否 | 是 | 2026-04-20（UTC+8） |
 | 洗版/补源类任务：**真实** 搜种、下载与媒体替换（非占位候选）       | 是                                  | 否       | —                                                |
 | MoviePilot（或等价）补源集成                     | 否                                  | 否       | —                                                |
 | 托盘、关窗驻留、观影时降低后台负载                       | 否                                  | 否       | —                                                |
@@ -101,6 +102,7 @@
 | 2026-04-19（文档·路径映射）                     | **路径映射与配置 SSOT** 成文：`CONTROL_PLANE_OPENCLAW_REVISIT.md` **§3.4**；`docs/api/README.md`、`EmbyDesktopPlayer_PRD_v1.0.0_modules.md` **§11.2**、`PROJECT_MANAGEMENT.md` **§6** 互链；迁移计划同步（**未**升版）。   | 否        | —                                 |
 | 2026-04-19（工程·控制面）                       | **`control-plane/`** Node 服务落地：`docs/api/openapi.yaml` 对齐路径（含 `POST /v1/library/actions/*`、`/v1/sync/task-queue`、`501` launch-player）；Electron **业务走 HTTP**，主进程仅 `launchPlayer` + 进度桥接；`npm run dev` 联调文档见 `docs/api/README.md`（**未**升版）。 | **是**    | —                                 |
 | 2026-04～18（收束）                          | 原长文 PRD「附录 A」修订流水迁出；发版与文档节点由上表覆盖。**产品定义与 beta 工程落地边界**以模块化 PRD（含 **§11**）及 `TASK_CENTER_FULL_LOGIC.md` 为准。                                                                                     | 否        | —                                 |
+| 2026-04-20                     | **产品迭代**：转码「替换前备份」与「临时目录残留」清理合入（PRD：`docs/prd/PRD_TRANSCODE_BACKUP_AND_TEMP_CLEANUP.md`）；控制面 `stat-paths` 等与任务中心 UI、`mvp/electron/preload` 对齐；**preload 沙盒**避坑成文 `docs/dev/ELECTRON_PRELOAD.md`（**未**升 `mvp/package.json`）；Git 短哈希以 `git log -1 --oneline` 为准。 | 否        | —                                 |
 
 
 ---

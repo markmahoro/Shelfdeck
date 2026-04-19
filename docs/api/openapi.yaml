@@ -913,6 +913,44 @@ paths:
         default:
           $ref: '#/components/responses/ErrorResponse'
 
+  /v1/transcode/actions/stat-paths:
+    post:
+      tags: [Transcode]
+      summary: transcode:statPaths
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paths:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: 各路径存在性与大小
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        path:
+                          type: string
+                        exists:
+                          type: boolean
+                        size:
+                          type: integer
+                          format: int64
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
   /v1/transcode/actions/delete-paths:
     post:
       tags: [Transcode]
