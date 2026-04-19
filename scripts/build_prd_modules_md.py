@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Build EmbyDesktopPlayer_PRD_v1.0.0_modules.md from legacy PRD sections."""
+"""Build REQ_PRODUCT_BASELINE_v1.0.0.md from legacy PRD sections (docs/requirements/)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 # 线性版原文置于本地 archive/（不入库）；用于从旧结构再生模块化 PRD
 SRC = ROOT / "archive" / "EmbyDesktopPlayer_PRD_v1.0.0.md"
-DST = ROOT / "EmbyDesktopPlayer_PRD_v1.0.0_modules.md"
+DST = ROOT / "docs" / "requirements" / "REQ_PRODUCT_BASELINE_v1.0.0.md"
 
 
 def between(text: str, start: str, end: str | None) -> str:
@@ -140,7 +140,7 @@ def main() -> None:
 
     out = f"""# Emby Desktop Player PRD（v1.0.0 正式版 · 按模块编排）
 
-> **编排说明**：本文按 **模块 A～G** 重组旧版线性条文；**技术内容自旧版迁移，不删减**。任务调度与任务中心**交互细则**以 `TASK_CENTER_FULL_LOGIC.md` 为 SSOT。  
+> **编排说明**：本文按 **模块 A～G** 重组旧版线性条文；**技术内容自旧版迁移，不删减**。任务调度与任务中心**交互细则**以 `docs/design/DESIGN_TASK_CENTER.md` 为 SSOT。  
 > **完整修订列表**见 **附录 A**（§0 仅保留摘要）。
 
 ---
@@ -149,7 +149,7 @@ def main() -> None:
 
 - 产品名：`Emby Desktop Player`
 - 平台范围：`Windows`（v1.0.0）
-- 本文重点：`v1.0.0 正式版`能力定义与落地方案；与实现细节冲突时，**任务调度与任务中心交互**以 `TASK_CENTER_FULL_LOGIC.md` 为单一事实来源（SSOT）。
+- 本文重点：`v1.0.0 正式版`能力定义与落地方案；与实现细节冲突时，**任务调度与任务中心交互**以 `docs/design/DESIGN_TASK_CENTER.md` 为单一事实来源（SSOT）。
 - 兼容说明：文末附 `beta` 能力简述及当前开发中快照。
 - **修订摘要**：自 2026-04 起对齐五页壳层、任务中心、媒体库/豆瓣/删除 Flow、H265 等效码率等；**完整修订条目见附录 A**。
 

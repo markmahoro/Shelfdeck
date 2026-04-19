@@ -30,3 +30,7 @@ archive/EmbyDesktopPlayer_PRD.md
 archive/EmbyDesktopPlayer_PRD_v1.0.0.md
 archive/EmbyDesktopPlayer_PRD_v1.0.0_structured.md
 archive/EmbyDesktopPlayer_PRODUCT_MODULES_v1.0.0.md
+
+# 控制面运行时状态（本地队列/会话；见 docs/DOC_GOVERNANCE.md）
+control-plane/data/control-plane-state.json
+control-plane/data/douban-session.json

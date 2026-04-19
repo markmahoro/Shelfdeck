@@ -1,15 +1,23 @@
-# 归档与辅助稿
+# 归档（非现行）
 
-仓库**根目录**仅保留三份**现行**说明（其余工程/历史类 Markdown 放在本目录）：
+本目录存放**历史文档快照**，**不参与**现行需求/设计/接口真相。
 
+- **现行文档索引**：仓库根目录 `[README.md](../README.md)` → `[docs/DOC_GOVERNANCE.md](../docs/DOC_GOVERNANCE.md)`。
+- **请勿**从 `docs/`**、根 `README`、代码或 OpenAPI 中链接至本目录（治理规则见 `DOC_GOVERNANCE.md`）。
 
-| 根目录文件                                     | 作用                         |
-| ----------------------------------------- | -------------------------- |
-| `EmbyDesktopPlayer_PRD_v1.0.0_modules.md` | 产品 PRD：要做什么、怎么做（按模块 A–G）   |
-| `TASK_CENTER_FULL_LOGIC.md`               | 任务中心详细规格（主 PRD 子文档 / SSOT） |
-| `PROJECT_MANAGEMENT.md`                   | 版本锚点、用户叙事、功能点、开发过程与维护制度    |
+## legacy/（文档体系迁移）
 
 
-本目录其余文件为**历史进度、版本说明、旧开发计划**等，文件名保持原样；相对路径以「仓库根」为 `..`。可选本地-only 的 PRD 再生源稿见 `**.gitignore`** 规则。
+| 原路径                                                        | 说明                                                                                                                                                 |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `legacy/root/EmbyDesktopPlayer_PRD_v1.0.0_modules.md`      | 由 `[docs/requirements/REQ_PRODUCT_BASELINE_v1.0.0.md](../docs/requirements/REQ_PRODUCT_BASELINE_v1.0.0.md)` 替代                                     |
+| `legacy/root/TASK_CENTER_FULL_LOGIC.md`                    | 由 `[docs/design/DESIGN_TASK_CENTER.md](../docs/design/DESIGN_TASK_CENTER.md)` 替代                                                                   |
+| `legacy/root/PROJECT_MANAGEMENT.md`                        | 由 `[docs/project/PRJ_MANAGEMENT.md](../docs/project/PRJ_MANAGEMENT.md)` 替代                                                                         |
+| `legacy/root/CONTROL_PLANE_OPENCLAW_REVISIT.md`            | 由 `[docs/architecture/ARCH_SYSTEM_OVERVIEW.md](../docs/architecture/ARCH_SYSTEM_OVERVIEW.md)` 等替代                                                  |
+| `legacy/docs-prd/PRD_TRANSCODE_BACKUP_AND_TEMP_CLEANUP.md` | 由 `[docs/requirements/REQ_FEATURE_transcode-backup-and-temp-cleanup.md](../docs/requirements/REQ_FEATURE_transcode-backup-and-temp-cleanup.md)` 替代 |
+| `legacy/docs-dev/ELECTRON_PRELOAD.md`                      | 由 `[docs/dev/DEV_ELECTRON_PRELOAD.md](../docs/dev/DEV_ELECTRON_PRELOAD.md)` 替代                                                                     |
 
-**API 契约（非根目录三文件体系）**：媒体控制面目标态 REST 以 `[docs/api/openapi.yaml](../docs/api/openapi.yaml)` 为 SSOT，人读索引见 `[docs/api/README.md](../docs/api/README.md)`。与根目录三份「产品/任务/项目管理」文档并存，职责不重复：HTTP 路径与方法不在 PRD 正文展开。
+
+更细对照见 `[MANIFEST_LEGACY.md](./MANIFEST_LEGACY.md)`（可选，仅供人工审计）。
+
+本目录其余文件为历史进度/旧 PRD 稿等，保持原状。

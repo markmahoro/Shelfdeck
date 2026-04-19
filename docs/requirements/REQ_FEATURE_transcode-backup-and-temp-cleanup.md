@@ -1,4 +1,8 @@
-# 迭代 PRD：转码备份与临时文件清理（用户向）
+# REQ_FEATURE — 转码备份与临时文件清理（用户向）
+
+> **extends**: `[REQ_PRODUCT_BASELINE_v1.0.0.md](./REQ_PRODUCT_BASELINE_v1.0.0.md)`  
+> **change-type**: iterative  
+> **relates-to**: `[DESIGN_TASK_CENTER.md](../design/DESIGN_TASK_CENTER.md)` 转码 Flow；`[openapi.yaml](../api/openapi.yaml)` transcode 路径
 
 ## 1. 背景与问题
 
@@ -64,10 +68,20 @@
 
 ## 7. 文档与实现
 
-- 实现见：`mvp/src/App.tsx`、`mvp/electron/preload.js`、`mvp/electron/transcodeService.js`、`control-plane/src/services/transcodeService.js`、`control-plane/src/app.js`、API 文档 `docs/api/README.md`、`docs/api/openapi.yaml`。
-- Electron preload **沙盒**约束与排障见：`docs/dev/ELECTRON_PRELOAD.md`。
+- 任务中心转码与 replace 语义：`[DESIGN_TASK_CENTER.md](../design/DESIGN_TASK_CENTER.md)`。
+- 实现见：`mvp/src/App.tsx`、`mvp/electron/preload.js`、`mvp/electron/transcodeService.js`、`control-plane/src/services/transcodeService.js`、`control-plane/src/app.js`；API：`[API_README.md](../api/API_README.md)`、`[openapi.yaml](../api/openapi.yaml)`。
+- Electron preload **沙盒**约束与排障见：`[DEV_ELECTRON_PRELOAD.md](../dev/DEV_ELECTRON_PRELOAD.md)`。
 
 ## 8. 交付与状态
 
 - **状态**：已完成（UTC+8：**2026-04-20**）；用户验收通过。
-- **Git 锚点**：根目录 `PROJECT_MANAGEMENT.md` **§4** 对应行（提交短哈希）。
+- **Git 锚点**：`[PRJ_MANAGEMENT.md](../project/PRJ_MANAGEMENT.md)` **开发过程记录** 对应行（提交短哈希）。
+
+## 追溯与关联文档
+
+
+| 文档                                                                   | 关系           |
+| -------------------------------------------------------------------- | ------------ |
+| `[REQ_PRODUCT_BASELINE_v1.0.0.md](./REQ_PRODUCT_BASELINE_v1.0.0.md)` | 母版（extends）  |
+| `[DESIGN_TASK_CENTER.md](../design/DESIGN_TASK_CENTER.md)`           | 转码 Flow SSOT |
+| `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`                          | 全库索引         |

@@ -3280,7 +3280,7 @@ export default function App() {
             <>
               <h3>任务中心</h3>
               <p className="hint" style={{ lineHeight: 1.55 }}>
-                与 <code>TASK_CENTER_FULL_LOGIC.md</code> <strong>§7</strong> 对表：调度、各 Flow 配置集中在此页。保存将写入任务调度 JSON 与 Emby
+                与 <code>docs/design/DESIGN_TASK_CENTER.md</code> <strong>§7</strong> 对表：调度、各 Flow 配置集中在此页。保存将写入任务调度 JSON 与 Emby
                 配置中的转码路径字段；若填写了<strong>转码临时根</strong>，保存前执行 <strong>§5.8</strong> 资源池检验。
               </p>
 
@@ -4229,7 +4229,7 @@ export default function App() {
               产品定义：1–2 星表示计划从库中移除该片（低质片源不再保留）。删除走<strong>任务中心</strong>：预检 → <strong>信息确认</strong>（必须手动确认，自动模式也不会跳过）→ 调用 <strong>Emby</strong> 删除条目（库与磁盘以服务器行为为准）。
             </p>
             <p className="hint" style={{ lineHeight: 1.55 }}>
-              请点击行内「加入删除任务」，在任务中心完成确认与执行；验收以 Emby 上该条目已不存在为准。详见仓库 <code>TASK_CENTER_FULL_LOGIC.md</code> §2.3。
+              请点击行内「加入删除任务」，在任务中心完成确认与执行；验收以 Emby 上该条目已不存在为准。详见仓库 <code>docs/design/DESIGN_TASK_CENTER.md</code> §2.3。
             </p>
             <div className="actions" style={{ marginTop: 14 }}>
               <button type="button" className="primary" onClick={() => setManageDeleteExplainOpen(false)}>

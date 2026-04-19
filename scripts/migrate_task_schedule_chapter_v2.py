@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PATH = ROOT / "TASK_CENTER_FULL_LOGIC.md"
+PATH = ROOT / "docs" / "design" / "DESIGN_TASK_CENTER.md"
 
 SLIM_CH2 = """## 2. 术语与引用约定
 

@@ -3,7 +3,7 @@ info:
   title: Emby Desktop — Media Control Plane API
   description: |
     控制面 HTTP API（目标态）。与 Electron 客户端、未来 MCP 工具共用领域服务。
-    任务行为以仓库根目录 `TASK_CENTER_FULL_LOGIC.md` 为 SSOT；战略与 MCP 见 `CONTROL_PLANE_OPENCLAW_REVISIT.md`。
+    任务行为以 `docs/design/DESIGN_TASK_CENTER.md` 为 SSOT；战略与 MCP 见 `docs/architecture/ARCH_SYSTEM_OVERVIEW.md`。
   version: 0.1.0
 
 servers:
@@ -986,7 +986,7 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
-      description: 控制面 API Key（与 `CONTROL_PLANE_OPENCLAW_REVISIT.md` §2 一致）
+      description: 控制面 API Key（与 `docs/architecture/ARCH_SYSTEM_OVERVIEW.md` §2 一致）
     BearerAuth:
       type: http
       scheme: bearer

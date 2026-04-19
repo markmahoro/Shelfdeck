@@ -57,7 +57,7 @@ def main() -> None:
     header = f"""# Emby Desktop Player PRD（v1.0.0 正式版 · 结构化编排）
 
 > **与 `EmbyDesktopPlayer_PRD_v1.0.0.md` 的关系**：两文**技术条文完全等价**（未删减、未改写事实性内容）；本文件仅增加**分篇导航、阅读路线与章节分组表**，便于按主题检索。  
-> **SSOT**：任务调度与任务中心交互以 `TASK_CENTER_FULL_LOGIC.md` 为准；与 SSOT 冲突时以 SSOT 为准。
+> **SSOT**：任务调度与任务中心交互以 `docs/design/DESIGN_TASK_CENTER.md` 为准；与 SSOT 冲突时以 SSOT 为准。
 
 ## 阅读路线（建议顺序）
 
