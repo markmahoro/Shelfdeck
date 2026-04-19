@@ -3,17 +3,21 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const embyService = require('./embyService');
-const doubanService = require('./doubanService');
-const transcodeService = require('./transcodeService');
 
 const isDev = process.env.NODE_ENV === 'development';
 let mainWindow = null;
+
+/** 控制面进度经主进程转发到与旧 IPC 相同的 channel，避免改 App 订阅逻辑 */
+ipcMain.on('cp-bridge-progress', (event, channel, payload) => {
+  if (event.sender.isDestroyed()) return;
+  if (channel === 'transcode') event.sender.send('transcode:progress', payload);
+  else if (channel === 'douban') event.sender.send('douban:fetchProgress', payload);
+});
 
 function devUrlCandidates() {
   const fromEnv = process.env.VITE_DEV_SERVER_URL;
   const list = [];
   if (fromEnv) list.push(fromEnv.replace(/\/$/, ''));
-  /** 与 Vite `strictPort: false` 顺延端口一致，便于单独起 Electron 时仍能连上 */
   for (let p = 5174; p <= 5184; p += 1) {
     list.push(`http://127.0.0.1:${p}`);
   }
@@ -117,65 +121,8 @@ async function loadFirstReachableDevUrl(win) {
 }
 
 function registerIpcHandlers() {
-  console.log('[main] registerIpcHandlers cwd=', process.cwd());
-  ipcMain.handle('taskControl', async (_evt, args) => {
-    if (args && args.action === 'simulateExit') {
-      transcodeService.abortAllEncodes();
-    }
-    return;
-  });
-
-  ipcMain.handle('emby:testConnection', (_evt, payload) => embyService.testConnection(payload));
-  ipcMain.handle('emby:getUsers', (_evt, payload) => embyService.getUsers(payload));
-  ipcMain.handle('emby:getMediaFolders', (_evt, payload) => embyService.getMediaFolders(payload));
-  ipcMain.handle('emby:getUnplayedItems', (_evt, payload) => embyService.getUnplayedItems(payload));
-  ipcMain.handle('emby:getLibraryItemsForManage', (_evt, payload) => embyService.getLibraryItemsForManage(payload));
-  ipcMain.handle('emby:getPlayedItems', (_evt, payload) => embyService.getPlayedItems(payload));
+  console.log('[main] IPC: launchPlayer + cp-bridge only (业务已迁控制面)');
   ipcMain.handle('emby:launchPlayer', (_evt, payload) => embyService.launchPlayer(payload));
-  ipcMain.handle('emby:markPlayed', (_evt, payload) => embyService.markPlayed(payload));
-  ipcMain.handle('emby:markUnplayed', (_evt, payload) => embyService.markUnplayed(payload));
-  ipcMain.handle('emby:getLibraryItem', (_evt, payload) => embyService.getLibraryItem(payload));
-  ipcMain.handle('emby:getItemDeleteInfo', (_evt, payload) => embyService.getItemDeleteInfo(payload));
-  ipcMain.handle('emby:deleteLibraryItem', (_evt, payload) => embyService.deleteLibraryItem(payload));
-  ipcMain.handle('emby:libraryItemExists', (_evt, payload) => embyService.libraryItemExists(payload));
-
-  ipcMain.handle('douban:saveSession', (_evt, payload) => doubanService.saveSession(payload));
-  ipcMain.handle('douban:getSession', () => doubanService.getSession());
-  ipcMain.handle('douban:stopFetch', () => {
-    doubanService.requestStop();
-  });
-  ipcMain.handle('douban:fetchRatings', (event, opts) => doubanService.fetchRatings(event.sender, opts ?? {}));
-
-  ipcMain.handle('transcode:validateTools', (_evt, payload) =>
-    transcodeService.validateTranscodeTools(payload.config, payload.encodePool),
-  );
-  ipcMain.handle('transcode:probeEncodeDevices', (_evt, payload) =>
-    transcodeService.probeEncodeDevices(payload.config),
-  );
-  ipcMain.handle('transcode:precheck', (_evt, payload) => transcodeService.precheck(payload));
-  ipcMain.handle('transcode:startEncode', (event, payload) => transcodeService.startEncode(event.sender, payload));
-  ipcMain.handle('transcode:abort', (_evt, payload) => ({ ok: transcodeService.abortTask(payload.taskId) }));
-  ipcMain.handle('transcode:probe', (_evt, payload) => transcodeService.probeSummary(payload.config, payload.filePath));
-  ipcMain.handle('transcode:replace', (_evt, payload) =>
-    transcodeService.replaceWithRetries({
-      config: payload.config,
-      targetPath: payload.targetPath,
-      partialPath: payload.partialPath,
-    }),
-  );
-  ipcMain.handle('transcode:cleanupTaskWorkdir', async (_evt, payload) => {
-    await transcodeService.cleanupTaskWorkdir(payload.tempDir);
-    return { ok: true };
-  });
-  ipcMain.handle('transcode:scanOrphans', (_evt, payload) => transcodeService.scanOrphans(payload.tempRoot));
-  ipcMain.handle('transcode:deletePaths', async (_evt, payload) => {
-    await transcodeService.deletePaths(payload.paths ?? []);
-    return { ok: true };
-  });
-
-  console.log(
-    '[main] IPC handlers registered (incl. emby:getLibraryItem, emby:getItemDeleteInfo, emby:deleteLibraryItem, emby:libraryItemExists, transcode:*)',
-  );
 }
 
 app.whenReady().then(() => {
@@ -189,4 +136,3 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-

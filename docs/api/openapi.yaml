@@ -1,0 +1,1150 @@
+openapi: 3.0.3
+info:
+  title: Emby Desktop — Media Control Plane API
+  description: |
+    控制面 HTTP API（目标态）。与 Electron 客户端、未来 MCP 工具共用领域服务。
+    任务行为以仓库根目录 `TASK_CENTER_FULL_LOGIC.md` 为 SSOT；战略与 MCP 见 `CONTROL_PLANE_OPENCLAW_REVISIT.md`。
+  version: 0.1.0
+
+servers:
+  - url: https://localhost:8443
+    description: 本地开发（TLS 占位）
+  - url: http://127.0.0.1:18080
+    description: 本地开发（明文占位）
+
+tags:
+  - name: Health
+    description: 存活与版本
+  - name: Config
+    description: 控制面配置（服务端点、策略缓存键等）
+  - name: Library
+    description: 片库查询与 Emby 写回（与现 `emby:*` IPC 对齐）
+  - name: Revisit
+    description: 经典回顾队列（控制面 P0）
+  - name: Tasks
+    description: 治理任务入队与查询（目标态持久化；对齐任务中心 SSOT）
+  - name: Transcode
+    description: 转码工单与工具链（与现 `transcode:*` IPC 对齐）
+  - name: Integrations
+    description: 第三方集成（豆瓣等）
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
+paths:
+  /v1/health:
+    get:
+      tags: [Health]
+      summary: 健康检查
+      security: []
+      responses:
+        '200':
+          description: 服务可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /v1/config:
+    get:
+      tags: [Config]
+      summary: 获取控制面配置
+      responses:
+        '200':
+          description: 当前配置快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlPlaneConfig'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    patch:
+      tags: [Config]
+      summary: 部分更新配置
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControlPlaneConfigPatch'
+      responses:
+        '200':
+          description: 更新后的配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlPlaneConfig'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/sync/task-queue:
+    get:
+      tags: [Tasks]
+      summary: 任务中心队列快照（桌面与渲染进程 SSOT）
+      description: |
+        与任务中心 `MediaTask[]` 序列化一致；桌面 dev/prod 默认经此前缀同步，替代浏览器 `localStorage` 真相。
+      responses:
+        '200':
+          description: 任务数组
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    put:
+      tags: [Tasks]
+      summary: 覆盖写入任务队列快照
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+      responses:
+        '200':
+          description: 已持久化
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, count]
+                properties:
+                  ok:
+                    type: boolean
+                  count:
+                    type: integer
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/actions/get-item:
+    post:
+      tags: [Library]
+      summary: 单条片目详情（紧凑载荷，与现 preload 一致）
+      description: Body 含完整 `{ config, itemId }`；不依赖控制面已缓存的 `embyClient`。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Emby Item DTO
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/actions/delete-info:
+    post:
+      tags: [Library]
+      summary: 删除预检（紧凑载荷）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: 预检结果
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/actions/exists:
+    post:
+      tags: [Library]
+      summary: 片目是否仍存在（紧凑载荷）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: 存在性
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [exists]
+                properties:
+                  exists:
+                    type: boolean
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/actions/delete-item:
+    post:
+      tags: [Library]
+      summary: 删除片目（紧凑载荷）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '204':
+          description: 已删除
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/actions/mark-played:
+    post:
+      tags: [Library]
+      summary: 标记已播放（紧凑载荷）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '204':
+          description: 已更新
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/actions/mark-unplayed:
+    post:
+      tags: [Library]
+      summary: 标记未播放（紧凑载荷）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '204':
+          description: 已更新
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/emby/actions/test-connection:
+    post:
+      tags: [Library]
+      summary: 探测 Emby 连接（对等于 emby:testConnection）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbyConnectionRequest'
+      responses:
+        '200':
+          description: 探测结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbyConnectionResult'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/emby/actions/list-users:
+    post:
+      tags: [Library]
+      summary: 列出 Emby 用户（emby:getUsers）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbyConnectionRequest'
+      responses:
+        '200':
+          description: 用户列表
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/emby/actions/list-media-folders:
+    post:
+      tags: [Library]
+      summary: 列出媒体库文件夹（emby:getMediaFolders）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbyConnectionRequest'
+      responses:
+        '200':
+          description: 媒体库列表
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/queries/unplayed:
+    post:
+      tags: [Library]
+      summary: 未播放列表（emby:getUnplayedItems）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LibraryQueryRequest'
+      responses:
+        '200':
+          description: 条目列表
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/queries/manage:
+    post:
+      tags: [Library]
+      summary: 媒体库治理列表（emby:getLibraryItemsForManage）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LibraryQueryRequest'
+      responses:
+        '200':
+          description: 条目列表
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/queries/played:
+    post:
+      tags: [Library]
+      summary: 已播放列表（emby:getPlayedItems）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LibraryQueryRequest'
+      responses:
+        '200':
+          description: 条目列表
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/items/{itemId}:
+    get:
+      tags: [Library]
+      summary: 单条片目详情（emby:getLibraryItem）
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/EmbyContextQuery'
+      responses:
+        '200':
+          description: Emby Item DTO
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags: [Library]
+      summary: 删除片目（emby:deleteLibraryItem）
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/EmbyContextQuery'
+      responses:
+        '204':
+          description: 已删除
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/items/{itemId}/delete-info:
+    get:
+      tags: [Library]
+      summary: 删除预检（emby:getItemDeleteInfo）
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/EmbyContextQuery'
+      responses:
+        '200':
+          description: 预检结果
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/items/{itemId}/exists:
+    get:
+      tags: [Library]
+      summary: 片目是否仍存在（emby:libraryItemExists）
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/EmbyContextQuery'
+      responses:
+        '200':
+          description: 存在性
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [exists]
+                properties:
+                  exists:
+                    type: boolean
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/library/items/{itemId}/played:
+    post:
+      tags: [Library]
+      summary: 标记已播放（emby:markPlayed）
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/EmbyContextQuery'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '204':
+          description: 已更新
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags: [Library]
+      summary: 标记未播放（emby:markUnplayed）
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/EmbyContextQuery'
+      responses:
+        '204':
+          description: 已更新
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/client/actions/launch-player:
+    post:
+      tags: [Library]
+      summary: 启动本机第三方播放器（可选；首选仍由 Electron IPC 处理）
+      description: |
+        若控制面不部署在与用户会话同一桌面环境，此端点可不实现；客户端本地 `emby:launchPlayer` 保留。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '204':
+          description: 已触发启动
+        '501':
+          description: 服务端不支持本地起进程
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/actions/abort-all:
+    post:
+      tags: [Transcode]
+      summary: 中止所有编码任务（对等于 taskControl.simulateExit）
+      responses:
+        '204':
+          description: 已请求中止
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/revisit/entries:
+    get:
+      tags: [Revisit]
+      summary: 重温队列列表
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 条目列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RevisitEntry'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags: [Revisit]
+      summary: 加入重温队列（幂等策略由实现与产品约定）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevisitEntryCreate'
+      responses:
+        '201':
+          description: 已创建或已存在并更新元数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevisitEntry'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/revisit/entries/{entryId}:
+    delete:
+      tags: [Revisit]
+      summary: 从重温队列移除
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 已删除
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/tasks:
+    get:
+      tags: [Tasks]
+      summary: 列出治理任务
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: 任务列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GovernanceTask'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags: [Tasks]
+      summary: 入队治理任务（删除/转码/洗版等；细则见任务中心 SSOT）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GovernanceTaskCreate'
+      responses:
+        '202':
+          description: 已接受入队
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GovernanceTask'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/tasks/{taskId}:
+    get:
+      tags: [Tasks]
+      summary: 查询单条任务
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: 任务详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GovernanceTask'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/integrations/douban/session:
+    put:
+      tags: [Integrations]
+      summary: 保存豆瓣会话（douban:saveSession）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '204':
+          description: 已保存
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+    get:
+      tags: [Integrations]
+      summary: 读取豆瓣会话（douban:getSession）
+      responses:
+        '200':
+          description: 会话数据
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/integrations/douban/fetch/stop:
+    post:
+      tags: [Integrations]
+      summary: 停止拉取评分（douban:stopFetch）
+      responses:
+        '204':
+          description: 已请求停止
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/integrations/douban/fetch/ratings:
+    post:
+      tags: [Integrations]
+      summary: 拉取评分（douban:fetchRatings）；返回工单 ID 供轮询
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '202':
+          description: 异步作业已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoubanFetchJob'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/integrations/douban/fetch/jobs/{jobId}:
+    get:
+      tags: [Integrations]
+      summary: 豆瓣拉取作业状态（对等于 fetchProgress 事件聚合）
+      parameters:
+        - $ref: '#/components/parameters/TranscodeJobId'
+      responses:
+        '200':
+          description: 作业状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoubanFetchJob'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/actions/validate-tools:
+    post:
+      tags: [Transcode]
+      summary: transcode:validateTools
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranscodeToolsRequest'
+      responses:
+        '200':
+          description: 校验结果
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/actions/probe-encode-devices:
+    post:
+      tags: [Transcode]
+      summary: transcode:probeEncodeDevices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: 设备列表
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/actions/precheck:
+    post:
+      tags: [Transcode]
+      summary: transcode:precheck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: 预检结果
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/jobs:
+    post:
+      tags: [Transcode]
+      summary: 创建转码作业（transcode:startEncode）
+      description: |
+        接受后返回 `202` 与 `jobId`。进度与日志通过 `GET /v1/transcode/jobs/{jobId}` 轮询获取（对等于 IPC `transcode:progress`）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '202':
+          description: 作业已接受
+          headers:
+            Location:
+              schema:
+                type: string
+              description: /v1/transcode/jobs/{jobId}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscodeJob'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/jobs/{jobId}:
+    get:
+      tags: [Transcode]
+      summary: 查询转码作业状态与进度
+      parameters:
+        - $ref: '#/components/parameters/TranscodeJobId'
+      responses:
+        '200':
+          description: 作业状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscodeJob'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/jobs/{jobId}/actions/abort:
+    post:
+      tags: [Transcode]
+      summary: 中止作业（transcode:abort）
+      parameters:
+        - $ref: '#/components/parameters/TranscodeJobId'
+      responses:
+        '200':
+          description: 中止结果
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/actions/probe:
+    post:
+      tags: [Transcode]
+      summary: transcode:probe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: 探测摘要
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/actions/replace:
+    post:
+      tags: [Transcode]
+      summary: transcode:replace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: 替换结果
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/actions/cleanup-workdir:
+    post:
+      tags: [Transcode]
+      summary: transcode:cleanupTaskWorkdir
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tempDir:
+                  type: string
+              additionalProperties: true
+      responses:
+        '200':
+          description: 清理完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/actions/scan-orphans:
+    post:
+      tags: [Transcode]
+      summary: transcode:scanOrphans
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: 扫描结果
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/transcode/actions/delete-paths:
+    post:
+      tags: [Transcode]
+      summary: transcode:deletePaths
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paths:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: 删除完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: 控制面 API Key（与 `CONTROL_PLANE_OPENCLAW_REVISIT.md` §2 一致）
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 可选用户令牌；与 API Key 二选一或并存策略由实现定义
+
+  parameters:
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Emby ItemId
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: string
+    TranscodeJobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+    EmbyContextQuery:
+      name: embyProfileId
+      in: query
+      required: false
+      schema:
+        type: string
+      description: 选用已保存的 Emby 连接配置；若省略则需在 body 其它端点携带完整连接信息（实现可约束）
+
+  responses:
+    ErrorResponse:
+      description: 错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+
+  schemas:
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 稳定错误码（如 VALIDATION_ERROR、NOT_FOUND）
+        message:
+          type: string
+        details:
+          description: 可选结构化细节
+          oneOf:
+            - type: object
+              additionalProperties: true
+            - type: array
+              items: {}
+
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+        version:
+          type: string
+          description: 控制面构建版本
+
+    ControlPlaneConfig:
+      type: object
+      additionalProperties: true
+      description: |
+        实现定义。桌面端会 PATCH 写入 `embyClient`（与 `EmbyConnectionRequest` 对齐的快照），供 `GET /v1/library/items/{itemId}` 等 **无需重复 body** 的调用；路径映射 `pathMapFrom` / `pathMapTo`、`transcodeTempRoot` 等可与 `embyClient` 并列顶层字段。
+
+    ControlPlaneConfigPatch:
+      type: object
+      additionalProperties: true
+
+    EmbyConnectionRequest:
+      type: object
+      additionalProperties: true
+      description: 与现 `embyService` 调用载荷对齐（baseUrl、apiKey、userId 等）
+
+    EmbyConnectionResult:
+      type: object
+      additionalProperties: true
+
+    LibraryQueryRequest:
+      type: object
+      additionalProperties: true
+      description: 与现 IPC 查询参数对齐
+
+    RevisitEntry:
+      type: object
+      required: [id, userId, embyItemId, addedAt, source]
+      properties:
+        id:
+          type: string
+          description: 控制面条目 id（可与复合键不同）
+        userId:
+          type: string
+        embyItemId:
+          type: string
+        addedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          example: openclaw:wechat
+        note:
+          type: string
+
+    RevisitEntryCreate:
+      type: object
+      required: [embyItemId]
+      properties:
+        userId:
+          type: string
+        embyItemId:
+          type: string
+        source:
+          type: string
+        note:
+          type: string
+
+    GovernanceTask:
+      type: object
+      required: [id, kind, status]
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          description: delete | transcode | wash 等（以任务中心为准）
+        status:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        flowLog:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    GovernanceTaskCreate:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        confirmed:
+          type: boolean
+          description: 危险操作二次确认（见任务中心）
+
+    TranscodeJob:
+      type: object
+      required: [jobId, status]
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+          description: queued | running | succeeded | failed | aborted
+        progress:
+          type: object
+          additionalProperties: true
+          description: 对等于 IPC progress payload 聚合
+        error:
+          $ref: '#/components/schemas/ApiError'
+
+    DoubanFetchJob:
+      type: object
+      required: [jobId, status]
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+        progress:
+          type: object
+          additionalProperties: true
+
+    TranscodeToolsRequest:
+      type: object
+      required: [config, encodePool]
+      properties:
+        config:
+          type: object
+          additionalProperties: true
+        encodePool:
+          type: object
+          additionalProperties: true

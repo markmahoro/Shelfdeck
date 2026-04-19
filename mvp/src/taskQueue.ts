@@ -137,29 +137,74 @@ export function canUserPauseTask(task: MediaTask): boolean {
   return true;
 }
 
-export function loadTaskQueue(): MediaTask[] {
+function normalizeImportedTasks(parsed: unknown[]): MediaTask[] {
+  return parsed
+    .filter((x): x is MediaTask => {
+      if (!x || typeof x !== 'object') return false;
+      const t = x as MediaTask;
+      return typeof t.id === 'string' && typeof t.itemId === 'string' && typeof t.actionType === 'string';
+    })
+    .map((t) => {
+      const statusRaw = (t as { status: unknown }).status;
+      if (statusRaw === 'waiting_source') return { ...t, status: 'waiting_media_source' as TaskStatus };
+      return t;
+    });
+}
+
+function loadTaskQueueFromLocalStorage(): MediaTask[] {
   try {
     const raw = localStorage.getItem(TASK_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((x): x is MediaTask => {
-        if (!x || typeof x !== 'object') return false;
-        const t = x as MediaTask;
-        return typeof t.id === 'string' && typeof t.itemId === 'string' && typeof t.actionType === 'string';
-      })
-      .map((t) => {
-        const statusRaw = (t as { status: unknown }).status;
-        if (statusRaw === 'waiting_source') return { ...t, status: 'waiting_media_source' as TaskStatus };
-        return t;
-      });
+    return normalizeImportedTasks(parsed);
   } catch {
     return [];
   }
 }
 
-export function saveTaskQueue(tasks: MediaTask[]) {
+/**
+ * 配置 `VITE_CONTROL_PLANE_URL`（桌面 dev/prod 默认已配）时任务队列 **仅** 走控制面，与 `TASK_STORAGE_KEY` 脱钩。
+ * 纯浏览器调试（未配置 base）仍用 localStorage。
+ */
+export async function loadTaskQueue(): Promise<MediaTask[]> {
+  const base = import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined;
+  if (base) {
+    const url = `${String(base).replace(/\/$/, '')}/v1/sync/task-queue`;
+    const headers: Record<string, string> = {};
+    const k = import.meta.env.VITE_CONTROL_PLANE_API_KEY as string | undefined;
+    if (k) headers['X-API-Key'] = k;
+    try {
+      const r = await fetch(url, { headers });
+      if (!r.ok) {
+        console.error('[taskQueue] control plane GET /v1/sync/task-queue failed', r.status);
+        return [];
+      }
+      const parsed = await r.json();
+      if (Array.isArray(parsed)) return normalizeImportedTasks(parsed);
+      return [];
+    } catch (e) {
+      console.error('[taskQueue] control plane GET /v1/sync/task-queue unreachable', e);
+      return [];
+    }
+  }
+  return loadTaskQueueFromLocalStorage();
+}
+
+export async function saveTaskQueue(tasks: MediaTask[]): Promise<void> {
+  const base = import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined;
+  if (base) {
+    const url = `${String(base).replace(/\/$/, '')}/v1/sync/task-queue`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const k = import.meta.env.VITE_CONTROL_PLANE_API_KEY as string | undefined;
+    if (k) headers['X-API-Key'] = k;
+    const r = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(tasks) });
+    if (!r.ok) {
+      console.error('[taskQueue] control plane PUT /v1/sync/task-queue failed', r.status);
+      throw new Error('任务队列同步到控制面失败，请确认控制面已启动。');
+    }
+    return;
+  }
   localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(tasks));
 }
 

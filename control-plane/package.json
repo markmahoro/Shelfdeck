@@ -1,0 +1,22 @@
+{
+  "name": "emby-media-control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Media control plane (REST) for Emby Desktop Player",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test test/api-inject.test.js"
+  },
+  "dependencies": {
+    "@ffprobe-installer/ffprobe": "^2.1.2",
+    "fastify": "^5.2.1",
+    "@fastify/cors": "^10.0.2",
+    "ffmpeg-static": "^5.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

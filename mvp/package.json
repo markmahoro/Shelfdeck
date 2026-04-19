@@ -5,11 +5,12 @@
   "main": "electron/main.js",
   "scripts": {
     "dev:renderer": "vite",
-    "dev:electron": "cross-env NODE_ENV=development electron .",
+    "dev:electron": "cross-env NODE_ENV=development CONTROL_PLANE_URL=http://127.0.0.1:18080 electron .",
+    "dev:control-plane": "cd ../control-plane && npm start",
     "dev:clean-url": "node -e \"try { require('fs').unlinkSync(require('path').join(process.cwd(), '.vite-dev-server-url')); } catch (_) {}\"",
     "dev": "npm run dev:clean-url && concurrently -k \"npm run dev:renderer\" \"wait-on file:.vite-dev-server-url && node scripts/run-electron-dev.js\"",
     "build": "cross-env NODE_ENV=production vite build",
-    "start": "cross-env NODE_ENV=production electron .",
+    "start": "cross-env NODE_ENV=production CONTROL_PLANE_URL=http://127.0.0.1:18080 electron .",
     "dist:win": "npm run build && electron-builder --win portable"
   },
   "keywords": [],

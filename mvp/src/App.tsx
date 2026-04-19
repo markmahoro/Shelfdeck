@@ -23,6 +23,7 @@ import {
   waitingMediaDelayMs,
   type AdvanceTaskQueueOptions,
 } from './taskScheduler';
+import { pushEmbyClientToControlPlane } from './controlPlaneConfigSync';
 import {
   describeTranscodePoolForUser,
   mergeProbeIntoPool,
@@ -637,7 +638,8 @@ export default function App() {
   const [historySectionId, setHistorySectionId] = useState('');
   const [historyActionBusyId, setHistoryActionBusyId] = useState<string | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
-  const [tasks, setTasks] = useState<MediaTask[]>(() => loadTaskQueue());
+  const [tasks, setTasks] = useState<MediaTask[]>([]);
+  const [tasksHydrated, setTasksHydrated] = useState(false);
   const [batchRunning, setBatchRunning] = useState(false);
   const [schedulerSettings, setSchedulerSettings] = useState<TaskSchedulerSettings>(() => loadSchedulerSettings());
   const [mediaPolicy, setMediaPolicy] = useState<MediaPolicy>(() => loadMediaPolicy());
@@ -696,6 +698,23 @@ export default function App() {
 
   const configRef = useRef(config);
   configRef.current = config;
+  useEffect(() => {
+    void loadTaskQueue()
+      .then((t) => {
+        setTasks(t);
+        setTasksHydrated(true);
+      })
+      .catch((e) => {
+        console.error('[taskQueue] loadTaskQueue failed', e);
+        setTasks([]);
+        setTasksHydrated(true);
+      });
+  }, []);
+
+  useEffect(() => {
+    pushEmbyClientToControlPlane(configRef.current);
+  }, []);
+
   useEffect(() => {
     const cfg = configRef.current;
     if (!libraryManageCacheFingerprint) {
@@ -949,8 +968,11 @@ export default function App() {
   }, [infoConfirmTaskId, tasks]);
 
   useEffect(() => {
-    saveTaskQueue(tasks);
-  }, [tasks]);
+    if (!tasksHydrated) return;
+    void saveTaskQueue(tasks).catch((e) => {
+      console.error('[taskQueue]', e);
+    });
+  }, [tasks, tasksHydrated]);
 
   useEffect(() => {
     const cfg = configRef.current;
@@ -2255,6 +2277,7 @@ export default function App() {
   function saveConfig(next: EmbyConfig) {
     setConfig(next);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    pushEmbyClientToControlPlane(next);
   }
 
   async function saveEmbyPlayerPage() {
@@ -2447,7 +2470,7 @@ export default function App() {
   }
 
   function stopDoubanSync() {
-    void window.doubanApi?.stopFetch();
+    void window.doubanApi?.stopFetch?.()?.catch(() => {});
   }
 
   useEffect(() => {
