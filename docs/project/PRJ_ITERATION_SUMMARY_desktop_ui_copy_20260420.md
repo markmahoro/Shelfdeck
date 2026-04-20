@@ -5,17 +5,18 @@
 
 ## 1. 迭代目标与背景
 
-配置中心、任务中心、海报墙等界面存在工程向用语（设计文档章节号、内部枚举、英文错误码等），与普通用户心智不符。本迭代按 **`[REQ_FEATURE_desktop-ui-copy-zh.md](../requirements/REQ_FEATURE_desktop-ui-copy-zh.md)`** 与 **`[DESIGN_DESKTOP_UI_COPY.md](../design/DESIGN_DESKTOP_UI_COPY.md)`** 统一**展示层**文案与分区，不改动任务状态机与 Flow 行为 SSOT。
+配置中心、任务中心、海报墙等界面存在工程向用语（设计文档章节号、内部枚举、英文错误码等），与普通用户心智不符。本迭代按 `**[REQ_FEATURE_desktop-ui-copy-zh.md](../requirements/REQ_FEATURE_desktop-ui-copy-zh.md)`** 与 `**[DESIGN_DESKTOP_UI_COPY.md](../design/DESIGN_DESKTOP_UI_COPY.md)`** 统一**展示层**文案与分区，不改动任务状态机与 Flow 行为 SSOT。
 
 ## 2. 交付物清单
 
 
-| 类别   | 内容                                                                                                                                 |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 实现   | `media-desktop`（`App.tsx`、`taskQueue.ts`、`transcodePool.ts`、`styles.css` 等）；`media-desktop/electron/transcodeService.js` 与 `media-service/src/services/transcodeService.js` 用户向错误串对齐 |
-| 需求   | `[REQ_FEATURE_desktop-ui-copy-zh.md](../requirements/REQ_FEATURE_desktop-ui-copy-zh.md)`（状态：工程验收通过，待产品验收）                              |
-| 设计   | `[DESIGN_DESKTOP_UI_COPY.md](../design/DESIGN_DESKTOP_UI_COPY.md)`（§0 实现状态、§3 术语、§4.1 配置分区与保存心智）                                      |
-| 治理/入口 | `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`；根 `[README.md](../../README.md)`；`[PRJ_MANAGEMENT.md](./PRJ_MANAGEMENT.md)`                         |
+| 类别    | 内容                                                                                                                                                                                   |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 实现    | `media-desktop`（`App.tsx`、`taskQueue.ts`、`transcodePool.ts`、`styles.css` 等）；`media-desktop/electron/transcodeService.js` 与 `media-service/src/services/transcodeService.js` 用户向错误串对齐 |
+| 需求    | `[REQ_FEATURE_desktop-ui-copy-zh.md](../requirements/REQ_FEATURE_desktop-ui-copy-zh.md)`（状态：工程验收通过，待产品验收）                                                                            |
+| 设计    | `[DESIGN_DESKTOP_UI_COPY.md](../design/DESIGN_DESKTOP_UI_COPY.md)`（§0 实现状态、§3 术语、§4.1 配置分区与保存心智）                                                                                     |
+| 治理/入口 | `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`；根 `[README.md](../../README.md)`；`[PRJ_MANAGEMENT.md](./PRJ_MANAGEMENT.md)`                                                              |
+
 
 ## 3. 工程验收结论
 
@@ -35,7 +36,7 @@
 ## 6. 追溯
 
 
-| 文档                                         | 关系        |
-| ------------------------------------------ | --------- |
-| `[PRJ_MANAGEMENT.md](./PRJ_MANAGEMENT.md)` | 项目管理锚点与时间线 |
-| `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)` | 全库文档索引    |
+| 文档                                          | 关系         |
+| ------------------------------------------- | ---------- |
+| `[PRJ_MANAGEMENT.md](./PRJ_MANAGEMENT.md)`  | 项目管理锚点与时间线 |
+| `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)` | 全库文档索引     |

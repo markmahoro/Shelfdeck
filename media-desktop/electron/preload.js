@@ -160,5 +160,10 @@ const doubanApi = {
   },
 };
 
+const mediaService = {
+  checkHealth: () => cpJson('/v1/health'),
+};
+
 contextBridge.exposeInMainWorld('embyApi', embyApi);
 contextBridge.exposeInMainWorld('doubanApi', doubanApi);
+contextBridge.exposeInMainWorld('mediaService', mediaService);

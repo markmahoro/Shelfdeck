@@ -35,6 +35,8 @@ npm start
 
 ## 桌面（Electron + Vite）
 
+本地联调时**须先启动上一节「媒体管理服务」**（默认 `http://127.0.0.1:18080`），再启动本目录；否则桌面壳层将处于**服务不可用**态（与 `[REQ_FEATURE_desktop-requires-media-service.md](../requirements/REQ_FEATURE_desktop-requires-media-service.md)` 一致）。浏览器直连 Vite 时亦依赖同一 base URL（见下述环境变量）。
+
 ```bash
 cd media-desktop
 npm install

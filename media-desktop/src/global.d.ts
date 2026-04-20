@@ -210,5 +210,8 @@ declare global {
       }) => Promise<{ entries: DoubanRatingEntryWire[]; cancelled: boolean }>;
       onProgress: (listener: (payload: DoubanFetchProgressPayload) => void) => () => void;
     };
+    mediaService?: {
+      checkHealth: () => Promise<{ status?: string; version?: string } | null>;
+    };
   }
 }

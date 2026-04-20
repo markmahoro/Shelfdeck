@@ -103,6 +103,7 @@ MoviePilot 联动原则与结果处理、集成清单与边界见 [**ARCH_INTEGR
 
 ## 假设与依赖
 
+- **本机媒体管理服务**：桌面端壳层与业务以 **服务可达** 为前置；增量条文见 [`REQ_FEATURE_desktop-requires-media-service.md`](./REQ_FEATURE_desktop-requires-media-service.md) 与 [`DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md`](../design/DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)。
 - 用户自备 **Emby Server** 与网络可达性。
 - **Windows** 桌面环境；第三方播放器路径由用户配置。
 - **MoviePilot / 豆瓣** 等外部系统可用性受第三方约束；应用需降级提示（见 ARCH_INTEGRATIONS）。

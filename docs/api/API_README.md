@@ -2,7 +2,7 @@
 
 > **SSOT 路径**：[`API_README.md`](./API_README.md) · 文档索引 [`DOC_GOVERNANCE.md`](../DOC_GOVERNANCE.md)
 
-本目录存放 **媒体管理服务 HTTP API** 的机器可读契约与索引。仓库内 `media-service/`（Node + Fastify；历史目录名 `control-plane/`）实现本契约中与 beta.9 对齐的领域路径；**ShelfDeck 桌面客户端**通过 `preload` 的 `fetch` 调用媒体管理服务，**仅保留** `emby:launchPlayer` 等强本地 IPC（见下表「启动播放器」）。
+本目录存放 **媒体管理服务 HTTP API** 的机器可读契约与索引。仓库内 `media-service/`（Node + Fastify；历史目录名 `control-plane/`）实现本契约中与 beta.9 对齐的领域路径；**ShelfDeck 桌面客户端**通过 `preload` 的 `fetch` 调用媒体管理服务，**仅保留** `emby:launchPlayer` 等强本地 IPC（见下表「启动播放器」）。桌面启动后应以 **`GET /v1/health`**（OpenAPI `Health`、`security: []`）作为可达判据；产品与交互见 `[../design/DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](../design/DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)`。
 
 ## 最近更新
 

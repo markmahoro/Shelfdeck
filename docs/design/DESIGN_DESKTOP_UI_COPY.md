@@ -89,6 +89,7 @@
 - **海报墙自动入队等勾选说明**：仅保留业务含义，删除 §。
 - **保存与检验（用户心智）**：对用户只区分 **保存配置成功** 与 **保存配置不成功**；检验失败、写入失败、非桌面环境无法检验等，一律归为不成功，句式为 **「保存配置不成功。原因：…」**，原因须为可读中文（可将系统错误如 `spawn EFTYPE` 改写为路径/可执行文件说明）。**保存转码相关配置**在桌面版须先通过环境与资源池检验再写入；成功时可用 **「保存配置成功。」** 等短句。
 - **保存后提示**（独立「检验」按钮等）：仍可用结果导向中文；**禁止**「§5.8」类字样。
+- **呈现位置、状态拆分与自动清除**：配置中心内保存/检验反馈的**展示槽位**、**专用状态**（与全局底部横幅解耦）、**检验结果与持久化保存**分开展示、**成功提示短时效清除**等，以 `[DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md](./DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md)` 为准；本文仍约束**用户可见中文句式与禁区**。
 
 ### 4.2 任务中心 · 侧栏与任务卡片
 
@@ -135,6 +136,7 @@
 ## 5. Electron / 服务层与 UI 同源错误
 
 - 凡可能通过 `setError`、对话框等展示给用户的 `Error.message`：**中文主句** + 可选 **可操作指引**（如「请到配置中心 → 任务中心检查转码设置」）。
+- **媒体管理服务不可达**（壳层门禁、配置保存被拒绝）：须 **中文**说明须先启动或连接本机媒体管理服务，避免暗示「仅缺 Emby」；不要求用户阅读仓库路径；详见 `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](./DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)` 与 `[DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md](./DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md)` 第 8.1 节。
 - **禁止**在消息字符串中使用 `§` 或「任务中心 · 转码 Flow · §7.4」类文档定位。
 - 主要实现入口示例：`[media-desktop/electron/transcodeService.js](../../media-desktop/electron/transcodeService.js)`、`[media-desktop/src/App.tsx](../../media-desktop/src/App.tsx)` 中错误透传；与 `media-service` 同源错误字符串若也会到达桌面 UI，应同样遵守。
 
@@ -146,6 +148,8 @@
 | 区域                | 主要文件（相对 `media-desktop/`）      |
 | ----------------- | ------------------------------ |
 | 壳层与页面文案           | `src/App.tsx`                  |
+| 配置中心保存/检验反馈（呈现）   | `src/App.tsx`（与 `[DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md](./DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md)` 一致） |
+| 媒体服务可达与壳层门禁     | `src/mediaServiceHealth.ts`、`src/App.tsx`（与 `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](./DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)` 一致） |
 | 任务状态中文、日志格式化与体积摘要 | `src/taskQueue.ts`             |
 | 编码资源池用户向说明        | `src/transcodePool.ts`         |
 | 模拟任务标题            | `src/debugSeed.ts`             |

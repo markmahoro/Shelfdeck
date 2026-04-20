@@ -71,4 +71,5 @@
 | `[DESIGN_TASK_CENTER.md](../design/DESIGN_TASK_CENTER.md)`                             | 任务中心行为                        |
 | `[DESIGN_CONFIG_AND_PATHS.md](../design/DESIGN_CONFIG_AND_PATHS.md)`                   | 配置字段含义                        |
 | `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`                                            | 文档索引与升格规则                     |
+| `[REQ_FEATURE_config-center-save-feedback.md](./REQ_FEATURE_config-center-save-feedback.md)` | 后续迭代：配置中心保存/检验反馈呈现统一（**不**改变本文已交付的文案禁区与术语表 SSOT） |
 | `[scratch/FRONTEND_COPY_REVIEW_TABLE.md](../../scratch/FRONTEND_COPY_REVIEW_TABLE.md)` | 来源工作笔记（非 SSOT；以本文与 DESIGN 为准） |

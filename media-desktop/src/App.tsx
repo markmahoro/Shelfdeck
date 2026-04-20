@@ -50,6 +50,7 @@ import {
 import { createDebugSeedTasks } from './debugSeed';
 import { buildDoubanStarsByNormalizedTitle, movieDoubanStars, type DoubanRatingEntry } from './doubanUtils';
 import { MediaLibraryManageRow } from './MediaLibraryManageRow';
+import { checkMediaServiceHealth } from './mediaServiceHealth';
 
 type ReplaceBackupRow = {
   taskId: string;
@@ -252,6 +253,21 @@ type MainNavPage = AppPage;
 
 type ConfigSection = 'emby' | 'policy' | 'scheduler' | 'douban';
 
+type ConfigSaveFeedback =
+  | { kind: 'idle' }
+  | { kind: 'success'; message: string; section: ConfigSection }
+  | { kind: 'error'; message: string; section: ConfigSection };
+
+type ConfigAsyncOp =
+  | null
+  | 'emby-save'
+  | 'policy-save'
+  | 'scheduler-task-save'
+  | 'scheduler-flow-save'
+  | 'douban-save'
+  | 'transcode-probe'
+  | 'encode-device-probe';
+
 type ManageBitrateFilterKey = 'all' | 'transcode' | 'upgrade' | 'keep' | 'no_rating' | 'delete';
 type ManageResolutionFilterKey = 'all' | '1080p' | '4K';
 type ManageCodecFilterKey = 'all' | 'h264' | 'h265' | 'av1';
@@ -289,13 +305,16 @@ function AppShell({
   sidebar,
   children,
   error,
+  mediaGate,
 }: {
   page: AppPage;
   setPage: (p: AppPage) => void;
   sidebar: ReactNode;
   children: ReactNode;
   error?: string | null;
+  mediaGate: 'unknown' | 'online' | 'offline';
 }) {
+  const gateBlocking = mediaGate !== 'online';
   return (
     <div className="app appShell">
       <header className="appHeader">
@@ -313,6 +332,35 @@ function AppShell({
       {error ? (
         <div className="appErrorBanner" role="alert">
           {error}
+        </div>
+      ) : null}
+      {gateBlocking ? (
+        <div
+          className="mediaServiceGateOverlay"
+          role="alertdialog"
+          aria-live="polite"
+          aria-busy={mediaGate === 'unknown'}
+        >
+          <div className="mediaServiceGateCard">
+            {mediaGate === 'unknown' ? (
+              <>
+                <h2>正在连接媒体管理服务…</h2>
+                <p className="hint" style={{ marginTop: 10, lineHeight: 1.5 }}>
+                  请确认本机已启动 media-service；默认地址 http://127.0.0.1:18080。开发步骤见仓库内文档。
+                </p>
+              </>
+            ) : (
+              <>
+                <h2>媒体管理服务不可用</h2>
+                <p style={{ marginTop: 8, lineHeight: 1.55 }}>
+                  请先在本机启动或部署媒体管理服务后再使用本应用。
+                </p>
+                <p className="hint" style={{ marginTop: 10, lineHeight: 1.5 }}>
+                  默认地址 http://127.0.0.1:18080；启动后窗口获得焦点时将自动重试连接。
+                </p>
+              </>
+            )}
+          </div>
         </div>
       ) : null}
     </div>
@@ -722,8 +770,11 @@ export default function App() {
     null | 'no_desktop' | 'no_temp_root' | 'empty' | 'scan_failed'
   >(null);
   const [tempResidueSelected, setTempResidueSelected] = useState<Set<string>>(() => new Set());
-  const [transcodeValidateHint, setTranscodeValidateHint] = useState<string | null>(null);
-  const [transcodeFlowSaveHint, setTranscodeFlowSaveHint] = useState<string | null>(null);
+  const [configSaveFeedback, setConfigSaveFeedback] = useState<ConfigSaveFeedback>({ kind: 'idle' });
+  const [configAsyncOp, setConfigAsyncOp] = useState<ConfigAsyncOp>(null);
+  /** 「检验转码资源池」专用摘要，与持久化保存反馈（configSaveFeedback）分离 */
+  const [transcodeProbeHint, setTranscodeProbeHint] = useState<string | null>(null);
+  const configSaveSuccessTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const refreshLibraryManageListRef = useRef<((opts?: { quietIfIncomplete?: boolean }) => Promise<void>) | null>(null);
   const [taskFilter, setTaskFilter] = useState<'all' | MediaTask['status']>('all');
   const [showFlowLogTechnical, setShowFlowLogTechnical] = useState(false);
@@ -736,9 +787,69 @@ export default function App() {
   const [doubanRatingEntries, setDoubanRatingEntries] = useState<DoubanRatingEntry[]>(() => loadDoubanRatingEntries());
   const [doubanCookieDraft, setDoubanCookieDraft] = useState('');
   const [doubanUserIdDraft, setDoubanUserIdDraft] = useState('');
-  const [doubanSettingsHint, setDoubanSettingsHint] = useState<string | null>(null);
   const [doubanSyncBusy, setDoubanSyncBusy] = useState(false);
   const [doubanFetchStatus, setDoubanFetchStatus] = useState<string | null>(null);
+  const [mediaServiceReachable, setMediaServiceReachable] = useState<'unknown' | 'online' | 'offline'>('unknown');
+
+  const clearConfigSaveSuccessTimer = useCallback(() => {
+    if (configSaveSuccessTimerRef.current != null) {
+      window.clearTimeout(configSaveSuccessTimerRef.current);
+      configSaveSuccessTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleConfigSuccessClear = useCallback(() => {
+    clearConfigSaveSuccessTimer();
+    configSaveSuccessTimerRef.current = window.setTimeout(() => {
+      setConfigSaveFeedback((prev) => (prev.kind === 'success' ? { kind: 'idle' } : prev));
+      configSaveSuccessTimerRef.current = null;
+    }, 5000);
+  }, [clearConfigSaveSuccessTimer]);
+
+  useEffect(() => {
+    clearConfigSaveSuccessTimer();
+    setConfigSaveFeedback({ kind: 'idle' });
+    if (configSection !== 'scheduler') {
+      setTranscodeProbeHint(null);
+    }
+  }, [configSection, clearConfigSaveSuccessTimer]);
+
+  useEffect(() => {
+    return () => clearConfigSaveSuccessTimer();
+  }, [clearConfigSaveSuccessTimer]);
+
+  const probeMediaService = useCallback(async () => {
+    const ok = await checkMediaServiceHealth();
+    setMediaServiceReachable(ok ? 'online' : 'offline');
+  }, []);
+
+  useEffect(() => {
+    void probeMediaService();
+    const id = window.setInterval(() => void probeMediaService(), 12000);
+    const onFocus = () => void probeMediaService();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [probeMediaService]);
+
+  const ensureMediaServiceOnlineForConfigSave = useCallback(
+    (section: ConfigSection): boolean => {
+      if (mediaServiceReachable === 'online') return true;
+      setConfigSaveFeedback({
+        kind: 'error',
+        section,
+        message: formatSaveConfigFailed(
+          mediaServiceReachable === 'unknown'
+            ? '正在检测媒体管理服务，请稍候再试。'
+            : '无法连接媒体管理服务。请先在本机启动 media-service 后再保存。',
+        ),
+      });
+      return false;
+    },
+    [mediaServiceReachable],
+  );
 
   const enabledSet = useMemo(() => new Set(config.enabledSectionIds), [config.enabledSectionIds]);
   const doubanStarsByNormTitle = useMemo(
@@ -2563,44 +2674,142 @@ export default function App() {
   }
 
   async function saveEmbyPlayerPage() {
-    saveConfig(config);
-    setError(null);
-    setTranscodeValidateHint(null);
+    if (!ensureMediaServiceOnlineForConfigSave('emby')) return;
+    setConfigAsyncOp('emby-save');
+    setTranscodeProbeHint(null);
+    try {
+      try {
+        saveConfig(config);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setConfigSaveFeedback({
+          kind: 'error',
+          message: formatSaveConfigFailed(`写入本机存储失败（${msg}）`),
+          section: 'emby',
+        });
+        return;
+      }
+      setError(null);
+      setConfigSaveFeedback({ kind: 'success', message: '保存配置成功。', section: 'emby' });
+      scheduleConfigSuccessClear();
+    } finally {
+      setConfigAsyncOp(null);
+    }
   }
 
   async function validateTranscodeToolsAction() {
-    if (!window.embyApi?.transcodeValidateTools) {
-      setTranscodeValidateHint(null);
-      setTranscodeFlowSaveHint(null);
-      setError('转码工具链检验仅能在 Electron 桌面版执行。');
-      return;
-    }
-    setTranscodeValidateHint(null);
-    setTranscodeFlowSaveHint(null);
-    setError(null);
+    if (!ensureMediaServiceOnlineForConfigSave('scheduler')) return;
+    setConfigAsyncOp('transcode-probe');
     try {
-      const r = await window.embyApi.transcodeValidateTools({
-        config,
-        encodePool: schedulerSettings.transcodeEncodePool,
-      });
-      setTranscodeValidateHint(
-        `检验通过：ffmpeg=${r.ffmpeg}；ffprobe=${r.ffprobe}；入池设备=${r.inPoolCount}；libplacebo=${r.libplacebo ? '可用' : '不可用（DV 路径需此滤镜）'}`,
-      );
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(humanizeTranscodeSetupErrorMessage(msg));
+      if (!window.embyApi?.transcodeValidateTools) {
+        setTranscodeProbeHint(null);
+        setConfigSaveFeedback({
+          kind: 'error',
+          message: formatSaveConfigFailed('转码工具链检验仅能在 Electron 桌面版执行。'),
+          section: 'scheduler',
+        });
+        return;
+      }
+      setTranscodeProbeHint(null);
+      setError(null);
+      try {
+        const r = await window.embyApi.transcodeValidateTools({
+          config,
+          encodePool: schedulerSettings.transcodeEncodePool,
+        });
+        setConfigSaveFeedback({ kind: 'idle' });
+        setTranscodeProbeHint(
+          `检验通过：ffmpeg=${r.ffmpeg}；ffprobe=${r.ffprobe}；入池设备=${r.inPoolCount}；libplacebo=${r.libplacebo ? '可用' : '不可用（DV 路径需此滤镜）'}`,
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setConfigSaveFeedback({
+          kind: 'error',
+          message: formatSaveConfigFailed(msg),
+          section: 'scheduler',
+        });
+      }
+    } finally {
+      setConfigAsyncOp(null);
     }
   }
 
   function saveMediaPolicyPage() {
-    localStorage.setItem(MEDIA_POLICY_KEY, JSON.stringify(mediaPolicy));
-    setError(null);
+    if (!ensureMediaServiceOnlineForConfigSave('policy')) return;
+    setConfigAsyncOp('policy-save');
+    try {
+      try {
+        localStorage.setItem(MEDIA_POLICY_KEY, JSON.stringify(mediaPolicy));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setConfigSaveFeedback({
+          kind: 'error',
+          message: formatSaveConfigFailed(`写入本机存储失败（${msg}）`),
+          section: 'policy',
+        });
+        return;
+      }
+      setError(null);
+      setConfigSaveFeedback({ kind: 'success', message: '保存配置成功。', section: 'policy' });
+      scheduleConfigSuccessClear();
+    } finally {
+      setConfigAsyncOp(null);
+    }
   }
 
   /** §7 任务中心：持久化调度 + 转码路径与资源池；有临时根时跑 §5.8 C11 */
   async function saveTaskCenterPage() {
-    const root = config.transcodeTempRoot?.trim();
-    if (root && window.embyApi?.transcodeValidateTools) {
+    if (!ensureMediaServiceOnlineForConfigSave('scheduler')) return;
+    setConfigAsyncOp('scheduler-task-save');
+    try {
+      const root = config.transcodeTempRoot?.trim();
+      if (root && window.embyApi?.transcodeValidateTools) {
+        try {
+          await window.embyApi.transcodeValidateTools({
+            config,
+            encodePool: schedulerSettings.transcodeEncodePool,
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          setConfigSaveFeedback({ kind: 'error', message: formatSaveConfigFailed(msg), section: 'scheduler' });
+          return;
+        }
+      }
+      try {
+        localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(schedulerSettings));
+        saveConfig(config);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setConfigSaveFeedback({
+          kind: 'error',
+          message: formatSaveConfigFailed(`写入本机存储失败（${msg}）`),
+          section: 'scheduler',
+        });
+        return;
+      }
+      setError(null);
+      setConfigSaveFeedback({ kind: 'success', message: '保存配置成功。', section: 'scheduler' });
+      scheduleConfigSuccessClear();
+    } finally {
+      setConfigAsyncOp(null);
+    }
+  }
+
+  /** 仅合并写入转码 Flow 字段（§7.4）；磁盘上任务调度其它键保留为上次「保存任务中心」或默认值 */
+  async function saveTranscodeFlowPage() {
+    if (!ensureMediaServiceOnlineForConfigSave('scheduler')) return;
+    setConfigAsyncOp('scheduler-flow-save');
+    try {
+      setTranscodeProbeHint(null);
+      setError(null);
+      if (!window.embyApi?.transcodeValidateTools) {
+        setConfigSaveFeedback({
+          kind: 'error',
+          message: formatSaveConfigFailed('请在桌面版应用中使用本功能；当前环境无法完成检验，配置未写入。'),
+          section: 'scheduler',
+        });
+        return;
+      }
       try {
         await window.embyApi.transcodeValidateTools({
           config,
@@ -2608,93 +2817,83 @@ export default function App() {
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setError(formatSaveConfigFailed(msg));
-        setTranscodeValidateHint(null);
+        setConfigSaveFeedback({ kind: 'error', message: formatSaveConfigFailed(msg), section: 'scheduler' });
         return;
       }
-    }
-    try {
-      localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(schedulerSettings));
-      saveConfig(config);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(formatSaveConfigFailed(`写入本机存储失败（${msg}）`));
-      setTranscodeValidateHint(null);
-      return;
-    }
-    setError(null);
-    setTranscodeFlowSaveHint(null);
-    setTranscodeValidateHint('保存配置成功。');
-  }
 
-  /** 仅合并写入转码 Flow 字段（§7.4）；磁盘上任务调度其它键保留为上次「保存任务中心」或默认值 */
-  async function saveTranscodeFlowPage() {
-    setTranscodeFlowSaveHint(null);
-    setError(null);
-    setTranscodeValidateHint(null);
-    if (!window.embyApi?.transcodeValidateTools) {
-      setError(
-        formatSaveConfigFailed('请在桌面版应用中使用本功能；当前环境无法完成检验，配置未写入。'),
-      );
-      return;
-    }
-    try {
-      await window.embyApi.transcodeValidateTools({
-        config,
-        encodePool: schedulerSettings.transcodeEncodePool,
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(formatSaveConfigFailed(msg));
-      return;
-    }
+      const diskSchedRaw = localStorage.getItem(TASK_SCHEDULER_SETTINGS_KEY);
+      const diskSched = diskSchedRaw
+        ? normalizeSchedulerSettings(JSON.parse(diskSchedRaw) as Partial<TaskSchedulerSettings>)
+        : defaultSchedulerSettings();
+      const mergedSched: TaskSchedulerSettings = {
+        ...diskSched,
+        transcodeConcurrency: schedulerSettings.transcodeConcurrency,
+        transcodeAutoReplace: schedulerSettings.transcodeAutoReplace,
+        transcodeEncodePool: schedulerSettings.transcodeEncodePool,
+      };
 
-    const diskSchedRaw = localStorage.getItem(TASK_SCHEDULER_SETTINGS_KEY);
-    const diskSched = diskSchedRaw
-      ? normalizeSchedulerSettings(JSON.parse(diskSchedRaw) as Partial<TaskSchedulerSettings>)
-      : defaultSchedulerSettings();
-    const mergedSched: TaskSchedulerSettings = {
-      ...diskSched,
-      transcodeConcurrency: schedulerSettings.transcodeConcurrency,
-      transcodeAutoReplace: schedulerSettings.transcodeAutoReplace,
-      transcodeEncodePool: schedulerSettings.transcodeEncodePool,
-    };
+      const diskCfgRaw = localStorage.getItem(STORAGE_KEY);
+      const diskCfg = diskCfgRaw ? normalizeConfig(JSON.parse(diskCfgRaw) as Partial<EmbyConfig>) : defaultConfig;
+      const mergedCfg: EmbyConfig = {
+        ...diskCfg,
+        transcodeTempRoot: config.transcodeTempRoot,
+        ffmpegPath: config.ffmpegPath,
+        ffprobePath: config.ffprobePath,
+      };
+      try {
+        localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(mergedSched));
+        saveConfig(mergedCfg);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setConfigSaveFeedback({
+          kind: 'error',
+          message: formatSaveConfigFailed(`写入本机存储失败（${msg}）`),
+          section: 'scheduler',
+        });
+        return;
+      }
 
-    const diskCfgRaw = localStorage.getItem(STORAGE_KEY);
-    const diskCfg = diskCfgRaw ? normalizeConfig(JSON.parse(diskCfgRaw) as Partial<EmbyConfig>) : defaultConfig;
-    const mergedCfg: EmbyConfig = {
-      ...diskCfg,
-      transcodeTempRoot: config.transcodeTempRoot,
-      ffmpegPath: config.ffmpegPath,
-      ffprobePath: config.ffprobePath,
-    };
-    try {
-      localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(mergedSched));
-      saveConfig(mergedCfg);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(formatSaveConfigFailed(`写入本机存储失败（${msg}）`));
-      return;
+      setConfigSaveFeedback({ kind: 'success', message: '保存配置成功。', section: 'scheduler' });
+      scheduleConfigSuccessClear();
+    } finally {
+      setConfigAsyncOp(null);
     }
-
-    setTranscodeFlowSaveHint('保存配置成功。');
   }
 
   async function saveDoubanSessionPage() {
+    if (!ensureMediaServiceOnlineForConfigSave('douban')) return;
     if (!window.doubanApi) {
-      setError('豆瓣会话仅能在 Electron 桌面版保存（浏览器调试无此能力）。');
+      setConfigSaveFeedback({
+        kind: 'error',
+        message: formatSaveConfigFailed('豆瓣会话仅能在 Electron 桌面版保存（浏览器调试无此能力）。'),
+        section: 'douban',
+      });
       return;
     }
-    setError(null);
-    setDoubanSettingsHint(null);
+    setConfigAsyncOp('douban-save');
     try {
-      await window.doubanApi.saveSession({
-        cookieHeader: doubanCookieDraft.trim(),
-        userId: doubanUserIdDraft.trim(),
-      });
-      setDoubanSettingsHint('已写入本机应用数据目录；若填写了 Cookie，请勿分享给他人。');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(null);
+      try {
+        await window.doubanApi.saveSession({
+          cookieHeader: doubanCookieDraft.trim(),
+          userId: doubanUserIdDraft.trim(),
+        });
+        setConfigSaveFeedback({
+          kind: 'success',
+          message: '已写入本机应用数据目录；若填写了 Cookie，请勿分享给他人。',
+          section: 'douban',
+        });
+        scheduleConfigSuccessClear();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setConfigSaveFeedback({
+          kind: 'error',
+          message: formatSaveConfigFailed(msg),
+          section: 'douban',
+        });
+      }
+    } finally {
+      setConfigAsyncOp(null);
     }
   }
 
@@ -3070,9 +3269,32 @@ export default function App() {
       </>
     );
 
+    const schedulerSectionBusy =
+      configAsyncOp === 'scheduler-task-save' ||
+      configAsyncOp === 'scheduler-flow-save' ||
+      configAsyncOp === 'transcode-probe' ||
+      configAsyncOp === 'encode-device-probe';
+
     return (
-      <AppShell page={page} setPage={setPage} sidebar={configSidebar} error={error}>
+      <AppShell page={page} setPage={setPage} sidebar={configSidebar} error={error} mediaGate={mediaServiceReachable}>
         <div className="panel">
+          {configSaveFeedback.kind !== 'idle' && configSaveFeedback.section === configSection ? (
+            <div
+              role={configSaveFeedback.kind === 'error' ? 'alert' : 'status'}
+              className={
+                configSaveFeedback.kind === 'success'
+                  ? 'configFeedback configFeedbackSuccess'
+                  : 'configFeedback configFeedbackError'
+              }
+            >
+              {configSaveFeedback.message}
+            </div>
+          ) : null}
+          {configSection === 'scheduler' && transcodeProbeHint ? (
+            <div role="status" className="configFeedback configFeedbackProbe">
+              {transcodeProbeHint}
+            </div>
+          ) : null}
           {configSection === 'emby' ? (
             <>
               <h3>Emby 服务器</h3>
@@ -3228,8 +3450,13 @@ export default function App() {
               </div>
 
               <div className="actions">
-                <button type="button" className="primary" onClick={() => void saveEmbyPlayerPage()}>
-                  保存本页（Emby / 播放器 / 阈值 / 路径映射）
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={configAsyncOp === 'emby-save'}
+                  onClick={() => void saveEmbyPlayerPage()}
+                >
+                  {configAsyncOp === 'emby-save' ? '保存中…' : '保存本页（Emby / 播放器 / 阈值 / 路径映射）'}
                 </button>
               </div>
             </>
@@ -3314,8 +3541,13 @@ export default function App() {
                 ))}
               </div>
               <div className="actions">
-                <button type="button" className="primary" onClick={() => saveMediaPolicyPage()}>
-                  保存码率策略
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={configAsyncOp === 'policy-save'}
+                  onClick={() => saveMediaPolicyPage()}
+                >
+                  {configAsyncOp === 'policy-save' ? '保存中…' : '保存码率策略'}
                 </button>
               </div>
             </>
@@ -3452,13 +3684,20 @@ export default function App() {
               <div className="actions" style={{ marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
                 <button
                   type="button"
+                  disabled={schedulerSectionBusy}
                   onClick={() => {
                     void (async () => {
+                      if (!ensureMediaServiceOnlineForConfigSave('scheduler')) return;
                       if (!window.embyApi?.transcodeProbeEncodeDevices) {
-                        setError('编码设备探测仅支持 Electron 桌面版。');
+                        setConfigSaveFeedback({
+                          kind: 'error',
+                          message: formatSaveConfigFailed('编码设备探测仅支持 Electron 桌面版。'),
+                          section: 'scheduler',
+                        });
                         return;
                       }
                       setError(null);
+                      setConfigAsyncOp('encode-device-probe');
                       try {
                         const r = await window.embyApi.transcodeProbeEncodeDevices({ config });
                         setSchedulerSettings((prev) => ({
@@ -3466,12 +3705,19 @@ export default function App() {
                           transcodeEncodePool: mergeProbeIntoPool(r.devices, prev.transcodeEncodePool),
                         }));
                       } catch (e) {
-                        setError(e instanceof Error ? e.message : String(e));
+                        const msg = e instanceof Error ? e.message : String(e);
+                        setConfigSaveFeedback({
+                          kind: 'error',
+                          message: formatSaveConfigFailed(msg),
+                          section: 'scheduler',
+                        });
+                      } finally {
+                        setConfigAsyncOp(null);
                       }
                     })();
                   }}
                 >
-                  刷新编码设备探测
+                  {configAsyncOp === 'encode-device-probe' ? '探测中…' : '刷新编码设备探测'}
                 </button>
                 <button
                   type="button"
@@ -3604,23 +3850,18 @@ export default function App() {
                 </table>
               </div>
               <div className="actions" style={{ marginTop: 14 }}>
-                <button type="button" className="primary" onClick={() => void saveTranscodeFlowPage()}>
-                  保存转码相关配置
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={schedulerSectionBusy}
+                  onClick={() => void saveTranscodeFlowPage()}
+                >
+                  {configAsyncOp === 'scheduler-flow-save' ? '保存中…' : '保存转码相关配置'}
                 </button>
               </div>
               <p className="hint" style={{ marginTop: 12, lineHeight: 1.55, whiteSpace: 'pre-line' }}>
                 {describeTranscodePoolForUser(schedulerSettings.transcodeEncodePool)}
               </p>
-              {transcodeFlowSaveHint ? (
-                <p className="hint" style={{ color: '#86efac', marginTop: 10, whiteSpace: 'pre-line' }}>
-                  {transcodeFlowSaveHint}
-                </p>
-              ) : null}
-              {transcodeValidateHint ? (
-                <p className="hint" style={{ color: '#86efac', marginTop: 10, whiteSpace: 'pre-line' }}>
-                  {transcodeValidateHint}
-                </p>
-              ) : null}
 
               <h3 className="configSubSectionTitle" style={{ marginTop: 28 }}>
                 洗版
@@ -3723,11 +3964,16 @@ export default function App() {
               </div>
 
               <div className="actions" style={{ marginTop: 20 }}>
-                <button type="button" className="primary" onClick={() => void saveTaskCenterPage()}>
-                  保存任务中心
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={schedulerSectionBusy}
+                  onClick={() => void saveTaskCenterPage()}
+                >
+                  {configAsyncOp === 'scheduler-task-save' ? '保存中…' : '保存任务中心'}
                 </button>
-                <button type="button" onClick={() => void validateTranscodeToolsAction()}>
-                  检验转码资源池
+                <button type="button" disabled={schedulerSectionBusy} onClick={() => void validateTranscodeToolsAction()}>
+                  {configAsyncOp === 'transcode-probe' ? '检验中…' : '检验转码资源池'}
                 </button>
               </div>
             </>
@@ -3739,11 +3985,6 @@ export default function App() {
               <p className="hint" style={{ lineHeight: 1.55 }}>
                 从豆瓣电影「看过」公开列表（仅电影、按时间排序）解析个人星标，写入本机后与媒体库中的<strong>电影</strong>片名匹配。同步与<strong>本地缓存合并</strong>；平时增量翻页，约每14 天自动全量一次。一般<strong>只需填写用户 ID</strong>即可；自动化访问可能违反豆瓣服务条款，请自担风险，翻页间隔约 0.8 秒。
               </p>
-              {doubanSettingsHint ? (
-                <p className="hint" style={{ color: '#86efac' }}>
-                  {doubanSettingsHint}
-                </p>
-              ) : null}
               <div className="field" style={{ marginTop: 16 }}>
                 <div className="label">豆瓣用户 ID（电影「看过」页 URL 中 people/ 与 /collect 之间）</div>
                 <input
@@ -3776,10 +4017,10 @@ export default function App() {
                 <button
                   type="button"
                   className="primary"
-                  disabled={!window.doubanApi}
+                  disabled={!window.doubanApi || configAsyncOp === 'douban-save'}
                   onClick={() => void saveDoubanSessionPage()}
                 >
-                  保存豆瓣会话到本机
+                  {configAsyncOp === 'douban-save' ? '保存中…' : '保存豆瓣会话到本机'}
                 </button>
               </div>
               {!window.doubanApi ? (
@@ -3848,7 +4089,7 @@ export default function App() {
     const canReplay = !!config.playerExePath.trim();
 
     return (
-      <AppShell page={page} setPage={setPage} sidebar={historySidebar} error={error}>
+      <AppShell page={page} setPage={setPage} sidebar={historySidebar} error={error} mediaGate={mediaServiceReachable}>
         <div className="panel">
           <div className="hint" style={{ marginBottom: 8 }}>
             展示当前 Emby 用户在已选媒体库中的已播放影片/剧集；可与服务器同步观看状态。「重新播放」需配置播放器路径。
@@ -4175,7 +4416,7 @@ export default function App() {
 
     return (
       <>
-      <AppShell page={page} setPage={setPage} sidebar={mediaSidebar} error={error}>
+      <AppShell page={page} setPage={setPage} sidebar={mediaSidebar} error={error} mediaGate={mediaServiceReachable}>
         <div className="panel">
           <div className="hint">
             转码、洗版与删除任务在任务中心操作。当前任务池：共 {taskSummary.total} 条，排队 {taskSummary.queued}，执行中 {taskSummary.running}。
@@ -4399,7 +4640,7 @@ export default function App() {
 
     return (
       <>
-        <AppShell page={page} setPage={setPage} sidebar={taskSidebar} error={error}>
+        <AppShell page={page} setPage={setPage} sidebar={taskSidebar} error={error} mediaGate={mediaServiceReachable}>
           <div className="panel">
             <h3>任务状态</h3>
             <p className="hint">
@@ -4785,7 +5026,7 @@ export default function App() {
 
   return (
     <>
-      <AppShell page={page} setPage={setPage} sidebar={wallSidebar} error={error}>
+      <AppShell page={page} setPage={setPage} sidebar={wallSidebar} error={error} mediaGate={mediaServiceReachable}>
         <div className="panel">
           <div className="hint">键盘：方向键移动焦点，Enter 播放，R 刷新，Esc 取消焦点</div>
           {items.length === 0 ? (

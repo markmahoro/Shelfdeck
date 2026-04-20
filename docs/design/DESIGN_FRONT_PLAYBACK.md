@@ -4,6 +4,8 @@
 
 本文档描述 **五页信息架构**、**未播放海报墙**、**播放记录页**及 **前台播放闭环**（配置、路径映射、回写、Emby API 最小集）。媒体库治理与星级策略见 `[DESIGN_LIBRARY_AND_QUEUE.md](./DESIGN_LIBRARY_AND_QUEUE.md)`；任务中心行为见 `[DESIGN_TASK_CENTER.md](./DESIGN_TASK_CENTER.md)`。
 
+**依赖**：五页壳层交互以 **媒体管理服务可达** 为前置（健康检查与门禁见 `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](./DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)`）；与 Emby 服务器是否在线相互独立。
+
 ---
 
 ## 1. 壳层与信息架构

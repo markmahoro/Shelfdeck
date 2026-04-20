@@ -63,6 +63,7 @@
 ### 3.1 前端（Electron）
 
 - **保留**：现有信息架构能力（配置、海报墙、媒体库管理、任务中心、播放记录等）的 **界面与交互**。
+- **可用性前提（产品一致口径）**：五页壳层业务体验以 **媒体管理服务可达** 为前提（`GET /v1/health`，详见 `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](../design/DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)` / `[REQ_FEATURE_desktop-requires-media-service.md](../requirements/REQ_FEATURE_desktop-requires-media-service.md)`）；与「渐进迁移 IPC→REST」不冲突——现迭代收紧的是 **用户何时可依赖本应用**，而非单条 API 归属。
 - **演进**：将「任务持久化、调度决策、转码执行」从 **渲染进程 + IPC** 逐步迁移为 **调用媒体管理服务 API**；本机 IPC 收缩为 **播放相关**（`launchPlayer`、可选本地探测等）——**路径映射规则的权威在媒体管理服务**，见 **§3.4**。
 - **经典回顾 Tab/页**：消费后端 `GET /revisit`（或等价）列表；与「未看」数据源解耦。
 
