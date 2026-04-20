@@ -14,6 +14,7 @@
 | 前台观影闭环 | `docs/design/DESIGN_FRONT_PLAYBACK.md` | 信息架构（五页）、海报墙/播放记录、配置与回写闭环、前台 API 清单 |
 | 外部集成 | `docs/architecture/ARCH_INTEGRATIONS.md` | MoviePilot/补源、外部服务边界与依赖（不含任务中心 Flow） |
 | 系统架构 | `docs/architecture/ARCH_SYSTEM_OVERVIEW.md` | 上下文、组件、路径/配置 SSOT 原则 |
+| 媒体管理服务托盘监督（Windows） | `docs/requirements/REQ_FEATURE_windows-tray-media-service-supervisor.md` · `docs/architecture/ARCH_TRAY_MEDIA_SERVICE_SUPERVISOR.md` · `docs/design/DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md` · `docs/user/USER_GUIDE_TRAY_MEDIA_SERVICE.md` · `docs/operations/OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md` · `docs/testing/TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md` | 托盘父进程 spawn、健康探测、生命周期；实现目录 `media-tray-supervisor/` |
 | 部署架构 | `docs/architecture/ARCH_DEPLOYMENT.md` | 部署拓扑、Windows/fnOS 等 |
 | 架构决策 | `docs/architecture/adr/ADR_NNN_*.md` | 单条 ADR |
 | 任务中心规格 | `docs/design/DESIGN_TASK_CENTER.md` | 任务状态机、Flow、验收（行为 SSOT） |
@@ -37,6 +38,7 @@
 |------|----------------------|-----------|---------------------|
 | 桌面端（Electron + UI） | **桌面客户端** | `media-desktop` | **`shelfdeck-media-desktop`** |
 | 后端（Node 服务） | **媒体管理服务** | `media-service` | **`shelfdeck-media-service`** |
+| 托盘监督（Windows） | **媒体管理服务托盘监督** | `media-tray-supervisor` | **`shelfdeck-media-tray-supervisor`** |
 
 **叙述用语**：原「媒体控制面」在现行文档中统一为 **媒体管理服务**；环境变量名仍可使用历史名称（如 `CONTROL_PLANE_URL`），与 `MEDIA_SERVICE_URL` / `VITE_MEDIA_SERVICE_URL` **同义**（若同时设置，以实现代码中的优先级为准）。OpenAPI、REST、URL 等技术词保留。
 

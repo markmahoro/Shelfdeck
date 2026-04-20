@@ -12,5 +12,6 @@ Windows 桌面端 Emby 客户端：第三方播放器观影回写、媒体库治
 
 - **`media-desktop/`**：Electron + Vite/React **桌面客户端**
 - **`media-service/`**：**媒体管理服务** HTTP 服务（Node/Fastify；历史目录名 `control-plane/`）
+- **`media-tray-supervisor/`**（Windows）：系统托盘监督进程，用于启动/停止本机 `media-service`（见 [docs/operations/OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md](docs/operations/OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md)）
 
 本地开发步骤见 [docs/dev/DEV_SETUP.md](docs/dev/DEV_SETUP.md)；API 与 IPC 对照见 [docs/api/API_README.md](docs/api/API_README.md)。

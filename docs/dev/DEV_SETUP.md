@@ -19,6 +19,18 @@ npm start
 
 默认监听 **18080**（见 `media-service` 源码与 `[API_README.md](../api/API_README.md)`）。
 
+## 媒体管理服务托盘监督（Windows）
+
+独立 Electron 托盘进程，用于在本机 **启动 / 停止 / 重启** `media-service` 并显示健康状态。联调步骤与变量见 [`OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md`](../operations/OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md)；行为见 [`DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md`](../design/DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md)。
+
+```bash
+cd media-tray-supervisor
+npm install
+npm start
+```
+
+可选：设置 `TRAY_MEDIA_SERVICE_ROOT` 为 `media-service` 目录绝对路径（未设置时默认使用与 `media-tray-supervisor` 同级的 `../media-service`）。
+
 ## 桌面（Electron + Vite）
 
 ```bash
@@ -50,4 +62,5 @@ npm test
 |------|------|
 | [`API_README.md`](../api/API_README.md) | IPC→REST、联调约定 |
 | [`ARCH_SYSTEM_OVERVIEW.md`](../architecture/ARCH_SYSTEM_OVERVIEW.md) | 媒体管理服务与客户端分工 |
+| [`OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md`](../operations/OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md) | 托盘监督安装与联调 |
 | [`REQ_PRODUCT_BASELINE_v1.0.0.md`](../requirements/REQ_PRODUCT_BASELINE_v1.0.0.md) | 需求母版 |
