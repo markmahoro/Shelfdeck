@@ -39,12 +39,39 @@ body { margin: 0; background: #111827; color: #e5e7eb; }
   letter-spacing: 0.02em;
 }
 
+.appHeaderRight {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.mediaServiceLinkDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.mediaServiceLinkDot--unknown {
+  background: #ca8a04;
+}
+
+.mediaServiceLinkDot--online {
+  background: #22c55e;
+}
+
+.mediaServiceLinkDot--offline {
+  background: #ef4444;
+}
+
 .topNav {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   justify-content: flex-end;
-  margin-left: auto;
 }
 
 .navTab {

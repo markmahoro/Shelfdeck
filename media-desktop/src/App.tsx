@@ -51,6 +51,7 @@ import { createDebugSeedTasks } from './debugSeed';
 import { buildDoubanStarsByNormalizedTitle, movieDoubanStars, type DoubanRatingEntry } from './doubanUtils';
 import { MediaLibraryManageRow } from './MediaLibraryManageRow';
 import { checkMediaServiceHealth } from './mediaServiceHealth';
+import { getRendererMediaServiceBaseUrl } from './cpBase';
 
 type ReplaceBackupRow = {
   taskId: string;
@@ -299,6 +300,23 @@ function TopNav({ page, setPage }: { page: AppPage; setPage: (p: AppPage) => voi
   );
 }
 
+function MediaServiceLinkIndicator({ mediaGate }: { mediaGate: 'unknown' | 'online' | 'offline' }) {
+  const title =
+    mediaGate === 'online'
+      ? '媒体管理服务连接正常'
+      : mediaGate === 'unknown'
+        ? '正在检测媒体管理服务…请到任务栏 ShelfDeck 小助手检查连接或启动服务'
+        : '无法连接媒体管理服务。请到任务栏 ShelfDeck 小助手填写或检查服务器地址，或启动本机服务';
+  return (
+    <span
+      className={`mediaServiceLinkDot mediaServiceLinkDot--${mediaGate}`}
+      title={title}
+      role="img"
+      aria-label={title}
+    />
+  );
+}
+
 function AppShell({
   page,
   setPage,
@@ -321,7 +339,10 @@ function AppShell({
         <div className="appHeaderLeft">
           <div className="appTitle">Emby Desktop Player</div>
         </div>
-        <TopNav page={page} setPage={setPage} />
+        <div className="appHeaderRight">
+          <TopNav page={page} setPage={setPage} />
+          <MediaServiceLinkIndicator mediaGate={mediaGate} />
+        </div>
       </header>
       <div className="appBody">
         <aside className="pageSidebar">{sidebar}</aside>
@@ -346,17 +367,17 @@ function AppShell({
               <>
                 <h2>正在连接媒体管理服务…</h2>
                 <p className="hint" style={{ marginTop: 10, lineHeight: 1.5 }}>
-                  请确认本机已启动 media-service；默认地址 http://127.0.0.1:18080。开发步骤见仓库内文档。
+                  请打开任务栏中的 ShelfDeck 小助手，在其中填写或检查媒体管理服务地址，或启动本机后端。连接成功后再回到此处配置 Emby、任务等。
                 </p>
               </>
             ) : (
               <>
                 <h2>媒体管理服务不可用</h2>
                 <p style={{ marginTop: 8, lineHeight: 1.55 }}>
-                  请先在本机启动或部署媒体管理服务后再使用本应用。
+                  无法连接媒体管理服务。请打开任务栏中的 ShelfDeck 小助手，检查服务器地址是否正确，或在本机启动后端（若适用）；也可检查网络。
                 </p>
                 <p className="hint" style={{ marginTop: 10, lineHeight: 1.5 }}>
-                  默认地址 http://127.0.0.1:18080；启动后窗口获得焦点时将自动重试连接。
+                  桌面端不提供媒体管理服务地址修改入口；窗口获得焦点时将自动重试连接。
                 </p>
               </>
             )}
@@ -834,6 +855,23 @@ export default function App() {
     };
   }, [probeMediaService]);
 
+  useEffect(() => {
+    const w = window as Window & {
+      shelfdeckMedia?: { onConnectionUpdated?: (cb: () => void) => () => void };
+    };
+    if (!w.shelfdeckMedia?.onConnectionUpdated) return undefined;
+    const off = w.shelfdeckMedia.onConnectionUpdated(() => {
+      void probeMediaService();
+      void loadTaskQueue()
+        .then((t) => {
+          setTasks(t);
+          taskQueueRemoteLoadOkRef.current = true;
+        })
+        .catch((e) => console.error('[taskQueue] reload after connection change', e));
+    });
+    return off;
+  }, [probeMediaService]);
+
   const ensureMediaServiceOnlineForConfigSave = useCallback(
     (section: ConfigSection): boolean => {
       if (mediaServiceReachable === 'online') return true;
@@ -843,7 +881,7 @@ export default function App() {
         message: formatSaveConfigFailed(
           mediaServiceReachable === 'unknown'
             ? '正在检测媒体管理服务，请稍候再试。'
-            : '无法连接媒体管理服务。请先在本机启动 media-service 后再保存。',
+            : '无法连接媒体管理服务。请打开任务栏 ShelfDeck 小助手检查服务器地址或启动服务后再保存。',
         ),
       });
       return false;
@@ -1242,7 +1280,7 @@ export default function App() {
 
   useEffect(() => {
     if (!tasksHydrated) return;
-    const base = import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined;
+    const base = getRendererMediaServiceBaseUrl();
     if (base && !taskQueueRemoteLoadOkRef.current) return;
     void saveTaskQueue(tasks).catch((e) => {
       console.error('[taskQueue]', e);

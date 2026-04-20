@@ -19,6 +19,14 @@
 
 ---
 
+## 配置归属原则（摘要）
+
+- **谁消费、谁持有（客户端侧）**：仅被 **小助手** 使用的选项（如开机自启、退出是否停本机服务）放在 **小助手** 自己的设置存储；仅 **桌面** 使用的 UI 缓存等放在 **桌面**（如 `localStorage`）。  
+- **多方共用（桌面 + 媒体管理服务 + 可选 MCP）**：业务真相在 **媒体管理服务** 持久化（如 `controlPlaneConfig`、任务队列等），见 `ARCH_SYSTEM_OVERVIEW`。  
+- **「如何连上媒体管理服务」**：属于 **客户端拨号元信息**，**不**写入 `media-service` 自有数据文件；由 **小助手** 写入共享连接文件、**桌面只读**（`DESIGN_DESKTOP_BACKEND_ENDPOINT`）。
+
+---
+
 ## ShelfDeck 媒体管理服务 HTTP 基址（非 Emby；持久化由小助手维护）
 
 与 Emby Server 的 `baseUrl` **无关**；本条为 **ShelfDeck 媒体管理服务** HTTP 基址，供桌面壳层、`preload` 与渲染进程调用 `GET /v1/health` 及后续 REST。

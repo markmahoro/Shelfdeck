@@ -2,10 +2,14 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const { spawn } = require('child_process');
 const embyService = require('./embyService');
+const shelfdeckConnection = require('./shelfdeckConnection');
 
 const isDev = process.env.NODE_ENV === 'development';
 let mainWindow = null;
+/** @type {fs.FSWatcher | null} */
+let connectionWatcher = null;
 
 /** 媒体管理服务进度经主进程转发到与旧 IPC 相同的 channel，避免改 App 订阅逻辑 */
 ipcMain.on('cp-bridge-progress', (event, channel, payload) => {
@@ -13,6 +17,57 @@ ipcMain.on('cp-bridge-progress', (event, channel, payload) => {
   if (channel === 'transcode') event.sender.send('transcode:progress', payload);
   else if (channel === 'douban') event.sender.send('douban:fetchProgress', payload);
 });
+
+ipcMain.on('cp:get-effective', (event) => {
+  event.returnValue = shelfdeckConnection.resolveEffectiveConnection(process.env);
+});
+
+function broadcastConnectionUpdated() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('cp:updated');
+  }
+}
+
+function watchConnectionFile() {
+  if (connectionWatcher) {
+    try {
+      connectionWatcher.close();
+    } catch (_) {}
+    connectionWatcher = null;
+  }
+  const dir = path.dirname(shelfdeckConnection.getConnectionFilePath());
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (_) {}
+  let t = null;
+  const fire = () => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => {
+      t = null;
+      broadcastConnectionUpdated();
+    }, 200);
+  };
+  try {
+    connectionWatcher = fs.watch(dir, fire);
+  } catch (_) {
+    /* 目录尚不存在等 */
+  }
+}
+
+function maybeLaunchTrayCompanion() {
+  if (process.platform !== 'win32') return;
+  const trayDir = process.env.SHELFDESK_TRAY_DIR || path.join(__dirname, '..', '..', 'media-tray-supervisor');
+  const pkg = path.join(trayDir, 'package.json');
+  if (!fs.existsSync(pkg)) return;
+  const electronExe = process.execPath;
+  const child = spawn(electronExe, ['.'], {
+    cwd: trayDir,
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  child.unref();
+}
 
 function devUrlCandidates() {
   const fromEnv = process.env.VITE_DEV_SERVER_URL;
@@ -121,12 +176,13 @@ async function loadFirstReachableDevUrl(win) {
 }
 
 function registerIpcHandlers() {
-  console.log('[main] IPC: launchPlayer + cp-bridge only (业务已迁媒体管理服务)');
   ipcMain.handle('emby:launchPlayer', (_evt, payload) => embyService.launchPlayer(payload));
 }
 
 app.whenReady().then(() => {
   registerIpcHandlers();
+  watchConnectionFile();
+  maybeLaunchTrayCompanion();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

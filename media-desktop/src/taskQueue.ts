@@ -1,3 +1,5 @@
+import { getRendererMediaServiceApiKey, getRendererMediaServiceBaseUrl } from './cpBase';
+
 const TASK_STORAGE_KEY = 'embyDesktopPlayerTaskQueueV1';
 
 export type TaskActionType = 'delete' | 'transcode' | 'upgrade';
@@ -172,19 +174,15 @@ function loadTaskQueueFromLocalStorage(): MediaTask[] {
 }
 
 /**
- * 配置 `VITE_MEDIA_SERVICE_URL` 或 `VITE_CONTROL_PLANE_URL`（桌面 dev/prod 默认已配其一）时任务队列 **仅** 走媒体管理服务，与 `TASK_STORAGE_KEY` 脱钩。
+ * Electron 下以主进程解析的 effectiveBaseUrl（连接文件 + 环境变量优先级，见 DESIGN_DESKTOP_BACKEND_ENDPOINT）为准；纯浏览器调试时可用 Vite 环境变量。配置后任务队列 **仅** 走媒体管理服务，与 `TASK_STORAGE_KEY` 脱钩。
  * 纯浏览器调试（未配置 base）仍用 localStorage。
  */
 export async function loadTaskQueue(): Promise<MediaTask[]> {
-  const base = (import.meta.env.VITE_MEDIA_SERVICE_URL || import.meta.env.VITE_CONTROL_PLANE_URL) as
-    | string
-    | undefined;
+  const base = getRendererMediaServiceBaseUrl();
   if (base) {
     const url = `${String(base).replace(/\/$/, '')}/v1/sync/task-queue`;
     const headers: Record<string, string> = {};
-    const k = (import.meta.env.VITE_MEDIA_SERVICE_API_KEY || import.meta.env.VITE_CONTROL_PLANE_API_KEY) as
-      | string
-      | undefined;
+    const k = getRendererMediaServiceApiKey();
     if (k) headers['X-API-Key'] = k;
     try {
       const r = await fetch(url, { headers });
@@ -205,15 +203,11 @@ export async function loadTaskQueue(): Promise<MediaTask[]> {
 }
 
 export async function saveTaskQueue(tasks: MediaTask[]): Promise<void> {
-  const base = (import.meta.env.VITE_MEDIA_SERVICE_URL || import.meta.env.VITE_CONTROL_PLANE_URL) as
-    | string
-    | undefined;
+  const base = getRendererMediaServiceBaseUrl();
   if (base) {
     const url = `${String(base).replace(/\/$/, '')}/v1/sync/task-queue`;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const k = (import.meta.env.VITE_MEDIA_SERVICE_API_KEY || import.meta.env.VITE_CONTROL_PLANE_API_KEY) as
-      | string
-      | undefined;
+    const k = getRendererMediaServiceApiKey();
     if (k) headers['X-API-Key'] = k;
     const r = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(tasks) });
     if (!r.ok) {

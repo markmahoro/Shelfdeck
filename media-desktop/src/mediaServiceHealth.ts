@@ -1,16 +1,15 @@
 /**
- * 媒体管理服务可达性：与 electron/preload 中 CP_BASE、Vite 环境变量同构。
+ * 媒体管理服务可达性：与 electron/preload 中 effectiveBaseUrl、Vite 环境变量同构。
  */
 
+import { getRendererMediaServiceApiKey, getRendererMediaServiceBaseUrl } from './cpBase';
+
 function devBaseUrl(): string {
-  const v = import.meta.env.VITE_MEDIA_SERVICE_URL || import.meta.env.VITE_CONTROL_PLANE_URL;
-  if (v && typeof v === 'string') return v.replace(/\/$/, '');
-  return 'http://127.0.0.1:18080';
+  return getRendererMediaServiceBaseUrl() || 'http://127.0.0.1:18080';
 }
 
 function devApiKey(): string {
-  const k = import.meta.env.VITE_MEDIA_SERVICE_API_KEY || import.meta.env.VITE_CONTROL_PLANE_API_KEY;
-  return typeof k === 'string' ? k : '';
+  return getRendererMediaServiceApiKey();
 }
 
 /**

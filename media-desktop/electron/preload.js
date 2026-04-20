@@ -13,16 +13,36 @@ function deriveReplaceBackupPath(targetPath) {
   return dir ? `${dir}${sep}${base}.etp.bak` : `${base}.etp.bak`;
 }
 
-const CP_BASE = (process.env.MEDIA_SERVICE_URL || process.env.CONTROL_PLANE_URL || 'http://127.0.0.1:18080').replace(
-  /\/$/,
-  '',
-);
-const CP_KEY = process.env.MEDIA_SERVICE_API_KEY || process.env.CONTROL_PLANE_API_KEY || '';
+/** 主进程解析 effectiveBaseUrl / effectiveApiKey（DESIGN_DESKTOP_BACKEND_ENDPOINT），连接文件变更时刷新 */
+function readEffectiveFromMain() {
+  try {
+    return ipcRenderer.sendSync('cp:get-effective');
+  } catch {
+    return { baseUrl: 'http://127.0.0.1:18080', apiKey: '', source: 'default' };
+  }
+}
+
+let effectiveCp = readEffectiveFromMain();
+
+function refreshEffectiveCp() {
+  effectiveCp = readEffectiveFromMain();
+}
+
+ipcRenderer.on('cp:updated', refreshEffectiveCp);
+
+function cpBase() {
+  return String(effectiveCp.baseUrl || 'http://127.0.0.1:18080').replace(/\/$/, '');
+}
+
+function cpKey() {
+  return String(effectiveCp.apiKey || '');
+}
 
 async function cpJson(path, options = {}) {
-  const url = `${CP_BASE}${path}`;
+  const url = `${cpBase()}${path}`;
   const headers = { ...(options.headers || {}) };
-  if (CP_KEY) headers['X-API-Key'] = CP_KEY;
+  const k = cpKey();
+  if (k) headers['X-API-Key'] = k;
   if (options.body != null && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
   const res = await fetch(url, { ...options, headers });
   const text = await res.text();
@@ -164,6 +184,20 @@ const mediaService = {
   checkHealth: () => cpJson('/v1/health'),
 };
 
+const shelfdeckMedia = {
+  getEffective: () => ({ ...effectiveCp, baseUrl: cpBase() }),
+  onConnectionUpdated: (listener) => {
+    const fn = () => {
+      try {
+        listener();
+      } catch (_) {}
+    };
+    ipcRenderer.on('cp:updated', fn);
+    return () => ipcRenderer.removeListener('cp:updated', fn);
+  },
+};
+
 contextBridge.exposeInMainWorld('embyApi', embyApi);
 contextBridge.exposeInMainWorld('doubanApi', doubanApi);
 contextBridge.exposeInMainWorld('mediaService', mediaService);
+contextBridge.exposeInMainWorld('shelfdeckMedia', shelfdeckMedia);

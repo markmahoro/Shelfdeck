@@ -50,6 +50,8 @@ npm start
 - **期望**：HTTP 2xx，`status === 'ok'`（见 `media-service/src/app.js`）  
 - **鉴权**：若启用 API Key，须带 `X-API-Key`
 
+**保存连接（产品）**：小助手「保存」仍表示 **落盘后地址可用**；流程为先健康检查，失败则 **按地址尝试启动**（本机为 spawn；远端自动启动可为占位，见 `DESIGN_DESKTOP_BACKEND_ENDPOINT` §4），再在宽限内重试健康。
+
 ## 启停实现矩阵（运维对照）
 
 | 场景 | 启动 | 停止 | 文档 |

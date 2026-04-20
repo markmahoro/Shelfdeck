@@ -213,5 +213,9 @@ declare global {
     mediaService?: {
       checkHealth: () => Promise<{ status?: string; version?: string } | null>;
     };
+    shelfdeckMedia?: {
+      getEffective: () => { baseUrl: string; apiKey: string; source?: string };
+      onConnectionUpdated: (cb: () => void) => () => void;
+    };
   }
 }
