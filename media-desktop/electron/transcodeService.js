@@ -345,7 +345,7 @@ async function validateTranscodeTools(config, encodePool) {
   if (rFf.code !== 0) throw new Error(`ffmpeg 不可用（请配置路径或 PATH）：${ff}`);
 
   if (!encodePool || !Array.isArray(encodePool.entries)) {
-    throw new Error('缺少编码资源池配置（任务中心 · 转码 Flow · §7.4）');
+    throw new Error('缺少编码资源池配置：请到配置中心 → 任务中心，完成转码与编码设备相关设置。');
   }
   const inPool = encodePool.entries.filter((e) => e && e.inPool);
   if (inPool.length === 0) throw new Error('请至少勾选一台「入池」编码设备');
@@ -376,7 +376,7 @@ async function validateTranscodeTools(config, encodePool) {
 
 async function precheck({ config, task }) {
   const tempRoot = String(config.transcodeTempRoot || '').trim();
-  if (!tempRoot) throw new Error('未配置转码临时根目录（任务中心 · 转码 Flow · §5.2）');
+  if (!tempRoot) throw new Error('未配置转码临时根目录：请到配置中心 → 任务中心填写「转码临时根目录」。');
   let stRoot;
   try {
     stRoot = fs.statSync(tempRoot);
@@ -453,7 +453,7 @@ async function startEncode(sender, payload) {
   const tid = String(taskId || '');
   if (encodeJobs.has(tid)) throw new Error('该任务已有进行中的压制进程');
   const slots = Array.isArray(orderedDeviceSlots) ? orderedDeviceSlots : [];
-  if (slots.length === 0) throw new Error('无可用编码设备顺序（请配置任务中心 · 编码资源池 §5.1）');
+  if (slots.length === 0) throw new Error('无可用编码设备顺序：请到配置中心 → 任务中心，在编码资源池中入池至少一台设备。');
 
   const deviceId = await acquireFirstAvailableAmong(slots);
   try {
@@ -465,9 +465,7 @@ async function startEncode(sender, payload) {
     const { backend: devBack, gpuIndex: devGpu } = parseStableKey(deviceId);
     if (isDolbyVision && dvAcknowledged && devBack !== 'cpu') {
       releaseEncodeDeviceSlot(deviceId);
-      throw new Error(
-        '杜比视界受控转码须使用 CPU 池内设备（请勾选入池 cpu:libx265，§5.6 / §5.7）',
-      );
+      throw new Error('杜比视界受控转码须使用 CPU 编码：请在配置中心编码资源池中勾选入池「cpu:libx265」一行。');
     }
     const encoderMode = devBack;
     const { ffmpegBin, args } = buildEncodeArgs({

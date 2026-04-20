@@ -197,7 +197,7 @@ function MediaLibraryManageRowInner({
               }
               onClick={() => onEnqueue(item, action)}
             >
-              洗版优化
+              洗版
             </button>
           )}
         </div>

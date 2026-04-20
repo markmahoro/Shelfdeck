@@ -100,7 +100,7 @@ export function targetBitrateFor(item: ManagedMediaItem, policy: MediaPolicy): n
 const BITRATE_RECOMMEND_HYSTERESIS_MBPS = 1;
 
 /**
- * 4★ 与 5★（4K）共用：等价码率低于「目标 × 此比例」时建议洗版补源。
+ * 4★ 与 5★（4K）共用：等价码率低于「目标 × 此比例」时建议洗版。
  * 5★ 1080p 另见 recommendedAction 中「一律洗版」规则。
  */
 export const UPGRADE_EQ_BELOW_TARGET_RATIO = 0.8;

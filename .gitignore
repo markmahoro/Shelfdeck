@@ -22,6 +22,9 @@ media-desktop/dist/
 media-desktop/release/
 media-desktop/.vite-dev-server-url
 
+# 工作笔记目录（非 SSOT；见 docs/DOC_GOVERNANCE.md）
+scratch/
+
 # 第三方克隆工具目录（内含独立 .git），勿纳入本仓库
 douban-to-imdb/
 

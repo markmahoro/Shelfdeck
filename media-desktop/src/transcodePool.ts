@@ -90,16 +90,16 @@ export function describeTranscodePoolForUser(pool: TranscodeEncodePoolSettings):
   const capLine =
     deviceCount === 0
       ? '当前没有勾选入池的编码设备；转码任务进入压制前将无法占用编码子槽，请先探测并至少入池一台设备或 CPU 行。'
-      : `当前资源池共有 ${deviceCount} 台入池设备，合计最多 ${totalSlots} 条设备子槽（各硬件并行路数相加；与类型任务槽 transcodeConcurrency 同时生效，取更紧的一层）。`;
+      : `当前资源池共有 ${deviceCount} 台入池设备，合计最多 ${totalSlots} 条设备子槽（各硬件并行路数相加；与上方「同时进行的码率压缩任务数」上限同时生效，取更紧的一层）。`;
 
   const orderLine =
     deviceCount === 0
       ? ''
-      : '任务进入压制（executing）时，调度按上表从上到下的顺序依次尝试占槽：优先尝试更靠上的设备；若该设备子槽已满，则顺延至下一台，直至成功或全部不可用。';
+      : '任务进入实际转码步骤时，调度按上表从上到下的顺序依次尝试占槽：优先尝试更靠上的设备；若该设备子槽已满，则顺延至下一台，直至成功或全部不可用。';
 
   const cpuLine =
     pool.cpuParticipation === 2
-      ? 'CPU 参与策略为「策略 2」：仅当任务只能走 CPU 压制（如杜比视界受控转码确认后）时，才会占用池中 CPU/libx265 子槽；普通可走 GPU 的任务只尝试 GPU 行。'
+      ? 'CPU 参与策略为「策略 2」：仅当任务只能走 CPU 转码压制（如杜比视界受控转码确认后）时，才会占用池中 CPU（x265）子槽；普通可走 GPU 的任务只尝试 GPU 行。'
       : 'CPU 参与策略为「策略 1」：CPU 与 GPU 行按上表顺序同台竞争；排在前面的设备子槽占满后，可顺延到后面的 CPU 或 GPU。';
 
   return [capLine, orderLine, cpuLine].filter(Boolean).join('\n\n');

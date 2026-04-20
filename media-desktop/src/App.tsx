@@ -5,6 +5,7 @@ import {
   canUserPauseTask,
   enqueueTask,
   formatFlowLogLine,
+  formatFlowLogLineForUser,
   hasActiveTaskForItem,
   isTaskTerminal,
   loadTaskQueue,
@@ -47,6 +48,8 @@ import {
   type MediaRating,
 } from './mediaManager';
 import { createDebugSeedTasks } from './debugSeed';
+import { buildDoubanStarsByNormalizedTitle, movieDoubanStars, type DoubanRatingEntry } from './doubanUtils';
+import { MediaLibraryManageRow } from './MediaLibraryManageRow';
 
 type ReplaceBackupRow = {
   taskId: string;
@@ -77,6 +80,22 @@ function formatByteSizeLabel(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(3)} GB`;
 }
 
+/** 将 ffmpeg/ffprobe 检验等场景下常见的系统报错改写成用户可读的说明 */
+function humanizeTranscodeSetupErrorMessage(detail: string): string {
+  const s = String(detail ?? '').trim();
+  if (!s) return '';
+  if (/\bEFTYPE\b/i.test(s)) {
+    return '当前填写的 ffmpeg 或 ffprobe 无法按程序启动：路径可能不是可执行文件（在 Windows 上请选 .exe）、或是文件夹/损坏的安装。请核对路径，或清空该项改用已加入系统 PATH 的版本。';
+  }
+  return s;
+}
+
+/** 保存类操作失败：先说明未保存成功，再给出原因（与「保存成功」对用户二选一）。 */
+function formatSaveConfigFailed(detail: string): string {
+  const t = humanizeTranscodeSetupErrorMessage(detail).trim();
+  return t ? `保存配置不成功。原因：${t}` : '保存配置不成功。';
+}
+
 function applyAdvanceWithFlowLog(
   prev: MediaTask[],
   settings: TaskSchedulerSettings,
@@ -87,11 +106,13 @@ function applyAdvanceWithFlowLog(
   return next.map((t) => {
     const old = prevMap.get(t.id);
     if (!old || old.status === t.status) return t;
-    return appendFlowLog(t, 'scheduler.tick', `调度推进：${old.status} → ${t.status}（占槽/模拟）`);
+    return appendFlowLog(
+      t,
+      'scheduler.tick',
+      `调度推进：${taskStatusLabelZh(old.status)} → ${taskStatusLabelZh(t.status)}（排队或占槽）`,
+    );
   });
 }
-import { buildDoubanStarsByNormalizedTitle, movieDoubanStars, type DoubanRatingEntry } from './doubanUtils';
-import { MediaLibraryManageRow } from './MediaLibraryManageRow';
 
 const STORAGE_KEY = 'embyDesktopPlayerConfigV1';
 const LOCAL_MARKED_PLAYED_KEY = 'embyDesktopPlayerLocalMarkedPlayedV1';
@@ -411,7 +432,7 @@ function formatDeleteConfirmLines(item: Record<string, unknown>, deleteInfo: Rec
     const paths = deleteInfo.Paths ?? deleteInfo.paths;
     if (Array.isArray(paths) && paths.length > 0) {
       const ps = paths.filter((p): p is string => typeof p === 'string').slice(0, 12);
-      if (ps.length) lines.push(`DeleteInfo 路径（节选）：${ps.join('；')}`);
+      if (ps.length) lines.push(`Emby 返回的待删除路径（节选）：${ps.join('；')}`);
     }
   }
   if (lines.length === 0) lines.push('（服务器未返回详细路径，仍以 Emby 将删除该条目为准。）');
@@ -705,6 +726,7 @@ export default function App() {
   const [transcodeFlowSaveHint, setTranscodeFlowSaveHint] = useState<string | null>(null);
   const refreshLibraryManageListRef = useRef<((opts?: { quietIfIncomplete?: boolean }) => Promise<void>) | null>(null);
   const [taskFilter, setTaskFilter] = useState<'all' | MediaTask['status']>('all');
+  const [showFlowLogTechnical, setShowFlowLogTechnical] = useState(false);
   const [batchRunSelectedIds, setBatchRunSelectedIds] = useState<Set<string>>(() => new Set());
   const [wallRatingItem, setWallRatingItem] = useState<UnplayedItem | null>(null);
   const [wallRatingChoice, setWallRatingChoice] = useState<MediaRating>(3);
@@ -1129,7 +1151,7 @@ export default function App() {
           return appendFlowLog(
             t,
             'delete.blocked.no_emby',
-            '删除预检未启动：Emby 未就绪（需已「测试联通」且配置 baseUrl / apiKey / userId）。',
+            '删除预检未启动：请先到配置中心完成 Emby 连接并点击「测试联通」，填写地址、API Key 与用户。',
             'warn',
           );
         }),
@@ -1144,7 +1166,7 @@ export default function App() {
         setTasks((prev) =>
           prev.map((t) =>
             t.id === task.id && t.status === 'precheck'
-              ? appendFlowLog(t, 'delete.precheck.start', '调用 GetLibraryItem / GetItemDeleteInfo …')
+              ? appendFlowLog(t, 'delete.precheck.start', '开始删除预检：向 Emby 拉取条目信息与待删除路径。')
               : t,
           ),
         );
@@ -1159,7 +1181,7 @@ export default function App() {
               const logged = appendFlowLog(
                 t,
                 'delete.precheck.ok',
-                '预检成功：已生成删除确认文案，进入 awaiting_user_confirm',
+                '预检完成：已生成删除确认信息，请在任务中心点击「信息确认」。',
               );
               return {
                 ...logged,
@@ -1197,7 +1219,7 @@ export default function App() {
               ? appendFlowLog(
                   t,
                   'delete.api.start',
-                  '调用 DELETE /Items/{id}：若已填写「所选用户登录密码」则先 AuthenticateByName 换取用户访问令牌再删；否则带 UserId 查询参数以 API Key 尝试…',
+                  '正在请求 Emby 删除该条目（若已填写「所选用户登录密码」，将用你的账号权限执行）。',
                 )
               : t,
           ),
@@ -1208,7 +1230,7 @@ export default function App() {
           setTasks((prev) =>
             prev.map((t) => {
               if (t.id !== task.id || t.status !== 'executing') return t;
-              const logged = appendFlowLog(t, 'delete.api.ok', 'Emby 删除请求已返回，进入验收 verify');
+              const logged = appendFlowLog(t, 'delete.api.ok', '删除请求已返回，正在确认库中是否已移除该条目。');
               return { ...logged, status: 'verify', progress: 85, updatedAt: nowIso };
             }),
           );
@@ -1239,7 +1261,7 @@ export default function App() {
               ? appendFlowLog(
                   t,
                   'delete.verify.start',
-                  '验收：轮询 libraryItemExists，直至条目不存在（最多 12 次 × 1.5s）',
+                  '正在确认删除结果：多次检查该条目是否仍存在于媒体库（最多 12 次，每次间隔约 1.5 秒）。',
                 )
               : t,
           ),
@@ -1254,7 +1276,7 @@ export default function App() {
                   ? appendFlowLog(
                       t,
                       'delete.verify.poll',
-                      `第 ${i + 1}/12 次查询：libraryItemExists=${exists}`,
+                      `第 ${i + 1}/12 次检查：条目仍存在=${exists ? '是' : '否'}`,
                       exists ? 'warn' : 'info',
                     )
                   : t,
@@ -1271,7 +1293,7 @@ export default function App() {
             setTasks((prev) =>
               prev.map((t) => {
                 if (t.id !== task.id || t.status !== 'verify') return t;
-                const logged = appendFlowLog(t, 'delete.verify.ok', '条目已不存在，结案 done');
+                const logged = appendFlowLog(t, 'delete.verify.ok', '条目已从库中移除，任务完成。');
                 return { ...logged, status: 'done', progress: 100, updatedAt: nowIso };
               }),
             );
@@ -1284,7 +1306,7 @@ export default function App() {
                 const logged = appendFlowLog(
                   t,
                   'delete.verify.timeout',
-                  '多次查询后条目仍存在，标记 failed_hard',
+                  '多次检查后条目仍在库中，已标记为失败。',
                   'error',
                 );
                 return { ...logged, status: 'failed_hard', progress: 0, updatedAt: nowIso };
@@ -1333,7 +1355,7 @@ export default function App() {
           return appendFlowLog(
             t,
             'transcode.blocked.no_emby',
-            '转码预检未启动：Emby 未就绪（需已「测试联通」且配置 baseUrl / apiKey / userId）。',
+            '转码预检未启动：请先到配置中心完成 Emby 连接并点击「测试联通」，填写地址、API Key 与用户。',
             'warn',
           );
         }),
@@ -1348,7 +1370,7 @@ export default function App() {
         setTasks((prev) =>
           prev.map((t) =>
             t.id === task.id && t.status === 'precheck'
-              ? appendFlowLog(t, 'transcode.precheck.start', '预检：临时根、源路径、ffprobe、DV 识别…')
+              ? appendFlowLog(t, 'transcode.precheck.start', '开始转码预检：检查临时目录、源文件路径、媒体信息与是否杜比视界片源。')
               : t,
           ),
         );
@@ -1369,7 +1391,7 @@ export default function App() {
                 const logged = appendFlowLog(
                   t,
                   'transcode.precheck.dv_hold',
-                  '识别为杜比视界片源：须在任务中心确认受控转码后方可压制。',
+                  '识别为杜比视界片源：须在任务中心确认受控转码后方可继续压制。',
                   'warn',
                 );
                 return {
@@ -1391,7 +1413,7 @@ export default function App() {
             setTasks((prev) =>
               prev.map((t) => {
                 if (t.id !== task.id || t.status !== 'precheck') return t;
-                const logged = appendFlowLog(t, 'transcode.precheck.ok', '预检通过，进入压制 executing');
+                const logged = appendFlowLog(t, 'transcode.precheck.ok', '预检通过，开始转码压制。');
                 return {
                   ...logged,
                   status: 'executing',
@@ -1439,8 +1461,8 @@ export default function App() {
           if (candidates.length === 0) {
             throw new Error(
               cpuOnly
-                ? '编码资源池无可用 CPU 行（DV 受控转码须入池 cpu:libx265，§5.6）'
-                : '编码资源池无可用设备行（请入池 GPU 或调整 CPU 参与策略 §5.1.2）',
+                ? '编码资源池无可用 CPU 行：杜比视界受控转码需在配置中心勾选入池「cpu:libx265」一行。'
+                : '编码资源池无可用设备行：请到配置中心 → 任务中心，入池至少一台 GPU 或调整 CPU 参与策略。',
             );
           }
           const orderedDeviceSlots = candidates.map((c) => ({ deviceId: c.stableKey, maxSlots: c.maxSlots }));
@@ -1461,14 +1483,14 @@ export default function App() {
               if ((t.transcodeSubstage ?? 'encode') !== 'encode') return t;
               if (t.pauseRequested) {
                 return {
-                  ...appendFlowLog(t, 'transcode.encode.pause_after_step', '压制结束：检测到暂停请求，进入 paused'),
+                  ...appendFlowLog(t, 'transcode.encode.pause_after_step', '压制已结束：检测到暂停请求，任务已暂停。'),
                   status: 'paused' as const,
                   pauseRequested: false,
                   progress: 0,
                   updatedAt: nowIso,
                 };
               }
-              const logged = appendFlowLog(t, 'transcode.encode.ok', '压制完成，进入 ffprobe 校验 verify');
+              const logged = appendFlowLog(t, 'transcode.encode.ok', '压制完成，开始校验输出文件。');
               return { ...logged, status: 'verify', progress: 88, updatedAt: nowIso };
             }),
           );
@@ -1504,7 +1526,7 @@ export default function App() {
           const info = await api.transcodeProbe!({ config: cfg, filePath: task.transcodePartialPath! });
           const nowIso = new Date().toISOString();
           if (!info.videoCodec || info.durationSec <= 0) {
-            throw new Error('校验：partial 无有效视频轨');
+            throw new Error('校验失败：临时输出文件没有有效视频。');
           }
           setTasks((prev) => {
             const cur = prev.find((x) => x.id === task.id);
@@ -1513,7 +1535,7 @@ export default function App() {
               return prev.map((x) =>
                 x.id === task.id
                   ? {
-                      ...appendFlowLog(x, 'transcode.verify.paused', '校验前暂停：进入 paused'),
+                      ...appendFlowLog(x, 'transcode.verify.paused', '校验前已暂停任务。'),
                       status: 'paused' as const,
                       pauseRequested: false,
                       updatedAt: nowIso,
@@ -1524,7 +1546,7 @@ export default function App() {
             const loggedOk = appendFlowLog(
               cur,
               'transcode.verify.partial_ok',
-              `partial 校验通过（${info.videoCodec}，时长 ${info.durationSec.toFixed(1)}s）`,
+              `输出文件校验通过（视频编码 ${info.videoCodec}，时长约 ${info.durationSec.toFixed(1)} 秒）`,
             );
             if (schedulerSettings.transcodeAutoReplace) {
               return prev.map((x) =>
@@ -1590,7 +1612,7 @@ export default function App() {
           setTasks((prev) =>
             prev.map((t) => {
               if (t.id !== task.id || t.status !== 'executing' || t.transcodeSubstage !== 'replace') return t;
-              const logged = appendFlowLog(t, 'transcode.replace.ok', '原子替换完成，结案 done');
+              const logged = appendFlowLog(t, 'transcode.replace.ok', '已用新文件替换原成片，任务完成。');
               return {
                 ...logged,
                 status: 'done',
@@ -1618,7 +1640,7 @@ export default function App() {
               const logged = appendFlowLog(
                 t,
                 'transcode.replace.error',
-                `${msg}（replace 已在主进程重试至多 3 次；请检查 .etp.new/.etp.bak 残留并谨慎清理）`,
+                `${msg}（替换步骤已在桌面端重试至多 3 次；若失败请检查临时目录中 .etp.new / .etp.bak 残留并谨慎清理）`,
                 'error',
               );
               return {
@@ -1888,13 +1910,17 @@ export default function App() {
       const created = appendFlowLog(
         enqueueTask(preview, schedulerSettings.runMode),
         'task.created',
-        `任务已创建；执行模式 ${schedulerSettings.runMode === 'scheduled' ? '自动(入队即发令)' : '手动(待启动)'}；类型 ${preview.actionType}`,
+        `任务已创建；${
+          schedulerSettings.runMode === 'scheduled' ? '新任务添加后自动执行' : '新任务添加后手动执行'
+        }；类型：${
+          preview.actionType === 'transcode' ? '码率压缩' : preview.actionType === 'upgrade' ? '洗版' : '从 Emby 删除'
+        }`,
       );
       const typeLabel =
         preview.actionType === 'transcode'
           ? '码率压缩'
           : preview.actionType === 'upgrade'
-            ? '洗版优化'
+            ? '洗版'
             : '从 Emby 删除';
       window.setTimeout(() => {
         setError(null);
@@ -1941,7 +1967,11 @@ export default function App() {
           appendFlowLog(
             enqueueTask(preview, schedulerSettings.runMode),
             'task.created',
-            `批量入队；${preview.actionType}；模式 ${schedulerSettings.runMode}`,
+            `批量入队；类型：${
+              preview.actionType === 'transcode' ? '码率压缩' : preview.actionType === 'upgrade' ? '洗版' : '从 Emby 删除'
+            }；${
+              schedulerSettings.runMode === 'scheduled' ? '新任务添加后自动执行' : '新任务添加后手动执行'
+            }`,
           ),
         );
       }
@@ -1999,7 +2029,7 @@ export default function App() {
           const u = appendFlowLog(
             { ...t, status: 'queued', pauseRequested: false, updatedAt: nowIso },
             'user.batch_execute',
-            '批量执行：进入排队',
+            '批量执行：任务已进入排队。',
           );
           return u;
         }
@@ -2197,7 +2227,7 @@ export default function App() {
         const logged = appendFlowLog(
           t,
           'upgrade.confirm.candidate',
-          `已确认补源候选并重新排队：${candidateTitle}`,
+          `已确认洗版候选并重新排队：${candidateTitle}`,
         );
         return {
           ...logged,
@@ -2222,7 +2252,7 @@ export default function App() {
     );
     setInfoConfirmTaskId(null);
     setError(null);
-    setEnqueueHint('已标记为暂无合格媒体片源，进入等待重试节奏。');
+    setEnqueueHint('已标记为暂无合格片源（洗版），进入等待重试节奏。');
     window.setTimeout(() => setEnqueueHint(null), 5000);
   }
 
@@ -2258,7 +2288,7 @@ export default function App() {
       prev.map((t) => {
         if (t.id !== taskId) return t;
         if (t.actionType !== 'transcode' || t.transcodeConfirmKind !== 'replace') return t;
-        const logged = appendFlowLog(t, 'transcode.replace.user.confirm', '用户确认替换成片，进入原子替换');
+        const logged = appendFlowLog(t, 'transcode.replace.user.confirm', '用户已确认替换成片，正在写入最终路径。');
         return {
           ...logged,
           status: 'executing',
@@ -2280,7 +2310,7 @@ export default function App() {
       prev.map((t) => {
         if (t.id !== taskId) return t;
         if (t.actionType !== 'delete' || t.status !== 'awaiting_user_confirm') return t;
-        const logged = appendFlowLog(t, 'delete.user.confirm', '用户已确认删除，进入 executing');
+        const logged = appendFlowLog(t, 'delete.user.confirm', '用户已确认删除信息，正在请求 Emby 删除。');
         return { ...logged, status: 'executing', progress: 55, pauseRequested: false, updatedAt: nowIso };
       }),
     );
@@ -2305,7 +2335,7 @@ export default function App() {
         const u = appendFlowLog(
           { ...t, status: 'queued', pauseRequested: false, updatedAt: nowIso },
           'user.execute',
-          '单条执行：已进入排队，并已纳入手动调度范围；立即尝试调度推进',
+          '单条执行：已进入排队，并已纳入手动调度范围；将立即尝试调度推进。',
         );
         return u;
       });
@@ -2317,7 +2347,7 @@ export default function App() {
             ? appendFlowLog(
                 t,
                 'scheduler.queued',
-                '仍为排队中：可能并发槽已满，等待下次调度 tick；或检查 delete/transcode/upgrade 并发配置',
+                '仍在排队：当前并行任务槽可能已满，请稍候；或到配置中心检查删除、码率压缩与洗版的并发上限。',
                 'warn',
               )
             : t,
@@ -2362,7 +2392,7 @@ export default function App() {
                     updatedAt: nowIso,
                   },
                   'transcode.user.pause_abort',
-                  '用户确认暂停：已中止并清理本条临时产物（§9.7）',
+                  '用户确认暂停：已中止转码并清理本条临时目录中的产物。',
                 )
               : t,
           ),
@@ -2421,7 +2451,9 @@ export default function App() {
             const created = appendFlowLog(
               enqueueTask(preview, schedulerSettings.runMode),
               'task.created',
-              `海报墙打分自动入队；${preview.actionType}`,
+              `海报墙打分自动入队；类型：${
+                preview.actionType === 'transcode' ? '码率压缩' : preview.actionType === 'upgrade' ? '洗版' : '从 Emby 删除'
+              }`,
             );
             setEnqueueHint(`已保存星级并自动入队：${item.name}。`);
             window.setTimeout(() => setEnqueueHint(null), 6000);
@@ -2430,7 +2462,7 @@ export default function App() {
         }
       }
     } else {
-      setEnqueueHint('已保存星级。可在配置中心开启「观看后打分自动入队」以自动创建任务。');
+      setEnqueueHint('已保存星级。可在配置中心开启「已观看并打完分后自动创建任务」。');
       window.setTimeout(() => setEnqueueHint(null), 6000);
     }
     void refreshLibraryManageList({ quietIfIncomplete: true });
@@ -2555,7 +2587,8 @@ export default function App() {
         `检验通过：ffmpeg=${r.ffmpeg}；ffprobe=${r.ffprobe}；入池设备=${r.inPoolCount}；libplacebo=${r.libplacebo ? '可用' : '不可用（DV 路径需此滤镜）'}`,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(humanizeTranscodeSetupErrorMessage(msg));
     }
   }
 
@@ -2575,47 +2608,57 @@ export default function App() {
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setError(msg);
-        setTranscodeValidateHint('未保存：已填写转码临时根目录时须通过资源池首次检验（§5.8）。请修正后重试。');
+        setError(formatSaveConfigFailed(msg));
+        setTranscodeValidateHint(null);
         return;
       }
     }
-    localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(schedulerSettings));
-    saveConfig(config);
+    try {
+      localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(schedulerSettings));
+      saveConfig(config);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(formatSaveConfigFailed(`写入本机存储失败（${msg}）`));
+      setTranscodeValidateHint(null);
+      return;
+    }
     setError(null);
     setTranscodeFlowSaveHint(null);
-    setTranscodeValidateHint(root ? '已保存；工具链与入池设备检验（§5.8）已通过。' : null);
+    setTranscodeValidateHint('保存配置成功。');
   }
 
   /** 仅合并写入转码 Flow 字段（§7.4）；磁盘上任务调度其它键保留为上次「保存任务中心」或默认值 */
   async function saveTranscodeFlowPage() {
-    const root = config.transcodeTempRoot?.trim();
     setTranscodeFlowSaveHint(null);
     setError(null);
     setTranscodeValidateHint(null);
-    if (root && window.embyApi?.transcodeValidateTools) {
-      try {
-        await window.embyApi.transcodeValidateTools({
-          config,
-          encodePool: schedulerSettings.transcodeEncodePool,
-        });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        setError(msg);
-        setTranscodeValidateHint('未保存：已填写转码临时根目录时须通过资源池首次检验（§5.8）。请修正后重试。');
-        return;
-      }
+    if (!window.embyApi?.transcodeValidateTools) {
+      setError(
+        formatSaveConfigFailed('请在桌面版应用中使用本功能；当前环境无法完成检验，配置未写入。'),
+      );
+      return;
     }
+    try {
+      await window.embyApi.transcodeValidateTools({
+        config,
+        encodePool: schedulerSettings.transcodeEncodePool,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(formatSaveConfigFailed(msg));
+      return;
+    }
+
     const diskSchedRaw = localStorage.getItem(TASK_SCHEDULER_SETTINGS_KEY);
     const diskSched = diskSchedRaw
       ? normalizeSchedulerSettings(JSON.parse(diskSchedRaw) as Partial<TaskSchedulerSettings>)
       : defaultSchedulerSettings();
     const mergedSched: TaskSchedulerSettings = {
       ...diskSched,
+      transcodeConcurrency: schedulerSettings.transcodeConcurrency,
       transcodeAutoReplace: schedulerSettings.transcodeAutoReplace,
       transcodeEncodePool: schedulerSettings.transcodeEncodePool,
     };
-    localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(mergedSched));
 
     const diskCfgRaw = localStorage.getItem(STORAGE_KEY);
     const diskCfg = diskCfgRaw ? normalizeConfig(JSON.parse(diskCfgRaw) as Partial<EmbyConfig>) : defaultConfig;
@@ -2625,14 +2668,16 @@ export default function App() {
       ffmpegPath: config.ffmpegPath,
       ffprobePath: config.ffprobePath,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedCfg));
+    try {
+      localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(mergedSched));
+      saveConfig(mergedCfg);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(formatSaveConfigFailed(`写入本机存储失败（${msg}）`));
+      return;
+    }
 
-    const validated = Boolean(root && window.embyApi?.transcodeValidateTools);
-    setTranscodeFlowSaveHint(
-      validated
-        ? '转码 Flow 相关项已合并写入本机（模块一任务调度等未保存的改动仍保留在界面上，直至你点击「保存任务中心」）。§5.8 工具链与入池设备检验已通过。当前转码资源池配置已保存成功。'
-        : '转码 Flow 相关项已合并写入本机（模块一任务调度等未保存的改动仍保留在界面上，直至你点击「保存任务中心」）。当前未填写转码临时根或未在 Electron 中运行，未执行 §5.8 工具链检验。当前转码资源池配置已保存成功。',
-    );
+    setTranscodeFlowSaveHint('保存配置成功。');
   }
 
   async function saveDoubanSessionPage() {
@@ -3129,7 +3174,7 @@ export default function App() {
                   />
                 </div>
                 <div className="field">
-                  <div className="label">启动参数模板</div>
+                  <div className="label">播放器命令行参数</div>
                   <input
                     value={config.argsTemplate}
                     onChange={(e) => setConfig({ ...config, argsTemplate: e.target.value })}
@@ -3139,7 +3184,7 @@ export default function App() {
               </div>
               <div className="row">
                 <div className="field">
-                  <div className="label">已播放阈值(%)</div>
+                  <div className="label">视为已看完的最低进度（%）</div>
                   <input
                     type="number"
                     value={config.markPlayedThresholdPercent}
@@ -3196,7 +3241,7 @@ export default function App() {
               <p className="hint">
                 用于媒体库管理与任务预览。星级来源：已匹配豆瓣分的<strong>电影</strong>以<strong>豆瓣星级</strong>为准，否则以<strong>本地标注</strong>为准。<strong>1–2★</strong>删除档；<strong>3★</strong>仅当等价码率明显高于本档目标时可<strong>转码压缩</strong>，偏低不洗版；<strong>4★</strong>可转码，且当等价码率低于本档目标的
                 <strong> 80% </strong>
-                时可<strong>洗版补源</strong>（与 5★4K 共用该比例）；<strong>5★</strong>不压缩，其中<strong>1080p 一律建议洗版</strong>，<strong>4K</strong>则仅在低于该80% 阈值时洗版。列表中的<strong>目标码率 / 预测体积</strong>：5★ 且当前为 1080p 时按<strong>4K 档目标</strong>估算（洗版后预期）。编辑后请保存。
+                时可<strong>洗版</strong>（与 5★4K 共用该比例）；<strong>5★</strong>不压缩，其中<strong>1080p 一律建议洗版</strong>，<strong>4K</strong>则仅在低于该80% 阈值时洗版。列表中的<strong>目标码率 / 预测体积</strong>：5★ 且当前为 1080p 时按<strong>4K 档目标</strong>估算（洗版后预期）。编辑后请保存。
               </p>
               <h4 style={{ marginTop: 16, marginBottom: 8 }}>1080p</h4>
               <div className="row">
@@ -3280,176 +3325,94 @@ export default function App() {
             <>
               <h3>任务中心</h3>
               <p className="hint" style={{ lineHeight: 1.55 }}>
-                与 <code>docs/design/DESIGN_TASK_CENTER.md</code> <strong>§7</strong> 对表：调度、各 Flow 配置集中在此页。保存将写入任务调度 JSON 与 Emby
-                配置中的转码路径字段；若填写了<strong>转码临时根</strong>，保存前执行 <strong>§5.8</strong> 资源池检验。
+                在此配置任务调度、删除与洗版相关节奏、转码临时目录与编码资源池等。保存「任务中心」将写入本机任务调度数据，并同步 Emby
+                配置中的转码路径字段。若填写了<strong>转码临时根</strong>，保存前会先进行工具链与资源池检验（也可单独点击「检验转码资源池」）。
               </p>
 
-              <h3 className="configSubSectionTitle">模块一 · 任务调度（§7.2）</h3>
-              <p className="hint">执行模式、类型任务槽（<code>…Concurrency</code>）、洗版补源重试节奏。</p>
-              <div className="row" style={{ marginTop: 12 }}>
-                <div className="field">
-                  <div className="label">执行模式</div>
-                  <select
-                    value={schedulerSettings.runMode}
-                    onChange={(e) =>
-                      setSchedulerSettings((prev) => ({
-                        ...prev,
-                        runMode: e.target.value === 'scheduled' ? 'scheduled' : 'manual',
-                      }))
-                    }
-                    className="selectLike"
-                  >
-                    <option value="manual">手动（新任务待启动）</option>
-                    <option value="scheduled">自动（新任务排队中）</option>
-                  </select>
-                </div>
-                <label className="sectionItem" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={schedulerSettings.wallRatingAutoEnqueue}
-                    onChange={(e) =>
-                      setSchedulerSettings((p) => ({ ...p, wallRatingAutoEnqueue: e.target.checked }))
-                    }
-                  />
-                  <span>海报墙：已观看并打完分后自动按策略入队（§7.2.3）</span>
-                </label>
-                <div className="field">
-                  <div className="label">删除并发</div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={schedulerSettings.deleteConcurrency}
-                    onChange={(e) =>
-                      setSchedulerSettings((prev) => ({
-                        ...prev,
-                        deleteConcurrency: Math.max(1, Number(e.target.value) || 1),
-                      }))
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <div className="label">转码类型任务槽（<code>transcodeConcurrency</code>）</div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={schedulerSettings.transcodeConcurrency}
-                    onChange={(e) =>
-                      setSchedulerSettings((prev) => ({
-                        ...prev,
-                        transcodeConcurrency: Math.max(1, Number(e.target.value) || 1),
-                      }))
-                    }
-                  />
-                  <p className="hint" style={{ marginTop: 6 }}>
-                    与下方<strong>编码资源池每设备子槽</strong>（§5.1）同时生效，取更紧的一层。
-                  </p>
+              <h3 className="configSubSectionTitle">任务调度</h3>
+              <p className="hint">
+                新任务加入队列后的执行方式，以及海报墙是否自动建任务。删除、码率压缩、洗版各自能同时进行几路及其它洗版选项，在下方对应小节中设置。
+              </p>
+              <div className="field" style={{ marginTop: 12 }}>
+                <div className="label">新任务执行方式（二选一）</div>
+                <div className="configRunModeGroup">
+                  <label className="configRunModeOption">
+                    <input
+                      type="radio"
+                      name="etp-scheduler-run-mode"
+                      checked={schedulerSettings.runMode === 'scheduled'}
+                      onChange={() =>
+                        setSchedulerSettings((prev) => ({ ...prev, runMode: 'scheduled' }))
+                      }
+                    />
+                    <span>新任务添加后自动执行</span>
+                  </label>
+                  <label className="configRunModeOption">
+                    <input
+                      type="radio"
+                      name="etp-scheduler-run-mode"
+                      checked={schedulerSettings.runMode === 'manual'}
+                      onChange={() => setSchedulerSettings((prev) => ({ ...prev, runMode: 'manual' }))}
+                    />
+                    <span>新任务添加后手动执行</span>
+                  </label>
                 </div>
               </div>
-              <div className="row">
-                <div className="field">
-                  <div className="label">洗版并发</div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={schedulerSettings.upgradeConcurrency}
-                    onChange={(e) =>
-                      setSchedulerSettings((prev) => ({
-                        ...prev,
-                        upgradeConcurrency: Math.max(1, Number(e.target.value) || 1),
-                      }))
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <div className="label">补源快速重搜次数</div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={schedulerSettings.waitingFastRetryCount}
-                    onChange={(e) =>
-                      setSchedulerSettings((prev) => ({
-                        ...prev,
-                        waitingFastRetryCount: Math.max(1, Number(e.target.value) || 1),
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="row">
-                <div className="field">
-                  <div className="label">快速重搜间隔(小时)</div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={schedulerSettings.waitingFastIntervalHours}
-                    onChange={(e) =>
-                      setSchedulerSettings((prev) => ({
-                        ...prev,
-                        waitingFastIntervalHours: Math.max(1, Number(e.target.value) || 1),
-                      }))
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <div className="label">补源中速上限次数</div>
-                  <input
-                    type="number"
-                    min={2}
-                    value={schedulerSettings.waitingMidRetryCount}
-                    onChange={(e) =>
-                      setSchedulerSettings((prev) => ({
-                        ...prev,
-                        waitingMidRetryCount: Math.max(
-                          prev.waitingFastRetryCount + 1,
-                          Number(e.target.value) || prev.waitingFastRetryCount + 1,
-                        ),
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="row">
-                <div className="field">
-                  <div className="label">中速间隔(天)</div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={schedulerSettings.waitingMidIntervalDays}
-                    onChange={(e) =>
-                      setSchedulerSettings((prev) => ({
-                        ...prev,
-                        waitingMidIntervalDays: Math.max(1, Number(e.target.value) || 1),
-                      }))
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <div className="label">慢速间隔(天)</div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={schedulerSettings.waitingSlowIntervalDays}
-                    onChange={(e) =>
-                      setSchedulerSettings((prev) => ({
-                        ...prev,
-                        waitingSlowIntervalDays: Math.max(1, Number(e.target.value) || 1),
-                      }))
-                    }
-                  />
-                </div>
-              </div>
+              <label className="sectionItem" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
+                <input
+                  type="checkbox"
+                  checked={schedulerSettings.wallRatingAutoEnqueue}
+                  onChange={(e) =>
+                    setSchedulerSettings((p) => ({ ...p, wallRatingAutoEnqueue: e.target.checked }))
+                  }
+                />
+                <span>已观看并打完分后自动创建任务</span>
+              </label>
 
               <h3 className="configSubSectionTitle" style={{ marginTop: 28 }}>
-                模块二 · 删除 Flow（§7.3）
+                删除相关
               </h3>
-              <p className="hint">占位：删除类专有条目（确认流、API 等）将在此扩展；当前逻辑见 §4。</p>
+              <p className="hint">删除任务在任务中心完成信息确认与执行；本区预留与删除流程相关的扩展配置。</p>
+              <div className="field" style={{ marginTop: 12 }}>
+                <div className="label">同时进行的删除任务数</div>
+                <input
+                  type="number"
+                  min={1}
+                  value={schedulerSettings.deleteConcurrency}
+                  onChange={(e) =>
+                    setSchedulerSettings((prev) => ({
+                      ...prev,
+                      deleteConcurrency: Math.max(1, Number(e.target.value) || 1),
+                    }))
+                  }
+                />
+              </div>
 
               <h3 className="configSubSectionTitle" style={{ marginTop: 28 }}>
-                模块三 · 转码 Flow（§7.4 / §5）
+                转码与临时目录
               </h3>
               <p className="hint" style={{ lineHeight: 1.55 }}>
-                临时目录、ffmpeg/ffprobe 覆盖、<strong>编码资源池</strong>（§5.1.0 探测 → 入池 / 子槽 / 优先级 / CPU 参与策略）。已移除与资源池冲突的全局「自动编码器」下拉（§5.7）。
+                临时目录、ffmpeg/ffprobe 路径，以及<strong>编码资源池</strong>（探测本机设备 → 入池、子槽上限、排序优先级、CPU 参与策略）。已不再使用与资源池冲突的全局「自动编码器」下拉。
               </p>
+              <div className="field" style={{ marginTop: 12 }}>
+                <div className="label" title="配置键 transcodeConcurrency">
+                  同时进行的码率压缩任务数
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  value={schedulerSettings.transcodeConcurrency}
+                  onChange={(e) =>
+                    setSchedulerSettings((prev) => ({
+                      ...prev,
+                      transcodeConcurrency: Math.max(1, Number(e.target.value) || 1),
+                    }))
+                  }
+                />
+                <p className="hint" style={{ marginTop: 6 }}>
+                  与下方<strong>编码资源池每设备子槽</strong>同时生效，取更紧的一层。
+                </p>
+              </div>
               <label className="sectionItem" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                 <input
                   type="checkbox"
@@ -3458,10 +3421,10 @@ export default function App() {
                     setSchedulerSettings((p) => ({ ...p, transcodeAutoReplace: e.target.checked }))
                   }
                 />
-                <span>校验通过后自动 replace（跳过替换前确认，§5.3）</span>
+                <span>校验通过后自动替换成片（跳过替换前确认）</span>
               </label>
               <div className="field" style={{ marginTop: 12 }}>
-                <div className="label">转码临时根目录（§5.2）</div>
+                <div className="label">转码临时根目录</div>
                 <input
                   value={config.transcodeTempRoot}
                   onChange={(e) => setConfig({ ...config, transcodeTempRoot: e.target.value })}
@@ -3508,7 +3471,7 @@ export default function App() {
                     })();
                   }}
                 >
-                  刷新编码设备探测（§5.1.0）
+                  刷新编码设备探测
                 </button>
                 <button
                   type="button"
@@ -3523,7 +3486,7 @@ export default function App() {
                 </button>
               </div>
               <div className="field" style={{ marginTop: 16 }}>
-                <div className="label">CPU 参与策略（§5.1.2）</div>
+                <div className="label">CPU 参与策略</div>
                 <select
                   className="selectLike"
                   value={schedulerSettings.transcodeEncodePool.cpuParticipation}
@@ -3550,7 +3513,7 @@ export default function App() {
                     <tr>
                       <th style={{ padding: 6, width: 40 }} aria-label="拖拽排序" />
                       <th style={{ padding: 6, width: 48 }}>顺序</th>
-                      <th style={{ textAlign: 'left', padding: 6 }}>设备键</th>
+                      <th style={{ textAlign: 'left', padding: 6 }}>编码设备</th>
                       <th style={{ padding: 6 }}>入池</th>
                       <th style={{ padding: 6 }}>子槽</th>
                     </tr>
@@ -3642,7 +3605,7 @@ export default function App() {
               </div>
               <div className="actions" style={{ marginTop: 14 }}>
                 <button type="button" className="primary" onClick={() => void saveTranscodeFlowPage()}>
-                  保存转码 Flow 配置
+                  保存转码相关配置
                 </button>
               </div>
               <p className="hint" style={{ marginTop: 12, lineHeight: 1.55, whiteSpace: 'pre-line' }}>
@@ -3660,16 +3623,111 @@ export default function App() {
               ) : null}
 
               <h3 className="configSubSectionTitle" style={{ marginTop: 28 }}>
-                模块四 · 洗版 Flow（§7.5）
+                洗版
               </h3>
-              <p className="hint">占位：MoviePilot、补源参数等将在此与 §6 对表扩展。洗版不占转码编码池（§5.9）。</p>
+              <p className="hint" style={{ lineHeight: 1.55 }}>
+                洗版（更高质量片源）的并行上限与「等待片源」时的重试节奏见下列项。洗版不占用转码编码资源池。
+              </p>
+              <div className="field" style={{ marginTop: 12 }}>
+                <div className="label">同时进行的洗版任务数</div>
+                <input
+                  type="number"
+                  min={1}
+                  value={schedulerSettings.upgradeConcurrency}
+                  onChange={(e) =>
+                    setSchedulerSettings((prev) => ({
+                      ...prev,
+                      upgradeConcurrency: Math.max(1, Number(e.target.value) || 1),
+                    }))
+                  }
+                />
+              </div>
+              <div className="row" style={{ marginTop: 4 }}>
+                <div className="field">
+                  <div className="label">洗版 · 快速重搜次数</div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={schedulerSettings.waitingFastRetryCount}
+                    onChange={(e) =>
+                      setSchedulerSettings((prev) => ({
+                        ...prev,
+                        waitingFastRetryCount: Math.max(1, Number(e.target.value) || 1),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <div className="label">快速重搜间隔(小时)</div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={schedulerSettings.waitingFastIntervalHours}
+                    onChange={(e) =>
+                      setSchedulerSettings((prev) => ({
+                        ...prev,
+                        waitingFastIntervalHours: Math.max(1, Number(e.target.value) || 1),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="row">
+                <div className="field">
+                  <div className="label">洗版 · 中速阶段上限次数</div>
+                  <input
+                    type="number"
+                    min={2}
+                    value={schedulerSettings.waitingMidRetryCount}
+                    onChange={(e) =>
+                      setSchedulerSettings((prev) => ({
+                        ...prev,
+                        waitingMidRetryCount: Math.max(
+                          prev.waitingFastRetryCount + 1,
+                          Number(e.target.value) || prev.waitingFastRetryCount + 1,
+                        ),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <div className="label">中速间隔(天)</div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={schedulerSettings.waitingMidIntervalDays}
+                    onChange={(e) =>
+                      setSchedulerSettings((prev) => ({
+                        ...prev,
+                        waitingMidIntervalDays: Math.max(1, Number(e.target.value) || 1),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="row">
+                <div className="field">
+                  <div className="label">慢速间隔(天)</div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={schedulerSettings.waitingSlowIntervalDays}
+                    onChange={(e) =>
+                      setSchedulerSettings((prev) => ({
+                        ...prev,
+                        waitingSlowIntervalDays: Math.max(1, Number(e.target.value) || 1),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
 
               <div className="actions" style={{ marginTop: 20 }}>
                 <button type="button" className="primary" onClick={() => void saveTaskCenterPage()}>
                   保存任务中心
                 </button>
                 <button type="button" onClick={() => void validateTranscodeToolsAction()}>
-                  检验转码资源池（§5.8）
+                  检验转码资源池
                 </button>
               </div>
             </>
@@ -4229,7 +4287,7 @@ export default function App() {
               产品定义：1–2 星表示计划从库中移除该片（低质片源不再保留）。删除走<strong>任务中心</strong>：预检 → <strong>信息确认</strong>（必须手动确认，自动模式也不会跳过）→ 调用 <strong>Emby</strong> 删除条目（库与磁盘以服务器行为为准）。
             </p>
             <p className="hint" style={{ lineHeight: 1.55 }}>
-              请点击行内「加入删除任务」，在任务中心完成确认与执行；验收以 Emby 上该条目已不存在为准。详见仓库 <code>docs/design/DESIGN_TASK_CENTER.md</code> §2.3。
+              请点击行内「加入删除任务」，在任务中心完成「信息确认」与执行；验收以 Emby 上该条目已不存在为准。
             </p>
             <div className="actions" style={{ marginTop: 14 }}>
               <button type="button" className="primary" onClick={() => setManageDeleteExplainOpen(false)}>
@@ -4247,12 +4305,14 @@ export default function App() {
     const taskSidebar = (
       <>
         <div className="sidebarHeading">任务中心</div>
-        <p className="sidebarHint">执行模式、并发、补源节奏与海报墙自动入队在「配置中心 → 任务中心」。</p>
         <p className="sidebarHint">
-          <strong>手动模式</strong>：可勾选「参与手动批量」后点<strong>批量执行</strong>；也可对单条点<strong>执行</strong>（会自动纳入调度范围并尝试立即推进）。占槽中点<strong>暂停</strong>为软停（本步收尾后再暂停）。
+          新任务执行方式、海报墙自动建任务在「配置中心 → 任务中心 → 任务调度」；洗版并行与重试节奏在「洗版」小节；删除与码率压缩并行在对应小节。
         </p>
         <p className="sidebarHint">
-          <strong>自动模式</strong>：新任务入队即为排队中；<strong>批量执行</strong>可对勾选条目做同上发令，并启动/保持调度计时。
+          <strong>新任务添加后手动执行</strong>：可勾选「参与手动批量」后点<strong>批量执行</strong>；也可对单条点<strong>执行</strong>（会自动纳入调度范围并尝试立即推进）。占槽中点<strong>暂停</strong>为软停（本步收尾后再暂停）。
+        </p>
+        <p className="sidebarHint">
+          <strong>新任务添加后自动执行</strong>：新任务入队即为排队中；<strong>批量执行</strong>可对勾选条目做同上发令，并启动/保持调度计时。
         </p>
         <div className="sidebarStat">
           批量勾选 {batchRunSelectedIds.size} · 已暂停 {taskSummary.paused}
@@ -4285,7 +4345,7 @@ export default function App() {
           {batchRunning ? '调度运行中…' : '批量执行'}
         </button>
         <div className="sidebarDivider" />
-        <div className="sidebarMuted">辅助（非 §11.2 必选）</div>
+        <div className="sidebarMuted">可选工具</div>
         <button type="button" className="sidebarFullWidth" onClick={() => clearAllPausedToQueued()} disabled={taskSummary.paused === 0}>
           全部已暂停 → 排队中
         </button>
@@ -4348,8 +4408,16 @@ export default function App() {
             </p>
             <h3 style={{ marginTop: 20 }}>任务操作与明细</h3>
             <p className="hint">
-              每条任务下方展开<strong>执行日志</strong>，实时记录调度与 Flow（含删除预检/Emby API/验收轮询），持久化在本地队列便于高危操作排查。
+              每条任务下方展开<strong>执行日志</strong>，记录各步骤进度（含删除前检查、与 Emby 通信、删除结果确认等），保存在本机队列便于排查。
             </p>
+            <label className="sectionItem hint" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+              <input
+                type="checkbox"
+                checked={showFlowLogTechnical}
+                onChange={(e) => setShowFlowLogTechnical(e.target.checked)}
+              />
+              <span>执行日志显示技术详情（含内部步骤代码）</span>
+            </label>
             {enqueueHint ? (
               <div className="hint" style={{ marginTop: 8, color: '#86efac' }}>
                 {enqueueHint}
@@ -4394,11 +4462,11 @@ export default function App() {
                         {t.actionType === 'transcode'
                           ? '码率压缩'
                           : t.actionType === 'upgrade'
-                            ? '洗版优化'
+                            ? '洗版'
                             : '从 Emby 删除'}
                       </div>
                       <div className="hint">
-                        {statusZh} <span style={{ opacity: 0.65 }}>({t.status})</span>
+                        {statusZh}
                         {t.pauseRequested ? (
                           <span style={{ color: '#fbbf24' }}> · 本步收尾后将暂停</span>
                         ) : null}
@@ -4448,7 +4516,9 @@ export default function App() {
                         <pre className="taskFlowLogPre">
                           {(t.flowLog ?? []).length === 0
                             ? '暂无日志；创建任务、点击执行或调度推进后将追加记录。'
-                            : (t.flowLog ?? []).map((e) => formatFlowLogLine(e)).join('\n')}
+                            : (t.flowLog ?? [])
+                                .map((e) => (showFlowLogTechnical ? formatFlowLogLine(e) : formatFlowLogLineForUser(e)))
+                                .join('\n')}
                         </pre>
                       </details>
                     </div>
@@ -4553,9 +4623,14 @@ export default function App() {
                     <>
                       <div style={{ fontWeight: 800 }}>转码 · 杜比视界确认</div>
                       <p className="hint" style={{ marginTop: 8, lineHeight: 1.55 }}>
-                        条目「{confirmTask.itemName}」预检识别为<strong>杜比视界</strong>片源。受控转码将尝试经 libplacebo 等进行色调映射后再压制 x265；需完整
-                        FFmpeg 能力。请确认你已了解画质与耗时风险。
+                        条目「{confirmTask.itemName}」预检识别为<strong>杜比视界</strong>片源。继续转码时可能做色调映射再压成 x265，耗时与画质风险高于普通片源。请确认你已了解后再继续。
                       </p>
+                      <details className="hint" style={{ marginTop: 8 }}>
+                        <summary style={{ cursor: 'pointer', userSelect: 'none' }}>技术细节</summary>
+                        <p style={{ marginTop: 8, lineHeight: 1.5 }}>
+                          受控路径可能使用 libplacebo 等滤镜；需本机 FFmpeg 完整能力。
+                        </p>
+                      </details>
                       {confirmTask.transcodeTargetPath ? (
                         <p className="hint" style={{ marginTop: 8 }}>
                           目标成片路径（映射后）：{confirmTask.transcodeTargetPath}
@@ -4581,14 +4656,19 @@ export default function App() {
                     <>
                       <div style={{ fontWeight: 800 }}>转码 · 替换前确认</div>
                       <p className="hint" style={{ marginTop: 8, lineHeight: 1.55 }}>
-                        partial 已通过校验。即将把新成片以 <code>.etp.new</code> / 改名链替换到原路径（存在旧文件时会写{' '}
-                        <code>.etp.bak</code>）。此操作不可自动撤销。
+                        新输出已通过校验，即将用新成片<strong>替换</strong>原路径上的文件；若存在旧成片会先备份再替换。此操作无法由应用自动撤销。
                       </p>
                       <div className="hint" style={{ marginTop: 10, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                        {`目标：${confirmTask.transcodeTargetPath ?? '（未知）'}\npartial：${confirmTask.transcodePartialPath ?? '（未知）'}\n源体积：${
+                        {`目标成片：${confirmTask.transcodeTargetPath ?? '（未知）'}\n临时输出文件：${confirmTask.transcodePartialPath ?? '（未知）'}\n源体积：${
                           confirmTask.transcodeOriginalSizeGb != null ? `${confirmTask.transcodeOriginalSizeGb.toFixed(2)} GB` : '—'
                         }`}
                       </div>
+                      <details className="hint" style={{ marginTop: 8 }}>
+                        <summary style={{ cursor: 'pointer', userSelect: 'none' }}>技术细节（中间文件命名）</summary>
+                        <p style={{ marginTop: 8, lineHeight: 1.5 }}>
+                          替换过程可能使用 <code>.etp.new</code> 链与 <code>.etp.bak</code> 备份后缀。
+                        </p>
+                      </details>
                       <div className="actions" style={{ marginTop: 16 }}>
                         <button
                           type="button"
@@ -4634,9 +4714,9 @@ export default function App() {
                 }
                 return (
                   <>
-                    <div style={{ fontWeight: 800 }}>补源 · 信息确认</div>
+                    <div style={{ fontWeight: 800 }}>洗版 · 信息确认</div>
                     <p className="hint" style={{ marginTop: 8 }}>
-                      候选资源对比（模拟数据）。采用后任务重新排队；若无合格媒体片源则进入等待重试。
+                      候选资源对比（模拟数据）。采用后任务重新排队；若无合格片源则进入等待重试。
                     </p>
                     {infoConfirmCandidates.length === 0 ? (
                       <p className="hint">暂无候选或任务已失效。</p>
@@ -4666,7 +4746,7 @@ export default function App() {
                         type="button"
                         onClick={() => infoConfirmTaskId && rejectCandidateNoMediaSource(infoConfirmTaskId)}
                       >
-                        暂无合格媒体片源
+                        暂无合格片源
                       </button>
                       <button type="button" onClick={() => setInfoConfirmTaskId(null)}>
                         关闭
@@ -4789,7 +4869,7 @@ export default function App() {
                   }
                 }}
               >
-                确认回写
+                同步为已在 Emby 标记已观看
               </button>
               <button onClick={() => setConfirm(null)}>取消</button>
             </div>

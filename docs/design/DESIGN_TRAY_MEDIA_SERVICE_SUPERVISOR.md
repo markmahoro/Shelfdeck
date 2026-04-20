@@ -11,17 +11,19 @@
 
 ## 验收与迭代状态
 
-| 项 | 内容 |
-|----|------|
-| **本迭代整体验收** | **通过**（2026-04-20 UTC+8）；见 [`TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md`](../testing/TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md)、[`PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md`](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md) |
+
+| 项           | 内容                                                                                                                                                                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **本迭代整体验收** | **通过**（2026-04-20 UTC+8）；见 `[TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md](../testing/TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md)`、`[PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md)` |
+
 
 ## 术语与数据模型
 
 
-| 术语    | 含义                                                                                   |
-| ----- | ------------------------------------------------------------------------------------ |
-| 受管子进程 | 由监督进程 `spawn` 且当前仍持有 `ChildProcess` 引用的 `media-service` 进程                           |
-| 健康成功  | `GET http://127.0.0.1:{PORT}/v1/health` 在超时内返回 2xx，且 body 为 JSON 且 `status === 'ok'` |
+| 术语    | 含义                                                                                                  |
+| ----- | --------------------------------------------------------------------------------------------------- |
+| 受管子进程 | 由监督进程 `spawn` 且当前仍持有 `ChildProcess` 引用的 `media-service` 进程                                          |
+| 健康成功  | `GET http://127.0.0.1:{PORT}/v1/health` 在超时内返回 2xx，且 body 为 JSON 且 `status === 'ok'`                |
 | PORT  | 与子进程一致：`MEDIA_SERVICE_PORT` 或 `CONTROL_PLANE_PORT`，缺省 **18080**（与 `media-service/src/server.js` 一致） |
 
 
@@ -113,10 +115,10 @@
 ## 追溯与关联文档
 
 
-| 文档                                                                                                                             | 关系  |
-| ------------------------------------------------------------------------------------------------------------------------------ | --- |
-| `[REQ_FEATURE_windows-tray-media-service-supervisor.md](../requirements/REQ_FEATURE_windows-tray-media-service-supervisor.md)` | 需求  |
-| `[ARCH_TRAY_MEDIA_SERVICE_SUPERVISOR.md](../architecture/ARCH_TRAY_MEDIA_SERVICE_SUPERVISOR.md)`                               | 架构  |
-| `[TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md](../testing/TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md)`                                    | 准出  |
-| [PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md) | 迭代验收摘要 |
-| [PRJ_MANAGEMENT.md](../project/PRJ_MANAGEMENT.md) | 项目管理 |
+| 文档                                                                                                                             | 关系     |
+| ------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| `[REQ_FEATURE_windows-tray-media-service-supervisor.md](../requirements/REQ_FEATURE_windows-tray-media-service-supervisor.md)` | 需求     |
+| `[ARCH_TRAY_MEDIA_SERVICE_SUPERVISOR.md](../architecture/ARCH_TRAY_MEDIA_SERVICE_SUPERVISOR.md)`                               | 架构     |
+| `[TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md](../testing/TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md)`                                    | 准出     |
+| [PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md)              | 迭代验收摘要 |
+| [PRJ_MANAGEMENT.md](../project/PRJ_MANAGEMENT.md)                                                                              | 项目管理   |

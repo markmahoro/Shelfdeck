@@ -29,6 +29,14 @@ export function formatFlowLogLine(e: TaskFlowLogEntry): string {
   return `[${stamp}] [${e.level}] ${e.code} | ${e.message}`;
 }
 
+/** 任务中心默认展示：时间 + 级别 + 人话说明（不含机器可读 code） */
+export function formatFlowLogLineForUser(e: TaskFlowLogEntry): string {
+  const t = new Date(e.ts);
+  const p = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}.${String(t.getMilliseconds()).padStart(3, '0')}`;
+  return `[${stamp}] [${e.level}] ${e.message}`;
+}
+
 export type TaskStatus =
   | 'pending_manual'
   | 'queued'
@@ -104,7 +112,7 @@ export function transcodeVolumeSummaryLine(task: MediaTask): string | null {
     if (saved > 0) {
       return `压制体积：${o.toFixed(2)} GB → ${r.toFixed(2)} GB · 节省 ${saved.toFixed(2)} GB`;
     }
-    return `压制体积：${o.toFixed(2)} GB → ${r.toFixed(2)} GB（未缩小，按规则不采纳）`;
+    return `压制体积：${o.toFixed(2)} GB → ${r.toFixed(2)} GB（体积未减小，未替换原文件）`;
   }
   if (o != null) return `源文件体积（已记账）：${o.toFixed(2)} GB`;
   if (r != null) return `转码后体积（已记账）：${r.toFixed(2)} GB`;
