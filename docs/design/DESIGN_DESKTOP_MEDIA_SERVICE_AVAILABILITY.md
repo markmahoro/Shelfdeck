@@ -1,7 +1,8 @@
 # DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY — 媒体管理服务可达性与壳层门禁
 
 > **SSOT 路径**：`[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](./DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)` · 文档索引 `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`  
-> **关联需求**：`[REQ_FEATURE_desktop-requires-media-service.md](../requirements/REQ_FEATURE_desktop-requires-media-service.md)`  
+> **关联需求**：`[REQ_FEATURE_desktop-requires-media-service.md](../requirements/REQ_FEATURE_desktop-requires-media-service.md)` · `[REQ_FEATURE_desktop-backend-connection-and-windows-lifecycle.md](../requirements/REQ_FEATURE_desktop-backend-connection-and-windows-lifecycle.md)`  
+> **连接端点 SSOT**：`[DESIGN_DESKTOP_BACKEND_ENDPOINT.md](./DESIGN_DESKTOP_BACKEND_ENDPOINT.md)`  
 > **配置保存展示**：`[DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md](./DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md)` · **文案**：`[DESIGN_DESKTOP_UI_COPY.md](./DESIGN_DESKTOP_UI_COPY.md)`
 
 ---
@@ -23,7 +24,7 @@
 
 ### 1.2 非目标
 
-- 不规定 Tray 与子进程细节（见 tray 专题文档）。
+- 不规定 **ShelfDeck 小助手**（托盘）的启停与进程细节（见 `DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR` / `ARCH_TRAY_MEDIA_SERVICE_SUPERVISOR`）；健康判据与 **小助手** **同源** `effectiveBaseUrl`；**连接持久化仅小助手写入**，Desktop **只读**（见 `DESIGN_DESKTOP_BACKEND_ENDPOINT`）。
 - 不替代任务中心状态机（`DESIGN_TASK_CENTER`）。
 
 ---
@@ -47,14 +48,15 @@
 - **首次**：应用挂载后立即发起一次 `GET /v1/health`。
 - **轮询**：间隔 **12 秒**（与常见心跳同量级，可微调实现）。
 - **焦点**：`window` 获得焦点时再触发一次探测（便于用户启动服务后无需等满一轮）。
-- **URL**：与 Electron `preload` 中 `CP_BASE` 及 Vite `import.meta.env.VITE_MEDIA_SERVICE_URL` / `VITE_CONTROL_PLANE_URL` 同源（同义规则见 `[DEV_SETUP.md](../dev/DEV_SETUP.md)`）；必要时带 `X-API-Key`（与现有 `cpJson` 一致）。
+- **URL**：与 **有效媒体管理服务基址** 同源，解析优先级见 `[DESIGN_DESKTOP_BACKEND_ENDPOINT.md](./DESIGN_DESKTOP_BACKEND_ENDPOINT.md)`（含用户持久化、环境变量、Vite 构建期与默认值）；Electron `preload` 中 `CP_BASE` 与渲染进程用于健康检查的 base **须**与此一致；必要时带 `X-API-Key`（与现有 `cpJson` 一致）。
 
 ---
 
 ## 4. 壳层表现（强门禁）
 
-- `**unknown`**：覆盖壳层主区域的**连接中**遮罩（短句即可，避免与 offline 长说明混淆）；**禁止**切换五页与操作主内容。
-- `**offline`**：覆盖壳层主区域的**不可用**遮罩；文案须说明**须先启动/连接媒体管理服务**；可提示默认 `http://127.0.0.1:18080` 作为开发参考，**禁止** `§`、仓库路径、`REQ_*` 文件名作为主句（见 `DESIGN_DESKTOP_UI_COPY`）。
+- **顶栏联通指示（须交付）**：在壳层 **一隅**（推荐 **主导航栏旁**，占位 **尽量小**）展示与当前 `mediaServiceHealth` 一致的 **黄 / 绿 / 红**（圆点或极简图标 + tooltip 一句）；与 **小助手** 灯色语义对齐（见 `DESIGN_TRAY`）；**不得**挤占主导航主体。文案与禁区见 `DESIGN_DESKTOP_UI_COPY` §4.12。
+- `**unknown`**：覆盖壳层主区域的**连接中**遮罩（短句即可，避免与 offline 长说明混淆）；**禁止**切换五页与操作主内容；**须** 提示用户到 **ShelfDeck 小助手** 检查连接或启动后端（Desktop **无** 改地址入口）。
+- `**offline`**：覆盖壳层主区域的**不可用**遮罩；文案须说明**无法连接媒体管理服务**，并 **明确引导** 用户在 **任务栏小助手** 中配置 **服务器地址** 或启动后端（**禁止** 暗示「请到桌面配置中心改媒体管理服务地址」）；可提及检查网络、服务是否已启动；**禁止** `§`、仓库路径、`REQ`_* 文件名作为主句（见 `DESIGN_DESKTOP_UI_COPY`）。
 - `**online`**：无上述遮罩；底部 `appErrorBanner` 仍可用于**任务执行**等非「服务门禁」类提示。
 
 ---
@@ -85,3 +87,4 @@
 2. 启服务 → 12s 内或焦点切换后应 `online`。
 3. 运行中停止服务 → 应回到 `offline`（至多一轮轮询 + 焦点可选）。
 4. `online` 后配置保存行为仍符合 `REQ_FEATURE_config-center-save-feedback`。
+

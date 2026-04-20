@@ -22,6 +22,8 @@
 - 海报墙、播放记录、媒体库管理、任务中心（含侧栏、任务卡片、执行日志、确认弹窗、维护区块）。
 - 通过 UI 错误横幅、`alert` 类反馈展示的 `**Error.message`**（含渲染进程与 Electron 主进程抛出、最终在界面展示的字符串）。
 - 开发/模拟入口（如模拟任务标题）在用户可见时的用语一致性。
+- **媒体管理服务**：Desktop **无** 连接表单；壳层遮罩与 **顶栏小型联通状态** 见第 4.10、4.12 节。
+- **ShelfDeck 小助手**左键面板文案与状态句，见第 4.11 节。
 
 ### 1.2 非目标
 
@@ -131,12 +133,33 @@
 - **首句**：结论与风险的人话概述。
 - **术语**（partial、replace、libplacebo 等）：放入 **「技术细节」** 折叠或次要段落，避免首屏堆砌。
 
+### 4.10 Desktop：无媒体管理服务连接表单（门禁文案）
+
+- **原则**：**不在** 配置中心提供 **媒体管理服务基址 / API Key** 输入与保存；用户 **仅** 在 **ShelfDeck 小助手** 配置（见 `DESIGN_DESKTOP_BACKEND_ENDPOINT`）。
+- **`unknown` / `offline` 遮罩**：主句须引导用户打开 **任务栏小助手**，在其中 **填写或检查服务器地址**、**启动本机后端**（若适用）；**禁止** 写「请到桌面设置里修改媒体管理服务地址」；**禁止** `§`、仓库路径、`REQ_*` 文件名。
+- **辅助说明**：可一句交代「连接媒体管理服务后，再回到桌面配置 Emby、任务等」；勿将 Emby 地址与媒体管理服务地址混淆。
+- **与门禁**：仍依赖 `GET /v1/health`；与 [`DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md`](./DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md) 一致。
+
+### 4.11 ShelfDeck 小助手（托盘左键面板）
+
+- **页首**：**当前媒体管理服务完整地址**须大字或固定栏展示，用户无需猜「连的是谁」；未配置时用 **「未配置服务器地址」** 等短句，**禁止** 仅用图标颜色代替说明。
+- **状态**：**黄 / 绿 / 红** 配一句人话（未就绪 / 正常 / 无法连接），与 `[DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md](./DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md)` 一致；用户点 **启动** 后的宽限期内须有 **「启动中」** 类人话（可配合 tooltip）。
+- **同屏（当前工程须交付）**：**打开 ShelfDeck 主界面**；**任务队列只读摘要**（与桌面同源数据，诚实降级）；**设置**内 **开机自启**、**退出时停止本机媒体管理服务**（默认关）。用语须短、可理解，**禁止** `§`、仓库路径作主句。
+- **启停**：未配置时按钮禁用，提示 **「请先配置并保存服务器地址」**；**禁止** 在界面上分「本地连接」「远程连接」两套主按钮。
+- **远端**：若「停止」仅打开说明或引导到 NAS 管理，按钮或结果文案须 **诚实**（如「请在服务器上停止服务」），避免「已停止」而实际未停。
+- **禁区**：同第 2 节（无 `§`、无仓库路径作主句）。
+
+### 4.12 Desktop 顶栏 · 媒体服务联通状态（小型）
+
+- **形态**：主导航 **旁** **极小** 占位（圆点/灯/短图标），颜色 **黄 / 绿 / 红** 与壳层 `mediaServiceHealth` 及 **小助手** 语义对齐；**tooltip** 一句人话（未就绪 / 正常 / 无法连接），可含「请到小助手检查」类短指引。
+- **非目标**：**不** 用大块横幅替代；**不** 在顶栏提供编辑地址入口。
+
 ---
 
 ## 5. Electron / 服务层与 UI 同源错误
 
 - 凡可能通过 `setError`、对话框等展示给用户的 `Error.message`：**中文主句** + 可选 **可操作指引**（如「请到配置中心 → 任务中心检查转码设置」）。
-- **媒体管理服务不可达**（壳层门禁、配置保存被拒绝）：须 **中文**说明须先启动或连接本机媒体管理服务，避免暗示「仅缺 Emby」；不要求用户阅读仓库路径；详见 `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](./DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)` 与 `[DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md](./DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md)` 第 8.1 节。
+- **媒体管理服务不可达**（壳层门禁、配置保存被拒绝）：须 **中文**说明无法连接媒体管理服务，并 **引导到 ShelfDeck 小助手** 配置地址或启动服务；避免暗示「仅缺 Emby」或「请到桌面修改媒体管理服务地址」；不要求用户阅读仓库路径；详见 `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](./DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)`、`[DESIGN_DESKTOP_BACKEND_ENDPOINT.md](./DESIGN_DESKTOP_BACKEND_ENDPOINT.md)` 与 `[DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md](./DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md)` 第 8.1 节。
 - **禁止**在消息字符串中使用 `§` 或「任务中心 · 转码 Flow · §7.4」类文档定位。
 - 主要实现入口示例：`[media-desktop/electron/transcodeService.js](../../media-desktop/electron/transcodeService.js)`、`[media-desktop/src/App.tsx](../../media-desktop/src/App.tsx)` 中错误透传；与 `media-service` 同源错误字符串若也会到达桌面 UI，应同样遵守。
 
@@ -149,7 +172,7 @@
 | ----------------- | ------------------------------ |
 | 壳层与页面文案           | `src/App.tsx`                  |
 | 配置中心保存/检验反馈（呈现）   | `src/App.tsx`（与 `[DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md](./DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md)` 一致） |
-| 媒体服务可达与壳层门禁     | `src/mediaServiceHealth.ts`、`src/App.tsx`（与 `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](./DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)` 一致） |
+| 媒体服务可达与壳层门禁     | `src/mediaServiceHealth.ts`、`src/App.tsx`（与 `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](./DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)`、`[DESIGN_DESKTOP_BACKEND_ENDPOINT.md](./DESIGN_DESKTOP_BACKEND_ENDPOINT.md)` 一致） |
 | 任务状态中文、日志格式化与体积摘要 | `src/taskQueue.ts`             |
 | 编码资源池用户向说明        | `src/transcodePool.ts`         |
 | 模拟任务标题            | `src/debugSeed.ts`             |

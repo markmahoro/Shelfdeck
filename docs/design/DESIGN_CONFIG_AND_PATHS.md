@@ -15,9 +15,17 @@
 
 ## 配置中心在顶层架构中的定义
 
-1. **配置中心（Config）**：连接与播放器、**任务调度与补源**（执行模式、**删除/转码/洗版多队列**并发、补源重试节奏、海报墙打分自动入队等）及其他配置分区。
+1. **配置中心（Config）**：**Emby 与播放器**、**任务调度与补源**（执行模式、**删除/转码/洗版多队列**并发、补源重试节奏、海报墙打分自动入队等）及其他配置分区。**不含** ShelfDeck **媒体管理服务** HTTP 基址/API Key 表单（该配置 **仅** 在 **小助手**，见 `DESIGN_DESKTOP_BACKEND_ENDPOINT`）。
 
 ---
+
+## ShelfDeck 媒体管理服务 HTTP 基址（非 Emby；持久化由小助手维护）
+
+与 Emby Server 的 `baseUrl` **无关**；本条为 **ShelfDeck 媒体管理服务** HTTP 基址，供桌面壳层、`preload` 与渲染进程调用 `GET /v1/health` 及后续 REST。
+
+- **信息架构顺序**：用户 **在 ShelfDeck 小助手** 完成 **媒体管理服务** 地址（及可选 API Key）配置并使服务 **健康** 后，再在桌面 **配置中心** 进入 **Emby 与播放器**、豆瓣、任务调度等分区。桌面 **无**「媒体管理服务连接」分区。细则见 [`DESIGN_DESKTOP_BACKEND_ENDPOINT.md`](./DESIGN_DESKTOP_BACKEND_ENDPOINT.md)。
+- **持久化键名（SSOT）**：`shelfdeck.mediaService.baseUrl`（必填）、`shelfdeck.mediaService.apiKey`（可选，与 `X-API-Key` 对应）；**仅小助手** 写入该文件。
+- **ShelfDeck 小助手**：**同一键名、同一存储文件**；**唯一** 用户向编辑入口；**左键面板** 须展示当前基址；详见 `DESIGN_DESKTOP_BACKEND_ENDPOINT`、`DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR`。
 
 ## 前台与治理相关配置字段
 
@@ -50,8 +58,10 @@
 | 文档                                                                                 | 关系           |
 | ---------------------------------------------------------------------------------- | ------------ |
 | `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`                                        | 全库索引         |
+| `[REQ_FEATURE_desktop-backend-connection-and-windows-lifecycle.md](../requirements/REQ_FEATURE_desktop-backend-connection-and-windows-lifecycle.md)` | 连接端点需求 |
 | `[REQ_PRODUCT_BASELINE_v1.0.0.md](../requirements/REQ_PRODUCT_BASELINE_v1.0.0.md)` | 需求母版         |
 | `[DESIGN_FRONT_PLAYBACK.md](./DESIGN_FRONT_PLAYBACK.md)`                           | 前台配置与回写闭环    |
 | `[DESIGN_TASK_CENTER.md](./DESIGN_TASK_CENTER.md)`                                 | 调度与任务中心 SSOT |
 | `[ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)`               | 路径/配置战略分工    |
+| `[DESIGN_DESKTOP_BACKEND_ENDPOINT.md](./DESIGN_DESKTOP_BACKEND_ENDPOINT.md)`       | 连接端点（小助手写、桌面读） |
 | `[openapi.yaml](../api/openapi.yaml)` / `[API_README.md](../api/API_README.md)`    | REST 契约与说明   |

@@ -99,7 +99,7 @@
 
 ### 8.1 媒体管理服务未可达
 
-- 当壳层处于 `**unknown`** 或 `**offline**`（见 `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](./DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)`）时，**不得**对任何分区展示 **保存成功**；强门禁下用户通常无法触发保存。
+- 当壳层处于 `**unknown`** 或 `**offline**`（见 `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](./DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)`）时，**不得**对任何分区展示 **保存成功**；强门禁下用户通常无法触发保存。原因说明可 **并列** 引导用户到 **ShelfDeck 小助手** 配置或启动后端（Desktop **无** 媒体管理服务地址保存入口，见 `DESIGN_DESKTOP_BACKEND_ENDPOINT`）。
 - 若仍触发保存（竞态或后续交互变化），须 **error** 语义，原因须说明无法连接或未启动媒体管理服务，可与壳层遮罩主句区分开（配置槽短句 + `formatSaveConfigFailed`）。
 - **成功反馈定时清除**（第 6 节）仅在 **online** 且保存成功时适用；服务从 offline 恢复后，旧的「未保存」提示可被下一次操作覆盖，不以「成功」冒充。
 

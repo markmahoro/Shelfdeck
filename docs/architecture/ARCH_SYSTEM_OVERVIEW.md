@@ -64,11 +64,13 @@
 
 - **保留**：现有信息架构能力（配置、海报墙、媒体库管理、任务中心、播放记录等）的 **界面与交互**。
 - **可用性前提（产品一致口径）**：五页壳层业务体验以 **媒体管理服务可达** 为前提（`GET /v1/health`，详见 `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](../design/DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)` / `[REQ_FEATURE_desktop-requires-media-service.md](../requirements/REQ_FEATURE_desktop-requires-media-service.md)`）；与「渐进迁移 IPC→REST」不冲突——现迭代收紧的是 **用户何时可依赖本应用**，而非单条 API 归属。
+- **连接端点**：**ShelfDeck 小助手** **独占写入** 用户本机连接文件（基址 URL 及可选 API Key）；**桌面客户端** **只读** 该文件并与小助手 **同源** 解析 `effectiveBaseUrl`（环境变量覆盖规则见 `[DESIGN_DESKTOP_BACKEND_ENDPOINT.md](../design/DESIGN_DESKTOP_BACKEND_ENDPOINT.md)`）；对健康探测 **同源**；小助手产品行为见 `[DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md](../design/DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md)`。
 - **演进**：将「任务持久化、调度决策、转码执行」从 **渲染进程 + IPC** 逐步迁移为 **调用媒体管理服务 API**；本机 IPC 收缩为 **播放相关**（`launchPlayer`、可选本地探测等）——**路径映射规则的权威在媒体管理服务**，见 **§3.4**。
 - **经典回顾 Tab/页**：消费后端 `GET /revisit`（或等价）列表；与「未看」数据源解耦。
 
 ### 3.2 后端（媒体管理服务）
 
+- **Windows 本机单实例（产品默认端口）**：同一 Windows 主机上，默认监听端口上 **至多一个** 成功 listen 的实例；决策见 `[adr/ADR_001_windows-single-local-media-service-instance.md](./adr/ADR_001_windows-single-local-media-service-instance.md)`。
 - **API 层**：配置、健康检查、片库搜索/摘要、重温 CRUD、任务入队与查询、Emby 同步触发等。
 - **Worker 层**：从队列取任务，执行转码/替换/验收；支持并发上限与资源限制（CPU/GPU/IO）。
 - **集成层**：MoviePilot、未来补源；Webhook 入口（鉴权 + 幂等）。

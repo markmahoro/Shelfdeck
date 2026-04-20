@@ -5,17 +5,18 @@
 
 ## 1. 迭代目标与背景
 
-在前后端分离与配置多入口并存的前提下，用户可能在 **媒体管理服务未启动** 时仍看到「部分保存成功」或误以为业务可闭环。本迭代交付两件事，**一并验收**：（1）**配置中心**各分区「保存 / 检验」反馈与全局错误展示 **分流**，成功 / 失败语义与 `DESIGN_DESKTOP_UI_COPY` 一致；（2）以 **`GET /v1/health`** 为判据的 **壳层强门禁**，在服务 **unknown / offline** 时阻断完整业务壳层，且 **禁止** 将需服务背书的配置以成功语义写入。
+在前后端分离与配置多入口并存的前提下，用户可能在 **媒体管理服务未启动** 时仍看到「部分保存成功」或误以为业务可闭环。本迭代交付两件事，**一并验收**：（1）**配置中心**各分区「保存 / 检验」反馈与全局错误展示 **分流**，成功 / 失败语义与 `DESIGN_DESKTOP_UI_COPY` 一致；（2）以 `**GET /v1/health`** 为判据的 **壳层强门禁**，在服务 **unknown / offline** 时阻断完整业务壳层，且 **禁止** 将需服务背书的配置以成功语义写入。
 
 ## 2. 交付物清单
 
 
-| 类别     | 内容                                                                                                                                                                                                                                                                         |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 实现     | `media-desktop`：`src/App.tsx`（`configSaveFeedback`、`configAsyncOp`、`mediaServiceGateOverlay`、`ensureMediaServiceOnlineForConfigSave` 等）、`src/mediaServiceHealth.ts`、`src/styles.css`；`electron/preload.js` 暴露 `window.mediaService.checkHealth`；`src/global.d.ts` |
-| 需求     | `[REQ_FEATURE_config-center-save-feedback.md](../requirements/REQ_FEATURE_config-center-save-feedback.md)` · `[REQ_FEATURE_desktop-requires-media-service.md](../requirements/REQ_FEATURE_desktop-requires-media-service.md)`                                                             |
-| 设计     | `[DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md](../design/DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md)` · `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](../design/DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)`                                                                                 |
-| 治理 / 入口 | `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`；根 `[README.md](../../README.md)`；`[DEV_SETUP.md](../dev/DEV_SETUP.md)`（健康检查与联调变量）                                                                                                                                                    |
+| 类别      | 内容                                                                                                                                                                                                                                                                |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 实现      | `media-desktop`：`src/App.tsx`（`configSaveFeedback`、`configAsyncOp`、`mediaServiceGateOverlay`、`ensureMediaServiceOnlineForConfigSave` 等）、`src/mediaServiceHealth.ts`、`src/styles.css`；`electron/preload.js` 暴露 `window.mediaService.checkHealth`；`src/global.d.ts` |
+| 需求      | `[REQ_FEATURE_config-center-save-feedback.md](../requirements/REQ_FEATURE_config-center-save-feedback.md)` · `[REQ_FEATURE_desktop-requires-media-service.md](../requirements/REQ_FEATURE_desktop-requires-media-service.md)`                                     |
+| 设计      | `[DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md](../design/DESIGN_CONFIG_CENTER_SAVE_FEEDBACK.md)` · `[DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md](../design/DESIGN_DESKTOP_MEDIA_SERVICE_AVAILABILITY.md)`                                                             |
+| 治理 / 入口 | `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`；根 `[README.md](../../README.md)`；`[DEV_SETUP.md](../dev/DEV_SETUP.md)`（健康检查与联调变量）                                                                                                                                     |
+
 
 ## 3. 验收结论
 
@@ -35,4 +36,3 @@
 | ------------------------------------------- | ---------- |
 | `[PRJ_MANAGEMENT.md](./PRJ_MANAGEMENT.md)`  | 项目管理锚点与时间线 |
 | `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)` | 全库文档索引     |
-

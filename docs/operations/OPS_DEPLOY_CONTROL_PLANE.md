@@ -11,6 +11,10 @@
 2. 配置环境变量与数据目录（路径映射、临时目录等须与 Emby 一致或可映射；`MEDIA_SERVICE_DATA_DIR` 与 `CONTROL_PLANE_DATA_DIR` 同义）
 3. `npm start` 或通过进程管理器以常驻服务运行
 
+## Windows 本机单实例与端口冲突
+
+在同一台 **Windows** 主机上，对 **同一 `MEDIA_SERVICE_PORT`（或默认 18080）** 仅应有一个监听中的媒体管理服务实例；第二次启动应失败（端口占用）并具备可读日志。产品决策与可选互斥体见 [`ADR_001_windows-single-local-media-service-instance.md`](../architecture/adr/ADR_001_windows-single-local-media-service-instance.md)。排错：检查是否已有 `node` 监听该端口、防火墙或安装器重复注册服务。
+
 ## 健康检查
 
 以 OpenAPI 中健康相关路径为准（如有）；具体命令随实现补充。
@@ -23,3 +27,4 @@
 | [`ARCH_SYSTEM_OVERVIEW.md`](../architecture/ARCH_SYSTEM_OVERVIEW.md) | 战略与分阶段 |
 | [`API_README.md`](../api/API_README.md) | 契约与 lint |
 | [`DEV_SETUP.md`](../dev/DEV_SETUP.md) | 本地对照 |
+| [`ADR_001_windows-single-local-media-service-instance.md`](../architecture/adr/ADR_001_windows-single-local-media-service-instance.md) | Windows 单实例 |
