@@ -2,6 +2,12 @@
 
 > **SSOT 路径**：`[OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md](./OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md)` · 文档索引 `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`
 
+## 验收与迭代状态
+
+| 项 | 内容 |
+|----|------|
+| **本迭代整体验收** | **通过**（2026-04-20 UTC+8）；测试见 [`TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md`](../testing/TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md)，摘要见 [`PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md`](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md) |
+
 ## 制品与拓扑
 
 

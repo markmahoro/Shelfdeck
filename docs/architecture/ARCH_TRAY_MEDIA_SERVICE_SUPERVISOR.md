@@ -7,14 +7,15 @@
 
 | 项        | 内容                                                                                                                             |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| 关联需求     | `[REQ_FEATURE_windows-tray-media-service-supervisor.md](../requirements/REQ_FEATURE_windows-tray-media-service-supervisor.md)` |
-| 行为细则     | `[DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md](../design/DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md)`                                 |
-| 实现目录（计划） | 仓库内 `media-tray-supervisor/`（npm 包名 `**shelfdeck-media-tray-supervisor`**）                                                     |
+| 关联需求     | [`REQ_FEATURE_windows-tray-media-service-supervisor.md`](../requirements/REQ_FEATURE_windows-tray-media-service-supervisor.md) |
+| 行为细则     | [`DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md`](../design/DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md)                                 |
+| 实现目录     | 仓库内 `media-tray-supervisor/`（npm 包名 **`shelfdeck-media-tray-supervisor`**）                                                     |
+| 本迭代整体验收  | **通过**（2026-04-20 UTC+8）；见 [`TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md`](../testing/TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md)、[`PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md`](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md) |
 
 
 ## 上下文与目标
 
-在 **Windows** 上提供**常驻系统托盘**的**监督进程**，作为 **媒体管理服务**（`media-service`）的 **父进程**：负责 **spawn 启动 / 重启 / 停止** 子进程，并对 `**GET /v1/health`** 做轮询，驱动托盘图标状态。
+在 **Windows** 上提供**常驻系统托盘**的**监督进程**，作为 **媒体管理服务**（`media-service`）的 **父进程**：负责 **spawn 启动 / 重启 / 停止** 子进程，并对 **`GET /v1/health`** 做轮询，驱动托盘图标状态。
 
 ### 非目标
 
@@ -43,13 +44,13 @@ flowchart TB
 ## 关键决策与约束
 
 
-| 决策                    | 说明                                                                                                                                                                             |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 两进程                   | 监督进程 ≠ HTTP 服务进程；崩溃与升级边界清晰。                                                                                                                                                    |
-| 健康探测                  | `GET /v1/health`（`[media-service/src/app.js](../../media-service/src/app.js)`）；成功判定：`HTTP 2xx` 且 JSON 可解析且 `status === 'ok'`（与实现宽松匹配）。                                         |
-| 端口                    | `MEDIA_SERVICE_PORT` 或 `CONTROL_PLANE_PORT`，默认 **18080**；子进程与环境变量对齐 `[media-service/src/server.js](../../media-service/src/server.js)`。                                        |
-| 子进程命令                 | **推荐**：`node src/server.js`（`cwd` = `media-service`）；避免依赖全局 `npm`。                                                                                                             |
-| `media-service` 根路径解析 | **开发**：环境变量 `**TRAY_MEDIA_SERVICE_ROOT`** 指向目录；未设置时默认监督进程源码旁路 `**../media-service**`（与仓库布局一致）。**打包**：必须通过 `**TRAY_MEDIA_SERVICE_ROOT`**（或安装器写入的等效配置）指向已释放的 `media-service` 目录。 |
+| 决策                    | 说明                                                                                                                                                                         |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 两进程                   | 监督进程 ≠ HTTP 服务进程；崩溃与升级边界清晰。                                                                                                                                                |
+| 健康探测                  | `GET /v1/health`（`[media-service/src/app.js](../../media-service/src/app.js)`）；成功判定：`HTTP 2xx` 且 JSON 可解析且 `status === 'ok'`（与实现宽松匹配）。                                     |
+| 端口                    | `MEDIA_SERVICE_PORT` 或 `CONTROL_PLANE_PORT`，默认 **18080**；子进程与环境变量对齐 `[media-service/src/server.js](../../media-service/src/server.js)`。                                    |
+| 子进程命令                 | **推荐**：`node src/server.js`（`cwd` = `media-service`）；避免依赖全局 `npm`。                                                                                                         |
+| `media-service` 根路径解析 | **开发**：环境变量 **`TRAY_MEDIA_SERVICE_ROOT`** 指向目录；未设置时默认监督进程源码旁路 **`../media-service`**（与仓库布局一致）。**打包**：必须通过 **`TRAY_MEDIA_SERVICE_ROOT`**（或安装器写入的等效配置）指向已释放的 `media-service` 目录。 |
 
 
 ## 接口与集成边界
@@ -77,5 +78,7 @@ flowchart TB
 | `[DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md](../design/DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md)`                                 | 状态机与菜单 |
 | `[ARCH_SYSTEM_OVERVIEW.md](./ARCH_SYSTEM_OVERVIEW.md)`                                                                         | 系统总览   |
 | `[DEV_SETUP.md](../dev/DEV_SETUP.md)`                                                                                          | 本地联调   |
+| [`PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md`](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md) | 迭代验收摘要 |
+| [`PRJ_MANAGEMENT.md`](../project/PRJ_MANAGEMENT.md) | 项目管理 |
 
 

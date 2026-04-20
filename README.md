@@ -6,7 +6,7 @@ Windows 桌面端 Emby 客户端：第三方播放器观影回写、媒体库治
 
 ## 文档
 
-**唯一索引**：[docs/DOC_GOVERNANCE.md](docs/DOC_GOVERNANCE.md)（SSOT 路径、命名规则、归档政策；含 **ShelfDeck** 品牌与模块目录对照）。
+**唯一索引**：[docs/DOC_GOVERNANCE.md](docs/DOC_GOVERNANCE.md)（SSOT 路径、命名规则、归档政策；含 **ShelfDeck** 品牌与模块目录对照）。**最近迭代验收摘要**（媒体管理服务托盘监督，2026-04-20）：[docs/project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md](docs/project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md)。
 
 ## 代码
 

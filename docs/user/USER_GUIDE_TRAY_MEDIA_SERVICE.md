@@ -2,6 +2,12 @@
 
 > **SSOT 路径**：`[USER_GUIDE_TRAY_MEDIA_SERVICE.md](./USER_GUIDE_TRAY_MEDIA_SERVICE.md)` · 文档索引 `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`
 
+## 文档状态
+
+| 项 | 内容 |
+|----|------|
+| **本迭代整体验收** | **通过**（2026-04-20 UTC+8）；见 [`TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md`](../testing/TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md)、[`PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md`](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md) |
+
 ## 概述
 
 **媒体管理服务托盘监督**（Windows）在任务栏通知区提供常驻图标，用于 **启动、停止、重启** 本机 **ShelfDeck 媒体管理服务**，并通过图标颜色提示服务是否正常响应。
@@ -13,7 +19,7 @@
 
 - Windows 10/11。
 - 已安装 **Node.js**（与 `[media-service](../../media-service)` 要求一致），且 `media-service` 目录对本机用户可读。
-- 首次从源码运行时，需设置环境变量 `**TRAY_MEDIA_SERVICE_ROOT`** 指向 `media-service` 文件夹，或使用仓库默认布局（监督程序与 `media-service` 为同级目录）。
+- 首次从源码运行时，需设置环境变量 **`TRAY_MEDIA_SERVICE_ROOT`** 指向 `media-service` 文件夹，或使用仓库默认布局（监督程序与 `media-service` 为同级目录）。
 
 ## 操作步骤
 

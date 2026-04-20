@@ -9,7 +9,7 @@
 
 | 项         | 内容                                                                                             |
 | --------- | ---------------------------------------------------------------------------------------------- |
-| 状态        | 已定稿待实现核对                                                                                       |
+| 状态        | **本迭代整体验收通过**（2026-04-20 UTC+8）；功能测试见 [`TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md`](../testing/TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md)；迭代摘要见 [`PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md`](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md) |
 | 平台范围      | **Windows**（第一版）；macOS/Linux 非目标                                                               |
 | SSOT 行为细则 | `[DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md](../design/DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md)` |
 
@@ -76,5 +76,5 @@
 | `[OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md](../operations/OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md)`     | 安装与运维            |
 | `[TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md](../testing/TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md)`      | 测试准出             |
 | `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`                                                      | 文档索引             |
-
-
+| [`PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md`](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md) | 迭代交付与验收摘要       |
+| [`PRJ_MANAGEMENT.md`](../project/PRJ_MANAGEMENT.md)                                              | 项目管理与时间线         |

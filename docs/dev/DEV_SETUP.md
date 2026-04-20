@@ -31,6 +31,8 @@ npm start
 
 可选：设置 `TRAY_MEDIA_SERVICE_ROOT` 为 `media-service` 目录绝对路径（未设置时默认使用与 `media-tray-supervisor` 同级的 `../media-service`）。
 
+**验收**：本迭代（2026-04-20 UTC+8）托盘监督能力 **整体验收通过**；摘要见 [`PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md`](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md)，测试签发见 [`TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md`](../testing/TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md)。
+
 ## 桌面（Electron + Vite）
 
 ```bash
@@ -63,4 +65,5 @@ npm test
 | [`API_README.md`](../api/API_README.md) | IPC→REST、联调约定 |
 | [`ARCH_SYSTEM_OVERVIEW.md`](../architecture/ARCH_SYSTEM_OVERVIEW.md) | 媒体管理服务与客户端分工 |
 | [`OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md`](../operations/OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md) | 托盘监督安装与联调 |
+| [`PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md`](../project/PRJ_ITERATION_SUMMARY_tray_supervisor_20260420.md) | 托盘监督迭代验收摘要 |
 | [`REQ_PRODUCT_BASELINE_v1.0.0.md`](../requirements/REQ_PRODUCT_BASELINE_v1.0.0.md) | 需求母版 |
