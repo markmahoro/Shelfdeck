@@ -1,6 +1,5 @@
-import { getRendererMediaServiceApiKey, getRendererMediaServiceBaseUrl } from './cpBase';
-
-const TASK_STORAGE_KEY = 'embyDesktopPlayerTaskQueueV1';
+import { getRendererMediaServiceBaseUrl } from './cpBase';
+import { apiClient } from './apiClient';
 
 export type TaskActionType = 'delete' | 'transcode' | 'upgrade';
 export type TaskRunMode = 'manual' | 'scheduled';
@@ -161,62 +160,29 @@ function normalizeImportedTasks(parsed: unknown[]): MediaTask[] {
     });
 }
 
-function loadTaskQueueFromLocalStorage(): MediaTask[] {
-  try {
-    const raw = localStorage.getItem(TASK_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return normalizeImportedTasks(parsed);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Electron 下以主进程解析的 effectiveBaseUrl（连接文件 + 环境变量优先级，见 DESIGN_DESKTOP_BACKEND_ENDPOINT）为准；纯浏览器调试时可用 Vite 环境变量。配置后任务队列 **仅** 走媒体管理服务，与 `TASK_STORAGE_KEY` 脱钩。
- * 纯浏览器调试（未配置 base）仍用 localStorage。
- */
 export async function loadTaskQueue(): Promise<MediaTask[]> {
   const base = getRendererMediaServiceBaseUrl();
-  if (base) {
-    const url = `${String(base).replace(/\/$/, '')}/v1/sync/task-queue`;
-    const headers: Record<string, string> = {};
-    const k = getRendererMediaServiceApiKey();
-    if (k) headers['X-API-Key'] = k;
-    try {
-      const r = await fetch(url, { headers });
-      if (!r.ok) {
-        console.error('[taskQueue] media-service GET /v1/sync/task-queue failed', r.status);
-        throw new Error(`任务队列从媒体管理服务加载失败（HTTP ${r.status}），请确认媒体管理服务已启动。`);
-      }
-      const parsed = await r.json();
-      if (Array.isArray(parsed)) return normalizeImportedTasks(parsed);
-      throw new Error('任务队列从媒体管理服务加载失败：响应格式无效。');
-    } catch (e) {
-      if (e instanceof Error && e.message.startsWith('任务队列从媒体管理服务加载失败')) throw e;
-      console.error('[taskQueue] media-service GET /v1/sync/task-queue unreachable', e);
-      throw new Error('任务队列从媒体管理服务加载失败：网络不可达或服务未启动。');
-    }
+  if (!base) {
+    throw new Error('Media service not configured. Please configure media service endpoint.');
   }
-  return loadTaskQueueFromLocalStorage();
+  try {
+    const tasks = await apiClient.getTasks();
+    return normalizeImportedTasks(tasks);
+  } catch (e) {
+    if (e instanceof Error) {
+      console.error('[taskQueue] Failed to load tasks from media-service', e);
+      throw new Error(`任务队列从媒体管理服务加载失败：${e.message}`);
+    }
+    throw new Error('任务队列从媒体管理服务加载失败：未知错误。');
+  }
 }
 
 export async function saveTaskQueue(tasks: MediaTask[]): Promise<void> {
   const base = getRendererMediaServiceBaseUrl();
-  if (base) {
-    const url = `${String(base).replace(/\/$/, '')}/v1/sync/task-queue`;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const k = getRendererMediaServiceApiKey();
-    if (k) headers['X-API-Key'] = k;
-    const r = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(tasks) });
-    if (!r.ok) {
-      console.error('[taskQueue] media-service PUT /v1/sync/task-queue failed', r.status);
-      throw new Error('任务队列同步到媒体管理服务失败，请确认媒体管理服务已启动。');
-    }
-    return;
+  if (!base) {
+    throw new Error('Media service not configured. Please configure media service endpoint.');
   }
-  localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(tasks));
+  console.warn('[taskQueue] saveTaskQueue called but tasks are now managed individually via REST API');
 }
 
 export function enqueueTask(

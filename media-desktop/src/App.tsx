@@ -52,6 +52,7 @@ import { buildDoubanStarsByNormalizedTitle, movieDoubanStars, type DoubanRatingE
 import { MediaLibraryManageRow } from './MediaLibraryManageRow';
 import { checkMediaServiceHealth } from './mediaServiceHealth';
 import { getRendererMediaServiceBaseUrl } from './cpBase';
+import { apiClient } from './apiClient';
 
 type ReplaceBackupRow = {
   taskId: string;
@@ -159,45 +160,33 @@ function coerceUnplayedItem(x: unknown): UnplayedItem | null {
   return out;
 }
 
-function readLibraryManageCacheBlob(): LibraryManageCacheV1 | null {
-  try {
-    const raw = localStorage.getItem(LIBRARY_MANAGE_CACHE_KEY);
-    if (!raw) return null;
-    const p = JSON.parse(raw) as Partial<LibraryManageCacheV1>;
-    if (!p || p.version !== 1 || typeof p.fingerprint !== 'string' || typeof p.savedAt !== 'string' || !Array.isArray(p.items)) {
-      return null;
-    }
-    return p as LibraryManageCacheV1;
-  } catch {
-    return null;
-  }
-}
-
-function hydrateLibraryManageFromStorage(cfg: EmbyConfig): { items: UnplayedItem[]; savedAt: string | null } {
+async function hydrateLibraryManageFromStorage(cfg: EmbyConfig): Promise<{ items: UnplayedItem[]; savedAt: string | null }> {
   if (!hasConfigForLibraryFetch(cfg)) return { items: [], savedAt: null };
-  const blob = readLibraryManageCacheBlob();
-  const fp = libraryManageFingerprint(cfg);
-  if (!blob || blob.fingerprint !== fp) return { items: [], savedAt: null };
-  const items = blob.items.map(coerceUnplayedItem).filter((x): x is UnplayedItem => x != null);
-  return { items, savedAt: blob.savedAt };
+  const base = getRendererMediaServiceBaseUrl();
+  if (!base) return { items: [], savedAt: null };
+
+  try {
+    const cache = await apiClient.getLibraryCache();
+    const items = (cache.items as unknown[]).map(coerceUnplayedItem).filter((x): x is UnplayedItem => x != null);
+    return { items, savedAt: cache.cachedAt };
+  } catch (e) {
+    console.warn('[library cache] load from backend failed', e);
+    return { items: [], savedAt: null };
+  }
 }
 
-function saveLibraryManageCache(cfg: EmbyConfig, items: UnplayedItem[]): string | null {
+async function saveLibraryManageCache(cfg: EmbyConfig, items: UnplayedItem[]): Promise<string | null> {
   if (!hasConfigForLibraryFetch(cfg)) return null;
-  const savedAt = new Date().toISOString();
-  const blob: LibraryManageCacheV1 = {
-    version: 1,
-    fingerprint: libraryManageFingerprint(cfg),
-    savedAt,
-    items,
-  };
+  const base = getRendererMediaServiceBaseUrl();
+  if (!base) return null;
+
   try {
-    localStorage.setItem(LIBRARY_MANAGE_CACHE_KEY, JSON.stringify(blob));
+    const result = await apiClient.setLibraryCache(items);
+    return result.cachedAt;
   } catch (e) {
-    console.warn('[library cache] save failed', e);
+    console.warn('[library cache] save to backend failed', e);
     return null;
   }
-  return savedAt;
 }
 
 const DOUBAN_ENTRIES_CACHE_KEY = 'embyDesktopPlayerDoubanRatingEntriesV1';
@@ -205,14 +194,14 @@ const DOUBAN_ENTRIES_CACHE_KEY = 'embyDesktopPlayerDoubanRatingEntriesV1';
 const DOUBAN_LAST_FULL_SYNC_KEY = 'embyDesktopPlayerDoubanLastFullSyncAtMs';
 const DOUBAN_FULL_SYNC_INTERVAL_MS = 14 * 24 * 60 * 60 * 1000;
 
-function loadDoubanRatingEntries(): DoubanRatingEntry[] {
+async function loadDoubanRatingEntries(): Promise<DoubanRatingEntry[]> {
+  const base = getRendererMediaServiceBaseUrl();
+  if (!base) return [];
+
   try {
-    const raw = localStorage.getItem(DOUBAN_ENTRIES_CACHE_KEY);
-    if (!raw) return [];
-    const p = JSON.parse(raw) as { entries?: unknown };
-    if (!p || !Array.isArray(p.entries)) return [];
+    const cache = await apiClient.getDoubanCache();
     const out: DoubanRatingEntry[] = [];
-    for (const x of p.entries) {
+    for (const x of cache.entries) {
       if (!x || typeof x !== 'object') continue;
       const o = x as Record<string, unknown>;
       const title = typeof o.title === 'string' ? o.title.trim() : '';
@@ -222,13 +211,14 @@ function loadDoubanRatingEntries(): DoubanRatingEntry[] {
       out.push({ title, stars: stars as MediaRating, subjectId });
     }
     return out;
-  } catch {
+  } catch (e) {
+    console.warn('[douban cache] load from backend failed', e);
     return [];
   }
 }
 
 function saveDoubanRatingEntries(entries: DoubanRatingEntry[]) {
-  localStorage.setItem(DOUBAN_ENTRIES_CACHE_KEY, JSON.stringify({ syncedAt: new Date().toISOString(), entries }));
+  console.warn('[douban cache] saveDoubanRatingEntries called but douban cache is now read-only from backend');
 }
 
 function wireToDoubanEntries(raw: DoubanRatingEntryWire[]): DoubanRatingEntry[] {
@@ -453,12 +443,15 @@ function normalizeConfig(raw: Partial<EmbyConfig>): EmbyConfig {
   };
 }
 
-function loadSavedConfig(): EmbyConfig {
+async function loadSavedConfig(): Promise<EmbyConfig> {
+  const base = getRendererMediaServiceBaseUrl();
+  if (!base) return defaultConfig;
+
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultConfig;
-    return normalizeConfig(JSON.parse(raw) as Partial<EmbyConfig>);
-  } catch {
+    const config = await apiClient.getConfig();
+    return normalizeConfig(config as Partial<EmbyConfig>);
+  } catch (e) {
+    console.warn('[config] load from backend failed', e);
     return defaultConfig;
   }
 }
@@ -723,18 +716,43 @@ function loadMediaPolicy(): MediaPolicy {
 }
 
 export default function App() {
-  const [config, setConfig] = useState<EmbyConfig>(() => loadSavedConfig());
+  const [config, setConfig] = useState<EmbyConfig>(defaultConfig);
+  const [configLoaded, setConfigLoaded] = useState(false);
   const [sections, setSections] = useState<EmbyMediaFolder[]>([]);
   const [users, setUsers] = useState<EmbyUser[]>([]);
   const [items, setItems] = useState<UnplayedItem[]>([]);
   /** 媒体库管理：已启用库内全部影片/剧集（含已观看），与海报墙未播放列表分离；启动时尽量从本地缓存恢复 */
-  const [libraryManageItems, setLibraryManageItems] = useState<UnplayedItem[]>(() => {
-    return hydrateLibraryManageFromStorage(loadSavedConfig()).items;
-  });
+  const [libraryManageItems, setLibraryManageItems] = useState<UnplayedItem[]>([]);
   /** 本地列表缓存写入时间（ISO）；仅「刷新媒体库列表」成功后会更新 */
-  const [libraryManageCacheSavedAt, setLibraryManageCacheSavedAt] = useState<string | null>(() => {
-    return hydrateLibraryManageFromStorage(loadSavedConfig()).savedAt;
-  });
+  const [libraryManageCacheSavedAt, setLibraryManageCacheSavedAt] = useState<string | null>(null);
+
+  // Load config and caches from backend on mount
+  useEffect(() => {
+    async function loadFromBackend() {
+      const base = getRendererMediaServiceBaseUrl();
+      if (!base) {
+        setConfigLoaded(true);
+        return;
+      }
+
+      try {
+        const loadedConfig = await loadSavedConfig();
+        setConfig(loadedConfig);
+
+        const libraryCache = await hydrateLibraryManageFromStorage(loadedConfig);
+        setLibraryManageItems(libraryCache.items);
+        setLibraryManageCacheSavedAt(libraryCache.savedAt);
+
+        const doubanEntries = await loadDoubanRatingEntries();
+        setDoubanRatingEntries(doubanEntries);
+      } catch (e) {
+        console.error('[App] Failed to load from backend', e);
+      } finally {
+        setConfigLoaded(true);
+      }
+    }
+    void loadFromBackend();
+  }, []);
   const [playedItems, setPlayedItems] = useState<PlayedItem[]>([]);
   const [connected, setConnected] = useState(false);
   const [page, setPage] = useState<AppPage>('config');
@@ -805,7 +823,7 @@ export default function App() {
   const [configSection, setConfigSection] = useState<ConfigSection>('emby');
   /** 媒体库多选区：获取列表前折叠，成功拉取后自动展开 */
   const [libraryPanelExpanded, setLibraryPanelExpanded] = useState(false);
-  const [doubanRatingEntries, setDoubanRatingEntries] = useState<DoubanRatingEntry[]>(() => loadDoubanRatingEntries());
+  const [doubanRatingEntries, setDoubanRatingEntries] = useState<DoubanRatingEntry[]>([]);
   const [doubanCookieDraft, setDoubanCookieDraft] = useState('');
   const [doubanUserIdDraft, setDoubanUserIdDraft] = useState('');
   const [doubanSyncBusy, setDoubanSyncBusy] = useState(false);
@@ -2705,9 +2723,17 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [page, items, focusedIndex, confirm, wallRatingItem]);
 
-  function saveConfig(next: EmbyConfig) {
+  async function saveConfig(next: EmbyConfig) {
     setConfig(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    const base = getRendererMediaServiceBaseUrl();
+    if (base) {
+      try {
+        await apiClient.patchConfig(next as unknown as Record<string, unknown>);
+      } catch (e) {
+        console.error('[config] Failed to save to backend', e);
+        throw e;
+      }
+    }
     pushEmbyClientToControlPlane(next);
   }
 
@@ -2717,12 +2743,12 @@ export default function App() {
     setTranscodeProbeHint(null);
     try {
       try {
-        saveConfig(config);
+        await saveConfig(config);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setConfigSaveFeedback({
           kind: 'error',
-          message: formatSaveConfigFailed(`写入本机存储失败（${msg}）`),
+          message: formatSaveConfigFailed(`保存配置到媒体管理服务失败（${msg}）`),
           section: 'emby',
         });
         return;
@@ -2815,12 +2841,12 @@ export default function App() {
       }
       try {
         localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(schedulerSettings));
-        saveConfig(config);
+        await saveConfig(config);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setConfigSaveFeedback({
           kind: 'error',
-          message: formatSaveConfigFailed(`写入本机存储失败（${msg}）`),
+          message: formatSaveConfigFailed(`保存配置到媒体管理服务失败（${msg}）`),
           section: 'scheduler',
         });
         return;
@@ -2880,12 +2906,12 @@ export default function App() {
       };
       try {
         localStorage.setItem(TASK_SCHEDULER_SETTINGS_KEY, JSON.stringify(mergedSched));
-        saveConfig(mergedCfg);
+        await saveConfig(mergedCfg);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setConfigSaveFeedback({
           kind: 'error',
-          message: formatSaveConfigFailed(`写入本机存储失败（${msg}）`),
+          message: formatSaveConfigFailed(`保存配置到媒体管理服务失败（${msg}）`),
           section: 'scheduler',
         });
         return;

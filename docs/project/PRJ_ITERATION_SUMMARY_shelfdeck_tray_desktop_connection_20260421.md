@@ -8,14 +8,16 @@
 
 ## 文档（SSOT 修订）
 
-| 文档 | 要点 |
-| --- | --- |
-| `DESIGN_DESKTOP_BACKEND_ENDPOINT.md` §4 | 保存 = 可用；统一保存管线（健康 → 尝试启动 → 再健康 → 落盘）。 |
-| `DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md` | 保存管线与独立启停门槛区分。 |
-| `DESIGN_CONFIG_AND_PATHS.md` | 配置归属原则摘要。 |
-| `DESIGN_DESKTOP_UI_COPY.md` §4.11 | 保存连接提示用语。 |
-| `OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md` | 保存连接与运维一句。 |
-| `TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md` | 保存管线回归说明；T7–T14 实机签发待办。 |
+
+| 文档                                        | 要点                                    |
+| ----------------------------------------- | ------------------------------------- |
+| `DESIGN_DESKTOP_BACKEND_ENDPOINT.md` §4   | 保存 = 可用；统一保存管线（健康 → 尝试启动 → 再健康 → 落盘）。 |
+| `DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md` | 保存管线与独立启停门槛区分。                        |
+| `DESIGN_CONFIG_AND_PATHS.md`              | 配置归属原则摘要。                             |
+| `DESIGN_DESKTOP_UI_COPY.md` §4.11         | 保存连接提示用语。                             |
+| `OPS_TRAY_MEDIA_SERVICE_SUPERVISOR.md`    | 保存连接与运维一句。                            |
+| `TEST_TRAY_MEDIA_SERVICE_SUPERVISOR.md`   | 保存管线回归说明；T7–T14 实机签发待办。               |
+
 
 ## 验收
 

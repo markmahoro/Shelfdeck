@@ -1,14 +1,15 @@
-# DESIGN_CONFIG_AND_PATHS — 配置中心、字段与路径映射
+# DESIGN_CONFIG_AND_PATHS — 配置中心职责边界与索引
 
 > **SSOT 路径**：`[DESIGN_CONFIG_AND_PATHS.md](./DESIGN_CONFIG_AND_PATHS.md)` · 文档索引 `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`
 
-本文档描述 **配置中心** 的职责边界、**持久化字段**（与实现命名一致）及 **路径映射** 约定。任务调度、并发、执行模式等 **调度类** 配置条文以 `[DESIGN_TASK_CENTER.md](./DESIGN_TASK_CENTER.md)` **第 7 节** 为 SSOT；战略级「路径/配置权威在后端」见 `[ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)`。
+本文档描述 **配置中心** 的职责边界、信息架构位置及 **路径映射** 约定。**所有配置字段的详细定义（字段名、类型、默认值、验证规则）** 见 `[DESIGN_CONFIG_FIELDS_REFERENCE.md](./DESIGN_CONFIG_FIELDS_REFERENCE.md)` **（配置字段 SSOT）**。任务调度、并发、执行模式等 **调度类** 配置条文以 `[DESIGN_TASK_CENTER.md](./DESIGN_TASK_CENTER.md)` **第 7 节** 为 SSOT；战略级「路径/配置权威在后端」见 `[ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)`。
 
 ---
 
 ## 范围与引用
 
-- **In scope**：连接 Emby、第三方播放器、路径映射、回写阈值、与前台相关的必填项；配置中心内 **任务调度与补源** 分区中 **字段级** 说明（调度语义见 DESIGN_TASK_CENTER）。
+- **In scope**：配置中心在信息架构中的定义、职责边界、路径映射约定、配置归属原则。
+- **配置字段 SSOT**：`[DESIGN_CONFIG_FIELDS_REFERENCE.md](./DESIGN_CONFIG_FIELDS_REFERENCE.md)` — 所有字段的详细定义、类型、默认值、验证规则。
 - **Out of scope**：各 `actionType` Flow 步骤、状态机、删除/转码 HTTP 细节（见 DESIGN_TASK_CENTER）；OpenAPI 形状（见 `[openapi.yaml](../api/openapi.yaml)`）。
 
 ---
@@ -35,14 +36,20 @@
 - **持久化键名（SSOT）**：`shelfdeck.mediaService.baseUrl`（必填）、`shelfdeck.mediaService.apiKey`（可选，与 `X-API-Key` 对应）；**仅小助手** 写入该文件。
 - **ShelfDeck 小助手**：**同一键名、同一存储文件**；**唯一** 用户向编辑入口；**左键面板** 须展示当前基址；详见 `DESIGN_DESKTOP_BACKEND_ENDPOINT`、`DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR`。
 
-## 前台与治理相关配置字段
+## 配置字段详细定义
 
-与 `[DESIGN_FRONT_PLAYBACK.md](./DESIGN_FRONT_PLAYBACK.md)` 中「配置项」交叉对照；实现须使用相同字段名。
+**所有配置字段的详细定义（字段名、类型、必填、默认值、说明、验证规则）见**：
 
-- `baseUrl`、`apiKey`、`userId`（来自用户选择）、`embyUserPassword`（可选；删除等写操作鉴权见 `[DESIGN_TASK_CENTER.md](./DESIGN_TASK_CENTER.md)` **§2.3.5**）
-- `enabledSectionIds`、`playerExePath`、`argsTemplate`（支持 `{path}`、`{itemId}`）
-- `pathMapFrom` / `pathMapTo`
-- `markPlayedThresholdPercent`（默认 90）、`fallbackMinSeconds`
+`[DESIGN_CONFIG_FIELDS_REFERENCE.md](./DESIGN_CONFIG_FIELDS_REFERENCE.md)` **（配置字段 SSOT）**
+
+包括但不限于：
+- Emby 服务器连接：`baseUrl`、`apiKey`、`userId`、`embyUserPassword`、`enabledSectionIds`
+- 播放器配置：`playerExePath`、`argsTemplate`
+- 路径映射：`pathMapFrom`、`pathMapTo`
+- 播放回写：`markPlayedThresholdPercent`、`fallbackMinSeconds`
+- 任务调度：`executionMode`、`deleteConcurrency`、`transcodeConcurrency`、`upgradeConcurrency`、`wallRatingAutoEnqueue`
+- 转码配置：`transcodeTempRoot`、`transcodeReplaceConfirmRequired`、`transcodeEncodingDevices`、`transcodeCpuParticipationStrategy`
+- 洗版配置：`upgradeRetryInterval`、`upgradeMaxRetries`
 
 ---
 
@@ -55,7 +62,9 @@
 
 ## 任务调度与补源类配置（索引）
 
-- 执行模式、删除/转码/洗版并发、`wallRatingAutoEnqueue`、补源重试节奏等由 **配置中心 → 任务调度与补源** 维护；条文见 `[DESIGN_TASK_CENTER.md](./DESIGN_TASK_CENTER.md)` **§6**。
+- 执行模式、删除/转码/洗版并发、`wallRatingAutoEnqueue`、补源重试节奏等由 **配置中心 → 任务调度与补源** 维护。
+- **字段定义** 见 `[DESIGN_CONFIG_FIELDS_REFERENCE.md](./DESIGN_CONFIG_FIELDS_REFERENCE.md)` **§5-§7**。
+- **调度语义与行为** 见 `[DESIGN_TASK_CENTER.md](./DESIGN_TASK_CENTER.md)` **§7**。
 - 需求母版中的产品范围与验收见 `[REQ_PRODUCT_BASELINE_v1.0.0.md](../requirements/REQ_PRODUCT_BASELINE_v1.0.0.md)`。
 
 ---
@@ -66,6 +75,7 @@
 | 文档                                                                                 | 关系           |
 | ---------------------------------------------------------------------------------- | ------------ |
 | `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`                                        | 全库索引         |
+| `[DESIGN_CONFIG_FIELDS_REFERENCE.md](./DESIGN_CONFIG_FIELDS_REFERENCE.md)`         | **配置字段 SSOT** |
 | `[REQ_FEATURE_desktop-backend-connection-and-windows-lifecycle.md](../requirements/REQ_FEATURE_desktop-backend-connection-and-windows-lifecycle.md)` | 连接端点需求 |
 | `[REQ_PRODUCT_BASELINE_v1.0.0.md](../requirements/REQ_PRODUCT_BASELINE_v1.0.0.md)` | 需求母版         |
 | `[DESIGN_FRONT_PLAYBACK.md](./DESIGN_FRONT_PLAYBACK.md)`                           | 前台配置与回写闭环    |

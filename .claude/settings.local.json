@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx *)",
+      "Bash(npm run *)",
+      "Bash(npm start *)",
+      "Bash(curl -s http://127.0.0.1:18080/v1/health)",
+      "Bash(curl -s http://127.0.0.1:18080/v1/config)",
+      "Bash(curl *)",
+      "Bash(node test-api.js)",
+      "Bash(npm test *)",
+      "Read(//e/my_project/**)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File create-shortcuts.ps1)",
+      "Bash(powershell.exe *)",
+      "Bash(grep -E \"^d.*\\\\.git$\")"
+    ]
+  }
+}

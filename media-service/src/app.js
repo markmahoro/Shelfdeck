@@ -4,6 +4,10 @@ const crypto = require('crypto');
 const cors = require('@fastify/cors');
 const Fastify = require('fastify');
 const { FileStore } = require('./store');
+const configStore = require('./configStore');
+const taskStore = require('./taskStore');
+const cacheStore = require('./cacheStore');
+const taskScheduler = require('./taskScheduler');
 const embyService = require('./services/embyService');
 const doubanService = require('./services/doubanService');
 const transcodeService = require('./services/transcodeService');
@@ -31,14 +35,11 @@ function apiError(reply, status, code, message, details) {
 function registerRoutes(app, store) {
   app.get('/v1/health', async () => ({ status: 'ok', version: '0.1.0' }));
 
-  app.get('/v1/config', async () => store.getJsonKey('controlPlaneConfig', {}));
+  app.get('/v1/config', async () => configStore.loadConfig());
 
   app.patch('/v1/config', async (req) => {
-    const cur = store.getJsonKey('controlPlaneConfig', {});
     const patch = req.body && typeof req.body === 'object' ? req.body : {};
-    const next = { ...cur, ...patch };
-    store.setJsonKey('controlPlaneConfig', next);
-    return next;
+    return configStore.patchConfig(patch);
   });
 
   app.get('/v1/sync/task-queue', async () => store.getJsonKey('taskQueueV1', []));
@@ -347,40 +348,82 @@ function registerRoutes(app, store) {
     reply.code(204).send();
   });
 
-  app.get('/v1/tasks', async () => {
-    const raw = store.getJsonKey('taskQueueV1', []);
-    return raw.map((t) => ({
-      id: t.id,
-      kind: t.actionType,
-      status: t.status,
-      payload: t,
-      flowLog: t.flowLog,
-    }));
+  app.get('/v1/tasks', async (req) => {
+    const filter = {};
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.actionType) filter.actionType = req.query.actionType;
+    if (req.query.itemId) filter.itemId = req.query.itemId;
+    return taskStore.getTasks(filter);
   });
 
   app.post('/v1/tasks', async (req, reply) => {
-    const b = req.body || {};
-    const q = store.getJsonKey('taskQueueV1', []);
-    const id = crypto.randomUUID();
-    const task = {
-      id,
-      kind: b.kind,
-      status: 'queued',
-      payload: b.payload || {},
-      flowLog: [],
-    };
-    q.push(task);
-    store.setJsonKey('taskQueueV1', q);
-    reply.code(202);
+    const task = taskStore.createTask(req.body || {});
+    reply.code(201);
     return task;
   });
 
-  app.get('/v1/tasks/:taskId', async (req) => {
-    const q = store.getJsonKey('taskQueueV1', []);
-    const t = q.find((x) => x.id === req.params.taskId);
-    if (!t) return { id: req.params.taskId, kind: 'unknown', status: 'unknown' };
-    return { id: t.id, kind: t.actionType, status: t.status, payload: t, flowLog: t.flowLog };
+  app.get('/v1/tasks/:taskId', async (req, reply) => {
+    const task = taskStore.getTask(req.params.taskId);
+    if (!task) {
+      apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+      return;
+    }
+    return task;
   });
+
+  app.patch('/v1/tasks/:taskId', async (req, reply) => {
+    const task = taskStore.updateTask(req.params.taskId, req.body || {});
+    if (!task) {
+      apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+      return;
+    }
+    return task;
+  });
+
+  app.delete('/v1/tasks/:taskId', async (req, reply) => {
+    const deleted = taskStore.deleteTask(req.params.taskId);
+    if (!deleted) {
+      apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+      return;
+    }
+    reply.code(204).send();
+  });
+
+  app.post('/v1/tasks/:taskId/actions/execute', async (req, reply) => {
+    const task = taskStore.getTask(req.params.taskId);
+    if (!task) {
+      apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+      return;
+    }
+    if (task.status === 'pending_manual') {
+      taskStore.updateTask(req.params.taskId, { status: 'created' });
+      return { ok: true, message: 'Task queued for execution' };
+    }
+    return { ok: true, message: 'Task already in execution pipeline' };
+  });
+
+  app.post('/v1/tasks/:taskId/actions/pause', async (req, reply) => {
+    const task = taskStore.getTask(req.params.taskId);
+    if (!task) {
+      apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+      return;
+    }
+    if (['precheck', 'executing', 'verify'].includes(task.status)) {
+      apiError(reply, 409, 'CONFLICT', 'Cannot pause task that is currently executing');
+      return;
+    }
+    taskStore.updateTask(req.params.taskId, { status: 'paused' });
+    return { ok: true, message: 'Task paused' };
+  });
+
+  app.get('/v1/library/cache', async () => cacheStore.getLibraryCache());
+
+  app.post('/v1/library/cache', async (req) => {
+    const items = req.body && Array.isArray(req.body.items) ? req.body.items : [];
+    return cacheStore.setLibraryCache(items);
+  });
+
+  app.get('/v1/integrations/douban/ratings/cache', async () => cacheStore.getDoubanCache());
 }
 
 /**
@@ -415,6 +458,8 @@ async function buildApp(opts = {}) {
 
   app.addHook('onRequest', authHook);
   registerRoutes(app, store);
+
+  taskScheduler.startScheduler();
 
   app.setErrorHandler((err, req, reply) => {
     req.log.error(err);
