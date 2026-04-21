@@ -211,7 +211,7 @@ function applyTrayVisual() {
 
 async function fetchQueueSummary(baseUrl, apiKey) {
   try {
-    const u = new URL('/v1/sync/task-queue', baseUrl);
+    const u = new URL('/v1/tasks', baseUrl);
     const res = await fetch(u, {
       headers: apiKey ? { 'X-API-Key': apiKey } : {},
     });

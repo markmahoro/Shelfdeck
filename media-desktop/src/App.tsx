@@ -951,9 +951,11 @@ export default function App() {
       setLibraryManageCacheSavedAt(null);
       return;
     }
-    const { items, savedAt } = hydrateLibraryManageFromStorage(cfg);
-    setLibraryManageItems(items);
-    setLibraryManageCacheSavedAt(savedAt);
+    void (async () => {
+      const { items, savedAt } = await hydrateLibraryManageFromStorage(cfg);
+      setLibraryManageItems(items);
+      setLibraryManageCacheSavedAt(savedAt);
+    })();
   }, [libraryManageCacheFingerprint]);
 
   useEffect(() => {
@@ -1297,32 +1299,26 @@ export default function App() {
   }, [infoConfirmTaskId, tasks]);
 
   useEffect(() => {
-    if (!tasksHydrated) return;
-    const base = getRendererMediaServiceBaseUrl();
-    if (base && !taskQueueRemoteLoadOkRef.current) return;
-    void saveTaskQueue(tasks).catch((e) => {
-      console.error('[taskQueue]', e);
-    });
-  }, [tasks, tasksHydrated]);
-
-  useEffect(() => {
     const cfg = configRef.current;
     const embyOk = hasEmbyCoreForDeleteFlow(cfg, connected);
 
     if (!embyOk) {
-      setTasks((prev) =>
-        prev.map((t) => {
+      setTasks((prev) => {
+        let changed = false;
+        const next = prev.map((t) => {
           if (t.actionType !== 'delete' || t.status !== 'precheck') return t;
           const last = (t.flowLog ?? []).slice(-1)[0];
           if (last?.code === 'delete.blocked.no_emby' && Date.now() - new Date(last.ts).getTime() < 15000) return t;
+          changed = true;
           return appendFlowLog(
             t,
             'delete.blocked.no_emby',
             '删除预检未启动：请先到配置中心完成 Emby 连接并点击「测试联通」，填写地址、API Key 与用户。',
             'warn',
           );
-        }),
-      );
+        });
+        return changed ? next : prev;
+      });
       return;
     }
 
@@ -1330,13 +1326,17 @@ export default function App() {
       if (deleteFlowBusyRef.current.has(task.id)) return;
       deleteFlowBusyRef.current.add(task.id);
       void (async () => {
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === task.id && t.status === 'precheck'
-              ? appendFlowLog(t, 'delete.precheck.start', '开始删除预检：向 Emby 拉取条目信息与待删除路径。')
-              : t,
-          ),
-        );
+        setTasks((prev) => {
+          let changed = false;
+          const next = prev.map((t) => {
+            if (t.id === task.id && t.status === 'precheck') {
+              changed = true;
+              return appendFlowLog(t, 'delete.precheck.start', '开始删除预检：向 Emby 拉取条目信息与待删除路径。');
+            }
+            return t;
+          });
+          return changed ? next : prev;
+        });
         try {
           const item = await window.embyApi.getLibraryItem({ config: cfg, itemId: task.itemId });
           const delInfo = await window.embyApi.getItemDeleteInfo({ config: cfg, itemId: task.itemId });
@@ -1380,17 +1380,21 @@ export default function App() {
       if (deleteFlowBusyRef.current.has(task.id)) return;
       deleteFlowBusyRef.current.add(task.id);
       void (async () => {
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === task.id && t.status === 'executing'
-              ? appendFlowLog(
-                  t,
-                  'delete.api.start',
-                  '正在请求 Emby 删除该条目（若已填写「所选用户登录密码」，将用你的账号权限执行）。',
-                )
-              : t,
-          ),
-        );
+        setTasks((prev) => {
+          let changed = false;
+          const next = prev.map((t) => {
+            if (t.id === task.id && t.status === 'executing') {
+              changed = true;
+              return appendFlowLog(
+                t,
+                'delete.api.start',
+                '正在请求 Emby 删除该条目（若已填写「所选用户登录密码」，将用你的账号权限执行）。',
+              );
+            }
+            return t;
+          });
+          return changed ? next : prev;
+        });
         try {
           await window.embyApi.deleteLibraryItem({ config: cfg, itemId: task.itemId });
           const nowIso = new Date().toISOString();
@@ -1422,33 +1426,41 @@ export default function App() {
       if (deleteFlowBusyRef.current.has(task.id)) return;
       deleteFlowBusyRef.current.add(task.id);
       void (async () => {
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === task.id && t.status === 'verify'
-              ? appendFlowLog(
-                  t,
-                  'delete.verify.start',
-                  '正在确认删除结果：多次检查该条目是否仍存在于媒体库（最多 12 次，每次间隔约 1.5 秒）。',
-                )
-              : t,
-          ),
-        );
+        setTasks((prev) => {
+          let changed = false;
+          const next = prev.map((t) => {
+            if (t.id === task.id && t.status === 'verify') {
+              changed = true;
+              return appendFlowLog(
+                t,
+                'delete.verify.start',
+                '正在确认删除结果：多次检查该条目是否仍存在于媒体库（最多 12 次，每次间隔约 1.5 秒）。',
+              );
+            }
+            return t;
+          });
+          return changed ? next : prev;
+        });
         try {
           let gone = false;
           for (let i = 0; i < 12; i++) {
             const exists = await window.embyApi.libraryItemExists({ config: cfg, itemId: task.itemId });
-            setTasks((prev) =>
-              prev.map((t) =>
-                t.id === task.id && t.status === 'verify'
-                  ? appendFlowLog(
-                      t,
-                      'delete.verify.poll',
-                      `第 ${i + 1}/12 次检查：条目仍存在=${exists ? '是' : '否'}`,
-                      exists ? 'warn' : 'info',
-                    )
-                  : t,
-              ),
-            );
+            setTasks((prev) => {
+              let changed = false;
+              const next = prev.map((t) => {
+                if (t.id === task.id && t.status === 'verify') {
+                  changed = true;
+                  return appendFlowLog(
+                    t,
+                    'delete.verify.poll',
+                    `第 ${i + 1}/12 次检查：条目仍存在=${exists ? '是' : '否'}`,
+                    exists ? 'warn' : 'info',
+                  );
+                }
+                return t;
+              });
+              return changed ? next : prev;
+            });
             if (!exists) {
               gone = true;
               break;
@@ -1514,19 +1526,22 @@ export default function App() {
     }
 
     if (!hasEmbyCoreForDeleteFlow(cfg, connected)) {
-      setTasks((prev) =>
-        prev.map((t) => {
+      setTasks((prev) => {
+        let changed = false;
+        const next = prev.map((t) => {
           if (t.actionType !== 'transcode' || t.status !== 'precheck') return t;
           const last = (t.flowLog ?? []).slice(-1)[0];
           if (last?.code === 'transcode.blocked.no_emby' && Date.now() - new Date(last.ts).getTime() < 15000) return t;
+          changed = true;
           return appendFlowLog(
             t,
             'transcode.blocked.no_emby',
             '转码预检未启动：请先到配置中心完成 Emby 连接并点击「测试联通」，填写地址、API Key 与用户。',
             'warn',
           );
-        }),
-      );
+        });
+        return changed ? next : prev;
+      });
       return;
     }
 
@@ -1534,13 +1549,17 @@ export default function App() {
       if (transcodeFlowBusyRef.current.has(task.id)) return;
       transcodeFlowBusyRef.current.add(task.id);
       void (async () => {
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === task.id && t.status === 'precheck'
-              ? appendFlowLog(t, 'transcode.precheck.start', '开始转码预检：检查临时目录、源文件路径、媒体信息与是否杜比视界片源。')
-              : t,
-          ),
-        );
+        setTasks((prev) => {
+          let changed = false;
+          const next = prev.map((t) => {
+            if (t.id === task.id && t.status === 'precheck') {
+              changed = true;
+              return appendFlowLog(t, 'transcode.precheck.start', '开始转码预检：检查临时目录、源文件路径、媒体信息与是否杜比视界片源。');
+            }
+            return t;
+          });
+          return changed ? next : prev;
+        });
         try {
           const r = (await api.transcodePrecheck!({
             config: cfg,
@@ -3160,7 +3179,7 @@ export default function App() {
       }
       const list = await window.embyApi.getLibraryItemsForManage({ config });
       setLibraryManageItems(list);
-      const at = saveLibraryManageCache(config, list);
+      const at = await saveLibraryManageCache(config, list);
       if (at) setLibraryManageCacheSavedAt(at);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -4650,25 +4669,6 @@ export default function App() {
           {batchRunning ? '调度运行中…' : '批量执行'}
         </button>
         <div className="sidebarDivider" />
-        <div className="sidebarMuted">可选工具</div>
-        <button type="button" className="sidebarFullWidth" onClick={() => clearAllPausedToQueued()} disabled={taskSummary.paused === 0}>
-          全部已暂停 → 排队中
-        </button>
-        <button type="button" className="sidebarFullWidth" onClick={() => refreshWaitingMediaSourceNow()}>
-          刷新等待媒体片源（到期回排队）
-        </button>
-        <div className="sidebarDivider" />
-        <div className="sidebarMuted">开发用 / 模拟</div>
-        <button type="button" className="primary sidebarFullWidth" onClick={() => injectDebugSeedTasks()}>
-          注入模拟任务
-        </button>
-        <button type="button" className="sidebarFullWidth" onClick={() => void markInterruptedAll()}>
-          模拟显式退出
-        </button>
-        <button type="button" className="sidebarFullWidth" onClick={() => void resumeInterrupted()}>
-          恢复中断任务
-        </button>
-        <div className="sidebarDivider" />
         <div className="sidebarField">
           <div className="label">按状态筛选</div>
           <select
@@ -4699,6 +4699,27 @@ export default function App() {
             ))}
           </select>
         </div>
+        <div className="sidebarDivider" />
+        <div className="sidebarMuted">任务维护</div>
+        <button type="button" className="sidebarFullWidth" onClick={() => clearAllPausedToQueued()} disabled={taskSummary.paused === 0}>
+          恢复全部已暂停任务
+        </button>
+        <button type="button" className="sidebarFullWidth" onClick={() => refreshWaitingMediaSourceNow()}>
+          立即重试等待片源
+        </button>
+        <div className="sidebarDivider" />
+        <details className="sidebarAdvanced">
+          <summary className="sidebarMuted">高级选项</summary>
+          <button type="button" className="sidebarFullWidth" onClick={() => injectDebugSeedTasks()} style={{ marginTop: 8 }}>
+            添加测试任务
+          </button>
+          <button type="button" className="sidebarFullWidth" onClick={() => void markInterruptedAll()}>
+            模拟程序退出
+          </button>
+          <button type="button" className="sidebarFullWidth" onClick={() => void resumeInterrupted()}>
+            恢复中断任务
+          </button>
+        </details>
       </>
     );
 
@@ -4731,8 +4752,8 @@ export default function App() {
             {filteredTasks.length === 0 ? (
               <div className="hint" style={{ marginTop: 12 }}>
                 {tasks.length === 0
-                  ? '暂无任务。请在媒体库管理或海报墙（打分自动入队）创建。'
-                  : `当前筛选下无任务；全部 ${tasks.length} 条。`}
+                  ? '暂无任务。可在「媒体库管理」或「海报墙」打分后自动创建任务。'
+                  : `当前筛选条件下无任务。共 ${tasks.length} 条任务，可调整筛选条件查看。`}
               </div>
             ) : (
               <div className="historyList" style={{ marginTop: 12 }}>
@@ -4740,43 +4761,49 @@ export default function App() {
                   const batchToggleable = isTaskBatchToggleable(t);
                   const statusZh = taskStatusLabelZh(t.status);
                   const transcodeVolLine = transcodeVolumeSummaryLine(t);
+                  const isSelected = batchRunSelectedIds.has(t.id);
+                  const badgeClass =
+                    t.status === 'done' ? 'statusBadge--done'
+                    : t.status === 'executing' || t.status === 'precheck' || t.status === 'verify' ? 'statusBadge--executing'
+                    : t.status === 'queued' || t.status === 'pending_manual' ? 'statusBadge--queued'
+                    : t.status === 'paused' || t.status === 'waiting_media_source' || t.status === 'awaiting_user_confirm' ? 'statusBadge--paused'
+                    : t.status === 'failed_hard' ? 'statusBadge--failed_hard'
+                    : 'statusBadge--interrupted';
                   return (
-                    <div key={t.id} className="historyItem">
-                      <div style={{ fontWeight: 700, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <span>{t.itemName}</span>
-                        <label
-                          className="hint"
-                          style={{
-                            display: 'inline-flex',
-                            gap: 6,
-                            alignItems: 'center',
-                            cursor: batchToggleable ? 'pointer' : 'default',
-                            opacity: batchToggleable ? 1 : 0.45,
-                          }}
-                        >
+                    <div key={t.id} className={`historyItem${isSelected ? ' taskCardSelected' : ''}`}>
+                      <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <input
                             type="checkbox"
                             disabled={!batchToggleable}
-                            checked={batchRunSelectedIds.has(t.id)}
+                            checked={isSelected}
                             onChange={() => toggleBatchRunSelect(t.id)}
+                            title={batchToggleable ? '勾选后可批量执行' : '当前状态不可批量操作'}
+                            style={{ cursor: batchToggleable ? 'pointer' : 'not-allowed' }}
                           />
-                          参与手动批量
-                        </label>
+                          <span>{t.itemName}</span>
+                        </div>
+                        <span className={`statusBadge ${badgeClass}`} title={statusZh}>
+                          {statusZh}
+                        </span>
                       </div>
-                      <div className="hint">
-                        {t.actionType === 'transcode'
-                          ? '码率压缩'
-                          : t.actionType === 'upgrade'
-                            ? '洗版'
-                            : '从 Emby 删除'}
-                      </div>
-                      <div className="hint">
-                        {statusZh}
+                      <div className="hint" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span>
+                          {t.actionType === 'transcode'
+                            ? '码率压缩'
+                            : t.actionType === 'upgrade'
+                              ? '洗版'
+                              : '从 Emby 删除'}
+                        </span>
+                        <span>·</span>
+                        <span className="tabular-nums">进度 {t.progress}%</span>
                         {t.pauseRequested ? (
-                          <span style={{ color: '#fbbf24' }}> · 本步收尾后将暂停</span>
+                          <>
+                            <span>·</span>
+                            <span style={{ color: '#fbbf24' }}>本步收尾后将暂停</span>
+                          </>
                         ) : null}
                       </div>
-                      <div className="hint tabular-nums">进度 {t.progress}%</div>
                       {transcodeVolLine ? (
                         <div
                           className="hint tabular-nums"
@@ -4797,21 +4824,36 @@ export default function App() {
                         {t.status === 'waiting_media_source' ? ` · ${nextManualRefreshInfo(t.retryCount, schedulerSettings)}` : ''}
                       </div>
                       <div className="historyRowActions" style={{ flexWrap: 'wrap', gap: 8 }}>
-                        <button type="button" onClick={() => void removeTask(t.id)}>
-                          移除
-                        </button>
-                        <button type="button" onClick={() => pauseTaskRow(t.id)} disabled={!canUserPauseTask(t)}>
-                          暂停
-                        </button>
-                        <button type="button" onClick={() => executeTaskRow(t.id)} disabled={!canUserExecuteTask(t)}>
+                        <button
+                          type="button"
+                          onClick={() => executeTaskRow(t.id)}
+                          disabled={!canUserExecuteTask(t)}
+                          title={canUserExecuteTask(t) ? '立即执行此任务' : '当前状态不可执行'}
+                        >
                           执行
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => pauseTaskRow(t.id)}
+                          disabled={!canUserPauseTask(t)}
+                          title={canUserPauseTask(t) ? '暂停任务（本步收尾后）' : '当前状态不可暂停'}
+                        >
+                          暂停
                         </button>
                         <button
                           type="button"
                           onClick={() => setInfoConfirmTaskId(t.id)}
                           disabled={t.status !== 'awaiting_user_confirm'}
+                          title={t.status === 'awaiting_user_confirm' ? '确认任务信息' : '仅在待确认状态可用'}
                         >
                           信息确认
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void removeTask(t.id)}
+                          title="从任务列表移除"
+                        >
+                          移除
                         </button>
                       </div>
                       <details className="taskFlowLogDetails" open={!isTaskTerminal(t)} style={{ gridColumn: '1 / -1' }}>

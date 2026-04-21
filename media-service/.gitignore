@@ -1,0 +1,5 @@
+node_modules/
+data/config.json
+data/tasks.json
+data/cache.json
+data/control-plane-state.json

@@ -15,8 +15,8 @@ const transcodeService = require('./services/transcodeService');
 const transcodeJobState = new Map();
 const doubanJobState = new Map();
 
-function resolveEmbyClientFromStore(store, query) {
-  const root = store.getJsonKey('controlPlaneConfig', {});
+function resolveEmbyClientFromConfig(query) {
+  const root = configStore.loadConfig();
   const pid = query && query.embyProfileId;
   if (pid && root.embyProfiles && typeof root.embyProfiles === 'object' && root.embyProfiles[pid]) {
     return root.embyProfiles[pid];
@@ -42,15 +42,21 @@ function registerRoutes(app, store) {
     return configStore.patchConfig(patch);
   });
 
-  app.get('/v1/sync/task-queue', async () => store.getJsonKey('taskQueueV1', []));
+  app.get('/v1/sync/task-queue', async (_req, reply) => {
+    reply.header('Deprecation', 'true');
+    reply.header('Sunset', '2026-06-01');
+    return taskStore.loadTasks();
+  });
 
   app.put('/v1/sync/task-queue', async (req, reply) => {
+    reply.header('Deprecation', 'true');
+    reply.header('Sunset', '2026-06-01');
     const body = req.body;
     if (!Array.isArray(body)) {
       apiError(reply, 400, 'VALIDATION_ERROR', 'Body must be a JSON array');
       return;
     }
-    store.setJsonKey('taskQueueV1', body);
+    taskStore.saveTasks(body);
     return { ok: true, count: body.length };
   });
 
@@ -93,7 +99,7 @@ function registerRoutes(app, store) {
 
   /** OpenAPI：使用媒体管理服务已缓存的 embyClient（由桌面 PATCH /v1/config 同步） */
   app.get('/v1/library/items/:itemId', async (req, reply) => {
-    const config = resolveEmbyClientFromStore(store, req.query);
+    const config = resolveEmbyClientFromConfig(req.query);
     if (!config) {
       apiError(
         reply,
@@ -107,7 +113,7 @@ function registerRoutes(app, store) {
   });
 
   app.get('/v1/library/items/:itemId/delete-info', async (req, reply) => {
-    const config = resolveEmbyClientFromStore(store, req.query);
+    const config = resolveEmbyClientFromConfig(req.query);
     if (!config) {
       apiError(reply, 400, 'VALIDATION_ERROR', 'No Emby client on control plane; sync config or use POST /v1/library/actions/delete-info.');
       return;
@@ -116,7 +122,7 @@ function registerRoutes(app, store) {
   });
 
   app.get('/v1/library/items/:itemId/exists', async (req, reply) => {
-    const config = resolveEmbyClientFromStore(store, req.query);
+    const config = resolveEmbyClientFromConfig(req.query);
     if (!config) {
       apiError(reply, 400, 'VALIDATION_ERROR', 'No Emby client on control plane; sync config or use POST /v1/library/actions/exists.');
       return;
@@ -126,7 +132,7 @@ function registerRoutes(app, store) {
   });
 
   app.delete('/v1/library/items/:itemId', async (req, reply) => {
-    const config = resolveEmbyClientFromStore(store, req.query);
+    const config = resolveEmbyClientFromConfig(req.query);
     if (!config) {
       apiError(reply, 400, 'VALIDATION_ERROR', 'No Emby client on control plane; sync config or use POST /v1/library/actions/delete-item.');
       return;
@@ -136,7 +142,7 @@ function registerRoutes(app, store) {
   });
 
   app.post('/v1/library/items/:itemId/played', async (req, reply) => {
-    const config = resolveEmbyClientFromStore(store, req.query);
+    const config = resolveEmbyClientFromConfig(req.query);
     if (!config) {
       apiError(reply, 400, 'VALIDATION_ERROR', 'No Emby client on control plane; sync config or use POST /v1/library/actions/mark-played.');
       return;
@@ -146,7 +152,7 @@ function registerRoutes(app, store) {
   });
 
   app.delete('/v1/library/items/:itemId/played', async (req, reply) => {
-    const config = resolveEmbyClientFromStore(store, req.query);
+    const config = resolveEmbyClientFromConfig(req.query);
     if (!config) {
       apiError(reply, 400, 'VALIDATION_ERROR', 'No Emby client on control plane; sync config or use POST /v1/library/actions/mark-unplayed.');
       return;
