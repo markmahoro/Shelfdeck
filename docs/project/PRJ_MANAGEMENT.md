@@ -72,6 +72,7 @@
 | 任务中断恢复（checkpoint）与可审计的**落盘**任务日志                                                                                                                                                              | 否                                  | 否       | —                                                                                                                                                                           |
 | 配置与任务队列：**媒体管理服务落盘持久化**（`media-service/data`，任务队列经 `PUT /v1/sync/task-queue`；非仅浏览器 localStorage）                                                                                               | 否                                  | **部分**  | 2026-04-19 起：`media-service` 文件存储承载队列与配置快照；与条文「主进程 SQLite」理想模型仍可迭代。                                                                                                         |
 | 批量执行前的耗时/磁盘/负载粗估提示                                                                                                                                                                             | 否                                  | 否       | —                                                                                                                                                                           |
+| 服务健康检查（`GET /v1/health` 扩展：service/config/emby/scheduler 四项检查 → green/yellow/red；Tray 灯 + admin badge 直接用；`DESIGN_SERVICE_HEALTH_CHECK.md`）                                                                                  | 否                                  | 否       | Phase 4；设计文档 `docs/design/DESIGN_SERVICE_HEALTH_CHECK.md` 已产出 |
 
 
 ---
@@ -117,6 +118,7 @@
 | 2026-04-20（UTC+8·桌面中文文案）                | **工程验收**：**桌面客户端用户可见中文文案**落地（`media-desktop` / 同源 `media-service` 用户向错误串）；配置分区、保存成功/失败心智、典型错误人话（如 `EFTYPE`）等；文档 REQ/DESIGN 同步；摘要 `[PRJ_ITERATION_SUMMARY_desktop_ui_copy_20260420.md](./PRJ_ITERATION_SUMMARY_desktop_ui_copy_20260420.md)`。**未** bump `media-desktop` 版本。                                                                                                                                                       | 否        | —                                 |
 | 2026-04-20（UTC+8·配置保存与媒体服务门禁）           | **整体验收**：**配置中心保存/检验反馈**与 **桌面壳层媒体服务可达门禁**（`preload` 健康桥、`App.tsx` 全屏门禁、配置保存与 `GET /v1/health` 一致）；文档 REQ/DESIGN 同步；摘要 `[PRJ_ITERATION_SUMMARY_config_center_media_service_gate_20260420.md](./PRJ_ITERATION_SUMMARY_config_center_media_service_gate_20260420.md)`。**未** bump `media-desktop` 版本。                                                                                                                               | 否        | —                                 |
 | 2026-04-20（UTC+8·桌面后端连接文档包）             | **文档交付**：`REQ_FEATURE_desktop-backend-connection-and-windows-lifecycle`、`DESIGN_DESKTOP_BACKEND_ENDPOINT`、`ADR_001_windows-single-local-media-service-instance`；修订托盘/门禁/配置路径/UI 文案/DEV/OPS/ARCH 索引等；摘要 `[PRJ_ITERATION_SUMMARY_desktop_backend_connection_20260420.md](./PRJ_ITERATION_SUMMARY_desktop_backend_connection_20260420.md)`。**工程实现**与 `TEST_TRAY` T7 签发待后续提交。**未** bump `media-desktop` 版本。                          | 否        | —                                 |
+| 2026-04-22（UTC+8·Phase 4 设计）                  | Phase 4 健康检查设计文档产出：`DESIGN_SERVICE_HEALTH_CHECK.md`（service/config/emby/scheduler 四项检查 → green/yellow/red 聚合）；同步至 `PRJ_MANAGEMENT.md` 功能点表。Phase 4 实施待启动。                                                                                                                                                                   | 否        | —                                 |
 
 
 ---
@@ -140,3 +142,40 @@
 5. **其它仓库文档**：不以本文件为 SSOT 的材料可继续存在；**项目管理口径**（里程碑、时间线）冲突时以本文件为准；**产品/工程条文**冲突时以需求基线 `[REQ_PRODUCT_BASELINE_v1.0.0.md](../requirements/REQ_PRODUCT_BASELINE_v1.0.0.md)` 与 `../design/DESIGN_TASK_CENTER.md` 为准，并在其它材料中手工对齐。
 6. **媒体管理服务 REST 契约**：`docs/api/openapi.yaml` 为 **HTTP 接口** SSOT；契约或边界有重大调整时，在 **§4** 增一行锚点（可与第 3 条「非包版本钉定」同属文档节点；**无需**与 `media-desktop/package.json` 升版绑定）。**路径映射与配置 SSOT**（避免「能播不能压」）以 `../architecture/ARCH_SYSTEM_OVERVIEW.md` **§3.4** 为准。
 7. **安装包标识（electron-builder）**：`media-desktop` 现用 `appId` `**com.shelfdeck.media.desktop`**、`productName` **ShelfDeck**（历史为 `com.emby.thirdparty.mvp` / `EmbyDesktopPlayer`）。若用户依赖「同 appId」覆盖安装升级，需在发版说明中交代：**appId 变更可能导致系统将其视为不同应用**；便携版用户建议迁移配置或显式停用旧快捷方式。
+
+## 7. 开发流程规范（superpowers 工作流）
+
+### 三层文档体系
+
+| 层级 | 文档类型 | 存放位置 | 触发条件 |
+|------|---------|---------|---------|
+| **层0** | 临时草稿/想法 | `docs/scratch/SCRATCH_<topic>.md` | 任何新想法、方向讨论、重要决策 |
+| **层1** | 设计规格（DESIGN） | `docs/design/DESIGN_<topic>.md` | 需在代码中实现的功能/行为 |
+| **层2** | 项目管理记录 | `PRJ_MANAGEMENT.md` §3 + §4 | 功能点状态变更 / 里程碑达成 |
+
+### superpowers 工作流嵌入
+
+每个功能/重构/重大修复必须经过以下阶段（不得跳过）：
+
+1. **brainstorming**（强制门控）→ 产出 `docs/design/DESIGN_<topic>.md` + commit
+   - `<HARD-GATE>`：设计批准前**禁止**写任何代码
+   - 草稿先写入 `docs/scratch/SCRATCH_<topic>.md`，讨论清楚后再升格为 DESIGN
+2. **writing-plans** → 在 `DESIGN_<topic>.md` 内含"## Implementation Plan"章节，或 `docs/plans/PLN_<topic>.md`
+3. **执行与验证** → `verification-before-completion`（每个完成声明必须有 fresh evidence）
+4. **finishing-a-development-branch** → 合并/PR/保留/丢弃选项
+
+### 文档更新义务
+
+| 完成后动作 | 更新位置 |
+|-----------|---------|
+| 功能点开发完成 | §3 功能点表标记"已完成" + 日期 |
+| 里程碑达成 | §4 开发过程记录增行 |
+| 架构/设计重大讨论 | 层1 设计文档 + §5 Idea 池（如未排期） |
+| 新方向/产品定义 | §5 Idea 池登记 |
+| brainstorming 产出 | 设计文档 commit 后同步 MEMORY.md（删除或标记已落地） |
+
+### 草稿管理
+
+- `docs/scratch/SCRATCH_*.md` 为工作区，**非 SSOT**
+- 草稿升格后删除或保留一句话指向正式文档的指针
+- `scratch/` 目录由 `.gitignore` 忽略个人笔记；团队共用草稿需入库时显式 commit
