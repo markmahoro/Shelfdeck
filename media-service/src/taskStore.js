@@ -24,16 +24,35 @@ function loadTasks() {
   }
   try {
     const raw = fs.readFileSync(TASKS_FILE, 'utf8');
+    if (!raw || !raw.trim()) return [];
     return JSON.parse(raw);
   } catch (err) {
     console.error('Failed to load tasks:', err.message);
+    // JSON 损坏时，尝试备份损坏文件并返回空数组，避免持续崩溃
+    try {
+      const bakFile = TASKS_FILE + '.bak.' + Date.now();
+      fs.copyFileSync(TASKS_FILE, bakFile);
+      console.error(`Tasks file corrupted, backed up to ${bakFile}`);
+    } catch (_) {}
     return [];
   }
 }
 
 function saveTasks(tasks) {
   ensureDataDir();
-  fs.writeFileSync(TASKS_FILE, JSON.stringify(tasks, null, 2), 'utf8');
+  // 原子写入：先写临时文件，再 rename。
+  // Windows 上 rename 到已存在的目标文件可能 EPERM，需先删除目标。
+  const tmpFile = TASKS_FILE + '.tmp';
+  fs.writeFileSync(tmpFile, JSON.stringify(tasks, null, 2), 'utf8');
+  try {
+    fs.renameSync(tmpFile, TASKS_FILE);
+  } catch (err) {
+    if (err.code === 'EPERM') {
+      // Windows: 目标文件被占用，先删除再 rename
+      try { fs.unlinkSync(TASKS_FILE); } catch (_) {}
+      try { fs.renameSync(tmpFile, TASKS_FILE); } catch (_2) {}
+    }
+  }
 }
 
 function createTask(taskData) {
@@ -79,9 +98,19 @@ function updateTask(taskId, updates) {
   const tasks = loadTasks();
   const index = tasks.findIndex((t) => t.id === taskId);
   if (index === -1) return null;
+
+  // flowLog 追加语义：如果 updates 中有 flowLog 且为数组，
+  // 则将新条目合并到现有 flowLog 后面，而不是整体覆盖
+  const current = tasks[index];
+  let finalUpdates = { ...updates };
+  if (Array.isArray(updates.flowLog)) {
+    const existingLog = Array.isArray(current.flowLog) ? current.flowLog : [];
+    finalUpdates.flowLog = [...existingLog, ...updates.flowLog];
+  }
+
   tasks[index] = {
     ...tasks[index],
-    ...updates,
+    ...finalUpdates,
     updatedAt: new Date().toISOString(),
   };
   saveTasks(tasks);
@@ -95,22 +124,6 @@ function deleteTask(taskId) {
   saveTasks(filtered);
   return true;
 }
-
-function getSchedulableTasks(executionMode, concurrencyLimits) {
-  const tasks = loadTasks();
-  const byType = { delete: [], transcode: [], upgrade: [] };
-
-  for (const task of tasks) {
-    if (task.status === 'done' || task.status === 'failed_hard') continue;
-    if (executionMode === 'manual' && task.status === 'pending_manual') continue;
-    if (byType[task.actionType]) {
-      byType[task.actionType].push(task);
-    }
-  }
-
-  return byType;
-}
-
 module.exports = {
   createTask,
   getTask,
@@ -119,5 +132,4 @@ module.exports = {
   deleteTask,
   loadTasks,
   saveTasks,
-  getSchedulableTasks,
 };

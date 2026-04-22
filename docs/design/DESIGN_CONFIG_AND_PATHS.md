@@ -8,8 +8,10 @@
 
 ## 范围与引用
 
-- **In scope**：配置中心在信息架构中的定义、职责边界、路径映射约定、配置归属原则。
-- **配置字段 SSOT**：`[DESIGN_CONFIG_FIELDS_REFERENCE.md](./DESIGN_CONFIG_FIELDS_REFERENCE.md)` — 所有字段的详细定义、类型、默认值、验证规则。
+- **In scope**：配置中心在信息架构中的定义、职责边界、配置归属原则。
+- **配置字段 SSOT**：`[DESIGN_CONFIG_FIELDS_REFERENCE.md](./DESIGN_CONFIG_FIELDS_REFERENCE.md)` — 所有字段的详细定义、类型、默认值、验证规则（包括 `pathMapFrom`/`pathMapTo`）。
+- **路径映射战略原则**：`[ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)` **§3.4** — 配置权威在媒体管理服务、前后端分工、同源规则。
+- **路径映射产品约定**：`[API_README.md](../api/API_README.md)` **§路径映射与配置** — 实施细节、API 调用方式、UI 展示要求。
 - **Out of scope**：各 `actionType` Flow 步骤、状态机、删除/转码 HTTP 细节（见 DESIGN_TASK_CENTER）；OpenAPI 形状（见 `[openapi.yaml](../api/openapi.yaml)`）。
 
 ---
@@ -53,10 +55,14 @@
 
 ---
 
-## 路径映射（产品约定）
+## 路径映射（索引）
 
-- **Playback / 预检 / 转码** 使用的 **本机可读路径** 均经 `pathMapFrom` → `pathMapTo` 解析；映射 **权威** 以媒体管理服务持久化配置为 SSOT（见 ARCH_SYSTEM_OVERVIEW **§3.4**）；Electron 设置页仅展示与编辑并经 API 写回。
-- **媒体库列表** 刷新时结合映射解析本机路径，用于原盘类（ISO/BDMV）判定；判定规则与任务中心互斥见 DESIGN_TASK_CENTER **§3.7.3**。
+路径映射相关内容分散在多个文档中，各有侧重：
+
+- **字段定义**（`pathMapFrom`/`pathMapTo` 类型、默认值、验证规则）：见 `[DESIGN_CONFIG_FIELDS_REFERENCE.md](./DESIGN_CONFIG_FIELDS_REFERENCE.md)` **§3 路径映射**。
+- **战略原则**（配置权威在媒体管理服务、前后端分工、同源规则）：见 `[ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)` **§3.4**。
+- **产品约定**（API 调用方式、UI 展示要求、Worker 同源）：见 `[API_README.md](../api/API_README.md)` **§路径映射与配置**。
+- **原盘类判定**（媒体库列表刷新时的路径解析与互斥规则）：见 `[DESIGN_TASK_CENTER.md](./DESIGN_TASK_CENTER.md)` **§3.7.3**。
 
 ---
 

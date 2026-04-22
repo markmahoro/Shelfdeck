@@ -3,18 +3,33 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const CACHE_FILE = path.join(DATA_DIR, 'cache.json');
+function resolveDataDir() {
+  return (
+    process.env.CONTROL_PLANE_DATA_DIR ||
+    process.env.MEDIA_SERVICE_DATA_DIR ||
+    path.join(__dirname, '..', 'data')
+  );
+}
+
+function DATA_DIR() {
+  return resolveDataDir();
+}
+
+function CACHE_FILE() {
+  return path.join(DATA_DIR(), 'cache.json');
+}
 
 function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  const dir = DATA_DIR();
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
 }
 
 function loadCache() {
   ensureDataDir();
-  if (!fs.existsSync(CACHE_FILE)) {
+  const cfile = CACHE_FILE();
+  if (!fs.existsSync(cfile)) {
     return {
       libraryItems: [],
       libraryCachedAt: null,
@@ -23,7 +38,7 @@ function loadCache() {
     };
   }
   try {
-    const raw = fs.readFileSync(CACHE_FILE, 'utf8');
+    const raw = fs.readFileSync(cfile, 'utf8');
     return JSON.parse(raw);
   } catch (err) {
     console.error('Failed to load cache:', err.message);
@@ -38,7 +53,7 @@ function loadCache() {
 
 function saveCache(cache) {
   ensureDataDir();
-  fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf8');
+  fs.writeFileSync(CACHE_FILE(), JSON.stringify(cache, null, 2), 'utf8');
 }
 
 function getLibraryCache() {

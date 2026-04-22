@@ -14,6 +14,7 @@ const transcodeService = require('./services/transcodeService');
 
 const transcodeJobState = new Map();
 const doubanJobState = new Map();
+const ratingStore = require('./ratingStore');
 
 function resolveEmbyClientFromConfig(query) {
   const root = configStore.loadConfig();
@@ -363,7 +364,69 @@ function registerRoutes(app, store) {
   });
 
   app.post('/v1/tasks', async (req, reply) => {
-    const task = taskStore.createTask(req.body || {});
+    // 向后兼容：client 带 id 走旧逻辑（Phase 2 再移除）
+    if (req.body && req.body.id) {
+      const task = taskStore.createTask(req.body);
+      reply.code(201);
+      return task;
+    }
+
+    const { itemId, actionType, runMode } = req.body || {};
+
+    // 1. 校验入参
+    if (!itemId || !actionType) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId and actionType required');
+    }
+    if (!['delete', 'transcode', 'upgrade'].includes(actionType)) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'Invalid actionType');
+    }
+
+    // 2. 解析 Emby 配置
+    const embyConfig = resolveEmbyClientFromConfig(req.query);
+    if (!embyConfig || !embyConfig.baseUrl) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'Emby not configured');
+    }
+
+    // 3. 查 Emby item
+    let embyItem;
+    try {
+      embyItem = await embyService.getLibraryItem({ config: embyConfig, itemId });
+    } catch (e) {
+      return apiError(reply, 502, 'EMBY_FETCH_FAILED', e.message);
+    }
+    if (!embyItem) {
+      return apiError(reply, 404, 'ITEM_NOT_FOUND', 'Emby item not found');
+    }
+
+    // 4. 蓝光校验
+    if (
+      (actionType === 'transcode' || actionType === 'upgrade') &&
+      embyService.inferIsBluRayDisc(embyItem, embyConfig)
+    ) {
+      return apiError(reply, 409, 'BLURAY_DISC_REJECTED', `「${embyItem.Name}」为蓝光/原盘，不支持 ${actionType}`);
+    }
+
+    // 5. 互斥校验
+    const existing = taskStore.getTasks({ itemId });
+    const active = existing.find((t) => t.status !== 'done' && t.status !== 'failed_hard');
+    if (active) {
+      return apiError(reply, 409, 'ITEM_TASK_CONFLICT', `「${embyItem.Name}」已有进行中任务（${active.id}）`);
+    }
+
+    // 6. 初始状态由 runMode 决定（fallback 到 service executionMode）
+    const svcCfg = configStore.loadConfig();
+    const effectiveRunMode = runMode || svcCfg.executionMode || 'manual';
+    const status = effectiveRunMode === 'scheduled' ? 'queued' : 'pending_manual';
+
+    // 7. 构建任务
+    const task = taskStore.createTask({
+      itemId,
+      itemName: embyItem.Name || itemId,
+      actionType,
+      status,
+      flowLog: [{ ts: new Date().toISOString(), level: 'info', code: 'task.created', message: '任务已创建' }],
+    });
+
     reply.code(201);
     return task;
   });
@@ -405,6 +468,11 @@ function registerRoutes(app, store) {
       taskStore.updateTask(req.params.taskId, { status: 'created' });
       return { ok: true, message: 'Task queued for execution' };
     }
+    if (task.status === 'paused') {
+      // resume from paused — move to queued so scheduler picks it up
+      taskStore.updateTask(req.params.taskId, { status: 'queued' });
+      return { ok: true, message: 'Task resumed' };
+    }
     return { ok: true, message: 'Task already in execution pipeline' };
   });
 
@@ -422,6 +490,49 @@ function registerRoutes(app, store) {
     return { ok: true, message: 'Task paused' };
   });
 
+  app.post('/v1/tasks/:taskId/actions/confirm', async (req, reply) => {
+    const task = taskStore.getTask(req.params.taskId);
+    if (!task) {
+      apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+      return;
+    }
+    if (task.status !== 'awaiting_user_confirm') {
+      apiError(reply, 409, 'CONFLICT', 'Task is not awaiting confirmation');
+      return;
+    }
+    const { confirmed } = req.body || {};
+    if (!confirmed) {
+      apiError(reply, 400, 'VALIDATION_ERROR', 'confirmed must be true');
+      return;
+    }
+
+    // 记录确认并推进 Flow
+    const updates = { confirmedAt: new Date().toISOString() };
+    // 判断停泊原因：查 flowLog 最近一条的 code
+    const flowLog = Array.isArray(task.flowLog) ? task.flowLog : [];
+    const lastEntry = flowLog[flowLog.length - 1];
+
+    if (task.actionType === 'transcode') {
+      if (lastEntry && lastEntry.code === 'transcode.dv.confirm') {
+        updates.transcodeDvAcknowledged = true;
+        updates.resumePoint = 'transcode_executing'; // 跳过 precheck 的 DV 检测
+      } else if (lastEntry && lastEntry.code === 'transcode.replace.confirm') {
+        updates.resumePoint = 'transcode_replace'; // 跳过 precheck+executing+verify，直接 replace
+      }
+    } else if (task.actionType === 'delete') {
+      if (lastEntry && lastEntry.code === 'delete.awaiting_confirm') {
+        updates.resumePoint = 'delete_executing'; // 跳过 precheck，直接执行删除
+      }
+    }
+
+    taskStore.updateTask(req.params.taskId, updates);
+
+    // 将状态改回 queued，让 scheduler 下次轮询时推进
+    // driving 必须清除：Flow 的 async 链已结束（用户手动触发了 confirm），下次 driveTask 应能接管
+    taskStore.updateTask(req.params.taskId, { status: 'queued', driving: false });
+    return { ok: true, message: 'Task confirmed and re-queued' };
+  });
+
   app.get('/v1/library/cache', async () => cacheStore.getLibraryCache());
 
   app.post('/v1/library/cache', async (req) => {
@@ -430,6 +541,14 @@ function registerRoutes(app, store) {
   });
 
   app.get('/v1/integrations/douban/ratings/cache', async () => cacheStore.getDoubanCache());
+
+  app.get('/v1/library/ratings', async () => ratingStore.getAllRatings());
+
+  app.patch('/v1/library/ratings', async (req) => {
+    const patch = req.body && typeof req.body === 'object' ? req.body : {};
+    const count = ratingStore.patchRatings(patch);
+    return { ok: true, count };
+  });
 }
 
 /**
@@ -446,7 +565,7 @@ async function buildApp(opts = {}) {
   const API_KEY =
     opts.apiKey !== undefined
       ? opts.apiKey
-      : process.env.MEDIA_SERVICE_API_KEY || process.env.CONTROL_PLANE_API_KEY || '';
+      : process.env.MEDIA_SERVICE_API_KEY || process.env.CONTROL_PLANE_API_KEY || configStore.loadConfig().serviceApiKey || '';
 
   const app = Fastify({ logger: opts.logger !== undefined ? opts.logger : true });
   await app.register(cors, { origin: true });
@@ -464,6 +583,11 @@ async function buildApp(opts = {}) {
 
   app.addHook('onRequest', authHook);
   registerRoutes(app, store);
+
+  // 确保 app.close() 时同时停止调度器，防止测试中 setInterval 保持事件循环活跃
+  app.addHook('onClose', async () => {
+    taskScheduler.stopScheduler();
+  });
 
   taskScheduler.startScheduler();
 

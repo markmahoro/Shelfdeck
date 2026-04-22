@@ -2005,6 +2005,9 @@ export default function App() {
     });
     saveManagedItemMetaPatch(patch);
     setManagedItems((prev) => prev.map((x) => (manageSelectedIds.has(x.id) ? { ...x, rating } : x)));
+    const ratingsPatch: Record<string, number> = {};
+    manageSelectedIds.forEach((id) => { ratingsPatch[id] = rating as number; });
+    void apiClient.patchItemRatings(ratingsPatch).catch((e) => console.error('[rating] sync failed', e));
     setManageRatingOverlay(false);
     clearManageSelection();
     setError(null);
@@ -2013,6 +2016,11 @@ export default function App() {
   const setSingleManagedRating = useCallback((it: ManagedMediaItem, rating: MediaRating | null) => {
     saveManagedItemMetaPatch({ [it.id]: { rating } });
     setManagedItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, rating } : x)));
+    if (rating != null) {
+      void apiClient.patchItemRatings({ [it.id]: rating as number }).catch((e) => console.error('[rating] sync failed', e));
+    } else {
+      void apiClient.patchItemRatings({ [it.id]: null }).catch((e) => console.error('[rating] sync failed', e));
+    }
     setError(null);
   }, []);
 
@@ -2078,122 +2086,91 @@ export default function App() {
   setManagedWatchStateRef.current = setManagedWatchState;
 
   function enqueueManagedAction(item: ManagedMediaItem, action: MediaAction) {
-    if (item.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) {
-      setError(
-        `「${item.name}」识别为蓝光/原盘（.iso 或含 BDMV 目录），不支持码率优化或洗版入队。请先提取或转封装为普通视频文件后再操作。`,
-      );
-      return;
-    }
-    const preview = buildTaskPreview(item, action);
-    if (!preview) return;
-    setTasks((prev) => {
-      if (hasActiveTaskForItem(prev, preview.itemId)) {
-        window.setTimeout(() => {
-          setError(`无法添加任务：「${item.name}」已有进行中的任务（同视频互斥）。`);
-        }, 0);
-        return prev;
-      }
-      const created = appendFlowLog(
-        enqueueTask(preview, schedulerSettings.runMode),
-        'task.created',
-        `任务已创建；${
-          schedulerSettings.runMode === 'scheduled' ? '新任务添加后自动执行' : '新任务添加后手动执行'
-        }；类型：${
-          preview.actionType === 'transcode' ? '码率压缩' : preview.actionType === 'upgrade' ? '洗版' : '从 Emby 删除'
-        }`,
-      );
-      const typeLabel =
-        preview.actionType === 'transcode'
-          ? '码率压缩'
-          : preview.actionType === 'upgrade'
-            ? '洗版'
-            : '从 Emby 删除';
-      window.setTimeout(() => {
-        setError(null);
+    void (async () => {
+      try {
+        const created = await apiClient.createTaskByIntent({
+          itemId: item.id,
+          actionType: action,
+          runMode: schedulerSettings.runMode,
+        });
+        setTasks((prev) => [created, ...prev].slice(0, 300));
+        const typeLabel = action === 'transcode' ? '码率压缩' : action === 'upgrade' ? '洗版' : '从 Emby 删除';
         setEnqueueHint(`已提交 1 条：${item.name}（${typeLabel}）。请到任务中心查看，筛选请选「全部」。`);
         window.setTimeout(() => setEnqueueHint(null), 5000);
-      }, 0);
-      return [created, ...prev].slice(0, 300);
-    });
+      } catch (e) {
+        if (e instanceof ApiConflictError) {
+          setError(e.message);
+        } else {
+          console.error('[task] Failed to create task', e);
+        }
+      }
+    })();
   }
   enqueueManagedActionRef.current = enqueueManagedAction;
 
-  function enqueueRecommendedBatch() {
+  async function enqueueRecommendedBatch() {
     if (manageSelectedIds.size === 0) {
       setError('请先在列表中勾选要批量码率优化的条目。');
       return;
     }
     setError(null);
-    setTasks((prev) => {
-      const creations: MediaTask[] = [];
-      let blocked = 0;
-      let skipped = 0;
-      let discSkipped = 0;
-      for (const item of managedItems) {
-        if (!manageSelectedIds.has(item.id)) continue;
-        const action = recommendedAction(item, mediaPolicy);
-        if (item.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) {
-          discSkipped++;
-          continue;
-        }
-        if (action !== 'transcode' && action !== 'upgrade' && action !== 'delete') {
-          skipped++;
-          continue;
-        }
-        const preview = buildTaskPreview(item, action);
-        if (!preview) {
-          skipped++;
-          continue;
-        }
-        if (hasActiveTaskForItem(prev, preview.itemId) || creations.some((c) => c.itemId === preview.itemId)) {
-          blocked++;
-          continue;
-        }
-        creations.push(
-          appendFlowLog(
-            enqueueTask(preview, schedulerSettings.runMode),
-            'task.created',
-            `批量入队；类型：${
-              preview.actionType === 'transcode' ? '码率压缩' : preview.actionType === 'upgrade' ? '洗版' : '从 Emby 删除'
-            }；${
-              schedulerSettings.runMode === 'scheduled' ? '新任务添加后自动执行' : '新任务添加后手动执行'
-            }`,
-          ),
-        );
+    const selected = managedItems.filter((it) => manageSelectedIds.has(it.id));
+    let successes = 0;
+    let discSkipped = 0;
+    let conflictSkipped = 0;
+    let noActionSkipped = 0;
+    let failed = 0;
+
+    for (const item of selected) {
+      const act = recommendedAction(item, mediaPolicy);
+      if (item.isBluRayDisc && (act === 'transcode' || act === 'upgrade')) {
+        discSkipped++;
+        continue;
       }
-
-      window.setTimeout(() => {
-        if (creations.length === 0) {
-          setError(
-            blocked > 0
-              ? '选中条目均无法入队（可能与进行中任务互斥，或未标注/已达标/无删除档等）。'
-              : discSkipped > 0 && skipped === 0 && blocked === 0
-                ? `选中条目中 ${discSkipped} 条为蓝光/原盘（.iso 或 BDMV），不支持压缩/洗版入队；其余无需排队。`
-                : '选中条目中暂无需要排队的项（可能未标注星级、已达标、或无可执行动作）。',
-          );
-          return;
-        }
-        const msg = [
-          `已提交 ${creations.length} 条`,
-          discSkipped > 0 ? `跳过 ${discSkipped} 条（蓝光/原盘）` : '',
-          skipped > 0 ? `跳过 ${skipped} 条（未标注、已达标或删除档）` : '',
-          blocked > 0 ? `互斥跳过 ${blocked} 条` : '',
-          '请到任务中心查看，筛选请选「全部」。',
-        ]
-          .filter(Boolean)
-          .join('；');
-        setEnqueueHint(msg);
-        window.setTimeout(() => setEnqueueHint(null), 8000);
-        if (blocked > 0) {
-          setError(`部分条目因互斥未入队（共 ${blocked} 条）。`);
+      if (act !== 'transcode' && act !== 'upgrade' && act !== 'delete') {
+        noActionSkipped++;
+        continue;
+      }
+      try {
+        const created = await apiClient.createTaskByIntent({
+          itemId: item.id,
+          actionType: act,
+          runMode: schedulerSettings.runMode,
+        });
+        setTasks((prev) => [created, ...prev].slice(0, 300));
+        successes++;
+      } catch (e) {
+        if (e instanceof ApiConflictError) {
+          conflictSkipped++;
         } else {
-          setError(null);
+          failed++;
         }
-      }, 0);
+      }
+    }
 
-      if (creations.length === 0) return prev;
-      return [...creations, ...prev].slice(0, 300);
-    });
+    if (successes === 0) {
+      const msg =
+        conflictSkipped > 0
+          ? `选中条目均无法入队（可能与进行中任务互斥，或未标注/已达标/无删除档等）。`
+          : discSkipped > 0 && noActionSkipped === 0
+            ? `选中条目中 ${discSkipped} 条为蓝光/原盘（.iso 或 BDMV），不支持压缩/洗版入队；其余无需排队。`
+            : '选中条目中暂无需要排队的项（可能未标注星级、已达标、或无可执行动作）。';
+      setError(msg);
+      return;
+    }
+    const parts = [`已提交 ${successes} 条`];
+    if (discSkipped > 0) parts.push(`跳过 ${discSkipped} 条（蓝光/原盘）`);
+    if (noActionSkipped > 0) parts.push(`跳过 ${noActionSkipped} 条（未标注、已达标或删除档）`);
+    if (conflictSkipped > 0) parts.push(`互斥跳过 ${conflictSkipped} 条`);
+    if (failed > 0) parts.push(`失败 ${failed} 条`);
+    parts.push('请到任务中心查看，筛选请选「全部」。');
+    setEnqueueHint(parts.join('；'));
+    window.setTimeout(() => setEnqueueHint(null), 8000);
+    if (conflictSkipped > 0) {
+      setError(`部分条目因互斥未入队（共 ${conflictSkipped} 条）。`);
+    } else {
+      setError(null);
+    }
   }
 
   function refreshWaitingMediaSourceNow() {
@@ -2641,6 +2618,7 @@ export default function App() {
                 preview.actionType === 'transcode' ? '码率压缩' : preview.actionType === 'upgrade' ? '洗版' : '从 Emby 删除'
               }`,
             );
+            void apiClient.createTask(created).catch((e) => console.error('[task] Failed to persist task to backend', e));
             setEnqueueHint(`已保存星级并自动入队：${item.name}。`);
             window.setTimeout(() => setEnqueueHint(null), 6000);
             return [created, ...prev].slice(0, 300);

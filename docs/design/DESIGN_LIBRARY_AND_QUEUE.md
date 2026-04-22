@@ -111,6 +111,10 @@
 
 - **定义**：资源为 `.iso` 映像，或磁盘上存在 **BDMV 目录结构**（含 Emby 返回路径经**配置中心「路径映射」转换后在本机可验证的情形），视为**原盘类**，与「常规单文件/文件夹片源」区分治理。
 - **判定位置**（与 `[DESIGN_TASK_CENTER.md](./DESIGN_TASK_CENTER.md)` **§3.7.3** 一致）：**媒体库管理页**在「刷新媒体库列表」、结合路径映射解析本机路径时完成探测；结果进入列表缓存（`embyDesktopPlayerLibraryManageCacheV1`）。**任务中心**不对条目做原盘权威扫描。
+- **实现指导**：
+  - **后端优先**：原盘判定应优先在 **媒体管理服务** 后端完成（路径映射解析、文件系统探测均在服务端），前端通过 API 获取判定结果，避免跨进程（渲染进程 vs 主进程/服务端）同步问题。
+  - **缓存策略**：判定结果应缓存（如存入 `embyDesktopPlayerLibraryManageCacheV1` 或后端缓存层），减少重复文件系统探测；缓存应与媒体库刷新周期对齐，避免过期数据。
+  - **性能考量**：文件系统探测（检查 BDMV 目录结构）可能耗时，应在后台异步完成，避免阻塞 UI 渲染；批量判定时应限制并发数。
 - **产品规则**：原盘类资源**不允许**创建**码率压缩（Transcode）**任务；界面需明确提示，批量场景需跳过并汇总说明。**洗版补源（Upgrade）**不在此限。用户若需转码，须先提取或转封装为常规容器后，再纳入 **§1** / **§2** 流程。
 
 ### 4.1 高码率压缩（Transcode）
@@ -119,7 +123,7 @@
 - **通用条件（正式执行层）**：`currentEquivalentBitrate > targetBitrate + safetyMargin`
 - **动作（正式版执行链路摘要）**：创建转码任务 → 按 `[DESIGN_TASK_CENTER.md](./DESIGN_TASK_CENTER.md)` **§2.4** 执行：**预检**（连接、路径映射、**用户配置的临时根**、源可读、**源占用/锁定**、DV 等专检）→ **占用转码队列槽** 与 **编码资源池（GPU/CPU，与 `upgrade` 隔离，见 §4.2）** → **FFmpeg 压制** 至临时目录下 **每任务隔离** 路径，输出使用 `*.etp.partial` 等约定名，**禁止**与目标成片最终 basename **同名** → **压制后校验**（ffprobe / 策略 / DV 附加检；**失败则删除 partial，不支持断点续压**）→ **（默认）替换前信息确认**（配置可开「校验通过后自动替换」）→ **replace 子流程**（**仅对将被覆盖的旧版 `Target` 计算 `pre_replace_hash` 并写入任务持久化**；**不对** staging 新文件与替换后新成片算 hash；`partial` → `Target.etp.new` → 校验 `.new`（不算 hash）→ `Target`→`Target.etp.bak` → `Target.etp.new`→`Target`；跨盘以拷贝+rename 为主，同卷可用 move/rename 优化；**整段 replace 自动重试 3 次**，仍失败 **人工介入**；**孤儿扫描/一键清理** 见 DESIGN_TASK_CENTER **§2.4.5**）→ **清理临时** → 结案。
 - **空间**：开压前 **粗检**；**partial 落地后** 用 **实际大小** 做 replace 前 **临时卷/目标卷峰值**检（详见 DESIGN_TASK_CENTER **§2.4.4**）。
-- **失败 / 异常**：**任务异常分类 A1～F3** 见 DESIGN_TASK_CENTER **§17**；用户于压制中 **暂停** 见 DESIGN_TASK_CENTER **§9.7**（终止压制、删临时、原片不替换）。
+- **失败 / 异常**：**任务异常分类 A1～F3** 见 DESIGN_TASK_CENTER **§17**；**错误处理策略** 见 `[ERROR_HANDLING_STRATEGY.md](./ERROR_HANDLING_STRATEGY.md)`；用户于压制中 **暂停** 见 DESIGN_TASK_CENTER **§9.7**（终止压制、删临时、原片不替换）。
 - **失败（概要）**：除 replace **整段 3 次重试** 外，压制/校验失败以 **删 partial、结案或有限重试** 为主，不以「编码断点续跑」为 v1 能力。
 
 ### 4.2 低码率补源（Upgrade）

@@ -3,17 +3,33 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+function resolveDataDir() {
+  return (
+    process.env.CONTROL_PLANE_DATA_DIR ||
+    process.env.MEDIA_SERVICE_DATA_DIR ||
+    path.join(__dirname, '..', 'data')
+  );
+}
+
+function DATA_DIR() {
+  return resolveDataDir();
+}
+
+function CONFIG_FILE() {
+  return path.join(DATA_DIR(), 'config.json');
+}
 
 function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  const dir = DATA_DIR();
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
 }
 
 function getDefaultConfig() {
   return {
+    embyClient: { baseUrl: '', apiKey: '', userId: '', embyUserPassword: '' },
+    embyProfiles: {},
     baseUrl: '',
     apiKey: '',
     userId: '',
@@ -32,22 +48,28 @@ function getDefaultConfig() {
     wallRatingAutoEnqueue: false,
     transcodeTempRoot: '',
     transcodeReplaceConfirmRequired: false,
-    transcodeEncodingDevices: [],
+    transcodeEncodePool: { entries: [], cpuParticipation: 'normal' },
     transcodeCpuParticipationStrategy: 'normal',
     upgradeRetryInterval: 3600,
     upgradeMaxRetries: 5,
     ffmpegPath: '',
     ffprobePath: '',
+    mediaPolicy: {
+      target1080p: { 2: 2, 3: 4, 4: 7, 5: 12 },
+      target4k: { 2: 5, 3: 10, 4: 16, 5: 25 },
+    },
+    serviceApiKey: '',
   };
 }
 
 function loadConfig() {
   ensureDataDir();
-  if (!fs.existsSync(CONFIG_FILE)) {
+  const cfgFile = CONFIG_FILE();
+  if (!fs.existsSync(cfgFile)) {
     return getDefaultConfig();
   }
   try {
-    const raw = fs.readFileSync(CONFIG_FILE, 'utf8');
+    const raw = fs.readFileSync(cfgFile, 'utf8');
     const loaded = JSON.parse(raw);
     return { ...getDefaultConfig(), ...loaded };
   } catch (err) {
@@ -59,7 +81,7 @@ function loadConfig() {
 function saveConfig(config) {
   ensureDataDir();
   const merged = { ...getDefaultConfig(), ...config };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2), 'utf8');
+  fs.writeFileSync(CONFIG_FILE(), JSON.stringify(merged, null, 2), 'utf8');
   return merged;
 }
 

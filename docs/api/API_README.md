@@ -16,6 +16,22 @@
 | [openapi.yaml](./openapi.yaml) | OpenAPI 3.0.3；路径、方法、标签、全局安全方案与错误模型 |
 
 
+## API 字段级参考文档
+
+**当前状态**：API 契约以 `openapi.yaml` 为 SSOT，提供机器可读的路径、方法、请求/响应 schema 定义。
+
+**后续计划**：补充人类可读的 API 字段详细说明文档，包括：
+- 请求/响应示例（典型场景与边界情况）
+- 错误码详解与排查指南
+- 字段语义说明与业务约束
+- 常见使用模式与最佳实践
+
+在人类可读文档补充前，开发者可通过以下方式使用 API：
+- 直接阅读 `openapi.yaml` 中的 schema 定义与描述
+- 使用 OpenAPI 工具生成交互式文档（如 Redoc、Swagger UI）
+- 参考本目录其他文档中的 API 使用示例与说明
+
+
 ## 校验（lint）
 
 在仓库根目录执行（需 Node/npm；无需写入 `package.json` 亦可一次性拉取 CLI）：
@@ -47,11 +63,19 @@ npx --yes @redocly/cli lint docs/api/openapi.yaml --config docs/api/redocly.yaml
 
 ## 路径映射与配置（产品约定）
 
-与 **读源、写临时目录、替换文件** 相关的路径映射及 `transcodeTempRoot` 等，**以媒体管理服务持久化配置为 SSOT**；Electron 设置页仅 **展示与编辑** 并经 API（如 `GET/PATCH /v1/config`）写回，**不在本地另存一套映射真相**。主界面须写清 **Worker 用映射**；仅当媒体管理服务与桌面环境不一致时，提供 **可选的「本机播放附加映射」** 区块。预检与转码 Worker **与上述规则同源**，避免「能播不能压」。战略条文见 `[docs/architecture/ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)` **§3.4**。
+路径映射相关内容分散在多个文档中，各有侧重：
+
+- **字段定义**（字段名、类型、默认值、验证规则）：见 `[DESIGN_CONFIG_FIELDS_REFERENCE.md](../design/DESIGN_CONFIG_FIELDS_REFERENCE.md)` **§3 路径映射**。
+- **战略原则**（配置权威在媒体管理服务、前后端分工）：见 `[ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)` **§3.4**。
+- **产品约定**（本节）：实施细节、API 调用方式、UI 展示要求。
+
+**实施细节**：
+
+与 **读源、写临时目录、替换文件** 相关的路径映射及 `transcodeTempRoot` 等，**以媒体管理服务持久化配置为 SSOT**；Electron 设置页仅 **展示与编辑** 并经 API（如 `GET/PATCH /v1/config`）写回，**不在本地另存一套映射真相**。主界面须写清 **Worker 用映射**；仅当媒体管理服务与桌面环境不一致时，提供 **可选的「本机播放附加映射」** 区块。预检与转码 Worker **与上述规则同源**，避免「能播不能压」。
 
 ## MCP 与 REST（后续里程碑）
 
-MCP 工具应 **调用与媒体管理服务 REST 相同的领域服务**，禁止维护两套业务规则；工具名与 REST 的对照表在 **MCP 搭建** 阶段补全。原则见 `[docs/architecture/ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)` §4.1。
+MCP 工具应 **调用与媒体管理服务 REST 相同的领域服务**，禁止维护两套业务规则；工具名与 REST 的对照表在 **MCP 搭建** 阶段补全。原则与验证策略见 `[docs/architecture/ARCH_SYSTEM_OVERVIEW.md](../architecture/ARCH_SYSTEM_OVERVIEW.md)` §4.1、§4.4。
 
 ## IPC（历史）→ REST（已迁移）对照
 

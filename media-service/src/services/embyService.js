@@ -2,6 +2,24 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
+const mediaPolicyService = require('./mediaPolicyService');
+const doubanMatchService = require('./doubanMatchService');
+let configStore;
+let cacheStore;
+let ratingStore;
+function lazyConfigStore() {
+  if (!configStore) configStore = require('../configStore');
+  return configStore;
+}
+function lazyCacheStore() {
+  if (!cacheStore) cacheStore = require('../cacheStore');
+  return cacheStore;
+}
+function lazyRatingStore() {
+  if (!ratingStore) ratingStore = require('../ratingStore');
+  return ratingStore;
+}
+
 function log(...args) {
   console.log('[emby]', new Date().toISOString(), ...args);
 }
@@ -523,8 +541,50 @@ async function getLibraryItemsForManage({ config }) {
     }
   }
   const list = Array.from(byId.values());
-  log('getLibraryItemsForManage', list.length);
-  return list;
+
+  // 注入服务端计算字段（mediaPolicy + douban + 用户标注 rating）
+  let policy = null;
+  let doubanMap = new Map();
+  let ratings = {};
+  try {
+    const cfg = lazyConfigStore().loadConfig();
+    policy = cfg.mediaPolicy || null;
+  } catch (e) {
+    log('mediaPolicy load failed', e?.message || e);
+  }
+  try {
+    const dc = lazyCacheStore().getDoubanCache();
+    doubanMap = doubanMatchService.buildDoubanStarsByNormalizedTitle(dc.entries || []);
+  } catch (e) {
+    log('douban cache load failed', e?.message || e);
+  }
+  try {
+    ratings = lazyRatingStore().getAllRatings();
+  } catch (e) {
+    log('rating store load failed', e?.message || e);
+  }
+
+  const enriched = list.map((it) => {
+    const ratingEntry = ratings[it.id];
+    const rating = ratingEntry && typeof ratingEntry.rating === 'number' ? ratingEntry.rating : null;
+    const doubanStars = doubanMatchService.movieDoubanStars(it.name, it.itemType, doubanMap);
+    const forCalc = { ...it, rating, doubanStars };
+    const out = {
+      ...it,
+      rating,
+      doubanStars,
+      equivalentBitrateMbps: mediaPolicyService.estimateEquivalentBitrate(forCalc),
+    };
+    if (policy) {
+      out.recommendedAction = mediaPolicyService.recommendedAction(forCalc, policy);
+      out.targetBitrateMbps = mediaPolicyService.targetBitrateFor(forCalc, policy);
+      out.predictedSizeGb = mediaPolicyService.predictedSizeGbAtPolicyTarget(forCalc, policy);
+    }
+    return out;
+  });
+
+  log('getLibraryItemsForManage', enriched.length);
+  return enriched;
 }
 
 async function fetchPlayedPage(config, sectionId, type) {
@@ -846,4 +906,5 @@ module.exports = {
   libraryItemExists,
   fetchPlaybackPath,
   applyPathMap,
+  inferIsBluRayDisc,
 };

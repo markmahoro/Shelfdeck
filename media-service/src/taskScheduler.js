@@ -2,9 +2,11 @@
 
 const taskStore = require('./taskStore');
 const configStore = require('./configStore');
+const taskExecutor = require('./taskExecutor');
 
 let schedulerInterval = null;
 let isRunning = false;
+let schedulerBusy = false;
 
 function startScheduler() {
   if (isRunning) {
@@ -15,12 +17,19 @@ function startScheduler() {
   isRunning = true;
   console.log('Task scheduler started');
 
+  // 启动恢复：中断任务降级
+  taskExecutor.recoverInterruptedTasks();
+
   // Run scheduler every 5 seconds
-  schedulerInterval = setInterval(() => {
+  schedulerInterval = setInterval(async () => {
+    if (schedulerBusy) return;
+    schedulerBusy = true;
     try {
-      scheduleTasks();
+      await scheduleTasks();
     } catch (err) {
       console.error('Scheduler error:', err);
+    } finally {
+      schedulerBusy = false;
     }
   }, 5000);
 }
@@ -34,25 +43,24 @@ function stopScheduler() {
   console.log('Task scheduler stopped');
 }
 
-function scheduleTasks() {
+async function scheduleTasks() {
   const config = configStore.loadConfig();
   const { executionMode, deleteConcurrency, transcodeConcurrency, upgradeConcurrency } = config;
 
   const tasks = taskStore.loadTasks();
 
-  // Count currently running tasks by type
+  // Count currently running tasks by type (only truly occupying a slot)
   const running = {
     delete: tasks.filter(t => t.actionType === 'delete' && isOccupyingSlot(t.status)).length,
     transcode: tasks.filter(t => t.actionType === 'transcode' && isOccupyingSlot(t.status)).length,
     upgrade: tasks.filter(t => t.actionType === 'upgrade' && isOccupyingSlot(t.status)).length,
   };
 
-  // Find tasks that can be scheduled
   for (const task of tasks) {
     // Skip if already done or failed
-    if (task.status === 'done' || task.status === 'failed_hard') continue;
+    if (task.status === 'done' || task.status === 'failed_hard' || task.status === 'interrupted') continue;
 
-    // Skip if already running
+    // Skip if already occupying a slot (already in Flow — will be driven by executor)
     if (isOccupyingSlot(task.status)) continue;
 
     // Skip if paused
@@ -69,14 +77,16 @@ function scheduleTasks() {
     if (task.status === 'pending_manual' || task.status === 'created') {
       taskStore.updateTask(task.id, { status: 'queued' });
       console.log(`Task ${task.id} (${task.actionType}) moved to queued`);
+      running[task.actionType]++;
     }
 
-    // If task is queued, try to start execution
+    // If task is queued, drive its Flow
     if (task.status === 'queued') {
-      // In a real implementation, this would trigger the worker
-      // For now, we just log it
-      console.log(`Task ${task.id} (${task.actionType}) ready for execution`);
-      running[task.actionType]++;
+      try {
+        await taskExecutor.driveTask(task.id);
+      } catch (err) {
+        console.error(`driveTask error for ${task.id}:`, err);
+      }
     }
   }
 }

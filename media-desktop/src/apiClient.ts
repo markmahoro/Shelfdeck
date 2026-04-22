@@ -1,6 +1,16 @@
 import { getRendererMediaServiceApiKey, getRendererMediaServiceBaseUrl } from './cpBase';
 import type { MediaTask } from './taskQueue';
 
+export class ApiConflictError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiConflictError';
+  }
+}
+
 class ApiClient {
   private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -53,6 +63,39 @@ class ApiClient {
       body: JSON.stringify(task),
     });
     if (!r.ok) throw new Error(`Failed to create task: HTTP ${r.status}`);
+    return r.json();
+  }
+
+  async createTaskByIntent(intent: { itemId: string; actionType: string; runMode?: string }): Promise<MediaTask> {
+    const url = `${this.getBaseUrl()}/v1/tasks`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(intent),
+    });
+    if (r.status === 409) {
+      const body = await r.json().catch(() => ({}));
+      throw new ApiConflictError(body.code || 'CONFLICT', body.message || 'Conflict');
+    }
+    if (!r.ok) throw new Error(`Failed to create task: HTTP ${r.status}`);
+    return r.json();
+  }
+
+  async getItemRatings(): Promise<Record<string, { rating: number; updatedAt: string }>> {
+    const url = `${this.getBaseUrl()}/v1/library/ratings`;
+    const r = await fetch(url, { headers: this.getHeaders() });
+    if (!r.ok) throw new Error(`Failed to get ratings: HTTP ${r.status}`);
+    return r.json();
+  }
+
+  async patchItemRatings(patch: Record<string, number | null>): Promise<{ ok: boolean; count: number }> {
+    const url = `${this.getBaseUrl()}/v1/library/ratings`;
+    const r = await fetch(url, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(patch),
+    });
+    if (!r.ok) throw new Error(`Failed to patch ratings: HTTP ${r.status}`);
     return r.json();
   }
 
