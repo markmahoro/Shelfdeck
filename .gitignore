@@ -37,3 +37,7 @@ archive/EmbyDesktopPlayer_PRODUCT_MODULES_v1.0.0.md
 # 媒体管理服务运行时状态（本地队列/会话；见 docs/DOC_GOVERNANCE.md）
 media-service/data/control-plane-state.json
 media-service/data/douban-session.json
+
+# Git worktrees（隔离开发工作区）
+.worktrees/
+worktrees/
