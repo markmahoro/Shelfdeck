@@ -105,9 +105,18 @@ export interface MediaTask {
 
 // ── Health ───────────────────────────────────────────────────────────────────
 
+export interface HealthCheckResult {
+  service: 'ok' | 'error';
+  config: 'ok' | 'error';
+  emby: 'ok' | 'error';
+  scheduler: 'ok' | 'error';
+}
+
 export interface HealthStatus {
-  status: 'ok' | 'degraded' | 'unhealthy';
-  version?: string;
+  status: 'ok';
+  version: string;
+  healthy: 'green' | 'yellow' | 'red';
+  checks: HealthCheckResult;
 }
 
 // ── Emby ─────────────────────────────────────────────────────────────────────
