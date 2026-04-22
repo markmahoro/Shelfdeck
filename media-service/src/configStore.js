@@ -59,6 +59,7 @@ function getDefaultConfig() {
       target4k: { 2: 5, 3: 10, 4: 16, 5: 25 },
     },
     serviceApiKey: '',
+    adminPin: '',
   };
 }
 
