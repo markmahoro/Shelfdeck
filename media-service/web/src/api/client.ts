@@ -188,3 +188,17 @@ export const douban = {
       body: JSON.stringify(patch),
     }).then((r) => r.json() as Promise<{ ok: boolean; count: number }>),
 };
+
+// ── Transcode ────────────────────────────────────────────────────────────────
+
+export const transcode = {
+  probeEncodeDevices: (body: { config: { ffmpegPath: string; ffprobePath: string } }) =>
+    fetch('/v1/transcode/actions/probe-encode-devices', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-session': sessionStorage.getItem('admin_session') || '',
+      },
+      body: JSON.stringify(body),
+    }).then((r) => r.json()),
+};
