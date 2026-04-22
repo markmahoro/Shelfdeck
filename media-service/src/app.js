@@ -1,8 +1,10 @@
 'use strict';
 
 const crypto = require('crypto');
+const path = require('path');
 const cors = require('@fastify/cors');
 const Fastify = require('fastify');
+const fastifyStatic = require('@fastify/static');
 const { FileStore } = require('./store');
 const configStore = require('./configStore');
 const taskStore = require('./taskStore');
@@ -16,6 +18,9 @@ const transcodeJobState = new Map();
 const doubanJobState = new Map();
 const ratingStore = require('./ratingStore');
 
+// In-memory admin session store (sessions are HMAC-signed, verified by checking they were issued)
+const adminSessions = new Set();
+
 function resolveEmbyClientFromConfig(query) {
   const root = configStore.loadConfig();
   const pid = query && query.embyProfileId;
@@ -25,6 +30,10 @@ function resolveEmbyClientFromConfig(query) {
   if (root.embyClient && typeof root.embyClient === 'object' && root.embyClient.baseUrl) {
     return root.embyClient;
   }
+  // Fallback to top-level fields (admin page saves embyClient via top-level baseUrl/apiKey)
+  if (root.baseUrl || root.apiKey) {
+    return { baseUrl: root.baseUrl || '', apiKey: root.apiKey || '', userId: root.userId || '', embyUserPassword: root.embyUserPassword || '' };
+  }
   return null;
 }
 
@@ -32,13 +41,84 @@ function apiError(reply, status, code, message, details) {
   reply.code(status).send({ code, message, details });
 }
 
+function verifyAdminSession(req) {
+  const session = req.headers['x-admin-session'];
+  return session && adminSessions.has(String(session));
+}
+
 /** @param {import('./store').FileStore} store */
 function registerRoutes(app, store) {
   app.get('/v1/health', async () => ({ status: 'ok', version: '0.1.0' }));
 
+  // ── Admin Auth ────────────────────────────────────────────────
+  // GET /v1/admin/auth-status → { needSetup, needLogin, pinSet }
+  app.get('/v1/admin/auth-status', async () => {
+    const cfg = configStore.loadConfig();
+    return {
+      needSetup: !cfg.adminPin,
+      needLogin: !!cfg.adminPin,
+      pinSet: !!cfg.adminPin,
+    };
+  });
+
+  // POST /v1/admin/pin { action: 'set'|'verify', pin }
+  app.post('/v1/admin/pin', async (req, reply) => {
+    const { action, pin } = req.body || {};
+    const cfg = configStore.loadConfig();
+
+    if (action === 'set') {
+      if (!pin || pin.length < 4) {
+        return apiError(reply, 400, 'VALIDATION_ERROR', 'PIN must be at least 4 characters');
+      }
+      configStore.patchConfig({ adminPin: pin });
+      return { ok: true, message: 'PIN set successfully' };
+    }
+
+    if (action === 'verify') {
+      if (!pin) return apiError(reply, 400, 'VALIDATION_ERROR', 'PIN required');
+      const ok = pin === cfg.adminPin;
+      if (!ok) return apiError(reply, 401, 'UNAUTHORIZED', 'Invalid PIN');
+      // Return HMAC-signed session token and store it
+      const secret = cfg.serviceApiKey || 'default-secret';
+      const session = crypto.createHmac('sha256', secret).update(Date.now().toString()).digest('hex');
+      adminSessions.add(session);
+      return { ok: true, session };
+    }
+
+    return apiError(reply, 400, 'VALIDATION_ERROR', 'Unknown action');
+  });
+
+  // POST /v1/admin/shutdown — stop the service (requires session)
+  app.post('/v1/admin/shutdown', async (req, reply) => {
+    if (!verifyAdminSession(req)) {
+      return apiError(reply, 401, 'UNAUTHORIZED', 'Valid admin session required');
+    }
+    reply.code(204).send();
+    void (async () => {
+      await new Promise((r) => setTimeout(r, 100));
+      taskScheduler.stopScheduler();
+      try { await req.server.close(); } catch (_) {}
+      process.exit(0);
+    })();
+  });
+
+  // GET /v1/admin/config — returns config without sensitive fields (admin page uses this)
+  app.get('/v1/admin/config', async (req, reply) => {
+    if (!verifyAdminSession(req)) {
+      return apiError(reply, 401, 'UNAUTHORIZED', 'Valid admin session required');
+    }
+    const cfg = configStore.loadConfig();
+    const { adminPin, serviceApiKey, ...safeConfig } = cfg;
+    return safeConfig;
+  });
+
   app.get('/v1/config', async () => configStore.loadConfig());
 
-  app.patch('/v1/config', async (req) => {
+  app.patch('/v1/config', async (req, reply) => {
+    // If X-Admin-Session header is present, verify it (admin page sends it)
+    if (req.headers['x-admin-session'] && !verifyAdminSession(req)) {
+      return apiError(reply, 401, 'UNAUTHORIZED', 'Valid admin session required');
+    }
     const patch = req.body && typeof req.body === 'object' ? req.body : {};
     return configStore.patchConfig(patch);
   });
@@ -570,8 +650,29 @@ async function buildApp(opts = {}) {
   const app = Fastify({ logger: opts.logger !== undefined ? opts.logger : true });
   await app.register(cors, { origin: true });
 
+  // Serve built React admin app from dist/admin/ at root /
+  const distAdminPath = path.join(__dirname, '..', 'dist', 'admin');
+  await app.register(fastifyStatic, {
+    root: distAdminPath,
+    prefix: '/',
+    decorateReply: false,
+  });
+
+  // Redirect /admin → / (admin app is at root since SPA uses HashRouter)
+  app.get('/admin', async (_req, reply) => {
+    reply.redirect('/');
+  });
+
   function authHook(req, reply, done) {
-    if (req.url.startsWith('/v1/health')) return done();
+    const url = req.url;
+    // Public routes — no auth required
+    if (
+      url.startsWith('/v1/health') ||
+      url.startsWith('/admin/') ||
+      url.startsWith('/v1/admin/') ||
+      url === '/admin'
+    )
+      return done();
     if (!API_KEY) return done();
     const k = req.headers['x-api-key'];
     if (k !== API_KEY) {

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, HashRouter } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
@@ -19,15 +19,15 @@ function RequireAuth({ children }: { children: JSX.Element }) {
       .getStatus()
       .then((s) => {
         if (!s.pinSet) {
-          window.location.href = '/admin/setup';
+          window.location.hash = '#/setup';
         } else if (!sessionStorage.getItem('admin_session')) {
-          window.location.href = '/admin/login';
+          window.location.hash = '#/login';
         } else {
           setAuthorized(true);
         }
       })
       .catch(() => {
-        window.location.href = '/admin/login';
+        window.location.hash = '#/login';
       })
       .finally(() => setLoading(false));
   }, []);
@@ -38,25 +38,27 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/admin/login" element={<LoginPage />} />
-      <Route path="/admin/setup" element={<SetupPage />} />
-      <Route
-        path="/admin"
-        element={
-          <RequireAuth>
-            <Layout />
-          </RequireAuth>
-        }
-      >
-        <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="config" element={<ConfigPage />} />
-        <Route path="tasks" element={<TaskCenterPage />} />
-        <Route path="douban" element={<DoubanPage />} />
-        <Route path="paths" element={<PathMappingPage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/admin" replace />} />
-    </Routes>
+    <HashRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/setup" element={<SetupPage />} />
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth>
+              <Layout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="config" element={<ConfigPage />} />
+          <Route path="tasks" element={<TaskCenterPage />} />
+          <Route path="douban" element={<DoubanPage />} />
+          <Route path="paths" element={<PathMappingPage />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/admin" replace />} />
+      </Routes>
+    </HashRouter>
   );
 }
