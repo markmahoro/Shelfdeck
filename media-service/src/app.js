@@ -21,6 +21,28 @@ const ratingStore = require('./ratingStore');
 // In-memory admin session store (sessions are HMAC-signed, verified by checking they were issued)
 const adminSessions = new Set();
 
+// Server ready flag — set to true after app.listen() succeeds
+let serverReady = false;
+
+// Emby 健康检查缓存（60s TTL）
+const embyHealthCache = { ok: false, ts: 0 };
+const EMBY_CACHE_TTL_MS = 60_000;
+
+async function getEmbyHealth(embyConfig) {
+  if (Date.now() - embyHealthCache.ts < EMBY_CACHE_TTL_MS) {
+    return embyHealthCache;
+  }
+  try {
+    await embyService.testConnection(embyConfig);
+    embyHealthCache.ok = true;
+    embyHealthCache.ts = Date.now();
+  } catch {
+    embyHealthCache.ok = false;
+    embyHealthCache.ts = Date.now();
+  }
+  return embyHealthCache;
+}
+
 function resolveEmbyClientFromConfig(query) {
   const root = configStore.loadConfig();
   const pid = query && query.embyProfileId;
@@ -48,7 +70,27 @@ function verifyAdminSession(req) {
 
 /** @param {import('./store').FileStore} store */
 function registerRoutes(app, store) {
-  app.get('/v1/health', async () => ({ status: 'ok', version: '0.1.0' }));
+  app.get('/v1/health', async (req, reply) => {
+    const cfg = configStore.loadConfig();
+    const embyConfig = cfg.embyClient || cfg;
+
+    const serviceOk = serverReady;
+    const configOk = !!(embyConfig.baseUrl && embyConfig.apiKey && embyConfig.userId);
+    const embyHealth = await getEmbyHealth(embyConfig);
+    const embyOk = embyHealth.ok;
+    const schedulerOk = taskScheduler.isRunning();
+
+    const checks = {
+      service: serviceOk ? 'ok' : 'error',
+      config: configOk ? 'ok' : 'error',
+      emby: embyOk ? 'ok' : 'error',
+      scheduler: schedulerOk ? 'ok' : 'error',
+    };
+    const okCount = Object.values(checks).filter(v => v === 'ok').length;
+    const healthy = okCount >= 4 ? 'green' : okCount >= 2 ? 'yellow' : 'red';
+
+    return { status: 'ok', version: '0.1.0', healthy, checks };
+  });
 
   // ── Admin Auth ────────────────────────────────────────────────
   // GET /v1/admin/auth-status → { needSetup, needLogin, pinSet }
@@ -701,6 +743,7 @@ async function buildApp(opts = {}) {
     });
   });
 
+  serverReady = true;
   return app;
 }
 
