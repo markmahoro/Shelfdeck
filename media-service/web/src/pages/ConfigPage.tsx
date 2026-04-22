@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { config, emby, transcode } from '../api/client';
 import type { ServiceConfig } from '../types';
 
-type Tab = 'emby' | 'transcode' | 'scheduler';
+type Tab = 'emby' | 'transcode' | 'scheduler' | 'policy';
 
 const PAGE_TITLE: React.CSSProperties = {
   fontSize: '20px',
@@ -208,10 +208,6 @@ export default function ConfigPage() {
     saveMutation.mutate(patch);
   };
 
-  const handleSaveScheduler = (patch: Partial<ServiceConfig>) => {
-    saveMutation.mutate(patch);
-  };
-
   if (isLoading) return <div style={{ padding: 24 }}>加载中...</div>;
 
   const embyCfg = cfg?.embyClient;
@@ -222,13 +218,13 @@ export default function ConfigPage() {
 
       {/* Tab Nav */}
       <div style={TAB_NAV}>
-        {(['emby', 'transcode', 'scheduler'] as Tab[]).map((t) => (
+        {(['emby', 'transcode', 'scheduler', 'policy'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             style={tab === t ? TAB_BTN_ACTIVE : TAB_BTN}
           >
-            {t === 'emby' ? '📺 Emby 连接' : t === 'transcode' ? '🎬 转码设置' : '⏰ 调度设置'}
+            {t === 'emby' ? '📺 Emby 连接' : t === 'transcode' ? '🎬 转码设置' : t === 'scheduler' ? '⏰ 调度设置' : '📊 码率策略'}
           </button>
         ))}
       </div>
@@ -498,56 +494,68 @@ export default function ConfigPage() {
           <h3 style={SECTION_TITLE}>调度设置</h3>
           <div style={FORM_GRID}>
             <label style={LABEL}>执行模式</label>
-            <select
-              style={INPUT}
-              value={cfg?.executionMode || 'manual'}
-              onChange={() => {}}
-            >
+            <select style={INPUT} value={cfg?.executionMode || 'manual'} onChange={e => saveMutation.mutate({ executionMode: e.target.value })}>
               <option value="manual">手动</option>
               <option value="scheduled">自动调度</option>
             </select>
             <label style={LABEL}>删除并发数</label>
-            <input
-              style={INPUT}
-              type="number"
-              value={cfg?.deleteConcurrency ?? 1}
-              min={1}
-              max={10}
-              onChange={() => {}}
-            />
+            <input style={INPUT} type="number" min={1} max={10} value={cfg?.deleteConcurrency ?? 1} onChange={e => saveMutation.mutate({ deleteConcurrency: parseInt(e.target.value) || 1 })} />
             <label style={LABEL}>转码并发数</label>
-            <input
-              style={INPUT}
-              type="number"
-              value={cfg?.transcodeConcurrency ?? 1}
-              min={1}
-              max={10}
-              onChange={() => {}}
-            />
+            <input style={INPUT} type="number" min={1} max={10} value={cfg?.transcodeConcurrency ?? 1} onChange={e => saveMutation.mutate({ transcodeConcurrency: parseInt(e.target.value) || 1 })} />
             <label style={LABEL}>升级并发数</label>
-            <input
-              style={INPUT}
-              type="number"
-              value={cfg?.upgradeConcurrency ?? 1}
-              min={1}
-              max={10}
-              onChange={() => {}}
-            />
+            <input style={INPUT} type="number" min={1} max={10} value={cfg?.upgradeConcurrency ?? 1} onChange={e => saveMutation.mutate({ upgradeConcurrency: parseInt(e.target.value) || 1 })} />
           </div>
-          <button
-            style={BTN_PRIMARY}
-            onClick={() =>
-              handleSaveScheduler({
-                executionMode: cfg?.executionMode,
-                deleteConcurrency: cfg?.deleteConcurrency,
-                transcodeConcurrency: cfg?.transcodeConcurrency,
-                upgradeConcurrency: cfg?.upgradeConcurrency,
-              })
-            }
-            disabled={saveMutation.isPending}
-          >
-            {saveMutation.isPending ? '保存中...' : '保存'}
-          </button>
+          {saveMutation.isSuccess && <span style={{ color: '#27ae60', fontSize: '13px' }}>保存成功</span>}
+        </div>
+      )}
+
+      {/* Policy Tab */}
+      {tab === 'policy' && (
+        <div style={CARD}>
+          <h3 style={SECTION_TITLE}>码率策略</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '16px' }}>
+            <div>
+              <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>1080p 目标文件大小（GB）</h4>
+              {['3', '4', '5'].map(star => (
+                <div key={star} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                  <label style={{ fontSize: '14px' }}>★ {star} 星</label>
+                  <input
+                    style={INPUT}
+                    type="number"
+                    min={0.5}
+                    step={0.5}
+                    value={cfg?.mediaPolicy?.target1080p?.[star] ?? ''}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value);
+                      const new1080 = { ...(cfg?.mediaPolicy?.target1080p || {}), [star]: val };
+                      saveMutation.mutate({ mediaPolicy: { ...(cfg?.mediaPolicy || {}), target1080p: new1080 } });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div>
+              <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>4K 目标文件大小（GB）</h4>
+              {['3', '4', '5'].map(star => (
+                <div key={star} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                  <label style={{ fontSize: '14px' }}>★ {star} 星</label>
+                  <input
+                    style={INPUT}
+                    type="number"
+                    min={0.5}
+                    step={0.5}
+                    value={cfg?.mediaPolicy?.target4k?.[star] ?? ''}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value);
+                      const new4k = { ...(cfg?.mediaPolicy?.target4k || {}), [star]: val };
+                      saveMutation.mutate({ mediaPolicy: { ...(cfg?.mediaPolicy || {}), target4k: new4k } });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          {saveMutation.isSuccess && <span style={{ color: '#27ae60', fontSize: '13px' }}>保存成功</span>}
         </div>
       )}
     </div>
