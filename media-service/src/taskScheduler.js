@@ -5,16 +5,16 @@ const configStore = require('./configStore');
 const taskExecutor = require('./taskExecutor');
 
 let schedulerInterval = null;
-let isRunning = false;
+let schedulerRunning = false;
 let schedulerBusy = false;
 
 function startScheduler() {
-  if (isRunning) {
+  if (schedulerRunning) {
     console.log('Scheduler already running');
     return;
   }
 
-  isRunning = true;
+  schedulerRunning = true;
   console.log('Task scheduler started');
 
   // 启动恢复：中断任务降级
@@ -39,7 +39,7 @@ function stopScheduler() {
     clearInterval(schedulerInterval);
     schedulerInterval = null;
   }
-  isRunning = false;
+  schedulerRunning = false;
   console.log('Task scheduler stopped');
 }
 
@@ -104,8 +104,17 @@ function getConcurrencyLimit(actionType, limits) {
   }
 }
 
+/**
+ * Returns true if the scheduler is currently running.
+ * @returns {boolean}
+ */
+function isRunning() {
+  return schedulerRunning;
+}
+
 module.exports = {
   startScheduler,
   stopScheduler,
   scheduleTasks,
+  isRunning,
 };
