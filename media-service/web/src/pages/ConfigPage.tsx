@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { config, emby } from '../api/client';
+import { config, emby, transcode } from '../api/client';
 import type { ServiceConfig } from '../types';
 
 type Tab = 'emby' | 'transcode' | 'scheduler';
@@ -102,6 +102,15 @@ export default function ConfigPage() {
   const [testMsg, setTestMsg] = useState('');
   const [testLoading, setTestLoading] = useState(false);
 
+  // Transcode tab state
+  const [ffmpegPath, setFfmpegPath] = useState(cfg?.ffmpegPath || 'ffmpeg');
+  const [ffprobePath, setFfprobePath] = useState(cfg?.ffprobePath || 'ffprobe');
+  const [transcodeTempRoot, setTranscodeTempRoot] = useState(cfg?.transcodeTempRoot || '');
+  const [transcodeReplaceConfirmRequired, setTranscodeReplaceConfirmRequired] = useState(!!cfg?.transcodeReplaceConfirmRequired);
+  const [transcodeCpuParticipationStrategy, setTranscodeCpuParticipationStrategy] = useState(cfg?.transcodeCpuParticipationStrategy || 'normal');
+  const [poolEntries, setPoolEntries] = useState<Array<any>>([]);
+  const [probeLoading, setProbeLoading] = useState(false);
+
   const { data: cfg, isLoading } = useQuery<ServiceConfig>({
     queryKey: ['config'],
     queryFn: config.get,
@@ -159,7 +168,43 @@ export default function ConfigPage() {
     });
   };
 
-  const handleSaveTranscode = (patch: Partial<ServiceConfig>) => {
+  // Transcode tab handlers
+  const handleProbeDevices = async () => {
+    if (!ffmpegPath) return;
+    setProbeLoading(true);
+    try {
+      const res = await transcode.probeEncodeDevices({ config: { ffmpegPath, ffprobePath } });
+      const existing = cfg?.transcodeEncodePool?.entries || [];
+      setPoolEntries(res.devices.map((d: any) => {
+        const prev = existing.find((e: any) => e.stableKey === d.stableKey);
+        return { ...d, inPool: prev?.inPool ?? false, priority: prev?.priority ?? 0, maxSlots: prev?.maxSlots ?? 1 };
+      }));
+    } catch (e: any) {
+      setTestMsg('探测失败: ' + e.message);
+    } finally {
+      setProbeLoading(false);
+    }
+  };
+
+  const handleSaveTranscode = () => {
+    const entries = poolEntries.filter(e => e.inPool).map((e, i) => ({
+      stableKey: e.stableKey,
+      label: e.label,
+      inPool: true,
+      priority: e.priority ?? i,
+      maxSlots: e.maxSlots ?? 1,
+    }));
+    saveMutation.mutate({
+      ffmpegPath,
+      ffprobePath,
+      transcodeTempRoot,
+      transcodeReplaceConfirmRequired,
+      transcodeCpuParticipationStrategy,
+      transcodeEncodePool: { entries, cpuParticipation: transcodeCpuParticipationStrategy },
+    });
+  };
+
+  const handleSaveTranscodePatch = (patch: Partial<ServiceConfig>) => {
     saveMutation.mutate(patch);
   };
 
@@ -320,47 +365,130 @@ export default function ConfigPage() {
             <label style={LABEL}>临时目录</label>
             <input
               style={INPUT}
-              value={cfg?.transcodeTempRoot || ''}
-              onChange={() => {}}
+              value={transcodeTempRoot}
+              onChange={(e) => setTranscodeTempRoot(e.target.value)}
               placeholder="D:\\transcode_temp"
             />
             <label style={LABEL}>FFmpeg 路径</label>
             <input
               style={INPUT}
-              value={cfg?.ffmpegPath || ''}
-              onChange={() => {}}
+              value={ffmpegPath}
+              onChange={(e) => setFfmpegPath(e.target.value)}
               placeholder="ffmpeg"
             />
             <label style={LABEL}>FFprobe 路径</label>
             <input
               style={INPUT}
-              value={cfg?.ffprobePath || ''}
-              onChange={() => {}}
+              value={ffprobePath}
+              onChange={(e) => setFfprobePath(e.target.value)}
               placeholder="ffprobe"
             />
             <label style={{ ...LABEL, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input
                 type="checkbox"
-                checked={cfg?.transcodeReplaceConfirmRequired ?? false}
-                onChange={() => {}}
+                checked={transcodeReplaceConfirmRequired}
+                onChange={(e) => setTranscodeReplaceConfirmRequired(e.target.checked)}
               />
               替换前需用户确认
             </label>
+            <label style={LABEL}>CPU 策略</label>
+            <select
+              style={INPUT}
+              value={transcodeCpuParticipationStrategy}
+              onChange={(e) => setTranscodeCpuParticipationStrategy(e.target.value)}
+            >
+              <option value="normal">正常参与</option>
+              <option value="backup-only">仅备用</option>
+            </select>
           </div>
+
+          {/* Probe Devices */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <button
+              style={BTN_OUTLINE}
+              onClick={handleProbeDevices}
+              disabled={probeLoading || !ffmpegPath}
+            >
+              {probeLoading ? '探测中...' : '探测设备'}
+            </button>
+          </div>
+
+          {/* Device Pool List */}
+          {poolEntries.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ marginBottom: '8px', fontSize: '13px', color: '#666' }}>设备池：</div>
+              {poolEntries.map((entry) => (
+                <div
+                  key={entry.stableKey}
+                  style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px', padding: '8px', background: '#f9f9f9', borderRadius: '6px' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={entry.inPool}
+                    onChange={(e) => {
+                      setPoolEntries(poolEntries.map(p =>
+                        p.stableKey === entry.stableKey ? { ...p, inPool: e.target.checked } : p
+                      ));
+                    }}
+                  />
+                  <span style={{ flex: 1 }}>{entry.label || entry.stableKey}</span>
+                  <label style={{ fontSize: '12px', color: '#666' }}>并发</label>
+                  <input
+                    type="number"
+                    style={{ ...INPUT, width: '60px' }}
+                    value={entry.maxSlots}
+                    min={1}
+                    max={16}
+                    onChange={(e) => {
+                      setPoolEntries(poolEntries.map(p =>
+                        p.stableKey === entry.stableKey ? { ...p, maxSlots: parseInt(e.target.value) || 1 } : p
+                      ));
+                    }}
+                  />
+                  <label style={{ fontSize: '12px', color: '#666' }}>优先级</label>
+                  <select
+                    style={{ ...INPUT, width: '100px' }}
+                    value={entry.priority}
+                    onChange={(e) => {
+                      setPoolEntries(poolEntries.map(p =>
+                        p.stableKey === entry.stableKey ? { ...p, priority: parseInt(e.target.value) } : p
+                      ));
+                    }}
+                  >
+                    {[0, 1, 2, 3, 4, 5].map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  <button
+                    style={{ ...BTN_OUTLINE, padding: '4px 8px', fontSize: '12px' }}
+                    onClick={() => setPoolEntries(poolEntries.filter(p => p.stableKey !== entry.stableKey))}
+                  >
+                    删除
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <button
             style={BTN_PRIMARY}
-            onClick={() =>
-              handleSaveTranscode({
-                transcodeTempRoot: cfg?.transcodeTempRoot,
-                transcodeReplaceConfirmRequired: cfg?.transcodeReplaceConfirmRequired,
-                ffmpegPath: cfg?.ffmpegPath,
-                ffprobePath: cfg?.ffprobePath,
-              })
-            }
+            onClick={handleSaveTranscode}
             disabled={saveMutation.isPending}
           >
             {saveMutation.isPending ? '保存中...' : '保存'}
           </button>
+
+          {testMsg && (
+            <div
+              style={{
+                marginTop: '12px',
+                color: testMsg.includes('成功') ? '#27ae60' : '#e53',
+                fontSize: '13px',
+              }}
+            >
+              {testMsg}
+            </div>
+          )}
         </div>
       )}
 
