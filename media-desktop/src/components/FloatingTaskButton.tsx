@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { tasks } from '../apiClient';
+import { apiClient } from '../apiClient';
 
 const BTN: React.CSSProperties = {
   position: 'fixed',
@@ -51,7 +51,7 @@ export default function FloatingTaskButton() {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const all = await tasks.list();
+        const all = await apiClient.getTasks();
         setActiveTasks(all.filter((t: any) => !['done', 'failed_hard'].includes(t.status)));
         setRecentDone(
           all
