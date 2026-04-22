@@ -201,3 +201,8 @@ contextBridge.exposeInMainWorld('embyApi', embyApi);
 contextBridge.exposeInMainWorld('doubanApi', doubanApi);
 contextBridge.exposeInMainWorld('mediaService', mediaService);
 contextBridge.exposeInMainWorld('shelfdeckMedia', shelfdeckMedia);
+contextBridge.exposeInMainWorld('shelfdeckSettings', {
+  get: () => ipcRenderer.invoke('settings:get'),
+  set: (key, value) => ipcRenderer.invoke('settings:set', key, value),
+  getKey: (key) => ipcRenderer.invoke('settings:getKey', key),
+});

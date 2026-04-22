@@ -5,6 +5,8 @@ const http = require('http');
 const { spawn } = require('child_process');
 const embyService = require('./embyService');
 const shelfdeckConnection = require('./shelfdeckConnection');
+const Store = require('electron-store');
+const store = new Store({ name: 'desktop-settings' });
 
 const isDev = process.env.NODE_ENV === 'development';
 let mainWindow = null;
@@ -177,6 +179,28 @@ async function loadFirstReachableDevUrl(win) {
 
 function registerIpcHandlers() {
   ipcMain.handle('emby:launchPlayer', (_evt, payload) => embyService.launchPlayer(payload));
+
+  // Settings IPC handlers
+  ipcMain.handle('settings:get', () => store.store);
+
+  ipcMain.handle('settings:set', (event, key, value) => {
+    store.set(key, value);
+    return true;
+  });
+
+  ipcMain.handle('settings:getKey', (event, key) => store.get(key));
+
+  // Connection IPC handlers (for shelfdeckMedia.getEffective)
+  ipcMain.handle('connection:get', () => ({
+    baseUrl: store.get('shelfdeck.mediaService.baseUrl', 'http://127.0.0.1:18080'),
+    apiKey: store.get('shelfdeck.mediaService.apiKey', ''),
+  }));
+
+  ipcMain.handle('connection:set', (event, baseUrl, apiKey) => {
+    store.set('shelfdeck.mediaService.baseUrl', baseUrl);
+    store.set('shelfdeck.mediaService.apiKey', apiKey);
+    return true;
+  });
 }
 
 app.whenReady().then(() => {
