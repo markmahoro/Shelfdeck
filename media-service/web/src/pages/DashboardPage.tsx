@@ -2,10 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { health, tasks, config } from '../api/client';
 import type { MediaTask } from '../types';
 
-const STATUS_COLOR: Record<string, string> = {
-  ok: '#27ae60',
-  degraded: '#f39c12',
-  unhealthy: '#e53',
+const HEALTHY_COLOR: Record<string, string> = {
+  green: '#27ae60',
+  yellow: '#f39c12',
+  red: '#e53',
 };
 
 const PAGE_TITLE: React.CSSProperties = {
@@ -88,9 +88,10 @@ export default function DashboardPage() {
     .filter((t) => t.status === 'done')
     .slice(0, 5);
 
-  const healthColor = STATUS_COLOR[healthData?.status ?? 'unhealthy'];
+  const healthColor = HEALTHY_COLOR[healthData?.healthy ?? 'red'];
   const healthLabel =
-    healthData?.status === 'ok' ? '正常' : healthData?.status === 'degraded' ? '降级' : '异常';
+    healthData?.healthy === 'green' ? '正常' :
+    healthData?.healthy === 'yellow' ? '降级' : '异常';
 
   return (
     <div>
