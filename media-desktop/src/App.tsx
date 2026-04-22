@@ -53,6 +53,8 @@ import { MediaLibraryManageRow } from './MediaLibraryManageRow';
 import { checkMediaServiceHealth } from './mediaServiceHealth';
 import { getRendererMediaServiceBaseUrl } from './cpBase';
 import { apiClient, ApiConflictError } from './apiClient';
+import FloatingTaskButton from './components/FloatingTaskButton';
+import SettingsPanel from './components/SettingsPanel';
 
 type ReplaceBackupRow = {
   taskId: string;
@@ -5215,6 +5217,8 @@ export default function App() {
           </div>
         </div>
       ) : null}
+      <FloatingTaskButton />
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
     </>
   );
 }
