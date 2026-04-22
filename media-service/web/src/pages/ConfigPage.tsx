@@ -89,8 +89,18 @@ const BTN_OUTLINE: React.CSSProperties = {
 
 export default function ConfigPage() {
   const [tab, setTab] = useState<Tab>('emby');
-  const [testMsg, setTestMsg] = useState('');
   const qc = useQueryClient();
+
+  // Emby tab state
+  const [baseUrl, setBaseUrl] = useState(cfg?.embyClient?.baseUrl || cfg?.baseUrl || '');
+  const [apiKey, setApiKey] = useState(cfg?.embyClient?.apiKey || cfg?.apiKey || '');
+  const [userId, setUserId] = useState(cfg?.embyClient?.userId || cfg?.userId || '');
+  const [embyUserPassword, setEmbyUserPassword] = useState(cfg?.embyClient?.embyUserPassword || '');
+  const [users, setUsers] = useState<Array<{ Id: string; Name: string }>>([]);
+  const [folders, setFolders] = useState<Array<{ Id: string; Name: string }>>([]);
+  const [selectedSections, setSelectedSections] = useState<string[]>(cfg?.embyClient?.enabledSectionIds || []);
+  const [testMsg, setTestMsg] = useState('');
+  const [testLoading, setTestLoading] = useState(false);
 
   const { data: cfg, isLoading } = useQuery<ServiceConfig>({
     queryKey: ['config'],
@@ -102,23 +112,51 @@ export default function ConfigPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['config'] }),
   });
 
-  const testMutation = useMutation({
-    mutationFn: emby.testConnection,
-    onSuccess: (res) => setTestMsg(res.ok ? '连接成功' : res.message || '连接失败'),
-    onError: (e: Error) => setTestMsg(e.message),
-  });
-
-  const handleTest = () => {
-    if (!cfg?.embyClient?.baseUrl || !cfg?.embyClient?.apiKey) return;
-    testMutation.mutate({
-      baseUrl: cfg.embyClient.baseUrl,
-      apiKey: cfg.embyClient.apiKey,
-      userId: cfg.embyClient.userId || '',
-    });
+  // Emby tab handlers
+  const handleFetchUsers = async () => {
+    if (!baseUrl || !apiKey) return;
+    setTestLoading(true);
+    try {
+      const list = await emby.listUsers({ baseUrl, apiKey });
+      setUsers(list);
+    } catch (e: any) {
+      setTestMsg('获取用户列表失败: ' + e.message);
+    } finally {
+      setTestLoading(false);
+    }
   };
 
-  const handleSaveEmby = (patch: Partial<ServiceConfig>) => {
-    saveMutation.mutate(patch);
+  const handleFetchFolders = async () => {
+    if (!baseUrl || !apiKey) return;
+    setTestLoading(true);
+    try {
+      const list = await emby.listMediaFolders({ baseUrl, apiKey });
+      setFolders(list);
+    } catch (e: any) {
+      setTestMsg('获取媒体库失败: ' + e.message);
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const handleTest = async () => {
+    if (!baseUrl || !apiKey) return;
+    setTestLoading(true);
+    try {
+      const res = await emby.testConnection({ baseUrl, apiKey, userId });
+      setTestMsg(res.ok ? '连接成功' : (res.message || '连接失败'));
+    } catch (e: any) {
+      setTestMsg('连接失败: ' + e.message);
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const handleSaveEmby = () => {
+    saveMutation.mutate({
+      embyClient: { baseUrl, apiKey, userId, embyUserPassword },
+      enabledSectionIds: selectedSections,
+    });
   };
 
   const handleSaveTranscode = (patch: Partial<ServiceConfig>) => {
@@ -158,54 +196,108 @@ export default function ConfigPage() {
             <label style={LABEL}>Emby 地址</label>
             <input
               style={INPUT}
-              value={embyCfg?.baseUrl ?? cfg?.baseUrl ?? ''}
-              onChange={() => {}}
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="http://emby.example.com:8096"
             />
             <label style={LABEL}>API Key</label>
             <input
               style={INPUT}
               type="password"
-              value={embyCfg?.apiKey ?? cfg?.apiKey ?? ''}
-              onChange={() => {}}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
               placeholder="xxxxxxxxxxxx"
             />
-            <label style={LABEL}>用户 ID</label>
+            <label style={LABEL}>用户密码</label>
             <input
               style={INPUT}
-              value={embyCfg?.userId ?? cfg?.userId ?? ''}
-              onChange={() => {}}
-              placeholder="用户 ID"
+              type="password"
+              value={embyUserPassword}
+              onChange={(e) => setEmbyUserPassword(e.target.value)}
+              placeholder="可选：用户密码（用于刮削）"
             />
           </div>
+
+          {/* Fetch Users */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <button
+              style={BTN_OUTLINE}
+              onClick={handleFetchUsers}
+              disabled={testLoading || !baseUrl || !apiKey}
+            >
+              {testLoading ? '获取中...' : '获取用户列表'}
+            </button>
+            {users.length > 0 && (
+              <select
+                style={{ ...INPUT, maxWidth: '200px' }}
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+              >
+                <option value="">选择用户</option>
+                {users.map((u) => (
+                  <option key={u.Id} value={u.Id}>
+                    {u.Name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Fetch Folders */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <button
+              style={BTN_OUTLINE}
+              onClick={handleFetchFolders}
+              disabled={testLoading || !baseUrl || !apiKey}
+            >
+              {testLoading ? '获取中...' : '获取媒体库'}
+            </button>
+          </div>
+
+          {/* Folder Checkboxes */}
+          {folders.length > 0 && (
+            <div style={{ marginBottom: '16px', padding: '12px', background: '#f9f9f9', borderRadius: '6px' }}>
+              <div style={{ marginBottom: '8px', fontSize: '13px', color: '#666' }}>选择媒体库（多选）：</div>
+              {folders.map((f) => (
+                <label
+                  key={f.Id}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', cursor: 'pointer' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedSections.includes(f.Id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedSections([...selectedSections, f.Id]);
+                      } else {
+                        setSelectedSections(selectedSections.filter((id) => id !== f.Id));
+                      }
+                    }}
+                  />
+                  {f.Name}
+                </label>
+              ))}
+            </div>
+          )}
+
+          {/* Action Buttons */}
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
               style={BTN_OUTLINE}
               onClick={handleTest}
-              disabled={
-                testMutation.isPending ||
-                !embyCfg?.baseUrl ||
-                !embyCfg?.apiKey
-              }
+              disabled={testLoading || !baseUrl || !apiKey}
             >
-              {testMutation.isPending ? '测试中...' : '测试连接'}
+              {testLoading ? '测试中...' : '测试连接'}
             </button>
             <button
               style={BTN_PRIMARY}
-              onClick={() =>
-                handleSaveEmby({
-                  embyClient: {
-                    baseUrl: embyCfg?.baseUrl ?? cfg?.baseUrl ?? '',
-                    apiKey: embyCfg?.apiKey ?? cfg?.apiKey ?? '',
-                    userId: embyCfg?.userId ?? cfg?.userId ?? '',
-                  },
-                })
-              }
+              onClick={handleSaveEmby}
               disabled={saveMutation.isPending}
             >
               {saveMutation.isPending ? '保存中...' : '保存'}
             </button>
           </div>
+
           {testMsg && (
             <div
               style={{
