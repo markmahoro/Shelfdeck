@@ -96,6 +96,13 @@ body { margin: 0; background: #111827; color: #e5e7eb; }
   color: #fff;
 }
 
+.navTabIcon {
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .appBody {
   display: flex;
   flex: 1;

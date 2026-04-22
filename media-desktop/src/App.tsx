@@ -52,7 +52,7 @@ import { buildDoubanStarsByNormalizedTitle, movieDoubanStars, type DoubanRatingE
 import { MediaLibraryManageRow } from './MediaLibraryManageRow';
 import { checkMediaServiceHealth } from './mediaServiceHealth';
 import { getRendererMediaServiceBaseUrl } from './cpBase';
-import { apiClient } from './apiClient';
+import { apiClient, ApiConflictError } from './apiClient';
 
 type ReplaceBackupRow = {
   taskId: string;
@@ -266,14 +266,12 @@ type ManageWatchedFilterKey = 'all' | 'watched' | 'unwatched';
 type ManageBluRayFilterKey = 'all' | 'disc' | 'not_disc';
 
 const MAIN_NAV: { id: MainNavPage; label: string }[] = [
-  { id: 'config', label: '配置中心' },
   { id: 'wall', label: '海报墙' },
   { id: 'mediaManage', label: '媒体库管理' },
-  { id: 'taskCenter', label: '任务中心' },
   { id: 'history', label: '播放记录' },
 ];
 
-function TopNav({ page, setPage }: { page: AppPage; setPage: (p: AppPage) => void }) {
+function TopNav({ page, setPage, onSettingsClick }: { page: AppPage; setPage: (p: AppPage) => void; onSettingsClick: () => void }) {
   return (
     <nav className="topNav" aria-label="主导航">
       {MAIN_NAV.map(({ id, label }) => (
@@ -286,6 +284,18 @@ function TopNav({ page, setPage }: { page: AppPage; setPage: (p: AppPage) => voi
           {label}
         </button>
       ))}
+      <button
+        type="button"
+        className="navTab navTabIcon"
+        onClick={onSettingsClick}
+        title="设置"
+        aria-label="打开设置"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/>
+          <path fillRule="evenodd" d="M6.5 1.75a.25.25 0 0 1 .25-.25h2a.25.25 0 0 1 .25.25V3h-2.5V1.75zM13.25 6.5a.25.25 0 0 1-.175.232l-1.537.884a.25.25 0 0 1-.267.088l-.358-.179-.001-.001a.498.498 0 0 0-.608-.174l-.694.174a.25.25 0 0 1-.267-.088l-1.537-.884a.25.25 0 0 1-.093-.166l.001-.002L6.603 4.4a.498.498 0 0 0-.608.174l-.694-.174a.25.25 0 0 1 .089-.267l1.537-.884a.25.25 0 0 1 .267-.088l.358.179.001.001.001.002a.498.498 0 0 0 .174.608l-.174.694a.25.25 0 0 1-.088.267l-.884 1.537a.25.25 0 0 1-.166.093l-.002-.001-.002-.001a.498.498 0 0 0-.174-.608l.174-.694a.25.25 0 0 1 .088-.267l.884-1.537a.25.25 0 0 1 .232-.175h.633a.25.25 0 0 1 .25.25v2a.25.25 0 0 1-.25.25h-.633a.498.498 0 0 0-.608.174l-.174.694a.25.25 0 0 1-.267.088l-1.537.884a.25.25 0 0 1-.232.175H3.75a.25.25 0 0 1-.25-.25v-.633a.498.498 0 0 0-.174-.608l.174-.694a.25.25 0 0 1 .088-.267l.884-1.537a.25.25 0 0 1 .166-.093l.002.001.002.001a.498.498 0 0 0 .608-.174l.174-.694a.25.25 0 0 1 .267-.088l1.537-.884a.25.25 0 0 1 .175-.232V3.75a.25.25 0 0 1 .25-.25h.633a.498.498 0 0 0 .608-.174l.174-.694a.25.25 0 0 1 .267-.088l1.537-.884a.25.25 0 0 1 .232-.175h.633a.25.25 0 0 1 .25.25v2a.25.25 0 0 1-.25.25h-.633z"/>
+        </svg>
+      </button>
     </nav>
   );
 }
@@ -314,6 +324,7 @@ function AppShell({
   children,
   error,
   mediaGate,
+  onSettingsClick,
 }: {
   page: AppPage;
   setPage: (p: AppPage) => void;
@@ -321,6 +332,7 @@ function AppShell({
   children: ReactNode;
   error?: string | null;
   mediaGate: 'unknown' | 'online' | 'offline';
+  onSettingsClick: () => void;
 }) {
   const gateBlocking = mediaGate !== 'online';
   return (
@@ -330,7 +342,7 @@ function AppShell({
           <div className="appTitle">Emby Desktop Player</div>
         </div>
         <div className="appHeaderRight">
-          <TopNav page={page} setPage={setPage} />
+          <TopNav page={page} setPage={setPage} onSettingsClick={onSettingsClick} />
           <MediaServiceLinkIndicator mediaGate={mediaGate} />
         </div>
       </header>
@@ -755,7 +767,9 @@ export default function App() {
   }, []);
   const [playedItems, setPlayedItems] = useState<PlayedItem[]>([]);
   const [connected, setConnected] = useState(false);
-  const [page, setPage] = useState<AppPage>('config');
+  const [page, setPage] = useState<AppPage>('wall');
+  const [showSettings, setShowSettings] = useState(false);
+  const onSettingsClick = useCallback(() => setShowSettings(true), []);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeSession, setActiveSession] = useState<{
@@ -3337,7 +3351,7 @@ export default function App() {
       configAsyncOp === 'encode-device-probe';
 
     return (
-      <AppShell page={page} setPage={setPage} sidebar={configSidebar} error={error} mediaGate={mediaServiceReachable}>
+      <AppShell page={page} setPage={setPage} sidebar={configSidebar} error={error} mediaGate={mediaServiceReachable} onSettingsClick={onSettingsClick}>
         <div className="panel">
           {configSaveFeedback.kind !== 'idle' && configSaveFeedback.section === configSection ? (
             <div
@@ -4150,7 +4164,7 @@ export default function App() {
     const canReplay = !!config.playerExePath.trim();
 
     return (
-      <AppShell page={page} setPage={setPage} sidebar={historySidebar} error={error} mediaGate={mediaServiceReachable}>
+      <AppShell page={page} setPage={setPage} sidebar={historySidebar} error={error} mediaGate={mediaServiceReachable} onSettingsClick={onSettingsClick}>
         <div className="panel">
           <div className="hint" style={{ marginBottom: 8 }}>
             展示当前 Emby 用户在已选媒体库中的已播放影片/剧集；可与服务器同步观看状态。「重新播放」需配置播放器路径。
@@ -4477,7 +4491,7 @@ export default function App() {
 
     return (
       <>
-      <AppShell page={page} setPage={setPage} sidebar={mediaSidebar} error={error} mediaGate={mediaServiceReachable}>
+      <AppShell page={page} setPage={setPage} sidebar={mediaSidebar} error={error} mediaGate={mediaServiceReachable} onSettingsClick={onSettingsClick}>
         <div className="panel">
           <div className="hint">
             转码、洗版与删除任务在任务中心操作。当前任务池：共 {taskSummary.total} 条，排队 {taskSummary.queued}，执行中 {taskSummary.running}。
@@ -4703,7 +4717,7 @@ export default function App() {
 
     return (
       <>
-        <AppShell page={page} setPage={setPage} sidebar={taskSidebar} error={error} mediaGate={mediaServiceReachable}>
+        <AppShell page={page} setPage={setPage} sidebar={taskSidebar} error={error} mediaGate={mediaServiceReachable} onSettingsClick={onSettingsClick}>
           <div className="panel">
             <h3>任务状态</h3>
             <p className="hint">
@@ -5110,7 +5124,7 @@ export default function App() {
 
   return (
     <>
-      <AppShell page={page} setPage={setPage} sidebar={wallSidebar} error={error} mediaGate={mediaServiceReachable}>
+      <AppShell page={page} setPage={setPage} sidebar={wallSidebar} error={error} mediaGate={mediaServiceReachable} onSettingsClick={onSettingsClick}>
         <div className="panel">
           <div className="hint">键盘：方向键移动焦点，Enter 播放，R 刷新，Esc 取消焦点</div>
           {items.length === 0 ? (
