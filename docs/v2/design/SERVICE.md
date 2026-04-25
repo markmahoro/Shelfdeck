@@ -117,9 +117,9 @@ executor.fail(taskId, code, message)   → setStatus + appendLog
 
 | 操作 | REST 端点 | 作用 | TaskScheduler 响应 |
 |---|---|---|---|
-| **创建** | `POST /v1/tasks` | 创建新任务 | 调度器按 executionMode 决定立即执行或等待 |
+| **创建** | `POST /v1/tasks` | 创建新任务 | 自动模式：状态 `queued`；手动模式：状态 `pending_manual`（需用户调用 execute 才进入调度） |
 | **确认** | `PATCH /v1/tasks/:id` `{ confirmed: true }` | 用户确认后推进 Flow | 解除 `awaiting_user_confirm` 停泊，状态改回 `queued`，下次调度轮询时推进 |
-| **执行** | `POST /v1/tasks/:id/actions/execute` | 手动触发 `pending_manual` 任务 | 状态 `pending_manual` → `created` → 立即进入调度 |
+| **执行** | `POST /v1/tasks/:id/actions/execute` | 手动模式用户触发任务 | 状态 `pending_manual` → `created` → 进入调度；其他状态无操作 |
 | **暂停** | `POST /v1/tasks/:id/actions/pause` | 暂停任务 | 状态改为 `paused`，调度器跳过，直到调用 execute 恢复 |
 | **删除** | `DELETE /v1/tasks/:id` | 删除任务 | 任务从 TaskStore 移除，调度器不再感知 |
 
