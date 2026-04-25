@@ -189,11 +189,11 @@ service 提供静态 React 管理页面（dist/admin/）
 
 #### 外部服务集成
 
-| 外部系统 | 集成方式 | service 内部调用方 |
-|---|---|---|
-| **Emby** | service → Emby REST API | EmbyService（embyService.js） |
-| **豆瓣** | service → 豆瓣 API | DoubanService（doubanService.js）：session 管理、评分同步 |
-| **MoviePilot** | service → MoviePilot REST API | UpgradeFlowExecutor（未来实现） |
+| 外部系统 | 集成方式 | 任务执行侧调用方 | 媒体库管理侧调用方 |
+|---|---|---|---|
+| **Emby** | service → Emby REST API | DeleteFlowExecutor（删除时调用） | MediaLibraryService（定期拉取媒体数据） |
+| **豆瓣** | service → 豆瓣 API | — | MediaLibraryService（抓取评分并写入媒体库表） |
+| **MoviePilot** | service → MoviePilot REST API | UpgradeFlowExecutor（未来实现） | — |
 
 ### §2.3 任务生命周期操作
 
