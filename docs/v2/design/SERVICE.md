@@ -103,15 +103,6 @@ executor.fail(taskId, code, message)   → setStatus + appendLog
 
 这样 TaskStore 的调用方式集中管控，Flow Executor 只关注业务逻辑。
 
-#### 2.1.5 拆分前后对比
-
-| 维度 | 拆分前（当前） | 拆分后（目标） |
-|---|---|---|
-| 文件数 | 1 个 taskExecutor.js | 4 个文件（代理 + 3 个 Executor） |
-| Transcode 改造风险 | 可能影响 Delete/Upgrade | 仅改动 transcodeFlowExecutor.js |
-| 并发保护 | 集中 | 保留在代理层，Executor 不感知 |
-| 新增 Flow | 修改 taskExecutor switch | 新增一个 Executor + 注册 |
-
 ### §2.2 完整意图链路
 
 #### 任务创建链路
