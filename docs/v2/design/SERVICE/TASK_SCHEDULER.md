@@ -108,11 +108,23 @@ Flow 内部处理（各 Flow 自定义，详见各 Flow 文档）：
 
 ## §3 调度决策
 
-### 3.1 Slot 检查
+### 3.1 调度检查（三层）
 
-- 各 actionType 独立维护 concurrency 计数
-- `queued` 任务只有对应 actionType 的 slot 有空闲时才被调度
-- slot 计算：执行中的任务数（`executing` 状态）< 对应 concurrency 上限
+Scheduler 每次轮询时，对每个 `queued` 任务依次做三层检查：
+
+**第一层：itemId 锁检查**
+- 该任务对应的 `itemId` 是否已有其他 flow 在执行？
+- 有 → 该任务不入调度，保持 `queued`
+- 无 → 进入第二层
+
+**第二层：actionType slot 检查**
+- 该任务对应的 actionType slot 是否有空闲？
+- slot 已满 → 该任务不入调度，保持 `queued`
+- 有空闲 → 进入第三层
+
+**第三层：executionMode 检查**
+- `auto` 模式 → 直接调度
+- `manual` 模式 → 需用户调用 `execute` 才变为 `queued`
 
 ### 3.2 executionMode
 
@@ -160,6 +172,7 @@ Flow 内部处理（各 Flow 自定义，详见各 Flow 文档）：
 |---|---|---|
 | `runningTasks` Set | 同轮次防重入 | Scheduler 每轮对每个任务调用一次 drive |
 | `recoverInterruptedTasks()` | 启动恢复 | 扫描 executing/precheck/verify 状态，统一降级为 interrupted |
+| `itemId` 锁 | item 维度 | 同一 `itemId` 只能有一个 flow 在跑（跨 actionType） |
 
 ---
 
@@ -175,8 +188,10 @@ API 层（app.js）接收 HTTP 请求、参数校验
 TaskStore.createTask() 持久化任务
     ↓
 Scheduler 定时轮询（每 5s）：
-    → 检查 actionType 对应 slot 有无空闲
-    → 有空闲 → 获取对应 Flow 实例
+    → itemId 锁检查：itemId 是否已有 flow 在跑？
+    → actionType slot 检查：slot 是否有空闲？
+    → executionMode 检查：auto/manual
+    → 三层全通过 → 获取对应 Flow 实例
     → 调用 flow.drive('xxx_precheck')
 ```
 
