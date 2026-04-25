@@ -260,7 +260,52 @@ desktop PATCH /v1/library/ratings
 - **副作用**：写入 `library.json` + 重算 `action`/`reason`
   - `wallRatingAutoEnqueue` 触发由 TASK_SCHEDULER 负责（见 `TASK_SCHEDULER.md` 配置域），MEDIA_LIBRARY 不感知
 
-### 4.4 关联文档
+### 4.4 用户配置依赖
+
+媒体库正常运行依赖以下配置，均通过 `PATCH /v1/config` 写入 service。
+
+#### 4.4.1 Emby 连接（必填）
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `embyClient.baseUrl` | string | `""` | Emby 服务器地址，如 `http://192.168.1.100:8096` |
+| `embyClient.apiKey` | string | `""` | Emby API Key（从 Emby 服务器管理界面获取） |
+| `embyClient.userId` | string | `""` | Emby 用户 ID（从用户列表选择，不手动输入） |
+| `embyClient.embyUserPassword` | string | `""` | Emby 用户会话密码，用于删除等写操作鉴权 |
+
+> 配置入口：桌面客户端 **配置中心 → Emby 与播放器**
+
+#### 4.4.2 豆瓣集成（可选）
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `douban.userId` | string | `""` | 豆瓣"看过"页用户 ID（URL 中 `people/` 与 `/collect` 之间的字段） |
+| `douban.cookieHeader` | string | `""` | 豆瓣登录 Cookie（公开列表可不填；私人可见列表必填） |
+
+> 配置入口：桌面客户端 **配置中心 → 豆瓣集成**
+> 会话存储：`douban-session.json`（由 `PUT /v1/integrations/douban/session` 写入）
+
+#### 4.4.3 策略配置（有默认值，可选）
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `mediaPolicy.target1080p` | object | `{ "2": 2, "3": 4, "4": 7, "5": 12 }` | 1080p 各星级目标码率（Mbps）；2★ 为删除档，目标码率仅作配置兼容占位 |
+| `mediaPolicy.target4k` | object | `{ "2": 5, "3": 10, "4": 16, "5": 25 }` | 4K 各星级目标码率（Mbps） |
+
+> 配置入口：桌面客户端 **配置中心 → 任务调度与补源**
+
+#### 4.4.4 定时器（暂不可配）
+
+以下间隔目前硬编码，未来可作为配置项暴露：
+
+| 字段 | 当前值 | 说明 |
+|---|---|---|
+| Emby 定时拉取间隔 | 3600000ms（1小时） | `startEmbyRefreshTimer(intervalMs)` |
+| 豆瓣定时同步间隔 | 21600000ms（6小时） | `startDoubanSyncTimer(intervalMs)` |
+
+---
+
+### 4.6 关联文档
 
 - `SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` — EmbyAdapter 详细设计
 - `SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` — DoubanAdapter 详细设计
