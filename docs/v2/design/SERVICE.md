@@ -245,40 +245,116 @@ done ←───────────────┤
 deleted ←── DELETE /v1/tasks/:id
 ```
 
-## §3 子模块通信矩阵
+### §3 媒体库管理链路（MediaLibraryService）
 
-| 调用方 ↓ / 被调用方 → | TaskStore | TaskScheduler | TaskExecutor | EmbyService | TranscodeService | DoubanService | ConfigStore |
-|---|---|---|---|---|---|---|---|---|
-| **API 层** | createTask / getTasks | - | - | getLibraryItem | - | doubanService | loadConfig / patchConfig |
-| **TaskScheduler** | loadTasks / updateTask | - | driveTask | - | - | - | loadConfig |
-| **TaskExecutor（代理）** | - | - | - | - | - | - | - |
-| **DeleteFlowExecutor** | getTask / updateTask | - | - | getLibraryItem / deleteLibraryItem | - | - | loadConfig |
-| **TranscodeFlowExecutor** | getTask / updateTask | - | - | getLibraryItem | precheck / startEncode / probeSummary / replaceWithRetries | - | loadConfig |
-| **UpgradeFlowExecutor** | getTask / updateTask | - | - | - | - | - | - |
-| **EmbyService** | - | - | - | - | - | - | - |
-| **TranscodeService** | - | - | - | - | - | - | - |
-| **DoubanService** | - | - | - | - | - | - | - |
+MediaLibraryService 维护统一的媒体库持久化表，所有媒体数据、豆瓣评分、用户评分均存在该表中。
+
+#### 3.1 模块职责
+
+- 维护统一的媒体库持久化表（`data/library.json`）
+- 定期从 Emby 拉取媒体数据并更新表
+- 写入 Douban 评分和用户评分
+- 计算每个媒体项的策略建议（delete / transcode / upgrade / keep）
+- 提供媒体库展示所需的全部字段给 desktop
+
+#### 3.2 数据写入
+
+```
+EmbyService 定期拉取媒体数据 → 写入媒体库表
+DoubanService 抓取豆瓣评分   → 写入媒体库表
+用户打分                     → desktop → PATCH /v1/library/ratings → 写入媒体库表
+```
+
+#### 3.3 策略计算
+
+```
+GET /v1/library/queries/manage
+    ↓
+MediaLibraryService 读取媒体库表
+    ↓
+effectiveRating = doubanRating 非空 ? doubanRating : userRating 非空 ? userRating : null
+    ↓
+按 mediaPolicy 计算策略建议（delete / transcode / upgrade / keep）
+    ↓
+返回完整媒体库数据 → desktop 展示
+```
+
+#### 3.4 链路图
+
+```
+┌─────────────────────────────────────────────────────┐
+│ EmbyService                                          │
+│ 定期拉取媒体库数据 → 写入媒体库表                       │
+└─────────────────────────────────────────────────────┘
+    │
+┌─────────────────────────────────────────────────────┐
+│ DoubanService                                        │
+│ 抓取豆瓣评分 → 写入媒体库表                            │
+└─────────────────────────────────────────────────────┘
+    │
+┌─────────────────────────────────────────────────────┐
+│ MediaLibraryService                                   │
+│ 维护统一的媒体库持久化表（data/library.json）          │
+│ - Emby 数据写入                                      │
+│ - Douban 评分写入                                    │
+│ - 用户评分写入（PATCH /v1/library/ratings）           │
+│ - 策略计算                                          │
+└─────────────────────────────────────────────────────┘
+    │
+    ↓
+desktop GET /v1/library/queries/manage
+    ↓
+返回展示数据（含策略建议）
+```
+
+#### 3.5 REST 端点
+
+| 端点 | 方向 | 说明 |
+|---|---|---|
+| `POST /v1/library/cache` | EmbyService → Service | 批量写入 Emby 媒体数据到媒体库表 |
+| `GET /v1/integrations/douban/fetch/ratings` | DoubanService → Service | 抓取豆瓣评分并写入媒体库表 |
+| `PATCH /v1/library/ratings` | Desktop → Service | 写入用户评分到媒体库表 |
+| `GET /v1/library/queries/manage` | Service → Desktop | 返回媒体库数据（含策略建议） |
+
+#### 3.6 详细设计
+
+媒体库表字段定义及详细行为见 `SERVICE/MEDIA_LIBRARY.md`。
+
+## §4 子模块通信矩阵
+
+| 调用方 ↓ / 被调用方 → | TaskStore | TaskScheduler | TaskExecutor | EmbyService | TranscodeService | DoubanService | ConfigStore | MediaLibraryService |
+|---|---|---|---|---|---|---|---|---|---|
+| **API 层** | createTask / getTasks | - | - | getLibraryItem | - | doubanService | loadConfig / patchConfig | getLibrary / updateRatings |
+| **TaskScheduler** | loadTasks / updateTask | - | driveTask | - | - | - | loadConfig | - |
+| **TaskExecutor（代理）** | - | - | - | - | - | - | - | - |
+| **DeleteFlowExecutor** | getTask / updateTask | - | - | getLibraryItem / deleteLibraryItem | - | - | loadConfig | - |
+| **TranscodeFlowExecutor** | getTask / updateTask | - | - | getLibraryItem | precheck / startEncode / probeSummary / replaceWithRetries | - | loadConfig | - |
+| **UpgradeFlowExecutor** | getTask / updateTask | - | - | - | - | - | - | - |
+| **MediaLibraryService** | - | - | - | - | - | - | - | - |
+| **EmbyService** | - | - | - | - | - | - | - | - |
+| **TranscodeService** | - | - | - | - | - | - | - | - |
+| **DoubanService** | - | - | - | - | - | - | - | - |
 
 > 注：所有子模块均通过同步函数调用通信，无消息队列或事件总线。Flow Executors 与 EmbyService / TranscodeService 的详细交互在 `TASK_CENTER.md` 中描述。
 
-## §4 数据持有权
+## §5 数据持有权
 
 | 数据 | 持有子模块 | 说明 |
 |---|---|---|
 | 任务队列 | TaskStore | data/tasks.json |
 | 配置 | ConfigStore | data/config.json |
-| 用户评分 | ratingStore | data/ratings.json |
-| 媒体库缓存 | cacheStore | data/cache.json |
+| 媒体库表 | MediaLibraryService | data/library.json（统一媒体库表，含 Emby 数据、豆瓣评分、用户评分） |
 | Emby 连接 | ConfigStore + EmbyService | ConfigStore 持有配置，EmbyService 持有连接状态缓存 |
 | 转码进度 | TranscodeService（内存） | encodeJobs Map，进程退出后丢失 |
 
-## §5 子模块索引
+## §6 子模块索引
 
 | 子模块 | 文件 | 状态 |
 |---|---|---|
 | 胖服务总览 | `SERVICE.md` | 本文 |
 | REST API | `SERVICE/API.md` | 待编写 |
 | 任务调度引擎 | `SERVICE/TASK_CENTER.md` | 待编写 |
+| 媒体库管理 | `SERVICE/MEDIA_LIBRARY.md` | 待编写 |
 | 健康检查 | `SERVICE/HEALTH_CHECK.md` | 待编写 |
 | 配置与路径映射 | `SERVICE/CONFIG.md` | 待编写 |
 | Emby 适配器 | `SERVICE/EMBY_INTEGRATION.md` | 待编写 |
