@@ -21,7 +21,8 @@
       "Bash(tasklist)",
       "Bash(taskkill *)",
       "Bash(git diff *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
