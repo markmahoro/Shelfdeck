@@ -551,11 +551,22 @@ media-service/src/
 
 ## §7 关联文档
 
+### v2 设计文档（全量）
+
 - `docs/v2/ARCH_OVERVIEW.md` — 系统结构总览
 - `docs/v2/design/SERVICE.md` — 胖服务总览
 - `docs/v2/design/SERVICE/CONFIG.md` — 配置字段定义
+- `docs/v2/design/SERVICE/HEALTH_CHECK.md` — 健康检查
 - `docs/v2/design/SERVICE/MEDIA_LIBRARY.md` — 媒体库管理
+- `docs/v2/design/SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` — EmbyAdapter 详细设计
+- `docs/v2/design/SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` — DoubanAdapter 详细设计
 - `docs/v2/design/SERVICE/TASK_SCHEDULER.md` — 任务调度
-- `docs/v2/design/SERVICE/TRANSCODE_FLOW.md` — 转码流程
-- `docs/v2/design/SERVICE/DELETE_FLOW.md` — 删除流程
-- `docs/v2/api/API_README.md` — REST API 端点索引
+- `docs/v2/design/SERVICE/DELETE_FLOW.md` — DeleteFlowExecutor 详细设计
+- `docs/v2/design/SERVICE/TRANSCODE_FLOW.md` — TranscodeFlowExecutor 详细设计
+- `docs/v2/design/SERVICE/TRANSCODE.md` — TranscodeService 详细设计
+- `docs/v2/design/SERVICE/UPGRADE_FLOW.md` — UpgradeFlowExecutor 详细设计
+- `docs/v2/design/SERVICE/ADMIN_WEB.md` — Admin Web 整体设计
+- `docs/v2/design/SERVICE/ADMIN_WEB/API.md` — Admin API 详细定义
+- `docs/v2/design/SERVICE/ADMIN_WEB/PAGES.md` — Admin 页面设计
+- `docs/v2/api/API_README.md` — REST API 端点索引（SSOT）
+- `docs/v2/api/openapi.yaml` — OpenAPI 机器可读契约
