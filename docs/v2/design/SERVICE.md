@@ -41,9 +41,6 @@ taskExecutor.js（调度代理层，仅做路由）
 |---|---|---|
 | `recoverInterruptedTasks()` | `taskExecutor.js` | 启动时扫描中断任务，统一降级 |
 | `runningTasks` / `_driveCallIds` / `_appendLock` | `taskExecutor.js` | 调度代理并发保护，Flow 不感知 |
-| flowLog | 各 Flow Executor 私有 | 每 Executor 独立 seq 计数器，不跨 Flow 排序 |
-| 编码设备优先级池构建 | TranscodeFlowExecutor 私有 | `buildOrderedDeviceSlots()` 移入 TranscodeFlowExecutor |
-| 进度写盘节流常量 | TranscodeFlowExecutor 私有 | `PROGRESS_WRITE_INTERVAL_MS` 等移入 TranscodeFlowExecutor |
 
 #### 2.1.3 各 Flow 执行器职责
 
