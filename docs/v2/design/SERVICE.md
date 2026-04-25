@@ -10,6 +10,7 @@ service 是 Phase 3 的胖服务组件，承担所有业务逻辑执行：
 - **进程模式**：由 tray-supervisor spawn 为子进程，生命周期与 tray 绑定
 - **协议**：仅暴露 HTTP REST API，不做 IPC
 - **数据权威**：任务队列、配置、Emby 连接信息均为 service 持有，desktop 只读
+- **Web 管理端**：内置 React 管理页面（`/v1/admin/*`），用于 Emby 连接配置、转码设置、任务监控
 - **外部集成**：所有外部系统（Emby、豆瓣、MoviePilot）均通过 service 集成，desktop 不直接通信
 
 组件间关系由 `ARCH_OVERVIEW.md` §1（组件边界）和 §3（数据流）描述，本文档仅聚焦 service **内部**子模块的职责和协作。
@@ -111,6 +112,89 @@ executor.fail(taskId, code, message)   → setStatus + appendLog
 | 并发保护 | 集中 | 保留在代理层，Executor 不感知 |
 | 新增 Flow | 修改 taskExecutor switch | 新增一个 Executor + 注册 |
 
+### §2.2 完整意图链路
+
+#### 任务创建链路
+
+```
+desktop 意图下发（POST /v1/tasks）
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ API 层（app.js）                                                  │
+│ 职责：接收 HTTP 请求、参数校验、调用子模块                            │
+│ 关键路径：POST /v1/tasks → taskStore.createTask()                 │
+└─────────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ TaskStore（taskStore.js）                                         │
+│ 职责：任务持久化、任务状态读写                                       │
+│ 接口：createTask() / updateTask() / getTask() / loadTasks()        │
+│ 状态存储：data/tasks.json                                          │
+└─────────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ TaskScheduler（taskScheduler.js）                                  │
+│ 职责：轮询调度（5s 间隔）、并发控制、状态机推进触发                    │
+│ 接口：driveTask(taskId)                                           │
+│ 与 TaskExecutor 的协作：scheduler 每轮检查 concurrency slot，        │
+│   有空位时调用 executor.driveTask() 推进 Flow                       │
+└─────────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ TaskExecutor（taskExecutor.js）                                    │
+│ 职责：Flow 调度代理（仅路由），无任何业务逻辑                         │
+│ 协作模式：                                                         │
+│   - 调用 DeleteFlowExecutor / TranscodeFlowExecutor /             │
+│     UpgradeFlowExecutor 执行具体 Flow                             │
+│   - 承载并发保护状态（runningTasks / _driveCallIds / _appendLock）  │
+│   - 承载 recoverInterruptedTasks()                                 │
+└─────────────────────────────────────────────────────────────────┘
+    │
+    ├──→ DeleteFlowExecutor
+    │    └──→ EmbyService（services/embyService.js）
+    │
+    ├──→ TranscodeFlowExecutor
+    │    ├──→ EmbyService（services/embyService.js）
+    │    └──→ TranscodeService（services/transcodeService.js）
+    │
+    └──→ UpgradeFlowExecutor
+         └──→ （MoviePilot 集成，暂未实现）
+```
+
+#### 进度轮询链路（桌面 → 服务）
+
+```
+desktop 渲染进程
+    │ 轮询 GET /v1/tasks（间隔 400ms）
+    ▼
+service REST API
+    └── TaskStore → 返回当前任务列表（含 status、progress、flowState）
+```
+
+#### Web 管理端链路
+
+```
+用户访问 http://service:18080/
+    │
+    ▼
+service 提供静态 React 管理页面（dist/admin/）
+    │
+    ▼
+管理页面调用 service REST API（/v1/admin/*）管理配置、任务、Emby 连接
+```
+
+#### 外部服务集成
+
+| 外部系统 | 集成方式 | service 内部调用方 |
+|---|---|---|
+| **Emby** | service → Emby REST API | EmbyService（embyService.js） |
+| **豆瓣** | service → 豆瓣 API | DoubanService（doubanService.js）：session 管理、评分同步 |
+| **MoviePilot** | service → MoviePilot REST API | UpgradeFlowExecutor（未来实现） |
+
 ### §2.3 任务生命周期操作
 
 #### 2.3.1 操作总览
@@ -159,61 +243,6 @@ interrupted ←────────┤ （进程异常退出时由 recoverIn
 done ←───────────────┤
                      │
 deleted ←── DELETE /v1/tasks/:id
-```
-
-### §2.2 完整意图链路
-
-```
-desktop 意图下发（POST /v1/tasks）
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ API 层（app.js）                                                  │
-│ 职责：接收 HTTP 请求、参数校验、调用子模块                            │
-│ 关键路径：POST /v1/tasks → taskStore.createTask()                 │
-└─────────────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ TaskStore（taskStore.js）                                         │
-│ 职责：任务持久化、任务状态读写                                       │
-│ 接口：createTask() / updateTask() / getTask() / loadTasks()        │
-│ 状态存储：data/tasks.json                                          │
-└─────────────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ TaskScheduler（taskScheduler.js）                                  │
-│ 职责：轮询调度（5s 间隔）、并发控制、状态机推进触发                    │
-│ 接口：driveTask(taskId)                                           │
-│ 与 TaskExecutor 的协作：scheduler 每轮检查 concurrency slot，        │
-│   有空位时调用 executor.driveTask() 推进 Flow                       │
-└─────────────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ TaskExecutor（taskExecutor.js）                                    │
-│ 职责：Flow 调度代理（仅路由），无任何业务逻辑                         │
-│ 协作模式：                                                         │
-│   - 调用 DeleteFlowExecutor / TranscodeFlowExecutor /             │
-│     UpgradeFlowExecutor 执行具体 Flow                             │
-│   - 承载并发保护状态（runningTasks / _driveCallIds / _appendLock）  │
-│   - 承载 recoverInterruptedTasks()                                 │
-└─────────────────────────────────────────────────────────────────┘
-    │
-    ├──→ DeleteFlowExecutor
-    │    └──→ EmbyService（services/embyService.js）
-    │
-    ├──→ TranscodeFlowExecutor
-    │    ├──→ EmbyService（services/embyService.js）
-    │    └──→ TranscodeService（services/transcodeService.js）
-    │
-    ├──→ UpgradeFlowExecutor
-    │    └──→ （MoviePilot 集成，暂未实现）
-    │
-    └──→ DoubanService（services/doubanService.js）
-         职责：豆瓣 session 管理、评分拉取
-         调用方：API 层（/v1/integrations/douban/...）
 ```
 
 ## §3 子模块通信矩阵
