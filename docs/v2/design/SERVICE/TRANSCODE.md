@@ -27,14 +27,21 @@ TranscodeService 负责转码的实际执行操作，被 TranscodeFlowExecutor �
 
 ### 2.2 设备子槽
 
-每个物理 GPU 可能提供多个编码器实例，抽象为子槽：
+每个物理 GPU 可能提供多个编码器实例，抽象为子槽；CPU 提供软件编码能力，槽位数由 `maxCpuSlots` 配置决定：
 
 ```
 DevicePool
-    ├── CPU 槽 × N
+    ├── CPU 槽 × maxCpuSlots（用户配置，默认 1）
     └── GPU 设备 × M
-          └── 子槽 × 子槽数
+          └── 子槽 × maxSlots（各设备独立配置）
 ```
+
+**CPU 槽位限制**（`maxCpuSlots`）：
+- 控制同时进行的 CPU 编码任务数上限
+- 默认值：1（保守，避免系统资源被打满）
+- 典型值：1-4（根据 CPU 核心数和系统负载能力调整）
+
+**配置字段**：`transcodeMaxCpuSlots`（整数，≥ 1）
 
 ### 2.3 CPU 参与策略
 
@@ -64,6 +71,10 @@ DevicePool
 ### 2.5 槽位分配
 
 TranscodeFlowExecutor 在 `executing` 阶段从 DevicePool 分配槽位，压制完成后释放。
+
+**槽位上限**：
+- GPU 各设备：`maxSlots` 由用户在配置中为每张显卡独立设定
+- CPU：`maxCpuSlots` 统一控制 CPU 编码的并发上限
 
 **优先级策略与 CPU 参与策略的关系**：
 
