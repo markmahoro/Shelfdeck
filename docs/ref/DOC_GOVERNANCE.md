@@ -36,7 +36,7 @@
 | 运维                            | `docs/operations/OPS_*.md`                                                                                                                                                                                                                                                                                                                                  | 部署与 Runbook（按需）                                                                                                                                                    |
 | 用户文档                          | `docs/user/USER_*.md`                                                                                                                                                                                                                                                                                                                                       | 用户侧说明（按需）                                                                                                                                                          |
 | 模板                            | `docs/templates/TPL_*.md`                                                                                                                                                                                                                                                                                                                                   | 新建文档时复制的 H2 骨架                                                                                                                                                     |
-| 工作区（非 SSOT）                   | `[scratch/](../scratch/)`                                                                                                                                                                                                                                                                                                                                   | 临时笔记、审阅表、会话草稿；**不**承担产品/设计 SSOT，**不得**放入 `docs/` 冒充正式文档；规则见下文「临时与非 SSOT 工作文档」                                                                                      |
+| 工作区（非 SSOT）                   | `docs/scratch/SCRATCH_*.md`                                                                                                                                                                                                                                                                                                                                | 临时笔记、审阅表、会话草稿；**不**承担产品/设计 SSOT，**不得**冒充正式文档；开发流程规范见 `PRJ_MANAGEMENT.md` §7                                                                                     |
 
 
 ## ShelfDeck 产品与模块命名（定稿）
@@ -104,12 +104,12 @@
 
 | 类别         | 典型内容                   | 约定位置与行为                                                                             |
 | ---------- | ---------------------- | ----------------------------------------------------------------------------------- |
-| 迭代草稿       | 文案审阅表、一次性调研笔记、设计讨论速记   | 仓库根目录 `[scratch/](../scratch/)`；文首或目录内 `README.md` 标明「非 SSOT / 工作笔记」                |
+| 迭代草稿       | 文案审阅表、一次性调研笔记、设计讨论速记   | `docs/scratch/SCRATCH_<topic>.md`；文首标明「非 SSOT / 工作笔记」；完整规范见 `PRJ_MANAGEMENT.md` §7                |
 | 会话产出       | Agent/人工对话整理的待办清单（未升格） | 同上；若结论需长期生效，**升格**为正式文档（见下）而非长期堆在 `scratch/`                                        |
-| 个人本地草稿（可选） | 仅本机使用的备忘               | 可放在 `scratch/` 并由根目录 `.gitignore` 忽略整个目录；或完全不入库，团队需在 `PRJ_MANAGEMENT.md` 或本文补丁中统一约定 |
+| 个人本地草稿（可选） | 仅本机使用的备忘               | 可放在 `docs/scratch/` 并由 `.gitignore` 忽略；或完全不入库；团队共用草稿需入库时显式 commit |
 
 
-**升格（promotion）**：当 `scratch/` 中内容需成为团队共识或验收依据时，应**提炼**后写入对应前缀路径（例如需求 → `docs/requirements/REQ_FEATURE_*.md`，设计 → `docs/design/DESIGN_*.md`，排错 → `docs/dev/DEV_*.md`），并在索引表或母版中建立链接；原临时文件可删除或改为指向正式文档的一句话说明，避免双源。
+**升格（promotion）**：当 `docs/scratch/` 中内容需成为团队共识或验收依据时，应**提炼**后写入对应前缀路径（例如需求 → `docs/requirements/REQ_FEATURE_*.md`，设计 → `docs/design/DESIGN_*.md`，排错 → `docs/dev/DEV_*.md`），并在索引表或母版中建立链接；原临时文件可删除或改为指向正式文档的一句话说明，避免双源。
 
 **与 `docs/dev/` 的区别**：`DEV_*` 为**已采纳**的 how-to / 排错 SSOT；`scratch/` 为**未采纳**或**一次性**材料，不强制命名前缀，也不列入 PR/评审的文档门禁（除非团队另行规定）。
 

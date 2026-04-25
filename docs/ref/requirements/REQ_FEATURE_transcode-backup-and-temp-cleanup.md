@@ -1,0 +1,87 @@
+# REQ_FEATURE — 转码备份与临时文件清理（用户向）
+
+> **extends**: `[REQ_PRODUCT_BASELINE_v1.0.0.md](./REQ_PRODUCT_BASELINE_v1.0.0.md)`  
+> **change-type**: iterative  
+> **relates-to**: `[DESIGN_TASK_CENTER.md](../design/DESIGN_TASK_CENTER.md)` 转码 Flow；`[openapi.yaml](../api/openapi.yaml)` transcode 路径
+
+## 1. 背景与问题
+
+- 当前任务中心存在「转码孤儿文件（安全后缀扫描）」区块：仅在转码临时根下扫描 `*.etp.partial` / `*.etp.new` / `*.etp.bak` 等；用户反馈在配置中心找不到相关配置（设计上本就不在配置中心，但入口与说明未讲清）。
+- 「孤儿文件」为工程语义，终端用户难以理解；且该扫描通常扫不到成片目录下的 `*.etp.bak`（replace 写入位置为成片同目录），导致用户看到「未发现孤儿文件」却仍有备份占用空间，体验差。
+- 暂停转码路径已有「结束进程 + 删 partial + 清理任务临时目录」行为；移除任务此前仅从队列删除，未做磁盘清理，与用户对「移除应收拾干净」的预期可能不一致。
+
+## 2. 目标（本迭代）
+
+1. **用户语言**：前端不再向用户展示「孤儿文件」一词；工程/日志/代码标识可保留或后台逐步重命名，但用户可见文案统一为业务语义。
+2. **概念拆分（产品铁律）**
+  - **A. 替换前备份（replace 后备份成片）**：replace 成功后保留的 `Target` 同目录 `*.etp.bak`；不默认自动删除。
+  - **B. 转码临时文件**：压制/校验阶段产生的 partial、staging（如 `.etp.new`）、任务临时目录 `etp-task-`* 等，主要在转码临时根下；应在用户暂停或移除等操作时按规则清理，不得与 A 混在同一列表或同一话术里。
+3. **任务中心**：提供清晰、可理解的列表，让用户对 A 执行「确认后删除备份」；B 通过暂停/移除的清理行为 + 单独的「临时目录残留」入口处理，不与备份列表合并。
+
+## 3. 术语表（对用户 / 对研发）
+
+
+| 对用户文案（建议）             | 含义                   | 典型路径/条件                         |
+| --------------------- | -------------------- | ------------------------------- |
+| **替换前备份** / **原成片备份** | replace 时把旧成片改名保留的文件 | `basename(成片).etp.bak`，与最终成片同目录 |
+| **转码临时文件**            | 压制或替换链中的中间产物、任务临时目录  | 主要在转码临时根及 `etp-task-`* 下        |
+| **临时目录残留**            | 临时根下约定后缀的残留文件        | 仅临时根，不把成片目录的备份算进来               |
+
+
+## 4. 功能需求
+
+### 4.1 任务中心 · 「替换前备份」列表（核心）
+
+- **展示对象**：已结案且发生过覆盖式 replace 的转码任务关联的备份。
+- **v1 规则**：任务 `actionType === 'transcode'` 且 `status === 'done'`，且存在 `preReplaceHash` 与 `transcodeTargetPath`。
+- **列表列**：影视名称（`itemName`）、备份文件名（basename）、建议附加备份体积、结案时间等。
+- **存在性**：通过 IPC 对备份路径做存在性 + 大小查询；不存在则不展示。
+- **删除**：勾选删除（确认含影视名称 + 备份文件名）；一键删除列表中全部已存在备份（确认含条数、总大小、名称摘要）。
+- **安全 v1**：强确认；仅允许删除以 `.etp.bak` 结尾且与任务推导路径一致的文件。
+
+### 4.2 暂停 / 移除任务 · 「转码临时文件」清理
+
+- **暂停**：保持中止进程、删 partial、清理 `transcodeTempDir`；文案明确非成片备份。
+- **移除任务**：若仍存在 `transcodePartialPath` / `transcodeTempDir` 或正在执行转码，移除前提示并清理临时产物；不删除 `*.etp.bak`。
+
+### 4.3 「临时目录残留」
+
+- 范围：仅 `transcodeTempRoot` 及 `etp-task-`* 子树。
+- 空状态区分：未配置临时根、非桌面版、扫描失败、确实无残留。
+
+### 4.4 配置中心
+
+不新增专项配置；临时文件清理依赖转码临时根；替换前备份列表不依赖临时根。
+
+## 5. 非目标
+
+- replace 成功后自动删除 `.etp.bak`。
+- 扫描整个媒体库所有 `*.etp.bak`（本迭代以任务关联列表为主）。
+
+## 6. 验收标准（摘要）
+
+- 任务中心存在独立的「替换前备份」与「临时目录残留」区域，语义不混淆。
+- 用户界面不出现「孤儿文件」字样（日志/debug 可例外）。
+- 备份列表可见影视名称与备份文件名；支持勾选删除与一键删除全部。
+- 暂停/移除转码任务时临时文件清理符合 4.2，不误删成片目录备份。
+- 临时目录残留空状态能区分未配置 / 非桌面 / 无文件 / 失败。
+
+## 7. 文档与实现
+
+- 任务中心转码与 replace 语义：`[DESIGN_TASK_CENTER.md](../design/DESIGN_TASK_CENTER.md)`。
+- 实现见：`media-desktop/src/App.tsx`、`media-desktop/electron/preload.js`、`media-desktop/electron/transcodeService.js`、`media-service/src/services/transcodeService.js`、`media-service/src/app.js`；API：`[API_README.md](../api/API_README.md)`、`[openapi.yaml](../api/openapi.yaml)`。
+- Electron preload **沙盒**约束与排障见：`[DEV_ELECTRON_PRELOAD.md](../dev/DEV_ELECTRON_PRELOAD.md)`。
+
+## 8. 交付与状态
+
+- **状态**：已完成（UTC+8：**2026-04-20**）；用户验收通过。
+- **Git 锚点**：`[PRJ_MANAGEMENT.md](../project/PRJ_MANAGEMENT.md)` **开发过程记录** 对应行（提交短哈希）。
+
+## 追溯与关联文档
+
+
+| 文档                                                                   | 关系           |
+| -------------------------------------------------------------------- | ------------ |
+| `[REQ_PRODUCT_BASELINE_v1.0.0.md](./REQ_PRODUCT_BASELINE_v1.0.0.md)` | 母版（extends）  |
+| `[DESIGN_TASK_CENTER.md](../design/DESIGN_TASK_CENTER.md)`           | 转码 Flow SSOT |
+| `[DOC_GOVERNANCE.md](../DOC_GOVERNANCE.md)`                          | 全库索引         |
