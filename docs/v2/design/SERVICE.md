@@ -41,7 +41,37 @@ TaskScheduler（taskScheduler.js）
 | `recoverInterruptedTasks()` | `taskScheduler.js` | 启动时扫描中断任务，统一降级 |
 | `runningTasks` / `_driveCallIds` / `_appendLock` | `taskScheduler.js` | 并发保护，Flow 不感知 |
 
-#### 2.1.3 各 Flow 执行器职责
+#### 2.1.3 任务状态管理边界
+
+任务状态分为两个正交维度，分别由不同层管理：
+
+**`status`（调度状态）— Scheduler 管理**
+
+| 值 | 含义 |
+|---|---|
+| `pending_manual` | 手动模式，等待用户触发 |
+| `queued` | 排队等待调度 |
+| `paused` | 用户暂停 |
+| `interrupted` | 异常中断 |
+| `done` | 成功结束 |
+| `failed_hard` | 失败结束 |
+
+**`phase`（Flow 阶段）— Flow Executor 管理**
+
+| 值 | 含义 |
+|---|---|
+| `precheck` | 预检 |
+| `executing` | 执行中 |
+| `verify` | 校验中 |
+| `awaiting_user_confirm` | 等待用户确认 |
+| `null` | 未进入 Flow（等待调度或已暂停） |
+
+**边界规则**：
+- Scheduler 只读写 `status`，不读写 `phase`
+- Flow Executor 只读写 `phase`，不读写 `status`
+- TaskStore 持久化两者
+
+#### 2.1.4 各 Flow 执行器职责
 
 **DeleteFlowExecutor**
 
