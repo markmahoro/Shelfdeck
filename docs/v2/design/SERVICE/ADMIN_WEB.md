@@ -121,4 +121,4 @@ admin_web 包含四个主要功能模块：
 - `SERVICE/ADMIN_WEB/PAGES.md` — 页面结构与组件
 - `SERVICE/CONFIG.md` — 配置管理（含 API Key 认证配置）
 - `SERVICE/HEALTH_CHECK.md` — 健康检查（admin 页可展示服务状态）
-- `openapi.yaml` — HTTP 路径/模型/错误码 SSOT
+- `SERVICE/API.md` — REST 端点 SSOT

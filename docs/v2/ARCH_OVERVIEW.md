@@ -71,7 +71,7 @@ desktop 渲染进程
     ▼
 service REST API
     └── taskScheduler 接收任务
-            └── taskExecutor 执行（见 DESING_TASK_CENTER）
+            └── taskExecutor 执行（见 TASK_SCHEDULER）
 ```
 
 **意图内容（Phase 3 简化）**：

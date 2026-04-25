@@ -124,4 +124,4 @@ MediaLibraryService
 
 - `SERVICE/MEDIA_LIBRARY.md` — 豆瓣同步在媒体库管理中的角色
 - `SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` — Emby 数据拉取适配器
-- `openapi.yaml` — `GET /v1/integrations/douban/fetch/ratings` 端点
+- `SERVICE/API.md` — `GET /v1/integrations/douban/fetch/ratings` 端点

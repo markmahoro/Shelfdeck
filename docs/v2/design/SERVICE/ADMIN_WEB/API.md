@@ -2,7 +2,7 @@
 
 > 状态：v2 定稿
 > SSOT：本文是 `/v1/admin/*` 端点的唯一事实来源
-> 与 `openapi.yaml` 的关系：本文定义端点语义，`openapi.yaml` 是机器可读的形式化
+> openapi.yaml 待从本文档导出（机器可读形式化）
 
 ---
 

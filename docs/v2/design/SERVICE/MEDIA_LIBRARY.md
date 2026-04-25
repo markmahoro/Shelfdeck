@@ -247,8 +247,8 @@ desktop PATCH /v1/library/ratings
 
 ## §4 REST API
 
-> SSOT：`openapi.yaml` 是 HTTP 路径/模型/错误码的唯一事实来源。
-> 本节为索引和语义说明，不重复 openapi.yaml 中的完整字段定义。
+> SSOT：`SERVICE/API.md` 定义 HTTP 路径/模型/错误码。
+> 本节为索引和语义说明，不重复 API.md 中的完整字段定义。
 
 ### 4.1 端点索引
 
@@ -326,7 +326,7 @@ Emby 服务器配置通过 **添加子库流程** 间接完成（见 ADMIN_WEB/P
 
 ---
 
-### 4.6 关联文档
+### 4.5 关联文档
 
 - `SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` — EmbyAdapter 详细设计
 - `SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` — DoubanAdapter 详细设计
@@ -334,4 +334,4 @@ Emby 服务器配置通过 **添加子库流程** 间接完成（见 ADMIN_WEB/P
 - `SERVICE/ADMIN_WEB/PAGES.md` — 添加子库向导 UI
 - `SERVICE/ADMIN_WEB/API.md` — 子库管理 API
 - `SERVICE/TASK_SCHEDULER.md` — `wallRatingAutoEnqueue` 配置字段及自动入队调度逻辑
-- `openapi.yaml` — REST 端点 SSOT
+- `SERVICE/API.md` — REST 端点 SSOT

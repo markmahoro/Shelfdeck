@@ -106,7 +106,7 @@ runUpgradeFlow(task)
 
 > 未来实现 MoviePilot 集成时，UpgradeFlowExecutor 是唯一需要改动的模块。
 
-#### 2.1.4 TaskStore 操作封装（Flow Executor → TaskStore）
+#### 2.1.5 TaskStore 操作封装（Flow Executor → TaskStore）
 
 每个 Flow Executor 通过封装好的辅助函数操作 TaskStore：
 
@@ -331,7 +331,7 @@ desktop GET /v1/library/queries/manage
 | **TranscodeService** | - | - | - | - | - | - | - | - |
 | **DoubanService** | - | - | - | - | - | - | - | - |
 
-> 注：所有子模块均通过同步函数调用通信，无消息队列或事件总线。Flow Executors 与 EmbyService / TranscodeService 的详细交互在 `TASK_CENTER.md` 中描述。
+> 注：所有子模块均通过同步函数调用通信，无消息队列或事件总线。Flow Executors 与 EmbyService / TranscodeService 的详细交互在 `SERVICE/TASK_SCHEDULER.md` 和各 Flow 文档中描述。
 
 ## §5 数据持有权
 
@@ -349,13 +349,19 @@ desktop GET /v1/library/queries/manage
 |---|---|---|
 | 胖服务总览 | `SERVICE.md` | 本文 |
 | REST API | `SERVICE/API.md` | 待编写 |
-| 任务调度引擎 | `SERVICE/TASK_CENTER.md` | 待编写 |
-| 媒体库管理 | `SERVICE/MEDIA_LIBRARY.md` | 待编写 |
-| 健康检查 | `SERVICE/HEALTH_CHECK.md` | 待编写 |
-| 配置与路径映射 | `SERVICE/CONFIG.md` | 待编写 |
-| Emby 适配器 | `SERVICE/EMBY_INTEGRATION.md` | 待编写 |
-| 豆瓣适配器 | `SERVICE/DOUBAN_INTEGRATION.md` | 待编写 |
-| 转码执行器 | `SERVICE/TRANSCODER.md` | 待编写 |
+| 任务调度引擎 | `SERVICE/TASK_SCHEDULER.md` | v2 重写中 |
+| Delete Flow 执行器 | `SERVICE/DELETE_FLOW.md` | v2 重写中 |
+| Transcode Flow 执行器 | `SERVICE/TRANSCODE_FLOW.md` | v2 重写中 |
+| Upgrade Flow 执行器 | `SERVICE/UPGRADE_FLOW.md` | v2 重写中 |
+| 转码执行层 | `SERVICE/TRANSCODE.md` | v2 重写中 |
+| 媒体库管理 | `SERVICE/MEDIA_LIBRARY.md` | v2 重写中 |
+| Emby 适配器 | `SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` | v2 重写中 |
+| 豆瓣适配器 | `SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` | v2 重写中 |
+| 健康检查 | `SERVICE/HEALTH_CHECK.md` | v2 重写中 |
+| 配置与路径映射 | `SERVICE/CONFIG.md` | v2 定稿 |
+| Web 管理端 | `SERVICE/ADMIN_WEB.md` | v2 定稿 |
+| Admin API | `SERVICE/ADMIN_WEB/API.md` | v2 定稿 |
+| Admin 页面 | `SERVICE/ADMIN_WEB/PAGES.md` | v2 定稿 |
 
 ## 关联文档
 
