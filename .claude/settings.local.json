@@ -12,7 +12,16 @@
       "Read(//e/my_project/**)",
       "Bash(powershell.exe -ExecutionPolicy Bypass -File create-shortcuts.ps1)",
       "Bash(powershell.exe *)",
-      "Bash(grep -E \"^d.*\\\\.git$\")"
+      "Bash(grep -E \"^d.*\\\\.git$\")",
+      "Bash(git branch *)",
+      "Bash(cmd /c \"tasklist /FI \"IMAGENAME eq node.exe\" /M\")",
+      "Bash(cmd *)",
+      "Bash(git clean *)",
+      "Bash(powershell *)",
+      "Bash(tasklist)",
+      "Bash(taskkill *)",
+      "Bash(git diff *)",
+      "Bash(git add *)"
     ]
   }
 }

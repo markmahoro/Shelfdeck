@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * SSOT: docs/design/DESIGN_DESKTOP_BACKEND_ENDPOINT.md
+ * SSOT: docs/archive/design/DESIGN_DESKTOP_BACKEND_ENDPOINT.md
  * 与 media-tray-supervisor/electron/shelfdeckConnection.js 保持一致。
  */
 

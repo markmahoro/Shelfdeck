@@ -46,7 +46,7 @@ Optional: Set `TRAY_MEDIA_SERVICE_ROOT` to absolute path of media-service direct
 
 ### OpenAPI Validation
 ```bash
-npx --yes @redocly/cli lint docs/api/openapi.yaml --config docs/api/redocly.yaml
+npx --yes @redocly/cli lint docs/archive/api/openapi.yaml --config docs/archive/api/redocly.yaml
 ```
 
 ## Architecture
@@ -78,37 +78,49 @@ For `transcode` tasks, there's an additional resource pool layer that manages en
 
 ## Documentation Structure
 
-All documentation follows strict naming conventions with English prefixes:
-- `REQ_*` - Requirements
-- `DESIGN_*` - Detailed design/behavior specs
-- `ARCH_*` - Architecture
-- `ADR_*` - Architecture decision records
-- `API_README.md` + `openapi.yaml` - REST API contract (SSOT for HTTP shapes)
-- `DEV_*` - Development guides
-- `TEST_*` - Testing
-- `OPS_*` - Operations
-- `USER_*` - User guides
-- `PRJ_*` - Project management
+All active documentation lives under `docs/v2/`. Historical (v1) documentation is archived in `docs/archive/`.
 
-**Documentation index**: `docs/DOC_GOVERNANCE.md` is the single entry point for all documentation.
+```
+docs/
+├── v2/                    # Active documentation (SSOT)
+│   ├── DOC_GOVERNANCE.md  # Documentation governance and index
+│   ├── ARCH_OVERVIEW.md   # System architecture overview
+│   └── design/
+│       ├── SERVICE.md     # Service design overview
+│       ├── SERVICE/       # Service sub-modules (API, CONFIG, TASK_CENTER, etc.)
+│       ├── DESKTOP.md     # Desktop client design
+│       ├── DESKTOP/       # Desktop sub-modules
+│       ├── TRAY.md        # Tray supervisor design
+│       ├── TRAY/          # Tray sub-modules
+│       ├── SHARED.md      # Shared design (data model, error handling, etc.)
+│       └── SHARED/
+└── archive/               # Historical v1 documentation (read-only reference)
+    ├── api/               # Old API docs and OpenAPI spec
+    ├── design/            # Old design docs
+    ├── dev/               # Old dev guides
+    └── ...
+```
+
+**Documentation index**: `docs/v2/DOC_GOVERNANCE.md` is the single entry point for all active documentation.
 
 ### Key Documents
-- `docs/DOC_GOVERNANCE.md` - Documentation governance and index (SSOT)
-- `docs/dev/DEV_SETUP.md` - Local development setup
-- `docs/api/API_README.md` - API overview and IPC→REST mapping
-- `docs/api/openapi.yaml` - REST API contract (SSOT for HTTP paths/models)
-- `docs/design/DESIGN_TASK_CENTER.md` - Task center behavior (SSOT for task scheduling)
-- `docs/design/DESIGN_CONFIG_AND_PATHS.md` - Configuration fields and path mapping
-- `docs/design/DESIGN_DESKTOP_BACKEND_ENDPOINT.md` - Desktop connection endpoint resolution
-- `docs/design/DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md` - Tray supervisor behavior
-- `docs/requirements/REQ_PRODUCT_BASELINE_v1.0.0.md` - Product requirements baseline
+- `docs/v2/DOC_GOVERNANCE.md` - Documentation governance and index (SSOT)
+- `docs/v2/ARCH_OVERVIEW.md` - System architecture overview
+- `docs/v2/design/SERVICE.md` - Service design overview
+- `docs/v2/design/SERVICE/API.md` - REST API contract
+- `docs/v2/design/SERVICE/CONFIG.md` - Configuration fields and path mapping
+- `docs/v2/design/SERVICE/TASK_CENTER.md` - Task center behavior (SSOT for task scheduling)
+- `docs/v2/design/DESKTOP.md` - Desktop client design
+- `docs/v2/design/TRAY.md` - Tray supervisor design
+- `docs/v2/design/SHARED/DATA_MODEL.md` - Shared data model
+- `docs/archive/dev/DEV_SETUP.md` - Local development setup (v1, still applicable)
 
 ### SSOT Conflict Resolution
 When conflicts arise between documents:
-1. Product scope and user stories: `REQ_*` files
-2. Task center executable behavior: `DESIGN_TASK_CENTER.md`
-3. HTTP paths, models, error codes: `openapi.yaml`
-4. If OpenAPI conflicts with REQ/DESIGN: update documents to align first, then update code
+1. Product scope and user stories: `docs/v2/design/` documents
+2. Task center executable behavior: `docs/v2/design/SERVICE/TASK_CENTER.md`
+3. HTTP paths, models, error codes: `docs/v2/design/SERVICE/API.md`
+4. If API conflicts with design documents: update documents to align first, then update code
 
 ## Code Patterns
 
@@ -173,22 +185,20 @@ npm run smoke  # Test spawn + health check
 Set `MEDIA_SERVICE_URL` to a network-accessible address (e.g., NAS IP). Both tray supervisor and desktop will monitor that URL for health.
 
 ### Adding New REST Endpoints
-1. Update `docs/api/openapi.yaml` with new endpoint
-2. Run OpenAPI lint to validate
-3. Implement in `media-service/src/app.js` or relevant service module
-4. Update `docs/api/API_README.md` if adding new IPC→REST mapping
-5. Update desktop client to call new endpoint
+1. Update `docs/v2/design/SERVICE/API.md` with new endpoint
+2. Implement in `media-service/src/app.js` or relevant service module
+3. Update desktop client to call new endpoint
 
 ### Modifying Task Center Behavior
-1. Check `docs/design/DESIGN_TASK_CENTER.md` for current behavior (SSOT)
-2. Update DESIGN document first if behavior changes
+1. Check `docs/v2/design/SERVICE/TASK_CENTER.md` for current behavior (SSOT)
+2. Update design document first if behavior changes
 3. Implement changes in media-service task scheduling logic
-4. Update OpenAPI if REST API changes
+4. Update `docs/v2/design/SERVICE/API.md` if REST API changes
 5. Update desktop UI if needed
 
 ## Language and Localization
 
-- User-facing Chinese text follows guidelines in `docs/design/DESIGN_DESKTOP_UI_COPY.md`
+- User-facing Chinese text follows guidelines in `docs/archive/design/DESIGN_DESKTOP_UI_COPY.md`
 - Code, comments, and commit messages use English
 - Documentation uses Chinese (this is a Chinese-language project)
 - Technical terms (REST, API, OpenAPI, Flow, etc.) remain in English even in Chinese docs

@@ -16,16 +16,18 @@
 {
   "version": 1,
   "items": [MediaItem],
-  "cachedAt": "2026-04-25T12:00:00.000Z",
-  "doubanSyncedAt": "2026-04-25T06:00:00.000Z"
+  "cachedAt": "2026-04-25T12:00:00.000Z"
 }
 ```
+
+> `doubanSyncedAt` 已移至子库级（`subLibrary.doubanSyncedAt`）。
 
 **MediaItem 字段定义**：
 
 | 字段 | 类型 | 来源 | 说明 |
 |---|---|---|---|
 | `itemId` | string | 主键 | 统一标识，来源无关，可支持 Emby / 本地文件夹 / TMDB 等多来源 |
+| `subLibraryId` | string | 系统 | 所属子库 uuid（关联 `subLibraries[].uuid`） |
 | `name` | string | Emby / 文件夹扫描 | 影片名称 |
 | `path` | string | Emby / 文件夹扫描 | 媒体文件路径 |
 | `source` | string | 系统 | 来源类型：`emby` / `local` / `tmdb` |
@@ -40,7 +42,7 @@
 | `isDiscLike` | boolean | 解析 | 是否原盘（ISO/BDMV），由路径解析或 Emby 返回判定 |
 | `doubanId` | string | 匹配结果 | 豆瓣条目 ID（由标题匹配得出，非预关联字段）；null 表示未匹配到豆瓣条目 |
 | `doubanRating` | number | Douban | 豆瓣星级（1-5），null 表示未匹配 |
-| `doubanSyncedAt` | string | Douban | 该条豆瓣评分同步时间（ISO 8601）；与 library.json 根级 doubanSyncedAt（整体同步时间）不同 |
+| `doubanSyncedAt` | string | Douban | 该条豆瓣评分同步时间（ISO 8601）；与 subLibrary.doubanSyncedAt（子库级整体同步时间）不同 |
 | `userRating` | number | Desktop | 用户星级（1-5），null 表示未评分 |
 | `userRatingUpdatedAt` | string | Desktop | 用户评分时间（ISO 8601） |
 | `lastRefreshedAt` | string | 系统 | 最近一次 Emby 拉取更新时间（ISO 8601） |
@@ -48,6 +50,7 @@
 | `reason` | string | 策略计算 | 推荐原因，如"码率偏高"、"已观看" |
 
 > **v2 结构说明**：`library.json` 根级无独立的 `doubanRatings[]` 数组；豆瓣评分数据直接存在每条 `MediaItem.doubanId` / `MediaItem.doubanRating` / `MediaItem.doubanSyncedAt` 上，与 Emby 元数据合一。
+> 豆瓣同步时间改为子库级（`subLibrary.doubanSyncedAt`），每条 MediaItem 也有自己的 `doubanSyncedAt` 字段。
 
 ### 1.2 主键设计
 
@@ -63,9 +66,9 @@
 - 文件路径：`data/library.json`
 - 写入时机：Emby 定时拉取完成后、Douban 同步完成后、用户评分写入后
 - **时间戳层级**：
-  - 根级 `doubanSyncedAt`：整个豆瓣同步周期的完成时间
+  - 子库级 `doubanSyncedAt`：该子库豆瓣同步周期的完成时间
   - MediaItem 级 `doubanSyncedAt`：该条目最近一次豆瓣评分更新时间
-- 迁移注释：v1 版本使用 `data/cache.json`（`libraryItems[]` + `doubanRatings[]` 混放），v2 重构为 `library.json` 结构
+- 迁移注释：v1 版本使用 `data/cache.json`（`libraryItems[]` + `doubanRatings[]` 混放），v2 重构为 `library.json` 结构；v2 子库版新增 `subLibraryId` 字段关联子库，Emby 拉取链路升级为按子库独立定时
 
 ### 1.4 策略计算
 
@@ -77,8 +80,11 @@ effectiveRating = doubanRating 非空 ? doubanRating : userRating 非空 ? userR
 
 **action / reason 计算**：
 ```
-mediaPolicyService.recommendedAction(item, mediaPolicy) → { action, reason }
+// 从 item.subLibraryId 找到对应子库，取子库的 mediaPolicy
+mediaPolicyService.recommendedAction(item, subLibrary.mediaPolicy) → { action, reason }
 ```
+
+> v2 更新：策略计算使用子库级 `mediaPolicy`（`subLibraries[].mediaPolicy`），不再使用全局 `mediaPolicy`。
 
 `recommendedAction()` 逻辑（来自 `mediaPolicyService.js`）：
 
@@ -109,74 +115,80 @@ mediaPolicyService.recommendedAction(item, mediaPolicy) → { action, reason }
 
 ## §2 模块职责
 
-### 2.1 目标模块结构
+### 2.1 v2 目标模块结构
 
-v2 目标：新增 `mediaLibraryService.js` 作为协调层，现有 adapter 和 policy service 保持独立：
+v2 目标：新增 `mediaLibraryService.js` 作为协调层，支持多子库独立管理：
 
 ```
-mediaLibraryService.js（协调层，新增）
+mediaLibraryService.js（协调层）
     │
-    ├── 定时器管理：启动 Emby 拉取定时器、Douban 同步定时器
-    ├── upsertItems()：批量写入/更新 library.json items[]
+    ├── 子库管理：CRUD 子库配置（增/删/查，暂停/启用）
+    ├── upsertItems()：批量写入/更新 library.json items[]（关联 subLibraryId）
     ├── updateUserRating()：处理用户评分写入 + 重算 action/reason
     ├── getLibrary()：供 REST API 调用，返回完整媒体库数据
     │
-    ├── EmbyAdapter（embyService.js 现有）
-    │     └── getLibraryItems() → 拉取 Emby 全量媒体数据
+    ├── EmbyAdapter（embyService.js）
+    │     └── getLibraryItems(embyServerConfig, sectionId) → 拉取指定 Emby section 媒体数据
     │
-    ├── DoubanAdapter（doubanService.js 现有）
-    │     └── syncRatings() → 抓取豆瓣评分并写入
+    ├── DoubanAdapter（doubanService.js）
+    │     └── syncRatings() → 抓取豆瓣评分并写入（按子库独立开关）
     │
-    └── mediaPolicyService.js（现有独立纯函数）
+    └── mediaPolicyService.js（纯函数）
           └── recommendedAction(item, policy) → { action, reason }
 ```
 
 **设计原则**：
-1. 无独立 `MediaLibraryService` 进程或线程；`mediaLibraryService.js` 是普通 Node.js 模块，被 `app.js` 或定时任务调用
-2. **先写盘，再按需重算策略**：每次变更（Emby 拉取/Douban 同步/用户评分）只重算受影响的 item，避免全量重算
+1. 无独立 `MediaLibraryService` 进程或线程；是普通 Node.js 模块，被 `app.js` 或定时任务调用
+2. **先写盘，再按需重算策略**：每次变更只重算受影响的 item，避免全量重算
+3. **子库级独立定时**：每个子库有独立的 Emby 拉取定时器和豆瓣同步开关
 
 ### 2.2 各子模块职责边界
 
 | 模块 | 职责 |
 |---|---|
-| `mediaLibraryService.js` | 协调者：定时器驱动 adapter，聚合数据到 library.json，提供 getLibrary() 给 REST 层 |
+| `mediaLibraryService.js` | 协调者：子库管理，定时器驱动 adapter，聚合数据到 library.json，提供 getLibrary() 给 REST 层 |
 | `embyService.js`（EmbyAdapter） | 仅负责调用 Emby REST API，返回原始媒体数据；不直接写 library.json |
 | `doubanService.js`（DoubanAdapter） | 仅负责调用豆瓣 API；不直接写 library.json |
-| `mediaPolicyService.js` | 纯函数：输入 MediaItem + mediaPolicy 配置，输出 action + reason；无副作用 |
+| `mediaPolicyService.js` | 纯函数：输入 MediaItem + subLibrary.mediaPolicy 配置，输出 action + reason；无副作用 |
 | `library.json` | 单一持久化文件；所有媒体库数据的 SSOT |
 
 ---
 
 ## §3 数据写入链路
 
-### 3.1 Emby 定时拉取
+### 3.1 Emby 定时拉取（按子库）
 
-**原则：先写盘，再按需重算策略。** 避免每次全量拉取都重算全部 items。
+**原则：先写盘，再按需重算策略。** 每个子库独立拉取，只重算该子库受影响 items。
 
 ```
 service 启动
     │
-    └── mediaLibraryService.startEmbyRefreshTimer(intervalMs = 3600000)
+    └── 遍历 subLibraries[]（每个子库独立定时器）
             │
-            └── 每小时触发：
-                → EmbyAdapter.getLibraryItems(embyConfig)
-                │       └── 返回原始 Emby 媒体项列表
-                │
-                → 遍历 items，upsertItems() 写入 library.json
-                │       ├── 匹配策略：按 sourceId 查找已存在 item → 更新字段
-                │       ├── 不存在 → 新增（itemId 生成规则见 §1.2）
-                │       ├── lastRefreshedAt = now
-                │       └── diff 检测：哪些 item 的**策略相关字段**实际变了
-                │             （bitrate、size、resolution、duration、genres 等）
-                │             → 标记 changedItemIds
-                │
-                → 仅对 changedItemIds 逐条：
-                │       └── mediaPolicyService.recommendedAction() → 更新 action + reason
-                │
-                └── cachedAt = now，持久化 library.json
+            └── mediaLibraryService.startSubLibraryRefreshTimer(subLibrary, intervalMs = 3600000)
+                    │
+                    └── 每小时触发（仅当 subLibrary.enabled = true）：
+                        → 从 embyServers[subLibrary.embyServerId] 获取服务器配置
+                        → EmbyAdapter.getLibraryItems(serverConfig, subLibrary.sectionId)
+                        │       └── 返回该 section 的原始 Emby 媒体项列表
+                        │
+                        → 遍历 items，upsertItems() 写入 library.json
+                        │       ├── 匹配策略：按 sourceId + subLibraryId 查找已存在 item → 更新字段
+                        │       ├── 不存在 → 新增（itemId = Emby Id，subLibraryId = 当前子库 uuid）
+                        │       ├── lastRefreshedAt = now
+                        │       ├── subLibrary.lastRefreshedAt = now
+                        │       └── diff 检测：哪些 item 的**策略相关字段**实际变了
+                        │             → 标记 changedItemIds
+                        │
+                        → 仅对 changedItemIds 逐条：
+                        │       └── mediaPolicyService.recommendedAction(item, subLibrary.mediaPolicy) → 更新 action + reason
+                        │
+                        └── 持久化 library.json + 更新 subLibrary.lastRefreshedAt
 ```
 
-### 3.2 豆瓣定时同步
+> Emby 侧删除的 item：直接从 library.json 移除（不存在则删），不保留孤儿。
+
+### 3.2 豆瓣定时同步（按子库）
 
 **原则：只更新评分变了的那几条，再只重算那几条的策略。**
 
@@ -190,26 +202,29 @@ service 启动
 ```
 service 启动
     │
-    └── mediaLibraryService.startDoubanSyncTimer(intervalMs = 21600000)
+    └── 遍历 subLibraries[]（每个子库独立豆瓣同步）
             │
-            └── 每6小时触发：
-                → DoubanAdapter.fetchRatings()
-                │       └── 返回 [{ subjectId, title, stars }, ...]
-                │
-                → DoubanMatchService.buildDoubanStarsByNormalizedTitle(entries)
-                │       └── 建立内存 Map：normalized_title_key → stars
-                │
-                → 遍历 library.json items：
-                │       ├── 仅 Movie 类型参与匹配
-                │       ├── 调用 movieDoubanStars(embyName, 'Movie', byNormTitle)
-                │       │       └── 返回 doubanStars 或 null
-                │       ├── doubanRating 实际变化 → 更新 item.doubanRating
-                │       │       变化时同步记录 item.doubanId（豆瓣 subjectId）
-                │       └── doubanSyncedAt = now
-                │
-                → 重新计算 doubanRating 变化条目的 effectiveRating + action/reason
-                │
-                └── 持久化 library.json
+            └── mediaLibraryService.startSubLibraryDoubanSyncTimer(subLibrary, intervalMs = 21600000)
+                    │
+                    └── 每6小时触发（仅当 subLibrary.doubanEnabled = true）：
+                        → DoubanAdapter.fetchRatings()
+                        │       └── 返回 [{ subjectId, title, stars }, ...]
+                        │
+                        → DoubanMatchService.buildDoubanStarsByNormalizedTitle(entries)
+                        │       └── 建立内存 Map：normalized_title_key → stars
+                        │
+                        → 遍历 library.json items（仅该 subLibrary 的 items）：
+                        │       ├── 仅 Movie 类型参与匹配
+                        │       ├── 调用 movieDoubanStars(embyName, 'Movie', byNormTitle)
+                        │       │       └── 返回 doubanStars 或 null
+                        │       ├── doubanRating 实际变化 → 更新 item.doubanRating
+                        │       │       变化时同步记录 item.doubanId（豆瓣 subjectId）
+                        │       ├── item.doubanSyncedAt = now
+                        │       └── subLibrary.doubanSyncedAt = now
+                        │
+                        → 重新计算 doubanRating 变化条目的 effectiveRating + action/reason（使用对应 subLibrary.mediaPolicy）
+                        │
+                        └── 持久化 library.json + 更新 subLibrary.doubanSyncedAt
 ```
 
 ### 3.3 用户评分写入
@@ -223,7 +238,7 @@ desktop PATCH /v1/library/ratings
     │       ├── 按 itemId 找到 library.json 中对应条目
     │       ├── item.userRating = userRating
     │       ├── item.userRatingUpdatedAt = now
-    │       └── 重新计算 effectiveRating + action + reason
+    │       └── 重新计算 effectiveRating + action + reason（使用对应 subLibrary.mediaPolicy）
     │
     └── 持久化 library.json
 ```
@@ -242,14 +257,18 @@ desktop PATCH /v1/library/ratings
 | `GET /v1/library/queries/manage` | GET | 返回完整媒体库列表（含 action/reason），供 desktop 展示 |
 | `GET /v1/library/items/:itemId` | GET | 返回单项媒体详情 |
 | `PATCH /v1/library/ratings` | PATCH | 写入用户评分 `{ itemId, userRating }` |
-| `POST /v1/library/actions/refresh` | POST | 手动触发 Emby 全量拉取（admin 页面调用） |
-| `GET /v1/library/status` | GET | 返回 cachedAt、doubanSyncedAt 等同步状态 |
+| `POST /v1/library/actions/refresh` | POST | 手动触发指定子库的 Emby 拉取（admin 页面调用） |
+| `GET /v1/library/status` | GET | 返回各子库同步状态（lastRefreshedAt、doubanSyncedAt） |
+| `GET /v1/admin/sublibraries` | GET | 返回所有子库配置列表（admin API） |
+| `POST /v1/admin/sublibraries` | POST | 新增子库（含内联 Emby 服务器注册） |
+| `DELETE /v1/admin/sublibraries/:uuid` | DELETE | 删除子库（同时清理该子库在 library.json 中的所有 items） |
+| `PATCH /v1/admin/sublibraries/:uuid` | PATCH | 更新子库（暂停/启用、修改名称、开关豆瓣同步、更新码率策略） |
 
 ### 4.2 GET /v1/library/queries/manage 语义
 
 - **调用方**：desktop 媒体库展示页面
 - **返回数据**：所有 MediaItem，含最新 action/reason
-- **筛选参数**：`?source=emby&type=movie&action=delete`（可选）
+- **筛选参数**：`?source=emby&type=movie&action=delete&subLibraryId=xxx`（可选）
 - **认证**：同 service 其他端点（可选 X-Api-Key）
 
 ### 4.3 PATCH /v1/library/ratings 语义
@@ -262,37 +281,39 @@ desktop PATCH /v1/library/ratings
 
 ### 4.4 用户配置依赖
 
-媒体库正常运行依赖以下配置，均通过 `PATCH /v1/config` 写入 service。
+媒体库正常运行依赖以下配置。
 
-#### 4.4.1 Emby 连接（必填）
+#### 4.4.1 Emby 服务器（必填，通过子库间接配置）
 
-| 字段 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `embyClient.baseUrl` | string | `""` | Emby 服务器地址，如 `http://192.168.1.100:8096` |
-| `embyClient.apiKey` | string | `""` | Emby API Key（从 Emby 服务器管理界面获取） |
-| `embyClient.userId` | string | `""` | Emby 用户 ID（从用户列表选择，不手动输入） |
-| `embyClient.embyUserPassword` | string | `""` | Emby 用户会话密码，用于删除等写操作鉴权 |
+Emby 服务器配置通过 **添加子库流程** 间接完成（见 ADMIN_WEB/PAGES.md §2.2.2）。
 
-> 配置入口：桌面客户端 **配置中心 → Emby 与播放器**
+用户执行添加子库流程时：
+1. 输入 `baseUrl` + `apiKey` → 调用 `GET /System/Info` 验证并获取 `serverName`
+2. 选择用户 → 调用 `GET /Users/Query` 获取用户列表
+3. 选择媒体文件夹 → 调用 `GET /Library/MediaFolders` 获取文件夹列表（单选）
+4. 自定义子库名称 → 完成注册
+
+> 配置入口：service Web 管理页 **媒体库 → 添加子库**
 
 #### 4.4.2 豆瓣集成（可选）
+
+豆瓣配置独立于 Emby 服务器，在**添加子库向导**最后一步中可选择是否启用该子库的豆瓣同步。
 
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
 | `douban.userId` | string | `""` | 豆瓣"看过"页用户 ID（URL 中 `people/` 与 `/collect` 之间的字段） |
 | `douban.cookieHeader` | string | `""` | 豆瓣登录 Cookie（公开列表可不填；私人可见列表必填） |
 
-> 配置入口：桌面客户端 **配置中心 → 豆瓣集成**
-> 会话存储：`douban-session.json`（由 `PUT /v1/integrations/douban/session` 写入）
+> 配置入口：service Web 管理页 **豆瓣集成**（全局配置，仅当 `subLibrary.doubanEnabled=true` 时生效）
 
 #### 4.4.3 策略配置（有默认值，可选）
 
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `mediaPolicy.target1080p` | object | `{ "2": 2, "3": 4, "4": 7, "5": 12 }` | 1080p 各星级目标码率（Mbps）；2★ 为删除档，目标码率仅作配置兼容占位 |
-| `mediaPolicy.target4k` | object | `{ "2": 5, "3": 10, "4": 16, "5": 25 }` | 4K 各星级目标码率（Mbps） |
+| `subLibraries[].mediaPolicy.target1080p` | object | 见 CONFIG.md | 1080p 各星级目标码率（Mbps）；2★ 为删除档，目标码率仅作配置兼容占位 |
+| `subLibraries[].mediaPolicy.target4k` | object | 见 CONFIG.md | 4K 各星级目标码率（Mbps） |
 
-> 配置入口：桌面客户端 **配置中心 → 任务调度与补源**
+> 配置入口：service Web 管理页 **媒体库 → 添加子库** Step 4
 
 #### 4.4.4 定时器（暂不可配）
 
@@ -300,8 +321,8 @@ desktop PATCH /v1/library/ratings
 
 | 字段 | 当前值 | 说明 |
 |---|---|---|
-| Emby 定时拉取间隔 | 3600000ms（1小时） | `startEmbyRefreshTimer(intervalMs)` |
-| 豆瓣定时同步间隔 | 21600000ms（6小时） | `startDoubanSyncTimer(intervalMs)` |
+| Emby 定时拉取间隔 | 3600000ms（1小时） | 每个子库独立定时 `startSubLibraryRefreshTimer(subLibrary)` |
+| 豆瓣定时同步间隔 | 21600000ms（6小时） | 每个子库独立定时 `startSubLibraryDoubanSyncTimer(subLibrary)` |
 
 ---
 
@@ -309,5 +330,8 @@ desktop PATCH /v1/library/ratings
 
 - `SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` — EmbyAdapter 详细设计
 - `SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` — DoubanAdapter 详细设计
+- `SERVICE/CONFIG.md` — 配置字段定义（embyServers、subLibraries）
+- `SERVICE/ADMIN_WEB/PAGES.md` — 添加子库向导 UI
+- `SERVICE/ADMIN_WEB/API.md` — 子库管理 API
 - `SERVICE/TASK_SCHEDULER.md` — `wallRatingAutoEnqueue` 配置字段及自动入队调度逻辑
 - `openapi.yaml` — REST 端点 SSOT

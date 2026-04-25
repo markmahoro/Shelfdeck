@@ -1,11 +1,11 @@
 # DOC_GOVERNANCE — 文档治理与全库索引
 
 > 状态：v2 重写中
-> 参考：`ref/DOC_GOVERNANCE.md`
+> 参考：`docs/archive/ref/DOC_GOVERNANCE.md`
 
 ## 文档地图
 
-（待从 ref/DOC_GOVERNANCE.md 迁移并重构）
+（待从 docs/archive/ref/DOC_GOVERNANCE.md 迁移并重构）
 
 ## SSOT 与冲突处理
 
