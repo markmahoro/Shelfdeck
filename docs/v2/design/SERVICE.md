@@ -111,6 +111,56 @@ executor.fail(taskId, code, message)   → setStatus + appendLog
 | 并发保护 | 集中 | 保留在代理层，Executor 不感知 |
 | 新增 Flow | 修改 taskExecutor switch | 新增一个 Executor + 注册 |
 
+### §2.3 任务生命周期操作
+
+#### 2.3.1 操作总览
+
+| 操作 | REST 端点 | 作用 | TaskScheduler 响应 |
+|---|---|---|---|
+| **创建** | `POST /v1/tasks` | 创建新任务 | 调度器按 executionMode 决定立即执行或等待 |
+| **确认** | `PATCH /v1/tasks/:id` `{ confirmed: true }` | 用户确认后推进 Flow | 解除 `awaiting_user_confirm` 停泊，状态改回 `queued`，下次调度轮询时推进 |
+| **执行** | `POST /v1/tasks/:id/actions/execute` | 手动触发 `pending_manual` 任务 | 状态 `pending_manual` → `created` → 立即进入调度 |
+| **暂停** | `POST /v1/tasks/:id/actions/pause` | 暂停任务 | 状态改为 `paused`，调度器跳过，直到调用 execute 恢复 |
+| **删除** | `DELETE /v1/tasks/:id` | 删除任务 | 任务从 TaskStore 移除，调度器不再感知 |
+
+#### 2.3.2 确认（confirm）行为详解
+
+用户确认是 Flow 暂停后的唯一恢复机制。三种场景：
+
+```
+Delete Flow
+    → precheck 通过后停泊于 awaiting_user_confirm
+    → 用户 confirm → resumePoint = 'delete_executing' → 跳过 precheck，直接执行删除
+
+Transcode Flow
+    → precheck DV 确认停泊 → 用户 confirm → resumePoint = 'transcode_executing' → 跳过 DV 检测
+    → 压制完成后替换确认停泊 → 用户 confirm → resumePoint = 'transcode_replace' → 跳过 precheck + 压制 + verify
+
+任何 Flow
+    → 调度器驱动 → setStatus(awaiting_user_confirm) → 停泊
+    → 用户 confirm → setStatus(queued), driving=false → 调度器下次轮询接管
+```
+
+#### 2.3.3 任务状态流转图
+
+```
+created ──→ queued ──┬──→ awaiting_user_confirm ←── confirm
+                     │                                  │
+                  precheck ──→ executing ──→ verify ───┘
+                     │                      │
+                  failed_hard ←──────────────┘
+                     ▲
+                 （任意阶段出错）
+                     │
+paused ←──────────────┤
+                     │
+interrupted ←────────┤ （进程异常退出时由 recoverInterruptedTasks 降级）
+                     │
+done ←───────────────┤
+                     │
+deleted ←── DELETE /v1/tasks/:id
+```
+
 ### §2.2 完整意图链路
 
 ```
