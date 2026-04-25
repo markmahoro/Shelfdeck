@@ -45,9 +45,34 @@ DevicePool
 | `normal` | CPU 和 GPU 都参与设备分配 |
 | `backup_only` | 仅 GPU 参与，CPU 不参与（作为 fallback） |
 
-### 2.4 槽位分配
+### 2.4 设备优先级
+
+用户可为设备池中的多个设备配置优先级（`priority` 字段，数值越小越优先）：
+
+| 设备 | 示例 priority | 说明 |
+|---|---|---|
+| GPU-0（RTX 4090） | 1 | 主显卡，最优先 |
+| GPU-1（RTX 4080） | 2 | 次显卡 |
+| CPU | 10 | fallback |
+
+**分配顺序**：
+1. 按 `priority` 升序排列可用设备
+2. 优先分配最高优先级设备
+3. 同优先级按设备类型（GPU > CPU）排序
+4. `backup_only` 模式下，CPU 设备不参与分配
+
+### 2.5 槽位分配
 
 TranscodeFlowExecutor 在 `executing` 阶段从 DevicePool 分配槽位，压制完成后释放。
+
+**优先级策略与 CPU 参与策略的关系**：
+
+| CPU 参与策略 | priority=1 GPU-0 不可用时 | 分配结果 |
+|---|---|---|
+| `normal` | 降级到 priority=2 GPU-1 | GPU-1 执行 |
+| `normal` | GPU 全部不可用 | 降级到 CPU |
+| `backup_only` | 降级到 priority=2 GPU-1 | GPU-1 执行 |
+| `backup_only` | GPU 全部不可用 | 失败（CPU 不参与） |
 
 ---
 
