@@ -4,12 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**ShelfDeck** is a Windows desktop Emby client with three main components:
-- **media-desktop**: Electron + Vite/React desktop client
-- **media-service**: Node.js/Fastify HTTP service for media management
-- **media-tray-supervisor**: Windows tray supervisor ("ShelfDeck 小助手") that monitors service health and manages lifecycle
+**ShelfDeck** (媒体库管家) is a media library management platform with two logical components:
+- **service** (胖服务): Node.js/Fastify HTTP service — task execution engine, media library management, Emby/Douban integration, built-in React admin web
+- **desktop** (瘦客户端): Electron + Vite/React desktop client — intent submission, media library browsing, task card UI
 
-The desktop client requires the media service to be running. The tray supervisor writes connection configuration that the desktop client reads (single source of truth pattern).
+These map to three physical processes:
+- `media-service` — Fastify HTTP service (port 18080)
+- `media-desktop` — Electron main + renderer
+- `media-tray-supervisor` — Windows tray ("ShelfDeck 小助手"), the service's Windows shell; spawns service as a child process, lifecycle bound to service
+
+**Product positioning** (ARCH_OVERVIEW §8): 媒体库管家 = 资产盘点 + 推荐消费 + 空间管理 + 发现缺口. The core competitive advantage is user-private data (ratings, watch records, personal tags) — content metadata (Emby/TMDB) is infrastructure, not differentiation.
 
 ## Development Commands
 
@@ -38,7 +42,7 @@ npm run dist:win   # Build Windows portable executable
 ```bash
 cd media-tray-supervisor
 npm install
-npm start          # Start tray supervisor
+npm start          # Start tray supervisor (spawns service child process)
 npm run smoke      # Smoke test for spawn + health check
 ```
 
@@ -51,30 +55,149 @@ npx --yes @redocly/cli lint docs/archive/api/openapi.yaml --config docs/archive/
 
 ## Architecture
 
-### Connection Model
-- **Tray supervisor** has exclusive write access to connection configuration file
-- **Desktop client** reads connection configuration (read-only, same source)
-- Both monitor the same `effectiveBaseUrl` for health (yellow/green/red states)
-- Health check: `GET /v1/health` (no authentication required)
-- Desktop enforces strict gate: if service unavailable, shows guidance to use tray supervisor
+### Component Boundaries (ARCH_OVERVIEW §1)
 
-### IPC → REST Migration
-The desktop client has migrated from Electron IPC to HTTP REST calls to media-service. The `preload.js` still exposes `window.embyApi` and `window.doubanApi`, but implementations now use `fetch()` to call media-service endpoints. Only `emby:launchPlayer` remains as true IPC (spawning external player is desktop-specific).
+All cross-component communication is **HTTP REST**. No IPC (except `emby:launchPlayer` for spawning external player).
 
-### Task Center
-Task center manages three action types: `delete`, `transcode`, `upgrade`. Each has:
-- FIFO logical queue per action type
-- Concurrency slots (`deleteConcurrency`, `transcodeConcurrency`, `upgradeConcurrency`)
-- State machine (Flow) specific to the action type
-- Scheduling layer that controls whether tasks can proceed
+| Component | Role | Data ownership |
+|---|---|---|
+| **service** | Task execution engine, media library, Emby/Douban integration, admin web | Task queue (SSOT), config (SSOT), media library table (SSOT), Emby connection |
+| **desktop** | Intent submission, task card UI, media library browsing | service address (electron-store), read-only access to all service data |
+| **tray** | Windows shell for service — spawns child process, monitors health | None; does NOT write connection config (Phase 3 change) |
 
-For `transcode` tasks, there's an additional resource pool layer that manages encoding device sub-slots (CPU/GPU).
+### Process Model (ARCH_OVERVIEW §2)
 
-### Configuration Paths
-- Media-service holds the single source of truth for path mappings and transcode settings
-- Desktop settings UI edits and saves via REST API (`GET/PATCH /v1/config`)
-- Desktop does not maintain separate path mapping state
-- Optional "local playback additional mapping" only when desktop and service run on different machines
+```
+User clicks tray shortcut
+    └── tray process starts
+            └── spawn media-service child process (lifecycle bound)
+            └── exit tray → terminates service child process
+
+User clicks desktop shortcut
+    └── desktop process starts (independent)
+            └── connects to service via HTTP (or shows guidance if unavailable)
+```
+
+- **desktop independent**: does not require service to launch; shows guidance when disconnected
+- **tray + service bound**: tray spawns service; exiting tray terminates service
+
+### Data Flow (ARCH_OVERVIEW §3)
+
+**Intent submission (desktop → service)**:
+```
+desktop → POST /v1/tasks { itemId, actionType } → service
+    → TaskStore.createTask() → TaskScheduler picks up → Flow Executor runs
+```
+
+**Progress polling (service → desktop)**:
+```
+desktop polls GET /v1/tasks (400ms interval) → TaskStore returns task list (status, progress, phase)
+```
+
+**State ownership**: All task state, config, media library data owned by service. Desktop reads only.
+
+### TaskScheduler + Flow Executors (SERVICE.md §2, TASK_SCHEDULER.md)
+
+TaskScheduler and Flow Executors are **peer modules** with bidirectional API contracts:
+
+```
+TaskScheduler (taskScheduler.js)
+    ├── Scheduling: itemId lock check → actionType slot check → executionMode check
+    ├── Routing: dispatches by actionType to the corresponding Flow Executor
+    │
+    ├──→ DeleteFlowExecutor (deleteFlowExecutor.js)
+    ├──→ TranscodeFlowExecutor (transcodeFlowExecutor.js)
+    └──→ UpgradeFlowExecutor (upgradeFlowExecutor.js)
+```
+
+**Scheduler ↔ Flow API contract**:
+
+| Direction | API | Purpose |
+|---|---|---|
+| Scheduler → Flow | `flow.drive(resumePoint)` | Start or resume execution |
+| Scheduler → Flow | `flow.pause()` / `flow.cancel()` | User pause / cancel |
+| Flow → Scheduler | `scheduler.pauseForConfirm(taskId, resumePoint)` | Flow needs user confirmation |
+| Flow → Scheduler | `scheduler.reportStatus(taskId, status, progress?)` | Status change notification |
+| confirm API → Flow | `flow.confirmReceived()` | User confirmed, resume from resumePoint |
+
+**Status / phase separation**:
+- `status` (scheduler-managed): `pending_manual` | `queued` | `executing` | `paused` | `awaiting_user_confirm` | `interrupted` | `done` | `failed_hard`
+- `phase` (Flow-managed): Each Flow defines its own phases (e.g., `transcode_precheck`, `transcode_encoding`, `transcode_replace`)
+- Scheduler only reads/writes `status`; Flow Executor only reads/writes `phase`; TaskStore persists both
+
+**Scheduling check (three-tier)**: itemId lock → actionType slot (concurrency) → executionMode (auto/manual)
+
+**Concurrency protection** (TASK_SCHEDULER §5):
+- `runningTasks` Set: prevents re-entry within same polling round
+- `recoverInterruptedTasks()`: on startup, demotes interrupted tasks
+- `itemId` lock: only one flow per itemId across all actionTypes
+
+**Scheduling interval**: 5s polling
+
+### Media Library (MEDIA_LIBRARY.md)
+
+MediaLibraryService maintains a unified persistence table (`data/library.json`) containing all media data, Douban ratings, and user ratings.
+
+```
+mediaLibraryService.js (coordinator)
+    ├── EmbyAdapter (embyService.js) — pulls media data per subLibrary on independent timers
+    ├── DoubanAdapter (doubanService.js) — syncs Douban ratings (title keyword matching via doubanMatchService.js)
+    ├── mediaPolicyService.js (pure function) — computes action/reason from rating + policy
+    └── upsertItems() / updateUserRating() / getLibrary() — CRUD on library.json
+```
+
+**SubLibrary model**: Each subLibrary has its own Emby server, section, refresh timer (1h), Douban sync toggle + timer (6h), and independent `mediaPolicy`.
+
+**Strategy calculation**:
+```
+effectiveRating = doubanRating ?? userRating ?? null
+recommendedAction(item, subLibrary.mediaPolicy) → { action: delete|transcode|upgrade|keep, reason }
+```
+
+**Principle**: write first, then recalculate strategy only for affected items (not full table).
+
+**Douban matching**: Title keyword matching via `doubanMatchService.js` — NFKC normalization, `/` split, longest-key-first lookup. No pre-associated `doubanId`.
+
+### Admin Web (ADMIN_WEB.md)
+
+Service includes a built-in React management page served from `dist/admin/`:
+
+| Page route | Function | API domain |
+|---|---|---|
+| `/media-libraries` | SubLibrary CRUD + add wizard | `/v1/admin/sublibraries/*` |
+| `/transcode` | Transcode settings + device pool | `/v1/admin/transcode/*` |
+| `/tasks` | Task monitoring (list + detail + logs) | `/v1/admin/tasks/*` |
+| `/emby` | Emby connection config (deprecated) | `/v1/admin/emby/*` |
+
+Admin API (`/v1/admin/*`) is separated from desktop API (`/v1/*`) but both share the same internal service modules.
+
+### Health Check (HEALTH_CHECK.md)
+
+Four check items aggregated to green/yellow/red:
+
+| Check | Meaning | Green criteria |
+|---|---|---|
+| `service` | Process alive | Always green if responding |
+| `config` | Configuration integrity | All required fields present |
+| `emby` | Emby server connectivity | `GET /System/Info` responds <2s |
+| `scheduler` | TaskScheduler running | Polling loop active |
+
+**Aggregation**: green = all green; yellow = ≥1 yellow, no red; red = ≥1 red.
+
+Two endpoints: `GET /v1/health` (public, aggregate only) and `GET /v1/admin/health` (admin, full detail).
+
+### Configuration (CONFIG.md)
+
+ConfigStore holds all service-side config as SSOT (`data/config.json`). Desktop reads via `GET /v1/config`, admin web writes via `PATCH /v1/config`.
+
+Major config domains:
+- **TaskScheduler**: `executionMode`, `*Concurrency`, `wallRatingAutoEnqueue`
+- **Transcode**: `transcodeTempRoot`, `transcodeEncodingDevices[]`, `ffmpegPath`, CPU slot/strategy
+- **Upgrade (MoviePilot)**: `moviepilot.{baseUrl,apiKey}`, `upgradeStagingLocalPath`, retry settings
+- **Emby servers**: `embyServers` map (multi-server, keyed by uuid), with `baseUrl`, `apiKey`, `userId`
+- **SubLibraries**: `subLibraries[]` with per-subLibrary `mediaPolicy`, `doubanEnabled`, `sectionId`
+- **Douban**: `douban.{userId,cookieHeader}`
+- **MediaPolicy** (global): deprecated; use subLibrary-level `mediaPolicy` instead
 
 ## Documentation Structure
 
@@ -87,13 +210,39 @@ docs/
 │   ├── ARCH_OVERVIEW.md   # System architecture overview
 │   └── design/
 │       ├── SERVICE.md     # Service design overview
-│       ├── SERVICE/       # Service sub-modules (API, CONFIG, TASK_CENTER, etc.)
+│       ├── SERVICE/
+│       │   ├── API.md                    # REST API contract (SSOT for HTTP paths/models/errors)
+│       │   ├── CONFIG.md                 # Configuration fields and path mapping
+│       │   ├── TASK_SCHEDULER.md         # Task scheduling engine (SSOT for scheduling behavior)
+│       │   ├── DELETE_FLOW.md            # Delete flow executor
+│       │   ├── TRANSCODE_FLOW.md         # Transcode flow executor
+│       │   ├── UPGRADE_FLOW.md           # Upgrade flow executor
+│       │   ├── TRANSCODE.md              # Transcode execution layer
+│       │   ├── MEDIA_LIBRARY.md          # Media library management (SSOT for library behavior)
+│       │   ├── MEDIA_LIBRARY/
+│       │   │   ├── EMBY_ADAPTER.md       # Emby adapter design
+│       │   │   └── DOUBAN_ADAPTER.md     # Douban adapter design
+│       │   ├── HEALTH_CHECK.md           # Health check design
+│       │   ├── ADMIN_WEB.md              # Admin web overview
+│       │   └── ADMIN_WEB/
+│       │       ├── API.md               # Admin API endpoints (SSOT for admin)
+│       │       └── PAGES.md             # Admin page structure
 │       ├── DESKTOP.md     # Desktop client design
-│       ├── DESKTOP/       # Desktop sub-modules
+│       ├── DESKTOP/
+│       │   ├── UI.md                     # UI components and layout
+│       │   ├── API_CLIENT.md             # REST API client layer
+│       │   ├── CONNECTION.md             # Service connection management
+│       │   └── SETTINGS.md               # Configuration persistence
 │       ├── TRAY.md        # Tray supervisor design
-│       ├── TRAY/          # Tray sub-modules
-│       ├── SHARED.md      # Shared design (data model, error handling, etc.)
+│       ├── TRAY/
+│       │   ├── LIFECYCLE.md              # Process lifecycle (spawn service)
+│       │   ├── CONNECTION_WRITER.md      # Connection config writing (exclusive write)
+│       │   └── HEALTH_MONITORING.md      # Service health monitoring
+│       ├── SHARED.md      # Shared design
 │       └── SHARED/
+│           ├── DATA_FLOW.md              # Intent submission + polling mechanism
+│           ├── DATA_MODEL.md             # Core data model
+│           └── ERROR_HANDLING.md         # Error codes and degradation strategy
 └── archive/               # Historical v1 documentation (read-only reference)
     ├── api/               # Old API docs and OpenAPI spec
     ├── design/            # Old design docs
@@ -104,52 +253,79 @@ docs/
 **Documentation index**: `docs/v2/DOC_GOVERNANCE.md` is the single entry point for all active documentation.
 
 ### Key Documents
-- `docs/v2/DOC_GOVERNANCE.md` - Documentation governance and index (SSOT)
-- `docs/v2/ARCH_OVERVIEW.md` - System architecture overview
-- `docs/v2/design/SERVICE.md` - Service design overview
-- `docs/v2/design/SERVICE/API.md` - REST API contract
-- `docs/v2/design/SERVICE/CONFIG.md` - Configuration fields and path mapping
-- `docs/v2/design/SERVICE/TASK_CENTER.md` - Task center behavior (SSOT for task scheduling)
-- `docs/v2/design/DESKTOP.md` - Desktop client design
-- `docs/v2/design/TRAY.md` - Tray supervisor design
-- `docs/v2/design/SHARED/DATA_MODEL.md` - Shared data model
-- `docs/archive/dev/DEV_SETUP.md` - Local development setup (v1, still applicable)
+- `docs/v2/DOC_GOVERNANCE.md` — Documentation governance and index (SSOT)
+- `docs/v2/ARCH_OVERVIEW.md` — System architecture overview
+- `docs/v2/design/SERVICE.md` — Service design overview (胖服务)
+- `docs/v2/design/SERVICE/API.md` — REST API contract (SSOT for HTTP paths/models/errors)
+- `docs/v2/design/SERVICE/TASK_SCHEDULER.md` — Task scheduling engine (SSOT for scheduling behavior)
+- `docs/v2/design/SERVICE/CONFIG.md` — Configuration fields and path mapping
+- `docs/v2/design/SERVICE/MEDIA_LIBRARY.md` — Media library management (SSOT for library behavior)
+- `docs/v2/design/SERVICE/HEALTH_CHECK.md` — Health check design (Phase 4)
+- `docs/v2/design/SERVICE/ADMIN_WEB.md` — Admin web overview
+- `docs/v2/design/SERVICE/ADMIN_WEB/API.md` — Admin API endpoints (SSOT for admin)
+- `docs/v2/design/DESKTOP.md` — Desktop client design
+- `docs/v2/design/TRAY.md` — Tray supervisor design
+- `docs/v2/design/SHARED/DATA_MODEL.md` — Shared data model
+- `docs/v2/design/SHARED/DATA_FLOW.md` — Intent submission + polling mechanism
+- `docs/v2/design/SHARED/ERROR_HANDLING.md` — Error codes and degradation strategy
+- `docs/archive/dev/DEV_SETUP.md` — Local development setup (v1, still applicable)
 
 ### SSOT Conflict Resolution
 When conflicts arise between documents:
 1. Product scope and user stories: `docs/v2/design/` documents
-2. Task center executable behavior: `docs/v2/design/SERVICE/TASK_CENTER.md`
-3. HTTP paths, models, error codes: `docs/v2/design/SERVICE/API.md`
-4. If API conflicts with design documents: update documents to align first, then update code
+2. Task scheduling executable behavior: `docs/v2/design/SERVICE/TASK_SCHEDULER.md` + Flow documents (DELETE_FLOW, TRANSCODE_FLOW, UPGRADE_FLOW)
+3. HTTP paths, models, error codes: `docs/v2/design/SERVICE/API.md` + `docs/v2/design/SERVICE/ADMIN_WEB/API.md`
+4. Configuration field definitions: `docs/v2/design/SERVICE/CONFIG.md`
+5. If API conflicts with design documents: update documents to align first, then update code
 
 ## Code Patterns
 
 ### Environment Variables
-- `MEDIA_SERVICE_URL` / `CONTROL_PLANE_URL` - synonyms for media-service base URL
-- `VITE_MEDIA_SERVICE_URL` / `VITE_CONTROL_PLANE_URL` - Vite-specific variants
-- `MEDIA_SERVICE_API_KEY` / `CONTROL_PLANE_API_KEY` - optional API key
-- Priority: environment variables override tray-written persistent configuration
+- `MEDIA_SERVICE_URL` / `CONTROL_PLANE_URL` — synonyms for media-service base URL
+- `VITE_MEDIA_SERVICE_URL` / `VITE_CONTROL_PLANE_URL` — Vite-specific variants
+- `MEDIA_SERVICE_API_KEY` / `CONTROL_PLANE_API_KEY` — optional API key
+- Priority: environment variables override desktop-persisted configuration
 
 ### Desktop Client Structure
-- `media-desktop/electron/main.js` - Main process, registers IPC handlers
-- `media-desktop/electron/preload.js` - Preload script, exposes APIs to renderer
-- `media-desktop/electron/shelfdeckConnection.js` - Connection file reader (read-only)
-- `media-desktop/src/App.tsx` - Main React component
-- `media-desktop/src/mediaServiceHealth.ts` - Health check logic
-- `media-desktop/src/cpBase.ts` - Base URL resolution
+- `media-desktop/electron/main.js` — Main process, registers IPC handlers (only `emby:launchPlayer`)
+- `media-desktop/electron/preload.js` — Preload script, exposes `window.embyApi` and `window.doubanApi` (implementations use `fetch()` to service)
+- `media-desktop/electron/shelfdeckConnection.js` — Connection management (Phase 3: electron-store based, no longer reads tray-written file)
+- `media-desktop/src/App.tsx` — Main React component
+- `media-desktop/src/mediaServiceHealth.ts` — Health check logic (polls `GET /v1/health`)
+- `media-desktop/src/cpBase.ts` — Base URL resolution
 
 ### Media Service Structure
-- `media-service/src/server.js` - Entry point
-- `media-service/src/app.js` - Fastify app setup
-- `media-service/src/services/embyService.js` - Emby integration
-- `media-service/src/services/doubanService.js` - Douban integration
-- `media-service/src/services/transcodeService.js` - Transcode operations
-- `media-service/src/store.js` - State persistence
+- `media-service/src/server.js` — Entry point
+- `media-service/src/app.js` — Fastify app setup, route registration
+- `media-service/src/taskScheduler.js` — TaskScheduler (scheduling + routing to Flow Executors)
+- `media-service/src/deleteFlowExecutor.js` — DeleteFlowExecutor
+- `media-service/src/transcodeFlowExecutor.js` — TranscodeFlowExecutor
+- `media-service/src/upgradeFlowExecutor.js` — UpgradeFlowExecutor (currently stub)
+- `media-service/src/taskStore.js` — Task persistence (`data/tasks.json`)
+- `media-service/src/configStore.js` — Configuration persistence (`data/config.json`)
+- `media-service/src/mediaLibraryService.js` — Media library coordinator (subLibrary management, timers, upsert)
+- `media-service/src/mediaPolicyService.js` — Pure function: `recommendedAction(item, policy) → { action, reason }`
+- `media-service/src/doubanMatchService.js` — Douban title keyword matching (NFKC, split, longest-key-first)
+- `media-service/src/services/embyService.js` — EmbyAdapter: Emby REST API integration
+- `media-service/src/services/doubanService.js` — DoubanAdapter: Douban API integration
+- `media-service/src/services/transcodeService.js` — Transcode execution layer (FFmpeg)
 
 ### Tray Supervisor Structure
-- `media-tray-supervisor/electron/main.js` - Main process, tray icon, health monitoring
-- `media-tray-supervisor/electron/trayPanel.js` - Left-click panel window
-- `media-tray-supervisor/electron/shelfdeckConnection.js` - Connection file writer (exclusive write)
+- `media-tray-supervisor/electron/main.js` — Main process, tray icon, spawns service, health monitoring
+- `media-tray-supervisor/electron/trayPanel.js` — Left-click panel window
+- `media-tray-supervisor/electron/shelfdeckConnection.js` — Connection file writer (may be deprecated per ARCH_OVERVIEW §5)
+
+### REST API Conventions (API.md §1-§3)
+- All endpoints return JSON; `GET` has no side effects; `PATCH` is idempotent partial update
+- Error format: `{ error: { code: "ERROR_CODE", message: "..." } }`
+- HTTP status codes: 200/201 success, 400 validation, 401 auth, 404 not found, 409 conflict, 500 internal, 502 upstream unreachable
+- Optional `X-Api-Key` header authentication (except `GET /v1/health` which is always public)
+- Two endpoint domains: `/v1/*` (desktop) and `/v1/admin/*` (admin web); both share internal modules
+
+### Runtime Data Files
+- `data/tasks.json` — Task queue (TaskStore)
+- `data/config.json` — Configuration (ConfigStore)
+- `data/library.json` — Media library table (MediaLibraryService); v2 target, migrating from v1 `cache.json`
 
 ## Testing
 
@@ -170,35 +346,41 @@ npm run smoke  # Test spawn + health check
 - **Node.js version**: >=20 (see package.json engines)
 - **Target platform**: Windows (tray supervisor is Windows-specific)
 - **Desktop requires service**: Desktop client cannot function without media-service running and healthy
-- **Connection file ownership**: Only tray supervisor writes connection config; desktop reads only
-- **No long-running commands**: Never use `npm run dev` or watch mode commands in Bash tool - these block execution. Recommend user runs them manually.
+- **Tray-service lifecycle**: Tray spawns service as child process; exiting tray terminates service
+- **No long-running commands**: Never use `npm run dev` or watch mode commands in Bash tool — these block execution. Recommend user runs them manually.
 - **Runtime data**: `media-service/data/*.json` files are runtime state, not documentation. Should be in .gitignore (except examples).
 
 ## Common Workflows
 
 ### Starting Full Stack for Development
 1. Terminal A: `cd media-service && npm start`
-2. Terminal B: `cd media-tray-supervisor && npm start` (optional, for connection management)
+2. Terminal B: `cd media-tray-supervisor && npm start` (optional, spawns service + health monitoring)
 3. Terminal C: `cd media-desktop && npm run dev`
 
 ### Simulating Remote Service
-Set `MEDIA_SERVICE_URL` to a network-accessible address (e.g., NAS IP). Both tray supervisor and desktop will monitor that URL for health.
+Set `MEDIA_SERVICE_URL` to a network-accessible address (e.g., NAS IP). Desktop will connect to that URL. Tray can be configured to point to remote service with `TRAY_MEDIA_SERVICE_ROOT`.
 
 ### Adding New REST Endpoints
-1. Update `docs/v2/design/SERVICE/API.md` with new endpoint
+1. Update `docs/v2/design/SERVICE/API.md` (or `ADMIN_WEB/API.md` for admin endpoints) with the new endpoint
 2. Implement in `media-service/src/app.js` or relevant service module
-3. Update desktop client to call new endpoint
+3. Update desktop client to call new endpoint if needed
 
-### Modifying Task Center Behavior
-1. Check `docs/v2/design/SERVICE/TASK_CENTER.md` for current behavior (SSOT)
-2. Update design document first if behavior changes
-3. Implement changes in media-service task scheduling logic
-4. Update `docs/v2/design/SERVICE/API.md` if REST API changes
-5. Update desktop UI if needed
+### Modifying Task Scheduler / Flow Behavior
+1. Check `docs/v2/design/SERVICE/TASK_SCHEDULER.md` for scheduling behavior (SSOT)
+2. Check the relevant Flow document (`DELETE_FLOW.md`, `TRANSCODE_FLOW.md`, `UPGRADE_FLOW.md`)
+3. Update design document first if behavior changes
+4. Implement changes in the relevant Flow Executor or TaskScheduler
+5. Update `docs/v2/design/SERVICE/API.md` if REST API changes
+6. Update desktop UI if needed
+
+### Adding a New SubLibrary
+1. User navigates to admin web → 媒体库 → 添加子库
+2. Wizard: register Emby server → select user → select media folder → configure Douban toggle + mediaPolicy
+3. Admin API: `POST /v1/admin/sublibraries` → creates subLibrary config + starts independent refresh timer
 
 ## Language and Localization
 
 - User-facing Chinese text follows guidelines in `docs/archive/design/DESIGN_DESKTOP_UI_COPY.md`
 - Code, comments, and commit messages use English
 - Documentation uses Chinese (this is a Chinese-language project)
-- Technical terms (REST, API, OpenAPI, Flow, etc.) remain in English even in Chinese docs
+- Technical terms (REST, API, OpenAPI, Flow, SSOT, etc.) remain in English even in Chinese docs
