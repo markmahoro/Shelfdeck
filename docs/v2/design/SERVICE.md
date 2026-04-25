@@ -43,33 +43,23 @@ TaskScheduler（taskScheduler.js）
 
 #### 2.1.3 任务状态管理边界
 
-任务状态分为两个正交维度，分别由不同层管理：
+任务状态分为两个正交维度：
 
 **`status`（调度状态）— Scheduler 管理**
 
-| 值 | 含义 |
-|---|---|
-| `pending_manual` | 手动模式，等待用户触发 |
-| `queued` | 排队等待调度 |
-| `paused` | 用户暂停 |
-| `interrupted` | 异常中断 |
-| `done` | 成功结束 |
-| `failed_hard` | 失败结束 |
+- 值：pending_manual | queued | executing | paused | awaiting_user_confirm | interrupted | done | failed_hard
+- 含义由调度层定义
 
-**`phase`（Flow 阶段）— Flow Executor 管理**
+**`phase`（Flow 阶段）— 各 Flow Executor 管理**
 
-| 值 | 含义 |
-|---|---|
-| `precheck` | 预检 |
-| `executing` | 执行中 |
-| `verify` | 校验中 |
-| `awaiting_user_confirm` | 等待用户确认 |
-| `null` | 未进入 Flow（等待调度或已暂停） |
+- 值由各 Flow Executor 自行定义
+- 交互规则由各 Flow Executor 与 service.md 约定
 
 **边界规则**：
 - Scheduler 只读写 `status`，不读写 `phase`
 - Flow Executor 只读写 `phase`，不读写 `status`
 - TaskStore 持久化两者
+- 交互规则定义在各 Flow Executor 子文档中
 
 #### 2.1.4 各 Flow 执行器职责
 
