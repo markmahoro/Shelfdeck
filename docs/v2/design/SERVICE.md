@@ -22,26 +22,24 @@ service 是 Phase 3 的胖服务组件，承担所有业务逻辑执行：
 #### 2.1.1 目标架构
 
 ```
-TaskScheduler
-    │ driveTask(taskId) — 统一入口，根据 actionType 分派
-    ▼
-taskExecutor.js（调度代理层，仅做路由）
+TaskScheduler（taskScheduler.js）
+    │
+    ├── 调度决策：slot 检查、夜间暂停、executionMode
+    ├── 路由决策：根据 actionType 分派到对应 Flow
     │
     ├──→ DeleteFlowExecutor（deleteFlowExecutor.js）
-    │
     ├──→ TranscodeFlowExecutor（transcodeFlowExecutor.js）
-    │
     └──→ UpgradeFlowExecutor（upgradeFlowExecutor.js）
 ```
 
-**原则**：`taskExecutor.js` 保留为纯调度代理，**不承载任何具体 Flow 逻辑**。每个 Flow 的状态机独立为同名子模块。
+**原则**：TaskScheduler 承担调度 + 路由两层职责，直接调用 Flow Executors，不经过中间代理层。
 
-#### 2.1.2 共享层（所有 Flow 共用）
+#### 2.1.2 并发保护
 
 | 共享内容 | 文件位置 | 说明 |
 |---|---|---|
-| `recoverInterruptedTasks()` | `taskExecutor.js` | 启动时扫描中断任务，统一降级 |
-| `runningTasks` / `_driveCallIds` / `_appendLock` | `taskExecutor.js` | 调度代理并发保护，Flow 不感知 |
+| `recoverInterruptedTasks()` | `taskScheduler.js` | 启动时扫描中断任务，统一降级 |
+| `runningTasks` / `_driveCallIds` / `_appendLock` | `taskScheduler.js` | 并发保护，Flow 不感知 |
 
 #### 2.1.3 各 Flow 执行器职责
 
@@ -127,22 +125,10 @@ desktop 意图下发（POST /v1/tasks）
     │
     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ TaskScheduler（taskScheduler.js）                                  │
-│ 职责：轮询调度（5s 间隔）、并发控制、状态机推进触发                    │
-│ 接口：driveTask(taskId)                                           │
-│ 与 TaskExecutor 的协作：scheduler 每轮检查 concurrency slot，        │
-│   有空位时调用 executor.driveTask() 推进 Flow                       │
-└─────────────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ TaskExecutor（taskExecutor.js）                                    │
-│ 职责：Flow 调度代理（仅路由），无任何业务逻辑                         │
-│ 协作模式：                                                         │
-│   - 调用 DeleteFlowExecutor / TranscodeFlowExecutor /             │
-│     UpgradeFlowExecutor 执行具体 Flow                             │
-│   - 承载并发保护状态（runningTasks / _driveCallIds / _appendLock）  │
-│   - 承载 recoverInterruptedTasks()                                 │
+│ TaskScheduler（taskScheduler.js）                                   │
+│ 职责：调度（slot 检查、夜间暂停）+ 路由（actionType 分派）          │
+│ 调度间隔：5s                                                      │
+│ 直接调用 Flow Executors，不经中间代理层                            │
 └─────────────────────────────────────────────────────────────────┘
     │
     ├──→ DeleteFlowExecutor
@@ -313,14 +299,13 @@ desktop GET /v1/library/queries/manage
 
 ## §4 子模块通信矩阵
 
-| 调用方 ↓ / 被调用方 → | TaskStore | TaskScheduler | TaskExecutor | EmbyService | TranscodeService | DoubanService | ConfigStore | MediaLibraryService |
+| 调用方 ↓ / 被调用方 → | TaskStore | EmbyService | TranscodeService | DoubanService | ConfigStore | MediaLibraryService | DeleteFlowExecutor | TranscodeFlowExecutor | UpgradeFlowExecutor |
 |---|---|---|---|---|---|---|---|---|---|
-| **API 层** | createTask / getTasks | - | - | getLibraryItem | - | doubanService | loadConfig / patchConfig | getLibrary / updateRatings |
-| **TaskScheduler** | loadTasks / updateTask | - | driveTask | - | - | - | loadConfig | - |
-| **TaskExecutor（代理）** | - | - | - | - | - | - | - | - |
-| **DeleteFlowExecutor** | getTask / updateTask | - | - | getLibraryItem / deleteLibraryItem | - | - | loadConfig | - |
-| **TranscodeFlowExecutor** | getTask / updateTask | - | - | getLibraryItem | precheck / startEncode / probeSummary / replaceWithRetries | - | loadConfig | - |
-| **UpgradeFlowExecutor** | getTask / updateTask | - | - | - | - | - | - | - |
+| **API 层** | createTask / getTasks | getLibraryItem | - | doubanService | loadConfig / patchConfig | getLibrary / updateRatings | - | - | - |
+| **TaskScheduler** | loadTasks / updateTask | - | - | - | loadConfig | - | driveTask | driveTask | driveTask |
+| **DeleteFlowExecutor** | getTask / updateTask | getLibraryItem / deleteLibraryItem | - | - | loadConfig | - | - | - | - |
+| **TranscodeFlowExecutor** | getTask / updateTask | getLibraryItem | precheck / startEncode / probeSummary / replaceWithRetries | - | loadConfig | - | - | - | - |
+| **UpgradeFlowExecutor** | getTask / updateTask | - | - | - | - | - | - | - | - |
 | **MediaLibraryService** | - | - | - | - | - | - | - | - |
 | **EmbyService** | - | - | - | - | - | - | - | - |
 | **TranscodeService** | - | - | - | - | - | - | - | - |
