@@ -37,13 +37,13 @@ taskExecutor.js（调度代理层，仅做路由）
 
 #### 2.1.2 共享层（所有 Flow 共用）
 
-| 共享函数/常量 | 文件位置 | 说明 |
+| 共享内容 | 文件位置 | 说明 |
 |---|---|---|
-| `appendFlowLog(taskId, entry)` | `taskExecutor.js` | 递增 seq，写入 TaskStore |
-| `buildOrderedDeviceSlots(config, forceCpuOnly)` | `taskExecutor.js` | 构建编码设备优先级池，Transcode 专用 |
 | `recoverInterruptedTasks()` | `taskExecutor.js` | 启动时扫描中断任务，统一降级 |
-| `runningTasks` / `_driveCallIds` | `taskExecutor.js` | 并发保护 Set |
-| `PROGRESS_WRITE_INTERVAL_MS` / `PROGRESS_WRITE_THRESHOLD_PCT` | `taskExecutor.js` | 转码进度写盘节流常量 |
+| `runningTasks` / `_driveCallIds` / `_appendLock` | `taskExecutor.js` | 调度代理并发保护，Flow 不感知 |
+| flowLog | 各 Flow Executor 私有 | 每 Executor 独立 seq 计数器，不跨 Flow 排序 |
+| 编码设备优先级池构建 | TranscodeFlowExecutor 私有 | `buildOrderedDeviceSlots()` 移入 TranscodeFlowExecutor |
+| 进度写盘节流常量 | TranscodeFlowExecutor 私有 | `PROGRESS_WRITE_INTERVAL_MS` 等移入 TranscodeFlowExecutor |
 
 #### 2.1.3 各 Flow 执行器职责
 
@@ -90,16 +90,18 @@ runUpgradeFlow(task)
 
 > 未来实现 MoviePilot 集成时，UpgradeFlowExecutor 是唯一需要改动的模块。
 
-#### 2.1.4 接口约定（Flow Executor → TaskStore）
+#### 2.1.4 TaskStore 操作封装（Flow Executor → TaskStore）
 
-每个 Flow Executor **不直接操作 TaskStore**，通过统一封装：
+每个 Flow Executor 通过封装好的辅助函数操作 TaskStore：
 
 ```
 executor.setStatus(taskId, status)      → taskStore.updateTask(taskId, { status })
 executor.setProgress(taskId, pct)       → taskStore.updateTask(taskId, { progress: pct })
-executor.appendLog(taskId, entry)      → appendFlowLog(taskId, entry)
+executor.appendLog(taskId, entry)       → 本 Executor 私有 appendLog（独立 seq）
 executor.fail(taskId, code, message)   → setStatus + appendLog
 ```
+
+> flowLog 为各 Executor 私有，seq 各自独立递增，不跨 Flow 排序。
 
 这样 TaskStore 的调用方式集中管控，Flow Executor 只关注业务逻辑。
 
@@ -144,22 +146,23 @@ desktop 意图下发（POST /v1/tasks）
     ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │ TaskExecutor（taskExecutor.js）                                    │
-│ 职责：Flow 调度代理，根据 actionType 分派到对应 Executor             │
+│ 职责：Flow 调度代理（仅路由），无任何业务逻辑                         │
 │ 协作模式：                                                         │
 │   - 调用 DeleteFlowExecutor / TranscodeFlowExecutor /             │
 │     UpgradeFlowExecutor 执行具体 Flow                             │
-│   - 调用 embyService 执行 Emby API（删除、查询媒体项）              │
-│   - 调用 transcodeService 执行转码（precheck/encode/replace）      │
-│   - 调用 taskStore 更新任务状态和 flowLog                          │
+│   - 承载并发保护状态（runningTasks / _driveCallIds / _appendLock）  │
+│   - 承载 recoverInterruptedTasks()                                 │
 └─────────────────────────────────────────────────────────────────┘
     │
-    ├──→ EmbyService（services/embyService.js）
-    │    职责：封装所有 Emby REST API 调用
-    │    调用方：API 层（GET /v1/library/...）、TaskExecutor
+    ├──→ DeleteFlowExecutor
+    │    └──→ EmbyService（services/embyService.js）
     │
-    ├──→ TranscodeService（services/transcodeService.js）
-    │    职责：FFmpeg 压制、设备池管理、工作目录清理
-    │    调用方：TaskExecutor
+    ├──→ TranscodeFlowExecutor
+    │    ├──→ EmbyService（services/embyService.js）
+    │    └──→ TranscodeService（services/transcodeService.js）
+    │
+    ├──→ UpgradeFlowExecutor
+    │    └──→ （MoviePilot 集成，暂未实现）
     │
     └──→ DoubanService（services/doubanService.js）
          职责：豆瓣 session 管理、评分拉取
@@ -172,12 +175,15 @@ desktop 意图下发（POST /v1/tasks）
 |---|---|---|---|---|---|---|---|---|
 | **API 层** | createTask / getTasks | - | - | getLibraryItem | - | doubanService | loadConfig / patchConfig |
 | **TaskScheduler** | loadTasks / updateTask | - | driveTask | - | - | - | loadConfig |
-| **TaskExecutor** | getTask / updateTask | - | - | getLibraryItem / deleteLibraryItem | precheck / startEncode / probeSummary / replaceWithRetries | - | loadConfig |
+| **TaskExecutor（代理）** | - | - | - | - | - | - | - |
+| **DeleteFlowExecutor** | getTask / updateTask | - | - | getLibraryItem / deleteLibraryItem | - | - | loadConfig |
+| **TranscodeFlowExecutor** | getTask / updateTask | - | - | getLibraryItem | precheck / startEncode / probeSummary / replaceWithRetries | - | loadConfig |
+| **UpgradeFlowExecutor** | getTask / updateTask | - | - | - | - | - | - |
 | **EmbyService** | - | - | - | - | - | - | - |
 | **TranscodeService** | - | - | - | - | - | - | - |
 | **DoubanService** | - | - | - | - | - | - | - |
 
-> 注：所有子模块均通过同步函数调用通信，无消息队列或事件总线。
+> 注：所有子模块均通过同步函数调用通信，无消息队列或事件总线。Flow Executors 与 EmbyService / TranscodeService 的详细交互在 `TASK_CENTER.md` 中描述。
 
 ## §4 数据持有权
 
