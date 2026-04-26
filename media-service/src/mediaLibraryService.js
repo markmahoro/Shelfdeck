@@ -310,13 +310,7 @@ async function refreshSubLibrary(subLib) {
 
 async function syncDoubanForSubLibrary(subLib) {
   try {
-    const doubanCfg = configStore.loadConfig().douban || {};
-    if (!doubanCfg.userId) {
-      console.log('[mediaLibrary] skip douban sync: no userId for', subLib.uuid);
-      return;
-    }
-
-    // Fetch douban ratings
+    // Fetch douban ratings — credentials come from douban-session.json
     const session = doubanService.getSession();
     if (!session.userId) return;
 
