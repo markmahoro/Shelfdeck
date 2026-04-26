@@ -11,70 +11,76 @@ function resolveDataDir() {
   );
 }
 
-function DATA_DIR() {
-  return resolveDataDir();
-}
-
-function CONFIG_FILE() {
-  return path.join(DATA_DIR(), 'config.json');
+function configFilePath() {
+  return path.join(resolveDataDir(), 'config.json');
 }
 
 function ensureDataDir() {
-  const dir = DATA_DIR();
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+  const dir = resolveDataDir();
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
 function getDefaultConfig() {
   return {
-    embyClient: { baseUrl: '', apiKey: '', userId: '', embyUserPassword: '' },
-    embyProfiles: {},
-    baseUrl: '',
-    apiKey: '',
-    userId: '',
-    embyUserPassword: '',
-    enabledSectionIds: [],
-    playerExePath: '',
-    argsTemplate: '',
-    pathMapFrom: '',
-    pathMapTo: '',
-    markPlayedThresholdPercent: 90,
-    fallbackMinSeconds: 0,
-    executionMode: 'manual',
+    // TaskScheduler
+    executionMode: 'auto',
     deleteConcurrency: 1,
     transcodeConcurrency: 1,
     upgradeConcurrency: 1,
     wallRatingAutoEnqueue: false,
+
+    // Transcode
     transcodeTempRoot: '',
     transcodeReplaceConfirmRequired: false,
-    transcodeEncodePool: { entries: [], cpuParticipation: 'normal' },
+    ffmpegPath: 'ffmpeg',
+    ffprobePath: 'ffprobe',
+    transcodeEncodingDevices: [],
+    transcodeMaxCpuSlots: 1,
     transcodeCpuParticipationStrategy: 'normal',
-    upgradeRetryInterval: 3600,
-    upgradeMaxRetries: 5,
-    ffmpegPath: '',
-    ffprobePath: '',
-    mediaPolicy: {
-      target1080p: { 2: 2, 3: 4, 4: 7, 5: 12 },
-      target4k: { 2: 5, 3: 10, 4: 16, 5: 25 },
+
+    // Upgrade (MoviePilot)
+    moviepilot: {
+      baseUrl: '',
+      apiKey: '',
+      savePath: '',
+      stagingPath: '',
     },
-    serviceApiKey: '',
-    adminPin: '',
+    upgradeStagingLocalPath: '',
+    upgradeRetryInterval: 3600000,
+    upgradeMaxRetries: 3,
+
+    // Emby multi-server
+    embyServers: {},
+
+    // SubLibraries
+    subLibraries: [],
+
+    // Douban
+    douban: {
+      userId: '',
+      cookieHeader: '',
+    },
+
+    // MediaPolicy (global, deprecated — use subLibrary-level)
+    mediaPolicy: {
+      target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
+      target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
+    },
+
+    // Service auth
+    apiKey: '',
   };
 }
 
 function loadConfig() {
   ensureDataDir();
-  const cfgFile = CONFIG_FILE();
-  if (!fs.existsSync(cfgFile)) {
-    return getDefaultConfig();
-  }
+  const cfgFile = configFilePath();
+  if (!fs.existsSync(cfgFile)) return getDefaultConfig();
   try {
     const raw = fs.readFileSync(cfgFile, 'utf8');
-    const loaded = JSON.parse(raw);
-    return { ...getDefaultConfig(), ...loaded };
+    return { ...getDefaultConfig(), ...JSON.parse(raw) };
   } catch (err) {
-    console.error('Failed to load config:', err.message);
+    console.error('[configStore] failed to load config:', err.message);
     return getDefaultConfig();
   }
 }
@@ -82,7 +88,7 @@ function loadConfig() {
 function saveConfig(config) {
   ensureDataDir();
   const merged = { ...getDefaultConfig(), ...config };
-  fs.writeFileSync(CONFIG_FILE(), JSON.stringify(merged, null, 2), 'utf8');
+  fs.writeFileSync(configFilePath(), JSON.stringify(merged, null, 2), 'utf8');
   return merged;
 }
 
@@ -92,9 +98,4 @@ function patchConfig(updates) {
   return saveConfig(merged);
 }
 
-module.exports = {
-  loadConfig,
-  saveConfig,
-  patchConfig,
-  getDefaultConfig,
-};
+module.exports = { loadConfig, saveConfig, patchConfig, getDefaultConfig };

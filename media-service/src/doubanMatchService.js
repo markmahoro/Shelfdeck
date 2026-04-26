@@ -1,7 +1,10 @@
 'use strict';
 
 /**
- * 豆瓣与 Emby 标题匹配工具（从 media-desktop/src/doubanUtils.ts 端口）。
+ * Douban title keyword matching.
+ * Core algorithm: NFKC normalize → split on /:：｜| → longest-key-first lookup.
+ *
+ * Ported from media-desktop/src/doubanUtils.ts.
  */
 
 const EMBY_SUBTITLE_SPLIT = /[：:｜|]/;

@@ -1,33 +1,103 @@
 'use strict';
 
+/**
+ * TaskScheduler (TASK_SCHEDULER.md).
+ *
+ * Scheduler ↔ Flow Executor bidirectional API:
+ *   Scheduler → Flow:  flow.driveTask(taskId), flow.pause(taskId), flow.cancel(taskId)
+ *   Flow → Scheduler:  scheduler.pauseForConfirm(taskId, resumePoint), scheduler.reportStatus(taskId, status, progress?)
+ *   Confirm API → Flow: flow.confirmReceived(taskId)
+ *
+ * status (Scheduler-managed) vs phase (Flow-managed):
+ *   Scheduler reads/writes status only; Flow reads/writes phase only.
+ */
+
 const taskStore = require('./taskStore');
 const configStore = require('./configStore');
-const taskExecutor = require('./taskExecutor');
+const deleteFlow = require('./deleteFlowExecutor');
+const transcodeFlow = require('./transcodeFlowExecutor');
+const upgradeFlow = require('./upgradeFlowExecutor');
+const healthCheck = require('./healthCheck');
 
 let schedulerInterval = null;
 let schedulerRunning = false;
 let schedulerBusy = false;
 
-function startScheduler() {
-  if (schedulerRunning) {
-    console.log('Scheduler already running');
-    return;
+// Concurrency protection
+const runningTasks = new Set(); // taskId Set — prevents re-entry within same polling round
+
+function getFlow(actionType) {
+  switch (actionType) {
+    case 'delete': return deleteFlow;
+    case 'transcode': return transcodeFlow;
+    case 'upgrade': return upgradeFlow;
+    default: return null;
   }
+}
 
+function getConcurrencyLimit(actionType, limits) {
+  switch (actionType) {
+    case 'delete': return limits.deleteConcurrency || 1;
+    case 'transcode': return limits.transcodeConcurrency || 1;
+    case 'upgrade': return limits.upgradeConcurrency || 1;
+    default: return 1;
+  }
+}
+
+// ── Exposed to Flow Executors ───────────────────────────────────────────────
+
+function pauseForConfirm(taskId, resumePoint) {
+  taskStore.updateTask(taskId, { status: 'awaiting_user_confirm', resumePoint });
+  runningTasks.delete(taskId);
+}
+
+function reportStatus(taskId, status, progress) {
+  const updates = { status };
+  if (typeof progress === 'number') updates.progress = progress;
+  taskStore.updateTask(taskId, updates);
+  if (status === 'done' || status === 'failed_hard' || status === 'interrupted') {
+    runningTasks.delete(taskId);
+  }
+}
+
+// ── Scheduling ──────────────────────────────────────────────────────────────
+
+function recoverInterruptedTasks() {
+  const tasks = taskStore.loadTasks();
+  const interruptible = ['precheck', 'executing', 'verify', 'transcode_executing', 'transcode_replace'];
+  for (const t of tasks) {
+    if (interruptible.includes(t.status) || interruptible.includes(t.phase)) {
+      taskStore.updateTask(t.id, { status: 'interrupted' });
+      console.log('[scheduler] recovered interrupted task', t.id);
+    }
+  }
+}
+
+function isActiveStatus(status) {
+  return ['executing', 'queued'].includes(status);
+}
+
+function startScheduler() {
+  if (schedulerRunning) return;
   schedulerRunning = true;
-  console.log('Task scheduler started');
+  console.log('[scheduler] started (interval 5s)');
 
-  // 启动恢复：中断任务降级
-  taskExecutor.recoverInterruptedTasks();
+  recoverInterruptedTasks();
 
-  // Run scheduler every 5 seconds
+  // Inject scheduler into Flow Executors
+  deleteFlow.setScheduler({ pauseForConfirm, reportStatus });
+  transcodeFlow.setScheduler({ pauseForConfirm, reportStatus });
+  upgradeFlow.setScheduler({ pauseForConfirm, reportStatus });
+
+  healthCheck.setSchedulerState({ running: true, runningTasks: 0 });
+
   schedulerInterval = setInterval(async () => {
     if (schedulerBusy) return;
     schedulerBusy = true;
     try {
-      await scheduleTasks();
+      await scheduleRound();
     } catch (err) {
-      console.error('Scheduler error:', err);
+      console.error('[scheduler] error:', err);
     } finally {
       schedulerBusy = false;
     }
@@ -35,79 +105,71 @@ function startScheduler() {
 }
 
 function stopScheduler() {
-  if (schedulerInterval) {
-    clearInterval(schedulerInterval);
-    schedulerInterval = null;
-  }
+  if (schedulerInterval) { clearInterval(schedulerInterval); schedulerInterval = null; }
   schedulerRunning = false;
-  console.log('Task scheduler stopped');
+  healthCheck.setSchedulerState({ running: false, runningTasks: 0 });
+  console.log('[scheduler] stopped');
 }
 
-async function scheduleTasks() {
+async function scheduleRound() {
   const config = configStore.loadConfig();
-  const { executionMode, deleteConcurrency, transcodeConcurrency, upgradeConcurrency } = config;
-
   const tasks = taskStore.loadTasks();
 
-  // Count currently running tasks by type (only truly occupying a slot)
-  const running = {
-    delete: tasks.filter(t => t.actionType === 'delete' && isOccupyingSlot(t.status)).length,
-    transcode: tasks.filter(t => t.actionType === 'transcode' && isOccupyingSlot(t.status)).length,
-    upgrade: tasks.filter(t => t.actionType === 'upgrade' && isOccupyingSlot(t.status)).length,
-  };
+  // Count active tasks per actionType (occupying slots)
+  const activeCount = { delete: 0, transcode: 0, upgrade: 0 };
+  const usedItemIds = new Set();
+
+  for (const t of tasks) {
+    if (isActiveStatus(t.status)) {
+      activeCount[t.actionType] = (activeCount[t.actionType] || 0) + 1;
+      usedItemIds.add(t.itemId);
+    }
+  }
+
+  healthCheck.setSchedulerState({ running: true, runningTasks: Object.values(activeCount).reduce((a, b) => a + b, 0) });
 
   for (const task of tasks) {
-    // Skip if already done or failed
+    // Skip terminal states
     if (task.status === 'done' || task.status === 'failed_hard' || task.status === 'interrupted') continue;
-
-    // Skip if already occupying a slot (already in Flow — will be driven by executor)
-    if (isOccupyingSlot(task.status)) continue;
-
-    // Skip if paused
+    // Skip already-running (prevent re-entry)
+    if (runningTasks.has(task.id)) continue;
+    // Skip paused
     if (task.status === 'paused') continue;
+    // Skip awaiting confirm
+    if (task.status === 'awaiting_user_confirm') continue;
 
-    // In manual mode, only schedule tasks that are explicitly queued
-    if (executionMode === 'manual' && task.status === 'pending_manual') continue;
+    // executionMode check
+    if (config.executionMode === 'manual' && task.status === 'pending_manual') continue;
 
-    // Check concurrency limits
-    const limit = getConcurrencyLimit(task.actionType, { deleteConcurrency, transcodeConcurrency, upgradeConcurrency });
-    if (running[task.actionType] >= limit) continue;
+    // itemId lock: only one flow per itemId
+    if (usedItemIds.has(task.itemId) && task.status !== 'executing') continue;
 
-    // Move task to queued state
-    if (task.status === 'pending_manual' || task.status === 'created') {
+    // actionType slot check
+    const limit = getConcurrencyLimit(task.actionType, config);
+    if (activeCount[task.actionType] >= limit && task.status !== 'executing') continue;
+
+    // Transition created/pending_manual → queued
+    if (task.status === 'created' || task.status === 'pending_manual') {
       taskStore.updateTask(task.id, { status: 'queued' });
-      console.log(`Task ${task.id} (${task.actionType}) moved to queued`);
-      running[task.actionType]++;
     }
 
-    // If task is queued, drive its Flow
     if (task.status === 'queued') {
-      try {
-        await taskExecutor.driveTask(task.id);
-      } catch (err) {
-        console.error(`driveTask error for ${task.id}:`, err);
-      }
+      const flow = getFlow(task.actionType);
+      if (!flow) continue;
+
+      runningTasks.add(task.id);
+      activeCount[task.actionType]++;
+      usedItemIds.add(task.itemId);
+
+      // Fire-and-forget: Flow calls reportStatus when done
+      flow.driveTask(task.id).catch((err) => {
+        console.error(`[scheduler] driveTask error for ${task.id}:`, err);
+        reportStatus(task.id, 'failed_hard');
+      });
     }
   }
 }
 
-function isOccupyingSlot(status) {
-  return ['precheck', 'executing', 'verify'].includes(status);
-}
-
-function getConcurrencyLimit(actionType, limits) {
-  switch (actionType) {
-    case 'delete': return limits.deleteConcurrency;
-    case 'transcode': return limits.transcodeConcurrency;
-    case 'upgrade': return limits.upgradeConcurrency;
-    default: return 1;
-  }
-}
-
-/**
- * Returns true if the scheduler is currently running.
- * @returns {boolean}
- */
 function isRunning() {
   return schedulerRunning;
 }
@@ -115,6 +177,9 @@ function isRunning() {
 module.exports = {
   startScheduler,
   stopScheduler,
-  scheduleTasks,
+  pauseForConfirm,
+  reportStatus,
   isRunning,
+  scheduleRound,
+  recoverInterruptedTasks,
 };

@@ -1,42 +1,31 @@
 import { NavLink } from 'react-router-dom';
+import styles from './Sidebar.module.css';
 
 const NAV = [
-  { to: '/admin/dashboard', label: '仪表盘', icon: '📊' },
-  { to: '/admin/config', label: '配置管理', icon: '⚙️' },
-  { to: '/admin/tasks', label: '任务中心', icon: '📋' },
-  { to: '/admin/douban', label: '豆瓣集成', icon: '🍊' },
-  { to: '/admin/paths', label: '路径映射', icon: '📁' },
+  { to: '/', label: '仪表盘' },
+  { to: '/media-libraries', label: '媒体库' },
+  { to: '/transcode', label: '转码设置' },
+  { to: '/tasks', label: '任务监控' },
 ];
 
 export default function Sidebar() {
   return (
-    <aside className="sidebar">
-      <div className="sidebar-logo">🖥️ ShelfDeck</div>
-      <nav className="sidebar-nav">
-        {NAV.map(({ to, label, icon }) => (
+    <aside className={styles.sidebar}>
+      <div className={styles.logo}>ShelfDeck</div>
+      <nav className={styles.nav}>
+        {NAV.map(({ to, label }) => (
           <NavLink
             key={to}
             to={to}
+            end={to === '/'}
             className={({ isActive }) =>
-              `sidebar-nav-item${isActive ? ' active' : ''}`
+              `${styles.navItem}${isActive ? ` ${styles.active}` : ''}`
             }
           >
-            <span className="sidebar-nav-icon">{icon}</span>
             {label}
           </NavLink>
         ))}
       </nav>
-      <div className="sidebar-footer">
-        <button
-          className="logout-btn"
-          onClick={() => {
-            sessionStorage.removeItem('admin_session');
-            window.location.href = '/admin/login';
-          }}
-        >
-          退出登录
-        </button>
-      </div>
     </aside>
   );
 }

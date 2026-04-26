@@ -1,151 +1,150 @@
-// ── Config ────────────────────────────────────────────────────────────────────
+// ── Emby ──────────────────────────────────────────────────────────────────────
 
-export interface EmbyClientConfig {
+export interface EmbyServer {
+  uuid: string;
+  serverName: string;
   baseUrl: string;
   apiKey: string;
   userId: string;
-  embyUserPassword?: string;
+  embyUserPassword: string;
 }
+
+export interface EmbyUser {
+  id: string;
+  name: string;
+}
+
+export interface MediaFolder {
+  id: string;
+  name: string;
+}
+
+export interface EmbyTestResult {
+  ok: boolean;
+  message?: string;
+  serverInfo?: { serverName: string; version: string };
+  embyServerId?: string;
+}
+
+// ── SubLibrary ────────────────────────────────────────────────────────────────
 
 export interface MediaPolicy {
   target1080p: Record<string, number>;
   target4k: Record<string, number>;
 }
 
-export interface EncodePoolEntry {
+export interface SubLibrary {
+  uuid: string;
+  name: string;
+  embyServerId: string;
+  sectionId: string;
+  source: string;
+  doubanEnabled: boolean;
+  enabled: boolean;
+  lastRefreshedAt: string | null;
+  doubanSyncedAt: string | null;
+  mediaPolicy: MediaPolicy;
+}
+
+// ── Transcode ─────────────────────────────────────────────────────────────────
+
+export interface TranscodeConfig {
+  transcodeTempRoot: string;
+  transcodeReplaceConfirmRequired: boolean;
+  ffmpegPath: string;
+  ffprobePath: string;
+  transcodeMaxCpuSlots: number;
+  transcodeCpuParticipationStrategy: 'normal' | 'backup_only';
+}
+
+export interface EncodeDevice {
+  stableKey: string;
+  label: string;
+  backend: string;
+  gpuIndex: number;
+}
+
+export interface DevicePoolEntry {
   stableKey: string;
   inPool: boolean;
   priority: number;
   maxSlots: number;
+  encoder: string;
+  status: 'idle' | 'busy' | 'error';
+  activeSlots: number;
 }
 
-export interface EncodePool {
-  entries: EncodePoolEntry[];
-  cpuParticipation?: 'normal' | 'backup-only';
-}
-
-export interface ServiceConfig {
-  baseUrl?: string;
-  apiKey?: string;
-  userId?: string;
-  embyUserPassword?: string;
-  embyClient?: EmbyClientConfig;
-  embyProfiles?: Record<string, EmbyClientConfig>;
-  enabledSectionIds?: string[];
-  executionMode?: 'manual' | 'scheduled';
-  deleteConcurrency?: number;
-  transcodeConcurrency?: number;
-  upgradeConcurrency?: number;
-  transcodeTempRoot?: string;
-  transcodeReplaceConfirmRequired?: boolean;
-  transcodeEncodePool?: EncodePool;
-  transcodeCpuParticipationStrategy?: 'normal' | 'backup-only';
-  ffmpegPath?: string;
-  ffprobePath?: string;
-  mediaPolicy?: MediaPolicy;
-  wallRatingAutoEnqueue?: boolean;
-  markPlayedThresholdPercent?: number;
-  fallbackMinSeconds?: number;
-  upgradeRetryInterval?: number;
-  upgradeMaxRetries?: number;
-  serviceApiKey?: string;
-  adminPin?: string;
-  pathMapFrom?: string;
-  pathMapTo?: string;
-}
-
-// ── Auth ─────────────────────────────────────────────────────────────────────
-
-export interface AuthStatus {
-  needSetup: boolean;
-  needLogin: boolean;
-  pinSet: boolean;
-}
-
-export interface PinVerifyResponse {
-  ok: boolean;
-  session?: string;
-  message?: string;
+export interface DevicePool {
+  devices: DevicePoolEntry[];
+  summary: {
+    totalDevices: number;
+    idleDevices: number;
+    totalAvailableSlots: number;
+    usedSlots: number;
+  };
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
 export type TaskStatus =
-  | 'pending_manual' | 'created' | 'queued'
-  | 'precheck' | 'executing' | 'verify'
-  | 'awaiting_user_confirm' | 'paused'
+  | 'created' | 'pending_manual' | 'queued' | 'executing'
+  | 'awaiting_user_confirm' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
 export type ActionType = 'delete' | 'transcode' | 'upgrade';
 
-export interface FlowLogEntry {
+export interface TaskLogEntry {
   seq?: number;
   ts: string;
   level: 'info' | 'warn' | 'error';
-  code: string;
-  message: string;
-  callId?: string;
+  msg: string;
+}
+
+export interface TaskItemInfo {
+  name?: string;
+  path?: string;
+  resolution?: string;
+  bitrate?: number;
 }
 
 export interface MediaTask {
   id: string;
   itemId: string;
-  itemName?: string;
   actionType: ActionType;
   status: TaskStatus;
-  progress?: number;
-  flowLog?: FlowLogEntry[];
-  resumePoint?: string;
-  confirmedAt?: string;
-  transcodeDvAcknowledged?: boolean;
-  transcodeReplaceAcknowledged?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
+  progress: number;
+  phase: string;
+  resumePoint: string | null;
+  createdAt: string;
+  updatedAt: string;
+  logs?: TaskLogEntry[];
+  itemInfo?: TaskItemInfo;
 }
 
-// ── Health ───────────────────────────────────────────────────────────────────
+export interface TaskListResponse {
+  tasks: MediaTask[];
+  summary: {
+    total: number;
+    byStatus: Record<string, number>;
+  };
+}
 
-export interface HealthCheckResult {
-  service: 'ok' | 'error';
-  config: 'ok' | 'error';
-  emby: 'ok' | 'error';
-  scheduler: 'ok' | 'error';
+// ── Health ────────────────────────────────────────────────────────────────────
+
+export interface HealthCheckItem {
+  status: 'green' | 'yellow' | 'red';
+  message?: string;
+  uptime?: number;
+  runningTasks?: number;
 }
 
 export interface HealthStatus {
-  status: 'ok';
-  version: string;
-  healthy: 'green' | 'yellow' | 'red';
-  checks: HealthCheckResult;
-}
-
-// ── Emby ─────────────────────────────────────────────────────────────────────
-
-export interface EmbyItem {
-  Id: string;
-  Name: string;
-  Type: string;
-  Path?: string;
-  MediaSources?: Array<{ Path?: string; Size?: number }>;
-}
-
-export interface EmbyUser {
-  Name: string;
-  Id: string;
-}
-
-export interface MediaFolder {
-  Name: string;
-  Id: string;
-}
-
-// ── Douban ───────────────────────────────────────────────────────────────────
-
-export interface DoubanSession {
-  cookie?: string;
-  userId?: string;
-}
-
-export interface DoubanRatingsCache {
-  [itemId: string]: { rating: number; updatedAt: string };
+  status: 'green' | 'yellow' | 'red';
+  checks: {
+    service: HealthCheckItem;
+    config: HealthCheckItem;
+    emby: HealthCheckItem;
+    scheduler: HealthCheckItem;
+  };
+  timestamp: string;
 }

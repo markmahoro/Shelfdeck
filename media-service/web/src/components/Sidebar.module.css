@@ -8,22 +8,20 @@
   flex-shrink: 0;
 }
 
-.sidebar-logo {
-  font-size: 15px;
+.logo {
+  font-size: 16px;
   font-weight: 700;
   padding: 20px 16px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.sidebar-nav {
+.nav {
   flex: 1;
   padding: 12px 0;
 }
 
-.sidebar-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.navItem {
+  display: block;
   padding: 10px 16px;
   color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
@@ -31,38 +29,12 @@
   transition: background 0.15s, color 0.15s;
 }
 
-.sidebar-nav-item:hover {
+.navItem:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
 }
 
-.sidebar-nav-item.active {
+.active {
   background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-}
-
-.sidebar-nav-icon {
-  font-size: 16px;
-}
-
-.sidebar-footer {
-  padding: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.logout-btn {
-  width: 100%;
-  background: none;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.6);
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: border-color 0.15s, color 0.15s;
-}
-
-.logout-btn:hover {
-  border-color: rgba(255, 255, 255, 0.4);
   color: #fff;
 }

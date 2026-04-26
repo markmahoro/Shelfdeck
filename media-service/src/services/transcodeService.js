@@ -1,10 +1,23 @@
 'use strict';
 
+/**
+ * TranscodeService — execution layer for FFmpeg encoding.
+ * v2: Clean interface for TranscodeFlowExecutor (TRANSCODE.md §3).
+ *
+ * Core interface:
+ *   precheck(config, sourcePath) → { ok, needsDvConfirm?, ... }
+ *   startEncode(onProgress, params) → { ok, ... }
+ *   probeSummary(config, filePath) → { durationSec, videoCodec, width, height }
+ *   replaceWithRetries(params) → { preReplaceHash, resultSizeBytes }
+ *
+ * Encode jobs are tracked in memory (encodeJobs Map), lost on process exit.
+ * Restarted tasks recovered by TaskScheduler.recoverInterruptedTasks().
+ */
+
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
-const embyService = require('./embyService');
 
 function log(...args) {
   console.log('[transcode]', new Date().toISOString(), ...args);
@@ -13,40 +26,28 @@ function log(...args) {
 /** @type {Map<string, import('child_process').ChildProcess>} */
 const encodeJobs = new Map();
 
-/** §5.1.1 每设备子槽 Gate（stableKey → 占用计数） */
-/** @type {Map<string, { inUse: number; waiters: Array<() => void> }>} */
+// ── Device pool ─────────────────────────────────────────────────────────────
+
+/** @type {Map<string, { inUse: number, waiters: Array<() => void> }>} */
 const encodeDevicePools = new Map();
 /** @type {Array<() => void>} */
 const globalDeviceWaiters = [];
 
 function getOrCreateDevicePool(deviceId) {
   let p = encodeDevicePools.get(deviceId);
-  if (!p) {
-    p = { inUse: 0, waiters: [] };
-    encodeDevicePools.set(deviceId, p);
-  }
+  if (!p) { p = { inUse: 0, waiters: [] }; encodeDevicePools.set(deviceId, p); }
   return p;
 }
 
 function notifyGlobalDeviceWaiters() {
   const q = globalDeviceWaiters.splice(0, globalDeviceWaiters.length);
-  for (const fn of q) {
-    try {
-      fn();
-    } catch (e) {
-      log('global device waiter error', e);
-    }
-  }
+  for (const fn of q) { try { fn(); } catch (e) { log('global waiter err', e); } }
 }
 
 function tryTakeDeviceSlot(deviceId, maxSlots) {
   const p = getOrCreateDevicePool(deviceId);
   const cap = Math.max(1, maxSlots | 0);
-  if (p.inUse < cap) {
-    p.inUse += 1;
-    log('device slot acquired', deviceId, p.inUse, '/', cap);
-    return true;
-  }
+  if (p.inUse < cap) { p.inUse += 1; return true; }
   return false;
 }
 
@@ -54,16 +55,11 @@ function releaseEncodeDeviceSlot(deviceId) {
   const p = encodeDevicePools.get(deviceId);
   if (!p) return;
   p.inUse = Math.max(0, p.inUse - 1);
-  log('device slot released', deviceId, p.inUse);
   const next = p.waiters.shift();
   if (next) next();
   else notifyGlobalDeviceWaiters();
 }
 
-/**
- * §5.1.2：按优先级依次尝试非阻塞占槽；全部满则挂起，任一设备释槽后重试。
- * @param {Array<{ deviceId: string; maxSlots: number }>} orderedDeviceSlots
- */
 async function acquireFirstAvailableAmong(orderedDeviceSlots) {
   const list = Array.isArray(orderedDeviceSlots) ? orderedDeviceSlots : [];
   for (;;) {
@@ -80,66 +76,40 @@ async function acquireFirstAvailableAmong(orderedDeviceSlots) {
 function parseStableKey(stableKey) {
   const s = String(stableKey || '');
   if (s.startsWith('cpu:')) return { backend: 'cpu', gpuIndex: -1 };
-  if (s.startsWith('nvenc:')) {
-    const n = Number(s.slice(7));
-    return { backend: 'nvenc', gpuIndex: Number.isFinite(n) ? n : 0 };
-  }
-  if (s.startsWith('qsv:')) {
-    const n = Number(s.slice(4));
-    return { backend: 'qsv', gpuIndex: Number.isFinite(n) ? n : 0 };
-  }
-  if (s.startsWith('amf:')) {
-    const n = Number(s.slice(4));
-    return { backend: 'amf', gpuIndex: Number.isFinite(n) ? n : 0 };
-  }
-  throw new Error(`未知编码设备键：${stableKey}`);
+  if (s.startsWith('nvenc:')) { const n = Number(s.slice(7)); return { backend: 'nvenc', gpuIndex: Number.isFinite(n) ? n : 0 }; }
+  if (s.startsWith('qsv:')) { const n = Number(s.slice(4)); return { backend: 'qsv', gpuIndex: Number.isFinite(n) ? n : 0 }; }
+  if (s.startsWith('amf:')) { const n = Number(s.slice(4)); return { backend: 'amf', gpuIndex: Number.isFinite(n) ? n : 0 }; }
+  throw new Error(`Unknown encode device key: ${stableKey}`);
 }
 
-/** Electron 打包后可执行文件在 app.asar.unpacked，路径需修正（与 @ffprobe-installer 文档一致） */
+// ── Tool resolution ─────────────────────────────────────────────────────────
+
 function fixAsarUnpackedPath(binPath) {
   if (!binPath || typeof binPath !== 'string') return binPath;
   return binPath.replace(/app\.asar([\\/])/g, 'app.asar.unpacked$1');
 }
 
-/** @type {string | null | undefined} */
 let cachedBundledFfmpeg;
-/** @type {string | null | undefined} */
 let cachedBundledFfprobe;
 
 function getBundledFfmpegPath() {
   if (cachedBundledFfmpeg !== undefined) return cachedBundledFfmpeg;
   try {
     const mod = require('ffmpeg-static');
-    const raw = typeof mod === 'string' ? mod : null;
-    const p = raw ? fixAsarUnpackedPath(raw) : null;
-    if (p && fs.existsSync(p)) {
-      cachedBundledFfmpeg = p;
-      log('using bundled ffmpeg', p);
-      return p;
-    }
-  } catch (e) {
-    log('bundled ffmpeg unavailable', e?.message || e);
-  }
-  cachedBundledFfmpeg = null;
-  return null;
+    const p = fixAsarUnpackedPath(typeof mod === 'string' ? mod : null);
+    if (p && fs.existsSync(p)) { cachedBundledFfmpeg = p; return p; }
+  } catch (_) {}
+  cachedBundledFfmpeg = null; return null;
 }
 
 function getBundledFfprobePath() {
   if (cachedBundledFfprobe !== undefined) return cachedBundledFfprobe;
   try {
     const mod = require('@ffprobe-installer/ffprobe');
-    const raw = mod && typeof mod.path === 'string' ? mod.path : null;
-    const p = raw ? fixAsarUnpackedPath(raw) : null;
-    if (p && fs.existsSync(p)) {
-      cachedBundledFfprobe = p;
-      log('using bundled ffprobe', p);
-      return p;
-    }
-  } catch (e) {
-    log('bundled ffprobe unavailable', e?.message || e);
-  }
-  cachedBundledFfprobe = null;
-  return null;
+    const p = fixAsarUnpackedPath(mod && typeof mod.path === 'string' ? mod.path : null);
+    if (p && fs.existsSync(p)) { cachedBundledFfprobe = p; return p; }
+  } catch (_) {}
+  cachedBundledFfprobe = null; return null;
 }
 
 function resolveFfmpegBin(config) {
@@ -148,8 +118,7 @@ function resolveFfmpegBin(config) {
   const env = String(process.env.FFMPEG_PATH || '').trim();
   if (env && fs.existsSync(env)) return env;
   const bundled = getBundledFfmpegPath();
-  if (bundled) return bundled;
-  return 'ffmpeg';
+  return bundled || 'ffmpeg';
 }
 
 function resolveFfprobeBin(config) {
@@ -158,21 +127,17 @@ function resolveFfprobeBin(config) {
   const env = String(process.env.FFPROBE_PATH || '').trim();
   if (env && fs.existsSync(env)) return env;
   const bundled = getBundledFfprobePath();
-  if (bundled) return bundled;
-  return 'ffprobe';
+  return bundled || 'ffprobe';
 }
+
+// ── Command helpers ─────────────────────────────────────────────────────────
 
 function runCmd(bin, args, opts = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { windowsHide: true, ...opts });
-    let out = '';
-    let err = '';
-    child.stdout.on('data', (d) => {
-      out += d.toString();
-    });
-    child.stderr.on('data', (d) => {
-      err += d.toString();
-    });
+    let out = ''; let err = '';
+    child.stdout.on('data', (d) => { out += d.toString(); });
+    child.stderr.on('data', (d) => { err += d.toString(); });
     child.on('error', reject);
     child.on('close', (code) => resolve({ code: code ?? 0, out, err }));
   });
@@ -181,19 +146,16 @@ function runCmd(bin, args, opts = {}) {
 async function ffprobeJson(config, filePath) {
   const probe = resolveFfprobeBin(config);
   const r = await runCmd(probe, ['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', filePath]);
-  if (r.code !== 0) throw new Error(`ffprobe 失败 (${r.code}): ${(r.err || r.out).slice(0, 400)}`);
+  if (r.code !== 0) throw new Error(`ffprobe failed (${r.code}): ${(r.err || r.out).slice(0, 400)}`);
   return JSON.parse(r.out);
 }
 
 function detectDolbyVision(j) {
-  const streams = j.streams || [];
-  for (const s of streams) {
+  for (const s of j.streams || []) {
     const tag = String(s.codec_tag_string || '').toLowerCase();
     if (tag.includes('dvh') || tag.includes('dvhe')) return true;
-    const side = s.side_data_list || [];
-    for (const sd of side) {
-      const t = String(sd.side_data_type || '');
-      if (/dovi|dolby.?vision/i.test(t)) return true;
+    for (const sd of s.side_data_list || []) {
+      if (/dovi|dolby.?vision/i.test(String(sd.side_data_type || ''))) return true;
     }
   }
   return false;
@@ -202,31 +164,34 @@ function detectDolbyVision(j) {
 async function hasLibplaceboFilter(config) {
   const ff = resolveFfmpegBin(config);
   const r = await runCmd(ff, ['-hide_banner', '-filters']);
-  if (r.code !== 0) return false;
-  return /libplacebo/i.test(r.out + r.err);
+  return r.code === 0 && /libplacebo/i.test(r.out + r.err);
 }
 
 function sanitizeTaskId(id) {
   return String(id || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
 }
 
-/** FFmpeg 从输出后缀推断 muxer；`foo.mkv.etp.partial` 会报 Invalid argument，故用 `foo.etp.partial.mkv` */
 function partialEncodeTempFilename(sourcePath) {
   const base = path.basename(sourcePath);
   const ext = path.extname(base);
   if (!ext) return `${base}.etp.partial`;
-  const stem = base.slice(0, -ext.length);
-  return `${stem}.etp.partial${ext}`;
+  return `${base.slice(0, -ext.length)}.etp.partial${ext}`;
 }
 
 function fileHashSha256(fp) {
   return new Promise((resolve, reject) => {
     const h = crypto.createHash('sha256');
-    const rs = fs.createReadStream(fp);
-    rs.on('error', reject);
-    rs.on('data', (d) => h.update(d));
-    rs.on('end', () => resolve(h.digest('hex')));
+    fs.createReadStream(fp).on('error', reject).on('data', (d) => h.update(d)).on('end', () => resolve(h.digest('hex')));
   });
+}
+
+// ── Encode args ─────────────────────────────────────────────────────────────
+
+const ENCODER_SELFTEST_LAVFI = 'color=c=black:s=256x256:r=1';
+
+async function encoderSelfTest(ff, encArgs, env) {
+  const r = await runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', ENCODER_SELFTEST_LAVFI, '-frames:v', '1', ...encArgs, '-f', 'null', '-'], { env: env || process.env });
+  return r.code === 0;
 }
 
 function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolbyVision, dvAcknowledged }) {
@@ -237,17 +202,10 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
     enc = 'cpu';
     args.push('-vf', 'libplacebo=tonemapping=bt.2390,format=yuv420p10le');
   }
-
-  if (enc === 'nvenc') {
-    args.push('-c:v', 'hevc_nvenc', '-rc', 'vbr', '-cq', '24', '-preset', 'p5');
-  } else if (enc === 'qsv') {
-    args.push('-c:v', 'hevc_qsv', '-global_quality', '24');
-  } else if (enc === 'amf') {
-    args.push('-c:v', 'hevc_amf', '-quality', 'balanced', '-rc', 'cqp', '-qp_i', '24', '-qp_p', '24');
-  } else {
-    args.push('-c:v', 'libx265', '-crf', '22', '-preset', 'medium');
-  }
-
+  if (enc === 'nvenc') args.push('-c:v', 'hevc_nvenc', '-rc', 'vbr', '-cq', '24', '-preset', 'p5');
+  else if (enc === 'qsv') args.push('-c:v', 'hevc_qsv', '-global_quality', '24');
+  else if (enc === 'amf') args.push('-c:v', 'hevc_amf', '-quality', 'balanced', '-rc', 'cqp', '-qp_i', '24', '-qp_p', '24');
+  else args.push('-c:v', 'libx265', '-crf', '22', '-preset', 'medium');
   args.push('-c:a', 'copy', partialPath);
   return { ffmpegBin: ff, args };
 }
@@ -255,286 +213,125 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
 function parseFfmpegTimeMs(line) {
   const m = /time=(\d+):(\d+):(\d+\.\d+)/.exec(line);
   if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  const sec = Number(m[3]);
+  const h = Number(m[1]), min = Number(m[2]), sec = Number(m[3]);
   if (!Number.isFinite(h + min + sec)) return null;
   return ((h * 60 + min) * 60 + sec) * 1000;
 }
 
-/** lavfi 自检源；过小会导致 hevc_nvenc 报「Frame dimensions are less than the minimum supported value」 */
-const ENCODER_SELFTEST_LAVFI = 'color=c=black:s=256x256:r=1';
+// ── Core API ────────────────────────────────────────────────────────────────
 
-async function encoderSelfTest(ff, encArgs, env) {
-  const r = await runCmd(
-    ff,
-    [
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-f',
-      'lavfi',
-      '-i',
-      ENCODER_SELFTEST_LAVFI,
-      '-frames:v',
-      '1',
-      ...encArgs,
-      '-f',
-      'null',
-      '-',
-    ],
-    { env: env || process.env },
-  );
-  return r.code === 0;
-}
-
-/** §5.1.0 本机编码能力探测（候选行，非用户配置） */
 async function probeEncodeDevices(config) {
   const ff = resolveFfmpegBin(config);
   const devices = [];
-
   if (await encoderSelfTest(ff, ['-c:v', 'libx265'])) {
-    devices.push({
-      stableKey: 'cpu:libx265',
-      label: 'CPU · libx265（软件）',
-      backend: 'cpu',
-      gpuIndex: -1,
-    });
+    devices.push({ stableKey: 'cpu:libx265', label: 'CPU · libx265（软件）', backend: 'cpu', gpuIndex: -1 });
   }
-
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 0; i < 8; i++) {
     const env = { ...process.env, CUDA_VISIBLE_DEVICES: String(i) };
     if (await encoderSelfTest(ff, ['-c:v', 'hevc_nvenc'], env)) {
-      devices.push({
-        stableKey: `nvenc:${i}`,
-        label: `NVIDIA NVENC（CUDA ${i}）`,
-        backend: 'nvenc',
-        gpuIndex: i,
-      });
+      devices.push({ stableKey: `nvenc:${i}`, label: `NVIDIA NVENC（CUDA ${i}）`, backend: 'nvenc', gpuIndex: i });
     }
   }
-
   if (await encoderSelfTest(ff, ['-c:v', 'hevc_qsv'])) {
-    devices.push({
-      stableKey: 'qsv:0',
-      label: 'Intel Quick Sync（QSV）',
-      backend: 'qsv',
-      gpuIndex: 0,
-    });
+    devices.push({ stableKey: 'qsv:0', label: 'Intel Quick Sync（QSV）', backend: 'qsv', gpuIndex: 0 });
   }
-
   if (await encoderSelfTest(ff, ['-c:v', 'hevc_amf'])) {
-    devices.push({
-      stableKey: 'amf:0',
-      label: 'AMD AMF',
-      backend: 'amf',
-      gpuIndex: 0,
-    });
+    devices.push({ stableKey: 'amf:0', label: 'AMD AMF', backend: 'amf', gpuIndex: 0 });
   }
-
   return { devices };
 }
 
-/** §5.8：按入池设备逐项检验 */
-async function validateTranscodeTools(config, encodePool) {
-  const ff = resolveFfmpegBin(config);
-  const probe = resolveFfprobeBin(config);
-  const rProbe = await runCmd(probe, ['-hide_banner', '-version']);
-  if (rProbe.code !== 0) throw new Error(`ffprobe 不可用（请配置路径或 PATH）：${probe}`);
-  const rFf = await runCmd(ff, ['-hide_banner', '-version']);
-  if (rFf.code !== 0) throw new Error(`ffmpeg 不可用（请配置路径或 PATH）：${ff}`);
-
-  if (!encodePool || !Array.isArray(encodePool.entries)) {
-    throw new Error('缺少编码资源池配置：请到配置中心 → 任务中心，完成转码与编码设备相关设置。');
-  }
-  const inPool = encodePool.entries.filter((e) => e && e.inPool);
-  if (inPool.length === 0) throw new Error('请至少勾选一台「入池」编码设备');
-
-  for (const e of inPool) {
-    const { backend, gpuIndex } = parseStableKey(e.stableKey);
-    const env = { ...process.env };
-    if (backend === 'nvenc' && gpuIndex >= 0) env.CUDA_VISIBLE_DEVICES = String(gpuIndex);
-    const tail =
-      backend === 'nvenc'
-        ? ['-c:v', 'hevc_nvenc', '-frames:v', '1', '-f', 'null', '-']
-        : backend === 'qsv'
-          ? ['-c:v', 'hevc_qsv', '-frames:v', '1', '-f', 'null', '-']
-          : backend === 'amf'
-            ? ['-c:v', 'hevc_amf', '-frames:v', '1', '-f', 'null', '-']
-            : ['-c:v', 'libx265', '-frames:v', '1', '-f', 'null', '-'];
-    const rTest = await runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', ENCODER_SELFTEST_LAVFI, ...tail], {
-      env,
-    });
-    if (rTest.code !== 0) {
-      throw new Error(`入池设备「${e.stableKey}」检验失败：${(rTest.err || '').slice(0, 280)}`);
-    }
-  }
-
-  const lp = await hasLibplaceboFilter(config);
-  return { ffmpeg: ff, ffprobe: probe, libplacebo: lp, inPoolCount: inPool.length };
-}
-
-async function precheck({ config, task }) {
+async function precheck(config, sourcePath) {
   const tempRoot = String(config.transcodeTempRoot || '').trim();
-  if (!tempRoot) throw new Error('未配置转码临时根目录：请到配置中心 → 任务中心填写「转码临时根目录」。');
-  let stRoot;
-  try {
-    stRoot = fs.statSync(tempRoot);
-  } catch {
-    throw new Error(`临时根目录不存在或不可访问：${tempRoot}`);
-  }
-  if (!stRoot.isDirectory()) throw new Error('临时根路径不是目录');
-  try {
-    fs.accessSync(tempRoot, fs.constants.R_OK | fs.constants.W_OK);
-  } catch {
-    throw new Error('临时根目录无读写权限');
-  }
+  if (!tempRoot) throw new Error('transcodeTempRoot not configured');
 
-  const rawPath = await embyService.fetchPlaybackPath(config, task.itemId);
-  if (!rawPath) throw new Error('PlaybackInfo 未返回可转码源路径（Path）');
-  const sourcePath = embyService.applyPathMap(rawPath, config.pathMapFrom, config.pathMapTo).trim();
-  if (!sourcePath) throw new Error('路径映射结果为空');
+  let stRoot;
+  try { stRoot = fs.statSync(tempRoot); } catch { throw new Error(`Temp root not accessible: ${tempRoot}`); }
+  if (!stRoot.isDirectory()) throw new Error('Temp root is not a directory');
+  try { fs.accessSync(tempRoot, fs.constants.R_OK | fs.constants.W_OK); } catch { throw new Error('Temp root not writable'); }
+
   let st;
-  try {
-    st = fs.statSync(sourcePath);
-  } catch {
-    throw new Error(`源文件不可读：${sourcePath}`);
-  }
-  if (!st.isFile()) throw new Error('源路径不是文件');
-  const originalSizeGb = Number((st.size / (1024 * 1024 * 1024)).toFixed(4));
+  try { st = fs.statSync(sourcePath); } catch { throw new Error(`Source file not readable: ${sourcePath}`); }
+  if (!st.isFile()) throw new Error('Source path is not a file');
 
   const j = await ffprobeJson(config, sourcePath);
   const isDv = detectDolbyVision(j);
-  const durationSec = Number(j.format?.duration || 0) || 3600;
-  if (isDv && !task.transcodeDvAcknowledged) {
-    const taskWorkDir = path.join(tempRoot, `etp-task-${sanitizeTaskId(task.id)}`);
-    fs.mkdirSync(taskWorkDir, { recursive: true });
-    const partialPath = path.join(taskWorkDir, partialEncodeTempFilename(sourcePath));
-    return {
-      ok: true,
-      needsDvConfirm: true,
-      sourcePath,
-      targetPath: sourcePath,
-      partialPath,
-      tempDir: taskWorkDir,
-      originalSizeGb,
-      isDolbyVision: true,
-      durationSec,
-    };
-  }
-  if (isDv && task.transcodeDvAcknowledged) {
-    const okLp = await hasLibplaceboFilter(config);
-    if (!okLp) {
-      throw new Error('杜比视界片源需要带 libplacebo 滤镜的 FFmpeg（请更换构建或关闭该片 DV 路径）');
-    }
-  }
+  const durationSec = Number(j.format && j.format.duration) || 3600;
+  const originalSizeGb = Number((st.size / (1024 * 1024 * 1024)).toFixed(4));
 
-  const taskWorkDir = path.join(tempRoot, `etp-task-${sanitizeTaskId(task.id)}`);
-  fs.mkdirSync(taskWorkDir, { recursive: true });
-  const partialPath = path.join(taskWorkDir, partialEncodeTempFilename(sourcePath));
-  const targetPath = sourcePath;
+  const ff = resolveFfmpegBin(config);
+  const rFf = await runCmd(ff, ['-hide_banner', '-version']);
+  if (rFf.code !== 0) throw new Error('ffmpeg not available');
+
+  const probe = resolveFfprobeBin(config);
+  const rProbe = await runCmd(probe, ['-hide_banner', '-version']);
+  if (rProbe.code !== 0) throw new Error('ffprobe not available');
+
+  if (isDv) {
+    const okLp = await hasLibplaceboFilter(config);
+    if (!okLp) throw new Error('Dolby Vision source requires FFmpeg with libplacebo filter');
+  }
 
   return {
     ok: true,
-    needsDvConfirm: false,
+    needsDvConfirm: isDv,
     sourcePath,
-    targetPath,
-    partialPath,
-    tempDir: taskWorkDir,
-    originalSizeGb,
     isDolbyVision: isDv,
     durationSec,
+    originalSizeGb,
   };
 }
 
-function emitTranscodeProgress(sender, tid, pct, line) {
-  const payload = { taskId: tid, progress: pct, line: line.slice(0, 200) };
-  if (!sender) return;
-  if (typeof sender.send === 'function' && (!sender.isDestroyed || !sender.isDestroyed())) {
-    try {
-      sender.send('transcode:progress', payload);
-    } catch {
-      /* ignore */
-    }
-  } else if (typeof sender.onProgress === 'function') {
-    try {
-      sender.onProgress(payload);
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-async function startEncode(sender, payload) {
-  const { config, taskId, sourcePath, partialPath, orderedDeviceSlots, isDolbyVision, dvAcknowledged, durationSec } =
-    payload;
+async function startEncode(onProgress, params) {
+  const { config, taskId, sourcePath, partialPath, orderedDeviceSlots, isDolbyVision, dvAcknowledged, durationSec } = params;
   const tid = String(taskId || '');
-  if (encodeJobs.has(tid)) throw new Error('该任务已有进行中的压制进程');
+  if (encodeJobs.has(tid)) throw new Error('Task already has an active encode process');
+
   const slots = Array.isArray(orderedDeviceSlots) ? orderedDeviceSlots : [];
-  if (slots.length === 0) throw new Error('无可用编码设备顺序：请到配置中心 → 任务中心，在编码资源池中入池至少一台设备。');
+  if (slots.length === 0) throw new Error('No encode devices in pool');
 
   const deviceId = await acquireFirstAvailableAmong(slots);
   try {
-    try {
-      if (fs.existsSync(partialPath)) fs.unlinkSync(partialPath);
-    } catch {
-      /* ignore */
-    }
+    try { if (fs.existsSync(partialPath)) fs.unlinkSync(partialPath); } catch (_) {}
+
     const { backend: devBack, gpuIndex: devGpu } = parseStableKey(deviceId);
     if (isDolbyVision && dvAcknowledged && devBack !== 'cpu') {
       releaseEncodeDeviceSlot(deviceId);
-      throw new Error(
-        '杜比视界受控转码须使用 CPU 编码：请在配置中心编码资源池中勾选入池「cpu:libx265」一行。',
-      );
+      throw new Error('Dolby Vision requires CPU encoder (cpu:libx265 in pool)');
     }
-    const encoderMode = devBack;
-    const { ffmpegBin, args } = buildEncodeArgs({
-      config,
-      sourcePath,
-      partialPath,
-      encoderMode,
-      isDolbyVision: !!isDolbyVision,
-      dvAcknowledged: !!dvAcknowledged,
-    });
-    log('startEncode', tid, deviceId, encoderMode, ffmpegBin, args.join(' '));
+
+    const { ffmpegBin, args } = buildEncodeArgs({ config, sourcePath, partialPath, encoderMode: devBack, isDolbyVision: !!isDolbyVision, dvAcknowledged: !!dvAcknowledged });
+    log('startEncode', tid, deviceId, devBack);
 
     const spawnEnv = { ...process.env };
-    if (devBack === 'nvenc' && devGpu >= 0) {
-      spawnEnv.CUDA_VISIBLE_DEVICES = String(devGpu);
-      log('NVENC CUDA_VISIBLE_DEVICES=', devGpu);
-    }
+    if (devBack === 'nvenc' && devGpu >= 0) spawnEnv.CUDA_VISIBLE_DEVICES = String(devGpu);
 
     const child = spawn(ffmpegBin, args, { windowsHide: true, env: spawnEnv });
     encodeJobs.set(tid, child);
 
-    const totalMs =
-      typeof durationSec === 'number' && durationSec > 0 ? Math.max(1000, durationSec * 1000) : 3600 * 1000 * 2;
+    const totalMs = typeof durationSec === 'number' && durationSec > 0 ? Math.max(1000, durationSec * 1000) : 3600 * 1000 * 2;
     let lastPct = 0;
 
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk) => {
-      const lines = String(chunk).split(/\r?\n/);
-      for (const line of lines) {
+      for (const line of String(chunk).split(/\r?\n/)) {
         const tms = parseFfmpegTimeMs(line);
-        if (tms != null && sender && (!sender.isDestroyed || !sender.isDestroyed())) {
+        if (tms != null) {
           const pct = Math.min(99, Math.floor((tms / totalMs) * 100));
           if (pct > lastPct) {
             lastPct = pct;
-            emitTranscodeProgress(sender, tid, pct, line);
+            try { onProgress(pct); } catch (_) {}
           }
         }
       }
     });
 
     return await new Promise((resolve, reject) => {
-      child.on('error', (e) => {
-        encodeJobs.delete(tid);
-        reject(e);
-      });
+      child.on('error', (e) => { encodeJobs.delete(tid); reject(e); });
       child.on('close', (code) => {
         encodeJobs.delete(tid);
-        if (code === 0) resolve({ ok: true, encoderUsed: encoderMode, resolvedDeviceId: deviceId });
-        else reject(new Error(`ffmpeg 退出码 ${code}`));
+        if (code === 0) resolve({ ok: true, encoderUsed: devBack, resolvedDeviceId: deviceId });
+        else reject(new Error(`ffmpeg exit code ${code}`));
       });
     });
   } finally {
@@ -545,32 +342,17 @@ async function startEncode(sender, payload) {
 function abortTask(taskId) {
   const tid = String(taskId || '');
   const ch = encodeJobs.get(tid);
-  if (ch) {
-    try {
-      ch.kill('SIGKILL');
-    } catch (e) {
-      log('abort kill err', e);
-    }
-    encodeJobs.delete(tid);
-    return true;
-  }
+  if (ch) { try { ch.kill('SIGKILL'); } catch (_) {} encodeJobs.delete(tid); return true; }
   return false;
 }
 
 function abortAllEncodes() {
-  for (const [tid, ch] of encodeJobs) {
-    try {
-      ch.kill('SIGKILL');
-    } catch {
-      /* ignore */
-    }
-    encodeJobs.delete(tid);
-  }
+  for (const [tid, ch] of encodeJobs) { try { ch.kill('SIGKILL'); } catch (_) {} encodeJobs.delete(tid); }
 }
 
 async function probeSummary(config, filePath) {
   const j = await ffprobeJson(config, filePath);
-  const dur = Number(j.format?.duration || 0);
+  const dur = Number(j.format && j.format.duration || 0);
   const v = (j.streams || []).find((s) => s.codec_type === 'video');
   return {
     durationSec: Number.isFinite(dur) ? dur : 0,
@@ -593,19 +375,12 @@ async function replaceSwapOnce({ config, targetPath, partialPath }) {
   const targetExists = fs.existsSync(targetPath);
   if (targetExists) {
     preHash = await fileHashSha256(targetPath);
-    try {
-      await fs.promises.rename(targetPath, bak);
-    } catch (e) {
-      await fs.promises.unlink(staging).catch(() => {});
-      throw e;
-    }
+    try { await fs.promises.rename(targetPath, bak); } catch (e) { await fs.promises.unlink(staging).catch(() => {}); throw e; }
   }
   try {
     await fs.promises.rename(staging, targetPath);
   } catch (e) {
-    if (targetExists && fs.existsSync(bak) && !fs.existsSync(targetPath)) {
-      await fs.promises.rename(bak, targetPath).catch(() => {});
-    }
+    if (targetExists && fs.existsSync(bak) && !fs.existsSync(targetPath)) await fs.promises.rename(bak, targetPath).catch(() => {});
     await fs.promises.unlink(staging).catch(() => {});
     throw e;
   }
@@ -615,18 +390,14 @@ async function replaceSwapOnce({ config, targetPath, partialPath }) {
   return { preReplaceHash: preHash, resultSizeBytes: st.size };
 }
 
-async function replaceWithRetries(payload) {
+async function replaceWithRetries(params) {
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      return await replaceSwapOnce(payload);
-    } catch (e) {
+    try { return await replaceSwapOnce(params); } catch (e) {
       lastErr = e;
-      const dir = path.dirname(payload.targetPath);
-      const base = path.basename(payload.targetPath);
-      const staging = path.join(dir, `${base}.etp.new`);
-      await fs.promises.unlink(staging).catch(() => {});
-      log('replace attempt fail', attempt, e?.message || e);
+      const dir = path.dirname(params.targetPath);
+      const base = path.basename(params.targetPath);
+      await fs.promises.unlink(path.join(dir, `${base}.etp.new`)).catch(() => {});
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
@@ -637,52 +408,28 @@ async function cleanupTaskWorkdir(tempDir) {
   if (!d) return;
   try {
     const entries = await fs.promises.readdir(d);
-    for (const name of entries) {
-      await fs.promises.unlink(path.join(d, name)).catch(() => {});
-    }
+    for (const name of entries) await fs.promises.unlink(path.join(d, name)).catch(() => {});
     await fs.promises.rmdir(d).catch(() => {});
-  } catch {
-    /* ignore */
-  }
-}
-
-const ORPHAN_SUFFIXES = ['.etp.partial', '.etp.new', '.etp.bak'];
-
-function isOrphanTempArtifactName(fileName) {
-  const lower = String(fileName || '').toLowerCase();
-  if (ORPHAN_SUFFIXES.some((s) => lower.endsWith(s))) return true;
-  if (lower.includes('.etp.partial.')) return true;
-  return false;
+  } catch (_) {}
 }
 
 async function scanOrphans(tempRoot) {
   const root = String(tempRoot || '').trim();
   if (!root || !fs.existsSync(root)) return { entries: [] };
   const out = [];
+  const ORPHAN_SUFFIXES = ['.etp.partial', '.etp.new', '.etp.bak'];
   const walk = async (dir, depth) => {
     if (depth > 8) return;
     let ents;
-    try {
-      ents = await fs.promises.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
+    try { ents = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
     for (const ent of ents) {
       const full = path.join(dir, ent.name);
-      if (ent.isDirectory()) {
-        if (ent.name.startsWith('etp-task-')) {
-          await walk(full, depth + 1);
-        }
-        continue;
-      }
+      if (ent.isDirectory()) { if (ent.name.startsWith('etp-task-')) await walk(full, depth + 1); continue; }
       if (!ent.isFile()) continue;
-      if (isOrphanTempArtifactName(ent.name)) {
+      const lower = ent.name.toLowerCase();
+      if (ORPHAN_SUFFIXES.some((s) => lower.endsWith(s)) || lower.includes('.etp.partial.')) {
         let sz = 0;
-        try {
-          sz = (await fs.promises.stat(full)).size;
-        } catch {
-          /* ignore */
-        }
+        try { sz = (await fs.promises.stat(full)).size; } catch (_) {}
         out.push({ path: full, size: sz });
       }
     }
@@ -691,44 +438,7 @@ async function scanOrphans(tempRoot) {
   return { entries: out };
 }
 
-function normalizeToArrayOfStrings(input) {
-  if (input == null) return [];
-  const raw = Array.isArray(input) ? input : [input];
-  return raw.map((x) => String(x ?? '')).filter(Boolean);
-}
-
-async function statPaths(paths) {
-  const list = normalizeToArrayOfStrings(paths);
-  const out = [];
-  for (const p of list) {
-    let exists = false;
-    let size = 0;
-    try {
-      const st = await fs.promises.stat(p);
-      exists = true;
-      size = st.isFile() ? st.size : 0;
-    } catch {
-      /* missing or unreadable */
-    }
-    out.push({ path: p, exists, size });
-  }
-  return { entries: out };
-}
-
-async function deletePaths(paths) {
-  const list = normalizeToArrayOfStrings(paths);
-  for (const p of list) {
-    try {
-      await fs.promises.unlink(p);
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
 module.exports = {
-  validateTranscodeTools,
-  probeEncodeDevices,
   precheck,
   startEncode,
   abortTask,
@@ -737,8 +447,8 @@ module.exports = {
   replaceWithRetries,
   cleanupTaskWorkdir,
   scanOrphans,
-  statPaths,
-  deletePaths,
+  probeEncodeDevices,
   parseStableKey,
-  hasLibplaceboFilter,
+  resolveFfmpegBin,
+  resolveFfprobeBin,
 };
