@@ -53,6 +53,7 @@ export interface TranscodeConfig {
   transcodeReplaceConfirmRequired: boolean;
   ffmpegPath: string;
   ffprobePath: string;
+  transcodeEncodingDevices: DevicePoolEntry[];
   transcodeMaxCpuSlots: number;
   transcodeCpuParticipationStrategy: 'normal' | 'backup_only';
 }

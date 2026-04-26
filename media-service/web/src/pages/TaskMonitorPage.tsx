@@ -41,13 +41,32 @@ export default function TaskMonitorPage() {
     refetchInterval: detailOpen ? 2000 : false,
   });
 
+  function invalidate() {
+    qc.invalidateQueries({ queryKey: ['admin-tasks'] });
+    qc.invalidateQueries({ queryKey: ['admin-task-detail'] });
+  }
+
   const deleteMut = useMutation({
     mutationFn: tasks.remove,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-tasks'] });
-      setAlert({ type: 'success', msg: '任务已删除' });
-      setDetailOpen(false);
-    },
+    onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '任务已删除' }); setDetailOpen(false); },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+
+  const pauseMut = useMutation({
+    mutationFn: tasks.pause,
+    onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '任务已暂停' }); },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+
+  const executeMut = useMutation({
+    mutationFn: tasks.execute,
+    onSuccess: (data) => { invalidate(); setAlert({ type: 'success', msg: `任务状态: ${data.status}` }); },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+
+  const confirmMut = useMutation({
+    mutationFn: tasks.confirm,
+    onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '已确认，任务继续执行' }); },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
@@ -60,11 +79,25 @@ export default function TaskMonitorPage() {
     setDetailOpen(true);
   }
 
+  function renderActions(t: MediaTask) {
+    const btns: React.ReactNode[] = [];
+    if (t.status === 'executing') {
+      btns.push(<button key="pause" onClick={() => pauseMut.mutate(t.id)} style={warnBtn}>暂停</button>);
+    }
+    if (t.status === 'paused' || t.status === 'pending_manual') {
+      btns.push(<button key="exec" onClick={() => executeMut.mutate(t.id)} style={execBtn}>执行</button>);
+    }
+    if (t.status === 'awaiting_user_confirm') {
+      btns.push(<button key="confirm" onClick={() => { if (confirm(`确认执行 ${t.actionType} 任务？`)) confirmMut.mutate(t.id); }} style={execBtn}>确认</button>);
+    }
+    return btns;
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>任务监控</h2>
-        <button onClick={() => qc.invalidateQueries({ queryKey: ['admin-tasks'] })} style={refreshBtn}>
+        <button onClick={() => invalidate()} style={refreshBtn}>
           {isFetching ? '刷新中...' : '刷新'}
         </button>
       </div>
@@ -151,6 +184,7 @@ export default function TaskMonitorPage() {
                     </span>
                   </td>
                   <td style={tdStyle}>
+                    {renderActions(t)}
                     <button onClick={() => openDetail(t)} style={actionBtn}>详情</button>
                     <button onClick={() => { if (confirm('确认删除此任务？')) deleteMut.mutate(t.id); }} style={deleteBtn}>删除</button>
                   </td>
@@ -192,14 +226,33 @@ export default function TaskMonitorPage() {
               )}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button onClick={() => { setDetailOpen(false); setSelectedTask(null); }} style={secondaryBtn}>关闭</button>
-              <button
-                onClick={() => { if (confirm('确认删除此任务？')) deleteMut.mutate(displayTask.id); }}
-                style={dangerBtn}
-              >
-                删除任务
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {displayTask.status === 'executing' && (
+                  <button onClick={() => pauseMut.mutate(displayTask.id)} disabled={pauseMut.isPending} style={warnBtn}>
+                    {pauseMut.isPending ? '暂停中...' : '暂停'}
+                  </button>
+                )}
+                {(displayTask.status === 'paused' || displayTask.status === 'pending_manual') && (
+                  <button onClick={() => executeMut.mutate(displayTask.id)} disabled={executeMut.isPending} style={execBtn}>
+                    {executeMut.isPending ? '执行中...' : '执行'}
+                  </button>
+                )}
+                {displayTask.status === 'awaiting_user_confirm' && (
+                  <button onClick={() => { if (confirm(`确认执行 ${displayTask.actionType} 任务？`)) confirmMut.mutate(displayTask.id); }} disabled={confirmMut.isPending} style={execBtn}>
+                    {confirmMut.isPending ? '确认中...' : '确认'}
+                  </button>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setDetailOpen(false); setSelectedTask(null); }} style={secondaryBtn}>关闭</button>
+                <button
+                  onClick={() => { if (confirm('确认删除此任务？')) deleteMut.mutate(displayTask.id); }}
+                  style={dangerBtn}
+                >
+                  删除任务
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -237,6 +290,14 @@ const actionBtn: React.CSSProperties = {
 
 const deleteBtn: React.CSSProperties = {
   background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13,
+};
+
+const execBtn: React.CSSProperties = {
+  background: 'none', border: 'none', color: '#27ae60', cursor: 'pointer', fontSize: 13, marginRight: 8, fontWeight: 600,
+};
+
+const warnBtn: React.CSSProperties = {
+  background: 'none', border: 'none', color: '#f39c12', cursor: 'pointer', fontSize: 13, marginRight: 8, fontWeight: 600,
 };
 
 const secondaryBtn: React.CSSProperties = {

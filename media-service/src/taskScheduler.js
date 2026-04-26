@@ -74,7 +74,7 @@ function recoverInterruptedTasks() {
 }
 
 function isActiveStatus(status) {
-  return ['executing', 'queued'].includes(status);
+  return status === 'executing';
 }
 
 function startScheduler() {
@@ -151,6 +151,7 @@ async function scheduleRound() {
     // Transition created/pending_manual → queued
     if (task.status === 'created' || task.status === 'pending_manual') {
       taskStore.updateTask(task.id, { status: 'queued' });
+      task.status = 'queued';
     }
 
     if (task.status === 'queued') {

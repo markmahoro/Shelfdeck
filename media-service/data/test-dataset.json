@@ -1,0 +1,475 @@
+{
+  "version": 2,
+  "description": "ShelfDeck task functional test dataset — transcode & delete task testing",
+  "createdAt": "2026-04-26",
+  "baseSubLibraryId": "43562cbf-3c7c-473a-8cf0-77de8a7562a5",
+  "serviceBaseUrl": "http://127.0.0.1:18080",
+
+  "items": {
+    "transcode": [
+      { "itemId": "80128", "name": "007之黑日危机",    "scenario": "3★ / 1080p / 10.7→4 Mbps",       "fileSizeGB": 10.3, "resolution": "1920x1080", "rating": { "douban": 3 } },
+      { "itemId": "96433", "name": "12年级的失败",      "scenario": "3★ / 4K / 14.5→10 Mbps",         "fileSizeGB": 16.0, "resolution": "3840x2160", "rating": { "douban": 3 } },
+      { "itemId": "79772", "name": "底特律",            "scenario": "3★ / 1080p / 6.9→4 Mbps (margin)","fileSizeGB": 7.4,  "resolution": "1920x1038", "rating": { "douban": 3 } },
+      { "itemId": "79650", "name": "12勇士",            "scenario": "4★ / 1080p / 9.3→7 Mbps",         "fileSizeGB": 9.0,  "resolution": "1920x1080", "rating": { "douban": 4 } }
+    ],
+    "delete": [
+      { "itemId": "79734", "name": "地球最后的夜晚",    "scenario": "2★ / 小文件 (2.3GB)",             "fileSizeGB": 2.3,  "rating": { "douban": 2 } },
+      { "itemId": "79775", "name": "忠犬八公的故事",    "scenario": "1★ / 中等文件 (4.4GB)",           "fileSizeGB": 4.4,  "rating": { "douban": 1 } }
+    ]
+  },
+
+  "devicePoolScenarios": {
+    "nvenc_only": {
+      "description": "单 NVIDIA GPU — 最常用场景",
+      "patch": {
+        "transcodeEncodingDevices": [
+          { "stableKey": "nvenc:0", "inPool": true, "priority": 100, "maxSlots": 1, "encoder": "hevc_nvenc" }
+        ],
+        "transcodeCpuParticipationStrategy": "normal",
+        "transcodeMaxCpuSlots": 1
+      }
+    },
+    "cpu_only": {
+      "description": "仅 CPU — DV 转码/无 GPU 场景",
+      "patch": {
+        "transcodeEncodingDevices": [
+          { "stableKey": "cpu:libx265", "inPool": true, "priority": 200, "maxSlots": 1, "encoder": "libx265" }
+        ],
+        "transcodeCpuParticipationStrategy": "normal",
+        "transcodeMaxCpuSlots": 1
+      }
+    },
+    "nvenc_plus_cpu_normal": {
+      "description": "GPU + CPU (normal) — GPU 优先，CPU 兜底",
+      "patch": {
+        "transcodeEncodingDevices": [
+          { "stableKey": "nvenc:0", "inPool": true, "priority": 100, "maxSlots": 1, "encoder": "hevc_nvenc" },
+          { "stableKey": "cpu:libx265", "inPool": true, "priority": 200, "maxSlots": 1, "encoder": "libx265" }
+        ],
+        "transcodeCpuParticipationStrategy": "normal",
+        "transcodeMaxCpuSlots": 1
+      }
+    },
+    "nvenc_plus_cpu_backup_only": {
+      "description": "GPU + CPU (backup_only) — CPU 不参与分配",
+      "patch": {
+        "transcodeEncodingDevices": [
+          { "stableKey": "nvenc:0", "inPool": true, "priority": 100, "maxSlots": 1, "encoder": "hevc_nvenc" },
+          { "stableKey": "cpu:libx265", "inPool": true, "priority": 200, "maxSlots": 1, "encoder": "libx265" }
+        ],
+        "transcodeCpuParticipationStrategy": "backup_only",
+        "transcodeMaxCpuSlots": 1
+      }
+    },
+    "empty_pool": {
+      "description": "空设备池 — precheck 应失败",
+      "patch": {
+        "transcodeEncodingDevices": [],
+        "transcodeCpuParticipationStrategy": "normal",
+        "transcodeMaxCpuSlots": 1
+      }
+    },
+    "nvenc_multi_slot": {
+      "description": "单 GPU 多槽 — nvenc:0 maxSlots=2",
+      "patch": {
+        "transcodeEncodingDevices": [
+          { "stableKey": "nvenc:0", "inPool": true, "priority": 100, "maxSlots": 2, "encoder": "hevc_nvenc" }
+        ],
+        "transcodeCpuParticipationStrategy": "normal",
+        "transcodeMaxCpuSlots": 1
+      }
+    },
+    "nvenc_cpu_mixed_slots": {
+      "description": "混合槽数 — nvenc:0 maxSlots=2 + cpu:libx265 maxSlots=1",
+      "patch": {
+        "transcodeEncodingDevices": [
+          { "stableKey": "nvenc:0", "inPool": true, "priority": 100, "maxSlots": 2, "encoder": "hevc_nvenc" },
+          { "stableKey": "cpu:libx265", "inPool": true, "priority": 200, "maxSlots": 1, "encoder": "libx265" }
+        ],
+        "transcodeCpuParticipationStrategy": "normal",
+        "transcodeMaxCpuSlots": 1
+      }
+    }
+  },
+
+  "testRounds": {
+    "transcode": [
+      {
+        "round": "T1",
+        "description": "手动替换 — 基础链路含确认",
+        "adminSetup": {
+          "steps": [
+            { "method": "GET",  "path": "/v1/admin/transcode/probe-devices", "note": "模拟管理页面探测可用编码设备" },
+            { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": {
+              "transcodeReplaceConfirmRequired": true,
+              "transcodeEncodingDevices": "<nvenc_only.patch.transcodeEncodingDevices>",
+              "transcodeCpuParticipationStrategy": "normal",
+              "transcodeMaxCpuSlots": 1
+            }, "note": "模拟用户在管理页面勾选 nvenc:0 入池 + 开启替换确认" }
+          ]
+        },
+        "taskOps": [
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "80128", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "96433", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "GET",  "path": "/v1/tasks", "note": "轮询，等待任务进入 awaiting_user_confirm", "expect": { "status": "awaiting_user_confirm" } },
+          { "method": "POST", "path": "/v1/tasks/{taskId}/confirm", "note": "模拟桌面端用户点击确认替换", "expect": { "status": 200 } },
+          { "method": "GET",  "path": "/v1/tasks/{taskId}", "note": "轮询，等待任务 done", "expect": { "status": "done" } }
+        ],
+        "verifyPoints": [
+          "DV 检测：若源文件是 Dolby Vision 则额外触发 DV 确认",
+          "替换确认在 verify 后暂停，confirm 后进入 replace",
+          "任务状态流转：queued → executing → awaiting_user_confirm → executing → done"
+        ]
+      },
+      {
+        "round": "T2",
+        "description": "自动替换 — 无确认直通",
+        "adminSetup": {
+          "steps": [
+            { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": {
+              "transcodeReplaceConfirmRequired": false,
+              "transcodeEncodingDevices": "<nvenc_only.patch.transcodeEncodingDevices>",
+              "transcodeCpuParticipationStrategy": "normal",
+              "transcodeMaxCpuSlots": 1
+            }, "note": "模拟用户在管理页面关闭替换确认" }
+          ]
+        },
+        "taskOps": [
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "79772", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "79650", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "GET",  "path": "/v1/tasks", "note": "轮询，等待 done", "expect": { "status": "done" } }
+        ],
+        "verifyPoints": [
+          "无替换确认：verify 后直接 replace → done",
+          "任务状态流转：queued → executing → done"
+        ]
+      },
+      {
+        "round": "T3",
+        "description": "空设备池 — precheck 失败",
+        "adminSetup": {
+          "steps": [
+            { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": {
+              "transcodeReplaceConfirmRequired": false,
+              "transcodeEncodingDevices": [],
+              "transcodeCpuParticipationStrategy": "normal",
+              "transcodeMaxCpuSlots": 1
+            }, "note": "模拟用户在管理页面清空设备池（所有设备取消入池）" }
+          ]
+        },
+        "taskOps": [
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "79772", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "GET",  "path": "/v1/tasks/{taskId}", "expect": { "status": "failed_hard" }, "note": "precheck 检测到空池" }
+        ],
+        "verifyPoints": [
+          "precheck → failed_hard，日志包含 'No encode devices in pool'"
+        ]
+      },
+      {
+        "round": "T4",
+        "description": "CPU 设备池 — CPU 编码路径",
+        "adminSetup": {
+          "steps": [
+            { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": {
+              "transcodeReplaceConfirmRequired": true,
+              "transcodeEncodingDevices": "<cpu_only.patch.transcodeEncodingDevices>",
+              "transcodeCpuParticipationStrategy": "normal",
+              "transcodeMaxCpuSlots": 1
+            }, "note": "模拟用户在管理页面只勾选 cpu:libx265 入池" }
+          ]
+        },
+        "taskOps": [
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "80128", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "GET",  "path": "/v1/tasks", "note": "轮询 → awaiting_user_confirm → confirm → done", "expect": { "status": "done" } }
+        ],
+        "verifyPoints": [
+          "buildDeviceSlots 只有 cpu:libx265",
+          "若源是 DV → 走 CPU 编码路径（DV 要求 CPU）"
+        ]
+      },
+      {
+        "round": "T5",
+        "description": "GPU+CPU (backup_only) — CPU 被策略排除",
+        "adminSetup": {
+          "steps": [
+            { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": {
+              "transcodeReplaceConfirmRequired": true,
+              "transcodeEncodingDevices": "<nvenc_plus_cpu_backup_only.patch.transcodeEncodingDevices>",
+              "transcodeCpuParticipationStrategy": "backup_only",
+              "transcodeMaxCpuSlots": 1
+            }, "note": "模拟用户在管理页面勾选 nvenc+cpu 入池，但 CPU 策略设为 backup_only" }
+          ]
+        },
+        "taskOps": [
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "80128", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "GET",  "path": "/v1/tasks", "note": "轮询 → done 或 failed_hard（若源是 DV）", "expect": { "status": "done | failed_hard" } }
+        ],
+        "verifyPoints": [
+          "buildDeviceSlots 只产生 nvenc:0，cpu:libx265 被 backup_only 过滤",
+          "若源是 DV → encoding 抛出 'DV requires CPU encoder' → failed_hard"
+        ]
+      },
+      {
+        "round": "T6",
+        "description": "GPU+CPU (normal) — 双设备优先级 fallback",
+        "adminSetup": {
+          "steps": [
+            { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": {
+              "transcodeReplaceConfirmRequired": true,
+              "transcodeEncodingDevices": "<nvenc_plus_cpu_normal.patch.transcodeEncodingDevices>",
+              "transcodeCpuParticipationStrategy": "normal",
+              "transcodeMaxCpuSlots": 1
+            }, "note": "模拟用户在管理页面勾选 nvenc(prio=100) + cpu(prio=200) 双入池" }
+          ]
+        },
+        "taskOps": [
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "80128", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "GET",  "path": "/v1/tasks", "note": "轮询 → done，确认 nvenc:0 优先被选中", "expect": { "status": "done" } }
+        ],
+        "verifyPoints": [
+          "buildDeviceSlots 产生 nvenc:0 + cpu:libx265，nvenc 优先级更高先被 acquire",
+          "若 nvenc:0 被占用则 fallback 到 cpu:libx265"
+        ]
+      },
+      {
+        "round": "T7",
+        "description": "单设备多槽并发 — nvenc:0 maxSlots=2，同时跑 2 个任务",
+        "adminSetup": {
+          "steps": [
+            { "method": "PATCH", "path": "/v1/config", "body": { "transcodeConcurrency": 3 }, "note": "模拟用户在管理页面调整转码并发上限（调度配置）" },
+            { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": {
+              "transcodeReplaceConfirmRequired": false,
+              "transcodeEncodingDevices": "<nvenc_multi_slot.patch.transcodeEncodingDevices>",
+              "transcodeCpuParticipationStrategy": "normal",
+              "transcodeMaxCpuSlots": 1
+            }, "note": "模拟用户在管理页面将 nvenc:0 的 maxSlots 调为 2" }
+          ]
+        },
+        "taskOps": [
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "79772", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "79650", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "GET",  "path": "/v1/tasks", "note": "两个任务应同时在 executing（各占 1 个 nvenc:0 槽）" },
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "80128", "actionType": "transcode" }, "note": "第 3 个任务：nvenc:0 2/2 满，应排队等待" },
+          { "method": "GET",  "path": "/v1/tasks", "note": "等待全部 done" }
+        ],
+        "verifyPoints": [
+          "buildDeviceSlots 返回 2 个 nvenc:0 slot",
+          "前 2 任务同时 acquire，各占 1 槽",
+          "第 3 任务在 acquireFirstAvailableAmong 中阻塞等待",
+          "完成后各 release slot，第 3 任务继续"
+        ]
+      },
+      {
+        "round": "T8",
+        "description": "混合槽数 fallback — nvenc(2) + cpu(1)，3 任务压满",
+        "adminSetup": {
+          "steps": [
+            { "method": "PATCH", "path": "/v1/config", "body": { "transcodeConcurrency": 3 }, "note": "模拟用户在管理页面调整转码并发上限" },
+            { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": {
+              "transcodeReplaceConfirmRequired": false,
+              "transcodeEncodingDevices": "<nvenc_cpu_mixed_slots.patch.transcodeEncodingDevices>",
+              "transcodeCpuParticipationStrategy": "normal",
+              "transcodeMaxCpuSlots": 1
+            }, "note": "模拟用户在管理页面配置 nvenc(2槽) + cpu(1槽)" }
+          ]
+        },
+        "taskOps": [
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "79772", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "79650", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "80128", "actionType": "transcode" }, "expect": { "status": 201 } },
+          { "method": "GET",  "path": "/v1/tasks", "note": "task1+2 占 nvenc:0 2槽，task3 fallback 到 cpu:libx265" },
+          { "method": "GET",  "path": "/v1/tasks", "note": "等待全部 done" }
+        ],
+        "verifyPoints": [
+          "总 3 槽：nvenc:0 ×2 + cpu:libx265 ×1",
+          "task1+2 各占 1 个 nvenc:0 槽，task3 无 nvenc 槽 → fallback 到 cpu",
+          "全部满槽后第 4 个任务阻塞",
+          "验证 acquireFirstAvailableAmong 的优先级排序 + 跨设备 fallback"
+        ]
+      }
+    ],
+    "delete": [
+      {
+        "round": "D1",
+        "description": "删除确认 — 2★ 删除任务",
+        "adminSetup": null,
+        "taskOps": [
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "79734", "actionType": "delete" }, "expect": { "status": 201 } },
+          { "method": "GET",  "path": "/v1/tasks", "note": "轮询 → awaiting_user_confirm", "expect": { "status": "awaiting_user_confirm" } },
+          { "method": "POST", "path": "/v1/tasks/{taskId}/confirm", "note": "模拟桌面端用户确认删除", "expect": { "status": 200 } },
+          { "method": "GET",  "path": "/v1/tasks/{taskId}", "note": "轮询 → done", "expect": { "status": "done" } }
+        ],
+        "verifyPoints": [
+          "precheck 获取 Emby item info 后立即暂停",
+          "confirm 后执行删除 + 验证",
+          "状态流转：queued → awaiting_user_confirm → executing → done"
+        ]
+      },
+      {
+        "round": "D2",
+        "description": "删除确认 — 1★ 删除任务",
+        "adminSetup": null,
+        "taskOps": [
+          { "method": "POST", "path": "/v1/tasks", "body": { "itemId": "79775", "actionType": "delete" }, "expect": { "status": 201 } },
+          { "method": "GET",  "path": "/v1/tasks", "note": "轮询 → awaiting_user_confirm", "expect": { "status": "awaiting_user_confirm" } },
+          { "method": "POST", "path": "/v1/tasks/{taskId}/confirm", "expect": { "status": 200 } },
+          { "method": "GET",  "path": "/v1/tasks/{taskId}", "note": "轮询 → done", "expect": { "status": "done" } }
+        ],
+        "verifyPoints": [
+          "1★ 与 2★ 删除流程一致",
+          "确认暂停和恢复后正常完成"
+        ]
+      }
+    ]
+  },
+
+  "adminWebUiVerification": {
+    "description": "管理页面 UI 正确性验证 — 对比 API 返回字段与 UI 实际展示字段，发现缺失/错误",
+    "sourceFile": "media-service/web/src/pages/TranscodeConfigPage.tsx",
+    "apiEndpoint": "GET /v1/admin/transcode/config (app.js:390)",
+    "apiReturns": [
+      "transcodeTempRoot",
+      "transcodeReplaceConfirmRequired",
+      "ffmpegPath",
+      "ffprobePath",
+      "transcodeEncodingDevices",
+      "transcodeMaxCpuSlots",
+      "transcodeCpuParticipationStrategy"
+    ],
+    "uiDisplays": [
+      "transcodeTempRoot",
+      "transcodeReplaceConfirmRequired",
+      "ffmpegPath",
+      "ffprobePath",
+      "transcodeCpuParticipationStrategy"
+    ],
+    "knownGaps": [
+      {
+        "id": "GAP-01",
+        "severity": "high",
+        "field": "transcodeEncodingDevices",
+        "issue": "API 返回但 TS 类型 (TranscodeConfig) 不包含，UI 不读取/不渲染。管理页面无法将探测到的设备加入编码池——探测结果只读展示，无「入池」按钮，无法写入 transcodeEncodingDevices。",
+        "impact": "编码资源池永远为空 → 所有转码任务 precheck 失败 (No encode devices in pool)。这是当前卡住转码功能的核心问题。",
+        "verifyBy": "GET /v1/admin/transcode/config → 检查 transcodeEncodingDevices 是否为空数组；打开管理页面 /transcode → 确认检测设备后无入池操作入口"
+      },
+      {
+        "id": "GAP-02",
+        "severity": "medium",
+        "field": "transcodeMaxCpuSlots",
+        "issue": "API 返回且 TS 类型包含、但 UI 未绑定。init 时未从 API 响应初始化 form state，页面无输入控件，savePool 的 PATCH payload 不包含此字段。",
+        "impact": "用户无法调整 CPU 并发槽数，只能使用默认值 1。多 CPU 核心场景受限。",
+        "verifyBy": "查看管理页面「其他设置」区域 → 确认无 CPU 槽数输入；PATCH /v1/admin/transcode/config 携带 transcodeMaxCpuSlots → 确认值被持久化但不展示"
+      },
+      {
+        "id": "GAP-03",
+        "severity": "high",
+        "field": "设备池保存按钮语义错误",
+        "issue": "「保存设备池」按钮 (savePool mutation) 实际只 PATCH transcodeReplaceConfirmRequired + transcodeCpuParticipationStrategy，不保存设备池本身。按钮位置在「编码设备池」section 之后的「其他设置」section，名称和功能不匹配。",
+        "impact": "用户点击「保存设备池」期望保存编码设备配置，实际只保存了替换确认开关和 CPU 策略。设备池仍然无法配置。",
+        "verifyBy": "打开管理页面 → 点击「保存设备池」→ 检查 PATCH 请求 body → 确认不包含 transcodeEncodingDevices"
+      },
+      {
+        "id": "GAP-04",
+        "severity": "low",
+        "field": "transcodeEncodingDevices (TS 类型)",
+        "issue": "TranscodeConfig 接口 (types/index.ts:51-58) 缺少 transcodeEncodingDevices 字段定义。API 返回 7 个字段，类型只定义 6 个。",
+        "impact": "TypeScript 编译期无法检测到缺失，调用方访问该字段无类型提示。",
+        "verifyBy": "查看 types/index.ts TranscodeConfig → 确认字段列表不包含 transcodeEncodingDevices"
+      }
+    ],
+    "testRounds": [
+      {
+        "round": "UI-1",
+        "description": "验证 admin API 字段完整性",
+        "steps": [
+          { "method": "GET", "path": "/v1/admin/transcode/config", "check": "响应包含 7 个字段: transcodeTempRoot, transcodeReplaceConfirmRequired, ffmpegPath, ffprobePath, transcodeEncodingDevices, transcodeMaxCpuSlots, transcodeCpuParticipationStrategy" },
+          { "method": "GET", "path": "/v1/admin/transcode/device-pool", "check": "devices 数组每项包含 stableKey, inPool, priority, maxSlots, encoder, status, activeSlots" },
+          { "method": "GET", "path": "/v1/admin/transcode/probe-devices", "check": "devices 数组每项包含 stableKey, label, backend, gpuIndex" }
+        ]
+      },
+      {
+        "round": "UI-2",
+        "description": "验证 transcodeMaxCpuSlots 可读写但 UI 不展示",
+        "steps": [
+          { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": { "transcodeMaxCpuSlots": 4 }, "note": "直接 PATCH 写入（绕开 UI 限制）" },
+          { "method": "GET", "path": "/v1/admin/transcode/config", "check": "transcodeMaxCpuSlots === 4，确认后端支持但 UI 不展示" },
+          { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": { "transcodeMaxCpuSlots": 1 }, "note": "恢复默认" }
+        ]
+      },
+      {
+        "round": "UI-3",
+        "description": "验证 transcodeEncodingDevices 可写入（绕开 UI）并影响设备池",
+        "steps": [
+          { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": {
+            "transcodeEncodingDevices": [
+              { "stableKey": "nvenc:0", "inPool": true, "priority": 100, "maxSlots": 1, "encoder": "hevc_nvenc" }
+            ]
+          }, "note": "直接 PATCH 写入设备池（模拟修复 GAP-01 后的效果）" },
+          { "method": "GET", "path": "/v1/admin/transcode/device-pool", "check": "devices.length === 1, devices[0].stableKey === 'nvenc:0', inPool === true" },
+          { "method": "GET", "path": "/v1/admin/transcode/config", "check": "transcodeEncodingDevices 包含 nvenc:0" },
+          { "method": "PATCH", "path": "/v1/admin/transcode/config", "body": { "transcodeEncodingDevices": [] }, "note": "清空恢复" }
+        ]
+      }
+    ]
+  },
+
+  "mediaFileBackup": {
+    "backupRoot": "E:\\shelfdecktestbackup",
+    "restoreScript": "E:\\shelfdecktestbackup\\restore.js",
+    "nasSource": {
+      "embyPath": "/volume1/Media/Film",
+      "windowsPath": "Z:\\Film",
+      "nasIp": "192.168.12.45",
+      "share": "Media"
+    },
+    "itemFileMap": {
+      "80128": { "nasDir": "007之黑日危机 (1999)", "mainFile": "007之黑日危机 (1999) - 1080p Remux DTS BTSCHOOL.mkv", "sizeGB": 9.6 },
+      "96433": { "nasDir": "12年级的失败 (2023)",   "mainFile": "12年级的失败 (2023) - 2160p H.265 Atmos DDP5.1.mkv", "sizeGB": 14.9 },
+      "79772": { "nasDir": "底特律 (2017)",        "mainFile": "底特律 (2017) 1080p AAC.mp4", "sizeGB": 6.9 },
+      "79650": { "nasDir": "12勇士 (2018)",        "mainFile": "12勇士 (2018) 1080p DTSHD-MA.mkv", "sizeGB": 8.4 },
+      "79734": { "nasDir": "地球最后的夜晚 (2018)", "mainFile": "地球最后的夜晚 (2018) 1080p AAC.mkv", "sizeGB": 2.1 },
+      "79775": { "nasDir": "忠犬八公的故事 (2009)", "mainFile": "忠犬八公的故事 (2009) 1080p AC3.mp4", "sizeGB": 4.1 }
+    },
+    "backupCompletedAt": "2026-04-26T15:34:00+08:00",
+    "backupSummary": "45 files, 46.1 GB total",
+    "procedure": {
+      "backup": "node -e \"const {execSync}=require('child_process'); const items=[...]; items.forEach(i=>execSync('xcopy Z:/Film/'+i.dir+' E:/shelfdecktestbackup/'+i.dir+' /E/I/H/Y/Q'))\"",
+      "restoreAll": "node E:/shelfdecktestbackup/restore.js",
+      "restoreOne": "node E:/shelfdecktestbackup/restore.js <itemId>",
+      "listBackups": "node E:/shelfdecktestbackup/restore.js --list",
+      "restoreCondition": "当转码任务 replace 产出坏文件、或删除任务误删文件时，运行 restore 恢复原始文件"
+    },
+    "perRoundRestoreStrategy": {
+      "transcode": "若任务 failed_hard 且 replace 阶段已执行（partial 覆盖了原文件），则 restore 该项后重试",
+      "delete": "若任务 failed_hard 且文件已被删除，则 restore 该项",
+      "transcodeConcurrency": "并发轮次 (T7/T8) 多任务同时跑，任一失败需检查对应文件完整性，必要时 restore"
+    }
+  },
+
+  "testExecutionNotes": {
+    "prerequisites": [
+      "media-service 运行中 (port 18080)",
+      "Emby 服务器可访问 (192.168.12.45:8096)",
+      "FFmpeg 可用 (E:\\ffmpeg-...\\bin\\ffmpeg.exe)",
+      "transcodeTempRoot 目录可写 (E:\\transfercache)",
+      "源文件路径可访问（NAS Z:\\Film，即 \\\\192.168.12.45\\Media\\Film）",
+      "测试前已执行备份到 E:\\shelfdecktestbackup（46.1 GB，含所有附属文件）"
+    ],
+    "testSequence": [
+      "0. 确认备份存在: node E:/shelfdecktestbackup/restore.js --list",
+      "1. adminSetup: 按 adminSetup.steps 顺序执行 API 调用，配置设备池和转码参数",
+      "2. taskOps: 按 taskOps 顺序创建任务、轮询状态、确认暂停",
+      "3. 验证: 对照 verifyPoints 检查任务状态流转和日志",
+      "4. 恢复: 若任务导致文件变更/删除，运行 restore 恢复",
+      "5. 清理: 清除 tasks.json，恢复默认配置"
+    ],
+    "apiBoundary": {
+      "adminApi": "PATCH /v1/admin/transcode/config — 模拟管理页面配置编码资源池、替换确认开关",
+      "adminApiConcurrency": "PATCH /v1/config — 模拟管理页面调整调度并发上限（transcodeConcurrency）",
+      "desktopApi": "POST /v1/tasks / GET /v1/tasks / POST /v1/tasks/{id}/confirm — 模拟桌面端操作",
+      "unavailableInAdmin": "任务创建、确认等操作不属于管理页面，仅通过桌面端 API 操作"
+    },
+    "knownBlockers": "GAP-01 (无法入池) 是当前核心阻塞项——所有转码任务 T1~T8 在执行前需先通过 PATCH /v1/admin/transcode/config 直接写入 transcodeEncodingDevices 来绕开 UI 限制",
+    "cleanup": "每轮完成后清除 data/tasks.json 中的测试任务记录，恢复默认配置"
+  }
+}

@@ -80,10 +80,25 @@ function registerRoutes(app) {
     const cfg = configStore.loadConfig();
     const status = cfg.executionMode === 'auto' ? 'created' : 'pending_manual';
 
+    // Populate itemInfo from media library
+    const libItem = mediaLibraryService.getLibraryItem(itemId);
+    const itemInfo = libItem ? {
+      name: libItem.name,
+      path: libItem.path,
+      subLibraryId: libItem.subLibraryId,
+      resolution: libItem.resolution,
+      bitrate: libItem.bitrate,
+      size: libItem.size,
+      type: libItem.type,
+      doubanRating: libItem.doubanRating,
+      userRating: libItem.userRating,
+    } : null;
+
     const task = taskStore.createTask({
       itemId,
       actionType,
       status,
+      itemInfo,
       logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created' }],
     });
 

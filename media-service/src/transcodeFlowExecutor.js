@@ -57,6 +57,16 @@ function parseStableKey(stableKey) {
   return null;
 }
 
+function resolveSourcePath(sourcePath, config) {
+  const from = (config.pathMapFrom || '').trim();
+  const to = (config.pathMapTo || '').trim();
+  if (from && to && sourcePath.startsWith(from)) {
+    const relative = sourcePath.slice(from.length).replace(/^\//, '');
+    return require('path').join(to, relative);
+  }
+  return sourcePath;
+}
+
 // ── Flow Executor API ────────────────────────────────────────────────────────
 
 async function driveTask(taskId) {
@@ -80,8 +90,9 @@ async function runPrecheck(taskId, task, config) {
   appendLog(taskId, 'info', 'Transcode precheck started');
 
   try {
-    const sourcePath = task.itemInfo && task.itemInfo.path;
-    if (!sourcePath) throw new Error('Source path not available');
+    const rawPath = task.itemInfo && task.itemInfo.path;
+    if (!rawPath) throw new Error('Source path not available');
+    const sourcePath = resolveSourcePath(rawPath, config);
 
     const result = await transcodeService.precheck(config, sourcePath);
 

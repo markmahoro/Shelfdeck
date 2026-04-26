@@ -142,6 +142,12 @@ export const tasks = {
 
   remove: (id: string) =>
     del<{ ok: boolean; id: string }>(`/v1/admin/tasks/${id}`),
+
+  pause: (id: string) => post<{ id: string; status: string }>(`/v1/tasks/${id}/actions/pause`),
+
+  execute: (id: string) => post<{ id: string; status: string }>(`/v1/tasks/${id}/actions/execute`),
+
+  confirm: (id: string) => patch<{ id: string; status: string }>(`/v1/tasks/${id}`, { confirmed: true }),
 };
 
 // ── Health ────────────────────────────────────────────────────────────────────
@@ -154,6 +160,23 @@ export const health = {
 
 export const publicHealth = {
   check: () => get<{ status: 'green' | 'yellow' | 'red'; timestamp: string }>('/v1/health'),
+};
+
+// ── System Config ─────────────────────────────────────────────────────────────
+
+export interface SystemConfig {
+  executionMode: 'auto' | 'manual';
+  deleteConcurrency: number;
+  transcodeConcurrency: number;
+  upgradeConcurrency: number;
+  wallRatingAutoEnqueue: boolean;
+}
+
+export const systemConfig = {
+  get: () => get<SystemConfig>('/v1/config'),
+
+  patch: (body: Partial<SystemConfig>) =>
+    patch<SystemConfig>('/v1/config', body),
 };
 
 // ── Douban ─────────────────────────────────────────────────────────────────────

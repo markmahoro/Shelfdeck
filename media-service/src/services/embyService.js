@@ -151,8 +151,20 @@ async function libraryItemExists(serverConfig, itemId) {
 async function getItemDeleteInfo(serverConfig, itemId) {
   const userId = String(serverConfig.userId || '').trim();
   const iid = encodeURIComponent(itemId);
+  const pw = String(serverConfig.embyUserPassword || '').trim();
+  let cfg = serverConfig;
+  let extraQuery = userId ? { UserId: userId } : {};
+  if (pw) {
+    try {
+      const accessToken = await authenticateEmbyUserAccessToken(serverConfig);
+      cfg = { ...serverConfig, apiKey: accessToken };
+      extraQuery = {};
+    } catch (e) {
+      log('getItemDeleteInfo user auth failed, trying api key fallback', e.message);
+    }
+  }
   try {
-    return await embyFetchJson(serverConfig, `Items/${iid}/DeleteInfo`, {}, userId ? { UserId: userId } : {});
+    return await embyFetchJson(cfg, `Items/${iid}/DeleteInfo`, {}, extraQuery);
   } catch (e) {
     log('getItemDeleteInfo optional fail', e.message);
     return null;
