@@ -72,13 +72,68 @@ function getDefaultConfig() {
   };
 }
 
+function detectV1Config(raw) {
+  // v1 had top-level `baseUrl` (Emby URL) without a non-empty `embyServers`
+  const hasEmbyServers = raw.embyServers && Object.keys(raw.embyServers).length > 0;
+  return !!(raw.baseUrl && !hasEmbyServers);
+}
+
+function migrateFromV1(raw) {
+  const crypto = require('crypto');
+  const embyServerId = crypto.randomUUID();
+
+  const embyServers = {};
+  embyServers[embyServerId] = {
+    serverName: raw.baseUrl || '',
+    baseUrl: raw.baseUrl || '',
+    apiKey: raw.apiKey || '',
+    userId: raw.userId || '',
+    embyUserPassword: raw.embyUserPassword || '',
+  };
+
+  // Build v2 config from v1 data
+  const v2 = {
+    executionMode: raw.executionMode === 'scheduled' ? 'auto' : (raw.executionMode || 'auto'),
+    deleteConcurrency: raw.deleteConcurrency ?? 3,
+    transcodeConcurrency: raw.transcodeConcurrency ?? 1,
+    upgradeConcurrency: raw.upgradeConcurrency ?? 1,
+    wallRatingAutoEnqueue: raw.wallRatingAutoEnqueue || false,
+    transcodeTempRoot: raw.transcodeTempRoot || '',
+    transcodeReplaceConfirmRequired: raw.transcodeReplaceConfirmRequired || false,
+    ffmpegPath: raw.ffmpegPath || 'ffmpeg',
+    ffprobePath: raw.ffprobePath || 'ffprobe',
+    transcodeEncodingDevices: [],
+    transcodeMaxCpuSlots: 1,
+    transcodeCpuParticipationStrategy: raw.transcodeCpuParticipationStrategy || 'normal',
+    moviepilot: { baseUrl: '', apiKey: '', savePath: '', stagingPath: '' },
+    upgradeStagingLocalPath: '',
+    upgradeRetryInterval: (raw.upgradeRetryInterval || 3600) * 1000,
+    upgradeMaxRetries: raw.upgradeMaxRetries || 3,
+    embyServers,
+    subLibraries: [],
+    douban: { userId: '', cookieHeader: '' },
+    mediaPolicy: raw.mediaPolicy || getDefaultConfig().mediaPolicy,
+    // v1 serviceApiKey → v2 apiKey; explicitly clear old Emby apiKey
+    apiKey: raw.serviceApiKey || '',
+  };
+
+  return v2;
+}
+
 function loadConfig() {
   ensureDataDir();
   const cfgFile = configFilePath();
   if (!fs.existsSync(cfgFile)) return getDefaultConfig();
   try {
-    const raw = fs.readFileSync(cfgFile, 'utf8');
-    return { ...getDefaultConfig(), ...JSON.parse(raw) };
+    const raw = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+    if (detectV1Config(raw)) {
+      console.log('[configStore] detected v1 config, migrating to v2 format');
+      const migrated = migrateFromV1(raw);
+      fs.writeFileSync(cfgFile + '.v1.backup', JSON.stringify(raw, null, 2), 'utf8');
+      saveConfig(migrated);
+      return { ...getDefaultConfig(), ...migrated };
+    }
+    return { ...getDefaultConfig(), ...raw };
   } catch (err) {
     console.error('[configStore] failed to load config:', err.message);
     return getDefaultConfig();
