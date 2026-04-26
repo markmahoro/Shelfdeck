@@ -6,6 +6,7 @@ import TranscodeConfigPage from './pages/TranscodeConfigPage';
 import DoubanConfigPage from './pages/DoubanConfigPage';
 import TaskMonitorPage from './pages/TaskMonitorPage';
 import SystemConfigPage from './pages/SystemConfigPage';
+import MoviePilotConfigPage from './pages/MoviePilotConfigPage';
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="douban" element={<DoubanConfigPage />} />
         <Route path="tasks" element={<TaskMonitorPage />} />
         <Route path="system" element={<SystemConfigPage />} />
+        <Route path="moviepilot" element={<MoviePilotConfigPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -8,6 +8,7 @@ const NAV = [
   { to: '/douban', label: '豆瓣设置' },
   { to: '/tasks', label: '任务监控' },
   { to: '/system', label: '系统设置' },
+  { to: '/moviepilot', label: '洗版设置' },
 ];
 
 export default function Sidebar() {
