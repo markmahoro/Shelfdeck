@@ -102,7 +102,12 @@ const ITEM_FIELDS =
   'BasicSyncInfo,RunTimeTicks,ImageTags,Type,MediaType,Path,VideoType,IsoType,SeriesName,SeriesId,ParentIndexNumber,IndexNumber,ParentId,MediaSources,UserData';
 
 async function getLibraryItems(serverConfig, sectionId) {
-  const uid = encodeURIComponent((serverConfig.userId || '').trim());
+  let userId = (serverConfig.userId || '').trim();
+  if (!userId) {
+    const users = await getUsers(serverConfig);
+    if (users.length > 0) userId = users[0].id;
+  }
+  const uid = encodeURIComponent(userId);
   const query = {
     ParentId: sectionId,
     Recursive: 'true',
