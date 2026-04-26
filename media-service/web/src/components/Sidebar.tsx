@@ -5,6 +5,7 @@ const NAV = [
   { to: '/', label: '仪表盘' },
   { to: '/media-libraries', label: '媒体库' },
   { to: '/transcode', label: '转码设置' },
+  { to: '/douban', label: '豆瓣设置' },
   { to: '/tasks', label: '任务监控' },
 ];
 

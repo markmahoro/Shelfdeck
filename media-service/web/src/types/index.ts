@@ -148,3 +148,11 @@ export interface HealthStatus {
   };
   timestamp: string;
 }
+
+// ── Douban ─────────────────────────────────────────────────────────────────────
+
+export interface DoubanSession {
+  cookieHeader: string;
+  userId: string;
+  interestsRssUrl: string;
+}

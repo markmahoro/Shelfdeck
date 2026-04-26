@@ -17,7 +17,7 @@ export default function TranscodeConfigPage() {
   const [initialized, setInitialized] = useState(false);
 
   // Device pool
-  const [poolDevices, setPoolDevices] = useState<DevicePoolEntry[]>([]);
+  const [poolDevices] = useState<DevicePoolEntry[]>([]);
 
   // Queries
   const { isLoading: cfgLoading } = useQuery({

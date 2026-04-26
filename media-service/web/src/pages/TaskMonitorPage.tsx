@@ -239,11 +239,6 @@ const deleteBtn: React.CSSProperties = {
   background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13,
 };
 
-const primaryBtn: React.CSSProperties = {
-  background: '#1a1a2e', color: '#fff', border: 'none', padding: '8px 20px',
-  borderRadius: 6, cursor: 'pointer', fontSize: 14,
-};
-
 const secondaryBtn: React.CSSProperties = {
   background: '#f0f0f0', color: '#333', border: 'none', padding: '8px 20px',
   borderRadius: 6, cursor: 'pointer', fontSize: 14,

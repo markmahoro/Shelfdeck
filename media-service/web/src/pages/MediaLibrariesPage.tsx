@@ -1,15 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { subLibraries, emby } from '../api/client';
-import type { SubLibrary, EmbyUser, MediaFolder, MediaPolicy } from '../types';
+import type { SubLibrary, EmbyUser, MediaFolder } from '../types';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
-
-const DEFAULT_POLICY: MediaPolicy = {
-  target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
-  target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
-};
 
 export default function MediaLibrariesPage() {
   const qc = useQueryClient();

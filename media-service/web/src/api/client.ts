@@ -10,6 +10,7 @@ import type {
   TaskListResponse,
   MediaTask,
   HealthStatus,
+  DoubanSession,
 } from '../types';
 
 function apiKey(): string {
@@ -57,6 +58,18 @@ async function del<T>(path: string): Promise<T> {
   const key = apiKey();
   if (key) headers['x-api-key'] = key;
   const res = await fetch(path, { method: 'DELETE', headers });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error?.message || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const key = apiKey();
+  if (key) headers['x-api-key'] = key;
+  const res = await fetch(path, { method: 'PUT', headers, body: JSON.stringify(body) });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error?.message || `HTTP ${res.status}`);
@@ -141,4 +154,16 @@ export const health = {
 
 export const publicHealth = {
   check: () => get<{ status: 'green' | 'yellow' | 'red'; timestamp: string }>('/v1/health'),
+};
+
+// ── Douban ─────────────────────────────────────────────────────────────────────
+
+export const douban = {
+  getSession: () => get<DoubanSession>('/v1/integrations/douban/session'),
+
+  saveSession: (body: DoubanSession) =>
+    put<DoubanSession>('/v1/integrations/douban/session', body),
+
+  fetchRatings: (subLibraryId: string) =>
+    get<{ ok: boolean; message: string }>(`/v1/integrations/douban/fetch/ratings?subLibraryId=${encodeURIComponent(subLibraryId)}`),
 };

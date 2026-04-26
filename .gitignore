@@ -3,6 +3,7 @@
 
 node_modules/
 dist/
+!media-service/dist/
 release/
 
 *.log
