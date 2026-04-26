@@ -55,7 +55,7 @@ function reportStatus(taskId, status, progress) {
   const updates = { status };
   if (typeof progress === 'number') updates.progress = progress;
   taskStore.updateTask(taskId, updates);
-  if (status === 'done' || status === 'failed_hard' || status === 'interrupted') {
+  if (status === 'done' || status === 'failed_hard' || status === 'interrupted' || status === 'paused') {
     runningTasks.delete(taskId);
   }
 }
@@ -64,7 +64,7 @@ function reportStatus(taskId, status, progress) {
 
 function recoverInterruptedTasks() {
   const tasks = taskStore.loadTasks();
-  const interruptible = ['precheck', 'executing', 'verify', 'transcode_executing', 'transcode_replace'];
+  const interruptible = ['precheck', 'executing', 'verify', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'planning', 'pre_replace_verify'];
   for (const t of tasks) {
     if (interruptible.includes(t.status) || interruptible.includes(t.phase)) {
       taskStore.updateTask(t.id, { status: 'interrupted' });
@@ -137,6 +137,8 @@ async function scheduleRound() {
     if (task.status === 'paused') continue;
     // Skip awaiting confirm
     if (task.status === 'awaiting_user_confirm') continue;
+    // Skip waiting_media_source (flow parks, retry handled by flow timer)
+    if (task.status === 'waiting_media_source') continue;
 
     // executionMode check
     if (config.executionMode === 'manual' && task.status === 'pending_manual') continue;

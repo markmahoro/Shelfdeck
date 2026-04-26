@@ -7,9 +7,14 @@
  * Bidirectional API with TaskScheduler.
  */
 
+const fs = require('fs');
 const taskStore = require('./taskStore');
 const configStore = require('./configStore');
 const transcodeService = require('./services/transcodeService');
+
+// Tracks tasks intentionally aborted by pause/cancel so catch blocks
+// in async flow phases don't overwrite the status with failed_hard.
+const abortedTasks = new Set();
 
 let scheduler = null;
 function setScheduler(s) { scheduler = s; }
@@ -73,6 +78,9 @@ async function driveTask(taskId) {
   const task = taskStore.getTask(taskId);
   if (!task) return;
 
+  // Clear stale abort flag so resumed tasks aren't silently swallowed
+  abortedTasks.delete(taskId);
+
   const rp = task.resumePoint || 'transcode_precheck';
   const config = configStore.loadConfig();
 
@@ -109,8 +117,9 @@ async function runPrecheck(taskId, task, config) {
     }
 
     // Estimate output size vs original
-    if (result.originalSizeGb !== undefined) {
-      appendLog(taskId, 'info', `Source: ${result.originalSizeGb.toFixed(2)} GB, ${result.durationSec}s`);
+    if (result.originalSizeBytes !== undefined) {
+      const srcGb = (result.originalSizeBytes / (1024 * 1024 * 1024)).toFixed(2);
+      appendLog(taskId, 'info', `Source: ${srcGb} GB, ${result.durationSec}s`);
     }
 
     // Store precheck results on task for later phases
@@ -131,12 +140,19 @@ async function runPrecheck(taskId, task, config) {
         tempDir: taskWorkDir,
         isDolbyVision: result.isDolbyVision,
         durationSec: result.durationSec,
+        originalSizeBytes: result.originalSizeBytes,
+        originalVideoCodec: result.originalVideoCodec,
+        originalWidth: result.originalWidth,
+        originalHeight: result.originalHeight,
+        originalAudioCodec: result.originalAudioCodec,
+        originalBitrate: result.originalBitrate,
       },
     });
 
     scheduler.reportStatus(taskId, 'executing', 0);
     await runExecuting(taskId, taskStore.getTask(taskId), config);
   } catch (e) {
+    if (abortedTasks.has(taskId)) return;
     appendLog(taskId, 'error', `Precheck failed: ${e.message}`);
     scheduler.reportStatus(taskId, 'failed_hard');
     setPhase(taskId, 'failed_hard');
@@ -181,6 +197,7 @@ async function runExecuting(taskId, task, config) {
     appendLog(taskId, 'info', 'Encoding complete');
     await runVerify(taskId, task, config);
   } catch (e) {
+    if (abortedTasks.has(taskId)) return;
     appendLog(taskId, 'error', `Encoding failed: ${e.message}`);
     scheduler.reportStatus(taskId, 'failed_hard');
     setPhase(taskId, 'failed_hard');
@@ -204,7 +221,34 @@ async function runVerify(taskId, task, config) {
     if (summary.durationSec <= 0) throw new Error('Output duration is zero');
     appendLog(taskId, 'info', `Verify OK: ${summary.width}x${summary.height}, ${summary.videoCodec}, ${summary.durationSec}s`);
 
-    // Check if replace confirmation is required
+    const outSizeBytes = fs.statSync(partialPath).size;
+    const outBitrate = summary.durationSec > 0
+      ? Math.round((outSizeBytes * 8) / (summary.durationSec * 1000))
+      : 0;
+
+    // Generate preview clip for trial viewing
+    let previewPath = null;
+    try {
+      const previewFile = require('path').join(task.itemInfo.tempDir, 'preview.mp4');
+      const previewResult = await transcodeService.extractPreviewClip(config, partialPath, previewFile);
+      appendLog(taskId, 'info', `Preview clip generated (${previewResult.method}, ${previewResult.duration}s from ${previewResult.startSec}s)`);
+      previewPath = previewResult.previewPath;
+    } catch (e) {
+      appendLog(taskId, 'warn', `Preview clip generation failed: ${e.message}`);
+    }
+
+    taskStore.updateTask(taskId, {
+      verifyResult: {
+        sizeBytes: outSizeBytes,
+        videoCodec: summary.videoCodec,
+        width: summary.width,
+        height: summary.height,
+        bitrate: outBitrate,
+        durationSec: summary.durationSec,
+        previewPath,
+      },
+    });
+
     if (config.transcodeReplaceConfirmRequired) {
       appendLog(taskId, 'info', 'Replace confirmation required — awaiting user');
       scheduler.pauseForConfirm(taskId, 'transcode_replace');
@@ -213,6 +257,7 @@ async function runVerify(taskId, task, config) {
 
     await runReplace(taskId, task, config);
   } catch (e) {
+    if (abortedTasks.has(taskId)) return;
     appendLog(taskId, 'error', `Verify failed: ${e.message}`);
     scheduler.reportStatus(taskId, 'failed_hard');
     setPhase(taskId, 'failed_hard');
@@ -237,17 +282,42 @@ async function runReplace(taskId, task, config) {
     appendLog(taskId, 'info', 'Replace complete');
     scheduler.reportStatus(taskId, 'done', 100);
     setPhase(taskId, 'done');
+    const tempDir = task.itemInfo && task.itemInfo.tempDir;
+    if (tempDir) transcodeService.cleanupTaskWorkdir(tempDir);
   } catch (e) {
+    if (abortedTasks.has(taskId)) return;
     appendLog(taskId, 'error', `Replace failed: ${e.message}`);
     scheduler.reportStatus(taskId, 'failed_hard');
     setPhase(taskId, 'failed_hard');
   }
 }
 
+// Windows: after abortTask kills FFmpeg, the file handle may not be
+// released immediately. Retry unlink up to 2s to avoid silent failure.
+function unlinkWithRetrySync(filePath) {
+  const maxAttempts = 20;
+  const delayMs = 100;
+  for (let i = 0; i < maxAttempts; i++) {
+    try { require('fs').unlinkSync(filePath); return true; } catch (_) {}
+    if (i < maxAttempts - 1) {
+      // Synchronous sleep approximation
+      const end = Date.now() + delayMs;
+      while (Date.now() < end) { /* busy-wait for short delay */ }
+    }
+  }
+  return false;
+}
+
 function pause(taskId) {
   const task = taskStore.getTask(taskId);
   if (!task) return;
+  abortedTasks.add(taskId);
   transcodeService.abortTask(taskId);
+  // Clean up partial file (FFmpeg cannot resume from partial encode)
+  const partialPath = task.itemInfo && task.itemInfo.partialPath;
+  if (partialPath) {
+    unlinkWithRetrySync(partialPath);
+  }
   appendLog(taskId, 'info', 'Transcode paused by user');
   scheduler.reportStatus(taskId, 'paused', task.progress || 0);
 }
@@ -255,11 +325,12 @@ function pause(taskId) {
 function cancel(taskId) {
   const task = taskStore.getTask(taskId);
   if (!task) return;
+  abortedTasks.add(taskId);
   transcodeService.abortTask(taskId);
   // Clean up partial file
   const partialPath = task.itemInfo && task.itemInfo.partialPath;
   if (partialPath) {
-    try { require('fs').unlinkSync(partialPath); } catch (_) {}
+    unlinkWithRetrySync(partialPath);
   }
   appendLog(taskId, 'info', 'Transcode cancelled by user');
   scheduler.reportStatus(taskId, 'done');

@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const cors = require('@fastify/cors');
@@ -119,14 +120,55 @@ function registerRoutes(app) {
     return task;
   });
 
+  app.get('/v1/tasks/:id/preview', async (req, reply) => {
+    const task = taskStore.getTask(req.params.id);
+    if (!task || !task.verifyResult || !task.verifyResult.previewPath) {
+      return apiError(reply, 404, 'NOT_FOUND', 'Preview not available');
+    }
+    const filePath = task.verifyResult.previewPath;
+    let stat;
+    try { stat = fs.statSync(filePath); } catch {
+      return apiError(reply, 404, 'NOT_FOUND', 'Preview file not found');
+    }
+    const fileSize = stat.size;
+
+    const range = req.headers.range;
+    if (range) {
+      const parts = range.replace('bytes=', '').split('-');
+      const start = parseInt(parts[0], 10) || 0;
+      const end = parts[1] ? parseInt(parts[1], 10) : Math.min(start + 1024 * 1024 - 1, fileSize - 1);
+      const chunkSize = end - start + 1;
+
+      const stream = fs.createReadStream(filePath, { start, end });
+      reply.raw.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunkSize,
+        'Content-Type': 'video/mp4',
+      });
+      stream.pipe(reply.raw);
+      return;
+    }
+
+    reply.header('Content-Type', 'video/mp4');
+    reply.header('Content-Length', fileSize);
+    reply.header('Accept-Ranges', 'bytes');
+    return reply.send(fs.createReadStream(filePath));
+  });
+
   app.patch('/v1/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
-    const { confirmed } = req.body || {};
+    const { confirmed, confirmData } = req.body || {};
     if (!confirmed) return apiError(reply, 400, 'VALIDATION_ERROR', 'confirmed must be true');
     if (task.status !== 'awaiting_user_confirm') {
       return apiError(reply, 409, 'TASK_CONFLICT', 'Task is not awaiting confirmation');
+    }
+
+    // Store user selection data (e.g. selectedIndex for upgrade flow)
+    if (confirmData) {
+      taskStore.updateTask(task.id, { confirmData });
     }
 
     // Call Flow.confirmReceived
@@ -167,11 +209,9 @@ function registerRoutes(app) {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
-    // Cancel if executing
-    if (task.status === 'executing') {
-      const flow = getFlow(task.actionType);
-      if (flow) flow.cancel(task.id);
-    }
+    // Always cancel to clean up FFmpeg process and partial files
+    const flow = getFlow(task.actionType);
+    if (flow) flow.cancel(task.id);
 
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
@@ -448,6 +488,28 @@ function registerRoutes(app) {
     };
   });
 
+  // ── Admin: Upgrade (MoviePilot) ──────────────────────────────────────────
+
+  app.get('/v1/admin/upgrade/config', async () => {
+    const cfg = configStore.loadConfig();
+    const mp = cfg.moviepilot || {};
+    return {
+      moviepilot: { ...mp, apiKey: mp.apiKey ? '********' : '' },
+      upgradeStagingLocalPath: cfg.upgradeStagingLocalPath || '',
+      upgradeRetryInterval: cfg.upgradeRetryInterval || 3600000,
+      upgradeMaxRetries: cfg.upgradeMaxRetries || 3,
+    };
+  });
+
+  app.patch('/v1/admin/upgrade/config', async (req) => {
+    const allowed = ['moviepilot', 'upgradeStagingLocalPath', 'upgradeRetryInterval', 'upgradeMaxRetries'];
+    const patch = {};
+    for (const key of allowed) {
+      if (req.body && req.body[key] !== undefined) patch[key] = req.body[key];
+    }
+    return maskSensitive(configStore.patchConfig(patch));
+  });
+
   // ── Admin: Tasks ────────────────────────────────────────────────────────
 
   app.get('/v1/admin/tasks', async (req) => {
@@ -471,6 +533,11 @@ function registerRoutes(app) {
   app.delete('/v1/admin/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+
+    // Always cancel to clean up FFmpeg process and partial files
+    const flow = getFlow(task.actionType);
+    if (flow) flow.cancel(task.id);
+
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
   });

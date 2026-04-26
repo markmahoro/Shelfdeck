@@ -30,10 +30,11 @@ async function get<T>(path: string): Promise<T> {
 }
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
   const key = apiKey();
   if (key) headers['x-api-key'] = key;
-  const res = await fetch(path, { method: 'POST', headers, body: body ? JSON.stringify(body) : undefined });
+  const res = await fetch(path, { method: 'POST', headers, body: body !== undefined ? JSON.stringify(body) : undefined });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error?.message || `HTTP ${res.status}`);
@@ -125,6 +126,22 @@ export const transcode = {
     get<{ devices: EncodeDevice[] }>('/v1/admin/transcode/probe-devices'),
 
   getDevicePool: () => get<DevicePool>('/v1/admin/transcode/device-pool'),
+};
+
+// ── Upgrade (MoviePilot) ─────────────────────────────────────────────────────
+
+export interface UpgradeConfig {
+  moviepilot: { baseUrl: string; apiKey: string; savePath: string; stagingPath: string };
+  upgradeStagingLocalPath: string;
+  upgradeRetryInterval: number;
+  upgradeMaxRetries: number;
+}
+
+export const upgrade = {
+  getConfig: () => get<UpgradeConfig>('/v1/admin/upgrade/config'),
+
+  patchConfig: (body: Partial<UpgradeConfig>) =>
+    patch<UpgradeConfig>('/v1/admin/upgrade/config', body),
 };
 
 // ── Tasks ────────────────────────────────────────────────────────────────────

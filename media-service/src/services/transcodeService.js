@@ -257,7 +257,18 @@ async function precheck(config, sourcePath) {
   const j = await ffprobeJson(config, sourcePath);
   const isDv = detectDolbyVision(j);
   const durationSec = Number(j.format && j.format.duration) || 3600;
-  const originalSizeGb = Number((st.size / (1024 * 1024 * 1024)).toFixed(4));
+  const originalSizeBytes = st.size;
+
+  const vStream = (j.streams || []).find((s) => s.codec_type === 'video');
+  const aStream = (j.streams || []).find((s) => s.codec_type === 'audio');
+  const originalVideoCodec = vStream ? String(vStream.codec_name || '') : '';
+  const originalWidth = vStream && typeof vStream.width === 'number' ? vStream.width : 0;
+  const originalHeight = vStream && typeof vStream.height === 'number' ? vStream.height : 0;
+  const originalAudioCodec = aStream ? String(aStream.codec_name || '') : '';
+  const rawBitrate = Number(j.format && j.format.bit_rate) || 0;
+  const originalBitrate = rawBitrate > 0
+    ? Math.round(rawBitrate / 1000)
+    : (durationSec > 0 ? Math.round((originalSizeBytes * 8) / (durationSec * 1000)) : 0);
 
   const ff = resolveFfmpegBin(config);
   const rFf = await runCmd(ff, ['-hide_banner', '-version']);
@@ -278,7 +289,12 @@ async function precheck(config, sourcePath) {
     sourcePath,
     isDolbyVision: isDv,
     durationSec,
-    originalSizeGb,
+    originalSizeBytes,
+    originalVideoCodec,
+    originalWidth,
+    originalHeight,
+    originalAudioCodec,
+    originalBitrate,
   };
 }
 
@@ -387,6 +403,7 @@ async function replaceSwapOnce({ config, targetPath, partialPath }) {
 
   const st = await fs.promises.stat(targetPath);
   await fs.promises.unlink(partialPath).catch(() => {});
+  await fs.promises.unlink(bak).catch(() => {});
   return { preReplaceHash: preHash, resultSizeBytes: st.size };
 }
 
@@ -398,6 +415,7 @@ async function replaceWithRetries(params) {
       const dir = path.dirname(params.targetPath);
       const base = path.basename(params.targetPath);
       await fs.promises.unlink(path.join(dir, `${base}.etp.new`)).catch(() => {});
+      await fs.promises.unlink(path.join(dir, `${base}.etp.bak`)).catch(() => {});
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
@@ -411,6 +429,27 @@ async function cleanupTaskWorkdir(tempDir) {
     for (const name of entries) await fs.promises.unlink(path.join(d, name)).catch(() => {});
     await fs.promises.rmdir(d).catch(() => {});
   } catch (_) {}
+}
+
+async function extractPreviewClip(config, sourcePath, outputPath) {
+  const ff = resolveFfmpegBin(config);
+  const dur = Number.isFinite(config && config.transcodePreviewDuration) && config.transcodePreviewDuration > 0
+    ? config.transcodePreviewDuration : 30;
+  const startPct = Number.isFinite(config && config.transcodePreviewStartPct) ? config.transcodePreviewStartPct : 0.25;
+  const j = await ffprobeJson(config, sourcePath);
+  const totalSec = Number(j.format && j.format.duration) || 0;
+  const startSec = totalSec > dur ? Math.floor(totalSec * startPct) : 0;
+
+  // Try copy first (fast, no quality loss)
+  const copyArgs = [ff, ['-hide_banner', '-loglevel', 'error', '-ss', String(startSec), '-i', sourcePath, '-t', String(dur), '-c', 'copy', '-movflags', '+faststart', '-y', outputPath]];
+  const r1 = await runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-ss', String(startSec), '-i', sourcePath, '-t', String(dur), '-c', 'copy', '-movflags', '+faststart', '-y', outputPath]);
+  if (r1.code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) return { previewPath: outputPath, method: 'copy', startSec, duration: dur };
+
+  // Fallback: fast software encode
+  const r2 = await runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-ss', String(startSec), '-i', sourcePath, '-t', String(dur), '-c:v', 'libx265', '-crf', '28', '-preset', 'veryfast', '-an', '-movflags', '+faststart', '-y', outputPath]);
+  if (r2.code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) return { previewPath: outputPath, method: 'encode', startSec, duration: dur };
+
+  throw new Error('Failed to extract preview clip');
 }
 
 async function scanOrphans(tempRoot) {
@@ -447,6 +486,7 @@ module.exports = {
   replaceWithRetries,
   cleanupTaskWorkdir,
   scanOrphans,
+  extractPreviewClip,
   probeEncodeDevices,
   parseStableKey,
   resolveFfmpegBin,

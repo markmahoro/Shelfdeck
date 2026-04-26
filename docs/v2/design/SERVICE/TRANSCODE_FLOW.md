@@ -29,7 +29,7 @@ TranscodeFlowExecutor 负责执行转码任务的可执行行为，管理 phase 
 收到 `pause()` 调用时：
 
 - 中断 FFmpeg 进程
-- **保留 partial 文件**（后续可恢复）
+- **清理 partial 文件**（FFmpeg 不支持从 partial 文件续编，恢复时从头开始）
 - 调用 `scheduler.reportStatus(taskId, 'paused')`
 - Flow 进入 `paused` 状态，调度器不再接管
 

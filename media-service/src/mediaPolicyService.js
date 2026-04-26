@@ -45,6 +45,12 @@ function targetMbps(item, policy) {
   return ladder[r] != null ? ladder[r] : null;
 }
 
+function isModernCodec(codec) {
+  if (!codec) return false;
+  const c = String(codec).toLowerCase();
+  return c === 'h265' || c === 'hevc' || c === 'av1';
+}
+
 function recommendedAction(item, policy) {
   const r = effectiveRating(item);
   const eq = itemBitrateMbps(item);
@@ -68,6 +74,9 @@ function recommendedAction(item, policy) {
 
   if (r === 3) {
     if (eq > target + HYSTERESIS_MBPS) {
+      if (isModernCodec(item.codec)) {
+        return { action: 'keep', reason: `已是 ${item.codec} 编码，硬件重编码不会显著减小体积（当前 ${eq.toFixed(1)} Mbps）` };
+      }
       return { action: 'transcode', reason: `码率 ${eq.toFixed(1)} Mbps 超出 3★ 目标 ${target} Mbps` };
     }
     return { action: 'keep', reason: '码率在 3★ 目标范围内' };
@@ -75,6 +84,9 @@ function recommendedAction(item, policy) {
 
   if (r === 4) {
     if (eq > target + HYSTERESIS_MBPS) {
+      if (isModernCodec(item.codec)) {
+        return { action: 'keep', reason: `已是 ${item.codec} 编码，硬件重编码不会显著减小体积（当前 ${eq.toFixed(1)} Mbps）` };
+      }
       return { action: 'transcode', reason: `码率 ${eq.toFixed(1)} Mbps 超出 4★ 目标 ${target} Mbps` };
     }
     if (eq < target * UPGRADE_BELOW_RATIO) {

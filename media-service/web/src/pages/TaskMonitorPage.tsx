@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasks } from '../api/client';
-import type { MediaTask } from '../types';
+import type { MediaTask, TaskItemInfo, VerifyResult } from '../types';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -88,9 +88,52 @@ export default function TaskMonitorPage() {
       btns.push(<button key="exec" onClick={() => executeMut.mutate(t.id)} style={execBtn}>执行</button>);
     }
     if (t.status === 'awaiting_user_confirm') {
-      btns.push(<button key="confirm" onClick={() => { if (confirm(`确认执行 ${t.actionType} 任务？`)) confirmMut.mutate(t.id); }} style={execBtn}>确认</button>);
+      if (t.resumePoint === 'transcode_replace' && t.verifyResult) {
+        btns.push(<button key="compare" onClick={() => openDetail(t)} style={execBtn}>查看对比</button>);
+      } else {
+        btns.push(<button key="confirm" onClick={() => { if (confirm(`确认执行 ${t.actionType} 任务？`)) confirmMut.mutate(t.id); }} style={execBtn}>确认</button>);
+      }
     }
     return btns;
+  }
+
+  function renderCompareTable(orig: TaskItemInfo, result: VerifyResult) {
+    const origGb = (orig.originalSizeBytes || 0) / (1024 * 1024 * 1024);
+    const newGb = result.sizeBytes / (1024 * 1024 * 1024);
+    const sizeDelta = origGb > 0 ? ((newGb - origGb) / origGb * 100) : 0;
+    const bitrateDelta = (orig.originalBitrate || 0) > 0
+      ? ((result.bitrate - (orig.originalBitrate || 0)) / (orig.originalBitrate || 1) * 100) : 0;
+
+    const rows = [
+      ['文件大小', `${origGb.toFixed(2)} GB`, `${newGb.toFixed(2)} GB`, `${sizeDelta >= 0 ? '+' : ''}${sizeDelta.toFixed(1)}%`],
+      ['视频编码', orig.originalVideoCodec || '—', result.videoCodec || '—', ''],
+      ['分辨率', `${orig.originalWidth || '?'} × ${orig.originalHeight || '?'}`, `${result.width} × ${result.height}`, ''],
+      ['视频码率', orig.originalBitrate ? `${orig.originalBitrate} kbps` : '—', `${result.bitrate} kbps`, `${bitrateDelta >= 0 ? '+' : ''}${bitrateDelta.toFixed(1)}%`],
+      ['音频编码', orig.originalAudioCodec || '—', result.videoCodec || '—', ''],
+      ['预估节省', '', `${origGb > newGb ? (origGb - newGb).toFixed(2) + ' GB' : '—'}`, ''],
+    ];
+
+    return (
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: '#eef2f7' }}>
+            <th style={compareTh}>指标</th>
+            <th style={compareTh}>原文件</th>
+            <th style={compareTh}>新文件</th>
+            <th style={compareTh}>变化</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+              {r.map((cell, j) => (
+                <td key={j} style={{ ...compareTd, fontWeight: j === 0 ? 600 : 400, color: j === 3 && cell ? (cell.startsWith('+') || cell.startsWith('0') ? '#e67e22' : '#27ae60') : '#333' }}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
   }
 
   return (
@@ -210,6 +253,31 @@ export default function TaskMonitorPage() {
               <div><strong>更新时间:</strong> {displayTask.updatedAt ? new Date(displayTask.updatedAt).toLocaleString() : '—'}</div>
             </div>
 
+            {/* Replace confirm comparison card */}
+            {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint === 'transcode_replace' && displayTask.verifyResult && displayTask.itemInfo && (
+              <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
+                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#1a1a2e' }}>转码结果对比</h4>
+                {renderCompareTable(displayTask.itemInfo, displayTask.verifyResult)}
+                {displayTask.verifyResult.previewPath && (
+                  <div style={{ marginTop: 12 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>试看预览（30秒片段）</p>
+                    <video controls width="480" style={{ borderRadius: 6, background: '#000', maxWidth: '100%' }}>
+                      <source src={`/v1/tasks/${displayTask.id}/preview`} type="video/mp4" />
+                    </video>
+                  </div>
+                )}
+                <div style={{ marginTop: 14 }}>
+                  <button onClick={() => confirmMut.mutate(displayTask.id)} disabled={confirmMut.isPending} style={{
+                    background: '#27ae60', color: '#fff', border: 'none', padding: '10px 28px',
+                    borderRadius: 6, cursor: 'pointer', fontSize: 15, fontWeight: 600,
+                  }}>
+                    {confirmMut.isPending ? '确认中...' : '确认替换'}
+                  </button>
+                  <span style={{ marginLeft: 12, fontSize: 13, color: '#888' }}>确认后将用新文件替换原文件，操作不可撤销</span>
+                </div>
+              </div>
+            )}
+
             <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>执行日志</h4>
             <div style={{ background: '#1a1a2e', color: '#e0e0e0', borderRadius: 8, padding: 12, maxHeight: 200, overflow: 'auto', fontFamily: 'Consolas, monospace', fontSize: 12, lineHeight: 1.6 }}>
               {(displayTask.logs || []).length === 0 ? (
@@ -238,7 +306,7 @@ export default function TaskMonitorPage() {
                     {executeMut.isPending ? '执行中...' : '执行'}
                   </button>
                 )}
-                {displayTask.status === 'awaiting_user_confirm' && (
+                {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint !== 'transcode_replace' && (
                   <button onClick={() => { if (confirm(`确认执行 ${displayTask.actionType} 任务？`)) confirmMut.mutate(displayTask.id); }} disabled={confirmMut.isPending} style={execBtn}>
                     {confirmMut.isPending ? '确认中...' : '确认'}
                   </button>
@@ -308,4 +376,12 @@ const secondaryBtn: React.CSSProperties = {
 const dangerBtn: React.CSSProperties = {
   background: '#e74c3c', color: '#fff', border: 'none', padding: '8px 20px',
   borderRadius: 6, cursor: 'pointer', fontSize: 14,
+};
+
+const compareTh: React.CSSProperties = {
+  textAlign: 'left', padding: '8px 12px', fontSize: 12, color: '#555', fontWeight: 600,
+};
+
+const compareTd: React.CSSProperties = {
+  padding: '8px 12px', fontSize: 13,
 };

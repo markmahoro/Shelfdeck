@@ -106,6 +106,27 @@ export interface TaskItemInfo {
   path?: string;
   resolution?: string;
   bitrate?: number;
+  originalSizeBytes?: number;
+  originalVideoCodec?: string;
+  originalWidth?: number;
+  originalHeight?: number;
+  originalAudioCodec?: string;
+  originalBitrate?: number;
+  sourcePath?: string;
+  partialPath?: string;
+  tempDir?: string;
+  isDolbyVision?: boolean;
+  durationSec?: number;
+}
+
+export interface VerifyResult {
+  sizeBytes: number;
+  videoCodec: string;
+  width: number;
+  height: number;
+  bitrate: number;
+  durationSec: number;
+  previewPath: string | null;
 }
 
 export interface MediaTask {
@@ -120,6 +141,7 @@ export interface MediaTask {
   updatedAt: string;
   logs?: TaskLogEntry[];
   itemInfo?: TaskItemInfo;
+  verifyResult?: VerifyResult;
 }
 
 export interface TaskListResponse {
@@ -156,4 +178,20 @@ export interface DoubanSession {
   cookieHeader: string;
   userId: string;
   interestsRssUrl: string;
+}
+
+// ── Upgrade (MoviePilot) ──────────────────────────────────────────────────────
+
+export interface MoviePilotConfig {
+  baseUrl: string;
+  apiKey: string;
+  savePath: string;
+  stagingPath: string;
+}
+
+export interface UpgradeConfig {
+  moviepilot: MoviePilotConfig;
+  upgradeStagingLocalPath: string;
+  upgradeRetryInterval: number;
+  upgradeMaxRetries: number;
 }
