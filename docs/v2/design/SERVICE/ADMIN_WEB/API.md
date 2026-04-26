@@ -388,9 +388,69 @@
 
 ---
 
-## §4 任务监控
+## §4 洗版设置（MoviePilot）
 
-### 4.1 GET /v1/admin/tasks
+### 4.1 GET /v1/admin/upgrade/config
+
+获取当前洗版/MoviePilot 配置。`apiKey` 字段返回脱敏值 `********`。
+
+**响应**：
+
+```json
+{
+  "moviepilot": {
+    "baseUrl": "http://192.168.1.100:3000",
+    "apiKey": "********",
+    "savePath": "/vol1/1000/media_download/shelfdeck",
+    "stagingPath": ""
+  },
+  "upgradeStagingLocalPath": "W:\\shelfdeck",
+  "upgradeRetryInterval": 3600000,
+  "upgradeMaxRetries": 3
+}
+```
+
+---
+
+### 4.2 PATCH /v1/admin/upgrade/config
+
+部分更新洗版配置。仅传入需要变更的字段。`apiKey` 在保存时以明文传入，查询时脱敏返回。
+
+**请求体**：
+
+```json
+{
+  "moviepilot": {
+    "baseUrl": "http://192.168.1.100:3000",
+    "apiKey": "new-api-token",
+    "savePath": "/downloads/shelfdeck",
+    "stagingPath": ""
+  },
+  "upgradeStagingLocalPath": "Y:\\staging",
+  "upgradeRetryInterval": 7200000,
+  "upgradeMaxRetries": 5
+}
+```
+
+**响应**：同 `GET /v1/admin/upgrade/config`（apiKey 脱敏）。
+
+**配置字段**（详见 `SERVICE/CONFIG.md` §3.3）：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `moviepilot.baseUrl` | string | `""` | MoviePilot 服务地址 |
+| `moviepilot.apiKey` | string | `""` | API Token |
+| `moviepilot.savePath` | string | `""` | 容器内下载目录 |
+| `moviepilot.stagingPath` | string | `""` | 容器内 Staging 目录（可选）|
+| `upgradeStagingLocalPath` | string | `""` | 本地 Staging 路径 |
+| `upgradeRetryInterval` | number | 3600000 | 重搜间隔 (ms) |
+| `upgradeMaxRetries` | number | 3 | 最大重试次数 |
+
+---
+
+## §5 任务监控
+
+### 5.1 GET /v1/admin/tasks
 
 列出所有任务（含 flowState）。
 
@@ -495,7 +555,7 @@
 
 ---
 
-## §5 服务健康状态
+## §6 服务健康状态
 
 ### 5.1 GET /v1/admin/health
 
@@ -519,7 +579,7 @@
 
 ---
 
-## §6 端点索引
+## §7 端点索引
 
 | 端点 | 方法 | 说明 | 对应模块 |
 |---|---|---|---|
@@ -537,6 +597,8 @@
 | `/v1/admin/transcode/config` | PATCH | 更新转码配置 | ConfigStore |
 | `/v1/admin/transcode/probe-devices` | GET | 探测本机可用编码设备 | TranscodeService |
 | `/v1/admin/transcode/device-pool` | GET | 获取设备池状态 | TranscodeService |
+| `/v1/admin/upgrade/config` | GET | 获取洗版配置 | ConfigStore |
+| `/v1/admin/upgrade/config` | PATCH | 更新洗版配置 | ConfigStore |
 | `/v1/admin/tasks` | GET | 列出所有任务 | TaskStore |
 | `/v1/admin/tasks/:id` | GET | 获取任务详情 | TaskStore |
 | `/v1/admin/tasks/:id` | DELETE | 删除任务 | TaskStore |
@@ -544,7 +606,7 @@
 
 ---
 
-## §7 关联文档
+## §8 关联文档
 
 - `SERVICE/ADMIN_WEB.md` — Web 管理端总览
 - `SERVICE/ADMIN_WEB/PAGES.md` — 页面结构与组件

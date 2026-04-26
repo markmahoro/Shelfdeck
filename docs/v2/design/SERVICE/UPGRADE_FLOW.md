@@ -1,42 +1,46 @@
 # DESIGN_SERVICE/UPGRADE_FLOW — UpgradeFlowExecutor
 
-> 状态：v2 重写中
-> 基准架构：Phase 3，基于双向 API 通信模型重写
+> 状态：v2 定稿
+> 基准架构：Phase 3，基于双向 API 通信模型
 > SSOT：本文是 UpgradeFlowExecutor 可执行行为的唯一事实来源
-> 依赖：MoviePilot REST API 集成
+> 依赖：MoviePilot REST API 集成、transcodeService（probe + preview clip）
 
 ---
 
 ## §1 职责定位
 
-UpgradeFlowExecutor 负责执行升级/洗版任务，通过 MoviePilot REST API 搜索候选、触发下载、从 staging 目录执行原子替换。
+UpgradeFlowExecutor 负责执行升级/洗版任务，通过 MoviePilot REST API 搜索候选、触发下载、等待 MoviePilot 自动刮削后，执行原子替换。
 
-**核心原则**：MoviePilot 是搜索引擎，ShelfDeck 是执行者。MoviePilot 只负责搜索和排名，实际下载和文件替换由 ShelfDeck 完成。
+**核心原则**：MoviePilot 负责搜索种子 + 下载调度 + 刮削整理。ShelfDeck 负责选择版本、触发下载、TMDB 身份校验、最终文件夹替换。
 
-**依赖**：`taskStore`、`configStore`、`moviepilotService`
+**依赖**：`taskStore`、`configStore`、`moviepilotService`、`transcodeService`
 
 ---
 
 ## §2 MoviePilot 集成架构
 
-### 2.1 路径映射（关键设计）
-
-MoviePilot 运行在 Docker 容器内，ShelfDeck 在宿主机（或另一容器），需要路径映射：
+### 2.1 路径映射
 
 | 配置字段 | 说明 |
 |---|---|
-| `moviepilotSavePath` | MoviePilot 容器内下载目录（`save_path` 参数） |
-| `moviepilotStagingPath` | MoviePilot 容器内 staging 目录（`target_path` 参数） |
-| `upgradeStagingLocalPath` | ShelfDeck 视角的 staging 路径（通过 Docker 路径映射访问） |
+| `moviepilot.savePath` | MoviePilot 容器内 shelfdeck 下载目录 |
+| `upgradeStagingLocalPath` | ShelfDeck 视角的 staging 路径（SMB 映射后的 Windows 路径，如 `W:\shelfdeck`） |
+
+MoviePilot 端 shelfdeck 目录配置为刮削模式。下载完成后 MoviePilot 自动识别媒体 → 重命名 → 生成 Kodi XML NFO → 整理至同一目录下的规范文件夹（"移动"操作）。
+
+ShelfDeck 通过 SMB 读取 staging 中的刮削结果。
 
 ### 2.2 MoviePilot API 端点
 
 | 端点 | 用途 |
 |---|---|
-| `GET /api/v1/search/media/tmdb:{id}` | 搜索洗版候选 |
+| `GET /api/v1/search/title?keyword=xxx` | 关键词搜索 PT 站点种子 |
+| `GET /api/v1/media/search?title=xxx` | 影片名 → TMDB/Douban ID |
 | `POST /api/v1/download/add` | 添加下载（指定 `save_path`） |
-| `GET /api/v1/download/` | 查询下载状态 |
-| `POST /api/v1/transfer/manual` | 手动整理（指定 `target_path` → staging） |
+| `GET /api/v1/download/` | 查询下载状态（含 `media.tmdbid`） |
+| `GET /api/v1/history/transfer` | 查询整理记录（刮削完成信号） |
+
+认证方式：query param `?token=xxx`。
 
 ---
 
@@ -47,36 +51,39 @@ MoviePilot 运行在 Docker 容器内，ShelfDeck 在宿主机（或另一容器
 | resumePoint | 行为 |
 |---|---|
 | `'upgrade_precheck'` | 从 precheck 阶段开始 |
+| `'upgrade_planning'` | 从 planning 阶段开始 |
 | `'upgrade_executing'` | 从 executing 阶段开始（用户选择版本后恢复） |
+| `'upgrade_pre_replace_verify'` | 从 pre-replace-verify 阶段开始 |
+| `'upgrade_replace'` | 从 replace 阶段开始 |
 
 ### 3.2 pause()
 
 收到 `pause()` 调用时：
 
-- 中断 MoviePilot 下载轮询
-- **保留已下载的部分文件**
-- 调用 `scheduler.reportStatus(taskId, 'paused')`
+- 设置 abort flag 中断下载轮询或刮削等待
+- 保留 staging 中已下载的文件
+- 调用 `scheduler.reportStatus(taskId, 'paused', progress)`
 
 ### 3.3 cancel()
 
 收到 `cancel()` 调用时：
 
-- 中断 MoviePilot 下载轮询
-- **清理已下载的文件**
-- 调用 `scheduler.reportStatus(taskId, 'done')`（非 failed_hard，不重试）
+- 设置 abort flag 中断所有轮询
+- 清理 staging 中已下载的文件
+- 调用 `scheduler.reportStatus(taskId, 'done')`
 
 ### 3.4 confirmReceived()
 
-用户选择了版本后，从 `awaiting_user_confirm` 阶段恢复。
+`PATCH /v1/tasks/:id { confirmed: true, confirmData: { selectedIndex } }` — 存储 `confirmData` 到 task，scheduler 以 `resumePoint='upgrade_executing'` 重新入队。
 
 ### 3.5 reportStatus(status)
 
 | status | 触发时机 |
 |---|---|
-| `executing` | 进入 executing 阶段 |
+| `executing` | 进入 executing / pre_replace_verify 阶段 |
 | `waiting_media_source` | 搜索无候选，停泊等重搜 |
-| `done` | 全部完成 |
-| `failed_hard` | 任意阶段失败 |
+| `done` | 替换完成 |
+| `failed_hard` | 任意阶段不可恢复失败 |
 
 ---
 
@@ -86,31 +93,47 @@ MoviePilot 运行在 Docker 容器内，ShelfDeck 在宿主机（或另一容器
 drive('upgrade_precheck')
     ↓
 precheck：
-    → MoviePilot 连接校验
-      - 失败 → reportStatus('failed_hard')
+    → 校验 moviepilot.baseUrl + apiKey 非空
+    → 调用 moviepilotService.checkConnection()
+    → 失败 → reportStatus('failed_hard')
+    → 成功 → 设置 resumePoint='upgrade_planning'，继续
 
 planning：
-    → 调用 MoviePilot 搜索接口（GET /api/v1/search/media/tmdb:{id}）
-    → 返回候选列表（含质量评分/码率/是否优于当前）
-    → 有候选 → scheduler.pauseForConfirm('upgrade_executing')
-        → status = awaiting_user_confirm，停住，展示候选列表给用户
+    → 从 task.itemInfo.name 获取影片名
+    → 从 itemInfo.path 提取年份（如 "(1994)"）
+    → 搜索关键词 = name + " " + year
+    → 调用 moviepilotService.searchTorrents(keyword)
+    → 若中文搜索无结果，尝试搜索 moviepilotService.searchMediaByTitle() 获取英文名后重试
+    → 有候选 → 存储 candidates 到 itemInfo → pauseForConfirm('upgrade_executing')
     → 无候选 → reportStatus('waiting_media_source')
-        → 定时重搜（间隔可配置）
-
-用户选择版本，confirmReceived() 被调用
-    ↓
+        ↓ [用户选种，confirm API 传入 selectedIndex]
 executing：
     → reportStatus('executing')
-    → POST /api/v1/download/add（save_path = MoviePilot 容器内下载目录）
-    → 轮询 GET /api/v1/download/ 直到下载完成
-    → POST /api/v1/transfer/manual（target_path = MoviePilot 容器内 staging 目录）
-    → MoviePilot 把文件从 save_path 移动到 staging（容器内）
-    → ShelfDeck 通过路径映射访问 staging 文件
-
-verify：
-    → 确认文件已落地
-    → 原子 replace（.etp.new + .etp.bak 备份链）
-    → reportStatus('done')
+    → 从 task.confirmData.selectedIndex 取用户选择的 TorrentInfo
+    → 记录 baseline transfer history ID（用于后续刮削完成检测）
+    → moviepilotService.addDownload(torrentInfo, savePath=shelfdeck)
+    → 轮询 listDownloads() 每 5s，更新 progress
+    → 下载完成后，从 download.media.tmdbid 获取 mpTmdbId
+    → 进入 waitForScraping（轮询 transfer history，检测 shelfdeck 新条目）
+    → 刮削完成 → 设置 resumePoint='upgrade_pre_replace_verify'，继续
+        ↓
+pre_replace_verify：
+    → reportStatus('executing', 90)
+    → 扫描 upgradeStagingLocalPath 找刮削后的文件夹
+    → TMDB 校验：mpTmdbId（优先）或 NFO <tmdbid> vs 预期 TMDB ID
+    → 不匹配 → failed_hard
+    → probeSummary() 解析新文件 info
+    → extractPreviewClip() 生成 30s 预览切片
+    → 存储 verifyResult + upgradePreview 到 task
+    → 若 transcodeReplaceConfirmRequired → pauseForConfirm('upgrade_replace')
+    → 否则直接进入 replace
+        ↓ [用户确认]
+replace：
+    → 解析 Emby 目标路径（pathMapFrom→pathMapTo）
+    → 跨设备复制：copyDirSync(staging→.etp.tmp) → rmSync(旧) → renameSync(.etp.tmp→目标)
+    → 清理 staging 源
+    → reportStatus('done', 100)
+    → setPhase('done')
 ```
 
 ---
@@ -122,10 +145,11 @@ verify：
 | `precheck` | MoviePilot 连接校验 |
 | `planning` | 调用 MoviePilot 搜索接口 |
 | `waiting_media_source` | 搜索无候选，停泊等重搜 |
-| `upgrade_executing` | 下载 + transfer + 文件替换 |
-| `verify` | 确认新文件落地 |
+| `upgrade_executing` | 下载 + 轮询 + 等待刮削 |
+| `pre_replace_verify` | TMDB 校验 + probe + 预览切片生成 |
+| `upgrade_replace` | 文件夹原子替换 |
 | `done` | 完成 |
-| `failed_hard` | 失败（硬失败） |
+| `failed_hard` | 硬失败 |
 
 ---
 
@@ -133,15 +157,22 @@ verify：
 
 | 场景 | 行为 |
 |---|---|
+| MoviePilot 未配置 | `reportStatus('failed_hard')` |
 | MoviePilot 连接校验失败 | `reportStatus('failed_hard')` |
 | 搜索接口返回错误 | `reportStatus('failed_hard')` |
-| 下载失败（重试 3 次后仍失败） | `reportStatus('failed_hard')` |
-| staging 文件不存在或损坏 | `reportStatus('failed_hard')` |
-| replace 失败（重试 3 次后仍失败） | `reportStatus('failed_hard')` |
+| 搜索无结果 | `reportStatus('waiting_media_source')` |
+| 下载失败 | `reportStatus('failed_hard')` |
+| 刮削超时（10 分钟） | 记录 warn 日志，继续 |
+| TMDB 不匹配 | `reportStatus('failed_hard')` |
+| 替换失败 | `reportStatus('failed_hard')` |
+| pause/cancel | catch 块检查 `isAborted()`，避免覆盖用户操作 |
 
 ---
 
 ## §7 关联文档
 
 - `SERVICE/TASK_SCHEDULER.md` — 调度层 API 契约、confirm/pause/cancel 通用行为
-- `SERVICE/TRANSCODE.md` — 原子 replace 子流程（replaceWithRetries）
+- `SERVICE/TRANSCODE.md` — `extractPreviewClip`、`probeSummary`、`replaceWithRetries` 子流程
+- `SERVICE/CONFIG.md` — MoviePilot 配置字段定义
+- `SERVICE/ADMIN_WEB/API.md` — 洗版配置 Admin API
+- `SERVICE/ADMIN_WEB/PAGES.md` — 洗版设置管理页

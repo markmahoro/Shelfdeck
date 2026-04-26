@@ -32,7 +32,7 @@
 | 任务调度引擎 | `design/SERVICE/TASK_SCHEDULER.md` | v2 重写中 |
 | Delete Flow 执行器 | `design/SERVICE/DELETE_FLOW.md` | v2 重写中 |
 | Transcode Flow 执行器 | `design/SERVICE/TRANSCODE_FLOW.md` | v2 重写中 |
-| Upgrade Flow 执行器 | `design/SERVICE/UPGRADE_FLOW.md` | v2 重写中 |
+| Upgrade Flow 执行器 | `design/SERVICE/UPGRADE_FLOW.md` | v2 定稿 |
 | 转码执行层 | `design/SERVICE/TRANSCODE.md` | v2 重写中 |
 | 媒体库管理 | `design/SERVICE/MEDIA_LIBRARY.md` | v2 重写中 |
 | Emby 适配器 | `design/SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` | v2 重写中 |
