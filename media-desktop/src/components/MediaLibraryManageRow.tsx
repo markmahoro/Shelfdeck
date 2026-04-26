@@ -1,17 +1,13 @@
+/**
+ * [UI] 媒体库管理行组件。
+ *
+ * 策略计算结果（recommendedAction / equivalentBitrate / targetBitrate / predictedSizeGb）
+ * 由 service 返回，客户端侧直接读取展示，不自行计算。
+ */
+
 import { memo } from 'react';
-import {
-  effectiveRatingForPolicy,
-  estimateEquivalentBitrate,
-  isDeleteTierRating,
-  predictedSizeGbAtPolicyTarget,
-  recommendedAction,
-  targetBitrateFor,
-  type ManagedMediaItem,
-  type MediaAction,
-  type MediaPolicy,
-  type MediaRating,
-} from './mediaManager';
-import { taskStatusLabelZh, type MediaTask } from './taskQueue';
+import type { ManagedMediaItem, MediaAction, MediaPolicy, MediaRating } from '../models/media';
+import { taskStatusLabelZh, type MediaTask } from '../models/task';
 
 function formatStarStatus(item: ManagedMediaItem) {
   if (item.doubanStars != null) return `${item.doubanStars} 星（豆瓣）`;
@@ -28,6 +24,7 @@ export type MediaLibraryManageRowProps = {
   item: ManagedMediaItem;
   isSelected: boolean;
   isHighlighted: boolean;
+  /** 仅在需要判断按钮启用/禁用时使用；策略计算以 item.recommendedAction 为准 */
   mediaPolicy: MediaPolicy;
   rowTask: MediaTask | undefined;
   onToggleSelect: (id: string) => void;
@@ -51,26 +48,19 @@ function MediaLibraryManageRowInner({
   onEnqueue,
   onOpenDeleteExplain,
 }: MediaLibraryManageRowProps) {
-  const eff = effectiveRatingForPolicy(item);
-  const target = targetBitrateFor(item, mediaPolicy);
-  const eq = estimateEquivalentBitrate(item);
-  const action = recommendedAction(item, mediaPolicy);
-  const targetHint = eff == null ? '—' : isDeleteTierRating(eff) ? '删除档' : target ? `${target.toFixed(1)} Mbps` : '—';
-  const predictGb = item.itemType === 'Movie' ? predictedSizeGbAtPolicyTarget(item, mediaPolicy) : null;
-  const predictHint =
-    item.itemType !== 'Movie'
-      ? '仅电影行按策略目标码率估算'
-      : eff == null
-        ? '无星级：保持当前体积'
-        : isDeleteTierRating(eff)
-          ? '删除档：按 0 计'
-          : `按目标视频 ${target != null ? `${target.toFixed(1)} Mbps` : '—'} + 0.5 Mbps 音轨估算`;
+  // 全部策略字段由 service 返回，客户端直接读取
+  const action = item.recommendedAction ?? 'keep';
+  const eq = item.equivalentBitrate;
+  const target = item.targetBitrate;
+  const predictGb = item.predictedSizeGb;
+
+  const targetHint = action === 'delete' ? '删除档' : target != null ? `${target.toFixed(1)} Mbps` : '—';
   const formatLabel = `${item.resolution} · ${item.codec.toUpperCase()}`;
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
       {taskStatusLabelZh(rowTask.status)}（
       {rowTask.actionType === 'transcode' ? '压缩' : rowTask.actionType === 'upgrade' ? '洗版' : '删除'}
-）
+      ）
     </span>
   ) : (
     '—'
@@ -96,22 +86,16 @@ function MediaLibraryManageRowInner({
       <div title={item.isBluRayDisc ? '路径为 .iso 或含 BDMV 目录（或库标记为原盘）' : undefined}>
         {item.isBluRayDisc ? '是' : '否'}
       </div>
-      <div className="tabular-nums">{eq.toFixed(1)} Mbps</div>
+      <div className="tabular-nums">{eq != null ? `${eq.toFixed(1)} Mbps` : '—'}</div>
       <div className="tabular-nums">{targetHint}</div>
-      <div className="tabular-nums" title={predictHint}>
+      <div className="tabular-nums" title="基于策略目标码率的预测转码后体积">
         {predictGb != null ? `${predictGb.toFixed(1)} GB` : '—'}
       </div>
       <div>{formatLabel}</div>
-      <div
-        className="mediaManageStarStatusCell"
-        title={`用于策略与目标码率：有豆瓣分时优先豆瓣，否则为本地标注 — ${formatStarStatus(item)}`}
-      >
+      <div className="mediaManageStarStatusCell" title={formatStarStatus(item)}>
         {formatStarStatus(item)}
       </div>
-      <div
-        className="mediaManageDoubanCell"
-        title={`豆瓣「看过」个人评分（原始匹配） — ${formatDoubanDisplay(item.doubanStars)}`}
-      >
+      <div className="mediaManageDoubanCell" title={`豆瓣「看过」个人评分 — ${formatDoubanDisplay(item.doubanStars)}`}>
         {formatDoubanDisplay(item.doubanStars)}
       </div>
       <div>{item.watched ? '已观看' : '未观看'}</div>
@@ -150,7 +134,7 @@ function MediaLibraryManageRowInner({
         </div>
         <div className="mediaManageActionGroup">
           <span className="mediaManageActionLabel">码率优化</span>
-          {eff == null ? (
+          {item.recommendedAction == null ? (
             <span className="hint">需豆瓣或本地星级</span>
           ) : action === 'delete' ? (
             <div className="mediaManageActionBtns" style={{ flexWrap: 'wrap', gap: 6 }}>

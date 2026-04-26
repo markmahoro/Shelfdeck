@@ -2,7 +2,6 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
-const { spawn } = require('child_process');
 const embyService = require('./embyService');
 const shelfdeckConnection = require('./shelfdeckConnection');
 const Store = require('electron-store');
@@ -54,21 +53,6 @@ function watchConnectionFile() {
   } catch (_) {
     /* 目录尚不存在等 */
   }
-}
-
-function maybeLaunchTrayCompanion() {
-  if (process.platform !== 'win32') return;
-  const trayDir = process.env.SHELFDESK_TRAY_DIR || path.join(__dirname, '..', '..', 'media-tray-supervisor');
-  const pkg = path.join(trayDir, 'package.json');
-  if (!fs.existsSync(pkg)) return;
-  const electronExe = process.execPath;
-  const child = spawn(electronExe, ['.'], {
-    cwd: trayDir,
-    detached: true,
-    stdio: 'ignore',
-    windowsHide: true,
-  });
-  child.unref();
 }
 
 function devUrlCandidates() {
@@ -180,10 +164,47 @@ async function loadFirstReachableDevUrl(win) {
 function registerIpcHandlers() {
   ipcMain.handle('emby:launchPlayer', (_evt, payload) => embyService.launchPlayer(payload));
 
+  // Health check via main process Node http (mirrors isHttpReachable pattern)
+  ipcMain.handle('health:check', async () => {
+    const baseUrl = store.get('shelfdeck.mediaService.baseUrl', 'http://127.0.0.1:18080');
+    const fullUrl = `${String(baseUrl).replace(/\/+$/, '')}/v1/health`;
+    try {
+      const u = new URL(fullUrl);
+      return await new Promise((resolve) => {
+        const req = http.request(
+          {
+            hostname: u.hostname,
+            port: u.port || 80,
+            path: u.pathname + u.search,
+            method: 'GET',
+            timeout: 3000,
+          },
+          (res) => {
+            let body = '';
+            res.on('data', (chunk) => body += chunk);
+            res.on('end', () => {
+              try {
+                const j = JSON.parse(body);
+                resolve(j.status === 'green' || j.status === 'yellow');
+              } catch { resolve(false); }
+            });
+          },
+        );
+        req.on('error', () => resolve(false));
+        req.on('timeout', () => { req.destroy(); resolve(false); });
+        req.end();
+      });
+    } catch { return false; }
+  });
+
   // Settings IPC handlers
   ipcMain.handle('settings:get', () => store.store);
 
   ipcMain.handle('settings:set', (event, key, value) => {
+    if (value == null) {
+      try { store.delete(key); } catch (_) { /* ignore */ }
+      return true;
+    }
     store.set(key, value);
     return true;
   });
@@ -206,7 +227,6 @@ function registerIpcHandlers() {
 app.whenReady().then(() => {
   registerIpcHandlers();
   watchConnectionFile();
-  maybeLaunchTrayCompanion();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

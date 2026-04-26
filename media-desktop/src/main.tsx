@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import { installDevEmbyStub } from './devEmbyStub';
+import { installDevEmbyStub } from './dev/stub';
 import './styles.css';
 
 if (import.meta.env.DEV) {

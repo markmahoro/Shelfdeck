@@ -1,4 +1,4 @@
-import { taskStatusLabelZh, type MediaTask } from './taskQueue';
+import { taskStatusLabelZh, type MediaTask } from '../models/task';
 
 /** 注入任务中心用于联调 UI（多种状态各一条）。 */
 export function createDebugSeedTasks(): MediaTask[] {

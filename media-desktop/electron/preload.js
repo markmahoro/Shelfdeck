@@ -1,6 +1,7 @@
 'use strict';
 
 const { contextBridge, ipcRenderer } = require('electron');
+const http = require('http');
 
 /** 与 `App.tsx` 中 deriveReplaceBackupPath 一致；preload 沙盒下不可用 Node `path` 模块 */
 function deriveReplaceBackupPath(targetPath) {
@@ -181,7 +182,32 @@ const doubanApi = {
 };
 
 const mediaService = {
-  checkHealth: () => cpJson('/v1/health'),
+  // 直接用 Node http 做健康检查，绕过 IPC Promise 链路和 CORS
+  checkHealth: () => {
+    return new Promise((resolve) => {
+      const baseUrl = effectiveCp.baseUrl || 'http://127.0.0.1:18080';
+      const fullUrl = `${String(baseUrl).replace(/\/+$/, '')}/v1/health`;
+      try {
+        const u = new URL(fullUrl);
+        const req = http.request(
+          { hostname: u.hostname, port: u.port || 80, path: u.pathname + u.search, method: 'GET', timeout: 3000 },
+          (res) => {
+            let body = '';
+            res.on('data', (chunk) => body += chunk);
+            res.on('end', () => {
+              try {
+                const j = JSON.parse(body);
+                resolve(j.status === 'green' || j.status === 'yellow');
+              } catch { resolve(false); }
+            });
+          },
+        );
+        req.on('error', () => resolve(false));
+        req.on('timeout', () => { req.destroy(); resolve(false); });
+        req.end();
+      } catch { resolve(false); }
+    });
+  },
 };
 
 const shelfdeckMedia = {

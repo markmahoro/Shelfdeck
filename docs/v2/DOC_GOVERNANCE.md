@@ -19,7 +19,7 @@
 | 文档 | 路径 | 状态 |
 |---|---|---|
 | 胖服务组件总览 | `design/SERVICE.md` | v2 重写中 |
-| 瘦客户端组件总览 | `design/DESKTOP.md` | 待编写 |
+| 瘦客户端组件总览 | `design/DESKTOP.md` | v2 编写中 |
 | Windows 托盘外壳 | `design/TRAY.md` | 待编写 |
 | 跨组件共享约定 | `design/SHARED.md` | 待编写 |
 
@@ -46,10 +46,10 @@
 
 | 文档 | 路径 | 状态 |
 |---|---|---|
-| UI 组件与布局 | `design/DESKTOP/UI.md` | 待编写 |
-| REST API 客户端层 | `design/DESKTOP/API_CLIENT.md` | 待编写 |
-| service 连接管理 | `design/DESKTOP/CONNECTION.md` | 待编写 |
-| 配置持久化 | `design/DESKTOP/SETTINGS.md` | 待编写 |
+| UI 组件与布局 | `design/DESKTOP/UI.md` | v2 编写中 |
+| REST API 客户端层 | `design/DESKTOP/API_CLIENT.md` | v2 编写中 |
+| service 连接管理 | `design/DESKTOP/CONNECTION.md` | v2 编写中 |
+| 配置持久化 | `design/DESKTOP/SETTINGS.md` | v2 编写中 |
 
 ### 设计层 — Tray 子模块
 
