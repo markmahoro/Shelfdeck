@@ -26,7 +26,11 @@ function readEffectiveFromMain() {
 let effectiveCp = readEffectiveFromMain();
 
 function refreshEffectiveCp() {
-  effectiveCp = readEffectiveFromMain();
+  // Read from electron-store (where settings:set writes) instead of process.env
+  ipcRenderer.invoke('connection:get').then(
+    (conn) => { effectiveCp = { baseUrl: conn.baseUrl, apiKey: conn.apiKey, source: 'settings' }; },
+    () => { effectiveCp = readEffectiveFromMain(); }
+  );
 }
 
 ipcRenderer.on('cp:updated', refreshEffectiveCp);
@@ -108,6 +112,7 @@ const embyApi = {
     cpJson('/v1/library/queries/manage', { method: 'POST', body: JSON.stringify(args) }),
   getPlayedItems: (args) => cpJson('/v1/library/queries/played', { method: 'POST', body: JSON.stringify(args) }),
   launchPlayer: (args) => ipcRenderer.invoke('emby:launchPlayer', args),
+  launchPath: (args) => ipcRenderer.invoke('emby:launchPath', args),
   markPlayed: (args) =>
     cpJson('/v1/library/actions/mark-played', { method: 'POST', body: JSON.stringify(args) }),
   markUnplayed: (args) =>
@@ -246,3 +251,5 @@ const shelfdeckMedia = {
 };
 
 contextBridge.exposeInMainWorld('embyApi', embyApi);
+// Marker to distinguish real Electron preload from dev stub
+contextBridge.exposeInMainWorld('electronAPI', { isElectron: true });

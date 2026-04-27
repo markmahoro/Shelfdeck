@@ -349,6 +349,7 @@ npm run smoke  # Test spawn + health check
 - **Tray-service lifecycle**: Tray spawns service as child process; exiting tray terminates service
 - **No long-running commands**: Never use `npm run dev` or watch mode commands in Bash tool — these block execution. Recommend user runs them manually.
 - **Runtime data**: `media-service/data/*.json` files are runtime state, not documentation. Should be in .gitignore (except examples).
+- **No workarounds**: 测试或运行中遇到问题，禁止使用 workaround / 绕过 / 兜底 / 降级 的方式规避。必须排查到精准根因并修复。Workarounds mask bugs and accumulate technical debt.
 
 ## Common Workflows
 

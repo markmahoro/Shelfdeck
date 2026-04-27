@@ -2,7 +2,13 @@
  * 浏览器直连 Vite（无 Electron preload）时注入 window.embyApi，与 electron/preload.js 行为对齐便于调试。
  */
 export function installDevEmbyStub() {
-  if (typeof window === 'undefined' || typeof window.embyApi !== 'undefined') return;
+  if (typeof window === 'undefined') return;
+  // 在 Electron 环境下，preload.js 通过 contextBridge.exposeInMainWorld('electronAPI', { isElectron: true })
+  // 检测 isElectron 属性来判断是否为真实的 Electron preload 环境
+  const w = window as Window & { electronAPI?: { isElectron?: boolean } };
+  // preload.js 通过 contextBridge.exposeInMainWorld('electronAPI', { isElectron: true }) 标记为 Electron 环境
+  if (w.electronAPI && 'isElectron' in w.electronAPI) return;
+  if (typeof window.embyApi !== 'undefined') return;
 
   const deletedItemIds = new Set<string>();
 

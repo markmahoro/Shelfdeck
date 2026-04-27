@@ -135,7 +135,12 @@ declare global {
   };
 
   interface Window {
-    embyApi: {
+    electronAPI?: { isElectron: true };
+    embyApi?: {
+      getSettings: () => Promise<{ serviceUrl: string; serviceApiKey: string; playerExePath: string; localPathMapFrom: string; localPathMapTo: string }>;
+      saveSetting: (key: string, value: string) => Promise<{ ok: boolean; error?: string }>;
+      getEffectiveConnection: () => { baseUrl: string; apiKey: string; source?: string };
+      onConnectionUpdated: (listener: () => void) => () => void;
       testConnection: (config: { baseUrl: string; apiKey: string }) => Promise<{ serverName?: string; version?: string }>;
       getUsers: (config: { baseUrl: string; apiKey: string }) => Promise<EmbyUser[]>;
       getMediaFolders: (config: { baseUrl: string; apiKey: string }) => Promise<EmbyMediaFolder[]>;

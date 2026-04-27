@@ -66,13 +66,15 @@ function devUrlCandidates() {
 }
 
 function createWindow() {
+  const preloadPath = path.join(__dirname, 'preload.js');
   const win = new BrowserWindow({
     width: 1360,
     height: 900,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
   });
 
@@ -210,10 +212,15 @@ function registerIpcHandlers() {
   ipcMain.handle('settings:set', (event, key, value) => {
     if (value == null) {
       store.delete(key);
+      broadcastConnectionUpdated();
       return { ok: true };
     }
     try {
       store.set(key, value);
+      // Broadcast when connection settings change so renderer refreshes effectiveCp
+      if (key === 'shelfdeck.mediaService.baseUrl' || key === 'shelfdeck.mediaService.apiKey') {
+        broadcastConnectionUpdated();
+      }
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e.message };
