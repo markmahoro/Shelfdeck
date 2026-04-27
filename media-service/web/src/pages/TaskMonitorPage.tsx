@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasks } from '../api/client';
-import type { MediaTask, TaskItemInfo, VerifyResult } from '../types';
+import type { MediaTask, TaskItemInfo, VerifyResult, UpgradeCandidate } from '../types';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -9,6 +9,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 const STATUS_COLORS: Record<string, string> = {
   queued: '#3498db',
   executing: '#f39c12',
+  pausing: '#f39c12',
   awaiting_user_confirm: '#e67e22',
   done: '#27ae60',
   failed_hard: '#e74c3c',
@@ -18,6 +19,19 @@ const STATUS_COLORS: Record<string, string> = {
   pending_manual: '#999',
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  created: '已创建',
+  pending_manual: '待手动',
+  queued: '排队中',
+  executing: '执行中',
+  pausing: '暂停中...',
+  awaiting_user_confirm: '等待确认',
+  paused: '已暂停',
+  interrupted: '已中断',
+  done: '已完成',
+  failed_hard: '失败',
+};
+
 export default function TaskMonitorPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
@@ -25,6 +39,7 @@ export default function TaskMonitorPage() {
   const [selectedTask, setSelectedTask] = useState<MediaTask | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [selectedCandidateIndex, setSelectedCandidateIndex] = useState(0);
 
   const { data: taskData, isLoading, isFetching } = useQuery({
     queryKey: ['admin-tasks', statusFilter, typeFilter],
@@ -65,7 +80,8 @@ export default function TaskMonitorPage() {
   });
 
   const confirmMut = useMutation({
-    mutationFn: tasks.confirm,
+    mutationFn: (params: { id: string; confirmData?: Record<string, unknown> }) =>
+      tasks.confirm(params.id, params.confirmData),
     onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '已确认，任务继续执行' }); },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
@@ -76,22 +92,40 @@ export default function TaskMonitorPage() {
 
   function openDetail(task: MediaTask) {
     setSelectedTask(task);
+    setSelectedCandidateIndex(0);
     setDetailOpen(true);
+  }
+
+  function formatSize(bytes: number): string {
+    if (!bytes || bytes === 0) return '—';
+    const gb = bytes / (1024 * 1024 * 1024);
+    if (gb >= 1) return `${gb.toFixed(2)} GB`;
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(1)} MB`;
   }
 
   function renderActions(t: MediaTask) {
     const btns: React.ReactNode[] = [];
     if (t.status === 'executing') {
       btns.push(<button key="pause" onClick={() => pauseMut.mutate(t.id)} style={warnBtn}>暂停</button>);
+      btns.push(<button key="cancel" onClick={() => { if (confirm('确定取消此任务？')) deleteMut.mutate(t.id); }} style={{ ...warnBtn, background: '#e74c3c' }}>取消</button>);
+    }
+    if (t.status === 'pausing') {
+      btns.push(<button key="pausing" disabled style={{ ...warnBtn, opacity: 0.6, cursor: 'not-allowed' }}>暂停中...</button>);
     }
     if (t.status === 'paused' || t.status === 'pending_manual') {
-      btns.push(<button key="exec" onClick={() => executeMut.mutate(t.id)} style={execBtn}>执行</button>);
+      btns.push(<button key="exec" onClick={() => executeMut.mutate(t.id)} style={execBtn}>继续</button>);
+      btns.push(<button key="cancel" onClick={() => { if (confirm('确定取消此任务？')) deleteMut.mutate(t.id); }} style={{ ...warnBtn, background: '#e74c3c' }}>取消</button>);
     }
     if (t.status === 'awaiting_user_confirm') {
       if (t.resumePoint === 'transcode_replace' && t.verifyResult) {
         btns.push(<button key="compare" onClick={() => openDetail(t)} style={execBtn}>查看对比</button>);
+      } else if (t.resumePoint === 'upgrade_executing') {
+        btns.push(<button key="select" onClick={() => openDetail(t)} style={execBtn}>选择版本</button>);
+      } else if (t.resumePoint === 'upgrade_replace') {
+        btns.push(<button key="compare" onClick={() => openDetail(t)} style={execBtn}>查看对比</button>);
       } else {
-        btns.push(<button key="confirm" onClick={() => { if (confirm(`确认执行 ${t.actionType} 任务？`)) confirmMut.mutate(t.id); }} style={execBtn}>确认</button>);
+        btns.push(<button key="confirm" onClick={() => { if (confirm(`确认执行 ${t.actionType} 任务？`)) confirmMut.mutate({ id: t.id }); }} style={execBtn}>确认</button>);
       }
     }
     return btns;
@@ -111,6 +145,49 @@ export default function TaskMonitorPage() {
       ['视频码率', orig.originalBitrate ? `${orig.originalBitrate} kbps` : '—', `${result.bitrate} kbps`, `${bitrateDelta >= 0 ? '+' : ''}${bitrateDelta.toFixed(1)}%`],
       ['音频编码', orig.originalAudioCodec || '—', result.videoCodec || '—', ''],
       ['预估节省', '', `${origGb > newGb ? (origGb - newGb).toFixed(2) + ' GB' : '—'}`, ''],
+    ];
+
+    return (
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: '#eef2f7' }}>
+            <th style={compareTh}>指标</th>
+            <th style={compareTh}>原文件</th>
+            <th style={compareTh}>新文件</th>
+            <th style={compareTh}>变化</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+              {r.map((cell, j) => (
+                <td key={j} style={{ ...compareTd, fontWeight: j === 0 ? 600 : 400, color: j === 3 && cell ? (cell.startsWith('+') || cell.startsWith('0') ? '#e67e22' : '#27ae60') : '#333' }}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  function renderUpgradeCompareTable(task: MediaTask) {
+    const oldInfo = task.upgradePreview?.oldFile;
+    const vr = task.verifyResult!;
+    const itemInfo = task.itemInfo;
+
+    const oldSizeGb = (oldInfo?.size || itemInfo?.originalSizeBytes || 0) / (1024 * 1024 * 1024);
+    const newSizeGb = vr.sizeBytes / (1024 * 1024 * 1024);
+    const sizeDelta = oldSizeGb > 0 ? ((newSizeGb - oldSizeGb) / oldSizeGb * 100) : 0;
+
+    const oldBitrate = oldInfo?.bitrate || itemInfo?.originalBitrate || 0;
+    const bitrateDelta = oldBitrate > 0 ? ((vr.bitrate - oldBitrate) / oldBitrate * 100) : 0;
+
+    const rows = [
+      ['文件大小', oldSizeGb > 0 ? `${oldSizeGb.toFixed(2)} GB` : '—', `${newSizeGb.toFixed(2)} GB`, `${sizeDelta >= 0 ? '+' : ''}${sizeDelta.toFixed(1)}%`],
+      ['视频编码', itemInfo?.originalVideoCodec || oldInfo?.resolution || '—', vr.videoCodec || '—', ''],
+      ['分辨率', `${itemInfo?.originalWidth || '?'} × ${itemInfo?.originalHeight || '?'}`, `${vr.width} × ${vr.height}`, ''],
+      ['视频码率', oldBitrate > 0 ? `${oldBitrate} kbps` : '—', `${vr.bitrate} kbps`, `${bitrateDelta >= 0 ? '+' : ''}${bitrateDelta.toFixed(1)}%`],
+      ['TMDB 校验', '—', task.upgradePreview?.tmdbVerified ? '✓ 通过' : '⚠ 未校验', ''],
     ];
 
     return (
@@ -165,6 +242,7 @@ export default function TaskMonitorPage() {
           <option value="">全部状态</option>
           <option value="queued">queued</option>
           <option value="executing">executing</option>
+          <option value="pausing">pausing</option>
           <option value="awaiting_user_confirm">awaiting_user_confirm</option>
           <option value="done">done</option>
           <option value="failed_hard">failed_hard</option>
@@ -210,7 +288,7 @@ export default function TaskMonitorPage() {
                   </td>
                   <td style={tdStyle}>{t.actionType}</td>
                   <td style={tdStyle}>
-                    <span style={{ color: STATUS_COLORS[t.status] || '#999' }}>{t.status}</span>
+                    <span style={{ color: STATUS_COLORS[t.status] || '#999' }}>{STATUS_LABELS[t.status] || t.status}</span>
                   </td>
                   <td style={tdStyle}>{t.phase || '—'}</td>
                   <td style={tdStyle}>
@@ -246,7 +324,7 @@ export default function TaskMonitorPage() {
               <div><strong>任务ID:</strong> {displayTask.id}</div>
               <div><strong>媒体项:</strong> {displayTask.itemInfo?.name || displayTask.itemId}</div>
               <div><strong>类型:</strong> {displayTask.actionType}</div>
-              <div><strong>状态:</strong> <span style={{ color: STATUS_COLORS[displayTask.status] }}>{displayTask.status}</span></div>
+              <div><strong>状态:</strong> <span style={{ color: STATUS_COLORS[displayTask.status] }}>{STATUS_LABELS[displayTask.status] || displayTask.status}</span></div>
               <div><strong>阶段:</strong> {displayTask.phase || '—'}</div>
               <div><strong>进度:</strong> {displayTask.progress || 0}%</div>
               <div><strong>创建时间:</strong> {displayTask.createdAt ? new Date(displayTask.createdAt).toLocaleString() : '—'}</div>
@@ -267,7 +345,104 @@ export default function TaskMonitorPage() {
                   </div>
                 )}
                 <div style={{ marginTop: 14 }}>
-                  <button onClick={() => confirmMut.mutate(displayTask.id)} disabled={confirmMut.isPending} style={{
+                  <button onClick={() => confirmMut.mutate({ id: displayTask.id })} disabled={confirmMut.isPending} style={{
+                    background: '#27ae60', color: '#fff', border: 'none', padding: '10px 28px',
+                    borderRadius: 6, cursor: 'pointer', fontSize: 15, fontWeight: 600,
+                  }}>
+                    {confirmMut.isPending ? '确认中...' : '确认替换'}
+                  </button>
+                  <span style={{ marginLeft: 12, fontSize: 13, color: '#888' }}>确认后将用新文件替换原文件，操作不可撤销</span>
+                </div>
+              </div>
+            )}
+
+            {/* Upgrade candidate selection card */}
+            {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint === 'upgrade_executing' && (
+              <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
+                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: '#1a1a2e' }}>选择洗版版本</h4>
+                <p style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>
+                  找到 {displayTask.itemInfo?.searchCandidatesSimplified?.length || 0} 个候选种子，请选择一个下载。
+                </p>
+                {(displayTask.itemInfo?.searchCandidatesSimplified?.length || 0) > 0 ? (
+                  <>
+                    <div style={{ maxHeight: 260, overflow: 'auto', marginBottom: 14 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ background: '#eef2f7', position: 'sticky', top: 0 }}>
+                            <th style={{ ...candidateTh, width: 36 }}></th>
+                            <th style={candidateTh}>标题</th>
+                            <th style={candidateTh}>站点</th>
+                            <th style={candidateTh}>大小</th>
+                            <th style={candidateTh}>做种</th>
+                            <th style={candidateTh}>分辨率</th>
+                            <th style={candidateTh}>编码</th>
+                            <th style={candidateTh}>版本</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(displayTask.itemInfo!.searchCandidatesSimplified as UpgradeCandidate[]).map((c) => (
+                            <tr
+                              key={c.index}
+                              onClick={() => setSelectedCandidateIndex(c.index)}
+                              style={{
+                                cursor: 'pointer',
+                                background: selectedCandidateIndex === c.index ? '#e8f4fd' : 'transparent',
+                                borderBottom: '1px solid #eee',
+                              }}
+                            >
+                              <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                <input
+                                  type="radio"
+                                  name="candidate"
+                                  checked={selectedCandidateIndex === c.index}
+                                  onChange={() => setSelectedCandidateIndex(c.index)}
+                                />
+                              </td>
+                              <td style={{ padding: '8px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }} title={c.title}>{c.title}</td>
+                              <td style={{ padding: '8px 10px', fontSize: 12, color: '#888' }}>{c.site || '—'}</td>
+                              <td style={{ padding: '8px 10px', fontSize: 12 }}>{formatSize(c.size)}</td>
+                              <td style={{ padding: '8px 10px', fontSize: 12, color: c.seeders > 0 ? '#27ae60' : '#e74c3c' }}>{c.seeders}</td>
+                              <td style={{ padding: '8px 10px', fontSize: 12 }}>{c.resolution || '—'}</td>
+                              <td style={{ padding: '8px 10px', fontSize: 12 }}>{c.codec || '—'}</td>
+                              <td style={{ padding: '8px 10px', fontSize: 12, color: '#888' }}>{c.edition || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button
+                      onClick={() => confirmMut.mutate({ id: displayTask.id, confirmData: { selectedIndex: selectedCandidateIndex } })}
+                      disabled={confirmMut.isPending}
+                      style={{
+                        background: '#27ae60', color: '#fff', border: 'none', padding: '10px 28px',
+                        borderRadius: 6, cursor: 'pointer', fontSize: 15, fontWeight: 600,
+                      }}
+                    >
+                      {confirmMut.isPending ? '确认中...' : '确认下载选中版本'}
+                    </button>
+                    <span style={{ marginLeft: 12, fontSize: 13, color: '#888' }}>将选中种子提交到 MoviePilot 下载</span>
+                  </>
+                ) : (
+                  <p style={{ color: '#888', fontSize: 14 }}>正在加载候选列表...</p>
+                )}
+              </div>
+            )}
+
+            {/* Upgrade replace confirm card */}
+            {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint === 'upgrade_replace' && displayTask.verifyResult && (
+              <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
+                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#1a1a2e' }}>洗版结果对比</h4>
+                {renderUpgradeCompareTable(displayTask)}
+                {displayTask.verifyResult.previewPath && (
+                  <div style={{ marginTop: 12 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>试看预览（30秒片段）</p>
+                    <video controls width="480" style={{ borderRadius: 6, background: '#000', maxWidth: '100%' }}>
+                      <source src={`/v1/tasks/${displayTask.id}/preview`} type="video/mp4" />
+                    </video>
+                  </div>
+                )}
+                <div style={{ marginTop: 14 }}>
+                  <button onClick={() => confirmMut.mutate({ id: displayTask.id })} disabled={confirmMut.isPending} style={{
                     background: '#27ae60', color: '#fff', border: 'none', padding: '10px 28px',
                     borderRadius: 6, cursor: 'pointer', fontSize: 15, fontWeight: 600,
                   }}>
@@ -306,8 +481,8 @@ export default function TaskMonitorPage() {
                     {executeMut.isPending ? '执行中...' : '执行'}
                   </button>
                 )}
-                {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint !== 'transcode_replace' && (
-                  <button onClick={() => { if (confirm(`确认执行 ${displayTask.actionType} 任务？`)) confirmMut.mutate(displayTask.id); }} disabled={confirmMut.isPending} style={execBtn}>
+                {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint !== 'transcode_replace' && displayTask.resumePoint !== 'upgrade_executing' && displayTask.resumePoint !== 'upgrade_replace' && (
+                  <button onClick={() => { if (confirm(`确认执行 ${displayTask.actionType} 任务？`)) confirmMut.mutate({ id: displayTask.id }); }} disabled={confirmMut.isPending} style={execBtn}>
                     {confirmMut.isPending ? '确认中...' : '确认'}
                   </button>
                 )}
@@ -380,6 +555,10 @@ const dangerBtn: React.CSSProperties = {
 
 const compareTh: React.CSSProperties = {
   textAlign: 'left', padding: '8px 12px', fontSize: 12, color: '#555', fontWeight: 600,
+};
+
+const candidateTh: React.CSSProperties = {
+  textAlign: 'left', padding: '8px 10px', fontSize: 12, color: '#555', fontWeight: 600,
 };
 
 const compareTd: React.CSSProperties = {

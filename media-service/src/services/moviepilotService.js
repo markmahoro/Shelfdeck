@@ -78,6 +78,14 @@ async function deleteDownload(mpConfig, hashString) {
   return res;
 }
 
+async function pauseDownload(mpConfig, hashString) {
+  return mpFetchJson(mpConfig, `/api/v1/download/stop/${hashString}`);
+}
+
+async function resumeDownload(mpConfig, hashString) {
+  return mpFetchJson(mpConfig, `/api/v1/download/start/${hashString}`);
+}
+
 // Get transfer history for scraping completion detection
 async function getTransferHistory(mpConfig, count = 5) {
   return mpFetchJson(mpConfig, '/api/v1/history/transfer', {}, { count });
@@ -90,5 +98,7 @@ module.exports = {
   addDownload,
   listDownloads,
   deleteDownload,
+  pauseDownload,
+  resumeDownload,
   getTransferHistory,
 };

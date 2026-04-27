@@ -164,7 +164,8 @@ export const tasks = {
 
   execute: (id: string) => post<{ id: string; status: string }>(`/v1/tasks/${id}/actions/execute`),
 
-  confirm: (id: string) => patch<{ id: string; status: string }>(`/v1/tasks/${id}`, { confirmed: true }),
+  confirm: (id: string, confirmData?: Record<string, unknown>) =>
+    patch<{ id: string; status: string }>(`/v1/tasks/${id}`, { confirmed: true, ...(confirmData ? { confirmData } : {}) }),
 };
 
 // ── Health ────────────────────────────────────────────────────────────────────

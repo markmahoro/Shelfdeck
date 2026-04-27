@@ -130,6 +130,63 @@ function isAborted(taskId) {
   return abortFlags.get(taskId) === true;
 }
 
+// ── Hash acquisition loop ──────────────────────────────────────────────────────
+// Polls listDownloads by title match until hash appears or user cancels.
+// Honours pausingRequested — once hash arrives, pause is executed immediately.
+// Honours pendingCancel — once hash arrives, delete is executed immediately.
+
+async function tryMatchHash(mpConfig, searchTitle) {
+  try {
+    const downloads = await moviepilotService.listDownloads(mpConfig);
+    const list = Array.isArray(downloads) ? downloads : [];
+    const match = list.find((d) => {
+      const dTitle = (d.title || d.name || '').replace(/[.\s]+/g, ' ').trim().toLowerCase();
+      return d.hash && (dTitle.includes(searchTitle) || searchTitle.includes(dTitle));
+    });
+    return match ? match.hash : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function acquireHash(taskId, mpConfig, searchTitle) {
+  while (true) {
+    const task = taskStore.getTask(taskId);
+    if (!task) return null;
+
+    // Cancel during hash acquisition — keep hunting hash, delete once found
+    if (task.pendingCancel) {
+      const hash = await tryMatchHash(mpConfig, searchTitle);
+      if (hash) {
+        try { await moviepilotService.deleteDownload(mpConfig, hash); } catch (_) {}
+        abortFlags.set(taskId, true);
+        appendLog(taskId, 'info', 'Download cancelled (hash acquired during cancel wait)');
+        scheduler.reportStatus(taskId, 'done');
+      } else {
+        // Still no hash — MP download may not have registered yet.
+        // Delete won't work without hash, but user wants out. Mark done.
+        abortFlags.set(taskId, true);
+        appendLog(taskId, 'warn', 'Cancel without hash — MP download may remain');
+        scheduler.reportStatus(taskId, 'done');
+      }
+      return null;
+    }
+
+    // Pause during hash acquisition — keep hunting hash, pause once found
+    if (task.pausingRequested) {
+      const hash = await tryMatchHash(mpConfig, searchTitle);
+      if (hash) return hash; // caller will execute pause + MP stop
+      await sleep(2000);
+      continue;
+    }
+
+    const hash = await tryMatchHash(mpConfig, searchTitle);
+    if (hash) return hash;
+
+    await sleep(2000);
+  }
+}
+
 function waitForDownload(taskId, mpConfig, hashString, maxWaitMs) {
   const start = Date.now();
   const pollInterval = 5000;
@@ -141,14 +198,9 @@ function waitForDownload(taskId, mpConfig, hashString, maxWaitMs) {
     const downloads = await moviepilotService.listDownloads(mpConfig);
     const list = Array.isArray(downloads) ? downloads : [];
 
-    let dl = null;
-    if (hashString) {
-      dl = list.find((d) => d.hash === hashString || d.hashString === hashString || d.download_hash === hashString);
-    }
-    if (!dl && list.length === 1) {
-      dl = list[0];
-      seenBefore = true;
-    }
+    const dl = hashString
+      ? list.find((d) => d.hash === hashString || d.hashString === hashString || d.download_hash === hashString) || null
+      : null;
 
     if (!dl) {
       // If we previously tracked a download and now it's gone, it was completed and auto-removed
@@ -180,7 +232,7 @@ function waitForDownload(taskId, mpConfig, hashString, maxWaitMs) {
       return poll();
     }
 
-    if (dl.state === 'completed' || dl.state === 'seeding' || String(dl.progress) === '100') {
+    if (dl.state === 'completed' || dl.state === 'seeding' || dl.state === 'uploading' || String(dl.progress) === '100') {
       return { aborted: false, done: true, download: dl };
     }
 
@@ -383,11 +435,112 @@ async function runPlanning(taskId, task) {
   }
 }
 
+// ── Post-download continuation (shared by first-run and resume paths) ─────────
+
+async function continueAfterDownload(taskId, mpConfig) {
+  await waitForScraping(taskId, mpConfig);
+
+  const task = taskStore.getTask(taskId);
+  if (task && task.itemInfo && task.itemInfo.mpTmdbId) {
+    appendLog(taskId, 'info', `MoviePilot scraped as TMDB ${task.itemInfo.mpTmdbId}`);
+  }
+
+  taskStore.updateTask(taskId, { resumePoint: 'upgrade_pre_replace_verify', progress: 80 });
+  setImmediate(() => runPreReplaceVerify(taskId, taskStore.getTask(taskId)));
+}
+
+// ── Shared hash-acquisition + continuation ─────────────────────────────────────
+
+async function acquireHashAndContinue(taskId, task, mpConfig, torrentInfo) {
+  const searchTitle = (torrentInfo.title || '').replace(/[.\s]+/g, ' ').trim().toLowerCase();
+
+  const hashString = await acquireHash(taskId, mpConfig, searchTitle);
+  if (!hashString) return; // cancelled during hash acquisition
+
+  const tFresh = taskStore.getTask(taskId) || task;
+  taskStore.updateTask(taskId, {
+    itemInfo: { ...(tFresh.itemInfo || task.itemInfo), downloadHash: hashString },
+  });
+  appendLog(taskId, 'info', `Download hash: ${hashString}`);
+
+  // If pause was requested during hash acquisition, execute it now with the hash
+  const tAfterHash = taskStore.getTask(taskId);
+  if (tAfterHash && tAfterHash.pausingRequested) {
+    try {
+      await moviepilotService.pauseDownload(mpConfig, hashString);
+      appendLog(taskId, 'info', 'MoviePilot download paused (deferred from hash acquisition)');
+    } catch (e) {
+      appendLog(taskId, 'warn', `Failed to pause MP download: ${e.message}`);
+    }
+    abortFlags.set(taskId, true);
+    taskStore.updateTask(taskId, { pausingRequested: false });
+    scheduler.reportStatus(taskId, 'paused', task.progress || 5);
+    return;
+  }
+
+  // Fall through to download polling
+  await pollDownloadAndScrape(taskId, mpConfig);
+}
+
+async function recoverHashAndContinue(taskId, task, mpConfig) {
+  const candidates = (task.itemInfo && task.itemInfo.searchCandidates) || [];
+  const confirmData = task.confirmData || {};
+  const selectedIndex = typeof confirmData.selectedIndex === 'number' ? confirmData.selectedIndex : 0;
+  const selected = candidates[selectedIndex];
+  const torrentInfo = (selected && selected.torrent_info) || null;
+
+  const searchTitle = torrentInfo
+    ? (torrentInfo.title || '').replace(/[.\s]+/g, ' ').trim().toLowerCase()
+    : ((task.itemInfo && task.itemInfo.name) || '').toLowerCase();
+
+  const hashString = await acquireHash(taskId, mpConfig, searchTitle);
+  if (!hashString) return; // cancelled during hash acquisition
+
+  taskStore.updateTask(taskId, {
+    itemInfo: { ...(taskStore.getTask(taskId).itemInfo || task.itemInfo), downloadHash: hashString },
+  });
+  appendLog(taskId, 'info', `Download hash (recovery): ${hashString}`);
+
+  const tAfterHash = taskStore.getTask(taskId);
+  if (tAfterHash && tAfterHash.pausingRequested) {
+    try {
+      await moviepilotService.pauseDownload(mpConfig, hashString);
+      appendLog(taskId, 'info', 'MoviePilot download paused');
+    } catch (e) {
+      appendLog(taskId, 'warn', `Failed to pause MP download: ${e.message}`);
+    }
+    abortFlags.set(taskId, true);
+    taskStore.updateTask(taskId, { pausingRequested: false });
+    scheduler.reportStatus(taskId, 'paused', task.progress || 5);
+    return;
+  }
+
+  await pollDownloadAndScrape(taskId, mpConfig);
+}
+
+async function pollDownloadAndScrape(taskId, mpConfig) {
+  try {
+    const cfg = configStore.loadConfig();
+    const maxWaitMs = 4 * 60 * 60 * 1000;
+    const hash = (taskStore.getTask(taskId).itemInfo || {}).downloadHash;
+
+    const pollResult = await waitForDownload(taskId, mpConfig, hash, maxWaitMs);
+    if (pollResult.aborted) return;
+
+    appendLog(taskId, 'info', 'Download completed');
+    await continueAfterDownload(taskId, mpConfig);
+  } catch (e) {
+    if (isAborted(taskId)) return;
+    appendLog(taskId, 'error', `Executing failed: ${e.message}`);
+    scheduler.reportStatus(taskId, 'failed_hard');
+    setPhase(taskId, 'failed_hard');
+  }
+}
+
 // ── Phase: executing ──────────────────────────────────────────────────────────
 
 async function runExecuting(taskId, task) {
   setPhase(taskId, 'upgrade_executing');
-  appendLog(taskId, 'info', 'Starting download for upgrade');
 
   const mpConfig = getMpConfig();
   if (!mpConfig) {
@@ -396,45 +549,77 @@ async function runExecuting(taskId, task) {
     return;
   }
 
-  const candidates = (task.itemInfo && task.itemInfo.searchCandidates) || [];
-  const confirmData = task.confirmData || {};
-  const selectedIndex = typeof confirmData.selectedIndex === 'number' ? confirmData.selectedIndex : 0;
+  const downloadHash = (task.itemInfo && task.itemInfo.downloadHash) || null;
+  const downloadAdded = (task.itemInfo && task.itemInfo.downloadAdded) || false;
 
-  if (selectedIndex < 0 || selectedIndex >= candidates.length) {
-    appendLog(taskId, 'error', `Invalid selected index: ${selectedIndex} (candidates: ${candidates.length})`);
-    scheduler.reportStatus(taskId, 'failed_hard');
+  if (downloadHash) {
+    // ── Resume: check download state, handle completion-during-pause ──
+    appendLog(taskId, 'info', `Resuming (hash=${downloadHash})`);
+
+    let dlActive = false;
+    try {
+      const downloads = await moviepilotService.listDownloads(mpConfig);
+      const list = Array.isArray(downloads) ? downloads : [];
+      const dl = list.find((d) => d.hash === downloadHash || d.hashString === downloadHash || d.download_hash === downloadHash);
+      if (dl) {
+        dlActive = true;
+        await moviepilotService.resumeDownload(mpConfig, downloadHash);
+      }
+    } catch (_) {}
+
+    if (!dlActive) {
+      // Download completed and auto-removed during pause → skip to scraping
+      appendLog(taskId, 'info', 'Download already completed, proceeding to scraping wait');
+      await continueAfterDownload(taskId, mpConfig);
+      return;
+    }
+    // Fall through to common polling path
+  } else if (downloadAdded) {
+    // ── Recover: download was already submitted to MP, just need the hash ──
+    appendLog(taskId, 'info', 'Download already submitted — waiting for hash');
+    await recoverHashAndContinue(taskId, task, mpConfig);
     return;
-  }
+  } else {
+    // ── First run: validate selection + addDownload + persist hash ──
+    appendLog(taskId, 'info', 'Starting download for upgrade');
 
-  const selected = candidates[selectedIndex];
-  const torrentInfo = selected.torrent_info;
-  if (!torrentInfo) {
-    appendLog(taskId, 'error', 'Selected candidate has no torrent info');
-    scheduler.reportStatus(taskId, 'failed_hard');
-    return;
-  }
+    const candidates = (task.itemInfo && task.itemInfo.searchCandidates) || [];
+    const confirmData = task.confirmData || {};
+    const selectedIndex = typeof confirmData.selectedIndex === 'number' ? confirmData.selectedIndex : 0;
 
-  appendLog(taskId, 'info', `Selected: ${torrentInfo.title || 'Unknown'} from ${torrentInfo.site_name || 'Unknown'}`);
+    if (selectedIndex < 0 || selectedIndex >= candidates.length) {
+      appendLog(taskId, 'error', `Invalid selected index: ${selectedIndex} (candidates: ${candidates.length})`);
+      scheduler.reportStatus(taskId, 'failed_hard');
+      return;
+    }
 
-  // Record baseline transfer history ID before adding download (used later for scraping detection)
-  let baselineTransferId = 0;
-  try {
-    const baseline = await moviepilotService.getTransferHistory(mpConfig, 1);
-    const baselineList = (baseline && baseline.data && baseline.data.list) || (baseline && baseline.list) || [];
-    if (baselineList.length > 0) baselineTransferId = baselineList[0].id || 0;
-    taskStore.updateTask(taskId, {
-      itemInfo: { ...task.itemInfo, baselineTransferId },
-    });
-  } catch (_) {}
+    const selected = candidates[selectedIndex];
+    const torrentInfo = selected.torrent_info;
+    if (!torrentInfo) {
+      appendLog(taskId, 'error', 'Selected candidate has no torrent info');
+      scheduler.reportStatus(taskId, 'failed_hard');
+      return;
+    }
 
-  try {
+    appendLog(taskId, 'info', `Selected: ${torrentInfo.title || 'Unknown'} from ${torrentInfo.site_name || 'Unknown'}`);
+
+    // Record baseline transfer history ID before adding download
+    let baselineTransferId = 0;
+    try {
+      const baseline = await moviepilotService.getTransferHistory(mpConfig, 1);
+      const baselineList = (baseline && baseline.data && baseline.data.list) || (baseline && baseline.list) || [];
+      if (baselineList.length > 0) baselineTransferId = baselineList[0].id || 0;
+      taskStore.updateTask(taskId, {
+        itemInfo: { ...task.itemInfo, baselineTransferId },
+      });
+    } catch (_) {}
+
     scheduler.reportStatus(taskId, 'executing', 5);
     const dlResult = await moviepilotService.addDownload(mpConfig, {
       torrentInfo,
       savePath: mpConfig.savePath || undefined,
     });
 
-    // addDownload returns { success: true/false, message, data }
     if (dlResult && dlResult.success === false) {
       appendLog(taskId, 'error', `Download add failed: ${dlResult.message || 'Unknown error'}`);
       scheduler.reportStatus(taskId, 'failed_hard');
@@ -444,45 +629,17 @@ async function runExecuting(taskId, task) {
 
     appendLog(taskId, 'info', 'Download task added to MoviePilot');
 
-    // Get the hash to track
-    let hashString = null;
-    if (dlResult && dlResult.data) {
-      if (typeof dlResult.data === 'string') hashString = dlResult.data;
-      else if (dlResult.data.hashString) hashString = dlResult.data.hashString;
-      else if (dlResult.data.hash) hashString = dlResult.data.hash;
-    }
+    // Mark that download was submitted — prevents double-add on recovery
+    taskStore.updateTask(taskId, {
+      itemInfo: { ...(taskStore.getTask(taskId).itemInfo || task.itemInfo), downloadAdded: true },
+    });
 
-    // Poll until download completes (max 4 hours)
-    const cfg = configStore.loadConfig();
-    const maxWaitMs = 4 * 60 * 60 * 1000;
-
-    const pollResult = await waitForDownload(taskId, mpConfig, hashString, maxWaitMs);
-    if (pollResult.aborted) {
-      appendLog(taskId, 'info', 'Download polling aborted by user');
-      return;
-    }
-
-    appendLog(taskId, 'info', 'Download completed');
-
-    // Wait for MoviePilot scraping/transfer to finish.  MoviePilot moves the scraped
-    // folder into place within shelfdeck and records it in transfer history.
-    await waitForScraping(taskId, mpConfig);
-
-    // Store the scraped TMDB ID from transfer history for later validation
-    const task2 = taskStore.getTask(taskId);
-    if (task2 && task2.itemInfo && task2.itemInfo.mpTmdbId) {
-      appendLog(taskId, 'info', `MoviePilot scraped as TMDB ${task2.itemInfo.mpTmdbId}`);
-    }
-
-    // Proceed to pre-replace-verify
-    taskStore.updateTask(taskId, { resumePoint: 'upgrade_pre_replace_verify', progress: 80 });
-    setImmediate(() => runPreReplaceVerify(taskId, taskStore.getTask(taskId)));
-  } catch (e) {
-    if (isAborted(taskId)) return;
-    appendLog(taskId, 'error', `Executing failed: ${e.message}`);
-    scheduler.reportStatus(taskId, 'failed_hard');
-    setPhase(taskId, 'failed_hard');
+    await acquireHashAndContinue(taskId, task, mpConfig, torrentInfo);
+    return;
   }
+
+  // ── Common path: poll download + wait for scraping ──
+  await pollDownloadAndScrape(taskId, mpConfig);
 }
 
 // ── Phase: pre_replace_verify ─────────────────────────────────────────────────
@@ -537,6 +694,22 @@ async function runPreReplaceVerify(taskId, task) {
   }
 
   appendLog(taskId, 'info', `Staging folder: ${stagingFolder}`);
+
+  // Check if cancelled during scraping — clean up and exit
+  const task2 = taskStore.getTask(taskId);
+  if (task2 && task2.cancelAfterScraping) {
+    appendLog(taskId, 'info', 'Cancelled — cleaning up scraped folder');
+    if (stagingFolder && fs.existsSync(stagingFolder)) {
+      try {
+        fs.rmSync(stagingFolder, { recursive: true, force: true });
+        appendLog(taskId, 'info', 'Scraped folder cleaned');
+      } catch (e) {
+        appendLog(taskId, 'warn', `Failed to clean scraped folder: ${e.message}`);
+      }
+    }
+    scheduler.reportStatus(taskId, 'done');
+    return;
+  }
 
   try {
     // TMDB ID validation
@@ -760,28 +933,112 @@ async function runVerify(taskId, task) {
 
 // ── Flow controls ─────────────────────────────────────────────────────────────
 
-function pause(taskId) {
+async function pause(taskId) {
   const task = taskStore.getTask(taskId);
   if (!task) return;
+
+  const downloadHash = (task.itemInfo && task.itemInfo.downloadHash) || null;
+  const phase = task.phase || '';
+
+  // Hash lookup stage — no hash yet, can't tell MP which download to pause.
+  // Set flag so acquireHash honours the request once hash arrives.
+  if (!downloadHash && phase === 'upgrade_executing') {
+    taskStore.updateTask(taskId, { pausingRequested: true });
+    appendLog(taskId, 'info', 'Pause requested — waiting for download to appear in MoviePilot');
+    scheduler.reportStatus(taskId, 'pausing', task.progress || 0);
+    return;
+  }
+
+  // Download polling / scraping stage — hash is known (or download already gone).
   abortFlags.set(taskId, true);
+
+  if (downloadHash) {
+    const mpConfig = getMpConfig();
+    if (mpConfig) {
+      try {
+        await moviepilotService.pauseDownload(mpConfig, downloadHash);
+        appendLog(taskId, 'info', 'MoviePilot download paused');
+      } catch (e) {
+        appendLog(taskId, 'warn', `Failed to pause MoviePilot download: ${e.message}`);
+      }
+    }
+  }
+
   appendLog(taskId, 'info', 'Upgrade paused by user');
   scheduler.reportStatus(taskId, 'paused', task.progress || 0);
 }
 
-function cancel(taskId) {
+async function cancel(taskId) {
   const task = taskStore.getTask(taskId);
   if (!task) return;
-  abortFlags.set(taskId, true);
 
   appendLog(taskId, 'info', 'Upgrade cancelled by user');
 
-  // Clean staging folder if present
-  const stagingFolder = (task.itemInfo && task.itemInfo.stagingFolder);
-  if (stagingFolder && fs.existsSync(stagingFolder)) {
-    try { fs.rmSync(stagingFolder, { recursive: true, force: true }); } catch (_) {}
+  const mpConfig = getMpConfig();
+  const downloadHash = (task.itemInfo && task.itemInfo.downloadHash) || null;
+  const phase = task.phase || '';
+  const stagingFolder = (task.itemInfo && task.itemInfo.stagingFolder) || null;
+
+  // Phase 3+: scraping completed, staging folder known → clean directly
+  if (stagingFolder) {
+    if (mpConfig && downloadHash) {
+      try { await moviepilotService.deleteDownload(mpConfig, downloadHash); } catch (_) {}
+    }
+    if (fs.existsSync(stagingFolder)) {
+      try {
+        fs.rmSync(stagingFolder, { recursive: true, force: true });
+        appendLog(taskId, 'info', 'Staging folder cleaned');
+      } catch (e) {
+        appendLog(taskId, 'warn', `Failed to clean staging: ${e.message}`);
+      }
+    }
+    abortFlags.set(taskId, true);
+    scheduler.reportStatus(taskId, 'done');
+    return;
   }
 
-  scheduler.reportStatus(taskId, 'done');
+  // No download started yet (precheck/planning)
+  if (!downloadHash && phase !== 'upgrade_executing') {
+    abortFlags.set(taskId, true);
+    scheduler.reportStatus(taskId, 'done');
+    return;
+  }
+
+  // Hash lookup stage — no hash yet, can't tell MP which download to delete.
+  // Set pendingCancel flag so acquireHash will delete once hash arrives.
+  if (!downloadHash && phase === 'upgrade_executing') {
+    taskStore.updateTask(taskId, { pendingCancel: true });
+    appendLog(taskId, 'info', 'Cancel requested — waiting for download to appear in MoviePilot');
+    return;
+  }
+
+  // downloadHash exists, stagingFolder not set → Phase 1 or 2
+  let inDownloadList = false;
+  if (mpConfig) {
+    try {
+      const downloads = await moviepilotService.listDownloads(mpConfig);
+      const list = Array.isArray(downloads) ? downloads : [];
+      inDownloadList = list.some((d) =>
+        d.hash === downloadHash || d.hashString === downloadHash || d.download_hash === downloadHash
+      );
+    } catch (_) {}
+  }
+
+  if (inDownloadList) {
+    // Phase 1: download active → DELETE, MP downloader cleans files
+    if (mpConfig) {
+      try { await moviepilotService.deleteDownload(mpConfig, downloadHash); } catch (_) {}
+    }
+    abortFlags.set(taskId, true);
+    appendLog(taskId, 'info', 'Download cancelled in MoviePilot');
+    scheduler.reportStatus(taskId, 'done');
+  } else {
+    // Phase 2: download done, scraping not yet complete
+    // Let scraping finish naturally, then clean in pre_replace_verify
+    taskStore.updateTask(taskId, { cancelAfterScraping: true });
+    appendLog(taskId, 'info', 'Waiting for scraping to finish — will clean up after');
+    // Don't set abort flag — keep polling/scraping alive
+  }
 }
 
 function confirmReceived(taskId) {

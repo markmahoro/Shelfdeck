@@ -51,6 +51,34 @@ function getEmbyServerConfig(embyServerId) {
   return first ? servers[first] : null;
 }
 
+function resolveEmbyConfigForLibrary(subLibraryId) {
+  const cfg = configStore.loadConfig();
+  const subLibs = cfg.subLibraries || [];
+  let subLib;
+  if (subLibraryId) {
+    subLib = subLibs.find((s) => s.uuid === subLibraryId);
+    if (!subLib) return { error: { code: 'NOT_FOUND', message: 'SubLibrary not found' } };
+  } else {
+    subLib = subLibs[0];
+    if (!subLib) return { error: { code: 'NOT_FOUND', message: 'No subLibraries configured' } };
+  }
+  const servers = cfg.embyServers || {};
+  const serverConfig = servers[subLib.embyServerId];
+  if (!serverConfig || !serverConfig.baseUrl) {
+    return { error: { code: 'EMBY_UNREACHABLE', message: 'Emby server not configured for this subLibrary' } };
+  }
+  return { subLib, serverConfig };
+}
+
+function resolveEmbyConfigForItem(itemId, subLibraryId) {
+  if (subLibraryId) return resolveEmbyConfigForLibrary(subLibraryId);
+  const libItem = mediaLibraryService.getLibraryItem(itemId);
+  if (libItem && libItem.subLibraryId) {
+    return resolveEmbyConfigForLibrary(libItem.subLibraryId);
+  }
+  return { error: { code: 'NOT_FOUND', message: 'Cannot determine subLibrary for this item' } };
+}
+
 // ── Route Registration ──────────────────────────────────────────────────────
 
 function registerRoutes(app) {
@@ -192,6 +220,11 @@ function registerRoutes(app) {
       taskStore.updateTask(task.id, { status: 'queued' });
       return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
     }
+    if (task.status === 'pausing') {
+      // Clear pause request — hash acquisition loop will fall back to normal polling
+      taskStore.updateTask(task.id, { pausingRequested: false, status: 'executing' });
+      return { id: task.id, status: 'executing', updatedAt: new Date().toISOString() };
+    }
     return { id: task.id, status: task.status, updatedAt: task.updatedAt };
   });
 
@@ -200,7 +233,7 @@ function registerRoutes(app) {
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
     const flow = getFlow(task.actionType);
-    if (flow) flow.pause(task.id);
+    if (flow) await flow.pause(task.id);
 
     return { id: task.id, status: 'paused', updatedAt: new Date().toISOString() };
   });
@@ -211,7 +244,7 @@ function registerRoutes(app) {
 
     // Always cancel to clean up FFmpeg process and partial files
     const flow = getFlow(task.actionType);
-    if (flow) flow.cancel(task.id);
+    if (flow) await flow.cancel(task.id);
 
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
@@ -225,7 +258,18 @@ function registerRoutes(app) {
     if (req.query.type) filter.type = req.query.type;
     if (req.query.action) filter.action = req.query.action;
     if (req.query.subLibraryId) filter.subLibraryId = req.query.subLibraryId;
-    return mediaLibraryService.getLibrary(filter);
+    const result = mediaLibraryService.getLibrary(filter);
+    // Attach embyWebUrl for desktop play button
+    const cfg = configStore.loadConfig();
+    const servers = cfg.embyServers || {};
+    const subLibs = cfg.subLibraries || [];
+    for (const item of result.items) {
+      const sl = subLibs.find((s) => s.uuid === item.subLibraryId);
+      if (sl && servers[sl.embyServerId] && servers[sl.embyServerId].baseUrl) {
+        item.embyWebUrl = `${String(servers[sl.embyServerId].baseUrl).replace(/\/+$/, '')}/web/index.html#!/item?id=${item.itemId}`;
+      }
+    }
+    return result;
   });
 
   app.get('/v1/library/queries/manage', async (req) => {
@@ -281,6 +325,73 @@ function registerRoutes(app) {
     }
     const result = mediaLibraryService.upsertItems(subLibraryId, items);
     return { ok: true, ...result };
+  });
+
+  // ── Library: mark played / unplayed ─────────────────────────────────────
+
+  app.post('/v1/library/actions/mark-played', async (req, reply) => {
+    const { itemId, subLibraryId } = req.body || {};
+    if (!itemId) return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
+
+    const resolved = resolveEmbyConfigForItem(itemId, subLibraryId || '');
+    if (resolved.error) return apiError(reply, 404, resolved.error.code, resolved.error.message);
+
+    try {
+      await embyService.markPlayed(resolved.serverConfig, itemId);
+      return { ok: true };
+    } catch (e) {
+      return apiError(reply, 502, 'EMBY_ERROR', e.message);
+    }
+  });
+
+  app.post('/v1/library/actions/mark-unplayed', async (req, reply) => {
+    const { itemId, subLibraryId } = req.body || {};
+    if (!itemId) return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
+
+    const resolved = resolveEmbyConfigForItem(itemId, subLibraryId || '');
+    if (resolved.error) return apiError(reply, 404, resolved.error.code, resolved.error.message);
+
+    try {
+      await embyService.markUnplayed(resolved.serverConfig, itemId);
+      return { ok: true };
+    } catch (e) {
+      return apiError(reply, 502, 'EMBY_ERROR', e.message);
+    }
+  });
+
+  // ── Library: queries (real-time from Emby) ──────────────────────────────
+
+  app.post('/v1/library/queries/played', async (req, reply) => {
+    const { subLibraryId, days, type, sectionId } = req.body || {};
+    const resolved = resolveEmbyConfigForLibrary(subLibraryId || '');
+    if (resolved.error) return apiError(reply, 404, resolved.error.code, resolved.error.message);
+
+    try {
+      const items = await embyService.getPlayedItems(resolved.serverConfig, {
+        days: days || 0,
+        type: type || 'all',
+        sectionId: sectionId || resolved.subLib.sectionId,
+      });
+      return items;
+    } catch (e) {
+      return apiError(reply, 502, 'EMBY_ERROR', e.message);
+    }
+  });
+
+  app.post('/v1/library/queries/unplayed', async (req, reply) => {
+    const { subLibraryId, sectionId } = req.body || {};
+    const resolved = resolveEmbyConfigForLibrary(subLibraryId || '');
+    if (resolved.error) return apiError(reply, 404, resolved.error.code, resolved.error.message);
+
+    try {
+      const items = await embyService.getUnplayedItems(
+        resolved.serverConfig,
+        sectionId || resolved.subLib.sectionId,
+      );
+      return items;
+    } catch (e) {
+      return apiError(reply, 502, 'EMBY_ERROR', e.message);
+    }
   });
 
   // ── Config ──────────────────────────────────────────────────────────────

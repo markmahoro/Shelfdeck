@@ -1,19 +1,19 @@
 # DESIGN_DESKTOP/SERVICE_ENDPOINTS_GAP — 待补端点交接
 
-> 状态：v2 交接文档
-> 接收方：service 端实施
-> 说明：以下 4 个端点 desktop 端已设计调用方，但 service 端尚未注册路由和实现逻辑
+> 状态：v2 实施中
+> 最后更新：2026-04-27
+> 说明：以下 4 个端点已于 2026-04-27 实现。§5（desktop 阻塞功能）已解除阻塞并实现。
 
 ---
 
 ## §1 缺失端点清单
 
-| # | 方法 | 端点 | 用途 | desktop 调用页面 |
-|---|------|------|------|-----------------|
-| 1 | POST | `/v1/library/actions/mark-played` | 标记媒体项为已观看 | WallPage, MediaManagePage, HistoryPage |
-| 2 | POST | `/v1/library/actions/mark-unplayed` | 标记媒体项为未观看 | WallPage, MediaManagePage, HistoryPage |
-| 3 | POST | `/v1/library/queries/played` | 查询已观看历史 | HistoryPage |
-| 4 | POST | `/v1/library/queries/unplayed` | 查询未观看列表 | WallPage |
+| # | 方法 | 端点 | 用途 | 状态 |
+|---|------|------|------|------|
+| 1 | POST | `/v1/library/actions/mark-played` | 标记媒体项为已观看 | ✅ 已实现 |
+| 2 | POST | `/v1/library/actions/mark-unplayed` | 标记媒体项为未观看 | ✅ 已实现 |
+| 3 | POST | `/v1/library/queries/played` | 查询已观看历史 | ✅ 已实现 |
+| 4 | POST | `/v1/library/queries/unplayed` | 查询未观看列表 | ✅ 已实现 |
 
 ---
 
@@ -171,36 +171,44 @@ Response (200):
 
 ---
 
-## §3 实现指南
+## §3 实现记录（2026-04-27）
 
-### 3.1 需要修改的文件
+### 3.1 已修改文件
 
 | 文件 | 改动 |
 |------|------|
-| `media-service/src/app.js` | 注册 4 条路由 |
+| `media-service/src/app.js` | 注册 4 条路由 + 2 个 helper（`resolveEmbyConfigForLibrary`、`resolveEmbyConfigForItem`） |
 | `media-service/src/services/embyService.js` | 新增 `markPlayed()`, `markUnplayed()`, `getPlayedItems()`, `getUnplayedItems()` |
+| `media-desktop/src/api/client.ts` | 新增 `markPlayed()`, `markUnplayed()`, `getPlayedItems()`, `getUnplayedItems()` + `PlayedItem`/`UnplayedItem` 类型 |
+| `media-desktop/src/pages/WallPage.tsx` | 完整重写：调用 `getUnplayedItems` 获取数据，支持入队 + 标记已看 |
+| `media-desktop/src/pages/HistoryPage.tsx` | 完整重写：调用 `getPlayedItems` 获取数据，支持筛选 + 标记未看 |
+| `media-desktop/src/pages/MediaManagePage.tsx` | `onWatchChange` 调用 `markPlayed`/`markUnplayed`，乐观更新本地 watched 状态 |
+| `docs/v2/design/SERVICE/API.md` | 新增 §6.5-§6.8 端点文档 |
 
-### 3.2 Emby API 映射
+### 3.2 API 设计调整
 
-| service 函数 | Emby API | 文档参考 |
-|-------------|----------|----------|
-| `markPlayed(config, itemId)` | `POST /Users/{userId}/PlayedItems/{itemId}` | Emby REST API |
-| `markUnplayed(config, itemId)` | `DELETE /Users/{userId}/PlayedItems/{itemId}` | Emby REST API |
-| `getPlayedItems(config, filters)` | `GET /Users/{userId}/Items?Recursive=true&Filters=IsPlayed&IncludeItemTypes=Movie,Episode&fields=DatePlayed,MediaSources` | Emby REST API |
-| `getUnplayedItems(config, sectionId)` | `GET /Users/{userId}/Items?ParentId={sectionId}&Recursive=true&Filters=IsUnplayed&IncludeItemTypes=Movie,Episode&fields=MediaSources` | Emby REST API |
+交接文档原始设计要求 desktop 传递完整 Emby `config` 对象（`baseUrl` + `apiKey` + `userId`）。实际实现改为 **传递 `subLibraryId`**，由 service 内部解析 Emby 服务器配置。理由：
 
-### 3.3 认证方式
+- desktop 不应持有 Emby 凭证（`GET /v1/config` 已 mask 敏感字段）
+- 与现有端点模式一致（`POST /v1/library/actions/refresh`、`GET /v1/library` 均使用 `subLibraryId`）
+- 减少 desktop→service 的冗余数据传递
 
-所有 4 个端点需要 precheck（即 `POST /v1/emby/actions/test-connection` 已通过的 config）。service 端使用 config 中的 `apiKey` 访问 Emby API。
+### 3.3 Emby API 映射
+
+| service 函数 | Emby API |
+|-------------|----------|
+| `markPlayed(config, itemId)` | `POST /Users/{userId}/PlayedItems/{itemId}` |
+| `markUnplayed(config, itemId)` | `DELETE /Users/{userId}/PlayedItems/{itemId}` |
+| `getPlayedItems(config, filters)` | `GET /Users/{userId}/Items?Recursive=true&Filters=IsPlayed&IncludeItemTypes=Movie,Episode&Fields=DatePlayed,MediaSources` |
+| `getUnplayedItems(config, sectionId)` | `GET /Users/{userId}/Items?ParentId={sectionId}&Recursive=true&Filters=IsUnplayed&IncludeItemTypes=Movie,Episode&Fields=...` |
 
 ### 3.4 错误处理
 
 | 场景 | HTTP 状态 | error.code |
 |------|-----------|------------|
-| Emby 不可达 | 502 | `EMBY_UNREACHABLE` |
-| config 缺失必填字段 | 400 | `INVALID_CONFIG` |
-| Emby 返回错误 | 502 | `EMBY_ERROR` |
-| itemId 不存在 | 404 | `ITEM_NOT_FOUND` |
+| Emby 不可达 / Emby 返回错误 | 502 | `EMBY_ERROR` |
+| 缺少必填字段（如 `itemId`） | 400 | `VALIDATION_ERROR` |
+| 子库不存在 | 404 | `NOT_FOUND` |
 
 ---
 
@@ -230,66 +238,38 @@ getUnplayedItems: (args) =>
 
 ---
 
-## §5 Desktop 端被阻塞功能清单
+## §5 Desktop 端阻塞功能状态
 
-以下功能 service 端点就绪后，desktop 端即可启用。每个功能标注了 blocked by（哪个端点）、desktop 代码位置、以及需要做的改动。
+### 5.1 海报墙（WallPage）— ✅ 已解除阻塞
 
-### 5.1 海报墙（WallPage）
-
-| 状态 | 说明 |
+| 项目 | 说明 |
 |------|------|
-| **当前状态** | 空壳页面，显示"暂未获取到未观看内容" |
-| **blocked by** | `POST /v1/library/queries/unplayed` |
+| **状态** | ✅ 已实现（2026-04-27） |
 | **代码位置** | `src/pages/WallPage.tsx` |
+| **实现内容** | `useEffect` → `apiClient.getUnplayedItems(subLibraryId)`；支持入队（`POST /v1/tasks`）+ 标记已看（`POST /v1/library/actions/mark-played`） |
 
-**端点就绪后 desktop 需要做的**：
+### 5.2 播放记录（HistoryPage）— ✅ 已解除阻塞
 
-1. 在 `api/client.ts` 新增 `getUnplayedItems(config, sectionId)` 方法，调用 `POST /v1/library/queries/unplayed`
-2. `WallPage` 的 `useEffect` 改为实际请求数据，不再直接 `setLoading(false)`
-3. 实现海报墙卡片渲染（名称、分辨率、编码、体积、策略操作按钮）
-4. 实现打星评分（调用已存在的 `PATCH /v1/library/ratings`）
-5. 实现一键入队（调用已存在的 `POST /v1/tasks`）
-
-### 5.2 播放记录（HistoryPage）
-
-| 状态 | 说明 |
+| 项目 | 说明 |
 |------|------|
-| **当前状态** | 空壳页面，显示"暂无播放记录" |
-| **blocked by** | `POST /v1/library/queries/played` |
+| **状态** | ✅ 已实现（2026-04-27） |
 | **代码位置** | `src/pages/HistoryPage.tsx` |
+| **实现内容** | `useEffect` → `apiClient.getPlayedItems(subLibraryId, filters)`；支持日期/类型筛选 + 标记未看（`POST /v1/library/actions/mark-unplayed`） |
 
-**端点就绪后 desktop 需要做的**：
+### 5.3 标记已看 / 未看（全页面）— ✅ 已解除阻塞
 
-1. 在 `api/client.ts` 新增 `getPlayedItems(config, filters)` 方法，调用 `POST /v1/library/queries/played`
-2. `HistoryPage` 的 `useEffect` 改为实际请求数据
-3. 实现日期/类型/媒体库筛选逻辑（目前仅为 UI 骨架）
-4. 实现标记已看/未看按钮（调用 mark-played/mark-unplayed）
-
-### 5.3 标记已看 / 未看（全页面）
-
-| 状态 | 说明 |
+| 项目 | 说明 |
 |------|------|
-| **当前状态** | 按钮渲染但 `onWatchChange` 回调为空函数（`// TODO`） |
-| **blocked by** | `POST /v1/library/actions/mark-played`、`POST /v1/library/actions/mark-unplayed` |
-| **代码位置** | `src/pages/MediaManagePage.tsx`（第 181-183 行）、`src/pages/WallPage.tsx`、`src/pages/HistoryPage.tsx` |
+| **状态** | ✅ 已实现（2026-04-27） |
+| **代码位置** | `MediaManagePage.tsx`、`WallPage.tsx`、`HistoryPage.tsx` |
+| **实现内容** | `apiClient.markPlayed()` / `apiClient.markUnplayed()` 已接入，`onWatchChange` 已实现乐观更新 |
 
-**端点就绪后 desktop 需要做的**：
+### 5.4 watched 字段 — ✅ 已实现
 
-1. 在 `api/client.ts` 新增 `markPlayed(itemId)`、`markUnplayed(itemId)` 方法
-2. 替换所有页面中 `onWatchChange` 的 TODO 空函数为实际 API 调用
-3. 调用成功后刷新当前列表（重新拉取数据以反映最新观看状态）
-
-### 5.4 watched 字段
-
-| 状态 | 说明 |
+| 项目 | 说明 |
 |------|------|
-| **当前状态** | `coerceManagedItem` 中硬编码 `watched: false` |
-| **blocked by** | service `GET /v1/library` 响应目前不含观看状态字段 |
-| **代码位置** | `src/pages/MediaManagePage.tsx` `coerceManagedItem` 函数 |
-
-**service 就绪后 desktop 需要做的**：
-
-1. 若 service 在 library 响应中新增 `watched` 字段，修改 `coerceManagedItem` 映射 `watched: Boolean(o.watched)`
+| **状态** | ✅ 已实现（2026-04-27） |
+| **实现内容** | `embyService.extractItemFields` → 提取 `UserData.Played` → `watched`；`mediaLibraryService.upsertItems` → 持久化 `watched` 到 library.json；desktop `coerceManagedItem` → `watched: Boolean(o.watched)` |
 
 ---
 
@@ -308,17 +288,15 @@ getUnplayedItems: (args) =>
 
 ---
 
-## §7 Desktop 端代码 TODO 索引
+## §7 Desktop 端代码 TODO 索引（更新于 2026-04-27）
 
-供 service 就绪后快速定位需要改动的代码位置：
-
-| 文件 | 行位置 | 标记 | 说明 |
-|------|--------|------|------|
-| `src/pages/WallPage.tsx` | 第 22-28 行 | `useEffect` 空壳 | 等待 `queries/unplayed` 端点 |
-| `src/pages/HistoryPage.tsx` | 第 30-43 行 | `useEffect` 空壳 | 等待 `queries/played` 端点 |
-| `src/pages/MediaManagePage.tsx` | 第 181 行 | `// TODO` | 等待 mark-played/mark-unplayed 端点 |
-| `src/api/client.ts` | — | 缺少 4 个方法 | 需新增 `markPlayed`/`markUnplayed`/`getPlayedItems`/`getUnplayedItems` |
-| `src/pages/MediaManagePage.tsx` | `coerceManagedItem` | `watched: false` | 等待 service 返回 watched 字段 |
+| 文件 | 位置 | 标记 | 状态 |
+|------|------|------|------|
+| `src/pages/WallPage.tsx` | `useEffect` → `apiClient.getUnplayedItems` | — | ✅ 已实现 |
+| `src/pages/HistoryPage.tsx` | `useEffect` → `apiClient.getPlayedItems` | — | ✅ 已实现 |
+| `src/pages/MediaManagePage.tsx` | `onWatchChange` → `apiClient.markPlayed/markUnplayed` | — | ✅ 已实现 |
+| `src/api/client.ts` | `markPlayed`/`markUnplayed`/`getPlayedItems`/`getUnplayedItems` | — | ✅ 已实现 |
+| `src/pages/MediaManagePage.tsx` | `coerceManagedItem` | `watched: Boolean(o.watched)` | ✅ 已实现（2026-04-27） |
 
 ---
 

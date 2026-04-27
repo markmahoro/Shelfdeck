@@ -111,8 +111,12 @@ HTTP 401 Unauthorized
 | `/v1/library/items/:itemId` | GET | 单项详情 | §6.2 |
 | `/v1/library/ratings` | PATCH | 用户评分写入 | §6.3 |
 | `/v1/library/actions/refresh` | POST | 手动刷新子库 | §6.4 |
-| `/v1/library/status` | GET | 子库同步状态 | §6.5 |
-| `/v1/library/cache` | POST | 批量写入 Emby 数据（内部） | §6.6 |
+| `/v1/library/actions/mark-played` | POST | 标记已观看 | §6.5 |
+| `/v1/library/actions/mark-unplayed` | POST | 标记未观看 | §6.6 |
+| `/v1/library/queries/played` | POST | 查询已观看历史 | §6.7 |
+| `/v1/library/queries/unplayed` | POST | 查询未观看列表 | §6.8 |
+| `/v1/library/status` | GET | 子库同步状态 | §6.9 |
+| `/v1/library/cache` | POST | 批量写入 Emby 数据（内部） | §6.10 |
 | `/v1/config` | GET | 获取完整配置 | §7.1 |
 | `/v1/config` | PATCH | 更新配置 | §7.2 |
 | `/v1/health` | GET | 聚合健康状态 | §8 |
@@ -546,7 +550,223 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ---
 
-### 6.5 GET /v1/library/status — 子库同步状态
+### 6.5 POST /v1/library/actions/mark-played — 标记已观看
+
+通过 Emby API 标记指定媒体项为已观看。
+
+**请求体**：
+
+```json
+{
+  "itemId": "emby-item-123",
+  "subLibraryId": "sublib-001"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `itemId` | string | 是 | Emby 媒体项 ID |
+| `subLibraryId` | string | 否 | 子库 UUID。未提供时从 library.json 查找 item 所属子库 |
+
+**响应**：`200 OK`
+
+```json
+{
+  "ok": true
+}
+```
+
+**行为**：
+1. 通过 `subLibraryId` 或 `itemId` 解析 Emby 服务器配置
+2. 调用 `POST Emby /Users/{userId}/PlayedItems/{itemId}`
+
+**错误**：
+
+| 状态码 | code | 场景 |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | 缺少 `itemId` |
+| 404 | `NOT_FOUND` | 子库不存在或无法确定 item 所属子库 |
+| 502 | `EMBY_ERROR` | Emby API 调用失败 |
+
+---
+
+### 6.6 POST /v1/library/actions/mark-unplayed — 标记未观看
+
+通过 Emby API 取消指定媒体项的已观看标记。
+
+**请求体**：
+
+```json
+{
+  "itemId": "emby-item-123",
+  "subLibraryId": "sublib-001"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `itemId` | string | 是 | Emby 媒体项 ID |
+| `subLibraryId` | string | 否 | 子库 UUID。未提供时从 library.json 查找 item 所属子库 |
+
+**响应**：`200 OK`
+
+```json
+{
+  "ok": true
+}
+```
+
+**行为**：
+1. 通过 `subLibraryId` 或 `itemId` 解析 Emby 服务器配置
+2. 调用 `DELETE Emby /Users/{userId}/PlayedItems/{itemId}`
+
+**错误**：
+
+| 状态码 | code | 场景 |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | 缺少 `itemId` |
+| 404 | `NOT_FOUND` | 子库不存在或无法确定 item 所属子库 |
+| 502 | `EMBY_ERROR` | Emby API 调用失败 |
+
+---
+
+### 6.7 POST /v1/library/queries/played — 查询已观看历史
+
+从 Emby 实时查询已观看历史记录（不走 library.json 缓存）。
+
+**请求体**：
+
+```json
+{
+  "subLibraryId": "sublib-001",
+  "days": 30,
+  "type": "Movie",
+  "sectionId": "sec-1"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `subLibraryId` | string | 是 | 子库 UUID |
+| `days` | number | 否 | 天数过滤（7/30/0，0=不限，默认 0） |
+| `type` | string | 否 | 类型过滤：`all` / `Movie` / `Episode`（默认 `all`） |
+| `sectionId` | string | 否 | Emby 媒体库 sectionId（默认使用子库配置的 sectionId） |
+
+**响应**：`200 OK`
+
+```json
+[
+  {
+    "id": "item-abc123",
+    "name": "电影名称",
+    "type": "Movie",
+    "datePlayed": "2026-04-20T10:30:00.000Z",
+    "sectionId": "sec-1",
+    "sectionName": "Movies",
+    "posterTag": "abc123",
+    "seriesName": "连续剧名称",
+    "indexLabel": "S01E01"
+  }
+]
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | string | Emby 媒体项 ID |
+| `name` | string | 媒体项名称 |
+| `type` | string | `Movie` / `Episode` / `Other` |
+| `datePlayed` | string | 最近播放时间（ISO 8601），可为 null |
+| `sectionId` | string | 所属 Emby 媒体库 ID |
+| `sectionName` | string | 所属 Emby 媒体库名称 |
+| `posterTag` | string | 海报图片标签 |
+| `seriesName` | string | 剧集系列名（仅 Episode 类型） |
+| `indexLabel` | string | 集数标签如 "S01E01"（仅 Episode 类型） |
+
+**行为**：
+1. 通过 `subLibraryId` 解析 Emby 服务器配置
+2. 调用 `GET Emby /Users/{userId}/Items?Filters=IsPlayed&IncludeItemTypes=Movie,Episode`
+3. 按 `days` 参数过滤 `datePlayed`（service 侧过滤，Emby API 返回全量）
+4. 按 `type` 参数过滤
+5. 按 `sectionId` 参数过滤
+
+**错误**：
+
+| 状态码 | code | 场景 |
+|---|---|---|
+| 404 | `NOT_FOUND` | 子库不存在 |
+| 502 | `EMBY_ERROR` | Emby API 调用失败 |
+
+---
+
+### 6.8 POST /v1/library/queries/unplayed — 查询未观看列表
+
+从 Emby 实时查询未观看媒体项列表（不走 library.json 缓存）。
+
+**请求体**：
+
+```json
+{
+  "subLibraryId": "sublib-001",
+  "sectionId": "sec-1"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `subLibraryId` | string | 是 | 子库 UUID |
+| `sectionId` | string | 否 | Emby 媒体库 sectionId（默认使用子库配置的 sectionId） |
+
+**响应**：`200 OK`
+
+```json
+[
+  {
+    "id": "item-abc123",
+    "name": "电影名称",
+    "sectionId": "sec-1",
+    "posterTag": "abc123",
+    "runTimeTicks": 75600000000,
+    "durationSec": 7560,
+    "sizeGb": 18.2,
+    "resolution": "4K",
+    "codec": "h264",
+    "itemType": "Movie",
+    "isBluRayDisc": false,
+    "embyPlayed": false
+  }
+]
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | string | Emby 媒体项 ID |
+| `name` | string | 媒体项名称 |
+| `sectionId` | string | 所属 Emby 媒体库 ID |
+| `posterTag` | string | 海报图片标签 |
+| `runTimeTicks` | number | 时长（Emby ticks） |
+| `durationSec` | number | 时长（秒） |
+| `sizeGb` | number | 文件体积（GB） |
+| `resolution` | string | 分辨率：`1080p` / `4K` |
+| `codec` | string | 视频编码：`h264` / `h265` / `av1` |
+| `itemType` | string | 类型：`Movie` / `Episode` / `Other` |
+| `isBluRayDisc` | boolean | 是否为蓝光原盘 |
+| `embyPlayed` | boolean | Emby 观看状态（此端点始终为 `false`） |
+
+**行为**：
+1. 通过 `subLibraryId` 解析 Emby 服务器配置
+2. 调用 `GET Emby /Users/{userId}/Items?ParentId={sectionId}&Filters=IsUnplayed&IncludeItemTypes=Movie,Episode`
+3. 提取媒体源信息（编码、分辨率、体积）
+
+**错误**：
+
+| 状态码 | code | 场景 |
+|---|---|---|
+| 404 | `NOT_FOUND` | 子库不存在 |
+| 502 | `EMBY_ERROR` | Emby API 调用失败 |
+
+---
+
+### 6.9 GET /v1/library/status — 子库同步状态
 
 **响应**：`200 OK`
 
@@ -567,7 +787,7 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ---
 
-### 6.6 POST /v1/library/cache — 批量写入 Emby 媒体数据
+### 6.10 POST /v1/library/cache — 批量写入 Emby 媒体数据
 
 **内部端点**。由 EmbyService 在定时拉取完成后调用，将 Emby 原始数据批量写入媒体库表。
 

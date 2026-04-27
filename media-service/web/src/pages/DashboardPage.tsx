@@ -29,10 +29,11 @@ export default function DashboardPage() {
         <HealthCard status={h?.status || 'red'} checks={h?.checks as Record<string, { status: string; message?: string }> | undefined} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         {[
           { to: '/media-libraries', label: '媒体库管理', desc: '管理子库与豆瓣同步' },
           { to: '/transcode', label: '转码设置', desc: '编码设备池与参数' },
+          { to: '/moviepilot', label: '洗版设置', desc: 'MoviePilot 连接与路径' },
           { to: '/tasks', label: '任务监控', desc: '查看所有任务状态' },
         ].map(({ to, label, desc }) => (
           <Link

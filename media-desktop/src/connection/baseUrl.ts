@@ -1,15 +1,15 @@
 /**
  * [CONNECTION] service 连接地址解析（渲染进程侧）。
  *
- * 消费预加载中暴露的 window.shelfdeckMedia，不直接读 electron-store 或环境变量。
+ * 消费预加载中暴露的 window.embyApi，不直接读 electron-store 或环境变量。
  */
 
 export function getBaseUrl(): string {
   const w = window as Window & {
-    shelfdeckMedia?: { getEffective: () => { baseUrl: string; apiKey?: string } };
+    embyApi?: { getEffectiveConnection: () => { baseUrl: string; apiKey?: string } };
   };
-  if (w.shelfdeckMedia?.getEffective) {
-    const b = w.shelfdeckMedia.getEffective().baseUrl;
+  if (w.embyApi?.getEffectiveConnection) {
+    const b = w.embyApi.getEffectiveConnection().baseUrl;
     if (b && typeof b === 'string') return b.replace(/\/$/, '');
   }
   const v = import.meta.env.VITE_MEDIA_SERVICE_URL || import.meta.env.VITE_CONTROL_PLANE_URL;
@@ -18,9 +18,9 @@ export function getBaseUrl(): string {
 
 export function getApiKey(): string {
   const w = window as Window & {
-    shelfdeckMedia?: { getEffective: () => { baseUrl: string; apiKey?: string } };
+    embyApi?: { getEffectiveConnection: () => { baseUrl: string; apiKey?: string } };
   };
-  if (w.shelfdeckMedia?.getEffective) return w.shelfdeckMedia.getEffective().apiKey || '';
+  if (w.embyApi?.getEffectiveConnection) return w.embyApi.getEffectiveConnection().apiKey || '';
   const k = import.meta.env.VITE_MEDIA_SERVICE_API_KEY || import.meta.env.VITE_CONTROL_PLANE_API_KEY;
   return typeof k === 'string' ? k : '';
 }

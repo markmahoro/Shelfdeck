@@ -178,11 +178,30 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
                       return next;
                     });
                   }}
-                  onWatchChange={async (_it, _watched) => {
-                    // TODO: 待 service 实现 mark-played/mark-unplayed 端点
+                  onWatchChange={async (it, watched) => {
+                    // Optimistic local update
+                    setItems((prev) =>
+                      prev.map((x) => (x.id === it.id ? { ...x, watched } : x)),
+                    );
+                    try {
+                      if (watched) {
+                        await apiClient.markPlayed(it.id, subLibraryId);
+                      } else {
+                        await apiClient.markUnplayed(it.id, subLibraryId);
+                      }
+                    } catch (e) {
+                      // Rollback on failure
+                      setItems((prev) =>
+                        prev.map((x) => (x.id === it.id ? { ...x, watched: !watched } : x)),
+                      );
+                      setError(`标记失败：${(e as Error).message}`);
+                    }
                   }}
                   onRatingChange={async (it, rating) => {
-                    await apiClient.patchItemRatings({ [it.id]: rating });
+                    await apiClient.patchItemRatings(it.id, rating);
+                    setItems((prev) =>
+                      prev.map((x) => (x.id === it.id ? { ...x, rating } : x)),
+                    );
                   }}
                   onEnqueue={enqueueManagedAction}
                   onOpenDeleteExplain={() => setDeleteExplainOpen(true)}
@@ -222,13 +241,13 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
     sectionId,
     itemType: o.type === 'movie' ? 'Movie' : o.type === 'episode' ? 'Episode' : undefined,
     resolution,
-    codec: 'h265', // service 不返回 codec，默认展示 h265
+    codec: (typeof o.codec === 'string' && ['h264', 'h265', 'av1'].includes(o.codec)) ? (o.codec as 'h264' | 'h265' | 'av1') : 'h265',
     durationSec,
     sizeGb,
     isBluRayDisc: Boolean(o.isDiscLike),
     rating: typeof o.userRating === 'number' ? (o.userRating as MediaRating) : null,
     doubanStars: typeof o.doubanRating === 'number' ? (o.doubanRating as MediaRating) : null,
-    watched: false, // service 暂不返回观看状态
+    watched: Boolean(o.watched),
     recommendedAction: typeof o.action === 'string' ? (o.action as MediaAction) : undefined,
     equivalentBitrate: typeof o.bitrate === 'number' ? o.bitrate / 1_000_000 : undefined,
   };

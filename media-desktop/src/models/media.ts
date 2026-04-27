@@ -33,6 +33,8 @@ export type ManagedMediaItem = {
   targetBitrate?: number;
   /** service 返回的预测转码后体积（GB）。 */
   predictedSizeGb?: number;
+  /** Emby web client URL（用于播放按钮）。 */
+  embyWebUrl?: string;
 };
 
 export type MediaPolicy = {

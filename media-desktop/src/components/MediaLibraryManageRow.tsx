@@ -106,6 +106,11 @@ function MediaLibraryManageRowInner({
         <div className="mediaManageActionGroup">
           <span className="mediaManageActionLabel">观看</span>
           <div className="mediaManageActionBtns">
+            {item.embyWebUrl && (
+              <button type="button" onClick={() => window.open(item.embyWebUrl, '_blank')}>
+                播放
+              </button>
+            )}
             <button type="button" disabled={item.watched} onClick={() => void onWatchChange(item, true)}>
               已看
             </button>

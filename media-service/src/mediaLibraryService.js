@@ -88,6 +88,7 @@ function upsertItems(subLibraryId, incomingItems) {
         premiereDate: incoming.premiereDate || existing.premiereDate,
         genres: incoming.genres || existing.genres,
         isDiscLike: incoming.isDiscLike != null ? incoming.isDiscLike : existing.isDiscLike,
+        watched: incoming.watched != null ? incoming.watched : existing.watched,
         lastRefreshedAt: now,
       };
       // Diff detection
@@ -121,6 +122,7 @@ function upsertItems(subLibraryId, incomingItems) {
         premiereDate: incoming.premiereDate || null,
         genres: incoming.genres || [],
         isDiscLike: incoming.isDiscLike || false,
+        watched: incoming.watched || false,
         doubanId: null,
         doubanRating: null,
         doubanSyncedAt: null,

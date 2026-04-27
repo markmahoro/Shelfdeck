@@ -160,6 +160,28 @@ const embyApi = {
     ipcRenderer.on('transcode:progress', handler);
     return () => ipcRenderer.removeListener('transcode:progress', handler);
   },
+
+  // === Settings, Connection, Douban (all on embyApi) ===
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  saveSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
+  getEffectiveConnection: () => ({ ...effectiveCp, baseUrl: cpBase() }),
+  onConnectionUpdated: (listener) => {
+    const fn = () => { try { listener(); } catch (_) {} };
+    ipcRenderer.on('cp:updated', fn);
+    return () => ipcRenderer.removeListener('cp:updated', fn);
+  },
+  saveDoubanSession: (payload) => cpJson('/v1/integrations/douban/session', { method: 'PUT', body: JSON.stringify(payload) }),
+  getDoubanSession: () => cpJson('/v1/integrations/douban/session'),
+  stopDoubanFetch: () => cpJson('/v1/integrations/douban/fetch/stop', { method: 'POST', body: '{}' }),
+  fetchDoubanRatings: async (opts) => {
+    const started = await cpJson('/v1/integrations/douban/fetch/ratings', { method: 'POST', body: JSON.stringify(opts ?? {}) });
+    return pollDoubanJob(started.jobId);
+  },
+  onDoubanProgress: (listener) => {
+    const handler = (_event, payload) => listener(payload);
+    ipcRenderer.on('douban:fetchProgress', handler);
+    return () => ipcRenderer.removeListener('douban:fetchProgress', handler);
+  },
 };
 
 const doubanApi = {
@@ -224,11 +246,3 @@ const shelfdeckMedia = {
 };
 
 contextBridge.exposeInMainWorld('embyApi', embyApi);
-contextBridge.exposeInMainWorld('doubanApi', doubanApi);
-contextBridge.exposeInMainWorld('mediaService', mediaService);
-contextBridge.exposeInMainWorld('shelfdeckMedia', shelfdeckMedia);
-contextBridge.exposeInMainWorld('shelfdeckSettings', {
-  get: () => ipcRenderer.invoke('settings:get'),
-  set: (key, value) => ipcRenderer.invoke('settings:set', key, value),
-  getKey: (key) => ipcRenderer.invoke('settings:getKey', key),
-});

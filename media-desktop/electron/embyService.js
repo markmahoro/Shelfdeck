@@ -692,6 +692,36 @@ async function launchPlayer({ config, item }) {
 }
 
 /**
+ * Launch local player with a direct file path (skips Emby fetchPlaybackPath).
+ * Used by WallPage/HistoryPage when the service has already resolved the item path.
+ */
+async function launchPath({ path: itemPath, config }) {
+  const exe = String(config.playerExePath || '').trim();
+  if (!exe) throw new Error('未配置播放器可执行文件路径');
+  if (!fs.existsSync(exe)) throw new Error(`找不到播放器：${exe}`);
+  if (!itemPath) throw new Error('未提供播放路径');
+
+  const mappedPath = applyPathMap(itemPath, config.pathMapFrom, config.pathMapTo);
+  const template = String(config.argsTemplate || '"{path}"');
+  const filled = template.replace(/\{path\}/gi, mappedPath);
+  const argv = parseWindowsArgString(filled);
+  if (argv.length === 0) throw new Error('播放器参数模板解析结果为空');
+
+  log('launchPath', { exe, mappedPath, argv0: argv[0], argc: argv.length });
+
+  const child = spawn(exe, argv, {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  child.unref();
+  if (child.pid === undefined) {
+    throw new Error('未能启动播放器进程');
+  }
+  return { sessionStartedAtMs: Date.now(), debug: { originalPath: itemPath, mappedPath, resolvedArgs: filled, args: argv } };
+}
+
+/**
  * Emby POST /Users/{UserId}/PlayedItems/{Id} 要求 DatePlayed 为查询参数，格式 yyyyMMddHHmmss（见官方 REST 文档）。
  * JSON Body 里传 ISO 8601 字符串会导致服务端 .NET 解析失败（500）。
  */
@@ -838,6 +868,7 @@ module.exports = {
   getLibraryItemsForManage,
   getPlayedItems,
   launchPlayer,
+  launchPath,
   markPlayed,
   markUnplayed,
   getLibraryItem,

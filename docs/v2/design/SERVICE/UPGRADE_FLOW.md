@@ -36,11 +36,28 @@ ShelfDeck 通过 SMB 读取 staging 中的刮削结果。
 |---|---|
 | `GET /api/v1/search/title?keyword=xxx` | 关键词搜索 PT 站点种子 |
 | `GET /api/v1/media/search?title=xxx` | 影片名 → TMDB/Douban ID |
-| `POST /api/v1/download/add` | 添加下载（指定 `save_path`） |
-| `GET /api/v1/download/` | 查询下载状态（含 `media.tmdbid`） |
+| `POST /api/v1/download/add` | 添加下载（指定 `save_path`），返回含 `hash` |
+| `GET /api/v1/download/` | 查询下载状态（含 `media.tmdbid`），按 `downloadHash` 精确定位 |
+| `GET /api/v1/download/stop/{hash}` | 暂停下载任务 |
+| `GET /api/v1/download/start/{hash}` | 恢复下载任务 |
+| `DELETE /api/v1/download/{hash}` | 删除下载任务（下载器清理 partial 文件） |
 | `GET /api/v1/history/transfer` | 查询整理记录（刮削完成信号） |
 
 认证方式：query param `?token=xxx`。
+
+### 2.3 下载身份追踪
+
+`addDownload` 返回后立即将 hash 持久化到 `task.itemInfo.downloadHash`，作为 ShelfDeck 与 MoviePilot 下载任务之间的外键。
+
+后续所有 MP 操作——轮询进度、pause（stop）、resume（start）、cancel（delete）——均通过 `downloadHash` 精确操作，不依赖启发式匹配。
+
+### 2.4 文件生命周期
+
+| 阶段 | 特征 | 文件归属 |
+|---|---|---|
+| 1. 下载中 | `downloadHash` 在 download list 中，`stagingFolder` 未设置 | MoviePilot 下载器 |
+| 2. 下载完/刮削未完成 | `downloadHash` 已从 list auto-remove，无新 transfer record，`stagingFolder` 未设置 | 原始文件在 savePath，MP 刮削器即将处理 |
+| 3. 刮削完成 | 有新 transfer record，`stagingFolder` 已设置 | ShelfDeck（MP 不再管理刮削产出） |
 
 ---
 
@@ -60,17 +77,39 @@ ShelfDeck 通过 SMB 读取 staging 中的刮削结果。
 
 收到 `pause()` 调用时：
 
+- 若当前处于 executing 阶段且 `task.itemInfo.downloadHash` 存在：
+  → 调用 `GET /api/v1/download/stop/{hash}` 暂停 MoviePilot 下载器
 - 设置 abort flag 中断下载轮询或刮削等待
-- 保留 staging 中已下载的文件
+- **保留** staging 中已下载和刮削产出的文件（不清理）
+- **保留** `resumePoint` 不变（后续 resume 从同一阶段恢复）
 - 调用 `scheduler.reportStatus(taskId, 'paused', progress)`
 
 ### 3.3 cancel()
 
-收到 `cancel()` 调用时：
+**核心语义：所有痕迹归零，如同任务从未发起。**
 
-- 设置 abort flag 中断所有轮询
-- 清理 staging 中已下载的文件
-- 调用 `scheduler.reportStatus(taskId, 'done')`
+收到 `cancel()` 调用后，根据文件生命周期阶段分三种处理路径：
+
+**阶段1 — 下载中**（`downloadHash` 在 MP download list 中，`stagingFolder` 未设置）：
+- 调用 `DELETE /api/v1/download/{hash}` — MP 通知下载器停止并清理文件
+- 设置 abort flag 中断轮询
+- `reportStatus('done')`
+
+**阶段2 — 下载完/刮削未完成**（`downloadHash` 已从 download list auto-remove，无新 transfer record，`stagingFolder` 未设置）：
+- `DELETE /api/v1/download/{hash}` 返回 404（忽略）
+- **不设 abort flag** — 让流继续直到刮削自然完成
+- 设置 `task.cancelAfterScraping = true`
+- 流自然走到 `waitForScraping` → 检测到新 transfer → 进入 `pre_replace_verify`
+- `pre_replace_verify` 检测到 `cancelAfterScraping = true`：
+  → `fs.rmSync(stagingFolder)` 清理刮削产出
+  → `reportStatus('done')`
+
+**阶段3+ — 刮削已完成**（`stagingFolder` 已设置）：
+- `DELETE /api/v1/download/{hash}` — 无论结果，不做判断
+- `fs.rmSync(stagingFolder)` 清理刮削产出
+- `reportStatus('done')`
+
+**为什么阶段2不直接打断**：raw 文件散落在 savePath 中，刮削器正在/即将处理，与 MP 抢文件容易留残渣。等自然产出完整文件夹后一次性清掉更干净。此窗口通常仅几分钟。
 
 ### 3.4 confirmReceived()
 
@@ -84,6 +123,18 @@ ShelfDeck 通过 SMB 读取 staging 中的刮削结果。
 | `waiting_media_source` | 搜索无候选，停泊等重搜 |
 | `done` | 替换完成 |
 | `failed_hard` | 任意阶段不可恢复失败 |
+
+### 3.6 resume from pause
+
+用户调用 `POST /v1/tasks/:id/actions/execute` → scheduler 将 status 改为 `queued` → 调度轮询调用 `flow.driveTask(taskId)` → 按 `resumePoint` 进入对应阶段。
+
+| resumePoint | 行为 |
+|---|---|
+| `upgrade_precheck` | `runPrecheck` 重跑（幂等，连接检查） |
+| `upgrade_planning` | `runPlanning` 重跑（幂等，重新搜索） |
+| `upgrade_executing` | `runExecuting` 检测到 `downloadHash` 已存在 → 调用 `GET /download/start/{hash}` 恢复下载 → 跳过 `addDownload`，直接进入轮询 |
+| `upgrade_pre_replace_verify` | `runPreReplaceVerify` 重跑 |
+| `upgrade_replace` | `runReplace` 重跑 |
 
 ---
 
@@ -110,9 +161,14 @@ planning：
 executing：
     → reportStatus('executing')
     → 从 task.confirmData.selectedIndex 取用户选择的 TorrentInfo
-    → 记录 baseline transfer history ID（用于后续刮削完成检测）
-    → moviepilotService.addDownload(torrentInfo, savePath=shelfdeck)
-    → 轮询 listDownloads() 每 5s，更新 progress
+    → 若 task.itemInfo.downloadHash 已存在（resume 场景）：
+        → GET /download/start/{hash} 恢复下载
+        → 跳过 addDownload，直接进入轮询
+    → 否则（首次执行）：
+        → 记录 baseline transfer history ID（用于后续刮削完成检测）
+        → moviepilotService.addDownload(torrentInfo, savePath=shelfdeck)
+        → 持久化返回的 hash 到 task.itemInfo.downloadHash
+    → 轮询 listDownloads() 每 5s，按 downloadHash 精确匹配，更新 progress
     → 下载完成后，从 download.media.tmdbid 获取 mpTmdbId
     → 进入 waitForScraping（轮询 transfer history，检测 shelfdeck 新条目）
     → 刮削完成 → 设置 resumePoint='upgrade_pre_replace_verify'，继续
@@ -120,6 +176,9 @@ executing：
 pre_replace_verify：
     → reportStatus('executing', 90)
     → 扫描 upgradeStagingLocalPath 找刮削后的文件夹
+    → 若 task.cancelAfterScraping = true：
+        → fs.rmSync(stagingFolder) 清理刮削产出
+        → reportStatus('done')，流程结束
     → TMDB 校验：mpTmdbId（优先）或 NFO <tmdbid> vs 预期 TMDB ID
     → 不匹配 → failed_hard
     → probeSummary() 解析新文件 info

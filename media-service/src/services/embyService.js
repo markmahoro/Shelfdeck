@@ -265,6 +265,7 @@ function extractItemFields(item) {
     genres: Array.isArray(item.Genres) ? item.Genres : [],
     isDiscLike: inferIsBluRayDisc(item),
     codec,
+    watched: !!(item.UserData && item.UserData.Played),
   };
 }
 
@@ -310,6 +311,137 @@ function isDirectorySync(p) {
   try { return fs.statSync(p).isDirectory(); } catch { return false; }
 }
 
+// ── Played / Unplayed ──────────────────────────────────────────────────────
+
+async function markPlayed(serverConfig, itemId) {
+  const userId = String(serverConfig.userId || '').trim();
+  if (!userId) throw new Error('Emby userId not configured');
+  const uid = encodeURIComponent(userId);
+  const iid = encodeURIComponent(itemId);
+  await embyFetchOk(serverConfig, `Users/${uid}/PlayedItems/${iid}`, { method: 'POST' });
+}
+
+async function markUnplayed(serverConfig, itemId) {
+  const userId = String(serverConfig.userId || '').trim();
+  if (!userId) throw new Error('Emby userId not configured');
+  const uid = encodeURIComponent(userId);
+  const iid = encodeURIComponent(itemId);
+  await embyFetchOk(serverConfig, `Users/${uid}/PlayedItems/${iid}`, { method: 'DELETE' });
+}
+
+async function getPlayedItems(serverConfig, filters = {}) {
+  let userId = String(serverConfig.userId || '').trim();
+  if (!userId) {
+    const users = await getUsers(serverConfig);
+    if (users.length > 0) userId = users[0].id;
+  }
+  const uid = encodeURIComponent(userId);
+
+  const query = {
+    Recursive: 'true',
+    IncludeItemTypes: 'Movie,Episode',
+    Filters: 'IsPlayed',
+    Fields: 'DatePlayed,MediaSources,Overview',
+    SortBy: 'DatePlayed',
+    SortOrder: 'Descending',
+    Limit: '2000',
+  };
+  if (filters.sectionId) query.ParentId = filters.sectionId;
+
+  const data = await embyFetchJson(serverConfig, `Users/${uid}/Items`, {}, query);
+  let items = (data && Array.isArray(data.Items) ? data.Items : []).map((item) => ({
+    id: item.Id,
+    name: item.Name || item.Id,
+    type: item.Type === 'Movie' ? 'Movie' : item.Type === 'Episode' ? 'Episode' : 'Other',
+    datePlayed: item.UserData && item.UserData.LastPlayedDate
+      ? item.UserData.LastPlayedDate
+      : null,
+    sectionId: item.ParentId || '',
+    sectionName: '',
+    posterTag: (item.ImageTags && item.ImageTags.Primary) || '',
+    seriesName: item.SeriesName || undefined,
+    indexLabel:
+      item.Type === 'Episode' && item.ParentIndexNumber && item.IndexNumber
+        ? `S${String(item.ParentIndexNumber).padStart(2, '0')}E${String(item.IndexNumber).padStart(2, '0')}`
+        : undefined,
+    posterUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/Items/${item.Id}/Images/Primary?api_key=${(serverConfig.apiKey || '').trim()}`,
+    embyWebUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/web/index.html#!/item?id=${item.Id}`,
+    path: item.Path || '',
+  }));
+
+  // Filter by days (service-side, since Emby returns all played)
+  if (filters.days && filters.days > 0) {
+    const cutoff = Date.now() - filters.days * 24 * 60 * 60 * 1000;
+    items = items.filter((it) => it.datePlayed && new Date(it.datePlayed).getTime() > cutoff);
+  }
+
+  // Filter by type
+  if (filters.type && filters.type !== 'all') {
+    items = items.filter((it) => it.type === filters.type);
+  }
+
+  // Resolve section names from Emby media folders
+  try {
+    const folders = await getMediaFolders(serverConfig);
+    const folderMap = new Map(folders.map((f) => [f.id, f.name]));
+    for (const it of items) {
+      if (it.sectionId && folderMap.has(it.sectionId)) {
+        it.sectionName = folderMap.get(it.sectionId);
+      }
+    }
+  } catch (_) { /* sectionName stays empty */ }
+
+  return items;
+}
+
+async function getUnplayedItems(serverConfig, sectionId) {
+  let userId = String(serverConfig.userId || '').trim();
+  if (!userId) {
+    const users = await getUsers(serverConfig);
+    if (users.length > 0) userId = users[0].id;
+  }
+  const uid = encodeURIComponent(userId);
+
+  const query = {
+    ParentId: sectionId,
+    Recursive: 'true',
+    IncludeItemTypes: 'Movie,Episode',
+    Filters: 'IsUnplayed',
+    Fields: ITEM_FIELDS,
+    SortBy: 'SortName',
+    SortOrder: 'Ascending',
+    Limit: '2000',
+  };
+
+  const data = await embyFetchJson(serverConfig, `Users/${uid}/Items`, {}, query);
+  const items = data && Array.isArray(data.Items) ? data.Items : [];
+  return items.map((item) => {
+    const extracted = extractItemFields(item);
+    const sizeGb = extracted.size > 0 ? extracted.size / (1024 * 1024 * 1024) : 0;
+    return {
+      id: extracted.itemId,
+      name: extracted.name,
+      sectionId,
+      posterTag: (item.ImageTags && item.ImageTags.Primary) || '',
+      runTimeTicks: item.RunTimeTicks || 0,
+      durationSec: extracted.duration,
+      sizeGb: Math.round(sizeGb * 100) / 100,
+      resolution: extracted.resolution
+        ? (parseInt(extracted.resolution.split('x')[1], 10) || 0) >= 2160
+          ? '4K'
+          : '1080p'
+        : '1080p',
+      codec: extracted.codec || 'h264',
+      itemType: item.Type === 'Movie' ? 'Movie' : item.Type === 'Episode' ? 'Episode' : 'Other',
+      isBluRayDisc: extracted.isDiscLike,
+      embyPlayed: false,
+      path: extracted.path,
+      posterUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/Items/${extracted.itemId}/Images/Primary?api_key=${(serverConfig.apiKey || '').trim()}`,
+      embyWebUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/web/index.html#!/item?id=${extracted.itemId}`,
+    };
+  });
+}
+
 module.exports = {
   testConnection,
   getUsers,
@@ -319,4 +451,8 @@ module.exports = {
   libraryItemExists,
   getItemDeleteInfo,
   deleteLibraryItem,
+  markPlayed,
+  markUnplayed,
+  getPlayedItems,
+  getUnplayedItems,
 };

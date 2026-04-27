@@ -1,55 +1,80 @@
 /**
  * [UI] 播放记录页面。
  *
- * 展示 Emby 已观看历史（只读浏览）。数据源为 Emby，通过 service 代理。
+ * 展示 Emby 已观看历史（只读浏览），支持重播、标记未看。
+ * 数据来源：POST /v1/library/queries/played（service → Emby 实时查询）。
  */
 
 import { useEffect, useState } from 'react';
-import { getBaseUrl } from '../connection/baseUrl';
-
-type PlayedItem = {
-  id: string;
-  name: string;
-  type: 'Movie' | 'Episode' | 'Other' | 'Unknown';
-  datePlayed?: string;
-  sectionId?: string;
-  sectionName?: string;
-  posterTag?: string;
-  seriesName?: string;
-  indexLabel?: string;
-};
+import { apiClient } from '../api/client';
+import type { PlayedItem } from '../api/client';
 
 export default function HistoryPage({ subLibraryId }: { subLibraryId: string }) {
   const [items, setItems] = useState<PlayedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState<7 | 30 | 0>(30);
   const [typeFilter, setTypeFilter] = useState<'all' | 'Movie' | 'Episode'>('all');
   const [sectionId, setSectionId] = useState('');
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    const base = getBaseUrl();
-    if (!base || !window.embyApi?.getPlayedItems) {
-      if (active) setLoading(false);
+  const fetchItems = () => {
+    if (!subLibraryId) {
+      setLoading(false);
+      setItems([]);
       return;
     }
-    // 通过 preload 桥接获取 Emby 已观看历史
-    // TODO: 切换到 apiClient 方式（待 service 端实现 /v1/library/queries/played）
-    setLoading(false);
-    setItems([]);
-    return () => {
-      active = false;
-    };
-  }, [days, typeFilter, sectionId]);
+    setLoading(true);
+    setError(null);
+    apiClient
+      .getPlayedItems(subLibraryId, {
+        days: days || undefined,
+        type: typeFilter,
+        sectionId: sectionId || undefined,
+      })
+      .then((data) => {
+        setItems(data);
+        setLoading(false);
+      })
+      .catch((e) => {
+        setError(`加载播放记录失败：${e.message}`);
+        setLoading(false);
+      });
+  };
 
-  const filtered = items.filter((it) => {
-    if (typeFilter !== 'all' && it.type !== typeFilter) return false;
-    if (sectionId && it.sectionId !== sectionId) return false;
-    return true;
-  });
+  useEffect(() => {
+    fetchItems();
+  }, [subLibraryId, days, typeFilter, sectionId]);
+
+  const handleMarkUnplayed = (itemId: string) => {
+    apiClient.markUnplayed(itemId, subLibraryId).then(() => fetchItems()).catch((e) => {
+      setError(`标记未看失败：${e.message}`);
+    });
+  };
+
+  const handleReplay = async (item: PlayedItem) => {
+    if (!item.path) {
+      if (item.embyWebUrl) window.open(item.embyWebUrl, '_blank');
+      return;
+    }
+    try {
+      const raw = await window.embyApi?.getSettings();
+      await window.embyApi?.launchPath({
+        path: item.path,
+        config: {
+          playerExePath: raw?.playerExePath || '',
+          pathMapFrom: raw?.localPathMapFrom || '',
+          pathMapTo: raw?.localPathMapTo || '',
+        },
+      });
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes('未配置播放器')) setError('请先在设置（⚙）中配置 PotPlayer 播放器路径');
+      else setError(`播放失败：${msg}`);
+    }
+  };
 
   if (loading) return <div className="page"><p>加载播放记录...</p></div>;
+  if (error) return <div className="page"><p className="error">{error}</p></div>;
 
   return (
     <div className="page">
@@ -67,12 +92,25 @@ export default function HistoryPage({ subLibraryId }: { subLibraryId: string }) 
         </select>
       </div>
       <div className="main">
-        {filtered.length === 0 ? (
+        {!subLibraryId ? (
+          <p>请先选择一个子库。</p>
+        ) : items.length === 0 ? (
           <p>暂无播放记录</p>
         ) : (
           <div className="historyList">
-            {filtered.map((it) => (
+            {items.map((it) => (
               <div key={it.id} className="historyItem">
+                {it.posterUrl && (
+                  <img
+                    className="historyItemPoster"
+                    src={it.posterUrl}
+                    alt={it.name}
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                )}
                 <div className="historyItemBody">
                   <div className="historyItemTitle">{it.name}</div>
                   <div className="historyItemMeta">
@@ -92,6 +130,10 @@ export default function HistoryPage({ subLibraryId }: { subLibraryId: string }) 
                         <span>{new Date(it.datePlayed).toLocaleDateString('zh-CN')}</span>
                       </>
                     )}
+                  </div>
+                  <div className="historyRowActions" style={{ marginTop: 6 }}>
+                    <button type="button" onClick={() => handleReplay(it)}>重播</button>
+                    <button type="button" onClick={() => handleMarkUnplayed(it.id)}>标记未看</button>
                   </div>
                 </div>
               </div>

@@ -144,6 +144,7 @@ declare global {
       getLibraryItemsForManage: (args: { config: EmbyConfig }) => Promise<UnplayedItem[]>;
       getPlayedItems: (args: { config: EmbyConfig; days?: 7 | 30 | 0; sectionId?: string; type?: 'all' | 'Movie' | 'Episode' }) => Promise<PlayedItem[]>;
       launchPlayer: (args: { config: EmbyConfig; item: UnplayedItem }) => Promise<LaunchResult>;
+      launchPath: (args: { path: string; config: { playerExePath?: string; pathMapFrom?: string; pathMapTo?: string; argsTemplate?: string } }) => Promise<{ sessionStartedAtMs: number }>;
       markPlayed: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;
       markUnplayed: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;
       /** 治理：删除 Flow（Emby Items API） */

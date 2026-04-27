@@ -129,12 +129,12 @@ class ApiClient {
     return r.json();
   }
 
-  async patchItemRatings(patch: Record<string, number | null>): Promise<{ ok: boolean; count: number }> {
+  async patchItemRatings(itemId: string, userRating: number | null): Promise<{ ok: boolean }> {
     const url = `${this.getBaseUrl()}/v1/library/ratings`;
     const r = await fetch(url, {
       method: 'PATCH',
       headers: this.getHeaders(),
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ itemId, userRating }),
     });
     if (!r.ok) throw new Error(`Failed to patch ratings: HTTP ${r.status}`);
     return r.json();
@@ -167,6 +167,57 @@ class ApiClient {
     return r.json();
   }
 
+  // ── Library: mark played / unplayed ──
+
+  async markPlayed(itemId: string, subLibraryId?: string): Promise<{ ok: boolean }> {
+    const url = `${this.getBaseUrl()}/v1/library/actions/mark-played`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ itemId, subLibraryId: subLibraryId || undefined }),
+    });
+    if (!r.ok) throw new Error(`Failed to mark played: HTTP ${r.status}`);
+    return r.json();
+  }
+
+  async markUnplayed(itemId: string, subLibraryId?: string): Promise<{ ok: boolean }> {
+    const url = `${this.getBaseUrl()}/v1/library/actions/mark-unplayed`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ itemId, subLibraryId: subLibraryId || undefined }),
+    });
+    if (!r.ok) throw new Error(`Failed to mark unplayed: HTTP ${r.status}`);
+    return r.json();
+  }
+
+  // ── Library: queries (real-time from Emby) ──
+
+  async getPlayedItems(
+    subLibraryId: string,
+    filters?: { days?: number; type?: string; sectionId?: string },
+  ): Promise<PlayedItem[]> {
+    const url = `${this.getBaseUrl()}/v1/library/queries/played`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ subLibraryId: subLibraryId || undefined, ...filters }),
+    });
+    if (!r.ok) throw new Error(`Failed to get played items: HTTP ${r.status}`);
+    return r.json();
+  }
+
+  async getUnplayedItems(subLibraryId: string, sectionId?: string): Promise<UnplayedItem[]> {
+    const url = `${this.getBaseUrl()}/v1/library/queries/unplayed`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ subLibraryId: subLibraryId || undefined, sectionId }),
+    });
+    if (!r.ok) throw new Error(`Failed to get unplayed items: HTTP ${r.status}`);
+    return r.json();
+  }
+
   // ── Douban ──
 
   async getDoubanCache(): Promise<{ entries: unknown[]; syncedAt: string | null }> {
@@ -176,5 +227,38 @@ class ApiClient {
     return r.json();
   }
 }
+
+export type PlayedItem = {
+  id: string;
+  name: string;
+  type: 'Movie' | 'Episode' | 'Other';
+  datePlayed?: string;
+  sectionId?: string;
+  sectionName?: string;
+  posterTag?: string;
+  posterUrl?: string;
+  embyWebUrl?: string;
+  path?: string;
+  seriesName?: string;
+  indexLabel?: string;
+};
+
+export type UnplayedItem = {
+  id: string;
+  name: string;
+  sectionId: string;
+  posterTag?: string;
+  posterUrl?: string;
+  embyWebUrl?: string;
+  path?: string;
+  runTimeTicks?: number;
+  durationSec: number;
+  sizeGb: number;
+  resolution: '1080p' | '4K';
+  codec: 'h264' | 'h265' | 'av1';
+  itemType: 'Movie' | 'Episode' | 'Other';
+  isBluRayDisc: boolean;
+  embyPlayed: boolean;
+};
 
 export const apiClient = new ApiClient();

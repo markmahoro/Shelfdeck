@@ -64,9 +64,9 @@ function reportStatus(taskId, status, progress) {
 
 function recoverInterruptedTasks() {
   const tasks = taskStore.loadTasks();
-  const interruptible = ['precheck', 'executing', 'verify', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'planning', 'pre_replace_verify'];
+  const interruptible = ['precheck', 'executing', 'verify', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'planning', 'pre_replace_verify', 'pausing'];
   for (const t of tasks) {
-    if (interruptible.includes(t.status) || interruptible.includes(t.phase)) {
+    if (interruptible.includes(t.status) || interruptible.includes(t.phase) || t.pausingRequested) {
       taskStore.updateTask(t.id, { status: 'interrupted' });
       console.log('[scheduler] recovered interrupted task', t.id);
     }
@@ -74,7 +74,7 @@ function recoverInterruptedTasks() {
 }
 
 function isActiveStatus(status) {
-  return status === 'executing';
+  return status === 'executing' || status === 'pausing';
 }
 
 function startScheduler() {
@@ -133,8 +133,9 @@ async function scheduleRound() {
     if (task.status === 'done' || task.status === 'failed_hard' || task.status === 'interrupted') continue;
     // Skip already-running (prevent re-entry)
     if (runningTasks.has(task.id)) continue;
-    // Skip paused
+    // Skip paused / pausing (flow controls handle their own state transitions)
     if (task.status === 'paused') continue;
+    if (task.status === 'pausing') continue;
     // Skip awaiting confirm
     if (task.status === 'awaiting_user_confirm') continue;
     // Skip waiting_media_source (flow parks, retry handled by flow timer)

@@ -89,7 +89,7 @@ export interface DevicePool {
 
 export type TaskStatus =
   | 'created' | 'pending_manual' | 'queued' | 'executing'
-  | 'awaiting_user_confirm' | 'paused' | 'interrupted'
+  | 'awaiting_user_confirm' | 'pausing' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
 export type ActionType = 'delete' | 'transcode' | 'upgrade';
@@ -103,9 +103,14 @@ export interface TaskLogEntry {
 
 export interface TaskItemInfo {
   name?: string;
+  title?: string;
   path?: string;
+  size?: number;
   resolution?: string;
   bitrate?: number;
+  tmdbId?: number;
+  mpTmdbId?: number;
+  baselineTransferId?: number;
   originalSizeBytes?: number;
   originalVideoCodec?: string;
   originalWidth?: number;
@@ -115,8 +120,38 @@ export interface TaskItemInfo {
   sourcePath?: string;
   partialPath?: string;
   tempDir?: string;
+  stagingFolder?: string;
+  stagingMediaPath?: string;
   isDolbyVision?: boolean;
   durationSec?: number;
+  searchCandidates?: Record<string, unknown>[];
+  searchCandidatesSimplified?: UpgradeCandidate[];
+}
+
+export interface UpgradeCandidate {
+  title: string;
+  site: string;
+  size: number;
+  seeders: number;
+  resolution: string;
+  codec: string;
+  edition: string;
+  index: number;
+}
+
+export interface UpgradePreview {
+  oldFile: {
+    name: string;
+    size: number;
+    resolution: string;
+    bitrate: number;
+  };
+  newFile: {
+    name: string;
+    size: number;
+  };
+  tmdbVerified: boolean;
+  tmdbId: number | null;
 }
 
 export interface VerifyResult {
@@ -142,6 +177,8 @@ export interface MediaTask {
   logs?: TaskLogEntry[];
   itemInfo?: TaskItemInfo;
   verifyResult?: VerifyResult;
+  upgradePreview?: UpgradePreview;
+  confirmData?: Record<string, unknown>;
 }
 
 export interface TaskListResponse {

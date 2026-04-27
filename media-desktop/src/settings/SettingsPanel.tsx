@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { getSettings, saveSetting, type DesktopSettings } from './store';
+import { getSettings, saveSetting, STORE_KEYS, type DesktopSettings } from './store';
 
 const OVERLAY: React.CSSProperties = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
@@ -23,36 +23,43 @@ const BTN: React.CSSProperties = {
 };
 
 export default function SettingsPanel({ onClose }: { onClose: () => void }) {
-  const [settings, setSettings] = useState<DesktopSettings>({
-    serviceUrl: 'http://127.0.0.1:18080',
-    serviceApiKey: '',
-    playerExePath: '',
-    localPathMapFrom: '',
-    localPathMapTo: '',
-  });
+  const [settings, setSettings] = useState<DesktopSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    getSettings().then((s) => setSettings(s));
+    getSettings()
+      .then((s) => setSettings(s))
+      .catch((e) => console.error('SettingsPanel load error:', e));
   }, []);
 
   const handleSave = async () => {
+    if (!settings) return;
     setSaving(true);
-    try {
-      await saveSetting('serviceUrl', settings.serviceUrl || 'http://127.0.0.1:18080');
-      await saveSetting('serviceApiKey', settings.serviceApiKey || '');
-      await saveSetting('playerExePath', settings.playerExePath || '');
-      await saveSetting('localPathMapFrom', settings.localPathMapFrom || '');
-      await saveSetting('localPathMapTo', settings.localPathMapTo || '');
+    setSaveError(null);
+    const entries: [keyof typeof STORE_KEYS, string][] = [
+      ['serviceUrl', settings.serviceUrl || 'http://127.0.0.1:18080'],
+      ['serviceApiKey', settings.serviceApiKey || ''],
+      ['playerExePath', settings.playerExePath || ''],
+      ['localPathMapFrom', settings.localPathMapFrom || ''],
+      ['localPathMapTo', settings.localPathMapTo || ''],
+    ];
+    let firstError: string | null = null;
+    for (const [key, value] of entries) {
+      const r = await saveSetting(key, value);
+      if (!r.ok && !firstError) firstError = r.error || `保存 ${key} 失败`;
+    }
+    if (firstError) {
+      setSaveError(firstError);
+    } else {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {
-      // 保存失败不崩溃
-    } finally {
-      setSaving(false);
     }
+    setSaving(false);
   };
+
+  if (!settings) return null;
 
   return (
     <div style={OVERLAY} onClick={onClose}>
@@ -63,20 +70,21 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <label style={LABEL}>媒体服务地址</label>
-        <input style={INPUT} value={settings.serviceUrl} onChange={(e) => setSettings((s) => ({ ...s, serviceUrl: e.target.value }))} />
+        <input style={INPUT} value={settings.serviceUrl} onChange={(e) => setSettings((s) => s ? { ...s, serviceUrl: e.target.value } : s)} />
 
         <label style={LABEL}>服务 API Key</label>
-        <input style={INPUT} type="password" value={settings.serviceApiKey} onChange={(e) => setSettings((s) => ({ ...s, serviceApiKey: e.target.value }))} />
+        <input style={INPUT} type="password" value={settings.serviceApiKey} onChange={(e) => setSettings((s) => s ? { ...s, serviceApiKey: e.target.value } : s)} />
 
         <label style={LABEL}>播放器路径（PotPlayer）</label>
-        <input style={INPUT} value={settings.playerExePath} onChange={(e) => setSettings((s) => ({ ...s, playerExePath: e.target.value }))} />
+        <input style={INPUT} value={settings.playerExePath} onChange={(e) => setSettings((s) => s ? { ...s, playerExePath: e.target.value } : s)} />
 
         <label style={LABEL}>本地路径映射（源）</label>
-        <input style={INPUT} value={settings.localPathMapFrom} onChange={(e) => setSettings((s) => ({ ...s, localPathMapFrom: e.target.value }))} placeholder="D:\\media" />
+        <input style={INPUT} value={settings.localPathMapFrom} onChange={(e) => setSettings((s) => s ? { ...s, localPathMapFrom: e.target.value } : s)} placeholder="D:\\media" />
 
         <label style={LABEL}>本地路径映射（目标）</label>
-        <input style={INPUT} value={settings.localPathMapTo} onChange={(e) => setSettings((s) => ({ ...s, localPathMapTo: e.target.value }))} placeholder="\\NAS\\media" />
+        <input style={INPUT} value={settings.localPathMapTo} onChange={(e) => setSettings((s) => s ? { ...s, localPathMapTo: e.target.value } : s)} placeholder="\\NAS\\media" />
 
+        {saveError && <div style={{ marginTop: 12, color: '#e74c3c', fontSize: 13 }}>{saveError}</div>}
         <button style={BTN} onClick={handleSave} disabled={saving}>
           {saving ? '保存中...' : '保存'}
         </button>

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -163,6 +163,7 @@ async function loadFirstReachableDevUrl(win) {
 
 function registerIpcHandlers() {
   ipcMain.handle('emby:launchPlayer', (_evt, payload) => embyService.launchPlayer(payload));
+  ipcMain.handle('emby:launchPath', (_evt, payload) => embyService.launchPath(payload));
 
   // Health check via main process Node http (mirrors isHttpReachable pattern)
   ipcMain.handle('health:check', async () => {
@@ -198,15 +199,25 @@ function registerIpcHandlers() {
   });
 
   // Settings IPC handlers
-  ipcMain.handle('settings:get', () => store.store);
+  ipcMain.handle('settings:get', () => ({
+    serviceUrl: store.get('shelfdeck.mediaService.baseUrl', 'http://127.0.0.1:18080'),
+    serviceApiKey: store.get('shelfdeck.mediaService.apiKey', ''),
+    playerExePath: store.get('shelfdeck.playerExePath', ''),
+    localPathMapFrom: store.get('shelfdeck.localPathMapFrom', ''),
+    localPathMapTo: store.get('shelfdeck.localPathMapTo', ''),
+  }));
 
   ipcMain.handle('settings:set', (event, key, value) => {
     if (value == null) {
-      try { store.delete(key); } catch (_) { /* ignore */ }
-      return true;
+      store.delete(key);
+      return { ok: true };
     }
-    store.set(key, value);
-    return true;
+    try {
+      store.set(key, value);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
   });
 
   ipcMain.handle('settings:getKey', (event, key) => store.get(key));
@@ -224,7 +235,10 @@ function registerIpcHandlers() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  if (isDev) {
+    try { await session.defaultSession.clearCodeCaches({}); } catch (_) {}
+  }
   registerIpcHandlers();
   watchConnectionFile();
   createWindow();
