@@ -111,6 +111,14 @@ body { margin: 0; background: #111827; color: #e5e7eb; }
   align-items: stretch;
 }
 
+.page {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
 .pageSidebar {
   width: 272px;
   flex-shrink: 0;
@@ -193,11 +201,6 @@ body { margin: 0; background: #111827; color: #e5e7eb; }
   height: 1px;
   background: #1f2937;
   margin: 14px 0;
-}
-
-.sidebarFullWidth {
-  width: 100%;
-  margin-bottom: 8px;
 }
 
 .sidebarField {
@@ -540,7 +543,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 900px) { .row { grid-template-columns: 1fr; } }
 
 @media (max-width: 720px) {
-  .appBody {
+  .appBody, .page {
     flex-direction: column;
     overflow: auto;
   }

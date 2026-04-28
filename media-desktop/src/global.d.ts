@@ -147,7 +147,7 @@ declare global {
       getUnplayedItems: (args: { config: EmbyConfig; sectionId: string }) => Promise<UnplayedItem[]>;
       /** 已启用库内全部影片/剧集（含已观看），媒体库管理专用 */
       getLibraryItemsForManage: (args: { config: EmbyConfig }) => Promise<UnplayedItem[]>;
-      getPlayedItems: (args: { config: EmbyConfig; days?: 7 | 30 | 0; sectionId?: string; type?: 'all' | 'Movie' | 'Episode' }) => Promise<PlayedItem[]>;
+      getPlayedItems: (args: unknown) => Promise<unknown[]>;
       launchPlayer: (args: { config: EmbyConfig; item: UnplayedItem }) => Promise<LaunchResult>;
       launchPath: (args: { path: string; config: { playerExePath?: string; pathMapFrom?: string; pathMapTo?: string; argsTemplate?: string } }) => Promise<{ sessionStartedAtMs: number }>;
       markPlayed: (args: { config: EmbyConfig; itemId: string }) => Promise<void>;

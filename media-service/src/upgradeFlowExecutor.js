@@ -541,6 +541,7 @@ async function pollDownloadAndScrape(taskId, mpConfig) {
 
 async function runExecuting(taskId, task) {
   setPhase(taskId, 'upgrade_executing');
+  scheduler.reportStatus(taskId, 'executing', task.progress || 5);
 
   const mpConfig = getMpConfig();
   if (!mpConfig) {
@@ -614,7 +615,6 @@ async function runExecuting(taskId, task) {
       });
     } catch (_) {}
 
-    scheduler.reportStatus(taskId, 'executing', 5);
     const dlResult = await moviepilotService.addDownload(mpConfig, {
       torrentInfo,
       savePath: mpConfig.savePath || undefined,

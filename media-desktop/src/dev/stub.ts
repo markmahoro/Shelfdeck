@@ -155,21 +155,8 @@ export function installDevEmbyStub() {
       }
       return Array.from(byId.values());
     },
-    async getPlayedItems(args) {
-      let rows = [...mockPlayed];
-      const sid = args?.sectionId?.trim();
-      if (sid) rows = rows.filter((r) => r.sectionId === sid);
-      const typ = args?.type;
-      if (typ && typ !== 'all') rows = rows.filter((r) => r.type === typ);
-      const days = args?.days;
-      if (days && days > 0) {
-        const cutoff = Date.now() - days * 86400000;
-        rows = rows.filter((r) => {
-          const t = r.datePlayed ? new Date(r.datePlayed).getTime() : 0;
-          return t >= cutoff;
-        });
-      }
-      return rows;
+    async getPlayedItems() {
+      return [];
     },
     async launchPlayer({ item }) {
       return {

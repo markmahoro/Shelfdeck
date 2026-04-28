@@ -1,38 +1,27 @@
 /**
- * [UI] 播放记录页面。
+ * [UI] 本地播放记录页面。
  *
- * 展示 Emby 已观看历史（只读浏览），支持重播、标记未看。
- * 数据来源：POST /v1/library/queries/played（service → Emby 实时查询）。
+ * 展示用户在海报墙 / 媒体库管理页面标记为"已看"的操作记录。
+ * 数据来源：GET /v1/library/playback-log（本地日志，非 Emby 查询）。
+ * 支持回撤操作（标记为未看并从日志移除）。
  */
 
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { PlayedItem } from '../api/client';
+import type { PlaybackLogEntry } from '../api/client';
 
 export default function HistoryPage({ subLibraryId }: { subLibraryId: string }) {
-  const [items, setItems] = useState<PlayedItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [entries, setEntries] = useState<PlaybackLogEntry[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [days, setDays] = useState<7 | 30 | 0>(30);
-  const [typeFilter, setTypeFilter] = useState<'all' | 'Movie' | 'Episode'>('all');
-  const [sectionId, setSectionId] = useState('');
 
-  const fetchItems = () => {
-    if (!subLibraryId) {
-      setLoading(false);
-      setItems([]);
-      return;
-    }
+  const fetchLog = () => {
     setLoading(true);
     setError(null);
     apiClient
-      .getPlayedItems(subLibraryId, {
-        days: days || undefined,
-        type: typeFilter,
-        sectionId: sectionId || undefined,
-      })
+      .getPlaybackLog(subLibraryId || undefined)
       .then((data) => {
-        setItems(data);
+        setEntries(data);
         setLoading(false);
       })
       .catch((e) => {
@@ -42,104 +31,105 @@ export default function HistoryPage({ subLibraryId }: { subLibraryId: string }) 
   };
 
   useEffect(() => {
-    fetchItems();
-  }, [subLibraryId, days, typeFilter, sectionId]);
+    fetchLog();
+  }, [subLibraryId]);
 
-  const handleMarkUnplayed = (itemId: string) => {
-    apiClient.markUnplayed(itemId, subLibraryId).then(() => fetchItems()).catch((e) => {
-      setError(`标记未看失败：${e.message}`);
-    });
-  };
-
-  const handleReplay = async (item: PlayedItem) => {
-    if (!item.path) {
-      if (item.embyWebUrl) window.open(item.embyWebUrl, '_blank');
-      return;
-    }
-    try {
-      const raw = await window.embyApi?.getSettings();
-      await window.embyApi?.launchPath({
-        path: item.path,
-        config: {
-          playerExePath: raw?.playerExePath || '',
-          pathMapFrom: raw?.localPathMapFrom || '',
-          pathMapTo: raw?.localPathMapTo || '',
-        },
+  const handleRevert = (entry: PlaybackLogEntry) => {
+    apiClient
+      .markUnplayed(entry.itemId, entry.subLibraryId)
+      .then(() => {
+        // Remove from local state immediately
+        setEntries((prev) => prev.filter((e) => e.itemId !== entry.itemId));
+      })
+      .catch((e) => {
+        setError(`回撤失败：${e.message}`);
       });
-    } catch (e) {
-      const msg = (e as Error).message;
-      if (msg.includes('未配置播放器')) setError('请先在设置（⚙）中配置 PotPlayer 播放器路径');
-      else setError(`播放失败：${msg}`);
+  };
+
+  const handleReplay = (entry: PlaybackLogEntry) => {
+    if (!entry.path) return;
+    try {
+      window.embyApi?.launchPath({
+        path: entry.path,
+        config: {
+          playerExePath: '',
+          pathMapFrom: '',
+          pathMapTo: '',
+        },
+      }).catch(() => {
+        if (entry.embyWebUrl) window.open(entry.embyWebUrl, '_blank');
+      });
+    } catch (_) {
+      if (entry.embyWebUrl) window.open(entry.embyWebUrl, '_blank');
     }
   };
 
-  if (loading) return <div className="page"><p>加载播放记录...</p></div>;
-  if (error) return <div className="page"><p className="error">{error}</p></div>;
+  const typeLabel = (type: string) => {
+    const t = (type || '').toLowerCase();
+    if (t === 'movie') return '电影';
+    if (t === 'episode') return '剧集';
+    return '其他';
+  };
 
   return (
     <div className="page">
-      <div className="sidebar">
-        <div className="sidebarMuted">筛选</div>
-        <select value={days} onChange={(e) => setDays(Number(e.target.value) as 7 | 30 | 0)}>
-          <option value={7}>最近 7 天</option>
-          <option value={30}>最近 30 天</option>
-          <option value={0}>全部</option>
-        </select>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as 'all' | 'Movie' | 'Episode')}>
-          <option value="all">全部类型</option>
-          <option value="Movie">电影</option>
-          <option value="Episode">剧集</option>
-        </select>
+      <div className="pageSidebar">
+        <div className="sidebarMuted">本地播放记录</div>
+        <p className="sidebarHint" style={{ fontSize: 12, marginTop: 4 }}>
+          记录在海报墙或媒体库管理页面标记"已看"的操作。
+        </p>
       </div>
-      <div className="main">
-        {!subLibraryId ? (
-          <p>请先选择一个子库。</p>
-        ) : items.length === 0 ? (
-          <p>暂无播放记录</p>
-        ) : (
-          <div className="historyList">
-            {items.map((it) => (
-              <div key={it.id} className="historyItem">
-                {it.posterUrl && (
-                  <img
-                    className="historyItemPoster"
-                    src={it.posterUrl}
-                    alt={it.name}
-                    loading="lazy"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                )}
-                <div className="historyItemBody">
-                  <div className="historyItemTitle">{it.name}</div>
-                  <div className="historyItemMeta">
-                    {it.seriesName && <span>{it.seriesName}</span>}
-                    {it.indexLabel && <span>{it.indexLabel}</span>}
-                    <span className="historyMetaSep">·</span>
-                    <span>{it.type === 'Movie' ? '电影' : it.type === 'Episode' ? '剧集' : '其他'}</span>
-                    {it.sectionName && (
-                      <>
-                        <span className="historyMetaSep">·</span>
-                        <span>{it.sectionName}</span>
-                      </>
-                    )}
-                    {it.datePlayed && (
-                      <>
-                        <span className="historyMetaSep">·</span>
-                        <span>{new Date(it.datePlayed).toLocaleDateString('zh-CN')}</span>
-                      </>
-                    )}
-                  </div>
-                  <div className="historyRowActions" style={{ marginTop: 6 }}>
-                    <button type="button" onClick={() => handleReplay(it)}>重播</button>
-                    <button type="button" onClick={() => handleMarkUnplayed(it.id)}>标记未看</button>
+      <div className="pageMain">
+        <div className="pageMainInner">
+          {error && (
+            <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, color: '#b91c1c', fontSize: 13 }}>
+              {error}
+              <button onClick={() => setError(null)} style={{ marginLeft: 12, background: 'none', border: 'none', cursor: 'pointer', color: '#b91c1c', textDecoration: 'underline' }}>关闭</button>
+            </div>
+          )}
+
+          {loading ? (
+            <p>加载中...</p>
+          ) : entries.length === 0 ? (
+            <p style={{ color: '#888' }}>暂无播放记录</p>
+          ) : (
+            <div className="historyList">
+              {entries.map((entry) => (
+                <div key={entry.itemId} className="historyItem">
+                  {entry.posterUrl && (
+                    <img
+                      className="historyPoster"
+                      src={entry.posterUrl}
+                      alt={entry.itemName}
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <div className="historyItemBody">
+                    <div className="historyItemTitle">{entry.itemName}</div>
+                    <div className="historyItemMeta">
+                      <span>{typeLabel(entry.type)}</span>
+                      {entry.sectionName && (
+                        <>
+                          <span className="historyMetaSep">·</span>
+                          <span>{entry.sectionName}</span>
+                        </>
+                      )}
+                      <span className="historyMetaSep">·</span>
+                      <span>{new Date(entry.playedAt).toLocaleDateString('zh-CN')} {new Date(entry.playedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <div className="historyRowActions" style={{ marginTop: 6 }}>
+                      <button type="button" onClick={() => handleReplay(entry)}>重播</button>
+                      <button type="button" onClick={() => handleRevert(entry)}>回撤</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -25,6 +25,14 @@ class ApiClient {
     return headers;
   }
 
+  /** Headers without Content-Type — for bodyless POST/DELETE (Fastify rejects empty JSON body). */
+  private getHeadersNoBody(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const apiKey = getApiKey();
+    if (apiKey) headers['X-API-Key'] = apiKey;
+    return headers;
+  }
+
   private getBaseUrl(): string {
     const base = getBaseUrl();
     if (!base) throw new Error('Media service base URL not configured');
@@ -68,7 +76,7 @@ class ApiClient {
     return r.json();
   }
 
-  async updateTask(taskId: string, updates: Partial<MediaTask>): Promise<MediaTask> {
+  async updateTask(taskId: string, updates: Record<string, unknown>): Promise<MediaTask> {
     const url = `${this.getBaseUrl()}/v1/tasks/${taskId}`;
     const r = await fetch(url, {
       method: 'PATCH',
@@ -81,20 +89,20 @@ class ApiClient {
 
   async deleteTask(taskId: string): Promise<void> {
     const url = `${this.getBaseUrl()}/v1/tasks/${taskId}`;
-    const r = await fetch(url, { method: 'DELETE', headers: this.getHeaders() });
+    const r = await fetch(url, { method: 'DELETE', headers: this.getHeadersNoBody() });
     if (!r.ok) throw new Error(`Failed to delete task: HTTP ${r.status}`);
   }
 
   async executeTask(taskId: string): Promise<{ ok: boolean; message: string }> {
     const url = `${this.getBaseUrl()}/v1/tasks/${taskId}/actions/execute`;
-    const r = await fetch(url, { method: 'POST', headers: this.getHeaders() });
+    const r = await fetch(url, { method: 'POST', headers: this.getHeadersNoBody() });
     if (!r.ok) throw new Error(`Failed to execute task: HTTP ${r.status}`);
     return r.json();
   }
 
   async pauseTask(taskId: string): Promise<{ ok: boolean; message: string }> {
     const url = `${this.getBaseUrl()}/v1/tasks/${taskId}/actions/pause`;
-    const r = await fetch(url, { method: 'POST', headers: this.getHeaders() });
+    const r = await fetch(url, { method: 'POST', headers: this.getHeadersNoBody() });
     if (!r.ok) throw new Error(`Failed to pause task: HTTP ${r.status}`);
     return r.json();
   }
@@ -191,19 +199,13 @@ class ApiClient {
     return r.json();
   }
 
-  // ── Library: queries (real-time from Emby) ──
+  // ── Playback log (local operation record) ──
 
-  async getPlayedItems(
-    subLibraryId: string,
-    filters?: { days?: number; type?: string; sectionId?: string },
-  ): Promise<PlayedItem[]> {
-    const url = `${this.getBaseUrl()}/v1/library/queries/played`;
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ subLibraryId: subLibraryId || undefined, ...filters }),
-    });
-    if (!r.ok) throw new Error(`Failed to get played items: HTTP ${r.status}`);
+  async getPlaybackLog(subLibraryId?: string): Promise<PlaybackLogEntry[]> {
+    const params = subLibraryId ? `?subLibraryId=${encodeURIComponent(subLibraryId)}` : '';
+    const url = `${this.getBaseUrl()}/v1/library/playback-log${params}`;
+    const r = await fetch(url, { headers: this.getHeaders() });
+    if (!r.ok) throw new Error(`Failed to get playback log: HTTP ${r.status}`);
     return r.json();
   }
 
@@ -228,19 +230,16 @@ class ApiClient {
   }
 }
 
-export type PlayedItem = {
-  id: string;
-  name: string;
-  type: 'Movie' | 'Episode' | 'Other';
-  datePlayed?: string;
-  sectionId?: string;
-  sectionName?: string;
-  posterTag?: string;
+export type PlaybackLogEntry = {
+  itemId: string;
+  itemName: string;
+  subLibraryId: string;
+  type: string;
   posterUrl?: string;
-  embyWebUrl?: string;
   path?: string;
-  seriesName?: string;
-  indexLabel?: string;
+  embyWebUrl?: string;
+  sectionName?: string;
+  playedAt: string;
 };
 
 export type UnplayedItem = {

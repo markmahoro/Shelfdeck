@@ -20,6 +20,15 @@
   padding: 12px 0;
 }
 
+.groupLabel {
+  padding: 16px 16px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .navItem {
   display: block;
   padding: 10px 16px;

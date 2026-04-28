@@ -32,6 +32,28 @@ const STATUS_LABELS: Record<string, string> = {
   failed_hard: '失败',
 };
 
+const ACTION_TYPE_LABELS: Record<string, string> = {
+  transcode: '码率压缩',
+  delete: '删除',
+  upgrade: '洗版',
+};
+
+const PHASE_LABELS: Record<string, string> = {
+  precheck: '预检',
+  planning: '搜索候选',
+  waiting_media_source: '等待媒体源',
+  upgrade_executing: '下载/刮削',
+  pre_replace_verify: '替换前验证',
+  upgrade_replace: '替换中',
+  transcode_precheck: '转码预检',
+  transcode_executing: '编码中',
+  transcode_verify: '转码验证',
+  transcode_replace: '转码替换',
+  verify: '验证',
+  done: '已完成',
+  failed_hard: '失败',
+};
+
 export default function TaskMonitorPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
@@ -253,9 +275,9 @@ export default function TaskMonitorPage() {
         </select>
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={selectStyle}>
           <option value="">全部类型</option>
-          <option value="transcode">transcode</option>
-          <option value="delete">delete</option>
-          <option value="upgrade">upgrade</option>
+          <option value="transcode">码率压缩</option>
+          <option value="delete">删除</option>
+          <option value="upgrade">洗版</option>
         </select>
       </div>
 
@@ -271,7 +293,7 @@ export default function TaskMonitorPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ background: '#f9fafb' }}>
-                <th style={thStyle}>任务ID</th>
+                <th style={thStyle}>影片</th>
                 <th style={thStyle}>类型</th>
                 <th style={thStyle}>状态</th>
                 <th style={thStyle}>阶段</th>
@@ -284,19 +306,19 @@ export default function TaskMonitorPage() {
               {taskList.map((t) => (
                 <tr key={t.id}>
                   <td style={tdStyle}>
-                    <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{t.id.slice(0, 12)}...</span>
+                    <span>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</span>
                   </td>
-                  <td style={tdStyle}>{t.actionType}</td>
+                  <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
                   <td style={tdStyle}>
                     <span style={{ color: STATUS_COLORS[t.status] || '#999' }}>{STATUS_LABELS[t.status] || t.status}</span>
                   </td>
-                  <td style={tdStyle}>{t.phase || '—'}</td>
+                  <td style={tdStyle}>{PHASE_LABELS[t.phase || ''] || t.phase || '—'}</td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ flex: 1, height: 4, background: '#eee', borderRadius: 2, maxWidth: 80 }}>
-                        <div style={{ width: `${t.progress || 0}%`, height: '100%', background: '#27ae60', borderRadius: 2 }} />
+                        <div style={{ width: `${Math.round(t.progress || 0)}%`, height: '100%', background: '#27ae60', borderRadius: 2 }} />
                       </div>
-                      <span style={{ fontSize: 12, color: '#888' }}>{t.progress || 0}%</span>
+                      <span style={{ fontSize: 12, color: '#888' }}>{Math.round(t.progress || 0)}%</span>
                     </div>
                   </td>
                   <td style={tdStyle}>
@@ -323,10 +345,10 @@ export default function TaskMonitorPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 14, marginBottom: 20 }}>
               <div><strong>任务ID:</strong> {displayTask.id}</div>
               <div><strong>媒体项:</strong> {displayTask.itemInfo?.name || displayTask.itemId}</div>
-              <div><strong>类型:</strong> {displayTask.actionType}</div>
+              <div><strong>类型:</strong> {ACTION_TYPE_LABELS[displayTask.actionType] || displayTask.actionType}</div>
               <div><strong>状态:</strong> <span style={{ color: STATUS_COLORS[displayTask.status] }}>{STATUS_LABELS[displayTask.status] || displayTask.status}</span></div>
-              <div><strong>阶段:</strong> {displayTask.phase || '—'}</div>
-              <div><strong>进度:</strong> {displayTask.progress || 0}%</div>
+              <div><strong>阶段:</strong> {PHASE_LABELS[displayTask.phase || ''] || displayTask.phase || '—'}</div>
+              <div><strong>进度:</strong> {Math.round(displayTask.progress || 0)}%</div>
               <div><strong>创建时间:</strong> {displayTask.createdAt ? new Date(displayTask.createdAt).toLocaleString() : '—'}</div>
               <div><strong>更新时间:</strong> {displayTask.updatedAt ? new Date(displayTask.updatedAt).toLocaleString() : '—'}</div>
             </div>

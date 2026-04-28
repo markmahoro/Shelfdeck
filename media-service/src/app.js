@@ -18,6 +18,39 @@ const transcodeService = require('./services/transcodeService');
 
 let serverReady = false;
 
+// ── Playback log ─────────────────────────────────────────────────────────────
+
+const PLAYBACK_LOG_PATH = path.join(__dirname, '..', 'data', 'playback-log.json');
+
+function loadPlaybackLog() {
+  try {
+    if (fs.existsSync(PLAYBACK_LOG_PATH)) {
+      const raw = fs.readFileSync(PLAYBACK_LOG_PATH, 'utf8');
+      return JSON.parse(raw);
+    }
+  } catch (_) {}
+  return [];
+}
+
+function savePlaybackLog(logs) {
+  fs.writeFileSync(PLAYBACK_LOG_PATH, JSON.stringify(logs, null, 2));
+}
+
+function addPlaybackEntry(entry) {
+  const logs = loadPlaybackLog();
+  // Remove duplicate if re-marking
+  const idx = logs.findIndex((e) => e.itemId === entry.itemId);
+  if (idx >= 0) logs.splice(idx, 1);
+  logs.unshift({ ...entry, playedAt: new Date().toISOString() });
+  savePlaybackLog(logs);
+}
+
+function removePlaybackEntry(itemId) {
+  const logs = loadPlaybackLog();
+  const filtered = logs.filter((e) => e.itemId !== itemId);
+  savePlaybackLog(filtered);
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function apiError(reply, status, code, message) {
@@ -212,7 +245,7 @@ function registerRoutes(app) {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
-    if (task.status === 'pending_manual') {
+    if (task.status === 'pending_manual' || task.status === 'interrupted') {
       taskStore.updateTask(task.id, { status: 'queued' });
       return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
     }
@@ -338,6 +371,22 @@ function registerRoutes(app) {
 
     try {
       await embyService.markPlayed(resolved.serverConfig, itemId);
+
+      // Write to local playback log
+      const libItem = mediaLibraryService.getLibraryItem(itemId);
+      const baseUrl = (resolved.serverConfig.baseUrl || '').replace(/\/$/, '');
+      const apiKey = (resolved.serverConfig.apiKey || '').trim();
+      addPlaybackEntry({
+        itemId,
+        itemName: (libItem && libItem.name) || itemId,
+        subLibraryId: resolved.subLib ? resolved.subLib.uuid : (subLibraryId || ''),
+        type: (libItem && libItem.type) || 'movie',
+        posterUrl: libItem ? `${baseUrl}/Items/${itemId}/Images/Primary?api_key=${apiKey}` : '',
+        path: (libItem && libItem.path) || '',
+        embyWebUrl: `${baseUrl}/web/index.html#!/item?id=${itemId}`,
+        sectionName: (resolved.subLib && resolved.subLib.name) || '',
+      });
+
       return { ok: true };
     } catch (e) {
       return apiError(reply, 502, 'EMBY_ERROR', e.message);
@@ -353,29 +402,28 @@ function registerRoutes(app) {
 
     try {
       await embyService.markUnplayed(resolved.serverConfig, itemId);
+      removePlaybackEntry(itemId);
       return { ok: true };
     } catch (e) {
       return apiError(reply, 502, 'EMBY_ERROR', e.message);
     }
   });
 
-  // ── Library: queries (real-time from Emby) ──────────────────────────────
+  // ── Local playback log ──────────────────────────────────────────────────
 
-  app.post('/v1/library/queries/played', async (req, reply) => {
-    const { subLibraryId, days, type, sectionId } = req.body || {};
-    const resolved = resolveEmbyConfigForLibrary(subLibraryId || '');
-    if (resolved.error) return apiError(reply, 404, resolved.error.code, resolved.error.message);
+  app.get('/v1/library/playback-log', async (req) => {
+    const logs = loadPlaybackLog();
+    const filterSubLib = (req.query && req.query.subLibraryId) || '';
+    const filtered = filterSubLib ? logs.filter((e) => e.subLibraryId === filterSubLib) : logs;
+    return filtered;
+  });
 
-    try {
-      const items = await embyService.getPlayedItems(resolved.serverConfig, {
-        days: days || 0,
-        type: type || 'all',
-        sectionId: sectionId || resolved.subLib.sectionId,
-      });
-      return items;
-    } catch (e) {
-      return apiError(reply, 502, 'EMBY_ERROR', e.message);
-    }
+  // v1 backward compat — redirect queries/played to playback-log
+  app.post('/v1/library/queries/played', async (req) => {
+    const logs = loadPlaybackLog();
+    const filterSubLib = (req.body && req.body.subLibraryId) || '';
+    const filtered = filterSubLib ? logs.filter((e) => e.subLibraryId === filterSubLib) : logs;
+    return filtered;
   });
 
   app.post('/v1/library/queries/unplayed', async (req, reply) => {

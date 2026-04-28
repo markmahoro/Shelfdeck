@@ -141,6 +141,8 @@ function MediaLibraryManageRowInner({
           <span className="mediaManageActionLabel">码率优化</span>
           {item.recommendedAction == null ? (
             <span className="hint">需豆瓣或本地星级</span>
+          ) : action === 'keep' && item.doubanStars == null && item.rating == null ? (
+            <span className="hint">无建议策略</span>
           ) : action === 'delete' ? (
             <div className="mediaManageActionBtns" style={{ flexWrap: 'wrap', gap: 6 }}>
               <span className="hint">策略：待删除</span>

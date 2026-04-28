@@ -89,7 +89,7 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
 
   return (
     <div className="page">
-      <div className="sidebar">
+      <div className="pageSidebar">
         <div className="sidebarMuted">筛选</div>
         <input
           className="sidebarSearch"
@@ -127,33 +127,41 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
         </select>
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
-        <button
-          type="button"
-          className="sidebarFullWidth"
-          onClick={() => setSelectedIds(new Set(filtered.map((it) => it.id)))}
-        >
-          全选当前筛选结果
-        </button>
-        <button
-          type="button"
-          className="sidebarFullWidth"
-          disabled={selectedIds.size === 0}
-          onClick={() => {
-            for (const it of filtered) {
-              if (selectedIds.has(it.id)) {
-                const action = it.recommendedAction ?? 'keep';
-                if (action !== 'keep') enqueueManagedAction(it, action);
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setSelectedIds(new Set(filtered.map((it) => it.id)))}
+          >
+            全选
+          </button>
+          <button
+            type="button"
+            disabled={selectedIds.size === 0}
+            onClick={() => setSelectedIds(new Set())}
+          >
+            取消全选
+          </button>
+          <button
+            type="button"
+            disabled={selectedIds.size === 0}
+            onClick={() => {
+              for (const it of filtered) {
+                if (selectedIds.has(it.id)) {
+                  const action = it.recommendedAction ?? 'keep';
+                  if (action !== 'keep') enqueueManagedAction(it, action);
+                }
               }
-            }
-          }}
-        >
-          按策略批量入队
-        </button>
+            }}
+          >
+            批量入队
+          </button>
+        </div>
         <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
           已选 {selectedIds.size} / {filtered.length} 条
         </p>
       </div>
-      <div className="main">
+      <div className="pageMain">
+        <div className="pageMainInner">
         {filtered.length === 0 ? (
           <p>暂未获取到媒体库数据。请先在管理端配置子库。</p>
         ) : (
@@ -210,6 +218,7 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
             })}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

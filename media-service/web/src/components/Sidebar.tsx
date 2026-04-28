@@ -1,13 +1,18 @@
 import { NavLink } from 'react-router-dom';
 import styles from './Sidebar.module.css';
 
-const NAV = [
+const GROUP_1 = [
   { to: '/', label: '仪表盘' },
-  { to: '/media-libraries', label: '媒体库' },
-  { to: '/transcode', label: '转码设置' },
-  { to: '/douban', label: '豆瓣设置' },
+];
+
+const GROUP_2 = [
   { to: '/tasks', label: '任务监控' },
-  { to: '/system', label: '系统设置' },
+];
+
+const GROUP_3 = [
+  { to: '/system', label: '任务调度设置' },
+  { to: '/douban', label: '豆瓣评分抓取设置' },
+  { to: '/transcode', label: '转码设置' },
   { to: '/moviepilot', label: '洗版设置' },
 ];
 
@@ -16,11 +21,38 @@ export default function Sidebar() {
     <aside className={styles.sidebar}>
       <div className={styles.logo}>ShelfDeck</div>
       <nav className={styles.nav}>
-        {NAV.map(({ to, label }) => (
+        <div className={styles.groupLabel}>概览</div>
+        {GROUP_1.map(({ to, label }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
+            className={({ isActive }) =>
+              `${styles.navItem}${isActive ? ` ${styles.active}` : ''}`
+            }
+          >
+            {label}
+          </NavLink>
+        ))}
+
+        <div className={styles.groupLabel}>监控</div>
+        {GROUP_2.map(({ to, label }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `${styles.navItem}${isActive ? ` ${styles.active}` : ''}`
+            }
+          >
+            {label}
+          </NavLink>
+        ))}
+
+        <div className={styles.groupLabel}>设置</div>
+        {GROUP_3.map(({ to, label }) => (
+          <NavLink
+            key={to}
+            to={to}
             className={({ isActive }) =>
               `${styles.navItem}${isActive ? ` ${styles.active}` : ''}`
             }
