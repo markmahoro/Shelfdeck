@@ -27,6 +27,7 @@ let schedulerBusy = false;
 
 // Concurrency protection
 const runningTasks = new Set(); // taskId Set — prevents re-entry within same polling round
+const justConfirmedIds = new Set(); // tasks confirmed by user this round — bypass awaiting guard
 
 function getFlow(actionType) {
   switch (actionType) {
@@ -108,7 +109,7 @@ function recoverInterruptedTasks() {
 }
 
 function isActiveStatus(status) {
-  return status === 'executing' || status === 'pausing';
+  return status === 'executing' || status === 'pausing' || status === 'awaiting_user_confirm';
 }
 
 function startScheduler() {
@@ -207,17 +208,17 @@ async function scheduleRound() {
     // itemId lock: only one flow per itemId
     if (usedItemIds.has(task.itemId) && task.status !== 'executing') continue;
 
-    // actionType slot check
-    const limit = getConcurrencyLimit(task.actionType, config);
-    if (activeCount[task.actionType] >= limit && task.status !== 'executing') continue;
-
-    // Transition created/pending_manual → queued
+    // Transition created/pending_manual → queued (always allowed — pure status change)
     if (task.status === 'created' || task.status === 'pending_manual') {
       taskStore.updateTask(task.id, { status: 'queued' });
       task.status = 'queued';
     }
 
     if (task.status === 'queued') {
+      // actionType slot check — just-confirmed tasks bypass (they already held a slot)
+      const limit = getConcurrencyLimit(task.actionType, config);
+      if (activeCount[task.actionType] >= limit && !justConfirmedIds.has(task.id)) continue;
+
       const flow = getFlow(task.actionType);
       if (!flow) continue;
 
@@ -232,6 +233,11 @@ async function scheduleRound() {
       });
     }
   }
+  justConfirmedIds.clear();
+}
+
+function markConfirmed(taskId) {
+  justConfirmedIds.add(taskId);
 }
 
 function isRunning() {
@@ -243,6 +249,7 @@ module.exports = {
   stopScheduler,
   pauseForConfirm,
   reportStatus,
+  markConfirmed,
   isRunning,
   scheduleRound,
   recoverInterruptedTasks,

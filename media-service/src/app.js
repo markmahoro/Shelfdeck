@@ -250,7 +250,8 @@ function registerRoutes(app) {
     const flow = getFlow(task.actionType);
     if (flow) flow.confirmReceived(task.id);
 
-    // Re-queue for scheduler
+    // Re-queue for scheduler, mark as just-confirmed to bypass awaiting guard
+    taskScheduler.markConfirmed(task.id);
     const updated = taskStore.updateTask(task.id, { status: 'queued' });
     return { id: updated.id, status: updated.status, updatedAt: updated.updatedAt };
   });
