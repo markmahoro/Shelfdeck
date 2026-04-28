@@ -173,6 +173,12 @@ async function runExecuting(taskId, task, config) {
     return;
   }
 
+  // Clean up residual partial from a previous interrupted encode (FFmpeg cannot resume)
+  if (fs.existsSync(partialPath)) {
+    unlinkWithRetrySync(partialPath);
+    appendLog(taskId, 'info', 'Cleaned up leftover partial from previous run');
+  }
+
   const slots = buildDeviceSlots(config);
   const orderedSlots = slots.map((s) => ({ deviceId: s.deviceId, maxSlots: s.maxSlots }));
 
@@ -313,9 +319,12 @@ function pause(taskId) {
   if (!task) return;
   abortedTasks.add(taskId);
   transcodeService.abortTask(taskId);
-  // Clean up partial file (FFmpeg cannot resume from partial encode)
+
+  const phase = task.phase || '';
   const partialPath = task.itemInfo && task.itemInfo.partialPath;
-  if (partialPath) {
+
+  // During replace, partialPath is the finished transcode output — never destroy it
+  if (phase !== 'transcode_replace' && partialPath) {
     unlinkWithRetrySync(partialPath);
   }
   appendLog(taskId, 'info', 'Transcode paused by user');

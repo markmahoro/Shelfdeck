@@ -85,6 +85,8 @@ function recoverInterruptedTasks() {
   const tasks = taskStore.loadTasks();
   const interruptible = ['precheck', 'executing', 'verify', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'planning', 'pre_replace_verify', 'pausing'];
   for (const t of tasks) {
+    // awaiting_user_confirm is a stable state — user hasn't decided yet, preserve it
+    if (t.status === 'awaiting_user_confirm') continue;
     if (interruptible.includes(t.status) || interruptible.includes(t.phase) || t.pausingRequested) {
       taskStore.updateTask(t.id, { status: 'interrupted' });
       console.log('[scheduler] recovered interrupted task', t.id);
@@ -149,7 +151,19 @@ async function scheduleRound() {
 
   for (const task of tasks) {
     // Skip terminal states
-    if (task.status === 'done' || task.status === 'failed_hard' || task.status === 'interrupted') continue;
+    if (task.status === 'done' || task.status === 'failed_hard') continue;
+
+    // Interrupted tasks: retry up to 3 times, then give up
+    if (task.status === 'interrupted') {
+      const retryCount = (task.retryCount || 0) + 1;
+      if (retryCount > 3) {
+        taskStore.updateTask(task.id, { status: 'failed_hard', retryCount });
+        console.log('[scheduler] task', task.id, 'failed after', retryCount - 1, 'retries');
+        continue;
+      }
+      taskStore.updateTask(task.id, { status: 'queued', retryCount });
+      task.status = 'queued';
+    }
     // Skip already-running (prevent re-entry)
     if (runningTasks.has(task.id)) continue;
     // Skip paused / pausing (flow controls handle their own state transitions)

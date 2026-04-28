@@ -856,10 +856,32 @@ async function runReplace(taskId, task, config) {
   try {
     // Copy staging to a temp name first, then swap
     const tmpFolder = targetFolder + '.etp.tmp';
-    if (fs.existsSync(tmpFolder)) fs.rmSync(tmpFolder, { recursive: true, force: true });
+    let tmpReady = false;
 
-    appendLog(taskId, 'info', 'Replace: copying staging → ' + tmpFolder);
-    copyDirSync(stagingFolder, tmpFolder);
+    // Check if tmpFolder is a complete copy from a previous interrupted run
+    if (fs.existsSync(tmpFolder)) {
+      try {
+        const tmpEntries = fs.readdirSync(tmpFolder, { withFileTypes: true });
+        const hasMedia = tmpEntries.some((e) => {
+          if (!e.isFile()) return false;
+          const ext2 = path.extname(e.name).toLowerCase();
+          return ['.mkv', '.mp4', '.avi', '.ts', '.m2ts', '.mov'].includes(ext2);
+        });
+        if (hasMedia) {
+          appendLog(taskId, 'info', 'Replace: reusing complete .etp.tmp from previous run');
+          tmpReady = true;
+        } else {
+          fs.rmSync(tmpFolder, { recursive: true, force: true });
+        }
+      } catch (_) {
+        fs.rmSync(tmpFolder, { recursive: true, force: true });
+      }
+    }
+
+    if (!tmpReady) {
+      appendLog(taskId, 'info', 'Replace: copying staging → ' + tmpFolder);
+      copyDirSync(stagingFolder, tmpFolder);
+    }
 
     appendLog(taskId, 'info', 'Replace: removing old folder');
     fs.rmSync(targetFolder, { recursive: true, force: true });

@@ -118,10 +118,15 @@ async function runExecuting(taskId, task, serverConfig) {
     await embyService.deleteLibraryItem(serverConfig, task.itemId);
     appendLog(taskId, 'info', 'Emby delete request sent');
   } catch (e) {
-    appendLog(taskId, 'error', `Delete failed: ${e.message}`);
-    scheduler.reportStatus(taskId, 'failed_hard');
-    setPhase(taskId, 'failed_hard');
-    return;
+    // 404 means item already gone — treat as success (idempotent retry)
+    if (e.message && String(e.message).includes('404')) {
+      appendLog(taskId, 'info', 'Item already deleted (404), proceeding to verify');
+    } else {
+      appendLog(taskId, 'error', `Delete failed: ${e.message}`);
+      scheduler.reportStatus(taskId, 'failed_hard');
+      setPhase(taskId, 'failed_hard');
+      return;
+    }
   }
 
   // Verify
