@@ -73,11 +73,12 @@ function reportStatus(taskId, status, progress) {
       // Prevent SmartTaskEngine from re-enqueuing the same item:
       // mark action as keep until next StrategyEngine cycle re-evaluates.
       if (oldTask.itemId) {
-        const libItem = mediaLibraryService.getLibraryItem(oldTask.itemId);
+        const lib = mediaLibraryService.getLibrary();
+        const libItem = lib && lib.items && lib.items.find((it) => it.itemId === oldTask.itemId);
         if (libItem && libItem.action !== 'keep') {
           libItem.action = 'keep';
           libItem.reason = '任务已完成';
-          mediaLibraryService.saveLibrary();
+          mediaLibraryService.saveLibrary(lib);
         }
       }
     }
@@ -161,21 +162,35 @@ async function scheduleRound() {
 
   healthCheck.setSchedulerState({ running: true, runningTasks: Object.values(activeCount).reduce((a, b) => a + b, 0) });
 
+  // ── Pass 1: recover interrupted tasks first ────────────────────────────
+  const recoveredIds = new Set();
   for (const task of tasks) {
+    if (task.status === 'done' || task.status === 'failed_hard') continue;
+    if (task.status !== 'interrupted') continue;
+
+    const retryCount = (task.retryCount || 0) + 1;
+    if (retryCount > 3) {
+      taskStore.updateTask(task.id, { status: 'failed_hard', retryCount });
+      console.log('[scheduler] task', task.id, 'failed after', retryCount - 1, 'retries');
+      continue;
+    }
+    taskStore.updateTask(task.id, { status: 'queued', retryCount });
+    task.status = 'queued';
+    recoveredIds.add(task.id);
+  }
+
+  // ── Pass 2: dispatch queued tasks (recovered first, then others) ──────
+  // Sort so recovered tasks get first shot at concurrency slots
+  const dispatchOrder = [...tasks].sort((a, b) => {
+    const aRec = recoveredIds.has(a.id) ? 0 : 1;
+    const bRec = recoveredIds.has(b.id) ? 0 : 1;
+    return aRec - bRec;
+  });
+
+  for (const task of dispatchOrder) {
     // Skip terminal states
     if (task.status === 'done' || task.status === 'failed_hard') continue;
 
-    // Interrupted tasks: retry up to 3 times, then give up
-    if (task.status === 'interrupted') {
-      const retryCount = (task.retryCount || 0) + 1;
-      if (retryCount > 3) {
-        taskStore.updateTask(task.id, { status: 'failed_hard', retryCount });
-        console.log('[scheduler] task', task.id, 'failed after', retryCount - 1, 'retries');
-        continue;
-      }
-      taskStore.updateTask(task.id, { status: 'queued', retryCount });
-      task.status = 'queued';
-    }
     // Skip already-running (prevent re-entry)
     if (runningTasks.has(task.id)) continue;
     // Skip paused / pausing (flow controls handle their own state transitions)

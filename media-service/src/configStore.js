@@ -32,6 +32,7 @@ function getDefaultConfig() {
     // SmartTaskEngine
     smartTaskPollIntervalMinutes: 10,
     smartTaskMaxPerRun: 10,
+    smartTaskMaxQueueSize: 50,
     smartTaskEnabledActions: ['transcode', 'upgrade'],
     smartTaskLookbackDays: 30,
 

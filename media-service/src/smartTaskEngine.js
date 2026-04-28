@@ -38,6 +38,7 @@ function start(configStore, mediaLibraryService, taskStore) {
       }
 
       const maxPerRun = cfg2.smartTaskMaxPerRun || 10;
+      const maxQueueSize = cfg2.smartTaskMaxQueueSize || 50;
       const enabledActions = cfg2.smartTaskEnabledActions || ['transcode', 'upgrade'];
       const lookbackDays = cfg2.smartTaskLookbackDays || 30;
 
@@ -45,6 +46,13 @@ function start(configStore, mediaLibraryService, taskStore) {
       if (!lib || !lib.items) return;
 
       const allTasks = taskStore.getTasks();
+
+      // Cap total active queue to prevent unbounded accumulation
+      const activeCount = allTasks.filter(
+        (t) => !['done', 'failed_hard', 'deleted'].includes(t.status)
+      ).length;
+      if (activeCount >= maxQueueSize) return;
+
       const activeItemIds = new Set(
         allTasks
           .filter((t) => !['done', 'failed_hard', 'deleted'].includes(t.status))

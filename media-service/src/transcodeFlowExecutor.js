@@ -343,6 +343,7 @@ function cancel(taskId) {
     unlinkWithRetrySync(partialPath);
   }
   appendLog(taskId, 'info', 'Transcode cancelled by user');
+  setPhase(taskId, 'done');
   scheduler.reportStatus(taskId, 'done');
 }
 

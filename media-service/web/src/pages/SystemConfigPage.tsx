@@ -16,6 +16,7 @@ export default function SystemConfigPage() {
   const [smartTaskActions, setSmartTaskActions] = useState<string[]>(['transcode', 'upgrade']);
   const [smartTaskInterval, setSmartTaskInterval] = useState(10);
   const [smartTaskLookback, setSmartTaskLookback] = useState(30);
+  const [smartTaskQueueMax, setSmartTaskQueueMax] = useState(50);
   const [strategyInterval, setStrategyInterval] = useState(30);
   const [initialized, setInitialized] = useState(false);
 
@@ -33,6 +34,7 @@ export default function SystemConfigPage() {
         setSmartTaskActions(cfg.smartTaskEnabledActions ?? ['transcode', 'upgrade']);
         setSmartTaskInterval(cfg.smartTaskPollIntervalMinutes ?? 10);
         setSmartTaskLookback(cfg.smartTaskLookbackDays ?? 30);
+        setSmartTaskQueueMax(cfg.smartTaskMaxQueueSize ?? 50);
         setStrategyInterval(cfg.strategyPollIntervalMinutes ?? 30);
         setInitialized(true);
       }
@@ -58,6 +60,7 @@ export default function SystemConfigPage() {
         smartTaskEnabledActions: smartTaskActions,
         smartTaskPollIntervalMinutes: smartTaskInterval,
         smartTaskLookbackDays: smartTaskLookback,
+        smartTaskMaxQueueSize: smartTaskQueueMax,
         strategyPollIntervalMinutes: strategyInterval,
       }),
     onSuccess: () => setAlert({ type: 'success', msg: '调度设置已保存' }),
@@ -139,6 +142,13 @@ export default function SystemConfigPage() {
                   onChange={(e) => setSmartTaskMax(Math.max(1, parseInt(e.target.value) || 1))}
                   style={{ ...inputStyle, width: 100 }} />
                 <p style={hintStyle}>防止首次开启时爆发式入队</p>
+              </div>
+              <div>
+                <label style={labelStyle}>队列上限</label>
+                <input type="number" value={smartTaskQueueMax} min={1} max={500}
+                  onChange={(e) => setSmartTaskQueueMax(Math.max(1, parseInt(e.target.value) || 1))}
+                  style={{ ...inputStyle, width: 100 }} />
+                <p style={hintStyle}>活跃任务达到上限后暂停智能入队</p>
               </div>
               <div>
                 <label style={labelStyle}>轮询间隔（分钟）</label>

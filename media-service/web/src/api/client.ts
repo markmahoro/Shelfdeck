@@ -193,6 +193,7 @@ export interface SystemConfig {
   smartTaskEnabledActions: string[];
   smartTaskPollIntervalMinutes: number;
   smartTaskLookbackDays: number;
+  smartTaskMaxQueueSize: number;
   strategyPollIntervalMinutes: number;
 }
 
