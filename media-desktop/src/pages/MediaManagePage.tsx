@@ -91,12 +91,24 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
     <div className="page">
       <div className="pageSidebar">
         <div className="sidebarMuted">筛选</div>
-        <input
-          className="sidebarSearch"
-          placeholder="搜索名称..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+        <div className="sidebarSearchWrap">
+          <input
+            className="sidebarSearch"
+            placeholder="搜索名称..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              className="sidebarSearchClear"
+              type="button"
+              onClick={() => setSearchQuery('')}
+              aria-label="清除搜索"
+            >
+              ×
+            </button>
+          )}
+        </div>
         <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
           <option value="all">全部操作</option>
           <option value="transcode">码率压缩</option>
@@ -125,6 +137,23 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
           <option value="disc">原盘</option>
           <option value="not_disc">非原盘</option>
         </select>
+
+        {(searchQuery || actionFilter !== 'all' || resolutionFilter !== 'all' || codecFilter !== 'all' || watchedFilter !== 'all' || bluRayFilter !== 'all') && (
+          <button
+            className="sidebarFilterReset"
+            type="button"
+            onClick={() => {
+              setSearchQuery('');
+              setActionFilter('all');
+              setResolutionFilter('all');
+              setCodecFilter('all');
+              setWatchedFilter('all');
+              setBluRayFilter('all');
+            }}
+          >
+            清除筛选
+          </button>
+        )}
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

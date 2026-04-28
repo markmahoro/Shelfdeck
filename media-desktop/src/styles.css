@@ -162,6 +162,82 @@ body { margin: 0; background: #111827; color: #e5e7eb; }
   margin-bottom: 8px;
 }
 
+.sidebarSearchWrap {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.sidebarSearch {
+  width: 100%;
+  padding: 6px 28px 6px 8px;
+  font-size: 13px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.sidebarSearch:focus {
+  border-color: #6366f1;
+}
+
+.sidebarSearchClear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.sidebarSearchClear:hover {
+  color: #e2e8f0;
+  background: #334155;
+}
+
+.sidebarFilterReset {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px dashed #475569;
+  border-radius: 4px;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.sidebarFilterReset:hover {
+  color: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.pageSidebar select {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  outline: none;
+  cursor: pointer;
+}
+
+.pageSidebar select:focus {
+  border-color: #6366f1;
+}
+
 .sidebarStat {
   font-size: 13px;
   font-weight: 600;

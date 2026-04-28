@@ -52,7 +52,10 @@ async function embyFetchJson(serverConfig, relativePath, options = {}, extraQuer
   }
   if (res.status === 204) return null;
   const ct = res.headers.get('content-type') || '';
-  if (!ct.includes('application/json')) return null;
+  if (!ct.includes('application/json')) {
+    log('embyFetchJson: non-JSON response for', relativePath, 'content-type:', ct);
+    return null;
+  }
   return res.json();
 }
 

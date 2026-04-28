@@ -1,16 +1,16 @@
 /**
  * [UI] 海报墙页面。
  *
- * 展示未观看内容（海报 + 详情），支持评分、标记已看、PotPlayer 播放、一键入队。
+ * 展示未观看内容（海报 + 详情），支持评分、标记已看、PotPlayer 播放。
  * 数据来源：POST /v1/library/queries/unplayed（service → Emby 实时查询）。
  */
 
 import { useEffect, useState } from 'react';
-import { apiClient, ApiConflictError } from '../api/client';
+import { apiClient } from '../api/client';
 import type { UnplayedItem } from '../api/client';
 import type { MediaTask } from '../models/task';
 import type { MediaRating } from '../models/media';
-import { hasActiveTaskForItem, taskStatusLabelZh } from '../models/task';
+import { taskStatusLabelZh } from '../models/task';
 
 const STAR_OPTIONS = [1, 2, 3, 4, 5] as const;
 
@@ -43,14 +43,6 @@ export default function WallPage({ tasks, subLibraryId }: { tasks: MediaTask[]; 
   useEffect(() => {
     fetchItems();
   }, [subLibraryId]);
-
-  const handleEnqueue = (item: UnplayedItem) => {
-    if (item.isBluRayDisc) return;
-    apiClient.createTaskByIntent({ itemId: item.id, actionType: 'transcode' }).catch((e) => {
-      if (e instanceof ApiConflictError) setError(e.message);
-      else setError(`创建任务失败：${e.message}`);
-    });
-  };
 
   const handleMarkPlayed = (itemId: string) => {
     apiClient.markPlayed(itemId, subLibraryId)
@@ -159,9 +151,6 @@ export default function WallPage({ tasks, subLibraryId }: { tasks: MediaTask[]; 
                       <div className="actions" style={{ marginTop: 6, flexWrap: 'wrap' }}>
                         <button type="button" style={{ fontSize: 12, padding: '5px 8px' }} onClick={() => handlePlay(item)}>
                           播放
-                        </button>
-                        <button type="button" style={{ fontSize: 12, padding: '5px 8px' }} onClick={() => handleEnqueue(item)}>
-                          码率压缩
                         </button>
                         <button type="button" style={{ fontSize: 12, padding: '5px 8px' }} onClick={() => handleMarkPlayed(item.id)}>
                           已看

@@ -359,7 +359,7 @@ function registerRoutes(app) {
     if (!subLibraryId || !Array.isArray(items)) {
       return { ok: true, upserted: 0, removed: 0 };
     }
-    const result = mediaLibraryService.upsertItems(subLibraryId, items);
+    const result = mediaLibraryService.upsertItems(subLibraryId, items, { fullSync: true });
     return { ok: true, ...result };
   });
 

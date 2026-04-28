@@ -63,10 +63,17 @@ function saveLibrary(lib) {
 
 // ── Item operations ─────────────────────────────────────────────────────────
 
-function upsertItems(subLibraryId, incomingItems) {
+function upsertItems(subLibraryId, incomingItems, opts = {}) {
+  const { fullSync = false } = opts;
   const lib = loadLibrary();
   const now = new Date().toISOString();
   let upserted = 0;
+
+  // Safety: if Emby returns empty data during a full sync, don't purge everything
+  if (incomingItems.length === 0) {
+    console.warn('[mediaLibrary] upsertItems: 0 items returned for', subLibraryId, '— skipping');
+    return { upserted: 0, removed: 0 };
+  }
 
   for (const incoming of incomingItems) {
     const existingIdx = lib.items.findIndex(
@@ -126,13 +133,17 @@ function upsertItems(subLibraryId, incomingItems) {
   }
 
   // Remove items that no longer exist in Emby (orphan cleanup)
+  // Only during full sync — partial updates (markPlayed etc.) must not purge.
   const incomingIds = new Set(incomingItems.map((it) => it.sourceId || it.itemId));
-  const removed = lib.items.filter(
-    (it) => it.subLibraryId === subLibraryId && it.source === 'emby' && !incomingIds.has(it.sourceId),
-  );
-  lib.items = lib.items.filter(
-    (it) => !(it.subLibraryId === subLibraryId && it.source === 'emby' && !incomingIds.has(it.sourceId)),
-  );
+  let removed = [];
+  if (fullSync) {
+    removed = lib.items.filter(
+      (it) => it.subLibraryId === subLibraryId && it.source === 'emby' && !incomingIds.has(it.sourceId),
+    );
+    lib.items = lib.items.filter(
+      (it) => !(it.subLibraryId === subLibraryId && it.source === 'emby' && !incomingIds.has(it.sourceId)),
+    );
+  }
 
   lib.cachedAt = now;
   saveLibrary(lib);
@@ -274,8 +285,7 @@ async function refreshSubLibrary(subLib) {
     activityLog.addActivity('media_library', `正在刷新子库「${name}」…`);
     const beforeCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
     const items = await embyService.getLibraryItems(server, subLib.sectionId);
-    const result = upsertItems(subLib.uuid, items);
-    const afterCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
+    const result = upsertItems(subLib.uuid, items, { fullSync: true });    const afterCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
     const newItems = Math.max(0, afterCount - beforeCount + result.removed);
     const msg = newItems > 0
       ? `子库「${name}」刷新完成，${newItems} 个新媒体入库，${result.removed} 个已清理`
