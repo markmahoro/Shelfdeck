@@ -69,9 +69,48 @@ body { margin: 0; background: #111827; color: #e5e7eb; }
 
 .topNav {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #0f172a;
+  border-bottom: 2px solid #1e293b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.topNavLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topNavLibLabel {
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.topNavSelect {
+  padding: 6px 10px;
+  font-size: 13px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  outline: none;
+  cursor: pointer;
+  min-width: 140px;
+}
+
+.topNavSelect:focus {
+  border-color: #6366f1;
+}
+
+.topNavRight {
+  display: flex;
+  align-items: center;
   gap: 6px;
-  justify-content: flex-end;
+  margin-left: auto;
 }
 
 .navTab {
@@ -79,7 +118,7 @@ body { margin: 0; background: #111827; color: #e5e7eb; }
   color: #e5e7eb;
   background: #111827;
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 8px 14px;
   cursor: pointer;
   font-size: 13px;
   white-space: nowrap;
@@ -101,6 +140,7 @@ body { margin: 0; background: #111827; color: #e5e7eb; }
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-left: 4px;
 }
 
 .appBody {
@@ -631,10 +671,14 @@ button:disabled { opacity: .5; cursor: not-allowed; }
     max-height: 40vh;
   }
   .topNav {
-    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .topNavLeft {
     width: 100%;
-    overflow-x: auto;
-    padding-bottom: 4px;
+  }
+  .topNavRight {
+    margin-left: 0;
   }
 }
 
@@ -782,5 +826,228 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   .mediaManageGrid {
     min-width: 75rem;
   }
+}
+
+/* ── ContinueWatching: sections ── */
+
+.sectionHeader {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.sectionDivider {
+  border-top: 1px solid #1f2937;
+  margin: 24px 0;
+}
+
+.gridCompact {
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.gridCompact .cardTitle {
+  font-size: 12px;
+}
+
+.gridCompact .poster {
+  border-radius: 6px;
+}
+
+.muted {
+  color: #888;
+}
+
+.errorBanner {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  color: #b91c1c;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.errorBannerClose {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #b91c1c;
+  text-decoration: underline;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.actionBtnPrimary {
+  font-weight: 600;
+  background: #6366f1 !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.actionBtnPrimary:hover {
+  background: #4f46e5 !important;
+}
+
+/* ── StarRatingModal ── */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modalCard {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 24px 28px;
+  min-width: 300px;
+  max-width: 400px;
+  text-align: center;
+}
+
+.modalTitle {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.modalSubtitle {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 16px;
+}
+
+.starRow {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.starBtn {
+  font-size: 32px;
+  line-height: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #334155;
+  padding: 0 4px;
+  transition: color 0.1s;
+}
+
+.starBtn:hover,
+.starBtn.starActive {
+  color: #fbbf24;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.modalBtnCancel {
+  padding: 6px 18px;
+  font-size: 13px;
+  background: transparent;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.modalBtnCancel:hover {
+  color: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.modalBtnClear {
+  padding: 6px 18px;
+  font-size: 13px;
+  background: transparent;
+  border: 1px solid #ef4444;
+  border-radius: 6px;
+  color: #ef4444;
+  cursor: pointer;
+}
+
+.modalBtnClear:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+/* ── ContinueWatching: play button ── */
+
+.playBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #93c5fd;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.playBtn:hover {
+  background: #1e3a5f;
+  border-color: #6366f1;
+  color: #bfdbfe;
+}
+
+.playIcon {
+  font-size: 10px;
+}
+
+/* ── ContinueWatching: section header ── */
+
+.sectionCount {
+  font-size: 12px;
+  font-weight: 400;
+  color: #94a3b8;
+  margin-left: 8px;
+}
+
+/* ── ContinueWatching: watched badge ── */
+
+.watchedBadge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  background: #065f46;
+  color: #6ee7b7;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+/* ── ContinueWatching: danger action button ── */
+
+.actionBtnDanger {
+  background: transparent !important;
+  border: 1px solid #ef4444 !important;
+  color: #ef4444 !important;
+}
+
+.actionBtnDanger:hover {
+  background: #ef4444 !important;
+  color: #fff !important;
 }
 

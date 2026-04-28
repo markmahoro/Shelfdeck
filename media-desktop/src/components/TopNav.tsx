@@ -5,9 +5,8 @@
 import type { AppPage, SubLibraryInfo } from '../App';
 
 const MAIN_NAV: { id: AppPage; label: string }[] = [
-  { id: 'wall', label: '海报墙' },
+  { id: 'continueWatching', label: '继续看' },
   { id: 'mediaManage', label: '媒体库管理' },
-  { id: 'history', label: '播放记录' },
   { id: 'activityLog', label: '实时日志' },
 ];
 
@@ -28,49 +27,50 @@ export default function TopNav({
 }) {
   return (
     <nav className="topNav" aria-label="主导航">
-      {MAIN_NAV.map(({ id, label }) => (
-        <button
-          key={id}
-          type="button"
-          className={`navTab${page === id ? ' navTabActive' : ''}`}
-          onClick={() => setPage(id)}
+      {/* 左侧：子库选择 */}
+      <div className="topNavLeft">
+        <span className="topNavLibLabel">当前媒体库</span>
+        <select
+          className="topNavSelect"
+          value={subLibraryId}
+          onChange={(e) => onSubLibraryChange(e.target.value)}
+          title="选择子库"
         >
-          {label}
-        </button>
-      ))}
+          <option value="">全部子库</option>
+          {subLibraries.map((sl) => (
+            <option key={sl.uuid} value={sl.uuid}>
+              {sl.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      <select
-        className="navSelect"
-        value={subLibraryId}
-        onChange={(e) => onSubLibraryChange(e.target.value)}
-        title="选择子库"
-        style={{ marginLeft: 12, padding: '4px 8px', fontSize: 13, border: '1px solid #ddd', borderRadius: 4 }}
-      >
-        <option value="">全部子库</option>
-        {subLibraries.map((sl) => (
-          <option key={sl.uuid} value={sl.uuid}>
-            {sl.name}
-          </option>
+      {/* 右侧：导航 tab + 设置 */}
+      <div className="topNavRight">
+        {MAIN_NAV.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            className={`navTab${page === id ? ' navTabActive' : ''}`}
+            onClick={() => setPage(id)}
+          >
+            {label}
+          </button>
         ))}
-      </select>
 
-      <div style={{ flex: 1 }} />
-
-      <button
-        type="button"
-        className="navTab navTabIcon"
-        onClick={onSettingsClick}
-        title="设置"
-        aria-label="打开设置"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path d="M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" />
-          <path
-            fillRule="evenodd"
-            d="M6.5 1.75a.25.25 0 0 1 .25-.25h2a.25.25 0 0 1 .25.25V3h-2.5V1.75zM13.25 6.5a.25.25 0 0 1-.175.232l-1.537.884a.25.25 0 0 1-.267.088l-.358-.179-.001-.001a.498.498 0 0 0-.608-.174l-.694.174a.25.25 0 0 1-.267-.088l-1.537-.884a.25.25 0 0 1-.093-.166l.001-.002L6.603 4.4a.498.498 0 0 0-.608.174l-.694-.174a.25.25 0 0 1 .089-.267l1.537-.884a.25.25 0 0 1 .267-.088l.358.179.001.001.001.002a.498.498 0 0 0 .174.608l-.174.694a.25.25 0 0 1-.088.267l-.884 1.537a.25.25 0 0 1-.166.093l-.002-.001-.002-.001a.498.498 0 0 0-.174-.608l.174-.694a.25.25 0 0 1 .088-.267l.884-1.537a.25.25 0 0 1 .232-.175h.633a.25.25 0 0 1 .25.25v2a.25.25 0 0 1-.25.25h-.633a.498.498 0 0 0-.608.174l-.174.694a.25.25 0 0 1-.267.088l-1.537.884a.25.25 0 0 1-.232.175H3.75a.25.25 0 0 1-.25-.25v-.633a.498.498 0 0 0-.174-.608l.174-.694a.25.25 0 0 1 .088-.267l.884-1.537a.25.25 0 0 1 .166-.093l.002.001.002.001a.498.498 0 0 0 .608-.174l.174-.694a.25.25 0 0 1 .267-.088l1.537-.884a.25.25 0 0 1 .175-.232V3.75a.25.25 0 0 1 .25-.25h.633a.498.498 0 0 0 .608-.174l.174-.694a.25.25 0 0 1 .267-.088l1.537-.884a.25.25 0 0 1 .232-.175h.633a.25.25 0 0 1 .25.25v2a.25.25 0 0 1-.25.25h-.633z"
-          />
-        </svg>
-      </button>
+        <button
+          type="button"
+          className="navTab navTabIcon"
+          onClick={onSettingsClick}
+          title="设置"
+          aria-label="打开设置"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+      </div>
     </nav>
   );
 }

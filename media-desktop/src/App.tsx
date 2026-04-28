@@ -12,13 +12,12 @@ import TopNav from './components/TopNav';
 import ConnectionGate from './connection/ConnectionGate';
 import FloatingTaskButton from './components/FloatingTaskButton';
 import SettingsPanel from './settings/SettingsPanel';
-import WallPage from './pages/WallPage';
+import ContinueWatchingPage from './pages/ContinueWatchingPage';
 import MediaManagePage from './pages/MediaManagePage';
-import HistoryPage from './pages/HistoryPage';
 import ActivityLogPage from './pages/ActivityLogPage';
 import type { MediaTask } from './models/task';
 
-export type AppPage = 'wall' | 'mediaManage' | 'history' | 'activityLog';
+export type AppPage = 'continueWatching' | 'mediaManage' | 'activityLog';
 
 export type SubLibraryInfo = {
   uuid: string;
@@ -27,7 +26,7 @@ export type SubLibraryInfo = {
 };
 
 export default function App() {
-  const [page, setPage] = useState<AppPage>('wall');
+  const [page, setPage] = useState<AppPage>('continueWatching');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tasks, setTasks] = useState<MediaTask[]>([]);
   const [subLibraries, setSubLibraries] = useState<SubLibraryInfo[]>([]);
@@ -67,9 +66,8 @@ export default function App() {
       />
 
       <ConnectionGate onSettingsOpen={onSettingsClick}>
-        {page === 'wall' && <WallPage tasks={tasks} subLibraryId={subLibraryId} />}
+        {page === 'continueWatching' && <ContinueWatchingPage tasks={tasks} subLibraryId={subLibraryId} />}
         {page === 'mediaManage' && <MediaManagePage tasks={tasks} subLibraryId={subLibraryId} />}
-        {page === 'history' && <HistoryPage subLibraryId={subLibraryId} />}
         {page === 'activityLog' && <ActivityLogPage />}
       </ConnectionGate>
 

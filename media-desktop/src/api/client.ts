@@ -209,6 +209,26 @@ class ApiClient {
     return r.json();
   }
 
+  async recordPlay(entry: {
+    itemId: string;
+    subLibraryId: string;
+    itemName: string;
+    type?: string;
+    posterUrl?: string;
+    path?: string;
+    embyWebUrl?: string;
+    sectionName?: string;
+  }): Promise<{ ok: boolean }> {
+    const url = `${this.getBaseUrl()}/v1/library/playback-log/record`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(entry),
+    });
+    if (!r.ok) throw new Error(`Failed to record play: HTTP ${r.status}`);
+    return r.json();
+  }
+
   async getUnplayedItems(subLibraryId: string, sectionId?: string): Promise<UnplayedItem[]> {
     const url = `${this.getBaseUrl()}/v1/library/queries/unplayed`;
     const r = await fetch(url, {
@@ -250,6 +270,7 @@ export type PlaybackLogEntry = {
   embyWebUrl?: string;
   sectionName?: string;
   playedAt: string;
+  playCount: number;
 };
 
 export type UnplayedItem = {
