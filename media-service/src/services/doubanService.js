@@ -274,9 +274,31 @@ async function fetchRatings(progressSink, opts = {}) {
   return { entries: allEntries, cancelled: stopRequested };
 }
 
+// ── Entries cache (for incremental sync) ────────────────────────────────────
+
+function entriesCachePath() {
+  return path.join(dataRoot(), 'douban-entries-cache.json');
+}
+
+function loadCachedEntries() {
+  try {
+    const raw = fs.readFileSync(entriesCachePath(), 'utf8');
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) return arr;
+  } catch { /* not found or corrupt */ }
+  return [];
+}
+
+function saveCachedEntries(entries) {
+  if (!Array.isArray(entries)) return;
+  fs.writeFileSync(entriesCachePath(), JSON.stringify(entries), 'utf8');
+}
+
 module.exports = {
   saveSession,
   getSession,
   requestStop,
   fetchRatings,
+  loadCachedEntries,
+  saveCachedEntries,
 };

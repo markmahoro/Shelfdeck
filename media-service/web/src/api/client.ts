@@ -11,6 +11,7 @@ import type {
   MediaTask,
   HealthStatus,
   DoubanSession,
+  SpaceStats,
 } from '../types';
 
 function apiKey(): string {
@@ -226,4 +227,10 @@ export const douban = {
 
   fetchRatings: (subLibraryId: string) =>
     get<{ ok: boolean; message: string }>(`/v1/integrations/douban/fetch/ratings?subLibraryId=${encodeURIComponent(subLibraryId)}`),
+};
+
+// ── Space Stats ──────────────────────────────────────────────────────────────
+
+export const spaceStats = {
+  get: () => get<SpaceStats>('/v1/space-stats'),
 };

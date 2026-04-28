@@ -67,6 +67,7 @@ function createTask(taskData) {
   const task = {
     id: generateId(),
     itemId: taskData.itemId || '',
+    itemName: taskData.itemName || (taskData.itemInfo && taskData.itemInfo.name) || '',
     actionType: taskData.actionType,
     status: taskData.status || 'created',
     progress: 0,

@@ -14,6 +14,7 @@
 
 const taskStore = require('./taskStore');
 const configStore = require('./configStore');
+const mediaLibraryService = require('./mediaLibraryService');
 const deleteFlow = require('./deleteFlowExecutor');
 const transcodeFlow = require('./transcodeFlowExecutor');
 const upgradeFlow = require('./upgradeFlowExecutor');
@@ -68,6 +69,17 @@ function reportStatus(taskId, status, progress) {
     }
     if (status === 'done') {
       activityLog.addActivity('task', `任务「${name}」${actionLabel}完成 ✓`, { taskId, actionType: oldTask.actionType });
+
+      // Prevent SmartTaskEngine from re-enqueuing the same item:
+      // mark action as keep until next StrategyEngine cycle re-evaluates.
+      if (oldTask.itemId) {
+        const libItem = mediaLibraryService.getLibraryItem(oldTask.itemId);
+        if (libItem && libItem.action !== 'keep') {
+          libItem.action = 'keep';
+          libItem.reason = '任务已完成';
+          mediaLibraryService.saveLibrary();
+        }
+      }
     }
     if (status === 'failed_hard') {
       activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, actionType: oldTask.actionType });

@@ -150,6 +150,7 @@ export interface UpgradePreview {
     name: string;
     size: number;
   };
+  bytesSaved?: number;
   tmdbVerified: boolean;
   tmdbId: number | null;
 }
@@ -162,11 +163,47 @@ export interface VerifyResult {
   bitrate: number;
   durationSec: number;
   previewPath: string | null;
+  bytesSaved?: number;
+}
+
+export interface SpaceStatsGroup {
+  expectedSavingsBytes: number;
+  realizedSavingsBytes: number;
+  itemCount: number;
+}
+
+export interface SpaceStatsUpgradeGroup {
+  expectedIncreaseBytes: number;
+  realizedIncreaseBytes: number;
+  itemCount: number;
+}
+
+export interface SpaceStatsSubLibrary {
+  uuid: string;
+  name: string;
+  itemCount: number;
+  currentBytes: number;
+  expectedBytes: number;
+  transcode: SpaceStatsGroup;
+  upgrade: SpaceStatsUpgradeGroup;
+  delete: SpaceStatsGroup;
+}
+
+export interface SpaceStats {
+  currentTotalBytes: number;
+  expectedTotalBytes: number;
+  reclaimableBytes: number;
+  realizedReclaimedBytes: number;
+  transcode: SpaceStatsGroup;
+  upgrade: SpaceStatsUpgradeGroup;
+  delete: SpaceStatsGroup;
+  subLibraries: SpaceStatsSubLibrary[];
 }
 
 export interface MediaTask {
   id: string;
   itemId: string;
+  itemName?: string;
   actionType: ActionType;
   status: TaskStatus;
   progress: number;

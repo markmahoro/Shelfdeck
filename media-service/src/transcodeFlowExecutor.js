@@ -252,6 +252,7 @@ async function runVerify(taskId, task, config) {
         bitrate: outBitrate,
         durationSec: summary.durationSec,
         previewPath,
+        bytesSaved: ((info.originalSizeBytes || 0) - outSizeBytes),
       },
     });
 

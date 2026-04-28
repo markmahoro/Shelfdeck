@@ -18,6 +18,7 @@ const transcodeService = require('./services/transcodeService');
 const strategyEngine = require('./strategyEngine');
 const smartTaskEngine = require('./smartTaskEngine');
 const activityLog = require('./activityLog');
+const spaceStats = require('./spaceStats');
 
 let serverReady = false;
 
@@ -41,10 +42,20 @@ function savePlaybackLog(logs) {
 
 function addPlaybackEntry(entry) {
   const logs = loadPlaybackLog();
-  // Remove duplicate if re-marking
   const idx = logs.findIndex((e) => e.itemId === entry.itemId);
-  if (idx >= 0) logs.splice(idx, 1);
-  logs.unshift({ ...entry, playedAt: new Date().toISOString() });
+  if (idx >= 0) {
+    // Aggregate: update timestamp, increment play count
+    const existing = logs[idx];
+    logs.splice(idx, 1);
+    logs.unshift({
+      ...existing,
+      ...entry,
+      playedAt: new Date().toISOString(),
+      playCount: (existing.playCount || 1) + 1,
+    });
+  } else {
+    logs.unshift({ ...entry, playedAt: new Date().toISOString(), playCount: 1 });
+  }
   savePlaybackLog(logs);
 }
 
@@ -379,23 +390,7 @@ function registerRoutes(app) {
       const fetchedItem = await embyService.getItem(resolved.serverConfig, itemId);
       mediaLibraryService.upsertItems(resolved.subLib.uuid, [fetchedItem]);
 
-      // Write to local playback log
-      const libItem = mediaLibraryService.getLibraryItem(itemId);
-      const itemName = (libItem && libItem.name) || fetchedItem.name || itemId;
-      const baseUrl = (resolved.serverConfig.baseUrl || '').replace(/\/$/, '');
-      const apiKey = (resolved.serverConfig.apiKey || '').trim();
-      addPlaybackEntry({
-        itemId,
-        itemName,
-        subLibraryId: resolved.subLib ? resolved.subLib.uuid : (subLibraryId || ''),
-        type: (libItem && libItem.type) || 'movie',
-        posterUrl: libItem ? `${baseUrl}/Items/${itemId}/Images/Primary?api_key=${apiKey}` : '',
-        path: (libItem && libItem.path) || '',
-        embyWebUrl: `${baseUrl}/web/index.html#!/item?id=${itemId}`,
-        sectionName: (resolved.subLib && resolved.subLib.name) || '',
-      });
-
-      activityLog.addActivity('user_action', `「${itemName}」已标记为已看`);
+      activityLog.addActivity('user_action', `「${fetchedItem.name || itemId}」已标记为已看`);
       return { ok: true };
     } catch (e) {
       return apiError(reply, 502, 'EMBY_ERROR', e.message);
@@ -416,7 +411,6 @@ function registerRoutes(app) {
       const fetchedItem = await embyService.getItem(resolved.serverConfig, itemId);
       mediaLibraryService.upsertItems(resolved.subLib.uuid, [fetchedItem]);
 
-      removePlaybackEntry(itemId);
       return { ok: true };
     } catch (e) {
       return apiError(reply, 502, 'EMBY_ERROR', e.message);
@@ -430,6 +424,24 @@ function registerRoutes(app) {
     const filterSubLib = (req.query && req.query.subLibraryId) || '';
     const filtered = filterSubLib ? logs.filter((e) => e.subLibraryId === filterSubLib) : logs;
     return filtered;
+  });
+
+  app.post('/v1/library/playback-log/record', async (req) => {
+    const { itemId, subLibraryId, itemName, type, posterUrl, path, embyWebUrl, sectionName } = req.body || {};
+    if (!itemId || !subLibraryId) {
+      return { ok: false, error: 'itemId and subLibraryId are required' };
+    }
+    addPlaybackEntry({
+      itemId,
+      subLibraryId,
+      itemName: itemName || '',
+      type: type || 'movie',
+      posterUrl: posterUrl || '',
+      path: path || '',
+      embyWebUrl: embyWebUrl || '',
+      sectionName: sectionName || '',
+    });
+    return { ok: true };
   });
 
   // v1 backward compat — redirect queries/played to playback-log
@@ -473,6 +485,15 @@ function registerRoutes(app) {
   app.get('/v1/activity-log', async (req) => {
     const count = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50);
     return { entries: activityLog.getRecent(count) };
+  });
+
+  // ── Space Stats ───────────────────────────────────────────────────────────
+
+  app.get('/v1/space-stats', async () => {
+    const library = mediaLibraryService.getLibrary();
+    const tasks = taskStore.loadTasks();
+    const config = configStore.loadConfig();
+    return spaceStats.computeSpaceStats(library, tasks, config);
   });
 
   // ── Douban Integration ──────────────────────────────────────────────────

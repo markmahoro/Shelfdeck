@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { health, tasks, subLibraries, emby, activityLog } from '../api/client';
+import { health, tasks, subLibraries, emby, activityLog, spaceStats } from '../api/client';
 import type { ActivityEntry } from '../api/client';
 import type { SubLibrary, EmbyUser, MediaFolder, MediaTask } from '../types';
 import HealthCard from '../components/HealthCard';
@@ -65,6 +65,12 @@ export default function DashboardPage() {
     queryKey: ['activity-log'],
     queryFn: () => activityLog.getRecent(10),
     refetchInterval: 15000,
+  });
+
+  const { data: spaceData } = useQuery({
+    queryKey: ['space-stats'],
+    queryFn: spaceStats.get,
+    refetchInterval: 30000,
   });
 
   const { data: userData } = useQuery({
@@ -206,6 +212,27 @@ export default function DashboardPage() {
           </table>
         )}
       </div>
+
+      {/* Space Stats */}
+      {spaceData && (
+        <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#1a1a2e' }}>空间统计</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+            <StatBox label="当前容量" value={fmtSizeBytes(spaceData.currentTotalBytes)} color="#1a1a2e" />
+            <StatBox label="预期容量" value={fmtSizeBytes(spaceData.expectedTotalBytes)} color="#2e7d32" />
+            <StatBox
+              label="可回收"
+              value={`可回收 ${fmtSizeBytes(spaceData.reclaimableBytes)} / 已回收 ${fmtSizeBytes(spaceData.realizedReclaimedBytes)}`}
+              color="#1565c0"
+            />
+            <StatBox
+              label="洗版增加"
+              value={`预期 ${fmtSizeBytes(spaceData.upgrade.expectedIncreaseBytes)}（${spaceData.upgrade.itemCount} 条）`}
+              color="#e65100"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Sub-Library Management */}
       <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
@@ -411,6 +438,27 @@ export default function DashboardPage() {
           </div>
         )}
       </Modal>
+    </div>
+  );
+}
+
+function fmtSizeBytes(bytes: number): string {
+  if (bytes == null || bytes === 0) return '0 B';
+  const abs = Math.abs(bytes);
+  const sign = bytes < 0 ? '-' : '';
+  if (abs >= 1024 * 1024 * 1024 * 1024) return sign + Math.round(abs / (1024 * 1024 * 1024 * 1024)) + ' TB';
+  if (abs >= 1024 * 1024 * 1024) return sign + Math.round(abs / (1024 * 1024 * 1024)) + ' GB';
+  if (abs >= 1024 * 1024) return sign + Math.round(abs / (1024 * 1024)) + ' MB';
+  if (abs >= 1024) return sign + Math.round(abs / 1024) + ' KB';
+  return sign + abs + ' B';
+}
+
+function StatBox({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+  return (
+    <div style={{ background: '#f9fafb', borderRadius: 8, padding: 14 }}>
+      <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }

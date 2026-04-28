@@ -105,4 +105,4 @@ function recommendedAction(item, policy) {
   return { action: 'keep', reason: '策略未覆盖' };
 }
 
-module.exports = { recommendedAction, effectiveRating, isDeleteTier };
+module.exports = { recommendedAction, effectiveRating, isDeleteTier, targetMbps, resolutionBucket };

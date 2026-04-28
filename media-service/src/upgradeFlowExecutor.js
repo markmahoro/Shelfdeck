@@ -796,6 +796,7 @@ async function runPreReplaceVerify(taskId, task) {
       upgradePreview: {
         oldFile: oldInfo,
         newFile: { name: path.basename(stagingMediaPath), size: outSizeBytes },
+        bytesSaved: (oldInfo.size - outSizeBytes),
         tmdbVerified: expectedTmdbId && scrapeTmdbId && expectedTmdbId === scrapeTmdbId,
         tmdbId: scrapeTmdbId || expectedTmdbId,
       },

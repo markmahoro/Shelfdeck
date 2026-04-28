@@ -306,11 +306,13 @@ async function syncDoubanForSubLibrary(subLib) {
     if (!session.userId) return;
 
     activityLog.addActivity('media_library', `正在同步子库「${name}」的豆瓣评分…`);
-    const { entries } = await doubanService.fetchRatings(null);
+    const cachedEntries = doubanService.loadCachedEntries();
+    const { entries } = await doubanService.fetchRatings(null, { existingEntries: cachedEntries });
     if (!entries || entries.length === 0) {
       activityLog.addActivity('media_library', `子库「${name}」豆瓣评分同步完成，无豆瓣数据`);
       return;
     }
+    doubanService.saveCachedEntries(entries);
 
     const byNormTitle = doubanMatchService.buildDoubanStarsByNormalizedTitle(entries);
 
