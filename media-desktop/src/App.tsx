@@ -72,7 +72,7 @@ export default function App() {
       </ConnectionGate>
 
       <FloatingTaskButton baseUrl={baseUrl} />
-      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} subLibraries={subLibraries} />}
     </div>
   );
 }

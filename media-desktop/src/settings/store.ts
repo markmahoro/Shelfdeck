@@ -4,19 +4,22 @@
  * 持久化通过 electron-store（主进程），渲染进程通过 window.embyApi 间接读写。
  */
 
+export type SubLibraryPathMap = Record<string, { from: string; to: string }>;
+
 export interface DesktopSettings {
   serviceUrl: string;
   serviceApiKey: string;
   playerExePath: string;
   localPathMapFrom: string;
   localPathMapTo: string;
+  subLibraryPathMaps: SubLibraryPathMap;
 }
 
 declare global {
   interface Window {
     embyApi?: {
       getSettings: () => Promise<DesktopSettings>;
-      saveSetting: (key: string, value: string) => Promise<{ ok: boolean; error?: string }>;
+      saveSetting: (key: string, value: unknown) => Promise<{ ok: boolean; error?: string }>;
       launchPath: (args: unknown) => Promise<unknown>;
       markPlayed: (args: unknown) => Promise<void>;
       markUnplayed: (args: unknown) => Promise<void>;
@@ -35,11 +38,12 @@ const STORE_KEYS = {
   playerExePath: 'shelfdeck.playerExePath',
   localPathMapFrom: 'shelfdeck.localPathMapFrom',
   localPathMapTo: 'shelfdeck.localPathMapTo',
+  subLibraryPathMaps: 'shelfdeck.subLibraryPathMaps',
 } as const;
 
 export async function getSettings(): Promise<DesktopSettings> {
   if (!window.embyApi?.getSettings) {
-    return { serviceUrl: 'http://127.0.0.1:18080', serviceApiKey: '', playerExePath: '', localPathMapFrom: '', localPathMapTo: '' };
+    return { serviceUrl: 'http://127.0.0.1:18080', serviceApiKey: '', playerExePath: '', localPathMapFrom: '', localPathMapTo: '', subLibraryPathMaps: {} };
   }
   return window.embyApi.getSettings();
 }
@@ -47,6 +51,11 @@ export async function getSettings(): Promise<DesktopSettings> {
 export async function saveSetting(key: keyof typeof STORE_KEYS, value: string): Promise<{ ok: boolean; error?: string }> {
   if (!window.embyApi?.saveSetting) return { ok: false, error: '设置通道不可用' };
   return window.embyApi.saveSetting(STORE_KEYS[key], value);
+}
+
+export async function saveSubLibraryPathMaps(maps: SubLibraryPathMap): Promise<{ ok: boolean; error?: string }> {
+  if (!window.embyApi?.saveSetting) return { ok: false, error: '设置通道不可用' };
+  return window.embyApi.saveSetting(STORE_KEYS.subLibraryPathMaps, maps);
 }
 
 export { STORE_KEYS };

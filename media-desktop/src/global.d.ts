@@ -137,8 +137,8 @@ declare global {
   interface Window {
     electronAPI?: { isElectron: true };
     embyApi?: {
-      getSettings: () => Promise<{ serviceUrl: string; serviceApiKey: string; playerExePath: string; localPathMapFrom: string; localPathMapTo: string }>;
-      saveSetting: (key: string, value: string) => Promise<{ ok: boolean; error?: string }>;
+      getSettings: () => Promise<{ serviceUrl: string; serviceApiKey: string; playerExePath: string; localPathMapFrom: string; localPathMapTo: string; subLibraryPathMaps: Record<string, { from: string; to: string }> }>;
+      saveSetting: (key: string, value: unknown) => Promise<{ ok: boolean; error?: string }>;
       getEffectiveConnection: () => { baseUrl: string; apiKey: string; source?: string };
       onConnectionUpdated: (listener: () => void) => () => void;
       testConnection: (config: { baseUrl: string; apiKey: string }) => Promise<{ serverName?: string; version?: string }>;

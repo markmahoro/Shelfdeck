@@ -50,11 +50,24 @@ export default function ContinueWatchingPage({ subLibraryId }: { tasks: unknown[
 
     // Launch external player
     if (!item.path) { if (item.embyWebUrl) window.open(item.embyWebUrl, '_blank'); return; }
+    const filePath = item.path;
     try {
       const raw = await window.embyApi?.getSettings();
+      // Per-subLibrary path mapping: match by subLibraryId first, then by path prefix
+      const maps = raw?.subLibraryPathMaps || {};
+      let pathMapFrom = '';
+      let pathMapTo = '';
+      if (subLibraryId && maps[subLibraryId]) {
+        pathMapFrom = maps[subLibraryId].from || '';
+        pathMapTo = maps[subLibraryId].to || '';
+      } else {
+        // Fallback: match by path prefix across all subLibrary mappings
+        const match = Object.values(maps).find((m) => m.from && filePath.startsWith(m.from));
+        if (match) { pathMapFrom = match.from; pathMapTo = match.to || ''; }
+      }
       await window.embyApi?.launchPath({
-        path: item.path,
-        config: { playerExePath: raw?.playerExePath || '', pathMapFrom: raw?.localPathMapFrom || '', pathMapTo: raw?.localPathMapTo || '' },
+        path: filePath,
+        config: { playerExePath: raw?.playerExePath || '', pathMapFrom, pathMapTo },
       });
     } catch (e) {
       const msg = (e as Error).message;

@@ -29,6 +29,51 @@ export type TaskStatus =
   | 'resume_pending'
   | 'paused';
 
+export interface UpgradeCandidate {
+  title: string;
+  site: string;
+  size: number;
+  seeders: number;
+  resolution: string;
+  codec: string;
+  edition: string;
+  index: number;
+}
+
+export interface TaskItemInfo {
+  name?: string;
+  path?: string;
+  size?: number;
+  resolution?: string;
+  bitrate?: number;
+  originalSizeBytes?: number;
+  originalVideoCodec?: string;
+  originalWidth?: number;
+  originalHeight?: number;
+  originalAudioCodec?: string;
+  originalBitrate?: number;
+  searchCandidatesSimplified?: UpgradeCandidate[];
+  stagingFolder?: string;
+  stagingMediaPath?: string;
+}
+
+export interface VerifyResult {
+  sizeBytes: number;
+  videoCodec: string;
+  width: number;
+  height: number;
+  bitrate: number;
+  durationSec: number;
+  previewPath?: string;
+}
+
+export interface UpgradePreview {
+  oldFile: { name: string; size: number; resolution: string; bitrate: number };
+  newFile: { name: string; size: number };
+  tmdbVerified: boolean;
+  tmdbId: number | null;
+}
+
 export interface MediaTask {
   id: string;
   itemId: string;
@@ -56,6 +101,10 @@ export interface MediaTask {
   transcodeDvAcknowledged?: boolean;
   transcodeConfirmKind?: 'dolby_vision' | 'replace';
   transcodeDurationSec?: number;
+  resumePoint?: string;
+  itemInfo?: TaskItemInfo;
+  verifyResult?: VerifyResult;
+  upgradePreview?: UpgradePreview;
 }
 
 const FLOW_LOG_MAX = 400;
@@ -99,8 +148,20 @@ export function canUserExecuteTask(task: MediaTask): boolean {
 
 export function canUserPauseTask(task: MediaTask): boolean {
   if (isTaskTerminal(task) || task.status === 'paused') return false;
-  if (task.status === 'pending_manual') return false;
+  if (task.status === 'pending_manual' || task.status === 'awaiting_user_confirm') return false;
   return true;
+}
+
+export function canUserConfirmTask(task: MediaTask): boolean {
+  return task.status === 'awaiting_user_confirm';
+}
+
+export function canUserResumeTask(task: MediaTask): boolean {
+  return task.status === 'paused' || task.status === 'pending_manual';
+}
+
+export function canUserDeleteTask(task: MediaTask): boolean {
+  return !isTaskTerminal(task) || task.status === 'done' || task.status === 'failed_hard';
 }
 
 export function transcodeVolumeSummaryLine(task: MediaTask): string | null {
@@ -116,6 +177,15 @@ export function transcodeVolumeSummaryLine(task: MediaTask): string | null {
   if (o != null) return `源文件体积（已记账）：${o.toFixed(2)} GB`;
   if (r != null) return `转码后体积（已记账）：${r.toFixed(2)} GB`;
   return null;
+}
+
+export function formatSize(bytes: number): string {
+  if (!bytes || bytes <= 0) return '—';
+  const gb = bytes / 1_000_000_000;
+  if (gb >= 1) return `${gb.toFixed(2)} GB`;
+  const mb = bytes / 1_000_000;
+  if (mb >= 1) return `${mb.toFixed(1)} MB`;
+  return `${(bytes / 1000).toFixed(0)} KB`;
 }
 
 export function taskStatusLabelZh(status: TaskStatus): string {

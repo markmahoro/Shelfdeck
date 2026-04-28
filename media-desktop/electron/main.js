@@ -207,6 +207,7 @@ function registerIpcHandlers() {
     playerExePath: store.get('shelfdeck.playerExePath', ''),
     localPathMapFrom: store.get('shelfdeck.localPathMapFrom', ''),
     localPathMapTo: store.get('shelfdeck.localPathMapTo', ''),
+    subLibraryPathMaps: store.get('shelfdeck.subLibraryPathMaps', {}),
   }));
 
   ipcMain.handle('settings:set', (event, key, value) => {
