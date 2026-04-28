@@ -53,9 +53,13 @@ export default function WallPage({ tasks, subLibraryId }: { tasks: MediaTask[]; 
   };
 
   const handleMarkPlayed = (itemId: string) => {
-    apiClient.markPlayed(itemId, subLibraryId).then(() => fetchItems()).catch((e) => {
-      setError(`标记已看失败：${e.message}`);
-    });
+    apiClient.markPlayed(itemId, subLibraryId)
+      .then(() => {
+        setItems((prev) => prev.filter((it) => it.id !== itemId));
+      })
+      .catch((e) => {
+        setError(`标记已看失败：${e.message}`);
+      });
   };
 
   const handleRating = (itemId: string, rating: MediaRating | null) => {

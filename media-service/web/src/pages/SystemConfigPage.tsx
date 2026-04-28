@@ -12,6 +12,11 @@ export default function SystemConfigPage() {
   const [transcodeConc, setTranscodeConc] = useState(1);
   const [upgradeConc, setUpgradeConc] = useState(1);
   const [wallRating, setWallRating] = useState(false);
+  const [smartTaskMax, setSmartTaskMax] = useState(10);
+  const [smartTaskActions, setSmartTaskActions] = useState<string[]>(['transcode', 'upgrade']);
+  const [smartTaskInterval, setSmartTaskInterval] = useState(10);
+  const [smartTaskLookback, setSmartTaskLookback] = useState(30);
+  const [strategyInterval, setStrategyInterval] = useState(30);
   const [initialized, setInitialized] = useState(false);
 
   const { isLoading } = useQuery({
@@ -24,11 +29,22 @@ export default function SystemConfigPage() {
         setTranscodeConc(cfg.transcodeConcurrency ?? 1);
         setUpgradeConc(cfg.upgradeConcurrency ?? 1);
         setWallRating(cfg.wallRatingAutoEnqueue || false);
+        setSmartTaskMax(cfg.smartTaskMaxPerRun ?? 10);
+        setSmartTaskActions(cfg.smartTaskEnabledActions ?? ['transcode', 'upgrade']);
+        setSmartTaskInterval(cfg.smartTaskPollIntervalMinutes ?? 10);
+        setSmartTaskLookback(cfg.smartTaskLookbackDays ?? 30);
+        setStrategyInterval(cfg.strategyPollIntervalMinutes ?? 30);
         setInitialized(true);
       }
       return cfg;
     },
   });
+
+  const toggleAction = (a: string) => {
+    setSmartTaskActions((prev) =>
+      prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]
+    );
+  };
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -38,6 +54,11 @@ export default function SystemConfigPage() {
         transcodeConcurrency: transcodeConc,
         upgradeConcurrency: upgradeConc,
         wallRatingAutoEnqueue: wallRating,
+        smartTaskMaxPerRun: smartTaskMax,
+        smartTaskEnabledActions: smartTaskActions,
+        smartTaskPollIntervalMinutes: smartTaskInterval,
+        smartTaskLookbackDays: smartTaskLookback,
+        strategyPollIntervalMinutes: strategyInterval,
       }),
     onSuccess: () => setAlert({ type: 'success', msg: '调度设置已保存' }),
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
@@ -105,8 +126,55 @@ export default function SystemConfigPage() {
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer' }}>
           <input type="checkbox" checked={wallRating} onChange={(e) => setWallRating(e.target.checked)} />
-          豆瓣评分自动入队 — 刷新后自动为符合条件的媒体创建任务
+          智能自动入队 — 已看 + 已有评分 + 策略推荐 ≠ 已达标 → 自动创建任务
         </label>
+
+        {wallRating && (
+          <div style={{ marginTop: 16, padding: '12px 16px', background: '#f8f9fb', borderRadius: 8 }}>
+            <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: '#1a1a2e' }}>智能入队参数</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>每轮最多入队数</label>
+                <input type="number" value={smartTaskMax} min={1} max={100}
+                  onChange={(e) => setSmartTaskMax(Math.max(1, parseInt(e.target.value) || 1))}
+                  style={{ ...inputStyle, width: 100 }} />
+                <p style={hintStyle}>防止首次开启时爆发式入队</p>
+              </div>
+              <div>
+                <label style={labelStyle}>轮询间隔（分钟）</label>
+                <input type="number" value={smartTaskInterval} min={5} max={120}
+                  onChange={(e) => setSmartTaskInterval(Math.max(5, parseInt(e.target.value) || 5))}
+                  style={{ ...inputStyle, width: 100 }} />
+              </div>
+              <div>
+                <label style={labelStyle}>回溯天数</label>
+                <input type="number" value={smartTaskLookback} min={1} max={365}
+                  onChange={(e) => setSmartTaskLookback(Math.max(1, parseInt(e.target.value) || 1))}
+                  style={{ ...inputStyle, width: 100 }} />
+                <p style={hintStyle}>首次/恢复运行时只看最近 N 天有评分的条目</p>
+              </div>
+              <div>
+                <label style={labelStyle}>策略计算间隔（分钟）</label>
+                <input type="number" value={strategyInterval} min={10} max={360}
+                  onChange={(e) => setStrategyInterval(Math.max(10, parseInt(e.target.value) || 10))}
+                  style={{ ...inputStyle, width: 100 }} />
+                <p style={hintStyle}>全量重算 action/reason 的间隔</p>
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label style={labelStyle}>允许自动入队的操作类型</label>
+              <div style={{ display: 'flex', gap: 16 }}>
+                {['transcode', 'upgrade', 'delete'].map((a) => (
+                  <label key={a} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={smartTaskActions.includes(a)}
+                      onChange={() => toggleAction(a)} />
+                    {a === 'transcode' ? '码率压缩' : a === 'upgrade' ? '洗版' : '删除'}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ marginTop: 20 }}>
           <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} style={primaryBtn}>

@@ -188,6 +188,11 @@ export interface SystemConfig {
   transcodeConcurrency: number;
   upgradeConcurrency: number;
   wallRatingAutoEnqueue: boolean;
+  smartTaskMaxPerRun: number;
+  smartTaskEnabledActions: string[];
+  smartTaskPollIntervalMinutes: number;
+  smartTaskLookbackDays: number;
+  strategyPollIntervalMinutes: number;
 }
 
 export const systemConfig = {

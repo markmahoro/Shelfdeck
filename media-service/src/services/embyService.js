@@ -329,6 +329,15 @@ async function markUnplayed(serverConfig, itemId) {
   await embyFetchOk(serverConfig, `Users/${uid}/PlayedItems/${iid}`, { method: 'DELETE' });
 }
 
+async function getItem(serverConfig, itemId) {
+  const userId = String(serverConfig.userId || '').trim();
+  if (!userId) throw new Error('Emby userId not configured');
+  const uid = encodeURIComponent(userId);
+  const iid = encodeURIComponent(itemId);
+  const data = await embyFetchJson(serverConfig, `Users/${uid}/Items/${iid}`, {}, { Fields: ITEM_FIELDS });
+  return extractItemFields(data);
+}
+
 async function getPlayedItems(serverConfig, filters = {}) {
   let userId = String(serverConfig.userId || '').trim();
   if (!userId) {
@@ -453,6 +462,7 @@ module.exports = {
   deleteLibraryItem,
   markPlayed,
   markUnplayed,
+  getItem,
   getPlayedItems,
   getUnplayedItems,
 };

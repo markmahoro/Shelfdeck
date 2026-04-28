@@ -29,6 +29,15 @@ function getDefaultConfig() {
     upgradeConcurrency: 1,
     wallRatingAutoEnqueue: false,
 
+    // SmartTaskEngine
+    smartTaskPollIntervalMinutes: 10,
+    smartTaskMaxPerRun: 10,
+    smartTaskEnabledActions: ['transcode', 'upgrade'],
+    smartTaskLookbackDays: 30,
+
+    // StrategyEngine
+    strategyPollIntervalMinutes: 30,
+
     // Transcode
     transcodeTempRoot: '',
     transcodeReplaceConfirmRequired: false,

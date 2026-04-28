@@ -22,6 +22,13 @@ service 是 Phase 3 的胖服务组件，承担所有业务逻辑执行：
 #### 2.1.1 目标架构
 
 ```
+EmbyAdapter ──→ library.json（元数据 + watched）
+DoubanAdapter ──→ library.json（doubanRating）
+desktop 打分 ──→ library.json（userRating）
+
+StrategyEngine ──→ 全量计算 action/reason ──→ library.json
+SmartTaskEngine ──→ 扫描 library.json ──→ taskStore.createTask()
+
 TaskScheduler（taskScheduler.js）
     │
     ├── 调度决策：slot 检查、夜间暂停、executionMode
@@ -32,7 +39,9 @@ TaskScheduler（taskScheduler.js）
     └──→ UpgradeFlowExecutor（upgradeFlowExecutor.js）
 ```
 
-**原则**：TaskScheduler 承担调度 + 路由两层职责，直接调用 Flow Executors，不经过中间代理层。
+**原则**：
+- TaskScheduler 承担调度 + 路由两层职责，直接调用 Flow Executors，不经过中间代理层
+- StrategyEngine、SmartTaskEngine、EmbyAdapter、DoubanAdapter 均为独立定时模块，各管一层，互不耦合
 
 #### 2.1.2 并发保护
 
@@ -123,7 +132,9 @@ executor.fail(taskId, code, message)   → setStatus + appendLog
 
 ### §2.2 完整意图链路
 
-#### 任务创建链路
+#### 任务创建链路（双路径）
+
+**路径 A：手动入队（desktop → service）**
 
 ```
 desktop 意图下发（POST /v1/tasks）
@@ -135,6 +146,18 @@ desktop 意图下发（POST /v1/tasks）
 │ 关键路径：POST /v1/tasks → taskStore.createTask()                 │
 └─────────────────────────────────────────────────────────────────┘
     │
+    ▼
+TaskStore → TaskScheduler → Flow Executors（同下）
+```
+
+**路径 B：自动入队（SmartTaskEngine）**
+
+```
+StrategyEngine（定时全量计算）
+    │  读 library.json，写 action/reason
+    ▼
+SmartTaskEngine（定时扫描）
+    │  条件: watched=true + 有评分 + action∈{transcode,upgrade,delete} + 无活跃任务
     ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │ TaskStore（taskStore.js）                                         │
@@ -161,6 +184,8 @@ desktop 意图下发（POST /v1/tasks）
     └──→ UpgradeFlowExecutor
          └──→ （MoviePilot 集成，暂未实现）
 ```
+
+> 两条路径汇入同一个 TaskStore → TaskScheduler 管道。手动入队由用户主动操作触发，自动入队由 SmartTaskEngine 周期发现触发。
 
 #### 进度轮询链路（桌面 → 服务）
 
@@ -242,106 +267,114 @@ done ←───────────────┤
 deleted ←── DELETE /v1/tasks/:id
 ```
 
-### §3 媒体库管理链路（MediaLibraryService）
+### §3 媒体库管理链路（数据层 + 策略层 + 入队层）
 
-MediaLibraryService 维护统一的媒体库持久化表，所有媒体数据、豆瓣评分、用户评分均存在该表中。
-
-#### 3.1 模块职责
-
-- 维护统一的媒体库持久化表（`data/library.json`）
-- 定期从 Emby 拉取媒体数据并更新表
-- 写入 Douban 评分和用户评分
-- 计算每个媒体项的策略建议（delete / transcode / upgrade / keep）
-- 提供媒体库展示所需的全部字段给 desktop
-
-#### 3.2 数据写入
-
-```
-EmbyService 定期拉取媒体数据 → 写入媒体库表
-DoubanService 抓取豆瓣评分   → 写入媒体库表
-用户打分                     → desktop → PATCH /v1/library/ratings → 写入媒体库表
-```
-
-#### 3.3 策略计算
-
-```
-GET /v1/library/queries/manage
-    ↓
-MediaLibraryService 读取媒体库表
-    ↓
-effectiveRating = doubanRating 非空 ? doubanRating : userRating 非空 ? userRating : null
-    ↓
-按 mediaPolicy 计算策略建议（delete / transcode / upgrade / keep）
-    ↓
-返回完整媒体库数据 → desktop 展示
-```
-
-#### 3.4 链路图
+v2 架构将 v1 中耦合在 MediaLibraryService 内的策略计算和自动入队拆分为三个独立模块，各管一层：
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ EmbyService                                          │
-│ 定期拉取媒体库数据 → 写入媒体库表                       │
+│ [数据层] MediaLibraryService                         │
+│ 职责：library.json CRUD，协调 EmbyAdapter 写入       │
+│ 原则：只写原始数据，不计算策略，不创建任务               │
 └─────────────────────────────────────────────────────┘
     │
+    ▼
 ┌─────────────────────────────────────────────────────┐
-│ DoubanService                                        │
-│ 抓取豆瓣评分 → 写入媒体库表                            │
+│ [策略层] StrategyEngine（定时 30min）                  │
+│ 职责：全量扫描 library.json，计算 action/reason 并写回 │
+│ 原则：纯函数计算，不依赖外部系统，不感知数据来源          │
 └─────────────────────────────────────────────────────┘
     │
+    ▼
 ┌─────────────────────────────────────────────────────┐
-│ MediaLibraryService                                   │
-│ 维护统一的媒体库持久化表（data/library.json）          │
-│ - Emby 数据写入                                      │
-│ - Douban 评分写入                                    │
-│ - 用户评分写入（PATCH /v1/library/ratings）           │
-│ - 策略计算                                          │
+│ [入队层] SmartTaskEngine（定时 10min）                 │
+│ 职责：扫描 library.json，发现符合条件的条目，自动入队    │
+│ 原则：只读 library.json + taskStore，只写 taskStore    │
 └─────────────────────────────────────────────────────┘
-    │
-    ↓
-desktop GET /v1/library/queries/manage
-    ↓
-返回展示数据（含策略建议）
+```
+
+#### 3.1 数据层：MediaLibraryService
+
+职责收窄为**纯数据 CRUD**：
+
+- 维护 library.json，对外暴露 `getLibrary()` / `getLibraryItem()` / `upsertItems()` / `saveLibrary()`
+- 管理子库配置（CRUD、定时器生命周期）
+- 驱动 EmbyAdapter 定时拉取（1h）→ 调 `upsertItems()` 写入元数据 + `watched`
+- 驱动 DoubanAdapter 定时同步（6h）→ 直接更新 `doubanRating` 字段
+- 处理用户评分写入（`updateUserRating`）→ 只写 `userRating`，不重算策略
+
+**明确不负责**：
+- 不计算 `action` / `reason`（交给 StrategyEngine）
+- 不做 diff 检测触发策略重算（StrategyEngine 全量算）
+- 不创建任务（交给 SmartTaskEngine）
+
+#### 3.2 策略层：StrategyEngine
+
+见 `SERVICE/STRATEGY_ENGINE.md`。
+
+#### 3.3 入队层：SmartTaskEngine
+
+见 `SERVICE/SMART_TASK_ENGINE.md`。
+
+#### 3.4 数据流（端到端）
+
+```
+EmbyAdapter (1h) ──→ upsertItems() ──→ library.json (name, bitrate, watched...)
+DoubanAdapter (6h) ──→ 写 rating ──→ library.json (doubanRating)
+desktop 打分 ──→ PATCH /v1/library/ratings ──→ library.json (userRating)
+desktop 已看 ──→ POST mark-played ──→ Emby API + 反查 upsertItems ──→ library.json (watched)
+
+StrategyEngine (30min) ──→ 全量重算 ──→ library.json (action, reason)
+SmartTaskEngine (10min) ──→ 扫描 + 条件判定 ──→ taskStore.createTask()
+TaskScheduler (5s) ──→ 调度 + 执行
 ```
 
 #### 3.5 REST 端点
 
 | 端点 | 方向 | 说明 |
 |---|---|---|
-| `POST /v1/library/cache` | EmbyService → Service | 批量写入 Emby 媒体数据到媒体库表 |
-| `GET /v1/integrations/douban/fetch/ratings` | DoubanService → Service | 抓取豆瓣评分并写入媒体库表 |
-| `PATCH /v1/library/ratings` | Desktop → Service | 写入用户评分到媒体库表 |
-| `GET /v1/library/queries/manage` | Service → Desktop | 返回媒体库数据（含策略建议） |
+| `POST /v1/library/cache` | EmbyService → Service | 批量写入 Emby 媒体数据（元数据 + watched） |
+| `PATCH /v1/library/ratings` | Desktop → Service | 写入用户评分（只写字段，不重算策略） |
+| `POST /v1/library/actions/mark-played` | Desktop → Service | 标记已看 → Emby API + 单条反查 → upsertItems |
+| `GET /v1/library/queries/manage` | Service → Desktop | 返回媒体库数据（含 StrategyEngine 算好的 action/reason） |
 
 #### 3.6 详细设计
 
-媒体库表字段定义及详细行为见 `SERVICE/MEDIA_LIBRARY.md`。
+- 数据模型与字段定义：`SERVICE/MEDIA_LIBRARY.md`
+- 策略引擎：`SERVICE/STRATEGY_ENGINE.md`
+- 智能入队引擎：`SERVICE/SMART_TASK_ENGINE.md`
+
+---
 
 ## §4 子模块通信矩阵
 
-| 调用方 ↓ / 被调用方 → | TaskStore | EmbyService | TranscodeService | DoubanService | ConfigStore | MediaLibraryService | DeleteFlowExecutor | TranscodeFlowExecutor | UpgradeFlowExecutor |
-|---|---|---|---|---|---|---|---|---|---|
-| **API 层** | createTask / getTasks | getLibraryItem | - | doubanService | loadConfig / patchConfig | getLibrary / updateRatings | - | - | - |
-| **TaskScheduler** | loadTasks / updateTask | - | - | - | loadConfig | - | driveTask | driveTask | driveTask |
-| **DeleteFlowExecutor** | getTask / updateTask | getLibraryItem / deleteLibraryItem | - | - | loadConfig | - | - | - | - |
-| **TranscodeFlowExecutor** | getTask / updateTask | getLibraryItem | precheck / startEncode / probeSummary / replaceWithRetries | - | loadConfig | - | - | - | - |
-| **UpgradeFlowExecutor** | getTask / updateTask | - | - | - | - | - | - | - | - |
-| **MediaLibraryService** | - | - | - | - | - | - | - | - |
-| **EmbyService** | - | - | - | - | - | - | - | - |
-| **TranscodeService** | - | - | - | - | - | - | - | - |
-| **DoubanService** | - | - | - | - | - | - | - | - |
+| 调用方 ↓ / 被调用方 → | TaskStore | EmbyService | TranscodeService | ConfigStore | MediaLibraryService | StrategyEngine | SmartTaskEngine | DeleteFlowExecutor | TranscodeFlowExecutor | UpgradeFlowExecutor |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **API 层** | createTask / getTasks | getLibraryItem | - | loadConfig / patchConfig | getLibrary / updateRatings / upsertItems | - | - | - | - | - |
+| **TaskScheduler** | loadTasks / updateTask | - | - | loadConfig | - | - | - | driveTask | driveTask | driveTask |
+| **StrategyEngine** | - | - | - | loadConfig | getLibrary / saveLibrary | - | - | - | - | - |
+| **SmartTaskEngine** | createTask / getTasks | - | - | loadConfig | getLibrary | - | - | - | - | - |
+| **DeleteFlowExecutor** | getTask / updateTask | getLibraryItem / deleteLibraryItem | - | loadConfig | - | - | - | - | - | - |
+| **TranscodeFlowExecutor** | getTask / updateTask | getLibraryItem | precheck / startEncode / probeSummary / replaceWithRetries | loadConfig | - | - | - | - | - | - |
+| **UpgradeFlowExecutor** | getTask / updateTask | - | - | loadConfig | - | - | - | - | - | - |
+| **MediaLibraryService** | - | - | - | loadConfig | - | - | - | - | - | - |
 
-> 注：所有子模块均通过同步函数调用通信，无消息队列或事件总线。Flow Executors 与 EmbyService / TranscodeService 的详细交互在 `SERVICE/TASK_SCHEDULER.md` 和各 Flow 文档中描述。
+> 注：所有子模块均通过同步函数调用通信，无消息队列或事件总线。Flow Executors 与 EmbyService / TranscodeService 的详细交互在 `SERVICE/TASK_SCHEDULER.md` 和各 Flow 文档中描述。DoubanService 仅被 MediaLibraryService 的内部定时器调用，不在此矩阵中体现。
+
+---
 
 ## §5 数据持有权
 
-| 数据 | 持有子模块 | 说明 |
+| 数据 | 持有 / 写入模块 | 说明 |
 |---|---|---|
 | 任务队列 | TaskStore | data/tasks.json |
 | 配置 | ConfigStore | data/config.json |
-| 媒体库表 | MediaLibraryService | data/library.json（统一媒体库表，含 Emby 数据、豆瓣评分、用户评分） |
+| 媒体库元数据（name, bitrate, watched...） | MediaLibraryService（协调）+ EmbyAdapter（拉取） | data/library.json |
+| 媒体库策略字段（action, reason） | StrategyEngine | data/library.json（仅写 action/reason，不改其他字段） |
 | Emby 连接 | ConfigStore + EmbyService | ConfigStore 持有配置，EmbyService 持有连接状态缓存 |
 | 转码进度 | TranscodeService（内存） | encodeJobs Map，进程退出后丢失 |
+
+---
 
 ## §6 子模块索引
 
@@ -357,6 +390,8 @@ desktop GET /v1/library/queries/manage
 | 媒体库管理 | `SERVICE/MEDIA_LIBRARY.md` | v2 重写中 |
 | Emby 适配器 | `SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` | v2 重写中 |
 | 豆瓣适配器 | `SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` | v2 重写中 |
+| 策略计算引擎 | `SERVICE/STRATEGY_ENGINE.md` | v2 设计中 |
+| 智能入队引擎 | `SERVICE/SMART_TASK_ENGINE.md` | v2 设计中 |
 | 健康检查 | `SERVICE/HEALTH_CHECK.md` | v2 重写中 |
 | 配置与路径映射 | `SERVICE/CONFIG.md` | v2 定稿 |
 | Web 管理端 | `SERVICE/ADMIN_WEB.md` | v2 定稿 |

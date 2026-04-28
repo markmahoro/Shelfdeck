@@ -15,6 +15,8 @@ const mediaLibraryService = require('./mediaLibraryService');
 const embyService = require('./services/embyService');
 const doubanService = require('./services/doubanService');
 const transcodeService = require('./services/transcodeService');
+const strategyEngine = require('./strategyEngine');
+const smartTaskEngine = require('./smartTaskEngine');
 
 let serverReady = false;
 
@@ -372,6 +374,10 @@ function registerRoutes(app) {
     try {
       await embyService.markPlayed(resolved.serverConfig, itemId);
 
+      // Fetch single item from Emby to get updated watched status
+      const fetchedItem = await embyService.getItem(resolved.serverConfig, itemId);
+      mediaLibraryService.upsertItems(resolved.subLib.uuid, [fetchedItem]);
+
       // Write to local playback log
       const libItem = mediaLibraryService.getLibraryItem(itemId);
       const baseUrl = (resolved.serverConfig.baseUrl || '').replace(/\/$/, '');
@@ -402,6 +408,11 @@ function registerRoutes(app) {
 
     try {
       await embyService.markUnplayed(resolved.serverConfig, itemId);
+
+      // Fetch single item from Emby to get updated watched status
+      const fetchedItem = await embyService.getItem(resolved.serverConfig, itemId);
+      mediaLibraryService.upsertItems(resolved.subLib.uuid, [fetchedItem]);
+
       removePlaybackEntry(itemId);
       return { ok: true };
     } catch (e) {
@@ -787,12 +798,16 @@ async function buildApp(opts = {}) {
     taskScheduler.stopScheduler();
     healthCheck.stopHealthCheckTimer();
     mediaLibraryService.stopAllTimers();
+    strategyEngine.stop();
+    smartTaskEngine.stop();
   });
 
   // Start health check timer and subLibrary timers
   healthCheck.startHealthCheckTimer();
   mediaLibraryService.startAllSubLibraryTimers();
   taskScheduler.startScheduler();
+  strategyEngine.start(configStore, mediaLibraryService);
+  smartTaskEngine.start(configStore, mediaLibraryService, taskStore);
 
   const errorHandler = (err, req, reply) => {
     req.log.error(err);

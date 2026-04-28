@@ -14,7 +14,6 @@ const path = require('path');
 const crypto = require('crypto');
 
 const configStore = require('./configStore');
-const mediaPolicyService = require('./mediaPolicyService');
 const doubanMatchService = require('./doubanMatchService');
 const embyService = require('./services/embyService');
 const doubanService = require('./services/doubanService');
@@ -67,7 +66,6 @@ function upsertItems(subLibraryId, incomingItems) {
   const lib = loadLibrary();
   const now = new Date().toISOString();
   let upserted = 0;
-  let changedItemIds = [];
 
   for (const incoming of incomingItems) {
     const existingIdx = lib.items.findIndex(
@@ -91,17 +89,6 @@ function upsertItems(subLibraryId, incomingItems) {
         watched: incoming.watched != null ? incoming.watched : existing.watched,
         lastRefreshedAt: now,
       };
-      // Diff detection
-      if (
-        merged.bitrate !== existing.bitrate ||
-        merged.size !== existing.size ||
-        merged.duration !== existing.duration ||
-        merged.resolution !== existing.resolution ||
-        merged.doubanRating !== existing.doubanRating ||
-        merged.userRating !== existing.userRating
-      ) {
-        changedItemIds.push(merged.itemId);
-      }
       lib.items[existingIdx] = merged;
       upserted++;
     } else {
@@ -125,7 +112,7 @@ function upsertItems(subLibraryId, incomingItems) {
         watched: incoming.watched || false,
         doubanId: null,
         doubanRating: null,
-        doubanSyncedAt: null,
+        doubanRatingUpdatedAt: null,
         userRating: null,
         userRatingUpdatedAt: null,
         lastRefreshedAt: now,
@@ -133,7 +120,6 @@ function upsertItems(subLibraryId, incomingItems) {
         reason: '新入库',
       };
       lib.items.push(newItem);
-      changedItemIds.push(newItem.itemId);
       upserted++;
     }
   }
@@ -147,24 +133,12 @@ function upsertItems(subLibraryId, incomingItems) {
     (it) => !(it.subLibraryId === subLibraryId && it.source === 'emby' && !incomingIds.has(it.sourceId)),
   );
 
-  // Recalculate strategy for changed items
-  const cfg = configStore.loadConfig();
-  const subLib = (cfg.subLibraries || []).find((s) => s.uuid === subLibraryId);
-  const policy = subLib && subLib.mediaPolicy ? subLib.mediaPolicy : cfg.mediaPolicy;
-
-  for (const itemId of changedItemIds) {
-    const item = lib.items.find((it) => it.itemId === itemId);
-    if (item && policy) {
-      const { action, reason } = mediaPolicyService.recommendedAction(item, policy);
-      item.action = action;
-      item.reason = reason;
-    }
-  }
-
   lib.cachedAt = now;
   saveLibrary(lib);
 
   // Update subLibrary lastRefreshedAt
+  const cfg = configStore.loadConfig();
+  const subLib = (cfg.subLibraries || []).find((s) => s.uuid === subLibraryId);
   if (subLib) {
     const subLibs = cfg.subLibraries || [];
     const idx = subLibs.findIndex((s) => s.uuid === subLibraryId);
@@ -185,16 +159,6 @@ function updateUserRating(itemId, userRating) {
 
   item.userRating = userRating;
   item.userRatingUpdatedAt = new Date().toISOString();
-
-  // Recalculate strategy
-  const cfg = configStore.loadConfig();
-  const subLib = (cfg.subLibraries || []).find((s) => s.uuid === item.subLibraryId);
-  const policy = subLib && subLib.mediaPolicy ? subLib.mediaPolicy : cfg.mediaPolicy;
-  if (policy) {
-    const { action, reason } = mediaPolicyService.recommendedAction(item, policy);
-    item.action = action;
-    item.reason = reason;
-  }
 
   saveLibrary(lib);
   return item;
@@ -335,7 +299,7 @@ async function syncDoubanForSubLibrary(subLib) {
       const stars = doubanMatchService.movieDoubanStars(item.name, 'Movie', byNormTitle);
       if (stars !== null && item.doubanRating !== stars) {
         item.doubanRating = stars;
-        item.doubanSyncedAt = now;
+        item.doubanRatingUpdatedAt = now;
         changed = true;
 
         // Find matching douban entry for doubanId
@@ -345,16 +309,6 @@ async function syncDoubanForSubLibrary(subLib) {
           return embyKeys.some((ek) => keys.includes(ek));
         });
         if (matchedEntry) item.doubanId = matchedEntry.subjectId;
-
-        // Recalculate strategy
-        const cfg = configStore.loadConfig();
-        const sl = (cfg.subLibraries || []).find((s) => s.uuid === item.subLibraryId);
-        const policy = sl && sl.mediaPolicy ? sl.mediaPolicy : cfg.mediaPolicy;
-        if (policy) {
-          const { action, reason } = mediaPolicyService.recommendedAction(item, policy);
-          item.action = action;
-          item.reason = reason;
-        }
       }
     }
 
@@ -442,6 +396,7 @@ module.exports = {
   getLibraryItem,
   upsertItems,
   updateUserRating,
+  saveLibrary,
   getLibraryStatus,
 
   // SubLibrary CRUD

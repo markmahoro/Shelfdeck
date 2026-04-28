@@ -38,6 +38,8 @@
 | Emby 适配器 | `design/SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` | v2 重写中 |
 | 豆瓣适配器 | `design/SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` | v2 重写中 |
 | 健康检查 | `design/SERVICE/HEALTH_CHECK.md` | v2 重写中 |
+| 智能入队引擎 | `design/SERVICE/SMART_TASK_ENGINE.md` | v2 设计中 |
+| 策略计算引擎 | `design/SERVICE/STRATEGY_ENGINE.md` | v2 设计中 |
 | Web 管理端总览 | `design/SERVICE/ADMIN_WEB.md` | v2 定稿 |
 | Admin API 端点 | `design/SERVICE/ADMIN_WEB/API.md` | v2 定稿 |
 | Admin 页面结构 | `design/SERVICE/ADMIN_WEB/PAGES.md` | v2 定稿 |
