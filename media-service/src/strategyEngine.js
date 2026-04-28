@@ -9,6 +9,7 @@
  */
 
 const mediaPolicyService = require('./mediaPolicyService');
+const activityLog = require('./activityLog');
 
 let timer = null;
 
@@ -48,7 +49,9 @@ function start(configStore, mediaLibraryService) {
 
       if (changed > 0) {
         mediaLibraryService.saveLibrary(lib);
-        console.log(`[strategyEngine] recalculated ${changed} items`);
+        const msg = `策略重新计算完成，${changed} 个条目的推荐操作已更新`;
+        console.log(`[strategyEngine] ${msg}`);
+        activityLog.addActivity('strategy_engine', msg, { changed });
       }
     } catch (e) {
       console.error('[strategyEngine] error:', e.message);

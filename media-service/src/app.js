@@ -17,6 +17,7 @@ const doubanService = require('./services/doubanService');
 const transcodeService = require('./services/transcodeService');
 const strategyEngine = require('./strategyEngine');
 const smartTaskEngine = require('./smartTaskEngine');
+const activityLog = require('./activityLog');
 
 let serverReady = false;
 
@@ -380,11 +381,12 @@ function registerRoutes(app) {
 
       // Write to local playback log
       const libItem = mediaLibraryService.getLibraryItem(itemId);
+      const itemName = (libItem && libItem.name) || fetchedItem.name || itemId;
       const baseUrl = (resolved.serverConfig.baseUrl || '').replace(/\/$/, '');
       const apiKey = (resolved.serverConfig.apiKey || '').trim();
       addPlaybackEntry({
         itemId,
-        itemName: (libItem && libItem.name) || itemId,
+        itemName,
         subLibraryId: resolved.subLib ? resolved.subLib.uuid : (subLibraryId || ''),
         type: (libItem && libItem.type) || 'movie',
         posterUrl: libItem ? `${baseUrl}/Items/${itemId}/Images/Primary?api_key=${apiKey}` : '',
@@ -393,6 +395,7 @@ function registerRoutes(app) {
         sectionName: (resolved.subLib && resolved.subLib.name) || '',
       });
 
+      activityLog.addActivity('user_action', `「${itemName}」已标记为已看`);
       return { ok: true };
     } catch (e) {
       return apiError(reply, 502, 'EMBY_ERROR', e.message);
@@ -463,6 +466,13 @@ function registerRoutes(app) {
     const patch = req.body && typeof req.body === 'object' ? req.body : {};
     const updated = configStore.patchConfig(patch);
     return maskSensitive(updated);
+  });
+
+  // ── Activity Log ────────────────────────────────────────────────────────
+
+  app.get('/v1/activity-log', async (req) => {
+    const count = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50);
+    return { entries: activityLog.getRecent(count) };
   });
 
   // ── Douban Integration ──────────────────────────────────────────────────

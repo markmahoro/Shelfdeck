@@ -228,6 +228,16 @@ class ApiClient {
     if (!r.ok) throw new Error(`Failed to get douban cache: HTTP ${r.status}`);
     return r.json();
   }
+
+  // ── Activity Log ──
+
+  async getActivityLog(limit?: number): Promise<ActivityEntry[]> {
+    const url = `${this.getBaseUrl()}/v1/activity-log?limit=${limit || 5}`;
+    const r = await fetch(url, { headers: this.getHeaders() });
+    if (!r.ok) return [];
+    const data = await r.json();
+    return (data as { entries: ActivityEntry[] }).entries ?? [];
+  }
 }
 
 export type PlaybackLogEntry = {
@@ -258,6 +268,13 @@ export type UnplayedItem = {
   itemType: 'Movie' | 'Episode' | 'Other';
   isBluRayDisc: boolean;
   embyPlayed: boolean;
+};
+
+export type ActivityEntry = {
+  ts: string;
+  source: string;
+  message: string;
+  detail?: Record<string, unknown>;
 };
 
 export const apiClient = new ApiClient();

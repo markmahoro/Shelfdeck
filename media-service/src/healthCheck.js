@@ -9,9 +9,11 @@
 
 const configStore = require('./configStore');
 const embyService = require('./services/embyService');
+const activityLog = require('./activityLog');
 
 let lastResult = null;
 let checkTimer = null;
+let lastEmbyStatus = null; // Track emby status for change detection
 
 function getUptime() {
   return Math.floor(process.uptime());
@@ -97,6 +99,17 @@ async function runAllChecks() {
     checkEmby(),
     Promise.resolve(checkScheduler()),
   ]);
+
+  // Detect Emby status changes and emit activity events
+  if (lastEmbyStatus !== null && lastEmbyStatus !== emby.status) {
+    if (emby.status === 'red') {
+      activityLog.addActivity('health', `Emby 服务器连接异常：${emby.message || '无法连接'}`);
+    } else if (emby.status === 'green' && lastEmbyStatus === 'red') {
+      activityLog.addActivity('health', 'Emby 服务器连接已恢复');
+    }
+  }
+  lastEmbyStatus = emby.status;
+
   return {
     status: aggregate({ service, config, emby, scheduler }),
     checks: { service, config, emby, scheduler },

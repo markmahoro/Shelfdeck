@@ -202,6 +202,20 @@ export const systemConfig = {
     patch<SystemConfig>('/v1/config', body),
 };
 
+// ── Activity Log ─────────────────────────────────────────────────────────────────
+
+export interface ActivityEntry {
+  ts: string;
+  source: string;
+  message: string;
+  detail?: Record<string, unknown>;
+}
+
+export const activityLog = {
+  getRecent: (limit?: number) =>
+    get<{ entries: ActivityEntry[] }>(`/v1/activity-log?limit=${limit || 20}`),
+};
+
 // ── Douban ─────────────────────────────────────────────────────────────────────
 
 export const douban = {

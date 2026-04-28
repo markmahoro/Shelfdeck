@@ -9,6 +9,8 @@
  * Decoupled from StrategyEngine — only reads action/reason, never writes them.
  */
 
+const activityLog = require('./activityLog');
+
 let timer = null;
 let lastRunAt = null;
 
@@ -27,7 +29,11 @@ function start(configStore, mediaLibraryService, taskStore) {
     try {
       const cfg2 = configStore.loadConfig();
       if (!cfg2.wallRatingAutoEnqueue) {
-        if (!lastRunAt) console.log('[smartTaskEngine] waiting — wallRatingAutoEnqueue is false');
+        if (!lastRunAt) {
+          const msg = '智能入队未启用，请在系统设置中开启 wallRatingAutoEnqueue';
+          console.log(`[smartTaskEngine] ${msg}`);
+          activityLog.addActivity('smart_task_engine', msg);
+        }
         return;
       }
 
@@ -103,7 +109,17 @@ function start(configStore, mediaLibraryService, taskStore) {
       }
 
       if (toEnqueue.length > 0) {
-        console.log(`[smartTaskEngine] enqueued ${toEnqueue.length} tasks (${candidates.length} candidates total)`);
+        const byAction = {};
+        for (const item of toEnqueue) {
+          byAction[item.action] = (byAction[item.action] || 0) + 1;
+        }
+        const parts = Object.entries(byAction).map(([a, n]) => {
+          const label = a === 'transcode' ? '码率压缩' : a === 'upgrade' ? '洗版' : a === 'delete' ? '删除' : a;
+          return `${label} ${n} 个`;
+        });
+        const msg = `智能入队：${toEnqueue.length} 个任务已自动创建（${parts.join('，')}）`;
+        console.log(`[smartTaskEngine] ${msg} (${candidates.length} candidates total)`);
+        activityLog.addActivity('smart_task_engine', msg, { enqueued: toEnqueue.length, byAction, totalCandidates: candidates.length });
       }
 
       lastRunAt = now;

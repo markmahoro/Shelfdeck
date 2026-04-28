@@ -18,6 +18,7 @@ const deleteFlow = require('./deleteFlowExecutor');
 const transcodeFlow = require('./transcodeFlowExecutor');
 const upgradeFlow = require('./upgradeFlowExecutor');
 const healthCheck = require('./healthCheck');
+const activityLog = require('./activityLog');
 
 let schedulerInterval = null;
 let schedulerRunning = false;
@@ -52,9 +53,27 @@ function pauseForConfirm(taskId, resumePoint) {
 }
 
 function reportStatus(taskId, status, progress) {
+  const oldTask = taskStore.getTask(taskId);
   const updates = { status };
   if (typeof progress === 'number') updates.progress = progress;
   taskStore.updateTask(taskId, updates);
+
+  // Activity log events for task lifecycle
+  if (oldTask) {
+    const name = oldTask.itemName || oldTask.itemId;
+    const actionLabel = oldTask.actionType === 'transcode' ? '码率压缩' : oldTask.actionType === 'upgrade' ? '洗版' : oldTask.actionType === 'delete' ? '删除' : oldTask.actionType;
+
+    if (status === 'executing' && oldTask.status !== 'executing') {
+      activityLog.addActivity('task', `任务「${name}」开始${actionLabel}…`, { taskId, actionType: oldTask.actionType });
+    }
+    if (status === 'done') {
+      activityLog.addActivity('task', `任务「${name}」${actionLabel}完成 ✓`, { taskId, actionType: oldTask.actionType });
+    }
+    if (status === 'failed_hard') {
+      activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, actionType: oldTask.actionType });
+    }
+  }
+
   if (status === 'done' || status === 'failed_hard' || status === 'interrupted' || status === 'paused') {
     runningTasks.delete(taskId);
   }

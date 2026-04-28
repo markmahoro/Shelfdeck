@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { health, tasks, subLibraries, emby } from '../api/client';
+import { health, tasks, subLibraries, emby, activityLog } from '../api/client';
+import type { ActivityEntry } from '../api/client';
 import type { SubLibrary, EmbyUser, MediaFolder, MediaTask } from '../types';
 import HealthCard from '../components/HealthCard';
 import Modal from '../components/Modal';
@@ -58,6 +59,12 @@ export default function DashboardPage() {
   const { data: slData, isLoading: slLoading } = useQuery({
     queryKey: ['sublibraries'],
     queryFn: subLibraries.list,
+  });
+
+  const { data: activityData } = useQuery({
+    queryKey: ['activity-log'],
+    queryFn: () => activityLog.getRecent(10),
+    refetchInterval: 15000,
   });
 
   const { data: userData } = useQuery({
@@ -258,6 +265,35 @@ export default function DashboardPage() {
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* Real-time Activity Log */}
+      <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginTop: 24 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: '#1a1a2e' }}>实时日志</h3>
+        {!activityData?.entries || activityData.entries.length === 0 ? (
+          <p style={{ color: '#888', fontSize: 14 }}>暂无活动记录</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(activityData.entries as ActivityEntry[]).slice(0, 15).map((entry, i) => {
+              const ts = new Date(entry.ts);
+              const timeStr = ts.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+              const sourceLabel =
+                entry.source === 'media_library' ? '媒体库' :
+                entry.source === 'strategy_engine' ? '策略引擎' :
+                entry.source === 'smart_task_engine' ? '智能入队' :
+                entry.source === 'task' ? '任务' :
+                entry.source === 'health' ? '健康' :
+                entry.source === 'user_action' ? '用户' : entry.source;
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, lineHeight: 1.5 }}>
+                  <span style={{ color: '#888', whiteSpace: 'nowrap', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span>
+                  <span style={{ color: '#1a1a2e', fontWeight: 500, flexShrink: 0 }}>[{sourceLabel}]</span>
+                  <span style={{ color: '#333' }}>{entry.message}</span>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 

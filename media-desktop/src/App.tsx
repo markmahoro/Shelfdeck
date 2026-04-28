@@ -15,9 +15,10 @@ import SettingsPanel from './settings/SettingsPanel';
 import WallPage from './pages/WallPage';
 import MediaManagePage from './pages/MediaManagePage';
 import HistoryPage from './pages/HistoryPage';
+import ActivityLogPage from './pages/ActivityLogPage';
 import type { MediaTask } from './models/task';
 
-export type AppPage = 'wall' | 'mediaManage' | 'history';
+export type AppPage = 'wall' | 'mediaManage' | 'history' | 'activityLog';
 
 export type SubLibraryInfo = {
   uuid: string;
@@ -69,6 +70,7 @@ export default function App() {
         {page === 'wall' && <WallPage tasks={tasks} subLibraryId={subLibraryId} />}
         {page === 'mediaManage' && <MediaManagePage tasks={tasks} subLibraryId={subLibraryId} />}
         {page === 'history' && <HistoryPage subLibraryId={subLibraryId} />}
+        {page === 'activityLog' && <ActivityLogPage />}
       </ConnectionGate>
 
       <FloatingTaskButton baseUrl={baseUrl} />

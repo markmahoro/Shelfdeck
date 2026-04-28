@@ -8,6 +8,7 @@ const MAIN_NAV: { id: AppPage; label: string }[] = [
   { id: 'wall', label: '海报墙' },
   { id: 'mediaManage', label: '媒体库管理' },
   { id: 'history', label: '播放记录' },
+  { id: 'activityLog', label: '实时日志' },
 ];
 
 export default function TopNav({

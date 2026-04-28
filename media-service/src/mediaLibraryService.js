@@ -17,6 +17,7 @@ const configStore = require('./configStore');
 const doubanMatchService = require('./doubanMatchService');
 const embyService = require('./services/embyService');
 const doubanService = require('./services/doubanService');
+const activityLog = require('./activityLog');
 
 function resolveDataDir() {
   return (
@@ -161,6 +162,7 @@ function updateUserRating(itemId, userRating) {
   item.userRatingUpdatedAt = new Date().toISOString();
 
   saveLibrary(lib);
+  activityLog.addActivity('user_action', `「${item.name}」已评分 ${'★'.repeat(userRating)}`);
   return item;
 }
 
@@ -261,6 +263,7 @@ function stopSubLibraryTimers(uuid) {
 }
 
 async function refreshSubLibrary(subLib) {
+  const name = subLib.name || subLib.uuid;
   try {
     const cfg = configStore.loadConfig();
     const server = (cfg.embyServers || {})[subLib.embyServerId];
@@ -268,28 +271,43 @@ async function refreshSubLibrary(subLib) {
       console.log('[mediaLibrary] skip refresh: no server config for', subLib.uuid);
       return;
     }
+    activityLog.addActivity('media_library', `正在刷新子库「${name}」…`);
+    const beforeCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
     const items = await embyService.getLibraryItems(server, subLib.sectionId);
-    upsertItems(subLib.uuid, items);
+    const result = upsertItems(subLib.uuid, items);
+    const afterCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
+    const newItems = Math.max(0, afterCount - beforeCount + result.removed);
+    const msg = newItems > 0
+      ? `子库「${name}」刷新完成，${newItems} 个新媒体入库，${result.removed} 个已清理`
+      : `子库「${name}」刷新完成，无新增内容`;
+    activityLog.addActivity('media_library', msg, { subLibraryId: subLib.uuid, itemCount: items.length, newItems, removed: result.removed });
     console.log('[mediaLibrary] refreshed', subLib.uuid, 'items:', items.length);
   } catch (e) {
+    activityLog.addActivity('media_library', `子库「${name}」刷新失败：${e.message}`);
     console.error('[mediaLibrary] refresh error for', subLib.uuid, e.message);
   }
 }
 
 async function syncDoubanForSubLibrary(subLib) {
+  const name = subLib.name || subLib.uuid;
   try {
     // Fetch douban ratings — credentials come from douban-session.json
     const session = doubanService.getSession();
     if (!session.userId) return;
 
+    activityLog.addActivity('media_library', `正在同步子库「${name}」的豆瓣评分…`);
     const { entries } = await doubanService.fetchRatings(null);
-    if (!entries || entries.length === 0) return;
+    if (!entries || entries.length === 0) {
+      activityLog.addActivity('media_library', `子库「${name}」豆瓣评分同步完成，无豆瓣数据`);
+      return;
+    }
 
     const byNormTitle = doubanMatchService.buildDoubanStarsByNormalizedTitle(entries);
 
     // Match against library items for this subLibrary
     const lib = loadLibrary();
-    let changed = false;
+    let matchedCount = 0;
+    let newRatingCount = 0;
     const now = new Date().toISOString();
 
     for (const item of lib.items) {
@@ -297,22 +315,25 @@ async function syncDoubanForSubLibrary(subLib) {
       if (item.type !== 'movie') continue;
 
       const stars = doubanMatchService.movieDoubanStars(item.name, 'Movie', byNormTitle);
-      if (stars !== null && item.doubanRating !== stars) {
-        item.doubanRating = stars;
-        item.doubanRatingUpdatedAt = now;
-        changed = true;
+      if (stars !== null) {
+        matchedCount++;
+        if (item.doubanRating !== stars) {
+          item.doubanRating = stars;
+          item.doubanRatingUpdatedAt = now;
+          newRatingCount++;
 
-        // Find matching douban entry for doubanId
-        const matchedEntry = entries.find((e) => {
-          const keys = doubanMatchService.doubanTitleNormalizedKeys(e.title);
-          const embyKeys = doubanMatchService.embyTitleNormalizedKeys(item.name);
-          return embyKeys.some((ek) => keys.includes(ek));
-        });
-        if (matchedEntry) item.doubanId = matchedEntry.subjectId;
+          // Find matching douban entry for doubanId
+          const matchedEntry = entries.find((e) => {
+            const keys = doubanMatchService.doubanTitleNormalizedKeys(e.title);
+            const embyKeys = doubanMatchService.embyTitleNormalizedKeys(item.name);
+            return embyKeys.some((ek) => keys.includes(ek));
+          });
+          if (matchedEntry) item.doubanId = matchedEntry.subjectId;
+        }
       }
     }
 
-    if (changed) {
+    if (newRatingCount > 0) {
       saveLibrary(lib);
     }
 
@@ -325,8 +346,11 @@ async function syncDoubanForSubLibrary(subLib) {
       configStore.patchConfig({ subLibraries: subLibs });
     }
 
+    const msg = `子库「${name}」豆瓣评分同步完成，${matchedCount} 个匹配，${newRatingCount} 个新评分`;
+    activityLog.addActivity('media_library', msg, { subLibraryId: subLib.uuid, matched: matchedCount, newRatings: newRatingCount });
     console.log('[mediaLibrary] douban synced for', subLib.uuid);
   } catch (e) {
+    activityLog.addActivity('media_library', `子库「${name}」豆瓣评分同步失败：${e.message}`);
     console.error('[mediaLibrary] douban sync error for', subLib.uuid, e.message);
   }
 }
