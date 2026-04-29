@@ -4,7 +4,6 @@
   display: flex;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
   align-items: stretch;
   color: #1f2937;
 }
@@ -155,12 +154,12 @@
 .mediaManageGrid {
   display: grid;
   grid-template-columns:
-    minmax(12rem, 1.35fr) 4.5rem 3.5rem 5.5rem 5.5rem 5.5rem 6.75rem minmax(7.25rem, 9.5rem) minmax(6.25rem, 8.5rem) 4rem
-    5.75rem minmax(17rem, 1.35fr);
-  gap: 8px 12px;
+    minmax(7rem, 1fr) 3.5rem 2.5rem 4rem 4rem 4rem 5rem minmax(5rem, 7rem) minmax(4.5rem, 6rem) 2.5rem
+    4.5rem minmax(12rem, 1fr);
+  gap: 6px 8px;
   align-items: center;
-  padding: 10px 12px;
-  font-size: 13px;
+  padding: 8px 10px;
+  font-size: 12px;
   color: #374151;
 }
 
