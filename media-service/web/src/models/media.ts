@@ -15,6 +15,7 @@ export type ManagedMediaItem = {
   rating: MediaRating | null;
   doubanStars: MediaRating | null;
   watched: boolean;
+  reason?: string;
   recommendedAction?: MediaAction;
   equivalentBitrate?: number;
   targetBitrate?: number;

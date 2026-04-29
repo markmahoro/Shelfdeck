@@ -114,12 +114,8 @@ function MediaLibraryManageRowInner({
         </button>
       </div>
       <div>
-        {item.doubanStars == null && item.rating == null ? (
-          <span className="hint">需评分</span>
-        ) : action === 'delete' && item.isBluRayDisc ? (
-          <span className="hint">原盘不删</span>
-        ) : action === 'keep' ? (
-          <span className="hint">已达标</span>
+        {action === 'keep' ? (
+          <span className="hint" title={item.reason}>{item.reason || '已达标'}</span>
         ) : (
           <button
             type="button"

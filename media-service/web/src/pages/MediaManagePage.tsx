@@ -387,6 +387,7 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
     rating: typeof o.userRating === 'number' ? (o.userRating as MediaRating) : null,
     doubanStars: typeof o.doubanRating === 'number' ? (o.doubanRating as MediaRating) : null,
     watched: Boolean(o.watched),
+    reason: typeof o.reason === 'string' ? o.reason : undefined,
     recommendedAction: typeof o.action === 'string' ? (o.action as MediaAction) : undefined,
     equivalentBitrate: typeof o.equivalentBitrate === 'number' ? o.equivalentBitrate : undefined,
     targetBitrate: typeof o.targetBitrate === 'number' ? o.targetBitrate : undefined,
