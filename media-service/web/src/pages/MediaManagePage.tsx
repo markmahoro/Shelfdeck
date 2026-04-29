@@ -20,6 +20,9 @@ export default function MediaManagePage() {
   const [codecFilter, setCodecFilter] = useState<string>('all');
   const [watchedFilter, setWatchedFilter] = useState<string>('all');
   const [bluRayFilter, setBluRayFilter] = useState<string>('all');
+  const [doubanFilter, setDoubanFilter] = useState<string>('all');
+  const [localRatingFilter, setLocalRatingFilter] = useState<string>('all');
+  const [taskFilter, setTaskFilter] = useState<string>('all');
   const [activeSubLibName, setActiveSubLibName] = useState<string>('全部');
 
   // Fetch subLibrary list
@@ -85,8 +88,23 @@ export default function MediaManagePage() {
       const isDisc = bluRayFilter === 'disc';
       rows = rows.filter((it) => it.isBluRayDisc === isDisc);
     }
+    if (doubanFilter !== 'all') {
+      if (doubanFilter === 'none') rows = rows.filter((it) => it.doubanStars == null);
+      else rows = rows.filter((it) => it.doubanStars === Number(doubanFilter));
+    }
+    if (localRatingFilter !== 'all') {
+      if (localRatingFilter === 'none') rows = rows.filter((it) => it.rating == null);
+      else rows = rows.filter((it) => it.rating === Number(localRatingFilter));
+    }
+    if (taskFilter === 'active') {
+      const activeIds = new Set(tasks.filter((t) => !['done', 'failed_hard'].includes(t.status)).map((t) => t.itemId));
+      rows = rows.filter((it) => activeIds.has(it.id));
+    } else if (taskFilter === 'none') {
+      const activeIds = new Set(tasks.filter((t) => !['done', 'failed_hard'].includes(t.status)).map((t) => t.itemId));
+      rows = rows.filter((it) => !activeIds.has(it.id));
+    }
     return rows;
-  }, [items, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter]);
+  }, [items, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, tasks]);
 
   const enqueueManagedAction = (item: ManagedMediaItem, action: MediaAction) => {
     if (item.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) return;
@@ -165,8 +183,31 @@ export default function MediaManagePage() {
           <option value="disc">原盘</option>
           <option value="not_disc">非原盘</option>
         </select>
+        <select value={doubanFilter} onChange={(e) => setDoubanFilter(e.target.value)}>
+          <option value="all">全部豆瓣评分</option>
+          <option value="5">5 星</option>
+          <option value="4">4 星</option>
+          <option value="3">3 星</option>
+          <option value="2">2 星</option>
+          <option value="1">1 星</option>
+          <option value="none">未抓取</option>
+        </select>
+        <select value={localRatingFilter} onChange={(e) => setLocalRatingFilter(e.target.value)}>
+          <option value="all">全部本地评分</option>
+          <option value="5">5 星</option>
+          <option value="4">4 星</option>
+          <option value="3">3 星</option>
+          <option value="2">2 星</option>
+          <option value="1">1 星</option>
+          <option value="none">未标注</option>
+        </select>
+        <select value={taskFilter} onChange={(e) => setTaskFilter(e.target.value)}>
+          <option value="all">全部任务</option>
+          <option value="active">有进行中任务</option>
+          <option value="none">无任务</option>
+        </select>
 
-        {(searchQuery || actionFilter !== 'all' || resolutionFilter !== 'all' || codecFilter !== 'all' || watchedFilter !== 'all' || bluRayFilter !== 'all') && (
+        {(searchQuery || actionFilter !== 'all' || resolutionFilter !== 'all' || codecFilter !== 'all' || watchedFilter !== 'all' || bluRayFilter !== 'all' || doubanFilter !== 'all' || localRatingFilter !== 'all' || taskFilter !== 'all') && (
           <button
             className="sidebarFilterReset"
             type="button"
@@ -177,6 +218,9 @@ export default function MediaManagePage() {
               setCodecFilter('all');
               setWatchedFilter('all');
               setBluRayFilter('all');
+              setDoubanFilter('all');
+              setLocalRatingFilter('all');
+              setTaskFilter('all');
             }}
           >
             清除筛选
