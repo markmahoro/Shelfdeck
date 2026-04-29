@@ -114,9 +114,13 @@ function MediaLibraryManageRowInner({
         </button>
       </div>
       <div>
-        {action === 'keep' || (action === 'delete' && item.isBluRayDisc) ? (
-          <span className="hint">{action === 'delete' ? '原盘不删' : '已达标'}</span>
-        ) : ACTION_LABEL[action] ? (
+        {item.doubanStars == null && item.rating == null ? (
+          <span className="hint">需评分</span>
+        ) : action === 'delete' && item.isBluRayDisc ? (
+          <span className="hint">原盘不删</span>
+        ) : action === 'keep' ? (
+          <span className="hint">已达标</span>
+        ) : (
           <button
             type="button"
             disabled={actionDisabled}
@@ -125,8 +129,6 @@ function MediaLibraryManageRowInner({
           >
             {ACTION_LABEL[action]}
           </button>
-        ) : (
-          <span className="hint">需评分</span>
         )}
       </div>
       <div className="tabular-nums" style={{ fontSize: 12 }}>
