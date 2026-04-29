@@ -1,4 +1,4 @@
-/* ── MediaManage page styles ── */
+/* ── MediaManage page styles (admin-web light theme) ── */
 
 .page {
   display: flex;
@@ -6,13 +6,14 @@
   min-height: 0;
   overflow: hidden;
   align-items: stretch;
+  color: #1f2937;
 }
 
 .pageSidebar {
   width: 272px;
   flex-shrink: 0;
-  border-right: 1px solid #1f2937;
-  background: #0f172a;
+  border-right: 1px solid #e5e7eb;
+  background: #f9fafb;
   padding: 16px;
   overflow-y: auto;
   min-width: 220px;
@@ -22,7 +23,7 @@
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  background: #111827;
+  background: #fff;
 }
 
 .pageMainInner {
@@ -32,7 +33,7 @@
 
 .sidebarMuted {
   font-size: 11px;
-  opacity: 0.55;
+  color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 8px;
@@ -47,16 +48,17 @@
   width: 100%;
   padding: 6px 28px 6px 8px;
   font-size: 13px;
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: #fff;
+  border: 1px solid #d1d5db;
   border-radius: 4px;
-  color: #e2e8f0;
+  color: #1f2937;
   outline: none;
   box-sizing: border-box;
 }
 
 .sidebarSearch:focus {
   border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
 }
 
 .sidebarSearchClear {
@@ -66,7 +68,7 @@
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #94a3b8;
+  color: #9ca3af;
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
@@ -75,8 +77,8 @@
 }
 
 .sidebarSearchClear:hover {
-  color: #e2e8f0;
-  background: #334155;
+  color: #4b5563;
+  background: #e5e7eb;
 }
 
 .sidebarFilterReset {
@@ -86,15 +88,15 @@
   padding: 4px 8px;
   font-size: 12px;
   background: transparent;
-  border: 1px dashed #475569;
+  border: 1px dashed #d1d5db;
   border-radius: 4px;
-  color: #94a3b8;
+  color: #6b7280;
   cursor: pointer;
 }
 
 .sidebarFilterReset:hover {
-  color: #e2e8f0;
-  border-color: #94a3b8;
+  color: #374151;
+  border-color: #9ca3af;
 }
 
 .pageSidebar select {
@@ -102,42 +104,41 @@
   margin-bottom: 8px;
   padding: 6px 8px;
   font-size: 13px;
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: #fff;
+  border: 1px solid #d1d5db;
   border-radius: 4px;
-  color: #e2e8f0;
+  color: #1f2937;
   outline: none;
   cursor: pointer;
 }
 
 .pageSidebar select:focus {
   border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
 }
 
 .tabular-nums { font-variant-numeric: tabular-nums; }
-.hint { font-size: 12px; opacity: .7; }
-.error { color: #fca5a5; }
+.hint { font-size: 12px; color: #6b7280; }
+.error { color: #dc2626; }
 
-button {
-  border: 1px solid #374151;
-  color: #fff;
-  background: #111827;
-  border-radius: 8px;
-  padding: 8px 12px;
+.pageSidebar button {
+  border: 1px solid #d1d5db;
+  color: #374151;
+  background: #fff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
   cursor: pointer;
 }
 
-button:disabled {
-  opacity: .5;
-  cursor: not-allowed;
+.pageSidebar button:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
 }
 
-.selectLike {
-  border: 1px solid #374151;
-  color: #fff;
-  background: #111827;
-  border-radius: 8px;
-  padding: 8px 12px;
+.pageSidebar button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
 }
 
 /* ── Media manage grid ── */
@@ -145,8 +146,8 @@ button:disabled {
 .mediaManageHead {
   font-weight: 700;
   font-size: 12px;
-  opacity: 0.88;
-  border-bottom: 1px solid #1f2937;
+  color: #6b7280;
+  border-bottom: 2px solid #e5e7eb;
   padding-bottom: 10px;
   margin-bottom: 4px;
 }
@@ -160,21 +161,25 @@ button:disabled {
   align-items: center;
   padding: 10px 12px;
   font-size: 13px;
+  color: #374151;
 }
 
 .mediaManageRow {
-  border: 1px solid #1f2937;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   margin-bottom: 8px;
-  background: #0b1220;
+  background: #fff;
   content-visibility: auto;
   contain-intrinsic-size: auto 88px;
+}
+
+.mediaManageRow:hover {
+  background: #fafbfc;
 }
 
 .mediaManageRowHighlight {
   box-shadow: 0 0 0 2px #38bdf8;
   border-color: #0ea5e9;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .mediaManageTitleCell {
@@ -185,7 +190,8 @@ button:disabled {
 }
 
 .mediaManageTitle {
-  font-weight: 700;
+  font-weight: 600;
+  color: #111827;
   line-height: 1.35;
   word-break: break-word;
 }
@@ -216,14 +222,14 @@ button:disabled {
 }
 
 .mediaManageActionGroup + .mediaManageActionGroup {
-  border-left: 1px solid #1f2937;
+  border-left: 1px solid #e5e7eb;
   padding-left: 14px;
   margin-left: 2px;
 }
 
 .mediaManageActionLabel {
   font-size: 12px;
-  opacity: 0.78;
+  color: #6b7280;
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -235,16 +241,36 @@ button:disabled {
 }
 
 .mediaManageActionBtns button {
-  padding: 6px 8px;
+  padding: 5px 8px;
   font-size: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.mediaManageActionBtns button:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.mediaManageActionBtns button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
 }
 
 .mediaManageSelect {
   width: auto;
   min-width: 5.5rem;
   max-width: 9rem;
-  padding: 6px 8px;
+  padding: 5px 8px;
   font-size: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
 }
 
 @media (max-width: 1100px) {
@@ -262,7 +288,7 @@ button:disabled {
     width: 100%;
     min-width: unset;
     border-right: none;
-    border-bottom: 1px solid #1f2937;
+    border-bottom: 1px solid #e5e7eb;
     max-height: 40vh;
   }
 }
