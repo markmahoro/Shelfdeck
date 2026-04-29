@@ -257,6 +257,31 @@
   cursor: not-allowed;
 }
 
+/* ── Star rating ── */
+
+.starsRow {
+  display: inline-flex;
+  gap: 1px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.starFilled {
+  color: #f59e0b;
+}
+
+.starEmpty {
+  color: #d1d5db;
+}
+
+.starsClickable .starEmpty {
+  cursor: pointer;
+}
+
+.starsClickable .starEmpty:hover {
+  color: #fbbf24;
+}
+
 @media (max-width: 1100px) {
   .mediaManageGrid {
     min-width: 62rem;
