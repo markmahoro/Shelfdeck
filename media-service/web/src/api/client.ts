@@ -322,8 +322,10 @@ export const libraryApi = {
 };
 
 export const taskApi = {
-  getTasks: () =>
-    get<MediaTask[]>('/v1/tasks'),
+  getTasks: async () => {
+    const data = await get<{ tasks: MediaTask[] } | MediaTask[]>('/v1/tasks');
+    return Array.isArray(data) ? data : data.tasks ?? [];
+  },
 
   createByIntent: async (body: { itemId: string; actionType: string }): Promise<MediaTask> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
