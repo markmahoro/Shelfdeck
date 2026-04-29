@@ -231,6 +231,7 @@ export default function MediaManagePage() {
                 <div>原盘</div>
                 <div>星级</div>
                 <div>豆瓣</div>
+                <div>标记星级</div>
                 <div>标记已看</div>
                 <div>建议策略</div>
                 <div>任务</div>

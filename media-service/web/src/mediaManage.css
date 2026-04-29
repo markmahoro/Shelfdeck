@@ -152,8 +152,8 @@
 .mediaManageGrid {
   display: grid;
   grid-template-columns:
-    minmax(6rem, 1fr) 3.5rem 5.5rem 4.5rem 4.5rem 4.5rem 2.5rem minmax(7rem, 9rem) 5.5rem 6rem
-    5rem minmax(4.5rem, 5.5rem);
+    8rem 3.5rem 5.5rem 4.5rem 4.5rem 4.5rem 2.5rem 6.5rem 5.5rem 5rem 6rem
+    5rem 4.5rem;
   gap: 6px 8px;
   align-items: center;
   padding: 8px 10px;
@@ -193,26 +193,12 @@
   word-break: break-word;
 }
 
+.mediaManageStarStatusCell,
 .mediaManageDoubanCell {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
-}
-
-.mediaManageStarCell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.mediaManageStarInfo {
-  font-size: 11px;
-  color: #6b7280;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .mediaManageWatchedCell {

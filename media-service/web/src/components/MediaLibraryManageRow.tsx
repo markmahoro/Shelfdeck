@@ -3,6 +3,12 @@ import type { ManagedMediaItem, MediaAction, MediaRating } from '../models/media
 import { taskStatusLabelZh } from '../models/task';
 import type { MediaTask } from '../types';
 
+function formatStarStatus(item: ManagedMediaItem) {
+  if (item.doubanStars != null) return `${item.doubanStars}★（豆瓣）`;
+  if (item.rating != null) return `${item.rating}★（本地）`;
+  return '未标注';
+}
+
 function formatDoubanDisplay(doubanStars: MediaRating | null) {
   if (doubanStars == null) return '未抓取到';
   return `${doubanStars} 星`;
@@ -73,10 +79,11 @@ function MediaLibraryManageRowInner({
       <div title={item.isBluRayDisc ? '原盘（ISO/BDMV）' : undefined}>
         {item.isBluRayDisc ? '是' : '否'}
       </div>
-      <div className="mediaManageStarCell">
-        <span className="mediaManageStarInfo">
-          {item.doubanStars != null ? `${item.doubanStars}★（豆瓣）` : item.rating != null ? `${item.rating}★（本地）` : '未标注'}
-        </span>
+      <div className="mediaManageStarStatusCell" title={formatStarStatus(item)}>
+        {formatStarStatus(item)}
+      </div>
+      <div className="mediaManageDoubanCell">{formatDoubanDisplay(item.doubanStars)}</div>
+      <div>
         <select
           className="mediaManageSelect"
           value={item.rating == null ? '' : String(item.rating)}
@@ -91,7 +98,6 @@ function MediaLibraryManageRowInner({
           ))}
         </select>
       </div>
-      <div className="mediaManageDoubanCell">{formatDoubanDisplay(item.doubanStars)}</div>
       <div className="mediaManageWatchedCell">
         <button type="button" disabled={item.watched} onClick={() => onWatchChange(item, true)}>
           已看
