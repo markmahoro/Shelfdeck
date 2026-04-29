@@ -20,7 +20,6 @@ export default function MediaManagePage() {
   const [codecFilter, setCodecFilter] = useState<string>('all');
   const [watchedFilter, setWatchedFilter] = useState<string>('all');
   const [bluRayFilter, setBluRayFilter] = useState<string>('all');
-  const [deleteExplainOpen, setDeleteExplainOpen] = useState(false);
   const [activeSubLibName, setActiveSubLibName] = useState<string>('全部');
 
   // Fetch subLibrary list
@@ -225,16 +224,16 @@ export default function MediaManagePage() {
               <div className="mediaManageGrid mediaManageHead">
                 <div className="mediaManageTitleCell">名称</div>
                 <div>体积</div>
-                <div>原盘</div>
-                <div>等价码率</div>
+                <div>格式</div>
+                <div>当前码率</div>
                 <div>目标码率</div>
                 <div>预测体积</div>
-                <div>格式</div>
+                <div>原盘</div>
                 <div>星级</div>
                 <div>豆瓣</div>
-                <div>观看</div>
+                <div>标记已看</div>
+                <div>建议策略</div>
                 <div>任务</div>
-                <div>操作</div>
               </div>
               {filtered.map((item) => {
                 const rowTask = tasks.find(
@@ -279,7 +278,6 @@ export default function MediaManagePage() {
                       );
                     }}
                     onEnqueue={enqueueManagedAction}
-                    onOpenDeleteExplain={() => setDeleteExplainOpen(true)}
                   />
                 );
               })}

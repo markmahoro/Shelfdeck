@@ -152,8 +152,8 @@
 .mediaManageGrid {
   display: grid;
   grid-template-columns:
-    minmax(7rem, 1fr) 3.5rem 2.5rem 4rem 4rem 4rem 5rem minmax(5rem, 7rem) minmax(4.5rem, 6rem) 2.5rem
-    4.5rem minmax(12rem, 1fr);
+    minmax(6rem, 1fr) 3.5rem 5.5rem 4.5rem 4.5rem 4.5rem 2.5rem minmax(7rem, 9rem) 5.5rem 6rem
+    5rem minmax(4.5rem, 5.5rem);
   gap: 6px 8px;
   align-items: center;
   padding: 8px 10px;
@@ -193,7 +193,6 @@
   word-break: break-word;
 }
 
-.mediaManageStarStatusCell,
 .mediaManageDoubanCell {
   white-space: nowrap;
   overflow: hidden;
@@ -201,78 +200,80 @@
   min-width: 0;
 }
 
-.mediaManageRowActions {
+.mediaManageStarCell {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
-  justify-content: flex-start;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
-.mediaManageActionGroup {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-}
-
-.mediaManageActionGroup + .mediaManageActionGroup {
-  border-left: 1px solid #e5e7eb;
-  padding-left: 14px;
-  margin-left: 2px;
-}
-
-.mediaManageActionLabel {
-  font-size: 12px;
+.mediaManageStarInfo {
+  font-size: 11px;
   color: #6b7280;
-  flex-shrink: 0;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.mediaManageActionBtns {
+.mediaManageWatchedCell {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
-.mediaManageActionBtns button {
-  padding: 5px 8px;
-  font-size: 12px;
+.mediaManageWatchedCell button {
+  padding: 3px 6px;
+  font-size: 11px;
   border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border-radius: 4px;
   background: #fff;
   color: #374151;
   cursor: pointer;
 }
 
-.mediaManageActionBtns button:hover:not(:disabled) {
+.mediaManageWatchedCell button:hover:not(:disabled) {
   background: #f3f4f6;
-  border-color: #9ca3af;
 }
 
-.mediaManageActionBtns button:disabled {
+.mediaManageWatchedCell button:disabled {
   opacity: .4;
   cursor: not-allowed;
 }
 
 .mediaManageSelect {
   width: auto;
-  min-width: 5.5rem;
-  max-width: 9rem;
-  padding: 5px 8px;
-  font-size: 12px;
+  padding: 2px 4px;
+  font-size: 11px;
   border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border-radius: 4px;
   background: #fff;
   color: #374151;
   cursor: pointer;
 }
 
+.mediaManageRow button {
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mediaManageRow button:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.mediaManageRow button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
 @media (max-width: 1100px) {
   .mediaManageGrid {
-    min-width: 75rem;
+    min-width: 62rem;
   }
 }
 
