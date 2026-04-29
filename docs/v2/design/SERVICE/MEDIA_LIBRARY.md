@@ -51,6 +51,14 @@
 | `action` | string | StrategyEngine | 推荐动作：`delete` / `transcode` / `upgrade` / `keep` |
 | `reason` | string | StrategyEngine | 推荐原因，如"码率偏高" |
 
+> **展示字段（不持久化）**：以下字段不属于 library.json，由 API handler 在查询时实时计算后附加到响应中，不写回持久化文件：
+> | 字段 | 类型 | 来源 | 说明 |
+> |---|---|---|---|
+> | `targetBitrate` | number | API 层实时计算 | 目标码率（Mbps），从 `mediaPolicyService.targetMbps(item, policy)` 查询得出；null 表示无有效评分或删除档 |
+> | `predictedSizeGb` | number | API 层实时计算 | 预测转码后体积（GB），公式 `(targetBitrate × 10⁶ × duration) / (8 × 1024³)`；null 表示无目标码率或缺少时长 |
+>
+> 架构约束：**StrategyEngine 只写 action/reason，不写展示字段。** 展示字段属于查询层，不属于策略层。这样保证 library.json 不存储可完全从策略配置 + 数据字段推导出的冗余值，策略配置变更后无需全量重算即可生效。
+
 > **v2 结构说明**：`library.json` 根级无独立的 `doubanRatings[]` 数组；豆瓣评分数据直接存在每条 `MediaItem.doubanId` / `MediaItem.doubanRating` / `MediaItem.doubanRatingUpdatedAt` 上，与 Emby 元数据合一。
 > 豆瓣同步有两个时间戳：子库级 `subLibrary.doubanSyncedAt`（该子库最近一次同步周期完成时间），MediaItem 级 `doubanRatingUpdatedAt`（该条目豆瓣评分最近一次实际更新的时间）。
 
@@ -73,7 +81,7 @@
   | EmbyAdapter（经 MediaLibraryService.upsertItems） | name, path, type, bitrate, duration, resolution, size, codec, premiereDate, genres, isDiscLike, watched, lastRefreshedAt |
   | DoubanAdapter（经 syncDoubanForSubLibrary） | doubanId, doubanRating, doubanRatingUpdatedAt |
   | desktop PATCH /v1/library/ratings | userRating, userRatingUpdatedAt |
-  | StrategyEngine | action, reason |
+  | StrategyEngine | action, reason（**仅此两个字段，不含展示字段，展示字段由 API 层实时计算**） |
 - **时间戳**：每个写入者在更新字段时设对应时间戳（`userRatingUpdatedAt` / `doubanRatingUpdatedAt` / `lastRefreshedAt`），均使用写入时刻的 `new Date().toISOString()`。SmartTaskEngine 取 `MAX(userRatingUpdatedAt, doubanRatingUpdatedAt)` 作为"评分可用时间"排序
 - 迁移注释：v1 版本使用 `data/cache.json`（`libraryItems[]` + `doubanRatings[]` 混放），v2 重构为 `library.json` 结构；v2 子库版新增 `subLibraryId` 字段关联子库，Emby 拉取链路升级为按子库独立定时
 
@@ -87,6 +95,8 @@ effectiveRating = doubanRating ?? userRating ?? null
 ```
 
 **计算方式**：StrategyEngine 定时（30min）全量扫描 library.json，对每条 item 调 `mediaPolicyService.recommendedAction(item, subLibrary.mediaPolicy)`，结果写入 `action` / `reason`。全量重算，幂等，不与任何数据写入路径耦合。
+
+> **架构约束**：StrategyEngine **只写 `action` 和 `reason`**，不写 `targetBitrate`、`predictedSizeGb` 等展示字段。展示字段由 `GET /v1/library` API handler 在查询时通过 `mediaPolicyService.targetMbps()` 实时计算后附加到响应，不落盘。这样 library.json 不含冗余派生数据，策略配置变更后无需全量重算即可在下次查询时生效。
 
 `recommendedAction()` 逻辑（来自 `mediaPolicyService.js`）：
 
