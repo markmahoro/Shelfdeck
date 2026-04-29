@@ -155,57 +155,81 @@ export default function MediaManagePage() {
             </button>
           )}
         </div>
-        <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-          <option value="all">全部操作</option>
-          <option value="transcode">码率压缩</option>
-          <option value="upgrade">洗版</option>
-          <option value="keep">已达标</option>
-          <option value="delete">删除档</option>
-        </select>
-        <select value={resolutionFilter} onChange={(e) => setResolutionFilter(e.target.value)}>
-          <option value="all">全部分辨率</option>
-          <option value="1080p">1080p</option>
-          <option value="4K">4K</option>
-        </select>
-        <select value={codecFilter} onChange={(e) => setCodecFilter(e.target.value)}>
-          <option value="all">全部编码</option>
-          <option value="h264">H.264</option>
-          <option value="h265">H.265</option>
-          <option value="av1">AV1</option>
-        </select>
-        <select value={watchedFilter} onChange={(e) => setWatchedFilter(e.target.value)}>
-          <option value="all">全部观看</option>
-          <option value="watched">已观看</option>
-          <option value="unwatched">未观看</option>
-        </select>
-        <select value={bluRayFilter} onChange={(e) => setBluRayFilter(e.target.value)}>
-          <option value="all">全部</option>
-          <option value="disc">原盘</option>
-          <option value="not_disc">非原盘</option>
-        </select>
-        <select value={doubanFilter} onChange={(e) => setDoubanFilter(e.target.value)}>
-          <option value="all">全部豆瓣评分</option>
-          <option value="5">5 星</option>
-          <option value="4">4 星</option>
-          <option value="3">3 星</option>
-          <option value="2">2 星</option>
-          <option value="1">1 星</option>
-          <option value="none">未抓取</option>
-        </select>
-        <select value={localRatingFilter} onChange={(e) => setLocalRatingFilter(e.target.value)}>
-          <option value="all">全部本地评分</option>
-          <option value="5">5 星</option>
-          <option value="4">4 星</option>
-          <option value="3">3 星</option>
-          <option value="2">2 星</option>
-          <option value="1">1 星</option>
-          <option value="none">未标注</option>
-        </select>
-        <select value={taskFilter} onChange={(e) => setTaskFilter(e.target.value)}>
-          <option value="all">全部任务</option>
-          <option value="active">有进行中任务</option>
-          <option value="none">无任务</option>
-        </select>
+        <div className="filterRow">
+          <span className="filterLabel">操作</span>
+          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="transcode">码率压缩</option>
+            <option value="upgrade">洗版</option>
+            <option value="keep">已达标</option>
+            <option value="delete">删除档</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">分辨率</span>
+          <select value={resolutionFilter} onChange={(e) => setResolutionFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="1080p">1080p</option>
+            <option value="4K">4K</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">编码</span>
+          <select value={codecFilter} onChange={(e) => setCodecFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="h264">H.264</option>
+            <option value="h265">H.265</option>
+            <option value="av1">AV1</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">观看</span>
+          <select value={watchedFilter} onChange={(e) => setWatchedFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="watched">已观看</option>
+            <option value="unwatched">未观看</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">原盘</span>
+          <select value={bluRayFilter} onChange={(e) => setBluRayFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="disc">原盘</option>
+            <option value="not_disc">非原盘</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">豆瓣</span>
+          <select value={doubanFilter} onChange={(e) => setDoubanFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="5">5 星</option>
+            <option value="4">4 星</option>
+            <option value="3">3 星</option>
+            <option value="2">2 星</option>
+            <option value="1">1 星</option>
+            <option value="none">未抓取</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">本地</span>
+          <select value={localRatingFilter} onChange={(e) => setLocalRatingFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="5">5 星</option>
+            <option value="4">4 星</option>
+            <option value="3">3 星</option>
+            <option value="2">2 星</option>
+            <option value="1">1 星</option>
+            <option value="none">未标注</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">任务</span>
+          <select value={taskFilter} onChange={(e) => setTaskFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="active">进行中</option>
+            <option value="none">无任务</option>
+          </select>
+        </div>
 
         <button
           className="sidebarFilterReset"
