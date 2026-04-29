@@ -8,6 +8,7 @@ const Fastify = require('fastify');
 const fastifyStatic = require('@fastify/static');
 
 const configStore = require('./configStore');
+const mediaPolicyService = require('./mediaPolicyService');
 const taskStore = require('./taskStore');
 const taskScheduler = require('./taskScheduler');
 const healthCheck = require('./healthCheck');
@@ -379,7 +380,7 @@ function registerRoutes(app) {
     if (req.query.action) filter.action = req.query.action;
     if (req.query.subLibraryId) filter.subLibraryId = req.query.subLibraryId;
     const result = mediaLibraryService.getLibrary(filter);
-    // Attach embyWebUrl for desktop play button
+    // Attach embyWebUrl and compute display fields
     const cfg = configStore.loadConfig();
     const servers = cfg.embyServers || {};
     const subLibs = cfg.subLibraries || [];
@@ -387,6 +388,15 @@ function registerRoutes(app) {
       const sl = subLibs.find((s) => s.uuid === item.subLibraryId);
       if (sl && servers[sl.embyServerId] && servers[sl.embyServerId].baseUrl) {
         item.embyWebUrl = `${String(servers[sl.embyServerId].baseUrl).replace(/\/+$/, '')}/web/index.html#!/item?id=${item.itemId}`;
+      }
+      // Compute targetBitrate and predictedSizeGb at query time
+      const policy = (sl && sl.mediaPolicy) ? sl.mediaPolicy : cfg.mediaPolicy;
+      if (policy) {
+        const tgt = mediaPolicyService.targetMbps(item, policy);
+        item.targetBitrate = tgt != null ? tgt : undefined;
+        item.predictedSizeGb = (tgt != null && item.duration)
+          ? (tgt * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024)
+          : undefined;
       }
     }
     return result;
@@ -398,7 +408,21 @@ function registerRoutes(app) {
     if (req.query.type) filter.type = req.query.type;
     if (req.query.action) filter.action = req.query.action;
     if (req.query.subLibraryId) filter.subLibraryId = req.query.subLibraryId;
-    return mediaLibraryService.getLibrary(filter);
+    const result = mediaLibraryService.getLibrary(filter);
+    const cfg = configStore.loadConfig();
+    const subLibs = cfg.subLibraries || [];
+    for (const item of result.items) {
+      const sl = subLibs.find((s) => s.uuid === item.subLibraryId);
+      const policy = (sl && sl.mediaPolicy) ? sl.mediaPolicy : cfg.mediaPolicy;
+      if (policy) {
+        const tgt = mediaPolicyService.targetMbps(item, policy);
+        item.targetBitrate = tgt != null ? tgt : undefined;
+        item.predictedSizeGb = (tgt != null && item.duration)
+          ? (tgt * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024)
+          : undefined;
+      }
+    }
+    return result;
   });
 
   app.get('/v1/library/items/:itemId', async (req, reply) => {

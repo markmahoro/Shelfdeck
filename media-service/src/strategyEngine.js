@@ -43,19 +43,9 @@ function start(configStore, mediaLibraryService) {
         }
 
         const { action, reason } = mediaPolicyService.recommendedAction(item, policy);
-        const tgt = mediaPolicyService.targetMbps(item, policy);
-        const predictGb = (tgt != null && item.duration)
-          ? (tgt * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024)
-          : undefined;
-
         if (item.action !== action || item.reason !== reason) {
           item.action = action;
           item.reason = reason;
-          changed++;
-        }
-        if (item.targetBitrate !== tgt || item.predictedSizeGb !== predictGb) {
-          item.targetBitrate = tgt != null ? tgt : undefined;
-          item.predictedSizeGb = predictGb;
           changed++;
         }
       }
