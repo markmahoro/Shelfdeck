@@ -288,5 +288,7 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
     watched: Boolean(o.watched),
     recommendedAction: typeof o.action === 'string' ? (o.action as MediaAction) : undefined,
     equivalentBitrate: typeof o.bitrate === 'number' ? o.bitrate / 1_000_000 : undefined,
+    targetBitrate: typeof o.targetBitrate === 'number' ? o.targetBitrate : undefined,
+    predictedSizeGb: typeof o.predictedSizeGb === 'number' ? o.predictedSizeGb : undefined,
   };
 }
