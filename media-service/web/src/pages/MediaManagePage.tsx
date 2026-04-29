@@ -184,7 +184,7 @@ export default function MediaManagePage() {
         )}
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
           <button type="button" onClick={() => setSelectedIds(new Set(filtered.map((it) => it.id)))}>
             全选
           </button>
@@ -195,22 +195,23 @@ export default function MediaManagePage() {
           >
             取消全选
           </button>
-          <button
-            type="button"
-            disabled={selectedIds.size === 0}
-            onClick={() => {
-              for (const it of filtered) {
-                if (selectedIds.has(it.id)) {
-                  const action = it.recommendedAction ?? 'keep';
-                  if (action !== 'keep') enqueueManagedAction(it, action);
-                }
-              }
-            }}
-          >
-            批量入队
-          </button>
         </div>
-        <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+        <button
+          type="button"
+          className="batchRunBtn"
+          disabled={selectedIds.size === 0}
+          onClick={() => {
+            for (const it of filtered) {
+              if (selectedIds.has(it.id)) {
+                const action = it.recommendedAction ?? 'keep';
+                if (action !== 'keep') enqueueManagedAction(it, action);
+              }
+            }
+          }}
+        >
+          批量执行策略
+        </button>
+        <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
           已选 {selectedIds.size} / {filtered.length} 条
         </p>
       </div>

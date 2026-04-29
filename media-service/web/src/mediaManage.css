@@ -281,6 +281,28 @@
   color: #fbbf24;
 }
 
+.batchRunBtn {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
+
+.batchRunBtn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.batchRunBtn:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
 @media (max-width: 1100px) {
   .mediaManageGrid {
     min-width: 62rem;
