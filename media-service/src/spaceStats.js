@@ -9,7 +9,7 @@
  *   3. Realized: cumulative bytesSaved from completed tasks
  */
 
-const { effectiveRating, targetMbps } = require('./mediaPolicyService');
+const { targetMbps } = require('./mediaPolicyService');
 
 function fmtBytes(bytes) {
   if (bytes == null || bytes === 0) return '0 B';
@@ -36,9 +36,8 @@ function estimatedDelta(item, policy) {
   }
 
   if (action === 'transcode' || action === 'upgrade') {
-    const bps = typeof item.bitrate === 'number' ? item.bitrate : 0;
-    const currentMbps = bps / 1_000_000;
-    const target = targetMbps(item, policy);
+    const currentMbps = item.equivalentBitrate ?? (typeof item.bitrate === 'number' ? item.bitrate / 1_000_000 : 0);
+    const target = item.targetBitrate ?? targetMbps(item, policy);
     if (target != null && currentMbps > 0) {
       const delta = size * (1 - target / currentMbps);
       return { action, delta };
