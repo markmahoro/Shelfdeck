@@ -222,6 +222,20 @@ export default function MediaManagePage() {
             <p>暂未获取到媒体库数据。请先在管理端配置媒体库。</p>
           ) : (
             <div>
+              <div className="mediaManageGrid mediaManageHead">
+                <div className="mediaManageTitleCell">名称</div>
+                <div>体积</div>
+                <div>原盘</div>
+                <div>等价码率</div>
+                <div>目标码率</div>
+                <div>预测体积</div>
+                <div>格式</div>
+                <div>星级</div>
+                <div>豆瓣</div>
+                <div>观看</div>
+                <div>任务</div>
+                <div>操作</div>
+              </div>
               {filtered.map((item) => {
                 const rowTask = tasks.find(
                   (t) => t.itemId === item.id && !['done', 'failed_hard'].includes(t.status),
