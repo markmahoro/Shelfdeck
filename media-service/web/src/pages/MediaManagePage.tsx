@@ -207,25 +207,23 @@ export default function MediaManagePage() {
           <option value="none">无任务</option>
         </select>
 
-        {(searchQuery || actionFilter !== 'all' || resolutionFilter !== 'all' || codecFilter !== 'all' || watchedFilter !== 'all' || bluRayFilter !== 'all' || doubanFilter !== 'all' || localRatingFilter !== 'all' || taskFilter !== 'all') && (
-          <button
-            className="sidebarFilterReset"
-            type="button"
-            onClick={() => {
-              setSearchQuery('');
-              setActionFilter('all');
-              setResolutionFilter('all');
-              setCodecFilter('all');
-              setWatchedFilter('all');
-              setBluRayFilter('all');
-              setDoubanFilter('all');
-              setLocalRatingFilter('all');
-              setTaskFilter('all');
-            }}
-          >
-            清除筛选
-          </button>
-        )}
+        <button
+          className="sidebarFilterReset"
+          type="button"
+          onClick={() => {
+            setSearchQuery('');
+            setActionFilter('all');
+            setResolutionFilter('all');
+            setCodecFilter('all');
+            setWatchedFilter('all');
+            setBluRayFilter('all');
+            setDoubanFilter('all');
+            setLocalRatingFilter('all');
+            setTaskFilter('all');
+          }}
+        >
+          清除筛选
+        </button>
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
