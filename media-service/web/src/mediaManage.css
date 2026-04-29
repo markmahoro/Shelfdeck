@@ -2,8 +2,7 @@
 
 .page {
   display: flex;
-  flex: 1;
-  min-height: 0;
+  min-height: calc(100vh - 48px);
   align-items: stretch;
   color: #1f2937;
 }
