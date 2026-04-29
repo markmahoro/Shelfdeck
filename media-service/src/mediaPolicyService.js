@@ -47,8 +47,6 @@ function targetMbps(item, policy) {
   const r = effectiveRating(item);
   if (r == null || isDeleteTier(r)) return null;
   const bucket = resolutionBucket(item.resolution);
-  // 5-star 1080p always upgrades, but still need a target for transcode check
-  if (r === 5 && bucket === '1080p') return null;
   const ladder = bucket === '4K' ? policy.target4k : policy.target1080p;
   return ladder[r] != null ? ladder[r] : null;
 }
@@ -72,11 +70,13 @@ function recommendedAction(item, policy) {
     return { action: 'delete', reason: `${r}★ 属于删除档` };
   }
 
+  // 5-star 1080p always upgrades to 4K
+  if (r === 5 && res === '1080p') {
+    return { action: 'upgrade', reason: '5★ 1080p 建议升级到 4K' };
+  }
+
   const target = targetMbps(item, policy);
   if (target == null) {
-    if (r === 5 && res === '1080p') {
-      return { action: 'upgrade', reason: '5★ 1080p 建议升级到 4K' };
-    }
     return { action: 'keep', reason: '无目标码率阈值' };
   }
 
