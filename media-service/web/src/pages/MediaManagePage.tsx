@@ -322,7 +322,7 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
     doubanStars: typeof o.doubanRating === 'number' ? (o.doubanRating as MediaRating) : null,
     watched: Boolean(o.watched),
     recommendedAction: typeof o.action === 'string' ? (o.action as MediaAction) : undefined,
-    equivalentBitrate: typeof o.bitrate === 'number' ? o.bitrate / 1_000_000 : undefined,
+    equivalentBitrate: typeof o.equivalentBitrate === 'number' ? o.equivalentBitrate : undefined,
     targetBitrate: typeof o.targetBitrate === 'number' ? o.targetBitrate : undefined,
     predictedSizeGb: typeof o.predictedSizeGb === 'number' ? o.predictedSizeGb : undefined,
   };

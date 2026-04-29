@@ -14,6 +14,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const configStore = require('./configStore');
+const mediaPolicyService = require('./mediaPolicyService');
 const doubanMatchService = require('./doubanMatchService');
 const embyService = require('./services/embyService');
 const doubanService = require('./services/doubanService');
@@ -282,6 +283,66 @@ function updateSubLibrary(uuid, updates) {
   return subLibs[idx];
 }
 
+// ── Self-computed fields ──────────────────────────────────────────────────────
+
+let selfComputeTimer = null;
+
+function recomputeAllSelfFields() {
+  const lib = loadLibrary();
+  if (!lib || !lib.items || lib.items.length === 0) return;
+
+  const cfg = configStore.loadConfig();
+  const subLibs = cfg.subLibraries || [];
+  let changed = 0;
+
+  for (const item of lib.items) {
+    const subLib = subLibs.find((s) => s.uuid === item.subLibraryId);
+    const policy = (subLib && subLib.mediaPolicy) ? subLib.mediaPolicy : cfg.mediaPolicy;
+
+    // bucket
+    const bucket = computeBucket(item.resolution);
+    if (item.bucket !== bucket) { item.bucket = bucket; changed++; }
+
+    // equivalentBitrate (Mbps)
+    const eqMbps = item.bitrate > 0 ? item.bitrate / 1_000_000 : undefined;
+    if (item.equivalentBitrate !== eqMbps) { item.equivalentBitrate = eqMbps; changed++; }
+
+    // targetBitrate (Mbps)
+    const tgt = policy ? mediaPolicyService.targetMbps(item, policy) : undefined;
+    if (item.targetBitrate !== (tgt != null ? tgt : undefined)) {
+      item.targetBitrate = tgt != null ? tgt : undefined;
+      changed++;
+    }
+
+    // predictedSizeGb
+    const predictGb = (tgt != null && item.duration)
+      ? (tgt * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024)
+      : undefined;
+    if (item.predictedSizeGb !== predictGb) { item.predictedSizeGb = predictGb; changed++; }
+  }
+
+  if (changed > 0) {
+    saveLibrary(lib);
+    const msg = `Library 自算完成，${changed} 个字段已更新`;
+    console.log(`[mediaLibrary] ${msg}`);
+    activityLog.addActivity('media_library', msg, { changed });
+  }
+}
+
+function startSelfComputeTimer(intervalMs = 600000) {
+  stopSelfComputeTimer();
+  recomputeAllSelfFields(); // run immediately on start
+  selfComputeTimer = setInterval(recomputeAllSelfFields, intervalMs);
+  selfComputeTimer.unref && selfComputeTimer.unref();
+}
+
+function stopSelfComputeTimer() {
+  if (selfComputeTimer) {
+    clearInterval(selfComputeTimer);
+    selfComputeTimer = null;
+  }
+}
+
 // ── SubLibrary timers ───────────────────────────────────────────────────────
 
 const subLibraryTimers = new Map(); // uuid → { refresh: Interval, douban: Interval }
@@ -425,12 +486,15 @@ function startAllSubLibraryTimers() {
       startSubLibraryTimers(sl);
     }
   }
+  // Self-computation: recompute derived fields every 10 min
+  startSelfComputeTimer(600000);
 }
 
 function stopAllTimers() {
   for (const uuid of subLibraryTimers.keys()) {
     stopSubLibraryTimers(uuid);
   }
+  stopSelfComputeTimer();
 }
 
 async function triggerRefresh(subLibraryId) {
@@ -461,6 +525,11 @@ module.exports = {
   addSubLibrary,
   deleteSubLibrary,
   updateSubLibrary,
+
+  // Self-computed fields
+  recomputeAllSelfFields,
+  startSelfComputeTimer,
+  stopSelfComputeTimer,
 
   // Timer management
   startAllSubLibraryTimers,

@@ -48,16 +48,45 @@
 | `userRating` | number | Desktop | 用户星级（1-5），null 表示未评分 |
 | `userRatingUpdatedAt` | string | Desktop | 用户评分时间（ISO 8601），即 desktop 打分那一刻 |
 | `lastRefreshedAt` | string | 系统 | 最近一次 Emby 拉取更新时间（ISO 8601） |
+| `bucket` | string | Library 自算 | 分辨率分类：`1080p` / `4K`，由 `computeBucket(resolution)` 得出 |
+| `equivalentBitrate` | number | Library 自算 | 等价码率（Mbps），由 `bitrate / 10⁶` 换算 |
+| `targetBitrate` | number | Library 自算 | 目标码率（Mbps），由 `mediaPolicyService.targetMbps(item, policy)` 查表得出；null 表示无有效评分或删除档 |
+| `predictedSizeGb` | number | Library 自算 | 预测转码后体积（GB），由 `(targetBitrate × 10⁶ × duration) / (8 × 1024³)` 计算；null 表示无目标码率或缺少时长 |
 | `action` | string | StrategyEngine | 推荐动作：`delete` / `transcode` / `upgrade` / `keep` |
 | `reason` | string | StrategyEngine | 推荐原因，如"码率偏高" |
 
-> **展示字段（不持久化）**：以下字段不属于 library.json，由 API handler 在查询时实时计算后附加到响应中，不写回持久化文件：
-> | 字段 | 类型 | 来源 | 说明 |
-> |---|---|---|---|
-> | `targetBitrate` | number | API 层实时计算 | 目标码率（Mbps），从 `mediaPolicyService.targetMbps(item, policy)` 查询得出；null 表示无有效评分或删除档 |
-> | `predictedSizeGb` | number | API 层实时计算 | 预测转码后体积（GB），公式 `(targetBitrate × 10⁶ × duration) / (8 × 1024³)`；null 表示无目标码率或缺少时长 |
->
-> 架构约束：**StrategyEngine 只写 action/reason，不写展示字段。** 展示字段属于查询层，不属于策略层。这样保证 library.json 不存储可完全从策略配置 + 数据字段推导出的冗余值，策略配置变更后无需全量重算即可生效。
+### 1.1.1 数据来源分类
+
+Library 中所有字段按来源分为三类：
+
+**类别一：外部拉取**（Library 定时向外部数据源请求）
+
+| 来源系统 | 字段 | 刷新周期 |
+|---|---|---|
+| Emby（经 `embyService`） | name, path, type, bitrate, duration, resolution, size, codec, premiereDate, genres, isDiscLike, watched | 每 1h |
+| Douban（经 `doubanService`） | doubanId, doubanRating, doubanRatingUpdatedAt | 每 6h |
+
+外部拉取流程：Library 的定时器到点 → Library 调 adapter 请求数据 → adapter 返回原始数据 → Library 执行 upsert 持久化。
+
+**类别二：自身计算**（Library 根据已有字段 + 用户配置推导，定时全量重算）
+
+| 字段 | 计算方式 | 刷新周期 |
+|---|---|---|
+| `bucket` | `computeBucket(resolution)` → `1080p` / `4K` | 每 10min |
+| `equivalentBitrate` | `bitrate / 1_000_000` → Mbps | 每 10min |
+| `targetBitrate` | `mediaPolicyService.targetMbps(item, subLibrary.mediaPolicy)` → 查策略表 | 每 10min |
+| `predictedSizeGb` | `(targetBitrate × 10⁶ × duration) / (8 × 1024³)` → GB | 每 10min |
+
+自身计算流程：`recomputeAllSelfFields()` → 全量扫描 library.json → 逐条重算 → 有变化则 `saveLibrary()`。
+
+> **架构约束**：自身计算字段由 Library 内部的 `recomputeAllSelfFields()` 计算并持久化，与 StrategyEngine 无关。StrategyEngine 只读 Library 数据、只写 `action` / `reason`。
+
+**类别三：用户输入**（用户通过 REST API 写入）
+
+| 来源 | 字段 | 写入时机 |
+|---|---|---|
+| Desktop / Admin | userRating, userRatingUpdatedAt | `PATCH /v1/library/ratings` |
+| （未来） | 备注、感想等 | — |
 
 > **v2 结构说明**：`library.json` 根级无独立的 `doubanRatings[]` 数组；豆瓣评分数据直接存在每条 `MediaItem.doubanId` / `MediaItem.doubanRating` / `MediaItem.doubanRatingUpdatedAt` 上，与 Emby 元数据合一。
 > 豆瓣同步有两个时间戳：子库级 `subLibrary.doubanSyncedAt`（该子库最近一次同步周期完成时间），MediaItem 级 `doubanRatingUpdatedAt`（该条目豆瓣评分最近一次实际更新的时间）。
@@ -74,14 +103,15 @@
 ### 1.3 持久化
 
 - 文件路径：`data/library.json`
-- 写入时机：Emby 定时拉取完成后、Douban 同步完成后、用户评分写入后、StrategyEngine 策略计算完成后
+- 写入时机：Emby 定时拉取完成后、Douban 同步完成后、用户评分写入后、Library 自算完成后、StrategyEngine 策略计算完成后
 - **写入者与字段**：
   | 写入者 | 写入字段 |
   |---|---|
   | EmbyAdapter（经 MediaLibraryService.upsertItems） | name, path, type, bitrate, duration, resolution, size, codec, premiereDate, genres, isDiscLike, watched, lastRefreshedAt |
   | DoubanAdapter（经 syncDoubanForSubLibrary） | doubanId, doubanRating, doubanRatingUpdatedAt |
   | desktop PATCH /v1/library/ratings | userRating, userRatingUpdatedAt |
-  | StrategyEngine | action, reason（**仅此两个字段，不含展示字段，展示字段由 API 层实时计算**） |
+      | Library 自算（recomputeAllSelfFields, 每 10min） | bucket, equivalentBitrate, targetBitrate, predictedSizeGb |
+      | StrategyEngine | action, reason |
 - **时间戳**：每个写入者在更新字段时设对应时间戳（`userRatingUpdatedAt` / `doubanRatingUpdatedAt` / `lastRefreshedAt`），均使用写入时刻的 `new Date().toISOString()`。SmartTaskEngine 取 `MAX(userRatingUpdatedAt, doubanRatingUpdatedAt)` 作为"评分可用时间"排序
 - 迁移注释：v1 版本使用 `data/cache.json`（`libraryItems[]` + `doubanRatings[]` 混放），v2 重构为 `library.json` 结构；v2 子库版新增 `subLibraryId` 字段关联子库，Emby 拉取链路升级为按子库独立定时
 
@@ -126,44 +156,51 @@ effectiveRating = doubanRating ?? userRating ?? null
 v2 目标：`mediaLibraryService.js` 作为纯数据协调层，策略计算和自动入队拆分为独立引擎：
 
 ```
-MediaLibraryService（纯数据 CRUD）
+MediaLibraryService（Library — 数据 owner + 定时器总控）
     │
     ├── 子库管理：CRUD 子库配置（增/删/查，暂停/启用）
-    ├── upsertItems()：批量写入/更新 library.json（关联 subLibraryId），不含策略计算
-    ├── updateUserRating()：写入 userRating + userRatingUpdatedAt，不含策略计算
+    ├── upsertItems()：批量写入/更新外部拉取字段，不含策略计算
+    ├── updateUserRating()：写入 userRating + userRatingUpdatedAt
+    ├── recomputeAllSelfFields()：全量扫描，重算 bucket / equivalentBitrate / targetBitrate / predictedSizeGb
     ├── getLibrary()：供 REST API / StrategyEngine / SmartTaskEngine 读取
-    ├── saveLibrary()：供 StrategyEngine 写回 action/reason
     │
-    ├── EmbyAdapter（embyService.js）
-    │     └── getLibraryItems(embyServerConfig, sectionId) → 拉取原始媒体数据 + watched
+    ├── 定时器总控（startAllSubLibraryTimers）
+    │     ├── Emby 拉取（每 1h）→ EmbyAdapter.getLibraryItems() → upsertItems()
+    │     ├── 豆瓣同步（每 6h）→ DoubanAdapter.syncRatings() → 匹配写入
+    │     └── 自身计算（每 10min）→ recomputeAllSelfFields() → saveLibrary()
     │
-    └── DoubanAdapter（doubanService.js）
+    ├── EmbyAdapter（embyService.js）— 纯取数工具
+    │     └── getLibraryItems(embyServerConfig, sectionId) → 返回原始媒体数据
+    │
+    └── DoubanAdapter（doubanService.js）— 纯取数工具
           └── syncRatings() → 抓取豆瓣评分并写入 doubanRating + doubanRatingUpdatedAt
 
 StrategyEngine（独立定时 30min）
     ├── 全量读 library.json → 逐条调 mediaPolicyService.recommendedAction() → 写回 action/reason
+    ├── 只写 action / reason，不写展示字段
 
 SmartTaskEngine（独立定时 10min）
     ├── 全量读 library.json → 条件判定 → taskStore.createTask()
 
 mediaPolicyService.js（纯函数）
-    └── recommendedAction(item, policy) → { action, reason }
+    ├── recommendedAction(item, policy) → { action, reason }
+    └── targetMbps(item, policy) → number | null（供 Library 自算调用）
 ```
 
 **设计原则**：
 1. 所有模块均为普通 Node.js 模块，被 `app.js` 或定时任务调用，无独立进程或线程
-2. **数据写入与策略计算完全解耦**：EmbyAdapter / DoubanAdapter / desktop 只写原始字段；StrategyEngine 独立定时计算 action/reason
-3. **子库级独立定时**：每个子库有独立的 Emby 拉取定时器和豆瓣同步开关
+2. **数据写入与策略计算完全解耦**：EmbyAdapter / DoubanAdapter / desktop 只写原始字段；Library 自算只写派生字段（bucket / equivalentBitrate / targetBitrate / predictedSizeGb）；StrategyEngine 只写策略字段（action / reason）。三者职责分明，互不交叉
+3. **子库级独立定时**：每个子库有独立的 Emby 拉取定时器和豆瓣同步开关；自身计算为全局定时（所有子库共享）
 4. **全量重算优于按需重算**：纯函数计算成本极低，全量重算消除了 diff 检测逻辑和模块间耦合
 
 ### 2.2 各子模块职责边界
 
 | 模块 | 职责 |
 |---|---|
-| `mediaLibraryService.js` | 数据协调者：子库管理，定时器驱动 adapter，CRUD 操作，不计算策略不创建任务 |
-| `embyService.js`（EmbyAdapter） | 仅负责调用 Emby REST API，返回原始媒体数据；不直接写 library.json |
-| `doubanService.js`（DoubanAdapter） | 仅负责调用豆瓣 API，写入 doubanRating / doubanRatingUpdatedAt；不计算策略 |
-| `mediaPolicyService.js` | 纯函数：输入 MediaItem + mediaPolicy，输出 action + reason；无副作用，被 StrategyEngine 调用 |
+| `mediaLibraryService.js` | 数据 owner：子库管理，定时器总控（Emby/Douban/自算），CRUD，自身计算派生字段（bucket / equivalentBitrate / targetBitrate / predictedSizeGb），不计算策略不创建任务 |
+| `embyService.js`（EmbyAdapter） | 纯取数工具：仅负责调用 Emby REST API，返回原始媒体数据；不写 library.json |
+| `doubanService.js`（DoubanAdapter） | 纯取数工具：仅负责调用豆瓣 API；不直接写 library.json（由 Library 编排写入） |
+| `mediaPolicyService.js` | 纯函数：输入 MediaItem + mediaPolicy，输出 action + reason 和 targetMbps；无副作用，被 StrategyEngine 和 Library 自算调用 |
 | `StrategyEngine` | 独立定时任务：全量计算 action / reason，写入 library.json |
 | `SmartTaskEngine` | 独立定时任务：扫描 library.json，自动创建任务送入 TaskScheduler |
 | `library.json` | 单一持久化文件；所有媒体库数据的 SSOT |
