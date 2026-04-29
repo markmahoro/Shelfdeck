@@ -156,7 +156,7 @@ export default function MediaManagePage() {
           )}
         </div>
         <div className="filterRow">
-          <span className="filterLabel">操作</span>
+          <span className="filterLabel">建议策略</span>
           <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
             <option value="all">全部</option>
             <option value="transcode">码率压缩</option>
@@ -183,7 +183,7 @@ export default function MediaManagePage() {
           </select>
         </div>
         <div className="filterRow">
-          <span className="filterLabel">观看</span>
+          <span className="filterLabel">标记已看</span>
           <select value={watchedFilter} onChange={(e) => setWatchedFilter(e.target.value)}>
             <option value="all">全部</option>
             <option value="watched">已观看</option>
@@ -199,7 +199,7 @@ export default function MediaManagePage() {
           </select>
         </div>
         <div className="filterRow">
-          <span className="filterLabel">豆瓣</span>
+          <span className="filterLabel">豆瓣评分</span>
           <select value={doubanFilter} onChange={(e) => setDoubanFilter(e.target.value)}>
             <option value="all">全部</option>
             <option value="5">5 星</option>
@@ -211,7 +211,7 @@ export default function MediaManagePage() {
           </select>
         </div>
         <div className="filterRow">
-          <span className="filterLabel">本地</span>
+          <span className="filterLabel">本地评分</span>
           <select value={localRatingFilter} onChange={(e) => setLocalRatingFilter(e.target.value)}>
             <option value="all">全部</option>
             <option value="5">5 星</option>
