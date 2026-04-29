@@ -64,7 +64,6 @@ function MediaLibraryManageRowInner({
   const target = item.targetBitrate;
   const predictGb = item.predictedSizeGb;
 
-  const formatLabel = `${item.resolution} · ${item.codec.toUpperCase()}`;
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
       {taskStatusLabelZh(rowTask.status)}（
@@ -92,7 +91,8 @@ function MediaLibraryManageRowInner({
         <span className="mediaManageTitle">{item.name}</span>
       </div>
       <div className="tabular-nums">{item.sizeGb.toFixed(1)} GB</div>
-      <div>{formatLabel}</div>
+      <div>{item.resolution}</div>
+      <div>{item.codec.toUpperCase()}</div>
       <div className="tabular-nums">{eq != null ? `${eq.toFixed(1)} Mbps` : '—'}</div>
       <div className="tabular-nums">{target != null ? `${target.toFixed(1)} Mbps` : '—'}</div>
       <div className="tabular-nums">{predictGb != null ? `${predictGb.toFixed(1)} GB` : '—'}</div>

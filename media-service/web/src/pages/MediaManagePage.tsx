@@ -291,7 +291,8 @@ export default function MediaManagePage() {
               <div className="mediaManageGrid mediaManageHead">
                 <div className="mediaManageTitleCell">名称</div>
                 <div>体积</div>
-                <div>格式</div>
+                <div>分辨率</div>
+                <div>编码</div>
                 <div>当前码率</div>
                 <div>目标码率</div>
                 <div>预测体积</div>
