@@ -99,9 +99,6 @@ function MediaLibraryManageRowInner({
       <div title={item.isBluRayDisc ? '原盘（ISO/BDMV）' : undefined}>
         {item.isBluRayDisc ? '是' : '否'}
       </div>
-      <div title={item.doubanStars != null ? `豆瓣 ${item.doubanStars} 星` : item.rating != null ? `本地 ${item.rating} 星` : '未标注'}>
-        <Stars count={item.rating ?? item.doubanStars} max={MAX_STARS} />
-      </div>
       <div title={item.doubanStars != null ? `豆瓣 ${item.doubanStars} 星` : '未抓取到'}>
         <Stars count={item.doubanStars} max={MAX_STARS} />
       </div>
