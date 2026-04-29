@@ -161,7 +161,7 @@ export default function MediaManagePage() {
             <option value="all">全部</option>
             <option value="transcode">码率压缩</option>
             <option value="upgrade">洗版</option>
-            <option value="keep">已达标</option>
+            <option value="keep">无建议策略</option>
             <option value="delete">删除档</option>
           </select>
         </div>
