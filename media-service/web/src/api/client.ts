@@ -281,3 +281,63 @@ export interface MpSite {
 export const moviepilot = {
   getSites: () => get<MpSite[]>('/v1/admin/moviepilot/sites'),
 };
+
+// ── ApiConflictError ──────────────────────────────────────────────────────────
+
+export class ApiConflictError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiConflictError';
+  }
+}
+
+// ── Library (desktop-compatible) ──────────────────────────────────────────────
+
+export interface SubLibraryInfo {
+  uuid: string;
+  name: string;
+  enabled: boolean;
+}
+
+export const libraryApi = {
+  getStatus: () =>
+    get<{ subLibraries: SubLibraryInfo[] }>('/v1/library/status'),
+
+  getCache: (subLibraryId?: string) => {
+    const params = subLibraryId ? `?subLibraryId=${encodeURIComponent(subLibraryId)}` : '';
+    return get<{ items: unknown[]; total: number }>(`/v1/library${params}`);
+  },
+
+  markPlayed: (itemId: string, subLibraryId?: string) =>
+    post<{ ok: boolean }>('/v1/library/actions/mark-played', { itemId, subLibraryId: subLibraryId || undefined }),
+
+  markUnplayed: (itemId: string, subLibraryId?: string) =>
+    post<{ ok: boolean }>('/v1/library/actions/mark-unplayed', { itemId, subLibraryId: subLibraryId || undefined }),
+
+  patchRatings: (itemId: string, userRating: number | null) =>
+    patch<{ ok: boolean }>('/v1/library/ratings', { itemId, userRating }),
+};
+
+export const taskApi = {
+  getTasks: () =>
+    get<MediaTask[]>('/v1/tasks'),
+
+  createByIntent: async (body: { itemId: string; actionType: string }): Promise<MediaTask> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const key = apiKey();
+    if (key) headers['x-api-key'] = key;
+    const r = await fetch('/v1/tasks', { method: 'POST', headers, body: JSON.stringify(body) });
+    if (r.status === 409) {
+      const b = await r.json().catch(() => ({}));
+      throw new ApiConflictError(b.code || 'CONFLICT', b.error?.message || b.message || 'Conflict');
+    }
+    if (!r.ok) {
+      const b = await r.json().catch(() => ({}));
+      throw new Error(b.error?.message || `HTTP ${r.status}`);
+    }
+    return r.json();
+  },
+};

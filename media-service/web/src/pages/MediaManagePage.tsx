@@ -1,0 +1,313 @@
+import { useEffect, useState, useMemo } from 'react';
+import { libraryApi, taskApi, ApiConflictError } from '../api/client';
+import type { SubLibraryInfo } from '../api/client';
+import { MediaLibraryManageRow } from '../components/MediaLibraryManageRow';
+import type { MediaTask } from '../types';
+import type { ManagedMediaItem, MediaAction, MediaRating } from '../models/media';
+import '../mediaManage.css';
+
+export default function MediaManagePage() {
+  const [subLibraries, setSubLibraries] = useState<SubLibraryInfo[]>([]);
+  const [subLibraryId, setSubLibraryId] = useState<string>('');
+  const [items, setItems] = useState<ManagedMediaItem[]>([]);
+  const [tasks, setTasks] = useState<MediaTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [actionFilter, setActionFilter] = useState<string>('all');
+  const [resolutionFilter, setResolutionFilter] = useState<string>('all');
+  const [codecFilter, setCodecFilter] = useState<string>('all');
+  const [watchedFilter, setWatchedFilter] = useState<string>('all');
+  const [bluRayFilter, setBluRayFilter] = useState<string>('all');
+  const [deleteExplainOpen, setDeleteExplainOpen] = useState(false);
+  const [activeSubLibName, setActiveSubLibName] = useState<string>('全部');
+
+  // Fetch subLibrary list
+  useEffect(() => {
+    libraryApi.getStatus().then((s) => {
+      const enabled = s.subLibraries.filter((sl) => sl.enabled);
+      setSubLibraries(enabled);
+    }).catch(() => {});
+  }, []);
+
+  // Fetch library data when subLibraryId changes
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    libraryApi
+      .getCache(subLibraryId || undefined)
+      .then((data) => {
+        if (!active) return;
+        const rows = (data.items as unknown[])
+          .map(coerceManagedItem)
+          .filter((x): x is ManagedMediaItem => x != null);
+        setItems(rows);
+        setLoading(false);
+      })
+      .catch((e) => {
+        if (!active) return;
+        setError(`加载媒体库失败：${e.message}`);
+        setLoading(false);
+      });
+    return () => { active = false; };
+  }, [subLibraryId]);
+
+  // Poll tasks
+  useEffect(() => {
+    const poll = () => {
+      taskApi.getTasks().then(setTasks).catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  const filtered = useMemo(() => {
+    let rows = items;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      rows = rows.filter((it) => it.name.toLowerCase().includes(q));
+    }
+    if (actionFilter !== 'all') {
+      rows = rows.filter((it) => (it.recommendedAction ?? 'keep') === actionFilter);
+    }
+    if (resolutionFilter !== 'all') {
+      rows = rows.filter((it) => it.resolution === resolutionFilter);
+    }
+    if (codecFilter !== 'all') {
+      rows = rows.filter((it) => it.codec === codecFilter);
+    }
+    if (watchedFilter !== 'all') {
+      const w = watchedFilter === 'watched';
+      rows = rows.filter((it) => it.watched === w);
+    }
+    if (bluRayFilter !== 'all') {
+      const isDisc = bluRayFilter === 'disc';
+      rows = rows.filter((it) => it.isBluRayDisc === isDisc);
+    }
+    return rows;
+  }, [items, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter]);
+
+  const enqueueManagedAction = (item: ManagedMediaItem, action: MediaAction) => {
+    if (item.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) return;
+    taskApi.createByIntent({ itemId: item.id, actionType: action }).catch((e) => {
+      if (e instanceof ApiConflictError) setError(e.message);
+      else setError(`创建任务失败：${e.message}`);
+    });
+  };
+
+  if (loading) return <div className="page"><p>加载媒体库数据...</p></div>;
+
+  return (
+    <div className="page">
+      <div className="pageSidebar">
+        {/* SubLibrary selector */}
+        <div className="sidebarMuted">媒体库</div>
+        <select
+          value={subLibraryId}
+          onChange={(e) => {
+            const id = e.target.value;
+            setSubLibraryId(id);
+            setActiveSubLibName(id ? subLibraries.find(sl => sl.uuid === id)?.name || '' : '全部');
+            setSelectedIds(new Set());
+          }}
+        >
+          <option value="">全部（{subLibraries.length} 个库）</option>
+          {subLibraries.map((sl) => (
+            <option key={sl.uuid} value={sl.uuid}>{sl.name}</option>
+          ))}
+        </select>
+
+        <div className="sidebarMuted" style={{ marginTop: 16 }}>筛选</div>
+        <div className="sidebarSearchWrap">
+          <input
+            className="sidebarSearch"
+            placeholder="搜索名称..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              className="sidebarSearchClear"
+              type="button"
+              onClick={() => setSearchQuery('')}
+              aria-label="清除搜索"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+          <option value="all">全部操作</option>
+          <option value="transcode">码率压缩</option>
+          <option value="upgrade">洗版</option>
+          <option value="keep">已达标</option>
+          <option value="delete">删除档</option>
+        </select>
+        <select value={resolutionFilter} onChange={(e) => setResolutionFilter(e.target.value)}>
+          <option value="all">全部分辨率</option>
+          <option value="1080p">1080p</option>
+          <option value="4K">4K</option>
+        </select>
+        <select value={codecFilter} onChange={(e) => setCodecFilter(e.target.value)}>
+          <option value="all">全部编码</option>
+          <option value="h264">H.264</option>
+          <option value="h265">H.265</option>
+          <option value="av1">AV1</option>
+        </select>
+        <select value={watchedFilter} onChange={(e) => setWatchedFilter(e.target.value)}>
+          <option value="all">全部观看</option>
+          <option value="watched">已观看</option>
+          <option value="unwatched">未观看</option>
+        </select>
+        <select value={bluRayFilter} onChange={(e) => setBluRayFilter(e.target.value)}>
+          <option value="all">全部</option>
+          <option value="disc">原盘</option>
+          <option value="not_disc">非原盘</option>
+        </select>
+
+        {(searchQuery || actionFilter !== 'all' || resolutionFilter !== 'all' || codecFilter !== 'all' || watchedFilter !== 'all' || bluRayFilter !== 'all') && (
+          <button
+            className="sidebarFilterReset"
+            type="button"
+            onClick={() => {
+              setSearchQuery('');
+              setActionFilter('all');
+              setResolutionFilter('all');
+              setCodecFilter('all');
+              setWatchedFilter('all');
+              setBluRayFilter('all');
+            }}
+          >
+            清除筛选
+          </button>
+        )}
+
+        <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => setSelectedIds(new Set(filtered.map((it) => it.id)))}>
+            全选
+          </button>
+          <button
+            type="button"
+            disabled={selectedIds.size === 0}
+            onClick={() => setSelectedIds(new Set())}
+          >
+            取消全选
+          </button>
+          <button
+            type="button"
+            disabled={selectedIds.size === 0}
+            onClick={() => {
+              for (const it of filtered) {
+                if (selectedIds.has(it.id)) {
+                  const action = it.recommendedAction ?? 'keep';
+                  if (action !== 'keep') enqueueManagedAction(it, action);
+                }
+              }
+            }}
+          >
+            批量入队
+          </button>
+        </div>
+        <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+          已选 {selectedIds.size} / {filtered.length} 条
+        </p>
+      </div>
+      <div className="pageMain">
+        <div className="pageMainInner">
+          {error && <p className="error">{error}</p>}
+          {filtered.length === 0 ? (
+            <p>暂未获取到媒体库数据。请先在管理端配置媒体库。</p>
+          ) : (
+            <div>
+              {filtered.map((item) => {
+                const rowTask = tasks.find(
+                  (t) => t.itemId === item.id && !['done', 'failed_hard'].includes(t.status),
+                );
+                return (
+                  <MediaLibraryManageRow
+                    key={item.id}
+                    item={item}
+                    isSelected={selectedIds.has(item.id)}
+                    isHighlighted={false}
+                    rowTask={rowTask}
+                    onToggleSelect={(id) => {
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id);
+                        else next.add(id);
+                        return next;
+                      });
+                    }}
+                    onWatchChange={async (it, watched) => {
+                      setItems((prev) =>
+                        prev.map((x) => (x.id === it.id ? { ...x, watched } : x)),
+                      );
+                      try {
+                        if (watched) {
+                          await libraryApi.markPlayed(it.id, subLibraryId);
+                        } else {
+                          await libraryApi.markUnplayed(it.id, subLibraryId);
+                        }
+                      } catch (e) {
+                        setItems((prev) =>
+                          prev.map((x) => (x.id === it.id ? { ...x, watched: !watched } : x)),
+                        );
+                        setError(`标记失败：${(e as Error).message}`);
+                      }
+                    }}
+                    onRatingChange={async (it, rating) => {
+                      await libraryApi.patchRatings(it.id, rating);
+                      setItems((prev) =>
+                        prev.map((x) => (x.id === it.id ? { ...x, rating } : x)),
+                      );
+                    }}
+                    onEnqueue={enqueueManagedAction}
+                    onOpenDeleteExplain={() => setDeleteExplainOpen(true)}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function coerceManagedItem(x: unknown): ManagedMediaItem | null {
+  if (!x || typeof x !== 'object') return null;
+  const o = x as Record<string, unknown>;
+  const id = typeof o.itemId === 'string' ? o.itemId : typeof o.itemId === 'number' ? String(o.itemId) : '';
+  const name = typeof o.name === 'string' ? o.name.trim() : '';
+  const sectionId = typeof o.subLibraryId === 'string' ? o.subLibraryId : '';
+  if (!id || !sectionId) return null;
+
+  const resRaw = typeof o.resolution === 'string' ? o.resolution : '';
+  const resHeight = parseInt(resRaw.split('x')[1], 10) || 0;
+  const resolution = resHeight >= 2160 ? '4K' : '1080p';
+
+  const sizeBytes = typeof o.size === 'number' ? o.size : 0;
+  const sizeGb = sizeBytes > 0 ? sizeBytes / (1024 * 1024 * 1024) : 1;
+
+  const durationSec = typeof o.duration === 'number' && o.duration > 0 ? o.duration : 3600;
+
+  return {
+    id,
+    name: name || id,
+    sectionId,
+    itemType: o.type === 'movie' ? 'Movie' : o.type === 'episode' ? 'Episode' : undefined,
+    resolution,
+    codec: (typeof o.codec === 'string' && ['h264', 'h265', 'av1'].includes(o.codec)) ? (o.codec as 'h264' | 'h265' | 'av1') : 'h265',
+    durationSec,
+    sizeGb,
+    isBluRayDisc: Boolean(o.isDiscLike),
+    rating: typeof o.userRating === 'number' ? (o.userRating as MediaRating) : null,
+    doubanStars: typeof o.doubanRating === 'number' ? (o.doubanRating as MediaRating) : null,
+    watched: Boolean(o.watched),
+    recommendedAction: typeof o.action === 'string' ? (o.action as MediaAction) : undefined,
+    equivalentBitrate: typeof o.bitrate === 'number' ? o.bitrate / 1_000_000 : undefined,
+  };
+}

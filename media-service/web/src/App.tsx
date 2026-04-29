@@ -6,12 +6,14 @@ import DoubanConfigPage from './pages/DoubanConfigPage';
 import TaskMonitorPage from './pages/TaskMonitorPage';
 import SystemConfigPage from './pages/SystemConfigPage';
 import MoviePilotConfigPage from './pages/MoviePilotConfigPage';
+import MediaManagePage from './pages/MediaManagePage';
 
 export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<DashboardPage />} />
+        <Route path="media" element={<MediaManagePage />} />
         <Route path="transcode" element={<TranscodeConfigPage />} />
         <Route path="douban" element={<DoubanConfigPage />} />
         <Route path="tasks" element={<TaskMonitorPage />} />
