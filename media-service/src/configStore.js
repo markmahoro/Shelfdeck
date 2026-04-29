@@ -42,10 +42,10 @@ function getDefaultConfig() {
     // Transcode
     transcodeTempRoot: '',
     transcodeReplaceConfirmRequired: false,
+    upgradeReplaceConfirmRequired: false,
     ffmpegPath: 'ffmpeg',
     ffprobePath: 'ffprobe',
     transcodeEncodingDevices: [],
-    transcodeMaxCpuSlots: 1,
     transcodeCpuParticipationStrategy: 'normal',
 
     // Upgrade (MoviePilot)
@@ -56,8 +56,7 @@ function getDefaultConfig() {
       stagingPath: '',
     },
     upgradeStagingLocalPath: '',
-    upgradeRetryInterval: 3600000,
-    upgradeMaxRetries: 3,
+    upgradeScrapingSettleSeconds: 1800,
 
     // Emby multi-server
     embyServers: {},
@@ -113,12 +112,9 @@ function migrateFromV1(raw) {
     ffmpegPath: raw.ffmpegPath || 'ffmpeg',
     ffprobePath: raw.ffprobePath || 'ffprobe',
     transcodeEncodingDevices: [],
-    transcodeMaxCpuSlots: 1,
     transcodeCpuParticipationStrategy: raw.transcodeCpuParticipationStrategy || 'normal',
     moviepilot: { baseUrl: '', apiKey: '', savePath: '', stagingPath: '' },
     upgradeStagingLocalPath: '',
-    upgradeRetryInterval: (raw.upgradeRetryInterval || 3600) * 1000,
-    upgradeMaxRetries: raw.upgradeMaxRetries || 3,
     embyServers,
     subLibraries: [],
     douban: { userId: '', cookieHeader: '' },

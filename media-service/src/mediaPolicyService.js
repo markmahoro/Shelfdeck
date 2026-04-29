@@ -24,10 +24,18 @@ function isDeleteTier(r) {
   return r === 1 || r === 2;
 }
 
-function resolutionBucket(resolution) {
-  if (!resolution) return '1080p';
-  const h = parseInt(String(resolution).split('x')[1], 10) || 0;
-  return h >= 2160 ? '4K' : '1080p';
+function resolutionBucket(resolutionOrItem) {
+  // Prefer library-computed bucket field
+  if (resolutionOrItem && typeof resolutionOrItem === 'object' && resolutionOrItem.bucket) {
+    return resolutionOrItem.bucket;
+  }
+  // Fallback: parse WxH string (backward compat + smartSeedSelect which passes raw strings)
+  const res = typeof resolutionOrItem === 'string' ? resolutionOrItem : (resolutionOrItem && resolutionOrItem.resolution) || '';
+  if (!res) return '1080p';
+  const parts = String(res).split('x');
+  const w = parseInt(parts[0], 10) || 0;
+  const h = parseInt(parts[1], 10) || 0;
+  return (w >= 3840 || h >= 2160) ? '4K' : '1080p';
 }
 
 function itemBitrateMbps(item) {
@@ -74,6 +82,9 @@ function recommendedAction(item, policy) {
 
   if (r === 3) {
     if (eq > target + HYSTERESIS_MBPS) {
+      if (item.isDiscLike) {
+        return { action: 'keep', reason: '原盘不转码' };
+      }
       if (isModernCodec(item.codec)) {
         return { action: 'keep', reason: `已是 ${item.codec} 编码，硬件重编码不会显著减小体积（当前 ${eq.toFixed(1)} Mbps）` };
       }
@@ -84,6 +95,9 @@ function recommendedAction(item, policy) {
 
   if (r === 4) {
     if (eq > target + HYSTERESIS_MBPS) {
+      if (item.isDiscLike) {
+        return { action: 'keep', reason: '原盘不转码' };
+      }
       if (isModernCodec(item.codec)) {
         return { action: 'keep', reason: `已是 ${item.codec} 编码，硬件重编码不会显著减小体积（当前 ${eq.toFixed(1)} Mbps）` };
       }

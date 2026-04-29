@@ -51,7 +51,7 @@ export default function SettingsPanel({ onClose, subLibraries }: { onClose: () =
     }
     // Save per-subLibrary path maps
     const mapsResult = await saveSubLibraryPathMaps(settings.subLibraryPathMaps || {});
-    if (!mapsResult.ok && !firstError) firstError = mapsResult.error || '保存子库路径映射失败';
+    if (!mapsResult.ok && !firstError) firstError = mapsResult.error || '保存媒体库路径映射失败';
 
     if (firstError) {
       setSaveError(firstError);
@@ -90,11 +90,11 @@ export default function SettingsPanel({ onClose, subLibraries }: { onClose: () =
         <label style={LABEL}>播放器路径（PotPlayer）</label>
         <input style={INPUT} value={settings.playerExePath} onChange={(e) => setSettings((s) => s ? { ...s, playerExePath: e.target.value } : s)} />
 
-        {/* ── 子库路径映射 ── */}
+        {/* ── 媒体库路径映射 ── */}
         {subLibraries.length > 0 && (
           <>
-            <h4 style={{ marginTop: 20, marginBottom: 4, fontSize: 14, color: '#333' }}>子库目录映射</h4>
-            <p style={{ margin: 0, fontSize: 11, color: '#999' }}>每个子库可单独配置 NAS 路径到本地的映射</p>
+            <h4 style={{ marginTop: 20, marginBottom: 4, fontSize: 14, color: '#333' }}>媒体库目录映射</h4>
+            <p style={{ margin: 0, fontSize: 11, color: '#999' }}>每个媒体库可单独配置 NAS 路径到本地的映射</p>
             {subLibraries.map((sl) => {
               const m = (settings.subLibraryPathMaps || {})[sl.uuid] || { from: '', to: '' };
               return (

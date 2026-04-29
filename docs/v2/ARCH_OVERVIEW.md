@@ -15,15 +15,14 @@
 
 ### 1.2 物理进程
 
-对应 3 个独立进程：
+对应 2 个独立进程：
 
 | 进程 | 包 | 职责 |
 |------|-----|------|
 | `media-desktop` | media-desktop | Electron 主进程 + 渲染进程 |
-| `media-tray-supervisor` | media-tray-supervisor | Windows 托盘 Supervisor |
-| `media-service` | media-service | Fastify HTTP 服务 |
+| `media-service` | media-service | Fastify HTTP 服务，内嵌托盘模块（Windows 系统托盘图标） |
 
-> tray-supervisor 在 Phase 3 的定位是 **service 的 Windows 托盘外壳**，不承载独立业务逻辑。
+> 托盘不再作为独立进程存在。托盘是 service 进程内的轻量模块（使用 systray2），启动时自动显示系统托盘图标，退出托盘即停止 service。旧 `media-tray-supervisor`（Electron）已废弃。
 
 ### 1.3 组件间协议
 
@@ -39,22 +38,20 @@
 用户点击 desktop 快捷方式
     └── desktop 进程启动（独立）
 
-用户点击 tray 快捷方式
-    └── tray 进程启动
-            └── spawn media-service 子进程（生命期绑定 tray）
-            └── 退出 tray → 带走 service 子进程
+用户点击 service 快捷方式（或启动 service）
+    └── service 进程启动 → 系统托盘图标自动出现
+            └── 右键托盘 → "退出" → service 进程终止
 ```
 
 - **desktop 独立启动**：不依赖 service 是否运行；未连接时显示引导界面
-- **tray 启动**：spawn service 子进程，service 生命期与 tray 绑定；Windows 外壳模式下 tray 退出则 service 终止
+- **service 自包含**：托盘是 service 进程的内置模块；启动 service 即出现托盘图标，退出托盘即停止 service
 
 ### 2.2 退出影响
 
 | 进程退出 | 影响范围 |
 |----------|----------|
-| desktop 退出 | service 和 tray 不受影响；任务继续执行 |
-| tray 退出 | 一定带走 service（Windows 外壳模式）；desktop 连接中断 |
-| service 退出 | 正在执行的任务中断；desktop 连接中断 |
+| desktop 退出 | service 不受影响；任务继续执行 |
+| service 退出（含托盘退出） | 正在执行的任务中断；desktop 连接中断；托盘图标消失 |
 
 
 ---
@@ -107,29 +104,28 @@ service REST API
 
 **状态所有权**：
 
-| 状态 | service | desktop | tray |
-|------|---------|---------|------|
-| 任务队列 | ✅ 读写（SSOT） | ❌ 只读 | ❌ |
-| Emby 连接信息 | ✅ | ❌ | ❌ |
-| service 地址 | ❌ | ✅ 自己管理 | ❌ |
-| 路径映射 | ✅（SSOT） | ❌ | ❌ |
+| 状态 | service | desktop |
+|------|---------|---------|
+| 任务队列 | ✅ 读写（SSOT） | ❌ 只读 |
+| Emby 连接信息 | ✅ | ❌ |
+| service 地址 | ❌ | ✅ 自己管理 |
+| 路径映射 | ✅（SSOT） | ❌ |
 
 ---
 
 ## §5 部署拓扑
 
-Phase 3 service 端固定部署在 Windows 上，由 tray-supervisor 作为 Windows 外壳管理。
+service 端固定部署在 Windows 上，内嵌系统托盘模块。
 
 ```
 同一台 Windows 机器
-┌─────────────────────────────────────────────┐
-│  tray (ShelfDeck 小助手)                     │
-│      └── spawn service 子进程                │
-│  desktop (Electron) ──HTTP──▶ service :18080│
-└─────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────┐
+│  service (:18080) — 托盘图标自动出现               │
+│  desktop (Electron) ──HTTP──▶ service :18080       │
+└───────────────────────────────────────────────────┘
 ```
 
-- tray 不管理连接配置，只负责 spawn service 子进程
+- 托盘是 service 进程的内置模块，不再是独立进程
 - service 端口固定 18080
 - desktop 通过 electron-store 保存的地址连接 service
 
@@ -140,9 +136,9 @@ Phase 3 service 端固定部署在 Windows 上，由 tray-supervisor 作为 Wind
 | | P1 | P2 | P3 | P4 (v1.0.0) |
 |---|-----|-----|-----|-----|
 | **组件边界** | 单体 | 3 组件 | 2 逻辑组件（service 胖服务 + desktop 瘦客户端） | 同 P3 |
-| **进程模型** | 1 进程 | 3 进程 | 3 进程；tray spawn service 子进程 | 同 P3 |
+| **进程模型** | 1 进程 | 3 进程 | 2 进程；tray 内嵌于 service 进程 | 同 P3 |
 | **数据流** | IPC | IPC | REST | 同 P3 |
-| **部署拓扑** | 无 tray | tray 独立进程 | tray Windows 外壳（spawn service） | 同 P3 |
+| **部署拓扑** | 无 tray | tray 独立进程 | tray 内嵌于 service（systray2） | 同 P3 |
 
 ---
 

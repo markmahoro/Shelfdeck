@@ -13,6 +13,8 @@ const activityLog = require('./activityLog');
 
 let timer = null;
 let lastRunAt = null;
+let lastError = null;
+let _enabled = false;
 
 function maxTimestamp(a, b) {
   if (!a && !b) return 0;
@@ -28,7 +30,8 @@ function start(configStore, mediaLibraryService, taskStore) {
   const run = () => {
     try {
       const cfg2 = configStore.loadConfig();
-      if (!cfg2.wallRatingAutoEnqueue) {
+      _enabled = cfg2.wallRatingAutoEnqueue || false;
+      if (!_enabled) {
         if (!lastRunAt) {
           const msg = '智能入队未启用，请在系统设置中开启 wallRatingAutoEnqueue';
           console.log(`[smartTaskEngine] ${msg}`);
@@ -38,7 +41,6 @@ function start(configStore, mediaLibraryService, taskStore) {
       }
 
       const maxPerRun = cfg2.smartTaskMaxPerRun || 10;
-      const maxQueueSize = cfg2.smartTaskMaxQueueSize || 50;
       const enabledActions = cfg2.smartTaskEnabledActions || ['transcode', 'upgrade'];
       const lookbackDays = cfg2.smartTaskLookbackDays || 30;
 
@@ -47,17 +49,21 @@ function start(configStore, mediaLibraryService, taskStore) {
 
       const allTasks = taskStore.getTasks();
 
-      // Cap total active queue to prevent unbounded accumulation
-      const activeCount = allTasks.filter(
-        (t) => !['done', 'failed_hard', 'deleted'].includes(t.status)
-      ).length;
-      if (activeCount >= maxQueueSize) return;
+      // Count active (non-terminal) tasks per action type
+      const activeByType = {};
+      const activeItemIds = new Set();
+      for (const t of allTasks) {
+        if (['done', 'failed_hard', 'deleted'].includes(t.status)) continue;
+        activeByType[t.actionType] = (activeByType[t.actionType] || 0) + 1;
+        activeItemIds.add(t.itemId);
+      }
 
-      const activeItemIds = new Set(
-        allTasks
-          .filter((t) => !['done', 'failed_hard', 'deleted'].includes(t.status))
-          .map((t) => t.itemId)
-      );
+      // Per-type limit = concurrency slots × 5
+      const limits = {
+        delete: (cfg2.deleteConcurrency || 3) * 5,
+        transcode: (cfg2.transcodeConcurrency || 2) * 5,
+        upgrade: (cfg2.upgradeConcurrency || 1) * 5,
+      };
 
       const now = Date.now();
       const lookbackCutoff = now - lookbackDays * 86400000;
@@ -71,6 +77,12 @@ function start(configStore, mediaLibraryService, taskStore) {
         if (!enabledActions.includes(item.action)) return false;
         if (item.reason === '新入库') return false;
         if (activeItemIds.has(item.itemId)) return false;
+
+        // 48h freeze after task completion — wait for Emby to refresh metadata
+        if (item.lastTaskDoneAt) {
+          const freezeUntil = new Date(item.lastTaskDoneAt).getTime() + 48 * 3600 * 1000;
+          if (now < freezeUntil) return false;
+        }
 
         // Lookback window for first/resume run
         if (isFirstOrResume) {
@@ -87,14 +99,21 @@ function start(configStore, mediaLibraryService, taskStore) {
              - maxTimestamp(a.userRatingUpdatedAt, a.doubanRatingUpdatedAt);
       });
 
-      const toEnqueue = candidates.slice(0, maxPerRun);
+      const toEnqueue = [];
+      for (const item of candidates) {
+        if (toEnqueue.length >= maxPerRun) break;
 
-      for (const item of toEnqueue) {
+        // Check per-action-type queue limit
+        const cur = activeByType[item.action] || 0;
+        const lim = limits[item.action] || 50;
+        if (cur >= lim) continue;
+
         const status = cfg2.executionMode === 'manual' ? 'pending_manual' : 'queued';
         taskStore.createTask({
           itemId: item.itemId,
           itemName: item.name,
           actionType: item.action,
+
           status,
           itemInfo: {
             name: item.name,
@@ -103,6 +122,7 @@ function start(configStore, mediaLibraryService, taskStore) {
             resolution: item.resolution,
             bitrate: item.bitrate,
             size: item.size,
+            duration: item.duration,
             type: item.type,
             doubanRating: item.doubanRating,
             userRating: item.userRating,
@@ -114,6 +134,8 @@ function start(configStore, mediaLibraryService, taskStore) {
           }],
         });
         console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${item.action} "${item.name}"`);
+        toEnqueue.push(item);
+        activeByType[item.action] = (activeByType[item.action] || 0) + 1;
       }
 
       if (toEnqueue.length > 0) {
@@ -132,6 +154,7 @@ function start(configStore, mediaLibraryService, taskStore) {
 
       lastRunAt = now;
     } catch (e) {
+      lastError = e.message;
       console.error('[smartTaskEngine] error:', e.message);
     }
   };
@@ -152,4 +175,17 @@ function stop() {
   }
 }
 
-module.exports = { start, stop };
+module.exports = { start, stop, getHealth };
+
+function getHealth() {
+  if (!_enabled) {
+    return { status: 'green', enabled: false, lastRunAt: null };
+  }
+  if (!timer) {
+    return { status: 'red', enabled: true, lastRunAt };
+  }
+  if (!lastRunAt) {
+    return { status: 'yellow', enabled: true, lastRunAt: null };
+  }
+  return { status: 'green', enabled: true, lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null };
+}

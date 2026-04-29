@@ -1,7 +1,7 @@
 /**
  * [UI] App 根组件 — v2 瘦客户端架构。
  *
- * 职责：页面路由、子库选择、全局任务轮询。不做配置管理、任务管理、策略计算。
+ * 职责：页面路由、媒体库选择、全局任务轮询。不做配置管理、任务管理、策略计算。
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -34,7 +34,7 @@ export default function App() {
 
   const baseUrl = getBaseUrl();
 
-  // ── 子库列表 ──
+  // ── 媒体库列表 ──
   useEffect(() => {
     apiClient.getLibraryStatus().then((s) => {
       setSubLibraries(s.subLibraries.filter((sl) => sl.enabled));

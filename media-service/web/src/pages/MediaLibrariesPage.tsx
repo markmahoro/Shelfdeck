@@ -52,7 +52,7 @@ export default function MediaLibrariesPage() {
   // Mutations
   const deleteMut = useMutation({
     mutationFn: subLibraries.remove,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sublibraries'] }); setAlert({ type: 'success', msg: '子库已删除' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sublibraries'] }); setAlert({ type: 'success', msg: '媒体库已删除' }); },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
@@ -77,7 +77,7 @@ export default function MediaLibrariesPage() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sublibraries'] });
-      setAlert({ type: 'success', msg: '子库添加成功' });
+      setAlert({ type: 'success', msg: '媒体库添加成功' });
       closeWizard();
     },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
@@ -130,7 +130,7 @@ export default function MediaLibrariesPage() {
             borderRadius: 6, cursor: 'pointer', fontSize: 14,
           }}
         >
-          添加子库
+          添加媒体库
         </button>
       </div>
 
@@ -138,7 +138,7 @@ export default function MediaLibrariesPage() {
 
       {subLibs.length === 0 ? (
         <div style={{ background: '#fff', borderRadius: 10, padding: 40, textAlign: 'center', color: '#888' }}>
-          暂无子库，点击「添加子库」开始配置
+          暂无媒体库，点击「添加媒体库」开始配置
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
@@ -173,7 +173,7 @@ export default function MediaLibrariesPage() {
                       {sl.enabled ? '暂停' : '启用'}
                     </button>
                     <button
-                      onClick={() => { if (confirm('确认删除此子库？')) deleteMut.mutate(sl.uuid); }}
+                      onClick={() => { if (confirm('确认删除此媒体库？')) deleteMut.mutate(sl.uuid); }}
                       style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13 }}
                     >
                       删除
@@ -187,7 +187,7 @@ export default function MediaLibrariesPage() {
       )}
 
       {/* Add Wizard Modal */}
-      <Modal open={wizardOpen} title={`添加子库 (${step}/4)`} onClose={closeWizard} width={520}>
+      <Modal open={wizardOpen} title={`添加媒体库 (${step}/4)`} onClose={closeWizard} width={520}>
         {step === 1 && (
           <div>
             <div style={{ marginBottom: 16 }}>
@@ -263,7 +263,7 @@ export default function MediaLibrariesPage() {
         {step === 4 && (
           <div>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>子库名称</label>
+              <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>媒体库名称</label>
               <input
                 type="text"
                 value={subLibName}

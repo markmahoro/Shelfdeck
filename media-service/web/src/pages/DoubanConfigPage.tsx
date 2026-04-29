@@ -55,8 +55,6 @@ export default function DoubanConfigPage() {
 
   return (
     <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24, color: '#1a1a2e' }}>豆瓣设置</h2>
-
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={4000} />}
 
       {/* Session config */}
@@ -90,15 +88,15 @@ export default function DoubanConfigPage() {
       <section style={cardStyle}>
         <h3 style={sectionTitle}>同步豆瓣评分</h3>
         <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
-          选择开启了豆瓣同步的子库，点击同步按钮，从豆瓣「看过」列表抓取评分。
+          选择开启了豆瓣同步的媒体库，点击同步按钮，从豆瓣「看过」列表抓取评分。
         </p>
         {subLibs.length === 0 ? (
-          <p style={{ color: '#aaa', fontSize: 14 }}>暂无子库。请先在「媒体库」中添加子库并开启豆瓣同步。</p>
+          <p style={{ color: '#aaa', fontSize: 14 }}>暂无媒体库。请先在「媒体库」中添加媒体库并开启豆瓣同步。</p>
         ) : (
           <table style={tableStyle}>
             <thead>
               <tr>
-                <th style={thStyle}>子库名称</th>
+                <th style={thStyle}>媒体库名称</th>
                 <th style={thStyle}>豆瓣同步</th>
                 <th style={thStyle}>上次同步</th>
                 <th style={thStyle}>操作</th>
@@ -135,7 +133,7 @@ const cardStyle: React.CSSProperties = {
 };
 
 const sectionTitle: React.CSSProperties = {
-  fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#1a1a2e',
+  fontSize: 15, fontWeight: 600, marginTop: 0, marginBottom: 16, color: '#1a1a2e',
 };
 
 const labelStyle: React.CSSProperties = {

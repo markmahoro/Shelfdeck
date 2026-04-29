@@ -6,14 +6,14 @@ const GROUP_1 = [
 ];
 
 const GROUP_2 = [
-  { to: '/tasks', label: '任务监控' },
+  { to: '/tasks', label: '任务中心' },
 ];
 
 const GROUP_3 = [
-  { to: '/system', label: '任务调度设置' },
-  { to: '/douban', label: '豆瓣评分抓取设置' },
-  { to: '/transcode', label: '转码设置' },
-  { to: '/moviepilot', label: '洗版设置' },
+  { to: '/system', label: '任务调度' },
+  { to: '/douban', label: '豆瓣评分抓取' },
+  { to: '/transcode', label: '转码压缩' },
+  { to: '/moviepilot', label: '洗版' },
 ];
 
 export default function Sidebar() {
@@ -21,7 +21,6 @@ export default function Sidebar() {
     <aside className={styles.sidebar}>
       <div className={styles.logo}>ShelfDeck</div>
       <nav className={styles.nav}>
-        <div className={styles.groupLabel}>概览</div>
         {GROUP_1.map(({ to, label }) => (
           <NavLink
             key={to}
@@ -35,7 +34,6 @@ export default function Sidebar() {
           </NavLink>
         ))}
 
-        <div className={styles.groupLabel}>监控</div>
         {GROUP_2.map(({ to, label }) => (
           <NavLink
             key={to}

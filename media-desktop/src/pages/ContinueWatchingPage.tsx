@@ -120,7 +120,7 @@ export default function ContinueWatchingPage({ subLibraryId }: { tasks: unknown[
         </div>
 
         {!subLibraryId ? (
-          <p className="muted">请先选择一个子库。</p>
+          <p className="muted">请先选择一个媒体库。</p>
         ) : unplayedLoading ? (
           <p>加载中...</p>
         ) : unplayedItems.length === 0 ? (

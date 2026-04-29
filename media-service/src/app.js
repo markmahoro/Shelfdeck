@@ -15,6 +15,7 @@ const mediaLibraryService = require('./mediaLibraryService');
 const embyService = require('./services/embyService');
 const doubanService = require('./services/doubanService');
 const transcodeService = require('./services/transcodeService');
+const moviepilotService = require('./services/moviepilotService');
 const strategyEngine = require('./strategyEngine');
 const smartTaskEngine = require('./smartTaskEngine');
 const activityLog = require('./activityLog');
@@ -165,6 +166,7 @@ function registerRoutes(app) {
       resolution: libItem.resolution,
       bitrate: libItem.bitrate,
       size: libItem.size,
+      duration: libItem.duration,
       type: libItem.type,
       doubanRating: libItem.doubanRating,
       userRating: libItem.userRating,
@@ -193,6 +195,76 @@ function registerRoutes(app) {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
     return task;
+  });
+
+  app.get('/v1/tasks/:id/report', async (req, reply) => {
+    const task = taskStore.getTask(req.params.id);
+    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    if (task.status !== 'done') return apiError(reply, 400, 'BAD_REQUEST', 'Task not completed yet');
+
+    const info = task.itemInfo || {};
+    const vr = task.verifyResult || {};
+    const logs = task.logs || [];
+    const firstTs = logs.length > 0 ? new Date(logs[0].ts) : null;
+    const lastTs = logs.length > 0 ? new Date(logs[logs.length - 1].ts) : null;
+    const elapsedSec = firstTs && lastTs ? Math.round((lastTs.getTime() - firstTs.getTime()) / 1000) : null;
+
+    // Find encoder info from logs
+    const encoderLog = logs.find((l) => l.msg && l.msg.startsWith('Encoder:'));
+    const encoder = encoderLog ? encoderLog.msg.replace('Encoder: ', '') : null;
+
+    const report = {
+      taskId: task.id,
+      itemName: task.itemName || task.itemId,
+      actionType: task.actionType,
+      elapsedSec,
+      encoder,
+    };
+
+    if (task.actionType === 'transcode') {
+      report.original = {
+        sizeBytes: info.originalSizeBytes || info.size,
+        videoCodec: info.originalVideoCodec || info.codec || '?',
+        bitrate: info.originalBitrate || info.bitrate || 0,
+        width: info.originalWidth,
+        height: info.originalHeight,
+        audioCodec: info.originalAudioCodec,
+      };
+      report.output = {
+        sizeBytes: vr.sizeBytes,
+        videoCodec: vr.videoCodec,
+        bitrate: vr.bitrate,
+        width: vr.width,
+        height: vr.height,
+      };
+      report.bytesSaved = vr.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
+    } else if (task.actionType === 'delete') {
+      report.bytesFreed = info.size || info.originalSizeBytes || 0;
+    } else if (task.actionType === 'upgrade') {
+      report.original = {
+        sizeBytes: info.originalSizeBytes || info.size,
+        videoCodec: info.originalVideoCodec || info.codec || '?',
+        bitrate: info.originalBitrate || info.bitrate || 0,
+        width: info.originalWidth,
+        height: info.originalHeight,
+        resolution: info.resolution,
+        audioCodec: info.originalAudioCodec,
+      };
+      report.output = {
+        sizeBytes: vr.sizeBytes,
+        videoCodec: vr.videoCodec,
+        bitrate: vr.bitrate,
+        width: vr.width,
+        height: vr.height,
+      };
+      const up = task.upgradePreview;
+      if (up) {
+        report.bytesSaved = up.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
+        report.tmdbVerified = up.tmdbVerified;
+      }
+    }
+
+    return report;
   });
 
   app.get('/v1/tasks/:id/preview', async (req, reply) => {
@@ -618,7 +690,7 @@ function registerRoutes(app) {
   });
 
   app.post('/v1/admin/sublibraries', async (req, reply) => {
-    const { name, embyServerId, sectionId, source, doubanEnabled, mediaPolicy } = req.body || {};
+    const { name, embyServerId, sectionId, source, doubanEnabled, mediaPolicy, upgradeSmartSelect } = req.body || {};
     if (!name || !embyServerId || !sectionId) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name, embyServerId, and sectionId are required');
     }
@@ -626,7 +698,7 @@ function registerRoutes(app) {
     if (!(cfg.embyServers || {})[embyServerId]) {
       return apiError(reply, 404, 'NOT_FOUND', 'Emby server not found');
     }
-    const subLib = mediaLibraryService.addSubLibrary({ name, embyServerId, sectionId, source, doubanEnabled, mediaPolicy });
+    const subLib = mediaLibraryService.addSubLibrary({ name, embyServerId, sectionId, source, doubanEnabled, mediaPolicy, upgradeSmartSelect });
     return reply.code(201).send(subLib);
   });
 
@@ -652,7 +724,6 @@ function registerRoutes(app) {
       ffmpegPath: cfg.ffmpegPath || 'ffmpeg',
       ffprobePath: cfg.ffprobePath || 'ffprobe',
       transcodeEncodingDevices: cfg.transcodeEncodingDevices || [],
-      transcodeMaxCpuSlots: cfg.transcodeMaxCpuSlots || 1,
       transcodeCpuParticipationStrategy: cfg.transcodeCpuParticipationStrategy || 'normal',
     };
   });
@@ -661,7 +732,7 @@ function registerRoutes(app) {
     const allowed = [
       'transcodeTempRoot', 'transcodeReplaceConfirmRequired',
       'ffmpegPath', 'ffprobePath', 'transcodeEncodingDevices',
-      'transcodeMaxCpuSlots', 'transcodeCpuParticipationStrategy',
+      'transcodeCpuParticipationStrategy',
     ];
     const patch = {};
     for (const key of allowed) {
@@ -677,16 +748,23 @@ function registerRoutes(app) {
 
   app.get('/v1/admin/transcode/device-pool', async () => {
     const cfg = configStore.loadConfig();
-    const devices = (cfg.transcodeEncodingDevices || []).map((dev) => ({
-      ...dev,
-      status: 'idle',
-      activeSlots: 0,
-    }));
+    const slotUsage = transcodeService.getDeviceSlotUsage();
+    const devices = (cfg.transcodeEncodingDevices || []).map((dev) => {
+      const inUse = slotUsage[dev.stableKey] || 0;
+      const maxSlots = dev.maxSlots || 1;
+      return {
+        ...dev,
+        status: inUse >= maxSlots ? 'busy' : inUse > 0 ? 'busy' : 'idle',
+        activeSlots: inUse,
+      };
+    });
     const totalDevices = devices.length;
     const idleDevices = devices.filter((d) => d.status === 'idle').length;
+    const totalSlots = devices.reduce((s, d) => s + (d.maxSlots || 1), 0);
+    const usedSlots = devices.reduce((s, d) => s + (d.activeSlots || 0), 0);
     return {
       devices,
-      summary: { totalDevices, idleDevices, totalAvailableSlots: totalDevices, usedSlots: 0 },
+      summary: { totalDevices, idleDevices, totalAvailableSlots: totalSlots, usedSlots },
     };
   });
 
@@ -698,18 +776,33 @@ function registerRoutes(app) {
     return {
       moviepilot: { ...mp, apiKey: mp.apiKey ? '********' : '' },
       upgradeStagingLocalPath: cfg.upgradeStagingLocalPath || '',
-      upgradeRetryInterval: cfg.upgradeRetryInterval || 3600000,
-      upgradeMaxRetries: cfg.upgradeMaxRetries || 3,
+      upgradeReplaceConfirmRequired: cfg.upgradeReplaceConfirmRequired || false,
     };
   });
 
   app.patch('/v1/admin/upgrade/config', async (req) => {
-    const allowed = ['moviepilot', 'upgradeStagingLocalPath', 'upgradeRetryInterval', 'upgradeMaxRetries'];
+    const allowed = ['moviepilot', 'upgradeStagingLocalPath', 'upgradeReplaceConfirmRequired'];
     const patch = {};
     for (const key of allowed) {
       if (req.body && req.body[key] !== undefined) patch[key] = req.body[key];
     }
     return maskSensitive(configStore.patchConfig(patch));
+  });
+
+  // ── Admin: MoviePilot Sites ───────────────────────────────────────────
+
+  app.get('/v1/admin/moviepilot/sites', async () => {
+    const cfg = configStore.loadConfig();
+    const mp = cfg.moviepilot || {};
+    if (!mp.baseUrl || !mp.apiKey) return [];
+    try {
+      const sites = await moviepilotService.listSites(mp);
+      if (!Array.isArray(sites)) return [];
+      return sites.map((s) => ({ id: s.id, name: s.name, domain: s.domain, is_active: s.is_active }));
+    } catch (e) {
+      console.error('[admin] listSites error:', e.message);
+      return [];
+    }
   });
 
   // ── Admin: Tasks ────────────────────────────────────────────────────────
@@ -718,12 +811,20 @@ function registerRoutes(app) {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (req.query.actionType) filter.actionType = req.query.actionType;
-    const tasks = taskStore.getTasks(filter);
+    if (req.query.q) filter.q = req.query.q;
+    const allTasks = taskStore.getTasks(filter);
     const byStatus = {};
-    for (const t of tasks) {
+    for (const t of allTasks) {
       byStatus[t.status] = (byStatus[t.status] || 0) + 1;
     }
-    return { tasks, summary: { total: tasks.length, byStatus } };
+
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
+    const total = allTasks.length;
+    const start = (page - 1) * pageSize;
+    const tasks = allTasks.slice(start, start + pageSize);
+
+    return { tasks, summary: { total, byStatus }, page, pageSize, total };
   });
 
   app.get('/v1/admin/tasks/:id', async (req, reply) => {
@@ -833,6 +934,13 @@ async function buildApp(opts = {}) {
     strategyEngine.stop();
     smartTaskEngine.stop();
   });
+
+  // Clean up orphan ffmpeg processes and temp dirs from previous run
+  // Must run BEFORE scheduler starts dispatching tasks
+  const startupCfg = configStore.loadConfig();
+  if (startupCfg.transcodeTempRoot) {
+    await transcodeService.cleanupOrphans(startupCfg);
+  }
 
   // Start health check timer and subLibrary timers
   healthCheck.startHealthCheckTimer();

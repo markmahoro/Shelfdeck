@@ -60,10 +60,11 @@ function releaseEncodeDeviceSlot(deviceId) {
   else notifyGlobalDeviceWaiters();
 }
 
-async function acquireFirstAvailableAmong(orderedDeviceSlots) {
+async function acquireFirstAvailableAmong(orderedDeviceSlots, { needsCpu } = {}) {
   const list = Array.isArray(orderedDeviceSlots) ? orderedDeviceSlots : [];
   for (;;) {
     for (const row of list) {
+      if (!needsCpu && row.cpuBackupOnly) continue;
       const id = String(row.deviceId || '').trim();
       if (!id) continue;
       const maxSlots = Math.max(1, Number(row.maxSlots) || 1);
@@ -196,7 +197,7 @@ async function encoderSelfTest(ff, encArgs, env) {
 
 function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolbyVision, dvAcknowledged }) {
   const ff = resolveFfmpegBin(config);
-  const args = ['-hide_banner', '-y', '-i', sourcePath, '-map', '0:v:0', '-map', '0:a?', '-sn', '-dn'];
+  const args = ['-hide_banner', '-y', '-i', sourcePath, '-map', '0:v:0', '-map', '0:a?', '-map', '0:s?', '-dn'];
   let enc = String(encoderMode || 'cpu').toLowerCase();
   if (isDolbyVision && dvAcknowledged) {
     enc = 'cpu';
@@ -206,7 +207,7 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
   else if (enc === 'qsv') args.push('-c:v', 'hevc_qsv', '-global_quality', '24');
   else if (enc === 'amf') args.push('-c:v', 'hevc_amf', '-quality', 'balanced', '-rc', 'cqp', '-qp_i', '24', '-qp_p', '24');
   else args.push('-c:v', 'libx265', '-crf', '22', '-preset', 'medium');
-  args.push('-c:a', 'copy', partialPath);
+  args.push('-c:a', 'copy', '-c:s', 'copy', partialPath);
   return { ffmpegBin: ff, args };
 }
 
@@ -306,15 +307,12 @@ async function startEncode(onProgress, params) {
   const slots = Array.isArray(orderedDeviceSlots) ? orderedDeviceSlots : [];
   if (slots.length === 0) throw new Error('No encode devices in pool');
 
-  const deviceId = await acquireFirstAvailableAmong(slots);
+  const needsCpu = !!(isDolbyVision && dvAcknowledged);
+  const deviceId = await acquireFirstAvailableAmong(slots, { needsCpu });
   try {
     try { if (fs.existsSync(partialPath)) fs.unlinkSync(partialPath); } catch (_) {}
 
     const { backend: devBack, gpuIndex: devGpu } = parseStableKey(deviceId);
-    if (isDolbyVision && dvAcknowledged && devBack !== 'cpu') {
-      releaseEncodeDeviceSlot(deviceId);
-      throw new Error('Dolby Vision requires CPU encoder (cpu:libx265 in pool)');
-    }
 
     const { ffmpegBin, args } = buildEncodeArgs({ config, sourcePath, partialPath, encoderMode: devBack, isDolbyVision: !!isDolbyVision, dvAcknowledged: !!dvAcknowledged });
     log('startEncode', tid, deviceId, devBack);
@@ -370,11 +368,13 @@ async function probeSummary(config, filePath) {
   const j = await ffprobeJson(config, filePath);
   const dur = Number(j.format && j.format.duration || 0);
   const v = (j.streams || []).find((s) => s.codec_type === 'video');
+  const a = (j.streams || []).find((s) => s.codec_type === 'audio');
   return {
     durationSec: Number.isFinite(dur) ? dur : 0,
     videoCodec: v ? String(v.codec_name || '') : '',
     width: v && typeof v.width === 'number' ? v.width : 0,
     height: v && typeof v.height === 'number' ? v.height : 0,
+    audioCodec: a ? String(a.codec_name || '') : '',
   };
 }
 
@@ -477,6 +477,116 @@ async function scanOrphans(tempRoot) {
   return { entries: out };
 }
 
+function getDeviceSlotUsage() {
+  const usage = {};
+  for (const [deviceId, pool] of encodeDevicePools) {
+    usage[deviceId] = pool.inUse;
+  }
+  return usage;
+}
+
+// ── Startup orphan cleanup ───────────────────────────────────────────────────
+
+/**
+ * Kill ffmpeg processes launched from our bundled ffmpeg binary.
+ * Called on startup — any such process from a previous run is orphaned.
+ */
+function killOrphanFfmpegProcesses() {
+  const bundled = getBundledFfmpegPath();
+  if (!bundled) return 0;
+
+  try {
+    const output = execFileSync('powershell', [
+      '-NoProfile', '-Command',
+      'Get-CimInstance Win32_Process -Filter "name=\'ffmpeg.exe\'" | Select-Object ProcessId, CommandLine | ConvertTo-Json -Compress',
+    ], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
+
+    if (!output || !output.trim()) return 0;
+
+    let procs;
+    try { procs = JSON.parse(output); } catch { return 0; }
+    if (!Array.isArray(procs)) procs = [procs].filter(Boolean);
+
+    let killed = 0;
+    for (const proc of procs) {
+      if (!proc || !proc.ProcessId) continue;
+      if (!String(proc.CommandLine || '').includes(bundled)) continue;
+      try {
+        execFileSync('taskkill', ['/F', '/PID', String(proc.ProcessId)], { windowsHide: true, timeout: 5000 });
+        killed++;
+      } catch (_) {}
+    }
+
+    if (killed > 0) log('startup: killed', killed, 'orphan ffmpeg process(es)');
+    return killed;
+  } catch (err) {
+    log('killOrphanFfmpegProcesses error:', err.message);
+    return 0;
+  }
+}
+
+/**
+ * Clean up orphan temp directories on startup.
+ * An orphan is an etp-task-* dir whose task no longer exists in the task store.
+ * Called before the scheduler starts — kills orphan ffmpeg first (releases file locks),
+ * then deletes orphan directories.
+ */
+async function cleanupOrphans(config) {
+  const tempRoot = String(config.transcodeTempRoot || '').trim();
+  if (!tempRoot || !fs.existsSync(tempRoot)) return { dirsCleaned: 0, bytesFreed: 0 };
+
+  // Step 1: kill orphan ffmpeg first (releases file locks)
+  killOrphanFfmpegProcesses();
+
+  // Brief pause to let OS release file handles
+  await new Promise((r) => setTimeout(r, 500));
+
+  // Step 2: scan and delete orphan etp-task-* dirs
+  const taskStore = require('../taskStore');
+  const tasks = taskStore.loadTasks();
+  const taskIds = new Set(tasks.map((t) => t.id));
+
+  let entries;
+  try {
+    entries = await fs.promises.readdir(tempRoot, { withFileTypes: true });
+  } catch {
+    return { dirsCleaned: 0, bytesFreed: 0 };
+  }
+
+  let dirsCleaned = 0;
+  let bytesFreed = 0;
+
+  for (const ent of entries) {
+    if (!ent.isDirectory() || !ent.name.startsWith('etp-task-')) continue;
+
+    const dirTaskId = ent.name.slice('etp-task-'.length);
+    if (taskIds.has(dirTaskId)) continue; // task still exists, skip
+
+    const dirPath = path.join(tempRoot, ent.name);
+
+    // Calculate size before cleanup
+    try {
+      const files = await fs.promises.readdir(dirPath);
+      for (const f of files) {
+        try {
+          const st = await fs.promises.stat(path.join(dirPath, f));
+          bytesFreed += st.size;
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    await cleanupTaskWorkdir(dirPath);
+    dirsCleaned++;
+    log('startup: cleaned orphan dir', dirPath);
+  }
+
+  if (dirsCleaned > 0) {
+    log(`startup: ${dirsCleaned} orphan dirs cleaned, ${(bytesFreed / 1024 / 1024 / 1024).toFixed(1)} GB freed`);
+  }
+
+  return { dirsCleaned, bytesFreed };
+}
+
 module.exports = {
   precheck,
   startEncode,
@@ -491,4 +601,38 @@ module.exports = {
   parseStableKey,
   resolveFfmpegBin,
   resolveFfprobeBin,
+  getDeviceSlotUsage,
+  getHealth,
+  cleanupOrphans,
 };
+
+const { execFileSync } = require('child_process');
+
+async function getHealth(config) {
+  const ff = resolveFfmpegBin(config);
+  let ffmpegOk = false;
+  try {
+    execFileSync(ff, ['-version'], { timeout: 5000, windowsHide: true });
+    ffmpegOk = true;
+  } catch (_) {}
+
+  const tempRoot = (config && config.transcodeTempRoot || '').trim();
+  let tempOk = false;
+  if (tempRoot) {
+    try { tempOk = fs.existsSync(tempRoot); } catch (_) {}
+  }
+
+  if (!ffmpegOk) {
+    return { status: 'red', ffmpegOk: false, deviceCount: 0, message: 'ffmpeg 不可用' };
+  }
+  if (!tempOk) {
+    return { status: 'red', ffmpegOk: true, deviceCount: 0, message: 'transcodeTempRoot 不可写' };
+  }
+
+  const devices = (config && config.transcodeEncodingDevices || []).filter((d) => d.inPool);
+  if (devices.length === 0) {
+    return { status: 'yellow', ffmpegOk: true, deviceCount: 0, message: '未配置编码设备' };
+  }
+
+  return { status: 'green', ffmpegOk: true, deviceCount: devices.length };
+}

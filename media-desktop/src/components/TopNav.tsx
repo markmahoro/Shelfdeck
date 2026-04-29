@@ -1,5 +1,5 @@
 /**
- * [UI] TopNav 导航栏 — 页面切换 + 子库选择。
+ * [UI] TopNav 导航栏 — 页面切换 + 媒体库选择。
  */
 
 import type { AppPage, SubLibraryInfo } from '../App';
@@ -27,16 +27,16 @@ export default function TopNav({
 }) {
   return (
     <nav className="topNav" aria-label="主导航">
-      {/* 左侧：子库选择 */}
+      {/* 左侧：媒体库选择 */}
       <div className="topNavLeft">
         <span className="topNavLibLabel">当前媒体库</span>
         <select
           className="topNavSelect"
           value={subLibraryId}
           onChange={(e) => onSubLibraryChange(e.target.value)}
-          title="选择子库"
+          title="选择媒体库"
         >
-          <option value="">全部子库</option>
+          <option value="">全部媒体库</option>
           {subLibraries.map((sl) => (
             <option key={sl.uuid} value={sl.uuid}>
               {sl.name}

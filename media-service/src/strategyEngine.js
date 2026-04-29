@@ -12,6 +12,9 @@ const mediaPolicyService = require('./mediaPolicyService');
 const activityLog = require('./activityLog');
 
 let timer = null;
+let lastRunAt = null;
+let lastChanged = 0;
+let lastError = null;
 
 function start(configStore, mediaLibraryService) {
   const cfg = configStore.loadConfig();
@@ -47,6 +50,9 @@ function start(configStore, mediaLibraryService) {
         }
       }
 
+      lastChanged = changed;
+      lastRunAt = Date.now();
+
       if (changed > 0) {
         mediaLibraryService.saveLibrary(lib);
         const msg = `策略重新计算完成，${changed} 个条目的推荐操作已更新`;
@@ -54,6 +60,7 @@ function start(configStore, mediaLibraryService) {
         activityLog.addActivity('strategy_engine', msg, { changed });
       }
     } catch (e) {
+      lastError = e.message;
       console.error('[strategyEngine] error:', e.message);
     }
   };
@@ -72,4 +79,18 @@ function stop() {
   }
 }
 
-module.exports = { start, stop };
+module.exports = { start, stop, getHealth };
+
+function getHealth() {
+  if (!timer) {
+    return { status: 'red', lastRunAt: null, lastChanged: null };
+  }
+  if (!lastRunAt) {
+    return { status: 'yellow', lastRunAt: null, lastChanged: null };
+  }
+  return {
+    status: 'green',
+    lastRunAt: new Date(lastRunAt).toISOString(),
+    lastChanged,
+  };
+}

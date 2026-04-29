@@ -1,15 +1,7 @@
-# DESIGN_TRAY/HEALTH_MONITORING — service 健康监控
+# DESIGN_TRAY/HEALTH_MONITORING — 健康监控（已迁移）
 
-> 状态：待编写
-> 参考：`ref/design/DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md`
+> 状态：已迁移到 TRAY/LIFECYCLE.md
 
----
+健康监控逻辑已内嵌到 tray 模块（`media-service/src/tray.js`）。每 3s 轮询 `GET /v1/health`，驱动托盘图标颜色（green/red）。
 
-## 1. 健康探测（GET /v1/health）
-
-## 2. 状态着色（green/yellow/red）
-
-## 3. Tray 托盘灯状态
-
-## 4. 左键面板状态展示
-
+详见 `TRAY/LIFECYCLE.md` §2 "运行中"。

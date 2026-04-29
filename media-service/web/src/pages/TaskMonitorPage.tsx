@@ -58,17 +58,34 @@ export default function TaskMonitorPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
   const [selectedTask, setSelectedTask] = useState<MediaTask | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [selectedCandidateIndex, setSelectedCandidateIndex] = useState(0);
+  const [reportTask, setReportTask] = useState<string | null>(null);
+  const [reportData, setReportData] = useState<import('../api/client').TaskReport | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+
+  const PAGE_SIZE = 20;
 
   const { data: taskData, isLoading, isFetching } = useQuery({
-    queryKey: ['admin-tasks', statusFilter, typeFilter],
+    queryKey: ['admin-tasks', statusFilter, typeFilter, searchQuery, page],
     queryFn: () => tasks.list({
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(typeFilter ? { actionType: typeFilter } : {}),
+      ...(searchQuery ? { q: searchQuery } : {}),
+      page,
+      pageSize: PAGE_SIZE,
     }),
+  });
+
+  // 全量摘要（不受筛选影响）
+  const { data: fullTaskData } = useQuery({
+    queryKey: ['admin-tasks-summary'],
+    queryFn: () => tasks.list({ page: 1, pageSize: 1 }),
+    refetchInterval: 5000,
   });
 
   const { data: detailData } = useQuery({
@@ -109,7 +126,6 @@ export default function TaskMonitorPage() {
   });
 
   const taskList: MediaTask[] = taskData?.tasks || [];
-  const taskSummary = taskData?.summary;
   const displayTask = detailData || selectedTask;
 
   function openDetail(task: MediaTask) {
@@ -139,6 +155,15 @@ export default function TaskMonitorPage() {
       btns.push(<button key="exec" onClick={() => executeMut.mutate(t.id)} style={execBtn}>继续</button>);
       btns.push(<button key="cancel" onClick={() => { if (confirm('确定取消此任务？')) deleteMut.mutate(t.id); }} style={{ ...warnBtn, background: '#e74c3c' }}>取消</button>);
     }
+    if (t.status === 'done') {
+      btns.push(<button key="report" onClick={() => {
+        setReportTask(t.id);
+        setReportLoading(true);
+        import('../api/client').then(({ tasks: tk }) => {
+          tk.report(t.id).then(data => { setReportData(data); setReportLoading(false); });
+        });
+      }} style={execBtn}>完结报告</button>);
+    }
     if (t.status === 'awaiting_user_confirm') {
       if (t.resumePoint === 'transcode_replace' && t.verifyResult) {
         btns.push(<button key="compare" onClick={() => openDetail(t)} style={execBtn}>查看对比</button>);
@@ -165,7 +190,7 @@ export default function TaskMonitorPage() {
       ['视频编码', orig.originalVideoCodec || '—', result.videoCodec || '—', ''],
       ['分辨率', `${orig.originalWidth || '?'} × ${orig.originalHeight || '?'}`, `${result.width} × ${result.height}`, ''],
       ['视频码率', orig.originalBitrate ? `${orig.originalBitrate} kbps` : '—', `${result.bitrate} kbps`, `${bitrateDelta >= 0 ? '+' : ''}${bitrateDelta.toFixed(1)}%`],
-      ['音频编码', orig.originalAudioCodec || '—', result.videoCodec || '—', ''],
+      ['音频编码', orig.originalAudioCodec || '—', result.audioCodec || '—', ''],
       ['预估节省', '', `${origGb > newGb ? (origGb - newGb).toFixed(2) + ' GB' : '—'}`, ''],
     ];
 
@@ -238,7 +263,7 @@ export default function TaskMonitorPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>任务监控</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>任务中心</h2>
         <button onClick={() => invalidate()} style={refreshBtn}>
           {isFetching ? '刷新中...' : '刷新'}
         </button>
@@ -246,34 +271,44 @@ export default function TaskMonitorPage() {
 
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
 
-      {/* Summary */}
-      {taskSummary && (
+      {/* Summary — always from full dataset */}
+      {fullTaskData?.summary && (
         <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-          <span style={{ ...summaryBadge, background: '#f0f2f5' }}>总计: {taskSummary.total}</span>
-          {Object.entries(taskSummary.byStatus || {}).map(([k, v]) => (
-            <span key={k} style={{ ...summaryBadge, background: (STATUS_COLORS[k] || '#999') + '20', color: STATUS_COLORS[k] }}>
-              {k}: {v}
-            </span>
+          <span style={{ ...summaryBadge, background: '#f0f2f5' }}>总计: {fullTaskData.summary.total}</span>
+          {Object.entries(fullTaskData.summary.byStatus || {}).map(([k, v]) => (
+            <button
+              key={k}
+              onClick={() => { setStatusFilter(k); setPage(1); }}
+              style={{
+                ...summaryBadge,
+                background: (STATUS_COLORS[k] || '#999') + '20',
+                color: STATUS_COLORS[k],
+                border: statusFilter === k ? `2px solid ${STATUS_COLORS[k] || '#999'}` : '2px solid transparent',
+                cursor: 'pointer',
+              }}
+            >
+              {STATUS_LABELS[k] || k}: {v}
+            </button>
           ))}
         </div>
       )}
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={selectStyle}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+          placeholder="搜索影片名称..."
+          style={{ padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, width: 220 }}
+        />
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={selectStyle}>
           <option value="">全部状态</option>
-          <option value="queued">queued</option>
-          <option value="executing">executing</option>
-          <option value="pausing">pausing</option>
-          <option value="awaiting_user_confirm">awaiting_user_confirm</option>
-          <option value="done">done</option>
-          <option value="failed_hard">failed_hard</option>
-          <option value="paused">paused</option>
-          <option value="interrupted">interrupted</option>
-          <option value="created">created</option>
-          <option value="pending_manual">pending_manual</option>
+          {Object.entries(STATUS_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
         </select>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={selectStyle}>
+        <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} style={selectStyle}>
           <option value="">全部类型</option>
           <option value="transcode">码率压缩</option>
           <option value="delete">删除</option>
@@ -335,6 +370,29 @@ export default function TaskMonitorPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {taskData && (taskData.total || taskData.summary?.total || 0) > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 16 }}>
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            style={{ ...paginationBtn, opacity: page <= 1 ? 0.4 : 1, cursor: page <= 1 ? 'default' : 'pointer' }}
+          >
+            上一页
+          </button>
+          <span style={{ fontSize: 13, color: '#666' }}>
+            第 {page} 页 / 共 {Math.ceil((taskData.total || taskData.summary?.total || 0) / PAGE_SIZE)} 页（{taskData.total || taskData.summary?.total || 0} 条）
+          </span>
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={page >= Math.ceil((taskData.total || taskData.summary?.total || 0) / PAGE_SIZE)}
+            style={{ ...paginationBtn, opacity: page >= Math.ceil((taskData.total || taskData.summary?.total || 0) / PAGE_SIZE) ? 0.4 : 1, cursor: page >= Math.ceil((taskData.total || taskData.summary?.total || 0) / PAGE_SIZE) ? 'default' : 'pointer' }}
+          >
+            下一页
+          </button>
         </div>
       )}
 
@@ -524,9 +582,123 @@ export default function TaskMonitorPage() {
           <LoadingSpinner />
         )}
       </Modal>
+
+      {/* Completion Report Modal */}
+      <Modal open={!!reportTask && !reportLoading} title="任务完结报告" onClose={() => { setReportTask(null); setReportData(null); }} width={520}>
+        {reportLoading ? (
+          <LoadingSpinner text="加载报告中..." />
+        ) : reportData ? (
+          <ReportContent report={reportData} />
+        ) : null}
+      </Modal>
     </div>
   );
 }
+
+function ReportContent({ report }: { report: import('../api/client').TaskReport }) {
+  function fmtSize(bytes: number | undefined): string {
+    if (!bytes || bytes === 0) return '—';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  }
+  function fmtBitrate(kbps: number | undefined): string {
+    if (!kbps || kbps === 0) return '—';
+    return (kbps / 1000).toFixed(1) + ' Mbps';
+  }
+  function fmtDuration(sec: number | null): string {
+    if (!sec) return '—';
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    return h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
+  }
+
+  const isTranscode = report.actionType === 'transcode';
+  const isDelete = report.actionType === 'delete';
+  const isUpgrade = report.actionType === 'upgrade';
+
+  return (
+    <div>
+      <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>📊 {report.itemName}</p>
+      <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
+        {isTranscode ? '码率压缩' : isDelete ? '删除' : '洗版'}  ·  耗时 {fmtDuration(report.elapsedSec)}
+        {report.encoder ? '  ·  ' + report.encoder : ''}
+      </p>
+
+      {(isTranscode || isUpgrade) && report.original && report.output && (
+        <div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #eee' }}>
+                <th style={rptThStyle}></th>
+                <th style={rptThStyle}>原始</th>
+                <th style={rptThStyle}>{isTranscode ? '转码后' : '新版'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td style={tdStyle}>大小</td>
+                <td style={rptTdStyle}>{fmtSize(report.original.sizeBytes)}</td>
+                <td style={rptTdStyle}>{fmtSize(report.output.sizeBytes)}</td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td style={rptTdStyle}>编码</td>
+                <td style={rptTdStyle}>{report.original.videoCodec || '?'}</td>
+                <td style={{ ...rptTdStyle, color: report.original.videoCodec !== report.output.videoCodec ? '#27ae60' : undefined }}>
+                  {report.output.videoCodec || '?'}
+                </td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td style={rptTdStyle}>码率</td>
+                <td style={rptTdStyle}>{fmtBitrate(report.original.bitrate)}</td>
+                <td style={{ ...rptTdStyle, color: (report.original.bitrate || 0) > (report.output.bitrate || 0) ? '#27ae60' : undefined }}>
+                  {fmtBitrate(report.output.bitrate)}
+                </td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td style={rptTdStyle}>分辨率</td>
+                <td style={rptTdStyle}>{(report.original.width || '?') + ' × ' + (report.original.height || '?')}</td>
+                <td style={rptTdStyle}>{(report.output.width || '?') + ' × ' + (report.output.height || '?')}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {typeof report.bytesSaved === 'number' && report.bytesSaved !== 0 && (
+            <div style={{ background: report.bytesSaved > 0 ? '#e8f5e9' : '#fff3e0', borderRadius: 8, padding: '12px 16px', marginBottom: 8, fontSize: 14 }}>
+              <strong>{report.bytesSaved > 0 ? '✅ 节省空间' : '📦 空间变化'}</strong>：{fmtSize(report.bytesSaved > 0 ? report.bytesSaved : -report.bytesSaved)}
+              {report.bytesSaved > 0 ? '' : ' (增大了)'}
+            </div>
+          )}
+
+          {report.original.audioCodec && (
+            <div style={{ fontSize: 13, color: '#888' }}>
+              原始音频：{report.original.audioCodec}
+            </div>
+          )}
+
+          {isUpgrade && report.tmdbVerified !== undefined && (
+            <div style={{ fontSize: 13, color: report.tmdbVerified ? '#27ae60' : '#e67e22', marginTop: 4 }}>
+              {report.tmdbVerified ? '✅ TMDB 匹配已验证' : '⚠️ TMDB 匹配未确认'}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isDelete && (
+        <div style={{ background: '#fef3e2', borderRadius: 8, padding: '12px 16px', fontSize: 14 }}>
+          已从 Emby 删除此媒体文件<br />
+          <strong>释放空间</strong>：{fmtSize(report.bytesFreed)}
+        </div>
+      )}
+
+      {report.elapsedSec == null && (
+        <p style={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>此任务在报告功能上线前完成，部分细节缺失。</p>
+      )}
+    </div>
+  );
+}
+
+const rptThStyle: React.CSSProperties = { textAlign: 'left', padding: '6px 8px', fontSize: 12, color: '#888' };
+const rptTdStyle: React.CSSProperties = { padding: '6px 8px', fontSize: 13 };
 
 const summaryBadge: React.CSSProperties = {
   padding: '4px 12px', borderRadius: 12, fontSize: 13, fontWeight: 500,
@@ -585,4 +757,14 @@ const candidateTh: React.CSSProperties = {
 
 const compareTd: React.CSSProperties = {
   padding: '8px 12px', fontSize: 13,
+};
+
+const paginationBtn: React.CSSProperties = {
+  background: '#f0f0f0',
+  color: '#333',
+  border: 'none',
+  padding: '6px 16px',
+  borderRadius: 6,
+  fontSize: 13,
+  cursor: 'pointer',
 };

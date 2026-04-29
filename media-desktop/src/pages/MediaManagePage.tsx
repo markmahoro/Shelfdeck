@@ -192,7 +192,7 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
       <div className="pageMain">
         <div className="pageMainInner">
         {filtered.length === 0 ? (
-          <p>暂未获取到媒体库数据。请先在管理端配置子库。</p>
+          <p>暂未获取到媒体库数据。请先在管理端配置媒体库。</p>
         ) : (
           <div>
             {filtered.map((item) => {

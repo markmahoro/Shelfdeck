@@ -8,10 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **service** (胖服务): Node.js/Fastify HTTP service — task execution engine, media library management, Emby/Douban integration, built-in React admin web
 - **desktop** (瘦客户端): Electron + Vite/React desktop client — intent submission, media library browsing, task card UI
 
-These map to three physical processes:
-- `media-service` — Fastify HTTP service (port 18080)
+These map to two physical processes:
+- `media-service` — Fastify HTTP service (port 18080), embedded Windows tray module (`src/tray.js`)
 - `media-desktop` — Electron main + renderer
-- `media-tray-supervisor` — Windows tray ("ShelfDeck 小助手"), the service's Windows shell; spawns service as a child process, lifecycle bound to service
+
+> The tray is no longer a separate process. It's a lightweight module inside media-service (using `systray2`). On startup, service spawns a tray icon with health indicator and right-click menu ("打开管理页面" / "退出"). Exiting the tray stops the service. The old `media-tray-supervisor` (Electron-based) is deprecated.
 
 **Product positioning** (ARCH_OVERVIEW §8): 媒体库管家 = 资产盘点 + 推荐消费 + 空间管理 + 发现缺口. The core competitive advantage is user-private data (ratings, watch records, personal tags) — content metadata (Emby/TMDB) is infrastructure, not differentiation.
 
@@ -38,15 +39,15 @@ npm run dist:win   # Build Windows portable executable
 
 **Important**: Desktop requires media-service running. Set `MEDIA_SERVICE_URL` or `CONTROL_PLANE_URL` (synonyms) to point to the service (default: `http://127.0.0.1:18080`). For Vite renderer, use `VITE_MEDIA_SERVICE_URL` or `VITE_CONTROL_PLANE_URL`.
 
-### Tray Supervisor (media-tray-supervisor/)
-```bash
-cd media-tray-supervisor
-npm install
-npm start          # Start tray supervisor (spawns service child process)
-npm run smoke      # Smoke test for spawn + health check
-```
+### Tray Module (embedded in media-service)
 
-Optional: Set `TRAY_MEDIA_SERVICE_ROOT` to absolute path of media-service directory (defaults to `../media-service`).
+The tray is part of `media-service` — no separate process. When the service starts, a system tray icon appears with:
+- Health indicator (green/yellow/red tray icon)
+- Right-click menu: "打开管理页面" (opens admin web in browser), "退出" (stops service + removes tray icon)
+
+Health is polled every 3s via `GET /v1/health`. Icon assets are in `media-service/assets/tray/`.
+
+The old `media-tray-supervisor/` directory (Electron-based) is deprecated and no longer used.
 
 ### OpenAPI Validation
 ```bash
@@ -63,23 +64,22 @@ All cross-component communication is **HTTP REST**. No IPC (except `emby:launchP
 |---|---|---|
 | **service** | Task execution engine, media library, Emby/Douban integration, admin web | Task queue (SSOT), config (SSOT), media library table (SSOT), Emby connection |
 | **desktop** | Intent submission, task card UI, media library browsing | service address (electron-store), read-only access to all service data |
-| **tray** | Windows shell for service — spawns child process, monitors health | None; does NOT write connection config (Phase 3 change) |
+| **tray** | Embedded in service process — system tray icon, health indicator, quit handler | None (part of service process) |
 
 ### Process Model (ARCH_OVERVIEW §2)
 
 ```
-User clicks tray shortcut
-    └── tray process starts
-            └── spawn media-service child process (lifecycle bound)
-            └── exit tray → terminates service child process
-
 User clicks desktop shortcut
     └── desktop process starts (independent)
             └── connects to service via HTTP (or shows guidance if unavailable)
+
+User clicks service shortcut (or starts service)
+    └── service process starts → tray icon appears in system tray
+            └── exit via tray menu → service process terminates
 ```
 
 - **desktop independent**: does not require service to launch; shows guidance when disconnected
-- **tray + service bound**: tray spawns service; exiting tray terminates service
+- **service self-contained**: tray is part of the service process; exiting the tray stops the service
 
 ### Data Flow (ARCH_OVERVIEW §3)
 
@@ -233,11 +233,9 @@ docs/
 │       │   ├── API_CLIENT.md             # REST API client layer
 │       │   ├── CONNECTION.md             # Service connection management
 │       │   └── SETTINGS.md               # Configuration persistence
-│       ├── TRAY.md        # Tray supervisor design
+│       ├── TRAY.md        # Tray module design (embedded in service)
 │       ├── TRAY/
-│       │   ├── LIFECYCLE.md              # Process lifecycle (spawn service)
-│       │   ├── CONNECTION_WRITER.md      # Connection config writing (exclusive write)
-│       │   └── HEALTH_MONITORING.md      # Service health monitoring
+│       │   └── LIFECYCLE.md              # Tray lifecycle (embedded in service process)
 │       ├── SHARED.md      # Shared design
 │       └── SHARED/
 │           ├── DATA_FLOW.md              # Intent submission + polling mechanism
@@ -264,7 +262,7 @@ docs/
 - `docs/v2/design/SERVICE/ADMIN_WEB.md` — Admin web overview
 - `docs/v2/design/SERVICE/ADMIN_WEB/API.md` — Admin API endpoints (SSOT for admin)
 - `docs/v2/design/DESKTOP.md` — Desktop client design
-- `docs/v2/design/TRAY.md` — Tray supervisor design
+- `docs/v2/design/TRAY.md` — Tray module design (embedded in service)
 - `docs/v2/design/SHARED/DATA_MODEL.md` — Shared data model
 - `docs/v2/design/SHARED/DATA_FLOW.md` — Intent submission + polling mechanism
 - `docs/v2/design/SHARED/ERROR_HANDLING.md` — Error codes and degradation strategy
@@ -310,10 +308,10 @@ When conflicts arise between documents:
 - `media-service/src/services/doubanService.js` — DoubanAdapter: Douban API integration
 - `media-service/src/services/transcodeService.js` — Transcode execution layer (FFmpeg)
 
-### Tray Supervisor Structure
-- `media-tray-supervisor/electron/main.js` — Main process, tray icon, spawns service, health monitoring
-- `media-tray-supervisor/electron/trayPanel.js` — Left-click panel window
-- `media-tray-supervisor/electron/shelfdeckConnection.js` — Connection file writer (may be deprecated per ARCH_OVERVIEW §5)
+### Tray Module Structure
+- `media-service/src/tray.js` — Tray module (systray2), health polling, context menu, embedded in service process
+- `media-service/assets/tray/` — Tray icons (status-running.ico, status-unhealthy.ico, status-stopped.ico)
+- `media-tray-supervisor/` — **Deprecated** (Electron-based, replaced by embedded tray module)
 
 ### REST API Conventions (API.md §1-§3)
 - All endpoints return JSON; `GET` has no side effects; `PATCH` is idempotent partial update
@@ -344,9 +342,9 @@ npm run smoke  # Test spawn + health check
 ## Important Constraints
 
 - **Node.js version**: >=20 (see package.json engines)
-- **Target platform**: Windows (tray supervisor is Windows-specific)
+- **Target platform**: Windows (tray module is Windows-specific, uses systray2)
 - **Desktop requires service**: Desktop client cannot function without media-service running and healthy
-- **Tray-service lifecycle**: Tray spawns service as child process; exiting tray terminates service
+- **Service + tray lifecycle**: Tray is part of service process; starting service shows tray icon, exiting tray stops service
 - **No long-running commands**: Never use `npm run dev` or watch mode commands in Bash tool — these block execution. Recommend user runs them manually.
 - **Runtime data**: `media-service/data/*.json` files are runtime state, not documentation. Should be in .gitignore (except examples).
 - **No workarounds**: 测试或运行中遇到问题，禁止使用 workaround / 绕过 / 兜底 / 降级 的方式规避。必须排查到精准根因并修复。Workarounds mask bugs and accumulate technical debt.
@@ -355,11 +353,10 @@ npm run smoke  # Test spawn + health check
 
 ### Starting Full Stack for Development
 1. Terminal A: `cd media-service && npm start`
-2. Terminal B: `cd media-tray-supervisor && npm start` (optional, spawns service + health monitoring)
-3. Terminal C: `cd media-desktop && npm run dev`
+2. Terminal B: `cd media-desktop && npm run dev`
 
 ### Simulating Remote Service
-Set `MEDIA_SERVICE_URL` to a network-accessible address (e.g., NAS IP). Desktop will connect to that URL. Tray can be configured to point to remote service with `TRAY_MEDIA_SERVICE_ROOT`.
+Set `MEDIA_SERVICE_URL` to a network-accessible address (e.g., NAS IP). Desktop will connect to that URL.
 
 ### Adding New REST Endpoints
 1. Update `docs/v2/design/SERVICE/API.md` (or `ADMIN_WEB/API.md` for admin endpoints) with the new endpoint

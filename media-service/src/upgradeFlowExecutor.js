@@ -12,6 +12,7 @@ const path = require('path');
 const taskStore = require('./taskStore');
 const configStore = require('./configStore');
 const moviepilotService = require('./services/moviepilotService');
+const smartSeedSelect = require('./smartSeedSelect');
 
 let scheduler = null;
 function setScheduler(s) { scheduler = s; }
@@ -135,28 +136,54 @@ function isAborted(taskId) {
 // Honours pausingRequested — once hash arrives, pause is executed immediately.
 // Honours pendingCancel — once hash arrives, delete is executed immediately.
 
-async function tryMatchHash(mpConfig, searchTitle) {
+function normalizeTitle(s) {
+  return String(s || '').replace(/[.\-\s]+/g, ' ').trim().toLowerCase();
+}
+
+async function tryMatchHash(mpConfig, searchTitle, fallbackNames) {
   try {
     const downloads = await moviepilotService.listDownloads(mpConfig);
     const list = Array.isArray(downloads) ? downloads : [];
+
+    // Build search terms: primary torrent title + item name fallbacks
+    const terms = [searchTitle];
+    if (Array.isArray(fallbackNames)) {
+      for (const name of fallbackNames) {
+        if (name) {
+          const t = normalizeTitle(name);
+          if (t && !terms.includes(t)) terms.push(t);
+        }
+      }
+    }
+
     const match = list.find((d) => {
-      const dTitle = (d.title || d.name || '').replace(/[.\s]+/g, ' ').trim().toLowerCase();
-      return d.hash && (dTitle.includes(searchTitle) || searchTitle.includes(dTitle));
+      if (!d.hash) return false;
+      const dTitle = normalizeTitle(d.title || d.name || '');
+      return terms.some((term) => dTitle.includes(term) || term.includes(dTitle));
     });
     return match ? match.hash : null;
-  } catch (_) {
+  } catch (err) {
+    console.error('[upgradeFlow] tryMatchHash error:', err.message);
     return null;
   }
 }
 
-async function acquireHash(taskId, mpConfig, searchTitle) {
+async function acquireHash(taskId, mpConfig, searchTitle, fallbackNames) {
+  const timeoutMs = 10 * 60 * 1000; // 10 min — generous for MP to register download
+  const deadline = Date.now() + timeoutMs;
+
   while (true) {
+    if (Date.now() > deadline) {
+      appendLog(taskId, 'error', `Hash acquisition timed out after ${timeoutMs / 1000}s — download title may not match (search="${searchTitle}")`);
+      throw new Error('Hash acquisition timed out');
+    }
+
     const task = taskStore.getTask(taskId);
     if (!task) return null;
 
     // Cancel during hash acquisition — keep hunting hash, delete once found
     if (task.pendingCancel) {
-      const hash = await tryMatchHash(mpConfig, searchTitle);
+      const hash = await tryMatchHash(mpConfig, searchTitle, fallbackNames);
       if (hash) {
         try { await moviepilotService.deleteDownload(mpConfig, hash); } catch (_) {}
         abortFlags.set(taskId, true);
@@ -174,13 +201,13 @@ async function acquireHash(taskId, mpConfig, searchTitle) {
 
     // Pause during hash acquisition — keep hunting hash, pause once found
     if (task.pausingRequested) {
-      const hash = await tryMatchHash(mpConfig, searchTitle);
+      const hash = await tryMatchHash(mpConfig, searchTitle, fallbackNames);
       if (hash) return hash; // caller will execute pause + MP stop
       await sleep(2000);
       continue;
     }
 
-    const hash = await tryMatchHash(mpConfig, searchTitle);
+    const hash = await tryMatchHash(mpConfig, searchTitle, fallbackNames);
     if (hash) return hash;
 
     await sleep(2000);
@@ -284,7 +311,16 @@ async function waitForScraping(taskId, mpConfig) {
             itemInfo: { ...taskStore.getTask(taskId).itemInfo, mpTmdbId: tmdbId },
           });
         }
-        appendLog(taskId, 'info', `Scraping complete (transfer id=${match.id}, tmdb=${tmdbId || '?'})`);
+        appendLog(taskId, 'info', `Transfer detected (id=${match.id}), waiting for scraping to settle...`);
+
+        // MoviePilot fires MetadataScrape asynchronously via event queue.
+        // Wait for scraping to finish generating NFO/posters before proceeding.
+        const cfg = configStore.loadConfig();
+        const settleSec = cfg.upgradeScrapingSettleSeconds || 1800;
+        appendLog(taskId, 'info', `Waiting ${settleSec}s for MoviePilot scraping to complete...`);
+        await sleep(settleSec * 1000);
+
+        appendLog(taskId, 'info', `Scraping settle wait complete (transfer id=${match.id}, tmdb=${tmdbId || '?'})`);
         return;
       }
     } catch (_) {
@@ -367,8 +403,7 @@ async function runPlanning(taskId, task) {
   const itemName = (task.itemInfo && (task.itemInfo.name || task.itemInfo.title)) || '';
   if (!itemName) {
     appendLog(taskId, 'error', 'No item name available for search');
-    scheduler.reportStatus(taskId, 'waiting_media_source');
-    setPhase(taskId, 'waiting_media_source');
+    scheduler.reportStatus(taskId, 'failed_hard');
     return;
   }
 
@@ -398,9 +433,8 @@ async function runPlanning(taskId, task) {
     }
 
     if (!Array.isArray(candidates) || candidates.length === 0) {
-      appendLog(taskId, 'info', `No upgrade candidates found for "${itemName}"`);
-      scheduler.reportStatus(taskId, 'waiting_media_source');
-      setPhase(taskId, 'waiting_media_source');
+      appendLog(taskId, 'error', `未找到任何可洗版的种子（"${itemName}"）`);
+      scheduler.reportStatus(taskId, 'failed_hard');
       return;
     }
 
@@ -424,9 +458,39 @@ async function runPlanning(taskId, task) {
         searchCandidates: candidates,
         searchCandidatesSimplified: simplified,
       },
-      resumePoint: 'upgrade_executing',
     });
 
+    // ── Smart seed selection ──────────────────────────────────────────
+    const config = configStore.loadConfig();
+    const selectedIndex = smartSeedSelect.filterAndSelect(candidates, task.itemInfo, config);
+    if (selectedIndex !== null) {
+      appendLog(taskId, 'info', `SmartSelect: auto-picked candidate #${selectedIndex} (${simplified[selectedIndex] && simplified[selectedIndex].title || 'unknown'})`);
+      taskStore.updateTask(taskId, {
+        confirmData: { selectedIndex },
+        resumePoint: 'upgrade_executing',
+      });
+      // Re-read task with updated confirmData, then continue execution inline
+      const updatedTask = taskStore.getTask(taskId);
+      await runExecuting(taskId, updatedTask);
+      return;
+    }
+
+    // Smart select enabled but no match → fail
+    const smartCfg = config.upgradeSmartSelect || {};
+    const hasAnyPreference = (smartCfg.codecPreference && smartCfg.codecPreference.length > 0) ||
+      (smartCfg.resolutionPreference && smartCfg.resolutionPreference.length > 0) ||
+      (smartCfg.audioPreference && smartCfg.audioPreference.length > 0) ||
+      (smartCfg.sitePreference && smartCfg.sitePreference.length > 0) ||
+      smartCfg.preferCNSub;
+    if (smartCfg.enabled && hasAnyPreference) {
+      appendLog(taskId, 'error', '未找到满足智能选种条件的种子');
+      scheduler.reportStatus(taskId, 'failed_hard');
+      return;
+    }
+
+    taskStore.updateTask(taskId, {
+      resumePoint: 'upgrade_executing',
+    });
     scheduler.pauseForConfirm(taskId, 'upgrade_executing');
   } catch (e) {
     appendLog(taskId, 'error', `Planning failed: ${e.message}`);
@@ -453,8 +517,9 @@ async function continueAfterDownload(taskId, mpConfig) {
 
 async function acquireHashAndContinue(taskId, task, mpConfig, torrentInfo) {
   const searchTitle = (torrentInfo.title || '').replace(/[.\s]+/g, ' ').trim().toLowerCase();
+  const fallbackNames = [(task.itemInfo && task.itemInfo.name) || ''].filter(Boolean);
 
-  const hashString = await acquireHash(taskId, mpConfig, searchTitle);
+  const hashString = await acquireHash(taskId, mpConfig, searchTitle, fallbackNames);
   if (!hashString) return; // cancelled during hash acquisition
 
   const tFresh = taskStore.getTask(taskId) || task;
@@ -493,7 +558,10 @@ async function recoverHashAndContinue(taskId, task, mpConfig) {
     ? (torrentInfo.title || '').replace(/[.\s]+/g, ' ').trim().toLowerCase()
     : ((task.itemInfo && task.itemInfo.name) || '').toLowerCase();
 
-  const hashString = await acquireHash(taskId, mpConfig, searchTitle);
+  // Fallback: item's Chinese name (MoviePilot may use recognized media name, not torrent title)
+  const fallbackNames = [(task.itemInfo && task.itemInfo.name) || ''].filter(Boolean);
+
+  const hashString = await acquireHash(taskId, mpConfig, searchTitle, fallbackNames);
   if (!hashString) return; // cancelled during hash acquisition
 
   taskStore.updateTask(taskId, {
@@ -615,13 +683,32 @@ async function runExecuting(taskId, task) {
       });
     } catch (_) {}
 
-    const dlResult = await moviepilotService.addDownload(mpConfig, {
-      torrentInfo,
-      savePath: mpConfig.savePath || undefined,
-    });
+    // Download with retry: if MP rejects, try next seed with score >= 0.8
+    let dlResult;
+    const rankedPool = smartSeedSelect.getRankedPool(candidates, task.itemInfo, configStore.loadConfig());
+    const highScorePool = rankedPool.filter((e) => e.score >= 0.8);
+    const fallbackPool = highScorePool.length > 0 ? highScorePool : rankedPool;
+
+    for (const entry of fallbackPool) {
+      const tInfo = entry.candidate.torrent_info;
+      if (!tInfo) continue;
+
+      if (entry.originalIndex !== selectedIndex) {
+        appendLog(taskId, 'info', `Retry with next candidate: ${tInfo.title || 'Unknown'}`);
+      }
+
+      dlResult = await moviepilotService.addDownload(mpConfig, {
+        torrentInfo: tInfo,
+        savePath: mpConfig.savePath || undefined,
+      });
+
+      if (!dlResult || dlResult.success !== false) break;
+
+      appendLog(taskId, 'warn', `Download add failed for "${tInfo.title}": ${dlResult.message || 'Unknown error'}`);
+    }
 
     if (dlResult && dlResult.success === false) {
-      appendLog(taskId, 'error', `Download add failed: ${dlResult.message || 'Unknown error'}`);
+      appendLog(taskId, 'error', 'All high-score candidates failed to download');
       scheduler.reportStatus(taskId, 'failed_hard');
       setPhase(taskId, 'failed_hard');
       return;
@@ -804,7 +891,7 @@ async function runPreReplaceVerify(taskId, task) {
       progress: 90,
     });
 
-    if (config.transcodeReplaceConfirmRequired) {
+    if (config.upgradeReplaceConfirmRequired) {
       appendLog(taskId, 'info', 'Replace confirmation required — awaiting user');
       scheduler.pauseForConfirm(taskId, 'upgrade_replace');
       return;

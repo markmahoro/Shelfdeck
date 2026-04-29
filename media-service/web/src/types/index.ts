@@ -44,9 +44,20 @@ export interface SubLibrary {
   lastRefreshedAt: string | null;
   doubanSyncedAt: string | null;
   mediaPolicy: MediaPolicy;
+  upgradeSmartSelect: UpgradeSmartSelect;
 }
 
 // ── Transcode ─────────────────────────────────────────────────────────────────
+
+export interface UpgradeSmartSelect {
+  enabled: boolean;
+  codecPreference: string[];
+  resolutionPreference: string[];
+  audioPreference: string[];
+  sitePreference: string[];
+  preferCNSub: boolean;
+  maxSizeGB: { target1080p: Record<string,number>; target4k: Record<string,number> };
+}
 
 export interface TranscodeConfig {
   transcodeTempRoot: string;
@@ -54,7 +65,6 @@ export interface TranscodeConfig {
   ffmpegPath: string;
   ffprobePath: string;
   transcodeEncodingDevices: DevicePoolEntry[];
-  transcodeMaxCpuSlots: number;
   transcodeCpuParticipationStrategy: 'normal' | 'backup_only';
 }
 
@@ -158,6 +168,7 @@ export interface UpgradePreview {
 export interface VerifyResult {
   sizeBytes: number;
   videoCodec: string;
+  audioCodec?: string;
   width: number;
   height: number;
   bitrate: number;
@@ -224,6 +235,9 @@ export interface TaskListResponse {
     total: number;
     byStatus: Record<string, number>;
   };
+  page: number;
+  pageSize: number;
+  total: number;
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────
@@ -268,4 +282,5 @@ export interface UpgradeConfig {
   upgradeStagingLocalPath: string;
   upgradeRetryInterval: number;
   upgradeMaxRetries: number;
+  upgradeReplaceConfirmRequired: boolean;
 }

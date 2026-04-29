@@ -301,4 +301,23 @@ module.exports = {
   fetchRatings,
   loadCachedEntries,
   saveCachedEntries,
+  getHealth,
 };
+
+function getHealth(config) {
+  const subLibs = (config && config.subLibraries) || [];
+  const doubanEnabledCount = subLibs.filter((sl) => sl.doubanEnabled).length;
+
+  if (doubanEnabledCount === 0) {
+    return { status: 'green', hasSession: false, doubanEnabledSubLibCount: 0 };
+  }
+
+  const session = getSession();
+  const hasSession = !!(session && session.cookieHeader && session.userId);
+
+  return {
+    status: hasSession ? 'green' : 'red',
+    hasSession,
+    doubanEnabledSubLibCount: doubanEnabledCount,
+  };
+}

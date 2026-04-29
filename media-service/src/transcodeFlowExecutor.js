@@ -31,19 +31,18 @@ function setPhase(taskId, phase) {
 function buildDeviceSlots(config) {
   const devices = config.transcodeEncodingDevices || [];
   const cpuStrategy = config.transcodeCpuParticipationStrategy || 'normal';
-  const maxCpuSlots = config.transcodeMaxCpuSlots || 1;
 
   const slots = [];
   for (const dev of devices) {
     if (!dev.inPool) continue;
     const sk = parseStableKey(dev.stableKey);
     if (!sk) continue;
-    if (sk.backend === 'cpu' && cpuStrategy === 'backup_only') continue;
     slots.push({
       deviceId: dev.stableKey,
-      maxSlots: sk.backend === 'cpu' ? maxCpuSlots : (dev.maxSlots || 1),
+      maxSlots: dev.maxSlots || 1,
       priority: dev.priority || 100,
       backend: sk.backend,
+      cpuBackupOnly: sk.backend === 'cpu' && cpuStrategy === 'backup_only',
     });
   }
   slots.sort((a, b) => {
@@ -175,14 +174,23 @@ async function runExecuting(taskId, task, config) {
 
   // Clean up residual partial from a previous interrupted encode (FFmpeg cannot resume)
   if (fs.existsSync(partialPath)) {
-    unlinkWithRetrySync(partialPath);
-    appendLog(taskId, 'info', 'Cleaned up leftover partial from previous run');
+    const deleted = unlinkWithRetrySync(partialPath);
+    if (deleted) {
+      appendLog(taskId, 'info', 'Cleaned up leftover partial from previous run');
+    } else {
+      appendLog(taskId, 'warn', 'Could not delete leftover partial — file may be locked by orphan process');
+    }
   }
 
   const slots = buildDeviceSlots(config);
-  const orderedSlots = slots.map((s) => ({ deviceId: s.deviceId, maxSlots: s.maxSlots }));
+  const orderedSlots = slots.map((s) => ({ deviceId: s.deviceId, maxSlots: s.maxSlots, cpuBackupOnly: s.cpuBackupOnly }));
 
   try {
+    const encoderLabel = orderedSlots.length > 0
+      ? orderedSlots.map((s) => s.deviceId).join(', ')
+      : 'cpu';
+    appendLog(taskId, 'info', `Encoder: ${encoderLabel}`);
+
     await transcodeService.startEncode(
       (pct) => {
         taskStore.updateTask(taskId, { progress: pct });
@@ -247,12 +255,13 @@ async function runVerify(taskId, task, config) {
       verifyResult: {
         sizeBytes: outSizeBytes,
         videoCodec: summary.videoCodec,
+        audioCodec: summary.audioCodec,
         width: summary.width,
         height: summary.height,
         bitrate: outBitrate,
         durationSec: summary.durationSec,
         previewPath,
-        bytesSaved: ((info.originalSizeBytes || 0) - outSizeBytes),
+        bytesSaved: ((task.itemInfo && task.itemInfo.originalSizeBytes || 0) - outSizeBytes),
       },
     });
 

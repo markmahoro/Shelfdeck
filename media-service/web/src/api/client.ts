@@ -106,6 +106,7 @@ export const subLibraries = {
     source?: string;
     doubanEnabled?: boolean;
     mediaPolicy?: SubLibrary['mediaPolicy'];
+    upgradeSmartSelect?: SubLibrary['upgradeSmartSelect'];
   }) => post<SubLibrary>('/v1/admin/sublibraries', body),
 
   update: (uuid: string, body: Partial<SubLibrary>) =>
@@ -134,8 +135,7 @@ export const transcode = {
 export interface UpgradeConfig {
   moviepilot: { baseUrl: string; apiKey: string; savePath: string; stagingPath: string };
   upgradeStagingLocalPath: string;
-  upgradeRetryInterval: number;
-  upgradeMaxRetries: number;
+  upgradeReplaceConfirmRequired?: boolean;
 }
 
 export const upgrade = {
@@ -148,10 +148,13 @@ export const upgrade = {
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
 export const tasks = {
-  list: (params?: { status?: string; actionType?: string }) => {
+  list: (params?: { status?: string; actionType?: string; q?: string; page?: number; pageSize?: number }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.actionType) qs.set('actionType', params.actionType);
+    if (params?.q) qs.set('q', params.q);
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
     const q = qs.toString();
     return get<TaskListResponse>(`/v1/admin/tasks${q ? `?${q}` : ''}`);
   },
@@ -167,7 +170,36 @@ export const tasks = {
 
   confirm: (id: string, confirmData?: Record<string, unknown>) =>
     patch<{ id: string; status: string }>(`/v1/tasks/${id}`, { confirmed: true, ...(confirmData ? { confirmData } : {}) }),
+
+  report: (id: string) => get<TaskReport>(`/v1/tasks/${id}/report`),
 };
+
+export interface TaskReport {
+  taskId: string;
+  itemName: string;
+  actionType: string;
+  elapsedSec: number | null;
+  encoder: string | null;
+  original?: {
+    sizeBytes: number;
+    videoCodec: string;
+    bitrate: number;
+    width?: number;
+    height?: number;
+    resolution?: string;
+    audioCodec?: string;
+  };
+  output?: {
+    sizeBytes: number;
+    videoCodec: string;
+    bitrate: number;
+    width?: number;
+    height?: number;
+  };
+  bytesSaved?: number;
+  bytesFreed?: number;
+  tmdbVerified?: boolean;
+}
 
 // ── Health ────────────────────────────────────────────────────────────────────
 
@@ -234,4 +266,18 @@ export const douban = {
 
 export const spaceStats = {
   get: () => get<SpaceStats>('/v1/space-stats'),
+};
+
+// ── MoviePilot ────────────────────────────────────────────────────────────────
+
+export interface MpSite {
+  id: number;
+  name: string;
+  domain: string;
+  url: string;
+  is_active: boolean;
+}
+
+export const moviepilot = {
+  getSites: () => get<MpSite[]>('/v1/admin/moviepilot/sites'),
 };

@@ -91,14 +91,63 @@ async function getTransferHistory(mpConfig, count = 5) {
   return mpFetchJson(mpConfig, '/api/v1/history/transfer', {}, { count });
 }
 
+async function listSites(mpConfig) {
+  return mpFetchJson(mpConfig, '/api/v1/site/');
+}
+
+const fs = require('fs');
+
 module.exports = {
   checkConnection,
   searchMediaByTitle,
   searchTorrents,
+  listSites,
   addDownload,
   listDownloads,
   deleteDownload,
   pauseDownload,
   resumeDownload,
   getTransferHistory,
+  getHealth,
 };
+
+async function getHealth(config) {
+  const subLibs = (config && config.subLibraries) || [];
+  const smartSelectEnabled = subLibs.some((sl) => sl.upgradeSmartSelect && sl.upgradeSmartSelect.enabled);
+
+  if (!smartSelectEnabled) {
+    return { status: 'green', smartSelectEnabled: false };
+  }
+
+  const mp = config.moviepilot;
+  if (!mp || !mp.baseUrl) {
+    return { status: 'red', smartSelectEnabled: true, message: 'MoviePilot 未配置' };
+  }
+
+  let apiOk = false;
+  let apiError = '';
+  try {
+    const r = await checkConnection(mp);
+    apiOk = r.ok;
+    if (!apiOk) apiError = 'API 返回异常';
+  } catch (e) {
+    apiError = e.message;
+  }
+
+  const stagingPath = (config.upgradeStagingLocalPath || '').trim();
+  let pathOk = false;
+  if (stagingPath) {
+    try {
+      pathOk = fs.existsSync(stagingPath);
+      if (!pathOk) apiError = apiError || '暂存路径不可写';
+    } catch (_) {
+      apiError = apiError || '暂存路径不可写';
+    }
+  }
+
+  if (!apiOk || !pathOk) {
+    return { status: 'red', smartSelectEnabled: true, message: apiError || '暂存路径不可写' };
+  }
+
+  return { status: 'green', smartSelectEnabled: true };
+}

@@ -1,13 +1,6 @@
-# DESIGN_TRAY/CONNECTION_WRITER — 连接配置写入（独占）
+# DESIGN_TRAY/CONNECTION_WRITER — 连接配置写入（已废弃）
 
-> 状态：待编写
-> 参考：`ref/design/DESIGN_TRAY_MEDIA_SERVICE_SUPERVISOR.md`
+> 状态：已废弃
+> 关联 ARCH_OVERVIEW §5
 
----
-
-## 1. 连接文件写入（独占）
-
-## 2. effectiveBaseUrl 管理
-
-## 3. API Key 管理
-
+托盘不再管理连接配置。desktop 通过 electron-store 自行管理 service 地址，默认连接 `http://127.0.0.1:18080`。

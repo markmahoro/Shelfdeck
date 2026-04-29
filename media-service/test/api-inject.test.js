@@ -30,10 +30,14 @@ test('GET /v1/admin/health includes checks detail', async () => {
   const body = res.json();
   assert.ok(body.status, 'status present');
   assert.ok(body.checks, 'checks present');
-  assert.ok(body.checks.service, 'service check present');
-  assert.ok(body.checks.config, 'config check present');
-  assert.ok(body.checks.emby, 'emby check present');
   assert.ok(body.checks.scheduler, 'scheduler check present');
+  assert.ok(body.checks.smartTask, 'smartTask check present');
+  assert.ok(body.checks.mediaLib, 'mediaLib check present');
+  assert.ok(body.checks.douban, 'douban check present');
+  assert.ok(body.checks.strategy, 'strategy check present');
+  assert.ok(body.checks.emby, 'emby check present');
+  assert.ok(body.checks.upgrade, 'upgrade check present');
+  assert.ok(body.checks.transcode, 'transcode check present');
   await app.close();
 });
 

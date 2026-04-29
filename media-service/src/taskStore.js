@@ -92,6 +92,13 @@ function getTasks(filter = {}) {
   if (filter.status) tasks = tasks.filter((t) => t.status === filter.status);
   if (filter.actionType) tasks = tasks.filter((t) => t.actionType === filter.actionType);
   if (filter.itemId) tasks = tasks.filter((t) => t.itemId === filter.itemId);
+  if (filter.q) {
+    const q = filter.q.toLowerCase();
+    tasks = tasks.filter((t) => {
+      const name = (t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId || '').toLowerCase();
+      return name.includes(q);
+    });
+  }
   return tasks;
 }
 

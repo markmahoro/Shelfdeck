@@ -40,6 +40,14 @@ function generateUuid() {
   return crypto.randomUUID();
 }
 
+function computeBucket(resolution) {
+  if (!resolution) return '1080p';
+  const parts = String(resolution).split('x');
+  const w = parseInt(parts[0], 10) || 0;
+  const h = parseInt(parts[1], 10) || 0;
+  return (w >= 3840 || h >= 2160) ? '4K' : '1080p';
+}
+
 // ── Library file persistence ────────────────────────────────────────────────
 
 function loadLibrary() {
@@ -89,6 +97,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         bitrate: incoming.bitrate != null ? incoming.bitrate : existing.bitrate,
         duration: incoming.duration != null ? incoming.duration : existing.duration,
         resolution: incoming.resolution || existing.resolution,
+        bucket: incoming.resolution ? computeBucket(incoming.resolution) : existing.bucket,
         size: incoming.size != null ? incoming.size : existing.size,
         codec: incoming.codec || existing.codec,
         premiereDate: incoming.premiereDate || existing.premiereDate,
@@ -114,6 +123,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         resolution: incoming.resolution || '',
         size: incoming.size || 0,
         codec: incoming.codec || '',
+        bucket: computeBucket(incoming.resolution),
         premiereDate: incoming.premiereDate || null,
         genres: incoming.genres || [],
         isDiscLike: incoming.isDiscLike || false,
@@ -224,6 +234,18 @@ function addSubLibrary(spec) {
     mediaPolicy: spec.mediaPolicy || {
       target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
       target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
+    },
+    upgradeSmartSelect: spec.upgradeSmartSelect || {
+      enabled: false,
+      codecPreference: [],
+      resolutionPreference: [],
+      audioPreference: [],
+      sitePreference: [],
+      preferCNSub: false,
+      maxSizeGB: {
+        target1080p: { '4': 0, '5': 0 },
+        target4k: { '4': 0, '5': 0 },
+      },
     },
   };
   cfg.subLibraries = [...(cfg.subLibraries || []), subLib];
@@ -449,4 +471,45 @@ module.exports = {
   // Manual triggers
   triggerRefresh,
   triggerDoubanSync,
+
+  getHealth,
 };
+
+function getHealth(config) {
+  const subLibs = (config && config.subLibraries) || [];
+  const enabled = subLibs.filter((sl) => sl.enabled !== false);
+  const totalSubLibraries = subLibs.length;
+  const enabledCount = enabled.length;
+
+  if (enabledCount === 0) {
+    return { status: 'green', totalSubLibraries, enabledCount: 0, staleSubLibraries: [] };
+  }
+
+  const refreshIntervalMin = (config && config.defaultRefreshIntervalMinutes) || 60;
+  const graceMs = refreshIntervalMin * 2 * 60 * 1000;
+  const now = Date.now();
+
+  const staleSubLibraries = [];
+  for (const sl of enabled) {
+    const lastRefreshed = sl.lastRefreshedAt ? new Date(sl.lastRefreshedAt).getTime() : 0;
+    if (now - lastRefreshed > graceMs) {
+      staleSubLibraries.push(sl.name || sl.uuid);
+    }
+  }
+
+  if (staleSubLibraries.length === enabledCount) {
+    // Check if library.json is readable
+    try {
+      loadLibrary();
+    } catch (_) {
+      return { status: 'red', totalSubLibraries, enabledCount, staleSubLibraries };
+    }
+    return { status: 'red', totalSubLibraries, enabledCount, staleSubLibraries };
+  }
+
+  if (staleSubLibraries.length > 0) {
+    return { status: 'yellow', totalSubLibraries, enabledCount, staleSubLibraries };
+  }
+
+  return { status: 'green', totalSubLibraries, enabledCount, staleSubLibraries: [] };
+}

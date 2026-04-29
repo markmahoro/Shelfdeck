@@ -71,20 +71,19 @@ function reportStatus(taskId, status, progress) {
     if (status === 'done') {
       activityLog.addActivity('task', `任务「${name}」${actionLabel}完成 ✓`, { taskId, actionType: oldTask.actionType });
 
-      // Prevent SmartTaskEngine from re-enqueuing the same item:
-      // mark action as keep until next StrategyEngine cycle re-evaluates.
-      if (oldTask.itemId) {
-        const lib = mediaLibraryService.getLibrary();
-        const libItem = lib && lib.items && lib.items.find((it) => it.itemId === oldTask.itemId);
-        if (libItem && libItem.action !== 'keep') {
-          libItem.action = 'keep';
-          libItem.reason = '任务已完成';
-          mediaLibraryService.saveLibrary(lib);
-        }
-      }
     }
     if (status === 'failed_hard') {
       activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, actionType: oldTask.actionType });
+    }
+
+    // 48h freeze after task ends (done or failed_hard) — SmartTaskEngine won't re-enqueue
+    if ((status === 'done' || status === 'failed_hard') && oldTask.itemId) {
+      const lib = mediaLibraryService.getLibrary();
+      const libItem = lib && lib.items && lib.items.find((it) => it.itemId === oldTask.itemId);
+      if (libItem) {
+        libItem.lastTaskDoneAt = new Date().toISOString();
+        mediaLibraryService.saveLibrary(lib);
+      }
     }
   }
 
@@ -253,4 +252,10 @@ module.exports = {
   isRunning,
   scheduleRound,
   recoverInterruptedTasks,
+  getHealth() {
+    return {
+      status: schedulerRunning ? 'green' : 'red',
+      runningTasks: runningTasks.size,
+    };
+  },
 };

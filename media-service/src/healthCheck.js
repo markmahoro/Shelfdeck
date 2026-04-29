@@ -2,7 +2,8 @@
 
 /**
  * Health check module (HEALTH_CHECK.md).
- * Four check items → green/yellow/red aggregation.
+ * Eight check items → green/yellow/red aggregation.
+ * Each functional module self-reports health via getHealth().
  * Checks cached for 10s; GET /v1/health returns last result.
  * Internal timer runs every 30s.
  */
@@ -13,29 +14,9 @@ const activityLog = require('./activityLog');
 
 let lastResult = null;
 let checkTimer = null;
-let lastEmbyStatus = null; // Track emby status for change detection
+let lastEmbyStatus = null;
 
-function getUptime() {
-  return Math.floor(process.uptime());
-}
-
-async function checkService() {
-  return { status: 'green', uptime: getUptime() };
-}
-
-async function checkConfig() {
-  try {
-    const cfg = configStore.loadConfig();
-    const missing = [];
-    if (!cfg.transcodeTempRoot) missing.push('transcodeTempRoot');
-    if (missing.length > 0) {
-      return { status: 'yellow', missingFields: missing };
-    }
-    return { status: 'green' };
-  } catch {
-    return { status: 'red' };
-  }
-}
+// ── Emby check (multi-server) ────────────────────────────────────────────────
 
 async function checkEmby() {
   const cfg = configStore.loadConfig();
@@ -72,18 +53,14 @@ async function checkEmby() {
   return { status: 'yellow', message: 'All Emby servers slow' };
 }
 
-function checkScheduler() {
-  // taskScheduler will set its state via setSchedulerState()
-  const state = _schedulerState;
-  if (!state) return { status: 'yellow', message: 'Scheduler state unknown' };
-  if (!state.running) return { status: 'red', message: 'Scheduler not running' };
-  return { status: 'green', runningTasks: state.runningTasks || 0 };
-}
+// ── Scheduler state (push model to avoid circular dep) ────────────────────────
 
 let _schedulerState = null;
 function setSchedulerState(state) {
   _schedulerState = state;
 }
+
+// ── Aggregation ──────────────────────────────────────────────────────────────
 
 function aggregate(checks) {
   const statuses = Object.values(checks).map((c) => c.status);
@@ -92,13 +69,41 @@ function aggregate(checks) {
   return 'green';
 }
 
+// ── Run all ──────────────────────────────────────────────────────────────────
+
 async function runAllChecks() {
-  const [service, config, emby, scheduler] = await Promise.all([
-    checkService(),
-    checkConfig(),
+  const cfg = configStore.loadConfig();
+
+  // taskScheduler: push model (avoids circular dep)
+  const schedulerState = _schedulerState;
+  const scheduler = schedulerState && schedulerState.running
+    ? { status: 'green', runningTasks: schedulerState.runningTasks || 0 }
+    : { status: 'red', runningTasks: 0 };
+
+  // Lazy-require to avoid circular deps on startup
+  const smartTaskEngine = require('./smartTaskEngine');
+  const strategyEngine = require('./strategyEngine');
+  const mediaLibraryService = require('./mediaLibraryService');
+  const doubanService = require('./services/doubanService');
+  const moviepilotService = require('./services/moviepilotService');
+  const transcodeService = require('./services/transcodeService');
+
+  const [emby, upgrade, transcode] = await Promise.all([
     checkEmby(),
-    Promise.resolve(checkScheduler()),
+    moviepilotService.getHealth(cfg),
+    transcodeService.getHealth(cfg),
   ]);
+
+  const checks = {
+    scheduler:   scheduler,
+    smartTask:   smartTaskEngine.getHealth(),
+    mediaLib:    mediaLibraryService.getHealth(cfg),
+    douban:      doubanService.getHealth(cfg),
+    strategy:    strategyEngine.getHealth(),
+    emby,
+    upgrade,
+    transcode,
+  };
 
   // Detect Emby status changes and emit activity events
   if (lastEmbyStatus !== null && lastEmbyStatus !== emby.status) {
@@ -111,11 +116,13 @@ async function runAllChecks() {
   lastEmbyStatus = emby.status;
 
   return {
-    status: aggregate({ service, config, emby, scheduler }),
-    checks: { service, config, emby, scheduler },
+    status: aggregate(checks),
+    checks,
     timestamp: new Date().toISOString(),
   };
 }
+
+// ── Timer ────────────────────────────────────────────────────────────────────
 
 function startHealthCheckTimer(intervalMs = 30000) {
   if (checkTimer) return;
@@ -141,4 +148,11 @@ function getPublicResult() {
   return { status: r.status, timestamp: r.timestamp };
 }
 
-module.exports = { startHealthCheckTimer, stopHealthCheckTimer, getLastResult, getPublicResult, runAllChecks, setSchedulerState };
+module.exports = {
+  startHealthCheckTimer,
+  stopHealthCheckTimer,
+  getLastResult,
+  getPublicResult,
+  runAllChecks,
+  setSchedulerState,
+};

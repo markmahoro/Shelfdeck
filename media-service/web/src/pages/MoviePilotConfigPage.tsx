@@ -12,8 +12,6 @@ export default function MoviePilotConfigPage() {
   const [savePath, setSavePath] = useState('');
   const [stagingPath, setStagingPath] = useState('');
   const [stagingLocalPath, setStagingLocalPath] = useState('');
-  const [retryInterval, setRetryInterval] = useState(3600000);
-  const [maxRetries, setMaxRetries] = useState(3);
   const [initialized, setInitialized] = useState(false);
 
   const { isLoading } = useQuery({
@@ -26,8 +24,6 @@ export default function MoviePilotConfigPage() {
         setSavePath(cfg.moviepilot?.savePath || '');
         setStagingPath(cfg.moviepilot?.stagingPath || '');
         setStagingLocalPath(cfg.upgradeStagingLocalPath || '');
-        setRetryInterval(cfg.upgradeRetryInterval ?? 3600000);
-        setMaxRetries(cfg.upgradeMaxRetries ?? 3);
         setInitialized(true);
       }
       return cfg;
@@ -44,8 +40,6 @@ export default function MoviePilotConfigPage() {
           stagingPath,
         },
         upgradeStagingLocalPath: stagingLocalPath,
-        upgradeRetryInterval: retryInterval,
-        upgradeMaxRetries: maxRetries,
       }),
     onSuccess: () => setAlert({ type: 'success', msg: '洗版设置已保存' }),
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
@@ -55,8 +49,6 @@ export default function MoviePilotConfigPage() {
 
   return (
     <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24, color: '#1a1a2e' }}>洗版设置</h2>
-
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
 
       <section style={cardStyle}>
@@ -129,42 +121,14 @@ export default function MoviePilotConfigPage() {
             ShelfDeck 访问 staging 目录的本地路径。对应容器内 save_path 通过 SMB/Docker 卷映射后的 Windows 路径。
           </p>
         </div>
+
       </section>
 
-      <section style={cardStyle}>
-        <h3 style={sectionTitle}>重试策略</h3>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-          <div>
-            <label style={labelStyle}>重搜间隔 (毫秒)</label>
-            <input
-              type="number"
-              value={retryInterval}
-              min={60000} max={86400000} step={60000}
-              onChange={(e) => setRetryInterval(Math.max(60000, parseInt(e.target.value) || 3600000))}
-              style={{ ...inputStyle, width: 160 }}
-            />
-            <p style={hintStyle}>waiting_media_source 状态下重新搜索的间隔。默认 1 小时 (3600000ms)。</p>
-          </div>
-          <div>
-            <label style={labelStyle}>最大重试次数</label>
-            <input
-              type="number"
-              value={maxRetries}
-              min={1} max={10}
-              onChange={(e) => setMaxRetries(Math.max(1, parseInt(e.target.value) || 3))}
-              style={{ ...inputStyle, width: 100 }}
-            />
-            <p style={hintStyle}>下载/替换失败后的最大重试次数。</p>
-          </div>
-        </div>
-
-        <div style={{ marginTop: 20 }}>
-          <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} style={primaryBtn}>
-            {saveMutation.isPending ? '保存中...' : '保存洗版设置'}
-          </button>
-        </div>
-      </section>
+      <div>
+        <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} style={primaryBtn}>
+          {saveMutation.isPending ? '保存中...' : '保存'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -175,7 +139,7 @@ const cardStyle: React.CSSProperties = {
 };
 
 const sectionTitle: React.CSSProperties = {
-  fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#1a1a2e',
+  fontSize: 15, fontWeight: 600, marginTop: 0, marginBottom: 16, color: '#1a1a2e',
 };
 
 const labelStyle: React.CSSProperties = {
