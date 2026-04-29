@@ -195,7 +195,7 @@ export default function TaskMonitorPage() {
     ];
 
     return (
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ background: '#eef2f7' }}>
             <th style={compareTh}>指标</th>
@@ -238,7 +238,7 @@ export default function TaskMonitorPage() {
     ];
 
     return (
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ background: '#eef2f7' }}>
             <th style={compareTh}>指标</th>
@@ -300,7 +300,7 @@ export default function TaskMonitorPage() {
           value={searchQuery}
           onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
           placeholder="搜索影片名称..."
-          style={{ padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, width: 220 }}
+          style={{ padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 12, width: 220 }}
         />
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={selectStyle}>
           <option value="">全部状态</option>
@@ -325,7 +325,7 @@ export default function TaskMonitorPage() {
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: '#f9fafb' }}>
                 <th style={thStyle}>影片</th>
@@ -383,7 +383,7 @@ export default function TaskMonitorPage() {
           >
             上一页
           </button>
-          <span style={{ fontSize: 13, color: '#666' }}>
+          <span style={{ fontSize: 12, color: '#666' }}>
             第 {page} 页 / 共 {Math.ceil((taskData.total || taskData.summary?.total || 0) / PAGE_SIZE)} 页（{taskData.total || taskData.summary?.total || 0} 条）
           </span>
           <button
@@ -400,7 +400,7 @@ export default function TaskMonitorPage() {
       <Modal open={detailOpen} title="任务详情" onClose={() => { setDetailOpen(false); setSelectedTask(null); }} width={600}>
         {displayTask ? (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 14, marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 12, marginBottom: 20 }}>
               <div><strong>任务ID:</strong> {displayTask.id}</div>
               <div><strong>媒体项:</strong> {displayTask.itemInfo?.name || displayTask.itemId}</div>
               <div><strong>类型:</strong> {ACTION_TYPE_LABELS[displayTask.actionType] || displayTask.actionType}</div>
@@ -418,7 +418,7 @@ export default function TaskMonitorPage() {
                 {renderCompareTable(displayTask.itemInfo, displayTask.verifyResult)}
                 {displayTask.verifyResult.previewPath && (
                   <div style={{ marginTop: 12 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>试看预览（30秒片段）</p>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#555' }}>试看预览（30秒片段）</p>
                     <video controls width="480" style={{ borderRadius: 6, background: '#000', maxWidth: '100%' }}>
                       <source src={`/v1/tasks/${displayTask.id}/preview`} type="video/mp4" />
                     </video>
@@ -431,7 +431,7 @@ export default function TaskMonitorPage() {
                   }}>
                     {confirmMut.isPending ? '确认中...' : '确认替换'}
                   </button>
-                  <span style={{ marginLeft: 12, fontSize: 13, color: '#888' }}>确认后将用新文件替换原文件，操作不可撤销</span>
+                  <span style={{ marginLeft: 12, fontSize: 12, color: '#888' }}>确认后将用新文件替换原文件，操作不可撤销</span>
                 </div>
               </div>
             )}
@@ -440,13 +440,13 @@ export default function TaskMonitorPage() {
             {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint === 'upgrade_executing' && (
               <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
                 <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: '#1a1a2e' }}>选择洗版版本</h4>
-                <p style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>
+                <p style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
                   找到 {displayTask.itemInfo?.searchCandidatesSimplified?.length || 0} 个候选种子，请选择一个下载。
                 </p>
                 {(displayTask.itemInfo?.searchCandidatesSimplified?.length || 0) > 0 ? (
                   <>
                     <div style={{ maxHeight: 260, overflow: 'auto', marginBottom: 14 }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                         <thead>
                           <tr style={{ background: '#eef2f7', position: 'sticky', top: 0 }}>
                             <th style={{ ...candidateTh, width: 36 }}></th>
@@ -478,7 +478,7 @@ export default function TaskMonitorPage() {
                                   onChange={() => setSelectedCandidateIndex(c.index)}
                                 />
                               </td>
-                              <td style={{ padding: '8px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }} title={c.title}>{c.title}</td>
+                              <td style={{ padding: '8px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }} title={c.title}>{c.title}</td>
                               <td style={{ padding: '8px 10px', fontSize: 12, color: '#888' }}>{c.site || '—'}</td>
                               <td style={{ padding: '8px 10px', fontSize: 12 }}>{formatSize(c.size)}</td>
                               <td style={{ padding: '8px 10px', fontSize: 12, color: c.seeders > 0 ? '#27ae60' : '#e74c3c' }}>{c.seeders}</td>
@@ -500,10 +500,10 @@ export default function TaskMonitorPage() {
                     >
                       {confirmMut.isPending ? '确认中...' : '确认下载选中版本'}
                     </button>
-                    <span style={{ marginLeft: 12, fontSize: 13, color: '#888' }}>将选中种子提交到 MoviePilot 下载</span>
+                    <span style={{ marginLeft: 12, fontSize: 12, color: '#888' }}>将选中种子提交到 MoviePilot 下载</span>
                   </>
                 ) : (
-                  <p style={{ color: '#888', fontSize: 14 }}>正在加载候选列表...</p>
+                  <p style={{ color: '#888', fontSize: 12 }}>正在加载候选列表...</p>
                 )}
               </div>
             )}
@@ -515,7 +515,7 @@ export default function TaskMonitorPage() {
                 {renderUpgradeCompareTable(displayTask)}
                 {displayTask.verifyResult.previewPath && (
                   <div style={{ marginTop: 12 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#555' }}>试看预览（30秒片段）</p>
+                    <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#555' }}>试看预览（30秒片段）</p>
                     <video controls width="480" style={{ borderRadius: 6, background: '#000', maxWidth: '100%' }}>
                       <source src={`/v1/tasks/${displayTask.id}/preview`} type="video/mp4" />
                     </video>
@@ -528,12 +528,12 @@ export default function TaskMonitorPage() {
                   }}>
                     {confirmMut.isPending ? '确认中...' : '确认替换'}
                   </button>
-                  <span style={{ marginLeft: 12, fontSize: 13, color: '#888' }}>确认后将用新文件替换原文件，操作不可撤销</span>
+                  <span style={{ marginLeft: 12, fontSize: 12, color: '#888' }}>确认后将用新文件替换原文件，操作不可撤销</span>
                 </div>
               </div>
             )}
 
-            <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>执行日志</h4>
+            <h4 style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>执行日志</h4>
             <div style={{ background: '#1a1a2e', color: '#e0e0e0', borderRadius: 8, padding: 12, maxHeight: 200, overflow: 'auto', fontFamily: 'Consolas, monospace', fontSize: 12, lineHeight: 1.6 }}>
               {(displayTask.logs || []).length === 0 ? (
                 <span style={{ color: '#888' }}>暂无日志</span>
@@ -619,14 +619,14 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
   return (
     <div>
       <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>📊 {report.itemName}</p>
-      <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
+      <p style={{ fontSize: 12, color: '#888', marginBottom: 16 }}>
         {isTranscode ? '码率压缩' : isDelete ? '删除' : '洗版'}  ·  耗时 {fmtDuration(report.elapsedSec)}
         {report.encoder ? '  ·  ' + report.encoder : ''}
       </p>
 
       {(isTranscode || isUpgrade) && report.original && report.output && (
         <div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 16 }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #eee' }}>
                 <th style={rptThStyle}></th>
@@ -663,20 +663,20 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
           </table>
 
           {typeof report.bytesSaved === 'number' && report.bytesSaved !== 0 && (
-            <div style={{ background: report.bytesSaved > 0 ? '#e8f5e9' : '#fff3e0', borderRadius: 8, padding: '12px 16px', marginBottom: 8, fontSize: 14 }}>
+            <div style={{ background: report.bytesSaved > 0 ? '#e8f5e9' : '#fff3e0', borderRadius: 8, padding: '12px 16px', marginBottom: 8, fontSize: 12 }}>
               <strong>{report.bytesSaved > 0 ? '✅ 节省空间' : '📦 空间变化'}</strong>：{fmtSize(report.bytesSaved > 0 ? report.bytesSaved : -report.bytesSaved)}
               {report.bytesSaved > 0 ? '' : ' (增大了)'}
             </div>
           )}
 
           {report.original.audioCodec && (
-            <div style={{ fontSize: 13, color: '#888' }}>
+            <div style={{ fontSize: 12, color: '#888' }}>
               原始音频：{report.original.audioCodec}
             </div>
           )}
 
           {isUpgrade && report.tmdbVerified !== undefined && (
-            <div style={{ fontSize: 13, color: report.tmdbVerified ? '#27ae60' : '#e67e22', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: report.tmdbVerified ? '#27ae60' : '#e67e22', marginTop: 4 }}>
               {report.tmdbVerified ? '✅ TMDB 匹配已验证' : '⚠️ TMDB 匹配未确认'}
             </div>
           )}
@@ -684,33 +684,33 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
       )}
 
       {isDelete && (
-        <div style={{ background: '#fef3e2', borderRadius: 8, padding: '12px 16px', fontSize: 14 }}>
+        <div style={{ background: '#fef3e2', borderRadius: 8, padding: '12px 16px', fontSize: 12 }}>
           已从 Emby 删除此媒体文件<br />
           <strong>释放空间</strong>：{fmtSize(report.bytesFreed)}
         </div>
       )}
 
       {report.elapsedSec == null && (
-        <p style={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>此任务在报告功能上线前完成，部分细节缺失。</p>
+        <p style={{ fontSize: 12, color: '#888', fontStyle: 'italic' }}>此任务在报告功能上线前完成，部分细节缺失。</p>
       )}
     </div>
   );
 }
 
 const rptThStyle: React.CSSProperties = { textAlign: 'left', padding: '6px 8px', fontSize: 12, color: '#888' };
-const rptTdStyle: React.CSSProperties = { padding: '6px 8px', fontSize: 13 };
+const rptTdStyle: React.CSSProperties = { padding: '6px 8px', fontSize: 12 };
 
 const summaryBadge: React.CSSProperties = {
-  padding: '4px 12px', borderRadius: 12, fontSize: 13, fontWeight: 500,
+  padding: '4px 12px', borderRadius: 12, fontSize: 12, fontWeight: 500,
 };
 
 const selectStyle: React.CSSProperties = {
-  padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13,
+  padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 12,
 };
 
 const refreshBtn: React.CSSProperties = {
   background: '#f0f0f0', color: '#333', border: 'none', padding: '8px 16px',
-  borderRadius: 6, cursor: 'pointer', fontSize: 14,
+  borderRadius: 6, cursor: 'pointer', fontSize: 12,
 };
 
 const thStyle: React.CSSProperties = {
@@ -722,29 +722,29 @@ const tdStyle: React.CSSProperties = {
 };
 
 const actionBtn: React.CSSProperties = {
-  background: 'none', border: 'none', color: '#1a1a2e', cursor: 'pointer', fontSize: 13, marginRight: 8,
+  background: 'none', border: 'none', color: '#1a1a2e', cursor: 'pointer', fontSize: 12, marginRight: 8,
 };
 
 const deleteBtn: React.CSSProperties = {
-  background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13,
+  background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 12,
 };
 
 const execBtn: React.CSSProperties = {
-  background: 'none', border: 'none', color: '#27ae60', cursor: 'pointer', fontSize: 13, marginRight: 8, fontWeight: 600,
+  background: 'none', border: 'none', color: '#27ae60', cursor: 'pointer', fontSize: 12, marginRight: 8, fontWeight: 600,
 };
 
 const warnBtn: React.CSSProperties = {
-  background: 'none', border: 'none', color: '#f39c12', cursor: 'pointer', fontSize: 13, marginRight: 8, fontWeight: 600,
+  background: 'none', border: 'none', color: '#f39c12', cursor: 'pointer', fontSize: 12, marginRight: 8, fontWeight: 600,
 };
 
 const secondaryBtn: React.CSSProperties = {
   background: '#f0f0f0', color: '#333', border: 'none', padding: '8px 20px',
-  borderRadius: 6, cursor: 'pointer', fontSize: 14,
+  borderRadius: 6, cursor: 'pointer', fontSize: 12,
 };
 
 const dangerBtn: React.CSSProperties = {
   background: '#e74c3c', color: '#fff', border: 'none', padding: '8px 20px',
-  borderRadius: 6, cursor: 'pointer', fontSize: 14,
+  borderRadius: 6, cursor: 'pointer', fontSize: 12,
 };
 
 const compareTh: React.CSSProperties = {
@@ -756,7 +756,7 @@ const candidateTh: React.CSSProperties = {
 };
 
 const compareTd: React.CSSProperties = {
-  padding: '8px 12px', fontSize: 13,
+  padding: '8px 12px', fontSize: 12,
 };
 
 const paginationBtn: React.CSSProperties = {
@@ -765,6 +765,6 @@ const paginationBtn: React.CSSProperties = {
   border: 'none',
   padding: '6px 16px',
   borderRadius: 6,
-  fontSize: 13,
+  fontSize: 12,
   cursor: 'pointer',
 };
