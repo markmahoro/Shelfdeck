@@ -20,7 +20,159 @@ function ensureDataDir() {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+// ── Default rule template builder ──────────────────────────────────────────────
+
+function buildDefaultTemplate(policy) {
+  const t1080 = (policy && policy.target1080p) || {};
+  const t4k = (policy && policy.target4k) || {};
+
+  function ratingGroup(val) {
+    return { connector: 'or', conditions: [['doubanRating', '=', val], ['userRating', '=', val]] };
+  }
+  function ratingGroupIn(vals) {
+    return { connector: 'or', conditions: [['doubanRating', 'in', vals], ['userRating', 'in', vals]] };
+  }
+  function condGroup(conds) {
+    return { connector: 'and', conditions: conds };
+  }
+
+  function transcodeRule(priority, rating, bucket, threshold, targetBitrate) {
+    return {
+      priority,
+      groupsConnector: 'and',
+      groups: [
+        ratingGroup(rating),
+        condGroup([['bucket', '=', bucket], ['equivalentBitrate', '>', threshold]]),
+      ],
+      action: 'transcode',
+      actionParams: { targetBitrate, targetCodec: 'h265' },
+      reason: `${rating}★ ${bucket} 码率 ${threshold} Mbps 超标，建议压缩`,
+    };
+  }
+
+  const rules = [];
+
+  // P10: no rating → keep
+  rules.push({
+    priority: 10,
+    groupsConnector: 'and',
+    groups: [condGroup([['doubanRating', '=', null], ['userRating', '=', null]])],
+    action: 'keep',
+    actionParams: {},
+    reason: '无评分',
+  });
+
+  // P9: 1-2★ → delete
+  rules.push({
+    priority: 9,
+    groupsConnector: 'and',
+    groups: [ratingGroupIn([1, 2])],
+    action: 'delete',
+    actionParams: {},
+    reason: '低分删除',
+  });
+
+  // P8: 5★ → upgrade
+  rules.push({
+    priority: 8,
+    groupsConnector: 'and',
+    groups: [ratingGroup(5)],
+    action: 'upgrade',
+    actionParams: { targetBitrate: 25, targetCodec: 'h265', maxSizeGB: 38, seedPreferences: {} },
+    reason: '5★ 洗版至4K高码率优质音轨',
+  });
+
+  // P7: isDiscLike → keep
+  rules.push({
+    priority: 7,
+    groupsConnector: 'and',
+    groups: [condGroup([['isDiscLike', '=', true]])],
+    action: 'keep',
+    actionParams: {},
+    reason: '原盘不处理',
+  });
+
+  // P6: 3-4★ + modern codec → keep
+  rules.push({
+    priority: 6,
+    groupsConnector: 'and',
+    groups: [
+      ratingGroupIn([3, 4]),
+      condGroup([['codec', 'in', ['h265', 'hevc', 'av1']]]),
+    ],
+    action: 'keep',
+    actionParams: {},
+    reason: '现代编码不转码',
+  });
+
+  // P5: 3★ transcode — one rule per bucket
+  if (t1080[3]) rules.push(transcodeRule(5, 3, '1080p', t1080[3], t1080[3]));
+  if (t4k[3]) rules.push(transcodeRule(5, 3, '4K', t4k[3], t4k[3]));
+
+  // P4: 4★ transcode — one rule per bucket
+  if (t1080[4]) rules.push(transcodeRule(4, 4, '1080p', t1080[4], t1080[4]));
+  if (t4k[4]) rules.push(transcodeRule(4, 4, '4K', t4k[4], t4k[4]));
+
+  // P1: catch-all → keep
+  rules.push({
+    priority: 1,
+    groupsConnector: 'and',
+    groups: [],
+    action: 'keep',
+    actionParams: {},
+    reason: '策略未覆盖',
+  });
+
+  return {
+    id: 'default',
+    name: '默认策略',
+    description: '依据用户喜好智能生成策略',
+    rules,
+  };
+}
+
+// ── SubLibrary scheduling defaults ─────────────────────────────────────────────
+
+function defaultSubLibSchedule() {
+  return {
+    scheduleMode: 'full_auto',
+    autoCreate: true,
+    autoExecute: true,
+    autoReplaceTranscode: false,
+    autoReplaceUpgrade: false,
+    smartSelectEnabled: false,
+  };
+}
+
+function resolveSubLibSchedule(itemInfo, config) {
+  const subLibId = itemInfo && itemInfo.subLibraryId;
+  const subLib = subLibId && (config.subLibraries || []).find((s) => s.uuid === subLibId);
+  const mode = (subLib && subLib.scheduleMode) || 'full_manual';
+
+  if (mode === 'full_auto') {
+    return { autoCreate: true, autoExecute: true, autoReplaceTranscode: true, autoReplaceUpgrade: true, smartSelectEnabled: true };
+  }
+  if (mode === 'full_manual') {
+    return { autoCreate: false, autoExecute: false, autoReplaceTranscode: false, autoReplaceUpgrade: false, smartSelectEnabled: false };
+  }
+  // custom
+  return {
+    autoCreate: !!(subLib && subLib.autoCreate),
+    autoExecute: !!(subLib && subLib.autoExecute),
+    autoReplaceTranscode: !!(subLib && subLib.autoReplaceTranscode),
+    autoReplaceUpgrade: !!(subLib && subLib.autoReplaceUpgrade),
+    smartSelectEnabled: !!(subLib && subLib.smartSelectEnabled),
+  };
+}
+
+// ── Config persistence ─────────────────────────────────────────────────────────
+
 function getDefaultConfig() {
+  const defaultPolicy = {
+    target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
+    target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
+  };
+
   return {
     // TaskScheduler
     executionMode: 'auto',
@@ -57,6 +209,8 @@ function getDefaultConfig() {
     },
     upgradeStagingLocalPath: '',
     upgradeScrapingSettleSeconds: 1800,
+    upgradeRetryInterval: 3600000,
+    upgradeMaxRetries: 3,
 
     // Emby multi-server
     embyServers: {},
@@ -64,16 +218,13 @@ function getDefaultConfig() {
     // SubLibraries
     subLibraries: [],
 
+    // Rule templates (v3)
+    ruleTemplates: [buildDefaultTemplate(defaultPolicy)],
+
     // Douban
     douban: {
       userId: '',
       cookieHeader: '',
-    },
-
-    // MediaPolicy (global, deprecated — use subLibrary-level)
-    mediaPolicy: {
-      target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
-      target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
     },
 
     // Service auth
@@ -81,11 +232,20 @@ function getDefaultConfig() {
   };
 }
 
+// ── Version detection ──────────────────────────────────────────────────────────
+
 function detectV1Config(raw) {
-  // v1 had top-level `baseUrl` (Emby URL) without a non-empty `embyServers`
   const hasEmbyServers = raw.embyServers && Object.keys(raw.embyServers).length > 0;
   return !!(raw.baseUrl && !hasEmbyServers);
 }
+
+function detectV2Config(raw) {
+  const hasGlobalPolicy = raw.mediaPolicy && Object.keys(raw.mediaPolicy).length > 0;
+  const hasSubLibPolicy = (raw.subLibraries || []).some((s) => s.mediaPolicy);
+  return !!(hasGlobalPolicy || hasSubLibPolicy) && !raw.ruleTemplates;
+}
+
+// ── Migrations ─────────────────────────────────────────────────────────────────
 
 function migrateFromV1(raw) {
   const crypto = require('crypto');
@@ -100,7 +260,6 @@ function migrateFromV1(raw) {
     embyUserPassword: raw.embyUserPassword || '',
   };
 
-  // Build v2 config from v1 data
   const v2 = {
     executionMode: raw.executionMode === 'scheduled' ? 'auto' : (raw.executionMode || 'auto'),
     deleteConcurrency: raw.deleteConcurrency ?? 3,
@@ -118,27 +277,173 @@ function migrateFromV1(raw) {
     embyServers,
     subLibraries: [],
     douban: { userId: '', cookieHeader: '' },
-    mediaPolicy: raw.mediaPolicy || getDefaultConfig().mediaPolicy,
-    // v1 serviceApiKey → v2 apiKey; explicitly clear old Emby apiKey
     apiKey: raw.serviceApiKey || '',
+    mediaPolicy: raw.mediaPolicy || null,
   };
 
   return v2;
 }
+
+function migrateFromV2(raw) {
+  const policy = raw.mediaPolicy && Object.keys(raw.mediaPolicy).length > 0
+    ? raw.mediaPolicy
+    : ((raw.subLibraries || []).find((s) => s.mediaPolicy) || {}).mediaPolicy;
+
+  const template = buildDefaultTemplate(policy || {
+    target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
+    target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
+  });
+
+  const v3 = { ...raw };
+  delete v3.mediaPolicy;
+
+  v3.ruleTemplates = [template];
+
+  v3.subLibraries = (v3.subLibraries || []).map((sl) => {
+    const migrated = { ...sl };
+    delete migrated.mediaPolicy;
+    migrated.ruleTemplateId = migrated.ruleTemplateId || 'default';
+    return migrated;
+  });
+
+  return v3;
+}
+
+function detectV3Config(raw) {
+  const hasSubLibs = (raw.subLibraries || []).length > 0;
+  if (!hasSubLibs) return false;
+  const missingSchedule = (raw.subLibraries || []).some((s) => !s.scheduleMode);
+  return missingSchedule;
+}
+
+function migrateFromV3(raw) {
+  const sls = (raw.subLibraries || []);
+  const globalAutoCreate = raw.wallRatingAutoEnqueue || false;
+  const globalAutoExecute = raw.executionMode === 'auto';
+  const globalAutoReplaceTranscode = !(raw.transcodeReplaceConfirmRequired);
+  const globalAutoReplaceUpgrade = !(raw.upgradeReplaceConfirmRequired);
+  const globalSmartSelect = raw.smartSelectMode === 'auto' ? true : raw.smartSelectMode === 'manual' ? false : null;
+
+  const allAuto = globalAutoCreate && globalAutoExecute && globalAutoReplaceTranscode && globalAutoReplaceUpgrade && globalSmartSelect === true;
+  const allManual = !globalAutoCreate && !globalAutoExecute && !globalAutoReplaceTranscode && !globalAutoReplaceUpgrade && globalSmartSelect === false;
+
+  raw.subLibraries = sls.map((sl) => {
+    if (sl.scheduleMode) return sl;
+    const ssEnabled = !!(sl.upgradeSmartSelect && sl.upgradeSmartSelect.enabled);
+
+    let scheduleMode = 'custom';
+    if (allAuto) scheduleMode = 'full_auto';
+    else if (allManual) scheduleMode = 'full_manual';
+
+    const smartSelectEnabled = globalSmartSelect != null ? globalSmartSelect : ssEnabled;
+
+    return {
+      ...sl,
+      scheduleMode,
+      autoCreate: globalAutoCreate,
+      autoExecute: globalAutoExecute,
+      autoReplaceTranscode: globalAutoReplaceTranscode,
+      autoReplaceUpgrade: globalAutoReplaceUpgrade,
+      smartSelectEnabled,
+    };
+  });
+
+  return raw;
+}
+
+function detectV4Rules(raw) {
+  const templates = raw.ruleTemplates || [];
+  if (templates.length === 0) return false;
+  return templates.some((tpl) =>
+    (tpl.rules || []).some((r) => r.innerConnector !== undefined)
+  );
+}
+
+function extractPolicyFromTemplate(template) {
+  if (!template || !template.rules) return null;
+  const target1080p = {};
+  const target4k = {};
+
+  for (const rule of template.rules) {
+    if (rule.action !== 'transcode' && rule.action !== 'upgrade') continue;
+    const groups = rule.groups || [];
+    if (groups.length < 2) continue;
+
+    const g0 = Array.isArray(groups[0]) ? groups[0] : (groups[0].conditions || []);
+    const g1 = Array.isArray(groups[1]) ? groups[1] : (groups[1].conditions || []);
+
+    const ratingCond = g0.find((c) => c[0] === 'doubanRating' || c[0] === 'userRating');
+    if (!ratingCond) continue;
+    const rating = ratingCond[2];
+
+    const bucketCond = g1.find((c) => c[0] === 'bucket');
+    if (!bucketCond) continue;
+    const bucket = bucketCond[2];
+
+    const tgt = rule.actionParams && rule.actionParams.targetBitrate;
+    if (typeof tgt !== 'number') continue;
+
+    if (bucket === '1080p') target1080p[String(rating)] = tgt;
+    else if (bucket === '4K') target4k[String(rating)] = tgt;
+  }
+
+  const hasData = Object.keys(target1080p).length > 0 || Object.keys(target4k).length > 0;
+  if (!hasData) return null;
+
+  return { target1080p, target4k };
+}
+
+function migrateV4Rules(raw) {
+  const oldDefault = (raw.ruleTemplates || []).find((t) => t.id === 'default');
+  const policy = extractPolicyFromTemplate(oldDefault) || {
+    target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
+    target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
+  };
+  const newDefault = buildDefaultTemplate(policy);
+  raw.ruleTemplates = (raw.ruleTemplates || []).map((tpl) => {
+    if (tpl.id === 'default') return newDefault;
+    return tpl;
+  });
+  return raw;
+}
+
+// ── Load / Save ────────────────────────────────────────────────────────────────
 
 function loadConfig() {
   ensureDataDir();
   const cfgFile = configFilePath();
   if (!fs.existsSync(cfgFile)) return getDefaultConfig();
   try {
-    const raw = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+    let raw = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+
     if (detectV1Config(raw)) {
       console.log('[configStore] detected v1 config, migrating to v2 format');
-      const migrated = migrateFromV1(raw);
       fs.writeFileSync(cfgFile + '.v1.backup', JSON.stringify(raw, null, 2), 'utf8');
-      saveConfig(migrated);
-      return { ...getDefaultConfig(), ...migrated };
+      raw = migrateFromV1(raw);
+      saveConfig(raw);
     }
+
+    if (detectV2Config(raw)) {
+      console.log('[configStore] detected v2 config (mediaPolicy), migrating to v3 (ruleTemplates)');
+      fs.writeFileSync(cfgFile + '.v2.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = migrateFromV2(raw);
+      saveConfig(raw);
+    }
+
+    if (detectV3Config(raw)) {
+      console.log('[configStore] detected v3 config, migrating subLibrary scheduling to v4');
+      fs.writeFileSync(cfgFile + '.v3.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = migrateFromV3(raw);
+      saveConfig(raw);
+    }
+
+    if (detectV4Rules(raw)) {
+      console.log('[configStore] detected old rule format (innerConnector), regenerating default template');
+      fs.writeFileSync(cfgFile + '.v4.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = migrateV4Rules(raw);
+      saveConfig(raw);
+    }
+
     return { ...getDefaultConfig(), ...raw };
   } catch (err) {
     console.error('[configStore] failed to load config:', err.message);
@@ -159,4 +464,4 @@ function patchConfig(updates) {
   return saveConfig(merged);
 }
 
-module.exports = { loadConfig, saveConfig, patchConfig, getDefaultConfig };
+module.exports = { resolveDataDir, loadConfig, saveConfig, patchConfig, getDefaultConfig, buildDefaultTemplate, defaultSubLibSchedule, resolveSubLibSchedule };

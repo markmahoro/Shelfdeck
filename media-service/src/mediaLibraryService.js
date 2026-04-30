@@ -14,7 +14,6 @@ const path = require('path');
 const crypto = require('crypto');
 
 const configStore = require('./configStore');
-const mediaPolicyService = require('./mediaPolicyService');
 const doubanMatchService = require('./doubanMatchService');
 const embyService = require('./services/embyService');
 const doubanService = require('./services/doubanService');
@@ -232,21 +231,21 @@ function addSubLibrary(spec) {
     enabled: true,
     lastRefreshedAt: null,
     doubanSyncedAt: null,
-    mediaPolicy: spec.mediaPolicy || {
-      target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
-      target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
-    },
+    ruleTemplateId: spec.ruleTemplateId || 'default',
+    ...configStore.defaultSubLibSchedule(),
+    scheduleMode: spec.scheduleMode || 'full_auto',
+    autoCreate: spec.autoCreate !== undefined ? spec.autoCreate : true,
+    autoExecute: spec.autoExecute !== undefined ? spec.autoExecute : true,
+    autoReplaceTranscode: spec.autoReplaceTranscode || false,
+    autoReplaceUpgrade: spec.autoReplaceUpgrade || false,
+    smartSelectEnabled: spec.smartSelectEnabled || false,
     upgradeSmartSelect: spec.upgradeSmartSelect || {
-      enabled: false,
+      enabled: spec.smartSelectEnabled || false,
       codecPreference: [],
       resolutionPreference: [],
       audioPreference: [],
       sitePreference: [],
       preferCNSub: false,
-      maxSizeGB: {
-        target1080p: { '4': 0, '5': 0 },
-        target4k: { '4': 0, '5': 0 },
-      },
     },
   };
   cfg.subLibraries = [...(cfg.subLibraries || []), subLib];
@@ -297,7 +296,6 @@ function recomputeAllSelfFields() {
 
   for (const item of lib.items) {
     const subLib = subLibs.find((s) => s.uuid === item.subLibraryId);
-    const policy = (subLib && subLib.mediaPolicy) ? subLib.mediaPolicy : cfg.mediaPolicy;
 
     // bucket
     const bucket = computeBucket(item.resolution);
@@ -307,18 +305,8 @@ function recomputeAllSelfFields() {
     const eqMbps = item.bitrate > 0 ? item.bitrate / 1_000_000 : undefined;
     if (item.equivalentBitrate !== eqMbps) { item.equivalentBitrate = eqMbps; changed++; }
 
-    // targetBitrate (Mbps)
-    const tgt = policy ? mediaPolicyService.targetMbps(item, policy) : undefined;
-    if (item.targetBitrate !== (tgt != null ? tgt : undefined)) {
-      item.targetBitrate = tgt != null ? tgt : undefined;
-      changed++;
-    }
-
-    // predictedSizeGb
-    const predictGb = (tgt != null && item.duration)
-      ? (tgt * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024)
-      : undefined;
-    if (item.predictedSizeGb !== predictGb) { item.predictedSizeGb = predictGb; changed++; }
+    // targetBitrate and predictedSizeGb are now written by StrategyEngine
+    // based on rule template evaluation — no longer computed here.
   }
 
   if (changed > 0) {

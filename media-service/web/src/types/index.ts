@@ -43,8 +43,55 @@ export interface SubLibrary {
   enabled: boolean;
   lastRefreshedAt: string | null;
   doubanSyncedAt: string | null;
-  mediaPolicy: MediaPolicy;
+  mediaPolicy?: MediaPolicy;
+  ruleTemplateId?: string;
   upgradeSmartSelect: UpgradeSmartSelect;
+  scheduleMode?: 'full_auto' | 'custom' | 'full_manual';
+  autoCreate?: boolean;
+  autoExecute?: boolean;
+  autoReplaceTranscode?: boolean;
+  autoReplaceUpgrade?: boolean;
+  smartSelectEnabled?: boolean;
+}
+
+// ── Rule Template ──────────────────────────────────────────────────────────────
+
+export interface RuleCondition {
+  field: string;
+  op: '>' | '>=' | '<' | '<=' | '=' | 'in' | 'not in';
+  value: number | string | boolean | null | (number | string)[];
+}
+
+export interface RuleGroup {
+  connector: 'and' | 'or';
+  conditions: RuleCondition[];
+}
+
+export interface Rule {
+  priority: number;
+  groupsConnector: 'and' | 'or';
+  groups: RuleGroup[];
+  action: 'keep' | 'delete' | 'transcode' | 'upgrade';
+  actionParams: {
+    targetBitrate?: number;
+    targetCodec?: string;
+    maxSizeGB?: number;
+    seedPreferences?: {
+      codecPreference?: string[];
+      resolutionPreference?: string[];
+      audioPreference?: string[];
+      sitePreference?: string[];
+      preferCNSub?: boolean;
+    };
+  };
+  reason: string;
+}
+
+export interface RuleTemplate {
+  id: string;
+  name: string;
+  description: string;
+  rules: Rule[];
 }
 
 // ── Transcode ─────────────────────────────────────────────────────────────────
@@ -56,7 +103,7 @@ export interface UpgradeSmartSelect {
   audioPreference: string[];
   sitePreference: string[];
   preferCNSub: boolean;
-  maxSizeGB: { target1080p: Record<string,number>; target4k: Record<string,number> };
+  maxSizeGB?: { target1080p?: Record<string,number>; target4k?: Record<string,number> } | number;
 }
 
 export interface TranscodeConfig {

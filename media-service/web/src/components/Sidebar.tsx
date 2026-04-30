@@ -11,6 +11,7 @@ const GROUP_2 = [
 ];
 
 const GROUP_3 = [
+  { to: '/rules', label: '策略模板' },
   { to: '/system', label: '任务调度' },
   { to: '/douban', label: '豆瓣评分抓取' },
   { to: '/transcode', label: '转码压缩' },

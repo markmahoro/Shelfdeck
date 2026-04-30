@@ -30,15 +30,7 @@ function start(configStore, mediaLibraryService, taskStore) {
   const run = () => {
     try {
       const cfg2 = configStore.loadConfig();
-      _enabled = cfg2.wallRatingAutoEnqueue || false;
-      if (!_enabled) {
-        if (!lastRunAt) {
-          const msg = '智能入队未启用，请在系统设置中开启 wallRatingAutoEnqueue';
-          console.log(`[smartTaskEngine] ${msg}`);
-          activityLog.addActivity('smart_task_engine', msg);
-        }
-        return;
-      }
+      _enabled = true; // Enabling is now per-subLibrary via scheduleMode.autoCreate
 
       const maxPerRun = cfg2.smartTaskMaxPerRun || 10;
       const enabledActions = cfg2.smartTaskEnabledActions || ['transcode', 'upgrade'];
@@ -78,6 +70,10 @@ function start(configStore, mediaLibraryService, taskStore) {
         if (item.reason === '新入库') return false;
         if (activeItemIds.has(item.itemId)) return false;
 
+        // Per-subLibrary autoCreate check
+        const subLibSchedule = configStore.resolveSubLibSchedule(item, cfg2);
+        if (!subLibSchedule.autoCreate) return false;
+
         // 48h freeze after task completion — wait for Emby to refresh metadata
         if (item.lastTaskDoneAt) {
           const freezeUntil = new Date(item.lastTaskDoneAt).getTime() + 48 * 3600 * 1000;
@@ -108,7 +104,8 @@ function start(configStore, mediaLibraryService, taskStore) {
         const lim = limits[item.action] || 50;
         if (cur >= lim) continue;
 
-        const status = cfg2.executionMode === 'manual' ? 'pending_manual' : 'queued';
+        const subLibSchedule2 = configStore.resolveSubLibSchedule(item, cfg2);
+        const status = subLibSchedule2.autoExecute ? 'queued' : 'pending_manual';
         taskStore.createTask({
           itemId: item.itemId,
           itemName: item.name,
@@ -126,6 +123,11 @@ function start(configStore, mediaLibraryService, taskStore) {
             type: item.type,
             doubanRating: item.doubanRating,
             userRating: item.userRating,
+            targetBitrate: item.targetBitrate,
+            targetCodec: item.targetCodec,
+            seedPreferences: item.seedPreferences,
+            maxSizeGB: item.maxSizeGB,
+            equivalentBitrate: item.equivalentBitrate,
           },
           logs: [{
             ts: new Date().toISOString(),

@@ -97,13 +97,19 @@ function reportStatus(taskId, status, progress) {
 function recoverInterruptedTasks() {
   const tasks = taskStore.loadTasks();
   const interruptible = ['precheck', 'executing', 'verify', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'planning', 'pre_replace_verify', 'pausing'];
+  let changed = false;
   for (const t of tasks) {
+    if (t.status === 'done' || t.status === 'failed_hard') continue;
     // awaiting_user_confirm is a stable state — user hasn't decided yet, preserve it
     if (t.status === 'awaiting_user_confirm') continue;
-    if (interruptible.includes(t.status) || interruptible.includes(t.phase) || t.pausingRequested) {
-      taskStore.updateTask(t.id, { status: 'interrupted' });
+    if (interruptible.includes(t.status) || t.pausingRequested) {
+      t.status = 'interrupted';
       console.log('[scheduler] recovered interrupted task', t.id);
+      changed = true;
     }
+  }
+  if (changed) {
+    taskStore.saveTasks(tasks);
   }
 }
 
@@ -162,21 +168,28 @@ async function scheduleRound() {
 
   healthCheck.setSchedulerState({ running: true, runningTasks: Object.values(activeCount).reduce((a, b) => a + b, 0) });
 
-  // ── Pass 1: recover interrupted tasks first ────────────────────────────
+  // ── Pass 1: recover interrupted tasks first (batch update, single save) ─
   const recoveredIds = new Set();
+  let pass1Changed = false;
   for (const task of tasks) {
     if (task.status === 'done' || task.status === 'failed_hard') continue;
     if (task.status !== 'interrupted') continue;
 
     const retryCount = (task.retryCount || 0) + 1;
     if (retryCount > 3) {
-      taskStore.updateTask(task.id, { status: 'failed_hard', retryCount });
+      task.status = 'failed_hard';
+      task.retryCount = retryCount;
       console.log('[scheduler] task', task.id, 'failed after', retryCount - 1, 'retries');
+      pass1Changed = true;
       continue;
     }
-    taskStore.updateTask(task.id, { status: 'queued', retryCount });
     task.status = 'queued';
+    task.retryCount = retryCount;
     recoveredIds.add(task.id);
+    pass1Changed = true;
+  }
+  if (pass1Changed) {
+    taskStore.saveTasks(tasks);
   }
 
   // ── Pass 2: dispatch queued tasks (recovered first, then others) ──────
@@ -201,8 +214,11 @@ async function scheduleRound() {
     // Skip waiting_media_source (flow parks, retry handled by flow timer)
     if (task.status === 'waiting_media_source') continue;
 
-    // executionMode check
-    if (config.executionMode === 'manual' && task.status === 'pending_manual') continue;
+    // subLibrary scheduleMode check: skip if subLib autoExecute is off
+    if (task.status === 'pending_manual' || task.status === 'created') {
+      const subLibSchedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
+      if (!subLibSchedule.autoExecute) continue;
+    }
 
     // itemId lock: only one flow per itemId
     if (usedItemIds.has(task.itemId) && task.status !== 'executing') continue;

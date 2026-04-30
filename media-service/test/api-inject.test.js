@@ -7,7 +7,6 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 const { buildApp } = require('../src/app');
-const mediaPolicyService = require('../src/mediaPolicyService');
 
 // ── Health ────────────────────────────────────────────────────────────────────
 
@@ -61,9 +60,10 @@ test('GET /v1/config includes v2 schema fields', async () => {
   const res = await app.inject({ method: 'GET', url: '/v1/config' });
   assert.strictEqual(res.statusCode, 200);
   const cfg = res.json();
-  assert.ok(cfg.mediaPolicy, 'mediaPolicy present');
-  assert.strictEqual(cfg.mediaPolicy.target1080p['5'], 12);
-  assert.strictEqual(cfg.mediaPolicy.target4k['5'], 25);
+  assert.ok(Array.isArray(cfg.ruleTemplates), 'ruleTemplates is array');
+  assert.ok(cfg.ruleTemplates.length > 0, 'at least one rule template');
+  assert.strictEqual(cfg.ruleTemplates[0].id, 'default');
+  assert.strictEqual(cfg.ruleTemplates[0].name, '默认策略');
   assert.ok(cfg.embyServers !== undefined, 'embyServers present');
   assert.ok(Array.isArray(cfg.subLibraries), 'subLibraries is array');
   assert.ok(Array.isArray(cfg.transcodeEncodingDevices), 'transcodeEncodingDevices is array');
@@ -74,19 +74,17 @@ test('PATCH /v1/config persists and reloads', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const patch = {
-    mediaPolicy: {
-      target1080p: { '2': 3, '3': 5, '4': 8, '5': 15 },
-      target4k: { '2': 6, '3': 12, '4': 18, '5': 30 },
-    },
+    deleteConcurrency: 5,
+    smartTaskPollIntervalMinutes: 20,
   };
   const res = await app.inject({ method: 'PATCH', url: '/v1/config', payload: patch });
   assert.strictEqual(res.statusCode, 200);
   const updated = res.json();
-  assert.strictEqual(updated.mediaPolicy.target1080p['5'], 15);
-  assert.strictEqual(updated.mediaPolicy.target4k['5'], 30);
+  assert.strictEqual(updated.deleteConcurrency, 5);
+  assert.strictEqual(updated.smartTaskPollIntervalMinutes, 20);
   const res2 = await app.inject({ method: 'GET', url: '/v1/config' });
   const reloaded = res2.json();
-  assert.strictEqual(reloaded.mediaPolicy.target1080p['5'], 15);
+  assert.strictEqual(reloaded.deleteConcurrency, 5);
   await app.close();
 });
 
@@ -378,39 +376,41 @@ test('GET /v1/library returns library items', async () => {
 
 // ── MediaPolicyService (pure function) ─────────────────────────────────────────
 
-test('mediaPolicyService.recommendedAction scenarios', async () => {
-  const policy = {
-    target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
-    target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
-  };
+test('strategyEngine rule evaluation scenarios', async () => {
+  const { ruleMatches } = require('../src/strategyEngine');
 
-  // 3-star above target (30 Mbps > target+1=5) -> transcode
-  const t3 = { bitrate: 30_000_000, resolution: '1080p', doubanRating: 3, userRating: null };
-  assert.strictEqual(mediaPolicyService.recommendedAction(t3, policy).action, 'transcode');
+  // New format: groupsConnector + per-group connector
+  // P10: no rating → keep
+  const p10 = { priority: 10, groupsConnector: 'and', groups: [{ connector: 'and', conditions: [['doubanRating','=',null],['userRating','=',null]] }], action: 'keep', reason: '无评分' };
+  assert.ok(ruleMatches({ doubanRating: null, userRating: null }, p10));
+  assert.ok(!ruleMatches({ doubanRating: 3, userRating: null }, p10));
 
-  // 3-star well below target (2 Mbps < target=4) -> keep
-  const t3low = { bitrate: 2_000_000, resolution: '1080p', doubanRating: 3, userRating: null };
-  assert.strictEqual(mediaPolicyService.recommendedAction(t3low, policy).action, 'keep');
+  // P9: 1-2★ → delete (OR rating group)
+  const p9 = { priority: 9, groupsConnector: 'and', groups: [{ connector: 'or', conditions: [['doubanRating','in',[1,2]],['userRating','in',[1,2]]] }], action: 'delete', reason: '低分' };
+  assert.ok(ruleMatches({ doubanRating: 1, userRating: null }, p9));
+  assert.ok(ruleMatches({ doubanRating: null, userRating: 1 }, p9));
+  assert.ok(!ruleMatches({ doubanRating: 3, userRating: null }, p9));
 
-  // 4-star below target*0.8 for 4K (2 Mbps < 16*0.8=12.8) -> upgrade
-  const t4low = { bitrate: 2_000_000, resolution: '4K', doubanRating: 4, userRating: null };
-  assert.strictEqual(mediaPolicyService.recommendedAction(t4low, policy).action, 'upgrade');
+  // P6: 3-4★ + modern codec → keep (rating OR, codec AND)
+  const p6 = { priority: 6, groupsConnector: 'and', groups: [{ connector: 'or', conditions: [['doubanRating','in',[3,4]],['userRating','in',[3,4]]] }, { connector: 'and', conditions: [['codec','in',['h265','hevc','av1']]] }], action: 'keep', reason: '现代编码' };
+  assert.ok(ruleMatches({ doubanRating: 3, codec: 'h265' }, p6));
+  assert.ok(!ruleMatches({ doubanRating: 3, codec: 'h264' }, p6));
 
-  // 4-star at target (7 Mbps between 5.6 and 8) -> keep
-  const t4ok = { bitrate: 7_000_000, resolution: '1080p', doubanRating: 4, userRating: null };
-  assert.strictEqual(mediaPolicyService.recommendedAction(t4ok, policy).action, 'keep');
+  // P5: 3★ + 1080p + bitrate>4 → transcode (rating OR, bucket+bitrate AND)
+  const p5 = { priority: 5, groupsConnector: 'and', groups: [{ connector: 'or', conditions: [['doubanRating','=',3],['userRating','=',3]] }, { connector: 'and', conditions: [['bucket','=','1080p'],['equivalentBitrate','>',4]] }], action: 'transcode' };
+  assert.ok(ruleMatches({ doubanRating: 3, bucket: '1080p', equivalentBitrate: 8 }, p5));
+  assert.ok(!ruleMatches({ doubanRating: 3, bucket: '4K', equivalentBitrate: 8 }, p5));
+  assert.ok(!ruleMatches({ doubanRating: 3, bucket: '1080p', equivalentBitrate: 2 }, p5));
 
-  // 5-star 1080p -> upgrade
-  const t5_1080 = { bitrate: 10_000_000, resolution: '1080p', doubanRating: 5, userRating: null };
-  assert.strictEqual(mediaPolicyService.recommendedAction(t5_1080, policy).action, 'upgrade');
+  // P1: catch-all (empty groups)
+  const p1 = { priority: 1, groupsConnector: 'and', groups: [], action: 'keep', reason: '策略未覆盖' };
+  assert.ok(ruleMatches({ doubanRating: 5, bucket: '4K', equivalentBitrate: 10 }, p1));
 
-  // 1-star/2-star -> delete
-  const t1 = { bitrate: 5_000_000, resolution: '1080p', doubanRating: 1, userRating: null };
-  assert.strictEqual(mediaPolicyService.recommendedAction(t1, policy).action, 'delete');
-
-  // No rating -> keep
-  const tNone = { bitrate: 5_000_000, resolution: '1080p', doubanRating: null, userRating: null };
-  assert.strictEqual(mediaPolicyService.recommendedAction(tNone, policy).action, 'keep');
+  // groupsConnector='or': between-group OR
+  const ruleOr = { priority: 1, groupsConnector: 'or', groups: [{ connector: 'and', conditions: [['bucket','=','1080p'],['equivalentBitrate','>',5]] }, { connector: 'and', conditions: [['codec','in',['h265']]] }], action: 'transcode' };
+  assert.ok(ruleMatches({ bucket: '1080p', equivalentBitrate: 8 }, ruleOr));
+  assert.ok(ruleMatches({ codec: 'h265' }, ruleOr));
+  assert.ok(!ruleMatches({ bucket: '4K', equivalentBitrate: 8, codec: 'h264' }, ruleOr));
 });
 
 // ── 404 handling ──────────────────────────────────────────────────────────────

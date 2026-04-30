@@ -25,12 +25,15 @@ let serverReady = false;
 
 // ── Playback log ─────────────────────────────────────────────────────────────
 
-const PLAYBACK_LOG_PATH = path.join(__dirname, '..', 'data', 'playback-log.json');
+function playbackLogPath() {
+  return path.join(configStore.resolveDataDir(), 'playback-log.json');
+}
 
 function loadPlaybackLog() {
   try {
-    if (fs.existsSync(PLAYBACK_LOG_PATH)) {
-      const raw = fs.readFileSync(PLAYBACK_LOG_PATH, 'utf8');
+    const p = playbackLogPath();
+    if (fs.existsSync(p)) {
+      const raw = fs.readFileSync(p, 'utf8');
       return JSON.parse(raw);
     }
   } catch (_) {}
@@ -38,7 +41,7 @@ function loadPlaybackLog() {
 }
 
 function savePlaybackLog(logs) {
-  fs.writeFileSync(PLAYBACK_LOG_PATH, JSON.stringify(logs, null, 2));
+  fs.writeFileSync(playbackLogPath(), JSON.stringify(logs, null, 2));
 }
 
 function addPlaybackEntry(entry) {
@@ -434,6 +437,11 @@ function registerRoutes(app) {
     }
   });
 
+  app.post('/v1/library/actions/recompute-strategy', async () => {
+    const result = strategyEngine.runOnce();
+    return { ok: true, changed: result.changed };
+  });
+
   app.get('/v1/library/status', async () => {
     return mediaLibraryService.getLibraryStatus();
   });
@@ -690,7 +698,7 @@ function registerRoutes(app) {
   });
 
   app.post('/v1/admin/sublibraries', async (req, reply) => {
-    const { name, embyServerId, sectionId, source, doubanEnabled, mediaPolicy, upgradeSmartSelect } = req.body || {};
+    const { name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect } = req.body || {};
     if (!name || !embyServerId || !sectionId) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name, embyServerId, and sectionId are required');
     }
@@ -698,7 +706,7 @@ function registerRoutes(app) {
     if (!(cfg.embyServers || {})[embyServerId]) {
       return apiError(reply, 404, 'NOT_FOUND', 'Emby server not found');
     }
-    const subLib = mediaLibraryService.addSubLibrary({ name, embyServerId, sectionId, source, doubanEnabled, mediaPolicy, upgradeSmartSelect });
+    const subLib = mediaLibraryService.addSubLibrary({ name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect });
     return reply.code(201).send(subLib);
   });
 
@@ -712,6 +720,68 @@ function registerRoutes(app) {
     const updated = mediaLibraryService.updateSubLibrary(req.params.uuid, req.body || {});
     if (!updated) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
     return updated;
+  });
+
+  // ── Admin: Rule Templates ────────────────────────────────────────────────
+
+  app.get('/v1/admin/rule-templates', async () => {
+    const cfg = configStore.loadConfig();
+    return { ruleTemplates: cfg.ruleTemplates || [] };
+  });
+
+  app.get('/v1/admin/rule-templates/:id', async (req, reply) => {
+    const cfg = configStore.loadConfig();
+    const tpl = (cfg.ruleTemplates || []).find((t) => t.id === req.params.id);
+    if (!tpl) return apiError(reply, 404, 'NOT_FOUND', 'Rule template not found');
+    return tpl;
+  });
+
+  app.post('/v1/admin/rule-templates', async (req, reply) => {
+    const { id, name, description, rules } = req.body || {};
+    if (!id || !name) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'id and name are required');
+    }
+    const cfg = configStore.loadConfig();
+    const list = cfg.ruleTemplates || [];
+    if (list.find((t) => t.id === id)) {
+      return apiError(reply, 409, 'CONFLICT', 'Template id already exists');
+    }
+    const tpl = { id, name, description: description || '', rules: rules || [] };
+    cfg.ruleTemplates = [...list, tpl];
+    configStore.saveConfig(cfg);
+    return reply.code(201).send(tpl);
+  });
+
+  app.put('/v1/admin/rule-templates/:id', async (req, reply) => {
+    const cfg = configStore.loadConfig();
+    const list = cfg.ruleTemplates || [];
+    const idx = list.findIndex((t) => t.id === req.params.id);
+    if (idx < 0) return apiError(reply, 404, 'NOT_FOUND', 'Rule template not found');
+
+    const { name, description, rules } = req.body || {};
+    list[idx] = {
+      ...list[idx],
+      ...(name !== undefined ? { name } : {}),
+      ...(description !== undefined ? { description } : {}),
+      ...(rules !== undefined ? { rules } : {}),
+    };
+    cfg.ruleTemplates = list;
+    configStore.saveConfig(cfg);
+    return list[idx];
+  });
+
+  app.delete('/v1/admin/rule-templates/:id', async (req, reply) => {
+    const cfg = configStore.loadConfig();
+    const list = cfg.ruleTemplates || [];
+    const idx = list.findIndex((t) => t.id === req.params.id);
+    if (idx < 0) return apiError(reply, 404, 'NOT_FOUND', 'Rule template not found');
+    if (list[idx].id === 'default') {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'Cannot delete the default template');
+    }
+    list.splice(idx, 1);
+    cfg.ruleTemplates = list;
+    configStore.saveConfig(cfg);
+    return { ok: true, id: req.params.id };
   });
 
   // ── Admin: Transcode ────────────────────────────────────────────────────
@@ -777,11 +847,13 @@ function registerRoutes(app) {
       moviepilot: { ...mp, apiKey: mp.apiKey ? '********' : '' },
       upgradeStagingLocalPath: cfg.upgradeStagingLocalPath || '',
       upgradeReplaceConfirmRequired: cfg.upgradeReplaceConfirmRequired || false,
+      upgradeRetryInterval: cfg.upgradeRetryInterval ?? 3600000,
+      upgradeMaxRetries: cfg.upgradeMaxRetries ?? 3,
     };
   });
 
   app.patch('/v1/admin/upgrade/config', async (req) => {
-    const allowed = ['moviepilot', 'upgradeStagingLocalPath', 'upgradeReplaceConfirmRequired'];
+    const allowed = ['moviepilot', 'upgradeStagingLocalPath', 'upgradeReplaceConfirmRequired', 'upgradeRetryInterval', 'upgradeMaxRetries'];
     const patch = {};
     for (const key of allowed) {
       if (req.body && req.body[key] !== undefined) patch[key] = req.body[key];
@@ -813,6 +885,9 @@ function registerRoutes(app) {
     if (req.query.actionType) filter.actionType = req.query.actionType;
     if (req.query.q) filter.q = req.query.q;
     const allTasks = taskStore.getTasks(filter);
+    // Sort by updatedAt descending (most recent first)
+    allTasks.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
     const byStatus = {};
     for (const t of allTasks) {
       byStatus[t.status] = (byStatus[t.status] || 0) + 1;

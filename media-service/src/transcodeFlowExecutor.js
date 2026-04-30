@@ -205,6 +205,7 @@ async function runExecuting(taskId, task, config) {
         isDolbyVision: info.isDolbyVision,
         dvAcknowledged: task.dvAcknowledged || false,
         durationSec: info.durationSec || 3600,
+        targetBitrate: info.targetBitrate,
       },
     );
 
@@ -265,7 +266,8 @@ async function runVerify(taskId, task, config) {
       },
     });
 
-    if (config.transcodeReplaceConfirmRequired) {
+    const sched = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
+    if (!sched.autoReplaceTranscode) {
       appendLog(taskId, 'info', 'Replace confirmation required — awaiting user');
       scheduler.pauseForConfirm(taskId, 'transcode_replace');
       return;

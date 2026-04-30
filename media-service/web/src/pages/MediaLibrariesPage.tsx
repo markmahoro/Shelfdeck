@@ -70,10 +70,7 @@ export default function MediaLibrariesPage() {
         sectionId: selectedSectionId,
         source: 'emby',
         doubanEnabled,
-        mediaPolicy: {
-          target1080p: { '2': policy1080_2, '3': policy1080_3, '4': policy1080_4, '5': policy1080_5 },
-          target4k: { '2': policy4k_2, '3': policy4k_3, '4': policy4k_4, '5': policy4k_5 },
-        },
+        ruleTemplateId: 'default',
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sublibraries'] });

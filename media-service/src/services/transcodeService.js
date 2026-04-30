@@ -195,7 +195,7 @@ async function encoderSelfTest(ff, encArgs, env) {
   return r.code === 0;
 }
 
-function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolbyVision, dvAcknowledged }) {
+function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolbyVision, dvAcknowledged, targetBitrate }) {
   const ff = resolveFfmpegBin(config);
   const args = ['-hide_banner', '-y', '-i', sourcePath, '-map', '0:v:0', '-map', '0:a?', '-map', '0:s?', '-dn'];
   let enc = String(encoderMode || 'cpu').toLowerCase();
@@ -203,10 +203,24 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
     enc = 'cpu';
     args.push('-vf', 'libplacebo=tonemapping=bt.2390,format=yuv420p10le');
   }
-  if (enc === 'nvenc') args.push('-c:v', 'hevc_nvenc', '-rc', 'vbr', '-cq', '24', '-preset', 'p5');
-  else if (enc === 'qsv') args.push('-c:v', 'hevc_qsv', '-global_quality', '24');
-  else if (enc === 'amf') args.push('-c:v', 'hevc_amf', '-quality', 'balanced', '-rc', 'cqp', '-qp_i', '24', '-qp_p', '24');
-  else args.push('-c:v', 'libx265', '-crf', '22', '-preset', 'medium');
+  const bitrate = typeof targetBitrate === 'number' && targetBitrate > 0 ? String(targetBitrate) + 'M' : null;
+  if (enc === 'nvenc') {
+    args.push('-c:v', 'hevc_nvenc', '-rc', 'vbr', '-preset', 'p5');
+    if (bitrate) args.push('-b:v', bitrate);
+    else args.push('-cq', '24');
+  } else if (enc === 'qsv') {
+    args.push('-c:v', 'hevc_qsv');
+    if (bitrate) args.push('-b:v', bitrate);
+    else args.push('-global_quality', '24');
+  } else if (enc === 'amf') {
+    args.push('-c:v', 'hevc_amf', '-quality', 'balanced');
+    if (bitrate) args.push('-rc', 'vbr', '-b:v', bitrate);
+    else args.push('-rc', 'cqp', '-qp_i', '24', '-qp_p', '24');
+  } else {
+    args.push('-c:v', 'libx265', '-preset', 'medium');
+    if (bitrate) args.push('-b:v', bitrate);
+    else args.push('-crf', '22');
+  }
   args.push('-c:a', 'copy', '-c:s', 'copy', partialPath);
   return { ffmpegBin: ff, args };
 }
@@ -300,7 +314,7 @@ async function precheck(config, sourcePath) {
 }
 
 async function startEncode(onProgress, params) {
-  const { config, taskId, sourcePath, partialPath, orderedDeviceSlots, isDolbyVision, dvAcknowledged, durationSec } = params;
+  const { config, taskId, sourcePath, partialPath, orderedDeviceSlots, isDolbyVision, dvAcknowledged, durationSec, targetBitrate } = params;
   const tid = String(taskId || '');
   if (encodeJobs.has(tid)) throw new Error('Task already has an active encode process');
 
@@ -314,7 +328,7 @@ async function startEncode(onProgress, params) {
 
     const { backend: devBack, gpuIndex: devGpu } = parseStableKey(deviceId);
 
-    const { ffmpegBin, args } = buildEncodeArgs({ config, sourcePath, partialPath, encoderMode: devBack, isDolbyVision: !!isDolbyVision, dvAcknowledged: !!dvAcknowledged });
+    const { ffmpegBin, args } = buildEncodeArgs({ config, sourcePath, partialPath, encoderMode: devBack, isDolbyVision: !!isDolbyVision, dvAcknowledged: !!dvAcknowledged, targetBitrate });
     log('startEncode', tid, deviceId, devBack);
 
     const spawnEnv = { ...process.env };

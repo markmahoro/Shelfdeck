@@ -12,6 +12,7 @@ import type {
   HealthStatus,
   DoubanSession,
   SpaceStats,
+  RuleTemplate,
 } from '../types';
 
 function apiKey(): string {
@@ -105,7 +106,7 @@ export const subLibraries = {
     sectionId: string;
     source?: string;
     doubanEnabled?: boolean;
-    mediaPolicy?: SubLibrary['mediaPolicy'];
+    ruleTemplateId?: string;
     upgradeSmartSelect?: SubLibrary['upgradeSmartSelect'];
   }) => post<SubLibrary>('/v1/admin/sublibraries', body),
 
@@ -114,6 +115,23 @@ export const subLibraries = {
 
   remove: (uuid: string) =>
     del<{ ok: boolean; uuid: string }>(`/v1/admin/sublibraries/${uuid}`),
+};
+
+// ── Rule Templates ────────────────────────────────────────────────────────────
+
+export const ruleTemplates = {
+  list: () => get<{ ruleTemplates: RuleTemplate[] }>('/v1/admin/rule-templates'),
+
+  get: (id: string) => get<RuleTemplate>(`/v1/admin/rule-templates/${encodeURIComponent(id)}`),
+
+  create: (body: { id: string; name: string; description?: string; rules?: RuleTemplate['rules'] }) =>
+    post<RuleTemplate>('/v1/admin/rule-templates', body),
+
+  update: (id: string, body: { name?: string; description?: string; rules?: RuleTemplate['rules'] }) =>
+    put<RuleTemplate>(`/v1/admin/rule-templates/${encodeURIComponent(id)}`, body),
+
+  remove: (id: string) =>
+    del<{ ok: boolean; id: string }>(`/v1/admin/rule-templates/${encodeURIComponent(id)}`),
 };
 
 // ── Transcode ────────────────────────────────────────────────────────────────
@@ -136,6 +154,8 @@ export interface UpgradeConfig {
   moviepilot: { baseUrl: string; apiKey: string; savePath: string; stagingPath: string };
   upgradeStagingLocalPath: string;
   upgradeReplaceConfirmRequired?: boolean;
+  upgradeRetryInterval?: number;
+  upgradeMaxRetries?: number;
 }
 
 export const upgrade = {
@@ -227,6 +247,7 @@ export interface SystemConfig {
   smartTaskLookbackDays: number;
   smartTaskMaxQueueSize: number;
   strategyPollIntervalMinutes: number;
+  smartSelectMode?: 'auto' | 'manual' | 'per_library';
 }
 
 export const systemConfig = {
@@ -319,6 +340,9 @@ export const libraryApi = {
 
   patchRatings: (itemId: string, userRating: number | null) =>
     patch<{ ok: boolean }>('/v1/library/ratings', { itemId, userRating }),
+
+  recomputeStrategy: () =>
+    post<{ ok: boolean; changed: number }>('/v1/library/actions/recompute-strategy'),
 };
 
 export const taskApi = {

@@ -1,5 +1,3 @@
-import type { MediaTask } from '../types';
-
 export function taskStatusLabelZh(status: string): string {
   const m: Record<string, string> = {
     pending_manual: '待启动',

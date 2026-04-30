@@ -7,6 +7,7 @@ import TaskMonitorPage from './pages/TaskMonitorPage';
 import SystemConfigPage from './pages/SystemConfigPage';
 import MoviePilotConfigPage from './pages/MoviePilotConfigPage';
 import MediaManagePage from './pages/MediaManagePage';
+import RuleTemplatesPage from './pages/RuleTemplatesPage';
 
 export default function App() {
   return (
@@ -14,10 +15,11 @@ export default function App() {
       <Route element={<Layout />}>
         <Route index element={<DashboardPage />} />
         <Route path="media" element={<MediaManagePage />} />
-        <Route path="transcode" element={<TranscodeConfigPage />} />
-        <Route path="douban" element={<DoubanConfigPage />} />
         <Route path="tasks" element={<TaskMonitorPage />} />
+        <Route path="rules" element={<RuleTemplatesPage />} />
         <Route path="system" element={<SystemConfigPage />} />
+        <Route path="douban" element={<DoubanConfigPage />} />
+        <Route path="transcode" element={<TranscodeConfigPage />} />
         <Route path="moviepilot" element={<MoviePilotConfigPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -476,16 +476,27 @@ async function runPlanning(taskId, task) {
     }
 
     // Smart select enabled but no match → fail
-    const smartCfg = config.upgradeSmartSelect || {};
-    const hasAnyPreference = (smartCfg.codecPreference && smartCfg.codecPreference.length > 0) ||
-      (smartCfg.resolutionPreference && smartCfg.resolutionPreference.length > 0) ||
-      (smartCfg.audioPreference && smartCfg.audioPreference.length > 0) ||
-      (smartCfg.sitePreference && smartCfg.sitePreference.length > 0) ||
-      smartCfg.preferCNSub;
-    if (smartCfg.enabled && hasAnyPreference) {
-      appendLog(taskId, 'error', '未找到满足智能选种条件的种子');
-      scheduler.reportStatus(taskId, 'failed_hard');
-      return;
+    // Replicate filterAndSelect's enabled-check to avoid reading stale global config
+    const schedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
+    if (schedule.smartSelectEnabled) {
+      const seedPrefs = task.itemInfo && task.itemInfo.seedPreferences;
+      const smartCfg = (seedPrefs && Object.keys(seedPrefs).length > 0)
+        ? seedPrefs
+        : smartSeedSelect.getSmartConfig(task.itemInfo, config);
+      const hasAnyPreference = smartCfg && (
+        (smartCfg.codecPreference && smartCfg.codecPreference.length > 0) ||
+        (smartCfg.resolutionPreference && smartCfg.resolutionPreference.length > 0) ||
+        (smartCfg.audioPreference && smartCfg.audioPreference.length > 0) ||
+        (smartCfg.sitePreference && smartCfg.sitePreference.length > 0) ||
+        smartCfg.preferCNSub ||
+        (typeof smartCfg.maxSizeGB === 'number' && smartCfg.maxSizeGB > 0) ||
+        (task.itemInfo && typeof task.itemInfo.maxSizeGB === 'number' && task.itemInfo.maxSizeGB > 0)
+      );
+      if (hasAnyPreference) {
+        appendLog(taskId, 'error', '未找到满足智能选种条件的种子');
+        scheduler.reportStatus(taskId, 'failed_hard');
+        return;
+      }
     }
 
     taskStore.updateTask(taskId, {
@@ -702,12 +713,15 @@ async function runExecuting(taskId, task) {
         savePath: mpConfig.savePath || undefined,
       });
 
-      if (!dlResult || dlResult.success !== false) break;
-
+      if (dlResult && dlResult.success !== false) break; // success
+      if (!dlResult) {
+        appendLog(taskId, 'warn', `Download add returned empty response for "${tInfo.title}"`);
+        continue;
+      }
       appendLog(taskId, 'warn', `Download add failed for "${tInfo.title}": ${dlResult.message || 'Unknown error'}`);
     }
 
-    if (dlResult && dlResult.success === false) {
+    if (!dlResult || dlResult.success === false) {
       appendLog(taskId, 'error', 'All high-score candidates failed to download');
       scheduler.reportStatus(taskId, 'failed_hard');
       setPhase(taskId, 'failed_hard');
@@ -891,7 +905,8 @@ async function runPreReplaceVerify(taskId, task) {
       progress: 90,
     });
 
-    if (config.upgradeReplaceConfirmRequired) {
+    const sched = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
+    if (!sched.autoReplaceUpgrade) {
       appendLog(taskId, 'info', 'Replace confirmation required — awaiting user');
       scheduler.pauseForConfirm(taskId, 'upgrade_replace');
       return;

@@ -23,7 +23,9 @@ export default function MediaManagePage() {
   const [doubanFilter, setDoubanFilter] = useState<string>('all');
   const [localRatingFilter, setLocalRatingFilter] = useState<string>('all');
   const [taskFilter, setTaskFilter] = useState<string>('all');
-  const [activeSubLibName, setActiveSubLibName] = useState<string>('全部');
+  const [, setActiveSubLibName] = useState<string>('全部');
+  const [strategyMsg, setStrategyMsg] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Fetch subLibrary list
   useEffect(() => {
@@ -53,7 +55,7 @@ export default function MediaManagePage() {
         setLoading(false);
       });
     return () => { active = false; };
-  }, [subLibraryId]);
+  }, [subLibraryId, refreshKey]);
 
   // Poll tasks
   useEffect(() => {
@@ -248,6 +250,24 @@ export default function MediaManagePage() {
         >
           清除筛选
         </button>
+
+        <button
+          type="button"
+          style={{ background: '#f0f0f0', border: '1px solid #d0d0d0', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 13, marginTop: 12 }}
+          onClick={async () => {
+            setStrategyMsg('重算中...');
+            try {
+              const res = await libraryApi.recomputeStrategy();
+              setStrategyMsg(`策略重算完成：${res.changed} 条变更`);
+              setRefreshKey(k => k + 1);
+            } catch (e: any) {
+              setStrategyMsg(`重算失败：${e.message}`);
+            }
+          }}
+        >
+          刷新媒体库管理策略
+        </button>
+        {strategyMsg && <span style={{ fontSize: 12, color: '#666', marginLeft: 8 }}>{strategyMsg}</span>}
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>

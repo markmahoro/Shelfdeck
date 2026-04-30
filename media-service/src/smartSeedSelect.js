@@ -7,8 +7,6 @@
  * Ranking: highest seeders first, then first to pass bitrate validation wins.
  */
 
-const { targetMbps, effectiveRating, resolutionBucket } = require('./mediaPolicyService');
-
 // ── Category matchers ─────────────────────────────────────────────────────
 
 const CODEC_MATCHERS = {
@@ -92,13 +90,6 @@ function candidateHasCNSub(candidate) {
   return CNSUB_RE.test(content);
 }
 
-function resolvePolicy(itemInfo, config) {
-  const subLibId = itemInfo && itemInfo.subLibraryId;
-  const subLib = subLibId && (config.subLibraries || []).find((s) => s.uuid === subLibId);
-  if (subLib && subLib.mediaPolicy) return subLib.mediaPolicy;
-  return config.mediaPolicy || null;
-}
-
 // ── Main API ────────────────────────────────────────────────────────────────
 
 /**
@@ -114,15 +105,25 @@ function getSmartConfig(itemInfo, config) {
 }
 
 function filterAndSelect(candidates, itemInfo, config) {
-  const smartCfg = getSmartConfig(itemInfo, config);
-  if (!smartCfg || !smartCfg.enabled) return null;
+  // subLibrary scheduleMode governs whether smart select is used
+  const schedule = require('./configStore').resolveSubLibSchedule(itemInfo, config);
+  if (!schedule.smartSelectEnabled) return null;
+
+  const seedPrefs = itemInfo && itemInfo.seedPreferences;
+  const smartCfg = (seedPrefs && Object.keys(seedPrefs).length > 0)
+    ? seedPrefs
+    : getSmartConfig(itemInfo, config);
+
+  if (!smartCfg) return null;
 
   const hasAnyPreference =
     (smartCfg.codecPreference && smartCfg.codecPreference.length > 0) ||
     (smartCfg.resolutionPreference && smartCfg.resolutionPreference.length > 0) ||
     (smartCfg.audioPreference && smartCfg.audioPreference.length > 0) ||
     (smartCfg.sitePreference && smartCfg.sitePreference.length > 0) ||
-    smartCfg.preferCNSub;
+    smartCfg.preferCNSub ||
+    (typeof smartCfg.maxSizeGB === 'number' && smartCfg.maxSizeGB > 0) ||
+    (itemInfo && typeof itemInfo.maxSizeGB === 'number' && itemInfo.maxSizeGB > 0);
 
   if (!hasAnyPreference) return null;
 
@@ -135,19 +136,15 @@ function filterAndSelect(candidates, itemInfo, config) {
     if (!candidateMatchesAudio(c, smartCfg.audioPreference)) continue;
     if (!candidateMatchesSite(c, smartCfg.sitePreference)) continue;
     if (smartCfg.preferCNSub && !candidateHasCNSub(c)) continue;
-    // Per-rating/resolution size cap — use seed's resolution bucket, not item's
-    const maxSizeCfg = smartCfg.maxSizeGB;
-    if (maxSizeCfg && typeof maxSizeCfg === 'object') {
-      const r = effectiveRating(itemInfo);
-      const seedPix = (c.meta_info && c.meta_info.resource_pix) || '';
-      // resource_pix is MoviePilot format like "2160p"/"4K"/"1080p", not WxH
-      const seedBucket = /2160|4k|3840/i.test(seedPix) ? '4K' : (seedPix ? '1080p' : resolutionBucket(itemInfo.resolution));
-      const lookupKey = seedBucket === '4K' ? 'target4k' : 'target1080p';
-      const tier = (maxSizeCfg[lookupKey] || {})[String(r)];
-      if (typeof tier === 'number' && tier > 0) {
-        const sz = c.torrent_info && c.torrent_info.size;
-        if (typeof sz === 'number' && sz > tier * 1024 * 1024 * 1024) continue;
-      }
+
+    // Size cap — prefer itemInfo.maxSizeGB (from rule), fall back to smartCfg
+    const sizeCap = (itemInfo && typeof itemInfo.maxSizeGB === 'number')
+      ? itemInfo.maxSizeGB
+      : (typeof smartCfg.maxSizeGB === 'number' ? smartCfg.maxSizeGB : null);
+
+    if (sizeCap) {
+      const sz = c.torrent_info && c.torrent_info.size;
+      if (typeof sz === 'number' && sz > sizeCap * 1024 * 1024 * 1024) continue;
     }
     pool.push({ candidate: c, originalIndex: i });
   }
@@ -165,17 +162,15 @@ function filterAndSelect(candidates, itemInfo, config) {
       if (lib && typeof lib.duration === 'number') durationSec = lib.duration;
     } catch (_) {}
   }
-  const policy = resolvePolicy(itemInfo, config);
 
-  if (typeof durationSec === 'number' && durationSec > 0 && policy) {
+  const target = itemInfo && itemInfo.targetBitrate;
+  if (typeof durationSec === 'number' && durationSec > 0 && target != null) {
     for (const entry of scored) {
       const size = entry.candidate.torrent_info && entry.candidate.torrent_info.size;
       if (typeof size !== 'number' || size <= 0) continue;
 
       const estimatedMbps = (size * 8) / (durationSec * 1_000_000);
-      const target = targetMbps(itemInfo, policy);
-
-      if (target == null || estimatedMbps >= target) {
+      if (estimatedMbps >= target) {
         return entry.originalIndex;
       }
     }
@@ -210,15 +205,24 @@ function scorePool(pool) {
  * Returns the full ranked pool with scores, for download-failure retry.
  */
 function getRankedPool(candidates, itemInfo, config) {
-  const smartCfg = getSmartConfig(itemInfo, config);
-  if (!smartCfg || !smartCfg.enabled) return [];
+  const schedule = require('./configStore').resolveSubLibSchedule(itemInfo, config);
+  if (!schedule.smartSelectEnabled) return [];
+
+  const seedPrefs = itemInfo && itemInfo.seedPreferences;
+  const smartCfg = (seedPrefs && Object.keys(seedPrefs).length > 0)
+    ? seedPrefs
+    : getSmartConfig(itemInfo, config);
+
+  if (!smartCfg) return [];
 
   const hasAnyPreference =
     (smartCfg.codecPreference && smartCfg.codecPreference.length > 0) ||
     (smartCfg.resolutionPreference && smartCfg.resolutionPreference.length > 0) ||
     (smartCfg.audioPreference && smartCfg.audioPreference.length > 0) ||
     (smartCfg.sitePreference && smartCfg.sitePreference.length > 0) ||
-    smartCfg.preferCNSub;
+    smartCfg.preferCNSub ||
+    (typeof smartCfg.maxSizeGB === 'number' && smartCfg.maxSizeGB > 0) ||
+    (itemInfo && typeof itemInfo.maxSizeGB === 'number' && itemInfo.maxSizeGB > 0);
 
   if (!hasAnyPreference) return [];
 
@@ -230,17 +234,14 @@ function getRankedPool(candidates, itemInfo, config) {
     if (!candidateMatchesAudio(c, smartCfg.audioPreference)) continue;
     if (!candidateMatchesSite(c, smartCfg.sitePreference)) continue;
     if (smartCfg.preferCNSub && !candidateHasCNSub(c)) continue;
-    const maxSizeCfg = smartCfg.maxSizeGB;
-    if (maxSizeCfg && typeof maxSizeCfg === 'object') {
-      const r = effectiveRating(itemInfo);
-      const seedPix = (c.meta_info && c.meta_info.resource_pix) || '';
-      const seedBucket = /2160|4k|3840/i.test(seedPix) ? '4K' : (seedPix ? '1080p' : resolutionBucket(itemInfo.resolution));
-      const lookupKey = seedBucket === '4K' ? 'target4k' : 'target1080p';
-      const tier = (maxSizeCfg[lookupKey] || {})[String(r)];
-      if (typeof tier === 'number' && tier > 0) {
-        const sz = c.torrent_info && c.torrent_info.size;
-        if (typeof sz === 'number' && sz > tier * 1024 * 1024 * 1024) continue;
-      }
+
+    const sizeCap = (itemInfo && typeof itemInfo.maxSizeGB === 'number')
+      ? itemInfo.maxSizeGB
+      : (typeof smartCfg.maxSizeGB === 'number' ? smartCfg.maxSizeGB : null);
+
+    if (sizeCap) {
+      const sz = c.torrent_info && c.torrent_info.size;
+      if (typeof sz === 'number' && sz > sizeCap * 1024 * 1024 * 1024) continue;
     }
     pool.push({ candidate: c, originalIndex: i });
   }
@@ -248,4 +249,4 @@ function getRankedPool(candidates, itemInfo, config) {
   return scorePool(pool);
 }
 
-module.exports = { filterAndSelect, getRankedPool };
+module.exports = { filterAndSelect, getRankedPool, getSmartConfig };

@@ -1,0 +1,59 @@
+[
+  {
+    "itemId": "152979",
+    "subLibraryId": "43562cbf-3c7c-473a-8cf0-77de8a7562a5",
+    "itemName": "哭声",
+    "type": "Movie",
+    "posterUrl": "http://192.168.12.45:8096/Items/152979/Images/Primary?api_key=34c460bc24b94ac99d6a19ca9ebc0925",
+    "path": "/volume1/Media/Film/哭声 (2016)/哭声 (2016) - 2160p Remux Atmos TrueHD5.1.mkv",
+    "embyWebUrl": "http://192.168.12.45:8096/web/index.html#!/item?id=152979",
+    "sectionName": "",
+    "playedAt": "2026-04-28T14:44:28.436Z",
+    "playCount": 11
+  },
+  {
+    "itemId": "155124",
+    "subLibraryId": "43562cbf-3c7c-473a-8cf0-77de8a7562a5",
+    "itemName": "龙虎武师",
+    "type": "Movie",
+    "posterUrl": "http://192.168.12.45:8096/Items/155124/Images/Primary?api_key=34c460bc24b94ac99d6a19ca9ebc0925",
+    "path": "/volume1/Media/Film/龙虎武师 (2021)/龙虎武师 (2021) - 4K H.265 Atmos.mkv",
+    "embyWebUrl": "http://192.168.12.45:8096/web/index.html#!/item?id=155124",
+    "sectionName": "",
+    "playedAt": "2026-04-28T13:33:26.159Z",
+    "playCount": 1
+  },
+  {
+    "itemId": "152841",
+    "itemName": "蝴蝶的舌头",
+    "subLibraryId": "43562cbf-3c7c-473a-8cf0-77de8a7562a5",
+    "type": "movie",
+    "posterUrl": "http://192.168.12.45:8096/Items/152841/Images/Primary?api_key=34c460bc24b94ac99d6a19ca9ebc0925",
+    "path": "/volume1/Media/Film/蝴蝶的舌头 (1999)/蝴蝶的舌头 (1999) - 1080p H.264.mkv",
+    "embyWebUrl": "http://192.168.12.45:8096/web/index.html#!/item?id=152841",
+    "sectionName": "公共_电影_原生",
+    "playedAt": "2026-04-28T11:38:15.973Z"
+  },
+  {
+    "itemId": "149698",
+    "itemName": "犯罪都市4",
+    "subLibraryId": "43562cbf-3c7c-473a-8cf0-77de8a7562a5",
+    "type": "movie",
+    "posterUrl": "http://192.168.12.45:8096/Items/149698/Images/Primary?api_key=34c460bc24b94ac99d6a19ca9ebc0925",
+    "path": "/volume1/Media/Film/犯罪都市4 (2024)/犯罪都市4 (2024) - 2160p Remux DTS CHD.mkv",
+    "embyWebUrl": "http://192.168.12.45:8096/web/index.html#!/item?id=149698",
+    "sectionName": "公共_电影_原生",
+    "playedAt": "2026-04-28T10:42:41.525Z"
+  },
+  {
+    "itemId": "149811",
+    "itemName": "法外之王",
+    "subLibraryId": "43562cbf-3c7c-473a-8cf0-77de8a7562a5",
+    "type": "movie",
+    "posterUrl": "http://192.168.12.45:8096/Items/149811/Images/Primary?api_key=34c460bc24b94ac99d6a19ca9ebc0925",
+    "path": "/volume1/Media/Film/法外之王 (2018)/法外之王 (2018) - 1080p H.264 DDP5.1 CHD.mkv",
+    "embyWebUrl": "http://192.168.12.45:8096/web/index.html#!/item?id=149811",
+    "sectionName": "公共_电影_原生",
+    "playedAt": "2026-04-28T10:08:01.949Z"
+  }
+]

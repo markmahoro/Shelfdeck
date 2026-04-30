@@ -9,8 +9,6 @@
  *   3. Realized: cumulative bytesSaved from completed tasks
  */
 
-const { targetMbps } = require('./mediaPolicyService');
-
 function fmtBytes(bytes) {
   if (bytes == null || bytes === 0) return '0 B';
   const abs = Math.abs(bytes);
@@ -20,13 +18,7 @@ function fmtBytes(bytes) {
   return bytes + ' B';
 }
 
-function resolvePolicy(item, config) {
-  const subLib = (config.subLibraries || []).find((s) => s.uuid === item.subLibraryId);
-  if (subLib && subLib.mediaPolicy) return subLib.mediaPolicy;
-  return config.mediaPolicy || null;
-}
-
-function estimatedDelta(item, policy) {
+function estimatedDelta(item) {
   const action = item.action || 'keep';
   const size = typeof item.size === 'number' ? item.size : 0;
   if (size <= 0) return { action, delta: 0 };
@@ -37,7 +29,7 @@ function estimatedDelta(item, policy) {
 
   if (action === 'transcode' || action === 'upgrade') {
     const currentMbps = item.equivalentBitrate ?? (typeof item.bitrate === 'number' ? item.bitrate / 1_000_000 : 0);
-    const target = item.targetBitrate ?? targetMbps(item, policy);
+    const target = item.targetBitrate;
     if (target != null && currentMbps > 0) {
       const delta = size * (1 - target / currentMbps);
       return { action, delta };
@@ -71,7 +63,6 @@ function computeSpaceStats(library, tasks, config) {
 
   for (const [sid, sidItems] of Object.entries(subLibMap)) {
     const firstItem = sidItems[0];
-    const policy = resolvePolicy(firstItem, config);
     const subLibCfg = (config.subLibraries || []).find((s) => s.uuid === sid);
     const name = (subLibCfg && subLibCfg.name) || sid;
 
@@ -87,7 +78,7 @@ function computeSpaceStats(library, tasks, config) {
       const sz = typeof item.size === 'number' ? item.size : 0;
       curBytes += sz;
 
-      const est = policy ? estimatedDelta(item, policy) : { action: item.action || 'keep', delta: 0 };
+      const est = estimatedDelta(item);
       if (est.action === 'transcode') {
         if (est.delta > 0) tcSavings += est.delta;
         else upDelta += est.delta; // negative delta = size increase
