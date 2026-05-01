@@ -5,45 +5,47 @@
 
 ## 组件定位
 
-托盘不再是独立进程，而是 **service 进程内的轻量模块**（`media-service/src/tray.js`）。使用 `trayicon` 库（Go 便携二进制）替代 Electron，通过 stdin/stdout 与系统托盘 API 通信。
+托盘不是独立进程，而是 **service 进程内的轻量模块**（`media-service/src/tray.js`）。使用 `systray2` 库（Go 原生二进制）通过 stdin/stdout 与 Windows 系统托盘 API 通信。零外部依赖，无需 .NET 运行时。
 
 ## 功能
 
 | 功能 | 实现 |
 |------|------|
-| **健康状态指示灯** | 每 3s 轮询 `GET /v1/health`，`resolveHealth()` 处理三层状态：绿色（正常）、黄色（部分就绪）、红色（异常） |
+| **静态品牌图标** | 使用 `assets/tray/shelfdeck.ico`（多尺寸 ICO），不随健康状态变化 |
+| **健康状态展示** | 每 3s 轮询 `GET /v1/health`，结果以不可点击的菜单项展示（如"ShelfDeck — 正常"） |
 | **打开管理页面** | 右键菜单项，在默认浏览器中打开 admin web（跳转到 `/media-libraries`） |
 | **退出服务** | 右键菜单项，关闭托盘并停止 service 进程 |
 
+## 菜单结构
+
+```
+打开 ShelfDeck 管理后台
+──────────────
+ShelfDeck — 正常          ← 只读健康状态，不随图标变化
+──────────────
+退出 ShelfDeck
+```
+
 ## 技术细节
 
-- **库**: `trayicon`（Go 便携二进制 `tray_windows_release.exe`，无需原生编译）
-- **图标**: `assets/tray/status-running.ico`（绿），`status-unhealthy.ico`（红），`status-stopped.ico`（黄/灰色，启动中或部分就绪）
+- **库**: `systray2`（Go 原生二进制 `tray_windows_release.exe`，PE32+，零运行时依赖）
+- **图标**: `assets/tray/shelfdeck.ico`（静态，16/32/48px 多尺寸 ICO）
 - **轮询间隔**: 3s
-- **右键菜单**: "打开 ShelfDeck 管理后台" → 打开 `/media-libraries`，"退出 ShelfDeck" → 停止进程
+- **健康状态更新**: 仅更新菜单项文字（`update-item`），不动图标
 
-### 健康状态映射 (`resolveHealth()`)
+### 健康状态文字
 
-| `/v1/health` status | 托盘图标 | Tooltip |
-|---|---|---|
-| `green` | `status-running.ico` | "ShelfDeck — 正常" |
-| `yellow` | `status-stopped.ico` | "ShelfDeck — 部分就绪" |
-| `red` 或其他 | `status-unhealthy.ico` | "ShelfDeck — 异常" |
+| `/v1/health` status | 菜单项显示 |
+|---|---|
+| `green` | "ShelfDeck — 正常" |
+| `yellow` | "ShelfDeck — 部分就绪" |
+| `red` 或其他 | "ShelfDeck — 异常" |
+| null（启动中） | "ShelfDeck — 启动中…" |
 
 ## 依赖
 
-- `trayicon` — Go 便携二进制托盘库（Windows 系统托盘 API）
+- `systray2` — Go 原生托盘库（Windows 系统托盘 API）
 - `http` — 健康检查 HTTP 请求
 - `child_process.exec` — 打开浏览器
 
-> 注：`systray2` 仍在 `package.json` 中但已不再使用，实际依赖为 `trayicon`。
-
-## 生命周期
-
-参见 `TRAY/LIFECYCLE.md`
-
-## 关联文档
-
-- `media-service/src/tray.js` — 实现源码
-- `media-service/assets/tray/` — 图标资源
-- `media-service/src/server.js` — 调用 `startTray(port)` 的入口
+> 注：`trayicon` 已废弃（Mono/.NET 依赖导致干净 Win11 上崩溃），不再使用。

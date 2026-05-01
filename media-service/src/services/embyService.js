@@ -85,6 +85,35 @@ async function testConnection(serverConfig) {
   };
 }
 
+/**
+ * Authenticate with Emby using username+password (no API key needed).
+ * Returns an access token that can be used as apiKey for all subsequent calls.
+ */
+async function authenticateByUsername(baseUrl, username, password) {
+  const u = new URL('Users/AuthenticateByName', baseUrl.replace(/\/+$/, '') + '/');
+  const res = await fetch(u.toString(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Emby-Authorization': `MediaBrowser Client="ShelfDeck", Device="Windows", DeviceId="shelfdeck-setup", Version="1.0.0"`,
+    },
+    body: JSON.stringify({ Username: username, Pw: password }),
+  });
+  const text = await res.text().catch(() => '');
+  if (!res.ok) {
+    throw new Error(`Emby login failed (${res.status}): ${text.slice(0, 200) || res.statusText}`);
+  }
+  let data;
+  try { data = JSON.parse(text); } catch {
+    throw new Error('Emby login response not JSON');
+  }
+  const tok = data.AccessToken || data.accessToken;
+  if (!tok || !String(tok).trim()) throw new Error('No AccessToken in login response');
+  const userId = (data.User && (data.User.Id || data.User.id)) || '';
+  return { token: String(tok).trim(), userId: String(userId).trim() };
+}
+
 async function getUsers(serverConfig) {
   let data = await embyFetchJson(serverConfig, 'Users/Query').catch(() => null);
   let list = data && Array.isArray(data.Items) ? data.Items : null;
@@ -455,6 +484,7 @@ async function getUnplayedItems(serverConfig, sectionId) {
 }
 
 module.exports = {
+  authenticateByUsername,
   testConnection,
   getUsers,
   getMediaFolders,

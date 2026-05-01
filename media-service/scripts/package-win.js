@@ -70,7 +70,7 @@ if (fs.existsSync(dataDir)) {
   fs.rmSync(dataDir, { recursive: true, force: true });
 }
 
-// ── create start.bat ───────────────────────────────────────────────────────────
+// ── create start.bat (fallback) ──────────────────────────────────────────────────
 
 const bat = [
   '@echo off',
@@ -84,10 +84,24 @@ const bat = [
   'node.exe src/server.js',
   'pause',
 ].join('\r\n');
+fs.writeFileSync(path.join(OUT, 'start.bat'), bat, 'utf8');
 
-const batPath = path.join(OUT, 'start.bat');
-fs.writeFileSync(batPath, bat, 'utf8');
-console.log('[package] created start.bat');
+// ── create start.vbs (no console window) ──────────────────────────────────────
+
+const vbs = [
+  'Set fso = CreateObject("Scripting.FileSystemObject")',
+  'Set ws = CreateObject("WScript.Shell")',
+  'ws.CurrentDirectory = fso.GetParentFolderName(WScript.ScriptFullName)',
+  '',
+  "' Start service (hidden window)",
+  'ws.Run "node.exe src\\server.js", 0, False',
+  '',
+  "' Wait for server to start, then open admin page",
+  'WScript.Sleep 2000',
+  'ws.Run "http://127.0.0.1:18080/admin"',
+].join('\r\n');
+fs.writeFileSync(path.join(OUT, 'start.vbs'), vbs, 'utf8');
+console.log('[package] created start.bat + start.vbs');
 
 // ── done ───────────────────────────────────────────────────────────────────────
 

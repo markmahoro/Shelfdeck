@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { health, tasks, subLibraries, emby, activityLog, spaceStats, ruleTemplates } from '../api/client';
 import type { ActivityEntry } from '../api/client';
-import type { SubLibrary, EmbyUser, MediaFolder, MediaTask, RuleTemplate } from '../types';
+import type { SubLibrary, MediaFolder, MediaTask, RuleTemplate } from '../types';
 import HealthCard from '../components/HealthCard';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
@@ -26,16 +26,15 @@ export default function DashboardPage() {
 
   // Wizard state
   const [baseUrl, setBaseUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
+  const [embyUsername, setEmbyUsername] = useState('');
+  const [embyPassword, setEmbyPassword] = useState('');
   const [embyServerId, setEmbyServerId] = useState('');
-  const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedSectionId, setSelectedSectionId] = useState('');
   const [subLibName, setSubLibName] = useState('');
   const [doubanEnabled, setDoubanEnabled] = useState(false);
   const [ruleTemplateId, setRuleTemplateId] = useState('default');
   const [pathMapFrom, setPathMapFrom] = useState('');
   const [pathMapTo, setPathMapTo] = useState('');
-  const [embyPassword, setEmbyPassword] = useState('');
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState('');
 
@@ -72,16 +71,10 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   });
 
-  const { data: userData } = useQuery({
-    queryKey: ['emby-users', embyServerId],
-    queryFn: () => emby.getUsers(embyServerId),
-    enabled: step === 2 && !!embyServerId,
-  });
-
   const { data: folderData } = useQuery({
     queryKey: ['emby-folders', embyServerId],
     queryFn: () => emby.getMediaFolders(embyServerId),
-    enabled: step === 3 && !!embyServerId,
+    enabled: step === 2 && !!embyServerId,
   });
 
   const { data: rtData } = useQuery({
@@ -146,22 +139,22 @@ export default function DashboardPage() {
   function closeWizard() {
     setWizardOpen(false);
     setStep(1);
-    setBaseUrl(''); setApiKey(''); setEmbyServerId('');
-    setSelectedUserId(''); setSelectedSectionId(''); setSubLibName('');
+    setBaseUrl(''); setEmbyUsername(''); setEmbyPassword(''); setEmbyServerId('');
+    setSelectedSectionId(''); setSubLibName('');
     setDoubanEnabled(false);
     setRuleTemplateId('default');
     setTestError('');
   }
 
   async function handleTestAndNext() {
-    if (!baseUrl || !apiKey) { setTestError('请填写服务器地址和 API Key'); return; }
+    if (!baseUrl || !embyUsername || !embyPassword) { setTestError('请填写服务器地址、用户名和密码'); return; }
     setTesting(true);
     setTestError('');
     try {
-      const result = await emby.testConnection({ baseUrl, apiKey, userId: '' });
+      const result = await emby.testConnection({ baseUrl, apiKey: '', username: embyUsername, password: embyPassword, userId: '' });
       if (result.ok && result.embyServerId) {
         setEmbyServerId(result.embyServerId);
-        setStep(2);
+        setStep(2); // skip user selection — userId is auto-set from auth response
       } else {
         setTestError(result.message || '连接失败');
       }
@@ -170,17 +163,6 @@ export default function DashboardPage() {
     } finally {
       setTesting(false);
     }
-  }
-
-  async function handleSelectUserAndNext() {
-    if (!selectedUserId || !embyServerId) return;
-    // Write selected userId back to the Emby server config via testConnection
-    try {
-      await emby.testConnection({ baseUrl, apiKey, userId: selectedUserId });
-    } catch (_) {
-      // ignore — server already registered, we just want to persist userId
-    }
-    setStep(3);
   }
 
   if (hLoading || slLoading) return <LoadingSpinner />;
@@ -329,6 +311,7 @@ export default function DashboardPage() {
               const timeStr = ts.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
               const sourceLabel =
                 entry.source === 'media_library' ? '媒体库' :
+                entry.source === 'douban' ? '豆瓣' :
                 entry.source === 'strategy_engine' ? '策略引擎' :
                 entry.source === 'smart_task_engine' ? '智能入队' :
                 entry.source === 'task' ? '任务' :
@@ -347,7 +330,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Add Wizard Modal */}
-      <Modal open={wizardOpen} title={`添加媒体库 (${step}/4)`} onClose={closeWizard} width={560}>
+      <Modal open={wizardOpen} title={`添加媒体库 (${step}/3)`} onClose={closeWizard} width={560}>
         {step === 1 && (
           <div>
             <div style={{ marginBottom: 16 }}>
@@ -357,39 +340,29 @@ export default function DashboardPage() {
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>API Key</label>
-              <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Emby API Key"
+              <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>Emby 用户名</label>
+              <input type="text" value={embyUsername} onChange={(e) => setEmbyUsername(e.target.value)}
+                placeholder="您的 Emby 登录用户名"
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>Emby 密码</label>
+              <input type="password" value={embyPassword} onChange={(e) => setEmbyPassword(e.target.value)}
+                placeholder="您的 Emby 登录密码"
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
+              <p style={{ fontSize: 11, color: '#999', marginTop: 4 }}>密码仅用于登录 Emby 获取授权，不会明文存储</p>
             </div>
             {testError && <Alert type="error" message={testError} onClose={() => setTestError('')} />}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <button onClick={closeWizard} style={secondaryBtn}>取消</button>
               <button onClick={handleTestAndNext} disabled={testing} style={primaryBtn}>
-                {testing ? '测试中...' : '下一步'}
+                {testing ? '登录中...' : '登录 Emby'}
               </button>
             </div>
           </div>
         )}
 
         {step === 2 && (
-          <div>
-            <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>选择该 Emby 服务器下的用户</p>
-            <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}>
-              <option value="">— 请选择 —</option>
-              {(userData?.users || []).map((u: EmbyUser) => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button onClick={() => setStep(1)} style={secondaryBtn}>上一步</button>
-              <button onClick={handleSelectUserAndNext} disabled={!selectedUserId} style={primaryBtn}>下一步</button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
           <div>
             <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>选择要同步的 Emby 媒体文件夹</p>
             <select value={selectedSectionId} onChange={(e) => setSelectedSectionId(e.target.value)}
@@ -400,13 +373,13 @@ export default function DashboardPage() {
               ))}
             </select>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button onClick={() => setStep(2)} style={secondaryBtn}>上一步</button>
-              <button onClick={() => { setSubLibName((folderData?.folders || []).find((f: MediaFolder) => f.id === selectedSectionId)?.name || ''); setStep(4); }} disabled={!selectedSectionId} style={primaryBtn}>下一步</button>
+              <button onClick={() => setStep(1)} style={secondaryBtn}>上一步</button>
+              <button onClick={() => { setSubLibName((folderData?.folders || []).find((f: MediaFolder) => f.id === selectedSectionId)?.name || ''); setStep(3); }} disabled={!selectedSectionId} style={primaryBtn}>下一步</button>
             </div>
           </div>
         )}
 
-        {step === 4 && (
+        {step === 3 && (
           <div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>媒体库名称</label>
@@ -445,7 +418,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button onClick={() => setStep(3)} style={secondaryBtn}>上一步</button>
+              <button onClick={() => setStep(2)} style={secondaryBtn}>上一步</button>
               <button onClick={() => createMut.mutate()} disabled={!subLibName || createMut.isPending} style={primaryBtn}>
                 {createMut.isPending ? '创建中...' : '完成添加'}
               </button>

@@ -8,17 +8,11 @@ const { exec } = require('child_process');
 
 const POLL_MS = 3000;
 const HTTP_TIMEOUT_MS = 2000;
-const ICON_DIR = path.join(__dirname, '..', 'assets', 'tray');
+const ICON_PATH = path.join(__dirname, '..', 'assets', 'tray', 'shelfdeck.ico');
 
-function loadIconBase64(name) {
-  return fs.readFileSync(path.join(ICON_DIR, name + '.ico')).toString('base64');
+function loadIconBase64() {
+  return fs.readFileSync(ICON_PATH).toString('base64');
 }
-
-const ICONS = {
-  running: loadIconBase64('status-running'),
-  unhealthy: loadIconBase64('status-unhealthy'),
-  stopped: loadIconBase64('status-stopped'),
-};
 
 function checkHealth(port) {
   return new Promise((resolve) => {
@@ -57,25 +51,24 @@ function openBrowser(url) {
   });
 }
 
-function resolveHealth(status) {
-  if (status === 'green') {
-    return { icon: ICONS.running, title: 'ShelfDeck — 正常' };
-  }
-  if (status === 'yellow') {
-    return { icon: ICONS.stopped, title: 'ShelfDeck — 部分就绪' };
-  }
-  return { icon: ICONS.unhealthy, title: 'ShelfDeck — 异常' };
+function healthLabel(status) {
+  if (status === 'green')  return 'ShelfDeck — 正常';
+  if (status === 'yellow') return 'ShelfDeck — 部分就绪';
+  if (status === 'red')    return 'ShelfDeck — 异常';
+  return 'ShelfDeck — 启动中…';
 }
 
 const SEPARATOR = SysTray.separator;
 
-function buildMenu(icon, title, tooltip) {
+function buildMenu(icon, healthText) {
   return {
     icon,
-    title,
-    tooltip,
+    title: 'ShelfDeck',
+    tooltip: healthText,
     items: [
       { title: '打开 ShelfDeck 管理后台', tooltip: '', enabled: true },
+      SEPARATOR,
+      { title: healthText, tooltip: '', enabled: true },
       SEPARATOR,
       { title: '退出 ShelfDeck', tooltip: '', enabled: true },
     ],
@@ -83,19 +76,19 @@ function buildMenu(icon, title, tooltip) {
 }
 
 async function startTray(port) {
-  const initialIcon = ICONS.stopped;
-  const initialTitle = 'ShelfDeck — 启动中…';
+  const icon = loadIconBase64();
+  const initialText = 'ShelfDeck — 启动中…';
 
   const tray = new SysTray({
     copyDir: true,
-    menu: buildMenu(initialIcon, initialTitle, initialTitle),
+    menu: buildMenu(icon, initialText),
   });
 
   tray.onClick((action) => {
-    // __id assignments: 1=管理后台, 2=separator, 3=退出
+    // __id: 1=管理后台, 2=sep, 3=健康状态(disabled), 4=sep, 5=退出
     if (action.item.__id === 1) {
       openBrowser(`http://127.0.0.1:${port}/media-libraries`);
-    } else if (action.item.__id === 3) {
+    } else if (action.item.__id === 5) {
       tray.kill();
       process.exit(0);
     }
@@ -106,15 +99,20 @@ async function startTray(port) {
   console.log('[tray] ready (systray2), polling health every', POLL_MS, 'ms');
 
   let timer = null;
+  let lastHealth = null;
 
   function poll() {
     checkHealth(port).then((status) => {
-      const h = resolveHealth(status);
-      tray.sendAction({
-        type: 'update-menu',
-        menu: buildMenu(h.icon, h.title, h.title),
-        seq_id: -1,
-      });
+      if (status !== lastHealth) {
+        lastHealth = status;
+        const text = healthLabel(status);
+        // Update only the health status item (__id: 3), leave icon + other items untouched
+        tray.sendAction({
+          type: 'update-item',
+          item: { title: text, tooltip: text, enabled: true, __id: 3 },
+          seq_id: -1,
+        });
+      }
     }).catch(() => { /* keep polling */ });
     timer = setTimeout(poll, POLL_MS);
   }

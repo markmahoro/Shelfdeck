@@ -379,13 +379,32 @@ async function syncDoubanForSubLibrary(subLib) {
   try {
     // Fetch douban ratings — credentials come from douban-session.json
     const session = doubanService.getSession();
-    if (!session.userId) return;
+    if (!session.userId) {
+      activityLog.addActivity('douban', `子库「${name}」豆瓣同步跳过：未配置豆瓣用户 ID，请在豆瓣集成页面设置`);
+      return;
+    }
 
-    activityLog.addActivity('media_library', `正在同步子库「${name}」的豆瓣评分…`);
+    activityLog.addActivity('douban', `子库「${name}」开始抓取豆瓣评分…`);
     const cachedEntries = doubanService.loadCachedEntries();
-    const { entries } = await doubanService.fetchRatings(null, { existingEntries: cachedEntries });
+
+    // Progress sink: log every 100 entries accumulated
+    let lastLogged = 0;
+    const progressSink = {
+      send(payload) {
+        const count = payload.allEntries ? payload.allEntries.length : 0;
+        if (count - lastLogged >= 100) {
+          lastLogged = count;
+          activityLog.addActivity('douban', `子库「${name}」豆瓣评分抓取中… 已抓取 ${count} 条`);
+        }
+        if (payload.done && !payload.cancelled) {
+          activityLog.addActivity('douban', `子库「${name}」豆瓣评分抓取完成，共 ${count} 条`);
+        }
+      },
+    };
+
+    const { entries } = await doubanService.fetchRatings(progressSink, { existingEntries: cachedEntries });
     if (!entries || entries.length === 0) {
-      activityLog.addActivity('media_library', `子库「${name}」豆瓣评分同步完成，无豆瓣数据`);
+      activityLog.addActivity('douban', `子库「${name}」豆瓣评分同步完成，无豆瓣数据`);
       return;
     }
     doubanService.saveCachedEntries(entries);
@@ -435,10 +454,10 @@ async function syncDoubanForSubLibrary(subLib) {
     }
 
     const msg = `子库「${name}」豆瓣评分同步完成，${matchedCount} 个匹配，${newRatingCount} 个新评分`;
-    activityLog.addActivity('media_library', msg, { subLibraryId: subLib.uuid, matched: matchedCount, newRatings: newRatingCount });
+    activityLog.addActivity('douban', msg, { subLibraryId: subLib.uuid, matched: matchedCount, newRatings: newRatingCount });
     console.log('[mediaLibrary] douban synced for', subLib.uuid);
   } catch (e) {
-    activityLog.addActivity('media_library', `子库「${name}」豆瓣评分同步失败：${e.message}`);
+    activityLog.addActivity('douban', `子库「${name}」豆瓣评分同步失败：${e.message}`);
     console.error('[mediaLibrary] douban sync error for', subLib.uuid, e.message);
   }
 }

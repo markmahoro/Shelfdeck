@@ -4,12 +4,9 @@
  * Build the complete ShelfDeck v1.0.0 Windows release package.
  *
  * Output:  dist-release/ShelfDeck-v1.0.0/
- *   ├── ShelfDeck 播放助手.exe    ← desktop portable
- *   ├── media-service/
- *   │   ├── node.exe              ← bundled Node.js runtime
- *   │   ├── start.bat             ← double-click to start service
- *   │   └── ...
- *   └── start-all.bat             ← start service + desktop together
+ *   ├── ShelfDeck播放助手.exe           ← desktop portable
+ *   ├── shelfdeck_service启动器.vbs     ← one-click service launcher + admin web
+ *   └── media-service/                  ← service with bundled node.exe
  *
  * Usage:  node scripts/build-release.js
  */
@@ -47,16 +44,16 @@ execSync('node scripts/package-win.js', { cwd: path.join(ROOT, 'media-service'),
 
 console.log('\n=== [4/4] Assembling release ===');
 
-// Copy desktop exe — find the latest build
+// Copy desktop exe → ShelfDeck播放助手.exe
 const desktopReleaseDir = path.join(ROOT, 'media-desktop', 'release');
 const files = fs.readdirSync(desktopReleaseDir).filter(f => f.endsWith('.exe')).sort();
 if (files.length === 0) throw new Error('No desktop exe found in media-desktop/release/');
 const desktopExe = files[files.length - 1];
 fs.copyFileSync(
   path.join(desktopReleaseDir, desktopExe),
-  path.join(RELEASE, 'ShelfDeck 播放助手.exe'),
+  path.join(RELEASE, 'ShelfDeck播放助手.exe'),
 );
-console.log(`  copied ${desktopExe} → ShelfDeck 播放助手.exe`);
+console.log(`  copied ${desktopExe} → ShelfDeck播放助手.exe`);
 
 // Copy service package
 const svcSrc = path.join(ROOT, 'media-service', 'dist-pkg', 'media-service');
@@ -64,31 +61,10 @@ const svcDst = path.join(RELEASE, 'media-service');
 execSync(`xcopy "${svcSrc}" "${svcDst}" /E /I /H /Q /Y`, { windowsHide: true, stdio: 'ignore' });
 console.log('  copied media-service/');
 
-// ── create start-all.bat ───────────────────────────────────────────────────────
-
-const bat = [
-  '@echo off',
-  'title ShelfDeck v1.0.0',
-  'echo ============================================',
-  'echo   ShelfDeck 媒体库管家 v1.0.0',
-  'echo ============================================',
-  'echo.',
-  'echo 启动媒体管理服务...',
-  'cd /d "%~dp0media-service"',
-  'start "ShelfDeck Service" node.exe src/server.js',
-  'echo 服务已启动 (http://127.0.0.1:18080/admin)',
-  'echo.',
-  'echo 启动桌面客户端...',
-  'cd /d "%~dp0"',
-  'start "" "ShelfDeck 播放助手.exe"',
-  'echo 桌面客户端已启动',
-  'echo.',
-  'echo ShelfDeck 已就绪。关闭本窗口可退出。',
-  'pause',
-].join('\r\n');
-
-fs.writeFileSync(path.join(RELEASE, 'start-all.bat'), bat, 'utf8');
-console.log('  created start-all.bat');
+// Copy VBS launcher to release root
+const vbsSrc = path.join(ROOT, 'scripts', 'shelfdeck_service启动器.vbs');
+fs.copyFileSync(vbsSrc, path.join(RELEASE, 'shelfdeck_service启动器.vbs'));
+console.log('  copied shelfdeck_service启动器.vbs');
 
 // ── done ───────────────────────────────────────────────────────────────────────
 

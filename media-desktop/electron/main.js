@@ -67,7 +67,7 @@ function devUrlCandidates() {
 
 function createWindow() {
   const preloadPath = path.join(__dirname, 'preload.js');
-  const iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
+  const iconPath = path.join(__dirname, '..', 'assets', 'icon.ico');
   const win = new BrowserWindow({
     width: 1360,
     height: 900,

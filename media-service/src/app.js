@@ -616,13 +616,27 @@ function registerRoutes(app) {
   });
 
   app.post('/v1/admin/emby/test', async (req, reply) => {
-    const { baseUrl, apiKey, userId } = req.body || {};
-    if (!baseUrl || !apiKey) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'baseUrl and apiKey are required');
+    const { baseUrl, apiKey, userId, username, password } = req.body || {};
+    let effectiveApiKey = apiKey || '';
+    let resolvedUserId = userId || '';
+
+    // If username+password provided, authenticate and get access token + userId
+    if (!effectiveApiKey && username && password && baseUrl) {
+      try {
+        const auth = await embyService.authenticateByUsername(baseUrl, username, password);
+        effectiveApiKey = auth.token;
+        resolvedUserId = resolvedUserId || auth.userId;
+      } catch (e) {
+        return apiError(reply, 502, 'EMBY_AUTH_FAILED', e.message);
+      }
+    }
+
+    if (!baseUrl || !effectiveApiKey) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'baseUrl and apiKey (or username+password) are required');
     }
     try {
-      const serverInfo = await embyService.testConnection({ baseUrl, apiKey, userId: userId || '' });
-      // Inline register: check if server already exists
+      const serverInfo = await embyService.testConnection({ baseUrl, apiKey: effectiveApiKey, userId: resolvedUserId });
+      // Inline register
       const cfg = configStore.loadConfig();
       const servers = cfg.embyServers || {};
       let embyServerId = Object.keys(servers).find((k) => servers[k].baseUrl === baseUrl);
@@ -631,17 +645,18 @@ function registerRoutes(app) {
         servers[embyServerId] = {
           serverName: serverInfo.serverName || baseUrl,
           baseUrl,
-          apiKey,
-          userId: userId || '',
-          embyUserPassword: '',
+          apiKey: effectiveApiKey,
+          userId: resolvedUserId,
+          embyUserPassword: password || '',
         };
         configStore.patchConfig({ embyServers: servers });
-      } else if (userId && userId !== servers[embyServerId].userId) {
-        // Update userId if user selected a specific one (step 2 of wizard)
-        servers[embyServerId].userId = userId;
+      } else {
+        if (effectiveApiKey) servers[embyServerId].apiKey = effectiveApiKey;
+        if (password) servers[embyServerId].embyUserPassword = password;
+        if (resolvedUserId) servers[embyServerId].userId = resolvedUserId;
         configStore.patchConfig({ embyServers: servers });
       }
-      return { ok: true, message: 'Emby connection successful', serverInfo, embyServerId };
+      return { ok: true, message: 'Emby connection successful', serverInfo, embyServerId, userId: resolvedUserId };
     } catch (e) {
       return apiError(reply, 502, 'EMBY_UNREACHABLE', e.message);
     }

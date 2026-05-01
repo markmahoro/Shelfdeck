@@ -92,24 +92,30 @@ function buildDefaultTemplate(policy) {
     reason: '原盘不处理',
   });
 
-  // P6: 3-4★ + modern codec → keep
-  rules.push({
-    priority: 6,
-    groupsConnector: 'and',
-    groups: [
-      ratingGroupIn([3, 4]),
-      condGroup([['codec', 'in', ['h265', 'hevc', 'av1']]]),
-    ],
-    action: 'keep',
-    actionParams: {},
-    reason: '现代编码不转码',
-  });
+  // P6: 3-4★ + modern codec + bitrate already within target → keep (already optimal)
+  function modernKeepRule(priority, rating, bucket, threshold) {
+    return {
+      priority,
+      groupsConnector: 'and',
+      groups: [
+        ratingGroup(rating),
+        condGroup([['bucket', '=', bucket], ['codec', 'in', ['h265', 'hevc', 'av1']], ['equivalentBitrate', '<=', threshold]]),
+      ],
+      action: 'keep',
+      actionParams: {},
+      reason: `${rating}★ ${bucket} 现代编码且码率≤${threshold}M，已达标`,
+    };
+  }
+  if (t1080[3]) rules.push(modernKeepRule(6, 3, '1080p', t1080[3]));
+  if (t4k[3]) rules.push(modernKeepRule(6, 3, '4K', t4k[3]));
+  if (t1080[4]) rules.push(modernKeepRule(6, 4, '1080p', t1080[4]));
+  if (t4k[4]) rules.push(modernKeepRule(6, 4, '4K', t4k[4]));
 
-  // P5: 3★ transcode — one rule per bucket
+  // P5: 3★ needs transcode (unless already optimal)
   if (t1080[3]) rules.push(transcodeRule(5, 3, '1080p', t1080[3], t1080[3]));
   if (t4k[3]) rules.push(transcodeRule(5, 3, '4K', t4k[3], t4k[3]));
 
-  // P4: 4★ transcode — one rule per bucket
+  // P4: 4★ needs transcode (unless already optimal)
   if (t1080[4]) rules.push(transcodeRule(4, 4, '1080p', t1080[4], t1080[4]));
   if (t4k[4]) rules.push(transcodeRule(4, 4, '4K', t4k[4], t4k[4]));
 
@@ -355,7 +361,9 @@ function detectV4Rules(raw) {
   const templates = raw.ruleTemplates || [];
   if (templates.length === 0) return false;
   return templates.some((tpl) =>
-    (tpl.rules || []).some((r) => r.innerConnector !== undefined)
+    (tpl.rules || []).some((r) => r.innerConnector !== undefined) ||
+    // Old 7-rule default template (before P6 split into 4 precise modern-codec-keep rules)
+    (tpl.id === 'default' && (tpl.rules || []).length < 10)
   );
 }
 

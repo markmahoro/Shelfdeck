@@ -35,6 +35,7 @@
     "cross-env": "^10.1.0",
     "electron": "^41.2.1",
     "electron-builder": "^25.1.8",
+    "to-ico": "^1.1.5",
     "typescript": "^6.0.2",
     "vite": "^8.0.8",
     "vitest": "^4.1.5",
@@ -49,13 +50,15 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "assets/**/*",
       "package.json",
       "node_modules/ffmpeg-static/**/*",
       "node_modules/@ffprobe-installer/**/*"
     ],
     "asarUnpack": [
       "node_modules/ffmpeg-static/**",
-      "node_modules/@ffprobe-installer/**"
+      "node_modules/@ffprobe-installer/**",
+      "assets/icon.ico"
     ],
     "forceCodeSigning": false,
     "nsis": {
@@ -64,7 +67,7 @@
     },
     "win": {
       "target": "portable",
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.ico",
       "signAndEditExecutable": false
     }
   }

@@ -1,6 +1,5 @@
 import type {
   EmbyServer,
-  EmbyUser,
   MediaFolder,
   EmbyTestResult,
   SubLibrary,
@@ -85,11 +84,8 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 export const emby = {
   getServers: () => get<{ servers: EmbyServer[] }>('/v1/admin/emby/servers'),
 
-  testConnection: (body: { baseUrl: string; apiKey: string; userId: string }) =>
+  testConnection: (body: { baseUrl: string; apiKey?: string; username?: string; password?: string; userId?: string }) =>
     post<EmbyTestResult>('/v1/admin/emby/test', body),
-
-  getUsers: (embyServerId: string) =>
-    get<{ users: EmbyUser[] }>(`/v1/admin/emby/users?embyServerId=${encodeURIComponent(embyServerId)}`),
 
   getMediaFolders: (embyServerId: string) =>
     get<{ folders: MediaFolder[] }>(`/v1/admin/emby/media-folders?embyServerId=${encodeURIComponent(embyServerId)}`),
