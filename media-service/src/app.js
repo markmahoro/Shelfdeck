@@ -335,7 +335,7 @@ function registerRoutes(app) {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
-    if (task.status === 'pending_manual' || task.status === 'interrupted') {
+    if (task.status === 'pending_manual' || task.status === 'interrupted' || task.status === 'created') {
       taskStore.updateTask(task.id, { status: 'queued' });
       return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
     }
@@ -636,6 +636,10 @@ function registerRoutes(app) {
           embyUserPassword: '',
         };
         configStore.patchConfig({ embyServers: servers });
+      } else if (userId && userId !== servers[embyServerId].userId) {
+        // Update userId if user selected a specific one (step 2 of wizard)
+        servers[embyServerId].userId = userId;
+        configStore.patchConfig({ embyServers: servers });
       }
       return { ok: true, message: 'Emby connection successful', serverInfo, embyServerId };
     } catch (e) {
@@ -698,7 +702,7 @@ function registerRoutes(app) {
   });
 
   app.post('/v1/admin/sublibraries', async (req, reply) => {
-    const { name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect } = req.body || {};
+    const { name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect, pathMapFrom, pathMapTo } = req.body || {};
     if (!name || !embyServerId || !sectionId) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name, embyServerId, and sectionId are required');
     }
@@ -706,7 +710,7 @@ function registerRoutes(app) {
     if (!(cfg.embyServers || {})[embyServerId]) {
       return apiError(reply, 404, 'NOT_FOUND', 'Emby server not found');
     }
-    const subLib = mediaLibraryService.addSubLibrary({ name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect });
+    const subLib = mediaLibraryService.addSubLibrary({ name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect, pathMapFrom, pathMapTo });
     return reply.code(201).send(subLib);
   });
 

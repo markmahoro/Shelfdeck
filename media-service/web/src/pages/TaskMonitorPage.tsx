@@ -151,7 +151,7 @@ export default function TaskMonitorPage() {
     if (t.status === 'pausing') {
       btns.push(<button key="pausing" disabled style={{ ...warnBtn, opacity: 0.6, cursor: 'not-allowed' }}>暂停中...</button>);
     }
-    if (t.status === 'paused' || t.status === 'pending_manual') {
+    if (t.status === 'paused' || t.status === 'pending_manual' || t.status === 'created') {
       btns.push(<button key="exec" onClick={() => executeMut.mutate(t.id)} style={execBtn}>继续</button>);
       btns.push(<button key="cancel" onClick={() => { if (confirm('确定取消此任务？')) deleteMut.mutate(t.id); }} style={{ ...warnBtn, background: '#e74c3c' }}>取消</button>);
     }

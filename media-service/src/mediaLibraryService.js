@@ -247,6 +247,8 @@ function addSubLibrary(spec) {
       sitePreference: [],
       preferCNSub: false,
     },
+    pathMapFrom: spec.pathMapFrom || '',
+    pathMapTo: spec.pathMapTo || '',
   };
   cfg.subLibraries = [...(cfg.subLibraries || []), subLib];
   configStore.saveConfig(cfg);

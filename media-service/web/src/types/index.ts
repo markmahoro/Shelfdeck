@@ -52,6 +52,8 @@ export interface SubLibrary {
   autoReplaceTranscode?: boolean;
   autoReplaceUpgrade?: boolean;
   smartSelectEnabled?: boolean;
+  pathMapFrom?: string;
+  pathMapTo?: string;
 }
 
 // ── Rule Template ──────────────────────────────────────────────────────────────

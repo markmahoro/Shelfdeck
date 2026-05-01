@@ -61,9 +61,11 @@ function parseStableKey(stableKey) {
   return null;
 }
 
-function resolveSourcePath(sourcePath, config) {
-  const from = (config.pathMapFrom || '').trim();
-  const to = (config.pathMapTo || '').trim();
+function resolveSourcePath(sourcePath, task, config) {
+  const subLibId = task.itemInfo && task.itemInfo.subLibraryId;
+  const subLib = subLibId && (config.subLibraries || []).find((s) => s.uuid === subLibId);
+  const from = (subLib && subLib.pathMapFrom || '').trim();
+  const to = (subLib && subLib.pathMapTo || '').trim();
   if (from && to && sourcePath.startsWith(from)) {
     const relative = sourcePath.slice(from.length).replace(/^\//, '');
     return require('path').join(to, relative);
@@ -99,7 +101,7 @@ async function runPrecheck(taskId, task, config) {
   try {
     const rawPath = task.itemInfo && task.itemInfo.path;
     if (!rawPath) throw new Error('Source path not available');
-    const sourcePath = resolveSourcePath(rawPath, config);
+    const sourcePath = resolveSourcePath(rawPath, task, config);
 
     const result = await transcodeService.precheck(config, sourcePath);
 

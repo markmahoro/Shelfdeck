@@ -108,6 +108,8 @@ export const subLibraries = {
     doubanEnabled?: boolean;
     ruleTemplateId?: string;
     upgradeSmartSelect?: SubLibrary['upgradeSmartSelect'];
+    pathMapFrom?: string;
+    pathMapTo?: string;
   }) => post<SubLibrary>('/v1/admin/sublibraries', body),
 
   update: (uuid: string, body: Partial<SubLibrary>) =>

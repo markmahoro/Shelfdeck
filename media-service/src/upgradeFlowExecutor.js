@@ -38,10 +38,12 @@ function getMpConfig() {
   return { baseUrl: mp.baseUrl, apiKey: mp.apiKey, savePath: mp.savePath || '' };
 }
 
-function resolveEmbyPath(embyPath) {
+function resolveEmbyPath(embyPath, task) {
   const cfg = configStore.loadConfig();
-  const from = (cfg.pathMapFrom || '').trim();
-  const to = (cfg.pathMapTo || '').trim();
+  const subLibId = task && task.itemInfo && task.itemInfo.subLibraryId;
+  const subLib = subLibId && (cfg.subLibraries || []).find((s) => s.uuid === subLibId);
+  const from = (subLib && subLib.pathMapFrom || '').trim();
+  const to = (subLib && subLib.pathMapTo || '').trim();
   if (from && to && embyPath && embyPath.startsWith(from)) {
     const relative = embyPath.slice(from.length).replace(/^\//, '');
     return path.join(to, relative);
@@ -937,7 +939,7 @@ async function runReplace(taskId, task, config) {
     return;
   }
 
-  let targetFolder = resolveEmbyPath(rawEmbyPath);
+  let targetFolder = resolveEmbyPath(rawEmbyPath, task);
   try {
     const stat = fs.statSync(targetFolder);
     if (stat.isFile()) targetFolder = path.dirname(targetFolder);
@@ -1013,7 +1015,7 @@ async function runVerify(taskId, task) {
   appendLog(taskId, 'info', 'Verifying upgraded media');
 
   const rawEmbyPath = (task.itemInfo && task.itemInfo.path) || '';
-  const embyPath = resolveEmbyPath(rawEmbyPath);
+  const embyPath = resolveEmbyPath(rawEmbyPath, task);
   let targetPath = embyPath;
   try {
     const stat = fs.statSync(targetPath);

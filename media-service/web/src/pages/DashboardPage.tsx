@@ -33,6 +33,9 @@ export default function DashboardPage() {
   const [subLibName, setSubLibName] = useState('');
   const [doubanEnabled, setDoubanEnabled] = useState(false);
   const [ruleTemplateId, setRuleTemplateId] = useState('default');
+  const [pathMapFrom, setPathMapFrom] = useState('');
+  const [pathMapTo, setPathMapTo] = useState('');
+  const [embyPassword, setEmbyPassword] = useState('');
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState('');
 
@@ -102,6 +105,8 @@ export default function DashboardPage() {
         source: 'emby',
         doubanEnabled,
         ruleTemplateId,
+        pathMapFrom: pathMapFrom || '',
+        pathMapTo: pathMapTo || '',
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sublibraries'] });
@@ -117,6 +122,8 @@ export default function DashboardPage() {
         name: subLibName,
         doubanEnabled,
         ruleTemplateId,
+        pathMapFrom: pathMapFrom || '',
+        pathMapTo: pathMapTo || '',
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sublibraries'] });
@@ -163,6 +170,17 @@ export default function DashboardPage() {
     } finally {
       setTesting(false);
     }
+  }
+
+  async function handleSelectUserAndNext() {
+    if (!selectedUserId || !embyServerId) return;
+    // Write selected userId back to the Emby server config via testConnection
+    try {
+      await emby.testConnection({ baseUrl, apiKey, userId: selectedUserId });
+    } catch (_) {
+      // ignore — server already registered, we just want to persist userId
+    }
+    setStep(3);
   }
 
   if (hLoading || slLoading) return <LoadingSpinner />;
@@ -366,7 +384,7 @@ export default function DashboardPage() {
             </select>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <button onClick={() => setStep(1)} style={secondaryBtn}>上一步</button>
-              <button onClick={() => setStep(3)} disabled={!selectedUserId} style={primaryBtn}>下一步</button>
+              <button onClick={handleSelectUserAndNext} disabled={!selectedUserId} style={primaryBtn}>下一步</button>
             </div>
           </div>
         )}
@@ -394,6 +412,19 @@ export default function DashboardPage() {
               <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>媒体库名称</label>
               <input type="text" value={subLibName} onChange={(e) => setSubLibName(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>路径映射（Emby → 本地）</label>
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 8px' }}>用于转码/洗版时将 Emby 访问路径翻译为本地文件路径（前缀替换）</p>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="text" value={pathMapFrom} onChange={(e) => setPathMapFrom(e.target.value)}
+                  placeholder="如 /volume1/Media"
+                  style={{ flex: 1, padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
+                <span style={{ color: '#888' }}>→</span>
+                <input type="text" value={pathMapTo} onChange={(e) => setPathMapTo(e.target.value)}
+                  placeholder="如 Z:\\"
+                  style={{ flex: 1, padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
+              </div>
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer' }}>
