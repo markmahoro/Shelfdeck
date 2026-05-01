@@ -10,3 +10,4 @@ data/douban-entries-cache.json
 data/item-ratings.json
 data/activity-log.json
 data/*.backup
+dist-pkg/
