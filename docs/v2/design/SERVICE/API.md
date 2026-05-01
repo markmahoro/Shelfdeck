@@ -1,6 +1,6 @@
 # DESIGN_SERVICE/API — REST API 契约
 
-> 状态：v2 重写中
+> 状态：v4 定稿
 > SSOT：本文是 HTTP 路径/模型/错误码的唯一事实来源
 > Admin 端点（`/v1/admin/*`）详细设计见 `SERVICE/ADMIN_WEB/API.md`，本文仅作索引
 
@@ -10,8 +10,8 @@
 
 | 原则 | 说明 |
 |---|---|
-| **RESTful** | 资源导向 URL，标准 HTTP 方法（GET/POST/PATCH/DELETE） |
-| **JSON** | 请求体和响应体均为 `application/json` |
+| **RESTful** | 资源导向 URL，标准 HTTP 方法（GET/POST/PATCH/PUT/DELETE） |
+| **JSON** | 请求体和响应体均为 `application/json`（preview 等流式端点除外） |
 | **端点域分离** | `/v1/*` 供 desktop 调用，`/v1/admin/*` 供 admin_web 调用 |
 | **共用模块** | 两端点域共用同一套 service 内部模块（TaskStore、ConfigStore 等） |
 | **无副作用的 GET** | GET 请求不修改服务状态 |
@@ -69,7 +69,7 @@ HTTP 401 Unauthorized
 
 | HTTP 状态码 | 含义 | 触发场景 |
 |---|---|---|
-| 200 | 成功 | GET/PATCH/DELETE 正常返回 |
+| 200 | 成功 | GET/PATCH/PUT/DELETE 正常返回 |
 | 201 | 已创建 | POST 创建资源成功 |
 | 400 | 请求参数错误 | 必填字段缺失、格式无效、值超出范围 |
 | 401 | 未授权 | API Key 无效或缺失 |
@@ -85,12 +85,16 @@ HTTP 401 Unauthorized
 | `UNAUTHORIZED` | 401 | API Key 无效 |
 | `NOT_FOUND` | 404 | 资源不存在 |
 | `TASK_CONFLICT` | 409 | 同一 itemId 已有进行中的任务 |
-| `TASK_EXECUTING` | 409 | 任务正在执行中，无法删除 |
 | `CONFIG_INVALID` | 400 | 配置字段值无效 |
 | `CONFIG_MISSING` | 400 | 必填配置字段缺失 |
-| `EMBY_UNREACHABLE` | 502 | Emby 服务器不可达 |
-| `DOUBAN_UNREACHABLE` | 502 | 豆瓣不可达 |
 | `VALIDATION_ERROR` | 400 | 请求体字段校验失败 |
+| `BAD_REQUEST` | 400 | 一般请求错误（如任务未完成时请求 report） |
+| `CONFLICT` | 409 | 一般资源冲突（如模板 id 重复） |
+| `INTERNAL_ERROR` | 500 | 服务内部未预期错误 |
+| `EMBY_ERROR` | 502 | Emby API 调用失败（mark-played、mark-unplayed、unplayed 查询等） |
+| `DOUBAN_UNREACHABLE` | 502 | 豆瓣不可达 |
+| ~~`EMBY_UNREACHABLE`~~ | 502 | 已废弃，新代码使用 `EMBY_ERROR`。旧路径（resolveEmbyConfigForLibrary 失败等）仍可返回此码 |
+| ~~`TASK_EXECUTING`~~ | 409 | 未使用。DELETE /v1/tasks 不再检查执行中状态，直接 cancel + 删除 |
 
 ---
 
@@ -104,23 +108,33 @@ HTTP 401 Unauthorized
 | `/v1/tasks` | GET | 任务列表 | §5.2 |
 | `/v1/tasks/:id` | GET | 任务详情 | §5.3 |
 | `/v1/tasks/:id` | PATCH | 确认任务 | §5.4 |
+| `/v1/tasks/:id` | DELETE | 删除任务 | §5.7 |
 | `/v1/tasks/:id/actions/execute` | POST | 手动执行任务 | §5.5 |
 | `/v1/tasks/:id/actions/pause` | POST | 暂停任务 | §5.6 |
-| `/v1/tasks/:id` | DELETE | 删除任务 | §5.7 |
-| `/v1/library/queries/manage` | GET | 媒体库列表（含策略建议） | §6.1 |
-| `/v1/library/items/:itemId` | GET | 单项详情 | §6.2 |
-| `/v1/library/ratings` | PATCH | 用户评分写入 | §6.3 |
-| `/v1/library/actions/refresh` | POST | 手动刷新子库 | §6.4 |
-| `/v1/library/actions/mark-played` | POST | 标记已观看 | §6.5 |
-| `/v1/library/actions/mark-unplayed` | POST | 标记未观看 | §6.6 |
-| `/v1/library/queries/played` | POST | 查询已观看历史 | §6.7 |
-| `/v1/library/queries/unplayed` | POST | 查询未观看列表 | §6.8 |
-| `/v1/library/status` | GET | 子库同步状态 | §6.9 |
-| `/v1/library/cache` | POST | 批量写入 Emby 数据（内部） | §6.10 |
+| `/v1/tasks/:id/report` | GET | 任务完成报告 | §5.8 |
+| `/v1/tasks/:id/preview` | GET | 预览片段（video/mp4 流） | §5.9 |
+| `/v1/library` | GET | 媒体库列表（支持 `?subLibraryId=` 等筛选） | §6.1 |
+| `/v1/library/queries/manage` | GET | 媒体库列表（含策略建议，同 `/v1/library`） | §6.2 |
+| `/v1/library/items/:itemId` | GET | 单项详情 | §6.3 |
+| `/v1/library/ratings` | PATCH | 用户评分写入 | §6.4 |
+| `/v1/library/actions/refresh` | POST | 手动刷新子库 | §6.5 |
+| `/v1/library/actions/mark-played` | POST | 标记已观看 | §6.6 |
+| `/v1/library/actions/mark-unplayed` | POST | 标记未观看 | §6.7 |
+| `/v1/library/actions/recompute-strategy` | POST | 立即重算全库策略 | §6.8 |
+| `/v1/library/queries/played` | POST | 查询已观看历史（v1 兼容，已重定向到 playback-log） | §6.9 |
+| `/v1/library/queries/unplayed` | POST | 查询未观看列表 | §6.10 |
+| `/v1/library/playback-log` | GET | 播放日志（本地 `playback-log.json`） | §6.11 |
+| `/v1/library/playback-log/record` | POST | 记录播放 | §6.12 |
+| `/v1/library/status` | GET | 子库同步状态 | §6.13 |
+| `/v1/library/cache` | POST | 批量写入 Emby 数据（内部） | §6.14 |
 | `/v1/config` | GET | 获取完整配置 | §7.1 |
 | `/v1/config` | PATCH | 更新配置 | §7.2 |
 | `/v1/health` | GET | 聚合健康状态 | §8 |
-| `/v1/integrations/douban/fetch/ratings` | GET | 触发豆瓣评分抓取 | §9 |
+| `/v1/activity-log` | GET | 活动日志 | §9 |
+| `/v1/space-stats` | GET | 空间统计 | §10 |
+| `/v1/integrations/douban/fetch/ratings` | GET | 触发豆瓣评分抓取 | §11.1 |
+| `/v1/integrations/douban/session` | GET | 获取豆瓣会话 | §11.2 |
+| `/v1/integrations/douban/session` | PUT | 保存豆瓣会话 | §11.3 |
 
 ### 4.2 Admin 端点（`/v1/admin/*`）
 
@@ -136,11 +150,19 @@ HTTP 401 Unauthorized
 | `/v1/admin/sublibraries` | POST | 新增子库 |
 | `/v1/admin/sublibraries/:uuid` | DELETE | 删除子库 |
 | `/v1/admin/sublibraries/:uuid` | PATCH | 更新子库 |
-| `/v1/admin/transcode/config` | GET | 转码配置 |
+| `/v1/admin/rule-templates` | GET | 规则模板列表 |
+| `/v1/admin/rule-templates` | POST | 创建规则模板 |
+| `/v1/admin/rule-templates/:id` | GET | 获取单个模板 |
+| `/v1/admin/rule-templates/:id` | PUT | 更新规则模板 |
+| `/v1/admin/rule-templates/:id` | DELETE | 删除规则模板 |
+| `/v1/admin/transcode/config` | GET | 获取转码配置 |
 | `/v1/admin/transcode/config` | PATCH | 更新转码配置 |
 | `/v1/admin/transcode/probe-devices` | GET | 探测本机编码设备 |
 | `/v1/admin/transcode/device-pool` | GET | 设备池状态 |
-| `/v1/admin/tasks` | GET | 全部任务列表 |
+| `/v1/admin/upgrade/config` | GET | 获取洗版配置 |
+| `/v1/admin/upgrade/config` | PATCH | 更新洗版配置 |
+| `/v1/admin/moviepilot/sites` | GET | MoviePilot 站点列表 |
+| `/v1/admin/tasks` | GET | 全部任务列表（支持分页） |
 | `/v1/admin/tasks/:id` | GET | 任务详情（含日志） |
 | `/v1/admin/tasks/:id` | DELETE | 删除任务 |
 | `/v1/admin/health` | GET | 服务健康详情 |
@@ -176,13 +198,37 @@ desktop 下发用户意图，创建新任务。
   "id": "task-001",
   "itemId": "emby-item-123",
   "actionType": "transcode",
-  "status": "created",
+  "status": "pending_manual",
   "progress": 0,
   "phase": null,
   "createdAt": "2026-04-26T10:00:00.000Z",
-  "updatedAt": "2026-04-26T10:00:00.000Z"
+  "updatedAt": "2026-04-26T10:00:00.000Z",
+  "itemName": "电影名称",
+  "resumePoint": null,
+  "logs": [
+    { "seq": 1, "ts": "2026-04-26T10:00:00.000Z", "level": "info", "msg": "Task created" }
+  ],
+  "itemInfo": {
+    "name": "电影名称",
+    "path": "D:\\media\\movie.mkv",
+    "subLibraryId": "sublib-001",
+    "resolution": "3840x2160",
+    "bitrate": 50000000,
+    "size": 45000000000,
+    "duration": 7200,
+    "type": "Movie",
+    "doubanRating": 4,
+    "userRating": null
+  }
 }
 ```
+
+| 附加字段 | 类型 | 说明 |
+|---|---|---|
+| `itemName` | string | 媒体项名称（从 `itemInfo.name` 或 `itemId` 回退） |
+| `resumePoint` | string\|null | confirm 后恢复点（创建时始终为 null） |
+| `logs` | array | 执行日志（创建时含一条 "Task created"） |
+| `itemInfo` | object\|null | 从 media library 填充的媒体项信息（library 中存在该项时填充，否则为 null） |
 
 **行为**：
 - `executionMode = auto` → status 为 `created`，自动转入调度池（下一轮调度时变为 `queued`）
@@ -199,7 +245,7 @@ desktop 下发用户意图，创建新任务。
 
 ### 5.2 GET /v1/tasks — 任务列表
 
-desktop 轮询任务状态（间隔 400ms）。
+desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §5.3 详情相同 shape）。
 
 **查询参数**：
 
@@ -220,12 +266,26 @@ desktop 轮询任务状态（间隔 400ms）。
       "status": "executing",
       "progress": 45,
       "phase": "transcode_encoding",
+      "itemName": "电影名称",
+      "resumePoint": null,
       "createdAt": "2026-04-26T10:00:00.000Z",
-      "updatedAt": "2026-04-26T10:05:00.000Z"
+      "updatedAt": "2026-04-26T10:05:00.000Z",
+      "logs": [
+        { "seq": 1, "ts": "2026-04-26T10:00:00.000Z", "level": "info", "msg": "Task created" },
+        { "seq": 2, "ts": "2026-04-26T10:00:01.000Z", "level": "info", "msg": "precheck 通过" }
+      ],
+      "itemInfo": {
+        "name": "电影名称",
+        "path": "D:\\media\\movie.mkv",
+        "resolution": "3840x2160",
+        "bitrate": 50000000
+      }
     }
   ]
 }
 ```
+
+> 列表项与详情端点返回相同的完整 task 对象（含 `logs`、`itemInfo`、`itemName`、`resumePoint` 等全部字段）。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -235,6 +295,8 @@ desktop 轮询任务状态（间隔 400ms）。
 | `status` | string | 调度状态（见 `TASK_SCHEDULER.md` §4） |
 | `progress` | number | 进度 0-100 |
 | `phase` | string | Flow 阶段（见各 Flow 文档），可为 null |
+| `itemName` | string | 媒体项名称 |
+| `resumePoint` | string\|null | confirm 后恢复点 |
 | `createdAt` | string | 创建时间（ISO 8601） |
 | `updatedAt` | string | 更新时间（ISO 8601） |
 
@@ -252,6 +314,7 @@ desktop 轮询任务状态（间隔 400ms）。
   "status": "executing",
   "progress": 45,
   "phase": "transcode_encoding",
+  "itemName": "电影名称",
   "resumePoint": null,
   "createdAt": "2026-04-26T10:00:00.000Z",
   "updatedAt": "2026-04-26T10:05:00.000Z",
@@ -270,7 +333,8 @@ desktop 轮询任务状态（间隔 400ms）。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `resumePoint` | string | confirm 后恢复点，无停泊时为 null |
+| `resumePoint` | string\|null | confirm 后恢复点，无停泊时为 null |
+| `itemName` | string | 媒体项名称 |
 | `logs` | array | 执行日志（Flow 私有，各 Flow seq 独立递增） |
 | `itemInfo` | object | 媒体项摘要信息 |
 
@@ -290,9 +354,15 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ```json
 {
-  "confirmed": true
+  "confirmed": true,
+  "confirmData": { "selectedIndex": 0 }
 }
 ```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `confirmed` | boolean | 是 | 必须为 `true` |
+| `confirmData` | object | 否 | 用户选择数据（如 upgrade Flow 的种子选择 `selectedIndex`），写入 task 持久化 |
 
 **响应**：`200 OK`
 
@@ -306,13 +376,15 @@ desktop 轮询任务状态（间隔 400ms）。
 
 **行为**：
 1. 仅 `status = awaiting_user_confirm` 时有效
-2. 调用 `flow.confirmReceived()` → Flow 从 `resumePoint` 继续执行
-3. status 改为 `queued`，调度器下次轮询接管
+2. 若有 `confirmData`，先写入 task
+3. 调用 `flow.confirmReceived()` → Flow 从 `resumePoint` 继续执行
+4. status 改为 `queued`，调度器下次轮询接管
 
 **错误**：
 
 | 状态码 | code | 场景 |
 |---|---|---|
+| 400 | `VALIDATION_ERROR` | `confirmed` 不为 `true` |
 | 404 | `NOT_FOUND` | 任务不存在 |
 | 409 | `TASK_CONFLICT` | 任务状态不是 `awaiting_user_confirm` |
 
@@ -320,7 +392,7 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ### 5.5 POST /v1/tasks/:id/actions/execute — 手动执行
 
-`executionMode = manual` 时，用户手动触发任务进入调度。
+手动触发任务进入调度。支持多种源状态的过渡。
 
 **请求体**：无
 
@@ -334,9 +406,15 @@ desktop 轮询任务状态（间隔 400ms）。
 }
 ```
 
-**行为**：
-- `pending_manual` → `created` → 进入调度（status 变为 `queued`）
-- 其他 status → 无操作，返回当前状态
+**行为（按源状态）**：
+
+| 源 status | 目标 status | 说明 |
+|---|---|---|
+| `pending_manual` | `queued` | `executionMode = manual` 下的待确认任务 → 进入调度队列 |
+| `interrupted` | `queued` | 中断任务 → 重新入队，调度器从 `resumePoint` 恢复 |
+| `paused` | `queued` | 已暂停任务 → 重新入队，调度器从 `resumePoint` 恢复 |
+| `pausing` | `executing` | 清除暂停请求标志，直接回到执行态（调度器 hash 循环接管） |
+| 其他 | 不变 | 返回当前状态，无操作 |
 
 **错误**：
 
@@ -385,23 +463,89 @@ desktop 轮询任务状态（间隔 400ms）。
 ```
 
 **行为**：
-- 若正在执行：Scheduler 调用 `flow.cancel()` → 清理资源 → 从 TaskStore 移除
-- 若非执行中：直接从 TaskStore 移除
+- 始终先调用 `flow.cancel()` 清理资源（FFmpeg 进程、partial 文件等）
+- 然后从 TaskStore 移除
+- 不检查任务是否正在执行——任何状态的任务均可删除
 
 **错误**：
 
 | 状态码 | code | 场景 |
 |---|---|---|
 | 404 | `NOT_FOUND` | 任务不存在 |
-| 409 | `TASK_EXECUTING` | 任务正在执行中（可选实现） |
+
+---
+
+### 5.8 GET /v1/tasks/:id/report — 任务完成报告
+
+获取已完成任务的执行报告（含转码前后对比、空间节省等）。
+
+**响应**：`200 OK`
+
+```json
+{
+  "taskId": "task-001",
+  "itemName": "电影名称",
+  "actionType": "transcode",
+  "elapsedSec": 123,
+  "encoder": "hevc_nvenc",
+  "original": {
+    "sizeBytes": 45000000000,
+    "videoCodec": "h264",
+    "bitrate": 50000000,
+    "width": 3840,
+    "height": 2160,
+    "audioCodec": "aac"
+  },
+  "output": {
+    "sizeBytes": 15000000000,
+    "videoCodec": "hevc",
+    "bitrate": 16000000,
+    "width": 3840,
+    "height": 2160
+  },
+  "bytesSaved": 30000000000
+}
+```
+
+> 返回结构因 `actionType` 而异：
+> - `transcode`: 含 `original`、`output`、`bytesSaved`、`encoder`
+> - `delete`: 含 `bytesFreed`
+> - `upgrade`: 含 `original`、`output`、`bytesSaved`、`tmdbVerified`（如果有 `upgradePreview` 数据）
+
+**错误**：
+
+| 状态码 | code | 场景 |
+|---|---|---|
+| 400 | `BAD_REQUEST` | 任务未完成（status 不为 `done`） |
+| 404 | `NOT_FOUND` | 任务不存在 |
+
+---
+
+### 5.9 GET /v1/tasks/:id/preview — 预览片段
+
+返回转码/洗版完成的预览视频片段（`video/mp4`）。支持 HTTP Range 请求。
+
+**响应**：`200 OK`（或 `206 Partial Content`）
+
+- `Content-Type: video/mp4`
+- `Content-Length: <fileSize>`
+- 支持 `Range` header（HTTP 206 部分内容）
+
+> 预览文件路径来自 `task.verifyResult.previewPath`。仅在任务完成后且验证结果含预览文件时可用。
+
+**错误**：
+
+| 状态码 | code | 场景 |
+|---|---|---|
+| 404 | `NOT_FOUND` | 预览不可用或文件不存在 |
 
 ---
 
 ## §6 媒体库端点
 
-### 6.1 GET /v1/library/queries/manage — 媒体库列表
+### 6.1 GET /v1/library — 媒体库列表
 
-返回完整媒体库数据，含策略建议。供 desktop 媒体库展示页面使用。
+返回完整媒体库数据，含策略建议。响应自动附加 `embyWebUrl` 字段（用于 desktop 播放按钮）。
 
 **查询参数**：
 
@@ -439,18 +583,30 @@ desktop 轮询任务状态（间隔 400ms）。
       "userRatingUpdatedAt": null,
       "lastRefreshedAt": "2026-04-26T10:00:00.000Z",
       "action": "transcode",
-      "reason": "码率 50 Mbps 超出 5★ 4K 目标 25 Mbps"
+      "reason": "码率 50 Mbps 超出 5★ 4K 目标 25 Mbps",
+      "embyWebUrl": "http://192.168.1.100:8096/web/index.html#!/item?id=emby-item-123"
     }
   ],
   "total": 150
 }
 ```
 
+> `embyWebUrl` 由 service 从 `embyServers` 配置中解析并附加到每个 item。
 > MediaItem 字段完整定义见 `SERVICE/MEDIA_LIBRARY.md` §1.1。
 
 ---
 
-### 6.2 GET /v1/library/items/:itemId — 单项详情
+### 6.2 GET /v1/library/queries/manage — 媒体库列表（manage 别名）
+
+功能同 §6.1 `GET /v1/library`，返回完整媒体库数据含策略建议。供 desktop 媒体库展示页面使用。
+
+**查询参数**：同 §6.1。
+
+**响应**：`200 OK` — 同 §6.1（不含 `embyWebUrl` 附加字段）。
+
+---
+
+### 6.3 GET /v1/library/items/:itemId — 单项详情
 
 **响应**：`200 OK`
 
@@ -479,7 +635,7 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ---
 
-### 6.3 PATCH /v1/library/ratings — 用户评分写入
+### 6.4 PATCH /v1/library/ratings — 用户评分写入
 
 **请求体**：
 
@@ -518,7 +674,7 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ---
 
-### 6.4 POST /v1/library/actions/refresh — 手动刷新子库
+### 6.5 POST /v1/library/actions/refresh — 手动刷新子库
 
 触发指定子库立即执行 Emby 拉取。
 
@@ -550,7 +706,7 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ---
 
-### 6.5 POST /v1/library/actions/mark-played — 标记已观看
+### 6.6 POST /v1/library/actions/mark-played — 标记已观看
 
 通过 Emby API 标记指定媒体项为已观看。
 
@@ -579,6 +735,7 @@ desktop 轮询任务状态（间隔 400ms）。
 **行为**：
 1. 通过 `subLibraryId` 或 `itemId` 解析 Emby 服务器配置
 2. 调用 `POST Emby /Users/{userId}/PlayedItems/{itemId}`
+3. 记录 activity log
 
 **错误**：
 
@@ -590,7 +747,7 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ---
 
-### 6.6 POST /v1/library/actions/mark-unplayed — 标记未观看
+### 6.7 POST /v1/library/actions/mark-unplayed — 标记未观看
 
 通过 Emby API 取消指定媒体项的已观看标记。
 
@@ -630,75 +787,56 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ---
 
-### 6.7 POST /v1/library/queries/played — 查询已观看历史
+### 6.8 POST /v1/library/actions/recompute-strategy — 重算全库策略
 
-从 Emby 实时查询已观看历史记录（不走 library.json 缓存）。
+立即触发全库策略重算（strategy engine 单次执行）。
+
+**请求体**：无
+
+**响应**：`200 OK`
+
+```json
+{
+  "ok": true,
+  "changed": 12
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `changed` | number | 策略发生变化的 item 数量 |
+
+---
+
+### 6.9 POST /v1/library/queries/played — 查询已观看历史
+
+**v1 兼容端点**，已重定向为读取本地 `playback-log.json`。不再调用 Emby API。
 
 **请求体**：
 
 ```json
 {
-  "subLibraryId": "sublib-001",
-  "days": 30,
-  "type": "Movie",
-  "sectionId": "sec-1"
+  "subLibraryId": "sublib-001"
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `subLibraryId` | string | 是 | 子库 UUID |
-| `days` | number | 否 | 天数过滤（7/30/0，0=不限，默认 0） |
-| `type` | string | 否 | 类型过滤：`all` / `Movie` / `Episode`（默认 `all`） |
-| `sectionId` | string | 否 | Emby 媒体库 sectionId（默认使用子库配置的 sectionId） |
+| `subLibraryId` | string | 否 | 子库 UUID。不提供则返回全部日志 |
 
-**响应**：`200 OK`
-
-```json
-[
-  {
-    "id": "item-abc123",
-    "name": "电影名称",
-    "type": "Movie",
-    "datePlayed": "2026-04-20T10:30:00.000Z",
-    "sectionId": "sec-1",
-    "sectionName": "Movies",
-    "posterTag": "abc123",
-    "seriesName": "连续剧名称",
-    "indexLabel": "S01E01"
-  }
-]
-```
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | string | Emby 媒体项 ID |
-| `name` | string | 媒体项名称 |
-| `type` | string | `Movie` / `Episode` / `Other` |
-| `datePlayed` | string | 最近播放时间（ISO 8601），可为 null |
-| `sectionId` | string | 所属 Emby 媒体库 ID |
-| `sectionName` | string | 所属 Emby 媒体库名称 |
-| `posterTag` | string | 海报图片标签 |
-| `seriesName` | string | 剧集系列名（仅 Episode 类型） |
-| `indexLabel` | string | 集数标签如 "S01E01"（仅 Episode 类型） |
+**响应**：`200 OK` — 返回 `playback-log.json` 中匹配 `subLibraryId` 的条目数组。
 
 **行为**：
-1. 通过 `subLibraryId` 解析 Emby 服务器配置
-2. 调用 `GET Emby /Users/{userId}/Items?Filters=IsPlayed&IncludeItemTypes=Movie,Episode`
-3. 按 `days` 参数过滤 `datePlayed`（service 侧过滤，Emby API 返回全量）
-4. 按 `type` 参数过滤
-5. 按 `sectionId` 参数过滤
+1. 读取本地 `data/playback-log.json`
+2. 仅按 `subLibraryId` 过滤（若提供）
+3. 不调用 Emby API
+4. 不接受 `days`、`type`、`sectionId` 等其他筛选参数
 
-**错误**：
-
-| 状态码 | code | 场景 |
-|---|---|---|
-| 404 | `NOT_FOUND` | 子库不存在 |
-| 502 | `EMBY_ERROR` | Emby API 调用失败 |
+> 新代码请使用 `GET /v1/library/playback-log`（§6.11）和 `POST /v1/library/playback-log/record`（§6.12）。
 
 ---
 
-### 6.8 POST /v1/library/queries/unplayed — 查询未观看列表
+### 6.10 POST /v1/library/queries/unplayed — 查询未观看列表
 
 从 Emby 实时查询未观看媒体项列表（不走 library.json 缓存）。
 
@@ -766,7 +904,82 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ---
 
-### 6.9 GET /v1/library/status — 子库同步状态
+### 6.11 GET /v1/library/playback-log — 播放日志
+
+读取本地播放日志（`data/playback-log.json`）。
+
+**查询参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `subLibraryId` | string | 否 | 按子库 uuid 筛选 |
+
+**响应**：`200 OK` — 返回匹配的播放日志条目数组。
+
+```json
+[
+  {
+    "itemId": "emby-item-123",
+    "subLibraryId": "sublib-001",
+    "itemName": "电影名称",
+    "type": "Movie",
+    "playedAt": "2026-04-26T10:30:00.000Z",
+    "posterUrl": "http://...",
+    "path": "D:\\media\\movie.mkv",
+    "embyWebUrl": "http://...",
+    "sectionName": "Movies"
+  }
+]
+```
+
+---
+
+### 6.12 POST /v1/library/playback-log/record — 记录播放
+
+写入一条播放记录到本地 `data/playback-log.json`。
+
+**请求体**：
+
+```json
+{
+  "itemId": "emby-item-123",
+  "subLibraryId": "sublib-001",
+  "itemName": "电影名称",
+  "type": "Movie",
+  "posterUrl": "http://...",
+  "path": "D:\\media\\movie.mkv",
+  "embyWebUrl": "http://...",
+  "sectionName": "Movies"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `itemId` | string | 是 | Emby 媒体项 ID |
+| `subLibraryId` | string | 是 | 子库 UUID |
+| `itemName` | string | 否 | 媒体项名称 |
+| `type` | string | 否 | 类型 (`Movie` / `Episode`) |
+| `posterUrl` | string | 否 | 海报图片 URL |
+| `path` | string | 否 | 文件路径 |
+| `embyWebUrl` | string | 否 | Emby Web 播放 URL |
+| `sectionName` | string | 否 | 所属媒体库名称 |
+
+**响应**：`200 OK`
+
+```json
+{
+  "ok": true
+}
+```
+
+**行为**：
+- 自动附加 `playedAt` 时间戳
+- 去重：同一 `itemId` 已有记录时更新 `playedAt` 而非重复插入
+- 持久化到 `data/playback-log.json`
+
+---
+
+### 6.13 GET /v1/library/status — 子库同步状态
 
 **响应**：`200 OK`
 
@@ -787,7 +1000,7 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ---
 
-### 6.10 POST /v1/library/cache — 批量写入 Emby 媒体数据
+### 6.14 POST /v1/library/cache — 批量写入 Emby 媒体数据
 
 **内部端点**。由 EmbyService 在定时拉取完成后调用，将 Emby 原始数据批量写入媒体库表。
 
@@ -851,7 +1064,6 @@ desktop 轮询任务状态（间隔 400ms）。
   "ffmpegPath": "ffmpeg",
   "ffprobePath": "ffprobe",
   "transcodeEncodingDevices": [],
-  "transcodeMaxCpuSlots": 1,
   "transcodeCpuParticipationStrategy": "normal",
   "moviepilot": {
     "baseUrl": "",
@@ -860,23 +1072,24 @@ desktop 轮询任务状态（间隔 400ms）。
     "stagingPath": ""
   },
   "upgradeStagingLocalPath": "",
+  "upgradeReplaceConfirmRequired": false,
   "upgradeRetryInterval": 3600000,
   "upgradeMaxRetries": 3,
   "embyServers": {},
   "subLibraries": [],
+  "ruleTemplates": [],
   "douban": {
     "userId": "",
     "cookieHeader": "********"
-  },
-  "mediaPolicy": {
-    "target1080p": { "2": 2, "3": 4, "4": 7, "5": 12 },
-    "target4k": { "2": 5, "3": 10, "4": 16, "5": 25 }
   }
 }
 ```
 
 > 敏感字段（`apiKey`、`cookieHeader`、`embyUserPassword`）读取时返回 `"********"`。
 > 完整字段定义见 `SERVICE/CONFIG.md` §3。
+>
+> **注意**：`mediaPolicy`（全局策略）已在 v2→v3 迁移时删除。策略逻辑迁移至 `ruleTemplates`（规则模板引擎），子库级策略通过 `ruleTemplateId` 引用模板。`mediaPolicy` 字段不在配置响应中。
+> 旧版 `transcodeMaxCpuSlots` 同样已移除，由 `transcodeEncodingDevices` 中的 per-device `maxSlots` 替代。
 
 ---
 
@@ -930,13 +1143,64 @@ desktop 轮询任务状态（间隔 400ms）。
 | `timestamp` | string | 最近一次检查时间（ISO 8601） |
 
 > 详细设计见 `SERVICE/HEALTH_CHECK.md`。
-> Admin 端点 `GET /v1/admin/health` 返回完整检查详情，见 `SERVICE/ADMIN_WEB/API.md` §5.1。
+> Admin 端点 `GET /v1/admin/health` 返回完整检查详情（8 项），见 `SERVICE/ADMIN_WEB/API.md` §6.1。
 
 ---
 
-## §9 豆瓣集成
+## §9 活动日志
 
-### GET /v1/integrations/douban/fetch/ratings
+### GET /v1/activity-log
+
+获取近期活动日志（系统事件 + 用户操作）。
+
+**查询参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `limit` | number | 否 | 返回条数（1-50，默认 20） |
+
+**响应**：`200 OK`
+
+```json
+{
+  "entries": [
+    {
+      "ts": "2026-04-26T10:30:00.000Z",
+      "type": "user_action",
+      "message": "「电影名称」已标记为已看"
+    }
+  ]
+}
+```
+
+---
+
+## §10 空间统计
+
+### GET /v1/space-stats
+
+计算媒体库空间的统计信息（基于 library.json + tasks 状态 + config）。
+
+**查询参数**：无
+
+**响应**：`200 OK`
+
+```json
+{
+  "totalSizeBytes": 500000000000,
+  "managedSizeBytes": 350000000000,
+  "activeTaskBytes": 50000000000,
+  "potentialSavingsBytes": 150000000000
+}
+```
+
+> 具体字段由 `spaceStats.computeSpaceStats()` 计算。
+
+---
+
+## §11 豆瓣集成
+
+### 11.1 GET /v1/integrations/douban/fetch/ratings
 
 触发豆瓣评分同步（按子库）。由 admin_web 豆瓣管理页调用。
 
@@ -967,7 +1231,47 @@ desktop 轮询任务状态（间隔 400ms）。
 
 ---
 
-## §10 Admin 端点
+### 11.2 GET /v1/integrations/douban/session — 获取豆瓣会话
+
+获取当前豆瓣登录会话（cookie + userId）。
+
+**响应**：`200 OK`
+
+```json
+{
+  "cookieHeader": "********",
+  "userId": "1234567",
+  "interestsRssUrl": "https://www.douban.com/feed/people/..."
+}
+```
+
+> `cookieHeader` 返回脱敏值。
+
+---
+
+### 11.3 PUT /v1/integrations/douban/session — 保存豆瓣会话
+
+保存豆瓣登录凭证。
+
+**请求体**：
+
+```json
+{
+  "cookieHeader": "dbcl2=...; ck=...",
+  "userId": "1234567",
+  "interestsRssUrl": "https://www.douban.com/feed/people/1234567/interests"
+}
+```
+
+**响应**：`200 OK` — 返回保存后的会话对象（`cookieHeader` 脱敏）。
+
+**行为**：
+- 持久化到 `data/douban-session.json`
+- `interestsRssUrl` 会自动提取 `userId`（若提供了 url 但未提供 userId）
+
+---
+
+## §12 Admin 端点
 
 `/v1/admin/*` 端点域供 admin_web 调用。完整设计见 `SERVICE/ADMIN_WEB/API.md`（SSOT for admin endpoints）。
 
@@ -980,16 +1284,20 @@ desktop 轮询任务状态（间隔 400ms）。
 | | `/v1/admin/emby/config` | GET/PATCH | Emby 连接配置（已废弃） |
 | 子库管理 | `/v1/admin/sublibraries` | GET/POST | 子库列表 / 新增 |
 | | `/v1/admin/sublibraries/:uuid` | DELETE/PATCH | 删除 / 更新子库 |
+| 规则模板 | `/v1/admin/rule-templates` | GET/POST | 规则模板列表 / 创建 |
+| | `/v1/admin/rule-templates/:id` | GET/PUT/DELETE | 单个模板 CRUD |
 | 转码设置 | `/v1/admin/transcode/config` | GET/PATCH | 转码配置 |
 | | `/v1/admin/transcode/probe-devices` | GET | 探测编码设备 |
 | | `/v1/admin/transcode/device-pool` | GET | 设备池状态 |
-| 任务监控 | `/v1/admin/tasks` | GET | 全部任务列表 |
+| 洗版设置 | `/v1/admin/upgrade/config` | GET/PATCH | 洗版配置 |
+| | `/v1/admin/moviepilot/sites` | GET | MoviePilot 站点列表 |
+| 任务监控 | `/v1/admin/tasks` | GET | 全部任务列表（分页） |
 | | `/v1/admin/tasks/:id` | GET/DELETE | 任务详情 / 删除 |
-| 健康检查 | `/v1/admin/health` | GET | 服务健康详情 |
+| 健康检查 | `/v1/admin/health` | GET | 服务健康详情（8 项检查） |
 
 ---
 
-## §11 API 版本策略
+## §13 API 版本策略
 
 - **当前版本**：`v1`
 - **版本方式**：URL 路径前缀（`/v1/`）

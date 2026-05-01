@@ -472,6 +472,8 @@ function startAllSubLibraryTimers() {
   for (const sl of cfg.subLibraries || []) {
     if (sl.enabled !== false) {
       startSubLibraryTimers(sl);
+      // Kick off an immediate refresh so mediaLib doesn't stay stale until the first timer fires
+      refreshSubLibrary(sl).catch((e) => console.error('[mediaLibrary] startup refresh error:', e));
     }
   }
   // Self-computation: recompute derived fields every 10 min

@@ -1,6 +1,6 @@
 # DESIGN_DESKTOP/CONNECTION — service 连接管理
 
-> 状态：v2 编写中
+> 状态：v4
 > SSOT：本文是 desktop 连接 service 的地址解析、健康检查和连接门禁行为的唯一事实来源
 
 ---
@@ -31,22 +31,23 @@ CONNECTION **不负责**：
 ┌──────────────────────────────────────────────┐
 │ 主进程 (electron/shelfdeckConnection.js)      │
 │                                              │
-│ - 读取连接文件（tray 写入的 connection.json）   │
+│ - 读取连接文件（connection.json）[deprecated]   │
 │ - 读取环境变量（MEDIA_SERVICE_URL 等）         │
-│ - 解析优先级链：env > store > file > default  │
+│ - 读取 electron-store（desktop-settings）     │
+│ - 解析优先级链：env > file > vite > default   │
 │ - 通过 IPC 向渲染进程提供 getEffective()       │
 │ - 监听连接文件变更 → 广播 cp:updated           │
 │                                              │
 │ 职责：连接地址的 SSOT 解析                      │
 └──────────────────────────────────────────────┘
         │ contextBridge (preload.js)
-        │ window.shelfdeckMedia.getEffective()
-        │ window.shelfdeckMedia.onConnectionUpdated()
+        │ window.embyApi.getEffectiveConnection()
+        │ window.embyApi.onConnectionUpdated()
         ▼
 ┌──────────────────────────────────────────────┐
 │ 渲染进程 (src/connection/)                    │
 │                                              │
-│ - baseUrl.ts：封装 getEffective() 为同步读    │
+│ - baseUrl.ts：封装 getEffectiveConnection()   │
 │ - health.ts：定时轮询 GET /v1/health          │
 │ - ConnectionGate.tsx：连接门禁 UI 组件         │
 │                                              │
@@ -69,12 +70,14 @@ CONNECTION **不负责**：
 ```
 1. env (MEDIA_SERVICE_URL / CONTROL_PLANE_URL)
      ↓ 未设置
-2. electron-store (shelfdeck.mediaService.baseUrl)
+2. file (connection.json) [deprecated — 仍存在于代码中，计划移除]
      ↓ 未设置
 3. Vite env (VITE_MEDIA_SERVICE_URL / VITE_CONTROL_PLANE_URL)
      ↓ 仅开发模式生效
 4. default (http://127.0.0.1:18080)
 ```
+
+> **注意**：`connection.json`（位于 `%APPDATA%/ShelfDeck/connection.json`）是旧 tray companion 写入的连接文件，已标记为 deprecated。当前 desktop 的持久化连接配置存储在 electron-store 中。但 `shelfdeckConnection.js` 的初始解析链仍包含 `connection.json` 作为第二优先级（向后兼容）。未来版本应移除此来源。
 
 ### 3.2 解析规则
 
@@ -82,8 +85,7 @@ CONNECTION **不负责**：
 |------|-------------------|------|
 | env | `MEDIA_SERVICE_URL` / `CONTROL_PLANE_URL` | 最高优先级；两个变量为同义词 |
 | env | `MEDIA_SERVICE_API_KEY` / `CONTROL_PLANE_API_KEY` | API Key（与 URL 配对） |
-| store | `shelfdeck.mediaService.baseUrl` | electron-store 持久化（用户通过设置面板配置） |
-| store | `shelfdeck.mediaService.apiKey` | electron-store 持久化 |
+| file [deprecated] | `%APPDATA%/ShelfDeck/connection.json` | 旧 tray companion 写入的连接文件 |
 | vite | `VITE_MEDIA_SERVICE_URL` / `VITE_CONTROL_PLANE_URL` | Vite 环境变量（仅开发模式） |
 | default | `http://127.0.0.1:18080` | 兜底值 |
 
@@ -91,8 +93,10 @@ CONNECTION **不负责**：
 
 API Key 始终跟随 baseUrl 来源：
 - 如果 baseUrl 来自 env，apiKey 也优先从 env 取
-- 如果 baseUrl 来自 store，apiKey 优先从 store 取
-- env 中的 API Key 可以覆盖 store 中的值
+- 如果 baseUrl 来自 file [deprecated]，apiKey 优先从 file 取（但 env 中的 API Key 可覆盖 file 中的值）
+- 如果 baseUrl 来自 default，apiKey 为空
+
+**运行时更新**：当用户在 SettingsPanel 中修改 service 地址并保存时，数据写入 electron-store，触发 `cp:updated` 广播。此时 preload.js 通过 `connection:get` IPC 从 electron-store 重新读取连接信息。
 
 ### 3.4 接口
 
@@ -104,13 +108,19 @@ function resolveEffectiveConnection(env?): {
   source: 'env' | 'file' | 'vite' | 'default'
 }
 
-// 渲染进程侧 (src/connection/baseUrl.ts)
-// 通过 preload 暴露的 window.shelfdeckMedia 获取
+// 渲染进程侧 — 通过 window.embyApi 获取
+window.embyApi.getEffectiveConnection(): {
+  baseUrl: string
+  apiKey: string
+  source?: string
+}
+
+// 渲染进程封装 (src/connection/baseUrl.ts)
 function getBaseUrl(): string     // 已 strip 尾部斜杠
 function getApiKey(): string      // 可能为空字符串
 
 // 变更订阅
-function onConnectionUpdated(cb: () => void): () => void  // 返回取消订阅函数
+window.embyApi.onConnectionUpdated(cb: () => void): () => void  // 返回取消订阅函数
 ```
 
 ---
@@ -121,30 +131,33 @@ function onConnectionUpdated(cb: () => void): () => void  // 返回取消订阅�
 
 ```
 GET /v1/health
-  → 200 { status: "ok" | "yellow" | "red" }
+  → 200 { status: "green" | "yellow" | "red" }
   → 非 200 或网络错误 → unhealthy
 ```
 
-健康判断：HTTP 200 且 `body.status === 'ok'` 为 healthy；其他为 unhealthy。
+健康判断：HTTP 200 且 `body.status === 'green' || body.status === 'yellow'` 为 healthy；其他为 unhealthy。
 
 ### 4.2 检查策略
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
 | 间隔 | 5s | 与 service 调度间隔一致 |
-| 超时 | 3s | fetch 超时（通过 AbortController） |
-| 初始状态 | unhealthy | 首次检查完成前假设不可达 |
+| 超时 | 3s | HTTP 请求超时（通过 http.request timeout） |
+| 初始状态 | checking → unhealthy | 首次检查完成前显示"正在连接..." |
 
 ### 4.3 接口
 
 ```typescript
+// preload.js 暴露: window.mediaService.checkHealth()
+// 使用 Node http 模块（绕过浏览器 CORS）
+
 // src/connection/health.ts
 function checkHealth(): Promise<boolean>
 ```
 
 ### 4.4 实现要点
 
-- 渲染进程优先使用 `window.mediaService.checkHealth()`（通过 preload 桥接，可复用 HTTP 连接）
+- 渲染进程使用 `window.mediaService.checkHealth()`（通过 preload 桥接，使用 Node.js `http` 模块，绕过浏览器 CORS 限制）
 - 降级方案：渲染进程直接 `fetch()`（Vite 开发模式下 preload 不可用时）
 - 不做退避（exponential backoff）：固定 5s 间隔足够；service 恢复后最多 5s 即可检测到
 
@@ -155,29 +168,41 @@ function checkHealth(): Promise<boolean>
 ### 5.1 门禁逻辑
 
 ```
-ConnectionGate 组件
+ConnectionGate 组件（内部管理健康轮询）
+    │
+    ├── checking ──→ 显示"正在连接媒体管理服务..."
     │
     ├── healthy ──→ 渲染 children（正常页面）
     │
     └── unhealthy ──→ 显示引导界面：
-          ├── service 未运行提示
-          ├── "启动 ShelfDeck 小助手" 引导
-          └── 手动配置连接地址入口
+          ├── "媒体管理服务未连接" 标题
+          ├── "无法连接媒体管理服务。请确认服务已启动，或手动配置服务地址。"
+          └── "打开设置" 按钮 → 打开 SettingsPanel
 ```
 
 ### 5.2 组件接口
 
 ```typescript
 // src/connection/ConnectionGate.tsx
-function ConnectionGate({ children }: { children: ReactNode }): JSX.Element
+function ConnectionGate({
+  children,
+  onSettingsOpen,
+}: {
+  children: ReactNode;
+  onSettingsOpen: () => void;
+}): JSX.Element
 ```
+
+**注意**：ConnectionGate 不接收 `healthy` prop。它内部通过 `useEffect` + `setInterval(checkHealth, 5000)` 自行管理健康状态。这是 v4 的关键变化：健康检查不再从 App 组件传入。
 
 ### 5.3 引导界面内容
 
-- 图标 + "媒体管理服务未连接" 标题
-- 说明文字："请确保 ShelfDeck 小助手（托盘）正在运行，或手动配置服务地址"
+- "媒体管理服务未连接" 标题
+- 说明文字："无法连接媒体管理服务。请确认服务已启动，或手动配置服务地址。"
 - "打开设置" 按钮 → 打开 SettingsPanel
-- 健康状态指示器（检查中 / 已连接 / 未连接）
+- 连接中状态："正在连接媒体管理服务..."
+
+> v2 文档中"请确保 ShelfDeck 小助手（托盘）正在运行"的文案已被移除。tray 目前已嵌入 service 进程，不再作为独立进程存在。引导文案聚焦于"确认服务已启动"。
 
 ---
 
@@ -185,14 +210,13 @@ function ConnectionGate({ children }: { children: ReactNode }): JSX.Element
 
 ### 6.1 触发条件
 
-- 用户在设置面板中修改 service URL 或 API Key → electron-store 更新
-- tray 写入新的 connection.json → 主进程 fs.watch 检测到变更
-- 环境变量变化（进程启动后不变，仅在启动时生效）
+- 用户在设置面板中修改 service URL 或 API Key → electron-store 更新 → 主进程广播 `cp:updated`
+- `connection.json` 文件变更 [deprecated] → 主进程 fs.watch 检测到变更 → 200ms 防抖后广播 `cp:updated`
 
 ### 6.2 通知链路
 
 ```
-store.set() 或 connection.json 变更
+store.set() (或 connection.json 变更 [deprecated])
     │
     ▼
 主进程 → broadcastConnectionUpdated()
@@ -201,11 +225,17 @@ store.set() 或 connection.json 变更
 webContents.send('cp:updated')
     │
     ▼
-preload.js → ipcRenderer.on('cp:updated') → 回调渲染进程 listener
+preload.js → ipcRenderer.on('cp:updated') → refreshEffectiveCp()
+    │ 调用 connection:get IPC → 从 electron-store 读取最新连接信息
     │
     ▼
-ConnectionGate 重新检查健康状态
+更新 effectiveCp 对象（baseUrl, apiKey, source）
+    │
+    ▼
+回调渲染进程 listener → ConnectionGate 重新检查健康状态
 ```
+
+**关键细节**：`cp:updated` 触发后，preload.js 的 `refreshEffectiveCp()` 通过 `connection:get` IPC 从 electron-store 读取连接信息（不再从 `connection.json` 或环境变量重新解析）。这意味着用户通过 SettingsPanel 保存的连接地址会立即生效，而 env 和 file 来源仅在初始启动时参与解析。
 
 ### 6.3 防抖
 
@@ -237,8 +267,9 @@ ConnectionGate 自动切换为正常页面
 ### 7.3 轮询恢复
 
 连接恢复后，以下轮询自动恢复：
-- 任务进度轮询（如果任务中心页正在展示）
-- 健康检查轮询（始终运行）
+- App 全局任务轮询（400ms）
+- FloatingTaskButton 独立任务轮询（400ms）
+- 健康检查轮询（始终运行，ConnectionGate 内部）
 
 ---
 
@@ -246,20 +277,23 @@ ConnectionGate 自动切换为正常页面
 
 - SETTINGS 模块负责**持久化** service 地址（electron-store 写入）
 - CONNECTION 模块负责**解析** service 地址（从 store 读取 + env 覆盖）
-- CONNECTION 的解析链包含 electron-store，所以依赖 SETTINGS 模块的存储
+- CONNECTION 的解析链包含 electron-store（通过 `connection:get` IPC），依赖 SETTINGS 模块的存储
 - SETTINGS 模块的 SettingsPanel 修改地址后，CONNECTION 模块通过 `cp:updated` 事件感知变更
 
 ```
 用户修改地址
     │
     ▼
-SETTINGS: shelfdeckSettings.set('serviceUrl', newUrl)
+SETTINGS: window.embyApi.saveSetting('shelfdeck.mediaService.baseUrl', newUrl)
     │ store.set()
     ▼
 主进程: broadcastConnectionUpdated()
     │ webContents.send('cp:updated')
     ▼
-CONNECTION: 重新解析 baseUrl → 触发健康检查
+CONNECTION: preload refreshEffectiveCp() → 从 electron-store 重新读取 → 回调渲染进程
+    │
+    ▼
+ConnectionGate 触发健康检查
 ```
 
 ---

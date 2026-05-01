@@ -1,7 +1,7 @@
 # DESIGN_SERVICE/DELETE_FLOW — DeleteFlowExecutor
 
-> 状态：v2 重写中
-> 基准架构：Phase 3，基于双向 API 通信模型重写
+> 状态：v4
+> 基准架构：Phase 4，基于双向 API 通信模型
 > SSOT：本文是 DeleteFlowExecutor 可执行行为的唯一事实来源
 
 ---
@@ -12,11 +12,18 @@ DeleteFlowExecutor 负责执行删除任务的可执行行为。
 
 **依赖**：`embyService`、`taskStore`、`configStore`
 
+**内部辅助函数**：
+- `appendLog(taskId, level, msg)` — 写入结构化日志到 task（追加到 `task.logs[]`）
+- `setPhase(taskId, phase)` — 更新 task.phase
+- `getServerConfig(task)` — 从 task 解析 Emby server 配置（优先 subLibrary 关联的 server，fallback 到第一个 server）
+
 ---
 
 ## §2 FlowExecutor API 实现
 
-### 2.1 drive(resumePoint)
+### 2.1 driveTask(taskId)
+
+入口函数。从 task 读取 `resumePoint`，路由到对应阶段。代码中存在的 `drive(resumePoint)` 未导出，实际调度器调用的是导出的 `driveTask(taskId)`。
 
 | resumePoint | 行为 |
 |---|---|
@@ -39,45 +46,54 @@ DeleteFlowExecutor 负责执行删除任务的可执行行为。
 
 ### 2.4 confirmReceived()
 
-用户点了确认，从 `awaiting_user_confirm` 阶段恢复，继续执行。
+用户点了确认，从 `awaiting_user_confirm` 阶段恢复。调度器以 `resumePoint='delete_executing'` 重新入队。
 
 ### 2.5 reportStatus(status)
 
 | status | 触发时机 |
 |---|---|
 | `executing` | 进入 executing 阶段 |
-| `done` | 双重校验全部通过 |
-| `failed_hard` | 任意校验失败 |
+| `done` | 预检阶段项目已不存在，或 verify 通过（Emby 404 确认删除成功） |
+| `failed_hard` | Emby server 未配置、预检失败、删除失败（非 404）、verify 失败（项目仍存在） |
 
 ---
 
 ## §3 Flow 阶段定义
 
 ```
-drive('delete_precheck')
+driveTask(taskId) → resumePoint === 'delete_precheck'
     ↓
-precheck：
+precheck (runPrecheck)：
+    → setPhase('precheck')
     → embyService.getItemDeleteInfo() 获取删除信息
-      - 失败 → reportStatus('failed_hard')
+      - 返回 null/falsy → 项目已不存在 → reportStatus('done', 100) → 结束
+      - 异常 → reportStatus('failed_hard')
     → embyService.libraryItemExists() 检查是否还存在
-      - 不存在 → reportStatus('done') → 结束
-      - 存在 → scheduler.pauseForConfirm('delete_executing')
+      - 不存在 → reportStatus('done', 100) → 结束
+      - 存在 → 存储 itemInfo（name, path, originalSizeBytes）
+        → scheduler.pauseForConfirm('delete_executing')
         → status = awaiting_user_confirm，停住
 
-confirmReceived() 被调用
+confirm API 触发 → 调度器以 resumePoint='delete_executing' 重新入队
     ↓
-executing：
+executing (runExecuting)：
+    → setPhase('executing')
     → reportStatus('executing')
-    → embyService.deleteLibraryItem()（fire-and-forget，不等 Emby 返回）
+    → await embyService.deleteLibraryItem()（等待 Emby 响应）
+      - 正常返回 → 继续 verify
+      - 异常且含 404 → 视为幂等成功（项目已被其他方式删除），继续 verify
+      - 其他异常 → reportStatus('failed_hard')
 
-verify（双重校验）：
-    → 第一层：embyService.libraryItemExists() 查询 Emby 404
+verify (runVerify)：
+    → setPhase('verify')
+    → embyService.libraryItemExists() 查询 Emby 404
       - 仍存在 → reportStatus('failed_hard')
-    → 第二层：文件系统验证
-      - 基于路径映射查本地文件是否真实删除
-      - 文件仍存在 → reportStatus('failed_hard')
-      - 全部通过 → reportStatus('done')
+      - 不存在/请求报错（预期的 404） → 视为验证通过
+    → reportStatus('done', 100)
+    → setPhase('done')
 ```
+
+**注意**：verify 仅通过 Emby API 检查。不存在本地文件系统验证层。
 
 ---
 
@@ -87,7 +103,7 @@ verify（双重校验）：
 |---|---|
 | `precheck` | 检查媒体项是否存在，获取删除信息 |
 | `executing` | 执行 Emby 删除请求 |
-| `verify` | 双重校验（Emby 404 + 文件系统） |
+| `verify` | Emby 404 校验（确认删除生效） |
 | `done` | 删除成功完成 |
 | `failed_hard` | 删除失败（硬失败） |
 
@@ -97,10 +113,14 @@ verify（双重校验）：
 
 | 场景 | 行为 |
 |---|---|
-| `getItemDeleteInfo()` 失败 | `reportStatus('failed_hard')` |
+| Emby server 未配置 | `reportStatus('failed_hard')` |
+| `getItemDeleteInfo()` 返回 null/falsy | `reportStatus('done')`（视为已删除） |
+| `getItemDeleteInfo()` 异常 | `reportStatus('failed_hard')` |
 | `libraryItemExists()` 返回 false（precheck 阶段） | `reportStatus('done')`（视为已删除） |
+| `deleteLibraryItem()` 失败（非 404） | `reportStatus('failed_hard')` |
+| `deleteLibraryItem()` 返回 404 | 视为幂等成功，继续 verify |
 | `libraryItemExists()` 返回 true（verify 阶段） | `reportStatus('failed_hard')` |
-| 文件系统验证失败 | `reportStatus('failed_hard')` |
+| `libraryItemExists()` 异常（verify 阶段） | 视为验证通过（已删除的项目预期返回 404 错误） |
 
 ---
 

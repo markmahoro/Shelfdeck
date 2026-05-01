@@ -2,6 +2,7 @@
  * [UI] 媒体库管理页面。
  *
  * 全量媒体库表格、筛选、批量操作。策略计算结果由 service 返回。
+ * 与 admin-web MediaManagePage 结构/功能一致。
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -9,9 +10,6 @@ import { apiClient, ApiConflictError } from '../api/client';
 import { MediaLibraryManageRow } from '../components/MediaLibraryManageRow';
 import type { MediaTask } from '../models/task';
 import type { ManagedMediaItem, MediaAction, MediaRating } from '../models/media';
-
-// 临时默认策略 — 仅用于按钮显示判断（item.recommendedAction 由 service 返回）
-const NOOP_POLICY = { target1080p: { 2: 2, 3: 4, 4: 7, 5: 12 }, target4k: { 2: 5, 3: 10, 4: 16, 5: 25 } };
 
 export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaTask[]; subLibraryId: string }) {
   const [items, setItems] = useState<ManagedMediaItem[]>([]);
@@ -24,7 +22,11 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
   const [codecFilter, setCodecFilter] = useState<string>('all');
   const [watchedFilter, setWatchedFilter] = useState<string>('all');
   const [bluRayFilter, setBluRayFilter] = useState<string>('all');
-  const [deleteExplainOpen, setDeleteExplainOpen] = useState(false);
+  const [doubanFilter, setDoubanFilter] = useState<string>('all');
+  const [localRatingFilter, setLocalRatingFilter] = useState<string>('all');
+  const [taskFilter, setTaskFilter] = useState<string>('all');
+  const [strategyMsg, setStrategyMsg] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -44,12 +46,9 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
         setError(`加载媒体库失败：${e.message}`);
         setLoading(false);
       });
-    return () => {
-      active = false;
-    };
-  }, [subLibraryId]);
+    return () => { active = false; };
+  }, [subLibraryId, refreshKey]);
 
-  // 筛选（actionFilter 按 service 返回的 recommendedAction 过滤，客户端不计算策略）
   const filtered = useMemo(() => {
     let rows = items;
     if (searchQuery.trim()) {
@@ -73,8 +72,23 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
       const isDisc = bluRayFilter === 'disc';
       rows = rows.filter((it) => it.isBluRayDisc === isDisc);
     }
+    if (doubanFilter !== 'all') {
+      if (doubanFilter === 'none') rows = rows.filter((it) => it.doubanStars == null);
+      else rows = rows.filter((it) => it.doubanStars === Number(doubanFilter));
+    }
+    if (localRatingFilter !== 'all') {
+      if (localRatingFilter === 'none') rows = rows.filter((it) => it.rating == null);
+      else rows = rows.filter((it) => it.rating === Number(localRatingFilter));
+    }
+    if (taskFilter === 'active') {
+      const activeIds = new Set(tasks.filter((t) => !['done', 'failed_hard'].includes(t.status)).map((t) => t.itemId));
+      rows = rows.filter((it) => activeIds.has(it.id));
+    } else if (taskFilter === 'none') {
+      const activeIds = new Set(tasks.filter((t) => !['done', 'failed_hard'].includes(t.status)).map((t) => t.itemId));
+      rows = rows.filter((it) => !activeIds.has(it.id));
+    }
     return rows;
-  }, [items, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter]);
+  }, [items, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, tasks]);
 
   const enqueueManagedAction = (item: ManagedMediaItem, action: MediaAction) => {
     if (item.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) return;
@@ -85,7 +99,6 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
   };
 
   if (loading) return <div className="page"><p>加载媒体库数据...</p></div>;
-  if (error) return <div className="page"><p className="error">{error}</p></div>;
 
   return (
     <div className="page">
@@ -109,58 +122,121 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
             </button>
           )}
         </div>
-        <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-          <option value="all">全部操作</option>
-          <option value="transcode">码率压缩</option>
-          <option value="upgrade">洗版</option>
-          <option value="keep">已达标</option>
-          <option value="delete">删除档</option>
-        </select>
-        <select value={resolutionFilter} onChange={(e) => setResolutionFilter(e.target.value)}>
-          <option value="all">全部分辨率</option>
-          <option value="1080p">1080p</option>
-          <option value="4K">4K</option>
-        </select>
-        <select value={codecFilter} onChange={(e) => setCodecFilter(e.target.value)}>
-          <option value="all">全部编码</option>
-          <option value="h264">H.264</option>
-          <option value="h265">H.265</option>
-          <option value="av1">AV1</option>
-        </select>
-        <select value={watchedFilter} onChange={(e) => setWatchedFilter(e.target.value)}>
-          <option value="all">全部观看</option>
-          <option value="watched">已观看</option>
-          <option value="unwatched">未观看</option>
-        </select>
-        <select value={bluRayFilter} onChange={(e) => setBluRayFilter(e.target.value)}>
-          <option value="all">全部</option>
-          <option value="disc">原盘</option>
-          <option value="not_disc">非原盘</option>
-        </select>
+        <div className="filterRow">
+          <span className="filterLabel">建议策略</span>
+          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="transcode">码率压缩</option>
+            <option value="upgrade">洗版</option>
+            <option value="keep">无建议策略</option>
+            <option value="delete">删除档</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">分辨率</span>
+          <select value={resolutionFilter} onChange={(e) => setResolutionFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="1080p">1080p</option>
+            <option value="4K">4K</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">编码</span>
+          <select value={codecFilter} onChange={(e) => setCodecFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="h264">H.264</option>
+            <option value="h265">H.265</option>
+            <option value="av1">AV1</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">标记已看</span>
+          <select value={watchedFilter} onChange={(e) => setWatchedFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="watched">已观看</option>
+            <option value="unwatched">未观看</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">原盘</span>
+          <select value={bluRayFilter} onChange={(e) => setBluRayFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="disc">原盘</option>
+            <option value="not_disc">非原盘</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">豆瓣评分</span>
+          <select value={doubanFilter} onChange={(e) => setDoubanFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="5">5 星</option>
+            <option value="4">4 星</option>
+            <option value="3">3 星</option>
+            <option value="2">2 星</option>
+            <option value="1">1 星</option>
+            <option value="none">未抓取</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">本地评分</span>
+          <select value={localRatingFilter} onChange={(e) => setLocalRatingFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="5">5 星</option>
+            <option value="4">4 星</option>
+            <option value="3">3 星</option>
+            <option value="2">2 星</option>
+            <option value="1">1 星</option>
+            <option value="none">未标注</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">任务</span>
+          <select value={taskFilter} onChange={(e) => setTaskFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="active">进行中</option>
+            <option value="none">无任务</option>
+          </select>
+        </div>
 
-        {(searchQuery || actionFilter !== 'all' || resolutionFilter !== 'all' || codecFilter !== 'all' || watchedFilter !== 'all' || bluRayFilter !== 'all') && (
-          <button
-            className="sidebarFilterReset"
-            type="button"
-            onClick={() => {
-              setSearchQuery('');
-              setActionFilter('all');
-              setResolutionFilter('all');
-              setCodecFilter('all');
-              setWatchedFilter('all');
-              setBluRayFilter('all');
-            }}
-          >
-            清除筛选
-          </button>
-        )}
+        <button
+          className="sidebarFilterReset"
+          type="button"
+          onClick={() => {
+            setSearchQuery('');
+            setActionFilter('all');
+            setResolutionFilter('all');
+            setCodecFilter('all');
+            setWatchedFilter('all');
+            setBluRayFilter('all');
+            setDoubanFilter('all');
+            setLocalRatingFilter('all');
+            setTaskFilter('all');
+          }}
+        >
+          清除筛选
+        </button>
+
+        <button
+          type="button"
+          style={{ background: '#1e293b', border: '1px solid #334155', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 13, marginTop: 12, color: '#e2e8f0' }}
+          onClick={async () => {
+            setStrategyMsg('重算中...');
+            try {
+              const res = await apiClient.recomputeStrategy();
+              setStrategyMsg(`策略重算完成：${res.changed} 条变更`);
+              setRefreshKey(k => k + 1);
+            } catch (e: any) {
+              setStrategyMsg(`重算失败：${e.message}`);
+            }
+          }}
+        >
+          刷新媒体库管理策略
+        </button>
+        {strategyMsg && <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 8 }}>{strategyMsg}</span>}
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => setSelectedIds(new Set(filtered.map((it) => it.id)))}
-          >
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          <button type="button" onClick={() => setSelectedIds(new Set(filtered.map((it) => it.id)))}>
             全选
           </button>
           <button
@@ -170,83 +246,96 @@ export default function MediaManagePage({ tasks, subLibraryId }: { tasks: MediaT
           >
             取消全选
           </button>
-          <button
-            type="button"
-            disabled={selectedIds.size === 0}
-            onClick={() => {
-              for (const it of filtered) {
-                if (selectedIds.has(it.id)) {
-                  const action = it.recommendedAction ?? 'keep';
-                  if (action !== 'keep') enqueueManagedAction(it, action);
-                }
-              }
-            }}
-          >
-            批量入队
-          </button>
         </div>
-        <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+        <button
+          type="button"
+          className="batchRunBtn"
+          disabled={selectedIds.size === 0}
+          onClick={() => {
+            for (const it of filtered) {
+              if (selectedIds.has(it.id)) {
+                const action = it.recommendedAction ?? 'keep';
+                if (action !== 'keep') enqueueManagedAction(it, action);
+              }
+            }
+          }}
+        >
+          批量执行策略
+        </button>
+        <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>
           已选 {selectedIds.size} / {filtered.length} 条
         </p>
       </div>
       <div className="pageMain">
         <div className="pageMainInner">
-        {filtered.length === 0 ? (
-          <p>暂未获取到媒体库数据。请先在管理端配置媒体库。</p>
-        ) : (
-          <div>
-            {filtered.map((item) => {
-              const rowTask = tasks.find(
-                (t) => t.itemId === item.id && !['done', 'failed_hard'].includes(t.status),
-              );
-              return (
-                <MediaLibraryManageRow
-                  key={item.id}
-                  item={item}
-                  isSelected={selectedIds.has(item.id)}
-                  isHighlighted={false}
-                  mediaPolicy={NOOP_POLICY}
-                  rowTask={rowTask}
-                  onToggleSelect={(id) => {
-                    setSelectedIds((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(id)) next.delete(id);
-                      else next.add(id);
-                      return next;
-                    });
-                  }}
-                  onWatchChange={async (it, watched) => {
-                    // Optimistic local update
-                    setItems((prev) =>
-                      prev.map((x) => (x.id === it.id ? { ...x, watched } : x)),
-                    );
-                    try {
-                      if (watched) {
-                        await apiClient.markPlayed(it.id, subLibraryId);
-                      } else {
-                        await apiClient.markUnplayed(it.id, subLibraryId);
-                      }
-                    } catch (e) {
-                      // Rollback on failure
+          {error && <p className="error">{error}</p>}
+          {filtered.length === 0 ? (
+            <p>暂未获取到媒体库数据。请先在管理端配置媒体库。</p>
+          ) : (
+            <div>
+              <div className="mediaManageGrid mediaManageHead">
+                <div className="mediaManageTitleCell">名称</div>
+                <div>体积</div>
+                <div>分辨率</div>
+                <div>编码</div>
+                <div>当前码率</div>
+                <div>目标码率</div>
+                <div>预测体积</div>
+                <div>原盘</div>
+                <div>豆瓣评分</div>
+                <div>本地评分</div>
+                <div>标记已看</div>
+                <div>建议策略</div>
+                <div>任务</div>
+              </div>
+              {filtered.map((item) => {
+                const rowTask = tasks.find(
+                  (t) => t.itemId === item.id && !['done', 'failed_hard'].includes(t.status),
+                );
+                return (
+                  <MediaLibraryManageRow
+                    key={item.id}
+                    item={item}
+                    isSelected={selectedIds.has(item.id)}
+                    isHighlighted={false}
+                    rowTask={rowTask}
+                    onToggleSelect={(id) => {
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id);
+                        else next.add(id);
+                        return next;
+                      });
+                    }}
+                    onWatchChange={async (it, watched) => {
                       setItems((prev) =>
-                        prev.map((x) => (x.id === it.id ? { ...x, watched: !watched } : x)),
+                        prev.map((x) => (x.id === it.id ? { ...x, watched } : x)),
                       );
-                      setError(`标记失败：${(e as Error).message}`);
-                    }
-                  }}
-                  onRatingChange={async (it, rating) => {
-                    await apiClient.patchItemRatings(it.id, rating);
-                    setItems((prev) =>
-                      prev.map((x) => (x.id === it.id ? { ...x, rating } : x)),
-                    );
-                  }}
-                  onEnqueue={enqueueManagedAction}
-                  onOpenDeleteExplain={() => setDeleteExplainOpen(true)}
-                />
-              );
-            })}
-          </div>
-        )}
+                      try {
+                        if (watched) {
+                          await apiClient.markPlayed(it.id, subLibraryId);
+                        } else {
+                          await apiClient.markUnplayed(it.id, subLibraryId);
+                        }
+                      } catch (e) {
+                        setItems((prev) =>
+                          prev.map((x) => (x.id === it.id ? { ...x, watched: !watched } : x)),
+                        );
+                        setError(`标记失败：${(e as Error).message}`);
+                      }
+                    }}
+                    onRatingChange={async (it, rating) => {
+                      await apiClient.patchItemRatings(it.id, rating);
+                      setItems((prev) =>
+                        prev.map((x) => (x.id === it.id ? { ...x, rating } : x)),
+                      );
+                    }}
+                    onEnqueue={enqueueManagedAction}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -261,16 +350,13 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
   const sectionId = typeof o.subLibraryId === 'string' ? o.subLibraryId : '';
   if (!id || !sectionId) return null;
 
-  // 分辨率映射: service 返回 "1920x1036" 格式的像素尺寸
   const resRaw = typeof o.resolution === 'string' ? o.resolution : '';
   const resHeight = parseInt(resRaw.split('x')[1], 10) || 0;
   const resolution = resHeight >= 2160 ? '4K' : '1080p';
 
-  // 体积: service 返回字节数
   const sizeBytes = typeof o.size === 'number' ? o.size : 0;
   const sizeGb = sizeBytes > 0 ? sizeBytes / (1024 * 1024 * 1024) : 1;
 
-  // 时长: service 返回秒数
   const durationSec = typeof o.duration === 'number' && o.duration > 0 ? o.duration : 3600;
 
   return {
@@ -286,6 +372,7 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
     rating: typeof o.userRating === 'number' ? (o.userRating as MediaRating) : null,
     doubanStars: typeof o.doubanRating === 'number' ? (o.doubanRating as MediaRating) : null,
     watched: Boolean(o.watched),
+    reason: typeof o.reason === 'string' ? o.reason : undefined,
     recommendedAction: typeof o.action === 'string' ? (o.action as MediaAction) : undefined,
     equivalentBitrate: typeof o.equivalentBitrate === 'number' ? o.equivalentBitrate : undefined,
     targetBitrate: typeof o.targetBitrate === 'number' ? o.targetBitrate : undefined,

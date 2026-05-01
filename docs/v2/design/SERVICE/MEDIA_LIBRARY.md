@@ -1,8 +1,7 @@
 # DESIGN_SERVICE/MEDIA_LIBRARY — 媒体库管理
 
-> Phase 3 为基准架构，v2 重写中。
+> Phase 4 为基准架构，v4 定稿。
 > SSOT：本文是媒体库行为、数据结构、REST API 的唯一事实来源。
-> 重构目标：代码从 `cacheStore.js`（混放 cache.json）迁移到独立的 `mediaLibraryService.js` + `library.json`。
 
 ---
 
@@ -10,54 +9,54 @@
 
 ### 1.1 表结构
 
-文件路径：`data/library.json`（由 `cache.json` 重命名而来，v2 重构目标）
+文件路径：`data/library.json`
 
 ```json
 {
   "version": 1,
   "items": [MediaItem],
-  "cachedAt": "2026-04-25T12:00:00.000Z"
+  "cachedAt": null
 }
 ```
-
-> `doubanSyncedAt` 已移至子库级（`subLibrary.doubanSyncedAt`）。
 
 **MediaItem 字段定义**：
 
 | 字段 | 类型 | 来源 | 说明 |
 |---|---|---|---|
-| `itemId` | string | 主键 | 统一标识，来源无关，可支持 Emby / 本地文件夹 / TMDB 等多来源 |
-| `subLibraryId` | string | 系统 | 所属子库 uuid（关联 `subLibraries[].uuid`） |
-| `name` | string | Emby / 文件夹扫描 | 影片名称 |
-| `path` | string | Emby / 文件夹扫描 | 媒体文件路径 |
+| `itemId` | string | 主键 | 统一标识，来源无关 |
+| `subLibraryId` | string | 系统 | 所属子库 uuid |
+| `name` | string | Emby | 影片名称 |
+| `path` | string | Emby | 媒体文件路径 |
 | `source` | string | 系统 | 来源类型：`emby` / `local` / `tmdb` |
-| `sourceId` | string | 来源系统 | 对应来源系统的主键（如 EmbyId） |
-| `type` | string | Emby / 文件夹扫描 | 媒体类型：`movie` / `series` / `episode` |
-| `bitrate` | number | Emby / 文件夹扫描 | 码率（bps） |
-| `duration` | number | Emby / 文件夹扫描 | 时长（秒） |
-| `resolution` | string | Emby / 文件夹扫描 | 分辨率，如 `3840x2160` |
-| `size` | number | Emby / 文件夹扫描 | 文件大小（字节） |
-| `codec` | string | Emby / 文件夹扫描 | 视频编码：`h264` / `h265` / `hevc` / `av1` |
-| `premiereDate` | string | Emby / 文件夹扫描 | 首播日期（ISO 8601） |
-| `genres` | string[] | Emby / 文件夹扫描 | 类型标签列表 |
+| `sourceId` | string | 来源系统 | 对应来源系统的主键 |
+| `type` | string | Emby | 媒体类型：`movie` / `series` / `episode` |
+| `bitrate` | number | Emby | 码率（bps） |
+| `duration` | number | Emby | 时长（秒） |
+| `resolution` | string | Emby | 分辨率，如 `3840x2160` |
+| `size` | number | Emby | 文件大小（字节） |
+| `codec` | string | Emby | 视频编码：`h264` / `h265` / `hevc` / `av1` |
+| `premiereDate` | string | Emby | 首播日期（ISO 8601） |
+| `genres` | string[] | Emby | 类型标签列表 |
 | `isDiscLike` | boolean | 解析 | 是否原盘（ISO/BDMV），由路径解析或 Emby 返回判定 |
-| `watched` | boolean | Emby | 是否已观看（Emby UserData.Played 缓存）；desktop "已看"操作通过单条反查 Emby 后即时更新 |
-| `doubanId` | string | 匹配结果 | 豆瓣条目 ID（由标题匹配得出，非预关联字段）；null 表示未匹配到豆瓣条目 |
+| `watched` | boolean | Emby | 是否已观看（Emby UserData.Played 缓存） |
+| `doubanId` | string | 匹配结果 | 豆瓣条目 ID（由标题匹配得出），null 表示未匹配 |
 | `doubanRating` | number | Douban | 豆瓣星级（1-5），null 表示未匹配 |
-| `doubanRatingUpdatedAt` | string | Douban | 该条目豆瓣评分最近一次更新到 library.json 的时间（ISO 8601） |
+| `doubanRatingUpdatedAt` | string | Douban | 该条目豆瓣评分最近一次更新时间（ISO 8601） |
 | `userRating` | number | Desktop | 用户星级（1-5），null 表示未评分 |
-| `userRatingUpdatedAt` | string | Desktop | 用户评分时间（ISO 8601），即 desktop 打分那一刻 |
+| `userRatingUpdatedAt` | string | Desktop | 用户评分时间（ISO 8601） |
 | `lastRefreshedAt` | string | 系统 | 最近一次 Emby 拉取更新时间（ISO 8601） |
-| `bucket` | string | Library 自算 | 分辨率分类：`1080p` / `4K`，由 `computeBucket(resolution)` 得出 |
-| `equivalentBitrate` | number | Library 自算 | 等价码率（Mbps），由 `bitrate / 10⁶` 换算 |
-| `targetBitrate` | number | Library 自算 | 目标码率（Mbps），由 `mediaPolicyService.targetMbps(item, policy)` 查表得出；null 表示无有效评分或删除档 |
-| `predictedSizeGb` | number | Library 自算 | 预测转码后体积（GB），由 `(targetBitrate × 10⁶ × duration) / (8 × 1024³)` 计算；null 表示无目标码率或缺少时长 |
+| `lastTaskDoneAt` | string | TaskScheduler | 最近一次任务完成时间（done/failed_hard），用于 48h 冷却 |
+| `bucket` | string | Library 自算 | 分辨率分类：`1080p` / `4K`，由 `recomputeAllSelfFields()` 得出 |
+| `equivalentBitrate` | number | Library 自算 | 等价码率（Mbps），由 `recomputeAllSelfFields()` 得出 |
 | `action` | string | StrategyEngine | 推荐动作：`delete` / `transcode` / `upgrade` / `keep` |
-| `reason` | string | StrategyEngine | 推荐原因，如"码率偏高" |
+| `reason` | string | StrategyEngine | 推荐原因，如"4★ 1080p 码率超标，建议压缩" |
+| `targetBitrate` | number | StrategyEngine | 目标码率（Mbps），来自匹配规则的 `actionParams.targetBitrate` |
+| `targetCodec` | string | StrategyEngine | 目标编码，来自匹配规则的 `actionParams.targetCodec` |
+| `seedPreferences` | object | StrategyEngine | 洗版种子偏好，来自匹配规则的 `actionParams.seedPreferences`（仅 upgrade） |
+| `maxSizeGB` | number | StrategyEngine | 洗版最大文件体积（GB），来自匹配规则的 `actionParams.maxSizeGB`（仅 upgrade） |
+| `predictedSizeGb` | number | StrategyEngine | 预测转码后体积（GB），由 StrategyEngine 根据 targetBitrate + duration 估算 |
 
 ### 1.1.1 数据来源分类
-
-Library 中所有字段按来源分为三类：
 
 **类别一：外部拉取**（Library 定时向外部数据源请求）
 
@@ -66,144 +65,115 @@ Library 中所有字段按来源分为三类：
 | Emby（经 `embyService`） | name, path, type, bitrate, duration, resolution, size, codec, premiereDate, genres, isDiscLike, watched | 每 1h |
 | Douban（经 `doubanService`） | doubanId, doubanRating, doubanRatingUpdatedAt | 每 6h |
 
-外部拉取流程：Library 的定时器到点 → Library 调 adapter 请求数据 → adapter 返回原始数据 → Library 执行 upsert 持久化。
+**类别二：自身计算**（`recomputeAllSelfFields()`，每 10min 全量重算）
 
-**类别二：自身计算**（Library 根据已有字段 + 用户配置推导，定时全量重算）
+| 字段 | 计算方式 |
+|---|---|
+| `bucket` | `resolutionBucket(resolution)` → `1080p` / `4K` |
+| `equivalentBitrate` | `bitrate / 1_000_000` → Mbps |
 
-| 字段 | 计算方式 | 刷新周期 |
-|---|---|---|
-| `bucket` | `computeBucket(resolution)` → `1080p` / `4K` | 每 10min |
-| `equivalentBitrate` | `bitrate / 1_000_000` → Mbps | 每 10min |
-| `targetBitrate` | `mediaPolicyService.targetMbps(item, subLibrary.mediaPolicy)` → 查策略表 | 每 10min |
-| `predictedSizeGb` | `(targetBitrate × 10⁶ × duration) / (8 × 1024³)` → GB | 每 10min |
+> `targetBitrate`、`targetCodec`、`seedPreferences`、`maxSizeGB`、`predictedSizeGb` 已迁移至 StrategyEngine 写入。`recomputeAllSelfFields()` 不再计算这些字段。
 
-自身计算流程：`recomputeAllSelfFields()` → 全量扫描 library.json → 逐条重算 → 有变化则 `saveLibrary()`。
+**类别三：策略计算**（StrategyEngine，每 30min 全量重算）
 
-> **架构约束**：自身计算字段由 Library 内部的 `recomputeAllSelfFields()` 计算并持久化，与 StrategyEngine 无关。StrategyEngine 只读 Library 数据、只写 `action` / `reason`。
+| 字段 | 计算方式 |
+|---|---|
+| `action`, `reason` | 规则模板匹配 |
+| `targetBitrate`, `targetCodec` | 匹配规则的 `actionParams` |
+| `seedPreferences`, `maxSizeGB` | 匹配规则的 `actionParams`（仅 upgrade） |
+| `predictedSizeGb` | `(targetBitrate × 10⁶ × duration) / (8 × 1024³)` |
 
-**类别三：用户输入**（用户通过 REST API 写入）
+**类别四：任务生命周期**（TaskScheduler 自动写入）
 
-| 来源 | 字段 | 写入时机 |
-|---|---|---|
-| Desktop / Admin | userRating, userRatingUpdatedAt | `PATCH /v1/library/ratings` |
-| （未来） | 备注、感想等 | — |
+| 字段 | 写入时机 |
+|---|---|
+| `lastTaskDoneAt` | 任务 done 或 failed_hard 时由 `scheduler.reportStatus()` 写入 |
 
-> **v2 结构说明**：`library.json` 根级无独立的 `doubanRatings[]` 数组；豆瓣评分数据直接存在每条 `MediaItem.doubanId` / `MediaItem.doubanRating` / `MediaItem.doubanRatingUpdatedAt` 上，与 Emby 元数据合一。
-> 豆瓣同步有两个时间戳：子库级 `subLibrary.doubanSyncedAt`（该子库最近一次同步周期完成时间），MediaItem 级 `doubanRatingUpdatedAt`（该条目豆瓣评分最近一次实际更新的时间）。
+**类别五：用户输入**（用户通过 REST API 写入）
+
+| 字段 | 写入时机 |
+|---|---|
+| `userRating`, `userRatingUpdatedAt` | `PATCH /v1/library/ratings` |
 
 ### 1.2 主键设计
 
-主键为 `itemId`（string），不绑定任何来源系统，以保证多来源扩展性：
-
+主键为 `itemId`（string），不绑定任何来源系统：
 - Emby 来源：itemId = Emby 返回的 `Id`
 - 本地文件夹来源：itemId = 文件绝对路径或哈希
 - TMDB 来源：itemId = TMDB ID
-- 其他来源：按来源系统约定
 
 ### 1.3 持久化
 
 - 文件路径：`data/library.json`
-- 写入时机：Emby 定时拉取完成后、Douban 同步完成后、用户评分写入后、Library 自算完成后、StrategyEngine 策略计算完成后
 - **写入者与字段**：
-  | 写入者 | 写入字段 |
-  |---|---|
-  | EmbyAdapter（经 MediaLibraryService.upsertItems） | name, path, type, bitrate, duration, resolution, size, codec, premiereDate, genres, isDiscLike, watched, lastRefreshedAt |
-  | DoubanAdapter（经 syncDoubanForSubLibrary） | doubanId, doubanRating, doubanRatingUpdatedAt |
-  | desktop PATCH /v1/library/ratings | userRating, userRatingUpdatedAt |
-      | Library 自算（recomputeAllSelfFields, 每 10min） | bucket, equivalentBitrate, targetBitrate, predictedSizeGb |
-      | StrategyEngine | action, reason |
-- **时间戳**：每个写入者在更新字段时设对应时间戳（`userRatingUpdatedAt` / `doubanRatingUpdatedAt` / `lastRefreshedAt`），均使用写入时刻的 `new Date().toISOString()`。SmartTaskEngine 取 `MAX(userRatingUpdatedAt, doubanRatingUpdatedAt)` 作为"评分可用时间"排序
-- 迁移注释：v1 版本使用 `data/cache.json`（`libraryItems[]` + `doubanRatings[]` 混放），v2 重构为 `library.json` 结构；v2 子库版新增 `subLibraryId` 字段关联子库，Emby 拉取链路升级为按子库独立定时
+
+| 写入者 | 写入字段 |
+|---|---|
+| EmbyAdapter（经 MediaLibraryService.upsertItems） | name, path, type, bitrate, duration, resolution, size, codec, premiereDate, genres, isDiscLike, watched, lastRefreshedAt |
+| DoubanAdapter（经 syncDoubanForSubLibrary） | doubanId, doubanRating, doubanRatingUpdatedAt（仅在匹配成功时更新；未匹配则保持旧值） |
+| desktop PATCH /v1/library/ratings | userRating, userRatingUpdatedAt |
+| Library 自算（recomputeAllSelfFields, 每 10min） | bucket, equivalentBitrate |
+| StrategyEngine | action, reason, targetBitrate, targetCodec, seedPreferences, maxSizeGB, predictedSizeGb |
+| TaskScheduler（reportStatus） | lastTaskDoneAt |
 
 ### 1.4 策略计算
 
-策略计算由 **StrategyEngine**（`SERVICE/STRATEGY_ENGINE.md`）独立负责，MediaLibraryService 不参与计算。
+策略计算由 **StrategyEngine**（`SERVICE/STRATEGY_ENGINE.md`）独立负责。采用用户可配置的**规则模板引擎**：
 
-**effectiveRating 优先级**：
-```
-effectiveRating = doubanRating ?? userRating ?? null
-```
+- 每个子库通过 `ruleTemplateId` 引用一个规则模板
+- 规则按 priority 排序，对 item 的条件组逐一匹配，last match wins
+- 匹配规则后设置 `action` / `reason` / `targetBitrate` / `targetCodec` / `seedPreferences` / `maxSizeGB` / `predictedSizeGb`
 
-**计算方式**：StrategyEngine 定时（30min）全量扫描 library.json，对每条 item 调 `mediaPolicyService.recommendedAction(item, subLibrary.mediaPolicy)`，结果写入 `action` / `reason`。全量重算，幂等，不与任何数据写入路径耦合。
-
-> **架构约束**：StrategyEngine **只写 `action` 和 `reason`**，不写 `targetBitrate`、`predictedSizeGb` 等展示字段。展示字段由 `GET /v1/library` API handler 在查询时通过 `mediaPolicyService.targetMbps()` 实时计算后附加到响应，不落盘。这样 library.json 不含冗余派生数据，策略配置变更后无需全量重算即可在下次查询时生效。
-
-`recommendedAction()` 逻辑（来自 `mediaPolicyService.js`）：
-
-| effectiveRating | 条件 | action |
-|---|---|---|
-| null | — | `keep`（原因: "无有效评分"） |
-| 1-2 | — | `delete` |
-| 3 | bitrate > target + 1 Mbps | `transcode` |
-| 3 | bitrate ≤ target + 1 Mbps | `keep` |
-| 4 | bitrate > target + 1 Mbps | `transcode` |
-| 4 | bitrate < target × 0.8 | `upgrade` |
-| 4 | 其他 | `keep` |
-| 5, 1080p | — | `upgrade` |
-| 5, 4K | bitrate < target × 0.8 | `upgrade` |
-| 5, 4K | 其他 | `keep` |
-
-> 现代编码滞留规则：3-4★ 且 codec ∈ {h265, hevc, av1} 时，即使码率超标也标 `keep`（硬件重编码无法显著减小体积）。
-
-`reason` 字段由 `mediaPolicyService` 附带中文说明文字。
+> `mediaPolicyService.recommendedAction()` 已完全废弃，仅保留 `resolutionBucket()` 工具函数。所有策略逻辑由 `strategyEngine.js` + `config.ruleTemplates` 实现。
 
 ---
 
 ## §2 模块职责
 
-### 2.1 v2 目标模块结构
-
-v2 目标：`mediaLibraryService.js` 作为纯数据协调层，策略计算和自动入队拆分为独立引擎：
+### 2.1 当前模块结构
 
 ```
 MediaLibraryService（Library — 数据 owner + 定时器总控）
     │
-    ├── 子库管理：CRUD 子库配置（增/删/查，暂停/启用）
+    ├── 子库管理：CRUD 子库配置
     ├── upsertItems()：批量写入/更新外部拉取字段，不含策略计算
     ├── updateUserRating()：写入 userRating + userRatingUpdatedAt
-    ├── recomputeAllSelfFields()：全量扫描，重算 bucket / equivalentBitrate / targetBitrate / predictedSizeGb
+    ├── recomputeAllSelfFields()：全量扫描，重算 bucket / equivalentBitrate
     ├── getLibrary()：供 REST API / StrategyEngine / SmartTaskEngine 读取
     │
-    ├── 定时器总控（startAllSubLibraryTimers）
+    ├── 定时器总控
+    │     ├── 启动立即刷新（每个 enabled 子库）→ refreshSubLibrary() → 避免启动空窗期
     │     ├── Emby 拉取（每 1h）→ EmbyAdapter.getLibraryItems() → upsertItems()
     │     ├── 豆瓣同步（每 6h）→ DoubanAdapter.syncRatings() → 匹配写入
     │     └── 自身计算（每 10min）→ recomputeAllSelfFields() → saveLibrary()
     │
     ├── EmbyAdapter（embyService.js）— 纯取数工具
-    │     └── getLibraryItems(embyServerConfig, sectionId) → 返回原始媒体数据
-    │
     └── DoubanAdapter（doubanService.js）— 纯取数工具
-          └── syncRatings() → 抓取豆瓣评分并写入 doubanRating + doubanRatingUpdatedAt
 
-StrategyEngine（独立定时 30min）
-    ├── 全量读 library.json → 逐条调 mediaPolicyService.recommendedAction() → 写回 action/reason
-    ├── 只写 action / reason，不写展示字段
+StrategyEngine（独立定时 30min）— 全量读 library.json → 规则模板匹配 → 写回策略字段
 
-SmartTaskEngine（独立定时 10min）
-    ├── 全量读 library.json → 条件判定 → taskStore.createTask()
-
-mediaPolicyService.js（纯函数）
-    ├── recommendedAction(item, policy) → { action, reason }
-    └── targetMbps(item, policy) → number | null（供 Library 自算调用）
+SmartTaskEngine（独立定时 10min）— 全量读 library.json → 条件判定 → taskStore.createTask()
 ```
 
 **设计原则**：
-1. 所有模块均为普通 Node.js 模块，被 `app.js` 或定时任务调用，无独立进程或线程
-2. **数据写入与策略计算完全解耦**：EmbyAdapter / DoubanAdapter / desktop 只写原始字段；Library 自算只写派生字段（bucket / equivalentBitrate / targetBitrate / predictedSizeGb）；StrategyEngine 只写策略字段（action / reason）。三者职责分明，互不交叉
-3. **子库级独立定时**：每个子库有独立的 Emby 拉取定时器和豆瓣同步开关；自身计算为全局定时（所有子库共享）
-4. **全量重算优于按需重算**：纯函数计算成本极低，全量重算消除了 diff 检测逻辑和模块间耦合
+1. 所有模块均为普通 Node.js 模块，无独立进程或线程
+2. **数据写入与策略计算完全解耦**：各 adapter 只写原始字段；Library 自算只写 bucket / equivalentBitrate；StrategyEngine 写策略字段
+3. **子库级独立定时**：每个子库有独立的 Emby 拉取定时器和豆瓣同步开关
+4. **全量重算优于按需重算**：纯函数计算成本极低，消除 diff 检测逻辑
 
 ### 2.2 各子模块职责边界
 
 | 模块 | 职责 |
 |---|---|
-| `mediaLibraryService.js` | 数据 owner：子库管理，定时器总控（Emby/Douban/自算），CRUD，自身计算派生字段（bucket / equivalentBitrate / targetBitrate / predictedSizeGb），不计算策略不创建任务 |
-| `embyService.js`（EmbyAdapter） | 纯取数工具：仅负责调用 Emby REST API，返回原始媒体数据；不写 library.json |
-| `doubanService.js`（DoubanAdapter） | 纯取数工具：仅负责调用豆瓣 API；不直接写 library.json（由 Library 编排写入） |
-| `mediaPolicyService.js` | 纯函数：输入 MediaItem + mediaPolicy，输出 action + reason 和 targetMbps；无副作用，被 StrategyEngine 和 Library 自算调用 |
-| `StrategyEngine` | 独立定时任务：全量计算 action / reason，写入 library.json |
-| `SmartTaskEngine` | 独立定时任务：扫描 library.json，自动创建任务送入 TaskScheduler |
+| `mediaLibraryService.js` | 数据 owner：子库管理，定时器总控，CRUD，自身计算 bucket / equivalentBitrate |
+| `embyService.js`（EmbyAdapter） | 纯取数工具：调用 Emby REST API，返回原始媒体数据 |
+| `doubanService.js`（DoubanAdapter） | 纯取数工具：调用豆瓣 API |
+| `doubanMatchService.js` | 标题关键字匹配：NFKC 规范化 + 最长键优先 |
+| `strategyEngine.js` | 独立定时任务：规则模板匹配，写 action/reason/targetBitrate/targetCodec/seedPreferences/maxSizeGB/predictedSizeGb |
+| `smartTaskEngine.js` | 独立定时任务：扫描 library.json，自动创建任务 |
 | `library.json` | 单一持久化文件；所有媒体库数据的 SSOT |
+
+> `mediaPolicyService.js` 已废弃，仅保留 `resolutionBucket()` 工具函数。
 
 ---
 
@@ -211,84 +181,45 @@ mediaPolicyService.js（纯函数）
 
 ### 3.1 Emby 定时拉取（按子库）
 
-**原则：只写元数据，不计算策略。**
-
 ```
 service 启动
     │
     └── 遍历 subLibraries[]（每个子库独立定时器）
             │
-            └── mediaLibraryService.startSubLibraryRefreshTimer(subLibrary, intervalMs = 3600000)
-                    │
-                    └── 每小时触发（仅当 subLibrary.enabled = true）：
-                        → 从 embyServers[subLibrary.embyServerId] 获取服务器配置
-                        → EmbyAdapter.getLibraryItems(serverConfig, subLibrary.sectionId)
-                        │       └── 返回该 section 的原始 Emby 媒体项列表
-                        │
-                        → 遍历 items，upsertItems() 写入 library.json
-                        │       ├── 匹配策略：按 sourceId + subLibraryId 查找已存在 item → 更新字段
-                        │       ├── 不存在 → 新增（itemId = Emby Id，subLibraryId = 当前子库 uuid）
-                        │       ├── lastRefreshedAt = now（仅本周期有变化的 item）
-                        │       └── subLibrary.lastRefreshedAt = now
-                        │
-                        → 持久化 library.json + 更新 subLibrary.lastRefreshedAt
-                        → 后续由 StrategyEngine 独立计算 action/reason
+            └── 每小时触发（仅当 subLibrary.enabled = true）：
+                → 从 embyServers[subLibrary.embyServerId] 获取服务器配置
+                → EmbyAdapter.getLibraryItems(serverConfig, subLibrary.sectionId)
+                → upsertItems() 写入 library.json
+                → subLibrary.lastRefreshedAt = now
 ```
-
-> - Emby 侧删除的 item：直接从 library.json 移除（不存在则删），不保留孤儿。
-> - 策略计算由 StrategyEngine 独立定时（30min）全量完成，本节链路不再包含 diff 检测和策略重算。
 
 ### 3.2 豆瓣定时同步（按子库）
 
-**原则：只写评分，不计算策略。**
-
-**前置说明：豆瓣评分匹配使用标题关键字匹配，而非 doubanId 预关联。** DoubanAdapter 仅拉取用户在豆瓣标记的"看过"列表（含 subjectId / title / stars），匹配在 service 侧通过 `DoubanMatchService.movieDoubanStars()` 完成。
-
-**标题匹配算法**（来自 `doubanMatchService.js`）：
-1. **豆瓣端**：将用户豆瓣"看过"列表每条的 title 按 `/` 分段 + 全串，各自 NFKC 规范化 → 生成多个 normalized key → 存入 Map（key → stars）
-2. **Emby 端**：将 Emby 影片名称按 `/`、`：`、`:`、`｜`、`|` 分段 + 全串，各自 NFKC 规范化 → 生成多个 normalized key
-3. **匹配**：Emby keys 按长度降序排列（长键优先，减少短词误匹配），依次查 Map，命中即返回 stars；均未命中 → 未匹配
+**标题匹配算法**（`doubanMatchService.js`）：
+1. 豆瓣端：title 按 `/` 分段 + 全串，NFKC 规范化 → 存入 Map（key → stars）
+2. Emby 端：影片名称按 `：` / `:` / `｜` / `|` 分段 + 全串，NFKC 规范化 → 生成 keys
+3. 匹配：Emby keys 按长度降序排列，依次查 Map，命中即返回
 
 ```
-service 启动
-    │
-    └── 遍历 subLibraries[]（每个子库独立豆瓣同步）
-            │
-            └── mediaLibraryService.startSubLibraryDoubanSyncTimer(subLibrary, intervalMs = 21600000)
-                    │
-                    └── 每6小时触发（仅当 subLibrary.doubanEnabled = true）：
-                        → DoubanAdapter.fetchRatings()
-                        │       └── 返回 [{ subjectId, title, stars }, ...]
-                        │
-                        → DoubanMatchService.buildDoubanStarsByNormalizedTitle(entries)
-                        │       └── 建立内存 Map：normalized_title_key → stars
-                        │
-                        → 遍历 library.json items（仅该 subLibrary 的 items）：
-                        │       ├── 仅 Movie 类型参与匹配
-                        │       ├── 调用 movieDoubanStars(embyName, 'Movie', byNormTitle)
-                        │       │       └── 返回 doubanStars 或 null
-                        │       ├── doubanRating 实际变化 → 更新 item.doubanRating + item.doubanRatingUpdatedAt = now
-                        │       │       变化时同步记录 item.doubanId（豆瓣 subjectId）
-                        │       └── subLibrary.doubanSyncedAt = now
-                        │
-                        → 持久化 library.json + 更新 subLibrary.doubanSyncedAt
-                        → 后续由 StrategyEngine 独立计算 action/reason
+每6小时触发（仅当 subLibrary.doubanEnabled = true）：
+    → DoubanAdapter.fetchRatings(null, { existingEntries: cachedEntries })
+    → DoubanMatchService.buildDoubanStarsByNormalizedTitle(entries)
+    → 遍历该子库 items（仅 Movie 类型）：
+        ├── 匹配成功且 stars 变化 → 更新 doubanRating + doubanRatingUpdatedAt
+        ├── 匹配成功但 stars 未变 → 跳过
+        └── 未匹配 → 保留旧值（不置 null）
+    → 持久化 library.json + 更新 subLibrary.doubanSyncedAt
 ```
+
+> 豆瓣使用持久化条目缓存（`douban-entries-cache.json`）实现增量同步。无 14 天全量刷新机制——每次同步均为增量模式。
 
 ### 3.3 用户评分写入
 
-**原则：只写评分字段，不计算策略。**
-
 ```
 desktop PATCH /v1/library/ratings
-    │
     → mediaLibraryService.updateUserRating(itemId, userRating)
-    │       ├── 按 itemId 找到 library.json 中对应条目
-    │       ├── item.userRating = userRating
-    │       ├── item.userRatingUpdatedAt = now
-    │       └── 持久化 library.json
-    │
-    └── 后续由 StrategyEngine 独立计算 action/reason
+    → item.userRating = userRating, item.userRatingUpdatedAt = now
+    → 持久化 library.json
 ```
 
 ---
@@ -296,91 +227,35 @@ desktop PATCH /v1/library/ratings
 ## §4 REST API
 
 > SSOT：`SERVICE/API.md` 定义 HTTP 路径/模型/错误码。
-> 本节为索引和语义说明，不重复 API.md 中的完整字段定义。
 
 ### 4.1 端点索引
 
 | 端点 | 方法 | 说明 |
 |---|---|---|
-| `GET /v1/library/queries/manage` | GET | 返回完整媒体库列表（含 action/reason），供 desktop 展示 |
+| `GET /v1/library` | GET | 返回媒体库数据，支持 `?subLibraryId=` 筛选 |
+| `GET /v1/library/queries/manage` | GET | 返回完整媒体库列表（含 action/reason） |
 | `GET /v1/library/items/:itemId` | GET | 返回单项媒体详情 |
 | `PATCH /v1/library/ratings` | PATCH | 写入用户评分 `{ itemId, userRating }` |
-| `POST /v1/library/actions/refresh` | POST | 手动触发指定子库的 Emby 拉取（admin 页面调用） |
-| `GET /v1/library/status` | GET | 返回各子库同步状态（lastRefreshedAt、doubanSyncedAt） |
-| `GET /v1/admin/sublibraries` | GET | 返回所有子库配置列表（admin API） |
+| `POST /v1/library/actions/refresh` | POST | 手动触发指定子库的 Emby 拉取 |
+| `POST /v1/library/actions/recompute-strategy` | POST | 手动触发策略重算 |
+| `GET /v1/library/status` | GET | 返回各子库同步状态 |
+| `GET /v1/admin/sublibraries` | GET | 返回所有子库配置列表 |
 | `POST /v1/admin/sublibraries` | POST | 新增子库（含内联 Emby 服务器注册） |
-| `DELETE /v1/admin/sublibraries/:uuid` | DELETE | 删除子库（同时清理该子库在 library.json 中的所有 items） |
-| `PATCH /v1/admin/sublibraries/:uuid` | PATCH | 更新子库（暂停/启用、修改名称、开关豆瓣同步、更新码率策略） |
+| `DELETE /v1/admin/sublibraries/:uuid` | DELETE | 删除子库 |
+| `PATCH /v1/admin/sublibraries/:uuid` | PATCH | 更新子库配置 |
 
-### 4.2 GET /v1/library/queries/manage 语义
+### 4.2 筛选与查询
 
-- **调用方**：desktop 媒体库展示页面
-- **返回数据**：所有 MediaItem，含最新 action/reason
-- **筛选参数**：`?source=emby&type=movie&action=delete&subLibraryId=xxx`（可选）
-- **认证**：同 service 其他端点（可选 X-Api-Key）
-
-### 4.3 PATCH /v1/library/ratings 语义
-
-- **调用方**：desktop 用户打分操作
-- **请求体**：`{ itemId: string, userRating: number }`
-- **响应**：`{ ok: true }`
-- **副作用**：写入 `userRating` + `userRatingUpdatedAt`；不重算策略（由 StrategyEngine 独立完成）
-  - 自动入队由 SmartTaskEngine 负责（见 `SERVICE/SMART_TASK_ENGINE.md`），MEDIA_LIBRARY 不感知
-
-### 4.4 用户配置依赖
-
-媒体库正常运行依赖以下配置。
-
-#### 4.4.1 Emby 服务器（必填，通过子库间接配置）
-
-Emby 服务器配置通过 **添加子库流程** 间接完成（见 ADMIN_WEB/PAGES.md §2.2.2）。
-
-用户执行添加子库流程时：
-1. 输入 `baseUrl` + `apiKey` → 调用 `GET /System/Info` 验证并获取 `serverName`
-2. 选择用户 → 调用 `GET /Users/Query` 获取用户列表
-3. 选择媒体文件夹 → 调用 `GET /Library/MediaFolders` 获取文件夹列表（单选）
-4. 自定义子库名称 → 完成注册
-
-> 配置入口：service Web 管理页 **媒体库 → 添加子库**
-
-#### 4.4.2 豆瓣集成（可选）
-
-豆瓣配置独立于 Emby 服务器，在**添加子库向导**最后一步中可选择是否启用该子库的豆瓣同步。
-
-| 字段 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `douban.userId` | string | `""` | 豆瓣"看过"页用户 ID（URL 中 `people/` 与 `/collect` 之间的字段） |
-| `douban.cookieHeader` | string | `""` | 豆瓣登录 Cookie（公开列表可不填；私人可见列表必填） |
-
-> 配置入口：service Web 管理页 **豆瓣集成**（全局配置，仅当 `subLibrary.doubanEnabled=true` 时生效）
-
-#### 4.4.3 策略配置（有默认值，可选）
-
-| 字段 | 类型 | 默认值 | 说明 |
-|---|---|---|---|
-| `subLibraries[].mediaPolicy.target1080p` | object | 见 CONFIG.md | 1080p 各星级目标码率（Mbps）；2★ 为删除档，目标码率仅作配置兼容占位 |
-| `subLibraries[].mediaPolicy.target4k` | object | 见 CONFIG.md | 4K 各星级目标码率（Mbps） |
-
-> 配置入口：service Web 管理页 **媒体库 → 添加子库** Step 4
-
-#### 4.4.4 定时器（暂不可配）
-
-以下间隔目前硬编码，未来可作为配置项暴露：
-
-| 字段 | 当前值 | 说明 |
-|---|---|---|
-| Emby 定时拉取间隔 | 3600000ms（1小时） | 每个子库独立定时 `startSubLibraryRefreshTimer(subLibrary)` |
-| 豆瓣定时同步间隔 | 21600000ms（6小时） | 每个子库独立定时 `startSubLibraryDoubanSyncTimer(subLibrary)` |
+- `GET /v1/library/queries/manage`：支持 `?source=&type=&action=&subLibraryId=` 筛选参数
+- `GET /v1/library`：支持 `?subLibraryId=` 参数，返回 `{ items, total }`
 
 ---
 
-### 4.5 关联文档
+## §5 关联文档
 
 - `SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` — EmbyAdapter 详细设计
 - `SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` — DoubanAdapter 详细设计
-- `SERVICE/CONFIG.md` — 配置字段定义（embyServers、subLibraries）
-- `SERVICE/ADMIN_WEB/PAGES.md` — 添加子库向导 UI
-- `SERVICE/ADMIN_WEB/API.md` — 子库管理 API
-- `SERVICE/STRATEGY_ENGINE.md` — 策略计算引擎（action/reason 的计算者）
-- `SERVICE/SMART_TASK_ENGINE.md` — 智能入队引擎（自动创建任务的消费者）
+- `SERVICE/CONFIG.md` — 配置字段定义（embyServers、subLibraries、ruleTemplates）
+- `SERVICE/STRATEGY_ENGINE.md` — 策略计算引擎
+- `SERVICE/SMART_TASK_ENGINE.md` — 智能入队引擎
 - `SERVICE/API.md` — REST 端点 SSOT

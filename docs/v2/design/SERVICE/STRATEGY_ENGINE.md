@@ -1,128 +1,106 @@
 # STRATEGY_ENGINE — 策略计算引擎
 
-> 版本：2.0
-> 状态：设计阶段，待实现
+> 版本：4.0
+> 状态：v4 定稿
 
 ---
 
 ## §1 定位
 
-StrategyEngine 是一个独立定时任务，对 library.json 全表执行策略计算，产出 `action` / `reason` 字段。
+StrategyEngine 是一个独立定时任务，对 library.json 全表执行策略计算，产出 `action` / `reason` / `targetBitrate` / `targetCodec` / `seedPreferences` / `maxSizeGB` / `predictedSizeGb` 字段。
 
-**一句话**：有评分 → 按 mediaPolicy 算策略；没评分 → 标 keep。
+**一句话**：用用户可配置的规则模板（rule template）匹配 item → 应用规则的 action/reason/params。
 
 ```
 EmbyAdapter ──→ library.json (name, bitrate, resolution, codec, watched...)
 DoubanAdapter ──→ library.json (doubanRating)
 desktop 打分 ──→ library.json (userRating)
 
-StrategyEngine ──→ 全量扫描 library.json ──→ 逐条计算 action/reason ──→ 写回
+StrategyEngine ──→ 全量扫描 library.json ──→ 逐条匹配 ruleTemplates ──→ 写回
                                                       │
-                                                      └── mediaPolicyService.recommendedAction()
+                                                      └── config.ruleTemplates (用户可配置)
 ```
 
-**核心原则**：策略计算与数据写入完全解耦。EmbyAdapter、DoubanAdapter、评分端点只写原始数据，不管策略。StrategyEngine 只读原始数据、只写策略字段，不管数据来源。
+**核心原则**：策略计算与数据写入完全解耦。EmbyAdapter、DoubanAdapter、评分端点只写原始数据，不管策略。StrategyEngine 只读原始数据 + ruleTemplates，只写策略字段，不管数据来源。
 
-### 与 v1 行为对比
+### 与 v1/v2 行为对比
 
-| | v1（当前实现） | v2（目标架构） |
+| | v1/v2（已废弃） | v4（当前） |
 |---|---|---|
-| 触发方式 | 嵌入 EmbyAdapter / DoubanAdapter / 评分端点，按 diff 触发 | 独立定时器，全量重算 |
-| 计算范围 | 仅变化条目（diff 检测） | 全表 |
-| 耦合点 | 3 个（各数据写入路径各算各的） | 0（只读 library.json + config） |
-| 扩展策略规则 | 需改 3 处 | 只改 mediaPolicyService.js |
+| 规则定义 | 硬编码 `mediaPolicyService.recommendedAction()` | 用户可配置 `ruleTemplates`（条件组 + 算子 + 优先级） |
+| 规则修改 | 改代码 | 改 config.json / admin 管理页 |
+| 评分优先 | `doubanRating` → `userRating` → `null` | 由规则条件表达（用户自行决定条件顺序） |
+| 输出字段 | `action`, `reason` | `action`, `reason`, `targetBitrate`, `targetCodec`, `seedPreferences`, `maxSizeGB`, `predictedSizeGb` |
 
 ---
 
-## §2 执行流程
+## §2 规则模板引擎
+
+### 2.1 规则结构
+
+每条规则（rule）包含：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `priority` | number | 优先级（P1→P10，从小到大），同 item 匹配多条规则时取最高优先级 |
+| `groups` | array | 条件组列表，每组含 `conditions[field, op, value]` 和 `connector` |
+| `groupsConnector` | string | 组间连接符（`and` / `or`） |
+| `action` | string | 匹配后的动作：`transcode` / `upgrade` / `delete` / `keep` |
+| `reason` | string | 中文说明，如"4★ 1080p 码率超标→建议压缩" |
+| `actionParams` | object | 动作参数：`targetBitrate`, `targetCodec`, `seedPreferences`, `maxSizeGB` |
+
+### 2.2 条件算子
+
+| 算子 | 语义 |
+|---|---|
+| `>`, `>=`, `<`, `<=` | 数值比较（null 视为 false） |
+| `=` | 严格相等 |
+| `in` | item 字段值在给定列表中 |
+| `not in` | item 字段值不在给定列表中 |
+
+### 2.3 匹配逻辑
 
 ```
-每个周期 (默认 30min):
-  lib = mediaLibraryService.getLibrary()      ← 全量读
-  cfg = configStore.loadConfig()
-  subLibs = cfg.subLibraries || []
+对每个 item:
+  subLib = 找到 item 所属子库
+  template = config.ruleTemplates 中匹配 subLib.ruleTemplateId（默认 'default'）
 
-  changed = 0
-  for each item in lib.items:
-    // 1. 找到对应子库的 mediaPolicy
-    subLib = subLibs.find(s => s.uuid === item.subLibraryId)
-    policy = subLib?.mediaPolicy || cfg.mediaPolicy
+  无 template 或 template.rules 为空 → action='keep', reason='无策略模板'
 
-    // 2. 计算策略（纯函数，无副作用）
-    if (policy) {
-      const { action, reason } = mediaPolicyService.recommendedAction(item, policy)
-      if (item.action !== action || item.reason !== reason) {
-        item.action = action
-        item.reason = reason
-        changed++
-      }
-    } else {
-      // 无 policy → 标记待配置
-      if (item.action !== 'keep' || item.reason !== '无策略配置') {
-        item.action = 'keep'
-        item.reason = '无策略配置'
-        changed++
-      }
-    }
-
-  // 3. 写盘
-  if (changed > 0) {
-    mediaLibraryService.saveLibrary(lib)
-  }
+  按 priority ASC 排序 rules
+  遍历 rules:
+    if ruleMatches(item, rule):  匹配成功（覆盖之前的结果，last match wins）
+  无匹配 → action='keep', reason='策略未覆盖'
 ```
 
-### 2.1 为什么全量重算
+### 2.4 默认模板
 
-- `mediaPolicyService.recommendedAction()` 是纯函数，内存计算，即使万条 item 也是毫秒级
-- 免去 diff 检测逻辑（当前 mediaLibraryService.upsertItems 中的 `changedItemIds` 追踪）
-- 策略规则变更后，全量重算保证所有 item 的策略与规则一致，不需要手动触发"全部重算"
-- 代码简化为一个 `for` 循环
+`configStore.buildDefaultTemplate()` 生成内置规则模板（`id: 'default'`），含 P1-P7 的基础规则，覆盖：
+- P1: 无有效评分 → keep
+- P2: 评分 1-2 → delete
+- P3-P5: 码率超标 → transcode/upgrade
+- P6: 光盘类（isDiscLike）→ keep
+- P7: catch-all → keep
 
-### 2.2 幂等性
-
-全量重算天然幂等。同一 item 用同样输入多次计算，输出相同，不会重复写盘。
+用户可通过 admin 管理页创建/编辑/删除自定义模板，替换子库的 `ruleTemplateId`。
 
 ---
 
-## §3 计算逻辑
+## §3 输出字段
 
-委托 `mediaPolicyService.recommendedAction(item, policy)`，StrategyEngine 不做任何额外计算。
+每条规则匹配后，`applyRule()` 设置以下 item 字段：
 
-**输入**：
-
-| 取自 item | 取自 policy |
-|---|---|
-| `bitrate`（bps） | `target1080p[rating]`（Mbps） |
-| `resolution`（如 `3840x2160`） | `target4k[rating]`（Mbps） |
-| `codec`（如 `h265`） | |
-| `doubanRating`（1-5 或 null） | |
-| `userRating`（1-5 或 null） | |
-
-**输出**：
-
-| 字段 | 值 |
-|---|---|
-| `action` | `delete` / `transcode` / `upgrade` / `keep` |
-| `reason` | 中文说明，如"码率 15.2 Mbps 超出 4★ 目标 10 Mbps" |
-
-**规则速查**（详见 `mediaPolicyService.js`）：
-
-| effectiveRating | 条件 | action |
+| 字段 | 规则 action | 值 |
 |---|---|---|
-| null | — | `keep`（原因: "无有效评分"） |
-| 1-2 | — | `delete` |
-| 3 | bitrate > target + 1 Mbps | `transcode` |
-| 3 | bitrate ≤ target + 1 Mbps | `keep` |
-| 4 | bitrate > target + 1 Mbps | `transcode` |
-| 4 | bitrate < target × 0.8 | `upgrade` |
-| 4 | 其他 | `keep` |
-| 5, 1080p | — | `upgrade` |
-| 5, 4K | bitrate < target × 0.8 | `upgrade` |
-| 5, 4K | 其他 | `keep` |
-
-**effectiveRating 优先级**：`doubanRating` → `userRating` → `null`
-
-**现代编码滞留规则**：3-4★ 且 codec 已是 h265/hevc/av1 时，即使码率超标也不转码（原因是硬件重编码不会显著减小体积）。
+| `action` | 任意 | 规则的 action |
+| `reason` | 任意 | 规则的 reason |
+| `targetBitrate` | transcode / upgrade | `actionParams.targetBitrate` |
+| `targetCodec` | transcode / upgrade | `actionParams.targetCodec` |
+| `seedPreferences` | upgrade | `actionParams.seedPreferences` |
+| `maxSizeGB` | upgrade | `actionParams.maxSizeGB` |
+| `predictedSizeGb` | transcode / upgrade | 根据 targetBitrate + duration 估算 |
+| `predictedSizeGb` | keep | `item.size / (1024³)` |
+| `predictedSizeGb` | delete | `undefined` |
 
 ---
 
@@ -132,17 +110,17 @@ StrategyEngine ──→ 全量扫描 library.json ──→ 逐条计算 action
 |---|---|---|
 | `strategyPollIntervalMinutes` | 30 | 轮询间隔（分钟） |
 
-- 服务启动后立即执行一次全量计算
+- 服务启动后立即执行一次全量计算（同步）
 - 之后按间隔周期执行
-- 每次执行记录 `strategyLastRunAt` 到 config
+- `lastRunAt` 为模块内存变量（`Date.now()`），不持久化到 config.json
 
 ### 4.1 与 SmartTaskEngine 的时序
 
 StrategyEngine 应在 SmartTaskEngine 之前运行，确保策略字段是最新的。
 
-**启动保障**：服务启动时 StrategyEngine 先执行一次全量（阻塞），SmartTaskEngine 在其之后启动第一轮扫描。后续各自独立周期运行，30min vs 10min 的间隔自然保证多数情况下策略先就绪。
+**启动保障**：服务启动时 StrategyEngine 先执行一次全量（同步），SmartTaskEngine 延迟 5s 后启动第一轮扫描。后续各自独立周期运行（30min vs 10min），自然保证多数情况下策略先就绪。
 
-不强行加锁同步——即使某个周期 SmartTaskEngine 读到尚未被策略引擎处理的 item（`action: 'keep', reason: '新入库'`），也只是跳过不入队，下个周期策略算好后自然会入队。
+不强行加锁同步——即使某个周期 SmartTaskEngine 读到 reason 为 `新入库` 的 item（尚未被策略引擎处理），也只是跳过不入队，下个周期策略算好后自然会入队。
 
 ---
 
@@ -151,8 +129,9 @@ StrategyEngine 应在 SmartTaskEngine 之前运行，确保策略字段是最新
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
 | `strategyPollIntervalMinutes` | number | `30` | 策略计算间隔 |
+| `ruleTemplates` | array | `[defaultTemplate]` | 规则模板列表（核心配置） |
 
-> 所有字段定义在 `data/config.json`，由 ConfigStore 管理。字段语义见 `SERVICE/CONFIG.md`。
+> 所有字段定义在 `data/config.json`，由 ConfigStore 管理。字段语义见 `SERVICE/CONFIG.md`。`mediaPolicy` 和 `mediaPolicyService.recommendedAction()` 已完全废弃，由 `ruleTemplates` 替代。
 
 ---
 
@@ -161,7 +140,12 @@ StrategyEngine 应在 SmartTaskEngine 之前运行，确保策略字段是最新
 | 读 | 写 |
 |---|---|
 | `mediaLibraryService.getLibrary()`（全表） | `item.action` |
-| `configStore.loadConfig()`（subLibraries + mediaPolicy） | `item.reason` |
+| `configStore.loadConfig()`（ruleTemplates + subLibraries） | `item.reason` |
+| | `item.targetBitrate` |
+| | `item.targetCodec` |
+| | `item.seedPreferences` |
+| | `item.maxSizeGB` |
+| | `item.predictedSizeGb` |
 
 不碰 Emby、豆瓣、MoviePilot 等外部系统。不创建/修改任务。不读取 playback-log。
 
@@ -171,5 +155,5 @@ StrategyEngine 应在 SmartTaskEngine 之前运行，确保策略字段是最新
 
 - `SERVICE/MEDIA_LIBRARY.md` — library.json 数据模型和字段定义
 - `SERVICE/SMART_TASK_ENGINE.md` — 智能入队引擎（在 StrategyEngine 之后运行）
-- `SERVICE/CONFIG.md` — 配置字段定义（mediaPolicy、策略参数）
-- `mediaPolicyService.js` — 策略规则纯函数实现（代码级 SSOT）
+- `SERVICE/CONFIG.md` — 配置字段定义（ruleTemplates、strategyPollIntervalMinutes）
+- `configStore.js` — buildDefaultTemplate() 默认规则模板实现

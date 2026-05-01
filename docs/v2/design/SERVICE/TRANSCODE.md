@@ -1,7 +1,7 @@
 # DESIGN_SERVICE/TRANSCODE — 转码执行层
 
-> 状态：v2 重写中
-> 基准架构：Phase 3，基于双向 API 通信模型重写
+> 状态：v4
+> 基准架构：Phase 4，基于双向 API 通信模型
 > SSOT：本文是 TranscodeService 可执行行为的唯一事实来源
 
 ---
@@ -41,7 +41,7 @@ DevicePool
 - 默认值：1（保守，避免系统资源被打满）
 - 典型值：1-4（根据 CPU 核心数和系统负载能力调整）
 
-**配置字段**：`transcodeMaxCpuSlots`（整数，≥ 1）
+**配置字段**：`transcodeMaxCpuSlots`（整数，>= 1）
 
 ### 2.3 CPU 参与策略
 
@@ -70,7 +70,7 @@ DevicePool
 
 ### 2.5 槽位分配
 
-TranscodeFlowExecutor 在 `executing` 阶段从 DevicePool 分配槽位，压制完成后释放。
+TranscodeFlowExecutor 在 executing 阶段通过 `acquireFirstAvailableAmong()` 从 DevicePool 分配槽位，压制完成后通过 `releaseEncodeDeviceSlot()` 释放。
 
 **槽位上限**：
 - GPU 各设备：`maxSlots` 由用户在配置中为每张显卡独立设定
@@ -89,7 +89,7 @@ TranscodeFlowExecutor 在 `executing` 阶段从 DevicePool 分配槽位，压制
 
 ## §3 核心接口
 
-### 3.1 precheck()
+### 3.1 precheck(config, sourcePath)
 
 | 检查项 | 失败行为 |
 |---|---|
@@ -97,17 +97,23 @@ TranscodeFlowExecutor 在 `executing` 阶段从 DevicePool 分配槽位，压制
 | 源文件可读 | 抛出异常 → Flow 捕获后 `failed_hard` |
 | DV 检测（libplacebo 滤镜） | 抛出异常 → Flow 捕获后 `failed_hard` |
 | FFmpeg/ffprobe 可执行性 | 抛出异常 → Flow 捕获后 `failed_hard` |
-| 预估输出体积 vs 原文件体积 | 返回预估体积，供 Flow 判断是否跳过压制 |
-| 设备池非空 | 抛出异常 → Flow 捕获后 `failed_hard` |
 
-### 3.2 startEncode(onProgress)
+返回值：`{ ok, needsDvConfirm, sourcePath, isDolbyVision, durationSec, originalSizeBytes, originalVideoCodec, originalWidth, originalHeight, originalAudioCodec, originalBitrate }`
 
-- 分配设备槽位（按 CPU 参与策略）
-- 启动 FFmpeg 压制进程
-- 通过 `onProgress` 回调报告进度（0-99）
-- 返回 `encodeJobId`
+**注意**：
+- 设备池非空检查不在 `precheck()` 中，而在 `startEncode()` 的 `acquireFirstAvailableAmong()` 中（`slots.length === 0` → 抛出异常）。
+- 预估输出体积计算未实现（无体积对比跳过压制优化）。
 
-### 3.3 probeSummary()
+### 3.2 startEncode(onProgress, params)
+
+- 分配设备槽位（按 CPU 参与策略，通过 `acquireFirstAvailableAmong()` 阻塞等待）
+- 若设备池为空（`orderedDeviceSlots.length === 0`）→ 抛出异常
+- 启动 FFmpeg 压制进程（由 `buildEncodeArgs()` 构建参数）
+- 通过 `onProgress` 回调报告进度（解析 stderr 中的 `time=` 行，按 duration 计算百分比 0-99）
+- 返回 `{ ok, encoderUsed, resolvedDeviceId }`
+- `encodeJobs` Map 追踪活跃进程（key = taskId）
+
+### 3.3 probeSummary(config, filePath)
 
 执行 ffprobe 探针，返回：
 
@@ -117,36 +123,55 @@ TranscodeFlowExecutor 在 `executing` 阶段从 DevicePool 分配槽位，压制
   "videoCodec": "hevc",
   "width": 3840,
   "height": 2160,
-  "isDolbyVision": true,
-  "hdrType": "dolby-vision"
+  "audioCodec": "eac3"
 }
 ```
 
-供 TranscodeFlowExecutor 三层 verify 使用。
+**注意**：`isDolbyVision` 和 `hdrType` 尚未实现（探针函数不返回这些字段）。
 
-### 3.4 replaceWithRetries()
+### 3.4 replaceWithRetries({ config, targetPath, partialPath })
 
-原子替换原始文件：
+原子替换原始文件（最多 3 次重试）：
 
 ```
-1. 复制 partial → .etp.new
-2. ffprobe 验证 .etp.new
+1. copyFile partial → .etp.new
+2. ffprobe 验证 .etp.new（依赖 ffprobeJson 抛异常）
 3. rename 原文件 → .etp.bak
 4. rename .etp.new → 原文件名
-5. 清理 .etp.bak（可选）
+5. 删除 partial
+6. 删除 .etp.bak
 ```
 
-重试次数：3 次。
+失败回滚：若 rename .etp.new → 目标失败，从 .etp.bak 恢复。
 
 ---
 
-## §4 内存状态
+## §4 扩展公共 API
+
+除核心 CRUD 接口外，TranscodeService 还暴露以下 API：
+
+| 函数 | 说明 |
+|---|---|
+| `extractPreviewClip(config, sourcePath, outputPath)` | 生成预览切片（默认 30s，从 25% 位置开始）。先尝试 copy 模式，失败 fallback 到软件编码 |
+| `abortTask(taskId)` | 杀死指定 task 的 FFmpeg 子进程（SIGKILL） |
+| `abortAllEncodes()` | 杀死全部活跃编码进程 |
+| `scanOrphans(tempRoot)` | 扫描临时目录中的孤儿文件（.etp.partial / .etp.new / .etp.bak） |
+| `cleanupOrphans(config)` | 启动时清理孤儿 etp-task-* 目录（先杀孤儿 ffmpeg 进程释放文件锁，再删目录） |
+| `killOrphanFfmpegProcesses()` | 通过 PowerShell 查找并杀死由 bundled ffmpeg 启动的孤儿进程 |
+| `cleanupTaskWorkdir(tempDir)` | 清理指定 task 的临时工作目录（删除所有文件 + 目录） |
+| `getDeviceSlotUsage()` | 返回各设备当前槽位占用 `{ deviceId: inUse, ... }` |
+| `probeEncodeDevices(config)` | 自检可用编码设备，返回 `{ devices: [{ stableKey, label, backend, gpuIndex }] }` |
+| `getHealth(config)` | 返回 `{ status, ffmpegOk, deviceCount, message }` — green/yellow/red |
+
+---
+
+## §5 内存状态
 
 `encodeJobs` Map：进程退出后丢失。重启后由 TaskScheduler 的 `recoverInterruptedTasks()` 降级为 `interrupted`，用户需手动重试。
 
 ---
 
-## §5 关联文档
+## §6 关联文档
 
 - `SERVICE/TRANSCODE_FLOW.md` — TranscodeFlowExecutor 的调用方式
 - `SERVICE/CONFIG.md` — 转码配置（设备优先级、CPU 策略）

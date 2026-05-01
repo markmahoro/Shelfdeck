@@ -1,6 +1,6 @@
 # DESIGN_DESKTOP/UI — UI 组件与布局
 
-> 状态：v2 编写中
+> 状态：v4
 > SSOT：本文是 desktop 渲染进程的页面结构、组件层级、状态管理方式和中文文案规范的唯一事实来源
 
 ---
@@ -17,7 +17,7 @@ UI 模块负责 desktop 的所有用户界面：
 UI 模块 **不负责**：
 - REST 调用（由 API_CLIENT 模块的 apiClient 负责）
 - 连接管理（由 CONNECTION 模块的 ConnectionGate 负责）
-- 设置持久化（由 SETTINGS 模块的 shelfdeckSettings 负责）
+- 设置持久化（由 SETTINGS 模块的 window.embyApi 负责）
 - 业务逻辑计算（由 service 负责；desktop 侧仅保留展示辅助函数）
 
 ---
@@ -28,9 +28,9 @@ UI 模块 **不负责**：
 
 | 页面 ID | 导航标签 | 说明 |
 |---------|----------|------|
-| `wall` | 海报墙 | 未观看内容浏览、评分、一键入队 |
+| `continueWatching` | 继续看 | 未观看内容浏览（海报网格）+ 最近播放记录列表 |
 | `mediaManage` | 媒体库管理 | 全量媒体库表格、批量操作、码率策略预览 |
-| `history` | 播放记录 | 已观看历史列表 |
+| `activityLog` | 实时日志 | service 端活动日志流 |
 
 > **配置管理不在 desktop**：Emby 连接、媒体策略、调度参数、转码设备池、豆瓣配置等均通过 service 内置的 admin web 管理（`http://service:18080/admin`）。
 >
@@ -41,7 +41,7 @@ UI 模块 **不负责**：
 ```
 ┌─────────────────────────────────────────────────┐
 │ TopNav                                           │
-│  [海报墙] [媒体库管理] [播放记录]          [⚙]   │
+│  [当前媒体库 ▼]    [继续看] [媒体库管理] [实时日志] [⚙] │
 ├─────────────────────────────────────────────────┤
 │                                                   │
 │  当前页面内容                                      │
@@ -54,22 +54,22 @@ UI 模块 **不负责**：
                         └──────┘  （有活跃任务时显示）
 ```
 
-- TopNav：始终可见，3 个主 tab + 设置齿轮（打开 SettingsPanel）+ 管理端链接
-- FloatingTaskButton：仅当有活跃任务时显示；点击展开任务摘要面板
-- ConnectionGate：覆盖层，仅在 service 不可达时显示
-- SettingsPanel：覆盖层，编辑 desktop 本地设置（service 地址、API Key、播放器路径、路径映射）
+- TopNav：始终可见，媒体库选择器 + 3 个主 tab + 设置齿轮（打开 SettingsPanel）
+- FloatingTaskButton：仅当有活跃任务时显示；点击展开任务摘要面板（自己独立轮询）
+- ConnectionGate：覆盖层，仅在 service 不可达时显示（内部管理健康轮询）
+- SettingsPanel：覆盖层，编辑 desktop 本地设置（service 地址、API Key、播放器路径、路径映射、媒体库目录映射）
 
 ### 2.3 页面切换
 
 不实现 URL 路由（Electron 非浏览器环境）。使用 React state 驱动页面切换：
 
 ```typescript
-const [page, setPage] = useState<AppPage>('wall');
+type AppPage = 'continueWatching' | 'mediaManage' | 'activityLog';
 
 // 渲染（3 页面，无路由库）
-{page === 'wall' && <WallPage />}
-{page === 'mediaManage' && <MediaManagePage />}
-{page === 'history' && <HistoryPage />}
+{page === 'continueWatching' && <ContinueWatchingPage tasks={tasks} subLibraryId={subLibraryId} />}
+{page === 'mediaManage' && <MediaManagePage tasks={tasks} subLibraryId={subLibraryId} />}
+{page === 'activityLog' && <ActivityLogPage />}
 ```
 
 ---
@@ -81,101 +81,117 @@ const [page, setPage] = useState<AppPage>('wall');
 ```
 App
 ├── TopNav
-│   ├── NavTab[] (wall, mediaManage, history)
-│   ├── SettingsGear → 打开 SettingsPanel
-│   └── AdminLink → 在浏览器中打开 admin web
+│   ├── MediaLibrarySelector（当前媒体库下拉选择 + 全部媒体库选项）
+│   ├── NavTab[] (continueWatching, mediaManage, activityLog)
+│   └── SettingsGear → 打开 SettingsPanel
 │
-├── ConnectionGate
+├── ConnectionGate ({ children, onSettingsOpen })
 │   └── (当前页面)
 │
-├── WallPage
-│   ├── SectionFilter（媒体库选择）
-│   ├── MediaCard[]
-│   │   ├── PosterImage
-│   │   ├── ItemInfo（名称、时长、大小、分辨率/编码）
-│   │   ├── RatingSelector（1-5 星 + 豆瓣分展示）
-│   │   └── ActionButtons（已看 / 未看 / 入队）
-│   └── EmptyState（无内容时）
+├── ContinueWatchingPage
+│   ├── PosterGrid（未观看内容海报网格）
+│   │   └── PosterCard[]
+│   │       ├── PosterImage
+│   │       ├── ItemName
+│   │       └── PlayButton → emby:launchPlayer IPC
+│   └── PlaybackLogList（最近播放记录）
+│       └── PlaybackLogRow[]
+│           ├── ItemName + SectionName
+│           └── PlayedAt
 │
 ├── MediaManagePage
-│   ├── FilterBar
+│   ├── FilterBar（9 个筛选器 + 名称搜索）
 │   │   ├── ActionFilter（全部 / 转码 / 洗版 / 达标 / 未标注 / 删除）
 │   │   ├── ResolutionFilter（全部 / 1080p / 4K）
 │   │   ├── CodecFilter（全部 / h264 / h265 / av1）
 │   │   ├── WatchedFilter（全部 / 已看 / 未看）
-│   │   └── BluRayFilter（全部 / 原盘 / 非原盘）
+│   │   ├── BluRayFilter（全部 / 原盘 / 非原盘）
+│   │   ├── DoubanFilter（全部 / 有评分 / 无评分）
+│   │   ├── LocalRatingFilter（5★ / 4★ / … / 1★ / 无评分）
+│   │   ├── TaskFilter（全部 / 活跃任务 / 无任务）
+│   │   └── SearchInput（名称关键字搜索）
 │   ├── BatchActions
 │   │   ├── SelectAll
 │   │   ├── BatchEnqueue（批量入队）
 │   │   └── SelectionCount
-│   ├── MediaLibraryManageRow[]
-│   │   ├── Checkbox
+│   ├── RecomputeStrategyBtn（刷新媒体库管理策略 → apiClient.recomputeStrategy()）
+│   ├── MediaLibraryManageRow[]（13 列：与 admin-web 对齐）
 │   │   ├── ItemName
-│   │   ├── SizeGb / EquivalentBitrate / TargetBitrate / PredictedSize
-│   │   ├── Resolution / Codec
-│   │   ├── StarStatus（豆瓣分 / 本地分）
-│   │   ├── WatchedStatus
-│   │   ├── TaskCell（关联任务状态）
-│   │   └── ActionButtons（观看 / 星级 / 码率优化入队）
-│   ├── DeleteExplainModal（删除策略说明弹窗）
+│   │   ├── SizeGb
+│   │   ├── Resolution
+│   │   ├── Codec
+│   │   ├── CurrentBitrate（equivalentBitrate Mbps）
+│   │   ├── TargetBitrate（Mbps）
+│   │   ├── PredictedSize（predictedSizeGb GB）
+│   │   ├── IsDisc（原盘标记）
+│   │   ├── DoubanStars → Stars 组件（视觉星标 ★，只读展示豆瓣评分）
+│   │   ├── UserStars → StarInput 组件（可点击交互星标，hover 预览，写入 userRating）
+│   │   ├── WatchedStatus（已看/未看按钮组）
+│   │   ├── StrategyCell（action + reason 提示文字；keep 时显示 item.reason）
+│   │   └── TaskCell（关联任务状态 + 入队按钮）
 │   └── SummaryStats（体积汇总、节省预估）
 │
-├── HistoryPage
-│   ├── FilterBar
-│   │   ├── DaysFilter（7天 / 30天 / 全部）
-│   │   ├── SectionFilter
-│   │   └── TypeFilter（全部 / 电影 / 剧集）
-│   └── PlayedItemRow[]
-│       ├── ItemName + SeriesName + IndexLabel
-│       ├── DatePlayed
-│       └── SectionName
+├── ActivityLogPage
+│   ├── LogEntry[]
+│   │   ├── Timestamp
+│   │   ├── Source
+│   │   └── Message + Detail
+│   └── EmptyState（无日志时）
 │
-├── FloatingTaskButton
-│   ├── Badge（活跃任务数）
+├── FloatingTaskButton（自己的独立任务轮询）
+│   ├── Badge（活跃任务数 / 待确认数）
 │   └── TaskSummaryPanel（展开时）
-│       ├── ActiveTaskList（进行中，最多 5 条）
-│       │   └── TaskRow（itemName + progress% + status）
+│       ├── ConfirmNeededSection（待确认，红色高亮）
+│       │   └── TaskCard（详情展开 + 确认按钮）
+│       ├── ActiveTaskList（进行中，最多 8 条）
+│       │   └── TaskRow（itemName + progress% + status + 暂停/执行按钮）
 │       ├── RecentDoneList（最近完成，最多 3 条）
-│       └── AdminLink → 在浏览器中查看完整任务中心（→ admin web /tasks）
+│       └── AdminLink → 在浏览器中查看完整任务中心（→ admin web /admin）
 │
 └── SettingsPanel（覆盖层）
     ├── ServiceUrl input
     ├── ServiceApiKey input
     ├── PlayerExePath input
-    ├── LocalPathMapFrom input
-    ├── LocalPathMapTo input
+    ├── 媒体库目录映射（per-subLibrary path map section）
     └── Save button
 ```
 
 ### 3.2 App.tsx 职责收缩
 
-v1 的 App.tsx 是 ~1500 行的单体组件，包含所有页面逻辑、状态、效果。v2 收缩为：
+v1 的 App.tsx 是 ~1500 行的单体组件，包含所有页面逻辑、状态、效果。v4 收缩为：
 
 ```typescript
-// v2 App.tsx（~80 行）
+// v4 App.tsx（~80 行）
 function App() {
-  const [page, setPage] = useState<AppPage>('wall');
+  const [page, setPage] = useState<AppPage>('continueWatching');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tasks, setTasks] = useState<MediaTask[]>([]);
-  const [connectionHealthy, setConnectionHealthy] = useState(false);
+  const [subLibraries, setSubLibraries] = useState<SubLibraryInfo[]>([]);
+  const [subLibraryId, setSubLibraryId] = useState<string>('');
 
-  // 全局轮询：任务进度（FloatingTaskButton + 各页面需要）
-  // 全局轮询：健康检查（ConnectionGate 需要）
+  // 全局任务轮询（供页面使用）
+  // 媒体库列表加载
 
   return (
     <div className="appShell">
-      <TopNav page={page} setPage={setPage} onSettingsClick={() => setSettingsOpen(true)} />
-      <ConnectionGate healthy={connectionHealthy}>
-        {page === 'wall' && <WallPage tasks={tasks} />}
-        {page === 'mediaManage' && <MediaManagePage tasks={tasks} />}
-        {page === 'history' && <HistoryPage />}
+      <TopNav page={page} setPage={setPage} onSettingsClick={...}
+        subLibraries={subLibraries} subLibraryId={subLibraryId} onSubLibraryChange={setSubLibraryId} />
+      <ConnectionGate onSettingsOpen={...}>
+        {page === 'continueWatching' && <ContinueWatchingPage tasks={tasks} subLibraryId={subLibraryId} />}
+        {page === 'mediaManage' && <MediaManagePage tasks={tasks} subLibraryId={subLibraryId} />}
+        {page === 'activityLog' && <ActivityLogPage />}
       </ConnectionGate>
-      <FloatingTaskButton tasks={tasks} />
-      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+      <FloatingTaskButton baseUrl={baseUrl} />
+      {settingsOpen && <SettingsPanel onClose={...} subLibraries={subLibraries} />}
     </div>
   );
 }
 ```
+
+**关键变化**：
+- `ConnectionGate` **不接受 `healthy` prop** — 它内部管理自己的健康检查轮询 (`setInterval(checkHealth, 5000)`)
+- 签名：`ConnectionGate({ children, onSettingsOpen })`
+- `FloatingTaskButton` **自己运行独立的任务轮询** — 不从 App 接收 `tasks` prop
 
 ---
 
@@ -184,7 +200,7 @@ function App() {
 ### 4.1 原则
 
 - **每页独立管理状态**：不使用全局状态管理库（Redux、Zustand 等）
-- **共享状态通过 props 下传**：只有 `tasks` 和 `connectionHealthy` 需要跨页面共享
+- **共享状态通过 props 下传**：`tasks` 通过 props 传递到页面
 - **API 数据就近获取**：每个页面组件在自己的 `useEffect` 中调用 apiClient
 - **不做客户端缓存**：数据总是从 service 重新获取（desktop 是瘦客户端）
 
@@ -193,74 +209,70 @@ function App() {
 | 状态 | 持有者 | 传递方式 |
 |------|--------|----------|
 | `page` (当前页面) | App | props 到 TopNav |
-| `tasks` (任务列表) | App | props 到 WallPage、MediaManagePage、FloatingTaskButton |
-| `connectionHealthy` | App | props 到 ConnectionGate |
+| `tasks` (任务列表) | App | props 到 ContinueWatchingPage、MediaManagePage |
+| `subLibraries` (媒体库列表) | App | props 到 TopNav、SettingsPanel |
+| `subLibraryId` (当前选中媒体库) | App | props 到 TopNav、各页面 |
 | `settingsOpen` | App | 控制 SettingsPanel 显示 |
+| 连接健康状态 | ConnectionGate | 内部管理 |
+| FloatingTaskButton 任务列表 | FloatingTaskButton | 内部独立轮询 |
 | 媒体库列表 + 过滤 | MediaManagePage | 内部 useState |
-| 播放记录列表 + 过滤 | HistoryPage | 内部 useState |
-| 海报墙列表 | WallPage | 内部 useState |
+| 活动日志列表 | ActivityLogPage | 内部 useState |
+| 继续看列表 | ContinueWatchingPage | 内部 useState |
 | 本地设置表单 | SettingsPanel | 内部 useState |
 
 ### 4.3 任务轮询策略
 
-```
-App 挂载 → 启动任务轮询（createPoller, 400ms）
-    │
-    ▼
-每次 poll 获取全量任务列表 → setTasks()
-    │
-    ├── FloatingTaskButton 消费 tasks（显示活跃任务数）
-    ├── WallPage 消费 tasks（标记已入队条目）
-    └── MediaManagePage 消费 tasks（标记已入队条目）
-```
+任务轮询有**两个独立实例**：
 
-任务轮询始终运行（只要组件挂载），不随页面切换启停。因为 FloatingTaskButton 需要跨页面显示任务状态。
+1. **App 全局轮询**（`createPoller, 400ms`）：供 ContinueWatchingPage 和 MediaManagePage 消费（标记已入队条目）
+2. **FloatingTaskButton 独立轮询**（`createPoller, 400ms`）：在 FloatingTaskButton 组件内部挂载时启动，独立于 App 的轮询
+
+两个轮询各自独立运行，互不依赖。
 
 ### 4.4 健康检查轮询策略
 
 ```
-App 挂载 → 启动健康检查轮询（createPoller, 5s）
+ConnectionGate 挂载 → setInterval(checkHealth, 5000) 内部管理
     │
     ▼
-每次 poll → checkHealth() → setConnectionHealthy()
+每次 poll → checkHealth() → setHealthy(ok) → setChecking(false)
     │
     ▼
-ConnectionGate 消费 connectionHealthy
+ConnectionGate 根据 healthy 状态决定渲染内容：
+  - checking=true → "正在连接媒体管理服务..."
+  - healthy=false → 连接引导界面
+  - healthy=true → children（正常页面）
 ```
+
+健康检查轮询由 ConnectionGate 组件**内部管理**，不通过 App 组件传递 `healthy` prop。App 不持有 `connectionHealthy` 状态。
 
 ---
 
 ## §5 各页面数据流与 API 交互
 
-### 5.1 海报墙（WallPage）
+### 5.1 继续看（ContinueWatchingPage）
 
-**数据源**：Emby（通过 service 代理），返回未观看内容列表。
+**数据源**：service 未观看内容列表 + 本地播放记录。
 
 ```
-WallPage 挂载
+ContinueWatchingPage 挂载
     │ useEffect
     ▼
-apiClient → GET /v1/library/queries/unplayed (POST { config, sectionId })
+apiClient.getUnplayedItems(subLibraryId) → POST /v1/library/queries/unplayed
+apiClient.getPlaybackLog(subLibraryId) → GET /v1/library/playback-log
     │
     ▼
-service → EmbyService → Emby API → 返回 Emby 未观看列表
-    │
-    ▼
-WallPage 展示卡片网格
+展示海报网格 + 最近播放记录列表
 ```
 
 **用户操作**：
 
 | 操作 | 实现 | 说明 |
 |------|------|------|
-| 打分（1-5★） | `PATCH /v1/library/ratings { itemId: rating }` | 写入用户评分到 service 媒体库表 |
+| 播放 | `emby:launchPlayer` IPC + `apiClient.recordPlay()` | 启动本地播放器，同时记录播放 |
+| 打分（1-5★） | `PATCH /v1/library/ratings { itemId, userRating }` | 写入用户评分到 service 媒体库表 |
 | 已看/未看 | `POST /v1/library/actions/mark-played` / `mark-unplayed` | service 转发到 Emby API |
-| 一键入队 | `POST /v1/tasks { itemId, actionType }` | 意图下发；actionType 由 service 侧 mediaPolicyService 决定或用户在 UI 选择 |
-| 播放 | `emby:launchPlayer` IPC | 启动本地播放器 |
-
-**desktop 不做的事**：
-- 不计算 `recommendedAction`（由 service `mediaPolicyService` 计算，通过 API 返回）
-- 不管理播放器生命周期（仅触发启动）
+| 一键入队 | `POST /v1/tasks { itemId, actionType }` | 意图下发 |
 
 ### 5.2 媒体库管理（MediaManagePage）
 
@@ -270,62 +282,64 @@ WallPage 展示卡片网格
 MediaManagePage 挂载
     │ useEffect
     ▼
-apiClient.getLibraryCache()
-    │ GET /v1/library/cache
+apiClient.getLibraryCache(subLibraryId)
+    │ GET /v1/library?subLibraryId=
     ▼
-service → MediaLibraryService → 返回 items[]（含 effectiveRating、recommendedAction）
+service → MediaLibraryService → 返回 { items[], total }
     │
     ▼
-MediaManagePage 展示表格（含策略预览列）
+MediaManagePage 展示 13 列表格（与 admin-web 对齐）
+```
+
+**策略重算流程**：
+
+```
+用户点击「刷新媒体库管理策略」
+    │
+    ▼
+apiClient.recomputeStrategy()
+    │ POST /v1/library/actions/recompute-strategy
+    ▼
+service → StrategyEngine.runOnce() → 全量重算 → 写回 library.json
+    │
+    ▼
+MediaManagePage increment refreshKey → 自动重新加载列表
 ```
 
 **用户操作**：
 
 | 操作 | 实现 | 说明 |
 |------|------|------|
-| 已看/未看 | `POST /v1/library/actions/mark-played` / `mark-unplayed` | 同海报墙，service 转发到 Emby |
-| 打分 | `PATCH /v1/library/ratings` | 同海报墙 |
+| 已看/未看 | `POST /v1/library/actions/mark-played` / `mark-unplayed` | 同继续看，service 转发到 Emby |
+| 打分 | `PATCH /v1/library/ratings { itemId, userRating }` | 单条更新评分 |
 | 单条入队 | `POST /v1/tasks { itemId, actionType }` | 意图下发，逐条创建 |
 | 批量入队 | 逐条 `POST /v1/tasks`（循环调用） | **不做批量端点**，每条独立创建；service 的 itemId 锁自然防止重复 |
 | 批量已看/未看 | 逐条 `POST /v1/library/actions/mark-played` | 同上，循环调用 |
 
 **desktop 不做的事**：
 - **不模拟调度**：v1 的 `advanceTaskQueue()`、`batchRunning`、`batchRunSelectedIds` 全部删除。任务创建后由 service TaskScheduler（5s 轮询）自动接管
-- **不计算策略**：`recommendedAction()` 的结果由 service 返回，desktop 侧仅做展示；客户端侧 `mediaManager.ts` 中的策略函数降级为"即时 UI 预览"，service 结果为 SSOT
+- **不计算策略**：`recommendedAction()` 的结果由 service 返回，desktop 侧仅做展示；客户端侧策略函数降级为"即时 UI 预览"，service 结果为 SSOT
 
-### 5.3 播放记录（HistoryPage）
+### 5.3 实时日志（ActivityLogPage）
 
-**数据源**：Emby 播放记录（通过 service 代理），不是 desktop 本地记录。
+**数据源**：service 活动日志。
 
 ```
-HistoryPage 挂载
+ActivityLogPage 挂载
     │ useEffect
     ▼
-apiClient → GET /v1/library/queries/played (POST { config, days, type, sectionId })
+apiClient.getActivityLog(limit) → GET /v1/activity-log?limit=
     │
     ▼
-service → EmbyService → Emby API → 返回 UserData 中已观看的 item 列表
-    │
-    ▼
-HistoryPage 展示列表（名称、观看日期、媒体库、类型）
+展示日志条目列表（时间戳、来源、消息内容）
 ```
-
-**定位**：查看"我看过什么、什么时候看的"。属于"媒体库浏览"的一部分（已看内容的只读浏览）。
-
-**用户操作**：
-
-| 操作 | 实现 | 说明 |
-|------|------|------|
-| 标记已看 | `POST /v1/library/actions/mark-played` | 在 Emby 中标记为已观看 |
-| 标记未看 | `POST /v1/library/actions/mark-unplayed` | 在 Emby 中取消已观看标记 |
-| 重播 | `emby:launchPlayer` IPC | 启动本地播放器重新播放 |
 
 ### 5.4 任务卡（FloatingTaskButton）
 
-**数据源**：service TaskStore（通过轮询）。
+**数据源**：service TaskStore（通过独立轮询，不由 App 传递）。
 
 ```
-App 挂载 → createPoller(400ms)
+FloatingTaskButton 挂载 → createPoller(400ms)（独立实例）
     │
     ▼
 apiClient.getTasks() → GET /v1/tasks
@@ -335,9 +349,9 @@ apiClient.getTasks() → GET /v1/tasks
     │
     ▼
 FloatingTaskButton 消费：
-  - Badge: 活跃任务数（status !== 'done' && !== 'failed_hard'）
-  - 展开面板: 进行中（前 5 条）+ 最近完成（前 3 条）
-  - 底部链接: 跳转 admin web /tasks
+  - Badge: 待确认数（红色）或活跃任务数（蓝色）
+  - 展开面板: 待确认（分组展示，红色高亮）+ 进行中（前 8 条）+ 最近完成（前 3 条）
+  - 底部链接: 跳转 admin web /admin
 ```
 
 **desktop 不做的事**：
@@ -354,29 +368,34 @@ FloatingTaskButton 消费：
 | service 地址 | `shelfdeck.mediaService.baseUrl` | CONNECTION 模块读取 |
 | API Key | `shelfdeck.mediaService.apiKey` | ApiClient 注入 X-API-Key |
 | 播放器路径 | `shelfdeck.playerExePath` | emby:launchPlayer 使用 |
-| 路径映射（源） | `shelfdeck.localPathMapFrom` | 播放时路径转换 |
-| 路径映射（目标） | `shelfdeck.localPathMapTo` | 播放时路径转换 |
+| 全局路径映射（源） | `shelfdeck.localPathMapFrom` | 播放时路径转换 |
+| 全局路径映射（目标） | `shelfdeck.localPathMapTo` | 播放时路径转换 |
+| 媒体库目录映射 | `shelfdeck.subLibraryPathMaps` | 每媒体库播放时路径转换 |
 
 ### 5.6 API 端点汇总
 
 desktop 调用的全部端点：
 
-| 端点 | 方法 | 用途 | 调用页面 |
+| 端点 | 方法 | 用途 | 调用方 |
 |------|------|------|----------|
-| `/v1/tasks` | GET | 任务列表（轮询） | App（全局） |
-| `/v1/tasks` | POST | 意图下发创建任务 | WallPage, MediaManagePage |
-| `/v1/tasks/:id` | PATCH | 更新任务（确认/暂停/删除） | FloatingTaskButton |
+| `/v1/tasks` | GET | 任务列表（轮询） | App（全局）、FloatingTaskButton（独立） |
+| `/v1/tasks` | POST | 意图下发创建任务 | ContinueWatchingPage, MediaManagePage |
+| `/v1/tasks/:id` | GET | 单个任务详情 | FloatingTaskButton（展开详情时） |
+| `/v1/tasks/:id` | PATCH | 更新任务（确认） | FloatingTaskButton |
 | `/v1/tasks/:id/actions/execute` | POST | 手动执行 | FloatingTaskButton |
 | `/v1/tasks/:id/actions/pause` | POST | 暂停任务 | FloatingTaskButton |
 | `/v1/tasks/:id` | DELETE | 删除任务 | FloatingTaskButton |
-| `/v1/library/cache` | GET | 媒体库全量表 | MediaManagePage |
-| `/v1/library/queries/unplayed` | POST | 未观看列表 | WallPage |
-| `/v1/library/queries/played` | POST | 播放记录 | HistoryPage |
-| `/v1/library/ratings` | GET | 用户评分表 | WallPage, MediaManagePage |
-| `/v1/library/ratings` | PATCH | 更新用户评分 | WallPage, MediaManagePage |
-| `/v1/library/actions/mark-played` | POST | 标记已看 | WallPage, MediaManagePage, HistoryPage |
-| `/v1/library/actions/mark-unplayed` | POST | 标记未看 | WallPage, MediaManagePage, HistoryPage |
-| `/v1/health` | GET | 健康检查 | App（ConnectionGate） |
+| `/v1/library` | GET | 媒体库全量表（?subLibraryId=） | MediaManagePage |
+| `/v1/library/status` | GET | 媒体库列表（subLibrary 元信息） | App（加载时） |
+| `/v1/library/playback-log` | GET | 播放记录（本地操作记录） | ContinueWatchingPage |
+| `/v1/library/playback-log/record` | POST | 记录播放 | ContinueWatchingPage（启动播放器时） |
+| `/v1/library/queries/unplayed` | POST | 未观看列表 | ContinueWatchingPage |
+| `/v1/library/ratings` | GET | 用户评分表 | ContinueWatchingPage, MediaManagePage |
+| `/v1/library/ratings` | PATCH | 更新用户评分（{ itemId, userRating }） | ContinueWatchingPage, MediaManagePage |
+| `/v1/library/actions/mark-played` | POST | 标记已看 | ContinueWatchingPage, MediaManagePage |
+| `/v1/library/actions/mark-unplayed` | POST | 标记未看 | ContinueWatchingPage, MediaManagePage |
+| `/v1/activity-log` | GET | 活动日志 | ActivityLogPage |
+| `/v1/health` | GET | 健康检查 | ConnectionGate（内部） |
 
 ---
 
@@ -425,17 +444,18 @@ desktop 调用的全部端点：
 
 | 页面 | 导航标签 |
 |------|----------|
-| 海报墙 | 海报墙 |
+| 继续看 | 继续看 |
 | 媒体库管理 | 媒体库管理 |
-| 播放记录 | 播放记录 |
+| 实时日志 | 实时日志 |
 | 设置 | ⚙ 图标（打开 SettingsPanel，仅 desktop 本地设置） |
 
 ### 6.5 空状态与错误
 
 | 场景 | 文案 |
 |------|------|
+| 正在连接 | 正在连接媒体管理服务... |
 | service 未连接 | 媒体管理服务未连接 |
-| 连接引导 | 请确保 ShelfDeck 小助手（托盘）正在运行，或手动配置服务地址 |
+| 连接引导 | 无法连接媒体管理服务。请确认服务已启动，或手动配置服务地址。 |
 | 媒体库为空 | 暂未获取到媒体库数据 |
 | 无任务 | 暂无任务 |
 | 无播放记录 | 暂无播放记录 |
@@ -462,14 +482,14 @@ desktop 调用的全部端点：
 
 | 页面 | 布局 |
 |------|------|
-| 海报墙 | CSS Grid，自动填充列（最小卡片宽度 220px） |
+| 继续看 | CSS Grid（海报网格）+ 列表（播放记录） |
 | 媒体库管理 | 固定表格布局（横向滚动） |
-| 播放记录 | 列表布局 |
+| 实时日志 | 列表布局 |
 
 ### 7.3 主题
 
 - 浅色主题（白色背景 + #4a90d9 强调色）
-- 不实现深色模式切换（v2 范围外）
+- 不实现深色模式切换（v4 范围外）
 
 ---
 
@@ -479,7 +499,7 @@ desktop 调用的全部端点：
 
 ```typescript
 // 页面通过 props 接收共享数据
-<WallPage tasks={tasks} />
+<ContinueWatchingPage tasks={tasks} subLibraryId={subLibraryId} />
 
 // 页面通过回调通知 App 切换页面
 <TopNav setPage={setPage} />
@@ -491,10 +511,10 @@ desktop 调用的全部端点：
 // 组件直接 import apiClient 单例
 import { apiClient } from '../api/client';
 
-function WallPage() {
+function MediaManagePage() {
   useEffect(() => {
-    apiClient.getLibraryCache().then(setItems);
-  }, []);
+    apiClient.getLibraryCache(subLibraryId).then(setItems);
+  }, [subLibraryId]);
 }
 ```
 
@@ -503,8 +523,10 @@ function WallPage() {
 ### 8.3 组件与设置通信
 
 ```typescript
-// SettingsPanel 通过 shelfdeckSettings 读写
-await window.shelfdeckSettings!.set('shelfdeck.mediaService.baseUrl', url);
+// SettingsPanel 通过 window.embyApi 读写
+import { getSettings, saveSetting } from '../settings/store';
+
+await saveSetting('serviceUrl', url);
 
 // 其他组件通过 CONNECTION 模块读取
 import { getBaseUrl } from '../connection/baseUrl';

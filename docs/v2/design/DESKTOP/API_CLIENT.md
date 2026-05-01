@@ -1,6 +1,6 @@
 # DESIGN_DESKTOP/API_CLIENT — REST API 客户端层
 
-> 状态：v2 编写中
+> 状态：v4
 > SSOT：本文是 desktop 调用 service REST API 的封装方式、端点和错误处理约定的唯一事实来源
 
 ---
@@ -32,10 +32,12 @@ API_CLIENT **不负责**：
 │ - 通用 request() 方法                 │
 │                                      │
 │ 端点分组（按资源）：                   │
-│ ├── TaskApi                          │
-│ ├── LibraryApi                       │
-│ ├── ConfigApi                        │
-│ └── DoubanApi                        │
+│ ├── Task 端点                         │
+│ ├── Library 端点                      │
+│ ├── Config 端点                       │
+│ ├── Douban 端点                       │
+│ ├── PlaybackLog 端点                  │
+│ └── ActivityLog 端点                  │
 └──────────────────────────────────────┘
         │
         ▼
@@ -48,7 +50,7 @@ API_CLIENT **不负责**：
 └──────────────────────────────────────┘
 ```
 
-> v2 设计选择：端点方法直接挂在 ApiClient 类上（而非拆分为独立的 TaskApi、LibraryApi 等文件），避免过度拆分。类的方法按资源域分组注释即可。
+> v4 设计选择：端点方法直接挂在 ApiClient 类上（而非拆分为独立的 TaskApi、LibraryApi 等文件），避免过度拆分。类的方法按资源域分组注释即可。
 
 ---
 
@@ -66,16 +68,33 @@ class ApiClient {
   async getTasks(filter?): Promise<MediaTask[]>
   async getTask(taskId: string): Promise<MediaTask>
   async createTaskByIntent(intent: { itemId: string; actionType: string }): Promise<MediaTask>
-  async updateTask(taskId: string, updates: Partial<MediaTask>): Promise<MediaTask>
+  async updateTask(taskId: string, updates: Record<string, unknown>): Promise<MediaTask>
   async deleteTask(taskId: string): Promise<void>
   async executeTask(taskId: string): Promise<{ ok: boolean; message: string }>
   async pauseTask(taskId: string): Promise<{ ok: boolean; message: string }>
 
   // 媒体库端点
-  async getLibraryCache(): Promise<{ items: unknown[]; cachedAt: string | null }>
+  async getLibraryCache(subLibraryId?: string): Promise<{ items: unknown[]; total: number }>
   async setLibraryCache(items: unknown[]): Promise<{ items: unknown[]; cachedAt: string }>
   async getItemRatings(): Promise<Record<string, { rating: number; updatedAt: string }>>
-  async patchItemRatings(patch: Record<string, number | null>): Promise<{ ok: boolean; count: number }>
+  async patchItemRatings(itemId: string, userRating: number | null): Promise<{ ok: boolean }>
+
+  // 库状态
+  async getLibraryStatus(): Promise<{ subLibraries: { uuid: string; name: string; enabled: boolean }[] }>
+
+  // 标记已看/未看
+  async markPlayed(itemId: string, subLibraryId?: string): Promise<{ ok: boolean }>
+  async markUnplayed(itemId: string, subLibraryId?: string): Promise<{ ok: boolean }>
+
+  // 未观看列表
+  async getUnplayedItems(subLibraryId: string, sectionId?: string): Promise<UnplayedItem[]>
+
+  // 播放记录（本地操作记录）
+  async getPlaybackLog(subLibraryId?: string): Promise<PlaybackLogEntry[]>
+  async recordPlay(entry: { itemId: string; subLibraryId: string; itemName: string; ... }): Promise<{ ok: boolean }>
+
+  // 活动日志
+  async getActivityLog(limit?: number): Promise<ActivityEntry[]>
 
   // 配置端点
   async getConfig(): Promise<Record<string, unknown>>
@@ -83,16 +102,25 @@ class ApiClient {
 
   // 豆瓣端点
   async getDoubanCache(): Promise<{ entries: unknown[]; syncedAt: string | null }>
+
+  // 策略重算
+  async recomputeStrategy(): Promise<{ ok: boolean; changed: number }>
 }
 ```
+
+**关键签名变更（v4 vs v2 文档）**：
+- `patchItemRatings(itemId, userRating)` — 单条更新，不是批量 `Record<string, number | null>`。返回 `{ ok: boolean }`，不是 `{ ok: boolean; count: number }`
+- `getLibraryCache(subLibraryId?)` — 路径为 `GET /v1/library?subLibraryId=`，不是 `/v1/library/cache`。返回 `{ items, total }`，不是 `{ items, cachedAt }`
+- 新增 `getLibraryStatus()`, `markPlayed()`, `markUnplayed()`, `getUnplayedItems()`, `getPlaybackLog()`, `recordPlay()`, `getActivityLog()`, `recomputeStrategy()`
 
 ### 3.2 认证注入
 
 ```
 每次 API 调用：
   1. getHeaders() → 检查 apiKey 是否非空 → 注入 X-API-Key 头
-  2. 始终带 Content-Type: application/json
-  3. apiKey 每次调用时实时读取（不缓存），确保设置面板修改后立即生效
+  2. 始终带 Content-Type: application/json（有 body 时）
+  3. bodyless POST/DELETE 使用 getHeadersNoBody()（不含 Content-Type，避免 Fastify 拒绝空 JSON body）
+  4. apiKey 每次调用时实时读取（不缓存），确保设置面板修改后立即生效
 ```
 
 ### 3.3 请求实例
@@ -125,7 +153,7 @@ export const apiClient = new ApiClient();
 
 | 方法 | HTTP | 路径 | 说明 |
 |------|------|------|------|
-| `getTasks` | GET | `/v1/tasks` | 任务列表（可选 filter） |
+| `getTasks` | GET | `/v1/tasks` | 任务列表（可选 filter: status, actionType, itemId） |
 | `getTask` | GET | `/v1/tasks/:id` | 单个任务详情 |
 | `createTaskByIntent` | POST | `/v1/tasks` | 意图下发创建任务 |
 | `updateTask` | PATCH | `/v1/tasks/:id` | 更新任务（如确认） |
@@ -137,10 +165,17 @@ export const apiClient = new ApiClient();
 
 | 方法 | HTTP | 路径 | 说明 |
 |------|------|------|------|
-| `getLibraryCache` | GET | `/v1/library/cache` | 媒体库缓存（全量表） |
+| `getLibraryCache` | GET | `/v1/library?subLibraryId=` | 媒体库全量表（含 items[], total） |
 | `setLibraryCache` | POST | `/v1/library/cache` | 写入媒体库缓存 |
 | `getItemRatings` | GET | `/v1/library/ratings` | 用户评分表 |
-| `patchItemRatings` | PATCH | `/v1/library/ratings` | 批量更新评分 |
+| `patchItemRatings` | PATCH | `/v1/library/ratings` | 单条更新评分（body: { itemId, userRating }），返回 `{ ok: boolean }` |
+| `getLibraryStatus` | GET | `/v1/library/status` | 媒体库列表元信息（subLibrary uuid/name/enabled） |
+| `markPlayed` | POST | `/v1/library/actions/mark-played` | 标记已看（body: { itemId, subLibraryId }） |
+| `markUnplayed` | POST | `/v1/library/actions/mark-unplayed` | 标记未看 |
+| `getUnplayedItems` | POST | `/v1/library/queries/unplayed` | 未观看列表（body: { subLibraryId, sectionId }） |
+| `getPlaybackLog` | GET | `/v1/library/playback-log?subLibraryId=` | 播放记录（本地操作记录） |
+| `recordPlay` | POST | `/v1/library/playback-log/record` | 记录播放（body: { itemId, subLibraryId, itemName, ... }） |
+| `recomputeStrategy` | POST | `/v1/library/actions/recompute-strategy` | 重算全库策略 |
 
 ### 4.3 配置 (Config)
 
@@ -154,6 +189,12 @@ export const apiClient = new ApiClient();
 | 方法 | HTTP | 路径 | 说明 |
 |------|------|------|------|
 | `getDoubanCache` | GET | `/v1/integrations/douban/ratings/cache` | 豆瓣评分缓存 |
+
+### 4.5 活动日志 (ActivityLog)
+
+| 方法 | HTTP | 路径 | 说明 |
+|------|------|------|------|
+| `getActivityLog` | GET | `/v1/activity-log?limit=` | 活动日志（返回 { entries: ActivityEntry[] }） |
 
 ---
 
@@ -221,8 +262,9 @@ function createPoller<T>(
 
 | 场景 | 端点 | 间隔 | 说明 |
 |------|------|------|------|
-| 任务进度轮询 | `GET /v1/tasks` | 400ms | 任务中心页打开时启动，离开页面时停止 |
-| 健康检查轮询 | `GET /v1/health` | 5s | 全局持续运行（ConnectionGate 使用） |
+| App 全局任务轮询 | `GET /v1/tasks` | 400ms | App 挂载时启动，供各页面消费 |
+| FloatingTaskButton 任务轮询 | `GET /v1/tasks` | 400ms | FloatingTaskButton 内部独立实例，挂载时启动 |
+| 健康检查 | `GET /v1/health` | 5s | ConnectionGate 内部通过 `setInterval` 管理（不使用 createPoller） |
 
 ### 6.3 行为约定
 
@@ -278,40 +320,65 @@ function createPoller<T>(
 | 简单 REST 调用 | ApiClient（渲染进程 fetch） | 大部分 CRUD 端点 |
 | 长轮询任务 | preload.js 桥接 | transcode 压制进度、douban 同步进度（服务端异步任务，需 IPC 转发进度事件） |
 | 文件系统操作 | preload.js 桥接 | deriveReplaceBackupPath（需 Node.js path 模块） |
+| 健康检查 | preload.js 桥接 (`window.mediaService.checkHealth`) | 使用 Node http 模块，绕过 CORS |
+| 设置读写 | preload.js IPC (`window.embyApi.getSettings` / `saveSetting`) | 主进程 electron-store 操作 |
 
 ### 7.2 preload 不做的事
 
-preload.js 不再做一般的 REST 调用。v1 中 preload 封装了大量 `cpJson()` 调用，v2 中这些全部迁移到 ApiClient。preload 仅保留：
-- 需要 Node.js API 的操作（路径拼接）
+preload.js 不再做一般的 REST 调用。v1 中 preload 封装了大量 `cpJson()` 调用，v2/v4 中这些大部分迁移到 ApiClient。preload 仅保留：
+- 需要 Node.js API 的操作（路径拼接、健康检查）
 - 需要 IPC 通信的操作（进度事件转发、设置读写、launchPlayer）
+- 长轮询进度桥接（transcode 进度 → `transcode:progress` IPC 事件、douban 进度 → `douban:fetchProgress` IPC 事件）
 
-### 7.3 preload 暴露的 API 面（v2 精简后）
+### 7.3 preload 暴露的 API 面（v4 实际）
 
 ```typescript
-window.shelfdeckMedia = {
-  getEffective: () => { baseUrl: string; apiKey: string; source: string },
-  onConnectionUpdated: (cb: () => void) => () => void,
-};
-
-window.shelfdeckSettings = {
-  get: () => Promise<Settings>,
-  set: (key: string, value: any) => Promise<boolean>,
-  getKey: (key: string) => Promise<any>,
-};
-
+// 主 API 面 — 所有 desktop 功能集中在此
 window.embyApi = {
-  launchPlayer: (args) => Promise<LaunchResult>,
-  // transcode 进度桥接（保留，因需要主进程 IPC 转发）
-  onTranscodeProgress: (listener) => () => void,
-  transcodeDeriveReplaceBackupPath: (targetPath: string) => string,
+  // REST helpers (通过 cpJson 内部调用)
+  testConnection, getUsers, getMediaFolders,
+  getUnplayedItems, getLibraryItemsForManage, getPlayedItems,
+  markPlayed, markUnplayed, getLibraryItem,
+  getItemDeleteInfo, deleteLibraryItem, libraryItemExists,
+  // Transcode
+  transcodeValidateTools, transcodeProbeEncodeDevices, transcodePrecheck,
+  transcodeStartEncode, transcodeAbort, transcodeProbe,
+  transcodeReplace, transcodeCleanupTaskWorkdir,
+  transcodeScanOrphans, transcodeStatPaths, transcodeDeletePaths,
+  transcodeDeriveReplaceBackupPath,
+  onTranscodeProgress,
+  // Player
+  launchPlayer, launchPath,
+  // Settings (electron-store IPC bridge)
+  getSettings: () => Promise<DesktopSettings>,
+  saveSetting: (key, value) => Promise<{ ok: boolean; error?: string }>,
+  // Connection
+  getEffectiveConnection: () => { baseUrl: string; apiKey: string; source?: string },
+  onConnectionUpdated: (listener) => () => void,
+  // Douban
+  saveDoubanSession, getDoubanSession, stopDoubanFetch,
+  fetchDoubanRatings, onDoubanProgress,
 };
 
+// 豆瓣 API 面（部分方法与 embyApi 重叠，独立暴露）
+window.doubanApi = {
+  saveSession, getSession, stopFetch, fetchRatings, onProgress,
+};
+
+// 健康检查（Node http 模块，绕过浏览器 CORS）
 window.mediaService = {
-  checkHealth: () => Promise<{ status?: string } | null>,
+  checkHealth: () => Promise<boolean>,
+};
+
+// Electron 环境标记
+window.electronAPI = {
+  isElectron: true,
 };
 ```
 
-> `window.embyApi` 的大部分 REST 方法（testConnection、getUsers、getMediaFolders 等）在 v2 中迁移到 ApiClient，不再通过 preload 桥接。
+> **不再有** `window.shelfdeckSettings` — 设置读写通过 `window.embyApi.getSettings()` 和 `window.embyApi.saveSetting(key, value)` 进行。
+>
+> `window.shelfdeckMedia`（旧 API）仍然暴露但不再推荐使用；新代码应使用 `window.embyApi.getEffectiveConnection()` 和 `window.embyApi.onConnectionUpdated()`。
 
 ---
 

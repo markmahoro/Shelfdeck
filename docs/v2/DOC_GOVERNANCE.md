@@ -1,7 +1,7 @@
 # DOC_GOVERNANCE — 文档治理与全库索引
 
-> 状态：v2 重写中
-> 版本：2.0
+> 状态：v4 定稿
+> 版本：4.0
 
 ---
 
@@ -11,44 +11,44 @@
 
 | 文档 | 路径 | 状态 |
 |---|---|---|
-| 文档治理（本文） | `DOC_GOVERNANCE.md` | v2 重写中 |
-| 系统结构总览 | `ARCH_OVERVIEW.md` | v2 已编写 |
+| 文档治理（本文） | `DOC_GOVERNANCE.md` | v4 定稿 |
+| 系统结构总览 | `ARCH_OVERVIEW.md` | v4 定稿 |
 
 ### 设计层 — 总览
 
 | 文档 | 路径 | 状态 |
 |---|---|---|
-| 胖服务组件总览 | `design/SERVICE.md` | v2 重写中 |
-| 瘦客户端组件总览 | `design/DESKTOP.md` | v2 编写中 |
-| Windows 托盘外壳 | `design/TRAY.md` | 待编写 |
+| 胖服务组件总览 | `design/SERVICE.md` | v4 定稿 |
+| 瘦客户端组件总览 | `design/DESKTOP.md` | v4 定稿 |
+| Windows 托盘外壳 | `design/TRAY.md` | v4 定稿 |
 | 跨组件共享约定 | `design/SHARED.md` | 待编写 |
 
 ### 设计层 — Service 子模块
 
 | 文档 | 路径 | 状态 |
 |---|---|---|
-| REST API 契约 | `design/SERVICE/API.md` | v2 重写中 |
-| 配置与路径映射 | `design/SERVICE/CONFIG.md` | v2 定稿 |
-| 任务调度引擎 | `design/SERVICE/TASK_SCHEDULER.md` | v2 重写中 |
-| Delete Flow 执行器 | `design/SERVICE/DELETE_FLOW.md` | v2 重写中 |
-| Transcode Flow 执行器 | `design/SERVICE/TRANSCODE_FLOW.md` | v2 重写中 |
-| Upgrade Flow 执行器 | `design/SERVICE/UPGRADE_FLOW.md` | v2 定稿 |
-| 转码执行层 | `design/SERVICE/TRANSCODE.md` | v2 重写中 |
-| 媒体库管理 | `design/SERVICE/MEDIA_LIBRARY.md` | v2 重写中 |
-| Emby 适配器 | `design/SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` | v2 重写中 |
-| 豆瓣适配器 | `design/SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` | v2 重写中 |
-| 健康检查 | `design/SERVICE/HEALTH_CHECK.md` | v2 重写中 |
-| 智能入队引擎 | `design/SERVICE/SMART_TASK_ENGINE.md` | v2 设计中 |
-| 策略计算引擎 | `design/SERVICE/STRATEGY_ENGINE.md` | v2 设计中 |
-| Web 管理端总览 | `design/SERVICE/ADMIN_WEB.md` | v2 定稿 |
-| Admin API 端点 | `design/SERVICE/ADMIN_WEB/API.md` | v2 定稿 |
-| Admin 页面结构 | `design/SERVICE/ADMIN_WEB/PAGES.md` | v2 定稿 |
+| REST API 契约 | `design/SERVICE/API.md` | v4 定稿 |
+| 配置与路径映射 | `design/SERVICE/CONFIG.md` | v4 定稿 |
+| 任务调度引擎 | `design/SERVICE/TASK_SCHEDULER.md` | v4 定稿 |
+| Delete Flow 执行器 | `design/SERVICE/DELETE_FLOW.md` | v4 定稿 |
+| Transcode Flow 执行器 | `design/SERVICE/TRANSCODE_FLOW.md` | v4 定稿 |
+| Upgrade Flow 执行器 | `design/SERVICE/UPGRADE_FLOW.md` | v4 定稿 |
+| 转码执行层 | `design/SERVICE/TRANSCODE.md` | v4 定稿 |
+| 媒体库管理 | `design/SERVICE/MEDIA_LIBRARY.md` | v4 定稿 |
+| Emby 适配器 | `design/SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` | v4 定稿 |
+| 豆瓣适配器 | `design/SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` | v4 定稿 |
+| 健康检查 | `design/SERVICE/HEALTH_CHECK.md` | v4 定稿 |
+| 智能入队引擎 | `design/SERVICE/SMART_TASK_ENGINE.md` | v4 定稿 |
+| 策略计算引擎 | `design/SERVICE/STRATEGY_ENGINE.md` | v4 定稿 |
+| Web 管理端总览 | `design/SERVICE/ADMIN_WEB.md` | v4 定稿 |
+| Admin API 端点 | `design/SERVICE/ADMIN_WEB/API.md` | v4 定稿 |
+| Admin 页面结构 | `design/SERVICE/ADMIN_WEB/PAGES.md` | v4 定稿 |
 
 ### 设计层 — Desktop 子模块
 
 | 文档 | 路径 | 状态 |
 |---|---|---|
-| UI 组件与布局 | `design/DESKTOP/UI.md` | v2 编写中 |
+| UI 组件与布局 | `design/DESKTOP/UI.md` | v4 定稿 |
 | REST API 客户端层 | `design/DESKTOP/API_CLIENT.md` | v2 编写中 |
 | service 连接管理 | `design/DESKTOP/CONNECTION.md` | v2 编写中 |
 | 配置持久化 | `design/DESKTOP/SETTINGS.md` | v2 编写中 |
@@ -57,8 +57,8 @@
 
 | 文档 | 路径 | 状态 |
 |---|---|---|
-| 进程生命周期 | `design/TRAY/LIFECYCLE.md` | 待编写 |
-| 连接配置写入 | `design/TRAY/CONNECTION_WRITER.md` | 待编写 |
+| 进程生命周期 | `design/TRAY/LIFECYCLE.md` | v4 定稿 |
+| 连接配置写入 | `design/TRAY/CONNECTION_WRITER.md` | 已废弃 |
 | service 健康监控 | `design/TRAY/HEALTH_MONITORING.md` | 待编写 |
 
 ### 设计层 — 共享约定

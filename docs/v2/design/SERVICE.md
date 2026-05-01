@@ -1,7 +1,7 @@
 # DESIGN_SERVICE — 胖服务组件总览
 
 > Phase 3（服务执行引擎）为基准架构。
-> 状态：v2 重写中
+> v4 定稿。
 
 ## §1 组件定位
 
@@ -110,10 +110,17 @@ runTranscodeFlow(task)
 
 ```
 runUpgradeFlow(task)
-    └── 目前空壳，直接 failed_hard
+    ├── precheck：验证 MoviePilot 连接 + item 信息
+    ├── planning：调用 moviepilotService 搜索种子，smartSeedSelect 优选种子
+    ├── pauseForConfirm：提交前等待用户确认种子选择
+    ├── executing：调用 moviepilotService 添加下载任务，轮询进度
+    ├── pre_replace_verify：下载+刮削完成后，verify 文件就绪
+    ├── replace：路径映射 + 文件转移（MoviePilot transfer）
+    └── verify：检查替换是否成功
 ```
 
-> 未来实现 MoviePilot 集成时，UpgradeFlowExecutor 是唯一需要改动的模块。
+依赖：`moviepilotService`、`smartSeedSelect`、`taskStore`、`configStore`
+> MoviePilot 集成已实现，UpgradeFlowExecutor 通过 moviepilotService 调用 MoviePilot REST API 完成搜索、下载、转移全流程。
 
 #### 2.1.5 TaskStore 操作封装（Flow Executor → TaskStore）
 
@@ -182,7 +189,7 @@ SmartTaskEngine（定时扫描）
     │    └──→ TranscodeService（services/transcodeService.js）
     │
     └──→ UpgradeFlowExecutor
-         └──→ （MoviePilot 集成，暂未实现）
+         └──→ MoviePilotService（services/moviepilotService.js）
 ```
 
 > 两条路径汇入同一个 TaskStore → TaskScheduler 管道。手动入队由用户主动操作触发，自动入队由 SmartTaskEngine 周期发现触发。
@@ -215,7 +222,7 @@ service 提供静态 React 管理页面（dist/admin/）
 |---|---|---|---|
 | **Emby** | service → Emby REST API | DeleteFlowExecutor（删除时调用） | MediaLibraryService（定期拉取媒体数据） |
 | **豆瓣** | service → 豆瓣 API | — | MediaLibraryService（抓取评分并写入媒体库表） |
-| **MoviePilot** | service → MoviePilot REST API | UpgradeFlowExecutor（未来实现） | — |
+| **MoviePilot** | service → MoviePilot REST API | UpgradeFlowExecutor（搜索、下载、转移） | — |
 
 ### §2.3 任务生命周期操作
 
@@ -388,8 +395,8 @@ TaskScheduler (5s) ──→ 调度 + 执行
 | Upgrade Flow 执行器 | `SERVICE/UPGRADE_FLOW.md` | v2 重写中 |
 | 转码执行层 | `SERVICE/TRANSCODE.md` | v2 重写中 |
 | 媒体库管理 | `SERVICE/MEDIA_LIBRARY.md` | v2 重写中 |
-| Emby 适配器 | `SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` | v2 重写中 |
-| 豆瓣适配器 | `SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` | v2 重写中 |
+| Emby 适配器 | `SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` | v4 定稿 |
+| 豆瓣适配器 | `SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` | v4 定稿 |
 | 策略计算引擎 | `SERVICE/STRATEGY_ENGINE.md` | v2 设计中 |
 | 智能入队引擎 | `SERVICE/SMART_TASK_ENGINE.md` | v2 设计中 |
 | 健康检查 | `SERVICE/HEALTH_CHECK.md` | v2 重写中 |

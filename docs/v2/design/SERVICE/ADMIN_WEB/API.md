@@ -181,10 +181,8 @@
       "enabled": true,
       "lastRefreshedAt": "2026-04-26T10:00:00.000Z",
       "doubanSyncedAt": "2026-04-26T06:00:00.000Z",
-      "mediaPolicy": {
-        "target1080p": { "2": 2, "3": 4, "4": 7, "5": 12 },
-        "target4k": { "2": 5, "3": 10, "4": 16, "5": 25 }
-      }
+      "ruleTemplateId": "default",
+      "upgradeSmartSelect": false
     }
   ]
 }
@@ -205,15 +203,23 @@
   "sectionId": "section-abc",
   "source": "emby",
   "doubanEnabled": true,
-  "mediaPolicy": {
-    "target1080p": { "2": 2, "3": 4, "4": 7, "5": 12 },
-    "target4k": { "2": 5, "3": 10, "4": 16, "5": 25 }
-  }
+  "ruleTemplateId": "default",
+  "upgradeSmartSelect": false
 }
 ```
 
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `name` | string | 是 | 子库名称 |
+| `embyServerId` | string | 是 | Emby 服务器 uuid |
+| `sectionId` | string | 是 | Emby 媒体库 section ID |
+| `source` | string | 否 | 来源：`emby` |
+| `doubanEnabled` | boolean | 否 | 启用豆瓣同步（默认 true） |
+| `ruleTemplateId` | string | 否 | 策略规则模板 ID（默认 `"default"`） |
+| `upgradeSmartSelect` | boolean | 否 | 洗版智能选种（默认 false） |
+| `mediaPolicy` | object | 否 | **已废弃**（v2→v3 迁移后删除）。请使用 `ruleTemplateId` 替代 |
+
 > `embyServerId` 若为新服务器 uuid（在 Step 1 中通过 `POST /v1/admin/emby/test` 内联注册得到），则在创建子库时一并写入 `embyServers`。
-> `mediaPolicy` 可选，不提供则使用默认值。
 
 **响应**：`201 Created` + 创建的子库对象。
 
@@ -258,10 +264,8 @@
   "name": "新名称",
   "doubanEnabled": false,
   "enabled": false,
-  "mediaPolicy": {
-    "target1080p": { "2": 1, "3": 3, "4": 6, "5": 10 },
-    "target4k": { "2": 4, "3": 8, "4": 14, "5": 20 }
-  }
+  "ruleTemplateId": "custom-template-1",
+  "upgradeSmartSelect": true
 }
 ```
 
@@ -272,6 +276,131 @@
 | 状态码 | 场景 |
 |---|---|
 | 404 | 子库不存在 |
+
+---
+
+### 2.6 规则模板管理 API
+
+#### GET /v1/admin/rule-templates
+
+获取所有规则模板列表。
+
+**响应**：
+
+```json
+{
+  "ruleTemplates": [
+    {
+      "id": "default",
+      "name": "默认策略",
+      "description": "内置默认策略模板",
+      "rules": [
+        {
+          "action": "transcode",
+          "condition": { "field": "bitrate", "op": "gt", "value": 25000000 }
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+#### GET /v1/admin/rule-templates/:id
+
+获取单个规则模板。
+
+**响应**：`200 OK` — 返回模板对象。
+
+**错误**：
+
+| 状态码 | 场景 |
+|---|---|
+| 404 | 模板不存在 |
+
+---
+
+#### POST /v1/admin/rule-templates
+
+创建新规则模板。
+
+**请求体**：
+
+```json
+{
+  "id": "my-template",
+  "name": "我的策略",
+  "description": "自定义策略模板",
+  "rules": [
+    { "action": "keep", "condition": { "field": "doubanRating", "op": "gte", "value": 4 } }
+  ]
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `id` | string | 是 | 模板唯一标识 |
+| `name` | string | 是 | 模板名称 |
+| `description` | string | 否 | 模板描述 |
+| `rules` | array | 否 | 规则列表 |
+
+**响应**：`201 Created` + 创建的模板对象。
+
+**错误**：
+
+| 状态码 | code | 场景 |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | `id` 或 `name` 缺失 |
+| 409 | `CONFLICT` | 模板 id 已存在 |
+
+---
+
+#### PUT /v1/admin/rule-templates/:id
+
+全量或部分更新规则模板。
+
+**请求体**（所有字段可选）：
+
+```json
+{
+  "name": "新名称",
+  "description": "新描述",
+  "rules": []
+}
+```
+
+**响应**：`200 OK` + 更新后的模板对象。
+
+**错误**：
+
+| 状态码 | 场景 |
+|---|---|
+| 404 | 模板不存在 |
+
+---
+
+#### DELETE /v1/admin/rule-templates/:id
+
+删除规则模板。
+
+**响应**：`200 OK`
+
+```json
+{
+  "ok": true,
+  "id": "my-template"
+}
+```
+
+> 内置 `default` 模板不可删除。
+
+**错误**：
+
+| 状态码 | 场景 |
+|---|---|
+| 400 | 尝试删除 `default` 模板 |
+| 404 | 模板不存在 |
 
 ---
 
@@ -289,13 +418,25 @@
   "transcodeReplaceConfirmRequired": false,
   "ffmpegPath": "ffmpeg",
   "ffprobePath": "ffprobe",
-  "transcodeMaxCpuSlots": 2,
+  "transcodeEncodingDevices": [
+    { "stableKey": "nvenc:0", "backend": "nvenc", "gpuIndex": 0, "maxSlots": 2, "priority": 100 }
+  ],
   "transcodeCpuParticipationStrategy": "normal"
 }
 ```
 
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `transcodeTempRoot` | string | 转码临时目录 |
+| `transcodeReplaceConfirmRequired` | boolean | 替换前是否需要用户确认 |
+| `ffmpegPath` | string | FFmpeg 路径 |
+| `ffprobePath` | string | ffprobe 路径 |
+| `transcodeEncodingDevices` | array | 编码设备池配置（per-device `maxSlots` + `priority`） |
+| `transcodeCpuParticipationStrategy` | string | CPU 参与策略：`normal` |
+
 > 完整字段定义见 `SERVICE/CONFIG.md` §3.2。
-> 注：`mediaPolicy` 已移至子库级，见 `SERVICE/CONFIG.md` §3.4.2。
+>
+> **注意**：旧版 `transcodeMaxCpuSlots` 已移除，CPU 并发槽位现由 `transcodeEncodingDevices` 中 per-device `maxSlots` 控制。
 
 ---
 
@@ -308,7 +449,10 @@
 ```json
 {
   "transcodeTempRoot": "D:\\transcode",
-  "ffmpegPath": "D:\\tools\\ffmpeg.exe"
+  "ffmpegPath": "D:\\tools\\ffmpeg.exe",
+  "transcodeEncodingDevices": [
+    { "stableKey": "nvenc:0", "backend": "nvenc", "gpuIndex": 0, "maxSlots": 1, "priority": 100 }
+  ]
 }
 ```
 
@@ -405,10 +549,15 @@
     "stagingPath": ""
   },
   "upgradeStagingLocalPath": "W:\\shelfdeck",
+  "upgradeReplaceConfirmRequired": false,
   "upgradeRetryInterval": 3600000,
   "upgradeMaxRetries": 3
 }
 ```
+
+| 新增字段 | 类型 | 说明 |
+|---|---|---|
+| `upgradeReplaceConfirmRequired` | boolean | 洗版替换前是否需要用户确认（默认 false） |
 
 ---
 
@@ -427,6 +576,7 @@
     "stagingPath": ""
   },
   "upgradeStagingLocalPath": "Y:\\staging",
+  "upgradeReplaceConfirmRequired": true,
   "upgradeRetryInterval": 7200000,
   "upgradeMaxRetries": 5
 }
@@ -443,8 +593,28 @@
 | `moviepilot.savePath` | string | `""` | 容器内下载目录 |
 | `moviepilot.stagingPath` | string | `""` | 容器内 Staging 目录（可选）|
 | `upgradeStagingLocalPath` | string | `""` | 本地 Staging 路径 |
+| `upgradeReplaceConfirmRequired` | boolean | `false` | 洗版替换前是否需要用户确认 |
 | `upgradeRetryInterval` | number | 3600000 | 重搜间隔 (ms) |
 | `upgradeMaxRetries` | number | 3 | 最大重试次数 |
+
+---
+
+### 4.3 GET /v1/admin/moviepilot/sites
+
+获取 MoviePilot 已配置的下载站点列表。
+
+**查询参数**：无
+
+**响应**：`200 OK`
+
+```json
+[
+  { "id": "site-1", "name": "站点A", "domain": "site-a.com", "is_active": true },
+  { "id": "site-2", "name": "站点B", "domain": "site-b.com", "is_active": false }
+]
+```
+
+> 需要 MoviePilot 已配置 `baseUrl` + `apiKey`。若 MoviePilot 不可达，返回空数组 `[]`。
 
 ---
 
@@ -452,7 +622,17 @@
 
 ### 5.1 GET /v1/admin/tasks
 
-列出所有任务（含 flowState）。
+列出所有任务（含 flowState）。支持分页和关键词搜索。
+
+**查询参数**：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `status` | string | 按 status 筛选 |
+| `actionType` | string | 按 actionType 筛选（`transcode`/`delete`/`upgrade`） |
+| `q` | string | 关键词搜索（匹配 `itemName` 或 `itemId`） |
+| `page` | number | 页码（默认 1） |
+| `pageSize` | number | 每页条数（1-100，默认 20） |
 
 **响应**：
 
@@ -480,22 +660,25 @@
       "done": 3,
       "failed_hard": 1
     }
-  }
+  },
+  "page": 1,
+  "pageSize": 20,
+  "total": 10
 }
 ```
 
-> 完整 status/phase 定义见 `SERVICE/TASK_SCHEDULER.md`。
-
-**查询参数**：
-
-| 参数 | 类型 | 说明 |
+| 分页字段 | 类型 | 说明 |
 |---|---|---|
-| `status` | string | 按 status 筛选 |
-| `actionType` | string | 按 actionType 筛选（`transcode`/`delete`/`upgrade`） |
+| `page` | number | 当前页码 |
+| `pageSize` | number | 每页条数 |
+| `total` | number | 符合筛选条件的任务总数（未分页前） |
+
+> `summary.total` 和 `summary.byStatus` 均为未分页前的全量统计。
+> 完整 status/phase 定义见 `SERVICE/TASK_SCHEDULER.md`。
 
 ---
 
-### 4.2 GET /v1/admin/tasks/:id
+### 5.2 GET /v1/admin/tasks/:id
 
 获取单个任务详情。
 
@@ -533,7 +716,7 @@
 
 ---
 
-### 4.3 DELETE /v1/admin/tasks/:id
+### 5.3 DELETE /v1/admin/tasks/:id
 
 删除任务。
 
@@ -546,20 +729,24 @@
 }
 ```
 
+**行为**：
+- 始终先调用 `flow.cancel()` 清理资源
+- 然后从 TaskStore 移除
+- 任何状态的任务均可删除
+
 **错误**：
 
 | 状态码 | 场景 |
 |---|---|
 | 404 | 任务不存在 |
-| 409 | 任务正在执行中，无法删除（可选实现） |
 
 ---
 
 ## §6 服务健康状态
 
-### 5.1 GET /v1/admin/health
+### 6.1 GET /v1/admin/health
 
-获取 service 健康状态详情（admin 专属，比 `/v1/health` 更详细）。
+获取 service 健康状态详情（admin 专属，比 `/v1/health` 更详细）。返回 8 项检查结果。
 
 **响应**：
 
@@ -567,14 +754,31 @@
 {
   "status": "yellow",
   "checks": {
-    "service": { "status": "green", "uptime": 86400 },
-    "emby": { "status": "yellow", "message": "连接延迟 > 2s" },
-    "scheduler": { "status": "green", "runningTasks": 2 }
+    "scheduler":    { "status": "green", "runningTasks": 2 },
+    "smartTask":    { "status": "green" },
+    "mediaLib":     { "status": "green", "itemCount": 1500 },
+    "douban":       { "status": "green", "hasSession": true, "doubanEnabledSubLibCount": 2 },
+    "strategy":     { "status": "green" },
+    "emby":         { "status": "yellow", "message": "所有 Emby 服务器响应偏慢" },
+    "upgrade":      { "status": "green", "moviepilotConfigured": true },
+    "transcode":    { "status": "green" }
   },
   "timestamp": "2026-04-26T10:00:00.000Z"
 }
 ```
 
+| 检查项 | 说明 |
+|---|---|
+| `scheduler` | 任务调度器状态（runningTasks 计数） |
+| `smartTask` | 智能任务引擎状态 |
+| `mediaLib` | 媒体库状态（itemCount 等） |
+| `douban` | 豆瓣集成状态（hasSession、doubanEnabledSubLibCount） |
+| `strategy` | 策略引擎状态 |
+| `emby` | Emby 服务器连接状态（多服务器聚合 green/yellow/red） |
+| `upgrade` | MoviePilot 连接状态 |
+| `transcode` | 转码服务状态 |
+
+> 聚合规则：全部 green → green；含 yellow 但无 red → yellow；含 red → red。
 > 详细定义见 `SERVICE/HEALTH_CHECK.md`。
 
 ---
@@ -593,16 +797,22 @@
 | `/v1/admin/sublibraries` | POST | 新增子库 | MediaLibraryService |
 | `/v1/admin/sublibraries/:uuid` | DELETE | 删除子库 | MediaLibraryService |
 | `/v1/admin/sublibraries/:uuid` | PATCH | 更新子库 | MediaLibraryService |
+| `/v1/admin/rule-templates` | GET | 获取规则模板列表 | ConfigStore |
+| `/v1/admin/rule-templates` | POST | 创建规则模板 | ConfigStore |
+| `/v1/admin/rule-templates/:id` | GET | 获取单个规则模板 | ConfigStore |
+| `/v1/admin/rule-templates/:id` | PUT | 更新规则模板 | ConfigStore |
+| `/v1/admin/rule-templates/:id` | DELETE | 删除规则模板 | ConfigStore |
 | `/v1/admin/transcode/config` | GET | 获取转码配置 | ConfigStore |
 | `/v1/admin/transcode/config` | PATCH | 更新转码配置 | ConfigStore |
 | `/v1/admin/transcode/probe-devices` | GET | 探测本机可用编码设备 | TranscodeService |
 | `/v1/admin/transcode/device-pool` | GET | 获取设备池状态 | TranscodeService |
 | `/v1/admin/upgrade/config` | GET | 获取洗版配置 | ConfigStore |
 | `/v1/admin/upgrade/config` | PATCH | 更新洗版配置 | ConfigStore |
-| `/v1/admin/tasks` | GET | 列出所有任务 | TaskStore |
+| `/v1/admin/moviepilot/sites` | GET | 获取 MoviePilot 站点列表 | MoviePilotService |
+| `/v1/admin/tasks` | GET | 列出所有任务（分页 + 搜索） | TaskStore |
 | `/v1/admin/tasks/:id` | GET | 获取任务详情 | TaskStore |
 | `/v1/admin/tasks/:id` | DELETE | 删除任务 | TaskStore |
-| `/v1/admin/health` | GET | 服务健康详情 | HealthCheck |
+| `/v1/admin/health` | GET | 服务健康详情（8 项检查） | HealthCheck |
 
 ---
 

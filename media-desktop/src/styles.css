@@ -718,12 +718,12 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .mediaManageGrid {
   display: grid;
   grid-template-columns:
-    minmax(12rem, 1.35fr) 4.5rem 3.5rem 5.5rem 5.5rem 5.5rem 6.75rem minmax(7.25rem, 9.5rem) minmax(6.25rem, 8.5rem) 4rem
-    5.75rem minmax(17rem, 1.35fr);
-  gap: 8px 12px;
+    15rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 2.5rem 5.5rem 5rem 8rem 15rem 4.5rem;
+  gap: 6px 8px;
   align-items: center;
-  padding: 10px 12px;
-  font-size: 13px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #e2e8f0;
 }
 
 /** 星级状态 / 豆瓣：单行展示，极窄时省略号 */
@@ -821,6 +821,141 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   padding: 6px 8px;
   font-size: 12px;
 }
+
+/* ── Filter row (labeled selects) ── */
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.filterLabel {
+  font-size: 12px;
+  color: #94a3b8;
+  flex-shrink: 0;
+  width: 62px;
+  text-align: right;
+}
+
+.filterRow select {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+  padding: 4px 6px;
+  font-size: 12px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  outline: none;
+  cursor: pointer;
+}
+
+.filterRow select:focus {
+  border-color: #6366f1;
+}
+
+/* ── Star rating ── */
+
+.starsRow {
+  display: inline-flex;
+  gap: 1px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.starFilled {
+  color: #f59e0b;
+}
+
+.starEmpty {
+  color: #475569;
+}
+
+.starsClickable .starEmpty {
+  cursor: pointer;
+}
+
+.starsClickable .starEmpty:hover {
+  color: #fbbf24;
+}
+
+/* ── Batch run button ── */
+
+.batchRunBtn {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
+
+.batchRunBtn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.batchRunBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Watched cell buttons ── */
+
+.mediaManageWatchedCell {
+  display: flex;
+  gap: 4px;
+}
+
+.mediaManageWatchedCell button {
+  padding: 3px 6px;
+  font-size: 11px;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  background: #1e293b;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.mediaManageWatchedCell button:hover:not(:disabled) {
+  background: #334155;
+}
+
+.mediaManageWatchedCell button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Media manage row buttons ── */
+
+.mediaManageRow button {
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid #334155;
+  border-radius: 5px;
+  background: #1e293b;
+  color: #e2e8f0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mediaManageRow button:hover:not(:disabled) {
+  background: #334155;
+  border-color: #475569;
+}
+
+.mediaManageRow button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.error { color: #ef4444; }
 
 @media (max-width: 1100px) {
   .mediaManageGrid {

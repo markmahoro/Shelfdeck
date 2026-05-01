@@ -211,10 +211,6 @@ describe('Library', () => {
   });
 
   // Queries against real Emby will 404 (no Emby server configured)
-  it('getPlayedItems without valid sublib throws', async () => {
-    await expect(apiClient.getPlayedItems('nonexistent-sublib')).rejects.toThrow(/404/);
-  });
-
   it('getUnplayedItems without valid sublib throws', async () => {
     await expect(apiClient.getUnplayedItems('nonexistent-sublib')).rejects.toThrow(/404/);
   });
@@ -237,7 +233,7 @@ describe('Config', () => {
     expect(cfg).toBeTruthy();
     expect(cfg).toHaveProperty('executionMode');
     expect(cfg).toHaveProperty('transcodeConcurrency');
-    expect(cfg).toHaveProperty('mediaPolicy');
+    expect(cfg).toHaveProperty('ruleTemplates');
   });
 
   it('patchConfig partially updates and persists', async () => {

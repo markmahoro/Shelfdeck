@@ -249,6 +249,15 @@ class ApiClient {
     return r.json();
   }
 
+  // ── Strategy ──
+
+  async recomputeStrategy(): Promise<{ ok: boolean; changed: number }> {
+    const url = `${this.getBaseUrl()}/v1/library/actions/recompute-strategy`;
+    const r = await fetch(url, { method: 'POST', headers: this.getHeadersNoBody() });
+    if (!r.ok) throw new Error(`Failed to recompute strategy: HTTP ${r.status}`);
+    return r.json();
+  }
+
   // ── Activity Log ──
 
   async getActivityLog(limit?: number): Promise<ActivityEntry[]> {

@@ -5,4 +5,8 @@ data/cache.json
 data/control-plane-state.json
 data/library.json
 data/douban-session.json
+data/playback-log.json
+data/douban-entries-cache.json
+data/item-ratings.json
+data/activity-log.json
 data/*.backup

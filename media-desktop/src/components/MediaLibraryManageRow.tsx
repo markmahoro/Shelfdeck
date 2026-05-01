@@ -1,61 +1,69 @@
-/**
- * [UI] 媒体库管理行组件。
- *
- * 策略计算结果（recommendedAction / equivalentBitrate / targetBitrate / predictedSizeGb）
- * 由 service 返回，客户端侧直接读取展示，不自行计算。
- */
+import { memo, useState } from 'react';
+import type { ManagedMediaItem, MediaAction, MediaRating } from '../models/media';
+import { taskStatusLabelZh } from '../models/task';
+import type { MediaTask } from '../models/task';
 
-import { memo } from 'react';
-import type { ManagedMediaItem, MediaAction, MediaPolicy, MediaRating } from '../models/media';
-import { taskStatusLabelZh, type MediaTask } from '../models/task';
-
-function formatStarStatus(item: ManagedMediaItem) {
-  if (item.doubanStars != null) return `${item.doubanStars} 星（豆瓣）`;
-  if (item.rating != null) return `${item.rating} 星（本地）`;
-  return '未标注';
+function Stars({ count, max }: { count: number | null; max: number }) {
+  return (
+    <span className="starsRow">
+      {Array.from({ length: max }, (_, i) => (
+        <span key={i} className={count != null && i < count ? 'starFilled' : 'starEmpty'}>
+          ★
+        </span>
+      ))}
+    </span>
+  );
 }
 
-function formatDoubanDisplay(doubanStars: MediaRating | null) {
-  if (doubanStars == null) return '未抓取到';
-  return `${doubanStars} 星`;
+function StarInput({ value, onChange }: { value: MediaRating | null; onChange: (r: MediaRating | null) => void }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const active = hover ?? value;
+  return (
+    <span className="starsRow starsClickable">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <span
+          key={s}
+          className={active != null && s <= active ? 'starFilled' : 'starEmpty'}
+          onClick={() => onChange(value === s ? null : (s as MediaRating))}
+          onMouseEnter={() => setHover(s)}
+          onMouseLeave={() => setHover(null)}
+        >
+          ★
+        </span>
+      ))}
+    </span>
+  );
 }
 
 export type MediaLibraryManageRowProps = {
   item: ManagedMediaItem;
   isSelected: boolean;
   isHighlighted: boolean;
-  /** 仅在需要判断按钮启用/禁用时使用；策略计算以 item.recommendedAction 为准 */
-  mediaPolicy: MediaPolicy;
   rowTask: MediaTask | undefined;
   onToggleSelect: (id: string) => void;
   onWatchChange: (item: ManagedMediaItem, watched: boolean) => void;
   onRatingChange: (item: ManagedMediaItem, rating: MediaRating | null) => void;
   onEnqueue: (item: ManagedMediaItem, action: MediaAction) => void;
-  onOpenDeleteExplain: () => void;
 };
 
-const STAR_OPTIONS = [1, 2, 3, 4, 5] as const;
+const MAX_STARS = 5;
+const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '码率压缩', upgrade: '洗版' };
 
 function MediaLibraryManageRowInner({
   item,
   isSelected,
   isHighlighted,
-  mediaPolicy,
   rowTask,
   onToggleSelect,
   onWatchChange,
   onRatingChange,
   onEnqueue,
-  onOpenDeleteExplain,
 }: MediaLibraryManageRowProps) {
-  // 全部策略字段由 service 返回，客户端直接读取
   const action = item.recommendedAction ?? 'keep';
   const eq = item.equivalentBitrate;
   const target = item.targetBitrate;
   const predictGb = item.predictedSizeGb;
 
-  const targetHint = action === 'delete' ? '删除档' : target != null ? `${target.toFixed(1)} Mbps` : '—';
-  const formatLabel = `${item.resolution} · ${item.codec.toUpperCase()}`;
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
       {taskStatusLabelZh(rowTask.status)}（
@@ -65,6 +73,8 @@ function MediaLibraryManageRowInner({
   ) : (
     '—'
   );
+
+  const actionDisabled = !!rowTask || (item.isBluRayDisc && action !== 'delete' && action !== 'keep');
 
   return (
     <div
@@ -80,118 +90,50 @@ function MediaLibraryManageRowInner({
         />
         <span className="mediaManageTitle">{item.name}</span>
       </div>
-      <div className="tabular-nums" title="来自媒体库条目体积（GB）">
-        {item.sizeGb.toFixed(1)} GB
-      </div>
-      <div title={item.isBluRayDisc ? '路径为 .iso 或含 BDMV 目录（或库标记为原盘）' : undefined}>
+      <div className="tabular-nums">{item.sizeGb.toFixed(1)} GB</div>
+      <div>{item.resolution}</div>
+      <div>{item.codec.toUpperCase()}</div>
+      <div className="tabular-nums">{eq != null ? `${eq.toFixed(1)} Mbps` : '—'}</div>
+      <div className="tabular-nums">{target != null ? `${target.toFixed(1)} Mbps` : '—'}</div>
+      <div className="tabular-nums">{predictGb != null ? `${predictGb.toFixed(1)} GB` : '—'}</div>
+      <div title={item.isBluRayDisc ? '原盘（ISO/BDMV）' : undefined}>
         {item.isBluRayDisc ? '是' : '否'}
       </div>
-      <div className="tabular-nums">{eq != null ? `${eq.toFixed(1)} Mbps` : '—'}</div>
-      <div className="tabular-nums">{targetHint}</div>
-      <div className="tabular-nums" title="基于策略目标码率的预测转码后体积">
-        {predictGb != null ? `${predictGb.toFixed(1)} GB` : '—'}
+      <div title={item.doubanStars != null ? `豆瓣 ${item.doubanStars} 星` : '未抓取到'}>
+        <Stars count={item.doubanStars} max={MAX_STARS} />
       </div>
-      <div>{formatLabel}</div>
-      <div className="mediaManageStarStatusCell" title={formatStarStatus(item)}>
-        {formatStarStatus(item)}
+      <div>
+        <StarInput value={item.rating} onChange={(r) => onRatingChange(item, r)} />
       </div>
-      <div className="mediaManageDoubanCell" title={`豆瓣「看过」个人评分 — ${formatDoubanDisplay(item.doubanStars)}`}>
-        {formatDoubanDisplay(item.doubanStars)}
+      <div className="mediaManageWatchedCell">
+        {item.embyWebUrl && (
+          <button type="button" onClick={() => window.open(item.embyWebUrl, '_blank')}>
+            播放
+          </button>
+        )}
+        <button type="button" disabled={item.watched} onClick={() => onWatchChange(item, true)}>
+          已看
+        </button>
+        <button type="button" disabled={!item.watched} onClick={() => onWatchChange(item, false)}>
+          未看
+        </button>
       </div>
-      <div>{item.watched ? '已观看' : '未观看'}</div>
+      <div>
+        {action === 'keep' ? (
+          <span className="hint" title={item.reason}>{item.reason || '已达标'}</span>
+        ) : (
+          <button
+            type="button"
+            disabled={actionDisabled}
+            title={rowTask ? '该条目已有未结案任务' : item.isBluRayDisc ? '原盘不支持此操作' : undefined}
+            onClick={() => onEnqueue(item, action)}
+          >
+            {ACTION_LABEL[action]}
+          </button>
+        )}
+      </div>
       <div className="tabular-nums" style={{ fontSize: 12 }}>
         {taskCell}
-      </div>
-      <div className="mediaManageRowActions">
-        <div className="mediaManageActionGroup">
-          <span className="mediaManageActionLabel">观看</span>
-          <div className="mediaManageActionBtns">
-            {item.embyWebUrl && (
-              <button type="button" onClick={() => window.open(item.embyWebUrl, '_blank')}>
-                播放
-              </button>
-            )}
-            <button type="button" disabled={item.watched} onClick={() => void onWatchChange(item, true)}>
-              已看
-            </button>
-            <button type="button" disabled={!item.watched} onClick={() => void onWatchChange(item, false)}>
-              未看
-            </button>
-          </div>
-        </div>
-        <div className="mediaManageActionGroup">
-          <span className="mediaManageActionLabel">星级</span>
-          <select
-            className="selectLike mediaManageSelect"
-            value={item.rating == null ? '' : String(item.rating)}
-            onChange={(e) => {
-              const v = e.target.value;
-              onRatingChange(item, v === '' ? null : (Number(v) as MediaRating));
-            }}
-          >
-            <option value="">未标注</option>
-            {STAR_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s} 星
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="mediaManageActionGroup">
-          <span className="mediaManageActionLabel">码率优化</span>
-          {item.recommendedAction == null ? (
-            <span className="hint">需豆瓣或本地星级</span>
-          ) : action === 'keep' && item.doubanStars == null && item.rating == null ? (
-            <span className="hint">无建议策略</span>
-          ) : action === 'delete' ? (
-            <div className="mediaManageActionBtns" style={{ flexWrap: 'wrap', gap: 6 }}>
-              <span className="hint">策略：待删除</span>
-              <button
-                type="button"
-                disabled={!!rowTask}
-                title={rowTask ? '该条目已有未结案任务（同视频互斥）' : undefined}
-                onClick={() => onEnqueue(item, 'delete')}
-              >
-                加入删除任务
-              </button>
-              <button type="button" onClick={onOpenDeleteExplain}>
-                说明
-              </button>
-            </div>
-          ) : action === 'keep' ? (
-            <span className="hint">已达标</span>
-          ) : action === 'transcode' ? (
-            <button
-              type="button"
-              disabled={!!rowTask || item.isBluRayDisc}
-              title={
-                item.isBluRayDisc
-                  ? '蓝光/原盘（.iso 或 BDMV）不支持码率优化入队'
-                  : rowTask
-                    ? '该条目已有未结案任务（同视频互斥）'
-                    : undefined
-              }
-              onClick={() => onEnqueue(item, action)}
-            >
-              码率压缩
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={!!rowTask || item.isBluRayDisc}
-              title={
-                item.isBluRayDisc
-                  ? '蓝光/原盘（.iso 或 BDMV）不支持洗版入队'
-                  : rowTask
-                    ? '该条目已有未结案任务（同视频互斥）'
-                    : undefined
-              }
-              onClick={() => onEnqueue(item, action)}
-            >
-              洗版
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -202,13 +144,11 @@ function rowPropsEqual(a: MediaLibraryManageRowProps, b: MediaLibraryManageRowPr
     a.item === b.item &&
     a.isSelected === b.isSelected &&
     a.isHighlighted === b.isHighlighted &&
-    a.mediaPolicy === b.mediaPolicy &&
     a.rowTask === b.rowTask &&
     a.onToggleSelect === b.onToggleSelect &&
     a.onWatchChange === b.onWatchChange &&
     a.onRatingChange === b.onRatingChange &&
-    a.onEnqueue === b.onEnqueue &&
-    a.onOpenDeleteExplain === b.onOpenDeleteExplain
+    a.onEnqueue === b.onEnqueue
   );
 }
 

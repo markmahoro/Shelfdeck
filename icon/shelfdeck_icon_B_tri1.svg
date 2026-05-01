@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="playFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60A5FA" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#A78BFA" stop-opacity="0.05"/>
+    </linearGradient>
+    <linearGradient id="strokeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="50%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="cardAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="100%" stop-color="#A78BFA"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="#1E1E24" rx="60"/>
+
+  <!-- Triangle with gradient stroke + subtle fill -->
+  <path d="M128 96 L400 256 L128 416 Z" fill="url(#playFill)" stroke="url(#strokeGrad)" stroke-width="30" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- Shelf lines -->
+  <line x1="128" y1="192" x2="368" y2="192" stroke="white" stroke-width="10" stroke-linecap="round" opacity="0.18"/>
+  <line x1="128" y1="256" x2="400" y2="256" stroke="white" stroke-width="10" stroke-linecap="round" opacity="0.18"/>
+  <line x1="128" y1="320" x2="352" y2="320" stroke="white" stroke-width="10" stroke-linecap="round" opacity="0.18"/>
+
+  <!-- Cards Row 1 -->
+  <rect x="160" y="165" width="32" height="22" rx="5" fill="url(#cardAccent)" opacity="0.9"/>
+  <rect x="200" y="165" width="32" height="22" rx="5" fill="white" opacity="0.2"/>
+  <rect x="240" y="165" width="32" height="22" rx="5" fill="white" opacity="0.1"/>
+  <rect x="280" y="165" width="32" height="22" rx="5" fill="url(#cardAccent)" opacity="0.5"/>
+
+  <!-- Cards Row 2 -->
+  <rect x="160" y="229" width="32" height="22" rx="5" fill="white" opacity="0.12"/>
+  <rect x="200" y="229" width="32" height="22" rx="5" fill="url(#cardAccent)" opacity="0.9"/>
+  <rect x="240" y="229" width="32" height="22" rx="5" fill="white" opacity="0.12"/>
+  <rect x="280" y="229" width="32" height="22" rx="5" fill="url(#cardAccent)" opacity="0.5"/>
+  <rect x="320" y="229" width="32" height="22" rx="5" fill="white" opacity="0.06"/>
+
+  <!-- Cards Row 3 -->
+  <rect x="160" y="293" width="32" height="22" rx="5" fill="white" opacity="0.08"/>
+  <rect x="200" y="293" width="32" height="22" rx="5" fill="url(#cardAccent)" opacity="0.6"/>
+  <rect x="240" y="293" width="32" height="22" rx="5" fill="white" opacity="0.12"/>
+  <rect x="280" y="293" width="32" height="22" rx="5" fill="white" opacity="0.06"/>
+</svg>

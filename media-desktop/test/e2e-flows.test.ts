@@ -183,8 +183,8 @@ describe('Flow 5: Connection gate + health check', () => {
     expect(r.ok).toBe(true);
     const body = await r.json();
     expect(body.checks).toBeTruthy();
-    expect(body.checks.config).toBeTruthy();
-    expect(body.checks.service).toBeTruthy();
+    expect(body.checks.scheduler).toBeTruthy();
+    expect(body.checks.emby).toBeTruthy();
   });
 });
 

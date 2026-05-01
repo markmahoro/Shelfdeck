@@ -67,9 +67,12 @@ function devUrlCandidates() {
 
 function createWindow() {
   const preloadPath = path.join(__dirname, 'preload.js');
+  const iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
   const win = new BrowserWindow({
     width: 1360,
     height: 900,
+    title: 'ShelfDeck 播放助手',
+    icon: iconPath,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,

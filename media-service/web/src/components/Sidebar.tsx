@@ -21,7 +21,10 @@ const GROUP_3 = [
 export default function Sidebar() {
   return (
     <aside className={styles.sidebar}>
-      <div className={styles.logo}>ShelfDeck</div>
+      <div className={styles.logo}>
+        <img src="/logo-48.png" srcSet="/logo-96.png 2x" className={styles.logoIcon} alt="" />
+        ShelfDeck
+      </div>
       <nav className={styles.nav}>
         {GROUP_1.map(({ to, label }) => (
           <NavLink

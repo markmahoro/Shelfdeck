@@ -25,6 +25,8 @@ export type ManagedMediaItem = {
   rating: MediaRating | null;
   doubanStars: MediaRating | null;
   watched: boolean;
+  /** service 返回的策略原因说明（SSOT）。 */
+  reason?: string;
   /** service 返回的策略建议（SSOT）。客户端侧不自行计算。 */
   recommendedAction?: MediaAction;
   /** service 返回的等价码率（Mbps）。 */
@@ -36,21 +38,3 @@ export type ManagedMediaItem = {
   /** Emby web client URL（用于播放按钮）。 */
   embyWebUrl?: string;
 };
-
-export type MediaPolicy = {
-  target1080p: Record<2 | 3 | 4 | 5, number>;
-  target4k: Record<2 | 3 | 4 | 5, number>;
-};
-
-import type { MediaTask } from './task';
-
-export function buildTaskPreview(
-  item: ManagedMediaItem,
-  action: MediaAction,
-): Pick<MediaTask, 'itemId' | 'itemName' | 'actionType'> | null {
-  if (item.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) return null;
-  if (action === 'transcode') return { itemId: item.id, itemName: item.name, actionType: 'transcode' };
-  if (action === 'upgrade') return { itemId: item.id, itemName: item.name, actionType: 'upgrade' };
-  if (action === 'delete') return { itemId: item.id, itemName: item.name, actionType: 'delete' };
-  return null;
-}

@@ -1,6 +1,6 @@
 # DESIGN_SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER — 豆瓣评分抓取与匹配
 
-> Phase 3 为基准架构，v2 重写中。
+> v4 定稿。
 > 参考：`ref/design/DESIGN_LIBRARY_AND_QUEUE.md` §5 · `ref/architecture/ARCH_INTEGRATIONS.md`
 > 实现：`doubanService.js` · `doubanMatchService.js`
 
@@ -31,10 +31,21 @@ MediaLibraryService
 
 | 函数 | 说明 |
 |---|---|
-| `saveSession(payload)` | 保存豆瓣会话（userId + cookieHeader）到 `douban-session.json` |
-| `getSession()` | 读取当前会话 |
-| `fetchRatings(progressSink, opts)` | 抓取用户豆瓣"看过"电影列表，返回 `[{ subjectId, title, stars }]` |
+| `saveSession(payload)` | 保存豆瓣会话（userId + cookieHeader + interestsRssUrl）到 `douban-session.json` |
+| `getSession()` | 读取当前会话，返回 `{ cookieHeader, userId, interestsRssUrl }` |
+| `fetchRatings(progressSink, opts)` | 抓取用户豆瓣"看过"电影列表，返回 `{ entries: [{ subjectId, title, stars }], cancelled: boolean }` |
 | `requestStop()` | 请求停止当前抓取（用于中断长任务） |
+| `loadCachedEntries()` | 从 `douban-entries-cache.json` 读取上次全量抓取结果 |
+| `saveCachedEntries(entries)` | 将抓取结果写入 `douban-entries-cache.json`，供下次增量同步使用 |
+| `getHealth(config)` | 返回 `{ status: 'green'|'red', hasSession: boolean, doubanEnabledSubLibCount: number }` — 无子库启用豆瓣时为 green，有启用但无 session 时为 red |
+
+**fetchRatings 参数**：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `progressSink` | `{ send(payload) }` | 进度推送回调，支持 `.send()` 方法 |
+| `opts.incremental` | `boolean` | 是否增量模式（默认 true）。增量模式下，若某页所有 subjectId 均已在 existingEntries 中则停止翻页 |
+| `opts.existingEntries` | `Array<{ subjectId, title, stars }>` | 已有条目列表，用于增量判断和累积合并 |
 
 **fetchRatings 返回格式**：
 ```ts
@@ -55,6 +66,14 @@ MediaLibraryService
   cancelled: boolean
 }
 ```
+
+**会话字段**：
+
+| 字段 | 说明 |
+|---|---|
+| `cookieHeader` | 豆瓣 Cookie 请求头 |
+| `userId` | 豆瓣用户 ID（people/ 与 /collect 之间的部分） |
+| `interestsRssUrl` | 豆瓣收藏 RSS 地址（`https://www.douban.com/feed/people/{userId}/interests`），可选字段，`saveSession` 中自动 normalize |
 
 ### 2.2 DoubanMatchService（doubanMatchService.js）
 
@@ -81,10 +100,10 @@ MediaLibraryService
 ```
 豆瓣定时同步触发
     │
-    ├──→ 步骤1：DoubanAdapter.fetchRatings()
+    ├──→ 步骤1：DoubanAdapter.fetchRatings(progressSink, { incremental, existingEntries })
     │           ├── HTTP GET https://movie.douban.com/people/{userId}/collect
     │           │       （分页抓取，每页 15 条，页间隔 800ms）
-    │           └── 返回 [{ subjectId, title, stars }, ...]
+    │           └── 返回 [{ subjectId, title, stars }, ...] + cancelled
     │
     ├──→ 步骤2：DoubanMatchService.buildDoubanStarsByNormalizedTitle(entries)
     │           └── 建立内存 Map：normalized_title_key → stars
@@ -96,18 +115,21 @@ MediaLibraryService
 ```
 
 **增量同步策略**：
-- 默认增量：翻页过程中若某一页所有 subjectId 均已在本地缓存中，停止翻页
-- 全量刷新：约每 14 天触发一次完整分页扫描，或首次同步时
+- 默认增量：翻页过程中若某一页所有 subjectId 均已在 `existingEntries`（来自 `douban-entries-cache.json`）中，停止翻页
 - 页间延迟：800ms（降低豆瓣站点请求压力）
+- 同步完成后，调用 `saveCachedEntries()` 将完整结果持久化，供下次增量判断
+
+> 注意：早期设计文档中描述的"约每 14 天触发一次全量刷新"**未在代码中实现**。当前行为始终为增量同步：每次由 MediaLibraryService 的 6h 定时器触发，传入 `loadCachedEntries()` 的结果作为 `existingEntries`。全量刷新为未来目标。
 
 ---
 
 ## §4 限流与缓存
 
-- **请求限流**：豆瓣"看过"页翻页间隔 800ms（`PAGE_DELAY_MS`）
-- **会话存储**：`douban-session.json`（userId + cookieHeader），与应用 data 目录同路径
+- **请求限流**：豆瓣"看过"页翻页间隔 800ms（`PAGE_DELAY_MS`）；单次请求超时 60s（`https.get` with `req.setTimeout(60_000)`）
+- **会话存储**：`douban-session.json`（userId + cookieHeader + interestsRssUrl），与应用 data 目录同路径
+- **条目持久化缓存**：`douban-entries-cache.json` — 存储上次完整抓取的 `[{ subjectId, title, stars }]`，用于增量同步的 `existingEntries` 参数。每次同步完成后更新。由 `loadCachedEntries()` / `saveCachedEntries()` 读写。
 - **内存缓存**：`buildDoubanStarsByNormalizedTitle()` 构建的 Map 存活于单次同步周期，不持久化
-- **增量判断**：豆瓣返回的 subjectId 集合与内存缓存比对，快速终止无新数据页
+- **增量判断**：豆瓣返回的 subjectId 集合与 `existingEntries`（来自持久化缓存）比对，快速终止无新数据页
 
 ---
 

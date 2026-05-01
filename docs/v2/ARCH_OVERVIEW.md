@@ -1,6 +1,6 @@
 # ARCH_OVERVIEW — 系统结构总览
 
-> Phase 3（服务执行引擎）为基准架构。
+> v4 定稿。
 
 ## §1 组件边界
 
@@ -10,7 +10,7 @@
 
 | 组件 | 职责 | 定位 |
 |------|------|------|
-| **service** | 任务执行引擎、任务持久化、Web 管理端、Emby 集成、豆瓣集成 | 胖服务 |
+| **service** | 任务执行引擎、任务持久化、Web 管理端、Emby 集成、豆瓣集成、MoviePilot 集成 | 胖服务 |
 | **desktop** | 意图下发、任务卡 UI、媒体库浏览 | 瘦客户端 |
 
 ### 1.2 物理进程
@@ -71,7 +71,7 @@ service REST API
             └── taskExecutor 执行（见 TASK_SCHEDULER）
 ```
 
-**意图内容（Phase 3 简化）**：
+**意图内容**：
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -80,7 +80,29 @@ service REST API
 
 service 根据 `itemId` 调用 Emby API 获取详细信息（路径、名称、时长等），桌面不持有任何任务细节。
 
-### 3.2 进度推送（服务 → 桌面）
+### 3.2 自动入队（SmartTaskEngine → 服务）
+
+除 desktop 手动下发外，任务也可由 service 内部的 SmartTaskEngine 自动创建：
+
+```
+StrategyEngine（定时 30min 全量计算 action/reason）
+    │
+    ▼
+SmartTaskEngine（定时 10min 扫描）
+    │ 条件：watched=true + 有评分 + action∈{transcode,upgrade,delete} + 无活跃任务
+    ▼
+TaskStore.createTask() → TaskScheduler 接管
+```
+
+### 3.3 Admin API 任务创建
+
+管理员可通过 Web 管理端手动创建任务：
+
+```
+Admin Web → POST /v1/admin/tasks → TaskStore.createTask() → TaskScheduler 接管
+```
+
+### 3.4 进度推送（服务 → 桌面）
 
 Phase 3 从 IPC 迁移到 REST 后，进度推送改为轮询机制。desktop 通过以下端点轮询任务状态：
 
@@ -92,7 +114,7 @@ service REST API
     └── 返回当前任务列表（含 status、progress、flowState）
 ```
 
-### 3.3 状态数据流（桌面只读）
+### 3.5 状态数据流（桌面只读）
 
 桌面通过以下端点读取任务状态（不写）：
 
@@ -110,6 +132,51 @@ service REST API
 | Emby 连接信息 | ✅ | ❌ |
 | service 地址 | ❌ | ✅ 自己管理 |
 | 路径映射 | ✅（SSOT） | ❌ |
+
+---
+
+## §4 服务内部核心模块
+
+service 内部由以下关键模块组成，各司其职：
+
+```
+┌─────────────────────────────────────────────────────┐
+│ [数据层] MediaLibraryService                         │
+│ library.json CRUD，协调 EmbyAdapter/DoubanAdapter    │
+└─────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────┐
+│ [策略层] StrategyEngine（定时 30min）                  │
+│ 全量扫描 library.json，计算 action/reason 并写回      │
+│ 基于 mediaPolicy 规则纯函数计算                        │
+└─────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────┐
+│ [入队层] SmartTaskEngine（定时 10min）                 │
+│ 扫描 library.json，发现符合条件的条目，自动入队         │
+└─────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────┐
+│ [执行层] TaskScheduler + Flow Executors               │
+│ TaskScheduler: 调度（slot 检查、executionMode）+ 路由   │
+│ ├── DeleteFlowExecutor                               │
+│ ├── TranscodeFlowExecutor                            │
+│ └── UpgradeFlowExecutor（MoviePilot 集成）            │
+└─────────────────────────────────────────────────────┘
+```
+
+| 模块 | 文件 | 职责 |
+|------|------|------|
+| **MediaLibraryService** | `mediaLibraryService.js` | 媒体库数据 CRUD，子库管理，驱动 Emby/Douban 定时同步 |
+| **StrategyEngine** | `strategyEngine.js` | 基于 mediaPolicy 规则计算每个媒体项的 action/reason，支持跨 subLibrary 查询和用户可配置模板 |
+| **SmartTaskEngine** | `smartTaskEngine.js` | 自动扫描 library.json，将符合条件的已看条目自动入队到 TaskStore |
+| **TaskScheduler** | `taskScheduler.js` | 调度 + 路由；每 5s 轮询，按 actionType 分派到对应 Flow Executor |
+| **EmbyAdapter** | `services/embyService.js` | Emby REST API 封装，多服务器支持 |
+| **DoubanAdapter** | `services/doubanService.js` | 豆瓣"看过"列表抓取 |
+| **MoviePilotService** | `services/moviepilotService.js` | MoviePilot REST API 客户端（搜索、下载、传输管理） |
 
 ---
 
@@ -151,7 +218,7 @@ service 端固定部署在 Windows 上，内嵌系统托盘模块。
 | **Emby** | service → Emby REST API | 用户认证、媒体库、播放 |
 | **豆瓣** | service → 豆瓣 API | 评分同步 |
 | **外部播放器** | desktop → spawn | emby:launchPlayer IPC |
-| **MoviePilot** | service REST API | 未来洗版功能（预留） |
+| **MoviePilot** | service → MoviePilot REST API | 洗版功能：种子搜索、下载管理、文件转移。UpgradeFlowExecutor 通过 moviepilotService 调用 MoviePilot 原生 API。 |
 
 ---
 
@@ -177,8 +244,8 @@ service 端固定部署在 Windows 上，内嵌系统托盘模块。
 | 产品模块 | 支撑架构 |
 |----------|----------|
 | 资产盘点 | service 持有用户私有数据（评分、观看记录、个人评价） |
-| 推荐已有 | service 计算推荐逻辑，desktop 只展示结果 |
-| 空间管理 | service 执行转码/删除/洗版任务（taskExecutor） |
+| 推荐已有 | service 计算推荐逻辑（StrategyEngine），desktop 只展示结果 |
+| 空间管理 | service 执行转码/删除/洗版任务（TaskScheduler + Flow Executors） |
 | 发现缺口 | 待实现 |
 | 内容来源可插拔 | service 通过 Emby 适配器获取媒体元数据，未来可替换为其他适配器 |
 
@@ -192,3 +259,7 @@ service 端固定部署在 Windows 上，内嵌系统托盘模块。
 
 ## 关联文档
 
+- `SERVICE.md` — 胖服务内部子模块职责与协作
+- `SHARED/DATA_FLOW.md` — 意图下发 + 轮询机制（跨组件视角）
+- `SHARED/DATA_MODEL.md` — 核心数据模型
+- `SHARED/ERROR_HANDLING.md` — 错误码与降级策略

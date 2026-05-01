@@ -1,7 +1,7 @@
 {
   "name": "shelfdeck-media-desktop",
-  "version": "1.0.0-beta.9",
-  "description": "ShelfDeck desktop client (Windows, beta)",
+  "version": "1.0.0",
+  "description": "ShelfDeck desktop client (Windows)",
   "main": "electron/main.js",
   "scripts": {
     "dev:renderer": "vite",
