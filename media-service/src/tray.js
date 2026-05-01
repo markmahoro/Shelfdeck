@@ -1,8 +1,8 @@
 'use strict';
 
-const Tray = require('trayicon');
-const path = require('path');
+const SysTray = require('systray2').default;
 const fs = require('fs');
+const path = require('path');
 const http = require('http');
 const { exec } = require('child_process');
 
@@ -10,15 +10,14 @@ const POLL_MS = 3000;
 const HTTP_TIMEOUT_MS = 2000;
 const ICON_DIR = path.join(__dirname, '..', 'assets', 'tray');
 
-function loadIconBuf(name) {
-  return fs.readFileSync(path.join(ICON_DIR, name + '.ico'));
+function loadIconBase64(name) {
+  return fs.readFileSync(path.join(ICON_DIR, name + '.ico')).toString('base64');
 }
 
-// Preload icons once
 const ICONS = {
-  running: loadIconBuf('status-running'),
-  unhealthy: loadIconBuf('status-unhealthy'),
-  stopped: loadIconBuf('status-stopped'),
+  running: loadIconBase64('status-running'),
+  unhealthy: loadIconBase64('status-unhealthy'),
+  stopped: loadIconBase64('status-stopped'),
 };
 
 function checkHealth(port) {
@@ -35,11 +34,7 @@ function checkHealth(port) {
       res.on('end', () => {
         try {
           const j = JSON.parse(data);
-          if (res.statusCode >= 200 && res.statusCode < 300 && j && j.status) {
-            resolve(j.status);
-          } else {
-            resolve(null);
-          }
+          resolve(res.statusCode >= 200 && res.statusCode < 300 && j ? j.status : null);
         } catch {
           resolve(null);
         }
@@ -72,48 +67,62 @@ function resolveHealth(status) {
   return { icon: ICONS.unhealthy, title: 'ShelfDeck — 异常' };
 }
 
-function startTray(port) {
-  Tray.create({
-    icon: ICONS.stopped,
-    title: 'ShelfDeck — 启动中…',
-    useTempDir: true,
-  }, (tray) => {
-    tray.on('error', (err) => {
-      console.error('[tray] error:', err);
-    });
+const SEPARATOR = SysTray.separator;
 
-    const openAdmin = tray.item('打开 ShelfDeck 管理后台', {
-      action: () => openBrowser(`http://127.0.0.1:${port}/media-libraries`),
-    });
-    const exitItem = tray.item('退出 ShelfDeck', {
-      action: () => {
-        tray.kill();
-        process.exit(0);
-      },
-    });
+function buildMenu(icon, title, tooltip) {
+  return {
+    icon,
+    title,
+    tooltip,
+    items: [
+      { title: '打开 ShelfDeck 管理后台', tooltip: '', enabled: true },
+      SEPARATOR,
+      { title: '退出 ShelfDeck', tooltip: '', enabled: true },
+    ],
+  };
+}
 
-    tray.setMenu(openAdmin, tray.separator(), exitItem);
+async function startTray(port) {
+  const initialIcon = ICONS.stopped;
+  const initialTitle = 'ShelfDeck — 启动中…';
 
-    console.log('[tray] ready, polling health every', POLL_MS, 'ms');
+  const tray = new SysTray({
+    copyDir: true,
+    menu: buildMenu(initialIcon, initialTitle, initialTitle),
+  });
 
-    let timer = null;
-
-    function poll() {
-      checkHealth(port).then((status) => {
-        const h = resolveHealth(status);
-        try {
-          tray.setIcon(h.icon);
-          tray.setTitle(h.title);
-        } catch (_) { /* tray may be dead */ }
-      }).catch(() => { /* keep polling */ });
-      timer = setTimeout(poll, POLL_MS);
+  tray.onClick((action) => {
+    // __id assignments: 1=管理后台, 2=separator, 3=退出
+    if (action.item.__id === 1) {
+      openBrowser(`http://127.0.0.1:${port}/media-libraries`);
+    } else if (action.item.__id === 3) {
+      tray.kill();
+      process.exit(0);
     }
+  });
 
-    poll();
+  await tray.ready();
 
-    process.on('beforeExit', () => {
-      if (timer) clearTimeout(timer);
-    });
+  console.log('[tray] ready (systray2), polling health every', POLL_MS, 'ms');
+
+  let timer = null;
+
+  function poll() {
+    checkHealth(port).then((status) => {
+      const h = resolveHealth(status);
+      tray.sendAction({
+        type: 'update-menu',
+        menu: buildMenu(h.icon, h.title, h.title),
+        seq_id: -1,
+      });
+    }).catch(() => { /* keep polling */ });
+    timer = setTimeout(poll, POLL_MS);
+  }
+
+  poll();
+
+  process.on('beforeExit', () => {
+    if (timer) clearTimeout(timer);
   });
 }
 

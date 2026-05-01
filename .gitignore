@@ -5,6 +5,7 @@ node_modules/
 dist/
 !media-service/dist/
 release/
+dist-release/
 
 *.log
 npm-debug.log*

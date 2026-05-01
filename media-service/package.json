@@ -18,8 +18,7 @@
     "@ffprobe-installer/ffprobe": "^2.1.2",
     "fastify": "^5.2.1",
     "ffmpeg-static": "^5.2.0",
-    "systray2": "^2.1.4",
-    "trayicon": "^1.2.2"
+    "systray2": "^2.1.4"
   },
   "engines": {
     "node": ">=20"
