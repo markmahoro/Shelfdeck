@@ -254,6 +254,9 @@ function addSubLibrary(spec) {
   // Start timers for this subLibrary
   startSubLibraryTimers(subLib);
 
+  // Kick off an immediate refresh so the subLibrary doesn't stay empty until the first timer
+  refreshSubLibrary(subLib).catch((e) => console.error('[mediaLibrary] addSubLibrary refresh error:', e));
+
   return subLib;
 }
 
