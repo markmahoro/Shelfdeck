@@ -88,17 +88,18 @@ async function runAllChecks() {
   const moviepilotService = require('./services/moviepilotService');
   const transcodeService = require('./services/transcodeService');
 
-  const [emby, upgrade, transcode] = await Promise.all([
+  const [emby, upgrade, transcode, douban] = await Promise.all([
     checkEmby(),
     moviepilotService.getHealth(cfg),
     transcodeService.getHealth(cfg),
+    doubanService.getHealth(cfg),
   ]);
 
   const checks = {
     scheduler:   scheduler,
     smartTask:   smartTaskEngine.getHealth(),
     mediaLib:    mediaLibraryService.getHealth(cfg),
-    douban:      doubanService.getHealth(cfg),
+    douban,
     strategy:    strategyEngine.getHealth(),
     emby,
     upgrade,

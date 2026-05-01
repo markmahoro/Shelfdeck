@@ -304,7 +304,7 @@ module.exports = {
   getHealth,
 };
 
-function getHealth(config) {
+async function getHealth(config) {
   const subLibs = (config && config.subLibraries) || [];
   const doubanEnabledCount = subLibs.filter((sl) => sl.doubanEnabled).length;
 
@@ -315,9 +315,23 @@ function getHealth(config) {
   const session = getSession();
   const hasSession = !!(session && session.cookieHeader && session.userId);
 
-  return {
-    status: hasSession ? 'green' : 'red',
-    hasSession,
-    doubanEnabledSubLibCount: doubanEnabledCount,
-  };
+  if (!hasSession) {
+    return { status: 'red', hasSession: false, doubanEnabledSubLibCount: doubanEnabledCount };
+  }
+
+  // Verify actual connectivity to douban
+  try {
+    await new Promise((resolve, reject) => {
+      const req = https.get('https://movie.douban.com', { timeout: 5000 }, (res) => {
+        const ok = res.statusCode >= 200 && res.statusCode < 400;
+        res.resume(); // drain response body
+        resolve(ok);
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    });
+    return { status: 'green', hasSession: true, doubanEnabledSubLibCount: doubanEnabledCount };
+  } catch {
+    return { status: 'red', hasSession: true, doubanEnabledSubLibCount: doubanEnabledCount, message: '豆瓣不可达（DNS/网络问题）' };
+  }
 }
