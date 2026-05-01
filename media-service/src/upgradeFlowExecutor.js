@@ -696,13 +696,17 @@ async function runExecuting(taskId, task) {
       });
     } catch (_) {}
 
-    // Download with retry: if MP rejects, try next seed with score >= 0.8
+    const schedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, configStore.loadConfig());
+
+    // Download with retry: if MP rejects, try next seed with score >= 0.8 (auto mode only)
     let dlResult;
     const rankedPool = smartSeedSelect.getRankedPool(candidates, task.itemInfo, configStore.loadConfig());
     const highScorePool = rankedPool.filter((e) => e.score >= 0.8);
     const fallbackPool = highScorePool.length > 0 ? highScorePool : rankedPool;
 
-    for (const entry of fallbackPool) {
+    const retryPool = schedule.smartSelectEnabled ? fallbackPool : [{ candidate: candidates[selectedIndex], originalIndex: selectedIndex }];
+
+    for (const entry of retryPool) {
       const tInfo = entry.candidate.torrent_info;
       if (!tInfo) continue;
 
@@ -724,7 +728,7 @@ async function runExecuting(taskId, task) {
     }
 
     if (!dlResult || dlResult.success === false) {
-      appendLog(taskId, 'error', 'All high-score candidates failed to download');
+      appendLog(taskId, 'error', '所有候选种子下载失败，MoviePilot 均拒绝添加');
       scheduler.reportStatus(taskId, 'failed_hard');
       setPhase(taskId, 'failed_hard');
       return;
