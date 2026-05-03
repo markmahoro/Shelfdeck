@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "ShelfDeck media management service (REST)",
+  "license": "GPL-3.0",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
