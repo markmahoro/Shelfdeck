@@ -493,15 +493,21 @@ function startSubLibraryTimers(subLib) {
 
 function startAllSubLibraryTimers() {
   const cfg = configStore.loadConfig();
-  for (const sl of cfg.subLibraries || []) {
-    if (sl.enabled !== false) {
-      startSubLibraryTimers(sl);
-      // Kick off an immediate refresh so mediaLib doesn't stay stale until the first timer fires
-      refreshSubLibrary(sl).catch((e) => console.error('[mediaLibrary] startup refresh error:', e));
-    }
+  const subLibs = (cfg.subLibraries || []).filter((sl) => sl.enabled !== false);
+
+  for (const sl of subLibs) {
+    startSubLibraryTimers(sl);
   }
-  // Self-computation: recompute derived fields every 10 min
-  startSelfComputeTimer(600000);
+
+  // Refresh all subLibraries first, then start self-computation once data is in.
+  // Self-compute needs bitrate/duration from the freshly fetched items to derive
+  // equivalentBitrate — running it before refresh completes produces all-zeroes.
+  const refreshes = subLibs.map((sl) =>
+    refreshSubLibrary(sl).catch((e) => console.error('[mediaLibrary] startup refresh error:', e))
+  );
+  Promise.all(refreshes).then(() => {
+    startSelfComputeTimer(600000);
+  });
 }
 
 function stopAllTimers() {
