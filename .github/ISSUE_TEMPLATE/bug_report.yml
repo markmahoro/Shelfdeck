@@ -1,0 +1,53 @@
+name: Bug 报告
+description: 提交一个错误报告
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      placeholder: 清晰描述发生了什么
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开...
+        2. 点击...
+        3. 观察到...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      placeholder: 你期望发生什么
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: ShelfDeck 版本
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: 运行日志
+      description: 管理页面仪表盘 → 右下角"查看完整运行日志" → 复制粘贴最近 50-100 行
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows 11
+        - Windows 10
+        - 其他
+    validations:
+      required: true
