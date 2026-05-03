@@ -256,8 +256,11 @@ function addSubLibrary(spec) {
   // Start timers for this subLibrary
   startSubLibraryTimers(subLib);
 
-  // Kick off an immediate refresh so the subLibrary doesn't stay empty until the first timer
-  refreshSubLibrary(subLib).catch((e) => console.error('[mediaLibrary] addSubLibrary refresh error:', e));
+  // Kick off an immediate refresh, then recompute self-fields so
+  // equivalentBitrate is ready and strategy engine can produce results.
+  refreshSubLibrary(subLib)
+    .then(() => recomputeAllSelfFields())
+    .catch((e) => console.error('[mediaLibrary] addSubLibrary refresh error:', e));
 
   return subLib;
 }
