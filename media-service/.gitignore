@@ -9,5 +9,6 @@ data/playback-log.json
 data/douban-entries-cache.json
 data/item-ratings.json
 data/activity-log.json
+data/shelfdeck.log
 data/*.backup
 dist-pkg/

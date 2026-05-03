@@ -327,6 +327,11 @@ export default function DashboardPage() {
             })}
           </div>
         )}
+        <div style={{ marginTop: 12, textAlign: 'right' }}>
+          <a href="/v1/admin/log" target="_blank" style={{ fontSize: 12, color: '#888', textDecoration: 'none' }}>
+            查看完整运行日志 →
+          </a>
+        </div>
       </div>
 
       {/* Add Wizard Modal */}

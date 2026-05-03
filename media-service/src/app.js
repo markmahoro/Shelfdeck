@@ -1,5 +1,7 @@
 'use strict';
 
+require('./logger'); // intercept console.log/error → data/shelfdeck.log (before any other module)
+
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -714,6 +716,13 @@ function registerRoutes(app) {
   app.get('/v1/admin/sublibraries', async () => {
     const cfg = configStore.loadConfig();
     return { subLibraries: cfg.subLibraries || [] };
+  });
+
+  app.get('/v1/admin/log', async (req, reply) => {
+    const logger = require('./logger');
+    const lines = parseInt(req.query.lines || '500', 10);
+    reply.type('text/plain; charset=utf-8');
+    return logger.tail(Math.min(lines, 2000)) || '(log file is empty)\n';
   });
 
   app.post('/v1/admin/sublibraries', async (req, reply) => {
