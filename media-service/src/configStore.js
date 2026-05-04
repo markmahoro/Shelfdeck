@@ -394,6 +394,20 @@ function detectV4Rules(raw) {
   );
 }
 
+// V5: detect old default template (pre audioCodec filter + seedPreferences)
+function detectV5DefaultTemplate(raw) {
+  const templates = raw.ruleTemplates || [];
+  const dfl = templates.find((t) => t.id === 'default');
+  if (!dfl) return false;
+  const rules = dfl.rules || [];
+  // Old template has a P8 5★ upgrade rule without seedPreferences
+  const upgrade5Star = rules.find((r) =>
+    r.priority === 8 && r.action === 'upgrade' &&
+    (!r.actionParams || !r.actionParams.seedPreferences || Object.keys(r.actionParams.seedPreferences).length === 0)
+  );
+  return !!upgrade5Star;
+}
+
 function extractPolicyFromTemplate(template) {
   if (!template || !template.rules) return null;
   const target1080p = {};
@@ -475,6 +489,13 @@ function loadConfig() {
     if (detectV4Rules(raw)) {
       console.log('[configStore] detected old rule format (innerConnector), regenerating default template');
       fs.writeFileSync(cfgFile + '.v4.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = migrateV4Rules(raw);
+      saveConfig(raw);
+    }
+
+    if (detectV5DefaultTemplate(raw)) {
+      console.log('[configStore] detected old default template (v5 update), regenerating');
+      fs.writeFileSync(cfgFile + '.v5.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = migrateV4Rules(raw);
       saveConfig(raw);
     }
