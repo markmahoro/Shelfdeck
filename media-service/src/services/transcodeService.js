@@ -209,8 +209,8 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
     if (bitrate) args.push('-b:v', bitrate);
     else args.push('-cq', '24');
   } else if (enc === 'qsv') {
-    args.push('-c:v', 'hevc_qsv');
-    if (bitrate) args.push('-b:v', bitrate);
+    args.push('-c:v', 'hevc_qsv', '-preset', 'medium');
+    if (bitrate) { args.push('-rc', 'vbr', '-b:v', bitrate); }
     else args.push('-global_quality', '24');
   } else if (enc === 'amf') {
     args.push('-c:v', 'hevc_amf', '-quality', 'balanced');
