@@ -46,9 +46,16 @@ Emby 媒体库 ──→ 拉取所有影片（码率、分辨率、编码、已�
 ## 快速开始
 
 ### 环境要求
+
+**Windows 部署**：
 - Windows 10/11
 - Node.js ≥ 20（部署包已自带，用户无需安装）
-- 局域网内的 Emby 服务器
+
+**Docker 部署**（支持飞牛 NAS / Linux 服务器）：
+- Docker + Docker Compose
+- 详见 [Docker 部署指南](media-service/DOCKER_DEPLOY.md)
+
+局域网内的 Emby 服务器（两种部署方式都需要）
 
 ### 三步上手
 
@@ -134,7 +141,7 @@ ShelfDeck 使用 FFmpeg 将不符合策略目标的影片**转码为 H.265 格�
 
 ### ShelfDeck 需要一直开着吗？
 
-是的。双击 VBS 启动器后，ShelfDeck 服务在后台运行（系统托盘可见），几乎不占资源。v1.0.0 仅支持 Windows，基于 Docker 的跨平台部署方案正在开发中。
+是的。Windows 上双击 VBS 启动器后，ShelfDeck 服务在后台运行（系统托盘可见），几乎不占资源。**现已支持 Docker 部署**，可在飞牛 NAS、Linux 服务器上常驻运行，详见 [Docker 部署指南](media-service/DOCKER_DEPLOY.md)。
 
 ---
 
@@ -154,7 +161,7 @@ ShelfDeck 使用 FFmpeg 将不符合策略目标的影片**转码为 H.265 格�
 
 - **本地文件夹支持**：不依赖 Emby，直接扫描 Windows/NAS 上的文件夹作为媒体库
 - **剧集类媒体库**：完善对电视剧、动漫等剧集类型的策略推荐和任务执行
-- **Docker 部署**：提供 Docker 镜像，支持 NAS 和 Linux 服务器部署
+- **Docker 部署**：<del>提供 Docker 镜像，支持 NAS 和 Linux 服务器部署</del> ✅ 已完成
 - **English version**：全英文界面与文档，服务国际用户
 
 ## 开发者
