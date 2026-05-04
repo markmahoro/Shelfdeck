@@ -168,6 +168,7 @@ export default function MoviePilotConfigPage() {
           </div>
         )}
 
+        {platform !== 'linux' && (
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>容器内下载目录 (save_path)</label>
           <input
@@ -181,8 +182,10 @@ export default function MoviePilotConfigPage() {
             MoviePilot 容器的下载目标路径。选择上方目录后自动填充，也可手动修改。
           </p>
         </div>
+        )}
       </section>
 
+      {platform !== 'linux' && (
       <section style={cardStyle}>
         <h3 style={sectionTitle}>本地 Staging 路径</h3>
 
@@ -192,16 +195,15 @@ export default function MoviePilotConfigPage() {
             type="text"
             value={stagingLocalPath}
             onChange={(e) => setStagingLocalPath(e.target.value)}
-            placeholder={platform === 'linux' ? '/upgrade' : 'W:\\shelfdeck'}
+            placeholder="W:\\shelfdeck"
             style={{ ...inputStyle, width: 360 }}
           />
           <p style={hintStyle}>
-            {platform === 'linux'
-              ? 'ShelfDeck 容器内访问 staging 目录的路径。已按 Docker 约定预设为 /upgrade，通常无需修改。'
-              : 'ShelfDeck 访问 staging 目录的本地路径。对应 MoviePilot 下载目录通过 SMB/网络映射后的 Windows 路径。'}
+            ShelfDeck 访问 staging 目录的本地路径。对应 MoviePilot 下载目录通过 SMB/网络映射后的 Windows 路径。
           </p>
         </div>
       </section>
+      )}
 
       <div>
         <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} style={primaryBtn}>
