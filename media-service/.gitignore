@@ -1,4 +1,5 @@
 node_modules/
+docker-compose.yml
 data/config.json
 data/tasks.json
 data/cache.json

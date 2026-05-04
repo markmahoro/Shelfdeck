@@ -1,7 +1,12 @@
 'use strict';
 
 const { buildApp } = require('./app');
-const { startTray } = require('./tray');
+let startTray = null;
+try {
+  startTray = require('./tray').startTray;
+} catch (_) {
+  console.log('[media-service] tray module not available (this is normal on Linux/Docker)');
+}
 
 const PORT = Number(process.env.MEDIA_SERVICE_PORT || process.env.CONTROL_PLANE_PORT || 18080);
 
@@ -31,7 +36,7 @@ async function main() {
   await app.listen({ port: PORT, host: '0.0.0.0' });
   console.log(`[media-service] listening on http://127.0.0.1:${PORT}`);
 
-  startTray(PORT);
+  if (startTray) startTray(PORT);
 }
 
 main().catch((e) => {

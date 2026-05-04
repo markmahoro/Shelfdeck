@@ -1,0 +1,15 @@
+node_modules
+data
+dist-pkg
+dist
+.git
+.gitignore
+start.vbs
+test-api.js
+test-report.md
+*.md
+.npmrc
+web/node_modules
+web/dist
+scripts
+assets

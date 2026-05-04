@@ -1,0 +1,47 @@
+version: "3.8"
+
+# ================================================================
+# ShelfDeck Docker 部署模板
+# 1. 复制此文件为 docker-compose.yml
+# 2. 修改下面标注 <改成你的路径> 的地方
+# 3. docker compose pull && docker compose up -d
+# ================================================================
+
+services:
+  shelfdeck:
+    image: markmahoro/shelfdeck:latest
+    platform: linux/amd64
+    container_name: shelfdeck
+    ports:
+      - "18080:18080"
+    volumes:
+      # 1. 数据目录（配置、任务队列、日志）
+      - <改成你的路径>/shelfdeck/data:/app/data
+      # 2. 转码临时目录
+      - <改成你的路径>/shelfdeck/transcode:/transcode
+      # 3. 洗版下载目录（可选，不需洗版可删除此行）
+      - <改成你的路径>/shelfdeck/upgrade:/upgrade
+      # 4. 媒体文件目录
+      # Emby 报告的文件路径必须能在容器内访问到，例如：
+      #   Emby 报告 /volume1/video/movie/xxx.mkv
+      #   飞牛实际 /vol02/video/movie/xxx.mkv
+      #   → /vol02/video:/volume1/video （左=飞牛，右=Emby）
+      - <飞牛媒体路径前缀>:<Emby报告路径前缀>
+
+    # ===== Intel 核显 (QSV)：取消下面2行注释 =====
+    # devices:
+    #   - /dev/dri:/dev/dri
+
+    # ===== NVIDIA 独显 (NVENC)：取消下面注释 =====
+    # 前提：先安装 NVIDIA Container Toolkit
+    # runtime: nvidia
+    # 并在 environment 里追加：
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    #   - NVIDIA_DRIVER_CAPABILITIES=compute,video
+
+    environment:
+      - MEDIA_SERVICE_PORT=18080
+      - MEDIA_SERVICE_DATA_DIR=/app/data
+      # - MEDIA_SERVICE_API_KEY=your-api-key-here
+
+    restart: unless-stopped
