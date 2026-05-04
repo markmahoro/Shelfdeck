@@ -891,6 +891,19 @@ function registerRoutes(app) {
 
   // ── Admin: MoviePilot Sites ───────────────────────────────────────────
 
+  // Get MoviePilot download directories for user selection
+  app.get('/v1/admin/upgrade/directories', async () => {
+    const cfg = configStore.loadConfig();
+    const mp = cfg.moviepilot || {};
+    if (!mp.baseUrl || !mp.apiKey) return [];
+    try {
+      return await moviepilotService.fetchDirectories(mp);
+    } catch (e) {
+      console.error('[admin] fetchDirectories error:', e.message);
+      return [];
+    }
+  });
+
   app.get('/v1/admin/moviepilot/sites', async () => {
     const cfg = configStore.loadConfig();
     const mp = cfg.moviepilot || {};
@@ -946,6 +959,12 @@ function registerRoutes(app) {
 
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
+  });
+
+  // ── Admin: System Info ────────────────────────────────────────────────────
+
+  app.get('/v1/admin/system/info', async () => {
+    return { platform: process.platform };
   });
 
   // ── Admin: Health ───────────────────────────────────────────────────────

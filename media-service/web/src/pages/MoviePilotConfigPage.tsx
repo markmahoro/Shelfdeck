@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { upgrade } from '../api/client';
+import { upgrade, system } from '../api/client';
+import type { MpDirectory } from '../api/client';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -10,9 +11,16 @@ export default function MoviePilotConfigPage() {
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [savePath, setSavePath] = useState('');
-  const [stagingPath, setStagingPath] = useState('');
   const [stagingLocalPath, setStagingLocalPath] = useState('');
   const [initialized, setInitialized] = useState(false);
+
+  // Directories from MoviePilot
+  const [directories, setDirectories] = useState<MpDirectory[]>([]);
+  const [selectedDir, setSelectedDir] = useState('');
+  const [fetchingDirs, setFetchingDirs] = useState(false);
+
+  // Platform info for conditional display
+  const [platform, setPlatform] = useState('');
 
   const { isLoading } = useQuery({
     queryKey: ['upgrade-config'],
@@ -22,13 +30,54 @@ export default function MoviePilotConfigPage() {
         setBaseUrl(cfg.moviepilot?.baseUrl || '');
         setApiKey(cfg.moviepilot?.apiKey || '');
         setSavePath(cfg.moviepilot?.savePath || '');
-        setStagingPath(cfg.moviepilot?.stagingPath || '');
         setStagingLocalPath(cfg.upgradeStagingLocalPath || '');
         setInitialized(true);
       }
       return cfg;
     },
   });
+
+  // Load platform info
+  useQuery({
+    queryKey: ['system-info'],
+    queryFn: async () => {
+      try {
+        const info = await system.getInfo();
+        setPlatform(info.platform);
+        return info;
+      } catch {
+        return { platform: '' };
+      }
+    },
+    enabled: initialized,
+  });
+
+  async function handleFetchDirectories() {
+    if (!baseUrl || !apiKey) {
+      setAlert({ type: 'error', msg: '请先填写 MoviePilot 服务地址和 API Token' });
+      return;
+    }
+    setFetchingDirs(true);
+    try {
+      const dirs = await upgrade.getDirectories();
+      setDirectories(dirs);
+      if (dirs.length === 0) {
+        setAlert({ type: 'error', msg: '未获取到下载目录，请在 MoviePilot 设置中配置' });
+      }
+    } catch (e: any) {
+      setAlert({ type: 'error', msg: `获取目录失败: ${e.message}` });
+    } finally {
+      setFetchingDirs(false);
+    }
+  }
+
+  function handleDirSelect(dirName: string) {
+    setSelectedDir(dirName);
+    const dir = directories.find((d) => d.name === dirName);
+    if (dir) {
+      setSavePath(dir.download_path);
+    }
+  }
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -37,7 +86,6 @@ export default function MoviePilotConfigPage() {
           baseUrl,
           apiKey,
           savePath,
-          stagingPath,
         },
         upgradeStagingLocalPath: stagingLocalPath,
       }),
@@ -80,7 +128,45 @@ export default function MoviePilotConfigPage() {
       </section>
 
       <section style={cardStyle}>
-        <h3 style={sectionTitle}>路径映射</h3>
+        <h3 style={sectionTitle}>下载目录</h3>
+
+        <div style={{ marginBottom: 16 }}>
+          <button
+            onClick={handleFetchDirectories}
+            disabled={fetchingDirs || !baseUrl || !apiKey}
+            style={{
+              ...primaryBtn,
+              opacity: !baseUrl || !apiKey ? 0.5 : 1,
+              cursor: !baseUrl || !apiKey ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {fetchingDirs ? '获取中...' : '获取目录'}
+          </button>
+          <span style={{ fontSize: 12, color: '#999', marginLeft: 12 }}>
+            从 MoviePilot 获取已配置的下载目录
+          </span>
+        </div>
+
+        {directories.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>选择目录</label>
+            <select
+              value={selectedDir}
+              onChange={(e) => handleDirSelect(e.target.value)}
+              style={{ ...inputStyle, width: 420 }}
+            >
+              <option value="">-- 请选择 ShelfDeck 使用的目录 --</option>
+              {directories.map((d) => (
+                <option key={d.name} value={d.name}>
+                  {d.name} — {d.download_path}
+                </option>
+              ))}
+            </select>
+            <p style={hintStyle}>
+              选择一个 MoviePilot 下载目录，ShelfDeck 将通过此目录下发洗版任务。
+            </p>
+          </div>
+        )}
 
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>容器内下载目录 (save_path)</label>
@@ -92,21 +178,13 @@ export default function MoviePilotConfigPage() {
             style={{ ...inputStyle, width: 420 }}
           />
           <p style={hintStyle}>
-            MoviePilot 容器的下载目标路径。创建下载任务时指定 save_path，文件将下载到此目录。
+            MoviePilot 容器的下载目标路径。选择上方目录后自动填充，也可手动修改。
           </p>
         </div>
+      </section>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>容器内 Staging 目录</label>
-          <input
-            type="text"
-            value={stagingPath}
-            onChange={(e) => setStagingPath(e.target.value)}
-            placeholder="留空则不使用 transfer 中间步骤"
-            style={{ ...inputStyle, width: 420 }}
-          />
-          <p style={hintStyle}>可选。MoviePilot transfer 的目标目录。留空则直接从下载目录读取。</p>
-        </div>
+      <section style={cardStyle}>
+        <h3 style={sectionTitle}>本地 Staging 路径</h3>
 
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>本地 Staging 路径</label>
@@ -114,14 +192,15 @@ export default function MoviePilotConfigPage() {
             type="text"
             value={stagingLocalPath}
             onChange={(e) => setStagingLocalPath(e.target.value)}
-            placeholder="W:\shelfdeck"
+            placeholder={platform === 'linux' ? '/upgrade' : 'W:\\shelfdeck'}
             style={{ ...inputStyle, width: 360 }}
           />
           <p style={hintStyle}>
-            ShelfDeck 访问 staging 目录的本地路径。对应容器内 save_path 通过 SMB/Docker 卷映射后的 Windows 路径。
+            {platform === 'linux'
+              ? 'ShelfDeck 容器内访问 staging 目录的路径。已按 Docker 约定预设为 /upgrade，通常无需修改。'
+              : 'ShelfDeck 访问 staging 目录的本地路径。对应 MoviePilot 下载目录通过 SMB/网络映射后的 Windows 路径。'}
           </p>
         </div>
-
       </section>
 
       <div>

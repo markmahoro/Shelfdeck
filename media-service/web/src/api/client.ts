@@ -149,11 +149,20 @@ export const transcode = {
 // ── Upgrade (MoviePilot) ─────────────────────────────────────────────────────
 
 export interface UpgradeConfig {
-  moviepilot: { baseUrl: string; apiKey: string; savePath: string; stagingPath: string };
+  moviepilot: { baseUrl: string; apiKey: string; savePath: string };
   upgradeStagingLocalPath: string;
   upgradeReplaceConfirmRequired?: boolean;
   upgradeRetryInterval?: number;
   upgradeMaxRetries?: number;
+}
+
+export interface MpDirectory {
+  name: string;
+  download_path: string;
+  library_path: string;
+  media_type: string;
+  storage: string;
+  transfer_type: string;
 }
 
 export const upgrade = {
@@ -161,6 +170,8 @@ export const upgrade = {
 
   patchConfig: (body: Partial<UpgradeConfig>) =>
     patch<UpgradeConfig>('/v1/admin/upgrade/config', body),
+
+  getDirectories: () => get<MpDirectory[]>('/v1/admin/upgrade/directories'),
 };
 
 // ── Tasks ────────────────────────────────────────────────────────────────────
@@ -223,6 +234,16 @@ export interface TaskReport {
 
 export const health = {
   check: () => get<HealthStatus>('/v1/admin/health'),
+};
+
+// ── System Info ──────────────────────────────────────────────────────────────
+
+export interface SystemInfo {
+  platform: string;
+}
+
+export const system = {
+  getInfo: () => get<SystemInfo>('/v1/admin/system/info'),
 };
 
 // ── Public health ─────────────────────────────────────────────────────────────

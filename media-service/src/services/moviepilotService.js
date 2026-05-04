@@ -95,6 +95,22 @@ async function listSites(mpConfig) {
   return mpFetchJson(mpConfig, '/api/v1/site/');
 }
 
+// Get configured download directories from MoviePilot
+async function fetchDirectories(mpConfig) {
+  const res = await mpFetchJson(mpConfig, '/api/v1/system/setting/Directories');
+  if (res && res.data && Array.isArray(res.data.value)) {
+    return res.data.value.map((d) => ({
+      name: d.name,
+      download_path: d.download_path,
+      library_path: d.library_path,
+      media_type: d.media_type,
+      storage: d.storage,
+      transfer_type: d.transfer_type,
+    }));
+  }
+  return [];
+}
+
 const fs = require('fs');
 
 module.exports = {
@@ -108,6 +124,7 @@ module.exports = {
   pauseDownload,
   resumeDownload,
   getTransferHistory,
+  fetchDirectories,
   getHealth,
 };
 

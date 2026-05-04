@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { transcode } from '../api/client';
+import { transcode, system } from '../api/client';
 import type { TranscodeConfig, EncodeDevice, DevicePoolEntry } from '../types';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -11,6 +11,7 @@ export default function TranscodeConfigPage() {
   const [tempRoot, setTempRoot] = useState('');
   const [cpuStrategy, setCpuStrategy] = useState<'normal' | 'backup_only'>('normal');
   const [initialized, setInitialized] = useState(false);
+  const [platform, setPlatform] = useState('');
 
   const [poolDevices, setPoolDevices] = useState<DevicePoolEntry[]>([]);
 
@@ -28,6 +29,20 @@ export default function TranscodeConfigPage() {
       }
       return cfg;
     },
+  });
+
+  useQuery({
+    queryKey: ['system-info-transcode'],
+    queryFn: async () => {
+      try {
+        const info = await system.getInfo();
+        setPlatform(info.platform);
+        return info;
+      } catch {
+        return { platform: '' };
+      }
+    },
+    enabled: initialized,
   });
 
   const { data: poolData, isLoading: poolLoading } = useQuery({
@@ -124,7 +139,8 @@ export default function TranscodeConfigPage() {
     <div>
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
 
-      {/* Card 1: 转码临时目录 */}
+      {/* Card 1: 转码临时目录 — Docker 已预设，Windows 手动配置 */}
+      {platform !== 'linux' && (
       <section style={cardStyle}>
         <h3 style={sectionTitle}>转码临时目录</h3>
         <div>
@@ -138,6 +154,7 @@ export default function TranscodeConfigPage() {
           </button>
         </div>
       </section>
+      )}
 
       {/* Card 2: 编码设备池 */}
       <section style={cardStyle}>
