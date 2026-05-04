@@ -27,6 +27,7 @@ const OPERATORS = {
   '=':       (a, b) => a === b,
   'in':      (a, b) => Array.isArray(b) && b.includes(a),
   'not in':  (a, b) => Array.isArray(b) && !b.includes(a),
+  'overlap': (a, b) => Array.isArray(a) && Array.isArray(b) && a.some((v) => b.includes(v)),
 };
 
 function conditionTrue(item, cond) {

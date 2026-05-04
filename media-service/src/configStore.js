@@ -72,19 +72,47 @@ function buildDefaultTemplate(policy) {
     reason: '低分删除',
   });
 
-  // P8: 5★ → upgrade
+  // P8: 5★ + 4K H.265 high-bitrate + high-quality audio → keep (already optimal)
   rules.push({
     priority: 8,
     groupsConnector: 'and',
+    groups: [
+      ratingGroup(5),
+      condGroup([
+        ['bucket', '=', '4K'],
+        ['codec', 'in', ['h265', 'hevc']],
+        ['equivalentBitrate', '>=', 20],
+        ['audioCodecs', 'overlap', ['dts', 'truehd', 'atmos']],
+      ]),
+    ],
+    action: 'keep',
+    actionParams: {},
+    reason: '5★ 已是4K H.265 高码率 + 高品质音轨，无需洗版',
+  });
+
+  // P7: 5★ → upgrade
+  rules.push({
+    priority: 7,
+    groupsConnector: 'and',
     groups: [ratingGroup(5)],
     action: 'upgrade',
-    actionParams: { targetBitrate: 25, targetCodec: 'h265', maxSizeGB: 38, seedPreferences: {} },
+    actionParams: {
+      targetBitrate: 25,
+      targetCodec: 'h265',
+      maxSizeGB: 38,
+      seedPreferences: {
+        resolutionPreference: ['4K'],
+        codecPreference: ['h265', 'dv'],
+        audioPreference: ['DTS', 'TrueHD', 'Atmos'],
+        preferCNSub: true,
+      },
+    },
     reason: '5★ 洗版至4K高码率优质音轨',
   });
 
-  // P7: isDiscLike → keep
+  // P6: isDiscLike → keep
   rules.push({
-    priority: 7,
+    priority: 6,
     groupsConnector: 'and',
     groups: [condGroup([['isDiscLike', '=', true]])],
     action: 'keep',
@@ -92,7 +120,7 @@ function buildDefaultTemplate(policy) {
     reason: '原盘不处理',
   });
 
-  // P6: 3-4★ + modern codec + bitrate already within target → keep (already optimal)
+  // P5: 3-4★ + modern codec + bitrate already within target → keep (already optimal)
   function modernKeepRule(priority, rating, bucket, threshold) {
     return {
       priority,
@@ -106,18 +134,18 @@ function buildDefaultTemplate(policy) {
       reason: `${rating}★ ${bucket} 现代编码且码率≤${threshold}M，已达标`,
     };
   }
-  if (t1080[3]) rules.push(modernKeepRule(6, 3, '1080p', t1080[3]));
-  if (t4k[3]) rules.push(modernKeepRule(6, 3, '4K', t4k[3]));
-  if (t1080[4]) rules.push(modernKeepRule(6, 4, '1080p', t1080[4]));
-  if (t4k[4]) rules.push(modernKeepRule(6, 4, '4K', t4k[4]));
+  if (t1080[3]) rules.push(modernKeepRule(5, 3, '1080p', t1080[3]));
+  if (t4k[3]) rules.push(modernKeepRule(5, 3, '4K', t4k[3]));
+  if (t1080[4]) rules.push(modernKeepRule(5, 4, '1080p', t1080[4]));
+  if (t4k[4]) rules.push(modernKeepRule(5, 4, '4K', t4k[4]));
 
-  // P5: 3★ needs transcode (unless already optimal)
-  if (t1080[3]) rules.push(transcodeRule(5, 3, '1080p', t1080[3], t1080[3]));
-  if (t4k[3]) rules.push(transcodeRule(5, 3, '4K', t4k[3], t4k[3]));
+  // P4: 3★ needs transcode (unless already optimal)
+  if (t1080[3]) rules.push(transcodeRule(4, 3, '1080p', t1080[3], t1080[3]));
+  if (t4k[3]) rules.push(transcodeRule(4, 3, '4K', t4k[3], t4k[3]));
 
-  // P4: 4★ needs transcode (unless already optimal)
-  if (t1080[4]) rules.push(transcodeRule(4, 4, '1080p', t1080[4], t1080[4]));
-  if (t4k[4]) rules.push(transcodeRule(4, 4, '4K', t4k[4], t4k[4]));
+  // P3: 4★ needs transcode (unless already optimal)
+  if (t1080[4]) rules.push(transcodeRule(3, 4, '1080p', t1080[4], t1080[4]));
+  if (t4k[4]) rules.push(transcodeRule(3, 4, '4K', t4k[4], t4k[4]));
 
   // P1: catch-all → keep
   rules.push({

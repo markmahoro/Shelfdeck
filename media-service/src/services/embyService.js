@@ -272,6 +272,7 @@ function extractItemFields(item) {
   let height = 0;
   let codec = 'h264';
 
+  let audioCodecs = [];
   if (src.MediaStreams) {
     const video = src.MediaStreams.find((s) => s && s.Type === 'Video');
     if (video) {
@@ -279,6 +280,10 @@ function extractItemFields(item) {
       height = video.Height || 0;
       codec = normalizeVideoCodec(video.Codec);
     }
+    audioCodecs = src.MediaStreams
+      .filter((s) => s && s.Type === 'Audio')
+      .map((s) => String(s.Codec || '').toLowerCase())
+      .filter(Boolean);
   }
 
   const resolution = height >= 2000 || width >= 3800 ? `${width}x${height}` : `${width}x${height}`;
@@ -297,6 +302,7 @@ function extractItemFields(item) {
     genres: Array.isArray(item.Genres) ? item.Genres : [],
     isDiscLike: inferIsBluRayDisc(item),
     codec,
+    audioCodecs,
     watched: !!(item.UserData && item.UserData.Played),
   };
 }
