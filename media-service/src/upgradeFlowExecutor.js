@@ -133,88 +133,6 @@ function isAborted(taskId) {
   return abortFlags.get(taskId) === true;
 }
 
-// ── Hash acquisition loop ──────────────────────────────────────────────────────
-// Polls listDownloads by title match until hash appears or user cancels.
-// Honours pausingRequested — once hash arrives, pause is executed immediately.
-// Honours pendingCancel — once hash arrives, delete is executed immediately.
-
-function normalizeTitle(s) {
-  return String(s || '').replace(/[.\-\s]+/g, ' ').trim().toLowerCase();
-}
-
-async function tryMatchHash(mpConfig, searchTitle, fallbackNames) {
-  try {
-    const downloads = await moviepilotService.listDownloads(mpConfig);
-    const list = Array.isArray(downloads) ? downloads : [];
-
-    // Build search terms: primary torrent title + item name fallbacks
-    const terms = [searchTitle];
-    if (Array.isArray(fallbackNames)) {
-      for (const name of fallbackNames) {
-        if (name) {
-          const t = normalizeTitle(name);
-          if (t && !terms.includes(t)) terms.push(t);
-        }
-      }
-    }
-
-    const match = list.find((d) => {
-      if (!d.hash) return false;
-      const dTitle = normalizeTitle(d.title || d.name || '');
-      return terms.some((term) => dTitle.includes(term) || term.includes(dTitle));
-    });
-    return match ? match.hash : null;
-  } catch (err) {
-    console.error('[upgradeFlow] tryMatchHash error:', err.message);
-    return null;
-  }
-}
-
-async function acquireHash(taskId, mpConfig, searchTitle, fallbackNames) {
-  const timeoutMs = 10 * 60 * 1000; // 10 min — generous for MP to register download
-  const deadline = Date.now() + timeoutMs;
-
-  while (true) {
-    if (Date.now() > deadline) {
-      appendLog(taskId, 'error', `Hash acquisition timed out after ${timeoutMs / 1000}s — download title may not match (search="${searchTitle}")`);
-      throw new Error('Hash acquisition timed out');
-    }
-
-    const task = taskStore.getTask(taskId);
-    if (!task) return null;
-
-    // Cancel during hash acquisition — keep hunting hash, delete once found
-    if (task.pendingCancel) {
-      const hash = await tryMatchHash(mpConfig, searchTitle, fallbackNames);
-      if (hash) {
-        try { await moviepilotService.deleteDownload(mpConfig, hash); } catch (_) {}
-        abortFlags.set(taskId, true);
-        appendLog(taskId, 'info', 'Download cancelled (hash acquired during cancel wait)');
-        scheduler.reportStatus(taskId, 'done');
-      } else {
-        // Still no hash — MP download may not have registered yet.
-        // Delete won't work without hash, but user wants out. Mark done.
-        abortFlags.set(taskId, true);
-        appendLog(taskId, 'warn', 'Cancel without hash — MP download may remain');
-        scheduler.reportStatus(taskId, 'done');
-      }
-      return null;
-    }
-
-    // Pause during hash acquisition — keep hunting hash, pause once found
-    if (task.pausingRequested) {
-      const hash = await tryMatchHash(mpConfig, searchTitle, fallbackNames);
-      if (hash) return hash; // caller will execute pause + MP stop
-      await sleep(2000);
-      continue;
-    }
-
-    const hash = await tryMatchHash(mpConfig, searchTitle, fallbackNames);
-    if (hash) return hash;
-
-    await sleep(2000);
-  }
-}
 
 function waitForDownload(taskId, mpConfig, hashString, maxWaitMs) {
   const start = Date.now();
@@ -526,78 +444,7 @@ async function continueAfterDownload(taskId, mpConfig) {
   setImmediate(() => runPreReplaceVerify(taskId, taskStore.getTask(taskId)));
 }
 
-// ── Shared hash-acquisition + continuation ─────────────────────────────────────
-
-async function acquireHashAndContinue(taskId, task, mpConfig, torrentInfo) {
-  const searchTitle = (torrentInfo.title || '').replace(/[.\s]+/g, ' ').trim().toLowerCase();
-  const fallbackNames = [(task.itemInfo && task.itemInfo.name) || ''].filter(Boolean);
-
-  const hashString = await acquireHash(taskId, mpConfig, searchTitle, fallbackNames);
-  if (!hashString) return; // cancelled during hash acquisition
-
-  const tFresh = taskStore.getTask(taskId) || task;
-  taskStore.updateTask(taskId, {
-    itemInfo: { ...(tFresh.itemInfo || task.itemInfo), downloadHash: hashString },
-  });
-  appendLog(taskId, 'info', `Download hash: ${hashString}`);
-
-  // If pause was requested during hash acquisition, execute it now with the hash
-  const tAfterHash = taskStore.getTask(taskId);
-  if (tAfterHash && tAfterHash.pausingRequested) {
-    try {
-      await moviepilotService.pauseDownload(mpConfig, hashString);
-      appendLog(taskId, 'info', 'MoviePilot download paused (deferred from hash acquisition)');
-    } catch (e) {
-      appendLog(taskId, 'warn', `Failed to pause MP download: ${e.message}`);
-    }
-    abortFlags.set(taskId, true);
-    taskStore.updateTask(taskId, { pausingRequested: false });
-    scheduler.reportStatus(taskId, 'paused', task.progress || 5);
-    return;
-  }
-
-  // Fall through to download polling
-  await pollDownloadAndScrape(taskId, mpConfig);
-}
-
-async function recoverHashAndContinue(taskId, task, mpConfig) {
-  const candidates = (task.itemInfo && task.itemInfo.searchCandidates) || [];
-  const confirmData = task.confirmData || {};
-  const selectedIndex = typeof confirmData.selectedIndex === 'number' ? confirmData.selectedIndex : 0;
-  const selected = candidates[selectedIndex];
-  const torrentInfo = (selected && selected.torrent_info) || null;
-
-  const searchTitle = torrentInfo
-    ? (torrentInfo.title || '').replace(/[.\s]+/g, ' ').trim().toLowerCase()
-    : ((task.itemInfo && task.itemInfo.name) || '').toLowerCase();
-
-  // Fallback: item's Chinese name (MoviePilot may use recognized media name, not torrent title)
-  const fallbackNames = [(task.itemInfo && task.itemInfo.name) || ''].filter(Boolean);
-
-  const hashString = await acquireHash(taskId, mpConfig, searchTitle, fallbackNames);
-  if (!hashString) return; // cancelled during hash acquisition
-
-  taskStore.updateTask(taskId, {
-    itemInfo: { ...(taskStore.getTask(taskId).itemInfo || task.itemInfo), downloadHash: hashString },
-  });
-  appendLog(taskId, 'info', `Download hash (recovery): ${hashString}`);
-
-  const tAfterHash = taskStore.getTask(taskId);
-  if (tAfterHash && tAfterHash.pausingRequested) {
-    try {
-      await moviepilotService.pauseDownload(mpConfig, hashString);
-      appendLog(taskId, 'info', 'MoviePilot download paused');
-    } catch (e) {
-      appendLog(taskId, 'warn', `Failed to pause MP download: ${e.message}`);
-    }
-    abortFlags.set(taskId, true);
-    taskStore.updateTask(taskId, { pausingRequested: false });
-    scheduler.reportStatus(taskId, 'paused', task.progress || 5);
-    return;
-  }
-
-  await pollDownloadAndScrape(taskId, mpConfig);
-}
+// ── Shared post-download continuation ─────────────────────────────────────────
 
 async function pollDownloadAndScrape(taskId, mpConfig) {
   try {
@@ -657,10 +504,9 @@ async function runExecuting(taskId, task) {
     }
     // Fall through to common polling path
   } else if (downloadAdded) {
-    // ── Recover: download was already submitted to MP, just need the hash ──
-    appendLog(taskId, 'info', 'Download already submitted — waiting for hash');
-    await recoverHashAndContinue(taskId, task, mpConfig);
-    return;
+    // ── Recover: download was already submitted, but hash was lost (pre-v2 data) ──
+    appendLog(taskId, 'warn', 'Download was previously submitted but hash is missing — falling through to poll');
+    // Fall through to polling; if download is still active it will be found by listDownloads
   } else {
     // ── First run: validate selection + addDownload + persist hash ──
     appendLog(taskId, 'info', 'Starting download for upgrade');
@@ -736,13 +582,18 @@ async function runExecuting(taskId, task) {
 
     appendLog(taskId, 'info', 'Download task added to MoviePilot');
 
-    // Mark that download was submitted — prevents double-add on recovery
-    taskStore.updateTask(taskId, {
-      itemInfo: { ...(taskStore.getTask(taskId).itemInfo || task.itemInfo), downloadAdded: true },
-    });
+    // Extract download_id from MP response — this is the hash we use to track the download
+    const downloadId = (dlResult && dlResult.data && dlResult.data.download_id) || null;
+    if (downloadId) {
+      taskStore.updateTask(taskId, {
+        itemInfo: { ...(taskStore.getTask(taskId).itemInfo || task.itemInfo), downloadHash: downloadId, downloadAdded: true },
+      });
+      appendLog(taskId, 'info', `Download hash: ${downloadId}`);
+    } else {
+      appendLog(taskId, 'warn', 'MoviePilot did not return download_id — download tracking may be incomplete');
+    }
 
-    await acquireHashAndContinue(taskId, task, mpConfig, torrentInfo);
-    return;
+    // Fall through to common polling path
   }
 
   // ── Common path: poll download + wait for scraping ──
@@ -1071,12 +922,11 @@ async function pause(taskId) {
   const downloadHash = (task.itemInfo && task.itemInfo.downloadHash) || null;
   const phase = task.phase || '';
 
-  // Hash lookup stage — no hash yet, can't tell MP which download to pause.
-  // Set flag so acquireHash honours the request once hash arrives.
+  // No hash yet — download either not submitted or from old data. Can't tell MP to pause.
   if (!downloadHash && phase === 'upgrade_executing') {
-    taskStore.updateTask(taskId, { pausingRequested: true });
-    appendLog(taskId, 'info', 'Pause requested — waiting for download to appear in MoviePilot');
-    scheduler.reportStatus(taskId, 'pausing', task.progress || 0);
+    abortFlags.set(taskId, true);
+    appendLog(taskId, 'warn', 'Paused without download hash — MP download may continue');
+    scheduler.reportStatus(taskId, 'paused', task.progress || 0);
     return;
   }
 
@@ -1135,11 +985,11 @@ async function cancel(taskId) {
     return;
   }
 
-  // Hash lookup stage — no hash yet, can't tell MP which download to delete.
-  // Set pendingCancel flag so acquireHash will delete once hash arrives.
+  // No hash — download either not submitted yet or from old data. Mark done.
   if (!downloadHash && phase === 'upgrade_executing') {
-    taskStore.updateTask(taskId, { pendingCancel: true });
-    appendLog(taskId, 'info', 'Cancel requested — waiting for download to appear in MoviePilot');
+    abortFlags.set(taskId, true);
+    appendLog(taskId, 'warn', 'Cancelled without download hash — MP download may remain');
+    scheduler.reportStatus(taskId, 'done');
     return;
   }
 
