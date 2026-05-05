@@ -106,6 +106,7 @@ export const subLibraries = {
     upgradeSmartSelect?: SubLibrary['upgradeSmartSelect'];
     pathMapFrom?: string;
     pathMapTo?: string;
+    mediaType?: string;
   }) => post<SubLibrary>('/v1/admin/sublibraries', body),
 
   update: (uuid: string, body: Partial<SubLibrary>) =>
@@ -340,6 +341,7 @@ export interface SubLibraryInfo {
   uuid: string;
   name: string;
   enabled: boolean;
+  mediaType?: string;
 }
 
 export const libraryApi = {

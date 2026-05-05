@@ -310,6 +310,8 @@ export default function MediaManagePage() {
             <div>
               <div className="mediaManageGrid mediaManageHead">
                 <div className="mediaManageTitleCell">名称</div>
+                <div>剧名</div>
+                <div>季</div>
                 <div>体积</div>
                 <div>分辨率</div>
                 <div>编码</div>
@@ -380,10 +382,22 @@ export default function MediaManagePage() {
 function coerceManagedItem(x: unknown): ManagedMediaItem | null {
   if (!x || typeof x !== 'object') return null;
   const o = x as Record<string, unknown>;
+  const itemType = typeof o.type === 'string' ? o.type : '';
+
+  // Skip series items (transparent containers, no media)
+  if (itemType === 'series') return null;
+
   const id = typeof o.itemId === 'string' ? o.itemId : typeof o.itemId === 'number' ? String(o.itemId) : '';
-  const name = typeof o.name === 'string' ? o.name.trim() : '';
+  const rawName = typeof o.name === 'string' ? o.name.trim() : '';
   const sectionId = typeof o.subLibraryId === 'string' ? o.subLibraryId : '';
   if (!id || !sectionId) return null;
+
+  const seriesName = typeof o.seriesName === 'string' ? o.seriesName : undefined;
+  const seasonNumber = typeof o.seasonNumber === 'number' ? o.seasonNumber : undefined;
+  // For seasons, use seriesName S{seasonNum} as display name; fall back to raw name
+  const name = (itemType === 'season' && seriesName && seasonNumber != null)
+    ? `${seriesName} S${String(seasonNumber).padStart(2, '0')}`
+    : (rawName || id);
 
   const resRaw = typeof o.resolution === 'string' ? o.resolution : '';
   const resHeight = parseInt(resRaw.split('x')[1], 10) || 0;
@@ -396,9 +410,11 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
 
   return {
     id,
-    name: name || id,
+    name,
     sectionId,
-    itemType: o.type === 'movie' ? 'Movie' : o.type === 'episode' ? 'Episode' : undefined,
+    itemType: itemType === 'movie' ? 'Movie' : itemType === 'season' ? 'Season' : undefined,
+    seriesName,
+    seasonNumber,
     resolution,
     codec: (typeof o.codec === 'string' && ['h264', 'h265', 'av1'].includes(o.codec)) ? (o.codec as 'h264' | 'h265' | 'av1') : 'h265',
     durationSec,

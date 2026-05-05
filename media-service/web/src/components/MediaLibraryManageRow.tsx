@@ -90,6 +90,8 @@ function MediaLibraryManageRowInner({
         />
         <span className="mediaManageTitle">{item.name}</span>
       </div>
+      <div>{item.seriesName || '—'}</div>
+      <div className="tabular-nums">{item.seasonNumber != null ? `S${String(item.seasonNumber).padStart(2, '0')}` : '—'}</div>
       <div className="tabular-nums">{item.sizeGb.toFixed(1)} GB</div>
       <div>{item.resolution}</div>
       <div>{item.codec.toUpperCase()}</div>

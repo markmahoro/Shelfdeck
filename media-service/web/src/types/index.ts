@@ -17,7 +17,10 @@ export interface EmbyUser {
 export interface MediaFolder {
   id: string;
   name: string;
+  collectionType?: string;
 }
+
+export type MediaType = 'movie' | 'tv';
 
 export interface EmbyTestResult {
   ok: boolean;
@@ -54,6 +57,7 @@ export interface SubLibrary {
   smartSelectEnabled?: boolean;
   pathMapFrom?: string;
   pathMapTo?: string;
+  mediaType?: string;
 }
 
 // ── Rule Template ──────────────────────────────────────────────────────────────

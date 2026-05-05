@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const [subLibName, setSubLibName] = useState('');
   const [doubanEnabled, setDoubanEnabled] = useState(false);
   const [ruleTemplateId, setRuleTemplateId] = useState('default');
+  const [mediaType, setMediaType] = useState('movie');
   const [pathMapFrom, setPathMapFrom] = useState('');
   const [pathMapTo, setPathMapTo] = useState('');
   const [testing, setTesting] = useState(false);
@@ -100,6 +101,7 @@ export default function DashboardPage() {
         ruleTemplateId,
         pathMapFrom: pathMapFrom || '',
         pathMapTo: pathMapTo || '',
+        mediaType,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sublibraries'] });
@@ -143,6 +145,7 @@ export default function DashboardPage() {
     setSelectedSectionId(''); setSubLibName('');
     setDoubanEnabled(false);
     setRuleTemplateId('default');
+    setMediaType('movie');
     setTestError('');
   }
 
@@ -207,6 +210,7 @@ export default function DashboardPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 17, fontWeight: 700, color: '#1a1a2e' }}>{sl.name}</span>
+                      <span style={{ fontSize: 11, padding: '1px 8px', borderRadius: 10, background: (sl.mediaType || 'movie') === 'tv' ? '#e8f5e9' : '#e3f2fd', color: (sl.mediaType || 'movie') === 'tv' ? '#2e7d32' : '#1565c0', fontWeight: 600 }}>{(sl.mediaType || 'movie') === 'tv' ? '剧集' : '电影'}</span>
                       <span style={{ fontSize: 12, color: '#999' }}>{slSpace ? `${slSpace.itemCount} 条目` : ''}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -379,7 +383,14 @@ export default function DashboardPage() {
             </select>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <button onClick={() => setStep(1)} style={secondaryBtn}>上一步</button>
-              <button onClick={() => { setSubLibName((folderData?.folders || []).find((f: MediaFolder) => f.id === selectedSectionId)?.name || ''); setStep(3); }} disabled={!selectedSectionId} style={primaryBtn}>下一步</button>
+              <button onClick={() => {
+                const folder = (folderData?.folders || []).find((f: MediaFolder) => f.id === selectedSectionId);
+                setSubLibName(folder?.name || '');
+                const ct = folder?.collectionType || '';
+                setMediaType(ct === 'tvshows' ? 'tv' : 'movie');
+                setRuleTemplateId(ct === 'tvshows' ? 'tv_default' : 'default');
+                setStep(3);
+              }} disabled={!selectedSectionId} style={primaryBtn}>下一步</button>
             </div>
           </div>
         )}
@@ -402,6 +413,17 @@ export default function DashboardPage() {
                 <input type="text" value={pathMapTo} onChange={(e) => setPathMapTo(e.target.value)}
                   placeholder="如 Z:\\"
                   style={{ flex: 1, padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
+              </div>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>媒体类型</label>
+              <select value={mediaType} onChange={(e) => { const mt = e.target.value; setMediaType(mt); setRuleTemplateId(mt === 'tv' ? 'tv_default' : 'default'); }}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}>
+                <option value="movie">电影</option>
+                <option value="tv">剧集</option>
+              </select>
+              <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
+                {mediaType === 'tv' ? '自动选择剧集策略模板（码率阈值低于电影一档）' : '使用电影默认策略模板'}
               </div>
             </div>
             <div style={{ marginBottom: 16 }}>

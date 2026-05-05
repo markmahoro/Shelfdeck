@@ -375,9 +375,10 @@ async function runPlanning(taskId, task) {
         const enList = Array.isArray(enResults) ? enResults : [];
         tmdbHit = enList.find((r) => r.tmdb_id);
       }
-      // Store resolved TMDB ID for later verification
+      // Store resolved TMDB ID for later verification (both disk + local ref)
       if (tmdbHit) {
         task.itemInfo = { ...task.itemInfo, tmdbId: tmdbHit.tmdb_id };
+        taskStore.updateTask(taskId, { itemInfo: { ...task.itemInfo } });
         appendLog(taskId, 'info', `TMDB ID: ${tmdbHit.tmdb_id}, searching season ${snum}`);
         const exactRes = await moviepilotService.searchMediaById(mpConfig, `tmdb:${tmdbHit.tmdb_id}`, snum);
         if (exactRes && exactRes.success && Array.isArray(exactRes.data)) {
