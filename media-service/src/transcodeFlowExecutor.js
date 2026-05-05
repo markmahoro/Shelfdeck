@@ -243,6 +243,18 @@ async function runVerify(taskId, task, config) {
       ? Math.round((outSizeBytes * 8) / (summary.durationSec * 1000))
       : 0;
 
+    // Discard output if it ended up larger than the source
+    const originalBytes = task.itemInfo && task.itemInfo.originalSizeBytes || 0;
+    if (originalBytes > 0 && outSizeBytes > originalBytes) {
+      const origGb = (originalBytes / 1e9).toFixed(2);
+      const outGb = (outSizeBytes / 1e9).toFixed(2);
+      appendLog(taskId, 'warn', `Output larger than input (${outGb}GB > ${origGb}GB) — discarding`);
+      try { fs.unlinkSync(partialPath); } catch (_) {}
+      scheduler.reportStatus(taskId, 'failed_hard');
+      setPhase(taskId, 'failed_hard');
+      return;
+    }
+
     // Generate preview clip for trial viewing
     let previewPath = null;
     try {

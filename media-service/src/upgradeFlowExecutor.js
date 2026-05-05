@@ -51,6 +51,17 @@ function resolveEmbyPath(embyPath, task) {
   return embyPath;
 }
 
+// Map MoviePilot transfer dest path to ShelfDeck staging path.
+// Both containers bind-mount the same physical directory.
+function resolveStagingFromTransfer(mpDest, mpSavePath, localStagingPath) {
+  if (!mpDest || !localStagingPath) return null;
+  const mpPrefix = mpSavePath.replace(/\/+$/, '');
+  if (mpDest.startsWith(mpPrefix)) {
+    return mpDest.replace(mpPrefix, localStagingPath);
+  }
+  return null;
+}
+
 // ── NFO parsing ───────────────────────────────────────────────────────────────
 
 function extractTmdbIdFromNfo(dirPath) {
@@ -134,7 +145,7 @@ function isAborted(taskId) {
 }
 
 
-function waitForDownload(taskId, mpConfig, hashString, maxWaitMs) {
+function waitForDownload(taskId, mpConfig, hashString) {
   const start = Date.now();
   const pollInterval = 5000;
   let seenBefore = false; // tracks whether we've ever matched a download
@@ -154,7 +165,7 @@ function waitForDownload(taskId, mpConfig, hashString, maxWaitMs) {
       if (seenBefore) {
         return { aborted: false, done: true, autoRemoved: true };
       }
-      // Grace period for download to appear
+      // Grace period for download to appear in MP queue
       if (Date.now() - start > 120000) {
         throw new Error('Download not found in queue after 120s');
       }
@@ -172,9 +183,6 @@ function waitForDownload(taskId, mpConfig, hashString, maxWaitMs) {
     taskStore.updateTask(taskId, updates);
 
     if (dl.state === 'downloading' || dl.state === 'pending') {
-      if (Date.now() - start > maxWaitMs) {
-        throw new Error('Download timed out');
-      }
       await sleep(pollInterval);
       return poll();
     }
@@ -188,9 +196,6 @@ function waitForDownload(taskId, mpConfig, hashString, maxWaitMs) {
     }
 
     // Other states — keep polling
-    if (Date.now() - start > maxWaitMs) {
-      throw new Error('Download timed out (state=' + (dl.state || 'unknown') + ')');
-    }
     await sleep(pollInterval);
     return poll();
   }
@@ -199,39 +204,54 @@ function waitForDownload(taskId, mpConfig, hashString, maxWaitMs) {
 }
 
 // Wait for MoviePilot to finish scraping/transfer. MoviePilot moves the scraped
-// folder into place within shelfdeck and records it in transfer history.
+// folder into place and records it in transfer history keyed by download_hash.
+// Returns the matched transfer entry so the caller can locate the correct files.
 async function waitForScraping(taskId, mpConfig) {
   const start = Date.now();
   const maxWaitMs = 10 * 60 * 1000; // 10 min timeout
   const pollInterval = 5000;
 
   const task = taskStore.getTask(taskId);
-  const baselineId = (task && task.itemInfo && task.itemInfo.baselineTransferId) || 0;
+  const downloadHash = (task && task.itemInfo && task.itemInfo.downloadHash) || null;
 
-  appendLog(taskId, 'info', `Waiting for MoviePilot scraping (baseline transfer id=${baselineId})...`);
+  if (!downloadHash) {
+    appendLog(taskId, 'warn', 'No download hash — cannot match transfer, falling through');
+    return null;
+  }
+
+  appendLog(taskId, 'info', `Waiting for MoviePilot scraping (download_hash=${downloadHash.slice(0, 12)}...)`);
 
   while (Date.now() - start < maxWaitMs) {
-    if (isAborted(taskId)) return;
+    if (isAborted(taskId)) return null;
 
     await sleep(pollInterval);
 
     try {
-      const hist = await moviepilotService.getTransferHistory(mpConfig, 5);
+      const hist = await moviepilotService.getTransferHistory(mpConfig, 20);
       const list = (hist && hist.data && hist.data.list) || (hist && hist.list) || [];
-      // Look for a newer entry whose src is within shelfdeck
+      // A single download can produce multiple transfers (video + subtitles).
+      // Prefer the video file transfer — its dest path tells us where the media is.
+      const mediaExts = ['.mkv', '.mp4', '.avi', '.ts', '.m2ts', '.mov'];
       const match = list.find((t) => {
-        const src = t.src || '';
-        return src.includes('shelfdeck') && (t.id || 0) > baselineId;
-      });
+        if (t.download_hash !== downloadHash) return false;
+        const d = t.dest || '';
+        return mediaExts.includes(path.extname(d).toLowerCase());
+      }) || list.find((t) => t.download_hash === downloadHash); // fallback: any match
 
       if (match) {
         const tmdbId = match.tmdbid || null;
-        if (tmdbId) {
-          taskStore.updateTask(taskId, {
-            itemInfo: { ...taskStore.getTask(taskId).itemInfo, mpTmdbId: tmdbId },
-          });
-        }
-        appendLog(taskId, 'info', `Transfer detected (id=${match.id}), waiting for scraping to settle...`);
+        const destPath = match.dest || '';
+
+        // Store transfer metadata on task so pre_replace_verify can locate the correct files
+        taskStore.updateTask(taskId, {
+          itemInfo: {
+            ...taskStore.getTask(taskId).itemInfo,
+            mpTmdbId: tmdbId || taskStore.getTask(taskId).itemInfo.mpTmdbId,
+            stagingTransferDest: destPath,
+          },
+        });
+
+        appendLog(taskId, 'info', `Transfer detected (id=${match.id}, tmdb=${tmdbId || '?'}), waiting for scraping to settle...`);
 
         // MoviePilot fires MetadataScrape asynchronously via event queue.
         // Wait for scraping to finish generating NFO/posters before proceeding.
@@ -241,7 +261,7 @@ async function waitForScraping(taskId, mpConfig) {
         await sleep(settleSec * 1000);
 
         appendLog(taskId, 'info', `Scraping settle wait complete (transfer id=${match.id}, tmdb=${tmdbId || '?'})`);
-        return;
+        return match;
       }
     } catch (_) {
       // Keep polling
@@ -249,6 +269,7 @@ async function waitForScraping(taskId, mpConfig) {
   }
 
   appendLog(taskId, 'warn', 'Scraping timeout — proceeding anyway');
+  return null;
 }
 
 // ── Flow Executor API ─────────────────────────────────────────────────────────
@@ -448,11 +469,9 @@ async function continueAfterDownload(taskId, mpConfig) {
 
 async function pollDownloadAndScrape(taskId, mpConfig) {
   try {
-    const cfg = configStore.loadConfig();
-    const maxWaitMs = 4 * 60 * 60 * 1000;
     const hash = (taskStore.getTask(taskId).itemInfo || {}).downloadHash;
 
-    const pollResult = await waitForDownload(taskId, mpConfig, hash, maxWaitMs);
+    const pollResult = await waitForDownload(taskId, mpConfig, hash);
     if (pollResult.aborted) return;
 
     appendLog(taskId, 'info', 'Download completed');
@@ -531,17 +550,6 @@ async function runExecuting(taskId, task) {
 
     appendLog(taskId, 'info', `Selected: ${torrentInfo.title || 'Unknown'} from ${torrentInfo.site_name || 'Unknown'}`);
 
-    // Record baseline transfer history ID before adding download
-    let baselineTransferId = 0;
-    try {
-      const baseline = await moviepilotService.getTransferHistory(mpConfig, 1);
-      const baselineList = (baseline && baseline.data && baseline.data.list) || (baseline && baseline.list) || [];
-      if (baselineList.length > 0) baselineTransferId = baselineList[0].id || 0;
-      taskStore.updateTask(taskId, {
-        itemInfo: { ...task.itemInfo, baselineTransferId },
-      });
-    } catch (_) {}
-
     const schedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, configStore.loadConfig());
 
     // Download with retry: if MP rejects, try next seed with score >= 0.8 (auto mode only)
@@ -616,32 +624,84 @@ async function runPreReplaceVerify(taskId, task) {
     return;
   }
 
-  // Find the scraped folder in staging
+  // Locate the staging folder. Prefer the exact path from transfer history
+  // (matched by download_hash) over blind scanning — avoids picking up files
+  // from concurrent tasks or stale folders when upgradeConcurrency > 1.
+  const mpConfig = getMpConfig();
+  const transferDest = (task.itemInfo && task.itemInfo.stagingTransferDest) || null;
   let stagingFolder = null;
   let stagingMediaPath = null;
-  try {
-    const entries = fs.readdirSync(stagingRoot, { withFileTypes: true });
-    for (const e of entries) {
-      if (e.isDirectory() && !e.name.startsWith('.')) {
-        const fullPath = path.join(stagingRoot, e.name);
-        const files = fs.readdirSync(fullPath, { withFileTypes: true });
-        for (const f of files) {
-          const ext = path.extname(f.name).toLowerCase();
-          if (['.mkv', '.mp4', '.avi', '.ts', '.m2ts'].includes(ext)) {
-            stagingFolder = fullPath;
-            stagingMediaPath = path.join(fullPath, f.name);
-            break;
+
+  const mediaExts = ['.mkv', '.mp4', '.avi', '.ts', '.m2ts'];
+
+  if (transferDest && mpConfig) {
+    const localPath = resolveStagingFromTransfer(transferDest, mpConfig.savePath, stagingRoot);
+    if (localPath) {
+      appendLog(taskId, 'info', `Resolving staging from transfer dest: ${localPath}`);
+      try {
+        const st = fs.statSync(localPath);
+        if (st.isFile() && mediaExts.includes(path.extname(localPath).toLowerCase())) {
+          stagingFolder = path.dirname(localPath);
+          stagingMediaPath = localPath;
+        } else if (st.isDirectory()) {
+          // Folder release (BDMV etc.) — find media file inside
+          stagingFolder = localPath;
+          const scanDir = (dir, depth) => {
+            if (depth > 3) return null;
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const e of entries) {
+              if (e.isFile() && mediaExts.includes(path.extname(e.name).toLowerCase())) {
+                return path.join(dir, e.name);
+              }
+            }
+            for (const e of entries) {
+              if (e.isDirectory() && !e.name.startsWith('.')) {
+                const found = scanDir(path.join(dir, e.name), depth + 1);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+          stagingMediaPath = scanDir(localPath, 0);
+          if (!stagingMediaPath) {
+            appendLog(taskId, 'warn', 'Transfer dest is a directory but no media file found inside');
           }
         }
-        if (stagingFolder) break;
+      } catch (e) {
+        appendLog(taskId, 'warn', `Transfer dest not accessible: ${e.message}. Falling back to blind scan.`);
       }
     }
-  } catch (e) {
-    if (isAborted(taskId)) return;
-    appendLog(taskId, 'error', `Cannot read staging directory: ${e.message}`);
-    scheduler.reportStatus(taskId, 'failed_hard');
-    setPhase(taskId, 'failed_hard');
-    return;
+  }
+
+  // Fallback: blind scan of staging root (legacy path for tasks without download_hash)
+  if (!stagingFolder || !stagingMediaPath) {
+    if (!transferDest) {
+      appendLog(taskId, 'info', 'No transfer dest on task — falling back to blind staging scan');
+    }
+    try {
+      const entries = fs.readdirSync(stagingRoot, { withFileTypes: true });
+      for (const e of entries) {
+        if (e.isDirectory() && !e.name.startsWith('.')) {
+          const fullPath = path.join(stagingRoot, e.name);
+          const files = fs.readdirSync(fullPath, { withFileTypes: true });
+          for (const f of files) {
+            const ext = path.extname(f.name).toLowerCase();
+            if (mediaExts.includes(ext)) {
+              stagingFolder = fullPath;
+              stagingMediaPath = path.join(fullPath, f.name);
+              break;
+            }
+          }
+          if (stagingFolder) break;
+        }
+      }
+    } catch (e) {
+      if (isAborted(taskId)) return;
+      appendLog(taskId, 'error', `Cannot read staging directory: ${e.message}`);
+      scheduler.reportStatus(taskId, 'failed_hard');
+      setPhase(taskId, 'failed_hard');
+      return;
+    }
   }
 
   if (!stagingFolder || !stagingMediaPath) {
@@ -670,8 +730,9 @@ async function runPreReplaceVerify(taskId, task) {
   }
 
   try {
-    // TMDB ID validation
-    const scrapeTmdbId = (task.itemInfo && task.itemInfo.mpTmdbId) || extractTmdbIdFromNfo(stagingFolder) || null;
+    // TMDB ID validation — use the actual NFO in staging folder as authoritative
+    // (mpTmdbId from transfer history is the fallback)
+    const scrapeTmdbId = extractTmdbIdFromNfo(stagingFolder) || (task.itemInfo && task.itemInfo.mpTmdbId) || null;
     let expectedTmdbId = (task.itemInfo && task.itemInfo.tmdbId) || null;
     if (!expectedTmdbId) {
       const itemName = (task.itemInfo && (task.itemInfo.name || task.itemInfo.title)) || '';

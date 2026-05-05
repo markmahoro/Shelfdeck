@@ -204,21 +204,24 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
     args.push('-vf', 'libplacebo=tonemapping=bt.2390,format=yuv420p10le');
   }
   const bitrate = typeof targetBitrate === 'number' && targetBitrate > 0 ? String(targetBitrate) + 'M' : null;
+  // Cap peak bitrate at 2x target so the output never exceeds the source
+  const maxrate = bitrate ? String(targetBitrate * 2) + 'M' : null;
+  const bufsize = maxrate;
   if (enc === 'nvenc') {
     args.push('-c:v', 'hevc_nvenc', '-rc', 'vbr', '-preset', 'p5');
-    if (bitrate) args.push('-b:v', bitrate);
+    if (bitrate) args.push('-b:v', bitrate, '-maxrate', maxrate, '-bufsize', bufsize);
     else args.push('-cq', '24');
   } else if (enc === 'qsv') {
     args.push('-c:v', 'hevc_qsv', '-preset', 'medium');
-    if (bitrate) { args.push('-rc', 'vbr', '-b:v', bitrate); }
+    if (bitrate) { args.push('-rc', 'vbr', '-b:v', bitrate, '-maxrate', maxrate, '-bufsize', bufsize); }
     else args.push('-global_quality', '24');
   } else if (enc === 'amf') {
     args.push('-c:v', 'hevc_amf', '-quality', 'balanced');
-    if (bitrate) args.push('-rc', 'vbr', '-b:v', bitrate);
+    if (bitrate) args.push('-rc', 'vbr', '-b:v', bitrate, '-maxrate', maxrate, '-bufsize', bufsize);
     else args.push('-rc', 'cqp', '-qp_i', '24', '-qp_p', '24');
   } else {
     args.push('-c:v', 'libx265', '-preset', 'medium');
-    if (bitrate) args.push('-b:v', bitrate);
+    if (bitrate) args.push('-b:v', bitrate, '-maxrate', maxrate, '-bufsize', bufsize);
     else args.push('-crf', '22');
   }
   args.push('-c:a', 'copy', '-c:s', 'copy', partialPath);
