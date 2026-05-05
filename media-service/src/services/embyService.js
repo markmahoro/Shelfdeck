@@ -140,18 +140,34 @@ async function getLibraryItems(serverConfig, sectionId) {
     if (users.length > 0) userId = users[0].id;
   }
   const uid = encodeURIComponent(userId);
-  const query = {
-    ParentId: sectionId,
-    Recursive: 'true',
-    IncludeItemTypes: 'Movie,Series,Season,Episode',
-    Fields: ITEM_FIELDS,
-    SortBy: 'SortName',
-    SortOrder: 'Ascending',
-    Limit: '2000',
-  };
-  const data = await embyFetchJson(serverConfig, `Users/${uid}/Items`, {}, query);
-  const items = data && Array.isArray(data.Items) ? data.Items : [];
-  return items.map((item) => extractItemFields(item));
+  const PAGE_SIZE = 2000;
+
+  const allItems = [];
+  let startIndex = 0;
+  let totalCount = null;
+
+  while (totalCount === null || startIndex < totalCount) {
+    const query = {
+      ParentId: sectionId,
+      Recursive: 'true',
+      IncludeItemTypes: 'Movie,Series,Season,Episode',
+      Fields: ITEM_FIELDS,
+      SortBy: 'SortName',
+      SortOrder: 'Ascending',
+      Limit: String(PAGE_SIZE),
+      StartIndex: String(startIndex),
+    };
+    const data = await embyFetchJson(serverConfig, `Users/${uid}/Items`, {}, query);
+    if (totalCount === null) totalCount = data && data.TotalRecordCount || 0;
+    const pageItems = data && Array.isArray(data.Items) ? data.Items : [];
+    for (const item of pageItems) {
+      allItems.push(extractItemFields(item));
+    }
+    if (pageItems.length === 0) break;
+    startIndex += PAGE_SIZE;
+  }
+
+  return allItems;
 }
 
 async function getItemById(serverConfig, itemId) {

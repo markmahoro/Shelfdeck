@@ -347,11 +347,12 @@ async function runVerify(taskId, task, config) {
     if (summary.durationSec <= 0) throw new Error('Output duration is zero');
     appendLog(taskId, 'info', `Verify OK: ${summary.width}x${summary.height}, ${summary.videoCodec}, ${summary.durationSec}s`);
 
+    const episodeCount = isSeason ? (info.partialPaths || []).length : 1;
     const outSizeBytes = isSeason
       ? (info.partialPaths || []).reduce((sum, { partial }) => { try { return sum + fs.statSync(partial).size; } catch (_) { return sum; } }, 0)
       : fs.statSync(partialPath).size;
     const outBitrate = summary.durationSec > 0
-      ? Math.round((outSizeBytes * 8) / (summary.durationSec * 1000))
+      ? Math.round((outSizeBytes * 8) / (summary.durationSec * episodeCount * 1000))
       : 0;
 
     // Discard output if it ended up larger than the source
