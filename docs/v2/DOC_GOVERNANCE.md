@@ -9,65 +9,69 @@
 
 ### 架构层
 
-| 文档 | 路径 | 状态 |
-|---|---|---|
-| 文档治理（本文） | `DOC_GOVERNANCE.md` | v4 定稿 |
-| 系统结构总览 | `ARCH_OVERVIEW.md` | v4 定稿 |
+| 文档              | 路径                        | 状态    |
+| --------------- | ------------------------- | ----- |
+| 文档治理（本文）        | `DOC_GOVERNANCE.md`       | v4 定稿 |
+| 系统结构总览          | `ARCH_OVERVIEW.md`        | v4 定稿 |
+| 开发工作流（3-Target） | `DEVELOPMENT_WORKFLOW.md` | v1 定稿 |
+| 发版工作流（一键触发）     | `RELEASE_WORKFLOW.md`     | v1 定稿 |
+| 测试架构（3 Tiers）   | `TEST_ARCHITECTURE.md`    | v1 定稿 |
+| 排查工作流（Debug）    | `DEBUG_WORKFLOW.md`       | v1 定稿 |
 
 ### 设计层 — 总览
 
-| 文档 | 路径 | 状态 |
-|---|---|---|
-| 胖服务组件总览 | `design/SERVICE.md` | v4 定稿 |
-| 瘦客户端组件总览 | `design/DESKTOP.md` | v4 定稿 |
-| Windows 托盘外壳 | `design/TRAY.md` | v4 定稿 |
-| 跨组件共享约定 | `design/SHARED.md` | 待编写 |
+| 文档           | 路径                  | 状态    |
+| ------------ | ------------------- | ----- |
+| 胖服务组件总览      | `design/SERVICE.md` | v4 定稿 |
+| 瘦客户端组件总览     | `design/DESKTOP.md` | v4 定稿 |
+| Windows 托盘外壳 | `design/TRAY.md`    | v4 定稿 |
+| 跨组件共享约定      | `design/SHARED.md`  | 待编写   |
 
 ### 设计层 — Service 子模块
 
-| 文档 | 路径 | 状态 |
-|---|---|---|
-| REST API 契约 | `design/SERVICE/API.md` | v4 定稿 |
-| 配置与路径映射 | `design/SERVICE/CONFIG.md` | v4 定稿 |
-| 任务调度引擎 | `design/SERVICE/TASK_SCHEDULER.md` | v4 定稿 |
-| Delete Flow 执行器 | `design/SERVICE/DELETE_FLOW.md` | v4 定稿 |
-| Transcode Flow 执行器 | `design/SERVICE/TRANSCODE_FLOW.md` | v4 定稿 |
-| Upgrade Flow 执行器 | `design/SERVICE/UPGRADE_FLOW.md` | v4 定稿 |
-| 转码执行层 | `design/SERVICE/TRANSCODE.md` | v4 定稿 |
-| 媒体库管理 | `design/SERVICE/MEDIA_LIBRARY.md` | v4 定稿 |
-| Emby 适配器 | `design/SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md` | v4 定稿 |
-| 豆瓣适配器 | `design/SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` | v4 定稿 |
-| 健康检查 | `design/SERVICE/HEALTH_CHECK.md` | v4 定稿 |
-| 智能入队引擎 | `design/SERVICE/SMART_TASK_ENGINE.md` | v4 定稿 |
-| 策略计算引擎 | `design/SERVICE/STRATEGY_ENGINE.md` | v4 定稿 |
-| Web 管理端总览 | `design/SERVICE/ADMIN_WEB.md` | v4 定稿 |
-| Admin API 端点 | `design/SERVICE/ADMIN_WEB/API.md` | v4 定稿 |
-| Admin 页面结构 | `design/SERVICE/ADMIN_WEB/PAGES.md` | v4 定稿 |
+| 文档                 | 路径                                               | 状态    |
+| ------------------ | ------------------------------------------------ | ----- |
+| REST API 契约        | `design/SERVICE/API.md`                          | v4 定稿 |
+| 配置与路径映射            | `design/SERVICE/CONFIG.md`                       | v4 定稿 |
+| 任务调度引擎             | `design/SERVICE/TASK_SCHEDULER.md`               | v4 定稿 |
+| Delete Flow 执行器    | `design/SERVICE/DELETE_FLOW.md`                  | v4 定稿 |
+| Transcode Flow 执行器 | `design/SERVICE/TRANSCODE_FLOW.md`               | v4 定稿 |
+| Upgrade Flow 执行器   | `design/SERVICE/UPGRADE_FLOW.md`                 | v4 定稿 |
+| 转码执行层              | `design/SERVICE/TRANSCODE.md`                    | v4 定稿 |
+| 媒体库管理              | `design/SERVICE/MEDIA_LIBRARY.md`                | v4 定稿 |
+| Emby 适配器           | `design/SERVICE/MEDIA_LIBRARY/EMBY_ADAPTER.md`   | v4 定稿 |
+| 豆瓣适配器              | `design/SERVICE/MEDIA_LIBRARY/DOUBAN_ADAPTER.md` | v4 定稿 |
+| 健康检查               | `design/SERVICE/HEALTH_CHECK.md`                 | v4 定稿 |
+| 智能入队引擎             | `design/SERVICE/SMART_TASK_ENGINE.md`            | v4 定稿 |
+| 策略计算引擎             | `design/SERVICE/STRATEGY_ENGINE.md`              | v4 定稿 |
+| Web 管理端总览          | `design/SERVICE/ADMIN_WEB.md`                    | v4 定稿 |
+| Admin API 端点       | `design/SERVICE/ADMIN_WEB/API.md`                | v4 定稿 |
+| Admin 页面结构         | `design/SERVICE/ADMIN_WEB/PAGES.md`              | v4 定稿 |
 
 ### 设计层 — Desktop 子模块
 
-| 文档 | 路径 | 状态 |
-|---|---|---|
-| UI 组件与布局 | `design/DESKTOP/UI.md` | v4 定稿 |
+| 文档            | 路径                             | 状态     |
+| ------------- | ------------------------------ | ------ |
+| UI 组件与布局      | `design/DESKTOP/UI.md`         | v4 定稿  |
 | REST API 客户端层 | `design/DESKTOP/API_CLIENT.md` | v2 编写中 |
-| service 连接管理 | `design/DESKTOP/CONNECTION.md` | v2 编写中 |
-| 配置持久化 | `design/DESKTOP/SETTINGS.md` | v2 编写中 |
+| service 连接管理  | `design/DESKTOP/CONNECTION.md` | v2 编写中 |
+| 配置持久化         | `design/DESKTOP/SETTINGS.md`   | v2 编写中 |
 
 ### 设计层 — Tray 子模块
 
-| 文档 | 路径 | 状态 |
-|---|---|---|
-| 进程生命周期 | `design/TRAY/LIFECYCLE.md` | v4 定稿 |
-| 连接配置写入 | `design/TRAY/CONNECTION_WRITER.md` | 已废弃 |
-| service 健康监控 | `design/TRAY/HEALTH_MONITORING.md` | 待编写 |
+| 文档           | 路径                                 | 状态    |
+| ------------ | ---------------------------------- | ----- |
+| 进程生命周期       | `design/TRAY/LIFECYCLE.md`         | v4 定稿 |
+| 连接配置写入       | `design/TRAY/CONNECTION_WRITER.md` | 已废弃   |
+| service 健康监控 | `design/TRAY/HEALTH_MONITORING.md` | 待编写   |
 
 ### 设计层 — 共享约定
 
-| 文档 | 路径 | 状态 |
-|---|---|---|
-| 意图下发 + 轮询机制 | `design/SHARED/DATA_FLOW.md` | 待编写 |
-| 核心数据模型 | `design/SHARED/DATA_MODEL.md` | 待编写 |
-| 错误码与降级策略 | `design/SHARED/ERROR_HANDLING.md` | 待编写 |
+| 文档          | 路径                                | 状态  |
+| ----------- | --------------------------------- | --- |
+| 意图下发 + 轮询机制 | `design/SHARED/DATA_FLOW.md`      | 待编写 |
+| 核心数据模型      | `design/SHARED/DATA_MODEL.md`     | 待编写 |
+| 错误码与降级策略    | `design/SHARED/ERROR_HANDLING.md` | 待编写 |
 
 ---
 
@@ -86,18 +90,18 @@
 
 ### 子模块 SSOT 映射
 
-| 领域 | SSOT 文档 |
-|---|---|
-| 任务调度行为 | `SERVICE/TASK_SCHEDULER.md` |
-| Delete Flow 行为 | `SERVICE/DELETE_FLOW.md` |
+| 领域                | SSOT 文档                     |
+| ----------------- | --------------------------- |
+| 任务调度行为            | `SERVICE/TASK_SCHEDULER.md` |
+| Delete Flow 行为    | `SERVICE/DELETE_FLOW.md`    |
 | Transcode Flow 行为 | `SERVICE/TRANSCODE_FLOW.md` |
-| Upgrade Flow 行为 | `SERVICE/UPGRADE_FLOW.md` |
-| 转码执行层 | `SERVICE/TRANSCODE.md` |
-| 媒体库数据模型 | `SERVICE/MEDIA_LIBRARY.md` |
-| 配置字段 | `SERVICE/CONFIG.md` |
-| Admin API | `SERVICE/ADMIN_WEB/API.md` |
-| 跨组件数据流 | `SHARED/DATA_FLOW.md` |
-| 错误处理约定 | `SHARED/ERROR_HANDLING.md` |
+| Upgrade Flow 行为   | `SERVICE/UPGRADE_FLOW.md`   |
+| 转码执行层             | `SERVICE/TRANSCODE.md`      |
+| 媒体库数据模型           | `SERVICE/MEDIA_LIBRARY.md`  |
+| 配置字段              | `SERVICE/CONFIG.md`         |
+| Admin API         | `SERVICE/ADMIN_WEB/API.md`  |
+| 跨组件数据流            | `SHARED/DATA_FLOW.md`       |
+| 错误处理约定            | `SHARED/ERROR_HANDLING.md`  |
 
 ---
 

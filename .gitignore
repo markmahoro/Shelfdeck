@@ -43,3 +43,11 @@ media-service/data/douban-session.json
 # Git worktrees（隔离开发工作区）
 .worktrees/
 worktrees/
+
+# 测试环境凭据（不提交）
+tests/env/docker-fn.env
+tests/TEST_ENV_CHECKLIST.md
+
+# 排错工具凭据（不提交）
+tools/ssh-askpass.ps1
+tools/ssh-exec.js
