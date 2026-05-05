@@ -241,17 +241,19 @@ async function waitForScraping(taskId, mpConfig) {
       if (match) {
         const tmdbId = match.tmdbid || null;
         const destPath = match.dest || '';
+        const mpSeasons = match.seasons || null;
 
         // Store transfer metadata on task so pre_replace_verify can locate the correct files
         taskStore.updateTask(taskId, {
           itemInfo: {
             ...taskStore.getTask(taskId).itemInfo,
             mpTmdbId: tmdbId || taskStore.getTask(taskId).itemInfo.mpTmdbId,
+            mpSeasons: mpSeasons || taskStore.getTask(taskId).itemInfo.mpSeasons,
             stagingTransferDest: destPath,
           },
         });
 
-        appendLog(taskId, 'info', `Transfer detected (id=${match.id}, tmdb=${tmdbId || '?'}), waiting for scraping to settle...`);
+        appendLog(taskId, 'info', `Transfer detected (id=${match.id}, tmdb=${tmdbId || '?'}, seasons=${mpSeasons || '?'}), waiting for scraping to settle...`);
 
         // MoviePilot fires MetadataScrape asynchronously via event queue.
         // Wait for scraping to finish generating NFO/posters before proceeding.
@@ -348,38 +350,74 @@ async function runPlanning(taskId, task) {
     return;
   }
 
-  // Build search keyword: season pack vs movie
-  let searchKeyword = itemName;
   const itemPath = (task.itemInfo && task.itemInfo.path) || '';
   const itemType = (task.itemInfo && task.itemInfo.type) || '';
-  if (itemType === 'season') {
-    const seriesName = (task.itemInfo && task.itemInfo.seriesName) || itemName;
-    const snum = (task.itemInfo && task.itemInfo.seasonNumber) || null;
-    const seasonLabel = snum != null ? `S${String(snum).padStart(2, '0')}` : '';
-    searchKeyword = seasonLabel ? `${seriesName} ${seasonLabel}` : seriesName;
-  } else {
-    // Movie: add year for precision
-    const yearMatch = itemPath.match(/\((\d{4})\)/);
-    const year = yearMatch ? yearMatch[1] : '';
-    if (year) searchKeyword = itemName + ' ' + year;
-  }
 
   try {
-    let result = await moviepilotService.searchTorrents(mpConfig, searchKeyword);
-    let candidates = (result && result.data) || [];
+    let candidates = [];
 
-    // If Chinese name + year finds nothing useful, try resolving English name via media search
-    if ((!Array.isArray(candidates) || candidates.length === 0) && year) {
-      try {
-        const mediaResults = await moviepilotService.searchMediaByTitle(mpConfig, itemName);
-        const tmdbHit = (Array.isArray(mediaResults) ? mediaResults : []).find((r) => r.tmdb_id && r.title);
-        if (tmdbHit && tmdbHit.title) {
-          const enKeyword = tmdbHit.title + ' ' + year;
-          appendLog(taskId, 'info', `Chinese search found nothing, trying English: "${enKeyword}"`);
-          result = await moviepilotService.searchTorrents(mpConfig, enKeyword);
-          candidates = (result && result.data) || [];
+    if (itemType === 'season') {
+      // ── Season: TMDB exact search with season filter ──
+      const seriesName = (task.itemInfo && task.itemInfo.seriesName) || itemName;
+      const snum = (task.itemInfo && task.itemInfo.seasonNumber) || null;
+      appendLog(taskId, 'info', `Resolving TMDB ID for "${seriesName}"...`);
+
+      const mediaResults = await moviepilotService.searchMediaByTitle(mpConfig, seriesName);
+      const mediaList = Array.isArray(mediaResults) ? mediaResults : [];
+
+      // Try TMDB exact search first (if TMDB ID is available)
+      let tmdbHit = mediaList.find((r) => r.tmdb_id);
+      // Chinese search may return douban-only results; retry with original_title in English
+      if (!tmdbHit && mediaList.length > 0 && mediaList[0].original_title) {
+        const enName = mediaList[0].original_title;
+        appendLog(taskId, 'info', `Chinese search gave no TMDB ID, retrying with English: "${enName}"`);
+        const enResults = await moviepilotService.searchMediaByTitle(mpConfig, enName);
+        const enList = Array.isArray(enResults) ? enResults : [];
+        tmdbHit = enList.find((r) => r.tmdb_id);
+      }
+      // Store resolved TMDB ID for later verification
+      if (tmdbHit) {
+        task.itemInfo = { ...task.itemInfo, tmdbId: tmdbHit.tmdb_id };
+        appendLog(taskId, 'info', `TMDB ID: ${tmdbHit.tmdb_id}, searching season ${snum}`);
+        const exactRes = await moviepilotService.searchMediaById(mpConfig, `tmdb:${tmdbHit.tmdb_id}`, snum);
+        if (exactRes && exactRes.success && Array.isArray(exactRes.data)) {
+          candidates = exactRes.data.map((t) => ({ torrent_info: t, meta_info: null }));
+          appendLog(taskId, 'info', `Exact search returned ${candidates.length} candidates`);
         }
-      } catch (_) {}
+      }
+
+      // Fallback: use media search title for fuzzy keyword
+      if (candidates.length === 0 && seriesName) {
+        // Try to find the specific season entry from media search for a better keyword
+        const seasonHit = mediaList.find((r) => r.season === snum);
+        const keyword = seasonHit ? seasonHit.title : (snum != null ? `${seriesName} 第${snum}季` : seriesName);
+        appendLog(taskId, 'info', `Fuzzy search: "${keyword}"`);
+        const fuzzyResult = await moviepilotService.searchTorrents(mpConfig, keyword);
+        candidates = (fuzzyResult && fuzzyResult.data) || [];
+      }
+    } else {
+      // ── Movie: fuzzy search with year ──
+      let searchKeyword = itemName;
+      const yearMatch = itemPath.match(/\((\d{4})\)/);
+      const year = yearMatch ? yearMatch[1] : '';
+      if (year) searchKeyword = itemName + ' ' + year;
+
+      let result = await moviepilotService.searchTorrents(mpConfig, searchKeyword);
+      candidates = (result && result.data) || [];
+
+      // If Chinese name + year finds nothing, try English name via media search
+      if ((!Array.isArray(candidates) || candidates.length === 0) && year) {
+        try {
+          const mediaResults = await moviepilotService.searchMediaByTitle(mpConfig, itemName);
+          const tmdbHit = (Array.isArray(mediaResults) ? mediaResults : []).find((r) => r.tmdb_id && r.title);
+          if (tmdbHit && tmdbHit.title) {
+            const enKeyword = tmdbHit.title + ' ' + year;
+            appendLog(taskId, 'info', `Chinese search found nothing, trying English: "${enKeyword}"`);
+            result = await moviepilotService.searchTorrents(mpConfig, enKeyword);
+            candidates = (result && result.data) || [];
+          }
+        } catch (_) {}
+      }
     }
 
     if (!Array.isArray(candidates) || candidates.length === 0) {
@@ -412,6 +450,19 @@ async function runPlanning(taskId, task) {
 
     // ── Smart seed selection ──────────────────────────────────────────
     const config = configStore.loadConfig();
+
+    // Exact search results have no meta_info (codec/resolution not parsed).
+    // Skip smartSelect and go to user confirmation for these candidates.
+    const hasMetaInfo = candidates.some((c) => c.meta_info != null);
+    if (!hasMetaInfo) {
+      appendLog(taskId, 'info', 'Candidates from exact search (no meta_info) — skipping auto-select');
+      taskStore.updateTask(taskId, {
+        resumePoint: 'upgrade_executing',
+      });
+      scheduler.pauseForConfirm(taskId, 'upgrade_executing');
+      return;
+    }
+
     const selectedIndex = smartSeedSelect.filterAndSelect(candidates, task.itemInfo, config);
     if (selectedIndex !== null) {
       appendLog(taskId, 'info', `SmartSelect: auto-picked candidate #${selectedIndex} (${simplified[selectedIndex] && simplified[selectedIndex].title || 'unknown'})`);
@@ -740,20 +791,33 @@ async function runPreReplaceVerify(taskId, task) {
 
   try {
     // TMDB ID validation — use the actual NFO in staging folder as authoritative
-    // (mpTmdbId from transfer history is the fallback)
-    const scrapeTmdbId = extractTmdbIdFromNfo(stagingFolder) || (task.itemInfo && task.itemInfo.mpTmdbId) || null;
-    let expectedTmdbId = (task.itemInfo && task.itemInfo.tmdbId) || null;
+    // mpTmdbId from transfer history is the series-level ID — use it first.
+    // NFO contains episode-level ID which won't match series-level expectedTmdbId.
+    const scrapeTmdbId = (task.itemInfo && task.itemInfo.mpTmdbId) || extractTmdbIdFromNfo(stagingFolder) || null;
+    // Use tmdbId from planning phase (independently resolved via media search).
+    // Falls back to mpTmdbId from transfer history only if planning didn't resolve one.
+    let expectedTmdbId = (task.itemInfo && task.itemInfo.tmdbId) || (task.itemInfo && task.itemInfo.mpTmdbId) || null;
     if (!expectedTmdbId) {
-      const itemName = (task.itemInfo && (task.itemInfo.name || task.itemInfo.title)) || '';
-      if (itemName) {
+      const info = task.itemInfo || {};
+      const searchName = (info.type === 'season' && info.seriesName) ? info.seriesName : (info.name || info.title || '');
+      if (searchName) {
         try {
           const mpConfig = getMpConfig();
           if (mpConfig) {
-            const mediaResults = await moviepilotService.searchMediaByTitle(mpConfig, itemName);
-            if (Array.isArray(mediaResults) && mediaResults.length > 0) {
-              const tmdbHit = mediaResults.find((r) => r.tmdb_id);
-              if (tmdbHit) expectedTmdbId = tmdbHit.tmdb_id;
+            let mediaResults = await moviepilotService.searchMediaByTitle(mpConfig, searchName);
+            const list = Array.isArray(mediaResults) ? mediaResults : [];
+            let tmdbHit = list.find((r) => r.tmdb_id);
+
+            // Chinese search may return douban-only results; retry with original_title in English
+            if (!tmdbHit && list.length > 0 && list[0].original_title) {
+              const enName = list[0].original_title;
+              appendLog(taskId, 'info', `Chinese search gave no TMDB ID, retrying with English: "${enName}"`);
+              mediaResults = await moviepilotService.searchMediaByTitle(mpConfig, enName);
+              const enList = Array.isArray(mediaResults) ? mediaResults : [];
+              tmdbHit = enList.find((r) => r.tmdb_id);
             }
+
+            if (tmdbHit) expectedTmdbId = tmdbHit.tmdb_id;
           }
         } catch (e) {
           appendLog(taskId, 'warn', `Could not resolve TMDB ID for verification: ${e.message}`);
@@ -771,6 +835,20 @@ async function runPreReplaceVerify(taskId, task) {
         return;
       }
       appendLog(taskId, 'info', `TMDB verified: ${scrapeTmdbId} matches expected`);
+
+      // For seasons: also verify the season number matches
+      const taskSeason = (task.itemInfo && task.itemInfo.seasonNumber) || null;
+      const mpSeasons = (task.itemInfo && task.itemInfo.mpSeasons) || null;
+      if (taskSeason != null && mpSeasons) {
+        const mpSeasonNum = parseInt((mpSeasons.match(/S(\d+)/i) || [])[1], 10);
+        if (!Number.isNaN(mpSeasonNum) && mpSeasonNum !== taskSeason) {
+          appendLog(taskId, 'error', `Season mismatch: expected S${String(taskSeason).padStart(2,'0')}, got ${mpSeasons}. MoviePilot scraped wrong season.`);
+          scheduler.reportStatus(taskId, 'failed_hard');
+          setPhase(taskId, 'failed_hard');
+          return;
+        }
+        appendLog(taskId, 'info', `Season verified: S${String(taskSeason).padStart(2,'0')} matches ${mpSeasons}`);
+      }
     } else if (!scrapeTmdbId) {
       appendLog(taskId, 'warn', 'Could not extract TMDB ID from download metadata or NFO — skipping identity check');
     }

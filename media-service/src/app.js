@@ -175,6 +175,12 @@ function registerRoutes(app) {
       type: libItem.type,
       doubanRating: libItem.doubanRating,
       userRating: libItem.userRating,
+      seriesName: libItem.seriesName,
+      seasonNumber: libItem.seasonNumber,
+      targetBitrate: libItem.targetBitrate,
+      targetCodec: libItem.targetCodec,
+      seedPreferences: libItem.seedPreferences,
+      maxSizeGB: libItem.maxSizeGB,
     } : null;
 
     const task = taskStore.createTask({
