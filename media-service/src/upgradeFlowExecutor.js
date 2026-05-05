@@ -327,12 +327,21 @@ async function runPlanning(taskId, task) {
     return;
   }
 
-  // Extract year from path for better search precision
+  // Build search keyword: season pack vs movie
   let searchKeyword = itemName;
   const itemPath = (task.itemInfo && task.itemInfo.path) || '';
-  const yearMatch = itemPath.match(/\((\d{4})\)/);
-  const year = yearMatch ? yearMatch[1] : '';
-  if (year) searchKeyword = itemName + ' ' + year;
+  const itemType = (task.itemInfo && task.itemInfo.type) || '';
+  if (itemType === 'season') {
+    const seriesName = (task.itemInfo && task.itemInfo.seriesName) || itemName;
+    const snum = (task.itemInfo && task.itemInfo.seasonNumber) || null;
+    const seasonLabel = snum != null ? `S${String(snum).padStart(2, '0')}` : '';
+    searchKeyword = seasonLabel ? `${seriesName} ${seasonLabel}` : seriesName;
+  } else {
+    // Movie: add year for precision
+    const yearMatch = itemPath.match(/\((\d{4})\)/);
+    const year = yearMatch ? yearMatch[1] : '';
+    if (year) searchKeyword = itemName + ' ' + year;
+  }
 
   try {
     let result = await moviepilotService.searchTorrents(mpConfig, searchKeyword);
@@ -616,24 +625,43 @@ async function runPreReplaceVerify(taskId, task) {
     return;
   }
 
-  // Find the scraped folder in staging
+  // Find the scraped folder in staging (handles both movie and season structures)
   let stagingFolder = null;
   let stagingMediaPath = null;
+  const mediaExts = ['.mkv', '.mp4', '.avi', '.ts', '.m2ts'];
   try {
-    const entries = fs.readdirSync(stagingRoot, { withFileTypes: true });
-    for (const e of entries) {
-      if (e.isDirectory() && !e.name.startsWith('.')) {
-        const fullPath = path.join(stagingRoot, e.name);
-        const files = fs.readdirSync(fullPath, { withFileTypes: true });
-        for (const f of files) {
-          const ext = path.extname(f.name).toLowerCase();
-          if (['.mkv', '.mp4', '.avi', '.ts', '.m2ts'].includes(ext)) {
-            stagingFolder = fullPath;
-            stagingMediaPath = path.join(fullPath, f.name);
-            break;
-          }
+    const scanDir = (dir) => {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const f of entries) {
+        if (f.isFile() && mediaExts.includes(path.extname(f.name).toLowerCase())) {
+          stagingFolder = dir;
+          stagingMediaPath = path.join(dir, f.name);
+          return true;
         }
-        if (stagingFolder) break;
+      }
+      // Recurse one level for season packs (Show Name/Season 1/)
+      for (const e of entries) {
+        if (e.isDirectory() && !e.name.startsWith('.')) {
+          const subPath = path.join(dir, e.name);
+          try {
+            const subEntries = fs.readdirSync(subPath, { withFileTypes: true });
+            for (const sf of subEntries) {
+              if (sf.isFile() && mediaExts.includes(path.extname(sf.name).toLowerCase())) {
+                stagingFolder = subPath;
+                stagingMediaPath = path.join(subPath, sf.name);
+                return true;
+              }
+            }
+          } catch (_) {}
+        }
+      }
+      return false;
+    };
+
+    const rootEntries = fs.readdirSync(stagingRoot, { withFileTypes: true });
+    for (const e of rootEntries) {
+      if (e.isDirectory() && !e.name.startsWith('.')) {
+        if (scanDir(path.join(stagingRoot, e.name))) break;
       }
     }
   } catch (e) {

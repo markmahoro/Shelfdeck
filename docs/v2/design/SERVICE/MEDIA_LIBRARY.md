@@ -29,16 +29,21 @@
 | `path` | string | Emby | 媒体文件路径 |
 | `source` | string | 系统 | 来源类型：`emby` / `local` / `tmdb` |
 | `sourceId` | string | 来源系统 | 对应来源系统的主键 |
-| `type` | string | Emby | 媒体类型：`movie` / `series` / `episode` |
+| `type` | string | Emby | 媒体类型：`movie` / `series` / `season` / `episode`（episode 不入库，聚合到 season） |
 | `bitrate` | number | Emby | 码率（bps） |
 | `duration` | number | Emby | 时长（秒） |
 | `resolution` | string | Emby | 分辨率，如 `3840x2160` |
 | `size` | number | Emby | 文件大小（字节） |
-| `codec` | string | Emby | 视频编码：`h264` / `h265` / `hevc` / `av1` |
+| `codec` | string | Emby | 视频编码：`h264` / `h265` / `hevc` / `av1`（season 为多数集编码） |
+| `audioCodecs` | string[] | Emby | 音轨编码列表（season 为所有集音轨的并集） |
+| `seriesName` | string | Emby | 剧集名称（仅 season/series 类型） |
+| `seriesId` | string | Emby | Emby Series ID（仅 season/series 类型） |
+| `seasonNumber` | number | Emby | 季号（仅 season 类型，来自 Season.IndexNumber） |
+| `episodeCount` | number | 聚合 | 该季包含的集数（仅 season 类型，由 episode 聚合得出） |
 | `premiereDate` | string | Emby | 首播日期（ISO 8601） |
 | `genres` | string[] | Emby | 类型标签列表 |
 | `isDiscLike` | boolean | 解析 | 是否原盘（ISO/BDMV），由路径解析或 Emby 返回判定 |
-| `watched` | boolean | Emby | 是否已观看（Emby UserData.Played 缓存） |
+| `watched` | boolean | Emby | 是否已观看（Emby UserData.Played。season 直接用 Emby Season 原生状态） |
 | `doubanId` | string | 匹配结果 | 豆瓣条目 ID（由标题匹配得出），null 表示未匹配 |
 | `doubanRating` | number | Douban | 豆瓣星级（1-5），null 表示未匹配 |
 | `doubanRatingUpdatedAt` | string | Douban | 该条目豆瓣评分最近一次更新时间（ISO 8601） |
@@ -204,10 +209,14 @@ service 启动
 每6小时触发（仅当 subLibrary.doubanEnabled = true）：
     → DoubanAdapter.fetchRatings(null, { existingEntries: cachedEntries })
     → DoubanMatchService.buildDoubanStarsByNormalizedTitle(entries)
-    → 遍历该子库 items（仅 Movie 类型）：
-        ├── 匹配成功且 stars 变化 → 更新 doubanRating + doubanRatingUpdatedAt
-        ├── 匹配成功但 stars 未变 → 跳过
-        └── 未匹配 → 保留旧值（不置 null）
+    → 遍历该子库 items：
+        ├── movie：用 item.name 匹配
+        ├── series：用 item.name 匹配（新增）
+        ├── season：用 item.seriesName 匹配（新增）
+        │   ├── 匹配成功且 stars 变化 → 更新 doubanRating + doubanRatingUpdatedAt
+        │   ├── 匹配成功但 stars 未变 → 跳过
+        │   └── 未匹配 → 保留旧值（不置 null）
+    → Pass 2: 构建 seriesId → doubanRating map → 传播到同 seriesId 的 season
     → 持久化 library.json + 更新 subLibrary.doubanSyncedAt
 ```
 

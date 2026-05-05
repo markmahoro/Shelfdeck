@@ -63,6 +63,7 @@ function start(configStore, mediaLibraryService, taskStore) {
 
       const candidates = lib.items.filter((item) => {
         if (item.source !== 'emby') return false;
+        if (item.type === 'series') return false;
         if (!item.watched) return false;
         if (item.userRating == null && item.doubanRating == null) return false;
         if (!item.action || item.action === 'keep') return false;

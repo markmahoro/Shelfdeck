@@ -103,7 +103,27 @@ async function runPrecheck(taskId, task, config) {
     if (!rawPath) throw new Error('Source path not available');
     const sourcePath = resolveSourcePath(rawPath, task, config);
 
-    const result = await transcodeService.precheck(config, sourcePath);
+    const isSeason = (task.itemInfo && task.itemInfo.type) === 'season';
+
+    // For seasons: enumerate all episode files in the season folder
+    let episodeFiles = [];
+    if (isSeason) {
+      let seasonDir = sourcePath;
+      try { if (fs.statSync(seasonDir).isFile()) seasonDir = require('path').dirname(seasonDir); } catch (_) {}
+      if (fs.existsSync(seasonDir)) {
+        const entries = fs.readdirSync(seasonDir, { withFileTypes: true });
+        const mediaExts = ['.mkv', '.mp4', '.avi', '.ts', '.m2ts', '.mov'];
+        episodeFiles = entries
+          .filter((e) => e.isFile() && mediaExts.includes(require('path').extname(e.name).toLowerCase()))
+          .map((e) => require('path').join(seasonDir, e.name))
+          .sort();
+      }
+      if (episodeFiles.length === 0) throw new Error('No media files found in season folder: ' + seasonDir);
+      appendLog(taskId, 'info', `Season: ${episodeFiles.length} episode files found`);
+    }
+
+    const probePath = isSeason ? episodeFiles[0] : sourcePath;
+    const result = await transcodeService.precheck(config, probePath);
 
     if (result.needsDvConfirm && !task.dvAcknowledged) {
       appendLog(taskId, 'info', 'Dolby Vision detected — awaiting user confirmation');
@@ -119,8 +139,11 @@ async function runPrecheck(taskId, task, config) {
 
     // Estimate output size vs original
     if (result.originalSizeBytes !== undefined) {
-      const srcGb = (result.originalSizeBytes / (1024 * 1024 * 1024)).toFixed(2);
-      appendLog(taskId, 'info', `Source: ${srcGb} GB, ${result.durationSec}s`);
+      const totalSize = isSeason
+        ? episodeFiles.reduce((sum, f) => { try { return sum + fs.statSync(f).size; } catch (_) { return sum; } }, 0)
+        : result.originalSizeBytes;
+      const srcGb = (totalSize / (1024 * 1024 * 1024)).toFixed(2);
+      appendLog(taskId, 'info', `Source: ${srcGb} GB, ${result.durationSec}s${isSeason ? ` (${episodeFiles.length} episodes)` : ''}`);
     }
 
     // Store precheck results on task for later phases
@@ -128,20 +151,35 @@ async function runPrecheck(taskId, task, config) {
     const taskWorkDir = require('path').join(tempRoot, `etp-task-${task.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120)}`);
     require('fs').mkdirSync(taskWorkDir, { recursive: true });
 
-    const base = require('path').basename(sourcePath);
-    const ext = require('path').extname(base);
-    const stem = ext ? base.slice(0, -ext.length) : base;
-    const partialPath = require('path').join(taskWorkDir, `${stem}.etp.partial${ext}`);
+    let partialPath, partialPaths;
+    if (isSeason) {
+      partialPaths = episodeFiles.map((fp) => {
+        const base = require('path').basename(fp);
+        const ext = require('path').extname(base);
+        const stem = ext ? base.slice(0, -ext.length) : base;
+        return { source: fp, partial: require('path').join(taskWorkDir, `${stem}.etp.partial${ext}`) };
+      });
+      partialPath = partialPaths[0].partial; // for verify preview
+    } else {
+      const base = require('path').basename(sourcePath);
+      const ext = require('path').extname(base);
+      const stem = ext ? base.slice(0, -ext.length) : base;
+      partialPath = require('path').join(taskWorkDir, `${stem}.etp.partial${ext}`);
+    }
 
     taskStore.updateTask(taskId, {
       itemInfo: {
         ...task.itemInfo,
         sourcePath,
         partialPath,
+        partialPaths: partialPaths || undefined,
+        episodeFiles: isSeason ? episodeFiles : undefined,
         tempDir: taskWorkDir,
         isDolbyVision: result.isDolbyVision,
         durationSec: result.durationSec,
-        originalSizeBytes: result.originalSizeBytes,
+        originalSizeBytes: isSeason
+          ? episodeFiles.reduce((sum, f) => { try { return sum + fs.statSync(f).size; } catch (_) { return sum; } }, 0)
+          : result.originalSizeBytes,
         originalVideoCodec: result.originalVideoCodec,
         originalWidth: result.originalWidth,
         originalHeight: result.originalHeight,
@@ -165,60 +203,115 @@ async function runExecuting(taskId, task, config) {
   appendLog(taskId, 'info', 'Transcode encoding started');
 
   const info = task.itemInfo || {};
-  const sourcePath = info.sourcePath;
-  const partialPath = info.partialPath;
+  const isSeason = info.type === 'season';
 
-  if (!sourcePath || !partialPath) {
-    appendLog(taskId, 'error', 'Missing source or partial path');
-    scheduler.reportStatus(taskId, 'failed_hard');
-    return;
-  }
+  if (isSeason) {
+    // ── Season: encode each episode sequentially ──
+    const pairs = info.partialPaths;
+    if (!pairs || pairs.length === 0) {
+      appendLog(taskId, 'error', 'No episode files to encode');
+      scheduler.reportStatus(taskId, 'failed_hard');
+      return;
+    }
 
-  // Clean up residual partial from a previous interrupted encode (FFmpeg cannot resume)
-  if (fs.existsSync(partialPath)) {
-    const deleted = unlinkWithRetrySync(partialPath);
-    if (deleted) {
-      appendLog(taskId, 'info', 'Cleaned up leftover partial from previous run');
-    } else {
-      appendLog(taskId, 'warn', 'Could not delete leftover partial — file may be locked by orphan process');
+    const slots = buildDeviceSlots(config);
+    const orderedSlots = slots.map((s) => ({ deviceId: s.deviceId, maxSlots: s.maxSlots, cpuBackupOnly: s.cpuBackupOnly }));
+    const encoderLabel = orderedSlots.length > 0 ? orderedSlots.map((s) => s.deviceId).join(', ') : 'cpu';
+    appendLog(taskId, 'info', `Encoder: ${encoderLabel}, encoding ${pairs.length} episodes`);
+
+    const totalCount = pairs.length;
+    for (let i = 0; i < totalCount; i++) {
+      if (abortedTasks.has(taskId)) return;
+      const { source, partial } = pairs[i];
+      appendLog(taskId, 'info', `Encoding episode ${i + 1}/${totalCount}: ${require('path').basename(source)}`);
+
+      // Clean up residual partial
+      if (fs.existsSync(partial)) {
+        unlinkWithRetrySync(partial);
+      }
+
+      const baseProgress = (i / totalCount) * 100;
+      await transcodeService.startEncode(
+        (pct) => {
+          const overall = Math.round(baseProgress + pct / totalCount);
+          taskStore.updateTask(taskId, { progress: overall });
+          scheduler.reportStatus(taskId, 'executing', overall);
+        },
+        {
+          config,
+          taskId,
+          sourcePath: source,
+          partialPath: partial,
+          orderedDeviceSlots: orderedSlots,
+          isDolbyVision: info.isDolbyVision,
+          dvAcknowledged: task.dvAcknowledged || false,
+          durationSec: info.durationSec || 3600,
+          targetBitrate: info.targetBitrate,
+        },
+      );
+      appendLog(taskId, 'info', `Episode ${i + 1}/${totalCount} complete`);
+    }
+
+    appendLog(taskId, 'info', 'All episodes encoded');
+  } else {
+    // ── Single file (movie) ──
+    const sourcePath = info.sourcePath;
+    const partialPath = info.partialPath;
+
+    if (!sourcePath || !partialPath) {
+      appendLog(taskId, 'error', 'Missing source or partial path');
+      scheduler.reportStatus(taskId, 'failed_hard');
+      return;
+    }
+
+    // Clean up residual partial from a previous interrupted encode (FFmpeg cannot resume)
+    if (fs.existsSync(partialPath)) {
+      const deleted = unlinkWithRetrySync(partialPath);
+      if (deleted) {
+        appendLog(taskId, 'info', 'Cleaned up leftover partial from previous run');
+      } else {
+        appendLog(taskId, 'warn', 'Could not delete leftover partial — file may be locked by orphan process');
+      }
+    }
+
+    const slots = buildDeviceSlots(config);
+    const orderedSlots = slots.map((s) => ({ deviceId: s.deviceId, maxSlots: s.maxSlots, cpuBackupOnly: s.cpuBackupOnly }));
+
+    try {
+      const encoderLabel = orderedSlots.length > 0
+        ? orderedSlots.map((s) => s.deviceId).join(', ')
+        : 'cpu';
+      appendLog(taskId, 'info', `Encoder: ${encoderLabel}`);
+
+      await transcodeService.startEncode(
+        (pct) => {
+          taskStore.updateTask(taskId, { progress: pct });
+          scheduler.reportStatus(taskId, 'executing', pct);
+        },
+        {
+          config,
+          taskId,
+          sourcePath,
+          partialPath,
+          orderedDeviceSlots: orderedSlots,
+          isDolbyVision: info.isDolbyVision,
+          dvAcknowledged: task.dvAcknowledged || false,
+          durationSec: info.durationSec || 3600,
+          targetBitrate: info.targetBitrate,
+        },
+      );
+
+      appendLog(taskId, 'info', 'Encoding complete');
+    } catch (e) {
+      if (abortedTasks.has(taskId)) return;
+      appendLog(taskId, 'error', `Encoding failed: ${e.message}`);
+      scheduler.reportStatus(taskId, 'failed_hard');
+      setPhase(taskId, 'failed_hard');
+      return;
     }
   }
 
-  const slots = buildDeviceSlots(config);
-  const orderedSlots = slots.map((s) => ({ deviceId: s.deviceId, maxSlots: s.maxSlots, cpuBackupOnly: s.cpuBackupOnly }));
-
-  try {
-    const encoderLabel = orderedSlots.length > 0
-      ? orderedSlots.map((s) => s.deviceId).join(', ')
-      : 'cpu';
-    appendLog(taskId, 'info', `Encoder: ${encoderLabel}`);
-
-    await transcodeService.startEncode(
-      (pct) => {
-        taskStore.updateTask(taskId, { progress: pct });
-        scheduler.reportStatus(taskId, 'executing', pct);
-      },
-      {
-        config,
-        taskId,
-        sourcePath,
-        partialPath,
-        orderedDeviceSlots: orderedSlots,
-        isDolbyVision: info.isDolbyVision,
-        dvAcknowledged: task.dvAcknowledged || false,
-        durationSec: info.durationSec || 3600,
-        targetBitrate: info.targetBitrate,
-      },
-    );
-
-    appendLog(taskId, 'info', 'Encoding complete');
-    await runVerify(taskId, task, config);
-  } catch (e) {
-    if (abortedTasks.has(taskId)) return;
-    appendLog(taskId, 'error', `Encoding failed: ${e.message}`);
-    scheduler.reportStatus(taskId, 'failed_hard');
-    setPhase(taskId, 'failed_hard');
-  }
+  await runVerify(taskId, taskStore.getTask(taskId), config);
 }
 
 async function runVerify(taskId, task, config) {
@@ -226,11 +319,27 @@ async function runVerify(taskId, task, config) {
   scheduler.reportStatus(taskId, 'executing', 90);
   appendLog(taskId, 'info', 'Verifying transcode output');
 
-  const partialPath = task.itemInfo && task.itemInfo.partialPath;
+  const info = task.itemInfo || {};
+  const isSeason = info.type === 'season';
+  const partialPath = info.partialPath;
+
   if (!partialPath) {
     appendLog(taskId, 'error', 'Partial path not available for verify');
     scheduler.reportStatus(taskId, 'failed_hard');
     return;
+  }
+
+  if (isSeason) {
+    // Verify all episode partials exist
+    const pairs = info.partialPaths || [];
+    for (const { partial } of pairs) {
+      if (!fs.existsSync(partial)) {
+        appendLog(taskId, 'error', `Missing partial: ${partial}`);
+        scheduler.reportStatus(taskId, 'failed_hard');
+        return;
+      }
+    }
+    appendLog(taskId, 'info', `All ${pairs.length} episode partials verified`);
   }
 
   try {
@@ -238,7 +347,9 @@ async function runVerify(taskId, task, config) {
     if (summary.durationSec <= 0) throw new Error('Output duration is zero');
     appendLog(taskId, 'info', `Verify OK: ${summary.width}x${summary.height}, ${summary.videoCodec}, ${summary.durationSec}s`);
 
-    const outSizeBytes = fs.statSync(partialPath).size;
+    const outSizeBytes = isSeason
+      ? (info.partialPaths || []).reduce((sum, { partial }) => { try { return sum + fs.statSync(partial).size; } catch (_) { return sum; } }, 0)
+      : fs.statSync(partialPath).size;
     const outBitrate = summary.durationSec > 0
       ? Math.round((outSizeBytes * 8) / (summary.durationSec * 1000))
       : 0;
@@ -288,8 +399,41 @@ async function runReplace(taskId, task, config) {
   setPhase(taskId, 'transcode_replace');
   appendLog(taskId, 'info', 'Replacing original file');
 
-  const targetPath = task.itemInfo && task.itemInfo.sourcePath;
-  const partialPath = task.itemInfo && task.itemInfo.partialPath;
+  const info = task.itemInfo || {};
+  const isSeason = info.type === 'season';
+
+  if (isSeason) {
+    // Season: replace each episode file individually
+    const pairs = info.partialPaths || [];
+    if (pairs.length === 0) {
+      appendLog(taskId, 'error', 'No episode partial paths for replace');
+      scheduler.reportStatus(taskId, 'failed_hard');
+      return;
+    }
+    appendLog(taskId, 'info', `Replacing ${pairs.length} episode files`);
+    try {
+      for (const { source, partial } of pairs) {
+        if (!fs.existsSync(partial)) throw new Error('Missing partial: ' + partial);
+        await transcodeService.replaceWithRetries({ config, targetPath: source, partialPath: partial });
+        appendLog(taskId, 'info', `Replaced: ${require('path').basename(source)}`);
+      }
+      appendLog(taskId, 'info', `All ${pairs.length} episodes replaced`);
+      scheduler.reportStatus(taskId, 'done', 100);
+      setPhase(taskId, 'done');
+      const tempDir = info.tempDir;
+      if (tempDir) transcodeService.cleanupTaskWorkdir(tempDir);
+    } catch (e) {
+      if (abortedTasks.has(taskId)) return;
+      appendLog(taskId, 'error', `Replace failed: ${e.message}`);
+      scheduler.reportStatus(taskId, 'failed_hard');
+      setPhase(taskId, 'failed_hard');
+    }
+    return;
+  }
+
+  // Single file (movie)
+  const targetPath = info.sourcePath;
+  const partialPath = info.partialPath;
 
   if (!targetPath || !partialPath) {
     appendLog(taskId, 'error', 'Missing paths for replace');
@@ -302,7 +446,7 @@ async function runReplace(taskId, task, config) {
     appendLog(taskId, 'info', 'Replace complete');
     scheduler.reportStatus(taskId, 'done', 100);
     setPhase(taskId, 'done');
-    const tempDir = task.itemInfo && task.itemInfo.tempDir;
+    const tempDir = info.tempDir;
     if (tempDir) transcodeService.cleanupTaskWorkdir(tempDir);
   } catch (e) {
     if (abortedTasks.has(taskId)) return;

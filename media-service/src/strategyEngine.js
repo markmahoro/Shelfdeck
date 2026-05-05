@@ -188,6 +188,19 @@ function runOnce() {
   let changed = 0;
 
   for (const item of lib.items) {
+    if (item.type === 'series') {
+      // Series items are rating anchors only — never produce tasks
+      if (item.action !== 'keep' || item.reason !== '系列条目(非媒体文件)') {
+        item.action = 'keep';
+        item.reason = '系列条目(非媒体文件)';
+        item.targetBitrate = undefined;
+        item.targetCodec = undefined;
+        item.seedPreferences = undefined;
+        item.predictedSizeGb = undefined;
+        changed++;
+      }
+      continue;
+    }
     if (evaluateItem(item, templates, subLibs)) {
       changed++;
     }
