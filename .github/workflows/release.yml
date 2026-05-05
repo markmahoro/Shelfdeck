@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.1.0)'
+        required: true
+
+jobs:
+  # ── Job 1: Build Windows release package ──────────────────────────────────
+  build-windows:
+    name: Build Windows release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: |
+          cd media-service && npm ci
+          cd ../media-desktop && npm ci
+      - name: Build release package
+        run: node scripts/build-release.js
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShelfDeck-Windows
+          path: dist-release/ShelfDeck-v*/
+
+  # ── Job 2: Build + Push Docker image ──────────────────────────────────────
+  push-docker:
+    name: Push Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract version tag
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          fi
+      - name: Build image
+        run: |
+          docker build \
+            -t markmahoro/shelfdeck:${{ env.VERSION }} \
+            -t markmahoro/shelfdeck:latest \
+            media-service/
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+      - name: Push images
+        run: |
+          docker push markmahoro/shelfdeck:${{ env.VERSION }}
+          docker push markmahoro/shelfdeck:latest
+
+  # ── Job 3: Generate release announcement assets ──────────────────────────
+  generate-announcements:
+    name: Generate announcements
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate release notes from CHANGELOG
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+          mkdir -p release-notes
+          # Extract the relevant section from CHANGELOG.md
+          sed -n "/^## ${VERSION}/,/^## /p" CHANGELOG.md | head -n -1 > release-notes/changelog.md
+          echo "Release notes generated for ${VERSION}"
+      - name: Upload announcement assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: Release-Announcements
+          path: release-notes/
+
+  # ── Job 4: Create GitHub Release ──────────────────────────────────────────
+  github-release:
+    name: Create GitHub Release
+    needs: [build-windows, push-docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ShelfDeck-Windows
+          path: release-artifacts/
+      - name: Create zip
+        run: |
+          cd release-artifacts
+          zip -r "../ShelfDeck-${GITHUB_REF#refs/tags/}-Windows.zip" .
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+          # Extract changelog section for release notes
+          RELEASE_NOTES=$(sed -n "/^## ${VERSION}/,/^## /p" CHANGELOG.md | head -n -1)
+          if [ -z "$RELEASE_NOTES" ]; then
+            RELEASE_NOTES="See CHANGELOG.md for details."
+          fi
+          gh release create "$VERSION" \
+            "ShelfDeck-${VERSION}-Windows.zip" \
+            --title "$VERSION" \
+            --notes "$RELEASE_NOTES"
