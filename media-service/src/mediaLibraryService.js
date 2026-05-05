@@ -144,8 +144,8 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
     s.episodeCount = episodes.filter((ep) => ep.parentId === s.sourceId).length;
   }
 
-  // Upsert all items: movies + series + seasons (episodes are aggregated away)
-  const allItems = [...movies, ...series, ...seasons];
+  // Upsert items: movies + seasons (series are transparent containers, not stored)
+  const allItems = [...movies, ...seasons];
 
   for (const incoming of allItems) {
     const existingIdx = lib.items.findIndex(
@@ -305,7 +305,8 @@ function addSubLibrary(spec) {
     enabled: true,
     lastRefreshedAt: null,
     doubanSyncedAt: null,
-    ruleTemplateId: spec.ruleTemplateId || 'default',
+    mediaType: spec.mediaType || 'movie',
+    ruleTemplateId: spec.ruleTemplateId || (spec.mediaType === 'tv' ? 'tv_default' : 'default'),
     ...configStore.defaultSubLibSchedule(),
     scheduleMode: spec.scheduleMode || 'full_auto',
     autoCreate: spec.autoCreate !== undefined ? spec.autoCreate : true,
@@ -494,7 +495,7 @@ async function syncDoubanForSubLibrary(subLib) {
     let newRatingCount = 0;
     const now = new Date().toISOString();
 
-    // Pass 1: match movie by name, series by name, season by series+season key
+    // Match movie by name, season by series+season key
     for (const item of lib.items) {
       if (item.subLibraryId !== subLib.uuid) continue;
 
@@ -504,9 +505,6 @@ async function syncDoubanForSubLibrary(subLib) {
       if (item.type === 'movie') {
         matchName = item.name;
         stars = doubanMatchService.movieDoubanStars(item.name, 'Movie', byNormTitle);
-      } else if (item.type === 'series') {
-        matchName = item.name;
-        stars = doubanMatchService.movieDoubanStars(item.name, 'Series', byNormTitle);
       } else if (item.type === 'season' && item.seriesName != null && item.seasonNumber != null) {
         matchName = item.seriesName;
         stars = doubanMatchService.seasonDoubanStars(item.seriesName, item.seasonNumber, byNormTitle);

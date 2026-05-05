@@ -127,7 +127,7 @@ async function getUsers(serverConfig) {
 async function getMediaFolders(serverConfig) {
   const data = await embyFetchJson(serverConfig, 'Library/MediaFolders');
   const items = data && Array.isArray(data.Items) ? data.Items : [];
-  return items.map((x) => ({ id: x.Id, name: x.Name || x.Id })).filter((x) => x.id);
+  return items.map((x) => ({ id: x.Id, name: x.Name || x.Id, collectionType: x.CollectionType || '' })).filter((x) => x.id);
 }
 
 const ITEM_FIELDS =

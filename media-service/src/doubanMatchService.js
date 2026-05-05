@@ -139,7 +139,7 @@ function buildDoubanStarsByNormalizedTitle(entries) {
 }
 
 function movieDoubanStars(embyName, itemType, byNormTitle) {
-  if (itemType !== 'Movie' && itemType !== 'Series') return null;
+  if (itemType !== 'Movie') return null;
   const keys = embyTitleNormalizedKeys(embyName);
   if (keys.length === 0) return null;
   const ordered = [...keys].sort((a, b) => b.length - a.length);
