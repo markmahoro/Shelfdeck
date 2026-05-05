@@ -494,57 +494,37 @@ async function syncDoubanForSubLibrary(subLib) {
     let newRatingCount = 0;
     const now = new Date().toISOString();
 
-    // Pass 1: match movies by name, series by name, seasons by seriesName
+    // Pass 1: match movie by name, series by name, season by series+season key
     for (const item of lib.items) {
       if (item.subLibraryId !== subLib.uuid) continue;
 
+      let stars = null;
       let matchName = null;
-      let matchType = null;
+
       if (item.type === 'movie') {
         matchName = item.name;
-        matchType = 'Movie';
+        stars = doubanMatchService.movieDoubanStars(item.name, 'Movie', byNormTitle);
       } else if (item.type === 'series') {
         matchName = item.name;
-        matchType = 'Series';
-      } else if (item.type === 'season' && item.seriesName) {
+        stars = doubanMatchService.movieDoubanStars(item.name, 'Series', byNormTitle);
+      } else if (item.type === 'season' && item.seriesName != null && item.seasonNumber != null) {
         matchName = item.seriesName;
-        matchType = 'Series';
+        stars = doubanMatchService.seasonDoubanStars(item.seriesName, item.seasonNumber, byNormTitle);
       }
-      if (!matchName) continue;
+      if (stars == null) continue;
 
-      const stars = doubanMatchService.movieDoubanStars(matchName, matchType, byNormTitle);
-      if (stars !== null) {
-        matchedCount++;
-        if (item.doubanRating !== stars) {
-          item.doubanRating = stars;
-          item.doubanRatingUpdatedAt = now;
-          newRatingCount++;
+      matchedCount++;
+      if (item.doubanRating !== stars) {
+        item.doubanRating = stars;
+        item.doubanRatingUpdatedAt = now;
+        newRatingCount++;
 
-          const matchedEntry = entries.find((e) => {
-            const keys = doubanMatchService.doubanTitleNormalizedKeys(e.title);
-            const embyKeys = doubanMatchService.embyTitleNormalizedKeys(matchName);
-            return embyKeys.some((ek) => keys.includes(ek));
-          });
-          if (matchedEntry) item.doubanId = matchedEntry.subjectId;
-        }
-      }
-    }
-
-    // Pass 2: propagate series doubanRating to child seasons
-    const seriesRatingMap = new Map();
-    for (const item of lib.items) {
-      if (item.type === 'series' && item.doubanRating != null) {
-        seriesRatingMap.set(item.sourceId, item.doubanRating);
-      }
-    }
-    for (const item of lib.items) {
-      if (item.type === 'season' && item.seriesId && seriesRatingMap.has(item.seriesId)) {
-        const sr = seriesRatingMap.get(item.seriesId);
-        if (item.doubanRating !== sr) {
-          item.doubanRating = sr;
-          item.doubanRatingUpdatedAt = now;
-          newRatingCount++;
-        }
+        const matchedEntry = entries.find((e) => {
+          const keys = doubanMatchService.doubanTitleNormalizedKeys(e.title);
+          const embyKeys = doubanMatchService.embyTitleNormalizedKeys(matchName);
+          return embyKeys.some((ek) => keys.includes(ek));
+        });
+        if (matchedEntry) item.doubanId = matchedEntry.subjectId;
       }
     }
 
