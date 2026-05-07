@@ -63,7 +63,10 @@ test('GET /v1/config includes v2 schema fields', async () => {
   assert.ok(Array.isArray(cfg.ruleTemplates), 'ruleTemplates is array');
   assert.ok(cfg.ruleTemplates.length > 0, 'at least one rule template');
   assert.strictEqual(cfg.ruleTemplates[0].id, 'default');
-  assert.strictEqual(cfg.ruleTemplates[0].name, '默认策略');
+  assert.strictEqual(cfg.ruleTemplates[0].name, '默认策略（电影）');
+  assert.ok(cfg.ruleTemplates.length >= 2, 'at least two rule templates (movie + TV)');
+  assert.strictEqual(cfg.ruleTemplates[1].id, 'tv_default', 'second template is TV default');
+  assert.strictEqual(cfg.ruleTemplates[1].name, '默认策略（剧集）');
   assert.ok(cfg.embyServers !== undefined, 'embyServers present');
   assert.ok(Array.isArray(cfg.subLibraries), 'subLibraries is array');
   assert.ok(Array.isArray(cfg.transcodeEncodingDevices), 'transcodeEncodingDevices is array');
