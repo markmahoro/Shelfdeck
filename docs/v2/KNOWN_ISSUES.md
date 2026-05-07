@@ -16,7 +16,7 @@
 | 5 | upgrade replace 阶段同步文件复制阻塞事件循环 | 高 | 所有 upgrade 任务的 replace 阶段 | 已修复 |
 | 6 | upgrade TMDB 不匹配时直接 failed，应改为暂停等待用户修正 | 中 | 所有 upgrade 任务 | 已修复 |
 | 7 | QSV hwaccel 导致 ffmpeg stderr 进度解析失效，进度卡 0% | 高 | QSV 硬件加速转码 | 已修复 |
-| 8 | upgrade 盲扫 staging 文件夹取错电影 + TMDB 校验被跳过 + 重复入队 | 严重 | 所有 upgrade 任务 | 待修复 |
+| 8 | upgrade 盲扫 staging 文件夹取错电影 + TMDB 校验被跳过 + 重复入队 | 严重 | 所有 upgrade 任务 | 已修复 |
 
 ---
 
