@@ -134,11 +134,8 @@ const ITEM_FIELDS =
   'BasicSyncInfo,RunTimeTicks,ImageTags,Type,MediaType,Path,VideoType,IsoType,SeriesName,SeriesId,ParentIndexNumber,IndexNumber,ParentId,MediaSources,UserData';
 
 async function getLibraryItems(serverConfig, sectionId) {
-  let userId = (serverConfig.userId || '').trim();
-  if (!userId) {
-    const users = await getUsers(serverConfig);
-    if (users.length > 0) userId = users[0].id;
-  }
+  const userId = String(serverConfig.userId || '').trim();
+  if (!userId) throw new Error('Emby userId not configured');
   const uid = encodeURIComponent(userId);
   const PAGE_SIZE = 2000;
 
@@ -399,11 +396,8 @@ async function getItem(serverConfig, itemId) {
 }
 
 async function getPlayedItems(serverConfig, filters = {}) {
-  let userId = String(serverConfig.userId || '').trim();
-  if (!userId) {
-    const users = await getUsers(serverConfig);
-    if (users.length > 0) userId = users[0].id;
-  }
+  const userId = String(serverConfig.userId || '').trim();
+  if (!userId) throw new Error('Emby userId not configured');
   const uid = encodeURIComponent(userId);
 
   const query = {
@@ -464,11 +458,8 @@ async function getPlayedItems(serverConfig, filters = {}) {
 }
 
 async function getUnplayedItems(serverConfig, sectionId) {
-  let userId = String(serverConfig.userId || '').trim();
-  if (!userId) {
-    const users = await getUsers(serverConfig);
-    if (users.length > 0) userId = users[0].id;
-  }
+  const userId = String(serverConfig.userId || '').trim();
+  if (!userId) throw new Error('Emby userId not configured');
   const uid = encodeURIComponent(userId);
 
   const query = {
