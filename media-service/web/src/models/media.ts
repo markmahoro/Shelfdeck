@@ -6,7 +6,9 @@ export type ManagedMediaItem = {
   name: string;
   sectionId: string;
   sectionName?: string;
-  itemType?: 'Movie' | 'Episode' | 'Other';
+  itemType?: 'Movie' | 'Season' | 'Other';
+  seriesName?: string;
+  seasonNumber?: number;
   resolution: '1080p' | '4K';
   codec: 'h264' | 'h265' | 'av1';
   durationSec: number;

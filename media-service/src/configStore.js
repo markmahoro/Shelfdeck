@@ -159,8 +159,151 @@ function buildDefaultTemplate(policy) {
 
   return {
     id: 'default',
-    name: '默认策略',
+    name: '默认策略（电影）',
     description: '依据用户喜好智能生成策略',
+    rules,
+  };
+}
+
+function buildTVDefaultTemplate(policy) {
+  const t1080 = (policy && policy.target1080p) || {};
+  const t4k = (policy && policy.target4k) || {};
+
+  function ratingGroup(val) {
+    return { connector: 'or', conditions: [['doubanRating', '=', val], ['userRating', '=', val]] };
+  }
+  function ratingGroupIn(vals) {
+    return { connector: 'or', conditions: [['doubanRating', 'in', vals], ['userRating', 'in', vals]] };
+  }
+  function condGroup(conds) {
+    return { connector: 'and', conditions: conds };
+  }
+
+  function transcodeRule(priority, rating, bucket, threshold, targetBitrate) {
+    return {
+      priority,
+      groupsConnector: 'and',
+      groups: [
+        ratingGroup(rating),
+        condGroup([['bucket', '=', bucket], ['equivalentBitrate', '>', threshold]]),
+      ],
+      action: 'transcode',
+      actionParams: { targetBitrate, targetCodec: 'h265' },
+      reason: `${rating}★ ${bucket} 码率 ${threshold} Mbps 超标，建议压缩`,
+    };
+  }
+
+  const rules = [];
+
+  // P10: no rating → keep
+  rules.push({
+    priority: 10,
+    groupsConnector: 'and',
+    groups: [condGroup([['doubanRating', '=', null], ['userRating', '=', null]])],
+    action: 'keep',
+    actionParams: {},
+    reason: '无评分',
+  });
+
+  // P9: 1-2★ → delete
+  rules.push({
+    priority: 9,
+    groupsConnector: 'and',
+    groups: [ratingGroupIn([1, 2])],
+    action: 'delete',
+    actionParams: {},
+    reason: '低分删除',
+  });
+
+  // P8: 5★ + 4K H.265 high-bitrate + high-quality audio → keep (already optimal)
+  rules.push({
+    priority: 8,
+    groupsConnector: 'and',
+    groups: [
+      ratingGroup(5),
+      condGroup([
+        ['bucket', '=', '4K'],
+        ['codec', 'in', ['h265', 'hevc']],
+        ['equivalentBitrate', '>=', 15],
+        ['audioCodecs', 'overlap', ['dts', 'truehd', 'atmos']],
+      ]),
+    ],
+    action: 'keep',
+    actionParams: {},
+    reason: '5★ 已是4K H.265 高码率 + 高品质音轨，无需洗版',
+  });
+
+  // P7: 5★ → upgrade (TV: lower bitrate target, season packs average lower Mbps)
+  rules.push({
+    priority: 7,
+    groupsConnector: 'and',
+    groups: [ratingGroup(5)],
+    action: 'upgrade',
+    actionParams: {
+      targetBitrate: 15,
+      targetCodec: 'h265',
+      maxSizeGB: 50,
+      seedPreferences: {
+        resolutionPreference: ['4K'],
+        codecPreference: ['h265', 'dv'],
+        audioPreference: ['DTS', 'TrueHD', 'Atmos'],
+        preferCNSub: true,
+      },
+    },
+    reason: '5★ 洗版至4K高码率优质音轨',
+  });
+
+  // P6: isDiscLike → keep
+  rules.push({
+    priority: 6,
+    groupsConnector: 'and',
+    groups: [condGroup([['isDiscLike', '=', true]])],
+    action: 'keep',
+    actionParams: {},
+    reason: '原盘不处理',
+  });
+
+  // P5: 3-4★ + modern codec + bitrate already within target → keep (already optimal)
+  function modernKeepRule(priority, rating, bucket, threshold) {
+    return {
+      priority,
+      groupsConnector: 'and',
+      groups: [
+        ratingGroup(rating),
+        condGroup([['bucket', '=', bucket], ['codec', 'in', ['h265', 'hevc', 'av1']], ['equivalentBitrate', '<=', threshold]]),
+      ],
+      action: 'keep',
+      actionParams: {},
+      reason: `${rating}★ ${bucket} 现代编码且码率≤${threshold}M，已达标`,
+    };
+  }
+  if (t1080[3]) rules.push(modernKeepRule(5, 3, '1080p', t1080[3]));
+  if (t4k[3]) rules.push(modernKeepRule(5, 3, '4K', t4k[3]));
+  if (t1080[4]) rules.push(modernKeepRule(5, 4, '1080p', t1080[4]));
+  if (t4k[4]) rules.push(modernKeepRule(5, 4, '4K', t4k[4]));
+
+  // P4: 3★ needs transcode (unless already optimal)
+  if (t1080[3]) rules.push(transcodeRule(4, 3, '1080p', t1080[3], t1080[3]));
+  if (t4k[3]) rules.push(transcodeRule(4, 3, '4K', t4k[3], t4k[3]));
+
+  // P3: 4★ needs transcode (unless already optimal)
+  if (t1080[4]) rules.push(transcodeRule(3, 4, '1080p', t1080[4], t1080[4]));
+  if (t4k[4]) rules.push(transcodeRule(3, 4, '4K', t4k[4], t4k[4]));
+
+  // P1: catch-all → keep
+  rules.push({
+    priority: 1,
+    groupsConnector: 'and',
+    groups: [],
+    action: 'keep',
+    actionParams: {},
+    reason: '策略未覆盖',
+  });
+
+  return {
+    id: 'tv_default',
+    name: '默认策略（剧集）',
+    description: '剧集类码率阈值整体低于电影一档',
     rules,
   };
 }
@@ -202,9 +345,13 @@ function resolveSubLibSchedule(itemInfo, config) {
 // ── Config persistence ─────────────────────────────────────────────────────────
 
 function getDefaultConfig() {
-  const defaultPolicy = {
+  const moviePolicy = {
     target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
     target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
+  };
+  const tvPolicy = {
+    target1080p: { '2': 1.5, '3': 3, '4': 5, '5': 8 },
+    target4k: { '2': 3, '3': 7, '4': 12, '5': 18 },
   };
 
   return {
@@ -252,7 +399,7 @@ function getDefaultConfig() {
     subLibraries: [],
 
     // Rule templates (v3)
-    ruleTemplates: [buildDefaultTemplate(defaultPolicy)],
+    ruleTemplates: [buildDefaultTemplate(moviePolicy), buildTVDefaultTemplate(tvPolicy)],
 
     // Douban
     douban: {

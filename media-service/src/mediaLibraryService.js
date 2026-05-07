@@ -83,7 +83,71 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
     return { upserted: 0, removed: 0 };
   }
 
+  // ── Episode → Season aggregation ──────────────────────────────────────────
+  const movies = [];
+  const series = [];
+  const seasons = [];
+  const episodes = [];
+
   for (const incoming of incomingItems) {
+    const t = (incoming.type || '').toLowerCase();
+    switch (t) {
+      case 'movie': movies.push(incoming); break;
+      case 'series': series.push(incoming); break;
+      case 'season': seasons.push(incoming); break;
+      case 'episode': episodes.push(incoming); break;
+      default: break; // 'other' — skip
+    }
+  }
+
+  // Aggregate episode technical data by parentId (Season ID)
+  const epAgg = new Map(); // parentId → { totalSize, totalDuration, ... }
+  for (const ep of episodes) {
+    const pid = ep.parentId;
+    if (!pid) continue;
+    let agg = epAgg.get(pid);
+    if (!agg) {
+      agg = { totalSize: 0, totalDuration: 0, maxH: 0, maxRes: '', codecTally: {}, audioSet: new Set(), allWatched: true };
+      epAgg.set(pid, agg);
+    }
+    agg.totalSize += ep.size || 0;
+    agg.totalDuration += ep.duration || 0;
+    const h = parseInt((ep.resolution || '').split('x')[1], 10) || 0;
+    if (h > agg.maxH) { agg.maxH = h; agg.maxRes = ep.resolution; }
+    const c = ep.codec || 'h264';
+    agg.codecTally[c] = (agg.codecTally[c] || 0) + 1;
+    for (const ac of (ep.audioCodecs || [])) agg.audioSet.add(ac);
+    if (!ep.watched) agg.allWatched = false;
+  }
+
+  // Enrich season items with episode aggregate data
+  for (const s of seasons) {
+    // Season's own IndexNumber is the season number
+    if (typeof s.indexNumber === 'number') s.seasonNumber = s.indexNumber;
+
+    const agg = epAgg.get(s.sourceId);
+    if (!agg) continue;
+    s.totalSize = agg.totalSize;
+    s.totalDuration = agg.totalDuration;
+    s.bitrate = agg.totalDuration > 0 ? Math.round((agg.totalSize * 8) / agg.totalDuration) : 0;
+    s.resolution = agg.maxRes || s.resolution;
+    s.size = agg.totalSize;
+    s.duration = agg.totalDuration;
+    let majorityCodec = s.codec || 'h264';
+    let maxTally = 0;
+    for (const [codec, n] of Object.entries(agg.codecTally)) {
+      if (n > maxTally) { maxTally = n; majorityCodec = codec; }
+    }
+    s.codec = majorityCodec;
+    s.audioCodecs = [...agg.audioSet];
+    s.watched = agg.allWatched;
+    s.episodeCount = episodes.filter((ep) => ep.parentId === s.sourceId).length;
+  }
+
+  // Upsert items: movies + seasons (series are transparent containers, not stored)
+  const allItems = [...movies, ...seasons];
+
+  for (const incoming of allItems) {
     const existingIdx = lib.items.findIndex(
       (it) => it.sourceId === incoming.sourceId && it.subLibraryId === subLibraryId,
     );
@@ -106,6 +170,10 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         isDiscLike: incoming.isDiscLike != null ? incoming.isDiscLike : existing.isDiscLike,
         watched: incoming.watched != null ? incoming.watched : existing.watched,
         lastRefreshedAt: now,
+        seriesName: incoming.seriesName !== undefined ? incoming.seriesName : existing.seriesName,
+        seriesId: incoming.seriesId !== undefined ? incoming.seriesId : existing.seriesId,
+        seasonNumber: incoming.seasonNumber !== undefined ? incoming.seasonNumber : existing.seasonNumber,
+        episodeCount: incoming.episodeCount !== undefined ? incoming.episodeCount : existing.episodeCount,
       };
       lib.items[existingIdx] = merged;
       upserted++;
@@ -138,6 +206,10 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         lastRefreshedAt: now,
         action: 'keep',
         reason: '新入库',
+        seriesName: incoming.seriesName || null,
+        seriesId: incoming.seriesId || null,
+        seasonNumber: incoming.seasonNumber || null,
+        episodeCount: incoming.episodeCount || null,
       };
       lib.items.push(newItem);
       upserted++;
@@ -146,7 +218,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
 
   // Remove items that no longer exist in Emby (orphan cleanup)
   // Only during full sync — partial updates (markPlayed etc.) must not purge.
-  const incomingIds = new Set(incomingItems.map((it) => it.sourceId || it.itemId));
+  const incomingIds = new Set(allItems.map((it) => it.sourceId || it.itemId));
   let removed = [];
   if (fullSync) {
     removed = lib.items.filter(
@@ -233,7 +305,8 @@ function addSubLibrary(spec) {
     enabled: true,
     lastRefreshedAt: null,
     doubanSyncedAt: null,
-    ruleTemplateId: spec.ruleTemplateId || 'default',
+    mediaType: spec.mediaType || 'movie',
+    ruleTemplateId: spec.ruleTemplateId || (spec.mediaType === 'tv' ? 'tv_default' : 'default'),
     ...configStore.defaultSubLibSchedule(),
     scheduleMode: spec.scheduleMode || 'full_auto',
     autoCreate: spec.autoCreate !== undefined ? spec.autoCreate : true,
@@ -422,26 +495,34 @@ async function syncDoubanForSubLibrary(subLib) {
     let newRatingCount = 0;
     const now = new Date().toISOString();
 
+    // Match movie by name, season by series+season key
     for (const item of lib.items) {
       if (item.subLibraryId !== subLib.uuid) continue;
-      if (item.type !== 'movie') continue;
 
-      const stars = doubanMatchService.movieDoubanStars(item.name, 'Movie', byNormTitle);
-      if (stars !== null) {
-        matchedCount++;
-        if (item.doubanRating !== stars) {
-          item.doubanRating = stars;
-          item.doubanRatingUpdatedAt = now;
-          newRatingCount++;
+      let stars = null;
+      let matchName = null;
 
-          // Find matching douban entry for doubanId
-          const matchedEntry = entries.find((e) => {
-            const keys = doubanMatchService.doubanTitleNormalizedKeys(e.title);
-            const embyKeys = doubanMatchService.embyTitleNormalizedKeys(item.name);
-            return embyKeys.some((ek) => keys.includes(ek));
-          });
-          if (matchedEntry) item.doubanId = matchedEntry.subjectId;
-        }
+      if (item.type === 'movie') {
+        matchName = item.name;
+        stars = doubanMatchService.movieDoubanStars(item.name, 'Movie', byNormTitle);
+      } else if (item.type === 'season' && item.seriesName != null && item.seasonNumber != null) {
+        matchName = item.seriesName;
+        stars = doubanMatchService.seasonDoubanStars(item.seriesName, item.seasonNumber, byNormTitle);
+      }
+      if (stars == null) continue;
+
+      matchedCount++;
+      if (item.doubanRating !== stars) {
+        item.doubanRating = stars;
+        item.doubanRatingUpdatedAt = now;
+        newRatingCount++;
+
+        const matchedEntry = entries.find((e) => {
+          const keys = doubanMatchService.doubanTitleNormalizedKeys(e.title);
+          const embyKeys = doubanMatchService.embyTitleNormalizedKeys(matchName);
+          return embyKeys.some((ek) => keys.includes(ek));
+        });
+        if (matchedEntry) item.doubanId = matchedEntry.subjectId;
       }
     }
 

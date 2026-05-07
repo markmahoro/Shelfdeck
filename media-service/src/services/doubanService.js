@@ -170,11 +170,11 @@ function parseCollectMovieGrid(html) {
   return rows;
 }
 
-function collectListUrl(userId, start) {
+function collectListUrl(userId, start, collectType) {
   const q = new URLSearchParams({
     start: String(start),
     mode: 'grid',
-    type: 'movie',
+    type: collectType || 'movie',
     sort: 'time',
     filter: 'all',
     tags_sort: 'count',
@@ -213,9 +213,6 @@ async function fetchRatings(progressSink, opts = {}) {
 
   const initialCached = new Set(allBySubject.keys());
 
-  let start = 0;
-  let pageIndex = 0;
-
   const send = (payload) => {
     if (!progressSink || typeof progressSink.send !== 'function') return;
     try {
@@ -225,47 +222,57 @@ async function fetchRatings(progressSink, opts = {}) {
     }
   };
 
-  while (!stopRequested && start <= MAX_COLLECT_START) {
-    const url = collectListUrl(userId, start);
-    let html;
-    try {
-      html = await httpsGetText(url, headers);
-    } catch (e) {
-      if (pageIndex === 0) throw e;
-      break;
+  let globalPageIndex = 0;
+
+  async function paginateType(collectType) {
+    let start = 0;
+    let pageIndex = 0;
+    while (!stopRequested && start <= MAX_COLLECT_START) {
+      const url = collectListUrl(userId, start, collectType);
+      let html;
+      try {
+        html = await httpsGetText(url, headers);
+      } catch (e) {
+        if (pageIndex === 0) break;
+        break;
+      }
+
+      const pageItems = parseCollectMovieGrid(html);
+      if (pageItems.length === 0) break;
+
+      let pageAllWereCached = true;
+      for (const item of pageItems) {
+        if (!initialCached.has(item.subjectId)) pageAllWereCached = false;
+        allBySubject.set(item.subjectId, { ...item, collectType });
+      }
+
+      const allEntries = Array.from(allBySubject.values());
+      send({
+        pageIndex: globalPageIndex,
+        start,
+        pageSize: pageItems.length,
+        allEntries,
+        done: false,
+        cancelled: false,
+      });
+
+      if (incremental && pageAllWereCached) break;
+
+      start += COLLECT_PAGE_STEP;
+      pageIndex += 1;
+      globalPageIndex += 1;
+      await sleep(PAGE_DELAY_MS);
     }
-
-    const pageItems = parseCollectMovieGrid(html);
-    if (pageItems.length === 0) break;
-
-    let pageAllWereCached = true;
-    for (const item of pageItems) {
-      if (!initialCached.has(item.subjectId)) pageAllWereCached = false;
-      allBySubject.set(item.subjectId, item);
-    }
-
-    const allEntries = Array.from(allBySubject.values());
-    send({
-      pageIndex,
-      start,
-      pageSize: pageItems.length,
-      allEntries,
-      done: false,
-      cancelled: false,
-    });
-
-    if (incremental && pageAllWereCached) break;
-    /** 不足 15 条也可能是中间页（豆瓣会跳过已失效条目），不能当作末页 */
-
-    start += COLLECT_PAGE_STEP;
-    pageIndex += 1;
-    await sleep(PAGE_DELAY_MS);
   }
+
+  // Fetch both movies and TV series
+  await paginateType('movie');
+  await paginateType('tv');
 
   const allEntries = Array.from(allBySubject.values());
   send({
-    pageIndex,
-    start,
+    pageIndex: globalPageIndex,
+    start: 0,
     pageSize: 0,
     allEntries,
     done: true,

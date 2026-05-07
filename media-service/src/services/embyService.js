@@ -127,7 +127,7 @@ async function getUsers(serverConfig) {
 async function getMediaFolders(serverConfig) {
   const data = await embyFetchJson(serverConfig, 'Library/MediaFolders');
   const items = data && Array.isArray(data.Items) ? data.Items : [];
-  return items.map((x) => ({ id: x.Id, name: x.Name || x.Id })).filter((x) => x.id);
+  return items.map((x) => ({ id: x.Id, name: x.Name || x.Id, collectionType: x.CollectionType || '' })).filter((x) => x.id);
 }
 
 const ITEM_FIELDS =
@@ -140,18 +140,34 @@ async function getLibraryItems(serverConfig, sectionId) {
     if (users.length > 0) userId = users[0].id;
   }
   const uid = encodeURIComponent(userId);
-  const query = {
-    ParentId: sectionId,
-    Recursive: 'true',
-    IncludeItemTypes: 'Movie,Episode',
-    Fields: ITEM_FIELDS,
-    SortBy: 'SortName',
-    SortOrder: 'Ascending',
-    Limit: '2000',
-  };
-  const data = await embyFetchJson(serverConfig, `Users/${uid}/Items`, {}, query);
-  const items = data && Array.isArray(data.Items) ? data.Items : [];
-  return items.map((item) => extractItemFields(item));
+  const PAGE_SIZE = 2000;
+
+  const allItems = [];
+  let startIndex = 0;
+  let totalCount = null;
+
+  while (totalCount === null || startIndex < totalCount) {
+    const query = {
+      ParentId: sectionId,
+      Recursive: 'true',
+      IncludeItemTypes: 'Movie,Series,Season,Episode',
+      Fields: ITEM_FIELDS,
+      SortBy: 'SortName',
+      SortOrder: 'Ascending',
+      Limit: String(PAGE_SIZE),
+      StartIndex: String(startIndex),
+    };
+    const data = await embyFetchJson(serverConfig, `Users/${uid}/Items`, {}, query);
+    if (totalCount === null) totalCount = data && data.TotalRecordCount || 0;
+    const pageItems = data && Array.isArray(data.Items) ? data.Items : [];
+    for (const item of pageItems) {
+      allItems.push(extractItemFields(item));
+    }
+    if (pageItems.length === 0) break;
+    startIndex += PAGE_SIZE;
+  }
+
+  return allItems;
 }
 
 async function getItemById(serverConfig, itemId) {
@@ -292,7 +308,7 @@ function extractItemFields(item) {
     itemId: item.Id,
     name: item.Name || item.Id,
     path: item.Path || src.Path || '',
-    type: item.Type === 'Episode' ? 'episode' : item.Type === 'Movie' ? 'movie' : 'other',
+    type: (() => { const m = { Movie: 'movie', Series: 'series', Season: 'season', Episode: 'episode' }; return m[item.Type] || 'other'; })(),
     sourceId: item.Id,
     bitrate: typeof bitrate === 'number' ? bitrate : 0,
     duration,
@@ -304,6 +320,11 @@ function extractItemFields(item) {
     codec,
     audioCodecs,
     watched: !!(item.UserData && item.UserData.Played),
+    seriesName: item.SeriesName || null,
+    seriesId: item.SeriesId || null,
+    parentIndexNumber: typeof item.ParentIndexNumber === 'number' ? item.ParentIndexNumber : null,
+    indexNumber: typeof item.IndexNumber === 'number' ? item.IndexNumber : null,
+    parentId: item.ParentId || null,
   };
 }
 
@@ -386,7 +407,7 @@ async function getPlayedItems(serverConfig, filters = {}) {
 
   const query = {
     Recursive: 'true',
-    IncludeItemTypes: 'Movie,Episode',
+    IncludeItemTypes: 'Movie,Series,Season,Episode',
     Filters: 'IsPlayed',
     Fields: 'DatePlayed,MediaSources,Overview',
     SortBy: 'DatePlayed',
@@ -452,7 +473,7 @@ async function getUnplayedItems(serverConfig, sectionId) {
   const query = {
     ParentId: sectionId,
     Recursive: 'true',
-    IncludeItemTypes: 'Movie,Episode',
+    IncludeItemTypes: 'Movie,Series,Season,Episode',
     Filters: 'IsUnplayed',
     Fields: ITEM_FIELDS,
     SortBy: 'SortName',

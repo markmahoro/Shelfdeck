@@ -57,6 +57,15 @@ async function searchTorrents(mpConfig, keyword) {
   return mpFetchJson(mpConfig, '/api/v1/search/title', {}, { keyword });
 }
 
+async function searchMediaById(mpConfig, mediaId, season) {
+  // mediaId can be prefixed: "tmdb:123", "douban:456"
+  const idStr = String(mediaId).includes(':') ? String(mediaId) : `tmdb:${mediaId}`;
+  const path = `/api/v1/search/media/${encodeURIComponent(idStr)}`;
+  const extra = {};
+  if (season != null) extra.season = String(season);
+  return mpFetchJson(mpConfig, path, {}, extra);
+}
+
 async function addDownload(mpConfig, { torrentInfo, savePath }) {
   const body = { torrent_in: torrentInfo };
   if (savePath) body.save_path = savePath;
@@ -117,6 +126,7 @@ module.exports = {
   checkConnection,
   searchMediaByTitle,
   searchTorrents,
+  searchMediaById,
   listSites,
   addDownload,
   listDownloads,
