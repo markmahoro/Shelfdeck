@@ -17,6 +17,7 @@
 | 6 | upgrade TMDB 不匹配时直接 failed，应改为暂停等待用户修正 | 中 | 所有 upgrade 任务 | 已修复 |
 | 7 | QSV hwaccel 导致 ffmpeg stderr 进度解析失效，进度卡 0% | 高 | QSV 硬件加速转码 | 已修复 |
 | 8 | upgrade 盲扫 staging 文件夹取错电影 + TMDB 校验被跳过 + 重复入队 | 严重 | 所有 upgrade 任务 | 已修复 |
+| 9 | season upgrade 精确搜索 meta_info 被硬编码为 null，auto mode 误触发 pauseForConfirm | 中 | season upgrade 任务 | 待修复 |
 
 ---
 
@@ -623,6 +624,41 @@ commit `b798818` 中 `waitForScraping` 正常匹配分支已存 `stagingTransfer
 | `upgradeFlowExecutor.js` | `waitForScraping` — 超时路径也存 stagingTransferDest |
 | `smartTaskEngine.js` | `createTask` — 写入 `tmdbId` |
 | `taskScheduler.js` | `reportStatus` — 确保 `lastTaskDoneAt` 写入 |
+
+---
+
+### #9 — season upgrade 精确搜索 meta_info 被硬编码为 null，auto mode 误触发用户确认
+
+**严重程度**：中
+
+**发现日期**：2026-05-07
+
+**影响范围**：所有 season (剧集) upgrade 任务。精确搜索返回的 candidates 被硬编码 `meta_info: null`，导致：
+1. `hasMetaInfo` 检查为 false，强制进入 `pauseForConfirm`
+2. 如果用户确认后进入 `runExecuting`，auto mode 下 `getRankedPool` 因无 meta_info 过滤掉所有 candidate，`retryPool` 为空 → `failed_hard`
+
+#### 根因
+
+`upgradeFlowExecutor.js:386`，精确搜索结果映射时将 `meta_info` 写死为 null：
+
+```js
+candidates = exactRes.data.map((t) => ({ torrent_info: t, meta_info: null }));
+//                                                              ^^^^^^^^^^^^
+```
+
+`searchTorrents`（fuzzy search）返回的每项已经是 `{ torrent_info, meta_info }` 结构。`searchMediaById`（精确搜索 `/api/v1/search/media/{id}`）返回结构**未调研**——不知道返回的数据中是否包含 `video_encode` / `resource_pix` 等字段，也不知道这些字段是否在 `torrent_info` 内部还是在独立字段中。需要实调 MoviePilot API 确认。
+
+#### 修复方向
+
+1. **调研**：打一个 `GET /api/v1/search/media/tmdb:xxx?season=1` 请求，检查返回 JSON 结构
+2. 如果返回数据中包含编码/分辨率/音轨等信息 → 正确映射到 `meta_info`
+3. 如果返回数据不包含 → 对 season 精确搜索 + auto mode 不进入 `pauseForConfirm`，降级到 fuzzy search 获取 meta_info
+
+#### 文件涉及
+
+| 文件 | 改动点 |
+|------|--------|
+| `upgradeFlowExecutor.js` | `runPlanning` — 修复 season 精确搜索结果映射，区分 auto/manual mode |
 
 ---
 
