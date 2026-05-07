@@ -195,7 +195,7 @@ async function runExecuting(taskId, task, config) {
 
     await transcodeService.startEncode(
       (pct) => {
-        taskStore.updateTask(taskId, { progress: pct });
+        taskStore.setProgress(taskId, pct);
         scheduler.reportStatus(taskId, 'executing', pct);
       },
       {
@@ -354,7 +354,7 @@ function pause(taskId) {
     unlinkWithRetrySync(partialPath);
   }
   appendLog(taskId, 'info', 'Transcode paused by user');
-  scheduler.reportStatus(taskId, 'paused', task.progress || 0);
+  scheduler.reportStatus(taskId, 'paused', taskStore.getProgress(taskId));
 }
 
 function cancel(taskId) {

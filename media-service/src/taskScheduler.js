@@ -55,9 +55,14 @@ function pauseForConfirm(taskId, resumePoint) {
 }
 
 function reportStatus(taskId, status, progress) {
+  if (typeof progress === 'number') taskStore.setProgress(taskId, progress);
+
+  // Skip disk I/O when status hasn't changed (e.g. progress-only updates)
+  const cachedStatus = taskStore.getCachedStatus(taskId);
+  if (cachedStatus === status) return;
+
   const oldTask = taskStore.getTask(taskId);
   const updates = { status };
-  if (typeof progress === 'number') updates.progress = progress;
   taskStore.updateTask(taskId, updates);
 
   // Activity log events for task lifecycle
@@ -82,6 +87,9 @@ function reportStatus(taskId, status, progress) {
       const libItem = lib && lib.items && lib.items.find((it) => it.itemId === oldTask.itemId);
       if (libItem) {
         libItem.lastTaskDoneAt = new Date().toISOString();
+        if (status === 'done' && oldTask.actionType === 'transcode') {
+          libItem.lastTranscodeDoneAt = new Date().toISOString();
+        }
         mediaLibraryService.saveLibrary(lib);
       }
     }

@@ -17,6 +17,7 @@
 | 发版工作流（一键触发）     | `RELEASE_WORKFLOW.md`     | v1 定稿 |
 | 测试架构（3 Tiers）   | `TEST_ARCHITECTURE.md`    | v1 定稿 |
 | 排查工作流（Debug）    | `DEBUG_WORKFLOW.md`       | v1 定稿 |
+| 已知待修复问题          | `KNOWN_ISSUES.md`         | v1 初稿 |
 
 ### 设计层 — 总览
 
@@ -47,6 +48,7 @@
 | Web 管理端总览          | `design/SERVICE/ADMIN_WEB.md`                    | v4 定稿 |
 | Admin API 端点       | `design/SERVICE/ADMIN_WEB/API.md`                | v4 定稿 |
 | Admin 页面结构         | `design/SERVICE/ADMIN_WEB/PAGES.md`              | v4 定稿 |
+| 人脸识别索引              | `design/SERVICE/FACE_INDEX.md`                  | v1 草案 |
 
 ### 设计层 — Desktop 子模块
 
@@ -101,6 +103,7 @@
 | 配置字段              | `SERVICE/CONFIG.md`         |
 | Admin API         | `SERVICE/ADMIN_WEB/API.md`  |
 | 跨组件数据流            | `SHARED/DATA_FLOW.md`       |
+| 人脸识别索引            | `SERVICE/FACE_INDEX.md`     |
 | 错误处理约定            | `SHARED/ERROR_HANDLING.md`  |
 
 ---

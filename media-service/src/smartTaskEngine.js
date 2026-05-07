@@ -80,6 +80,10 @@ function start(configStore, mediaLibraryService, taskStore) {
           if (now < freezeUntil) return false;
         }
 
+        // Permanent anti-re-transcode: once transcoded, never auto-create again
+        // Manual trigger (POST /v1/tasks) bypasses this — only affects auto-enqueue
+        if (item.action === 'transcode' && item.lastTranscodeDoneAt) return false;
+
         // Lookback window for first/resume run
         if (isFirstOrResume) {
           const ratingTs = maxTimestamp(item.userRatingUpdatedAt, item.doubanRatingUpdatedAt);

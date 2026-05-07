@@ -81,9 +81,9 @@ function extractTmdbIdFromNfo(dirPath) {
 
 // ── Folder replace ────────────────────────────────────────────────────────────
 
-function atomicReplaceFolder(sourceDir, targetDir, taskId) {
-  if (!fs.existsSync(sourceDir)) throw new Error('Source folder not found: ' + sourceDir);
-  if (!fs.existsSync(targetDir)) throw new Error('Target folder not found: ' + targetDir);
+async function atomicReplaceFolder(sourceDir, targetDir, taskId) {
+  try { if (!fs.existsSync(sourceDir)) throw new Error('Source folder not found: ' + sourceDir); } catch (e) { throw e; }
+  try { if (!fs.existsSync(targetDir)) throw new Error('Target folder not found: ' + targetDir); } catch (e) { throw e; }
 
   const parent = path.dirname(targetDir);
   const base = path.basename(targetDir);
@@ -92,44 +92,44 @@ function atomicReplaceFolder(sourceDir, targetDir, taskId) {
 
   // Clean up any leftover .etp.new from a previous failed attempt
   if (fs.existsSync(newDir)) {
-    fs.rmSync(newDir, { recursive: true, force: true });
+    await fs.promises.rm(newDir, { recursive: true, force: true });
   }
 
   appendLog(taskId, 'info', `Replace: renaming old → ${bakDir}`);
-  fs.renameSync(targetDir, bakDir);
+  await fs.promises.rename(targetDir, bakDir);
 
   try {
     appendLog(taskId, 'info', `Replace: copying staging → ${newDir}`);
-    copyDirSync(sourceDir, newDir);
+    await copyDir(sourceDir, newDir);
 
     appendLog(taskId, 'info', `Replace: promoting ${newDir} → ${targetDir}`);
-    fs.renameSync(newDir, targetDir);
+    await fs.promises.rename(newDir, targetDir);
 
     appendLog(taskId, 'info', 'Replace: cleaning up staging source');
-    fs.rmSync(sourceDir, { recursive: true, force: true });
+    await fs.promises.rm(sourceDir, { recursive: true, force: true });
   } catch (e) {
     // Rollback: restore original
     appendLog(taskId, 'error', `Replace failed: ${e.message}. Rolling back.`);
     if (fs.existsSync(newDir)) {
-      try { fs.rmSync(newDir, { recursive: true, force: true }); } catch (_) {}
+      try { await fs.promises.rm(newDir, { recursive: true, force: true }); } catch (_) {}
     }
     if (fs.existsSync(bakDir) && !fs.existsSync(targetDir)) {
-      fs.renameSync(bakDir, targetDir);
+      await fs.promises.rename(bakDir, targetDir).catch(() => {});
     }
     throw e;
   }
 }
 
-function copyDirSync(src, dest) {
-  fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src, { withFileTypes: true });
+async function copyDir(src, dest) {
+  await fs.promises.mkdir(dest, { recursive: true });
+  const entries = await fs.promises.readdir(src, { withFileTypes: true });
   for (const e of entries) {
     const srcPath = path.join(src, e.name);
     const destPath = path.join(dest, e.name);
     if (e.isDirectory()) {
-      copyDirSync(srcPath, destPath);
+      await copyDir(srcPath, destPath);
     } else {
-      fs.copyFileSync(srcPath, destPath);
+      await fs.promises.copyFile(srcPath, destPath);
     }
   }
 }
@@ -176,11 +176,12 @@ function waitForDownload(taskId, mpConfig, hashString) {
     seenBefore = true;
 
     const pct = typeof dl.progress === 'number' ? dl.progress : 0;
+    taskStore.setProgress(taskId, pct);
     const mpTmdbId = (dl.media && dl.media.tmdbid) || null;
-    const updates = { progress: pct };
-    if (mpTmdbId) updates.itemInfo = taskStore.getTask(taskId)?.itemInfo;
-    if (mpTmdbId && updates.itemInfo) updates.itemInfo = { ...updates.itemInfo, mpTmdbId };
-    taskStore.updateTask(taskId, updates);
+    if (mpTmdbId) {
+      const info = taskStore.getTask(taskId)?.itemInfo;
+      if (info) taskStore.updateTask(taskId, { itemInfo: { ...info, mpTmdbId } });
+    }
 
     if (dl.state === 'downloading' || dl.state === 'pending') {
       await sleep(pollInterval);
@@ -461,7 +462,8 @@ async function continueAfterDownload(taskId, mpConfig) {
     appendLog(taskId, 'info', `MoviePilot scraped as TMDB ${task.itemInfo.mpTmdbId}`);
   }
 
-  taskStore.updateTask(taskId, { resumePoint: 'upgrade_pre_replace_verify', progress: 80 });
+  taskStore.setProgress(taskId, 80);
+  taskStore.updateTask(taskId, { resumePoint: 'upgrade_pre_replace_verify' });
   setImmediate(() => runPreReplaceVerify(taskId, taskStore.getTask(taskId)));
 }
 
@@ -488,7 +490,7 @@ async function pollDownloadAndScrape(taskId, mpConfig) {
 
 async function runExecuting(taskId, task) {
   setPhase(taskId, 'upgrade_executing');
-  scheduler.reportStatus(taskId, 'executing', task.progress || 5);
+  scheduler.reportStatus(taskId, 'executing', taskStore.getProgress(taskId) || 5);
 
   const mpConfig = getMpConfig();
   if (!mpConfig) {
@@ -756,9 +758,8 @@ async function runPreReplaceVerify(taskId, task) {
 
     if (expectedTmdbId && scrapeTmdbId) {
       if (expectedTmdbId !== scrapeTmdbId) {
-        appendLog(taskId, 'error', `TMDB mismatch: expected ${expectedTmdbId}, got ${scrapeTmdbId}. MoviePilot scraped wrong media.`);
-        scheduler.reportStatus(taskId, 'failed_hard');
-        setPhase(taskId, 'failed_hard');
+        appendLog(taskId, 'warn', `TMDB mismatch: expected ${expectedTmdbId}, got ${scrapeTmdbId}. Please re-identify the media in MoviePilot, then confirm to continue.`);
+        scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify');
         return;
       }
       appendLog(taskId, 'info', `TMDB verified: ${scrapeTmdbId} matches expected`);
@@ -782,10 +783,13 @@ async function runPreReplaceVerify(taskId, task) {
       appendLog(taskId, 'warn', `Probe summary failed: ${e.message}`);
     }
 
-    // Generate a preview clip from middle of the staging file
+    // Generate a preview clip from middle of the staging file (in dedicated subdir, not inside staging)
     let previewPath = null;
+    let previewDir = null;
     try {
-      const previewFile = path.join(path.dirname(stagingMediaPath), 'upgrade_preview.mp4');
+      previewDir = path.join(stagingRoot, `preview_${task.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120)}`);
+      fs.mkdirSync(previewDir, { recursive: true });
+      const previewFile = path.join(previewDir, 'upgrade_preview.mp4');
       const previewResult = await require('./services/transcodeService').extractPreviewClip(config, stagingMediaPath, previewFile);
       appendLog(taskId, 'info', `Preview clip generated (${previewResult.method}, ${previewResult.duration}s from ${previewResult.startSec}s)`);
       previewPath = previewResult.previewPath;
@@ -820,8 +824,8 @@ async function runPreReplaceVerify(taskId, task) {
         tmdbId: scrapeTmdbId || expectedTmdbId,
       },
       resumePoint: 'upgrade_replace',
-      progress: 90,
     });
+    taskStore.setProgress(taskId, 90);
 
     const sched = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
     if (!sched.autoReplaceUpgrade) {
@@ -901,19 +905,27 @@ async function runReplace(taskId, task, config) {
 
     if (!tmpReady) {
       appendLog(taskId, 'info', 'Replace: copying staging → ' + tmpFolder);
-      copyDirSync(stagingFolder, tmpFolder);
+      await copyDir(stagingFolder, tmpFolder);
     }
 
     appendLog(taskId, 'info', 'Replace: removing old folder');
-    fs.rmSync(targetFolder, { recursive: true, force: true });
+    await fs.promises.rm(targetFolder, { recursive: true, force: true });
 
     appendLog(taskId, 'info', 'Replace: promoting tmp → ' + targetFolder);
-    fs.renameSync(tmpFolder, targetFolder);
+    await fs.promises.rename(tmpFolder, targetFolder);
 
     // Clean staging source
-    fs.rmSync(stagingFolder, { recursive: true, force: true });
+    await fs.promises.rm(stagingFolder, { recursive: true, force: true });
 
     appendLog(taskId, 'info', 'Replace complete');
+
+    // Clean up preview directory
+    const vr = task.verifyResult || null;
+    if (vr && vr.previewPath) {
+      const prevDir = path.dirname(vr.previewPath);
+      try { fs.rmSync(prevDir, { recursive: true, force: true }); } catch {}
+    }
+
     scheduler.reportStatus(taskId, 'done', 100);
     setPhase(taskId, 'done');
   } catch (e) {
@@ -987,7 +999,7 @@ async function pause(taskId) {
   if (!downloadHash && phase === 'upgrade_executing') {
     abortFlags.set(taskId, true);
     appendLog(taskId, 'warn', 'Paused without download hash — MP download may continue');
-    scheduler.reportStatus(taskId, 'paused', task.progress || 0);
+    scheduler.reportStatus(taskId, 'paused', taskStore.getProgress(taskId));
     return;
   }
 
@@ -1007,7 +1019,7 @@ async function pause(taskId) {
   }
 
   appendLog(taskId, 'info', 'Upgrade paused by user');
-  scheduler.reportStatus(taskId, 'paused', task.progress || 0);
+  scheduler.reportStatus(taskId, 'paused', taskStore.getProgress(taskId));
 }
 
 async function cancel(taskId) {

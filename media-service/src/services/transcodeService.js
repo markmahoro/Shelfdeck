@@ -197,15 +197,28 @@ async function encoderSelfTest(ff, encArgs, env) {
 
 function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolbyVision, dvAcknowledged, targetBitrate }) {
   const ff = resolveFfmpegBin(config);
-  const args = ['-hide_banner', '-y', '-i', sourcePath, '-map', '0:v:0', '-map', '0:a?', '-map', '0:s?', '-dn'];
   let enc = String(encoderMode || 'cpu').toLowerCase();
   if (isDolbyVision && dvAcknowledged) {
     enc = 'cpu';
+  }
+
+  // Hardware decode acceleration (before -i)
+  const preInput = ['-hide_banner', '-y'];
+  if (enc === 'qsv') {
+    preInput.push('-hwaccel', 'qsv', '-hwaccel_output_format', 'qsv');
+  } else if (enc === 'nvenc') {
+    preInput.push('-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda');
+  } else if (enc === 'amf') {
+    preInput.push('-hwaccel', process.platform === 'win32' ? 'd3d11va' : 'vaapi');
+  }
+
+  const args = [...preInput, '-i', sourcePath, '-map', '0:v:0', '-map', '0:a?', '-map', '0:s?', '-dn'];
+  if (isDolbyVision && dvAcknowledged) {
     args.push('-vf', 'libplacebo=tonemapping=bt.2390,format=yuv420p10le');
   }
   const bitrate = typeof targetBitrate === 'number' && targetBitrate > 0 ? String(targetBitrate) + 'M' : null;
   // Cap peak bitrate at 2x target so the output never exceeds the source
-  const maxrate = bitrate ? String(targetBitrate * 2) + 'M' : null;
+  const maxrate = bitrate ? String(Math.round(targetBitrate * 1.3)) + 'M' : null;
   const bufsize = maxrate;
   if (enc === 'nvenc') {
     args.push('-c:v', 'hevc_nvenc', '-rc', 'vbr', '-preset', 'p5');

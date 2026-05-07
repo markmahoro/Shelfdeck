@@ -84,7 +84,9 @@ function createTask(taskData) {
 }
 
 function getTask(taskId) {
-  return loadTasks().find((t) => t.id === taskId) || null;
+  const task = loadTasks().find((t) => t.id === taskId) || null;
+  if (task) task.progress = progressCache.get(taskId) ?? 0;
+  return task;
 }
 
 function getTasks(filter = {}) {
@@ -99,6 +101,7 @@ function getTasks(filter = {}) {
       return name.includes(q);
     });
   }
+  for (const t of tasks) t.progress = progressCache.get(t.id) ?? 0;
   return tasks;
 }
 
@@ -118,6 +121,15 @@ function updateTask(taskId, updates) {
 
   tasks[idx] = { ...current, ...final, updatedAt: new Date().toISOString() };
   saveTasks(tasks);
+
+  // Sync in-memory caches
+  if (final.status) statusCache.set(taskId, final.status);
+
+  // Clean up in-memory progress when task reaches final state
+  if (final.status === 'done' || final.status === 'failed_hard' || final.status === 'failed_soft') {
+    progressCache.delete(taskId);
+  }
+
   return tasks[idx];
 }
 
@@ -129,4 +141,25 @@ function deleteTask(taskId) {
   return true;
 }
 
-module.exports = { createTask, getTask, getTasks, updateTask, deleteTask, loadTasks, saveTasks };
+// ── In-memory caches (not persisted, lost on restart — OK by design) ───────────
+
+const progressCache = new Map();
+const statusCache = new Map();
+
+function setProgress(taskId, pct) {
+  progressCache.set(taskId, pct);
+}
+
+function getProgress(taskId) {
+  return progressCache.get(taskId) ?? 0;
+}
+
+function deleteProgress(taskId) {
+  progressCache.delete(taskId);
+}
+
+function getCachedStatus(taskId) {
+  return statusCache.get(taskId) || null;
+}
+
+module.exports = { createTask, getTask, getTasks, updateTask, deleteTask, loadTasks, saveTasks, setProgress, getProgress, deleteProgress, getCachedStatus };
