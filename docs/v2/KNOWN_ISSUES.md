@@ -18,6 +18,9 @@
 | 7 | QSV hwaccel 导致 ffmpeg stderr 进度解析失效，进度卡 0% | 高 | QSV 硬件加速转码 | 已修复 |
 | 8 | upgrade 盲扫 staging 文件夹取错电影 + TMDB 校验被跳过 + 重复入队 | 严重 | 所有 upgrade 任务 | 已修复 |
 | 9 | season upgrade 精确搜索 meta_info 被硬编码为 null，auto mode 误触发 pauseForConfirm | 中 | season upgrade 任务 | 待修复 |
+| 10 | deleteTask 不清理 progressCache / statusCache，缓慢内存泄漏 | 低 | 所有任务的生命周期管理 | 待修复 |
+| 11 | waitForDownload 每 5 秒重复同步写盘 mpTmdbId | 低 | 所有 upgrade 任务的下载阶段 | 待修复 |
+| 12 | ruleTemplates migration 依赖启发式判断（规则数/audioCodec），改为基于版本号；模板需区分用户模板和默认模板 | 中 | configStore 迁移逻辑 + 模板管理 | 待修复 |
 
 ---
 
@@ -659,6 +662,53 @@ candidates = exactRes.data.map((t) => ({ torrent_info: t, meta_info: null }));
 | 文件 | 改动点 |
 |------|--------|
 | `upgradeFlowExecutor.js` | `runPlanning` — 修复 season 精确搜索结果映射，区分 auto/manual mode |
+
+---
+
+### #12 — ruleTemplates migration 基于启发式判断，需改为版本号机制 + 模板类型区分
+
+**严重程度**：中
+
+**发现日期**：2026-05-07
+
+**影响范围**：Docker 升级部署时模板更新逻辑
+
+#### 当前问题
+
+`config.json` 中持久化的 `ruleTemplates` 在新版本代码启动时，通过启发式规则（规则数 `< 10`、是否包含 `audioCodec` filter 等）判断是否为旧版模板，不可靠且每次启动都重复检测。
+
+#### 目标设计
+
+每个模板需包含：
+
+| 字段 | 用途 |
+|------|------|
+| `id` | 模板唯一标识 |
+| `tag.type` | `'default'`（系统内置）或 `'user'`（用户自建） |
+| `tag.version` | 默认模板的版本号（如 `5`），用户模板无此字段 |
+
+规则：
+
+1. **默认模板不可编辑**。UI 中只读展示。
+2. **用户想修改默认模板** → 需先"复制为新模板"，生成新 `id` + `tag: { type: 'user' }`，在复制品上修改。
+3. **Docker 升级时**：遍历所有 `tag.type === 'default'` 的模板，比对 `tag.version` 和当前代码中 `buildDefaultTemplate()` / `buildTVDefaultTemplate()` 的版本号。如果旧版 → 自动覆盖为新版。
+4. **用户模板**：不自动升级，由用户手动管理。
+
+#### 实现要点
+
+1. `configStore.getDefaultConfig()` 中 `ruleTemplates` 改为动态生成（不写死数据），只持久化 policy 阈值
+2. 在 `config.json` 外层增加 `version` 字段，一次性 migration
+3. `buildDefaultTemplate` / `buildTVDefaultTemplate` 增加版本号常量
+4. UI 增加"复制模板"按钮
+
+#### 文件涉及
+
+| 文件 | 改动点 |
+|------|--------|
+| `configStore.js` | 模板系统重构：version 字段、tag 结构、升级逻辑 |
+| `strategyEngine.js` | 适配新模板结构 |
+| `app.js` | 模板管理 API |
+| 前端 | 模板只读/复制/编辑 UI |
 
 ---
 
