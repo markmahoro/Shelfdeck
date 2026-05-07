@@ -128,6 +128,7 @@ function start(configStore, mediaLibraryService, taskStore) {
             type: item.type,
             doubanRating: item.doubanRating,
             userRating: item.userRating,
+            tmdbId: item.tmdbId,
             seriesName: item.seriesName,
             seasonNumber: item.seasonNumber,
             targetBitrate: item.targetBitrate,

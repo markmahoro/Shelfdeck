@@ -325,6 +325,7 @@ function extractItemFields(item) {
     parentIndexNumber: typeof item.ParentIndexNumber === 'number' ? item.ParentIndexNumber : null,
     indexNumber: typeof item.IndexNumber === 'number' ? item.IndexNumber : null,
     parentId: item.ParentId || null,
+    tmdbId: (item.ProviderIds && item.ProviderIds.Tmdb) || null,
   };
 }
 

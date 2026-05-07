@@ -175,6 +175,7 @@ function registerRoutes(app) {
       type: libItem.type,
       doubanRating: libItem.doubanRating,
       userRating: libItem.userRating,
+      tmdbId: libItem.tmdbId,
       seriesName: libItem.seriesName,
       seasonNumber: libItem.seasonNumber,
       targetBitrate: libItem.targetBitrate,

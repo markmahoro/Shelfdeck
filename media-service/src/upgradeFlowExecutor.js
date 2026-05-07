@@ -736,41 +736,16 @@ async function runPreReplaceVerify(taskId, task) {
     }
   }
 
-  // Fallback: blind scan of staging root (legacy path for tasks without download_hash)
+  // Never blindly scan staging root — it can pick up files from concurrent tasks
+  // or stale folders from previous runs. If the exact transfer path cannot be
+  // resolved, pause and ask the user to locate the correct folder.
   if (!stagingFolder || !stagingMediaPath) {
     if (!transferDest) {
-      appendLog(taskId, 'info', 'No transfer dest on task — falling back to blind staging scan');
+      appendLog(taskId, 'warn', 'No transfer dest on task — cannot locate staging folder. The download may not have been transferred yet, or the transfer record may be missing. Verify in MoviePilot transfer history.');
+    } else {
+      appendLog(taskId, 'warn', 'Transfer dest not accessible and cannot be resolved. Check if the staging path is mounted correctly.');
     }
-    try {
-      const entries = fs.readdirSync(stagingRoot, { withFileTypes: true });
-      for (const e of entries) {
-        if (e.isDirectory() && !e.name.startsWith('.')) {
-          const fullPath = path.join(stagingRoot, e.name);
-          const files = fs.readdirSync(fullPath, { withFileTypes: true });
-          for (const f of files) {
-            const ext = path.extname(f.name).toLowerCase();
-            if (mediaExts.includes(ext)) {
-              stagingFolder = fullPath;
-              stagingMediaPath = path.join(fullPath, f.name);
-              break;
-            }
-          }
-          if (stagingFolder) break;
-        }
-      }
-    } catch (e) {
-      if (isAborted(taskId)) return;
-      appendLog(taskId, 'error', `Cannot read staging directory: ${e.message}`);
-      scheduler.reportStatus(taskId, 'failed_hard');
-      setPhase(taskId, 'failed_hard');
-      return;
-    }
-  }
-
-  if (!stagingFolder || !stagingMediaPath) {
-    appendLog(taskId, 'error', 'No scraped folder found in staging');
-    scheduler.reportStatus(taskId, 'failed_hard');
-    setPhase(taskId, 'failed_hard');
+    scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify');
     return;
   }
 
@@ -853,6 +828,14 @@ async function runPreReplaceVerify(taskId, task) {
       }
     } else if (!scrapeTmdbId) {
       appendLog(taskId, 'warn', 'Could not extract TMDB ID from download metadata or NFO — skipping identity check');
+    } else {
+      // scrapeTmdbId exists but expectedTmdbId is null — MoviePilot identified the media
+      // but we cannot verify it's the correct one. Pause for user confirmation.
+      appendLog(taskId, 'warn',
+        `MoviePilot identified download as TMDB ${scrapeTmdbId} but no expected TMDB ID was resolved. ` +
+        'Please verify this is the correct media before proceeding.');
+      scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify');
+      return;
     }
 
     // Probe the new file for technical info

@@ -170,6 +170,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         isDiscLike: incoming.isDiscLike != null ? incoming.isDiscLike : existing.isDiscLike,
         watched: incoming.watched != null ? incoming.watched : existing.watched,
         lastRefreshedAt: now,
+        tmdbId: incoming.tmdbId !== undefined ? incoming.tmdbId : existing.tmdbId,
         seriesName: incoming.seriesName !== undefined ? incoming.seriesName : existing.seriesName,
         seriesId: incoming.seriesId !== undefined ? incoming.seriesId : existing.seriesId,
         seasonNumber: incoming.seasonNumber !== undefined ? incoming.seasonNumber : existing.seasonNumber,
@@ -210,6 +211,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         seriesId: incoming.seriesId || null,
         seasonNumber: incoming.seasonNumber || null,
         episodeCount: incoming.episodeCount || null,
+        tmdbId: incoming.tmdbId || null,
       };
       lib.items.push(newItem);
       upserted++;
