@@ -988,6 +988,9 @@ async function runReplace(taskId, task, config) {
       try { fs.rmSync(targetFolder, { recursive: true, force: true }); } catch (_) {}
       await sleep(1000);
     }
+    if (fs.existsSync(targetFolder)) {
+      throw new Error(`Cannot remove old folder after 5 retries: ${targetFolder}. The file handle may still be held by another process (e.g. antivirus or SMB client). Retry later.`);
+    }
 
     appendLog(taskId, 'info', 'Replace: promoting tmp → ' + targetFolder);
     await fs.promises.rename(tmpFolder, targetFolder);
