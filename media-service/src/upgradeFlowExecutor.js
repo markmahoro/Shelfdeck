@@ -995,6 +995,13 @@ async function runReplace(taskId, task, config) {
     appendLog(taskId, 'info', 'Replace: removing old folder');
     fs.rmSync(targetFolder, { recursive: true, force: true });
 
+    // SMB may recreate the target folder before rename; retry removal
+    for (let retry = 0; retry < 5; retry++) {
+      if (!fs.existsSync(targetFolder)) break;
+      try { fs.rmSync(targetFolder, { recursive: true, force: true }); } catch (_) {}
+      await sleep(1000);
+    }
+
     appendLog(taskId, 'info', 'Replace: promoting tmp → ' + targetFolder);
     fs.renameSync(tmpFolder, targetFolder);
 
