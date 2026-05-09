@@ -572,7 +572,7 @@ function TemplateCard({ tpl }: { tpl: RuleTemplate }) {
                 });
                 qc.invalidateQueries({ queryKey: ['ruleTemplates'] });
               } catch (err: any) {
-                alert('复制失败: ' + (err.message || String(err)));
+                window.alert('复制失败: ' + (err.message || String(err)));
               }
             }}
           >
