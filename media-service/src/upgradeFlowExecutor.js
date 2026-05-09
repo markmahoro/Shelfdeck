@@ -180,7 +180,7 @@ function waitForDownload(taskId, mpConfig, hashString) {
     const mpTmdbId = (dl.media && dl.media.tmdbid) || null;
     if (mpTmdbId) {
       const info = taskStore.getTask(taskId)?.itemInfo;
-      if (info) taskStore.updateTask(taskId, { itemInfo: { ...info, mpTmdbId } });
+      if (info && mpTmdbId !== info.mpTmdbId) taskStore.updateTask(taskId, { itemInfo: { ...info, mpTmdbId } });
     }
 
     if (dl.state === 'downloading' || dl.state === 'pending') {
@@ -420,6 +420,24 @@ async function runPlanning(taskId, task) {
           }
         } catch (_) {}
       }
+
+      // Resolve TMDB ID for identity verification (unified movie + season path)
+      try {
+        const mediaResults = await moviepilotService.searchMediaByTitle(mpConfig, itemName);
+        const mediaList = Array.isArray(mediaResults) ? mediaResults : [];
+        let movieTmdbHit = mediaList.find((r) => r.tmdb_id);
+        if (!movieTmdbHit && mediaList.length > 0 && mediaList[0].original_title) {
+          const enResults = await moviepilotService.searchMediaByTitle(mpConfig, mediaList[0].original_title);
+          movieTmdbHit = (Array.isArray(enResults) ? enResults : []).find((r) => r.tmdb_id);
+        }
+        if (movieTmdbHit) {
+          task.itemInfo = { ...task.itemInfo, tmdbId: movieTmdbHit.tmdb_id };
+          taskStore.updateTask(taskId, { itemInfo: { ...task.itemInfo } });
+          appendLog(taskId, 'info', `TMDB ID resolved: ${movieTmdbHit.tmdb_id}`);
+        } else {
+          appendLog(taskId, 'warn', 'Could not resolve TMDB ID for movie — identity verification will require user confirmation');
+        }
+      } catch (_) {}
     }
 
     if (!Array.isArray(candidates) || candidates.length === 0) {
@@ -768,72 +786,45 @@ async function runPreReplaceVerify(taskId, task) {
   }
 
   try {
-    // TMDB ID validation — use the actual NFO in staging folder as authoritative
-    // mpTmdbId from transfer history is the series-level ID — use it first.
-    // NFO contains episode-level ID which won't match series-level expectedTmdbId.
-    const scrapeTmdbId = (task.itemInfo && task.itemInfo.mpTmdbId) || extractTmdbIdFromNfo(stagingFolder) || null;
-    // Use tmdbId from planning phase (independently resolved via media search).
-    // Falls back to mpTmdbId from transfer history only if planning didn't resolve one.
-    let expectedTmdbId = (task.itemInfo && task.itemInfo.tmdbId) || (task.itemInfo && task.itemInfo.mpTmdbId) || null;
-    if (!expectedTmdbId) {
-      const info = task.itemInfo || {};
-      const searchName = (info.type === 'season' && info.seriesName) ? info.seriesName : (info.name || info.title || '');
-      if (searchName) {
-        try {
-          const mpConfig = getMpConfig();
-          if (mpConfig) {
-            let mediaResults = await moviepilotService.searchMediaByTitle(mpConfig, searchName);
-            const list = Array.isArray(mediaResults) ? mediaResults : [];
-            let tmdbHit = list.find((r) => r.tmdb_id);
+    // ── TMDB ID validation ─────────────────────────────────────────────────
+    // Strong validation: no fallback chains.
+    // expectedTmdbId comes ONLY from planning phase resolution.
+    // actualTmdbId: for movies — NFO only (scraping already complete by verify time).
+    //               for seasons — mpTmdbId first (transfer history gives series-level ID),
+    //               NFO as backup (NFO may contain episode-level ID for season packs).
+    const itemType = (task.itemInfo && task.itemInfo.type) || 'movie';
+    const expectedTmdbId = (task.itemInfo && task.itemInfo.tmdbId) || null;
+    const actualTmdbId = itemType === 'season'
+      ? ((task.itemInfo && task.itemInfo.mpTmdbId) || extractTmdbIdFromNfo(stagingFolder) || null)
+      : (extractTmdbIdFromNfo(stagingFolder) || null);
 
-            // Chinese search may return douban-only results; retry with original_title in English
-            if (!tmdbHit && list.length > 0 && list[0].original_title) {
-              const enName = list[0].original_title;
-              appendLog(taskId, 'info', `Chinese search gave no TMDB ID, retrying with English: "${enName}"`);
-              mediaResults = await moviepilotService.searchMediaByTitle(mpConfig, enName);
-              const enList = Array.isArray(mediaResults) ? mediaResults : [];
-              tmdbHit = enList.find((r) => r.tmdb_id);
-            }
+    appendLog(taskId, 'info', `TMDB check: expected=${expectedTmdbId || '?'} actual=${actualTmdbId || '?'}`);
 
-            if (tmdbHit) expectedTmdbId = tmdbHit.tmdb_id;
-          }
-        } catch (e) {
-          appendLog(taskId, 'warn', `Could not resolve TMDB ID for verification: ${e.message}`);
-        }
-      }
-    }
-
-    appendLog(taskId, 'info', `TMDB check: expected=${expectedTmdbId || '?'} scraped=${scrapeTmdbId || '?'}`);
-
-    if (expectedTmdbId && scrapeTmdbId) {
-      if (expectedTmdbId !== scrapeTmdbId) {
-        appendLog(taskId, 'warn', `TMDB mismatch: expected ${expectedTmdbId}, got ${scrapeTmdbId}. Please re-identify the media in MoviePilot, then confirm to continue.`);
-        scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify');
-        return;
-      }
-      appendLog(taskId, 'info', `TMDB verified: ${scrapeTmdbId} matches expected`);
+    if (expectedTmdbId && actualTmdbId && expectedTmdbId === actualTmdbId) {
+      appendLog(taskId, 'info', `TMDB verified: ${actualTmdbId} matches expected`);
 
       // For seasons: also verify the season number matches
       const taskSeason = (task.itemInfo && task.itemInfo.seasonNumber) || null;
       const mpSeasons = (task.itemInfo && task.itemInfo.mpSeasons) || null;
-      if (taskSeason != null && mpSeasons) {
-        const mpSeasonNum = parseInt((mpSeasons.match(/S(\d+)/i) || [])[1], 10);
+      if (itemType === 'season' && taskSeason != null && mpSeasons) {
+        const mpSeasonNum = parseInt((String(mpSeasons).match(/S(\d+)/i) || [])[1], 10);
         if (!Number.isNaN(mpSeasonNum) && mpSeasonNum !== taskSeason) {
-          appendLog(taskId, 'error', `Season mismatch: expected S${String(taskSeason).padStart(2,'0')}, got ${mpSeasons}. MoviePilot scraped wrong season.`);
-          scheduler.reportStatus(taskId, 'failed_hard');
-          setPhase(taskId, 'failed_hard');
+          appendLog(taskId, 'error', `Season mismatch: expected S${String(taskSeason).padStart(2,'0')}, got ${mpSeasons}. Please verify in MoviePilot, then confirm to continue.`);
+          scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify');
           return;
         }
         appendLog(taskId, 'info', `Season verified: S${String(taskSeason).padStart(2,'0')} matches ${mpSeasons}`);
       }
-    } else if (!scrapeTmdbId) {
-      appendLog(taskId, 'warn', 'Could not extract TMDB ID from download metadata or NFO — skipping identity check');
     } else {
-      // scrapeTmdbId exists but expectedTmdbId is null — MoviePilot identified the media
-      // but we cannot verify it's the correct one. Pause for user confirmation.
-      appendLog(taskId, 'warn',
-        `MoviePilot identified download as TMDB ${scrapeTmdbId} but no expected TMDB ID was resolved. ` +
-        'Please verify this is the correct media before proceeding.');
+      // All non-passing cases → pause for user confirmation
+      const reason = !expectedTmdbId && !actualTmdbId
+        ? 'TMDB verification impossible: both expected and actual IDs are missing'
+        : !expectedTmdbId
+          ? `Cannot verify: no expected TMDB ID from planning. Actual: TMDB ${actualTmdbId || '?'}`
+          : !actualTmdbId
+            ? `Cannot verify: no actual TMDB ID from NFO. Expected: TMDB ${expectedTmdbId}`
+            : `TMDB mismatch: expected ${expectedTmdbId}, got ${actualTmdbId}`;
+      appendLog(taskId, 'warn', reason + '. Please verify and confirm to continue.');
       scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify');
       return;
     }
@@ -891,8 +882,8 @@ async function runPreReplaceVerify(taskId, task) {
         oldFile: oldInfo,
         newFile: { name: path.basename(stagingMediaPath), size: outSizeBytes },
         bytesSaved: (oldInfo.size - outSizeBytes),
-        tmdbVerified: expectedTmdbId && scrapeTmdbId && expectedTmdbId === scrapeTmdbId,
-        tmdbId: scrapeTmdbId || expectedTmdbId,
+        tmdbVerified: expectedTmdbId && actualTmdbId && expectedTmdbId === actualTmdbId,
+        tmdbId: actualTmdbId || expectedTmdbId,
       },
       resumePoint: 'upgrade_replace',
     });

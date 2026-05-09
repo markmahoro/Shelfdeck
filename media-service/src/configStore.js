@@ -20,6 +20,10 @@ function ensureDataDir() {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+// Template version constants — bump when buildDefaultTemplate / buildTVDefaultTemplate logic changes
+const DEFAULT_TEMPLATE_VERSION = 1;
+const TV_DEFAULT_TEMPLATE_VERSION = 1;
+
 // ── Default rule template builder ──────────────────────────────────────────────
 
 function buildDefaultTemplate(policy) {
@@ -162,6 +166,7 @@ function buildDefaultTemplate(policy) {
     name: '默认策略（电影）',
     description: '依据用户喜好智能生成策略',
     rules,
+    tag: { type: 'default', version: DEFAULT_TEMPLATE_VERSION },
   };
 }
 
@@ -305,6 +310,7 @@ function buildTVDefaultTemplate(policy) {
     name: '默认策略（剧集）',
     description: '剧集类码率阈值整体低于电影一档',
     rules,
+    tag: { type: 'default', version: TV_DEFAULT_TEMPLATE_VERSION },
   };
 }
 
@@ -531,30 +537,6 @@ function migrateFromV3(raw) {
   return raw;
 }
 
-function detectV4Rules(raw) {
-  const templates = raw.ruleTemplates || [];
-  if (templates.length === 0) return false;
-  return templates.some((tpl) =>
-    (tpl.rules || []).some((r) => r.innerConnector !== undefined) ||
-    // Old 7-rule default template (before P6 split into 4 precise modern-codec-keep rules)
-    (tpl.id === 'default' && (tpl.rules || []).length < 10)
-  );
-}
-
-// V5: detect old default template (pre audioCodec filter + seedPreferences)
-function detectV5DefaultTemplate(raw) {
-  const templates = raw.ruleTemplates || [];
-  const dfl = templates.find((t) => t.id === 'default');
-  if (!dfl) return false;
-  const rules = dfl.rules || [];
-  // Old template has a P8 5★ upgrade rule without seedPreferences
-  const upgrade5Star = rules.find((r) =>
-    r.priority === 8 && r.action === 'upgrade' &&
-    (!r.actionParams || !r.actionParams.seedPreferences || Object.keys(r.actionParams.seedPreferences).length === 0)
-  );
-  return !!upgrade5Star;
-}
-
 function extractPolicyFromTemplate(template) {
   if (!template || !template.rules) return null;
   const target1080p = {};
@@ -589,18 +571,51 @@ function extractPolicyFromTemplate(template) {
   return { target1080p, target4k };
 }
 
-function migrateV4Rules(raw) {
-  const oldDefault = (raw.ruleTemplates || []).find((t) => t.id === 'default');
-  const policy = extractPolicyFromTemplate(oldDefault) || {
+function migrateDefaultTemplates(raw) {
+  const templates = raw.ruleTemplates || [];
+  if (templates.length === 0) return { raw, migrated: false };
+
+  const MOVIE_DEFAULTS = {
     target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
     target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
   };
-  const newDefault = buildDefaultTemplate(policy);
-  raw.ruleTemplates = (raw.ruleTemplates || []).map((tpl) => {
-    if (tpl.id === 'default') return newDefault;
+  const TV_DEFAULTS = {
+    target1080p: { '2': 1.5, '3': 3, '4': 5, '5': 8 },
+    target4k: { '2': 3, '3': 7, '4': 12, '5': 18 },
+  };
+
+  let migrated = false;
+
+  raw.ruleTemplates = templates.map((tpl) => {
+    if (!tpl.tag) {
+      if (tpl.id === 'default') {
+        const policy = extractPolicyFromTemplate(tpl) || MOVIE_DEFAULTS;
+        migrated = true;
+        return buildDefaultTemplate(policy);
+      }
+      if (tpl.id === 'tv_default') {
+        const policy = extractPolicyFromTemplate(tpl) || TV_DEFAULTS;
+        migrated = true;
+        return buildTVDefaultTemplate(policy);
+      }
+      migrated = true;
+      return { ...tpl, tag: { type: 'user' } };
+    }
+
+    if (tpl.tag.type === 'default') {
+      const expected = tpl.id === 'default' ? DEFAULT_TEMPLATE_VERSION
+        : tpl.id === 'tv_default' ? TV_DEFAULT_TEMPLATE_VERSION : null;
+      if (expected != null && tpl.tag.version !== expected) {
+        const policy = extractPolicyFromTemplate(tpl) || {};
+        migrated = true;
+        return tpl.id === 'default' ? buildDefaultTemplate(policy) : buildTVDefaultTemplate(policy);
+      }
+    }
+
     return tpl;
   });
-  return raw;
+
+  return { raw, migrated };
 }
 
 // ── Load / Save ────────────────────────────────────────────────────────────────
@@ -633,17 +648,11 @@ function loadConfig() {
       saveConfig(raw);
     }
 
-    if (detectV4Rules(raw)) {
-      console.log('[configStore] detected old rule format (innerConnector), regenerating default template');
-      fs.writeFileSync(cfgFile + '.v4.backup', JSON.stringify(raw, null, 2), 'utf8');
-      raw = migrateV4Rules(raw);
-      saveConfig(raw);
-    }
-
-    if (detectV5DefaultTemplate(raw)) {
-      console.log('[configStore] detected old default template (v5 update), regenerating');
-      fs.writeFileSync(cfgFile + '.v5.backup', JSON.stringify(raw, null, 2), 'utf8');
-      raw = migrateV4Rules(raw);
+    const tmplResult = migrateDefaultTemplates(raw);
+    if (tmplResult.migrated) {
+      console.log('[configStore] template migration applied (tag added or default template regenerated)');
+      fs.writeFileSync(cfgFile + '.v6.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = tmplResult.raw;
       saveConfig(raw);
     }
 

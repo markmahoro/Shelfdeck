@@ -26,10 +26,11 @@ const FIELDS: { value: string; label: string; type: 'number' | 'string' | 'boole
   { value: 'duration', label: '时长 (秒)', type: 'number' },
   { value: 'type', label: '媒体类型', type: 'string' },
   { value: 'resolution', label: '分辨率 (WxH)', type: 'string' },
+  { value: 'audioCodecs', label: '音频编码', type: 'string' },
 ];
 
 const NUMERIC_OPS = ['>', '>=', '<', '<=', '='];
-const STRING_OPS = ['=', 'in', 'not in'];
+const STRING_OPS = ['=', 'in', 'not in', 'overlap'];
 const BOOLEAN_OPS = ['='];
 
 function opsForField(fieldName: string): string[] {
@@ -381,7 +382,7 @@ function ConditionValue({ cond, onChange }: { cond: RuleCondition; onChange: (v:
   const f = FIELDS.find((x) => x.value === cond.field);
 
   // in / not in: comma-separated text input
-  if (cond.op === 'in' || cond.op === 'not in') {
+  if (cond.op === 'in' || cond.op === 'not in' || cond.op === 'overlap') {
     const arr = Array.isArray(cond.value) ? cond.value : [];
     const str = arr.map(String).join(', ');
     return (
@@ -553,10 +554,31 @@ function TemplateCard({ tpl }: { tpl: RuleTemplate }) {
           <div style={s.cardMeta}>{(tpl.rules || []).length} 条规则</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          {!editing && (
+          {!editing && tpl.tag?.type !== 'default' && (
             <button style={{ ...s.btn, ...s.btnOutline, ...s.btnSmall }} onClick={(e) => { e.stopPropagation(); startEdit(); }}>编辑</button>
           )}
-          {tpl.id !== 'default' && (
+          <button
+            style={{ ...s.btn, ...s.btnOutline, ...s.btnSmall }}
+            onClick={async (e) => {
+              e.stopPropagation();
+              const copyId = prompt('请输入新模板 ID（英文标识）', tpl.id + '_copy');
+              if (!copyId) return;
+              try {
+                await ruleTemplates.create({
+                  id: copyId,
+                  name: tpl.name + ' (副本)',
+                  description: tpl.description || '',
+                  rules: tpl.rules,
+                });
+                qc.invalidateQueries({ queryKey: ['ruleTemplates'] });
+              } catch (err: any) {
+                alert('复制失败: ' + (err.message || String(err)));
+              }
+            }}
+          >
+            复制
+          </button>
+          {tpl.tag?.type !== 'default' && (
             <button style={{ ...s.btn, ...s.btnDanger, ...s.btnSmall }} onClick={(e) => { e.stopPropagation(); if (confirm('确定删除此模板？')) del.mutate(); }}>
               {del.isPending ? '...' : '删除'}
             </button>

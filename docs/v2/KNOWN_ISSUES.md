@@ -18,9 +18,9 @@
 | 7 | QSV hwaccel 导致 ffmpeg stderr 进度解析失效，进度卡 0% | 高 | QSV 硬件加速转码 | 已修复 |
 | 8 | upgrade 盲扫 staging 文件夹取错电影 + TMDB 校验被跳过 + 重复入队 | 严重 | 所有 upgrade 任务 | 已修复 |
 | 9 | season upgrade 精确搜索 meta_info 被硬编码为 null，auto mode 误触发 pauseForConfirm | 中 | season upgrade 任务 | 待修复 |
-| 10 | deleteTask 不清理 progressCache / statusCache，缓慢内存泄漏 | 低 | 所有任务的生命周期管理 | 待修复 |
-| 11 | waitForDownload 每 5 秒重复同步写盘 mpTmdbId | 低 | 所有 upgrade 任务的下载阶段 | 待修复 |
-| 12 | ruleTemplates migration 依赖启发式判断（规则数/audioCodec），改为基于版本号；模板需区分用户模板和默认模板 | 中 | configStore 迁移逻辑 + 模板管理 | 待修复 |
+| 10 | deleteTask 不清理 progressCache / statusCache，缓慢内存泄漏 | 低 | 所有任务的生命周期管理 | 已修复 |
+| 11 | waitForDownload 每 5 秒重复同步写盘 mpTmdbId | 低 | 所有 upgrade 任务的下载阶段 | 已修复 |
+| 12 | ruleTemplates migration 依赖启发式判断（规则数/audioCodec），改为基于版本号；模板需区分用户模板和默认模板 | 中 | configStore 迁移逻辑 + 模板管理 | 已修复 |
 
 ---
 

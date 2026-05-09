@@ -138,6 +138,8 @@ function deleteTask(taskId) {
   const filtered = tasks.filter((t) => t.id !== taskId);
   if (filtered.length === tasks.length) return false;
   saveTasks(filtered);
+  progressCache.delete(taskId);
+  statusCache.delete(taskId);
   return true;
 }
 

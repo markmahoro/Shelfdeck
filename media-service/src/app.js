@@ -772,16 +772,19 @@ function registerRoutes(app) {
   });
 
   app.post('/v1/admin/rule-templates', async (req, reply) => {
-    const { id, name, description, rules } = req.body || {};
+    const { id, name, description, rules, tag } = req.body || {};
     if (!id || !name) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'id and name are required');
+    }
+    if (tag && tag.type === 'default') {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'Cannot create a default template');
     }
     const cfg = configStore.loadConfig();
     const list = cfg.ruleTemplates || [];
     if (list.find((t) => t.id === id)) {
       return apiError(reply, 409, 'CONFLICT', 'Template id already exists');
     }
-    const tpl = { id, name, description: description || '', rules: rules || [] };
+    const tpl = { id, name, description: description || '', rules: rules || [], tag: { type: 'user' } };
     cfg.ruleTemplates = [...list, tpl];
     configStore.saveConfig(cfg);
     return reply.code(201).send(tpl);
@@ -793,9 +796,14 @@ function registerRoutes(app) {
     const idx = list.findIndex((t) => t.id === req.params.id);
     if (idx < 0) return apiError(reply, 404, 'NOT_FOUND', 'Rule template not found');
 
+    const existing = list[idx];
+    if (existing.tag && existing.tag.type === 'default') {
+      return apiError(reply, 403, 'FORBIDDEN', 'Default templates are read-only');
+    }
+
     const { name, description, rules } = req.body || {};
     list[idx] = {
-      ...list[idx],
+      ...existing,
       ...(name !== undefined ? { name } : {}),
       ...(description !== undefined ? { description } : {}),
       ...(rules !== undefined ? { rules } : {}),
@@ -810,8 +818,8 @@ function registerRoutes(app) {
     const list = cfg.ruleTemplates || [];
     const idx = list.findIndex((t) => t.id === req.params.id);
     if (idx < 0) return apiError(reply, 404, 'NOT_FOUND', 'Rule template not found');
-    if (list[idx].id === 'default') {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'Cannot delete the default template');
+    if (list[idx].tag && list[idx].tag.type === 'default') {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'Cannot delete a default template');
     }
     list.splice(idx, 1);
     cfg.ruleTemplates = list;

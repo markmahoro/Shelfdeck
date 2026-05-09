@@ -64,7 +64,7 @@ export interface SubLibrary {
 
 export interface RuleCondition {
   field: string;
-  op: '>' | '>=' | '<' | '<=' | '=' | 'in' | 'not in';
+  op: '>' | '>=' | '<' | '<=' | '=' | 'in' | 'not in' | 'overlap';
   value: number | string | boolean | null | (number | string)[];
 }
 
@@ -93,11 +93,17 @@ export interface Rule {
   reason: string;
 }
 
+export interface RuleTemplateTag {
+  type: 'default' | 'user';
+  version?: number;
+}
+
 export interface RuleTemplate {
   id: string;
   name: string;
   description: string;
   rules: Rule[];
+  tag?: RuleTemplateTag;
 }
 
 // ── Transcode ─────────────────────────────────────────────────────────────────
