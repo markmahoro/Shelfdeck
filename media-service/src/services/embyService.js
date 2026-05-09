@@ -293,10 +293,19 @@ function extractItemFields(item) {
       height = video.Height || 0;
       codec = normalizeVideoCodec(video.Codec);
     }
-    audioCodecs = src.MediaStreams
-      .filter((s) => s && s.Type === 'Audio')
-      .map((s) => String(s.Codec || '').toLowerCase())
-      .filter(Boolean);
+    audioCodecs = [];
+    const audioStreams = src.MediaStreams.filter((s) => s && s.Type === 'Audio');
+    for (const s of audioStreams) {
+      const c = String(s.Codec || '').toLowerCase();
+      if (c) audioCodecs.push(c);
+      // Also capture audio quality markers from DisplayTitle (e.g. "DDP5.1 Atmos")
+      const title = String(s.DisplayTitle || '');
+      for (const q of ['atmos', 'dts', 'truehd']) {
+        if (title.toLowerCase().includes(q)) audioCodecs.push(q);
+      }
+    }
+    // Deduplicate
+    audioCodecs = [...new Set(audioCodecs)];
   }
 
   const resolution = height >= 2000 || width >= 3800 ? `${width}x${height}` : `${width}x${height}`;

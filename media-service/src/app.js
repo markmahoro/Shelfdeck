@@ -733,7 +733,7 @@ function registerRoutes(app) {
   });
 
   app.post('/v1/admin/sublibraries', async (req, reply) => {
-    const { name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect, pathMapFrom, pathMapTo } = req.body || {};
+    const { name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType } = req.body || {};
     if (!name || !embyServerId || !sectionId) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name, embyServerId, and sectionId are required');
     }
@@ -741,7 +741,7 @@ function registerRoutes(app) {
     if (!(cfg.embyServers || {})[embyServerId]) {
       return apiError(reply, 404, 'NOT_FOUND', 'Emby server not found');
     }
-    const subLib = mediaLibraryService.addSubLibrary({ name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect, pathMapFrom, pathMapTo });
+    const subLib = mediaLibraryService.addSubLibrary({ name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType });
     return reply.code(201).send(subLib);
   });
 

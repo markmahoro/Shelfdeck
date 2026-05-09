@@ -204,6 +204,15 @@ function registerIpcHandlers() {
   });
 
   // Settings IPC handlers
+  function syncConnectionFile() {
+    const disk = shelfdeckConnection.readConnectionFile() || {};
+    disk[shelfdeckConnection.KEYS.baseUrl] = store.get('shelfdeck.mediaService.baseUrl', 'http://127.0.0.1:18080');
+    disk[shelfdeckConnection.KEYS.apiKey] = store.get('shelfdeck.mediaService.apiKey', '');
+    try {
+      fs.writeFileSync(shelfdeckConnection.getConnectionFilePath(), JSON.stringify(disk, null, 2) + '\n', 'utf8');
+    } catch (_) { /* file not writeable */ }
+  }
+
   ipcMain.handle('settings:get', () => ({
     serviceUrl: store.get('shelfdeck.mediaService.baseUrl', 'http://127.0.0.1:18080'),
     serviceApiKey: store.get('shelfdeck.mediaService.apiKey', ''),
@@ -224,6 +233,7 @@ function registerIpcHandlers() {
       // Broadcast when connection settings change so renderer refreshes effectiveCp
       if (key === 'shelfdeck.mediaService.baseUrl' || key === 'shelfdeck.mediaService.apiKey') {
         broadcastConnectionUpdated();
+        syncConnectionFile();
       }
       return { ok: true };
     } catch (e) {
@@ -242,6 +252,7 @@ function registerIpcHandlers() {
   ipcMain.handle('connection:set', (event, baseUrl, apiKey) => {
     store.set('shelfdeck.mediaService.baseUrl', baseUrl);
     store.set('shelfdeck.mediaService.apiKey', apiKey);
+    syncConnectionFile();
     return true;
   });
 }
