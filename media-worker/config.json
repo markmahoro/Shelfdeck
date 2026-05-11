@@ -1,0 +1,8 @@
+{
+  "name": "GPU-Node-1",
+  "port": 19000,
+  "apiKey": "3R632z33",
+  "tempRoot": "E:\\my_project\\emby_third_party\\media-worker\\temp",
+  "ffmpegPath": "",
+  "ffprobePath": ""
+}

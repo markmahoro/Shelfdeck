@@ -387,6 +387,11 @@ function getDefaultConfig() {
     transcodeEncodingDevices: [],
     transcodeCpuParticipationStrategy: 'normal',
 
+    // Transcode nodes
+    nodeEnabled: true,
+    nodePollIntervalMs: 2000,
+    nodeHealthCheckIntervalMs: 30000,
+
     // Upgrade (MoviePilot)
     moviepilot: {
       baseUrl: '',

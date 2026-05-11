@@ -142,6 +142,11 @@ export interface DevicePoolEntry {
   encoder: string;
   status: 'idle' | 'busy' | 'error';
   activeSlots: number;
+  remote?: boolean;
+  deviceId?: string;
+  nodeId?: string;
+  nodeName?: string;
+  nodeStatus?: string;
 }
 
 export interface DevicePool {
@@ -325,6 +330,28 @@ export interface DoubanSession {
   cookieHeader: string;
   userId: string;
   interestsRssUrl: string;
+}
+
+// ── Nodes ──────────────────────────────────────────────────────────────────────
+
+export interface NodeDevice {
+  stableKey: string;
+  label: string;
+  backend: string;
+  gpuIndex: number;
+}
+
+export interface NodeInfo {
+  id: string;
+  name: string;
+  address: string;
+  apiKey: string;
+  status: 'online' | 'offline';
+  capabilities: { devices: NodeDevice[] };
+  activeJobCount: number;
+  consecutiveFailures: number;
+  lastSeenAt: string;
+  createdAt: string;
 }
 
 // ── Upgrade (MoviePilot) ──────────────────────────────────────────────────────

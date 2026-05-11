@@ -8,6 +8,7 @@ import SystemConfigPage from './pages/SystemConfigPage';
 import MoviePilotConfigPage from './pages/MoviePilotConfigPage';
 import MediaManagePage from './pages/MediaManagePage';
 import RuleTemplatesPage from './pages/RuleTemplatesPage';
+import NodesPage from './pages/NodesPage';
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route index element={<DashboardPage />} />
         <Route path="media" element={<MediaManagePage />} />
+        <Route path="nodes" element={<NodesPage />} />
         <Route path="tasks" element={<TaskMonitorPage />} />
         <Route path="rules" element={<RuleTemplatesPage />} />
         <Route path="system" element={<SystemConfigPage />} />

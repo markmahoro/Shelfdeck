@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Node Manager — ShelfDeck Worker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1a1a2e; color: #e0e0e0;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  }
+  .card {
+    background: #16213e; border: 1px solid #0f3460;
+    border-radius: 12px; padding: 32px; width: 100%; max-width: 480px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
+    padding-bottom: 16px; border-bottom: 1px solid #0f3460;
+  }
+  .logo {
+    width: 36px; height: 36px; background: #e94560; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; color: #fff;
+  }
+  h1 { font-size: 1.2em; font-weight: 600; }
+  .subtitle { font-size: 0.8em; color: #888; margin-top: 2px; }
+
+  .info-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; font-size: 0.9em;
+  }
+  .info-row + .info-row { border-top: 1px solid rgba(255,255,255,0.05); }
+  .info-label { color: #888; }
+  .info-value { font-family: "SF Mono", "Consolas", monospace; color: #ccc; }
+  .info-value.green { color: #4caf50; }
+  .info-value.red { color: #e94560; }
+
+  .section { margin-top: 24px; }
+  .section-title { font-size: 0.85em; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 0.85em; color: #aaa; margin-bottom: 4px; }
+  .field input {
+    width: 100%; padding: 8px 10px; border: 1px solid #0f3460; border-radius: 6px;
+    background: #1a1a2e; color: #e0e0e0; font-size: 0.9em;
+    font-family: inherit; outline: none; transition: border-color 0.2s;
+  }
+  .field input:focus { border-color: #e94560; }
+  .field input::placeholder { color: #555; }
+
+  .hint { font-size: 0.75em; color: #666; margin-top: 2px; }
+
+  .actions { display: flex; gap: 8px; margin-top: 20px; }
+  .btn {
+    flex: 1; padding: 10px 16px; border: none; border-radius: 6px;
+    font-size: 0.9em; font-weight: 500; cursor: pointer; transition: opacity 0.2s;
+    font-family: inherit;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: #e94560; color: #fff; }
+  .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+  .btn-secondary { background: #0f3460; color: #ccc; }
+  .btn-secondary:hover:not(:disabled) { background: #1a4a7a; }
+
+  .toast {
+    padding: 10px 14px; border-radius: 6px; font-size: 0.85em; margin-bottom: 16px;
+    display: none; align-items: center; gap: 8px;
+  }
+  .toast.show { display: flex; }
+  .toast.success { background: #1b4332; color: #52b788; border: 1px solid #2d6a4f; }
+  .toast.error { background: #3c1212; color: #e94560; border: 1px solid #5c1a1a; }
+
+  .status-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 4px;
+  }
+  .status-dot.set { background: #4caf50; }
+  .status-dot.unset { background: #e94560; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <div class="logo">SD</div>
+    <div>
+      <h1>节点管理</h1>
+      <div class="subtitle">ShelfDeck Transcode Worker</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="info-section">
+    <div class="info-row">
+      <span class="info-label">节点名称</span>
+      <span class="info-value" id="info-name">—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">API Key</span>
+      <span class="info-value" id="info-key">—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">端口</span>
+      <span class="info-value" id="info-port">—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">临时目录</span>
+      <span class="info-value" id="info-temp">—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">FFmpeg</span>
+      <span class="info-value" id="info-ffmpeg">—</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">修改配置</div>
+    <div class="field">
+      <label for="curKey">当前 API Key（如已设置则必填）</label>
+      <input type="password" id="curKey" placeholder="首次设置可留空" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="name">节点名称</label>
+      <input type="text" id="name" placeholder="如: GPU-Node-1">
+    </div>
+    <div class="field">
+      <label for="newKey">新 API Key</label>
+      <input type="password" id="newKey" placeholder="留空则不修改" autocomplete="off">
+      <div class="hint">仅当需要修改 API Key 时填写</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-secondary" id="btnReset">重置</button>
+      <button class="btn btn-primary" id="btnSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Embedded config — replaced by server at serve time
+  var CONFIG = __CONFIG__;
+
+  var infoName = document.getElementById('info-name');
+  var infoKey = document.getElementById('info-key');
+  var infoPort = document.getElementById('info-port');
+  var infoTemp = document.getElementById('info-temp');
+  var infoFfmpeg = document.getElementById('info-ffmpeg');
+  var toast = document.getElementById('toast');
+  var inputName = document.getElementById('name');
+  var inputCurKey = document.getElementById('curKey');
+  var inputNewKey = document.getElementById('newKey');
+  var btnSave = document.getElementById('btnSave');
+  var btnReset = document.getElementById('btnReset');
+
+  var hasApiKey = CONFIG.apiKey.length > 0;
+
+  function renderInfo() {
+    infoName.textContent = CONFIG.name || '—';
+    if (hasApiKey) {
+      infoKey.innerHTML = '<span class="status-dot set"></span>已设置';
+      infoKey.className = 'info-value green';
+    } else {
+      infoKey.innerHTML = '<span class="status-dot unset"></span>未设置';
+      infoKey.className = 'info-value red';
+    }
+    infoPort.textContent = CONFIG.port;
+    infoTemp.textContent = CONFIG.tempRoot;
+    infoFfmpeg.textContent = CONFIG.ffmpegPath || '(默认)';
+  }
+
+  function showToast(msg, type) {
+    toast.textContent = msg;
+    toast.className = 'toast show ' + type;
+    setTimeout(function () { toast.className = 'toast'; }, 4000);
+  }
+
+  function resetForm() {
+    inputName.value = CONFIG.name || '';
+    inputCurKey.value = '';
+    inputNewKey.value = '';
+  }
+
+  btnSave.addEventListener('click', function () {
+    var name = inputName.value.trim();
+    var curKey = inputCurKey.value.trim();
+    var newKey = inputNewKey.value.trim();
+
+    if (!name) { showToast('节点名称不能为空', 'error'); return; }
+
+    if (hasApiKey && !curKey) {
+      showToast('当前已设置 API Key，需要提供当前 Key 以验证身份', 'error');
+      return;
+    }
+
+    var body = {};
+    if (name !== CONFIG.name) body.name = name;
+    if (newKey) body.apiKey = newKey;
+
+    if (Object.keys(body).length === 0) {
+      showToast('未做任何修改', 'error');
+      return;
+    }
+
+    btnSave.disabled = true;
+    btnSave.textContent = '保存中...';
+
+    var headers = { 'Content-Type': 'application/json' };
+    if (hasApiKey) headers['x-api-key'] = curKey;
+
+    fetch('/api/v1/config', { method: 'PATCH', headers: headers, body: JSON.stringify(body) })
+      .then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, status: r.status, data: data }; });
+      })
+      .then(function (result) {
+        if (!result.ok) {
+          throw new Error(result.data.error ? result.data.error.message : ('HTTP ' + result.status));
+        }
+        // Refresh local config
+        CONFIG = result.data;
+        hasApiKey = CONFIG.apiKey.length > 0;
+        renderInfo();
+        resetForm();
+        showToast('保存成功', 'success');
+      })
+      .catch(function (err) {
+        showToast(err.message || '保存失败', 'error');
+      })
+      .finally(function () {
+        btnSave.disabled = false;
+        btnSave.textContent = '保存';
+      });
+  });
+
+  btnReset.addEventListener('click', resetForm);
+
+  renderInfo();
+  resetForm();
+</script>
+</body>
+</html>

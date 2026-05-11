@@ -158,12 +158,12 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         name: incoming.name || existing.name,
         path: incoming.path || existing.path,
         type: incoming.type || existing.type,
-        bitrate: incoming.bitrate != null ? incoming.bitrate : existing.bitrate,
-        duration: incoming.duration != null ? incoming.duration : existing.duration,
+        bitrate: incoming.bitrate > 0 ? incoming.bitrate : existing.bitrate,
+        duration: incoming.duration > 0 ? incoming.duration : existing.duration,
         resolution: incoming.resolution || existing.resolution,
         bucket: incoming.resolution ? computeBucket(incoming.resolution) : existing.bucket,
-        size: incoming.size != null ? incoming.size : existing.size,
-        codec: incoming.codec || existing.codec,
+        size: incoming.size > 0 ? incoming.size : existing.size,
+        codec: incoming.resolution ? incoming.codec : existing.codec,
         audioCodecs: Array.isArray(incoming.audioCodecs) && incoming.audioCodecs.length > 0 ? incoming.audioCodecs : existing.audioCodecs,
         premiereDate: incoming.premiereDate || existing.premiereDate,
         genres: incoming.genres || existing.genres,
@@ -441,13 +441,22 @@ async function refreshSubLibrary(subLib) {
     activityLog.addActivity('media_library', `正在刷新子库「${name}」…`);
     const beforeCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
     const items = await embyService.getLibraryItems(server, subLib.sectionId);
-    const result = upsertItems(subLib.uuid, items, { fullSync: true });    const afterCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
+    const result = upsertItems(subLib.uuid, items, { fullSync: true });
+    const afterCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
     const newItems = Math.max(0, afterCount - beforeCount + result.removed);
     const msg = newItems > 0
       ? `子库「${name}」刷新完成，${newItems} 个新媒体入库，${result.removed} 个已清理`
       : `子库「${name}」刷新完成，无新增内容`;
     activityLog.addActivity('media_library', msg, { subLibraryId: subLib.uuid, itemCount: items.length, newItems, removed: result.removed });
     console.log('[mediaLibrary] refreshed', subLib.uuid, 'items:', items.length);
+
+    // Recompute self-fields (equivalentBitrate etc.) and re-run strategy engine
+    // so the dashboard reflects fresh recommendations immediately after refresh.
+    recomputeAllSelfFields();
+    try {
+      const strategyEngine = require('./strategyEngine');
+      strategyEngine.runOnce();
+    } catch (_) { /* strategyEngine not yet started — timer will pick it up */ }
   } catch (e) {
     activityLog.addActivity('media_library', `子库「${name}」刷新失败：${e.message}`);
     console.error('[mediaLibrary] refresh error for', subLib.uuid, e.message);

@@ -1,0 +1,21 @@
+{
+  "name": "shelfdeck-media-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ShelfDeck transcode worker node — pure compute, GPU ffmpeg executor",
+  "license": "GPL-3.0",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "fastify": "^5.2.1",
+    "ffmpeg-static": "^5.2.0",
+    "@ffprobe-installer/ffprobe": "^2.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

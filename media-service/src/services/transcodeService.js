@@ -329,6 +329,136 @@ async function precheck(config, sourcePath) {
   };
 }
 
+// ── Remote encode support ─────────────────────────────────────────────────────
+
+/** @type {Set<string>} */
+const abortedRemoteTasks = new Set();
+
+/**
+ * Parse a remote deviceId like "node:<nodeId>:nvenc:0" into { nodeId, backend, gpuIndex }.
+ */
+function parseRemoteDeviceId(deviceId) {
+  const s = String(deviceId || '');
+  if (!s.startsWith('node:')) return null;
+  const parts = s.split(':');
+  if (parts.length < 4) return null;
+  return {
+    nodeId: parts[1],
+    backend: parts[2],
+    gpuIndex: parseInt(parts[3], 10) || 0,
+  };
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function startRemoteEncode(onProgress, params) {
+  const { config, taskId, sourcePath, partialPath, deviceId,
+    isDolbyVision, dvAcknowledged, durationSec, targetBitrate } = params;
+  const tid = String(taskId || '');
+
+  const remote = parseRemoteDeviceId(deviceId);
+  if (!remote) throw new Error('Invalid remote deviceId: ' + deviceId);
+
+  const nodeStore = require('../nodeStore');
+  const nodeService = require('../nodeService');
+
+  const node = nodeStore.getNode(remote.nodeId);
+  if (!node || node.status !== 'online') throw new Error('Node offline: ' + remote.nodeId);
+
+  // Record node assignment on task so health monitoring and admin can track it
+  const taskStore = require('../taskStore');
+  taskStore.updateTask(tid, { nodeId: remote.nodeId });
+
+  const sourceFileName = path.basename(sourcePath);
+  const sourceStats = fs.statSync(sourcePath);
+
+  // Build ffmpeg args with relative paths (worker resolves via cwd)
+  const { args: ffmpegArgs } = buildEncodeArgs({
+    config, sourcePath: sourceFileName, partialPath: 'output.etp.partial.mkv',
+    encoderMode: remote.backend, isDolbyVision: !!isDolbyVision,
+    dvAcknowledged: !!dvAcknowledged, targetBitrate,
+  });
+
+  // Phase 1: Create job + upload source (0-10%)
+  try {
+    await nodeService.createJob(node, {
+      jobId: tid,
+      ffmpegArgs,
+      sourceFileSize: sourceStats.size,
+      sourceFileName,
+      durationSec,
+      gpuIndex: remote.gpuIndex,
+    });
+
+    if (abortedRemoteTasks.has(tid)) throw new Error('Aborted');
+
+    await nodeService.uploadSource(node, tid, sourcePath, (bytesSent) => {
+      const pct = Math.floor((bytesSent / sourceStats.size) * 10);
+      try { onProgress(pct); } catch (_) {}
+    });
+    onProgress(10);
+
+    if (abortedRemoteTasks.has(tid)) throw new Error('Aborted');
+
+    // Phase 2: Poll encode progress (10-90%)
+    const pollInterval = (config.nodePollIntervalMs || 2000);
+    let lastProgress = 10;
+    let consecutiveErrors = 0;
+
+    while (true) {
+      if (abortedRemoteTasks.has(tid)) throw new Error('Aborted');
+      await sleep(pollInterval);
+
+      let status;
+      try {
+        status = await nodeService.getJobStatus(node, tid);
+        consecutiveErrors = 0;
+      } catch (err) {
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= 5) throw new Error(`Worker unreachable after 5 retries: ${err.message}`);
+        continue;
+      }
+
+      if (status.status === 'error') {
+        throw new Error(status.error || 'Remote encode failed');
+      }
+
+      const overall = 10 + Math.floor((status.progress || 0) * 0.8);
+      if (overall > lastProgress) {
+        lastProgress = overall;
+        try { onProgress(lastProgress); } catch (_) {}
+      }
+
+      if (status.status === 'done') break;
+    }
+
+    // Phase 3: Download output (90-100%)
+    if (abortedRemoteTasks.has(tid)) throw new Error('Aborted');
+
+    await nodeService.downloadOutput(node, tid, partialPath, (bytesDownloaded, totalBytes) => {
+      if (totalBytes > 0) {
+        const pct = 90 + Math.floor((bytesDownloaded / totalBytes) * 10);
+        try { onProgress(Math.min(99, pct)); } catch (_) {}
+      }
+    });
+    onProgress(100);
+
+    // Phase 4: Cleanup worker
+    await nodeService.deleteJob(node, tid).catch(() => {});
+
+    return { ok: true, encoderUsed: remote.backend, resolvedDeviceId: deviceId };
+  } catch (err) {
+    // Cleanup on error
+    await nodeService.deleteJob(node, tid).catch(() => {});
+    try { if (fs.existsSync(partialPath)) fs.unlinkSync(partialPath); } catch (_) {}
+    throw err;
+  } finally {
+    abortedRemoteTasks.delete(tid);
+  }
+}
+
 async function startEncode(onProgress, params) {
   const { config, taskId, sourcePath, partialPath, orderedDeviceSlots, isDolbyVision, dvAcknowledged, durationSec, targetBitrate } = params;
   const tid = String(taskId || '');
@@ -339,6 +469,17 @@ async function startEncode(onProgress, params) {
 
   const needsCpu = !!(isDolbyVision && dvAcknowledged);
   const deviceId = await acquireFirstAvailableAmong(slots, { needsCpu });
+
+  // Remote encode path
+  if (deviceId.startsWith('node:')) {
+    try {
+      return await startRemoteEncode(onProgress, { ...params, deviceId });
+    } finally {
+      releaseEncodeDeviceSlot(deviceId);
+    }
+  }
+
+  // Local encode path
   try {
     try { if (fs.existsSync(partialPath)) fs.unlinkSync(partialPath); } catch (_) {}
 
@@ -385,9 +526,12 @@ async function startEncode(onProgress, params) {
 
 function abortTask(taskId) {
   const tid = String(taskId || '');
+  // Local encode
   const ch = encodeJobs.get(tid);
   if (ch) { try { ch.kill('SIGKILL'); } catch (_) {} encodeJobs.delete(tid); return true; }
-  return false;
+  // Remote encode
+  abortedRemoteTasks.add(tid);
+  return true;
 }
 
 function abortAllEncodes() {
@@ -620,6 +764,7 @@ async function cleanupOrphans(config) {
 module.exports = {
   precheck,
   startEncode,
+  startRemoteEncode,
   abortTask,
   abortAllEncodes,
   probeSummary,
@@ -629,6 +774,7 @@ module.exports = {
   extractPreviewClip,
   probeEncodeDevices,
   parseStableKey,
+  parseRemoteDeviceId,
   resolveFfmpegBin,
   resolveFfprobeBin,
   getDeviceSlotUsage,

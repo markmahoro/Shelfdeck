@@ -22,6 +22,8 @@ const strategyEngine = require('./strategyEngine');
 const smartTaskEngine = require('./smartTaskEngine');
 const activityLog = require('./activityLog');
 const spaceStats = require('./spaceStats');
+const nodeStore = require('./nodeStore');
+const nodeService = require('./nodeService');
 
 let serverReady = false;
 
@@ -862,15 +864,49 @@ function registerRoutes(app) {
   app.get('/v1/admin/transcode/device-pool', async () => {
     const cfg = configStore.loadConfig();
     const slotUsage = transcodeService.getDeviceSlotUsage();
-    const devices = (cfg.transcodeEncodingDevices || []).map((dev) => {
+
+    // Local devices
+    const localDevices = (cfg.transcodeEncodingDevices || []).map((dev) => {
       const inUse = slotUsage[dev.stableKey] || 0;
       const maxSlots = dev.maxSlots || 1;
       return {
         ...dev,
+        remote: false,
         status: inUse >= maxSlots ? 'busy' : inUse > 0 ? 'busy' : 'idle',
         activeSlots: inUse,
       };
     });
+
+    // Remote node devices (all nodes, not just online — show offline too)
+    const allNodes = nodeStore.loadNodes();
+    const remoteDevices = [];
+    for (const node of allNodes) {
+      for (const dev of (node.capabilities && node.capabilities.devices || [])) {
+        const deviceId = `node:${node.id}:${dev.stableKey}`;
+        const inUse = slotUsage[deviceId] || 0;
+        const inPool = dev.inPool !== false; // default true for backward compat
+        remoteDevices.push({
+          stableKey: dev.stableKey,
+          deviceId,
+          nodeId: node.id,
+          nodeName: node.name,
+          nodeStatus: node.status,
+          label: dev.label,
+          backend: dev.backend,
+          gpuIndex: dev.gpuIndex,
+          inPool: node.status === 'online' && inPool,
+          remote: true,
+          priority: dev.priority || 150,
+          maxSlots: dev.maxSlots || 1,
+          status: node.status === 'offline' ? 'error'
+            : !inPool ? 'idle'
+            : inUse > 0 ? 'busy' : 'idle',
+          activeSlots: inUse,
+        });
+      }
+    }
+
+    const devices = [...localDevices, ...remoteDevices];
     const totalDevices = devices.length;
     const idleDevices = devices.filter((d) => d.status === 'idle').length;
     const totalSlots = devices.reduce((s, d) => s + (d.maxSlots || 1), 0);
@@ -879,6 +915,147 @@ function registerRoutes(app) {
       devices,
       summary: { totalDevices, idleDevices, totalAvailableSlots: totalSlots, usedSlots },
     };
+  });
+
+  // ── Admin: Transcode Nodes ────────────────────────────────────────────────
+
+  app.get('/v1/admin/nodes', async () => {
+    const nodes = nodeStore.loadNodes();
+    const tasks = taskStore.loadTasks();
+    const nodeList = nodes.map((n) => {
+      const activeJobCount = tasks.filter((t) => t.nodeId === n.id && t.status === 'executing').length;
+      return { ...n, apiKey: '********', activeJobCount };
+    });
+    return { nodes: nodeList };
+  });
+
+  app.get('/v1/admin/nodes/:id', async (req) => {
+    const node = nodeStore.getNode(req.params.id);
+    if (!node) return { error: { code: 'NOT_FOUND', message: 'Node not found' } };
+    const tasks = taskStore.loadTasks();
+    const activeJobCount = tasks.filter((t) => t.nodeId === node.id && t.status === 'executing').length;
+    return { ...node, apiKey: '********', activeJobCount };
+  });
+
+  app.post('/v1/admin/nodes', async (req, reply) => {
+    const { name, address, apiKey } = req.body || {};
+    if (!name || !address || !apiKey) {
+      return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: 'name, address, apiKey required' } });
+    }
+
+    // Validate address format
+    const addr = String(address).trim();
+    if (!/^[\w.-]+:\d+$/.test(addr) && !/^[\w.-]+:\d+$/.test(addr.replace(/^https?:\/\//, ''))) {
+      return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: 'Invalid address format (host:port)' } });
+    }
+
+    // Check for duplicate address
+    const existing = nodeStore.loadNodes().find((n) => n.address === addr);
+    if (existing) {
+      return reply.code(409).send({ error: { code: 'CONFLICT', message: 'A node with this address already exists' } });
+    }
+
+    // Probe worker
+    const node = { address: addr, apiKey: String(apiKey) };
+    let capabilities;
+    try {
+      const health = await nodeService.checkHealth(node);
+      if (!health.ok) throw new Error('Worker health check failed');
+      capabilities = await nodeService.getCapabilities(node);
+    } catch (err) {
+      return reply.code(502).send({ error: { code: 'WORKER_UNREACHABLE', message: `Cannot reach worker: ${err.message}` } });
+    }
+
+    const created = nodeStore.addNode({ name: String(name).trim(), address: addr, apiKey: String(apiKey), capabilities });
+    return reply.code(201).send({ ...created, apiKey: '********' });
+  });
+
+  app.delete('/v1/admin/nodes/:id', async (req, reply) => {
+    const node = nodeStore.getNode(req.params.id);
+    if (!node) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Node not found' } });
+
+    const force = req.query && req.query.force === 'true';
+    const activeCount = nodeStore.getNodeActiveJobCount(req.params.id, taskStore);
+
+    if (activeCount > 0 && !force) {
+      return reply.code(409).send({
+        error: { code: 'NODE_HAS_ACTIVE_JOBS', message: `Node has ${activeCount} active job(s). Use ?force=true to force delete.` },
+        activeJobCount: activeCount,
+      });
+    }
+
+    if (force && activeCount > 0) {
+      // Cancel all active tasks on this node
+      const tasks = taskStore.loadTasks();
+      for (const t of tasks) {
+        if (t.nodeId === node.id && t.status === 'executing') {
+          const flow = getFlow(t.actionType);
+          if (flow) { try { await flow.cancel(t.id); } catch (_) {} }
+          taskStore.updateTask(t.id, { status: 'failed_hard', logs: [{ ts: new Date().toISOString(), level: 'error', msg: `Node ${node.name} deleted by admin` }] });
+        }
+      }
+    }
+
+    nodeStore.deleteNode(req.params.id);
+    return { ok: true };
+  });
+
+  app.patch('/v1/admin/nodes/:id', async (req, reply) => {
+    const node = nodeStore.getNode(req.params.id);
+    if (!node) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Node not found' } });
+
+    const { name, apiKey } = req.body || {};
+    const patch = {};
+    if (name !== undefined) {
+      if (!String(name).trim()) return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: 'name must not be empty' } });
+      patch.name = String(name).trim();
+    }
+    if (apiKey !== undefined) {
+      if (!String(apiKey).trim()) return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: 'apiKey must not be empty' } });
+      patch.apiKey = String(apiKey).trim();
+    }
+    if (Object.keys(patch).length === 0) {
+      return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: 'At least one of name or apiKey required' } });
+    }
+
+    const updated = nodeStore.updateNode(req.params.id, patch);
+    const tasks = taskStore.loadTasks();
+    const activeJobCount = tasks.filter((t) => t.nodeId === updated.id && t.status === 'executing').length;
+    return { ...updated, apiKey: '********', activeJobCount };
+  });
+
+  app.post('/v1/admin/nodes/:id/actions/probe', async (req, reply) => {
+    const node = nodeStore.getNode(req.params.id);
+    if (!node) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Node not found' } });
+
+    try {
+      const capabilities = await nodeService.getCapabilities(node);
+      nodeStore.mergeCapabilities(req.params.id, capabilities.devices || []);
+      nodeStore.updateNode(req.params.id, { lastSeenAt: new Date().toISOString(), consecutiveFailures: 0, status: 'online' });
+      const updated = nodeStore.getNode(req.params.id);
+      return { ok: true, capabilities: updated.capabilities };
+    } catch (err) {
+      return reply.code(502).send({ error: { code: 'WORKER_UNREACHABLE', message: err.message } });
+    }
+  });
+
+  // Update a node device pool config (inPool, priority, maxSlots)
+  app.patch('/v1/admin/nodes/:id/devices', async (req, reply) => {
+    const node = nodeStore.getNode(req.params.id);
+    if (!node) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Node not found' } });
+
+    const { stableKey, inPool, priority, maxSlots } = req.body || {};
+    if (!stableKey) return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: 'stableKey required' } });
+
+    const extra = {};
+    if (typeof priority === 'number') extra.priority = priority;
+    if (typeof maxSlots === 'number') extra.maxSlots = maxSlots;
+
+    const ok = nodeStore.setDeviceInPool(req.params.id, String(stableKey), !!inPool, extra);
+    if (!ok) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Device not found on node' } });
+
+    const updated = nodeStore.getNode(req.params.id);
+    return { ok: true, capabilities: updated.capabilities };
   });
 
   // ── Admin: Upgrade (MoviePilot) ──────────────────────────────────────────

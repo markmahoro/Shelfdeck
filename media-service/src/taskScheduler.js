@@ -20,8 +20,11 @@ const transcodeFlow = require('./transcodeFlowExecutor');
 const upgradeFlow = require('./upgradeFlowExecutor');
 const healthCheck = require('./healthCheck');
 const activityLog = require('./activityLog');
+const nodeStore = require('./nodeStore');
+const nodeService = require('./nodeService');
 
 let schedulerInterval = null;
+let nodeHealthInterval = null;
 let schedulerRunning = false;
 let schedulerBusy = false;
 
@@ -125,6 +128,46 @@ function isActiveStatus(status) {
   return status === 'executing' || status === 'pausing' || status === 'awaiting_user_confirm';
 }
 
+// ── Node health monitoring ────────────────────────────────────────────────────
+
+async function checkNodeHealth() {
+  const nodes = nodeStore.loadNodes();
+  const config = configStore.loadConfig();
+
+  for (const node of nodes) {
+    if (node.status !== 'online') continue;
+
+    let online = false;
+    try {
+      const res = await nodeService.checkHealth(node);
+      online = res && res.ok;
+    } catch (_) {
+      online = false;
+    }
+
+    const updated = nodeStore.recordHealthCheck(node.id, online);
+
+    // Node just went offline — fail its active tasks
+    if (updated && updated.status === 'offline') {
+      console.log(`[scheduler] Node ${node.name} (${node.id}) is offline — failing active tasks`);
+      const tasks = taskStore.loadTasks();
+      let failed = 0;
+      for (const t of tasks) {
+        if (t.nodeId === node.id && t.status === 'executing') {
+          taskStore.updateTask(t.id, {
+            status: 'failed_hard',
+            logs: [{ ts: new Date().toISOString(), level: 'error', msg: `Node ${node.name} went offline, task interrupted` }],
+          });
+          failed++;
+        }
+      }
+      if (failed > 0) {
+        activityLog.write(`Node ${node.name} went offline — ${failed} task(s) failed`);
+      }
+    }
+  }
+}
+
 function startScheduler() {
   if (schedulerRunning) return;
   schedulerRunning = true;
@@ -150,10 +193,19 @@ function startScheduler() {
       schedulerBusy = false;
     }
   }, 5000);
+
+  // Start node health monitoring
+  const nodeIntervalMs = configStore.loadConfig().nodeHealthCheckIntervalMs || 30000;
+  nodeHealthInterval = setInterval(() => {
+    checkNodeHealth().catch((err) => console.error('[scheduler] node health error:', err));
+  }, nodeIntervalMs);
+  // Run immediately on startup
+  checkNodeHealth().catch((err) => console.error('[scheduler] initial node health check error:', err));
 }
 
 function stopScheduler() {
   if (schedulerInterval) { clearInterval(schedulerInterval); schedulerInterval = null; }
+  if (nodeHealthInterval) { clearInterval(nodeHealthInterval); nodeHealthInterval = null; }
   schedulerRunning = false;
   healthCheck.setSchedulerState({ running: false, runningTasks: 0 });
   console.log('[scheduler] stopped');

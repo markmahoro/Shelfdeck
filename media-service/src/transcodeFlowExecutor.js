@@ -11,6 +11,7 @@ const fs = require('fs');
 const taskStore = require('./taskStore');
 const configStore = require('./configStore');
 const transcodeService = require('./services/transcodeService');
+const nodeStore = require('./nodeStore');
 
 // Tracks tasks intentionally aborted by pause/cancel so catch blocks
 // in async flow phases don't overwrite the status with failed_hard.
@@ -33,6 +34,8 @@ function buildDeviceSlots(config) {
   const cpuStrategy = config.transcodeCpuParticipationStrategy || 'normal';
 
   const slots = [];
+
+  // ── Local devices (existing) ─────────────────────────────────────────────
   for (const dev of devices) {
     if (!dev.inPool) continue;
     const sk = parseStableKey(dev.stableKey);
@@ -45,6 +48,26 @@ function buildDeviceSlots(config) {
       cpuBackupOnly: sk.backend === 'cpu' && cpuStrategy === 'backup_only',
     });
   }
+
+  // ── Remote node devices (only in-pool devices from online nodes) ──────────
+  const nodes = nodeStore.getOnlineNodes();
+  for (const node of nodes) {
+    for (const dev of (node.capabilities && node.capabilities.devices || [])) {
+      if (dev.inPool === false) continue; // Skip devices not in pool
+      const sk = parseStableKey(dev.stableKey);
+      if (!sk) continue;
+      slots.push({
+        deviceId: `node:${node.id}:${dev.stableKey}`,
+        nodeId: node.id,
+        maxSlots: dev.maxSlots || 1,
+        priority: dev.priority || 150,
+        backend: sk.backend,
+        cpuBackupOnly: false,
+        remote: true,
+      });
+    }
+  }
+
   slots.sort((a, b) => {
     if (a.priority !== b.priority) return a.priority - b.priority;
     return a.backend === 'cpu' ? 1 : -1;
@@ -125,28 +148,8 @@ async function runPrecheck(taskId, task, config) {
     const probePath = isSeason ? episodeFiles[0] : sourcePath;
     const result = await transcodeService.precheck(config, probePath);
 
-    if (result.needsDvConfirm && !task.dvAcknowledged) {
-      appendLog(taskId, 'info', 'Dolby Vision detected — awaiting user confirmation');
-      scheduler.pauseForConfirm(taskId, 'transcode_executing');
-      return;
-    }
-
-    // Check device pool
-    const slots = buildDeviceSlots(config);
-    if (slots.length === 0) {
-      throw new Error('No encode devices in pool');
-    }
-
-    // Estimate output size vs original
-    if (result.originalSizeBytes !== undefined) {
-      const totalSize = isSeason
-        ? episodeFiles.reduce((sum, f) => { try { return sum + fs.statSync(f).size; } catch (_) { return sum; } }, 0)
-        : result.originalSizeBytes;
-      const srcGb = (totalSize / (1024 * 1024 * 1024)).toFixed(2);
-      appendLog(taskId, 'info', `Source: ${srcGb} GB, ${result.durationSec}s${isSeason ? ` (${episodeFiles.length} episodes)` : ''}`);
-    }
-
-    // Store precheck results on task for later phases
+    // Compute paths and create work dir before DV check so later phases
+    // (transcode_executing, etc.) have them on resume after pauseForConfirm.
     const tempRoot = config.transcodeTempRoot;
     const taskWorkDir = require('path').join(tempRoot, `etp-task-${task.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120)}`);
     require('fs').mkdirSync(taskWorkDir, { recursive: true });
@@ -167,6 +170,7 @@ async function runPrecheck(taskId, task, config) {
       partialPath = require('path').join(taskWorkDir, `${stem}.etp.partial${ext}`);
     }
 
+    // Persist essential fields needed by later phases (transcode_executing, verify, replace)
     taskStore.updateTask(taskId, {
       itemInfo: {
         ...task.itemInfo,
@@ -187,6 +191,27 @@ async function runPrecheck(taskId, task, config) {
         originalBitrate: result.originalBitrate,
       },
     });
+
+    if (result.needsDvConfirm && !task.dvAcknowledged) {
+      appendLog(taskId, 'info', 'Dolby Vision detected — awaiting user confirmation');
+      scheduler.pauseForConfirm(taskId, 'transcode_executing');
+      return;
+    }
+
+    // Check device pool
+    const slots = buildDeviceSlots(config);
+    if (slots.length === 0) {
+      throw new Error('No encode devices in pool');
+    }
+
+    // Estimate output size vs original
+    if (result.originalSizeBytes !== undefined) {
+      const totalSize = isSeason
+        ? episodeFiles.reduce((sum, f) => { try { return sum + fs.statSync(f).size; } catch (_) { return sum; } }, 0)
+        : result.originalSizeBytes;
+      const srcGb = (totalSize / (1024 * 1024 * 1024)).toFixed(2);
+      appendLog(taskId, 'info', `Source: ${srcGb} GB, ${result.durationSec}s${isSeason ? ` (${episodeFiles.length} episodes)` : ''}`);
+    }
 
     scheduler.reportStatus(taskId, 'executing', 0);
     await runExecuting(taskId, taskStore.getTask(taskId), config);

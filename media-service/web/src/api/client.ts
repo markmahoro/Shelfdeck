@@ -309,6 +309,42 @@ export const spaceStats = {
   get: () => get<SpaceStats>('/v1/space-stats'),
 };
 
+// ── Nodes ──────────────────────────────────────────────────────────────────────
+
+export interface NodeInfo {
+  id: string;
+  name: string;
+  address: string;
+  apiKey: string;
+  status: 'online' | 'offline';
+  capabilities: { devices: { stableKey: string; label: string; backend: string; gpuIndex: number }[] };
+  activeJobCount: number;
+  consecutiveFailures: number;
+  lastSeenAt: string;
+  createdAt: string;
+}
+
+export const nodes = {
+  list: () => get<{ nodes: NodeInfo[] }>('/v1/admin/nodes'),
+
+  get: (id: string) => get<NodeInfo>(`/v1/admin/nodes/${encodeURIComponent(id)}`),
+
+  create: (body: { name: string; address: string; apiKey: string }) =>
+    post<NodeInfo>('/v1/admin/nodes', body),
+
+  remove: (id: string, force?: boolean) =>
+    del<{ ok: boolean }>(`/v1/admin/nodes/${encodeURIComponent(id)}${force ? '?force=true' : ''}`),
+
+  update: (id: string, body: { name?: string; apiKey?: string }) =>
+    patch<NodeInfo>(`/v1/admin/nodes/${encodeURIComponent(id)}`, body),
+
+  probe: (id: string) =>
+    post<{ ok: boolean; capabilities: { devices: { stableKey: string; label: string; backend: string; gpuIndex: number }[] } }>(`/v1/admin/nodes/${encodeURIComponent(id)}/actions/probe`),
+
+  patchDevice: (nodeId: string, stableKey: string, inPool: boolean, extra?: { priority?: number; maxSlots?: number }) =>
+    patch<{ ok: boolean; capabilities: { devices: { stableKey: string; inPool: boolean; priority?: number; maxSlots?: number }[] } }>(`/v1/admin/nodes/${encodeURIComponent(nodeId)}/devices`, { stableKey, inPool, ...(extra || {}) }),
+};
+
 // ── MoviePilot ────────────────────────────────────────────────────────────────
 
 export interface MpSite {
