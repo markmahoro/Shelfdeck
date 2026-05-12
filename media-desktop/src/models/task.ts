@@ -42,6 +42,9 @@ export interface UpgradeCandidate {
 
 export interface TaskItemInfo {
   name?: string;
+  type?: string;
+  seriesName?: string;
+  seasonNumber?: number;
   path?: string;
   size?: number;
   resolution?: string;

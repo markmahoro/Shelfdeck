@@ -178,6 +178,9 @@ export interface TaskLogEntry {
 export interface TaskItemInfo {
   name?: string;
   title?: string;
+  type?: string;
+  seriesName?: string;
+  seasonNumber?: number;
   path?: string;
   size?: number;
   resolution?: string;

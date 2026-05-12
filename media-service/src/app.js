@@ -229,7 +229,9 @@ function registerRoutes(app) {
 
     const report = {
       taskId: task.id,
-      itemName: task.itemName || task.itemId,
+      itemName: (info.type === 'season' && info.seriesName && info.seasonNumber != null
+        ? `${info.seriesName} 第${info.seasonNumber}季`
+        : (task.itemName || task.itemId)),
       actionType: task.actionType,
       elapsedSec,
       encoder,

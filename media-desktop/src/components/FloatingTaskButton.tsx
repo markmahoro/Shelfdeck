@@ -17,6 +17,7 @@ import {
   formatSize,
   type MediaTask,
   type UpgradeCandidate,
+  type TaskItemInfo,
 } from '../models/task';
 
 // ── helpers ──
@@ -37,6 +38,14 @@ const CONFIRM_LABEL: Record<string, string> = {
 
 function gb(bytes: number): string {
   return (bytes / (1024 * 1024 * 1024)).toFixed(2);
+}
+
+function formatItemName(itemInfo?: TaskItemInfo): string {
+  if (!itemInfo) return '';
+  if (itemInfo.type === 'season' && itemInfo.seriesName && itemInfo.seasonNumber != null) {
+    return `${itemInfo.seriesName} 第${itemInfo.seasonNumber}季`;
+  }
+  return itemInfo.name || '';
 }
 
 // ── Styles ──
@@ -236,7 +245,7 @@ export default function FloatingTaskButton({ baseUrl }: { baseUrl: string }) {
               {recentDone.map((t) => (
                 <div key={t.id} style={TASK_ROW}>
                   <div style={TASK_ROW_HEADER}>
-                    <span>{t.itemInfo?.name || t.itemName || t.itemId}</span>
+                    <span>{formatItemName(t.itemInfo) || t.itemName || t.itemId}</span>
                     <span style={{ color: '#86efac', fontSize: 12 }}>
                       {ACTION_LABEL[t.actionType] ?? t.actionType} · {taskStatusLabelZh(t.status)}
                     </span>
@@ -286,7 +295,7 @@ function TaskCard({
         <div style={{ flex: 1, minWidth: 0, cursor: needsConfirm ? 'default' : 'pointer' }}
           onClick={() => !needsConfirm && onToggleDetail()}>
           <div style={{ fontWeight: 600, lineHeight: 1.35, wordBreak: 'break-word' }}>
-            {task.itemInfo?.name || task.itemName || task.itemId}
+            {formatItemName(task.itemInfo) || task.itemName || task.itemId}
           </div>
           <div style={{ fontSize: 11, marginTop: 2, color: needsConfirm ? '#fca5a5' : '#94a3b8' }}>
             {ACTION_LABEL[task.actionType] ?? task.actionType} · {taskStatusLabelZh(task.status)}

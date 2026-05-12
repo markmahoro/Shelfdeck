@@ -54,6 +54,14 @@ const PHASE_LABELS: Record<string, string> = {
   failed_hard: '失败',
 };
 
+function formatItemName(itemInfo?: TaskItemInfo): string {
+  if (!itemInfo) return '';
+  if (itemInfo.type === 'season' && itemInfo.seriesName && itemInfo.seasonNumber != null) {
+    return `${itemInfo.seriesName} 第${itemInfo.seasonNumber}季`;
+  }
+  return itemInfo.name || itemInfo.title || '';
+}
+
 export default function TaskMonitorPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
@@ -341,7 +349,7 @@ export default function TaskMonitorPage() {
               {taskList.map((t) => (
                 <tr key={t.id}>
                   <td style={tdStyle}>
-                    <span>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</span>
+                    <span>{formatItemName(t.itemInfo) || t.itemName || t.itemId}</span>
                   </td>
                   <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
                   <td style={tdStyle}>
@@ -402,7 +410,7 @@ export default function TaskMonitorPage() {
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 12, marginBottom: 20 }}>
               <div><strong>任务ID:</strong> {displayTask.id}</div>
-              <div><strong>媒体项:</strong> {displayTask.itemInfo?.name || displayTask.itemId}</div>
+              <div><strong>媒体项:</strong> {formatItemName(displayTask.itemInfo) || displayTask.itemId}</div>
               <div><strong>类型:</strong> {ACTION_TYPE_LABELS[displayTask.actionType] || displayTask.actionType}</div>
               <div><strong>状态:</strong> <span style={{ color: STATUS_COLORS[displayTask.status] }}>{STATUS_LABELS[displayTask.status] || displayTask.status}</span></div>
               <div><strong>阶段:</strong> {PHASE_LABELS[displayTask.phase || ''] || displayTask.phase || '—'}</div>
