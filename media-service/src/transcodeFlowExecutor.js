@@ -385,10 +385,12 @@ async function runVerify(taskId, task, config) {
     if (originalBytes > 0 && outSizeBytes > originalBytes) {
       const origGb = (originalBytes / 1e9).toFixed(2);
       const outGb = (outSizeBytes / 1e9).toFixed(2);
-      appendLog(taskId, 'warn', `Output larger than input (${outGb}GB > ${origGb}GB) — discarding`);
+      appendLog(taskId, 'info', `Output larger than input (${outGb}GB > ${origGb}GB) — discarding, original kept`);
       try { fs.unlinkSync(partialPath); } catch (_) {}
-      scheduler.reportStatus(taskId, 'failed_hard');
-      setPhase(taskId, 'failed_hard');
+      const tempDir = task.itemInfo && task.itemInfo.tempDir;
+      if (tempDir) transcodeService.cleanupTaskWorkdir(tempDir);
+      scheduler.reportStatus(taskId, 'done', 100);
+      setPhase(taskId, 'done');
       return;
     }
 
