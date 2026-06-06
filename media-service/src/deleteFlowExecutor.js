@@ -93,10 +93,12 @@ async function runPrecheck(taskId, task, serverConfig) {
 
     // Store item info for confirm display, including original size for space stats
     const originalSizeBytes = (task.itemInfo && task.itemInfo.size) || 0;
+    const displayName = deleteInfo.Name || task.itemId;
     taskStore.updateTask(taskId, {
+      itemName: displayName,
       itemInfo: {
         ...task.itemInfo,
-        name: deleteInfo.Name || task.itemId,
+        name: displayName,
         path: deleteInfo.Path || '',
         originalSizeBytes,
       },

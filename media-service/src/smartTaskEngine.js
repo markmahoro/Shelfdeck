@@ -65,7 +65,6 @@ function start(configStore, mediaLibraryService, taskStore) {
         if (item.source !== 'emby') return false;
         if (item.type === 'series') return false;
         if (!item.watched) return false;
-        if (item.userRating == null && item.doubanRating == null) return false;
         if (!item.action || item.action === 'keep') return false;
         if (!enabledActions.includes(item.action)) return false;
         if (item.reason === '新入库') return false;

@@ -193,9 +193,17 @@ async function runPrecheck(taskId, task, config) {
     });
 
     if (result.needsDvConfirm && !task.dvAcknowledged) {
-      appendLog(taskId, 'info', 'Dolby Vision detected — awaiting user confirmation');
-      scheduler.pauseForConfirm(taskId, 'transcode_executing');
-      return;
+      // In full-auto mode, auto-acknowledge DV to avoid blocking the pipeline
+      const cfg = configStore.loadConfig();
+      const schedule = configStore.resolveSubLibSchedule(task.itemInfo, cfg);
+      if (schedule.autoExecute) {
+        taskStore.updateTask(taskId, { dvAcknowledged: true });
+        appendLog(taskId, 'info', 'Dolby Vision detected — auto mode, proceeding with HDR→SDR tonemap');
+      } else {
+        appendLog(taskId, 'info', 'Dolby Vision detected — awaiting user confirmation');
+        scheduler.pauseForConfirm(taskId, 'transcode_executing');
+        return;
+      }
     }
 
     // Check device pool

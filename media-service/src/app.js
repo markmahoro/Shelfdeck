@@ -188,6 +188,7 @@ function registerRoutes(app) {
 
     const task = taskStore.createTask({
       itemId,
+      itemName: libItem ? libItem.name : undefined,
       actionType,
       status,
       itemInfo,

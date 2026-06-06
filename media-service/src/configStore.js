@@ -330,7 +330,7 @@ function defaultSubLibSchedule() {
 function resolveSubLibSchedule(itemInfo, config) {
   const subLibId = itemInfo && itemInfo.subLibraryId;
   const subLib = subLibId && (config.subLibraries || []).find((s) => s.uuid === subLibId);
-  const mode = (subLib && subLib.scheduleMode) || 'full_manual';
+  const mode = (subLib && subLib.scheduleMode) || 'full_auto';
 
   if (mode === 'full_auto') {
     return { autoCreate: true, autoExecute: true, autoReplaceTranscode: true, autoReplaceUpgrade: true, smartSelectEnabled: true };
