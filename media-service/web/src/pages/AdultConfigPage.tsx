@@ -84,7 +84,7 @@ export default function AdultConfigPage() {
       </section>
 
       <section style={card}>
-        <h3 style={title}>日本 JAV 刮削</h3>
+        <h3 style={title}>JAV 刮削</h3>
         <div style={grid}>
           <Field label="代理服务器"><input style={inputWide} value={proxyServer} onChange={(e) => setProxyServer(e.target.value)} placeholder="http://127.0.0.1:7890" /></Field>
           <Field label="重试次数"><input style={input} type="number" value={retry} min={0} onChange={(e) => setRetry(Number(e.target.value) || 0)} /></Field>

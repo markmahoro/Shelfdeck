@@ -23,7 +23,7 @@ function ensureDataDir() {
 // Template version constants — bump when buildDefaultTemplate / buildTVDefaultTemplate logic changes
 const DEFAULT_TEMPLATE_VERSION = 4;
 const TV_DEFAULT_TEMPLATE_VERSION = 4;
-const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 1;
+const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 2;
 
 // ── Default rule template builder ──────────────────────────────────────────────
 
@@ -323,8 +323,8 @@ function buildTVDefaultTemplate(policy) {
 
 function buildAdultJavDefaultTemplate(policy) {
   const p = policy || {};
-  const target1080p = p.target1080p || 4;
-  const target4k = p.target4k || 10;
+  const target1080p = p.target1080p || 2.5;
+  const target4k = p.target4k || 6;
 
   function condGroup(conds) {
     return { connector: 'and', conditions: conds };
@@ -332,24 +332,32 @@ function buildAdultJavDefaultTemplate(policy) {
 
   return {
     id: 'adult_jav_default',
-    name: '默认策略（日本 JAV）',
-    description: '成人日本 JAV 文件夹库默认压缩策略，不依赖豆瓣评分或观看状态',
+    name: '默认策略（JAV）',
+    description: '成人 JAV 文件夹库默认压缩策略，不依赖豆瓣评分或观看状态',
     rules: [
       {
         priority: 10,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
+        groups: [condGroup([['scraped', '=', true], ['codec', 'not in', ['h265', 'hevc']]])],
         action: 'transcode',
-        actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
-        reason: `日本 JAV 4K 码率 ${target4k} Mbps 超标，建议压缩`,
+        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
+        reason: `JAV 非 HEVC 编码，转为 H.265（目标 ${target1080p} Mbps）`,
       },
       {
         priority: 9,
         groupsConnector: 'and',
+        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
+        action: 'transcode',
+        actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
+        reason: `JAV 4K 码率 ${target4k} Mbps 超标，建议压缩`,
+      },
+      {
+        priority: 8,
+        groupsConnector: 'and',
         groups: [condGroup([['scraped', '=', true], ['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
         action: 'transcode',
         actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
-        reason: `日本 JAV 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,
+        reason: `JAV 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,
       },
       {
         priority: 1,
@@ -469,6 +477,7 @@ function getDefaultConfig() {
         writeNfo: true,
         posterBasename: 'poster',
         fanartBasename: 'fanart',
+        organizeAfterScrape: true,
       },
       western: {
         enabled: false,
@@ -758,11 +767,18 @@ function normalizeAdultLibraryConfig(raw) {
 
   if (Array.isArray(raw.subLibraries)) {
     raw.subLibraries = raw.subLibraries.map((sl) => {
-      if (sl && sl.mediaType === 'adult' && sl.scraperType === 'javsp') {
+      if (!sl) return sl;
+      let next = sl;
+      if (sl && Object.prototype.hasOwnProperty.call(sl, 'scrapeSettleSeconds')) {
         migrated = true;
-        return { ...sl, scraperType: 'shelfdeck_japanese_jav' };
+        next = { ...next };
+        delete next.scrapeSettleSeconds;
       }
-      return sl;
+      if (next.mediaType === 'adult' && next.scraperType === 'javsp') {
+        migrated = true;
+        next = { ...next, scraperType: 'shelfdeck_japanese_jav' };
+      }
+      return next;
     });
   }
 

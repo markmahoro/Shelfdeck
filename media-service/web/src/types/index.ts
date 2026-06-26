@@ -62,7 +62,6 @@ export interface SubLibrary {
   scraperType?: 'shelfdeck_japanese_jav' | 'western_builtin';
   watchRoot?: string;
   scrapeEnabled?: boolean;
-  scrapeSettleSeconds?: number;
   scanIntervalMinutes?: number;
   japaneseJav?: Record<string, unknown>;
 }

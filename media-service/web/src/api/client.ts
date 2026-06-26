@@ -111,7 +111,6 @@ export const subLibraries = {
     scraperType?: string;
     watchRoot?: string;
     scrapeEnabled?: boolean;
-    scrapeSettleSeconds?: number;
     scanIntervalMinutes?: number;
     japaneseJav?: Record<string, unknown>;
   }) => post<SubLibrary>('/v1/admin/sublibraries', body),

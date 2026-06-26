@@ -90,6 +90,8 @@ async function fetchBinary(url, scraperConfig, taskId) {
   const controller = new AbortController();
   if (taskId) running.set(taskId, controller);
   const timeout = setTimeout(() => controller.abort(), timeoutMs(scraperConfig.timeout));
+  let originReferer = '';
+  try { originReferer = `${new URL(url).origin}/`; } catch (_) {}
   try {
     const res = await fetch(url, {
       redirect: 'follow',
@@ -98,6 +100,7 @@ async function fetchBinary(url, scraperConfig, taskId) {
       headers: {
         'user-agent': USER_AGENT,
         'accept-language': 'ja,en;q=0.8,zh-CN;q=0.7',
+        'referer': scraperConfig.imageReferer || scraperConfig.referer || originReferer,
       },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);

@@ -36,7 +36,6 @@ export default function DashboardPage() {
   const [ruleTemplateId, setRuleTemplateId] = useState('default');
   const [mediaType, setMediaType] = useState('movie');
   const [watchRoot, setWatchRoot] = useState('');
-  const [scrapeSettleSeconds, setScrapeSettleSeconds] = useState(30);
   const [pathMapFrom, setPathMapFrom] = useState('');
   const [pathMapTo, setPathMapTo] = useState('');
   const [testing, setTesting] = useState(false);
@@ -129,7 +128,6 @@ export default function DashboardPage() {
           scraperType: libraryKind === 'japanese_jav' ? 'shelfdeck_japanese_jav' : 'western_builtin',
           watchRoot,
           scrapeEnabled: true,
-          scrapeSettleSeconds,
         }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sublibraries'] });
@@ -176,7 +174,6 @@ export default function DashboardPage() {
     setRuleTemplateId('default');
     setMediaType('movie');
     setWatchRoot('');
-    setScrapeSettleSeconds(30);
     setTestError('');
   }
 
@@ -236,7 +233,7 @@ export default function DashboardPage() {
               const slSpace = (spaceData?.subLibraries || []).find((s) => s.uuid === sl.uuid);
               const tpl = templates.find((t) => t.id === (sl.ruleTemplateId || 'default'));
               const typeLabel = sl.mediaType === 'adult'
-                ? (sl.adultRegion === 'western_adult' ? '欧美成人' : '日本 JAV')
+                ? (sl.adultRegion === 'western_adult' ? '欧美成人' : 'JAV')
                 : (sl.mediaType || 'movie') === 'tv' ? '剧集' : '电影';
               const typeColor = sl.mediaType === 'adult'
                 ? { bg: '#fff3e0', fg: '#ef6c00' }
@@ -387,7 +384,7 @@ export default function DashboardPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[
                   { key: 'emby', title: 'Emby 媒体库', desc: '电影/剧集' },
-                  { key: 'japanese_jav', title: '日本 JAV', desc: '内置刮削' },
+                  { key: 'japanese_jav', title: 'JAV', desc: '内置刮削' },
                   { key: 'western_adult', title: '欧美成人', desc: '预留自研刮削' },
                 ].map((k) => (
                   <button
@@ -399,7 +396,7 @@ export default function DashboardPage() {
                       if (next === 'japanese_jav') {
                         setMediaType('adult');
                         setRuleTemplateId('adult_jav_default');
-                        setSubLibName('日本 JAV');
+                        setSubLibName('JAV');
                       } else if (next === 'western_adult') {
                         setMediaType('adult');
                         setRuleTemplateId('adult_jav_default');
@@ -450,7 +447,7 @@ export default function DashboardPage() {
             </>
             ) : (
               <div style={{ padding: 12, background: '#f8f9fb', borderRadius: 8, fontSize: 13, color: '#666', lineHeight: 1.6 }}>
-                文件夹库由 ShelfDeck 直接监听本地路径；日本 JAV 使用内置 scraper，欧美成人库保留 scraper adapter。
+                文件夹库由 ShelfDeck 直接监听本地路径；JAV 使用内置 scraper，欧美成人库保留 scraper adapter。
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
@@ -500,13 +497,6 @@ export default function DashboardPage() {
                   <input type="text" value={watchRoot} onChange={(e) => setWatchRoot(e.target.value)}
                     placeholder="E:\\my_project\\emby_third_party\\jav_test"
                     style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginBottom: 16 }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>稳定等待（秒）</label>
-                    <input type="number" value={scrapeSettleSeconds} min={1} onChange={(e) => setScrapeSettleSeconds(Math.max(1, Number(e.target.value) || 30))}
-                      style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
-                  </div>
                 </div>
               </>
             )}

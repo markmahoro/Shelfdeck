@@ -403,7 +403,6 @@ function addSubLibrary(spec) {
     scraperType: spec.scraperType || (isAdult ? 'shelfdeck_japanese_jav' : undefined),
     watchRoot: spec.watchRoot || '',
     scrapeEnabled: spec.scrapeEnabled !== undefined ? spec.scrapeEnabled : isAdult,
-    scrapeSettleSeconds: spec.scrapeSettleSeconds,
     scanIntervalMinutes: spec.scanIntervalMinutes,
     japaneseJav: spec.japaneseJav || undefined,
     ruleTemplateId: spec.ruleTemplateId || (mediaType === 'adult' ? 'adult_jav_default' : mediaType === 'tv' ? 'tv_default' : 'default'),
@@ -460,7 +459,8 @@ function updateSubLibrary(uuid, updates) {
   const subLibs = cfg.subLibraries || [];
   const idx = subLibs.findIndex((s) => s.uuid === uuid);
   if (idx < 0) return null;
-  subLibs[idx] = { ...subLibs[idx], ...updates };
+  const { scrapeSettleSeconds, ...allowedUpdates } = updates || {};
+  subLibs[idx] = { ...subLibs[idx], ...allowedUpdates };
   configStore.saveConfig(cfg);
   return subLibs[idx];
 }

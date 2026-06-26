@@ -369,6 +369,7 @@ export default function MediaManagePage() {
             <div>
               <div className="mediaManageGrid mediaManageHead">
                 <div className="mediaManageTitleCell">名称</div>
+                <div>刮削</div>
                 <div>剧名</div>
                 <div>季</div>
                 <div>体积</div>

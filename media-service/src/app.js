@@ -295,6 +295,29 @@ function registerRoutes(app) {
         report.bytesSaved = up.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
         report.tmdbVerified = up.tmdbVerified;
       }
+    } else if (task.actionType === 'scrape') {
+      const meta = info.adultMetadata || {};
+      report.scrape = {
+        adultId: meta.adultId || info.sourceId || '',
+        title: meta.title || info.name || task.itemName || '',
+        source: meta.source || '',
+        sourceUrl: meta.sourceUrl || '',
+        scrapeStatus: meta.scrapeStatus || '',
+        posterPath: meta.posterPath || '',
+        fanartPath: meta.fanartPath || '',
+        nfoPath: meta.nfoPath || '',
+        fileNfoPath: meta.fileNfoPath || '',
+        markerPath: meta.markerPath || '',
+        organized: !!meta.organized,
+        originalFolder: meta.originalFolder || '',
+        mediaPath: info.path || '',
+      };
+      report.assets = {
+        poster: !!meta.posterPath,
+        fanart: !!meta.fanartPath,
+        nfo: !!meta.nfoPath,
+        marker: !!meta.markerPath,
+      };
     }
 
     return report;
@@ -763,7 +786,7 @@ function registerRoutes(app) {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, scrapeEnabled,
-      scrapeSettleSeconds, scanIntervalMinutes, japaneseJav,
+      scanIntervalMinutes, japaneseJav,
     } = req.body || {};
     if (!name) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name is required');
@@ -783,7 +806,7 @@ function registerRoutes(app) {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, scrapeEnabled,
-      scrapeSettleSeconds, scanIntervalMinutes, japaneseJav,
+      scanIntervalMinutes, japaneseJav,
     });
     if (isFolderAdult) {
       adultLibraryService.startSubLibraryWatcher(subLib);
@@ -933,7 +956,10 @@ function registerRoutes(app) {
         ...((req.body && req.body.western) || {}),
       },
     };
-    return configStore.patchConfig({ adultLibrary });
+    const updated = configStore.patchConfig({ adultLibrary });
+    adultLibraryService.stopAllWatchers();
+    adultLibraryService.startAllWatchers();
+    return updated.adultLibrary || {};
   });
 
   // ── Admin: Transcode ────────────────────────────────────────────────────

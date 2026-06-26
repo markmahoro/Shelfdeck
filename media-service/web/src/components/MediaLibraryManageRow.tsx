@@ -48,7 +48,7 @@ export type MediaLibraryManageRowProps = {
 };
 
 const MAX_STARS = 5;
-const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '码率压缩', upgrade: '洗版' };
+const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '码率压缩', upgrade: '洗版', scrape: '刮削' };
 const OPTIMIZATION_LABEL: Record<string, string> = { transcoded: '已转码', upgraded: '已洗版', none: '未优化' };
 
 function adultMetaString(item: ManagedMediaItem, key: string): string {
@@ -111,6 +111,15 @@ function MediaLibraryManageRowInner({
   const scrapeStatus = adultScrapeStatus(item);
   const adultId = adultMetaString(item, 'adultId');
   const studio = adultMetaString(item, 'studio');
+  const director = adultMetaString(item, 'director');
+  const premiered = adultMetaString(item, 'premiered');
+  const adultSummary = [adultId, studio].filter(Boolean).join(' · ');
+  const adultTitle = [
+    adultId ? `番号：${adultId}` : '',
+    studio ? `制作商：${studio}` : '',
+    director ? `导演：${director}` : '',
+    premiered ? `发行：${premiered}` : '',
+  ].filter(Boolean).join('\n');
 
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
@@ -138,26 +147,35 @@ function MediaLibraryManageRowInner({
         />
         <span className="mediaManageTitleWrap">
           <span className="mediaManageTitle">{item.name}</span>
-          {scrapeStatus && (
-            <span className="adultMetaLine">
-              <span className={`adultScrapeBadge adultScrapeBadge-${scrapeStatus.tone}`} title={scrapeStatus.title}>
-                {scrapeStatus.label}
-              </span>
-              {adultId && <span className="adultMetaText">{adultId}</span>}
-              {studio && <span className="adultMetaText">{studio}</span>}
-              {onRescrape && !rowTask && (
-                <button
-                  type="button"
-                  className="adultRescrapeBtn"
-                  title="重新刮削该条目"
-                  onClick={() => onRescrape(item)}
-                >
-                  重刮
-                </button>
-              )}
-            </span>
-          )}
         </span>
+      </div>
+      <div className="adultScrapeCell">
+        {scrapeStatus ? (
+          <>
+            <span className={`adultScrapeBadge adultScrapeBadge-${scrapeStatus.tone}`} title={scrapeStatus.title}>
+              {scrapeStatus.label}
+            </span>
+            {adultSummary ? (
+              <span className="adultScrapeSummary" title={adultTitle || scrapeStatus.title}>
+                {adultSummary}
+              </span>
+            ) : (
+              <span className="adultScrapeSummary">—</span>
+            )}
+            {onRescrape && !rowTask && (
+              <button
+                type="button"
+                className="adultRescrapeBtn"
+                title="重新刮削该条目"
+                onClick={() => onRescrape(item)}
+              >
+                重刮
+              </button>
+            )}
+          </>
+        ) : (
+          <span className="hint">—</span>
+        )}
       </div>
       <div>{item.seriesName || '—'}</div>
       <div className="tabular-nums">{item.seasonNumber != null ? `S${String(item.seasonNumber).padStart(2, '0')}` : '—'}</div>

@@ -165,6 +165,48 @@ test('GET /v1/tasks/:id returns task detail', async () => {
   await app.close();
 });
 
+test('GET /v1/tasks/:id/report returns scrape details', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const taskStore = require('../src/taskStore');
+  const task = taskStore.createTask({
+    itemId: 'scrape-report-item',
+    itemName: 'SORA-107',
+    actionType: 'scrape',
+    status: 'done',
+    itemInfo: {
+      name: 'SORA-107 Some Title',
+      path: '/adult_media/JAV/SORA-107 Some Title/SORA-107.mp4',
+      adultMetadata: {
+        adultId: 'SORA-107',
+        title: 'SORA-107 Some Title',
+        source: 'javbus',
+        sourceUrl: 'https://www.javbus.com/SORA-107',
+        scrapeStatus: 'done',
+        posterPath: '/adult_media/JAV/SORA-107 Some Title/poster.jpg',
+        fanartPath: '/adult_media/JAV/SORA-107 Some Title/poster.jpg',
+        nfoPath: '/adult_media/JAV/SORA-107 Some Title/movie.nfo',
+        fileNfoPath: '/adult_media/JAV/SORA-107 Some Title/SORA-107.nfo',
+        markerPath: '/adult_media/JAV/SORA-107 Some Title/.shelfdeck.json',
+        organized: true,
+        originalFolder: '/adult_media/JAV/SORA-107.HD',
+      },
+    },
+    logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Scrape metadata saved; strategy recalculated' }],
+  });
+
+  const res = await app.inject({ method: 'GET', url: `/v1/tasks/${task.id}/report` });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.actionType, 'scrape');
+  assert.strictEqual(body.scrape.adultId, 'SORA-107');
+  assert.strictEqual(body.scrape.source, 'javbus');
+  assert.strictEqual(body.scrape.organized, true);
+  assert.strictEqual(body.assets.poster, true);
+  assert.strictEqual(body.assets.nfo, true);
+  await app.close();
+});
+
 test('DELETE /v1/tasks/:id removes task', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
@@ -363,6 +405,7 @@ test('POST /v1/admin/sublibraries creates adult Japanese JAV folder library', as
       scraperType: 'shelfdeck_japanese_jav',
       watchRoot,
       ruleTemplateId: 'adult_jav_default',
+      scrapeSettleSeconds: 99,
     },
   });
 
@@ -373,6 +416,7 @@ test('POST /v1/admin/sublibraries creates adult Japanese JAV folder library', as
   assert.strictEqual(body.adultRegion, 'japanese_jav');
   assert.strictEqual(body.scraperType, 'shelfdeck_japanese_jav');
   assert.strictEqual(body.watchRoot, watchRoot);
+  assert.strictEqual(body.scrapeSettleSeconds, undefined);
   await app.close();
 });
 
@@ -437,7 +481,16 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
   // the library item was marked failed. A real scrape failure does both.
   const taskStore = require('../src/taskStore');
   const adultLibraryService = require('../src/adultLibraryService');
-  const origTask = taskStore.getTasks({ itemId }).find((t) => t.actionType === 'scrape');
+  let origTask = taskStore.getTasks({ itemId }).find((t) => t.actionType === 'scrape');
+  if (!origTask) {
+    origTask = taskStore.createTask({
+      itemId,
+      itemName: lib.json().items[0].name,
+      actionType: 'scrape',
+      status: 'failed_hard',
+      itemInfo: adultLibraryService.itemInfoFromItem(lib.json().items[0]),
+    });
+  }
   taskStore.updateTask(origTask.id, { status: 'failed_hard' });
   adultLibraryService.markScrapeFailed(itemId, 'jav321 down');
 
@@ -512,6 +565,143 @@ test('scrape failure marks item failed_hard and item scrapeStatus=failed', async
   assert.ok(after.adultMetadata.scrapeError, 'scrapeError recorded');
 
   // Cleanup mock so other tests get the real module back.
+  delete require.cache[scraperPath];
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('scrape fails when poster download fails', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  const movieDir = path.join(watchRoot, 'MVSD-175.HD');
+  fs.mkdirSync(movieDir, { recursive: true });
+  fs.writeFileSync(path.join(movieDir, 'MVSD-175.mp4'), 'fake-video');
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const scraperPath = require.resolve('../src/services/japaneseJavScraper');
+  delete require.cache[scraperPath];
+  require.cache[scraperPath] = {
+    exports: {
+      scrapeJapaneseJav: async () => ({
+        source: 'stub',
+        sourceUrl: 'https://example.test/MVSD-175',
+        adultId: 'MVSD-175',
+        title: 'MVSD-175 Poster Required',
+        originalTitle: 'Poster Required',
+        posterUrl: 'https://example.test/poster.jpg',
+        fanartUrl: 'https://example.test/poster.jpg',
+      }),
+      fetchBinary: async () => { throw new Error('HTTP 403 Forbidden'); },
+      abort: () => false,
+      normalizeAdultId: (v) => v,
+    },
+  };
+
+  const configStore = require('../src/configStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const taskStore = require('../src/taskStore');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const sl = {
+    uuid: crypto.randomUUID(), name: 'JAV', source: 'folder', mediaType: 'adult',
+    adultRegion: 'japanese_jav', scraperType: 'shelfdeck_japanese_jav',
+    watchRoot, scrapeEnabled: true, enabled: true, scheduleMode: 'full_auto',
+    autoCreate: true, autoExecute: true, ruleTemplateId: 'adult_jav_default',
+    japaneseJav: { organizeAfterScrape: true },
+  };
+  configStore.patchConfig({ subLibraries: [sl] });
+  const item = await adultLibraryService.upsertFileItem(sl, path.join(movieDir, 'MVSD-175.mp4'), { enqueueScrape: false });
+  const task = taskStore.createTask({
+    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
+    resumePoint: 'scrape_executing',
+  });
+
+  scrapeFlow.setScheduler({ reportStatus: (tid, status) => { taskStore.updateTask(tid, { status }); } });
+  await scrapeFlow.driveTask(task.id);
+
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'failed_hard');
+  assert.strictEqual(afterTask.phase, 'failed_hard');
+  assert.ok(afterTask.logs.some((l) => l.msg && l.msg.includes('HTTP 403 Forbidden')));
+  const afterItem = require('../src/mediaLibraryService').getLibraryItem(item.itemId);
+  assert.strictEqual(afterItem.scraped, false);
+  assert.strictEqual(afterItem.adultMetadata.scrapeStatus, 'failed');
+
+  delete require.cache[scraperPath];
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('successful scrape downloads poster, renames folder, and finishes phase', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  const movieDir = path.join(watchRoot, 'MVSD-175.HD');
+  fs.mkdirSync(movieDir, { recursive: true });
+  const sourceFile = path.join(movieDir, 'MVSD-175.mp4');
+  fs.writeFileSync(sourceFile, 'fake-video');
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const scraperPath = require.resolve('../src/services/japaneseJavScraper');
+  delete require.cache[scraperPath];
+  require.cache[scraperPath] = {
+    exports: {
+      scrapeJapaneseJav: async () => ({
+        source: 'stub',
+        sourceUrl: 'https://example.test/MVSD-175',
+        adultId: 'MVSD-175',
+        title: 'MVSD-175 Some Title',
+        originalTitle: 'Some Title',
+        posterUrl: 'https://example.test/poster.jpg',
+        fanartUrl: 'https://example.test/poster.jpg',
+        genres: ['genre'],
+        tags: ['tag'],
+      }),
+      fetchBinary: async () => ({ buffer: Buffer.from('jpg'), contentType: 'image/jpeg', finalUrl: 'https://example.test/poster.jpg' }),
+      abort: () => false,
+      normalizeAdultId: (v) => v,
+    },
+  };
+
+  const configStore = require('../src/configStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const taskStore = require('../src/taskStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const sl = {
+    uuid: crypto.randomUUID(), name: 'JAV', source: 'folder', mediaType: 'adult',
+    adultRegion: 'japanese_jav', scraperType: 'shelfdeck_japanese_jav',
+    watchRoot, scrapeEnabled: true, enabled: true, scheduleMode: 'full_auto',
+    autoCreate: true, autoExecute: true, ruleTemplateId: 'adult_jav_default',
+    japaneseJav: { organizeAfterScrape: true },
+  };
+  configStore.patchConfig({ subLibraries: [sl] });
+  const item = await adultLibraryService.upsertFileItem(sl, sourceFile, { enqueueScrape: false });
+  const task = taskStore.createTask({
+    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
+    resumePoint: 'scrape_executing',
+  });
+
+  scrapeFlow.setScheduler({ reportStatus: (tid, status) => { taskStore.updateTask(tid, { status }); } });
+  await scrapeFlow.driveTask(task.id);
+
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'done');
+  assert.strictEqual(afterTask.phase, 'done');
+  const afterItem = mediaLibraryService.getLibraryItem(item.itemId);
+  const finalDir = path.join(watchRoot, 'MVSD-175 Some Title');
+  assert.strictEqual(afterItem.path, path.join(finalDir, 'MVSD-175.mp4'));
+  assert.strictEqual(fs.existsSync(finalDir), true);
+  assert.strictEqual(fs.existsSync(path.join(finalDir, 'poster.jpg')), true);
+  assert.strictEqual(afterItem.adultMetadata.posterPath, path.join(finalDir, 'poster.jpg'));
+  assert.strictEqual(afterItem.adultMetadata.organized, true);
+
   delete require.cache[scraperPath];
   delete require.cache[executorPath];
   delete process.env.CONTROL_PLANE_DATA_DIR;
@@ -652,15 +842,27 @@ test('strategyEngine rule evaluation scenarios', async () => {
   assert.ok(!ruleMatches({ bucket: '4K', equivalentBitrate: 8, codec: 'h264' }, ruleOr));
 });
 
-test('adult JAV default template requires scraped=true before transcode', async () => {
+test('adult JAV default template requires scraped=true and transcodes non-HEVC or high bitrate', async () => {
   const { buildAdultJavDefaultTemplate } = require('../src/configStore');
   const { ruleMatches } = require('../src/strategyEngine');
-  const tpl = buildAdultJavDefaultTemplate({ target1080p: 4, target4k: 10 });
+  const tpl = buildAdultJavDefaultTemplate();
+  assert.strictEqual(tpl.tag.version, 2);
+  const nonHevc = tpl.rules.find((r) => r.reason.includes('非 HEVC'));
   const transcode1080p = tpl.rules.find((r) => r.action === 'transcode' && r.reason.includes('1080p'));
+  const transcode4k = tpl.rules.find((r) => r.action === 'transcode' && r.reason.includes('4K'));
 
+  assert.ok(nonHevc, 'non-HEVC transcode rule exists');
   assert.ok(transcode1080p, '1080p transcode rule exists');
-  assert.ok(ruleMatches({ scraped: true, bucket: '1080p', equivalentBitrate: 8 }, transcode1080p));
-  assert.ok(!ruleMatches({ scraped: false, bucket: '1080p', equivalentBitrate: 8 }, transcode1080p));
+  assert.ok(transcode4k, '4K transcode rule exists');
+  assert.strictEqual(nonHevc.actionParams.targetBitrate, 2.5);
+  assert.strictEqual(transcode1080p.actionParams.targetBitrate, 2.5);
+  assert.strictEqual(transcode4k.actionParams.targetBitrate, 6);
+
+  assert.ok(ruleMatches({ scraped: true, codec: 'h264', bucket: '1080p', equivalentBitrate: 1.8 }, nonHevc));
+  assert.ok(!ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 1.8 }, nonHevc));
+  assert.ok(ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 3 }, transcode1080p));
+  assert.ok(!ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 2.4 }, transcode1080p));
+  assert.ok(!ruleMatches({ scraped: false, codec: 'h264', bucket: '1080p', equivalentBitrate: 8 }, nonHevc));
   assert.ok(!ruleMatches({ bucket: '1080p', equivalentBitrate: 8 }, transcode1080p));
 });
 

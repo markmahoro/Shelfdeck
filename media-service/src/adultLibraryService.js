@@ -230,13 +230,67 @@ function imageExtFrom(contentType, url) {
   return ['.jpg', '.jpeg', '.png', '.webp'].includes(ext) ? ext : '.jpg';
 }
 
-async function downloadImage(url, outBase, subLib, taskId) {
+function safePathName(value, fallback) {
+  const cleaned = String(value || fallback || '')
+    .normalize('NFKC')
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/g, '');
+  return (cleaned || fallback || 'untitled').slice(0, 160);
+}
+
+function shouldOrganizeFolder(subLib, scraperConfig) {
+  if (subLib.organizeAfterScrape !== undefined) return subLib.organizeAfterScrape !== false;
+  if (scraperConfig.organizeAfterScrape !== undefined) return scraperConfig.organizeAfterScrape !== false;
+  return true;
+}
+
+function movePathToDir(filePath, fromDir, toDir) {
+  if (!filePath) return '';
+  return path.join(toDir, path.relative(fromDir, filePath));
+}
+
+function organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog) {
+  if (!shouldOrganizeFolder(subLib, scraperConfig)) {
+    return { filePath, oldDir: path.dirname(filePath), newDir: path.dirname(filePath), renamed: false };
+  }
+
+  const oldDir = path.dirname(filePath);
+  const watchRoot = path.resolve(subLib.watchRoot || '');
+  const oldResolved = path.resolve(oldDir);
+  if (!watchRoot || oldResolved === watchRoot) {
+    onLog && onLog('warn', 'Folder organize skipped: media file is directly under watchRoot');
+    return { filePath, oldDir, newDir: oldDir, renamed: false };
+  }
+
+  const targetName = safePathName(metadata.title || metadata.adultId, metadata.adultId || path.basename(oldDir));
+  const newDir = path.join(path.dirname(oldDir), targetName);
+  if (path.resolve(newDir) === oldResolved) {
+    return { filePath, oldDir, newDir: oldDir, renamed: false };
+  }
+  if (fs.existsSync(newDir)) {
+    throw new Error(`Target folder already exists: ${newDir}`);
+  }
+
+  fs.renameSync(oldDir, newDir);
+  onLog && onLog('info', `Folder renamed to ${targetName}`);
+  return {
+    filePath: path.join(newDir, path.basename(filePath)),
+    oldDir,
+    newDir,
+    renamed: true,
+  };
+}
+
+async function downloadImage(url, outBase, subLib, taskId, opts = {}) {
   if (!url) return '';
   const japaneseJavScraper = require('./services/japaneseJavScraper');
   const config = configStore.loadConfig();
   const scraperConfig = {
     ...(((config.adultLibrary || {}).japaneseJav) || {}),
     ...(subLib.japaneseJav || {}),
+    imageReferer: opts.referer || '',
   };
   const img = await japaneseJavScraper.fetchBinary(url, scraperConfig, taskId);
   const out = `${outBase}${imageExtFrom(img.contentType, img.finalUrl || url)}`;
@@ -517,7 +571,7 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
 
 async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
   if (!item || !item.itemId) throw new Error('Adult library item is required');
-  const filePath = item.path;
+  let filePath = item.path;
   if (!filePath || !fs.existsSync(filePath)) throw new Error(`Media file does not exist: ${filePath || ''}`);
 
   const now = nowIso();
@@ -525,22 +579,32 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
     ...(((configStore.loadConfig().adultLibrary || {}).japaneseJav) || {}),
     ...(subLib.japaneseJav || {}),
   };
-  const nfoPaths = scraperConfig.writeNfo === false ? { movieNfo: '', fileNfo: '' } : writeNfoFiles(filePath, metadata, item);
-  let posterPath = '';
+  const sourceDir = path.dirname(filePath);
+  let nfoPaths = scraperConfig.writeNfo === false ? { movieNfo: '', fileNfo: '' } : writeNfoFiles(filePath, metadata, item);
+  let posterPath = await downloadImage(metadata.posterUrl, path.join(sourceDir, scraperConfig.posterBasename || 'poster'), subLib, opts.taskId, { referer: metadata.sourceUrl });
+  if (!posterPath || !fs.existsSync(posterPath)) {
+    throw new Error('Poster download did not produce a local file');
+  }
   let fanartPath = '';
   const onLog = typeof opts.onLog === 'function' ? opts.onLog : null;
   try {
-    posterPath = await downloadImage(metadata.posterUrl, path.join(path.dirname(filePath), 'poster'), subLib, opts.taskId);
-  } catch (e) {
-    if (onLog) onLog('warn', `Poster download failed: ${e.message}`);
-  }
-  try {
     fanartPath = metadata.fanartUrl === metadata.posterUrl
       ? posterPath
-      : await downloadImage(metadata.fanartUrl, path.join(path.dirname(filePath), 'fanart'), subLib, opts.taskId);
+      : await downloadImage(metadata.fanartUrl, path.join(sourceDir, scraperConfig.fanartBasename || 'fanart'), subLib, opts.taskId, { referer: metadata.sourceUrl });
   } catch (_) {
     if (onLog) onLog('warn', 'Fanart download failed; using poster if available');
     fanartPath = posterPath;
+  }
+
+  const organized = organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog);
+  if (organized.renamed) {
+    filePath = organized.filePath;
+    nfoPaths = {
+      movieNfo: movePathToDir(nfoPaths.movieNfo, organized.oldDir, organized.newDir),
+      fileNfo: movePathToDir(nfoPaths.fileNfo, organized.oldDir, organized.newDir),
+    };
+    posterPath = movePathToDir(posterPath, organized.oldDir, organized.newDir);
+    fanartPath = movePathToDir(fanartPath, organized.oldDir, organized.newDir);
   }
 
   const markerPath = path.join(path.dirname(filePath), '.shelfdeck.json');
@@ -554,6 +618,8 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
     source: metadata.source,
     sourceUrl: metadata.sourceUrl,
     mediaPath: filePath,
+    organized: organized.renamed,
+    originalFolder: organized.renamed ? organized.oldDir : '',
     nfoPath: nfoPaths.movieNfo,
     fileNfoPath: nfoPaths.fileNfo,
     posterPath,
@@ -588,6 +654,8 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
     posterPath,
     fanartPath,
     markerPath,
+    organized: organized.renamed,
+    originalFolder: organized.renamed ? organized.oldDir : '',
     scrapedAt: now,
     scrapeStatus: 'done',
   };
@@ -595,7 +663,9 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
   const updated = {
     ...existing,
     name: metadata.title || existing.name,
+    path: filePath,
     sourceId: adultMetadata.adultId || existing.sourceId,
+    assetRootPath: assetIdentity.inferAssetRootPath(filePath, false),
     externalRefs: {
       ...(existing.externalRefs || {}),
       adultFolder: {
@@ -778,7 +848,7 @@ function scheduleSettle(subLib, filePath) {
   const key = `${subLib.uuid}:${filePath}`;
   if (settleTimers.has(key)) clearTimeout(settleTimers.get(key));
   const cfg = configStore.loadConfig();
-  const seconds = Number(subLib.scrapeSettleSeconds ?? (cfg.adultLibrary && cfg.adultLibrary.settleSeconds) ?? 30);
+  const seconds = Number((cfg.adultLibrary && cfg.adultLibrary.settleSeconds) ?? 30);
   const timer = setTimeout(async () => {
     settleTimers.delete(key);
     try {
@@ -806,7 +876,7 @@ function startSubLibraryWatcher(subLib) {
     ignored,
     persistent: true,
     awaitWriteFinish: {
-      stabilityThreshold: Math.max(1000, Number(subLib.scrapeSettleSeconds || 30) * 1000),
+      stabilityThreshold: Math.max(1000, Number(((configStore.loadConfig().adultLibrary || {}).settleSeconds) || 30) * 1000),
       pollInterval: 1000,
     },
   });

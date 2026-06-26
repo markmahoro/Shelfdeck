@@ -103,10 +103,12 @@ async function runExecuting(taskId, task) {
       },
       resumePoint: null,
     });
+    setPhase(taskId, 'done');
     scheduler.reportStatus(taskId, 'done', 100);
   } catch (e) {
     appendLog(taskId, 'error', e.message);
     adultLibraryService.markScrapeFailed(task.itemId, e.message);
+    setPhase(taskId, 'failed_hard');
     scheduler.reportStatus(taskId, 'failed_hard', 0);
   }
 }
