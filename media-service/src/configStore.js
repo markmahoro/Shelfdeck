@@ -23,6 +23,7 @@ function ensureDataDir() {
 // Template version constants — bump when buildDefaultTemplate / buildTVDefaultTemplate logic changes
 const DEFAULT_TEMPLATE_VERSION = 4;
 const TV_DEFAULT_TEMPLATE_VERSION = 4;
+const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 1;
 
 // ── Default rule template builder ──────────────────────────────────────────────
 
@@ -320,6 +321,49 @@ function buildTVDefaultTemplate(policy) {
   };
 }
 
+function buildAdultJavDefaultTemplate(policy) {
+  const p = policy || {};
+  const target1080p = p.target1080p || 4;
+  const target4k = p.target4k || 10;
+
+  function condGroup(conds) {
+    return { connector: 'and', conditions: conds };
+  }
+
+  return {
+    id: 'adult_jav_default',
+    name: '默认策略（日本 JAV）',
+    description: '成人日本 JAV 文件夹库默认压缩策略，不依赖豆瓣评分或观看状态',
+    rules: [
+      {
+        priority: 10,
+        groupsConnector: 'and',
+        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
+        action: 'transcode',
+        actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
+        reason: `日本 JAV 4K 码率 ${target4k} Mbps 超标，建议压缩`,
+      },
+      {
+        priority: 9,
+        groupsConnector: 'and',
+        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
+        action: 'transcode',
+        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
+        reason: `日本 JAV 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,
+      },
+      {
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [],
+        action: 'keep',
+        actionParams: {},
+        reason: '成人库策略未触发转码',
+      },
+    ],
+    tag: { type: 'default', version: ADULT_JAV_DEFAULT_TEMPLATE_VERSION },
+  };
+}
+
 // ── SubLibrary scheduling defaults ─────────────────────────────────────────────
 
 function defaultSubLibSchedule() {
@@ -372,6 +416,7 @@ function getDefaultConfig() {
     deleteConcurrency: 1,
     transcodeConcurrency: 1,
     upgradeConcurrency: 1,
+    scrapeConcurrency: 1,
     wallRatingAutoEnqueue: false,
 
     // SmartTaskEngine
@@ -409,6 +454,27 @@ function getDefaultConfig() {
     upgradeRetryInterval: 3600000,
     upgradeMaxRetries: 3,
 
+    // Adult folder libraries
+    adultLibrary: {
+      settleSeconds: 30,
+      scanIntervalMinutes: 10,
+      autoScrape: true,
+      videoExtensions: ['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv'],
+      japaneseJav: {
+        proxyServer: '',
+        retry: 2,
+        timeout: 'PT20S',
+        crawlers: ['jav321', 'javbus'],
+        highresCover: true,
+        writeNfo: true,
+        posterBasename: 'poster',
+        fanartBasename: 'fanart',
+      },
+      western: {
+        enabled: false,
+      },
+    },
+
     // Emby multi-server
     embyServers: {},
 
@@ -416,7 +482,11 @@ function getDefaultConfig() {
     subLibraries: [],
 
     // Rule templates (v3)
-    ruleTemplates: [buildDefaultTemplate(moviePolicy), buildTVDefaultTemplate(tvPolicy)],
+    ruleTemplates: [
+      buildDefaultTemplate(moviePolicy),
+      buildTVDefaultTemplate(tvPolicy),
+      buildAdultJavDefaultTemplate(),
+    ],
 
     // Douban
     douban: {
@@ -584,7 +654,10 @@ function extractPolicyFromTemplate(template) {
 
 function migrateDefaultTemplates(raw) {
   const templates = raw.ruleTemplates || [];
-  if (templates.length === 0) return { raw, migrated: false };
+  if (templates.length === 0) {
+    raw.ruleTemplates = getDefaultConfig().ruleTemplates;
+    return { raw, migrated: true };
+  }
 
   const MOVIE_DEFAULTS = {
     target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
@@ -615,16 +688,83 @@ function migrateDefaultTemplates(raw) {
 
     if (tpl.tag.type === 'default') {
       const expected = tpl.id === 'default' ? DEFAULT_TEMPLATE_VERSION
-        : tpl.id === 'tv_default' ? TV_DEFAULT_TEMPLATE_VERSION : null;
+        : tpl.id === 'tv_default' ? TV_DEFAULT_TEMPLATE_VERSION
+        : tpl.id === 'adult_jav_default' ? ADULT_JAV_DEFAULT_TEMPLATE_VERSION : null;
       if (expected != null && tpl.tag.version !== expected) {
         const policy = extractPolicyFromTemplate(tpl) || {};
         migrated = true;
-        return tpl.id === 'default' ? buildDefaultTemplate(policy) : buildTVDefaultTemplate(policy);
+        if (tpl.id === 'default') return buildDefaultTemplate(policy);
+        if (tpl.id === 'tv_default') return buildTVDefaultTemplate(policy);
+        if (tpl.id === 'adult_jav_default') return buildAdultJavDefaultTemplate();
       }
     }
 
     return tpl;
   });
+
+  const ids = new Set((raw.ruleTemplates || []).map((tpl) => tpl.id));
+  if (!ids.has('default')) {
+    raw.ruleTemplates.push(buildDefaultTemplate(MOVIE_DEFAULTS));
+    migrated = true;
+  }
+  if (!ids.has('tv_default')) {
+    raw.ruleTemplates.push(buildTVDefaultTemplate(TV_DEFAULTS));
+    migrated = true;
+  }
+  if (!ids.has('adult_jav_default')) {
+    raw.ruleTemplates.push(buildAdultJavDefaultTemplate());
+    migrated = true;
+  }
+
+  return { raw, migrated };
+}
+
+function normalizeAdultLibraryConfig(raw) {
+  const defaults = getDefaultConfig();
+  let migrated = false;
+  const current = raw.adultLibrary || {};
+  const legacy = current.javsp || {};
+  const japaneseJav = {
+    ...(defaults.adultLibrary.japaneseJav || {}),
+    ...(current.japaneseJav || {}),
+  };
+
+  for (const key of ['proxyServer', 'retry', 'timeout', 'highresCover']) {
+    if (japaneseJav[key] === (defaults.adultLibrary.japaneseJav || {})[key] && legacy[key] !== undefined) {
+      japaneseJav[key] = legacy[key];
+      migrated = true;
+    }
+  }
+  if (!current.japaneseJav && legacy.crawlerSelection && Array.isArray(legacy.crawlerSelection.normal)) {
+    // Preserve the user's original crawler order; only drop names we no longer
+    // support. Fall back to defaults if nothing valid remains.
+    const supported = new Set(['jav321', 'javbus']);
+    const carried = legacy.crawlerSelection.normal.filter((c) => supported.has(c));
+    japaneseJav.crawlers = carried.length ? carried : defaults.adultLibrary.japaneseJav.crawlers;
+    migrated = true;
+  }
+  if (current.javsp) migrated = true;
+
+  raw.adultLibrary = {
+    ...(defaults.adultLibrary || {}),
+    ...current,
+    japaneseJav,
+    western: {
+      ...(defaults.adultLibrary.western || {}),
+      ...(current.western || {}),
+    },
+  };
+  delete raw.adultLibrary.javsp;
+
+  if (Array.isArray(raw.subLibraries)) {
+    raw.subLibraries = raw.subLibraries.map((sl) => {
+      if (sl && sl.mediaType === 'adult' && sl.scraperType === 'javsp') {
+        migrated = true;
+        return { ...sl, scraperType: 'shelfdeck_japanese_jav' };
+      }
+      return sl;
+    });
+  }
 
   return { raw, migrated };
 }
@@ -667,6 +807,16 @@ function loadConfig() {
       saveConfig(raw);
     }
 
+    const adultResult = normalizeAdultLibraryConfig(raw);
+    if (adultResult.migrated) {
+      console.log('[configStore] adult library scraper config migration applied');
+      fs.writeFileSync(cfgFile + '.v7.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = adultResult.raw;
+      saveConfig(raw);
+    } else {
+      raw = adultResult.raw;
+    }
+
     return { ...getDefaultConfig(), ...raw };
   } catch (err) {
     console.error('[configStore] failed to load config:', err.message);
@@ -687,4 +837,4 @@ function patchConfig(updates) {
   return saveConfig(merged);
 }
 
-module.exports = { resolveDataDir, loadConfig, saveConfig, patchConfig, getDefaultConfig, buildDefaultTemplate, defaultSubLibSchedule, resolveSubLibSchedule };
+module.exports = { resolveDataDir, loadConfig, saveConfig, patchConfig, getDefaultConfig, buildDefaultTemplate, buildAdultJavDefaultTemplate, defaultSubLibSchedule, resolveSubLibSchedule };
