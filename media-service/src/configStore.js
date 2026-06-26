@@ -774,6 +774,10 @@ function normalizeAdultLibraryConfig(raw) {
         next = { ...next };
         delete next.scrapeSettleSeconds;
       }
+      if (next.mediaType === 'adult' && next.adultRegion === 'japanese_jav' && next.name === '日本 JAV') {
+        migrated = true;
+        next = { ...next, name: 'JAV' };
+      }
       if (next.mediaType === 'adult' && next.scraperType === 'javsp') {
         migrated = true;
         next = { ...next, scraperType: 'shelfdeck_japanese_jav' };

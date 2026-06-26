@@ -420,7 +420,7 @@ async function scrapeJapaneseJav({ taskId, subLib, adultId, onLog }) {
       continue;
     }
     try {
-      onLog && onLog('info', `Trying japanese JAV crawler: ${crawler}`);
+      onLog && onLog('info', `Trying JAV crawler: ${crawler}`);
       const result = await fn({ adultId: id, scraperConfig, taskId });
       onLog && onLog('info', `Scraped ${id} from ${crawler}`);
       return result;
@@ -430,7 +430,7 @@ async function scrapeJapaneseJav({ taskId, subLib, adultId, onLog }) {
     }
   }
 
-  throw new Error(`No Japanese JAV crawler succeeded for ${id}: ${errors.join('; ')}`);
+  throw new Error(`No JAV crawler succeeded for ${id}: ${errors.join('; ')}`);
 }
 
 function abort(taskId) {

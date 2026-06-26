@@ -75,7 +75,7 @@ async function runExecuting(taskId, task) {
       || (task.itemInfo && task.itemInfo.adultMetadata && task.itemInfo.adultMetadata.adultId);
     if (!adultId) throw new Error('Adult ID could not be detected from file name');
 
-    appendLog(taskId, 'info', `Starting Japanese JAV scrape for ${adultId}`);
+    appendLog(taskId, 'info', `Starting JAV scrape for ${adultId}`);
     const scrapeResult = await japaneseJavScraper.scrapeJapaneseJav({
       taskId,
       subLib,
