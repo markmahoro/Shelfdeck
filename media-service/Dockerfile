@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y curl gnupg \
 
 # Intel Media Driver for QSV (included in linuxserver/ffmpeg but ensure present)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    intel-media-va-driver mesa-va-drivers \
+    intel-media-va-driver mesa-va-drivers p7zip-full \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./

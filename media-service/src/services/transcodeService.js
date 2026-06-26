@@ -17,6 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const os = require('os');
 const { spawn } = require('child_process');
 
 function log(...args) {
@@ -151,6 +152,19 @@ async function ffprobeJson(config, filePath) {
   return JSON.parse(r.out);
 }
 
+async function resolveSevenZipBin() {
+  const explicit = String(process.env.SEVEN_Z_PATH || process.env.SEVENZIP_PATH || '').trim();
+  const candidates = explicit ? [explicit] : ['7z', '7zz', '7za'];
+  for (const bin of candidates) {
+    try {
+      const r = await runCmd(bin, ['i']);
+      const formats = `${r.out}\n${r.err}`;
+      if (r.code === 0 && /\bUdf\b/i.test(formats) && /\bIso\b/i.test(formats)) return bin;
+    } catch (_) {}
+  }
+  return null;
+}
+
 function detectDolbyVision(j) {
   for (const s of j.streams || []) {
     const tag = String(s.codec_tag_string || '').toLowerCase();
@@ -177,6 +191,1049 @@ function partialEncodeTempFilename(sourcePath) {
   const ext = path.extname(base);
   if (!ext) return `${base}.etp.partial`;
   return `${base.slice(0, -ext.length)}.etp.partial${ext}`;
+}
+
+function pathPartsLower(p) {
+  return String(p || '').replace(/\\/g, '/').split('/').map((x) => x.toLowerCase());
+}
+
+function findAncestorNamed(p, name) {
+  const normalized = String(p || '').replace(/\\/g, '/');
+  const parts = normalized.split('/');
+  const needle = String(name || '').toLowerCase();
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (parts[i].toLowerCase() === needle) {
+      return parts.slice(0, i + 1).join(path.sep);
+    }
+  }
+  return null;
+}
+
+function dirSizeSync(dir) {
+  let total = 0;
+  const walk = (d) => {
+    let entries;
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch (_) { return; }
+    for (const ent of entries) {
+      const full = path.join(d, ent.name);
+      try {
+        if (ent.isDirectory()) walk(full);
+        else if (ent.isFile()) total += fs.statSync(full).size;
+      } catch (_) {}
+    }
+  };
+  walk(dir);
+  return total;
+}
+
+function fileOrDirSizeSync(p) {
+  try {
+    const st = fs.statSync(p);
+    if (st.isFile()) return st.size;
+    if (st.isDirectory()) return dirSizeSync(p);
+  } catch (_) {}
+  return 0;
+}
+
+function isDirSync(p) {
+  try { return fs.statSync(p).isDirectory(); } catch (_) { return false; }
+}
+
+function isFileSync(p) {
+  try { return fs.statSync(p).isFile(); } catch (_) { return false; }
+}
+
+function stripIsoVersion(name) {
+  return String(name || '').replace(/;[0-9]+$/, '');
+}
+
+function parseIsoDirRecord(buf, off) {
+  const len = buf[off];
+  if (!len) return null;
+  if (off + len > buf.length || len < 34) return null;
+  const extent = buf.readUInt32LE(off + 2);
+  const size = buf.readUInt32LE(off + 10);
+  const flags = buf[off + 25];
+  const nameLen = buf[off + 32];
+  if (off + 33 + nameLen > buf.length) return null;
+  const rawName = buf.slice(off + 33, off + 33 + nameLen);
+  let name;
+  if (nameLen === 1 && rawName[0] === 0) name = '.';
+  else if (nameLen === 1 && rawName[0] === 1) name = '..';
+  else name = stripIsoVersion(rawName.toString('ascii'));
+  return { len, extent, size, isDir: !!(flags & 0x02), name };
+}
+
+function listIso9660Files(isoPath) {
+  const fd = fs.openSync(isoPath, 'r');
+  try {
+    const sectorSize = 2048;
+    const pvd = Buffer.alloc(sectorSize);
+    fs.readSync(fd, pvd, 0, sectorSize, sectorSize * 16);
+    if (pvd[0] !== 1 || pvd.slice(1, 6).toString('ascii') !== 'CD001') {
+      throw new Error('ISO9660 primary volume descriptor not found');
+    }
+    const root = parseIsoDirRecord(pvd, 156);
+    if (!root || !root.isDir) throw new Error('ISO9660 root directory not found');
+
+    const files = [];
+    const walk = (dir, prefix) => {
+      const size = Math.max(0, dir.size || 0);
+      if (size <= 0) return;
+      const b = Buffer.alloc(size);
+      fs.readSync(fd, b, 0, size, dir.extent * sectorSize);
+      for (let off = 0; off < b.length;) {
+        const len = b[off];
+        if (!len) {
+          off = (Math.floor(off / sectorSize) + 1) * sectorSize;
+          continue;
+        }
+        const rec = parseIsoDirRecord(b, off);
+        off += len;
+        if (!rec || rec.name === '.' || rec.name === '..') continue;
+        const rel = prefix ? `${prefix}/${rec.name}` : rec.name;
+        if (rec.isDir) walk(rec, rel);
+        else files.push({ path: rel, extent: rec.extent, size: rec.size });
+      }
+    };
+    walk(root, '');
+    return files;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function selectDvdTitleSetFromRows(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const name = String(row.name || path.basename(row.path || '')).toUpperCase();
+    const m = /^VTS_(\d{2})_(\d+)\.VOB$/.exec(name);
+    if (!m) continue;
+    const title = m[1];
+    const part = Number(m[2]);
+    if (!Number.isFinite(part) || part <= 0) continue;
+    const list = groups.get(title) || [];
+    list.push({ ...row, title, part });
+    groups.set(title, list);
+  }
+
+  const candidates = [...groups.values()]
+    .map((clips) => ({
+      title: clips[0].title,
+      clips: clips.sort((a, b) => a.part - b.part),
+      totalSize: clips.reduce((sum, c) => sum + (Number(c.size) || 0), 0),
+    }))
+    .filter((x) => x.clips.length > 0 && x.totalSize > 0)
+    .sort((a, b) => {
+      if (b.totalSize !== a.totalSize) return b.totalSize - a.totalSize;
+      return a.title.localeCompare(b.title);
+    });
+  if (candidates.length === 0) throw new Error('No DVD title VOB set found');
+  return candidates[0];
+}
+
+function extractIsoFile(isoPath, row, outputPath) {
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  const sectorSize = 2048;
+  return new Promise((resolve, reject) => {
+    const rs = fs.createReadStream(isoPath, {
+      start: row.extent * sectorSize,
+      end: row.extent * sectorSize + row.size - 1,
+    });
+    const ws = fs.createWriteStream(outputPath);
+    rs.on('error', reject);
+    ws.on('error', reject);
+    ws.on('finish', resolve);
+    rs.pipe(ws);
+  });
+}
+
+function descriptorTagId(buf, off = 0) {
+  if (off + 2 > buf.length) return -1;
+  return buf.readUInt16LE(off);
+}
+
+function readExtentAd(buf, off) {
+  return { length: buf.readUInt32LE(off), location: buf.readUInt32LE(off + 4) };
+}
+
+function readLongAd(buf, off) {
+  const rawLength = buf.readUInt32LE(off);
+  return {
+    length: rawLength & 0x3fffffff,
+    type: rawLength >>> 30,
+    lbn: buf.readUInt32LE(off + 4),
+    partition: buf.readUInt16LE(off + 8),
+  };
+}
+
+function decodeUdfDstring(buf) {
+  if (!buf || buf.length === 0) return '';
+  const comp = buf[0];
+  if (comp === 8) return buf.slice(1).toString('latin1').replace(/\0+$/g, '');
+  if (comp === 16) {
+    let s = '';
+    for (let i = 1; i + 1 < buf.length; i += 2) {
+      const code = buf.readUInt16BE(i);
+      if (code) s += String.fromCharCode(code);
+    }
+    return s;
+  }
+  return buf.toString('latin1').replace(/\0+$/g, '');
+}
+
+function readIsoSectors(fd, sector, bytes, sectorSize = 2048) {
+  const b = Buffer.alloc(bytes);
+  fs.readSync(fd, b, 0, bytes, sector * sectorSize);
+  return b;
+}
+
+function parseUdfAllocationDescriptors(entry, partitionStart, defaultPartition = 0, resolvePartitionSector = null) {
+  const tag = descriptorTagId(entry);
+  let infoLength;
+  let lEa;
+  let lAd;
+  let adStart;
+  let flags;
+
+  if (tag === 261) {
+    infoLength = Number(entry.readBigUInt64LE(56));
+    flags = entry.readUInt16LE(34) & 0x0007;
+    lEa = entry.readUInt32LE(168);
+    lAd = entry.readUInt32LE(172);
+    adStart = 176 + lEa;
+  } else if (tag === 266) {
+    infoLength = Number(entry.readBigUInt64LE(56));
+    flags = entry.readUInt16LE(34) & 0x0007;
+    lEa = entry.readUInt32LE(208);
+    lAd = entry.readUInt32LE(212);
+    adStart = 216 + lEa;
+  } else {
+    throw new Error(`Unsupported UDF file entry tag: ${tag}`);
+  }
+
+  const ads = [];
+  if (flags === 3) {
+    ads.push({ sector: -1, length: lAd, embedded: entry.slice(adStart, adStart + lAd) });
+  } else if (flags === 0) {
+    for (let off = adStart; off + 8 <= adStart + lAd; off += 8) {
+      const rawLength = entry.readUInt32LE(off);
+      const length = rawLength & 0x3fffffff;
+      const type = rawLength >>> 30;
+      const pos = entry.readUInt32LE(off + 4);
+      if (length > 0 && type !== 1) {
+        const sector = resolvePartitionSector ? resolvePartitionSector(defaultPartition, pos) : partitionStart + pos;
+        ads.push({ sector, length, partition: defaultPartition, lbn: pos });
+      }
+    }
+  } else if (flags === 1) {
+    for (let off = adStart; off + 16 <= adStart + lAd; off += 16) {
+      const ad = readLongAd(entry, off);
+      if (ad.length > 0 && ad.type !== 1) {
+        const sector = resolvePartitionSector ? resolvePartitionSector(ad.partition, ad.lbn) : partitionStart + ad.lbn;
+        ads.push({ sector, length: ad.length, partition: ad.partition, lbn: ad.lbn });
+      }
+    }
+  } else {
+    throw new Error(`Unsupported UDF allocation descriptor type: ${flags}`);
+  }
+
+  return { infoLength, ads };
+}
+
+function readUdfFileBytes(fd, file, maxBytes) {
+  const limit = Math.min(file.size || 0, maxBytes || file.size || 0);
+  const chunks = [];
+  let remaining = limit;
+  for (const ad of file.ads || []) {
+    if (remaining <= 0) break;
+    const len = Math.min(ad.length, remaining);
+    if (ad.embedded) {
+      chunks.push(ad.embedded.slice(0, len));
+    } else {
+      chunks.push(readIsoSectors(fd, ad.sector, len));
+    }
+    remaining -= len;
+  }
+  return Buffer.concat(chunks);
+}
+
+async function extractUdfFile(isoPath, file, outputPath) {
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  const fd = fs.openSync(isoPath, 'r');
+  const ws = fs.createWriteStream(outputPath);
+  try {
+    for (const ad of file.ads || []) {
+      if (ad.embedded) {
+        ws.write(ad.embedded.slice(0, ad.length));
+        continue;
+      }
+      await new Promise((resolve, reject) => {
+        const rs = fs.createReadStream(isoPath, {
+          start: ad.sector * 2048,
+          end: ad.sector * 2048 + ad.length - 1,
+        });
+        rs.on('error', reject);
+        rs.on('end', resolve);
+        rs.pipe(ws, { end: false });
+      });
+    }
+  } finally {
+    fs.closeSync(fd);
+    await new Promise((resolve, reject) => {
+      ws.end((err) => (err ? reject(err) : resolve()));
+    });
+  }
+}
+
+function listUdfFiles(isoPath) {
+  const fd = fs.openSync(isoPath, 'r');
+  try {
+    const avdp = readIsoSectors(fd, 256, 2048);
+    if (descriptorTagId(avdp) !== 2) throw new Error('UDF anchor volume descriptor not found');
+    const main = readExtentAd(avdp, 16);
+
+    let partitionStart = null;
+    let logicalBlockSize = 2048;
+    let fileSetAd = null;
+    let metadataPartitionNumber = null;
+    let metadataFileLocation = null;
+    const mainSectors = Math.ceil(main.length / 2048);
+    for (let i = 0; i < mainSectors; i++) {
+      const sec = readIsoSectors(fd, main.location + i, 2048);
+      const tag = descriptorTagId(sec);
+      if (tag === 8) break;
+      if (tag === 5) partitionStart = sec.readUInt32LE(188);
+      if (tag === 6) {
+        logicalBlockSize = sec.readUInt32LE(212) || 2048;
+        fileSetAd = readLongAd(sec, 248);
+        const mapTableLength = sec.readUInt32LE(264);
+        const partitionMapCount = sec.readUInt32LE(268);
+        let mapOff = 440;
+        const mapEnd = Math.min(sec.length, mapOff + mapTableLength);
+        for (let mapIndex = 0; mapIndex < partitionMapCount && mapOff + 2 <= mapEnd;) {
+          const mapType = sec[mapOff];
+          const mapLen = sec[mapOff + 1];
+          if (mapLen <= 0 || mapOff + mapLen > mapEnd) break;
+          if (mapType === 2 && mapLen >= 64) {
+            const id = sec.slice(mapOff + 6, mapOff + 30).toString('latin1').replace(/\0+$/g, '');
+            if (id.includes('UDF Metadata Partition')) {
+              metadataPartitionNumber = sec.readUInt16LE(mapOff + 36);
+              metadataFileLocation = sec.readUInt32LE(mapOff + 44);
+            }
+          }
+          mapOff += mapLen;
+        }
+      }
+    }
+    if (partitionStart == null || !fileSetAd) throw new Error('UDF volume descriptors incomplete');
+    if (logicalBlockSize !== 2048) throw new Error(`Unsupported UDF block size: ${logicalBlockSize}`);
+
+    let metadataAds = null;
+    if (metadataPartitionNumber != null && metadataFileLocation != null && metadataFileLocation !== 0xffffffff) {
+      const metadataEntry = readIsoSectors(fd, partitionStart + metadataFileLocation, 2048);
+      if (descriptorTagId(metadataEntry) === 261 || descriptorTagId(metadataEntry) === 266) {
+        metadataAds = parseUdfAllocationDescriptors(metadataEntry, partitionStart).ads || [];
+      }
+    }
+
+    const readPartitionBytes = (partition, lbn, bytes) => {
+      if (partition !== metadataPartitionNumber || !metadataAds || metadataAds.length === 0) {
+        return readIsoSectors(fd, partitionStart + lbn, bytes);
+      }
+
+      let offset = lbn * 2048;
+      let remaining = bytes;
+      const chunks = [];
+      for (const ad of metadataAds) {
+        if (remaining <= 0) break;
+        if (offset >= ad.length) {
+          offset -= ad.length;
+          continue;
+        }
+        const len = Math.min(remaining, ad.length - offset);
+        chunks.push(readIsoSectors(fd, ad.sector + Math.floor(offset / 2048), len));
+        remaining -= len;
+        offset = 0;
+      }
+      if (chunks.length === 0 || remaining > 0) {
+        throw new Error('UDF metadata partition read out of range');
+      }
+      return Buffer.concat(chunks);
+    };
+
+    const resolvePartitionSector = (partition, lbn) => {
+      if (partition !== metadataPartitionNumber || !metadataAds || metadataAds.length === 0) {
+        return partitionStart + lbn;
+      }
+      let offset = lbn * 2048;
+      for (const ad of metadataAds) {
+        if (offset < ad.length) return ad.sector + Math.floor(offset / 2048);
+        offset -= ad.length;
+      }
+      throw new Error('UDF metadata partition sector out of range');
+    };
+
+    const readEntryByLongAd = (ad) => {
+      const first = readPartitionBytes(ad.partition, ad.lbn, 2048);
+      let entrySize = 2048;
+      const tag = descriptorTagId(first);
+      if (tag === 261) entrySize = 176 + first.readUInt32LE(168) + first.readUInt32LE(172);
+      else if (tag === 266) entrySize = 216 + first.readUInt32LE(208) + first.readUInt32LE(212);
+      if (entrySize <= 2048) return first;
+      return readPartitionBytes(ad.partition, ad.lbn, Math.ceil(entrySize / 2048) * 2048);
+    };
+
+    const fsd = readPartitionBytes(fileSetAd.partition, fileSetAd.lbn, 2048);
+    if (descriptorTagId(fsd) !== 256) throw new Error('UDF file set descriptor not found');
+    const rootAd = readLongAd(fsd, 400);
+
+    const files = [];
+    const walk = (entryAd, prefix) => {
+      const entry = readEntryByLongAd(entryAd);
+      const parsed = parseUdfAllocationDescriptors(entry, partitionStart, entryAd.partition, resolvePartitionSector);
+      const dirBytes = Buffer.concat((parsed.ads || []).map((ad) => (
+        ad.embedded ? ad.embedded : readIsoSectors(fd, ad.sector, ad.length)
+      ))).slice(0, parsed.infoLength);
+
+      for (let off = 0; off + 38 <= dirBytes.length;) {
+        const tag = descriptorTagId(dirBytes, off);
+        if (tag !== 257) break;
+        const fileCharacteristics = dirBytes[off + 18];
+        const lFi = dirBytes[off + 19];
+        const icb = readLongAd(dirBytes, off + 20);
+        const lIu = dirBytes.readUInt16LE(off + 36);
+        const nameStart = off + 38 + lIu;
+        const name = decodeUdfDstring(dirBytes.slice(nameStart, nameStart + lFi));
+        const recLen = Math.ceil((38 + lIu + lFi) / 4) * 4;
+        off += recLen;
+        if (!name || (fileCharacteristics & 0x08)) continue;
+
+        const childEntry = readEntryByLongAd(icb);
+        const childParsed = parseUdfAllocationDescriptors(childEntry, partitionStart, icb.partition, resolvePartitionSector);
+        const rel = prefix ? `${prefix}/${name}` : name;
+        if (fileCharacteristics & 0x02) {
+          walk(icb, rel);
+        } else {
+          files.push({ path: rel, size: childParsed.infoLength, ads: childParsed.ads });
+        }
+      }
+    };
+
+    walk(rootAd, '');
+    return files;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function normalizeDiscRelPath(p) {
+  return String(p || '').replace(/\\/g, '/').replace(/^\/+/, '').toUpperCase();
+}
+
+function archiveRelPathToLocal(root, relPath) {
+  return path.join(root, ...String(relPath || '').replace(/\\/g, '/').split('/').filter(Boolean));
+}
+
+async function extractArchivePaths(archiveBin, isoPath, outputDir, relPaths) {
+  fs.mkdirSync(outputDir, { recursive: true });
+  for (const relPath of relPaths) {
+    const r = await runCmd(archiveBin, ['x', '-y', `-o${outputDir}`, isoPath, relPath]);
+    if (r.code !== 0) {
+      throw new Error(`7z extract failed (${r.code}): ${(r.err || r.out).slice(0, 400)}`);
+    }
+  }
+}
+
+async function listArchiveEntries(archiveBin, isoPath, relPaths) {
+  const r = await runCmd(archiveBin, ['l', '-slt', isoPath, ...relPaths]);
+  if (r.code !== 0) throw new Error(`7z list failed (${r.code}): ${(r.err || r.out).slice(0, 400)}`);
+  const entries = [];
+  let cur = null;
+  for (const line of String(r.out || '').split(/\r?\n/)) {
+    const idx = line.indexOf(' = ');
+    if (idx < 0) continue;
+    const key = line.slice(0, idx);
+    const value = line.slice(idx + 3);
+    if (key === 'Path') {
+      if (cur && cur.path) entries.push(cur);
+      cur = { path: value };
+    } else if (cur && key === 'Size') {
+      cur.size = Number(value) || 0;
+    } else if (cur && key === 'Folder') {
+      cur.isDir = value === '+';
+    }
+  }
+  if (cur && cur.path) entries.push(cur);
+  return entries.filter((e) => e.path && !e.isDir);
+}
+
+function scoreBluRayPlaylist(row, sizeByPath) {
+  const seen = new Set();
+  let uniqueClipSize = 0;
+  for (const clip of row.clips || []) {
+    const key = normalizeDiscRelPath(clip.path);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueClipSize += Number(sizeByPath && sizeByPath.get(key)) || fileOrDirSizeSync(clip.path);
+  }
+  return { ...row, uniqueClipSize };
+}
+
+function sortBluRayPlaylistCandidates(candidates) {
+  candidates.sort((a, b) => {
+    const sizeDiff = (b.uniqueClipSize || 0) - (a.uniqueClipSize || 0);
+    if (sizeDiff !== 0) return sizeDiff;
+    if (b.durationSec !== a.durationSec) return b.durationSec - a.durationSec;
+    return b.clips.length - a.clips.length;
+  });
+}
+
+function readUdfFileBuffer(isoPath, file, maxBytes) {
+  const fd = fs.openSync(isoPath, 'r');
+  try {
+    return readUdfFileBytes(fd, file, maxBytes);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function resolveDiscRoot(sourcePath) {
+  const src = String(sourcePath || '').trim();
+  if (!src) return null;
+  const ext = path.extname(src).toLowerCase();
+  if (ext === '.iso') {
+    return {
+      type: 'iso',
+      rootPath: src,
+      originalPath: src,
+      replacementTargetPath: path.join(path.dirname(src), `${path.basename(src, path.extname(src))}.mkv`),
+    };
+  }
+
+  const bdmvAncestor = findAncestorNamed(src, 'BDMV');
+  if (bdmvAncestor && isDirSync(bdmvAncestor)) {
+    const root = path.dirname(bdmvAncestor);
+    return {
+      type: 'bluray',
+      rootPath: root,
+      bdmvPath: bdmvAncestor,
+      originalPath: root,
+      replacementTargetPath: `${root}.mkv`,
+    };
+  }
+
+  const videoTsAncestor = findAncestorNamed(src, 'VIDEO_TS');
+  if (videoTsAncestor && isDirSync(videoTsAncestor)) {
+    const root = path.dirname(videoTsAncestor);
+    return {
+      type: 'dvd',
+      rootPath: root,
+      videoTsPath: videoTsAncestor,
+      originalPath: root,
+      replacementTargetPath: `${root}.mkv`,
+    };
+  }
+
+  if (isDirSync(src)) {
+    const bdmv = path.join(src, 'BDMV');
+    if (isDirSync(bdmv)) {
+      return {
+        type: 'bluray',
+        rootPath: src,
+        bdmvPath: bdmv,
+        originalPath: src,
+        replacementTargetPath: `${src}.mkv`,
+      };
+    }
+    const videoTs = path.join(src, 'VIDEO_TS');
+    if (isDirSync(videoTs)) {
+      return {
+        type: 'dvd',
+        rootPath: src,
+        videoTsPath: videoTs,
+        originalPath: src,
+        replacementTargetPath: `${src}.mkv`,
+      };
+    }
+  }
+
+  const parts = pathPartsLower(src);
+  if (parts.includes('bdmv')) {
+    const bdmv = findAncestorNamed(src, 'BDMV');
+    const root = bdmv ? path.dirname(bdmv) : path.dirname(src);
+    return {
+      type: 'bluray',
+      rootPath: root,
+      bdmvPath: bdmv || path.join(root, 'BDMV'),
+      originalPath: root,
+      replacementTargetPath: `${root}.mkv`,
+    };
+  }
+
+  return null;
+}
+
+function parseMplsPlaylistBytes(b, playlistName, resolveClipPath) {
+  if (b.length < 20 || !b.slice(0, 4).toString('ascii').startsWith('MPL')) {
+    throw new Error('Invalid MPLS file');
+  }
+  const playlistStart = b.readUInt32BE(8);
+  if (playlistStart <= 0 || playlistStart + 10 > b.length) {
+    throw new Error('Invalid MPLS playlist offset');
+  }
+  const itemCount = b.readUInt16BE(playlistStart + 6);
+  let off = playlistStart + 10;
+  const clips = [];
+  let durationTicks = 0;
+  for (let i = 0; i < itemCount; i++) {
+    if (off + 22 > b.length) break;
+    const len = b.readUInt16BE(off);
+    if (len <= 0 || off + 2 + len > b.length) break;
+    const clipId = b.slice(off + 2, off + 7).toString('ascii');
+    const codec = b.slice(off + 7, off + 11).toString('ascii');
+    const inTime = b.readUInt32BE(off + 14);
+    const outTime = b.readUInt32BE(off + 18);
+    if (/^\d{5}$/.test(clipId) && codec === 'M2TS') {
+      const clipPath = resolveClipPath(clipId);
+      if (clipPath) {
+        clips.push({ clipId, path: clipPath, inTime, outTime });
+        durationTicks += Math.max(0, outTime - inTime);
+      }
+    }
+    off += 2 + len;
+  }
+  return {
+    playlistPath: null,
+    playlistName,
+    clips,
+    durationSec: durationTicks > 0 ? durationTicks / 45000 : 0,
+  };
+}
+
+function readMplsPlaylist(filePath, bdmvPath) {
+  const row = parseMplsPlaylistBytes(
+    fs.readFileSync(filePath),
+    path.basename(filePath),
+    (clipId) => {
+      const clipPath = path.join(bdmvPath, 'STREAM', `${clipId}.m2ts`);
+      return isFileSync(clipPath) ? clipPath : null;
+    },
+  );
+  row.playlistPath = filePath;
+  return row;
+}
+
+function resolveBluRayInput(disc) {
+  const bdmvPath = disc.bdmvPath || path.join(disc.rootPath, 'BDMV');
+  const playlistDir = path.join(bdmvPath, 'PLAYLIST');
+  const candidates = [];
+  if (isDirSync(playlistDir)) {
+    for (const ent of fs.readdirSync(playlistDir, { withFileTypes: true })) {
+      if (!ent.isFile() || path.extname(ent.name).toLowerCase() !== '.mpls') continue;
+      try {
+        const row = readMplsPlaylist(path.join(playlistDir, ent.name), bdmvPath);
+        if (row.clips.length > 0 && row.durationSec > 0) candidates.push(scoreBluRayPlaylist(row));
+      } catch (_) {}
+    }
+  }
+
+  sortBluRayPlaylistCandidates(candidates);
+
+  if (candidates.length > 0) {
+    return { kind: 'bluray_playlist', ...candidates[0] };
+  }
+
+  throw new Error('No valid Blu-ray playlist found');
+}
+
+function resolveDvdInput(disc) {
+  const videoTsPath = disc.videoTsPath || path.join(disc.rootPath, 'VIDEO_TS');
+  if (!isDirSync(videoTsPath)) throw new Error('DVD VIDEO_TS directory not found');
+  const rows = fs.readdirSync(videoTsPath, { withFileTypes: true })
+    .filter((ent) => ent.isFile() && /^VTS_\d+_\d+\.VOB$/i.test(ent.name))
+    .map((ent) => {
+      const full = path.join(videoTsPath, ent.name);
+      return { name: ent.name, path: full, size: fileOrDirSizeSync(full) };
+    });
+  const selected = selectDvdTitleSetFromRows(rows);
+  return {
+    kind: 'dvd_vobset',
+    playlistName: `VTS_${selected.title}`,
+    clips: selected.clips.map((clip) => ({ clipId: path.basename(clip.path, '.VOB'), path: clip.path, size: clip.size })),
+    durationSec: 0,
+  };
+}
+
+async function resolveDvdIsoInput(disc, workDir) {
+  const files = listIso9660Files(disc.rootPath);
+  const rows = files
+    .map((f) => {
+      const normalized = String(f.path || '').replace(/\\/g, '/');
+      const parts = normalized.split('/');
+      const name = parts[parts.length - 1] || '';
+      const parent = parts.length > 1 ? parts[parts.length - 2].toUpperCase() : '';
+      return { ...f, name, parent };
+    })
+    .filter((f) => f.parent === 'VIDEO_TS' && /^VTS_\d+_\d+\.VOB$/i.test(f.name));
+  const selected = selectDvdTitleSetFromRows(rows);
+  const extractDir = path.join(workDir || path.dirname(disc.rootPath), 'dvd-iso-main-title');
+  fs.mkdirSync(extractDir, { recursive: true });
+  const clips = [];
+  for (const clip of selected.clips) {
+    const out = path.join(extractDir, clip.name.toUpperCase());
+    await extractIsoFile(disc.rootPath, clip, out);
+    clips.push({ clipId: path.basename(out, '.VOB'), path: out, size: clip.size });
+  }
+  return {
+    kind: 'dvd_iso_vobset',
+    playlistName: `VTS_${selected.title}`,
+    clips,
+    durationSec: 0,
+  };
+}
+
+async function resolveBluRayIsoInput(disc, workDir, udfFiles) {
+  const archiveInput = await resolveBluRayIsoInputViaArchive(disc, workDir);
+  if (archiveInput) return archiveInput;
+
+  const files = Array.isArray(udfFiles) ? udfFiles : listUdfFiles(disc.rootPath);
+  const byPath = new Map(files.map((f) => [normalizeDiscRelPath(f.path), f]));
+  const playlistFiles = files
+    .filter((f) => /^BDMV\/PLAYLIST\/[^/]+\.MPLS$/i.test(normalizeDiscRelPath(f.path)))
+    .sort((a, b) => normalizeDiscRelPath(a.path).localeCompare(normalizeDiscRelPath(b.path)));
+  if (playlistFiles.length === 0) throw new Error('No Blu-ray playlist found in ISO');
+
+  const candidates = [];
+  for (const file of playlistFiles) {
+    try {
+      const playlistName = path.basename(String(file.path || ''));
+      const row = parseMplsPlaylistBytes(
+        readUdfFileBuffer(disc.rootPath, file, Math.min(file.size || 0, 1024 * 1024)),
+        playlistName,
+        (clipId) => {
+          const key = `BDMV/STREAM/${clipId}.M2TS`;
+          return byPath.has(key) ? key : null;
+        },
+      );
+      if (row.clips.length > 0 && row.durationSec > 0) candidates.push(row);
+    } catch (_) {}
+  }
+
+  candidates.sort((a, b) => {
+    if (b.durationSec !== a.durationSec) return b.durationSec - a.durationSec;
+    return b.clips.length - a.clips.length;
+  });
+  if (candidates.length === 0) throw new Error('No valid Blu-ray playlist found in ISO');
+
+  const selected = candidates[0];
+  const extractDir = path.join(workDir || path.dirname(disc.rootPath), 'bluray-iso-main-title');
+  fs.mkdirSync(extractDir, { recursive: true });
+  const clips = [];
+  for (const clip of selected.clips) {
+    const file = byPath.get(normalizeDiscRelPath(clip.path));
+    if (!file) throw new Error(`Blu-ray ISO clip missing: ${clip.path}`);
+    const out = path.join(extractDir, path.basename(clip.path));
+    await extractUdfFile(disc.rootPath, file, out);
+    clips.push({ ...clip, path: out, size: file.size });
+  }
+
+  return {
+    kind: 'bluray_iso_playlist',
+    playlistName: selected.playlistName,
+    clips,
+    durationSec: selected.durationSec || 0,
+  };
+}
+
+async function resolveBluRayIsoInputViaArchive(disc, workDir) {
+  const archiveBin = await resolveSevenZipBin();
+  if (!archiveBin) return null;
+
+  const extractRoot = path.join(workDir || path.dirname(disc.rootPath), 'bluray-iso-main-title');
+  const playlistRoot = path.join(extractRoot, 'playlists');
+  await extractArchivePaths(archiveBin, disc.rootPath, playlistRoot, ['BDMV/PLAYLIST/*.mpls']);
+  const streamEntries = await listArchiveEntries(archiveBin, disc.rootPath, ['BDMV/STREAM/*.m2ts']);
+  const sizeByPath = new Map(streamEntries.map((entry) => [normalizeDiscRelPath(entry.path), Number(entry.size) || 0]));
+
+  const playlistDir = archiveRelPathToLocal(playlistRoot, 'BDMV/PLAYLIST');
+  if (!isDirSync(playlistDir)) throw new Error('No Blu-ray playlist found in ISO');
+
+  const candidates = [];
+  for (const ent of fs.readdirSync(playlistDir, { withFileTypes: true })) {
+    if (!ent.isFile() || path.extname(ent.name).toLowerCase() !== '.mpls') continue;
+    try {
+      const row = parseMplsPlaylistBytes(
+        fs.readFileSync(path.join(playlistDir, ent.name)),
+        ent.name,
+        (clipId) => `BDMV/STREAM/${clipId}.m2ts`,
+      );
+      if (row.clips.length > 0 && row.durationSec > 0) candidates.push(scoreBluRayPlaylist(row, sizeByPath));
+    } catch (_) {}
+  }
+  sortBluRayPlaylistCandidates(candidates);
+  if (candidates.length === 0) throw new Error('No valid Blu-ray playlist found in ISO');
+
+  const selected = candidates[0];
+  await extractArchivePaths(archiveBin, disc.rootPath, extractRoot, selected.clips.map((clip) => clip.path));
+  const clips = selected.clips.map((clip) => {
+    const localPath = archiveRelPathToLocal(extractRoot, clip.path);
+    if (!isFileSync(localPath)) throw new Error(`Blu-ray ISO clip extract failed: ${clip.path}`);
+    return { ...clip, path: localPath, size: fileOrDirSizeSync(localPath) };
+  });
+  return {
+    kind: 'bluray_iso_playlist',
+    playlistName: selected.playlistName,
+    clips,
+    durationSec: selected.durationSec || 0,
+  };
+}
+
+async function resolveBluRayIsoMetadataViaArchive(disc, workDir) {
+  const archiveBin = await resolveSevenZipBin();
+  if (!archiveBin) return null;
+
+  const extractRoot = path.join(workDir || path.dirname(disc.rootPath), 'bluray-iso-metadata');
+  const playlistRoot = path.join(extractRoot, 'playlists');
+  await extractArchivePaths(archiveBin, disc.rootPath, playlistRoot, ['BDMV/PLAYLIST/*.mpls']);
+  const streamEntries = await listArchiveEntries(archiveBin, disc.rootPath, ['BDMV/STREAM/*.m2ts']);
+  const sizeByPath = new Map(streamEntries.map((entry) => [normalizeDiscRelPath(entry.path), Number(entry.size) || 0]));
+
+  const playlistDir = archiveRelPathToLocal(playlistRoot, 'BDMV/PLAYLIST');
+  if (!isDirSync(playlistDir)) throw new Error('No Blu-ray playlist found in ISO');
+
+  const candidates = [];
+  for (const ent of fs.readdirSync(playlistDir, { withFileTypes: true })) {
+    if (!ent.isFile() || path.extname(ent.name).toLowerCase() !== '.mpls') continue;
+    try {
+      const row = parseMplsPlaylistBytes(
+        fs.readFileSync(path.join(playlistDir, ent.name)),
+        ent.name,
+        (clipId) => `BDMV/STREAM/${clipId}.m2ts`,
+      );
+      if (row.clips.length > 0 && row.durationSec > 0) candidates.push(scoreBluRayPlaylist(row, sizeByPath));
+    } catch (_) {}
+  }
+  sortBluRayPlaylistCandidates(candidates);
+  if (candidates.length === 0) throw new Error('No valid Blu-ray playlist found in ISO');
+
+  const selected = candidates[0];
+  return {
+    kind: 'bluray_iso_playlist',
+    playlistName: selected.playlistName,
+    clips: selected.clips.map((clip) => ({
+      ...clip,
+      size: sizeByPath.get(normalizeDiscRelPath(clip.path)) || 0,
+    })),
+    durationSec: selected.durationSec || 0,
+    uniqueClipSize: selected.uniqueClipSize || 0,
+  };
+}
+
+function resolveBluRayIsoMetadataViaUdf(disc, udfFiles) {
+  const files = Array.isArray(udfFiles) ? udfFiles : listUdfFiles(disc.rootPath);
+  const byPath = new Map(files.map((f) => [normalizeDiscRelPath(f.path), f]));
+  const playlistFiles = files
+    .filter((f) => /^BDMV\/PLAYLIST\/[^/]+\.MPLS$/i.test(normalizeDiscRelPath(f.path)))
+    .sort((a, b) => normalizeDiscRelPath(a.path).localeCompare(normalizeDiscRelPath(b.path)));
+  if (playlistFiles.length === 0) throw new Error('No Blu-ray playlist found in ISO');
+
+  const candidates = [];
+  for (const file of playlistFiles) {
+    try {
+      const playlistName = path.basename(String(file.path || ''));
+      const row = parseMplsPlaylistBytes(
+        readUdfFileBuffer(disc.rootPath, file, Math.min(file.size || 0, 1024 * 1024)),
+        playlistName,
+        (clipId) => {
+          const key = `BDMV/STREAM/${clipId}.M2TS`;
+          return byPath.has(key) ? key : null;
+        },
+      );
+      if (row.clips.length > 0 && row.durationSec > 0) candidates.push(scoreBluRayPlaylist(row, new Map(files.map((f) => [normalizeDiscRelPath(f.path), Number(f.size) || 0]))));
+    } catch (_) {}
+  }
+
+  sortBluRayPlaylistCandidates(candidates);
+  if (candidates.length === 0) throw new Error('No valid Blu-ray playlist found in ISO');
+
+  const selected = candidates[0];
+  return {
+    kind: 'bluray_iso_playlist',
+    playlistName: selected.playlistName,
+    clips: selected.clips.map((clip) => {
+      const file = byPath.get(normalizeDiscRelPath(clip.path));
+      return { ...clip, size: file ? Number(file.size) || 0 : 0 };
+    }),
+    durationSec: selected.durationSec || 0,
+    uniqueClipSize: selected.uniqueClipSize || 0,
+  };
+}
+
+async function resolveIsoMetadataInput(disc, workDir) {
+  try {
+    const archiveInput = await resolveBluRayIsoMetadataViaArchive(disc, workDir);
+    if (archiveInput) return archiveInput;
+  } catch (_) {}
+  try {
+    const udfFiles = listUdfFiles(disc.rootPath);
+    if (udfFiles.some((f) => normalizeDiscRelPath(f.path).startsWith('BDMV/'))) {
+      return resolveBluRayIsoMetadataViaUdf(disc, udfFiles);
+    }
+  } catch (_) {}
+
+  const files = listIso9660Files(disc.rootPath);
+  const rows = files
+    .map((f) => {
+      const normalized = String(f.path || '').replace(/\\/g, '/');
+      const parts = normalized.split('/');
+      const name = parts[parts.length - 1] || '';
+      const parent = parts.length > 1 ? parts[parts.length - 2].toUpperCase() : '';
+      return { ...f, name, parent };
+    })
+    .filter((f) => f.parent === 'VIDEO_TS' && /^VTS_\d+_\d+\.VOB$/i.test(f.name));
+  const selected = selectDvdTitleSetFromRows(rows);
+  return {
+    kind: 'dvd_iso_vobset',
+    playlistName: `VTS_${selected.title}`,
+    clips: selected.clips.map((clip) => ({ clipId: clip.name, path: clip.path, size: clip.size })),
+    durationSec: 0,
+    uniqueClipSize: selected.totalSize || 0,
+  };
+}
+
+async function resolveIsoInput(disc, workDir) {
+  try {
+    const archiveInput = await resolveBluRayIsoInputViaArchive(disc, workDir);
+    if (archiveInput) return archiveInput;
+  } catch (_) {}
+  try {
+    const udfFiles = listUdfFiles(disc.rootPath);
+    if (udfFiles.some((f) => normalizeDiscRelPath(f.path).startsWith('BDMV/'))) {
+      return await resolveBluRayIsoInput(disc, workDir, udfFiles);
+    }
+  } catch (_) {}
+  return resolveDvdIsoInput(disc, workDir);
+}
+
+async function resolveDiscInput(sourcePath, options = {}) {
+  const disc = resolveDiscRoot(sourcePath);
+  if (!disc) return null;
+  if (disc.type === 'bluray') return { disc, input: resolveBluRayInput(disc) };
+  if (disc.type === 'dvd') return { disc, input: resolveDvdInput(disc) };
+  if (disc.type === 'iso') {
+    return { disc, input: await resolveIsoInput(disc, options.workDir) };
+  }
+  return null;
+}
+
+function uniqueClipSize(clips) {
+  const seen = new Set();
+  let total = 0;
+  for (const clip of clips || []) {
+    const key = normalizeDiscRelPath(clip.path || clip.clipId);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    total += Number(clip.size) || fileOrDirSizeSync(clip.path);
+  }
+  return total;
+}
+
+async function probeDiscMetadata(config, sourcePath, options = {}) {
+  const disc = resolveDiscRoot(sourcePath);
+  if (!disc) return null;
+
+  const ownWorkDir = !options.workDir;
+  const workDir = options.workDir || fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-disc-probe-'));
+  try {
+    let input;
+    if (disc.type === 'bluray') input = resolveBluRayInput(disc);
+    else if (disc.type === 'dvd') input = resolveDvdInput(disc);
+    else if (disc.type === 'iso') input = await resolveIsoMetadataInput(disc, workDir);
+    else return null;
+
+    const mainSizeBytes = Number(input.uniqueClipSize) || uniqueClipSize(input.clips);
+    const durationSec = Number(input.durationSec) || 0;
+    const bitrate = durationSec > 0 && mainSizeBytes > 0
+      ? Math.round((mainSizeBytes * 8) / durationSec)
+      : 0;
+
+    let summary = null;
+    const firstLocalClip = (input.clips || []).find((clip) => clip.path && fs.existsSync(clip.path));
+    if (firstLocalClip) {
+      try { summary = await probeSummary(config, firstLocalClip.path); } catch (_) {}
+    }
+
+    return {
+      isDiscLike: true,
+      sourceKind: input.kind,
+      selectedPlaylist: input.playlistName || '',
+      clipPaths: (input.clips || []).map((clip) => clip.path),
+      durationSec,
+      sizeBytes: mainSizeBytes || fileOrDirSizeSync(disc.rootPath),
+      bitrate,
+      videoCodec: summary && summary.videoCodec || '',
+      width: summary && summary.width || 0,
+      height: summary && summary.height || 0,
+      audioCodec: summary && summary.audioCodec || '',
+    };
+  } finally {
+    if (ownWorkDir) {
+      await fs.promises.rm(workDir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+}
+
+function writeConcatList(filePath, clips) {
+  const body = clips.map((clip) => {
+    const escaped = String(clip.path).replace(/\\/g, '/').replace(/'/g, "'\\''");
+    return `file '${escaped}'`;
+  }).join('\n') + '\n';
+  fs.writeFileSync(filePath, body, 'utf8');
+}
+
+async function buildMkvRemuxCodecArgs(config, sampleInputPath) {
+  const args = [];
+  const codecOverrides = [];
+  let j = null;
+  try { j = await ffprobeJson(config, sampleInputPath); } catch (_) {}
+  let mappedAudioIndex = 0;
+  let audioIndex = 0;
+  for (const stream of (j && j.streams || [])) {
+    const type = String(stream.codec_type || '');
+    const index = stream.index;
+    if (typeof index !== 'number') continue;
+
+    if (type === 'video') {
+      args.push('-map', `0:${index}`);
+      continue;
+    }
+
+    if (type === 'audio') {
+      const sampleRate = Number(stream.sample_rate) || 0;
+      const channels = Number(stream.channels) || 0;
+      if (sampleRate <= 0 || channels <= 0) {
+        audioIndex++;
+        continue;
+      }
+      args.push('-map', `0:${index}`);
+      if (String(stream.codec_name || '').toLowerCase() === 'pcm_bluray') {
+        codecOverrides.push(`-c:a:${mappedAudioIndex}`, 'pcm_s16le');
+      }
+      mappedAudioIndex++;
+      audioIndex++;
+      continue;
+    }
+
+    if (type === 'subtitle') {
+      args.push('-map', `0:${index}`);
+    }
+  }
+  if (!args.some((arg) => arg === '-map')) {
+    throw new Error('No valid media streams found for MKV remux');
+  }
+  args.push('-dn', '-c', 'copy', ...codecOverrides);
+  return args;
 }
 
 function fileHashSha256(fp) {
@@ -206,8 +1263,6 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
   const preInput = ['-hide_banner', '-y'];
   if (enc === 'qsv') {
     preInput.push('-hwaccel', 'qsv', '-hwaccel_output_format', 'qsv');
-  } else if (enc === 'nvenc') {
-    preInput.push('-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda');
   } else if (enc === 'amf') {
     preInput.push('-hwaccel', process.platform === 'win32' ? 'd3d11va' : 'vaapi');
   }
@@ -326,6 +1381,85 @@ async function precheck(config, sourcePath) {
     originalHeight,
     originalAudioCodec,
     originalBitrate,
+  };
+}
+
+async function remuxDiscToMkv({ config, taskId, sourcePath, outputPath, workDir, onProgress }) {
+  const resolved = await resolveDiscInput(sourcePath, { workDir });
+  if (!resolved) throw new Error('Source is not a supported disc structure');
+
+  const { disc, input } = resolved;
+  const ff = resolveFfmpegBin(config);
+  const tid = String(taskId || '');
+  const clips = input.clips || [];
+  if (clips.length === 0) throw new Error('No disc clips selected for remux');
+
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  if (fs.existsSync(outputPath)) await fs.promises.unlink(outputPath).catch(() => {});
+
+  let args;
+  let concatListPath = null;
+  const codecArgs = await buildMkvRemuxCodecArgs(config, clips[0].path);
+  const inputTimingArgs = ['-fflags', '+genpts'];
+  if (clips.length > 1) {
+    concatListPath = path.join(workDir || path.dirname(outputPath), 'disc-remux-concat.txt');
+    writeConcatList(concatListPath, clips);
+    args = ['-hide_banner', '-y', ...inputTimingArgs, '-f', 'concat', '-safe', '0', '-i', concatListPath, ...codecArgs, outputPath];
+  } else {
+    args = ['-hide_banner', '-y', ...inputTimingArgs, '-i', clips[0].path, ...codecArgs, outputPath];
+  }
+
+  log('remuxDiscToMkv', tid, input.kind, input.playlistName || clips.map((c) => c.clipId).join(','), '->', outputPath);
+
+  const child = spawn(ff, args, { windowsHide: true });
+  if (tid) encodeJobs.set(tid, child);
+  const totalMs = input.durationSec > 0 ? Math.max(1000, input.durationSec * 1000) : 0;
+  let lastPct = 0;
+
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk) => {
+    if (!totalMs) return;
+    for (const line of String(chunk).split(/\r?\n/)) {
+      const tms = parseFfmpegTimeMs(line);
+      if (tms != null) {
+        const pct = Math.min(99, Math.floor((tms / totalMs) * 100));
+        if (pct > lastPct) {
+          lastPct = pct;
+          try { onProgress && onProgress(pct); } catch (_) {}
+        }
+      }
+    }
+  });
+
+  await new Promise((resolve, reject) => {
+    child.on('error', (e) => {
+      if (tid) encodeJobs.delete(tid);
+      reject(e);
+    });
+    child.on('close', (code) => {
+      if (tid) encodeJobs.delete(tid);
+      if (code === 0) resolve();
+      else reject(new Error(`disc remux ffmpeg exit code ${code}`));
+    });
+  });
+
+  if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size <= 0) {
+    throw new Error('disc remux produced empty output');
+  }
+  await ffprobeJson(config, outputPath);
+
+  if (concatListPath) await fs.promises.unlink(concatListPath).catch(() => {});
+
+  return {
+    ok: true,
+    sourceKind: input.kind,
+    selectedPlaylist: input.playlistName || null,
+    clipPaths: clips.map((c) => c.path),
+    durationSec: input.durationSec || 0,
+    remuxPath: outputPath,
+    originalDiscPath: disc.originalPath,
+    replacementTargetPath: disc.replacementTargetPath,
+    originalSizeBytes: fileOrDirSizeSync(disc.originalPath),
   };
 }
 
@@ -581,15 +1715,60 @@ async function replaceSwapOnce({ config, targetPath, partialPath }) {
   return { preReplaceHash: preHash, resultSizeBytes: st.size };
 }
 
+async function replaceDiscSwapOnce({ config, targetPath, partialPath, originalDiscPath }) {
+  const target = String(targetPath || '').trim();
+  const original = String(originalDiscPath || '').trim();
+  if (!target) throw new Error('targetPath missing');
+  if (!original) throw new Error('originalDiscPath missing');
+  if (!fs.existsSync(original)) throw new Error(`Original disc path missing: ${original}`);
+  if (fs.existsSync(target)) throw new Error(`Replacement target already exists: ${target}`);
+
+  const dir = path.dirname(target);
+  const base = path.basename(target);
+  const staging = path.join(dir, `${base}.etp.new`);
+  const bak = `${original}.etp.bak`;
+
+  if (fs.existsSync(staging)) await fs.promises.unlink(staging).catch(() => {});
+  if (fs.existsSync(bak)) throw new Error(`Backup path already exists: ${bak}`);
+
+  await fs.promises.copyFile(partialPath, staging);
+  await ffprobeJson(config, staging);
+
+  try {
+    await fs.promises.rename(original, bak);
+  } catch (e) {
+    await fs.promises.unlink(staging).catch(() => {});
+    throw e;
+  }
+
+  try {
+    await fs.promises.rename(staging, target);
+  } catch (e) {
+    await fs.promises.rename(bak, original).catch(() => {});
+    await fs.promises.unlink(staging).catch(() => {});
+    throw e;
+  }
+
+  const st = await fs.promises.stat(target);
+  await fs.promises.unlink(partialPath).catch(() => {});
+  await fs.promises.rm(bak, { recursive: true, force: true }).catch(() => {});
+  return { preReplaceHash: '', resultSizeBytes: st.size };
+}
+
 async function replaceWithRetries(params) {
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
-    try { return await replaceSwapOnce(params); } catch (e) {
+    try {
+      if (params && params.originalDiscPath) return await replaceDiscSwapOnce(params);
+      return await replaceSwapOnce(params);
+    } catch (e) {
       lastErr = e;
-      const dir = path.dirname(params.targetPath);
-      const base = path.basename(params.targetPath);
-      await fs.promises.unlink(path.join(dir, `${base}.etp.new`)).catch(() => {});
-      await fs.promises.unlink(path.join(dir, `${base}.etp.bak`)).catch(() => {});
+      if (params && params.targetPath) {
+        const dir = path.dirname(params.targetPath);
+        const base = path.basename(params.targetPath);
+        await fs.promises.unlink(path.join(dir, `${base}.etp.new`)).catch(() => {});
+        await fs.promises.unlink(path.join(dir, `${base}.etp.bak`)).catch(() => {});
+      }
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
@@ -666,6 +1845,8 @@ function getDeviceSlotUsage() {
  * Called on startup — any such process from a previous run is orphaned.
  */
 function killOrphanFfmpegProcesses() {
+  if (process.platform !== 'win32') return 0;
+
   const bundled = getBundledFfmpegPath();
   if (!bundled) return 0;
 
@@ -772,6 +1953,9 @@ module.exports = {
   cleanupTaskWorkdir,
   scanOrphans,
   extractPreviewClip,
+  remuxDiscToMkv,
+  resolveDiscInput,
+  probeDiscMetadata,
   probeEncodeDevices,
   parseStableKey,
   parseRemoteDeviceId,

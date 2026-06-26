@@ -16,8 +16,10 @@ const crypto = require('crypto');
 const configStore = require('./configStore');
 const doubanMatchService = require('./doubanMatchService');
 const embyService = require('./services/embyService');
+const transcodeService = require('./services/transcodeService');
 const doubanService = require('./services/doubanService');
 const activityLog = require('./activityLog');
+const optimizationStatus = require('./optimizationStatus');
 
 function resolveDataDir() {
   return (
@@ -46,6 +48,59 @@ function computeBucket(resolution) {
   const w = parseInt(parts[0], 10) || 0;
   const h = parseInt(parts[1], 10) || 0;
   return (w >= 3840 || h >= 2160) ? '4K' : '1080p';
+}
+
+function normalizeVideoCodec(raw) {
+  const c = String(raw || '').toLowerCase();
+  if (c === 'hevc' || c.includes('h265') || c === 'h265') return 'h265';
+  if (c === 'h264' || c === 'avc' || c.includes('h264')) return 'h264';
+  if (c === 'av1') return 'av1';
+  return c || 'h264';
+}
+
+function resolveMappedSourcePath(sourcePath, subLib) {
+  const from = (subLib && subLib.pathMapFrom || '').trim();
+  const to = (subLib && subLib.pathMapTo || '').trim();
+  if (from && to && String(sourcePath || '').startsWith(from)) {
+    const relative = String(sourcePath).slice(from.length).replace(/^[/\\]+/, '');
+    return path.join(to, relative);
+  }
+  return sourcePath;
+}
+
+async function enrichDiscMetadata(incomingItems, subLib, config) {
+  let probed = 0;
+  let filled = 0;
+  for (const item of incomingItems) {
+    if (!item || !item.isDiscLike || !item.path) continue;
+    const needsProbe = !(item.bitrate > 0) || !(item.duration > 0) || !(item.size > 0);
+    if (!needsProbe) continue;
+
+    const sourcePath = resolveMappedSourcePath(item.path, subLib);
+    try {
+      const meta = await transcodeService.probeDiscMetadata(config, sourcePath);
+      probed++;
+      if (!meta) continue;
+
+      let changed = false;
+      if (!(item.bitrate > 0) && meta.bitrate > 0) { item.bitrate = meta.bitrate; changed = true; }
+      if (!(item.duration > 0) && meta.durationSec > 0) { item.duration = Math.round(meta.durationSec); changed = true; }
+      if (!(item.size > 0) && meta.sizeBytes > 0) { item.size = meta.sizeBytes; changed = true; }
+      if (!item.resolution && meta.width > 0 && meta.height > 0) { item.resolution = `${meta.width}x${meta.height}`; changed = true; }
+      if ((!item.codec || item.codec === 'h264') && meta.videoCodec) { item.codec = normalizeVideoCodec(meta.videoCodec); changed = true; }
+      if ((!Array.isArray(item.audioCodecs) || item.audioCodecs.length === 0) && meta.audioCodec) {
+        item.audioCodecs = [String(meta.audioCodec).toLowerCase()];
+        changed = true;
+      }
+      if (changed) filled++;
+    } catch (e) {
+      console.warn('[mediaLibrary] disc metadata probe skipped:', item.name || item.itemId, e.message);
+    }
+  }
+  if (probed > 0) {
+    console.log('[mediaLibrary] disc metadata probe complete', { probed, filled, subLibraryId: subLib && subLib.uuid });
+  }
+  return { probed, filled };
 }
 
 // ── Library file persistence ────────────────────────────────────────────────
@@ -263,13 +318,18 @@ function updateUserRating(itemId, userRating) {
   return item;
 }
 
-function getLibrary(filter = {}) {
+function getLibrary(filter = {}, opts = {}) {
   const lib = loadLibrary();
   let items = lib.items;
   if (filter.source) items = items.filter((it) => it.source === filter.source);
   if (filter.type) items = items.filter((it) => it.type === filter.type);
   if (filter.action) items = items.filter((it) => it.action === filter.action);
   if (filter.subLibraryId) items = items.filter((it) => it.subLibraryId === filter.subLibraryId);
+  if (opts.includeOptimizationStatus) {
+    const taskStore = require('./taskStore');
+    const config = configStore.loadConfig();
+    items = optimizationStatus.decorateItems(items, taskStore.loadTasks(), config);
+  }
   return { items, total: items.length };
 }
 
@@ -441,6 +501,7 @@ async function refreshSubLibrary(subLib) {
     activityLog.addActivity('media_library', `正在刷新子库「${name}」…`);
     const beforeCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
     const items = await embyService.getLibraryItems(server, subLib.sectionId);
+    await enrichDiscMetadata(items, subLib, cfg);
     const result = upsertItems(subLib.uuid, items, { fullSync: true });
     const afterCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
     const newItems = Math.max(0, afterCount - beforeCount + result.removed);

@@ -109,7 +109,7 @@ export default function MediaManagePage() {
   }, [items, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, tasks]);
 
   const enqueueManagedAction = (item: ManagedMediaItem, action: MediaAction) => {
-    if (item.isBluRayDisc && (action === 'transcode' || action === 'upgrade')) return;
+    if (item.isBluRayDisc && action === 'upgrade') return;
     taskApi.createByIntent({ itemId: item.id, actionType: action }).catch((e) => {
       if (e instanceof ApiConflictError) setError(e.message);
       else setError(`创建任务失败：${e.message}`);
@@ -318,6 +318,7 @@ export default function MediaManagePage() {
                 <div>当前码率</div>
                 <div>目标码率</div>
                 <div>预测体积</div>
+                <div>媒体优化</div>
                 <div>原盘</div>
                 <div>豆瓣评分</div>
                 <div>本地评分</div>
@@ -428,5 +429,9 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
     equivalentBitrate: typeof o.equivalentBitrate === 'number' ? o.equivalentBitrate : undefined,
     targetBitrate: typeof o.targetBitrate === 'number' ? o.targetBitrate : undefined,
     predictedSizeGb: typeof o.predictedSizeGb === 'number' ? o.predictedSizeGb : undefined,
+    optimizationStatus: o.optimizationStatus === 'transcoded' || o.optimizationStatus === 'upgraded' ? o.optimizationStatus : 'none',
+    optimizationAction: o.optimizationAction === 'transcode' || o.optimizationAction === 'upgrade' ? o.optimizationAction : null,
+    optimizationDoneAt: typeof o.optimizationDoneAt === 'string' ? o.optimizationDoneAt : null,
+    optimizationTaskId: typeof o.optimizationTaskId === 'string' ? o.optimizationTaskId : null,
   };
 }

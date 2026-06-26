@@ -322,7 +322,7 @@ function extractItemFields(item) {
     size: typeof size === 'number' ? size : 0,
     premiereDate: item.PremiereDate || null,
     genres: Array.isArray(item.Genres) ? item.Genres : [],
-    isDiscLike: inferIsBluRayDisc(item),
+    isDiscLike: inferIsDiscLike(item),
     codec,
     audioCodecs,
     watched: !!(item.UserData && item.UserData.Played),
@@ -335,31 +335,63 @@ function extractItemFields(item) {
   };
 }
 
-// ── BluRay detection ──────────────────────────────────────────────────────────
+// ── Disc-like source detection ────────────────────────────────────────────────
 
-function inferIsBluRayDisc(item) {
-  const path = item.Path || '';
-  if (!path) {
-    // Check VideoType/IsoType on item
-    const isoType = item.IsoType || item.isoType;
-    if (isoType === 'BluRay' || isoType === 'Dvd') return true;
-    const videoType = item.VideoType || item.videoType;
-    if (typeof videoType === 'string') {
-      const v = videoType.toLowerCase();
-      if (v === 'bluray' || v === 'iso') return true;
-    }
+function normalizeToken(raw) {
+  return String(raw || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+}
+
+function pathLooksDiscLike(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return false;
+  const n = s.replace(/\\/g, '/').toLowerCase();
+  if (/\.iso($|[?#])/.test(n)) return true;
+  const parts = n.split('/').filter(Boolean);
+  return parts.includes('bdmv') || parts.includes('video_ts');
+}
+
+function explicitDiscContainer(raw) {
+  const v = normalizeToken(raw);
+  return v === 'iso' || v === 'bluray' || v === 'bluraydisc' || v === 'bdmv' || v === 'dvd';
+}
+
+function explicitDiscVideoType(raw) {
+  const v = normalizeToken(raw);
+  return v === 'iso' || v === 'bluray' || v === 'dvd';
+}
+
+function itemDiscValues(item) {
+  const values = [item.VideoType, item.videoType, item.IsoType, item.isoType, item.Container, item.container];
+  for (const src of Array.isArray(item.MediaSources) ? item.MediaSources : []) {
+    values.push(src.VideoType, src.videoType, src.IsoType, src.isoType, src.Container, src.container, src.Protocol, src.protocol);
   }
-  const n = String(path).replace(/\\/g, '/').toLowerCase();
-  if (n.endsWith('.iso')) return true;
-  if (n.includes('/bdmv/') || n.endsWith('/bdmv')) return true;
+  return values;
+}
 
-  // Check disk for BDMV directory
-  try {
-    const dir = pathToFilesystemDir(path);
-    if (dir) {
-      if (isDirectorySync(path.join(dir, 'BDMV'))) return true;
-    }
-  } catch (_) {}
+function itemDiscPaths(item) {
+  const paths = [item.Path];
+  for (const src of Array.isArray(item.MediaSources) ? item.MediaSources : []) {
+    paths.push(src.Path, src.path);
+  }
+  return paths.filter((p) => typeof p === 'string' && p.trim());
+}
+
+function inferIsDiscLike(item) {
+  for (const value of itemDiscValues(item)) {
+    if (explicitDiscContainer(value) || explicitDiscVideoType(value)) return true;
+  }
+
+  for (const p of itemDiscPaths(item)) {
+    if (pathLooksDiscLike(p)) return true;
+  }
+
+  // Check disk only when the path is accessible in the current runtime.
+  for (const p of itemDiscPaths(item)) {
+    try {
+      const dir = pathToFilesystemDir(p);
+      if (dir && (isDirectorySync(path.join(dir, 'BDMV')) || isDirectorySync(path.join(dir, 'VIDEO_TS')))) return true;
+    } catch (_) {}
+  }
 
   return false;
 }
@@ -526,4 +558,9 @@ module.exports = {
   getItem,
   getPlayedItems,
   getUnplayedItems,
+  _internals: {
+    extractItemFields,
+    inferIsDiscLike,
+    pathLooksDiscLike,
+  },
 };

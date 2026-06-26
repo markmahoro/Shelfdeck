@@ -79,6 +79,12 @@ driveTask(taskId) → resumePoint === 'transcode_precheck'
 precheck (runPrecheck)：
     → setPhase('precheck')
     → resolveSourcePath() 路径映射
+    → 若 itemInfo.isDiscLike=true：
+      - 解析 Blu-ray/DVD 原盘结构
+      - 选择最长 Blu-ray playlist（或 DVD 主片 title set：`VTS_xx_1..n.VOB`，跳过 `VTS_xx_0.VOB` 菜单）
+      - DVD ISO 先从 ISO9660 目录抽取选中的主片 VOB set 到任务工作目录，再参与 remux
+      - remux 为任务工作目录下的 MKV（视频/字幕 copy；Blu-ray PCM 转标准 PCM）
+      - 后续 precheck/encode 使用该 MKV 作为 sourcePath
     → transcodeService.precheck()
       - 需要 DV 确认 → scheduler.pauseForConfirm('transcode_executing')
       - 异常（临时目录/源文件/ffmpeg/ffprobe/libplacebo） → failed_hard
@@ -113,7 +119,7 @@ verify (runVerify)：
 
 replace (runReplace)：
     → setPhase('transcode_replace')
-    → transcodeService.replaceWithRetries()（3 次重试）
+    → transcodeService.replaceWithRetries()（3 次重试；原盘任务替换为同名 .mkv 文件）
     → reportStatus('done', 100)
     → setPhase('done')
     → cleanupTaskWorkdir() 清理临时目录

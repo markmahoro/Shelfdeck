@@ -93,6 +93,9 @@ function reportStatus(taskId, status, progress) {
         if (status === 'done' && oldTask.actionType === 'transcode') {
           libItem.lastTranscodeDoneAt = new Date().toISOString();
         }
+        if (status === 'done' && oldTask.actionType === 'upgrade') {
+          libItem.lastUpgradeDoneAt = new Date().toISOString();
+        }
         mediaLibraryService.saveLibrary(lib);
       }
     }

@@ -175,6 +175,7 @@ function registerRoutes(app) {
       size: libItem.size,
       duration: libItem.duration,
       type: libItem.type,
+      isDiscLike: !!libItem.isDiscLike,
       doubanRating: libItem.doubanRating,
       userRating: libItem.userRating,
       tmdbId: libItem.tmdbId,
@@ -395,7 +396,7 @@ function registerRoutes(app) {
     if (req.query.type) filter.type = req.query.type;
     if (req.query.action) filter.action = req.query.action;
     if (req.query.subLibraryId) filter.subLibraryId = req.query.subLibraryId;
-    const result = mediaLibraryService.getLibrary(filter);
+    const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true });
     // Attach embyWebUrl for desktop play button
     const cfg = configStore.loadConfig();
     const servers = cfg.embyServers || {};
@@ -415,7 +416,7 @@ function registerRoutes(app) {
     if (req.query.type) filter.type = req.query.type;
     if (req.query.action) filter.action = req.query.action;
     if (req.query.subLibraryId) filter.subLibraryId = req.query.subLibraryId;
-    return mediaLibraryService.getLibrary(filter);
+    return mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true });
   });
 
   app.get('/v1/library/items/:itemId', async (req, reply) => {

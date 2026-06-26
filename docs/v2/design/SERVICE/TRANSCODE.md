@@ -153,6 +153,7 @@ TranscodeFlowExecutor 在 executing 阶段通过 `acquireFirstAvailableAmong()` 
 | 函数 | 说明 |
 |---|---|
 | `extractPreviewClip(config, sourcePath, outputPath)` | 生成预览切片（默认 30s，从 25% 位置开始）。先尝试 copy 模式，失败 fallback 到软件编码 |
+| `remuxDiscToMkv(params)` | 将 Blu-ray/DVD/ISO 原盘源 remux 成临时 MKV，供转码链路继续处理。Blu-ray 文件夹优先解析最长 `.mpls`；DVD 文件夹/ISO 选择总大小最大的主片 title set（`VTS_xx_1..n.VOB`），跳过 `VTS_xx_0.VOB` 菜单；视频/字幕 copy，`pcm_bluray` 音轨转换为标准 PCM |
 | `abortTask(taskId)` | 杀死指定 task 的 FFmpeg 子进程（SIGKILL） |
 | `abortAllEncodes()` | 杀死全部活跃编码进程 |
 | `scanOrphans(tempRoot)` | 扫描临时目录中的孤儿文件（.etp.partial / .etp.new / .etp.bak） |

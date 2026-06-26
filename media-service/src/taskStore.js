@@ -75,7 +75,7 @@ function createTask(taskData) {
     resumePoint: null,
     createdAt: now,
     updatedAt: now,
-    logs: [],
+    logs: Array.isArray(taskData.logs) ? taskData.logs : [],
     itemInfo: taskData.itemInfo || null,
   };
   tasks.push(task);

@@ -10,6 +10,7 @@
  */
 
 const activityLog = require('./activityLog');
+const optimizationStatus = require('./optimizationStatus');
 
 let timer = null;
 let lastRunAt = null;
@@ -40,6 +41,7 @@ function start(configStore, mediaLibraryService, taskStore) {
       if (!lib || !lib.items) return;
 
       const allTasks = taskStore.getTasks();
+      const optimizationIndex = optimizationStatus.buildOptimizationIndex(allTasks, cfg2);
 
       // Count active (non-terminal) tasks per action type
       const activeByType = {};
@@ -80,9 +82,11 @@ function start(configStore, mediaLibraryService, taskStore) {
           if (now < freezeUntil) return false;
         }
 
-        // Permanent anti-re-transcode: once transcoded, never auto-create again
-        // Manual trigger (POST /v1/tasks) bypasses this — only affects auto-enqueue
-        if (item.action === 'transcode' && item.lastTranscodeDoneAt) return false;
+        // Permanent anti-re-transcode: once transcoded, never auto-create again.
+        // Manual trigger (POST /v1/tasks) bypasses this — only affects auto-enqueue.
+        // The task/path lookup covers Emby itemId changes after disc-folder → MKV replacement.
+        const opt = optimizationStatus.resolveOptimization(item, optimizationIndex, cfg2);
+        if (item.action === 'transcode' && opt.optimizationStatus === 'transcoded') return false;
 
         // Lookback window for first/resume run
         if (isFirstOrResume) {
@@ -125,6 +129,7 @@ function start(configStore, mediaLibraryService, taskStore) {
             size: item.size,
             duration: item.duration,
             type: item.type,
+            isDiscLike: !!item.isDiscLike,
             doubanRating: item.doubanRating,
             userRating: item.userRating,
             tmdbId: item.tmdbId,

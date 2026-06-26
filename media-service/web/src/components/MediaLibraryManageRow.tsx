@@ -48,6 +48,7 @@ export type MediaLibraryManageRowProps = {
 
 const MAX_STARS = 5;
 const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '码率压缩', upgrade: '洗版' };
+const OPTIMIZATION_LABEL: Record<string, string> = { transcoded: '已转码', upgraded: '已洗版', none: '未优化' };
 
 function MediaLibraryManageRowInner({
   item,
@@ -63,6 +64,9 @@ function MediaLibraryManageRowInner({
   const eq = item.equivalentBitrate;
   const target = item.targetBitrate;
   const predictGb = item.predictedSizeGb;
+  const optimizationTitle = item.optimizationDoneAt
+    ? `${OPTIMIZATION_LABEL[item.optimizationStatus]}：${new Date(item.optimizationDoneAt).toLocaleString()}`
+    : OPTIMIZATION_LABEL[item.optimizationStatus];
 
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
@@ -74,7 +78,7 @@ function MediaLibraryManageRowInner({
     '—'
   );
 
-  const actionDisabled = !!rowTask || (item.isBluRayDisc && action !== 'delete' && action !== 'keep');
+  const actionDisabled = !!rowTask || (item.isBluRayDisc && action === 'upgrade');
 
   return (
     <div
@@ -98,6 +102,11 @@ function MediaLibraryManageRowInner({
       <div className="tabular-nums">{eq != null ? `${eq.toFixed(1)} Mbps` : '—'}</div>
       <div className="tabular-nums">{target != null ? `${target.toFixed(1)} Mbps` : '—'}</div>
       <div className="tabular-nums">{predictGb != null ? `${predictGb.toFixed(1)} GB` : '—'}</div>
+      <div>
+        <span className={`optimizationBadge optimizationBadge-${item.optimizationStatus}`} title={optimizationTitle}>
+          {OPTIMIZATION_LABEL[item.optimizationStatus]}
+        </span>
+      </div>
       <div title={item.isBluRayDisc ? '原盘（ISO/BDMV）' : undefined}>
         {item.isBluRayDisc ? '是' : '否'}
       </div>
@@ -122,7 +131,7 @@ function MediaLibraryManageRowInner({
           <button
             type="button"
             disabled={actionDisabled}
-            title={rowTask ? '该条目已有未结案任务' : item.isBluRayDisc ? '原盘不支持此操作' : undefined}
+            title={rowTask ? '该条目已有未结案任务' : item.isBluRayDisc && action === 'upgrade' ? '原盘暂不支持洗版' : undefined}
             onClick={() => onEnqueue(item, action)}
           >
             {ACTION_LABEL[action]}

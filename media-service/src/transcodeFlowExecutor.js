@@ -127,6 +127,7 @@ async function runPrecheck(taskId, task, config) {
     const sourcePath = resolveSourcePath(rawPath, task, config);
 
     const isSeason = (task.itemInfo && task.itemInfo.type) === 'season';
+    const isDiscLike = !!(task.itemInfo && task.itemInfo.isDiscLike);
 
     // For seasons: enumerate all episode files in the season folder
     let episodeFiles = [];
@@ -145,14 +146,39 @@ async function runPrecheck(taskId, task, config) {
       appendLog(taskId, 'info', `Season: ${episodeFiles.length} episode files found`);
     }
 
-    const probePath = isSeason ? episodeFiles[0] : sourcePath;
-    const result = await transcodeService.precheck(config, probePath);
-
     // Compute paths and create work dir before DV check so later phases
     // (transcode_executing, etc.) have them on resume after pauseForConfirm.
     const tempRoot = config.transcodeTempRoot;
     const taskWorkDir = require('path').join(tempRoot, `etp-task-${task.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120)}`);
     require('fs').mkdirSync(taskWorkDir, { recursive: true });
+
+    let effectiveSourcePath = isSeason ? episodeFiles[0] : sourcePath;
+    let discRemux = null;
+    if (!isSeason && isDiscLike) {
+      appendLog(taskId, 'info', 'Disc-like source detected — remuxing to MKV before transcode');
+      const remuxPath = require('path').join(taskWorkDir, 'disc-remux.mkv');
+      discRemux = await transcodeService.remuxDiscToMkv({
+        config,
+        taskId,
+        sourcePath,
+        outputPath: remuxPath,
+        workDir: taskWorkDir,
+        onProgress: (pct) => {
+          const overall = Math.min(20, Math.floor(pct / 5));
+          taskStore.setProgress(taskId, overall);
+          scheduler.reportStatus(taskId, 'executing', overall);
+        },
+      });
+      effectiveSourcePath = discRemux.remuxPath;
+      appendLog(
+        taskId,
+        'info',
+        `Disc remux complete: ${discRemux.selectedPlaylist || discRemux.sourceKind}, ${discRemux.clipPaths.length} clip(s)`,
+      );
+    }
+
+    const probePath = effectiveSourcePath;
+    const result = await transcodeService.precheck(config, probePath);
 
     let partialPath, partialPaths;
     if (isSeason) {
@@ -164,7 +190,7 @@ async function runPrecheck(taskId, task, config) {
       });
       partialPath = partialPaths[0].partial; // for verify preview
     } else {
-      const base = require('path').basename(sourcePath);
+      const base = isDiscLike ? 'disc-remux.mkv' : require('path').basename(effectiveSourcePath);
       const ext = require('path').extname(base);
       const stem = ext ? base.slice(0, -ext.length) : base;
       partialPath = require('path').join(taskWorkDir, `${stem}.etp.partial${ext}`);
@@ -174,14 +200,22 @@ async function runPrecheck(taskId, task, config) {
     taskStore.updateTask(taskId, {
       itemInfo: {
         ...task.itemInfo,
-        sourcePath,
+        sourcePath: effectiveSourcePath,
+        originalSourcePath: sourcePath,
+        originalDiscPath: discRemux ? discRemux.originalDiscPath : undefined,
+        replacementTargetPath: discRemux ? discRemux.replacementTargetPath : undefined,
+        discRemuxPath: discRemux ? discRemux.remuxPath : undefined,
+        discPlaylist: discRemux ? discRemux.selectedPlaylist : undefined,
+        discClipPaths: discRemux ? discRemux.clipPaths : undefined,
         partialPath,
         partialPaths: partialPaths || undefined,
         episodeFiles: isSeason ? episodeFiles : undefined,
         tempDir: taskWorkDir,
         isDolbyVision: result.isDolbyVision,
         durationSec: result.durationSec,
-        originalSizeBytes: isSeason
+        originalSizeBytes: discRemux
+          ? (discRemux.originalSizeBytes || result.originalSizeBytes)
+          : isSeason
           ? episodeFiles.reduce((sum, f) => { try { return sum + fs.statSync(f).size; } catch (_) { return sum; } }, 0)
           : result.originalSizeBytes,
         originalVideoCodec: result.originalVideoCodec,
@@ -480,7 +514,7 @@ async function runReplace(taskId, task, config) {
   }
 
   // Single file (movie)
-  const targetPath = info.sourcePath;
+  const targetPath = info.replacementTargetPath || info.sourcePath;
   const partialPath = info.partialPath;
 
   if (!targetPath || !partialPath) {
@@ -490,7 +524,12 @@ async function runReplace(taskId, task, config) {
   }
 
   try {
-    await transcodeService.replaceWithRetries({ config, targetPath, partialPath });
+    await transcodeService.replaceWithRetries({
+      config,
+      targetPath,
+      partialPath,
+      originalDiscPath: info.originalDiscPath,
+    });
     appendLog(taskId, 'info', 'Replace complete');
     scheduler.reportStatus(taskId, 'done', 100);
     setPhase(taskId, 'done');

@@ -21,8 +21,8 @@ function ensureDataDir() {
 }
 
 // Template version constants — bump when buildDefaultTemplate / buildTVDefaultTemplate logic changes
-const DEFAULT_TEMPLATE_VERSION = 1;
-const TV_DEFAULT_TEMPLATE_VERSION = 1;
+const DEFAULT_TEMPLATE_VERSION = 4;
+const TV_DEFAULT_TEMPLATE_VERSION = 4;
 
 // ── Default rule template builder ──────────────────────────────────────────────
 
@@ -114,14 +114,17 @@ function buildDefaultTemplate(policy) {
     reason: '5★ 洗版至4K高码率优质音轨',
   });
 
-  // P6: isDiscLike → keep
+  // P8: 5★ disc-like sources are protected from both transcode and upgrade.
   rules.push({
-    priority: 6,
+    priority: 8,
     groupsConnector: 'and',
-    groups: [condGroup([['isDiscLike', '=', true]])],
+    groups: [
+      ratingGroup(5),
+      condGroup([['isDiscLike', '=', true]]),
+    ],
     action: 'keep',
     actionParams: {},
-    reason: '原盘不处理',
+    reason: '5★ 原盘保留，不压缩',
   });
 
   // P5: 3-4★ + modern codec + bitrate already within target → keep (already optimal)
@@ -258,14 +261,17 @@ function buildTVDefaultTemplate(policy) {
     reason: '5★ 洗版至4K高码率优质音轨',
   });
 
-  // P6: isDiscLike → keep
+  // P8: 5★ disc-like sources are protected from both transcode and upgrade.
   rules.push({
-    priority: 6,
+    priority: 8,
     groupsConnector: 'and',
-    groups: [condGroup([['isDiscLike', '=', true]])],
+    groups: [
+      ratingGroup(5),
+      condGroup([['isDiscLike', '=', true]]),
+    ],
     action: 'keep',
     actionParams: {},
-    reason: '原盘不处理',
+    reason: '5★ 原盘保留，不压缩',
   });
 
   // P5: 3-4★ + modern codec + bitrate already within target → keep (already optimal)

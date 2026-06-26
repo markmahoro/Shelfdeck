@@ -1,5 +1,6 @@
 export type MediaRating = 1 | 2 | 3 | 4 | 5;
 export type MediaAction = 'delete' | 'transcode' | 'upgrade' | 'keep';
+export type MediaOptimizationStatus = 'transcoded' | 'upgraded' | 'none';
 
 export type ManagedMediaItem = {
   id: string;
@@ -22,5 +23,9 @@ export type ManagedMediaItem = {
   equivalentBitrate?: number;
   targetBitrate?: number;
   predictedSizeGb?: number;
+  optimizationStatus: MediaOptimizationStatus;
+  optimizationAction?: 'transcode' | 'upgrade' | null;
+  optimizationDoneAt?: string | null;
+  optimizationTaskId?: string | null;
   embyWebUrl?: string;
 };

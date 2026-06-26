@@ -184,7 +184,7 @@
 .mediaManageGrid {
   display: grid;
   grid-template-columns:
-    15rem 8rem 3rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 2.5rem 5.5rem 5rem 6rem 15rem 4.5rem;
+    15rem 8rem 3rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 4.5rem 2.5rem 5.5rem 5rem 6rem 15rem 4.5rem;
   gap: 6px 8px;
   align-items: center;
   padding: 8px 10px;
@@ -265,6 +265,33 @@
   background: #fff;
   color: #374151;
   cursor: pointer;
+}
+
+.optimizationBadge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.optimizationBadge-transcoded {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+}
+
+.optimizationBadge-upgraded {
+  color: #075985;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+}
+
+.optimizationBadge-none {
+  color: #6b7280;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
 }
 
 .mediaManageRow button {
