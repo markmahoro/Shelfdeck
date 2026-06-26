@@ -170,6 +170,19 @@
   cursor: not-allowed;
 }
 
+.sidebarScanBtn {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.sidebarInfo {
+  margin: -2px 0 8px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 /* ── Media manage grid ── */
 
 .mediaManageHead {
@@ -222,6 +235,84 @@
   color: #111827;
   line-height: 1.35;
   word-break: break-word;
+}
+
+.mediaManageTitleWrap {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.adultMetaLine {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.adultScrapeBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  padding: 1px 5px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.adultScrapeBadge-done {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.adultScrapeBadge-pending {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+.adultScrapeBadge-failed {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+
+.adultScrapeBadge-ambiguous {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+.adultMetaText {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adultRescrapeBtn {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #4b5563;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.adultRescrapeBtn:hover {
+  color: #1a1a2e;
+  border-color: #9ca3af;
 }
 
 .mediaManageStarStatusCell,

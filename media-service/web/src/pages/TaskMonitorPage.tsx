@@ -36,6 +36,7 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   transcode: '码率压缩',
   delete: '删除',
   upgrade: '洗版',
+  scrape: '刮削',
 };
 
 const PHASE_LABELS: Record<string, string> = {
@@ -45,6 +46,9 @@ const PHASE_LABELS: Record<string, string> = {
   upgrade_executing: '下载/刮削',
   pre_replace_verify: '替换前验证',
   upgrade_replace: '替换中',
+  scrape_precheck: '刮削预检',
+  scrape_executing: '刮削中',
+  scrape_paused: '刮削已暂停',
   transcode_precheck: '转码预检',
   transcode_executing: '编码中',
   transcode_verify: '转码验证',
@@ -319,6 +323,7 @@ export default function TaskMonitorPage() {
         <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} style={selectStyle}>
           <option value="">全部类型</option>
           <option value="transcode">码率压缩</option>
+          <option value="scrape">刮削</option>
           <option value="delete">删除</option>
           <option value="upgrade">洗版</option>
         </select>

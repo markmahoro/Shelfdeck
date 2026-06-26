@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { libraryApi, taskApi, ApiConflictError } from '../api/client';
+import { libraryApi, taskApi, subLibraries as adminSubLibraries, ApiConflictError, adult as adultApi } from '../api/client';
 import type { SubLibraryInfo } from '../api/client';
 import { MediaLibraryManageRow } from '../components/MediaLibraryManageRow';
 import type { MediaTask } from '../types';
@@ -23,8 +23,10 @@ export default function MediaManagePage() {
   const [doubanFilter, setDoubanFilter] = useState<string>('all');
   const [localRatingFilter, setLocalRatingFilter] = useState<string>('all');
   const [taskFilter, setTaskFilter] = useState<string>('all');
+  const [scrapeFilter, setScrapeFilter] = useState<string>('all');
   const [, setActiveSubLibName] = useState<string>('全部');
   const [strategyMsg, setStrategyMsg] = useState<string | null>(null);
+  const [scanMsg, setScanMsg] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Fetch subLibrary list
@@ -34,6 +36,12 @@ export default function MediaManagePage() {
       setSubLibraries(enabled);
     }).catch(() => {});
   }, []);
+
+  const activeSubLibrary = useMemo(
+    () => subLibraries.find((sl) => sl.uuid === subLibraryId) || null,
+    [subLibraries, subLibraryId],
+  );
+  const canScanAdultFolder = Boolean(activeSubLibrary?.source === 'folder' && activeSubLibrary?.mediaType === 'adult');
 
   // Fetch library data when subLibraryId changes
   useEffect(() => {
@@ -105,8 +113,18 @@ export default function MediaManagePage() {
       const activeIds = new Set(tasks.filter((t) => !['done', 'failed_hard'].includes(t.status)).map((t) => t.itemId));
       rows = rows.filter((it) => !activeIds.has(it.id));
     }
+    if (scrapeFilter !== 'all') {
+      rows = rows.filter((it) => {
+        if (it.source !== 'adult_folder') return false;
+        const status = typeof it.adultMetadata?.scrapeStatus === 'string' ? it.adultMetadata.scrapeStatus : '';
+        if (scrapeFilter === 'done') return Boolean(it.scraped) || status === 'done';
+        if (scrapeFilter === 'pending') return !it.scraped && (status === 'pending' || status === 'ambiguous' || !status);
+        if (scrapeFilter === 'failed') return status === 'failed';
+        return true;
+      });
+    }
     return rows;
-  }, [items, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, tasks]);
+  }, [items, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter, tasks]);
 
   const enqueueManagedAction = (item: ManagedMediaItem, action: MediaAction) => {
     if (item.isBluRayDisc && action === 'upgrade') return;
@@ -114,6 +132,15 @@ export default function MediaManagePage() {
       if (e instanceof ApiConflictError) setError(e.message);
       else setError(`创建任务失败：${e.message}`);
     });
+  };
+
+  const rescrapeAdultItem = async (item: ManagedMediaItem) => {
+    try {
+      await adultApi.rescrapeItem(item.id);
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      setError(`重新刮削失败：${(e as Error).message}`);
+    }
   };
 
   if (loading) return <div className="page"><p>加载媒体库数据...</p></div>;
@@ -130,6 +157,7 @@ export default function MediaManagePage() {
             setSubLibraryId(id);
             setActiveSubLibName(id ? subLibraries.find(sl => sl.uuid === id)?.name || '' : '全部');
             setSelectedIds(new Set());
+            setScanMsg(null);
           }}
         >
           <option value="">全部（{subLibraries.length} 个库）</option>
@@ -137,6 +165,27 @@ export default function MediaManagePage() {
             <option key={sl.uuid} value={sl.uuid}>{sl.name}</option>
           ))}
         </select>
+        {canScanAdultFolder && activeSubLibrary && (
+          <>
+            <button
+              type="button"
+              className="sidebarScanBtn"
+              onClick={async () => {
+                setScanMsg('扫描中...');
+                try {
+                  const res = await adminSubLibraries.scan(activeSubLibrary.uuid);
+                  setScanMsg(`扫描完成：${res.upserted} / ${res.scanned} 个文件`);
+                  setRefreshKey((k) => k + 1);
+                } catch (e) {
+                  setScanMsg(`扫描失败：${(e as Error).message}`);
+                }
+              }}
+            >
+              扫描当前文件夹
+            </button>
+            {scanMsg && <p className="sidebarInfo">{scanMsg}</p>}
+          </>
+        )}
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>筛选</div>
         <div className="sidebarSearchWrap">
@@ -232,6 +281,15 @@ export default function MediaManagePage() {
             <option value="none">无任务</option>
           </select>
         </div>
+        <div className="filterRow">
+          <span className="filterLabel">刮削</span>
+          <select value={scrapeFilter} onChange={(e) => setScrapeFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="done">已刮削</option>
+            <option value="pending">待刮削</option>
+            <option value="failed">刮削失败</option>
+          </select>
+        </div>
 
         <button
           className="sidebarFilterReset"
@@ -246,6 +304,7 @@ export default function MediaManagePage() {
             setDoubanFilter('all');
             setLocalRatingFilter('all');
             setTaskFilter('all');
+            setScrapeFilter('all');
           }}
         >
           清除筛选
@@ -369,6 +428,7 @@ export default function MediaManagePage() {
                       );
                     }}
                     onEnqueue={enqueueManagedAction}
+                    onRescrape={rescrapeAdultItem}
                   />
                 );
               })}
@@ -413,6 +473,7 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
     id,
     name,
     sectionId,
+    source: typeof o.source === 'string' ? o.source : undefined,
     itemType: itemType === 'movie' ? 'Movie' : itemType === 'season' ? 'Season' : undefined,
     seriesName,
     seasonNumber,
@@ -433,5 +494,7 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
     optimizationAction: o.optimizationAction === 'transcode' || o.optimizationAction === 'upgrade' ? o.optimizationAction : null,
     optimizationDoneAt: typeof o.optimizationDoneAt === 'string' ? o.optimizationDoneAt : null,
     optimizationTaskId: typeof o.optimizationTaskId === 'string' ? o.optimizationTaskId : null,
+    scraped: Boolean(o.scraped),
+    adultMetadata: o.adultMetadata && typeof o.adultMetadata === 'object' ? (o.adultMetadata as Record<string, unknown>) : undefined,
   };
 }

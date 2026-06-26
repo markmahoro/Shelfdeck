@@ -372,6 +372,11 @@ function getLibraryStatus() {
       lastRefreshedAt: sl.lastRefreshedAt || null,
       doubanEnabled: sl.doubanEnabled || false,
       doubanSyncedAt: sl.doubanSyncedAt || null,
+      source: sl.source || 'emby',
+      mediaType: sl.mediaType || 'movie',
+      adultRegion: sl.adultRegion || null,
+      scraperType: sl.scraperType || null,
+      watchRoot: sl.watchRoot || '',
     })),
   };
 }
@@ -381,6 +386,8 @@ function getLibraryStatus() {
 function addSubLibrary(spec) {
   const cfg = configStore.loadConfig();
   const uuid = generateUuid();
+  const mediaType = spec.mediaType || 'movie';
+  const isAdult = mediaType === 'adult';
   const subLib = {
     uuid,
     name: spec.name || '新子库',
@@ -391,8 +398,15 @@ function addSubLibrary(spec) {
     enabled: true,
     lastRefreshedAt: null,
     doubanSyncedAt: null,
-    mediaType: spec.mediaType || 'movie',
-    ruleTemplateId: spec.ruleTemplateId || (spec.mediaType === 'tv' ? 'tv_default' : 'default'),
+    mediaType,
+    adultRegion: spec.adultRegion || (isAdult ? 'japanese_jav' : undefined),
+    scraperType: spec.scraperType || (isAdult ? 'shelfdeck_japanese_jav' : undefined),
+    watchRoot: spec.watchRoot || '',
+    scrapeEnabled: spec.scrapeEnabled !== undefined ? spec.scrapeEnabled : isAdult,
+    scrapeSettleSeconds: spec.scrapeSettleSeconds,
+    scanIntervalMinutes: spec.scanIntervalMinutes,
+    japaneseJav: spec.japaneseJav || undefined,
+    ruleTemplateId: spec.ruleTemplateId || (mediaType === 'adult' ? 'adult_jav_default' : mediaType === 'tv' ? 'tv_default' : 'default'),
     ...configStore.defaultSubLibSchedule(),
     scheduleMode: spec.scheduleMode || 'full_auto',
     autoCreate: spec.autoCreate !== undefined ? spec.autoCreate : true,
@@ -516,6 +530,9 @@ function stopSubLibraryTimers(uuid) {
 async function refreshSubLibrary(subLib) {
   const name = subLib.name || subLib.uuid;
   try {
+    if (subLib.source === 'folder') {
+      return;
+    }
     const cfg = configStore.loadConfig();
     const server = (cfg.embyServers || {})[subLib.embyServerId];
     if (!server || !server.baseUrl) {
@@ -647,6 +664,10 @@ async function syncDoubanForSubLibrary(subLib) {
 function startSubLibraryTimers(subLib) {
   const uuid = subLib.uuid;
   stopSubLibraryTimers(uuid);
+
+  if (subLib.source === 'folder') {
+    return;
+  }
 
   const timers = {};
 

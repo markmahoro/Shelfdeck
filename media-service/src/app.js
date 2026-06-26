@@ -25,6 +25,7 @@ const spaceStats = require('./spaceStats');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
 const assetIdentity = require('./assetIdentity');
+const adultLibraryService = require('./adultLibraryService');
 
 let serverReady = false;
 
@@ -156,7 +157,7 @@ function registerRoutes(app) {
     if (!itemId || !actionType) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId and actionType are required');
     }
-    if (!['delete', 'transcode', 'upgrade'].includes(actionType)) {
+    if (!['delete', 'transcode', 'upgrade', 'scrape'].includes(actionType)) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'Invalid actionType');
     }
 
@@ -196,6 +197,9 @@ function registerRoutes(app) {
       targetCodec: libItem.targetCodec,
       seedPreferences: libItem.seedPreferences,
       maxSizeGB: libItem.maxSizeGB,
+      equivalentBitrate: libItem.equivalentBitrate,
+      scraped: !!libItem.scraped,
+      adultMetadata: libItem.adultMetadata,
     } : null;
 
     const task = taskStore.createTask({
@@ -755,19 +759,40 @@ function registerRoutes(app) {
   });
 
   app.post('/v1/admin/sublibraries', async (req, reply) => {
-    const { name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType } = req.body || {};
-    if (!name || !embyServerId || !sectionId) {
+    const {
+      name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
+      upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
+      adultRegion, scraperType, watchRoot, scrapeEnabled,
+      scrapeSettleSeconds, scanIntervalMinutes, japaneseJav,
+    } = req.body || {};
+    if (!name) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'name is required');
+    }
+    const isFolderAdult = source === 'folder' && mediaType === 'adult';
+    if (!isFolderAdult && (!embyServerId || !sectionId)) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name, embyServerId, and sectionId are required');
     }
+    if (isFolderAdult && !watchRoot) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'watchRoot is required for adult folder libraries');
+    }
     const cfg = configStore.loadConfig();
-    if (!(cfg.embyServers || {})[embyServerId]) {
+    if (!isFolderAdult && !(cfg.embyServers || {})[embyServerId]) {
       return apiError(reply, 404, 'NOT_FOUND', 'Emby server not found');
     }
-    const subLib = mediaLibraryService.addSubLibrary({ name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId, upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType });
+    const subLib = mediaLibraryService.addSubLibrary({
+      name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
+      upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
+      adultRegion, scraperType, watchRoot, scrapeEnabled,
+      scrapeSettleSeconds, scanIntervalMinutes, japaneseJav,
+    });
+    if (isFolderAdult) {
+      adultLibraryService.startSubLibraryWatcher(subLib);
+    }
     return reply.code(201).send(subLib);
   });
 
   app.delete('/v1/admin/sublibraries/:uuid', async (req, reply) => {
+    adultLibraryService.stopSubLibraryWatcher(req.params.uuid);
     const ok = mediaLibraryService.deleteSubLibrary(req.params.uuid);
     if (!ok) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
     return { ok: true, uuid: req.params.uuid };
@@ -776,7 +801,45 @@ function registerRoutes(app) {
   app.patch('/v1/admin/sublibraries/:uuid', async (req, reply) => {
     const updated = mediaLibraryService.updateSubLibrary(req.params.uuid, req.body || {});
     if (!updated) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
+    if (adultLibraryService.isAdultFolderSubLibrary(updated)) {
+      adultLibraryService.startSubLibraryWatcher(updated);
+    } else {
+      adultLibraryService.stopSubLibraryWatcher(updated.uuid);
+    }
     return updated;
+  });
+
+  app.post('/v1/admin/sublibraries/:uuid/actions/scan', async (req, reply) => {
+    const cfg = configStore.loadConfig();
+    const subLib = (cfg.subLibraries || []).find((s) => s.uuid === req.params.uuid);
+    if (!subLib) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
+    if (!adultLibraryService.isAdultFolderSubLibrary(subLib)) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'Only adult folder libraries support manual scan');
+    }
+    try {
+      const result = await adultLibraryService.scanSubLibrary(subLib);
+      return { ok: true, ...result };
+    } catch (e) {
+      return apiError(reply, 500, 'ADULT_SCAN_FAILED', e.message);
+    }
+  });
+
+  // Manual rescrape of a single adult folder item (resets prior failure state).
+  // Optional body { adultId } overrides the detected 番号 (useful for ambiguous items).
+  app.post('/v1/admin/adult/items/:itemId/actions/rescrape', async (req, reply) => {
+    try {
+      const overrideAdultId = typeof req.body === 'object' && req.body ? req.body.adultId : undefined;
+      const task = await adultLibraryService.rescrapeItem(
+        req.params.itemId,
+        typeof overrideAdultId === 'string' ? { overrideAdultId } : {},
+      );
+      if (!task) return apiError(reply, 409, 'CONFLICT', 'An active scrape task already exists for this item');
+      return reply.code(201).send({ ok: true, taskId: task.id });
+    } catch (e) {
+      const code = /not found|does not exist|watchRoot/i.test(e.message) ? 'NOT_FOUND' : 'RESCRAPE_FAILED';
+      const status = code === 'NOT_FOUND' ? 404 : 500;
+      return apiError(reply, status, code, e.message);
+    }
   });
 
   // ── Admin: Rule Templates ────────────────────────────────────────────────
@@ -847,6 +910,30 @@ function registerRoutes(app) {
     cfg.ruleTemplates = list;
     configStore.saveConfig(cfg);
     return { ok: true, id: req.params.id };
+  });
+
+  // ── Admin: Adult Libraries ──────────────────────────────────────────────
+
+  app.get('/v1/admin/adult/config', async () => {
+    const cfg = configStore.loadConfig();
+    return cfg.adultLibrary || {};
+  });
+
+  app.patch('/v1/admin/adult/config', async (req) => {
+    const current = configStore.loadConfig();
+    const adultLibrary = {
+      ...(current.adultLibrary || {}),
+      ...(req.body || {}),
+      japaneseJav: {
+        ...((current.adultLibrary && current.adultLibrary.japaneseJav) || {}),
+        ...((req.body && req.body.japaneseJav) || {}),
+      },
+      western: {
+        ...((current.adultLibrary && current.adultLibrary.western) || {}),
+        ...((req.body && req.body.western) || {}),
+      },
+    };
+    return configStore.patchConfig({ adultLibrary });
   });
 
   // ── Admin: Transcode ────────────────────────────────────────────────────
@@ -1199,6 +1286,7 @@ function getFlow(actionType) {
     case 'delete': return require('./deleteFlowExecutor');
     case 'transcode': return require('./transcodeFlowExecutor');
     case 'upgrade': return require('./upgradeFlowExecutor');
+    case 'scrape': return require('./scrapeFlowExecutor');
     default: return null;
   }
 }
@@ -1265,6 +1353,7 @@ async function buildApp(opts = {}) {
     taskScheduler.stopScheduler();
     healthCheck.stopHealthCheckTimer();
     mediaLibraryService.stopAllTimers();
+    adultLibraryService.stopAllWatchers();
     strategyEngine.stop();
     smartTaskEngine.stop();
   });
@@ -1279,6 +1368,7 @@ async function buildApp(opts = {}) {
   // Start health check timer and subLibrary timers
   healthCheck.startHealthCheckTimer();
   mediaLibraryService.startAllSubLibraryTimers();
+  adultLibraryService.startAllWatchers();
   taskScheduler.startScheduler();
   strategyEngine.start(configStore, mediaLibraryService);
   smartTaskEngine.start(configStore, mediaLibraryService, taskStore);

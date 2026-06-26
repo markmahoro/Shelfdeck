@@ -44,11 +44,51 @@ export type MediaLibraryManageRowProps = {
   onWatchChange: (item: ManagedMediaItem, watched: boolean) => void;
   onRatingChange: (item: ManagedMediaItem, rating: MediaRating | null) => void;
   onEnqueue: (item: ManagedMediaItem, action: MediaAction) => void;
+  onRescrape?: (item: ManagedMediaItem) => void;
 };
 
 const MAX_STARS = 5;
 const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '码率压缩', upgrade: '洗版' };
 const OPTIMIZATION_LABEL: Record<string, string> = { transcoded: '已转码', upgraded: '已洗版', none: '未优化' };
+
+function adultMetaString(item: ManagedMediaItem, key: string): string {
+  const value = item.adultMetadata?.[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function adultScrapeStatus(item: ManagedMediaItem): { label: string; tone: 'done' | 'pending' | 'failed' | 'ambiguous'; title: string } | null {
+  if (item.source !== 'adult_folder') return null;
+  const status = adultMetaString(item, 'scrapeStatus');
+  const adultId = adultMetaString(item, 'adultId');
+  const idConfidence = adultMetaString(item, 'idConfidence');
+  const nfoPath = adultMetaString(item, 'nfoPath');
+  if (item.scraped || status === 'done') {
+    return {
+      label: '已刮削',
+      tone: 'done',
+      title: nfoPath ? `已读取 NFO：${nfoPath}` : '已刮削',
+    };
+  }
+  if (status === 'failed') {
+    return {
+      label: '刮削失败',
+      tone: 'failed',
+      title: adultId ? `番号：${adultId}` : '刮削失败',
+    };
+  }
+  if (status === 'ambiguous' || idConfidence === 'low') {
+    return {
+      label: '番号待确认',
+      tone: 'ambiguous',
+      title: adultId ? `疑似番号：${adultId}（点击重刮可修正）` : '未能识别番号',
+    };
+  }
+  return {
+    label: '待刮削',
+    tone: 'pending',
+    title: adultId ? `番号：${adultId}` : '等待识别番号并刮削',
+  };
+}
 
 function MediaLibraryManageRowInner({
   item,
@@ -59,6 +99,7 @@ function MediaLibraryManageRowInner({
   onWatchChange,
   onRatingChange,
   onEnqueue,
+  onRescrape,
 }: MediaLibraryManageRowProps) {
   const action = item.recommendedAction ?? 'keep';
   const eq = item.equivalentBitrate;
@@ -67,11 +108,14 @@ function MediaLibraryManageRowInner({
   const optimizationTitle = item.optimizationDoneAt
     ? `${OPTIMIZATION_LABEL[item.optimizationStatus]}：${new Date(item.optimizationDoneAt).toLocaleString()}`
     : OPTIMIZATION_LABEL[item.optimizationStatus];
+  const scrapeStatus = adultScrapeStatus(item);
+  const adultId = adultMetaString(item, 'adultId');
+  const studio = adultMetaString(item, 'studio');
 
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
       {taskStatusLabelZh(rowTask.status)}（
-      {rowTask.actionType === 'transcode' ? '压缩' : rowTask.actionType === 'upgrade' ? '洗版' : '删除'}
+      {rowTask.actionType === 'transcode' ? '压缩' : rowTask.actionType === 'upgrade' ? '洗版' : rowTask.actionType === 'scrape' ? '刮削' : '删除'}
       ）
     </span>
   ) : (
@@ -92,7 +136,28 @@ function MediaLibraryManageRowInner({
           onChange={() => onToggleSelect(item.id)}
           title="勾选后可参与左侧批量操作"
         />
-        <span className="mediaManageTitle">{item.name}</span>
+        <span className="mediaManageTitleWrap">
+          <span className="mediaManageTitle">{item.name}</span>
+          {scrapeStatus && (
+            <span className="adultMetaLine">
+              <span className={`adultScrapeBadge adultScrapeBadge-${scrapeStatus.tone}`} title={scrapeStatus.title}>
+                {scrapeStatus.label}
+              </span>
+              {adultId && <span className="adultMetaText">{adultId}</span>}
+              {studio && <span className="adultMetaText">{studio}</span>}
+              {onRescrape && !rowTask && (
+                <button
+                  type="button"
+                  className="adultRescrapeBtn"
+                  title="重新刮削该条目"
+                  onClick={() => onRescrape(item)}
+                >
+                  重刮
+                </button>
+              )}
+            </span>
+          )}
+        </span>
       </div>
       <div>{item.seriesName || '—'}</div>
       <div className="tabular-nums">{item.seasonNumber != null ? `S${String(item.seasonNumber).padStart(2, '0')}` : '—'}</div>
@@ -154,7 +219,8 @@ function rowPropsEqual(a: MediaLibraryManageRowProps, b: MediaLibraryManageRowPr
     a.onToggleSelect === b.onToggleSelect &&
     a.onWatchChange === b.onWatchChange &&
     a.onRatingChange === b.onRatingChange &&
-    a.onEnqueue === b.onEnqueue
+    a.onEnqueue === b.onEnqueue &&
+    a.onRescrape === b.onRescrape
   );
 }
 

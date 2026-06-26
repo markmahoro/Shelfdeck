@@ -107,6 +107,13 @@ export const subLibraries = {
     pathMapFrom?: string;
     pathMapTo?: string;
     mediaType?: string;
+    adultRegion?: string;
+    scraperType?: string;
+    watchRoot?: string;
+    scrapeEnabled?: boolean;
+    scrapeSettleSeconds?: number;
+    scanIntervalMinutes?: number;
+    japaneseJav?: Record<string, unknown>;
   }) => post<SubLibrary>('/v1/admin/sublibraries', body),
 
   update: (uuid: string, body: Partial<SubLibrary>) =>
@@ -114,6 +121,28 @@ export const subLibraries = {
 
   remove: (uuid: string) =>
     del<{ ok: boolean; uuid: string }>(`/v1/admin/sublibraries/${uuid}`),
+
+  scan: (uuid: string) =>
+    post<{ ok: boolean; scanned: number; upserted: number }>(`/v1/admin/sublibraries/${uuid}/actions/scan`),
+};
+
+// ── Adult Libraries ─────────────────────────────────────────────────────────
+
+export interface AdultLibraryConfig {
+  settleSeconds: number;
+  scanIntervalMinutes: number;
+  autoScrape: boolean;
+  videoExtensions: string[];
+  japaneseJav: Record<string, unknown>;
+  western?: Record<string, unknown>;
+}
+
+export const adult = {
+  getConfig: () => get<AdultLibraryConfig>('/v1/admin/adult/config'),
+  patchConfig: (body: Partial<AdultLibraryConfig>) =>
+    patch<AdultLibraryConfig>('/v1/admin/adult/config', body),
+  rescrapeItem: (itemId: string) =>
+    post<{ ok: boolean; taskId: string }>(`/v1/admin/adult/items/${encodeURIComponent(itemId)}/actions/rescrape`),
 };
 
 // ── Rule Templates ────────────────────────────────────────────────────────────
@@ -260,6 +289,7 @@ export interface SystemConfig {
   deleteConcurrency: number;
   transcodeConcurrency: number;
   upgradeConcurrency: number;
+  scrapeConcurrency: number;
   wallRatingAutoEnqueue: boolean;
   smartTaskMaxPerRun: number;
   smartTaskEnabledActions: string[];
@@ -378,6 +408,10 @@ export interface SubLibraryInfo {
   name: string;
   enabled: boolean;
   mediaType?: string;
+  source?: string;
+  adultRegion?: string | null;
+  scraperType?: string | null;
+  watchRoot?: string;
 }
 
 export const libraryApi = {

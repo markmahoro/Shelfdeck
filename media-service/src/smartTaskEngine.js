@@ -65,7 +65,8 @@ function start(configStore, mediaLibraryService, taskStore) {
       const isFirstOrResume = !lastRunAt || (now - lastRunAt > intervalMs * 2);
 
       const candidates = lib.items.filter((item) => {
-        if (item.source !== 'emby') return false;
+        const isAdultFolder = item.source === 'adult_folder';
+        if (item.source !== 'emby' && !isAdultFolder) return false;
         if (item.type === 'series') return false;
         if (!item.watched) return false;
         if (!item.action || item.action === 'keep') return false;
@@ -90,7 +91,7 @@ function start(configStore, mediaLibraryService, taskStore) {
         if (item.action === 'transcode' && opt.optimizationStatus === 'transcoded') return false;
 
         // Lookback window for first/resume run
-        if (isFirstOrResume) {
+        if (isFirstOrResume && !isAdultFolder) {
           const ratingTs = maxTimestamp(item.userRatingUpdatedAt, item.doubanRatingUpdatedAt);
           if (ratingTs < lookbackCutoff) return false;
         }
@@ -146,6 +147,8 @@ function start(configStore, mediaLibraryService, taskStore) {
             seedPreferences: item.seedPreferences,
             maxSizeGB: item.maxSizeGB,
             equivalentBitrate: item.equivalentBitrate,
+            scraped: !!item.scraped,
+            adultMetadata: item.adultMetadata,
           },
           logs: [{
             ts: new Date().toISOString(),

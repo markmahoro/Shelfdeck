@@ -23,6 +23,7 @@ const FIELDS: { value: string; label: string; type: 'number' | 'string' | 'boole
   { value: 'codec', label: '编码', type: 'string' },
   { value: 'isDiscLike', label: '是否原盘', type: 'boolean' },
   { value: 'watched', label: '已观看', type: 'boolean' },
+  { value: 'scraped', label: '已刮削', type: 'boolean' },
   { value: 'duration', label: '时长 (秒)', type: 'number' },
   { value: 'type', label: '媒体类型', type: 'string' },
   { value: 'resolution', label: '分辨率 (WxH)', type: 'string' },

@@ -7,6 +7,7 @@ export type ManagedMediaItem = {
   name: string;
   sectionId: string;
   sectionName?: string;
+  source?: string;
   itemType?: 'Movie' | 'Season' | 'Other';
   seriesName?: string;
   seasonNumber?: number;
@@ -28,4 +29,6 @@ export type ManagedMediaItem = {
   optimizationDoneAt?: string | null;
   optimizationTaskId?: string | null;
   embyWebUrl?: string;
+  scraped?: boolean;
+  adultMetadata?: Record<string, unknown>;
 };

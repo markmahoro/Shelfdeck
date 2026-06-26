@@ -346,6 +346,242 @@ test('GET /v1/admin/transcode/config returns config', async () => {
   await app.close();
 });
 
+test('POST /v1/admin/sublibraries creates adult Japanese JAV folder library', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: {
+      name: 'JAV Test',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'japanese_jav',
+      scraperType: 'shelfdeck_japanese_jav',
+      watchRoot,
+      ruleTemplateId: 'adult_jav_default',
+    },
+  });
+
+  assert.strictEqual(res.statusCode, 201);
+  const body = res.json();
+  assert.strictEqual(body.source, 'folder');
+  assert.strictEqual(body.mediaType, 'adult');
+  assert.strictEqual(body.adultRegion, 'japanese_jav');
+  assert.strictEqual(body.scraperType, 'shelfdeck_japanese_jav');
+  assert.strictEqual(body.watchRoot, watchRoot);
+  await app.close();
+});
+
+test('POST /v1/admin/sublibraries/:uuid/actions/scan upserts adult files and creates scrape task', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  fs.writeFileSync(path.join(watchRoot, 'MVSD-175.mp4'), 'fake-video');
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const create = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: {
+      name: 'JAV Test',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'japanese_jav',
+      scraperType: 'shelfdeck_japanese_jav',
+      watchRoot,
+      ruleTemplateId: 'adult_jav_default',
+    },
+  });
+  const subLib = create.json();
+
+  const scan = await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
+  assert.strictEqual(scan.statusCode, 200);
+  assert.strictEqual(scan.json().scanned, 1);
+
+  const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  assert.strictEqual(lib.statusCode, 200);
+  assert.strictEqual(lib.json().total, 1);
+  const item = lib.json().items[0];
+  assert.strictEqual(item.source, 'adult_folder');
+  assert.strictEqual(item.adultMetadata.adultId, 'MVSD-175');
+
+  const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  assert.strictEqual(tasks.statusCode, 200);
+  assert.ok(tasks.json().tasks.some((t) => t.itemId === item.itemId && t.actionType === 'scrape'));
+  await app.close();
+});
+
+test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed scrape', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  fs.writeFileSync(path.join(watchRoot, 'MVSD-175.mp4'), 'fake-video');
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const create = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: { name: 'JAV Test', source: 'folder', mediaType: 'adult', adultRegion: 'japanese_jav', scraperType: 'shelfdeck_japanese_jav', watchRoot, ruleTemplateId: 'adult_jav_default' },
+  });
+  const subLib = create.json();
+  await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
+
+  const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  const itemId = lib.json().items[0].itemId;
+
+  // Simulate a prior failed scrape: the original scrape task failed_hard and
+  // the library item was marked failed. A real scrape failure does both.
+  const taskStore = require('../src/taskStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const origTask = taskStore.getTasks({ itemId }).find((t) => t.actionType === 'scrape');
+  taskStore.updateTask(origTask.id, { status: 'failed_hard' });
+  adultLibraryService.markScrapeFailed(itemId, 'jav321 down');
+
+  const rescrape = await app.inject({ method: 'POST', url: `/v1/admin/adult/items/${itemId}/actions/rescrape` });
+  assert.strictEqual(rescrape.statusCode, 201);
+  assert.ok(rescrape.json().taskId, 'rescrape returns a task id');
+
+  // resetScrapeStatus cleared the failure marker.
+  const lib2 = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  assert.strictEqual(lib2.json().items[0].adultMetadata.scrapeStatus, 'pending');
+
+  // A second rescrape while a task is active → 409.
+  const dup = await app.inject({ method: 'POST', url: `/v1/admin/adult/items/${itemId}/actions/rescrape` });
+  assert.strictEqual(dup.statusCode, 409);
+  await app.close();
+});
+
+test('POST /v1/admin/adult/items/:itemId/actions/rescrape 404 for unknown item', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const res = await app.inject({ method: 'POST', url: '/v1/admin/adult/items/nope/actions/rescrape' });
+  assert.strictEqual(res.statusCode, 404);
+  await app.close();
+});
+
+test('scrape failure marks item failed_hard and item scrapeStatus=failed', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  fs.writeFileSync(path.join(watchRoot, 'MVSD-175.mp4'), 'fake-video');
+
+  // Stub the scraper before loading the executor so it throws.
+  const scraperPath = require.resolve('../src/services/japaneseJavScraper');
+  delete require.cache[scraperPath];
+  require.cache[scraperPath] = { exports: { scrapeJapaneseJav: async () => { throw new Error('jav321 unreachable'); }, fetchBinary: async () => { throw new Error('no net'); }, abort: () => false, normalizeAdultId: (v) => v } };
+
+  const configStore = require('../src/configStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const taskStore = require('../src/taskStore');
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  // Fresh executor picks up the stubbed scraper.
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const cfg = configStore.loadConfig();
+  // Register an adult folder sublibrary pointing at watchRoot.
+  const sl = {
+    uuid: crypto.randomUUID(), name: 'JAV', source: 'folder', mediaType: 'adult',
+    adultRegion: 'japanese_jav', scraperType: 'shelfdeck_japanese_jav',
+    watchRoot, scrapeEnabled: true, enabled: true, scheduleMode: 'full_auto',
+    autoCreate: true, autoExecute: true, ruleTemplateId: 'adult_jav_default',
+    videoExtensions: cfg.adultLibrary.videoExtensions,
+  };
+  configStore.patchConfig({ subLibraries: [sl] });
+
+  const item = await adultLibraryService.upsertFileItem(sl, path.join(watchRoot, 'MVSD-175.mp4'));
+  const task = taskStore.createTask({
+    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
+    resumePoint: 'scrape_executing',
+  });
+
+  const reported = [];
+  scrapeFlow.setScheduler({ reportStatus: (id, status, prog) => reported.push({ id, status, prog }) });
+  await scrapeFlow.driveTask(task.id);
+
+  assert.ok(reported.some((r) => r.status === 'failed_hard'), 'scheduler received failed_hard');
+  const lib = require('../src/mediaLibraryService').getLibrary();
+  const after = lib.items.find((it) => it.itemId === item.itemId);
+  assert.strictEqual(after.adultMetadata.scrapeStatus, 'failed');
+  assert.ok(after.adultMetadata.scrapeError, 'scrapeError recorded');
+
+  // Cleanup mock so other tests get the real module back.
+  delete require.cache[scraperPath];
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+// ── JAV 番号识别置信度 ────────────────────────────────────────────────────────
+
+test('extractJavIdWithConfidence: known maker prefix → high confidence', () => {
+  const { extractJavId } = require('../src/adultLibraryService');
+  // extractJavId returns the adultId string for known prefixes.
+  assert.strictEqual(extractJavId('Some.Show.MVSD-175.mp4'), 'MVSD-175');
+  assert.strictEqual(extractJavId('SSIS-123'), 'SSIS-123');
+  assert.strictEqual(extractJavId('fc2-ppv-9876543'), 'FC2-9876543');
+});
+
+test('extractJavIdWithConfidence: unknown prefix → low confidence, still parsed', () => {
+  // Access the underlying confidence-aware parser via a known-typed path.
+  const adultLibraryService = require('../src/adultLibraryService');
+  // An unknown but well-formed prefix parses as low confidence.
+  // We infer behaviour through extractJavId alone (returns the id); the
+  // confidence gating is exercised end-to-end by the ambiguous-status test below.
+  assert.strictEqual(adultLibraryService.extractJavId('ZZZZZ-999'), 'ZZZZZ-999');
+});
+
+test('extractJavId: rejects common false-positive prefixes', () => {
+  const { extractJavId } = require('../src/adultLibraryService');
+  // "CD1", "DVD2020", "Part1"-style fragments must not be treated as 番号.
+  assert.strictEqual(extractJavId('movie_CD1.mp4'), '');
+  assert.strictEqual(extractJavId('DVD-2020'), '');
+  assert.strictEqual(extractJavId('PART-2'), '');
+});
+
+test('scrape of low-confidence (unknown prefix) item parks as ambiguous, no auto task', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  // Unknown prefix ZZZZZ — parses but is not a known maker, → ambiguous.
+  fs.writeFileSync(path.join(watchRoot, 'ZZZZZ-999.mp4'), 'fake-video');
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const create = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: { name: 'JAV Test', source: 'folder', mediaType: 'adult', adultRegion: 'japanese_jav', scraperType: 'shelfdeck_japanese_jav', watchRoot, ruleTemplateId: 'adult_jav_default' },
+  });
+  const subLib = create.json();
+  await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
+
+  const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  const item = lib.json().items[0];
+  assert.strictEqual(item.adultMetadata.scrapeStatus, 'ambiguous');
+  assert.strictEqual(item.adultMetadata.idConfidence, 'low');
+
+  // No scrape task auto-created for ambiguous items.
+  const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  assert.ok(!tasks.json().tasks.some((t) => t.itemId === item.itemId), 'no auto scrape task for ambiguous item');
+
+  // Rescrape with a corrected 番号 override enqueues a task.
+  const rescrape = await app.inject({
+    method: 'POST',
+    url: `/v1/admin/adult/items/${item.itemId}/actions/rescrape`,
+    payload: { adultId: 'MVSD-175' },
+  });
+  assert.strictEqual(rescrape.statusCode, 201);
+  const lib2 = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  assert.strictEqual(lib2.json().items[0].adultMetadata.adultId, 'MVSD-175');
+  await app.close();
+});
+
+
 test('PATCH /v1/admin/transcode/config persists', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
@@ -414,6 +650,18 @@ test('strategyEngine rule evaluation scenarios', async () => {
   assert.ok(ruleMatches({ bucket: '1080p', equivalentBitrate: 8 }, ruleOr));
   assert.ok(ruleMatches({ codec: 'h265' }, ruleOr));
   assert.ok(!ruleMatches({ bucket: '4K', equivalentBitrate: 8, codec: 'h264' }, ruleOr));
+});
+
+test('adult JAV default template requires scraped=true before transcode', async () => {
+  const { buildAdultJavDefaultTemplate } = require('../src/configStore');
+  const { ruleMatches } = require('../src/strategyEngine');
+  const tpl = buildAdultJavDefaultTemplate({ target1080p: 4, target4k: 10 });
+  const transcode1080p = tpl.rules.find((r) => r.action === 'transcode' && r.reason.includes('1080p'));
+
+  assert.ok(transcode1080p, '1080p transcode rule exists');
+  assert.ok(ruleMatches({ scraped: true, bucket: '1080p', equivalentBitrate: 8 }, transcode1080p));
+  assert.ok(!ruleMatches({ scraped: false, bucket: '1080p', equivalentBitrate: 8 }, transcode1080p));
+  assert.ok(!ruleMatches({ bucket: '1080p', equivalentBitrate: 8 }, transcode1080p));
 });
 
 // ── 404 handling ──────────────────────────────────────────────────────────────

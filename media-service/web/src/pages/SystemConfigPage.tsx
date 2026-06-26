@@ -45,6 +45,7 @@ export default function SystemConfigPage() {
   const [deleteConc, setDeleteConc] = useState(3);
   const [transcodeConc, setTranscodeConc] = useState(1);
   const [upgradeConc, setUpgradeConc] = useState(1);
+  const [scrapeConc, setScrapeConc] = useState(1);
   const [smartTaskMax, setSmartTaskMax] = useState(10);
   const [smartTaskActions, setSmartTaskActions] = useState<string[]>(['transcode', 'upgrade']);
   const [smartTaskInterval, setSmartTaskInterval] = useState(10);
@@ -70,6 +71,7 @@ export default function SystemConfigPage() {
         setDeleteConc(sysCfg.deleteConcurrency ?? 3);
         setTranscodeConc(sysCfg.transcodeConcurrency ?? 1);
         setUpgradeConc(sysCfg.upgradeConcurrency ?? 1);
+        setScrapeConc(sysCfg.scrapeConcurrency ?? 1);
         setSmartTaskMax(sysCfg.smartTaskMaxPerRun ?? 10);
         setSmartTaskActions(sysCfg.smartTaskEnabledActions ?? ['transcode', 'upgrade']);
         setSmartTaskInterval(sysCfg.smartTaskPollIntervalMinutes ?? 10);
@@ -110,6 +112,7 @@ export default function SystemConfigPage() {
           deleteConcurrency: deleteConc,
           transcodeConcurrency: transcodeConc,
           upgradeConcurrency: upgradeConc,
+          scrapeConcurrency: scrapeConc,
           smartTaskMaxPerRun: smartTaskMax,
           smartTaskEnabledActions: smartTaskActions,
           smartTaskPollIntervalMinutes: smartTaskInterval,
@@ -225,7 +228,7 @@ export default function SystemConfigPage() {
       <section style={cardStyle}>
         <h3 style={sectionTitle}>任务并发数</h3>
         <p style={{ ...hintStyle, marginBottom: 16 }}>并发执行任务上限（全局）</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16 }}>
           <div>
             <label style={labelStyle}>删除并发任务数</label>
             <input type="number" value={deleteConc} min={1} max={10}
@@ -244,6 +247,12 @@ export default function SystemConfigPage() {
               onChange={(e) => setUpgradeConc(Math.max(1, parseInt(e.target.value) || 1))}
               style={{ ...inputStyle, width: 100 }} />
           </div>
+          <div>
+            <label style={labelStyle}>刮削并发任务数</label>
+            <input type="number" value={scrapeConc} min={1} max={10}
+              onChange={(e) => setScrapeConc(Math.max(1, parseInt(e.target.value) || 1))}
+              style={{ ...inputStyle, width: 100 }} />
+          </div>
         </div>
       </section>
 
@@ -257,6 +266,7 @@ export default function SystemConfigPage() {
           <label style={labelStyle}>允许自动创建的任务类型</label>
           <div style={{ display: 'flex', gap: 16 }}>
             {[
+              { key: 'scrape', label: '刮削' },
               { key: 'transcode', label: '码率压缩' },
               { key: 'upgrade', label: '洗版' },
               { key: 'delete', label: '删除' },

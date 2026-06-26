@@ -25,6 +25,7 @@ export default function DashboardPage() {
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   // Wizard state
+  const [libraryKind, setLibraryKind] = useState<'emby' | 'japanese_jav' | 'western_adult'>('emby');
   const [baseUrl, setBaseUrl] = useState('');
   const [embyUsername, setEmbyUsername] = useState('');
   const [embyPassword, setEmbyPassword] = useState('');
@@ -34,6 +35,8 @@ export default function DashboardPage() {
   const [doubanEnabled, setDoubanEnabled] = useState(false);
   const [ruleTemplateId, setRuleTemplateId] = useState('default');
   const [mediaType, setMediaType] = useState('movie');
+  const [watchRoot, setWatchRoot] = useState('');
+  const [scrapeSettleSeconds, setScrapeSettleSeconds] = useState(30);
   const [pathMapFrom, setPathMapFrom] = useState('');
   const [pathMapTo, setPathMapTo] = useState('');
   const [testing, setTesting] = useState(false);
@@ -90,19 +93,44 @@ export default function DashboardPage() {
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
+  const scanMut = useMutation({
+    mutationFn: subLibraries.scan,
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['sublibraries'] });
+      qc.invalidateQueries({ queryKey: ['space-stats'] });
+      setAlert({ type: 'success', msg: `扫描完成：${res.scanned} 个文件，${res.upserted} 个条目` });
+    },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+
   const createMut = useMutation({
     mutationFn: () =>
-      subLibraries.create({
-        name: subLibName,
-        embyServerId,
-        sectionId: selectedSectionId,
-        source: 'emby',
-        doubanEnabled,
-        ruleTemplateId,
-        pathMapFrom: pathMapFrom || '',
-        pathMapTo: pathMapTo || '',
-        mediaType,
-      }),
+      libraryKind === 'emby'
+        ? subLibraries.create({
+          name: subLibName,
+          embyServerId,
+          sectionId: selectedSectionId,
+          source: 'emby',
+          doubanEnabled,
+          ruleTemplateId,
+          pathMapFrom: pathMapFrom || '',
+          pathMapTo: pathMapTo || '',
+          mediaType,
+        })
+        : subLibraries.create({
+          name: subLibName,
+          embyServerId: '',
+          sectionId: '',
+          source: 'folder',
+          doubanEnabled: false,
+          ruleTemplateId: 'adult_jav_default',
+          mediaType: 'adult',
+          adultRegion: libraryKind,
+          scraperType: libraryKind === 'japanese_jav' ? 'shelfdeck_japanese_jav' : 'western_builtin',
+          watchRoot,
+          scrapeEnabled: true,
+          scrapeSettleSeconds,
+        }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sublibraries'] });
       setAlert({ type: 'success', msg: '媒体库添加成功' });
@@ -141,11 +169,14 @@ export default function DashboardPage() {
   function closeWizard() {
     setWizardOpen(false);
     setStep(1);
+    setLibraryKind('emby');
     setBaseUrl(''); setEmbyUsername(''); setEmbyPassword(''); setEmbyServerId('');
     setSelectedSectionId(''); setSubLibName('');
     setDoubanEnabled(false);
     setRuleTemplateId('default');
     setMediaType('movie');
+    setWatchRoot('');
+    setScrapeSettleSeconds(30);
     setTestError('');
   }
 
@@ -204,16 +235,25 @@ export default function DashboardPage() {
             {subLibs.map((sl) => {
               const slSpace = (spaceData?.subLibraries || []).find((s) => s.uuid === sl.uuid);
               const tpl = templates.find((t) => t.id === (sl.ruleTemplateId || 'default'));
+              const typeLabel = sl.mediaType === 'adult'
+                ? (sl.adultRegion === 'western_adult' ? '欧美成人' : '日本 JAV')
+                : (sl.mediaType || 'movie') === 'tv' ? '剧集' : '电影';
+              const typeColor = sl.mediaType === 'adult'
+                ? { bg: '#fff3e0', fg: '#ef6c00' }
+                : (sl.mediaType || 'movie') === 'tv'
+                ? { bg: '#e8f5e9', fg: '#2e7d32' }
+                : { bg: '#e3f2fd', fg: '#1565c0' };
               return (
                 <div key={sl.uuid} style={{ border: '1px solid #e8e8e8', borderRadius: 12, padding: 16, background: '#fff' }}>
                   {/* Header bar */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 17, fontWeight: 700, color: '#1a1a2e' }}>{sl.name}</span>
-                      <span style={{ fontSize: 11, padding: '1px 8px', borderRadius: 10, background: (sl.mediaType || 'movie') === 'tv' ? '#e8f5e9' : '#e3f2fd', color: (sl.mediaType || 'movie') === 'tv' ? '#2e7d32' : '#1565c0', fontWeight: 600 }}>{(sl.mediaType || 'movie') === 'tv' ? '剧集' : '电影'}</span>
+                      <span style={{ fontSize: 11, padding: '1px 8px', borderRadius: 10, background: typeColor.bg, color: typeColor.fg, fontWeight: 600 }}>{typeLabel}</span>
                       <span style={{ fontSize: 12, color: '#999' }}>{slSpace ? `${slSpace.itemCount} 条目` : ''}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
+                      {sl.source === 'folder' && <button onClick={() => scanMut.mutate(sl.uuid)} style={cardBtn}>扫描</button>}
                       <button onClick={() => openEdit(sl)} style={cardBtn}>编辑</button>
                       <button onClick={() => { if (confirm('确认删除此媒体库？')) deleteMut.mutate(sl.uuid); }} style={{ ...cardBtn, color: '#e74c3c', borderColor: '#f5c6cb' }}>删除</button>
                     </div>
@@ -343,6 +383,51 @@ export default function DashboardPage() {
         {step === 1 && (
           <div>
             <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 8, fontSize: 14, fontWeight: 500 }}>媒体库类型</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {[
+                  { key: 'emby', title: 'Emby 媒体库', desc: '电影/剧集' },
+                  { key: 'japanese_jav', title: '日本 JAV', desc: '内置刮削' },
+                  { key: 'western_adult', title: '欧美成人', desc: '预留自研刮削' },
+                ].map((k) => (
+                  <button
+                    key={k.key}
+                    type="button"
+                    onClick={() => {
+                      const next = k.key as 'emby' | 'japanese_jav' | 'western_adult';
+                      setLibraryKind(next);
+                      if (next === 'japanese_jav') {
+                        setMediaType('adult');
+                        setRuleTemplateId('adult_jav_default');
+                        setSubLibName('日本 JAV');
+                      } else if (next === 'western_adult') {
+                        setMediaType('adult');
+                        setRuleTemplateId('adult_jav_default');
+                        setSubLibName('欧美成人');
+                      } else {
+                        setMediaType('movie');
+                        setRuleTemplateId('default');
+                        setSubLibName('');
+                      }
+                    }}
+                    style={{
+                      textAlign: 'left',
+                      padding: 12,
+                      borderRadius: 8,
+                      border: libraryKind === k.key ? '2px solid #1a1a2e' : '1px solid #ddd',
+                      background: libraryKind === k.key ? '#f5f6fb' : '#fff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 13, color: '#1a1a2e' }}>{k.title}</div>
+                    <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{k.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {libraryKind === 'emby' ? (
+            <>
+            <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>服务器地址</label>
               <input type="text" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)}
                 placeholder="http://192.168.1.100:8096"
@@ -362,10 +447,16 @@ export default function DashboardPage() {
               <p style={{ fontSize: 11, color: '#999', marginTop: 4 }}>密码仅用于登录 Emby 获取授权，不会明文存储</p>
             </div>
             {testError && <Alert type="error" message={testError} onClose={() => setTestError('')} />}
+            </>
+            ) : (
+              <div style={{ padding: 12, background: '#f8f9fb', borderRadius: 8, fontSize: 13, color: '#666', lineHeight: 1.6 }}>
+                文件夹库由 ShelfDeck 直接监听本地路径；日本 JAV 使用内置 scraper，欧美成人库保留 scraper adapter。
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <button onClick={closeWizard} style={secondaryBtn}>取消</button>
-              <button onClick={handleTestAndNext} disabled={testing} style={primaryBtn}>
-                {testing ? '登录中...' : '登录 Emby'}
+              <button onClick={() => libraryKind === 'emby' ? handleTestAndNext() : setStep(3)} disabled={testing || libraryKind === 'western_adult'} style={primaryBtn}>
+                {libraryKind === 'emby' ? (testing ? '登录中...' : '登录 Emby') : libraryKind === 'western_adult' ? '暂未开放' : '下一步'}
               </button>
             </div>
           </div>
@@ -402,6 +493,25 @@ export default function DashboardPage() {
               <input type="text" value={subLibName} onChange={(e) => setSubLibName(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
             </div>
+            {libraryKind !== 'emby' && (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>监控目录</label>
+                  <input type="text" value={watchRoot} onChange={(e) => setWatchRoot(e.target.value)}
+                    placeholder="E:\\my_project\\emby_third_party\\jav_test"
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>稳定等待（秒）</label>
+                    <input type="number" value={scrapeSettleSeconds} min={1} onChange={(e) => setScrapeSettleSeconds(Math.max(1, Number(e.target.value) || 30))}
+                      style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+              </>
+            )}
+            {libraryKind === 'emby' && (
+            <>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>路径映射（Emby → 本地）</label>
               <p style={{ fontSize: 12, color: '#888', margin: '0 0 8px' }}>用于转码/洗版时将 Emby 访问路径翻译为本地文件路径（前缀替换）</p>
@@ -432,6 +542,8 @@ export default function DashboardPage() {
                 启用豆瓣评分同步
               </label>
             </div>
+            </>
+            )}
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>策略模板</label>
               <select value={ruleTemplateId} onChange={(e) => setRuleTemplateId(e.target.value)}
@@ -445,8 +557,8 @@ export default function DashboardPage() {
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button onClick={() => setStep(2)} style={secondaryBtn}>上一步</button>
-              <button onClick={() => createMut.mutate()} disabled={!subLibName || createMut.isPending} style={primaryBtn}>
+              <button onClick={() => setStep(libraryKind === 'emby' ? 2 : 1)} style={secondaryBtn}>上一步</button>
+              <button onClick={() => createMut.mutate()} disabled={!subLibName || (libraryKind !== 'emby' && !watchRoot) || createMut.isPending} style={primaryBtn}>
                 {createMut.isPending ? '创建中...' : '完成添加'}
               </button>
             </div>

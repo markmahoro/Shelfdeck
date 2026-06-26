@@ -15,6 +15,7 @@ const GROUP_3 = [
   { to: '/system', label: '任务调度' },
   { to: '/douban', label: '豆瓣评分抓取' },
   { to: '/transcode', label: '转码压缩' },
+  { to: '/adult', label: '成人库' },
   { to: '/nodes', label: '转码节点' },
   { to: '/moviepilot', label: '洗版' },
 ];

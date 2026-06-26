@@ -20,7 +20,7 @@ export interface MediaFolder {
   collectionType?: string;
 }
 
-export type MediaType = 'movie' | 'tv';
+export type MediaType = 'movie' | 'tv' | 'adult';
 
 export interface EmbyTestResult {
   ok: boolean;
@@ -58,6 +58,13 @@ export interface SubLibrary {
   pathMapFrom?: string;
   pathMapTo?: string;
   mediaType?: string;
+  adultRegion?: 'japanese_jav' | 'western_adult';
+  scraperType?: 'shelfdeck_japanese_jav' | 'western_builtin';
+  watchRoot?: string;
+  scrapeEnabled?: boolean;
+  scrapeSettleSeconds?: number;
+  scanIntervalMinutes?: number;
+  japaneseJav?: Record<string, unknown>;
 }
 
 // ── Rule Template ──────────────────────────────────────────────────────────────
@@ -166,7 +173,7 @@ export type TaskStatus =
   | 'awaiting_user_confirm' | 'pausing' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
-export type ActionType = 'delete' | 'transcode' | 'upgrade';
+export type ActionType = 'delete' | 'transcode' | 'upgrade' | 'scrape';
 
 export interface TaskLogEntry {
   seq?: number;
@@ -203,6 +210,8 @@ export interface TaskItemInfo {
   durationSec?: number;
   searchCandidates?: Record<string, unknown>[];
   searchCandidatesSimplified?: UpgradeCandidate[];
+  adultMetadata?: Record<string, unknown>;
+  transcodeTaskId?: string;
 }
 
 export interface UpgradeCandidate {
