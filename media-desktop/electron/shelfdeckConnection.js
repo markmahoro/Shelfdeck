@@ -1,8 +1,8 @@
 'use strict';
 
 /**
- * SSOT: docs/archive/design/DESIGN_DESKTOP_BACKEND_ENDPOINT.md
- * 与 media-tray-supervisor/electron/shelfdeckConnection.js 保持一致。
+ * Desktop-local service endpoint persistence.
+ * Architecture: docs/v2/ARCH_OVERVIEW.md
  */
 
 const fs = require('fs');

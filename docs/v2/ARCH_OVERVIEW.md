@@ -1,265 +1,181 @@
-# ARCH_OVERVIEW — 系统结构总览
+# ARCH_OVERVIEW - 系统结构总览
 
-> v4 定稿。
+本文是 ShelfDeck 当前唯一架构入口。更细的实现细节以代码和测试为准；当代码行为改变到影响组件边界、数据所有权、部署目标或外部集成时，必须同步更新本文。
 
-## §1 组件边界
+## 1. 产品定位
 
-### 1.1 逻辑组件
+ShelfDeck 是媒体库管家：基于 Emby 媒体数据、观看状态、用户评分和 Douban 评分，判断影片应该保留、删除、转码或洗版，并把动作交给 service 执行。
 
-系统分为 2 个逻辑组件：
+当前主要能力：
 
-| 组件 | 职责 | 定位 |
-|------|------|------|
-| **service** | 任务执行引擎、任务持久化、Web 管理端、Emby 集成、豆瓣集成、MoviePilot 集成 | 胖服务 |
-| **desktop** | 意图下发、任务卡 UI、媒体库浏览 | 瘦客户端 |
+| 能力 | 说明 |
+| --- | --- |
+| 资产盘点 | 同步 Emby 电影库，保存媒体技术信息和用户关系数据 |
+| 策略推荐 | 根据评分、观看状态、码率、编码、分辨率计算 action/reason |
+| 空间管理 | 执行 delete/transcode/upgrade 三类任务 |
+| Admin Web | 配置 service、媒体库、策略、任务和外部集成 |
+| Desktop | 浏览媒体库、下发意图、展示任务状态 |
 
-### 1.2 物理进程
+## 2. 当前模块
 
-对应 2 个独立进程：
+| 模块 | Directory | Runtime | 职责 |
+| --- | --- | --- | --- |
+| service Docker | `media-service/` | Container | Linux/Docker 版主服务；HTTP API、Admin Web、任务调度、外部集成 |
+| service Windows | `media-service/` | Node.js + Fastify + systray2 | Windows 版主服务；同 Docker 版，但内嵌托盘并使用 bundled FFmpeg |
+| desktop | `media-desktop/` | Electron + React | HTTP thin client；管理 service 地址、浏览媒体、下发意图 |
+| transcode node | `media-worker/` | Node.js + Fastify + FFmpeg | 被动计算节点；接收 service 下发的转码 job、执行 FFmpeg、返回输出文件 |
 
-| 进程 | 包 | 职责 |
-|------|-----|------|
-| `media-desktop` | media-desktop | Electron 主进程 + 渲染进程 |
-| `media-service` | media-service | Fastify HTTP 服务，内嵌托盘模块（Windows 系统托盘图标） |
+## 3. 组件边界
 
-> 托盘不再作为独立进程存在。托盘是 service 进程内的轻量模块（使用 systray2），启动时自动显示系统托盘图标，退出托盘即停止 service。旧 `media-tray-supervisor`（Electron）已废弃。
+系统逻辑上分为主控侧和计算侧：
 
-### 1.3 组件间协议
+| 组件 | 职责 | 状态所有权 |
+| --- | --- | --- |
+| service | HTTP API、任务队列、任务执行、媒体库缓存、配置、Admin Web、外部集成 | 任务、配置、媒体库、策略结果 |
+| desktop | 用户交互、service 地址管理、任务/媒体展示、播放助手 | service 连接地址和本地 UI 状态 |
+| transcode node | FFmpeg 计算、GPU 能力探测、临时 job 文件 | 仅持有临时 job 状态和临时文件 |
 
-全部跨组件通信均为 **HTTP REST**。
+跨组件通信一律使用 HTTP REST。desktop 不直接访问 Emby、Douban、MoviePilot 或 service 运行时数据文件。transcode node 不直接访问 Emby、MoviePilot 或 service 数据文件。
 
----
+## 4. 进程模型
 
-## §2 进程模型
+Windows:
 
-### 2.1 启动关系
+```text
+media-service
+  Fastify :18080
+  Admin Web static files
+  embedded tray module
 
-```
-用户点击 desktop 快捷方式
-    └── desktop 进程启动（独立）
-
-用户点击 service 快捷方式（或启动 service）
-    └── service 进程启动 → 系统托盘图标自动出现
-            └── 右键托盘 → "退出" → service 进程终止
-```
-
-- **desktop 独立启动**：不依赖 service 是否运行；未连接时显示引导界面
-- **service 自包含**：托盘是 service 进程的内置模块；启动 service 即出现托盘图标，退出托盘即停止 service
-
-### 2.2 退出影响
-
-| 进程退出 | 影响范围 |
-|----------|----------|
-| desktop 退出 | service 不受影响；任务继续执行 |
-| service 退出（含托盘退出） | 正在执行的任务中断；desktop 连接中断；托盘图标消失 |
-
-
----
-
-## §3 数据流
-
-### 3.1 意图下发（桌面 → 服务）
-
-桌面不承载任务逻辑，仅下发用户意图：
-
-```
-desktop 渲染进程
-    │ POST /v1/tasks { itemId, actionType }
-    ▼
-service REST API
-    └── taskScheduler 接收任务
-            └── taskExecutor 执行（见 TASK_SCHEDULER）
+media-desktop
+  Electron main process
+  React renderer
+  HTTP client -> media-service
 ```
 
-**意图内容**：
+Docker/Linux:
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `itemId` | string | Emby 媒体项 ID |
-| `actionType` | string | `transcode` \| `delete` \| `upgrade` |
-
-service 根据 `itemId` 调用 Emby API 获取详细信息（路径、名称、时长等），桌面不持有任何任务细节。
-
-### 3.2 自动入队（SmartTaskEngine → 服务）
-
-除 desktop 手动下发外，任务也可由 service 内部的 SmartTaskEngine 自动创建：
-
-```
-StrategyEngine（定时 30min 全量计算 action/reason）
-    │
-    ▼
-SmartTaskEngine（定时 10min 扫描）
-    │ 条件：watched=true + 有评分 + action∈{transcode,upgrade,delete} + 无活跃任务
-    ▼
-TaskStore.createTask() → TaskScheduler 接管
+```text
+container: media-service
+  Fastify :18080
+  Admin Web static files
+  no tray
 ```
 
-### 3.3 Admin API 任务创建
+Transcode node:
 
-管理员可通过 Web 管理端手动创建任务：
-
-```
-Admin Web → POST /v1/admin/tasks → TaskStore.createTask() → TaskScheduler 接管
-```
-
-### 3.4 进度推送（服务 → 桌面）
-
-Phase 3 从 IPC 迁移到 REST 后，进度推送改为轮询机制。desktop 通过以下端点轮询任务状态：
-
-```
-desktop 渲染进程
-    │ 轮询 GET /v1/tasks（间隔 400ms）
-    ▼
-service REST API
-    └── 返回当前任务列表（含 status、progress、flowState）
+```text
+media-worker
+  Fastify :19000
+  /api/v1/health
+  /api/v1/capabilities
+  /api/v1/jobs
+  temporary source/output files
 ```
 
-### 3.5 状态数据流（桌面只读）
+desktop 退出不影响 service。service 退出会中断任务并让 desktop 断连。
 
-桌面通过以下端点读取任务状态（不写）：
+## 5. 数据流
 
-| 端点 | 用途 |
-|------|------|
-| `GET /v1/tasks` | 任务队列列表 |
-| `GET /v1/tasks/:id` | 单个任务详情 |
-| `GET /v1/health` | 服务健康状态 |
-
-**状态所有权**：
-
-| 状态 | service | desktop |
-|------|---------|---------|
-| 任务队列 | ✅ 读写（SSOT） | ❌ 只读 |
-| Emby 连接信息 | ✅ | ❌ |
-| service 地址 | ❌ | ✅ 自己管理 |
-| 路径映射 | ✅（SSOT） | ❌ |
-
----
-
-## §4 服务内部核心模块
-
-service 内部由以下关键模块组成，各司其职：
-
+```text
+Emby/Douban/MoviePilot
+        ^
+        |
+service API + engines  ----HTTP----> transcode node(s)
+        ^
+        |
+desktop / Admin Web
 ```
-┌─────────────────────────────────────────────────────┐
-│ [数据层] MediaLibraryService                         │
-│ library.json CRUD，协调 EmbyAdapter/DoubanAdapter    │
-└─────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────┐
-│ [策略层] StrategyEngine（定时 30min）                  │
-│ 全量扫描 library.json，计算 action/reason 并写回      │
-│ 基于 mediaPolicy 规则纯函数计算                        │
-└─────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────┐
-│ [入队层] SmartTaskEngine（定时 10min）                 │
-│ 扫描 library.json，发现符合条件的条目，自动入队         │
-└─────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────┐
-│ [执行层] TaskScheduler + Flow Executors               │
-│ TaskScheduler: 调度（slot 检查、executionMode）+ 路由   │
-│ ├── DeleteFlowExecutor                               │
-│ ├── TranscodeFlowExecutor                            │
-│ └── UpgradeFlowExecutor（MoviePilot 集成）            │
-└─────────────────────────────────────────────────────┘
-```
+
+核心流：
+
+1. service 同步 Emby 媒体库到 `media-service/data/library.json`。
+2. service 同步 Douban 或接收用户评分。
+3. `StrategyEngine` 计算每个媒体项的 `action/reason`。
+4. `SmartTaskEngine` 或用户操作创建任务。
+5. `TaskScheduler` 根据 `actionType` 分派到 `DeleteFlowExecutor`、`TranscodeFlowExecutor` 或 `UpgradeFlowExecutor`。
+6. 本机转码直接在 service 执行；远程转码通过 `NodeService` 上传源文件到 transcode node，轮询状态，下载输出，再由 service 完成校验和替换。
+7. desktop 和 Admin Web 轮询 REST API 获取任务、媒体库和健康状态。
+
+## 6. Service 模块
 
 | 模块 | 文件 | 职责 |
-|------|------|------|
-| **MediaLibraryService** | `mediaLibraryService.js` | 媒体库数据 CRUD，子库管理，驱动 Emby/Douban 定时同步 |
-| **StrategyEngine** | `strategyEngine.js` | 基于 mediaPolicy 规则计算每个媒体项的 action/reason，支持跨 subLibrary 查询和用户可配置模板 |
-| **SmartTaskEngine** | `smartTaskEngine.js` | 自动扫描 library.json，将符合条件的已看条目自动入队到 TaskStore |
-| **TaskScheduler** | `taskScheduler.js` | 调度 + 路由；每 5s 轮询，按 actionType 分派到对应 Flow Executor |
-| **EmbyAdapter** | `services/embyService.js` | Emby REST API 封装，多服务器支持 |
-| **DoubanAdapter** | `services/doubanService.js` | 豆瓣"看过"列表抓取 |
-| **MoviePilotService** | `services/moviepilotService.js` | MoviePilot REST API 客户端（搜索、下载、传输管理） |
+| --- | --- | --- |
+| HTTP API | `src/app.js` | `/v1/*` 和 `/v1/admin/*` 路由 |
+| Server | `src/server.js` | 启动、关闭、可选 tray |
+| Config | `src/configStore.js` | `data/config.json` 读写、默认值、平台路径 |
+| Task store | `src/taskStore.js` | `data/tasks.json` 读写 |
+| Scheduler | `src/taskScheduler.js` | 轮询、锁、并发、flow dispatch |
+| Delete flow | `src/deleteFlowExecutor.js` | 删除任务执行 |
+| Transcode flow | `src/transcodeFlowExecutor.js` | 转码任务执行 |
+| Upgrade flow | `src/upgradeFlowExecutor.js` | MoviePilot 洗版任务执行 |
+| Library | `src/mediaLibraryService.js` | 子库和媒体缓存管理 |
+| Policy | `src/mediaPolicyService.js`、`src/strategyEngine.js`、`src/smartTaskEngine.js` | 策略计算和自动入队 |
+| External adapters | `src/services/*Service.js` | Emby、Douban、MoviePilot、FFmpeg |
+| Tray | `src/tray.js` | Windows 系统托盘 |
+| Node registry | `src/nodeStore.js` | `data/nodes.json` 转码节点登记、健康状态、设备池 |
+| Node client | `src/nodeService.js` | 调用 transcode node 的 job/capabilities/health API |
 
----
+## 7. Transcode Node 模块
 
-## §5 部署拓扑
+| 模块 | 文件 | 职责 |
+| --- | --- | --- |
+| Worker API | `media-worker/src/server.js` | `/api/v1/jobs`、上传源文件、查询状态、下载输出、清理 job |
+| Worker config | `media-worker/src/config.js` | 默认端口、API key、临时目录、FFmpeg 路径 |
+| Worker admin | `media-worker/src/admin.html` | 简单配置页面 |
 
-service 端固定部署在 Windows 上，内嵌系统托盘模块。
+转码 node 是被动计算节点：
 
-```
-同一台 Windows 机器
-┌───────────────────────────────────────────────────┐
-│  service (:18080) — 托盘图标自动出现               │
-│  desktop (Electron) ──HTTP──▶ service :18080       │
-└───────────────────────────────────────────────────┘
-```
+- 不知道 Emby、MoviePilot、媒体库路径映射或 service 地址。
+- 只保存内存 job 状态和临时源/输出文件。
+- 由 service 负责任务持久化、调度、校验和替换。
+- 默认端口是 `19000`。
 
-- 托盘是 service 进程的内置模块，不再是独立进程
-- service 端口固定 18080
-- desktop 通过 electron-store 保存的地址连接 service
+## 8. Runtime Data
 
----
+Runtime JSON 不入库：
 
-## §6 相位对照
+| 文件 | 所有者 | 说明 |
+| --- | --- | --- |
+| `media-service/data/config.json` | service | 配置 |
+| `media-service/data/tasks.json` | service | 任务队列 |
+| `media-service/data/library.json` | service | 媒体库缓存 |
+| `media-service/data/nodes.json` | service | 转码节点登记 |
+| `media-worker/config.json` | transcode node | worker 本机配置 |
 
-| | P1 | P2 | P3 | P4 (v1.0.0) |
-|---|-----|-----|-----|-----|
-| **组件边界** | 单体 | 3 组件 | 2 逻辑组件（service 胖服务 + desktop 瘦客户端） | 同 P3 |
-| **进程模型** | 1 进程 | 3 进程 | 2 进程；tray 内嵌于 service 进程 | 同 P3 |
-| **数据流** | IPC | IPC | REST | 同 P3 |
-| **部署拓扑** | 无 tray | tray 独立进程 | tray 内嵌于 service（systray2） | 同 P3 |
+不要把生产/测试环境导出的 `tasks_*.json`、`config_*.json`、截图、构建产物或日志提交到仓库。
 
----
+## 9. API 契约
 
-## §7 外部集成
+- Desktop domain: `/v1/*`
+- Admin domain: `/v1/admin/*`
+- Health: `GET /v1/health` public
+- Protected APIs: `X-Api-Key`
+- Error shape: `{ error: { code, message } }`
+- GET 无副作用，PATCH 幂等部分更新
 
-外部系统通过 service 集成，不与 desktop 直接通信：
+API 细节以 `src/app.js` 和现有 tests 为准。新增或变更 API 时必须补充对应 service inject test、desktop integration test 或 E2E flow。
 
-| 系统 | 集成方式 | 说明 |
-|------|----------|------|
-| **Emby** | service → Emby REST API | 用户认证、媒体库、播放 |
-| **豆瓣** | service → 豆瓣 API | 评分同步 |
-| **外部播放器** | desktop → spawn | emby:launchPlayer IPC |
-| **MoviePilot** | service → MoviePilot REST API | 洗版功能：种子搜索、下载管理、文件转移。UpgradeFlowExecutor 通过 moviepilotService 调用 MoviePilot 原生 API。 |
+Worker API:
 
----
+- `GET /api/v1/health`
+- `GET /api/v1/capabilities`
+- `POST /api/v1/jobs`
+- `PUT /api/v1/jobs/:id/source`
+- `GET /api/v1/jobs/:id`
+- `GET /api/v1/jobs/:id/output`
+- `DELETE /api/v1/jobs/:id`
 
-## §8 整体产品定位与架构关系
+## 10. 平台约束
 
-### 8.1 产品定位
+- Docker/Linux 专用行为使用 `process.platform === 'linux'`。
+- Windows-only tray 代码必须可选加载，Docker 中缺失 optional dependency 是正常情况。
+- 路径使用 `path.join()` 和可配置根目录。
+- FFmpeg/FFprobe 优先读取 `FFMPEG_PATH`、`FFPROBE_PATH`，Dockerfile 提供默认值。
 
-媒体库管家 = 资产盘点 + 推荐消费 + 空间管理 + 发现缺口
+## 11. 关联文档
 
-| 模块 | 本质 | 差异化 |
-|------|------|--------|
-| 精准资产盘点 | 清楚"我和我的内容是什么关系" | 用户私有数据（评分、观看记录、个人评价、场景标签） |
-| 推荐已有 | 告诉你接下来看库的哪部 | 基于私有数据推荐，不是公开榜单 |
-| 空间分级管理 | 每个内容占用它值得的空间 | 转码层/永久层/缓存层智能决策 |
-| 发现缺口 | 发现你自己都不知道缺什么 | 关联查询，不是遍历公开库 |
-
-**核心竞争力**：用户和内容的关系数据。内容本身谁都能爬，但"你和每部电影的关系"只有你有。
-
-**元数据**：Emby/TMDB 只能提供内容元数据，是基础设施，不是竞争力。内容来源层可插拔。
-
-### 8.2 当前架构如何支撑
-
-| 产品模块 | 支撑架构 |
-|----------|----------|
-| 资产盘点 | service 持有用户私有数据（评分、观看记录、个人评价） |
-| 推荐已有 | service 计算推荐逻辑（StrategyEngine），desktop 只展示结果 |
-| 空间管理 | service 执行转码/删除/洗版任务（TaskScheduler + Flow Executors） |
-| 发现缺口 | 待实现 |
-| 内容来源可插拔 | service 通过 Emby 适配器获取媒体元数据，未来可替换为其他适配器 |
-
-### 8.3 未来演进
-
-- 支持 Docker 部署：service 可运行在 NAS/Docker 环境，desktop 通过 HTTP 远端连接
-- #4 发现缺口：需要新的查询/推荐算法模块
-- 内容来源多适配器：同时支持 Emby + 本地文件夹，以 TMDB ID 去重
-
----
-
-## 关联文档
-
-- `SERVICE.md` — 胖服务内部子模块职责与协作
-- `SHARED/DATA_FLOW.md` — 意图下发 + 轮询机制（跨组件视角）
-- `SHARED/DATA_MODEL.md` — 核心数据模型
-- `SHARED/ERROR_HANDLING.md` — 错误码与降级策略
+- `docs/v2/DEVELOPMENT_WORKFLOW.md`
+- `docs/v2/TEST_ARCHITECTURE.md`
+- `docs/v2/DEBUG_WORKFLOW.md`
+- `tests/TEST_ENV_CHECKLIST.md`（私有凭据，不提交）

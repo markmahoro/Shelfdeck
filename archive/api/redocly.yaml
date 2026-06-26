@@ -1,9 +1,0 @@
-# Redocly CLI 配置：契约草案阶段放宽与模板相关的规则，仍继承推荐基线。
-extends:
-  - recommended
-
-rules:
-  info-license: off
-  no-server-example.com: off
-  operation-operationId: off
-  operation-4xx-response: off

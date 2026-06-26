@@ -1,0 +1,8 @@
+{
+  "name": "GPU-Node-1",
+  "port": 19000,
+  "apiKey": "",
+  "tempRoot": "E:\\shelfdeck-worker\\temp",
+  "ffmpegPath": "",
+  "ffprobePath": ""
+}
