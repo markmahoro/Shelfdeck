@@ -24,6 +24,7 @@ const activityLog = require('./activityLog');
 const spaceStats = require('./spaceStats');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
+const assetIdentity = require('./assetIdentity');
 
 let serverReady = false;
 
@@ -126,10 +127,15 @@ function resolveEmbyConfigForLibrary(subLibraryId) {
 }
 
 function resolveEmbyConfigForItem(itemId, subLibraryId) {
-  if (subLibraryId) return resolveEmbyConfigForLibrary(subLibraryId);
   const libItem = mediaLibraryService.getLibraryItem(itemId);
-  if (libItem && libItem.subLibraryId) {
-    return resolveEmbyConfigForLibrary(libItem.subLibraryId);
+  const resolvedSubLibraryId = subLibraryId || (libItem && libItem.subLibraryId) || '';
+  if (resolvedSubLibraryId) {
+    const resolved = resolveEmbyConfigForLibrary(resolvedSubLibraryId);
+    if (!resolved.error) {
+      resolved.libItem = libItem || null;
+      resolved.embyItemId = libItem ? assetIdentity.getEmbyItemId(libItem) : itemId;
+    }
+    return resolved;
   }
   return { error: { code: 'NOT_FOUND', message: 'Cannot determine subLibrary for this item' } };
 }
@@ -168,8 +174,13 @@ function registerRoutes(app) {
     const libItem = mediaLibraryService.getLibraryItem(itemId);
     const itemInfo = libItem ? {
       name: libItem.name,
+      itemId: libItem.itemId,
+      embyItemId: assetIdentity.getEmbyItemId(libItem),
       path: libItem.path,
       subLibraryId: libItem.subLibraryId,
+      assetKey: libItem.assetKey,
+      assetRootPath: libItem.assetRootPath,
+      externalRefs: libItem.externalRefs,
       resolution: libItem.resolution,
       bitrate: libItem.bitrate,
       size: libItem.size,
@@ -404,7 +415,10 @@ function registerRoutes(app) {
     for (const item of result.items) {
       const sl = subLibs.find((s) => s.uuid === item.subLibraryId);
       if (sl && servers[sl.embyServerId] && servers[sl.embyServerId].baseUrl) {
-        item.embyWebUrl = `${String(servers[sl.embyServerId].baseUrl).replace(/\/+$/, '')}/web/index.html#!/item?id=${item.itemId}`;
+        const embyItemId = assetIdentity.getEmbyItemId(item);
+        if (embyItemId) {
+          item.embyWebUrl = `${String(servers[sl.embyServerId].baseUrl).replace(/\/+$/, '')}/web/index.html#!/item?id=${embyItemId}`;
+        }
       }
     }
     return result;
@@ -480,10 +494,11 @@ function registerRoutes(app) {
     if (resolved.error) return apiError(reply, 404, resolved.error.code, resolved.error.message);
 
     try {
-      await embyService.markPlayed(resolved.serverConfig, itemId);
+      const embyItemId = resolved.embyItemId || itemId;
+      await embyService.markPlayed(resolved.serverConfig, embyItemId);
 
       // Fetch single item from Emby to get updated watched status
-      const fetchedItem = await embyService.getItem(resolved.serverConfig, itemId);
+      const fetchedItem = await embyService.getItem(resolved.serverConfig, embyItemId);
       mediaLibraryService.upsertItems(resolved.subLib.uuid, [fetchedItem]);
 
       activityLog.addActivity('user_action', `「${fetchedItem.name || itemId}」已标记为已看`);
@@ -501,10 +516,11 @@ function registerRoutes(app) {
     if (resolved.error) return apiError(reply, 404, resolved.error.code, resolved.error.message);
 
     try {
-      await embyService.markUnplayed(resolved.serverConfig, itemId);
+      const embyItemId = resolved.embyItemId || itemId;
+      await embyService.markUnplayed(resolved.serverConfig, embyItemId);
 
       // Fetch single item from Emby to get updated watched status
-      const fetchedItem = await embyService.getItem(resolved.serverConfig, itemId);
+      const fetchedItem = await embyService.getItem(resolved.serverConfig, embyItemId);
       mediaLibraryService.upsertItems(resolved.subLib.uuid, [fetchedItem]);
 
       return { ok: true };

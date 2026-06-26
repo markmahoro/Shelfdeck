@@ -11,6 +11,7 @@
 
 const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
+const assetIdentity = require('./assetIdentity');
 
 let timer = null;
 let lastRunAt = null;
@@ -122,8 +123,13 @@ function start(configStore, mediaLibraryService, taskStore) {
           status,
           itemInfo: {
             name: item.name,
+            itemId: item.itemId,
+            embyItemId: assetIdentity.getEmbyItemId(item),
             path: item.path,
             subLibraryId: item.subLibraryId,
+            assetKey: item.assetKey,
+            assetRootPath: item.assetRootPath,
+            externalRefs: item.externalRefs,
             resolution: item.resolution,
             bitrate: item.bitrate,
             size: item.size,

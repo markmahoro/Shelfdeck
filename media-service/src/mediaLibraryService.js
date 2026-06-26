@@ -20,6 +20,7 @@ const transcodeService = require('./services/transcodeService');
 const doubanService = require('./services/doubanService');
 const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
+const assetIdentity = require('./assetIdentity');
 
 function resolveDataDir() {
   return (
@@ -130,6 +131,8 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
   const { fullSync = false } = opts;
   const lib = loadLibrary();
   const now = new Date().toISOString();
+  const cfg = configStore.loadConfig();
+  const subLib = (cfg.subLibraries || []).find((s) => s.uuid === subLibraryId) || null;
   let upserted = 0;
 
   // Safety: if Emby returns empty data during a full sync, don't purge everything
@@ -202,14 +205,34 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
   // Upsert items: movies + seasons (series are transparent containers, not stored)
   const allItems = [...movies, ...seasons];
 
+  for (const existing of lib.items) {
+    if (existing.subLibraryId !== subLibraryId) continue;
+    const identity = assetIdentity.ensureIdentityFields(existing, subLib, now);
+    existing.assetKey = identity.assetKey;
+    existing.assetRootPath = identity.assetRootPath;
+    existing.externalRefs = identity.externalRefs;
+  }
+
   for (const incoming of allItems) {
-    const existingIdx = lib.items.findIndex(
-      (it) => it.sourceId === incoming.sourceId && it.subLibraryId === subLibraryId,
-    );
+    const incomingEmbyId = incoming.sourceId || incoming.itemId || '';
+    const incomingAssetKey = assetIdentity.computeAssetKey(incoming, subLibraryId);
+    const incomingAssetRootPath = assetIdentity.inferAssetRootPath(incoming.path, incoming.isDiscLike);
+    const incomingExternalRefs = {
+      emby: assetIdentity.makeExternalEmbyRef(incoming, subLib, now),
+    };
+    const existingIdx = assetIdentity.findExistingItemIndex(lib.items, incoming, subLib, subLibraryId);
     if (existingIdx >= 0) {
       const existing = lib.items[existingIdx];
       const merged = {
         ...existing,
+        source: 'emby',
+        sourceId: incomingEmbyId || existing.sourceId,
+        assetKey: incomingAssetKey || existing.assetKey,
+        assetRootPath: incomingAssetRootPath || existing.assetRootPath,
+        externalRefs: {
+          ...(existing.externalRefs || {}),
+          ...incomingExternalRefs,
+        },
         name: incoming.name || existing.name,
         path: incoming.path || existing.path,
         type: incoming.type || existing.type,
@@ -234,14 +257,17 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
       lib.items[existingIdx] = merged;
       upserted++;
     } else {
-      const itemId = incoming.itemId || incoming.sourceId;
+      const itemId = generateUuid();
       const newItem = {
         itemId,
         subLibraryId,
         name: incoming.name || '',
         path: incoming.path || '',
         source: 'emby',
-        sourceId: incoming.sourceId || itemId,
+        sourceId: incomingEmbyId,
+        assetKey: incomingAssetKey,
+        assetRootPath: incomingAssetRootPath,
+        externalRefs: incomingExternalRefs,
         type: incoming.type || 'movie',
         bitrate: incoming.bitrate || 0,
         duration: incoming.duration || 0,
@@ -290,8 +316,6 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
   saveLibrary(lib);
 
   // Update subLibrary lastRefreshedAt
-  const cfg = configStore.loadConfig();
-  const subLib = (cfg.subLibraries || []).find((s) => s.uuid === subLibraryId);
   if (subLib) {
     const subLibs = cfg.subLibraries || [];
     const idx = subLibs.findIndex((s) => s.uuid === subLibraryId);

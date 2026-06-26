@@ -641,7 +641,7 @@
   "tasks": [
     {
       "id": "task-001",
-      "itemId": "emby-item-123",
+      "itemId": "shelfdeck-item-uuid",
       "actionType": "transcode",
       "status": "executing",
       "progress": 45,
@@ -687,7 +687,7 @@
 ```json
 {
   "id": "task-001",
-  "itemId": "emby-item-123",
+  "itemId": "shelfdeck-item-uuid",
   "actionType": "transcode",
   "status": "executing",
   "progress": 45,

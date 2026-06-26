@@ -23,12 +23,15 @@
 
 | 字段 | 类型 | 来源 | 说明 |
 |---|---|---|---|
-| `itemId` | string | 主键 | 统一标识，来源无关 |
+| `itemId` | string | ShelfDeck 主键 | ShelfDeck 稳定资产 ID，一旦创建不随 Emby Id 变化 |
 | `subLibraryId` | string | 系统 | 所属子库 uuid |
+| `assetKey` | string | ShelfDeck 身份计算 | 资产匹配键，用于在 Emby Id 变化后归并到同一 ShelfDeck item |
+| `assetRootPath` | string | ShelfDeck 身份计算 | 当前资产根路径；普通文件为媒体文件路径，原盘为原盘目录路径 |
 | `name` | string | Emby | 影片名称 |
 | `path` | string | Emby | 媒体文件路径 |
-| `source` | string | 系统 | 来源类型：`emby` / `local` / `tmdb` |
-| `sourceId` | string | 来源系统 | 对应来源系统的主键 |
+| `source` | string | 系统 | 当前主外部来源类型：`emby` / `local` / `tmdb` |
+| `sourceId` | string | 来源系统 | 当前主外部来源 ID；Emby 来源时为当前 Emby item Id，不等于 ShelfDeck `itemId` |
+| `externalRefs` | object | Adapter 映射 | 下游系统引用表，如 `externalRefs.emby.itemId` |
 | `type` | string | Emby | 媒体类型：`movie` / `series` / `season` / `episode`（episode 不入库，聚合到 season） |
 | `bitrate` | number | Emby | 码率（bps） |
 | `duration` | number | Emby | 时长（秒） |
@@ -102,10 +105,16 @@
 
 ### 1.2 主键设计
 
-主键为 `itemId`（string），不绑定任何来源系统：
-- Emby 来源：itemId = Emby 返回的 `Id`
-- 本地文件夹来源：itemId = 文件绝对路径或哈希
-- TMDB 来源：itemId = TMDB ID
+主键为 `itemId`（string），由 ShelfDeck 生成并长期持有，不绑定任何下游系统：
+- Emby 来源：`externalRefs.emby.itemId` / `sourceId` = 当前 Emby 返回的 `Id`；`itemId` 保持 ShelfDeck 稳定资产 ID。
+- 本地文件夹来源：`assetKey` 基于资产路径计算；`itemId` 仍由 ShelfDeck 生成。
+- TMDB/IMDb 等外部 ID 只作为身份辅助信息，不作为主键。
+
+Emby 刷新写入时按以下顺序归并到既有 ShelfDeck item：
+1. 当前 `externalRefs.emby.itemId` 或兼容字段 `sourceId` 命中。
+2. `assetKey` 命中（用于重新刮削、重扫、原盘目录转 MKV 后 Emby Id 变化）。
+3. 同一子库内唯一的 `tmdbId` + `type` 命中。
+4. 都未命中时才创建新的 ShelfDeck `itemId`。
 
 ### 1.3 持久化
 
@@ -114,7 +123,7 @@
 
 | 写入者 | 写入字段 |
 |---|---|
-| EmbyAdapter（经 MediaLibraryService.upsertItems） | name, path, type, bitrate, duration, resolution, size, codec, premiereDate, genres, isDiscLike, watched, lastRefreshedAt |
+| EmbyAdapter（经 MediaLibraryService.upsertItems） | sourceId, externalRefs.emby, assetKey, assetRootPath, name, path, type, bitrate, duration, resolution, size, codec, premiereDate, genres, isDiscLike, watched, lastRefreshedAt |
 | DoubanAdapter（经 syncDoubanForSubLibrary） | doubanId, doubanRating, doubanRatingUpdatedAt（仅在匹配成功时更新；未匹配则保持旧值） |
 | desktop PATCH /v1/library/ratings | userRating, userRatingUpdatedAt |
 | Library 自算（recomputeAllSelfFields, 每 10min） | bucket, equivalentBitrate |

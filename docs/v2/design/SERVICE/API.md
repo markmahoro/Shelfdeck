@@ -181,14 +181,14 @@ desktop 下发用户意图，创建新任务。
 
 ```json
 {
-  "itemId": "emby-item-123",
+  "itemId": "shelfdeck-item-uuid",
   "actionType": "transcode"
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `itemId` | string | 是 | Emby 媒体项 ID |
+| `itemId` | string | 是 | ShelfDeck 媒体项 ID |
 | `actionType` | string | 是 | `transcode` / `delete` / `upgrade` |
 
 **响应**：`201 Created`
@@ -196,7 +196,7 @@ desktop 下发用户意图，创建新任务。
 ```json
 {
   "id": "task-001",
-  "itemId": "emby-item-123",
+  "itemId": "shelfdeck-item-uuid",
   "actionType": "transcode",
   "status": "pending_manual",
   "progress": 0,
@@ -210,8 +210,14 @@ desktop 下发用户意图，创建新任务。
   ],
   "itemInfo": {
     "name": "电影名称",
+    "itemId": "shelfdeck-item-uuid",
+    "embyItemId": "emby-item-123",
     "path": "D:\\media\\movie.mkv",
     "subLibraryId": "sublib-001",
+    "assetKey": "sublib-001:path:d:/media/movie",
+    "externalRefs": {
+      "emby": { "itemId": "emby-item-123", "serverId": "emby-server-1" }
+    },
     "resolution": "3840x2160",
     "bitrate": 50000000,
     "size": 45000000000,
@@ -228,7 +234,7 @@ desktop 下发用户意图，创建新任务。
 | `itemName` | string | 媒体项名称（从 `itemInfo.name` 或 `itemId` 回退） |
 | `resumePoint` | string\|null | confirm 后恢复点（创建时始终为 null） |
 | `logs` | array | 执行日志（创建时含一条 "Task created"） |
-| `itemInfo` | object\|null | 从 media library 填充的媒体项信息（library 中存在该项时填充，否则为 null） |
+| `itemInfo` | object\|null | 从 media library 填充的 ShelfDeck 媒体项信息（library 中存在该项时填充，否则为 null），下游 Emby Id 位于 `itemInfo.embyItemId` / `itemInfo.externalRefs.emby.itemId` |
 
 **行为**：
 - `executionMode = auto` → status 为 `created`，自动转入调度池（下一轮调度时变为 `queued`）
@@ -261,7 +267,7 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
   "tasks": [
     {
       "id": "task-001",
-      "itemId": "emby-item-123",
+      "itemId": "shelfdeck-item-uuid",
       "actionType": "transcode",
       "status": "executing",
       "progress": 45,
@@ -290,7 +296,7 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `id` | string | 任务 ID |
-| `itemId` | string | 媒体项 ID |
+| `itemId` | string | ShelfDeck 媒体项 ID |
 | `actionType` | string | `transcode` / `delete` / `upgrade` |
 | `status` | string | 调度状态（见 `TASK_SCHEDULER.md` §4） |
 | `progress` | number | 进度 0-100 |
@@ -309,7 +315,7 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 ```json
 {
   "id": "task-001",
-  "itemId": "emby-item-123",
+  "itemId": "shelfdeck-item-uuid",
   "actionType": "transcode",
   "status": "executing",
   "progress": 45,
@@ -562,12 +568,16 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 {
   "items": [
     {
-      "itemId": "emby-item-123",
+      "itemId": "shelfdeck-item-uuid",
       "subLibraryId": "sublib-001",
+      "assetKey": "sublib-001:path:d:/media/movie",
       "name": "电影名称",
       "path": "D:\\media\\movie.mkv",
       "source": "emby",
       "sourceId": "emby-item-123",
+      "externalRefs": {
+        "emby": { "itemId": "emby-item-123", "serverId": "emby-server-1" }
+      },
       "type": "Movie",
       "bitrate": 50000000,
       "duration": 7200,
@@ -612,7 +622,7 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 
 ```json
 {
-  "itemId": "emby-item-123",
+      "itemId": "shelfdeck-item-uuid",
   "subLibraryId": "sublib-001",
   "name": "电影名称",
   "path": "D:\\media\\movie.mkv",
@@ -641,14 +651,14 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 
 ```json
 {
-  "itemId": "emby-item-123",
+  "itemId": "shelfdeck-item-uuid",
   "userRating": 4
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `itemId` | string | 是 | 媒体项 ID |
+| `itemId` | string | 是 | ShelfDeck 媒体项 ID |
 | `userRating` | number | 是 | 用户星级评分（1-5） |
 
 **响应**：`200 OK`
@@ -714,14 +724,14 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 
 ```json
 {
-  "itemId": "emby-item-123",
+  "itemId": "shelfdeck-item-uuid",
   "subLibraryId": "sublib-001"
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `itemId` | string | 是 | Emby 媒体项 ID |
+| `itemId` | string | 是 | ShelfDeck 媒体项 ID |
 | `subLibraryId` | string | 否 | 子库 UUID。未提供时从 library.json 查找 item 所属子库 |
 
 **响应**：`200 OK`
@@ -734,7 +744,7 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 
 **行为**：
 1. 通过 `subLibraryId` 或 `itemId` 解析 Emby 服务器配置
-2. 调用 `POST Emby /Users/{userId}/PlayedItems/{itemId}`
+2. 从 `externalRefs.emby.itemId` 解析当前 Emby Id，调用 `POST Emby /Users/{userId}/PlayedItems/{embyItemId}`
 3. 记录 activity log
 
 **错误**：
@@ -755,14 +765,14 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 
 ```json
 {
-  "itemId": "emby-item-123",
+  "itemId": "shelfdeck-item-uuid",
   "subLibraryId": "sublib-001"
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `itemId` | string | 是 | Emby 媒体项 ID |
+| `itemId` | string | 是 | ShelfDeck 媒体项 ID |
 | `subLibraryId` | string | 否 | 子库 UUID。未提供时从 library.json 查找 item 所属子库 |
 
 **响应**：`200 OK`
@@ -775,7 +785,7 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 
 **行为**：
 1. 通过 `subLibraryId` 或 `itemId` 解析 Emby 服务器配置
-2. 调用 `DELETE Emby /Users/{userId}/PlayedItems/{itemId}`
+2. 从 `externalRefs.emby.itemId` 解析当前 Emby Id，调用 `DELETE Emby /Users/{userId}/PlayedItems/{embyItemId}`
 
 **错误**：
 
@@ -919,7 +929,7 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 ```json
 [
   {
-    "itemId": "emby-item-123",
+    "itemId": "shelfdeck-item-uuid",
     "subLibraryId": "sublib-001",
     "itemName": "电影名称",
     "type": "Movie",
@@ -942,7 +952,7 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 
 ```json
 {
-  "itemId": "emby-item-123",
+  "itemId": "shelfdeck-item-uuid",
   "subLibraryId": "sublib-001",
   "itemName": "电影名称",
   "type": "Movie",
@@ -955,7 +965,7 @@ desktop 轮询任务状态（间隔 400ms）。返回完整 task 对象（与 §
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `itemId` | string | 是 | Emby 媒体项 ID |
+| `itemId` | string | 是 | ShelfDeck 媒体项 ID |
 | `subLibraryId` | string | 是 | 子库 UUID |
 | `itemName` | string | 否 | 媒体项名称 |
 | `type` | string | 否 | 类型 (`Movie` / `Episode`) |

@@ -10,6 +10,7 @@
 const taskStore = require('./taskStore');
 const configStore = require('./configStore');
 const embyService = require('./services/embyService');
+const assetIdentity = require('./assetIdentity');
 
 // Lazy ref to taskScheduler (set after module loads to avoid circular require)
 let scheduler = null;
@@ -39,6 +40,12 @@ function appendLog(taskId, level, msg) {
 
 function setPhase(taskId, phase) {
   taskStore.updateTask(taskId, { phase });
+}
+
+function getEmbyItemId(task) {
+  return (task.itemInfo && task.itemInfo.embyItemId) ||
+    assetIdentity.getEmbyItemId(task.itemInfo || {}) ||
+    task.itemId;
 }
 
 // ── Flow Executor API ────────────────────────────────────────────────────────
@@ -75,7 +82,8 @@ async function runPrecheck(taskId, task, serverConfig) {
   appendLog(taskId, 'info', 'Delete precheck started');
 
   try {
-    const deleteInfo = await embyService.getItemDeleteInfo(serverConfig, task.itemId);
+    const embyItemId = getEmbyItemId(task);
+    const deleteInfo = await embyService.getItemDeleteInfo(serverConfig, embyItemId);
     if (!deleteInfo) {
       appendLog(taskId, 'info', 'Item not found in Emby — treating as already deleted');
       scheduler.reportStatus(taskId, 'done', 100);
@@ -83,7 +91,7 @@ async function runPrecheck(taskId, task, serverConfig) {
       return;
     }
 
-    const exists = await embyService.libraryItemExists(serverConfig, task.itemId);
+    const exists = await embyService.libraryItemExists(serverConfig, embyItemId);
     if (!exists) {
       appendLog(taskId, 'info', 'Item no longer exists in Emby');
       scheduler.reportStatus(taskId, 'done', 100);
@@ -99,12 +107,13 @@ async function runPrecheck(taskId, task, serverConfig) {
       itemInfo: {
         ...task.itemInfo,
         name: displayName,
+        embyItemId,
         path: deleteInfo.Path || '',
         originalSizeBytes,
       },
     });
 
-    appendLog(taskId, 'info', `Item found: ${deleteInfo.Name || task.itemId}, awaiting user confirmation`);
+    appendLog(taskId, 'info', `Item found: ${deleteInfo.Name || embyItemId}, awaiting user confirmation`);
     scheduler.pauseForConfirm(taskId, 'delete_executing');
   } catch (e) {
     appendLog(taskId, 'error', `Precheck failed: ${e.message}`);
@@ -119,7 +128,8 @@ async function runExecuting(taskId, task, serverConfig) {
   appendLog(taskId, 'info', 'Executing delete');
 
   try {
-    await embyService.deleteLibraryItem(serverConfig, task.itemId);
+    const embyItemId = getEmbyItemId(task);
+    await embyService.deleteLibraryItem(serverConfig, embyItemId);
     appendLog(taskId, 'info', 'Emby delete request sent');
   } catch (e) {
     // 404 means item already gone — treat as success (idempotent retry)
@@ -142,7 +152,8 @@ async function runVerify(taskId, task, serverConfig) {
   appendLog(taskId, 'info', 'Verifying deletion');
 
   try {
-    const stillExists = await embyService.libraryItemExists(serverConfig, task.itemId);
+    const embyItemId = getEmbyItemId(task);
+    const stillExists = await embyService.libraryItemExists(serverConfig, embyItemId);
     if (stillExists) {
       appendLog(taskId, 'error', 'Verify failed: item still exists in Emby');
       scheduler.reportStatus(taskId, 'failed_hard');

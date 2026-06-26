@@ -221,6 +221,80 @@ test('POST /v1/library/cache removes stale items', async () => {
   await app.close();
 });
 
+test('POST /v1/library/cache keeps stable ShelfDeck itemId when Emby Id changes', async () => {
+  const app = await buildEmptyApp();
+  const subLibraryId = 'sublib-stable-id';
+  const discPath = '/volume1/Media/Film/Fight Club (1999)/Fight Club (1999) - x264 2Audio';
+  const mkvPath = `${discPath}.mkv`;
+
+  await app.inject({
+    method: 'POST',
+    url: '/v1/library/cache',
+    payload: {
+      subLibraryId,
+      items: [
+        {
+          sourceId: 'emby-old-id',
+          name: 'Fight Club',
+          type: 'Movie',
+          path: discPath,
+          bitrate: 14000000,
+          duration: 8348,
+          resolution: '1920x1080',
+          size: 15000000000,
+          premiereDate: '1999-10-15',
+          genres: [],
+          isDiscLike: true,
+        },
+      ],
+    },
+  });
+
+  const first = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLibraryId}` });
+  const firstItem = first.json().items[0];
+  assert.ok(firstItem.itemId, 'ShelfDeck itemId should exist');
+  assert.notStrictEqual(firstItem.itemId, 'emby-old-id', 'ShelfDeck itemId should not be the Emby Id for new items');
+
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const lib = mediaLibraryService.getLibrary();
+  const stored = lib.items.find((it) => it.itemId === firstItem.itemId);
+  stored.lastTranscodeDoneAt = '2026-06-23T02:21:55.016Z';
+  mediaLibraryService.saveLibrary(lib);
+
+  await app.inject({
+    method: 'POST',
+    url: '/v1/library/cache',
+    payload: {
+      subLibraryId,
+      items: [
+        {
+          sourceId: 'emby-new-id',
+          name: 'Fight Club',
+          type: 'Movie',
+          path: mkvPath,
+          bitrate: 8700000,
+          duration: 8348,
+          resolution: '1920x1080',
+          size: 9000000000,
+          premiereDate: '1999-10-15',
+          genres: [],
+          isDiscLike: false,
+        },
+      ],
+    },
+  });
+
+  const second = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLibraryId}` });
+  const body = second.json();
+  assert.strictEqual(body.total, 1, 'Emby Id change should not create a new ShelfDeck item');
+  assert.strictEqual(body.items[0].itemId, firstItem.itemId);
+  assert.strictEqual(body.items[0].sourceId, 'emby-new-id');
+  assert.strictEqual(body.items[0].externalRefs.emby.itemId, 'emby-new-id');
+  assert.strictEqual(body.items[0].lastTranscodeDoneAt, '2026-06-23T02:21:55.016Z');
+
+  await app.close();
+});
+
 // ── Library: mark-played / mark-unplayed (contract validation only, no Emby) ─────
 
 test('POST /v1/library/actions/mark-played missing itemId -> 400', async () => {
@@ -348,5 +422,6 @@ test('GET /v1/library returns items with embyWebUrl when server configured', asy
   const item = body.items[0];
   assert.ok(item.embyWebUrl, 'embyWebUrl should be present for server-configured items');
   assert.ok(item.embyWebUrl.includes('item?id='), 'embyWebUrl should contain item link');
+  assert.ok(item.embyWebUrl.includes('item?id=emby-web-1'), 'embyWebUrl should use current Emby item id');
   await app.close();
 });
