@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { tasks } from '../api/client';
+import { adult, tasks } from '../api/client';
 import type { MediaTask, TaskItemInfo, VerifyResult, UpgradeCandidate } from '../types';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
@@ -79,6 +79,8 @@ export default function TaskMonitorPage() {
   const [reportTask, setReportTask] = useState<string | null>(null);
   const [reportData, setReportData] = useState<import('../api/client').TaskReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [scrapeFixTask, setScrapeFixTask] = useState<MediaTask | null>(null);
+  const [scrapeFixAdultId, setScrapeFixAdultId] = useState('');
 
   const PAGE_SIZE = 20;
 
@@ -137,6 +139,19 @@ export default function TaskMonitorPage() {
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
+  const rescrapeMut = useMutation({
+    mutationFn: (params: { itemId: string; adultId: string }) =>
+      adult.rescrapeItem(params.itemId, params.adultId),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ['admin-tasks-summary'] });
+      setAlert({ type: 'success', msg: '已按修正番号重新创建刮削任务' });
+      setScrapeFixTask(null);
+      setScrapeFixAdultId('');
+    },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+
   const taskList: MediaTask[] = taskData?.tasks || [];
   const displayTask = detailData || selectedTask;
 
@@ -144,6 +159,14 @@ export default function TaskMonitorPage() {
     setSelectedTask(task);
     setSelectedCandidateIndex(0);
     setDetailOpen(true);
+  }
+
+  function openScrapeFix(task: MediaTask) {
+    const adultId = typeof task.itemInfo?.adultMetadata?.adultId === 'string'
+      ? task.itemInfo.adultMetadata.adultId
+      : '';
+    setScrapeFixTask(task);
+    setScrapeFixAdultId(adultId);
   }
 
   function formatSize(bytes: number): string {
@@ -175,6 +198,9 @@ export default function TaskMonitorPage() {
           tk.report(t.id).then(data => { setReportData(data); setReportLoading(false); });
         });
       }} style={execBtn}>完结报告</button>);
+    }
+    if (t.status === 'failed_hard' && t.actionType === 'scrape') {
+      btns.push(<button key="fix-scrape" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
     }
     if (t.status === 'awaiting_user_confirm') {
       if (t.resumePoint === 'transcode_replace' && t.verifyResult) {
@@ -425,6 +451,17 @@ export default function TaskMonitorPage() {
             </div>
 
             {/* Replace confirm comparison card */}
+            {displayTask.status === 'failed_hard' && displayTask.actionType === 'scrape' && (
+              <div style={{ background: '#fff7ed', borderRadius: 8, padding: 12, marginBottom: 16, border: '1px solid #fed7aa' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#9a3412', marginBottom: 4 }}>刮削失败</div>
+                <div style={{ fontSize: 12, color: '#7c2d12', lineHeight: 1.6 }}>
+                  如果日志提示番号无法识别或需要确认，可以修正番号后重新刮削。
+                </div>
+                <button onClick={() => openScrapeFix(displayTask)} style={{ ...execBtn, marginTop: 10 }}>修正番号</button>
+              </div>
+            )}
+
+            {/* Replace confirm comparison card */}
             {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint === 'transcode_replace' && displayTask.verifyResult && displayTask.itemInfo && (
               <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
                 <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#1a1a2e' }}>转码结果对比</h4>
@@ -603,6 +640,36 @@ export default function TaskMonitorPage() {
         ) : reportData ? (
           <ReportContent report={reportData} />
         ) : null}
+      </Modal>
+
+      <Modal open={!!scrapeFixTask} title="修正番号" onClose={() => { setScrapeFixTask(null); setScrapeFixAdultId(''); }} width={420}>
+        {scrapeFixTask && (
+          <div>
+            <div style={{ fontSize: 13, color: '#555', marginBottom: 12, lineHeight: 1.6 }}>
+              {formatItemName(scrapeFixTask.itemInfo) || scrapeFixTask.itemName || scrapeFixTask.itemId}
+            </div>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: '#555', marginBottom: 16 }}>
+              <span>番号</span>
+              <input
+                value={scrapeFixAdultId}
+                onChange={(e) => setScrapeFixAdultId(e.target.value.toUpperCase())}
+                placeholder="例如 SORA-107"
+                autoFocus
+                style={{ padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 14 }}
+              />
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => { setScrapeFixTask(null); setScrapeFixAdultId(''); }} style={secondaryBtn}>取消</button>
+              <button
+                onClick={() => rescrapeMut.mutate({ itemId: scrapeFixTask.itemId, adultId: scrapeFixAdultId.trim() })}
+                disabled={!scrapeFixAdultId.trim() || rescrapeMut.isPending}
+                style={{ ...execBtn, opacity: !scrapeFixAdultId.trim() || rescrapeMut.isPending ? 0.6 : 1 }}
+              >
+                {rescrapeMut.isPending ? '提交中...' : '重新刮削'}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

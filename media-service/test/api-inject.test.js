@@ -734,7 +734,7 @@ test('extractJavId: rejects common false-positive prefixes', () => {
   assert.strictEqual(extractJavId('PART-2'), '');
 });
 
-test('scrape of low-confidence (unknown prefix) item parks as ambiguous, no auto task', async () => {
+test('scrape of low-confidence (unknown prefix) item enters queue then fails with fixable reason', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
@@ -755,9 +755,19 @@ test('scrape of low-confidence (unknown prefix) item parks as ambiguous, no auto
   assert.strictEqual(item.adultMetadata.scrapeStatus, 'ambiguous');
   assert.strictEqual(item.adultMetadata.idConfidence, 'low');
 
-  // No scrape task auto-created for ambiguous items.
+  // Ambiguous items still enter the task flow so the failure is visible in the
+  // task center instead of being hidden in the media library row.
   const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
-  assert.ok(!tasks.json().tasks.some((t) => t.itemId === item.itemId), 'no auto scrape task for ambiguous item');
+  const task = tasks.json().tasks.find((t) => t.itemId === item.itemId);
+  assert.ok(task, 'auto scrape task exists for ambiguous item');
+
+  const taskStore = require('../src/taskStore');
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+  scrapeFlow.setScheduler({ reportStatus: (tid, status) => { taskStore.updateTask(tid, { status }); } });
+  await scrapeFlow.driveTask(task.id);
+  const failed = taskStore.getTask(task.id);
+  assert.strictEqual(failed.status, 'failed_hard');
+  assert.ok(failed.logs.some((l) => l.msg && l.msg.includes('needs confirmation')));
 
   // Rescrape with a corrected 番号 override enqueues a task.
   const rescrape = await app.inject({
@@ -768,6 +778,7 @@ test('scrape of low-confidence (unknown prefix) item parks as ambiguous, no auto
   assert.strictEqual(rescrape.statusCode, 201);
   const lib2 = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(lib2.json().items[0].adultMetadata.adultId, 'MVSD-175');
+  assert.strictEqual(lib2.json().items[0].adultMetadata.idConfidence, 'high');
   await app.close();
 });
 

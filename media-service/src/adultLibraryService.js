@@ -559,10 +559,10 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
   lib.cachedAt = now;
   saveLibrary(lib);
 
-  // Only auto-enqueue when we trust the detected 番号 (high confidence).
-  // Low-confidence / unparseable IDs are parked 'ambiguous' for the user to
-  // confirm manually via the rescrape action.
-  if (opts.enqueueScrape !== false && !nfo && idConfidence === 'high' && subLib.scrapeEnabled !== false) {
+  // Put every newly discovered unscripted file into the scrape task flow.
+  // The executor validates missing / low-confidence IDs and records a failed
+  // task with a fixable reason instead of leaving the item outside the queue.
+  if (opts.enqueueScrape !== false && !nfo && subLib.scrapeEnabled !== false) {
     enqueueScrapeTask(item, subLib);
   }
 
@@ -728,7 +728,7 @@ function resetScrapeStatus(itemId, overrideAdultId = null) {
     const detected = extractJavIdWithConfidence(normalized);
     adultIdPatch = {
       adultId: detected.adultId || normalized,
-      idConfidence: detected.confidence || 'high',
+      idConfidence: 'high',
     };
   }
   const updated = {

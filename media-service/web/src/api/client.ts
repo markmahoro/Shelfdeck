@@ -140,8 +140,11 @@ export const adult = {
   getConfig: () => get<AdultLibraryConfig>('/v1/admin/adult/config'),
   patchConfig: (body: Partial<AdultLibraryConfig>) =>
     patch<AdultLibraryConfig>('/v1/admin/adult/config', body),
-  rescrapeItem: (itemId: string) =>
-    post<{ ok: boolean; taskId: string }>(`/v1/admin/adult/items/${encodeURIComponent(itemId)}/actions/rescrape`),
+  rescrapeItem: (itemId: string, adultId?: string) =>
+    post<{ ok: boolean; taskId: string }>(
+      `/v1/admin/adult/items/${encodeURIComponent(itemId)}/actions/rescrape`,
+      adultId ? { adultId } : undefined,
+    ),
 };
 
 // ── Rule Templates ────────────────────────────────────────────────────────────

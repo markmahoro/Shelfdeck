@@ -73,7 +73,15 @@ async function runExecuting(taskId, task) {
     if (!liveItem) throw new Error('Library item not found');
     const adultId = (liveItem.adultMetadata && liveItem.adultMetadata.adultId)
       || (task.itemInfo && task.itemInfo.adultMetadata && task.itemInfo.adultMetadata.adultId);
-    if (!adultId) throw new Error('Adult ID could not be detected from file name');
+    const idConfidence = (liveItem.adultMetadata && liveItem.adultMetadata.idConfidence)
+      || (task.itemInfo && task.itemInfo.adultMetadata && task.itemInfo.adultMetadata.idConfidence)
+      || '';
+    if (!adultId) {
+      throw new Error('Adult ID could not be detected from file name; correct the adult ID and retry scraping');
+    }
+    if (idConfidence === 'low') {
+      throw new Error(`Adult ID ${adultId} needs confirmation; correct the adult ID and retry scraping`);
+    }
 
     appendLog(taskId, 'info', `Starting JAV scrape for ${adultId}`);
     const scrapeResult = await japaneseJavScraper.scrapeJapaneseJav({
