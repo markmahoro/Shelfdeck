@@ -734,7 +734,7 @@ test('extractJavId: rejects common false-positive prefixes', () => {
   assert.strictEqual(extractJavId('PART-2'), '');
 });
 
-test('scrape of low-confidence (unknown prefix) item enters queue then fails with fixable reason', async () => {
+test('scrape of low-confidence (unknown prefix) item enters queue and attempts scraping', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
@@ -755,19 +755,39 @@ test('scrape of low-confidence (unknown prefix) item enters queue then fails wit
   assert.strictEqual(item.adultMetadata.scrapeStatus, 'ambiguous');
   assert.strictEqual(item.adultMetadata.idConfidence, 'low');
 
-  // Ambiguous items still enter the task flow so the failure is visible in the
-  // task center instead of being hidden in the media library row.
+  // Ambiguous items still enter the task flow; the scrape executor attempts the
+  // detected ID instead of failing before it contacts a scraper.
   const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
   const task = tasks.json().tasks.find((t) => t.itemId === item.itemId);
   assert.ok(task, 'auto scrape task exists for ambiguous item');
 
+  const scraperPath = require.resolve('../src/services/japaneseJavScraper');
+  delete require.cache[scraperPath];
+  require.cache[scraperPath] = {
+    exports: {
+      scrapeJapaneseJav: async ({ adultId }) => ({
+        source: 'stub',
+        sourceUrl: `https://example.test/${adultId}`,
+        adultId,
+        title: `${adultId} Stub Title`,
+        originalTitle: 'Stub Title',
+        posterUrl: 'https://example.test/poster.jpg',
+        fanartUrl: 'https://example.test/poster.jpg',
+      }),
+      fetchBinary: async () => ({ buffer: Buffer.from('jpg'), contentType: 'image/jpeg', finalUrl: 'https://example.test/poster.jpg' }),
+      abort: () => false,
+      normalizeAdultId: (v) => v,
+    },
+  };
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
   const taskStore = require('../src/taskStore');
   const scrapeFlow = require('../src/scrapeFlowExecutor');
   scrapeFlow.setScheduler({ reportStatus: (tid, status) => { taskStore.updateTask(tid, { status }); } });
   await scrapeFlow.driveTask(task.id);
-  const failed = taskStore.getTask(task.id);
-  assert.strictEqual(failed.status, 'failed_hard');
-  assert.ok(failed.logs.some((l) => l.msg && l.msg.includes('needs confirmation')));
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'done');
+  assert.ok(afterTask.logs.some((l) => l.msg && l.msg.includes('Starting JAV scrape for ZZZZZ-999')));
 
   // Rescrape with a corrected 番号 override enqueues a task.
   const rescrape = await app.inject({
@@ -779,6 +799,8 @@ test('scrape of low-confidence (unknown prefix) item enters queue then fails wit
   const lib2 = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(lib2.json().items[0].adultMetadata.adultId, 'MVSD-175');
   assert.strictEqual(lib2.json().items[0].adultMetadata.idConfidence, 'high');
+  delete require.cache[scraperPath];
+  delete require.cache[executorPath];
   await app.close();
 });
 

@@ -198,6 +198,9 @@ export default function TaskMonitorPage() {
           tk.report(t.id).then(data => { setReportData(data); setReportLoading(false); });
         });
       }} style={execBtn}>完结报告</button>);
+      if (t.actionType === 'scrape') {
+        btns.push(<button key="fix-scrape-done" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
+      }
     }
     if (t.status === 'failed_hard' && t.actionType === 'scrape') {
       btns.push(<button key="fix-scrape" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
@@ -451,11 +454,15 @@ export default function TaskMonitorPage() {
             </div>
 
             {/* Replace confirm comparison card */}
-            {displayTask.status === 'failed_hard' && displayTask.actionType === 'scrape' && (
-              <div style={{ background: '#fff7ed', borderRadius: 8, padding: 12, marginBottom: 16, border: '1px solid #fed7aa' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#9a3412', marginBottom: 4 }}>刮削失败</div>
-                <div style={{ fontSize: 12, color: '#7c2d12', lineHeight: 1.6 }}>
-                  如果日志提示番号无法识别或需要确认，可以修正番号后重新刮削。
+            {(displayTask.status === 'failed_hard' || displayTask.status === 'done') && displayTask.actionType === 'scrape' && (
+              <div style={{ background: displayTask.status === 'done' ? '#f0fdf4' : '#fff7ed', borderRadius: 8, padding: 12, marginBottom: 16, border: displayTask.status === 'done' ? '1px solid #bbf7d0' : '1px solid #fed7aa' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: displayTask.status === 'done' ? '#166534' : '#9a3412', marginBottom: 4 }}>
+                  {displayTask.status === 'done' ? '刮削已完成' : '刮削失败'}
+                </div>
+                <div style={{ fontSize: 12, color: displayTask.status === 'done' ? '#166534' : '#7c2d12', lineHeight: 1.6 }}>
+                  {displayTask.status === 'done'
+                    ? '如果刮削结果张冠李戴，可以修正番号后重新刮削。'
+                    : '如果日志提示番号无法识别，可以修正番号后重新刮削。'}
                 </div>
                 <button onClick={() => openScrapeFix(displayTask)} style={{ ...execBtn, marginTop: 10 }}>修正番号</button>
               </div>

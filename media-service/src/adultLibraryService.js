@@ -559,9 +559,9 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
   lib.cachedAt = now;
   saveLibrary(lib);
 
-  // Put every newly discovered unscripted file into the scrape task flow.
-  // The executor validates missing / low-confidence IDs and records a failed
-  // task with a fixable reason instead of leaving the item outside the queue.
+  // Put every newly discovered unscripted file into the scrape task flow. Even
+  // low-confidence IDs are attempted; if the result is wrong the user can fix
+  // the adult ID from the task center and re-scrape.
   if (opts.enqueueScrape !== false && !nfo && subLib.scrapeEnabled !== false) {
     enqueueScrapeTask(item, subLib);
   }
