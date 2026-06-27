@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { execFileSync } = require('child_process');
 const chokidar = require('chokidar');
 
 const configStore = require('./configStore');
@@ -228,6 +229,50 @@ function imageExtFrom(contentType, url) {
   if (ct.includes('jpeg') || ct.includes('jpg')) return '.jpg';
   const ext = path.extname(String(url || '').split('?')[0]).toLowerCase();
   return ['.jpg', '.jpeg', '.png', '.webp'].includes(ext) ? ext : '.jpg';
+}
+
+function imageDimensions(filePath, config) {
+  const ffprobe = transcodeService.resolveFfprobeBin(config);
+  const out = execFileSync(ffprobe, [
+    '-v', 'error',
+    '-select_streams', 'v:0',
+    '-show_entries', 'stream=width,height',
+    '-of', 'json',
+    filePath,
+  ], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
+  const json = JSON.parse(out || '{}');
+  const stream = (json.streams && json.streams[0]) || {};
+  return { width: Number(stream.width || 0), height: Number(stream.height || 0) };
+}
+
+function computeRightCoverCrop(width, height) {
+  const w = Number(width || 0);
+  const h = Number(height || 0);
+  if (!w || !h || w <= h) return null;
+  // DMM/JavBus jacket images are laid out as back/spine/front. The front cover
+  // is the right-most 147:200 slice, matching the source poster aspect.
+  const cropWidth = Math.max(1, Math.min(w, Math.round(h * 147 / 200)));
+  return { x: Math.max(0, w - cropWidth), y: 0, width: cropWidth, height: h };
+}
+
+function createPosterFromJacket(jacketPath, outBase, config) {
+  const dims = imageDimensions(jacketPath, config);
+  const crop = computeRightCoverCrop(dims.width, dims.height);
+  const out = `${outBase}.jpg`;
+  if (!crop) {
+    fs.copyFileSync(jacketPath, out);
+    return out;
+  }
+  const ffmpeg = transcodeService.resolveFfmpegBin(config);
+  execFileSync(ffmpeg, [
+    '-y',
+    '-i', jacketPath,
+    '-vf', `crop=${crop.width}:${crop.height}:${crop.x}:${crop.y}`,
+    '-frames:v', '1',
+    '-q:v', '2',
+    out,
+  ], { windowsHide: true, timeout: 30000 });
+  return out;
 }
 
 function safePathName(value, fallback) {
@@ -581,19 +626,28 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
   };
   const sourceDir = path.dirname(filePath);
   let nfoPaths = scraperConfig.writeNfo === false ? { movieNfo: '', fileNfo: '' } : writeNfoFiles(filePath, metadata, item);
-  let posterPath = await downloadImage(metadata.posterUrl, path.join(sourceDir, scraperConfig.posterBasename || 'poster'), subLib, opts.taskId, { referer: metadata.sourceUrl });
-  if (!posterPath || !fs.existsSync(posterPath)) {
-    throw new Error('Poster download did not produce a local file');
-  }
   let fanartPath = '';
   const onLog = typeof opts.onLog === 'function' ? opts.onLog : null;
-  try {
-    fanartPath = metadata.fanartUrl === metadata.posterUrl
-      ? posterPath
-      : await downloadImage(metadata.fanartUrl, path.join(sourceDir, scraperConfig.fanartBasename || 'fanart'), subLib, opts.taskId, { referer: metadata.sourceUrl });
-  } catch (_) {
-    if (onLog) onLog('warn', 'Fanart download failed; using poster if available');
-    fanartPath = posterPath;
+  let posterPath = '';
+  if (metadata.posterCrop === 'right_cover') {
+    fanartPath = await downloadImage(metadata.fanartUrl || metadata.posterUrl, path.join(sourceDir, scraperConfig.fanartBasename || 'fanart'), subLib, opts.taskId, { referer: metadata.sourceUrl });
+    if (!fanartPath || !fs.existsSync(fanartPath)) {
+      throw new Error('Fanart download did not produce a local jacket file for poster crop');
+    }
+    posterPath = createPosterFromJacket(fanartPath, path.join(sourceDir, scraperConfig.posterBasename || 'poster'), configStore.loadConfig());
+  } else {
+    posterPath = await downloadImage(metadata.posterUrl, path.join(sourceDir, scraperConfig.posterBasename || 'poster'), subLib, opts.taskId, { referer: metadata.sourceUrl });
+    try {
+      fanartPath = metadata.fanartUrl === metadata.posterUrl
+        ? posterPath
+        : await downloadImage(metadata.fanartUrl, path.join(sourceDir, scraperConfig.fanartBasename || 'fanart'), subLib, opts.taskId, { referer: metadata.sourceUrl });
+    } catch (_) {
+      if (onLog) onLog('warn', 'Fanart download failed; using poster if available');
+      fanartPath = posterPath;
+    }
+  }
+  if (!posterPath || !fs.existsSync(posterPath)) {
+    throw new Error('Poster download did not produce a local file');
   }
 
   const organized = organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog);
@@ -939,6 +993,7 @@ module.exports = {
   rescrapeItem,
   itemInfoFromItem,
   extractJavId,
+  computeRightCoverCrop,
   parseNfo,
   findNfoForFile,
 };

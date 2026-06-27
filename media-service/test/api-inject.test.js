@@ -734,6 +734,15 @@ test('extractJavId: rejects common false-positive prefixes', () => {
   assert.strictEqual(extractJavId('PART-2'), '');
 });
 
+test('computeRightCoverCrop uses the right-side front cover slice', () => {
+  const adultLibraryService = require('../src/adultLibraryService');
+  assert.deepStrictEqual(
+    adultLibraryService.computeRightCoverCrop(800, 536),
+    { x: 406, y: 0, width: 394, height: 536 },
+  );
+  assert.strictEqual(adultLibraryService.computeRightCoverCrop(147, 200), null);
+});
+
 test('scrape of low-confidence (unknown prefix) item enters queue and attempts scraping', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');

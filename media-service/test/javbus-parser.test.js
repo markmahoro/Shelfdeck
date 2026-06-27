@@ -12,7 +12,7 @@
 //
 // Guards against regressions in:
 //   - title strip (番号 prefix removed, descriptive heading kept)
-//   - cover picked from a.bigImage img
+//   - cover picked from a.bigImage href
 //   - actor avatar-box (name via img[title], thumb via img[src])
 //   - genres restricted to span.genre label a (NOT actor alias links)
 //   - localized info-row label aliases across 繁/簡/EN
@@ -107,7 +107,7 @@ const FIXTURE_HTML = `<!DOCTYPE html><html><head>
 </head><body>
 <div class="container">
   <h3>MVSD-175 ドスケベ美女の3穴中出しゴックンFUCK 澤村レイコ</h3>
-  <a class="bigImage" href="https://pics.dmm.co.jp/digital/video/mvsd175/mvsd175jp.jpg">
+  <a class="bigImage" href="/pics/cover/250b_b.jpg">
     <img src="/pics/cover/250b_b.jpg">
   </a>
   <div class="col-md-3 info">
@@ -144,7 +144,7 @@ test('javbus: title strips leading 番号 and keeps descriptive heading', () => 
 
 test('javbus: cover picked from a.bigImage href and absolutized', () => {
   const r = parseJavbus(FIXTURE_HTML);
-  assert.match(r.coverUrl, /^https:\/\/pics\.dmm\.co\.jp\/digital\/video\/mvsd175\/mvsd175jp\.jpg$/);
+  assert.match(r.coverUrl, /^https:\/\/www\.javbus\.com\/pics\/cover\/250b_b\.jpg$/);
 });
 
 test('javbus: actor resolved via avatar-box img[title] with thumb', () => {
@@ -205,7 +205,7 @@ test('absoluteUrl upgrades http:// to https:// for mixed-content safety', () => 
   );
 });
 
-test('preferredCoverUrl upgrades DMM small cover URLs for local poster files', () => {
+test('preferredCoverUrl upgrades DMM small cover URLs for local fanart files', () => {
   assert.strictEqual(
     preferredCoverUrl('https://pics.dmm.co.jp/digital/video/sora107/sora107ps.jpg'),
     'https://pics.dmm.co.jp/digital/video/sora107/sora107pl.jpg',

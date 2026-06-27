@@ -230,8 +230,9 @@ async function scrapeJav321({ adultId, scraperConfig, taskId }) {
   const runtimeMinutes = Number((runtimeText.match(/\d+/) || [])[0] || 0);
   const cid = path.basename(new URL(finalUrl).pathname);
   const coverSmall = absoluteUrl($('img.img-responsive').first().attr('src') || $('img').first().attr('src') || '', finalUrl);
-  const posterUrl = preferredCoverUrl(coverSmall, scraperConfig);
-  const fanartUrl = posterUrl;
+  const fanartUrl = preferredCoverUrl(coverSmall, scraperConfig);
+  const posterUrl = fanartUrl;
+  const posterCrop = scraperConfig.highresCover === false ? '' : 'right_cover';
   const trailerUrl = absoluteUrl($('video source').first().attr('src') || '', finalUrl);
 
   if (!title || !posterUrl) throw new Error('jav321 returned incomplete metadata');
@@ -257,6 +258,7 @@ async function scrapeJav321({ adultId, scraperConfig, taskId }) {
     series,
     posterUrl,
     fanartUrl,
+    posterCrop,
     trailerUrl,
     country: '日本',
   }, 'jav321');
@@ -301,8 +303,9 @@ async function scrapeJavbus({ adultId, scraperConfig, taskId }) {
     || $('img[src*="cover"]').first().attr('src')
     || '';
   const coverUrl = absoluteUrl(coverAttr, finalUrl);
-  const posterUrl = preferredCoverUrl(coverUrl, scraperConfig);
-  const fanartUrl = posterUrl;
+  const fanartUrl = preferredCoverUrl(coverUrl, scraperConfig);
+  const posterUrl = fanartUrl;
+  const posterCrop = scraperConfig.highresCover === false ? '' : 'right_cover';
 
   // The info block is div.col-md-3.info. Each row is <p><span>label:</span>
   // <a>value</a></p> (for link rows) or <p><span>label:</span> value</p>
@@ -399,6 +402,7 @@ async function scrapeJavbus({ adultId, scraperConfig, taskId }) {
     series,
     posterUrl,
     fanartUrl,
+    posterCrop,
     trailerUrl: '',
     country: '日本',
   }, 'javbus');
