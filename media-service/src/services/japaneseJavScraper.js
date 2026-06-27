@@ -155,6 +155,12 @@ function highresDmmCover(url) {
     .replace(/js\.jpg($|\?)/i, 'jp.jpg$1');
 }
 
+function preferredCoverUrl(url, scraperConfig = {}) {
+  if (!url) return '';
+  if (scraperConfig.highresCover === false) return url;
+  return highresDmmCover(url) || url;
+}
+
 // Minimum viable metadata gate. A crawler that returns no title or no cover has
 // almost certainly parsed the wrong page (an interstitial, a 404 stub, a login
 // wall); better to reject and let the dispatcher fall through to the next
@@ -224,8 +230,8 @@ async function scrapeJav321({ adultId, scraperConfig, taskId }) {
   const runtimeMinutes = Number((runtimeText.match(/\d+/) || [])[0] || 0);
   const cid = path.basename(new URL(finalUrl).pathname);
   const coverSmall = absoluteUrl($('img.img-responsive').first().attr('src') || $('img').first().attr('src') || '', finalUrl);
-  const posterUrl = coverSmall;
-  const fanartUrl = scraperConfig.highresCover === false ? coverSmall : (highresDmmCover(coverSmall) || coverSmall);
+  const posterUrl = preferredCoverUrl(coverSmall, scraperConfig);
+  const fanartUrl = posterUrl;
   const trailerUrl = absoluteUrl($('video source').first().attr('src') || '', finalUrl);
 
   if (!title || !posterUrl) throw new Error('jav321 returned incomplete metadata');
@@ -289,13 +295,14 @@ async function scrapeJavbus({ adultId, scraperConfig, taskId }) {
   if (!fullHeading) throw new Error('javbus did not return a detail page');
 
   // Cover is the big preview image, relative path.
-  const coverAttr = $('a.bigImage img').attr('src')
+  const coverAttr = $('a.bigImage').attr('href')
+    || $('a.bigImage img').attr('src')
     || $('.screencap img').attr('src')
     || $('img[src*="cover"]').first().attr('src')
     || '';
   const coverUrl = absoluteUrl(coverAttr, finalUrl);
-  const posterUrl = coverUrl;
-  const fanartUrl = scraperConfig.highresCover === false ? coverUrl : (highresDmmCover(coverUrl) || coverUrl);
+  const posterUrl = preferredCoverUrl(coverUrl, scraperConfig);
+  const fanartUrl = posterUrl;
 
   // The info block is div.col-md-3.info. Each row is <p><span>label:</span>
   // <a>value</a></p> (for link rows) or <p><span>label:</span> value</p>
@@ -449,5 +456,6 @@ module.exports = {
   // Exported for unit tests so they exercise the real helpers rather than
   // duplicated copies.
   absoluteUrl,
+  preferredCoverUrl,
   validateScrapeResult,
 };

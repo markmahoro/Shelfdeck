@@ -24,7 +24,7 @@ const cheerio = require('cheerio');
 const scraper = require('../src/services/japaneseJavScraper');
 // Use the REAL helpers from the source so tests guard against regressions in
 // the actual code rather than a duplicated copy.
-const { absoluteUrl, validateScrapeResult } = scraper;
+const { absoluteUrl, preferredCoverUrl, validateScrapeResult } = scraper;
 
 function cleanText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -42,7 +42,8 @@ function parseJavbus(html, normalized = 'MVSD-175', baseUrl = 'https://www.javbu
     || cleanText($('h2').first().text())
     || pageTitle.split(/\s+-\s*JavBus/i)[0];
 
-  const coverAttr = $('a.bigImage img').attr('src')
+  const coverAttr = $('a.bigImage').attr('href')
+    || $('a.bigImage img').attr('src')
     || $('.screencap img').attr('src')
     || $('img[src*="cover"]').first().attr('src')
     || '';
@@ -141,9 +142,9 @@ test('javbus: title strips leading 番号 and keeps descriptive heading', () => 
   assert.match(r.titleHeading, /ドスケベ美女/);
 });
 
-test('javbus: cover picked from a.bigImage img and absolutized', () => {
+test('javbus: cover picked from a.bigImage href and absolutized', () => {
   const r = parseJavbus(FIXTURE_HTML);
-  assert.match(r.coverUrl, /^https:\/\/[^/]*\/pics\/cover\/250b_b\.jpg$/);
+  assert.match(r.coverUrl, /^https:\/\/pics\.dmm\.co\.jp\/digital\/video\/mvsd175\/mvsd175jp\.jpg$/);
 });
 
 test('javbus: actor resolved via avatar-box img[title] with thumb', () => {
@@ -201,6 +202,21 @@ test('absoluteUrl upgrades http:// to https:// for mixed-content safety', () => 
   assert.strictEqual(
     absoluteUrl('https://pics.dmm.co.jp/cover/x.jpg', 'https://www.javbus.com/x'),
     'https://pics.dmm.co.jp/cover/x.jpg',
+  );
+});
+
+test('preferredCoverUrl upgrades DMM small cover URLs for local poster files', () => {
+  assert.strictEqual(
+    preferredCoverUrl('https://pics.dmm.co.jp/digital/video/sora107/sora107ps.jpg'),
+    'https://pics.dmm.co.jp/digital/video/sora107/sora107pl.jpg',
+  );
+  assert.strictEqual(
+    preferredCoverUrl('https://pics.dmm.co.jp/digital/video/mvsd175/mvsd175js.jpg'),
+    'https://pics.dmm.co.jp/digital/video/mvsd175/mvsd175jp.jpg',
+  );
+  assert.strictEqual(
+    preferredCoverUrl('https://pics.dmm.co.jp/digital/video/sora107/sora107ps.jpg', { highresCover: false }),
+    'https://pics.dmm.co.jp/digital/video/sora107/sora107ps.jpg',
   );
 });
 
