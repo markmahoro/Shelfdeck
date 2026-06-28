@@ -492,14 +492,14 @@ export default function SystemConfigPage() {
 
       <section style={cardStyle}>
         <h3 style={sectionTitle}>队列优先级</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>数值越小越优先。最终优先级由来源、任务类型、子库权重、规则和用户手动调整共同决定。</p>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>数值越小越优先。最终优先级由来源权重、任务类型权重、子库权重和高级规则叠加计算。</p>
         <div style={fourColGrid}>
-          <NumberField label="手动任务基准" value={manualPrio} min={0} max={999} onChange={setManualPrio} />
-          <NumberField label="自动任务基准" value={autoPrioBase} min={0} max={999} onChange={setAutoPrioBase} />
+          <NumberField label="手动来源权重" value={manualPrio} min={0} max={999} onChange={setManualPrio} />
+          <NumberField label="自动来源权重" value={autoPrioBase} min={0} max={999} onChange={setAutoPrioBase} />
           {ACTIONS.map((a) => (
             <NumberField
               key={a.key}
-              label={`${a.label}基准`}
+              label={`${a.label}类型权重`}
               value={actionWeights[a.key]}
               min={0}
               max={999}
@@ -513,7 +513,7 @@ export default function SystemConfigPage() {
           </button>
           {showPriorityAdvanced && (
             <div style={advancedBox}>
-              <p style={{ ...hintStyle, marginBottom: 12 }}>规则按顺序叠加到基准值上：subtract 更优先，add 延后，set 设为绝对档位。</p>
+              <p style={{ ...hintStyle, marginBottom: 12 }}>规则按顺序叠加到当前分数上：subtract 更优先，add 延后，set 设为绝对档位。</p>
               {ACTIONS.map((at) => (
                 <div key={at.key} style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{at.label}</div>

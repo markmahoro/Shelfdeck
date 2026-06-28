@@ -367,7 +367,7 @@ test('smartTaskEngine auto-enqueues adult scrape candidates through TaskAdmissio
   assert.strictEqual(created.length, 1);
   assert.strictEqual(created[0].itemId, 'adult-failed-scrape');
   assert.strictEqual(created[0].actionType, 'scrape');
-  assert.strictEqual(created[0].priority, 80);
+  assert.strictEqual(created[0].priority, 280);
   assert.strictEqual(created[0].source, 'auto');
 });
 
@@ -431,7 +431,7 @@ test('smartTaskEngine keeps transcode action priority when library weight is neu
   smartTaskEngine.stop();
   assert.strictEqual(created.length, 1);
   assert.strictEqual(created[0].actionType, 'transcode');
-  assert.strictEqual(created[0].priority, 130);
+  assert.strictEqual(created[0].priority, 330);
 });
 
 test('smartTaskEngine leaves ambiguous adult scrape candidates for explicit user action', async () => {

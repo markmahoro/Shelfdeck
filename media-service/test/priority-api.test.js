@@ -73,7 +73,7 @@ test('PATCH /v1/admin/tasks/:id refuses priority change on executing task (409)'
   }
 });
 
-test('POST /v1/tasks (manual) assigns manualTaskPriority base', async () => {
+test('POST /v1/tasks (manual) assigns additive priority from source, action, and library dimensions', async () => {
   const dir = tmpDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   try {
@@ -85,7 +85,7 @@ test('POST /v1/tasks (manual) assigns manualTaskPriority base', async () => {
     });
     assert.strictEqual(res.statusCode, 201);
     const body = res.json();
-    assert.strictEqual(body.priority, 0, 'manual task should get manualTaskPriority base (0)');
+    assert.strictEqual(body.priority, 230, 'manual transcode should add manual source + transcode action + default library weights');
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;

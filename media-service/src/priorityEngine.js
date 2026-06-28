@@ -3,19 +3,20 @@
 /**
  * PriorityEngine — computes a task's initial `priority` value.
  *
- * Lower number = higher priority (runs first within its actionType bucket).
+ * Lower number = higher priority (runs first in the global task queue).
+ *
+ * Formula:
+ *   sourceWeight = source==='manual' ? manualTaskPriority : autoTaskPriorityBase
+ *   actionWeight = taskPriority.actionTypeWeights[actionType] || 0
+ *   libraryWeight = subLibrary.priorityWeight || 100
+ *   priority = sourceWeight + actionWeight + libraryWeight + rule adjustments
  *
  * Evaluation order:
- *   1. base = source==='manual' ? manualTaskPriority
- *           : taskPriority.actionTypeWeights[actionType] || autoTaskPriorityBase
- *   2. Library weight: for auto tasks, an explicit subLibrary.priorityWeight
- *      below the neutral default (100) can lift all tasks from that library
- *      ahead. The default 100 is neutral so it does not erase actionTypeWeights
- *      such as scrape before transcode. Manual tasks ignore library weight.
- *   3. Advanced overlay rules (config.taskPriority.rules[actionType], ordered):
+ *   1. Add source, action type, and library dimensions.
+ *   2. Advanced overlay rules (config.taskPriority.rules[actionType], ordered):
  *      each rule that matches adjusts the running value (subtract=add priority,
  *      add=defer, set=absolute band).
- *   4. clamp to >= 0.
+ *   3. clamp to >= 0.
  *
  * Match conditions are AND-combined; any field left undefined does not
  * participate. Adding a new match field = one case in matchConditions(); the
@@ -35,20 +36,14 @@ function computePriority({ source, actionType, itemInfo, config }) {
   const manualBase = typeof cfg.manualTaskPriority === 'number' ? cfg.manualTaskPriority : 0;
   const autoBase = typeof cfg.autoTaskPriorityBase === 'number' ? cfg.autoTaskPriorityBase : 100;
   const actionWeights = cfg.actionTypeWeights || {};
-  const actionBase = typeof actionWeights[actionType] === 'number' ? actionWeights[actionType] : autoBase;
+  const actionWeight = typeof actionWeights[actionType] === 'number' ? actionWeights[actionType] : 0;
 
-  // ── 1-2. base + library weight ────────────────────────────────────────────
-  let value;
-  if (source === 'manual') {
-    value = manualBase;
-  } else {
-    const weight = resolveLibraryWeight(itemInfo, config);
-    // A library weight smaller than the action base lifts the task; neutral or
-    // missing library weight leaves the action base untouched.
-    value = typeof weight === 'number' ? Math.min(actionBase, weight) : actionBase;
-  }
+  // ── 1. source + action type + library dimensions ─────────────────────────
+  const sourceWeight = source === 'manual' ? manualBase : autoBase;
+  const libraryWeight = resolveLibraryWeight(itemInfo, config);
+  let value = sourceWeight + actionWeight + libraryWeight;
 
-  // ── 3. advanced overlay rules (per actionType, ordered) ───────────────────
+  // ── 2. advanced overlay rules (per actionType, ordered) ───────────────────
   const rules = ((cfg.rules || {})[actionType] || []);
   for (const rule of rules) {
     if (!rule || typeof rule !== 'object') continue;
@@ -57,19 +52,18 @@ function computePriority({ source, actionType, itemInfo, config }) {
     }
   }
 
-  // ── 4. clamp ──────────────────────────────────────────────────────────────
+  // ── 3. clamp ──────────────────────────────────────────────────────────────
   return Math.max(0, Math.round(value));
 }
 
 function resolveLibraryWeight(itemInfo, config) {
   const subLibId = itemInfo && itemInfo.subLibraryId;
-  if (!subLibId) return null;
+  if (!subLibId) return 100;
   const subLib = (config && config.subLibraries || []).find((s) => s && s.uuid === subLibId);
   if (subLib && typeof subLib.priorityWeight === 'number') {
-    if (subLib.priorityWeight === 100) return null;
     return subLib.priorityWeight;
   }
-  return null;
+  return 100;
 }
 
 /**

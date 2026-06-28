@@ -18,27 +18,28 @@ function config({ manualTaskPriority, autoTaskPriorityBase, rules, subLibraries 
   };
 }
 
-test('manual tasks use manualTaskPriority base (default 0)', () => {
+test('manual tasks add source, action, and library dimensions', () => {
   const c = config();
+  c.taskPriority.actionTypeWeights = { transcode: 130 };
   const p = pe.computePriority({ source: 'manual', actionType: 'transcode', itemInfo: {}, config: c });
-  assert.strictEqual(p, 0);
+  assert.strictEqual(p, 230);
 });
 
-test('auto tasks use autoTaskPriorityBase (default 100) when no library weight', () => {
+test('auto tasks add source and default library dimensions when no action weight exists', () => {
   const c = config();
   const p = pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: {}, config: c });
-  assert.strictEqual(p, 100);
+  assert.strictEqual(p, 200);
 });
 
-test('actionTypeWeights provide per-action auto bases', () => {
+test('actionTypeWeights add per-action dimensions', () => {
   const c = config();
   c.taskPriority.actionTypeWeights = { ingest: 60, scrape: 80, transcode: 130 };
-  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'ingest', itemInfo: {}, config: c }), 60);
-  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'scrape', itemInfo: {}, config: c }), 80);
-  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: {}, config: c }), 130);
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'ingest', itemInfo: {}, config: c }), 260);
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'scrape', itemInfo: {}, config: c }), 280);
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: {}, config: c }), 330);
 });
 
-test('neutral library weight does not override actionTypeWeights', () => {
+test('neutral library weight is still additive and does not erase actionType order', () => {
   const c = config({ subLibraries: [{ uuid: 'movie-lib', priorityWeight: 100 }] });
   c.taskPriority.actionTypeWeights = { ingest: 60, scrape: 80, transcode: 130 };
 
@@ -47,30 +48,29 @@ test('neutral library weight does not override actionTypeWeights', () => {
     actionType: 'transcode',
     itemInfo: { subLibraryId: 'movie-lib' },
     config: c,
-  }), 130);
+  }), 330);
 });
 
-test('library weight smaller than base lifts auto tasks; manual tasks ignore it', () => {
+test('library weight is added as an independent dimension', () => {
   const subLibs = [{ uuid: 'film', priorityWeight: 10 }, { uuid: 'series', priorityWeight: 50 }];
   const c = config({ subLibraries: subLibs });
+  c.taskPriority.actionTypeWeights = { transcode: 130 };
 
-  // Auto: min(base=100, weight)
   const filmAuto = pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { subLibraryId: 'film' }, config: c });
   const seriesAuto = pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { subLibraryId: 'series' }, config: c });
-  assert.strictEqual(filmAuto, 10, 'film library (weight 10) should outrank series (weight 50)');
-  assert.strictEqual(seriesAuto, 50);
+  assert.strictEqual(filmAuto, 240, 'film library (weight 10) should outrank series (weight 50)');
+  assert.strictEqual(seriesAuto, 280);
   assert.ok(filmAuto < seriesAuto, 'film auto task should have smaller priority value');
 
-  // Manual: always manual base regardless of library
   const filmManual = pe.computePriority({ source: 'manual', actionType: 'transcode', itemInfo: { subLibraryId: 'film' }, config: c });
-  assert.strictEqual(filmManual, 0, 'manual task ignores library weight');
+  assert.strictEqual(filmManual, 140, 'manual source weight still participates in the same additive formula');
 });
 
-test('library weight larger than base is ignored (base is the floor)', () => {
+test('library weight larger than default can defer a lower-priority library', () => {
   const subLibs = [{ uuid: 'low', priorityWeight: 999 }];
   const c = config({ autoTaskPriorityBase: 100, subLibraries: subLibs });
   const p = pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { subLibraryId: 'low' }, config: c });
-  assert.strictEqual(p, 100, 'a weight above base should not defer below the auto base');
+  assert.strictEqual(p, 1099, 'a larger library weight adds delay instead of being ignored');
 });
 
 test('rules are actionType-isolated', () => {
@@ -84,16 +84,16 @@ test('rules are actionType-isolated', () => {
   // A film transcode gets the subtract rule; a film upgrade does not.
   const tc = pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { subLibraryId: 'film' }, config: c });
   const up = pe.computePriority({ source: 'auto', actionType: 'upgrade', itemInfo: { subLibraryId: 'film' }, config: c });
-  assert.strictEqual(tc, 95, 'transcode rule subtracts from base 100');
-  assert.strictEqual(up, 100, 'upgrade has no rules -> plain base');
+  assert.strictEqual(tc, 195, 'transcode rule subtracts from the additive score');
+  assert.strictEqual(up, 200, 'upgrade has no rules -> source + default library');
 });
 
 test('multiple rules apply in order, each adjusting the running value', () => {
   const c = config({
     rules: {
       transcode: [
-        { match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 50 } }, // 100 - 50 = 50
-        { match: { type: 'season' }, adjust: { op: 'add', value: 20 } },           // 50 + 20 = 70
+        { match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 50 } }, // 200 - 50 = 150
+        { match: { type: 'season' }, adjust: { op: 'add', value: 20 } },           // 150 + 20 = 170
         { match: { isDiscLike: true }, adjust: { op: 'set', value: 200 } },        // 200 (absolute)
         { match: { isDolbyVision: true }, adjust: { op: 'subtract', value: 10 } }, // does NOT match -> 200
       ],
@@ -114,9 +114,9 @@ test('match is AND-combined; undefined fields do not constrain', () => {
     subLibraries: [],
   });
   // Both match -> apply
-  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { subLibraryId: 'film', type: 'movie' }, config: c }), 70);
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { subLibraryId: 'film', type: 'movie' }, config: c }), 170);
   // Only one matches -> no apply
-  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { subLibraryId: 'film', type: 'season' }, config: c }), 100);
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { subLibraryId: 'film', type: 'season' }, config: c }), 200);
 });
 
 test('resolution match uses prefix semantics (4K deferral rule)', () => {
@@ -125,9 +125,9 @@ test('resolution match uses prefix semantics (4K deferral rule)', () => {
     subLibraries: [],
   });
   // 4K (3840x2160) is deferred
-  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { resolution: '3840x2160' }, config: c }), 140);
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { resolution: '3840x2160' }, config: c }), 240);
   // 1080p unaffected
-  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { resolution: '1920x1080' }, config: c }), 100);
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: { resolution: '1920x1080' }, config: c }), 200);
 });
 
 test('result is clamped to >= 0 and rounded', () => {
@@ -142,8 +142,8 @@ test('result is clamped to >= 0 and rounded', () => {
 test('missing taskPriority config falls back to safe defaults', () => {
   // No taskPriority key at all
   const c = { subLibraries: [] };
-  assert.strictEqual(pe.computePriority({ source: 'manual', actionType: 'transcode', itemInfo: {}, config: c }), 0);
-  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: {}, config: c }), 100);
+  assert.strictEqual(pe.computePriority({ source: 'manual', actionType: 'transcode', itemInfo: {}, config: c }), 100);
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: {}, config: c }), 200);
 });
 
 test('_applyAdjust handles subtract / add / set and ignores invalid', () => {
