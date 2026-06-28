@@ -357,6 +357,15 @@ export interface TaskReport {
   scrapeVerification?: {
     ok: boolean;
     checkedAt?: string;
+    source?: 'completion_snapshot' | 'current_filesystem' | string;
+    checks?: Record<string, boolean>;
+    failures?: Array<{ code?: string; message?: string } | string>;
+    warnings?: Array<{ code?: string; message?: string } | string>;
+  };
+  currentScrapeVerification?: {
+    ok: boolean;
+    checkedAt?: string;
+    source?: 'current_filesystem' | string;
     checks?: Record<string, boolean>;
     failures?: Array<{ code?: string; message?: string } | string>;
     warnings?: Array<{ code?: string; message?: string } | string>;

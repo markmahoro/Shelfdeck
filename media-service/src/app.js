@@ -285,6 +285,21 @@ function taskDetailView(task) {
   return { ...task, itemInfo };
 }
 
+function markScrapeVerificationSource(verification, source) {
+  if (!verification || typeof verification !== 'object') return verification;
+  return {
+    ...verification,
+    source,
+  };
+}
+
+function addScrapeReportWarning(verification, warning) {
+  if (!verification || typeof verification !== 'object' || !warning) return verification;
+  const warnings = Array.isArray(verification.warnings) ? verification.warnings.slice() : [];
+  warnings.push(warning);
+  return { ...verification, warnings };
+}
+
 async function fetchImageAsBase64(url) {
   const u = String(url || '').trim();
   if (!/^https?:\/\//i.test(u)) throw new Error('imageUrl must be http(s)');
@@ -573,12 +588,26 @@ function registerRoutes(app) {
         nfo: !!meta.nfoPath,
         marker: !!meta.markerPath,
       };
-      report.scrapeVerification = scrapeVerification.verifyScrapedItem(scrapeInfo, {
+      const currentVerification = scrapeVerification.verifyScrapedItem(scrapeInfo, {
         task,
         config: cfg,
         subLib,
         requireTaskDone: task.status === 'done',
       });
+      if (task.scrapeVerification && typeof task.scrapeVerification === 'object') {
+        report.scrapeVerification = markScrapeVerificationSource(task.scrapeVerification, 'completion_snapshot');
+        if (currentVerification.ok !== task.scrapeVerification.ok || (currentVerification.failures || []).length > 0) {
+          report.currentScrapeVerification = markScrapeVerificationSource(currentVerification, 'current_filesystem');
+        }
+      } else {
+        report.scrapeVerification = markScrapeVerificationSource(currentVerification, 'current_filesystem');
+        if (task.status === 'done') {
+          report.scrapeVerification = addScrapeReportWarning(report.scrapeVerification, {
+            code: 'snapshot.missing',
+            message: '这条历史刮削任务完成时尚未保存验收快照；此处展示的是当前文件系统复核结果，不代表任务完成当时的状态。',
+          });
+        }
+      }
     }
 
     return report;

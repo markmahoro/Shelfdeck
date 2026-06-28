@@ -1028,6 +1028,9 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
           {report.scrapeVerification && (
             <ScrapeVerificationSummary verification={report.scrapeVerification} />
           )}
+          {report.currentScrapeVerification && (
+            <ScrapeVerificationSummary verification={report.currentScrapeVerification} current />
+          )}
           {visibleFaceRows.length > 0 && (
             <div>
               <div style={{ fontWeight: 700, marginBottom: 4 }}>陌生脸</div>
@@ -1082,18 +1085,25 @@ function ReportPathRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ScrapeVerificationSummary({ verification }: { verification: NonNullable<import('../api/client').TaskReport['scrapeVerification']> }) {
+function ScrapeVerificationSummary({ verification, current }: { verification: NonNullable<import('../api/client').TaskReport['scrapeVerification']>; current?: boolean }) {
   const checks = Object.entries(verification.checks || {});
   const failures = verification.failures || [];
   const warnings = verification.warnings || [];
+  const isSnapshot = verification.source === 'completion_snapshot' && !current;
+  const title = current || verification.source === 'current_filesystem' ? '当前文件复核' : '完成时验收';
   return (
     <div style={{ border: `1px solid ${verification.ok ? '#c8e6c9' : '#ffd6d6'}`, background: verification.ok ? '#f1f8f2' : '#fff5f5', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-        <strong>刮削成功验证</strong>
+        <strong>{title}</strong>
         <span style={{ color: verification.ok ? '#1f7a3a' : '#c0392b', fontWeight: 700 }}>
           {verification.ok ? '通过' : '未通过'}
         </span>
       </div>
+      {isSnapshot && (
+        <div style={{ color: '#4b5563', marginBottom: 8 }}>
+          这是任务完成时保存的验收快照；后续删除媒体不会改变这条历史结果。
+        </div>
+      )}
       {checks.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 6, marginBottom: failures.length || warnings.length ? 10 : 0 }}>
           {checks.map(([code, passed]) => (

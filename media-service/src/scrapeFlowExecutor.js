@@ -8,6 +8,7 @@ const adultLibraryService = require('./adultLibraryService');
 const japaneseJavScraper = require('./services/japaneseJavScraper');
 const westernAdultAiService = require('./services/westernAdultAiService');
 const approvalPolicy = require('./approvalPolicy');
+const scrapeVerification = require('./scrapeVerification');
 
 let scheduler = null;
 function setScheduler(s) { scheduler = s; }
@@ -271,6 +272,32 @@ async function finishScrape(taskId) {
   taskStore.updateTask(taskId, { resumePoint: null, approval: null });
   setPhase(taskId, 'done');
   scheduler.reportStatus(taskId, 'done', 100);
+  captureCompletionVerification(taskId);
+}
+
+function captureCompletionVerification(taskId) {
+  try {
+    const mediaLibraryService = require('./mediaLibraryService');
+    const task = taskStore.getTask(taskId);
+    if (!task || task.actionType !== 'scrape') return;
+    const config = configStore.loadConfig();
+    const item = mediaLibraryService.getLibraryItem(task.itemId);
+    const subLib = item ? getSubLibrary(config, item.subLibraryId) : null;
+    const verification = scrapeVerification.verifyScrapedItem(item, {
+      task,
+      config,
+      subLib,
+      requireTaskDone: true,
+    });
+    taskStore.updateTask(taskId, {
+      scrapeVerification: {
+        ...verification,
+        source: 'completion_snapshot',
+      },
+    });
+  } catch (e) {
+    appendLog(taskId, 'warn', `Scrape completion verification snapshot failed: ${e.message}`);
+  }
 }
 
 async function pause(taskId) {

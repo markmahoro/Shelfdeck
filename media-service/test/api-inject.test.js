@@ -337,7 +337,9 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
   assert.strictEqual(body.assets.poster, true);
   assert.strictEqual(body.assets.nfo, true);
   assert.strictEqual(body.scrapeVerification.ok, false);
+  assert.strictEqual(body.scrapeVerification.source, 'current_filesystem');
   assert.ok(body.scrapeVerification.failures.some((f) => f.code === 'media.exists'));
+  assert.ok(body.scrapeVerification.warnings.some((w) => w.code === 'snapshot.missing'));
   await app.close();
 });
 
@@ -1892,6 +1894,8 @@ test('successful JAV scrape creates one movie folder and keeps original naming c
   const afterTask = taskStore.getTask(task.id);
   assert.strictEqual(afterTask.status, 'done');
   assert.strictEqual(afterTask.phase, 'done');
+  assert.strictEqual(afterTask.scrapeVerification.ok, true);
+  assert.strictEqual(afterTask.scrapeVerification.source, 'completion_snapshot');
   const afterItem = mediaLibraryService.getLibraryItem(item.itemId);
   const finalDir = path.join(watchRoot, 'scraped', 'MVSD-175 Some Title');
   assert.strictEqual(afterItem.path, path.join(finalDir, 'MVSD-175 Some Title.mp4'));
@@ -1906,6 +1910,23 @@ test('successful JAV scrape creates one movie folder and keeps original naming c
   const scanAfterOrganize = await adultLibraryService.scanSubLibrary(sl);
   assert.strictEqual(scanAfterOrganize.scanned, 0, 'default scan should ignore the consolidated scraped folder');
   assert.strictEqual(scanAfterOrganize.queued, 0);
+
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const reportBeforeDelete = await app.inject({ method: 'GET', url: `/v1/tasks/${task.id}/report` });
+  assert.strictEqual(reportBeforeDelete.statusCode, 200);
+  assert.strictEqual(reportBeforeDelete.json().scrapeVerification.ok, true);
+  assert.strictEqual(reportBeforeDelete.json().scrapeVerification.source, 'completion_snapshot');
+  assert.strictEqual(reportBeforeDelete.json().currentScrapeVerification, undefined);
+
+  fs.rmSync(finalDir, { recursive: true, force: true });
+  const reportAfterDelete = await app.inject({ method: 'GET', url: `/v1/tasks/${task.id}/report` });
+  assert.strictEqual(reportAfterDelete.statusCode, 200);
+  const reportBody = reportAfterDelete.json();
+  assert.strictEqual(reportBody.scrapeVerification.ok, true, 'historical completion snapshot remains successful after later delete');
+  assert.strictEqual(reportBody.scrapeVerification.source, 'completion_snapshot');
+  assert.strictEqual(reportBody.currentScrapeVerification.ok, false, 'current filesystem recheck reflects later delete');
+  assert.ok(reportBody.currentScrapeVerification.failures.some((f) => f.code === 'media.exists'));
+  await app.close();
 
   delete require.cache[scraperPath];
   delete require.cache[executorPath];
