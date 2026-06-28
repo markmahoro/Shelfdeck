@@ -471,6 +471,7 @@ function updateSubLibrary(uuid, updates) {
 // ── Self-computed fields ──────────────────────────────────────────────────────
 
 let selfComputeTimer = null;
+let startupRefreshTimer = null;
 
 function recomputeAllSelfFields() {
   const lib = loadLibrary();
@@ -503,9 +504,11 @@ function recomputeAllSelfFields() {
   }
 }
 
-function startSelfComputeTimer(intervalMs = 600000) {
+function startSelfComputeTimer(intervalMs = 600000, options = {}) {
   stopSelfComputeTimer();
-  recomputeAllSelfFields(); // run immediately on start
+  if (options.runImmediately !== false) {
+    recomputeAllSelfFields();
+  }
   selfComputeTimer = setInterval(recomputeAllSelfFields, intervalMs);
   selfComputeTimer.unref && selfComputeTimer.unref();
 }
@@ -701,22 +704,54 @@ function startAllSubLibraryTimers() {
   const cfg = configStore.loadConfig();
   const subLibs = (cfg.subLibraries || []).filter((sl) => sl.enabled !== false);
 
+  if (startupRefreshTimer) {
+    clearTimeout(startupRefreshTimer);
+    startupRefreshTimer = null;
+  }
+
   for (const sl of subLibs) {
     startSubLibraryTimers(sl);
   }
 
-  // Refresh all subLibraries first, then start self-computation once data is in.
-  // Self-compute needs bitrate/duration from the freshly fetched items to derive
-  // equivalentBitrate — running it before refresh completes produces all-zeroes.
-  const refreshes = subLibs.map((sl) =>
-    refreshSubLibrary(sl).catch((e) => console.error('[mediaLibrary] startup refresh error:', e))
-  );
-  Promise.all(refreshes).then(() => {
-    startSelfComputeTimer(600000);
-  });
+  const startSelfCompute = () => {
+    startSelfComputeTimer(600000, {
+      runImmediately: cfg.mediaLibrarySelfComputeOnStartup !== false,
+    });
+  };
+
+  if (cfg.mediaLibraryStartupRefreshOnStartup === false) {
+    console.log('[mediaLibrary] startup refresh disabled by config');
+    startSelfCompute();
+    return;
+  }
+
+  const delaySeconds = Math.max(0, Number(cfg.mediaLibraryStartupRefreshDelaySeconds) || 0);
+  console.log(`[mediaLibrary] startup refresh scheduled in ${delaySeconds}s`);
+  startupRefreshTimer = setTimeout(() => {
+    startupRefreshTimer = null;
+    const currentCfg = configStore.loadConfig();
+    if (currentCfg.mediaLibraryStartupRefreshOnStartup === false) {
+      console.log('[mediaLibrary] startup refresh skipped by config');
+      startSelfCompute();
+      return;
+    }
+
+    // Refresh all subLibraries first, then start self-computation once data is in.
+    // Self-compute needs bitrate/duration from the freshly fetched items to derive
+    // equivalentBitrate — running it before refresh completes produces all-zeroes.
+    const refreshes = subLibs.map((sl) =>
+      refreshSubLibrary(sl).catch((e) => console.error('[mediaLibrary] startup refresh error:', e))
+    );
+    Promise.all(refreshes).then(startSelfCompute);
+  }, delaySeconds * 1000);
+  startupRefreshTimer.unref && startupRefreshTimer.unref();
 }
 
 function stopAllTimers() {
+  if (startupRefreshTimer) {
+    clearTimeout(startupRefreshTimer);
+    startupRefreshTimer = null;
+  }
   for (const uuid of subLibraryTimers.keys()) {
     stopSubLibraryTimers(uuid);
   }

@@ -117,6 +117,7 @@ desktop / Admin Web
 - 审批策略与调度策略分离。`approvalPolicy` 控制任务内部关键节点是否暂停，模式为 `auto`、`confirm`、`forceConfirm`；`forceConfirm` 不能被全局、子库或任务级覆盖降级。
 - 当前审批 gate 包括 `delete.beforeExecute`、`transcode.dolbyVisionTonemap`、`transcode.beforeReplace`、`upgrade.candidateSelect`、`upgrade.identityMismatch`、`upgrade.beforeReplace`、`scrape.beforeWriteMetadata`、`scrape.beforeOrganize`、`scrape.reviewResult`。
 - `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；扫描/监听不直接写入大量完整 item，也不把大量新文件直接展开成完整刮削或转码动作。
+- 启动期全局维护不属于单 item task。普通媒体库启动刷新由 `mediaLibraryStartupRefreshOnStartup` 和 `mediaLibraryStartupRefreshDelaySeconds` 控制；自算字段立即运行由 `mediaLibrarySelfComputeOnStartup` 控制；`SmartTaskEngine` 首次自动入队扫描由 `smartTaskInitialDelaySeconds` 控制。生产部署可通过这些开关先恢复 API 响应，再让周期任务按节奏运行。
 
 成人文件夹库流：
 

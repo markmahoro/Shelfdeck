@@ -5,6 +5,7 @@ const assert = require('node:assert');
 
 const approvalPolicy = require('../src/approvalPolicy');
 const taskAdmission = require('../src/taskAdmission');
+const smartTaskEngine = require('../src/smartTaskEngine');
 
 test('approvalPolicy resolves global, sub-library, and task overrides', () => {
   const config = {
@@ -183,4 +184,33 @@ test('taskAdmission applies cooldown from terminal task history', () => {
   });
   assert.strictEqual(result.allowed, false);
   assert.strictEqual(result.reason, 'recent_task_cooldown');
+});
+
+test('smartTaskEngine stop cancels delayed startup scan', async () => {
+  let getLibraryCalls = 0;
+  smartTaskEngine.stop();
+  smartTaskEngine.start(
+    {
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 60,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['transcode', 'upgrade'],
+          smartTaskLookbackDays: 30,
+        };
+      },
+    },
+    {
+      getLibrary() {
+        getLibraryCalls += 1;
+        return { items: [] };
+      },
+    },
+    { getTasks() { return []; } },
+  );
+  smartTaskEngine.stop();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.strictEqual(getLibraryCalls, 0);
 });

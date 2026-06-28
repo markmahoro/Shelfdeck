@@ -505,6 +505,12 @@ function getDefaultConfig() {
     smartTaskMaxQueueSize: 50,
     smartTaskEnabledActions: ['transcode', 'upgrade'],
     smartTaskLookbackDays: 30,
+    smartTaskInitialDelaySeconds: 60,
+
+    // Startup maintenance
+    mediaLibraryStartupRefreshOnStartup: true,
+    mediaLibraryStartupRefreshDelaySeconds: 30,
+    mediaLibrarySelfComputeOnStartup: true,
 
     // Task queue priority (PriorityEngine). Lower number = runs first.
     // Per-subLibrary weight lives on subLibrary.priorityWeight (default 100).

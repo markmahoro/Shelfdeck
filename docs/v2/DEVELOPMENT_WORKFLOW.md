@@ -45,6 +45,9 @@ docker compose -f media-service/docker-compose.example.yml up -d
 | `actionType=scrape` | 刮削任务，完成后只更新 metadata 和 `scraped=true`；是否转码由策略和 `SmartTaskEngine` 决定 |
 | `automationMode=auto/manual` | 子库自动调度开关；审批节点由 `approvalPolicy` 单独控制 |
 | `approvalPolicy` | 任务内部关键节点审批策略，支持 `auto`、`confirm`、`forceConfirm` |
+| `mediaLibraryStartupRefreshOnStartup` | 普通媒体库启动后是否自动刷新 |
+| `mediaLibraryStartupRefreshDelaySeconds` | 普通媒体库启动刷新延迟，避免服务刚监听端口就被全量刷新压住 |
+| `smartTaskInitialDelaySeconds` | `SmartTaskEngine` 首次自动入队扫描延迟 |
 
 欧美成人库约定：
 

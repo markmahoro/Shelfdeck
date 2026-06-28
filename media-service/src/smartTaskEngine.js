@@ -16,6 +16,7 @@ const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
 
 let timer = null;
+let initialTimer = null;
 let lastRunAt = null;
 let lastError = null;
 let _enabled = false;
@@ -194,16 +195,22 @@ function start(configStore, mediaLibraryService, taskStore) {
     }
   };
 
-  // Short delay to let StrategyEngine complete its first pass (runs synchronously on startup)
-  console.log(`[smartTaskEngine] will run first scan in 5s, then every ${intervalMs / 60000}min`);
-  setTimeout(() => {
+  const initialDelaySeconds = Math.max(0, Number(cfg.smartTaskInitialDelaySeconds) || 0);
+  console.log(`[smartTaskEngine] will run first scan in ${initialDelaySeconds}s, then every ${intervalMs / 60000}min`);
+  initialTimer = setTimeout(() => {
+    initialTimer = null;
     run();
     timer = setInterval(run, intervalMs);
     timer.unref && timer.unref();
-  }, 5000);
+  }, initialDelaySeconds * 1000);
+  initialTimer.unref && initialTimer.unref();
 }
 
 function stop() {
+  if (initialTimer) {
+    clearTimeout(initialTimer);
+    initialTimer = null;
+  }
   if (timer) {
     clearInterval(timer);
     timer = null;

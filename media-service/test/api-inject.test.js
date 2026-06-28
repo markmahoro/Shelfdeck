@@ -70,6 +70,10 @@ test('GET /v1/config includes v2 schema fields', async () => {
   assert.ok(cfg.embyServers !== undefined, 'embyServers present');
   assert.ok(Array.isArray(cfg.subLibraries), 'subLibraries is array');
   assert.ok(Array.isArray(cfg.transcodeEncodingDevices), 'transcodeEncodingDevices is array');
+  assert.strictEqual(typeof cfg.smartTaskInitialDelaySeconds, 'number');
+  assert.strictEqual(typeof cfg.mediaLibraryStartupRefreshOnStartup, 'boolean');
+  assert.strictEqual(typeof cfg.mediaLibraryStartupRefreshDelaySeconds, 'number');
+  assert.strictEqual(typeof cfg.mediaLibrarySelfComputeOnStartup, 'boolean');
   await app.close();
 });
 
