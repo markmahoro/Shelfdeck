@@ -61,6 +61,7 @@ docker compose -f media-service/docker-compose.example.yml up -d
 - 人脸模型目录默认是 `/app/data/face-models`，挂载数据卷后容器重启不会重新下载模型。
 - 匹配不到 protagonist 时等同于 JAV 识别不到番号：任务失败，item 保持 `scraped=false`，不会自动进入转码策略。
 - 成人库不得新增独立调度规则。新建、重试、冷却、队列上限、去重、优先级都必须走统一任务模型。
+- 成人库 `delete` 任务按媒体目录删除：如果媒体文件位于 `watchRoot` 下的独立子目录，删除目标是整个子目录；如果文件直接位于 `watchRoot` 根下，才退回删除单文件。删除目标必须仍在 `watchRoot` 内，且不能是 `watchRoot` 或 `scraped/` 根目录。
 
 ## Task Store
 

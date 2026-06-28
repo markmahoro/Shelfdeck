@@ -140,6 +140,9 @@ function resolveAdultFolderDeleteTarget(task) {
   } else if (isPathInside(scrapedRoot, mediaDir) && path.resolve(mediaDir) !== scrapedRoot) {
     targetPath = mediaDir;
     targetKind = 'directory';
+  } else if (mediaDir !== watchRoot && mediaDir !== scrapedRoot && isPathInside(watchRoot, mediaDir)) {
+    targetPath = mediaDir;
+    targetKind = 'directory';
   }
 
   targetPath = path.resolve(targetPath);

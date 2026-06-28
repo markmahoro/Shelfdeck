@@ -356,7 +356,7 @@ test('DELETE /v1/tasks/:id removes task', async () => {
   await app.close();
 });
 
-test('delete task removes an adult folder media file and library item', async () => {
+test('delete task removes an adult folder media directory and library item', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
     approvalPolicy: { 'delete.beforeExecute': 'auto' },
@@ -378,7 +378,9 @@ test('delete task removes an adult folder media file and library item', async ()
     },
   });
   const subLib = createLib.json();
-  const filePath = path.join(watchRoot, 'MVSD-175.mp4');
+  const movieDir = path.join(watchRoot, 'MVSD-175 Delete Me');
+  fs.mkdirSync(movieDir, { recursive: true });
+  const filePath = path.join(movieDir, 'MVSD-175.mp4');
   fs.writeFileSync(filePath, 'delete-me');
   const adultLibraryService = require('../src/adultLibraryService');
   const item = await adultLibraryService.upsertFileItem(subLib, filePath, { enqueueScrape: false });
@@ -394,7 +396,7 @@ test('delete task removes an adult folder media file and library item', async ()
   });
   await deleteFlow.driveTask(createTask.json().id);
 
-  assert.strictEqual(fs.existsSync(filePath), false, 'delete task should remove the media file');
+  assert.strictEqual(fs.existsSync(movieDir), false, 'delete task should remove the whole media folder');
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(lib.json().total, 0, 'delete task should remove the library cache item');
   const done = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
@@ -402,8 +404,8 @@ test('delete task removes an adult folder media file and library item', async ()
   const report = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}/report` });
   assert.strictEqual(report.statusCode, 200);
   assert.strictEqual(report.json().bytesFreed, Buffer.byteLength('delete-me'));
-  assert.strictEqual(report.json().delete.targetKind, 'file');
-  assert.strictEqual(report.json().delete.targetPath, filePath);
+  assert.strictEqual(report.json().delete.targetKind, 'directory');
+  assert.strictEqual(report.json().delete.targetPath, movieDir);
   await app.close();
 });
 
