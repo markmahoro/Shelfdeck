@@ -258,7 +258,6 @@ function registerRoutes(app) {
     }
 
     const cfg = configStore.loadConfig();
-    const status = cfg.executionMode === 'auto' ? 'created' : 'pending_manual';
 
     // Populate itemInfo from media library
     const libItem = mediaLibraryService.getLibraryItem(itemId);
@@ -306,6 +305,11 @@ function registerRoutes(app) {
       }
       return apiError(reply, 409, 'TASK_ADMISSION_REJECTED', admission.reason);
     }
+
+    const schedule = itemInfo && itemInfo.subLibraryId
+      ? configStore.resolveSubLibSchedule(itemInfo, cfg)
+      : { autoExecute: cfg.executionMode === 'auto' };
+    const status = schedule.autoExecute ? 'created' : 'pending_manual';
 
     const task = taskStore.createTask({
       itemId,

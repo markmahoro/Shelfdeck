@@ -144,6 +144,45 @@ test('POST /v1/tasks creates task and returns 201', async () => {
   await app.close();
 });
 
+test('POST /v1/tasks follows sub-library automation mode for initial status', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const configStore = require('../src/configStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+
+  configStore.patchConfig({
+    executionMode: 'manual',
+    subLibraries: [
+      { uuid: 'auto-lib', name: 'Auto Lib', automationMode: 'auto', scheduleMode: 'full_auto' },
+      { uuid: 'manual-lib', name: 'Manual Lib', automationMode: 'manual', scheduleMode: 'full_manual' },
+    ],
+  });
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [
+      { itemId: 'auto-lib-item', name: 'Auto Item', type: 'movie', subLibraryId: 'auto-lib' },
+      { itemId: 'manual-lib-item', name: 'Manual Item', type: 'movie', subLibraryId: 'manual-lib' },
+    ],
+  });
+
+  const autoRes = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId: 'auto-lib-item', actionType: 'transcode' },
+  });
+  assert.strictEqual(autoRes.statusCode, 201);
+  assert.strictEqual(autoRes.json().status, 'created');
+
+  const manualRes = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId: 'manual-lib-item', actionType: 'transcode' },
+  });
+  assert.strictEqual(manualRes.statusCode, 201);
+  assert.strictEqual(manualRes.json().status, 'pending_manual');
+  await app.close();
+});
+
 test('GET /v1/tasks lists created tasks', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });

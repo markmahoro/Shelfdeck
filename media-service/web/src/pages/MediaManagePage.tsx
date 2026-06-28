@@ -167,9 +167,9 @@ export default function MediaManagePage() {
       const task = await taskApi.createByIntent({ itemId: item.id, actionType: action });
       upsertActiveTask(task);
       setError(null);
-      const statusHint = task.status === 'pending_manual' || task.status === 'created'
+      const statusHint = task.status === 'pending_manual'
         ? '当前状态为待启动，可在任务中心点击“启动”。'
-        : '可在任务中心查看进度。';
+        : '已进入任务调度，可在任务中心查看进度。';
       setNotice(`已创建「${ACTION_LABELS[action] || action}」任务：${item.name}。${statusHint}`);
       return task;
     } catch (e) {
