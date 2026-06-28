@@ -557,8 +557,9 @@ export const libraryApi = {
 };
 
 export const taskApi = {
-  getTasks: async () => {
-    const data = await get<{ tasks: MediaTask[] } | MediaTask[]>('/v1/tasks');
+  getTasks: async (options?: { activeOnly?: boolean }) => {
+    const params = options?.activeOnly ? '?activeOnly=1' : '';
+    const data = await get<{ tasks: MediaTask[] } | MediaTask[]>(`/v1/tasks${params}`);
     return Array.isArray(data) ? data : data.tasks ?? [];
   },
 

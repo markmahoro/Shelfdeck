@@ -7,6 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 const { buildApp } = require('../src/app');
+const taskStore = require('../src/taskStore');
 
 // ── Health ────────────────────────────────────────────────────────────────────
 
@@ -153,6 +154,20 @@ test('GET /v1/tasks lists created tasks', async () => {
   const body = res.json();
   assert.ok(Array.isArray(body.tasks), 'returns tasks array');
   assert.ok(body.tasks.length >= 2);
+  await app.close();
+});
+
+test('GET /v1/tasks activeOnly excludes completed history', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const done = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-done', actionType: 'delete' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-active', actionType: 'transcode' } });
+  taskStore.updateTask(done.json().id, { status: 'done' });
+
+  const res = await app.inject({ method: 'GET', url: '/v1/tasks?activeOnly=1' });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.deepStrictEqual(body.tasks.map((t) => t.itemId), ['i-active']);
   await app.close();
 });
 

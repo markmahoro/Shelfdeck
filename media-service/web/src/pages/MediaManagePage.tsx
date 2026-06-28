@@ -13,6 +13,7 @@ const ACTION_LABELS: Record<string, string> = {
   scrape: '刮削',
   ingest: '入库',
 };
+const MEDIA_MANAGE_SUB_LIBRARY_KEY = 'media_manage_sub_library_id';
 
 export default function MediaManagePage() {
   const [subLibraries, setSubLibraries] = useState<SubLibraryInfo[]>([]);
@@ -43,6 +44,12 @@ export default function MediaManagePage() {
     libraryApi.getStatus().then((s) => {
       const enabled = s.subLibraries.filter((sl) => sl.enabled);
       setSubLibraries(enabled);
+      setSubLibraryId((current) => {
+        if (current) return current;
+        const saved = localStorage.getItem(MEDIA_MANAGE_SUB_LIBRARY_KEY);
+        if (saved !== null && (saved === '' || enabled.some((sl) => sl.uuid === saved))) return saved;
+        return enabled[0]?.uuid || '';
+      });
     }).catch(() => {});
     systemConfig.get().then((cfg) => {
       setSmartTaskActions(Array.isArray(cfg.smartTaskEnabledActions) ? cfg.smartTaskEnabledActions : []);
@@ -80,7 +87,7 @@ export default function MediaManagePage() {
   // Poll tasks
   useEffect(() => {
     const poll = () => {
-      taskApi.getTasks().then(setTasks).catch(() => {});
+      taskApi.getTasks({ activeOnly: true }).then(setTasks).catch(() => {});
     };
     poll();
     const id = setInterval(poll, 3000);
@@ -184,6 +191,7 @@ export default function MediaManagePage() {
           onChange={(e) => {
             const id = e.target.value;
             setSubLibraryId(id);
+            localStorage.setItem(MEDIA_MANAGE_SUB_LIBRARY_KEY, id);
             setActiveSubLibName(id ? subLibraries.find(sl => sl.uuid === id)?.name || '' : '全部');
             setSelectedIds(new Set());
             setScanMsg(null);
