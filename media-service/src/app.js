@@ -205,6 +205,7 @@ function taskListSummary(task) {
     itemId: task.itemId,
     itemName: task.itemName,
     actionType: task.actionType,
+    source: task.source,
     status: task.status,
     progress: task.progress,
     phase: task.phase,

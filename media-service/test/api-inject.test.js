@@ -699,6 +699,8 @@ test('GET /v1/admin/tasks returns list with summary', async () => {
   assert.strictEqual(body.summary.byStatus.done, 1);
   assert.ok(body.tasks.every((t) => t.logs === undefined), 'list payload omits logs');
   assert.ok(body.tasks.every((t) => t.report === undefined), 'list payload omits reports');
+  const manualSummaries = body.tasks.filter((t) => t.itemId === 'a1' || t.itemId === 'a2');
+  assert.ok(manualSummaries.every((t) => t.source === 'manual'), 'list payload includes task source');
   const scrapeSummary = body.tasks.find((t) => t.actionType === 'scrape');
   if (scrapeSummary) {
     assert.strictEqual(scrapeSummary.itemInfo.adultMetadata.faceClusters, undefined, 'list payload omits heavy face clusters');
