@@ -336,16 +336,31 @@ export interface TaskReport {
   scrape?: {
     adultId?: string;
     title?: string;
+    source?: string;
+    sourceUrl?: string;
     scrapeStatus?: string;
     posterPath?: string;
+    fanartPath?: string;
     nfoPath?: string;
+    fileNfoPath?: string;
+    markerPath?: string;
+    organized?: boolean;
+    originalFolder?: string;
+    mediaPath?: string;
     actors?: string[];
-    protagonist?: { name?: string; adultId?: string } | null;
+    protagonist?: { personId?: string; name?: string; adultId?: string } | null;
     faceClusters?: Array<Record<string, unknown>>;
     unknownFaces?: Array<Record<string, unknown>>;
     actorConfidence?: Record<string, number>;
   };
   assets?: Record<string, boolean>;
+  scrapeVerification?: {
+    ok: boolean;
+    checkedAt?: string;
+    checks?: Record<string, boolean>;
+    failures?: Array<{ code?: string; message?: string } | string>;
+    warnings?: Array<{ code?: string; message?: string } | string>;
+  };
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────

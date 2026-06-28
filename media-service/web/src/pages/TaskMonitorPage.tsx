@@ -770,7 +770,7 @@ export default function TaskMonitorPage() {
       </Modal>
 
       {/* Completion Report Modal */}
-      <Modal open={!!reportTask && !reportLoading} title="任务完结报告" onClose={() => { setReportTask(null); setReportData(null); }} width={520}>
+      <Modal open={!!reportTask && !reportLoading} title="任务完结报告" onClose={() => { setReportTask(null); setReportData(null); }} width={640}>
         {reportLoading ? (
           <LoadingSpinner text="加载报告中..." />
         ) : reportData ? (
@@ -838,6 +838,14 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
     const m = Math.floor((sec % 3600) / 60);
     const s = sec % 60;
     return h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
+  }
+  function fmtBool(value: boolean | undefined): string {
+    if (value === true) return '是';
+    if (value === false) return '否';
+    return '—';
+  }
+  function fmtPath(value: string | undefined): string {
+    return value && value.trim() ? value : '—';
   }
 
   const isTranscode = report.actionType === 'transcode';
@@ -938,9 +946,23 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
           <div style={{ background: '#f7f8fa', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
             <div><strong>番号</strong>：{report.scrape.adultId || '—'}</div>
             <div><strong>标题</strong>：{report.scrape.title || '—'}</div>
+            <div><strong>来源</strong>：{report.scrape.source || '—'}{report.scrape.sourceUrl ? ` · ${report.scrape.sourceUrl}` : ''}</div>
             <div><strong>演员</strong>：{report.scrape.actors?.join(', ') || '未识别'}</div>
+            <div><strong>主角</strong>：{report.scrape.protagonist?.name || '未识别'}</div>
             <div><strong>状态</strong>：{report.scrape.scrapeStatus || '—'}</div>
+            <div><strong>已归拢到 scraped/</strong>：{fmtBool(report.scrape.organized)}</div>
           </div>
+          <div style={{ background: '#f7f8fa', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+            <ReportPathRow label="原目录" value={fmtPath(report.scrape.originalFolder)} />
+            <ReportPathRow label="媒体文件" value={fmtPath(report.scrape.mediaPath)} />
+            <ReportPathRow label="电影 NFO" value={fmtPath(report.scrape.nfoPath)} />
+            <ReportPathRow label="文件同名 NFO" value={fmtPath(report.scrape.fileNfoPath)} />
+            <ReportPathRow label="封面" value={fmtPath(report.scrape.posterPath)} />
+            <ReportPathRow label="标记文件" value={fmtPath(report.scrape.markerPath)} />
+          </div>
+          {report.scrapeVerification && (
+            <ScrapeVerificationSummary verification={report.scrapeVerification} />
+          )}
           {faceRows.length > 0 && (
             <div>
               <div style={{ fontWeight: 700, marginBottom: 8 }}>陌生脸</div>
@@ -966,7 +988,7 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
                       disabled={!actorNames[id] || createFromFaceMut.isPending || !report.itemId}
                       onClick={() => createFromFaceMut.mutate({ clusterId: id, name: actorNames[id] })}
                     >
-                      建演员
+                      创建演员
                     </button>
                   </div>
                 );
@@ -981,6 +1003,83 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
       )}
     </div>
   );
+}
+
+function ReportPathRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '88px 1fr', gap: 8, marginBottom: 4 }}>
+      <strong>{label}</strong>
+      <span style={{ wordBreak: 'break-all', color: value === '—' ? '#999' : '#333' }}>{value}</span>
+    </div>
+  );
+}
+
+function ScrapeVerificationSummary({ verification }: { verification: NonNullable<import('../api/client').TaskReport['scrapeVerification']> }) {
+  const checks = Object.entries(verification.checks || {});
+  const failures = verification.failures || [];
+  const warnings = verification.warnings || [];
+  return (
+    <div style={{ border: `1px solid ${verification.ok ? '#c8e6c9' : '#ffd6d6'}`, background: verification.ok ? '#f1f8f2' : '#fff5f5', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+        <strong>刮削成功验证</strong>
+        <span style={{ color: verification.ok ? '#1f7a3a' : '#c0392b', fontWeight: 700 }}>
+          {verification.ok ? '通过' : '未通过'}
+        </span>
+      </div>
+      {checks.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 6, marginBottom: failures.length || warnings.length ? 10 : 0 }}>
+          {checks.map(([code, passed]) => (
+            <div key={code} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, background: '#fff', borderRadius: 6, padding: '6px 8px' }}>
+              <span>{formatScrapeCheckLabel(code)}</span>
+              <span style={{ color: passed ? '#1f7a3a' : '#c0392b', fontWeight: 700 }}>{passed ? '通过' : '失败'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {failures.length > 0 && (
+        <ReportIssueList title="失败原因" issues={failures} color="#c0392b" />
+      )}
+      {warnings.length > 0 && (
+        <ReportIssueList title="警告" issues={warnings} color="#b36b00" />
+      )}
+    </div>
+  );
+}
+
+function ReportIssueList({ title, issues, color }: { title: string; issues: Array<{ code?: string; message?: string } | string>; color: string }) {
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ color, fontWeight: 700, marginBottom: 4 }}>{title}</div>
+      {issues.map((issue, idx) => {
+        const text = typeof issue === 'string'
+          ? issue
+          : [issue.code, issue.message].filter(Boolean).join('：');
+        return <div key={`${title}-${idx}`} style={{ color, wordBreak: 'break-word' }}>{text || '—'}</div>;
+      })}
+    </div>
+  );
+}
+
+function formatScrapeCheckLabel(code: string): string {
+  const labels: Record<string, string> = {
+    'task.done': '任务已完成',
+    'library.scraped': '媒体项已标记刮削',
+    'metadata.scrapeStatus': '刮削状态',
+    'metadata.adultId': '番号',
+    'metadata.title': '标题',
+    'media.exists': '媒体文件存在',
+    'asset.movieNfo': '电影 NFO',
+    'asset.fileNfo': '文件同名 NFO',
+    'metadata.protagonist': '主角',
+    'asset.poster': '封面',
+    'marker.exists': '标记文件',
+    'marker.itemId': '标记文件 itemId',
+    'marker.subLibraryId': '标记文件子库',
+    'marker.mediaPath': '标记文件媒体路径',
+    'marker.scrapeTaskId': '标记文件任务',
+    'marker.scrapedAt': '标记文件时间',
+  };
+  return labels[code] || code;
 }
 
 const rptThStyle: React.CSSProperties = { textAlign: 'left', padding: '6px 8px', fontSize: 12, color: '#888' };
