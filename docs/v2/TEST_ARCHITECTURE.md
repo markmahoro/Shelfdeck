@@ -41,7 +41,7 @@ bash tests/runner.sh all tests/env/docker-fn.env
 任务调度改动必须覆盖：
 
 - `TaskAdmission`：自动/手动来源、`smartTaskEnabledActions` 全局自动入队 allow-list、active task 去重、失败冷却、按 `actionType` 的自动队列上限、已成功转码不重复自动转码；子库 `automationMode` 只决定已创建任务是自动进入队列还是待手动启动。
-- `PriorityEngine`：任务类型权重、子库权重、规则叠加、手动任务基准和用户手动 priority 调整。
+- `PriorityEngine`：任务类型权重、子库权重、规则加减分叠加、`priorityBreakdown` 解释、手动任务基准和用户手动 priority 调整；规则不能通过绝对赋值覆盖多维度总分。
 - `approvalPolicy`：全局/子库/任务级覆盖，以及 `forceConfirm` 不可降级。
 - `TaskStore`：旧 `tasks.json` 迁移到 SQLite 后必须保留历史；调度热路径只能读取 active task；任务中心分页和 summary 不能丢失完成/失败记录。
 - 成人库 `ingest`：目录级 scan/watch 不再创建任务；单 item `ingest` 完成后才允许后续 `scrape` 按统一 admission 入队。

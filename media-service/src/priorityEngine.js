@@ -1,6 +1,6 @@
 'use strict';
 
-const PRIORITY_MODEL_VERSION = 'additive-v1';
+const PRIORITY_MODEL_VERSION = 'additive-v2';
 
 /**
  * PriorityEngine — computes a task's initial `priority` value.
@@ -8,16 +8,12 @@ const PRIORITY_MODEL_VERSION = 'additive-v1';
  * Lower number = higher priority (runs first in the global task queue).
  *
  * Formula:
- *   sourceWeight = source==='manual' ? manualTaskPriority : autoTaskPriorityBase
- *   actionWeight = taskPriority.actionTypeWeights[actionType] || 0
- *   libraryWeight = subLibrary.priorityWeight || 100
- *   priority = sourceWeight + actionWeight + libraryWeight + rule adjustments
+ *   priority = sum(source, actionType, subLibrary, matchedRules)
  *
  * Evaluation order:
  *   1. Add source, action type, and library dimensions.
  *   2. Advanced overlay rules (config.taskPriority.rules[actionType], ordered):
- *      each rule that matches adjusts the running value (subtract=add priority,
- *      add=defer, set=absolute band).
+ *      each matching rule contributes a delta (subtract=add priority, add=defer).
  *   3. clamp to >= 0.
  *
  * Match conditions are AND-combined; any field left undefined does not
@@ -34,6 +30,10 @@ const PRIORITY_MODEL_VERSION = 'additive-v1';
  * @returns {number}                            priority value (lower = first)
  */
 function computePriority({ source, actionType, itemInfo, config }) {
+  return explainPriority({ source, actionType, itemInfo, config }).priority;
+}
+
+function explainPriority({ source, actionType, itemInfo, config }) {
   const cfg = config && config.taskPriority || {};
   const manualBase = typeof cfg.manualTaskPriority === 'number' ? cfg.manualTaskPriority : 0;
   const autoBase = typeof cfg.autoTaskPriorityBase === 'number' ? cfg.autoTaskPriorityBase : 100;
@@ -43,19 +43,41 @@ function computePriority({ source, actionType, itemInfo, config }) {
   // ── 1. source + action type + library dimensions ─────────────────────────
   const sourceWeight = source === 'manual' ? manualBase : autoBase;
   const libraryWeight = resolveLibraryWeight(itemInfo, config);
-  let value = sourceWeight + actionWeight + libraryWeight;
+  const dimensions = [
+    { key: 'source', label: source === 'manual' ? '手动来源' : '自动来源', value: sourceWeight },
+    { key: 'actionType', label: '任务类型', actionType, value: actionWeight },
+    { key: 'subLibrary', label: '子库权重', subLibraryId: itemInfo && itemInfo.subLibraryId || '', value: libraryWeight },
+  ];
 
   // ── 2. advanced overlay rules (per actionType, ordered) ───────────────────
   const rules = ((cfg.rules || {})[actionType] || []);
-  for (const rule of rules) {
+  for (const [index, rule] of rules.entries()) {
     if (!rule || typeof rule !== 'object') continue;
     if (matchConditions(rule.match, itemInfo)) {
-      value = applyAdjust(value, rule.adjust);
+      const delta = computeAdjustDelta(rule.adjust);
+      if (delta !== 0) {
+        dimensions.push({
+          key: 'rule',
+          label: '高级规则',
+          index,
+          match: rule.match || {},
+          adjust: normalizeAdjust(rule.adjust),
+          value: delta,
+        });
+      }
     }
   }
 
   // ── 3. clamp ──────────────────────────────────────────────────────────────
-  return Math.max(0, Math.round(value));
+  const raw = dimensions.reduce((sum, dim) => sum + dim.value, 0);
+  return {
+    modelVersion: PRIORITY_MODEL_VERSION,
+    lowerIsEarlier: true,
+    formula: 'source + actionType + subLibrary + matchedRules',
+    dimensions,
+    raw,
+    priority: Math.max(0, Math.round(raw)),
+  };
 }
 
 function resolveLibraryWeight(itemInfo, config) {
@@ -110,21 +132,32 @@ function compareNumber(actual, cond) {
 }
 
 function applyAdjust(current, adjust) {
-  if (!adjust || typeof adjust !== 'object') return current;
+  return current + computeAdjustDelta(adjust);
+}
+
+function normalizeAdjust(adjust) {
+  const op = adjust && adjust.op === 'subtract' ? 'subtract' : 'add';
+  const value = Number(adjust && adjust.value);
+  return { op, value: Number.isFinite(value) ? value : 0 };
+}
+
+function computeAdjustDelta(adjust) {
+  if (!adjust || typeof adjust !== 'object') return 0;
   const v = Number(adjust.value);
-  if (!Number.isFinite(v)) return current;
+  if (!Number.isFinite(v)) return 0;
   switch (adjust.op) {
-    case 'subtract': return current - v;  // smaller = higher priority
-    case 'add':      return current + v;  // larger = deferred
-    case 'set':      return v;            // absolute band
-    default:         return current;
+    case 'subtract': return -v; // smaller = higher priority
+    case 'add': return v;      // larger = deferred
+    default: return 0;
   }
 }
 
 module.exports = {
   computePriority,
+  explainPriority,
   PRIORITY_MODEL_VERSION,
   // exported for unit testing
   _matchConditions: matchConditions,
   _applyAdjust: applyAdjust,
+  _computeAdjustDelta: computeAdjustDelta,
 };

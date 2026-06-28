@@ -113,7 +113,7 @@ desktop / Admin Web
 - 任务分为系统级定时任务、子库级定时任务、单 item 任务三类。`StrategyEngine` 是子库/全局长周期策略计算，不是 item task；`delete/transcode/upgrade/scrape/ingest` 属于单 item task。
 - 子库只有两种调度模式：`automationMode=auto` 和 `automationMode=manual`。调度模式只决定任务创建后是否自动执行：`auto` 进入执行队列，`manual` 创建为待手动启动；后台是否自动创建任务由 `smartTaskEnabledActions` 和 `TaskAdmission` 统一控制。
 - `TaskAdmission` 是任务创建闸门，统一处理自动/手动来源、active task 去重、失败冷却、按任务类型的自动队列上限、已转码不重复自动转码等规则。48 小时冻结属于 admission，不属于 priority。
-- `PriorityEngine` 只决定可入队任务的执行顺序。优先级是多维度叠加分数：`来源权重 + 任务类型权重 + 子库权重 + 规则修正`，数值越小越优先。用户手动调整任务优先级会直接覆盖任务上的最终分数。
+- `PriorityEngine` 只决定可入队任务的执行顺序。优先级是多维度叠加分数：`来源权重 + 任务类型权重 + 子库权重 + 规则修正`，数值越小越优先；高级规则只能贡献加减分，不能把总分设为绝对值。任务会保存 `priorityBreakdown`，用于解释各维度如何叠加成最终分数。用户手动调整任务优先级会直接覆盖任务上的最终分数。
 - 审批策略与调度策略分离。`approvalPolicy` 控制任务内部关键节点是否暂停，模式为 `auto`、`confirm`、`forceConfirm`；`forceConfirm` 不能被全局、子库或任务级覆盖降级。
 - 当前审批 gate 包括 `delete.beforeExecute`、`transcode.dolbyVisionTonemap`、`transcode.beforeReplace`、`upgrade.candidateSelect`、`upgrade.identityMismatch`、`upgrade.beforeReplace`、`scrape.beforeWriteMetadata`、`scrape.beforeOrganize`、`scrape.reviewResult`。
 - `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；成人库目录扫描不作为任务创建入口，也不把大量新文件展开成完整刮削或转码动作。后台自动入库由 `SmartTaskEngine` 读取文件候选后统一经过 `smartTaskEnabledActions`、`TaskAdmission` 和 `PriorityEngine` 创建 `ingest` 任务。

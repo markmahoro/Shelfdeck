@@ -94,8 +94,7 @@ test('multiple rules apply in order, each adjusting the running value', () => {
       transcode: [
         { match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 50 } }, // 200 - 50 = 150
         { match: { type: 'season' }, adjust: { op: 'add', value: 20 } },           // 150 + 20 = 170
-        { match: { isDiscLike: true }, adjust: { op: 'set', value: 200 } },        // 200 (absolute)
-        { match: { isDolbyVision: true }, adjust: { op: 'subtract', value: 10 } }, // does NOT match -> 200
+        { match: { isDolbyVision: true }, adjust: { op: 'subtract', value: 10 } }, // does NOT match -> 170
       ],
     },
     subLibraries: [],
@@ -105,7 +104,49 @@ test('multiple rules apply in order, each adjusting the running value', () => {
     itemInfo: { subLibraryId: 'film', type: 'season', isDiscLike: true, isDolbyVision: false },
     config: c,
   });
-  assert.strictEqual(p, 200);
+  assert.strictEqual(p, 170);
+});
+
+test('legacy set adjustment is ignored so one rule cannot override additive dimensions', () => {
+  const c = config({
+    rules: {
+      transcode: [
+        { match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 50 } },
+        { match: { type: 'season' }, adjust: { op: 'set', value: 999 } },
+      ],
+    },
+  });
+  const p = pe.computePriority({
+    source: 'auto',
+    actionType: 'transcode',
+    itemInfo: { subLibraryId: 'film', type: 'season' },
+    config: c,
+  });
+  assert.strictEqual(p, 150);
+});
+
+test('explainPriority returns a stable additive breakdown', () => {
+  const c = config({
+    subLibraries: [{ uuid: 'film', priorityWeight: 10 }],
+    rules: {
+      transcode: [
+        { match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 25 } },
+      ],
+    },
+  });
+  c.taskPriority.actionTypeWeights = { transcode: 130 };
+
+  const explained = pe.explainPriority({
+    source: 'auto',
+    actionType: 'transcode',
+    itemInfo: { subLibraryId: 'film' },
+    config: c,
+  });
+
+  assert.strictEqual(explained.modelVersion, 'additive-v2');
+  assert.strictEqual(explained.formula, 'source + actionType + subLibrary + matchedRules');
+  assert.strictEqual(explained.priority, 215);
+  assert.deepStrictEqual(explained.dimensions.map((d) => d.value), [100, 130, 10, -25]);
 });
 
 test('match is AND-combined; undefined fields do not constrain', () => {
@@ -146,10 +187,10 @@ test('missing taskPriority config falls back to safe defaults', () => {
   assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: {}, config: c }), 200);
 });
 
-test('_applyAdjust handles subtract / add / set and ignores invalid', () => {
+test('_applyAdjust handles subtract / add and ignores invalid or legacy set', () => {
   assert.strictEqual(pe._applyAdjust(100, { op: 'subtract', value: 30 }), 70);
   assert.strictEqual(pe._applyAdjust(100, { op: 'add', value: 30 }), 130);
-  assert.strictEqual(pe._applyAdjust(100, { op: 'set', value: 50 }), 50);
+  assert.strictEqual(pe._applyAdjust(100, { op: 'set', value: 50 }), 100);
   assert.strictEqual(pe._applyAdjust(100, { op: 'unknown', value: 30 }), 100);
   assert.strictEqual(pe._applyAdjust(100, { op: 'subtract', value: NaN }), 100);
   assert.strictEqual(pe._applyAdjust(100, null), 100);

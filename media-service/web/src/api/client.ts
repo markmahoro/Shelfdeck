@@ -424,7 +424,7 @@ export interface SystemConfig {
   };
 }
 
-// Advanced overlay rule. match is AND-combined; adjust mutates the running value.
+// Advanced overlay rule. match is AND-combined; adjust contributes a delta.
 export interface PriorityRule {
   match: {
     subLibraryId?: string;
@@ -434,7 +434,7 @@ export interface PriorityRule {
     resolution?: string;
     retryCount?: number | { gte?: number; lte?: number; gt?: number; lt?: number };
   };
-  adjust: { op: 'subtract' | 'add' | 'set'; value: number };
+  adjust: { op: 'subtract' | 'add'; value: number };
 }
 
 export const systemConfig = {

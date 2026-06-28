@@ -69,20 +69,23 @@ function shouldRecomputeAutoPriority(task) {
 function reconcileAutoTaskPriorities(tasks, config) {
   for (const task of tasks) {
     if (!shouldRecomputeAutoPriority(task)) continue;
-    const priority = priorityEngine.computePriority({
+    const priorityBreakdown = priorityEngine.explainPriority({
       source: 'auto',
       actionType: task.actionType,
       itemInfo: task.itemInfo,
       config,
     });
+    const priority = priorityBreakdown.priority;
     if (task.priority === priority && task.priorityModelVersion === priorityEngine.PRIORITY_MODEL_VERSION) continue;
     const updated = taskStore.updateTask(task.id, {
       priority,
       priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+      priorityBreakdown,
     });
     if (updated) {
       task.priority = updated.priority;
       task.priorityModelVersion = updated.priorityModelVersion;
+      task.priorityBreakdown = updated.priorityBreakdown;
     }
   }
 }

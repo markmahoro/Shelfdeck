@@ -1287,18 +1287,21 @@ function enqueueIngestTask(subLib, filePath, opts = {}) {
     tasks: taskSnapshot || taskStore.getTasks(),
   });
   if (!admission.allowed) return null;
+  const priorityBreakdown = priorityEngine.explainPriority({
+    source: userInitiated ? 'manual' : 'auto',
+    actionType: 'ingest',
+    itemInfo,
+    config: cfg,
+  });
   const taskData = {
     itemId: itemInfo.itemId,
     itemName: itemInfo.name,
     actionType: 'ingest',
     source,
     status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
-    priority: priorityEngine.computePriority({
-      source: userInitiated ? 'manual' : 'auto',
-      actionType: 'ingest',
-      itemInfo,
-      config: cfg,
-    }),
+    priority: priorityBreakdown.priority,
+    priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+    priorityBreakdown,
     itemInfo,
     logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Ingest task created by user action' : 'Ingest task created by background admission' }],
   };
@@ -1386,18 +1389,21 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
     tasks: taskSnapshot || taskStore.getTasks(),
   });
   if (!admission.allowed) return null;
+  const priorityBreakdown = priorityEngine.explainPriority({
+    source: userInitiated ? 'manual' : 'auto',
+    actionType: 'scrape',
+    itemInfo,
+    config: cfg,
+  });
   const taskData = {
     itemId: item.itemId,
     itemName: item.name,
     actionType: 'scrape',
     source,
     status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
-    priority: priorityEngine.computePriority({
-      source: userInitiated ? 'manual' : 'auto',
-      actionType: 'scrape',
-      itemInfo,
-      config: cfg,
-    }),
+    priority: priorityBreakdown.priority,
+    priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+    priorityBreakdown,
     itemInfo,
     logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Scrape task created by user action' : 'Scrape task created by background admission' }],
   };

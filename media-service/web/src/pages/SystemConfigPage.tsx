@@ -513,7 +513,7 @@ export default function SystemConfigPage() {
           </button>
           {showPriorityAdvanced && (
             <div style={advancedBox}>
-              <p style={{ ...hintStyle, marginBottom: 12 }}>规则按顺序叠加到当前分数上：subtract 更优先，add 延后，set 设为绝对档位。</p>
+              <p style={{ ...hintStyle, marginBottom: 12 }}>规则按顺序叠加到当前分数上：更优先会减分，延后会加分；不使用绝对覆盖。</p>
               {ACTIONS.map((at) => (
                 <div key={at.key} style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{at.label}</div>
@@ -522,7 +522,6 @@ export default function SystemConfigPage() {
                       <select value={rule.adjust.op} onChange={(e) => updatePriorityRule(at.key, idx, { adjust: { ...rule.adjust, op: e.target.value as PriorityRule['adjust']['op'] } })} style={{ ...inputStyle, width: 90 }}>
                         <option value="subtract">更优先 -</option>
                         <option value="add">延后 +</option>
-                        <option value="set">设为 =</option>
                       </select>
                       <input type="number" value={rule.adjust.value} onChange={(e) => updatePriorityRule(at.key, idx, { adjust: { ...rule.adjust, value: parseInt(e.target.value, 10) || 0 } })} style={{ ...inputStyle, width: 70 }} />
                       <span style={{ fontSize: 11, color: '#999' }}>当</span>

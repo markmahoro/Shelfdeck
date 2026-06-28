@@ -232,6 +232,7 @@ function buildTask(taskData, now = new Date().toISOString()) {
     itemInfo: taskData.itemInfo || null,
     priorityManuallyAdjusted: !!taskData.priorityManuallyAdjusted,
     priorityModelVersion: taskData.priorityModelVersion,
+    priorityBreakdown: taskData.priorityBreakdown,
   });
 }
 

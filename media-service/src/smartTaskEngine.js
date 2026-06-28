@@ -138,7 +138,7 @@ function buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff,
   }
 
   const itemInfo = buildItemInfo(item);
-  const priority = priorityEngine.computePriority({
+  const priorityBreakdown = priorityEngine.explainPriority({
     source: 'auto',
     actionType,
     itemInfo,
@@ -148,7 +148,8 @@ function buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff,
     item,
     itemInfo,
     actionType,
-    priority,
+    priority: priorityBreakdown.priority,
+    priorityBreakdown,
     timestamp: itemTimestamp(item),
   };
 }
@@ -156,7 +157,7 @@ function buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff,
 function buildIngestCandidate(candidate, config) {
   const itemInfo = candidate && candidate.itemInfo;
   if (!itemInfo || !itemInfo.itemId) return null;
-  const priority = priorityEngine.computePriority({
+  const priorityBreakdown = priorityEngine.explainPriority({
     source: 'auto',
     actionType: 'ingest',
     itemInfo,
@@ -166,7 +167,8 @@ function buildIngestCandidate(candidate, config) {
     item: itemInfo,
     itemInfo,
     actionType: 'ingest',
-    priority,
+    priority: priorityBreakdown.priority,
+    priorityBreakdown,
     timestamp: Number(candidate.timestamp) || itemTimestamp(itemInfo),
   };
 }
@@ -265,7 +267,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         if (!admission.allowed) continue;
         activeByType[actionType] = cur + 1;
 
-        const priority = priorityEngine.computePriority({
+        const priorityBreakdown = priorityEngine.explainPriority({
           source: 'auto',
           actionType,
           itemInfo,
@@ -278,7 +280,9 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
           actionType,
           source: 'auto',
           status,
-          priority,
+          priority: priorityBreakdown.priority,
+          priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+          priorityBreakdown,
           itemInfo,
           logs: [{
             ts: new Date().toISOString(),

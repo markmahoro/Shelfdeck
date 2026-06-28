@@ -418,6 +418,12 @@ function registerRoutes(app) {
       ? configStore.resolveSubLibSchedule(itemInfo, cfg)
       : { autoExecute: cfg.executionMode === 'auto' };
     const status = schedule.autoExecute ? 'created' : 'pending_manual';
+    const priorityBreakdown = priorityEngine.explainPriority({
+      source: 'manual',
+      actionType,
+      itemInfo,
+      config: cfg,
+    });
 
     const task = taskStore.createTask({
       itemId,
@@ -425,12 +431,9 @@ function registerRoutes(app) {
       actionType,
       source: 'manual',
       status,
-      priority: priorityEngine.computePriority({
-        source: 'manual',
-        actionType,
-        itemInfo,
-        config: cfg,
-      }),
+      priority: priorityBreakdown.priority,
+      priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+      priorityBreakdown,
       itemInfo,
       logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user action' }],
     });

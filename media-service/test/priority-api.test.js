@@ -88,6 +88,8 @@ test('POST /v1/tasks (manual) assigns additive priority from source, action, and
     assert.strictEqual(res.statusCode, 201);
     const body = res.json();
     assert.strictEqual(body.priority, 230, 'manual transcode should add manual source + transcode action + default library weights');
+    assert.strictEqual(body.priorityModelVersion, 'additive-v2');
+    assert.deepStrictEqual(body.priorityBreakdown.dimensions.map((d) => d.value), [0, 130, 100]);
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
@@ -182,7 +184,8 @@ test('taskScheduler reconciles queued automatic task priorities with the current
     const reconciled = taskStoreMod.getTask(stale.id);
     const preserved = taskStoreMod.getTask(manualOverride.id);
     assert.strictEqual(reconciled.priority, 280);
-    assert.strictEqual(reconciled.priorityModelVersion, 'additive-v1');
+    assert.strictEqual(reconciled.priorityModelVersion, 'additive-v2');
+    assert.deepStrictEqual(reconciled.priorityBreakdown.dimensions.map((d) => d.value), [100, 80, 100]);
     assert.strictEqual(preserved.priority, 7);
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;

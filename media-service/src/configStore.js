@@ -513,9 +513,10 @@ function getDefaultConfig() {
     mediaLibrarySelfComputeOnStartup: true,
 
     // Task queue priority (PriorityEngine). Lower number = runs first.
-    // Final score = source weight + action weight + subLibrary weight + rule adjustments.
+    // Final score = source weight + action weight + subLibrary weight + rule deltas.
     // Per-subLibrary weight lives on subLibrary.priorityWeight (default 100).
-    // Advanced overlay rules below are AND-matched, applied in order.
+    // Advanced overlay rules below are AND-matched, applied in order, and may
+    // only add/subtract from the running score. They must not override it.
     taskPriority: {
       manualTaskPriority: 0,     // manual tasks (POST /v1/tasks) always high priority
       autoTaskPriorityBase: 100, // base for smartTaskEngine-created tasks
