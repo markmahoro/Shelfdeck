@@ -558,6 +558,7 @@ function getDefaultConfig() {
 
     // Transcode
     transcodeTempRoot: process.platform === 'linux' ? '/transcode' : '',
+    transcodeCleanupOrphansOnStartup: true,
     transcodeReplaceConfirmRequired: false,
     upgradeReplaceConfirmRequired: false,
     ffmpegPath: 'ffmpeg',

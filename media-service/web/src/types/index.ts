@@ -130,6 +130,7 @@ export interface UpgradeSmartSelect {
 
 export interface TranscodeConfig {
   transcodeTempRoot: string;
+  transcodeCleanupOrphansOnStartup?: boolean;
   transcodeReplaceConfirmRequired: boolean;
   ffmpegPath: string;
   ffprobePath: string;

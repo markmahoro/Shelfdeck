@@ -1211,6 +1211,7 @@ function registerRoutes(app) {
     const cfg = configStore.loadConfig();
     return {
       transcodeTempRoot: cfg.transcodeTempRoot || '',
+      transcodeCleanupOrphansOnStartup: cfg.transcodeCleanupOrphansOnStartup !== false,
       transcodeReplaceConfirmRequired: cfg.transcodeReplaceConfirmRequired || false,
       ffmpegPath: cfg.ffmpegPath || 'ffmpeg',
       ffprobePath: cfg.ffprobePath || 'ffprobe',
@@ -1222,6 +1223,7 @@ function registerRoutes(app) {
   app.patch('/v1/admin/transcode/config', async (req) => {
     const allowed = [
       'transcodeTempRoot', 'transcodeReplaceConfirmRequired',
+      'transcodeCleanupOrphansOnStartup',
       'ffmpegPath', 'ffprobePath', 'transcodeEncodingDevices',
       'transcodeCpuParticipationStrategy',
     ];
@@ -1655,7 +1657,7 @@ async function buildApp(opts = {}) {
   // Clean up orphan ffmpeg processes and temp dirs from previous run
   // Must run BEFORE scheduler starts dispatching tasks
   const startupCfg = configStore.loadConfig();
-  if (startupCfg.transcodeTempRoot) {
+  if (startupCfg.transcodeTempRoot && startupCfg.transcodeCleanupOrphansOnStartup !== false) {
     await transcodeService.cleanupOrphans(startupCfg);
   }
 
