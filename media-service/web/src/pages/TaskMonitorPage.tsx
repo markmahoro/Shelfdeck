@@ -350,6 +350,13 @@ export default function TaskMonitorPage() {
     return btns;
   }
 
+  function showRowRemoveButton(t: MediaTask) {
+    return isTerminalTask(t)
+      || t.status === 'queued'
+      || t.status === 'pausing'
+      || t.status === 'awaiting_user_confirm';
+  }
+
   function renderCompareTable(orig: TaskItemInfo, result: VerifyResult) {
     const origGb = (orig.originalSizeBytes || 0) / (1024 * 1024 * 1024);
     const newGb = result.sizeBytes / (1024 * 1024 * 1024);
@@ -550,7 +557,9 @@ export default function TaskMonitorPage() {
                   <td style={tdStyle}>
                     {renderActions(t)}
                     <button onClick={() => openDetail(t)} style={actionBtn}>详情</button>
-                    <button onClick={() => removeTask(t)} style={deleteBtn}>{isTerminalTask(t) ? '移除记录' : '取消任务'}</button>
+                    {showRowRemoveButton(t) && (
+                      <button onClick={() => removeTask(t)} style={deleteBtn}>{isTerminalTask(t) ? '移除记录' : '取消任务'}</button>
+                    )}
                   </td>
                 </tr>
               ))}
