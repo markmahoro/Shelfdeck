@@ -48,7 +48,7 @@ export type MediaLibraryManageRowProps = {
 };
 
 const MAX_STARS = 5;
-const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '码率压缩', upgrade: '洗版', scrape: '刮削' };
+const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '转码压缩', upgrade: '洗版', scrape: '刮削', ingest: '入库' };
 const OPTIMIZATION_LABEL: Record<string, string> = { transcoded: '已转码', upgraded: '已洗版', none: '未优化' };
 
 function adultMetaString(item: ManagedMediaItem, key: string): string {
@@ -124,7 +124,7 @@ function MediaLibraryManageRowInner({
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
       {taskStatusLabelZh(rowTask.status)}（
-      {rowTask.actionType === 'transcode' ? '压缩' : rowTask.actionType === 'upgrade' ? '洗版' : rowTask.actionType === 'scrape' ? '刮削' : rowTask.actionType === 'ingest' ? '入库' : '删除'}
+      {ACTION_LABEL[rowTask.actionType] || rowTask.actionType}
       ）
     </span>
   ) : (

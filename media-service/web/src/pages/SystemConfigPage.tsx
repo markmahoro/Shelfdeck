@@ -21,7 +21,7 @@ const ACTIONS: Array<{ key: ActionType; label: string }> = [
   { key: 'scrape', label: '刮削' },
   { key: 'delete', label: '删除' },
   { key: 'upgrade', label: '洗版' },
-  { key: 'transcode', label: '码率压缩' },
+  { key: 'transcode', label: '转码压缩' },
 ];
 
 const APPROVAL_GATES: Array<{ key: string; label: string; desc: string; force?: boolean }> = [
@@ -404,7 +404,7 @@ export default function SystemConfigPage() {
 
       <section style={cardStyle}>
         <h3 style={sectionTitle}>自动入队</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>这些设置限制策略引擎每轮把候选项转换成任务的速度，避免新文件集中出现时压垮系统。</p>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>自动入队决定“媒体库里的推荐策略”是否自动创建为任务；未勾选的类型只会显示推荐，不会自动出现在任务中心。</p>
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>允许自动创建的任务类型</label>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -415,6 +415,16 @@ export default function SystemConfigPage() {
               </label>
             ))}
           </div>
+          {smartTaskActions.length === 0 ? (
+            <div style={warningBox}>
+              当前没有选择任何任务类型。媒体库仍会显示“转码压缩、洗版、删除、刮削”等推荐策略，但系统不会自动创建这些任务；需要手动执行，或在这里勾选对应类型后保存。
+            </div>
+          ) : (
+            <div style={infoBox}>
+              当前允许自动创建：{smartTaskActions.map((key) => ACTIONS.find((a) => a.key === key)?.label || key).join('、')}。
+            </div>
+          )}
+          <div style={{ ...hintStyle, marginTop: 8 }}>入库任务由真实目录扫描和监听创建，不受这里的任务类型勾选控制。</div>
         </div>
         <button onClick={() => setShowAdvanced(!showAdvanced)} style={collapseBtn}>
           {showAdvanced ? '收起高级配置' : '展开高级配置'}
@@ -680,6 +690,28 @@ const collapseBtn: React.CSSProperties = {
   fontSize: 13,
   padding: '6px 12px',
   fontWeight: 600,
+};
+
+const warningBox: React.CSSProperties = {
+  marginTop: 10,
+  padding: 10,
+  borderRadius: 6,
+  border: '1px solid #fed7aa',
+  background: '#fff7ed',
+  color: '#9a3412',
+  fontSize: 13,
+  lineHeight: 1.6,
+};
+
+const infoBox: React.CSSProperties = {
+  marginTop: 10,
+  padding: 10,
+  borderRadius: 6,
+  border: '1px solid #bfdbfe',
+  background: '#eff6ff',
+  color: '#1d4ed8',
+  fontSize: 13,
+  lineHeight: 1.6,
 };
 
 const advancedBox: React.CSSProperties = {

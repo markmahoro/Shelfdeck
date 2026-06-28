@@ -5,6 +5,8 @@ interface HealthCheckItem {
   runningTasks?: number;
   // smartTask
   enabled?: boolean;
+  enabledActions?: string[];
+  disabledReason?: string;
   lastRunAt?: string | null;
   // mediaLib
   totalSubLibraries?: number;
@@ -57,7 +59,10 @@ function describe(key: string, item: HealthCheckItem): string {
     case 'scheduler':
       return item.runningTasks ? `${item.runningTasks} 个任务运行中` : '无运行中任务';
     case 'smartTask':
-      if (item.enabled === false) return '已停用';
+      if (item.enabled === false) {
+        if (item.disabledReason === 'no_enabled_actions') return '自动入队未选择任务类型';
+        return '已停用';
+      }
       if (!item.lastRunAt) return '等待首次运行';
       return `上次运行 ${new Date(item.lastRunAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
     case 'mediaLib':

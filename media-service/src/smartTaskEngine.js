@@ -20,6 +20,14 @@ let initialTimer = null;
 let lastRunAt = null;
 let lastError = null;
 let _enabled = false;
+let configReader = null;
+let lastEnabledActions = [];
+
+function readEnabledActions(config) {
+  return Array.isArray(config.smartTaskEnabledActions)
+    ? config.smartTaskEnabledActions
+    : ['transcode', 'upgrade'];
+}
 
 function maxTimestamp(a, b) {
   if (!a && !b) return 0;
@@ -29,16 +37,23 @@ function maxTimestamp(a, b) {
 }
 
 function start(configStore, mediaLibraryService, taskStore) {
+  configReader = configStore;
   const cfg = configStore.loadConfig();
+  lastEnabledActions = readEnabledActions(cfg);
   const intervalMs = (cfg.smartTaskPollIntervalMinutes || 10) * 60 * 1000;
 
   const run = () => {
     try {
       const cfg2 = configStore.loadConfig();
-      _enabled = true; // Enabling is now per-subLibrary via automationMode/admission.
+      const enabledActions = readEnabledActions(cfg2);
+      lastEnabledActions = enabledActions;
+      _enabled = enabledActions.length > 0;
+      if (enabledActions.length === 0) {
+        lastRunAt = Date.now();
+        return;
+      }
 
       const maxPerRun = cfg2.smartTaskMaxPerRun || 10;
-      const enabledActions = cfg2.smartTaskEnabledActions || ['transcode', 'upgrade'];
       const lookbackDays = cfg2.smartTaskLookbackDays || 30;
 
       const lib = mediaLibraryService.getLibrary();
@@ -181,7 +196,7 @@ function start(configStore, mediaLibraryService, taskStore) {
           byAction[item.action] = (byAction[item.action] || 0) + 1;
         }
         const parts = Object.entries(byAction).map(([a, n]) => {
-          const label = a === 'transcode' ? '码率压缩' : a === 'upgrade' ? '洗版' : a === 'delete' ? '删除' : a;
+          const label = a === 'transcode' ? '转码压缩' : a === 'upgrade' ? '洗版' : a === 'delete' ? '删除' : a;
           return `${label} ${n} 个`;
         });
         const msg = `智能入队：${toEnqueue.length} 个任务已自动创建（${parts.join('，')}）`;
@@ -221,14 +236,30 @@ function stop() {
 module.exports = { start, stop, getHealth };
 
 function getHealth() {
+  let enabledActions = lastEnabledActions;
+  if (configReader) {
+    try {
+      enabledActions = readEnabledActions(configReader.loadConfig());
+    } catch (_) {}
+  }
+  if (enabledActions.length === 0) {
+    return {
+      status: 'yellow',
+      enabled: false,
+      enabledActions,
+      disabledReason: 'no_enabled_actions',
+      message: '自动入队未选择任务类型',
+      lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
+    };
+  }
   if (!_enabled) {
-    return { status: 'green', enabled: false, lastRunAt: null };
+    return { status: 'green', enabled: true, enabledActions, lastRunAt: null };
   }
   if (!timer) {
-    return { status: 'red', enabled: true, lastRunAt };
+    return { status: 'red', enabled: true, enabledActions, lastRunAt };
   }
   if (!lastRunAt) {
-    return { status: 'yellow', enabled: true, lastRunAt: null };
+    return { status: 'yellow', enabled: true, enabledActions, lastRunAt: null };
   }
-  return { status: 'green', enabled: true, lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null };
+  return { status: 'green', enabled: true, enabledActions, lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null };
 }

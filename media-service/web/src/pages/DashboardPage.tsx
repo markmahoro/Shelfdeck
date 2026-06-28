@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { health, tasks, subLibraries, emby, activityLog, spaceStats, ruleTemplates } from '../api/client';
+import { health, tasks, subLibraries, emby, activityLog, spaceStats, ruleTemplates, systemConfig } from '../api/client';
 import type { ActivityEntry } from '../api/client';
 import type { SubLibrary, MediaFolder, MediaTask, RuleTemplate } from '../types';
 import HealthCard from '../components/HealthCard';
@@ -9,7 +9,7 @@ import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
-  transcode: '码率压缩', delete: '删除', upgrade: '洗版',
+  ingest: '入库', scrape: '刮削', transcode: '转码压缩', delete: '删除', upgrade: '洗版',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -55,6 +55,12 @@ export default function DashboardPage() {
     queryKey: ['admin-tasks'],
     queryFn: () => tasks.list(),
     refetchInterval: 10000,
+  });
+
+  const { data: sysCfg } = useQuery({
+    queryKey: ['system-config-dashboard'],
+    queryFn: systemConfig.get,
+    refetchInterval: 30000,
   });
 
   const { data: slData, isLoading: slLoading } = useQuery({
@@ -198,8 +204,17 @@ export default function DashboardPage() {
 
   if (hLoading || slLoading) return <LoadingSpinner />;
 
-  const recentTasks: MediaTask[] = (taskList?.tasks || []).slice(0, 5);
+  const allVisibleTasks: MediaTask[] = taskList?.tasks || [];
+  const activeTasks = allVisibleTasks.filter((t) => !['done', 'failed_hard'].includes(t.status));
+  const recentFailedTasks = allVisibleTasks.filter((t) => t.status === 'failed_hard');
+  const currentTasks: MediaTask[] = (activeTasks.length > 0 ? activeTasks : recentFailedTasks.length > 0 ? recentFailedTasks : allVisibleTasks).slice(0, 5);
   const subLibs: SubLibrary[] = slData?.subLibraries || [];
+  const enabledAutoActions = sysCfg?.smartTaskEnabledActions;
+  const enabledAutoActionText = !enabledAutoActions
+    ? '读取中'
+    : enabledAutoActions.length > 0
+    ? enabledAutoActions.map((a) => ACTION_TYPE_LABELS[a] || a).join('、')
+    : '未选择任务类型';
 
   return (
     <div>
@@ -288,6 +303,9 @@ export default function DashboardPage() {
                       <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
                         审批策略在「任务调度」页面独立配置
                       </div>
+                      <div style={{ fontSize: 11, color: enabledAutoActions && enabledAutoActions.length === 0 ? '#c2410c' : '#6b7280', marginTop: 4 }}>
+                        自动入队：{enabledAutoActionText}
+                      </div>
                     </SubCard>
 
                     {/* Sub-card 4: Space Stats */}
@@ -309,13 +327,16 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Recent Tasks */}
+      {/* Current Tasks */}
       <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#1a1a2e' }}>最近任务</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>当前任务</h3>
+          <span style={{ fontSize: 12, color: '#888' }}>优先显示执行中、排队中、等待确认和最近失败的任务</span>
+        </div>
         {tLoading ? (
           <LoadingSpinner text="加载任务中..." />
-        ) : recentTasks.length === 0 ? (
-          <p style={{ color: '#888', fontSize: 14 }}>暂无任务</p>
+        ) : currentTasks.length === 0 ? (
+          <p style={{ color: '#888', fontSize: 14 }}>当前没有任务</p>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
@@ -327,7 +348,7 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {recentTasks.map((t) => (
+              {currentTasks.map((t) => (
                 <tr key={t.id}>
                   <td style={tdStyle}>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</td>
                   <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { adult, tasks } from '../api/client';
+import { adult, tasks, systemConfig } from '../api/client';
 import type { MediaTask, TaskItemInfo, VerifyResult, UpgradeCandidate } from '../types';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
@@ -34,7 +34,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
   ingest: '入库',
-  transcode: '码率压缩',
+  transcode: '转码压缩',
   delete: '删除',
   upgrade: '洗版',
   scrape: '刮削',
@@ -145,6 +145,12 @@ export default function TaskMonitorPage() {
     refetchInterval: 5000,
   });
 
+  const { data: sysCfg } = useQuery({
+    queryKey: ['system-config-task-monitor'],
+    queryFn: systemConfig.get,
+    refetchInterval: 30000,
+  });
+
   const { data: detailData } = useQuery({
     queryKey: ['admin-task-detail', selectedTask?.id],
     queryFn: () => selectedTask ? tasks.get(selectedTask.id) : null,
@@ -197,6 +203,16 @@ export default function TaskMonitorPage() {
 
   const taskList: MediaTask[] = taskData?.tasks || [];
   const displayTask = detailData || selectedTask;
+
+  function emptyTaskText(): string {
+    if (!typeFilter) return '当前没有符合筛选条件的任务';
+    const label = ACTION_TYPE_LABELS[typeFilter] || typeFilter;
+    const enabledActions = sysCfg?.smartTaskEnabledActions || [];
+    if (!enabledActions.includes(typeFilter)) {
+      return `当前没有${label}任务。「任务调度 > 自动入队」未允许自动创建${label}任务，媒体库里的${label}推荐不会自动进入任务中心。`;
+    }
+    return `当前没有${label}任务。若媒体库仍有${label}推荐，可能被冷却时间、去重规则、队列上限或已优化状态拦截。`;
+  }
 
   function openDetail(task: MediaTask) {
     setSelectedTask(task);
@@ -402,7 +418,7 @@ export default function TaskMonitorPage() {
         <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} style={selectStyle}>
           <option value="">全部类型</option>
           <option value="ingest">入库</option>
-          <option value="transcode">码率压缩</option>
+          <option value="transcode">转码压缩</option>
           <option value="scrape">刮削</option>
           <option value="delete">删除</option>
           <option value="upgrade">洗版</option>
@@ -414,7 +430,7 @@ export default function TaskMonitorPage() {
         <LoadingSpinner />
       ) : taskList.length === 0 ? (
         <div style={{ background: '#fff', borderRadius: 10, padding: 40, textAlign: 'center', color: '#888' }}>
-          暂无任务
+          {emptyTaskText()}
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
@@ -798,7 +814,7 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
     <div>
       <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>📊 {report.itemName}</p>
       <p style={{ fontSize: 12, color: '#888', marginBottom: 16 }}>
-        {isTranscode ? '码率压缩' : isDelete ? '删除' : isScrape ? '刮削' : '洗版'}  ·  耗时 {fmtDuration(report.elapsedSec)}
+        {isTranscode ? '转码压缩' : isDelete ? '删除' : isScrape ? '刮削' : '洗版'}  ·  耗时 {fmtDuration(report.elapsedSec)}
         {report.encoder ? '  ·  ' + report.encoder : ''}
       </p>
 

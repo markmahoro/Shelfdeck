@@ -1,10 +1,18 @@
 import { useEffect, useState, useMemo } from 'react';
-import { libraryApi, taskApi, subLibraries as adminSubLibraries, ApiConflictError, adult as adultApi } from '../api/client';
+import { libraryApi, taskApi, subLibraries as adminSubLibraries, ApiConflictError, adult as adultApi, systemConfig } from '../api/client';
 import type { SubLibraryInfo } from '../api/client';
 import { MediaLibraryManageRow } from '../components/MediaLibraryManageRow';
 import type { MediaTask } from '../types';
 import type { ManagedMediaItem, MediaAction, MediaRating } from '../models/media';
 import '../mediaManage.css';
+
+const ACTION_LABELS: Record<string, string> = {
+  delete: '删除',
+  transcode: '转码压缩',
+  upgrade: '洗版',
+  scrape: '刮削',
+  ingest: '入库',
+};
 
 export default function MediaManagePage() {
   const [subLibraries, setSubLibraries] = useState<SubLibraryInfo[]>([]);
@@ -28,12 +36,16 @@ export default function MediaManagePage() {
   const [strategyMsg, setStrategyMsg] = useState<string | null>(null);
   const [scanMsg, setScanMsg] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [smartTaskActions, setSmartTaskActions] = useState<string[] | null>(null);
 
   // Fetch subLibrary list
   useEffect(() => {
     libraryApi.getStatus().then((s) => {
       const enabled = s.subLibraries.filter((sl) => sl.enabled);
       setSubLibraries(enabled);
+    }).catch(() => {});
+    systemConfig.get().then((cfg) => {
+      setSmartTaskActions(Array.isArray(cfg.smartTaskEnabledActions) ? cfg.smartTaskEnabledActions : []);
     }).catch(() => {});
   }, []);
 
@@ -126,6 +138,23 @@ export default function MediaManagePage() {
     return rows;
   }, [items, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter, tasks]);
 
+  const autoEntryNotice = useMemo(() => {
+    const disabledCounts: Record<string, number> = {};
+    if (!smartTaskActions) return null;
+    for (const it of filtered) {
+      const action = it.recommendedAction || 'keep';
+      if (action === 'keep') continue;
+      if (!smartTaskActions.includes(action)) {
+        disabledCounts[action] = (disabledCounts[action] || 0) + 1;
+      }
+    }
+    const parts = Object.entries(disabledCounts)
+      .filter(([, count]) => count > 0)
+      .map(([action, count]) => `${ACTION_LABELS[action] || action} ${count} 条`);
+    if (parts.length === 0) return null;
+    return `当前列表有 ${parts.join('、')}推荐策略未启用自动入队。这些条目只会显示建议，不会自动出现在任务中心；可以手动点击每行的策略按钮，或到「任务调度」启用对应任务类型。`;
+  }, [filtered, smartTaskActions]);
+
   const enqueueManagedAction = (item: ManagedMediaItem, action: MediaAction) => {
     if (item.isBluRayDisc && action === 'upgrade') return;
     taskApi.createByIntent({ itemId: item.id, actionType: action }).catch((e) => {
@@ -210,7 +239,7 @@ export default function MediaManagePage() {
           <span className="filterLabel">建议策略</span>
           <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
             <option value="all">全部</option>
-            <option value="transcode">码率压缩</option>
+            <option value="transcode">转码压缩</option>
             <option value="upgrade">洗版</option>
             <option value="keep">无建议策略</option>
             <option value="delete">删除档</option>
@@ -363,6 +392,7 @@ export default function MediaManagePage() {
       <div className="pageMain">
         <div className="pageMainInner">
           {error && <p className="error">{error}</p>}
+          {autoEntryNotice && <div className="mediaNotice">{autoEntryNotice}</div>}
           {filtered.length === 0 ? (
             <p>暂未获取到媒体库数据。请先在管理端配置媒体库。</p>
           ) : (
