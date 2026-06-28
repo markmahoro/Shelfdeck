@@ -1096,14 +1096,10 @@ function registerRoutes(app) {
       adultRegion, scraperType, watchRoot, japaneseJav, western,
       automationMode, approvalPolicy,
     });
-    if (isFolderAdult) {
-      adultLibraryService.startSubLibraryWatcher(subLib);
-    }
     return reply.code(201).send(subLib);
   });
 
   app.delete('/v1/admin/sublibraries/:uuid', async (req, reply) => {
-    adultLibraryService.stopSubLibraryWatcher(req.params.uuid);
     const ok = mediaLibraryService.deleteSubLibrary(req.params.uuid);
     if (!ok) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
     return { ok: true, uuid: req.params.uuid };
@@ -1112,11 +1108,6 @@ function registerRoutes(app) {
   app.patch('/v1/admin/sublibraries/:uuid', async (req, reply) => {
     const updated = mediaLibraryService.updateSubLibrary(req.params.uuid, req.body || {});
     if (!updated) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
-    if (adultLibraryService.isAdultFolderSubLibrary(updated)) {
-      adultLibraryService.startSubLibraryWatcher(updated);
-    } else {
-      adultLibraryService.stopSubLibraryWatcher(updated.uuid);
-    }
     return updated;
   });
 
@@ -1419,6 +1410,7 @@ function registerRoutes(app) {
 
   function sanitizeAdultLibraryForAdmin(adultLibrary = {}) {
     const out = maskAdultLibrarySecrets(adultLibrary || {});
+    delete out.scanIntervalMinutes;
     delete out.western.faceEmbeddingsUrl;
     delete out.western.faceApiKey;
     return out;
@@ -1458,9 +1450,8 @@ function registerRoutes(app) {
     };
     delete adultLibrary.western.faceEmbeddingsUrl;
     delete adultLibrary.western.faceApiKey;
+    delete adultLibrary.scanIntervalMinutes;
     const updated = configStore.patchConfig({ adultLibrary });
-    adultLibraryService.stopAllWatchers();
-    adultLibraryService.startAllWatchers();
     return sanitizeAdultLibraryForAdmin(updated.adultLibrary || {});
   });
 
@@ -1907,7 +1898,6 @@ async function buildApp(opts = {}) {
     taskScheduler.stopScheduler();
     healthCheck.stopHealthCheckTimer();
     mediaLibraryService.stopAllTimers();
-    adultLibraryService.stopAllWatchers();
     strategyEngine.stop();
     smartTaskEngine.stop();
   });
@@ -1927,7 +1917,6 @@ async function buildApp(opts = {}) {
   // Start health check timer and subLibrary timers
   healthCheck.startHealthCheckTimer();
   mediaLibraryService.startAllSubLibraryTimers();
-  adultLibraryService.startAllWatchers();
   taskScheduler.startScheduler();
   strategyEngine.start(configStore, mediaLibraryService);
   smartTaskEngine.start(configStore, mediaLibraryService, taskStore);

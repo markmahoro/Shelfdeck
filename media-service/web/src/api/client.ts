@@ -126,7 +126,6 @@ export const subLibraries = {
 
 export interface AdultLibraryConfig {
   settleSeconds: number;
-  scanIntervalMinutes: number;
   videoExtensions: string[];
   japaneseJav: Record<string, unknown>;
   western?: Record<string, unknown>;

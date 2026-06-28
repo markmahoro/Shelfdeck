@@ -762,9 +762,9 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
   lib.cachedAt = now;
   saveLibrary(lib);
 
-  // Ingest may request a follow-up scrape, but automatic creation is still
-  // gated by the global TaskAdmission allow-list and queue policy.
-  if (opts.enqueueScrape !== false && !nfo) {
+  // A plain item upsert is inventory only. Ingest/manual flows must opt in when
+  // they want a follow-up scrape so there is no adult-library-only autoscrape path.
+  if (opts.enqueueScrape === true && !nfo) {
     enqueueScrapeTask(item, subLib, { source: opts.source });
   }
 
@@ -1415,33 +1415,10 @@ async function refreshItemFromScrapedFiles(subLib, item) {
   return found || item;
 }
 
-function startSubLibraryWatcher(subLib) {
-  // Directory discovery is no longer owned by the adult library module.
-  // Explicit item actions such as rescrape still live here, but folder-wide
-  // scan/watch auto-enqueue must not run as an adult-library-private loop.
-  void subLib;
-}
-
-function stopSubLibraryWatcher(uuid) {
-  void uuid;
-}
-
-function startAllWatchers() {
-  // No-op by design. See startSubLibraryWatcher().
-}
-
-function stopAllWatchers() {
-  // No-op by design. See startSubLibraryWatcher().
-}
-
 module.exports = {
   isAdultFolderSubLibrary,
   isJapaneseJavSubLibrary,
   isWesternAdultSubLibrary,
-  startAllWatchers,
-  stopAllWatchers,
-  startSubLibraryWatcher,
-  stopSubLibraryWatcher,
   scanSubLibrary,
   reconcileSubLibrary,
   refreshItemFromScrapedFiles,

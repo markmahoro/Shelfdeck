@@ -1315,6 +1315,7 @@ test('adult config masks provider keys and preserves masked values on save', asy
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
     adultLibrary: {
+      scanIntervalMinutes: 5,
       western: {
         metadataApiKey: 'metadata-secret',
         stashBoxApiKey: 'stash-secret',
@@ -1329,15 +1330,18 @@ test('adult config masks provider keys and preserves masked values on save', asy
   assert.strictEqual(admin.json().western.metadataApiKey, '********');
   assert.strictEqual(admin.json().western.stashBoxApiKey, '********');
   assert.strictEqual(admin.json().western.tmdbApiKey, '********');
+  assert.strictEqual(admin.json().scanIntervalMinutes, undefined);
 
   const globalConfig = await app.inject({ method: 'GET', url: '/v1/config' });
   assert.strictEqual(globalConfig.statusCode, 200);
   assert.strictEqual(globalConfig.json().adultLibrary.western.stashBoxApiKey, '********');
+  assert.strictEqual(globalConfig.json().adultLibrary.scanIntervalMinutes, undefined);
 
   const patch = await app.inject({
     method: 'PATCH',
     url: '/v1/admin/adult/config',
     payload: {
+      scanIntervalMinutes: 3,
       western: {
         metadataApiKey: '',
         stashBoxApiKey: '********',
@@ -1349,8 +1353,10 @@ test('adult config masks provider keys and preserves masked values on save', asy
   assert.strictEqual(patch.json().western.metadataApiKey, '');
   assert.strictEqual(patch.json().western.stashBoxApiKey, '********');
   assert.strictEqual(patch.json().western.tmdbApiKey, '********');
+  assert.strictEqual(patch.json().scanIntervalMinutes, undefined);
 
   const stored = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
+  assert.strictEqual(stored.adultLibrary.scanIntervalMinutes, undefined);
   assert.strictEqual(stored.adultLibrary.western.metadataApiKey, '', 'blank input clears the key');
   assert.strictEqual(stored.adultLibrary.western.stashBoxApiKey, 'stash-secret', 'masked input preserves the existing key');
   assert.strictEqual(stored.adultLibrary.western.tmdbApiKey, 'tmdb-new', 'new input replaces the key');
@@ -1605,7 +1611,6 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
   const cfg = configStore.loadConfig();
   cfg.subLibraries = (cfg.subLibraries || []).map((sl) => sl.uuid === subLib.uuid ? { ...sl, scrapeEnabled: false } : sl);
   configStore.saveConfig(cfg);
-  require('../src/adultLibraryService').stopSubLibraryWatcher(subLib.uuid);
   const filePath = path.join(watchRoot, 'MVSD-175.mp4');
   fs.writeFileSync(filePath, 'fake-video');
 
@@ -2324,7 +2329,7 @@ test('computeRightCoverCrop uses the right-side front cover slice', () => {
   assert.strictEqual(adultLibraryService.computeRightCoverCrop(147, 200), null);
 });
 
-test('scrape of low-confidence (unknown prefix) item enters queue and attempts scraping', async () => {
+test('manual scrape of low-confidence (unknown prefix) item enters queue and attempts scraping', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
@@ -2336,7 +2341,6 @@ test('scrape of low-confidence (unknown prefix) item enters queue and attempts s
     payload: { name: 'JAV Test', source: 'folder', mediaType: 'adult', adultRegion: 'japanese_jav', scraperType: 'shelfdeck_japanese_jav', watchRoot, ruleTemplateId: 'adult_jav_default' },
   });
   const subLib = create.json();
-  require('../src/adultLibraryService').stopSubLibraryWatcher(subLib.uuid);
   // Unknown prefix ZZZZZ — parses but is not a known maker, → ambiguous.
   const filePath = path.join(watchRoot, 'ZZZZZ-999.mp4');
   fs.writeFileSync(filePath, 'fake-video');
@@ -2345,11 +2349,24 @@ test('scrape of low-confidence (unknown prefix) item enters queue and attempts s
   assert.strictEqual(item.adultMetadata.scrapeStatus, 'ambiguous');
   assert.strictEqual(item.adultMetadata.idConfidence, 'low');
 
-  // Ambiguous items still enter the task flow; the scrape executor attempts the
-  // detected ID instead of failing before it contacts a scraper.
-  const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  let tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  assert.strictEqual(
+    tasks.json().tasks.some((t) => t.itemId === item.itemId),
+    false,
+    'plain adult item upsert should not autoscrape',
+  );
+
+  const manualScrape = await app.inject({
+    method: 'POST',
+    url: `/v1/admin/adult/items/${item.itemId}/actions/rescrape`,
+  });
+  assert.strictEqual(manualScrape.statusCode, 201);
+
+  // Ambiguous items can still enter the task flow through explicit user intent;
+  // the scrape executor attempts the detected ID instead of failing before it contacts a scraper.
+  tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
   const task = tasks.json().tasks.find((t) => t.itemId === item.itemId);
-  assert.ok(task, 'auto scrape task exists for ambiguous item');
+  assert.ok(task, 'manual scrape task exists for ambiguous item');
 
   const scraperPath = require.resolve('../src/services/japaneseJavScraper');
   delete require.cache[scraperPath];

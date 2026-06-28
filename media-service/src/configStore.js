@@ -591,7 +591,6 @@ function getDefaultConfig() {
     // Adult folder libraries
     adultLibrary: {
       settleSeconds: 30,
-      scanIntervalMinutes: 10,
       probeTimeoutMs: 5000,
       organizedFolderName: 'scraped',
       videoExtensions: ['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv'],
@@ -942,6 +941,10 @@ function normalizeAdultLibraryConfig(raw) {
   };
   if (Object.prototype.hasOwnProperty.call(raw.adultLibrary, 'autoScrape')) {
     delete raw.adultLibrary.autoScrape;
+    migrated = true;
+  }
+  if (Object.prototype.hasOwnProperty.call(raw.adultLibrary, 'scanIntervalMinutes')) {
+    delete raw.adultLibrary.scanIntervalMinutes;
     migrated = true;
   }
   delete raw.adultLibrary.javsp;
