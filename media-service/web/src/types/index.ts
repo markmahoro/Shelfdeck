@@ -225,6 +225,7 @@ export interface TaskItemInfo {
   searchCandidates?: Record<string, unknown>[];
   searchCandidatesSimplified?: UpgradeCandidate[];
   adultMetadata?: Record<string, unknown>;
+  taskSource?: 'manual' | 'auto' | string;
   transcodeTaskId?: string;
 }
 
@@ -306,6 +307,7 @@ export interface MediaTask {
   itemId: string;
   itemName?: string;
   actionType: ActionType;
+  source?: 'manual' | 'auto' | string;
   status: TaskStatus;
   progress: number;
   phase: string;

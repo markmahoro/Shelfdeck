@@ -123,6 +123,12 @@ function isTerminalTask(task: MediaTask): boolean {
   return TERMINAL_TASK_STATUSES.has(task.status);
 }
 
+function taskSourceLabel(task: MediaTask): string {
+  if (task.source === 'manual' || task.itemInfo?.taskSource === 'manual') return '手动操作';
+  if (task.source === 'auto' || task.itemInfo?.taskSource === 'auto') return '后台自动入队';
+  return '历史记录';
+}
+
 export default function TaskMonitorPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
@@ -480,7 +486,7 @@ export default function TaskMonitorPage() {
                 <th style={thStyle}>类型</th>
                 <th style={thStyle}>状态</th>
                 <th style={thStyle}>阶段</th>
-                <th style={thStyle}>审批/优先级</th>
+                <th style={thStyle}>来源/审批/优先级</th>
                 <th style={thStyle}>进度</th>
                 <th style={thStyle}>创建时间</th>
                 <th style={thStyle}>操作</th>
@@ -499,6 +505,9 @@ export default function TaskMonitorPage() {
                   <td style={tdStyle}>{PHASE_LABELS[t.phase || ''] || t.phase || '—'}</td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ color: t.source || t.itemInfo?.taskSource ? '#555' : '#999' }}>
+                        {taskSourceLabel(t)}
+                      </span>
                       <span style={{ color: t.status === 'awaiting_user_confirm' ? '#e67e22' : '#888' }}>
                         {t.status === 'awaiting_user_confirm' ? approvalLabel(t) : '—'}
                       </span>
@@ -564,6 +573,7 @@ export default function TaskMonitorPage() {
               <div><strong>状态:</strong> <span style={{ color: STATUS_COLORS[displayTask.status] }}>{STATUS_LABELS[displayTask.status] || displayTask.status}</span></div>
               <div><strong>阶段:</strong> {PHASE_LABELS[displayTask.phase || ''] || displayTask.phase || '—'}</div>
               <div><strong>进度:</strong> {Math.round(displayTask.progress || 0)}%</div>
+              <div><strong>来源:</strong> {taskSourceLabel(displayTask)}</div>
               <div><strong>优先级:</strong> {typeof displayTask.priority === 'number' ? displayTask.priority : 100}</div>
               <div><strong>审批节点:</strong> {displayTask.status === 'awaiting_user_confirm' ? approvalLabel(displayTask) : '—'}</div>
               <div><strong>创建时间:</strong> {displayTask.createdAt ? new Date(displayTask.createdAt).toLocaleString() : '—'}</div>

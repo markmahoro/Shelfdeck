@@ -181,7 +181,7 @@ export default function SystemConfigPage() {
         setUpgradeConc(sysCfg.upgradeConcurrency ?? 1);
         setScrapeConc(sysCfg.scrapeConcurrency ?? 1);
         setSmartTaskMax(sysCfg.smartTaskMaxPerRun ?? 10);
-        setSmartTaskActions(sysCfg.smartTaskEnabledActions ?? ['ingest', 'scrape', 'transcode', 'upgrade']);
+        setSmartTaskActions(sysCfg.smartTaskEnabledActions ?? []);
         setSmartTaskInterval(sysCfg.smartTaskPollIntervalMinutes ?? 10);
         setSmartTaskLookback(sysCfg.smartTaskLookbackDays ?? 30);
         setSmartTaskQueueMax(sysCfg.smartTaskMaxQueueSize ?? 50);

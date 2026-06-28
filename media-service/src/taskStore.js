@@ -144,6 +144,7 @@ function normalizeTask(task) {
   t.itemId = String(t.itemId || '');
   t.itemName = String(t.itemName || (t.itemInfo && t.itemInfo.name) || '');
   t.actionType = String(t.actionType || '');
+  t.source = String(t.source || (t.itemInfo && t.itemInfo.taskSource) || '');
   t.status = String(t.status || 'created');
   t.progress = typeof t.progress === 'number' ? t.progress : 0;
   t.phase = t.phase === undefined ? null : t.phase;
@@ -208,6 +209,7 @@ function buildTask(taskData, now = new Date().toISOString()) {
     itemId: taskData.itemId || '',
     itemName: taskData.itemName || (taskData.itemInfo && taskData.itemInfo.name) || '',
     actionType: taskData.actionType,
+    source: taskData.source || (taskData.itemInfo && taskData.itemInfo.taskSource) || '',
     status: taskData.status || 'created',
     progress: 0,
     phase: null,
@@ -353,6 +355,7 @@ function queryTaskSummaries(filter = {}, options = {}) {
       created_at,
       updated_at,
       json_extract(payload_json, '$.progress') AS progress,
+      json_extract(payload_json, '$.source') AS source,
       json_extract(payload_json, '$.phase') AS phase,
       json_extract(payload_json, '$.resumePoint') AS resume_point,
       json_extract(payload_json, '$.approval') AS approval_json,
@@ -421,6 +424,7 @@ function queryTaskSummaries(filter = {}, options = {}) {
         itemId: row.item_id || '',
         itemName: row.item_name || '',
         actionType: row.action_type || '',
+        source: row.source || '',
         status: row.status || '',
         progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
         phase: row.phase,

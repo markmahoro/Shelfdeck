@@ -1243,6 +1243,7 @@ function enqueueIngestTask(subLib, filePath, opts = {}) {
     itemId: itemInfo.itemId,
     itemName: itemInfo.name,
     actionType: 'ingest',
+    source,
     status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
     priority: priorityEngine.computePriority({
       source: userInitiated ? 'manual' : 'auto',
@@ -1342,6 +1343,7 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
     itemId: item.itemId,
     itemName: item.name,
     actionType: 'scrape',
+    source,
     status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
     priority: priorityEngine.computePriority({
       source: userInitiated ? 'manual' : 'auto',

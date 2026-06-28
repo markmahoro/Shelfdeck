@@ -503,7 +503,7 @@ function getDefaultConfig() {
     smartTaskPollIntervalMinutes: 10,
     smartTaskMaxPerRun: 10,
     smartTaskMaxQueueSize: 50,
-    smartTaskEnabledActions: ['ingest', 'scrape', 'transcode', 'upgrade'],
+    smartTaskEnabledActions: [],
     smartTaskLookbackDays: 30,
     smartTaskInitialDelaySeconds: 60,
 

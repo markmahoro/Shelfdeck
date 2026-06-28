@@ -422,6 +422,7 @@ function registerRoutes(app) {
       itemId,
       itemName: libItem ? libItem.name : undefined,
       actionType,
+      source: 'manual',
       status,
       priority: priorityEngine.computePriority({
         source: 'manual',
@@ -430,7 +431,7 @@ function registerRoutes(app) {
         config: cfg,
       }),
       itemInfo,
-      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created' }],
+      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user action' }],
     });
 
     return reply.code(201).send(task);

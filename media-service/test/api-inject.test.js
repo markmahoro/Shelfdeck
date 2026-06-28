@@ -171,6 +171,7 @@ test('POST /v1/tasks creates task and returns 201', async () => {
   assert.ok(body.id, 'task id present');
   assert.strictEqual(body.status, 'created');
   assert.strictEqual(body.actionType, 'transcode');
+  assert.strictEqual(body.source, 'manual');
   await app.close();
 });
 
@@ -276,6 +277,7 @@ test('GET /v1/tasks/:id returns task detail', async () => {
   assert.strictEqual(res.statusCode, 200);
   const task = res.json();
   assert.strictEqual(task.id, id);
+  assert.strictEqual(task.source, 'manual');
   assert.ok(task.logs, 'logs field present');
   await app.close();
 });

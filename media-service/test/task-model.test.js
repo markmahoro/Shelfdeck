@@ -121,6 +121,7 @@ test('resolveSubLibSchedule treats automationMode as the canonical scheduling sw
 
 test('taskAdmission rejects automatic tasks for manual sub-libraries', () => {
   const config = {
+    smartTaskEnabledActions: ['transcode'],
     subLibraries: [{ uuid: 'manual-lib', automationMode: 'manual' }],
   };
   const item = { itemId: 'i1', subLibraryId: 'manual-lib' };
@@ -168,6 +169,30 @@ test('taskAdmission uses smartTaskEnabledActions as the global automatic allow-l
   assert.strictEqual(ingest.allowed, true);
 });
 
+test('taskAdmission treats a missing automatic allow-list as disabled', () => {
+  const config = {
+    subLibraries: [{ uuid: 'lib-a', automationMode: 'auto' }],
+  };
+  const auto = taskAdmission.canCreateTask({
+    item: { itemId: 'i1', subLibraryId: 'lib-a' },
+    actionType: 'scrape',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(auto.allowed, false);
+  assert.strictEqual(auto.reason, 'action_not_enabled');
+
+  const manual = taskAdmission.canCreateTask({
+    item: { itemId: 'i1', subLibraryId: 'lib-a' },
+    actionType: 'scrape',
+    source: 'manual',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(manual.allowed, true);
+});
+
 test('smartTaskEngine treats an empty automatic allow-list as an intentional disabled state', () => {
   smartTaskEngine.stop();
   smartTaskEngine.start(
@@ -191,8 +216,31 @@ test('smartTaskEngine treats an empty automatic allow-list as an intentional dis
   smartTaskEngine.stop();
 });
 
+test('smartTaskEngine treats a missing automatic allow-list as disabled', () => {
+  smartTaskEngine.stop();
+  smartTaskEngine.start(
+    { loadConfig: () => ({
+      smartTaskInitialDelaySeconds: 60,
+      smartTaskPollIntervalMinutes: 10,
+      smartTaskMaxPerRun: 10,
+      smartTaskMaxQueueSize: 50,
+      smartTaskLookbackDays: 30,
+    }) },
+    { getLibrary: () => ({ items: [] }) },
+    { getTasks: () => [], createTask: () => { throw new Error('should not create tasks'); } },
+  );
+
+  const health = smartTaskEngine.getHealth();
+  assert.strictEqual(health.status, 'green');
+  assert.strictEqual(health.enabled, false);
+  assert.strictEqual(health.disabledReason, 'no_enabled_actions');
+  assert.deepStrictEqual(health.enabledActions, []);
+  smartTaskEngine.stop();
+});
+
 test('taskAdmission applies cooldown and active task dedupe', () => {
   const config = {
+    smartTaskEnabledActions: ['upgrade', 'scrape'],
     taskAdmission: { defaultCooldownHours: 48 },
     subLibraries: [{ uuid: 'lib-a', automationMode: 'auto' }],
   };
@@ -225,6 +273,7 @@ test('taskAdmission applies cooldown and active task dedupe', () => {
 
 test('taskAdmission blocks automatic re-transcode after successful transcode', () => {
   const config = {
+    smartTaskEnabledActions: ['transcode'],
     subLibraries: [{ uuid: 'lib-a', automationMode: 'auto' }],
   };
   const item = {
@@ -253,6 +302,7 @@ test('taskAdmission blocks automatic re-transcode after successful transcode', (
 
 test('taskAdmission caps automatic queue by action type', () => {
   const config = {
+    smartTaskEnabledActions: ['ingest'],
     taskAdmission: {
       cooldownHoursByAction: { ingest: 6 },
       maxQueuedByAction: { ingest: 2 },
@@ -287,6 +337,7 @@ test('taskAdmission caps automatic queue by action type', () => {
 
 test('taskAdmission applies cooldown from terminal task history', () => {
   const config = {
+    smartTaskEnabledActions: ['ingest'],
     taskAdmission: {
       cooldownHoursByAction: { ingest: 6 },
       maxQueuedByAction: { ingest: 10 },

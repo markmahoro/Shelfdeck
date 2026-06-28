@@ -54,7 +54,7 @@ function queueLimit(config, actionType) {
 function enabledAutoActions(config) {
   return Array.isArray(config && config.smartTaskEnabledActions)
     ? config.smartTaskEnabledActions
-    : ['ingest', 'scrape', 'transcode', 'upgrade'];
+    : [];
 }
 
 function canCreateTask({ item, itemInfo, actionType, source, config, tasks, optimizationIndex }) {

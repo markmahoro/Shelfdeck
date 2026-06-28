@@ -26,7 +26,7 @@ let lastEnabledActions = [];
 function readEnabledActions(config) {
   return Array.isArray(config.smartTaskEnabledActions)
     ? config.smartTaskEnabledActions
-    : ['ingest', 'scrape', 'transcode', 'upgrade'];
+    : [];
 }
 
 function maxTimestamp(a, b) {
@@ -176,6 +176,7 @@ function start(configStore, mediaLibraryService, taskStore) {
           itemId: item.itemId,
           itemName: item.name,
           actionType: item.action,
+          source: 'auto',
           status,
           priority,
           itemInfo,
