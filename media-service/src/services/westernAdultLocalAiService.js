@@ -5,6 +5,7 @@ const fsp = require('fs/promises');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
+const { Worker } = require('worker_threads');
 
 const transcodeService = require('./transcodeService');
 const peopleStore = require('../peopleStore');
@@ -126,57 +127,42 @@ function meanVector(vectors) {
 
 async function callFaceEmbeddingModel(western, images, options = {}) {
   const url = String(process.env.FACE_EMBEDDINGS_URL || INTERNAL_FACE_EMBEDDINGS_URL).trim();
-  const imagePayloads = [];
-  for (let index = 0; index < images.length; index++) {
-    const frame = images[index];
-    const buffer = Buffer.isBuffer(frame) ? frame : await fsp.readFile(frame);
-    imagePayloads.push({
-      imageId: `frame-${String(index).padStart(3, '0')}`,
-      imageIndex: index,
-      data: buffer.toString('base64'),
-      mimeType: 'image/jpeg',
+  const workerPath = path.join(__dirname, 'faceEmbeddingWorker.js');
+  const timeoutMs = Math.max(10, Number(western.faceTimeoutSec) || 120) * 1000 + 5000;
+  const imageRefs = images.map((frame) => (Buffer.isBuffer(frame) ? { buffer: frame } : { path: frame }));
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const worker = new Worker(workerPath, {
+      workerData: {
+        url,
+        western: { faceTimeoutSec: western.faceTimeoutSec },
+        images: imageRefs,
+        options: {
+          blacklist: Array.isArray(options.blacklist) ? options.blacklist : [],
+          blacklistThreshold: options.blacklistThreshold,
+        },
+        faceApiKey: process.env.FACE_API_KEY || '',
+      },
     });
-    if ((index + 1) % 4 === 0) await yieldToEventLoop();
-  }
-  const body = {
-    images: imagePayloads,
-    detect: true,
-    returnCrops: true,
-  };
-  if (Array.isArray(options.blacklist) && options.blacklist.length) {
-    body.blacklist = options.blacklist;
-    body.blacklistThreshold = Number(options.blacklistThreshold) || 0.5;
-  }
-  const headers = { 'content-type': 'application/json' };
-  if (process.env.FACE_API_KEY) headers.authorization = `Bearer ${process.env.FACE_API_KEY}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), Math.max(5, Number(western.faceTimeoutSec) || 120) * 1000);
-  try {
-    await yieldToEventLoop();
-    const requestBody = JSON.stringify(body);
-    await yieldToEventLoop();
-    const res = await fetch(url, { method: 'POST', headers, body: requestBody, signal: controller.signal });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error && json.error.message || `HTTP ${res.status}`);
-    const rows = Array.isArray(json.faces) ? json.faces : Array.isArray(json.data) ? json.data : [];
-    return rows.map((face, idx) => {
-      const bbox = face.bbox || face.box || null;
-      const area = bbox ? Math.max(0, (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])) : 0;
-      return {
-        faceId: String(face.faceId || face.id || `face-${idx + 1}`),
-        clusterId: String(face.clusterId || face.faceId || face.id || `face-${idx + 1}`),
-        imageIndex: Number.isFinite(Number(face.imageIndex)) ? Number(face.imageIndex) : 0,
-        bbox,
-        faceArea: area,
-        detectionScore: Number(face.detectionScore) || 0,
-        confidence: Number(face.confidence) || Number(face.detectionScore) || 0,
-        embedding: normalizeVector(face.embedding || face.vector),
-        sampleImageBase64: face.sampleImageBase64 || face.cropImageBase64 || '',
-      };
-    }).filter((face) => face.embedding.length > 0);
-  } finally {
-    clearTimeout(timer);
-  }
+    const finish = (err, faces) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (err) reject(err); else resolve(faces);
+    };
+    const timer = setTimeout(() => {
+      worker.terminate().catch(() => {});
+      finish(new Error('Face embedding worker timed out'));
+    }, timeoutMs);
+    worker.once('message', (msg) => {
+      if (msg && msg.ok) finish(null, Array.isArray(msg.faces) ? msg.faces : []);
+      else finish(new Error(msg && msg.error || 'Face embedding worker failed'));
+    });
+    worker.once('error', (err) => finish(err));
+    worker.once('exit', (code) => {
+      if (!settled && code !== 0) finish(new Error(`Face embedding worker exited with code ${code}`));
+    });
+  });
 }
 
 function clusterFaces(faces, clusterThreshold = 0.5) {
