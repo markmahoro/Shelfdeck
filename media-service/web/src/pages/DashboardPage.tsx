@@ -17,6 +17,7 @@ const STATUS_LABELS: Record<string, string> = {
   pausing: '暂停中...', awaiting_user_confirm: '等待确认', paused: '已暂停',
   interrupted: '已中断', done: '已完成', failed_hard: '失败',
 };
+const TERMINAL_TASK_STATUSES = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 
 export default function DashboardPage() {
   const qc = useQueryClient();
@@ -195,9 +196,8 @@ export default function DashboardPage() {
   if (hLoading || slLoading) return <LoadingSpinner />;
 
   const allVisibleTasks: MediaTask[] = taskList?.tasks || [];
-  const activeTasks = allVisibleTasks.filter((t) => !['done', 'failed_hard'].includes(t.status));
-  const recentFailedTasks = allVisibleTasks.filter((t) => t.status === 'failed_hard');
-  const currentTasks: MediaTask[] = (activeTasks.length > 0 ? activeTasks : recentFailedTasks.length > 0 ? recentFailedTasks : allVisibleTasks).slice(0, 5);
+  const currentTasks = allVisibleTasks.filter((t) => !TERMINAL_TASK_STATUSES.has(t.status)).slice(0, 5);
+  const recentResultTasks = allVisibleTasks.filter((t) => TERMINAL_TASK_STATUSES.has(t.status)).slice(0, 5);
   const subLibs: SubLibrary[] = slData?.subLibraries || [];
   const enabledAutoActions = sysCfg?.smartTaskEnabledActions;
   const enabledAutoActionText = !enabledAutoActions
@@ -320,12 +320,12 @@ export default function DashboardPage() {
       <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>当前任务</h3>
-          <span style={{ fontSize: 12, color: '#888' }}>优先显示执行中、排队中、等待确认和最近失败的任务</span>
+          <span style={{ fontSize: 12, color: '#888' }}>只显示执行中、排队中、等待确认和已暂停的任务</span>
         </div>
         {tLoading ? (
           <LoadingSpinner text="加载任务中..." />
         ) : currentTasks.length === 0 ? (
-          <p style={{ color: '#888', fontSize: 14 }}>当前没有任务</p>
+          <p style={{ color: '#888', fontSize: 14 }}>当前没有正在处理的任务</p>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
@@ -343,6 +343,40 @@ export default function DashboardPage() {
                   <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
                   <td style={tdStyle}>{STATUS_LABELS[t.status] || t.status}</td>
                   <td style={tdStyle}>{Math.round(t.progress || 0)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Recent Task Results */}
+      <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>最近任务结果</h3>
+          <span style={{ fontSize: 12, color: '#888' }}>按更新时间显示最近完成、失败或取消的任务</span>
+        </div>
+        {tLoading ? (
+          <LoadingSpinner text="加载任务中..." />
+        ) : recentResultTasks.length === 0 ? (
+          <p style={{ color: '#888', fontSize: 14 }}>暂无最近完成或失败的任务</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>影片</th>
+                <th style={thStyle}>类型</th>
+                <th style={thStyle}>结果</th>
+                <th style={thStyle}>更新时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentResultTasks.map((t) => (
+                <tr key={t.id}>
+                  <td style={tdStyle}>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</td>
+                  <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
+                  <td style={tdStyle}>{STATUS_LABELS[t.status] || t.status}</td>
+                  <td style={tdStyle}>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '—'}</td>
                 </tr>
               ))}
             </tbody>
