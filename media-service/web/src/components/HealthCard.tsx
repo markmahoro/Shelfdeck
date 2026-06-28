@@ -11,6 +11,8 @@ interface HealthCheckItem {
   // mediaLib
   totalSubLibraries?: number;
   enabledCount?: number;
+  scheduledRefreshCount?: number;
+  manualFolderCount?: number;
   staleSubLibraries?: string[];
   // douban
   hasSession?: boolean;
@@ -69,6 +71,9 @@ function describe(key: string, item: HealthCheckItem): string {
       if (!item.totalSubLibraries || !item.enabledCount) return '未配置';
       if (item.staleSubLibraries && item.staleSubLibraries.length > 0) {
         return `超时：${item.staleSubLibraries.join('、')}`;
+      }
+      if (item.manualFolderCount) {
+        return `${item.scheduledRefreshCount || 0} 个定时刷新，${item.manualFolderCount} 个手动文件夹库`;
       }
       return `${item.enabledCount}/${item.totalSubLibraries} 个媒体库`;
     case 'douban':

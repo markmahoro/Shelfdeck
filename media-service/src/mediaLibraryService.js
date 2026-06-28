@@ -796,11 +796,22 @@ module.exports = {
 function getHealth(config) {
   const subLibs = (config && config.subLibraries) || [];
   const enabled = subLibs.filter((sl) => sl.enabled !== false);
+  const refreshScheduled = enabled.filter((sl) => (sl.source || 'emby') !== 'folder');
   const totalSubLibraries = subLibs.length;
   const enabledCount = enabled.length;
+  const scheduledRefreshCount = refreshScheduled.length;
+  const manualFolderCount = enabledCount - scheduledRefreshCount;
 
   if (enabledCount === 0) {
-    return { status: 'green', totalSubLibraries, enabledCount: 0, staleSubLibraries: [] };
+    return { status: 'green', totalSubLibraries, enabledCount: 0, scheduledRefreshCount: 0, manualFolderCount: 0, staleSubLibraries: [] };
+  }
+
+  if (!libraryStore.getHealth()) {
+    return { status: 'red', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries: [] };
+  }
+
+  if (scheduledRefreshCount === 0) {
+    return { status: 'green', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries: [] };
   }
 
   const refreshIntervalMin = (config && config.defaultRefreshIntervalMinutes) || 60;
@@ -808,24 +819,20 @@ function getHealth(config) {
   const now = Date.now();
 
   const staleSubLibraries = [];
-  for (const sl of enabled) {
+  for (const sl of refreshScheduled) {
     const lastRefreshed = sl.lastRefreshedAt ? new Date(sl.lastRefreshedAt).getTime() : 0;
     if (now - lastRefreshed > graceMs) {
       staleSubLibraries.push(sl.name || sl.uuid);
     }
   }
 
-  if (staleSubLibraries.length === enabledCount) {
-    // Check if library.db is readable
-    if (!libraryStore.getHealth()) {
-      return { status: 'red', totalSubLibraries, enabledCount, staleSubLibraries };
-    }
-    return { status: 'red', totalSubLibraries, enabledCount, staleSubLibraries };
+  if (staleSubLibraries.length === scheduledRefreshCount) {
+    return { status: 'red', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries };
   }
 
   if (staleSubLibraries.length > 0) {
-    return { status: 'yellow', totalSubLibraries, enabledCount, staleSubLibraries };
+    return { status: 'yellow', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries };
   }
 
-  return { status: 'green', totalSubLibraries, enabledCount, staleSubLibraries: [] };
+  return { status: 'green', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries: [] };
 }
