@@ -420,11 +420,10 @@ test('POST /v1/admin/sublibraries creates adult Japanese JAV folder library', as
   await app.close();
 });
 
-test('POST /v1/admin/sublibraries/:uuid/actions/scan upserts adult files and creates scrape task', async () => {
+test('POST /v1/admin/sublibraries/:uuid/actions/scan queues adult ingest before item creation', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
-  fs.writeFileSync(path.join(watchRoot, 'MVSD-175.mp4'), 'fake-video');
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
 
   const create = await app.inject({
@@ -441,15 +440,36 @@ test('POST /v1/admin/sublibraries/:uuid/actions/scan upserts adult files and cre
     },
   });
   const subLib = create.json();
+  require('../src/adultLibraryService').stopSubLibraryWatcher(subLib.uuid);
+  fs.writeFileSync(path.join(watchRoot, 'MVSD-175.mp4'), 'fake-video');
 
   const scan = await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
   assert.strictEqual(scan.statusCode, 200);
   assert.strictEqual(scan.json().scanned, 1);
+  assert.strictEqual(scan.json().queued, 1);
 
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(lib.statusCode, 200);
-  assert.strictEqual(lib.json().total, 1);
-  const item = lib.json().items[0];
+  assert.strictEqual(lib.json().total, 0, 'scan should not upsert items directly');
+
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  assert.strictEqual(ingestTasks.statusCode, 200);
+  assert.strictEqual(ingestTasks.json().tasks.length, 1);
+  const ingestTask = ingestTasks.json().tasks[0];
+  assert.strictEqual(ingestTask.itemInfo.adultRegion, 'japanese_jav');
+
+  const taskStore = require('../src/taskStore');
+  const ingestFlow = require('../src/ingestFlowExecutor');
+  ingestFlow.setScheduler({
+    reportStatus: (id, status) => taskStore.updateTask(id, { status }),
+    pauseForConfirm: () => {},
+  });
+  await ingestFlow.driveTask(ingestTask.id);
+
+  const afterIngest = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  assert.strictEqual(afterIngest.statusCode, 200);
+  assert.strictEqual(afterIngest.json().total, 1);
+  const item = afterIngest.json().items[0];
   assert.strictEqual(item.source, 'adult_folder');
   assert.strictEqual(item.adultMetadata.adultId, 'MVSD-175');
 
@@ -488,11 +508,10 @@ test('POST /v1/admin/sublibraries creates adult western folder library', async (
   await app.close();
 });
 
-test('western adult scan uses path identity and creates scrape task', async () => {
+test('western adult scan queues ingest and ingest uses path identity before scrape', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'us');
   fs.mkdirSync(watchRoot, { recursive: true });
-  fs.writeFileSync(path.join(watchRoot, 'Loft.Scene.01.mp4'), 'fake-video');
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
 
   const create = await app.inject({
@@ -508,9 +527,24 @@ test('western adult scan uses path identity and creates scrape task', async () =
     },
   });
   const subLib = create.json();
+  require('../src/adultLibraryService').stopSubLibraryWatcher(subLib.uuid);
+  fs.writeFileSync(path.join(watchRoot, 'Loft.Scene.01.mp4'), 'fake-video');
   const scan = await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
   assert.strictEqual(scan.statusCode, 200);
   assert.strictEqual(scan.json().scanned, 1);
+  assert.strictEqual(scan.json().queued, 1);
+
+  const beforeIngest = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  assert.strictEqual(beforeIngest.json().total, 0, 'scan should not upsert western items directly');
+
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const taskStore = require('../src/taskStore');
+  const ingestFlow = require('../src/ingestFlowExecutor');
+  ingestFlow.setScheduler({
+    reportStatus: (id, status) => taskStore.updateTask(id, { status }),
+    pauseForConfirm: () => {},
+  });
+  await ingestFlow.driveTask(ingestTasks.json().tasks[0].id);
 
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   const item = lib.json().items[0];
@@ -522,6 +556,56 @@ test('western adult scan uses path identity and creates scrape task', async () =
 
   const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
   assert.ok(tasks.json().tasks.some((t) => t.itemId === item.itemId && t.actionType === 'scrape'));
+  await app.close();
+});
+
+test('adult scan caps automatic ingest queue and does not avalanche item or scrape creation', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    ingestConcurrency: 1,
+    scrapeConcurrency: 1,
+    taskAdmission: {
+      defaultCooldownHours: 48,
+      cooldownHoursByAction: { ingest: 6, scrape: 6 },
+      maxQueuedByAction: { ingest: 5, scrape: 2 },
+    },
+  }, null, 2));
+
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const create = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: {
+      name: 'JAV Cap Test',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'japanese_jav',
+      scraperType: 'shelfdeck_japanese_jav',
+      watchRoot,
+      ruleTemplateId: 'adult_jav_default',
+    },
+  });
+  const subLib = create.json();
+  require('../src/adultLibraryService').stopSubLibraryWatcher(subLib.uuid);
+  for (let i = 1; i <= 12; i++) {
+    fs.writeFileSync(path.join(watchRoot, `MVSD-${String(i).padStart(3, '0')}.mp4`), 'fake-video');
+  }
+
+  const scan = await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
+  assert.strictEqual(scan.statusCode, 200);
+  assert.strictEqual(scan.json().scanned, 12);
+  assert.strictEqual(scan.json().queued, 5);
+
+  const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  assert.strictEqual(lib.json().total, 0, 'bulk scan should not write library items directly');
+
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  assert.strictEqual(ingestTasks.json().tasks.length, 5, 'ingest queue is capped');
+  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'scan does not create scrape tasks before ingest');
   await app.close();
 });
 
@@ -793,7 +877,6 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
-  fs.writeFileSync(path.join(watchRoot, 'MVSD-175.mp4'), 'fake-video');
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
 
   const create = await app.inject({
@@ -802,23 +885,25 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
     payload: { name: 'JAV Test', source: 'folder', mediaType: 'adult', adultRegion: 'japanese_jav', scraperType: 'shelfdeck_japanese_jav', watchRoot, ruleTemplateId: 'adult_jav_default' },
   });
   const subLib = create.json();
-  await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
+  require('../src/adultLibraryService').stopSubLibraryWatcher(subLib.uuid);
+  const filePath = path.join(watchRoot, 'MVSD-175.mp4');
+  fs.writeFileSync(filePath, 'fake-video');
 
-  const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
-  const itemId = lib.json().items[0].itemId;
+  const adultLibraryService = require('../src/adultLibraryService');
+  const item = await adultLibraryService.upsertFileItem(subLib, filePath, { enqueueScrape: false });
+  const itemId = item.itemId;
 
   // Simulate a prior failed scrape: the original scrape task failed_hard and
   // the library item was marked failed. A real scrape failure does both.
   const taskStore = require('../src/taskStore');
-  const adultLibraryService = require('../src/adultLibraryService');
   let origTask = taskStore.getTasks({ itemId }).find((t) => t.actionType === 'scrape');
   if (!origTask) {
     origTask = taskStore.createTask({
       itemId,
-      itemName: lib.json().items[0].name,
+      itemName: item.name,
       actionType: 'scrape',
       status: 'failed_hard',
-      itemInfo: adultLibraryService.itemInfoFromItem(lib.json().items[0]),
+      itemInfo: adultLibraryService.itemInfoFromItem(item),
     });
   }
   taskStore.updateTask(origTask.id, { status: 'failed_hard' });
@@ -1436,8 +1521,6 @@ test('scrape of low-confidence (unknown prefix) item enters queue and attempts s
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
-  // Unknown prefix ZZZZZ — parses but is not a known maker, → ambiguous.
-  fs.writeFileSync(path.join(watchRoot, 'ZZZZZ-999.mp4'), 'fake-video');
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
 
   const create = await app.inject({
@@ -1446,10 +1529,12 @@ test('scrape of low-confidence (unknown prefix) item enters queue and attempts s
     payload: { name: 'JAV Test', source: 'folder', mediaType: 'adult', adultRegion: 'japanese_jav', scraperType: 'shelfdeck_japanese_jav', watchRoot, ruleTemplateId: 'adult_jav_default' },
   });
   const subLib = create.json();
-  await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
-
-  const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
-  const item = lib.json().items[0];
+  require('../src/adultLibraryService').stopSubLibraryWatcher(subLib.uuid);
+  // Unknown prefix ZZZZZ — parses but is not a known maker, → ambiguous.
+  const filePath = path.join(watchRoot, 'ZZZZZ-999.mp4');
+  fs.writeFileSync(filePath, 'fake-video');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const item = await adultLibraryService.upsertFileItem(subLib, filePath);
   assert.strictEqual(item.adultMetadata.scrapeStatus, 'ambiguous');
   assert.strictEqual(item.adultMetadata.idConfidence, 'low');
 

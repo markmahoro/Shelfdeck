@@ -3,7 +3,7 @@
 const configStore = require('./configStore');
 const optimizationStatus = require('./optimizationStatus');
 
-const TERMINAL = new Set(['done', 'failed_hard', 'deleted']);
+const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 
 function actionCooldownMs(config, actionType) {
   const cfg = config && config.taskAdmission || {};
@@ -22,8 +22,33 @@ function lastActionDoneAt(item, actionType) {
   return null;
 }
 
+function lastTerminalTaskAt(tasks, itemId, actionType) {
+  if (!itemId) return null;
+  let latest = null;
+  for (const task of tasks || []) {
+    if (!task || task.itemId !== itemId || task.actionType !== actionType) continue;
+    if (!TERMINAL.has(task.status)) continue;
+    const at = task.updatedAt || task.createdAt;
+    if (!at) continue;
+    if (!latest || new Date(at).getTime() > new Date(latest).getTime()) latest = at;
+  }
+  return latest;
+}
+
 function activeTaskForItem(tasks, itemId) {
   return (tasks || []).find((t) => t && t.itemId === itemId && !TERMINAL.has(t.status));
+}
+
+function queuedCountForAction(tasks, actionType) {
+  return (tasks || []).filter((t) => t && t.actionType === actionType && !TERMINAL.has(t.status)).length;
+}
+
+function queueLimit(config, actionType) {
+  const cfg = config && config.taskAdmission || {};
+  const byAction = cfg.maxQueuedByAction || {};
+  const raw = byAction[actionType] !== undefined ? byAction[actionType] : cfg.defaultMaxQueued;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : null;
 }
 
 function canCreateTask({ item, itemInfo, actionType, source, config, tasks, optimizationIndex }) {
@@ -47,7 +72,7 @@ function canCreateTask({ item, itemInfo, actionType, source, config, tasks, opti
   }
 
   if (!manual) {
-    const lastDoneAt = lastActionDoneAt(item || info, actionType);
+    const lastDoneAt = lastActionDoneAt(item || info, actionType) || lastTerminalTaskAt(tasks || [], itemId, actionType);
     const cooldown = actionCooldownMs(cfg, actionType);
     if (lastDoneAt && cooldown > 0) {
       const nextEligibleAtMs = new Date(lastDoneAt).getTime() + cooldown;
@@ -58,6 +83,11 @@ function canCreateTask({ item, itemInfo, actionType, source, config, tasks, opti
           nextEligibleAt: new Date(nextEligibleAtMs).toISOString(),
         };
       }
+    }
+
+    const limit = queueLimit(cfg, actionType);
+    if (limit !== null && queuedCountForAction(tasks || [], actionType) >= limit) {
+      return { allowed: false, reason: 'queue_limit', limit };
     }
 
     if (actionType === 'transcode') {

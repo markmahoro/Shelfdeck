@@ -1576,6 +1576,7 @@ function registerRoutes(app) {
 
 function getFlow(actionType) {
   switch (actionType) {
+    case 'ingest': return require('./ingestFlowExecutor');
     case 'delete': return require('./deleteFlowExecutor');
     case 'transcode': return require('./transcodeFlowExecutor');
     case 'upgrade': return require('./upgradeFlowExecutor');

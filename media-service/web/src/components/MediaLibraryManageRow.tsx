@@ -124,7 +124,7 @@ function MediaLibraryManageRowInner({
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
       {taskStatusLabelZh(rowTask.status)}（
-      {rowTask.actionType === 'transcode' ? '压缩' : rowTask.actionType === 'upgrade' ? '洗版' : rowTask.actionType === 'scrape' ? '刮削' : '删除'}
+      {rowTask.actionType === 'transcode' ? '压缩' : rowTask.actionType === 'upgrade' ? '洗版' : rowTask.actionType === 'scrape' ? '刮削' : rowTask.actionType === 'ingest' ? '入库' : '删除'}
       ）
     </span>
   ) : (

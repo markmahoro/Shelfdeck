@@ -19,6 +19,7 @@ const deleteFlow = require('./deleteFlowExecutor');
 const transcodeFlow = require('./transcodeFlowExecutor');
 const upgradeFlow = require('./upgradeFlowExecutor');
 const scrapeFlow = require('./scrapeFlowExecutor');
+const ingestFlow = require('./ingestFlowExecutor');
 const healthCheck = require('./healthCheck');
 const activityLog = require('./activityLog');
 const nodeStore = require('./nodeStore');
@@ -35,6 +36,7 @@ const justConfirmedIds = new Set(); // tasks confirmed by user this round — by
 
 function getFlow(actionType) {
   switch (actionType) {
+    case 'ingest': return ingestFlow;
     case 'delete': return deleteFlow;
     case 'transcode': return transcodeFlow;
     case 'upgrade': return upgradeFlow;
@@ -45,6 +47,7 @@ function getFlow(actionType) {
 
 function getConcurrencyLimit(actionType, limits) {
   switch (actionType) {
+    case 'ingest': return limits.ingestConcurrency || 1;
     case 'delete': return limits.deleteConcurrency || 1;
     case 'transcode': return limits.transcodeConcurrency || 1;
     case 'upgrade': return limits.upgradeConcurrency || 1;
@@ -79,6 +82,7 @@ function reportStatus(taskId, status, progress) {
     const actionLabel = oldTask.actionType === 'transcode' ? '码率压缩'
       : oldTask.actionType === 'upgrade' ? '洗版'
       : oldTask.actionType === 'delete' ? '删除'
+      : oldTask.actionType === 'ingest' ? '入库'
       : oldTask.actionType === 'scrape' ? '刮削'
       : oldTask.actionType;
 
@@ -119,7 +123,7 @@ function reportStatus(taskId, status, progress) {
 
 function recoverInterruptedTasks() {
   const tasks = taskStore.loadTasks();
-  const interruptible = ['precheck', 'executing', 'verify', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review', 'planning', 'pre_replace_verify', 'pausing'];
+  const interruptible = ['precheck', 'executing', 'verify', 'ingest_precheck', 'ingest_commit', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review', 'planning', 'pre_replace_verify', 'pausing'];
   let changed = false;
   for (const t of tasks) {
     if (t.status === 'done' || t.status === 'failed_hard') continue;
@@ -188,9 +192,10 @@ function startScheduler() {
   recoverInterruptedTasks();
 
   // Inject scheduler into Flow Executors
-    deleteFlow.setScheduler({ pauseForConfirm, reportStatus });
-    transcodeFlow.setScheduler({ pauseForConfirm, reportStatus });
-    upgradeFlow.setScheduler({ pauseForConfirm, reportStatus });
+  deleteFlow.setScheduler({ pauseForConfirm, reportStatus });
+  ingestFlow.setScheduler({ pauseForConfirm, reportStatus });
+  transcodeFlow.setScheduler({ pauseForConfirm, reportStatus });
+  upgradeFlow.setScheduler({ pauseForConfirm, reportStatus });
   scrapeFlow.setScheduler({ pauseForConfirm, reportStatus });
 
   healthCheck.setSchedulerState({ running: true, runningTasks: 0 });
@@ -229,7 +234,7 @@ async function scheduleRound() {
   const tasks = taskStore.loadTasks();
 
   // Count active tasks per actionType (occupying slots)
-  const activeCount = { delete: 0, transcode: 0, upgrade: 0, scrape: 0 };
+  const activeCount = { ingest: 0, delete: 0, transcode: 0, upgrade: 0, scrape: 0 };
   const usedItemIds = new Set();
 
   for (const t of tasks) {

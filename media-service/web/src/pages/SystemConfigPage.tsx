@@ -57,11 +57,19 @@ const DEFAULT_ACTION_WEIGHTS: Record<ActionType, number> = {
 };
 
 const DEFAULT_COOLDOWNS: Record<ActionType, number> = {
-  ingest: 0,
+  ingest: 6,
   scrape: 6,
   delete: 48,
   upgrade: 48,
   transcode: 48,
+};
+
+const DEFAULT_QUEUE_LIMITS: Record<ActionType, number> = {
+  ingest: 50,
+  scrape: 20,
+  delete: 50,
+  upgrade: 50,
+  transcode: 50,
 };
 
 function modeLabel(mode: ApprovalMode): string {
@@ -130,6 +138,7 @@ export default function SystemConfigPage() {
   const [initialized, setInitialized] = useState(false);
   const [slSchedules, setSlSchedules] = useState<Record<string, SubLibScheduleState>>({});
 
+  const [ingestConc, setIngestConc] = useState(1);
   const [deleteConc, setDeleteConc] = useState(3);
   const [transcodeConc, setTranscodeConc] = useState(1);
   const [upgradeConc, setUpgradeConc] = useState(1);
@@ -152,6 +161,7 @@ export default function SystemConfigPage() {
   });
   const [globalApprovalPolicy, setGlobalApprovalPolicy] = useState<ApprovalPolicyConfig>(DEFAULT_APPROVAL_POLICY);
   const [cooldowns, setCooldowns] = useState<Record<ActionType, number>>(DEFAULT_COOLDOWNS);
+  const [queueLimits, setQueueLimits] = useState<Record<ActionType, number>>(DEFAULT_QUEUE_LIMITS);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showPriorityAdvanced, setShowPriorityAdvanced] = useState(false);
   const [showGlobalApproval, setShowGlobalApproval] = useState(false);
@@ -164,6 +174,7 @@ export default function SystemConfigPage() {
         subLibraries.list().catch(() => ({ subLibraries: [] as SubLibrary[] })),
       ]);
       if (!initialized) {
+        setIngestConc(sysCfg.ingestConcurrency ?? 1);
         setDeleteConc(sysCfg.deleteConcurrency ?? 3);
         setTranscodeConc(sysCfg.transcodeConcurrency ?? 1);
         setUpgradeConc(sysCfg.upgradeConcurrency ?? 1);
@@ -186,6 +197,7 @@ export default function SystemConfigPage() {
         });
         setGlobalApprovalPolicy(normalizeApprovalPolicy(sysCfg.approvalPolicy));
         setCooldowns({ ...DEFAULT_COOLDOWNS, ...(sysCfg.taskAdmission?.cooldownHoursByAction || {}) });
+        setQueueLimits({ ...DEFAULT_QUEUE_LIMITS, ...(sysCfg.taskAdmission?.maxQueuedByAction || {}) });
         const scheds: Record<string, SubLibScheduleState> = {};
         for (const sl of slRes.subLibraries || []) {
           const legacyManual = sl.scheduleMode === 'full_manual' || sl.autoCreate === false;
@@ -242,6 +254,7 @@ export default function SystemConfigPage() {
     mutationFn: async () => {
       const promises: Promise<unknown>[] = [
         systemConfig.patch({
+          ingestConcurrency: ingestConc,
           deleteConcurrency: deleteConc,
           transcodeConcurrency: transcodeConc,
           upgradeConcurrency: upgradeConc,
@@ -254,7 +267,10 @@ export default function SystemConfigPage() {
           strategyPollIntervalMinutes: strategyInterval,
           approvalPolicy: normalizeApprovalPolicy(globalApprovalPolicy),
           taskAdmission: {
+            defaultCooldownHours: data?.sysCfg.taskAdmission?.defaultCooldownHours ?? 48,
+            defaultMaxQueued: data?.sysCfg.taskAdmission?.defaultMaxQueued ?? 50,
             cooldownHoursByAction: cooldowns,
+            maxQueuedByAction: queueLimits,
           },
           taskPriority: {
             manualTaskPriority: manualPrio,
@@ -378,6 +394,7 @@ export default function SystemConfigPage() {
         <h3 style={sectionTitle}>任务并发数</h3>
         <p style={{ ...hintStyle, marginBottom: 16 }}>执行阶段的全局并发上限。</p>
         <div style={fourColGrid}>
+          <NumberField label="入库并发" value={ingestConc} min={1} max={10} onChange={setIngestConc} />
           <NumberField label="删除并发" value={deleteConc} min={1} max={10} onChange={setDeleteConc} />
           <NumberField label="转码并发" value={transcodeConc} min={1} max={10} onChange={setTranscodeConc} />
           <NumberField label="洗版并发" value={upgradeConc} min={1} max={10} onChange={setUpgradeConc} />
@@ -422,6 +439,21 @@ export default function SystemConfigPage() {
                     min={0}
                     max={240}
                     onChange={(v) => setCooldowns((prev) => ({ ...prev, [a.key]: v }))}
+                  />
+                ))}
+              </div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>自动队列上限</div>
+              <div style={fiveColGrid}>
+                {ACTIONS.map((a) => (
+                  <NumberField
+                    key={a.key}
+                    label={a.label}
+                    value={queueLimits[a.key]}
+                    min={1}
+                    max={500}
+                    onChange={(v) => setQueueLimits((prev) => ({ ...prev, [a.key]: v }))}
                   />
                 ))}
               </div>

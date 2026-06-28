@@ -123,7 +123,7 @@ export const subLibraries = {
     del<{ ok: boolean; uuid: string }>(`/v1/admin/sublibraries/${uuid}`),
 
   scan: (uuid: string) =>
-    post<{ ok: boolean; scanned: number; upserted: number }>(`/v1/admin/sublibraries/${uuid}/actions/scan`),
+    post<{ ok: boolean; scanned: number; upserted: number; queued?: number; scrapeQueued?: number }>(`/v1/admin/sublibraries/${uuid}/actions/scan`),
 };
 
 // ── Adult Libraries ─────────────────────────────────────────────────────────
@@ -369,6 +369,7 @@ export const publicHealth = {
 
 export interface SystemConfig {
   executionMode: 'auto' | 'manual';
+  ingestConcurrency: number;
   deleteConcurrency: number;
   transcodeConcurrency: number;
   upgradeConcurrency: number;
@@ -397,7 +398,9 @@ export interface SystemConfig {
   approvalPolicy?: ApprovalPolicyConfig;
   taskAdmission?: {
     defaultCooldownHours?: number;
+    defaultMaxQueued?: number;
     cooldownHoursByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
+    maxQueuedByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
   };
 }
 

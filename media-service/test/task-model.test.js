@@ -125,3 +125,62 @@ test('taskAdmission blocks automatic re-transcode after successful transcode', (
   assert.strictEqual(result.allowed, false);
   assert.strictEqual(result.reason, 'already_transcoded');
 });
+
+test('taskAdmission caps automatic queue by action type', () => {
+  const config = {
+    taskAdmission: {
+      cooldownHoursByAction: { ingest: 6 },
+      maxQueuedByAction: { ingest: 2 },
+    },
+    subLibraries: [{ uuid: 'lib-a', automationMode: 'auto' }],
+  };
+  const tasks = [
+    { id: 't1', itemId: 'ingest:a', actionType: 'ingest', status: 'queued' },
+    { id: 't2', itemId: 'ingest:b', actionType: 'ingest', status: 'pending_manual' },
+    { id: 's1', itemId: 'item-c', actionType: 'scrape', status: 'queued' },
+  ];
+  const auto = taskAdmission.canCreateTask({
+    item: { itemId: 'ingest:c', subLibraryId: 'lib-a' },
+    actionType: 'ingest',
+    source: 'auto',
+    config,
+    tasks,
+  });
+  assert.strictEqual(auto.allowed, false);
+  assert.strictEqual(auto.reason, 'queue_limit');
+  assert.strictEqual(auto.limit, 2);
+
+  const manual = taskAdmission.canCreateTask({
+    item: { itemId: 'ingest:c', subLibraryId: 'lib-a' },
+    actionType: 'ingest',
+    source: 'manual',
+    config,
+    tasks,
+  });
+  assert.strictEqual(manual.allowed, true);
+});
+
+test('taskAdmission applies cooldown from terminal task history', () => {
+  const config = {
+    taskAdmission: {
+      cooldownHoursByAction: { ingest: 6 },
+      maxQueuedByAction: { ingest: 10 },
+    },
+    subLibraries: [{ uuid: 'lib-a', automationMode: 'auto' }],
+  };
+  const result = taskAdmission.canCreateTask({
+    item: { itemId: 'ingest:lib-a:file-a', subLibraryId: 'lib-a' },
+    actionType: 'ingest',
+    source: 'auto',
+    config,
+    tasks: [{
+      id: 'old-ingest',
+      itemId: 'ingest:lib-a:file-a',
+      actionType: 'ingest',
+      status: 'failed_hard',
+      updatedAt: new Date().toISOString(),
+    }],
+  });
+  assert.strictEqual(result.allowed, false);
+  assert.strictEqual(result.reason, 'recent_task_cooldown');
+});

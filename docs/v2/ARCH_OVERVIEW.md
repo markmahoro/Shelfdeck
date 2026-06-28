@@ -104,7 +104,7 @@ desktop / Admin Web
 3. `StrategyEngine` 计算每个媒体项的 `action/reason`。
 4. `SmartTaskEngine` 或用户操作创建任务。
 5. `TaskAdmission` 先判断任务是否允许入队，`PriorityEngine` 计算队列优先级。
-6. `TaskScheduler` 根据 `actionType` 分派到 `DeleteFlowExecutor`、`TranscodeFlowExecutor`、`UpgradeFlowExecutor` 或 `ScrapeFlowExecutor`。
+6. `TaskScheduler` 根据 `actionType` 分派到 `IngestFlowExecutor`、`DeleteFlowExecutor`、`TranscodeFlowExecutor`、`UpgradeFlowExecutor` 或 `ScrapeFlowExecutor`。
 7. 本机转码直接在 service 执行；远程转码通过 `NodeService` 上传源文件到 transcode node，轮询状态，下载输出，再由 service 完成校验和替换。
 8. desktop 和 Admin Web 轮询 REST API 获取任务、媒体库和健康状态。
 
@@ -112,21 +112,22 @@ desktop / Admin Web
 
 - 任务分为系统级定时任务、子库级定时任务、单 item 任务三类。`StrategyEngine` 是子库/全局长周期策略计算，不是 item task；`delete/transcode/upgrade/scrape/ingest` 属于单 item task。
 - 子库只有两种调度模式：`automationMode=auto` 和 `automationMode=manual`。调度模式只决定自动任务是否可以由系统创建和执行；用户手动创建的任务不受自动入队关闭影响。
-- `TaskAdmission` 是任务创建闸门，统一处理自动/手动来源、active task 去重、失败冷却、已转码不重复自动转码等规则。48 小时冻结属于 admission，不属于 priority。
+- `TaskAdmission` 是任务创建闸门，统一处理自动/手动来源、active task 去重、失败冷却、按任务类型的自动队列上限、已转码不重复自动转码等规则。48 小时冻结属于 admission，不属于 priority。
 - `PriorityEngine` 只决定可入队任务的执行顺序。优先级由任务来源基准、`actionTypeWeights`、子库 `priorityWeight`、规则叠加和用户手动调整共同决定，数值越小越优先。
 - 审批策略与调度策略分离。`approvalPolicy` 控制任务内部关键节点是否暂停，模式为 `auto`、`confirm`、`forceConfirm`；`forceConfirm` 不能被全局、子库或任务级覆盖降级。
 - 当前审批 gate 包括 `delete.beforeExecute`、`transcode.dolbyVisionTonemap`、`transcode.beforeReplace`、`upgrade.candidateSelect`、`upgrade.identityMismatch`、`upgrade.beforeReplace`、`scrape.beforeWriteMetadata`、`scrape.beforeOrganize`、`scrape.reviewResult`。
-- `ingest` 是规划中的单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；扫描/监听不应把大量新文件直接展开成完整刮削或转码动作。
+- `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；扫描/监听不直接写入大量完整 item，也不把大量新文件直接展开成完整刮削或转码动作。
 
 成人文件夹库流：
 
 1. 用户创建 `mediaType=adult`、`source=folder` 的子库，并配置 `watchRoot`。
-2. `AdultLibraryService` 监听目录并做文件稳定等待，发现媒体文件后按统一 admission/priority 创建 `scrape` 任务；成人库不拥有独立任务调度规则。
-3. 日本 JAV 子库使用 `scraperType=shelfdeck_japanese_jav`；欧美成人库使用 `scraperType=western_builtin`。两者都以 `actionType=scrape` 进入统一队列。
-4. `ScrapeFlowExecutor` 每次只处理一个 item。JAV 通过内置 Node.js scraper 拉取元数据；欧美成人默认在 service 内本地执行 FFmpeg 抽帧、调用容器内 face-service 生成 embedding、匹配 People 人物库并生成 deterministic composite poster。`computeMode=worker` 仅作为兼容扩展路径。
-5. 刮削/整理成功后由 ShelfDeck 写入 `movie.nfo`、同名 NFO、封面、`.shelfdeck.json`，更新 `adultMetadata`、`scraped=true` 和媒体技术信息；欧美成人未识别 protagonist 时任务失败，只保留 unknown face 诊断数据，不写成功态 NFO/封面。
-6. `StrategyEngine` 使用成人库策略模板计算 `transcode/keep`；`scrape` flow 不直接链式创建转码任务，后续是否转码由 `SmartTaskEngine` 根据 `scraped=true` 等策略条件决定。
-7. 后续转码继续复用现有 `TranscodeFlowExecutor`。
+2. `AdultLibraryService` 监听目录并做文件稳定等待，发现媒体文件后只按统一 admission/priority 创建 `ingest` 任务；成人库不拥有独立任务调度规则。
+3. `IngestFlowExecutor` 每次只处理一个文件候选，完成文件探测、NFO 预解析和媒体项写入。已前置刮削的文件会直接成为 `scraped=true` item；未刮削文件在入库后再按统一 admission/priority 创建 `scrape` 任务。
+4. 日本 JAV 子库使用 `scraperType=shelfdeck_japanese_jav`；欧美成人库使用 `scraperType=western_builtin`。两者都先以 `actionType=ingest` 进入统一队列，后续未刮削 item 再以 `actionType=scrape` 进入统一队列。
+5. `ScrapeFlowExecutor` 每次只处理一个 item。JAV 通过内置 Node.js scraper 拉取元数据；欧美成人默认在 service 内本地执行 FFmpeg 抽帧、调用容器内 face-service 生成 embedding、匹配 People 人物库并生成 deterministic composite poster。`computeMode=worker` 仅作为兼容扩展路径。
+6. 刮削/整理成功后由 ShelfDeck 写入 `movie.nfo`、同名 NFO、封面、`.shelfdeck.json`，更新 `adultMetadata`、`scraped=true` 和媒体技术信息；欧美成人未识别 protagonist 时任务失败，只保留 unknown face 诊断数据，不写成功态 NFO/封面。
+7. `StrategyEngine` 使用成人库策略模板计算 `transcode/keep`；`scrape` flow 不直接链式创建转码任务，后续是否转码由 `SmartTaskEngine` 根据 `scraped=true` 等策略条件决定。
+8. 后续转码继续复用现有 `TranscodeFlowExecutor`。
 
 欧美成人库补充规则：
 
@@ -140,8 +141,8 @@ desktop / Admin Web
 
 混合成人库处理：
 
-- 已经由 JavSP 或其他工具前置刮削的目录，只要媒体旁边存在 `movie.nfo` 或同名 `.nfo`，扫描入库时会解析 NFO，标记为 `scraped=true`，不会再自动创建刮削任务。
-- 未刮削的裸视频会从文件名/路径识别番号，标记为 `scraped=false`、`adultMetadata.scrapeStatus=pending`，并按子库自动化配置创建 `scrape` 任务。
+- 已经由 JavSP 或其他工具前置刮削的目录，只要媒体旁边存在 `movie.nfo` 或同名 `.nfo`，`ingest` 时会解析 NFO，标记为 `scraped=true`，不会再自动创建刮削任务。
+- 未刮削的裸视频会在 `ingest` 时从文件名/路径识别番号或生成欧美成人占位番号，标记为 `scraped=false`、`adultMetadata.scrapeStatus=pending`，并按子库自动化配置创建 `scrape` 任务。
 - Admin Web 的媒体库管理页在成人库条目的名称下展示“已刮削 / 待刮削 / 刮削失败”状态、番号和 studio，并提供刮削状态筛选与当前文件夹手动扫描入口。
 
 ## 6. Service 模块
@@ -159,9 +160,10 @@ desktop / Admin Web
 | Delete flow | `src/deleteFlowExecutor.js` | 删除任务执行 |
 | Transcode flow | `src/transcodeFlowExecutor.js` | 转码任务执行 |
 | Upgrade flow | `src/upgradeFlowExecutor.js` | MoviePilot 洗版任务执行 |
+| Ingest flow | `src/ingestFlowExecutor.js` | 文件候选入库任务执行；单文件探测、NFO 预解析、媒体项写入 |
 | Scrape flow | `src/scrapeFlowExecutor.js` | 成人库刮削/整理任务执行；JAV 调用内置 scraper，欧美成人默认 service-local AI |
 | Library | `src/mediaLibraryService.js` | 子库和媒体缓存管理 |
-| Adult folder library | `src/adultLibraryService.js` | 成人文件夹库监听、扫描、入库、刮削任务创建 |
+| Adult folder library | `src/adultLibraryService.js` | 成人文件夹库监听、扫描、候选发现、入库/刮削任务创建 |
 | Policy | `src/mediaPolicyService.js`、`src/strategyEngine.js`、`src/smartTaskEngine.js` | 策略计算和自动入队 |
 | External adapters | `src/services/*Service.js` | Emby、Douban、MoviePilot、FFmpeg、成人库 scraper、欧美成人 service-local/worker AI |
 | Tray | `src/tray.js` | Windows 系统托盘 |
@@ -226,7 +228,7 @@ API 细节以 `src/app.js` 和现有 tests 为准。新增或变更 API 时必�
 - `GET/PATCH /v1/admin/adult/config` 管理成人库全局默认配置、日本 JAV scraper 默认项和欧美成人配置；face-service 不作为用户配置项暴露。
 - `GET/POST/PATCH/DELETE /v1/admin/adult/people` 管理 service-owned People 人物库。
 - `POST /v1/admin/adult/people/from-face` 从某个 item 的 unknown face cluster 创建 People reference face。
-- `actionType=scrape` 是正式任务类型，进入统一任务队列和任务监控。
+- `actionType=ingest` 和 `actionType=scrape` 都是正式任务类型，进入统一任务队列和任务监控。
 - `approvalPolicy` 和 `automationMode` 属于子库任务配置；旧的 `scheduleMode/custom/autoReplace*` 字段仅作为兼容旧配置保留。
 
 Worker API:

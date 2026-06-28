@@ -492,6 +492,7 @@ function getDefaultConfig() {
   return {
     // TaskScheduler
     executionMode: 'auto',
+    ingestConcurrency: 1,
     deleteConcurrency: 1,
     transcodeConcurrency: 1,
     upgradeConcurrency: 1,
@@ -535,8 +536,16 @@ function getDefaultConfig() {
 
     taskAdmission: {
       defaultCooldownHours: 48,
+      defaultMaxQueued: 50,
+      maxQueuedByAction: {
+        ingest: 50,
+        scrape: 20,
+        delete: 50,
+        transcode: 50,
+        upgrade: 50,
+      },
       cooldownHoursByAction: {
-        ingest: 0,
+        ingest: 6,
         scrape: 6,
         delete: 48,
         transcode: 48,
@@ -949,6 +958,45 @@ function normalizeAdultLibraryConfig(raw) {
 
 // ── Load / Save ────────────────────────────────────────────────────────────────
 
+function mergeConfigWithDefaults(config) {
+  const defaults = getDefaultConfig();
+  const raw = config || {};
+  const merged = { ...defaults, ...raw };
+
+  merged.taskAdmission = {
+    ...(defaults.taskAdmission || {}),
+    ...(raw.taskAdmission || {}),
+    cooldownHoursByAction: {
+      ...((defaults.taskAdmission || {}).cooldownHoursByAction || {}),
+      ...(((raw.taskAdmission || {}).cooldownHoursByAction) || {}),
+    },
+    maxQueuedByAction: {
+      ...((defaults.taskAdmission || {}).maxQueuedByAction || {}),
+      ...(((raw.taskAdmission || {}).maxQueuedByAction) || {}),
+    },
+  };
+
+  merged.taskPriority = {
+    ...(defaults.taskPriority || {}),
+    ...(raw.taskPriority || {}),
+    actionTypeWeights: {
+      ...((defaults.taskPriority || {}).actionTypeWeights || {}),
+      ...(((raw.taskPriority || {}).actionTypeWeights) || {}),
+    },
+    rules: {
+      ...((defaults.taskPriority || {}).rules || {}),
+      ...(((raw.taskPriority || {}).rules) || {}),
+    },
+  };
+
+  merged.approvalPolicy = {
+    ...(defaults.approvalPolicy || {}),
+    ...(raw.approvalPolicy || {}),
+  };
+
+  return merged;
+}
+
 function loadConfig() {
   ensureDataDir();
   const cfgFile = configFilePath();
@@ -995,7 +1043,7 @@ function loadConfig() {
       raw = adultResult.raw;
     }
 
-    return { ...getDefaultConfig(), ...raw };
+    return mergeConfigWithDefaults(raw);
   } catch (err) {
     console.error('[configStore] failed to load config:', err.message);
     return getDefaultConfig();
@@ -1004,7 +1052,7 @@ function loadConfig() {
 
 function saveConfig(config) {
   ensureDataDir();
-  const merged = { ...getDefaultConfig(), ...config };
+  const merged = mergeConfigWithDefaults(config);
   fs.writeFileSync(configFilePath(), JSON.stringify(merged, null, 2), 'utf8');
   return merged;
 }
