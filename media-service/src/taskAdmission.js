@@ -51,6 +51,12 @@ function queueLimit(config, actionType) {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+function enabledAutoActions(config) {
+  return Array.isArray(config && config.smartTaskEnabledActions)
+    ? config.smartTaskEnabledActions
+    : ['ingest', 'scrape', 'transcode', 'upgrade'];
+}
+
 function canCreateTask({ item, itemInfo, actionType, source, config, tasks, optimizationIndex }) {
   const cfg = config || {};
   const info = itemInfo || item || {};
@@ -66,8 +72,13 @@ function canCreateTask({ item, itemInfo, actionType, source, config, tasks, opti
   }
 
   const manual = source === 'manual';
+  const automatic = !manual;
   const schedule = configStore.resolveSubLibSchedule(info, cfg);
-  if (!manual && !schedule.autoCreate) {
+  if (automatic && !enabledAutoActions(cfg).includes(actionType)) {
+    return { allowed: false, reason: 'action_not_enabled' };
+  }
+
+  if (automatic && !schedule.autoCreate) {
     return { allowed: false, reason: 'automation_manual' };
   }
 

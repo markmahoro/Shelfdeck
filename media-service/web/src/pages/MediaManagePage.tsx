@@ -159,7 +159,7 @@ export default function MediaManagePage() {
       .filter(([, count]) => count > 0)
       .map(([action, count]) => `${ACTION_LABELS[action] || action} ${count} 条`);
     if (parts.length === 0) return null;
-    return `当前列表有 ${parts.join('、')}推荐策略未启用自动入队。这些条目只会显示建议，不会自动出现在任务中心；可以手动点击每行的策略按钮，或到「任务调度」启用对应任务类型。`;
+    return `当前列表有 ${parts.join('、')}推荐策略未启用后台自动入队。这些条目只会显示建议，不会自动出现在任务中心；可以手动点击每行的策略按钮，或到「任务调度」启用对应任务类型。`;
   }, [filtered, smartTaskActions]);
 
   const enqueueManagedAction = (item: ManagedMediaItem, action: MediaAction) => {

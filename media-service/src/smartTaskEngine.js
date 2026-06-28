@@ -26,7 +26,7 @@ let lastEnabledActions = [];
 function readEnabledActions(config) {
   return Array.isArray(config.smartTaskEnabledActions)
     ? config.smartTaskEnabledActions
-    : ['transcode', 'upgrade'];
+    : ['ingest', 'scrape', 'transcode', 'upgrade'];
 }
 
 function maxTimestamp(a, b) {
@@ -199,7 +199,7 @@ function start(configStore, mediaLibraryService, taskStore) {
           const label = a === 'transcode' ? '转码压缩' : a === 'upgrade' ? '洗版' : a === 'delete' ? '删除' : a;
           return `${label} ${n} 个`;
         });
-        const msg = `智能入队：${toEnqueue.length} 个任务已自动创建（${parts.join('，')}）`;
+        const msg = `后台自动入队：${toEnqueue.length} 个任务已自动创建（${parts.join('，')}）`;
         console.log(`[smartTaskEngine] ${msg} (${candidates.length} candidates total)`);
         activityLog.addActivity('smart_task_engine', msg, { enqueued: toEnqueue.length, byAction, totalCandidates: candidates.length });
       }
@@ -248,7 +248,7 @@ function getHealth() {
       enabled: false,
       enabledActions,
       disabledReason: 'no_enabled_actions',
-      message: '自动入队未选择任务类型',
+      message: '后台自动入队未选择任务类型',
       lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
     };
   }

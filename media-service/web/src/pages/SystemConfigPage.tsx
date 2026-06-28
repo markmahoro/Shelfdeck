@@ -144,7 +144,7 @@ export default function SystemConfigPage() {
   const [upgradeConc, setUpgradeConc] = useState(1);
   const [scrapeConc, setScrapeConc] = useState(1);
   const [smartTaskMax, setSmartTaskMax] = useState(10);
-  const [smartTaskActions, setSmartTaskActions] = useState<string[]>(['transcode', 'upgrade']);
+  const [smartTaskActions, setSmartTaskActions] = useState<string[]>(['ingest', 'scrape', 'transcode', 'upgrade']);
   const [smartTaskInterval, setSmartTaskInterval] = useState(10);
   const [smartTaskLookback, setSmartTaskLookback] = useState(30);
   const [smartTaskQueueMax, setSmartTaskQueueMax] = useState(50);
@@ -180,7 +180,7 @@ export default function SystemConfigPage() {
         setUpgradeConc(sysCfg.upgradeConcurrency ?? 1);
         setScrapeConc(sysCfg.scrapeConcurrency ?? 1);
         setSmartTaskMax(sysCfg.smartTaskMaxPerRun ?? 10);
-        setSmartTaskActions(sysCfg.smartTaskEnabledActions ?? ['transcode', 'upgrade']);
+        setSmartTaskActions(sysCfg.smartTaskEnabledActions ?? ['ingest', 'scrape', 'transcode', 'upgrade']);
         setSmartTaskInterval(sysCfg.smartTaskPollIntervalMinutes ?? 10);
         setSmartTaskLookback(sysCfg.smartTaskLookbackDays ?? 30);
         setSmartTaskQueueMax(sysCfg.smartTaskMaxQueueSize ?? 50);
@@ -403,12 +403,12 @@ export default function SystemConfigPage() {
       </section>
 
       <section style={cardStyle}>
-        <h3 style={sectionTitle}>自动入队</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>自动入队决定“媒体库里的推荐策略”是否自动创建为任务；未勾选的类型只会显示推荐，不会自动出现在任务中心。</p>
+        <h3 style={sectionTitle}>后台自动入队</h3>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>后台自动入队统一控制系统自动创建哪些任务，包括成人库目录扫描/监听创建的入库、入库后的刮削，以及普通媒体库的转码、洗版、删除建议。</p>
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>允许自动创建的任务类型</label>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            {ACTIONS.filter((a) => a.key !== 'ingest').map((a) => (
+            {ACTIONS.map((a) => (
               <label key={a.key} style={checkboxLabel}>
                 <input type="checkbox" checked={smartTaskActions.includes(a.key)} onChange={() => toggleAction(a.key)} />
                 {a.label}
@@ -424,7 +424,7 @@ export default function SystemConfigPage() {
               当前允许自动创建：{smartTaskActions.map((key) => ACTIONS.find((a) => a.key === key)?.label || key).join('、')}。
             </div>
           )}
-          <div style={{ ...hintStyle, marginTop: 8 }}>入库任务由真实目录扫描和监听创建，不受这里的任务类型勾选控制。</div>
+          <div style={{ ...hintStyle, marginTop: 8 }}>手动扫描和手动重刮属于明确用户操作，不受这个自动入队开关拦截；手动扫描仍会保留去重、冷却和队列上限等安全规则。</div>
         </div>
         <button onClick={() => setShowAdvanced(!showAdvanced)} style={collapseBtn}>
           {showAdvanced ? '收起高级配置' : '展开高级配置'}

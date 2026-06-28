@@ -304,7 +304,7 @@ export default function DashboardPage() {
                         审批策略在「任务调度」页面独立配置
                       </div>
                       <div style={{ fontSize: 11, color: enabledAutoActions && enabledAutoActions.length === 0 ? '#c2410c' : '#6b7280', marginTop: 4 }}>
-                        自动入队：{enabledAutoActionText}
+                        后台自动入队：{enabledAutoActionText}
                       </div>
                     </SubCard>
 
@@ -375,7 +375,7 @@ export default function DashboardPage() {
                 entry.source === 'media_library' ? '媒体库' :
                 entry.source === 'douban' ? '豆瓣' :
                 entry.source === 'strategy_engine' ? '策略引擎' :
-                entry.source === 'smart_task_engine' ? '智能入队' :
+                entry.source === 'smart_task_engine' ? '后台自动入队' :
                 entry.source === 'task' ? '任务' :
                 entry.source === 'health' ? '健康' :
                 entry.source === 'user_action' ? '用户' : entry.source;

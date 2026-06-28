@@ -711,8 +711,8 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
   // Put every newly discovered unscripted file into the scrape task flow. Even
   // low-confidence IDs are attempted; if the result is wrong the user can fix
   // the adult ID from the task center and re-scrape.
-  if (opts.enqueueScrape !== false && !nfo && subLib.scrapeEnabled !== false) {
-    enqueueScrapeTask(item, subLib);
+  if (opts.enqueueScrape !== false && !nfo) {
+    enqueueScrapeTask(item, subLib, { source: opts.source });
   }
 
   return item;
@@ -1171,8 +1171,10 @@ function ingestItemInfo(subLib, filePath) {
 
 function enqueueIngestTask(subLib, filePath, opts = {}) {
   const cfg = configStore.loadConfig();
-  const source = opts.force ? 'manual' : 'auto';
+  const source = opts.source || (opts.force ? 'manual' : 'auto');
+  const userInitiated = source === 'manual';
   const itemInfo = ingestItemInfo(subLib, filePath);
+  itemInfo.taskSource = source;
   const schedule = configStore.resolveSubLibSchedule(itemInfo, cfg);
   const taskSnapshot = Array.isArray(opts.taskSnapshot) ? opts.taskSnapshot : null;
   const admission = taskAdmission.canCreateTask({
@@ -1188,9 +1190,9 @@ function enqueueIngestTask(subLib, filePath, opts = {}) {
     itemId: itemInfo.itemId,
     itemName: itemInfo.name,
     actionType: 'ingest',
-    status: source === 'manual' || schedule.autoExecute ? 'queued' : 'pending_manual',
+    status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
     priority: priorityEngine.computePriority({
-      source,
+      source: userInitiated ? 'manual' : 'auto',
       actionType: 'ingest',
       itemInfo,
       config: cfg,
@@ -1269,8 +1271,11 @@ async function rescrapeItem(itemId, opts = {}) {
 function enqueueScrapeTask(item, subLib, opts = {}) {
   const cfg = configStore.loadConfig();
   const schedule = configStore.resolveSubLibSchedule(item, cfg);
-  const source = opts.force ? 'manual' : 'auto';
+  const source = opts.source || (opts.force ? 'manual' : 'auto');
+  const userInitiated = source === 'manual';
+  if (subLib && subLib.scrapeEnabled === false) return null;
   const itemInfo = itemInfoFromItem(item);
+  itemInfo.taskSource = source;
   const taskSnapshot = Array.isArray(opts.taskSnapshot) ? opts.taskSnapshot : null;
   const admission = taskAdmission.canCreateTask({
     item,
@@ -1285,9 +1290,9 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
     itemId: item.itemId,
     itemName: item.name,
     actionType: 'scrape',
-    status: source === 'manual' || schedule.autoExecute ? 'queued' : 'pending_manual',
+    status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
     priority: priorityEngine.computePriority({
-      source,
+      source: userInitiated ? 'manual' : 'auto',
       actionType: 'scrape',
       itemInfo,
       config: cfg,
@@ -1325,14 +1330,14 @@ async function scanSubLibrary(subLib, opts = {}) {
       const shouldScrape = opts.enqueueScrape !== false && !hasIgnoredSegment(file, subLib)
         && existingItem.scraped !== true
         && (!existingItem.adultMetadata || !['done', 'needs_review'].includes(existingItem.adultMetadata.scrapeStatus));
-      const task = shouldScrape && enqueueScrapeTask(existingItem, subLib, { taskSnapshot, deferSave: true });
+      const task = shouldScrape && enqueueScrapeTask(existingItem, subLib, { taskSnapshot, deferSave: true, source: opts.source });
       if (task) {
         activeTaskSnapshot.push(task);
         scrapeQueued++;
       }
       continue;
     }
-    const task = enqueueIngestTask(subLib, file, { force: !!opts.force, taskSnapshot, deferSave: true });
+    const task = enqueueIngestTask(subLib, file, { force: !!opts.force, source: opts.source, taskSnapshot, deferSave: true });
     if (task) {
       activeTaskSnapshot.push(task);
       queued++;

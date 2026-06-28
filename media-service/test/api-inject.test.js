@@ -590,6 +590,102 @@ test('western adult scan queues ingest and ingest uses path identity before scra
   await app.close();
 });
 
+test('adult background scan follows global automatic task allow-list', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    smartTaskEnabledActions: ['ingest'],
+    taskAdmission: {
+      cooldownHoursByAction: { ingest: 0, scrape: 0 },
+      maxQueuedByAction: { ingest: 10, scrape: 10 },
+    },
+  }, null, 2));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const create = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: {
+      name: 'JAV No Auto Scrape',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'japanese_jav',
+      scraperType: 'shelfdeck_japanese_jav',
+      watchRoot,
+      ruleTemplateId: 'adult_jav_default',
+    },
+  });
+  const subLib = create.json();
+  const adultLibraryService = require('../src/adultLibraryService');
+  adultLibraryService.stopSubLibraryWatcher(subLib.uuid);
+  fs.writeFileSync(path.join(watchRoot, 'MVSD-175.mp4'), 'fake-video');
+
+  const scan = await adultLibraryService.scanSubLibrary(subLib);
+  assert.strictEqual(scan.scanned, 1);
+  assert.strictEqual(scan.queued, 1, 'background scan creates ingest when ingest is globally enabled');
+
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const taskStore = require('../src/taskStore');
+  const ingestFlow = require('../src/ingestFlowExecutor');
+  ingestFlow.setScheduler({
+    reportStatus: (id, status) => taskStore.updateTask(id, { status }),
+    pauseForConfirm: () => {},
+  });
+  await ingestFlow.driveTask(ingestTasks.json().tasks[0].id);
+
+  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape&includeHistory=1' });
+  assert.strictEqual(scrapeTasks.statusCode, 200);
+  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'follow-up scrape is blocked when scrape is not globally enabled');
+
+  const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  const item = lib.json().items[0];
+  const manual = await app.inject({ method: 'POST', url: `/v1/admin/adult/items/${item.itemId}/actions/rescrape` });
+  assert.strictEqual(manual.statusCode, 201, 'manual rescrape remains an explicit user action');
+  await app.close();
+});
+
+test('adult background scan creates no task when global automatic allow-list is empty', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    smartTaskEnabledActions: [],
+    taskAdmission: {
+      cooldownHoursByAction: { ingest: 0, scrape: 0 },
+      maxQueuedByAction: { ingest: 10, scrape: 10 },
+    },
+  }, null, 2));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const create = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: {
+      name: 'JAV Disabled Auto',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'japanese_jav',
+      scraperType: 'shelfdeck_japanese_jav',
+      watchRoot,
+      ruleTemplateId: 'adult_jav_default',
+    },
+  });
+  const subLib = create.json();
+  const adultLibraryService = require('../src/adultLibraryService');
+  adultLibraryService.stopSubLibraryWatcher(subLib.uuid);
+  fs.writeFileSync(path.join(watchRoot, 'MVSD-176.mp4'), 'fake-video');
+
+  const autoScan = await adultLibraryService.scanSubLibrary(subLib);
+  assert.strictEqual(autoScan.scanned, 1);
+  assert.strictEqual(autoScan.queued, 0, 'background scan cannot create ingest when no automatic task type is enabled');
+
+  const manualScan = await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
+  assert.strictEqual(manualScan.statusCode, 200);
+  assert.strictEqual(manualScan.json().queued, 1, 'manual scan is a normal user action and can create ingest');
+  await app.close();
+});
+
 test('adult scan caps automatic ingest queue and does not avalanche item or scrape creation', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
@@ -625,10 +721,10 @@ test('adult scan caps automatic ingest queue and does not avalanche item or scra
     fs.writeFileSync(path.join(watchRoot, `MVSD-${String(i).padStart(3, '0')}.mp4`), 'fake-video');
   }
 
-  const scan = await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
-  assert.strictEqual(scan.statusCode, 200);
-  assert.strictEqual(scan.json().scanned, 12);
-  assert.strictEqual(scan.json().queued, 5);
+  const adultLibraryService = require('../src/adultLibraryService');
+  const scan = await adultLibraryService.scanSubLibrary(subLib);
+  assert.strictEqual(scan.scanned, 12);
+  assert.strictEqual(scan.queued, 5);
 
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(lib.json().total, 0, 'bulk scan should not write library items directly');

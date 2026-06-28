@@ -910,7 +910,7 @@ function registerRoutes(app) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'Only adult folder libraries support manual scan');
     }
     try {
-      const result = await adultLibraryService.scanSubLibrary(subLib);
+      const result = await adultLibraryService.scanSubLibrary(subLib, { source: 'manual' });
       return { ok: true, ...result };
     } catch (e) {
       return apiError(reply, 500, 'ADULT_SCAN_FAILED', e.message);

@@ -503,7 +503,7 @@ function getDefaultConfig() {
     smartTaskPollIntervalMinutes: 10,
     smartTaskMaxPerRun: 10,
     smartTaskMaxQueueSize: 50,
-    smartTaskEnabledActions: ['transcode', 'upgrade'],
+    smartTaskEnabledActions: ['ingest', 'scrape', 'transcode', 'upgrade'],
     smartTaskLookbackDays: 30,
     smartTaskInitialDelaySeconds: 60,
 
@@ -593,7 +593,6 @@ function getDefaultConfig() {
       settleSeconds: 30,
       scanIntervalMinutes: 10,
       probeTimeoutMs: 5000,
-      autoScrape: true,
       organizedFolderName: 'scraped',
       videoExtensions: ['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv'],
       japaneseJav: {
@@ -941,6 +940,10 @@ function normalizeAdultLibraryConfig(raw) {
     japaneseJav,
     western,
   };
+  if (Object.prototype.hasOwnProperty.call(raw.adultLibrary, 'autoScrape')) {
+    delete raw.adultLibrary.autoScrape;
+    migrated = true;
+  }
   delete raw.adultLibrary.javsp;
 
   if (Array.isArray(raw.subLibraries)) {

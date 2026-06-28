@@ -209,7 +209,13 @@ export default function TaskMonitorPage() {
     const label = ACTION_TYPE_LABELS[typeFilter] || typeFilter;
     const enabledActions = sysCfg?.smartTaskEnabledActions || [];
     if (!enabledActions.includes(typeFilter)) {
-      return `当前没有${label}任务。「任务调度 > 自动入队」未允许自动创建${label}任务，媒体库里的${label}推荐不会自动进入任务中心。`;
+      if (typeFilter === 'ingest' || typeFilter === 'scrape') {
+        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务；手动扫描和手动重刮仍可创建。`;
+      }
+      return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务，媒体库里的${label}推荐不会自动进入任务中心。`;
+    }
+    if (typeFilter === 'ingest' || typeFilter === 'scrape') {
+      return `当前没有${label}任务。可能没有新文件，或已被冷却时间、去重规则、队列上限拦截。`;
     }
     return `当前没有${label}任务。若媒体库仍有${label}推荐，可能被冷却时间、去重规则、队列上限或已优化状态拦截。`;
   }

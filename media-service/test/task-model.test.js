@@ -143,6 +143,31 @@ test('taskAdmission rejects automatic tasks for manual sub-libraries', () => {
   assert.strictEqual(manual.allowed, true);
 });
 
+test('taskAdmission uses smartTaskEnabledActions as the global automatic allow-list', () => {
+  const config = {
+    smartTaskEnabledActions: ['ingest'],
+    subLibraries: [{ uuid: 'lib-a', automationMode: 'auto' }],
+  };
+  const scrape = taskAdmission.canCreateTask({
+    item: { itemId: 'i1', subLibraryId: 'lib-a' },
+    actionType: 'scrape',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(scrape.allowed, false);
+  assert.strictEqual(scrape.reason, 'action_not_enabled');
+
+  const ingest = taskAdmission.canCreateTask({
+    item: { itemId: 'i2', subLibraryId: 'lib-a' },
+    actionType: 'ingest',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(ingest.allowed, true);
+});
+
 test('taskAdmission applies cooldown and active task dedupe', () => {
   const config = {
     taskAdmission: { defaultCooldownHours: 48 },

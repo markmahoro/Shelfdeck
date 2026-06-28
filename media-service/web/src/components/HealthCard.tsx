@@ -43,7 +43,7 @@ const LABELS: Record<string, string> = {
 
 const CHECK_LABELS: Record<string, string> = {
   scheduler:  '任务调度器',
-  smartTask:  '智能入队',
+  smartTask:  '后台自动入队',
   mediaLib:   '媒体库刷新',
   douban:     '豆瓣评分抓取',
   strategy:   '策略引擎',
@@ -60,7 +60,7 @@ function describe(key: string, item: HealthCheckItem): string {
       return item.runningTasks ? `${item.runningTasks} 个任务运行中` : '无运行中任务';
     case 'smartTask':
       if (item.enabled === false) {
-        if (item.disabledReason === 'no_enabled_actions') return '自动入队未选择任务类型';
+        if (item.disabledReason === 'no_enabled_actions') return '后台自动入队未选择任务类型';
         return '已停用';
       }
       if (!item.lastRunAt) return '等待首次运行';
