@@ -305,6 +305,17 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
         markerPath: '/adult_media/JAV/SORA-107 Some Title/.shelfdeck.json',
         organized: true,
         originalFolder: '/adult_media/JAV/SORA-107.HD',
+        faceClusters: [{
+          clusterId: 'face-1',
+          matchedName: 'Actor A',
+          embedding: [0.1, 0.2, 0.3],
+          sampleImageBase64: Buffer.from('face-sample').toString('base64'),
+        }],
+        unknownFaces: [{
+          clusterId: 'unknown-1',
+          embedding: [0.4, 0.5, 0.6],
+          sampleImageBase64: Buffer.from('unknown-face').toString('base64'),
+        }],
       },
     },
     logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Scrape metadata saved; strategy recalculated' }],
@@ -317,6 +328,10 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
   assert.strictEqual(body.scrape.adultId, 'SORA-107');
   assert.strictEqual(body.scrape.source, 'javbus');
   assert.strictEqual(body.scrape.organized, true);
+  assert.strictEqual(body.scrape.faceClusters[0].clusterId, 'face-1');
+  assert.strictEqual(body.scrape.faceClusters[0].embedding, undefined);
+  assert.ok(body.scrape.faceClusters[0].sampleImageBase64, 'report keeps face thumbnail for UI actions');
+  assert.strictEqual(body.scrape.unknownFaces[0].embedding, undefined);
   assert.strictEqual(body.assets.poster, true);
   assert.strictEqual(body.assets.nfo, true);
   assert.strictEqual(body.scrapeVerification.ok, false);
@@ -659,6 +674,15 @@ test('GET /v1/admin/tasks returns list with summary', async () => {
     itemId: 'a3',
     actionType: 'scrape',
     status: 'done',
+    itemInfo: {
+      name: 'Heavy adult scrape',
+      adultMetadata: {
+        adultId: 'UNK-001',
+        scrapeStatus: 'done',
+        region: 'western_adult',
+        faceClusters: [{ clusterId: 'face-heavy', embedding: Array.from({ length: 512 }, (_, i) => i), sampleImageBase64: Buffer.from('face').toString('base64') }],
+      },
+    },
     logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'large log entry' }],
     report: { frames: Array.from({ length: 20 }, (_, i) => ({ i, text: 'large report payload' })) },
   });
@@ -673,6 +697,38 @@ test('GET /v1/admin/tasks returns list with summary', async () => {
   assert.strictEqual(body.summary.byStatus.done, 1);
   assert.ok(body.tasks.every((t) => t.logs === undefined), 'list payload omits logs');
   assert.ok(body.tasks.every((t) => t.report === undefined), 'list payload omits reports');
+  const scrapeSummary = body.tasks.find((t) => t.actionType === 'scrape');
+  if (scrapeSummary) {
+    assert.strictEqual(scrapeSummary.itemInfo.adultMetadata.faceClusters, undefined, 'list payload omits heavy face clusters');
+  }
+  await app.close();
+});
+
+test('GET /v1/admin/tasks/:id omits heavy adult face payloads', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const taskStore = require('../src/taskStore');
+  const task = taskStore.createTask({
+    itemId: 'heavy-detail',
+    itemName: 'Heavy Detail',
+    actionType: 'scrape',
+    status: 'failed_hard',
+    itemInfo: {
+      name: 'Heavy Detail',
+      adultMetadata: {
+        adultId: 'UNK-002',
+        scrapeStatus: 'failed',
+        faceClusters: [{ clusterId: 'face-1', embedding: [0.1, 0.2], sampleImageBase64: Buffer.from('face').toString('base64') }],
+        unknownFaces: [{ clusterId: 'unknown-1', embedding: [0.3, 0.4], sampleImageBase64: Buffer.from('unknown').toString('base64') }],
+      },
+    },
+  });
+
+  const res = await app.inject({ method: 'GET', url: `/v1/admin/tasks/${task.id}` });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.deepStrictEqual(body.itemInfo.adultMetadata.faceClusters, []);
+  assert.deepStrictEqual(body.itemInfo.adultMetadata.unknownFaces, []);
   await app.close();
 });
 

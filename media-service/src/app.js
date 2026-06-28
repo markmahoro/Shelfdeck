@@ -219,6 +219,43 @@ function taskListSummary(task) {
   };
 }
 
+function compactFaceForUi(face, opts = {}) {
+  if (!face || typeof face !== 'object') return face;
+  const { embedding, vector, descriptor, ...rest } = face;
+  if (!opts.includeSampleImage) delete rest.sampleImageBase64;
+  return rest;
+}
+
+function compactAdultMetadataForUi(metadata, opts = {}) {
+  if (!metadata || typeof metadata !== 'object') return metadata;
+  const compact = { ...metadata };
+  if (Array.isArray(compact.faceClusters)) {
+    compact.faceClusters = opts.includeFaces
+      ? compact.faceClusters.map((face) => compactFaceForUi(face, opts))
+      : [];
+  }
+  if (Array.isArray(compact.unknownFaces)) {
+    compact.unknownFaces = opts.includeFaces
+      ? compact.unknownFaces.map((face) => compactFaceForUi(face, opts))
+      : [];
+  }
+  return compact;
+}
+
+function taskDetailView(task) {
+  if (!task || typeof task !== 'object') return task;
+  const itemInfo = task.itemInfo && typeof task.itemInfo === 'object'
+    ? {
+      ...task.itemInfo,
+      adultMetadata: compactAdultMetadataForUi(task.itemInfo.adultMetadata, {
+        includeFaces: false,
+        includeSampleImage: false,
+      }),
+    }
+    : task.itemInfo;
+  return { ...task, itemInfo };
+}
+
 async function fetchImageAsBase64(url) {
   const u = String(url || '').trim();
   if (!/^https?:\/\//i.test(u)) throw new Error('imageUrl must be http(s)');
@@ -489,8 +526,12 @@ function registerRoutes(app) {
         mediaPath: scrapeInfo.path || '',
         actors: meta.actors || [],
         protagonist: meta.protagonist || null,
-        faceClusters: meta.faceClusters || [],
-        unknownFaces: meta.unknownFaces || [],
+        faceClusters: Array.isArray(meta.faceClusters)
+          ? meta.faceClusters.map((face) => compactFaceForUi(face, { includeSampleImage: true }))
+          : [],
+        unknownFaces: Array.isArray(meta.unknownFaces)
+          ? meta.unknownFaces.map((face) => compactFaceForUi(face, { includeSampleImage: true }))
+          : [],
         actorConfidence: meta.actorConfidence || {},
       };
       report.assets = {
@@ -1693,7 +1734,7 @@ function registerRoutes(app) {
     if (req.query.q) filter.q = req.query.q;
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
-    const result = taskStore.queryTasks(filter, { page, pageSize, orderBy: 'updatedAt', orderDir: 'desc' });
+    const result = taskStore.queryTaskSummaries(filter, { page, pageSize, orderBy: 'updatedAt', orderDir: 'desc' });
     return {
       tasks: result.tasks.map(taskListSummary),
       summary: { total: result.total, byStatus: result.byStatus },
@@ -1706,7 +1747,7 @@ function registerRoutes(app) {
   app.get('/v1/admin/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    return task;
+    return taskDetailView(task);
   });
 
   app.patch('/v1/admin/tasks/:id', async (req, reply) => {

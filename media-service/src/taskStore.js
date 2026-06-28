@@ -75,6 +75,9 @@ function getDb() {
     CREATE INDEX IF NOT EXISTS idx_tasks_action_status_priority ON tasks(action_type, status, priority, created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_item_id ON tasks(item_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_updated_at ON tasks(updated_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status_updated_at ON tasks(status, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_action_updated_at ON tasks(action_type, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_action_status_updated_at ON tasks(action_type, status, updated_at);
   `);
   dbCache.set(dbPath, db);
   migrateJsonTasksIfNeeded(db);
@@ -323,6 +326,121 @@ function queryTasks(filter = {}, options = {}) {
   };
 }
 
+function jsonExtractObject(value, fallback = undefined) {
+  if (value == null) return fallback;
+  if (typeof value === 'string') return jsonParse(value, fallback);
+  return value;
+}
+
+function queryTaskSummaries(filter = {}, options = {}) {
+  const db = getDb();
+  const { where, params } = buildWhere(filter, options);
+  const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(options.pageSize, 10) || 20));
+  const offset = (page - 1) * pageSize;
+  const orderBy = options.orderBy === 'createdAt' ? 'created_at' : 'updated_at';
+  const orderDir = String(options.orderDir || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+  const total = db.prepare(`SELECT COUNT(*) AS count FROM tasks ${where}`).get(params).count || 0;
+  const rows = db.prepare(`
+    SELECT
+      id,
+      item_id,
+      item_name,
+      action_type,
+      status,
+      priority,
+      created_at,
+      updated_at,
+      json_extract(payload_json, '$.progress') AS progress,
+      json_extract(payload_json, '$.phase') AS phase,
+      json_extract(payload_json, '$.resumePoint') AS resume_point,
+      json_extract(payload_json, '$.approval') AS approval_json,
+      json_extract(payload_json, '$.verifyResult') AS verify_result_json,
+      json_extract(payload_json, '$.confirmData') AS confirm_data_json,
+      json_extract(payload_json, '$.itemInfo.name') AS info_name,
+      json_extract(payload_json, '$.itemInfo.title') AS info_title,
+      json_extract(payload_json, '$.itemInfo.type') AS info_type,
+      json_extract(payload_json, '$.itemInfo.seriesName') AS info_series_name,
+      json_extract(payload_json, '$.itemInfo.seasonNumber') AS info_season_number,
+      json_extract(payload_json, '$.itemInfo.path') AS info_path,
+      json_extract(payload_json, '$.itemInfo.subLibraryId') AS info_sub_library_id,
+      json_extract(payload_json, '$.itemInfo.originalSizeBytes') AS info_original_size_bytes,
+      json_extract(payload_json, '$.itemInfo.originalBitrate') AS info_original_bitrate,
+      json_extract(payload_json, '$.itemInfo.originalVideoCodec') AS info_original_video_codec,
+      json_extract(payload_json, '$.itemInfo.originalAudioCodec') AS info_original_audio_codec,
+      json_extract(payload_json, '$.itemInfo.originalWidth') AS info_original_width,
+      json_extract(payload_json, '$.itemInfo.originalHeight') AS info_original_height,
+      json_extract(payload_json, '$.itemInfo.adultMetadata.adultId') AS adult_id,
+      json_extract(payload_json, '$.itemInfo.adultMetadata.scrapeStatus') AS adult_scrape_status,
+      json_extract(payload_json, '$.itemInfo.adultMetadata.region') AS adult_region,
+      json_extract(payload_json, '$.itemInfo.adultMetadata.protagonist') AS adult_protagonist_json
+    FROM tasks ${where}
+    ORDER BY ${orderBy} ${orderDir}, id ${orderDir}
+    LIMIT @limit OFFSET @offset
+  `).all({ ...params, limit: pageSize, offset });
+  const statusRows = db.prepare(`
+    SELECT status, COUNT(*) AS count
+    FROM tasks ${where}
+    GROUP BY status
+  `).all(params);
+  const byStatus = {};
+  for (const row of statusRows) byStatus[row.status] = row.count;
+
+  return {
+    tasks: rows.map((row) => {
+      const adultMetadata = (row.adult_id || row.adult_scrape_status || row.adult_region || row.adult_protagonist_json)
+        ? {
+          adultId: row.adult_id || undefined,
+          scrapeStatus: row.adult_scrape_status || undefined,
+          region: row.adult_region || undefined,
+          protagonist: jsonExtractObject(row.adult_protagonist_json, undefined),
+        }
+        : undefined;
+      const itemInfo = {
+        name: row.info_name || undefined,
+        title: row.info_title || undefined,
+        type: row.info_type || undefined,
+        seriesName: row.info_series_name || undefined,
+        seasonNumber: row.info_season_number,
+        path: row.info_path || undefined,
+        subLibraryId: row.info_sub_library_id || undefined,
+        adultMetadata,
+        originalSizeBytes: row.info_original_size_bytes,
+        originalBitrate: row.info_original_bitrate,
+        originalVideoCodec: row.info_original_video_codec || undefined,
+        originalAudioCodec: row.info_original_audio_codec || undefined,
+        originalWidth: row.info_original_width,
+        originalHeight: row.info_original_height,
+      };
+      Object.keys(itemInfo).forEach((key) => {
+        if (itemInfo[key] === undefined || itemInfo[key] === null) delete itemInfo[key];
+      });
+      return {
+        id: row.id,
+        itemId: row.item_id || '',
+        itemName: row.item_name || '',
+        actionType: row.action_type || '',
+        status: row.status || '',
+        progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
+        phase: row.phase,
+        resumePoint: row.resume_point,
+        approval: jsonExtractObject(row.approval_json, undefined),
+        priority: typeof row.priority === 'number' ? row.priority : 100,
+        createdAt: row.created_at || '',
+        updatedAt: row.updated_at || '',
+        itemInfo: Object.keys(itemInfo).length > 0 ? itemInfo : undefined,
+        verifyResult: jsonExtractObject(row.verify_result_json, undefined),
+        confirmData: jsonExtractObject(row.confirm_data_json, undefined),
+      };
+    }),
+    total,
+    byStatus,
+    page,
+    pageSize,
+  };
+}
+
 function queryOptimizationTaskIndexRows() {
   const rows = getDb().prepare(`
     SELECT
@@ -474,6 +592,7 @@ module.exports = {
   loadTasks,
   saveTasks,
   queryTasks,
+  queryTaskSummaries,
   queryOptimizationTaskIndexRows,
   querySpaceStatTaskRows,
   setProgress,
