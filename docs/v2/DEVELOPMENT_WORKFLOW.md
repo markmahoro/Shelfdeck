@@ -27,6 +27,8 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 不要在 Codex 自动执行中启动长期阻塞的 dev server。需要交互调试时，让用户手动运行。
 
+上面的 Docker service 命令只用于本地或新环境验证。当前 NAS 生产部署固定走 `docs/v2/PRODUCTION_DEPLOYMENT.md`、`scripts/build-image.sh` 和 `scripts/deploy-nas.js`；不要把 `media-service/docker-compose.example.yml` 当成生产 compose。
+
 ## 成人库 / Ingest + Scrape Task 开发
 
 日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。目录监听和扫描只负责发现稳定文件，并通过统一 `TaskAdmission` / `PriorityEngine` 创建 `actionType=ingest` 任务；`ingest` 完成单文件探测、NFO 预解析和媒体项写入后，未刮削 item 再创建 `actionType=scrape` 任务。具体执行由 `TaskScheduler` 按 `ingestConcurrency` / `scrapeConcurrency` 统一分配槽位。

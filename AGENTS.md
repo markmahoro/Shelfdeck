@@ -30,6 +30,7 @@ Keep the repo focused on current runtime code and essential workflows:
 | `.github/workflows/` | CI and release automation |
 | `docs/v2/ARCH_OVERVIEW.md` | Architecture entry point |
 | `docs/v2/DEVELOPMENT_WORKFLOW.md` | Development commands and platform rules |
+| `docs/v2/PRODUCTION_DEPLOYMENT.md` | Canonical NAS production deployment workflow |
 | `docs/v2/TEST_ARCHITECTURE.md` | Test commands and flow catalog |
 | `docs/v2/DEBUG_WORKFLOW.md` | Debug entry points and diagnostics |
 | `tests/TEST_ENV_CHECKLIST.md` | Local private test credentials, ignored by git |
@@ -53,6 +54,11 @@ cd media-desktop && npm run dist:win
 # Docker
 docker build -t shelfdeck media-service/
 docker compose -f media-service/docker-compose.example.yml up -d
+
+# Production NAS deploy
+bash scripts/build-image.sh <tag>
+node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256>
+node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256> --apply
 
 # Transcode worker node
 cd media-worker && npm install && npm start
@@ -86,9 +92,18 @@ Known test endpoints:
 
 Production safety:
 
-- The NAS ShelfDeck Docker at `192.168.12.230:18080` is production. Do not stop its container, delete/park tasks, change production config/data, or interrupt running jobs unless the user explicitly asks for that production action.
+- Canonical production deployment is `docs/v2/PRODUCTION_DEPLOYMENT.md` plus `scripts/build-image.sh` and `scripts/deploy-nas.js`.
+- A direct user request to deploy, release, publish, or upgrade NAS production authorizes the full standard deploy flow, including `deploy-nas.js --apply` after dry run and checksum validation pass.
+- The fixed deployment flow exists to avoid wasting time trying alternate deployment methods. This is a development production environment, so `deploy-nas.js` may recreate the container even when `ffmpeg` jobs are running; it should print those jobs for awareness but not block on them.
+- The NAS ShelfDeck Docker at `192.168.12.230:18080` is production. Do not delete/park tasks, change production data, or switch deployment methods unless the user explicitly asks for that production action.
 - Use local `127.0.0.1:18080`, temporary data directories, or disposable worker containers for destructive testing and environment resets.
 - Local ShelfDeck runtime data under `media-service/data/*.json` is test-only and has no preservation value. For local environment resets, it is OK to clear/recreate local task JSON and other local runtime JSON as needed.
+
+Task admission contract:
+
+- All automatic task creation must use the unified `TaskAdmission` model. This includes SmartTask recommendations, adult folder scan/watch ingest, ingest-followed scrape, and any future background source. There must not be a separate adult-library-only auto-enqueue path.
+- `smartTaskEnabledActions` is the global allow-list for automatic task types. If a task type is not enabled there, background automation must not create that action type.
+- Manual user actions may bypass the automatic allow-list as explicit intent, but should still keep safety checks such as duplicate active-task prevention.
 
 `tests/TEST_ENV_CHECKLIST.md` contains credentials and is intentionally ignored by git.
 

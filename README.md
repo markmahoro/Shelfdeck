@@ -37,10 +37,13 @@ bash tests/runner.sh health-check tests/env/ci.env
 
 不要在自动化上下文中直接跑长期阻塞的 `npm run dev`。
 
+生产 NAS 部署只走 `docs/v2/PRODUCTION_DEPLOYMENT.md`、`scripts/build-image.sh` 和 `scripts/deploy-nas.js`。`media-service/docker-compose.example.yml` 是本地或新环境模板，不代表当前生产环境。
+
 ## 文档入口
 
 - `docs/v2/ARCH_OVERVIEW.md` - 当前架构和模块边界
 - `docs/v2/DEVELOPMENT_WORKFLOW.md` - 3-target 开发流程
+- `docs/v2/PRODUCTION_DEPLOYMENT.md` - NAS 生产部署固定入口
 - `docs/v2/TEST_ARCHITECTURE.md` - 测试分层和 flow 目录
 - `docs/v2/DEBUG_WORKFLOW.md` - 排查工作流
 - `tests/TEST_ENV_CHECKLIST.md` - 私有测试环境凭据，已被 `.gitignore` 忽略
