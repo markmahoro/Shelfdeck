@@ -325,6 +325,31 @@ function queryItems(filter = {}, opts = {}) {
   };
 }
 
+function querySpaceStatItems() {
+  const rows = getDb().prepare(`
+    SELECT
+      item_id,
+      sub_library_id,
+      action,
+      json_extract(payload_json, '$.size') AS size_bytes,
+      json_extract(payload_json, '$.bitrate') AS bitrate,
+      json_extract(payload_json, '$.equivalentBitrate') AS equivalent_bitrate,
+      json_extract(payload_json, '$.targetBitrate') AS target_bitrate
+    FROM media_items
+    ORDER BY ordinal ASC, item_id ASC
+  `).all();
+
+  return rows.map((row) => ({
+    itemId: row.item_id,
+    subLibraryId: row.sub_library_id || '',
+    action: row.action || 'keep',
+    size: Number(row.size_bytes) || 0,
+    bitrate: Number(row.bitrate) || 0,
+    equivalentBitrate: row.equivalent_bitrate == null ? undefined : Number(row.equivalent_bitrate),
+    targetBitrate: row.target_bitrate == null ? undefined : Number(row.target_bitrate),
+  }));
+}
+
 function countBySubLibrary(subLibraryId) {
   const row = getDb().prepare('SELECT COUNT(*) AS count FROM media_items WHERE sub_library_id = ?').get(String(subLibraryId || ''));
   return row.count || 0;
@@ -347,6 +372,7 @@ module.exports = {
   saveLibrary,
   getItem,
   queryItems,
+  querySpaceStatItems,
   countBySubLibrary,
   getHealth,
 };

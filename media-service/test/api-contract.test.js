@@ -361,6 +361,50 @@ test('POST /v1/library/cache removes stale items', async () => {
   await app.close();
 });
 
+test('GET /v1/space-stats uses lightweight SQLite rows', async () => {
+  const dir = tempDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const taskStore = require('../src/taskStore');
+
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [
+      { itemId: 'space-delete', subLibraryId: 'space-lib', name: 'Delete Me', size: 1000, action: 'delete' },
+      { itemId: 'space-transcode', subLibraryId: 'space-lib', name: 'Shrink Me', size: 2000, bitrate: 10_000_000, equivalentBitrate: 10, targetBitrate: 5, action: 'transcode' },
+      { itemId: 'space-upgrade', subLibraryId: 'space-lib', name: 'Grow Me', size: 3000, bitrate: 5_000_000, equivalentBitrate: 5, targetBitrate: 8, action: 'upgrade' },
+    ],
+  });
+  taskStore.saveTasks([
+    { id: 'space-task-1', itemId: 'space-transcode', actionType: 'transcode', status: 'done', verifyResult: { bytesSaved: 400 }, itemInfo: { originalSizeBytes: 2000 } },
+    { id: 'space-task-2', itemId: 'space-upgrade', actionType: 'upgrade', status: 'done', upgradePreview: { oldFile: { size: 3000 }, newFile: { size: 5000 } } },
+    { id: 'space-task-3', itemId: 'ignored-scrape', actionType: 'scrape', status: 'done', logs: [{ msg: 'not needed for space stats' }] },
+  ]);
+
+  const originalGetLibrary = mediaLibraryService.getLibrary;
+  const originalLoadTasks = taskStore.loadTasks;
+  try {
+    mediaLibraryService.getLibrary = () => { throw new Error('space stats should not load full library'); };
+    taskStore.loadTasks = () => { throw new Error('space stats should not load full task history'); };
+
+    const res = await app.inject({ method: 'GET', url: '/v1/space-stats' });
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.json();
+    assert.strictEqual(body.currentTotalBytes, 6000);
+    assert.strictEqual(body.delete.expectedSavingsBytes, 1000);
+    assert.strictEqual(body.transcode.expectedSavingsBytes, 1000);
+    assert.strictEqual(body.transcode.realizedSavingsBytes, 400);
+    assert.ok(Math.abs(body.upgrade.expectedIncreaseBytes - 1800) < 0.001);
+    assert.strictEqual(body.upgrade.realizedIncreaseBytes, 2000);
+    assert.strictEqual(body.subLibraries[0].itemCount, 3);
+  } finally {
+    mediaLibraryService.getLibrary = originalGetLibrary;
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
+});
+
 test('POST /v1/library/cache keeps stable ShelfDeck itemId when Emby Id changes', async () => {
   const app = await buildEmptyApp();
   const subLibraryId = 'sublib-stable-id';

@@ -392,6 +392,11 @@ function getLibraryItem(itemId) {
   return libraryStore.getItem(itemId);
 }
 
+function getSpaceStatLibrary() {
+  const items = libraryStore.querySpaceStatItems();
+  return { items, total: items.length, offset: 0, limit: null };
+}
+
 function getLibraryStatus() {
   const cfg = configStore.loadConfig();
   return {
@@ -808,6 +813,7 @@ module.exports = {
   loadLibrary,
   getLibrary,
   getLibraryItem,
+  getSpaceStatLibrary,
   upsertItems,
   updateUserRating,
   saveLibrary,

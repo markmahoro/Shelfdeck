@@ -363,6 +363,47 @@ function queryOptimizationTaskIndexRows() {
   }));
 }
 
+function querySpaceStatTaskRows() {
+  const rows = getDb().prepare(`
+    SELECT
+      id,
+      item_id,
+      action_type,
+      json_extract(payload_json, '$.verifyResult.bytesSaved') AS verify_bytes_saved,
+      json_extract(payload_json, '$.verifyResult.sizeBytes') AS verify_size_bytes,
+      json_extract(payload_json, '$.itemInfo.originalSizeBytes') AS original_size_bytes,
+      json_extract(payload_json, '$.upgradePreview.oldFile.size') AS upgrade_old_size,
+      json_extract(payload_json, '$.upgradePreview.newFile.size') AS upgrade_new_size
+    FROM tasks
+    WHERE status = 'done'
+      AND action_type IN ('transcode', 'upgrade', 'delete')
+  `).all();
+
+  return rows.map((row) => {
+    const task = {
+      id: row.id,
+      itemId: row.item_id,
+      actionType: row.action_type,
+      status: 'done',
+      itemInfo: {},
+      verifyResult: {},
+      upgradePreview: null,
+    };
+    if (row.original_size_bytes != null) task.itemInfo.originalSizeBytes = Number(row.original_size_bytes);
+    if (row.verify_bytes_saved != null) task.verifyResult.bytesSaved = Number(row.verify_bytes_saved);
+    if (row.verify_size_bytes != null) task.verifyResult.sizeBytes = Number(row.verify_size_bytes);
+    if (row.upgrade_old_size != null || row.upgrade_new_size != null) {
+      task.upgradePreview = {
+        oldFile: row.upgrade_old_size == null ? null : { size: Number(row.upgrade_old_size) },
+        newFile: row.upgrade_new_size == null ? null : { size: Number(row.upgrade_new_size) },
+      };
+    }
+    if (Object.keys(task.itemInfo).length === 0) delete task.itemInfo;
+    if (Object.keys(task.verifyResult).length === 0) delete task.verifyResult;
+    return task;
+  });
+}
+
 function updateTask(taskId, updates) {
   const current = getTask(taskId);
   if (!current) return null;
@@ -427,6 +468,7 @@ module.exports = {
   saveTasks,
   queryTasks,
   queryOptimizationTaskIndexRows,
+  querySpaceStatTaskRows,
   setProgress,
   getProgress,
   deleteProgress,

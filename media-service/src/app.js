@@ -789,8 +789,12 @@ function registerRoutes(app) {
   // ── Space Stats ───────────────────────────────────────────────────────────
 
   app.get('/v1/space-stats', async () => {
-    const library = mediaLibraryService.getLibrary();
-    const tasks = taskStore.loadTasks();
+    const library = typeof mediaLibraryService.getSpaceStatLibrary === 'function'
+      ? mediaLibraryService.getSpaceStatLibrary()
+      : mediaLibraryService.getLibrary();
+    const tasks = typeof taskStore.querySpaceStatTaskRows === 'function'
+      ? taskStore.querySpaceStatTaskRows()
+      : taskStore.loadTasks();
     const config = configStore.loadConfig();
     return spaceStats.computeSpaceStats(library, tasks, config);
   });
