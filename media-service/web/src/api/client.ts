@@ -327,6 +327,10 @@ export interface TaskReport {
   };
   bytesSaved?: number;
   bytesFreed?: number;
+  delete?: {
+    targetPath?: string;
+    targetKind?: string;
+  };
   tmdbVerified?: boolean;
   scrape?: {
     adultId?: string;

@@ -248,6 +248,177 @@ test('DELETE /v1/tasks/:id removes task', async () => {
   await app.close();
 });
 
+test('delete task removes an adult folder media file and library item', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    approvalPolicy: { 'delete.beforeExecute': 'auto' },
+  }, null, 2));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const createLib = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: {
+      name: 'JAV Delete Test',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'japanese_jav',
+      scraperType: 'shelfdeck_japanese_jav',
+      watchRoot,
+      ruleTemplateId: 'adult_jav_default',
+    },
+  });
+  const subLib = createLib.json();
+  const filePath = path.join(watchRoot, 'MVSD-175.mp4');
+  fs.writeFileSync(filePath, 'delete-me');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const item = await adultLibraryService.upsertFileItem(subLib, filePath, { enqueueScrape: false });
+
+  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, actionType: 'delete' } });
+  assert.strictEqual(createTask.statusCode, 201);
+
+  const taskStore = require('../src/taskStore');
+  const deleteFlow = require('../src/deleteFlowExecutor');
+  deleteFlow.setScheduler({
+    reportStatus: (id, status, progress) => taskStore.updateTask(id, { status, progress: progress ?? undefined }),
+    pauseForConfirm: () => { throw new Error('delete should not pause when approval is auto'); },
+  });
+  await deleteFlow.driveTask(createTask.json().id);
+
+  assert.strictEqual(fs.existsSync(filePath), false, 'delete task should remove the media file');
+  const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  assert.strictEqual(lib.json().total, 0, 'delete task should remove the library cache item');
+  const done = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
+  assert.strictEqual(done.json().status, 'done');
+  const report = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}/report` });
+  assert.strictEqual(report.statusCode, 200);
+  assert.strictEqual(report.json().bytesFreed, Buffer.byteLength('delete-me'));
+  assert.strictEqual(report.json().delete.targetKind, 'file');
+  assert.strictEqual(report.json().delete.targetPath, filePath);
+  await app.close();
+});
+
+test('delete task removes an adult scraped movie folder when the marker matches', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    approvalPolicy: { 'delete.beforeExecute': 'auto' },
+  }, null, 2));
+  const watchRoot = path.join(dir, 'jav');
+  const movieDir = path.join(watchRoot, 'scraped', 'MVSD-175 Some Title');
+  fs.mkdirSync(movieDir, { recursive: true });
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const createLib = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: {
+      name: 'JAV Folder Delete Test',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'japanese_jav',
+      scraperType: 'shelfdeck_japanese_jav',
+      watchRoot,
+      ruleTemplateId: 'adult_jav_default',
+    },
+  });
+  const subLib = createLib.json();
+  const filePath = path.join(movieDir, 'MVSD-175.mp4');
+  const nfoPath = path.join(movieDir, 'movie.nfo');
+  fs.writeFileSync(filePath, 'video-bytes');
+  fs.writeFileSync(nfoPath, '<movie><title>Some Title</title><id>MVSD-175</id></movie>');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const item = await adultLibraryService.upsertFileItem(subLib, filePath, { enqueueScrape: false });
+  fs.writeFileSync(path.join(movieDir, '.shelfdeck.json'), JSON.stringify({
+    itemId: item.itemId,
+    subLibraryId: subLib.uuid,
+    mediaPath: filePath,
+    scrapedAt: new Date().toISOString(),
+  }, null, 2));
+  const expectedBytesFreed = fs.readdirSync(movieDir)
+    .map((name) => fs.statSync(path.join(movieDir, name)).size)
+    .reduce((sum, size) => sum + size, 0);
+
+  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, actionType: 'delete' } });
+  assert.strictEqual(createTask.statusCode, 201);
+
+  const taskStore = require('../src/taskStore');
+  const deleteFlow = require('../src/deleteFlowExecutor');
+  deleteFlow.setScheduler({
+    reportStatus: (id, status, progress) => taskStore.updateTask(id, { status, progress: progress ?? undefined }),
+    pauseForConfirm: () => { throw new Error('delete should not pause when approval is auto'); },
+  });
+  await deleteFlow.driveTask(createTask.json().id);
+
+  assert.strictEqual(fs.existsSync(movieDir), false, 'delete task should remove the whole scraped movie folder');
+  assert.strictEqual(fs.existsSync(path.join(watchRoot, 'scraped')), true, 'delete task must not remove the scraped root');
+  const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  assert.strictEqual(lib.json().total, 0, 'delete task should remove the library cache item');
+  const report = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}/report` });
+  assert.strictEqual(report.statusCode, 200);
+  assert.strictEqual(report.json().bytesFreed, expectedBytesFreed);
+  assert.strictEqual(report.json().delete.targetKind, 'directory');
+  assert.strictEqual(report.json().delete.targetPath, movieDir);
+  await app.close();
+});
+
+test('delete task refuses adult folder media paths outside watchRoot', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    approvalPolicy: { 'delete.beforeExecute': 'auto' },
+  }, null, 2));
+  const watchRoot = path.join(dir, 'jav');
+  const outsideDir = path.join(dir, 'outside');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  fs.mkdirSync(outsideDir, { recursive: true });
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const createLib = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: {
+      name: 'JAV Unsafe Delete Test',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'japanese_jav',
+      scraperType: 'shelfdeck_japanese_jav',
+      watchRoot,
+      ruleTemplateId: 'adult_jav_default',
+    },
+  });
+  const subLib = createLib.json();
+  const outsideFile = path.join(outsideDir, 'MVSD-175.mp4');
+  fs.writeFileSync(outsideFile, 'must-stay');
+
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const itemId = 'unsafe-adult-delete-item';
+  const lib = mediaLibraryService.loadLibrary();
+  lib.items = [...(lib.items || []), {
+    itemId,
+    subLibraryId: subLib.uuid,
+    source: 'adult_folder',
+    mediaType: 'adult',
+    name: 'Unsafe Delete',
+    path: outsideFile,
+    size: Buffer.byteLength('must-stay'),
+  }];
+  mediaLibraryService.saveLibrary(lib);
+
+  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'delete' } });
+  assert.strictEqual(createTask.statusCode, 201);
+
+  const taskStore = require('../src/taskStore');
+  const deleteFlow = require('../src/deleteFlowExecutor');
+  deleteFlow.setScheduler({
+    reportStatus: (id, status, progress) => taskStore.updateTask(id, { status, progress: progress ?? undefined }),
+    pauseForConfirm: () => { throw new Error('unsafe delete should fail before confirmation'); },
+  });
+  await deleteFlow.driveTask(createTask.json().id);
+
+  assert.strictEqual(fs.existsSync(outsideFile), true, 'delete task must not remove files outside watchRoot');
+  const failed = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
+  assert.strictEqual(failed.json().status, 'failed_hard');
+  await app.close();
+});
+
 // ── Task actions: pause / execute / cancel ────────────────────────────────────
 
 test('POST /v1/tasks/:id/actions/pause returns paused status', async () => {
@@ -456,6 +627,7 @@ test('POST /v1/admin/sublibraries creates adult Japanese JAV folder library', as
   assert.strictEqual(body.scraperType, 'shelfdeck_japanese_jav');
   assert.strictEqual(body.watchRoot, watchRoot);
   assert.strictEqual(body.scrapeSettleSeconds, undefined);
+  assert.strictEqual(body.scrapeEnabled, undefined, 'new adult libraries should not write a private scrape gate');
   await app.close();
 });
 
@@ -521,6 +693,7 @@ test('POST /v1/admin/sublibraries creates adult western folder library', async (
   assert.strictEqual(body.adultRegion, 'western_adult');
   assert.strictEqual(body.scraperType, 'western_builtin');
   assert.strictEqual(body.ruleTemplateId, 'adult_western_default');
+  assert.strictEqual(body.scrapeEnabled, undefined, 'new adult libraries should not write a private scrape gate');
   await app.close();
 });
 
@@ -1151,6 +1324,11 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
     payload: { name: 'JAV Test', source: 'folder', mediaType: 'adult', adultRegion: 'japanese_jav', scraperType: 'shelfdeck_japanese_jav', watchRoot, ruleTemplateId: 'adult_jav_default' },
   });
   const subLib = create.json();
+  subLib.scrapeEnabled = false;
+  const configStore = require('../src/configStore');
+  const cfg = configStore.loadConfig();
+  cfg.subLibraries = (cfg.subLibraries || []).map((sl) => sl.uuid === subLib.uuid ? { ...sl, scrapeEnabled: false } : sl);
+  configStore.saveConfig(cfg);
   require('../src/adultLibraryService').stopSubLibraryWatcher(subLib.uuid);
   const filePath = path.join(watchRoot, 'MVSD-175.mp4');
   fs.writeFileSync(filePath, 'fake-video');

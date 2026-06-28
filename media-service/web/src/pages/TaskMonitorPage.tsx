@@ -903,7 +903,17 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
 
       {isDelete && (
         <div style={{ background: '#fef3e2', borderRadius: 8, padding: '12px 16px', fontSize: 12 }}>
-          已从 Emby 删除此媒体文件<br />
+          已完成媒体删除<br />
+          {report.delete?.targetKind && (
+            <>
+              <strong>删除类型</strong>：{report.delete.targetKind === 'directory' ? '文件夹' : report.delete.targetKind === 'file' ? '文件' : 'Emby 媒体项'}<br />
+            </>
+          )}
+          {report.delete?.targetPath && (
+            <>
+              <strong>删除目标</strong>：{report.delete.targetPath}<br />
+            </>
+          )}
           <strong>释放空间</strong>：{fmtSize(report.bytesFreed)}
         </div>
       )}

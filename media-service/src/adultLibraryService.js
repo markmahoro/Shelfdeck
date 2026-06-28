@@ -1258,7 +1258,6 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
   const schedule = configStore.resolveSubLibSchedule(item, cfg);
   const source = opts.source || (opts.force ? 'manual' : 'auto');
   const userInitiated = source === 'manual';
-  if (subLib && subLib.scrapeEnabled === false) return null;
   const itemInfo = itemInfoFromItem(item);
   itemInfo.taskSource = source;
   const taskSnapshot = Array.isArray(opts.taskSnapshot) ? opts.taskSnapshot : null;

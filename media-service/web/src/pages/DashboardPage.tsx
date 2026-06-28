@@ -124,7 +124,6 @@ export default function DashboardPage() {
           adultRegion: libraryKind,
           scraperType: libraryKind === 'japanese_jav' ? 'shelfdeck_japanese_jav' : 'western_builtin',
           watchRoot,
-          scrapeEnabled: true,
         }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sublibraries'] });
@@ -172,6 +171,12 @@ export default function DashboardPage() {
     setMediaType('movie');
     setWatchRoot('');
     setTestError('');
+  }
+
+  function deleteSubLibrary(sl: SubLibrary) {
+    const name = sl.name || sl.uuid;
+    const ok = confirm(`将删除 ShelfDeck 中「${name}」的媒体库配置和缓存条目。确认删除？`);
+    if (ok) deleteMut.mutate(sl.uuid);
   }
 
   async function handleTestAndNext() {
@@ -256,7 +261,7 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => openEdit(sl)} style={cardBtn}>编辑</button>
-                      <button onClick={() => { if (confirm('确认删除此媒体库？')) deleteMut.mutate(sl.uuid); }} style={{ ...cardBtn, color: '#e74c3c', borderColor: '#f5c6cb' }}>删除</button>
+                      <button onClick={() => deleteSubLibrary(sl)} style={{ ...cardBtn, color: '#e74c3c', borderColor: '#f5c6cb' }}>删除</button>
                     </div>
                   </div>
 
@@ -428,8 +433,8 @@ export default function DashboardPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[
                   { key: 'emby', title: 'Emby 媒体库', desc: '电影/剧集' },
-                  { key: 'japanese_jav', title: 'JAV', desc: '内置刮削' },
-                  { key: 'western_adult', title: '欧美成人', desc: '预留自研刮削' },
+                  { key: 'japanese_jav', title: 'JAV', desc: '真实目录' },
+                  { key: 'western_adult', title: '欧美成人', desc: '真实目录（待开放）' },
                 ].map((k) => (
                   <button
                     key={k.key}
@@ -491,7 +496,7 @@ export default function DashboardPage() {
             </>
             ) : (
               <div style={{ padding: 12, background: '#f8f9fb', borderRadius: 8, fontSize: 13, color: '#666', lineHeight: 1.6 }}>
-                文件夹库由 ShelfDeck 直接监听本地路径；JAV 使用内置 scraper，欧美成人库保留 scraper adapter。
+                文件夹库记录真实媒体目录；是否自动创建入库、刮削或转码任务，由「任务调度」里的后台自动入队统一控制。本页不提供独立自动扫描或自动刮削开关。
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>

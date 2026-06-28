@@ -394,7 +394,11 @@ function registerRoutes(app) {
       };
       report.bytesSaved = vr.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
     } else if (task.actionType === 'delete') {
-      report.bytesFreed = info.size || info.originalSizeBytes || 0;
+      report.bytesFreed = vr.bytesSaved || info.size || info.originalSizeBytes || 0;
+      report.delete = {
+        targetPath: vr.deletedPath || info.deleteTargetPath || info.path || '',
+        targetKind: vr.deletedKind || info.deleteTargetKind || (info.embyItemId ? 'emby_item' : ''),
+      };
     } else if (task.actionType === 'upgrade') {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,

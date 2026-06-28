@@ -25,7 +25,7 @@ const ACTIONS: Array<{ key: ActionType; label: string }> = [
 ];
 
 const APPROVAL_GATES: Array<{ key: string; label: string; desc: string; force?: boolean }> = [
-  { key: 'delete.beforeExecute', label: '删除前确认', desc: '真正删除 Emby 项和文件前是否需要用户确认' },
+  { key: 'delete.beforeExecute', label: '删除前确认', desc: '真正删除 Emby 项或本地媒体文件/文件夹前是否需要用户确认' },
   { key: 'transcode.dolbyVisionTonemap', label: '杜比视界转码', desc: '遇到 Dolby Vision 片源是否需要人工确认 tone-map 风险' },
   { key: 'transcode.beforeReplace', label: '转码替换前', desc: '转码产物替换原文件前是否需要确认' },
   { key: 'upgrade.candidateSelect', label: '洗版选种', desc: 'MoviePilot 候选版本选择是否交给系统自动完成' },

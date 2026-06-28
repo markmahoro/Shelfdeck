@@ -437,7 +437,7 @@ function addSubLibrary(spec) {
     adultRegion: spec.adultRegion || (isAdult ? 'japanese_jav' : undefined),
     scraperType: spec.scraperType || (isAdult ? (spec.adultRegion === 'western_adult' ? 'western_builtin' : 'shelfdeck_japanese_jav') : undefined),
     watchRoot: spec.watchRoot || '',
-    scrapeEnabled: spec.scrapeEnabled !== undefined ? spec.scrapeEnabled : isAdult,
+    ...(spec.scrapeEnabled !== undefined ? { scrapeEnabled: spec.scrapeEnabled } : {}),
     scanIntervalMinutes: spec.scanIntervalMinutes,
     japaneseJav: spec.japaneseJav || undefined,
     western: spec.western || undefined,
