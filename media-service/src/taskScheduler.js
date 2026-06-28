@@ -24,6 +24,7 @@ const healthCheck = require('./healthCheck');
 const activityLog = require('./activityLog');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
+const priorityEngine = require('./priorityEngine');
 
 let schedulerInterval = null;
 let nodeHealthInterval = null;
@@ -53,6 +54,36 @@ function getConcurrencyLimit(actionType, limits) {
     case 'upgrade': return limits.upgradeConcurrency || 1;
     case 'scrape': return limits.scrapeConcurrency || 1;
     default: return 1;
+  }
+}
+
+function shouldRecomputeAutoPriority(task) {
+  return task
+    && task.source === 'auto'
+    && !task.priorityManuallyAdjusted
+    && ['created', 'pending_manual', 'queued'].includes(task.status)
+    && task.actionType
+    && task.itemInfo;
+}
+
+function reconcileAutoTaskPriorities(tasks, config) {
+  for (const task of tasks) {
+    if (!shouldRecomputeAutoPriority(task)) continue;
+    const priority = priorityEngine.computePriority({
+      source: 'auto',
+      actionType: task.actionType,
+      itemInfo: task.itemInfo,
+      config,
+    });
+    if (task.priority === priority && task.priorityModelVersion === priorityEngine.PRIORITY_MODEL_VERSION) continue;
+    const updated = taskStore.updateTask(task.id, {
+      priority,
+      priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+    });
+    if (updated) {
+      task.priority = updated.priority;
+      task.priorityModelVersion = updated.priorityModelVersion;
+    }
   }
 }
 
@@ -294,6 +325,8 @@ async function scheduleRound() {
   if (pass1Changed) {
     taskStore.saveTasks(tasks);
   }
+
+  reconcileAutoTaskPriorities(tasks, config);
 
   // ── Pass 2: dispatch queued tasks, ordered by queue priority ──────────
   // Lower priority value = runs first. Recovered (interrupted) tasks get a

@@ -1788,7 +1788,7 @@ function registerRoutes(app) {
       if (!editable.includes(task.status)) {
         return apiError(reply, 409, 'TASK_CONFLICT', `Cannot set priority on task in status "${task.status}"`);
       }
-      const updated = taskStore.updateTask(task.id, { priority });
+      const updated = taskStore.updateTask(task.id, { priority, priorityManuallyAdjusted: true });
       return updated;
     }
 

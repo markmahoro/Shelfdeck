@@ -230,6 +230,8 @@ function buildTask(taskData, now = new Date().toISOString()) {
     updatedAt: now,
     logs: Array.isArray(taskData.logs) ? taskData.logs : [],
     itemInfo: taskData.itemInfo || null,
+    priorityManuallyAdjusted: !!taskData.priorityManuallyAdjusted,
+    priorityModelVersion: taskData.priorityModelVersion,
   });
 }
 

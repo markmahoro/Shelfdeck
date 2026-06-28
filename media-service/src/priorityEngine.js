@@ -1,5 +1,7 @@
 'use strict';
 
+const PRIORITY_MODEL_VERSION = 'additive-v1';
+
 /**
  * PriorityEngine — computes a task's initial `priority` value.
  *
@@ -121,6 +123,7 @@ function applyAdjust(current, adjust) {
 
 module.exports = {
   computePriority,
+  PRIORITY_MODEL_VERSION,
   // exported for unit testing
   _matchConditions: matchConditions,
   _applyAdjust: applyAdjust,

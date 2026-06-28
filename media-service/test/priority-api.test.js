@@ -2,8 +2,8 @@
 
 // Integration tests for task queue priority:
 //   - PATCH /v1/admin/tasks/:id priority adjustment (validation, state guard)
-//   - POST /v1/tasks manual task gets manual priority base
-//   - taskScheduler dispatch order honors priority within an actionType
+//   - POST /v1/tasks manual task gets additive priority
+//   - taskScheduler dispatch order honors global priority
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -35,7 +35,9 @@ test('PATCH /v1/admin/tasks/:id sets priority on a queued task', async () => {
     const body = res.json();
     assert.strictEqual(body.priority, 5);
     // Persisted
-    assert.strictEqual(taskStore.getTask(created.id).priority, 5);
+    const persisted = taskStore.getTask(created.id);
+    assert.strictEqual(persisted.priority, 5);
+    assert.strictEqual(persisted.priorityManuallyAdjusted, true);
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
@@ -134,6 +136,55 @@ test('taskScheduler dispatch order is priority-ascending then FIFO', async () =>
   } finally {
     transcodeFlow.driveTask = origDrive;
     transcodeFlow.setScheduler(origSet);
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler reconciles queued automatic task priorities with the current additive model', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.subLibraries = [{
+    uuid: 'adult-lib',
+    name: 'Adult',
+    mediaType: 'adult',
+    automationMode: 'manual',
+    priorityWeight: 100,
+  }];
+  configStoreMod.saveConfig(cfg);
+
+  const stale = taskStoreMod.createTask({
+    itemId: 'auto-stale-priority',
+    itemName: 'Auto Stale Priority',
+    actionType: 'scrape',
+    source: 'auto',
+    status: 'pending_manual',
+    priority: 80,
+    itemInfo: { name: 'Auto Stale Priority', subLibraryId: 'adult-lib' },
+  });
+  const manualOverride = taskStoreMod.createTask({
+    itemId: 'auto-manual-override',
+    itemName: 'Auto Manual Override',
+    actionType: 'scrape',
+    source: 'auto',
+    status: 'pending_manual',
+    priority: 7,
+    priorityManuallyAdjusted: true,
+    itemInfo: { name: 'Auto Manual Override', subLibraryId: 'adult-lib' },
+  });
+
+  try {
+    await scheduler.scheduleRound();
+    const reconciled = taskStoreMod.getTask(stale.id);
+    const preserved = taskStoreMod.getTask(manualOverride.id);
+    assert.strictEqual(reconciled.priority, 280);
+    assert.strictEqual(reconciled.priorityModelVersion, 'additive-v1');
+    assert.strictEqual(preserved.priority, 7);
+  } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
   }
