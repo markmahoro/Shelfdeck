@@ -258,7 +258,8 @@ function registerRoutes(app) {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (req.query.actionType) filter.actionType = req.query.actionType;
-    const activeOnly = req.query.activeOnly === '1' || req.query.activeOnly === 'true';
+    const includeHistory = req.query.includeHistory === '1' || req.query.includeHistory === 'true';
+    const activeOnly = !includeHistory || req.query.activeOnly === '1' || req.query.activeOnly === 'true';
     const tasks = activeOnly
       ? taskStore.loadTasks({ includeHistory: false }).filter((t) => {
         if (filter.status && t.status !== filter.status) return false;

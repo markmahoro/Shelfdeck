@@ -157,17 +157,22 @@ test('GET /v1/tasks lists created tasks', async () => {
   await app.close();
 });
 
-test('GET /v1/tasks activeOnly excludes completed history', async () => {
+test('GET /v1/tasks defaults to active tasks and includeHistory returns completed history', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const done = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-done', actionType: 'delete' } });
   await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-active', actionType: 'transcode' } });
   taskStore.updateTask(done.json().id, { status: 'done' });
 
-  const res = await app.inject({ method: 'GET', url: '/v1/tasks?activeOnly=1' });
+  const res = await app.inject({ method: 'GET', url: '/v1/tasks' });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
   assert.deepStrictEqual(body.tasks.map((t) => t.itemId), ['i-active']);
+
+  const historyRes = await app.inject({ method: 'GET', url: '/v1/tasks?includeHistory=1' });
+  assert.strictEqual(historyRes.statusCode, 200);
+  const historyIds = historyRes.json().tasks.map((t) => t.itemId).sort();
+  assert.deepStrictEqual(historyIds, ['i-active', 'i-done']);
   await app.close();
 });
 
