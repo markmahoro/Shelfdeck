@@ -98,16 +98,6 @@ export default function DashboardPage() {
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
-  const scanMut = useMutation({
-    mutationFn: subLibraries.scan,
-    onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ['sublibraries'] });
-      qc.invalidateQueries({ queryKey: ['space-stats'] });
-      setAlert({ type: 'success', msg: `扫描完成：${res.scanned} 个文件，${res.upserted} 个条目` });
-    },
-    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
-  });
-
   const createMut = useMutation({
     mutationFn: () =>
       libraryKind === 'emby'
@@ -265,7 +255,6 @@ export default function DashboardPage() {
                       <span style={{ fontSize: 12, color: '#999' }}>{slSpace ? `${slSpace.itemCount} 条目` : ''}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      {sl.source === 'folder' && <button onClick={() => scanMut.mutate(sl.uuid)} style={cardBtn}>扫描</button>}
                       <button onClick={() => openEdit(sl)} style={cardBtn}>编辑</button>
                       <button onClick={() => { if (confirm('确认删除此媒体库？')) deleteMut.mutate(sl.uuid); }} style={{ ...cardBtn, color: '#e74c3c', borderColor: '#f5c6cb' }}>删除</button>
                     </div>

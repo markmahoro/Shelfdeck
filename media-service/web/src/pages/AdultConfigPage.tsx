@@ -25,8 +25,6 @@ export default function AdultConfigPage() {
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [initialized, setInitialized] = useState(false);
 
-  const [settleSeconds, setSettleSeconds] = useState(30);
-  const [scanIntervalMinutes, setScanIntervalMinutes] = useState(10);
   const [proxyServer, setProxyServer] = useState('');
   const [retry, setRetry] = useState(2);
   const [timeout, setTimeoutValue] = useState('PT20S');
@@ -59,8 +57,6 @@ export default function AdultConfigPage() {
   useEffect(() => {
     if (!data || initialized) return;
     const j = data.japaneseJav || {};
-    setSettleSeconds(data.settleSeconds ?? 30);
-    setScanIntervalMinutes(data.scanIntervalMinutes ?? 10);
     setProxyServer(String(j.proxyServer || ''));
     setRetry(Number(j.retry ?? 2));
     setTimeoutValue(String(j.timeout || 'PT20S'));
@@ -132,8 +128,6 @@ export default function AdultConfigPage() {
 
   const save = useMutation({
     mutationFn: () => adult.patchConfig({
-      settleSeconds,
-      scanIntervalMinutes,
       japaneseJav: {
         ...(data?.japaneseJav || {}),
         proxyServer,
@@ -166,15 +160,6 @@ export default function AdultConfigPage() {
   return (
     <div>
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
-      <section style={card}>
-        <h3 style={title}>成人库默认设置</h3>
-        <div style={grid}>
-          <Field label="稳定等待（秒）"><input style={input} type="number" value={settleSeconds} min={1} onChange={(e) => setSettleSeconds(Number(e.target.value) || 30)} /></Field>
-          <Field label="定时扫描（分钟）"><input style={input} type="number" value={scanIntervalMinutes} min={1} onChange={(e) => setScanIntervalMinutes(Number(e.target.value) || 10)} /></Field>
-        </div>
-        <div style={note}>后台自动入库和刮削统一在「任务调度」里控制。</div>
-      </section>
-
       <section style={card}>
         <h3 style={title}>JAV 刮削</h3>
         <div style={grid}>
@@ -308,7 +293,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const card: React.CSSProperties = { background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 20 };
 const title: React.CSSProperties = { fontSize: 16, fontWeight: 700, color: '#1a1a2e', margin: '0 0 16px' };
 const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 };
-const note: React.CSSProperties = { marginTop: 12, fontSize: 12, color: '#666' };
 const input: React.CSSProperties = { padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 14, width: 160 };
 const inputWide: React.CSSProperties = { ...input, width: '100%', boxSizing: 'border-box' };
 const check: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#333', minHeight: 36 };

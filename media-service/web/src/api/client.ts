@@ -122,8 +122,6 @@ export const subLibraries = {
   remove: (uuid: string) =>
     del<{ ok: boolean; uuid: string }>(`/v1/admin/sublibraries/${uuid}`),
 
-  scan: (uuid: string) =>
-    post<{ ok: boolean; scanned: number; upserted: number; queued?: number; scrapeQueued?: number }>(`/v1/admin/sublibraries/${uuid}/actions/scan`),
 };
 
 // ── Adult Libraries ─────────────────────────────────────────────────────────

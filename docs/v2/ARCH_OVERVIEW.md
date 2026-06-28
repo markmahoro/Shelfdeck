@@ -13,7 +13,7 @@ ShelfDeck 是媒体库管家：基于 Emby 媒体数据、观看状态、用户�
 | 资产盘点 | 同步 Emby 电影库，保存媒体技术信息和用户关系数据 |
 | 策略推荐 | 根据评分、观看状态、码率、编码、分辨率计算 action/reason |
 | 空间管理 | 执行 delete/transcode/upgrade/scrape 等统一任务 |
-| 成人库管理 | 监听本地成人文件夹库，发现媒体后进入统一任务调度；刮削整理后再由策略决定后续任务 |
+| 成人库管理 | 管理成人文件夹库的单 item 入库、刮削、整理和演员库；不再通过私有目录监听/扫描自动发现并批量入队 |
 | Admin Web | 配置 service、媒体库、策略、任务和外部集成 |
 | Desktop | 浏览媒体库、下发意图、展示任务状态 |
 
@@ -116,7 +116,7 @@ desktop / Admin Web
 - `PriorityEngine` 只决定可入队任务的执行顺序。优先级由任务来源基准、`actionTypeWeights`、子库 `priorityWeight`、规则叠加和用户手动调整共同决定，数值越小越优先。
 - 审批策略与调度策略分离。`approvalPolicy` 控制任务内部关键节点是否暂停，模式为 `auto`、`confirm`、`forceConfirm`；`forceConfirm` 不能被全局、子库或任务级覆盖降级。
 - 当前审批 gate 包括 `delete.beforeExecute`、`transcode.dolbyVisionTonemap`、`transcode.beforeReplace`、`upgrade.candidateSelect`、`upgrade.identityMismatch`、`upgrade.beforeReplace`、`scrape.beforeWriteMetadata`、`scrape.beforeOrganize`、`scrape.reviewResult`。
-- `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；扫描/监听不直接写入大量完整 item，也不把大量新文件直接展开成完整刮削或转码动作。
+- `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；成人库目录扫描/监听不再作为任务创建入口，也不把大量新文件展开成完整刮削或转码动作。
 - 任务持久化使用 `data/tasks.db` SQLite。任务中心保留完成、失败等历史记录；调度器、节点统计、转码临时目录清理等热路径只读取非终态 active task，不能为了降低队列压力删除历史任务。
 - 启动期全局维护不属于单 item task。普通媒体库启动刷新由 `mediaLibraryStartupRefreshOnStartup` 和 `mediaLibraryStartupRefreshDelaySeconds` 控制；自算字段立即运行由 `mediaLibrarySelfComputeOnStartup` 控制；`SmartTaskEngine` 首次自动入队扫描由 `smartTaskInitialDelaySeconds` 控制。生产部署可通过这些开关先恢复 API 响应，再让周期任务按节奏运行。
 - 成人库 `ingest` 的媒体探测使用 `adultLibrary.probeTimeoutMs` 控制单文件 `ffprobe` 超时。坏文件或异常路径只记录 `probeError` 并继续入库，不应拖住整个 HTTP 服务。
@@ -124,9 +124,9 @@ desktop / Admin Web
 成人文件夹库流：
 
 1. 用户创建 `mediaType=adult`、`source=folder` 的子库，并配置 `watchRoot`。
-2. `AdultLibraryService` 监听目录并做文件稳定等待，发现媒体文件后只按统一 admission/priority 创建 `ingest` 任务；成人库不拥有独立任务调度规则。
+2. 目录级 scan 只做只读核对和刷新时间，不创建 `ingest` 或 `scrape` 任务；`POST /v1/admin/sublibraries/:uuid/actions/scan` 已废弃并返回 `410 ADULT_FOLDER_SCAN_REMOVED`。
 3. `IngestFlowExecutor` 每次只处理一个文件候选，完成文件探测、NFO 预解析和媒体项写入。已前置刮削的文件会直接成为 `scraped=true` item；未刮削文件在入库后再按统一 admission/priority 创建 `scrape` 任务。
-4. 日本 JAV 子库使用 `scraperType=shelfdeck_japanese_jav`；欧美成人库使用 `scraperType=western_builtin`。两者都先以 `actionType=ingest` 进入统一队列，后续未刮削 item 再以 `actionType=scrape` 进入统一队列。
+4. 日本 JAV 子库使用 `scraperType=shelfdeck_japanese_jav`；欧美成人库使用 `scraperType=western_builtin`。两者的单 item 入库和后续刮削都复用统一任务模型。
 5. `ScrapeFlowExecutor` 每次只处理一个 item。JAV 通过内置 Node.js scraper 拉取元数据；欧美成人默认在 service 内本地执行 FFmpeg 抽帧、调用容器内 face-service 生成 embedding、匹配 People 人物库并生成 deterministic composite poster。`computeMode=worker` 仅作为兼容扩展路径。
 6. 刮削/整理成功后由 ShelfDeck 移动影片到库目录下的统一归拢目录（默认 `scraped/`），写入 `movie.nfo`、同名 NFO、封面、`.shelfdeck.json`，并通过 `ScrapeVerification` 合同校验后才更新 `adultMetadata`、`scraped=true` 和媒体技术信息；欧美成人未识别 protagonist 时任务失败，只保留 unknown face 诊断数据，不写成功态 NFO/封面。
 7. `StrategyEngine` 使用成人库策略模板计算 `transcode/keep`；`scrape` flow 不直接链式创建转码任务，后续是否转码由 `SmartTaskEngine` 根据 `scraped=true` 等策略条件决定。
@@ -140,14 +140,14 @@ desktop / Admin Web
 - 初次未知人脸由 service-local 分析返回 `unknownFaces`，包含头像样本和 embedding 诊断；用户命名后，service 通过 `/v1/admin/adult/people/from-face` 将该 cluster 写入 People reference faces。
 - 欧美成人匹配不到 protagonist 时等同于 JAV 识别不到番号：任务 `failed_hard`，item 保持 `scraped=false`，不会进入自动转码策略。
 - 自动通过的 item 标记 `scraped=true`，后续转码继续复用现有 `TranscodeFlowExecutor`。
-- 刮削成功会在库目录下的统一归拢目录（默认 `scraped/`，可通过 `adultLibrary.organizedFolderName` 或分区配置覆盖）中新建标准影片目录并移动当前视频：欧美成人目录/视频名为 `{adultId} {protagonist}`；JAV 目录/视频名沿用 scraper 返回的标题命名规范。已有目录不直接改名，目录内其他视频不被一起移动。ShelfDeck 默认扫描/监听会忽略该归拢目录，Emby 可只监控这个归拢目录。
+- 刮削成功会在库目录下的统一归拢目录（默认 `scraped/`，可通过 `adultLibrary.organizedFolderName` 或分区配置覆盖）中新建标准影片目录并移动当前视频：欧美成人目录/视频名为 `{adultId} {protagonist}`；JAV 目录/视频名沿用 scraper 返回的标题命名规范。已有目录不直接改名，目录内其他视频不被一起移动。ShelfDeck 的目录核对默认忽略该归拢目录，Emby 可只监控这个归拢目录。
 - `scraped=true` 不能由目录位置推断。ShelfDeck scrape 成功必须满足结构化合同：任务完成、媒体文件存在、`adultMetadata.scrapeStatus=done`、关键元数据存在、按配置写出的 NFO/封面存在、`.shelfdeck.json` 可读且 `itemId/subLibraryId/mediaPath/scrapeTaskId/scrapedAt` 与当前 item 匹配。任务报告会返回 `scrapeVerification` 结果。
 
 混合成人库处理：
 
 - 已经由 JavSP 或其他工具前置刮削的目录，只要媒体旁边存在 `movie.nfo` 或同名 `.nfo`，`ingest` 时会解析 NFO，标记为 `scraped=true`，不会再自动创建刮削任务。
 - 未刮削的裸视频会在 `ingest` 时从文件名/路径识别番号或生成欧美成人占位番号，标记为 `scraped=false`、`adultMetadata.scrapeStatus=pending`，并按子库自动化配置创建 `scrape` 任务。
-- Admin Web 的媒体库管理页在成人库条目的名称下展示“已刮削 / 待刮削 / 刮削失败”状态、番号和 studio，并提供刮削状态筛选与当前文件夹手动扫描入口。
+- Admin Web 的媒体库管理页在成人库条目的名称下展示“已刮削 / 待刮削 / 刮削失败”状态、番号和 studio，并提供刮削状态筛选；整目录手动扫描入口已移除。
 
 ## 6. Service 模块
 
@@ -167,7 +167,7 @@ desktop / Admin Web
 | Ingest flow | `src/ingestFlowExecutor.js` | 文件候选入库任务执行；单文件探测、NFO 预解析、媒体项写入 |
 | Scrape flow | `src/scrapeFlowExecutor.js` | 成人库刮削/整理任务执行；JAV 调用内置 scraper，欧美成人默认 service-local AI |
 | Library | `src/mediaLibraryService.js` | 子库和媒体缓存管理 |
-| Adult folder library | `src/adultLibraryService.js` | 成人文件夹库监听、扫描、候选发现、入库/刮削任务创建 |
+| Adult folder library | `src/adultLibraryService.js` | 成人文件夹库单 item 入库、刮削、整理、演员库和只读目录核对 |
 | Policy | `src/mediaPolicyService.js`、`src/strategyEngine.js`、`src/smartTaskEngine.js` | 策略计算和自动入队 |
 | External adapters | `src/services/*Service.js` | Emby、Douban、MoviePilot、FFmpeg、成人库 scraper、欧美成人 service-local/worker AI |
 | Tray | `src/tray.js` | Windows 系统托盘 |
@@ -229,7 +229,7 @@ API 细节以 `src/app.js` 和现有 tests 为准。新增或变更 API 时必�
 成人库相关 API：
 
 - `POST /v1/admin/sublibraries` 支持 `source=folder`、`mediaType=adult`。
-- `POST /v1/admin/sublibraries/:uuid/actions/scan` 手动扫描成人文件夹库。
+- `POST /v1/admin/sublibraries/:uuid/actions/scan` 已废弃，返回 `410 ADULT_FOLDER_SCAN_REMOVED`。
 - `GET/PATCH /v1/admin/adult/config` 管理成人库全局默认配置、日本 JAV scraper 默认项和欧美成人配置；face-service 不作为用户配置项暴露。
 - `GET/POST/PATCH/DELETE /v1/admin/adult/people` 管理 service-owned People 人物库。
 - `POST /v1/admin/adult/people/from-face` 从某个 item 的 unknown face cluster 创建 People reference face。

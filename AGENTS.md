@@ -101,7 +101,7 @@ Production safety:
 
 Task admission contract:
 
-- All automatic task creation must use the unified `TaskAdmission` model. This includes SmartTask recommendations, adult folder scan/watch ingest, ingest-followed scrape, and any future background source. There must not be a separate adult-library-only auto-enqueue path.
+- All automatic task creation must use the unified `TaskAdmission` model. This includes SmartTask recommendations, ingest-followed scrape, and any future background source. There must not be a separate adult-library-only auto-enqueue path; adult folder scan/watch must not create tasks.
 - `smartTaskEnabledActions` is the global allow-list for automatic task types. If a task type is not enabled there, background automation must not create that action type.
 - Manual user actions may bypass the automatic allow-list as explicit intent, but should still keep safety checks such as duplicate active-task prevention.
 

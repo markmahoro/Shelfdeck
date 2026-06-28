@@ -404,7 +404,7 @@ export default function SystemConfigPage() {
 
       <section style={cardStyle}>
         <h3 style={sectionTitle}>后台自动入队</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>后台自动入队统一控制系统自动创建哪些任务，包括成人库目录扫描/监听创建的入库、入库后的刮削，以及普通媒体库的转码、洗版、删除建议。</p>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>后台自动入队统一控制系统自动创建哪些任务，包括普通媒体库推荐策略、入库任务后的后续动作，以及其他后台来源。</p>
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>允许自动创建的任务类型</label>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -424,7 +424,7 @@ export default function SystemConfigPage() {
               当前允许自动创建：{smartTaskActions.map((key) => ACTIONS.find((a) => a.key === key)?.label || key).join('、')}。
             </div>
           )}
-          <div style={{ ...hintStyle, marginTop: 8 }}>手动扫描和手动重刮属于明确用户操作，不受这个自动入队开关拦截；手动扫描仍会保留去重、冷却和队列上限等安全规则。</div>
+          <div style={{ ...hintStyle, marginTop: 8 }}>用户在具体条目上手动创建任务属于明确操作，不受这个自动入队开关拦截，但仍会保留 active task 去重等安全规则。</div>
         </div>
         <button onClick={() => setShowAdvanced(!showAdvanced)} style={collapseBtn}>
           {showAdvanced ? '收起高级配置' : '展开高级配置'}

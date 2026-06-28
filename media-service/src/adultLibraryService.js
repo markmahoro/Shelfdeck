@@ -4,7 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
-const chokidar = require('chokidar');
 
 const configStore = require('./configStore');
 const taskStore = require('./taskStore');
@@ -15,9 +14,6 @@ const peopleStore = require('./peopleStore');
 const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
 const scrapeVerification = require('./scrapeVerification');
-
-const watchers = new Map();
-const settleTimers = new Map();
 
 const DEFAULT_EXTS = new Set(['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv']);
 const DEFAULT_ORGANIZED_FOLDER_NAME = 'scraped';
@@ -52,11 +48,6 @@ function isJapaneseJavSubLibrary(sl) {
 
 function isWesternAdultSubLibrary(sl) {
   return isAdultFolderSubLibrary(sl) && sl.adultRegion === 'western_adult';
-}
-
-function shouldAutoWatchSubLibrary(subLib) {
-  const cfg = configStore.loadConfig();
-  return configStore.resolveSubLibSchedule(subLib, cfg).autoCreate;
 }
 
 function normalizePathForCompare(p) {
@@ -1198,7 +1189,7 @@ function enqueueIngestTask(subLib, filePath, opts = {}) {
       config: cfg,
     }),
     itemInfo,
-    logs: [{ ts: nowIso(), level: 'info', msg: 'Ingest task created by adult folder scan' }],
+    logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Ingest task created by user action' : 'Ingest task created by background admission' }],
   };
   const task = opts.deferSave ? taskStore.buildTask(taskData) : taskStore.createTask(taskData);
   if (taskSnapshot) taskSnapshot.push(task);
@@ -1298,7 +1289,7 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
       config: cfg,
     }),
     itemInfo,
-    logs: [{ ts: nowIso(), level: 'info', msg: 'Scrape task created by adult folder watcher' }],
+    logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Scrape task created by user action' : 'Scrape task created by background admission' }],
   };
   const task = opts.deferSave ? taskStore.buildTask(taskData) : taskStore.createTask(taskData);
   if (taskSnapshot) taskSnapshot.push(task);
@@ -1310,9 +1301,6 @@ async function scanSubLibrary(subLib, opts = {}) {
   if (!isAdultFolderSubLibrary(subLib) || !subLib.watchRoot) return { scanned: 0, upserted: 0, queued: 0, scrapeQueued: 0 };
   const config = configStore.loadConfig();
   const files = collectMediaFiles(subLib.watchRoot, config, { subLib, includeIgnored: !!opts.includeOrganized });
-  const taskSnapshot = taskStore.loadTasks();
-  const activeTaskSnapshot = taskStore.loadTasks({ includeHistory: false });
-  const beforeActiveTaskCount = activeTaskSnapshot.length;
   const lib = loadLibrary();
   const existingByPath = new Map();
   for (const item of lib.items || []) {
@@ -1320,34 +1308,15 @@ async function scanSubLibrary(subLib, opts = {}) {
       existingByPath.set(normalizePathForCompare(item.path), item);
     }
   }
-  let queued = 0;
-  let scrapeQueued = 0;
   let existing = 0;
   for (const file of files) {
     const existingItem = existingByPath.get(normalizePathForCompare(file)) || null;
     if (existingItem) {
       existing++;
-      const shouldScrape = opts.enqueueScrape !== false && !hasIgnoredSegment(file, subLib)
-        && existingItem.scraped !== true
-        && (!existingItem.adultMetadata || !['done', 'needs_review'].includes(existingItem.adultMetadata.scrapeStatus));
-      const task = shouldScrape && enqueueScrapeTask(existingItem, subLib, { taskSnapshot, deferSave: true, source: opts.source });
-      if (task) {
-        activeTaskSnapshot.push(task);
-        scrapeQueued++;
-      }
-      continue;
     }
-    const task = enqueueIngestTask(subLib, file, { force: !!opts.force, source: opts.source, taskSnapshot, deferSave: true });
-    if (task) {
-      activeTaskSnapshot.push(task);
-      queued++;
-    }
-  }
-  if (activeTaskSnapshot.length !== beforeActiveTaskCount) {
-    taskStore.saveTasks(activeTaskSnapshot);
   }
   updateSubLibraryRefreshTime(subLib.uuid);
-  return { scanned: files.length, upserted: existing, queued, scrapeQueued };
+  return { scanned: files.length, upserted: existing, queued: 0, scrapeQueued: 0 };
 }
 
 async function reconcileSubLibrary(subLib) {
@@ -1385,88 +1354,23 @@ async function refreshItemFromScrapedFiles(subLib, item) {
   return found || item;
 }
 
-function scheduleSettle(subLib, filePath) {
-  const key = `${subLib.uuid}:${filePath}`;
-  if (settleTimers.has(key)) clearTimeout(settleTimers.get(key));
-  const cfg = configStore.loadConfig();
-  const seconds = Number((cfg.adultLibrary && cfg.adultLibrary.settleSeconds) ?? 30);
-  const timer = setTimeout(async () => {
-    settleTimers.delete(key);
-    try {
-      if (!fs.existsSync(filePath)) return;
-      enqueueIngestTask(subLib, filePath);
-    } catch (e) {
-      console.error('[adultLibrary] settle ingest failed:', e.message);
-    }
-  }, Math.max(1, seconds) * 1000);
-  timer.unref && timer.unref();
-  settleTimers.set(key, timer);
-}
-
 function startSubLibraryWatcher(subLib) {
-  stopSubLibraryWatcher(subLib.uuid);
-  if (!isAdultFolderSubLibrary(subLib) || !subLib.watchRoot) return;
-  if (!shouldAutoWatchSubLibrary(subLib)) return;
-  if (!fs.existsSync(subLib.watchRoot)) {
-    console.warn('[adultLibrary] watch root does not exist:', subLib.watchRoot);
-    return;
-  }
-
-  const ignored = (p) => hasIgnoredSegment(p, subLib) || isTemporaryFile(p);
-  const watcher = chokidar.watch(subLib.watchRoot, {
-    ignoreInitial: true,
-    ignored,
-    persistent: true,
-    awaitWriteFinish: {
-      stabilityThreshold: Math.max(1000, Number(((configStore.loadConfig().adultLibrary || {}).settleSeconds) || 30) * 1000),
-      pollInterval: 1000,
-    },
-  });
-
-  watcher.on('add', (filePath) => {
-    const cfg = configStore.loadConfig();
-    if (isMediaFile(filePath, cfg)) scheduleSettle(subLib, filePath);
-  });
-  watcher.on('error', (err) => console.error('[adultLibrary] watcher error:', err.message));
-
-  const intervalMin = Number(subLib.scanIntervalMinutes || (configStore.loadConfig().adultLibrary || {}).scanIntervalMinutes || 10);
-  const interval = setInterval(() => {
-    const cfg = configStore.loadConfig();
-    const sl = (cfg.subLibraries || []).find((s) => s.uuid === subLib.uuid);
-    if (isAdultFolderSubLibrary(sl)) {
-      scanSubLibrary(sl).catch((e) => console.error('[adultLibrary] interval scan failed:', e.message));
-    }
-  }, Math.max(1, intervalMin) * 60000);
-  interval.unref && interval.unref();
-
-  const startupTimer = setTimeout(() => {
-    scanSubLibrary(subLib).catch((e) => console.error('[adultLibrary] startup scan failed:', e.message));
-  }, 1000);
-  startupTimer.unref && startupTimer.unref();
-
-  watchers.set(subLib.uuid, { watcher, interval, startupTimer });
+  // Directory discovery is no longer owned by the adult library module.
+  // Explicit item actions such as rescrape still live here, but folder-wide
+  // scan/watch auto-enqueue must not run as an adult-library-private loop.
+  void subLib;
 }
 
 function stopSubLibraryWatcher(uuid) {
-  const rec = watchers.get(uuid);
-  if (!rec) return;
-  try { rec.watcher.close(); } catch (_) {}
-  if (rec.interval) clearInterval(rec.interval);
-  if (rec.startupTimer) clearTimeout(rec.startupTimer);
-  watchers.delete(uuid);
+  void uuid;
 }
 
 function startAllWatchers() {
-  const cfg = configStore.loadConfig();
-  for (const sl of cfg.subLibraries || []) {
-    if (isAdultFolderSubLibrary(sl)) startSubLibraryWatcher(sl);
-  }
+  // No-op by design. See startSubLibraryWatcher().
 }
 
 function stopAllWatchers() {
-  for (const uuid of [...watchers.keys()]) stopSubLibraryWatcher(uuid);
-  for (const timer of settleTimers.values()) clearTimeout(timer);
-  settleTimers.clear();
+  // No-op by design. See startSubLibraryWatcher().
 }
 
 module.exports = {

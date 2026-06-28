@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { libraryApi, taskApi, subLibraries as adminSubLibraries, ApiConflictError, adult as adultApi, systemConfig } from '../api/client';
+import { libraryApi, taskApi, ApiConflictError, adult as adultApi, systemConfig } from '../api/client';
 import type { SubLibraryInfo } from '../api/client';
 import { MediaLibraryManageRow } from '../components/MediaLibraryManageRow';
 import type { MediaTask } from '../types';
@@ -38,7 +38,6 @@ export default function MediaManagePage() {
   const [scrapeFilter, setScrapeFilter] = useState<string>('all');
   const [, setActiveSubLibName] = useState<string>('全部');
   const [strategyMsg, setStrategyMsg] = useState<string | null>(null);
-  const [scanMsg, setScanMsg] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [smartTaskActions, setSmartTaskActions] = useState<string[] | null>(null);
 
@@ -58,12 +57,6 @@ export default function MediaManagePage() {
       setSmartTaskActions(Array.isArray(cfg.smartTaskEnabledActions) ? cfg.smartTaskEnabledActions : []);
     }).catch(() => {});
   }, []);
-
-  const activeSubLibrary = useMemo(
-    () => subLibraries.find((sl) => sl.uuid === subLibraryId) || null,
-    [subLibraries, subLibraryId],
-  );
-  const canScanAdultFolder = Boolean(activeSubLibrary?.source === 'folder' && activeSubLibrary?.mediaType === 'adult');
 
   useEffect(() => {
     setPage(0);
@@ -174,35 +167,13 @@ export default function MediaManagePage() {
             localStorage.setItem(MEDIA_MANAGE_SUB_LIBRARY_KEY, id);
             setActiveSubLibName(id ? subLibraries.find(sl => sl.uuid === id)?.name || '' : '全部');
             setSelectedIds(new Set());
-            setScanMsg(null);
           }}
         >
           <option value="">全部（{subLibraries.length} 个库）</option>
-          {subLibraries.map((sl) => (
+        {subLibraries.map((sl) => (
             <option key={sl.uuid} value={sl.uuid}>{sl.name}</option>
           ))}
         </select>
-        {canScanAdultFolder && activeSubLibrary && (
-          <>
-            <button
-              type="button"
-              className="sidebarScanBtn"
-              onClick={async () => {
-                setScanMsg('扫描中...');
-                try {
-                  const res = await adminSubLibraries.scan(activeSubLibrary.uuid);
-                  setScanMsg(`扫描完成：${res.upserted} / ${res.scanned} 个文件`);
-                  setRefreshKey((k) => k + 1);
-                } catch (e) {
-                  setScanMsg(`扫描失败：${(e as Error).message}`);
-                }
-              }}
-            >
-              扫描当前文件夹
-            </button>
-            {scanMsg && <p className="sidebarInfo">{scanMsg}</p>}
-          </>
-        )}
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>筛选</div>
         <div className="sidebarSearchWrap">

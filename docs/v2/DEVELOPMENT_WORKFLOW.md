@@ -31,9 +31,9 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 ## 成人库 / Ingest + Scrape Task 开发
 
-日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。目录监听和扫描只负责发现稳定文件，并通过统一 `TaskAdmission` / `PriorityEngine` 创建 `actionType=ingest` 任务；`ingest` 完成单文件探测、NFO 预解析和媒体项写入后，未刮削 item 再创建 `actionType=scrape` 任务。具体执行由 `TaskScheduler` 按 `ingestConcurrency` / `scrapeConcurrency` 统一分配槽位。
+日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。成人库模块不再拥有自己的目录监听、定时扫描或整目录手动扫描入队逻辑；目录级 scan 只能用于只读核对，不创建 `ingest` 或 `scrape` 任务。`ingest` 是单 item 任务，完成单文件探测、NFO 预解析和媒体项写入后，未刮削 item 再按统一 `TaskAdmission` / `PriorityEngine` 判断是否创建 `actionType=scrape` 任务。具体执行由 `TaskScheduler` 按 `ingestConcurrency` / `scrapeConcurrency` 统一分配槽位。
 
-真实刮削可以配置代理服务器；默认不配置时使用直连。普通 service API 测试不依赖真实网络刮削；可以用临时目录或 `E:\my_project\emby_third_party\jav_test` 做扫描和端到端验证。
+真实刮削可以配置代理服务器；默认不配置时使用直连。普通 service API 测试不依赖真实网络刮削；可以用临时目录或 `E:\my_project\emby_third_party\jav_test` 做单 item 入库和端到端验证。
 
 成人库子库约定：
 
@@ -55,7 +55,7 @@ docker compose -f media-service/docker-compose.example.yml up -d
 欧美成人库约定：
 
 - People 人物库归 service 持久化，用户通过搜索/上传高清正脸图建立 reference face。
-- 刮削整理完成的成人库影片默认归拢到 `watchRoot/scraped/` 下；ShelfDeck 扫描/监听默认忽略该目录，Emby 可只监控这个归拢目录。
+- 刮削整理完成的成人库影片默认归拢到 `watchRoot/scraped/` 下；ShelfDeck 的目录核对默认忽略该目录，Emby 可只监控这个归拢目录。
 - service 默认使用自身 FFmpeg 抽帧，并调用 service Docker 内部 InsightFace face-service 做 embedding；face-service 不作为用户配置项暴露。
 - Docker service 是 all-in-one 容器，内部启动 Node service 和 face-service；容器外只暴露 `18080`。
 - 人脸模型目录默认是 `/app/data/face-models`，挂载数据卷后容器重启不会重新下载模型。

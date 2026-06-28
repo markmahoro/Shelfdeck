@@ -129,6 +129,54 @@ function maskSensitive(config) {
   return masked;
 }
 
+function taskListItemInfo(itemInfo = {}) {
+  if (!itemInfo || typeof itemInfo !== 'object') return undefined;
+  const adultMetadata = itemInfo.adultMetadata && typeof itemInfo.adultMetadata === 'object'
+    ? {
+      adultId: itemInfo.adultMetadata.adultId,
+      scrapeStatus: itemInfo.adultMetadata.scrapeStatus,
+      region: itemInfo.adultMetadata.region,
+      protagonist: itemInfo.adultMetadata.protagonist,
+    }
+    : undefined;
+  return {
+    name: itemInfo.name,
+    title: itemInfo.title,
+    type: itemInfo.type,
+    seriesName: itemInfo.seriesName,
+    seasonNumber: itemInfo.seasonNumber,
+    path: itemInfo.path,
+    subLibraryId: itemInfo.subLibraryId,
+    adultMetadata,
+    originalSizeBytes: itemInfo.originalSizeBytes,
+    originalBitrate: itemInfo.originalBitrate,
+    originalVideoCodec: itemInfo.originalVideoCodec,
+    originalAudioCodec: itemInfo.originalAudioCodec,
+    originalWidth: itemInfo.originalWidth,
+    originalHeight: itemInfo.originalHeight,
+  };
+}
+
+function taskListSummary(task) {
+  return {
+    id: task.id,
+    itemId: task.itemId,
+    itemName: task.itemName,
+    actionType: task.actionType,
+    status: task.status,
+    progress: task.progress,
+    phase: task.phase,
+    resumePoint: task.resumePoint,
+    approval: task.approval,
+    priority: task.priority,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    itemInfo: taskListItemInfo(task.itemInfo),
+    verifyResult: task.verifyResult,
+    confirmData: task.confirmData,
+  };
+}
+
 async function fetchImageAsBase64(url) {
   const u = String(url || '').trim();
   if (!/^https?:\/\//i.test(u)) throw new Error('imageUrl must be http(s)');
@@ -951,14 +999,9 @@ function registerRoutes(app) {
     const subLib = (cfg.subLibraries || []).find((s) => s.uuid === req.params.uuid);
     if (!subLib) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
     if (!adultLibraryService.isAdultFolderSubLibrary(subLib)) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'Only adult folder libraries support manual scan');
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'Only adult folder libraries used to support folder scan');
     }
-    try {
-      const result = await adultLibraryService.scanSubLibrary(subLib, { source: 'manual' });
-      return { ok: true, ...result };
-    } catch (e) {
-      return apiError(reply, 500, 'ADULT_SCAN_FAILED', e.message);
-    }
+    return apiError(reply, 410, 'ADULT_FOLDER_SCAN_REMOVED', 'Adult folder-wide scan has been removed; use explicit item actions instead.');
   });
 
   // Manual rescrape of a single adult folder item (resets prior failure state).
@@ -1567,7 +1610,7 @@ function registerRoutes(app) {
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
     const result = taskStore.queryTasks(filter, { page, pageSize, orderBy: 'updatedAt', orderDir: 'desc' });
     return {
-      tasks: result.tasks,
+      tasks: result.tasks.map(taskListSummary),
       summary: { total: result.total, byStatus: result.byStatus },
       page: result.page,
       pageSize: result.pageSize,

@@ -210,7 +210,7 @@ export default function TaskMonitorPage() {
     const enabledActions = sysCfg?.smartTaskEnabledActions || [];
     if (!enabledActions.includes(typeFilter)) {
       if (typeFilter === 'ingest' || typeFilter === 'scrape') {
-        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务；手动扫描和手动重刮仍可创建。`;
+        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务；具体影片仍可手动重刮。`;
       }
       return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务，媒体库里的${label}推荐不会自动进入任务中心。`;
     }
