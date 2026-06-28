@@ -265,6 +265,53 @@ test('mediaLibraryService reuses library cache until file changes', async () => 
   }
 });
 
+test('adultLibraryService reads library through the shared media cache', async () => {
+  const app = await buildEmptyApp();
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const watchRoot = tempDir();
+  const mediaPath = path.join(watchRoot, 'Scene One.mp4');
+  fs.writeFileSync(mediaPath, 'fake-media');
+
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [{
+      itemId: 'adult-cache-1',
+      subLibraryId: 'adult-cache',
+      name: 'Scene One',
+      path: mediaPath,
+      source: 'adult_folder',
+      type: 'movie',
+    }],
+  });
+  assert.strictEqual(mediaLibraryService.getLibrary().total, 1);
+
+  const originalReadFileSync = fs.readFileSync;
+  try {
+    fs.readFileSync = function patchedReadFileSync(file, ...args) {
+      if (String(file).endsWith('library.json')) throw new Error('adult library should use shared media cache');
+      return originalReadFileSync.call(this, file, ...args);
+    };
+    const result = await adultLibraryService.scanSubLibrary({
+      uuid: 'adult-cache',
+      name: 'Adult Cache',
+      enabled: true,
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'western_adult',
+      watchRoot,
+    });
+    assert.strictEqual(result.scanned, 1);
+    assert.strictEqual(result.upserted, 1);
+    assert.strictEqual(result.queued, 0);
+    assert.strictEqual(result.scrapeQueued, 0);
+  } finally {
+    fs.readFileSync = originalReadFileSync;
+    await app.close();
+  }
+});
+
 test('POST /v1/library/cache removes stale items', async () => {
   const app = await buildEmptyApp();
   // First insert 2 items

@@ -841,6 +841,7 @@ async function triggerDoubanSync(subLibraryId) {
 
 module.exports = {
   // Library CRUD
+  loadLibrary,
   getLibrary,
   getLibraryItem,
   upsertItems,

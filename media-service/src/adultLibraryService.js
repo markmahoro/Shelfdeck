@@ -10,6 +10,7 @@ const taskStore = require('./taskStore');
 const transcodeService = require('./services/transcodeService');
 const activityLog = require('./activityLog');
 const assetIdentity = require('./assetIdentity');
+const mediaLibraryService = require('./mediaLibraryService');
 const peopleStore = require('./peopleStore');
 const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
@@ -19,19 +20,12 @@ const DEFAULT_EXTS = new Set(['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '
 const DEFAULT_ORGANIZED_FOLDER_NAME = 'scraped';
 const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 
-function libraryFilePath() {
-  return path.join(configStore.resolveDataDir(), 'library.json');
-}
-
 function loadLibrary() {
-  const f = libraryFilePath();
-  if (!fs.existsSync(f)) return { version: 1, items: [], cachedAt: null };
-  try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (_) { return { version: 1, items: [], cachedAt: null }; }
+  return mediaLibraryService.loadLibrary();
 }
 
 function saveLibrary(lib) {
-  fs.mkdirSync(configStore.resolveDataDir(), { recursive: true });
-  fs.writeFileSync(libraryFilePath(), JSON.stringify(lib, null, 2), 'utf8');
+  mediaLibraryService.saveLibrary(lib);
 }
 
 function nowIso() {
