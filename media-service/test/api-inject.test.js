@@ -2255,6 +2255,48 @@ test('GET /v1/library/queries/manage supports page and pageSize pagination', asy
   await app.close();
 });
 
+test('GET /v1/library/queries/manage task filter stays on SQL pagination path', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const items = Array.from({ length: 3 }, (_, index) => ({
+    itemId: `task-filter-item-${index + 1}`,
+    subLibraryId: 'sub-task-filter',
+    source: 'emby',
+    type: 'movie',
+    name: `Task Filter Movie ${index + 1}`,
+    action: 'transcode',
+    path: `/media/task-filter-${index + 1}.mkv`,
+  }));
+  require('../src/mediaLibraryService').saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items,
+  });
+  const create = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId: 'task-filter-item-2', actionType: 'transcode' },
+  });
+  assert.strictEqual(create.statusCode, 201);
+
+  const libraryStore = require('../src/libraryStore');
+  const originalLoadLibrary = libraryStore.loadLibrary;
+  libraryStore.loadLibrary = () => {
+    throw new Error('task filter should not load full library');
+  };
+  try {
+    const none = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sub-task-filter&task=none&page=1&pageSize=10' });
+    assert.strictEqual(none.statusCode, 200);
+    assert.deepStrictEqual(none.json().items.map((item) => item.itemId), ['task-filter-item-1', 'task-filter-item-3']);
+
+    const active = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sub-task-filter&task=active&page=1&pageSize=10' });
+    assert.strictEqual(active.statusCode, 200);
+    assert.deepStrictEqual(active.json().items.map((item) => item.itemId), ['task-filter-item-2']);
+  } finally {
+    libraryStore.loadLibrary = originalLoadLibrary;
+    await app.close();
+  }
+});
+
 // ── MediaPolicyService (pure function) ─────────────────────────────────────────
 
 test('strategyEngine rule evaluation scenarios', async () => {

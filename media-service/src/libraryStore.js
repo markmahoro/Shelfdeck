@@ -263,6 +263,20 @@ function buildWhere(filter = {}) {
   if (filter.type) { clauses.push('type = @type'); params.type = String(filter.type); }
   if (filter.action) { clauses.push('action = @action'); params.action = String(filter.action); }
   if (filter.subLibraryId) { clauses.push('sub_library_id = @subLibraryId'); params.subLibraryId = String(filter.subLibraryId); }
+  if (Array.isArray(filter.itemIds)) {
+    if (filter.itemIds.length === 0) {
+      clauses.push('1 = 0');
+    } else {
+      const keys = filter.itemIds.map((_, i) => `@itemId${i}`);
+      clauses.push(`item_id IN (${keys.join(', ')})`);
+      filter.itemIds.forEach((id, i) => { params[`itemId${i}`] = String(id); });
+    }
+  }
+  if (Array.isArray(filter.excludeItemIds) && filter.excludeItemIds.length > 0) {
+    const keys = filter.excludeItemIds.map((_, i) => `@excludeItemId${i}`);
+    clauses.push(`item_id NOT IN (${keys.join(', ')})`);
+    filter.excludeItemIds.forEach((id, i) => { params[`excludeItemId${i}`] = String(id); });
+  }
   if (filter.search) {
     const q = String(filter.search).trim();
     if (q) {

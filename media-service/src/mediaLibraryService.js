@@ -318,65 +318,18 @@ function updateUserRating(itemId, userRating) {
 }
 
 function getLibrary(filter = {}, opts = {}) {
-  if (!filter.activeTaskIds) {
-    const result = libraryStore.queryItems(filter, opts);
-    let items = result.items.map((item) => ({ ...item }));
-    if (opts.includeOptimizationStatus) {
-      const taskStore = require('./taskStore');
-      const config = configStore.loadConfig();
-      const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
-        ? taskStore.queryOptimizationTaskIndexRows()
-        : taskStore.loadTasks();
-      items = optimizationStatus.decorateItems(items, optimizationTasks, config);
-    }
-    return { ...result, items };
+  const storeFilter = { ...(filter || {}) };
+  if (storeFilter.activeTaskIds) {
+    const activeTaskIds = storeFilter.activeTaskIds instanceof Set ? storeFilter.activeTaskIds : new Set();
+    const ids = [...activeTaskIds].filter(Boolean);
+    if (storeFilter.taskState === 'active') storeFilter.itemIds = ids;
+    if (storeFilter.taskState === 'none') storeFilter.excludeItemIds = ids;
+    delete storeFilter.activeTaskIds;
+    delete storeFilter.taskState;
   }
 
-  const lib = loadLibrary();
-  let items = lib.items;
-  const activeTaskIds = filter.activeTaskIds instanceof Set ? filter.activeTaskIds : null;
-  if (filter.source) items = items.filter((it) => it.source === filter.source);
-  if (filter.type) items = items.filter((it) => it.type === filter.type);
-  if (filter.action) items = items.filter((it) => it.action === filter.action);
-  if (filter.subLibraryId) items = items.filter((it) => it.subLibraryId === filter.subLibraryId);
-  if (filter.search) {
-    const q = String(filter.search).trim().toLowerCase();
-    if (q) items = items.filter((it) => String(it.name || '').toLowerCase().includes(q));
-  }
-  if (filter.resolution) items = items.filter((it) => String(it.resolution || '').startsWith(String(filter.resolution)));
-  if (filter.codec) items = items.filter((it) => String(it.codec || it.videoCodec || '').toLowerCase() === String(filter.codec).toLowerCase());
-  if (filter.watched !== undefined) items = items.filter((it) => !!it.watched === !!filter.watched);
-  if (filter.isBluRayDisc !== undefined) items = items.filter((it) => !!it.isBluRayDisc === !!filter.isBluRayDisc);
-  if (filter.doubanStars !== undefined) {
-    if (filter.doubanStars === null) items = items.filter((it) => it.doubanStars == null);
-    else items = items.filter((it) => Number(it.doubanStars) === Number(filter.doubanStars));
-  }
-  if (filter.userRating !== undefined) {
-    if (filter.userRating === null) items = items.filter((it) => it.userRating == null);
-    else items = items.filter((it) => Number(it.userRating) === Number(filter.userRating));
-  }
-  if (filter.taskState === 'active' && activeTaskIds) {
-    items = items.filter((it) => activeTaskIds.has(it.itemId));
-  } else if (filter.taskState === 'none' && activeTaskIds) {
-    items = items.filter((it) => !activeTaskIds.has(it.itemId));
-  }
-  if (filter.scrapeStatus) {
-    items = items.filter((it) => {
-      if (it.source !== 'adult_folder') return false;
-      const status = typeof (it.adultMetadata && it.adultMetadata.scrapeStatus) === 'string' ? it.adultMetadata.scrapeStatus : '';
-      if (filter.scrapeStatus === 'done') return Boolean(it.scraped) || status === 'done';
-      if (filter.scrapeStatus === 'pending') return !it.scraped && (status === 'pending' || status === 'ambiguous' || !status);
-      if (filter.scrapeStatus === 'failed') return status === 'failed';
-      return true;
-    });
-  }
-  const total = items.length;
-  if (Number.isInteger(opts.offset) || Number.isInteger(opts.limit)) {
-    const offset = Math.max(0, Number(opts.offset) || 0);
-    const limit = Number.isInteger(opts.limit) && opts.limit > 0 ? opts.limit : total;
-    items = items.slice(offset, offset + limit);
-  }
-  items = items.map((item) => ({ ...item }));
+  const result = libraryStore.queryItems(storeFilter, opts);
+  let items = result.items.map((item) => ({ ...item }));
   if (opts.includeOptimizationStatus) {
     const taskStore = require('./taskStore');
     const config = configStore.loadConfig();
@@ -385,7 +338,7 @@ function getLibrary(filter = {}, opts = {}) {
       : taskStore.loadTasks();
     items = optimizationStatus.decorateItems(items, optimizationTasks, config);
   }
-  return { items, total, offset: Math.max(0, Number(opts.offset) || 0), limit: Number.isInteger(opts.limit) ? opts.limit : null };
+  return { ...result, items };
 }
 
 function getLibraryItem(itemId) {
