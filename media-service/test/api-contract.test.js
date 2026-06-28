@@ -229,6 +229,42 @@ test('GET /v1/library supports server-side pagination and search', async () => {
   await app.close();
 });
 
+test('mediaLibraryService reuses library cache until file changes', async () => {
+  const app = await buildEmptyApp();
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [{ itemId: 'cache-1', name: 'Cached One', source: 'emby' }],
+  });
+
+  const first = mediaLibraryService.getLibrary();
+  assert.strictEqual(first.total, 1);
+
+  const originalReadFileSync = fs.readFileSync;
+  try {
+    fs.readFileSync = function patchedReadFileSync(file, ...args) {
+      if (String(file).endsWith('library.json')) throw new Error('library.json should be served from cache');
+      return originalReadFileSync.call(this, file, ...args);
+    };
+    const second = mediaLibraryService.getLibrary();
+    assert.strictEqual(second.total, 1);
+    assert.strictEqual(second.items[0].name, 'Cached One');
+
+    mediaLibraryService.saveLibrary({
+      version: 1,
+      cachedAt: new Date().toISOString(),
+      items: [{ itemId: 'cache-2', name: 'Cached Two', source: 'emby' }],
+    });
+    const third = mediaLibraryService.getLibrary();
+    assert.strictEqual(third.total, 1);
+    assert.strictEqual(third.items[0].name, 'Cached Two');
+  } finally {
+    fs.readFileSync = originalReadFileSync;
+    await app.close();
+  }
+});
+
 test('POST /v1/library/cache removes stale items', async () => {
   const app = await buildEmptyApp();
   // First insert 2 items

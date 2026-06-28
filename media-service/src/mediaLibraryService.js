@@ -34,6 +34,8 @@ function libraryFilePath() {
   return path.join(resolveDataDir(), 'library.json');
 }
 
+let libraryCache = null;
+
 function ensureDataDir() {
   const dir = resolveDataDir();
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -110,10 +112,22 @@ function loadLibrary() {
   ensureDataDir();
   const f = libraryFilePath();
   if (!fs.existsSync(f)) {
+    if (libraryCache && libraryCache.path === f) libraryCache = null;
     return { version: 1, items: [], cachedAt: null };
   }
   try {
-    return JSON.parse(fs.readFileSync(f, 'utf8'));
+    const stat = fs.statSync(f);
+    if (
+      libraryCache &&
+      libraryCache.path === f &&
+      libraryCache.mtimeMs === stat.mtimeMs &&
+      libraryCache.size === stat.size
+    ) {
+      return libraryCache.lib;
+    }
+    const lib = JSON.parse(fs.readFileSync(f, 'utf8'));
+    libraryCache = { path: f, mtimeMs: stat.mtimeMs, size: stat.size, lib };
+    return lib;
   } catch (err) {
     console.error('[mediaLibrary] failed to load library:', err.message);
     return { version: 1, items: [], cachedAt: null };
@@ -122,7 +136,14 @@ function loadLibrary() {
 
 function saveLibrary(lib) {
   ensureDataDir();
-  fs.writeFileSync(libraryFilePath(), JSON.stringify(lib, null, 2), 'utf8');
+  const f = libraryFilePath();
+  fs.writeFileSync(f, JSON.stringify(lib, null, 2), 'utf8');
+  try {
+    const stat = fs.statSync(f);
+    libraryCache = { path: f, mtimeMs: stat.mtimeMs, size: stat.size, lib };
+  } catch (_) {
+    libraryCache = null;
+  }
 }
 
 // ── Item operations ─────────────────────────────────────────────────────────
@@ -390,6 +411,7 @@ function getLibrary(filter = {}, opts = {}) {
     const limit = Number.isInteger(opts.limit) && opts.limit > 0 ? opts.limit : total;
     items = items.slice(offset, offset + limit);
   }
+  items = items.map((item) => ({ ...item }));
   if (opts.includeOptimizationStatus) {
     const taskStore = require('./taskStore');
     const config = configStore.loadConfig();
