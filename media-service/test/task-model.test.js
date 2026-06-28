@@ -7,9 +7,29 @@ const os = require('node:os');
 const path = require('node:path');
 
 const approvalPolicy = require('../src/approvalPolicy');
+const configStore = require('../src/configStore');
 const taskAdmission = require('../src/taskAdmission');
 const smartTaskEngine = require('../src/smartTaskEngine');
 const taskStore = require('../src/taskStore');
+
+test('approvalPolicy default gate catalog is complete and normalized', () => {
+  const expected = [
+    'delete.beforeExecute',
+    'transcode.dolbyVisionTonemap',
+    'transcode.beforeReplace',
+    'upgrade.candidateSelect',
+    'upgrade.identityMismatch',
+    'upgrade.beforeReplace',
+    'scrape.beforeWriteMetadata',
+    'scrape.beforeOrganize',
+    'scrape.reviewResult',
+  ];
+  const actual = Object.keys(approvalPolicy.DEFAULT_APPROVAL_POLICY).sort();
+  assert.deepStrictEqual(actual, [...expected].sort());
+  for (const gateId of expected) {
+    assert.ok(['auto', 'confirm', 'forceConfirm'].includes(approvalPolicy.DEFAULT_APPROVAL_POLICY[gateId]));
+  }
+});
 
 test('approvalPolicy resolves global, sub-library, and task overrides', () => {
   const config = {
@@ -44,6 +64,58 @@ test('approvalPolicy forceConfirm cannot be lowered by overrides', () => {
   assert.strictEqual(
     approvalPolicy.resolveGate('upgrade.identityMismatch', { itemInfo, config }),
     'forceConfirm',
+  );
+});
+
+test('resolveSubLibSchedule treats automationMode as the canonical scheduling switch', () => {
+  const config = {
+    subLibraries: [{
+      uuid: 'lib-a',
+      automationMode: 'manual',
+      scheduleMode: 'full_auto',
+      autoCreate: true,
+      autoExecute: true,
+      approvalPolicy: { 'scrape.reviewResult': 'confirm' },
+    }, {
+      uuid: 'lib-b',
+      automationMode: 'auto',
+      scheduleMode: 'full_manual',
+      autoCreate: false,
+      autoExecute: false,
+    }, {
+      uuid: 'legacy-custom',
+      scheduleMode: 'custom',
+      autoCreate: true,
+      autoExecute: false,
+    }],
+  };
+
+  assert.deepStrictEqual(
+    configStore.resolveSubLibSchedule({ subLibraryId: 'lib-a' }, config),
+    {
+      automationMode: 'manual',
+      autoCreate: false,
+      autoExecute: false,
+      approvalPolicy: { 'scrape.reviewResult': 'confirm' },
+    },
+  );
+  assert.deepStrictEqual(
+    configStore.resolveSubLibSchedule({ subLibraryId: 'lib-b' }, config),
+    {
+      automationMode: 'auto',
+      autoCreate: true,
+      autoExecute: true,
+      approvalPolicy: {},
+    },
+  );
+  assert.deepStrictEqual(
+    configStore.resolveSubLibSchedule({ subLibraryId: 'legacy-custom' }, config),
+    {
+      automationMode: 'manual',
+      autoCreate: true,
+      autoExecute: false,
+      approvalPolicy: {},
+    },
   );
 });
 
