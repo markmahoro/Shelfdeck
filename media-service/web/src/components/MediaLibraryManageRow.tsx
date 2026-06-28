@@ -40,6 +40,7 @@ export type MediaLibraryManageRowProps = {
   isSelected: boolean;
   isHighlighted: boolean;
   rowTask: MediaTask | undefined;
+  showAdultFields: boolean;
   onToggleSelect: (id: string) => void;
   onWatchChange: (item: ManagedMediaItem, watched: boolean) => void;
   onRatingChange: (item: ManagedMediaItem, rating: MediaRating | null) => void;
@@ -95,6 +96,7 @@ function MediaLibraryManageRowInner({
   isSelected,
   isHighlighted,
   rowTask,
+  showAdultFields,
   onToggleSelect,
   onWatchChange,
   onRatingChange,
@@ -136,7 +138,7 @@ function MediaLibraryManageRowInner({
   return (
     <div
       data-manage-item-id={item.id}
-      className={`mediaManageGrid mediaManageRow${isHighlighted ? ' mediaManageRowHighlight' : ''}`}
+      className={`mediaManageGrid ${showAdultFields ? 'mediaManageGridAdult' : 'mediaManageGridStandard'} mediaManageRow${isHighlighted ? ' mediaManageRowHighlight' : ''}`}
     >
       <div className="mediaManageTitleCell">
         <input
@@ -149,34 +151,36 @@ function MediaLibraryManageRowInner({
           <span className="mediaManageTitle">{item.name}</span>
         </span>
       </div>
-      <div className="adultScrapeCell">
-        {scrapeStatus ? (
-          <>
-            <span className={`adultScrapeBadge adultScrapeBadge-${scrapeStatus.tone}`} title={scrapeStatus.title}>
-              {scrapeStatus.label}
-            </span>
-            {adultSummary ? (
-              <span className="adultScrapeSummary" title={adultTitle || scrapeStatus.title}>
-                {adultSummary}
+      {showAdultFields && (
+        <div className="adultScrapeCell">
+          {scrapeStatus ? (
+            <>
+              <span className={`adultScrapeBadge adultScrapeBadge-${scrapeStatus.tone}`} title={scrapeStatus.title}>
+                {scrapeStatus.label}
               </span>
-            ) : (
-              <span className="adultScrapeSummary">—</span>
-            )}
-            {onRescrape && !rowTask && (
-              <button
-                type="button"
-                className="adultRescrapeBtn"
-                title="重新刮削该条目"
-                onClick={() => onRescrape(item)}
-              >
-                重刮
-              </button>
-            )}
-          </>
-        ) : (
-          <span className="hint">—</span>
-        )}
-      </div>
+              {adultSummary ? (
+                <span className="adultScrapeSummary" title={adultTitle || scrapeStatus.title}>
+                  {adultSummary}
+                </span>
+              ) : (
+                <span className="adultScrapeSummary">—</span>
+              )}
+              {onRescrape && !rowTask && (
+                <button
+                  type="button"
+                  className="adultRescrapeBtn"
+                  title="重新刮削该条目"
+                  onClick={() => onRescrape(item)}
+                >
+                  重刮
+                </button>
+              )}
+            </>
+          ) : (
+            <span className="hint">—</span>
+          )}
+        </div>
+      )}
       <div>{item.seriesName || '—'}</div>
       <div className="tabular-nums">{item.seasonNumber != null ? `S${String(item.seasonNumber).padStart(2, '0')}` : '—'}</div>
       <div className="tabular-nums">{item.sizeGb.toFixed(1)} GB</div>
@@ -234,6 +238,7 @@ function rowPropsEqual(a: MediaLibraryManageRowProps, b: MediaLibraryManageRowPr
     a.isSelected === b.isSelected &&
     a.isHighlighted === b.isHighlighted &&
     a.rowTask === b.rowTask &&
+    a.showAdultFields === b.showAdultFields &&
     a.onToggleSelect === b.onToggleSelect &&
     a.onWatchChange === b.onWatchChange &&
     a.onRatingChange === b.onRatingChange &&

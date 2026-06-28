@@ -84,6 +84,8 @@ const RESUME_POINT_APPROVAL_LABELS: Record<string, string> = {
   upgrade_replace: '洗版替换确认',
 };
 
+const TERMINAL_TASK_STATUSES = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
+
 function formatItemName(itemInfo?: TaskItemInfo): string {
   if (!itemInfo) return '';
   if (itemInfo.type === 'season' && itemInfo.seriesName && itemInfo.seasonNumber != null) {
@@ -107,6 +109,10 @@ function hasSpecialApprovalCard(task: MediaTask): boolean {
   return approvalMatches(task, 'transcode.beforeReplace', 'transcode_replace')
     || approvalMatches(task, 'upgrade.candidateSelect', 'upgrade_executing')
     || approvalMatches(task, 'upgrade.beforeReplace', 'upgrade_replace');
+}
+
+function isTerminalTask(task: MediaTask): boolean {
+  return TERMINAL_TASK_STATUSES.has(task.status);
 }
 
 export default function TaskMonitorPage() {
@@ -164,8 +170,12 @@ export default function TaskMonitorPage() {
   }
 
   const deleteMut = useMutation({
-    mutationFn: tasks.remove,
-    onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '任务已删除' }); setDetailOpen(false); },
+    mutationFn: (params: { id: string; terminal: boolean }) => tasks.remove(params.id),
+    onSuccess: (_data, params) => {
+      invalidate();
+      setAlert({ type: 'success', msg: params.terminal ? '任务记录已移除' : '任务已取消' });
+      setDetailOpen(false);
+    },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
@@ -234,6 +244,14 @@ export default function TaskMonitorPage() {
     setScrapeFixAdultId(adultId);
   }
 
+  function removeTask(task: MediaTask) {
+    const terminal = isTerminalTask(task);
+    const message = terminal
+      ? '只会从任务中心移除这条历史记录，不会删除媒体文件。确认移除？'
+      : '将取消这个未完成任务，不会删除媒体文件。确认取消？';
+    if (confirm(message)) deleteMut.mutate({ id: task.id, terminal });
+  }
+
   function formatSize(bytes: number): string {
     if (!bytes || bytes === 0) return '—';
     const gb = bytes / (1024 * 1024 * 1024);
@@ -246,14 +264,14 @@ export default function TaskMonitorPage() {
     const btns: React.ReactNode[] = [];
     if (t.status === 'executing') {
       btns.push(<button key="pause" onClick={() => pauseMut.mutate(t.id)} style={warnBtn}>暂停</button>);
-      btns.push(<button key="cancel" onClick={() => { if (confirm('确定取消此任务？')) deleteMut.mutate(t.id); }} style={{ ...warnBtn, background: '#e74c3c' }}>取消</button>);
+      btns.push(<button key="cancel" onClick={() => removeTask(t)} style={{ ...warnBtn, background: '#e74c3c' }}>取消任务</button>);
     }
     if (t.status === 'pausing') {
       btns.push(<button key="pausing" disabled style={{ ...warnBtn, opacity: 0.6, cursor: 'not-allowed' }}>暂停中...</button>);
     }
     if (t.status === 'paused' || t.status === 'pending_manual' || t.status === 'created') {
       btns.push(<button key="exec" onClick={() => executeMut.mutate(t.id)} style={execBtn}>继续</button>);
-      btns.push(<button key="cancel" onClick={() => { if (confirm('确定取消此任务？')) deleteMut.mutate(t.id); }} style={{ ...warnBtn, background: '#e74c3c' }}>取消</button>);
+      btns.push(<button key="cancel" onClick={() => removeTask(t)} style={{ ...warnBtn, background: '#e74c3c' }}>取消任务</button>);
     }
     if (t.status === 'done') {
       btns.push(<button key="report" onClick={() => {
@@ -488,7 +506,7 @@ export default function TaskMonitorPage() {
                   <td style={tdStyle}>
                     {renderActions(t)}
                     <button onClick={() => openDetail(t)} style={actionBtn}>详情</button>
-                    <button onClick={() => { if (confirm('确认删除此任务？')) deleteMut.mutate(t.id); }} style={deleteBtn}>删除</button>
+                    <button onClick={() => removeTask(t)} style={deleteBtn}>{isTerminalTask(t) ? '移除记录' : '取消任务'}</button>
                   </td>
                 </tr>
               ))}
@@ -723,10 +741,10 @@ export default function TaskMonitorPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => { setDetailOpen(false); setSelectedTask(null); }} style={secondaryBtn}>关闭</button>
                 <button
-                  onClick={() => { if (confirm('确认删除此任务？')) deleteMut.mutate(displayTask.id); }}
+                  onClick={() => removeTask(displayTask)}
                   style={dangerBtn}
                 >
-                  删除任务
+                  {isTerminalTask(displayTask) ? '移除记录' : '取消任务'}
                 </button>
               </div>
             </div>

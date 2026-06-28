@@ -49,6 +49,29 @@
   font-size: 13px;
 }
 
+.mediaPagerControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mediaPagerControls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mediaPagerControls select {
+  padding: 4px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  font-size: 13px;
+}
+
 .mediaPager button {
   margin-left: 8px;
   border: 1px solid #d1d5db;
@@ -233,8 +256,6 @@
 
 .mediaManageGrid {
   display: grid;
-  grid-template-columns:
-    18rem 8.5rem 7rem 3rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 4.5rem 2.5rem 5.5rem 5rem 6rem 15rem 4.5rem;
   gap: 6px 8px;
   align-items: center;
   padding: 8px 10px;
@@ -333,6 +354,16 @@
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mediaManageGridAdult {
+  grid-template-columns:
+    18rem 8.5rem 7rem 3rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 4.5rem 2.5rem 5.5rem 5rem 6rem 15rem 4.5rem;
+}
+
+.mediaManageGridStandard {
+  grid-template-columns:
+    18rem 7rem 3rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 4.5rem 2.5rem 5.5rem 5rem 6rem 15rem 4.5rem;
 }
 
 .adultRescrapeBtn {
