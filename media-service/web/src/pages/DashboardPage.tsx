@@ -30,6 +30,7 @@ const ACTIVE_TASK_STATUSES = [
   'waiting_media_source',
 ];
 const TERMINAL_TASK_STATUSES = ['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'];
+const FAILED_TASK_STATUSES = ['failed_hard'];
 
 export default function DashboardPage() {
   const qc = useQueryClient();
@@ -73,6 +74,12 @@ export default function DashboardPage() {
   const { data: recentTaskList, isLoading: recentTasksLoading } = useQuery({
     queryKey: ['dashboard-recent-task-results'],
     queryFn: () => tasks.list({ statuses: TERMINAL_TASK_STATUSES, page: 1, pageSize: 5 }),
+    refetchInterval: 10000,
+  });
+
+  const { data: failedTaskList, isLoading: failedTasksLoading } = useQuery({
+    queryKey: ['dashboard-failed-tasks'],
+    queryFn: () => tasks.list({ statuses: FAILED_TASK_STATUSES, page: 1, pageSize: 5 }),
     refetchInterval: 10000,
   });
 
@@ -220,6 +227,9 @@ export default function DashboardPage() {
 
   const currentTasks: MediaTask[] = currentTaskList?.tasks || [];
   const recentResultTasks: MediaTask[] = recentTaskList?.tasks || [];
+  const failedTasks: MediaTask[] = failedTaskList?.tasks || [];
+  const terminalSummary = recentTaskList?.summary?.byStatus || {};
+  const failedTotal = failedTaskList?.summary?.byStatus?.failed_hard || failedTaskList?.total || 0;
   const subLibs: SubLibrary[] = slData?.subLibraries || [];
   const enabledAutoActions = sysCfg?.smartTaskEnabledActions;
   const enabledAutoActionText = !enabledAutoActions
@@ -378,37 +388,74 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Recent Task Results */}
+      {/* Task Results */}
       <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>最近任务结果</h3>
-          <span style={{ fontSize: 12, color: '#888' }}>按更新时间显示最近完成、失败或取消的任务</span>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>任务提醒</h3>
+          <span style={{ fontSize: 12, color: '#888' }}>优先显示失败任务；完成记录仅作为背景信息</span>
         </div>
-        {recentTasksLoading ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+          <TaskSummaryPill label="失败任务" value={failedTotal} color="#c62828" />
+          <TaskSummaryPill label="已完成" value={terminalSummary.done || 0} color="#2e7d32" />
+          <TaskSummaryPill label="已取消" value={terminalSummary.cancelled || 0} color="#666" />
+          <TaskSummaryPill label="已跳过" value={terminalSummary.skipped || 0} color="#777" />
+        </div>
+        {failedTasksLoading || recentTasksLoading ? (
           <LoadingSpinner text="加载任务中..." />
-        ) : recentResultTasks.length === 0 ? (
-          <p style={{ color: '#888', fontSize: 14 }}>暂无最近完成或失败的任务</p>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-            <thead>
-              <tr>
-                <th style={thStyle}>影片</th>
-                <th style={thStyle}>类型</th>
-                <th style={thStyle}>结果</th>
-                <th style={thStyle}>更新时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentResultTasks.map((t) => (
-                <tr key={t.id}>
-                  <td style={tdStyle}>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</td>
-                  <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
-                  <td style={tdStyle}>{STATUS_LABELS[t.status] || t.status}</td>
-                  <td style={tdStyle}>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '—'}</td>
+        ) : failedTasks.length > 0 ? (
+          <>
+            <div style={{ fontSize: 13, color: '#c62828', marginBottom: 8, fontWeight: 600 }}>
+              最近失败任务，需要到「任务中心」查看原因并重试
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>影片</th>
+                  <th style={thStyle}>类型</th>
+                  <th style={thStyle}>结果</th>
+                  <th style={thStyle}>更新时间</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {failedTasks.map((t) => (
+                  <tr key={t.id}>
+                    <td style={tdStyle}>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</td>
+                    <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
+                    <td style={{ ...tdStyle, color: '#c62828', fontWeight: 600 }}>{STATUS_LABELS[t.status] || t.status}</td>
+                    <td style={tdStyle}>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        ) : recentResultTasks.length === 0 ? (
+          <p style={{ color: '#888', fontSize: 14 }}>暂无需要处理的失败任务，也没有最近完成记录</p>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: '#666', marginBottom: 8, fontWeight: 600 }}>
+              没有失败任务，以下是最近完成或取消的记录
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>影片</th>
+                  <th style={thStyle}>类型</th>
+                  <th style={thStyle}>结果</th>
+                  <th style={thStyle}>更新时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentResultTasks.map((t) => (
+                  <tr key={t.id}>
+                    <td style={tdStyle}>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</td>
+                    <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
+                    <td style={tdStyle}>{STATUS_LABELS[t.status] || t.status}</td>
+                    <td style={tdStyle}>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
 
@@ -721,6 +768,15 @@ function MiniStat({ label, value, sub, color }: { label: string; value: string; 
       <div style={{ fontSize: 13, fontWeight: 700, color }}>{value}</div>
       <div style={{ fontSize: 10, color: '#888' }}>{label}</div>
       {sub && <div style={{ fontSize: 9, color: '#aaa' }}>{sub}</div>}
+    </div>
+  );
+}
+
+function TaskSummaryPill({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 6, background: '#f8f9fb', border: '1px solid #eee' }}>
+      <span style={{ fontSize: 12, color: '#666' }}>{label}</span>
+      <span style={{ fontSize: 13, color, fontWeight: 700 }}>{value}</span>
     </div>
   );
 }
