@@ -3,17 +3,16 @@
 /**
  * MediaLibraryService (MEDIA_LIBRARY.md).
  *
- * Coordinator for the unified media library persistence table (data/library.json).
+ * Coordinator for the unified media library persistence table (data/library.db).
  * Manages subLibraries, independent refresh and douban sync timers per subLibrary.
  *
  * Principle: write first, recalculate action/reason only for affected items.
  */
 
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 
 const configStore = require('./configStore');
+const libraryStore = require('./libraryStore');
 const doubanMatchService = require('./doubanMatchService');
 const embyService = require('./services/embyService');
 const transcodeService = require('./services/transcodeService');
@@ -21,25 +20,6 @@ const doubanService = require('./services/doubanService');
 const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
 const assetIdentity = require('./assetIdentity');
-
-function resolveDataDir() {
-  return (
-    process.env.CONTROL_PLANE_DATA_DIR ||
-    process.env.MEDIA_SERVICE_DATA_DIR ||
-    path.join(__dirname, '..', 'data')
-  );
-}
-
-function libraryFilePath() {
-  return path.join(resolveDataDir(), 'library.json');
-}
-
-let libraryCache = null;
-
-function ensureDataDir() {
-  const dir = resolveDataDir();
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
 
 function generateUuid() {
   return crypto.randomUUID();
@@ -109,41 +89,11 @@ async function enrichDiscMetadata(incomingItems, subLib, config) {
 // ── Library file persistence ────────────────────────────────────────────────
 
 function loadLibrary() {
-  ensureDataDir();
-  const f = libraryFilePath();
-  if (!fs.existsSync(f)) {
-    if (libraryCache && libraryCache.path === f) libraryCache = null;
-    return { version: 1, items: [], cachedAt: null };
-  }
-  try {
-    const stat = fs.statSync(f);
-    if (
-      libraryCache &&
-      libraryCache.path === f &&
-      libraryCache.mtimeMs === stat.mtimeMs &&
-      libraryCache.size === stat.size
-    ) {
-      return libraryCache.lib;
-    }
-    const lib = JSON.parse(fs.readFileSync(f, 'utf8'));
-    libraryCache = { path: f, mtimeMs: stat.mtimeMs, size: stat.size, lib };
-    return lib;
-  } catch (err) {
-    console.error('[mediaLibrary] failed to load library:', err.message);
-    return { version: 1, items: [], cachedAt: null };
-  }
+  return libraryStore.loadLibrary();
 }
 
 function saveLibrary(lib) {
-  ensureDataDir();
-  const f = libraryFilePath();
-  fs.writeFileSync(f, JSON.stringify(lib, null, 2), 'utf8');
-  try {
-    const stat = fs.statSync(f);
-    libraryCache = { path: f, mtimeMs: stat.mtimeMs, size: stat.size, lib };
-  } catch (_) {
-    libraryCache = null;
-  }
+  libraryStore.saveLibrary(lib);
 }
 
 // ── Item operations ─────────────────────────────────────────────────────────
@@ -367,6 +317,20 @@ function updateUserRating(itemId, userRating) {
 }
 
 function getLibrary(filter = {}, opts = {}) {
+  if (!filter.activeTaskIds) {
+    const result = libraryStore.queryItems(filter, opts);
+    let items = result.items.map((item) => ({ ...item }));
+    if (opts.includeOptimizationStatus) {
+      const taskStore = require('./taskStore');
+      const config = configStore.loadConfig();
+      const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
+        ? taskStore.queryOptimizationTaskIndexRows()
+        : taskStore.loadTasks();
+      items = optimizationStatus.decorateItems(items, optimizationTasks, config);
+    }
+    return { ...result, items };
+  }
+
   const lib = loadLibrary();
   let items = lib.items;
   const activeTaskIds = filter.activeTaskIds instanceof Set ? filter.activeTaskIds : null;
@@ -424,8 +388,7 @@ function getLibrary(filter = {}, opts = {}) {
 }
 
 function getLibraryItem(itemId) {
-  const lib = loadLibrary();
-  return lib.items.find((it) => it.itemId === itemId) || null;
+  return libraryStore.getItem(itemId);
 }
 
 function getLibraryStatus() {
@@ -612,11 +575,11 @@ async function refreshSubLibrary(subLib) {
       return;
     }
     activityLog.addActivity('media_library', `正在刷新子库「${name}」…`);
-    const beforeCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
+    const beforeCount = libraryStore.countBySubLibrary(subLib.uuid);
     const items = await embyService.getLibraryItems(server, subLib.sectionId);
     await enrichDiscMetadata(items, subLib, cfg);
     const result = upsertItems(subLib.uuid, items, { fullSync: true });
-    const afterCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
+    const afterCount = libraryStore.countBySubLibrary(subLib.uuid);
     const newItems = Math.max(0, afterCount - beforeCount + result.removed);
     const msg = newItems > 0
       ? `子库「${name}」刷新完成，${newItems} 个新媒体入库，${result.removed} 个已清理`
@@ -895,10 +858,8 @@ function getHealth(config) {
   }
 
   if (staleSubLibraries.length === enabledCount) {
-    // Check if library.json is readable
-    try {
-      loadLibrary();
-    } catch (_) {
+    // Check if library.db is readable
+    if (!libraryStore.getHealth()) {
       return { status: 'red', totalSubLibraries, enabledCount, staleSubLibraries };
     }
     return { status: 'red', totalSubLibraries, enabledCount, staleSubLibraries };

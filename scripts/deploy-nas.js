@@ -11,7 +11,7 @@
  * The script is dry-run by default. With --apply it:
  *   1. Prints currently active ffmpeg processes for awareness.
  *   2. Loads the supplied image tarball.
- *   3. Backs up config.json, library.json, and tasks.json.
+ *   3. Backs up config.json, library.json/library.db, and task history files.
  *   4. Recreates ShelfDeck through the NAS compose file.
  *   5. Verifies health, image-based code, preserved data, and /adult_media.
  */
@@ -51,12 +51,19 @@ function run(conn, cmd) {
 }
 
 function dataSnapshotCmd() {
-  const files = ['config.json', 'library.json', 'tasks.json'];
+  const files = ['config.json', 'library.json', 'library.db', 'library.db-wal', 'library.db-shm', 'tasks.json', 'tasks.db', 'tasks.db-wal', 'tasks.db-shm'];
   return files.map((file) => {
     const src = `${DATA_DIR}/${file}`;
     const dst = `${src}.pre-image-adult-${STAMP}.bak`;
     return `[ -f ${shellQuote(src)} ] && cp -p ${shellQuote(src)} ${shellQuote(dst)} && echo backed-up:${file}`;
   }).join(' ; ');
+}
+
+function dataSizesCmd() {
+  const files = ['config.json', 'library.json', 'library.db', 'tasks.json', 'tasks.db'];
+  return files
+    .map((file) => `[ -f ${shellQuote(`${DATA_DIR}/${file}`)} ] && wc -c ${shellQuote(`${DATA_DIR}/${file}`)} || true`)
+    .join(' ; ');
 }
 
 function imageFromTarball(tarball) {
@@ -141,7 +148,7 @@ async function main() {
       : []),
     ['Check compose file', `docker compose -f ${shellQuote(COMPOSE_FILE)} config >/dev/null`],
     ['Show active ffmpeg processes', activeFfmpegCheckCmd()],
-    ['Pre-flight data sizes', `wc -c ${DATA_DIR}/config.json ${DATA_DIR}/library.json ${DATA_DIR}/tasks.json`],
+    ['Pre-flight data sizes', dataSizesCmd()],
     ['Load image', `docker load -i ${shellQuote(tarball)}`],
     ['Update compose image', updateComposeImageCmd(targetImage)],
     ['Snapshot data files', dataSnapshotCmd()],
@@ -152,7 +159,7 @@ async function main() {
     ['Verify code comes from image', 'docker inspect shelfdeck --format "{{json .Mounts}}" | grep -v "shelfdeck-releases"'],
     ['Verify running image tag', `docker inspect shelfdeck --format "{{.Config.Image}}" | grep -Fx ${shellQuote(targetImage)}`],
     ['Verify scraper module', 'docker exec shelfdeck node -e "require(\'/app/src/services/japaneseJavScraper\'); require(\'/app/src/scrapeFlowExecutor\'); console.log(\'SCRAPER_OK\')"'],
-    ['Post-flight data sizes', `wc -c ${DATA_DIR}/config.json ${DATA_DIR}/library.json ${DATA_DIR}/tasks.json`],
+    ['Post-flight data sizes', dataSizesCmd()],
   ];
 
   console.log(`ShelfDeck NAS deploy (${apply ? 'APPLY' : 'DRY RUN'})`);

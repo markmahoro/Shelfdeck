@@ -70,7 +70,7 @@ apply 模式必须保持这些保护：
 - 部署前检查 tarball、可选 SHA-256 和 NAS compose 文件。
 - 由 tarball 文件名 `shelfdeck-<tag>.tar` 推导目标镜像 `markmahoro/shelfdeck:<tag>`，并更新 NAS compose 的 `image:`。
 - 展示 live 容器里当前 `ffmpeg` 进程，作为中断风险提示；开发期部署允许中断这些任务，后续孤儿文件可另行清理。
-- 部署前备份 `config.json`、`library.json`、`tasks.json`。
+- 部署前备份 `config.json`、`library.json` / `library.db`、`tasks.json` / `tasks.db`。
 - 通过 NAS 上的 compose 文件 `docker compose up -d --force-recreate` 重建容器。
 - 部署后检查 `/v1/health`、成人库挂载、代码来自镜像而不是源码挂载、关键 scraper 模块可加载。
 - 部署前后输出数据文件大小，便于发现配置或任务数据异常。

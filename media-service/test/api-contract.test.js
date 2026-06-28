@@ -312,6 +312,32 @@ test('adultLibraryService reads library through the shared media cache', async (
   }
 });
 
+test('libraryStore migrates library.json to SQLite and keeps the source JSON', async () => {
+  const dir = tempDir();
+  const legacy = {
+    version: 1,
+    cachedAt: '2026-06-28T00:00:00.000Z',
+    items: [
+      { itemId: 'legacy-1', subLibraryId: 'legacy-lib', name: 'Legacy Alpha', source: 'emby', type: 'movie', action: 'keep' },
+      { itemId: 'legacy-2', subLibraryId: 'legacy-lib', name: 'Legacy Beta', source: 'emby', type: 'movie', action: 'transcode' },
+    ],
+  };
+  fs.writeFileSync(path.join(dir, 'library.json'), JSON.stringify(legacy, null, 2), 'utf8');
+
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const res = await app.inject({ method: 'GET', url: '/v1/library?subLibraryId=legacy-lib&limit=10' });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.total, 2);
+  assert.deepStrictEqual(body.items.map((it) => it.itemId), ['legacy-1', 'legacy-2']);
+  assert.ok(fs.existsSync(path.join(dir, 'library.db')), 'library.db should exist after migration');
+  assert.ok(fs.existsSync(path.join(dir, 'library.json.migrated')), 'migration marker should exist');
+  assert.ok(fs.existsSync(path.join(dir, 'library.json')), 'source library.json should be preserved');
+  const marker = JSON.parse(fs.readFileSync(path.join(dir, 'library.json.migrated'), 'utf8'));
+  assert.strictEqual(marker.count, 2);
+  await app.close();
+});
+
 test('POST /v1/library/cache removes stale items', async () => {
   const app = await buildEmptyApp();
   // First insert 2 items

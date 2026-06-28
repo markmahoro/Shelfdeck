@@ -99,7 +99,7 @@ desktop / Admin Web
 
 核心流：
 
-1. service 同步 Emby 媒体库到 `media-service/data/library.json`。
+1. service 同步 Emby 媒体库到 `media-service/data/library.db`。
 2. service 同步 Douban 或接收用户评分。
 3. `StrategyEngine` 计算每个媒体项的 `action/reason`。
 4. `SmartTaskEngine` 或用户操作创建任务。
@@ -156,6 +156,7 @@ desktop / Admin Web
 | HTTP API | `src/app.js` | `/v1/*` 和 `/v1/admin/*` 路由 |
 | Server | `src/server.js` | 启动、关闭、可选 tray |
 | Config | `src/configStore.js` | `data/config.json` 读写、默认值、平台路径 |
+| Library store | `src/libraryStore.js` | `data/library.db` SQLite 读写；启动时从旧 `library.json` 一次性迁移 |
 | Task store | `src/taskStore.js` | `data/tasks.db` SQLite 读写；启动时从旧 `tasks.json` 一次性迁移 |
 | Scheduler | `src/taskScheduler.js` | 轮询、锁、并发、flow dispatch |
 | Task admission | `src/taskAdmission.js` | 自动/手动入队闸门、去重、冷却、业务幂等 |
@@ -207,7 +208,8 @@ Runtime data 不入库：
 | `media-service/data/config.json` | service | 配置 |
 | `media-service/data/tasks.db` | service | 任务队列和任务中心历史 |
 | `media-service/data/tasks.json` | service | 旧版任务存储；存在时启动自动迁移到 `tasks.db`，迁移后仅作为原始记录保留 |
-| `media-service/data/library.json` | service | 媒体库缓存 |
+| `media-service/data/library.db` | service | 媒体库主存储；列表分页、筛选和 item 读写从 SQLite 读取 |
+| `media-service/data/library.json` | service | 旧版媒体库缓存；存在时启动自动迁移到 `library.db`，迁移后仅作为原始记录保留 |
 | `media-service/data/nodes.json` | service | 转码节点登记 |
 | `media-service/data/people.json` | service | 欧美成人 People 人物库 |
 | `media-worker/config.json` | worker node | worker 本机配置 |

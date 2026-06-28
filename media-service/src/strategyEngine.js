@@ -3,7 +3,7 @@
 /**
  * StrategyEngine — rule-based strategy evaluation.
  *
- * Reads library.json, evaluates each item against the subLibrary's rule
+ * Reads the media library store, evaluates each item against the subLibrary's rule
  * template, and writes action/reason/targetBitrate/targetCodec/predictedSizeGb.
  *
  * Decoupled from all data-writing paths. Only reads library + config,

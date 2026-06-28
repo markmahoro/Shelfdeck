@@ -64,6 +64,8 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 ## Task Store
 
+媒体库主存储是 `media-service/data/library.db` SQLite。`library.json` 是旧版运行时文件，启动时会一次性迁移到 SQLite；迁移不会删除原 JSON。媒体库页面、成人库 item 写回、scrape 状态和评分更新都应通过 `libraryStore` / `mediaLibraryService` 的统一边界访问，不要重新引入直接读写 `library.json` 的路径。
+
 任务中心主存储是 `media-service/data/tasks.db` SQLite。`tasks.json` 是旧版运行时文件，启动时会一次性迁移到 SQLite；迁移不会删除原 JSON。不要通过删除任务数据库来“清队列”，否则会丢失完成和失败历史。需要控制雪崩时应使用 `TaskAdmission` 队列上限、冷却、启动延迟和子库 `automationMode`。
 
 ## 平台规则

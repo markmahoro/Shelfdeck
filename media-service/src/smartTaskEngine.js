@@ -3,7 +3,7 @@
 /**
  * SmartTaskEngine — independent periodic auto-enqueue engine.
  *
- * Scans library.json for items that are watched, rated, and have a
+ * Scans the media library store for items that are watched, rated, and have a
  * recommended action (transcode/upgrade/delete), then creates tasks
  * that feed into TaskScheduler.
  * Decoupled from StrategyEngine — only reads action/reason, never writes them.
