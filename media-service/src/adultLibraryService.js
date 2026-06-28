@@ -52,6 +52,11 @@ function isWesternAdultSubLibrary(sl) {
   return isAdultFolderSubLibrary(sl) && sl.adultRegion === 'western_adult';
 }
 
+function shouldAutoWatchSubLibrary(subLib) {
+  const cfg = configStore.loadConfig();
+  return configStore.resolveSubLibSchedule(subLib, cfg).autoCreate;
+}
+
 function normalizePathForCompare(p) {
   return assetIdentity.normalizeMediaPath(p);
 }
@@ -1314,6 +1319,7 @@ function scheduleSettle(subLib, filePath) {
 function startSubLibraryWatcher(subLib) {
   stopSubLibraryWatcher(subLib.uuid);
   if (!isAdultFolderSubLibrary(subLib) || !subLib.watchRoot) return;
+  if (!shouldAutoWatchSubLibrary(subLib)) return;
   if (!fs.existsSync(subLib.watchRoot)) {
     console.warn('[adultLibrary] watch root does not exist:', subLib.watchRoot);
     return;
@@ -1346,8 +1352,12 @@ function startSubLibraryWatcher(subLib) {
   }, Math.max(1, intervalMin) * 60000);
   interval.unref && interval.unref();
 
-  watchers.set(subLib.uuid, { watcher, interval });
-  scanSubLibrary(subLib).catch((e) => console.error('[adultLibrary] startup scan failed:', e.message));
+  const startupTimer = setTimeout(() => {
+    scanSubLibrary(subLib).catch((e) => console.error('[adultLibrary] startup scan failed:', e.message));
+  }, 1000);
+  startupTimer.unref && startupTimer.unref();
+
+  watchers.set(subLib.uuid, { watcher, interval, startupTimer });
 }
 
 function stopSubLibraryWatcher(uuid) {
@@ -1355,6 +1365,7 @@ function stopSubLibraryWatcher(uuid) {
   if (!rec) return;
   try { rec.watcher.close(); } catch (_) {}
   if (rec.interval) clearInterval(rec.interval);
+  if (rec.startupTimer) clearTimeout(rec.startupTimer);
   watchers.delete(uuid);
 }
 
