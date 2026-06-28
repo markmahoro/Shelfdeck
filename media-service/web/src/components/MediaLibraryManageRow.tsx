@@ -42,6 +42,8 @@ export type MediaLibraryManageRowProps = {
   rowTask: MediaTask | undefined;
   isCreatingTask?: boolean;
   showAdultFields: boolean;
+  showStandardFields: boolean;
+  gridClassName: string;
   onToggleSelect: (id: string) => void;
   onWatchChange: (item: ManagedMediaItem, watched: boolean) => void;
   onRatingChange: (item: ManagedMediaItem, rating: MediaRating | null) => void;
@@ -99,6 +101,8 @@ function MediaLibraryManageRowInner({
   rowTask,
   isCreatingTask,
   showAdultFields,
+  showStandardFields,
+  gridClassName,
   onToggleSelect,
   onWatchChange,
   onRatingChange,
@@ -140,7 +144,7 @@ function MediaLibraryManageRowInner({
   return (
     <div
       data-manage-item-id={item.id}
-      className={`mediaManageGrid ${showAdultFields ? 'mediaManageGridAdult' : 'mediaManageGridStandard'} mediaManageRow${isHighlighted ? ' mediaManageRowHighlight' : ''}`}
+      className={`mediaManageGrid ${gridClassName} mediaManageRow${isHighlighted ? ' mediaManageRowHighlight' : ''}`}
     >
       <div className="mediaManageTitleCell">
         <input
@@ -183,8 +187,8 @@ function MediaLibraryManageRowInner({
           )}
         </div>
       )}
-      <div>{item.seriesName || '—'}</div>
-      <div className="tabular-nums">{item.seasonNumber != null ? `S${String(item.seasonNumber).padStart(2, '0')}` : '—'}</div>
+      {showStandardFields && <div>{item.seriesName || '—'}</div>}
+      {showStandardFields && <div className="tabular-nums">{item.seasonNumber != null ? `S${String(item.seasonNumber).padStart(2, '0')}` : '—'}</div>}
       <div className="tabular-nums">{item.sizeGb.toFixed(1)} GB</div>
       <div>{item.resolution}</div>
       <div>{item.codec.toUpperCase()}</div>
@@ -196,23 +200,29 @@ function MediaLibraryManageRowInner({
           {OPTIMIZATION_LABEL[item.optimizationStatus]}
         </span>
       </div>
-      <div title={item.isBluRayDisc ? '原盘（ISO/BDMV）' : undefined}>
-        {item.isBluRayDisc ? '是' : '否'}
-      </div>
-      <div title={item.doubanStars != null ? `豆瓣 ${item.doubanStars} 星` : '未抓取到'}>
-        <Stars count={item.doubanStars} max={MAX_STARS} />
-      </div>
+      {showStandardFields && (
+        <div title={item.isBluRayDisc ? '原盘（ISO/BDMV）' : undefined}>
+          {item.isBluRayDisc ? '是' : '否'}
+        </div>
+      )}
+      {showStandardFields && (
+        <div title={item.doubanStars != null ? `豆瓣 ${item.doubanStars} 星` : '未抓取到'}>
+          <Stars count={item.doubanStars} max={MAX_STARS} />
+        </div>
+      )}
       <div>
         <StarInput value={item.rating} onChange={(r) => onRatingChange(item, r)} />
       </div>
-      <div className="mediaManageWatchedCell">
-        <button type="button" disabled={item.watched} onClick={() => onWatchChange(item, true)}>
-          已看
-        </button>
-        <button type="button" disabled={!item.watched} onClick={() => onWatchChange(item, false)}>
-          未看
-        </button>
-      </div>
+      {showStandardFields && (
+        <div className="mediaManageWatchedCell">
+          <button type="button" disabled={item.watched} onClick={() => onWatchChange(item, true)}>
+            已看
+          </button>
+          <button type="button" disabled={!item.watched} onClick={() => onWatchChange(item, false)}>
+            未看
+          </button>
+        </div>
+      )}
       <div>
         {action === 'keep' ? (
           <span className="hint" title={item.reason}>{item.reason || '已达标'}</span>
@@ -242,6 +252,8 @@ function rowPropsEqual(a: MediaLibraryManageRowProps, b: MediaLibraryManageRowPr
     a.rowTask === b.rowTask &&
     a.isCreatingTask === b.isCreatingTask &&
     a.showAdultFields === b.showAdultFields &&
+    a.showStandardFields === b.showStandardFields &&
+    a.gridClassName === b.gridClassName &&
     a.onToggleSelect === b.onToggleSelect &&
     a.onWatchChange === b.onWatchChange &&
     a.onRatingChange === b.onRatingChange &&

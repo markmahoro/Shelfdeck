@@ -71,10 +71,22 @@ export default function MediaManagePage() {
     [subLibraries, subLibraryId],
   );
   const showAdultFields = !subLibraryId || selectedSubLibrary?.mediaType === 'adult';
+  const showStandardFields = !subLibraryId || selectedSubLibrary?.mediaType !== 'adult';
+  const mediaGridClass = showAdultFields && showStandardFields
+    ? 'mediaManageGridMixed'
+    : showAdultFields
+      ? 'mediaManageGridAdult'
+      : 'mediaManageGridStandard';
 
   useEffect(() => {
     if (!showAdultFields && scrapeFilter !== 'all') setScrapeFilter('all');
-  }, [showAdultFields, scrapeFilter]);
+    if (!showStandardFields) {
+      if (watchedFilter !== 'all') setWatchedFilter('all');
+      if (bluRayFilter !== 'all') setBluRayFilter('all');
+      if (doubanFilter !== 'all') setDoubanFilter('all');
+      if (actionFilter === 'upgrade') setActionFilter('all');
+    }
+  }, [showAdultFields, showStandardFields, scrapeFilter, watchedFilter, bluRayFilter, doubanFilter, actionFilter]);
 
   useEffect(() => {
     setPage(0);
@@ -98,9 +110,9 @@ export default function MediaManagePage() {
         action: actionFilter,
         resolution: resolutionFilter,
         codec: codecFilter,
-        watched: watchedFilter,
-        bluRay: bluRayFilter,
-        douban: doubanFilter,
+        watched: showStandardFields ? watchedFilter : 'all',
+        bluRay: showStandardFields ? bluRayFilter : 'all',
+        douban: showStandardFields ? doubanFilter : 'all',
         userRating: localRatingFilter,
         task: taskFilter,
         scrape: showAdultFields ? scrapeFilter : 'all',
@@ -295,9 +307,9 @@ export default function MediaManagePage() {
           <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
             <option value="all">全部</option>
             <option value="transcode">转码压缩</option>
-            <option value="upgrade">洗版</option>
+            {showStandardFields && <option value="upgrade">洗版</option>}
             <option value="keep">无建议策略</option>
-            <option value="delete">删除档</option>
+            <option value="delete">删除</option>
           </select>
         </div>
         <div className="filterRow">
@@ -317,34 +329,38 @@ export default function MediaManagePage() {
             <option value="av1">AV1</option>
           </select>
         </div>
-        <div className="filterRow">
-          <span className="filterLabel">标记已看</span>
-          <select value={watchedFilter} onChange={(e) => setWatchedFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="watched">已观看</option>
-            <option value="unwatched">未观看</option>
-          </select>
-        </div>
-        <div className="filterRow">
-          <span className="filterLabel">原盘</span>
-          <select value={bluRayFilter} onChange={(e) => setBluRayFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="disc">原盘</option>
-            <option value="not_disc">非原盘</option>
-          </select>
-        </div>
-        <div className="filterRow">
-          <span className="filterLabel">豆瓣评分</span>
-          <select value={doubanFilter} onChange={(e) => setDoubanFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="5">5 星</option>
-            <option value="4">4 星</option>
-            <option value="3">3 星</option>
-            <option value="2">2 星</option>
-            <option value="1">1 星</option>
-            <option value="none">未抓取</option>
-          </select>
-        </div>
+        {showStandardFields && (
+          <>
+            <div className="filterRow">
+              <span className="filterLabel">标记已看</span>
+              <select value={watchedFilter} onChange={(e) => setWatchedFilter(e.target.value)}>
+                <option value="all">全部</option>
+                <option value="watched">已观看</option>
+                <option value="unwatched">未观看</option>
+              </select>
+            </div>
+            <div className="filterRow">
+              <span className="filterLabel">原盘</span>
+              <select value={bluRayFilter} onChange={(e) => setBluRayFilter(e.target.value)}>
+                <option value="all">全部</option>
+                <option value="disc">原盘</option>
+                <option value="not_disc">非原盘</option>
+              </select>
+            </div>
+            <div className="filterRow">
+              <span className="filterLabel">豆瓣评分</span>
+              <select value={doubanFilter} onChange={(e) => setDoubanFilter(e.target.value)}>
+                <option value="all">全部</option>
+                <option value="5">5 星</option>
+                <option value="4">4 星</option>
+                <option value="3">3 星</option>
+                <option value="2">2 星</option>
+                <option value="1">1 星</option>
+                <option value="none">未抓取</option>
+              </select>
+            </div>
+          </>
+        )}
         <div className="filterRow">
           <span className="filterLabel">本地评分</span>
           <select value={localRatingFilter} onChange={(e) => setLocalRatingFilter(e.target.value)}>
@@ -385,9 +401,11 @@ export default function MediaManagePage() {
             setActionFilter('all');
             setResolutionFilter('all');
             setCodecFilter('all');
-            setWatchedFilter('all');
-            setBluRayFilter('all');
-            setDoubanFilter('all');
+            if (showStandardFields) {
+              setWatchedFilter('all');
+              setBluRayFilter('all');
+              setDoubanFilter('all');
+            }
             setLocalRatingFilter('all');
             setTaskFilter('all');
             if (showAdultFields) setScrapeFilter('all');
@@ -470,11 +488,11 @@ export default function MediaManagePage() {
             <p>暂未获取到媒体库数据。请先在管理端配置媒体库。</p>
           ) : (
             <div>
-              <div className={`mediaManageGrid ${showAdultFields ? 'mediaManageGridAdult' : 'mediaManageGridStandard'} mediaManageHead`}>
+              <div className={`mediaManageGrid ${mediaGridClass} mediaManageHead`}>
                 <div className="mediaManageTitleCell">名称</div>
                 {showAdultFields && <div>刮削</div>}
-                <div>剧名</div>
-                <div>季</div>
+                {showStandardFields && <div>剧名</div>}
+                {showStandardFields && <div>季</div>}
                 <div>体积</div>
                 <div>分辨率</div>
                 <div>编码</div>
@@ -482,10 +500,10 @@ export default function MediaManagePage() {
                 <div>目标码率</div>
                 <div>预测体积</div>
                 <div>媒体优化</div>
-                <div>原盘</div>
-                <div>豆瓣评分</div>
+                {showStandardFields && <div>原盘</div>}
+                {showStandardFields && <div>豆瓣评分</div>}
                 <div>本地评分</div>
-                <div>标记已看</div>
+                {showStandardFields && <div>标记已看</div>}
                 <div>建议策略</div>
                 <div>任务</div>
               </div>
@@ -502,6 +520,8 @@ export default function MediaManagePage() {
                     rowTask={rowTask}
                     isCreatingTask={creatingTaskIds.has(item.id)}
                     showAdultFields={showAdultFields}
+                    showStandardFields={showStandardFields}
+                    gridClassName={mediaGridClass}
                     onToggleSelect={toggleSelectedItem}
                     onWatchChange={handleWatchChange}
                     onRatingChange={handleRatingChange}
