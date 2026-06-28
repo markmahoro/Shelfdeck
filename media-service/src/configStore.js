@@ -428,33 +428,52 @@ function buildAdultWesternDefaultTemplate(policy) {
 
 function defaultSubLibSchedule() {
   return {
+    automationMode: 'auto',
     scheduleMode: 'full_auto',
     autoCreate: true,
     autoExecute: true,
-    autoReplaceTranscode: false,
-    autoReplaceUpgrade: false,
-    smartSelectEnabled: false,
   };
 }
 
 function resolveSubLibSchedule(itemInfo, config) {
   const subLibId = itemInfo && itemInfo.subLibraryId;
   const subLib = subLibId && (config.subLibraries || []).find((s) => s.uuid === subLibId);
+  const explicitAutomationMode = subLib && (subLib.automationMode === 'auto' || subLib.automationMode === 'manual')
+    ? subLib.automationMode
+    : null;
+  const automationMode = explicitAutomationMode;
+  if (automationMode === 'manual') {
+    return {
+      automationMode: 'manual',
+      autoCreate: false,
+      autoExecute: false,
+      approvalPolicy: (subLib && subLib.approvalPolicy) || {},
+    };
+  }
+  if (automationMode === 'auto') {
+    return {
+      automationMode: 'auto',
+      autoCreate: true,
+      autoExecute: true,
+      approvalPolicy: (subLib && subLib.approvalPolicy) || {},
+    };
+  }
+
+  // Legacy custom mode compatibility. New code should prefer automationMode +
+  // approvalPolicy; these booleans remain readable for old configs/tests.
   const mode = (subLib && subLib.scheduleMode) || 'full_auto';
 
   if (mode === 'full_auto') {
-    return { autoCreate: true, autoExecute: true, autoReplaceTranscode: true, autoReplaceUpgrade: true, smartSelectEnabled: true };
+    return { automationMode: 'auto', autoCreate: true, autoExecute: true, approvalPolicy: (subLib && subLib.approvalPolicy) || {} };
   }
   if (mode === 'full_manual') {
-    return { autoCreate: false, autoExecute: false, autoReplaceTranscode: false, autoReplaceUpgrade: false, smartSelectEnabled: false };
+    return { automationMode: 'manual', autoCreate: false, autoExecute: false, approvalPolicy: (subLib && subLib.approvalPolicy) || {} };
   }
-  // custom
   return {
+    automationMode: subLib && subLib.autoCreate && subLib.autoExecute ? 'auto' : 'manual',
     autoCreate: !!(subLib && subLib.autoCreate),
     autoExecute: !!(subLib && subLib.autoExecute),
-    autoReplaceTranscode: !!(subLib && subLib.autoReplaceTranscode),
-    autoReplaceUpgrade: !!(subLib && subLib.autoReplaceUpgrade),
-    smartSelectEnabled: !!(subLib && subLib.smartSelectEnabled),
+    approvalPolicy: (subLib && subLib.approvalPolicy) || {},
   };
 }
 
@@ -492,7 +511,37 @@ function getDefaultConfig() {
     taskPriority: {
       manualTaskPriority: 0,     // manual tasks (POST /v1/tasks) always high priority
       autoTaskPriorityBase: 100, // base for smartTaskEngine-created tasks
-      rules: { transcode: [], upgrade: [], delete: [], scrape: [] },
+      actionTypeWeights: {
+        ingest: 60,
+        scrape: 80,
+        delete: 90,
+        upgrade: 110,
+        transcode: 130,
+      },
+      rules: { ingest: [], transcode: [], upgrade: [], delete: [], scrape: [] },
+    },
+
+    approvalPolicy: {
+      'delete.beforeExecute': 'confirm',
+      'transcode.dolbyVisionTonemap': 'auto',
+      'transcode.beforeReplace': 'confirm',
+      'upgrade.candidateSelect': 'confirm',
+      'upgrade.identityMismatch': 'forceConfirm',
+      'upgrade.beforeReplace': 'confirm',
+      'scrape.beforeWriteMetadata': 'auto',
+      'scrape.beforeOrganize': 'auto',
+      'scrape.reviewResult': 'auto',
+    },
+
+    taskAdmission: {
+      defaultCooldownHours: 48,
+      cooldownHoursByAction: {
+        ingest: 0,
+        scrape: 6,
+        delete: 48,
+        transcode: 48,
+        upgrade: 48,
+      },
     },
 
     // StrategyEngine

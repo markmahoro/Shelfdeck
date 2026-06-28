@@ -21,6 +21,7 @@ const moviepilotService = require('./services/moviepilotService');
 const strategyEngine = require('./strategyEngine');
 const smartTaskEngine = require('./smartTaskEngine');
 const priorityEngine = require('./priorityEngine');
+const taskAdmission = require('./taskAdmission');
 const activityLog = require('./activityLog');
 const spaceStats = require('./spaceStats');
 const nodeStore = require('./nodeStore');
@@ -184,13 +185,6 @@ function registerRoutes(app) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'Invalid actionType');
     }
 
-    // itemId lock check
-    const existing = taskStore.getTasks({ itemId });
-    const active = existing.find((t) => ['created', 'queued', 'executing', 'awaiting_user_confirm', 'paused'].includes(t.status));
-    if (active) {
-      return apiError(reply, 409, 'TASK_CONFLICT', `Item ${itemId} already has an active task (${active.id})`);
-    }
-
     const cfg = configStore.loadConfig();
     const status = cfg.executionMode === 'auto' ? 'created' : 'pending_manual';
 
@@ -224,6 +218,22 @@ function registerRoutes(app) {
       scraped: !!libItem.scraped,
       adultMetadata: libItem.adultMetadata,
     } : null;
+
+    const admissionItemInfo = itemInfo || { itemId };
+    const admission = taskAdmission.canCreateTask({
+      item: libItem,
+      itemInfo: admissionItemInfo,
+      actionType,
+      source: 'manual',
+      config: cfg,
+      tasks: taskStore.getTasks(),
+    });
+    if (!admission.allowed) {
+      if (admission.reason === 'active_task_exists') {
+        return apiError(reply, 409, 'TASK_CONFLICT', `Item ${itemId} already has an active task (${admission.activeTaskId})`);
+      }
+      return apiError(reply, 409, 'TASK_ADMISSION_REJECTED', admission.reason);
+    }
 
     const task = taskStore.createTask({
       itemId,
@@ -824,6 +834,7 @@ function registerRoutes(app) {
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, scrapeEnabled,
       scanIntervalMinutes, japaneseJav, western,
+      automationMode, approvalPolicy,
     } = req.body || {};
     if (!name) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name is required');
@@ -844,6 +855,7 @@ function registerRoutes(app) {
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, scrapeEnabled,
       scanIntervalMinutes, japaneseJav, western,
+      automationMode, approvalPolicy,
     });
     if (isFolderAdult) {
       adultLibraryService.startSubLibraryWatcher(subLib);

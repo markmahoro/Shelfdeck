@@ -7,6 +7,7 @@ const configStore = require('./configStore');
 const adultLibraryService = require('./adultLibraryService');
 const japaneseJavScraper = require('./services/japaneseJavScraper');
 const westernAdultAiService = require('./services/westernAdultAiService');
+const approvalPolicy = require('./approvalPolicy');
 
 let scheduler = null;
 function setScheduler(s) { scheduler = s; }
@@ -29,6 +30,8 @@ async function driveTask(taskId) {
   const rp = task.resumePoint || 'scrape_precheck';
   if (rp === 'scrape_precheck') await runPrecheck(taskId, task);
   else if (rp === 'scrape_executing') await runExecuting(taskId, task);
+  else if (rp === 'scrape_write_metadata') await runWriteMetadata(taskId, task);
+  else if (rp === 'scrape_review') await finishScrape(taskId);
 }
 
 async function runPrecheck(taskId, task) {
@@ -86,35 +89,18 @@ async function runExecuting(taskId, task) {
     }
 
     appendLog(taskId, 'info', `Starting JAV scrape for ${adultId}`);
-    const scrapeResult = await japaneseJavScraper.scrapeJapaneseJav({
-      taskId,
-      subLib,
-      adultId,
-      onLog: (level, msg) => appendLog(taskId, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
-    });
-    scheduler.reportStatus(taskId, 'executing', 75);
-
-    const latestItem = await adultLibraryService.applyScrapeResultToItem(subLib, liveItem, scrapeResult, {
+    const scrapeResult = (task.itemInfo && task.itemInfo.pendingScrapeResult)
+      || await japaneseJavScraper.scrapeJapaneseJav({
         taskId,
+        subLib,
+        adultId,
         onLog: (level, msg) => appendLog(taskId, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
       });
+    scheduler.reportStatus(taskId, 'executing', 75);
 
-    const strategyEngine = require('./strategyEngine');
-    try { mediaLibraryService.recomputeAllSelfFields(); } catch (_) {}
-    try { strategyEngine.runOnce(); } catch (_) {}
+    if (await pauseBeforeScrapeWrite(taskId, task, config, subLib, liveItem, { kind: 'jav', scrapeResult })) return;
 
-    const itemAfterStrategy = mediaLibraryService.getLibraryItem(task.itemId) || latestItem;
-    appendLog(taskId, 'info', 'Scrape metadata saved; strategy recalculated');
-
-    taskStore.updateTask(taskId, {
-      itemInfo: {
-        ...(task.itemInfo || {}),
-        ...(itemAfterStrategy ? adultLibraryService.itemInfoFromItem(itemAfterStrategy) : {}),
-      },
-      resumePoint: null,
-    });
-    setPhase(taskId, 'done');
-    scheduler.reportStatus(taskId, 'done', 100);
+    await applyJavScrapeResult(taskId, task, config, subLib, liveItem, scrapeResult);
   } catch (e) {
     appendLog(taskId, 'error', e.message);
     adultLibraryService.markScrapeFailed(task.itemId, e.message);
@@ -123,22 +109,96 @@ async function runExecuting(taskId, task) {
   }
 }
 
-async function runWesternExecuting(taskId, task, config, subLib, liveItem) {
+async function runWriteMetadata(taskId, task) {
+  setPhase(taskId, 'scrape_executing');
+  scheduler.reportStatus(taskId, 'executing', 80);
+
+  try {
+    const config = configStore.loadConfig();
+    const subLib = getSubLibrary(config, task.itemInfo && task.itemInfo.subLibraryId);
+    if (!subLib) throw new Error('SubLibrary not found');
+    const mediaLibraryService = require('./mediaLibraryService');
+    const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
+    if (!liveItem) throw new Error('Library item not found');
+    const pendingKind = task.itemInfo && task.itemInfo.pendingScrapeKind;
+    if (pendingKind === 'western') {
+      await applyWesternCuration(taskId, task, config, subLib, liveItem, task.itemInfo && task.itemInfo.pendingWesternCuration);
+      return;
+    }
+    await applyJavScrapeResult(taskId, task, config, subLib, liveItem, task.itemInfo && task.itemInfo.pendingScrapeResult);
+  } catch (e) {
+    appendLog(taskId, 'error', e.message);
+    adultLibraryService.markScrapeFailed(task.itemId, e.message);
+    setPhase(taskId, 'failed_hard');
+    scheduler.reportStatus(taskId, 'failed_hard', 0);
+  }
+}
+
+async function pauseBeforeScrapeWrite(taskId, task, config, subLib, liveItem, pending) {
+  const writeGate = approvalPolicy.requiresConfirmation('scrape.beforeWriteMetadata', { task, itemInfo: task.itemInfo, config, subLib });
+  const organizeGate = approvalPolicy.requiresConfirmation('scrape.beforeOrganize', { task, itemInfo: task.itemInfo, config, subLib });
+  if (!writeGate && !organizeGate) return false;
+  const gateId = writeGate ? 'scrape.beforeWriteMetadata' : 'scrape.beforeOrganize';
+  const approval = approvalPolicy.makeApproval(gateId, {
+    task,
+    itemInfo: task.itemInfo,
+    config,
+    subLib,
+    message: writeGate
+      ? 'Scrape result is ready. Confirm before writing NFO, artwork, marker files, and library metadata.'
+      : 'Scrape result is ready. Confirm before organizing or renaming the folder.',
+    payload: {
+      adultId: (pending.scrapeResult && pending.scrapeResult.adultId) || (pending.curation && pending.curation.adultId) || '',
+      title: (pending.scrapeResult && pending.scrapeResult.title) || (pending.curation && pending.curation.title) || '',
+      path: liveItem && liveItem.path,
+    },
+  });
+  taskStore.updateTask(taskId, {
+    itemInfo: {
+      ...(task.itemInfo || {}),
+      pendingScrapeKind: pending.kind,
+      ...(pending.kind === 'western' ? { pendingWesternCuration: pending.curation } : { pendingScrapeResult: pending.scrapeResult }),
+    },
+  });
+  setPhase(taskId, 'scrape_write_metadata');
+  scheduler.pauseForConfirm(taskId, 'scrape_write_metadata', approval);
+  return true;
+}
+
+async function applyJavScrapeResult(taskId, task, config, subLib, liveItem, scrapeResult) {
+  if (!scrapeResult) throw new Error('No pending scrape result to write');
   const mediaLibraryService = require('./mediaLibraryService');
+  const latestItem = await adultLibraryService.applyScrapeResultToItem(subLib, liveItem, scrapeResult, {
+    taskId,
+    onLog: (level, msg) => appendLog(taskId, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
+  });
+  await afterScrapeApplied(taskId, task, config, latestItem, 'Scrape metadata saved; strategy recalculated');
+}
+
+async function runWesternExecuting(taskId, task, config, subLib, liveItem) {
   appendLog(taskId, 'info', 'Starting western adult AI curation');
+  const curation = (task.itemInfo && task.itemInfo.pendingWesternCuration)
+    || await westernAdultAiService.analyzeVideo({
+      taskId,
+      config,
+      subLib,
+      item: liveItem,
+      onLog: (level, msg) => appendLog(taskId, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
+    });
+  scheduler.reportStatus(taskId, 'executing', 75);
+
+  if (await pauseBeforeScrapeWrite(taskId, task, config, subLib, liveItem, { kind: 'western', curation })) return;
+
+  await applyWesternCuration(taskId, task, config, subLib, liveItem, curation);
+}
+
+async function applyWesternCuration(taskId, task, config, subLib, liveItem, curation) {
+  if (!curation) throw new Error('No pending western curation result to write');
+  const mediaLibraryService = require('./mediaLibraryService');
   const applyOpts = {
     taskId,
     onLog: (level, msg) => appendLog(taskId, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
   };
-  const curation = await westernAdultAiService.analyzeVideo({
-    taskId,
-    config,
-    subLib,
-    item: liveItem,
-    onLog: applyOpts.onLog,
-  });
-  scheduler.reportStatus(taskId, 'executing', 75);
-
   const latestItem = await adultLibraryService.applyWesternCurationResultToItem(subLib, liveItem, curation, applyOpts);
 
   // No protagonist named = western scrape failure (same lifecycle as a JAV
@@ -161,20 +221,54 @@ async function runWesternExecuting(taskId, task, config, subLib, liveItem) {
     return;
   }
 
+  await afterScrapeApplied(taskId, task, config, latestItem, 'Western adult AI metadata saved; strategy recalculated');
+}
+
+async function afterScrapeApplied(taskId, task, config, latestItem, logMessage) {
+  const mediaLibraryService = require('./mediaLibraryService');
   const strategyEngine = require('./strategyEngine');
   try { mediaLibraryService.recomputeAllSelfFields(); } catch (_) {}
   try { strategyEngine.runOnce(); } catch (_) {}
 
   const itemAfterStrategy = mediaLibraryService.getLibraryItem(task.itemId) || latestItem;
-  appendLog(taskId, 'info', 'Western adult AI metadata saved; strategy recalculated');
+  appendLog(taskId, 'info', logMessage);
+
+  const updatedInfo = {
+    ...(task.itemInfo || {}),
+    ...(itemAfterStrategy ? adultLibraryService.itemInfoFromItem(itemAfterStrategy) : {}),
+  };
+  delete updatedInfo.pendingScrapeKind;
+  delete updatedInfo.pendingScrapeResult;
+  delete updatedInfo.pendingWesternCuration;
 
   taskStore.updateTask(taskId, {
-    itemInfo: {
-      ...(task.itemInfo || {}),
-      ...(itemAfterStrategy ? adultLibraryService.itemInfoFromItem(itemAfterStrategy) : {}),
-    },
+    itemInfo: updatedInfo,
     resumePoint: null,
+    approval: null,
   });
+
+  const latestTask = taskStore.getTask(taskId);
+  if (approvalPolicy.requiresConfirmation('scrape.reviewResult', { task: latestTask, itemInfo: updatedInfo, config })) {
+    const approval = approvalPolicy.makeApproval('scrape.reviewResult', {
+      task: latestTask,
+      itemInfo: updatedInfo,
+      config,
+      message: 'Scrape metadata has been written. Review the result before marking the task done.',
+      payload: {
+        adultId: updatedInfo.adultMetadata && updatedInfo.adultMetadata.adultId,
+        title: updatedInfo.adultMetadata && updatedInfo.adultMetadata.title,
+      },
+    });
+    setPhase(taskId, 'scrape_review');
+    scheduler.pauseForConfirm(taskId, 'scrape_review', approval);
+    return;
+  }
+
+  await finishScrape(taskId);
+}
+
+async function finishScrape(taskId) {
+  taskStore.updateTask(taskId, { resumePoint: null, approval: null });
   setPhase(taskId, 'done');
   scheduler.reportStatus(taskId, 'done', 100);
 }

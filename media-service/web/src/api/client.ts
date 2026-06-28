@@ -12,6 +12,7 @@ import type {
   DoubanSession,
   SpaceStats,
   RuleTemplate,
+  ApprovalPolicyConfig,
 } from '../types';
 
 function apiKey(): string {
@@ -384,12 +385,19 @@ export interface SystemConfig {
   taskPriority?: {
     manualTaskPriority: number;
     autoTaskPriorityBase: number;
+    actionTypeWeights?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
     rules: {
+      ingest: PriorityRule[];
+      scrape: PriorityRule[];
+      delete: PriorityRule[];
       transcode: PriorityRule[];
       upgrade: PriorityRule[];
-      delete: PriorityRule[];
-      scrape: PriorityRule[];
     };
+  };
+  approvalPolicy?: ApprovalPolicyConfig;
+  taskAdmission?: {
+    defaultCooldownHours?: number;
+    cooldownHoursByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
   };
 }
 

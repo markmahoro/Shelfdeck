@@ -105,9 +105,8 @@ function getSmartConfig(itemInfo, config) {
 }
 
 function filterAndSelect(candidates, itemInfo, config) {
-  // subLibrary scheduleMode governs whether smart select is used
-  const schedule = require('./configStore').resolveSubLibSchedule(itemInfo, config);
-  if (!schedule.smartSelectEnabled) return null;
+  const approvalPolicy = require('./approvalPolicy');
+  if (approvalPolicy.resolveGate('upgrade.candidateSelect', { itemInfo, config }) !== 'auto') return null;
 
   const seedPrefs = itemInfo && itemInfo.seedPreferences;
   const smartCfg = (seedPrefs && Object.keys(seedPrefs).length > 0)
@@ -205,8 +204,8 @@ function scorePool(pool) {
  * Returns the full ranked pool with scores, for download-failure retry.
  */
 function getRankedPool(candidates, itemInfo, config) {
-  const schedule = require('./configStore').resolveSubLibSchedule(itemInfo, config);
-  if (!schedule.smartSelectEnabled) return [];
+  const approvalPolicy = require('./approvalPolicy');
+  if (approvalPolicy.resolveGate('upgrade.candidateSelect', { itemInfo, config }) !== 'auto') return [];
 
   const seedPrefs = itemInfo && itemInfo.seedPreferences;
   const smartCfg = (seedPrefs && Object.keys(seedPrefs).length > 0)

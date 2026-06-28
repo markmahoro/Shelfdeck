@@ -13,6 +13,7 @@ const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
 const assetIdentity = require('./assetIdentity');
 const priorityEngine = require('./priorityEngine');
+const taskAdmission = require('./taskAdmission');
 
 let timer = null;
 let lastRunAt = null;
@@ -33,7 +34,7 @@ function start(configStore, mediaLibraryService, taskStore) {
   const run = () => {
     try {
       const cfg2 = configStore.loadConfig();
-      _enabled = true; // Enabling is now per-subLibrary via scheduleMode.autoCreate
+      _enabled = true; // Enabling is now per-subLibrary via automationMode/admission.
 
       const maxPerRun = cfg2.smartTaskMaxPerRun || 10;
       const enabledActions = cfg2.smartTaskEnabledActions || ['transcode', 'upgrade'];
@@ -47,11 +48,9 @@ function start(configStore, mediaLibraryService, taskStore) {
 
       // Count active (non-terminal) tasks per action type
       const activeByType = {};
-      const activeItemIds = new Set();
       for (const t of allTasks) {
         if (['done', 'failed_hard', 'deleted'].includes(t.status)) continue;
         activeByType[t.actionType] = (activeByType[t.actionType] || 0) + 1;
-        activeItemIds.add(t.itemId);
       }
 
       // Per-type queue cap: how many non-terminal tasks of a given type may be
@@ -78,23 +77,6 @@ function start(configStore, mediaLibraryService, taskStore) {
         if (!item.action || item.action === 'keep') return false;
         if (!enabledActions.includes(item.action)) return false;
         if (item.reason === '新入库') return false;
-        if (activeItemIds.has(item.itemId)) return false;
-
-        // Per-subLibrary autoCreate check
-        const subLibSchedule = configStore.resolveSubLibSchedule(item, cfg2);
-        if (!subLibSchedule.autoCreate) return false;
-
-        // 48h freeze after task completion — wait for Emby to refresh metadata
-        if (item.lastTaskDoneAt) {
-          const freezeUntil = new Date(item.lastTaskDoneAt).getTime() + 48 * 3600 * 1000;
-          if (now < freezeUntil) return false;
-        }
-
-        // Permanent anti-re-transcode: once transcoded, never auto-create again.
-        // Manual trigger (POST /v1/tasks) bypasses this — only affects auto-enqueue.
-        // The task/path lookup covers Emby itemId changes after disc-folder → MKV replacement.
-        const opt = optimizationStatus.resolveOptimization(item, optimizationIndex, cfg2);
-        if (item.action === 'transcode' && opt.optimizationStatus === 'transcoded') return false;
 
         // Lookback window for first/resume run
         if (isFirstOrResume && !isAdultFolder) {
@@ -120,7 +102,6 @@ function start(configStore, mediaLibraryService, taskStore) {
         const cur = activeByType[item.action] || 0;
         const cap = queueCap[item.action] || maxQueueSize;
         if (cur >= cap) continue;
-        activeByType[item.action] = cur + 1;
 
         const subLibSchedule2 = configStore.resolveSubLibSchedule(item, cfg2);
         const status = subLibSchedule2.autoExecute ? 'queued' : 'pending_manual';
@@ -155,6 +136,19 @@ function start(configStore, mediaLibraryService, taskStore) {
           scraped: !!item.scraped,
           adultMetadata: item.adultMetadata,
         };
+
+        const admission = taskAdmission.canCreateTask({
+          item,
+          itemInfo,
+          actionType: item.action,
+          source: 'auto',
+          config: cfg2,
+          tasks: allTasks,
+          optimizationIndex,
+        });
+        if (!admission.allowed) continue;
+        activeByType[item.action] = cur + 1;
+
         const priority = priorityEngine.computePriority({
           source: 'auto',
           actionType: item.action,

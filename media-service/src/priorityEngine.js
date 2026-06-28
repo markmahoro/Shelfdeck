@@ -6,7 +6,8 @@
  * Lower number = higher priority (runs first within its actionType bucket).
  *
  * Evaluation order:
- *   1. base = source==='manual' ? manualTaskPriority : autoTaskPriorityBase
+ *   1. base = source==='manual' ? manualTaskPriority
+ *           : taskPriority.actionTypeWeights[actionType] || autoTaskPriorityBase
  *   2. Library weight: for auto tasks, take min(base, subLibrary.priorityWeight)
  *      so a library with a small weight lifts all its tasks ahead. Manual tasks
  *      ignore library weight and stay at manualTaskPriority.
@@ -32,6 +33,8 @@ function computePriority({ source, actionType, itemInfo, config }) {
   const cfg = config && config.taskPriority || {};
   const manualBase = typeof cfg.manualTaskPriority === 'number' ? cfg.manualTaskPriority : 0;
   const autoBase = typeof cfg.autoTaskPriorityBase === 'number' ? cfg.autoTaskPriorityBase : 100;
+  const actionWeights = cfg.actionTypeWeights || {};
+  const actionBase = typeof actionWeights[actionType] === 'number' ? actionWeights[actionType] : autoBase;
 
   // ── 1-2. base + library weight ────────────────────────────────────────────
   let value;
@@ -39,9 +42,9 @@ function computePriority({ source, actionType, itemInfo, config }) {
     value = manualBase;
   } else {
     const weight = resolveLibraryWeight(itemInfo, config);
-    // A library weight smaller than the auto base lifts the task; a larger one
-    // is ignored (the global base is the floor for auto tasks absent overrides).
-    value = Math.min(autoBase, weight);
+    // A library weight smaller than the action base lifts the task; a larger one
+    // is ignored. Missing library weight leaves the action base untouched.
+    value = typeof weight === 'number' ? Math.min(actionBase, weight) : actionBase;
   }
 
   // ── 3. advanced overlay rules (per actionType, ordered) ───────────────────
@@ -59,12 +62,12 @@ function computePriority({ source, actionType, itemInfo, config }) {
 
 function resolveLibraryWeight(itemInfo, config) {
   const subLibId = itemInfo && itemInfo.subLibraryId;
-  if (!subLibId) return 100;
+  if (!subLibId) return null;
   const subLib = (config && config.subLibraries || []).find((s) => s && s.uuid === subLibId);
   if (subLib && typeof subLib.priorityWeight === 'number') {
     return subLib.priorityWeight;
   }
-  return 100;
+  return null;
 }
 
 /**

@@ -11,6 +11,7 @@ const taskStore = require('./taskStore');
 const configStore = require('./configStore');
 const embyService = require('./services/embyService');
 const assetIdentity = require('./assetIdentity');
+const approvalPolicy = require('./approvalPolicy');
 
 // Lazy ref to taskScheduler (set after module loads to avoid circular require)
 let scheduler = null;
@@ -113,8 +114,29 @@ async function runPrecheck(taskId, task, serverConfig) {
       },
     });
 
-    appendLog(taskId, 'info', `Item found: ${deleteInfo.Name || embyItemId}, awaiting user confirmation`);
-    scheduler.pauseForConfirm(taskId, 'delete_executing');
+    const config = configStore.loadConfig();
+    const updatedTask = taskStore.getTask(taskId);
+    const approval = approvalPolicy.makeApproval('delete.beforeExecute', {
+      task: updatedTask,
+      itemInfo: updatedTask && updatedTask.itemInfo,
+      config,
+      message: `Delete ${displayName} from Emby.`,
+      options: ['approve', 'reject'],
+      payload: {
+        itemName: displayName,
+        embyItemId,
+        path: deleteInfo.Path || '',
+        originalSizeBytes,
+      },
+    });
+    if (approvalPolicy.requiresConfirmation('delete.beforeExecute', { task: updatedTask, itemInfo: updatedTask && updatedTask.itemInfo, config })) {
+      appendLog(taskId, 'info', `Item found: ${deleteInfo.Name || embyItemId}, awaiting user confirmation`);
+      scheduler.pauseForConfirm(taskId, 'delete_executing', approval);
+      return;
+    }
+
+    appendLog(taskId, 'info', `Item found: ${deleteInfo.Name || embyItemId}, delete approval auto-passed`);
+    await runExecuting(taskId, updatedTask || task, serverConfig);
   } catch (e) {
     appendLog(taskId, 'error', `Precheck failed: ${e.message}`);
     scheduler.reportStatus(taskId, 'failed_hard');

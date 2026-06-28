@@ -49,6 +49,8 @@ export interface SubLibrary {
   mediaPolicy?: MediaPolicy;
   ruleTemplateId?: string;
   upgradeSmartSelect: UpgradeSmartSelect;
+  automationMode?: 'auto' | 'manual';
+  approvalPolicy?: ApprovalPolicyConfig;
   scheduleMode?: 'full_auto' | 'custom' | 'full_manual';
   autoCreate?: boolean;
   autoExecute?: boolean;
@@ -174,7 +176,19 @@ export type TaskStatus =
   | 'awaiting_user_confirm' | 'pausing' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
-export type ActionType = 'delete' | 'transcode' | 'upgrade' | 'scrape';
+export type ActionType = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape';
+
+export type ApprovalMode = 'auto' | 'confirm' | 'forceConfirm';
+export type ApprovalPolicyConfig = Record<string, ApprovalMode>;
+
+export interface TaskApproval {
+  gateId: string;
+  mode: ApprovalMode;
+  title?: string;
+  message?: string;
+  options?: string[];
+  payload?: Record<string, unknown>;
+}
 
 export interface TaskLogEntry {
   seq?: number;
@@ -297,6 +311,7 @@ export interface MediaTask {
   progress: number;
   phase: string;
   resumePoint: string | null;
+  approval?: TaskApproval | null;
   // Queue priority (lower = runs first within its actionType). Absent on
   // legacy tasks (treated as 100 by the scheduler).
   priority?: number;

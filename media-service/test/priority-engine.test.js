@@ -30,6 +30,14 @@ test('auto tasks use autoTaskPriorityBase (default 100) when no library weight',
   assert.strictEqual(p, 100);
 });
 
+test('actionTypeWeights provide per-action auto bases', () => {
+  const c = config();
+  c.taskPriority.actionTypeWeights = { ingest: 60, scrape: 80, transcode: 130 };
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'ingest', itemInfo: {}, config: c }), 60);
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'scrape', itemInfo: {}, config: c }), 80);
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: {}, config: c }), 130);
+});
+
 test('library weight smaller than base lifts auto tasks; manual tasks ignore it', () => {
   const subLibs = [{ uuid: 'film', priorityWeight: 10 }, { uuid: 'series', priorityWeight: 50 }];
   const c = config({ subLibraries: subLibs });

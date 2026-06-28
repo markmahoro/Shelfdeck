@@ -12,6 +12,8 @@ const transcodeService = require('./services/transcodeService');
 const activityLog = require('./activityLog');
 const assetIdentity = require('./assetIdentity');
 const peopleStore = require('./peopleStore');
+const priorityEngine = require('./priorityEngine');
+const taskAdmission = require('./taskAdmission');
 
 const watchers = new Map();
 const settleTimers = new Map();
@@ -1143,19 +1145,31 @@ async function rescrapeItem(itemId, opts = {}) {
 }
 
 function enqueueScrapeTask(item, subLib, opts = {}) {
-  if (activeTaskForItem(item.itemId)) return null;
   const cfg = configStore.loadConfig();
   const schedule = configStore.resolveSubLibSchedule(item, cfg);
-  // autoCreate gates *automatic* enqueuing (watcher / scan / smart engine).
-  // Manual rescrape passes force=true so an explicit user request always creates
-  // a task regardless of the sub-library's autoCreate setting.
-  if (!opts.force && !schedule.autoCreate) return null;
+  const source = opts.force ? 'manual' : 'auto';
+  const itemInfo = itemInfoFromItem(item);
+  const admission = taskAdmission.canCreateTask({
+    item,
+    itemInfo,
+    actionType: 'scrape',
+    source,
+    config: cfg,
+    tasks: taskStore.getTasks(),
+  });
+  if (!admission.allowed) return null;
   const task = taskStore.createTask({
     itemId: item.itemId,
     itemName: item.name,
     actionType: 'scrape',
-    status: schedule.autoExecute ? 'queued' : 'pending_manual',
-    itemInfo: itemInfoFromItem(item),
+    status: source === 'manual' || schedule.autoExecute ? 'queued' : 'pending_manual',
+    priority: priorityEngine.computePriority({
+      source,
+      actionType: 'scrape',
+      itemInfo,
+      config: cfg,
+    }),
+    itemInfo,
     logs: [{ ts: nowIso(), level: 'info', msg: 'Scrape task created by adult folder watcher' }],
   });
   activityLog.addActivity('adult_library', `成人库「${subLib.name}」创建刮削任务：${item.name}`, { taskId: task.id, itemId: item.itemId });

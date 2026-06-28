@@ -29,7 +29,7 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 ## 成人库 / Scrape Task 开发
 
-日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。刮削是一等任务类型：目录监听和扫描只负责发现文件、写入 `library.json`、创建 `actionType=scrape` 任务；具体执行由 `TaskScheduler` 按 `scrapeConcurrency` 统一分配槽位。
+日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。刮削是一等任务类型：目录监听和扫描只负责发现稳定文件，并通过统一 `TaskAdmission` / `PriorityEngine` 创建 `actionType=scrape` 任务；具体执行由 `TaskScheduler` 按 `scrapeConcurrency` 统一分配槽位。
 
 真实刮削可以配置代理服务器；默认不配置时使用直连。普通 service API 测试不依赖真实网络刮削；可以用临时目录或 `E:\my_project\emby_third_party\jav_test` 做扫描和端到端验证。
 
@@ -42,6 +42,8 @@ docker compose -f media-service/docker-compose.example.yml up -d
 | `adultRegion=japanese_jav` | 日本 JAV，使用 ShelfDeck 内置 scraper |
 | `adultRegion=western_adult` | 欧美成人库，默认由 service-local 做抽帧、人脸匹配和封面生成 |
 | `actionType=scrape` | 刮削任务，完成后只更新 metadata 和 `scraped=true`；是否转码由策略和 `SmartTaskEngine` 决定 |
+| `automationMode=auto/manual` | 子库自动调度开关；审批节点由 `approvalPolicy` 单独控制 |
+| `approvalPolicy` | 任务内部关键节点审批策略，支持 `auto`、`confirm`、`forceConfirm` |
 
 欧美成人库约定：
 
@@ -50,6 +52,7 @@ docker compose -f media-service/docker-compose.example.yml up -d
 - Docker service 是 all-in-one 容器，内部启动 Node service 和 face-service；容器外只暴露 `18080`。
 - 人脸模型目录默认是 `/app/data/face-models`，挂载数据卷后容器重启不会重新下载模型。
 - 匹配不到 protagonist 时等同于 JAV 识别不到番号：任务失败，item 保持 `scraped=false`，不会自动进入转码策略。
+- 成人库不得新增独立调度规则。新建、重试、冷却、去重、优先级都必须走统一任务模型。
 
 ## 平台规则
 

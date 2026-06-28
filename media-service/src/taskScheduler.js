@@ -55,8 +55,10 @@ function getConcurrencyLimit(actionType, limits) {
 
 // ── Exposed to Flow Executors ───────────────────────────────────────────────
 
-function pauseForConfirm(taskId, resumePoint) {
-  taskStore.updateTask(taskId, { status: 'awaiting_user_confirm', resumePoint });
+function pauseForConfirm(taskId, resumePoint, approval) {
+  const updates = { status: 'awaiting_user_confirm', resumePoint };
+  if (approval && typeof approval === 'object') updates.approval = approval;
+  taskStore.updateTask(taskId, updates);
   runningTasks.delete(taskId);
 }
 
@@ -117,7 +119,7 @@ function reportStatus(taskId, status, progress) {
 
 function recoverInterruptedTasks() {
   const tasks = taskStore.loadTasks();
-  const interruptible = ['precheck', 'executing', 'verify', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'scrape_precheck', 'scrape_executing', 'planning', 'pre_replace_verify', 'pausing'];
+  const interruptible = ['precheck', 'executing', 'verify', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review', 'planning', 'pre_replace_verify', 'pausing'];
   let changed = false;
   for (const t of tasks) {
     if (t.status === 'done' || t.status === 'failed_hard') continue;
@@ -300,7 +302,7 @@ async function scheduleRound() {
       }
     }
 
-    // subLibrary scheduleMode check: skip if subLib autoExecute is off
+    // subLibrary automation check: skip if this library does not auto-execute.
     if (task.status === 'pending_manual' || task.status === 'created') {
       const subLibSchedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
       if (!subLibSchedule.autoExecute) continue;

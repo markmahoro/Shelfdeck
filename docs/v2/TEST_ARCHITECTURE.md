@@ -4,6 +4,8 @@
 
 ```bash
 cd media-service && npm test
+cd media-service && node --test test/task-model.test.js test/priority-engine.test.js
+cd media-service && npm run build:web
 cd media-desktop && npm test
 bash tests/runner.sh health-check tests/env/ci.env
 bash tests/runner.sh all tests/env/docker-fn.env
@@ -33,3 +35,12 @@ bash tests/runner.sh all tests/env/docker-fn.env
 | media-library-flow | `tests/flows/test-media-library-flow.sh` | Emby/Douban |
 
 报告测试结果时说明实际运行的命令和覆盖范围。
+
+## 任务模型专项
+
+任务调度改动必须覆盖：
+
+- `TaskAdmission`：自动/手动来源、子库 `automationMode`、active task 去重、失败冷却、已成功转码不重复自动转码。
+- `PriorityEngine`：任务类型权重、子库权重、规则叠加、手动任务基准和用户手动 priority 调整。
+- `approvalPolicy`：全局/子库/任务级覆盖，以及 `forceConfirm` 不可降级。
+- 前端：`npm run build:web` 验证任务调度页、任务中心和审批字段类型。

@@ -33,6 +33,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
+  ingest: '入库',
   transcode: '码率压缩',
   delete: '删除',
   upgrade: '洗版',
@@ -42,12 +43,17 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 const PHASE_LABELS: Record<string, string> = {
   precheck: '预检',
   planning: '搜索候选',
+  ingest_precheck: '入库预检',
+  ingest_probe: '媒体探测',
+  ingest_commit: '写入媒体项',
   waiting_media_source: '等待媒体源',
   upgrade_executing: '下载/刮削',
   pre_replace_verify: '替换前验证',
   upgrade_replace: '替换中',
   scrape_precheck: '刮削预检',
   scrape_executing: '刮削中',
+  scrape_write_metadata: '写入刮削结果',
+  scrape_review: '刮削结果复核',
   scrape_paused: '刮削已暂停',
   transcode_precheck: '转码预检',
   transcode_executing: '编码中',
@@ -58,12 +64,49 @@ const PHASE_LABELS: Record<string, string> = {
   failed_hard: '失败',
 };
 
+const APPROVAL_GATE_LABELS: Record<string, string> = {
+  'delete.beforeExecute': '删除前确认',
+  'transcode.dolbyVisionTonemap': '杜比视界转码确认',
+  'transcode.beforeReplace': '转码替换确认',
+  'upgrade.candidateSelect': '洗版候选选择',
+  'upgrade.identityMismatch': '洗版身份异常确认',
+  'upgrade.beforeReplace': '洗版替换确认',
+  'scrape.beforeWriteMetadata': '刮削写入确认',
+  'scrape.beforeOrganize': '刮削整理目录确认',
+  'scrape.reviewResult': '刮削结果复核',
+};
+
+const RESUME_POINT_APPROVAL_LABELS: Record<string, string> = {
+  delete_executing: '删除前确认',
+  transcode_executing: '杜比视界转码确认',
+  transcode_replace: '转码替换确认',
+  upgrade_executing: '洗版候选选择',
+  upgrade_replace: '洗版替换确认',
+};
+
 function formatItemName(itemInfo?: TaskItemInfo): string {
   if (!itemInfo) return '';
   if (itemInfo.type === 'season' && itemInfo.seriesName && itemInfo.seasonNumber != null) {
     return `${itemInfo.seriesName} 第${itemInfo.seasonNumber}季`;
   }
   return itemInfo.name || itemInfo.title || '';
+}
+
+function approvalLabel(task: MediaTask): string {
+  const gateId = task.approval?.gateId;
+  if (gateId && APPROVAL_GATE_LABELS[gateId]) return APPROVAL_GATE_LABELS[gateId];
+  if (task.resumePoint && RESUME_POINT_APPROVAL_LABELS[task.resumePoint]) return RESUME_POINT_APPROVAL_LABELS[task.resumePoint];
+  return task.approval?.title || '等待用户确认';
+}
+
+function approvalMatches(task: MediaTask, gateId: string, legacyResumePoint: string): boolean {
+  return task.approval?.gateId === gateId || task.resumePoint === legacyResumePoint;
+}
+
+function hasSpecialApprovalCard(task: MediaTask): boolean {
+  return approvalMatches(task, 'transcode.beforeReplace', 'transcode_replace')
+    || approvalMatches(task, 'upgrade.candidateSelect', 'upgrade_executing')
+    || approvalMatches(task, 'upgrade.beforeReplace', 'upgrade_replace');
 }
 
 export default function TaskMonitorPage() {
@@ -213,14 +256,14 @@ export default function TaskMonitorPage() {
       btns.push(<button key="fix-scrape" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
     }
     if (t.status === 'awaiting_user_confirm') {
-      if (t.resumePoint === 'transcode_replace' && t.verifyResult) {
+      if (approvalMatches(t, 'transcode.beforeReplace', 'transcode_replace') && t.verifyResult) {
         btns.push(<button key="compare" onClick={() => openDetail(t)} style={execBtn}>查看对比</button>);
-      } else if (t.resumePoint === 'upgrade_executing') {
+      } else if (approvalMatches(t, 'upgrade.candidateSelect', 'upgrade_executing')) {
         btns.push(<button key="select" onClick={() => openDetail(t)} style={execBtn}>选择版本</button>);
-      } else if (t.resumePoint === 'upgrade_replace') {
+      } else if (approvalMatches(t, 'upgrade.beforeReplace', 'upgrade_replace')) {
         btns.push(<button key="compare" onClick={() => openDetail(t)} style={execBtn}>查看对比</button>);
       } else {
-        btns.push(<button key="confirm" onClick={() => { if (confirm(`确认执行 ${t.actionType} 任务？`)) confirmMut.mutate({ id: t.id }); }} style={execBtn}>确认</button>);
+        btns.push(<button key="confirm" onClick={() => { if (confirm(`确认：${approvalLabel(t)}？`)) confirmMut.mutate({ id: t.id }); }} style={execBtn}>确认</button>);
       }
     }
     return btns;
@@ -358,6 +401,7 @@ export default function TaskMonitorPage() {
         </select>
         <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} style={selectStyle}>
           <option value="">全部类型</option>
+          <option value="ingest">入库</option>
           <option value="transcode">码率压缩</option>
           <option value="scrape">刮削</option>
           <option value="delete">删除</option>
@@ -381,6 +425,7 @@ export default function TaskMonitorPage() {
                 <th style={thStyle}>类型</th>
                 <th style={thStyle}>状态</th>
                 <th style={thStyle}>阶段</th>
+                <th style={thStyle}>审批/优先级</th>
                 <th style={thStyle}>进度</th>
                 <th style={thStyle}>创建时间</th>
                 <th style={thStyle}>操作</th>
@@ -397,6 +442,14 @@ export default function TaskMonitorPage() {
                     <span style={{ color: STATUS_COLORS[t.status] || '#999' }}>{STATUS_LABELS[t.status] || t.status}</span>
                   </td>
                   <td style={tdStyle}>{PHASE_LABELS[t.phase || ''] || t.phase || '—'}</td>
+                  <td style={tdStyle}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ color: t.status === 'awaiting_user_confirm' ? '#e67e22' : '#888' }}>
+                        {t.status === 'awaiting_user_confirm' ? approvalLabel(t) : '—'}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#999' }}>P{typeof t.priority === 'number' ? t.priority : 100}</span>
+                    </div>
+                  </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ flex: 1, height: 4, background: '#eee', borderRadius: 2, maxWidth: 80 }}>
@@ -456,11 +509,25 @@ export default function TaskMonitorPage() {
               <div><strong>状态:</strong> <span style={{ color: STATUS_COLORS[displayTask.status] }}>{STATUS_LABELS[displayTask.status] || displayTask.status}</span></div>
               <div><strong>阶段:</strong> {PHASE_LABELS[displayTask.phase || ''] || displayTask.phase || '—'}</div>
               <div><strong>进度:</strong> {Math.round(displayTask.progress || 0)}%</div>
+              <div><strong>优先级:</strong> {typeof displayTask.priority === 'number' ? displayTask.priority : 100}</div>
+              <div><strong>审批节点:</strong> {displayTask.status === 'awaiting_user_confirm' ? approvalLabel(displayTask) : '—'}</div>
               <div><strong>创建时间:</strong> {displayTask.createdAt ? new Date(displayTask.createdAt).toLocaleString() : '—'}</div>
               <div><strong>更新时间:</strong> {displayTask.updatedAt ? new Date(displayTask.updatedAt).toLocaleString() : '—'}</div>
             </div>
 
-            {/* Replace confirm comparison card */}
+            {displayTask.status === 'awaiting_user_confirm' && (
+              <div style={{ background: '#fff7ed', borderRadius: 8, padding: 12, marginBottom: 16, border: '1px solid #fed7aa' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#9a3412', marginBottom: 4 }}>
+                  {approvalLabel(displayTask)}
+                  {displayTask.approval?.mode === 'forceConfirm' ? '（强制确认）' : ''}
+                </div>
+                <div style={{ fontSize: 12, color: '#7c2d12', lineHeight: 1.6 }}>
+                  {displayTask.approval?.message || '任务正在等待用户确认后继续。'}
+                </div>
+              </div>
+            )}
+
+            {/* Scrape completion/failure remediation card */}
             {(displayTask.status === 'failed_hard' || displayTask.status === 'done') && displayTask.actionType === 'scrape' && (
               <div style={{ background: displayTask.status === 'done' ? '#f0fdf4' : '#fff7ed', borderRadius: 8, padding: 12, marginBottom: 16, border: displayTask.status === 'done' ? '1px solid #bbf7d0' : '1px solid #fed7aa' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: displayTask.status === 'done' ? '#166534' : '#9a3412', marginBottom: 4 }}>
@@ -476,7 +543,7 @@ export default function TaskMonitorPage() {
             )}
 
             {/* Replace confirm comparison card */}
-            {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint === 'transcode_replace' && displayTask.verifyResult && displayTask.itemInfo && (
+            {displayTask.status === 'awaiting_user_confirm' && approvalMatches(displayTask, 'transcode.beforeReplace', 'transcode_replace') && displayTask.verifyResult && displayTask.itemInfo && (
               <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
                 <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#1a1a2e' }}>转码结果对比</h4>
                 {renderCompareTable(displayTask.itemInfo, displayTask.verifyResult)}
@@ -501,7 +568,7 @@ export default function TaskMonitorPage() {
             )}
 
             {/* Upgrade candidate selection card */}
-            {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint === 'upgrade_executing' && (
+            {displayTask.status === 'awaiting_user_confirm' && approvalMatches(displayTask, 'upgrade.candidateSelect', 'upgrade_executing') && (
               <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
                 <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: '#1a1a2e' }}>选择洗版版本</h4>
                 <p style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
@@ -573,7 +640,7 @@ export default function TaskMonitorPage() {
             )}
 
             {/* Upgrade replace confirm card */}
-            {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint === 'upgrade_replace' && displayTask.verifyResult && (
+            {displayTask.status === 'awaiting_user_confirm' && approvalMatches(displayTask, 'upgrade.beforeReplace', 'upgrade_replace') && displayTask.verifyResult && (
               <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
                 <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#1a1a2e' }}>洗版结果对比</h4>
                 {renderUpgradeCompareTable(displayTask)}
@@ -625,8 +692,8 @@ export default function TaskMonitorPage() {
                     {executeMut.isPending ? '执行中...' : '执行'}
                   </button>
                 )}
-                {displayTask.status === 'awaiting_user_confirm' && displayTask.resumePoint !== 'transcode_replace' && displayTask.resumePoint !== 'upgrade_executing' && displayTask.resumePoint !== 'upgrade_replace' && (
-                  <button onClick={() => { if (confirm(`确认执行 ${displayTask.actionType} 任务？`)) confirmMut.mutate({ id: displayTask.id }); }} disabled={confirmMut.isPending} style={execBtn}>
+                {displayTask.status === 'awaiting_user_confirm' && !hasSpecialApprovalCard(displayTask) && (
+                  <button onClick={() => { if (confirm(`确认：${approvalLabel(displayTask)}？`)) confirmMut.mutate({ id: displayTask.id }); }} disabled={confirmMut.isPending} style={execBtn}>
                     {confirmMut.isPending ? '确认中...' : '确认'}
                   </button>
                 )}

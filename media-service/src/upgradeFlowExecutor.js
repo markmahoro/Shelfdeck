@@ -13,6 +13,7 @@ const taskStore = require('./taskStore');
 const configStore = require('./configStore');
 const moviepilotService = require('./services/moviepilotService');
 const smartSeedSelect = require('./smartSeedSelect');
+const approvalPolicy = require('./approvalPolicy');
 
 let scheduler = null;
 function setScheduler(s) { scheduler = s; }
@@ -468,18 +469,36 @@ async function runPlanning(taskId, task) {
       },
     });
 
-    // ── Smart seed selection ──────────────────────────────────────────
+    // ── Candidate selection approval gate ─────────────────────────────
     const config = configStore.loadConfig();
+    const selectionTask = taskStore.getTask(taskId) || task;
+    const selectionApproval = approvalPolicy.makeApproval('upgrade.candidateSelect', {
+      task: selectionTask,
+      itemInfo: selectionTask.itemInfo,
+      config,
+      message: `Select one of ${simplified.length} upgrade candidates.`,
+      options: ['approve'],
+      payload: { candidates: simplified },
+    });
 
     // Exact search results have no meta_info (codec/resolution not parsed).
-    // Skip smartSelect and go to user confirmation for these candidates.
+    // Require user confirmation for these candidates even when auto selection is
+    // enabled, because there is not enough structured data to rank safely.
     const hasMetaInfo = candidates.some((c) => c.meta_info != null);
     if (!hasMetaInfo) {
-      appendLog(taskId, 'info', 'Candidates from exact search (no meta_info) — skipping auto-select');
+      appendLog(taskId, 'info', 'Candidates from exact search (no meta_info) — awaiting user selection');
       taskStore.updateTask(taskId, {
         resumePoint: 'upgrade_executing',
       });
-      scheduler.pauseForConfirm(taskId, 'upgrade_executing');
+      scheduler.pauseForConfirm(taskId, 'upgrade_executing', { ...selectionApproval, mode: 'forceConfirm' });
+      return;
+    }
+
+    if (approvalPolicy.requiresConfirmation('upgrade.candidateSelect', { task: selectionTask, itemInfo: selectionTask.itemInfo, config })) {
+      taskStore.updateTask(taskId, {
+        resumePoint: 'upgrade_executing',
+      });
+      scheduler.pauseForConfirm(taskId, 'upgrade_executing', selectionApproval);
       return;
     }
 
@@ -496,34 +515,11 @@ async function runPlanning(taskId, task) {
       return;
     }
 
-    // Smart select enabled but no match → fail
-    // Replicate filterAndSelect's enabled-check to avoid reading stale global config
-    const schedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
-    if (schedule.smartSelectEnabled) {
-      const seedPrefs = task.itemInfo && task.itemInfo.seedPreferences;
-      const smartCfg = (seedPrefs && Object.keys(seedPrefs).length > 0)
-        ? seedPrefs
-        : smartSeedSelect.getSmartConfig(task.itemInfo, config);
-      const hasAnyPreference = smartCfg && (
-        (smartCfg.codecPreference && smartCfg.codecPreference.length > 0) ||
-        (smartCfg.resolutionPreference && smartCfg.resolutionPreference.length > 0) ||
-        (smartCfg.audioPreference && smartCfg.audioPreference.length > 0) ||
-        (smartCfg.sitePreference && smartCfg.sitePreference.length > 0) ||
-        smartCfg.preferCNSub ||
-        (typeof smartCfg.maxSizeGB === 'number' && smartCfg.maxSizeGB > 0) ||
-        (task.itemInfo && typeof task.itemInfo.maxSizeGB === 'number' && task.itemInfo.maxSizeGB > 0)
-      );
-      if (hasAnyPreference) {
-        appendLog(taskId, 'error', '未找到满足智能选种条件的种子');
-        scheduler.reportStatus(taskId, 'failed_hard');
-        return;
-      }
-    }
-
+    appendLog(taskId, 'warn', 'Auto candidate selection found no confident match — awaiting user selection');
     taskStore.updateTask(taskId, {
       resumePoint: 'upgrade_executing',
     });
-    scheduler.pauseForConfirm(taskId, 'upgrade_executing');
+    scheduler.pauseForConfirm(taskId, 'upgrade_executing', { ...selectionApproval, mode: 'forceConfirm' });
   } catch (e) {
     appendLog(taskId, 'error', `Planning failed: ${e.message}`);
     scheduler.reportStatus(taskId, 'failed_hard');
@@ -631,15 +627,15 @@ async function runExecuting(taskId, task) {
 
     appendLog(taskId, 'info', `Selected: ${torrentInfo.title || 'Unknown'} from ${torrentInfo.site_name || 'Unknown'}`);
 
-    const schedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, configStore.loadConfig());
-
     // Download with retry: if MP rejects, try next seed with score >= 0.8 (auto mode only)
     let dlResult;
-    const rankedPool = smartSeedSelect.getRankedPool(candidates, task.itemInfo, configStore.loadConfig());
+    const latestConfig = configStore.loadConfig();
+    const rankedPool = smartSeedSelect.getRankedPool(candidates, task.itemInfo, latestConfig);
     const highScorePool = rankedPool.filter((e) => e.score >= 0.8);
     const fallbackPool = highScorePool.length > 0 ? highScorePool : rankedPool;
+    const autoCandidateSelect = approvalPolicy.resolveGate('upgrade.candidateSelect', { task, itemInfo: task.itemInfo, config: latestConfig }) === 'auto';
 
-    const retryPool = schedule.smartSelectEnabled ? fallbackPool : [{ candidate: candidates[selectedIndex], originalIndex: selectedIndex }];
+    const retryPool = autoCandidateSelect ? fallbackPool : [{ candidate: candidates[selectedIndex], originalIndex: selectedIndex }];
 
     for (const entry of retryPool) {
       const tInfo = entry.candidate.torrent_info;
@@ -758,12 +754,28 @@ async function runPreReplaceVerify(taskId, task) {
   // or stale folders from previous runs. If the exact transfer path cannot be
   // resolved, pause and ask the user to locate the correct folder.
   if (!stagingFolder || !stagingMediaPath) {
+    const latestTask = taskStore.getTask(taskId) || task;
+    const message = !transferDest
+      ? 'Cannot locate staging folder because MoviePilot transfer destination is missing.'
+      : 'Cannot resolve MoviePilot transfer destination on the local filesystem.';
+    const approval = approvalPolicy.makeApproval('upgrade.identityMismatch', {
+      task: latestTask,
+      itemInfo: latestTask.itemInfo,
+      config,
+      message,
+      options: ['approve', 'reject'],
+      payload: {
+        transferDest: transferDest || '',
+        stagingFolder: stagingFolder || '',
+        stagingMediaPath: stagingMediaPath || '',
+      },
+    });
     if (!transferDest) {
       appendLog(taskId, 'warn', 'No transfer dest on task — cannot locate staging folder. The download may not have been transferred yet, or the transfer record may be missing. Verify in MoviePilot transfer history.');
     } else {
       appendLog(taskId, 'warn', 'Transfer dest not accessible and cannot be resolved. Check if the staging path is mounted correctly.');
     }
-    scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify');
+    scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify', approval);
     return;
   }
 
@@ -809,8 +821,18 @@ async function runPreReplaceVerify(taskId, task) {
       if (itemType === 'season' && taskSeason != null && mpSeasons) {
         const mpSeasonNum = parseInt((String(mpSeasons).match(/S(\d+)/i) || [])[1], 10);
         if (!Number.isNaN(mpSeasonNum) && mpSeasonNum !== taskSeason) {
-          appendLog(taskId, 'error', `Season mismatch: expected S${String(taskSeason).padStart(2,'0')}, got ${mpSeasons}. Please verify in MoviePilot, then confirm to continue.`);
-          scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify');
+          const reason = `Season mismatch: expected S${String(taskSeason).padStart(2,'0')}, got ${mpSeasons}`;
+          const latestTask = taskStore.getTask(taskId) || task;
+          const approval = approvalPolicy.makeApproval('upgrade.identityMismatch', {
+            task: latestTask,
+            itemInfo: latestTask.itemInfo,
+            config,
+            message: reason,
+            options: ['approve', 'reject'],
+            payload: { expectedSeason: taskSeason, actualSeason: mpSeasons, expectedTmdbId, actualTmdbId },
+          });
+          appendLog(taskId, 'error', `${reason}. Please verify in MoviePilot, then confirm to continue.`);
+          scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify', approval);
           return;
         }
         appendLog(taskId, 'info', `Season verified: S${String(taskSeason).padStart(2,'0')} matches ${mpSeasons}`);
@@ -824,8 +846,17 @@ async function runPreReplaceVerify(taskId, task) {
           : !actualTmdbId
             ? `Cannot verify: no actual TMDB ID from NFO. Expected: TMDB ${expectedTmdbId}`
             : `TMDB mismatch: expected ${expectedTmdbId}, got ${actualTmdbId}`;
+      const latestTask = taskStore.getTask(taskId) || task;
+      const approval = approvalPolicy.makeApproval('upgrade.identityMismatch', {
+        task: latestTask,
+        itemInfo: latestTask.itemInfo,
+        config,
+        message: reason,
+        options: ['approve', 'reject'],
+        payload: { expectedTmdbId, actualTmdbId, stagingFolder, stagingMediaPath },
+      });
       appendLog(taskId, 'warn', reason + '. Please verify and confirm to continue.');
-      scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify');
+      scheduler.pauseForConfirm(taskId, 'upgrade_pre_replace_verify', approval);
       return;
     }
 
@@ -889,14 +920,28 @@ async function runPreReplaceVerify(taskId, task) {
     });
     taskStore.setProgress(taskId, 90);
 
-    const sched = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
-    if (!sched.autoReplaceUpgrade) {
+    const latestTask = taskStore.getTask(taskId) || task;
+    if (approvalPolicy.requiresConfirmation('upgrade.beforeReplace', { task: latestTask, itemInfo: latestTask.itemInfo, config })) {
+      const approval = approvalPolicy.makeApproval('upgrade.beforeReplace', {
+        task: latestTask,
+        itemInfo: latestTask.itemInfo,
+        config,
+        message: 'Upgrade media is verified. Confirm before replacing the original media.',
+        options: ['approve', 'reject'],
+        payload: {
+          stagingFolder,
+          stagingMediaPath,
+          verifyResult: latestTask.verifyResult,
+          upgradePreview: latestTask.upgradePreview,
+        },
+      });
       appendLog(taskId, 'info', 'Replace confirmation required — awaiting user');
-      scheduler.pauseForConfirm(taskId, 'upgrade_replace');
+      scheduler.pauseForConfirm(taskId, 'upgrade_replace', approval);
       return;
     }
 
-    await runReplace(taskId, taskStore.getTask(taskId), config);
+    appendLog(taskId, 'info', 'Replace approval auto-passed');
+    await runReplace(taskId, latestTask, config);
   } catch (e) {
     if (isAborted(taskId)) return;
     appendLog(taskId, 'error', `Verify failed: ${e.message}`);

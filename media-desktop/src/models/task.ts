@@ -4,7 +4,7 @@
  * 不包含调度逻辑。调度由 service TaskScheduler 负责。
  */
 
-export type TaskActionType = 'delete' | 'transcode' | 'upgrade';
+export type TaskActionType = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape';
 
 export type TaskFlowLogLevel = 'info' | 'warn' | 'error';
 
@@ -16,6 +16,7 @@ export type TaskFlowLogEntry = {
 };
 
 export type TaskStatus =
+  | 'created'
   | 'pending_manual'
   | 'queued'
   | 'precheck'
@@ -24,6 +25,7 @@ export type TaskStatus =
   | 'awaiting_user_confirm'
   | 'done'
   | 'failed_hard'
+  | 'pausing'
   | 'waiting_media_source'
   | 'interrupted'
   | 'resume_pending'
@@ -77,6 +79,17 @@ export interface UpgradePreview {
   tmdbId: number | null;
 }
 
+export type ApprovalMode = 'auto' | 'confirm' | 'forceConfirm';
+
+export interface TaskApproval {
+  gateId: string;
+  mode: ApprovalMode;
+  title?: string;
+  message?: string;
+  options?: string[];
+  payload?: Record<string, unknown>;
+}
+
 export interface MediaTask {
   id: string;
   itemId: string;
@@ -105,6 +118,8 @@ export interface MediaTask {
   transcodeConfirmKind?: 'dolby_vision' | 'replace';
   transcodeDurationSec?: number;
   resumePoint?: string;
+  approval?: TaskApproval | null;
+  priority?: number;
   itemInfo?: TaskItemInfo;
   verifyResult?: VerifyResult;
   upgradePreview?: UpgradePreview;
@@ -194,6 +209,7 @@ export function formatSize(bytes: number): string {
 export function taskStatusLabelZh(status: TaskStatus): string {
   const m: Record<TaskStatus, string> = {
     pending_manual: '待启动',
+    created: '已创建',
     queued: '排队中',
     precheck: '预检中',
     executing: '执行中',
@@ -205,6 +221,7 @@ export function taskStatusLabelZh(status: TaskStatus): string {
     resume_pending: '待恢复',
     done: '已完成',
     failed_hard: '已失败',
+    pausing: '暂停中',
   };
   return m[status] ?? status;
 }
