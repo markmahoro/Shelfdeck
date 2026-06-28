@@ -980,11 +980,49 @@ function normalizeAdultLibraryConfig(raw) {
   return { raw, migrated };
 }
 
+function normalizeTranscodeEncodingDevices(raw) {
+  const devices = Array.isArray(raw && raw.transcodeEncodingDevices)
+    ? raw.transcodeEncodingDevices
+    : [];
+  let migrated = false;
+  const normalized = [];
+
+  for (const dev of devices) {
+    if (!dev || typeof dev !== 'object') continue;
+    const stableKey = String(dev.stableKey || '').trim();
+    if (!stableKey) {
+      migrated = true;
+      continue;
+    }
+    const next = {
+      stableKey,
+      inPool: dev.inPool !== false,
+      priority: Math.max(1, Number.parseInt(dev.priority, 10) || 100),
+      maxSlots: Math.max(1, Number.parseInt(dev.maxSlots, 10) || 1),
+      encoder: String(dev.encoder || ''),
+    };
+    normalized.push(next);
+    const allowed = new Set(Object.keys(next));
+    for (const key of Object.keys(dev)) {
+      if (!allowed.has(key) || dev[key] !== next[key]) {
+        migrated = true;
+        break;
+      }
+    }
+  }
+
+  if (devices.length !== normalized.length) migrated = true;
+  return {
+    raw: { ...(raw || {}), transcodeEncodingDevices: normalized },
+    migrated,
+  };
+}
+
 // ── Load / Save ────────────────────────────────────────────────────────────────
 
 function mergeConfigWithDefaults(config) {
   const defaults = getDefaultConfig();
-  const raw = config || {};
+  const raw = normalizeTranscodeEncodingDevices(config || {}).raw;
   const merged = { ...defaults, ...raw };
 
   merged.taskAdmission = {
@@ -1065,6 +1103,16 @@ function loadConfig() {
       saveConfig(raw);
     } else {
       raw = adultResult.raw;
+    }
+
+    const transcodeResult = normalizeTranscodeEncodingDevices(raw);
+    if (transcodeResult.migrated) {
+      console.log('[configStore] transcode device config migration applied');
+      fs.writeFileSync(cfgFile + '.v8.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = transcodeResult.raw;
+      saveConfig(raw);
+    } else {
+      raw = transcodeResult.raw;
     }
 
     return mergeConfigWithDefaults(raw);

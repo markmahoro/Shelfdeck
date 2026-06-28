@@ -177,3 +177,38 @@ test('startEncode does NOT fall back for Dolby Vision (needsCpu selects CPU dire
     transcodeService._setSpawnForTest(null);
   }
 });
+
+test('abortTask releases the acquired device slot', async () => {
+  const attempts = [];
+  const fn = function fakeLongSpawn(bin, args) {
+    attempts.push({ bin, argv: Array.isArray(args) ? args.join(' ') : String(args) });
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter(); child.stderr.setEncoding = () => {};
+    child.kill = () => setImmediate(() => child.emit('close', 255));
+    return child;
+  };
+  transcodeService._setSpawnForTest(fn);
+  const taskId = 'abort-slot-' + Date.now();
+  try {
+    const promise = transcodeService.startEncode(() => {}, {
+      config: config(), taskId, sourcePath: '/src.mkv', partialPath: '/out.etp.partial.mkv',
+      orderedDeviceSlots: [{ deviceId: 'qsv:0', maxSlots: 1, cpuBackupOnly: false }],
+      isDolbyVision: false, dvAcknowledged: false, durationSec: 10, targetBitrate: 5,
+    });
+
+    for (let i = 0; i < 20; i++) {
+      if (attempts.length === 1 && transcodeService.getDeviceSlotUsage()['qsv:0'] === 1) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.strictEqual(attempts.length, 1);
+    assert.strictEqual(transcodeService.getDeviceSlotUsage()['qsv:0'], 1);
+    assert.strictEqual(transcodeService.abortTask(taskId), true);
+    assert.strictEqual(transcodeService.getDeviceSlotUsage()['qsv:0'], 0);
+
+    await assert.rejects(promise, /255/);
+    assert.strictEqual(transcodeService.getDeviceSlotUsage()['qsv:0'], 0);
+  } finally {
+    transcodeService._setSpawnForTest(null);
+  }
+});

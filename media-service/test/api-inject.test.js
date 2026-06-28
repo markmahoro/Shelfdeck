@@ -2342,6 +2342,45 @@ test('PATCH /v1/admin/transcode/config persists', async () => {
   await app.close();
 });
 
+test('PATCH /v1/admin/transcode/config strips transient device status fields', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const res = await app.inject({
+    method: 'PATCH',
+    url: '/v1/admin/transcode/config',
+    payload: {
+      transcodeEncodingDevices: [
+        {
+          stableKey: 'qsv:0',
+          inPool: true,
+          priority: 200,
+          maxSlots: 1,
+          encoder: '',
+          status: 'busy',
+          activeSlots: 1,
+          remote: false,
+          nodeStatus: 'online',
+        },
+      ],
+    },
+  });
+  assert.strictEqual(res.statusCode, 200);
+  const device = res.json().transcodeEncodingDevices[0];
+  assert.deepStrictEqual(device, {
+    stableKey: 'qsv:0',
+    inPool: true,
+    priority: 200,
+    maxSlots: 1,
+    encoder: '',
+  });
+
+  const reload = await app.inject({ method: 'GET', url: '/v1/admin/transcode/config' });
+  const reloadedDevice = reload.json().transcodeEncodingDevices[0];
+  assert.strictEqual(reloadedDevice.status, undefined);
+  assert.strictEqual(reloadedDevice.activeSlots, undefined);
+  await app.close();
+});
+
 // ── Library ────────────────────────────────────────────────────────────────────
 
 test('GET /v1/library returns library items', async () => {

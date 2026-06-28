@@ -149,8 +149,8 @@ export interface DevicePoolEntry {
   priority: number;
   maxSlots: number;
   encoder: string;
-  status: 'idle' | 'busy' | 'error';
-  activeSlots: number;
+  status?: 'idle' | 'busy' | 'error';
+  activeSlots?: number;
   remote?: boolean;
   deviceId?: string;
   nodeId?: string;
