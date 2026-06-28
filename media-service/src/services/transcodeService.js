@@ -138,18 +138,40 @@ function resolveFfprobeBin(config) {
 
 function runCmd(bin, args, opts = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { windowsHide: true, ...opts });
+    const { timeoutMs, ...spawnOpts } = opts || {};
+    const child = spawn(bin, args, { windowsHide: true, ...spawnOpts });
     let out = ''; let err = '';
+    let timedOut = false;
+    const timeout = Number(timeoutMs) > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          try { child.kill('SIGKILL'); } catch (_) {}
+        }, Number(timeoutMs))
+      : null;
     child.stdout.on('data', (d) => { out += d.toString(); });
     child.stderr.on('data', (d) => { err += d.toString(); });
-    child.on('error', reject);
-    child.on('close', (code) => resolve({ code: code ?? 0, out, err }));
+    child.on('error', (err2) => {
+      if (timeout) clearTimeout(timeout);
+      reject(err2);
+    });
+    child.on('close', (code) => {
+      if (timeout) clearTimeout(timeout);
+      if (timedOut) {
+        reject(new Error(`${bin} timed out after ${timeoutMs}ms`));
+        return;
+      }
+      resolve({ code: code ?? 0, out, err });
+    });
   });
 }
 
-async function ffprobeJson(config, filePath) {
+async function ffprobeJson(config, filePath, opts = {}) {
   const probe = resolveFfprobeBin(config);
-  const r = await runCmd(probe, ['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', filePath]);
+  const r = await runCmd(
+    probe,
+    ['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', filePath],
+    opts,
+  );
   if (r.code !== 0) throw new Error(`ffprobe failed (${r.code}): ${(r.err || r.out).slice(0, 400)}`);
   return JSON.parse(r.out);
 }
@@ -1801,8 +1823,8 @@ function abortAllEncodes() {
   for (const [tid, ch] of encodeJobs) { try { ch.kill('SIGKILL'); } catch (_) {} encodeJobs.delete(tid); }
 }
 
-async function probeSummary(config, filePath) {
-  const j = await ffprobeJson(config, filePath);
+async function probeSummary(config, filePath, opts = {}) {
+  const j = await ffprobeJson(config, filePath, opts);
   const dur = Number(j.format && j.format.duration || 0);
   const v = (j.streams || []).find((s) => s.codec_type === 'video');
   const a = (j.streams || []).find((s) => s.codec_type === 'audio');

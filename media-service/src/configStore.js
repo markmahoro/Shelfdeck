@@ -592,6 +592,7 @@ function getDefaultConfig() {
     adultLibrary: {
       settleSeconds: 30,
       scanIntervalMinutes: 10,
+      probeTimeoutMs: 5000,
       autoScrape: true,
       videoExtensions: ['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv'],
       japaneseJav: {

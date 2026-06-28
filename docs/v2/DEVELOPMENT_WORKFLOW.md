@@ -48,6 +48,7 @@ docker compose -f media-service/docker-compose.example.yml up -d
 | `mediaLibraryStartupRefreshOnStartup` | 普通媒体库启动后是否自动刷新 |
 | `mediaLibraryStartupRefreshDelaySeconds` | 普通媒体库启动刷新延迟，避免服务刚监听端口就被全量刷新压住 |
 | `smartTaskInitialDelaySeconds` | `SmartTaskEngine` 首次自动入队扫描延迟 |
+| `adultLibrary.probeTimeoutMs` | 成人库 `ingest` 单文件 FFprobe 超时，坏文件不应阻塞 API |
 
 欧美成人库约定：
 

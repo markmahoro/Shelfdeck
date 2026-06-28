@@ -487,7 +487,9 @@ function collectMediaFiles(root, config, opts = {}) {
 async function probeFile(filePath, config) {
   const stat = fs.statSync(filePath);
   try {
-    const summary = await transcodeService.probeSummary(config, filePath);
+    const adultCfg = (config && config.adultLibrary) || {};
+    const timeoutMs = Number(adultCfg.probeTimeoutMs) > 0 ? Number(adultCfg.probeTimeoutMs) : 5000;
+    const summary = await transcodeService.probeSummary(config, filePath, { timeoutMs });
     const bitrate = summary.durationSec > 0 ? Math.round((stat.size * 8) / summary.durationSec) : 0;
     return {
       size: stat.size,
