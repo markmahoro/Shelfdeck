@@ -10,6 +10,7 @@
  */
 
 const crypto = require('crypto');
+const path = require('path');
 
 const configStore = require('./configStore');
 const libraryStore = require('./libraryStore');
