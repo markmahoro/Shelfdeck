@@ -1,7 +1,7 @@
 export function taskStatusLabelZh(status: string): string {
   const m: Record<string, string> = {
     created: '已创建',
-    pending_manual: '待启动',
+    pending_manual: '待手动启动',
     queued: '排队中',
     precheck: '预检中',
     executing: '执行中',

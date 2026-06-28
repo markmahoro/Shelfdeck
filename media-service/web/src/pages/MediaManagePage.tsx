@@ -58,7 +58,7 @@ export default function MediaManagePage() {
         if (current) return current;
         const saved = localStorage.getItem(MEDIA_MANAGE_SUB_LIBRARY_KEY);
         if (saved !== null && (saved === '' || enabled.some((sl) => sl.uuid === saved))) return saved;
-        return enabled[0]?.uuid || '';
+        return '';
       });
     }).catch(() => {});
     systemConfig.get().then((cfg) => {
@@ -168,7 +168,7 @@ export default function MediaManagePage() {
       upsertActiveTask(task);
       setError(null);
       const statusHint = task.status === 'pending_manual'
-        ? '当前状态为待启动，可在任务中心点击“启动”。'
+        ? '当前状态为待手动启动，可在任务中心点击“启动”。'
         : '已进入任务调度，可在任务中心查看进度。';
       setNotice(`已创建「${ACTION_LABELS[action] || action}」任务：${item.name}。${statusHint}`);
       return task;

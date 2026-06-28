@@ -316,8 +316,8 @@ export default function SystemConfigPage() {
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
 
       <section style={cardStyle}>
-        <h3 style={sectionTitle}>子库调度</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>子库调度决定某个媒体库是否允许后台调度；允许自动创建哪些任务类型由「后台自动入队」统一控制。</p>
+        <h3 style={sectionTitle}>任务执行方式</h3>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>任务执行方式决定任务创建后是否自动进入执行队列；后台是否自动创建任务由「后台自动入队」统一控制。</p>
         {subLibs.length === 0 ? (
           <div style={emptyStyle}>暂无子库，请先在仪表盘添加媒体库</div>
         ) : (
@@ -338,7 +338,7 @@ export default function SystemConfigPage() {
                         onClick={() => updateSubLib(sl.uuid, { automationMode: mode })}
                         style={sched.automationMode === mode ? modeBtnActive : modeBtn}
                       >
-                        {mode === 'auto' ? '自动调度' : '手动调度'}
+                        {mode === 'auto' ? '自动执行' : '手动启动'}
                       </button>
                     ))}
                   </div>

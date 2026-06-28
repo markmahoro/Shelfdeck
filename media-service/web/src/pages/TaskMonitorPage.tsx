@@ -25,10 +25,10 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   created: '已创建',
-  pending_manual: '待启动',
+  pending_manual: '待手动启动',
   queued: '排队中',
   executing: '执行中',
-  pausing: '暂停中...',
+  pausing: '暂停中',
   awaiting_user_confirm: '等待确认',
   paused: '已暂停',
   interrupted: '已中断',
@@ -281,7 +281,7 @@ export default function TaskMonitorPage() {
       btns.push(<button key="cancel" onClick={() => removeTask(t)} style={{ ...warnBtn, background: '#e74c3c' }}>取消任务</button>);
     }
     if (t.status === 'pausing') {
-      btns.push(<button key="pausing" disabled style={{ ...warnBtn, opacity: 0.6, cursor: 'not-allowed' }}>暂停中...</button>);
+      btns.push(<button key="pausing" disabled style={{ ...warnBtn, opacity: 0.6, cursor: 'not-allowed' }}>暂停中</button>);
     }
     if (t.status === 'paused' || t.status === 'pending_manual' || t.status === 'created') {
       const executeLabel = t.status === 'paused' ? '继续' : '启动';
@@ -739,7 +739,7 @@ export default function TaskMonitorPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 {displayTask.status === 'executing' && (
                   <button onClick={() => pauseMut.mutate(displayTask.id)} disabled={pauseMut.isPending} style={warnBtn}>
-                    {pauseMut.isPending ? '暂停中...' : '暂停'}
+                    {pauseMut.isPending ? '暂停中' : '暂停'}
                   </button>
                 )}
                 {(displayTask.status === 'paused' || displayTask.status === 'pending_manual' || displayTask.status === 'created') && (

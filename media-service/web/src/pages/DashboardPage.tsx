@@ -13,8 +13,8 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  created: '已创建', pending_manual: '待启动', queued: '排队中', executing: '执行中',
-  pausing: '暂停中...', awaiting_user_confirm: '等待确认', paused: '已暂停',
+  created: '已创建', pending_manual: '待手动启动', queued: '排队中', executing: '执行中',
+  pausing: '暂停中', awaiting_user_confirm: '等待确认', paused: '已暂停',
   interrupted: '已中断', waiting_media_source: '等待媒体文件',
   done: '已完成', failed_hard: '失败', cancelled: '已取消', skipped: '已跳过', deleted: '已移除',
 };
@@ -322,13 +322,13 @@ export default function DashboardPage() {
                       </div>
                     </SubCard>
 
-                    {/* Sub-card 3: Schedule Mode */}
-                    <SubCard title="子库调度">
+                    {/* Sub-card 3: Task Execution Mode */}
+                    <SubCard title="任务执行方式">
                       <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e' }}>
-                        {((sl as any).automationMode || ((sl as any).scheduleMode === 'full_manual' ? 'manual' : 'auto')) === 'manual' ? '手动调度' : '自动调度'}
+                        {((sl as any).automationMode || ((sl as any).scheduleMode === 'full_manual' ? 'manual' : 'auto')) === 'manual' ? '手动启动' : '自动执行'}
                       </div>
                       <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
-                        审批策略在「任务调度」页面独立配置
+                        控制任务创建后是否自动进入执行队列
                       </div>
                       <div style={{ fontSize: 11, color: enabledAutoActions && enabledAutoActions.length === 0 ? '#c2410c' : '#6b7280', marginTop: 4 }}>
                         后台自动入队：{enabledAutoActionText}
@@ -358,7 +358,7 @@ export default function DashboardPage() {
       <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>当前任务</h3>
-          <span style={{ fontSize: 12, color: '#888' }}>只显示执行中、排队中、等待确认和已暂停的任务</span>
+          <span style={{ fontSize: 12, color: '#888' }}>只显示执行中、排队中、待手动启动、等待确认和已暂停的任务</span>
         </div>
         {currentTasksLoading ? (
           <LoadingSpinner text="加载任务中..." />
