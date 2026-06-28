@@ -8,9 +8,10 @@
  * Evaluation order:
  *   1. base = source==='manual' ? manualTaskPriority
  *           : taskPriority.actionTypeWeights[actionType] || autoTaskPriorityBase
- *   2. Library weight: for auto tasks, take min(base, subLibrary.priorityWeight)
- *      so a library with a small weight lifts all its tasks ahead. Manual tasks
- *      ignore library weight and stay at manualTaskPriority.
+ *   2. Library weight: for auto tasks, an explicit subLibrary.priorityWeight
+ *      below the neutral default (100) can lift all tasks from that library
+ *      ahead. The default 100 is neutral so it does not erase actionTypeWeights
+ *      such as scrape before transcode. Manual tasks ignore library weight.
  *   3. Advanced overlay rules (config.taskPriority.rules[actionType], ordered):
  *      each rule that matches adjusts the running value (subtract=add priority,
  *      add=defer, set=absolute band).
@@ -42,8 +43,8 @@ function computePriority({ source, actionType, itemInfo, config }) {
     value = manualBase;
   } else {
     const weight = resolveLibraryWeight(itemInfo, config);
-    // A library weight smaller than the action base lifts the task; a larger one
-    // is ignored. Missing library weight leaves the action base untouched.
+    // A library weight smaller than the action base lifts the task; neutral or
+    // missing library weight leaves the action base untouched.
     value = typeof weight === 'number' ? Math.min(actionBase, weight) : actionBase;
   }
 
@@ -65,6 +66,7 @@ function resolveLibraryWeight(itemInfo, config) {
   if (!subLibId) return null;
   const subLib = (config && config.subLibraries || []).find((s) => s && s.uuid === subLibId);
   if (subLib && typeof subLib.priorityWeight === 'number') {
+    if (subLib.priorityWeight === 100) return null;
     return subLib.priorityWeight;
   }
   return null;

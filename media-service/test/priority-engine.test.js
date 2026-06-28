@@ -38,6 +38,18 @@ test('actionTypeWeights provide per-action auto bases', () => {
   assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: {}, config: c }), 130);
 });
 
+test('neutral library weight does not override actionTypeWeights', () => {
+  const c = config({ subLibraries: [{ uuid: 'movie-lib', priorityWeight: 100 }] });
+  c.taskPriority.actionTypeWeights = { ingest: 60, scrape: 80, transcode: 130 };
+
+  assert.strictEqual(pe.computePriority({
+    source: 'auto',
+    actionType: 'transcode',
+    itemInfo: { subLibraryId: 'movie-lib' },
+    config: c,
+  }), 130);
+});
+
 test('library weight smaller than base lifts auto tasks; manual tasks ignore it', () => {
   const subLibs = [{ uuid: 'film', priorityWeight: 10 }, { uuid: 'series', priorityWeight: 50 }];
   const c = config({ subLibraries: subLibs });
