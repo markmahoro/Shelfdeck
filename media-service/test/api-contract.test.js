@@ -338,6 +338,58 @@ test('libraryStore migrates library.json to SQLite and keeps the source JSON', a
   await app.close();
 });
 
+test('libraryStore replaces one subLibrary without touching other libraries', async () => {
+  const dir = tempDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const libraryStore = require('../src/libraryStore');
+
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: '2026-06-28T00:00:00.000Z',
+    items: [
+      { itemId: 'lib-a-1', subLibraryId: 'lib-a', name: 'Old A', source: 'emby', type: 'movie', action: 'keep' },
+      { itemId: 'lib-b-1', subLibraryId: 'lib-b', name: 'Keep B', source: 'emby', type: 'movie', action: 'delete' },
+    ],
+  });
+
+  libraryStore.replaceSubLibraryItems('lib-a', [
+    { itemId: 'lib-a-2', subLibraryId: 'lib-a', name: 'New A', source: 'emby', type: 'movie', action: 'transcode' },
+  ], { cachedAt: '2026-06-28T01:00:00.000Z' });
+
+  assert.strictEqual(mediaLibraryService.getLibrary({ subLibraryId: 'lib-a' }).total, 1);
+  assert.strictEqual(mediaLibraryService.getLibrary({ subLibraryId: 'lib-a' }).items[0].itemId, 'lib-a-2');
+  assert.strictEqual(mediaLibraryService.getLibrary({ subLibraryId: 'lib-b' }).total, 1);
+  assert.strictEqual(mediaLibraryService.getLibrary({ subLibraryId: 'lib-b' }).items[0].itemId, 'lib-b-1');
+  await app.close();
+});
+
+test('libraryStore updateItems updates only existing rows', async () => {
+  const dir = tempDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const libraryStore = require('../src/libraryStore');
+
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: '2026-06-28T00:00:00.000Z',
+    items: [
+      { itemId: 'update-a', subLibraryId: 'lib-a', name: 'A', source: 'emby', type: 'movie', action: 'keep' },
+      { itemId: 'update-b', subLibraryId: 'lib-b', name: 'B', source: 'emby', type: 'movie', action: 'delete' },
+    ],
+  });
+
+  const changed = mediaLibraryService.getLibraryItem('update-a');
+  changed.action = 'transcode';
+  const count = libraryStore.updateItems([changed, { itemId: 'missing-item', subLibraryId: 'lib-a', name: 'Missing' }]);
+
+  assert.strictEqual(count, 1);
+  assert.strictEqual(mediaLibraryService.getLibraryItem('update-a').action, 'transcode');
+  assert.strictEqual(mediaLibraryService.getLibraryItem('update-b').action, 'delete');
+  assert.strictEqual(mediaLibraryService.getLibrary().total, 2);
+  await app.close();
+});
+
 test('POST /v1/library/cache removes stale items', async () => {
   const app = await buildEmptyApp();
   // First insert 2 items

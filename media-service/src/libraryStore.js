@@ -251,6 +251,50 @@ function saveLibrary(lib) {
   replaceAllItems(getDb(), lib || { version: 1, items: [] });
 }
 
+function replaceSubLibraryItems(subLibraryId, items, meta = {}) {
+  const db = getDb();
+  const upsert = db.prepare(upsertSql);
+  const existingBase = db.prepare('SELECT MIN(ordinal) AS minOrdinal FROM media_items WHERE sub_library_id = ?')
+    .get(String(subLibraryId || ''));
+  const appendBase = db.prepare('SELECT COALESCE(MAX(ordinal), -1) + 1 AS nextOrdinal FROM media_items').get();
+  const baseOrdinal = Number.isInteger(existingBase && existingBase.minOrdinal)
+    ? existingBase.minOrdinal
+    : (Number(appendBase && appendBase.nextOrdinal) || 0);
+  const tx = db.transaction((rows) => {
+    db.prepare('DELETE FROM media_items WHERE sub_library_id = ?').run(String(subLibraryId || ''));
+    rows.forEach((item, index) => upsert.run(itemToRow(item, baseOrdinal + index)));
+    if (meta.version !== undefined) setMeta(db, 'version', meta.version);
+    if (meta.cachedAt !== undefined) setMeta(db, 'cachedAt', meta.cachedAt);
+  });
+  tx(Array.isArray(items) ? items : []);
+}
+
+function deleteBySubLibrary(subLibraryId) {
+  return getDb()
+    .prepare('DELETE FROM media_items WHERE sub_library_id = ?')
+    .run(String(subLibraryId || '')).changes || 0;
+}
+
+function updateItems(items) {
+  const rows = Array.isArray(items) ? items : [];
+  if (rows.length === 0) return 0;
+  const db = getDb();
+  const getOrdinal = db.prepare('SELECT ordinal FROM media_items WHERE item_id = ?');
+  const upsert = db.prepare(upsertSql);
+  const tx = db.transaction((changedItems) => {
+    let changed = 0;
+    for (const item of changedItems) {
+      if (!item || !item.itemId) continue;
+      const existing = getOrdinal.get(String(item.itemId));
+      if (!existing) continue;
+      upsert.run(itemToRow(item, existing.ordinal));
+      changed++;
+    }
+    return changed;
+  });
+  return tx(rows);
+}
+
 function getItem(itemId) {
   const row = getDb().prepare('SELECT item_id, payload_json FROM media_items WHERE item_id = ?').get(String(itemId || ''));
   return rowToItem(row);
@@ -384,6 +428,9 @@ module.exports = {
   migrationMarkerPath,
   loadLibrary,
   saveLibrary,
+  replaceSubLibraryItems,
+  deleteBySubLibrary,
+  updateItems,
   getItem,
   queryItems,
   querySpaceStatItems,

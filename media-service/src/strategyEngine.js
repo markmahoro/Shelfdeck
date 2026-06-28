@@ -186,6 +186,7 @@ function runOnce() {
   const templates = cfg.ruleTemplates || [];
   const subLibs = cfg.subLibraries || [];
   let changed = 0;
+  const changedItems = [];
 
   for (const item of lib.items) {
     if (item.type === 'series') {
@@ -198,11 +199,13 @@ function runOnce() {
         item.seedPreferences = undefined;
         item.predictedSizeGb = undefined;
         changed++;
+        changedItems.push(item);
       }
       continue;
     }
     if (evaluateItem(item, templates, subLibs)) {
       changed++;
+      changedItems.push(item);
     }
   }
 
@@ -210,7 +213,11 @@ function runOnce() {
   lastRunAt = Date.now();
 
   if (changed > 0) {
-    _mediaLibraryService.saveLibrary(lib);
+    if (typeof _mediaLibraryService.updateLibraryItems === 'function') {
+      _mediaLibraryService.updateLibraryItems(changedItems);
+    } else {
+      _mediaLibraryService.saveLibrary(lib);
+    }
     const msg = `策略重新计算完成，${changed} 个条目的推荐操作已更新`;
     console.log(`[strategyEngine] ${msg}`);
     activityLog.addActivity('strategy_engine', msg, { changed });

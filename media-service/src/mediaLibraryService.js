@@ -97,11 +97,19 @@ function saveLibrary(lib) {
   libraryStore.saveLibrary(lib);
 }
 
+function updateLibraryItems(items) {
+  return libraryStore.updateItems(items);
+}
+
 // ── Item operations ─────────────────────────────────────────────────────────
 
 function upsertItems(subLibraryId, incomingItems, opts = {}) {
   const { fullSync = false } = opts;
-  const lib = loadLibrary();
+  const lib = {
+    version: 1,
+    cachedAt: null,
+    items: libraryStore.queryItems({ subLibraryId }).items,
+  };
   const now = new Date().toISOString();
   const cfg = configStore.loadConfig();
   const subLib = (cfg.subLibraries || []).find((s) => s.uuid === subLibraryId) || null;
@@ -285,7 +293,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
   }
 
   lib.cachedAt = now;
-  saveLibrary(lib);
+  libraryStore.replaceSubLibraryItems(subLibraryId, lib.items, { cachedAt: now });
 
   // Update subLibrary lastRefreshedAt
   if (subLib) {
@@ -302,14 +310,13 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
 
 function updateUserRating(itemId, userRating) {
   if (userRating !== null && (userRating < 1 || userRating > 5)) throw new Error('Rating must be 1-5');
-  const lib = loadLibrary();
-  const item = lib.items.find((it) => it.itemId === itemId);
+  const item = libraryStore.getItem(itemId);
   if (!item) throw new Error('Item not found');
 
   item.userRating = userRating;
   item.userRatingUpdatedAt = userRating === null ? null : new Date().toISOString();
 
-  saveLibrary(lib);
+  libraryStore.updateItems([item]);
   const message = userRating === null
     ? `「${item.name}」评分已清空`
     : `「${item.name}」已评分 ${'★'.repeat(userRating)}`;
@@ -419,10 +426,9 @@ function addSubLibrary(spec) {
   // Start timers for this subLibrary
   startSubLibraryTimers(subLib);
 
-  // Kick off an immediate refresh, then recompute self-fields so
-  // equivalentBitrate is ready and strategy engine can produce results.
+  // Kick off an immediate refresh; refreshSubLibrary runs derived updates once
+  // after the fetched data has been persisted.
   refreshSubLibrary(subLib)
-    .then(() => recomputeAllSelfFields())
     .catch((e) => console.error('[mediaLibrary] addSubLibrary refresh error:', e));
 
   return subLib;
@@ -435,10 +441,7 @@ function deleteSubLibrary(uuid) {
   cfg.subLibraries.splice(idx, 1);
   configStore.saveConfig(cfg);
 
-  // Remove items belonging to this subLibrary
-  const lib = loadLibrary();
-  lib.items = lib.items.filter((it) => it.subLibraryId !== uuid);
-  saveLibrary(lib);
+  libraryStore.deleteBySubLibrary(uuid);
 
   return true;
 }
@@ -463,27 +466,27 @@ function recomputeAllSelfFields() {
   const lib = loadLibrary();
   if (!lib || !lib.items || lib.items.length === 0) return;
 
-  const cfg = configStore.loadConfig();
-  const subLibs = cfg.subLibraries || [];
   let changed = 0;
+  const changedItems = [];
 
   for (const item of lib.items) {
-    const subLib = subLibs.find((s) => s.uuid === item.subLibraryId);
+    let itemChanged = false;
 
     // bucket
     const bucket = computeBucket(item.resolution);
-    if (item.bucket !== bucket) { item.bucket = bucket; changed++; }
+    if (item.bucket !== bucket) { item.bucket = bucket; changed++; itemChanged = true; }
 
     // equivalentBitrate (Mbps)
     const eqMbps = item.bitrate > 0 ? item.bitrate / 1_000_000 : undefined;
-    if (item.equivalentBitrate !== eqMbps) { item.equivalentBitrate = eqMbps; changed++; }
+    if (item.equivalentBitrate !== eqMbps) { item.equivalentBitrate = eqMbps; changed++; itemChanged = true; }
 
     // targetBitrate and predictedSizeGb are now written by StrategyEngine
     // based on rule template evaluation — no longer computed here.
+    if (itemChanged) changedItems.push(item);
   }
 
   if (changed > 0) {
-    saveLibrary(lib);
+    libraryStore.updateItems(changedItems);
     const msg = `Library 自算完成，${changed} 个字段已更新`;
     console.log(`[mediaLibrary] ${msg}`);
     activityLog.addActivity('media_library', msg, { changed });
@@ -519,7 +522,16 @@ function stopSubLibraryTimers(uuid) {
   }
 }
 
-async function refreshSubLibrary(subLib) {
+function runPostRefreshUpdates() {
+  recomputeAllSelfFields();
+  try {
+    const strategyEngine = require('./strategyEngine');
+    strategyEngine.runOnce();
+  } catch (_) { /* strategyEngine not yet started — timer will pick it up */ }
+}
+
+async function refreshSubLibrary(subLib, options = {}) {
+  const runDerivedUpdates = options.runDerivedUpdates !== false;
   const name = subLib.name || subLib.uuid;
   try {
     if (subLib.source === 'folder') {
@@ -546,11 +558,7 @@ async function refreshSubLibrary(subLib) {
 
     // Recompute self-fields (equivalentBitrate etc.) and re-run strategy engine
     // so the dashboard reflects fresh recommendations immediately after refresh.
-    recomputeAllSelfFields();
-    try {
-      const strategyEngine = require('./strategyEngine');
-      strategyEngine.runOnce();
-    } catch (_) { /* strategyEngine not yet started — timer will pick it up */ }
+    if (runDerivedUpdates) runPostRefreshUpdates();
   } catch (e) {
     activityLog.addActivity('media_library', `子库「${name}」刷新失败：${e.message}`);
     console.error('[mediaLibrary] refresh error for', subLib.uuid, e.message);
@@ -699,9 +707,9 @@ function startAllSubLibraryTimers() {
     startSubLibraryTimers(sl);
   }
 
-  const startSelfCompute = () => {
+  const startSelfCompute = (options = {}) => {
     startSelfComputeTimer(600000, {
-      runImmediately: cfg.mediaLibrarySelfComputeOnStartup !== false,
+      runImmediately: options.runImmediately !== false && cfg.mediaLibrarySelfComputeOnStartup !== false,
     });
   };
 
@@ -726,9 +734,12 @@ function startAllSubLibraryTimers() {
     // Self-compute needs bitrate/duration from the freshly fetched items to derive
     // equivalentBitrate — running it before refresh completes produces all-zeroes.
     const refreshes = subLibs.map((sl) =>
-      refreshSubLibrary(sl).catch((e) => console.error('[mediaLibrary] startup refresh error:', e))
+      refreshSubLibrary(sl, { runDerivedUpdates: false }).catch((e) => console.error('[mediaLibrary] startup refresh error:', e))
     );
-    Promise.all(refreshes).then(startSelfCompute);
+    Promise.all(refreshes).then(() => {
+      runPostRefreshUpdates();
+      startSelfCompute({ runImmediately: false });
+    });
   }, delaySeconds * 1000);
   startupRefreshTimer.unref && startupRefreshTimer.unref();
 }
@@ -768,6 +779,7 @@ module.exports = {
   upsertItems,
   updateUserRating,
   saveLibrary,
+  updateLibraryItems,
   getLibraryStatus,
 
   // SubLibrary CRUD
