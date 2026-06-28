@@ -285,9 +285,9 @@ export default function DashboardPage() {
                     </SubCard>
 
                     {/* Sub-card 3: Schedule Mode */}
-                    <SubCard title="任务执行模式">
+                    <SubCard title="子库调度">
                       <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e' }}>
-                        {((sl as any).automationMode || ((sl as any).scheduleMode === 'full_manual' ? 'manual' : 'auto')) === 'manual' ? '纯手动' : '全自动'}
+                        {((sl as any).automationMode || ((sl as any).scheduleMode === 'full_manual' ? 'manual' : 'auto')) === 'manual' ? '手动调度' : '自动调度'}
                       </div>
                       <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
                         审批策略在「任务调度」页面独立配置

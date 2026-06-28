@@ -168,6 +168,29 @@ test('taskAdmission uses smartTaskEnabledActions as the global automatic allow-l
   assert.strictEqual(ingest.allowed, true);
 });
 
+test('smartTaskEngine treats an empty automatic allow-list as an intentional disabled state', () => {
+  smartTaskEngine.stop();
+  smartTaskEngine.start(
+    { loadConfig: () => ({
+      smartTaskInitialDelaySeconds: 60,
+      smartTaskPollIntervalMinutes: 10,
+      smartTaskMaxPerRun: 10,
+      smartTaskMaxQueueSize: 50,
+      smartTaskEnabledActions: [],
+      smartTaskLookbackDays: 30,
+    }) },
+    { getLibrary: () => ({ items: [] }) },
+    { getTasks: () => [], createTask: () => { throw new Error('should not create tasks'); } },
+  );
+
+  const health = smartTaskEngine.getHealth();
+  assert.strictEqual(health.status, 'green');
+  assert.strictEqual(health.enabled, false);
+  assert.strictEqual(health.disabledReason, 'no_enabled_actions');
+  assert.strictEqual(health.message, '后台自动入队未启用');
+  smartTaskEngine.stop();
+});
+
 test('taskAdmission applies cooldown and active task dedupe', () => {
   const config = {
     taskAdmission: { defaultCooldownHours: 48 },

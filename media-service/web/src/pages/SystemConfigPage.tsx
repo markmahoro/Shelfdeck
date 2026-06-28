@@ -165,6 +165,7 @@ export default function SystemConfigPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showPriorityAdvanced, setShowPriorityAdvanced] = useState(false);
   const [showGlobalApproval, setShowGlobalApproval] = useState(false);
+  const [expandedApprovalLibs, setExpandedApprovalLibs] = useState<Record<string, boolean>>({});
 
   const { data, isLoading } = useQuery({
     queryKey: ['system-config-full'],
@@ -226,6 +227,10 @@ export default function SystemConfigPage() {
 
   function updatePolicy(policy: ApprovalPolicyConfig, gateId: string, mode: ApprovalMode): ApprovalPolicyConfig {
     return normalizeApprovalPolicy({ ...policy, [gateId]: gateId === 'upgrade.identityMismatch' ? 'forceConfirm' : mode });
+  }
+
+  function toggleSubLibApproval(uuid: string) {
+    setExpandedApprovalLibs((prev) => ({ ...prev, [uuid]: !prev[uuid] }));
   }
 
   function addPriorityRule(at: ActionType) {
@@ -311,8 +316,8 @@ export default function SystemConfigPage() {
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
 
       <section style={cardStyle}>
-        <h3 style={sectionTitle}>子库任务调度</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>调度只决定任务是否自动入队与自动执行；关键节点是否暂停由审批策略决定。</p>
+        <h3 style={sectionTitle}>子库调度</h3>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>子库调度决定某个媒体库是否允许后台调度；允许自动创建哪些任务类型由「后台自动入队」统一控制。</p>
         {subLibs.length === 0 ? (
           <div style={emptyStyle}>暂无子库，请先在仪表盘添加媒体库</div>
         ) : (
@@ -333,7 +338,7 @@ export default function SystemConfigPage() {
                         onClick={() => updateSubLib(sl.uuid, { automationMode: mode })}
                         style={sched.automationMode === mode ? modeBtnActive : modeBtn}
                       >
-                        {mode === 'auto' ? '全自动' : '纯手动'}
+                        {mode === 'auto' ? '自动调度' : '手动调度'}
                       </button>
                     ))}
                   </div>
@@ -377,15 +382,28 @@ export default function SystemConfigPage() {
         {subLibs.map((sl) => {
           const sched = slSchedules[sl.uuid];
           if (!sched) return null;
+          const expanded = !!expandedApprovalLibs[sl.uuid];
           return (
-            <ApprovalPolicyEditor
-              key={sl.uuid}
-              title={sl.name}
-              policy={sched.approvalPolicy}
-              onChange={(policy) => updateSubLib(sl.uuid, { approvalPolicy: policy })}
-              updatePolicy={updatePolicy}
-              compact
-            />
+            <div key={sl.uuid} style={approvalSummaryBlock}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e' }}>{sl.name}</div>
+                  <div style={hintStyle}>{approvalSummary(sched.approvalPolicy)}</div>
+                </div>
+                <button onClick={() => toggleSubLibApproval(sl.uuid)} style={collapseBtn}>
+                  {expanded ? '收起审批策略' : '展开审批策略'}
+                </button>
+              </div>
+              {expanded && (
+                <ApprovalPolicyEditor
+                  title=""
+                  policy={sched.approvalPolicy}
+                  onChange={(policy) => updateSubLib(sl.uuid, { approvalPolicy: policy })}
+                  updatePolicy={updatePolicy}
+                  compact
+                />
+              )}
+            </div>
           );
         })}
       </section>
@@ -545,7 +563,7 @@ function ApprovalPolicyEditor({ title, policy, onChange, updatePolicy, compact }
 }) {
   return (
     <div style={{ borderTop: '1px solid #eee', paddingTop: 12, marginTop: compact ? 12 : 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, color: '#1a1a2e' }}>{title}</div>
+      {title && <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, color: '#1a1a2e' }}>{title}</div>}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 240px) 1fr 150px', gap: 10, alignItems: 'center' }}>
         {APPROVAL_GATES.map((gate) => {
           const value = gate.force ? 'forceConfirm' : (policy[gate.key] || DEFAULT_APPROVAL_POLICY[gate.key] || 'confirm');
@@ -569,6 +587,18 @@ function ApprovalPolicyEditor({ title, policy, onChange, updatePolicy, compact }
       </div>
     </div>
   );
+}
+
+function approvalSummary(policy: ApprovalPolicyConfig): string {
+  const normalized = normalizeApprovalPolicy(policy);
+  let confirmCount = 0;
+  let forceCount = 0;
+  for (const gate of APPROVAL_GATES) {
+    const value = normalized[gate.key];
+    if (value === 'forceConfirm') forceCount += 1;
+    else if (value === 'confirm') confirmCount += 1;
+  }
+  return `当前 ${confirmCount} 个节点需要确认，${forceCount} 个节点强制确认`;
 }
 
 function NumberField({ label, value, min, max, onChange }: {
@@ -611,6 +641,12 @@ const subLibBlock: React.CSSProperties = {
   padding: 16,
   marginBottom: 14,
   background: '#fff',
+};
+
+const approvalSummaryBlock: React.CSSProperties = {
+  borderTop: '1px solid #eee',
+  paddingTop: 12,
+  marginTop: 12,
 };
 
 const sectionTitle: React.CSSProperties = {

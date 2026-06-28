@@ -244,11 +244,11 @@ function getHealth() {
   }
   if (enabledActions.length === 0) {
     return {
-      status: 'yellow',
+      status: 'green',
       enabled: false,
       enabledActions,
       disabledReason: 'no_enabled_actions',
-      message: '后台自动入队未选择任务类型',
+      message: '后台自动入队未启用',
       lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
     };
   }
