@@ -256,14 +256,14 @@ export default function TranscodeConfigPage() {
 
       {/* Card 2: Available devices */}
       <section style={card}>
-        <h3 style={sectionTitle}>可用设备</h3>
+        <h3 style={sectionTitle}>可添加设备</h3>
         <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
           <button onClick={handleProbe} disabled={probing} style={primaryBtn}>{probing ? '检测中...' : '检测本机设备'}</button>
-          <span style={{ fontSize: 13, color: '#999' }}>检测本机 GPU 编码器。远程节点设备自动列出。</span>
+          <span style={{ fontSize: 13, color: '#999' }}>检测还未加入设备池的本机 GPU 编码器；远程节点中未入池的设备会自动列出。</span>
         </div>
 
         {probedLocalDevices.length === 0 && remoteAvailableDevices.length === 0 && (
-          <p style={{ color: '#888', fontSize: 14 }}>暂无可用设备。点击"检测本机设备"扫描本机 GPU，或在「转码节点」页面添加远程节点。</p>
+          <p style={{ color: '#888', fontSize: 14 }}>当前没有新的可添加设备。已加入设备池的设备在下方管理；需要新增本机 GPU 时点击“检测本机设备”。</p>
         )}
 
         {(probedLocalDevices.length > 0 || remoteAvailableDevices.length > 0) && (
@@ -313,7 +313,7 @@ export default function TranscodeConfigPage() {
         {poolLoading && displayLocal.length === 0 && displayRemote.length === 0 ? (
           <LoadingSpinner text="加载设备池..." />
         ) : displayLocal.length === 0 && displayRemote.length === 0 ? (
-          <p style={{ color: '#888', fontSize: 14 }}>设备池为空。请在上方"可用设备"中将设备入池，然后保存。</p>
+          <p style={{ color: '#888', fontSize: 14 }}>设备池为空。请在上方“可添加设备”中将设备入池，然后保存。</p>
         ) : (
           <>
             <table style={tableStyle}>
