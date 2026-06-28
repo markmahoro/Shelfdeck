@@ -554,6 +554,75 @@ function itemInfoFromItem(item) {
   };
 }
 
+function isGenericWesternTitle(value) {
+  const s = String(value || '').trim();
+  return /^unknown person\b/i.test(s) || /possibly a scene from a movie or tv show/i.test(s);
+}
+
+function fallbackWesternItemName(item) {
+  const fileBase = item && item.path ? path.basename(item.path, path.extname(item.path)) : '';
+  return fileBase || (item && item.adultMetadata && item.adultMetadata.adultId) || (item && item.itemId) || '未命名成人影片';
+}
+
+function repairInvalidWesternScrapeState(opts = {}) {
+  const cfg = configStore.loadConfig();
+  const subLibById = new Map((cfg.subLibraries || []).map((sl) => [sl.uuid, sl]));
+  const lib = loadLibrary();
+  const now = nowIso();
+  let repaired = 0;
+
+  for (let i = 0; i < (lib.items || []).length; i++) {
+    const item = lib.items[i];
+    if (!item || item.source !== 'adult_folder') continue;
+    const subLib = subLibById.get(item.subLibraryId);
+    const region = (item.adultMetadata && item.adultMetadata.region) || (subLib && subLib.adultRegion) || '';
+    if (region !== 'western_adult') continue;
+    if (item.scraped !== true && (!item.adultMetadata || item.adultMetadata.scrapeStatus !== 'done')) continue;
+
+    const verification = scrapeVerification.verifyScrapedItem(item, {
+      config: cfg,
+      subLib,
+      requireTaskDone: false,
+    });
+    if (verification.ok) continue;
+
+    const existingMeta = item.adultMetadata || {};
+    const genericTitle = isGenericWesternTitle(item.name) || isGenericWesternTitle(existingMeta.title);
+    const nextMeta = {
+      ...existingMeta,
+      title: genericTitle ? '' : existingMeta.title,
+      scrapeStatus: 'failed',
+      reviewStatus: 'needs_review',
+      scrapeError: `Scrape verification failed: ${verification.failures.map((f) => f.message).join('; ')}`,
+      scrapeFailedAt: now,
+      scrapeVerification: {
+        ok: false,
+        checkedAt: verification.checkedAt,
+        failures: verification.failures,
+        warnings: verification.warnings,
+      },
+    };
+    lib.items[i] = {
+      ...item,
+      name: genericTitle ? fallbackWesternItemName(item) : item.name,
+      scraped: false,
+      adultMetadata: nextMeta,
+      lastRefreshedAt: now,
+    };
+    repaired++;
+  }
+
+  if (repaired > 0) {
+    lib.cachedAt = now;
+    saveLibrary(lib);
+    if (!opts.silent) {
+      activityLog.addActivity('adult_library', `已修正 ${repaired} 条不符合刮削成功合同的欧美成人库旧数据`, { repaired });
+      console.log(`[adultLibrary] repaired invalid western scrape state: ${repaired}`);
+    }
+  }
+  return { repaired };
+}
+
 async function upsertFileItem(subLib, filePath, opts = {}) {
   const config = configStore.loadConfig();
   const nfo = parseNfo(findNfoForFile(filePath));
@@ -693,9 +762,8 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
   lib.cachedAt = now;
   saveLibrary(lib);
 
-  // Put every newly discovered unscripted file into the scrape task flow. Even
-  // low-confidence IDs are attempted; if the result is wrong the user can fix
-  // the adult ID from the task center and re-scrape.
+  // Ingest may request a follow-up scrape, but automatic creation is still
+  // gated by the global TaskAdmission allow-list and queue policy.
   if (opts.enqueueScrape !== false && !nfo) {
     enqueueScrapeTask(item, subLib, { source: opts.source });
   }
@@ -1383,6 +1451,7 @@ module.exports = {
   applyScrapeResultToItem,
   applyWesternCurationResultToItem,
   markScrapeFailed,
+  repairInvalidWesternScrapeState,
   resetScrapeStatus,
   rescrapeItem,
   itemInfoFromItem,

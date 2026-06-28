@@ -1790,6 +1790,12 @@ async function buildApp(opts = {}) {
   if (startupCfg.transcodeTempRoot && startupCfg.transcodeCleanupOrphansOnStartup !== false) {
     await transcodeService.cleanupOrphans(startupCfg);
   }
+  try {
+    const repair = adultLibraryService.repairInvalidWesternScrapeState();
+    if (repair.repaired > 0) strategyEngine.runOnce();
+  } catch (e) {
+    console.warn('[adultLibrary] invalid western scrape repair skipped:', e.message);
+  }
 
   // Start health check timer and subLibrary timers
   healthCheck.startHealthCheckTimer();

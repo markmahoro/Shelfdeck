@@ -2022,6 +2022,86 @@ test('western adult curation creates one movie folder and leaves sibling videos 
   delete process.env.CONTROL_PLANE_DATA_DIR;
 });
 
+test('western adult startup repair demotes legacy shared scrape artifacts', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'us');
+  const videosDir = path.join(watchRoot, 'Videos');
+  fs.mkdirSync(videosDir, { recursive: true });
+  const fileA = path.join(videosDir, 'Scene.A.mp4');
+  const fileB = path.join(videosDir, 'Scene.B.mp4');
+  fs.writeFileSync(fileA, 'fake-video');
+  fs.writeFileSync(fileB, 'fake-video');
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const configStore = require('../src/configStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const cfg = configStore.loadConfig();
+  const subLib = {
+    uuid: crypto.randomUUID(), name: 'US', source: 'folder', mediaType: 'adult',
+    adultRegion: 'western_adult', scraperType: 'western_builtin',
+    watchRoot, enabled: true, ruleTemplateId: 'adult_western_default',
+  };
+  configStore.patchConfig({
+    adultLibrary: {
+      ...cfg.adultLibrary,
+      western: { ...(cfg.adultLibrary && cfg.adultLibrary.western || {}), writeNfo: true },
+    },
+    subLibraries: [subLib],
+  });
+
+  const itemA = await adultLibraryService.upsertFileItem(subLib, fileA, { enqueueScrape: false });
+  const itemB = await adultLibraryService.upsertFileItem(subLib, fileB, { enqueueScrape: false });
+  const sharedNfo = path.join(videosDir, 'movie.nfo');
+  const sharedMarker = path.join(videosDir, '.shelfdeck.json');
+  fs.writeFileSync(sharedNfo, '<movie><title>Unknown Person - possibly a scene from a movie or TV show</title></movie>');
+  fs.writeFileSync(sharedMarker, JSON.stringify({
+    itemId: itemA.itemId,
+    subLibraryId: subLib.uuid,
+    mediaPath: fileA,
+    scrapeTaskId: 'legacy',
+    scrapedAt: new Date().toISOString(),
+  }, null, 2));
+
+  const lib = mediaLibraryService.loadLibrary();
+  lib.items = lib.items.map((it) => {
+    if (![itemA.itemId, itemB.itemId].includes(it.itemId)) return it;
+    return {
+      ...it,
+      name: 'Unknown Person - possibly a scene from a movie or TV show',
+      scraped: true,
+      adultMetadata: {
+        ...(it.adultMetadata || {}),
+        region: 'western_adult',
+        adultId: 'UNK-063',
+        title: 'Unknown Person - possibly a scene from a movie or TV show',
+        scrapeStatus: 'done',
+        nfoPath: sharedNfo,
+        markerPath: sharedMarker,
+        protagonist: null,
+      },
+    };
+  });
+  mediaLibraryService.saveLibrary(lib);
+
+  const result = adultLibraryService.repairInvalidWesternScrapeState({ silent: true });
+  assert.strictEqual(result.repaired, 2);
+  assert.strictEqual(fs.existsSync(fileA), true);
+  assert.strictEqual(fs.existsSync(fileB), true);
+  const afterA = mediaLibraryService.getLibraryItem(itemA.itemId);
+  const afterB = mediaLibraryService.getLibraryItem(itemB.itemId);
+  for (const after of [afterA, afterB]) {
+    assert.strictEqual(after.scraped, false);
+    assert.strictEqual(after.adultMetadata.scrapeStatus, 'failed');
+    assert.strictEqual(after.adultMetadata.reviewStatus, 'needs_review');
+    assert.strictEqual(after.adultMetadata.title, '');
+    assert.strictEqual(after.adultMetadata.scrapeVerification.ok, false);
+    assert.match(after.name, /^Scene\.[AB]$/);
+  }
+
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
 test('western adult id assignment reuses an existing actor id on rescrape', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   process.env.CONTROL_PLANE_DATA_DIR = dir;
