@@ -445,7 +445,7 @@ function resolveSubLibSchedule(itemInfo, config) {
   if (automationMode === 'manual') {
     return {
       automationMode: 'manual',
-      autoCreate: false,
+      autoCreate: true,
       autoExecute: false,
       approvalPolicy: (subLib && subLib.approvalPolicy) || {},
     };
@@ -467,11 +467,11 @@ function resolveSubLibSchedule(itemInfo, config) {
     return { automationMode: 'auto', autoCreate: true, autoExecute: true, approvalPolicy: (subLib && subLib.approvalPolicy) || {} };
   }
   if (mode === 'full_manual') {
-    return { automationMode: 'manual', autoCreate: false, autoExecute: false, approvalPolicy: (subLib && subLib.approvalPolicy) || {} };
+    return { automationMode: 'manual', autoCreate: true, autoExecute: false, approvalPolicy: (subLib && subLib.approvalPolicy) || {} };
   }
   return {
-    automationMode: subLib && subLib.autoCreate && subLib.autoExecute ? 'auto' : 'manual',
-    autoCreate: !!(subLib && subLib.autoCreate),
+    automationMode: subLib && subLib.autoExecute ? 'auto' : 'manual',
+    autoCreate: true,
     autoExecute: !!(subLib && subLib.autoExecute),
     approvalPolicy: (subLib && subLib.approvalPolicy) || {},
   };

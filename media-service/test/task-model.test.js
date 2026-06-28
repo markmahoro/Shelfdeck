@@ -94,7 +94,7 @@ test('resolveSubLibSchedule treats automationMode as the canonical scheduling sw
     configStore.resolveSubLibSchedule({ subLibraryId: 'lib-a' }, config),
     {
       automationMode: 'manual',
-      autoCreate: false,
+      autoCreate: true,
       autoExecute: false,
       approvalPolicy: { 'scrape.reviewResult': 'confirm' },
     },
@@ -119,7 +119,7 @@ test('resolveSubLibSchedule treats automationMode as the canonical scheduling sw
   );
 });
 
-test('taskAdmission rejects automatic tasks for manual sub-libraries', () => {
+test('taskAdmission allows automatic task creation for manual sub-libraries', () => {
   const config = {
     smartTaskEnabledActions: ['transcode'],
     subLibraries: [{ uuid: 'manual-lib', automationMode: 'manual' }],
@@ -139,8 +139,7 @@ test('taskAdmission rejects automatic tasks for manual sub-libraries', () => {
     config,
     tasks: [],
   });
-  assert.strictEqual(auto.allowed, false);
-  assert.strictEqual(auto.reason, 'automation_manual');
+  assert.strictEqual(auto.allowed, true);
   assert.strictEqual(manual.allowed, true);
 });
 
@@ -236,6 +235,200 @@ test('smartTaskEngine treats a missing automatic allow-list as disabled', () => 
   assert.strictEqual(health.disabledReason, 'no_enabled_actions');
   assert.deepStrictEqual(health.enabledActions, []);
   smartTaskEngine.stop();
+});
+
+test('smartTaskEngine creates pending_manual tasks for manual sub-libraries', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['transcode'],
+          smartTaskLookbackDays: 30,
+          subLibraries: [{ uuid: 'manual-lib', automationMode: 'manual' }],
+          taskPriority: { autoTaskPriorityBase: 100, actionTypeWeights: { transcode: 130 }, rules: { transcode: [] } },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [{
+            itemId: 'manual-auto-create',
+            name: 'Manual Auto Create',
+            source: 'emby',
+            type: 'movie',
+            watched: true,
+            action: 'transcode',
+            reason: 'high bitrate',
+            subLibraryId: 'manual-lib',
+            userRatingUpdatedAt: new Date().toISOString(),
+            path: '/media/manual-auto-create.mkv',
+          }],
+        };
+      },
+    },
+    {
+      getTasks: () => [...created],
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTask(taskData) {
+        const task = { id: `t-${created.length + 1}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...taskData };
+        created.push(task);
+        return task;
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  assert.strictEqual(created.length, 1);
+  assert.strictEqual(created[0].status, 'pending_manual');
+  assert.strictEqual(created[0].source, 'auto');
+});
+
+test('smartTaskEngine auto-enqueues adult scrape candidates through TaskAdmission priority', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 1,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['scrape', 'transcode'],
+          smartTaskLookbackDays: 30,
+          subLibraries: [
+            { uuid: 'adult-lib', automationMode: 'auto', priorityWeight: 100 },
+            { uuid: 'movie-lib', automationMode: 'auto', priorityWeight: 100 },
+          ],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { scrape: 80, transcode: 130 },
+            rules: { scrape: [], transcode: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByAction: { scrape: 0, transcode: 0 },
+            maxQueuedByAction: { scrape: 20, transcode: 50 },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [{
+            itemId: 'movie-transcode',
+            name: 'Movie Transcode',
+            source: 'emby',
+            type: 'movie',
+            watched: true,
+            action: 'transcode',
+            reason: 'high bitrate',
+            subLibraryId: 'movie-lib',
+            userRatingUpdatedAt: new Date().toISOString(),
+            path: '/media/movie.mkv',
+          }, {
+            itemId: 'adult-failed-scrape',
+            name: 'Adult Failed Scrape',
+            source: 'adult_folder',
+            type: 'movie',
+            watched: false,
+            action: 'keep',
+            scraped: false,
+            subLibraryId: 'adult-lib',
+            path: '/adult/failed.mp4',
+            adultMetadata: { scrapeStatus: 'failed' },
+          }],
+        };
+      },
+    },
+    {
+      getTasks: () => [...created],
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTask(taskData) {
+        const task = { id: `t-${created.length + 1}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...taskData };
+        created.push(task);
+        return task;
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  assert.strictEqual(created.length, 1);
+  assert.strictEqual(created[0].itemId, 'adult-failed-scrape');
+  assert.strictEqual(created[0].actionType, 'scrape');
+  assert.strictEqual(created[0].priority, 80);
+  assert.strictEqual(created[0].source, 'auto');
+});
+
+test('smartTaskEngine leaves ambiguous adult scrape candidates for explicit user action', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['scrape'],
+          smartTaskLookbackDays: 30,
+          subLibraries: [{ uuid: 'adult-lib', automationMode: 'auto' }],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { scrape: 80 },
+            rules: { scrape: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByAction: { scrape: 0 },
+            maxQueuedByAction: { scrape: 20 },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [{
+            itemId: 'adult-ambiguous-scrape',
+            name: 'Adult Ambiguous Scrape',
+            source: 'adult_folder',
+            type: 'movie',
+            action: 'keep',
+            scraped: false,
+            subLibraryId: 'adult-lib',
+            path: '/adult/ambiguous.mp4',
+            adultMetadata: { scrapeStatus: 'ambiguous' },
+          }],
+        };
+      },
+    },
+    {
+      getTasks: () => [...created],
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTask(taskData) {
+        const task = { id: `t-${created.length + 1}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...taskData };
+        created.push(task);
+        return task;
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  assert.strictEqual(created.length, 0);
 });
 
 test('taskAdmission applies cooldown and active task dedupe', () => {

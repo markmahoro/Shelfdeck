@@ -1,6 +1,5 @@
 'use strict';
 
-const configStore = require('./configStore');
 const optimizationStatus = require('./optimizationStatus');
 
 const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
@@ -73,13 +72,8 @@ function canCreateTask({ item, itemInfo, actionType, source, config, tasks, opti
 
   const manual = source === 'manual';
   const automatic = !manual;
-  const schedule = configStore.resolveSubLibSchedule(info, cfg);
   if (automatic && !enabledAutoActions(cfg).includes(actionType)) {
     return { allowed: false, reason: 'action_not_enabled' };
-  }
-
-  if (automatic && !schedule.autoCreate) {
-    return { allowed: false, reason: 'automation_manual' };
   }
 
   if (!manual) {

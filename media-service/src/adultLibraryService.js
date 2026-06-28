@@ -1317,8 +1317,8 @@ async function rescrapeItem(itemId, opts = {}) {
   const overrideAdultId = typeof opts.overrideAdultId === 'string' ? opts.overrideAdultId.trim() : '';
   resetScrapeStatus(itemId, overrideAdultId || null);
   const fresh = loadLibrary().items.find((it) => it.itemId === itemId);
-  // Manual rescrape is an explicit user intent: bypass the autoCreate gate that
-  // governs automatic enqueuing. autoExecute still decides queued vs pending_manual.
+  // Manual rescrape is an explicit user intent; autoExecute still decides
+  // queued vs pending_manual.
   return enqueueScrapeTask(fresh || libItem, subLib, { force: true });
 }
 

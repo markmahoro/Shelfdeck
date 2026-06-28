@@ -29,11 +29,109 @@ function readEnabledActions(config) {
     : [];
 }
 
+function actionLabel(actionType) {
+  switch (actionType) {
+    case 'ingest': return '入库';
+    case 'scrape': return '刮削';
+    case 'transcode': return '转码压缩';
+    case 'upgrade': return '洗版';
+    case 'delete': return '删除';
+    default: return actionType;
+  }
+}
+
 function maxTimestamp(a, b) {
   if (!a && !b) return 0;
   if (!a) return new Date(b).getTime();
   if (!b) return new Date(a).getTime();
   return Math.max(new Date(a).getTime(), new Date(b).getTime());
+}
+
+function itemTimestamp(item) {
+  const meta = item && item.adultMetadata || {};
+  return [
+    item && item.userRatingUpdatedAt,
+    item && item.doubanRatingUpdatedAt,
+    item && item.lastRefreshedAt,
+    item && item.updatedAt,
+    meta.scrapedAt,
+  ].reduce((latest, value) => maxTimestamp(latest, value), 0);
+}
+
+function isAutoScrapeAdultCandidate(item) {
+  if (!item || item.source !== 'adult_folder') return false;
+  if (item.scraped === true) return false;
+  const status = String(item.adultMetadata && item.adultMetadata.scrapeStatus || '').toLowerCase();
+  // Ambiguous/needs_review states are intentionally left for explicit user action.
+  return status === '' || status === 'pending' || status === 'failed';
+}
+
+function buildItemInfo(item) {
+  return {
+    name: item.name,
+    itemId: item.itemId,
+    embyItemId: assetIdentity.getEmbyItemId(item),
+    path: item.path,
+    subLibraryId: item.subLibraryId,
+    assetKey: item.assetKey,
+    assetRootPath: item.assetRootPath,
+    externalRefs: item.externalRefs,
+    resolution: item.resolution,
+    bitrate: item.bitrate,
+    size: item.size,
+    duration: item.duration,
+    type: item.type,
+    isDiscLike: !!item.isDiscLike,
+    doubanRating: item.doubanRating,
+    userRating: item.userRating,
+    tmdbId: item.tmdbId,
+    seriesName: item.seriesName,
+    seasonNumber: item.seasonNumber,
+    targetBitrate: item.targetBitrate,
+    targetCodec: item.targetCodec,
+    seedPreferences: item.seedPreferences,
+    maxSizeGB: item.maxSizeGB,
+    equivalentBitrate: item.equivalentBitrate,
+    scraped: !!item.scraped,
+    adultMetadata: item.adultMetadata,
+  };
+}
+
+function buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff, config }) {
+  const isAdultFolder = item.source === 'adult_folder';
+  if (item.source !== 'emby' && !isAdultFolder) return null;
+  if (item.type === 'series') return null;
+
+  let actionType = '';
+  if (isAdultFolder && enabledActions.includes('scrape') && isAutoScrapeAdultCandidate(item)) {
+    actionType = 'scrape';
+  } else {
+    if (!item.watched) return null;
+    if (!item.action || item.action === 'keep') return null;
+    if (!enabledActions.includes(item.action)) return null;
+    if (item.reason === '新入库') return null;
+    actionType = item.action;
+  }
+
+  if (isFirstOrResume && !isAdultFolder) {
+    const ratingTs = maxTimestamp(item.userRatingUpdatedAt, item.doubanRatingUpdatedAt);
+    if (ratingTs < lookbackCutoff) return null;
+  }
+
+  const itemInfo = buildItemInfo(item);
+  const priority = priorityEngine.computePriority({
+    source: 'auto',
+    actionType,
+    itemInfo,
+    config,
+  });
+  return {
+    item,
+    itemInfo,
+    actionType,
+    priority,
+    timestamp: itemTimestamp(item),
+  };
 }
 
 function start(configStore, mediaLibraryService, taskStore) {
@@ -85,89 +183,44 @@ function start(configStore, mediaLibraryService, taskStore) {
       const lookbackCutoff = now - lookbackDays * 86400000;
       const isFirstOrResume = !lastRunAt || (now - lastRunAt > intervalMs * 2);
 
-      const candidates = lib.items.filter((item) => {
-        const isAdultFolder = item.source === 'adult_folder';
-        if (item.source !== 'emby' && !isAdultFolder) return false;
-        if (item.type === 'series') return false;
-        if (!item.watched) return false;
-        if (!item.action || item.action === 'keep') return false;
-        if (!enabledActions.includes(item.action)) return false;
-        if (item.reason === '新入库') return false;
+      const candidates = lib.items
+        .map((item) => buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff, config: cfg2 }))
+        .filter(Boolean);
 
-        // Lookback window for first/resume run
-        if (isFirstOrResume && !isAdultFolder) {
-          const ratingTs = maxTimestamp(item.userRatingUpdatedAt, item.doubanRatingUpdatedAt);
-          if (ratingTs < lookbackCutoff) return false;
-        }
-
-        return true;
-      });
-
-      // Sort by rating available time DESC (most recent first)
-      candidates.sort((a, b) => {
-        return maxTimestamp(b.userRatingUpdatedAt, b.doubanRatingUpdatedAt)
-             - maxTimestamp(a.userRatingUpdatedAt, a.doubanRatingUpdatedAt);
-      });
+      // Sort by computed task priority first, then most recent signal. This
+      // keeps high-priority task types from being hidden behind large low-priority
+      // candidate pools when smartTaskMaxPerRun is small.
+      candidates.sort((a, b) => (a.priority - b.priority) || (b.timestamp - a.timestamp));
 
       const toEnqueue = [];
-      for (const item of candidates) {
+      for (const candidate of candidates) {
         if (toEnqueue.length >= maxPerRun) break;
+        const { item, itemInfo, actionType } = candidate;
 
         // Per-action-type queue depth cap. Skip this type once the backlog is
         // full so one action doesn't starve others.
-        const cur = activeByType[item.action] || 0;
-        const cap = queueCap[item.action] || maxQueueSize;
+        const cur = activeByType[actionType] || 0;
+        const cap = queueCap[actionType] || maxQueueSize;
         if (cur >= cap) continue;
 
         const subLibSchedule2 = configStore.resolveSubLibSchedule(item, cfg2);
         const status = subLibSchedule2.autoExecute ? 'queued' : 'pending_manual';
 
-        // Compute initial priority via PriorityEngine (manual base for the
-        // manual trigger path; auto base + library weight + rules here).
-        const itemInfo = {
-          name: item.name,
-          itemId: item.itemId,
-          embyItemId: assetIdentity.getEmbyItemId(item),
-          path: item.path,
-          subLibraryId: item.subLibraryId,
-          assetKey: item.assetKey,
-          assetRootPath: item.assetRootPath,
-          externalRefs: item.externalRefs,
-          resolution: item.resolution,
-          bitrate: item.bitrate,
-          size: item.size,
-          duration: item.duration,
-          type: item.type,
-          isDiscLike: !!item.isDiscLike,
-          doubanRating: item.doubanRating,
-          userRating: item.userRating,
-          tmdbId: item.tmdbId,
-          seriesName: item.seriesName,
-          seasonNumber: item.seasonNumber,
-          targetBitrate: item.targetBitrate,
-          targetCodec: item.targetCodec,
-          seedPreferences: item.seedPreferences,
-          maxSizeGB: item.maxSizeGB,
-          equivalentBitrate: item.equivalentBitrate,
-          scraped: !!item.scraped,
-          adultMetadata: item.adultMetadata,
-        };
-
         const admission = taskAdmission.canCreateTask({
           item,
           itemInfo,
-          actionType: item.action,
+          actionType,
           source: 'auto',
           config: cfg2,
           tasks: allTasks,
           optimizationIndex,
         });
         if (!admission.allowed) continue;
-        activeByType[item.action] = cur + 1;
+        activeByType[actionType] = cur + 1;
 
         const priority = priorityEngine.computePriority({
           source: 'auto',
-          actionType: item.action,
+          actionType,
           itemInfo,
           config: cfg2,
         });
@@ -175,7 +228,7 @@ function start(configStore, mediaLibraryService, taskStore) {
         const task = taskStore.createTask({
           itemId: item.itemId,
           itemName: item.name,
-          actionType: item.action,
+          actionType,
           source: 'auto',
           status,
           priority,
@@ -187,19 +240,16 @@ function start(configStore, mediaLibraryService, taskStore) {
           }],
         });
         allTasks.push(task);
-        console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${item.action} "${item.name}"`);
-        toEnqueue.push(item);
+        console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${actionType} "${item.name}"`);
+        toEnqueue.push({ item, actionType });
       }
 
       if (toEnqueue.length > 0) {
         const byAction = {};
-        for (const item of toEnqueue) {
-          byAction[item.action] = (byAction[item.action] || 0) + 1;
+        for (const entry of toEnqueue) {
+          byAction[entry.actionType] = (byAction[entry.actionType] || 0) + 1;
         }
-        const parts = Object.entries(byAction).map(([a, n]) => {
-          const label = a === 'transcode' ? '转码压缩' : a === 'upgrade' ? '洗版' : a === 'delete' ? '删除' : a;
-          return `${label} ${n} 个`;
-        });
+        const parts = Object.entries(byAction).map(([a, n]) => `${actionLabel(a)} ${n} 个`);
         const msg = `后台自动入队：${toEnqueue.length} 个任务已自动创建（${parts.join('，')}）`;
         console.log(`[smartTaskEngine] ${msg} (${candidates.length} candidates total)`);
         activityLog.addActivity('smart_task_engine', msg, { enqueued: toEnqueue.length, byAction, totalCandidates: candidates.length });

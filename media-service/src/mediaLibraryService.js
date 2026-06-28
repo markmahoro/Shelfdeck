@@ -403,7 +403,7 @@ function addSubLibrary(spec) {
     ...configStore.defaultSubLibSchedule(),
     automationMode: spec.automationMode || (spec.scheduleMode === 'full_manual' ? 'manual' : 'auto'),
     scheduleMode: spec.scheduleMode || (spec.automationMode === 'manual' ? 'full_manual' : 'full_auto'),
-    autoCreate: spec.autoCreate !== undefined ? spec.autoCreate : spec.automationMode !== 'manual',
+    autoCreate: true,
     autoExecute: spec.autoExecute !== undefined ? spec.autoExecute : spec.automationMode !== 'manual',
     approvalPolicy: spec.approvalPolicy || {},
     autoReplaceTranscode: spec.autoReplaceTranscode || false,

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adult, tasks, systemConfig } from '../api/client';
+import type { TaskReport } from '../api/client';
 import type { MediaTask, TaskItemInfo, VerifyResult, UpgradeCandidate } from '../types';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
@@ -46,6 +47,14 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   delete: '删除',
   upgrade: '洗版',
   scrape: '刮削',
+};
+
+const REPORT_LABELS: Record<string, string> = {
+  ingest: '入库报告',
+  transcode: '转码报告',
+  delete: '删除报告',
+  upgrade: '洗版报告',
+  scrape: '刮削报告',
 };
 
 const PHASE_LABELS: Record<string, string> = {
@@ -94,6 +103,17 @@ const RESUME_POINT_APPROVAL_LABELS: Record<string, string> = {
 
 const TERMINAL_TASK_STATUSES = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 
+function reportButtonLabel(task: MediaTask) {
+  if (task.actionType === 'scrape' && task.status === 'failed_hard') return '识别报告';
+  return REPORT_LABELS[task.actionType] || '任务报告';
+}
+
+function reportModalTitle(report: TaskReport | null) {
+  if (!report) return '任务报告';
+  if (report.actionType === 'scrape') return '刮削识别报告';
+  return REPORT_LABELS[report.actionType] || '任务报告';
+}
+
 function formatItemName(itemInfo?: TaskItemInfo): string {
   if (!itemInfo) return '';
   if (itemInfo.type === 'season' && itemInfo.seriesName && itemInfo.seasonNumber != null) {
@@ -140,7 +160,7 @@ export default function TaskMonitorPage() {
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [selectedCandidateIndex, setSelectedCandidateIndex] = useState(0);
   const [reportTask, setReportTask] = useState<string | null>(null);
-  const [reportData, setReportData] = useState<import('../api/client').TaskReport | null>(null);
+  const [reportData, setReportData] = useState<TaskReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [scrapeFixTask, setScrapeFixTask] = useState<MediaTask | null>(null);
   const [scrapeFixAdultId, setScrapeFixAdultId] = useState('');
@@ -301,7 +321,7 @@ export default function TaskMonitorPage() {
         import('../api/client').then(({ tasks: tk }) => {
           tk.report(t.id).then(data => { setReportData(data); setReportLoading(false); });
         });
-      }} style={execBtn}>完结报告</button>);
+      }} style={execBtn}>{reportButtonLabel(t)}</button>);
       if (t.actionType === 'scrape') {
         btns.push(<button key="fix-scrape-done" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
       }
@@ -313,7 +333,7 @@ export default function TaskMonitorPage() {
         import('../api/client').then(({ tasks: tk }) => {
           tk.report(t.id).then(data => { setReportData(data); setReportLoading(false); });
         });
-      }} style={execBtn}>识别报告</button>);
+      }} style={execBtn}>{reportButtonLabel(t)}</button>);
       btns.push(<button key="fix-scrape" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
     }
     if (t.status === 'awaiting_user_confirm') {
@@ -780,7 +800,7 @@ export default function TaskMonitorPage() {
       </Modal>
 
       {/* Completion Report Modal */}
-      <Modal open={!!reportTask && !reportLoading} title="任务完结报告" onClose={() => { setReportTask(null); setReportData(null); }} width={640}>
+      <Modal open={!!reportTask && !reportLoading} title={reportModalTitle(reportData)} onClose={() => { setReportTask(null); setReportData(null); }} width={640}>
         {reportLoading ? (
           <LoadingSpinner text="加载报告中..." />
         ) : reportData ? (

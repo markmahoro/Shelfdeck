@@ -45,7 +45,7 @@ docker compose -f media-service/docker-compose.example.yml up -d
 | `adultRegion=western_adult` | 欧美成人库，默认由 service-local 做抽帧、人脸匹配和封面生成 |
 | `actionType=ingest` | 入库任务，把单个文件候选转换为媒体项和技术探测结果 |
 | `actionType=scrape` | 刮削任务，完成后只更新 metadata 和 `scraped=true`；是否转码由策略和 `SmartTaskEngine` 决定 |
-| `automationMode=auto/manual` | 子库自动调度开关；审批节点由 `approvalPolicy` 单独控制 |
+| `automationMode=auto/manual` | 子库任务创建后的执行方式；`auto` 自动进入队列，`manual` 创建为待手动启动；审批节点由 `approvalPolicy` 单独控制 |
 | `approvalPolicy` | 任务内部关键节点审批策略，支持 `auto`、`confirm`、`forceConfirm` |
 | `mediaLibraryStartupRefreshOnStartup` | 普通媒体库启动后是否自动刷新 |
 | `mediaLibraryStartupRefreshDelaySeconds` | 普通媒体库启动刷新延迟，避免服务刚监听端口就被全量刷新压住 |
@@ -66,7 +66,7 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 媒体库主存储是 `media-service/data/library.db` SQLite。`library.json` 是旧版运行时文件，启动时会一次性迁移到 SQLite；迁移不会删除原 JSON。媒体库页面、成人库 item 写回、scrape 状态和评分更新都应通过 `libraryStore` / `mediaLibraryService` 的统一边界访问，不要重新引入直接读写 `library.json` 的路径。
 
-任务中心主存储是 `media-service/data/tasks.db` SQLite。`tasks.json` 是旧版运行时文件，启动时会一次性迁移到 SQLite；迁移不会删除原 JSON。不要通过删除任务数据库来“清队列”，否则会丢失完成和失败历史。需要控制雪崩时应使用 `TaskAdmission` 队列上限、冷却、启动延迟和子库 `automationMode`。
+任务中心主存储是 `media-service/data/tasks.db` SQLite。`tasks.json` 是旧版运行时文件，启动时会一次性迁移到 SQLite；迁移不会删除原 JSON。不要通过删除任务数据库来“清队列”，否则会丢失完成和失败历史。需要控制雪崩时应使用 `smartTaskEnabledActions`、`TaskAdmission` 队列上限、冷却和启动延迟；子库 `automationMode` 只控制创建后的自动执行。
 
 ## 平台规则
 

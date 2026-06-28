@@ -362,9 +362,10 @@ function buildWhere(filter = {}) {
       clauses.push('(scraped = 1 OR scrape_status = @scrapeDone)');
       params.scrapeDone = 'done';
     } else if (filter.scrapeStatus === 'pending') {
-      clauses.push('(scraped = 0 AND (scrape_status IN (@scrapePending, @scrapeAmbiguous) OR scrape_status = ""))');
+      clauses.push('(scraped = 0 AND (scrape_status IN (@scrapePending, @scrapeAmbiguous) OR scrape_status = @scrapeEmpty))');
       params.scrapePending = 'pending';
       params.scrapeAmbiguous = 'ambiguous';
+      params.scrapeEmpty = '';
     } else if (filter.scrapeStatus === 'failed') {
       clauses.push('scrape_status = @scrapeFailed');
       params.scrapeFailed = 'failed';

@@ -58,6 +58,33 @@ test('GET /v1/library/queries/manage filters by action', async () => {
   await app.close();
 });
 
+test('GET /v1/library/queries/manage filters adult pending scrape items', async () => {
+  const app = await buildEmptyApp();
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [{
+      itemId: 'adult-pending-empty-status',
+      subLibraryId: 'adult-lib',
+      name: 'Adult Pending Empty Status',
+      source: 'adult_folder',
+      type: 'movie',
+      action: 'keep',
+      scraped: false,
+      path: '/adult/pending.mp4',
+      adultMetadata: { scrapeStatus: '' },
+    }],
+  });
+
+  const res = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?scrape=pending&page=1&pageSize=10' });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.total, 1);
+  assert.strictEqual(body.items[0].itemId, 'adult-pending-empty-status');
+  await app.close();
+});
+
 // ── Library: items/:itemId ───────────────────────────────────────────────────────
 
 test('GET /v1/library/items/:itemId returns 404 for unknown item', async () => {

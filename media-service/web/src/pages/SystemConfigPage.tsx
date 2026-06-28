@@ -201,7 +201,7 @@ export default function SystemConfigPage() {
         setQueueLimits({ ...DEFAULT_QUEUE_LIMITS, ...(sysCfg.taskAdmission?.maxQueuedByAction || {}) });
         const scheds: Record<string, SubLibScheduleState> = {};
         for (const sl of slRes.subLibraries || []) {
-          const legacyManual = sl.scheduleMode === 'full_manual' || sl.autoCreate === false;
+          const legacyManual = sl.scheduleMode === 'full_manual' || sl.autoExecute === false;
           scheds[sl.uuid] = {
             automationMode: sl.automationMode || (legacyManual ? 'manual' : 'auto'),
             approvalPolicy: normalizeApprovalPolicy(sl.approvalPolicy),
@@ -291,7 +291,7 @@ export default function SystemConfigPage() {
         promises.push(subLibraries.update(uuid, {
           automationMode: sched.automationMode,
           scheduleMode: sched.automationMode === 'manual' ? 'full_manual' : 'full_auto',
-          autoCreate: sched.automationMode === 'auto',
+          autoCreate: true,
           autoExecute: sched.automationMode === 'auto',
           approvalPolicy: policy,
           priorityWeight: sched.priorityWeight,

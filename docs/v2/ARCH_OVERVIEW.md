@@ -111,7 +111,7 @@ desktop / Admin Web
 任务模型：
 
 - 任务分为系统级定时任务、子库级定时任务、单 item 任务三类。`StrategyEngine` 是子库/全局长周期策略计算，不是 item task；`delete/transcode/upgrade/scrape/ingest` 属于单 item task。
-- 子库只有两种调度模式：`automationMode=auto` 和 `automationMode=manual`。调度模式只决定自动任务是否可以由系统创建和执行；用户手动创建的任务不受自动入队关闭影响。
+- 子库只有两种调度模式：`automationMode=auto` 和 `automationMode=manual`。调度模式只决定任务创建后是否自动执行：`auto` 进入执行队列，`manual` 创建为待手动启动；后台是否自动创建任务由 `smartTaskEnabledActions` 和 `TaskAdmission` 统一控制。
 - `TaskAdmission` 是任务创建闸门，统一处理自动/手动来源、active task 去重、失败冷却、按任务类型的自动队列上限、已转码不重复自动转码等规则。48 小时冻结属于 admission，不属于 priority。
 - `PriorityEngine` 只决定可入队任务的执行顺序。优先级由任务来源基准、`actionTypeWeights`、子库 `priorityWeight`、规则叠加和用户手动调整共同决定，数值越小越优先。
 - 审批策略与调度策略分离。`approvalPolicy` 控制任务内部关键节点是否暂停，模式为 `auto`、`confirm`、`forceConfirm`；`forceConfirm` 不能被全局、子库或任务级覆盖降级。
