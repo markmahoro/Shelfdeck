@@ -28,6 +28,10 @@ function saveLibrary(lib) {
   mediaLibraryService.saveLibrary(lib);
 }
 
+function updateLibraryItems(items) {
+  return mediaLibraryService.updateLibraryItems(items);
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -570,6 +574,7 @@ function repairInvalidWesternScrapeState(opts = {}) {
   const lib = loadLibrary();
   const now = nowIso();
   let repaired = 0;
+  const changedItems = [];
 
   for (let i = 0; i < (lib.items || []).length; i++) {
     const item = lib.items[i];
@@ -609,12 +614,12 @@ function repairInvalidWesternScrapeState(opts = {}) {
       adultMetadata: nextMeta,
       lastRefreshedAt: now,
     };
+    changedItems.push(lib.items[i]);
     repaired++;
   }
 
   if (repaired > 0) {
-    lib.cachedAt = now;
-    saveLibrary(lib);
+    updateLibraryItems(changedItems);
     if (!opts.silent) {
       activityLog.addActivity('adult_library', `已修正 ${repaired} 条不符合刮削成功合同的欧美成人库旧数据`, { repaired });
       console.log(`[adultLibrary] repaired invalid western scrape state: ${repaired}`);
@@ -906,8 +911,7 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
     },
   };
   lib.items[idx] = updated;
-  lib.cachedAt = now;
-  saveLibrary(lib);
+  updateLibraryItems([updated]);
   return updated;
 }
 
@@ -1023,8 +1027,7 @@ async function applyWesternCurationResultToItem(subLib, item, curation, opts = {
       lastRefreshedAt: now,
     };
     lib.items[idx] = updated;
-    lib.cachedAt = now;
-    saveLibrary(lib);
+    updateLibraryItems([updated]);
     return updated;
   }
 
@@ -1163,8 +1166,7 @@ async function applyWesternCurationResultToItem(subLib, item, curation, opts = {
     },
   };
   lib.items[idx] = updated;
-  lib.cachedAt = now;
-  saveLibrary(lib);
+  updateLibraryItems([updated]);
   return updated;
 }
 
@@ -1186,8 +1188,7 @@ function markScrapeFailed(itemId, message) {
     lastRefreshedAt: now,
   };
   lib.items[idx] = updated;
-  lib.cachedAt = now;
-  saveLibrary(lib);
+  updateLibraryItems([updated]);
   return updated;
 }
 
@@ -1290,8 +1291,7 @@ function resetScrapeStatus(itemId, overrideAdultId = null) {
     lastRefreshedAt: nowIso(),
   };
   lib.items[idx] = updated;
-  lib.cachedAt = nowIso();
-  saveLibrary(lib);
+  updateLibraryItems([updated]);
   return updated;
 }
 
