@@ -95,6 +95,29 @@ function detectImageContentType(buffer) {
   return 'image/jpeg';
 }
 
+let sharpModule;
+function loadSharp() {
+  if (sharpModule !== undefined) return sharpModule;
+  try { sharpModule = require('sharp'); } catch (_) { sharpModule = null; }
+  return sharpModule;
+}
+
+async function referenceImageBuffer(buffer, opts = {}) {
+  if (!opts.thumbnail) return { buffer, contentType: detectImageContentType(buffer) };
+  const sharp = loadSharp();
+  if (!sharp) return { buffer, contentType: detectImageContentType(buffer) };
+  try {
+    const resized = await sharp(buffer)
+      .rotate()
+      .resize(96, 96, { fit: 'cover', position: 'attention' })
+      .jpeg({ quality: 76, mozjpeg: true })
+      .toBuffer();
+    return { buffer: resized, contentType: 'image/jpeg' };
+  } catch (_) {
+    return { buffer, contentType: detectImageContentType(buffer) };
+  }
+}
+
 function taskNeedsFlowCancel(task) {
   return !!task && [
     'executing',
@@ -1071,9 +1094,12 @@ function registerRoutes(app) {
     if (!face) return apiError(reply, 404, 'NOT_FOUND', 'Reference image not found');
     try {
       const buffer = Buffer.from(String(face.sampleImageBase64), 'base64');
+      const image = await referenceImageBuffer(buffer, {
+        thumbnail: req.query.thumbnail === '1' || req.query.thumbnail === 'true',
+      });
       reply.header('Cache-Control', 'private, max-age=300');
-      reply.type(detectImageContentType(buffer));
-      return buffer;
+      reply.type(image.contentType);
+      return image.buffer;
     } catch (e) {
       return apiError(reply, 500, 'REFERENCE_IMAGE_INVALID', 'Reference image cannot be decoded');
     }

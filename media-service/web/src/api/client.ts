@@ -182,8 +182,8 @@ export const adult = {
     patch<AdultLibraryConfig>('/v1/admin/adult/config', body),
   listPeople: () =>
     get<{ people: AdultPerson[] }>('/v1/admin/adult/people?adultRegion=western_adult'),
-  referenceImageUrl: (personId: string) =>
-    `/v1/admin/adult/people/${encodeURIComponent(personId)}/reference-image`,
+  referenceImageUrl: (personId: string, options?: { thumbnail?: boolean }) =>
+    `/v1/admin/adult/people/${encodeURIComponent(personId)}/reference-image${options?.thumbnail ? '?thumbnail=1' : ''}`,
   searchPersonImages: (name: string) =>
     get<AdultImageSearchResult>(
       `/v1/admin/adult/people/search-images?name=${encodeURIComponent(name)}`,

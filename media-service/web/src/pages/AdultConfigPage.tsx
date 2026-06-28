@@ -262,7 +262,7 @@ export default function AdultConfigPage() {
         <div style={{ marginTop: 18 }}>
           {(peopleData?.people || []).filter((p: AdultPerson) => !p.dismissed).map((p) => (
             <div key={p.personId} style={personRow}>
-              {(p.referenceFaceCount ?? p.referenceFaces?.length ?? 0) > 0 ? <img src={adult.referenceImageUrl(p.personId)} loading="lazy" style={personThumb} /> : <div style={personThumb} />}
+              {(p.referenceFaceCount ?? p.referenceFaces?.length ?? 0) > 0 ? <img src={adult.referenceImageUrl(p.personId, { thumbnail: true })} loading="lazy" style={personThumb} /> : <div style={personThumb} />}
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>{p.name} <span style={{ color: '#999', fontWeight: 400 }}>{p.canonicalCode}</span></div>
                 <div style={{ fontSize: 12, color: '#777' }}>{p.aliases?.join(', ') || '无别名'} · 参考人脸 {p.referenceFaceCount ?? p.referenceFaces?.length ?? 0}</div>
