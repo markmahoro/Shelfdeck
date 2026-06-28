@@ -431,6 +431,72 @@ test('smartTaskEngine leaves failed adult scrape candidates for explicit user ac
   assert.strictEqual(created.length, 0);
 });
 
+test('smartTaskEngine leaves western adult scrape candidates without identity signal for explicit user action', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['scrape'],
+          smartTaskLookbackDays: 30,
+          subLibraries: [{ uuid: 'adult-western', automationMode: 'auto' }],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { scrape: 80 },
+            rules: { scrape: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByAction: { scrape: 0 },
+            maxQueuedByAction: { scrape: 20 },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [{
+            itemId: 'western-unknown-pending',
+            name: 'UNK-999',
+            source: 'adult_folder',
+            type: 'movie',
+            action: 'keep',
+            scraped: false,
+            subLibraryId: 'adult-western',
+            path: '/adult/western-unknown.mp4',
+            adultMetadata: {
+              region: 'western_adult',
+              scrapeStatus: 'pending',
+              actors: [],
+              faceClusters: [],
+              unknownFaces: [],
+            },
+          }],
+        };
+      },
+    },
+    {
+      getTasks: () => [...created],
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTask(taskData) {
+        const task = { id: `t-${created.length + 1}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...taskData };
+        created.push(task);
+        return task;
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  assert.strictEqual(created.length, 0);
+});
+
 test('smartTaskEngine keeps transcode action priority when library weight is neutral', async () => {
   smartTaskEngine.stop();
   const created = [];

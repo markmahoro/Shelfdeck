@@ -305,3 +305,71 @@ test('taskScheduler skips stale automatic scrape tasks when the live item now re
     delete process.env.MEDIA_SERVICE_DATA_DIR;
   }
 });
+
+test('taskScheduler skips automatic western scrape tasks without identity signal', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.scrapeConcurrency = 1;
+  cfg.subLibraries = [{
+    uuid: 'adult-western',
+    name: 'US Adult',
+    mediaType: 'adult',
+    adultRegion: 'western_adult',
+    automationMode: 'auto',
+  }];
+  configStoreMod.saveConfig(cfg);
+
+  const task = taskStoreMod.createTask({
+    itemId: 'western-no-identity',
+    itemName: 'UNK-999',
+    actionType: 'scrape',
+    source: 'auto',
+    status: 'queued',
+    priority: 280,
+    itemInfo: {
+      name: 'UNK-999',
+      subLibraryId: 'adult-western',
+      adultMetadata: { region: 'western_adult', scrapeStatus: 'pending' },
+    },
+  });
+
+  const dispatched = [];
+  const origDrive = scrapeFlow.driveTask;
+  const origGetLibraryItem = mediaLibraryService.getLibraryItem;
+  scrapeFlow.driveTask = async (taskId) => {
+    dispatched.push(taskId);
+  };
+  mediaLibraryService.getLibraryItem = (itemId) => {
+    if (itemId !== 'western-no-identity') return null;
+    return {
+      itemId,
+      scraped: false,
+      adultMetadata: {
+        region: 'western_adult',
+        scrapeStatus: 'pending',
+        actors: [],
+        faceClusters: [],
+        unknownFaces: [],
+      },
+    };
+  };
+
+  try {
+    await scheduler.scheduleRound();
+    const after = taskStoreMod.getTask(task.id);
+    assert.strictEqual(dispatched.length, 0);
+    assert.strictEqual(after.status, 'skipped');
+    assert.strictEqual(after.skippedReason, 'western_identity_missing');
+  } finally {
+    scrapeFlow.driveTask = origDrive;
+    mediaLibraryService.getLibraryItem = origGetLibraryItem;
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});

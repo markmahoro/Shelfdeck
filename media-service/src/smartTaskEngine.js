@@ -61,11 +61,27 @@ function itemTimestamp(item) {
 function isAutoScrapeAdultCandidate(item) {
   if (!item || item.source !== 'adult_folder') return false;
   if (item.scraped === true) return false;
-  const status = String(item.adultMetadata && item.adultMetadata.scrapeStatus || '').toLowerCase();
+  const meta = item.adultMetadata || {};
+  const status = String(meta.scrapeStatus || '').toLowerCase();
   // Failed, ambiguous, and needs_review states require explicit user action.
   // Automatic scrape only handles fresh/pending items so a library full of
   // currently-unresolvable actors does not churn through known failures.
-  return status === '' || status === 'pending';
+  if (status !== '' && status !== 'pending') return false;
+  if (String(meta.region || '').toLowerCase() === 'western_adult' && !hasWesternIdentitySignal(meta)) {
+    return false;
+  }
+  return true;
+}
+
+function hasWesternIdentitySignal(meta) {
+  if (!meta || typeof meta !== 'object') return false;
+  const protagonist = meta.protagonist || {};
+  if (protagonist.matchedPersonId || protagonist.personId || protagonist.matchedName || protagonist.name) return true;
+  if (Array.isArray(meta.actors) && meta.actors.some((a) => String(a || '').trim())) return true;
+  const clusters = []
+    .concat(Array.isArray(meta.faceClusters) ? meta.faceClusters : [])
+    .concat(Array.isArray(meta.unknownFaces) ? meta.unknownFaces : []);
+  return clusters.some((face) => face && face.status === 'named' && (face.matchedPersonId || face.matchedName || face.name));
 }
 
 function buildItemInfo(item) {

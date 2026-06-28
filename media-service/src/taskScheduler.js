@@ -196,11 +196,26 @@ function staleAutoScrapeReason(task) {
   const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
   if (!liveItem) return 'library_item_missing';
   if (liveItem.scraped === true) return 'already_scraped';
-  const status = String(liveItem.adultMetadata && liveItem.adultMetadata.scrapeStatus || '').toLowerCase();
+  const meta = liveItem.adultMetadata || {};
+  const status = String(meta.scrapeStatus || '').toLowerCase();
   if (status === 'failed' || status === 'ambiguous' || status === 'needs_review' || status === 'done') {
     return `scrape_status_${status}`;
   }
+  if (String(meta.region || '').toLowerCase() === 'western_adult' && !hasWesternIdentitySignal(meta)) {
+    return 'western_identity_missing';
+  }
   return '';
+}
+
+function hasWesternIdentitySignal(meta) {
+  if (!meta || typeof meta !== 'object') return false;
+  const protagonist = meta.protagonist || {};
+  if (protagonist.matchedPersonId || protagonist.personId || protagonist.matchedName || protagonist.name) return true;
+  if (Array.isArray(meta.actors) && meta.actors.some((a) => String(a || '').trim())) return true;
+  const clusters = []
+    .concat(Array.isArray(meta.faceClusters) ? meta.faceClusters : [])
+    .concat(Array.isArray(meta.unknownFaces) ? meta.unknownFaces : []);
+  return clusters.some((face) => face && face.status === 'named' && (face.matchedPersonId || face.matchedName || face.name));
 }
 
 function skipStaleAutoScrapeTask(task, reason) {
