@@ -616,6 +616,8 @@ test('POST /v1/admin/sublibraries creates adult Japanese JAV folder library', as
       watchRoot,
       ruleTemplateId: 'adult_jav_default',
       scrapeSettleSeconds: 99,
+      scrapeEnabled: true,
+      scanIntervalMinutes: 10,
     },
   });
 
@@ -628,6 +630,46 @@ test('POST /v1/admin/sublibraries creates adult Japanese JAV folder library', as
   assert.strictEqual(body.watchRoot, watchRoot);
   assert.strictEqual(body.scrapeSettleSeconds, undefined);
   assert.strictEqual(body.scrapeEnabled, undefined, 'new adult libraries should not write a private scrape gate');
+  assert.strictEqual(body.scanIntervalMinutes, undefined, 'new adult libraries should not write a private scan interval');
+  await app.close();
+});
+
+test('PATCH /v1/admin/sublibraries cannot reintroduce adult private autoscrape fields', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const create = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: {
+      name: 'JAV Test',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'japanese_jav',
+      scraperType: 'shelfdeck_japanese_jav',
+      watchRoot,
+      ruleTemplateId: 'adult_jav_default',
+    },
+  });
+  const subLib = create.json();
+
+  const patch = await app.inject({
+    method: 'PATCH',
+    url: `/v1/admin/sublibraries/${subLib.uuid}`,
+    payload: { scrapeEnabled: true, scanIntervalMinutes: 3, name: 'JAV Renamed' },
+  });
+  assert.strictEqual(patch.statusCode, 200);
+  const body = patch.json();
+  assert.strictEqual(body.name, 'JAV Renamed');
+  assert.strictEqual(body.scrapeEnabled, undefined);
+  assert.strictEqual(body.scanIntervalMinutes, undefined);
+
+  const list = await app.inject({ method: 'GET', url: '/v1/admin/sublibraries' });
+  const saved = list.json().subLibraries.find((sl) => sl.uuid === subLib.uuid);
+  assert.strictEqual(saved.scrapeEnabled, undefined);
+  assert.strictEqual(saved.scanIntervalMinutes, undefined);
   await app.close();
 });
 
@@ -683,6 +725,8 @@ test('POST /v1/admin/sublibraries creates adult western folder library', async (
       adultRegion: 'western_adult',
       scraperType: 'western_builtin',
       watchRoot,
+      scrapeEnabled: true,
+      scanIntervalMinutes: 10,
     },
   });
 
@@ -694,6 +738,33 @@ test('POST /v1/admin/sublibraries creates adult western folder library', async (
   assert.strictEqual(body.scraperType, 'western_builtin');
   assert.strictEqual(body.ruleTemplateId, 'adult_western_default');
   assert.strictEqual(body.scrapeEnabled, undefined, 'new adult libraries should not write a private scrape gate');
+  assert.strictEqual(body.scanIntervalMinutes, undefined, 'new adult libraries should not write a private scan interval');
+  await app.close();
+});
+
+test('legacy adult private autoscrape sub-library fields are migrated out of config', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    subLibraries: [{
+      uuid: 'legacy-adult',
+      name: 'Legacy Adult',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'western_adult',
+      scraperType: 'western_builtin',
+      watchRoot: path.join(dir, 'us'),
+      scrapeEnabled: true,
+      scanIntervalMinutes: 10,
+      scheduleMode: 'full_auto',
+    }],
+  }, null, 2));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const res = await app.inject({ method: 'GET', url: '/v1/config' });
+  assert.strictEqual(res.statusCode, 200);
+  const subLib = res.json().subLibraries.find((sl) => sl.uuid === 'legacy-adult');
+  assert.ok(subLib);
+  assert.strictEqual(subLib.scrapeEnabled, undefined);
+  assert.strictEqual(subLib.scanIntervalMinutes, undefined);
   await app.close();
 });
 

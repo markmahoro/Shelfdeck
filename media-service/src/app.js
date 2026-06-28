@@ -959,8 +959,7 @@ function registerRoutes(app) {
     const {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
-      adultRegion, scraperType, watchRoot, scrapeEnabled,
-      scanIntervalMinutes, japaneseJav, western,
+      adultRegion, scraperType, watchRoot, japaneseJav, western,
       automationMode, approvalPolicy,
     } = req.body || {};
     if (!name) {
@@ -980,8 +979,7 @@ function registerRoutes(app) {
     const subLib = mediaLibraryService.addSubLibrary({
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
-      adultRegion, scraperType, watchRoot, scrapeEnabled,
-      scanIntervalMinutes, japaneseJav, western,
+      adultRegion, scraperType, watchRoot, japaneseJav, western,
       automationMode, approvalPolicy,
     });
     if (isFolderAdult) {

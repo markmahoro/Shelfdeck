@@ -437,8 +437,6 @@ function addSubLibrary(spec) {
     adultRegion: spec.adultRegion || (isAdult ? 'japanese_jav' : undefined),
     scraperType: spec.scraperType || (isAdult ? (spec.adultRegion === 'western_adult' ? 'western_builtin' : 'shelfdeck_japanese_jav') : undefined),
     watchRoot: spec.watchRoot || '',
-    ...(spec.scrapeEnabled !== undefined ? { scrapeEnabled: spec.scrapeEnabled } : {}),
-    scanIntervalMinutes: spec.scanIntervalMinutes,
     japaneseJav: spec.japaneseJav || undefined,
     western: spec.western || undefined,
     ruleTemplateId: spec.ruleTemplateId || (mediaType === 'adult' ? (spec.adultRegion === 'western_adult' ? 'adult_western_default' : 'adult_jav_default') : mediaType === 'tv' ? 'tv_default' : 'default'),
@@ -497,7 +495,7 @@ function updateSubLibrary(uuid, updates) {
   const subLibs = cfg.subLibraries || [];
   const idx = subLibs.findIndex((s) => s.uuid === uuid);
   if (idx < 0) return null;
-  const { scrapeSettleSeconds, ...allowedUpdates } = updates || {};
+  const { scrapeSettleSeconds, scrapeEnabled, scanIntervalMinutes, ...allowedUpdates } = updates || {};
   subLibs[idx] = { ...subLibs[idx], ...allowedUpdates };
   configStore.saveConfig(cfg);
   return subLibs[idx];

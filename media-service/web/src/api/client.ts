@@ -111,8 +111,6 @@ export const subLibraries = {
     adultRegion?: string;
     scraperType?: string;
     watchRoot?: string;
-    scrapeEnabled?: boolean;
-    scanIntervalMinutes?: number;
     japaneseJav?: Record<string, unknown>;
   }) => post<SubLibrary>('/v1/admin/sublibraries', body),
 

@@ -65,8 +65,6 @@ export interface SubLibrary {
   adultRegion?: 'japanese_jav' | 'western_adult';
   scraperType?: 'shelfdeck_japanese_jav' | 'western_builtin';
   watchRoot?: string;
-  scrapeEnabled?: boolean;
-  scanIntervalMinutes?: number;
   japaneseJav?: Record<string, unknown>;
 }
 

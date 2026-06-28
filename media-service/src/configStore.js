@@ -955,6 +955,16 @@ function normalizeAdultLibraryConfig(raw) {
         next = { ...next };
         delete next.scrapeSettleSeconds;
       }
+      if (next.mediaType === 'adult' && Object.prototype.hasOwnProperty.call(next, 'scrapeEnabled')) {
+        migrated = true;
+        next = { ...next };
+        delete next.scrapeEnabled;
+      }
+      if (next.mediaType === 'adult' && Object.prototype.hasOwnProperty.call(next, 'scanIntervalMinutes')) {
+        migrated = true;
+        next = { ...next };
+        delete next.scanIntervalMinutes;
+      }
       if (next.mediaType === 'adult' && next.adultRegion === 'japanese_jav' && next.name === '日本 JAV') {
         migrated = true;
         next = { ...next, name: 'JAV' };
