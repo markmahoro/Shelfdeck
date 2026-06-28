@@ -2558,6 +2558,51 @@ test('GET /v1/library returns library items', async () => {
   await app.close();
 });
 
+test('GET /v1/library list endpoints omit heavy adult face payloads', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/mediaLibraryService').saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [{
+      itemId: 'adult-heavy-list-1',
+      subLibraryId: 'adult-heavy-list',
+      source: 'adult_folder',
+      type: 'movie',
+      name: 'Heavy Adult List Item',
+      path: '/adult/heavy.mp4',
+      scraped: false,
+      adultMetadata: {
+        adultId: 'UNK-010',
+        scrapeStatus: 'needs_review',
+        region: 'western_adult',
+        studio: 'Studio A',
+        director: 'Director A',
+        premiered: '2026-01-01',
+        faceClusters: [{ clusterId: 'face-1', embedding: [0.1, 0.2], sampleImageBase64: Buffer.alloc(4096, 1).toString('base64') }],
+        unknownFaces: [{ clusterId: 'unknown-1', embedding: [0.3, 0.4], sampleImageBase64: Buffer.alloc(4096, 2).toString('base64') }],
+        galleryImages: [{ imageBase64: Buffer.alloc(4096, 3).toString('base64') }],
+        ai: { raw: Buffer.alloc(4096, 4).toString('base64') },
+      },
+    }],
+  });
+
+  for (const url of ['/v1/library?subLibraryId=adult-heavy-list', '/v1/library/queries/manage?subLibraryId=adult-heavy-list&page=1&pageSize=10']) {
+    const res = await app.inject({ method: 'GET', url });
+    assert.strictEqual(res.statusCode, 200);
+    const meta = res.json().items[0].adultMetadata;
+    assert.strictEqual(meta.adultId, 'UNK-010');
+    assert.strictEqual(meta.scrapeStatus, 'needs_review');
+    assert.strictEqual(meta.studio, 'Studio A');
+    assert.strictEqual(meta.director, 'Director A');
+    assert.strictEqual(meta.premiered, '2026-01-01');
+    assert.deepStrictEqual(meta.faceClusters, []);
+    assert.deepStrictEqual(meta.unknownFaces, []);
+    assert.strictEqual(meta.galleryImages, undefined);
+    assert.strictEqual(meta.ai, undefined);
+  }
+  await app.close();
+});
+
 test('GET /v1/library/queries/manage supports page and pageSize pagination', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });

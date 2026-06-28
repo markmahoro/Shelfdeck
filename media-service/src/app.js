@@ -247,6 +247,9 @@ function compactAdultMetadataForUi(metadata, opts = {}) {
     'markerPath',
     'organized',
     'originalFolder',
+    'studio',
+    'director',
+    'premiered',
     'actors',
     'protagonist',
     'scrapeError',
@@ -269,6 +272,18 @@ function compactAdultMetadataForUi(metadata, opts = {}) {
       : [];
   }
   return compact;
+}
+
+function libraryListItemView(item) {
+  if (!item || typeof item !== 'object') return item;
+  if (!item.adultMetadata || typeof item.adultMetadata !== 'object') return item;
+  return {
+    ...item,
+    adultMetadata: compactAdultMetadataForUi(item.adultMetadata, {
+      includeFaces: false,
+      includeSampleImage: false,
+    }),
+  };
 }
 
 function taskDetailView(task) {
@@ -770,12 +785,14 @@ function registerRoutes(app) {
         }
       }
     }
+    result.items = result.items.map(libraryListItemView);
     return result;
   });
 
   app.get('/v1/library/queries/manage', async (req) => {
     const { filter, page } = parseLibraryQuery(req.query);
-    return mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
+    const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
+    return { ...result, items: result.items.map(libraryListItemView) };
   });
 
   app.get('/v1/library/items/:itemId', async (req, reply) => {
