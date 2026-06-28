@@ -355,7 +355,10 @@ function getLibrary(filter = {}, opts = {}) {
   if (opts.includeOptimizationStatus) {
     const taskStore = require('./taskStore');
     const config = configStore.loadConfig();
-    items = optimizationStatus.decorateItems(items, taskStore.loadTasks(), config);
+    const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
+      ? taskStore.queryOptimizationTaskIndexRows()
+      : taskStore.loadTasks();
+    items = optimizationStatus.decorateItems(items, optimizationTasks, config);
   }
   return { items, total: items.length };
 }

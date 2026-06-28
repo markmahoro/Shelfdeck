@@ -316,6 +316,53 @@ function queryTasks(filter = {}, options = {}) {
   };
 }
 
+function queryOptimizationTaskIndexRows() {
+  const rows = getDb().prepare(`
+    SELECT
+      id,
+      item_id,
+      action_type,
+      created_at,
+      updated_at,
+      json_extract(payload_json, '$.itemInfo.subLibraryId') AS sub_library_id,
+      json_extract(payload_json, '$.itemInfo.path') AS item_path,
+      json_extract(payload_json, '$.itemInfo.sourcePath') AS source_path,
+      json_extract(payload_json, '$.itemInfo.originalSourcePath') AS original_source_path,
+      json_extract(payload_json, '$.itemInfo.replacementTargetPath') AS replacement_target_path,
+      json_extract(payload_json, '$.itemInfo.originalDiscPath') AS original_disc_path,
+      json_extract(payload_json, '$.verifyResult.outputPath') AS output_path,
+      json_extract(payload_json, '$.upgradePreview.oldFile.path') AS old_file_path,
+      json_extract(payload_json, '$.upgradePreview.newFile.path') AS new_file_path
+    FROM tasks
+    WHERE status = 'done'
+      AND action_type IN ('transcode', 'upgrade')
+  `).all();
+
+  return rows.map((row) => ({
+    id: row.id,
+    itemId: row.item_id,
+    actionType: row.action_type,
+    status: 'done',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    itemInfo: {
+      subLibraryId: row.sub_library_id || '',
+      path: row.item_path || '',
+      sourcePath: row.source_path || '',
+      originalSourcePath: row.original_source_path || '',
+      replacementTargetPath: row.replacement_target_path || '',
+      originalDiscPath: row.original_disc_path || '',
+    },
+    verifyResult: row.output_path ? { outputPath: row.output_path } : null,
+    upgradePreview: (row.old_file_path || row.new_file_path)
+      ? {
+        oldFile: row.old_file_path ? { path: row.old_file_path } : null,
+        newFile: row.new_file_path ? { path: row.new_file_path } : null,
+      }
+      : null,
+  }));
+}
+
 function updateTask(taskId, updates) {
   const current = getTask(taskId);
   if (!current) return null;
@@ -379,6 +426,7 @@ module.exports = {
   loadTasks,
   saveTasks,
   queryTasks,
+  queryOptimizationTaskIndexRows,
   setProgress,
   getProgress,
   deleteProgress,

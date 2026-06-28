@@ -323,3 +323,49 @@ test('taskStore migrates JSON history to SQLite without feeding scheduler hot pa
     else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
   }
 });
+
+test('taskStore exposes lightweight optimization task rows', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'task-store-opt-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  try {
+    const done = taskStore.createTask({
+      itemId: 'item-opt',
+      itemName: 'Optimized Movie',
+      actionType: 'transcode',
+      status: 'executing',
+      itemInfo: {
+        subLibraryId: 'sub-opt',
+        path: '/media/movie.mkv',
+        sourcePath: '/mapped/movie.mkv',
+      },
+      logs: Array.from({ length: 20 }, (_, i) => ({ ts: new Date().toISOString(), level: 'info', msg: `verbose log ${i}` })),
+    });
+    taskStore.updateTask(done.id, {
+      status: 'done',
+      verifyResult: { outputPath: '/transcode/movie.partial.mkv' },
+    });
+    taskStore.createTask({
+      itemId: 'item-active',
+      itemName: 'Active Movie',
+      actionType: 'transcode',
+      status: 'queued',
+    });
+
+    const rows = taskStore.queryOptimizationTaskIndexRows();
+    assert.strictEqual(rows.length, 1);
+    assert.strictEqual(rows[0].id, done.id);
+    assert.strictEqual(rows[0].itemInfo.subLibraryId, 'sub-opt');
+    assert.strictEqual(rows[0].itemInfo.path, '/media/movie.mkv');
+    assert.strictEqual(rows[0].verifyResult.outputPath, '/transcode/movie.partial.mkv');
+    assert.strictEqual(rows[0].logs, undefined);
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
