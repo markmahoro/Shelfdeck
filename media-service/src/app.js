@@ -1791,8 +1791,7 @@ async function buildApp(opts = {}) {
     await transcodeService.cleanupOrphans(startupCfg);
   }
   try {
-    const repair = adultLibraryService.repairInvalidWesternScrapeState();
-    if (repair.repaired > 0) strategyEngine.runOnce();
+    adultLibraryService.repairInvalidWesternScrapeState();
   } catch (e) {
     console.warn('[adultLibrary] invalid western scrape repair skipped:', e.message);
   }
