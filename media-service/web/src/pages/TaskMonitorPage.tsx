@@ -856,6 +856,7 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
     ...((report.scrape?.faceClusters || []) as Array<Record<string, unknown>>),
     ...((report.scrape?.unknownFaces || []) as Array<Record<string, unknown>>),
   ].filter((f) => String(f.status || '') !== 'named');
+  const visibleFaceRows = faceRows.slice(0, 12);
 
   return (
     <div>
@@ -963,10 +964,13 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
           {report.scrapeVerification && (
             <ScrapeVerificationSummary verification={report.scrapeVerification} />
           )}
-          {faceRows.length > 0 && (
+          {visibleFaceRows.length > 0 && (
             <div>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>陌生脸</div>
-              {faceRows.map((face, idx) => {
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>陌生脸</div>
+              <div style={{ color: '#777', marginBottom: 8 }}>
+                共 {faceRows.length} 张，当前显示前 {visibleFaceRows.length} 张。填写演员名后可以从对应人脸创建演员。
+              </div>
+              {visibleFaceRows.map((face, idx) => {
                 const id = String(face.clusterId || face.faceId || `face-${idx}`);
                 const img = String(face.sampleImageBase64 || '');
                 return (
