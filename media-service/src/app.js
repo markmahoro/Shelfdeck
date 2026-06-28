@@ -31,6 +31,7 @@ const adultLibraryService = require('./adultLibraryService');
 const peopleStore = require('./peopleStore');
 const adultActorImageSearchService = require('./services/adultActorImageSearchService');
 const westernAdultLocalAiService = require('./services/westernAdultLocalAiService');
+const scrapeVerification = require('./scrapeVerification');
 
 let serverReady = false;
 
@@ -338,10 +339,14 @@ function registerRoutes(app) {
         report.tmdbVerified = up.tmdbVerified;
       }
     } else if (task.actionType === 'scrape') {
-      const meta = info.adultMetadata || {};
+      const cfg = configStore.loadConfig();
+      const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
+      const scrapeInfo = liveItem || { ...info, itemId: task.itemId };
+      const meta = scrapeInfo.adultMetadata || {};
+      const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === scrapeInfo.subLibraryId) || null;
       report.scrape = {
-        adultId: meta.adultId || info.sourceId || '',
-        title: meta.title || info.name || task.itemName || '',
+        adultId: meta.adultId || scrapeInfo.sourceId || '',
+        title: meta.title || scrapeInfo.name || task.itemName || '',
         source: meta.source || '',
         sourceUrl: meta.sourceUrl || '',
         scrapeStatus: meta.scrapeStatus || '',
@@ -352,7 +357,7 @@ function registerRoutes(app) {
         markerPath: meta.markerPath || '',
         organized: !!meta.organized,
         originalFolder: meta.originalFolder || '',
-        mediaPath: info.path || '',
+        mediaPath: scrapeInfo.path || '',
         actors: meta.actors || [],
         protagonist: meta.protagonist || null,
         faceClusters: meta.faceClusters || [],
@@ -365,6 +370,12 @@ function registerRoutes(app) {
         nfo: !!meta.nfoPath,
         marker: !!meta.markerPath,
       };
+      report.scrapeVerification = scrapeVerification.verifyScrapedItem(scrapeInfo, {
+        task,
+        config: cfg,
+        subLib,
+        requireTaskDone: task.status === 'done',
+      });
     }
 
     return report;
@@ -436,10 +447,12 @@ function registerRoutes(app) {
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
     if (task.status === 'pending_manual' || task.status === 'interrupted' || task.status === 'created') {
+      taskScheduler.markConfirmed(task.id);
       taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
       return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
     }
     if (task.status === 'paused') {
+      taskScheduler.markConfirmed(task.id);
       taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
       return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
     }
@@ -515,10 +528,10 @@ function registerRoutes(app) {
 
   app.patch('/v1/library/ratings', async (req, reply) => {
     const { itemId, userRating } = req.body || {};
-    if (!itemId || typeof userRating !== 'number') {
+    if (!itemId || (typeof userRating !== 'number' && userRating !== null)) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId and userRating are required');
     }
-    if (userRating < 1 || userRating > 5) {
+    if (userRating !== null && (userRating < 1 || userRating > 5)) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'userRating must be 1-5');
     }
     try {

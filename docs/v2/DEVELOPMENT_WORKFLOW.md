@@ -53,6 +53,7 @@ docker compose -f media-service/docker-compose.example.yml up -d
 欧美成人库约定：
 
 - People 人物库归 service 持久化，用户通过搜索/上传高清正脸图建立 reference face。
+- 刮削整理完成的成人库影片默认归拢到 `watchRoot/scraped/` 下；ShelfDeck 扫描/监听默认忽略该目录，Emby 可只监控这个归拢目录。
 - service 默认使用自身 FFmpeg 抽帧，并调用 service Docker 内部 InsightFace face-service 做 embedding；face-service 不作为用户配置项暴露。
 - Docker service 是 all-in-one 容器，内部启动 Node service 和 face-service；容器外只暴露 `18080`。
 - 人脸模型目录默认是 `/app/data/face-models`，挂载数据卷后容器重启不会重新下载模型。

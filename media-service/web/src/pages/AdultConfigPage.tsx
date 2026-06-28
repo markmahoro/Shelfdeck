@@ -13,6 +13,13 @@ function csvList(value: string): string[] {
   return value.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+function candidateHint(candidate: AdultImageCandidate): string {
+  const reasons = candidate.qualityReasons || [];
+  const source = reasons.includes('adult_source') ? '成人源' : reasons.includes('metadata_source') ? '元数据源' : '公开源';
+  const name = reasons.includes('name_exact') ? '精确' : reasons.includes('name_contains') ? '近似' : '相关';
+  return `${source} · ${name}`;
+}
+
 export default function AdultConfigPage() {
   const qc = useQueryClient();
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -99,6 +106,28 @@ export default function AdultConfigPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['adult-people'] });
       setAlert({ type: 'success', msg: selectedPersonId ? '演员 reference 已替换' : '演员已创建' });
+    },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+
+  const updatePersonInfo = useMutation({
+    mutationFn: () => adult.updatePerson(selectedPersonId, {
+      name: actorName.trim(),
+      aliases: csvList(actorAliases),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['adult-people'] });
+      setAlert({ type: 'success', msg: '演员资料已保存' });
+    },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+
+  const deletePerson = useMutation({
+    mutationFn: (personId: string) => adult.deletePerson(personId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['adult-people'] });
+      setSelectedPersonId('');
+      setAlert({ type: 'success', msg: '演员已删除' });
     },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
@@ -219,6 +248,7 @@ export default function AdultConfigPage() {
               <button key={`${c.source}:${c.imageUrl}`} style={selectedCandidate?.imageUrl === c.imageUrl ? candidateActive : candidateCard} onClick={() => { setSelectedCandidate(c); setManualImageUrl(''); setUploadBase64(''); }}>
                 <img src={c.imageUrl} style={candidateImage} />
                 <span style={candidateCaption}>{c.source} · {c.title}</span>
+                <span style={candidateHintStyle}>{candidateHint(c)}</span>
               </button>
             ))}
           </div>
@@ -240,6 +270,11 @@ export default function AdultConfigPage() {
           <button style={primaryBtn} onClick={() => savePerson.mutate()} disabled={!actorName || savePerson.isPending || !(selectedCandidate || manualImageUrl || uploadBase64)}>
             {savePerson.isPending ? '生成 reference 中...' : selectedPersonId ? '替换 reference' : '创建演员'}
           </button>
+          {selectedPersonId && (
+            <button style={secondaryBtn} onClick={() => updatePersonInfo.mutate()} disabled={!actorName.trim() || updatePersonInfo.isPending}>
+              {updatePersonInfo.isPending ? '保存中...' : '保存演员资料'}
+            </button>
+          )}
         </div>
 
         <div style={{ marginTop: 18 }}>
@@ -250,6 +285,17 @@ export default function AdultConfigPage() {
                 <div style={{ fontWeight: 700 }}>{p.name} <span style={{ color: '#999', fontWeight: 400 }}>{p.canonicalCode}</span></div>
                 <div style={{ fontSize: 12, color: '#777' }}>{p.aliases?.join(', ') || '无别名'} · reference {p.referenceFaces?.length || 0}</div>
               </div>
+              <button style={smallBtn} onClick={() => {
+                setSelectedPersonId(p.personId);
+                setActorName(p.name);
+                setActorAliases(csv(p.aliases));
+                setManualImageUrl('');
+                setUploadBase64('');
+                setSelectedCandidate(null);
+              }}>编辑资料</button>
+              <button style={dangerBtn} onClick={() => {
+                if (window.confirm(`删除演员「${p.name}」？`)) deletePerson.mutate(p.personId);
+              }} disabled={deletePerson.isPending}>删除</button>
             </div>
           ))}
         </div>
@@ -270,11 +316,14 @@ const inputWide: React.CSSProperties = { ...input, width: '100%', boxSizing: 'bo
 const check: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#333', minHeight: 36 };
 const primaryBtn: React.CSSProperties = { background: '#1a1a2e', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
 const secondaryBtn: React.CSSProperties = { background: '#fff', color: '#1a1a2e', border: '1px solid #1a1a2e', padding: '8px 18px', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
+const smallBtn: React.CSSProperties = { background: '#fff', color: '#1a1a2e', border: '1px solid #d8d8df', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 };
+const dangerBtn: React.CSSProperties = { ...smallBtn, color: '#b42318', border: '1px solid #f0b8b2' };
 const candidateGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12, marginTop: 16 };
 const candidateCard: React.CSSProperties = { border: '1px solid #e0e0e0', background: '#fff', borderRadius: 8, padding: 8, cursor: 'pointer', textAlign: 'left' };
 const candidateActive: React.CSSProperties = { ...candidateCard, border: '2px solid #1a1a2e', padding: 7 };
 const candidateImage: React.CSSProperties = { width: '100%', aspectRatio: '3 / 4', objectFit: 'cover', borderRadius: 6, display: 'block' };
 const candidateCaption: React.CSSProperties = { display: 'block', marginTop: 6, fontSize: 12, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+const candidateHintStyle: React.CSSProperties = { display: 'block', marginTop: 3, fontSize: 11, color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const emptySearch: React.CSSProperties = { marginTop: 16, padding: 12, border: '1px solid #f0c36d', background: '#fff8e6', borderRadius: 6, color: '#6b4e00', fontSize: 13, lineHeight: 1.5 };
 const searchErrors: React.CSSProperties = { marginTop: 8, color: '#8a3b12', fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap' };
 const personRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid #eee', padding: '10px 0' };

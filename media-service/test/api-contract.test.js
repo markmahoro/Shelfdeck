@@ -140,6 +140,11 @@ test('PATCH /v1/library/ratings writes userRating and returns ok', async () => {
   // Verify persisted
   const after = await app.inject({ method: 'GET', url: `/v1/library/items/${found.itemId}` });
   assert.strictEqual(after.json().userRating, 4);
+  const clear = await app.inject({ method: 'PATCH', url: '/v1/library/ratings', payload: { itemId: found.itemId, userRating: null } });
+  assert.strictEqual(clear.statusCode, 200);
+  assert.strictEqual(clear.json().ok, true);
+  const cleared = await app.inject({ method: 'GET', url: `/v1/library/items/${found.itemId}` });
+  assert.strictEqual(cleared.json().userRating, null);
   await app.close();
 });
 

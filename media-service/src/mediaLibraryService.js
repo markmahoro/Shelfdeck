@@ -329,16 +329,19 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
 }
 
 function updateUserRating(itemId, userRating) {
-  if (userRating < 1 || userRating > 5) throw new Error('Rating must be 1-5');
+  if (userRating !== null && (userRating < 1 || userRating > 5)) throw new Error('Rating must be 1-5');
   const lib = loadLibrary();
   const item = lib.items.find((it) => it.itemId === itemId);
   if (!item) throw new Error('Item not found');
 
   item.userRating = userRating;
-  item.userRatingUpdatedAt = new Date().toISOString();
+  item.userRatingUpdatedAt = userRating === null ? null : new Date().toISOString();
 
   saveLibrary(lib);
-  activityLog.addActivity('user_action', `「${item.name}」已评分 ${'★'.repeat(userRating)}`);
+  const message = userRating === null
+    ? `「${item.name}」评分已清空`
+    : `「${item.name}」已评分 ${'★'.repeat(userRating)}`;
+  activityLog.addActivity('user_action', message);
   return item;
 }
 

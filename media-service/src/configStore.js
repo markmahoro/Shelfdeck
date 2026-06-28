@@ -594,6 +594,7 @@ function getDefaultConfig() {
       scanIntervalMinutes: 10,
       probeTimeoutMs: 5000,
       autoScrape: true,
+      organizedFolderName: 'scraped',
       videoExtensions: ['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv'],
       japaneseJav: {
         proxyServer: '',
@@ -605,6 +606,7 @@ function getDefaultConfig() {
         posterBasename: 'poster',
         fanartBasename: 'fanart',
         organizeAfterScrape: true,
+        organizedFolderName: 'scraped',
       },
       western: {
         enabled: false,
@@ -622,6 +624,7 @@ function getDefaultConfig() {
         reviewRequired: false,
         writeNfo: true,
         organizeAfterScrape: true,
+        organizedFolderName: 'scraped',
         posterBasename: 'poster',
         fanartBasename: 'fanart',
         titleTemplate: '{actors} - {description}',

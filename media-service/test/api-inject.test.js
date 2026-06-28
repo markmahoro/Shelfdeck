@@ -208,6 +208,8 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
   assert.strictEqual(body.scrape.organized, true);
   assert.strictEqual(body.assets.poster, true);
   assert.strictEqual(body.assets.nfo, true);
+  assert.strictEqual(body.scrapeVerification.ok, false);
+  assert.ok(body.scrapeVerification.failures.some((f) => f.code === 'media.exists'));
   await app.close();
 });
 
@@ -761,7 +763,9 @@ test('adult people from-image API creates and replaces a confirmed reference fac
 test('adult actor image search includes stash-box GraphQL performer images', async () => {
   const service = require('../src/services/adultActorImageSearchService');
   const originalFetch = global.fetch;
+  let fetchCount = 0;
   global.fetch = async (url, opts = {}) => {
+    fetchCount++;
     assert.strictEqual(String(url), 'https://stash.example/graphql');
     assert.strictEqual(opts.method, 'POST');
     assert.match(String(opts.headers.ApiKey), /secret/);
@@ -799,6 +803,54 @@ test('adult actor image search includes stash-box GraphQL performer images', asy
     assert.strictEqual(result.candidates[0].source, 'stashbox:tpdb');
     assert.strictEqual(result.candidates[0].imageUrl, 'https://img.example/indie.jpg');
     assert.strictEqual(result.candidates[0].width, 900);
+    assert.ok(result.candidates[0].qualityReasons.includes('adult_source'));
+    assert.ok(result.candidates[0].qualityReasons.includes('name_exact'));
+    assert.strictEqual(result.diagnostics.adultFallback, 'skipped');
+    assert.strictEqual(result.diagnostics.publicFallback, 'skipped');
+    assert.strictEqual(fetchCount, 1, 'exact stash-box hit should not query lower-priority sources');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('adult actor image search uses public fallback only when adult sources are weak', async () => {
+  const service = require('../src/services/adultActorImageSearchService');
+  const originalFetch = global.fetch;
+  const seen = [];
+  global.fetch = async (url, opts = {}) => {
+    seen.push(String(url));
+    if (String(url) === 'https://stash.example/graphql') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { searchPerformer: [] } }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+      headers: { get: () => '' },
+    };
+  };
+
+  try {
+    const result = await service.searchActorImages({
+      name: 'Fallback Performer',
+      limit: 3,
+      config: {
+        adultLibrary: {
+          western: {
+            stashBoxGraphqlUrl: 'https://stash.example/graphql',
+            metadataApiBaseUrl: 'https://metadata.example',
+          },
+        },
+      },
+    });
+    assert.strictEqual(result.candidates.length, 0);
+    assert.strictEqual(result.diagnostics.adultFallback, 'searched');
+    assert.strictEqual(result.diagnostics.publicFallback, 'searched');
+    assert.ok(seen.some((url) => url.startsWith('https://www.wikidata.org/')), 'public fallback should query Wikidata');
   } finally {
     global.fetch = originalFetch;
   }
@@ -847,6 +899,63 @@ test('adult actor image search reuses JAV proxy for outbound candidate sources',
     assert.strictEqual(result.proxyUsed, true);
     assert.ok(seen.includes('https://stash.example/graphql'));
     assert.strictEqual(result.candidates[0].imageUrl, 'https://img.example/proxy.jpg');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('adult actor image search falls back to findPerformers stash-box schema', async () => {
+  const service = require('../src/services/adultActorImageSearchService');
+  const originalFetch = global.fetch;
+  const seenQueries = [];
+  global.fetch = async (url, opts = {}) => {
+    if (String(url) === 'https://stash.example/graphql') {
+      const body = JSON.parse(opts.body);
+      seenQueries.push(body.query);
+      if (body.query.includes('searchPerformer')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ errors: [{ message: 'Cannot query field "searchPerformer"' }] }),
+        };
+      }
+      assert.strictEqual(body.variables.term, 'Schema Performer');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            findPerformers: {
+              performers: [{
+                id: 'perf-3',
+                name: 'Schema Performer',
+                image: 'https://img.example/schema.jpg',
+              }],
+            },
+          },
+        }),
+      };
+    }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
+  try {
+    const result = await service.searchActorImages({
+      name: 'Schema Performer',
+      limit: 3,
+      config: {
+        adultLibrary: {
+          western: {
+            stashBoxGraphqlUrl: 'https://stash.example/graphql',
+            metadataApiBaseUrl: '',
+          },
+        },
+      },
+    });
+    assert.ok(seenQueries.some((q) => q.includes('searchPerformer')));
+    assert.ok(seenQueries.some((q) => q.includes('findPerformers')));
+    assert.strictEqual(result.candidates[0].source, 'stashbox:tpdb');
+    assert.strictEqual(result.candidates[0].imageUrl, 'https://img.example/schema.jpg');
   } finally {
     global.fetch = originalFetch;
   }
@@ -1119,14 +1228,19 @@ test('successful JAV scrape creates one movie folder and keeps original naming c
   assert.strictEqual(afterTask.status, 'done');
   assert.strictEqual(afterTask.phase, 'done');
   const afterItem = mediaLibraryService.getLibraryItem(item.itemId);
-  const finalDir = path.join(watchRoot, 'MVSD-175 Some Title');
+  const finalDir = path.join(watchRoot, 'scraped', 'MVSD-175 Some Title');
   assert.strictEqual(afterItem.path, path.join(finalDir, 'MVSD-175 Some Title.mp4'));
   assert.strictEqual(fs.existsSync(movieDir), true);
+  assert.strictEqual(fs.existsSync(path.join(watchRoot, 'scraped')), true);
   assert.strictEqual(fs.existsSync(finalDir), true);
   assert.strictEqual(fs.existsSync(path.join(finalDir, 'poster.jpg')), true);
   assert.strictEqual(fs.existsSync(path.join(finalDir, 'movie.nfo')), true);
   assert.strictEqual(afterItem.adultMetadata.posterPath, path.join(finalDir, 'poster.jpg'));
   assert.strictEqual(afterItem.adultMetadata.organized, true);
+  assert.strictEqual(afterItem.adultMetadata.scrapeVerification.ok, true);
+  const scanAfterOrganize = await adultLibraryService.scanSubLibrary(sl);
+  assert.strictEqual(scanAfterOrganize.scanned, 0, 'default scan should ignore the consolidated scraped folder');
+  assert.strictEqual(scanAfterOrganize.queued, 0);
 
   delete require.cache[scraperPath];
   delete require.cache[executorPath];
@@ -1319,12 +1433,13 @@ test('successful western adult curation writes nfo and marks item scraped', asyn
   assert.strictEqual(afterTask.status, 'done');
   assert.strictEqual(afterTask.phase, 'done');
   const afterItem = mediaLibraryService.getLibraryItem(item.itemId);
-  const finalDir = path.join(watchRoot, `${person.canonicalCode}-001 Actor A`);
+  const finalDir = path.join(watchRoot, 'scraped', `${person.canonicalCode}-001 Actor A`);
   assert.strictEqual(afterItem.scraped, true);
   assert.strictEqual(afterItem.path, path.join(finalDir, `${person.canonicalCode}-001 Actor A.mp4`));
   assert.strictEqual(fs.existsSync(movieDir), true);
   assert.deepStrictEqual(afterItem.adultMetadata.actors, ['Actor A']);
   assert.strictEqual(afterItem.adultMetadata.scrapeStatus, 'done');
+  assert.strictEqual(afterItem.adultMetadata.scrapeVerification.ok, true);
   assert.strictEqual(fs.existsSync(path.join(finalDir, 'movie.nfo')), true);
   assert.strictEqual(fs.existsSync(path.join(finalDir, '.shelfdeck.json')), true);
 
@@ -1407,7 +1522,7 @@ test('western adult curation creates one movie folder and leaves sibling videos 
   const afterTask = taskStore.getTask(task.id);
   assert.strictEqual(afterTask.status, 'done');
   const afterItem = mediaLibraryService.getLibraryItem(item.itemId);
-  const finalDir = path.join(watchRoot, `${person.canonicalCode}-001 Actor A`);
+  const finalDir = path.join(watchRoot, 'scraped', `${person.canonicalCode}-001 Actor A`);
   assert.strictEqual(afterItem.path, path.join(finalDir, `${person.canonicalCode}-001 Actor A.mp4`));
   assert.strictEqual(fs.existsSync(path.join(finalDir, 'movie.nfo')), true);
   assert.strictEqual(fs.existsSync(path.join(finalDir, 'poster.jpg')), true);
@@ -1418,6 +1533,7 @@ test('western adult curation creates one movie folder and leaves sibling videos 
   assert.strictEqual(fs.existsSync(path.join(watchRoot, 'poster.jpg')), false);
   assert.strictEqual(afterItem.adultMetadata.nfoPath, path.join(finalDir, 'movie.nfo'));
   assert.strictEqual(afterItem.adultMetadata.posterPath, path.join(finalDir, 'poster.jpg'));
+  assert.strictEqual(afterItem.adultMetadata.scrapeVerification.ok, true);
 
   delete require.cache[aiPath];
   delete require.cache[executorPath];

@@ -161,6 +161,8 @@ export interface AdultImageCandidate {
   width?: number;
   height?: number;
   license?: string;
+  rankScore?: number;
+  qualityReasons?: string[];
 }
 
 export interface AdultImageSearchError {
@@ -175,6 +177,7 @@ export interface AdultImageSearchResult {
   proxyUsed?: boolean;
   message?: string;
   sources?: Record<string, unknown>;
+  diagnostics?: Record<string, unknown>;
 }
 
 export const adult = {

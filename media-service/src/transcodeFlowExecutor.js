@@ -381,6 +381,7 @@ async function runExecuting(taskId, task, config) {
         },
       );
 
+      if (abortedTasks.has(taskId)) return;
       appendLog(taskId, 'info', 'Encoding complete');
     } catch (e) {
       if (abortedTasks.has(taskId)) return;
@@ -395,6 +396,7 @@ async function runExecuting(taskId, task, config) {
 }
 
 async function runVerify(taskId, task, config) {
+  if (abortedTasks.has(taskId)) return;
   setPhase(taskId, 'verify');
   scheduler.reportStatus(taskId, 'executing', 90);
   appendLog(taskId, 'info', 'Verifying transcode output');

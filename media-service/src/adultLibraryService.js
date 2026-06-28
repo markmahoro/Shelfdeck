@@ -14,11 +14,13 @@ const assetIdentity = require('./assetIdentity');
 const peopleStore = require('./peopleStore');
 const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
+const scrapeVerification = require('./scrapeVerification');
 
 const watchers = new Map();
 const settleTimers = new Map();
 
 const DEFAULT_EXTS = new Set(['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv']);
+const DEFAULT_ORGANIZED_FOLDER_NAME = 'scraped';
 const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 
 function libraryFilePath() {
@@ -77,7 +79,10 @@ function isTemporaryFile(filePath) {
 function hasIgnoredSegment(filePath, subLib) {
   const ignoreName = subLib.organizeIgnoreFolderName || '';
   const segments = normalizePathForCompare(filePath).split('/');
-  return (ignoreName && segments.includes(String(ignoreName).toLowerCase())) || segments.includes('#不要扫描');
+  const organizedName = organizedFolderName(subLib);
+  return (ignoreName && segments.includes(String(ignoreName).toLowerCase()))
+    || (organizedName && segments.includes(String(organizedName).toLowerCase()))
+    || segments.includes('#不要扫描');
 }
 
 // Known Japanese JAV maker/series prefixes. A matched prefix => high confidence;
@@ -346,6 +351,21 @@ function shouldOrganizeFolder(subLib, scraperConfig) {
   return true;
 }
 
+function organizedFolderName(subLib = {}, scraperConfig = {}) {
+  const cfg = configStore.loadConfig();
+  const adultCfg = (cfg && cfg.adultLibrary) || {};
+  const regionDefaults = isWesternAdultSubLibrary(subLib)
+    ? (adultCfg.western || {})
+    : (adultCfg.japaneseJav || {});
+  const raw = subLib.organizedFolderName
+    || subLib.scrapedFolderName
+    || scraperConfig.organizedFolderName
+    || regionDefaults.organizedFolderName
+    || adultCfg.organizedFolderName
+    || DEFAULT_ORGANIZED_FOLDER_NAME;
+  return safePathName(raw, DEFAULT_ORGANIZED_FOLDER_NAME);
+}
+
 function organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog) {
   if (!shouldOrganizeFolder(subLib, scraperConfig)) {
     return { filePath, oldDir: path.dirname(filePath), newDir: path.dirname(filePath), renamed: false };
@@ -358,9 +378,8 @@ function organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog)
   }
 
   const targetName = safePathName(metadata.folderName || metadata.title || metadata.adultId, metadata.adultId || path.basename(oldDir));
-  const oldResolved = path.resolve(oldDir);
-  const parentDir = oldResolved === watchRoot ? oldDir : path.dirname(oldDir);
-  const newDir = path.join(parentDir, targetName);
+  const targetRoot = path.join(watchRoot, organizedFolderName(subLib, scraperConfig));
+  const newDir = path.join(targetRoot, targetName);
   const fileName = metadata.mediaFileName
     ? `${safePathName(metadata.mediaFileName, path.basename(filePath, path.extname(filePath)))}${path.extname(filePath)}`
     : path.basename(filePath);
@@ -372,7 +391,7 @@ function organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog)
 
   fs.mkdirSync(newDir, { recursive: true });
   fs.renameSync(filePath, newFilePath);
-  onLog && onLog('info', `Movie folder created: ${targetName}`);
+  onLog && onLog('info', `Movie folder created under ${path.basename(targetRoot)}: ${targetName}`);
   return {
     filePath: newFilePath,
     oldDir,
@@ -816,6 +835,23 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
     adultMetadata,
     lastRefreshedAt: now,
   };
+  const verification = scrapeVerification.verifyScrapedItem(updated, {
+    config: configStore.loadConfig(),
+    subLib,
+    scrapeTaskId: opts.taskId,
+    requireTaskDone: false,
+  });
+  if (!verification.ok) {
+    throw new Error(`Scrape verification failed: ${verification.failures.map((f) => f.message).join('; ')}`);
+  }
+  updated.adultMetadata = {
+    ...updated.adultMetadata,
+    scrapeVerification: {
+      ok: true,
+      checkedAt: verification.checkedAt,
+      warnings: verification.warnings,
+    },
+  };
   lib.items[idx] = updated;
   lib.cachedAt = now;
   saveLibrary(lib);
@@ -1055,6 +1091,23 @@ async function applyWesternCurationResultToItem(subLib, item, curation, opts = {
     scraped: !needsReview,
     adultMetadata,
     lastRefreshedAt: now,
+  };
+  const verification = scrapeVerification.verifyScrapedItem(updated, {
+    config,
+    subLib,
+    scrapeTaskId: opts.taskId,
+    requireTaskDone: false,
+  });
+  if (!verification.ok) {
+    throw new Error(`Scrape verification failed: ${verification.failures.map((f) => f.message).join('; ')}`);
+  }
+  updated.adultMetadata = {
+    ...updated.adultMetadata,
+    scrapeVerification: {
+      ok: true,
+      checkedAt: verification.checkedAt,
+      warnings: verification.warnings,
+    },
   };
   lib.items[idx] = updated;
   lib.cachedAt = now;
