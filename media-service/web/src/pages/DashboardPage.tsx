@@ -120,7 +120,7 @@ export default function DashboardPage() {
 
   const deleteMut = useMutation({
     mutationFn: subLibraries.remove,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sublibraries'] }); setAlert({ type: 'success', msg: '媒体库已删除' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sublibraries'] }); setAlert({ type: 'success', msg: '媒体库配置已移除' }); },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
@@ -294,7 +294,7 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => openEdit(sl)} style={cardBtn}>编辑</button>
-                      <button onClick={() => deleteSubLibrary(sl)} style={{ ...cardBtn, color: '#e74c3c', borderColor: '#f5c6cb' }}>删除</button>
+                      <button onClick={() => deleteSubLibrary(sl)} style={{ ...cardBtn, color: '#e74c3c', borderColor: '#f5c6cb' }}>移除库配置</button>
                     </div>
                   </div>
 
