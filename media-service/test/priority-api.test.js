@@ -138,3 +138,57 @@ test('taskScheduler dispatch order is priority-ascending then FIFO', async () =>
     delete process.env.MEDIA_SERVICE_DATA_DIR;
   }
 });
+
+test('taskScheduler caps service-local western adult AI scrape to one active task', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.scrapeConcurrency = 3;
+  cfg.adultLibrary.western.enabled = true;
+  cfg.adultLibrary.western.computeMode = 'local';
+  cfg.adultLibrary.western.localConcurrency = 1;
+  cfg.subLibraries = [{
+    uuid: 'adult-western',
+    name: 'US Adult',
+    mediaType: 'adult',
+    adultRegion: 'western_adult',
+    scraperType: 'western_builtin',
+    automationMode: 'auto',
+  }];
+  configStoreMod.saveConfig(cfg);
+
+  for (let i = 0; i < 3; i++) {
+    taskStoreMod.createTask({
+      itemId: `western-${i}`,
+      itemName: `Western ${i}`,
+      actionType: 'scrape',
+      status: 'queued',
+      priority: 80,
+      itemInfo: {
+        name: `Western ${i}`,
+        subLibraryId: 'adult-western',
+        adultMetadata: { region: 'western_adult', scrapeStatus: 'pending' },
+      },
+    });
+  }
+
+  const dispatched = [];
+  const origDrive = scrapeFlow.driveTask;
+  scrapeFlow.driveTask = async (taskId) => {
+    dispatched.push(taskId);
+    scheduler.reportStatus(taskId, 'done');
+  };
+
+  try {
+    await scheduler.scheduleRound();
+    assert.strictEqual(dispatched.length, 1, 'only one service-local western AI scrape should start per round');
+  } finally {
+    scrapeFlow.driveTask = origDrive;
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});

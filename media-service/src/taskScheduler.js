@@ -144,6 +144,26 @@ function isActiveStatus(status) {
   return status === 'executing' || status === 'pausing' || status === 'awaiting_user_confirm';
 }
 
+function isLocalWesternAiScrapeTask(task, config) {
+  if (!task || task.actionType !== 'scrape') return false;
+  const itemInfo = task.itemInfo || {};
+  const adultMetadata = itemInfo.adultMetadata || {};
+  const subLib = (config.subLibraries || []).find((s) => s.uuid === itemInfo.subLibraryId) || {};
+  const region = adultMetadata.region || subLib.adultRegion || '';
+  if (region !== 'western_adult') return false;
+  const western = {
+    ...(((config.adultLibrary || {}).western) || {}),
+    ...((subLib && subLib.western) || {}),
+  };
+  return String(western.computeMode || 'local').toLowerCase() !== 'worker';
+}
+
+function getLocalWesternAiScrapeLimit(config) {
+  const raw = (((config.adultLibrary || {}).western) || {}).localConcurrency;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 1) : 1;
+}
+
 // ── Node health monitoring ────────────────────────────────────────────────────
 
 async function checkNodeHealth() {
@@ -235,12 +255,17 @@ async function scheduleRound() {
 
   // Count active tasks per actionType (occupying slots)
   const activeCount = { ingest: 0, delete: 0, transcode: 0, upgrade: 0, scrape: 0 };
+  const localWesternAiScrapeLimit = getLocalWesternAiScrapeLimit(config);
+  let activeLocalWesternAiScrapes = 0;
   const usedItemIds = new Set();
 
   for (const t of tasks) {
     if (isActiveStatus(t.status)) {
       activeCount[t.actionType] = (activeCount[t.actionType] || 0) + 1;
       usedItemIds.add(t.itemId);
+      if (t.status !== 'awaiting_user_confirm' && isLocalWesternAiScrapeTask(t, config)) {
+        activeLocalWesternAiScrapes++;
+      }
     }
   }
 
@@ -326,12 +351,20 @@ async function scheduleRound() {
       // actionType slot check — just-confirmed tasks bypass (they already held a slot)
       const limit = getConcurrencyLimit(task.actionType, config);
       if (activeCount[task.actionType] >= limit && !justConfirmedIds.has(task.id)) continue;
+      if (
+        isLocalWesternAiScrapeTask(task, config) &&
+        activeLocalWesternAiScrapes >= localWesternAiScrapeLimit &&
+        !justConfirmedIds.has(task.id)
+      ) {
+        continue;
+      }
 
       const flow = getFlow(task.actionType);
       if (!flow) continue;
 
       runningTasks.add(task.id);
       activeCount[task.actionType]++;
+      if (isLocalWesternAiScrapeTask(task, config)) activeLocalWesternAiScrapes++;
       usedItemIds.add(task.itemId);
 
       // Fire-and-forget: Flow calls reportStatus when done

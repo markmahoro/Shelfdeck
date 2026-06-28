@@ -44,6 +44,10 @@ function runCmd(bin, args, opts = {}) {
   });
 }
 
+function yieldToEventLoop() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 async function ffprobeDuration(config, sourcePath) {
   const r = await runCmd(transcodeService.resolveFfprobeBin(config), ['-v', 'quiet', '-print_format', 'json', '-show_format', sourcePath]);
   if (r.code !== 0) return 0;
@@ -122,13 +126,20 @@ function meanVector(vectors) {
 
 async function callFaceEmbeddingModel(western, images, options = {}) {
   const url = String(process.env.FACE_EMBEDDINGS_URL || INTERNAL_FACE_EMBEDDINGS_URL).trim();
-  const body = {
-    images: images.map((frame, index) => ({
+  const imagePayloads = [];
+  for (let index = 0; index < images.length; index++) {
+    const frame = images[index];
+    const buffer = Buffer.isBuffer(frame) ? frame : await fsp.readFile(frame);
+    imagePayloads.push({
       imageId: `frame-${String(index).padStart(3, '0')}`,
       imageIndex: index,
-      data: Buffer.isBuffer(frame) ? frame.toString('base64') : fs.readFileSync(frame).toString('base64'),
+      data: buffer.toString('base64'),
       mimeType: 'image/jpeg',
-    })),
+    });
+    if ((index + 1) % 4 === 0) await yieldToEventLoop();
+  }
+  const body = {
+    images: imagePayloads,
     detect: true,
     returnCrops: true,
   };
@@ -141,7 +152,10 @@ async function callFaceEmbeddingModel(western, images, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.max(5, Number(western.faceTimeoutSec) || 120) * 1000);
   try {
-    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal });
+    await yieldToEventLoop();
+    const requestBody = JSON.stringify(body);
+    await yieldToEventLoop();
+    const res = await fetch(url, { method: 'POST', headers, body: requestBody, signal: controller.signal });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.error && json.error.message || `HTTP ${res.status}`);
     const rows = Array.isArray(json.faces) ? json.faces : Array.isArray(json.data) ? json.data : [];
@@ -259,7 +273,7 @@ function decodeImagePayload(value) {
   }
 }
 
-function referenceImageForPerson(people, personId, referenceFaceId) {
+async function referenceImageForPerson(people, personId, referenceFaceId) {
   const person = (Array.isArray(people) ? people : []).find((p) => String(p.personId || '') === String(personId || ''));
   if (!person) return null;
   const refs = Array.isArray(person.referenceFaces) ? person.referenceFaces : [];
@@ -269,7 +283,7 @@ function referenceImageForPerson(people, personId, referenceFaceId) {
   const embedded = decodeImagePayload(ref.sampleImageBase64 || ref.cropImageBase64 || ref.imageBase64);
   if (embedded) return embedded;
   const file = String(ref.sampleImage || '').trim();
-  if (file && fs.existsSync(file)) return fs.readFileSync(file);
+  if (file && fs.existsSync(file)) return fsp.readFile(file);
   return null;
 }
 
@@ -342,10 +356,14 @@ async function analyzeVideo({ taskId, config, subLib, item, western, onLog }) {
   const protagonist = clustersWithMatch.find((c) => c.status === 'named') || null;
   const actorLabel = protagonist ? protagonist.matchedName : (match.actors[0] || 'Unknown Person');
   const description = titleWordsFromFilename(item.path);
-  const galleryImages = frames.slice(0, 6).map((frame, i) => ({ frameIndex: i, imageBase64: fs.readFileSync(frame).toString('base64') }));
-  const referenceImage = protagonist ? referenceImageForPerson(people, protagonist.matchedPersonId, protagonist.referenceFaceId) : null;
+  const galleryImages = [];
+  for (const [i, frame] of frames.slice(0, 6).entries()) {
+    galleryImages.push({ frameIndex: i, imageBase64: (await fsp.readFile(frame)).toString('base64') });
+    if ((i + 1) % 2 === 0) await yieldToEventLoop();
+  }
+  const referenceImage = protagonist ? await referenceImageForPerson(people, protagonist.matchedPersonId, protagonist.referenceFaceId) : null;
   const posterImageBase64 = await buildCompositePoster({ actorName: actorLabel, sceneTitle: description, referenceImage, galleryImages })
-    || (frames[0] ? fs.readFileSync(frames[0]).toString('base64') : '');
+    || (frames[0] ? (await fsp.readFile(frames[0])).toString('base64') : '');
   return {
     title: safeName(`${actorLabel} - ${description}`),
     generatedTitle: safeName(`${actorLabel} - ${description}`),

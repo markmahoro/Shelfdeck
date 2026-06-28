@@ -610,6 +610,7 @@ function getDefaultConfig() {
         enabled: false,
         provider: 'http',
         computeMode: 'local',
+        localConcurrency: 1,
         aiWorkerBaseUrl: '',
         apiKey: '',
         timeoutMs: 600000,
