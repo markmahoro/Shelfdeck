@@ -21,7 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   created: '已创建',
-  pending_manual: '待手动',
+  pending_manual: '待启动',
   queued: '排队中',
   executing: '执行中',
   pausing: '暂停中...',
@@ -270,7 +270,8 @@ export default function TaskMonitorPage() {
       btns.push(<button key="pausing" disabled style={{ ...warnBtn, opacity: 0.6, cursor: 'not-allowed' }}>暂停中...</button>);
     }
     if (t.status === 'paused' || t.status === 'pending_manual' || t.status === 'created') {
-      btns.push(<button key="exec" onClick={() => executeMut.mutate(t.id)} style={execBtn}>继续</button>);
+      const executeLabel = t.status === 'paused' ? '继续' : '启动';
+      btns.push(<button key="exec" onClick={() => executeMut.mutate(t.id)} style={execBtn}>{executeLabel}</button>);
       btns.push(<button key="cancel" onClick={() => removeTask(t)} style={{ ...warnBtn, background: '#e74c3c' }}>取消任务</button>);
     }
     if (t.status === 'done') {

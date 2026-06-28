@@ -27,7 +27,9 @@ export default function MediaManagePage() {
   const [tasks, setTasks] = useState<MediaTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [creatingTaskIds, setCreatingTaskIds] = useState<Set<string>>(() => new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [resolutionFilter, setResolutionFilter] = useState<string>('all');
@@ -151,13 +153,57 @@ export default function MediaManagePage() {
   const rangeStart = total === 0 ? 0 : page * pageSize + 1;
   const rangeEnd = Math.min(total, page * pageSize + items.length);
 
-  const enqueueManagedAction = useCallback((item: ManagedMediaItem, action: MediaAction) => {
-    if (item.isBluRayDisc && action === 'upgrade') return;
-    taskApi.createByIntent({ itemId: item.id, actionType: action }).catch((e) => {
-      if (e instanceof ApiConflictError) setError(e.message);
-      else setError(`创建任务失败：${e.message}`);
+  const upsertActiveTask = useCallback((task: MediaTask) => {
+    setTasks((prev) => {
+      const next = prev.filter((t) => t.id !== task.id);
+      return [task, ...next];
     });
   }, []);
+
+  const enqueueManagedAction = useCallback(async (item: ManagedMediaItem, action: MediaAction): Promise<MediaTask | null> => {
+    if (item.isBluRayDisc && action === 'upgrade') return null;
+    setCreatingTaskIds((prev) => new Set(prev).add(item.id));
+    try {
+      const task = await taskApi.createByIntent({ itemId: item.id, actionType: action });
+      upsertActiveTask(task);
+      setError(null);
+      const statusHint = task.status === 'pending_manual' || task.status === 'created'
+        ? '当前状态为待启动，可在任务中心点击“启动”。'
+        : '可在任务中心查看进度。';
+      setNotice(`已创建「${ACTION_LABELS[action] || action}」任务：${item.name}。${statusHint}`);
+      return task;
+    } catch (e) {
+      setNotice(null);
+      if (e instanceof ApiConflictError) setError(e.message);
+      else setError(`创建任务失败：${(e as Error).message}`);
+      return null;
+    } finally {
+      setCreatingTaskIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  }, [upsertActiveTask]);
+
+  const runBatchSelection = useCallback(async () => {
+    const selected = items.filter((it) => selectedIds.has(it.id));
+    let skipped = 0;
+    let created = 0;
+    let failed = 0;
+    for (const it of selected) {
+      const action = it.recommendedAction ?? 'keep';
+      if (action === 'keep') {
+        skipped += 1;
+        continue;
+      }
+      const task = await enqueueManagedAction(it, action);
+      if (task) created += 1;
+      else failed += 1;
+    }
+    setNotice(`批量创建完成：成功 ${created} 条，跳过 ${skipped} 条，失败 ${failed} 条。`);
+    if (created > 0) setSelectedIds(new Set());
+  }, [enqueueManagedAction, items, selectedIds]);
 
   const rescrapeAdultItem = useCallback(async (item: ManagedMediaItem) => {
     try {
@@ -384,17 +430,10 @@ export default function MediaManagePage() {
         <button
           type="button"
           className="batchRunBtn"
-          disabled={selectedIds.size === 0}
-          onClick={() => {
-            for (const it of items) {
-              if (selectedIds.has(it.id)) {
-                const action = it.recommendedAction ?? 'keep';
-                if (action !== 'keep') enqueueManagedAction(it, action);
-              }
-            }
-          }}
+          disabled={selectedIds.size === 0 || creatingTaskIds.size > 0}
+          onClick={runBatchSelection}
         >
-          批量执行策略
+          {creatingTaskIds.size > 0 ? '创建任务中...' : '批量创建任务'}
         </button>
         <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
           已选 {selectedIds.size} / {items.length} 条
@@ -403,6 +442,7 @@ export default function MediaManagePage() {
       <div className="pageMain">
         <div className="pageMainInner">
           {error && <p className="error">{error}</p>}
+          {notice && <div className="mediaNotice mediaNoticeSuccess">{notice}</div>}
           {autoEntryNotice && <div className="mediaNotice">{autoEntryNotice}</div>}
           <div className="mediaPager">
             <span>第 {page + 1} / {maxPage + 1} 页，显示 {rangeStart}-{rangeEnd}，共 {total} 条</span>
@@ -460,6 +500,7 @@ export default function MediaManagePage() {
                     isSelected={selectedIds.has(item.id)}
                     isHighlighted={false}
                     rowTask={rowTask}
+                    isCreatingTask={creatingTaskIds.has(item.id)}
                     showAdultFields={showAdultFields}
                     onToggleSelect={toggleSelectedItem}
                     onWatchChange={handleWatchChange}

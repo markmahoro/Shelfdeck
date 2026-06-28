@@ -13,7 +13,7 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  created: '已创建', pending_manual: '待手动', queued: '排队中', executing: '执行中',
+  created: '已创建', pending_manual: '待启动', queued: '排队中', executing: '执行中',
   pausing: '暂停中...', awaiting_user_confirm: '等待确认', paused: '已暂停',
   interrupted: '已中断', done: '已完成', failed_hard: '失败',
 };

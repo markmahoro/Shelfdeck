@@ -40,6 +40,7 @@ export type MediaLibraryManageRowProps = {
   isSelected: boolean;
   isHighlighted: boolean;
   rowTask: MediaTask | undefined;
+  isCreatingTask?: boolean;
   showAdultFields: boolean;
   onToggleSelect: (id: string) => void;
   onWatchChange: (item: ManagedMediaItem, watched: boolean) => void;
@@ -96,6 +97,7 @@ function MediaLibraryManageRowInner({
   isSelected,
   isHighlighted,
   rowTask,
+  isCreatingTask,
   showAdultFields,
   onToggleSelect,
   onWatchChange,
@@ -133,7 +135,7 @@ function MediaLibraryManageRowInner({
     '—'
   );
 
-  const actionDisabled = !!rowTask || (item.isBluRayDisc && action === 'upgrade');
+  const actionDisabled = !!rowTask || !!isCreatingTask || (item.isBluRayDisc && action === 'upgrade');
 
   return (
     <div
@@ -218,10 +220,10 @@ function MediaLibraryManageRowInner({
           <button
             type="button"
             disabled={actionDisabled}
-            title={rowTask ? '该条目已有未结案任务' : item.isBluRayDisc && action === 'upgrade' ? '原盘暂不支持洗版' : undefined}
+            title={rowTask ? '该条目已有未结案任务' : isCreatingTask ? '正在创建任务' : item.isBluRayDisc && action === 'upgrade' ? '原盘暂不支持洗版' : undefined}
             onClick={() => onEnqueue(item, action)}
           >
-            {ACTION_LABEL[action]}
+            {isCreatingTask ? '创建中...' : ACTION_LABEL[action]}
           </button>
         )}
       </div>
@@ -238,6 +240,7 @@ function rowPropsEqual(a: MediaLibraryManageRowProps, b: MediaLibraryManageRowPr
     a.isSelected === b.isSelected &&
     a.isHighlighted === b.isHighlighted &&
     a.rowTask === b.rowTask &&
+    a.isCreatingTask === b.isCreatingTask &&
     a.showAdultFields === b.showAdultFields &&
     a.onToggleSelect === b.onToggleSelect &&
     a.onWatchChange === b.onWatchChange &&
