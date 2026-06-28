@@ -1121,13 +1121,14 @@ function enqueueIngestTask(subLib, filePath, opts = {}) {
   const source = opts.force ? 'manual' : 'auto';
   const itemInfo = ingestItemInfo(subLib, filePath);
   const schedule = configStore.resolveSubLibSchedule(itemInfo, cfg);
+  const taskSnapshot = Array.isArray(opts.taskSnapshot) ? opts.taskSnapshot : null;
   const admission = taskAdmission.canCreateTask({
     item: itemInfo,
     itemInfo,
     actionType: 'ingest',
     source,
     config: cfg,
-    tasks: taskStore.getTasks(),
+    tasks: taskSnapshot || taskStore.getTasks(),
   });
   if (!admission.allowed) return null;
   const task = taskStore.createTask({
@@ -1144,6 +1145,7 @@ function enqueueIngestTask(subLib, filePath, opts = {}) {
     itemInfo,
     logs: [{ ts: nowIso(), level: 'info', msg: 'Ingest task created by adult folder scan' }],
   });
+  if (taskSnapshot) taskSnapshot.push(task);
   activityLog.addActivity('adult_library', `成人库「${subLib.name}」创建入库任务：${itemInfo.name}`, { taskId: task.id, itemId: itemInfo.itemId });
   return task;
 }
@@ -1215,13 +1217,14 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
   const schedule = configStore.resolveSubLibSchedule(item, cfg);
   const source = opts.force ? 'manual' : 'auto';
   const itemInfo = itemInfoFromItem(item);
+  const taskSnapshot = Array.isArray(opts.taskSnapshot) ? opts.taskSnapshot : null;
   const admission = taskAdmission.canCreateTask({
     item,
     itemInfo,
     actionType: 'scrape',
     source,
     config: cfg,
-    tasks: taskStore.getTasks(),
+    tasks: taskSnapshot || taskStore.getTasks(),
   });
   if (!admission.allowed) return null;
   const task = taskStore.createTask({
@@ -1238,6 +1241,7 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
     itemInfo,
     logs: [{ ts: nowIso(), level: 'info', msg: 'Scrape task created by adult folder watcher' }],
   });
+  if (taskSnapshot) taskSnapshot.push(task);
   activityLog.addActivity('adult_library', `成人库「${subLib.name}」创建刮削任务：${item.name}`, { taskId: task.id, itemId: item.itemId });
   return task;
 }
@@ -1246,20 +1250,28 @@ async function scanSubLibrary(subLib, opts = {}) {
   if (!isAdultFolderSubLibrary(subLib) || !subLib.watchRoot) return { scanned: 0, upserted: 0, queued: 0, scrapeQueued: 0 };
   const config = configStore.loadConfig();
   const files = collectMediaFiles(subLib.watchRoot, config, { subLib, includeIgnored: !!opts.includeOrganized });
+  const taskSnapshot = taskStore.loadTasks();
+  const lib = loadLibrary();
+  const existingByPath = new Map();
+  for (const item of lib.items || []) {
+    if (item && item.subLibraryId === subLib.uuid && item.path) {
+      existingByPath.set(normalizePathForCompare(item.path), item);
+    }
+  }
   let queued = 0;
   let scrapeQueued = 0;
   let existing = 0;
   for (const file of files) {
-    const existingItem = findExistingItemByFilePath(subLib, file);
+    const existingItem = existingByPath.get(normalizePathForCompare(file)) || null;
     if (existingItem) {
       existing++;
       const shouldScrape = opts.enqueueScrape !== false && !hasIgnoredSegment(file, subLib)
         && existingItem.scraped !== true
         && (!existingItem.adultMetadata || !['done', 'needs_review'].includes(existingItem.adultMetadata.scrapeStatus));
-      if (shouldScrape && enqueueScrapeTask(existingItem, subLib)) scrapeQueued++;
+      if (shouldScrape && enqueueScrapeTask(existingItem, subLib, { taskSnapshot })) scrapeQueued++;
       continue;
     }
-    if (enqueueIngestTask(subLib, file, { force: !!opts.force })) queued++;
+    if (enqueueIngestTask(subLib, file, { force: !!opts.force, taskSnapshot })) queued++;
   }
   updateSubLibraryRefreshTime(subLib.uuid);
   return { scanned: files.length, upserted: existing, queued, scrapeQueued };
