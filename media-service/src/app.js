@@ -457,7 +457,7 @@ function registerRoutes(app) {
   app.get('/v1/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    return task;
+    return taskDetailView(task);
   });
 
   app.get('/v1/tasks/:id/report', async (req, reply) => {

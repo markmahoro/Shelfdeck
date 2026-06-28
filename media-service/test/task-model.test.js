@@ -292,7 +292,7 @@ test('smartTaskEngine creates pending_manual tasks for manual sub-libraries', as
   assert.strictEqual(created[0].source, 'auto');
 });
 
-test('smartTaskEngine auto-enqueues adult scrape candidates through TaskAdmission priority', async () => {
+test('smartTaskEngine auto-enqueues pending adult scrape candidates through TaskAdmission priority', async () => {
   smartTaskEngine.stop();
   const created = [];
   smartTaskEngine.start(
@@ -337,11 +337,75 @@ test('smartTaskEngine auto-enqueues adult scrape candidates through TaskAdmissio
             userRatingUpdatedAt: new Date().toISOString(),
             path: '/media/movie.mkv',
           }, {
+            itemId: 'adult-pending-scrape',
+            name: 'Adult Pending Scrape',
+            source: 'adult_folder',
+            type: 'movie',
+            watched: false,
+            action: 'keep',
+            scraped: false,
+            subLibraryId: 'adult-lib',
+            path: '/adult/pending.mp4',
+            adultMetadata: { scrapeStatus: 'pending' },
+          }],
+        };
+      },
+    },
+    {
+      getTasks: () => [...created],
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTask(taskData) {
+        const task = { id: `t-${created.length + 1}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...taskData };
+        created.push(task);
+        return task;
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  assert.strictEqual(created.length, 1);
+  assert.strictEqual(created[0].itemId, 'adult-pending-scrape');
+  assert.strictEqual(created[0].actionType, 'scrape');
+  assert.strictEqual(created[0].priority, 280);
+  assert.strictEqual(created[0].source, 'auto');
+});
+
+test('smartTaskEngine leaves failed adult scrape candidates for explicit user action', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['scrape'],
+          smartTaskLookbackDays: 30,
+          subLibraries: [{ uuid: 'adult-lib', automationMode: 'auto' }],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { scrape: 80 },
+            rules: { scrape: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByAction: { scrape: 0 },
+            maxQueuedByAction: { scrape: 20 },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [{
             itemId: 'adult-failed-scrape',
             name: 'Adult Failed Scrape',
             source: 'adult_folder',
             type: 'movie',
-            watched: false,
             action: 'keep',
             scraped: false,
             subLibraryId: 'adult-lib',
@@ -364,11 +428,7 @@ test('smartTaskEngine auto-enqueues adult scrape candidates through TaskAdmissio
 
   await new Promise((resolve) => setTimeout(resolve, 20));
   smartTaskEngine.stop();
-  assert.strictEqual(created.length, 1);
-  assert.strictEqual(created[0].itemId, 'adult-failed-scrape');
-  assert.strictEqual(created[0].actionType, 'scrape');
-  assert.strictEqual(created[0].priority, 280);
-  assert.strictEqual(created[0].source, 'auto');
+  assert.strictEqual(created.length, 0);
 });
 
 test('smartTaskEngine keeps transcode action priority when library weight is neutral', async () => {

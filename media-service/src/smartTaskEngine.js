@@ -62,8 +62,10 @@ function isAutoScrapeAdultCandidate(item) {
   if (!item || item.source !== 'adult_folder') return false;
   if (item.scraped === true) return false;
   const status = String(item.adultMetadata && item.adultMetadata.scrapeStatus || '').toLowerCase();
-  // Ambiguous/needs_review states are intentionally left for explicit user action.
-  return status === '' || status === 'pending' || status === 'failed';
+  // Failed, ambiguous, and needs_review states require explicit user action.
+  // Automatic scrape only handles fresh/pending items so a library full of
+  // currently-unresolvable actors does not churn through known failures.
+  return status === '' || status === 'pending';
 }
 
 function buildItemInfo(item) {

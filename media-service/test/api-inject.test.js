@@ -740,6 +740,38 @@ test('GET /v1/admin/tasks/:id omits heavy adult face payloads', async () => {
   await app.close();
 });
 
+test('GET /v1/tasks/:id omits heavy adult face payloads', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const taskStore = require('../src/taskStore');
+  const task = taskStore.createTask({
+    itemId: 'heavy-public-detail',
+    itemName: 'Heavy Public Detail',
+    actionType: 'scrape',
+    status: 'failed_hard',
+    itemInfo: {
+      name: 'Heavy Public Detail',
+      adultMetadata: {
+        adultId: 'UNK-003',
+        scrapeStatus: 'failed',
+        galleryImages: [{ imageBase64: Buffer.alloc(4096, 1).toString('base64') }],
+        ai: { faceEmbeddingsEnabled: true },
+        faceClusters: [{ clusterId: 'face-1', embedding: [0.1, 0.2], sampleImageBase64: Buffer.from('face').toString('base64') }],
+        unknownFaces: [{ clusterId: 'unknown-1', embedding: [0.3, 0.4], sampleImageBase64: Buffer.from('unknown').toString('base64') }],
+      },
+    },
+  });
+
+  const res = await app.inject({ method: 'GET', url: `/v1/tasks/${task.id}` });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.deepStrictEqual(body.itemInfo.adultMetadata.faceClusters, []);
+  assert.deepStrictEqual(body.itemInfo.adultMetadata.unknownFaces, []);
+  assert.strictEqual(body.itemInfo.adultMetadata.galleryImages, undefined);
+  assert.strictEqual(body.itemInfo.adultMetadata.ai, undefined);
+  await app.close();
+});
+
 test('GET /v1/admin/tasks filters by multiple statuses', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
