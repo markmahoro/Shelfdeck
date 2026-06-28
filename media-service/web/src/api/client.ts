@@ -269,9 +269,10 @@ export const upgrade = {
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
 export const tasks = {
-  list: (params?: { status?: string; actionType?: string; q?: string; page?: number; pageSize?: number }) => {
+  list: (params?: { status?: string; statuses?: string[]; actionType?: string; q?: string; page?: number; pageSize?: number }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
+    if (params?.statuses?.length) qs.set('statuses', params.statuses.join(','));
     if (params?.actionType) qs.set('actionType', params.actionType);
     if (params?.q) qs.set('q', params.q);
     if (params?.page) qs.set('page', String(params.page));

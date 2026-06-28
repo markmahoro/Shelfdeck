@@ -1630,6 +1630,12 @@ function registerRoutes(app) {
   app.get('/v1/admin/tasks', async (req) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
+    if (req.query.statuses) {
+      filter.statuses = String(req.query.statuses)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
     if (req.query.actionType) filter.actionType = req.query.actionType;
     if (req.query.q) filter.q = req.query.q;
     const page = Math.max(1, parseInt(req.query.page) || 1);

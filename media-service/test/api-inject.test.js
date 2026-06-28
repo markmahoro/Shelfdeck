@@ -676,6 +676,25 @@ test('GET /v1/admin/tasks returns list with summary', async () => {
   await app.close();
 });
 
+test('GET /v1/admin/tasks filters by multiple statuses', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const taskStore = require('../src/taskStore');
+  taskStore.createTask({ itemId: 'active-1', actionType: 'transcode', status: 'queued' });
+  taskStore.createTask({ itemId: 'active-2', actionType: 'scrape', status: 'executing' });
+  taskStore.createTask({ itemId: 'done-1', actionType: 'delete', status: 'done' });
+
+  const res = await app.inject({ method: 'GET', url: '/v1/admin/tasks?statuses=queued,executing&page=1&pageSize=10' });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.summary.total, 2);
+  assert.deepStrictEqual(new Set(body.tasks.map((t) => t.status)), new Set(['queued', 'executing']));
+  assert.strictEqual(body.summary.byStatus.queued, 1);
+  assert.strictEqual(body.summary.byStatus.executing, 1);
+  assert.strictEqual(body.summary.byStatus.done, undefined);
+  await app.close();
+});
+
 // ── SubLibraries ──────────────────────────────────────────────────────────────
 
 test('GET /v1/admin/sublibraries returns list', async () => {

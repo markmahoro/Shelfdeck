@@ -256,6 +256,13 @@ function buildWhere(filter = {}, options = {}) {
     clauses.push('status = @status');
     params.status = String(filter.status);
   }
+  if (Array.isArray(filter.statuses) && filter.statuses.length > 0) {
+    const statuses = filter.statuses.map((status) => String(status || '').trim()).filter(Boolean);
+    if (statuses.length > 0) {
+      clauses.push(`status IN (${statuses.map((_, i) => `@statusIn${i}`).join(', ')})`);
+      statuses.forEach((status, i) => { params[`statusIn${i}`] = status; });
+    }
+  }
   if (filter.actionType) {
     clauses.push('action_type = @actionType');
     params.actionType = String(filter.actionType);

@@ -15,9 +15,21 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   created: '已创建', pending_manual: '待启动', queued: '排队中', executing: '执行中',
   pausing: '暂停中...', awaiting_user_confirm: '等待确认', paused: '已暂停',
-  interrupted: '已中断', done: '已完成', failed_hard: '失败',
+  interrupted: '已中断', waiting_media_source: '等待媒体文件',
+  done: '已完成', failed_hard: '失败', cancelled: '已取消', skipped: '已跳过', deleted: '已移除',
 };
-const TERMINAL_TASK_STATUSES = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
+const ACTIVE_TASK_STATUSES = [
+  'created',
+  'pending_manual',
+  'queued',
+  'executing',
+  'pausing',
+  'awaiting_user_confirm',
+  'paused',
+  'interrupted',
+  'waiting_media_source',
+];
+const TERMINAL_TASK_STATUSES = ['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'];
 
 export default function DashboardPage() {
   const qc = useQueryClient();
@@ -52,9 +64,15 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   });
 
-  const { data: taskList, isLoading: tLoading } = useQuery({
-    queryKey: ['admin-tasks'],
-    queryFn: () => tasks.list(),
+  const { data: currentTaskList, isLoading: currentTasksLoading } = useQuery({
+    queryKey: ['dashboard-current-tasks'],
+    queryFn: () => tasks.list({ statuses: ACTIVE_TASK_STATUSES, page: 1, pageSize: 5 }),
+    refetchInterval: 10000,
+  });
+
+  const { data: recentTaskList, isLoading: recentTasksLoading } = useQuery({
+    queryKey: ['dashboard-recent-task-results'],
+    queryFn: () => tasks.list({ statuses: TERMINAL_TASK_STATUSES, page: 1, pageSize: 5 }),
     refetchInterval: 10000,
   });
 
@@ -200,9 +218,8 @@ export default function DashboardPage() {
 
   if (slLoading) return <LoadingSpinner text="加载媒体库中..." />;
 
-  const allVisibleTasks: MediaTask[] = taskList?.tasks || [];
-  const currentTasks = allVisibleTasks.filter((t) => !TERMINAL_TASK_STATUSES.has(t.status)).slice(0, 5);
-  const recentResultTasks = allVisibleTasks.filter((t) => TERMINAL_TASK_STATUSES.has(t.status)).slice(0, 5);
+  const currentTasks: MediaTask[] = currentTaskList?.tasks || [];
+  const recentResultTasks: MediaTask[] = recentTaskList?.tasks || [];
   const subLibs: SubLibrary[] = slData?.subLibraries || [];
   const enabledAutoActions = sysCfg?.smartTaskEnabledActions;
   const enabledAutoActionText = !enabledAutoActions
@@ -333,7 +350,7 @@ export default function DashboardPage() {
           <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>当前任务</h3>
           <span style={{ fontSize: 12, color: '#888' }}>只显示执行中、排队中、等待确认和已暂停的任务</span>
         </div>
-        {tLoading ? (
+        {currentTasksLoading ? (
           <LoadingSpinner text="加载任务中..." />
         ) : currentTasks.length === 0 ? (
           <p style={{ color: '#888', fontSize: 14 }}>当前没有正在处理的任务</p>
@@ -367,7 +384,7 @@ export default function DashboardPage() {
           <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>最近任务结果</h3>
           <span style={{ fontSize: 12, color: '#888' }}>按更新时间显示最近完成、失败或取消的任务</span>
         </div>
-        {tLoading ? (
+        {recentTasksLoading ? (
           <LoadingSpinner text="加载任务中..." />
         ) : recentResultTasks.length === 0 ? (
           <p style={{ color: '#888', fontSize: 14 }}>暂无最近完成或失败的任务</p>
