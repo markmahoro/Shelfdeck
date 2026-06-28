@@ -116,7 +116,7 @@ desktop / Admin Web
 - `PriorityEngine` 只决定可入队任务的执行顺序。优先级是多维度叠加分数：`来源权重 + 任务类型权重 + 子库权重 + 业务信号 + 等待时间 + 重试惩罚 + 规则修正`，数值越小越优先；高级规则只能贡献加减分，不能把总分设为绝对值。任务会保存 `priorityBreakdown`，用于解释各维度如何叠加成最终分数。用户手动调整任务优先级会直接覆盖任务上的最终分数。
 - 审批策略与调度策略分离。`approvalPolicy` 控制任务内部关键节点是否暂停，模式为 `auto`、`confirm`、`forceConfirm`；`forceConfirm` 不能被全局、子库或任务级覆盖降级。
 - 当前审批 gate 包括 `delete.beforeExecute`、`transcode.dolbyVisionTonemap`、`transcode.beforeReplace`、`upgrade.candidateSelect`、`upgrade.identityMismatch`、`upgrade.beforeReplace`、`scrape.beforeWriteMetadata`、`scrape.beforeOrganize`、`scrape.reviewResult`。
-- `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；成人库目录扫描不作为任务创建入口，也不把大量新文件展开成完整刮削或转码动作。后台自动入库由 `SmartTaskEngine` 读取文件候选后统一经过 `smartTaskEnabledActions`、`TaskAdmission` 和 `PriorityEngine` 创建 `ingest` 任务。
+- `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；成人库没有独立目录级扫描或独立自动刮削能力，也不把大量新文件展开成完整刮削或转码动作。后台自动入库由 `SmartTaskEngine` 读取文件候选后统一经过 `smartTaskEnabledActions`、`TaskAdmission` 和 `PriorityEngine` 创建 `ingest` 任务。
 - 任务持久化使用 `data/tasks.db` SQLite。任务中心保留完成、失败等历史记录；调度器、节点统计、转码临时目录清理等热路径只读取非终态 active task，不能为了降低队列压力删除历史任务。
 - 启动期全局维护不属于单 item task。普通媒体库启动刷新由 `mediaLibraryStartupRefreshOnStartup` 和 `mediaLibraryStartupRefreshDelaySeconds` 控制；自算字段立即运行由 `mediaLibrarySelfComputeOnStartup` 控制；`SmartTaskEngine` 首次自动入队扫描由 `smartTaskInitialDelaySeconds` 控制。生产部署可通过这些开关先恢复 API 响应，再让周期任务按节奏运行。
 - 成人库 `ingest` 的媒体探测使用 `adultLibrary.probeTimeoutMs` 控制单文件 `ffprobe` 超时。坏文件或异常路径只记录 `probeError` 并继续入库，不应拖住整个 HTTP 服务。
@@ -124,7 +124,8 @@ desktop / Admin Web
 成人文件夹库流：
 
 1. 用户创建 `mediaType=adult`、`source=folder` 的子库，并配置 `watchRoot`。
-2. 目录级 scan 只做只读核对和刷新时间，不创建 `ingest` 或 `scrape` 任务；`POST /v1/admin/sublibraries/:uuid/actions/scan` 已废弃并返回 `410 ADULT_FOLDER_SCAN_REMOVED`。
+2. 不存在目录级 scan 任务创建入口；候选发现只是 `SmartTaskEngine` 的只读输入，不写媒体库、不刷新子库状态、不创建 `scrape`。
+   `POST /v1/admin/sublibraries/:uuid/actions/scan` 已废弃并返回 `410 SUBLIBRARY_SCAN_REMOVED`。
 3. `SmartTaskEngine` 在 `smartTaskEnabledActions` 包含 `ingest` 时读取未入库文件候选，并按统一 admission/priority 创建单 item `ingest` 任务；候选发现本身不写媒体库、不创建 scrape。
 4. `IngestFlowExecutor` 每次只处理一个文件候选，完成文件探测、NFO 预解析和媒体项写入。已前置刮削的文件会直接成为 `scraped=true` item；未刮削文件在入库后再按统一 admission/priority 创建 `scrape` 任务。
 5. 日本 JAV 子库使用 `scraperType=shelfdeck_japanese_jav`；欧美成人库使用 `scraperType=western_builtin`。两者的单 item 入库和后续刮削都复用统一任务模型。
@@ -233,7 +234,7 @@ API 细节以 `src/app.js` 和现有 tests 为准。新增或变更 API 时必�
 成人库相关 API：
 
 - `POST /v1/admin/sublibraries` 支持 `source=folder`、`mediaType=adult`。
-- `POST /v1/admin/sublibraries/:uuid/actions/scan` 已废弃，返回 `410 ADULT_FOLDER_SCAN_REMOVED`。
+- `POST /v1/admin/sublibraries/:uuid/actions/scan` 已废弃，返回 `410 SUBLIBRARY_SCAN_REMOVED`。
 - `GET/PATCH /v1/admin/adult/config` 管理成人库全局默认配置、日本 JAV scraper 默认项和欧美成人配置；face-service 不作为用户配置项暴露。
 - `GET/POST/PATCH/DELETE /v1/admin/adult/people` 管理 service-owned People 人物库。
 - `POST /v1/admin/adult/people/from-face` 从某个 item 的 unknown face cluster 创建 People reference face。

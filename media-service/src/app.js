@@ -1149,10 +1149,7 @@ function registerRoutes(app) {
     const cfg = configStore.loadConfig();
     const subLib = (cfg.subLibraries || []).find((s) => s.uuid === req.params.uuid);
     if (!subLib) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
-    if (!adultLibraryService.isAdultFolderSubLibrary(subLib)) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'Only adult folder libraries used to support folder scan');
-    }
-    return apiError(reply, 410, 'ADULT_FOLDER_SCAN_REMOVED', 'Adult folder-wide scan has been removed; use explicit item actions instead.');
+    return apiError(reply, 410, 'SUBLIBRARY_SCAN_REMOVED', 'Sub-library directory scan has been removed; background work must enter through the unified task admission model.');
   });
 
   // Manual rescrape of a single adult folder item (resets prior failure state).

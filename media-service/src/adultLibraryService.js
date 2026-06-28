@@ -768,7 +768,7 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
   saveLibrary(lib);
 
   // A plain item upsert is inventory only. Ingest/manual flows must opt in when
-  // they want a follow-up scrape so there is no adult-library-only autoscrape path.
+  // they want a follow-up scrape so there is no adult-library-only scheduler path.
   if (opts.enqueueScrape === true && !nfo) {
     enqueueScrapeTask(item, subLib, { source: opts.source });
   }
@@ -1413,71 +1413,11 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
   return task;
 }
 
-async function scanSubLibrary(subLib, opts = {}) {
-  if (!isAdultFolderSubLibrary(subLib) || !subLib.watchRoot) return { scanned: 0, upserted: 0, queued: 0, scrapeQueued: 0 };
-  const config = configStore.loadConfig();
-  const files = collectMediaFiles(subLib.watchRoot, config, { subLib, includeIgnored: !!opts.includeOrganized });
-  const lib = loadLibrary();
-  const existingByPath = new Map();
-  for (const item of lib.items || []) {
-    if (item && item.subLibraryId === subLib.uuid && item.path) {
-      existingByPath.set(normalizePathForCompare(item.path), item);
-    }
-  }
-  let existing = 0;
-  for (const file of files) {
-    const existingItem = existingByPath.get(normalizePathForCompare(file)) || null;
-    if (existingItem) {
-      existing++;
-    }
-  }
-  updateSubLibraryRefreshTime(subLib.uuid);
-  return { scanned: files.length, upserted: existing, queued: 0, scrapeQueued: 0 };
-}
-
-async function reconcileSubLibrary(subLib) {
-  if (!isAdultFolderSubLibrary(subLib) || !subLib.watchRoot) return { scanned: 0, upserted: 0 };
-  return scanSubLibrary(subLib, { includeOrganized: true, enqueueScrape: false });
-}
-
-function updateSubLibraryRefreshTime(uuid) {
-  const cfg = configStore.loadConfig();
-  const subLibs = cfg.subLibraries || [];
-  const idx = subLibs.findIndex((s) => s.uuid === uuid);
-  if (idx >= 0) {
-    subLibs[idx].lastRefreshedAt = nowIso();
-    configStore.patchConfig({ subLibraries: subLibs });
-  }
-}
-
-async function refreshItemFromScrapedFiles(subLib, item) {
-  await reconcileSubLibrary(subLib);
-  const lib = loadLibrary();
-  const adultId = item.adultMetadata && item.adultMetadata.adultId || extractJavId(item.path);
-  const norm = normalizePathForCompare(item.path);
-  let found = null;
-  if (adultId) {
-    found = lib.items.find((it) =>
-      it.subLibraryId === subLib.uuid &&
-      it.adultMetadata &&
-      String(it.adultMetadata.adultId || '').toLowerCase() === adultId.toLowerCase() &&
-      it.adultMetadata.scrapeStatus === 'done'
-    );
-  }
-  if (!found) {
-    found = lib.items.find((it) => it.subLibraryId === subLib.uuid && normalizePathForCompare(it.path) === norm);
-  }
-  return found || item;
-}
-
 module.exports = {
   isAdultFolderSubLibrary,
   isJapaneseJavSubLibrary,
   isWesternAdultSubLibrary,
-  scanSubLibrary,
-  reconcileSubLibrary,
   listIngestCandidates,
-  refreshItemFromScrapedFiles,
   upsertFileItem,
   enqueueIngestTask,
   ingestTaskItemId,

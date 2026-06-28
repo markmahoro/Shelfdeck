@@ -868,7 +868,7 @@ test('POST /v1/admin/sublibraries creates adult Japanese JAV folder library', as
   await app.close();
 });
 
-test('PATCH /v1/admin/sublibraries cannot reintroduce adult private autoscrape fields', async () => {
+test('PATCH /v1/admin/sublibraries cannot reintroduce adult private scheduling fields', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
@@ -931,7 +931,7 @@ test('POST /v1/admin/sublibraries/:uuid/actions/scan is removed and has no side 
 
   const scan = await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
   assert.strictEqual(scan.statusCode, 410);
-  assert.strictEqual(scan.json().error.code, 'ADULT_FOLDER_SCAN_REMOVED');
+  assert.strictEqual(scan.json().error.code, 'SUBLIBRARY_SCAN_REMOVED');
 
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(lib.statusCode, 200);
@@ -976,7 +976,7 @@ test('POST /v1/admin/sublibraries creates adult western folder library', async (
   await app.close();
 });
 
-test('legacy adult private autoscrape sub-library fields are migrated out of config', async () => {
+test('legacy adult private scheduling sub-library fields are migrated out of config', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
     subLibraries: [{
@@ -1051,7 +1051,7 @@ test('western adult ingest uses path identity before scrape', async () => {
   await app.close();
 });
 
-test('adult folder scan is not a task creation path and ingest follow-up follows automatic allow-list', async () => {
+test('adult directory discovery is inventory only and ingest follow-up follows automatic allow-list', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
@@ -1082,10 +1082,6 @@ test('adult folder scan is not a task creation path and ingest follow-up follows
   const adultLibraryService = require('../src/adultLibraryService');
   fs.writeFileSync(path.join(watchRoot, 'MVSD-175.mp4'), 'fake-video');
 
-  const scan = await adultLibraryService.scanSubLibrary(subLib);
-  assert.strictEqual(scan.scanned, 1);
-  assert.strictEqual(scan.queued, 0, 'folder scan does not create ingest tasks');
-  assert.strictEqual(scan.scrapeQueued, 0, 'folder scan does not create scrape tasks');
   const candidates = adultLibraryService.listIngestCandidates();
   assert.strictEqual(candidates.length, 1, 'folder discovery exposes a single ingest candidate');
   assert.strictEqual(candidates[0].itemInfo.actionType, undefined, 'candidate discovery does not pre-create a task shape');
@@ -1114,12 +1110,13 @@ test('adult folder scan is not a task creation path and ingest follow-up follows
   await app.close();
 });
 
-test('adult folder scan endpoint is removed and scan creates no task when automatic allow-list is empty', async () => {
+test('sub-library directory scan endpoint is removed and discovery creates no task when automatic allow-list is empty', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
     smartTaskEnabledActions: [],
+    adultLibrary: { settleSeconds: 0 },
     taskAdmission: {
       cooldownHoursByAction: { ingest: 0, scrape: 0 },
       maxQueuedByAction: { ingest: 10, scrape: 10 },
@@ -1144,18 +1141,20 @@ test('adult folder scan endpoint is removed and scan creates no task when automa
   const adultLibraryService = require('../src/adultLibraryService');
   fs.writeFileSync(path.join(watchRoot, 'MVSD-176.mp4'), 'fake-video');
 
-  const autoScan = await adultLibraryService.scanSubLibrary(subLib);
-  assert.strictEqual(autoScan.scanned, 1);
-  assert.strictEqual(autoScan.queued, 0, 'folder scan never creates ingest tasks');
-  assert.strictEqual(autoScan.scrapeQueued, 0, 'folder scan never creates scrape tasks');
+  const candidates = adultLibraryService.listIngestCandidates();
+  assert.strictEqual(candidates.length, 1, 'candidate discovery is inventory only and does not create tasks');
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  assert.strictEqual(ingestTasks.json().tasks.length, 0, 'candidate discovery never creates ingest tasks');
+  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'candidate discovery never creates scrape tasks');
 
   const manualScan = await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
   assert.strictEqual(manualScan.statusCode, 410);
-  assert.strictEqual(manualScan.json().error.code, 'ADULT_FOLDER_SCAN_REMOVED');
+  assert.strictEqual(manualScan.json().error.code, 'SUBLIBRARY_SCAN_REMOVED');
   await app.close();
 });
 
-test('adult folder scan does not avalanche item or task creation', async () => {
+test('adult directory discovery does not avalanche item or task creation', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
@@ -1163,6 +1162,7 @@ test('adult folder scan does not avalanche item or task creation', async () => {
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
     ingestConcurrency: 1,
     scrapeConcurrency: 1,
+    adultLibrary: { settleSeconds: 0 },
     taskAdmission: {
       defaultCooldownHours: 48,
       cooldownHoursByAction: { ingest: 6, scrape: 6 },
@@ -1190,18 +1190,16 @@ test('adult folder scan does not avalanche item or task creation', async () => {
   }
 
   const adultLibraryService = require('../src/adultLibraryService');
-  const scan = await adultLibraryService.scanSubLibrary(subLib);
-  assert.strictEqual(scan.scanned, 12);
-  assert.strictEqual(scan.queued, 0);
-  assert.strictEqual(scan.scrapeQueued, 0);
+  const candidates = adultLibraryService.listIngestCandidates();
+  assert.strictEqual(candidates.length, 12);
 
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
-  assert.strictEqual(lib.json().total, 0, 'folder scan should not write library items directly');
+  assert.strictEqual(lib.json().total, 0, 'candidate discovery should not write library items directly');
 
   const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
-  assert.strictEqual(ingestTasks.json().tasks.length, 0, 'folder scan should not create ingest tasks');
+  assert.strictEqual(ingestTasks.json().tasks.length, 0, 'candidate discovery should not create ingest tasks');
   const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
-  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'folder scan should not create scrape tasks');
+  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'candidate discovery should not create scrape tasks');
   await app.close();
 });
 
@@ -1907,9 +1905,8 @@ test('successful JAV scrape creates one movie folder and keeps original naming c
   assert.strictEqual(afterItem.adultMetadata.posterPath, path.join(finalDir, 'poster.jpg'));
   assert.strictEqual(afterItem.adultMetadata.organized, true);
   assert.strictEqual(afterItem.adultMetadata.scrapeVerification.ok, true);
-  const scanAfterOrganize = await adultLibraryService.scanSubLibrary(sl);
-  assert.strictEqual(scanAfterOrganize.scanned, 0, 'default scan should ignore the consolidated scraped folder');
-  assert.strictEqual(scanAfterOrganize.queued, 0);
+  const candidatesAfterOrganize = adultLibraryService.listIngestCandidates();
+  assert.strictEqual(candidatesAfterOrganize.length, 0, 'candidate discovery should ignore the consolidated scraped folder');
 
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const reportBeforeDelete = await app.inject({ method: 'GET', url: `/v1/tasks/${task.id}/report` });
@@ -2432,7 +2429,7 @@ test('manual scrape of low-confidence (unknown prefix) item enters queue and att
   assert.strictEqual(
     tasks.json().tasks.some((t) => t.itemId === item.itemId),
     false,
-    'plain adult item upsert should not autoscrape',
+    'plain adult item upsert should not create a follow-up scrape task',
   );
 
   const manualScrape = await app.inject({

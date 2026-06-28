@@ -292,7 +292,7 @@ test('mediaLibraryService reuses library cache until file changes', async () => 
   }
 });
 
-test('adultLibraryService reads library through the shared media cache', async () => {
+test('adultLibraryService ingest discovery reads through the shared media cache', async () => {
   const app = await buildEmptyApp();
   const mediaLibraryService = require('../src/mediaLibraryService');
   const adultLibraryService = require('../src/adultLibraryService');
@@ -320,19 +320,20 @@ test('adultLibraryService reads library through the shared media cache', async (
       if (String(file).endsWith('library.json')) throw new Error('adult library should use shared media cache');
       return originalReadFileSync.call(this, file, ...args);
     };
-    const result = await adultLibraryService.scanSubLibrary({
-      uuid: 'adult-cache',
-      name: 'Adult Cache',
-      enabled: true,
-      source: 'folder',
-      mediaType: 'adult',
-      adultRegion: 'western_adult',
-      watchRoot,
+    const candidates = adultLibraryService.listIngestCandidates({
+      subLibraries: [{
+        uuid: 'adult-cache',
+        name: 'Adult Cache',
+        enabled: true,
+        source: 'folder',
+        mediaType: 'adult',
+        adultRegion: 'western_adult',
+        watchRoot,
+      }],
+      adultLibrary: { settleSeconds: 0 },
+      smartTaskEnabledActions: ['ingest'],
     });
-    assert.strictEqual(result.scanned, 1);
-    assert.strictEqual(result.upserted, 1);
-    assert.strictEqual(result.queued, 0);
-    assert.strictEqual(result.scrapeQueued, 0);
+    assert.strictEqual(candidates.length, 0, 'already cached adult items are not rediscovered as ingest candidates');
   } finally {
     fs.readFileSync = originalReadFileSync;
     await app.close();
