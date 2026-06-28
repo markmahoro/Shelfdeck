@@ -1,0 +1,14 @@
+.git
+.tmp
+dist-image
+dist-release
+**/node_modules
+**/dist-pkg
+media-service/data
+media-service/dist
+media-service/web/dist
+media-worker/data
+media-worker/config.json
+media-worker/face-service/__pycache__
+tests/TEST_ENV_CHECKLIST.md
+*.log

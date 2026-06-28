@@ -15,12 +15,13 @@ cd media-desktop && npm install
 cd media-desktop && npm test
 cd media-desktop && npm run dist:win
 
-# transcode node
+# worker node（转码补充节点；欧美成人 AI 默认不依赖 worker）
 cd media-worker && npm install
 cd media-worker && npm start
+docker compose -f media-worker/docker-compose.example.yml up --build
 
 # Docker service
-docker build -t shelfdeck media-service/
+docker build -f media-service/Dockerfile -t shelfdeck .
 docker compose -f media-service/docker-compose.example.yml up -d
 ```
 
@@ -39,8 +40,16 @@ docker compose -f media-service/docker-compose.example.yml up -d
 | `source=folder` | 直接监听本地文件夹，不走 Emby 刷新 |
 | `mediaType=adult` | 成人库大类 |
 | `adultRegion=japanese_jav` | 日本 JAV，使用 ShelfDeck 内置 scraper |
-| `adultRegion=western_adult` | 欧美成人库，预留自研 scraper adapter |
+| `adultRegion=western_adult` | 欧美成人库，默认由 service-local 做抽帧、人脸匹配和封面生成 |
 | `actionType=scrape` | 刮削任务，完成后只更新 metadata 和 `scraped=true`；是否转码由策略和 `SmartTaskEngine` 决定 |
+
+欧美成人库约定：
+
+- People 人物库归 service 持久化，用户通过搜索/上传高清正脸图建立 reference face。
+- service 默认使用自身 FFmpeg 抽帧，并调用 service Docker 内部 InsightFace face-service 做 embedding；face-service 不作为用户配置项暴露。
+- Docker service 是 all-in-one 容器，内部启动 Node service 和 face-service；容器外只暴露 `18080`。
+- 人脸模型目录默认是 `/app/data/face-models`，挂载数据卷后容器重启不会重新下载模型。
+- 匹配不到 protagonist 时等同于 JAV 识别不到番号：任务失败，item 保持 `scraped=false`，不会自动进入转码策略。
 
 ## 平台规则
 

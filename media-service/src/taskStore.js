@@ -73,6 +73,9 @@ function createTask(taskData) {
     progress: 0,
     phase: null,
     resumePoint: null,
+    // Queue priority (lower = runs first within its actionType). Computed by
+    // PriorityEngine at enqueue time; absent on legacy tasks (treated as 100).
+    priority: typeof taskData.priority === 'number' ? taskData.priority : 100,
     createdAt: now,
     updatedAt: now,
     logs: Array.isArray(taskData.logs) ? taskData.logs : [],

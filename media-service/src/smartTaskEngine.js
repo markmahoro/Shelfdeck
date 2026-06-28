@@ -12,6 +12,7 @@
 const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
 const assetIdentity = require('./assetIdentity');
+const priorityEngine = require('./priorityEngine');
 
 let timer = null;
 let lastRunAt = null;
@@ -53,11 +54,16 @@ function start(configStore, mediaLibraryService, taskStore) {
         activeItemIds.add(t.itemId);
       }
 
-      // Per-type limit = concurrency slots × 5
-      const limits = {
-        delete: (cfg2.deleteConcurrency || 3) * 5,
-        transcode: (cfg2.transcodeConcurrency || 2) * 5,
-        upgrade: (cfg2.upgradeConcurrency || 1) * 5,
+      // Per-type queue cap: how many non-terminal tasks of a given type may be
+      // in the queue at once. This decouples queue depth from concurrency slots
+      // (previously concurrency×5, which kept the queue nearly empty) so a real
+      // backlog forms and PriorityEngine ordering becomes meaningful.
+      const maxQueueSize = Number(cfg2.smartTaskMaxQueueSize) > 0 ? Number(cfg2.smartTaskMaxQueueSize) : 50;
+      const queueCap = {
+        delete: maxQueueSize,
+        transcode: maxQueueSize,
+        upgrade: maxQueueSize,
+        scrape: maxQueueSize,
       };
 
       const now = Date.now();
@@ -109,47 +115,60 @@ function start(configStore, mediaLibraryService, taskStore) {
       for (const item of candidates) {
         if (toEnqueue.length >= maxPerRun) break;
 
-        // Check per-action-type queue limit
+        // Per-action-type queue depth cap. Skip this type once the backlog is
+        // full so one action doesn't starve others.
         const cur = activeByType[item.action] || 0;
-        const lim = limits[item.action] || 50;
-        if (cur >= lim) continue;
+        const cap = queueCap[item.action] || maxQueueSize;
+        if (cur >= cap) continue;
+        activeByType[item.action] = cur + 1;
 
         const subLibSchedule2 = configStore.resolveSubLibSchedule(item, cfg2);
         const status = subLibSchedule2.autoExecute ? 'queued' : 'pending_manual';
+
+        // Compute initial priority via PriorityEngine (manual base for the
+        // manual trigger path; auto base + library weight + rules here).
+        const itemInfo = {
+          name: item.name,
+          itemId: item.itemId,
+          embyItemId: assetIdentity.getEmbyItemId(item),
+          path: item.path,
+          subLibraryId: item.subLibraryId,
+          assetKey: item.assetKey,
+          assetRootPath: item.assetRootPath,
+          externalRefs: item.externalRefs,
+          resolution: item.resolution,
+          bitrate: item.bitrate,
+          size: item.size,
+          duration: item.duration,
+          type: item.type,
+          isDiscLike: !!item.isDiscLike,
+          doubanRating: item.doubanRating,
+          userRating: item.userRating,
+          tmdbId: item.tmdbId,
+          seriesName: item.seriesName,
+          seasonNumber: item.seasonNumber,
+          targetBitrate: item.targetBitrate,
+          targetCodec: item.targetCodec,
+          seedPreferences: item.seedPreferences,
+          maxSizeGB: item.maxSizeGB,
+          equivalentBitrate: item.equivalentBitrate,
+          scraped: !!item.scraped,
+          adultMetadata: item.adultMetadata,
+        };
+        const priority = priorityEngine.computePriority({
+          source: 'auto',
+          actionType: item.action,
+          itemInfo,
+          config: cfg2,
+        });
+
         taskStore.createTask({
           itemId: item.itemId,
           itemName: item.name,
           actionType: item.action,
-
           status,
-          itemInfo: {
-            name: item.name,
-            itemId: item.itemId,
-            embyItemId: assetIdentity.getEmbyItemId(item),
-            path: item.path,
-            subLibraryId: item.subLibraryId,
-            assetKey: item.assetKey,
-            assetRootPath: item.assetRootPath,
-            externalRefs: item.externalRefs,
-            resolution: item.resolution,
-            bitrate: item.bitrate,
-            size: item.size,
-            duration: item.duration,
-            type: item.type,
-            isDiscLike: !!item.isDiscLike,
-            doubanRating: item.doubanRating,
-            userRating: item.userRating,
-            tmdbId: item.tmdbId,
-            seriesName: item.seriesName,
-            seasonNumber: item.seasonNumber,
-            targetBitrate: item.targetBitrate,
-            targetCodec: item.targetCodec,
-            seedPreferences: item.seedPreferences,
-            maxSizeGB: item.maxSizeGB,
-            equivalentBitrate: item.equivalentBitrate,
-            scraped: !!item.scraped,
-            adultMetadata: item.adultMetadata,
-          },
+          priority,
+          itemInfo,
           logs: [{
             ts: new Date().toISOString(),
             source: 'smart_task_engine',
@@ -158,7 +177,6 @@ function start(configStore, mediaLibraryService, taskStore) {
         });
         console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${item.action} "${item.name}"`);
         toEnqueue.push(item);
-        activeByType[item.action] = (activeByType[item.action] || 0) + 1;
       }
 
       if (toEnqueue.length > 0) {

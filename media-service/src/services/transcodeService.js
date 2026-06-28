@@ -61,11 +61,13 @@ function releaseEncodeDeviceSlot(deviceId) {
   else notifyGlobalDeviceWaiters();
 }
 
-async function acquireFirstAvailableAmong(orderedDeviceSlots, { needsCpu } = {}) {
+async function acquireFirstAvailableAmong(orderedDeviceSlots, { needsCpu, allowCpuBackup } = {}) {
   const list = Array.isArray(orderedDeviceSlots) ? orderedDeviceSlots : [];
   for (;;) {
     for (const row of list) {
-      if (!needsCpu && row.cpuBackupOnly) continue;
+      // CPU backup_only devices are skipped during normal selection so GPU is
+      // preferred. allowCpuBackup lets the GPU→CPU fallback path take one.
+      if (!needsCpu && !allowCpuBackup && row.cpuBackupOnly) continue;
       const id = String(row.deviceId || '').trim();
       if (!id) continue;
       const maxSlots = Math.max(1, Number(row.maxSlots) || 1);
@@ -1593,8 +1595,137 @@ async function startRemoteEncode(onProgress, params) {
   }
 }
 
+// Tail stderr buffer (last ~4KB) so failed encodes carry a diagnostic tail
+// instead of just "ffmpeg exit code N". Used by fallback logging.
+const STDERR_TAIL_BYTES = 4096;
+
+/**
+ * Spawn ffmpeg locally and resolve on exit.
+ *
+ * Reused by startEncode for both the first (GPU) attempt and the CPU
+ * fallback. Distinguishes itself from the old inline spawn by:
+ *   - accumulating the last ~4KB of stderr for diagnostics on failure
+ *   - returning { code, stderrTail } instead of rejecting with a bare message
+ *
+ * encodeJobs Map semantics (for abortTask) are preserved: the child is
+ * registered under tid for the duration of the encode.
+ */
+// Indirection so tests can substitute the spawn implementation without patching
+// child_process. Production code uses the real spawn captured at module load.
+let _spawn = spawn;
+
+function runLocalEncode({ ffmpegBin, args, spawnEnv, tid, durationSec, onProgress }) {
+  const child = _spawn(ffmpegBin, args, { windowsHide: true, env: spawnEnv });
+  encodeJobs.set(tid, child);
+
+  const totalMs = typeof durationSec === 'number' && durationSec > 0
+    ? Math.max(1000, durationSec * 1000)
+    : 3600 * 1000 * 2;
+  let lastPct = 0;
+
+  // Ring-ish accumulation: keep the last STDERR_TAIL_BYTES of stderr.
+  let stderrBuf = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk) => {
+    stderrBuf = (stderrBuf + chunk).slice(-STDERR_TAIL_BYTES);
+    for (const line of String(chunk).split(/\r?\n/)) {
+      const tms = parseFfmpegTimeMs(line);
+      if (tms != null) {
+        const pct = Math.min(99, Math.floor((tms / totalMs) * 100));
+        if (pct > lastPct) {
+          lastPct = pct;
+          try { onProgress(pct); } catch (_) {}
+        }
+      }
+    }
+  });
+
+  return new Promise((resolve, reject) => {
+    child.on('error', (e) => {
+      encodeJobs.delete(tid);
+      reject({ code: null, message: e.message, stderrTail: stderrBuf });
+    });
+    child.on('close', (code) => {
+      encodeJobs.delete(tid);
+      resolve({ code: code ?? 0, stderrTail: stderrBuf });
+    });
+  });
+}
+
+/**
+ * One local encode attempt on a given device. Resolves { ok, encoderUsed,
+ * resolvedDeviceId } on success; rejects { code, message, stderrTail } on
+ * non-zero exit (carrying stderr tail for diagnostics).
+ *
+ * Does NOT touch the device pool — slot acquire/release is startEncode's job.
+ */
+async function attemptLocalEncode({
+  config, taskId, sourcePath, partialPath, deviceId, encoderMode,
+  isDolbyVision, dvAcknowledged, durationSec, targetBitrate, onProgress,
+}) {
+  const tid = String(taskId || '');
+
+  // FFmpeg cannot resume a partial; ensure a clean output target.
+  try { if (fs.existsSync(partialPath)) fs.unlinkSync(partialPath); } catch (_) {}
+
+  const { ffmpegBin, args } = buildEncodeArgs({
+    config, sourcePath, partialPath, encoderMode,
+    isDolbyVision: !!isDolbyVision, dvAcknowledged: !!dvAcknowledged, targetBitrate,
+  });
+
+  const { backend: devBack, gpuIndex: devGpu } = parseStableKey(deviceId);
+  log('attemptLocalEncode', tid, deviceId, devBack);
+
+  const spawnEnv = { ...process.env };
+  if (devBack === 'nvenc' && devGpu >= 0) spawnEnv.CUDA_VISIBLE_DEVICES = String(devGpu);
+
+  const result = await runLocalEncode({ ffmpegBin, args, spawnEnv, tid, durationSec, onProgress });
+
+  if (result.code === 0) {
+    return { ok: true, encoderUsed: devBack, resolvedDeviceId: deviceId };
+  }
+  throw {
+    code: result.code,
+    message: `ffmpeg exit code ${result.code}`,
+    stderrTail: result.stderrTail,
+    encoder: devBack,
+  };
+}
+
+/**
+ * Find the CPU device slot from the ordered pool, if any.
+ * Used to pick a fallback target when a GPU encode fails.
+ * Returns a slot object (single-element consumer) or null.
+ */
+function findCpuSlot(orderedDeviceSlots) {
+  const list = Array.isArray(orderedDeviceSlots) ? orderedDeviceSlots : [];
+  for (const row of list) {
+    const sk = parseStableKey(row.deviceId);
+    if (sk && sk.backend === 'cpu') return row;
+  }
+  return null;
+}
+
+/**
+ * Normalize a runLocalEncode/attemptLocalEncode rejection into a proper
+ * Error whose message carries the exit code + stderr tail, so flow
+ * executors log something meaningful instead of [object Object].
+ * Pass-through if already an Error (e.g. spawn ENOENT wrapped elsewhere).
+ */
+function normalizeEncodeError(err) {
+  if (err instanceof Error) return err;
+  const code = err && err.code;
+  const tail = String((err && err.stderrTail) || '').trim();
+  const tailSnippet = tail ? `: ${tail.slice(-512)}` : '';
+  const e = new Error(`ffmpeg exit code ${code}${tailSnippet}`);
+  e.code = code;
+  e.stderrTail = tail;
+  return e;
+}
+
 async function startEncode(onProgress, params) {
   const { config, taskId, sourcePath, partialPath, orderedDeviceSlots, isDolbyVision, dvAcknowledged, durationSec, targetBitrate } = params;
+  const onLog = typeof params.onLog === 'function' ? params.onLog : null;
   const tid = String(taskId || '');
   if (encodeJobs.has(tid)) throw new Error('Task already has an active encode process');
 
@@ -1604,7 +1735,7 @@ async function startEncode(onProgress, params) {
   const needsCpu = !!(isDolbyVision && dvAcknowledged);
   const deviceId = await acquireFirstAvailableAmong(slots, { needsCpu });
 
-  // Remote encode path
+  // Remote encode path — not subject to local GPU→CPU fallback.
   if (deviceId.startsWith('node:')) {
     try {
       return await startRemoteEncode(onProgress, { ...params, deviceId });
@@ -1613,48 +1744,46 @@ async function startEncode(onProgress, params) {
     }
   }
 
-  // Local encode path
+  const chosen = parseStableKey(deviceId);
+  const firstBackend = chosen ? chosen.backend : 'cpu';
+
+  // First attempt on the acquired device.
   try {
-    try { if (fs.existsSync(partialPath)) fs.unlinkSync(partialPath); } catch (_) {}
-
-    const { backend: devBack, gpuIndex: devGpu } = parseStableKey(deviceId);
-
-    const { ffmpegBin, args } = buildEncodeArgs({ config, sourcePath, partialPath, encoderMode: devBack, isDolbyVision: !!isDolbyVision, dvAcknowledged: !!dvAcknowledged, targetBitrate });
-    log('startEncode', tid, deviceId, devBack);
-
-    const spawnEnv = { ...process.env };
-    if (devBack === 'nvenc' && devGpu >= 0) spawnEnv.CUDA_VISIBLE_DEVICES = String(devGpu);
-
-    const child = spawn(ffmpegBin, args, { windowsHide: true, env: spawnEnv });
-    encodeJobs.set(tid, child);
-
-    const totalMs = typeof durationSec === 'number' && durationSec > 0 ? Math.max(1000, durationSec * 1000) : 3600 * 1000 * 2;
-    let lastPct = 0;
-
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk) => {
-      for (const line of String(chunk).split(/\r?\n/)) {
-        const tms = parseFfmpegTimeMs(line);
-        if (tms != null) {
-          const pct = Math.min(99, Math.floor((tms / totalMs) * 100));
-          if (pct > lastPct) {
-            lastPct = pct;
-            try { onProgress(pct); } catch (_) {}
-          }
-        }
-      }
-    });
-
-    return await new Promise((resolve, reject) => {
-      child.on('error', (e) => { encodeJobs.delete(tid); reject(e); });
-      child.on('close', (code) => {
-        encodeJobs.delete(tid);
-        if (code === 0) resolve({ ok: true, encoderUsed: devBack, resolvedDeviceId: deviceId });
-        else reject(new Error(`ffmpeg exit code ${code}`));
+    try {
+      return await attemptLocalEncode({
+        config, taskId, sourcePath, partialPath, deviceId, encoderMode: firstBackend,
+        isDolbyVision, dvAcknowledged, durationSec, targetBitrate, onProgress,
       });
-    });
-  } finally {
-    releaseEncodeDeviceSlot(deviceId);
+    } finally {
+      releaseEncodeDeviceSlot(deviceId);
+    }
+  } catch (firstErr) {
+    // Decide whether a GPU→CPU fallback applies:
+    //  - only if the first attempt was a GPU backend
+    //  - DV tasks already run on CPU (needsCpu), so no second fallback
+    //  - a CPU device in the pool already (e.g. cpuStrategy 'normal') => nothing to fall back to
+    const isGpuFirst = firstBackend !== 'cpu';
+    const cpuSlot = isGpuFirst && !needsCpu ? findCpuSlot(slots) : null;
+    if (!cpuSlot) throw normalizeEncodeError(firstErr);
+
+    const stderrTail = String(firstErr && firstErr.stderrTail || '').trim();
+    const tailSnippet = stderrTail ? `: ${stderrTail.slice(-512)}` : '';
+    onLog && onLog('warn', `GPU ${deviceId} 编码失败 (exit ${firstErr && firstErr.code}${tailSnippet})，降级到 CPU 重试`);
+
+    const cpuId = await acquireFirstAvailableAmong([cpuSlot], { needsCpu: false, allowCpuBackup: true });
+    try {
+      return await attemptLocalEncode({
+        config, taskId, sourcePath, partialPath, deviceId: cpuId, encoderMode: 'cpu',
+        isDolbyVision, dvAcknowledged, durationSec, targetBitrate, onProgress,
+      });
+    } catch (secondErr) {
+      const tail2 = String(secondErr && secondErr.stderrTail || '').trim();
+      const tail2Snippet = tail2 ? `: ${tail2.slice(-512)}` : '';
+      onLog && onLog('error', `CPU 降级重试也失败 (exit ${secondErr && secondErr.code}${tail2Snippet})`);
+      throw normalizeEncodeError(secondErr);
+    } finally {
+      releaseEncodeDeviceSlot(cpuId);
+    }
   }
 }
 
@@ -1964,6 +2093,10 @@ module.exports = {
   getDeviceSlotUsage,
   getHealth,
   cleanupOrphans,
+  // Test surface for the GPU→CPU fallback path (TRANSCODE_FALLBACK).
+  findCpuSlot,
+  normalizeEncodeError,
+  _setSpawnForTest(fn) { _spawn = fn || spawn; },
 };
 
 const { execFileSync } = require('child_process');

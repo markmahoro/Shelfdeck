@@ -157,6 +157,115 @@ async function uploadSource(node, jobId, sourcePath, onProgress) {
   });
 }
 
+async function createAsset(node, params) {
+  const url = nodeUrl(node, '/api/v1/assets');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { ...authHeaders(node), 'Content-Type': 'application/json' },
+    body: JSON.stringify(params || {}),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(`Worker createAsset failed (${res.status}): ${body.error?.message || 'unknown'}`);
+  return body;
+}
+
+async function uploadAssetSource(node, assetId, sourcePath, onProgress) {
+  const fullUrl = nodeUrl(node, `/api/v1/assets/${encodeURIComponent(assetId)}/source`);
+  const parsed = new URL(fullUrl);
+  const stat = fs.statSync(sourcePath);
+  let bytesSent = 0;
+  const mod = parsed.protocol === 'https:' ? https : http;
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (err, result) => {
+      if (settled) return;
+      settled = true;
+      if (err) reject(err); else resolve(result);
+    };
+    const req = mod.request({
+      method: 'PUT',
+      hostname: parsed.hostname,
+      port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+      path: parsed.pathname,
+      headers: {
+        ...authHeaders(node),
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': String(stat.size),
+      },
+      timeout: 30 * 60 * 1000,
+    }, (res) => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (d) => { body += String(d); });
+      res.on('end', () => {
+        if (res.statusCode && res.statusCode >= 400) {
+          let msg = `HTTP ${res.statusCode}`;
+          try { msg = JSON.parse(body).error?.message || msg; } catch (_) {}
+          done(new Error(`Worker uploadAssetSource failed (${res.statusCode}): ${msg}`));
+        } else {
+          try { done(null, JSON.parse(body)); } catch (_) { done(null, { ok: true }); }
+        }
+      });
+      res.on('error', (e) => done(e));
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      done(new Error('Asset upload timed out after 30 minutes'));
+    });
+    const readStream = fs.createReadStream(sourcePath, { highWaterMark: 1024 * 1024 });
+    const progressStream = new Transform({
+      transform(chunk, _encoding, callback) {
+        bytesSent += chunk.length;
+        if (typeof onProgress === 'function') {
+          try { onProgress(bytesSent, stat.size); } catch (_) {}
+        }
+        callback(null, chunk);
+      },
+    });
+    pipeline(readStream, progressStream, req).then(
+      () => {},
+      (err) => {
+        readStream.destroy();
+        progressStream.destroy();
+        done(err);
+      },
+    );
+  });
+}
+
+async function createAiJob(node, params) {
+  const url = nodeUrl(node, '/api/v1/ai/jobs');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { ...authHeaders(node), 'Content-Type': 'application/json' },
+    body: JSON.stringify(params || {}),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(`Worker createAiJob failed (${res.status}): ${body.error?.message || 'unknown'}`);
+  return body;
+}
+
+async function getAiJobStatus(node, jobId) {
+  const url = nodeUrl(node, `/api/v1/ai/jobs/${encodeURIComponent(jobId)}`);
+  const res = await fetch(url, { method: 'GET', headers: authHeaders(node) });
+  const body = await res.json();
+  if (!res.ok) throw new Error(`Worker getAiJobStatus failed (${res.status}): ${body.error?.message || 'unknown'}`);
+  return body;
+}
+
+async function createReferenceFace(node, params) {
+  const url = nodeUrl(node, '/api/v1/ai/reference-face');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { ...authHeaders(node), 'Content-Type': 'application/json' },
+    body: JSON.stringify(params || {}),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Worker createReferenceFace failed (${res.status}): ${body.error?.message || 'unknown'}`);
+  return body;
+}
+
 /**
  * GET /api/v1/jobs/:id — get job status and progress.
  */
@@ -287,5 +396,6 @@ async function checkHealth(node) {
 
 module.exports = {
   createJob, uploadSource, getJobStatus, downloadOutput, deleteJob,
+  createAsset, uploadAssetSource, createAiJob, getAiJobStatus, createReferenceFace,
   getCapabilities, checkHealth,
 };

@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build Docker image
-        run: docker build -t shelfdeck:ci media-service/
+        run: docker build -f media-service/Dockerfile -t shelfdeck:ci .
       - name: Smoke test — health check
         run: |
           docker run -d --name shelfdeck-ci -p 18080:18080 shelfdeck:ci
@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build and start service
         run: |
-          docker build -t shelfdeck:ci media-service/
+          docker build -f media-service/Dockerfile -t shelfdeck:ci .
           docker run -d --name shelfdeck-e2e -p 18080:18080 shelfdeck:ci
           sleep 8
       - name: Run CI-safe flow tests

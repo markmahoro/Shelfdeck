@@ -1,0 +1,37 @@
+services:
+  shelfdeck-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.all-in-one
+    image: shelfdeck-media-worker-all-in-one:latest
+    container_name: shelfdeck-media-worker
+    ports:
+      - "19000:19000"
+    gpus: all
+    volumes:
+      - "./data/all-in-one:/data"
+    environment:
+      - WORKER_PORT=19000
+      - WORKER_TEMP_ROOT=/tmp/shelfdeck-worker
+      - WORKER_AI_DATA_ROOT=/data/ai
+      - OLLAMA_MODELS=/data/ollama
+      - OLLAMA_MODEL=llava:7b
+      - OLLAMA_AUTO_PULL=true
+      - OLLAMA_KEEP_ALIVE=30m
+      - VISION_BASE_URL=http://127.0.0.1:11434/v1
+      - VISION_MODEL=llava:7b
+      - FACE_EMBEDDINGS_URL=http://127.0.0.1:19110/v1/face/embeddings
+      - FACE_MODEL_NAME=buffalo_l
+      - FACE_ONNX_PROVIDER=CUDAExecutionProvider
+      - FACE_REQUIRE_GPU=true
+      - FACE_SIMILARITY_THRESHOLD=0.25
+    # Docker Desktop / NVIDIA Container Toolkit exposes the GPU to the single
+    # all-in-one compute node. Ollama uses it automatically when available.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped

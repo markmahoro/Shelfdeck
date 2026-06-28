@@ -20,12 +20,16 @@ const transcodeService = require('./services/transcodeService');
 const moviepilotService = require('./services/moviepilotService');
 const strategyEngine = require('./strategyEngine');
 const smartTaskEngine = require('./smartTaskEngine');
+const priorityEngine = require('./priorityEngine');
 const activityLog = require('./activityLog');
 const spaceStats = require('./spaceStats');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
 const assetIdentity = require('./assetIdentity');
 const adultLibraryService = require('./adultLibraryService');
+const peopleStore = require('./peopleStore');
+const adultActorImageSearchService = require('./services/adultActorImageSearchService');
+const westernAdultLocalAiService = require('./services/westernAdultLocalAiService');
 
 let serverReady = false;
 
@@ -98,6 +102,25 @@ function maskSensitive(config) {
     masked.embyServers = servers;
   }
   return masked;
+}
+
+async function fetchImageAsBase64(url) {
+  const u = String(url || '').trim();
+  if (!/^https?:\/\//i.test(u)) throw new Error('imageUrl must be http(s)');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(u, { signal: controller.signal });
+    if (!res.ok) throw new Error(`Image download failed: HTTP ${res.status}`);
+    const ct = String(res.headers.get('content-type') || '').toLowerCase();
+    if (ct && !ct.startsWith('image/')) throw new Error(`URL did not return an image (${ct})`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (!buf.length) throw new Error('Image download returned empty body');
+    if (buf.length > 8 * 1024 * 1024) throw new Error('Image is too large');
+    return { base64: buf.toString('base64'), contentType: ct || 'image/jpeg' };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function getEmbyServerConfig(embyServerId) {
@@ -207,6 +230,12 @@ function registerRoutes(app) {
       itemName: libItem ? libItem.name : undefined,
       actionType,
       status,
+      priority: priorityEngine.computePriority({
+        source: 'manual',
+        actionType,
+        itemInfo,
+        config: cfg,
+      }),
       itemInfo,
       logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created' }],
     });
@@ -231,7 +260,9 @@ function registerRoutes(app) {
   app.get('/v1/tasks/:id/report', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    if (task.status !== 'done') return apiError(reply, 400, 'BAD_REQUEST', 'Task not completed yet');
+    if (task.status !== 'done' && !(task.status === 'failed_hard' && task.actionType === 'scrape')) {
+      return apiError(reply, 400, 'BAD_REQUEST', 'Task not completed yet');
+    }
 
     const info = task.itemInfo || {};
     const vr = task.verifyResult || {};
@@ -246,6 +277,7 @@ function registerRoutes(app) {
 
     const report = {
       taskId: task.id,
+      itemId: task.itemId,
       itemName: (info.type === 'season' && info.seriesName && info.seasonNumber != null
         ? `${info.seriesName} 第${info.seasonNumber}季`
         : (task.itemName || task.itemId)),
@@ -311,6 +343,11 @@ function registerRoutes(app) {
         organized: !!meta.organized,
         originalFolder: meta.originalFolder || '',
         mediaPath: info.path || '',
+        actors: meta.actors || [],
+        protagonist: meta.protagonist || null,
+        faceClusters: meta.faceClusters || [],
+        unknownFaces: meta.unknownFaces || [],
+        actorConfidence: meta.actorConfidence || {},
       };
       report.assets = {
         poster: !!meta.posterPath,
@@ -380,7 +417,7 @@ function registerRoutes(app) {
 
     // Re-queue for scheduler, mark as just-confirmed to bypass awaiting guard
     taskScheduler.markConfirmed(task.id);
-    const updated = taskStore.updateTask(task.id, { status: 'queued' });
+    const updated = taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
     return { id: updated.id, status: updated.status, updatedAt: updated.updatedAt };
   });
 
@@ -389,11 +426,11 @@ function registerRoutes(app) {
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
     if (task.status === 'pending_manual' || task.status === 'interrupted' || task.status === 'created') {
-      taskStore.updateTask(task.id, { status: 'queued' });
+      taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
       return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
     }
     if (task.status === 'paused') {
-      taskStore.updateTask(task.id, { status: 'queued' });
+      taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
       return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
     }
     if (task.status === 'pausing') {
@@ -786,7 +823,7 @@ function registerRoutes(app) {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, scrapeEnabled,
-      scanIntervalMinutes, japaneseJav,
+      scanIntervalMinutes, japaneseJav, western,
     } = req.body || {};
     if (!name) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name is required');
@@ -806,7 +843,7 @@ function registerRoutes(app) {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, scrapeEnabled,
-      scanIntervalMinutes, japaneseJav,
+      scanIntervalMinutes, japaneseJav, western,
     });
     if (isFolderAdult) {
       adultLibraryService.startSubLibraryWatcher(subLib);
@@ -863,6 +900,181 @@ function registerRoutes(app) {
       const status = code === 'NOT_FOUND' ? 404 : 500;
       return apiError(reply, status, code, e.message);
     }
+  });
+
+  app.get('/v1/admin/adult/people', async (req) => {
+    return peopleStore.listPeople({ adultRegion: req.query.adultRegion || 'western_adult' });
+  });
+
+  app.get('/v1/admin/adult/people/search-images', async (req, reply) => {
+    try {
+      const config = configStore.loadConfig();
+      const result = await adultActorImageSearchService.searchActorImages({
+        name: req.query.name,
+        config,
+        limit: req.query.limit,
+      });
+      return result;
+    } catch (e) {
+      return apiError(reply, 400, 'ACTOR_IMAGE_SEARCH_FAILED', e.message);
+    }
+  });
+
+  app.post('/v1/admin/adult/people', async (req, reply) => {
+    try {
+      const person = peopleStore.createPerson(req.body || {});
+      return reply.code(201).send(person);
+    } catch (e) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', e.message);
+    }
+  });
+
+  app.post('/v1/admin/adult/people/from-image', async (req, reply) => {
+    try {
+      const body = req.body || {};
+      const name = String(body.name || '').trim();
+      if (!name) return apiError(reply, 400, 'VALIDATION_ERROR', 'name is required');
+
+      let imageBase64 = String(body.imageBase64 || '').trim();
+      let contentType = 'image/jpeg';
+      if (!imageBase64 && body.imageUrl) {
+        const downloaded = await fetchImageAsBase64(body.imageUrl);
+        imageBase64 = downloaded.base64;
+        contentType = downloaded.contentType;
+      }
+      if (!imageBase64) return apiError(reply, 400, 'VALIDATION_ERROR', 'imageUrl or imageBase64 is required');
+
+      const config = configStore.loadConfig();
+      const western = ((config.adultLibrary || {}).western) || {};
+      const face = await westernAdultLocalAiService.createReferenceFace({
+        western,
+        imageBase64,
+        referenceId: body.referenceId || crypto.randomUUID(),
+      });
+      const referenceFace = peopleStore.normalizeReferenceFace({
+        faceId: face.faceId || body.referenceId || crypto.randomUUID(),
+        embedding: face.embedding || [],
+        sampleImageBase64: imageBase64,
+        confidence: face.detectionScore || 0,
+        sourceItemId: 'actor_reference_image',
+        sourceAssetId: body.imageUrl || body.source || '',
+      });
+
+      let person;
+      if (body.personId) {
+        const current = peopleStore.loadPeople().people.find((p) => p.personId === body.personId);
+        if (!current) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
+        person = peopleStore.updatePerson(body.personId, {
+          name,
+          aliases: body.aliases !== undefined ? body.aliases : current.aliases,
+          referenceAssetIds: body.imageUrl ? [String(body.imageUrl)] : current.referenceAssetIds,
+          referenceFaces: body.replaceReference === false
+            ? [...(current.referenceFaces || []), referenceFace]
+            : [referenceFace],
+        });
+      } else {
+        person = peopleStore.createPerson({
+          name,
+          aliases: body.aliases,
+          adultRegion: body.adultRegion || 'western_adult',
+          referenceAssetIds: body.imageUrl ? [String(body.imageUrl)] : [],
+          referenceFaces: [referenceFace],
+        });
+      }
+      return reply.code(body.personId ? 200 : 201).send({
+        ...person,
+        referenceFaceQuality: {
+          faceCount: face.faceCount || 0,
+          detectionScore: face.detectionScore || 0,
+          bbox: face.bbox || null,
+        },
+      });
+    } catch (e) {
+      const status = /No face detected/i.test(e.message) ? 422 : 400;
+      return apiError(reply, status, 'REFERENCE_FACE_FAILED', e.message);
+    }
+  });
+
+  app.post('/v1/admin/adult/people/from-face', async (req, reply) => {
+    try {
+      const body = req.body || {};
+      if (!body.itemId) return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
+      const item = mediaLibraryService.getLibraryItem(String(body.itemId));
+      if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
+      // Face clusters (post-clustering) are the primary source; fall back to the
+      // legacy unknownFaces list for older items.
+      const clusters = (item.adultMetadata && Array.isArray(item.adultMetadata.faceClusters))
+        ? item.adultMetadata.faceClusters
+        : [];
+      const unknowns = (item.adultMetadata && Array.isArray(item.adultMetadata.unknownFaces))
+        ? item.adultMetadata.unknownFaces
+        : [];
+      const pool = clusters.length ? clusters : unknowns;
+      const face = body.clusterId
+        ? pool.find((f) => String(f.clusterId || f.faceId || '') === String(body.clusterId))
+        : pool.find((f) => !(f.status === 'named')) || pool[0];
+      if (!face) return apiError(reply, 404, 'NOT_FOUND', 'Face cluster not found');
+      const referenceFace = peopleStore.normalizeReferenceFace({
+        ...face,
+        sourceItemId: item.itemId,
+        sourceAssetId: item.assetKey || '',
+      });
+      const person = peopleStore.createPerson({
+        name: body.name,
+        aliases: body.aliases,
+        adultRegion: body.adultRegion || 'western_adult',
+        referenceAssetIds: [item.itemId],
+        referenceFaces: [referenceFace],
+      });
+      return reply.code(201).send(person);
+    } catch (e) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', e.message);
+    }
+  });
+
+  // Dismiss a face cluster: record its embedding on a dismissed person so future
+  // scrapes drop it (blacklist). This is how male/supporting faces are excluded
+  // from protagonist selection. Remediation of past items is via rescrape.
+  app.post('/v1/admin/adult/items/:itemId/faces/:clusterId/dismiss', async (req, reply) => {
+    try {
+      const item = mediaLibraryService.getLibraryItem(String(req.params.itemId));
+      if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
+      const clusters = (item.adultMetadata && Array.isArray(item.adultMetadata.faceClusters))
+        ? item.adultMetadata.faceClusters
+        : (item.adultMetadata && item.adultMetadata.unknownFaces) || [];
+      const face = clusters.find((f) => String(f.clusterId || f.faceId || '') === String(req.params.clusterId));
+      if (!face) return apiError(reply, 404, 'NOT_FOUND', 'Face cluster not found');
+      const emb = (face.embedding || []).map(Number).filter((x) => Number.isFinite(x));
+      if (!emb.length) return apiError(reply, 400, 'VALIDATION_ERROR', 'Cluster has no embedding to blacklist');
+      const person = peopleStore.createPerson({
+        name: `_dismissed_${face.clusterId || face.faceId || Date.now()}`,
+        adultRegion: 'western_adult',
+        dismissed: true,
+        referenceAssetIds: [item.itemId],
+        referenceFaces: [{
+          faceId: face.clusterId || face.faceId || '',
+          embedding: emb,
+          sampleImageBase64: face.sampleImageBase64 || '',
+          sourceItemId: item.itemId,
+          sourceAssetId: item.assetKey || '',
+        }],
+      });
+      return reply.code(201).send({ ok: true, personId: person.personId, dismissed: true });
+    } catch (e) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', e.message);
+    }
+  });
+
+  app.patch('/v1/admin/adult/people/:personId', async (req, reply) => {
+    const person = peopleStore.updatePerson(req.params.personId, req.body || {});
+    if (!person) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
+    return person;
+  });
+
+  app.delete('/v1/admin/adult/people/:personId', async (req, reply) => {
+    const ok = peopleStore.deletePerson(req.params.personId);
+    if (!ok) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
+    return { ok: true, personId: req.params.personId };
   });
 
   // ── Admin: Rule Templates ────────────────────────────────────────────────
@@ -937,13 +1149,30 @@ function registerRoutes(app) {
 
   // ── Admin: Adult Libraries ──────────────────────────────────────────────
 
+  function sanitizeAdultLibraryForAdmin(adultLibrary = {}) {
+    const out = {
+      ...(adultLibrary || {}),
+      western: {
+        ...((adultLibrary && adultLibrary.western) || {}),
+      },
+    };
+    delete out.western.faceEmbeddingsUrl;
+    delete out.western.faceApiKey;
+    return out;
+  }
+
   app.get('/v1/admin/adult/config', async () => {
     const cfg = configStore.loadConfig();
-    return cfg.adultLibrary || {};
+    return sanitizeAdultLibraryForAdmin(cfg.adultLibrary || {});
   });
 
   app.patch('/v1/admin/adult/config', async (req) => {
     const current = configStore.loadConfig();
+    const requestedWestern = {
+      ...((req.body && req.body.western) || {}),
+    };
+    delete requestedWestern.faceEmbeddingsUrl;
+    delete requestedWestern.faceApiKey;
     const adultLibrary = {
       ...(current.adultLibrary || {}),
       ...(req.body || {}),
@@ -953,13 +1182,15 @@ function registerRoutes(app) {
       },
       western: {
         ...((current.adultLibrary && current.adultLibrary.western) || {}),
-        ...((req.body && req.body.western) || {}),
+        ...requestedWestern,
       },
     };
+    delete adultLibrary.western.faceEmbeddingsUrl;
+    delete adultLibrary.western.faceApiKey;
     const updated = configStore.patchConfig({ adultLibrary });
     adultLibraryService.stopAllWatchers();
     adultLibraryService.startAllWatchers();
-    return updated.adultLibrary || {};
+    return sanitizeAdultLibraryForAdmin(updated.adultLibrary || {});
   });
 
   // ── Admin: Transcode ────────────────────────────────────────────────────
@@ -1272,6 +1503,30 @@ function registerRoutes(app) {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
     return task;
+  });
+
+  app.patch('/v1/admin/tasks/:id', async (req, reply) => {
+    const task = taskStore.getTask(req.params.id);
+    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+
+    const body = req.body || {};
+
+    // Priority adjustment (lower = runs first). Only meaningful before dispatch,
+    // so reject once the task is actively executing or in a terminal state.
+    if (body.priority !== undefined) {
+      const priority = Number(body.priority);
+      if (!Number.isFinite(priority) || priority < 0 || !Number.isInteger(priority)) {
+        return apiError(reply, 400, 'VALIDATION_ERROR', 'priority must be a non-negative integer');
+      }
+      const editable = ['created', 'pending_manual', 'queued', 'interrupted', 'paused'];
+      if (!editable.includes(task.status)) {
+        return apiError(reply, 409, 'TASK_CONFLICT', `Cannot set priority on task in status "${task.status}"`);
+      }
+      const updated = taskStore.updateTask(task.id, { priority });
+      return updated;
+    }
+
+    return apiError(reply, 400, 'VALIDATION_ERROR', 'No supported fields to update');
   });
 
   app.delete('/v1/admin/tasks/:id', async (req, reply) => {

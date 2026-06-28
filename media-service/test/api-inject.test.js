@@ -459,6 +459,336 @@ test('POST /v1/admin/sublibraries/:uuid/actions/scan upserts adult files and cre
   await app.close();
 });
 
+test('POST /v1/admin/sublibraries creates adult western folder library', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'us');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: {
+      name: 'US Test',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'western_adult',
+      scraperType: 'western_builtin',
+      watchRoot,
+    },
+  });
+
+  assert.strictEqual(res.statusCode, 201);
+  const body = res.json();
+  assert.strictEqual(body.source, 'folder');
+  assert.strictEqual(body.mediaType, 'adult');
+  assert.strictEqual(body.adultRegion, 'western_adult');
+  assert.strictEqual(body.scraperType, 'western_builtin');
+  assert.strictEqual(body.ruleTemplateId, 'adult_western_default');
+  await app.close();
+});
+
+test('western adult scan uses path identity and creates scrape task', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'us');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  fs.writeFileSync(path.join(watchRoot, 'Loft.Scene.01.mp4'), 'fake-video');
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const create = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sublibraries',
+    payload: {
+      name: 'US Test',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'western_adult',
+      scraperType: 'western_builtin',
+      watchRoot,
+    },
+  });
+  const subLib = create.json();
+  const scan = await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
+  assert.strictEqual(scan.statusCode, 200);
+  assert.strictEqual(scan.json().scanned, 1);
+
+  const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
+  const item = lib.json().items[0];
+  assert.strictEqual(item.adultMetadata.region, 'western_adult');
+  // 番号 is now self-assigned metadata (UNK-NNN placeholder) at ingest, not ''.
+  assert.ok(/^UNK-\d+$/.test(item.adultMetadata.adultId), 'western adult gets an UNK placeholder 番号 at ingest');
+  assert.strictEqual(item.adultMetadata.scrapeStatus, 'pending');
+  assert.ok(item.assetKey.includes(':adult:'), 'western adult uses itemId-based identity (番号 is metadata, not the key)');
+
+  const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  assert.ok(tasks.json().tasks.some((t) => t.itemId === item.itemId && t.actionType === 'scrape'));
+  await app.close();
+});
+
+test('adult people API stores western people in service data', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const create = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/adult/people',
+    payload: {
+      name: 'Skin Diamond',
+      aliases: ['Skin.Diamond'],
+      referenceAssetIds: ['asset-1'],
+    },
+  });
+  assert.strictEqual(create.statusCode, 201);
+  const person = create.json();
+  assert.ok(person.personId);
+  assert.strictEqual(person.name, 'Skin Diamond');
+  assert.deepStrictEqual(person.aliases, ['Skin.Diamond']);
+  assert.strictEqual(person.adultRegion, 'western_adult');
+
+  const list = await app.inject({ method: 'GET', url: '/v1/admin/adult/people?adultRegion=western_adult' });
+  assert.strictEqual(list.statusCode, 200);
+  assert.strictEqual(list.json().people.length, 1);
+  assert.strictEqual(list.json().people[0].name, 'Skin Diamond');
+
+  const patch = await app.inject({
+    method: 'PATCH',
+    url: `/v1/admin/adult/people/${person.personId}`,
+    payload: {
+      aliases: ['Skin.Diamond', 'Skin Diamond'],
+      referenceAssetIds: ['asset-2'],
+    },
+  });
+  assert.strictEqual(patch.statusCode, 200);
+  assert.deepStrictEqual(patch.json().aliases, ['Skin.Diamond', 'Skin Diamond']);
+  assert.deepStrictEqual(patch.json().referenceAssetIds, ['asset-2']);
+
+  const del = await app.inject({ method: 'DELETE', url: `/v1/admin/adult/people/${person.personId}` });
+  assert.strictEqual(del.statusCode, 200);
+  assert.strictEqual(del.json().ok, true);
+  const empty = await app.inject({ method: 'GET', url: '/v1/admin/adult/people' });
+  assert.strictEqual(empty.json().people.length, 0);
+  await app.close();
+});
+
+test('adult people from-face API uses service-owned unknown face cluster', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [{
+      itemId: 'western-face-item',
+      name: 'Unknown Person - Scene',
+      path: path.join(dir, 'scene.mkv'),
+      source: 'adult_folder',
+      subLibraryId: 'sl-western',
+      assetKey: 'sl-western:path:scene',
+      type: 'movie',
+      adultMetadata: {
+        region: 'western_adult',
+        unknownFaces: [{
+          clusterId: 'face-cluster-1',
+          embedding: [0.1, 0.2, 0.3],
+          sampleImageBase64: Buffer.from('jpg').toString('base64'),
+          confidence: 0.88,
+        }],
+      },
+    }],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/adult/people/from-face',
+    payload: {
+      itemId: 'western-face-item',
+      clusterId: 'face-cluster-1',
+      name: 'Skin Diamond',
+      aliases: ['Skin.Diamond'],
+    },
+  });
+  assert.strictEqual(res.statusCode, 201, res.body);
+  const person = res.json();
+  assert.strictEqual(person.name, 'Skin Diamond');
+  assert.deepStrictEqual(person.referenceAssetIds, ['western-face-item']);
+  assert.strictEqual(person.referenceFaces.length, 1);
+  assert.deepStrictEqual(person.referenceFaces[0].embedding, [0.1, 0.2, 0.3]);
+  assert.strictEqual(person.referenceFaces[0].sourceItemId, 'western-face-item');
+  await app.close();
+});
+
+test('adult people from-image API creates and replaces a confirmed reference face', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const localAi = require('../src/services/westernAdultLocalAiService');
+  const originalCreateReferenceFace = localAi.createReferenceFace;
+  localAi.createReferenceFace = async () => ({
+    faceId: 'ref-face-1',
+    embedding: [0.9, 0.1, 0.2],
+    detectionScore: 0.93,
+    faceCount: 1,
+    bbox: [10, 20, 110, 140],
+  });
+
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const imageBase64 = Buffer.from('fake-jpg').toString('base64');
+  const created = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/adult/people/from-image',
+    payload: { name: 'Tia Ling', imageBase64 },
+  });
+  assert.strictEqual(created.statusCode, 201);
+  const person = created.json();
+  assert.strictEqual(person.name, 'Tia Ling');
+  assert.strictEqual(person.referenceFaces.length, 1);
+  assert.deepStrictEqual(person.referenceFaces[0].embedding, [0.9, 0.1, 0.2]);
+  assert.strictEqual(person.referenceFaces[0].sampleImageBase64, imageBase64);
+
+  localAi.createReferenceFace = async () => ({
+    faceId: 'ref-face-2',
+    embedding: [0.3, 0.4, 0.5],
+    detectionScore: 0.88,
+    faceCount: 1,
+  });
+  const replaced = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/adult/people/from-image',
+    payload: { personId: person.personId, name: 'Tia Ling', imageBase64: Buffer.from('better-jpg').toString('base64') },
+  });
+  assert.strictEqual(replaced.statusCode, 200);
+  assert.strictEqual(replaced.json().referenceFaces.length, 1, 'confirmed image replaces old reference by default');
+  assert.deepStrictEqual(replaced.json().referenceFaces[0].embedding, [0.3, 0.4, 0.5]);
+
+  localAi.createReferenceFace = originalCreateReferenceFace;
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+  await app.close();
+});
+
+test('adult actor image search includes stash-box GraphQL performer images', async () => {
+  const service = require('../src/services/adultActorImageSearchService');
+  const originalFetch = global.fetch;
+  global.fetch = async (url, opts = {}) => {
+    assert.strictEqual(String(url), 'https://stash.example/graphql');
+    assert.strictEqual(opts.method, 'POST');
+    assert.match(String(opts.headers.ApiKey), /secret/);
+    const body = JSON.parse(opts.body);
+    assert.strictEqual(body.variables.term, 'Indie Performer');
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          searchPerformer: [{
+            id: 'perf-1',
+            name: 'Indie Performer',
+            images: [{ url: 'https://img.example/indie.jpg', width: 900, height: 1200 }],
+          }],
+        },
+      }),
+    };
+  };
+
+  try {
+    const result = await service.searchActorImages({
+      name: 'Indie Performer',
+      limit: 3,
+      config: {
+        adultLibrary: {
+          western: {
+            stashBoxGraphqlUrl: 'https://stash.example/graphql',
+            stashBoxApiKey: 'secret',
+            metadataApiBaseUrl: '',
+          },
+        },
+      },
+    });
+    assert.strictEqual(result.candidates[0].source, 'stashbox:tpdb');
+    assert.strictEqual(result.candidates[0].imageUrl, 'https://img.example/indie.jpg');
+    assert.strictEqual(result.candidates[0].width, 900);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('adult actor image search reuses JAV proxy for outbound candidate sources', async () => {
+  const service = require('../src/services/adultActorImageSearchService');
+  const originalFetch = global.fetch;
+  const seen = [];
+  global.fetch = async (url, opts = {}) => {
+    seen.push(String(url));
+    assert.ok(opts.dispatcher, `expected proxy dispatcher for ${url}`);
+    if (String(url) === 'https://stash.example/graphql') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            searchPerformer: [{
+              id: 'perf-2',
+              name: 'Proxy Performer',
+              images: [{ url: 'https://img.example/proxy.jpg', width: 800, height: 1100 }],
+            }],
+          },
+        }),
+      };
+    }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
+  try {
+    const result = await service.searchActorImages({
+      name: 'Proxy Performer',
+      limit: 3,
+      config: {
+        adultLibrary: {
+          japaneseJav: { proxyServer: 'http://proxy.example:7890' },
+          western: {
+            stashBoxGraphqlUrl: 'https://stash.example/graphql',
+            stashBoxApiKey: '',
+            metadataApiBaseUrl: '',
+          },
+        },
+      },
+    });
+    assert.strictEqual(result.proxyUsed, true);
+    assert.ok(seen.includes('https://stash.example/graphql'));
+    assert.strictEqual(result.candidates[0].imageUrl, 'https://img.example/proxy.jpg');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('queued scrape task respects sub-library autoExecute=false after restart', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const taskScheduler = require('../src/taskScheduler');
+  const taskStore = require('../src/taskStore');
+  const configStore = require('../src/configStore');
+  taskScheduler.stopScheduler();
+
+  const config = configStore.loadConfig();
+  config.subLibraries = [{
+    uuid: 'adult-western-manual',
+    name: 'US Manual',
+    scheduleMode: 'custom',
+    autoCreate: true,
+    autoExecute: false,
+  }];
+  configStore.saveConfig(config);
+
+  const task = taskStore.createTask({
+    itemId: 'manual-scrape-item',
+    actionType: 'scrape',
+    status: 'queued',
+    itemInfo: { subLibraryId: 'adult-western-manual', name: 'Queued Scrape' },
+  });
+
+  await taskScheduler.scheduleRound();
+  assert.strictEqual(taskStore.getTask(task.id).status, 'pending_manual');
+  await app.close();
+});
+
 test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed scrape', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
@@ -635,7 +965,7 @@ test('scrape fails when poster download fails', async () => {
   delete process.env.CONTROL_PLANE_DATA_DIR;
 });
 
-test('successful scrape downloads poster, renames folder, and finishes phase', async () => {
+test('successful JAV scrape creates one movie folder and keeps original naming convention', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   const movieDir = path.join(watchRoot, 'MVSD-175.HD');
@@ -696,14 +1026,373 @@ test('successful scrape downloads poster, renames folder, and finishes phase', a
   assert.strictEqual(afterTask.phase, 'done');
   const afterItem = mediaLibraryService.getLibraryItem(item.itemId);
   const finalDir = path.join(watchRoot, 'MVSD-175 Some Title');
-  assert.strictEqual(afterItem.path, path.join(finalDir, 'MVSD-175.mp4'));
+  assert.strictEqual(afterItem.path, path.join(finalDir, 'MVSD-175 Some Title.mp4'));
+  assert.strictEqual(fs.existsSync(movieDir), true);
   assert.strictEqual(fs.existsSync(finalDir), true);
   assert.strictEqual(fs.existsSync(path.join(finalDir, 'poster.jpg')), true);
+  assert.strictEqual(fs.existsSync(path.join(finalDir, 'movie.nfo')), true);
   assert.strictEqual(afterItem.adultMetadata.posterPath, path.join(finalDir, 'poster.jpg'));
   assert.strictEqual(afterItem.adultMetadata.organized, true);
 
   delete require.cache[scraperPath];
   delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('western adult curation without protagonist fails without writing success artifacts', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'us');
+  const movieDir = path.join(watchRoot, 'incoming');
+  fs.mkdirSync(movieDir, { recursive: true });
+  const sourceFile = path.join(movieDir, 'Unknown.Scene.01.mp4');
+  fs.writeFileSync(sourceFile, 'fake-video');
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const aiPath = require.resolve('../src/services/westernAdultAiService');
+  delete require.cache[aiPath];
+  require.cache[aiPath] = {
+    exports: {
+      analyzeVideo: async () => ({
+        title: 'Unknown Person - Unknown Scene',
+        generatedTitle: 'Unknown Person - Unknown Scene',
+        generatedDescription: 'Unknown Scene',
+        actors: [],
+        tags: ['western_adult'],
+        scene: { performerCount: 1 },
+        protagonist: null,
+        faceClusters: [{
+          clusterId: 'cluster-1',
+          status: 'unknown',
+          frameCount: 8,
+          avgFaceArea: 900,
+          protagonistScore: 7200,
+          bestFrameIndex: 0,
+          sampleImageBase64: Buffer.from('face').toString('base64'),
+        }],
+        unknownFaces: [{
+          clusterId: 'cluster-1',
+          sampleImageBase64: Buffer.from('face').toString('base64'),
+        }],
+        posterImageBase64: Buffer.from('poster').toString('base64'),
+        needsReview: true,
+        ai: { provider: 'stub', matchMode: 'none' },
+      }),
+      abort: () => false,
+    },
+  };
+
+  const configStore = require('../src/configStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const taskStore = require('../src/taskStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const cfg = configStore.loadConfig();
+  configStore.patchConfig({
+    adultLibrary: {
+      ...cfg.adultLibrary,
+      western: {
+        ...(cfg.adultLibrary && cfg.adultLibrary.western || {}),
+        enabled: true,
+        provider: 'http',
+        organizeAfterScrape: true,
+        writeNfo: true,
+      },
+    },
+    subLibraries: [{
+      uuid: crypto.randomUUID(), name: 'US', source: 'folder', mediaType: 'adult',
+      adultRegion: 'western_adult', scraperType: 'western_builtin',
+      watchRoot, scrapeEnabled: true, enabled: true, scheduleMode: 'full_auto',
+      autoCreate: true, autoExecute: true, ruleTemplateId: 'adult_western_default',
+    }],
+  });
+  const sl = configStore.loadConfig().subLibraries[0];
+  const item = await adultLibraryService.upsertFileItem(sl, sourceFile, { enqueueScrape: false });
+  const task = taskStore.createTask({
+    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
+    resumePoint: 'scrape_executing',
+  });
+
+  scrapeFlow.setScheduler({ reportStatus: (tid, status) => { taskStore.updateTask(tid, { status }); } });
+  await scrapeFlow.driveTask(task.id);
+
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'failed_hard');
+  assert.strictEqual(afterTask.phase, 'failed_hard');
+  const afterItem = mediaLibraryService.getLibraryItem(item.itemId);
+  assert.strictEqual(afterItem.scraped, false);
+  assert.strictEqual(afterItem.path, sourceFile);
+  assert.strictEqual(afterItem.adultMetadata.scrapeStatus, 'failed');
+  assert.strictEqual(afterItem.adultMetadata.unknownFaces.length, 1);
+  assert.strictEqual(fs.existsSync(path.join(movieDir, 'movie.nfo')), false);
+  assert.strictEqual(fs.existsSync(path.join(movieDir, '.shelfdeck.json')), false);
+  assert.strictEqual(fs.existsSync(path.join(movieDir, 'poster.jpg')), false);
+
+  delete require.cache[aiPath];
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('successful western adult curation writes nfo and marks item scraped', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'us');
+  const movieDir = path.join(watchRoot, 'incoming');
+  fs.mkdirSync(movieDir, { recursive: true });
+  const sourceFile = path.join(movieDir, 'Loft.Scene.01.mp4');
+  fs.writeFileSync(sourceFile, 'fake-video');
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const aiPath = require.resolve('../src/services/westernAdultAiService');
+  delete require.cache[aiPath];
+  require.cache[aiPath] = {
+    exports: {
+      analyzeVideo: async () => ({
+        title: 'Actor A - Loft Scene',
+        generatedTitle: 'Actor A - Loft Scene',
+        generatedDescription: 'Loft Scene',
+        actors: ['Actor A'],
+        tags: ['studio', 'loft'],
+        scene: { setting: 'loft', performerCount: 1 },
+        faceClusters: [{ clusterId: 'face-1', matchedName: 'Actor A', confidence: 0.91 }],
+        actorConfidence: { 'Actor A': 0.91 },
+        needsReview: false,
+        ai: { provider: 'stub', model: 'test' },
+      }),
+      abort: () => false,
+    },
+  };
+
+  const configStore = require('../src/configStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const taskStore = require('../src/taskStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const peopleStore = require('../src/peopleStore');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  // Create the recognized actor so the worker's protagonist result has a real
+  // person to mint a {CODE}-{seq} 番号 against.
+  const person = peopleStore.createPerson({ name: 'Actor A', adultRegion: 'western_adult' });
+  require.cache[aiPath].exports.analyzeVideo = async () => ({
+    title: 'Actor A - Loft Scene',
+    generatedTitle: 'Actor A - Loft Scene',
+    generatedDescription: 'Loft Scene',
+    actors: ['Actor A'],
+    tags: ['studio', 'loft'],
+    scene: { setting: 'loft', performerCount: 1 },
+    protagonist: { clusterId: 'face-1', personId: person.personId, name: 'Actor A', confidence: 0.91, protagonistScore: 9000 },
+    faceClusters: [{ clusterId: 'face-1', matchedName: 'Actor A', matchedPersonId: person.personId, matchConfidence: 0.91, status: 'named', frameCount: 9, avgFaceArea: 1000, protagonistScore: 9000, bestFrameIndex: 0, sampleImageBase64: '', embedding: [0.1, 0.2] }],
+    actorConfidence: { 'Actor A': 0.91 },
+    needsReview: false,
+    ai: { provider: 'stub', model: 'test' },
+  });
+
+  const cfg = configStore.loadConfig();
+  configStore.patchConfig({
+    adultLibrary: {
+      ...cfg.adultLibrary,
+      western: {
+        ...(cfg.adultLibrary && cfg.adultLibrary.western || {}),
+        enabled: true,
+        provider: 'http',
+        organizeAfterScrape: true,
+        writeNfo: true,
+      },
+    },
+    subLibraries: [{
+      uuid: crypto.randomUUID(), name: 'US', source: 'folder', mediaType: 'adult',
+      adultRegion: 'western_adult', scraperType: 'western_builtin',
+      watchRoot, scrapeEnabled: true, enabled: true, scheduleMode: 'full_auto',
+      autoCreate: true, autoExecute: true, ruleTemplateId: 'adult_western_default',
+    }],
+  });
+  const sl = configStore.loadConfig().subLibraries[0];
+  const item = await adultLibraryService.upsertFileItem(sl, sourceFile, { enqueueScrape: false });
+  const task = taskStore.createTask({
+    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
+    resumePoint: 'scrape_executing',
+  });
+
+  scrapeFlow.setScheduler({ reportStatus: (tid, status) => { taskStore.updateTask(tid, { status }); } });
+  await scrapeFlow.driveTask(task.id);
+
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'done');
+  assert.strictEqual(afterTask.phase, 'done');
+  const afterItem = mediaLibraryService.getLibraryItem(item.itemId);
+  const finalDir = path.join(watchRoot, `${person.canonicalCode}-001 Actor A`);
+  assert.strictEqual(afterItem.scraped, true);
+  assert.strictEqual(afterItem.path, path.join(finalDir, `${person.canonicalCode}-001 Actor A.mp4`));
+  assert.strictEqual(fs.existsSync(movieDir), true);
+  assert.deepStrictEqual(afterItem.adultMetadata.actors, ['Actor A']);
+  assert.strictEqual(afterItem.adultMetadata.scrapeStatus, 'done');
+  assert.strictEqual(fs.existsSync(path.join(finalDir, 'movie.nfo')), true);
+  assert.strictEqual(fs.existsSync(path.join(finalDir, '.shelfdeck.json')), true);
+
+  delete require.cache[aiPath];
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('western adult curation creates one movie folder and leaves sibling videos in place', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'us');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  const sourceFile = path.join(watchRoot, 'Skin.Scene.01.mp4');
+  const siblingFile = path.join(watchRoot, 'Other.Scene.01.mp4');
+  fs.writeFileSync(sourceFile, 'fake-video');
+  fs.writeFileSync(siblingFile, 'fake-video');
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const aiPath = require.resolve('../src/services/westernAdultAiService');
+  delete require.cache[aiPath];
+
+  const configStore = require('../src/configStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const taskStore = require('../src/taskStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const peopleStore = require('../src/peopleStore');
+
+  const person = peopleStore.createPerson({ name: 'Actor A', adultRegion: 'western_adult' });
+  require.cache[aiPath] = {
+    exports: {
+      analyzeVideo: async () => ({
+        title: 'Actor A - Skin Scene',
+        generatedTitle: 'Actor A - Skin Scene',
+        generatedDescription: 'Skin Scene',
+        actors: ['Actor A'],
+        protagonist: { clusterId: 'face-1', personId: person.personId, name: 'Actor A', confidence: 0.91, protagonistScore: 9000 },
+        faceClusters: [{ clusterId: 'face-1', matchedName: 'Actor A', matchedPersonId: person.personId, matchConfidence: 0.91, status: 'named', frameCount: 9, avgFaceArea: 1000, protagonistScore: 9000, bestFrameIndex: 0, sampleImageBase64: '', embedding: [0.1, 0.2] }],
+        posterImageBase64: Buffer.from('poster').toString('base64'),
+        fanartImageBase64: Buffer.from('fanart').toString('base64'),
+        ai: { provider: 'stub', model: 'test' },
+      }),
+      abort: () => false,
+    },
+  };
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const cfg = configStore.loadConfig();
+  configStore.patchConfig({
+    adultLibrary: {
+      ...cfg.adultLibrary,
+      western: {
+        ...(cfg.adultLibrary && cfg.adultLibrary.western || {}),
+        enabled: true,
+        provider: 'http',
+        organizeAfterScrape: true,
+        writeNfo: true,
+      },
+    },
+    subLibraries: [{
+      uuid: crypto.randomUUID(), name: 'US', source: 'folder', mediaType: 'adult',
+      adultRegion: 'western_adult', scraperType: 'western_builtin',
+      watchRoot, scrapeEnabled: true, enabled: true, scheduleMode: 'full_auto',
+      autoCreate: true, autoExecute: true, ruleTemplateId: 'adult_western_default',
+    }],
+  });
+  const sl = configStore.loadConfig().subLibraries[0];
+  await adultLibraryService.upsertFileItem(sl, siblingFile, { enqueueScrape: false });
+  const item = await adultLibraryService.upsertFileItem(sl, sourceFile, { enqueueScrape: false });
+  const task = taskStore.createTask({
+    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
+    resumePoint: 'scrape_executing',
+  });
+
+  scrapeFlow.setScheduler({ reportStatus: (tid, status) => { taskStore.updateTask(tid, { status }); } });
+  await scrapeFlow.driveTask(task.id);
+
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'done');
+  const afterItem = mediaLibraryService.getLibraryItem(item.itemId);
+  const finalDir = path.join(watchRoot, `${person.canonicalCode}-001 Actor A`);
+  assert.strictEqual(afterItem.path, path.join(finalDir, `${person.canonicalCode}-001 Actor A.mp4`));
+  assert.strictEqual(fs.existsSync(path.join(finalDir, 'movie.nfo')), true);
+  assert.strictEqual(fs.existsSync(path.join(finalDir, 'poster.jpg')), true);
+  assert.strictEqual(fs.existsSync(path.join(finalDir, 'fanart.jpg')), true);
+  assert.strictEqual(fs.existsSync(siblingFile), true);
+  assert.strictEqual(fs.existsSync(sourceFile), false);
+  assert.strictEqual(fs.existsSync(path.join(watchRoot, 'movie.nfo')), false);
+  assert.strictEqual(fs.existsSync(path.join(watchRoot, 'poster.jpg')), false);
+  assert.strictEqual(afterItem.adultMetadata.nfoPath, path.join(finalDir, 'movie.nfo'));
+  assert.strictEqual(afterItem.adultMetadata.posterPath, path.join(finalDir, 'poster.jpg'));
+
+  delete require.cache[aiPath];
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('western adult id assignment reuses an existing actor id on rescrape', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  const peopleStore = require('../src/peopleStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const person = peopleStore.createPerson({ name: 'Actor A', adultRegion: 'western_adult', canonicalCode: 'ACTA' });
+  const cfg = { adultLibrary: { western: { sequencePad: 3 } }, subLibraries: [] };
+  const sl = { uuid: crypto.randomUUID(), western: {} };
+
+  const assigned = adultLibraryService.assignWesternAdultId(cfg, sl, {
+    personId: person.personId,
+    name: 'Actor A',
+  }, 'ACTA-007', { filePath: path.join(dir, 'ACTA-007 Actor A', 'ACTA-007 Actor A.mp4') });
+
+  assert.strictEqual(assigned.adultId, 'ACTA-007');
+  assert.strictEqual(assigned.reused, true);
+  const after = peopleStore.loadPeople().people.find((p) => p.personId === person.personId);
+  assert.strictEqual(after.sequenceNumber, undefined);
+
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('western adult id assignment does not reuse stale root-level scrape id', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  const peopleStore = require('../src/peopleStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const person = peopleStore.createPerson({ name: 'Actor A', adultRegion: 'western_adult', canonicalCode: 'ACTA' });
+  const cfg = { adultLibrary: { western: { sequencePad: 3 } }, subLibraries: [] };
+  const sl = { uuid: crypto.randomUUID(), western: {} };
+
+  const assigned = adultLibraryService.assignWesternAdultId(cfg, sl, {
+    personId: person.personId,
+    name: 'Actor A',
+  }, 'ACTA-007', { filePath: path.join(dir, 'loose-video.mp4') });
+
+  assert.strictEqual(assigned.adultId, 'ACTA-001');
+  assert.strictEqual(assigned.reused, undefined);
+  const after = peopleStore.loadPeople().people.find((p) => p.personId === person.personId);
+  assert.strictEqual(after.sequenceNumber, 1);
+
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('western adult id assignment trusts an already organized folder id over stale metadata', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  const peopleStore = require('../src/peopleStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const person = peopleStore.createPerson({ name: 'Actor A', adultRegion: 'western_adult', canonicalCode: 'ACTA' });
+  const cfg = { adultLibrary: { western: { sequencePad: 3 } }, subLibraries: [] };
+  const sl = { uuid: crypto.randomUUID(), western: {} };
+
+  const assigned = adultLibraryService.assignWesternAdultId(cfg, sl, {
+    personId: person.personId,
+    name: 'Actor A',
+  }, 'ACTA-999', { filePath: path.join(dir, 'ACTA-002 Actor A', 'ACTA-002 Actor A.mp4') });
+
+  assert.strictEqual(assigned.adultId, 'ACTA-002');
+  assert.strictEqual(assigned.reused, true);
+  const after = peopleStore.loadPeople().people.find((p) => p.personId === person.personId);
+  assert.strictEqual(after.sequenceNumber, undefined);
+
   delete process.env.CONTROL_PLANE_DATA_DIR;
 });
 

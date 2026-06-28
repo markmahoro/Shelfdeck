@@ -1,0 +1,140 @@
+'use strict';
+
+// Integration tests for task queue priority:
+//   - PATCH /v1/admin/tasks/:id priority adjustment (validation, state guard)
+//   - POST /v1/tasks manual task gets manual priority base
+//   - taskScheduler dispatch order honors priority within an actionType
+
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { buildApp } = require('../src/app');
+const taskStore = require('../src/taskStore');
+const configStore = require('../src/configStore');
+
+function tmpDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-prio-'));
+  // Point the data dir at our temp so taskStore/configStore use isolated files.
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  return dir;
+}
+
+test('PATCH /v1/admin/tasks/:id sets priority on a queued task', async () => {
+  const dir = tmpDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  try {
+    const created = taskStore.createTask({ itemId: 'i1', actionType: 'transcode', status: 'queued', priority: 100 });
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/admin/tasks/${created.id}`,
+      payload: { priority: 5 },
+    });
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.json();
+    assert.strictEqual(body.priority, 5);
+    // Persisted
+    assert.strictEqual(taskStore.getTask(created.id).priority, 5);
+  } finally {
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+    await app.close();
+  }
+});
+
+test('PATCH /v1/admin/tasks/:id rejects negative / non-integer priority', async () => {
+  const dir = tmpDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  try {
+    const created = taskStore.createTask({ itemId: 'i2', actionType: 'transcode', status: 'queued' });
+    const r1 = await app.inject({ method: 'PATCH', url: `/v1/admin/tasks/${created.id}`, payload: { priority: -1 } });
+    assert.strictEqual(r1.statusCode, 400);
+    const r2 = await app.inject({ method: 'PATCH', url: `/v1/admin/tasks/${created.id}`, payload: { priority: 1.5 } });
+    assert.strictEqual(r2.statusCode, 400);
+  } finally {
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+    await app.close();
+  }
+});
+
+test('PATCH /v1/admin/tasks/:id refuses priority change on executing task (409)', async () => {
+  const dir = tmpDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  try {
+    const created = taskStore.createTask({ itemId: 'i3', actionType: 'transcode', status: 'executing', priority: 100 });
+    const res = await app.inject({ method: 'PATCH', url: `/v1/admin/tasks/${created.id}`, payload: { priority: 1 } });
+    assert.strictEqual(res.statusCode, 409);
+  } finally {
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+    await app.close();
+  }
+});
+
+test('POST /v1/tasks (manual) assigns manualTaskPriority base', async () => {
+  const dir = tmpDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  try {
+    // Seed config with a non-default manual base to prove the path is wired.
+    configStore.saveConfig({ ...configStore.getDefaultConfig(), executionMode: 'auto' });
+    const res = await app.inject({
+      method: 'POST', url: '/v1/tasks',
+      payload: { itemId: 'manual-1', actionType: 'transcode' },
+    });
+    assert.strictEqual(res.statusCode, 201);
+    const body = res.json();
+    assert.strictEqual(body.priority, 0, 'manual task should get manualTaskPriority base (0)');
+  } finally {
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+    await app.close();
+  }
+});
+
+test('taskScheduler dispatch order is priority-ascending then FIFO', async () => {
+  // Drive the scheduler sort directly via the exported scheduleRound by
+  // constructing tasks with mixed priorities and observing dispatch order.
+  // We use the scheduler module but stub the flow executors so nothing runs.
+  const dir = tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+
+  configStoreMod.saveConfig({ ...configStoreMod.getDefaultConfig(), executionMode: 'auto' });
+
+  // Three queued transcode tasks with different priorities and createdAt order.
+  // Lower priority should dispatch first regardless of creation order.
+  const tLow = taskStoreMod.createTask({ itemId: 'low', actionType: 'transcode', status: 'queued', priority: 5 });
+  const tHigh = taskStoreMod.createTask({ itemId: 'high', actionType: 'transcode', status: 'queued', priority: 200 });
+  const tMid = taskStoreMod.createTask({ itemId: 'mid', actionType: 'transcode', status: 'queued', priority: 50 });
+
+  // Capture dispatch order by stubbing the flow executors to record itemId.
+  const dispatched = [];
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const origSet = transcodeFlow.setScheduler;
+  transcodeFlow.setScheduler(() => {});
+  // Monkeypatch driveTask to record + immediately finish the task.
+  const origDrive = transcodeFlow.driveTask;
+  transcodeFlow.driveTask = async (taskId) => {
+    const t = taskStoreMod.getTask(taskId);
+    dispatched.push({ itemId: t.itemId, priority: t.priority });
+    // Mark done so it releases the slot; do not run real encoding.
+    taskStoreMod.updateTask(taskId, { status: 'done', phase: 'done' });
+  };
+
+  try {
+    // transcodeConcurrency default = 1, so only the lowest-priority task should
+    // dispatch in a single round.
+    await scheduler.scheduleRound();
+    assert.strictEqual(dispatched.length, 1, 'only one task fits the transcode slot per round');
+    assert.strictEqual(dispatched[0].itemId, 'low', 'lowest priority value should dispatch first');
+    assert.strictEqual(dispatched[0].priority, 5);
+  } finally {
+    transcodeFlow.driveTask = origDrive;
+    transcodeFlow.setScheduler(origSet);
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});

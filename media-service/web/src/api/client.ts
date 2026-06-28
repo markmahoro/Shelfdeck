@@ -136,10 +136,71 @@ export interface AdultLibraryConfig {
   western?: Record<string, unknown>;
 }
 
+export interface AdultPerson {
+  personId: string;
+  name: string;
+  aliases?: string[];
+  canonicalCode?: string;
+  adultRegion?: string;
+  referenceFaces?: Array<{
+    faceId?: string;
+    sampleImageBase64?: string;
+    confidence?: number;
+  }>;
+  dismissed?: boolean;
+}
+
+export interface AdultImageCandidate {
+  source: string;
+  sourceId: string;
+  title: string;
+  pageUrl: string;
+  imageUrl: string;
+  originalUrl?: string;
+  width?: number;
+  height?: number;
+  license?: string;
+}
+
+export interface AdultImageSearchError {
+  source: string;
+  message: string;
+}
+
+export interface AdultImageSearchResult {
+  query: string;
+  candidates: AdultImageCandidate[];
+  errors?: AdultImageSearchError[];
+  proxyUsed?: boolean;
+  message?: string;
+  sources?: Record<string, unknown>;
+}
+
 export const adult = {
   getConfig: () => get<AdultLibraryConfig>('/v1/admin/adult/config'),
   patchConfig: (body: Partial<AdultLibraryConfig>) =>
     patch<AdultLibraryConfig>('/v1/admin/adult/config', body),
+  listPeople: () =>
+    get<{ people: AdultPerson[] }>('/v1/admin/adult/people?adultRegion=western_adult'),
+  searchPersonImages: (name: string) =>
+    get<AdultImageSearchResult>(
+      `/v1/admin/adult/people/search-images?name=${encodeURIComponent(name)}`,
+    ),
+  createPersonFromImage: (body: {
+    name: string;
+    aliases?: string[];
+    imageUrl?: string;
+    imageBase64?: string;
+    personId?: string;
+    replaceReference?: boolean;
+  }) =>
+    post<AdultPerson & { referenceFaceQuality?: Record<string, unknown> }>('/v1/admin/adult/people/from-image', body),
+  createPersonFromFace: (body: { itemId: string; clusterId?: string; name: string; aliases?: string[] }) =>
+    post<AdultPerson>('/v1/admin/adult/people/from-face', body),
+  updatePerson: (personId: string, body: Partial<AdultPerson>) =>
+    patch<AdultPerson>(`/v1/admin/adult/people/${encodeURIComponent(personId)}`, body),
+  deletePerson: (personId: string) =>
+    del<{ ok: boolean; personId: string }>(`/v1/admin/adult/people/${encodeURIComponent(personId)}`),
   rescrapeItem: (itemId: string, adultId?: string) =>
     post<{ ok: boolean; taskId: string }>(
       `/v1/admin/adult/items/${encodeURIComponent(itemId)}/actions/rescrape`,
@@ -222,6 +283,11 @@ export const tasks = {
 
   get: (id: string) => get<MediaTask>(`/v1/admin/tasks/${id}`),
 
+  // Update queue priority (lower = runs first). Only allowed on queued/created/
+  // pending_manual/interrupted/paused tasks; the server returns 409 otherwise.
+  updatePriority: (id: string, priority: number) =>
+    patch<MediaTask>(`/v1/admin/tasks/${id}`, { priority }),
+
   remove: (id: string) =>
     del<{ ok: boolean; id: string }>(`/v1/admin/tasks/${id}`),
 
@@ -237,6 +303,7 @@ export const tasks = {
 
 export interface TaskReport {
   taskId: string;
+  itemId?: string;
   itemName: string;
   actionType: string;
   elapsedSec: number | null;
@@ -260,6 +327,19 @@ export interface TaskReport {
   bytesSaved?: number;
   bytesFreed?: number;
   tmdbVerified?: boolean;
+  scrape?: {
+    adultId?: string;
+    title?: string;
+    scrapeStatus?: string;
+    posterPath?: string;
+    nfoPath?: string;
+    actors?: string[];
+    protagonist?: { name?: string; adultId?: string } | null;
+    faceClusters?: Array<Record<string, unknown>>;
+    unknownFaces?: Array<Record<string, unknown>>;
+    actorConfidence?: Record<string, number>;
+  };
+  assets?: Record<string, boolean>;
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────
@@ -300,6 +380,30 @@ export interface SystemConfig {
   smartTaskMaxQueueSize: number;
   strategyPollIntervalMinutes: number;
   smartSelectMode?: 'auto' | 'manual' | 'per_library';
+  // Queue priority policy (PriorityEngine). Lower number = runs first.
+  taskPriority?: {
+    manualTaskPriority: number;
+    autoTaskPriorityBase: number;
+    rules: {
+      transcode: PriorityRule[];
+      upgrade: PriorityRule[];
+      delete: PriorityRule[];
+      scrape: PriorityRule[];
+    };
+  };
+}
+
+// Advanced overlay rule. match is AND-combined; adjust mutates the running value.
+export interface PriorityRule {
+  match: {
+    subLibraryId?: string;
+    type?: string;
+    isDiscLike?: boolean;
+    isDolbyVision?: boolean;
+    resolution?: string;
+    retryCount?: number | { gte?: number; lte?: number; gt?: number; lt?: number };
+  };
+  adjust: { op: 'subtract' | 'add' | 'set'; value: number };
 }
 
 export const systemConfig = {

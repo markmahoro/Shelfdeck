@@ -14,6 +14,20 @@ const DEFAULTS = {
   tempRoot: process.platform === 'win32'
     ? path.join(process.env.TEMP || 'C:\\temp', 'shelfdeck-worker')
     : '/tmp/shelfdeck-worker',
+  aiDataRoot: process.platform === 'win32'
+    ? path.join(process.env.TEMP || 'C:\\temp', 'shelfdeck-worker-ai')
+    : '/data/ai',
+  visionBaseUrl: '',
+  visionModel: '',
+  visionApiKey: '',
+  visionTimeoutSec: 180,
+  faceEmbeddingsUrl: '',
+  faceApiKey: '',
+  faceTimeoutSec: 120,
+  faceSimilarityThreshold: 0.25,
+  faceClusterThreshold: 0.5,
+  sceneDetectThreshold: 0.3,
+  visionMaxTokens: 512,
   ffmpegPath: '',
   ffprobePath: '',
 };
@@ -41,6 +55,15 @@ function loadConfig() {
   if (process.env.WORKER_PORT) merged.port = parseInt(process.env.WORKER_PORT, 10) || DEFAULTS.port;
   if (process.env.WORKER_API_KEY) merged.apiKey = process.env.WORKER_API_KEY;
   if (process.env.WORKER_TEMP_ROOT) merged.tempRoot = process.env.WORKER_TEMP_ROOT;
+  if (process.env.WORKER_AI_DATA_ROOT) merged.aiDataRoot = process.env.WORKER_AI_DATA_ROOT;
+  if (process.env.VISION_BASE_URL) merged.visionBaseUrl = process.env.VISION_BASE_URL;
+  if (process.env.VISION_MODEL) merged.visionModel = process.env.VISION_MODEL;
+  if (process.env.VISION_API_KEY) merged.visionApiKey = process.env.VISION_API_KEY;
+  if (process.env.VISION_TIMEOUT_SEC) merged.visionTimeoutSec = parseInt(process.env.VISION_TIMEOUT_SEC, 10) || DEFAULTS.visionTimeoutSec;
+  if (process.env.FACE_EMBEDDINGS_URL) merged.faceEmbeddingsUrl = process.env.FACE_EMBEDDINGS_URL;
+  if (process.env.FACE_API_KEY) merged.faceApiKey = process.env.FACE_API_KEY;
+  if (process.env.FACE_TIMEOUT_SEC) merged.faceTimeoutSec = parseInt(process.env.FACE_TIMEOUT_SEC, 10) || DEFAULTS.faceTimeoutSec;
+  if (process.env.FACE_SIMILARITY_THRESHOLD) merged.faceSimilarityThreshold = Number(process.env.FACE_SIMILARITY_THRESHOLD) || DEFAULTS.faceSimilarityThreshold;
   if (process.env.FFMPEG_PATH) merged.ffmpegPath = process.env.FFMPEG_PATH;
   if (process.env.FFPROBE_PATH) merged.ffprobePath = process.env.FFPROBE_PATH;
 

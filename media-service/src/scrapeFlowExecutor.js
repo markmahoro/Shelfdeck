@@ -6,6 +6,7 @@ const taskStore = require('./taskStore');
 const configStore = require('./configStore');
 const adultLibraryService = require('./adultLibraryService');
 const japaneseJavScraper = require('./services/japaneseJavScraper');
+const westernAdultAiService = require('./services/westernAdultAiService');
 
 let scheduler = null;
 function setScheduler(s) { scheduler = s; }
@@ -42,7 +43,8 @@ async function runPrecheck(taskId, task) {
     if (!adultLibraryService.isAdultFolderSubLibrary(subLib)) throw new Error('Task subLibrary is not an adult folder library');
     if (!subLib.watchRoot) throw new Error('watchRoot is not configured');
     if (!fs.existsSync(subLib.watchRoot)) throw new Error(`watchRoot does not exist: ${subLib.watchRoot}`);
-    if ((subLib.adultRegion || 'japanese_jav') !== 'japanese_jav') {
+    const region = subLib.adultRegion || 'japanese_jav';
+    if (!['japanese_jav', 'western_adult'].includes(region)) {
       throw new Error(`No scraper adapter implemented for adultRegion=${subLib.adultRegion}`);
     }
 
@@ -71,6 +73,12 @@ async function runExecuting(taskId, task) {
     const mediaLibraryService = require('./mediaLibraryService');
     const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
     if (!liveItem) throw new Error('Library item not found');
+    const region = subLib.adultRegion || 'japanese_jav';
+    if (region === 'western_adult') {
+      await runWesternExecuting(taskId, task, config, subLib, liveItem);
+      return;
+    }
+
     const adultId = (liveItem.adultMetadata && liveItem.adultMetadata.adultId)
       || (task.itemInfo && task.itemInfo.adultMetadata && task.itemInfo.adultMetadata.adultId);
     if (!adultId) {
@@ -115,13 +123,71 @@ async function runExecuting(taskId, task) {
   }
 }
 
+async function runWesternExecuting(taskId, task, config, subLib, liveItem) {
+  const mediaLibraryService = require('./mediaLibraryService');
+  appendLog(taskId, 'info', 'Starting western adult AI curation');
+  const applyOpts = {
+    taskId,
+    onLog: (level, msg) => appendLog(taskId, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
+  };
+  const curation = await westernAdultAiService.analyzeVideo({
+    taskId,
+    config,
+    subLib,
+    item: liveItem,
+    onLog: applyOpts.onLog,
+  });
+  scheduler.reportStatus(taskId, 'executing', 75);
+
+  const latestItem = await adultLibraryService.applyWesternCurationResultToItem(subLib, liveItem, curation, applyOpts);
+
+  // No protagonist named = western scrape failure (same lifecycle as a JAV
+  // scrape that can't resolve a 番号). The item keeps its UNK-NNN placeholder
+  // and stays unscraped; remediation is rescrape after the user names a face.
+  if (!applyOpts.__hasProtagonist) {
+    appendLog(taskId, 'warn', 'No protagonist recognized; western scrape failed (UNK retained)');
+    adultLibraryService.markScrapeFailed(task.itemId, 'No protagonist recognized by face match; name a face and rescrape');
+    const failedItem = mediaLibraryService.getLibraryItem(task.itemId) || latestItem;
+    if (failedItem) {
+      taskStore.updateTask(taskId, {
+        itemInfo: {
+          ...(task.itemInfo || {}),
+          ...(adultLibraryService.itemInfoFromItem(failedItem) || {}),
+        },
+      });
+    }
+    setPhase(taskId, 'failed_hard');
+    scheduler.reportStatus(taskId, 'failed_hard', 0);
+    return;
+  }
+
+  const strategyEngine = require('./strategyEngine');
+  try { mediaLibraryService.recomputeAllSelfFields(); } catch (_) {}
+  try { strategyEngine.runOnce(); } catch (_) {}
+
+  const itemAfterStrategy = mediaLibraryService.getLibraryItem(task.itemId) || latestItem;
+  appendLog(taskId, 'info', 'Western adult AI metadata saved; strategy recalculated');
+
+  taskStore.updateTask(taskId, {
+    itemInfo: {
+      ...(task.itemInfo || {}),
+      ...(itemAfterStrategy ? adultLibraryService.itemInfoFromItem(itemAfterStrategy) : {}),
+    },
+    resumePoint: null,
+  });
+  setPhase(taskId, 'done');
+  scheduler.reportStatus(taskId, 'done', 100);
+}
+
 async function pause(taskId) {
   japaneseJavScraper.abort(taskId);
+  westernAdultAiService.abort(taskId);
   taskStore.updateTask(taskId, { status: 'paused', phase: 'scrape_paused' });
 }
 
 async function cancel(taskId) {
   japaneseJavScraper.abort(taskId);
+  westernAdultAiService.abort(taskId);
 }
 
 function confirmReceived() {}

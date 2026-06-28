@@ -1,0 +1,49 @@
+FROM ollama/ollama:latest AS ollama-runtime
+
+FROM node:20-bookworm-slim AS node-runtime
+
+FROM python:3.11-slim-bookworm
+
+ENV NODE_ENV=production \
+    WORKER_PORT=19000 \
+    WORKER_TEMP_ROOT=/tmp/shelfdeck-worker \
+    WORKER_AI_DATA_ROOT=/data/ai \
+    OLLAMA_HOST=127.0.0.1:11434 \
+    OLLAMA_MODELS=/data/ollama \
+    OLLAMA_MODEL=llava:7b \
+    OLLAMA_AUTO_PULL=true \
+    OLLAMA_KEEP_ALIVE=30m \
+    VISION_BASE_URL=http://127.0.0.1:11434/v1 \
+    FACE_EMBEDDINGS_URL=http://127.0.0.1:19110/v1/face/embeddings \
+    FACE_MODEL_NAME=buffalo_l \
+    FACE_ONNX_PROVIDER=CUDAExecutionProvider \
+    FACE_DET_SIZE=640
+
+ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/site-packages/nvidia/curand/lib:/usr/local/lib/python3.11/site-packages/nvidia/cufft/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /app
+
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=ollama-runtime /usr/bin/ollama /usr/bin/ollama
+COPY --from=ollama-runtime /usr/lib/ollama /usr/lib/ollama
+RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+  && ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY src ./src
+COPY config.example.json ./config.example.json
+COPY face-service ./face-service
+COPY scripts/all-in-one-supervisor.py /usr/local/bin/shelfdeck-worker-all-in-one
+
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+  && pip install --no-cache-dir -r /app/face-service/requirements.txt
+
+VOLUME ["/data"]
+EXPOSE 19000
+
+CMD ["python", "/usr/local/bin/shelfdeck-worker-all-in-one"]

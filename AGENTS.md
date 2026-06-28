@@ -84,6 +84,12 @@ Known test endpoints:
 | ShelfDeck Docker | `http://192.168.12.230:18080` | none |
 | ShelfDeck local | `http://127.0.0.1:18080` | none |
 
+Production safety:
+
+- The NAS ShelfDeck Docker at `192.168.12.230:18080` is production. Do not stop its container, delete/park tasks, change production config/data, or interrupt running jobs unless the user explicitly asks for that production action.
+- Use local `127.0.0.1:18080`, temporary data directories, or disposable worker containers for destructive testing and environment resets.
+- Local ShelfDeck runtime data under `media-service/data/*.json` is test-only and has no preservation value. For local environment resets, it is OK to clear/recreate local task JSON and other local runtime JSON as needed.
+
 `tests/TEST_ENV_CHECKLIST.md` contains credentials and is intentionally ignored by git.
 
 ## Code Structure

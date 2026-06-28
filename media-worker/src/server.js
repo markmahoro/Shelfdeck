@@ -16,6 +16,7 @@ const { spawn } = require('child_process');
 const { pipeline } = require('stream/promises');
 
 const config = require('./config');
+const aiService = require('./aiService');
 
 // ── Logging ──────────────────────────────────────────────────────────────────
 
@@ -276,6 +277,15 @@ function configForPage(cfg) {
     apiKey: cfg.apiKey ? '********' : '',
     port: cfg.port,
     tempRoot: cfg.tempRoot,
+    aiDataRoot: cfg.aiDataRoot || '',
+    visionBaseUrl: cfg.visionBaseUrl || '',
+    visionModel: cfg.visionModel || '',
+    visionApiKey: cfg.visionApiKey ? '********' : '',
+    visionTimeoutSec: cfg.visionTimeoutSec,
+    faceEmbeddingsUrl: cfg.faceEmbeddingsUrl || '',
+    faceApiKey: cfg.faceApiKey ? '********' : '',
+    faceTimeoutSec: cfg.faceTimeoutSec,
+    faceSimilarityThreshold: cfg.faceSimilarityThreshold,
     ffmpegPath: cfg.ffmpegPath || '',
     ffprobePath: cfg.ffprobePath || '',
   };
@@ -293,6 +303,8 @@ async function buildServer() {
   server.addContentTypeParser('application/octet-stream', (req, payload, done) => {
     done(null, payload); // Pass raw stream through as req.body
   });
+
+  aiService.registerRoutes(server, { config, resolveFfmpegBin, resolveFfprobeBin });
 
   // API key auth hook — always read latest config so apiKey changes take effect
   server.addHook('onRequest', async (req, reply) => {
@@ -457,6 +469,7 @@ async function buildServer() {
       ok: true,
       uptime: Math.floor((Date.now() - startTime) / 1000),
       activeJobs,
+      ai: { enabled: true },
       diskFreeBytes: getDiskFreeBytes(cfg.tempRoot),
     };
   });
@@ -469,10 +482,11 @@ async function buildServer() {
     return getAdminHtml(currentCfg);
   });
 
-  // ── PATCH /api/v1/config — update node config (name / apiKey) ──────────
+  // ── PATCH /api/v1/config — update node config ──────────────────────────
 
   server.patch('/api/v1/config', async (req, reply) => {
-    const { name, apiKey } = req.body || {};
+    const body = req.body || {};
+    const { name, apiKey } = body;
     const patch = {};
 
     if (name !== undefined) {
@@ -482,8 +496,28 @@ async function buildServer() {
     if (apiKey !== undefined) {
       patch.apiKey = String(apiKey).trim();
     }
+    for (const key of [
+      'tempRoot',
+      'aiDataRoot',
+      'visionBaseUrl',
+      'visionModel',
+      'visionApiKey',
+      'faceEmbeddingsUrl',
+      'faceApiKey',
+      'ffmpegPath',
+      'ffprobePath',
+    ]) {
+      if (body[key] !== undefined && body[key] !== '********') patch[key] = String(body[key]).trim();
+    }
+    for (const key of ['visionTimeoutSec', 'faceTimeoutSec']) {
+      if (body[key] !== undefined) patch[key] = parseInt(body[key], 10) || config.DEFAULTS[key];
+    }
+    if (body.faceSimilarityThreshold !== undefined) {
+      const n = Number(body.faceSimilarityThreshold);
+      patch.faceSimilarityThreshold = Number.isFinite(n) && n > 0 ? n : config.DEFAULTS.faceSimilarityThreshold;
+    }
     if (Object.keys(patch).length === 0) {
-      return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: 'At least one of name or apiKey required' } });
+      return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: 'No supported config fields provided' } });
     }
 
     const updated = config.saveConfig(patch);

@@ -24,6 +24,7 @@ function ensureDataDir() {
 const DEFAULT_TEMPLATE_VERSION = 4;
 const TV_DEFAULT_TEMPLATE_VERSION = 4;
 const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 2;
+const ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION = 1;
 
 // ── Default rule template builder ──────────────────────────────────────────────
 
@@ -372,6 +373,57 @@ function buildAdultJavDefaultTemplate(policy) {
   };
 }
 
+function buildAdultWesternDefaultTemplate(policy) {
+  const p = policy || {};
+  const target1080p = p.target1080p || 2.5;
+  const target4k = p.target4k || 6;
+
+  function condGroup(conds) {
+    return { connector: 'and', conditions: conds };
+  }
+
+  return {
+    id: 'adult_western_default',
+    name: '默认策略（欧美成人）',
+    description: '欧美成人文件夹库默认压缩策略，等待 AI 整理完成后再进入转码判断',
+    rules: [
+      {
+        priority: 10,
+        groupsConnector: 'and',
+        groups: [condGroup([['scraped', '=', true], ['codec', 'not in', ['h265', 'hevc']]])],
+        action: 'transcode',
+        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
+        reason: `欧美成人非 HEVC 编码，转为 H.265（目标 ${target1080p} Mbps）`,
+      },
+      {
+        priority: 9,
+        groupsConnector: 'and',
+        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
+        action: 'transcode',
+        actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
+        reason: `欧美成人 4K 码率 ${target4k} Mbps 超标，建议压缩`,
+      },
+      {
+        priority: 8,
+        groupsConnector: 'and',
+        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
+        action: 'transcode',
+        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
+        reason: `欧美成人 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,
+      },
+      {
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [],
+        action: 'keep',
+        actionParams: {},
+        reason: '成人库策略未触发转码',
+      },
+    ],
+    tag: { type: 'default', version: ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION },
+  };
+}
+
 // ── SubLibrary scheduling defaults ─────────────────────────────────────────────
 
 function defaultSubLibSchedule() {
@@ -434,6 +486,15 @@ function getDefaultConfig() {
     smartTaskEnabledActions: ['transcode', 'upgrade'],
     smartTaskLookbackDays: 30,
 
+    // Task queue priority (PriorityEngine). Lower number = runs first.
+    // Per-subLibrary weight lives on subLibrary.priorityWeight (default 100).
+    // Advanced overlay rules below are AND-matched, applied in order.
+    taskPriority: {
+      manualTaskPriority: 0,     // manual tasks (POST /v1/tasks) always high priority
+      autoTaskPriorityBase: 100, // base for smartTaskEngine-created tasks
+      rules: { transcode: [], upgrade: [], delete: [], scrape: [] },
+    },
+
     // StrategyEngine
     strategyPollIntervalMinutes: 30,
 
@@ -481,6 +542,37 @@ function getDefaultConfig() {
       },
       western: {
         enabled: false,
+        provider: 'http',
+        computeMode: 'local',
+        aiWorkerBaseUrl: '',
+        apiKey: '',
+        timeoutMs: 600000,
+        frameSampleCount: 36,
+        frameWidth: 640,
+        faceTimeoutSec: 120,
+        faceRecognitionEnabled: true,
+        vlmEnabled: true,
+        allowExplicitGeneratedText: true,
+        reviewRequired: false,
+        writeNfo: true,
+        organizeAfterScrape: true,
+        posterBasename: 'poster',
+        fanartBasename: 'fanart',
+        titleTemplate: '{actors} - {description}',
+        tmdbApiKey: '',
+        tmdbReadAccessToken: '',
+        metadataApiBaseUrl: 'https://api.metadataapi.net',
+        metadataApiKey: '',
+        stashBoxGraphqlUrl: 'https://api.theporndb.net/graphql',
+        stashBoxApiKey: '',
+        actorImageProxyServer: '',
+        // Self-assigned 番号 (番号 is metadata, not the primary key). Items
+        // with no recognized protagonist get an UNK-NNN placeholder; once the
+        // worker names a protagonist, the 番号 becomes {CODE}-{actor seq}.
+        idPrefix: 'UNK',
+        sequencePad: 3,
+        faceSimilarityThreshold: 0.25,
+        blacklistThreshold: 0.5,
       },
     },
 
@@ -495,6 +587,7 @@ function getDefaultConfig() {
       buildDefaultTemplate(moviePolicy),
       buildTVDefaultTemplate(tvPolicy),
       buildAdultJavDefaultTemplate(),
+      buildAdultWesternDefaultTemplate(),
     ],
 
     // Douban
@@ -698,13 +791,15 @@ function migrateDefaultTemplates(raw) {
     if (tpl.tag.type === 'default') {
       const expected = tpl.id === 'default' ? DEFAULT_TEMPLATE_VERSION
         : tpl.id === 'tv_default' ? TV_DEFAULT_TEMPLATE_VERSION
-        : tpl.id === 'adult_jav_default' ? ADULT_JAV_DEFAULT_TEMPLATE_VERSION : null;
+        : tpl.id === 'adult_jav_default' ? ADULT_JAV_DEFAULT_TEMPLATE_VERSION
+          : tpl.id === 'adult_western_default' ? ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION : null;
       if (expected != null && tpl.tag.version !== expected) {
         const policy = extractPolicyFromTemplate(tpl) || {};
         migrated = true;
         if (tpl.id === 'default') return buildDefaultTemplate(policy);
         if (tpl.id === 'tv_default') return buildTVDefaultTemplate(policy);
         if (tpl.id === 'adult_jav_default') return buildAdultJavDefaultTemplate();
+        if (tpl.id === 'adult_western_default') return buildAdultWesternDefaultTemplate();
       }
     }
 
@@ -722,6 +817,10 @@ function migrateDefaultTemplates(raw) {
   }
   if (!ids.has('adult_jav_default')) {
     raw.ruleTemplates.push(buildAdultJavDefaultTemplate());
+    migrated = true;
+  }
+  if (!ids.has('adult_western_default')) {
+    raw.ruleTemplates.push(buildAdultWesternDefaultTemplate());
     migrated = true;
   }
 
@@ -754,14 +853,24 @@ function normalizeAdultLibraryConfig(raw) {
   }
   if (current.javsp) migrated = true;
 
+  const western = {
+    ...(defaults.adultLibrary.western || {}),
+    ...(current.western || {}),
+  };
+  if (Object.prototype.hasOwnProperty.call(western, 'faceEmbeddingsUrl')) {
+    delete western.faceEmbeddingsUrl;
+    migrated = true;
+  }
+  if (Object.prototype.hasOwnProperty.call(western, 'faceApiKey')) {
+    delete western.faceApiKey;
+    migrated = true;
+  }
+
   raw.adultLibrary = {
     ...(defaults.adultLibrary || {}),
     ...current,
     japaneseJav,
-    western: {
-      ...(defaults.adultLibrary.western || {}),
-      ...(current.western || {}),
-    },
+    western,
   };
   delete raw.adultLibrary.javsp;
 
@@ -857,4 +966,4 @@ function patchConfig(updates) {
   return saveConfig(merged);
 }
 
-module.exports = { resolveDataDir, loadConfig, saveConfig, patchConfig, getDefaultConfig, buildDefaultTemplate, buildAdultJavDefaultTemplate, defaultSubLibSchedule, resolveSubLibSchedule };
+module.exports = { resolveDataDir, loadConfig, saveConfig, patchConfig, getDefaultConfig, buildDefaultTemplate, buildAdultJavDefaultTemplate, buildAdultWesternDefaultTemplate, defaultSubLibSchedule, resolveSubLibSchedule };

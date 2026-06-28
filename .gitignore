@@ -3,6 +3,7 @@
 
 node_modules/
 dist/
+dist-image/
 release/
 dist-release/
 
@@ -47,7 +48,9 @@ tools/ssh-exec.js
 media-service/data/
 media-service/dist/
 media-worker/config.json
+media-worker/data/
 media-worker/temp/
+.tmp/
 .tmp-deploy/
 .deepseek/
 %SystemDrive%/

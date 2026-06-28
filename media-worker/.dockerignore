@@ -1,0 +1,6 @@
+node_modules/
+temp/
+config.json
+stdout.log
+stderr.log
+*.log

@@ -2,10 +2,14 @@
 
 const { buildApp } = require('./app');
 let startTray = null;
-try {
-  startTray = require('./tray').startTray;
-} catch (_) {
-  console.log('[media-service] tray module not available (this is normal on Linux/Docker)');
+if (process.platform === 'win32') {
+  try {
+    startTray = require('./tray').startTray;
+  } catch (_) {
+    console.log('[media-service] tray module not available');
+  }
+} else {
+  console.log('[media-service] tray disabled on non-Windows runtime');
 }
 
 const PORT = Number(process.env.MEDIA_SERVICE_PORT || process.env.CONTROL_PLANE_PORT || 18080);

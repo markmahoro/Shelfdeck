@@ -263,12 +263,18 @@ async function scheduleRound() {
     taskStore.saveTasks(tasks);
   }
 
-  // ── Pass 2: dispatch queued tasks (recovered first, then others) ──────
-  // Sort so recovered tasks get first shot at concurrency slots
+  // ── Pass 2: dispatch queued tasks, ordered by queue priority ──────────
+  // Lower priority value = runs first. Recovered (interrupted) tasks get a
+  // secondary tiebreak so a resume isn't starved by a flood of equal-priority
+  // new tasks; FIFO (createdAt) is the final stable tiebreak.
   const dispatchOrder = [...tasks].sort((a, b) => {
+    const pa = typeof a.priority === 'number' ? a.priority : 100;
+    const pb = typeof b.priority === 'number' ? b.priority : 100;
+    if (pa !== pb) return pa - pb;
     const aRec = recoveredIds.has(a.id) ? 0 : 1;
     const bRec = recoveredIds.has(b.id) ? 0 : 1;
-    return aRec - bRec;
+    if (aRec !== bRec) return aRec - bRec;
+    return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
   });
 
   for (const task of dispatchOrder) {
@@ -284,6 +290,15 @@ async function scheduleRound() {
     if (task.status === 'awaiting_user_confirm') continue;
     // Skip waiting_media_source (flow parks, retry handled by flow timer)
     if (task.status === 'waiting_media_source') continue;
+
+    if (task.actionType === 'scrape' && task.status === 'queued' && !task.manualExecuteRequested && !justConfirmedIds.has(task.id)) {
+      const subLibSchedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
+      if (!subLibSchedule.autoExecute) {
+        taskStore.updateTask(task.id, { status: 'pending_manual' });
+        task.status = 'pending_manual';
+        continue;
+      }
+    }
 
     // subLibrary scheduleMode check: skip if subLib autoExecute is off
     if (task.status === 'pending_manual' || task.status === 'created') {

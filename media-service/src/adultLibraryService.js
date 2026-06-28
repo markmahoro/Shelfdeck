@@ -11,6 +11,7 @@ const taskStore = require('./taskStore');
 const transcodeService = require('./services/transcodeService');
 const activityLog = require('./activityLog');
 const assetIdentity = require('./assetIdentity');
+const peopleStore = require('./peopleStore');
 
 const watchers = new Map();
 const settleTimers = new Map();
@@ -43,6 +44,10 @@ function isAdultFolderSubLibrary(sl) {
 
 function isJapaneseJavSubLibrary(sl) {
   return isAdultFolderSubLibrary(sl) && (sl.adultRegion || 'japanese_jav') === 'japanese_jav';
+}
+
+function isWesternAdultSubLibrary(sl) {
+  return isAdultFolderSubLibrary(sl) && sl.adultRegion === 'western_adult';
 }
 
 function normalizePathForCompare(p) {
@@ -222,6 +227,22 @@ function findImageForFile(filePath, base) {
   return '';
 }
 
+function mediaSiblingCount(filePath) {
+  const dir = path.dirname(filePath);
+  const cfg = configStore.loadConfig();
+  let count = 0;
+  try {
+    for (const name of fs.readdirSync(dir)) {
+      const p = path.join(dir, name);
+      try {
+        if (fs.statSync(p).isFile() && isMediaFile(p, cfg) && !isTemporaryFile(p)) count += 1;
+      } catch (_) {}
+      if (count > 1) return count;
+    }
+  } catch (_) {}
+  return count;
+}
+
 function imageExtFrom(contentType, url) {
   const ct = String(contentType || '').toLowerCase();
   if (ct.includes('png')) return '.png';
@@ -285,15 +306,37 @@ function safePathName(value, fallback) {
   return (cleaned || fallback || 'untitled').slice(0, 160);
 }
 
+function cleanTitlePart(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildWesternTitle(metadata, item, config) {
+  const actors = Array.isArray(metadata.actors) && metadata.actors.length > 0
+    ? metadata.actors.join(', ')
+    : 'Unknown Person';
+  const description = cleanTitlePart(
+    metadata.shortDescription ||
+    metadata.generatedDescription ||
+    metadata.sceneDescription ||
+    metadata.description ||
+    path.basename((item && item.path) || '', path.extname((item && item.path) || ''))
+  ) || 'Scene';
+  const template = String((config && config.titleTemplate) || '{actors} - {description}');
+  return cleanTitlePart(template
+    .replace(/\{actors\}/g, actors)
+    .replace(/\{description\}/g, description)
+    .replace(/\{resolution\}/g, (item && item.resolution) || '')
+  ) || `${actors} - ${description}`;
+}
+
 function shouldOrganizeFolder(subLib, scraperConfig) {
   if (subLib.organizeAfterScrape !== undefined) return subLib.organizeAfterScrape !== false;
   if (scraperConfig.organizeAfterScrape !== undefined) return scraperConfig.organizeAfterScrape !== false;
   return true;
-}
-
-function movePathToDir(filePath, fromDir, toDir) {
-  if (!filePath) return '';
-  return path.join(toDir, path.relative(fromDir, filePath));
 }
 
 function organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog) {
@@ -303,25 +346,28 @@ function organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog)
 
   const oldDir = path.dirname(filePath);
   const watchRoot = path.resolve(subLib.watchRoot || '');
-  const oldResolved = path.resolve(oldDir);
-  if (!watchRoot || oldResolved === watchRoot) {
-    onLog && onLog('warn', 'Folder organize skipped: media file is directly under watchRoot');
+  if (!watchRoot) {
     return { filePath, oldDir, newDir: oldDir, renamed: false };
   }
 
-  const targetName = safePathName(metadata.title || metadata.adultId, metadata.adultId || path.basename(oldDir));
-  const newDir = path.join(path.dirname(oldDir), targetName);
-  if (path.resolve(newDir) === oldResolved) {
-    return { filePath, oldDir, newDir: oldDir, renamed: false };
-  }
+  const targetName = safePathName(metadata.folderName || metadata.title || metadata.adultId, metadata.adultId || path.basename(oldDir));
+  const oldResolved = path.resolve(oldDir);
+  const parentDir = oldResolved === watchRoot ? oldDir : path.dirname(oldDir);
+  const newDir = path.join(parentDir, targetName);
+  const fileName = metadata.mediaFileName
+    ? `${safePathName(metadata.mediaFileName, path.basename(filePath, path.extname(filePath)))}${path.extname(filePath)}`
+    : path.basename(filePath);
+  const newFilePath = path.join(newDir, fileName);
+  if (path.resolve(filePath) === path.resolve(newFilePath)) return { filePath, oldDir, newDir: oldDir, renamed: false };
   if (fs.existsSync(newDir)) {
     throw new Error(`Target folder already exists: ${newDir}`);
   }
 
-  fs.renameSync(oldDir, newDir);
-  onLog && onLog('info', `Folder renamed to ${targetName}`);
+  fs.mkdirSync(newDir, { recursive: true });
+  fs.renameSync(filePath, newFilePath);
+  onLog && onLog('info', `Movie folder created: ${targetName}`);
   return {
-    filePath: path.join(newDir, path.basename(filePath)),
+    filePath: newFilePath,
     oldDir,
     newDir,
     renamed: true,
@@ -501,9 +547,22 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
   // Pre-scraped NFO is authoritative → high confidence. Otherwise parse the
   // bare file path; an unknown maker prefix yields low confidence and the item
   // is parked 'ambiguous' instead of auto-scraping a possibly-wrong 番号.
+  const westernAdult = isWesternAdultSubLibrary(subLib);
   let adultId = '';
   let idConfidence = '';
-  if (nfo && nfo.adultId) {
+  if (westernAdult) {
+    adultId = nfo && nfo.adultId || '';
+    idConfidence = adultId ? 'high' : '';
+    // No pre-existing 番号 (NFO) → assign a temporary UNK-NNN placeholder.
+    // This is metadata, replaced with an actor-encoded 番号 once the worker
+    // names a protagonist on scrape success. If the worker finds no protagonist,
+    // the item stays UNK and the scrape fails (mirroring JAV scrape failure).
+    if (!adultId) {
+      const seq = nextUnknownSequence(config, subLib);
+      const cfg = westernCfg(config, subLib);
+      adultId = `${cfg.idPrefix || 'UNK'}-${padSeq(seq, cfg.sequencePad)}`;
+    }
+  } else if (nfo && nfo.adultId) {
     adultId = nfo.adultId;
     idConfidence = 'high';
   } else {
@@ -515,21 +574,31 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
   const lib = loadLibrary();
   const now = nowIso();
   const normPath = normalizePathForCompare(filePath);
-  const sourceId = adultId || normPath;
-  const assetKey = adultId
-    ? `${subLib.uuid}:adult:${adultId.toLowerCase()}`
-    : `${subLib.uuid}:path:${assetIdentity.stripKnownMediaExtension(normPath)}`;
 
-  let idx = lib.items.findIndex((it) => it.subLibraryId === subLib.uuid && it.assetKey === assetKey);
-  if (idx < 0) {
-    idx = lib.items.findIndex((it) => it.subLibraryId === subLib.uuid && normalizePathForCompare(it.path) === normPath);
-  }
+  // Adult library identity: itemId (UUID) is the immutable surrogate primary key.
+  // assetKey is built from itemId, NEVER from the 番号 (adultId). The 番号 lives
+  // in adultMetadata.adultId as mutable metadata (scraped for JAV, self-assigned
+  // and actor-encoded for western). This keeps the same item stable across
+  // renumbering, renaming, and organize operations.
+  //
+  // Lookup order for upsert:
+  //   1. existing item by path fallback (file may have moved; identity follows
+  //      the file, not a derived key)
+  //   2. brand new item — assign itemId first, then derive assetKey from it
+  // For an existing item the assetKey is rewritten from its own itemId so legacy
+  // items (whose assetKey was derived from 番号) are migrated on first scan.
+  // (Western library is brand new; JAV library is remounted fresh in production,
+  //  so no cross-version migration script is needed.)
+  let idx = lib.items.findIndex((it) => it.subLibraryId === subLib.uuid && normalizePathForCompare(it.path) === normPath);
+  const itemId = idx >= 0 ? (lib.items[idx].itemId || crypto.randomUUID()) : crypto.randomUUID();
+  const assetKey = `${subLib.uuid}:adult:${String(itemId).toLowerCase()}`;
+  const sourceId = adultId || normPath;
 
   const displayName = (nfo && (nfo.title || nfo.originalTitle)) || adultId || path.basename(filePath, path.extname(filePath));
-  const scrapeStatus = nfo ? 'done' : (idConfidence === 'low' ? 'ambiguous' : 'pending');
+  const scrapeStatus = nfo ? 'done' : (westernAdult ? 'pending' : (idConfidence === 'low' ? 'ambiguous' : 'pending'));
   const adultMetadata = {
     region: subLib.adultRegion || 'japanese_jav',
-    scraperType: subLib.scraperType || 'shelfdeck_japanese_jav',
+    scraperType: subLib.scraperType || (westernAdult ? 'western_builtin' : 'shelfdeck_japanese_jav'),
     adultId,
     idConfidence,
     title: nfo && nfo.title || '',
@@ -550,6 +619,12 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
     scrapedAt: nfo ? now : null,
     scrapeStatus,
   };
+  if (westernAdult) {
+    adultMetadata.reviewStatus = nfo ? 'approved' : 'pending';
+    adultMetadata.ai = {};
+    adultMetadata.faceClusters = [];
+    adultMetadata.unknownFaces = [];
+  }
 
   const base = {
     subLibraryId: subLib.uuid,
@@ -587,13 +662,14 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
     item = {
       ...lib.items[idx],
       ...base,
+      itemId, // preserve the canonical itemId (surrogate key)
       action: lib.items[idx].action || 'keep',
       reason: lib.items[idx].reason || '成人库新入库',
     };
     lib.items[idx] = item;
   } else {
     item = {
-      itemId: crypto.randomUUID(),
+      itemId,
       ...base,
       action: 'keep',
       reason: '成人库新入库',
@@ -624,10 +700,17 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
     ...(((configStore.loadConfig().adultLibrary || {}).japaneseJav) || {}),
     ...(subLib.japaneseJav || {}),
   };
+  if (metadata.title || metadata.adultId) {
+    metadata.mediaFileName = metadata.title || metadata.adultId;
+  }
+  const onLog = typeof opts.onLog === 'function' ? opts.onLog : null;
+  const organized = organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog);
+  if (organized.renamed) {
+    filePath = organized.filePath;
+  }
   const sourceDir = path.dirname(filePath);
   let nfoPaths = scraperConfig.writeNfo === false ? { movieNfo: '', fileNfo: '' } : writeNfoFiles(filePath, metadata, item);
   let fanartPath = '';
-  const onLog = typeof opts.onLog === 'function' ? opts.onLog : null;
   let posterPath = '';
   if (metadata.posterCrop === 'right_cover') {
     fanartPath = await downloadImage(metadata.fanartUrl || metadata.posterUrl, path.join(sourceDir, scraperConfig.fanartBasename || 'fanart'), subLib, opts.taskId, { referer: metadata.sourceUrl });
@@ -648,17 +731,6 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
   }
   if (!posterPath || !fs.existsSync(posterPath)) {
     throw new Error('Poster download did not produce a local file');
-  }
-
-  const organized = organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog);
-  if (organized.renamed) {
-    filePath = organized.filePath;
-    nfoPaths = {
-      movieNfo: movePathToDir(nfoPaths.movieNfo, organized.oldDir, organized.newDir),
-      fileNfo: movePathToDir(nfoPaths.fileNfo, organized.oldDir, organized.newDir),
-    };
-    posterPath = movePathToDir(posterPath, organized.oldDir, organized.newDir);
-    fanartPath = movePathToDir(fanartPath, organized.oldDir, organized.newDir);
   }
 
   const markerPath = path.join(path.dirname(filePath), '.shelfdeck.json');
@@ -732,6 +804,246 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
     premiereDate: adultMetadata.premiered || existing.premiereDate || null,
     genres: adultMetadata.genres || [],
     scraped: true,
+    adultMetadata,
+    lastRefreshedAt: now,
+  };
+  lib.items[idx] = updated;
+  lib.cachedAt = now;
+  saveLibrary(lib);
+  return updated;
+}
+
+function writeImagePayload(outBase, payload, fallbackExt = '.jpg') {
+  if (!payload) return '';
+  if (typeof payload === 'string') {
+    const trimmed = payload.trim();
+    if (!trimmed) return '';
+    const dataUri = trimmed.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/);
+    const ext = dataUri ? `.${dataUri[1].toLowerCase().replace('jpeg', 'jpg')}` : fallbackExt;
+    const raw = dataUri ? dataUri[2] : trimmed;
+    const out = `${outBase}${ext}`;
+    fs.writeFileSync(out, Buffer.from(raw, 'base64'));
+    return out;
+  }
+  if (payload && payload.base64) {
+    const ext = imageExtFrom(payload.contentType, payload.filename || '') || fallbackExt;
+    const out = `${outBase}${ext}`;
+    fs.writeFileSync(out, Buffer.from(String(payload.base64), 'base64'));
+    return out;
+  }
+  return '';
+}
+
+function copyImageIfAccessible(sourcePath, outBase) {
+  const src = String(sourcePath || '').trim();
+  if (!src || !fs.existsSync(src)) return '';
+  const ext = ['.jpg', '.jpeg', '.png', '.webp'].includes(path.extname(src).toLowerCase())
+    ? path.extname(src).toLowerCase()
+    : '.jpg';
+  const out = `${outBase}${ext}`;
+  fs.copyFileSync(src, out);
+  return out;
+}
+
+async function applyWesternCurationResultToItem(subLib, item, curation, opts = {}) {
+  if (!item || !item.itemId) throw new Error('Adult library item is required');
+  let filePath = item.path;
+  if (!filePath || !fs.existsSync(filePath)) throw new Error(`Media file does not exist: ${filePath || ''}`);
+
+  const config = configStore.loadConfig();
+  const westernConfig = {
+    ...(((config.adultLibrary || {}).western) || {}),
+    ...(subLib.western || {}),
+  };
+  const now = nowIso();
+  const onLog = typeof opts.onLog === 'function' ? opts.onLog : null;
+
+  // Protagonist-driven 番号. The worker reports the machine-chosen protagonist
+  // (highest avgFaceArea×frameCount among named clusters). If present we mint a
+  // stable {CODE}-{seq} 番号; otherwise the item keeps its UNK-NNN placeholder
+  // and the caller marks the scrape as failed (mirrors JAV scrape failure).
+  const protagonist = curation.protagonist || pickProtagonist(curation.faceClusters);
+  const existingAdultId = (item.adultMetadata && item.adultMetadata.adultId) || '';
+  const assigned = assignWesternAdultId(config, subLib, protagonist, existingAdultId, { filePath });
+  const finalAdultId = assigned ? assigned.adultId : (item.adultMetadata && item.adultMetadata.adultId) || curation.adultId || '';
+  const protagonistName = assigned ? assigned.actorName : '';
+
+  const metadata = {
+    source: 'western_builtin',
+    sourceUrl: '',
+    adultId: finalAdultId,
+    title: cleanTitlePart(curation.title || curation.generatedTitle || (protagonistName ? `${protagonistName} - ${finalAdultId}` : buildWesternTitle(curation, item, westernConfig))),
+    originalTitle: cleanTitlePart(finalAdultId || curation.originalTitle || path.basename(filePath, path.extname(filePath))),
+    plot: cleanTitlePart(curation.plot || curation.generatedDescription || curation.summary || curation.safeSummary || curation.description || ''),
+    runtimeMinutes: item.duration ? Math.round(Number(item.duration) / 60) : undefined,
+    studio: cleanTitlePart(curation.studio || ''),
+    director: cleanTitlePart(curation.director || ''),
+    actors: Array.isArray(curation.actors) ? curation.actors.map(cleanTitlePart).filter(Boolean) : [],
+    actorThumbs: curation.actorThumbs || {},
+    genres: Array.isArray(curation.genres) ? curation.genres.map(cleanTitlePart).filter(Boolean) : [],
+    tags: Array.isArray(curation.tags) ? curation.tags.map(cleanTitlePart).filter(Boolean) : [],
+    rating: curation.rating || '',
+    premiered: curation.premiered || '',
+    country: curation.country || '',
+    series: protagonistName || curation.series || '',
+  };
+  if (metadata.adultId && protagonistName) {
+    metadata.folderName = `${metadata.adultId} ${protagonistName}`;
+    metadata.mediaFileName = `${metadata.adultId} ${protagonistName}`;
+  }
+  if (!metadata.title) metadata.title = buildWesternTitle(metadata, item, westernConfig);
+  // Surface the scrape outcome so the executor can decide done vs failed.
+  opts.__hasProtagonist = !!assigned;
+
+  if (!opts.__hasProtagonist) {
+    const lib = loadLibrary();
+    const idx = lib.items.findIndex((it) => it.itemId === item.itemId);
+    if (idx < 0) throw new Error('Library item not found');
+    const existing = lib.items[idx];
+    const adultMetadata = {
+      ...(existing.adultMetadata || {}),
+      region: 'western_adult',
+      scraperType: subLib.scraperType || 'western_builtin',
+      adultId: finalAdultId,
+      scrapeStatus: 'needs_review',
+      reviewStatus: 'needs_review',
+      generatedTitle: curation.generatedTitle || metadata.title,
+      generatedDescription: curation.generatedDescription || curation.description || '',
+      scene: curation.scene || {},
+      safetyFlags: curation.safetyFlags || {},
+      faceClusters: Array.isArray(curation.faceClusters) ? curation.faceClusters : [],
+      unknownFaces: Array.isArray(curation.unknownFaces) ? curation.unknownFaces : [],
+      actorConfidence: curation.actorConfidence || {},
+      protagonist: null,
+      galleryImages: Array.isArray(curation.galleryImages) ? curation.galleryImages : [],
+      ai: curation.ai || {},
+    };
+    const updated = {
+      ...existing,
+      scraped: false,
+      adultMetadata,
+      lastRefreshedAt: now,
+    };
+    lib.items[idx] = updated;
+    lib.cachedAt = now;
+    saveLibrary(lib);
+    return updated;
+  }
+
+  const organized = organizeScrapedFolder(filePath, metadata, subLib, westernConfig, onLog);
+  if (organized.renamed) {
+    filePath = organized.filePath;
+  }
+
+  let nfoPaths = westernConfig.writeNfo === false ? { movieNfo: '', fileNfo: '' } : writeNfoFiles(filePath, metadata, item);
+  let posterPath = '';
+  let fanartPath = '';
+  try {
+    posterPath = writeImagePayload(path.join(path.dirname(filePath), westernConfig.posterBasename || 'poster'), curation.posterImageBase64 || curation.posterImage)
+      || copyImageIfAccessible(curation.posterPath, path.join(path.dirname(filePath), westernConfig.posterBasename || 'poster'));
+  } catch (e) {
+    if (onLog) onLog('warn', `Poster write failed: ${e.message}`);
+  }
+  try {
+    fanartPath = writeImagePayload(path.join(path.dirname(filePath), westernConfig.fanartBasename || 'fanart'), curation.fanartImageBase64 || curation.fanartImage)
+      || copyImageIfAccessible(curation.fanartPath, path.join(path.dirname(filePath), westernConfig.fanartBasename || 'fanart'));
+  } catch (e) {
+    if (onLog) onLog('warn', `Fanart write failed: ${e.message}`);
+  }
+  if (!fanartPath) fanartPath = posterPath;
+
+  // Scrape succeeds only when a protagonist was named. No protagonist = the
+  // worker couldn't identify a lead actor; this is the western equivalent of a
+  // JAV scrape that couldn't resolve a 番号, and is treated the same way
+  // (the executor marks the task failed_hard; remediation is rescrape).
+  const hasProtagonist = !!assigned;
+  const needsReview = !hasProtagonist || !!westernConfig.reviewRequired;
+  const reviewStatus = needsReview ? 'needs_review' : 'approved';
+  const markerPath = path.join(path.dirname(filePath), '.shelfdeck.json');
+  fs.writeFileSync(markerPath, JSON.stringify({
+    itemId: item.itemId,
+    subLibraryId: subLib.uuid,
+    scraperType: subLib.scraperType || 'western_builtin',
+    scrapeTaskId: opts.taskId || null,
+    scrapedAt: now,
+    source: 'western_builtin',
+    mediaPath: filePath,
+    organized: organized.renamed,
+    originalFolder: organized.renamed ? organized.oldDir : '',
+    nfoPath: nfoPaths.movieNfo,
+    fileNfoPath: nfoPaths.fileNfo,
+    posterPath,
+    fanartPath,
+    reviewStatus,
+    ai: curation.ai || {},
+  }, null, 2), 'utf8');
+
+  const lib = loadLibrary();
+  const idx = lib.items.findIndex((it) => it.itemId === item.itemId);
+  if (idx < 0) throw new Error('Library item not found');
+  const existing = lib.items[idx];
+  const adultMetadata = {
+    ...(existing.adultMetadata || {}),
+    region: 'western_adult',
+    scraperType: subLib.scraperType || 'western_builtin',
+    adultId: metadata.adultId,
+    title: metadata.title,
+    originalTitle: metadata.originalTitle,
+    plot: metadata.plot,
+    studio: metadata.studio,
+    director: metadata.director,
+    actors: metadata.actors,
+    actorThumbs: metadata.actorThumbs,
+    tags: metadata.tags,
+    genres: metadata.genres,
+    rating: metadata.rating,
+    premiered: metadata.premiered,
+    source: 'western_builtin',
+    sourceUrl: '',
+    nfoPath: nfoPaths.movieNfo,
+    fileNfoPath: nfoPaths.fileNfo,
+    posterPath,
+    fanartPath,
+    markerPath,
+    organized: organized.renamed,
+    originalFolder: organized.renamed ? organized.oldDir : '',
+    scrapedAt: now,
+    scrapeStatus: needsReview ? 'needs_review' : 'done',
+    reviewStatus,
+    generatedTitle: curation.generatedTitle || metadata.title,
+    generatedDescription: curation.generatedDescription || curation.description || '',
+    scene: curation.scene || {},
+    safetyFlags: curation.safetyFlags || {},
+    faceClusters: Array.isArray(curation.faceClusters) ? curation.faceClusters : [],
+    unknownFaces: Array.isArray(curation.unknownFaces) ? curation.unknownFaces : [],
+    actorConfidence: curation.actorConfidence || {},
+    protagonist: assigned ? {
+      personId: assigned.actorPersonId,
+      name: assigned.actorName,
+      adultId: assigned.adultId,
+    } : null,
+    galleryImages: Array.isArray(curation.galleryImages) ? curation.galleryImages : [],
+    ai: curation.ai || {},
+  };
+
+  const updated = {
+    ...existing,
+    name: metadata.title || existing.name,
+    path: filePath,
+    sourceId: existing.sourceId || normalizePathForCompare(filePath),
+    assetRootPath: assetIdentity.inferAssetRootPath(filePath, false),
+    externalRefs: {
+      ...(existing.externalRefs || {}),
+      adultFolder: {
+        ...((existing.externalRefs || {}).adultFolder || {}),
+        path: filePath,
+        adultId: adultMetadata.adultId,
+        lastSeenAt: now,
+      },
+    },
+    premiereDate: adultMetadata.premiered || existing.premiereDate || null,
+    genres: adultMetadata.genres || [],
+    scraped: !needsReview,
     adultMetadata,
     lastRefreshedAt: now,
   };
@@ -979,6 +1291,7 @@ function stopAllWatchers() {
 module.exports = {
   isAdultFolderSubLibrary,
   isJapaneseJavSubLibrary,
+  isWesternAdultSubLibrary,
   startAllWatchers,
   stopAllWatchers,
   startSubLibraryWatcher,
@@ -988,6 +1301,7 @@ module.exports = {
   refreshItemFromScrapedFiles,
   upsertFileItem,
   applyScrapeResultToItem,
+  applyWesternCurationResultToItem,
   markScrapeFailed,
   resetScrapeStatus,
   rescrapeItem,
@@ -996,4 +1310,113 @@ module.exports = {
   computeRightCoverCrop,
   parseNfo,
   findNfoForFile,
+  assignWesternAdultId,
+  nextUnknownSequence,
+  nextActorSequence,
+  pickProtagonist,
 };
+
+// ── Western self-assigned 番号 ──────────────────────────────────────────────
+// The 番号 (adultId) is metadata, not the primary key. It encodes the actor so
+// the user can recognize a film at a glance (SKDI-007 = Skin Diamond's 7th).
+// Lifecycle mirrors the JAV library: a scrape either succeeds (protagonist
+// named -> stable 番号) or fails (no protagonist -> UNK-NNN, scraped=false).
+// Remediation is rescrape, never local backfill.
+
+function westernCfg(config, subLib) {
+  return {
+    ...(((config.adultLibrary || {}).western) || {}),
+    ...((subLib && subLib.western) || {}),
+  };
+}
+
+// Monotonic UNK sequence per western sub-library. Stored on the sub-library so
+// each library has its own UNK pool. Gaps are never recycled.
+function nextUnknownSequence(config, subLib) {
+  const subLibs = config.subLibraries || [];
+  const idx = subLibs.findIndex((s) => s.uuid === subLib.uuid);
+  if (idx < 0) return 1;
+  const next = (Number(subLibs[idx].westernUnknownSequence) || 0) + 1;
+  subLibs[idx].westernUnknownSequence = next;
+  configStore.patchConfig({ subLibraries: subLibs });
+  return next;
+}
+
+// Per-actor sequence for the {CODE}-{NNN} form. Stored on the person.
+function nextActorSequence(personId) {
+  const data = peopleStore.loadPeople();
+  const p = data.people.find((x) => x.personId === personId);
+  if (!p) return 1;
+  const next = (Number(p.sequenceNumber) || 0) + 1;
+  p.sequenceNumber = next;
+  // Persist back through peopleStore by rewriting the file.
+  const fs = require('fs');
+  const file = path.join(configStore.resolveDataDir(), 'people.json');
+  fs.writeFileSync(file, JSON.stringify({ version: 1, people: data.people }, null, 2), 'utf8');
+  return next;
+}
+
+function padSeq(n, pad) {
+  return String(n).padStart(Math.max(1, Number(pad) || 3), '0');
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Assign the 番号 for a western item based on the worker's protagonist result.
+// Returns { adultId, actorName, actorPersonId } or null if no protagonist.
+function assignWesternAdultId(config, subLib, protagonist, existingAdultId = '', opts = {}) {
+  const cfg = westernCfg(config, subLib);
+  if (!protagonist || !protagonist.personId || !protagonist.name) {
+    return null; // caller falls back to UNK-NNN
+  }
+  const data = peopleStore.loadPeople();
+  const person = data.people.find((p) => p.personId === protagonist.personId);
+  const code = (person && person.canonicalCode) || peopleStore.assignUniqueCanonicalCode(data, protagonist.name);
+  const currentId = String(existingAdultId || '').trim();
+  const currentFolderName = opts.filePath ? path.basename(path.dirname(opts.filePath)) : '';
+  const folderMatch = currentFolderName.match(new RegExp(`^(${escapeRegExp(code)}-\\d+)\\b`, 'i'));
+  if (folderMatch) {
+    return {
+      adultId: folderMatch[1].toUpperCase(),
+      actorName: protagonist.name,
+      actorPersonId: protagonist.personId,
+      reused: true,
+    };
+  }
+  const currentIdMatchesActor = currentId
+    && !/^UNK-\d+$/i.test(currentId)
+    && currentId.toUpperCase().startsWith(`${code.toUpperCase()}-`);
+  const currentIdLooksOrganized = currentFolderName
+    && currentFolderName.toUpperCase().startsWith(currentId.toUpperCase());
+  if (currentIdMatchesActor && currentIdLooksOrganized) {
+    return {
+      adultId: currentId,
+      actorName: protagonist.name,
+      actorPersonId: protagonist.personId,
+      reused: true,
+    };
+  }
+  if (person && !person.canonicalCode) {
+    person.canonicalCode = code;
+    const fs = require('fs');
+    fs.writeFileSync(path.join(configStore.resolveDataDir(), 'people.json'),
+      JSON.stringify({ version: 1, people: data.people }, null, 2), 'utf8');
+  }
+  const seq = nextActorSequence(protagonist.personId);
+  return {
+    adultId: `${code}-${padSeq(seq, cfg.sequencePad)}`,
+    actorName: protagonist.name,
+    actorPersonId: protagonist.personId,
+  };
+}
+
+// Pick the protagonist cluster from the worker's faceClusters result. The
+// worker already sorts by protagonistScore (avgFaceArea × frameCount) and marks
+// status, so the service trusts the top named cluster. Exposed for testing and
+// for a future "change protagonist" override.
+function pickProtagonist(faceClusters) {
+  if (!Array.isArray(faceClusters)) return null;
+  return faceClusters.find((c) => c.status === 'named' && c.matchedPersonId) || null;
+}

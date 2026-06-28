@@ -111,6 +111,18 @@
       <span class="info-value" id="info-temp">—</span>
     </div>
     <div class="info-row">
+      <span class="info-label">AI 数据目录</span>
+      <span class="info-value" id="info-ai-root">—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">VLM</span>
+      <span class="info-value" id="info-vlm">—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">人脸模型</span>
+      <span class="info-value" id="info-face">—</span>
+    </div>
+    <div class="info-row">
       <span class="info-label">FFmpeg</span>
       <span class="info-value" id="info-ffmpeg">—</span>
     </div>
@@ -131,6 +143,34 @@
       <input type="password" id="newKey" placeholder="留空则不修改" autocomplete="off">
       <div class="hint">仅当需要修改 API Key 时填写</div>
     </div>
+    <div class="field">
+      <label for="aiDataRoot">AI 数据目录</label>
+      <input type="text" id="aiDataRoot" placeholder="如: /data/ai">
+    </div>
+    <div class="field">
+      <label for="visionBaseUrl">VLM Base URL</label>
+      <input type="text" id="visionBaseUrl" placeholder="如: http://host.docker.internal:11434/v1">
+    </div>
+    <div class="field">
+      <label for="visionModel">VLM Model</label>
+      <input type="text" id="visionModel" placeholder="如: qwen3-vl">
+    </div>
+    <div class="field">
+      <label for="visionApiKey">VLM API Key</label>
+      <input type="password" id="visionApiKey" placeholder="留空则不修改" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="faceEmbeddingsUrl">Face Embeddings URL</label>
+      <input type="text" id="faceEmbeddingsUrl" placeholder="如: http://host.docker.internal:19110/v1/face/embeddings">
+    </div>
+    <div class="field">
+      <label for="faceApiKey">Face API Key</label>
+      <input type="password" id="faceApiKey" placeholder="留空则不修改" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="faceSimilarityThreshold">Face 相似度阈值</label>
+      <input type="number" id="faceSimilarityThreshold" min="0.1" max="0.99" step="0.01" placeholder="0.25">
+    </div>
     <div class="actions">
       <button class="btn btn-secondary" id="btnReset">重置</button>
       <button class="btn btn-primary" id="btnSave">保存</button>
@@ -146,11 +186,21 @@
   var infoKey = document.getElementById('info-key');
   var infoPort = document.getElementById('info-port');
   var infoTemp = document.getElementById('info-temp');
+  var infoAiRoot = document.getElementById('info-ai-root');
+  var infoVlm = document.getElementById('info-vlm');
+  var infoFace = document.getElementById('info-face');
   var infoFfmpeg = document.getElementById('info-ffmpeg');
   var toast = document.getElementById('toast');
   var inputName = document.getElementById('name');
   var inputCurKey = document.getElementById('curKey');
   var inputNewKey = document.getElementById('newKey');
+  var inputAiDataRoot = document.getElementById('aiDataRoot');
+  var inputVisionBaseUrl = document.getElementById('visionBaseUrl');
+  var inputVisionModel = document.getElementById('visionModel');
+  var inputVisionApiKey = document.getElementById('visionApiKey');
+  var inputFaceEmbeddingsUrl = document.getElementById('faceEmbeddingsUrl');
+  var inputFaceApiKey = document.getElementById('faceApiKey');
+  var inputFaceSimilarityThreshold = document.getElementById('faceSimilarityThreshold');
   var btnSave = document.getElementById('btnSave');
   var btnReset = document.getElementById('btnReset');
 
@@ -167,6 +217,9 @@
     }
     infoPort.textContent = CONFIG.port;
     infoTemp.textContent = CONFIG.tempRoot;
+    infoAiRoot.textContent = CONFIG.aiDataRoot || '—';
+    infoVlm.textContent = CONFIG.visionBaseUrl && CONFIG.visionModel ? (CONFIG.visionModel + ' @ ' + CONFIG.visionBaseUrl) : '未配置';
+    infoFace.textContent = CONFIG.faceEmbeddingsUrl || '未配置';
     infoFfmpeg.textContent = CONFIG.ffmpegPath || '(默认)';
   }
 
@@ -180,12 +233,26 @@
     inputName.value = CONFIG.name || '';
     inputCurKey.value = '';
     inputNewKey.value = '';
+    inputAiDataRoot.value = CONFIG.aiDataRoot || '';
+    inputVisionBaseUrl.value = CONFIG.visionBaseUrl || '';
+    inputVisionModel.value = CONFIG.visionModel || '';
+    inputVisionApiKey.value = '';
+    inputFaceEmbeddingsUrl.value = CONFIG.faceEmbeddingsUrl || '';
+    inputFaceApiKey.value = '';
+    inputFaceSimilarityThreshold.value = CONFIG.faceSimilarityThreshold || 0.25;
   }
 
   btnSave.addEventListener('click', function () {
     var name = inputName.value.trim();
     var curKey = inputCurKey.value.trim();
     var newKey = inputNewKey.value.trim();
+    var aiDataRoot = inputAiDataRoot.value.trim();
+    var visionBaseUrl = inputVisionBaseUrl.value.trim();
+    var visionModel = inputVisionModel.value.trim();
+    var visionApiKey = inputVisionApiKey.value.trim();
+    var faceEmbeddingsUrl = inputFaceEmbeddingsUrl.value.trim();
+    var faceApiKey = inputFaceApiKey.value.trim();
+    var faceSimilarityThreshold = inputFaceSimilarityThreshold.value.trim();
 
     if (!name) { showToast('节点名称不能为空', 'error'); return; }
 
@@ -197,6 +264,15 @@
     var body = {};
     if (name !== CONFIG.name) body.name = name;
     if (newKey) body.apiKey = newKey;
+    if (aiDataRoot !== (CONFIG.aiDataRoot || '')) body.aiDataRoot = aiDataRoot;
+    if (visionBaseUrl !== (CONFIG.visionBaseUrl || '')) body.visionBaseUrl = visionBaseUrl;
+    if (visionModel !== (CONFIG.visionModel || '')) body.visionModel = visionModel;
+    if (visionApiKey) body.visionApiKey = visionApiKey;
+    if (faceEmbeddingsUrl !== (CONFIG.faceEmbeddingsUrl || '')) body.faceEmbeddingsUrl = faceEmbeddingsUrl;
+    if (faceApiKey) body.faceApiKey = faceApiKey;
+    if (faceSimilarityThreshold && Number(faceSimilarityThreshold) !== Number(CONFIG.faceSimilarityThreshold || 0.25)) {
+      body.faceSimilarityThreshold = Number(faceSimilarityThreshold);
+    }
 
     if (Object.keys(body).length === 0) {
       showToast('未做任何修改', 'error');

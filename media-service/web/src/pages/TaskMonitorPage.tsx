@@ -203,6 +203,13 @@ export default function TaskMonitorPage() {
       }
     }
     if (t.status === 'failed_hard' && t.actionType === 'scrape') {
+      btns.push(<button key="scrape-report" onClick={() => {
+        setReportTask(t.id);
+        setReportLoading(true);
+        import('../api/client').then(({ tasks: tk }) => {
+          tk.report(t.id).then(data => { setReportData(data); setReportLoading(false); });
+        });
+      }} style={execBtn}>识别报告</button>);
       btns.push(<button key="fix-scrape" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
     }
     if (t.status === 'awaiting_user_confirm') {
@@ -683,6 +690,18 @@ export default function TaskMonitorPage() {
 }
 
 function ReportContent({ report }: { report: import('../api/client').TaskReport }) {
+  const qc = useQueryClient();
+  const [actorNames, setActorNames] = useState<Record<string, string>>({});
+  const createFromFaceMut = useMutation({
+    mutationFn: (params: { clusterId: string; name: string }) =>
+      adult.createPersonFromFace({ itemId: report.itemId || '', clusterId: params.clusterId, name: params.name }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['adult-people'] });
+      alert('演员已创建。现在可以重新刮削这部影片。');
+    },
+    onError: (e: Error) => alert(e.message),
+  });
+
   function fmtSize(bytes: number | undefined): string {
     if (!bytes || bytes === 0) return '—';
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
@@ -702,12 +721,17 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
   const isTranscode = report.actionType === 'transcode';
   const isDelete = report.actionType === 'delete';
   const isUpgrade = report.actionType === 'upgrade';
+  const isScrape = report.actionType === 'scrape';
+  const faceRows = [
+    ...((report.scrape?.faceClusters || []) as Array<Record<string, unknown>>),
+    ...((report.scrape?.unknownFaces || []) as Array<Record<string, unknown>>),
+  ].filter((f) => String(f.status || '') !== 'named');
 
   return (
     <div>
       <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>📊 {report.itemName}</p>
       <p style={{ fontSize: 12, color: '#888', marginBottom: 16 }}>
-        {isTranscode ? '码率压缩' : isDelete ? '删除' : '洗版'}  ·  耗时 {fmtDuration(report.elapsedSec)}
+        {isTranscode ? '码率压缩' : isDelete ? '删除' : isScrape ? '刮削' : '洗版'}  ·  耗时 {fmtDuration(report.elapsedSec)}
         {report.encoder ? '  ·  ' + report.encoder : ''}
       </p>
 
@@ -774,6 +798,49 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
         <div style={{ background: '#fef3e2', borderRadius: 8, padding: '12px 16px', fontSize: 12 }}>
           已从 Emby 删除此媒体文件<br />
           <strong>释放空间</strong>：{fmtSize(report.bytesFreed)}
+        </div>
+      )}
+
+      {isScrape && report.scrape && (
+        <div style={{ fontSize: 12 }}>
+          <div style={{ background: '#f7f8fa', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+            <div><strong>番号</strong>：{report.scrape.adultId || '—'}</div>
+            <div><strong>标题</strong>：{report.scrape.title || '—'}</div>
+            <div><strong>演员</strong>：{report.scrape.actors?.join(', ') || '未识别'}</div>
+            <div><strong>状态</strong>：{report.scrape.scrapeStatus || '—'}</div>
+          </div>
+          {faceRows.length > 0 && (
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>陌生脸</div>
+              {faceRows.map((face, idx) => {
+                const id = String(face.clusterId || face.faceId || `face-${idx}`);
+                const img = String(face.sampleImageBase64 || '');
+                return (
+                  <div key={id} style={{ display: 'flex', gap: 10, alignItems: 'center', borderTop: '1px solid #eee', padding: '8px 0' }}>
+                    {img ? <img src={`data:image/jpeg;base64,${img}`} style={{ width: 58, height: 58, objectFit: 'cover', borderRadius: 6 }} /> : <div style={{ width: 58, height: 58, background: '#eee', borderRadius: 6 }} />}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: '#666' }}>
+                        {id} · 出现 {String(face.frameCount || 1)} 帧 · 匹配分 {String(face.matchConfidence || face.confidence || 0)}
+                      </div>
+                      <input
+                        value={actorNames[id] || ''}
+                        onChange={(e) => setActorNames((prev) => ({ ...prev, [id]: e.target.value }))}
+                        placeholder="填写演员名"
+                        style={{ marginTop: 6, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6, width: 180 }}
+                      />
+                    </div>
+                    <button
+                      style={{ ...execBtn, opacity: !actorNames[id] || createFromFaceMut.isPending ? 0.6 : 1 }}
+                      disabled={!actorNames[id] || createFromFaceMut.isPending || !report.itemId}
+                      onClick={() => createFromFaceMut.mutate({ clusterId: id, name: actorNames[id] })}
+                    >
+                      建演员
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

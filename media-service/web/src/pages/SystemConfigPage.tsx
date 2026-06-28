@@ -21,16 +21,71 @@ interface SubLibScheduleState {
   autoReplaceTranscode: boolean;
   autoReplaceUpgrade: boolean;
   smartSelectEnabled: boolean;
+  // Queue priority weight (lower = this library's tasks run first). Default 100.
+  priorityWeight: number;
 }
 
 function applyMode(mode: ScheduleMode, prev: SubLibScheduleState): SubLibScheduleState {
   if (mode === 'full_auto') {
-    return { scheduleMode: mode, autoCreate: true, autoExecute: true, autoReplaceTranscode: true, autoReplaceUpgrade: true, smartSelectEnabled: true };
+    return { scheduleMode: mode, autoCreate: true, autoExecute: true, autoReplaceTranscode: true, autoReplaceUpgrade: true, smartSelectEnabled: true, priorityWeight: prev.priorityWeight };
   }
   if (mode === 'full_manual') {
-    return { scheduleMode: mode, autoCreate: false, autoExecute: false, autoReplaceTranscode: false, autoReplaceUpgrade: false, smartSelectEnabled: false };
+    return { scheduleMode: mode, autoCreate: false, autoExecute: false, autoReplaceTranscode: false, autoReplaceUpgrade: false, smartSelectEnabled: false, priorityWeight: prev.priorityWeight };
   }
   return { ...prev, scheduleMode: mode };
+}
+
+type PriorityMatch = NonNullable<import('../api/client').PriorityRule['match']>;
+type PriorityMatchKey = keyof PriorityMatch;
+
+function firstMatchKey(match: PriorityMatch = {}): string {
+  return Object.keys(match)[0] || 'subLibraryId';
+}
+
+function setSingleMatch(_match: PriorityMatch = {}, key: string): PriorityMatch {
+  if (key === 'isDiscLike' || key === 'isDolbyVision') return { [key]: true } as PriorityMatch;
+  if (key === 'type') return { type: 'movie' } as PriorityMatch;
+  if (key === 'resolution') return { resolution: '4K' } as PriorityMatch;
+  return { subLibraryId: '' } as PriorityMatch;
+}
+
+function setSingleMatchValue(match: PriorityMatch = {}, value: unknown): PriorityMatch {
+  const key = firstMatchKey(match) as PriorityMatchKey;
+  return { [key]: value } as PriorityMatch;
+}
+
+function MatchValueInput({ rule, subLibs, onChange }: {
+  rule: import('../api/client').PriorityRule;
+  subLibs: SubLibrary[];
+  onChange: (value: unknown) => void;
+}) {
+  const key = firstMatchKey(rule.match || {});
+  const value = (rule.match || {})[key as PriorityMatchKey] as unknown;
+  if (key === 'subLibraryId') {
+    return (
+      <select value={String(value || '')} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, width: 170 }}>
+        <option value="">请选择媒体库</option>
+        {subLibs.map((sl) => <option key={sl.uuid} value={sl.uuid}>{sl.name}</option>)}
+      </select>
+    );
+  }
+  if (key === 'isDiscLike' || key === 'isDolbyVision') {
+    return (
+      <select value={String(value === false ? 'false' : 'true')} onChange={(e) => onChange(e.target.value === 'true')} style={{ ...inputStyle, width: 90 }}>
+        <option value="true">是</option>
+        <option value="false">否</option>
+      </select>
+    );
+  }
+  if (key === 'type') {
+    return (
+      <select value={String(value || 'movie')} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, width: 110 }}>
+        <option value="movie">电影</option>
+        <option value="episode">剧集</option>
+      </select>
+    );
+  }
+  return <input value={String(value || '')} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, width: 120 }} placeholder="4K / 1080" />;
 }
 
 export default function SystemConfigPage() {
@@ -53,6 +108,11 @@ export default function SystemConfigPage() {
   const [smartTaskQueueMax, setSmartTaskQueueMax] = useState(50);
   const [strategyInterval, setStrategyInterval] = useState(30);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // Queue priority: base values + advanced overlay rules.
+  const [manualPrio, setManualPrio] = useState(0);
+  const [autoPrioBase, setAutoPrioBase] = useState(100);
+  const [priorityRules, setPriorityRules] = useState<Record<string, import('../api/client').PriorityRule[]>>({ transcode: [], upgrade: [], delete: [], scrape: [] });
+  const [showPriorityAdvanced, setShowPriorityAdvanced] = useState(false);
 
   const { data: slData } = useQuery({
     queryKey: ['sublibraries'],
@@ -78,6 +138,14 @@ export default function SystemConfigPage() {
         setSmartTaskLookback(sysCfg.smartTaskLookbackDays ?? 30);
         setSmartTaskQueueMax(sysCfg.smartTaskMaxQueueSize ?? 50);
         setStrategyInterval(sysCfg.strategyPollIntervalMinutes ?? 30);
+        setManualPrio(sysCfg.taskPriority?.manualTaskPriority ?? 0);
+        setAutoPrioBase(sysCfg.taskPriority?.autoTaskPriorityBase ?? 100);
+        setPriorityRules({
+          transcode: sysCfg.taskPriority?.rules?.transcode || [],
+          upgrade: sysCfg.taskPriority?.rules?.upgrade || [],
+          delete: sysCfg.taskPriority?.rules?.delete || [],
+          scrape: sysCfg.taskPriority?.rules?.scrape || [],
+        });
         setInitialized(true);
       }
 
@@ -92,6 +160,7 @@ export default function SystemConfigPage() {
           autoReplaceTranscode: !!(sl as any).autoReplaceTranscode,
           autoReplaceUpgrade: !!(sl as any).autoReplaceUpgrade,
           smartSelectEnabled: !!(sl as any).smartSelectEnabled,
+          priorityWeight: typeof (sl as any).priorityWeight === 'number' ? (sl as any).priorityWeight : 100,
         };
       }
       setSlSchedules(scheds);
@@ -119,6 +188,16 @@ export default function SystemConfigPage() {
           smartTaskLookbackDays: smartTaskLookback,
           smartTaskMaxQueueSize: smartTaskQueueMax,
           strategyPollIntervalMinutes: strategyInterval,
+          taskPriority: {
+            manualTaskPriority: manualPrio,
+            autoTaskPriorityBase: autoPrioBase,
+            rules: {
+              transcode: priorityRules.transcode || [],
+              upgrade: priorityRules.upgrade || [],
+              delete: priorityRules.delete || [],
+              scrape: priorityRules.scrape || [],
+            },
+          },
         }),
       ];
 
@@ -132,6 +211,7 @@ export default function SystemConfigPage() {
             autoReplaceTranscode: sched.autoReplaceTranscode,
             autoReplaceUpgrade: sched.autoReplaceUpgrade,
             smartSelectEnabled: sched.smartSelectEnabled,
+            priorityWeight: sched.priorityWeight,
           } as any)
         );
       }
@@ -146,6 +226,23 @@ export default function SystemConfigPage() {
   if (isLoading) return <LoadingSpinner />;
 
   const subLibs: SubLibrary[] = slData?.subLibraries || [];
+
+  // ── Priority rule editor helpers ──────────────────────────────────────────
+  function addPriorityRule(at: string) {
+    setPriorityRules((prev) => ({
+      ...prev,
+      [at]: [...(prev[at] || []), { match: { subLibraryId: subLibs[0]?.uuid || '' }, adjust: { op: 'subtract', value: 50 } }],
+    }));
+  }
+  function updatePriorityRule(at: string, idx: number, patch: Partial<import('../api/client').PriorityRule>) {
+    setPriorityRules((prev) => ({
+      ...prev,
+      [at]: (prev[at] || []).map((r, i) => (i === idx ? { ...r, ...patch, match: { ...r.match, ...(patch.match || {}) }, adjust: { ...r.adjust, ...(patch.adjust || {}) } } : r)),
+    }));
+  }
+  function removePriorityRule(at: string, idx: number) {
+    setPriorityRules((prev) => ({ ...prev, [at]: (prev[at] || []).filter((_, i) => i !== idx) }));
+  }
 
   return (
     <div>
@@ -167,6 +264,22 @@ export default function SystemConfigPage() {
             return (
               <div key={sl.uuid} style={{ border: '1px solid #e8e8e8', borderRadius: 10, padding: 16, marginBottom: 14, background: '#fff' }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', marginBottom: 12 }}>{sl.name}</div>
+
+                {/* Queue priority weight (lower = this library runs first) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 12px', background: '#f8f9fb', borderRadius: 8 }}>
+                  <label style={{ fontSize: 13, color: '#1a1a2e', fontWeight: 500 }}>队列优先级权重</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={sched.priorityWeight}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      setSlSchedules((prev) => ({ ...prev, [sl.uuid]: { ...sched, priorityWeight: Number.isFinite(v) && v >= 0 ? v : 100 } }));
+                    }}
+                    style={{ width: 80, padding: '4px 8px', border: '1px solid #d9d9d9', borderRadius: 6, fontSize: 13 }}
+                  />
+                  <span style={{ fontSize: 11, color: '#999' }}>数值越小，该库任务越优先执行（默认 100）</span>
+                </div>
 
                 {/* Mode selection */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
@@ -319,6 +432,84 @@ export default function SystemConfigPage() {
                     style={{ ...inputStyle, width: 100 }} />
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Card: 队列优先级（库权重在上方各库卡片内配置） */}
+      <section style={cardStyle}>
+        <h3 style={sectionTitle}>队列优先级</h3>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>
+          数值越小越优先执行。手动创建的任务固定使用手动基准；自动入队任务取「自动基准」与「该库权重」的较小值。
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 12 }}>
+          <div>
+            <label style={labelStyle}>手动任务基准</label>
+            <input type="number" min={0} value={manualPrio}
+              onChange={(e) => setManualPrio(Math.max(0, parseInt(e.target.value) || 0))}
+              style={{ ...inputStyle, width: 100 }} />
+          </div>
+          <div>
+            <label style={labelStyle}>自动任务基准</label>
+            <input type="number" min={0} value={autoPrioBase}
+              onChange={(e) => setAutoPrioBase(Math.max(0, parseInt(e.target.value) || 0))}
+              style={{ ...inputStyle, width: 100 }} />
+          </div>
+        </div>
+
+        {/* Advanced overlay rules (collapsible) */}
+        <div style={{ marginTop: 8 }}>
+          <button
+            onClick={() => setShowPriorityAdvanced((v) => !v)}
+            style={{ background: 'none', border: '1px solid #d9d9d9', borderRadius: 6, padding: '6px 12px', fontSize: 13, color: '#1a1a2e', cursor: 'pointer' }}
+          >
+            {showPriorityAdvanced ? '收起' : '展开'}高级优先级规则
+          </button>
+          {showPriorityAdvanced && (
+            <div style={{ marginTop: 12, padding: 14, background: '#f8f9fb', borderRadius: 8 }}>
+              <p style={{ ...hintStyle, marginBottom: 12 }}>
+                规则按顺序叠加到基准值上：subtract（更优先）、add（延后）、set（绝对档位）。匹配条件为 AND 关系。
+              </p>
+              {(['transcode', 'upgrade'] as const).map((at) => (
+                <div key={at} style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    {at === 'transcode' ? '码率压缩' : '洗版'}
+                  </div>
+                  {(priorityRules[at] || []).map((rule, idx) => (
+                    <div key={idx} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+                      <select value={rule.adjust.op}
+                        onChange={(e) => updatePriorityRule(at, idx, { adjust: { ...rule.adjust, op: e.target.value as any } })}
+                        style={{ ...inputStyle, width: 90 }}>
+                        <option value="subtract">更优先 -</option>
+                        <option value="add">延后 +</option>
+                        <option value="set">设为 =</option>
+                      </select>
+                      <input type="number" value={rule.adjust.value}
+                        onChange={(e) => updatePriorityRule(at, idx, { adjust: { ...rule.adjust, value: parseInt(e.target.value) || 0 } })}
+                        style={{ ...inputStyle, width: 70 }} />
+                      <span style={{ fontSize: 11, color: '#999' }}>当</span>
+                      <select value={firstMatchKey(rule.match)}
+                        onChange={(e) => updatePriorityRule(at, idx, { match: setSingleMatch(rule.match, e.target.value) })}
+                        style={{ ...inputStyle, width: 120 }}>
+                        <option value="subLibraryId">媒体库</option>
+                        <option value="type">类型</option>
+                        <option value="isDiscLike">原盘</option>
+                        <option value="isDolbyVision">杜比视界</option>
+                        <option value="resolution">分辨率前缀</option>
+                      </select>
+                      <MatchValueInput rule={rule} subLibs={subLibs}
+                        onChange={(val) => updatePriorityRule(at, idx, { match: setSingleMatchValue(rule.match, val) })} />
+                      <button onClick={() => removePriorityRule(at, idx)}
+                        style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 13 }}>删除</button>
+                    </div>
+                  ))}
+                  <button onClick={() => addPriorityRule(at)}
+                    style={{ background: 'none', border: '1px dashed #bbb', borderRadius: 6, padding: '4px 10px', fontSize: 12, color: '#666', cursor: 'pointer' }}>
+                    + 添加规则
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

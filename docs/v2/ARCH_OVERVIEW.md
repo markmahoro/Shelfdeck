@@ -21,10 +21,10 @@ ShelfDeck 是媒体库管家：基于 Emby 媒体数据、观看状态、用户�
 
 | 模块 | Directory | Runtime | 职责 |
 | --- | --- | --- | --- |
-| service Docker | `media-service/` | Container | Linux/Docker 版主服务；HTTP API、Admin Web、任务调度、外部集成 |
+| service Docker | `media-service/` | Container | Linux/Docker 版主服务；HTTP API、Admin Web、任务调度、外部集成、内置 face-service |
 | service Windows | `media-service/` | Node.js + Fastify + systray2 | Windows 版主服务；同 Docker 版，但内嵌托盘并使用 bundled FFmpeg |
 | desktop | `media-desktop/` | Electron + React | HTTP thin client；管理 service 地址、浏览媒体、下发意图 |
-| transcode node | `media-worker/` | Node.js + Fastify + FFmpeg | 被动计算节点；接收 service 下发的转码 job、执行 FFmpeg、返回输出文件 |
+| worker node | `media-worker/` | Node.js + Fastify + FFmpeg + optional AI runtime | 被动算力补充节点；接收 service 下发的转码 job，欧美成人 AI job 仅作为兼容扩展路径 |
 
 ## 3. 组件边界
 
@@ -32,9 +32,9 @@ ShelfDeck 是媒体库管家：基于 Emby 媒体数据、观看状态、用户�
 
 | 组件 | 职责 | 状态所有权 |
 | --- | --- | --- |
-| service | HTTP API、任务队列、任务执行、媒体库缓存、配置、Admin Web、外部集成 | 任务、配置、媒体库、策略结果 |
+| service | HTTP API、任务队列、任务执行、媒体库缓存、配置、Admin Web、外部集成、欧美成人本地抽帧/人脸匹配/封面生成 | 任务、配置、媒体库、策略结果、People 人物库 |
 | desktop | 用户交互、service 地址管理、任务/媒体展示、播放助手 | service 连接地址和本地 UI 状态 |
-| transcode node | FFmpeg 计算、GPU 能力探测、临时 job 文件 | 仅持有临时 job 状态和临时文件 |
+| worker node | FFmpeg 计算、GPU 能力探测、临时 job 文件、AI source asset、帧缓存和模型推理 | 仅持有计算侧临时状态、上传源文件缓存和模型缓存 |
 
 跨组件通信一律使用 HTTP REST。desktop 不直接访问 Emby、Douban、MoviePilot 或 service 运行时数据文件。transcode node 不直接访问 Emby、MoviePilot 或 service 数据文件。
 
@@ -60,18 +60,27 @@ Docker/Linux:
 container: media-service
   Fastify :18080
   Admin Web static files
+  internal only:
+    InsightFace face-service :19110
   no tray
 ```
 
-Transcode node:
+Worker node:
 
 ```text
-media-worker
+container: shelfdeck-media-worker
   Fastify :19000
   /api/v1/health
   /api/v1/capabilities
   /api/v1/jobs
+  /api/v1/assets
+  /api/v1/ai/jobs
   temporary source/output files
+  AI source assets / frame cache
+
+  optional internal only:
+    Ollama :11434
+    InsightFace face-service :19110
 ```
 
 desktop 退出不影响 service。service 退出会中断任务并让 desktop 断连。
@@ -102,11 +111,21 @@ desktop / Admin Web
 
 1. 用户创建 `mediaType=adult`、`source=folder` 的子库，并配置 `watchRoot`。
 2. `AdultLibraryService` 监听目录并做文件稳定等待，发现媒体文件后写入 `library.json`。
-3. 日本 JAV 子库使用 `scraperType=shelfdeck_japanese_jav`，创建 `scrape` 任务；欧美成人库预留 `western_builtin` adapter。
-4. `ScrapeFlowExecutor` 每次只处理一个 item，通过内置 Node.js scraper 拉取元数据，代理、重试、超时和 crawler 顺序从成人库配置读取。
-5. 刮削完成后由 ShelfDeck 写入 `movie.nfo`、同名 NFO、封面、`.shelfdeck.json`，更新 `adultMetadata`、`scraped=true` 和媒体技术信息。
+3. 日本 JAV 子库使用 `scraperType=shelfdeck_japanese_jav`，创建 `scrape` 任务；欧美成人库使用 `scraperType=western_builtin`，创建 AI 整理任务。
+4. `ScrapeFlowExecutor` 每次只处理一个 item。JAV 通过内置 Node.js scraper 拉取元数据；欧美成人默认在 service 内本地执行 FFmpeg 抽帧、调用容器内 face-service 生成 embedding、匹配 People 人物库并生成 deterministic composite poster。`computeMode=worker` 仅作为兼容扩展路径。
+5. 刮削/整理成功后由 ShelfDeck 写入 `movie.nfo`、同名 NFO、封面、`.shelfdeck.json`，更新 `adultMetadata`、`scraped=true` 和媒体技术信息；欧美成人未识别 protagonist 时任务失败，只保留 unknown face 诊断数据，不写成功态 NFO/封面。
 6. `StrategyEngine` 使用成人库策略模板计算 `transcode/keep`；`scrape` flow 不直接链式创建转码任务，后续是否转码由 `SmartTaskEngine` 根据 `scraped=true` 等策略条件决定。
 7. 后续转码继续复用现有 `TranscodeFlowExecutor`。
+
+欧美成人库补充规则：
+
+- 裸视频以 path identity 入库，不做番号识别；欧美成人番号由识别出的 protagonist 和 People canonical code 自生成。
+- People 人物库归 service 持久化；用户搜索/上传高清正脸图建立 reference face，后续匹配以该 reference embedding 为真值。演员图片搜索源包括 Stash-box GraphQL（默认 TPDB endpoint，可配置 FansDB/其他 stash-box）、MetadataAPI、TMDB、Wikimedia，出站请求默认复用日本 JAV scraper 的代理配置，并在无候选/源失败时向 UI 返回诊断信息；同时保留手动图片 URL/本地上传兜底以覆盖素人演员。
+- service Docker all-in-one 内部启动 InsightFace face-service，默认地址为 `http://127.0.0.1:19110/v1/face/embeddings`；该地址不是用户配置项，仅可通过环境变量覆盖。
+- 初次未知人脸由 service-local 分析返回 `unknownFaces`，包含头像样本和 embedding 诊断；用户命名后，service 通过 `/v1/admin/adult/people/from-face` 将该 cluster 写入 People reference faces。
+- 欧美成人匹配不到 protagonist 时等同于 JAV 识别不到番号：任务 `failed_hard`，item 保持 `scraped=false`，不会进入自动转码策略。
+- 自动通过的 item 标记 `scraped=true`，后续转码继续复用现有 `TranscodeFlowExecutor`。
+- 刮削成功会新建标准影片目录并移动当前视频：欧美成人目录/视频名为 `{adultId} {protagonist}`；JAV 目录/视频名沿用 scraper 返回的标题命名规范。已有目录不直接改名，目录内其他视频不被一起移动。
 
 混合成人库处理：
 
@@ -126,27 +145,36 @@ desktop / Admin Web
 | Delete flow | `src/deleteFlowExecutor.js` | 删除任务执行 |
 | Transcode flow | `src/transcodeFlowExecutor.js` | 转码任务执行 |
 | Upgrade flow | `src/upgradeFlowExecutor.js` | MoviePilot 洗版任务执行 |
-| Scrape flow | `src/scrapeFlowExecutor.js` | 成人库刮削任务执行，当前日本 JAV 调用内置 scraper |
+| Scrape flow | `src/scrapeFlowExecutor.js` | 成人库刮削/整理任务执行；JAV 调用内置 scraper，欧美成人默认 service-local AI |
 | Library | `src/mediaLibraryService.js` | 子库和媒体缓存管理 |
 | Adult folder library | `src/adultLibraryService.js` | 成人文件夹库监听、扫描、入库、刮削任务创建 |
 | Policy | `src/mediaPolicyService.js`、`src/strategyEngine.js`、`src/smartTaskEngine.js` | 策略计算和自动入队 |
-| External adapters | `src/services/*Service.js` | Emby、Douban、MoviePilot、FFmpeg、成人库 scraper |
+| External adapters | `src/services/*Service.js` | Emby、Douban、MoviePilot、FFmpeg、成人库 scraper、欧美成人 service-local/worker AI |
 | Tray | `src/tray.js` | Windows 系统托盘 |
-| Node registry | `src/nodeStore.js` | `data/nodes.json` 转码节点登记、健康状态、设备池 |
-| Node client | `src/nodeService.js` | 调用 transcode node 的 job/capabilities/health API |
+| People store | `src/peopleStore.js` | `data/people.json` 欧美成人人物库 |
+| Node registry | `src/nodeStore.js` | `data/nodes.json` worker 节点登记、健康状态、设备池 |
+| Node client | `src/nodeService.js` | 调用 worker 的 transcode job、AI asset/job、capabilities/health API |
 
-## 7. Transcode Node 模块
+## 7. Worker Node 模块
 
 | 模块 | 文件 | 职责 |
 | --- | --- | --- |
-| Worker API | `media-worker/src/server.js` | `/api/v1/jobs`、上传源文件、查询状态、下载输出、清理 job |
-| Worker config | `media-worker/src/config.js` | 默认端口、API key、临时目录、FFmpeg 路径 |
+| Worker API | `media-worker/src/server.js` | `/api/v1/jobs`、上传源文件、查询状态、下载输出、清理 job、AI asset/job API |
+| AI service | `media-worker/src/aiService.js` | source asset 缓存、抽帧、People 快照匹配、face embedding 调用、VLM 调用 |
+| Worker config | `media-worker/src/config.js` | 默认端口、API key、临时目录、AI data root、FFmpeg 路径、VLM endpoint、face embedding endpoint |
+| All-in-one image | `media-worker/Dockerfile.all-in-one` | 单容器 GPU 算力节点，内部启动 Node worker、Ollama 和 InsightFace |
+| Face service | `media-worker/face-service/` | InsightFace HTTP embedding 服务，仅在 all-in-one 容器内部暴露 |
 | Worker admin | `media-worker/src/admin.html` | 简单配置页面 |
 
-转码 node 是被动计算节点：
+worker node 是被动计算节点，欧美成人管理不依赖 worker：
 
 - 不知道 Emby、MoviePilot、媒体库路径映射或 service 地址。
-- 只保存内存 job 状态和临时源/输出文件。
+- 转码 job 保存内存状态和临时源/输出文件。
+- AI job 通过 `/api/v1/assets` 接收 service 上传的源视频，worker 本地保存 source asset 和抽帧缓存；该路径仅用于 `computeMode=worker`。
+- People 不在 worker 持久化；service 在创建 AI job 时传入当前 People 快照。
+- 默认 service 部署只启动一个容器；face-service 是 service 容器内进程，不作为用户可见的独立 Docker 服务。
+- VLM endpoint 必须兼容 OpenAI chat completions：`POST {VISION_BASE_URL}/chat/completions`，支持 image_url data URI。默认 all-in-one 内部地址是 `http://127.0.0.1:11434/v1`。
+- Face endpoint 由 `FACE_EMBEDDINGS_URL` 指定，约定输入 `{ images: [{ imageId, imageIndex, data, mimeType }], detect, returnCrops }`，输出 `{ faces: [{ faceId, imageIndex, bbox, embedding, sampleImageBase64 }] }`。默认 all-in-one 内部地址是 `http://127.0.0.1:19110/v1/face/embeddings`。
 - 由 service 负责任务持久化、调度、校验和替换。
 - 默认端口是 `19000`。
 
@@ -160,7 +188,9 @@ Runtime JSON 不入库：
 | `media-service/data/tasks.json` | service | 任务队列 |
 | `media-service/data/library.json` | service | 媒体库缓存 |
 | `media-service/data/nodes.json` | service | 转码节点登记 |
-| `media-worker/config.json` | transcode node | worker 本机配置 |
+| `media-service/data/people.json` | service | 欧美成人 People 人物库 |
+| `media-worker/config.json` | worker node | worker 本机配置 |
+| `media-worker/data/ai/` | worker node | AI source asset、抽帧缓存和模型侧运行数据 |
 
 不要把生产/测试环境导出的 `tasks_*.json`、`config_*.json`、截图、构建产物或日志提交到仓库。
 
@@ -179,7 +209,9 @@ API 细节以 `src/app.js` 和现有 tests 为准。新增或变更 API 时必�
 
 - `POST /v1/admin/sublibraries` 支持 `source=folder`、`mediaType=adult`。
 - `POST /v1/admin/sublibraries/:uuid/actions/scan` 手动扫描成人文件夹库。
-- `GET/PATCH /v1/admin/adult/config` 管理成人库全局默认配置和日本 JAV scraper 默认项。
+- `GET/PATCH /v1/admin/adult/config` 管理成人库全局默认配置、日本 JAV scraper 默认项和欧美成人配置；face-service 不作为用户配置项暴露。
+- `GET/POST/PATCH/DELETE /v1/admin/adult/people` 管理 service-owned People 人物库。
+- `POST /v1/admin/adult/people/from-face` 从某个 item 的 unknown face cluster 创建 People reference face。
 - `actionType=scrape` 是正式任务类型，进入统一任务队列和任务监控。
 
 Worker API:
@@ -191,6 +223,11 @@ Worker API:
 - `GET /api/v1/jobs/:id`
 - `GET /api/v1/jobs/:id/output`
 - `DELETE /api/v1/jobs/:id`
+- `POST /api/v1/assets`
+- `PUT /api/v1/assets/:id/source`
+- `GET /api/v1/assets/:id`
+- `POST /api/v1/ai/jobs`
+- `GET /api/v1/ai/jobs/:id`
 
 ## 10. 平台约束
 
@@ -199,6 +236,7 @@ Worker API:
 - 路径使用 `path.join()` 和可配置根目录。
 - FFmpeg/FFprobe 优先读取 `FFMPEG_PATH`、`FFPROBE_PATH`，Dockerfile 提供默认值。
 - 日本 JAV scraper 是 service 内置 Node.js 实现，不依赖 Python。需要访问受限站点时，在成人库配置中设置代理服务器。
+- 欧美成人 AI 默认在 service Docker all-in-one 内执行；worker 可保留为额外算力补充或兼容路径。
 
 ## 11. 关联文档
 

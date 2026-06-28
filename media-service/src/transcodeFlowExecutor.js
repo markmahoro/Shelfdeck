@@ -314,6 +314,7 @@ async function runExecuting(taskId, task, config) {
           dvAcknowledged: task.dvAcknowledged || false,
           durationSec: info.durationSec || 3600,
           targetBitrate: info.targetBitrate,
+          onLog: (level, msg) => appendLog(taskId, level, msg),
         },
       );
       appendLog(taskId, 'info', `Episode ${i + 1}/${totalCount} complete`);
@@ -365,6 +366,7 @@ async function runExecuting(taskId, task, config) {
           dvAcknowledged: task.dvAcknowledged || false,
           durationSec: info.durationSec || 3600,
           targetBitrate: info.targetBitrate,
+          onLog: (level, msg) => appendLog(taskId, level, msg),
         },
       );
 

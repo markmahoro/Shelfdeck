@@ -55,6 +55,8 @@ export interface SubLibrary {
   autoReplaceTranscode?: boolean;
   autoReplaceUpgrade?: boolean;
   smartSelectEnabled?: boolean;
+  // Queue priority weight (lower = this library's tasks run first). Default 100.
+  priorityWeight?: number;
   pathMapFrom?: string;
   pathMapTo?: string;
   mediaType?: string;
@@ -295,6 +297,9 @@ export interface MediaTask {
   progress: number;
   phase: string;
   resumePoint: string | null;
+  // Queue priority (lower = runs first within its actionType). Absent on
+  // legacy tasks (treated as 100 by the scheduler).
+  priority?: number;
   createdAt: string;
   updatedAt: string;
   logs?: TaskLogEntry[];
