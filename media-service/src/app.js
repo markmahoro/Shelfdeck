@@ -593,10 +593,16 @@ function registerRoutes(app) {
       filter.activeTaskIds = new Set(taskStore.loadTasks({ includeHistory: false }).map((t) => t.itemId));
     }
     if (query.scrape === 'done' || query.scrape === 'pending' || query.scrape === 'failed') filter.scrapeStatus = query.scrape;
+    const rawPageSize = Number(query.pageSize);
+    const rawPage = Number(query.page);
     const rawLimit = Number(query.limit);
     const rawOffset = Number(query.offset);
-    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(500, Math.floor(rawLimit)) : null;
-    const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
+    const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0 ? Math.min(500, Math.floor(rawPageSize)) : null;
+    const pageNumber = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1;
+    const limit = pageSize || (Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(500, Math.floor(rawLimit)) : null);
+    const offset = pageSize
+      ? (pageNumber - 1) * pageSize
+      : (Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0);
     return { filter, page: { limit, offset } };
   }
 

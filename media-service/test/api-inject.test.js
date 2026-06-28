@@ -2070,6 +2070,35 @@ test('GET /v1/library returns library items', async () => {
   await app.close();
 });
 
+test('GET /v1/library/queries/manage supports page and pageSize pagination', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const items = Array.from({ length: 5 }, (_, index) => ({
+    itemId: `page-item-${index + 1}`,
+    subLibraryId: 'sub-page',
+    source: 'emby',
+    type: 'movie',
+    name: `Paged Movie ${index + 1}`,
+    action: 'transcode',
+    path: `/media/paged-${index + 1}.mkv`,
+  }));
+  const cache = await app.inject({
+    method: 'POST',
+    url: '/v1/library/cache',
+    payload: { subLibraryId: 'sub-page', items },
+  });
+  assert.strictEqual(cache.statusCode, 200);
+
+  const res = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?page=2&pageSize=2' });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.total, 5);
+  assert.strictEqual(body.limit, 2);
+  assert.strictEqual(body.offset, 2);
+  assert.deepStrictEqual(body.items.map((item) => item.name), ['Paged Movie 3', 'Paged Movie 4']);
+  await app.close();
+});
+
 // ── MediaPolicyService (pure function) ─────────────────────────────────────────
 
 test('strategyEngine rule evaluation scenarios', async () => {
