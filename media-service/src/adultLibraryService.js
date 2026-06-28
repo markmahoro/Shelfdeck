@@ -1208,6 +1208,18 @@ function findExistingItemByFilePath(subLib, filePath) {
   return lib.items.find((it) => it.subLibraryId === subLib.uuid && normalizePathForCompare(it.path) === norm) || null;
 }
 
+function fileSettled(filePath, config, nowMs = Date.now()) {
+  const settleSeconds = Number(config && config.adultLibrary && config.adultLibrary.settleSeconds);
+  const settleMs = Math.max(0, Number.isFinite(settleSeconds) ? settleSeconds : 30) * 1000;
+  if (settleMs <= 0) return true;
+  try {
+    const stat = fs.statSync(filePath);
+    return nowMs - stat.mtimeMs >= settleMs;
+  } catch (_) {
+    return false;
+  }
+}
+
 function ingestItemInfo(subLib, filePath) {
   const name = path.basename(filePath, path.extname(filePath));
   return {
@@ -1221,6 +1233,41 @@ function ingestItemInfo(subLib, filePath) {
     scraperType: subLib.scraperType || '',
     assetRootPath: assetIdentity.inferAssetRootPath(filePath, false),
   };
+}
+
+function listIngestCandidates(config = configStore.loadConfig(), opts = {}) {
+  const nowMs = Number(opts.nowMs) || Date.now();
+  const cfg = config || {};
+  const lib = loadLibrary();
+  const existingByPath = new Set();
+  for (const item of lib.items || []) {
+    if (item && item.path) existingByPath.add(normalizePathForCompare(item.path));
+  }
+
+  const candidates = [];
+  for (const subLib of cfg.subLibraries || []) {
+    if (!isAdultFolderSubLibrary(subLib) || !subLib.watchRoot) continue;
+    const files = collectMediaFiles(subLib.watchRoot, cfg, { subLib });
+    for (const filePath of files) {
+      const norm = normalizePathForCompare(filePath);
+      if (existingByPath.has(norm)) continue;
+      if (!fileSettled(filePath, cfg, nowMs)) continue;
+      let timestamp = 0;
+      try {
+        timestamp = fs.statSync(filePath).mtimeMs;
+      } catch (_) {
+        continue;
+      }
+      const itemInfo = ingestItemInfo(subLib, filePath);
+      candidates.push({
+        subLibraryId: subLib.uuid,
+        filePath,
+        itemInfo,
+        timestamp,
+      });
+    }
+  }
+  return candidates.sort((a, b) => String(a.filePath).localeCompare(String(b.filePath)));
 }
 
 function enqueueIngestTask(subLib, filePath, opts = {}) {
@@ -1423,6 +1470,7 @@ module.exports = {
   isWesternAdultSubLibrary,
   scanSubLibrary,
   reconcileSubLibrary,
+  listIngestCandidates,
   refreshItemFromScrapedFiles,
   upsertFileItem,
   enqueueIngestTask,

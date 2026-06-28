@@ -116,7 +116,7 @@ desktop / Admin Web
 - `PriorityEngine` 只决定可入队任务的执行顺序。优先级是多维度叠加分数：`来源权重 + 任务类型权重 + 子库权重 + 规则修正`，数值越小越优先。用户手动调整任务优先级会直接覆盖任务上的最终分数。
 - 审批策略与调度策略分离。`approvalPolicy` 控制任务内部关键节点是否暂停，模式为 `auto`、`confirm`、`forceConfirm`；`forceConfirm` 不能被全局、子库或任务级覆盖降级。
 - 当前审批 gate 包括 `delete.beforeExecute`、`transcode.dolbyVisionTonemap`、`transcode.beforeReplace`、`upgrade.candidateSelect`、`upgrade.identityMismatch`、`upgrade.beforeReplace`、`scrape.beforeWriteMetadata`、`scrape.beforeOrganize`、`scrape.reviewResult`。
-- `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；成人库目录扫描/监听不再作为任务创建入口，也不把大量新文件展开成完整刮削或转码动作。
+- `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；成人库目录扫描不作为任务创建入口，也不把大量新文件展开成完整刮削或转码动作。后台自动入库由 `SmartTaskEngine` 读取文件候选后统一经过 `smartTaskEnabledActions`、`TaskAdmission` 和 `PriorityEngine` 创建 `ingest` 任务。
 - 任务持久化使用 `data/tasks.db` SQLite。任务中心保留完成、失败等历史记录；调度器、节点统计、转码临时目录清理等热路径只读取非终态 active task，不能为了降低队列压力删除历史任务。
 - 启动期全局维护不属于单 item task。普通媒体库启动刷新由 `mediaLibraryStartupRefreshOnStartup` 和 `mediaLibraryStartupRefreshDelaySeconds` 控制；自算字段立即运行由 `mediaLibrarySelfComputeOnStartup` 控制；`SmartTaskEngine` 首次自动入队扫描由 `smartTaskInitialDelaySeconds` 控制。生产部署可通过这些开关先恢复 API 响应，再让周期任务按节奏运行。
 - 成人库 `ingest` 的媒体探测使用 `adultLibrary.probeTimeoutMs` 控制单文件 `ffprobe` 超时。坏文件或异常路径只记录 `probeError` 并继续入库，不应拖住整个 HTTP 服务。
@@ -125,13 +125,14 @@ desktop / Admin Web
 
 1. 用户创建 `mediaType=adult`、`source=folder` 的子库，并配置 `watchRoot`。
 2. 目录级 scan 只做只读核对和刷新时间，不创建 `ingest` 或 `scrape` 任务；`POST /v1/admin/sublibraries/:uuid/actions/scan` 已废弃并返回 `410 ADULT_FOLDER_SCAN_REMOVED`。
-3. `IngestFlowExecutor` 每次只处理一个文件候选，完成文件探测、NFO 预解析和媒体项写入。已前置刮削的文件会直接成为 `scraped=true` item；未刮削文件在入库后再按统一 admission/priority 创建 `scrape` 任务。
-4. 日本 JAV 子库使用 `scraperType=shelfdeck_japanese_jav`；欧美成人库使用 `scraperType=western_builtin`。两者的单 item 入库和后续刮削都复用统一任务模型。
-5. `ScrapeFlowExecutor` 每次只处理一个 item。JAV 通过内置 Node.js scraper 拉取元数据；欧美成人默认在 service 内本地执行 FFmpeg 抽帧、调用容器内 face-service 生成 embedding、匹配 People 人物库并生成 deterministic composite poster。`computeMode=worker` 仅作为兼容扩展路径。
+3. `SmartTaskEngine` 在 `smartTaskEnabledActions` 包含 `ingest` 时读取未入库文件候选，并按统一 admission/priority 创建单 item `ingest` 任务；候选发现本身不写媒体库、不创建 scrape。
+4. `IngestFlowExecutor` 每次只处理一个文件候选，完成文件探测、NFO 预解析和媒体项写入。已前置刮削的文件会直接成为 `scraped=true` item；未刮削文件在入库后再按统一 admission/priority 创建 `scrape` 任务。
+5. 日本 JAV 子库使用 `scraperType=shelfdeck_japanese_jav`；欧美成人库使用 `scraperType=western_builtin`。两者的单 item 入库和后续刮削都复用统一任务模型。
+6. `ScrapeFlowExecutor` 每次只处理一个 item。JAV 通过内置 Node.js scraper 拉取元数据；欧美成人默认在 service 内本地执行 FFmpeg 抽帧、调用容器内 face-service 生成 embedding、匹配 People 人物库并生成 deterministic composite poster。`computeMode=worker` 仅作为兼容扩展路径。
    service-local 欧美成人 AI 跑在主 service 进程内，为保护 Admin Web/API 响应性，调度器必须单独限制该路径同一时间只执行 1 个本地分析任务；JAV scrape 和 `computeMode=worker` 不受此本地 AI 槽限制。
-6. 刮削/整理成功后由 ShelfDeck 移动影片到库目录下的统一归拢目录（默认 `scraped/`），写入 `movie.nfo`、同名 NFO、封面、`.shelfdeck.json`，并通过 `ScrapeVerification` 合同校验后才更新 `adultMetadata`、`scraped=true` 和媒体技术信息；欧美成人未识别 protagonist 时任务失败，只保留 unknown face 诊断数据，不写成功态 NFO/封面。
-7. `StrategyEngine` 使用成人库策略模板计算 `transcode/keep`；`scrape` flow 不直接链式创建转码任务，后续是否转码由 `SmartTaskEngine` 根据 `scraped=true` 等策略条件决定。
-8. 后续转码继续复用现有 `TranscodeFlowExecutor`。
+7. 刮削/整理成功后由 ShelfDeck 移动影片到库目录下的统一归拢目录（默认 `scraped/`），写入 `movie.nfo`、同名 NFO、封面、`.shelfdeck.json`，并通过 `ScrapeVerification` 合同校验后才更新 `adultMetadata`、`scraped=true` 和媒体技术信息；欧美成人未识别 protagonist 时任务失败，只保留 unknown face 诊断数据，不写成功态 NFO/封面。
+8. `StrategyEngine` 使用成人库策略模板计算 `transcode/keep`；`scrape` flow 不直接链式创建转码任务，后续是否转码由 `SmartTaskEngine` 根据 `scraped=true` 等策略条件决定。
+9. 后续转码继续复用现有 `TranscodeFlowExecutor`。
 
 欧美成人库补充规则：
 

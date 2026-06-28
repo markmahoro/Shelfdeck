@@ -371,6 +371,89 @@ test('smartTaskEngine auto-enqueues pending adult scrape candidates through Task
   assert.strictEqual(created[0].source, 'auto');
 });
 
+test('smartTaskEngine auto-enqueues ingest candidates through unified priority before transcode', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 1,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['ingest', 'transcode'],
+          smartTaskLookbackDays: 30,
+          subLibraries: [
+            { uuid: 'adult-lib', source: 'folder', mediaType: 'adult', automationMode: 'auto', priorityWeight: 100 },
+            { uuid: 'movie-lib', automationMode: 'auto', priorityWeight: 100 },
+          ],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { ingest: 60, transcode: 130 },
+            rules: { ingest: [], transcode: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByAction: { ingest: 0, transcode: 0 },
+            maxQueuedByAction: { ingest: 50, transcode: 50 },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [{
+            itemId: 'movie-transcode',
+            name: 'Movie Transcode',
+            source: 'emby',
+            type: 'movie',
+            watched: true,
+            action: 'transcode',
+            reason: 'high bitrate',
+            subLibraryId: 'movie-lib',
+            userRatingUpdatedAt: new Date().toISOString(),
+            path: '/media/movie.mkv',
+          }],
+        };
+      },
+    },
+    {
+      getTasks: () => [...created],
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTask(taskData) {
+        const task = { id: `t-${created.length + 1}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...taskData };
+        created.push(task);
+        return task;
+      },
+    },
+    {
+      ingestCandidateProvider() {
+        return [{
+          timestamp: Date.now(),
+          itemInfo: {
+            itemId: 'ingest:adult-lib:new-file',
+            name: 'New Adult File',
+            path: '/adult/new-file.mp4',
+            subLibraryId: 'adult-lib',
+            source: 'adult_folder',
+            mediaType: 'adult',
+          },
+        }];
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  assert.strictEqual(created.length, 1);
+  assert.strictEqual(created[0].actionType, 'ingest');
+  assert.strictEqual(created[0].itemId, 'ingest:adult-lib:new-file');
+  assert.strictEqual(created[0].priority, 260);
+  assert.strictEqual(created[0].source, 'auto');
+});
+
 test('smartTaskEngine leaves failed adult scrape candidates for explicit user action', async () => {
   smartTaskEngine.stop();
   const created = [];

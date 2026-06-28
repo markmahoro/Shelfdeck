@@ -14,6 +14,7 @@ const optimizationStatus = require('./optimizationStatus');
 const assetIdentity = require('./assetIdentity');
 const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
+const adultLibraryService = require('./adultLibraryService');
 
 let timer = null;
 let initialTimer = null;
@@ -152,8 +153,29 @@ function buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff,
   };
 }
 
-function start(configStore, mediaLibraryService, taskStore) {
+function buildIngestCandidate(candidate, config) {
+  const itemInfo = candidate && candidate.itemInfo;
+  if (!itemInfo || !itemInfo.itemId) return null;
+  const priority = priorityEngine.computePriority({
+    source: 'auto',
+    actionType: 'ingest',
+    itemInfo,
+    config,
+  });
+  return {
+    item: itemInfo,
+    itemInfo,
+    actionType: 'ingest',
+    priority,
+    timestamp: Number(candidate.timestamp) || itemTimestamp(itemInfo),
+  };
+}
+
+function start(configStore, mediaLibraryService, taskStore, opts = {}) {
   configReader = configStore;
+  const ingestCandidateProvider = typeof opts.ingestCandidateProvider === 'function'
+    ? opts.ingestCandidateProvider
+    : adultLibraryService.listIngestCandidates;
   const cfg = configStore.loadConfig();
   lastEnabledActions = readEnabledActions(cfg);
   const intervalMs = (cfg.smartTaskPollIntervalMinutes || 10) * 60 * 1000;
@@ -191,6 +213,7 @@ function start(configStore, mediaLibraryService, taskStore) {
       // backlog forms and PriorityEngine ordering becomes meaningful.
       const maxQueueSize = Number(cfg2.smartTaskMaxQueueSize) > 0 ? Number(cfg2.smartTaskMaxQueueSize) : 50;
       const queueCap = {
+        ingest: maxQueueSize,
         delete: maxQueueSize,
         transcode: maxQueueSize,
         upgrade: maxQueueSize,
@@ -204,6 +227,12 @@ function start(configStore, mediaLibraryService, taskStore) {
       const candidates = lib.items
         .map((item) => buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff, config: cfg2 }))
         .filter(Boolean);
+      if (enabledActions.includes('ingest')) {
+        for (const candidate of ingestCandidateProvider(cfg2) || []) {
+          const ingestCandidate = buildIngestCandidate(candidate, cfg2);
+          if (ingestCandidate) candidates.push(ingestCandidate);
+        }
+      }
 
       // Sort by computed task priority first, then most recent signal. This
       // keeps high-priority task types from being hidden behind large low-priority

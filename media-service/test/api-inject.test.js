@@ -1053,6 +1053,7 @@ test('adult folder scan is not a task creation path and ingest follow-up follows
   fs.mkdirSync(watchRoot, { recursive: true });
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
     smartTaskEnabledActions: ['ingest'],
+    adultLibrary: { settleSeconds: 0 },
     taskAdmission: {
       cooldownHoursByAction: { ingest: 0, scrape: 0 },
       maxQueuedByAction: { ingest: 10, scrape: 10 },
@@ -1081,6 +1082,10 @@ test('adult folder scan is not a task creation path and ingest follow-up follows
   assert.strictEqual(scan.scanned, 1);
   assert.strictEqual(scan.queued, 0, 'folder scan does not create ingest tasks');
   assert.strictEqual(scan.scrapeQueued, 0, 'folder scan does not create scrape tasks');
+  const candidates = adultLibraryService.listIngestCandidates();
+  assert.strictEqual(candidates.length, 1, 'folder discovery exposes a single ingest candidate');
+  assert.strictEqual(candidates[0].itemInfo.actionType, undefined, 'candidate discovery does not pre-create a task shape');
+  assert.strictEqual(candidates[0].itemInfo.subLibraryId, subLib.uuid);
 
   const ingestTask = adultLibraryService.enqueueIngestTask(subLib, path.join(watchRoot, 'MVSD-175.mp4'), { source: 'auto' });
   assert.ok(ingestTask, 'auto ingest can still be admitted through TaskAdmission when ingest is enabled');
