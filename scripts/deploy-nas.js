@@ -87,6 +87,18 @@ function updateComposeImageCmd(targetImage) {
   ].join(' && ');
 }
 
+function waitForHealthCmd() {
+  return [
+    'for i in $(seq 1 12); do',
+    'body=$(curl -fsS http://127.0.0.1:18080/v1/health) || { sleep 5; continue; };',
+    'echo "$body";',
+    'if ! printf "%s" "$body" | grep -q \'"status":"red"\'; then exit 0; fi;',
+    'sleep 5;',
+    'done;',
+    'exit 1',
+  ].join(' ');
+}
+
 function parseArgs(argv) {
   const parsed = { tarball: '', apply: false, expectedSha256: '' };
 
@@ -135,7 +147,7 @@ async function main() {
     ['Snapshot data files', dataSnapshotCmd()],
     ['Recreate through compose', `cd ${shellQuote(COMPOSE_DIR)} && docker compose up -d --force-recreate`],
     ['Wait for boot', 'sleep 8'],
-    ['Verify health', 'curl -fsS http://127.0.0.1:18080/v1/health'],
+    ['Verify health', waitForHealthCmd()],
     ['Verify adult mount', 'docker exec shelfdeck sh -lc "test -d /adult_media/JAV && ls /adult_media/JAV | head -5"'],
     ['Verify code comes from image', 'docker inspect shelfdeck --format "{{json .Mounts}}" | grep -v "shelfdeck-releases"'],
     ['Verify running image tag', `docker inspect shelfdeck --format "{{.Config.Image}}" | grep -Fx ${shellQuote(targetImage)}`],
