@@ -46,7 +46,7 @@ export default function DashboardPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingUuid, setEditingUuid] = useState('');
 
-  const { data: h, isLoading: hLoading } = useQuery({
+  const { data: h, isLoading: hLoading, isError: hError } = useQuery({
     queryKey: ['admin-health'],
     queryFn: health.check,
     refetchInterval: 30000,
@@ -198,7 +198,7 @@ export default function DashboardPage() {
     }
   }
 
-  if (hLoading || slLoading) return <LoadingSpinner />;
+  if (slLoading) return <LoadingSpinner text="加载媒体库中..." />;
 
   const allVisibleTasks: MediaTask[] = taskList?.tasks || [];
   const currentTasks = allVisibleTasks.filter((t) => !TERMINAL_TASK_STATUSES.has(t.status)).slice(0, 5);
@@ -218,7 +218,13 @@ export default function DashboardPage() {
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
 
       <div style={{ marginBottom: 24 }}>
-        <HealthCard status={h?.status || 'red'} checks={h?.checks as Record<string, { status: string; message?: string }> | undefined} />
+        {hLoading ? (
+          <HealthPendingCard title="服务状态：检测中" message="健康检查正在返回，其他数据已先加载。" />
+        ) : hError || !h ? (
+          <HealthPendingCard title="服务状态：暂不可用" message="健康检查暂时没有返回，稍后会自动重试。" tone="red" />
+        ) : (
+          <HealthCard status={h.status} checks={h.checks as Record<string, { status: string; message?: string }> | undefined} />
+        )}
       </div>
 
       {/* Media Libraries */}
@@ -652,6 +658,35 @@ function fmtSizeBytes(bytes: number): string {
   if (abs >= 1024 * 1024) return sign + Math.round(abs / (1024 * 1024)) + ' MB';
   if (abs >= 1024) return sign + Math.round(abs / 1024) + ' KB';
   return sign + abs + ' B';
+}
+
+function HealthPendingCard({ title, message, tone = 'yellow' }: { title: string; message: string; tone?: 'yellow' | 'red' }) {
+  const color = tone === 'red' ? '#e74c3c' : '#f39c12';
+  return (
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 10,
+        padding: 20,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+        borderLeft: `4px solid ${color}`,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <span
+          style={{
+            display: 'inline-block',
+            width: 12,
+            height: 12,
+            borderRadius: '50%',
+            background: color,
+          }}
+        />
+        <span style={{ fontSize: 16, fontWeight: 600 }}>{title}</span>
+      </div>
+      <div style={{ fontSize: 13, color: '#888' }}>{message}</div>
+    </div>
+  );
 }
 
 function SubCard({ title, children }: { title: string; children: React.ReactNode }) {
