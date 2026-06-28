@@ -1131,7 +1131,7 @@ function enqueueIngestTask(subLib, filePath, opts = {}) {
     tasks: taskSnapshot || taskStore.getTasks(),
   });
   if (!admission.allowed) return null;
-  const task = taskStore.createTask({
+  const taskData = {
     itemId: itemInfo.itemId,
     itemName: itemInfo.name,
     actionType: 'ingest',
@@ -1144,7 +1144,8 @@ function enqueueIngestTask(subLib, filePath, opts = {}) {
     }),
     itemInfo,
     logs: [{ ts: nowIso(), level: 'info', msg: 'Ingest task created by adult folder scan' }],
-  });
+  };
+  const task = opts.deferSave ? taskStore.buildTask(taskData) : taskStore.createTask(taskData);
   if (taskSnapshot) taskSnapshot.push(task);
   activityLog.addActivity('adult_library', `成人库「${subLib.name}」创建入库任务：${itemInfo.name}`, { taskId: task.id, itemId: itemInfo.itemId });
   return task;
@@ -1227,7 +1228,7 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
     tasks: taskSnapshot || taskStore.getTasks(),
   });
   if (!admission.allowed) return null;
-  const task = taskStore.createTask({
+  const taskData = {
     itemId: item.itemId,
     itemName: item.name,
     actionType: 'scrape',
@@ -1240,7 +1241,8 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
     }),
     itemInfo,
     logs: [{ ts: nowIso(), level: 'info', msg: 'Scrape task created by adult folder watcher' }],
-  });
+  };
+  const task = opts.deferSave ? taskStore.buildTask(taskData) : taskStore.createTask(taskData);
   if (taskSnapshot) taskSnapshot.push(task);
   activityLog.addActivity('adult_library', `成人库「${subLib.name}」创建刮削任务：${item.name}`, { taskId: task.id, itemId: item.itemId });
   return task;
@@ -1251,6 +1253,7 @@ async function scanSubLibrary(subLib, opts = {}) {
   const config = configStore.loadConfig();
   const files = collectMediaFiles(subLib.watchRoot, config, { subLib, includeIgnored: !!opts.includeOrganized });
   const taskSnapshot = taskStore.loadTasks();
+  const beforeTaskCount = taskSnapshot.length;
   const lib = loadLibrary();
   const existingByPath = new Map();
   for (const item of lib.items || []) {
@@ -1268,10 +1271,13 @@ async function scanSubLibrary(subLib, opts = {}) {
       const shouldScrape = opts.enqueueScrape !== false && !hasIgnoredSegment(file, subLib)
         && existingItem.scraped !== true
         && (!existingItem.adultMetadata || !['done', 'needs_review'].includes(existingItem.adultMetadata.scrapeStatus));
-      if (shouldScrape && enqueueScrapeTask(existingItem, subLib, { taskSnapshot })) scrapeQueued++;
+      if (shouldScrape && enqueueScrapeTask(existingItem, subLib, { taskSnapshot, deferSave: true })) scrapeQueued++;
       continue;
     }
-    if (enqueueIngestTask(subLib, file, { force: !!opts.force, taskSnapshot })) queued++;
+    if (enqueueIngestTask(subLib, file, { force: !!opts.force, taskSnapshot, deferSave: true })) queued++;
+  }
+  if (taskSnapshot.length !== beforeTaskCount) {
+    taskStore.saveTasks(taskSnapshot);
   }
   updateSubLibraryRefreshTime(subLib.uuid);
   return { scanned: files.length, upserted: existing, queued, scrapeQueued };

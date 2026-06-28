@@ -61,10 +61,8 @@ function saveTasks(tasks) {
   }
 }
 
-function createTask(taskData) {
-  const tasks = loadTasks();
-  const now = new Date().toISOString();
-  const task = {
+function buildTask(taskData, now = new Date().toISOString()) {
+  return {
     id: generateId(),
     itemId: taskData.itemId || '',
     itemName: taskData.itemName || (taskData.itemInfo && taskData.itemInfo.name) || '',
@@ -81,6 +79,11 @@ function createTask(taskData) {
     logs: Array.isArray(taskData.logs) ? taskData.logs : [],
     itemInfo: taskData.itemInfo || null,
   };
+}
+
+function createTask(taskData) {
+  const tasks = loadTasks();
+  const task = buildTask(taskData);
   tasks.push(task);
   saveTasks(tasks);
   return task;
@@ -167,4 +170,4 @@ function getCachedStatus(taskId) {
   return statusCache.get(taskId) || null;
 }
 
-module.exports = { createTask, getTask, getTasks, updateTask, deleteTask, loadTasks, saveTasks, setProgress, getProgress, deleteProgress, getCachedStatus };
+module.exports = { buildTask, createTask, getTask, getTasks, updateTask, deleteTask, loadTasks, saveTasks, setProgress, getProgress, deleteProgress, getCachedStatus };
