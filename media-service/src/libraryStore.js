@@ -91,7 +91,17 @@ function getDb() {
   `);
   dbCache.set(dbPath, db);
   migrateJsonLibraryIfNeeded(db);
+  checkpointWal(db, 'startup');
   return db;
+}
+
+function checkpointWal(db, reason) {
+  try {
+    return db.pragma('wal_checkpoint(TRUNCATE)');
+  } catch (err) {
+    console.warn(`[libraryStore] WAL checkpoint skipped${reason ? ` (${reason})` : ''}: ${err.message}`);
+    return null;
+  }
 }
 
 function readLegacyJsonLibrary(filePath) {
@@ -235,6 +245,7 @@ function replaceAllItems(db, lib) {
     setMeta(db, 'cachedAt', lib && lib.cachedAt ? lib.cachedAt : new Date().toISOString());
   });
   tx(items);
+  checkpointWal(db, 'replace_all');
 }
 
 function loadLibrary() {
@@ -267,12 +278,16 @@ function replaceSubLibraryItems(subLibraryId, items, meta = {}) {
     if (meta.cachedAt !== undefined) setMeta(db, 'cachedAt', meta.cachedAt);
   });
   tx(Array.isArray(items) ? items : []);
+  checkpointWal(db, 'replace_sub_library');
 }
 
 function deleteBySubLibrary(subLibraryId) {
-  return getDb()
+  const db = getDb();
+  const changes = db
     .prepare('DELETE FROM media_items WHERE sub_library_id = ?')
     .run(String(subLibraryId || '')).changes || 0;
+  if (changes > 0) checkpointWal(db, 'delete_sub_library');
+  return changes;
 }
 
 function updateItems(items) {

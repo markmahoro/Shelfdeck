@@ -364,6 +364,35 @@ test('libraryStore replaces one subLibrary without touching other libraries', as
   await app.close();
 });
 
+test('libraryStore truncates WAL after bulk library writes', async () => {
+  const dir = tempDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const libraryStore = require('../src/libraryStore');
+
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: '2026-06-28T00:00:00.000Z',
+    items: Array.from({ length: 200 }, (_, i) => ({
+      itemId: `bulk-${i}`,
+      subLibraryId: 'bulk-lib',
+      name: `Bulk ${i}`,
+      source: 'emby',
+      type: 'movie',
+      action: i % 2 === 0 ? 'transcode' : 'keep',
+      payload: 'x'.repeat(2048),
+    })),
+  });
+  libraryStore.replaceSubLibraryItems('bulk-lib', [
+    { itemId: 'bulk-new', subLibraryId: 'bulk-lib', name: 'Bulk New', source: 'emby', type: 'movie', action: 'keep' },
+  ], { cachedAt: '2026-06-28T01:00:00.000Z' });
+
+  const walPath = path.join(dir, 'library.db-wal');
+  const walSize = fs.existsSync(walPath) ? fs.statSync(walPath).size : 0;
+  assert.ok(walSize < 1024 * 1024, `library WAL should be truncated after bulk writes, got ${walSize}`);
+  await app.close();
+});
+
 test('libraryStore updateItems updates only existing rows', async () => {
   const dir = tempDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });

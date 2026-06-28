@@ -410,6 +410,9 @@ test('taskStore migrates JSON history to SQLite without feeding scheduler hot pa
     assert.ok(fs.existsSync(path.join(dir, 'tasks.db')));
     assert.ok(fs.existsSync(path.join(dir, 'tasks.json.migrated')));
     assert.ok(fs.existsSync(path.join(dir, 'tasks.json')), 'legacy JSON is preserved as migration source record');
+    const walPath = path.join(dir, 'tasks.db-wal');
+    const walSize = fs.existsSync(walPath) ? fs.statSync(walPath).size : 0;
+    assert.ok(walSize < 1024 * 1024, `tasks WAL should be truncated after migration, got ${walSize}`);
 
     taskStore.updateTask('queued-1', { status: 'done' });
     assert.strictEqual(taskStore.loadTasks({ includeHistory: false }).length, 0);

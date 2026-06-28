@@ -81,7 +81,17 @@ function getDb() {
   `);
   dbCache.set(dbPath, db);
   migrateJsonTasksIfNeeded(db);
+  checkpointWal(db, 'startup');
   return db;
+}
+
+function checkpointWal(db, reason) {
+  try {
+    return db.pragma('wal_checkpoint(TRUNCATE)');
+  } catch (err) {
+    console.warn(`[taskStore] WAL checkpoint skipped${reason ? ` (${reason})` : ''}: ${err.message}`);
+    return null;
+  }
 }
 
 function readLegacyJsonTasks(filePath) {
@@ -119,6 +129,7 @@ function migrateJsonTasksIfNeeded(db) {
       for (const task of rows) insert.run(taskToRow(normalizeTask(task)));
     });
     tx(tasks);
+    checkpointWal(db, 'migration');
     fs.writeFileSync(marker, JSON.stringify({
       migratedAt: new Date().toISOString(),
       source: path.basename(jsonPath),
@@ -240,6 +251,7 @@ function saveTasks(tasks) {
     for (const task of rows || []) upsert.run(taskToRow(task));
   });
   tx(tasks || []);
+  checkpointWal(db, 'save_tasks');
 }
 
 function getTask(taskId) {
