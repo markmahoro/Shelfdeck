@@ -515,12 +515,36 @@ test('DELETE /v1/tasks/:id cancels then removes executing task', async () => {
   const { id } = create.json();
   // Manually set task to executing via taskStore
   const taskStore = require('../src/taskStore');
-  taskStore.updateTask(id, { status: 'executing' });
+  const partialPath = path.join(dir, 'executing.etp.partial.mkv');
+  fs.writeFileSync(partialPath, 'partial');
+  taskStore.updateTask(id, { status: 'executing', itemInfo: { partialPath } });
   // Delete should call cancel then remove
   const res = await app.inject({ method: 'DELETE', url: `/v1/tasks/${id}` });
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.json().ok, true);
+  assert.strictEqual(fs.existsSync(partialPath), false, 'executing task cancel should clean partial file');
   // Verify gone
+  const get = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
+  assert.strictEqual(get.statusCode, 404);
+  await app.close();
+});
+
+test('DELETE /v1/tasks/:id removes queued task without running flow cancel', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-remove-queued', actionType: 'transcode' } });
+  const { id } = create.json();
+  const taskStore = require('../src/taskStore');
+  const partialPath = path.join(dir, 'queued.etp.partial.mkv');
+  fs.writeFileSync(partialPath, 'not-owned-by-running-flow');
+  taskStore.updateTask(id, { status: 'queued', itemInfo: { partialPath } });
+
+  const res = await app.inject({ method: 'DELETE', url: `/v1/tasks/${id}` });
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.json().ok, true);
+  assert.strictEqual(fs.existsSync(partialPath), true, 'queued task removal should not run transcode cancel cleanup');
+  fs.rmSync(partialPath, { force: true });
+
   const get = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
   assert.strictEqual(get.statusCode, 404);
   await app.close();

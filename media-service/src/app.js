@@ -87,6 +87,17 @@ function apiError(reply, status, code, message) {
   return reply.code(status).send({ error: { code, message } });
 }
 
+function taskNeedsFlowCancel(task) {
+  return !!task && [
+    'executing',
+    'pausing',
+    'paused',
+    'awaiting_user_confirm',
+    'interrupted',
+    'waiting_media_source',
+  ].includes(task.status);
+}
+
 const MASKED_SECRET = '********';
 const ADULT_WESTERN_SECRET_KEYS = [
   'metadataApiKey',
@@ -565,9 +576,8 @@ function registerRoutes(app) {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
-    // Always cancel to clean up FFmpeg process and partial files
     const flow = getFlow(task.actionType);
-    if (flow) await flow.cancel(task.id);
+    if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
 
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
@@ -1668,9 +1678,8 @@ function registerRoutes(app) {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
-    // Always cancel to clean up FFmpeg process and partial files
     const flow = getFlow(task.actionType);
-    if (flow) flow.cancel(task.id);
+    if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
 
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
