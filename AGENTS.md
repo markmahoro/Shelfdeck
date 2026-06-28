@@ -57,6 +57,7 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 # Production NAS deploy
 bash scripts/build-image.sh <tag>
+node scripts/upload-nas-image.js dist-image/shelfdeck-<tag>.tar
 node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256>
 node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256> --apply
 
@@ -92,7 +93,7 @@ Known test endpoints:
 
 Production safety:
 
-- Canonical production deployment is `docs/v2/PRODUCTION_DEPLOYMENT.md` plus `scripts/build-image.sh` and `scripts/deploy-nas.js`.
+- Canonical production deployment is `docs/v2/PRODUCTION_DEPLOYMENT.md` plus `scripts/build-image.sh`, `scripts/upload-nas-image.js`, and `scripts/deploy-nas.js`.
 - A direct user request to deploy, release, publish, or upgrade NAS production authorizes the full standard deploy flow, including `deploy-nas.js --apply` after dry run and checksum validation pass.
 - The fixed deployment flow exists to avoid wasting time trying alternate deployment methods. This is a development production environment, so `deploy-nas.js` may recreate the container even when `ffmpeg` jobs are running; it should print those jobs for awareness but not block on them.
 - The NAS ShelfDeck Docker at `192.168.12.230:18080` is production. Do not delete/park tasks, change production data, or switch deployment methods unless the user explicitly asks for that production action.

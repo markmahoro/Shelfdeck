@@ -44,4 +44,4 @@ docker save -o "$TAR" "$IMAGE_NAME:$TAG" "$IMAGE_NAME:latest"
 
 SIZE=$(du -h "$TAR" | cut -f1)
 echo "==> Done. Image tar: $TAR ($SIZE)"
-echo "    Next: scp to NAS and run scripts/deploy-nas.js"
+echo "    Next: node scripts/upload-nas-image.js $TAR"

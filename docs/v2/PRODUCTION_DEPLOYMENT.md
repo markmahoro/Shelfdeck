@@ -1,6 +1,6 @@
 # PRODUCTION_DEPLOYMENT - 生产部署固定入口
 
-本文是 ShelfDeck 当前唯一生产部署入口。当前生产部署方式固定为：本机 build image -> 导出 tar -> 上传到 NAS -> `deploy-nas.js` dry run -> `deploy-nas.js --apply`。Codex 处理任何“上线、部署、升级 NAS、发布 Docker、生产环境”相关任务时，必须先读本文，再读 `scripts/build-image.sh` 和 `scripts/deploy-nas.js`。
+本文是 ShelfDeck 当前唯一生产部署入口。当前生产部署方式固定为：本机 build image -> 导出 tar -> `upload-nas-image.js` 上传并校验 -> `deploy-nas.js` dry run -> `deploy-nas.js --apply`。Codex 处理任何“上线、部署、升级 NAS、发布 Docker、生产环境”相关任务时，必须先读本文，再读 `scripts/build-image.sh`、`scripts/upload-nas-image.js` 和 `scripts/deploy-nas.js`。
 
 ## 当前生产环境
 
@@ -41,13 +41,13 @@ Windows PowerShell 可用：
 Get-FileHash dist-image\shelfdeck-<tag>.tar -Algorithm SHA256
 ```
 
-3. 将 tarball 上传到 NAS 的 ShelfDeck 目录，例如：
+3. 将 tarball 上传到 NAS 的 ShelfDeck 目录：
 
-```bash
-scp dist-image/shelfdeck-<tag>.tar gezhu@192.168.12.230:/vol1/1000/docker/shelfdeck/
+```powershell
+node scripts/upload-nas-image.js dist-image\shelfdeck-<tag>.tar
 ```
 
-`scp` 依赖 SSH 连接。连接中断时通常会失败并留下不完整文件，所以部署前必须用 `--sha256` 让部署脚本在 NAS 上校验 tarball；校验不通过不得部署。
+上传脚本使用项目固定 NAS SSH 配置走 SFTP，不使用交互式 `scp`。脚本会先上传到 `.uploading-*` 临时文件，完成后 rename 为目标 tarball，并在 NAS 上校验 SHA-256。校验不通过不得部署。
 
 4. 先 dry run 部署脚本，检查将要执行的生产步骤：
 
