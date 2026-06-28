@@ -87,19 +87,42 @@ function apiError(reply, status, code, message) {
   return reply.code(status).send({ error: { code, message } });
 }
 
+const MASKED_SECRET = '********';
+const ADULT_WESTERN_SECRET_KEYS = [
+  'metadataApiKey',
+  'tpdbApiKey',
+  'stashBoxApiKey',
+  'tmdbApiKey',
+  'tmdbReadAccessToken',
+];
+
+function maskAdultLibrarySecrets(adultLibrary = {}) {
+  const out = {
+    ...(adultLibrary || {}),
+    western: {
+      ...((adultLibrary && adultLibrary.western) || {}),
+    },
+  };
+  for (const key of ADULT_WESTERN_SECRET_KEYS) {
+    if (out.western[key]) out.western[key] = MASKED_SECRET;
+  }
+  return out;
+}
+
 function maskSensitive(config) {
   const masked = { ...config };
-  if (masked.apiKey) masked.apiKey = '********';
+  if (masked.apiKey) masked.apiKey = MASKED_SECRET;
   if (masked.douban && masked.douban.cookieHeader) {
-    masked.douban = { ...masked.douban, cookieHeader: '********' };
+    masked.douban = { ...masked.douban, cookieHeader: MASKED_SECRET };
   }
   if (masked.moviepilot && masked.moviepilot.apiKey) {
-    masked.moviepilot = { ...masked.moviepilot, apiKey: '********' };
+    masked.moviepilot = { ...masked.moviepilot, apiKey: MASKED_SECRET };
   }
+  if (masked.adultLibrary) masked.adultLibrary = maskAdultLibrarySecrets(masked.adultLibrary);
   if (masked.embyServers) {
     const servers = {};
     for (const [k, v] of Object.entries(masked.embyServers)) {
-      servers[k] = { ...v, apiKey: '********', embyUserPassword: v.embyUserPassword ? '********' : '' };
+      servers[k] = { ...v, apiKey: MASKED_SECRET, embyUserPassword: v.embyUserPassword ? MASKED_SECRET : '' };
     }
     masked.embyServers = servers;
   }
@@ -1183,15 +1206,23 @@ function registerRoutes(app) {
   // ── Admin: Adult Libraries ──────────────────────────────────────────────
 
   function sanitizeAdultLibraryForAdmin(adultLibrary = {}) {
-    const out = {
-      ...(adultLibrary || {}),
-      western: {
-        ...((adultLibrary && adultLibrary.western) || {}),
-      },
-    };
+    const out = maskAdultLibrarySecrets(adultLibrary || {});
     delete out.western.faceEmbeddingsUrl;
     delete out.western.faceApiKey;
     return out;
+  }
+
+  function normalizeAdultWesternPatch(currentWestern = {}, requestedWestern = {}) {
+    const next = { ...(requestedWestern || {}) };
+    delete next.faceEmbeddingsUrl;
+    delete next.faceApiKey;
+    for (const key of ADULT_WESTERN_SECRET_KEYS) {
+      if (next[key] === MASKED_SECRET) delete next[key];
+    }
+    return {
+      ...(currentWestern || {}),
+      ...next,
+    };
   }
 
   app.get('/v1/admin/adult/config', async () => {
@@ -1201,11 +1232,6 @@ function registerRoutes(app) {
 
   app.patch('/v1/admin/adult/config', async (req) => {
     const current = configStore.loadConfig();
-    const requestedWestern = {
-      ...((req.body && req.body.western) || {}),
-    };
-    delete requestedWestern.faceEmbeddingsUrl;
-    delete requestedWestern.faceApiKey;
     const adultLibrary = {
       ...(current.adultLibrary || {}),
       ...(req.body || {}),
@@ -1213,10 +1239,10 @@ function registerRoutes(app) {
         ...((current.adultLibrary && current.adultLibrary.japaneseJav) || {}),
         ...((req.body && req.body.japaneseJav) || {}),
       },
-      western: {
-        ...((current.adultLibrary && current.adultLibrary.western) || {}),
-        ...requestedWestern,
-      },
+      western: normalizeAdultWesternPatch(
+        (current.adultLibrary && current.adultLibrary.western) || {},
+        (req.body && req.body.western) || {},
+      ),
     };
     delete adultLibrary.western.faceEmbeddingsUrl;
     delete adultLibrary.western.faceApiKey;

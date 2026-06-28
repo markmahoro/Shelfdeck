@@ -876,6 +876,52 @@ test('adult people from-image API creates and replaces a confirmed reference fac
   await app.close();
 });
 
+test('adult config masks provider keys and preserves masked values on save', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    adultLibrary: {
+      western: {
+        metadataApiKey: 'metadata-secret',
+        stashBoxApiKey: 'stash-secret',
+        tmdbApiKey: 'tmdb-secret',
+      },
+    },
+  }, null, 2));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const admin = await app.inject({ method: 'GET', url: '/v1/admin/adult/config' });
+  assert.strictEqual(admin.statusCode, 200);
+  assert.strictEqual(admin.json().western.metadataApiKey, '********');
+  assert.strictEqual(admin.json().western.stashBoxApiKey, '********');
+  assert.strictEqual(admin.json().western.tmdbApiKey, '********');
+
+  const globalConfig = await app.inject({ method: 'GET', url: '/v1/config' });
+  assert.strictEqual(globalConfig.statusCode, 200);
+  assert.strictEqual(globalConfig.json().adultLibrary.western.stashBoxApiKey, '********');
+
+  const patch = await app.inject({
+    method: 'PATCH',
+    url: '/v1/admin/adult/config',
+    payload: {
+      western: {
+        metadataApiKey: '',
+        stashBoxApiKey: '********',
+        tmdbApiKey: 'tmdb-new',
+      },
+    },
+  });
+  assert.strictEqual(patch.statusCode, 200);
+  assert.strictEqual(patch.json().western.metadataApiKey, '');
+  assert.strictEqual(patch.json().western.stashBoxApiKey, '********');
+  assert.strictEqual(patch.json().western.tmdbApiKey, '********');
+
+  const stored = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
+  assert.strictEqual(stored.adultLibrary.western.metadataApiKey, '', 'blank input clears the key');
+  assert.strictEqual(stored.adultLibrary.western.stashBoxApiKey, 'stash-secret', 'masked input preserves the existing key');
+  assert.strictEqual(stored.adultLibrary.western.tmdbApiKey, 'tmdb-new', 'new input replaces the key');
+  await app.close();
+});
+
 test('adult actor image search includes stash-box GraphQL performer images', async () => {
   const service = require('../src/services/adultActorImageSearchService');
   const originalFetch = global.fetch;
