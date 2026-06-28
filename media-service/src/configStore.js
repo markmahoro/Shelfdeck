@@ -513,7 +513,8 @@ function getDefaultConfig() {
     mediaLibrarySelfComputeOnStartup: true,
 
     // Task queue priority (PriorityEngine). Lower number = runs first.
-    // Final score = source weight + action weight + subLibrary weight + rule deltas.
+    // Final score = source weight + action weight + subLibrary weight + business
+    // signal + queue age + retry penalty + rule deltas.
     // Per-subLibrary weight lives on subLibrary.priorityWeight (default 100).
     // Advanced overlay rules below are AND-matched, applied in order, and may
     // only add/subtract from the running score. They must not override it.
@@ -527,6 +528,15 @@ function getDefaultConfig() {
         upgrade: 110,
         transcode: 130,
       },
+      businessSignalWeights: {
+        adultWorkflowBonus: 20,
+        maxTranscodeSavingBonus: 30,
+      },
+      queueAgeStepMinutes: 60,
+      queueAgeBonusPerStep: 2,
+      maxQueueAgeBonus: 40,
+      retryPenalty: 20,
+      maxRetryPenalty: 80,
       rules: { ingest: [], transcode: [], upgrade: [], delete: [], scrape: [] },
     },
 

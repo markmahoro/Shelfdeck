@@ -276,6 +276,15 @@ export default function TaskMonitorPage() {
     setDetailOpen(true);
   }
 
+  function formatPriorityDimension(dim: { key: string; label?: string; value: number; [key: string]: unknown }) {
+    const label = dim.label || dim.key;
+    const value = Number(dim.value) || 0;
+    const signed = value > 0 ? `+${value}` : `${value}`;
+    if (dim.key === 'actionType') return `${label}（${ACTION_TYPE_LABELS[String(dim.actionType || '')] || dim.actionType || '未知'}） ${signed}`;
+    if (dim.key === 'retry') return `${label}（${dim.retryCount || 0} 次） ${signed}`;
+    return `${label} ${signed}`;
+  }
+
   function openScrapeFix(task: MediaTask) {
     const adultId = typeof task.itemInfo?.adultMetadata?.adultId === 'string'
       ? task.itemInfo.adultMetadata.adultId
@@ -608,6 +617,22 @@ export default function TaskMonitorPage() {
               <div><strong>创建时间:</strong> {displayTask.createdAt ? new Date(displayTask.createdAt).toLocaleString() : '—'}</div>
               <div><strong>更新时间:</strong> {displayTask.updatedAt ? new Date(displayTask.updatedAt).toLocaleString() : '—'}</div>
             </div>
+
+            {displayTask.priorityBreakdown?.dimensions?.length ? (
+              <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>优先级构成</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {displayTask.priorityBreakdown.dimensions.map((dim, idx) => (
+                    <span key={`${dim.key}-${idx}`} style={{ fontSize: 12, color: '#374151', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, padding: '4px 8px' }}>
+                      {formatPriorityDimension(dim)}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>
+                  最终优先级 {displayTask.priorityBreakdown.priority ?? displayTask.priority ?? 100}；数值越小越先执行。
+                </div>
+              </div>
+            ) : null}
 
             {displayTask.status === 'awaiting_user_confirm' && (
               <div style={{ background: '#fff7ed', borderRadius: 8, padding: 12, marginBottom: 16, border: '1px solid #fed7aa' }}>

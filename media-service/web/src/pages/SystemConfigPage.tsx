@@ -356,7 +356,7 @@ export default function SystemConfigPage() {
                       }}
                       style={{ ...inputStyle, width: 90 }}
                     />
-                    <span style={hintStyle}>数值越小越优先；用于同类任务或全局队列排序。</span>
+                    <span style={hintStyle}>数值越小越优先；参与全局任务队列排序。</span>
                   </div>
                 </div>
               </div>
@@ -492,7 +492,7 @@ export default function SystemConfigPage() {
 
       <section style={cardStyle}>
         <h3 style={sectionTitle}>队列优先级</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>数值越小越优先。最终优先级由来源权重、任务类型权重、子库权重和高级规则叠加计算。</p>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>数值越小越优先。最终优先级由来源权重、任务类型权重、子库权重、业务信号、等待时间、重试惩罚和高级规则叠加计算。</p>
         <div style={fourColGrid}>
           <NumberField label="手动来源权重" value={manualPrio} min={0} max={999} onChange={setManualPrio} />
           <NumberField label="自动来源权重" value={autoPrioBase} min={0} max={999} onChange={setAutoPrioBase} />

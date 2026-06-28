@@ -285,7 +285,7 @@ export const tasks = {
 
   get: (id: string) => get<MediaTask>(`/v1/admin/tasks/${id}`),
 
-  // Update queue priority (lower = runs first). Only allowed on queued/created/
+  // Update global queue priority (lower = runs first). Only allowed on queued/created/
   // pending_manual/interrupted/paused tasks; the server returns 409 otherwise.
   updatePriority: (id: string, priority: number) =>
     patch<MediaTask>(`/v1/admin/tasks/${id}`, { priority }),

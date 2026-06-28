@@ -367,7 +367,7 @@ test('smartTaskEngine auto-enqueues pending adult scrape candidates through Task
   assert.strictEqual(created.length, 1);
   assert.strictEqual(created[0].itemId, 'adult-pending-scrape');
   assert.strictEqual(created[0].actionType, 'scrape');
-  assert.strictEqual(created[0].priority, 280);
+  assert.strictEqual(created[0].priority, 260);
   assert.strictEqual(created[0].source, 'auto');
 });
 
@@ -450,7 +450,7 @@ test('smartTaskEngine auto-enqueues ingest candidates through unified priority b
   assert.strictEqual(created.length, 1);
   assert.strictEqual(created[0].actionType, 'ingest');
   assert.strictEqual(created[0].itemId, 'ingest:adult-lib:new-file');
-  assert.strictEqual(created[0].priority, 260);
+  assert.strictEqual(created[0].priority, 240);
   assert.strictEqual(created[0].source, 'auto');
 });
 

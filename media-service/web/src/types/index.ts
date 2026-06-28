@@ -313,9 +313,23 @@ export interface MediaTask {
   phase: string;
   resumePoint: string | null;
   approval?: TaskApproval | null;
-  // Queue priority (lower = runs first within its actionType). Absent on
-  // legacy tasks (treated as 100 by the scheduler).
+  // Queue priority (lower = runs first globally). Absent on legacy tasks
+  // (treated as 100 by the scheduler).
   priority?: number;
+  priorityModelVersion?: string;
+  priorityBreakdown?: {
+    modelVersion?: string;
+    lowerIsEarlier?: boolean;
+    formula?: string;
+    raw?: number;
+    priority?: number;
+    dimensions?: Array<{
+      key: string;
+      label?: string;
+      value: number;
+      [key: string]: unknown;
+    }>;
+  };
   createdAt: string;
   updatedAt: string;
   logs?: TaskLogEntry[];

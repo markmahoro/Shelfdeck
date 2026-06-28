@@ -1,6 +1,6 @@
 'use strict';
 
-const PRIORITY_MODEL_VERSION = 'additive-v2';
+const PRIORITY_MODEL_VERSION = 'additive-v3';
 
 /**
  * PriorityEngine — computes a task's initial `priority` value.
@@ -8,10 +8,10 @@ const PRIORITY_MODEL_VERSION = 'additive-v2';
  * Lower number = higher priority (runs first in the global task queue).
  *
  * Formula:
- *   priority = sum(source, actionType, subLibrary, matchedRules)
+ *   priority = sum(source, actionType, subLibrary, businessSignal, queueAge, retry, matchedRules)
  *
  * Evaluation order:
- *   1. Add source, action type, and library dimensions.
+ *   1. Add source, action type, library, business signal, queue age, and retry dimensions.
  *   2. Advanced overlay rules (config.taskPriority.rules[actionType], ordered):
  *      each matching rule contributes a delta (subtract=add priority, add=defer).
  *   3. clamp to >= 0.
@@ -26,34 +26,48 @@ const PRIORITY_MODEL_VERSION = 'additive-v2';
  * @param {'manual'|'auto'} params.source       task origin
  * @param {string} params.actionType            transcode|upgrade|delete|scrape
  * @param {object} [params.itemInfo]            task.itemInfo (subLibraryId, type, ...)
+ * @param {object} [params.task]                optional queued task context (createdAt, retryCount)
  * @param {object} params.config                full config (taskPriority + subLibraries)
  * @returns {number}                            priority value (lower = first)
  */
-function computePriority({ source, actionType, itemInfo, config }) {
-  return explainPriority({ source, actionType, itemInfo, config }).priority;
+function computePriority({ source, actionType, itemInfo, config, task }) {
+  return explainPriority({ source, actionType, itemInfo, config, task }).priority;
 }
 
-function explainPriority({ source, actionType, itemInfo, config }) {
+function explainPriority({ source, actionType, itemInfo, config, task }) {
   const cfg = config && config.taskPriority || {};
   const manualBase = typeof cfg.manualTaskPriority === 'number' ? cfg.manualTaskPriority : 0;
   const autoBase = typeof cfg.autoTaskPriorityBase === 'number' ? cfg.autoTaskPriorityBase : 100;
   const actionWeights = cfg.actionTypeWeights || {};
   const actionWeight = typeof actionWeights[actionType] === 'number' ? actionWeights[actionType] : 0;
+  const context = buildContext(itemInfo, task);
 
-  // ── 1. source + action type + library dimensions ─────────────────────────
+  // ── 1. source + action type + library + dynamic queue dimensions ──────────
   const sourceWeight = source === 'manual' ? manualBase : autoBase;
-  const libraryWeight = resolveLibraryWeight(itemInfo, config);
+  const libraryWeight = resolveLibraryWeight(context, config);
+  const businessSignalWeight = computeBusinessSignalDelta(actionType, context, cfg);
+  const queueAgeWeight = computeQueueAgeDelta(context, cfg);
+  const retryWeight = computeRetryDelta(context, cfg);
   const dimensions = [
     { key: 'source', label: source === 'manual' ? '手动来源' : '自动来源', value: sourceWeight },
     { key: 'actionType', label: '任务类型', actionType, value: actionWeight },
-    { key: 'subLibrary', label: '子库权重', subLibraryId: itemInfo && itemInfo.subLibraryId || '', value: libraryWeight },
+    { key: 'subLibrary', label: '子库权重', subLibraryId: context.subLibraryId || '', value: libraryWeight },
   ];
+  if (businessSignalWeight !== 0) {
+    dimensions.push({ key: 'businessSignal', label: '业务信号', actionType, value: businessSignalWeight });
+  }
+  if (queueAgeWeight !== 0) {
+    dimensions.push({ key: 'queueAge', label: '等待时间', createdAt: context.createdAt || '', value: queueAgeWeight });
+  }
+  if (retryWeight !== 0) {
+    dimensions.push({ key: 'retry', label: '重试惩罚', retryCount: context.retryCount || 0, value: retryWeight });
+  }
 
   // ── 2. advanced overlay rules (per actionType, ordered) ───────────────────
   const rules = ((cfg.rules || {})[actionType] || []);
   for (const [index, rule] of rules.entries()) {
     if (!rule || typeof rule !== 'object') continue;
-    if (matchConditions(rule.match, itemInfo)) {
+    if (matchConditions(rule.match, context)) {
       const delta = computeAdjustDelta(rule.adjust);
       if (delta !== 0) {
         dimensions.push({
@@ -73,10 +87,20 @@ function explainPriority({ source, actionType, itemInfo, config }) {
   return {
     modelVersion: PRIORITY_MODEL_VERSION,
     lowerIsEarlier: true,
-    formula: 'source + actionType + subLibrary + matchedRules',
+    formula: 'source + actionType + subLibrary + businessSignal + queueAge + retry + matchedRules',
     dimensions,
     raw,
     priority: Math.max(0, Math.round(raw)),
+  };
+}
+
+function buildContext(itemInfo, task) {
+  const info = itemInfo && typeof itemInfo === 'object' ? itemInfo : {};
+  const t = task && typeof task === 'object' ? task : {};
+  return {
+    ...info,
+    createdAt: t.createdAt || info.createdAt,
+    retryCount: t.retryCount !== undefined ? t.retryCount : info.retryCount,
   };
 }
 
@@ -88,6 +112,69 @@ function resolveLibraryWeight(itemInfo, config) {
     return subLib.priorityWeight;
   }
   return 100;
+}
+
+function computeBusinessSignalDelta(actionType, itemInfo, cfg) {
+  const weights = cfg.businessSignalWeights || {};
+  const adultWorkflowBonus = numberOr(weights.adultWorkflowBonus, 20);
+  const maxTranscodeSavingBonus = numberOr(weights.maxTranscodeSavingBonus, 30);
+  const info = itemInfo || {};
+  const meta = info.adultMetadata || {};
+
+  if (actionType === 'ingest') {
+    if (info.source === 'adult_folder' || info.mediaType === 'adult' || meta.region) {
+      return -adultWorkflowBonus;
+    }
+    return 0;
+  }
+
+  if (actionType === 'scrape') {
+    const scrapeStatus = String(meta.scrapeStatus || '').toLowerCase();
+    if (info.scraped === false || scrapeStatus === '' || scrapeStatus === 'pending') {
+      return -adultWorkflowBonus;
+    }
+    return 0;
+  }
+
+  if (actionType === 'transcode') {
+    const bitrate = Number(info.equivalentBitrate || info.bitrate || 0);
+    const target = Number(info.targetBitrate || 0);
+    const size = Number(info.size || info.originalSizeBytes || 0);
+    let bonus = 0;
+    if (bitrate > 0 && target > 0 && bitrate > target) {
+      bonus += Math.min(maxTranscodeSavingBonus, Math.floor((bitrate - target) / Math.max(target, 1) * maxTranscodeSavingBonus));
+    }
+    const gb = size / (1024 * 1024 * 1024);
+    if (gb >= 50) bonus += 20;
+    else if (gb >= 20) bonus += 10;
+    return -Math.min(maxTranscodeSavingBonus, bonus);
+  }
+
+  return 0;
+}
+
+function computeQueueAgeDelta(itemInfo, cfg) {
+  const createdMs = Date.parse(itemInfo && itemInfo.createdAt || '');
+  if (!Number.isFinite(createdMs)) return 0;
+  const ageMs = Date.now() - createdMs;
+  if (ageMs <= 0) return 0;
+  const stepMinutes = Math.max(1, numberOr(cfg.queueAgeStepMinutes, 60));
+  const bonusPerStep = Math.max(0, numberOr(cfg.queueAgeBonusPerStep, 2));
+  const maxBonus = Math.max(0, numberOr(cfg.maxQueueAgeBonus, 40));
+  const steps = Math.floor(ageMs / (stepMinutes * 60 * 1000));
+  return -Math.min(maxBonus, steps * bonusPerStep);
+}
+
+function computeRetryDelta(itemInfo, cfg) {
+  const retryCount = Math.max(0, Number.parseInt(itemInfo && itemInfo.retryCount, 10) || 0);
+  if (retryCount <= 0) return 0;
+  const penalty = Math.max(0, numberOr(cfg.retryPenalty, 20));
+  const maxPenalty = Math.max(0, numberOr(cfg.maxRetryPenalty, 80));
+  return Math.min(maxPenalty, retryCount * penalty);
+}
+
+function numberOr(value, fallback) {
+  return Number.isFinite(Number(value)) ? Number(value) : fallback;
 }
 
 /**

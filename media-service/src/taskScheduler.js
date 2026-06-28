@@ -74,6 +74,7 @@ function reconcileAutoTaskPriorities(tasks, config) {
       actionType: task.actionType,
       itemInfo: task.itemInfo,
       config,
+      task,
     });
     const priority = priorityBreakdown.priority;
     if (task.priority === priority && task.priorityModelVersion === priorityEngine.PRIORITY_MODEL_VERSION) continue;

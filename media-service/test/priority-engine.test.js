@@ -35,7 +35,7 @@ test('actionTypeWeights add per-action dimensions', () => {
   const c = config();
   c.taskPriority.actionTypeWeights = { ingest: 60, scrape: 80, transcode: 130 };
   assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'ingest', itemInfo: {}, config: c }), 260);
-  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'scrape', itemInfo: {}, config: c }), 280);
+  assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'scrape', itemInfo: {}, config: c }), 260);
   assert.strictEqual(pe.computePriority({ source: 'auto', actionType: 'transcode', itemInfo: {}, config: c }), 330);
 });
 
@@ -143,10 +143,68 @@ test('explainPriority returns a stable additive breakdown', () => {
     config: c,
   });
 
-  assert.strictEqual(explained.modelVersion, 'additive-v2');
-  assert.strictEqual(explained.formula, 'source + actionType + subLibrary + matchedRules');
+  assert.strictEqual(explained.modelVersion, 'additive-v3');
+  assert.strictEqual(explained.formula, 'source + actionType + subLibrary + businessSignal + queueAge + retry + matchedRules');
   assert.strictEqual(explained.priority, 215);
   assert.deepStrictEqual(explained.dimensions.map((d) => d.value), [100, 130, 10, -25]);
+});
+
+test('adult workflow business signal keeps ingest and scrape ahead of transcode', () => {
+  const c = config();
+  c.taskPriority.actionTypeWeights = { ingest: 60, scrape: 80, transcode: 130 };
+  c.taskPriority.businessSignalWeights = { adultWorkflowBonus: 20, maxTranscodeSavingBonus: 30 };
+
+  const ingest = pe.explainPriority({
+    source: 'auto',
+    actionType: 'ingest',
+    itemInfo: { source: 'adult_folder', mediaType: 'adult' },
+    config: c,
+  });
+  const scrape = pe.explainPriority({
+    source: 'auto',
+    actionType: 'scrape',
+    itemInfo: { scraped: false, adultMetadata: { scrapeStatus: 'pending' } },
+    config: c,
+  });
+  const transcode = pe.explainPriority({
+    source: 'auto',
+    actionType: 'transcode',
+    itemInfo: { equivalentBitrate: 12000, targetBitrate: 8000 },
+    config: c,
+  });
+
+  assert.strictEqual(ingest.priority, 240);
+  assert.strictEqual(scrape.priority, 260);
+  assert.strictEqual(transcode.priority, 315);
+  assert.ok(ingest.priority < scrape.priority);
+  assert.ok(scrape.priority < transcode.priority);
+});
+
+test('queue age and retry are additive dynamic dimensions', () => {
+  const c = config();
+  c.taskPriority.actionTypeWeights = { transcode: 130 };
+  c.taskPriority.queueAgeStepMinutes = 60;
+  c.taskPriority.queueAgeBonusPerStep = 2;
+  c.taskPriority.maxQueueAgeBonus = 40;
+  c.taskPriority.retryPenalty = 20;
+  c.taskPriority.maxRetryPenalty = 80;
+
+  const realNow = Date.now;
+  Date.now = () => Date.parse('2026-06-29T12:00:00.000Z');
+  try {
+    const explained = pe.explainPriority({
+      source: 'auto',
+      actionType: 'transcode',
+      itemInfo: {},
+      task: { createdAt: '2026-06-29T07:30:00.000Z', retryCount: 2 },
+      config: c,
+    });
+    assert.strictEqual(explained.priority, 362);
+    assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['source', 'actionType', 'subLibrary', 'queueAge', 'retry']);
+    assert.deepStrictEqual(explained.dimensions.map((d) => d.value), [100, 130, 100, -8, 40]);
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 test('match is AND-combined; undefined fields do not constrain', () => {
