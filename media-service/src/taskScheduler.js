@@ -91,6 +91,24 @@ function reconcileAutoTaskPriorities(tasks, config) {
   }
 }
 
+function clearQueuedRuntimeState(task) {
+  if (task.manualExecuteRequested && task.resumePoint) return task;
+  const updates = {};
+  if (task.phase !== null && task.phase !== undefined) updates.phase = null;
+  if (task.resumePoint !== null && task.resumePoint !== undefined) updates.resumePoint = null;
+  if (task.progress !== 0 && task.progress !== undefined) updates.progress = 0;
+  if (!Object.keys(updates).length) return task;
+
+  const updated = taskStore.updateTask(task.id, updates);
+  if (updated) {
+    task.phase = updated.phase;
+    task.resumePoint = updated.resumePoint;
+    task.progress = updated.progress;
+  }
+  taskStore.deleteProgress(task.id);
+  return updated || task;
+}
+
 // ── Exposed to Flow Executors ───────────────────────────────────────────────
 
 function pauseForConfirm(taskId, resumePoint, approval) {
@@ -383,6 +401,10 @@ async function scheduleRound() {
     }
     task.status = 'queued';
     task.retryCount = retryCount;
+    task.phase = null;
+    task.resumePoint = null;
+    task.progress = 0;
+    taskStore.deleteProgress(task.id);
     recoveredIds.add(task.id);
     pass1Changed = true;
   }
@@ -440,11 +462,17 @@ async function scheduleRound() {
 
     // Transition created/pending_manual → queued (always allowed — pure status change)
     if (task.status === 'created' || task.status === 'pending_manual') {
-      taskStore.updateTask(task.id, { status: 'queued' });
+      taskStore.updateTask(task.id, { status: 'queued', phase: null, resumePoint: null, progress: 0 });
+      taskStore.deleteProgress(task.id);
       task.status = 'queued';
+      task.phase = null;
+      task.resumePoint = null;
+      task.progress = 0;
     }
 
     if (task.status === 'queued') {
+      clearQueuedRuntimeState(task);
+
       const staleScrapeReason = staleAutoScrapeReason(task);
       if (staleScrapeReason) {
         skipStaleAutoScrapeTask(task, staleScrapeReason);
@@ -469,6 +497,8 @@ async function scheduleRound() {
       activeCount[task.actionType]++;
       if (isLocalWesternAiScrapeTask(task, config)) activeLocalWesternAiScrapes++;
       usedItemIds.add(task.itemId);
+      reportStatus(task.id, 'executing', task.progress || 0);
+      task.status = 'executing';
 
       // Fire-and-forget: Flow calls reportStatus when done
       flow.driveTask(task.id).catch((err) => {

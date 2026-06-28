@@ -123,6 +123,7 @@ test('taskScheduler dispatch order is priority-ascending then FIFO', async () =>
   const origDrive = transcodeFlow.driveTask;
   transcodeFlow.driveTask = async (taskId) => {
     const t = taskStoreMod.getTask(taskId);
+    assert.strictEqual(t.status, 'executing', 'scheduler should mark the task executing before flow work starts');
     dispatched.push({ itemId: t.itemId, priority: t.priority });
     // Mark done so it releases the slot; do not run real encoding.
     taskStoreMod.updateTask(taskId, { status: 'done', phase: 'done' });
@@ -187,6 +188,109 @@ test('taskScheduler reconciles queued automatic task priorities with the current
     assert.strictEqual(reconciled.priorityModelVersion, 'additive-v3');
     assert.deepStrictEqual(reconciled.priorityBreakdown.dimensions.map((d) => d.value), [100, 80, 100, -20]);
     assert.strictEqual(preserved.priority, 7);
+  } finally {
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler clears stale runtime state for queued tasks without losing manual resumes', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.transcodeConcurrency = 1;
+  configStoreMod.saveConfig(cfg);
+
+  taskStoreMod.createTask({
+    itemId: 'slot-blocker',
+    itemName: 'Slot Blocker',
+    actionType: 'transcode',
+    status: 'executing',
+  });
+  const staleQueued = taskStoreMod.createTask({
+    itemId: 'stale-queued',
+    itemName: 'Stale Queued',
+    actionType: 'transcode',
+    source: 'auto',
+    status: 'queued',
+    itemInfo: { name: 'Stale Queued' },
+  });
+  taskStoreMod.updateTask(staleQueued.id, {
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    progress: 50,
+  });
+  const recovered = taskStoreMod.createTask({
+    itemId: 'recovered-interrupted',
+    itemName: 'Recovered Interrupted',
+    actionType: 'transcode',
+    source: 'auto',
+    status: 'interrupted',
+    itemInfo: { name: 'Recovered Interrupted' },
+  });
+  taskStoreMod.updateTask(recovered.id, {
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    progress: 33,
+  });
+  const manualResume = taskStoreMod.createTask({
+    itemId: 'manual-resume',
+    itemName: 'Manual Resume',
+    actionType: 'transcode',
+    source: 'manual',
+    status: 'queued',
+    manualExecuteRequested: true,
+    itemInfo: { name: 'Manual Resume' },
+  });
+  taskStoreMod.updateTask(manualResume.id, {
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    progress: 66,
+  });
+  const staleManualFlag = taskStoreMod.createTask({
+    itemId: 'stale-manual-flag',
+    itemName: 'Stale Manual Flag',
+    actionType: 'transcode',
+    source: 'auto',
+    status: 'queued',
+    manualExecuteRequested: true,
+    itemInfo: { name: 'Stale Manual Flag' },
+  });
+  taskStoreMod.updateTask(staleManualFlag.id, {
+    phase: 'transcode_executing',
+    resumePoint: null,
+    progress: 22,
+  });
+
+  try {
+    await scheduler.scheduleRound();
+    const staleAfter = taskStoreMod.getTask(staleQueued.id);
+    const recoveredAfter = taskStoreMod.getTask(recovered.id);
+    const manualAfter = taskStoreMod.getTask(manualResume.id);
+    const staleManualAfter = taskStoreMod.getTask(staleManualFlag.id);
+
+    assert.strictEqual(staleAfter.status, 'queued');
+    assert.strictEqual(staleAfter.phase, null);
+    assert.strictEqual(staleAfter.resumePoint, null);
+    assert.strictEqual(staleAfter.progress, 0);
+
+    assert.strictEqual(recoveredAfter.status, 'queued');
+    assert.strictEqual(recoveredAfter.phase, null);
+    assert.strictEqual(recoveredAfter.resumePoint, null);
+    assert.strictEqual(recoveredAfter.progress, 0);
+
+    assert.strictEqual(manualAfter.status, 'queued');
+    assert.strictEqual(manualAfter.phase, 'transcode_executing');
+    assert.strictEqual(manualAfter.resumePoint, 'transcode_executing');
+    assert.strictEqual(manualAfter.progress, 66);
+
+    assert.strictEqual(staleManualAfter.status, 'queued');
+    assert.strictEqual(staleManualAfter.phase, null);
+    assert.strictEqual(staleManualAfter.resumePoint, null);
+    assert.strictEqual(staleManualAfter.progress, 0);
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;

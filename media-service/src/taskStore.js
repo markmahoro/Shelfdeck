@@ -165,6 +165,7 @@ function normalizeTask(task) {
   t.updatedAt = String(t.updatedAt || t.createdAt || now);
   t.logs = Array.isArray(t.logs) ? t.logs : [];
   t.itemInfo = t.itemInfo === undefined ? null : t.itemInfo;
+  t.manualExecuteRequested = !!t.manualExecuteRequested;
   return t;
 }
 
@@ -230,6 +231,7 @@ function buildTask(taskData, now = new Date().toISOString()) {
     updatedAt: now,
     logs: Array.isArray(taskData.logs) ? taskData.logs : [],
     itemInfo: taskData.itemInfo || null,
+    manualExecuteRequested: !!taskData.manualExecuteRequested,
     priorityManuallyAdjusted: !!taskData.priorityManuallyAdjusted,
     priorityModelVersion: taskData.priorityModelVersion,
     priorityBreakdown: taskData.priorityBreakdown,
