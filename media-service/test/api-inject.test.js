@@ -183,6 +183,28 @@ test('POST /v1/tasks follows sub-library automation mode for initial status', as
   await app.close();
 });
 
+test('POST /v1/tasks manual admission does not load full task history', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  const originalGetTasks = taskStore.getTasks;
+  taskStore.getTasks = () => {
+    throw new Error('full history should not be loaded for manual admission');
+  };
+  try {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/tasks',
+      payload: { itemId: 'manual-fast-path', actionType: 'transcode' },
+    });
+    assert.strictEqual(res.statusCode, 201);
+    assert.ok(res.json().id);
+  } finally {
+    taskStore.getTasks = originalGetTasks;
+    await app.close();
+  }
+});
+
 test('GET /v1/tasks lists created tasks', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });

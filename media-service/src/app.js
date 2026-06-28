@@ -308,7 +308,7 @@ function registerRoutes(app) {
       actionType,
       source: 'manual',
       config: cfg,
-      tasks: taskStore.getTasks(),
+      tasks: taskStore.loadTasks({ includeHistory: false }),
     });
     if (!admission.allowed) {
       if (admission.reason === 'active_task_exists') {
