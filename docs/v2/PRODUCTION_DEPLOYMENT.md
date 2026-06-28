@@ -47,7 +47,7 @@ Get-FileHash dist-image\shelfdeck-<tag>.tar -Algorithm SHA256
 node scripts/upload-nas-image.js dist-image\shelfdeck-<tag>.tar
 ```
 
-上传脚本使用项目固定 NAS SSH 配置走 SFTP，不使用交互式 `scp`。脚本会先上传到 `.uploading-*` 临时文件，完成后 rename 为目标 tarball，并在 NAS 上校验 SHA-256。校验不通过不得部署。
+上传脚本使用项目固定 NAS SSH 配置走 SFTP，不使用交互式 `scp`。SSH 配置由 `tools/nas-ssh-config.js` 统一读取：优先使用 `SHELFDECK_NAS_HOST`、`SHELFDECK_NAS_PORT`、`SHELFDECK_NAS_USER`、`SHELFDECK_NAS_PASSWORD` 环境变量；未设置时读取本机 ignored 的 `tests/TEST_ENV_CHECKLIST.md`。脚本会先上传到 `.uploading-*` 临时文件，完成后 rename 为目标 tarball，并在 NAS 上校验 SHA-256。校验不通过不得部署。
 
 4. 先 dry run 部署脚本，检查将要执行的生产步骤：
 
@@ -68,6 +68,7 @@ node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha
 apply 模式必须保持这些保护：
 
 - 部署前检查 tarball、可选 SHA-256 和 NAS compose 文件。
+- `upload-nas-image.js`、`deploy-nas.js` 和 `tools/ssh-exec.js` 必须复用 `tools/nas-ssh-config.js`，不要在脚本内硬编码 SSH 凭据。
 - 由 tarball 文件名 `shelfdeck-<tag>.tar` 推导目标镜像 `markmahoro/shelfdeck:<tag>`，并更新 NAS compose 的 `image:`。
 - 展示 live 容器里当前 `ffmpeg` 进程，作为中断风险提示；开发期部署允许中断这些任务，后续孤儿文件可另行清理。
 - 部署前备份 `config.json`、`library.json` / `library.db`、`tasks.json` / `tasks.db`。

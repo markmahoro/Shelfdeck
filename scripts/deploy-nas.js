@@ -18,14 +18,7 @@
 
 const path = require('path');
 const { Client } = require(path.join(__dirname, '..', 'tools', 'node_modules', 'ssh2'));
-
-const NAS = {
-  host: '192.168.12.230',
-  port: 22,
-  username: 'gezhu',
-  password: '3R632z33!!',
-  readyTimeout: 15000,
-};
+const { loadNasSshConfig } = require(path.join(__dirname, '..', 'tools', 'nas-ssh-config'));
 
 const COMPOSE_DIR = '/vol1/1000/docker/shelfdeck';
 const COMPOSE_FILE = `${COMPOSE_DIR}/docker-compose.yml`;
@@ -182,7 +175,7 @@ async function main() {
   await new Promise((resolve, reject) => {
     conn.on('ready', resolve);
     conn.on('error', reject);
-    conn.connect(NAS);
+    conn.connect(loadNasSshConfig({ readyTimeout: 15000 }));
   });
 
   try {

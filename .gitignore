@@ -42,7 +42,6 @@ tests/TEST_ENV_CHECKLIST.md
 
 # 排错工具凭据（不提交）
 tools/ssh-askpass.ps1
-tools/ssh-exec.js
 
 # 本地生成的调试、部署、媒体测试产物
 media-service/data/

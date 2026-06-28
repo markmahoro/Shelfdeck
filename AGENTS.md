@@ -94,6 +94,7 @@ Known test endpoints:
 Production safety:
 
 - Canonical production deployment is `docs/v2/PRODUCTION_DEPLOYMENT.md` plus `scripts/build-image.sh`, `scripts/upload-nas-image.js`, and `scripts/deploy-nas.js`.
+- NAS SSH configuration for `tools/ssh-exec.js`, `scripts/upload-nas-image.js`, and `scripts/deploy-nas.js` must go through `tools/nas-ssh-config.js`. Do not hardcode SSH credentials in deployment scripts.
 - A direct user request to deploy, release, publish, or upgrade NAS production authorizes the full standard deploy flow, including `deploy-nas.js --apply` after dry run and checksum validation pass.
 - The fixed deployment flow exists to avoid wasting time trying alternate deployment methods. This is a development production environment, so `deploy-nas.js` may recreate the container even when `ffmpeg` jobs are running; it should print those jobs for awareness but not block on them.
 - The NAS ShelfDeck Docker at `192.168.12.230:18080` is production. Do not delete/park tasks, change production data, or switch deployment methods unless the user explicitly asks for that production action.
