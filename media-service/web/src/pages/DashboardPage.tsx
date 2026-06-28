@@ -32,6 +32,17 @@ const ACTIVE_TASK_STATUSES = [
 const TERMINAL_TASK_STATUSES = ['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'];
 const FAILED_TASK_STATUSES = ['failed_hard'];
 
+function autoExecuteText(sl: SubLibrary) {
+  const mode = (sl.automationMode || (sl.scheduleMode === 'full_manual' ? 'manual' : 'auto'));
+  return mode === 'manual' ? '需要手动启动' : '自动开始执行';
+}
+
+function adultWatchRootPlaceholder(kind: 'emby' | 'japanese_jav' | 'western_adult') {
+  if (kind === 'western_adult') return '/adult_media/US';
+  if (kind === 'japanese_jav') return '/adult_media/JAV';
+  return '/media/movies';
+}
+
 export default function DashboardPage() {
   const qc = useQueryClient();
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -322,16 +333,16 @@ export default function DashboardPage() {
                       </div>
                     </SubCard>
 
-                    {/* Sub-card 3: Task Execution Mode */}
-                    <SubCard title="任务执行方式">
+                    {/* Sub-card 3: Task execution after creation */}
+                    <SubCard title="任务创建后">
                       <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e' }}>
-                        {((sl as any).automationMode || ((sl as any).scheduleMode === 'full_manual' ? 'manual' : 'auto')) === 'manual' ? '手动启动' : '自动执行'}
+                        {autoExecuteText(sl)}
                       </div>
                       <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
-                        控制任务创建后是否自动进入执行队列
+                        只控制已创建任务的启动方式，不负责自动创建任务
                       </div>
                       <div style={{ fontSize: 11, color: enabledAutoActions && enabledAutoActions.length === 0 ? '#c2410c' : '#6b7280', marginTop: 4 }}>
-                        后台自动入队：{enabledAutoActionText}
+                        后台自动入队任务类型：{enabledAutoActionText}
                       </div>
                     </SubCard>
 
@@ -504,7 +515,7 @@ export default function DashboardPage() {
                 {[
                   { key: 'emby', title: 'Emby 媒体库', desc: '电影/剧集' },
                   { key: 'japanese_jav', title: 'JAV', desc: '真实目录' },
-                  { key: 'western_adult', title: '欧美成人', desc: '真实目录（待开放）' },
+                  { key: 'western_adult', title: '欧美成人', desc: '真实目录' },
                 ].map((k) => (
                   <button
                     key={k.key}
@@ -518,7 +529,7 @@ export default function DashboardPage() {
                         setSubLibName('JAV');
                       } else if (next === 'western_adult') {
                         setMediaType('adult');
-                        setRuleTemplateId('adult_jav_default');
+                        setRuleTemplateId('adult_western_default');
                         setSubLibName('欧美成人');
                       } else {
                         setMediaType('movie');
@@ -571,8 +582,8 @@ export default function DashboardPage() {
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <button onClick={closeWizard} style={secondaryBtn}>取消</button>
-              <button onClick={() => libraryKind === 'emby' ? handleTestAndNext() : setStep(3)} disabled={testing || libraryKind === 'western_adult'} style={primaryBtn}>
-                {libraryKind === 'emby' ? (testing ? '登录中...' : '登录 Emby') : libraryKind === 'western_adult' ? '暂未开放' : '下一步'}
+              <button onClick={() => libraryKind === 'emby' ? handleTestAndNext() : setStep(3)} disabled={testing} style={primaryBtn}>
+                {libraryKind === 'emby' ? (testing ? '登录中...' : '登录 Emby') : '下一步'}
               </button>
             </div>
           </div>
@@ -614,7 +625,7 @@ export default function DashboardPage() {
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>监控目录</label>
                   <input type="text" value={watchRoot} onChange={(e) => setWatchRoot(e.target.value)}
-                    placeholder="E:\\my_project\\emby_third_party\\jav_test"
+                    placeholder={adultWatchRootPlaceholder(libraryKind)}
                     style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
                 </div>
               </>
