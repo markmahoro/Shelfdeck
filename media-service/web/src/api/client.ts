@@ -537,8 +537,30 @@ export const libraryApi = {
   getStatus: () =>
     get<{ subLibraries: SubLibraryInfo[] }>('/v1/library/status'),
 
-  getCache: (subLibraryId?: string) => {
-    const params = subLibraryId ? `?subLibraryId=${encodeURIComponent(subLibraryId)}` : '';
+  getCache: (options?: {
+    subLibraryId?: string;
+    limit?: number;
+    offset?: number;
+    search?: string;
+    action?: string;
+    resolution?: string;
+    codec?: string;
+    watched?: string;
+    bluRay?: string;
+    douban?: string;
+    userRating?: string;
+    task?: string;
+    scrape?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (options?.subLibraryId) q.set('subLibraryId', options.subLibraryId);
+    if (options?.limit) q.set('limit', String(options.limit));
+    if (options?.offset) q.set('offset', String(options.offset));
+    for (const key of ['search', 'action', 'resolution', 'codec', 'watched', 'bluRay', 'douban', 'userRating', 'task', 'scrape'] as const) {
+      const value = options?.[key];
+      if (value && value !== 'all') q.set(key, value);
+    }
+    const params = q.toString() ? `?${q.toString()}` : '';
     return get<{ items: unknown[]; total: number }>(`/v1/library${params}`);
   },
 

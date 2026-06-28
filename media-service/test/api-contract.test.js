@@ -203,6 +203,32 @@ test('POST /v1/library/cache upserts items and returns counts', async () => {
   await app.close();
 });
 
+test('GET /v1/library supports server-side pagination and search', async () => {
+  const app = await buildEmptyApp();
+  await app.inject({
+    method: 'POST',
+    url: '/v1/library/cache',
+    payload: {
+      subLibraryId: 'sublib-page',
+      items: [
+        { sourceId: 'src-1', name: 'Movie Alpha', type: 'Movie', path: '/m/a.mkv', bitrate: 10000000, duration: 3600, resolution: '1920x1080', size: 4000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
+        { sourceId: 'src-2', name: 'Movie Beta', type: 'Movie', path: '/m/b.mkv', bitrate: 12000000, duration: 7200, resolution: '1920x1080', size: 5000000000, premiereDate: '2025-02-01', genres: [], isDiscLike: false },
+        { sourceId: 'src-3', name: 'Movie Gamma', type: 'Movie', path: '/m/c.mkv', bitrate: 8000000, duration: 5400, resolution: '1920x1080', size: 3000000000, premiereDate: '2025-03-01', genres: [], isDiscLike: false },
+      ],
+    },
+  });
+
+  const res = await app.inject({ method: 'GET', url: '/v1/library?subLibraryId=sublib-page&search=Movie&limit=2&offset=1' });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.total, 3);
+  assert.strictEqual(body.items.length, 2);
+  assert.deepStrictEqual(body.items.map((it) => it.name), ['Movie Beta', 'Movie Gamma']);
+  assert.strictEqual(body.offset, 1);
+  assert.strictEqual(body.limit, 2);
+  await app.close();
+});
+
 test('POST /v1/library/cache removes stale items', async () => {
   const app = await buildEmptyApp();
   // First insert 2 items

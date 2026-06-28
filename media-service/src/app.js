@@ -519,13 +519,38 @@ function registerRoutes(app) {
 
   // ── Library ─────────────────────────────────────────────────────────────
 
-  app.get('/v1/library', async (req) => {
+  function parseLibraryQuery(query = {}) {
     const filter = {};
-    if (req.query.source) filter.source = req.query.source;
-    if (req.query.type) filter.type = req.query.type;
-    if (req.query.action) filter.action = req.query.action;
-    if (req.query.subLibraryId) filter.subLibraryId = req.query.subLibraryId;
-    const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true });
+    if (query.source) filter.source = query.source;
+    if (query.type) filter.type = query.type;
+    if (query.action) filter.action = query.action;
+    if (query.subLibraryId) filter.subLibraryId = query.subLibraryId;
+    if (query.search) filter.search = query.search;
+    if (query.resolution) filter.resolution = query.resolution;
+    if (query.codec) filter.codec = query.codec;
+    if (query.watched === 'watched') filter.watched = true;
+    if (query.watched === 'unwatched') filter.watched = false;
+    if (query.bluRay === 'disc') filter.isBluRayDisc = true;
+    if (query.bluRay === 'not_disc') filter.isBluRayDisc = false;
+    if (query.douban === 'none') filter.doubanStars = null;
+    else if (query.douban) filter.doubanStars = Number(query.douban);
+    if (query.userRating === 'none') filter.userRating = null;
+    else if (query.userRating) filter.userRating = Number(query.userRating);
+    if (query.task === 'active' || query.task === 'none') {
+      filter.taskState = query.task;
+      filter.activeTaskIds = new Set(taskStore.loadTasks({ includeHistory: false }).map((t) => t.itemId));
+    }
+    if (query.scrape === 'done' || query.scrape === 'pending' || query.scrape === 'failed') filter.scrapeStatus = query.scrape;
+    const rawLimit = Number(query.limit);
+    const rawOffset = Number(query.offset);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(500, Math.floor(rawLimit)) : null;
+    const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
+    return { filter, page: { limit, offset } };
+  }
+
+  app.get('/v1/library', async (req) => {
+    const { filter, page } = parseLibraryQuery(req.query);
+    const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
     // Attach embyWebUrl for desktop play button
     const cfg = configStore.loadConfig();
     const servers = cfg.embyServers || {};
@@ -543,12 +568,8 @@ function registerRoutes(app) {
   });
 
   app.get('/v1/library/queries/manage', async (req) => {
-    const filter = {};
-    if (req.query.source) filter.source = req.query.source;
-    if (req.query.type) filter.type = req.query.type;
-    if (req.query.action) filter.action = req.query.action;
-    if (req.query.subLibraryId) filter.subLibraryId = req.query.subLibraryId;
-    return mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true });
+    const { filter, page } = parseLibraryQuery(req.query);
+    return mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
   });
 
   app.get('/v1/library/items/:itemId', async (req, reply) => {

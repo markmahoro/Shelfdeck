@@ -14,11 +14,14 @@ const ACTION_LABELS: Record<string, string> = {
   ingest: '入库',
 };
 const MEDIA_MANAGE_SUB_LIBRARY_KEY = 'media_manage_sub_library_id';
+const MEDIA_MANAGE_PAGE_SIZE = 100;
 
 export default function MediaManagePage() {
   const [subLibraries, setSubLibraries] = useState<SubLibraryInfo[]>([]);
   const [subLibraryId, setSubLibraryId] = useState<string>('');
   const [items, setItems] = useState<ManagedMediaItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [tasks, setTasks] = useState<MediaTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,18 +65,42 @@ export default function MediaManagePage() {
   );
   const canScanAdultFolder = Boolean(activeSubLibrary?.source === 'folder' && activeSubLibrary?.mediaType === 'adult');
 
+  useEffect(() => {
+    setPage(0);
+    setSelectedIds(new Set());
+  }, [subLibraryId, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page]);
+
   // Fetch library data when subLibraryId changes
   useEffect(() => {
     let active = true;
     setLoading(true);
     libraryApi
-      .getCache(subLibraryId || undefined)
+      .getCache({
+        subLibraryId: subLibraryId || undefined,
+        limit: MEDIA_MANAGE_PAGE_SIZE,
+        offset: page * MEDIA_MANAGE_PAGE_SIZE,
+        search: searchQuery.trim() || undefined,
+        action: actionFilter,
+        resolution: resolutionFilter,
+        codec: codecFilter,
+        watched: watchedFilter,
+        bluRay: bluRayFilter,
+        douban: doubanFilter,
+        userRating: localRatingFilter,
+        task: taskFilter,
+        scrape: scrapeFilter,
+      })
       .then((data) => {
         if (!active) return;
         const rows = (data.items as unknown[])
           .map(coerceManagedItem)
           .filter((x): x is ManagedMediaItem => x != null);
         setItems(rows);
+        setTotal(data.total || 0);
         setLoading(false);
       })
       .catch((e) => {
@@ -82,7 +109,7 @@ export default function MediaManagePage() {
         setLoading(false);
       });
     return () => { active = false; };
-  }, [subLibraryId, refreshKey]);
+  }, [subLibraryId, page, refreshKey, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter]);
 
   // Poll tasks
   useEffect(() => {
@@ -94,61 +121,10 @@ export default function MediaManagePage() {
     return () => clearInterval(id);
   }, []);
 
-  const filtered = useMemo(() => {
-    let rows = items;
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      rows = rows.filter((it) => it.name.toLowerCase().includes(q));
-    }
-    if (actionFilter !== 'all') {
-      rows = rows.filter((it) => (it.recommendedAction ?? 'keep') === actionFilter);
-    }
-    if (resolutionFilter !== 'all') {
-      rows = rows.filter((it) => it.resolution === resolutionFilter);
-    }
-    if (codecFilter !== 'all') {
-      rows = rows.filter((it) => it.codec === codecFilter);
-    }
-    if (watchedFilter !== 'all') {
-      const w = watchedFilter === 'watched';
-      rows = rows.filter((it) => it.watched === w);
-    }
-    if (bluRayFilter !== 'all') {
-      const isDisc = bluRayFilter === 'disc';
-      rows = rows.filter((it) => it.isBluRayDisc === isDisc);
-    }
-    if (doubanFilter !== 'all') {
-      if (doubanFilter === 'none') rows = rows.filter((it) => it.doubanStars == null);
-      else rows = rows.filter((it) => it.doubanStars === Number(doubanFilter));
-    }
-    if (localRatingFilter !== 'all') {
-      if (localRatingFilter === 'none') rows = rows.filter((it) => it.rating == null);
-      else rows = rows.filter((it) => it.rating === Number(localRatingFilter));
-    }
-    if (taskFilter === 'active') {
-      const activeIds = new Set(tasks.filter((t) => !['done', 'failed_hard'].includes(t.status)).map((t) => t.itemId));
-      rows = rows.filter((it) => activeIds.has(it.id));
-    } else if (taskFilter === 'none') {
-      const activeIds = new Set(tasks.filter((t) => !['done', 'failed_hard'].includes(t.status)).map((t) => t.itemId));
-      rows = rows.filter((it) => !activeIds.has(it.id));
-    }
-    if (scrapeFilter !== 'all') {
-      rows = rows.filter((it) => {
-        if (it.source !== 'adult_folder') return false;
-        const status = typeof it.adultMetadata?.scrapeStatus === 'string' ? it.adultMetadata.scrapeStatus : '';
-        if (scrapeFilter === 'done') return Boolean(it.scraped) || status === 'done';
-        if (scrapeFilter === 'pending') return !it.scraped && (status === 'pending' || status === 'ambiguous' || !status);
-        if (scrapeFilter === 'failed') return status === 'failed';
-        return true;
-      });
-    }
-    return rows;
-  }, [items, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter, tasks]);
-
   const autoEntryNotice = useMemo(() => {
     const disabledCounts: Record<string, number> = {};
     if (!smartTaskActions) return null;
-    for (const it of filtered) {
+    for (const it of items) {
       const action = it.recommendedAction || 'keep';
       if (action === 'keep') continue;
       if (!smartTaskActions.includes(action)) {
@@ -160,7 +136,11 @@ export default function MediaManagePage() {
       .map(([action, count]) => `${ACTION_LABELS[action] || action} ${count} 条`);
     if (parts.length === 0) return null;
     return `当前列表有 ${parts.join('、')}推荐策略未启用后台自动入队。这些条目只会显示建议，不会自动出现在任务中心；可以手动点击每行的策略按钮，或到「任务调度」启用对应任务类型。`;
-  }, [filtered, smartTaskActions]);
+  }, [items, smartTaskActions]);
+
+  const maxPage = Math.max(0, Math.ceil(total / MEDIA_MANAGE_PAGE_SIZE) - 1);
+  const rangeStart = total === 0 ? 0 : page * MEDIA_MANAGE_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(total, page * MEDIA_MANAGE_PAGE_SIZE + items.length);
 
   const enqueueManagedAction = (item: ManagedMediaItem, action: MediaAction) => {
     if (item.isBluRayDisc && action === 'upgrade') return;
@@ -367,7 +347,7 @@ export default function MediaManagePage() {
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-          <button type="button" onClick={() => setSelectedIds(new Set(filtered.map((it) => it.id)))}>
+          <button type="button" onClick={() => setSelectedIds(new Set(items.map((it) => it.id)))}>
             全选
           </button>
           <button
@@ -383,7 +363,7 @@ export default function MediaManagePage() {
           className="batchRunBtn"
           disabled={selectedIds.size === 0}
           onClick={() => {
-            for (const it of filtered) {
+            for (const it of items) {
               if (selectedIds.has(it.id)) {
                 const action = it.recommendedAction ?? 'keep';
                 if (action !== 'keep') enqueueManagedAction(it, action);
@@ -394,14 +374,21 @@ export default function MediaManagePage() {
           批量执行策略
         </button>
         <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
-          已选 {selectedIds.size} / {filtered.length} 条
+          已选 {selectedIds.size} / {items.length} 条
         </p>
       </div>
       <div className="pageMain">
         <div className="pageMainInner">
           {error && <p className="error">{error}</p>}
           {autoEntryNotice && <div className="mediaNotice">{autoEntryNotice}</div>}
-          {filtered.length === 0 ? (
+          <div className="mediaPager">
+            <span>第 {page + 1} / {maxPage + 1} 页，显示 {rangeStart}-{rangeEnd}，共 {total} 条</span>
+            <div>
+              <button type="button" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>上一页</button>
+              <button type="button" disabled={page >= maxPage} onClick={() => setPage((p) => Math.min(maxPage, p + 1))}>下一页</button>
+            </div>
+          </div>
+          {items.length === 0 ? (
             <p>暂未获取到媒体库数据。请先在管理端配置媒体库。</p>
           ) : (
             <div>
@@ -424,7 +411,7 @@ export default function MediaManagePage() {
                 <div>建议策略</div>
                 <div>任务</div>
               </div>
-              {filtered.map((item) => {
+              {items.map((item) => {
                 const rowTask = tasks.find(
                   (t) => t.itemId === item.id && !['done', 'failed_hard'].includes(t.status),
                 );

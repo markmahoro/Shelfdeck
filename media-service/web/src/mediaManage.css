@@ -39,6 +39,32 @@
   line-height: 1.6;
 }
 
+.mediaPager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.mediaPager button {
+  margin-left: 8px;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  background: #fff;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mediaPager button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
 .sidebarMuted {
   font-size: 11px;
   color: #9ca3af;
