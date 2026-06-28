@@ -718,6 +718,8 @@ test('GET /v1/admin/tasks/:id omits heavy adult face payloads', async () => {
       adultMetadata: {
         adultId: 'UNK-002',
         scrapeStatus: 'failed',
+        galleryImages: [{ imageBase64: Buffer.alloc(4096, 1).toString('base64') }],
+        ai: { faceEmbeddingsEnabled: true },
         faceClusters: [{ clusterId: 'face-1', embedding: [0.1, 0.2], sampleImageBase64: Buffer.from('face').toString('base64') }],
         unknownFaces: [{ clusterId: 'unknown-1', embedding: [0.3, 0.4], sampleImageBase64: Buffer.from('unknown').toString('base64') }],
       },
@@ -729,6 +731,8 @@ test('GET /v1/admin/tasks/:id omits heavy adult face payloads', async () => {
   const body = res.json();
   assert.deepStrictEqual(body.itemInfo.adultMetadata.faceClusters, []);
   assert.deepStrictEqual(body.itemInfo.adultMetadata.unknownFaces, []);
+  assert.strictEqual(body.itemInfo.adultMetadata.galleryImages, undefined);
+  assert.strictEqual(body.itemInfo.adultMetadata.ai, undefined);
   await app.close();
 });
 

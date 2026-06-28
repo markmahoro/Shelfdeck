@@ -228,15 +228,43 @@ function compactFaceForUi(face, opts = {}) {
 
 function compactAdultMetadataForUi(metadata, opts = {}) {
   if (!metadata || typeof metadata !== 'object') return metadata;
-  const compact = { ...metadata };
-  if (Array.isArray(compact.faceClusters)) {
+  const allowedKeys = [
+    'adultId',
+    'idConfidence',
+    'title',
+    'originalTitle',
+    'source',
+    'sourceUrl',
+    'scrapeStatus',
+    'reviewStatus',
+    'region',
+    'scraperType',
+    'posterPath',
+    'fanartPath',
+    'nfoPath',
+    'fileNfoPath',
+    'markerPath',
+    'organized',
+    'originalFolder',
+    'actors',
+    'protagonist',
+    'scrapeError',
+    'scrapeFailedAt',
+    'generatedTitle',
+    'generatedDescription',
+  ];
+  const compact = {};
+  for (const key of allowedKeys) {
+    if (metadata[key] !== undefined) compact[key] = metadata[key];
+  }
+  if (Array.isArray(metadata.faceClusters)) {
     compact.faceClusters = opts.includeFaces
-      ? compact.faceClusters.map((face) => compactFaceForUi(face, opts))
+      ? metadata.faceClusters.map((face) => compactFaceForUi(face, opts))
       : [];
   }
-  if (Array.isArray(compact.unknownFaces)) {
+  if (Array.isArray(metadata.unknownFaces)) {
     compact.unknownFaces = opts.includeFaces
-      ? compact.unknownFaces.map((face) => compactFaceForUi(face, opts))
+      ? metadata.unknownFaces.map((face) => compactFaceForUi(face, opts))
       : [];
   }
   return compact;
