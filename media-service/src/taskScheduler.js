@@ -122,7 +122,7 @@ function reportStatus(taskId, status, progress) {
 // ── Scheduling ──────────────────────────────────────────────────────────────
 
 function recoverInterruptedTasks() {
-  const tasks = taskStore.loadTasks();
+  const tasks = taskStore.loadTasks({ includeHistory: false });
   const interruptible = ['precheck', 'executing', 'verify', 'ingest_precheck', 'ingest_commit', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review', 'planning', 'pre_replace_verify', 'pausing'];
   let changed = false;
   for (const t of tasks) {
@@ -166,7 +166,7 @@ async function checkNodeHealth() {
     // Node just went offline — fail its active tasks
     if (updated && updated.status === 'offline') {
       console.log(`[scheduler] Node ${node.name} (${node.id}) is offline — failing active tasks`);
-      const tasks = taskStore.loadTasks();
+      const tasks = taskStore.loadTasks({ includeHistory: false });
       let failed = 0;
       for (const t of tasks) {
         if (t.nodeId === node.id && t.status === 'executing') {
@@ -231,7 +231,7 @@ function stopScheduler() {
 
 async function scheduleRound() {
   const config = configStore.loadConfig();
-  const tasks = taskStore.loadTasks();
+  const tasks = taskStore.loadTasks({ includeHistory: false });
 
   // Count active tasks per actionType (occupying slots)
   const activeCount = { ingest: 0, delete: 0, transcode: 0, upgrade: 0, scrape: 0 };

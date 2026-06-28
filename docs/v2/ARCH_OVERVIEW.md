@@ -117,6 +117,7 @@ desktop / Admin Web
 - 审批策略与调度策略分离。`approvalPolicy` 控制任务内部关键节点是否暂停，模式为 `auto`、`confirm`、`forceConfirm`；`forceConfirm` 不能被全局、子库或任务级覆盖降级。
 - 当前审批 gate 包括 `delete.beforeExecute`、`transcode.dolbyVisionTonemap`、`transcode.beforeReplace`、`upgrade.candidateSelect`、`upgrade.identityMismatch`、`upgrade.beforeReplace`、`scrape.beforeWriteMetadata`、`scrape.beforeOrganize`、`scrape.reviewResult`。
 - `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；扫描/监听不直接写入大量完整 item，也不把大量新文件直接展开成完整刮削或转码动作。
+- 任务持久化使用 `data/tasks.db` SQLite。任务中心保留完成、失败等历史记录；调度器、节点统计、转码临时目录清理等热路径只读取非终态 active task，不能为了降低队列压力删除历史任务。
 - 启动期全局维护不属于单 item task。普通媒体库启动刷新由 `mediaLibraryStartupRefreshOnStartup` 和 `mediaLibraryStartupRefreshDelaySeconds` 控制；自算字段立即运行由 `mediaLibrarySelfComputeOnStartup` 控制；`SmartTaskEngine` 首次自动入队扫描由 `smartTaskInitialDelaySeconds` 控制。生产部署可通过这些开关先恢复 API 响应，再让周期任务按节奏运行。
 - 成人库 `ingest` 的媒体探测使用 `adultLibrary.probeTimeoutMs` 控制单文件 `ffprobe` 超时。坏文件或异常路径只记录 `probeError` 并继续入库，不应拖住整个 HTTP 服务。
 
@@ -154,7 +155,7 @@ desktop / Admin Web
 | HTTP API | `src/app.js` | `/v1/*` 和 `/v1/admin/*` 路由 |
 | Server | `src/server.js` | 启动、关闭、可选 tray |
 | Config | `src/configStore.js` | `data/config.json` 读写、默认值、平台路径 |
-| Task store | `src/taskStore.js` | `data/tasks.json` 读写 |
+| Task store | `src/taskStore.js` | `data/tasks.db` SQLite 读写；启动时从旧 `tasks.json` 一次性迁移 |
 | Scheduler | `src/taskScheduler.js` | 轮询、锁、并发、flow dispatch |
 | Task admission | `src/taskAdmission.js` | 自动/手动入队闸门、去重、冷却、业务幂等 |
 | Approval policy | `src/approvalPolicy.js` | 任务内部关键节点审批策略 |
@@ -198,12 +199,13 @@ worker node 是被动计算节点，欧美成人管理不依赖 worker：
 
 ## 8. Runtime Data
 
-Runtime JSON 不入库：
+Runtime data 不入库：
 
 | 文件 | 所有者 | 说明 |
 | --- | --- | --- |
 | `media-service/data/config.json` | service | 配置 |
-| `media-service/data/tasks.json` | service | 任务队列 |
+| `media-service/data/tasks.db` | service | 任务队列和任务中心历史 |
+| `media-service/data/tasks.json` | service | 旧版任务存储；存在时启动自动迁移到 `tasks.db`，迁移后仅作为原始记录保留 |
 | `media-service/data/library.json` | service | 媒体库缓存 |
 | `media-service/data/nodes.json` | service | 转码节点登记 |
 | `media-service/data/people.json` | service | 欧美成人 People 人物库 |

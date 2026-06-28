@@ -1299,7 +1299,7 @@ function registerRoutes(app) {
 
   app.get('/v1/admin/nodes', async () => {
     const nodes = nodeStore.loadNodes();
-    const tasks = taskStore.loadTasks();
+    const tasks = taskStore.loadTasks({ includeHistory: false });
     const nodeList = nodes.map((n) => {
       const activeJobCount = tasks.filter((t) => t.nodeId === n.id && t.status === 'executing').length;
       return { ...n, apiKey: '********', activeJobCount };
@@ -1310,7 +1310,7 @@ function registerRoutes(app) {
   app.get('/v1/admin/nodes/:id', async (req) => {
     const node = nodeStore.getNode(req.params.id);
     if (!node) return { error: { code: 'NOT_FOUND', message: 'Node not found' } };
-    const tasks = taskStore.loadTasks();
+    const tasks = taskStore.loadTasks({ includeHistory: false });
     const activeJobCount = tasks.filter((t) => t.nodeId === node.id && t.status === 'executing').length;
     return { ...node, apiKey: '********', activeJobCount };
   });
@@ -1364,7 +1364,7 @@ function registerRoutes(app) {
 
     if (force && activeCount > 0) {
       // Cancel all active tasks on this node
-      const tasks = taskStore.loadTasks();
+      const tasks = taskStore.loadTasks({ includeHistory: false });
       for (const t of tasks) {
         if (t.nodeId === node.id && t.status === 'executing') {
           const flow = getFlow(t.actionType);
@@ -1397,7 +1397,7 @@ function registerRoutes(app) {
     }
 
     const updated = nodeStore.updateNode(req.params.id, patch);
-    const tasks = taskStore.loadTasks();
+    const tasks = taskStore.loadTasks({ includeHistory: false });
     const activeJobCount = tasks.filter((t) => t.nodeId === updated.id && t.status === 'executing').length;
     return { ...updated, apiKey: '********', activeJobCount };
   });
@@ -1495,22 +1495,16 @@ function registerRoutes(app) {
     if (req.query.status) filter.status = req.query.status;
     if (req.query.actionType) filter.actionType = req.query.actionType;
     if (req.query.q) filter.q = req.query.q;
-    const allTasks = taskStore.getTasks(filter);
-    // Sort by updatedAt descending (most recent first)
-    allTasks.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-    const byStatus = {};
-    for (const t of allTasks) {
-      byStatus[t.status] = (byStatus[t.status] || 0) + 1;
-    }
-
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
-    const total = allTasks.length;
-    const start = (page - 1) * pageSize;
-    const tasks = allTasks.slice(start, start + pageSize);
-
-    return { tasks, summary: { total, byStatus }, page, pageSize, total };
+    const result = taskStore.queryTasks(filter, { page, pageSize, orderBy: 'updatedAt', orderDir: 'desc' });
+    return {
+      tasks: result.tasks,
+      summary: { total: result.total, byStatus: result.byStatus },
+      page: result.page,
+      pageSize: result.pageSize,
+      total: result.total,
+    };
   });
 
   app.get('/v1/admin/tasks/:id', async (req, reply) => {

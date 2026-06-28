@@ -1253,7 +1253,8 @@ async function scanSubLibrary(subLib, opts = {}) {
   const config = configStore.loadConfig();
   const files = collectMediaFiles(subLib.watchRoot, config, { subLib, includeIgnored: !!opts.includeOrganized });
   const taskSnapshot = taskStore.loadTasks();
-  const beforeTaskCount = taskSnapshot.length;
+  const activeTaskSnapshot = taskStore.loadTasks({ includeHistory: false });
+  const beforeActiveTaskCount = activeTaskSnapshot.length;
   const lib = loadLibrary();
   const existingByPath = new Map();
   for (const item of lib.items || []) {
@@ -1271,13 +1272,21 @@ async function scanSubLibrary(subLib, opts = {}) {
       const shouldScrape = opts.enqueueScrape !== false && !hasIgnoredSegment(file, subLib)
         && existingItem.scraped !== true
         && (!existingItem.adultMetadata || !['done', 'needs_review'].includes(existingItem.adultMetadata.scrapeStatus));
-      if (shouldScrape && enqueueScrapeTask(existingItem, subLib, { taskSnapshot, deferSave: true })) scrapeQueued++;
+      const task = shouldScrape && enqueueScrapeTask(existingItem, subLib, { taskSnapshot, deferSave: true });
+      if (task) {
+        activeTaskSnapshot.push(task);
+        scrapeQueued++;
+      }
       continue;
     }
-    if (enqueueIngestTask(subLib, file, { force: !!opts.force, taskSnapshot, deferSave: true })) queued++;
+    const task = enqueueIngestTask(subLib, file, { force: !!opts.force, taskSnapshot, deferSave: true });
+    if (task) {
+      activeTaskSnapshot.push(task);
+      queued++;
+    }
   }
-  if (taskSnapshot.length !== beforeTaskCount) {
-    taskStore.saveTasks(taskSnapshot);
+  if (activeTaskSnapshot.length !== beforeActiveTaskCount) {
+    taskStore.saveTasks(activeTaskSnapshot);
   }
   updateSubLibraryRefreshTime(subLib.uuid);
   return { scanned: files.length, upserted: existing, queued, scrapeQueued };

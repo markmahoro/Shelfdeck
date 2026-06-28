@@ -2049,7 +2049,7 @@ async function cleanupOrphans(config) {
 
   // Step 2: scan and delete orphan etp-task-* dirs
   const taskStore = require('../taskStore');
-  const tasks = taskStore.loadTasks();
+  const tasks = taskStore.loadTasks({ includeHistory: false });
   const taskIds = new Set(tasks.map((t) => t.id));
 
   let entries;

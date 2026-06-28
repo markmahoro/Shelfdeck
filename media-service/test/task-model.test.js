@@ -2,10 +2,14 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 const approvalPolicy = require('../src/approvalPolicy');
 const taskAdmission = require('../src/taskAdmission');
 const smartTaskEngine = require('../src/smartTaskEngine');
+const taskStore = require('../src/taskStore');
 
 test('approvalPolicy resolves global, sub-library, and task overrides', () => {
   const config = {
@@ -213,4 +217,37 @@ test('smartTaskEngine stop cancels delayed startup scan', async () => {
   smartTaskEngine.stop();
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.strictEqual(getLibraryCalls, 0);
+});
+
+test('taskStore migrates JSON history to SQLite without feeding scheduler hot path', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'task-store-sqlite-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  try {
+    const legacy = [
+      { id: 'done-1', itemId: 'i1', itemName: 'Done', actionType: 'scrape', status: 'done', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:01:00.000Z' },
+      { id: 'failed-1', itemId: 'i2', itemName: 'Failed', actionType: 'scrape', status: 'failed_hard', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:02:00.000Z' },
+      { id: 'queued-1', itemId: 'i3', itemName: 'Queued', actionType: 'ingest', status: 'queued', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:03:00.000Z' },
+    ];
+    fs.writeFileSync(path.join(dir, 'tasks.json'), JSON.stringify(legacy, null, 2), 'utf8');
+
+    const active = taskStore.loadTasks({ includeHistory: false });
+    assert.deepStrictEqual(active.map((t) => t.id), ['queued-1']);
+    assert.strictEqual(taskStore.getTasks().length, 3);
+    assert.ok(fs.existsSync(path.join(dir, 'tasks.db')));
+    assert.ok(fs.existsSync(path.join(dir, 'tasks.json.migrated')));
+    assert.ok(fs.existsSync(path.join(dir, 'tasks.json')), 'legacy JSON is preserved as migration source record');
+
+    taskStore.updateTask('queued-1', { status: 'done' });
+    assert.strictEqual(taskStore.loadTasks({ includeHistory: false }).length, 0);
+    assert.strictEqual(taskStore.getTask('queued-1').status, 'done');
+    assert.strictEqual(taskStore.getTasks({ status: 'done' }).length, 2);
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
 });

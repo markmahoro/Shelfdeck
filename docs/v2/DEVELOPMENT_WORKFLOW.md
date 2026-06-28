@@ -59,6 +59,10 @@ docker compose -f media-service/docker-compose.example.yml up -d
 - 匹配不到 protagonist 时等同于 JAV 识别不到番号：任务失败，item 保持 `scraped=false`，不会自动进入转码策略。
 - 成人库不得新增独立调度规则。新建、重试、冷却、队列上限、去重、优先级都必须走统一任务模型。
 
+## Task Store
+
+任务中心主存储是 `media-service/data/tasks.db` SQLite。`tasks.json` 是旧版运行时文件，启动时会一次性迁移到 SQLite；迁移不会删除原 JSON。不要通过删除任务数据库来“清队列”，否则会丢失完成和失败历史。需要控制雪崩时应使用 `TaskAdmission` 队列上限、冷却、启动延迟和子库 `automationMode`。
+
 ## 平台规则
 
 - Docker/Linux 专用行为用 `process.platform === 'linux'`。

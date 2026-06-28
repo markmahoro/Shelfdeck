@@ -43,6 +43,7 @@ bash tests/runner.sh all tests/env/docker-fn.env
 - `TaskAdmission`：自动/手动来源、子库 `automationMode`、active task 去重、失败冷却、按 `actionType` 的自动队列上限、已成功转码不重复自动转码。
 - `PriorityEngine`：任务类型权重、子库权重、规则叠加、手动任务基准和用户手动 priority 调整。
 - `approvalPolicy`：全局/子库/任务级覆盖，以及 `forceConfirm` 不可降级。
+- `TaskStore`：旧 `tasks.json` 迁移到 SQLite 后必须保留历史；调度热路径只能读取 active task；任务中心分页和 summary 不能丢失完成/失败记录。
 - 成人库 `ingest`：扫描/监听只创建受限 `ingest` 队列，不直接批量写入媒体项或批量创建 `scrape`；`ingest` 完成后才允许后续 `scrape` 入队。
 - 启动保护：普通媒体库启动刷新、字段自算和 `SmartTaskEngine` 首扫必须可延迟/可关闭，且 `stop()` 能取消尚未触发的启动定时器。
 - 前端：`npm run build:web` 验证任务调度页、任务中心和审批字段类型。

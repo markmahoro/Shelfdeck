@@ -45,12 +45,12 @@ function start(configStore, mediaLibraryService, taskStore) {
       if (!lib || !lib.items) return;
 
       const allTasks = taskStore.getTasks();
+      const activeTasks = taskStore.loadTasks({ includeHistory: false });
       const optimizationIndex = optimizationStatus.buildOptimizationIndex(allTasks, cfg2);
 
       // Count active (non-terminal) tasks per action type
       const activeByType = {};
-      for (const t of allTasks) {
-        if (['done', 'failed_hard', 'deleted'].includes(t.status)) continue;
+      for (const t of activeTasks) {
         activeByType[t.actionType] = (activeByType[t.actionType] || 0) + 1;
       }
 
@@ -157,7 +157,7 @@ function start(configStore, mediaLibraryService, taskStore) {
           config: cfg2,
         });
 
-        taskStore.createTask({
+        const task = taskStore.createTask({
           itemId: item.itemId,
           itemName: item.name,
           actionType: item.action,
@@ -170,6 +170,7 @@ function start(configStore, mediaLibraryService, taskStore) {
             action: 'auto_enqueued',
           }],
         });
+        allTasks.push(task);
         console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${item.action} "${item.name}"`);
         toEnqueue.push(item);
       }

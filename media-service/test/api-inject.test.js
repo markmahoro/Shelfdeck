@@ -344,14 +344,19 @@ test('pause on executing transcode task deletes partial file', async () => {
 test('GET /v1/admin/tasks returns list with summary', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const taskStore = require('../src/taskStore');
   await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a1', actionType: 'delete' } });
   await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a2', actionType: 'transcode' } });
-  const res = await app.inject({ method: 'GET', url: '/v1/admin/tasks' });
+  taskStore.createTask({ itemId: 'a3', actionType: 'scrape', status: 'done' });
+  const res = await app.inject({ method: 'GET', url: '/v1/admin/tasks?page=1&pageSize=2' });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
   assert.ok(Array.isArray(body.tasks));
+  assert.strictEqual(body.tasks.length, 2);
   assert.ok(body.summary, 'summary present');
-  assert.strictEqual(typeof body.summary.total, 'number');
+  assert.strictEqual(body.summary.total, 3);
+  assert.strictEqual(body.summary.byStatus.created, 2);
+  assert.strictEqual(body.summary.byStatus.done, 1);
   await app.close();
 });
 
