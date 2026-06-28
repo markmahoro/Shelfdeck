@@ -189,6 +189,51 @@ function isLocalWesternAiScrapeTask(task, config) {
   return String(western.computeMode || 'local').toLowerCase() !== 'worker';
 }
 
+function staleAutoScrapeReason(task) {
+  if (!task || task.actionType !== 'scrape') return '';
+  if (task.source !== 'auto') return '';
+  if (task.manualExecuteRequested || justConfirmedIds.has(task.id)) return '';
+  const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
+  if (!liveItem) return 'library_item_missing';
+  if (liveItem.scraped === true) return 'already_scraped';
+  const status = String(liveItem.adultMetadata && liveItem.adultMetadata.scrapeStatus || '').toLowerCase();
+  if (status === 'failed' || status === 'ambiguous' || status === 'needs_review' || status === 'done') {
+    return `scrape_status_${status}`;
+  }
+  return '';
+}
+
+function skipStaleAutoScrapeTask(task, reason) {
+  const logs = Array.isArray(task.logs) ? task.logs.slice() : [];
+  logs.push({
+    ts: new Date().toISOString(),
+    level: 'info',
+    msg: `Automatic scrape skipped: ${reason}`,
+  });
+  const updated = taskStore.updateTask(task.id, {
+    status: 'skipped',
+    phase: 'skipped',
+    skippedReason: reason,
+    logs,
+  });
+  if (updated) {
+    task.status = updated.status;
+    task.phase = updated.phase;
+    task.skippedReason = updated.skippedReason;
+    task.logs = updated.logs;
+  } else {
+    task.status = 'skipped';
+    task.phase = 'skipped';
+    task.skippedReason = reason;
+    task.logs = logs;
+  }
+  activityLog.addActivity('task', `自动刮削任务「${task.itemName || task.itemId}」已跳过：${reason}`, {
+    taskId: task.id,
+    actionType: task.actionType,
+    reason,
+  });
+}
+
 function getLocalWesternAiScrapeLimit(config) {
   const raw = (((config.adultLibrary || {}).western) || {}).localConcurrency;
   const parsed = Number.parseInt(raw, 10);
@@ -381,6 +426,12 @@ async function scheduleRound() {
     }
 
     if (task.status === 'queued') {
+      const staleScrapeReason = staleAutoScrapeReason(task);
+      if (staleScrapeReason) {
+        skipStaleAutoScrapeTask(task, staleScrapeReason);
+        continue;
+      }
+
       // actionType slot check — just-confirmed tasks bypass (they already held a slot)
       const limit = getConcurrencyLimit(task.actionType, config);
       if (activeCount[task.actionType] >= limit && !justConfirmedIds.has(task.id)) continue;

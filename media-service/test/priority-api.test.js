@@ -243,3 +243,65 @@ test('taskScheduler caps service-local western adult AI scrape to one active tas
     delete process.env.MEDIA_SERVICE_DATA_DIR;
   }
 });
+
+test('taskScheduler skips stale automatic scrape tasks when the live item now requires user action', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.scrapeConcurrency = 1;
+  cfg.subLibraries = [{
+    uuid: 'adult-western',
+    name: 'US Adult',
+    mediaType: 'adult',
+    adultRegion: 'western_adult',
+    automationMode: 'auto',
+  }];
+  configStoreMod.saveConfig(cfg);
+
+  const task = taskStoreMod.createTask({
+    itemId: 'western-failed-live',
+    itemName: 'Western Failed Live',
+    actionType: 'scrape',
+    source: 'auto',
+    status: 'queued',
+    priority: 280,
+    itemInfo: {
+      name: 'Western Failed Live',
+      subLibraryId: 'adult-western',
+      adultMetadata: { region: 'western_adult', scrapeStatus: 'pending' },
+    },
+  });
+
+  const dispatched = [];
+  const origDrive = scrapeFlow.driveTask;
+  const origGetLibraryItem = mediaLibraryService.getLibraryItem;
+  scrapeFlow.driveTask = async (taskId) => {
+    dispatched.push(taskId);
+  };
+  mediaLibraryService.getLibraryItem = (itemId) => {
+    if (itemId !== 'western-failed-live') return null;
+    return {
+      itemId,
+      scraped: false,
+      adultMetadata: { scrapeStatus: 'failed', region: 'western_adult' },
+    };
+  };
+
+  try {
+    await scheduler.scheduleRound();
+    const after = taskStoreMod.getTask(task.id);
+    assert.strictEqual(dispatched.length, 0);
+    assert.strictEqual(after.status, 'skipped');
+    assert.strictEqual(after.skippedReason, 'scrape_status_failed');
+  } finally {
+    scrapeFlow.driveTask = origDrive;
+    mediaLibraryService.getLibraryItem = origGetLibraryItem;
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
