@@ -97,8 +97,15 @@ export default function AdultConfigPage() {
       imageUrl: manualImageUrl || selectedCandidate?.originalUrl || selectedCandidate?.imageUrl,
       imageBase64: uploadBase64 || undefined,
     }),
-    onSuccess: () => {
+    onSuccess: (person) => {
       qc.invalidateQueries({ queryKey: ['adult-people'] });
+      setSelectedPersonId(person.personId);
+      setActorName(person.name);
+      setActorAliases(csv(person.aliases));
+      setManualImageUrl('');
+      setUploadBase64('');
+      setSelectedCandidate(null);
+      imageSearch.reset();
       setAlert({ type: 'success', msg: selectedPersonId ? '演员参考人脸已替换' : '演员已创建' });
     },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),

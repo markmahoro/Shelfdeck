@@ -1280,6 +1280,21 @@ test('adult people from-image API creates and replaces a confirmed reference fac
   assert.deepStrictEqual(person.referenceFaces[0].embedding, [0.9, 0.1, 0.2]);
   assert.strictEqual(person.referenceFaces[0].sampleImageBase64, imageBase64);
 
+  localAi.createReferenceFace = async () => ({
+    faceId: 'ref-face-1-duplicate',
+    embedding: [0.9, 0.1, 0.2],
+    detectionScore: 0.93,
+    faceCount: 1,
+  });
+  const duplicate = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/adult/people/from-image',
+    payload: { name: 'Tia Ling', imageBase64 },
+  });
+  assert.strictEqual(duplicate.statusCode, 201);
+  assert.strictEqual(duplicate.json().personId, person.personId, 'same-name actor is merged');
+  assert.strictEqual(duplicate.json().referenceFaces.length, 1, 'same actor image is not duplicated');
+
   const summary = await app.inject({ method: 'GET', url: '/v1/admin/adult/people?adultRegion=western_adult' });
   assert.strictEqual(summary.statusCode, 200);
   assert.strictEqual(summary.json().people[0].referenceFaceCount, 1);
