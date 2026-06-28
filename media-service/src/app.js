@@ -87,6 +87,14 @@ function apiError(reply, status, code, message) {
   return reply.code(status).send({ error: { code, message } });
 }
 
+function detectImageContentType(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) return 'image/jpeg';
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'image/jpeg';
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png';
+  if (buffer.slice(0, 4).toString('ascii') === 'RIFF' && buffer.slice(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+  return 'image/jpeg';
+}
+
 function taskNeedsFlowCancel(task) {
   return !!task && [
     'executing',
@@ -1049,7 +1057,26 @@ function registerRoutes(app) {
   });
 
   app.get('/v1/admin/adult/people', async (req) => {
-    return peopleStore.listPeople({ adultRegion: req.query.adultRegion || 'western_adult' });
+    const includeReferenceFaces = req.query.includeReferenceFaces === '1' || req.query.includeReferenceFaces === 'true';
+    return peopleStore.listPeople({
+      adultRegion: req.query.adultRegion || 'western_adult',
+      summary: !includeReferenceFaces,
+    });
+  });
+
+  app.get('/v1/admin/adult/people/:personId/reference-image', async (req, reply) => {
+    const person = peopleStore.getPerson(req.params.personId);
+    if (!person) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
+    const face = (person.referenceFaces || []).find((f) => f && f.sampleImageBase64);
+    if (!face) return apiError(reply, 404, 'NOT_FOUND', 'Reference image not found');
+    try {
+      const buffer = Buffer.from(String(face.sampleImageBase64), 'base64');
+      reply.header('Cache-Control', 'private, max-age=300');
+      reply.type(detectImageContentType(buffer));
+      return buffer;
+    } catch (e) {
+      return apiError(reply, 500, 'REFERENCE_IMAGE_INVALID', 'Reference image cannot be decoded');
+    }
   });
 
   app.get('/v1/admin/adult/people/search-images', async (req, reply) => {

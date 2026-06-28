@@ -15,6 +15,10 @@ const STATUS_COLORS: Record<string, string> = {
   failed_hard: '#e74c3c',
   paused: '#888',
   interrupted: '#888',
+  waiting_media_source: '#888',
+  cancelled: '#888',
+  skipped: '#888',
+  deleted: '#888',
   created: '#999',
   pending_manual: '#999',
 };
@@ -28,8 +32,12 @@ const STATUS_LABELS: Record<string, string> = {
   awaiting_user_confirm: '等待确认',
   paused: '已暂停',
   interrupted: '已中断',
+  waiting_media_source: '等待媒体文件',
   done: '已完成',
   failed_hard: '失败',
+  cancelled: '已取消',
+  skipped: '已跳过',
+  deleted: '已移除',
 };
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
@@ -187,7 +195,7 @@ export default function TaskMonitorPage() {
 
   const executeMut = useMutation({
     mutationFn: tasks.execute,
-    onSuccess: (data) => { invalidate(); setAlert({ type: 'success', msg: `任务状态: ${data.status}` }); },
+    onSuccess: (data) => { invalidate(); setAlert({ type: 'success', msg: `任务状态：${STATUS_LABELS[data.status] || data.status}` }); },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
@@ -219,12 +227,18 @@ export default function TaskMonitorPage() {
     const label = ACTION_TYPE_LABELS[typeFilter] || typeFilter;
     const enabledActions = sysCfg?.smartTaskEnabledActions || [];
     if (!enabledActions.includes(typeFilter)) {
-      if (typeFilter === 'ingest' || typeFilter === 'scrape') {
-        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务；具体影片仍可手动重刮。`;
+      if (typeFilter === 'scrape') {
+        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务；具体影片仍可手动重新刮削。`;
+      }
+      if (typeFilter === 'ingest') {
+        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务，后台来源不会自动进入任务中心。`;
       }
       return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务，媒体库里的${label}推荐不会自动进入任务中心。`;
     }
-    if (typeFilter === 'ingest' || typeFilter === 'scrape') {
+    if (typeFilter === 'scrape') {
+      return `当前没有${label}任务。可能没有待刮削条目，或已被冷却时间、去重规则、队列上限拦截。`;
+    }
+    if (typeFilter === 'ingest') {
       return `当前没有${label}任务。可能没有新文件，或已被冷却时间、去重规则、队列上限拦截。`;
     }
     return `当前没有${label}任务。若媒体库仍有${label}推荐，可能被冷却时间、去重规则、队列上限或已优化状态拦截。`;
@@ -728,9 +742,9 @@ export default function TaskMonitorPage() {
                     {pauseMut.isPending ? '暂停中...' : '暂停'}
                   </button>
                 )}
-                {(displayTask.status === 'paused' || displayTask.status === 'pending_manual') && (
+                {(displayTask.status === 'paused' || displayTask.status === 'pending_manual' || displayTask.status === 'created') && (
                   <button onClick={() => executeMut.mutate(displayTask.id)} disabled={executeMut.isPending} style={execBtn}>
-                    {executeMut.isPending ? '执行中...' : '执行'}
+                    {executeMut.isPending ? '提交中...' : displayTask.status === 'paused' ? '继续' : '启动'}
                   </button>
                 )}
                 {displayTask.status === 'awaiting_user_confirm' && !hasSpecialApprovalCard(displayTask) && (

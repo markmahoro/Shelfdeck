@@ -79,7 +79,7 @@ export default function AdultConfigPage() {
     onSuccess: (res) => {
       setSelectedCandidate(res.candidates[0] || null);
       if (!res.candidates.length) {
-        setAlert({ type: 'error', msg: res.message || '未找到候选头像，可以换关键词或粘贴手动图片 URL' });
+        setAlert({ type: 'error', msg: res.message || '未找到候选头像，可以换关键词或粘贴手动图片地址' });
         return;
       }
       const proxyText = res.proxyUsed ? '，已使用代理' : '';
@@ -99,7 +99,7 @@ export default function AdultConfigPage() {
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['adult-people'] });
-      setAlert({ type: 'success', msg: selectedPersonId ? '演员 reference 已替换' : '演员已创建' });
+      setAlert({ type: 'success', msg: selectedPersonId ? '演员参考人脸已替换' : '演员已创建' });
     },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
@@ -166,7 +166,7 @@ export default function AdultConfigPage() {
           <Field label="代理服务器"><input style={inputWide} value={proxyServer} onChange={(e) => setProxyServer(e.target.value)} placeholder="http://127.0.0.1:7890" /></Field>
           <Field label="重试次数"><input style={input} type="number" value={retry} min={0} onChange={(e) => setRetry(Number(e.target.value) || 0)} /></Field>
           <Field label="超时"><input style={input} value={timeout} onChange={(e) => setTimeoutValue(e.target.value)} /></Field>
-          <Field label="Crawler 顺序"><input style={inputWide} value={crawlers} onChange={(e) => setCrawlers(e.target.value)} /></Field>
+          <Field label="刮削源顺序"><input style={inputWide} value={crawlers} onChange={(e) => setCrawlers(e.target.value)} /></Field>
           <label style={check}><input type="checkbox" checked={highresCover} onChange={(e) => setHighresCover(e.target.checked)} />高清封面</label>
           <label style={check}><input type="checkbox" checked={writeNfo} onChange={(e) => setWriteNfo(e.target.checked)} />写入 NFO</label>
         </div>
@@ -179,15 +179,15 @@ export default function AdultConfigPage() {
         <h3 style={title}>欧美成人库</h3>
         <div style={grid}>
           <Field label="计算模式"><select style={inputWide} value={computeMode} onChange={(e) => setComputeMode(e.target.value)}>
-            <option value="local">service 本地</option>
-            <option value="worker">远端 worker</option>
+            <option value="local">本机识别</option>
+            <option value="worker">远程识别服务</option>
           </select></Field>
-          <Field label="AI Worker URL"><input style={inputWide} value={aiWorkerBaseUrl} onChange={(e) => setAiWorkerBaseUrl(e.target.value)} placeholder="仅 worker 模式需要" /></Field>
-          <Field label="MetadataAPI / TPDB Base URL"><input style={inputWide} value={metadataApiBaseUrl} onChange={(e) => setMetadataApiBaseUrl(e.target.value)} /></Field>
-          <Field label="MetadataAPI Key"><input style={inputWide} type="password" value={metadataApiKey} onChange={(e) => setMetadataApiKey(e.target.value)} placeholder="可选" /></Field>
-          <Field label="Stash-box GraphQL URL"><input style={inputWide} value={stashBoxGraphqlUrl} onChange={(e) => setStashBoxGraphqlUrl(e.target.value)} placeholder="TPDB/FansDB endpoint" /></Field>
-          <Field label="Stash-box API Key"><input style={inputWide} type="password" value={stashBoxApiKey} onChange={(e) => setStashBoxApiKey(e.target.value)} placeholder="可选，素人演员建议配置" /></Field>
-          <Field label="TMDB API Key / Token"><input style={inputWide} type="password" value={tmdbApiKey} onChange={(e) => setTmdbApiKey(e.target.value)} placeholder="可选" /></Field>
+          <Field label="远程识别服务地址"><input style={inputWide} value={aiWorkerBaseUrl} onChange={(e) => setAiWorkerBaseUrl(e.target.value)} placeholder="仅远程识别服务模式需要" /></Field>
+          <Field label="MetadataAPI / TPDB 地址"><input style={inputWide} value={metadataApiBaseUrl} onChange={(e) => setMetadataApiBaseUrl(e.target.value)} /></Field>
+          <Field label="MetadataAPI 密钥"><input style={inputWide} type="password" value={metadataApiKey} onChange={(e) => setMetadataApiKey(e.target.value)} placeholder="可选" /></Field>
+          <Field label="TPDB GraphQL 地址"><input style={inputWide} value={stashBoxGraphqlUrl} onChange={(e) => setStashBoxGraphqlUrl(e.target.value)} placeholder="TPDB/FansDB 接口地址" /></Field>
+          <Field label="TPDB API Key"><input style={inputWide} type="password" value={stashBoxApiKey} onChange={(e) => setStashBoxApiKey(e.target.value)} placeholder="建议配置，用于欧美演员搜索" /></Field>
+          <Field label="TMDB 密钥 / Token"><input style={inputWide} type="password" value={tmdbApiKey} onChange={(e) => setTmdbApiKey(e.target.value)} placeholder="可选" /></Field>
         </div>
         <div style={{ marginTop: 18 }}>
           <button style={primaryBtn} onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? '保存中...' : '保存欧美配置'}</button>
@@ -207,7 +207,7 @@ export default function AdultConfigPage() {
         </div>
 
         <div style={{ marginTop: 14 }}>
-          <Field label="手动图片 URL"><input style={inputWide} value={manualImageUrl} onChange={(e) => { setManualImageUrl(e.target.value); setSelectedCandidate(null); }} placeholder="搜索不到素人演员时粘贴高清正脸图 URL" /></Field>
+          <Field label="手动图片地址"><input style={inputWide} value={manualImageUrl} onChange={(e) => { setManualImageUrl(e.target.value); setSelectedCandidate(null); }} placeholder="搜索不到演员时粘贴高清正脸图地址" /></Field>
         </div>
         <div style={{ marginTop: 10 }}>
           <input type="file" accept="image/*" onChange={(e) => {
@@ -237,7 +237,7 @@ export default function AdultConfigPage() {
         )}
         {imageSearch.data && !imageSearch.data.candidates.length && (
           <div style={emptySearch}>
-            <div>{imageSearch.data.message || '未找到候选头像，可以换关键词或粘贴手动图片 URL。'}</div>
+            <div>{imageSearch.data.message || '未找到候选头像，可以换关键词或粘贴手动图片地址。'}</div>
             {!!imageSearch.data.errors?.length && (
               <div style={searchErrors}>
                 {imageSearch.data.errors.slice(0, 4).map((e) => (
@@ -250,7 +250,7 @@ export default function AdultConfigPage() {
 
         <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
           <button style={primaryBtn} onClick={() => savePerson.mutate()} disabled={!actorName || savePerson.isPending || !(selectedCandidate || manualImageUrl || uploadBase64)}>
-            {savePerson.isPending ? '生成 reference 中...' : selectedPersonId ? '替换 reference' : '创建演员'}
+            {savePerson.isPending ? '保存参考人脸中...' : selectedPersonId ? '替换参考人脸' : '创建演员'}
           </button>
           {selectedPersonId && (
             <button style={secondaryBtn} onClick={() => updatePersonInfo.mutate()} disabled={!actorName.trim() || updatePersonInfo.isPending}>
@@ -262,10 +262,10 @@ export default function AdultConfigPage() {
         <div style={{ marginTop: 18 }}>
           {(peopleData?.people || []).filter((p: AdultPerson) => !p.dismissed).map((p) => (
             <div key={p.personId} style={personRow}>
-              {p.referenceFaces?.[0]?.sampleImageBase64 ? <img src={`data:image/jpeg;base64,${p.referenceFaces[0].sampleImageBase64}`} style={personThumb} /> : <div style={personThumb} />}
+              {(p.referenceFaceCount ?? p.referenceFaces?.length ?? 0) > 0 ? <img src={adult.referenceImageUrl(p.personId)} loading="lazy" style={personThumb} /> : <div style={personThumb} />}
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>{p.name} <span style={{ color: '#999', fontWeight: 400 }}>{p.canonicalCode}</span></div>
-                <div style={{ fontSize: 12, color: '#777' }}>{p.aliases?.join(', ') || '无别名'} · reference {p.referenceFaces?.length || 0}</div>
+                <div style={{ fontSize: 12, color: '#777' }}>{p.aliases?.join(', ') || '无别名'} · 参考人脸 {p.referenceFaceCount ?? p.referenceFaces?.length ?? 0}</div>
               </div>
               <button style={smallBtn} onClick={() => {
                 setSelectedPersonId(p.personId);

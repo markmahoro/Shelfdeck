@@ -125,7 +125,32 @@ function listPeople(filter = {}) {
   if (filter.adultRegion) {
     people = people.filter((p) => !p.adultRegion || p.adultRegion === filter.adultRegion);
   }
+  if (filter.summary) {
+    people = people.map(summarizePerson);
+  }
   return { version: data.version, people };
+}
+
+function summarizePerson(person = {}) {
+  const referenceFaces = Array.isArray(person.referenceFaces) ? person.referenceFaces : [];
+  return {
+    personId: person.personId,
+    name: person.name,
+    aliases: person.aliases || [],
+    canonicalCode: person.canonicalCode || '',
+    adultRegion: person.adultRegion || '',
+    referenceAssetIds: person.referenceAssetIds || [],
+    referenceFaceCount: referenceFaces.length,
+    dismissed: !!person.dismissed,
+    createdAt: person.createdAt || '',
+    updatedAt: person.updatedAt || '',
+  };
+}
+
+function getPerson(personId) {
+  const id = String(personId || '');
+  if (!id) return null;
+  return loadPeople().people.find((p) => p.personId === id) || null;
 }
 
 function createPerson(input = {}) {
@@ -212,6 +237,8 @@ function listDismissedEmbeddings(filter = {}) {
 module.exports = {
   loadPeople,
   listPeople,
+  getPerson,
+  summarizePerson,
   createPerson,
   updatePerson,
   deletePerson,

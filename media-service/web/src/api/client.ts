@@ -138,6 +138,7 @@ export interface AdultPerson {
   aliases?: string[];
   canonicalCode?: string;
   adultRegion?: string;
+  referenceFaceCount?: number;
   referenceFaces?: Array<{
     faceId?: string;
     sampleImageBase64?: string;
@@ -181,6 +182,8 @@ export const adult = {
     patch<AdultLibraryConfig>('/v1/admin/adult/config', body),
   listPeople: () =>
     get<{ people: AdultPerson[] }>('/v1/admin/adult/people?adultRegion=western_adult'),
+  referenceImageUrl: (personId: string) =>
+    `/v1/admin/adult/people/${encodeURIComponent(personId)}/reference-image`,
   searchPersonImages: (name: string) =>
     get<AdultImageSearchResult>(
       `/v1/admin/adult/people/search-images?name=${encodeURIComponent(name)}`,

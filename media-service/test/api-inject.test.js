@@ -1220,6 +1220,17 @@ test('adult people from-image API creates and replaces a confirmed reference fac
   assert.deepStrictEqual(person.referenceFaces[0].embedding, [0.9, 0.1, 0.2]);
   assert.strictEqual(person.referenceFaces[0].sampleImageBase64, imageBase64);
 
+  const summary = await app.inject({ method: 'GET', url: '/v1/admin/adult/people?adultRegion=western_adult' });
+  assert.strictEqual(summary.statusCode, 200);
+  assert.strictEqual(summary.json().people[0].referenceFaceCount, 1);
+  assert.strictEqual(summary.json().people[0].referenceFaces, undefined);
+  assert.ok(!summary.body.includes(imageBase64), 'people list should not inline reference image base64');
+
+  const image = await app.inject({ method: 'GET', url: `/v1/admin/adult/people/${person.personId}/reference-image` });
+  assert.strictEqual(image.statusCode, 200);
+  assert.strictEqual(image.headers['content-type'], 'image/jpeg');
+  assert.strictEqual(image.body, 'fake-jpg');
+
   localAi.createReferenceFace = async () => ({
     faceId: 'ref-face-2',
     embedding: [0.3, 0.4, 0.5],

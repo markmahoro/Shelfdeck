@@ -73,7 +73,7 @@ function describe(key: string, item: HealthCheckItem): string {
         return `超时：${item.staleSubLibraries.join('、')}`;
       }
       if (item.manualFolderCount) {
-        return `${item.scheduledRefreshCount || 0} 个定时刷新，${item.manualFolderCount} 个手动文件夹库`;
+        return `${item.scheduledRefreshCount || 0} 个定时刷新，${item.manualFolderCount} 个真实目录库`;
       }
       return `${item.enabledCount}/${item.totalSubLibraries} 个媒体库`;
     case 'douban':
