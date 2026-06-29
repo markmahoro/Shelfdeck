@@ -15,6 +15,7 @@
 | --- | --- |
 | `OPERATION_CONTEXT.md` | v3 agent 需要知道的生产环境、NAS、部署、测试和安全边界 |
 | `BUSINESS_MODEL_NOTES.md` | v3 重构前已经确认过的业务概念共识，不规定技术实现 |
+| `DATA_MODEL_NOTES.md` | SQL 持久化层、内存运行层、projection 的原则性数据模型共识 |
 | `V2_BEHAVIOR_PRESERVATION.md` | v3 重构前必须盘点和保护的 v2 生产行为细节 |
 | `DISCOVERY_CHECKLIST.md` | v3 agent 开工前需要排摸的代码、数据、测试和部署清单 |
 | `GOAL_PROMPT.md` | 可用于开启 v3 长程任务的提示词 |
@@ -24,5 +25,6 @@
 - v3 agent 必须先排摸代码库，再提出架构和实施方案。
 - 本目录不预设 v3 的具体组件拆法、数据模型或迁移实现。
 - `BUSINESS_MODEL_NOTES.md` 只约束业务语义，不约束技术形态。
+- `DATA_MODEL_NOTES.md` 只约束数据分层原则，不约束最终 schema。
 - `V2_BEHAVIOR_PRESERVATION.md` 用于防止重构时遗漏 v2 生产细节。
 - 当前生产部署和回滚信息以 `docs/v2/PRODUCTION_DEPLOYMENT.md`、`docs/v2/PRODUCTION_BASELINE.md` 为准。

@@ -14,6 +14,7 @@
 - `docs/v2/DEBUG_WORKFLOW.md`
 - `docs/v3/OPERATION_CONTEXT.md`
 - `docs/v3/BUSINESS_MODEL_NOTES.md`
+- `docs/v3/DATA_MODEL_NOTES.md`
 - `docs/v3/V2_BEHAVIOR_PRESERVATION.md`
 - 本文件
 
@@ -73,6 +74,8 @@ Worker 排摸目标：
 - `media-service/data/nodes.json` worker 节点状态。
 - `media-service/data/people.json` People 库。
 - `payload_json` 中哪些字段是事实、投影、日志、结果、调试上下文。
+- v2 中哪些运行态只存在于内存，例如 scheduler runtime、running tasks、progress/status cache、resource slots、external dependency health。
+- v2 中哪些读路径依赖 SQL 列，哪些读路径仍依赖 `payload_json` 或全量加载。
 
 ## 6. 测试排摸
 
@@ -91,6 +94,7 @@ Worker 排摸目标：
 
 - v2 当前实现图。
 - v2 当前实现中最影响 v3 重写的边界问题。
+- v2 SQL facts / memory runtime / projections 的真实分布。
 - v2 关键行为 inventory，至少覆盖 FFmpeg/FFprobe、外部 API、文件系统操作、任务状态机、审批 gate、配置默认值和 Admin Web 字段语义。
 - 必须改、可以后改、可删除、需兼容的清单。
 - 数据迁移风险。

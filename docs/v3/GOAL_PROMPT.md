@@ -20,6 +20,7 @@ v3 的升级目标：
 - docs/v3/README.md
 - docs/v3/OPERATION_CONTEXT.md
 - docs/v3/BUSINESS_MODEL_NOTES.md
+- docs/v3/DATA_MODEL_NOTES.md
 - docs/v3/V2_BEHAVIOR_PRESERVATION.md
 - docs/v3/DISCOVERY_CHECKLIST.md
 
@@ -30,6 +31,7 @@ v3 的升级目标：
 - 不要先假设 v3 的具体技术实现。必须先排摸代码库、生产基线、数据结构、API、Admin Web、desktop、worker、测试和部署流程，再提出架构和实施方案。
 - docs/v3 只提供操作上下文，不是 v3 架构设计约束。
 - BUSINESS_MODEL_NOTES.md 记录的是业务语义共识，不是技术实现方案。
+- DATA_MODEL_NOTES.md 记录的是 SQL 持久化层、内存运行层和 projection 的分层原则，不是最终 schema。
 - V2_BEHAVIOR_PRESERVATION.md 是防漏清单。尤其不要遗漏 v2 的 FFmpeg/FFprobe 参数、外部 API 调用、文件移动/替换/清理规则、任务状态机、审批 gate、配置默认值和 Admin Web 字段语义。
 
 第一阶段：排摸
@@ -41,11 +43,13 @@ v3 的升级目标：
 5. 当前 v2 生产部署流程和 NAS 环境排摸。
 6. 当前测试和 E2E 覆盖排摸。
 7. 当前生产环境实际运行镜像、容器状态和健康状态核准。
-8. v2 behavior inventory：FFmpeg/FFprobe、Emby、Douban、MoviePilot、worker、成人 scraper、文件系统操作、任务状态机、配置默认值、Admin Web 字段语义。
+8. v2 data model inventory：SQL facts、payload_json、内存 runtime、projection/cache、查询路径、写路径。
+9. v2 behavior inventory：FFmpeg/FFprobe、Emby、Douban、MoviePilot、worker、成人 scraper、文件系统操作、任务状态机、配置默认值、Admin Web 字段语义。
 
 排摸输出：
 - 当前 v2 真实架构图。
 - 当前 v2 数据结构说明。
+- 当前 v2 SQL facts / memory runtime / projections 的真实分布。
 - 当前 v2 性能瓶颈和边界混乱点。
 - 当前 v2 service Admin Web 的信息架构、字段语义和交互问题。
 - 当前 v2 关键行为 inventory，必须能回答哪些行为保留、替换、删除或迁移。
