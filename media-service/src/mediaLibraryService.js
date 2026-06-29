@@ -24,6 +24,10 @@ const metadataStatus = require('./metadataStatus');
 const assetIdentity = require('./assetIdentity');
 const lifecycleProjection = require('./lifecycleProjection');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
+const backgroundIoGuard = require('./backgroundIoGuard');
+
+const BACKGROUND_IO_LOCK = 'library_background_io';
+const STARTUP_REFRESH_STAGGER_MS = 5000;
 
 function generateUuid() {
   return crypto.randomUUID();
@@ -102,6 +106,30 @@ function saveLibrary(lib) {
 
 function updateLibraryItems(items) {
   return libraryStore.updateItems(items);
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function runBackgroundLibraryOperation(input, fn) {
+  try {
+    return Promise.resolve(backgroundIoGuard.runExclusive({
+      component: 'mediaLibraryService',
+      lockKey: BACKGROUND_IO_LOCK,
+      resourceType: 'background_io',
+      source: 'background',
+      ...input,
+    }, fn, {
+      onSkipped: (result) => {
+        const active = result && result.activeOperation;
+        console.log(`[mediaLibrary] background operation skipped: ${input.operation} (busy: ${active && active.operation || 'unknown'})`);
+        return null;
+      },
+    }));
+  } catch (err) {
+    return Promise.reject(err);
+  }
 }
 
 // ── Item operations ─────────────────────────────────────────────────────────
@@ -481,7 +509,11 @@ function addSubLibrary(spec) {
 
   // Kick off an immediate refresh; refreshSubLibrary runs derived updates once
   // after the fetched data has been persisted.
-  refreshSubLibrary(subLib)
+  runBackgroundLibraryOperation({
+    operation: 'mediaLibrary.refresh',
+    resourceKey: `mediaLibrary:${subLib.uuid}`,
+    payload: { subLibraryId: subLib.uuid, subLibraryName: subLib.name || subLib.uuid, trigger: 'add_sub_library' },
+  }, () => refreshSubLibrary(subLib))
     .catch((e) => console.error('[mediaLibrary] addSubLibrary refresh error:', e));
 
   return subLib;
@@ -811,7 +843,11 @@ function startSubLibraryTimers(subLib) {
     const cfg = configStore.loadConfig();
     const sl = (cfg.subLibraries || []).find((s) => s.uuid === uuid);
     if (sl && sl.enabled !== false) {
-      refreshSubLibrary(sl).catch((e) => console.error('[mediaLibrary] timer refresh error:', e));
+      runBackgroundLibraryOperation({
+        operation: 'mediaLibrary.refresh',
+        resourceKey: `mediaLibrary:${uuid}`,
+        payload: { subLibraryId: uuid, subLibraryName: sl.name || uuid, trigger: 'timer' },
+      }, () => refreshSubLibrary(sl)).catch((e) => console.error('[mediaLibrary] timer refresh error:', e));
     }
   }, 3600000);
 
@@ -821,7 +857,11 @@ function startSubLibraryTimers(subLib) {
       const cfg = configStore.loadConfig();
       const sl = (cfg.subLibraries || []).find((s) => s.uuid === uuid);
       if (sl && sl.doubanEnabled) {
-        syncDoubanForSubLibrary(sl).catch((e) => console.error('[mediaLibrary] timer douban error:', e));
+        runBackgroundLibraryOperation({
+          operation: 'douban.sync',
+          resourceKey: `douban:${uuid}`,
+          payload: { subLibraryId: uuid, subLibraryName: sl.name || uuid, trigger: 'timer' },
+        }, () => syncDoubanForSubLibrary(sl)).catch((e) => console.error('[mediaLibrary] timer douban error:', e));
       }
     }, 21600000);
   }
@@ -868,13 +908,18 @@ function startAllSubLibraryTimers() {
     // Refresh all subLibraries first, then start self-computation once data is in.
     // Self-compute needs bitrate/duration from the freshly fetched items to derive
     // equivalentBitrate — running it before refresh completes produces all-zeroes.
-    const refreshes = subLibs.map((sl) =>
-      refreshSubLibrary(sl, { runDerivedUpdates: false }).catch((e) => console.error('[mediaLibrary] startup refresh error:', e))
-    );
-    Promise.all(refreshes).then(() => {
+    (async () => {
+      for (const sl of subLibs) {
+        await runBackgroundLibraryOperation({
+          operation: 'mediaLibrary.refresh',
+          resourceKey: `mediaLibrary:${sl.uuid}`,
+          payload: { subLibraryId: sl.uuid, subLibraryName: sl.name || sl.uuid, trigger: 'startup' },
+        }, () => refreshSubLibrary(sl, { runDerivedUpdates: false }));
+        await wait(STARTUP_REFRESH_STAGGER_MS);
+      }
       runPostRefreshUpdates();
       startSelfCompute({ runImmediately: false });
-    });
+    })().catch((e) => console.error('[mediaLibrary] startup refresh error:', e));
   }, delaySeconds * 1000);
   startupRefreshTimer.unref && startupRefreshTimer.unref();
 }

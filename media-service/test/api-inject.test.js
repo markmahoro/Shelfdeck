@@ -11,6 +11,7 @@ const taskStore = require('../src/taskStore');
 const mediaLibraryService = require('../src/mediaLibraryService');
 const runtimeResourceTracker = require('../src/runtimeResourceTracker');
 const diagnosticLog = require('../src/diagnosticLog');
+const backgroundIoGuard = require('../src/backgroundIoGuard');
 
 function metadataReadyMovie(overrides = {}) {
   const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
@@ -238,6 +239,7 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
   require('../src/taskScheduler').stopScheduler();
   runtimeResourceTracker.resetForTests();
   diagnosticLog.resetForTests();
+  backgroundIoGuard.resetForTests();
 
   const task = taskStore.createTask({
     itemId: 'resource-item',
@@ -263,6 +265,12 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
     resourceLabel: 'Library query',
     payload: { route: '/v1/library' },
   });
+  const guardHandle = backgroundIoGuard.tryStart({
+    operation: 'test.background.write',
+    component: 'test',
+    lockKey: 'library_background_io',
+    resourceKey: 'test:background-write',
+  });
 
   res = await app.inject({ method: 'GET', url: '/v1/admin/resources' });
   assert.strictEqual(res.statusCode, 200);
@@ -284,6 +292,10 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
   assert.ok(resources.diagnostics.logs.some((log) => log.scope === 'resourceProjection.buildResourceView'));
   assert.ok(resources.diagnostics.metrics.storage.some((metric) => metric.store === 'library'));
   assert.ok(resources.diagnostics.metrics.storage.some((metric) => metric.store === 'tasks'));
+  assert.ok(resources.diagnostics.backgroundIo, 'background I/O diagnostics present');
+  assert.strictEqual(resources.diagnostics.backgroundIo.summary.activeCount, 1);
+  assert.strictEqual(resources.diagnostics.backgroundIo.active[0].operation, 'test.background.write');
+  guardHandle.finish('done');
 
   await app.close();
 });

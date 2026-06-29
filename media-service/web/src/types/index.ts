@@ -449,6 +449,36 @@ export interface StorageMetric {
   files: StorageMetricFile[];
 }
 
+export interface BackgroundIoOperation {
+  operationId: string;
+  operation: string;
+  component: string;
+  lockKey: string;
+  resourceType: string;
+  resourceKey: string;
+  source: string;
+  status: string;
+  startedAt: string;
+  endedAt?: string | null;
+  durationMs: number;
+  payload?: Record<string, unknown>;
+}
+
+export interface BackgroundIoState {
+  kind: 'metric';
+  category: 'background_io';
+  generatedAt: string;
+  active: BackgroundIoOperation[];
+  recent: BackgroundIoOperation[];
+  summary: {
+    activeCount: number;
+    runningHeavyIo: boolean;
+    skippedCount: number;
+    completedCount: number;
+    failedCount: number;
+  };
+}
+
 export interface ResourceView {
   summary: {
     totalTasks: number;
@@ -474,6 +504,7 @@ export interface ResourceView {
     metrics?: {
       storage?: StorageMetric[];
     };
+    backgroundIo?: BackgroundIoState;
   };
 }
 

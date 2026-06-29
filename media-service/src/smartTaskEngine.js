@@ -17,6 +17,9 @@ const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
 const adultLibraryService = require('./adultLibraryService');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
+const backgroundIoGuard = require('./backgroundIoGuard');
+
+const BACKGROUND_IO_LOCK = 'library_background_io';
 
 let timer = null;
 let initialTimer = null;
@@ -186,7 +189,14 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
   lastEnabledActions = readEnabledActions(cfg);
   const intervalMs = (cfg.smartTaskPollIntervalMinutes || 10) * 60 * 1000;
 
-  const run = () => {
+  const run = () => backgroundIoGuard.runExclusive({
+    operation: 'smartTask.scan',
+    component: 'smartTaskEngine',
+    lockKey: BACKGROUND_IO_LOCK,
+    resourceType: 'background_io',
+    resourceKey: 'smartTask:scan',
+    source: 'background',
+  }, () => {
     const runtimeEvent = runtimeResourceTracker.startEvent({
       eventType: 'smartTask.scan',
       component: 'smartTaskEngine',
@@ -348,7 +358,12 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
     } finally {
       runtimeEvent.finish(finalStatus, finalPayload);
     }
-  };
+  }, {
+    onSkipped: () => {
+      console.log('[smartTaskEngine] scan skipped: background I/O guard is busy');
+      return null;
+    },
+  });
 
   const initialDelaySeconds = Math.max(0, Number(cfg.smartTaskInitialDelaySeconds) || 0);
   console.log(`[smartTaskEngine] will run first scan in ${initialDelaySeconds}s, then every ${intervalMs / 60000}min`);

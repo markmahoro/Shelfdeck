@@ -14,6 +14,8 @@ const taskStore = require('../src/taskStore');
 const scrapeVerification = require('../src/scrapeVerification');
 const lifecycleProjection = require('../src/lifecycleProjection');
 const resourceProjection = require('../src/resourceProjection');
+const diagnosticLog = require('../src/diagnosticLog');
+const backgroundIoGuard = require('../src/backgroundIoGuard');
 
 function metadataReadyMovie(overrides = {}) {
   const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
@@ -1017,6 +1019,31 @@ test('taskStore migrates JSON history to SQLite without feeding scheduler hot pa
   }
 });
 
+test('taskStore records skipped WAL checkpoint for small saveTasks writes', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'task-store-checkpoint-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  diagnosticLog.resetForTests();
+
+  try {
+    taskStore.saveTasks([
+      { id: 'checkpoint-small-1', itemId: 'i1', itemName: 'Small', actionType: 'scrape', status: 'queued' },
+    ]);
+
+    const logs = diagnosticLog.list({ limit: 20 }).logs
+      .filter((log) => log.scope === 'taskStore.checkpointWal');
+    assert.ok(logs.some((log) => log.status === 'skipped' && log.payload.reason === 'save_tasks'));
+    assert.ok(logs.some((log) => log.payload && log.payload.trigger === 'wal_below_threshold'));
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
 test('taskStore exposes lightweight optimization task rows', () => {
   const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
   const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
@@ -1209,4 +1236,42 @@ test('resourceProjection groups active tasks by resource rather than task type o
   assert.ok(doubanBucket);
   assert.strictEqual(doubanBucket.eventRunning, 1);
   assert.strictEqual(doubanBucket.events[0].eventType, 'douban.sync');
+});
+
+test('backgroundIoGuard serializes heavy background operations and records skips', () => {
+  backgroundIoGuard.resetForTests();
+  diagnosticLog.resetForTests();
+
+  const first = backgroundIoGuard.tryStart({
+    operation: 'test.background.write',
+    component: 'test',
+    lockKey: 'library_background_io',
+    resourceKey: 'test:background-write',
+    payload: { trigger: 'test' },
+  });
+  assert.strictEqual(first.started, true);
+
+  const second = backgroundIoGuard.tryStart({
+    operation: 'test.background.scan',
+    component: 'test',
+    lockKey: 'library_background_io',
+    resourceKey: 'test:background-scan',
+  });
+  assert.strictEqual(second.started, false);
+  assert.strictEqual(second.reason, 'lock_busy');
+
+  let state = backgroundIoGuard.getState();
+  assert.strictEqual(state.summary.activeCount, 1);
+  assert.strictEqual(state.summary.skippedCount, 1);
+  assert.strictEqual(state.recent[0].status, 'skipped');
+
+  first.finish('done', { writtenRows: 1 });
+  state = backgroundIoGuard.getState();
+  assert.strictEqual(state.summary.activeCount, 0);
+  assert.strictEqual(state.summary.completedCount, 1);
+  assert.strictEqual(state.recent[0].operation, 'test.background.write');
+
+  const logs = diagnosticLog.list({ limit: 10 }).logs;
+  assert.ok(logs.some((log) => log.category === 'background_io' && log.status === 'skipped'));
+  assert.ok(logs.some((log) => log.category === 'background_io' && log.status === 'done'));
 });

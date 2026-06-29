@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { CSSProperties } from 'react';
 import { resources } from '../api/client';
-import type { DiagnosticLogEntry, ResourceBucket, ResourceTask, RuntimeResourceEvent, StorageMetric } from '../types';
+import type { BackgroundIoState, DiagnosticLogEntry, ResourceBucket, ResourceTask, RuntimeResourceEvent, StorageMetric } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const ACTION_LABELS: Record<string, string> = {
@@ -63,6 +63,7 @@ const DIAGNOSTIC_STATUS_LABELS: Record<string, string> = {
   done: '完成',
   slow: '慢',
   failed: '失败',
+  skipped: '跳过',
 };
 
 const STATE_COLOR: Record<string, string> = {
@@ -183,6 +184,7 @@ export default function ResourceViewPage() {
   const diagnostics = data?.diagnostics;
   const diagnosticLogs = diagnostics?.logs || [];
   const storageMetrics = diagnostics?.metrics?.storage || [];
+  const backgroundIo = diagnostics?.backgroundIo;
 
   return (
     <div>
@@ -197,9 +199,13 @@ export default function ResourceViewPage() {
         <Metric label="已阻塞" value={summary?.byState.blocked || 0} tone="orange" />
         <Metric label="诊断日志" value={diagnostics?.summary.totalLogs || 0} />
         <Metric label="慢诊断" value={diagnostics?.summary.slowLogs || 0} tone="orange" />
+        <Metric label="后台 I/O" value={backgroundIo?.summary.activeCount || 0} tone={backgroundIo?.summary.runningHeavyIo ? 'orange' : undefined} />
+        <Metric label="I/O 跳过" value={backgroundIo?.summary.skippedCount || 0} tone="orange" />
       </div>
 
       <StorageMetricsSection metrics={storageMetrics} />
+
+      <BackgroundIoSection state={backgroundIo} />
 
       <DiagnosticLogSection logs={diagnosticLogs} />
 
@@ -351,6 +357,57 @@ function StorageMetricsSection({ metrics }: { metrics: StorageMetric[] }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BackgroundIoSection({ state }: { state?: BackgroundIoState }) {
+  const active = state?.active || [];
+  const recent = state?.recent || [];
+  const rows = active.length > 0 ? active : recent.slice(0, 8);
+  return (
+    <div style={sectionSpaced}>
+      <div style={sectionHeader}>
+        <h2 style={sectionTitle}>Background I/O Guard</h2>
+        <div style={mutedText}>
+          {active.length > 0 ? `${active.length} 个后台重 I/O 运行中` : '当前空闲'}
+        </div>
+      </div>
+      {!state || rows.length === 0 ? (
+        <div style={emptyBox}>暂无 background I/O operation。</div>
+      ) : (
+        <div style={tableWrap}>
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>操作</th>
+                <th style={thStyle}>状态</th>
+                <th style={thStyle}>耗时</th>
+                <th style={thStyle}>锁</th>
+                <th style={thStyle}>资源</th>
+                <th style={thStyle}>摘要</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((op) => (
+                <tr key={op.operationId}>
+                  <td style={tdStyle}>
+                    <div style={taskName}>{op.operation}</div>
+                    <div style={taskIdText}>{op.component} · {formatTime(op.startedAt)}</div>
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={diagnosticBadge(op.status)}>{DIAGNOSTIC_STATUS_LABELS[op.status] || op.status}</span>
+                  </td>
+                  <td style={tdStyle}>{formatDuration(op.durationMs)}</td>
+                  <td style={tdStyle}>{op.lockKey}</td>
+                  <td style={tdStyle}>{op.resourceKey}</td>
+                  <td style={tdStyle}>{payloadSummary(op.payload)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -606,11 +663,11 @@ const eventMeta: CSSProperties = {
 };
 
 function diagnosticBadge(status: string): CSSProperties {
-  const color = status === 'failed' ? '#b91c1c' : status === 'slow' ? '#b45309' : '#166534';
+  const color = status === 'failed' ? '#b91c1c' : (status === 'slow' || status === 'skipped') ? '#b45309' : '#166534';
   return {
     color,
-    background: status === 'failed' ? '#fef2f2' : status === 'slow' ? '#fff7ed' : '#ecfdf5',
-    border: `1px solid ${status === 'failed' ? '#fecaca' : status === 'slow' ? '#fed7aa' : '#bbf7d0'}`,
+    background: status === 'failed' ? '#fef2f2' : (status === 'slow' || status === 'skipped') ? '#fff7ed' : '#ecfdf5',
+    border: `1px solid ${status === 'failed' ? '#fecaca' : (status === 'slow' || status === 'skipped') ? '#fed7aa' : '#bbf7d0'}`,
     borderRadius: 999,
     padding: '2px 8px',
     fontSize: 12,

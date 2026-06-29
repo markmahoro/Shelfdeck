@@ -13,6 +13,9 @@
 const activityLog = require('./activityLog');
 const metadataStatus = require('./metadataStatus');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
+const backgroundIoGuard = require('./backgroundIoGuard');
+
+const BACKGROUND_IO_LOCK = 'library_background_io';
 
 let timer = null;
 let lastRunAt = null;
@@ -200,7 +203,21 @@ function evaluateItem(item, templates, subLibs, config = {}) {
 let _configStore = null;
 let _mediaLibraryService = null;
 
-function runOnce() {
+function runOnce(options = {}) {
+  if (options.background === true) {
+    return backgroundIoGuard.runExclusive({
+      operation: 'strategy.run',
+      component: 'strategyEngine',
+      lockKey: BACKGROUND_IO_LOCK,
+      resourceType: 'background_io',
+      resourceKey: 'strategy:run',
+      source: 'background',
+      payload: { trigger: options.trigger || 'timer' },
+    }, () => runOnce({ ...options, background: false }), {
+      onSkipped: () => ({ skipped: true, reason: 'background_io_busy' }),
+    });
+  }
+
   return runtimeResourceTracker.trackEvent({
     eventType: 'strategy.run',
     component: 'strategyEngine',
@@ -265,9 +282,9 @@ function start(configStore, mediaLibraryService) {
   const cfg = configStore.loadConfig();
   const intervalMs = (cfg.strategyPollIntervalMinutes || 30) * 60 * 1000;
 
-  runOnce();
+  runOnce({ background: true, trigger: 'startup' });
 
-  timer = setInterval(runOnce, intervalMs);
+  timer = setInterval(() => runOnce({ background: true, trigger: 'timer' }), intervalMs);
   timer.unref && timer.unref();
 }
 

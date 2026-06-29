@@ -28,6 +28,7 @@ const priorityEngine = require('./priorityEngine');
 const resourceProjection = require('./resourceProjection');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const diagnosticLog = require('./diagnosticLog');
+const backgroundIoGuard = require('./backgroundIoGuard');
 
 let schedulerInterval = null;
 let nodeHealthInterval = null;
@@ -323,6 +324,27 @@ function startScheduler() {
 
   schedulerInterval = setInterval(async () => {
     if (schedulerBusy) return;
+    const backgroundIo = backgroundIoGuard.getState({ recentLimit: 0 });
+    if (backgroundIo.summary.runningHeavyIo) {
+      diagnosticLog.record({
+        category: 'scheduler',
+        scope: 'scheduler.tick',
+        operation: 'schedule_round',
+        component: 'taskScheduler',
+        resourceType: 'scheduler',
+        resourceKey: 'taskScheduler',
+        status: 'skipped',
+        payload: {
+          reason: 'background_io_busy',
+          activeBackgroundOperations: backgroundIo.active.map((op) => ({
+            operation: op.operation,
+            resourceKey: op.resourceKey,
+            durationMs: op.durationMs,
+          })),
+        },
+      });
+      return;
+    }
     schedulerBusy = true;
     try {
       await diagnosticLog.track({

@@ -14,6 +14,7 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 const { buildApp } = require('../src/app');
+const diagnosticLog = require('../src/diagnosticLog');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 
@@ -392,11 +393,12 @@ test('libraryStore replaces one subLibrary without touching other libraries', as
   await app.close();
 });
 
-test('libraryStore truncates WAL after bulk library writes', async () => {
+test('libraryStore records skipped WAL checkpoint when WAL is below threshold', async () => {
   const dir = tempDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const mediaLibraryService = require('../src/mediaLibraryService');
   const libraryStore = require('../src/libraryStore');
+  diagnosticLog.resetForTests();
 
   mediaLibraryService.saveLibrary({
     version: 1,
@@ -415,9 +417,10 @@ test('libraryStore truncates WAL after bulk library writes', async () => {
     { itemId: 'bulk-new', subLibraryId: 'bulk-lib', name: 'Bulk New', source: 'emby', type: 'movie', action: 'keep' },
   ], { cachedAt: '2026-06-28T01:00:00.000Z' });
 
-  const walPath = path.join(dir, 'library.db-wal');
-  const walSize = fs.existsSync(walPath) ? fs.statSync(walPath).size : 0;
-  assert.ok(walSize < 1024 * 1024, `library WAL should be truncated after bulk writes, got ${walSize}`);
+  const checkpointLogs = diagnosticLog.list({ limit: 20 }).logs
+    .filter((log) => log.scope === 'libraryStore.checkpointWal');
+  assert.ok(checkpointLogs.some((log) => log.status === 'skipped'), 'below-threshold WAL checkpoint skip is recorded');
+  assert.ok(checkpointLogs.some((log) => log.payload && log.payload.trigger === 'wal_below_threshold'));
   await app.close();
 });
 

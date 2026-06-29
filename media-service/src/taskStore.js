@@ -33,6 +33,7 @@ function ensureDataDir() {
 
 const TERMINAL_STATUSES = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 const dbCache = new Map();
+const DEFAULT_WAL_CHECKPOINT_MIN_BYTES = 32 * 1024 * 1024;
 
 function generateId() {
   return crypto.randomBytes(8).toString('hex');
@@ -150,9 +151,41 @@ function backfillSpaceStatColumns(db) {
   `).run();
 }
 
-function checkpointWal(db, reason) {
+function walCheckpointMinBytes() {
+  const value = Number(process.env.SHELFDECK_TASK_WAL_CHECKPOINT_MIN_BYTES);
+  return Number.isFinite(value) && value >= 0 ? value : DEFAULT_WAL_CHECKPOINT_MIN_BYTES;
+}
+
+function checkpointWal(db, reason, opts = {}) {
   const before = getStorageMetrics();
   const startedAtMs = Date.now();
+  const minWalSizeBytes = Number(opts.minWalSizeBytes) >= 0
+    ? Number(opts.minWalSizeBytes)
+    : walCheckpointMinBytes();
+  const force = opts.force === true;
+  const shouldRun = force || before.walSizeBytes >= minWalSizeBytes;
+  if (!shouldRun) {
+    const endedAtMs = Date.now();
+    diagnosticLog.record({
+      category: 'storage',
+      scope: 'taskStore.checkpointWal',
+      operation: 'wal_checkpoint',
+      component: 'taskStore',
+      resourceType: 'sqlite',
+      resourceKey: 'tasks.db-wal',
+      status: 'skipped',
+      startedAtMs,
+      endedAtMs,
+      slowMs: 250,
+      payload: {
+        reason,
+        trigger: 'wal_below_threshold',
+        minWalSizeBytes,
+        before,
+      },
+    });
+    return { skipped: true, reason: 'wal_below_threshold', before, minWalSizeBytes };
+  }
   try {
     const result = db.pragma('wal_checkpoint(TRUNCATE)');
     const endedAtMs = Date.now();
@@ -167,7 +200,14 @@ function checkpointWal(db, reason) {
       startedAtMs,
       endedAtMs,
       slowMs: 250,
-      payload: { reason, before, after, result },
+      payload: {
+        reason,
+        trigger: force ? 'forced' : 'wal_size_threshold',
+        minWalSizeBytes,
+        before,
+        after,
+        result,
+      },
     });
     return result;
   } catch (err) {
@@ -233,7 +273,7 @@ function migrateJsonTasksIfNeeded(db) {
       for (const task of rows) insert.run(taskToRow(normalizeTask(task)));
     });
     tx(tasks);
-    checkpointWal(db, 'migration');
+    checkpointWal(db, 'migration', { force: true });
     fs.writeFileSync(marker, JSON.stringify({
       migratedAt: new Date().toISOString(),
       source: path.basename(jsonPath),

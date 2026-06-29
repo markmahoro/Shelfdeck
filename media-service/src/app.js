@@ -37,6 +37,7 @@ const metadataStatus = require('./metadataStatus');
 const resourceProjection = require('./resourceProjection');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const diagnosticLog = require('./diagnosticLog');
+const backgroundIoGuard = require('./backgroundIoGuard');
 
 let serverReady = false;
 
@@ -1918,6 +1919,7 @@ function registerRoutes(app) {
       ...view,
       diagnostics: {
         ...diagnostics,
+        backgroundIo: backgroundIoGuard.getState({ recentLimit: 40 }),
         metrics: {
           storage: [
             libraryStore.getStorageMetrics(),
@@ -2071,6 +2073,7 @@ async function buildApp(opts = {}) {
     smartTaskEngine.stop();
     runtimeResourceTracker.resetForTests();
     diagnosticLog.resetForTests();
+    backgroundIoGuard.resetForTests();
   });
 
   // Clean up orphan ffmpeg processes and temp dirs from previous run
