@@ -587,7 +587,6 @@ function repairInvalidWesternScrapeState(opts = {}) {
     const verification = scrapeVerification.verifyScrapedItem(item, {
       config: cfg,
       subLib,
-      requireTaskDone: false,
     });
     if (verification.ok) continue;
 
@@ -891,7 +890,6 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
     config: configStore.loadConfig(),
     subLib,
     scrapeTaskId: opts.taskId,
-    requireTaskDone: false,
   });
   if (!verification.ok) {
     throw new Error(`Scrape verification failed: ${verification.failures.map((f) => f.message).join('; ')}`);
@@ -1146,7 +1144,6 @@ async function applyWesternCurationResultToItem(subLib, item, curation, opts = {
     config,
     subLib,
     scrapeTaskId: opts.taskId,
-    requireTaskDone: false,
   });
   if (!verification.ok) {
     throw new Error(`Scrape verification failed: ${verification.failures.map((f) => f.message).join('; ')}`);

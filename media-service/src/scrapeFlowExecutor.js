@@ -284,10 +284,9 @@ function captureCompletionVerification(taskId) {
     const item = mediaLibraryService.getLibraryItem(task.itemId);
     const subLib = item ? getSubLibrary(config, item.subLibraryId) : null;
     const verification = scrapeVerification.verifyScrapedItem(item, {
-      task,
       config,
       subLib,
-      requireTaskDone: true,
+      scrapeTaskId: task.id,
     });
     taskStore.updateTask(taskId, {
       scrapeVerification: {

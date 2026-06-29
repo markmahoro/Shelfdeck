@@ -64,10 +64,9 @@ function isAutoScrapeAdultCandidate(item) {
   if (item.scraped === true) return false;
   const meta = item.adultMetadata || {};
   const status = String(meta.scrapeStatus || '').toLowerCase();
-  // Failed, ambiguous, and needs_review states require explicit user action.
-  // Automatic scrape only handles fresh/pending items. Western adult pending
-  // items are allowed through so the first AI pass can produce unknown-face
-  // diagnostics for the user to name.
+  // Automatic scrape is state-based: only not-yet-scraped library items with an
+  // empty/pending scrape status are eligible. Failed, ambiguous, needs_review,
+  // done, and already-scraped items require an explicit user action or are done.
   if (status !== '' && status !== 'pending') return false;
   return true;
 }

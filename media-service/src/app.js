@@ -604,10 +604,9 @@ function registerRoutes(app) {
         marker: !!meta.markerPath,
       };
       const currentVerification = scrapeVerification.verifyScrapedItem(scrapeInfo, {
-        task,
         config: cfg,
         subLib,
-        requireTaskDone: task.status === 'done',
+        scrapeTaskId: task.id,
       });
       if (task.scrapeVerification && typeof task.scrapeVerification === 'object') {
         report.scrapeVerification = markScrapeVerificationSource(task.scrapeVerification, 'completion_snapshot');
@@ -619,7 +618,7 @@ function registerRoutes(app) {
         if (task.status === 'done') {
           report.scrapeVerification = addScrapeReportWarning(report.scrapeVerification, {
             code: 'snapshot.missing',
-            message: '这条历史刮削任务完成时尚未保存验收快照；此处展示的是当前文件系统复核结果，不代表任务完成当时的状态。',
+            message: '这条历史刮削执行结束时尚未保存验收快照；此处展示的是当前文件系统复核结果，不代表当时的文件状态。',
           });
         }
       }

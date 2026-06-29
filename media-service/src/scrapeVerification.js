@@ -64,16 +64,9 @@ function verifyScrapedItem(item, opts = {}) {
   }
 
   const meta = item.adultMetadata || {};
-  const task = opts.task || null;
   const { region, config: regionConfig } = effectiveRegionConfig(opts.config || {}, opts.subLib || {}, item);
   const writeNfo = regionConfig.writeNfo !== false;
   const markerRequired = opts.requireMarker !== false;
-  const taskRequired = !!opts.requireTaskDone;
-
-  if (taskRequired) {
-    if (task && task.actionType === 'scrape' && task.status === 'done') markOk(result, 'task.done');
-    else addFailure(result, 'task.done', 'Scrape task is not done');
-  }
 
   if (item.scraped === true) markOk(result, 'library.scraped');
   else addFailure(result, 'library.scraped', 'Library item is not marked scraped=true');
@@ -127,7 +120,7 @@ function verifyScrapedItem(item, opts = {}) {
       else addFailure(result, 'marker.subLibraryId', 'Marker subLibraryId does not match library item');
       if (!marker.mediaPath || !item.path || path.resolve(marker.mediaPath) === path.resolve(item.path)) markOk(result, 'marker.mediaPath');
       else addFailure(result, 'marker.mediaPath', 'Marker mediaPath does not match current media path');
-      const expectedTaskId = opts.scrapeTaskId || (task && task.id) || '';
+      const expectedTaskId = opts.scrapeTaskId || '';
       if (!expectedTaskId || String(marker.scrapeTaskId || '') === String(expectedTaskId)) markOk(result, 'marker.scrapeTaskId');
       else addFailure(result, 'marker.scrapeTaskId', 'Marker scrapeTaskId does not match scrape task');
       if (marker.scrapedAt) markOk(result, 'marker.scrapedAt');

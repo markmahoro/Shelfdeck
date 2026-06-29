@@ -11,6 +11,7 @@ const configStore = require('../src/configStore');
 const taskAdmission = require('../src/taskAdmission');
 const smartTaskEngine = require('../src/smartTaskEngine');
 const taskStore = require('../src/taskStore');
+const scrapeVerification = require('../src/scrapeVerification');
 
 test('approvalPolicy default gate catalog is complete and normalized', () => {
   const expected = [
@@ -53,6 +54,40 @@ test('approvalPolicy resolves global, sub-library, and task overrides', () => {
     }),
     'confirm',
   );
+});
+
+test('scrapeVerification judges scraped item state instead of task completion state', () => {
+  const mediaPath = path.join(os.tmpdir(), 'SORA-107 Some Title.mp4');
+  const item = {
+    itemId: 'adult-1',
+    name: 'SORA-107 Some Title',
+    path: mediaPath,
+    subLibraryId: 'adult-lib',
+    scraped: true,
+    adultMetadata: {
+      region: 'japanese_jav',
+      scrapeStatus: 'done',
+      adultId: 'SORA-107',
+      title: 'SORA-107 Some Title',
+      source: 'javbus',
+      nfoPath: path.join(os.tmpdir(), 'movie.nfo'),
+      fileNfoPath: path.join(os.tmpdir(), 'SORA-107.nfo'),
+      posterPath: path.join(os.tmpdir(), 'poster.jpg'),
+      markerPath: path.join(os.tmpdir(), '.shelfdeck.json'),
+    },
+  };
+
+  const result = scrapeVerification.verifyScrapedItem(item, {
+    checkFiles: false,
+    requireMarker: false,
+    scrapeTaskId: 'scrape-task-1',
+    task: { id: 'scrape-task-1', actionType: 'scrape', status: 'executing' },
+    config: { adultLibrary: { japaneseJav: { writeNfo: true } } },
+    subLib: { uuid: 'adult-lib', adultRegion: 'japanese_jav' },
+  });
+
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.checks['task.done'], undefined);
 });
 
 test('approvalPolicy forceConfirm cannot be lowered by overrides', () => {
@@ -581,6 +616,77 @@ test('smartTaskEngine auto-enqueues western adult pending scrape candidates for 
   assert.strictEqual(created[0].itemId, 'western-unknown-pending');
   assert.strictEqual(created[0].actionType, 'scrape');
   assert.strictEqual(created[0].priority, 260);
+});
+
+test('smartTaskEngine auto scrape trigger is based on not-scraped pending item state', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  const mk = (itemId, scrapeStatus, extra = {}) => ({
+    itemId,
+    name: itemId,
+    source: 'adult_folder',
+    type: 'movie',
+    action: 'keep',
+    scraped: false,
+    subLibraryId: 'adult-lib',
+    path: `/adult/${itemId}.mp4`,
+    adultMetadata: { scrapeStatus },
+    ...extra,
+  });
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['scrape'],
+          smartTaskLookbackDays: 30,
+          subLibraries: [{ uuid: 'adult-lib', automationMode: 'auto' }],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { scrape: 80 },
+            rules: { scrape: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByAction: { scrape: 0 },
+            maxQueuedByAction: { scrape: 20 },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [
+            mk('empty-status', ''),
+            mk('pending-status', 'pending'),
+            mk('failed-status', 'failed'),
+            mk('ambiguous-status', 'ambiguous'),
+            mk('review-status', 'needs_review'),
+            mk('done-status', 'done'),
+            mk('scraped-true', 'pending', { scraped: true }),
+          ],
+        };
+      },
+    },
+    {
+      getTasks: () => [...created],
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTask(taskData) {
+        const task = { id: `t-${created.length + 1}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...taskData };
+        created.push(task);
+        return task;
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  assert.deepStrictEqual(created.map((t) => t.itemId).sort(), ['empty-status', 'pending-status']);
+  assert.ok(created.every((t) => t.actionType === 'scrape'));
 });
 
 test('smartTaskEngine keeps transcode action priority when library weight is neutral', async () => {

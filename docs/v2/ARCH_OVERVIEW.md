@@ -141,11 +141,11 @@ desktop / Admin Web
 - People 人物库归 service 持久化；用户搜索/上传高清正脸图建立 reference face，后续匹配以该 reference embedding 为真值。演员图片搜索源包括 Stash-box GraphQL（默认 TPDB endpoint，可配置 FansDB/其他 stash-box）、MetadataAPI、TMDB、Wikimedia，出站请求默认复用日本 JAV scraper 的代理配置，并在无候选/源失败时向 UI 返回诊断信息；同时保留手动图片 URL/本地上传兜底以覆盖素人演员。
 - service Docker all-in-one 内部启动 InsightFace face-service，默认地址为 `http://127.0.0.1:19110/v1/face/embeddings`；该地址不是用户配置项，仅可通过环境变量覆盖。
 - 初次未知人脸由 service-local 分析返回 `unknownFaces`，包含头像样本和 embedding 诊断；用户命名后，service 通过 `/v1/admin/adult/people/from-face` 将该 cluster 写入 People reference faces。
-- 欧美成人 `scrapeStatus=pending` 的 item 可以由 `SmartTaskEngine` 自动创建首次 `scrape` 任务，即使还没有 protagonist 或演员身份信号；首次 AI 分析负责产生 `unknownFaces`/`faceClusters` 供用户命名。`failed`、`ambiguous`、`needs_review`、`done` 不会自动反复重试，需要显式用户动作。
+- 自动 `scrape` 的触发条件是库 item 状态，而不是 ingest 任务链式触发：`source=adult_folder`、`scraped !== true`、`adultMetadata.scrapeStatus` 为空或 `pending`，并且 `smartTaskEnabledActions` 包含 `scrape`，再经过 `TaskAdmission` 去重、冷却和队列上限。欧美成人 `pending` item 即使还没有 protagonist 或演员身份信号也可以自动创建首次 `scrape` 任务；首次 AI 分析负责产生 `unknownFaces`/`faceClusters` 供用户命名。`failed`、`ambiguous`、`needs_review`、`done` 不会自动反复重试，需要显式用户动作或已完成。
 - 欧美成人匹配不到 protagonist 时等同于 JAV 识别不到番号：任务 `failed_hard`，item 保持 `scraped=false`，不会进入自动转码策略。
 - 自动通过的 item 标记 `scraped=true`，后续转码继续复用现有 `TranscodeFlowExecutor`。
 - 刮削成功会在库目录下的统一归拢目录（默认 `scraped/`，可通过 `adultLibrary.organizedFolderName` 或分区配置覆盖）中新建标准影片目录并移动当前视频：欧美成人目录/视频名为 `{adultId} {protagonist}`；JAV 目录/视频名沿用 scraper 返回的标题命名规范。已有目录不直接改名，目录内其他视频不被一起移动。ShelfDeck 的目录核对默认忽略该归拢目录，Emby 可只监控这个归拢目录。
-- `scraped=true` 不能由目录位置推断。ShelfDeck scrape 成功必须满足结构化合同：任务完成、媒体文件存在、`adultMetadata.scrapeStatus=done`、关键元数据存在、按配置写出的 NFO/封面存在、`.shelfdeck.json` 可读且 `itemId/subLibraryId/mediaPath/scrapeTaskId/scrapedAt` 与当前 item 匹配。任务报告会返回 `scrapeVerification` 结果。
+- `scraped=true` 不能由目录位置或任务状态推断。ShelfDeck scrape 成功必须满足结构化 item 合同：媒体文件存在、`adultMetadata.scrapeStatus=done`、关键元数据存在、按配置写出的 NFO/封面存在、`.shelfdeck.json` 可读且 `itemId/subLibraryId/mediaPath/scrapeTaskId/scrapedAt` 与当前 item 匹配。任务状态只作为执行审计，不参与判断视频是否已刮削；任务报告会返回 `scrapeVerification` 结果。
 
 混合成人库处理：
 
