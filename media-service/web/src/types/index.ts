@@ -383,6 +383,11 @@ export interface TaskEvent {
   phase?: string | null;
   resumePoint?: string | null;
   resourceType?: string | null;
+  resourceKey?: string;
+  resourceLabel?: string;
+  bridgeKind?: string;
+  flowDirection?: string;
+  operationKind?: string;
   createdAt: string;
   payload?: Record<string, unknown>;
 }
@@ -420,6 +425,8 @@ export interface ResourceTask {
   bridgeKind?: string;
   flowDirection?: string;
   operationKind?: string;
+  currentEventType?: string;
+  currentEventPhase?: string;
   resourceState: ResourceTaskState;
   resourceType: string;
   resourceKey: string;
@@ -544,6 +551,17 @@ export interface ResourceView {
   resources: ResourceBucket[];
   diagnostics?: {
     logs: DiagnosticLogEntry[];
+    dependencies?: Array<Record<string, unknown>>;
+    failedEvents?: TaskEvent[];
+    bottlenecks?: Array<{
+      resourceType: string;
+      resourceKey: string;
+      resourceLabel: string;
+      configuredSlots: number;
+      running: number;
+      waiting: number;
+      blocked: number;
+    }>;
     summary: {
       totalLogs: number;
       slowLogs: number;

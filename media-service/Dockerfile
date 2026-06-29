@@ -33,6 +33,7 @@ RUN python3 -m venv /opt/shelfdeck-face \
   && /opt/shelfdeck-face/bin/python -m pip install --no-cache-dir -r /app/face-service-requirements.txt
 
 COPY media-service/src/ ./src/
+COPY media-service/scripts/v3-data-migration.js ./scripts/v3-data-migration.js
 COPY media-service/scripts/all-in-one-supervisor.py /usr/local/bin/shelfdeck-all-in-one
 COPY --from=web-builder /build/dist/admin ./dist/admin/
 

@@ -116,6 +116,10 @@ desktop / Admin Web
 - `TaskAdmission` 是任务创建闸门，统一处理自动/手动来源、active task 去重、失败冷却、按任务类型的自动队列上限、已转码不重复自动转码等规则，并在允许入队时调用 `FlowPlanner`。48 小时冻结属于 admission，不属于 priority。
 - `task_events` 是任务内部执行事实的事件层。任务创建会写入 `task.created` 和 `flow.planned`；调度会写入带资源类型的 `flow.dispatched`；状态、phase、resumePoint、审批、暂停、恢复、中断、重试、失败等变化会追加事件，任务详情 API 可通过 `includeEvents=1` 或 `/events` 读取历史。
 - `TaskScheduler` 的准入准出仍围绕 task 状态推进和 item lock，但并发容量开始按 `flowPlan`/event resource bucket 决策，例如 `local_transcode`/`worker_transcode`、`moviepilot`、`scraper`、`local_ai`、`filesystem:ingest`、`filesystem:mutation`。`actionType` 只保留为 executor 分派和 v2 API 兼容字段。
+- v3.0 起，ShelfDeck 的业务解释以 SQLite facts 为事实层，而不是依赖 `actionType/payload_json` 混合解释。`payload_json` 继续保存详情、报告和兼容上下文，但核心查询、调度、恢复和 Admin Web 展示必须优先使用 SQL columns。
+- `media_items` 分为四组事实：`lifecycle_*` 描述媒体生命周期阶段和是否结案；`metadata_*` 描述元数据完成度和缺失原因；`optimization_*` 描述转码/洗版结果；`archive_*` 描述归档/删除/keep-like 收口状态。媒体库页以 lifecycle、metadata、optimization、archive 命名，不再把 `action` 当作唯一产品语义。
+- `tasks` 分为 bridge facts、flow facts、runtime state 和 projection payload。`bridge_kind/bridge_from/bridge_to` 描述任务连接的生命周期阶段；`flow_direction/operation_kind/primary_resource_type/resource_types_json/flow_steps_json` 描述执行编排；`source/progress/phase/resume_point/retry_count/node_id` 是 runtime state。任务中心按 bridge、flow、event 展示，旧 `actionType` 仅用于 executor 分派和兼容 API。
+- `task_events` 是持久 event history，包含 `resource_type/resource_key/resource_label/bridge_kind/flow_direction/operation_kind`。Resource view 以 event/resource 为中心展示运行、等待、阻塞、失败和瓶颈；调度器按当前 flow event 的 resource bucket 做并发准入。
 - `PriorityEngine` 只决定可入队任务的执行顺序。优先级是多维度叠加分数：`来源权重 + 任务类型权重 + 子库权重 + 业务信号 + 等待时间 + 重试惩罚 + 规则修正`，数值越小越优先；高级规则只能贡献加减分，不能把总分设为绝对值。任务会保存 `priorityBreakdown`，用于解释各维度如何叠加成最终分数。用户手动调整任务优先级会直接覆盖任务上的最终分数。
 - 审批策略与调度策略分离。`approvalPolicy` 控制任务内部关键节点是否暂停，模式为 `auto`、`confirm`、`forceConfirm`；`forceConfirm` 不能被全局、子库或任务级覆盖降级。
 - 当前审批 gate 包括 `delete.beforeExecute`、`transcode.dolbyVisionTonemap`、`transcode.beforeReplace`、`upgrade.candidateSelect`、`upgrade.identityMismatch`、`upgrade.beforeReplace`、`scrape.beforeWriteMetadata`、`scrape.beforeOrganize`、`scrape.reviewResult`。
@@ -166,6 +170,7 @@ desktop / Admin Web
 | Library store | `src/libraryStore.js` | `data/library.db` SQLite 读写；启动时从旧 `library.json` 一次性迁移 |
 | Task store | `src/taskStore.js` | `data/tasks.db` SQLite 读写；启动时从旧 `tasks.json` 一次性迁移 |
 | Flow planner | `src/flowPlanner.js` | 将 v2 `actionType` 映射为 v2.7 `taskBridge`、`flowPlan` 和资源步骤 |
+| v3 model | `src/v3Model.js` | 将媒体项、任务和事件规范化为 v3 SQL facts；迁移、写入和查询共用 |
 | Scheduler | `src/taskScheduler.js` | 轮询、锁、并发、flow dispatch |
 | Task admission | `src/taskAdmission.js` | 自动/手动入队闸门、去重、冷却、业务幂等 |
 | Approval policy | `src/approvalPolicy.js` | 任务内部关键节点审批策略 |

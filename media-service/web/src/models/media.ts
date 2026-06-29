@@ -1,6 +1,7 @@
 export type MediaRating = 1 | 2 | 3 | 4 | 5;
 export type MediaAction = 'delete' | 'transcode' | 'upgrade' | 'keep';
 export type MediaOptimizationStatus = 'transcoded' | 'upgraded' | 'none';
+export type MediaLifecycleStage = 'ingested' | 'metadata_ready' | 'archived' | string;
 
 export type ManagedMediaItem = {
   id: string;
@@ -28,6 +29,17 @@ export type ManagedMediaItem = {
   optimizationAction?: 'transcode' | 'upgrade' | null;
   optimizationDoneAt?: string | null;
   optimizationTaskId?: string | null;
+  lifecycleStage?: MediaLifecycleStage;
+  lifecycleDone?: boolean;
+  lifecycleNextTask?: 'metadata' | 'optimize' | string | null;
+  lifecycleReason?: string;
+  metadataStatus?: string;
+  metadataKind?: string;
+  metadataComplete?: boolean;
+  metadataMissingReasons?: string[];
+  archiveStatus?: string;
+  archiveReason?: string;
+  archiveDoneAt?: string | null;
   embyWebUrl?: string;
   scraped?: boolean;
   adultMetadata?: Record<string, unknown>;

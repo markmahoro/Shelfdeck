@@ -1919,10 +1919,28 @@ function registerRoutes(app) {
       runtimeEvents,
     });
     const diagnostics = diagnosticLog.list({ limit: 120 });
+    const health = healthCheck.getLastResult();
+    const dependencies = health && health.checks && typeof health.checks === 'object'
+      ? Object.entries(health.checks).map(([key, value]) => ({ key, ...(value || {}) }))
+      : [];
+    const bottlenecks = (view.resources || [])
+      .filter((bucket) => (bucket.waiting > 0 || bucket.blocked > 0) && bucket.configuredSlots > 0 && bucket.running >= bucket.configuredSlots)
+      .map((bucket) => ({
+        resourceType: bucket.resourceType,
+        resourceKey: bucket.resourceKey,
+        resourceLabel: bucket.resourceLabel,
+        configuredSlots: bucket.configuredSlots,
+        running: bucket.running,
+        waiting: bucket.waiting,
+        blocked: bucket.blocked,
+      }));
     return {
       ...view,
       diagnostics: {
         ...diagnostics,
+        dependencies,
+        failedEvents: taskStore.queryRecentFailureEvents({ pageSize: 20 }),
+        bottlenecks,
         backgroundIo: backgroundIoGuard.getState({ recentLimit: 40 }),
         metrics: {
           storage: [

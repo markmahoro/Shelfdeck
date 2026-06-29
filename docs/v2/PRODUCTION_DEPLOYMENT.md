@@ -21,6 +21,20 @@
 
 ## 标准发布流程
 
+v3.0 或任何涉及 `library.db` / `tasks.db` schema 的版本，必须先对生产数据目录执行只读迁移预检。`deploy-nas.js` 会在 `docker load` 新镜像后、更新 compose 前，用新镜像只读挂载生产 data 并执行：
+
+```bash
+docker run --rm -v /vol1/1000/docker/shelfdeck/data:/app/data:ro markmahoro/shelfdeck:<tag> node scripts/v3-data-migration.js --data-dir=/app/data
+```
+
+该命令只输出计划，不写文件。真正写入由新容器启动时自动完成，或在明确需要离线迁移时执行：
+
+```bash
+node media-service/scripts/v3-data-migration.js --data-dir=/vol1/1000/docker/shelfdeck/data --apply
+```
+
+`--apply` 会先备份 `library.json` / `library.db` / `tasks.json` / `tasks.db`，再触发兼容导入、DDL 和 v3 facts backfill。不要直接手工修改生产 SQLite。
+
 1. 在本机从仓库根目录构建生产镜像 tarball：
 
 ```bash
@@ -72,6 +86,7 @@ apply 模式必须保持这些保护：
 - 由 tarball 文件名 `shelfdeck-<tag>.tar` 推导目标镜像 `markmahoro/shelfdeck:<tag>`，并更新 NAS compose 的 `image:`。
 - 展示 live 容器里当前 `ffmpeg` 进程，作为中断风险提示；开发期部署允许中断这些任务，后续孤儿文件可另行清理。
 - 部署前备份 `config.json`、`library.json` / `library.db`、`tasks.json` / `tasks.db`。
+- v3 schema 变更前必须有 `v3-data-migration.js` dry-run 输出；如需 apply，必须保留脚本生成的 `.v2-backup-*` 文件。
 - 通过 NAS 上的 compose 文件 `docker compose up -d --force-recreate` 重建容器。
 - 部署后检查 `/v1/health`、成人库挂载、代码来自镜像而不是源码挂载、关键 scraper 模块可加载。
 - 部署前后输出数据文件大小，便于发现配置或任务数据异常。
@@ -97,3 +112,12 @@ curl -fsS http://192.168.12.230:18080/v1/health
 ```
 
 如果改动涉及 Admin Web、配置、任务调度、成人库、转码或外部集成，还应按 `docs/v2/TEST_ARCHITECTURE.md` 补跑对应 flow。生产验收命令应优先使用只读接口。
+
+## v3 回滚
+
+v3.0 回滚分两层：
+
+1. 镜像回滚：重新部署上一个已知可用 tarball，仍使用 `scripts/deploy-nas.js` 的 dry-run 和 `--apply` 流程，不直接改 compose。
+2. 数据回滚：如果需要回到 v2 schema 之前的数据状态，停止容器后从部署脚本备份或 `v3-data-migration.js --apply` 生成的 `.v2-backup-*` 文件恢复 `library.db`、`tasks.db` 及对应 WAL/SHM 或 JSON 源文件。恢复前先复制当前数据目录作为事故现场，不删除现有文件。
+
+只要旧镜像能忽略新增 columns，就优先做镜像回滚，不做数据回滚。只有旧镜像启动失败或业务语义必须回退时才恢复备份数据。

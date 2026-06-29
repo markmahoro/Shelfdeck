@@ -75,6 +75,17 @@ function activeFfmpegCheckCmd() {
   ].join(' ');
 }
 
+function v3MigrationDryRunCmd(targetImage) {
+  return [
+    'docker run --rm',
+    `-v ${shellQuote(`${DATA_DIR}:/app/data:ro`)}`,
+    shellQuote(targetImage),
+    'node',
+    'scripts/v3-data-migration.js',
+    '--data-dir=/app/data',
+  ].join(' ');
+}
+
 function updateComposeImageCmd(targetImage) {
   const compose = shellQuote(COMPOSE_FILE);
   const backup = shellQuote(`${COMPOSE_FILE}.pre-image-${STAMP}.bak`);
@@ -89,7 +100,7 @@ function updateComposeImageCmd(targetImage) {
 
 function waitForHealthCmd() {
   return [
-    'for i in $(seq 1 12); do',
+    'for i in $(seq 1 36); do',
     'body=$(curl -fsS http://127.0.0.1:18080/v1/health) || { sleep 5; continue; };',
     'echo "$body";',
     'if ! printf "%s" "$body" | grep -q \'"status":"red"\'; then exit 0; fi;',
@@ -143,6 +154,7 @@ async function main() {
     ['Show active ffmpeg processes', activeFfmpegCheckCmd()],
     ['Pre-flight data sizes', dataSizesCmd()],
     ['Load image', `docker load -i ${shellQuote(tarball)}`],
+    ['V3 data migration dry run', v3MigrationDryRunCmd(targetImage)],
     ['Update compose image', updateComposeImageCmd(targetImage)],
     ['Snapshot data files', dataSnapshotCmd()],
     ['Recreate through compose', `cd ${shellQuote(COMPOSE_DIR)} && docker compose up -d --force-recreate`],

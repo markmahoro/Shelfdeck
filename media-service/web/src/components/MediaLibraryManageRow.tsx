@@ -54,6 +54,8 @@ export type MediaLibraryManageRowProps = {
 const MAX_STARS = 5;
 const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '转码压缩', upgrade: '洗版', scrape: '刮削', ingest: '入库' };
 const OPTIMIZATION_LABEL: Record<string, string> = { transcoded: '已转码', upgraded: '已洗版', none: '未优化' };
+const LIFECYCLE_LABEL: Record<string, string> = { ingested: '已入库', metadata_ready: '元数据就绪', archived: '已收口' };
+const NEXT_TASK_LABEL: Record<string, string> = { metadata: 'metadata', optimize: 'optimization', archive: 'archive' };
 
 function adultMetaString(item: ManagedMediaItem, key: string): string {
   const value = item.adultMetadata?.[key];
@@ -116,6 +118,12 @@ function MediaLibraryManageRowInner({
   const optimizationTitle = item.optimizationDoneAt
     ? `${OPTIMIZATION_LABEL[item.optimizationStatus]}：${new Date(item.optimizationDoneAt).toLocaleString()}`
     : OPTIMIZATION_LABEL[item.optimizationStatus];
+  const lifecycleLabel = LIFECYCLE_LABEL[item.lifecycleStage || ''] || item.lifecycleStage || '生命周期未知';
+  const lifecycleTitle = [
+    item.lifecycleReason ? `原因：${item.lifecycleReason}` : '',
+    item.metadataStatus ? `metadata：${item.metadataStatus}` : '',
+    item.archiveStatus ? `archive：${item.archiveStatus}` : '',
+  ].filter(Boolean).join('\n');
   const scrapeStatus = adultScrapeStatus(item);
   const adultId = adultMetaString(item, 'adultId');
   const studio = adultMetaString(item, 'studio');
@@ -196,8 +204,13 @@ function MediaLibraryManageRowInner({
       <div className="tabular-nums">{target != null ? `${target.toFixed(1)} Mbps` : '—'}</div>
       <div className="tabular-nums">{predictGb != null ? `${predictGb.toFixed(1)} GB` : '—'}</div>
       <div>
-        <span className={`optimizationBadge optimizationBadge-${item.optimizationStatus}`} title={optimizationTitle}>
-          {OPTIMIZATION_LABEL[item.optimizationStatus]}
+        <span className="lifecycleStack">
+          <span className={`lifecycleBadge lifecycleBadge-${item.lifecycleDone ? 'done' : 'open'}`} title={lifecycleTitle || lifecycleLabel}>
+            {lifecycleLabel}
+          </span>
+          <span className={`optimizationBadge optimizationBadge-${item.optimizationStatus}`} title={optimizationTitle}>
+            {OPTIMIZATION_LABEL[item.optimizationStatus]}
+          </span>
         </span>
       </div>
       {showStandardFields && (
@@ -225,7 +238,9 @@ function MediaLibraryManageRowInner({
       )}
       <div>
         {action === 'keep' ? (
-          <span className="hint" title={item.reason}>{item.reason || '已达标'}</span>
+          <span className="hint" title={item.archiveReason || item.reason}>
+            {item.lifecycleDone ? 'archive' : (NEXT_TASK_LABEL[item.lifecycleNextTask || ''] || item.reason || '已达标')}
+          </span>
         ) : (
           <button
             type="button"

@@ -4,14 +4,6 @@ import { resources } from '../api/client';
 import type { BackgroundIoState, DiagnosticLogEntry, ResourceBucket, ResourceTask, RuntimeResourceEvent, StorageMetric } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-const ACTION_LABELS: Record<string, string> = {
-  ingest: '入库',
-  scrape: '刮削',
-  transcode: '转码',
-  upgrade: '洗版',
-  delete: '删除',
-};
-
 const RESOURCE_LABELS: Record<string, string> = {
   local_transcode: '本机转码',
   worker_transcode: '远程转码',
@@ -50,6 +42,18 @@ const EVENT_LABELS: Record<string, string> = {
   'strategy.run': '策略计算',
   'smartTask.scan': '自动入队扫描',
   'task.dispatch': '任务派发',
+  'metadata.ingest.precheck': '入库预检',
+  'metadata.ingest.commit': '入库写入',
+  'metadata.scrape.fetch': '元数据抓取',
+  'optimize.transcode.execute': '转码执行',
+  'optimize.upgrade.download': '洗版下载',
+  'archive.delete.execute': '归档删除',
+};
+
+const BRIDGE_LABELS: Record<string, string> = {
+  metadata: 'metadata',
+  optimize: 'optimization',
+  archive: 'archive',
 };
 
 const EVENT_STATUS_LABELS: Record<string, string> = {
@@ -121,6 +125,12 @@ function eventTitle(event: RuntimeResourceEvent): string {
   return EVENT_LABELS[event.eventType] || event.eventType;
 }
 
+function taskBusinessLabel(task: ResourceTask): string {
+  const bridge = task.bridgeKind ? (BRIDGE_LABELS[task.bridgeKind] || task.bridgeKind) : 'bridge';
+  const op = task.operationKind || task.actionType;
+  return `${bridge} / ${op}`;
+}
+
 function payloadSummary(payload?: Record<string, unknown>): string {
   if (!payload) return '-';
   const parts: string[] = [];
@@ -183,6 +193,9 @@ export default function ResourceViewPage() {
   const buckets = data?.resources || [];
   const diagnostics = data?.diagnostics;
   const diagnosticLogs = diagnostics?.logs || [];
+  const dependencies = diagnostics?.dependencies || [];
+  const failedEvents = diagnostics?.failedEvents || [];
+  const bottlenecks = diagnostics?.bottlenecks || [];
   const storageMetrics = diagnostics?.metrics?.storage || [];
   const backgroundIo = diagnostics?.backgroundIo;
 
@@ -206,6 +219,8 @@ export default function ResourceViewPage() {
       <StorageMetricsSection metrics={storageMetrics} />
 
       <BackgroundIoSection state={backgroundIo} />
+
+      <DependencyDiagnosticsSection dependencies={dependencies} failedEvents={failedEvents} bottlenecks={bottlenecks} />
 
       <DiagnosticLogSection logs={diagnosticLogs} />
 
@@ -276,7 +291,7 @@ function ResourceBucketView({ bucket }: { bucket: ResourceBucket }) {
         <span style={statPill}>运行 {bucket.running}</span>
         <span style={statPill}>等待 {bucket.waiting}</span>
         <span style={statPill}>阻塞 {bucket.blocked}</span>
-        {events.length > 0 ? <span style={statPill}>Flow / runtime event {events.length}</span> : null}
+        {events.length > 0 ? <span style={statPill}>event {events.length}</span> : null}
         {(bucket.eventRunning || 0) > 0 ? <span style={statPill}>运行 event {bucket.eventRunning}</span> : null}
       </div>
 
@@ -300,7 +315,10 @@ function ResourceBucketView({ bucket }: { bucket: ResourceBucket }) {
                     <div style={taskName}>{taskTitle(task)}</div>
                     <div style={taskIdText}>{task.taskId}</div>
                   </td>
-                  <td style={tdStyle}>{ACTION_LABELS[task.actionType] || task.actionType}</td>
+                  <td style={tdStyle}>
+                    <div>{taskBusinessLabel(task)}</div>
+                    <div style={mutedText}>{EVENT_LABELS[task.currentEventType || ''] || task.currentEventType || task.currentEventPhase || '-'}</div>
+                  </td>
                   <td style={tdStyle}>
                     <div style={statusStack}>
                       <span style={stateBadge(task.resourceState)}>{STATE_LABELS[task.resourceState] || task.resourceState}</span>
@@ -324,6 +342,74 @@ function ResourceBucketView({ bucket }: { bucket: ResourceBucket }) {
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function DependencyDiagnosticsSection({
+  dependencies,
+  failedEvents,
+  bottlenecks,
+}: {
+  dependencies: Array<Record<string, unknown>>;
+  failedEvents: Array<{ id: string; eventType: string; eventStatus: string; itemId?: string; resourceType?: string | null; resourceKey?: string; createdAt: string }>;
+  bottlenecks: Array<{ resourceKey: string; resourceLabel: string; configuredSlots: number; running: number; waiting: number; blocked: number }>;
+}) {
+  return (
+    <div style={sectionSpaced}>
+      <div style={sectionHeader}>
+        <h2 style={sectionTitle}>诊断</h2>
+        <div style={mutedText}>依赖、失败 event、资源瓶颈</div>
+      </div>
+      <div style={diagnosticGrid}>
+        <DiagnosticList
+          title="外部依赖"
+          empty="暂无 health check 结果。"
+          rows={dependencies.map((dep) => ({
+            key: String(dep.key || dep.name || dep.component || 'dependency'),
+            main: String(dep.message || dep.status || '-'),
+            meta: String(dep.status || '-'),
+          }))}
+        />
+        <DiagnosticList
+          title="失败 event"
+          empty="最近没有失败 event。"
+          rows={failedEvents.map((event) => ({
+            key: event.id,
+            main: EVENT_LABELS[event.eventType] || event.eventType,
+            meta: `${event.eventStatus || '-'} · ${event.resourceKey || event.resourceType || '-'} · ${formatTime(event.createdAt)}`,
+          }))}
+        />
+        <DiagnosticList
+          title="资源瓶颈"
+          empty="当前没有达到容量上限的等待队列。"
+          rows={bottlenecks.map((bucket) => ({
+            key: bucket.resourceKey,
+            main: bucket.resourceLabel || bucket.resourceKey,
+            meta: `slots ${bucket.running}/${bucket.configuredSlots} · waiting ${bucket.waiting} · blocked ${bucket.blocked}`,
+          }))}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DiagnosticList({ title, empty, rows }: { title: string; empty: string; rows: Array<{ key: string; main: string; meta: string }> }) {
+  return (
+    <div style={storageBox}>
+      <div style={bucketTitle}>{title}</div>
+      {rows.length === 0 ? (
+        <div style={mutedText}>{empty}</div>
+      ) : (
+        <div style={fileList}>
+          {rows.slice(0, 6).map((row) => (
+            <div key={row.key} style={fileRow}>
+              <span>{row.main}</span>
+              <strong>{row.meta}</strong>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -681,6 +767,12 @@ const storageGrid: CSSProperties = {
   gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
   gap: 12,
   padding: 12,
+};
+
+const diagnosticGrid: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+  gap: 12,
 };
 
 const storageBox: CSSProperties = {

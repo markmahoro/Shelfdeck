@@ -5,9 +5,11 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 const approvalPolicy = require('../src/approvalPolicy');
 const configStore = require('../src/configStore');
+const libraryStore = require('../src/libraryStore');
 const taskAdmission = require('../src/taskAdmission');
 const smartTaskEngine = require('../src/smartTaskEngine');
 const taskStore = require('../src/taskStore');
@@ -1167,6 +1169,120 @@ test('taskStore exposes scheduler lightweight rows for active tasks only', () =>
     if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
     else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
   }
+});
+
+test('libraryStore persists v3 media lifecycle facts as SQL query fields', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'library-v3-facts-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  try {
+    libraryStore.saveLibrary({
+      version: 1,
+      cachedAt: new Date().toISOString(),
+      items: [{
+        itemId: 'v3-media-1',
+        subLibraryId: 'lib-v3',
+        source: 'emby',
+        sourceId: 'emby-v3-media-1',
+        name: 'V3 Media One',
+        type: 'movie',
+        path: '/media/v3-one.mkv',
+        action: 'transcode',
+        metadataComplete: true,
+        metadataStatus: 'complete',
+        optimizationStatus: 'none',
+      }, {
+        itemId: 'v3-media-2',
+        subLibraryId: 'lib-v3',
+        source: 'emby',
+        sourceId: 'emby-v3-media-2',
+        name: 'V3 Media Two',
+        type: 'movie',
+        path: '/media/v3-two.mkv',
+        action: 'keep',
+        metadataComplete: true,
+        metadataStatus: 'complete',
+      }],
+    });
+
+    const open = libraryStore.queryItems({ lifecycle: 'open' }).items;
+    assert.deepStrictEqual(open.map((item) => item.itemId), ['v3-media-1']);
+    assert.strictEqual(open[0].lifecycleStage, 'metadata_ready');
+    assert.strictEqual(open[0].metadataStatus, 'complete');
+
+    const closed = libraryStore.queryItems({ lifecycle: 'done' }).items;
+    assert.deepStrictEqual(closed.map((item) => item.itemId), ['v3-media-2']);
+    assert.strictEqual(closed[0].archiveStatus, 'archived_like');
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
+test('taskStore persists v3 bridge flow runtime and event resource facts as SQL fields', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'task-v3-facts-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  try {
+    const task = taskStore.createTask({
+      itemId: 'v3-task-item',
+      itemName: 'V3 Task Item',
+      actionType: 'upgrade',
+      source: 'manual',
+      status: 'queued',
+      itemInfo: { subLibraryId: 'lib-v3', path: '/media/v3-task.mkv' },
+    });
+    taskStore.appendTaskEvent(task, 'flow.dispatched', {
+      bridgeKind: 'optimize',
+      flowDirection: 'optimize.upgrade',
+      operationKind: 'upgrade',
+      resourceKey: 'moviepilot',
+      resourceLabel: 'MoviePilot',
+    }, { resourceType: 'moviepilot' });
+
+    const rows = taskStore.querySchedulerTasks();
+    assert.strictEqual(rows[0].taskBridge.kind, 'optimize');
+    assert.strictEqual(rows[0].flowPlan.direction, 'optimize.upgrade');
+    assert.strictEqual(rows[0].flowPlan.primaryResourceType, 'moviepilot');
+
+    const events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 20 }).events;
+    const dispatched = events.find((event) => event.eventType === 'flow.dispatched');
+    assert.ok(dispatched);
+    assert.strictEqual(dispatched.resourceKey, 'moviepilot');
+    assert.strictEqual(dispatched.bridgeKind, 'optimize');
+    assert.strictEqual(dispatched.operationKind, 'upgrade');
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
+test('v3 data migration script defaults to dry-run without creating backups', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3-migration-dry-run-'));
+  fs.writeFileSync(path.join(dir, 'tasks.json'), JSON.stringify([
+    { id: 'dry-run-task', itemId: 'i1', actionType: 'scrape', status: 'done' },
+  ]), 'utf8');
+
+  const script = path.join(__dirname, '..', 'scripts', 'v3-data-migration.js');
+  const result = spawnSync(process.execPath, [script, `--data-dir=${dir}`], {
+    encoding: 'utf8',
+    cwd: path.join(__dirname, '..'),
+  });
+  assert.strictEqual(result.status, 0, result.stderr);
+  const plan = JSON.parse(result.stdout);
+  assert.strictEqual(plan.mode, 'dry-run');
+  assert.strictEqual(plan.actions[0], 'No files will be changed.');
+  assert.deepStrictEqual(fs.readdirSync(dir).filter((name) => name.includes('.v2-backup-')), []);
 });
 
 test('lifecycleProjection separates metadata, optimize, and archive-like closure', () => {

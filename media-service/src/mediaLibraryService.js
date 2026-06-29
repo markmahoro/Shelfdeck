@@ -359,15 +359,6 @@ function updateUserRating(itemId, userRating) {
 
 function getLibrary(filter = {}, opts = {}) {
   const storeFilter = { ...(filter || {}) };
-  const metadataStatusFilter = storeFilter.metadataStatus;
-  const lifecycleFilter = storeFilter.lifecycle;
-  const needsMetadataStatusFilter = metadataStatusFilter === 'done'
-    || metadataStatusFilter === 'pending'
-    || metadataStatusFilter === 'failed';
-  const needsLifecycleFilter = !!lifecycleFilter;
-  const needsPostFilter = needsMetadataStatusFilter || needsLifecycleFilter;
-  if (needsMetadataStatusFilter) delete storeFilter.metadataStatus;
-  if (needsLifecycleFilter) delete storeFilter.lifecycle;
   if (storeFilter.activeTaskIds) {
     const activeTaskIds = storeFilter.activeTaskIds instanceof Set ? storeFilter.activeTaskIds : new Set();
     const ids = [...activeTaskIds].filter(Boolean);
@@ -378,41 +369,18 @@ function getLibrary(filter = {}, opts = {}) {
   }
 
   const config = configStore.loadConfig();
-  const pageOpts = needsPostFilter ? {} : opts;
-  const result = libraryStore.queryItems(storeFilter, pageOpts);
+  const result = libraryStore.queryItems(storeFilter, opts);
   let items = result.items.map((item) => ({ ...item }));
   items = metadataStatus.decorateItems(items, config);
-  if (opts.includeOptimizationStatus || opts.includeLifecycleStatus || needsLifecycleFilter) {
+  if (opts.includeOptimizationStatus || opts.includeLifecycleStatus || storeFilter.lifecycle || storeFilter.optimizationStatus) {
     const taskStore = require('./taskStore');
-    const itemIds = needsPostFilter ? undefined : items.map((item) => item.itemId).filter(Boolean);
+    const itemIds = items.map((item) => item.itemId).filter(Boolean);
     const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
       ? taskStore.queryOptimizationTaskIndexRows(itemIds && itemIds.length > 0 ? { itemIds } : {})
       : taskStore.loadTasks();
     items = optimizationStatus.decorateItems(items, optimizationTasks, config);
   }
   items = lifecycleProjection.decorateItems(items, config);
-  if (needsMetadataStatusFilter) {
-    items = items.filter((item) => {
-      if (metadataStatusFilter === 'done') return item.metadataComplete;
-      if (metadataStatusFilter === 'pending') return !item.metadataComplete;
-      const meta = item.adultMetadata || {};
-      return String(meta.scrapeStatus || '').toLowerCase() === 'failed';
-    });
-  }
-  if (needsLifecycleFilter) {
-    items = items.filter((item) => lifecycleProjection.matchesFilter(item, lifecycleFilter));
-  }
-  if (needsPostFilter) {
-    const offset = Math.max(0, Number(opts.offset) || 0);
-    const hasLimit = Number.isInteger(opts.limit) && opts.limit > 0;
-    return {
-      ...result,
-      items: hasLimit ? items.slice(offset, offset + Number(opts.limit)) : items,
-      total: items.length,
-      offset,
-      limit: hasLimit ? Number(opts.limit) : null,
-    };
-  }
   return { ...result, items };
 }
 

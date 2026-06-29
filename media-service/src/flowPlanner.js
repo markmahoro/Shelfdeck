@@ -155,9 +155,22 @@ function currentResourceType(task) {
   return (current && current.resourceType) || plan.primaryResourceType || (steps[0] && steps[0].resourceType) || 'service_api';
 }
 
+function currentFlowStep(task) {
+  const plan = task && task.flowPlan && typeof task.flowPlan === 'object' ? task.flowPlan : planFlow(task || {}).flowPlan;
+  const phase = task && (task.phase || task.resumePoint);
+  const steps = Array.isArray(plan.steps) ? plan.steps : [];
+  const current = phase ? steps.find((step) => step.phase === phase) : null;
+  return current || steps[0] || {
+    phase: phase || '',
+    eventType: `${plan.direction || 'task'}.dispatch`,
+    resourceType: plan.primaryResourceType || 'service_api',
+  };
+}
+
 module.exports = {
   FLOW_PLAN_VERSION,
   planFlow,
   bridgeKindForAction,
   currentResourceType,
+  currentFlowStep,
 };

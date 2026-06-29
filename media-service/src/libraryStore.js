@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const diagnosticLog = require('./diagnosticLog');
+const v3Model = require('./v3Model');
 
 function resolveDataDir() {
   return (
@@ -92,9 +93,11 @@ function getDb() {
     CREATE INDEX IF NOT EXISTS idx_media_items_scrape_status ON media_items(source, scraped, scrape_status);
   `);
   ensureSpaceStatColumns(db);
+  ensureV3MediaItemColumns(db);
   dbCache.set(dbPath, db);
   migrateJsonLibraryIfNeeded(db);
   backfillSpaceStatColumns(db);
+  backfillV3MediaItemColumns(db);
   checkpointWal(db, 'startup');
   return db;
 }
@@ -112,6 +115,37 @@ function ensureSpaceStatColumns(db) {
   }
 }
 
+function ensureV3MediaItemColumns(db) {
+  const existing = new Set(db.prepare('PRAGMA table_info(media_items)').all().map((row) => row.name));
+  const columns = {
+    lifecycle_stage: 'TEXT NOT NULL DEFAULT \'\'',
+    lifecycle_done: 'INTEGER NOT NULL DEFAULT 0',
+    lifecycle_next_task: 'TEXT NOT NULL DEFAULT \'\'',
+    lifecycle_reason: 'TEXT NOT NULL DEFAULT \'\'',
+    metadata_status: 'TEXT NOT NULL DEFAULT \'\'',
+    metadata_kind: 'TEXT NOT NULL DEFAULT \'\'',
+    metadata_complete: 'INTEGER NOT NULL DEFAULT 0',
+    metadata_missing_reasons_json: 'TEXT NOT NULL DEFAULT \'[]\'',
+    metadata_updated_at: 'TEXT NOT NULL DEFAULT \'\'',
+    optimization_status: 'TEXT NOT NULL DEFAULT \'none\'',
+    optimization_action: 'TEXT NOT NULL DEFAULT \'\'',
+    optimization_done_at: 'TEXT NOT NULL DEFAULT \'\'',
+    optimization_task_id: 'TEXT NOT NULL DEFAULT \'\'',
+    archive_status: 'TEXT NOT NULL DEFAULT \'\'',
+    archive_reason: 'TEXT NOT NULL DEFAULT \'\'',
+    archive_done_at: 'TEXT NOT NULL DEFAULT \'\'',
+  };
+  for (const [name, type] of Object.entries(columns)) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE media_items ADD COLUMN ${name} ${type}`);
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_media_items_lifecycle ON media_items(lifecycle_stage, lifecycle_done, ordinal);
+    CREATE INDEX IF NOT EXISTS idx_media_items_metadata ON media_items(metadata_status, metadata_complete, ordinal);
+    CREATE INDEX IF NOT EXISTS idx_media_items_optimization ON media_items(optimization_status, optimization_action, ordinal);
+    CREATE INDEX IF NOT EXISTS idx_media_items_archive ON media_items(archive_status, ordinal);
+  `);
+}
+
 function backfillSpaceStatColumns(db) {
   const version = db.prepare('SELECT value FROM library_meta WHERE key = ?').get('space_stat_columns_backfilled');
   if (version && version.value === '1') return;
@@ -124,6 +158,40 @@ function backfillSpaceStatColumns(db) {
       target_bitrate = json_extract(payload_json, '$.targetBitrate')
   `).run();
   setMeta(db, 'space_stat_columns_backfilled', '1');
+}
+
+function backfillV3MediaItemColumns(db) {
+  const version = db.prepare('SELECT value FROM library_meta WHERE key = ?').get('v3_media_item_columns_backfilled');
+  if (version && version.value === '1') return;
+  const rows = db.prepare('SELECT item_id, payload_json FROM media_items').all();
+  const update = db.prepare(`
+    UPDATE media_items SET
+      lifecycle_stage = @lifecycle_stage,
+      lifecycle_done = @lifecycle_done,
+      lifecycle_next_task = @lifecycle_next_task,
+      lifecycle_reason = @lifecycle_reason,
+      metadata_status = @metadata_status,
+      metadata_kind = @metadata_kind,
+      metadata_complete = @metadata_complete,
+      metadata_missing_reasons_json = @metadata_missing_reasons_json,
+      metadata_updated_at = @metadata_updated_at,
+      optimization_status = @optimization_status,
+      optimization_action = @optimization_action,
+      optimization_done_at = @optimization_done_at,
+      optimization_task_id = @optimization_task_id,
+      archive_status = @archive_status,
+      archive_reason = @archive_reason,
+      archive_done_at = @archive_done_at
+    WHERE item_id = @item_id
+  `);
+  const tx = db.transaction((items) => {
+    for (const row of items) {
+      const item = normalizeItem(jsonParse(row.payload_json, {}));
+      update.run({ item_id: row.item_id, ...v3Model.mediaItemFacts(item) });
+    }
+  });
+  tx(rows);
+  setMeta(db, 'v3_media_item_columns_backfilled', '1');
 }
 
 function walCheckpointMinBytes() {
@@ -271,6 +339,7 @@ function itemToRow(item, ordinal) {
   const it = normalizeItem(item);
   const adultMetadata = it.adultMetadata || {};
   const space = itemSpaceStatColumns(it);
+  const facts = v3Model.mediaItemFacts(it);
   return {
     item_id: it.itemId,
     ordinal: Number.isInteger(ordinal) ? ordinal : 0,
@@ -293,6 +362,7 @@ function itemToRow(item, ordinal) {
     updated_at: String(it.lastRefreshedAt || it.userRatingUpdatedAt || it.doubanRatingUpdatedAt || ''),
     payload_json: jsonStringify(it),
     ...space,
+    ...facts,
   };
 }
 
@@ -314,6 +384,24 @@ function rowToItem(row) {
   if (!row) return null;
   const item = normalizeItem(jsonParse(row.payload_json, {}));
   item.itemId = row.item_id || item.itemId;
+  if (row.lifecycle_stage !== undefined) {
+    item.lifecycleStage = row.lifecycle_stage || item.lifecycleStage;
+    item.lifecycleDone = row.lifecycle_done === 1 || item.lifecycleDone === true;
+    item.lifecycleNextTask = row.lifecycle_next_task || item.lifecycleNextTask || null;
+    item.lifecycleReason = row.lifecycle_reason || item.lifecycleReason;
+    item.metadataStatus = row.metadata_status || item.metadataStatus;
+    item.metadataKind = row.metadata_kind || item.metadataKind;
+    item.metadataComplete = row.metadata_complete === 1 || item.metadataComplete === true;
+    item.metadataMissingReasons = jsonParse(row.metadata_missing_reasons_json, item.metadataMissingReasons || []);
+    item.metadataUpdatedAt = row.metadata_updated_at || item.metadataUpdatedAt;
+    item.optimizationStatus = row.optimization_status || item.optimizationStatus || 'none';
+    item.optimizationAction = row.optimization_action || item.optimizationAction || null;
+    item.optimizationDoneAt = row.optimization_done_at || item.optimizationDoneAt || null;
+    item.optimizationTaskId = row.optimization_task_id || item.optimizationTaskId || null;
+    item.archiveStatus = row.archive_status || item.archiveStatus;
+    item.archiveReason = row.archive_reason || item.archiveReason;
+    item.archiveDoneAt = row.archive_done_at || item.archiveDoneAt || null;
+  }
   return item;
 }
 
@@ -322,12 +410,20 @@ const upsertSql = `
     (item_id, ordinal, sub_library_id, source, source_id, name, type, action, path,
      watched, scraped, scrape_status, adult_id, resolution, codec, user_rating,
      douban_stars, is_bluray_disc, updated_at, payload_json,
-     size_bytes, bitrate, equivalent_bitrate, target_bitrate)
+     size_bytes, bitrate, equivalent_bitrate, target_bitrate,
+     lifecycle_stage, lifecycle_done, lifecycle_next_task, lifecycle_reason,
+     metadata_status, metadata_kind, metadata_complete, metadata_missing_reasons_json, metadata_updated_at,
+     optimization_status, optimization_action, optimization_done_at, optimization_task_id,
+     archive_status, archive_reason, archive_done_at)
   VALUES
     (@item_id, @ordinal, @sub_library_id, @source, @source_id, @name, @type, @action, @path,
      @watched, @scraped, @scrape_status, @adult_id, @resolution, @codec, @user_rating,
      @douban_stars, @is_bluray_disc, @updated_at, @payload_json,
-     @size_bytes, @bitrate, @equivalent_bitrate, @target_bitrate)
+     @size_bytes, @bitrate, @equivalent_bitrate, @target_bitrate,
+     @lifecycle_stage, @lifecycle_done, @lifecycle_next_task, @lifecycle_reason,
+     @metadata_status, @metadata_kind, @metadata_complete, @metadata_missing_reasons_json, @metadata_updated_at,
+     @optimization_status, @optimization_action, @optimization_done_at, @optimization_task_id,
+     @archive_status, @archive_reason, @archive_done_at)
   ON CONFLICT(item_id) DO UPDATE SET
     ordinal = excluded.ordinal,
     sub_library_id = excluded.sub_library_id,
@@ -351,7 +447,23 @@ const upsertSql = `
     size_bytes = excluded.size_bytes,
     bitrate = excluded.bitrate,
     equivalent_bitrate = excluded.equivalent_bitrate,
-    target_bitrate = excluded.target_bitrate
+    target_bitrate = excluded.target_bitrate,
+    lifecycle_stage = excluded.lifecycle_stage,
+    lifecycle_done = excluded.lifecycle_done,
+    lifecycle_next_task = excluded.lifecycle_next_task,
+    lifecycle_reason = excluded.lifecycle_reason,
+    metadata_status = excluded.metadata_status,
+    metadata_kind = excluded.metadata_kind,
+    metadata_complete = excluded.metadata_complete,
+    metadata_missing_reasons_json = excluded.metadata_missing_reasons_json,
+    metadata_updated_at = excluded.metadata_updated_at,
+    optimization_status = excluded.optimization_status,
+    optimization_action = excluded.optimization_action,
+    optimization_done_at = excluded.optimization_done_at,
+    optimization_task_id = excluded.optimization_task_id,
+    archive_status = excluded.archive_status,
+    archive_reason = excluded.archive_reason,
+    archive_done_at = excluded.archive_done_at
 `;
 
 function setMeta(db, key, value) {
@@ -381,7 +493,7 @@ function replaceAllItems(db, lib) {
 
 function loadLibrary() {
   const db = getDb();
-  const rows = db.prepare('SELECT item_id, payload_json FROM media_items ORDER BY ordinal ASC, item_id ASC').all();
+  const rows = db.prepare('SELECT * FROM media_items ORDER BY ordinal ASC, item_id ASC').all();
   return {
     version: Number(getMeta(db, 'version', '1')) || 1,
     cachedAt: getMeta(db, 'cachedAt', null) || null,
@@ -467,7 +579,7 @@ function updateItems(items) {
 }
 
 function getItem(itemId) {
-  const row = getDb().prepare('SELECT item_id, payload_json FROM media_items WHERE item_id = ?').get(String(itemId || ''));
+  const row = getDb().prepare('SELECT * FROM media_items WHERE item_id = ?').get(String(itemId || ''));
   return rowToItem(row);
 }
 
@@ -477,6 +589,35 @@ function buildWhere(filter = {}) {
   if (filter.source) { clauses.push('source = @source'); params.source = String(filter.source); }
   if (filter.type) { clauses.push('type = @type'); params.type = String(filter.type); }
   if (filter.action) { clauses.push('action = @action'); params.action = String(filter.action); }
+  if (filter.lifecycle) {
+    const lifecycle = String(filter.lifecycle || '').toLowerCase();
+    if (lifecycle === 'done' || lifecycle === 'closed') clauses.push('lifecycle_done = 1');
+    else if (lifecycle === 'open' || lifecycle === 'pending') clauses.push('lifecycle_done = 0');
+    else if (lifecycle === 'archive_ready') {
+      clauses.push('archive_status = @archiveReady');
+      params.archiveReady = 'archived_like';
+    } else {
+      clauses.push('(lifecycle_stage = @lifecycle OR archive_status = @lifecycle OR lifecycle_next_task = @lifecycle)');
+      params.lifecycle = lifecycle;
+    }
+  }
+  if (filter.metadataStatus) {
+    const metadataStatus = String(filter.metadataStatus || '').toLowerCase();
+    if (metadataStatus === 'done') clauses.push('metadata_complete = 1');
+    else if (metadataStatus === 'pending') clauses.push('metadata_complete = 0');
+    else {
+      clauses.push('metadata_status = @metadataStatus');
+      params.metadataStatus = metadataStatus;
+    }
+  }
+  if (filter.optimizationStatus) {
+    clauses.push('optimization_status = @optimizationStatus');
+    params.optimizationStatus = String(filter.optimizationStatus);
+  }
+  if (filter.archiveStatus) {
+    clauses.push('archive_status = @archiveStatus');
+    params.archiveStatus = String(filter.archiveStatus);
+  }
   if (filter.subLibraryId) { clauses.push('sub_library_id = @subLibraryId'); params.subLibraryId = String(filter.subLibraryId); }
   if (Array.isArray(filter.itemIds)) {
     if (filter.itemIds.length === 0) {
@@ -566,7 +707,7 @@ function queryItems(filter = {}, opts = {}) {
     const offset = Math.max(0, Number(opts.offset) || 0);
     const limitClause = hasLimit ? 'LIMIT @limit OFFSET @offset' : '';
     const rows = db.prepare(`
-      SELECT item_id, payload_json
+      SELECT *
       FROM media_items
       ${where}
       ORDER BY ordinal ASC, item_id ASC

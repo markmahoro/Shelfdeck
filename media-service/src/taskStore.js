@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const diagnosticLog = require('./diagnosticLog');
 const flowPlanner = require('./flowPlanner');
+const v3Model = require('./v3Model');
 
 function resolveDataDir() {
   return (
@@ -87,10 +88,13 @@ function getDb() {
     CREATE INDEX IF NOT EXISTS idx_tasks_action_status_updated_at ON tasks(action_type, status, updated_at);
   `);
   ensureSpaceStatColumns(db);
+  ensureV3TaskColumns(db);
   ensureTaskEventTable(db);
   dbCache.set(dbPath, db);
   migrateJsonTasksIfNeeded(db);
   backfillSpaceStatColumns(db);
+  backfillV3TaskColumns(db);
+  backfillV3TaskEventColumns(db);
   checkpointWal(db, 'startup');
   return db;
 }
@@ -109,6 +113,44 @@ function ensureSpaceStatColumns(db) {
   }
 }
 
+function ensureV3TaskColumns(db) {
+  const existing = new Set(db.prepare('PRAGMA table_info(tasks)').all().map((row) => row.name));
+  const columns = {
+    source: 'TEXT NOT NULL DEFAULT \'\'',
+    progress: 'REAL',
+    phase: 'TEXT',
+    resume_point: 'TEXT',
+    manual_execute_requested: 'INTEGER NOT NULL DEFAULT 0',
+    priority_manually_adjusted: 'INTEGER NOT NULL DEFAULT 0',
+    priority_model_version: 'TEXT NOT NULL DEFAULT \'\'',
+    retry_count: 'INTEGER NOT NULL DEFAULT 0',
+    pausing_requested: 'INTEGER NOT NULL DEFAULT 0',
+    node_id: 'TEXT NOT NULL DEFAULT \'\'',
+    sub_library_id: 'TEXT NOT NULL DEFAULT \'\'',
+    item_path: 'TEXT NOT NULL DEFAULT \'\'',
+    bridge_kind: 'TEXT NOT NULL DEFAULT \'\'',
+    bridge_from: 'TEXT NOT NULL DEFAULT \'\'',
+    bridge_to: 'TEXT NOT NULL DEFAULT \'\'',
+    bridge_reason: 'TEXT NOT NULL DEFAULT \'\'',
+    flow_version: 'TEXT NOT NULL DEFAULT \'\'',
+    flow_direction: 'TEXT NOT NULL DEFAULT \'\'',
+    operation_kind: 'TEXT NOT NULL DEFAULT \'\'',
+    flow_executor: 'TEXT NOT NULL DEFAULT \'\'',
+    primary_resource_type: 'TEXT NOT NULL DEFAULT \'\'',
+    resource_types_json: 'TEXT NOT NULL DEFAULT \'[]\'',
+    flow_steps_json: 'TEXT NOT NULL DEFAULT \'[]\'',
+  };
+  for (const [name, type] of Object.entries(columns)) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`);
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_bridge_status_priority ON tasks(bridge_kind, status, priority, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_flow_resource_status ON tasks(primary_resource_type, status, priority, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_operation_status_priority ON tasks(operation_kind, status, priority, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_sub_library_status ON tasks(sub_library_id, status, updated_at);
+  `);
+}
+
 function ensureTaskEventTable(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS task_events (
@@ -121,6 +163,11 @@ function ensureTaskEventTable(db) {
       phase TEXT,
       resume_point TEXT,
       resource_type TEXT,
+      resource_key TEXT NOT NULL DEFAULT '',
+      resource_label TEXT NOT NULL DEFAULT '',
+      bridge_kind TEXT NOT NULL DEFAULT '',
+      flow_direction TEXT NOT NULL DEFAULT '',
+      operation_kind TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT '',
       payload_json TEXT NOT NULL
     );
@@ -128,6 +175,21 @@ function ensureTaskEventTable(db) {
     CREATE INDEX IF NOT EXISTS idx_task_events_type_created ON task_events(event_type, created_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_status_created ON task_events(event_status, created_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_item_created ON task_events(item_id, created_at);
+  `);
+  const existing = new Set(db.prepare('PRAGMA table_info(task_events)').all().map((row) => row.name));
+  const columns = {
+    resource_key: 'TEXT NOT NULL DEFAULT \'\'',
+    resource_label: 'TEXT NOT NULL DEFAULT \'\'',
+    bridge_kind: 'TEXT NOT NULL DEFAULT \'\'',
+    flow_direction: 'TEXT NOT NULL DEFAULT \'\'',
+    operation_kind: 'TEXT NOT NULL DEFAULT \'\'',
+  };
+  for (const [name, type] of Object.entries(columns)) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE task_events ADD COLUMN ${name} ${type}`);
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_task_events_resource_created ON task_events(resource_type, resource_key, created_at);
+    CREATE INDEX IF NOT EXISTS idx_task_events_bridge_created ON task_events(bridge_kind, created_at);
   `);
 }
 
@@ -148,6 +210,81 @@ function backfillSpaceStatColumns(db) {
   db.prepare(`
     INSERT INTO task_store_meta (key, value)
     VALUES ('space_stat_columns_backfilled', '1')
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run();
+}
+
+function backfillV3TaskColumns(db) {
+  const version = db.prepare('SELECT value FROM task_store_meta WHERE key = ?').get('v3_task_columns_backfilled');
+  if (version && version.value === '1') return;
+  const rows = db.prepare('SELECT id, payload_json FROM tasks').all();
+  const update = db.prepare(`
+    UPDATE tasks SET
+      source = @source,
+      progress = @progress,
+      phase = @phase,
+      resume_point = @resume_point,
+      manual_execute_requested = @manual_execute_requested,
+      priority_manually_adjusted = @priority_manually_adjusted,
+      priority_model_version = @priority_model_version,
+      retry_count = @retry_count,
+      pausing_requested = @pausing_requested,
+      node_id = @node_id,
+      sub_library_id = @sub_library_id,
+      item_path = @item_path,
+      bridge_kind = @bridge_kind,
+      bridge_from = @bridge_from,
+      bridge_to = @bridge_to,
+      bridge_reason = @bridge_reason,
+      flow_version = @flow_version,
+      flow_direction = @flow_direction,
+      operation_kind = @operation_kind,
+      flow_executor = @flow_executor,
+      primary_resource_type = @primary_resource_type,
+      resource_types_json = @resource_types_json,
+      flow_steps_json = @flow_steps_json
+    WHERE id = @id
+  `);
+  const tx = db.transaction((items) => {
+    for (const row of items) {
+      const task = normalizeTask(jsonParse(row.payload_json, {}));
+      update.run({ id: row.id, ...v3Model.taskFacts(task) });
+    }
+  });
+  tx(rows);
+  db.prepare(`
+    INSERT INTO task_store_meta (key, value)
+    VALUES ('v3_task_columns_backfilled', '1')
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run();
+}
+
+function backfillV3TaskEventColumns(db) {
+  const version = db.prepare('SELECT value FROM task_store_meta WHERE key = ?').get('v3_task_event_columns_backfilled');
+  if (version && version.value === '1') return;
+  const rows = db.prepare('SELECT id, action_type, payload_json FROM task_events').all();
+  const update = db.prepare(`
+    UPDATE task_events SET
+      bridge_kind = @bridge_kind,
+      flow_direction = @flow_direction,
+      operation_kind = @operation_kind,
+      resource_key = @resource_key,
+      resource_label = @resource_label
+    WHERE id = @id
+  `);
+  const tx = db.transaction((items) => {
+    for (const row of items) {
+      const payload = jsonParse(row.payload_json, {});
+      update.run({
+        id: row.id,
+        ...v3Model.taskEventFacts({ actionType: row.action_type, payload }),
+      });
+    }
+  });
+  tx(rows);
+  db.prepare(`
+    INSERT INTO task_store_meta (key, value)
+    VALUES ('v3_task_event_columns_backfilled', '1')
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `).run();
 }
@@ -326,6 +463,7 @@ function normalizeTask(task) {
 function taskToRow(task) {
   const t = normalizeTask(task);
   const space = taskSpaceStatColumns(t);
+  const facts = v3Model.taskFacts(t);
   return {
     id: t.id,
     item_id: t.itemId,
@@ -337,6 +475,7 @@ function taskToRow(task) {
     updated_at: t.updatedAt,
     payload_json: jsonStringify(t),
     ...space,
+    ...facts,
   };
 }
 
@@ -390,6 +529,7 @@ function buildTaskEvent(task, eventType, payload = {}, opts = {}) {
 }
 
 function taskEventToRow(event) {
+  const facts = v3Model.taskEventFacts(event);
   return {
     id: event.id,
     task_id: event.taskId,
@@ -400,6 +540,11 @@ function taskEventToRow(event) {
     phase: event.phase,
     resume_point: event.resumePoint,
     resource_type: event.resourceType,
+    resource_key: facts.resource_key,
+    resource_label: facts.resource_label,
+    bridge_kind: facts.bridge_kind,
+    flow_direction: facts.flow_direction,
+    operation_kind: facts.operation_kind,
     created_at: event.createdAt,
     payload_json: jsonStringify(event.payload),
   };
@@ -417,6 +562,11 @@ function rowToTaskEvent(row) {
     phase: row.phase,
     resumePoint: row.resume_point,
     resourceType: row.resource_type,
+    resourceKey: row.resource_key || '',
+    resourceLabel: row.resource_label || '',
+    bridgeKind: row.bridge_kind || '',
+    flowDirection: row.flow_direction || '',
+    operationKind: row.operation_kind || '',
     createdAt: row.created_at || '',
     payload: jsonParse(row.payload_json, {}),
   };
@@ -439,9 +589,11 @@ function appendTaskEvent(task, eventType, payload = {}, opts = {}) {
       const event = buildTaskEvent(task, eventType, payload, opts);
       getDb().prepare(`
         INSERT INTO task_events
-          (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type, created_at, payload_json)
+          (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type,
+           resource_key, resource_label, bridge_kind, flow_direction, operation_kind, created_at, payload_json)
         VALUES
-          (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type, @created_at, @payload_json)
+          (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type,
+           @resource_key, @resource_label, @bridge_kind, @flow_direction, @operation_kind, @created_at, @payload_json)
       `).run(taskEventToRow(event));
       return event;
     });
@@ -469,9 +621,11 @@ function appendTaskEvents(events) {
       const db = getDb();
       const insert = db.prepare(`
         INSERT INTO task_events
-          (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type, created_at, payload_json)
+          (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type,
+           resource_key, resource_label, bridge_kind, flow_direction, operation_kind, created_at, payload_json)
         VALUES
-          (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type, @created_at, @payload_json)
+          (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type,
+           @resource_key, @resource_label, @bridge_kind, @flow_direction, @operation_kind, @created_at, @payload_json)
       `);
       const tx = db.transaction((eventRows) => {
         for (const row of eventRows) insert.run(row);
@@ -566,6 +720,42 @@ function rowToTask(row) {
   task.priority = typeof row.priority === 'number' ? row.priority : task.priority;
   task.createdAt = row.created_at || task.createdAt;
   task.updatedAt = row.updated_at || task.updatedAt;
+  task.source = row.source || task.source || '';
+  task.phase = row.phase === undefined ? task.phase : row.phase;
+  task.resumePoint = row.resume_point === undefined ? task.resumePoint : row.resume_point;
+  task.manualExecuteRequested = row.manual_execute_requested === undefined ? task.manualExecuteRequested : !!row.manual_execute_requested;
+  task.priorityManuallyAdjusted = row.priority_manually_adjusted === undefined ? task.priorityManuallyAdjusted : !!row.priority_manually_adjusted;
+  task.priorityModelVersion = row.priority_model_version || task.priorityModelVersion;
+  task.retryCount = typeof row.retry_count === 'number' ? row.retry_count : (task.retryCount || 0);
+  task.pausingRequested = row.pausing_requested === undefined ? task.pausingRequested : !!row.pausing_requested;
+  task.nodeId = row.node_id || task.nodeId;
+  if (!task.taskBridge || typeof task.taskBridge !== 'object') {
+    task.taskBridge = {
+      kind: row.bridge_kind || '',
+      from: row.bridge_from || '',
+      to: row.bridge_to || '',
+      reason: row.bridge_reason || '',
+      actionType: task.actionType,
+      source: task.source,
+      itemId: task.itemId,
+      subLibraryId: row.sub_library_id || (task.itemInfo && task.itemInfo.subLibraryId) || '',
+    };
+  }
+  if (!task.flowPlan || typeof task.flowPlan !== 'object') {
+    task.flowPlan = {
+      version: row.flow_version || '',
+      bridgeKind: row.bridge_kind || '',
+      direction: row.flow_direction || '',
+      operationKind: row.operation_kind || task.actionType || '',
+      executor: row.flow_executor || '',
+      primaryResourceType: row.primary_resource_type || '',
+      actionType: task.actionType,
+      source: task.source,
+      resourceTypes: jsonParse(row.resource_types_json, []),
+      steps: jsonParse(row.flow_steps_json, []),
+      plannedAt: task.createdAt,
+    };
+  }
   task.progress = progressCache.get(task.id) ?? task.progress ?? 0;
   return task;
 }
@@ -573,10 +763,18 @@ function rowToTask(row) {
 const upsertSql = `
   INSERT INTO tasks
     (id, item_id, item_name, action_type, status, priority, created_at, updated_at, payload_json,
-     verify_bytes_saved, verify_size_bytes, original_size_bytes, upgrade_old_size, upgrade_new_size)
+     verify_bytes_saved, verify_size_bytes, original_size_bytes, upgrade_old_size, upgrade_new_size,
+     source, progress, phase, resume_point, manual_execute_requested, priority_manually_adjusted,
+     priority_model_version, retry_count, pausing_requested, node_id, sub_library_id, item_path,
+     bridge_kind, bridge_from, bridge_to, bridge_reason, flow_version, flow_direction, operation_kind,
+     flow_executor, primary_resource_type, resource_types_json, flow_steps_json)
   VALUES
     (@id, @item_id, @item_name, @action_type, @status, @priority, @created_at, @updated_at, @payload_json,
-     @verify_bytes_saved, @verify_size_bytes, @original_size_bytes, @upgrade_old_size, @upgrade_new_size)
+     @verify_bytes_saved, @verify_size_bytes, @original_size_bytes, @upgrade_old_size, @upgrade_new_size,
+     @source, @progress, @phase, @resume_point, @manual_execute_requested, @priority_manually_adjusted,
+     @priority_model_version, @retry_count, @pausing_requested, @node_id, @sub_library_id, @item_path,
+     @bridge_kind, @bridge_from, @bridge_to, @bridge_reason, @flow_version, @flow_direction, @operation_kind,
+     @flow_executor, @primary_resource_type, @resource_types_json, @flow_steps_json)
   ON CONFLICT(id) DO UPDATE SET
     item_id = excluded.item_id,
     item_name = excluded.item_name,
@@ -590,7 +788,30 @@ const upsertSql = `
     verify_size_bytes = excluded.verify_size_bytes,
     original_size_bytes = excluded.original_size_bytes,
     upgrade_old_size = excluded.upgrade_old_size,
-    upgrade_new_size = excluded.upgrade_new_size
+    upgrade_new_size = excluded.upgrade_new_size,
+    source = excluded.source,
+    progress = excluded.progress,
+    phase = excluded.phase,
+    resume_point = excluded.resume_point,
+    manual_execute_requested = excluded.manual_execute_requested,
+    priority_manually_adjusted = excluded.priority_manually_adjusted,
+    priority_model_version = excluded.priority_model_version,
+    retry_count = excluded.retry_count,
+    pausing_requested = excluded.pausing_requested,
+    node_id = excluded.node_id,
+    sub_library_id = excluded.sub_library_id,
+    item_path = excluded.item_path,
+    bridge_kind = excluded.bridge_kind,
+    bridge_from = excluded.bridge_from,
+    bridge_to = excluded.bridge_to,
+    bridge_reason = excluded.bridge_reason,
+    flow_version = excluded.flow_version,
+    flow_direction = excluded.flow_direction,
+    operation_kind = excluded.operation_kind,
+    flow_executor = excluded.flow_executor,
+    primary_resource_type = excluded.primary_resource_type,
+    resource_types_json = excluded.resource_types_json,
+    flow_steps_json = excluded.flow_steps_json
 `;
 
 function buildTask(taskData, now = new Date().toISOString()) {
@@ -697,6 +918,14 @@ function buildWhere(filter = {}, options = {}) {
     clauses.push('action_type = @actionType');
     params.actionType = String(filter.actionType);
   }
+  if (filter.bridgeKind) {
+    clauses.push('bridge_kind = @bridgeKind');
+    params.bridgeKind = String(filter.bridgeKind);
+  }
+  if (filter.operationKind) {
+    clauses.push('operation_kind = @operationKind');
+    params.operationKind = String(filter.operationKind);
+  }
   if (filter.itemId) {
     clauses.push('item_id = @itemId');
     params.itemId = String(filter.itemId);
@@ -795,6 +1024,19 @@ function queryTaskEvents(filter = {}, options = {}) {
   };
 }
 
+function queryRecentFailureEvents(options = {}) {
+  const pageSize = Math.min(200, Math.max(1, Number.parseInt(options.pageSize, 10) || 20));
+  const rows = getDb().prepare(`
+    SELECT *
+    FROM task_events
+    WHERE event_status IN ('failed_hard', 'failed_soft', 'interrupted')
+       OR event_type IN ('task.failed', 'task.interrupted')
+    ORDER BY created_at DESC, id DESC
+    LIMIT @limit
+  `).all({ limit: pageSize });
+  return rows.map(rowToTaskEvent);
+}
+
 function jsonExtractObject(value, fallback = undefined) {
   if (value == null) return fallback;
   if (typeof value === 'string') return jsonParse(value, fallback);
@@ -812,6 +1054,7 @@ function queryTaskSummaries(filter = {}, options = {}) {
   const orderDir = String(options.orderDir || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
   const terminalList = [...TERMINAL_STATUSES].map((status) => `'${status}'`).join(', ');
   const activeJson = (jsonPath) => `CASE WHEN status NOT IN (${terminalList}) THEN json_extract(payload_json, '${jsonPath}') END`;
+  const activeColumn = (column) => `CASE WHEN status NOT IN (${terminalList}) THEN ${column} END`;
 
   const total = db.prepare(`SELECT COUNT(*) AS count FROM tasks ${where}`).get(params).count || 0;
   const rows = db.prepare(`
@@ -824,13 +1067,22 @@ function queryTaskSummaries(filter = {}, options = {}) {
       priority,
       created_at,
       updated_at,
-      ${activeJson('$.progress')} AS progress,
-      ${activeJson('$.source')} AS source,
-      json_extract(payload_json, '$.taskBridge') AS task_bridge_json,
-      json_extract(payload_json, '$.flowPlan') AS flow_plan_json,
-      ${activeJson('$.phase')} AS phase,
-      ${activeJson('$.resumePoint')} AS resume_point,
-      ${activeJson('$.nodeId')} AS node_id,
+      ${activeColumn('progress')} AS progress,
+      source,
+      bridge_kind,
+      bridge_from,
+      bridge_to,
+      bridge_reason,
+      flow_version,
+      flow_direction,
+      operation_kind,
+      flow_executor,
+      primary_resource_type,
+      resource_types_json,
+      flow_steps_json,
+      ${activeColumn('phase')} AS phase,
+      ${activeColumn('resume_point')} AS resume_point,
+      ${activeColumn('node_id')} AS node_id,
       ${activeJson('$.approval')} AS approval_json,
       ${activeJson('$.verifyResult.sizeBytes')} AS verify_size_bytes,
       ${activeJson('$.verifyResult.bitrate')} AS verify_bitrate,
@@ -920,14 +1172,41 @@ function queryTaskSummaries(filter = {}, options = {}) {
         itemInfo,
         plannedAt: row.created_at || '',
       });
+      const taskBridge = row.bridge_kind
+        ? {
+          kind: row.bridge_kind,
+          from: row.bridge_from || '',
+          to: row.bridge_to || '',
+          reason: row.bridge_reason || '',
+          actionType: row.action_type || '',
+          source: row.source || '',
+          itemId: row.item_id || '',
+          subLibraryId: row.info_sub_library_id || '',
+        }
+        : planned.taskBridge;
+      const flowPlan = row.flow_direction
+        ? {
+          version: row.flow_version || '',
+          bridgeKind: row.bridge_kind || '',
+          direction: row.flow_direction || '',
+          operationKind: row.operation_kind || row.action_type || '',
+          executor: row.flow_executor || '',
+          primaryResourceType: row.primary_resource_type || '',
+          actionType: row.action_type || '',
+          source: row.source || '',
+          resourceTypes: jsonParse(row.resource_types_json, []),
+          steps: jsonParse(row.flow_steps_json, []),
+          plannedAt: row.created_at || '',
+        }
+        : planned.flowPlan;
       return {
         id: row.id,
         itemId: row.item_id || '',
         itemName: row.item_name || '',
         actionType: row.action_type || '',
         source: row.source || '',
-        taskBridge: jsonExtractObject(row.task_bridge_json, planned.taskBridge),
-        flowPlan: jsonExtractObject(row.flow_plan_json, planned.flowPlan),
+        taskBridge,
+        flowPlan,
         status: row.status || '',
         progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
         phase: row.phase,
@@ -977,19 +1256,30 @@ function querySchedulerTasks() {
         priority,
         created_at,
         updated_at,
-        json_extract(payload_json, '$.progress') AS progress,
-        json_extract(payload_json, '$.source') AS source,
-        json_extract(payload_json, '$.taskBridge') AS task_bridge_json,
-        json_extract(payload_json, '$.flowPlan') AS flow_plan_json,
-        json_extract(payload_json, '$.phase') AS phase,
-        json_extract(payload_json, '$.resumePoint') AS resume_point,
-        json_extract(payload_json, '$.manualExecuteRequested') AS manual_execute_requested,
-        json_extract(payload_json, '$.priorityManuallyAdjusted') AS priority_manually_adjusted,
-        json_extract(payload_json, '$.priorityModelVersion') AS priority_model_version,
+        progress,
+        source,
+        phase,
+        resume_point,
+        manual_execute_requested,
+        priority_manually_adjusted,
+        priority_model_version,
+        retry_count,
+        pausing_requested,
+        node_id,
+        sub_library_id,
+        item_path,
+        bridge_kind,
+        bridge_from,
+        bridge_to,
+        bridge_reason,
+        flow_version,
+        flow_direction,
+        operation_kind,
+        flow_executor,
+        primary_resource_type,
+        resource_types_json,
+        flow_steps_json,
         json_extract(payload_json, '$.priorityBreakdown') AS priority_breakdown_json,
-        json_extract(payload_json, '$.retryCount') AS retry_count,
-        json_extract(payload_json, '$.pausingRequested') AS pausing_requested,
-        json_extract(payload_json, '$.nodeId') AS node_id,
         json_extract(payload_json, '$.itemInfo') AS item_info_json
       FROM tasks
       WHERE status NOT IN (${terminalSql})
@@ -1005,13 +1295,40 @@ function querySchedulerTasks() {
         itemInfo,
         plannedAt: row.created_at || '',
       });
+      const taskBridge = row.bridge_kind
+        ? {
+          kind: row.bridge_kind,
+          from: row.bridge_from || '',
+          to: row.bridge_to || '',
+          reason: row.bridge_reason || '',
+          actionType: row.action_type || '',
+          source: row.source || '',
+          itemId: row.item_id || '',
+          subLibraryId: row.sub_library_id || (itemInfo && itemInfo.subLibraryId) || '',
+        }
+        : planned.taskBridge;
+      const flowPlan = row.flow_direction
+        ? {
+          version: row.flow_version || '',
+          bridgeKind: row.bridge_kind || '',
+          direction: row.flow_direction || '',
+          operationKind: row.operation_kind || row.action_type || '',
+          executor: row.flow_executor || '',
+          primaryResourceType: row.primary_resource_type || '',
+          actionType: row.action_type || '',
+          source: row.source || '',
+          resourceTypes: jsonParse(row.resource_types_json, []),
+          steps: jsonParse(row.flow_steps_json, []),
+          plannedAt: row.created_at || '',
+        }
+        : planned.flowPlan;
       return {
       id: row.id,
       itemId: row.item_id || '',
       itemName: row.item_name || '',
       actionType: row.action_type || '',
-      taskBridge: jsonExtractObject(row.task_bridge_json, planned.taskBridge),
-      flowPlan: jsonExtractObject(row.flow_plan_json, planned.flowPlan),
+      taskBridge,
+      flowPlan,
       status: row.status || '',
       priority: typeof row.priority === 'number' ? row.priority : 100,
       createdAt: row.created_at || '',
@@ -1229,6 +1546,7 @@ module.exports = {
   queryTaskSummaries,
   querySchedulerTasks,
   queryTaskEvents,
+  queryRecentFailureEvents,
   appendTaskEvent,
   queryOptimizationTaskIndexRows,
   queryTaskAdmissionRows,

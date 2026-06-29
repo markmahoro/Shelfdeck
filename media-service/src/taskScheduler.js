@@ -26,6 +26,7 @@ const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
 const priorityEngine = require('./priorityEngine');
 const resourceProjection = require('./resourceProjection');
+const flowPlanner = require('./flowPlanner');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
@@ -564,7 +565,10 @@ async function scheduleRound() {
       usedItemIds.add(task.itemId);
       reportStatus(task.id, 'executing', task.progress || 0);
       task.status = 'executing';
+      const flowStep = flowPlanner.currentFlowStep(task);
       taskStore.appendTaskEvent(taskStore.getTask(task.id) || task, 'flow.dispatched', {
+        flowEventType: flowStep.eventType,
+        flowEventPhase: flowStep.phase,
         resourceType: resource.resourceType,
         resourceKey: resource.resourceKey,
         resourceLabel: resource.resourceLabel,
