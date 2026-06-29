@@ -14,11 +14,18 @@ v2 表示当前生产环境正在运行的 ShelfDeck service 基线。当前仓�
 
 `docs/v3/`
 
-v3 是下一轮 service 优先重构升级目标。v3 文档只用于给后续 agent 提供操作上下文、排摸入口和任务提示词，不预设 v3 的具体架构设计。desktop 与 worker 重构方案待定。
+v3 是更彻底重构的远期备选方向。当前不作为优先实施路线。
+
+## v2.5 service architecture upgrade
+
+`docs/v2.5/`
+
+v2.5 是当前推荐路线：从 v2.0 生产基线出发，保留 v2 已验证 flow 能力，优先升级 `media-service` 的架构内核、数据模型、projection、调度边界和 service Admin Web 语义。
 
 核心入口：
 
-- `docs/v3/README.md`
-- `docs/v3/OPERATION_CONTEXT.md`
-- `docs/v3/DISCOVERY_CHECKLIST.md`
-- `docs/v3/GOAL_PROMPT.md`
+- `docs/v2.5/README.md`
+- `docs/v2.5/UPGRADE_STRATEGY.md`
+- `docs/v2.5/DATA_RUNTIME_MODEL.md`
+- `docs/v2.5/IMPLEMENTATION_STAGES.md`
+- `docs/v2.5/GOAL_PROMPT.md`
