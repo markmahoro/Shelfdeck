@@ -385,7 +385,7 @@ test('delete task removes an adult folder media directory and library item', asy
   const filePath = path.join(movieDir, 'MVSD-175.mp4');
   fs.writeFileSync(filePath, 'delete-me');
   const adultLibraryService = require('../src/adultLibraryService');
-  const item = await adultLibraryService.upsertFileItem(subLib, filePath, { enqueueScrape: false });
+  const item = await adultLibraryService.upsertFileItem(subLib, filePath);
 
   const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, actionType: 'delete' } });
   assert.strictEqual(createTask.statusCode, 201);
@@ -439,7 +439,7 @@ test('delete task removes an adult scraped movie folder when the marker matches'
   fs.writeFileSync(filePath, 'video-bytes');
   fs.writeFileSync(nfoPath, '<movie><title>Some Title</title><id>MVSD-175</id></movie>');
   const adultLibraryService = require('../src/adultLibraryService');
-  const item = await adultLibraryService.upsertFileItem(subLib, filePath, { enqueueScrape: false });
+  const item = await adultLibraryService.upsertFileItem(subLib, filePath);
   fs.writeFileSync(path.join(movieDir, '.shelfdeck.json'), JSON.stringify({
     itemId: item.itemId,
     subLibraryId: subLib.uuid,
@@ -1046,17 +1046,21 @@ test('western adult ingest uses path identity before scrape', async () => {
   assert.strictEqual(item.adultMetadata.scrapeStatus, 'pending');
   assert.ok(item.assetKey.includes(':adult:'), 'western adult uses itemId-based identity (番号 is metadata, not the key)');
 
-  const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
-  assert.ok(tasks.json().tasks.some((t) => t.itemId === item.itemId && t.actionType === 'scrape'));
+  const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape&includeHistory=1' });
+  assert.strictEqual(
+    tasks.json().tasks.some((t) => t.itemId === item.itemId && t.actionType === 'scrape'),
+    false,
+    'ingest ends at 已入库 and must not create a scrape task',
+  );
   await app.close();
 });
 
-test('adult directory discovery is inventory only and ingest follow-up follows automatic allow-list', async () => {
+test('adult directory discovery is inventory only and ingest does not create scrape follow-up', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
-    smartTaskEnabledActions: ['ingest'],
+    smartTaskEnabledActions: ['ingest', 'scrape'],
     adultLibrary: { settleSeconds: 0 },
     taskAdmission: {
       cooldownHoursByAction: { ingest: 0, scrape: 0 },
@@ -1101,7 +1105,7 @@ test('adult directory discovery is inventory only and ingest follow-up follows a
 
   const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape&includeHistory=1' });
   assert.strictEqual(scrapeTasks.statusCode, 200);
-  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'follow-up scrape is blocked when scrape is not globally enabled');
+  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'ingest must not create scrape even when scrape is globally enabled');
 
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   const item = lib.json().items[0];
@@ -1673,7 +1677,7 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
   fs.writeFileSync(filePath, 'fake-video');
 
   const adultLibraryService = require('../src/adultLibraryService');
-  const item = await adultLibraryService.upsertFileItem(subLib, filePath, { enqueueScrape: false });
+  const item = await adultLibraryService.upsertFileItem(subLib, filePath);
   const itemId = item.itemId;
 
   // Simulate a prior failed scrape: the original scrape task failed_hard and
@@ -1810,7 +1814,7 @@ test('scrape fails when poster download fails', async () => {
     japaneseJav: { organizeAfterScrape: true },
   };
   configStore.patchConfig({ subLibraries: [sl] });
-  const item = await adultLibraryService.upsertFileItem(sl, path.join(movieDir, 'MVSD-175.mp4'), { enqueueScrape: false });
+  const item = await adultLibraryService.upsertFileItem(sl, path.join(movieDir, 'MVSD-175.mp4'));
   const task = taskStore.createTask({
     itemId: item.itemId, itemName: item.name, actionType: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
@@ -1879,7 +1883,7 @@ test('successful JAV scrape creates one movie folder and keeps original naming c
     japaneseJav: { organizeAfterScrape: true },
   };
   configStore.patchConfig({ subLibraries: [sl] });
-  const item = await adultLibraryService.upsertFileItem(sl, sourceFile, { enqueueScrape: false });
+  const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
   const task = taskStore.createTask({
     itemId: item.itemId, itemName: item.name, actionType: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
@@ -2000,7 +2004,7 @@ test('western adult curation without protagonist fails without writing success a
     }],
   });
   const sl = configStore.loadConfig().subLibraries[0];
-  const item = await adultLibraryService.upsertFileItem(sl, sourceFile, { enqueueScrape: false });
+  const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
   const task = taskStore.createTask({
     itemId: item.itemId, itemName: item.name, actionType: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
@@ -2102,7 +2106,7 @@ test('successful western adult curation writes nfo and marks item scraped', asyn
     }],
   });
   const sl = configStore.loadConfig().subLibraries[0];
-  const item = await adultLibraryService.upsertFileItem(sl, sourceFile, { enqueueScrape: false });
+  const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
   const task = taskStore.createTask({
     itemId: item.itemId, itemName: item.name, actionType: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
@@ -2191,8 +2195,8 @@ test('western adult curation creates one movie folder and leaves sibling videos 
     }],
   });
   const sl = configStore.loadConfig().subLibraries[0];
-  await adultLibraryService.upsertFileItem(sl, siblingFile, { enqueueScrape: false });
-  const item = await adultLibraryService.upsertFileItem(sl, sourceFile, { enqueueScrape: false });
+  await adultLibraryService.upsertFileItem(sl, siblingFile);
+  const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
   const task = taskStore.createTask({
     itemId: item.itemId, itemName: item.name, actionType: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
@@ -2251,8 +2255,8 @@ test('western adult startup repair demotes legacy shared scrape artifacts', asyn
     subLibraries: [subLib],
   });
 
-  const itemA = await adultLibraryService.upsertFileItem(subLib, fileA, { enqueueScrape: false });
-  const itemB = await adultLibraryService.upsertFileItem(subLib, fileB, { enqueueScrape: false });
+  const itemA = await adultLibraryService.upsertFileItem(subLib, fileA);
+  const itemB = await adultLibraryService.upsertFileItem(subLib, fileB);
   const sharedNfo = path.join(videosDir, 'movie.nfo');
   const sharedMarker = path.join(videosDir, '.shelfdeck.json');
   fs.writeFileSync(sharedNfo, '<movie><title>Unknown Person - possibly a scene from a movie or TV show</title></movie>');
@@ -2429,7 +2433,7 @@ test('manual scrape of low-confidence (unknown prefix) item enters queue and att
   assert.strictEqual(
     tasks.json().tasks.some((t) => t.itemId === item.itemId),
     false,
-    'plain adult item upsert should not create a follow-up scrape task',
+    'plain adult item upsert should not create a scrape task',
   );
 
   const manualScrape = await app.inject({

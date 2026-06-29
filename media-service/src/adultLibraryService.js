@@ -628,7 +628,7 @@ function repairInvalidWesternScrapeState(opts = {}) {
   return { repaired };
 }
 
-async function upsertFileItem(subLib, filePath, opts = {}) {
+async function upsertFileItem(subLib, filePath) {
   const config = configStore.loadConfig();
   const nfo = parseNfo(findNfoForFile(filePath));
   // Pre-scraped NFO is authoritative → high confidence. Otherwise parse the
@@ -766,12 +766,6 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
 
   lib.cachedAt = now;
   saveLibrary(lib);
-
-  // A plain item upsert is inventory only. Ingest/manual flows must opt in when
-  // they want a follow-up scrape so there is no adult-library-only scheduler path.
-  if (opts.enqueueScrape === true && !nfo) {
-    enqueueScrapeTask(item, subLib, { source: opts.source });
-  }
 
   return item;
 }

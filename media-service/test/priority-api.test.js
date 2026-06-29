@@ -413,7 +413,7 @@ test('taskScheduler skips stale automatic scrape tasks when the live item now re
   }
 });
 
-test('taskScheduler skips automatic western scrape tasks without identity signal', async () => {
+test('taskScheduler dispatches automatic western pending scrape tasks before identity is known', async () => {
   tmpDir();
   const scheduler = require('../src/taskScheduler');
   const taskStoreMod = require('../src/taskStore');
@@ -451,6 +451,7 @@ test('taskScheduler skips automatic western scrape tasks without identity signal
   const origGetLibraryItem = mediaLibraryService.getLibraryItem;
   scrapeFlow.driveTask = async (taskId) => {
     dispatched.push(taskId);
+    scheduler.reportStatus(taskId, 'done', 100);
   };
   mediaLibraryService.getLibraryItem = (itemId) => {
     if (itemId !== 'western-no-identity') return null;
@@ -470,9 +471,9 @@ test('taskScheduler skips automatic western scrape tasks without identity signal
   try {
     await scheduler.scheduleRound();
     const after = taskStoreMod.getTask(task.id);
-    assert.strictEqual(dispatched.length, 0);
-    assert.strictEqual(after.status, 'skipped');
-    assert.strictEqual(after.skippedReason, 'western_identity_missing');
+    assert.strictEqual(dispatched.length, 1);
+    assert.strictEqual(after.status, 'done');
+    assert.strictEqual(after.skippedReason, undefined);
   } finally {
     scrapeFlow.driveTask = origDrive;
     mediaLibraryService.getLibraryItem = origGetLibraryItem;

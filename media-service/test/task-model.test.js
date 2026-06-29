@@ -514,7 +514,7 @@ test('smartTaskEngine leaves failed adult scrape candidates for explicit user ac
   assert.strictEqual(created.length, 0);
 });
 
-test('smartTaskEngine leaves western adult scrape candidates without identity signal for explicit user action', async () => {
+test('smartTaskEngine auto-enqueues western adult pending scrape candidates for first AI analysis', async () => {
   smartTaskEngine.stop();
   const created = [];
   smartTaskEngine.start(
@@ -577,7 +577,10 @@ test('smartTaskEngine leaves western adult scrape candidates without identity si
 
   await new Promise((resolve) => setTimeout(resolve, 20));
   smartTaskEngine.stop();
-  assert.strictEqual(created.length, 0);
+  assert.strictEqual(created.length, 1);
+  assert.strictEqual(created[0].itemId, 'western-unknown-pending');
+  assert.strictEqual(created[0].actionType, 'scrape');
+  assert.strictEqual(created[0].priority, 260);
 });
 
 test('smartTaskEngine keeps transcode action priority when library weight is neutral', async () => {

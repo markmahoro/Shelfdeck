@@ -62,8 +62,7 @@ async function runCommit(taskId, task) {
     if (!subLib) throw new Error('SubLibrary not found');
     if (!item.path || !fs.existsSync(item.path)) throw new Error(`Media file does not exist: ${item.path || ''}`);
 
-    const followUpSource = item.taskSource === 'manual' ? 'manual' : 'auto';
-    const libItem = await adultLibraryService.upsertFileItem(subLib, item.path, { enqueueScrape: true, source: followUpSource });
+    const libItem = await adultLibraryService.upsertFileItem(subLib, item.path);
     const itemInfo = adultLibraryService.itemInfoFromItem(libItem);
     taskStore.updateTask(taskId, {
       itemInfo: {
