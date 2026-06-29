@@ -50,7 +50,7 @@
 
 ## 4. Desktop 和 Worker 排摸
 
-v3 最终覆盖三大应用，但可以分阶段推进。
+v3 本轮优先升级 `media-service` 与 service Admin Web。Desktop 和 worker 先做边界排摸与兼容影响评估，是否重构、如何重构、何时重构待方案确认。
 
 Desktop 排摸目标：
 

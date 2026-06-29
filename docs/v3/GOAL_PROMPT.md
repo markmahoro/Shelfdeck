@@ -3,12 +3,13 @@
 下面提示词可用于开启 v3 长程目标。它刻意不预设 v3 技术设计，要求 agent 先排摸再提出方案。
 
 ```text
-请完成 ShelfDeck v3 全库重写升级。
+请完成 ShelfDeck v3 service 优先重构升级。
 
 v3 的升级目标：
 1. 通过架构升级明确组件边界，大幅提升性能，尤其是任务、媒体库、策略、调度、持久化、外部依赖调用之间的边界。
 2. 优化 service Admin Web。基于 v3 新模型，让展示层对用户更加清晰明确：配置可以简化，页面语义更清晰，媒体库字段、任务字段、状态字段、操作入口要符合用户对“媒体库管家”的理解。
-3. v3 是一次完整重构升级，不是在 v2 上继续局部修补；但具体架构、数据模型、迁移方式必须由排摸结果推导，不要在开工前预设。
+3. v3 本轮优先升级 `media-service` 与 service Admin Web，不是在 v2 上继续局部修补；但具体架构、数据模型、迁移方式必须由排摸结果推导，不要在开工前预设。
+4. `media-desktop` 与 `media-worker` 本轮先做边界排摸和兼容影响评估，是否重构、如何重构、何时重构待方案确认。
 
 开始前必须阅读：
 - docs/README.md
@@ -27,8 +28,8 @@ v3 的升级目标：
 重要说明：
 - 当前生产环境称为 v2。
 - 本次目标版本称为 v3。
-- v3 是全库重写升级，不是在 v2 上继续半改。
-- 不要先假设 v3 的具体技术实现。必须先排摸代码库、生产基线、数据结构、API、Admin Web、desktop、worker、测试和部署流程，再提出架构和实施方案。
+- v3 本轮优先升级 `media-service` 与 service Admin Web，不是在 v2 上继续半改。
+- 不要先假设 v3 的具体技术实现。必须先排摸代码库、生产基线、数据结构、API、Admin Web、desktop/worker 边界、测试和部署流程，再提出架构和实施方案。
 - docs/v3 只提供操作上下文，不是 v3 架构设计约束。
 - BUSINESS_MODEL_NOTES.md 记录的是业务语义共识，不是技术实现方案。
 - DATA_MODEL_NOTES.md 记录的是 SQL 持久化层、内存运行层和 projection 的分层原则，不是最终 schema。
@@ -38,7 +39,7 @@ v3 的升级目标：
 必须先完成：
 1. 当前 v2 service 代码结构排摸。
 2. 当前 v2 Admin Web 排摸。
-3. 当前 v2 desktop 和 worker 边界排摸。
+3. 当前 v2 desktop 和 worker 边界排摸，明确哪些依赖会受 service v3 影响；desktop/worker 重构方案待定。
 4. 当前 v2 持久化数据排摸，包括 library.db、tasks.db、config.json、nodes.json、people.json。
 5. 当前 v2 生产部署流程和 NAS 环境排摸。
 6. 当前测试和 E2E 覆盖排摸。
@@ -65,7 +66,7 @@ v3 的升级目标：
 如果方案会删除或替换 v2 已有行为，尤其是 FFmpeg 命令、文件替换/删除规则、外部系统调用或 Admin Web 字段语义，必须先说明影响并让用户确认。
 
 第三阶段：实施
-按确认后的方案推进 v3。
+按确认后的方案推进 v3 service 与 service Admin Web。
 实施中如发现方案不适合，基于代码和生产事实修正方案，不要硬套旧假设。
 
 部署和生产要求：

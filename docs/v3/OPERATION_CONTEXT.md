@@ -136,19 +136,19 @@ docs/v2/DEBUG_WORKFLOW.md
 
 当前用户意图：
 
-- v3 是全库重写升级，不是在 v2 上继续半改。
+- v3 本轮优先升级 `media-service` 与 service Admin Web，不是在 v2 上继续半改。
 - v3 agent 必须先排摸代码库和生产事实，再提出具体架构。
 - 不要让本目录中的操作文档限制 v3 agent 的架构判断。
 
 项目三大应用：
 
 ```text
-media-service   service / Admin Web / 媒体库管理 / Docker
-media-desktop   Windows 前端播放应用
-media-worker    Docker 远程 GPU/FFmpeg 计算节点
+media-service   service / Admin Web / 媒体库管理 / Docker，本轮优先升级对象
+media-desktop   Windows 前端播放应用，本轮先排摸边界，重构方案待定
+media-worker    Docker 远程 GPU/FFmpeg 计算节点，本轮先排摸边界，重构方案待定
 ```
 
-具体 v3 是否一轮覆盖全部应用，应由 v3 agent 排摸后提出计划。
+desktop/worker 是否纳入同一轮重构，应由 v3 agent 排摸后提出计划并等待确认。
 
 ## 8. Git tag 约定
 
