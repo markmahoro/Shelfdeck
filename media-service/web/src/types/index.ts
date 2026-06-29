@@ -411,6 +411,44 @@ export interface ResourceBucket {
   deviceSlotUsage?: Record<string, unknown>;
 }
 
+export interface DiagnosticLogEntry {
+  id: string;
+  logId: string;
+  kind: 'diagnostic_log';
+  category: string;
+  scope: string;
+  operation: string;
+  component: string;
+  resourceType: string;
+  resourceKey: string;
+  status: 'done' | 'slow' | 'failed' | string;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  payload?: Record<string, unknown>;
+}
+
+export interface StorageMetricFile {
+  name: string;
+  path: string;
+  exists: boolean;
+  sizeBytes: number;
+  mtime?: string | null;
+}
+
+export interface StorageMetric {
+  kind: 'metric';
+  category: 'storage' | string;
+  store: string;
+  resourceType: string;
+  resourceKey: string;
+  generatedAt: string;
+  dbSizeBytes: number;
+  walSizeBytes: number;
+  totalSizeBytes: number;
+  files: StorageMetricFile[];
+}
+
 export interface ResourceView {
   summary: {
     totalTasks: number;
@@ -423,6 +461,20 @@ export interface ResourceView {
     generatedAt: string;
   };
   resources: ResourceBucket[];
+  diagnostics?: {
+    logs: DiagnosticLogEntry[];
+    summary: {
+      totalLogs: number;
+      slowLogs: number;
+      failedLogs: number;
+      byStatus: Record<string, number>;
+      byCategory: Record<string, number>;
+      generatedAt: string;
+    };
+    metrics?: {
+      storage?: StorageMetric[];
+    };
+  };
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────

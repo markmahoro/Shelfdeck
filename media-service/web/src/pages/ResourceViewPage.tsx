@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { CSSProperties } from 'react';
 import { resources } from '../api/client';
-import type { ResourceBucket, ResourceTask, RuntimeResourceEvent } from '../types';
+import type { DiagnosticLogEntry, ResourceBucket, ResourceTask, RuntimeResourceEvent, StorageMetric } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const ACTION_LABELS: Record<string, string> = {
@@ -59,6 +59,12 @@ const EVENT_STATUS_LABELS: Record<string, string> = {
   skipped: '已跳过',
 };
 
+const DIAGNOSTIC_STATUS_LABELS: Record<string, string> = {
+  done: '完成',
+  slow: '慢',
+  failed: '失败',
+};
+
 const STATE_COLOR: Record<string, string> = {
   running: '#166534',
   waiting: '#1d4ed8',
@@ -89,6 +95,19 @@ function formatDuration(value?: number | null): string {
   return `${(value / 1000).toFixed(value < 10000 ? 1 : 0)} s`;
 }
 
+function formatBytes(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+  if (value < 1024) return `${value} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let size = value / 1024;
+  let idx = 0;
+  while (size >= 1024 && idx < units.length - 1) {
+    size /= 1024;
+    idx += 1;
+  }
+  return `${size.toFixed(size >= 100 ? 0 : 1)} ${units[idx]}`;
+}
+
 function resourceTitle(bucket: ResourceBucket): string {
   return RESOURCE_LABELS[bucket.resourceType] || bucket.resourceLabel || bucket.resourceType;
 }
@@ -99,6 +118,19 @@ function taskTitle(task: ResourceTask): string {
 
 function eventTitle(event: RuntimeResourceEvent): string {
   return EVENT_LABELS[event.eventType] || event.eventType;
+}
+
+function payloadSummary(payload?: Record<string, unknown>): string {
+  if (!payload) return '-';
+  const parts: string[] = [];
+  const keys = ['reason', 'rowCount', 'total', 'inputRows', 'writtenRows', 'changedRows', 'resourceBuckets', 'runningTasks', 'error'];
+  for (const key of keys) {
+    const value = payload[key];
+    if (value !== undefined && value !== null && value !== '') parts.push(`${key}=${String(value)}`);
+  }
+  const after = payload.after as { walSizeBytes?: number } | undefined;
+  if (after && typeof after.walSizeBytes === 'number') parts.push(`wal=${formatBytes(after.walSizeBytes)}`);
+  return parts.length > 0 ? parts.join(' · ') : '-';
 }
 
 function stateBadge(state: string): CSSProperties {
@@ -148,6 +180,9 @@ export default function ResourceViewPage() {
 
   const summary = data?.summary;
   const buckets = data?.resources || [];
+  const diagnostics = data?.diagnostics;
+  const diagnosticLogs = diagnostics?.logs || [];
+  const storageMetrics = diagnostics?.metrics?.storage || [];
 
   return (
     <div>
@@ -160,7 +195,13 @@ export default function ResourceViewPage() {
         <Metric label="运行中" value={summary?.byState.running || 0} tone="green" />
         <Metric label="等待中" value={summary?.byState.waiting || 0} tone="blue" />
         <Metric label="已阻塞" value={summary?.byState.blocked || 0} tone="orange" />
+        <Metric label="诊断日志" value={diagnostics?.summary.totalLogs || 0} />
+        <Metric label="慢诊断" value={diagnostics?.summary.slowLogs || 0} tone="orange" />
       </div>
+
+      <StorageMetricsSection metrics={storageMetrics} />
+
+      <DiagnosticLogSection logs={diagnosticLogs} />
 
       <div style={section}>
         <div style={sectionHeader}>
@@ -229,8 +270,8 @@ function ResourceBucketView({ bucket }: { bucket: ResourceBucket }) {
         <span style={statPill}>运行 {bucket.running}</span>
         <span style={statPill}>等待 {bucket.waiting}</span>
         <span style={statPill}>阻塞 {bucket.blocked}</span>
-        {events.length > 0 ? <span style={statPill}>事件 {events.length}</span> : null}
-        {(bucket.eventRunning || 0) > 0 ? <span style={statPill}>运行事件 {bucket.eventRunning}</span> : null}
+        {events.length > 0 ? <span style={statPill}>Flow / runtime event {events.length}</span> : null}
+        {(bucket.eventRunning || 0) > 0 ? <span style={statPill}>运行 event {bucket.eventRunning}</span> : null}
       </div>
 
       {bucket.tasks.length > 0 ? (
@@ -277,6 +318,87 @@ function ResourceBucketView({ bucket }: { bucket: ResourceBucket }) {
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function StorageMetricsSection({ metrics }: { metrics: StorageMetric[] }) {
+  return (
+    <div style={sectionSpaced}>
+      <div style={sectionHeader}>
+        <h2 style={sectionTitle}>Storage metrics</h2>
+        <div style={mutedText}>{metrics.length} 个 SQLite store</div>
+      </div>
+      {metrics.length === 0 ? (
+        <div style={emptyBox}>暂无 storage metric。</div>
+      ) : (
+        <div style={storageGrid}>
+          {metrics.map((metric) => (
+            <div key={metric.resourceKey} style={storageBox}>
+              <div style={bucketTitle}>{metric.store}</div>
+              <div style={storageStats}>
+                <span style={statPill}>DB {formatBytes(metric.dbSizeBytes)}</span>
+                <span style={statPill}>WAL {formatBytes(metric.walSizeBytes)}</span>
+                <span style={statPill}>总计 {formatBytes(metric.totalSizeBytes)}</span>
+              </div>
+              <div style={fileList}>
+                {metric.files.map((file) => (
+                  <div key={file.name} style={fileRow}>
+                    <span>{file.name}</span>
+                    <strong>{file.exists ? formatBytes(file.sizeBytes) : '不存在'}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiagnosticLogSection({ logs }: { logs: DiagnosticLogEntry[] }) {
+  return (
+    <div style={sectionSpaced}>
+      <div style={sectionHeader}>
+        <h2 style={sectionTitle}>Diagnostic log</h2>
+        <div style={mutedText}>{logs.length} 条记录</div>
+      </div>
+      {logs.length === 0 ? (
+        <div style={emptyBox}>暂无 diagnostic log。</div>
+      ) : (
+        <div style={tableWrap}>
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>范围</th>
+                <th style={thStyle}>状态</th>
+                <th style={thStyle}>耗时</th>
+                <th style={thStyle}>资源</th>
+                <th style={thStyle}>时间</th>
+                <th style={thStyle}>摘要</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.slice(0, 40).map((log) => (
+                <tr key={log.logId || log.id}>
+                  <td style={tdStyle}>
+                    <div style={taskName}>{log.scope}</div>
+                    <div style={taskIdText}>{log.category} · {log.operation}</div>
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={diagnosticBadge(log.status)}>{DIAGNOSTIC_STATUS_LABELS[log.status] || log.status}</span>
+                  </td>
+                  <td style={tdStyle}>{formatDuration(log.durationMs)}</td>
+                  <td style={tdStyle}>{log.resourceKey}</td>
+                  <td style={tdStyle}>{formatTime(log.endedAt || log.startedAt)}</td>
+                  <td style={tdStyle}>{payloadSummary(log.payload)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -357,6 +479,11 @@ const section: CSSProperties = {
   border: '1px solid #e5e7eb',
   borderRadius: 8,
   overflow: 'hidden',
+};
+
+const sectionSpaced: CSSProperties = {
+  ...section,
+  marginBottom: 20,
 };
 
 const sectionHeader: CSSProperties = {
@@ -476,6 +603,54 @@ const eventMeta: CSSProperties = {
   color: '#374151',
   fontSize: 12,
   whiteSpace: 'nowrap',
+};
+
+function diagnosticBadge(status: string): CSSProperties {
+  const color = status === 'failed' ? '#b91c1c' : status === 'slow' ? '#b45309' : '#166534';
+  return {
+    color,
+    background: status === 'failed' ? '#fef2f2' : status === 'slow' ? '#fff7ed' : '#ecfdf5',
+    border: `1px solid ${status === 'failed' ? '#fecaca' : status === 'slow' ? '#fed7aa' : '#bbf7d0'}`,
+    borderRadius: 999,
+    padding: '2px 8px',
+    fontSize: 12,
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  };
+}
+
+const storageGrid: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+  gap: 12,
+  padding: 12,
+};
+
+const storageBox: CSSProperties = {
+  border: '1px solid #e5e7eb',
+  borderRadius: 8,
+  padding: 12,
+};
+
+const storageStats: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 8,
+  marginTop: 10,
+};
+
+const fileList: CSSProperties = {
+  display: 'grid',
+  gap: 6,
+  marginTop: 10,
+};
+
+const fileRow: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 12,
+  color: '#374151',
+  fontSize: 12,
 };
 
 const tableStyle: CSSProperties = {

@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
+const diagnosticLog = require('./diagnosticLog');
 
 function resolveDataDir() {
   return (
@@ -150,12 +151,51 @@ function backfillSpaceStatColumns(db) {
 }
 
 function checkpointWal(db, reason) {
+  const before = getStorageMetrics();
+  const startedAtMs = Date.now();
   try {
-    return db.pragma('wal_checkpoint(TRUNCATE)');
+    const result = db.pragma('wal_checkpoint(TRUNCATE)');
+    const endedAtMs = Date.now();
+    const after = getStorageMetrics();
+    diagnosticLog.record({
+      category: 'storage',
+      scope: 'taskStore.checkpointWal',
+      operation: 'wal_checkpoint',
+      component: 'taskStore',
+      resourceType: 'sqlite',
+      resourceKey: 'tasks.db-wal',
+      startedAtMs,
+      endedAtMs,
+      slowMs: 250,
+      payload: { reason, before, after, result },
+    });
+    return result;
   } catch (err) {
+    const endedAtMs = Date.now();
+    diagnosticLog.record({
+      category: 'storage',
+      scope: 'taskStore.checkpointWal',
+      operation: 'wal_checkpoint',
+      component: 'taskStore',
+      resourceType: 'sqlite',
+      resourceKey: 'tasks.db-wal',
+      status: 'failed',
+      startedAtMs,
+      endedAtMs,
+      payload: { reason, before, error: err.message },
+    });
     console.warn(`[taskStore] WAL checkpoint skipped${reason ? ` (${reason})` : ''}: ${err.message}`);
     return null;
   }
+}
+
+function getStorageMetrics() {
+  return diagnosticLog.storageSnapshot({
+    store: 'tasks',
+    dbName: 'tasks.db',
+    resourceKey: 'tasks.db',
+    dbPath: tasksDbFilePath(),
+  });
 }
 
 function readLegacyJsonTasks(filePath) {
@@ -335,14 +375,26 @@ function rowToTaskEvent(row) {
 function appendTaskEvent(task, eventType, payload = {}, opts = {}) {
   if (!task || !task.id || !eventType) return null;
   try {
-    const event = buildTaskEvent(task, eventType, payload, opts);
-    getDb().prepare(`
-      INSERT INTO task_events
-        (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type, created_at, payload_json)
-      VALUES
-        (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type, @created_at, @payload_json)
-    `).run(taskEventToRow(event));
-    return event;
+    return diagnosticLog.track({
+      category: 'store',
+      scope: 'taskStore.writeTaskEvent',
+      operation: 'append_task_event',
+      component: 'taskStore',
+      resourceType: 'sqlite',
+      resourceKey: 'tasks.db',
+      slowMs: 100,
+      payload: { taskId: task.id, eventType, actionType: task.actionType },
+      successPayload: (event) => ({ writtenRows: event ? 1 : 0 }),
+    }, () => {
+      const event = buildTaskEvent(task, eventType, payload, opts);
+      getDb().prepare(`
+        INSERT INTO task_events
+          (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type, created_at, payload_json)
+        VALUES
+          (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type, @created_at, @payload_json)
+      `).run(taskEventToRow(event));
+      return event;
+    });
   } catch (err) {
     console.warn(`[taskStore] task event shadow write skipped: ${err.message}`);
     return null;
@@ -353,17 +405,30 @@ function appendTaskEvents(events) {
   const rows = (events || []).filter(Boolean).map((event) => taskEventToRow(event));
   if (!rows.length) return 0;
   try {
-    const insert = getDb().prepare(`
-      INSERT INTO task_events
-        (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type, created_at, payload_json)
-      VALUES
-        (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type, @created_at, @payload_json)
-    `);
-    const tx = getDb().transaction((eventRows) => {
-      for (const row of eventRows) insert.run(row);
+    return diagnosticLog.track({
+      category: 'store',
+      scope: 'taskStore.writeTaskEvent',
+      operation: 'append_task_events',
+      component: 'taskStore',
+      resourceType: 'sqlite',
+      resourceKey: 'tasks.db',
+      slowMs: 150,
+      payload: { inputRows: rows.length },
+      successPayload: (writtenRows) => ({ writtenRows }),
+    }, () => {
+      const db = getDb();
+      const insert = db.prepare(`
+        INSERT INTO task_events
+          (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type, created_at, payload_json)
+        VALUES
+          (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type, @created_at, @payload_json)
+      `);
+      const tx = db.transaction((eventRows) => {
+        for (const row of eventRows) insert.run(row);
+      });
+      tx(rows);
+      return rows.length;
     });
-    tx(rows);
-    return rows.length;
   } catch (err) {
     console.warn(`[taskStore] task event shadow batch write skipped: ${err.message}`);
     return 0;
@@ -472,15 +537,32 @@ function buildTask(taskData, now = new Date().toISOString()) {
 }
 
 function createTask(taskData) {
-  const db = getDb();
-  const task = buildTask(taskData);
-  db.prepare(upsertSql).run(taskToRow(task));
-  appendTaskEvent(task, 'task.created', {
-    source: task.source,
-    priority: task.priority,
-    priorityModelVersion: task.priorityModelVersion,
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'taskStore.createTask',
+    operation: 'create_task',
+    component: 'taskStore',
+    resourceType: 'sqlite',
+    resourceKey: 'tasks.db',
+    slowMs: 150,
+    payload: {
+      itemId: taskData && taskData.itemId,
+      actionType: taskData && taskData.actionType,
+      source: taskData && taskData.source,
+      before: getStorageMetrics(),
+    },
+    successPayload: (task) => ({ taskId: task && task.id, writtenRows: task ? 1 : 0, after: getStorageMetrics() }),
+  }, () => {
+    const db = getDb();
+    const task = buildTask(taskData);
+    db.prepare(upsertSql).run(taskToRow(task));
+    appendTaskEvent(task, 'task.created', {
+      source: task.source,
+      priority: task.priority,
+      priorityModelVersion: task.priorityModelVersion,
+    });
+    return task;
   });
-  return task;
 }
 
 function loadTasks(options = {}) {
@@ -768,63 +850,74 @@ function queryTaskSummaries(filter = {}, options = {}) {
 }
 
 function querySchedulerTasks() {
-  const db = getDb();
-  const terminals = [...TERMINAL_STATUSES];
-  const params = {};
-  const terminalSql = terminals.map((status, i) => {
-    params[`terminal${i}`] = status;
-    return `@terminal${i}`;
-  }).join(', ');
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'taskStore.querySchedulerTasks',
+    operation: 'query_scheduler_tasks',
+    component: 'taskStore',
+    resourceType: 'sqlite',
+    resourceKey: 'tasks.db',
+    slowMs: 150,
+    successPayload: (rows) => ({ rowCount: Array.isArray(rows) ? rows.length : 0 }),
+  }, () => {
+    const db = getDb();
+    const terminals = [...TERMINAL_STATUSES];
+    const params = {};
+    const terminalSql = terminals.map((status, i) => {
+      params[`terminal${i}`] = status;
+      return `@terminal${i}`;
+    }).join(', ');
 
-  const rows = db.prepare(`
-    SELECT
-      id,
-      item_id,
-      item_name,
-      action_type,
-      status,
-      priority,
-      created_at,
-      updated_at,
-      json_extract(payload_json, '$.progress') AS progress,
-      json_extract(payload_json, '$.source') AS source,
-      json_extract(payload_json, '$.phase') AS phase,
-      json_extract(payload_json, '$.resumePoint') AS resume_point,
-      json_extract(payload_json, '$.manualExecuteRequested') AS manual_execute_requested,
-      json_extract(payload_json, '$.priorityManuallyAdjusted') AS priority_manually_adjusted,
-      json_extract(payload_json, '$.priorityModelVersion') AS priority_model_version,
-      json_extract(payload_json, '$.priorityBreakdown') AS priority_breakdown_json,
-      json_extract(payload_json, '$.retryCount') AS retry_count,
-      json_extract(payload_json, '$.pausingRequested') AS pausing_requested,
-      json_extract(payload_json, '$.nodeId') AS node_id,
-      json_extract(payload_json, '$.itemInfo') AS item_info_json
-    FROM tasks
-    WHERE status NOT IN (${terminalSql})
-    ORDER BY priority ASC, created_at ASC, id ASC
-  `).all(params);
+    const rows = db.prepare(`
+      SELECT
+        id,
+        item_id,
+        item_name,
+        action_type,
+        status,
+        priority,
+        created_at,
+        updated_at,
+        json_extract(payload_json, '$.progress') AS progress,
+        json_extract(payload_json, '$.source') AS source,
+        json_extract(payload_json, '$.phase') AS phase,
+        json_extract(payload_json, '$.resumePoint') AS resume_point,
+        json_extract(payload_json, '$.manualExecuteRequested') AS manual_execute_requested,
+        json_extract(payload_json, '$.priorityManuallyAdjusted') AS priority_manually_adjusted,
+        json_extract(payload_json, '$.priorityModelVersion') AS priority_model_version,
+        json_extract(payload_json, '$.priorityBreakdown') AS priority_breakdown_json,
+        json_extract(payload_json, '$.retryCount') AS retry_count,
+        json_extract(payload_json, '$.pausingRequested') AS pausing_requested,
+        json_extract(payload_json, '$.nodeId') AS node_id,
+        json_extract(payload_json, '$.itemInfo') AS item_info_json
+      FROM tasks
+      WHERE status NOT IN (${terminalSql})
+      ORDER BY priority ASC, created_at ASC, id ASC
+    `).all(params);
 
-  return rows.map((row) => ({
-    id: row.id,
-    itemId: row.item_id || '',
-    itemName: row.item_name || '',
-    actionType: row.action_type || '',
-    status: row.status || '',
-    priority: typeof row.priority === 'number' ? row.priority : 100,
-    createdAt: row.created_at || '',
-    updatedAt: row.updated_at || '',
-    progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
-    source: row.source || '',
-    phase: row.phase,
-    resumePoint: row.resume_point,
-    manualExecuteRequested: !!row.manual_execute_requested,
-    priorityManuallyAdjusted: !!row.priority_manually_adjusted,
-    priorityModelVersion: row.priority_model_version,
-    priorityBreakdown: jsonExtractObject(row.priority_breakdown_json, undefined),
-    retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
-    pausingRequested: !!row.pausing_requested,
-    nodeId: row.node_id || undefined,
-    itemInfo: jsonExtractObject(row.item_info_json, null),
-  }));
+    return rows.map((row) => ({
+      id: row.id,
+      itemId: row.item_id || '',
+      itemName: row.item_name || '',
+      actionType: row.action_type || '',
+      status: row.status || '',
+      priority: typeof row.priority === 'number' ? row.priority : 100,
+      createdAt: row.created_at || '',
+      updatedAt: row.updated_at || '',
+      progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
+      source: row.source || '',
+      phase: row.phase,
+      resumePoint: row.resume_point,
+      manualExecuteRequested: !!row.manual_execute_requested,
+      priorityManuallyAdjusted: !!row.priority_manually_adjusted,
+      priorityModelVersion: row.priority_model_version,
+      priorityBreakdown: jsonExtractObject(row.priority_breakdown_json, undefined),
+      retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
+      pausingRequested: !!row.pausing_requested,
+      nodeId: row.node_id || undefined,
+      itemInfo: jsonExtractObject(row.item_info_json, null),
+    }));
+  });
 }
 
 function queryOptimizationTaskIndexRows(filter = {}) {
@@ -886,20 +979,31 @@ function queryOptimizationTaskIndexRows(filter = {}) {
 }
 
 function queryTaskAdmissionRows() {
-  const rows = getDb().prepare(`
-    SELECT id, item_id, action_type, status, created_at, updated_at
-    FROM tasks
-    ORDER BY updated_at DESC, id DESC
-  `).all();
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'taskStore.queryTaskAdmissionRows',
+    operation: 'query_task_admission_rows',
+    component: 'taskStore',
+    resourceType: 'sqlite',
+    resourceKey: 'tasks.db',
+    slowMs: 150,
+    successPayload: (rows) => ({ rowCount: Array.isArray(rows) ? rows.length : 0 }),
+  }, () => {
+    const rows = getDb().prepare(`
+      SELECT id, item_id, action_type, status, created_at, updated_at
+      FROM tasks
+      ORDER BY updated_at DESC, id DESC
+    `).all();
 
-  return rows.map((row) => ({
-    id: row.id,
-    itemId: row.item_id || '',
-    actionType: row.action_type || '',
-    status: row.status || '',
-    createdAt: row.created_at || '',
-    updatedAt: row.updated_at || '',
-  }));
+    return rows.map((row) => ({
+      id: row.id,
+      itemId: row.item_id || '',
+      actionType: row.action_type || '',
+      status: row.status || '',
+      createdAt: row.created_at || '',
+      updatedAt: row.updated_at || '',
+    }));
+  });
 }
 
 function querySpaceStatTaskRows() {
@@ -1016,6 +1120,7 @@ module.exports = {
   queryOptimizationTaskIndexRows,
   queryTaskAdmissionRows,
   querySpaceStatTaskRows,
+  getStorageMetrics,
   setProgress,
   getProgress,
   deleteProgress,

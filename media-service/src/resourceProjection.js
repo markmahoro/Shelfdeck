@@ -1,5 +1,7 @@
 'use strict';
 
+const diagnosticLog = require('./diagnosticLog');
+
 const ACTIVE_STATUSES = new Set(['executing', 'pausing']);
 const BLOCKED_STATUSES = new Set(['awaiting_user_confirm', 'paused']);
 const EVENT_RUNNING_STATUSES = new Set(['running', 'executing']);
@@ -170,6 +172,7 @@ function compactRuntimeEvent(event) {
 }
 
 function buildResourceView(tasks = [], config = {}, opts = {}) {
+  const startedAtMs = Date.now();
   const resources = new Map();
   const byResourceType = {};
   const byState = { running: 0, waiting: 0, blocked: 0 };
@@ -207,7 +210,7 @@ function buildResourceView(tasks = [], config = {}, opts = {}) {
     }
   }
 
-  return {
+  const view = {
     summary: {
       totalTasks: tasks.length,
       totalEvents: (opts.runtimeEvents || []).length,
@@ -220,6 +223,23 @@ function buildResourceView(tasks = [], config = {}, opts = {}) {
     },
     resources: resourceList,
   };
+  diagnosticLog.record({
+    category: 'projection',
+    scope: 'resourceProjection.buildResourceView',
+    operation: 'build_resource_view',
+    component: 'resourceProjection',
+    resourceType: 'projection',
+    resourceKey: 'resource_view',
+    startedAtMs,
+    endedAtMs: Date.now(),
+    slowMs: 100,
+    payload: {
+      taskRows: tasks.length,
+      runtimeEventRows: (opts.runtimeEvents || []).length,
+      resourceBuckets: resourceList.length,
+    },
+  });
+  return view;
 }
 
 module.exports = {

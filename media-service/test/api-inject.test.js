@@ -10,6 +10,7 @@ const { buildApp } = require('../src/app');
 const taskStore = require('../src/taskStore');
 const mediaLibraryService = require('../src/mediaLibraryService');
 const runtimeResourceTracker = require('../src/runtimeResourceTracker');
+const diagnosticLog = require('../src/diagnosticLog');
 
 function metadataReadyMovie(overrides = {}) {
   const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
@@ -236,6 +237,7 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   require('../src/taskScheduler').stopScheduler();
   runtimeResourceTracker.resetForTests();
+  diagnosticLog.resetForTests();
 
   const task = taskStore.createTask({
     itemId: 'resource-item',
@@ -278,6 +280,10 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
   assert.ok(queryBucket, 'library query bucket exists');
   assert.strictEqual(queryBucket.events[0].eventType, 'library.query');
   assert.strictEqual(queryBucket.events[0].eventStatus, 'running');
+  assert.ok(resources.diagnostics, 'diagnostics present');
+  assert.ok(resources.diagnostics.logs.some((log) => log.scope === 'resourceProjection.buildResourceView'));
+  assert.ok(resources.diagnostics.metrics.storage.some((metric) => metric.store === 'library'));
+  assert.ok(resources.diagnostics.metrics.storage.some((metric) => metric.store === 'tasks'));
 
   await app.close();
 });
@@ -287,6 +293,7 @@ test('GET /v1/library records a runtime library.query event for resource attribu
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   require('../src/taskScheduler').stopScheduler();
   runtimeResourceTracker.resetForTests();
+  diagnosticLog.resetForTests();
 
   mediaLibraryService.saveLibrary({
     cachedAt: new Date().toISOString(),
@@ -306,6 +313,10 @@ test('GET /v1/library records a runtime library.query event for resource attribu
   assert.strictEqual(bucket.events[0].eventStatus, 'done');
   assert.strictEqual(bucket.events[0].payload.itemCount, 1);
   assert.strictEqual(bucket.events[0].payload.total, 1);
+  assert.ok(view.diagnostics.logs.some((log) => log.scope === 'libraryStore.queryItems'), 'library store query diagnostic exists');
+  const libraryMetric = view.diagnostics.metrics.storage.find((metric) => metric.store === 'library');
+  assert.ok(libraryMetric, 'library storage metric exists');
+  assert.ok(libraryMetric.files.some((file) => file.name === 'library.db-wal'), 'library WAL metric exists');
 
   await app.close();
 });

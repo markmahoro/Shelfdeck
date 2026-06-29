@@ -27,6 +27,7 @@ const nodeService = require('./nodeService');
 const priorityEngine = require('./priorityEngine');
 const resourceProjection = require('./resourceProjection');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
+const diagnosticLog = require('./diagnosticLog');
 
 let schedulerInterval = null;
 let nodeHealthInterval = null;
@@ -324,7 +325,17 @@ function startScheduler() {
     if (schedulerBusy) return;
     schedulerBusy = true;
     try {
-      await scheduleRound();
+      await diagnosticLog.track({
+        category: 'scheduler',
+        scope: 'scheduler.tick',
+        operation: 'schedule_round',
+        component: 'taskScheduler',
+        resourceType: 'scheduler',
+        resourceKey: 'taskScheduler',
+        slowMs: 250,
+        payload: { runningTasks: runningTasks.size },
+        successPayload: () => ({ runningTasks: runningTasks.size }),
+      }, () => scheduleRound());
     } catch (err) {
       console.error('[scheduler] error:', err);
     } finally {

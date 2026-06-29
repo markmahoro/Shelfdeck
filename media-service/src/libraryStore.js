@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
+const diagnosticLog = require('./diagnosticLog');
 
 function resolveDataDir() {
   return (
@@ -125,12 +126,51 @@ function backfillSpaceStatColumns(db) {
 }
 
 function checkpointWal(db, reason) {
+  const before = getStorageMetrics();
+  const startedAtMs = Date.now();
   try {
-    return db.pragma('wal_checkpoint(TRUNCATE)');
+    const result = db.pragma('wal_checkpoint(TRUNCATE)');
+    const endedAtMs = Date.now();
+    const after = getStorageMetrics();
+    diagnosticLog.record({
+      category: 'storage',
+      scope: 'libraryStore.checkpointWal',
+      operation: 'wal_checkpoint',
+      component: 'libraryStore',
+      resourceType: 'sqlite',
+      resourceKey: 'library.db-wal',
+      startedAtMs,
+      endedAtMs,
+      slowMs: 250,
+      payload: { reason, before, after, result },
+    });
+    return result;
   } catch (err) {
+    const endedAtMs = Date.now();
+    diagnosticLog.record({
+      category: 'storage',
+      scope: 'libraryStore.checkpointWal',
+      operation: 'wal_checkpoint',
+      component: 'libraryStore',
+      resourceType: 'sqlite',
+      resourceKey: 'library.db-wal',
+      status: 'failed',
+      startedAtMs,
+      endedAtMs,
+      payload: { reason, before, error: err.message },
+    });
     console.warn(`[libraryStore] WAL checkpoint skipped${reason ? ` (${reason})` : ''}: ${err.message}`);
     return null;
   }
+}
+
+function getStorageMetrics() {
+  return diagnosticLog.storageSnapshot({
+    store: 'library',
+    dbName: 'library.db',
+    resourceKey: 'library.db',
+    dbPath: libraryDbFilePath(),
+  });
 }
 
 function readLegacyJsonLibrary(filePath) {
@@ -314,22 +354,35 @@ function saveLibrary(lib) {
 }
 
 function replaceSubLibraryItems(subLibraryId, items, meta = {}) {
-  const db = getDb();
-  const upsert = db.prepare(upsertSql);
-  const existingBase = db.prepare('SELECT MIN(ordinal) AS minOrdinal FROM media_items WHERE sub_library_id = ?')
-    .get(String(subLibraryId || ''));
-  const appendBase = db.prepare('SELECT COALESCE(MAX(ordinal), -1) + 1 AS nextOrdinal FROM media_items').get();
-  const baseOrdinal = Number.isInteger(existingBase && existingBase.minOrdinal)
-    ? existingBase.minOrdinal
-    : (Number(appendBase && appendBase.nextOrdinal) || 0);
-  const tx = db.transaction((rows) => {
-    db.prepare('DELETE FROM media_items WHERE sub_library_id = ?').run(String(subLibraryId || ''));
-    rows.forEach((item, index) => upsert.run(itemToRow(item, baseOrdinal + index)));
-    if (meta.version !== undefined) setMeta(db, 'version', meta.version);
-    if (meta.cachedAt !== undefined) setMeta(db, 'cachedAt', meta.cachedAt);
+  const rows = Array.isArray(items) ? items : [];
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'libraryStore.replaceSubLibraryItems',
+    operation: 'replace_sub_library',
+    component: 'libraryStore',
+    resourceType: 'sqlite',
+    resourceKey: 'library.db',
+    slowMs: 500,
+    payload: { subLibraryId: String(subLibraryId || ''), inputRows: rows.length, before: getStorageMetrics() },
+    successPayload: () => ({ writtenRows: rows.length, after: getStorageMetrics() }),
+  }, () => {
+    const db = getDb();
+    const upsert = db.prepare(upsertSql);
+    const existingBase = db.prepare('SELECT MIN(ordinal) AS minOrdinal FROM media_items WHERE sub_library_id = ?')
+      .get(String(subLibraryId || ''));
+    const appendBase = db.prepare('SELECT COALESCE(MAX(ordinal), -1) + 1 AS nextOrdinal FROM media_items').get();
+    const baseOrdinal = Number.isInteger(existingBase && existingBase.minOrdinal)
+      ? existingBase.minOrdinal
+      : (Number(appendBase && appendBase.nextOrdinal) || 0);
+    const tx = db.transaction((txRows) => {
+      db.prepare('DELETE FROM media_items WHERE sub_library_id = ?').run(String(subLibraryId || ''));
+      txRows.forEach((item, index) => upsert.run(itemToRow(item, baseOrdinal + index)));
+      if (meta.version !== undefined) setMeta(db, 'version', meta.version);
+      if (meta.cachedAt !== undefined) setMeta(db, 'cachedAt', meta.cachedAt);
+    });
+    tx(rows);
+    checkpointWal(db, 'replace_sub_library');
   });
-  tx(Array.isArray(items) ? items : []);
-  checkpointWal(db, 'replace_sub_library');
 }
 
 function deleteBySubLibrary(subLibraryId) {
@@ -344,21 +397,33 @@ function deleteBySubLibrary(subLibraryId) {
 function updateItems(items) {
   const rows = Array.isArray(items) ? items : [];
   if (rows.length === 0) return 0;
-  const db = getDb();
-  const getOrdinal = db.prepare('SELECT ordinal FROM media_items WHERE item_id = ?');
-  const upsert = db.prepare(upsertSql);
-  const tx = db.transaction((changedItems) => {
-    let changed = 0;
-    for (const item of changedItems) {
-      if (!item || !item.itemId) continue;
-      const existing = getOrdinal.get(String(item.itemId));
-      if (!existing) continue;
-      upsert.run(itemToRow(item, existing.ordinal));
-      changed++;
-    }
-    return changed;
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'libraryStore.updateItems',
+    operation: 'update_items',
+    component: 'libraryStore',
+    resourceType: 'sqlite',
+    resourceKey: 'library.db',
+    slowMs: 250,
+    payload: { inputRows: rows.length, before: getStorageMetrics() },
+    successPayload: (changed) => ({ changedRows: changed, after: getStorageMetrics() }),
+  }, () => {
+    const db = getDb();
+    const getOrdinal = db.prepare('SELECT ordinal FROM media_items WHERE item_id = ?');
+    const upsert = db.prepare(upsertSql);
+    const tx = db.transaction((changedItems) => {
+      let changed = 0;
+      for (const item of changedItems) {
+        if (!item || !item.itemId) continue;
+        const existing = getOrdinal.get(String(item.itemId));
+        if (!existing) continue;
+        upsert.run(itemToRow(item, existing.ordinal));
+        changed++;
+      }
+      return changed;
+    });
+    return tx(rows);
   });
-  return tx(rows);
 }
 
 function getItem(itemId) {
@@ -429,25 +494,51 @@ function buildWhere(filter = {}) {
 }
 
 function queryItems(filter = {}, opts = {}) {
-  const db = getDb();
-  const { where, params } = buildWhere(filter);
-  const total = db.prepare(`SELECT COUNT(*) AS count FROM media_items ${where}`).get(params).count || 0;
-  const hasLimit = Number.isInteger(opts.limit) && opts.limit > 0;
-  const offset = Math.max(0, Number(opts.offset) || 0);
-  const limitClause = hasLimit ? 'LIMIT @limit OFFSET @offset' : '';
-  const rows = db.prepare(`
-    SELECT item_id, payload_json
-    FROM media_items
-    ${where}
-    ORDER BY ordinal ASC, item_id ASC
-    ${limitClause}
-  `).all({ ...params, limit: hasLimit ? Number(opts.limit) : undefined, offset });
-  return {
-    items: rows.map(rowToItem).filter(Boolean),
-    total,
-    offset,
-    limit: hasLimit ? Number(opts.limit) : null,
-  };
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'libraryStore.queryItems',
+    operation: 'query_items',
+    component: 'libraryStore',
+    resourceType: 'sqlite',
+    resourceKey: 'library.db',
+    slowMs: 150,
+    payload: {
+      filter: {
+        source: filter.source || '',
+        type: filter.type || '',
+        action: filter.action || '',
+        subLibraryId: filter.subLibraryId || '',
+        hasSearch: !!filter.search,
+        itemIds: Array.isArray(filter.itemIds) ? filter.itemIds.length : undefined,
+      },
+      limit: opts.limit || null,
+      offset: opts.offset || 0,
+    },
+    successPayload: (result) => ({
+      rowCount: result && Array.isArray(result.items) ? result.items.length : 0,
+      total: result && typeof result.total === 'number' ? result.total : undefined,
+    }),
+  }, () => {
+    const db = getDb();
+    const { where, params } = buildWhere(filter);
+    const total = db.prepare(`SELECT COUNT(*) AS count FROM media_items ${where}`).get(params).count || 0;
+    const hasLimit = Number.isInteger(opts.limit) && opts.limit > 0;
+    const offset = Math.max(0, Number(opts.offset) || 0);
+    const limitClause = hasLimit ? 'LIMIT @limit OFFSET @offset' : '';
+    const rows = db.prepare(`
+      SELECT item_id, payload_json
+      FROM media_items
+      ${where}
+      ORDER BY ordinal ASC, item_id ASC
+      ${limitClause}
+    `).all({ ...params, limit: hasLimit ? Number(opts.limit) : undefined, offset });
+    return {
+      items: rows.map(rowToItem).filter(Boolean),
+      total,
+      offset,
+      limit: hasLimit ? Number(opts.limit) : null,
+    };
+  });
 }
 
 function querySmartTaskCandidateItems() {
@@ -610,6 +701,7 @@ module.exports = {
   updateItems,
   getItem,
   queryItems,
+  getStorageMetrics,
   querySmartTaskCandidateItems,
   querySpaceStatItems,
   countBySubLibrary,

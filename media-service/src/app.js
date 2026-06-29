@@ -11,6 +11,7 @@ const fastifyStatic = require('@fastify/static');
 
 const configStore = require('./configStore');
 const taskStore = require('./taskStore');
+const libraryStore = require('./libraryStore');
 const taskScheduler = require('./taskScheduler');
 const healthCheck = require('./healthCheck');
 const mediaLibraryService = require('./mediaLibraryService');
@@ -35,6 +36,7 @@ const scrapeVerification = require('./scrapeVerification');
 const metadataStatus = require('./metadataStatus');
 const resourceProjection = require('./resourceProjection');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
+const diagnosticLog = require('./diagnosticLog');
 
 let serverReady = false;
 
@@ -1912,10 +1914,23 @@ function registerRoutes(app) {
       orderDir: 'asc',
       includeHistory: false,
     });
-    return resourceProjection.buildResourceView(result.tasks, config, {
+    const view = resourceProjection.buildResourceView(result.tasks, config, {
       slotUsage: transcodeService.getDeviceSlotUsage(),
       runtimeEvents,
     });
+    const diagnostics = diagnosticLog.list({ limit: 120 });
+    return {
+      ...view,
+      diagnostics: {
+        ...diagnostics,
+        metrics: {
+          storage: [
+            libraryStore.getStorageMetrics(),
+            taskStore.getStorageMetrics(),
+          ],
+        },
+      },
+    };
   });
 
   app.get('/v1/admin/tasks/:id', async (req, reply) => {
@@ -2060,6 +2075,7 @@ async function buildApp(opts = {}) {
     strategyEngine.stop();
     smartTaskEngine.stop();
     runtimeResourceTracker.resetForTests();
+    diagnosticLog.resetForTests();
   });
 
   // Clean up orphan ffmpeg processes and temp dirs from previous run
