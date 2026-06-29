@@ -4,6 +4,7 @@ import DashboardPage from './pages/DashboardPage';
 import TranscodeConfigPage from './pages/TranscodeConfigPage';
 import DoubanConfigPage from './pages/DoubanConfigPage';
 import TaskMonitorPage from './pages/TaskMonitorPage';
+import ResourceViewPage from './pages/ResourceViewPage';
 import SystemConfigPage from './pages/SystemConfigPage';
 import MoviePilotConfigPage from './pages/MoviePilotConfigPage';
 import MediaManagePage from './pages/MediaManagePage';
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="media" element={<MediaManagePage />} />
         <Route path="nodes" element={<NodesPage />} />
         <Route path="tasks" element={<TaskMonitorPage />} />
+        <Route path="resources" element={<ResourceViewPage />} />
         <Route path="rules" element={<RuleTemplatesPage />} />
         <Route path="system" element={<SystemConfigPage />} />
         <Route path="douban" element={<DoubanConfigPage />} />

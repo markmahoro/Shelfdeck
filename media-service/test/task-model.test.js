@@ -12,6 +12,31 @@ const taskAdmission = require('../src/taskAdmission');
 const smartTaskEngine = require('../src/smartTaskEngine');
 const taskStore = require('../src/taskStore');
 const scrapeVerification = require('../src/scrapeVerification');
+const lifecycleProjection = require('../src/lifecycleProjection');
+const resourceProjection = require('../src/resourceProjection');
+
+function metadataReadyMovie(overrides = {}) {
+  const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
+  return {
+    itemId,
+    source: 'emby',
+    sourceId: itemId,
+    name: 'Metadata Ready Movie',
+    type: 'movie',
+    path: `/media/${itemId}.mkv`,
+    size: 1024 * 1024 * 1024,
+    duration: 3600,
+    bitrate: 4_000_000,
+    resolution: '1920x1080',
+    codec: 'h264',
+    watched: true,
+    userRating: 4,
+    tmdbId: '10001',
+    action: 'transcode',
+    userRatingUpdatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
 
 test('approvalPolicy default gate catalog is complete and normalized', () => {
   const expected = [
@@ -61,9 +86,15 @@ test('scrapeVerification judges scraped item state instead of task completion st
   const item = {
     itemId: 'adult-1',
     name: 'SORA-107 Some Title',
+    source: 'adult_folder',
     path: mediaPath,
     subLibraryId: 'adult-lib',
     scraped: true,
+    size: 1024 * 1024,
+    duration: 1200,
+    bitrate: 3_000_000,
+    resolution: '1920x1080',
+    codec: 'h264',
     adultMetadata: {
       region: 'japanese_jav',
       scrapeStatus: 'done',
@@ -159,7 +190,7 @@ test('taskAdmission allows automatic task creation for manual sub-libraries', ()
     smartTaskEnabledActions: ['transcode'],
     subLibraries: [{ uuid: 'manual-lib', automationMode: 'manual' }],
   };
-  const item = { itemId: 'i1', subLibraryId: 'manual-lib' };
+  const item = metadataReadyMovie({ itemId: 'i1', subLibraryId: 'manual-lib' });
   const auto = taskAdmission.canCreateTask({
     item,
     actionType: 'transcode',
@@ -294,18 +325,14 @@ test('smartTaskEngine creates pending_manual tasks for manual sub-libraries', as
     {
       getLibrary() {
         return {
-          items: [{
+          items: [metadataReadyMovie({
             itemId: 'manual-auto-create',
             name: 'Manual Auto Create',
-            source: 'emby',
-            type: 'movie',
-            watched: true,
             action: 'transcode',
             reason: 'high bitrate',
             subLibraryId: 'manual-lib',
-            userRatingUpdatedAt: new Date().toISOString(),
             path: '/media/manual-auto-create.mkv',
-          }],
+          })],
         };
       },
     },
@@ -360,18 +387,14 @@ test('smartTaskEngine auto-enqueues pending adult scrape candidates through Task
     {
       getLibrary() {
         return {
-          items: [{
+          items: [metadataReadyMovie({
             itemId: 'movie-transcode',
             name: 'Movie Transcode',
-            source: 'emby',
-            type: 'movie',
-            watched: true,
             action: 'transcode',
             reason: 'high bitrate',
             subLibraryId: 'movie-lib',
-            userRatingUpdatedAt: new Date().toISOString(),
             path: '/media/movie.mkv',
-          }, {
+          }), {
             itemId: 'adult-pending-scrape',
             name: 'Adult Pending Scrape',
             source: 'adult_folder',
@@ -440,16 +463,14 @@ test('smartTaskEngine auto-enqueues ingest candidates through unified priority b
       getLibrary() {
         return {
           items: [{
-            itemId: 'movie-transcode',
-            name: 'Movie Transcode',
-            source: 'emby',
-            type: 'movie',
-            watched: true,
-            action: 'transcode',
-            reason: 'high bitrate',
-            subLibraryId: 'movie-lib',
-            userRatingUpdatedAt: new Date().toISOString(),
-            path: '/media/movie.mkv',
+            ...metadataReadyMovie({
+              itemId: 'movie-transcode',
+              name: 'Movie Transcode',
+              action: 'transcode',
+              reason: 'high bitrate',
+              subLibraryId: 'movie-lib',
+              path: '/media/movie.mkv',
+            }),
           }],
         };
       },
@@ -719,18 +740,14 @@ test('smartTaskEngine keeps transcode action priority when library weight is neu
     {
       getLibrary() {
         return {
-          items: [{
+          items: [metadataReadyMovie({
             itemId: 'movie-neutral-transcode',
             name: 'Movie Neutral Transcode',
-            source: 'emby',
-            type: 'movie',
-            watched: true,
             action: 'transcode',
             reason: 'high bitrate',
             subLibraryId: 'movie-lib',
-            userRatingUpdatedAt: new Date().toISOString(),
             path: '/media/movie-neutral.mkv',
-          }],
+          })],
         };
       },
     },
@@ -1044,4 +1061,152 @@ test('taskStore exposes lightweight optimization task rows', () => {
     if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
     else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
   }
+});
+
+test('taskStore writes task event journal without replacing task payload', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'task-events-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  try {
+    const task = taskStore.createTask({
+      itemId: 'event-item',
+      itemName: 'Event Item',
+      actionType: 'transcode',
+      status: 'created',
+      priority: 42,
+      itemInfo: { path: '/media/event-item.mkv' },
+      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'verbose payload stays on task' }],
+    });
+
+    taskStore.updateTask(task.id, { status: 'queued', phase: 'precheck', resumePoint: 'resume.precheck' });
+    taskStore.updateTask(task.id, { priority: 7, priorityManuallyAdjusted: true });
+
+    const eventTypes = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 20 }).events.map((event) => event.eventType);
+    assert.ok(eventTypes.includes('task.created'));
+    assert.ok(eventTypes.includes('task.status_changed'));
+    assert.ok(eventTypes.includes('task.runtime_changed'));
+    assert.ok(eventTypes.includes('task.priority_changed'));
+    assert.strictEqual(taskStore.getTask(task.id).logs.length, 1);
+
+    taskStore.deleteTask(task.id);
+    const afterDelete = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 20 }).events;
+    assert.ok(afterDelete.some((event) => event.eventType === 'task.deleted'));
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
+test('taskStore exposes scheduler lightweight rows for active tasks only', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scheduler-rows-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  try {
+    const active = taskStore.createTask({
+      itemId: 'scheduler-active',
+      itemName: 'Scheduler Active',
+      actionType: 'scrape',
+      status: 'queued',
+      source: 'auto',
+      itemInfo: {
+        subLibraryId: 'adult-western',
+        adultMetadata: { region: 'western_adult' },
+      },
+      logs: Array.from({ length: 30 }, (_, i) => ({ ts: new Date().toISOString(), level: 'info', msg: `log ${i}` })),
+    });
+    taskStore.createTask({
+      itemId: 'scheduler-done',
+      itemName: 'Scheduler Done',
+      actionType: 'scrape',
+      status: 'done',
+    });
+
+    const rows = taskStore.querySchedulerTasks();
+    assert.deepStrictEqual(rows.map((row) => row.id), [active.id]);
+    assert.strictEqual(rows[0].logs, undefined);
+    assert.strictEqual(rows[0].itemInfo.subLibraryId, 'adult-western');
+    assert.strictEqual(rows[0].itemInfo.adultMetadata.region, 'western_adult');
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
+test('lifecycleProjection separates metadata, optimize, and archive-like closure', () => {
+  const missing = lifecycleProjection.resolveLifecycle({
+    action: 'transcode',
+    metadataComplete: false,
+  });
+  assert.strictEqual(missing.lifecycleStage, 'ingested');
+  assert.strictEqual(missing.lifecycleNextTask, 'metadata');
+
+  const pendingOptimize = lifecycleProjection.resolveLifecycle({
+    action: 'upgrade',
+    metadataComplete: true,
+    optimizationStatus: 'none',
+  });
+  assert.strictEqual(pendingOptimize.lifecycleStage, 'metadata_ready');
+  assert.strictEqual(pendingOptimize.lifecycleNextTask, 'optimize');
+
+  const keep = lifecycleProjection.resolveLifecycle({
+    action: 'keep',
+    metadataComplete: true,
+  });
+  assert.strictEqual(keep.lifecycleStage, 'archived');
+  assert.strictEqual(keep.archiveStatus, 'archived_like');
+  assert.strictEqual(keep.lifecycleDone, true);
+});
+
+test('resourceProjection groups active tasks by resource rather than task type only', () => {
+  const view = resourceProjection.buildResourceView([
+    { id: 't1', itemId: 'i1', itemName: 'Movie', actionType: 'transcode', status: 'executing', priority: 1 },
+    { id: 't2', itemId: 'i2', itemName: 'Adult', actionType: 'scrape', status: 'queued', priority: 2, itemInfo: { subLibraryId: 'adult-western', adultMetadata: { region: 'western_adult' } } },
+    { id: 't3', itemId: 'i3', itemName: 'Upgrade', actionType: 'upgrade', status: 'awaiting_user_confirm', priority: 3 },
+  ], {
+    transcodeConcurrency: 2,
+    scrapeConcurrency: 3,
+    upgradeConcurrency: 1,
+    subLibraries: [{ uuid: 'adult-western', adultRegion: 'western_adult' }],
+    adultLibrary: { western: { computeMode: 'local' } },
+  }, {
+    runtimeEvents: [
+      {
+        eventId: 'evt-1',
+        eventType: 'douban.sync',
+        eventStatus: 'running',
+        component: 'mediaLibraryService',
+        resourceType: 'douban',
+        resourceKey: 'douban:movie-lib',
+        resourceLabel: 'Douban sync',
+        subLibraryId: 'movie-lib',
+        startedAt: new Date().toISOString(),
+        durationMs: 10,
+      },
+    ],
+  });
+
+  assert.strictEqual(view.summary.totalTasks, 3);
+  assert.strictEqual(view.summary.totalEvents, 1);
+  assert.strictEqual(view.summary.runningEvents, 1);
+  assert.strictEqual(view.summary.byResourceType.local_transcode, 1);
+  assert.strictEqual(view.summary.byResourceType.local_ai, 1);
+  assert.strictEqual(view.summary.byResourceType.moviepilot, 1);
+  assert.strictEqual(view.summary.byResourceType.douban, 1);
+  assert.strictEqual(view.summary.byState.running, 1);
+  assert.strictEqual(view.summary.byState.waiting, 1);
+  assert.strictEqual(view.summary.byState.blocked, 1);
+  const doubanBucket = view.resources.find((bucket) => bucket.resourceKey === 'douban:movie-lib');
+  assert.ok(doubanBucket);
+  assert.strictEqual(doubanBucket.eventRunning, 1);
+  assert.strictEqual(doubanBucket.events[0].eventType, 'douban.sync');
 });

@@ -16,6 +16,7 @@ const assetIdentity = require('./assetIdentity');
 const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
 const adultLibraryService = require('./adultLibraryService');
+const runtimeResourceTracker = require('./runtimeResourceTracker');
 
 let timer = null;
 let initialTimer = null;
@@ -186,24 +187,47 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
   const intervalMs = (cfg.smartTaskPollIntervalMinutes || 10) * 60 * 1000;
 
   const run = () => {
+    const runtimeEvent = runtimeResourceTracker.startEvent({
+      eventType: 'smartTask.scan',
+      component: 'smartTaskEngine',
+      resourceType: 'service_cpu',
+      resourceKey: 'service:smart-task',
+      resourceLabel: 'Smart task scan',
+    });
+    let finalStatus = 'done';
+    const finalPayload = {};
     try {
       const cfg2 = configStore.loadConfig();
       const enabledActions = readEnabledActions(cfg2);
+      runtimeEvent.update({ enabledActions });
       lastEnabledActions = enabledActions;
       _enabled = enabledActions.length > 0;
       if (enabledActions.length === 0) {
         lastRunAt = Date.now();
+        finalStatus = 'skipped';
+        finalPayload.reason = 'no_enabled_actions';
         return;
       }
 
       const maxPerRun = cfg2.smartTaskMaxPerRun || 10;
       const lookbackDays = cfg2.smartTaskLookbackDays || 30;
 
-      const lib = mediaLibraryService.getLibrary();
-      if (!lib || !lib.items) return;
+      const libraryItems = typeof mediaLibraryService.getSmartTaskCandidateItems === 'function'
+        ? mediaLibraryService.getSmartTaskCandidateItems()
+        : ((mediaLibraryService.getLibrary() || {}).items || []);
+      if (!Array.isArray(libraryItems)) {
+        finalStatus = 'skipped';
+        finalPayload.reason = 'no_library_items';
+        return;
+      }
+      runtimeEvent.update({ libraryItems: libraryItems.length });
 
-      const allTasks = taskStore.getTasks();
-      const activeTasks = taskStore.loadTasks({ includeHistory: false });
+      const allTasks = typeof taskStore.queryTaskAdmissionRows === 'function'
+        ? taskStore.queryTaskAdmissionRows()
+        : taskStore.getTasks();
+      const activeTasks = typeof taskStore.querySchedulerTasks === 'function'
+        ? taskStore.querySchedulerTasks()
+        : taskStore.loadTasks({ includeHistory: false });
       const optimizationIndex = optimizationStatus.buildOptimizationIndex(allTasks, cfg2);
 
       // Count active (non-terminal) tasks per action type
@@ -229,7 +253,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       const lookbackCutoff = now - lookbackDays * 86400000;
       const isFirstOrResume = !lastRunAt || (now - lastRunAt > intervalMs * 2);
 
-      const candidates = lib.items
+      const candidates = libraryItems
         .map((item) => buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff, config: cfg2 }))
         .filter(Boolean);
       if (enabledActions.includes('ingest')) {
@@ -238,6 +262,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
           if (ingestCandidate) candidates.push(ingestCandidate);
         }
       }
+      runtimeEvent.update({ candidateCount: candidates.length });
 
       // Sort by computed task priority first, then most recent signal. This
       // keeps high-priority task types from being hidden behind large low-priority
@@ -310,9 +335,18 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       }
 
       lastRunAt = now;
+      Object.assign(finalPayload, {
+        candidateCount: candidates.length,
+        enqueued: toEnqueue.length,
+        enabledActions,
+      });
     } catch (e) {
       lastError = e.message;
+      finalStatus = 'failed';
+      finalPayload.error = e.message;
       console.error('[smartTaskEngine] error:', e.message);
+    } finally {
+      runtimeEvent.finish(finalStatus, finalPayload);
     }
   };
 

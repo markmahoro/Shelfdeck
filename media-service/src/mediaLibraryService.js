@@ -22,6 +22,8 @@ const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
 const metadataStatus = require('./metadataStatus');
 const assetIdentity = require('./assetIdentity');
+const lifecycleProjection = require('./lifecycleProjection');
+const runtimeResourceTracker = require('./runtimeResourceTracker');
 
 function generateUuid() {
   return crypto.randomUUID();
@@ -330,10 +332,14 @@ function updateUserRating(itemId, userRating) {
 function getLibrary(filter = {}, opts = {}) {
   const storeFilter = { ...(filter || {}) };
   const metadataStatusFilter = storeFilter.metadataStatus;
+  const lifecycleFilter = storeFilter.lifecycle;
   const needsMetadataStatusFilter = metadataStatusFilter === 'done'
     || metadataStatusFilter === 'pending'
     || metadataStatusFilter === 'failed';
+  const needsLifecycleFilter = !!lifecycleFilter;
+  const needsPostFilter = needsMetadataStatusFilter || needsLifecycleFilter;
   if (needsMetadataStatusFilter) delete storeFilter.metadataStatus;
+  if (needsLifecycleFilter) delete storeFilter.lifecycle;
   if (storeFilter.activeTaskIds) {
     const activeTaskIds = storeFilter.activeTaskIds instanceof Set ? storeFilter.activeTaskIds : new Set();
     const ids = [...activeTaskIds].filter(Boolean);
@@ -344,10 +350,19 @@ function getLibrary(filter = {}, opts = {}) {
   }
 
   const config = configStore.loadConfig();
-  const pageOpts = needsMetadataStatusFilter ? {} : opts;
+  const pageOpts = needsPostFilter ? {} : opts;
   const result = libraryStore.queryItems(storeFilter, pageOpts);
   let items = result.items.map((item) => ({ ...item }));
   items = metadataStatus.decorateItems(items, config);
+  if (opts.includeOptimizationStatus || opts.includeLifecycleStatus || needsLifecycleFilter) {
+    const taskStore = require('./taskStore');
+    const itemIds = needsPostFilter ? undefined : items.map((item) => item.itemId).filter(Boolean);
+    const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
+      ? taskStore.queryOptimizationTaskIndexRows(itemIds && itemIds.length > 0 ? { itemIds } : {})
+      : taskStore.loadTasks();
+    items = optimizationStatus.decorateItems(items, optimizationTasks, config);
+  }
+  items = lifecycleProjection.decorateItems(items, config);
   if (needsMetadataStatusFilter) {
     items = items.filter((item) => {
       if (metadataStatusFilter === 'done') return item.metadataComplete;
@@ -356,14 +371,10 @@ function getLibrary(filter = {}, opts = {}) {
       return String(meta.scrapeStatus || '').toLowerCase() === 'failed';
     });
   }
-  if (opts.includeOptimizationStatus) {
-    const taskStore = require('./taskStore');
-    const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
-      ? taskStore.queryOptimizationTaskIndexRows()
-      : taskStore.loadTasks();
-    items = optimizationStatus.decorateItems(items, optimizationTasks, config);
+  if (needsLifecycleFilter) {
+    items = items.filter((item) => lifecycleProjection.matchesFilter(item, lifecycleFilter));
   }
-  if (needsMetadataStatusFilter) {
+  if (needsPostFilter) {
     const offset = Math.max(0, Number(opts.offset) || 0);
     const hasLimit = Number.isInteger(opts.limit) && opts.limit > 0;
     return {
@@ -378,12 +389,25 @@ function getLibrary(filter = {}, opts = {}) {
 }
 
 function getLibraryItem(itemId) {
-  return libraryStore.getItem(itemId);
+  const item = libraryStore.getItem(itemId);
+  if (!item) return null;
+  const config = configStore.loadConfig();
+  let decorated = metadataStatus.decorateItem(item, config);
+  const taskStore = require('./taskStore');
+  const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
+    ? taskStore.queryOptimizationTaskIndexRows({ itemIds: [item.itemId] })
+    : taskStore.loadTasks();
+  decorated = optimizationStatus.decorateItems([decorated], optimizationTasks, config)[0];
+  return lifecycleProjection.decorateItem(decorated, config);
 }
 
 function getSpaceStatLibrary() {
   const items = libraryStore.querySpaceStatItems();
   return { items, total: items.length, offset: 0, limit: null };
+}
+
+function getSmartTaskCandidateItems() {
+  return libraryStore.querySmartTaskCandidateItems();
 }
 
 function getLibraryStatus() {
@@ -541,6 +565,7 @@ function stopSelfComputeTimer() {
 // ── SubLibrary timers ───────────────────────────────────────────────────────
 
 const subLibraryTimers = new Map(); // uuid → { refresh: Interval, douban: Interval }
+const doubanSyncInFlight = new Set();
 
 function stopSubLibraryTimers(uuid) {
   const timers = subLibraryTimers.get(uuid);
@@ -596,10 +621,38 @@ async function refreshSubLibrary(subLib, options = {}) {
 
 async function syncDoubanForSubLibrary(subLib) {
   const name = subLib.name || subLib.uuid;
+  if (doubanSyncInFlight.has(subLib.uuid)) {
+    runtimeResourceTracker.recordInstant({
+      eventType: 'douban.sync',
+      eventStatus: 'skipped',
+      component: 'mediaLibraryService',
+      resourceType: 'douban',
+      resourceKey: `douban:${subLib.uuid}`,
+      resourceLabel: 'Douban sync',
+      subLibraryId: subLib.uuid,
+      payload: { reason: 'already_running', subLibraryName: name },
+    });
+    console.log('[mediaLibrary] douban sync skipped, already running for', subLib.uuid);
+    return;
+  }
+  doubanSyncInFlight.add(subLib.uuid);
+  const runtimeEvent = runtimeResourceTracker.startEvent({
+    eventType: 'douban.sync',
+    component: 'mediaLibraryService',
+    resourceType: 'douban',
+    resourceKey: `douban:${subLib.uuid}`,
+    resourceLabel: 'Douban sync',
+    subLibraryId: subLib.uuid,
+    payload: { subLibraryName: name },
+  });
+  let finalStatus = 'done';
+  const finalPayload = {};
   try {
     // Fetch douban ratings — credentials come from douban-session.json
     const session = doubanService.getSession();
     if (!session.userId) {
+      finalStatus = 'skipped';
+      finalPayload.reason = 'missing_user_id';
       activityLog.addActivity('douban', `子库「${name}」豆瓣同步跳过：未配置豆瓣用户 ID，请在豆瓣集成页面设置`);
       return;
     }
@@ -614,9 +667,11 @@ async function syncDoubanForSubLibrary(subLib) {
         const count = payload.allEntries ? payload.allEntries.length : 0;
         if (count - lastLogged >= 100) {
           lastLogged = count;
+          runtimeEvent.update({ fetchedEntries: count });
           activityLog.addActivity('douban', `子库「${name}」豆瓣评分抓取中… 已抓取 ${count} 条`);
         }
         if (payload.done && !payload.cancelled) {
+          runtimeEvent.update({ fetchedEntries: count });
           activityLog.addActivity('douban', `子库「${name}」豆瓣评分抓取完成，共 ${count} 条`);
         }
       },
@@ -624,23 +679,33 @@ async function syncDoubanForSubLibrary(subLib) {
 
     const { entries } = await doubanService.fetchRatings(progressSink, { existingEntries: cachedEntries });
     if (!entries || entries.length === 0) {
+      finalPayload.fetchedEntries = 0;
       activityLog.addActivity('douban', `子库「${name}」豆瓣评分同步完成，无豆瓣数据`);
       return;
     }
     doubanService.saveCachedEntries(entries);
+    runtimeEvent.update({ fetchedEntries: entries.length });
 
     const byNormTitle = doubanMatchService.buildDoubanStarsByNormalizedTitle(entries);
+    const subjectIdByNormTitle = new Map();
+    for (const entry of entries) {
+      for (const key of doubanMatchService.doubanTitleNormalizedKeys(entry.title)) {
+        if (!subjectIdByNormTitle.has(key) && entry.subjectId) {
+          subjectIdByNormTitle.set(key, entry.subjectId);
+        }
+      }
+    }
 
     // Match against library items for this subLibrary
-    const lib = loadLibrary();
+    const items = libraryStore.queryItems({ subLibraryId: subLib.uuid }).items;
+    runtimeEvent.update({ libraryItems: items.length });
+    const changedItems = [];
     let matchedCount = 0;
     let newRatingCount = 0;
     const now = new Date().toISOString();
 
     // Match movie by name, season by series+season key
-    for (const item of lib.items) {
-      if (item.subLibraryId !== subLib.uuid) continue;
-
+    for (const item of items) {
       let stars = null;
       let matchName = null;
 
@@ -658,18 +723,18 @@ async function syncDoubanForSubLibrary(subLib) {
         item.doubanRating = stars;
         item.doubanRatingUpdatedAt = now;
         newRatingCount++;
+        changedItems.push(item);
 
-        const matchedEntry = entries.find((e) => {
-          const keys = doubanMatchService.doubanTitleNormalizedKeys(e.title);
-          const embyKeys = doubanMatchService.embyTitleNormalizedKeys(matchName);
-          return embyKeys.some((ek) => keys.includes(ek));
-        });
-        if (matchedEntry) item.doubanId = matchedEntry.subjectId;
+        const matchedSubjectId = doubanMatchService
+          .embyTitleNormalizedKeys(matchName)
+          .map((key) => subjectIdByNormTitle.get(key))
+          .find(Boolean);
+        if (matchedSubjectId) item.doubanId = matchedSubjectId;
       }
     }
 
     if (newRatingCount > 0) {
-      saveLibrary(lib);
+      libraryStore.updateItems(changedItems);
     }
 
     // Update subLibrary doubanSyncedAt
@@ -682,11 +747,22 @@ async function syncDoubanForSubLibrary(subLib) {
     }
 
     const msg = `子库「${name}」豆瓣评分同步完成，${matchedCount} 个匹配，${newRatingCount} 个新评分`;
+    Object.assign(finalPayload, {
+      fetchedEntries: entries.length,
+      libraryItems: items.length,
+      matched: matchedCount,
+      newRatings: newRatingCount,
+    });
     activityLog.addActivity('douban', msg, { subLibraryId: subLib.uuid, matched: matchedCount, newRatings: newRatingCount });
     console.log('[mediaLibrary] douban synced for', subLib.uuid);
   } catch (e) {
+    finalStatus = 'failed';
+    finalPayload.error = e.message;
     activityLog.addActivity('douban', `子库「${name}」豆瓣评分同步失败：${e.message}`);
     console.error('[mediaLibrary] douban sync error for', subLib.uuid, e.message);
+  } finally {
+    runtimeEvent.finish(finalStatus, finalPayload);
+    doubanSyncInFlight.delete(subLib.uuid);
   }
 }
 
@@ -835,6 +911,7 @@ module.exports = {
   getLibrary,
   getLibraryItem,
   getSpaceStatLibrary,
+  getSmartTaskCandidateItems,
   upsertItems,
   updateUserRating,
   saveLibrary,

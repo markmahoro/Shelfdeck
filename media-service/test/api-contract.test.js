@@ -646,7 +646,7 @@ test('GET /v1/integrations/douban/fetch/ratings missing subLibraryId -> 400', as
 test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
   // Per API.md §5.4: only awaiting_user_confirm tasks can be confirmed.
   const app = await buildEmptyApp();
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'confirm-wrong-status', actionType: 'transcode' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'confirm-wrong-status', actionType: 'scrape' } });
   const { id } = create.json();
   // Task status is 'created' — confirm must return 409
   const res = await app.inject({ method: 'PATCH', url: `/v1/tasks/${id}`, payload: { confirmed: true } });
@@ -660,7 +660,7 @@ test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
 test('POST /v1/tasks duplicate itemId (active task exists) -> 409', async () => {
   const app = await buildEmptyApp();
   const itemId = 'dup-item-' + crypto.randomUUID().slice(0, 8);
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'transcode' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'scrape' } });
   const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'delete' } });
   assert.strictEqual(res.statusCode, 409);
   assert.strictEqual(res.json().error.code, 'TASK_CONFLICT');
@@ -674,7 +674,7 @@ test('POST /v1/tasks/:id/actions/execute pending_manual -> queued', async () => 
   // Write config with manual mode
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ executionMode: 'manual' }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'manual-exec', actionType: 'transcode' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'manual-exec', actionType: 'scrape' } });
   const { id } = create.json();
   assert.strictEqual(create.json().status, 'pending_manual');
   const res = await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/execute` });

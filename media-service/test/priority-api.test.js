@@ -13,6 +13,7 @@ const path = require('path');
 const { buildApp } = require('../src/app');
 const taskStore = require('../src/taskStore');
 const configStore = require('../src/configStore');
+const mediaLibraryService = require('../src/mediaLibraryService');
 
 function tmpDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-prio-'));
@@ -20,6 +21,28 @@ function tmpDir() {
   process.env.CONTROL_PLANE_DATA_DIR = dir;
   process.env.MEDIA_SERVICE_DATA_DIR = dir;
   return dir;
+}
+
+function metadataReadyMovie(overrides = {}) {
+  const itemId = overrides.itemId || 'movie-' + Math.random().toString(16).slice(2, 10);
+  return {
+    itemId,
+    source: 'emby',
+    sourceId: itemId,
+    name: 'Metadata Ready Movie',
+    type: 'movie',
+    path: `/media/${itemId}.mkv`,
+    size: 1024 * 1024 * 1024,
+    duration: 3600,
+    bitrate: 4_000_000,
+    resolution: '1920x1080',
+    codec: 'h264',
+    watched: true,
+    userRating: 4,
+    tmdbId: '10001',
+    action: 'transcode',
+    ...overrides,
+  };
 }
 
 test('PATCH /v1/admin/tasks/:id sets priority on a queued task', async () => {
@@ -81,6 +104,10 @@ test('POST /v1/tasks (manual) assigns additive priority from source, action, and
   try {
     // Seed config with a non-default manual base to prove the path is wired.
     configStore.saveConfig({ ...configStore.getDefaultConfig(), executionMode: 'auto' });
+    mediaLibraryService.saveLibrary({
+      cachedAt: new Date().toISOString(),
+      items: [metadataReadyMovie({ itemId: 'manual-1' })],
+    });
     const res = await app.inject({
       method: 'POST', url: '/v1/tasks',
       payload: { itemId: 'manual-1', actionType: 'transcode' },

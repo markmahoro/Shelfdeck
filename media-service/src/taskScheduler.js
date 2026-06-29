@@ -25,6 +25,8 @@ const activityLog = require('./activityLog');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
 const priorityEngine = require('./priorityEngine');
+const resourceProjection = require('./resourceProjection');
+const runtimeResourceTracker = require('./runtimeResourceTracker');
 
 let schedulerInterval = null;
 let nodeHealthInterval = null;
@@ -175,21 +177,18 @@ function reportStatus(taskId, status, progress) {
 // ── Scheduling ──────────────────────────────────────────────────────────────
 
 function recoverInterruptedTasks() {
-  const tasks = taskStore.loadTasks({ includeHistory: false });
+  const tasks = typeof taskStore.querySchedulerTasks === 'function'
+    ? taskStore.querySchedulerTasks()
+    : taskStore.loadTasks({ includeHistory: false });
   const interruptible = ['precheck', 'executing', 'verify', 'ingest_precheck', 'ingest_commit', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review', 'planning', 'pre_replace_verify', 'pausing'];
-  let changed = false;
   for (const t of tasks) {
     if (t.status === 'done' || t.status === 'failed_hard') continue;
     // awaiting_user_confirm is a stable state — user hasn't decided yet, preserve it
     if (t.status === 'awaiting_user_confirm') continue;
     if (interruptible.includes(t.status) || t.pausingRequested) {
-      t.status = 'interrupted';
+      taskStore.updateTask(t.id, { status: 'interrupted' });
       console.log('[scheduler] recovered interrupted task', t.id);
-      changed = true;
     }
-  }
-  if (changed) {
-    taskStore.saveTasks(tasks);
   }
 }
 
@@ -285,7 +284,9 @@ async function checkNodeHealth() {
     // Node just went offline — fail its active tasks
     if (updated && updated.status === 'offline') {
       console.log(`[scheduler] Node ${node.name} (${node.id}) is offline — failing active tasks`);
-      const tasks = taskStore.loadTasks({ includeHistory: false });
+      const tasks = typeof taskStore.querySchedulerTasks === 'function'
+        ? taskStore.querySchedulerTasks()
+        : taskStore.loadTasks({ includeHistory: false });
       let failed = 0;
       for (const t of tasks) {
         if (t.nodeId === node.id && t.status === 'executing') {
@@ -350,7 +351,9 @@ function stopScheduler() {
 
 async function scheduleRound() {
   const config = configStore.loadConfig();
-  const tasks = taskStore.loadTasks({ includeHistory: false });
+  const tasks = typeof taskStore.querySchedulerTasks === 'function'
+    ? taskStore.querySchedulerTasks()
+    : taskStore.loadTasks({ includeHistory: false });
 
   // Count active tasks per actionType (occupying slots)
   const activeCount = { ingest: 0, delete: 0, transcode: 0, upgrade: 0, scrape: 0 };
@@ -370,32 +373,38 @@ async function scheduleRound() {
 
   healthCheck.setSchedulerState({ running: true, runningTasks: Object.values(activeCount).reduce((a, b) => a + b, 0) });
 
-  // ── Pass 1: recover interrupted tasks first (batch update, single save) ─
+  // ── Pass 1: recover interrupted tasks first without saving lightweight rows ─
   const recoveredIds = new Set();
-  let pass1Changed = false;
   for (const task of tasks) {
     if (task.status === 'done' || task.status === 'failed_hard') continue;
     if (task.status !== 'interrupted') continue;
 
     const retryCount = (task.retryCount || 0) + 1;
     if (retryCount > 3) {
-      task.status = 'failed_hard';
-      task.retryCount = retryCount;
+      const updated = taskStore.updateTask(task.id, { status: 'failed_hard', retryCount });
+      if (updated) {
+        task.status = updated.status;
+        task.retryCount = updated.retryCount;
+      }
       console.log('[scheduler] task', task.id, 'failed after', retryCount - 1, 'retries');
-      pass1Changed = true;
       continue;
     }
-    task.status = 'queued';
-    task.retryCount = retryCount;
-    task.phase = null;
-    task.resumePoint = null;
-    task.progress = 0;
+    const updated = taskStore.updateTask(task.id, {
+      status: 'queued',
+      retryCount,
+      phase: null,
+      resumePoint: null,
+      progress: 0,
+    });
+    if (updated) {
+      task.status = updated.status;
+      task.retryCount = updated.retryCount;
+      task.phase = updated.phase;
+      task.resumePoint = updated.resumePoint;
+      task.progress = updated.progress;
+    }
     taskStore.deleteProgress(task.id);
     recoveredIds.add(task.id);
-    pass1Changed = true;
-  }
-  if (pass1Changed) {
-    taskStore.saveTasks(tasks);
   }
 
   reconcileAutoTaskPriorities(tasks, config);
@@ -485,9 +494,30 @@ async function scheduleRound() {
       usedItemIds.add(task.itemId);
       reportStatus(task.id, 'executing', task.progress || 0);
       task.status = 'executing';
+      const resource = resourceProjection.resourceForTask(task, config);
+      const runtimeEvent = runtimeResourceTracker.startEvent({
+        eventType: 'task.dispatch',
+        component: 'taskScheduler',
+        resourceType: resource.resourceType,
+        resourceKey: resource.resourceKey,
+        resourceLabel: resource.resourceLabel,
+        taskId: task.id,
+        itemId: task.itemId,
+        itemName: task.itemName,
+        source: task.source,
+        payload: {
+          actionType: task.actionType,
+          phase: task.phase,
+          priority: task.priority,
+          status: 'executing',
+        },
+      });
 
       // Fire-and-forget: Flow calls reportStatus when done
-      flow.driveTask(task.id).catch((err) => {
+      flow.driveTask(task.id).then(() => {
+        runtimeEvent.finish('done');
+      }).catch((err) => {
+        runtimeEvent.finish('failed', { error: err && err.message ? err.message : String(err) });
         console.error(`[scheduler] driveTask error for ${task.id}:`, err);
         reportStatus(task.id, 'failed_hard');
       });

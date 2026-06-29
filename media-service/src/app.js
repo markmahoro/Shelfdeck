@@ -33,6 +33,8 @@ const adultActorImageSearchService = require('./services/adultActorImageSearchSe
 const westernAdultLocalAiService = require('./services/westernAdultLocalAiService');
 const scrapeVerification = require('./scrapeVerification');
 const metadataStatus = require('./metadataStatus');
+const resourceProjection = require('./resourceProjection');
+const runtimeResourceTracker = require('./runtimeResourceTracker');
 
 let serverReady = false;
 
@@ -505,10 +507,22 @@ function registerRoutes(app) {
     return { tasks };
   });
 
+  app.get('/v1/tasks/:id/events', async (req, reply) => {
+    const task = taskStore.getTask(req.params.id);
+    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 50));
+    return taskStore.queryTaskEvents({ taskId: task.id }, { page, pageSize, orderDir: 'asc' });
+  });
+
   app.get('/v1/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    return taskDetailView(task);
+    const detail = taskDetailView(task);
+    if (req.query.includeEvents === '1' || req.query.includeEvents === 'true') {
+      detail.events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 200 }).events;
+    }
+    return detail;
   });
 
   app.get('/v1/tasks/:id/report', async (req, reply) => {
@@ -787,6 +801,7 @@ function registerRoutes(app) {
       filter.activeTaskIds = new Set(taskStore.loadTasks({ includeHistory: false }).map((t) => t.itemId));
     }
     if (query.scrape === 'done' || query.scrape === 'pending' || query.scrape === 'failed') filter.metadataStatus = query.scrape;
+    if (query.lifecycle) filter.lifecycle = query.lifecycle;
     const rawPageSize = Number(query.pageSize);
     const rawPage = Number(query.page);
     const rawLimit = Number(query.limit);
@@ -802,34 +817,62 @@ function registerRoutes(app) {
 
   app.get('/v1/library', async (req) => {
     const { filter, page } = parseLibraryQuery(req.query);
-    const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
-    // Attach embyWebUrl for desktop play button
-    const cfg = configStore.loadConfig();
-    const servers = cfg.embyServers || {};
-    const subLibs = cfg.subLibraries || [];
-    for (const item of result.items) {
-      const sl = subLibs.find((s) => s.uuid === item.subLibraryId);
-      if (sl && servers[sl.embyServerId] && servers[sl.embyServerId].baseUrl) {
-        const embyItemId = assetIdentity.getEmbyItemId(item);
-        if (embyItemId) {
-          item.embyWebUrl = `${String(servers[sl.embyServerId].baseUrl).replace(/\/+$/, '')}/web/index.html#!/item?id=${embyItemId}`;
+    return runtimeResourceTracker.trackEvent({
+      eventType: 'library.query',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: 'service:library.query',
+      resourceLabel: 'Library query',
+      subLibraryId: filter.subLibraryId || '',
+      payload: { route: '/v1/library', filter, page },
+      successPayload: (result) => ({
+        itemCount: result && Array.isArray(result.items) ? result.items.length : 0,
+        total: result && typeof result.total === 'number' ? result.total : undefined,
+      }),
+    }, () => {
+      const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
+      // Attach embyWebUrl for desktop play button
+      const cfg = configStore.loadConfig();
+      const servers = cfg.embyServers || {};
+      const subLibs = cfg.subLibraries || [];
+      for (const item of result.items) {
+        const sl = subLibs.find((s) => s.uuid === item.subLibraryId);
+        if (sl && servers[sl.embyServerId] && servers[sl.embyServerId].baseUrl) {
+          const embyItemId = assetIdentity.getEmbyItemId(item);
+          if (embyItemId) {
+            item.embyWebUrl = `${String(servers[sl.embyServerId].baseUrl).replace(/\/+$/, '')}/web/index.html#!/item?id=${embyItemId}`;
+          }
         }
       }
-    }
-    result.items = result.items.map(libraryListItemView);
-    return result;
+      result.items = result.items.map(libraryListItemView);
+      return result;
+    });
   });
 
   app.get('/v1/library/queries/manage', async (req) => {
     const { filter, page } = parseLibraryQuery(req.query);
-    const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
-    return { ...result, items: result.items.map(libraryListItemView) };
+    return runtimeResourceTracker.trackEvent({
+      eventType: 'library.query',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: 'service:library.query',
+      resourceLabel: 'Library query',
+      subLibraryId: filter.subLibraryId || '',
+      payload: { route: '/v1/library/queries/manage', filter, page },
+      successPayload: (result) => ({
+        itemCount: result && Array.isArray(result.items) ? result.items.length : 0,
+        total: result && typeof result.total === 'number' ? result.total : undefined,
+      }),
+    }, () => {
+      const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
+      return { ...result, items: result.items.map(libraryListItemView) };
+    });
   });
 
   app.get('/v1/library/items/:itemId', async (req, reply) => {
     const item = mediaLibraryService.getLibraryItem(req.params.itemId);
     if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Item not found');
-    return libraryListItemView(metadataStatus.decorateItem(item, configStore.loadConfig()));
+    return libraryListItemView(item);
   });
 
   app.patch('/v1/library/ratings', async (req, reply) => {
@@ -1628,7 +1671,11 @@ function registerRoutes(app) {
 
   app.get('/v1/admin/nodes', async () => {
     const nodes = nodeStore.loadNodes();
-    const tasks = taskStore.loadTasks({ includeHistory: false });
+    const tasks = taskStore.queryTaskSummaries({ statuses: ['executing'] }, {
+      includeHistory: false,
+      pageSize: 1000,
+      maxPageSize: 1000,
+    }).tasks;
     const nodeList = nodes.map((n) => {
       const activeJobCount = tasks.filter((t) => t.nodeId === n.id && t.status === 'executing').length;
       return { ...n, apiKey: '********', activeJobCount };
@@ -1639,7 +1686,11 @@ function registerRoutes(app) {
   app.get('/v1/admin/nodes/:id', async (req) => {
     const node = nodeStore.getNode(req.params.id);
     if (!node) return { error: { code: 'NOT_FOUND', message: 'Node not found' } };
-    const tasks = taskStore.loadTasks({ includeHistory: false });
+    const tasks = taskStore.queryTaskSummaries({ statuses: ['executing'] }, {
+      includeHistory: false,
+      pageSize: 1000,
+      maxPageSize: 1000,
+    }).tasks;
     const activeJobCount = tasks.filter((t) => t.nodeId === node.id && t.status === 'executing').length;
     return { ...node, apiKey: '********', activeJobCount };
   });
@@ -1842,10 +1893,39 @@ function registerRoutes(app) {
     };
   });
 
+  app.get('/v1/admin/tasks/:id/events', async (req, reply) => {
+    const task = taskStore.getTask(req.params.id);
+    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 50));
+    return taskStore.queryTaskEvents({ taskId: task.id }, { page, pageSize, orderDir: 'asc' });
+  });
+
+  app.get('/v1/admin/resources', async () => {
+    const config = configStore.loadConfig();
+    const runtimeEvents = runtimeResourceTracker.listEvents({ recentLimit: 100 }).events;
+    const result = taskStore.queryTaskSummaries({}, {
+      page: 1,
+      pageSize: 1000,
+      maxPageSize: 1000,
+      orderBy: 'createdAt',
+      orderDir: 'asc',
+      includeHistory: false,
+    });
+    return resourceProjection.buildResourceView(result.tasks, config, {
+      slotUsage: transcodeService.getDeviceSlotUsage(),
+      runtimeEvents,
+    });
+  });
+
   app.get('/v1/admin/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    return taskDetailView(task);
+    const detail = taskDetailView(task);
+    if (req.query.includeEvents === '1' || req.query.includeEvents === 'true') {
+      detail.events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 200 }).events;
+    }
+    return detail;
   });
 
   app.patch('/v1/admin/tasks/:id', async (req, reply) => {
@@ -1979,6 +2059,7 @@ async function buildApp(opts = {}) {
     mediaLibraryService.stopAllTimers();
     strategyEngine.stop();
     smartTaskEngine.stop();
+    runtimeResourceTracker.resetForTests();
   });
 
   // Clean up orphan ffmpeg processes and temp dirs from previous run

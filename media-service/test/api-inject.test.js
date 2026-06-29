@@ -8,6 +8,53 @@ const os = require('os');
 const crypto = require('crypto');
 const { buildApp } = require('../src/app');
 const taskStore = require('../src/taskStore');
+const mediaLibraryService = require('../src/mediaLibraryService');
+const runtimeResourceTracker = require('../src/runtimeResourceTracker');
+
+function metadataReadyMovie(overrides = {}) {
+  const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
+  return {
+    itemId,
+    source: 'emby',
+    sourceId: itemId,
+    name: 'Metadata Ready Movie',
+    type: 'movie',
+    path: `/media/${itemId}.mkv`,
+    size: 1024 * 1024 * 1024,
+    duration: 3600,
+    bitrate: 4_000_000,
+    resolution: '1920x1080',
+    codec: 'h264',
+    watched: true,
+    userRating: 4,
+    tmdbId: '10001',
+    action: 'transcode',
+    ...overrides,
+  };
+}
+
+function metadataReadyAdultItem(item, overrides = {}) {
+  const base = item || {};
+  return {
+    ...base,
+    source: base.source || 'adult_folder',
+    mediaType: 'adult',
+    scraped: true,
+    size: base.size || 1024 * 1024,
+    duration: base.duration || 1200,
+    bitrate: base.bitrate || 3_000_000,
+    resolution: base.resolution || '1920x1080',
+    codec: base.codec || 'h264',
+    adultMetadata: {
+      ...((base && base.adultMetadata) || {}),
+      region: 'japanese_jav',
+      scrapeStatus: 'done',
+      adultId: 'MVSD-175',
+      title: base.name || 'MVSD-175',
+    },
+    ...overrides,
+  };
+}
 
 // ── Health ────────────────────────────────────────────────────────────────────
 
@@ -161,10 +208,19 @@ test('POST /v1/tasks invalid actionType -> 400', async () => {
 test('POST /v1/tasks creates task and returns 201', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'test-item-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Task Create Movie',
+      path: '/media/task-create-movie.mkv',
+    })],
+  });
   const res = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'test-item-' + crypto.randomUUID().slice(0, 8), actionType: 'transcode' },
+    payload: { itemId, actionType: 'transcode' },
   });
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
@@ -172,6 +228,85 @@ test('POST /v1/tasks creates task and returns 201', async () => {
   assert.strictEqual(body.status, 'created');
   assert.strictEqual(body.actionType, 'transcode');
   assert.strictEqual(body.source, 'manual');
+  await app.close();
+});
+
+test('GET task events and admin resource view expose v2.5 projections', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  runtimeResourceTracker.resetForTests();
+
+  const task = taskStore.createTask({
+    itemId: 'resource-item',
+    itemName: 'Resource Item',
+    actionType: 'transcode',
+    source: 'manual',
+    status: 'queued',
+    itemInfo: { subLibraryId: 'movie-lib', path: '/media/resource-item.mkv' },
+  });
+  taskStore.updateTask(task.id, { status: 'executing', phase: 'transcode_executing' });
+
+  let res = await app.inject({ method: 'GET', url: `/v1/tasks/${task.id}/events` });
+  assert.strictEqual(res.statusCode, 200);
+  const events = res.json();
+  assert.ok(events.events.some((event) => event.eventType === 'task.created'));
+  assert.ok(events.events.some((event) => event.eventType === 'task.status_changed'));
+
+  runtimeResourceTracker.startEvent({
+    eventType: 'library.query',
+    component: 'test',
+    resourceType: 'service_api',
+    resourceKey: 'service:library.query',
+    resourceLabel: 'Library query',
+    payload: { route: '/v1/library' },
+  });
+
+  res = await app.inject({ method: 'GET', url: '/v1/admin/resources' });
+  assert.strictEqual(res.statusCode, 200);
+  const resources = res.json();
+  assert.strictEqual(resources.summary.totalTasks, 1);
+  assert.strictEqual(resources.summary.totalEvents, 1);
+  assert.strictEqual(resources.summary.runningEvents, 1);
+  assert.strictEqual(resources.summary.byResourceType.local_transcode, 1);
+  assert.strictEqual(resources.summary.byResourceType.service_api, 1);
+  const transcodeBucket = resources.resources.find((bucket) => bucket.resourceKey === 'local:ffmpeg');
+  assert.ok(transcodeBucket, 'local transcode bucket exists');
+  assert.strictEqual(transcodeBucket.tasks[0].taskId, task.id);
+  assert.strictEqual(transcodeBucket.tasks[0].resourceState, 'running');
+  const queryBucket = resources.resources.find((bucket) => bucket.resourceKey === 'service:library.query');
+  assert.ok(queryBucket, 'library query bucket exists');
+  assert.strictEqual(queryBucket.events[0].eventType, 'library.query');
+  assert.strictEqual(queryBucket.events[0].eventStatus, 'running');
+
+  await app.close();
+});
+
+test('GET /v1/library records a runtime library.query event for resource attribution', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  runtimeResourceTracker.resetForTests();
+
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({ itemId: 'runtime-library-query' })],
+  });
+
+  let res = await app.inject({ method: 'GET', url: '/v1/library?limit=1' });
+  assert.strictEqual(res.statusCode, 200);
+
+  res = await app.inject({ method: 'GET', url: '/v1/admin/resources' });
+  assert.strictEqual(res.statusCode, 200);
+  const view = res.json();
+  assert.strictEqual(view.summary.totalEvents, 1);
+  const bucket = view.resources.find((entry) => entry.resourceKey === 'service:library.query');
+  assert.ok(bucket, 'library query resource bucket exists');
+  assert.strictEqual(bucket.events[0].eventType, 'library.query');
+  assert.strictEqual(bucket.events[0].eventStatus, 'done');
+  assert.strictEqual(bucket.events[0].payload.itemCount, 1);
+  assert.strictEqual(bucket.events[0].payload.total, 1);
+
   await app.close();
 });
 
@@ -191,8 +326,8 @@ test('POST /v1/tasks follows sub-library automation mode for initial status', as
   mediaLibraryService.saveLibrary({
     cachedAt: new Date().toISOString(),
     items: [
-      { itemId: 'auto-lib-item', name: 'Auto Item', type: 'movie', subLibraryId: 'auto-lib' },
-      { itemId: 'manual-lib-item', name: 'Manual Item', type: 'movie', subLibraryId: 'manual-lib' },
+      metadataReadyMovie({ itemId: 'auto-lib-item', name: 'Auto Item', subLibraryId: 'auto-lib' }),
+      metadataReadyMovie({ itemId: 'manual-lib-item', name: 'Manual Item', subLibraryId: 'manual-lib' }),
     ],
   });
 
@@ -223,6 +358,10 @@ test('POST /v1/tasks manual admission does not load full task history', async ()
     throw new Error('full history should not be loaded for manual admission');
   };
   try {
+    mediaLibraryService.saveLibrary({
+      cachedAt: new Date().toISOString(),
+      items: [metadataReadyMovie({ itemId: 'manual-fast-path' })],
+    });
     const res = await app.inject({
       method: 'POST',
       url: '/v1/tasks',
@@ -239,8 +378,8 @@ test('POST /v1/tasks manual admission does not load full task history', async ()
 test('GET /v1/tasks lists created tasks', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i1', actionType: 'delete' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i2', actionType: 'transcode' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i1', actionType: 'scrape' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i2', actionType: 'scrape' } });
   const res = await app.inject({ method: 'GET', url: '/v1/tasks' });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
@@ -252,8 +391,8 @@ test('GET /v1/tasks lists created tasks', async () => {
 test('GET /v1/tasks defaults to active tasks and includeHistory returns completed history', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const done = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-done', actionType: 'delete' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-active', actionType: 'transcode' } });
+  const done = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-done', actionType: 'scrape' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-active', actionType: 'scrape' } });
   taskStore.updateTask(done.json().id, { status: 'done' });
 
   const res = await app.inject({ method: 'GET', url: '/v1/tasks' });
@@ -271,7 +410,7 @@ test('GET /v1/tasks defaults to active tasks and includeHistory returns complete
 test('GET /v1/tasks/:id returns task detail', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-detail', actionType: 'delete' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-detail', actionType: 'scrape' } });
   const { id } = create.json();
   const res = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
   assert.strictEqual(res.statusCode, 200);
@@ -292,6 +431,8 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
     actionType: 'scrape',
     status: 'done',
     itemInfo: {
+      source: 'adult_folder',
+      subLibraryId: 'adult-report-lib',
       name: 'SORA-107 Some Title',
       path: '/adult_media/JAV/SORA-107 Some Title/SORA-107.mp4',
       adultMetadata: {
@@ -346,7 +487,7 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
 test('DELETE /v1/tasks/:id removes task', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-del', actionType: 'delete' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-del', actionType: 'scrape' } });
   const { id } = create.json();
   const res = await app.inject({ method: 'DELETE', url: `/v1/tasks/${id}` });
   assert.strictEqual(res.statusCode, 200);
@@ -386,6 +527,11 @@ test('delete task removes an adult folder media directory and library item', asy
   fs.writeFileSync(filePath, 'delete-me');
   const adultLibraryService = require('../src/adultLibraryService');
   const item = await adultLibraryService.upsertFileItem(subLib, filePath);
+  mediaLibraryService.updateLibraryItems([metadataReadyAdultItem(item, {
+    name: item.name || 'MVSD-175 Delete Me',
+    path: filePath,
+    size: Buffer.byteLength('delete-me'),
+  })]);
 
   const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, actionType: 'delete' } });
   assert.strictEqual(createTask.statusCode, 201);
@@ -440,6 +586,11 @@ test('delete task removes an adult scraped movie folder when the marker matches'
   fs.writeFileSync(nfoPath, '<movie><title>Some Title</title><id>MVSD-175</id></movie>');
   const adultLibraryService = require('../src/adultLibraryService');
   const item = await adultLibraryService.upsertFileItem(subLib, filePath);
+  mediaLibraryService.updateLibraryItems([metadataReadyAdultItem(item, {
+    name: item.name || 'MVSD-175 Some Title',
+    path: filePath,
+    size: fs.statSync(filePath).size,
+  })]);
   fs.writeFileSync(path.join(movieDir, '.shelfdeck.json'), JSON.stringify({
     itemId: item.itemId,
     subLibraryId: subLib.uuid,
@@ -511,6 +662,17 @@ test('delete task refuses adult folder media paths outside watchRoot', async () 
     name: 'Unsafe Delete',
     path: outsideFile,
     size: Buffer.byteLength('must-stay'),
+    duration: 1200,
+    bitrate: 3_000_000,
+    resolution: '1920x1080',
+    codec: 'h264',
+    scraped: true,
+    adultMetadata: {
+      region: 'japanese_jav',
+      scrapeStatus: 'done',
+      adultId: 'MVSD-175',
+      title: 'Unsafe Delete',
+    },
   }];
   mediaLibraryService.saveLibrary(lib);
 
@@ -536,6 +698,7 @@ test('delete task refuses adult folder media paths outside watchRoot', async () 
 test('POST /v1/tasks/:id/actions/pause returns paused status', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-pause' })] });
   const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-pause', actionType: 'transcode' } });
   const { id } = create.json();
   const res = await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/pause` });
@@ -557,6 +720,7 @@ test('POST /v1/tasks/:id/actions/pause non-existent task -> 404', async () => {
 test('POST /v1/tasks/:id/actions/execute resumes paused task to queued', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-resume' })] });
   const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-resume', actionType: 'transcode' } });
   const { id } = create.json();
   // Pause first
@@ -584,6 +748,7 @@ test('POST /v1/tasks/:id/actions/execute non-existent task -> 404', async () => 
 test('DELETE /v1/tasks/:id cancels then removes executing task', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-cancel-del' })] });
   const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-cancel-del', actionType: 'transcode' } });
   const { id } = create.json();
   // Manually set task to executing via taskStore
@@ -605,6 +770,7 @@ test('DELETE /v1/tasks/:id cancels then removes executing task', async () => {
 test('DELETE /v1/tasks/:id removes queued task without running flow cancel', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-remove-queued' })] });
   const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-remove-queued', actionType: 'transcode' } });
   const { id } = create.json();
   const taskStore = require('../src/taskStore');
@@ -635,6 +801,7 @@ test('pause on executing transcode task deletes partial file', async () => {
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   require('../src/taskScheduler').stopScheduler();
 
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-partial' })] });
   const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-partial', actionType: 'transcode' } });
   const { id } = create.json();
 
@@ -674,12 +841,12 @@ test('GET /v1/admin/tasks returns list with summary', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const taskStore = require('../src/taskStore');
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a1', actionType: 'delete' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a2', actionType: 'transcode' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a1', actionType: 'scrape' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a2', actionType: 'scrape' } });
   taskStore.createTask({
     itemId: 'a3',
     actionType: 'scrape',
-    status: 'done',
+    status: 'queued',
     itemInfo: {
       name: 'Heavy adult scrape',
       adultMetadata: {
@@ -700,12 +867,12 @@ test('GET /v1/admin/tasks returns list with summary', async () => {
   assert.ok(body.summary, 'summary present');
   assert.strictEqual(body.summary.total, 3);
   assert.strictEqual(body.summary.byStatus.created, 2);
-  assert.strictEqual(body.summary.byStatus.done, 1);
+  assert.strictEqual(body.summary.byStatus.queued, 1);
   assert.ok(body.tasks.every((t) => t.logs === undefined), 'list payload omits logs');
   assert.ok(body.tasks.every((t) => t.report === undefined), 'list payload omits reports');
   const manualSummaries = body.tasks.filter((t) => t.itemId === 'a1' || t.itemId === 'a2');
   assert.ok(manualSummaries.every((t) => t.source === 'manual'), 'list payload includes task source');
-  const scrapeSummary = body.tasks.find((t) => t.actionType === 'scrape');
+  const scrapeSummary = body.tasks.find((t) => t.itemId === 'a3');
   if (scrapeSummary) {
     assert.strictEqual(scrapeSummary.itemInfo.adultMetadata.faceClusters, undefined, 'list payload omits heavy face clusters');
   }
@@ -2640,10 +2807,8 @@ test('GET /v1/library/queries/manage task filter stays on SQL pagination path', 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const items = Array.from({ length: 3 }, (_, index) => ({
-    itemId: `task-filter-item-${index + 1}`,
+    ...metadataReadyMovie({ itemId: `task-filter-item-${index + 1}` }),
     subLibraryId: 'sub-task-filter',
-    source: 'emby',
-    type: 'movie',
     name: `Task Filter Movie ${index + 1}`,
     action: 'transcode',
     path: `/media/task-filter-${index + 1}.mkv`,
@@ -2717,11 +2882,11 @@ test('strategyEngine rule evaluation scenarios', async () => {
   assert.ok(!ruleMatches({ bucket: '4K', equivalentBitrate: 8, codec: 'h264' }, ruleOr));
 });
 
-test('adult JAV default template requires scraped=true and transcodes non-HEVC or high bitrate', async () => {
+test('adult JAV default template transcodes non-HEVC or high bitrate facts', async () => {
   const { buildAdultJavDefaultTemplate } = require('../src/configStore');
   const { ruleMatches } = require('../src/strategyEngine');
   const tpl = buildAdultJavDefaultTemplate();
-  assert.strictEqual(tpl.tag.version, 2);
+  assert.strictEqual(tpl.tag.version, 3);
   const nonHevc = tpl.rules.find((r) => r.reason.includes('非 HEVC'));
   const transcode1080p = tpl.rules.find((r) => r.action === 'transcode' && r.reason.includes('1080p'));
   const transcode4k = tpl.rules.find((r) => r.action === 'transcode' && r.reason.includes('4K'));
@@ -2737,8 +2902,8 @@ test('adult JAV default template requires scraped=true and transcodes non-HEVC o
   assert.ok(!ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 1.8 }, nonHevc));
   assert.ok(ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 3 }, transcode1080p));
   assert.ok(!ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 2.4 }, transcode1080p));
-  assert.ok(!ruleMatches({ scraped: false, codec: 'h264', bucket: '1080p', equivalentBitrate: 8 }, nonHevc));
-  assert.ok(!ruleMatches({ bucket: '1080p', equivalentBitrate: 8 }, transcode1080p));
+  assert.ok(ruleMatches({ scraped: false, codec: 'h264', bucket: '1080p', equivalentBitrate: 8 }, nonHevc));
+  assert.ok(ruleMatches({ bucket: '1080p', equivalentBitrate: 8 }, transcode1080p));
 });
 
 // ── 404 handling ──────────────────────────────────────────────────────────────
@@ -2764,10 +2929,12 @@ test('GET unknown /v1/ endpoint -> 404', async () => {
 test('POST /v1/tasks upgrade actionType -> 201', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'upgrade-test-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId, action: 'upgrade' })] });
   const res = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'upgrade-test-' + crypto.randomUUID().slice(0, 8), actionType: 'upgrade' },
+    payload: { itemId, actionType: 'upgrade' },
   });
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
@@ -2823,10 +2990,12 @@ test('PATCH /v1/tasks/:id confirm with confirmData stores selection', async () =
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
 
   // Create upgrade task
+  const itemId = 'upgrade-confirm-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId, action: 'upgrade' })] });
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'upgrade-confirm-' + crypto.randomUUID().slice(0, 8), actionType: 'upgrade' },
+    payload: { itemId, actionType: 'upgrade' },
   });
   const { id } = create.json();
 
@@ -2856,10 +3025,12 @@ test('POST /v1/tasks/:id/actions/pause on upgrade task', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
 
+  const itemId = 'upgrade-pause-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId, action: 'upgrade' })] });
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'upgrade-pause-' + crypto.randomUUID().slice(0, 8), actionType: 'upgrade' },
+    payload: { itemId, actionType: 'upgrade' },
   });
   const { id } = create.json();
 
@@ -2874,10 +3045,12 @@ test('POST /v1/tasks/:id/actions/execute resumes paused upgrade task', async () 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
 
+  const itemId = 'upgrade-resume-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId, action: 'upgrade' })] });
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'upgrade-resume-' + crypto.randomUUID().slice(0, 8), actionType: 'upgrade' },
+    payload: { itemId, actionType: 'upgrade' },
   });
   const { id } = create.json();
   await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/pause` });
@@ -2897,10 +3070,12 @@ test('upgrade task with no MoviePilot config -> precheck fails to failed_hard', 
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   require('../src/taskScheduler').stopScheduler();
 
+  const itemId = 'upgrade-noconfig-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId, action: 'upgrade' })] });
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'upgrade-noconfig-' + crypto.randomUUID().slice(0, 8), actionType: 'upgrade' },
+    payload: { itemId, actionType: 'upgrade' },
   });
   const { id } = create.json();
 
@@ -2943,11 +3118,13 @@ test('upgrade task with MoviePilot config proceeds to planning', async () => {
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   require('../src/taskScheduler').stopScheduler();
 
+  const itemId = 'upgrade-precheck-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId, action: 'upgrade' })] });
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
     payload: {
-      itemId: 'upgrade-precheck-' + crypto.randomUUID().slice(0, 8),
+      itemId,
       actionType: 'upgrade',
     },
   });

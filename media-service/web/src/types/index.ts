@@ -350,6 +350,81 @@ export interface TaskListResponse {
   total: number;
 }
 
+// ── Resource View ────────────────────────────────────────────────────────────
+
+export type ResourceTaskState = 'running' | 'waiting' | 'blocked';
+export type RuntimeEventState = 'running' | 'recent' | 'failed';
+
+export interface ResourceTask {
+  taskId: string;
+  itemId: string;
+  itemName?: string;
+  actionType: ActionType;
+  source?: 'manual' | 'auto' | string;
+  status: TaskStatus;
+  phase?: string;
+  resumePoint?: string | null;
+  priority?: number;
+  progress?: number;
+  createdAt: string;
+  updatedAt: string;
+  nodeId?: string | null;
+  resourceState: ResourceTaskState;
+  resourceType: string;
+  resourceKey: string;
+  resourceLabel: string;
+}
+
+export interface RuntimeResourceEvent {
+  eventId: string;
+  eventType: string;
+  eventStatus: string;
+  component: string;
+  resourceType: string;
+  resourceKey: string;
+  resourceLabel: string;
+  taskId?: string;
+  itemId?: string;
+  itemName?: string;
+  subLibraryId?: string;
+  source?: string;
+  startedAt: string;
+  endedAt?: string | null;
+  durationMs?: number | null;
+  eventState: RuntimeEventState;
+  payload?: Record<string, unknown>;
+}
+
+export interface ResourceBucket {
+  resourceType: string;
+  resourceKey: string;
+  resourceLabel: string;
+  configuredSlots: number;
+  running: number;
+  waiting: number;
+  blocked: number;
+  tasks: ResourceTask[];
+  events?: RuntimeResourceEvent[];
+  eventRunning?: number;
+  eventRecent?: number;
+  eventFailed?: number;
+  deviceSlotUsage?: Record<string, unknown>;
+}
+
+export interface ResourceView {
+  summary: {
+    totalTasks: number;
+    totalEvents?: number;
+    runningEvents?: number;
+    recentEvents?: number;
+    byResourceType: Record<string, number>;
+    byState: Record<ResourceTaskState, number>;
+    byEventStatus?: Record<string, number>;
+    generatedAt: string;
+  };
+  resources: ResourceBucket[];
+}
+
 // ── Health ────────────────────────────────────────────────────────────────────
 
 export interface HealthCheckItem {

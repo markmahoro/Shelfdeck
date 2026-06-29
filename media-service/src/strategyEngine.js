@@ -12,6 +12,7 @@
 
 const activityLog = require('./activityLog');
 const metadataStatus = require('./metadataStatus');
+const runtimeResourceTracker = require('./runtimeResourceTracker');
 
 let timer = null;
 let lastRunAt = null;
@@ -200,52 +201,61 @@ let _configStore = null;
 let _mediaLibraryService = null;
 
 function runOnce() {
-  const lib = _mediaLibraryService.getLibrary();
-  if (!lib || !lib.items) return { changed: 0 };
+  return runtimeResourceTracker.trackEvent({
+    eventType: 'strategy.run',
+    component: 'strategyEngine',
+    resourceType: 'service_cpu',
+    resourceKey: 'service:strategy',
+    resourceLabel: 'Strategy engine',
+    successPayload: (result) => result,
+  }, () => {
+    const lib = _mediaLibraryService.getLibrary();
+    if (!lib || !lib.items) return { changed: 0, itemCount: 0 };
 
-  const cfg = _configStore.loadConfig();
-  const templates = cfg.ruleTemplates || [];
-  const subLibs = cfg.subLibraries || [];
-  let changed = 0;
-  const changedItems = [];
+    const cfg = _configStore.loadConfig();
+    const templates = cfg.ruleTemplates || [];
+    const subLibs = cfg.subLibraries || [];
+    let changed = 0;
+    const changedItems = [];
 
-  for (const item of lib.items) {
-    if (item.type === 'series') {
-      // Series items are rating anchors only — never produce tasks
-      if (item.action !== 'keep' || item.reason !== '系列条目(非媒体文件)') {
-        item.action = 'keep';
-        item.reason = '系列条目(非媒体文件)';
-        item.targetBitrate = undefined;
-        item.targetCodec = undefined;
-        item.seedPreferences = undefined;
-        item.predictedSizeGb = undefined;
+    for (const item of lib.items) {
+      if (item.type === 'series') {
+        // Series items are rating anchors only — never produce tasks
+        if (item.action !== 'keep' || item.reason !== '系列条目(非媒体文件)') {
+          item.action = 'keep';
+          item.reason = '系列条目(非媒体文件)';
+          item.targetBitrate = undefined;
+          item.targetCodec = undefined;
+          item.seedPreferences = undefined;
+          item.predictedSizeGb = undefined;
+          changed++;
+          changedItems.push(item);
+        }
+        continue;
+      }
+      if (evaluateItem(item, templates, subLibs, cfg)) {
         changed++;
         changedItems.push(item);
       }
-      continue;
     }
-    if (evaluateItem(item, templates, subLibs, cfg)) {
-      changed++;
-      changedItems.push(item);
+
+    lastChanged = changed;
+    lastRunAt = Date.now();
+
+    if (changed > 0) {
+      if (typeof _mediaLibraryService.updateLibraryItems === 'function') {
+        _mediaLibraryService.updateLibraryItems(changedItems);
+      } else {
+        _mediaLibraryService.saveLibrary(lib);
+      }
+      const msg = `策略重新计算完成，${changed} 个条目的推荐操作已更新`;
+      console.log(`[strategyEngine] ${msg}`);
+      activityLog.addActivity('strategy_engine', msg, { changed });
     }
-  }
 
-  lastChanged = changed;
-  lastRunAt = Date.now();
-
-  if (changed > 0) {
-    if (typeof _mediaLibraryService.updateLibraryItems === 'function') {
-      _mediaLibraryService.updateLibraryItems(changedItems);
-    } else {
-      _mediaLibraryService.saveLibrary(lib);
-    }
-    const msg = `策略重新计算完成，${changed} 个条目的推荐操作已更新`;
-    console.log(`[strategyEngine] ${msg}`);
-    activityLog.addActivity('strategy_engine', msg, { changed });
-  }
-
-  lastError = null;
-  return { changed };
+    lastError = null;
+    return { changed, itemCount: lib.items.length };
+  });
 }
 
 function start(configStore, mediaLibraryService) {

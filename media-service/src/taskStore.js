@@ -84,6 +84,7 @@ function getDb() {
     CREATE INDEX IF NOT EXISTS idx_tasks_action_status_updated_at ON tasks(action_type, status, updated_at);
   `);
   ensureSpaceStatColumns(db);
+  ensureTaskEventTable(db);
   dbCache.set(dbPath, db);
   migrateJsonTasksIfNeeded(db);
   backfillSpaceStatColumns(db);
@@ -103,6 +104,28 @@ function ensureSpaceStatColumns(db) {
   for (const [name, type] of Object.entries(columns)) {
     if (!existing.has(name)) db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`);
   }
+}
+
+function ensureTaskEventTable(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_events (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL DEFAULT '',
+      item_id TEXT NOT NULL DEFAULT '',
+      action_type TEXT NOT NULL DEFAULT '',
+      event_type TEXT NOT NULL DEFAULT '',
+      event_status TEXT NOT NULL DEFAULT '',
+      phase TEXT,
+      resume_point TEXT,
+      resource_type TEXT,
+      created_at TEXT NOT NULL DEFAULT '',
+      payload_json TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_task_events_task_created ON task_events(task_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_task_events_type_created ON task_events(event_type, created_at);
+    CREATE INDEX IF NOT EXISTS idx_task_events_status_created ON task_events(event_status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_task_events_item_created ON task_events(item_id, created_at);
+  `);
 }
 
 function backfillSpaceStatColumns(db) {
@@ -245,6 +268,148 @@ function taskSpaceStatColumns(task) {
   };
 }
 
+function eventPayloadFor(task, payload = {}) {
+  const base = payload && typeof payload === 'object' ? { ...payload } : {};
+  return {
+    ...base,
+    taskId: task && task.id,
+    itemId: task && task.itemId,
+    actionType: task && task.actionType,
+    status: task && task.status,
+    phase: task && task.phase,
+    resumePoint: task && task.resumePoint,
+  };
+}
+
+function buildTaskEvent(task, eventType, payload = {}, opts = {}) {
+  const now = opts.createdAt || new Date().toISOString();
+  const t = task || {};
+  return {
+    id: opts.id || generateId(),
+    taskId: String(opts.taskId || t.id || ''),
+    itemId: String(opts.itemId || t.itemId || ''),
+    actionType: String(opts.actionType || t.actionType || ''),
+    eventType: String(eventType || opts.eventType || ''),
+    eventStatus: String(opts.eventStatus || t.status || ''),
+    phase: opts.phase !== undefined ? opts.phase : (t.phase === undefined ? null : t.phase),
+    resumePoint: opts.resumePoint !== undefined ? opts.resumePoint : (t.resumePoint === undefined ? null : t.resumePoint),
+    resourceType: opts.resourceType || null,
+    createdAt: now,
+    payload: eventPayloadFor(t, payload),
+  };
+}
+
+function taskEventToRow(event) {
+  return {
+    id: event.id,
+    task_id: event.taskId,
+    item_id: event.itemId,
+    action_type: event.actionType,
+    event_type: event.eventType,
+    event_status: event.eventStatus,
+    phase: event.phase,
+    resume_point: event.resumePoint,
+    resource_type: event.resourceType,
+    created_at: event.createdAt,
+    payload_json: jsonStringify(event.payload),
+  };
+}
+
+function rowToTaskEvent(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    taskId: row.task_id || '',
+    itemId: row.item_id || '',
+    actionType: row.action_type || '',
+    eventType: row.event_type || '',
+    eventStatus: row.event_status || '',
+    phase: row.phase,
+    resumePoint: row.resume_point,
+    resourceType: row.resource_type,
+    createdAt: row.created_at || '',
+    payload: jsonParse(row.payload_json, {}),
+  };
+}
+
+function appendTaskEvent(task, eventType, payload = {}, opts = {}) {
+  if (!task || !task.id || !eventType) return null;
+  try {
+    const event = buildTaskEvent(task, eventType, payload, opts);
+    getDb().prepare(`
+      INSERT INTO task_events
+        (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type, created_at, payload_json)
+      VALUES
+        (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type, @created_at, @payload_json)
+    `).run(taskEventToRow(event));
+    return event;
+  } catch (err) {
+    console.warn(`[taskStore] task event shadow write skipped: ${err.message}`);
+    return null;
+  }
+}
+
+function appendTaskEvents(events) {
+  const rows = (events || []).filter(Boolean).map((event) => taskEventToRow(event));
+  if (!rows.length) return 0;
+  try {
+    const insert = getDb().prepare(`
+      INSERT INTO task_events
+        (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type, created_at, payload_json)
+      VALUES
+        (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type, @created_at, @payload_json)
+    `);
+    const tx = getDb().transaction((eventRows) => {
+      for (const row of eventRows) insert.run(row);
+    });
+    tx(rows);
+    return rows.length;
+  } catch (err) {
+    console.warn(`[taskStore] task event shadow batch write skipped: ${err.message}`);
+    return 0;
+  }
+}
+
+function taskUpdateEvents(current, updated, updates = {}) {
+  const events = [];
+  const statusChanged = updates.status !== undefined && current.status !== updated.status;
+  const phaseChanged = updates.phase !== undefined && current.phase !== updated.phase;
+  const resumeChanged = updates.resumePoint !== undefined && current.resumePoint !== updated.resumePoint;
+
+  if (statusChanged) {
+    events.push(buildTaskEvent(updated, 'task.status_changed', {
+      fromStatus: current.status,
+      toStatus: updated.status,
+    }));
+  }
+  if (phaseChanged || resumeChanged) {
+    events.push(buildTaskEvent(updated, 'task.runtime_changed', {
+      fromPhase: current.phase,
+      toPhase: updated.phase,
+      fromResumePoint: current.resumePoint,
+      toResumePoint: updated.resumePoint,
+    }));
+  }
+  if (updates.approval && typeof updates.approval === 'object') {
+    events.push(buildTaskEvent(updated, 'approval.requested', {
+      gateId: updates.approval.gateId,
+      message: updates.approval.message,
+      options: updates.approval.options,
+    }));
+  }
+  if (updates.priority !== undefined && current.priority !== updated.priority) {
+    events.push(buildTaskEvent(updated, 'task.priority_changed', {
+      fromPriority: current.priority,
+      toPriority: updated.priority,
+      manuallyAdjusted: !!updates.priorityManuallyAdjusted,
+    }));
+  }
+  if (updates.manualExecuteRequested === true && !current.manualExecuteRequested) {
+    events.push(buildTaskEvent(updated, 'task.manual_execute_requested', {}));
+  }
+  return events;
+}
+
 function rowToTask(row) {
   if (!row) return null;
   const task = normalizeTask(jsonParse(row.payload_json, {}));
@@ -310,6 +475,11 @@ function createTask(taskData) {
   const db = getDb();
   const task = buildTask(taskData);
   db.prepare(upsertSql).run(taskToRow(task));
+  appendTaskEvent(task, 'task.created', {
+    source: task.source,
+    priority: task.priority,
+    priorityModelVersion: task.priorityModelVersion,
+  });
   return task;
 }
 
@@ -385,7 +555,8 @@ function queryTasks(filter = {}, options = {}) {
   const db = getDb();
   const { where, params } = buildWhere(filter, options);
   const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
-  const pageSize = Math.min(100, Math.max(1, Number.parseInt(options.pageSize, 10) || 20));
+  const maxPageSize = Math.max(1, Number.parseInt(options.maxPageSize, 10) || 100);
+  const pageSize = Math.min(maxPageSize, Math.max(1, Number.parseInt(options.pageSize, 10) || 20));
   const offset = (page - 1) * pageSize;
   const orderBy = options.orderBy === 'createdAt' ? 'created_at' : 'updated_at';
   const orderDir = String(options.orderDir || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
@@ -413,6 +584,47 @@ function queryTasks(filter = {}, options = {}) {
   };
 }
 
+function queryTaskEvents(filter = {}, options = {}) {
+  const db = getDb();
+  const clauses = [];
+  const params = {};
+  if (filter.taskId) {
+    clauses.push('task_id = @taskId');
+    params.taskId = String(filter.taskId);
+  }
+  if (filter.itemId) {
+    clauses.push('item_id = @itemId');
+    params.itemId = String(filter.itemId);
+  }
+  if (filter.eventType) {
+    clauses.push('event_type = @eventType');
+    params.eventType = String(filter.eventType);
+  }
+  if (filter.status) {
+    clauses.push('event_status = @status');
+    params.status = String(filter.status);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
+  const pageSize = Math.min(200, Math.max(1, Number.parseInt(options.pageSize, 10) || 50));
+  const offset = (page - 1) * pageSize;
+  const orderDir = String(options.orderDir || 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+  const total = db.prepare(`SELECT COUNT(*) AS count FROM task_events ${where}`).get(params).count || 0;
+  const rows = db.prepare(`
+    SELECT * FROM task_events ${where}
+    ORDER BY created_at ${orderDir}, id ${orderDir}
+    LIMIT @limit OFFSET @offset
+  `).all({ ...params, limit: pageSize, offset });
+
+  return {
+    events: rows.map(rowToTaskEvent),
+    total,
+    page,
+    pageSize,
+  };
+}
+
 function jsonExtractObject(value, fallback = undefined) {
   if (value == null) return fallback;
   if (typeof value === 'string') return jsonParse(value, fallback);
@@ -423,7 +635,8 @@ function queryTaskSummaries(filter = {}, options = {}) {
   const db = getDb();
   const { where, params } = buildWhere(filter, options);
   const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
-  const pageSize = Math.min(100, Math.max(1, Number.parseInt(options.pageSize, 10) || 20));
+  const maxPageSize = Math.max(1, Number.parseInt(options.maxPageSize, 10) || 100);
+  const pageSize = Math.min(maxPageSize, Math.max(1, Number.parseInt(options.pageSize, 10) || 20));
   const offset = (page - 1) * pageSize;
   const orderBy = options.orderBy === 'createdAt' ? 'created_at' : 'updated_at';
   const orderDir = String(options.orderDir || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
@@ -445,6 +658,7 @@ function queryTaskSummaries(filter = {}, options = {}) {
       ${activeJson('$.source')} AS source,
       ${activeJson('$.phase')} AS phase,
       ${activeJson('$.resumePoint')} AS resume_point,
+      ${activeJson('$.nodeId')} AS node_id,
       ${activeJson('$.approval')} AS approval_json,
       ${activeJson('$.verifyResult.sizeBytes')} AS verify_size_bytes,
       ${activeJson('$.verifyResult.bitrate')} AS verify_bitrate,
@@ -537,6 +751,7 @@ function queryTaskSummaries(filter = {}, options = {}) {
         progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
         phase: row.phase,
         resumePoint: row.resume_point,
+        nodeId: row.node_id || undefined,
         approval: jsonExtractObject(row.approval_json, undefined),
         priority: typeof row.priority === 'number' ? row.priority : 100,
         createdAt: row.created_at || '',
@@ -552,7 +767,77 @@ function queryTaskSummaries(filter = {}, options = {}) {
   };
 }
 
-function queryOptimizationTaskIndexRows() {
+function querySchedulerTasks() {
+  const db = getDb();
+  const terminals = [...TERMINAL_STATUSES];
+  const params = {};
+  const terminalSql = terminals.map((status, i) => {
+    params[`terminal${i}`] = status;
+    return `@terminal${i}`;
+  }).join(', ');
+
+  const rows = db.prepare(`
+    SELECT
+      id,
+      item_id,
+      item_name,
+      action_type,
+      status,
+      priority,
+      created_at,
+      updated_at,
+      json_extract(payload_json, '$.progress') AS progress,
+      json_extract(payload_json, '$.source') AS source,
+      json_extract(payload_json, '$.phase') AS phase,
+      json_extract(payload_json, '$.resumePoint') AS resume_point,
+      json_extract(payload_json, '$.manualExecuteRequested') AS manual_execute_requested,
+      json_extract(payload_json, '$.priorityManuallyAdjusted') AS priority_manually_adjusted,
+      json_extract(payload_json, '$.priorityModelVersion') AS priority_model_version,
+      json_extract(payload_json, '$.priorityBreakdown') AS priority_breakdown_json,
+      json_extract(payload_json, '$.retryCount') AS retry_count,
+      json_extract(payload_json, '$.pausingRequested') AS pausing_requested,
+      json_extract(payload_json, '$.nodeId') AS node_id,
+      json_extract(payload_json, '$.itemInfo') AS item_info_json
+    FROM tasks
+    WHERE status NOT IN (${terminalSql})
+    ORDER BY priority ASC, created_at ASC, id ASC
+  `).all(params);
+
+  return rows.map((row) => ({
+    id: row.id,
+    itemId: row.item_id || '',
+    itemName: row.item_name || '',
+    actionType: row.action_type || '',
+    status: row.status || '',
+    priority: typeof row.priority === 'number' ? row.priority : 100,
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+    progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
+    source: row.source || '',
+    phase: row.phase,
+    resumePoint: row.resume_point,
+    manualExecuteRequested: !!row.manual_execute_requested,
+    priorityManuallyAdjusted: !!row.priority_manually_adjusted,
+    priorityModelVersion: row.priority_model_version,
+    priorityBreakdown: jsonExtractObject(row.priority_breakdown_json, undefined),
+    retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
+    pausingRequested: !!row.pausing_requested,
+    nodeId: row.node_id || undefined,
+    itemInfo: jsonExtractObject(row.item_info_json, null),
+  }));
+}
+
+function queryOptimizationTaskIndexRows(filter = {}) {
+  const params = {};
+  let itemFilter = '';
+  if (Array.isArray(filter.itemIds) && filter.itemIds.length > 0) {
+    const ids = [...new Set(filter.itemIds.map((id) => String(id || '')).filter(Boolean))];
+    if (ids.length > 0) {
+      itemFilter = `AND item_id IN (${ids.map((_, i) => `@itemId${i}`).join(', ')})`;
+      ids.forEach((id, i) => { params[`itemId${i}`] = id; });
+    }
+  }
+
   const rows = getDb().prepare(`
     SELECT
       id,
@@ -572,7 +857,8 @@ function queryOptimizationTaskIndexRows() {
     FROM tasks
     WHERE status = 'done'
       AND action_type IN ('transcode', 'upgrade')
-  `).all();
+      ${itemFilter}
+  `).all(params);
 
   return rows.map((row) => ({
     id: row.id,
@@ -596,6 +882,23 @@ function queryOptimizationTaskIndexRows() {
         newFile: row.new_file_path ? { path: row.new_file_path } : null,
       }
       : null,
+  }));
+}
+
+function queryTaskAdmissionRows() {
+  const rows = getDb().prepare(`
+    SELECT id, item_id, action_type, status, created_at, updated_at
+    FROM tasks
+    ORDER BY updated_at DESC, id DESC
+  `).all();
+
+  return rows.map((row) => ({
+    id: row.id,
+    itemId: row.item_id || '',
+    actionType: row.action_type || '',
+    status: row.status || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
   }));
 }
 
@@ -656,6 +959,7 @@ function updateTask(taskId, updates) {
     updatedAt: new Date().toISOString(),
   });
   getDb().prepare(upsertSql).run(taskToRow(updated));
+  appendTaskEvents(taskUpdateEvents(current, updated, final));
 
   if (final.status) statusCache.set(taskId, final.status);
   if (TERMINAL_STATUSES.has(final.status) || final.status === 'failed_soft') {
@@ -667,8 +971,10 @@ function updateTask(taskId, updates) {
 
 function deleteTask(taskId) {
   const db = getDb();
+  const task = getTask(taskId);
   const result = db.prepare('DELETE FROM tasks WHERE id = ?').run(String(taskId || ''));
   if (result.changes <= 0) return false;
+  appendTaskEvent(task, 'task.deleted', {});
   progressCache.delete(taskId);
   statusCache.delete(taskId);
   return true;
@@ -704,7 +1010,11 @@ module.exports = {
   saveTasks,
   queryTasks,
   queryTaskSummaries,
+  querySchedulerTasks,
+  queryTaskEvents,
+  appendTaskEvent,
   queryOptimizationTaskIndexRows,
+  queryTaskAdmissionRows,
   querySpaceStatTaskRows,
   setProgress,
   getProgress,

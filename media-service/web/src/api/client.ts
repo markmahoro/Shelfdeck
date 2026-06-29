@@ -8,6 +8,7 @@ import type {
   DevicePool,
   TaskListResponse,
   MediaTask,
+  ResourceView,
   HealthStatus,
   DoubanSession,
   SpaceStats,
@@ -301,6 +302,12 @@ export const tasks = {
     patch<{ id: string; status: string }>(`/v1/tasks/${id}`, { confirmed: true, ...(confirmData ? { confirmData } : {}) }),
 
   report: (id: string) => get<TaskReport>(`/v1/tasks/${id}/report`),
+};
+
+// ── Resources ────────────────────────────────────────────────────────────────
+
+export const resources = {
+  get: () => get<ResourceView>('/v1/admin/resources'),
 };
 
 export interface TaskReport {

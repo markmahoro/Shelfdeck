@@ -28,4 +28,5 @@ v2.5 是当前推荐路线：从 v2.0 生产基线出发，保留 v2 已验证 f
 - `docs/v2.5/UPGRADE_STRATEGY.md`
 - `docs/v2.5/DATA_RUNTIME_MODEL.md`
 - `docs/v2.5/IMPLEMENTATION_STAGES.md`
+- `docs/v2.5/V2_6_TO_V3_ROADMAP.md`
 - `docs/v2.5/GOAL_PROMPT.md`

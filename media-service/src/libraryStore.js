@@ -450,6 +450,116 @@ function queryItems(filter = {}, opts = {}) {
   };
 }
 
+function querySmartTaskCandidateItems() {
+  const rows = getDb().prepare(`
+    SELECT
+      item_id,
+      sub_library_id,
+      source,
+      source_id,
+      name,
+      type,
+      action,
+      path,
+      watched,
+      scraped,
+      scrape_status,
+      adult_id,
+      resolution,
+      codec,
+      user_rating,
+      douban_stars,
+      is_bluray_disc,
+      size_bytes,
+      bitrate,
+      equivalent_bitrate,
+      target_bitrate,
+      updated_at,
+      json_extract(payload_json, '$.reason') AS reason,
+      json_extract(payload_json, '$.duration') AS duration,
+      json_extract(payload_json, '$.doubanRating') AS douban_rating,
+      json_extract(payload_json, '$.doubanId') AS douban_id,
+      json_extract(payload_json, '$.userRatingUpdatedAt') AS user_rating_updated_at,
+      json_extract(payload_json, '$.doubanRatingUpdatedAt') AS douban_rating_updated_at,
+      json_extract(payload_json, '$.lastRefreshedAt') AS last_refreshed_at,
+      json_extract(payload_json, '$.tmdbId') AS tmdb_id,
+      json_extract(payload_json, '$.providerIds') AS provider_ids_json,
+      json_extract(payload_json, '$.seriesName') AS series_name,
+      json_extract(payload_json, '$.seasonNumber') AS season_number,
+      json_extract(payload_json, '$.targetCodec') AS target_codec,
+      json_extract(payload_json, '$.seedPreferences') AS seed_preferences_json,
+      json_extract(payload_json, '$.maxSizeGB') AS max_size_gb,
+      json_extract(payload_json, '$.assetKey') AS asset_key,
+      json_extract(payload_json, '$.assetRootPath') AS asset_root_path,
+      json_extract(payload_json, '$.externalRefs') AS external_refs_json,
+      json_extract(payload_json, '$.adultMetadata.title') AS adult_title,
+      json_extract(payload_json, '$.adultMetadata.region') AS adult_region,
+      json_extract(payload_json, '$.adultMetadata.scrapedAt') AS adult_scraped_at,
+      json_extract(payload_json, '$.adultMetadata.protagonist') AS adult_protagonist_json
+    FROM media_items
+    WHERE source IN ('emby', 'adult_folder')
+      AND type != 'series'
+    ORDER BY ordinal ASC, item_id ASC
+  `).all();
+
+  return rows.map((row) => {
+    const adultMetadata = (row.adult_id || row.scrape_status || row.adult_title || row.adult_region || row.adult_scraped_at || row.adult_protagonist_json)
+      ? {
+        adultId: row.adult_id || undefined,
+        scrapeStatus: row.scrape_status || undefined,
+        title: row.adult_title || undefined,
+        region: row.adult_region || undefined,
+        scrapedAt: row.adult_scraped_at || undefined,
+        protagonist: jsonParse(row.adult_protagonist_json, undefined),
+      }
+      : undefined;
+    const item = {
+      itemId: row.item_id || '',
+      subLibraryId: row.sub_library_id || '',
+      source: row.source || '',
+      sourceId: row.source_id || '',
+      name: row.name || '',
+      type: row.type || '',
+      action: row.action || '',
+      reason: row.reason || '',
+      path: row.path || '',
+      watched: row.watched === 1,
+      scraped: row.scraped === 1,
+      adultMetadata,
+      resolution: row.resolution || '',
+      codec: row.codec || '',
+      userRating: row.user_rating,
+      doubanStars: row.douban_stars,
+      doubanRating: row.douban_rating == null ? row.douban_stars : row.douban_rating,
+      doubanId: row.douban_id || undefined,
+      isBluRayDisc: row.is_bluray_disc === 1,
+      size: row.size_bytes == null ? undefined : Number(row.size_bytes),
+      bitrate: row.bitrate == null ? undefined : Number(row.bitrate),
+      equivalentBitrate: row.equivalent_bitrate == null ? undefined : Number(row.equivalent_bitrate),
+      targetBitrate: row.target_bitrate == null ? undefined : Number(row.target_bitrate),
+      duration: row.duration == null ? undefined : Number(row.duration),
+      updatedAt: row.updated_at || undefined,
+      userRatingUpdatedAt: row.user_rating_updated_at || undefined,
+      doubanRatingUpdatedAt: row.douban_rating_updated_at || undefined,
+      lastRefreshedAt: row.last_refreshed_at || undefined,
+      tmdbId: row.tmdb_id || undefined,
+      providerIds: jsonParse(row.provider_ids_json, undefined),
+      seriesName: row.series_name || undefined,
+      seasonNumber: row.season_number,
+      targetCodec: row.target_codec || undefined,
+      seedPreferences: jsonParse(row.seed_preferences_json, undefined),
+      maxSizeGB: jsonParse(row.max_size_gb, row.max_size_gb),
+      assetKey: row.asset_key || undefined,
+      assetRootPath: row.asset_root_path || undefined,
+      externalRefs: jsonParse(row.external_refs_json, undefined),
+    };
+    Object.keys(item).forEach((key) => {
+      if (item[key] === undefined || item[key] === null) delete item[key];
+    });
+    return item;
+  });
+}
+
 function querySpaceStatItems() {
   const rows = getDb().prepare(`
     SELECT
@@ -500,6 +610,7 @@ module.exports = {
   updateItems,
   getItem,
   queryItems,
+  querySmartTaskCandidateItems,
   querySpaceStatItems,
   countBySubLibrary,
   getHealth,
