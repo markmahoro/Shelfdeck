@@ -59,7 +59,7 @@ function verifyScrapedItem(item, opts = {}) {
     warnings: [],
   };
   if (!item || !item.itemId) {
-    addFailure(result, 'item.present', 'Library item is missing');
+    addFailure(result, 'item.present', '媒体项不存在');
     return result;
   }
 
@@ -69,43 +69,43 @@ function verifyScrapedItem(item, opts = {}) {
   const markerRequired = opts.requireMarker !== false;
 
   if (item.scraped === true) markOk(result, 'library.scraped');
-  else addFailure(result, 'library.scraped', 'Library item is not marked scraped=true');
+  else addFailure(result, 'library.scraped', '媒体项未标记为已刮削');
 
   if (meta.scrapeStatus === 'done') markOk(result, 'metadata.scrapeStatus');
-  else addFailure(result, 'metadata.scrapeStatus', `adultMetadata.scrapeStatus is "${meta.scrapeStatus || ''}", expected "done"`);
+  else addFailure(result, 'metadata.scrapeStatus', `刮削状态为「${meta.scrapeStatus || '空'}」，预期为「done」`);
 
   if (meta.adultId) markOk(result, 'metadata.adultId');
-  else addFailure(result, 'metadata.adultId', 'adultMetadata.adultId is missing');
+  else addFailure(result, 'metadata.adultId', '番号缺失');
 
   if (meta.title || item.name) markOk(result, 'metadata.title');
-  else addFailure(result, 'metadata.title', 'Scrape title is missing');
+  else addFailure(result, 'metadata.title', '标题缺失');
 
   if (existsFile(item.path, opts)) markOk(result, 'media.exists');
-  else addFailure(result, 'media.exists', `Media file does not exist: ${item.path || ''}`);
+  else addFailure(result, 'media.exists', `媒体文件不存在：${item.path || ''}`);
 
   if (writeNfo) {
     if (meta.nfoPath && existsFile(meta.nfoPath, opts)) markOk(result, 'asset.movieNfo');
-    else addFailure(result, 'asset.movieNfo', `movie.nfo is missing: ${meta.nfoPath || ''}`);
+    else addFailure(result, 'asset.movieNfo', `movie.nfo 缺失：${meta.nfoPath || ''}`);
     if (meta.fileNfoPath && existsFile(meta.fileNfoPath, opts)) markOk(result, 'asset.fileNfo');
-    else addFailure(result, 'asset.fileNfo', `File NFO is missing: ${meta.fileNfoPath || ''}`);
+    else addFailure(result, 'asset.fileNfo', `同名 NFO 缺失：${meta.fileNfoPath || ''}`);
   } else {
-    addWarning(result, 'asset.nfo.disabled', 'NFO verification skipped because writeNfo=false');
+    addWarning(result, 'asset.nfo.disabled', '已关闭 NFO 写入，跳过 NFO 验收');
   }
 
   if (region === 'japanese_jav') {
     if (meta.source || meta.sourceUrl) markOk(result, 'metadata.source');
-    else addFailure(result, 'metadata.source', 'JAV scrape source/sourceUrl is missing');
+    else addFailure(result, 'metadata.source', 'JAV 刮削来源缺失');
     if (meta.posterPath && existsFile(meta.posterPath, opts)) markOk(result, 'asset.poster');
-    else addFailure(result, 'asset.poster', `Poster is missing: ${meta.posterPath || ''}`);
+    else addFailure(result, 'asset.poster', `封面缺失：${meta.posterPath || ''}`);
   } else if (region === 'western_adult') {
     const protagonist = meta.protagonist || null;
     if (protagonist && protagonist.personId && protagonist.name) markOk(result, 'metadata.protagonist');
-    else addFailure(result, 'metadata.protagonist', 'Western adult protagonist is missing');
+    else addFailure(result, 'metadata.protagonist', '欧美成人主角未识别');
     if (meta.posterPath) {
       if (existsFile(meta.posterPath, opts)) markOk(result, 'asset.poster');
-      else addFailure(result, 'asset.poster', `Poster is missing: ${meta.posterPath}`);
+      else addFailure(result, 'asset.poster', `封面缺失：${meta.posterPath}`);
     } else {
-      addWarning(result, 'asset.poster.missing', 'Western adult item has no posterPath');
+      addWarning(result, 'asset.poster.missing', '欧美成人媒体没有封面路径');
     }
   }
 
@@ -115,18 +115,18 @@ function verifyScrapedItem(item, opts = {}) {
     if (markerPath && existsFile(markerPath, opts) && marker) {
       markOk(result, 'marker.exists');
       if (String(marker.itemId || '') === String(item.itemId)) markOk(result, 'marker.itemId');
-      else addFailure(result, 'marker.itemId', 'Marker itemId does not match library itemId');
+      else addFailure(result, 'marker.itemId', '标记文件 itemId 与媒体项不一致');
       if (!item.subLibraryId || String(marker.subLibraryId || '') === String(item.subLibraryId)) markOk(result, 'marker.subLibraryId');
-      else addFailure(result, 'marker.subLibraryId', 'Marker subLibraryId does not match library item');
+      else addFailure(result, 'marker.subLibraryId', '标记文件 subLibraryId 与媒体项不一致');
       if (!marker.mediaPath || !item.path || path.resolve(marker.mediaPath) === path.resolve(item.path)) markOk(result, 'marker.mediaPath');
-      else addFailure(result, 'marker.mediaPath', 'Marker mediaPath does not match current media path');
+      else addFailure(result, 'marker.mediaPath', '标记文件 mediaPath 与当前媒体路径不一致');
       const expectedTaskId = opts.scrapeTaskId || '';
       if (!expectedTaskId || String(marker.scrapeTaskId || '') === String(expectedTaskId)) markOk(result, 'marker.scrapeTaskId');
-      else addFailure(result, 'marker.scrapeTaskId', 'Marker scrapeTaskId does not match scrape task');
+      else addFailure(result, 'marker.scrapeTaskId', '标记文件 scrapeTaskId 与当前刮削任务不一致');
       if (marker.scrapedAt) markOk(result, 'marker.scrapedAt');
-      else addFailure(result, 'marker.scrapedAt', 'Marker scrapedAt is missing');
+      else addFailure(result, 'marker.scrapedAt', '标记文件缺少 scrapedAt');
     } else {
-      addFailure(result, 'marker.exists', `ShelfDeck marker is missing or unreadable: ${markerPath || ''}`);
+      addFailure(result, 'marker.exists', `ShelfDeck 标记文件缺失或不可读：${markerPath || ''}`);
     }
   }
 
