@@ -57,6 +57,37 @@ const REPORT_LABELS: Record<string, string> = {
   scrape: '刮削报告',
 };
 
+const BRIDGE_LABELS: Record<string, string> = {
+  metadata: 'Metadata',
+  optimize: 'Optimize',
+  archive: 'Archive',
+};
+
+const RESOURCE_LABELS: Record<string, string> = {
+  local_transcode: 'Local transcode',
+  worker_transcode: 'Worker transcode',
+  moviepilot: 'MoviePilot',
+  scraper: 'Metadata scraper',
+  local_ai: 'Local AI',
+  filesystem: 'Filesystem',
+  service_api: 'Service API',
+};
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  'task.created': '任务创建',
+  'flow.planned': 'Flow 规划',
+  'flow.dispatched': 'Flow 派发',
+  'task.status_changed': '状态变化',
+  'task.runtime_changed': '运行点变化',
+  'approval.requested': '等待确认',
+  'task.paused': '暂停',
+  'task.resumed': '恢复',
+  'task.interrupted': '中断',
+  'task.retry_recorded': '重试记录',
+  'task.failed': '失败',
+  'task.manual_execute_requested': '手动启动',
+};
+
 const PHASE_LABELS: Record<string, string> = {
   precheck: '预检',
   planning: '搜索候选',
@@ -147,6 +178,26 @@ function taskSourceLabel(task: MediaTask): string {
   if (task.source === 'manual' || task.itemInfo?.taskSource === 'manual') return '手动操作';
   if (task.source === 'auto' || task.itemInfo?.taskSource === 'auto') return '后台自动入队';
   return '历史记录';
+}
+
+function bridgeLabel(value?: string): string {
+  if (!value) return '—';
+  return BRIDGE_LABELS[value] || value;
+}
+
+function resourceLabel(value?: string | null): string {
+  if (!value) return '—';
+  return RESOURCE_LABELS[value] || value;
+}
+
+function eventTypeLabel(value?: string): string {
+  if (!value) return '—';
+  return EVENT_TYPE_LABELS[value] || value;
+}
+
+function formatEventTime(value?: string): string {
+  if (!value) return '—';
+  return new Date(value).toLocaleTimeString();
 }
 
 export default function TaskMonitorPage() {
@@ -617,6 +668,57 @@ export default function TaskMonitorPage() {
               <div><strong>创建时间:</strong> {displayTask.createdAt ? new Date(displayTask.createdAt).toLocaleString() : '—'}</div>
               <div><strong>更新时间:</strong> {displayTask.updatedAt ? new Date(displayTask.updatedAt).toLocaleString() : '—'}</div>
             </div>
+
+            {(displayTask.taskBridge || displayTask.flowPlan) && (
+              <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>Flow</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', fontSize: 12, color: '#374151', marginBottom: 10 }}>
+                  <div><strong>Bridge:</strong> {bridgeLabel(displayTask.taskBridge?.kind || displayTask.flowPlan?.bridgeKind)}</div>
+                  <div><strong>Direction:</strong> {displayTask.flowPlan?.direction || '—'}</div>
+                  <div><strong>Operation:</strong> {displayTask.flowPlan?.operationKind || displayTask.actionType}</div>
+                  <div><strong>Executor:</strong> {displayTask.flowPlan?.executor || '—'}</div>
+                  <div><strong>Primary resource:</strong> {resourceLabel(displayTask.flowPlan?.primaryResourceType)}</div>
+                  <div><strong>Resources:</strong> {displayTask.flowPlan?.resourceTypes?.map(resourceLabel).join(', ') || '—'}</div>
+                </div>
+                {(displayTask.flowPlan?.steps?.length || 0) > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {displayTask.flowPlan!.steps!.map((step, idx) => (
+                      <span key={`${step.phase || step.eventType || 'step'}-${idx}`} style={{ fontSize: 12, color: '#374151', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, padding: '4px 8px' }}>
+                        {PHASE_LABELS[step.phase || ''] || step.phase || step.eventType || `step-${idx + 1}`} · {resourceLabel(step.resourceType)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(displayTask.events?.length || 0) > 0 && (
+              <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>Event history</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      <th style={eventTh}>时间</th>
+                      <th style={eventTh}>事件</th>
+                      <th style={eventTh}>状态</th>
+                      <th style={eventTh}>资源</th>
+                      <th style={eventTh}>阶段</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayTask.events!.slice(-8).map((event) => (
+                      <tr key={event.id}>
+                        <td style={eventTd}>{formatEventTime(event.createdAt)}</td>
+                        <td style={eventTd}>{eventTypeLabel(event.eventType)}</td>
+                        <td style={eventTd}>{STATUS_LABELS[event.eventStatus] || event.eventStatus || '—'}</td>
+                        <td style={eventTd}>{resourceLabel(event.resourceType)}</td>
+                        <td style={eventTd}>{PHASE_LABELS[event.phase || ''] || event.phase || event.resumePoint || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {displayTask.priorityBreakdown?.dimensions?.length ? (
               <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16 }}>
@@ -1220,6 +1322,20 @@ const candidateTh: React.CSSProperties = {
 
 const compareTd: React.CSSProperties = {
   padding: '8px 12px', fontSize: 12,
+};
+
+const eventTh: React.CSSProperties = {
+  textAlign: 'left',
+  padding: '6px 8px',
+  borderBottom: '1px solid #e5e7eb',
+  color: '#6b7280',
+  fontWeight: 600,
+};
+
+const eventTd: React.CSSProperties = {
+  padding: '6px 8px',
+  borderBottom: '1px solid #eef2f7',
+  color: '#374151',
 };
 
 const paginationBtn: React.CSSProperties = {

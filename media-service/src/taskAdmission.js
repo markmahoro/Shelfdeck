@@ -2,6 +2,7 @@
 
 const optimizationStatus = require('./optimizationStatus');
 const metadataStatus = require('./metadataStatus');
+const flowPlanner = require('./flowPlanner');
 
 const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 
@@ -119,7 +120,11 @@ function canCreateTask({ item, itemInfo, actionType, source, config, tasks, opti
     }
   }
 
-  return { allowed: true, reason: 'allowed' };
+  return {
+    allowed: true,
+    reason: 'allowed',
+    ...flowPlanner.planFlow({ actionType, source, itemId, itemInfo: info }),
+  };
 }
 
 module.exports = {

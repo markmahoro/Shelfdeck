@@ -194,6 +194,38 @@ function recoverInterruptedTasks() {
   }
 }
 
+function resourceConcurrencyLimit(resource, task, limits = {}) {
+  const resourceType = resource && resource.resourceType;
+  const resourceKey = resource && resource.resourceKey;
+  switch (resourceType) {
+    case 'local_transcode':
+    case 'worker_transcode':
+      return limits.transcodeConcurrency || 1;
+    case 'moviepilot':
+      return limits.upgradeConcurrency || 1;
+    case 'scraper':
+      return limits.scrapeConcurrency || 1;
+    case 'local_ai':
+      return getLocalWesternAiScrapeLimit(limits);
+    case 'filesystem':
+      if (resourceKey === 'filesystem:ingest') return limits.ingestConcurrency || 1;
+      if (resourceKey === 'filesystem:mutation') return limits.deleteConcurrency || 1;
+      return 1;
+    default:
+      return getConcurrencyLimit(task && task.actionType, limits);
+  }
+}
+
+function resourceCountKey(resource) {
+  return resource && resource.resourceKey ? resource.resourceKey : 'unknown:task';
+}
+
+function incrementResourceCount(counts, resource, by = 1) {
+  const key = resourceCountKey(resource);
+  counts[key] = (counts[key] || 0) + by;
+  return counts[key];
+}
+
 function isActiveStatus(status) {
   return status === 'executing' || status === 'pausing' || status === 'awaiting_user_confirm';
 }
@@ -388,15 +420,18 @@ async function scheduleRound() {
     ? taskStore.querySchedulerTasks()
     : taskStore.loadTasks({ includeHistory: false });
 
-  // Count active tasks per actionType (occupying slots)
-  const activeCount = { ingest: 0, delete: 0, transcode: 0, upgrade: 0, scrape: 0 };
+  // Count active work by resource bucket. actionType remains the executor/API
+  // compatibility field; scheduling capacity follows flow/resource semantics.
+  const activeResourceCount = {};
+  let activeTaskCount = 0;
   const localWesternAiScrapeLimit = getLocalWesternAiScrapeLimit(config);
   let activeLocalWesternAiScrapes = 0;
   const usedItemIds = new Set();
 
   for (const t of tasks) {
     if (isActiveStatus(t.status)) {
-      activeCount[t.actionType] = (activeCount[t.actionType] || 0) + 1;
+      incrementResourceCount(activeResourceCount, resourceProjection.resourceForTask(t, config));
+      activeTaskCount++;
       usedItemIds.add(t.itemId);
       if (t.status !== 'awaiting_user_confirm' && isLocalWesternAiScrapeTask(t, config)) {
         activeLocalWesternAiScrapes++;
@@ -404,7 +439,7 @@ async function scheduleRound() {
     }
   }
 
-  healthCheck.setSchedulerState({ running: true, runningTasks: Object.values(activeCount).reduce((a, b) => a + b, 0) });
+  healthCheck.setSchedulerState({ running: true, runningTasks: activeTaskCount });
 
   // ── Pass 1: recover interrupted tasks first without saving lightweight rows ─
   const recoveredIds = new Set();
@@ -507,9 +542,11 @@ async function scheduleRound() {
         continue;
       }
 
-      // actionType slot check — just-confirmed tasks bypass (they already held a slot)
-      const limit = getConcurrencyLimit(task.actionType, config);
-      if (activeCount[task.actionType] >= limit && !justConfirmedIds.has(task.id)) continue;
+      // Resource slot check — just-confirmed tasks bypass (they already held a slot).
+      const resource = resourceProjection.resourceForTask(task, config);
+      const resourceKey = resourceCountKey(resource);
+      const limit = resourceConcurrencyLimit(resource, task, config);
+      if ((activeResourceCount[resourceKey] || 0) >= limit && !justConfirmedIds.has(task.id)) continue;
       if (
         isLocalWesternAiScrapeTask(task, config) &&
         activeLocalWesternAiScrapes >= localWesternAiScrapeLimit &&
@@ -522,12 +559,19 @@ async function scheduleRound() {
       if (!flow) continue;
 
       runningTasks.add(task.id);
-      activeCount[task.actionType]++;
+      incrementResourceCount(activeResourceCount, resource);
       if (isLocalWesternAiScrapeTask(task, config)) activeLocalWesternAiScrapes++;
       usedItemIds.add(task.itemId);
       reportStatus(task.id, 'executing', task.progress || 0);
       task.status = 'executing';
-      const resource = resourceProjection.resourceForTask(task, config);
+      taskStore.appendTaskEvent(taskStore.getTask(task.id) || task, 'flow.dispatched', {
+        resourceType: resource.resourceType,
+        resourceKey: resource.resourceKey,
+        resourceLabel: resource.resourceLabel,
+        bridgeKind: task.taskBridge && task.taskBridge.kind,
+        flowDirection: task.flowPlan && task.flowPlan.direction,
+        operationKind: task.flowPlan && task.flowPlan.operationKind,
+      }, { resourceType: resource.resourceType });
       const runtimeEvent = runtimeResourceTracker.startEvent({
         eventType: 'task.dispatch',
         component: 'taskScheduler',
@@ -540,6 +584,9 @@ async function scheduleRound() {
         source: task.source,
         payload: {
           actionType: task.actionType,
+          bridgeKind: task.taskBridge && task.taskBridge.kind,
+          flowDirection: task.flowPlan && task.flowPlan.direction,
+          operationKind: task.flowPlan && task.flowPlan.operationKind,
           phase: task.phase,
           priority: task.priority,
           status: 'executing',

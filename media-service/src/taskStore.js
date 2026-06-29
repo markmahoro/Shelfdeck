@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const diagnosticLog = require('./diagnosticLog');
+const flowPlanner = require('./flowPlanner');
 
 function resolveDataDir() {
   return (
@@ -310,6 +311,15 @@ function normalizeTask(task) {
   t.logs = Array.isArray(t.logs) ? t.logs : [];
   t.itemInfo = t.itemInfo === undefined ? null : t.itemInfo;
   t.manualExecuteRequested = !!t.manualExecuteRequested;
+  const planned = flowPlanner.planFlow({
+    actionType: t.actionType,
+    source: t.source,
+    itemId: t.itemId,
+    itemInfo: t.itemInfo,
+    plannedAt: t.createdAt || now,
+  });
+  t.taskBridge = t.taskBridge && typeof t.taskBridge === 'object' ? t.taskBridge : planned.taskBridge;
+  t.flowPlan = t.flowPlan && typeof t.flowPlan === 'object' ? t.flowPlan : planned.flowPlan;
   return t;
 }
 
@@ -486,6 +496,29 @@ function taskUpdateEvents(current, updated, updates = {}) {
       fromStatus: current.status,
       toStatus: updated.status,
     }));
+    if (updated.status === 'paused') {
+      events.push(buildTaskEvent(updated, 'task.paused', {
+        fromStatus: current.status,
+        requestedBy: 'user',
+      }));
+    }
+    if (current.status === 'paused' && updated.status === 'queued') {
+      events.push(buildTaskEvent(updated, 'task.resumed', {
+        fromStatus: current.status,
+        toStatus: updated.status,
+      }));
+    }
+    if (updated.status === 'interrupted') {
+      events.push(buildTaskEvent(updated, 'task.interrupted', {
+        fromStatus: current.status,
+      }));
+    }
+    if (updated.status === 'failed_hard' || updated.status === 'failed_soft') {
+      events.push(buildTaskEvent(updated, 'task.failed', {
+        fromStatus: current.status,
+        failureStatus: updated.status,
+      }));
+    }
   }
   if (phaseChanged || resumeChanged) {
     events.push(buildTaskEvent(updated, 'task.runtime_changed', {
@@ -511,6 +544,13 @@ function taskUpdateEvents(current, updated, updates = {}) {
   }
   if (updates.manualExecuteRequested === true && !current.manualExecuteRequested) {
     events.push(buildTaskEvent(updated, 'task.manual_execute_requested', {}));
+  }
+  if (updates.retryCount !== undefined && updated.retryCount !== current.retryCount) {
+    events.push(buildTaskEvent(updated, 'task.retry_recorded', {
+      fromRetryCount: current.retryCount || 0,
+      toRetryCount: updated.retryCount || 0,
+      status: updated.status,
+    }));
   }
   return events;
 }
@@ -573,6 +613,8 @@ function buildTask(taskData, now = new Date().toISOString()) {
     priorityManuallyAdjusted: !!taskData.priorityManuallyAdjusted,
     priorityModelVersion: taskData.priorityModelVersion,
     priorityBreakdown: taskData.priorityBreakdown,
+    taskBridge: taskData.taskBridge,
+    flowPlan: taskData.flowPlan,
   });
 }
 
@@ -600,6 +642,12 @@ function createTask(taskData) {
       source: task.source,
       priority: task.priority,
       priorityModelVersion: task.priorityModelVersion,
+      taskBridge: task.taskBridge,
+      flowPlan: task.flowPlan,
+    });
+    appendTaskEvent(task, 'flow.planned', {
+      taskBridge: task.taskBridge,
+      flowPlan: task.flowPlan,
     });
     return task;
   });
@@ -778,6 +826,8 @@ function queryTaskSummaries(filter = {}, options = {}) {
       updated_at,
       ${activeJson('$.progress')} AS progress,
       ${activeJson('$.source')} AS source,
+      json_extract(payload_json, '$.taskBridge') AS task_bridge_json,
+      json_extract(payload_json, '$.flowPlan') AS flow_plan_json,
       ${activeJson('$.phase')} AS phase,
       ${activeJson('$.resumePoint')} AS resume_point,
       ${activeJson('$.nodeId')} AS node_id,
@@ -863,12 +913,21 @@ function queryTaskSummaries(filter = {}, options = {}) {
       Object.keys(verifyResult).forEach((key) => {
         if (verifyResult[key] === undefined || verifyResult[key] === null) delete verifyResult[key];
       });
+      const planned = flowPlanner.planFlow({
+        actionType: row.action_type || '',
+        source: row.source || '',
+        itemId: row.item_id || '',
+        itemInfo,
+        plannedAt: row.created_at || '',
+      });
       return {
         id: row.id,
         itemId: row.item_id || '',
         itemName: row.item_name || '',
         actionType: row.action_type || '',
         source: row.source || '',
+        taskBridge: jsonExtractObject(row.task_bridge_json, planned.taskBridge),
+        flowPlan: jsonExtractObject(row.flow_plan_json, planned.flowPlan),
         status: row.status || '',
         progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
         phase: row.phase,
@@ -920,6 +979,8 @@ function querySchedulerTasks() {
         updated_at,
         json_extract(payload_json, '$.progress') AS progress,
         json_extract(payload_json, '$.source') AS source,
+        json_extract(payload_json, '$.taskBridge') AS task_bridge_json,
+        json_extract(payload_json, '$.flowPlan') AS flow_plan_json,
         json_extract(payload_json, '$.phase') AS phase,
         json_extract(payload_json, '$.resumePoint') AS resume_point,
         json_extract(payload_json, '$.manualExecuteRequested') AS manual_execute_requested,
@@ -935,11 +996,22 @@ function querySchedulerTasks() {
       ORDER BY priority ASC, created_at ASC, id ASC
     `).all(params);
 
-    return rows.map((row) => ({
+    return rows.map((row) => {
+      const itemInfo = jsonExtractObject(row.item_info_json, null);
+      const planned = flowPlanner.planFlow({
+        actionType: row.action_type || '',
+        source: row.source || '',
+        itemId: row.item_id || '',
+        itemInfo,
+        plannedAt: row.created_at || '',
+      });
+      return {
       id: row.id,
       itemId: row.item_id || '',
       itemName: row.item_name || '',
       actionType: row.action_type || '',
+      taskBridge: jsonExtractObject(row.task_bridge_json, planned.taskBridge),
+      flowPlan: jsonExtractObject(row.flow_plan_json, planned.flowPlan),
       status: row.status || '',
       priority: typeof row.priority === 'number' ? row.priority : 100,
       createdAt: row.created_at || '',
@@ -955,8 +1027,9 @@ function querySchedulerTasks() {
       retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
       pausingRequested: !!row.pausing_requested,
       nodeId: row.node_id || undefined,
-      itemInfo: jsonExtractObject(row.item_info_json, null),
-    }));
+      itemInfo,
+    };
+    });
   });
 }
 

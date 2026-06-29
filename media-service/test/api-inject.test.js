@@ -230,6 +230,60 @@ test('POST /v1/tasks creates task and returns 201', async () => {
   assert.strictEqual(body.status, 'created');
   assert.strictEqual(body.actionType, 'transcode');
   assert.strictEqual(body.source, 'manual');
+  assert.strictEqual(body.taskBridge.kind, 'optimize');
+  assert.strictEqual(body.flowPlan.direction, 'optimize.transcode');
+  assert.strictEqual(body.flowPlan.operationKind, 'transcode');
+
+  const detail = await app.inject({ method: 'GET', url: `/v1/tasks/${body.id}?includeEvents=1` });
+  assert.strictEqual(detail.statusCode, 200);
+  assert.strictEqual(detail.json().taskBridge.kind, 'optimize');
+  assert.ok(detail.json().events.some((event) => event.eventType === 'flow.planned'));
+  await app.close();
+});
+
+test('TaskAdmission rejects optimize/archive tasks when metadata is missing', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'metadata-missing-item';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [{
+      itemId,
+      source: 'emby',
+      name: 'Incomplete Movie',
+      type: 'movie',
+    }],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, actionType: 'delete' },
+  });
+  assert.strictEqual(res.statusCode, 409);
+  assert.strictEqual(res.json().error.code, 'TASK_ADMISSION_REJECTED');
+  assert.strictEqual(res.json().error.message, 'metadata_missing');
+  await app.close();
+});
+
+test('manual delete task is planned as archive bridge', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'archive-delete-item';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({ itemId, name: 'Archive Candidate' })],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, actionType: 'delete' },
+  });
+  assert.strictEqual(res.statusCode, 201);
+  assert.strictEqual(res.json().taskBridge.kind, 'archive');
+  assert.strictEqual(res.json().flowPlan.direction, 'archive.delete');
+  assert.strictEqual(res.json().flowPlan.operationKind, 'delete');
   await app.close();
 });
 
@@ -255,6 +309,7 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
   assert.strictEqual(res.statusCode, 200);
   const events = res.json();
   assert.ok(events.events.some((event) => event.eventType === 'task.created'));
+  assert.ok(events.events.some((event) => event.eventType === 'flow.planned'));
   assert.ok(events.events.some((event) => event.eventType === 'task.status_changed'));
 
   runtimeResourceTracker.startEvent({
@@ -297,6 +352,31 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
   assert.strictEqual(resources.diagnostics.backgroundIo.active[0].operation, 'test.background.write');
   guardHandle.finish('done');
 
+  await app.close();
+});
+
+test('task event journal records retry, interruption, and failure semantics', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+
+  const task = taskStore.createTask({
+    itemId: 'event-failure-item',
+    itemName: 'Event Failure Item',
+    actionType: 'transcode',
+    source: 'manual',
+    status: 'queued',
+    itemInfo: { itemId: 'event-failure-item', name: 'Event Failure Item' },
+  });
+  taskStore.updateTask(task.id, { status: 'executing' });
+  taskStore.updateTask(task.id, { status: 'interrupted' });
+  taskStore.updateTask(task.id, { status: 'queued', retryCount: 1 });
+  taskStore.updateTask(task.id, { status: 'failed_hard' });
+
+  const eventTypes = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 50 }).events.map((event) => event.eventType);
+  assert.ok(eventTypes.includes('task.interrupted'));
+  assert.ok(eventTypes.includes('task.retry_recorded'));
+  assert.ok(eventTypes.includes('task.failed'));
   await app.close();
 });
 
@@ -729,6 +809,8 @@ test('POST /v1/tasks/:id/actions/pause returns paused status', async () => {
   const body = res.json();
   assert.strictEqual(body.id, id);
   assert.strictEqual(body.status, 'paused');
+  const events = await app.inject({ method: 'GET', url: `/v1/tasks/${id}/events` });
+  assert.ok(events.json().events.some((event) => event.eventType === 'task.paused'));
   await app.close();
 });
 
@@ -757,6 +839,8 @@ test('POST /v1/tasks/:id/actions/execute resumes paused task to queued', async (
   // Verify persisted
   const get = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
   assert.strictEqual(get.json().status, 'queued');
+  const events = await app.inject({ method: 'GET', url: `/v1/tasks/${id}/events` });
+  assert.ok(events.json().events.some((event) => event.eventType === 'task.resumed'));
   await app.close();
 });
 
@@ -1283,6 +1367,9 @@ test('adult directory discovery is inventory only and ingest does not create scr
 
   const ingestTask = adultLibraryService.enqueueIngestTask(subLib, path.join(watchRoot, 'MVSD-175.mp4'), { source: 'auto' });
   assert.ok(ingestTask, 'auto ingest can still be admitted through TaskAdmission when ingest is enabled');
+  assert.strictEqual(ingestTask.taskBridge.kind, 'metadata');
+  assert.strictEqual(ingestTask.flowPlan.direction, 'metadata.ingest');
+  assert.strictEqual(ingestTask.flowPlan.operationKind, 'ingest');
 
   const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
   const taskStore = require('../src/taskStore');
@@ -2964,6 +3051,9 @@ test('POST /v1/tasks upgrade actionType -> 201', async () => {
   assert.ok(body.id);
   assert.strictEqual(body.actionType, 'upgrade');
   assert.strictEqual(body.status, 'created');
+  assert.strictEqual(body.taskBridge.kind, 'optimize');
+  assert.strictEqual(body.flowPlan.direction, 'optimize.upgrade');
+  assert.strictEqual(body.flowPlan.operationKind, 'upgrade');
   await app.close();
 });
 

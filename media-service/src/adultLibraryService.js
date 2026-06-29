@@ -1293,6 +1293,8 @@ function enqueueIngestTask(subLib, filePath, opts = {}) {
     priority: priorityBreakdown.priority,
     priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
     priorityBreakdown,
+    taskBridge: admission.taskBridge,
+    flowPlan: admission.flowPlan,
     itemInfo,
     logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Ingest task created by user action' : 'Ingest task created by background admission' }],
   };
@@ -1395,6 +1397,8 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
     priority: priorityBreakdown.priority,
     priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
     priorityBreakdown,
+    taskBridge: admission.taskBridge,
+    flowPlan: admission.flowPlan,
     itemInfo,
     logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Scrape task created by user action' : 'Scrape task created by background admission' }],
   };

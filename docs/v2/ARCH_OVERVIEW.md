@@ -103,16 +103,19 @@ desktop / Admin Web
 2. service 同步 Douban 或接收用户评分。
 3. `StrategyEngine` 计算每个媒体项的 `action/reason`。
 4. `SmartTaskEngine` 或用户操作创建任务。
-5. `TaskAdmission` 先判断任务是否允许入队，`PriorityEngine` 计算队列优先级。
-6. `TaskScheduler` 根据 `actionType` 分派到 `IngestFlowExecutor`、`DeleteFlowExecutor`、`TranscodeFlowExecutor`、`UpgradeFlowExecutor` 或 `ScrapeFlowExecutor`。
+5. `TaskAdmission` 先判断任务是否允许入队，并通过 `FlowPlanner` 固化 `taskBridge` 与 `flowPlan`；`PriorityEngine` 计算队列优先级。
+6. `TaskScheduler` 保持 v2 `actionType` 兼容分派，但资源视图和事件历史按 `flowPlan` 的 bridge、direction、operation kind 和 resource type 解释任务。
 7. 本机转码直接在 service 执行；远程转码通过 `NodeService` 上传源文件到 transcode node，轮询状态，下载输出，再由 service 完成校验和替换。
 8. desktop 和 Admin Web 轮询 REST API 获取任务、媒体库和健康状态。
 
 任务模型：
 
-- 任务分为系统级定时任务、子库级定时任务、单 item 任务三类。`StrategyEngine` 是子库/全局长周期策略计算，不是 item task；`delete/transcode/upgrade/scrape/ingest` 属于单 item task。
+- 任务分为系统级定时任务、子库级定时任务、单 item 任务三类。`StrategyEngine` 是子库/全局长周期策略计算，不是 item task；`delete/transcode/upgrade/scrape/ingest` 是 v2 兼容的 operation kind，不再是任务的唯一语义身份。
+- v2.7 单 item task 是生命周期阶段之间的 bridge。新任务会保存 `taskBridge.kind`：`metadata`（`ingest/scrape`）、`optimize`（`transcode/upgrade`）、`archive`（`delete`），并保存 `flowPlan.direction`、`flowPlan.operationKind`、`flowPlan.executor`、`flowPlan.steps` 和每步 `resourceType`。旧 `actionType` API 保留，用于兼容 desktop/Admin Web 和现有 flow executor。
 - 子库只有两种调度模式：`automationMode=auto` 和 `automationMode=manual`。调度模式只决定任务创建后是否自动执行：`auto` 进入执行队列，`manual` 创建为待手动启动；后台是否自动创建任务由 `smartTaskEnabledActions` 和 `TaskAdmission` 统一控制。
-- `TaskAdmission` 是任务创建闸门，统一处理自动/手动来源、active task 去重、失败冷却、按任务类型的自动队列上限、已转码不重复自动转码等规则。48 小时冻结属于 admission，不属于 priority。
+- `TaskAdmission` 是任务创建闸门，统一处理自动/手动来源、active task 去重、失败冷却、按任务类型的自动队列上限、已转码不重复自动转码等规则，并在允许入队时调用 `FlowPlanner`。48 小时冻结属于 admission，不属于 priority。
+- `task_events` 是任务内部执行事实的事件层。任务创建会写入 `task.created` 和 `flow.planned`；调度会写入带资源类型的 `flow.dispatched`；状态、phase、resumePoint、审批、暂停、恢复、中断、重试、失败等变化会追加事件，任务详情 API 可通过 `includeEvents=1` 或 `/events` 读取历史。
+- `TaskScheduler` 的准入准出仍围绕 task 状态推进和 item lock，但并发容量开始按 `flowPlan`/event resource bucket 决策，例如 `local_transcode`/`worker_transcode`、`moviepilot`、`scraper`、`local_ai`、`filesystem:ingest`、`filesystem:mutation`。`actionType` 只保留为 executor 分派和 v2 API 兼容字段。
 - `PriorityEngine` 只决定可入队任务的执行顺序。优先级是多维度叠加分数：`来源权重 + 任务类型权重 + 子库权重 + 业务信号 + 等待时间 + 重试惩罚 + 规则修正`，数值越小越优先；高级规则只能贡献加减分，不能把总分设为绝对值。任务会保存 `priorityBreakdown`，用于解释各维度如何叠加成最终分数。用户手动调整任务优先级会直接覆盖任务上的最终分数。
 - 审批策略与调度策略分离。`approvalPolicy` 控制任务内部关键节点是否暂停，模式为 `auto`、`confirm`、`forceConfirm`；`forceConfirm` 不能被全局、子库或任务级覆盖降级。
 - 当前审批 gate 包括 `delete.beforeExecute`、`transcode.dolbyVisionTonemap`、`transcode.beforeReplace`、`upgrade.candidateSelect`、`upgrade.identityMismatch`、`upgrade.beforeReplace`、`scrape.beforeWriteMetadata`、`scrape.beforeOrganize`、`scrape.reviewResult`。
@@ -162,6 +165,7 @@ desktop / Admin Web
 | Config | `src/configStore.js` | `data/config.json` 读写、默认值、平台路径 |
 | Library store | `src/libraryStore.js` | `data/library.db` SQLite 读写；启动时从旧 `library.json` 一次性迁移 |
 | Task store | `src/taskStore.js` | `data/tasks.db` SQLite 读写；启动时从旧 `tasks.json` 一次性迁移 |
+| Flow planner | `src/flowPlanner.js` | 将 v2 `actionType` 映射为 v2.7 `taskBridge`、`flowPlan` 和资源步骤 |
 | Scheduler | `src/taskScheduler.js` | 轮询、锁、并发、flow dispatch |
 | Task admission | `src/taskAdmission.js` | 自动/手动入队闸门、去重、冷却、业务幂等 |
 | Approval policy | `src/approvalPolicy.js` | 任务内部关键节点审批策略 |

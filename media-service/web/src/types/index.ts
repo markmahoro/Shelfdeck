@@ -307,6 +307,8 @@ export interface MediaTask {
   itemId: string;
   itemName?: string;
   actionType: ActionType;
+  taskBridge?: TaskBridge;
+  flowPlan?: FlowPlan;
   source?: 'manual' | 'auto' | string;
   status: TaskStatus;
   progress: number;
@@ -337,6 +339,52 @@ export interface MediaTask {
   verifyResult?: VerifyResult;
   upgradePreview?: UpgradePreview;
   confirmData?: Record<string, unknown>;
+  events?: TaskEvent[];
+}
+
+export interface TaskBridge {
+  kind: 'metadata' | 'optimize' | 'archive' | string;
+  from?: string;
+  to?: string;
+  reason?: string;
+  actionType?: string;
+  source?: string;
+  itemId?: string;
+  subLibraryId?: string;
+}
+
+export interface FlowStep {
+  phase?: string;
+  eventType?: string;
+  resourceType?: string;
+}
+
+export interface FlowPlan {
+  version?: string;
+  bridgeKind?: string;
+  direction?: string;
+  operationKind?: string;
+  executor?: string;
+  primaryResourceType?: string;
+  actionType?: string;
+  source?: string;
+  resourceTypes?: string[];
+  steps?: FlowStep[];
+  plannedAt?: string;
+}
+
+export interface TaskEvent {
+  id: string;
+  taskId: string;
+  itemId?: string;
+  actionType?: string;
+  eventType: string;
+  eventStatus: string;
+  phase?: string | null;
+  resumePoint?: string | null;
+  resourceType?: string | null;
+  createdAt: string;
+  payload?: Record<string, unknown>;
 }
 
 export interface TaskListResponse {
@@ -369,6 +417,9 @@ export interface ResourceTask {
   createdAt: string;
   updatedAt: string;
   nodeId?: string | null;
+  bridgeKind?: string;
+  flowDirection?: string;
+  operationKind?: string;
   resourceState: ResourceTaskState;
   resourceType: string;
   resourceKey: string;

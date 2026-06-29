@@ -1,0 +1,163 @@
+'use strict';
+
+const FLOW_PLAN_VERSION = 'v2.7';
+
+const FLOW_DEFINITIONS = {
+  ingest: {
+    bridge: {
+      kind: 'metadata',
+      from: 'file_candidate',
+      to: 'library_item',
+      reason: 'Create or refresh library metadata from an observed media file.',
+    },
+    direction: 'metadata.ingest',
+    operationKind: 'ingest',
+    executor: 'ingestFlowExecutor',
+    primaryResourceType: 'filesystem',
+    steps: [
+      { phase: 'ingest_precheck', eventType: 'metadata.ingest.precheck', resourceType: 'filesystem' },
+      { phase: 'ingest_commit', eventType: 'metadata.ingest.commit', resourceType: 'filesystem' },
+    ],
+  },
+  scrape: {
+    bridge: {
+      kind: 'metadata',
+      from: 'library_item',
+      to: 'metadata_enriched_item',
+      reason: 'Resolve missing or incomplete metadata for an existing media item.',
+    },
+    direction: 'metadata.enrich',
+    operationKind: 'scrape',
+    executor: 'scrapeFlowExecutor',
+    primaryResourceType: 'scraper',
+    steps: [
+      { phase: 'scrape_precheck', eventType: 'metadata.scrape.precheck', resourceType: 'service_api' },
+      { phase: 'scrape_executing', eventType: 'metadata.scrape.fetch', resourceType: 'scraper' },
+      { phase: 'scrape_write_metadata', eventType: 'metadata.scrape.write', resourceType: 'filesystem' },
+      { phase: 'scrape_review', eventType: 'metadata.scrape.review', resourceType: 'service_api' },
+    ],
+  },
+  transcode: {
+    bridge: {
+      kind: 'optimize',
+      from: 'original_media',
+      to: 'optimized_media',
+      reason: 'Produce a lower-cost playable derivative while preserving the media item.',
+    },
+    direction: 'optimize.transcode',
+    operationKind: 'transcode',
+    executor: 'transcodeFlowExecutor',
+    primaryResourceType: 'transcode',
+    steps: [
+      { phase: 'transcode_precheck', eventType: 'optimize.transcode.precheck', resourceType: 'filesystem' },
+      { phase: 'transcode_executing', eventType: 'optimize.transcode.execute', resourceType: 'transcode' },
+      { phase: 'transcode_replace', eventType: 'optimize.transcode.replace', resourceType: 'filesystem' },
+      { phase: 'verify', eventType: 'optimize.transcode.verify', resourceType: 'filesystem' },
+    ],
+  },
+  upgrade: {
+    bridge: {
+      kind: 'optimize',
+      from: 'current_media',
+      to: 'upgraded_media',
+      reason: 'Replace a media item with a better source selected by the upgrade flow.',
+    },
+    direction: 'optimize.upgrade',
+    operationKind: 'upgrade',
+    executor: 'upgradeFlowExecutor',
+    primaryResourceType: 'moviepilot',
+    steps: [
+      { phase: 'upgrade_precheck', eventType: 'optimize.upgrade.precheck', resourceType: 'service_api' },
+      { phase: 'upgrade_planning', eventType: 'optimize.upgrade.plan', resourceType: 'moviepilot' },
+      { phase: 'upgrade_executing', eventType: 'optimize.upgrade.download', resourceType: 'moviepilot' },
+      { phase: 'upgrade_pre_replace_verify', eventType: 'optimize.upgrade.verify_source', resourceType: 'filesystem' },
+      { phase: 'upgrade_replace', eventType: 'optimize.upgrade.replace', resourceType: 'filesystem' },
+    ],
+  },
+  delete: {
+    bridge: {
+      kind: 'archive',
+      from: 'library_item',
+      to: 'removed_or_archived_item',
+      reason: 'Retire media from the active library under the existing mutation safety gates.',
+    },
+    direction: 'archive.delete',
+    operationKind: 'delete',
+    executor: 'deleteFlowExecutor',
+    primaryResourceType: 'filesystem',
+    steps: [
+      { phase: 'precheck', eventType: 'archive.delete.precheck', resourceType: 'filesystem' },
+      { phase: 'executing', eventType: 'archive.delete.execute', resourceType: 'filesystem' },
+      { phase: 'verify', eventType: 'archive.delete.verify', resourceType: 'filesystem' },
+    ],
+  },
+};
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function defaultDefinition(actionType) {
+  return {
+    bridge: {
+      kind: 'metadata',
+      from: 'unknown',
+      to: 'unknown',
+      reason: 'Legacy task without a known v2.7 flow definition.',
+    },
+    direction: 'metadata.unknown',
+    operationKind: String(actionType || 'unknown'),
+    executor: '',
+    primaryResourceType: 'service_api',
+    steps: [],
+  };
+}
+
+function planFlow(input = {}) {
+  const actionType = String(input.actionType || '');
+  const source = String(input.source || '');
+  const itemInfo = input.itemInfo && typeof input.itemInfo === 'object' ? input.itemInfo : {};
+  const definition = clone(FLOW_DEFINITIONS[actionType] || defaultDefinition(actionType));
+  const resourceTypes = [...new Set(definition.steps.map((step) => step.resourceType).filter(Boolean))];
+  const plannedAt = input.plannedAt || new Date().toISOString();
+  const taskBridge = {
+    ...definition.bridge,
+    actionType,
+    source,
+    itemId: input.itemId || itemInfo.itemId || '',
+    subLibraryId: itemInfo.subLibraryId || '',
+  };
+  const flowPlan = {
+    version: FLOW_PLAN_VERSION,
+    bridgeKind: taskBridge.kind,
+    direction: definition.direction,
+    operationKind: definition.operationKind,
+    executor: definition.executor,
+    primaryResourceType: definition.primaryResourceType,
+    actionType,
+    source,
+    resourceTypes,
+    steps: definition.steps,
+    plannedAt,
+  };
+  return { taskBridge, flowPlan };
+}
+
+function bridgeKindForAction(actionType) {
+  return (FLOW_DEFINITIONS[actionType] || defaultDefinition(actionType)).bridge.kind;
+}
+
+function currentResourceType(task) {
+  const plan = task && task.flowPlan && typeof task.flowPlan === 'object' ? task.flowPlan : planFlow(task || {}).flowPlan;
+  const phase = task && (task.phase || task.resumePoint);
+  const steps = Array.isArray(plan.steps) ? plan.steps : [];
+  const current = phase ? steps.find((step) => step.phase === phase) : null;
+  return (current && current.resourceType) || plan.primaryResourceType || (steps[0] && steps[0].resourceType) || 'service_api';
+}
+
+module.exports = {
+  FLOW_PLAN_VERSION,
+  planFlow,
+  bridgeKindForAction,
+  currentResourceType,
+};

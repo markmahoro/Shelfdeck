@@ -1,6 +1,7 @@
 'use strict';
 
 const diagnosticLog = require('./diagnosticLog');
+const flowPlanner = require('./flowPlanner');
 
 const ACTIVE_STATUSES = new Set(['executing', 'pausing']);
 const BLOCKED_STATUSES = new Set(['awaiting_user_confirm', 'paused']);
@@ -45,7 +46,8 @@ function isWesternAiScrape(task, config = {}) {
 
 function resourceForTask(task, config = {}) {
   const actionType = task && task.actionType;
-  if (actionType === 'transcode') {
+  const plannedResourceType = flowPlanner.currentResourceType(task || {});
+  if (plannedResourceType === 'transcode') {
     if (task.nodeId) {
       return {
         resourceType: 'worker_transcode',
@@ -59,28 +61,23 @@ function resourceForTask(task, config = {}) {
       resourceLabel: 'Local FFmpeg transcode',
     };
   }
-  if (actionType === 'upgrade') {
+  if (plannedResourceType === 'moviepilot') {
     return {
       resourceType: 'moviepilot',
       resourceKey: 'moviepilot',
       resourceLabel: 'MoviePilot',
     };
   }
-  if (actionType === 'delete') {
+  if (plannedResourceType === 'filesystem') {
+    const operationKind = task && task.flowPlan && task.flowPlan.operationKind;
+    const suffix = operationKind === 'ingest' || actionType === 'ingest' ? 'ingest' : 'mutation';
     return {
       resourceType: 'filesystem',
-      resourceKey: 'filesystem:mutation',
-      resourceLabel: 'Filesystem mutation',
+      resourceKey: `filesystem:${suffix}`,
+      resourceLabel: suffix === 'ingest' ? 'Filesystem ingest' : 'Filesystem mutation',
     };
   }
-  if (actionType === 'ingest') {
-    return {
-      resourceType: 'filesystem',
-      resourceKey: 'filesystem:ingest',
-      resourceLabel: 'Filesystem ingest',
-    };
-  }
-  if (actionType === 'scrape') {
+  if (plannedResourceType === 'scraper') {
     if (isWesternAiScrape(task, config)) {
       return {
         resourceType: 'local_ai',
@@ -92,6 +89,13 @@ function resourceForTask(task, config = {}) {
       resourceType: 'scraper',
       resourceKey: 'scraper:metadata',
       resourceLabel: 'Metadata scraper',
+    };
+  }
+  if (plannedResourceType === 'service_api') {
+    return {
+      resourceType: 'service_api',
+      resourceKey: 'service:task',
+      resourceLabel: 'Service task',
     };
   }
   return {
@@ -109,6 +113,9 @@ function compactTask(task, config) {
     itemId: task.itemId,
     itemName: task.itemName,
     actionType: task.actionType,
+    bridgeKind: task.taskBridge && task.taskBridge.kind,
+    flowDirection: task.flowPlan && task.flowPlan.direction,
+    operationKind: task.flowPlan && task.flowPlan.operationKind,
     source: task.source,
     status: task.status,
     phase: task.phase,

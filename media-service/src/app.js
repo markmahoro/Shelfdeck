@@ -221,6 +221,8 @@ function taskListSummary(task) {
     itemId: task.itemId,
     itemName: task.itemName,
     actionType: task.actionType,
+    taskBridge: task.taskBridge,
+    flowPlan: task.flowPlan,
     source: task.source,
     status: task.status,
     progress: task.progress,
@@ -487,6 +489,8 @@ function registerRoutes(app) {
       priority: priorityBreakdown.priority,
       priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
       priorityBreakdown,
+      taskBridge: admission.taskBridge,
+      flowPlan: admission.flowPlan,
       itemInfo,
       logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user action' }],
     });

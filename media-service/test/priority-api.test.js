@@ -171,6 +171,81 @@ test('taskScheduler dispatch order is priority-ascending then FIFO', async () =>
   }
 });
 
+test('taskScheduler capacity follows flow resource rather than legacy actionType', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const upgradeFlow = require('../src/upgradeFlowExecutor');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.transcodeConcurrency = 2;
+  cfg.upgradeConcurrency = 1;
+  configStoreMod.saveConfig(cfg);
+
+  const moviepilotPlan = {
+    version: 'test',
+    bridgeKind: 'optimize',
+    direction: 'optimize.custom',
+    operationKind: 'transcode',
+    executor: 'transcodeFlowExecutor',
+    primaryResourceType: 'moviepilot',
+    actionType: 'transcode',
+    source: 'manual',
+    resourceTypes: ['moviepilot'],
+    steps: [],
+    plannedAt: new Date().toISOString(),
+  };
+  const plannedTranscode = taskStoreMod.createTask({
+    itemId: 'planned-moviepilot-transcode',
+    itemName: 'Planned MoviePilot Transcode',
+    actionType: 'transcode',
+    source: 'manual',
+    status: 'queued',
+    priority: 1,
+    flowPlan: moviepilotPlan,
+    taskBridge: { kind: 'optimize', actionType: 'transcode', source: 'manual' },
+  });
+  const upgrade = taskStoreMod.createTask({
+    itemId: 'regular-upgrade',
+    itemName: 'Regular Upgrade',
+    actionType: 'upgrade',
+    source: 'manual',
+    status: 'queued',
+    priority: 2,
+  });
+
+  const dispatched = [];
+  const origTranscodeDrive = transcodeFlow.driveTask;
+  const origUpgradeDrive = upgradeFlow.driveTask;
+  transcodeFlow.driveTask = async (taskId) => {
+    dispatched.push({ taskId, actionType: 'transcode' });
+    scheduler.reportStatus(taskId, 'done', 100);
+  };
+  upgradeFlow.driveTask = async (taskId) => {
+    dispatched.push({ taskId, actionType: 'upgrade' });
+    scheduler.reportStatus(taskId, 'done', 100);
+  };
+
+  try {
+    await scheduler.scheduleRound();
+    assert.deepStrictEqual(dispatched.map((entry) => entry.taskId), [plannedTranscode.id]);
+    assert.strictEqual(taskStoreMod.getTask(upgrade.id).status, 'queued');
+    const dispatchEvent = taskStoreMod
+      .queryTaskEvents({ taskId: plannedTranscode.id }, { pageSize: 20 })
+      .events.find((event) => event.eventType === 'flow.dispatched');
+    assert.ok(dispatchEvent);
+    assert.strictEqual(dispatchEvent.resourceType, 'moviepilot');
+    assert.strictEqual(dispatchEvent.payload.resourceKey, 'moviepilot');
+  } finally {
+    transcodeFlow.driveTask = origTranscodeDrive;
+    upgradeFlow.driveTask = origUpgradeDrive;
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
 test('taskScheduler reconciles queued automatic task priorities with the current additive model', async () => {
   tmpDir();
   const scheduler = require('../src/taskScheduler');
