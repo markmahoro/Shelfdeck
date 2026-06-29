@@ -9,6 +9,39 @@ function cleanText(value) {
   return String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
 }
 
+function normalizeForMatch(value) {
+  return cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function nameTokens(value) {
+  return normalizeForMatch(value).split(/\s+/).filter((x) => x.length > 1);
+}
+
+function candidateMatchesName(title, query) {
+  const tokens = nameTokens(query);
+  if (!tokens.length) return false;
+  const haystackTokens = new Set(nameTokens(title));
+  return tokens.every((token) => haystackTokens.has(token));
+}
+
+function queryVariants(name) {
+  const cleaned = cleanText(name);
+  const variants = [
+    cleaned,
+    cleaned.replace(/\([^)]*\)/g, ' '),
+    cleaned.replace(/\[[^\]]*\]/g, ' '),
+    cleaned.replace(/["'`´’‘]/g, ''),
+    cleaned.replace(/[._-]+/g, ' '),
+  ].map(cleanText).filter(Boolean);
+  const seen = new Set();
+  return variants.filter((v) => {
+    const key = v.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 4);
+}
+
 function uniqByUrl(rows) {
   const seen = new Set();
   const out = [];
@@ -19,6 +52,96 @@ function uniqByUrl(rows) {
     out.push(row);
   }
   return out;
+}
+
+async function searchVariants(name, run, limit) {
+  const rows = [];
+  for (const variant of queryVariants(name)) {
+    const found = await run(variant);
+    for (const row of found || []) rows.push({ ...row, matchedQuery: variant });
+    if (uniqByUrl(rows).length >= limit) break;
+  }
+  return rows;
+}
+
+function sourceRank(source) {
+  const s = String(source || '').toLowerCase();
+  if (s.startsWith('stashbox:')) return 0;
+  if (s === 'metadataapi') return 1;
+  if (s === 'tmdb') return 2;
+  if (s === 'wikidata') return 3;
+  if (s === 'wikipedia') return 4;
+  if (s === 'wikimedia') return 5;
+  return 9;
+}
+
+function imageQualityScore(row) {
+  const width = Number(row && row.width) || 0;
+  const height = Number(row && row.height) || 0;
+  if (!width || !height) return 10;
+  const area = width * height;
+  const portraitBias = height >= width ? 0 : 8;
+  const sizePenalty = area >= 600 * 600 ? 0 : area >= 300 * 300 ? 5 : 15;
+  return portraitBias + sizePenalty;
+}
+
+function candidateRank(row, query) {
+  const q = normalizeForMatch(query);
+  const title = normalizeForMatch(row.title);
+  const exact = title && q && title === q;
+  const contains = title && q && (title.includes(q) || q.includes(title));
+  return {
+    score: (exact ? 0 : 100) + (contains ? 0 : 20) + sourceRank(row.source) + imageQualityScore(row),
+    exact,
+    contains,
+  };
+}
+
+function qualityReasons(row, query, rank) {
+  const reasons = [];
+  const source = String(row.source || '');
+  if (source.startsWith('stashbox:')) reasons.push('adult_source');
+  else if (source === 'metadataapi' || source === 'tmdb') reasons.push('metadata_source');
+  else reasons.push('public_fallback');
+  if (rank.exact) reasons.push('name_exact');
+  else if (rank.contains) reasons.push('name_contains');
+  if (row.sourceId) reasons.push('source_id');
+  if (Number(row.width) && Number(row.height)) {
+    reasons.push(Number(row.height) >= Number(row.width) ? 'portrait_image' : 'landscape_image');
+  }
+  return reasons;
+}
+
+function rankCandidates(rows, query) {
+  return rows.map((row, index) => {
+    const rank = candidateRank(row, query);
+    return { row, index, rank };
+  }).sort((a, b) => a.rank.score - b.rank.score || a.index - b.index).map((x) => ({
+    ...x.row,
+    rankScore: x.rank.score,
+    qualityReasons: qualityReasons(x.row, query, x.rank),
+  }));
+}
+
+function hasStrongAdultMatch(candidates, query) {
+  const q = normalizeForMatch(query);
+  return candidates.some((row) => {
+    const source = String(row.source || '').toLowerCase();
+    if (!(source.startsWith('stashbox:') || source === 'metadataapi' || source === 'tmdb')) return false;
+    return normalizeForMatch(row.title) === q && row.imageUrl;
+  });
+}
+
+async function runSourceJobs(sourceJobs, errors) {
+  const results = await Promise.all(sourceJobs.map(async ([source, run]) => {
+    try {
+      return await run();
+    } catch (e) {
+      errors.push({ source, message: e.message });
+      return [];
+    }
+  }));
+  return results.flat();
 }
 
 function proxyAgentFor(proxyServer) {
@@ -33,21 +156,39 @@ function requestOptions(options = {}) {
   return dispatcher ? { dispatcher } : {};
 }
 
+function commonsFileUrl(fileName, width = 600) {
+  const clean = String(fileName || '').replace(/ /g, '_');
+  return clean ? `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(clean)}?width=${width}` : '';
+}
+
 async function fetchJson(url, options = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), Number(options.timeoutMs) || DEFAULT_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      ...requestOptions(options),
-      headers: options.headers || {},
-      signal: controller.signal,
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return json;
-  } finally {
-    clearTimeout(timer);
+  const timeoutMs = Number(options.timeoutMs) || DEFAULT_TIMEOUT_MS;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        ...requestOptions(options),
+        headers: {
+          'user-agent': 'ShelfDeck/1.0 (local actor image search)',
+          'api-user-agent': 'ShelfDeck/1.0',
+          ...(options.headers || {}),
+        },
+        signal: controller.signal,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.status === 429 && attempt === 0) {
+        const retryAfter = Math.min(3000, Math.max(1000, Number(res.headers && res.headers.get && res.headers.get('retry-after')) * 1000 || 1000));
+        await new Promise((resolve) => setTimeout(resolve, retryAfter));
+        continue;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return json;
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  throw new Error('fetch failed');
 }
 
 async function fetchGraphql(url, query, variables, options = {}) {
@@ -80,7 +221,7 @@ async function searchWikimedia(name, limit, options = {}) {
   const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=${limit}&gsrsearch=${q}&prop=imageinfo&iiprop=url|mime|size|extmetadata&iiurlwidth=600&format=json&origin=*`;
   const json = await fetchJson(url, options);
   const pages = json && json.query && json.query.pages ? Object.values(json.query.pages) : [];
-  return pages.map((page) => {
+  return pages.filter((page) => candidateMatchesName(page.title || '', name)).map((page) => {
     const info = page.imageinfo && page.imageinfo[0] || {};
     const meta = info.extmetadata || {};
     return {
@@ -95,6 +236,105 @@ async function searchWikimedia(name, limit, options = {}) {
       license: cleanText(meta.LicenseShortName && meta.LicenseShortName.value || ''),
     };
   }).filter((x) => x.imageUrl);
+}
+
+async function searchWikipedia(name, limit, options = {}) {
+  const qs = new URLSearchParams({
+    action: 'query',
+    generator: 'search',
+    gsrsearch: name,
+    gsrlimit: String(limit),
+    prop: 'pageimages|info',
+    piprop: 'thumbnail|original',
+    pithumbsize: '600',
+    inprop: 'url',
+    format: 'json',
+    origin: '*',
+  });
+  const json = await fetchJson(`https://en.wikipedia.org/w/api.php?${qs.toString()}`, options);
+  const pages = json && json.query && json.query.pages ? Object.values(json.query.pages) : [];
+  return pages.filter((page) => candidateMatchesName(page.title || '', name)).map((page) => {
+    const thumb = page.thumbnail || {};
+    const original = page.original || {};
+    return {
+      source: 'wikipedia',
+      sourceId: String(page.pageid || ''),
+      title: cleanText(page.title || name),
+      pageUrl: page.fullurl || `https://en.wikipedia.org/wiki/${encodeURIComponent(String(page.title || '').replace(/ /g, '_'))}`,
+      imageUrl: thumb.source || original.source || '',
+      originalUrl: original.source || thumb.source || '',
+      width: Number(thumb.width || original.width) || 0,
+      height: Number(thumb.height || original.height) || 0,
+      license: '',
+    };
+  }).filter((x) => x.imageUrl);
+}
+
+async function searchWikidata(name, limit, options = {}) {
+  const searchQs = new URLSearchParams({
+    action: 'wbsearchentities',
+    search: name,
+    language: 'en',
+    limit: String(limit),
+    format: 'json',
+    origin: '*',
+  });
+  const search = await fetchJson(`https://www.wikidata.org/w/api.php?${searchQs.toString()}`, options);
+  const ids = (Array.isArray(search.search) ? search.search : [])
+    .filter((row) => candidateMatchesName(row.label || '', name))
+    .map((row) => row.id)
+    .filter(Boolean)
+    .slice(0, limit);
+  if (!ids.length) return [];
+  const entityQs = new URLSearchParams({
+    action: 'wbgetentities',
+    ids: ids.join('|'),
+    props: 'claims|labels|sitelinks',
+    languages: 'en',
+    format: 'json',
+    origin: '*',
+  });
+  const entityJson = await fetchJson(`https://www.wikidata.org/w/api.php?${entityQs.toString()}`, options);
+  const entities = entityJson && entityJson.entities ? Object.values(entityJson.entities) : [];
+  return entities.map((entity) => {
+    const label = cleanText(entity.labels && entity.labels.en && entity.labels.en.value || name);
+    const imageClaim = entity.claims && Array.isArray(entity.claims.P18) && entity.claims.P18[0];
+    const fileName = imageClaim && imageClaim.mainsnak && imageClaim.mainsnak.datavalue && imageClaim.mainsnak.datavalue.value;
+    const title = entity.sitelinks && entity.sitelinks.enwiki && entity.sitelinks.enwiki.title;
+    const imageUrl = commonsFileUrl(fileName, 600);
+    return {
+      source: 'wikidata',
+      sourceId: String(entity.id || ''),
+      title: label,
+      pageUrl: title ? `https://en.wikipedia.org/wiki/${encodeURIComponent(String(title).replace(/ /g, '_'))}` : `https://www.wikidata.org/wiki/${entity.id}`,
+      imageUrl,
+      originalUrl: commonsFileUrl(fileName, 1600),
+      width: 0,
+      height: 0,
+      license: '',
+    };
+  }).filter((x) => x.imageUrl);
+}
+
+async function searchPublicKnowledgeImages(name, limit, options = {}) {
+  const rows = [];
+  const minimumUseful = Math.min(3, Math.max(1, limit));
+  const sources = [
+    ['wikidata', () => searchWikidata(name, limit, options)],
+    ['wikipedia', () => searchWikipedia(name, limit, options)],
+    ['wikimedia', () => searchWikimedia(name, limit, options)],
+  ];
+  for (const [source, run] of sources) {
+    try {
+      rows.push(...await run());
+      if (uniqByUrl(rows).length >= minimumUseful) break;
+    } catch (e) {
+      if (Array.isArray(options.errors)) {
+        options.errors.push({ source, message: e.message });
+      }
+    }
+  }
+  return rows;
 }
 
 async function searchTmdb(name, cfg, limit, options = {}) {
@@ -200,7 +440,7 @@ function normalizeStashBoxPerformers(json) {
 }
 
 async function searchStashBoxEndpoint(endpoint, name, limit, options = {}) {
-  const query = `
+  const searchQuery = `
     query ShelfDeckSearchPerformer($term: String!) {
       searchPerformer(term: $term) {
         id
@@ -210,12 +450,33 @@ async function searchStashBoxEndpoint(endpoint, name, limit, options = {}) {
       }
     }
   `;
+  const findQuery = `
+    query ShelfDeckFindPerformers($term: String!, $limit: Int!) {
+      findPerformers(
+        performer_filter: { name: { value: $term, modifier: INCLUDES } }
+        filter: { per_page: $limit }
+      ) {
+        performers {
+          id
+          name
+          disambiguation
+          image
+          images { url width height }
+        }
+      }
+    }
+  `;
   const headers = {};
   if (endpoint.apiKey) {
     headers.ApiKey = endpoint.apiKey;
     headers.authorization = `Bearer ${endpoint.apiKey}`;
   }
-  const json = await fetchGraphql(endpoint.url, query, { term: name }, { ...options, headers });
+  let json;
+  try {
+    json = await fetchGraphql(endpoint.url, searchQuery, { term: name }, { ...options, headers });
+  } catch (e) {
+    json = await fetchGraphql(endpoint.url, findQuery, { term: name, limit }, { ...options, headers });
+  }
   return normalizeStashBoxPerformers(json).slice(0, limit).map((p) => {
     const image = stashBoxImageForPerformer(p);
     const firstImage = Array.isArray(p.images) ? p.images.find((img) => img && (img.url || img.imageUrl || img.path)) : null;
@@ -270,22 +531,35 @@ async function searchActorImages({ name, config, limit = 8 }) {
   const errors = [];
   const proxyServer = actorImageProxyServer(config, western);
   const searchOptions = { proxyServer, errors };
-  const sourceJobs = [
-    ['stashbox', () => searchStashBox(q, western, perSource, searchOptions)],
-    ['metadataapi', () => searchMetadataApi(q, western, perSource, searchOptions)],
-    ['tmdb', () => searchTmdb(q, western, perSource, searchOptions)],
-    ['wikimedia', () => searchWikimedia(q, perSource, searchOptions)],
+  const stashBoxJobs = [
+    ['stashbox', () => searchVariants(q, (variant) => searchStashBox(variant, western, perSource, searchOptions), perSource)],
   ];
-  const results = await Promise.all(sourceJobs.map(async ([source, run]) => {
-    try {
-      return await run();
-    } catch (e) {
-      errors.push({ source, message: e.message });
-      return [];
-    }
-  }));
-  const rows = results.flat();
-  const candidates = uniqByUrl(rows).slice(0, perSource * 3);
+  const adultFallbackJobs = [
+    ['metadataapi', () => searchVariants(q, (variant) => searchMetadataApi(variant, western, perSource, searchOptions), perSource)],
+    ['tmdb', () => searchVariants(q, (variant) => searchTmdb(variant, western, perSource, searchOptions), perSource)],
+  ];
+  const publicFallbackJobs = [
+    ['public', () => searchVariants(q, (variant) => searchPublicKnowledgeImages(variant, perSource, searchOptions), perSource)],
+  ];
+
+  let rows = await runSourceJobs(stashBoxJobs, errors);
+  let publicFallback = 'skipped';
+  let adultFallback = 'skipped';
+  let candidates = rankCandidates(uniqByUrl(rows), q);
+
+  if (!hasStrongAdultMatch(candidates, q)) {
+    adultFallback = 'searched';
+    rows = rows.concat(await runSourceJobs(adultFallbackJobs, errors));
+    candidates = rankCandidates(uniqByUrl(rows), q);
+  }
+
+  if (!hasStrongAdultMatch(candidates, q) && candidates.length < perSource) {
+    publicFallback = 'searched';
+    rows = rows.concat(await runSourceJobs(publicFallbackJobs, errors));
+    candidates = rankCandidates(uniqByUrl(rows), q);
+  }
+
+  candidates = rankCandidates(uniqByUrl(rows), q).slice(0, perSource * 3);
   return {
     query: q,
     candidates,
@@ -296,7 +570,13 @@ async function searchActorImages({ name, config, limit = 8 }) {
       stashbox: parseStashBoxEndpoints(western).map((x) => ({ name: x.name, url: x.url, configured: !!x.apiKey })),
       metadataapi: 'optional adult performer metadata source',
       tmdb: western.tmdbApiKey || western.tmdbReadAccessToken ? 'enabled' : 'not_configured',
+      wikidata: 'enabled',
+      wikipedia: 'enabled',
       wikimedia: 'enabled',
+    },
+    diagnostics: {
+      adultFallback,
+      publicFallback,
     },
   };
 }

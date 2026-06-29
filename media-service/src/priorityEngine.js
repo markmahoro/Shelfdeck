@@ -1,19 +1,20 @@
 'use strict';
 
+const PRIORITY_MODEL_VERSION = 'additive-v3';
+
 /**
  * PriorityEngine — computes a task's initial `priority` value.
  *
- * Lower number = higher priority (runs first within its actionType bucket).
+ * Lower number = higher priority (runs first in the global task queue).
+ *
+ * Formula:
+ *   priority = sum(source, actionType, subLibrary, businessSignal, queueAge, retry, matchedRules)
  *
  * Evaluation order:
- *   1. base = source==='manual' ? manualTaskPriority : autoTaskPriorityBase
- *   2. Library weight: for auto tasks, take min(base, subLibrary.priorityWeight)
- *      so a library with a small weight lifts all its tasks ahead. Manual tasks
- *      ignore library weight and stay at manualTaskPriority.
- *   3. Advanced overlay rules (config.taskPriority.rules[actionType], ordered):
- *      each rule that matches adjusts the running value (subtract=add priority,
- *      add=defer, set=absolute band).
- *   4. clamp to >= 0.
+ *   1. Add source, action type, library, business signal, queue age, and retry dimensions.
+ *   2. Advanced overlay rules (config.taskPriority.rules[actionType], ordered):
+ *      each matching rule contributes a delta (subtract=add priority, add=defer).
+ *   3. clamp to >= 0.
  *
  * Match conditions are AND-combined; any field left undefined does not
  * participate. Adding a new match field = one case in matchConditions(); the
@@ -25,36 +26,82 @@
  * @param {'manual'|'auto'} params.source       task origin
  * @param {string} params.actionType            transcode|upgrade|delete|scrape
  * @param {object} [params.itemInfo]            task.itemInfo (subLibraryId, type, ...)
+ * @param {object} [params.task]                optional queued task context (createdAt, retryCount)
  * @param {object} params.config                full config (taskPriority + subLibraries)
  * @returns {number}                            priority value (lower = first)
  */
-function computePriority({ source, actionType, itemInfo, config }) {
+function computePriority({ source, actionType, itemInfo, config, task }) {
+  return explainPriority({ source, actionType, itemInfo, config, task }).priority;
+}
+
+function explainPriority({ source, actionType, itemInfo, config, task }) {
   const cfg = config && config.taskPriority || {};
   const manualBase = typeof cfg.manualTaskPriority === 'number' ? cfg.manualTaskPriority : 0;
   const autoBase = typeof cfg.autoTaskPriorityBase === 'number' ? cfg.autoTaskPriorityBase : 100;
+  const actionWeights = cfg.actionTypeWeights || {};
+  const actionWeight = typeof actionWeights[actionType] === 'number' ? actionWeights[actionType] : 0;
+  const context = buildContext(itemInfo, task);
 
-  // ── 1-2. base + library weight ────────────────────────────────────────────
-  let value;
-  if (source === 'manual') {
-    value = manualBase;
-  } else {
-    const weight = resolveLibraryWeight(itemInfo, config);
-    // A library weight smaller than the auto base lifts the task; a larger one
-    // is ignored (the global base is the floor for auto tasks absent overrides).
-    value = Math.min(autoBase, weight);
+  // ── 1. source + action type + library + dynamic queue dimensions ──────────
+  const sourceWeight = source === 'manual' ? manualBase : autoBase;
+  const libraryWeight = resolveLibraryWeight(context, config);
+  const businessSignalWeight = computeBusinessSignalDelta(actionType, context, cfg);
+  const queueAgeWeight = computeQueueAgeDelta(context, cfg);
+  const retryWeight = computeRetryDelta(context, cfg);
+  const dimensions = [
+    { key: 'source', label: source === 'manual' ? '手动来源' : '自动来源', value: sourceWeight },
+    { key: 'actionType', label: '任务类型', actionType, value: actionWeight },
+    { key: 'subLibrary', label: '子库权重', subLibraryId: context.subLibraryId || '', value: libraryWeight },
+  ];
+  if (businessSignalWeight !== 0) {
+    dimensions.push({ key: 'businessSignal', label: '业务信号', actionType, value: businessSignalWeight });
+  }
+  if (queueAgeWeight !== 0) {
+    dimensions.push({ key: 'queueAge', label: '等待时间', createdAt: context.createdAt || '', value: queueAgeWeight });
+  }
+  if (retryWeight !== 0) {
+    dimensions.push({ key: 'retry', label: '重试惩罚', retryCount: context.retryCount || 0, value: retryWeight });
   }
 
-  // ── 3. advanced overlay rules (per actionType, ordered) ───────────────────
+  // ── 2. advanced overlay rules (per actionType, ordered) ───────────────────
   const rules = ((cfg.rules || {})[actionType] || []);
-  for (const rule of rules) {
+  for (const [index, rule] of rules.entries()) {
     if (!rule || typeof rule !== 'object') continue;
-    if (matchConditions(rule.match, itemInfo)) {
-      value = applyAdjust(value, rule.adjust);
+    if (matchConditions(rule.match, context)) {
+      const delta = computeAdjustDelta(rule.adjust);
+      if (delta !== 0) {
+        dimensions.push({
+          key: 'rule',
+          label: '高级规则',
+          index,
+          match: rule.match || {},
+          adjust: normalizeAdjust(rule.adjust),
+          value: delta,
+        });
+      }
     }
   }
 
-  // ── 4. clamp ──────────────────────────────────────────────────────────────
-  return Math.max(0, Math.round(value));
+  // ── 3. clamp ──────────────────────────────────────────────────────────────
+  const raw = dimensions.reduce((sum, dim) => sum + dim.value, 0);
+  return {
+    modelVersion: PRIORITY_MODEL_VERSION,
+    lowerIsEarlier: true,
+    formula: 'source + actionType + subLibrary + businessSignal + queueAge + retry + matchedRules',
+    dimensions,
+    raw,
+    priority: Math.max(0, Math.round(raw)),
+  };
+}
+
+function buildContext(itemInfo, task) {
+  const info = itemInfo && typeof itemInfo === 'object' ? itemInfo : {};
+  const t = task && typeof task === 'object' ? task : {};
+  return {
+    ...info,
+    createdAt: t.createdAt || info.createdAt,
+    retryCount: t.retryCount !== undefined ? t.retryCount : info.retryCount,
+  };
 }
 
 function resolveLibraryWeight(itemInfo, config) {
@@ -65,6 +112,69 @@ function resolveLibraryWeight(itemInfo, config) {
     return subLib.priorityWeight;
   }
   return 100;
+}
+
+function computeBusinessSignalDelta(actionType, itemInfo, cfg) {
+  const weights = cfg.businessSignalWeights || {};
+  const adultWorkflowBonus = numberOr(weights.adultWorkflowBonus, 20);
+  const maxTranscodeSavingBonus = numberOr(weights.maxTranscodeSavingBonus, 30);
+  const info = itemInfo || {};
+  const meta = info.adultMetadata || {};
+
+  if (actionType === 'ingest') {
+    if (info.source === 'adult_folder' || info.mediaType === 'adult' || meta.region) {
+      return -adultWorkflowBonus;
+    }
+    return 0;
+  }
+
+  if (actionType === 'scrape') {
+    const scrapeStatus = String(meta.scrapeStatus || '').toLowerCase();
+    if (info.scraped === false || scrapeStatus === '' || scrapeStatus === 'pending') {
+      return -adultWorkflowBonus;
+    }
+    return 0;
+  }
+
+  if (actionType === 'transcode') {
+    const bitrate = Number(info.equivalentBitrate || info.bitrate || 0);
+    const target = Number(info.targetBitrate || 0);
+    const size = Number(info.size || info.originalSizeBytes || 0);
+    let bonus = 0;
+    if (bitrate > 0 && target > 0 && bitrate > target) {
+      bonus += Math.min(maxTranscodeSavingBonus, Math.floor((bitrate - target) / Math.max(target, 1) * maxTranscodeSavingBonus));
+    }
+    const gb = size / (1024 * 1024 * 1024);
+    if (gb >= 50) bonus += 20;
+    else if (gb >= 20) bonus += 10;
+    return -Math.min(maxTranscodeSavingBonus, bonus);
+  }
+
+  return 0;
+}
+
+function computeQueueAgeDelta(itemInfo, cfg) {
+  const createdMs = Date.parse(itemInfo && itemInfo.createdAt || '');
+  if (!Number.isFinite(createdMs)) return 0;
+  const ageMs = Date.now() - createdMs;
+  if (ageMs <= 0) return 0;
+  const stepMinutes = Math.max(1, numberOr(cfg.queueAgeStepMinutes, 60));
+  const bonusPerStep = Math.max(0, numberOr(cfg.queueAgeBonusPerStep, 2));
+  const maxBonus = Math.max(0, numberOr(cfg.maxQueueAgeBonus, 40));
+  const steps = Math.floor(ageMs / (stepMinutes * 60 * 1000));
+  return -Math.min(maxBonus, steps * bonusPerStep);
+}
+
+function computeRetryDelta(itemInfo, cfg) {
+  const retryCount = Math.max(0, Number.parseInt(itemInfo && itemInfo.retryCount, 10) || 0);
+  if (retryCount <= 0) return 0;
+  const penalty = Math.max(0, numberOr(cfg.retryPenalty, 20));
+  const maxPenalty = Math.max(0, numberOr(cfg.maxRetryPenalty, 80));
+  return Math.min(maxPenalty, retryCount * penalty);
+}
+
+function numberOr(value, fallback) {
+  return Number.isFinite(Number(value)) ? Number(value) : fallback;
 }
 
 /**
@@ -109,20 +219,32 @@ function compareNumber(actual, cond) {
 }
 
 function applyAdjust(current, adjust) {
-  if (!adjust || typeof adjust !== 'object') return current;
+  return current + computeAdjustDelta(adjust);
+}
+
+function normalizeAdjust(adjust) {
+  const op = adjust && adjust.op === 'subtract' ? 'subtract' : 'add';
+  const value = Number(adjust && adjust.value);
+  return { op, value: Number.isFinite(value) ? value : 0 };
+}
+
+function computeAdjustDelta(adjust) {
+  if (!adjust || typeof adjust !== 'object') return 0;
   const v = Number(adjust.value);
-  if (!Number.isFinite(v)) return current;
+  if (!Number.isFinite(v)) return 0;
   switch (adjust.op) {
-    case 'subtract': return current - v;  // smaller = higher priority
-    case 'add':      return current + v;  // larger = deferred
-    case 'set':      return v;            // absolute band
-    default:         return current;
+    case 'subtract': return -v; // smaller = higher priority
+    case 'add': return v;      // larger = deferred
+    default: return 0;
   }
 }
 
 module.exports = {
   computePriority,
+  explainPriority,
+  PRIORITY_MODEL_VERSION,
   // exported for unit testing
   _matchConditions: matchConditions,
   _applyAdjust: applyAdjust,
+  _computeAdjustDelta: computeAdjustDelta,
 };

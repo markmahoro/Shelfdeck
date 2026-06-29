@@ -58,6 +58,33 @@ test('GET /v1/library/queries/manage filters by action', async () => {
   await app.close();
 });
 
+test('GET /v1/library/queries/manage filters adult pending scrape items', async () => {
+  const app = await buildEmptyApp();
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [{
+      itemId: 'adult-pending-empty-status',
+      subLibraryId: 'adult-lib',
+      name: 'Adult Pending Empty Status',
+      source: 'adult_folder',
+      type: 'movie',
+      action: 'keep',
+      scraped: false,
+      path: '/adult/pending.mp4',
+      adultMetadata: { scrapeStatus: '' },
+    }],
+  });
+
+  const res = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?scrape=pending&page=1&pageSize=10' });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.total, 1);
+  assert.strictEqual(body.items[0].itemId, 'adult-pending-empty-status');
+  await app.close();
+});
+
 // ── Library: items/:itemId ───────────────────────────────────────────────────────
 
 test('GET /v1/library/items/:itemId returns 404 for unknown item', async () => {
@@ -140,6 +167,11 @@ test('PATCH /v1/library/ratings writes userRating and returns ok', async () => {
   // Verify persisted
   const after = await app.inject({ method: 'GET', url: `/v1/library/items/${found.itemId}` });
   assert.strictEqual(after.json().userRating, 4);
+  const clear = await app.inject({ method: 'PATCH', url: '/v1/library/ratings', payload: { itemId: found.itemId, userRating: null } });
+  assert.strictEqual(clear.statusCode, 200);
+  assert.strictEqual(clear.json().ok, true);
+  const cleared = await app.inject({ method: 'GET', url: `/v1/library/items/${found.itemId}` });
+  assert.strictEqual(cleared.json().userRating, null);
   await app.close();
 });
 
@@ -198,6 +230,223 @@ test('POST /v1/library/cache upserts items and returns counts', async () => {
   await app.close();
 });
 
+test('GET /v1/library supports server-side pagination and search', async () => {
+  const app = await buildEmptyApp();
+  await app.inject({
+    method: 'POST',
+    url: '/v1/library/cache',
+    payload: {
+      subLibraryId: 'sublib-page',
+      items: [
+        { sourceId: 'src-1', name: 'Movie Alpha', type: 'Movie', path: '/m/a.mkv', bitrate: 10000000, duration: 3600, resolution: '1920x1080', size: 4000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
+        { sourceId: 'src-2', name: 'Movie Beta', type: 'Movie', path: '/m/b.mkv', bitrate: 12000000, duration: 7200, resolution: '1920x1080', size: 5000000000, premiereDate: '2025-02-01', genres: [], isDiscLike: false },
+        { sourceId: 'src-3', name: 'Movie Gamma', type: 'Movie', path: '/m/c.mkv', bitrate: 8000000, duration: 5400, resolution: '1920x1080', size: 3000000000, premiereDate: '2025-03-01', genres: [], isDiscLike: false },
+      ],
+    },
+  });
+
+  const res = await app.inject({ method: 'GET', url: '/v1/library?subLibraryId=sublib-page&search=Movie&limit=2&offset=1' });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.total, 3);
+  assert.strictEqual(body.items.length, 2);
+  assert.deepStrictEqual(body.items.map((it) => it.name), ['Movie Beta', 'Movie Gamma']);
+  assert.strictEqual(body.offset, 1);
+  assert.strictEqual(body.limit, 2);
+  await app.close();
+});
+
+test('mediaLibraryService reuses library cache until file changes', async () => {
+  const app = await buildEmptyApp();
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [{ itemId: 'cache-1', name: 'Cached One', source: 'emby' }],
+  });
+
+  const first = mediaLibraryService.getLibrary();
+  assert.strictEqual(first.total, 1);
+
+  const originalReadFileSync = fs.readFileSync;
+  try {
+    fs.readFileSync = function patchedReadFileSync(file, ...args) {
+      if (String(file).endsWith('library.json')) throw new Error('library.json should be served from cache');
+      return originalReadFileSync.call(this, file, ...args);
+    };
+    const second = mediaLibraryService.getLibrary();
+    assert.strictEqual(second.total, 1);
+    assert.strictEqual(second.items[0].name, 'Cached One');
+
+    mediaLibraryService.saveLibrary({
+      version: 1,
+      cachedAt: new Date().toISOString(),
+      items: [{ itemId: 'cache-2', name: 'Cached Two', source: 'emby' }],
+    });
+    const third = mediaLibraryService.getLibrary();
+    assert.strictEqual(third.total, 1);
+    assert.strictEqual(third.items[0].name, 'Cached Two');
+  } finally {
+    fs.readFileSync = originalReadFileSync;
+    await app.close();
+  }
+});
+
+test('adultLibraryService ingest discovery reads through the shared media cache', async () => {
+  const app = await buildEmptyApp();
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const watchRoot = tempDir();
+  const mediaPath = path.join(watchRoot, 'Scene One.mp4');
+  fs.writeFileSync(mediaPath, 'fake-media');
+
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [{
+      itemId: 'adult-cache-1',
+      subLibraryId: 'adult-cache',
+      name: 'Scene One',
+      path: mediaPath,
+      source: 'adult_folder',
+      type: 'movie',
+    }],
+  });
+  assert.strictEqual(mediaLibraryService.getLibrary().total, 1);
+
+  const originalReadFileSync = fs.readFileSync;
+  try {
+    fs.readFileSync = function patchedReadFileSync(file, ...args) {
+      if (String(file).endsWith('library.json')) throw new Error('adult library should use shared media cache');
+      return originalReadFileSync.call(this, file, ...args);
+    };
+    const candidates = adultLibraryService.listIngestCandidates({
+      subLibraries: [{
+        uuid: 'adult-cache',
+        name: 'Adult Cache',
+        enabled: true,
+        source: 'folder',
+        mediaType: 'adult',
+        adultRegion: 'western_adult',
+        watchRoot,
+      }],
+      adultLibrary: { settleSeconds: 0 },
+      smartTaskEnabledActions: ['ingest'],
+    });
+    assert.strictEqual(candidates.length, 0, 'already cached adult items are not rediscovered as ingest candidates');
+  } finally {
+    fs.readFileSync = originalReadFileSync;
+    await app.close();
+  }
+});
+
+test('libraryStore migrates library.json to SQLite and keeps the source JSON', async () => {
+  const dir = tempDir();
+  const legacy = {
+    version: 1,
+    cachedAt: '2026-06-28T00:00:00.000Z',
+    items: [
+      { itemId: 'legacy-1', subLibraryId: 'legacy-lib', name: 'Legacy Alpha', source: 'emby', type: 'movie', action: 'keep' },
+      { itemId: 'legacy-2', subLibraryId: 'legacy-lib', name: 'Legacy Beta', source: 'emby', type: 'movie', action: 'transcode' },
+    ],
+  };
+  fs.writeFileSync(path.join(dir, 'library.json'), JSON.stringify(legacy, null, 2), 'utf8');
+
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const res = await app.inject({ method: 'GET', url: '/v1/library?subLibraryId=legacy-lib&limit=10' });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.total, 2);
+  assert.deepStrictEqual(body.items.map((it) => it.itemId), ['legacy-1', 'legacy-2']);
+  assert.ok(fs.existsSync(path.join(dir, 'library.db')), 'library.db should exist after migration');
+  assert.ok(fs.existsSync(path.join(dir, 'library.json.migrated')), 'migration marker should exist');
+  assert.ok(fs.existsSync(path.join(dir, 'library.json')), 'source library.json should be preserved');
+  const marker = JSON.parse(fs.readFileSync(path.join(dir, 'library.json.migrated'), 'utf8'));
+  assert.strictEqual(marker.count, 2);
+  await app.close();
+});
+
+test('libraryStore replaces one subLibrary without touching other libraries', async () => {
+  const dir = tempDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const libraryStore = require('../src/libraryStore');
+
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: '2026-06-28T00:00:00.000Z',
+    items: [
+      { itemId: 'lib-a-1', subLibraryId: 'lib-a', name: 'Old A', source: 'emby', type: 'movie', action: 'keep' },
+      { itemId: 'lib-b-1', subLibraryId: 'lib-b', name: 'Keep B', source: 'emby', type: 'movie', action: 'delete' },
+    ],
+  });
+
+  libraryStore.replaceSubLibraryItems('lib-a', [
+    { itemId: 'lib-a-2', subLibraryId: 'lib-a', name: 'New A', source: 'emby', type: 'movie', action: 'transcode' },
+  ], { cachedAt: '2026-06-28T01:00:00.000Z' });
+
+  assert.strictEqual(mediaLibraryService.getLibrary({ subLibraryId: 'lib-a' }).total, 1);
+  assert.strictEqual(mediaLibraryService.getLibrary({ subLibraryId: 'lib-a' }).items[0].itemId, 'lib-a-2');
+  assert.strictEqual(mediaLibraryService.getLibrary({ subLibraryId: 'lib-b' }).total, 1);
+  assert.strictEqual(mediaLibraryService.getLibrary({ subLibraryId: 'lib-b' }).items[0].itemId, 'lib-b-1');
+  await app.close();
+});
+
+test('libraryStore truncates WAL after bulk library writes', async () => {
+  const dir = tempDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const libraryStore = require('../src/libraryStore');
+
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: '2026-06-28T00:00:00.000Z',
+    items: Array.from({ length: 200 }, (_, i) => ({
+      itemId: `bulk-${i}`,
+      subLibraryId: 'bulk-lib',
+      name: `Bulk ${i}`,
+      source: 'emby',
+      type: 'movie',
+      action: i % 2 === 0 ? 'transcode' : 'keep',
+      payload: 'x'.repeat(2048),
+    })),
+  });
+  libraryStore.replaceSubLibraryItems('bulk-lib', [
+    { itemId: 'bulk-new', subLibraryId: 'bulk-lib', name: 'Bulk New', source: 'emby', type: 'movie', action: 'keep' },
+  ], { cachedAt: '2026-06-28T01:00:00.000Z' });
+
+  const walPath = path.join(dir, 'library.db-wal');
+  const walSize = fs.existsSync(walPath) ? fs.statSync(walPath).size : 0;
+  assert.ok(walSize < 1024 * 1024, `library WAL should be truncated after bulk writes, got ${walSize}`);
+  await app.close();
+});
+
+test('libraryStore updateItems updates only existing rows', async () => {
+  const dir = tempDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const libraryStore = require('../src/libraryStore');
+
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: '2026-06-28T00:00:00.000Z',
+    items: [
+      { itemId: 'update-a', subLibraryId: 'lib-a', name: 'A', source: 'emby', type: 'movie', action: 'keep' },
+      { itemId: 'update-b', subLibraryId: 'lib-b', name: 'B', source: 'emby', type: 'movie', action: 'delete' },
+    ],
+  });
+
+  const changed = mediaLibraryService.getLibraryItem('update-a');
+  changed.action = 'transcode';
+  const count = libraryStore.updateItems([changed, { itemId: 'missing-item', subLibraryId: 'lib-a', name: 'Missing' }]);
+
+  assert.strictEqual(count, 1);
+  assert.strictEqual(mediaLibraryService.getLibraryItem('update-a').action, 'transcode');
+  assert.strictEqual(mediaLibraryService.getLibraryItem('update-b').action, 'delete');
+  assert.strictEqual(mediaLibraryService.getLibrary().total, 2);
+  await app.close();
+});
+
 test('POST /v1/library/cache removes stale items', async () => {
   const app = await buildEmptyApp();
   // First insert 2 items
@@ -219,6 +468,50 @@ test('POST /v1/library/cache removes stale items', async () => {
   const lib = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sublib-rm' });
   assert.strictEqual(lib.json().total, 1);
   await app.close();
+});
+
+test('GET /v1/space-stats uses lightweight SQLite rows', async () => {
+  const dir = tempDir();
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const taskStore = require('../src/taskStore');
+
+  mediaLibraryService.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [
+      { itemId: 'space-delete', subLibraryId: 'space-lib', name: 'Delete Me', size: 1000, action: 'delete' },
+      { itemId: 'space-transcode', subLibraryId: 'space-lib', name: 'Shrink Me', size: 2000, bitrate: 10_000_000, equivalentBitrate: 10, targetBitrate: 5, action: 'transcode' },
+      { itemId: 'space-upgrade', subLibraryId: 'space-lib', name: 'Grow Me', size: 3000, bitrate: 5_000_000, equivalentBitrate: 5, targetBitrate: 8, action: 'upgrade' },
+    ],
+  });
+  taskStore.saveTasks([
+    { id: 'space-task-1', itemId: 'space-transcode', actionType: 'transcode', status: 'done', verifyResult: { bytesSaved: 400 }, itemInfo: { originalSizeBytes: 2000 } },
+    { id: 'space-task-2', itemId: 'space-upgrade', actionType: 'upgrade', status: 'done', upgradePreview: { oldFile: { size: 3000 }, newFile: { size: 5000 } } },
+    { id: 'space-task-3', itemId: 'ignored-scrape', actionType: 'scrape', status: 'done', logs: [{ msg: 'not needed for space stats' }] },
+  ]);
+
+  const originalGetLibrary = mediaLibraryService.getLibrary;
+  const originalLoadTasks = taskStore.loadTasks;
+  try {
+    mediaLibraryService.getLibrary = () => { throw new Error('space stats should not load full library'); };
+    taskStore.loadTasks = () => { throw new Error('space stats should not load full task history'); };
+
+    const res = await app.inject({ method: 'GET', url: '/v1/space-stats' });
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.json();
+    assert.strictEqual(body.currentTotalBytes, 6000);
+    assert.strictEqual(body.delete.expectedSavingsBytes, 1000);
+    assert.strictEqual(body.transcode.expectedSavingsBytes, 1000);
+    assert.strictEqual(body.transcode.realizedSavingsBytes, 400);
+    assert.ok(Math.abs(body.upgrade.expectedIncreaseBytes - 1800) < 0.001);
+    assert.strictEqual(body.upgrade.realizedIncreaseBytes, 2000);
+    assert.strictEqual(body.subLibraries[0].itemCount, 3);
+  } finally {
+    mediaLibraryService.getLibrary = originalGetLibrary;
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
 });
 
 test('POST /v1/library/cache keeps stable ShelfDeck itemId when Emby Id changes', async () => {

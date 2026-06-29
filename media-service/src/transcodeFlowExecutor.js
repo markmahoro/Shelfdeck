@@ -12,6 +12,7 @@ const taskStore = require('./taskStore');
 const configStore = require('./configStore');
 const transcodeService = require('./services/transcodeService');
 const nodeStore = require('./nodeStore');
+const approvalPolicy = require('./approvalPolicy');
 
 // Tracks tasks intentionally aborted by pause/cancel so catch blocks
 // in async flow phases don't overwrite the status with failed_hard.
@@ -227,15 +228,25 @@ async function runPrecheck(taskId, task, config) {
     });
 
     if (result.needsDvConfirm && !task.dvAcknowledged) {
-      // In full-auto mode, auto-acknowledge DV to avoid blocking the pipeline
       const cfg = configStore.loadConfig();
-      const schedule = configStore.resolveSubLibSchedule(task.itemInfo, cfg);
-      if (schedule.autoExecute) {
+      const updatedTask = taskStore.getTask(taskId) || task;
+      if (!approvalPolicy.requiresConfirmation('transcode.dolbyVisionTonemap', { task: updatedTask, itemInfo: updatedTask.itemInfo, config: cfg })) {
         taskStore.updateTask(taskId, { dvAcknowledged: true });
-        appendLog(taskId, 'info', 'Dolby Vision detected — auto mode, proceeding with HDR→SDR tonemap');
+        appendLog(taskId, 'info', 'Dolby Vision detected — approval policy auto-passed, proceeding with HDR→SDR tonemap');
       } else {
+        const approval = approvalPolicy.makeApproval('transcode.dolbyVisionTonemap', {
+          task: updatedTask,
+          itemInfo: updatedTask.itemInfo,
+          config: cfg,
+          message: 'Dolby Vision will be tone-mapped before transcode.',
+          options: ['approve', 'reject'],
+          payload: {
+            sourcePath: updatedTask.itemInfo && updatedTask.itemInfo.sourcePath,
+            isDolbyVision: true,
+          },
+        });
         appendLog(taskId, 'info', 'Dolby Vision detected — awaiting user confirmation');
-        scheduler.pauseForConfirm(taskId, 'transcode_executing');
+        scheduler.pauseForConfirm(taskId, 'transcode_executing', approval);
         return;
       }
     }
@@ -370,6 +381,7 @@ async function runExecuting(taskId, task, config) {
         },
       );
 
+      if (abortedTasks.has(taskId)) return;
       appendLog(taskId, 'info', 'Encoding complete');
     } catch (e) {
       if (abortedTasks.has(taskId)) return;
@@ -384,6 +396,7 @@ async function runExecuting(taskId, task, config) {
 }
 
 async function runVerify(taskId, task, config) {
+  if (abortedTasks.has(taskId)) return;
   setPhase(taskId, 'verify');
   scheduler.reportStatus(taskId, 'executing', 90);
   appendLog(taskId, 'info', 'Verifying transcode output');
@@ -463,14 +476,27 @@ async function runVerify(taskId, task, config) {
       },
     });
 
-    const sched = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
-    if (!sched.autoReplaceTranscode) {
+    const latestTask = taskStore.getTask(taskId) || task;
+    if (approvalPolicy.requiresConfirmation('transcode.beforeReplace', { task: latestTask, itemInfo: latestTask.itemInfo, config })) {
+      const approval = approvalPolicy.makeApproval('transcode.beforeReplace', {
+        task: latestTask,
+        itemInfo: latestTask.itemInfo,
+        config,
+        message: 'Transcode finished. Confirm before replacing the original media.',
+        options: ['approve', 'reject'],
+        payload: {
+          originalPath: latestTask.itemInfo && latestTask.itemInfo.sourcePath,
+          outputPath: latestTask.itemInfo && latestTask.itemInfo.partialPath,
+          verifyResult: latestTask.verifyResult,
+        },
+      });
       appendLog(taskId, 'info', 'Replace confirmation required — awaiting user');
-      scheduler.pauseForConfirm(taskId, 'transcode_replace');
+      scheduler.pauseForConfirm(taskId, 'transcode_replace', approval);
       return;
     }
 
-    await runReplace(taskId, task, config);
+    appendLog(taskId, 'info', 'Replace approval auto-passed');
+    await runReplace(taskId, latestTask, config);
   } catch (e) {
     if (abortedTasks.has(taskId)) return;
     appendLog(taskId, 'error', `Verify failed: ${e.message}`);

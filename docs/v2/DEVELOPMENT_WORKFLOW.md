@@ -27,11 +27,13 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 不要在 Codex 自动执行中启动长期阻塞的 dev server。需要交互调试时，让用户手动运行。
 
-## 成人库 / Scrape Task 开发
+上面的 Docker service 命令只用于本地或新环境验证。当前 NAS 生产部署固定走 `docs/v2/PRODUCTION_DEPLOYMENT.md`、`scripts/build-image.sh` 和 `scripts/deploy-nas.js`；不要把 `media-service/docker-compose.example.yml` 当成生产 compose。
 
-日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。刮削是一等任务类型：目录监听和扫描只负责发现文件、写入 `library.json`、创建 `actionType=scrape` 任务；具体执行由 `TaskScheduler` 按 `scrapeConcurrency` 统一分配槽位。
+## 成人库 / Ingest + Scrape Task 开发
 
-真实刮削可以配置代理服务器；默认不配置时使用直连。普通 service API 测试不依赖真实网络刮削；可以用临时目录或 `E:\my_project\emby_third_party\jav_test` 做扫描和端到端验证。
+日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。成人库模块不再拥有自己的目录监听、定时扫描或整目录手动扫描入队逻辑；目录级 scan 只能用于只读核对，不创建 `ingest` 或 `scrape` 任务。`ingest` 是单 item 任务，完成单文件探测、NFO 预解析和媒体项写入后，未刮削 item 再按统一 `TaskAdmission` / `PriorityEngine` 判断是否创建 `actionType=scrape` 任务。具体执行由 `TaskScheduler` 按 `ingestConcurrency` / `scrapeConcurrency` 统一分配槽位。
+
+真实刮削可以配置代理服务器；默认不配置时使用直连。普通 service API 测试不依赖真实网络刮削；可以用临时目录或 `E:\my_project\emby_third_party\jav_test` 做单 item 入库和端到端验证。
 
 成人库子库约定：
 
@@ -41,15 +43,31 @@ docker compose -f media-service/docker-compose.example.yml up -d
 | `mediaType=adult` | 成人库大类 |
 | `adultRegion=japanese_jav` | 日本 JAV，使用 ShelfDeck 内置 scraper |
 | `adultRegion=western_adult` | 欧美成人库，默认由 service-local 做抽帧、人脸匹配和封面生成 |
+| `actionType=ingest` | 入库任务，把单个文件候选转换为媒体项和技术探测结果 |
 | `actionType=scrape` | 刮削任务，完成后只更新 metadata 和 `scraped=true`；是否转码由策略和 `SmartTaskEngine` 决定 |
+| `automationMode=auto/manual` | 子库任务创建后的执行方式；`auto` 自动进入队列，`manual` 创建为待手动启动；审批节点由 `approvalPolicy` 单独控制 |
+| `approvalPolicy` | 任务内部关键节点审批策略，支持 `auto`、`confirm`、`forceConfirm` |
+| `mediaLibraryStartupRefreshOnStartup` | 普通媒体库启动后是否自动刷新 |
+| `mediaLibraryStartupRefreshDelaySeconds` | 普通媒体库启动刷新延迟，避免服务刚监听端口就被全量刷新压住 |
+| `smartTaskInitialDelaySeconds` | `SmartTaskEngine` 首次自动入队扫描延迟 |
+| `adultLibrary.probeTimeoutMs` | 成人库 `ingest` 单文件 FFprobe 超时，坏文件不应阻塞 API |
 
 欧美成人库约定：
 
 - People 人物库归 service 持久化，用户通过搜索/上传高清正脸图建立 reference face。
+- 刮削整理完成的成人库影片默认归拢到 `watchRoot/scraped/` 下；ShelfDeck 的目录核对默认忽略该目录，Emby 可只监控这个归拢目录。
 - service 默认使用自身 FFmpeg 抽帧，并调用 service Docker 内部 InsightFace face-service 做 embedding；face-service 不作为用户配置项暴露。
 - Docker service 是 all-in-one 容器，内部启动 Node service 和 face-service；容器外只暴露 `18080`。
 - 人脸模型目录默认是 `/app/data/face-models`，挂载数据卷后容器重启不会重新下载模型。
 - 匹配不到 protagonist 时等同于 JAV 识别不到番号：任务失败，item 保持 `scraped=false`，不会自动进入转码策略。
+- 成人库不得新增独立调度规则。新建、重试、冷却、队列上限、去重、优先级都必须走统一任务模型。
+- 成人库 `delete` 任务按媒体目录删除：如果媒体文件位于 `watchRoot` 下的独立子目录，删除目标是整个子目录；如果文件直接位于 `watchRoot` 根下，才退回删除单文件。删除目标必须仍在 `watchRoot` 内，且不能是 `watchRoot` 或 `scraped/` 根目录。
+
+## Task Store
+
+媒体库主存储是 `media-service/data/library.db` SQLite。`library.json` 是旧版运行时文件，启动时会一次性迁移到 SQLite；迁移不会删除原 JSON。媒体库页面、成人库 item 写回、scrape 状态和评分更新都应通过 `libraryStore` / `mediaLibraryService` 的统一边界访问，不要重新引入直接读写 `library.json` 的路径。
+
+任务中心主存储是 `media-service/data/tasks.db` SQLite。`tasks.json` 是旧版运行时文件，启动时会一次性迁移到 SQLite；迁移不会删除原 JSON。不要通过删除任务数据库来“清队列”，否则会丢失完成和失败历史。需要控制雪崩时应使用 `smartTaskEnabledActions`、`TaskAdmission` 队列上限、冷却和启动延迟；子库 `automationMode` 只控制创建后的自动执行。
 
 ## 平台规则
 

@@ -23,17 +23,31 @@ import {
 // ── helpers ──
 
 const ACTION_LABEL: Record<string, string> = {
+  ingest: '入库',
+  scrape: '刮削',
   transcode: '压缩',
   delete: '删除',
   upgrade: '洗版',
 };
 
 const CONFIRM_LABEL: Record<string, string> = {
+  delete_executing: '删除 — 确认删除文件列表',
   transcode_executing: 'Dolby Vision 警告 — 需要确认是否继续压缩',
   transcode_replace: '转码完成 — 确认是否替换原文件',
   upgrade_executing: '洗版 — 选择下载种子',
   upgrade_replace: '洗版完成 — 确认是否替换原文件',
-  delete_executing: '删除 — 确认删除文件列表',
+};
+
+const APPROVAL_GATE_LABEL: Record<string, string> = {
+  'delete.beforeExecute': '删除 — 确认删除文件列表',
+  'transcode.dolbyVisionTonemap': 'Dolby Vision 警告 — 需要确认是否继续压缩',
+  'transcode.beforeReplace': '转码完成 — 确认是否替换原文件',
+  'upgrade.candidateSelect': '洗版 — 选择下载种子',
+  'upgrade.identityMismatch': '洗版身份异常 — 需要确认',
+  'upgrade.beforeReplace': '洗版完成 — 确认是否替换原文件',
+  'scrape.beforeWriteMetadata': '刮削 — 确认写入元数据',
+  'scrape.beforeOrganize': '刮削 — 确认整理目录',
+  'scrape.reviewResult': '刮削 — 复核结果',
 };
 
 function gb(bytes: number): string {
@@ -46,6 +60,17 @@ function formatItemName(itemInfo?: TaskItemInfo): string {
     return `${itemInfo.seriesName} 第${itemInfo.seasonNumber}季`;
   }
   return itemInfo.name || '';
+}
+
+function approvalLabel(task: MediaTask): string {
+  const gateId = task.approval?.gateId;
+  if (gateId && APPROVAL_GATE_LABEL[gateId]) return APPROVAL_GATE_LABEL[gateId];
+  if (task.resumePoint && CONFIRM_LABEL[task.resumePoint]) return CONFIRM_LABEL[task.resumePoint];
+  return task.approval?.title || '需要确认';
+}
+
+function approvalMatches(task: MediaTask, gateId: string, legacyResumePoint: string): boolean {
+  return task.approval?.gateId === gateId || task.resumePoint === legacyResumePoint;
 }
 
 // ── Styles ──
@@ -299,8 +324,8 @@ function TaskCard({
           </div>
           <div style={{ fontSize: 11, marginTop: 2, color: needsConfirm ? '#fca5a5' : '#94a3b8' }}>
             {ACTION_LABEL[task.actionType] ?? task.actionType} · {taskStatusLabelZh(task.status)}
-            {needsConfirm && task.resumePoint && (
-              <> — {CONFIRM_LABEL[task.resumePoint] || '需要确认'}</>
+            {needsConfirm && (
+              <> — {approvalLabel(task)}{task.approval?.mode === 'forceConfirm' ? '（强制确认）' : ''}</>
             )}
             {showProgress && ` · ${Math.round(progress)}%`}
           </div>
@@ -361,11 +386,10 @@ function ConfirmDetail({
   confirming: boolean;
   onConfirm: (confirmData?: Record<string, unknown>) => void;
 }) {
-  const rp = task.resumePoint;
   const [selectedIdx, setSelectedIdx] = useState(0);
 
   // ── Seed selection (upgrade_executing) ──
-  if (rp === 'upgrade_executing') {
+  if (approvalMatches(task, 'upgrade.candidateSelect', 'upgrade_executing')) {
     const candidates = task.itemInfo?.searchCandidatesSimplified;
     if (!candidates || candidates.length === 0) {
       return <ConfirmFooter label="确认执行" hint="" confirming={confirming} onConfirm={() => onConfirm()} />;
@@ -387,7 +411,7 @@ function ConfirmDetail({
   }
 
   // ── Transcode replace ──
-  if (rp === 'transcode_replace' && task.verifyResult) {
+  if (approvalMatches(task, 'transcode.beforeReplace', 'transcode_replace') && task.verifyResult) {
     const vr = task.verifyResult;
     const orig = task.itemInfo;
     return (
@@ -410,7 +434,7 @@ function ConfirmDetail({
   }
 
   // ── Upgrade replace ──
-  if (rp === 'upgrade_replace' && task.verifyResult) {
+  if (approvalMatches(task, 'upgrade.beforeReplace', 'upgrade_replace') && task.verifyResult) {
     const vr = task.verifyResult;
     const up = task.upgradePreview;
     const oldSize = up?.oldFile?.size || task.itemInfo?.originalSizeBytes || 0;
@@ -436,7 +460,7 @@ function ConfirmDetail({
   }
 
   // ── Delete confirm ──
-  if (rp === 'delete_executing') {
+  if (approvalMatches(task, 'delete.beforeExecute', 'delete_executing')) {
     const lines = task.deleteConfirmLines;
     return (
       <div>
@@ -455,8 +479,11 @@ function ConfirmDetail({
   return (
     <div>
       <div style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 6 }}>
-        {CONFIRM_LABEL[rp || ''] || '需要确认此操作'}
+        {approvalLabel(task)}
       </div>
+      {task.approval?.message && (
+        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10, lineHeight: 1.5 }}>{task.approval.message}</div>
+      )}
       <ConfirmFooter label="确认执行" confirming={confirming} onConfirm={() => onConfirm()} />
     </div>
   );

@@ -5,6 +5,7 @@ const fsp = require('fs/promises');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
+const { Worker } = require('worker_threads');
 
 const transcodeService = require('./transcodeService');
 const peopleStore = require('../peopleStore');
@@ -42,6 +43,10 @@ function runCmd(bin, args, opts = {}) {
     child.on('error', reject);
     child.on('close', (code) => resolve({ code: code ?? 0, out, err }));
   });
+}
+
+function yieldToEventLoop() {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 async function ffprobeDuration(config, sourcePath) {
@@ -122,47 +127,42 @@ function meanVector(vectors) {
 
 async function callFaceEmbeddingModel(western, images, options = {}) {
   const url = String(process.env.FACE_EMBEDDINGS_URL || INTERNAL_FACE_EMBEDDINGS_URL).trim();
-  const body = {
-    images: images.map((frame, index) => ({
-      imageId: `frame-${String(index).padStart(3, '0')}`,
-      imageIndex: index,
-      data: Buffer.isBuffer(frame) ? frame.toString('base64') : fs.readFileSync(frame).toString('base64'),
-      mimeType: 'image/jpeg',
-    })),
-    detect: true,
-    returnCrops: true,
-  };
-  if (Array.isArray(options.blacklist) && options.blacklist.length) {
-    body.blacklist = options.blacklist;
-    body.blacklistThreshold = Number(options.blacklistThreshold) || 0.5;
-  }
-  const headers = { 'content-type': 'application/json' };
-  if (process.env.FACE_API_KEY) headers.authorization = `Bearer ${process.env.FACE_API_KEY}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), Math.max(5, Number(western.faceTimeoutSec) || 120) * 1000);
-  try {
-    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error && json.error.message || `HTTP ${res.status}`);
-    const rows = Array.isArray(json.faces) ? json.faces : Array.isArray(json.data) ? json.data : [];
-    return rows.map((face, idx) => {
-      const bbox = face.bbox || face.box || null;
-      const area = bbox ? Math.max(0, (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])) : 0;
-      return {
-        faceId: String(face.faceId || face.id || `face-${idx + 1}`),
-        clusterId: String(face.clusterId || face.faceId || face.id || `face-${idx + 1}`),
-        imageIndex: Number.isFinite(Number(face.imageIndex)) ? Number(face.imageIndex) : 0,
-        bbox,
-        faceArea: area,
-        detectionScore: Number(face.detectionScore) || 0,
-        confidence: Number(face.confidence) || Number(face.detectionScore) || 0,
-        embedding: normalizeVector(face.embedding || face.vector),
-        sampleImageBase64: face.sampleImageBase64 || face.cropImageBase64 || '',
-      };
-    }).filter((face) => face.embedding.length > 0);
-  } finally {
-    clearTimeout(timer);
-  }
+  const workerPath = path.join(__dirname, 'faceEmbeddingWorker.js');
+  const timeoutMs = Math.max(10, Number(western.faceTimeoutSec) || 120) * 1000 + 5000;
+  const imageRefs = images.map((frame) => (Buffer.isBuffer(frame) ? { buffer: frame } : { path: frame }));
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const worker = new Worker(workerPath, {
+      workerData: {
+        url,
+        western: { faceTimeoutSec: western.faceTimeoutSec },
+        images: imageRefs,
+        options: {
+          blacklist: Array.isArray(options.blacklist) ? options.blacklist : [],
+          blacklistThreshold: options.blacklistThreshold,
+        },
+        faceApiKey: process.env.FACE_API_KEY || '',
+      },
+    });
+    const finish = (err, faces) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (err) reject(err); else resolve(faces);
+    };
+    const timer = setTimeout(() => {
+      worker.terminate().catch(() => {});
+      finish(new Error('Face embedding worker timed out'));
+    }, timeoutMs);
+    worker.once('message', (msg) => {
+      if (msg && msg.ok) finish(null, Array.isArray(msg.faces) ? msg.faces : []);
+      else finish(new Error(msg && msg.error || 'Face embedding worker failed'));
+    });
+    worker.once('error', (err) => finish(err));
+    worker.once('exit', (code) => {
+      if (!settled && code !== 0) finish(new Error(`Face embedding worker exited with code ${code}`));
+    });
+  });
 }
 
 function clusterFaces(faces, clusterThreshold = 0.5) {
@@ -259,7 +259,7 @@ function decodeImagePayload(value) {
   }
 }
 
-function referenceImageForPerson(people, personId, referenceFaceId) {
+async function referenceImageForPerson(people, personId, referenceFaceId) {
   const person = (Array.isArray(people) ? people : []).find((p) => String(p.personId || '') === String(personId || ''));
   if (!person) return null;
   const refs = Array.isArray(person.referenceFaces) ? person.referenceFaces : [];
@@ -269,7 +269,7 @@ function referenceImageForPerson(people, personId, referenceFaceId) {
   const embedded = decodeImagePayload(ref.sampleImageBase64 || ref.cropImageBase64 || ref.imageBase64);
   if (embedded) return embedded;
   const file = String(ref.sampleImage || '').trim();
-  if (file && fs.existsSync(file)) return fs.readFileSync(file);
+  if (file && fs.existsSync(file)) return fsp.readFile(file);
   return null;
 }
 
@@ -342,10 +342,14 @@ async function analyzeVideo({ taskId, config, subLib, item, western, onLog }) {
   const protagonist = clustersWithMatch.find((c) => c.status === 'named') || null;
   const actorLabel = protagonist ? protagonist.matchedName : (match.actors[0] || 'Unknown Person');
   const description = titleWordsFromFilename(item.path);
-  const galleryImages = frames.slice(0, 6).map((frame, i) => ({ frameIndex: i, imageBase64: fs.readFileSync(frame).toString('base64') }));
-  const referenceImage = protagonist ? referenceImageForPerson(people, protagonist.matchedPersonId, protagonist.referenceFaceId) : null;
+  const galleryImages = [];
+  for (const [i, frame] of frames.slice(0, 6).entries()) {
+    galleryImages.push({ frameIndex: i, imageBase64: (await fsp.readFile(frame)).toString('base64') });
+    if ((i + 1) % 2 === 0) await yieldToEventLoop();
+  }
+  const referenceImage = protagonist ? await referenceImageForPerson(people, protagonist.matchedPersonId, protagonist.referenceFaceId) : null;
   const posterImageBase64 = await buildCompositePoster({ actorName: actorLabel, sceneTitle: description, referenceImage, galleryImages })
-    || (frames[0] ? fs.readFileSync(frames[0]).toString('base64') : '');
+    || (frames[0] ? (await fsp.readFile(frames[0])).toString('base64') : '');
   return {
     title: safeName(`${actorLabel} - ${description}`),
     generatedTitle: safeName(`${actorLabel} - ${description}`),

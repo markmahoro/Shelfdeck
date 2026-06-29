@@ -97,6 +97,30 @@ function normalizeReferenceFaces(value) {
     .slice(0, 100);
 }
 
+function referenceFaceKey(face = {}) {
+  if (face.sourceAssetId) return `asset:${face.sourceAssetId}`;
+  if (face.sampleImageBase64) {
+    return `sample:${crypto.createHash('sha1').update(face.sampleImageBase64).digest('hex')}`;
+  }
+  if (face.faceId) return `face:${face.faceId}`;
+  return '';
+}
+
+function mergeReferenceFaces(...groups) {
+  const out = [];
+  const seen = new Set();
+  for (const group of groups) {
+    for (const face of normalizeReferenceFaces(group)) {
+      const key = referenceFaceKey(face);
+      if (key && seen.has(key)) continue;
+      if (key) seen.add(key);
+      out.push(face);
+      if (out.length >= 100) return out;
+    }
+  }
+  return out;
+}
+
 function loadPeople() {
   const file = peopleFilePath();
   if (!fs.existsSync(file)) return { version: 1, people: [] };
@@ -125,7 +149,32 @@ function listPeople(filter = {}) {
   if (filter.adultRegion) {
     people = people.filter((p) => !p.adultRegion || p.adultRegion === filter.adultRegion);
   }
+  if (filter.summary) {
+    people = people.map(summarizePerson);
+  }
   return { version: data.version, people };
+}
+
+function summarizePerson(person = {}) {
+  const referenceFaces = Array.isArray(person.referenceFaces) ? person.referenceFaces : [];
+  return {
+    personId: person.personId,
+    name: person.name,
+    aliases: person.aliases || [],
+    canonicalCode: person.canonicalCode || '',
+    adultRegion: person.adultRegion || '',
+    referenceAssetIds: person.referenceAssetIds || [],
+    referenceFaceCount: referenceFaces.length,
+    dismissed: !!person.dismissed,
+    createdAt: person.createdAt || '',
+    updatedAt: person.updatedAt || '',
+  };
+}
+
+function getPerson(personId) {
+  const id = String(personId || '');
+  if (!id) return null;
+  return loadPeople().people.find((p) => p.personId === id) || null;
 }
 
 function createPerson(input = {}) {
@@ -139,7 +188,7 @@ function createPerson(input = {}) {
   if (existing) {
     existing.aliases = [...new Set([...(existing.aliases || []), ...aliases])];
     existing.referenceAssetIds = [...new Set([...(existing.referenceAssetIds || []), ...(input.referenceAssetIds || []).map(String)])];
-    existing.referenceFaces = [...(existing.referenceFaces || []), ...referenceFaces];
+    existing.referenceFaces = mergeReferenceFaces(existing.referenceFaces || [], referenceFaces);
     // canonicalCode is immutable once assigned; backfill for legacy records.
     if (!existing.canonicalCode) existing.canonicalCode = assignUniqueCanonicalCode(data, existing.name || name);
     if (input.dismissed !== undefined) existing.dismissed = !!input.dismissed;
@@ -174,7 +223,7 @@ function updatePerson(personId, updates = {}) {
     ...(updates.name !== undefined ? { name: normalizeName(updates.name) || existing.name } : {}),
     ...(updates.aliases !== undefined ? { aliases: Array.isArray(updates.aliases) ? updates.aliases.map(normalizeName).filter(Boolean) : [] } : {}),
     ...(updates.referenceAssetIds !== undefined ? { referenceAssetIds: Array.isArray(updates.referenceAssetIds) ? updates.referenceAssetIds.map(String) : [] } : {}),
-    ...(updates.referenceFaces !== undefined ? { referenceFaces: normalizeReferenceFaces(updates.referenceFaces) } : {}),
+    ...(updates.referenceFaces !== undefined ? { referenceFaces: mergeReferenceFaces(updates.referenceFaces) } : {}),
     ...(updates.dismissed !== undefined ? { dismissed: !!updates.dismissed } : {}),
     // canonicalCode is immutable — never overwritten here.
     canonicalCode: existing.canonicalCode || assignUniqueCanonicalCode(loadPeople(), existing.name || 'Unknown'),
@@ -212,6 +261,8 @@ function listDismissedEmbeddings(filter = {}) {
 module.exports = {
   loadPeople,
   listPeople,
+  getPerson,
+  summarizePerson,
   createPerson,
   updatePerson,
   deletePerson,

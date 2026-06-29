@@ -2,8 +2,8 @@
 
 // Integration tests for task queue priority:
 //   - PATCH /v1/admin/tasks/:id priority adjustment (validation, state guard)
-//   - POST /v1/tasks manual task gets manual priority base
-//   - taskScheduler dispatch order honors priority within an actionType
+//   - POST /v1/tasks manual task gets additive priority
+//   - taskScheduler dispatch order honors global priority
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -35,7 +35,9 @@ test('PATCH /v1/admin/tasks/:id sets priority on a queued task', async () => {
     const body = res.json();
     assert.strictEqual(body.priority, 5);
     // Persisted
-    assert.strictEqual(taskStore.getTask(created.id).priority, 5);
+    const persisted = taskStore.getTask(created.id);
+    assert.strictEqual(persisted.priority, 5);
+    assert.strictEqual(persisted.priorityManuallyAdjusted, true);
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
@@ -73,7 +75,7 @@ test('PATCH /v1/admin/tasks/:id refuses priority change on executing task (409)'
   }
 });
 
-test('POST /v1/tasks (manual) assigns manualTaskPriority base', async () => {
+test('POST /v1/tasks (manual) assigns additive priority from source, action, and library dimensions', async () => {
   const dir = tmpDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   try {
@@ -85,7 +87,9 @@ test('POST /v1/tasks (manual) assigns manualTaskPriority base', async () => {
     });
     assert.strictEqual(res.statusCode, 201);
     const body = res.json();
-    assert.strictEqual(body.priority, 0, 'manual task should get manualTaskPriority base (0)');
+    assert.strictEqual(body.priority, 230, 'manual transcode should add manual source + transcode action + default library weights');
+    assert.strictEqual(body.priorityModelVersion, 'additive-v3');
+    assert.deepStrictEqual(body.priorityBreakdown.dimensions.map((d) => d.value), [0, 130, 100]);
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
@@ -119,6 +123,7 @@ test('taskScheduler dispatch order is priority-ascending then FIFO', async () =>
   const origDrive = transcodeFlow.driveTask;
   transcodeFlow.driveTask = async (taskId) => {
     const t = taskStoreMod.getTask(taskId);
+    assert.strictEqual(t.status, 'executing', 'scheduler should mark the task executing before flow work starts');
     dispatched.push({ itemId: t.itemId, priority: t.priority });
     // Mark done so it releases the slot; do not run real encoding.
     taskStoreMod.updateTask(taskId, { status: 'done', phase: 'done' });
@@ -134,6 +139,344 @@ test('taskScheduler dispatch order is priority-ascending then FIFO', async () =>
   } finally {
     transcodeFlow.driveTask = origDrive;
     transcodeFlow.setScheduler(origSet);
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler reconciles queued automatic task priorities with the current additive model', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.subLibraries = [{
+    uuid: 'adult-lib',
+    name: 'Adult',
+    mediaType: 'adult',
+    automationMode: 'manual',
+    priorityWeight: 100,
+  }];
+  configStoreMod.saveConfig(cfg);
+
+  const stale = taskStoreMod.createTask({
+    itemId: 'auto-stale-priority',
+    itemName: 'Auto Stale Priority',
+    actionType: 'scrape',
+    source: 'auto',
+    status: 'pending_manual',
+    priority: 80,
+    itemInfo: { name: 'Auto Stale Priority', subLibraryId: 'adult-lib' },
+  });
+  const manualOverride = taskStoreMod.createTask({
+    itemId: 'auto-manual-override',
+    itemName: 'Auto Manual Override',
+    actionType: 'scrape',
+    source: 'auto',
+    status: 'pending_manual',
+    priority: 7,
+    priorityManuallyAdjusted: true,
+    itemInfo: { name: 'Auto Manual Override', subLibraryId: 'adult-lib' },
+  });
+
+  try {
+    await scheduler.scheduleRound();
+    const reconciled = taskStoreMod.getTask(stale.id);
+    const preserved = taskStoreMod.getTask(manualOverride.id);
+    assert.strictEqual(reconciled.priority, 260);
+    assert.strictEqual(reconciled.priorityModelVersion, 'additive-v3');
+    assert.deepStrictEqual(reconciled.priorityBreakdown.dimensions.map((d) => d.value), [100, 80, 100, -20]);
+    assert.strictEqual(preserved.priority, 7);
+  } finally {
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler clears stale runtime state for queued tasks without losing manual resumes', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.transcodeConcurrency = 1;
+  configStoreMod.saveConfig(cfg);
+
+  taskStoreMod.createTask({
+    itemId: 'slot-blocker',
+    itemName: 'Slot Blocker',
+    actionType: 'transcode',
+    status: 'executing',
+  });
+  const staleQueued = taskStoreMod.createTask({
+    itemId: 'stale-queued',
+    itemName: 'Stale Queued',
+    actionType: 'transcode',
+    source: 'auto',
+    status: 'queued',
+    itemInfo: { name: 'Stale Queued' },
+  });
+  taskStoreMod.updateTask(staleQueued.id, {
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    progress: 50,
+  });
+  const recovered = taskStoreMod.createTask({
+    itemId: 'recovered-interrupted',
+    itemName: 'Recovered Interrupted',
+    actionType: 'transcode',
+    source: 'auto',
+    status: 'interrupted',
+    itemInfo: { name: 'Recovered Interrupted' },
+  });
+  taskStoreMod.updateTask(recovered.id, {
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    progress: 33,
+  });
+  const manualResume = taskStoreMod.createTask({
+    itemId: 'manual-resume',
+    itemName: 'Manual Resume',
+    actionType: 'transcode',
+    source: 'manual',
+    status: 'queued',
+    manualExecuteRequested: true,
+    itemInfo: { name: 'Manual Resume' },
+  });
+  taskStoreMod.updateTask(manualResume.id, {
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    progress: 66,
+  });
+  const staleManualFlag = taskStoreMod.createTask({
+    itemId: 'stale-manual-flag',
+    itemName: 'Stale Manual Flag',
+    actionType: 'transcode',
+    source: 'auto',
+    status: 'queued',
+    manualExecuteRequested: true,
+    itemInfo: { name: 'Stale Manual Flag' },
+  });
+  taskStoreMod.updateTask(staleManualFlag.id, {
+    phase: 'transcode_executing',
+    resumePoint: null,
+    progress: 22,
+  });
+
+  try {
+    await scheduler.scheduleRound();
+    const staleAfter = taskStoreMod.getTask(staleQueued.id);
+    const recoveredAfter = taskStoreMod.getTask(recovered.id);
+    const manualAfter = taskStoreMod.getTask(manualResume.id);
+    const staleManualAfter = taskStoreMod.getTask(staleManualFlag.id);
+
+    assert.strictEqual(staleAfter.status, 'queued');
+    assert.strictEqual(staleAfter.phase, null);
+    assert.strictEqual(staleAfter.resumePoint, null);
+    assert.strictEqual(staleAfter.progress, 0);
+
+    assert.strictEqual(recoveredAfter.status, 'queued');
+    assert.strictEqual(recoveredAfter.phase, null);
+    assert.strictEqual(recoveredAfter.resumePoint, null);
+    assert.strictEqual(recoveredAfter.progress, 0);
+
+    assert.strictEqual(manualAfter.status, 'queued');
+    assert.strictEqual(manualAfter.phase, 'transcode_executing');
+    assert.strictEqual(manualAfter.resumePoint, 'transcode_executing');
+    assert.strictEqual(manualAfter.progress, 66);
+
+    assert.strictEqual(staleManualAfter.status, 'queued');
+    assert.strictEqual(staleManualAfter.phase, null);
+    assert.strictEqual(staleManualAfter.resumePoint, null);
+    assert.strictEqual(staleManualAfter.progress, 0);
+  } finally {
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler caps service-local western adult AI scrape to one active task', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.scrapeConcurrency = 3;
+  cfg.adultLibrary.western.enabled = true;
+  cfg.adultLibrary.western.computeMode = 'local';
+  cfg.adultLibrary.western.localConcurrency = 1;
+  cfg.subLibraries = [{
+    uuid: 'adult-western',
+    name: 'US Adult',
+    mediaType: 'adult',
+    adultRegion: 'western_adult',
+    scraperType: 'western_builtin',
+    automationMode: 'auto',
+  }];
+  configStoreMod.saveConfig(cfg);
+
+  for (let i = 0; i < 3; i++) {
+    taskStoreMod.createTask({
+      itemId: `western-${i}`,
+      itemName: `Western ${i}`,
+      actionType: 'scrape',
+      status: 'queued',
+      priority: 80,
+      itemInfo: {
+        name: `Western ${i}`,
+        subLibraryId: 'adult-western',
+        adultMetadata: { region: 'western_adult', scrapeStatus: 'pending' },
+      },
+    });
+  }
+
+  const dispatched = [];
+  const origDrive = scrapeFlow.driveTask;
+  scrapeFlow.driveTask = async (taskId) => {
+    dispatched.push(taskId);
+    scheduler.reportStatus(taskId, 'done');
+  };
+
+  try {
+    await scheduler.scheduleRound();
+    assert.strictEqual(dispatched.length, 1, 'only one service-local western AI scrape should start per round');
+  } finally {
+    scrapeFlow.driveTask = origDrive;
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler skips stale automatic scrape tasks when the live item now requires user action', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.scrapeConcurrency = 1;
+  cfg.subLibraries = [{
+    uuid: 'adult-western',
+    name: 'US Adult',
+    mediaType: 'adult',
+    adultRegion: 'western_adult',
+    automationMode: 'auto',
+  }];
+  configStoreMod.saveConfig(cfg);
+
+  const task = taskStoreMod.createTask({
+    itemId: 'western-failed-live',
+    itemName: 'Western Failed Live',
+    actionType: 'scrape',
+    source: 'auto',
+    status: 'queued',
+    priority: 280,
+    itemInfo: {
+      name: 'Western Failed Live',
+      subLibraryId: 'adult-western',
+      adultMetadata: { region: 'western_adult', scrapeStatus: 'pending' },
+    },
+  });
+
+  const dispatched = [];
+  const origDrive = scrapeFlow.driveTask;
+  const origGetLibraryItem = mediaLibraryService.getLibraryItem;
+  scrapeFlow.driveTask = async (taskId) => {
+    dispatched.push(taskId);
+  };
+  mediaLibraryService.getLibraryItem = (itemId) => {
+    if (itemId !== 'western-failed-live') return null;
+    return {
+      itemId,
+      scraped: false,
+      adultMetadata: { scrapeStatus: 'failed', region: 'western_adult' },
+    };
+  };
+
+  try {
+    await scheduler.scheduleRound();
+    const after = taskStoreMod.getTask(task.id);
+    assert.strictEqual(dispatched.length, 0);
+    assert.strictEqual(after.status, 'skipped');
+    assert.strictEqual(after.skippedReason, 'scrape_status_failed');
+  } finally {
+    scrapeFlow.driveTask = origDrive;
+    mediaLibraryService.getLibraryItem = origGetLibraryItem;
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler dispatches automatic western pending scrape tasks before identity is known', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.scrapeConcurrency = 1;
+  cfg.subLibraries = [{
+    uuid: 'adult-western',
+    name: 'US Adult',
+    mediaType: 'adult',
+    adultRegion: 'western_adult',
+    automationMode: 'auto',
+  }];
+  configStoreMod.saveConfig(cfg);
+
+  const task = taskStoreMod.createTask({
+    itemId: 'western-no-identity',
+    itemName: 'UNK-999',
+    actionType: 'scrape',
+    source: 'auto',
+    status: 'queued',
+    priority: 280,
+    itemInfo: {
+      name: 'UNK-999',
+      subLibraryId: 'adult-western',
+      adultMetadata: { region: 'western_adult', scrapeStatus: 'pending' },
+    },
+  });
+
+  const dispatched = [];
+  const origDrive = scrapeFlow.driveTask;
+  const origGetLibraryItem = mediaLibraryService.getLibraryItem;
+  scrapeFlow.driveTask = async (taskId) => {
+    dispatched.push(taskId);
+    scheduler.reportStatus(taskId, 'done', 100);
+  };
+  mediaLibraryService.getLibraryItem = (itemId) => {
+    if (itemId !== 'western-no-identity') return null;
+    return {
+      itemId,
+      scraped: false,
+      adultMetadata: {
+        region: 'western_adult',
+        scrapeStatus: 'pending',
+        actors: [],
+        faceClusters: [],
+        unknownFaces: [],
+      },
+    };
+  };
+
+  try {
+    await scheduler.scheduleRound();
+    const after = taskStoreMod.getTask(task.id);
+    assert.strictEqual(dispatched.length, 1);
+    assert.strictEqual(after.status, 'done');
+    assert.strictEqual(after.skippedReason, undefined);
+  } finally {
+    scrapeFlow.driveTask = origDrive;
+    mediaLibraryService.getLibraryItem = origGetLibraryItem;
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
   }

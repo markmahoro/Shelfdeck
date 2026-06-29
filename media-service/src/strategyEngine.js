@@ -3,7 +3,7 @@
 /**
  * StrategyEngine — rule-based strategy evaluation.
  *
- * Reads library.json, evaluates each item against the subLibrary's rule
+ * Reads the media library store, evaluates each item against the subLibrary's rule
  * template, and writes action/reason/targetBitrate/targetCodec/predictedSizeGb.
  *
  * Decoupled from all data-writing paths. Only reads library + config,
@@ -11,6 +11,7 @@
  */
 
 const activityLog = require('./activityLog');
+const metadataStatus = require('./metadataStatus');
 
 let timer = null;
 let lastRunAt = null;
@@ -111,24 +112,53 @@ function applyRule(item, rule) {
   }
 }
 
+function clearOptimization(item, reason) {
+  const old = {
+    action: item.action,
+    reason: item.reason,
+    targetBitrate: item.targetBitrate,
+    targetCodec: item.targetCodec,
+    seedPreferences: JSON.stringify(item.seedPreferences || null),
+    maxSizeGB: item.maxSizeGB,
+    predictedSizeGb: item.predictedSizeGb,
+  };
+  item.action = '';
+  item.reason = reason || '';
+  item.targetBitrate = undefined;
+  item.targetCodec = undefined;
+  item.seedPreferences = undefined;
+  item.maxSizeGB = undefined;
+  item.predictedSizeGb = undefined;
+  return (
+    item.action !== old.action ||
+    item.reason !== old.reason ||
+    item.targetBitrate !== old.targetBitrate ||
+    item.targetCodec !== old.targetCodec ||
+    JSON.stringify(item.seedPreferences || null) !== old.seedPreferences ||
+    item.maxSizeGB !== old.maxSizeGB ||
+    item.predictedSizeGb !== old.predictedSizeGb
+  );
+}
+
 // ── Engine ─────────────────────────────────────────────────────────────────────
 
-function evaluateItem(item, templates, subLibs) {
+function evaluateItem(item, templates, subLibs, config = {}) {
   const subLib = subLibs.find((s) => s.uuid === item.subLibraryId);
   const tplId = (subLib && subLib.ruleTemplateId) || 'default';
   const template = (templates || []).find((t) => t.id === tplId);
+  const meta = metadataStatus.resolveMetadataStatus(item, config);
+
+  item.metadataStatus = meta.metadataStatus;
+  item.metadataComplete = meta.metadataComplete;
+  item.metadataMissingReasons = meta.metadataMissingReasons;
+  item.metadataKind = meta.metadataKind;
+
+  if (!meta.metadataComplete) {
+    return clearOptimization(item, `元数据缺失：${meta.metadataMissingReasons.join(', ')}`);
+  }
 
   if (!template || !template.rules || template.rules.length === 0) {
-    if (item.action !== 'keep' || item.reason !== '无策略模板') {
-      item.action = 'keep';
-      item.reason = '无策略模板';
-      item.targetBitrate = undefined;
-      item.targetCodec = undefined;
-      item.seedPreferences = undefined;
-      item.predictedSizeGb = undefined;
-      return true;
-    }
-    return false;
+    return clearOptimization(item, '无策略模板');
   }
 
   // Sort rules by priority ascending (P1 → P10), evaluate, last match wins
@@ -142,16 +172,7 @@ function evaluateItem(item, templates, subLibs) {
   }
 
   if (!matched) {
-    if (item.action !== 'keep' || item.reason !== '策略未覆盖') {
-      item.action = 'keep';
-      item.reason = '策略未覆盖';
-      item.targetBitrate = undefined;
-      item.targetCodec = undefined;
-      item.seedPreferences = undefined;
-      item.predictedSizeGb = undefined;
-      return true;
-    }
-    return false;
+    return clearOptimization(item, '策略未覆盖');
   }
 
   const oldAction = item.action;
@@ -186,6 +207,7 @@ function runOnce() {
   const templates = cfg.ruleTemplates || [];
   const subLibs = cfg.subLibraries || [];
   let changed = 0;
+  const changedItems = [];
 
   for (const item of lib.items) {
     if (item.type === 'series') {
@@ -198,11 +220,13 @@ function runOnce() {
         item.seedPreferences = undefined;
         item.predictedSizeGb = undefined;
         changed++;
+        changedItems.push(item);
       }
       continue;
     }
-    if (evaluateItem(item, templates, subLibs)) {
+    if (evaluateItem(item, templates, subLibs, cfg)) {
       changed++;
+      changedItems.push(item);
     }
   }
 
@@ -210,7 +234,11 @@ function runOnce() {
   lastRunAt = Date.now();
 
   if (changed > 0) {
-    _mediaLibraryService.saveLibrary(lib);
+    if (typeof _mediaLibraryService.updateLibraryItems === 'function') {
+      _mediaLibraryService.updateLibraryItems(changedItems);
+    } else {
+      _mediaLibraryService.saveLibrary(lib);
+    }
     const msg = `策略重新计算完成，${changed} 个条目的推荐操作已更新`;
     console.log(`[strategyEngine] ${msg}`);
     activityLog.addActivity('strategy_engine', msg, { changed });

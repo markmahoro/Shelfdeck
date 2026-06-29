@@ -49,6 +49,8 @@ export interface SubLibrary {
   mediaPolicy?: MediaPolicy;
   ruleTemplateId?: string;
   upgradeSmartSelect: UpgradeSmartSelect;
+  automationMode?: 'auto' | 'manual';
+  approvalPolicy?: ApprovalPolicyConfig;
   scheduleMode?: 'full_auto' | 'custom' | 'full_manual';
   autoCreate?: boolean;
   autoExecute?: boolean;
@@ -63,8 +65,6 @@ export interface SubLibrary {
   adultRegion?: 'japanese_jav' | 'western_adult';
   scraperType?: 'shelfdeck_japanese_jav' | 'western_builtin';
   watchRoot?: string;
-  scrapeEnabled?: boolean;
-  scanIntervalMinutes?: number;
   japaneseJav?: Record<string, unknown>;
 }
 
@@ -128,6 +128,7 @@ export interface UpgradeSmartSelect {
 
 export interface TranscodeConfig {
   transcodeTempRoot: string;
+  transcodeCleanupOrphansOnStartup?: boolean;
   transcodeReplaceConfirmRequired: boolean;
   ffmpegPath: string;
   ffprobePath: string;
@@ -148,8 +149,8 @@ export interface DevicePoolEntry {
   priority: number;
   maxSlots: number;
   encoder: string;
-  status: 'idle' | 'busy' | 'error';
-  activeSlots: number;
+  status?: 'idle' | 'busy' | 'error';
+  activeSlots?: number;
   remote?: boolean;
   deviceId?: string;
   nodeId?: string;
@@ -174,7 +175,19 @@ export type TaskStatus =
   | 'awaiting_user_confirm' | 'pausing' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
-export type ActionType = 'delete' | 'transcode' | 'upgrade' | 'scrape';
+export type ActionType = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape';
+
+export type ApprovalMode = 'auto' | 'confirm' | 'forceConfirm';
+export type ApprovalPolicyConfig = Record<string, ApprovalMode>;
+
+export interface TaskApproval {
+  gateId: string;
+  mode: ApprovalMode;
+  title?: string;
+  message?: string;
+  options?: string[];
+  payload?: Record<string, unknown>;
+}
 
 export interface TaskLogEntry {
   seq?: number;
@@ -212,6 +225,7 @@ export interface TaskItemInfo {
   searchCandidates?: Record<string, unknown>[];
   searchCandidatesSimplified?: UpgradeCandidate[];
   adultMetadata?: Record<string, unknown>;
+  taskSource?: 'manual' | 'auto' | string;
   transcodeTaskId?: string;
 }
 
@@ -293,13 +307,29 @@ export interface MediaTask {
   itemId: string;
   itemName?: string;
   actionType: ActionType;
+  source?: 'manual' | 'auto' | string;
   status: TaskStatus;
   progress: number;
   phase: string;
   resumePoint: string | null;
-  // Queue priority (lower = runs first within its actionType). Absent on
-  // legacy tasks (treated as 100 by the scheduler).
+  approval?: TaskApproval | null;
+  // Queue priority (lower = runs first globally). Absent on legacy tasks
+  // (treated as 100 by the scheduler).
   priority?: number;
+  priorityModelVersion?: string;
+  priorityBreakdown?: {
+    modelVersion?: string;
+    lowerIsEarlier?: boolean;
+    formula?: string;
+    raw?: number;
+    priority?: number;
+    dimensions?: Array<{
+      key: string;
+      label?: string;
+      value: number;
+      [key: string]: unknown;
+    }>;
+  };
   createdAt: string;
   updatedAt: string;
   logs?: TaskLogEntry[];

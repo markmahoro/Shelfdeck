@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y curl gnupg \
 
 # Intel Media Driver for QSV/VAAPI and Intel OpenCL runtime for OpenVINO GPU inference.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    intel-media-va-driver mesa-va-drivers intel-opencl-icd clinfo p7zip-full python3 python3-venv \
+    intel-media-va-driver mesa-va-drivers intel-opencl-icd clinfo p7zip-full python3 python3-venv make g++ \
     && rm -rf /var/lib/apt/lists/*
 
 COPY media-service/package.json media-service/package-lock.json ./

@@ -40,6 +40,10 @@ export type MediaLibraryManageRowProps = {
   isSelected: boolean;
   isHighlighted: boolean;
   rowTask: MediaTask | undefined;
+  isCreatingTask?: boolean;
+  showAdultFields: boolean;
+  showStandardFields: boolean;
+  gridClassName: string;
   onToggleSelect: (id: string) => void;
   onWatchChange: (item: ManagedMediaItem, watched: boolean) => void;
   onRatingChange: (item: ManagedMediaItem, rating: MediaRating | null) => void;
@@ -48,7 +52,7 @@ export type MediaLibraryManageRowProps = {
 };
 
 const MAX_STARS = 5;
-const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '码率压缩', upgrade: '洗版', scrape: '刮削' };
+const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '转码压缩', upgrade: '洗版', scrape: '刮削', ingest: '入库' };
 const OPTIMIZATION_LABEL: Record<string, string> = { transcoded: '已转码', upgraded: '已洗版', none: '未优化' };
 
 function adultMetaString(item: ManagedMediaItem, key: string): string {
@@ -95,6 +99,10 @@ function MediaLibraryManageRowInner({
   isSelected,
   isHighlighted,
   rowTask,
+  isCreatingTask,
+  showAdultFields,
+  showStandardFields,
+  gridClassName,
   onToggleSelect,
   onWatchChange,
   onRatingChange,
@@ -124,19 +132,19 @@ function MediaLibraryManageRowInner({
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
       {taskStatusLabelZh(rowTask.status)}（
-      {rowTask.actionType === 'transcode' ? '压缩' : rowTask.actionType === 'upgrade' ? '洗版' : rowTask.actionType === 'scrape' ? '刮削' : '删除'}
+      {ACTION_LABEL[rowTask.actionType] || rowTask.actionType}
       ）
     </span>
   ) : (
     '—'
   );
 
-  const actionDisabled = !!rowTask || (item.isBluRayDisc && action === 'upgrade');
+  const actionDisabled = !!rowTask || !!isCreatingTask || (item.isBluRayDisc && action === 'upgrade');
 
   return (
     <div
       data-manage-item-id={item.id}
-      className={`mediaManageGrid mediaManageRow${isHighlighted ? ' mediaManageRowHighlight' : ''}`}
+      className={`mediaManageGrid ${gridClassName} mediaManageRow${isHighlighted ? ' mediaManageRowHighlight' : ''}`}
     >
       <div className="mediaManageTitleCell">
         <input
@@ -149,36 +157,38 @@ function MediaLibraryManageRowInner({
           <span className="mediaManageTitle">{item.name}</span>
         </span>
       </div>
-      <div className="adultScrapeCell">
-        {scrapeStatus ? (
-          <>
-            <span className={`adultScrapeBadge adultScrapeBadge-${scrapeStatus.tone}`} title={scrapeStatus.title}>
-              {scrapeStatus.label}
-            </span>
-            {adultSummary ? (
-              <span className="adultScrapeSummary" title={adultTitle || scrapeStatus.title}>
-                {adultSummary}
+      {showAdultFields && (
+        <div className="adultScrapeCell">
+          {scrapeStatus ? (
+            <>
+              <span className={`adultScrapeBadge adultScrapeBadge-${scrapeStatus.tone}`} title={scrapeStatus.title}>
+                {scrapeStatus.label}
               </span>
-            ) : (
-              <span className="adultScrapeSummary">—</span>
-            )}
-            {onRescrape && !rowTask && (
-              <button
-                type="button"
-                className="adultRescrapeBtn"
-                title="重新刮削该条目"
-                onClick={() => onRescrape(item)}
-              >
-                重刮
-              </button>
-            )}
-          </>
-        ) : (
-          <span className="hint">—</span>
-        )}
-      </div>
-      <div>{item.seriesName || '—'}</div>
-      <div className="tabular-nums">{item.seasonNumber != null ? `S${String(item.seasonNumber).padStart(2, '0')}` : '—'}</div>
+              {adultSummary ? (
+                <span className="adultScrapeSummary" title={adultTitle || scrapeStatus.title}>
+                  {adultSummary}
+                </span>
+              ) : (
+                <span className="adultScrapeSummary">—</span>
+              )}
+              {onRescrape && !rowTask && (
+                <button
+                  type="button"
+                  className="adultRescrapeBtn"
+                  title="重新刮削该条目"
+                  onClick={() => onRescrape(item)}
+                >
+                  重刮
+                </button>
+              )}
+            </>
+          ) : (
+            <span className="hint">—</span>
+          )}
+        </div>
+      )}
+      {showStandardFields && <div>{item.seriesName || '—'}</div>}
+      {showStandardFields && <div className="tabular-nums">{item.seasonNumber != null ? `S${String(item.seasonNumber).padStart(2, '0')}` : '—'}</div>}
       <div className="tabular-nums">{item.sizeGb.toFixed(1)} GB</div>
       <div>{item.resolution}</div>
       <div>{item.codec.toUpperCase()}</div>
@@ -190,23 +200,29 @@ function MediaLibraryManageRowInner({
           {OPTIMIZATION_LABEL[item.optimizationStatus]}
         </span>
       </div>
-      <div title={item.isBluRayDisc ? '原盘（ISO/BDMV）' : undefined}>
-        {item.isBluRayDisc ? '是' : '否'}
-      </div>
-      <div title={item.doubanStars != null ? `豆瓣 ${item.doubanStars} 星` : '未抓取到'}>
-        <Stars count={item.doubanStars} max={MAX_STARS} />
-      </div>
+      {showStandardFields && (
+        <div title={item.isBluRayDisc ? '原盘（ISO/BDMV）' : undefined}>
+          {item.isBluRayDisc ? '是' : '否'}
+        </div>
+      )}
+      {showStandardFields && (
+        <div title={item.doubanStars != null ? `豆瓣 ${item.doubanStars} 星` : '未抓取到'}>
+          <Stars count={item.doubanStars} max={MAX_STARS} />
+        </div>
+      )}
       <div>
         <StarInput value={item.rating} onChange={(r) => onRatingChange(item, r)} />
       </div>
-      <div className="mediaManageWatchedCell">
-        <button type="button" disabled={item.watched} onClick={() => onWatchChange(item, true)}>
-          已看
-        </button>
-        <button type="button" disabled={!item.watched} onClick={() => onWatchChange(item, false)}>
-          未看
-        </button>
-      </div>
+      {showStandardFields && (
+        <div className="mediaManageWatchedCell">
+          <button type="button" disabled={item.watched} onClick={() => onWatchChange(item, true)}>
+            已看
+          </button>
+          <button type="button" disabled={!item.watched} onClick={() => onWatchChange(item, false)}>
+            未看
+          </button>
+        </div>
+      )}
       <div>
         {action === 'keep' ? (
           <span className="hint" title={item.reason}>{item.reason || '已达标'}</span>
@@ -214,10 +230,10 @@ function MediaLibraryManageRowInner({
           <button
             type="button"
             disabled={actionDisabled}
-            title={rowTask ? '该条目已有未结案任务' : item.isBluRayDisc && action === 'upgrade' ? '原盘暂不支持洗版' : undefined}
+            title={rowTask ? '该条目已有未结案任务' : isCreatingTask ? '正在创建任务' : item.isBluRayDisc && action === 'upgrade' ? '原盘暂不支持洗版' : undefined}
             onClick={() => onEnqueue(item, action)}
           >
-            {ACTION_LABEL[action]}
+            {isCreatingTask ? '创建中...' : ACTION_LABEL[action]}
           </button>
         )}
       </div>
@@ -234,6 +250,10 @@ function rowPropsEqual(a: MediaLibraryManageRowProps, b: MediaLibraryManageRowPr
     a.isSelected === b.isSelected &&
     a.isHighlighted === b.isHighlighted &&
     a.rowTask === b.rowTask &&
+    a.isCreatingTask === b.isCreatingTask &&
+    a.showAdultFields === b.showAdultFields &&
+    a.showStandardFields === b.showStandardFields &&
+    a.gridClassName === b.gridClassName &&
     a.onToggleSelect === b.onToggleSelect &&
     a.onWatchChange === b.onWatchChange &&
     a.onRatingChange === b.onRatingChange &&

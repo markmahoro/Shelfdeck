@@ -28,6 +28,72 @@
   min-height: 100%;
 }
 
+.mediaNotice {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.mediaNoticeSuccess {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.mediaPager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.mediaPagerControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mediaPagerControls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mediaPagerControls select {
+  padding: 4px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  font-size: 13px;
+}
+
+.mediaPager button {
+  margin-left: 8px;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  background: #fff;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mediaPager button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
 .sidebarMuted {
   font-size: 11px;
   color: #9ca3af;
@@ -196,8 +262,6 @@
 
 .mediaManageGrid {
   display: grid;
-  grid-template-columns:
-    18rem 8.5rem 7rem 3rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 4.5rem 2.5rem 5.5rem 5rem 6rem 15rem 4.5rem;
   gap: 6px 8px;
   align-items: center;
   padding: 8px 10px;
@@ -296,6 +360,21 @@
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mediaManageGridMixed {
+  grid-template-columns:
+    18rem 8.5rem 7rem 3rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 4.5rem 2.5rem 5.5rem 5rem 6rem 15rem 4.5rem;
+}
+
+.mediaManageGridAdult {
+  grid-template-columns:
+    18rem 8.5rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 4.5rem 5rem 15rem 4.5rem;
+}
+
+.mediaManageGridStandard {
+  grid-template-columns:
+    18rem 7rem 3rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 4.5rem 2.5rem 5.5rem 5rem 6rem 15rem 4.5rem;
 }
 
 .adultRescrapeBtn {

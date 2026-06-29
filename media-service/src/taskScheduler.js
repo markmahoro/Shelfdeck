@@ -19,10 +19,12 @@ const deleteFlow = require('./deleteFlowExecutor');
 const transcodeFlow = require('./transcodeFlowExecutor');
 const upgradeFlow = require('./upgradeFlowExecutor');
 const scrapeFlow = require('./scrapeFlowExecutor');
+const ingestFlow = require('./ingestFlowExecutor');
 const healthCheck = require('./healthCheck');
 const activityLog = require('./activityLog');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
+const priorityEngine = require('./priorityEngine');
 
 let schedulerInterval = null;
 let nodeHealthInterval = null;
@@ -35,6 +37,7 @@ const justConfirmedIds = new Set(); // tasks confirmed by user this round — by
 
 function getFlow(actionType) {
   switch (actionType) {
+    case 'ingest': return ingestFlow;
     case 'delete': return deleteFlow;
     case 'transcode': return transcodeFlow;
     case 'upgrade': return upgradeFlow;
@@ -45,6 +48,7 @@ function getFlow(actionType) {
 
 function getConcurrencyLimit(actionType, limits) {
   switch (actionType) {
+    case 'ingest': return limits.ingestConcurrency || 1;
     case 'delete': return limits.deleteConcurrency || 1;
     case 'transcode': return limits.transcodeConcurrency || 1;
     case 'upgrade': return limits.upgradeConcurrency || 1;
@@ -53,10 +57,64 @@ function getConcurrencyLimit(actionType, limits) {
   }
 }
 
+function shouldRecomputeAutoPriority(task) {
+  return task
+    && task.source === 'auto'
+    && !task.priorityManuallyAdjusted
+    && ['created', 'pending_manual', 'queued'].includes(task.status)
+    && task.actionType
+    && task.itemInfo;
+}
+
+function reconcileAutoTaskPriorities(tasks, config) {
+  for (const task of tasks) {
+    if (!shouldRecomputeAutoPriority(task)) continue;
+    const priorityBreakdown = priorityEngine.explainPriority({
+      source: 'auto',
+      actionType: task.actionType,
+      itemInfo: task.itemInfo,
+      config,
+      task,
+    });
+    const priority = priorityBreakdown.priority;
+    if (task.priority === priority && task.priorityModelVersion === priorityEngine.PRIORITY_MODEL_VERSION) continue;
+    const updated = taskStore.updateTask(task.id, {
+      priority,
+      priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+      priorityBreakdown,
+    });
+    if (updated) {
+      task.priority = updated.priority;
+      task.priorityModelVersion = updated.priorityModelVersion;
+      task.priorityBreakdown = updated.priorityBreakdown;
+    }
+  }
+}
+
+function clearQueuedRuntimeState(task) {
+  if (task.manualExecuteRequested && task.resumePoint) return task;
+  const updates = {};
+  if (task.phase !== null && task.phase !== undefined) updates.phase = null;
+  if (task.resumePoint !== null && task.resumePoint !== undefined) updates.resumePoint = null;
+  if (task.progress !== 0 && task.progress !== undefined) updates.progress = 0;
+  if (!Object.keys(updates).length) return task;
+
+  const updated = taskStore.updateTask(task.id, updates);
+  if (updated) {
+    task.phase = updated.phase;
+    task.resumePoint = updated.resumePoint;
+    task.progress = updated.progress;
+  }
+  taskStore.deleteProgress(task.id);
+  return updated || task;
+}
+
 // ── Exposed to Flow Executors ───────────────────────────────────────────────
 
-function pauseForConfirm(taskId, resumePoint) {
-  taskStore.updateTask(taskId, { status: 'awaiting_user_confirm', resumePoint });
+function pauseForConfirm(taskId, resumePoint, approval) {
+  const updates = { status: 'awaiting_user_confirm', resumePoint };
+  if (approval && typeof approval === 'object') updates.approval = approval;
+  taskStore.updateTask(taskId, updates);
   runningTasks.delete(taskId);
 }
 
@@ -77,6 +135,7 @@ function reportStatus(taskId, status, progress) {
     const actionLabel = oldTask.actionType === 'transcode' ? '码率压缩'
       : oldTask.actionType === 'upgrade' ? '洗版'
       : oldTask.actionType === 'delete' ? '删除'
+      : oldTask.actionType === 'ingest' ? '入库'
       : oldTask.actionType === 'scrape' ? '刮削'
       : oldTask.actionType;
 
@@ -116,8 +175,8 @@ function reportStatus(taskId, status, progress) {
 // ── Scheduling ──────────────────────────────────────────────────────────────
 
 function recoverInterruptedTasks() {
-  const tasks = taskStore.loadTasks();
-  const interruptible = ['precheck', 'executing', 'verify', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'scrape_precheck', 'scrape_executing', 'planning', 'pre_replace_verify', 'pausing'];
+  const tasks = taskStore.loadTasks({ includeHistory: false });
+  const interruptible = ['precheck', 'executing', 'verify', 'ingest_precheck', 'ingest_commit', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review', 'planning', 'pre_replace_verify', 'pausing'];
   let changed = false;
   for (const t of tasks) {
     if (t.status === 'done' || t.status === 'failed_hard') continue;
@@ -136,6 +195,72 @@ function recoverInterruptedTasks() {
 
 function isActiveStatus(status) {
   return status === 'executing' || status === 'pausing' || status === 'awaiting_user_confirm';
+}
+
+function isLocalWesternAiScrapeTask(task, config) {
+  if (!task || task.actionType !== 'scrape') return false;
+  const itemInfo = task.itemInfo || {};
+  const adultMetadata = itemInfo.adultMetadata || {};
+  const subLib = (config.subLibraries || []).find((s) => s.uuid === itemInfo.subLibraryId) || {};
+  const region = adultMetadata.region || subLib.adultRegion || '';
+  if (region !== 'western_adult') return false;
+  const western = {
+    ...(((config.adultLibrary || {}).western) || {}),
+    ...((subLib && subLib.western) || {}),
+  };
+  return String(western.computeMode || 'local').toLowerCase() !== 'worker';
+}
+
+function staleAutoScrapeReason(task) {
+  if (!task || task.actionType !== 'scrape') return '';
+  if (task.source !== 'auto') return '';
+  if (task.manualExecuteRequested || justConfirmedIds.has(task.id)) return '';
+  const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
+  if (!liveItem) return 'library_item_missing';
+  if (liveItem.scraped === true) return 'already_scraped';
+  const meta = liveItem.adultMetadata || {};
+  const status = String(meta.scrapeStatus || '').toLowerCase();
+  if (status === 'failed' || status === 'ambiguous' || status === 'needs_review' || status === 'done') {
+    return `scrape_status_${status}`;
+  }
+  return '';
+}
+
+function skipStaleAutoScrapeTask(task, reason) {
+  const logs = Array.isArray(task.logs) ? task.logs.slice() : [];
+  logs.push({
+    ts: new Date().toISOString(),
+    level: 'info',
+    msg: `Automatic scrape skipped: ${reason}`,
+  });
+  const updated = taskStore.updateTask(task.id, {
+    status: 'skipped',
+    phase: 'skipped',
+    skippedReason: reason,
+    logs,
+  });
+  if (updated) {
+    task.status = updated.status;
+    task.phase = updated.phase;
+    task.skippedReason = updated.skippedReason;
+    task.logs = updated.logs;
+  } else {
+    task.status = 'skipped';
+    task.phase = 'skipped';
+    task.skippedReason = reason;
+    task.logs = logs;
+  }
+  activityLog.addActivity('task', `自动刮削任务「${task.itemName || task.itemId}」已跳过：${reason}`, {
+    taskId: task.id,
+    actionType: task.actionType,
+    reason,
+  });
+}
+
+function getLocalWesternAiScrapeLimit(config) {
+  const raw = (((config.adultLibrary || {}).western) || {}).localConcurrency;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 1) : 1;
 }
 
 // ── Node health monitoring ────────────────────────────────────────────────────
@@ -160,7 +285,7 @@ async function checkNodeHealth() {
     // Node just went offline — fail its active tasks
     if (updated && updated.status === 'offline') {
       console.log(`[scheduler] Node ${node.name} (${node.id}) is offline — failing active tasks`);
-      const tasks = taskStore.loadTasks();
+      const tasks = taskStore.loadTasks({ includeHistory: false });
       let failed = 0;
       for (const t of tasks) {
         if (t.nodeId === node.id && t.status === 'executing') {
@@ -186,9 +311,10 @@ function startScheduler() {
   recoverInterruptedTasks();
 
   // Inject scheduler into Flow Executors
-    deleteFlow.setScheduler({ pauseForConfirm, reportStatus });
-    transcodeFlow.setScheduler({ pauseForConfirm, reportStatus });
-    upgradeFlow.setScheduler({ pauseForConfirm, reportStatus });
+  deleteFlow.setScheduler({ pauseForConfirm, reportStatus });
+  ingestFlow.setScheduler({ pauseForConfirm, reportStatus });
+  transcodeFlow.setScheduler({ pauseForConfirm, reportStatus });
+  upgradeFlow.setScheduler({ pauseForConfirm, reportStatus });
   scrapeFlow.setScheduler({ pauseForConfirm, reportStatus });
 
   healthCheck.setSchedulerState({ running: true, runningTasks: 0 });
@@ -224,16 +350,21 @@ function stopScheduler() {
 
 async function scheduleRound() {
   const config = configStore.loadConfig();
-  const tasks = taskStore.loadTasks();
+  const tasks = taskStore.loadTasks({ includeHistory: false });
 
   // Count active tasks per actionType (occupying slots)
-  const activeCount = { delete: 0, transcode: 0, upgrade: 0, scrape: 0 };
+  const activeCount = { ingest: 0, delete: 0, transcode: 0, upgrade: 0, scrape: 0 };
+  const localWesternAiScrapeLimit = getLocalWesternAiScrapeLimit(config);
+  let activeLocalWesternAiScrapes = 0;
   const usedItemIds = new Set();
 
   for (const t of tasks) {
     if (isActiveStatus(t.status)) {
       activeCount[t.actionType] = (activeCount[t.actionType] || 0) + 1;
       usedItemIds.add(t.itemId);
+      if (t.status !== 'awaiting_user_confirm' && isLocalWesternAiScrapeTask(t, config)) {
+        activeLocalWesternAiScrapes++;
+      }
     }
   }
 
@@ -256,12 +387,18 @@ async function scheduleRound() {
     }
     task.status = 'queued';
     task.retryCount = retryCount;
+    task.phase = null;
+    task.resumePoint = null;
+    task.progress = 0;
+    taskStore.deleteProgress(task.id);
     recoveredIds.add(task.id);
     pass1Changed = true;
   }
   if (pass1Changed) {
     taskStore.saveTasks(tasks);
   }
+
+  reconcileAutoTaskPriorities(tasks, config);
 
   // ── Pass 2: dispatch queued tasks, ordered by queue priority ──────────
   // Lower priority value = runs first. Recovered (interrupted) tasks get a
@@ -300,7 +437,7 @@ async function scheduleRound() {
       }
     }
 
-    // subLibrary scheduleMode check: skip if subLib autoExecute is off
+    // subLibrary automation check: skip if this library does not auto-execute.
     if (task.status === 'pending_manual' || task.status === 'created') {
       const subLibSchedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
       if (!subLibSchedule.autoExecute) continue;
@@ -311,21 +448,43 @@ async function scheduleRound() {
 
     // Transition created/pending_manual → queued (always allowed — pure status change)
     if (task.status === 'created' || task.status === 'pending_manual') {
-      taskStore.updateTask(task.id, { status: 'queued' });
+      taskStore.updateTask(task.id, { status: 'queued', phase: null, resumePoint: null, progress: 0 });
+      taskStore.deleteProgress(task.id);
       task.status = 'queued';
+      task.phase = null;
+      task.resumePoint = null;
+      task.progress = 0;
     }
 
     if (task.status === 'queued') {
+      clearQueuedRuntimeState(task);
+
+      const staleScrapeReason = staleAutoScrapeReason(task);
+      if (staleScrapeReason) {
+        skipStaleAutoScrapeTask(task, staleScrapeReason);
+        continue;
+      }
+
       // actionType slot check — just-confirmed tasks bypass (they already held a slot)
       const limit = getConcurrencyLimit(task.actionType, config);
       if (activeCount[task.actionType] >= limit && !justConfirmedIds.has(task.id)) continue;
+      if (
+        isLocalWesternAiScrapeTask(task, config) &&
+        activeLocalWesternAiScrapes >= localWesternAiScrapeLimit &&
+        !justConfirmedIds.has(task.id)
+      ) {
+        continue;
+      }
 
       const flow = getFlow(task.actionType);
       if (!flow) continue;
 
       runningTasks.add(task.id);
       activeCount[task.actionType]++;
+      if (isLocalWesternAiScrapeTask(task, config)) activeLocalWesternAiScrapes++;
       usedItemIds.add(task.itemId);
+      reportStatus(task.id, 'executing', task.progress || 0);
+      task.status = 'executing';
 
       // Fire-and-forget: Flow calls reportStatus when done
       flow.driveTask(task.id).catch((err) => {

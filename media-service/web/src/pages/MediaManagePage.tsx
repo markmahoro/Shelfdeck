@@ -1,19 +1,35 @@
-import { useEffect, useState, useMemo } from 'react';
-import { libraryApi, taskApi, subLibraries as adminSubLibraries, ApiConflictError, adult as adultApi } from '../api/client';
+import { useCallback, useEffect, useState, useMemo } from 'react';
+import { libraryApi, taskApi, ApiConflictError, adult as adultApi, systemConfig } from '../api/client';
 import type { SubLibraryInfo } from '../api/client';
 import { MediaLibraryManageRow } from '../components/MediaLibraryManageRow';
 import type { MediaTask } from '../types';
 import type { ManagedMediaItem, MediaAction, MediaRating } from '../models/media';
 import '../mediaManage.css';
 
+const ACTION_LABELS: Record<string, string> = {
+  delete: '删除',
+  transcode: '转码压缩',
+  upgrade: '洗版',
+  scrape: '刮削',
+  ingest: '入库',
+};
+const MEDIA_MANAGE_SUB_LIBRARY_KEY = 'media_manage_sub_library_id';
+const MEDIA_MANAGE_PAGE_SIZE_KEY = 'media_manage_page_size';
+const DEFAULT_MEDIA_MANAGE_PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
+
 export default function MediaManagePage() {
   const [subLibraries, setSubLibraries] = useState<SubLibraryInfo[]>([]);
   const [subLibraryId, setSubLibraryId] = useState<string>('');
   const [items, setItems] = useState<ManagedMediaItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [tasks, setTasks] = useState<MediaTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [creatingTaskIds, setCreatingTaskIds] = useState<Set<string>>(() => new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [resolutionFilter, setResolutionFilter] = useState<string>('all');
@@ -24,37 +40,90 @@ export default function MediaManagePage() {
   const [localRatingFilter, setLocalRatingFilter] = useState<string>('all');
   const [taskFilter, setTaskFilter] = useState<string>('all');
   const [scrapeFilter, setScrapeFilter] = useState<string>('all');
+  const [pageSize, setPageSize] = useState<number>(() => {
+    const saved = Number(localStorage.getItem(MEDIA_MANAGE_PAGE_SIZE_KEY));
+    return PAGE_SIZE_OPTIONS.includes(saved) ? saved : DEFAULT_MEDIA_MANAGE_PAGE_SIZE;
+  });
   const [, setActiveSubLibName] = useState<string>('全部');
   const [strategyMsg, setStrategyMsg] = useState<string | null>(null);
-  const [scanMsg, setScanMsg] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [smartTaskActions, setSmartTaskActions] = useState<string[] | null>(null);
 
   // Fetch subLibrary list
   useEffect(() => {
     libraryApi.getStatus().then((s) => {
       const enabled = s.subLibraries.filter((sl) => sl.enabled);
       setSubLibraries(enabled);
+      setSubLibraryId((current) => {
+        if (current) return current;
+        const saved = localStorage.getItem(MEDIA_MANAGE_SUB_LIBRARY_KEY);
+        if (saved !== null && (saved === '' || enabled.some((sl) => sl.uuid === saved))) return saved;
+        return '';
+      });
+    }).catch(() => {});
+    systemConfig.get().then((cfg) => {
+      setSmartTaskActions(Array.isArray(cfg.smartTaskEnabledActions) ? cfg.smartTaskEnabledActions : []);
     }).catch(() => {});
   }, []);
 
-  const activeSubLibrary = useMemo(
+  const selectedSubLibrary = useMemo(
     () => subLibraries.find((sl) => sl.uuid === subLibraryId) || null,
     [subLibraries, subLibraryId],
   );
-  const canScanAdultFolder = Boolean(activeSubLibrary?.source === 'folder' && activeSubLibrary?.mediaType === 'adult');
+  const showAdultFields = !subLibraryId || selectedSubLibrary?.mediaType === 'adult';
+  const showStandardFields = !subLibraryId || selectedSubLibrary?.mediaType !== 'adult';
+  const mediaGridClass = showAdultFields && showStandardFields
+    ? 'mediaManageGridMixed'
+    : showAdultFields
+      ? 'mediaManageGridAdult'
+      : 'mediaManageGridStandard';
+
+  useEffect(() => {
+    if (!showAdultFields && scrapeFilter !== 'all') setScrapeFilter('all');
+    if (!showStandardFields) {
+      if (watchedFilter !== 'all') setWatchedFilter('all');
+      if (bluRayFilter !== 'all') setBluRayFilter('all');
+      if (doubanFilter !== 'all') setDoubanFilter('all');
+      if (actionFilter === 'upgrade') setActionFilter('all');
+    }
+  }, [showAdultFields, showStandardFields, scrapeFilter, watchedFilter, bluRayFilter, doubanFilter, actionFilter]);
+
+  useEffect(() => {
+    setPage(0);
+    setSelectedIds(new Set());
+  }, [subLibraryId, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter, pageSize]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page]);
 
   // Fetch library data when subLibraryId changes
   useEffect(() => {
     let active = true;
     setLoading(true);
     libraryApi
-      .getCache(subLibraryId || undefined)
+      .getCache({
+        subLibraryId: subLibraryId || undefined,
+        limit: pageSize,
+        offset: page * pageSize,
+        search: searchQuery.trim() || undefined,
+        action: actionFilter,
+        resolution: resolutionFilter,
+        codec: codecFilter,
+        watched: showStandardFields ? watchedFilter : 'all',
+        bluRay: showStandardFields ? bluRayFilter : 'all',
+        douban: showStandardFields ? doubanFilter : 'all',
+        userRating: localRatingFilter,
+        task: taskFilter,
+        scrape: showAdultFields ? scrapeFilter : 'all',
+      })
       .then((data) => {
         if (!active) return;
         const rows = (data.items as unknown[])
           .map(coerceManagedItem)
           .filter((x): x is ManagedMediaItem => x != null);
         setItems(rows);
+        setTotal(data.total || 0);
         setLoading(false);
       })
       .catch((e) => {
@@ -63,85 +132,133 @@ export default function MediaManagePage() {
         setLoading(false);
       });
     return () => { active = false; };
-  }, [subLibraryId, refreshKey]);
+  }, [subLibraryId, page, pageSize, refreshKey, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter, showAdultFields]);
 
   // Poll tasks
   useEffect(() => {
     const poll = () => {
-      taskApi.getTasks().then(setTasks).catch(() => {});
+      taskApi.getTasks({ activeOnly: true }).then(setTasks).catch(() => {});
     };
     poll();
     const id = setInterval(poll, 3000);
     return () => clearInterval(id);
   }, []);
 
-  const filtered = useMemo(() => {
-    let rows = items;
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      rows = rows.filter((it) => it.name.toLowerCase().includes(q));
+  const autoEntryNotice = useMemo(() => {
+    const disabledCounts: Record<string, number> = {};
+    if (!smartTaskActions) return null;
+    for (const it of items) {
+      const action = it.recommendedAction || 'keep';
+      if (action === 'keep') continue;
+      if (!smartTaskActions.includes(action)) {
+        disabledCounts[action] = (disabledCounts[action] || 0) + 1;
+      }
     }
-    if (actionFilter !== 'all') {
-      rows = rows.filter((it) => (it.recommendedAction ?? 'keep') === actionFilter);
-    }
-    if (resolutionFilter !== 'all') {
-      rows = rows.filter((it) => it.resolution === resolutionFilter);
-    }
-    if (codecFilter !== 'all') {
-      rows = rows.filter((it) => it.codec === codecFilter);
-    }
-    if (watchedFilter !== 'all') {
-      const w = watchedFilter === 'watched';
-      rows = rows.filter((it) => it.watched === w);
-    }
-    if (bluRayFilter !== 'all') {
-      const isDisc = bluRayFilter === 'disc';
-      rows = rows.filter((it) => it.isBluRayDisc === isDisc);
-    }
-    if (doubanFilter !== 'all') {
-      if (doubanFilter === 'none') rows = rows.filter((it) => it.doubanStars == null);
-      else rows = rows.filter((it) => it.doubanStars === Number(doubanFilter));
-    }
-    if (localRatingFilter !== 'all') {
-      if (localRatingFilter === 'none') rows = rows.filter((it) => it.rating == null);
-      else rows = rows.filter((it) => it.rating === Number(localRatingFilter));
-    }
-    if (taskFilter === 'active') {
-      const activeIds = new Set(tasks.filter((t) => !['done', 'failed_hard'].includes(t.status)).map((t) => t.itemId));
-      rows = rows.filter((it) => activeIds.has(it.id));
-    } else if (taskFilter === 'none') {
-      const activeIds = new Set(tasks.filter((t) => !['done', 'failed_hard'].includes(t.status)).map((t) => t.itemId));
-      rows = rows.filter((it) => !activeIds.has(it.id));
-    }
-    if (scrapeFilter !== 'all') {
-      rows = rows.filter((it) => {
-        if (it.source !== 'adult_folder') return false;
-        const status = typeof it.adultMetadata?.scrapeStatus === 'string' ? it.adultMetadata.scrapeStatus : '';
-        if (scrapeFilter === 'done') return Boolean(it.scraped) || status === 'done';
-        if (scrapeFilter === 'pending') return !it.scraped && (status === 'pending' || status === 'ambiguous' || !status);
-        if (scrapeFilter === 'failed') return status === 'failed';
-        return true;
+    const parts = Object.entries(disabledCounts)
+      .filter(([, count]) => count > 0)
+      .map(([action, count]) => `${ACTION_LABELS[action] || action} ${count} 条`);
+    if (parts.length === 0) return null;
+    return `当前列表有 ${parts.join('、')}推荐策略未启用后台自动入队。这些条目只会显示建议，不会自动出现在任务中心；可以手动点击每行的策略按钮，或到「任务调度」启用对应任务类型。`;
+  }, [items, smartTaskActions]);
+
+  const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
+  const rangeStart = total === 0 ? 0 : page * pageSize + 1;
+  const rangeEnd = Math.min(total, page * pageSize + items.length);
+
+  const upsertActiveTask = useCallback((task: MediaTask) => {
+    setTasks((prev) => {
+      const next = prev.filter((t) => t.id !== task.id);
+      return [task, ...next];
+    });
+  }, []);
+
+  const enqueueManagedAction = useCallback(async (item: ManagedMediaItem, action: MediaAction): Promise<MediaTask | null> => {
+    if (item.isBluRayDisc && action === 'upgrade') return null;
+    setCreatingTaskIds((prev) => new Set(prev).add(item.id));
+    try {
+      const task = await taskApi.createByIntent({ itemId: item.id, actionType: action });
+      upsertActiveTask(task);
+      setError(null);
+      const statusHint = task.status === 'pending_manual'
+        ? '当前状态为待手动启动，可在任务中心点击“启动”。'
+        : '已进入任务调度，可在任务中心查看进度。';
+      setNotice(`已创建「${ACTION_LABELS[action] || action}」任务：${item.name}。${statusHint}`);
+      return task;
+    } catch (e) {
+      setNotice(null);
+      if (e instanceof ApiConflictError) setError(e.message);
+      else setError(`创建任务失败：${(e as Error).message}`);
+      return null;
+    } finally {
+      setCreatingTaskIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
       });
     }
-    return rows;
-  }, [items, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter, tasks]);
+  }, [upsertActiveTask]);
 
-  const enqueueManagedAction = (item: ManagedMediaItem, action: MediaAction) => {
-    if (item.isBluRayDisc && action === 'upgrade') return;
-    taskApi.createByIntent({ itemId: item.id, actionType: action }).catch((e) => {
-      if (e instanceof ApiConflictError) setError(e.message);
-      else setError(`创建任务失败：${e.message}`);
-    });
-  };
+  const runBatchSelection = useCallback(async () => {
+    const selected = items.filter((it) => selectedIds.has(it.id));
+    let skipped = 0;
+    let created = 0;
+    let failed = 0;
+    for (const it of selected) {
+      const action = it.recommendedAction ?? 'keep';
+      if (action === 'keep') {
+        skipped += 1;
+        continue;
+      }
+      const task = await enqueueManagedAction(it, action);
+      if (task) created += 1;
+      else failed += 1;
+    }
+    setNotice(`批量创建完成：成功 ${created} 条，跳过 ${skipped} 条，失败 ${failed} 条。`);
+    if (created > 0) setSelectedIds(new Set());
+  }, [enqueueManagedAction, items, selectedIds]);
 
-  const rescrapeAdultItem = async (item: ManagedMediaItem) => {
+  const rescrapeAdultItem = useCallback(async (item: ManagedMediaItem) => {
     try {
       await adultApi.rescrapeItem(item.id);
       setRefreshKey((k) => k + 1);
     } catch (e) {
       setError(`重新刮削失败：${(e as Error).message}`);
     }
-  };
+  }, []);
+
+  const toggleSelectedItem = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleWatchChange = useCallback(async (it: ManagedMediaItem, watched: boolean) => {
+    setItems((prev) =>
+      prev.map((x) => (x.id === it.id ? { ...x, watched } : x)),
+    );
+    try {
+      if (watched) {
+        await libraryApi.markPlayed(it.id, subLibraryId);
+      } else {
+        await libraryApi.markUnplayed(it.id, subLibraryId);
+      }
+    } catch (e) {
+      setItems((prev) =>
+        prev.map((x) => (x.id === it.id ? { ...x, watched: !watched } : x)),
+      );
+      setError(`标记失败：${(e as Error).message}`);
+    }
+  }, [subLibraryId]);
+
+  const handleRatingChange = useCallback(async (it: ManagedMediaItem, rating: MediaRating | null) => {
+    await libraryApi.patchRatings(it.id, rating);
+    setItems((prev) =>
+      prev.map((x) => (x.id === it.id ? { ...x, rating } : x)),
+    );
+  }, []);
 
   if (loading) return <div className="page"><p>加载媒体库数据...</p></div>;
 
@@ -155,37 +272,16 @@ export default function MediaManagePage() {
           onChange={(e) => {
             const id = e.target.value;
             setSubLibraryId(id);
+            localStorage.setItem(MEDIA_MANAGE_SUB_LIBRARY_KEY, id);
             setActiveSubLibName(id ? subLibraries.find(sl => sl.uuid === id)?.name || '' : '全部');
             setSelectedIds(new Set());
-            setScanMsg(null);
           }}
         >
           <option value="">全部（{subLibraries.length} 个库）</option>
-          {subLibraries.map((sl) => (
+        {subLibraries.map((sl) => (
             <option key={sl.uuid} value={sl.uuid}>{sl.name}</option>
           ))}
         </select>
-        {canScanAdultFolder && activeSubLibrary && (
-          <>
-            <button
-              type="button"
-              className="sidebarScanBtn"
-              onClick={async () => {
-                setScanMsg('扫描中...');
-                try {
-                  const res = await adminSubLibraries.scan(activeSubLibrary.uuid);
-                  setScanMsg(`扫描完成：${res.upserted} / ${res.scanned} 个文件`);
-                  setRefreshKey((k) => k + 1);
-                } catch (e) {
-                  setScanMsg(`扫描失败：${(e as Error).message}`);
-                }
-              }}
-            >
-              扫描当前文件夹
-            </button>
-            {scanMsg && <p className="sidebarInfo">{scanMsg}</p>}
-          </>
-        )}
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>筛选</div>
         <div className="sidebarSearchWrap">
@@ -210,10 +306,10 @@ export default function MediaManagePage() {
           <span className="filterLabel">建议策略</span>
           <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
             <option value="all">全部</option>
-            <option value="transcode">码率压缩</option>
-            <option value="upgrade">洗版</option>
+            <option value="transcode">转码压缩</option>
+            {showStandardFields && <option value="upgrade">洗版</option>}
             <option value="keep">无建议策略</option>
-            <option value="delete">删除档</option>
+            <option value="delete">删除</option>
           </select>
         </div>
         <div className="filterRow">
@@ -233,34 +329,38 @@ export default function MediaManagePage() {
             <option value="av1">AV1</option>
           </select>
         </div>
-        <div className="filterRow">
-          <span className="filterLabel">标记已看</span>
-          <select value={watchedFilter} onChange={(e) => setWatchedFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="watched">已观看</option>
-            <option value="unwatched">未观看</option>
-          </select>
-        </div>
-        <div className="filterRow">
-          <span className="filterLabel">原盘</span>
-          <select value={bluRayFilter} onChange={(e) => setBluRayFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="disc">原盘</option>
-            <option value="not_disc">非原盘</option>
-          </select>
-        </div>
-        <div className="filterRow">
-          <span className="filterLabel">豆瓣评分</span>
-          <select value={doubanFilter} onChange={(e) => setDoubanFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="5">5 星</option>
-            <option value="4">4 星</option>
-            <option value="3">3 星</option>
-            <option value="2">2 星</option>
-            <option value="1">1 星</option>
-            <option value="none">未抓取</option>
-          </select>
-        </div>
+        {showStandardFields && (
+          <>
+            <div className="filterRow">
+              <span className="filterLabel">标记已看</span>
+              <select value={watchedFilter} onChange={(e) => setWatchedFilter(e.target.value)}>
+                <option value="all">全部</option>
+                <option value="watched">已观看</option>
+                <option value="unwatched">未观看</option>
+              </select>
+            </div>
+            <div className="filterRow">
+              <span className="filterLabel">原盘</span>
+              <select value={bluRayFilter} onChange={(e) => setBluRayFilter(e.target.value)}>
+                <option value="all">全部</option>
+                <option value="disc">原盘</option>
+                <option value="not_disc">非原盘</option>
+              </select>
+            </div>
+            <div className="filterRow">
+              <span className="filterLabel">豆瓣评分</span>
+              <select value={doubanFilter} onChange={(e) => setDoubanFilter(e.target.value)}>
+                <option value="all">全部</option>
+                <option value="5">5 星</option>
+                <option value="4">4 星</option>
+                <option value="3">3 星</option>
+                <option value="2">2 星</option>
+                <option value="1">1 星</option>
+                <option value="none">未抓取</option>
+              </select>
+            </div>
+          </>
+        )}
         <div className="filterRow">
           <span className="filterLabel">本地评分</span>
           <select value={localRatingFilter} onChange={(e) => setLocalRatingFilter(e.target.value)}>
@@ -281,15 +381,17 @@ export default function MediaManagePage() {
             <option value="none">无任务</option>
           </select>
         </div>
-        <div className="filterRow">
-          <span className="filterLabel">刮削</span>
-          <select value={scrapeFilter} onChange={(e) => setScrapeFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="done">已刮削</option>
-            <option value="pending">待刮削</option>
-            <option value="failed">刮削失败</option>
-          </select>
-        </div>
+        {showAdultFields && (
+          <div className="filterRow">
+            <span className="filterLabel">刮削</span>
+            <select value={scrapeFilter} onChange={(e) => setScrapeFilter(e.target.value)}>
+              <option value="all">全部</option>
+              <option value="done">已刮削</option>
+              <option value="pending">待刮削</option>
+              <option value="failed">刮削失败</option>
+            </select>
+          </div>
+        )}
 
         <button
           className="sidebarFilterReset"
@@ -299,12 +401,14 @@ export default function MediaManagePage() {
             setActionFilter('all');
             setResolutionFilter('all');
             setCodecFilter('all');
-            setWatchedFilter('all');
-            setBluRayFilter('all');
-            setDoubanFilter('all');
+            if (showStandardFields) {
+              setWatchedFilter('all');
+              setBluRayFilter('all');
+              setDoubanFilter('all');
+            }
             setLocalRatingFilter('all');
             setTaskFilter('all');
-            setScrapeFilter('all');
+            if (showAdultFields) setScrapeFilter('all');
           }}
         >
           清除筛选
@@ -330,7 +434,7 @@ export default function MediaManagePage() {
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-          <button type="button" onClick={() => setSelectedIds(new Set(filtered.map((it) => it.id)))}>
+          <button type="button" onClick={() => setSelectedIds(new Set(items.map((it) => it.id)))}>
             全选
           </button>
           <button
@@ -344,34 +448,51 @@ export default function MediaManagePage() {
         <button
           type="button"
           className="batchRunBtn"
-          disabled={selectedIds.size === 0}
-          onClick={() => {
-            for (const it of filtered) {
-              if (selectedIds.has(it.id)) {
-                const action = it.recommendedAction ?? 'keep';
-                if (action !== 'keep') enqueueManagedAction(it, action);
-              }
-            }
-          }}
+          disabled={selectedIds.size === 0 || creatingTaskIds.size > 0}
+          onClick={runBatchSelection}
         >
-          批量执行策略
+          {creatingTaskIds.size > 0 ? '创建任务中...' : '批量创建任务'}
         </button>
         <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
-          已选 {selectedIds.size} / {filtered.length} 条
+          已选 {selectedIds.size} / {items.length} 条
         </p>
       </div>
       <div className="pageMain">
         <div className="pageMainInner">
           {error && <p className="error">{error}</p>}
-          {filtered.length === 0 ? (
+          {notice && <div className="mediaNotice mediaNoticeSuccess">{notice}</div>}
+          {autoEntryNotice && <div className="mediaNotice">{autoEntryNotice}</div>}
+          <div className="mediaPager">
+            <span>第 {page + 1} / {maxPage + 1} 页，显示 {rangeStart}-{rangeEnd}，共 {total} 条</span>
+            <div className="mediaPagerControls">
+              <label>
+                每页
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    const next = Number(e.target.value);
+                    if (PAGE_SIZE_OPTIONS.includes(next)) {
+                      setPageSize(next);
+                      localStorage.setItem(MEDIA_MANAGE_PAGE_SIZE_KEY, String(next));
+                    }
+                  }}
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+                </select>
+              </label>
+              <button type="button" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>上一页</button>
+              <button type="button" disabled={page >= maxPage} onClick={() => setPage((p) => Math.min(maxPage, p + 1))}>下一页</button>
+            </div>
+          </div>
+          {items.length === 0 ? (
             <p>暂未获取到媒体库数据。请先在管理端配置媒体库。</p>
           ) : (
             <div>
-              <div className="mediaManageGrid mediaManageHead">
+              <div className={`mediaManageGrid ${mediaGridClass} mediaManageHead`}>
                 <div className="mediaManageTitleCell">名称</div>
-                <div>刮削</div>
-                <div>剧名</div>
-                <div>季</div>
+                {showAdultFields && <div>刮削</div>}
+                {showStandardFields && <div>剧名</div>}
+                {showStandardFields && <div>季</div>}
                 <div>体积</div>
                 <div>分辨率</div>
                 <div>编码</div>
@@ -379,14 +500,14 @@ export default function MediaManagePage() {
                 <div>目标码率</div>
                 <div>预测体积</div>
                 <div>媒体优化</div>
-                <div>原盘</div>
-                <div>豆瓣评分</div>
+                {showStandardFields && <div>原盘</div>}
+                {showStandardFields && <div>豆瓣评分</div>}
                 <div>本地评分</div>
-                <div>标记已看</div>
+                {showStandardFields && <div>标记已看</div>}
                 <div>建议策略</div>
                 <div>任务</div>
               </div>
-              {filtered.map((item) => {
+              {items.map((item) => {
                 const rowTask = tasks.find(
                   (t) => t.itemId === item.id && !['done', 'failed_hard'].includes(t.status),
                 );
@@ -397,37 +518,13 @@ export default function MediaManagePage() {
                     isSelected={selectedIds.has(item.id)}
                     isHighlighted={false}
                     rowTask={rowTask}
-                    onToggleSelect={(id) => {
-                      setSelectedIds((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(id)) next.delete(id);
-                        else next.add(id);
-                        return next;
-                      });
-                    }}
-                    onWatchChange={async (it, watched) => {
-                      setItems((prev) =>
-                        prev.map((x) => (x.id === it.id ? { ...x, watched } : x)),
-                      );
-                      try {
-                        if (watched) {
-                          await libraryApi.markPlayed(it.id, subLibraryId);
-                        } else {
-                          await libraryApi.markUnplayed(it.id, subLibraryId);
-                        }
-                      } catch (e) {
-                        setItems((prev) =>
-                          prev.map((x) => (x.id === it.id ? { ...x, watched: !watched } : x)),
-                        );
-                        setError(`标记失败：${(e as Error).message}`);
-                      }
-                    }}
-                    onRatingChange={async (it, rating) => {
-                      await libraryApi.patchRatings(it.id, rating);
-                      setItems((prev) =>
-                        prev.map((x) => (x.id === it.id ? { ...x, rating } : x)),
-                      );
-                    }}
+                    isCreatingTask={creatingTaskIds.has(item.id)}
+                    showAdultFields={showAdultFields}
+                    showStandardFields={showStandardFields}
+                    gridClassName={mediaGridClass}
+                    onToggleSelect={toggleSelectedItem}
+                    onWatchChange={handleWatchChange}
+                    onRatingChange={handleRatingChange}
                     onEnqueue={enqueueManagedAction}
                     onRescrape={rescrapeAdultItem}
                   />

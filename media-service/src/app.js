@@ -21,6 +21,7 @@ const moviepilotService = require('./services/moviepilotService');
 const strategyEngine = require('./strategyEngine');
 const smartTaskEngine = require('./smartTaskEngine');
 const priorityEngine = require('./priorityEngine');
+const taskAdmission = require('./taskAdmission');
 const activityLog = require('./activityLog');
 const spaceStats = require('./spaceStats');
 const nodeStore = require('./nodeStore');
@@ -30,6 +31,8 @@ const adultLibraryService = require('./adultLibraryService');
 const peopleStore = require('./peopleStore');
 const adultActorImageSearchService = require('./services/adultActorImageSearchService');
 const westernAdultLocalAiService = require('./services/westernAdultLocalAiService');
+const scrapeVerification = require('./scrapeVerification');
+const metadataStatus = require('./metadataStatus');
 
 let serverReady = false;
 
@@ -85,23 +88,244 @@ function apiError(reply, status, code, message) {
   return reply.code(status).send({ error: { code, message } });
 }
 
+function detectImageContentType(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) return 'image/jpeg';
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'image/jpeg';
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png';
+  if (buffer.slice(0, 4).toString('ascii') === 'RIFF' && buffer.slice(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+  return 'image/jpeg';
+}
+
+let sharpModule;
+function loadSharp() {
+  if (sharpModule !== undefined) return sharpModule;
+  try { sharpModule = require('sharp'); } catch (_) { sharpModule = null; }
+  return sharpModule;
+}
+
+async function referenceImageBuffer(buffer, opts = {}) {
+  if (!opts.thumbnail) return { buffer, contentType: detectImageContentType(buffer) };
+  const sharp = loadSharp();
+  if (!sharp) return { buffer, contentType: detectImageContentType(buffer) };
+  try {
+    const resized = await sharp(buffer)
+      .rotate()
+      .resize(96, 96, { fit: 'cover', position: 'attention' })
+      .jpeg({ quality: 76, mozjpeg: true })
+      .toBuffer();
+    return { buffer: resized, contentType: 'image/jpeg' };
+  } catch (_) {
+    return { buffer, contentType: detectImageContentType(buffer) };
+  }
+}
+
+function taskNeedsFlowCancel(task) {
+  return !!task && [
+    'executing',
+    'pausing',
+    'paused',
+    'awaiting_user_confirm',
+    'interrupted',
+    'waiting_media_source',
+  ].includes(task.status);
+}
+
+const MASKED_SECRET = '********';
+const ADULT_WESTERN_SECRET_KEYS = [
+  'metadataApiKey',
+  'tpdbApiKey',
+  'stashBoxApiKey',
+  'tmdbApiKey',
+  'tmdbReadAccessToken',
+];
+
+function maskAdultLibrarySecrets(adultLibrary = {}) {
+  const out = {
+    ...(adultLibrary || {}),
+    western: {
+      ...((adultLibrary && adultLibrary.western) || {}),
+    },
+  };
+  for (const key of ADULT_WESTERN_SECRET_KEYS) {
+    if (out.western[key]) out.western[key] = MASKED_SECRET;
+  }
+  return out;
+}
+
 function maskSensitive(config) {
   const masked = { ...config };
-  if (masked.apiKey) masked.apiKey = '********';
+  if (masked.apiKey) masked.apiKey = MASKED_SECRET;
   if (masked.douban && masked.douban.cookieHeader) {
-    masked.douban = { ...masked.douban, cookieHeader: '********' };
+    masked.douban = { ...masked.douban, cookieHeader: MASKED_SECRET };
   }
   if (masked.moviepilot && masked.moviepilot.apiKey) {
-    masked.moviepilot = { ...masked.moviepilot, apiKey: '********' };
+    masked.moviepilot = { ...masked.moviepilot, apiKey: MASKED_SECRET };
   }
+  if (masked.adultLibrary) masked.adultLibrary = maskAdultLibrarySecrets(masked.adultLibrary);
   if (masked.embyServers) {
     const servers = {};
     for (const [k, v] of Object.entries(masked.embyServers)) {
-      servers[k] = { ...v, apiKey: '********', embyUserPassword: v.embyUserPassword ? '********' : '' };
+      servers[k] = { ...v, apiKey: MASKED_SECRET, embyUserPassword: v.embyUserPassword ? MASKED_SECRET : '' };
     }
     masked.embyServers = servers;
   }
   return masked;
+}
+
+function taskListItemInfo(itemInfo = {}) {
+  if (!itemInfo || typeof itemInfo !== 'object') return undefined;
+  const adultMetadata = itemInfo.adultMetadata && typeof itemInfo.adultMetadata === 'object'
+    ? {
+      adultId: itemInfo.adultMetadata.adultId,
+      scrapeStatus: itemInfo.adultMetadata.scrapeStatus,
+      region: itemInfo.adultMetadata.region,
+      protagonist: itemInfo.adultMetadata.protagonist,
+    }
+    : undefined;
+  const compact = {
+    name: itemInfo.name,
+    title: itemInfo.title,
+    type: itemInfo.type,
+    seriesName: itemInfo.seriesName,
+    seasonNumber: itemInfo.seasonNumber,
+    source: itemInfo.source,
+    watched: itemInfo.watched,
+    metadataStatus: itemInfo.metadataStatus,
+    metadataComplete: itemInfo.metadataComplete,
+    metadataMissingReasons: itemInfo.metadataMissingReasons,
+    metadataKind: itemInfo.metadataKind,
+    path: itemInfo.path,
+    subLibraryId: itemInfo.subLibraryId,
+    adultMetadata,
+    originalSizeBytes: itemInfo.originalSizeBytes,
+    originalBitrate: itemInfo.originalBitrate,
+    originalVideoCodec: itemInfo.originalVideoCodec,
+    originalAudioCodec: itemInfo.originalAudioCodec,
+    originalWidth: itemInfo.originalWidth,
+    originalHeight: itemInfo.originalHeight,
+  };
+  Object.keys(compact).forEach((key) => {
+    if (compact[key] === undefined || compact[key] === null) delete compact[key];
+  });
+  return Object.keys(compact).length > 0 ? compact : undefined;
+}
+
+function taskListSummary(task) {
+  return {
+    id: task.id,
+    itemId: task.itemId,
+    itemName: task.itemName,
+    actionType: task.actionType,
+    source: task.source,
+    status: task.status,
+    progress: task.progress,
+    phase: task.phase,
+    resumePoint: task.resumePoint,
+    approval: task.approval,
+    priority: task.priority,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    itemInfo: taskListItemInfo(task.itemInfo),
+    verifyResult: task.verifyResult,
+    confirmData: task.confirmData,
+    metadataStatus: task.itemInfo && task.itemInfo.metadataStatus,
+    metadataMissingReasons: task.itemInfo && task.itemInfo.metadataMissingReasons,
+  };
+}
+
+function compactFaceForUi(face, opts = {}) {
+  if (!face || typeof face !== 'object') return face;
+  const { embedding, vector, descriptor, ...rest } = face;
+  if (!opts.includeSampleImage) delete rest.sampleImageBase64;
+  return rest;
+}
+
+function compactAdultMetadataForUi(metadata, opts = {}) {
+  if (!metadata || typeof metadata !== 'object') return metadata;
+  const allowedKeys = [
+    'adultId',
+    'idConfidence',
+    'title',
+    'originalTitle',
+    'source',
+    'sourceUrl',
+    'scrapeStatus',
+    'reviewStatus',
+    'region',
+    'scraperType',
+    'posterPath',
+    'fanartPath',
+    'nfoPath',
+    'fileNfoPath',
+    'markerPath',
+    'organized',
+    'originalFolder',
+    'studio',
+    'director',
+    'premiered',
+    'actors',
+    'protagonist',
+    'scrapeError',
+    'scrapeFailedAt',
+    'generatedTitle',
+    'generatedDescription',
+  ];
+  const compact = {};
+  for (const key of allowedKeys) {
+    if (metadata[key] !== undefined) compact[key] = metadata[key];
+  }
+  if (Array.isArray(metadata.faceClusters)) {
+    compact.faceClusters = opts.includeFaces
+      ? metadata.faceClusters.map((face) => compactFaceForUi(face, opts))
+      : [];
+  }
+  if (Array.isArray(metadata.unknownFaces)) {
+    compact.unknownFaces = opts.includeFaces
+      ? metadata.unknownFaces.map((face) => compactFaceForUi(face, opts))
+      : [];
+  }
+  return compact;
+}
+
+function libraryListItemView(item) {
+  if (!item || typeof item !== 'object') return item;
+  if (!item.adultMetadata || typeof item.adultMetadata !== 'object') return item;
+  return {
+    ...item,
+    adultMetadata: compactAdultMetadataForUi(item.adultMetadata, {
+      includeFaces: false,
+      includeSampleImage: false,
+    }),
+  };
+}
+
+function taskDetailView(task) {
+  if (!task || typeof task !== 'object') return task;
+  const itemInfo = task.itemInfo && typeof task.itemInfo === 'object'
+    ? {
+      ...task.itemInfo,
+      adultMetadata: compactAdultMetadataForUi(task.itemInfo.adultMetadata, {
+        includeFaces: false,
+        includeSampleImage: false,
+      }),
+    }
+    : task.itemInfo;
+  return { ...task, itemInfo };
+}
+
+function markScrapeVerificationSource(verification, source) {
+  if (!verification || typeof verification !== 'object') return verification;
+  return {
+    ...verification,
+    source,
+  };
+}
+
+function addScrapeReportWarning(verification, warning) {
+  if (!verification || typeof verification !== 'object' || !warning) return verification;
+  const warnings = Array.isArray(verification.warnings) ? verification.warnings.slice() : [];
+  warnings.push(warning);
+  return { ...verification, warnings };
 }
 
 async function fetchImageAsBase64(url) {
@@ -184,21 +408,15 @@ function registerRoutes(app) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'Invalid actionType');
     }
 
-    // itemId lock check
-    const existing = taskStore.getTasks({ itemId });
-    const active = existing.find((t) => ['created', 'queued', 'executing', 'awaiting_user_confirm', 'paused'].includes(t.status));
-    if (active) {
-      return apiError(reply, 409, 'TASK_CONFLICT', `Item ${itemId} already has an active task (${active.id})`);
-    }
-
     const cfg = configStore.loadConfig();
-    const status = cfg.executionMode === 'auto' ? 'created' : 'pending_manual';
 
     // Populate itemInfo from media library
     const libItem = mediaLibraryService.getLibraryItem(itemId);
+    const meta = libItem ? metadataStatus.resolveMetadataStatus(libItem, cfg) : null;
     const itemInfo = libItem ? {
       name: libItem.name,
       itemId: libItem.itemId,
+      source: libItem.source,
       embyItemId: assetIdentity.getEmbyItemId(libItem),
       path: libItem.path,
       subLibraryId: libItem.subLibraryId,
@@ -213,7 +431,9 @@ function registerRoutes(app) {
       isDiscLike: !!libItem.isDiscLike,
       doubanRating: libItem.doubanRating,
       userRating: libItem.userRating,
+      watched: libItem.watched,
       tmdbId: libItem.tmdbId,
+      providerIds: libItem.providerIds,
       seriesName: libItem.seriesName,
       seasonNumber: libItem.seasonNumber,
       targetBitrate: libItem.targetBitrate,
@@ -223,21 +443,47 @@ function registerRoutes(app) {
       equivalentBitrate: libItem.equivalentBitrate,
       scraped: !!libItem.scraped,
       adultMetadata: libItem.adultMetadata,
+      ...(meta || {}),
     } : null;
+
+    const admissionItemInfo = itemInfo || { itemId };
+    const admission = taskAdmission.canCreateTask({
+      item: libItem,
+      itemInfo: admissionItemInfo,
+      actionType,
+      source: 'manual',
+      config: cfg,
+      tasks: taskStore.loadTasks({ includeHistory: false }),
+    });
+    if (!admission.allowed) {
+      if (admission.reason === 'active_task_exists') {
+        return apiError(reply, 409, 'TASK_CONFLICT', `Item ${itemId} already has an active task (${admission.activeTaskId})`);
+      }
+      return apiError(reply, 409, 'TASK_ADMISSION_REJECTED', admission.reason);
+    }
+
+    const schedule = itemInfo && itemInfo.subLibraryId
+      ? configStore.resolveSubLibSchedule(itemInfo, cfg)
+      : { autoExecute: cfg.executionMode === 'auto' };
+    const status = schedule.autoExecute ? 'created' : 'pending_manual';
+    const priorityBreakdown = priorityEngine.explainPriority({
+      source: 'manual',
+      actionType,
+      itemInfo,
+      config: cfg,
+    });
 
     const task = taskStore.createTask({
       itemId,
       itemName: libItem ? libItem.name : undefined,
       actionType,
+      source: 'manual',
       status,
-      priority: priorityEngine.computePriority({
-        source: 'manual',
-        actionType,
-        itemInfo,
-        config: cfg,
-      }),
+      priority: priorityBreakdown.priority,
+      priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+      priorityBreakdown,
       itemInfo,
-      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created' }],
+      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user action' }],
     });
 
     return reply.code(201).send(task);
@@ -247,14 +493,22 @@ function registerRoutes(app) {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (req.query.actionType) filter.actionType = req.query.actionType;
-    const tasks = taskStore.getTasks(filter);
+    const includeHistory = req.query.includeHistory === '1' || req.query.includeHistory === 'true';
+    const activeOnly = !includeHistory || req.query.activeOnly === '1' || req.query.activeOnly === 'true';
+    const tasks = activeOnly
+      ? taskStore.loadTasks({ includeHistory: false }).filter((t) => {
+        if (filter.status && t.status !== filter.status) return false;
+        if (filter.actionType && t.actionType !== filter.actionType) return false;
+        return true;
+      })
+      : taskStore.getTasks(filter);
     return { tasks };
   });
 
   app.get('/v1/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    return task;
+    return taskDetailView(task);
   });
 
   app.get('/v1/tasks/:id/report', async (req, reply) => {
@@ -304,7 +558,11 @@ function registerRoutes(app) {
       };
       report.bytesSaved = vr.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
     } else if (task.actionType === 'delete') {
-      report.bytesFreed = info.size || info.originalSizeBytes || 0;
+      report.bytesFreed = vr.bytesSaved || info.size || info.originalSizeBytes || 0;
+      report.delete = {
+        targetPath: vr.deletedPath || info.deleteTargetPath || info.path || '',
+        targetKind: vr.deletedKind || info.deleteTargetKind || (info.embyItemId ? 'emby_item' : ''),
+      };
     } else if (task.actionType === 'upgrade') {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,
@@ -328,10 +586,33 @@ function registerRoutes(app) {
         report.tmdbVerified = up.tmdbVerified;
       }
     } else if (task.actionType === 'scrape') {
-      const meta = info.adultMetadata || {};
+      const cfg = configStore.loadConfig();
+      const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
+      const scrapeInfo = liveItem || { ...info, itemId: task.itemId };
+      const currentVerification = scrapeVerification.verifyScrapedItem(scrapeInfo, {
+        config: cfg,
+        subLib: (cfg.subLibraries || []).find((sl) => sl.uuid === scrapeInfo.subLibraryId) || null,
+        scrapeTaskId: task.id,
+      });
+      if (scrapeInfo.source !== 'adult_folder') {
+        report.metadata = {
+          itemId: scrapeInfo.itemId || task.itemId,
+          name: scrapeInfo.name || task.itemName || '',
+          source: scrapeInfo.source || '',
+          mediaPath: scrapeInfo.path || '',
+          metadataStatus: currentVerification.metadataStatus || (info && info.metadataStatus) || '',
+          metadataMissingReasons: currentVerification.metadataMissingReasons || (info && info.metadataMissingReasons) || [],
+        };
+        report.scrapeVerification = task.scrapeVerification && typeof task.scrapeVerification === 'object'
+          ? markScrapeVerificationSource(task.scrapeVerification, 'completion_snapshot')
+          : markScrapeVerificationSource(currentVerification, 'current_library_state');
+        return report;
+      }
+      const meta = scrapeInfo.adultMetadata || {};
+      const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === scrapeInfo.subLibraryId) || null;
       report.scrape = {
-        adultId: meta.adultId || info.sourceId || '',
-        title: meta.title || info.name || task.itemName || '',
+        adultId: meta.adultId || scrapeInfo.sourceId || '',
+        title: meta.title || scrapeInfo.name || task.itemName || '',
         source: meta.source || '',
         sourceUrl: meta.sourceUrl || '',
         scrapeStatus: meta.scrapeStatus || '',
@@ -342,11 +623,15 @@ function registerRoutes(app) {
         markerPath: meta.markerPath || '',
         organized: !!meta.organized,
         originalFolder: meta.originalFolder || '',
-        mediaPath: info.path || '',
+        mediaPath: scrapeInfo.path || '',
         actors: meta.actors || [],
         protagonist: meta.protagonist || null,
-        faceClusters: meta.faceClusters || [],
-        unknownFaces: meta.unknownFaces || [],
+        faceClusters: Array.isArray(meta.faceClusters)
+          ? meta.faceClusters.map((face) => compactFaceForUi(face, { includeSampleImage: true }))
+          : [],
+        unknownFaces: Array.isArray(meta.unknownFaces)
+          ? meta.unknownFaces.map((face) => compactFaceForUi(face, { includeSampleImage: true }))
+          : [],
         actorConfidence: meta.actorConfidence || {},
       };
       report.assets = {
@@ -355,6 +640,20 @@ function registerRoutes(app) {
         nfo: !!meta.nfoPath,
         marker: !!meta.markerPath,
       };
+      if (task.scrapeVerification && typeof task.scrapeVerification === 'object') {
+        report.scrapeVerification = markScrapeVerificationSource(task.scrapeVerification, 'completion_snapshot');
+        if (currentVerification.ok !== task.scrapeVerification.ok || (currentVerification.failures || []).length > 0) {
+          report.currentScrapeVerification = markScrapeVerificationSource(currentVerification, 'current_filesystem');
+        }
+      } else {
+        report.scrapeVerification = markScrapeVerificationSource(currentVerification, 'current_filesystem');
+        if (task.status === 'done') {
+          report.scrapeVerification = addScrapeReportWarning(report.scrapeVerification, {
+            code: 'snapshot.missing',
+            message: '这条历史刮削执行结束时尚未保存验收快照；此处展示的是当前文件系统复核结果，不代表当时的文件状态。',
+          });
+        }
+      }
     }
 
     return report;
@@ -426,10 +725,12 @@ function registerRoutes(app) {
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
     if (task.status === 'pending_manual' || task.status === 'interrupted' || task.status === 'created') {
+      taskScheduler.markConfirmed(task.id);
       taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
       return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
     }
     if (task.status === 'paused') {
+      taskScheduler.markConfirmed(task.id);
       taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
       return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
     }
@@ -455,9 +756,8 @@ function registerRoutes(app) {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
-    // Always cancel to clean up FFmpeg process and partial files
     const flow = getFlow(task.actionType);
-    if (flow) await flow.cancel(task.id);
+    if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
 
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
@@ -465,13 +765,44 @@ function registerRoutes(app) {
 
   // ── Library ─────────────────────────────────────────────────────────────
 
-  app.get('/v1/library', async (req) => {
+  function parseLibraryQuery(query = {}) {
     const filter = {};
-    if (req.query.source) filter.source = req.query.source;
-    if (req.query.type) filter.type = req.query.type;
-    if (req.query.action) filter.action = req.query.action;
-    if (req.query.subLibraryId) filter.subLibraryId = req.query.subLibraryId;
-    const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true });
+    if (query.source) filter.source = query.source;
+    if (query.type) filter.type = query.type;
+    if (query.action) filter.action = query.action;
+    if (query.subLibraryId) filter.subLibraryId = query.subLibraryId;
+    if (query.search) filter.search = query.search;
+    if (query.resolution) filter.resolution = query.resolution;
+    if (query.codec) filter.codec = query.codec;
+    if (query.watched === 'watched') filter.watched = true;
+    if (query.watched === 'unwatched') filter.watched = false;
+    if (query.bluRay === 'disc') filter.isBluRayDisc = true;
+    if (query.bluRay === 'not_disc') filter.isBluRayDisc = false;
+    if (query.douban === 'none') filter.doubanStars = null;
+    else if (query.douban) filter.doubanStars = Number(query.douban);
+    if (query.userRating === 'none') filter.userRating = null;
+    else if (query.userRating) filter.userRating = Number(query.userRating);
+    if (query.task === 'active' || query.task === 'none') {
+      filter.taskState = query.task;
+      filter.activeTaskIds = new Set(taskStore.loadTasks({ includeHistory: false }).map((t) => t.itemId));
+    }
+    if (query.scrape === 'done' || query.scrape === 'pending' || query.scrape === 'failed') filter.metadataStatus = query.scrape;
+    const rawPageSize = Number(query.pageSize);
+    const rawPage = Number(query.page);
+    const rawLimit = Number(query.limit);
+    const rawOffset = Number(query.offset);
+    const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0 ? Math.min(500, Math.floor(rawPageSize)) : null;
+    const pageNumber = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1;
+    const limit = pageSize || (Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(500, Math.floor(rawLimit)) : null);
+    const offset = pageSize
+      ? (pageNumber - 1) * pageSize
+      : (Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0);
+    return { filter, page: { limit, offset } };
+  }
+
+  app.get('/v1/library', async (req) => {
+    const { filter, page } = parseLibraryQuery(req.query);
+    const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
     // Attach embyWebUrl for desktop play button
     const cfg = configStore.loadConfig();
     const servers = cfg.embyServers || {};
@@ -485,30 +816,28 @@ function registerRoutes(app) {
         }
       }
     }
+    result.items = result.items.map(libraryListItemView);
     return result;
   });
 
   app.get('/v1/library/queries/manage', async (req) => {
-    const filter = {};
-    if (req.query.source) filter.source = req.query.source;
-    if (req.query.type) filter.type = req.query.type;
-    if (req.query.action) filter.action = req.query.action;
-    if (req.query.subLibraryId) filter.subLibraryId = req.query.subLibraryId;
-    return mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true });
+    const { filter, page } = parseLibraryQuery(req.query);
+    const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
+    return { ...result, items: result.items.map(libraryListItemView) };
   });
 
   app.get('/v1/library/items/:itemId', async (req, reply) => {
     const item = mediaLibraryService.getLibraryItem(req.params.itemId);
     if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Item not found');
-    return item;
+    return libraryListItemView(metadataStatus.decorateItem(item, configStore.loadConfig()));
   });
 
   app.patch('/v1/library/ratings', async (req, reply) => {
     const { itemId, userRating } = req.body || {};
-    if (!itemId || typeof userRating !== 'number') {
+    if (!itemId || (typeof userRating !== 'number' && userRating !== null)) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId and userRating are required');
     }
-    if (userRating < 1 || userRating > 5) {
+    if (userRating !== null && (userRating < 1 || userRating > 5)) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'userRating must be 1-5');
     }
     try {
@@ -666,8 +995,12 @@ function registerRoutes(app) {
   // ── Space Stats ───────────────────────────────────────────────────────────
 
   app.get('/v1/space-stats', async () => {
-    const library = mediaLibraryService.getLibrary();
-    const tasks = taskStore.loadTasks();
+    const library = typeof mediaLibraryService.getSpaceStatLibrary === 'function'
+      ? mediaLibraryService.getSpaceStatLibrary()
+      : mediaLibraryService.getLibrary();
+    const tasks = typeof taskStore.querySpaceStatTaskRows === 'function'
+      ? taskStore.querySpaceStatTaskRows()
+      : taskStore.loadTasks();
     const config = configStore.loadConfig();
     return spaceStats.computeSpaceStats(library, tasks, config);
   });
@@ -822,8 +1155,8 @@ function registerRoutes(app) {
     const {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
-      adultRegion, scraperType, watchRoot, scrapeEnabled,
-      scanIntervalMinutes, japaneseJav, western,
+      adultRegion, scraperType, watchRoot, japaneseJav, western,
+      automationMode, approvalPolicy,
     } = req.body || {};
     if (!name) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name is required');
@@ -842,17 +1175,13 @@ function registerRoutes(app) {
     const subLib = mediaLibraryService.addSubLibrary({
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
-      adultRegion, scraperType, watchRoot, scrapeEnabled,
-      scanIntervalMinutes, japaneseJav, western,
+      adultRegion, scraperType, watchRoot, japaneseJav, western,
+      automationMode, approvalPolicy,
     });
-    if (isFolderAdult) {
-      adultLibraryService.startSubLibraryWatcher(subLib);
-    }
     return reply.code(201).send(subLib);
   });
 
   app.delete('/v1/admin/sublibraries/:uuid', async (req, reply) => {
-    adultLibraryService.stopSubLibraryWatcher(req.params.uuid);
     const ok = mediaLibraryService.deleteSubLibrary(req.params.uuid);
     if (!ok) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
     return { ok: true, uuid: req.params.uuid };
@@ -861,11 +1190,6 @@ function registerRoutes(app) {
   app.patch('/v1/admin/sublibraries/:uuid', async (req, reply) => {
     const updated = mediaLibraryService.updateSubLibrary(req.params.uuid, req.body || {});
     if (!updated) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
-    if (adultLibraryService.isAdultFolderSubLibrary(updated)) {
-      adultLibraryService.startSubLibraryWatcher(updated);
-    } else {
-      adultLibraryService.stopSubLibraryWatcher(updated.uuid);
-    }
     return updated;
   });
 
@@ -873,15 +1197,7 @@ function registerRoutes(app) {
     const cfg = configStore.loadConfig();
     const subLib = (cfg.subLibraries || []).find((s) => s.uuid === req.params.uuid);
     if (!subLib) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
-    if (!adultLibraryService.isAdultFolderSubLibrary(subLib)) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'Only adult folder libraries support manual scan');
-    }
-    try {
-      const result = await adultLibraryService.scanSubLibrary(subLib);
-      return { ok: true, ...result };
-    } catch (e) {
-      return apiError(reply, 500, 'ADULT_SCAN_FAILED', e.message);
-    }
+    return apiError(reply, 410, 'SUBLIBRARY_SCAN_REMOVED', 'Sub-library directory scan has been removed; background work must enter through the unified task admission model.');
   });
 
   // Manual rescrape of a single adult folder item (resets prior failure state).
@@ -903,7 +1219,29 @@ function registerRoutes(app) {
   });
 
   app.get('/v1/admin/adult/people', async (req) => {
-    return peopleStore.listPeople({ adultRegion: req.query.adultRegion || 'western_adult' });
+    const includeReferenceFaces = req.query.includeReferenceFaces === '1' || req.query.includeReferenceFaces === 'true';
+    return peopleStore.listPeople({
+      adultRegion: req.query.adultRegion || 'western_adult',
+      summary: !includeReferenceFaces,
+    });
+  });
+
+  app.get('/v1/admin/adult/people/:personId/reference-image', async (req, reply) => {
+    const person = peopleStore.getPerson(req.params.personId);
+    if (!person) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
+    const face = (person.referenceFaces || []).find((f) => f && f.sampleImageBase64);
+    if (!face) return apiError(reply, 404, 'NOT_FOUND', 'Reference image not found');
+    try {
+      const buffer = Buffer.from(String(face.sampleImageBase64), 'base64');
+      const image = await referenceImageBuffer(buffer, {
+        thumbnail: req.query.thumbnail === '1' || req.query.thumbnail === 'true',
+      });
+      reply.header('Cache-Control', 'private, max-age=300');
+      reply.type(image.contentType);
+      return image.buffer;
+    } catch (e) {
+      return apiError(reply, 500, 'REFERENCE_IMAGE_INVALID', 'Reference image cannot be decoded');
+    }
   });
 
   app.get('/v1/admin/adult/people/search-images', async (req, reply) => {
@@ -1150,15 +1488,24 @@ function registerRoutes(app) {
   // ── Admin: Adult Libraries ──────────────────────────────────────────────
 
   function sanitizeAdultLibraryForAdmin(adultLibrary = {}) {
-    const out = {
-      ...(adultLibrary || {}),
-      western: {
-        ...((adultLibrary && adultLibrary.western) || {}),
-      },
-    };
+    const out = maskAdultLibrarySecrets(adultLibrary || {});
+    delete out.scanIntervalMinutes;
     delete out.western.faceEmbeddingsUrl;
     delete out.western.faceApiKey;
     return out;
+  }
+
+  function normalizeAdultWesternPatch(currentWestern = {}, requestedWestern = {}) {
+    const next = { ...(requestedWestern || {}) };
+    delete next.faceEmbeddingsUrl;
+    delete next.faceApiKey;
+    for (const key of ADULT_WESTERN_SECRET_KEYS) {
+      if (next[key] === MASKED_SECRET) delete next[key];
+    }
+    return {
+      ...(currentWestern || {}),
+      ...next,
+    };
   }
 
   app.get('/v1/admin/adult/config', async () => {
@@ -1168,11 +1515,6 @@ function registerRoutes(app) {
 
   app.patch('/v1/admin/adult/config', async (req) => {
     const current = configStore.loadConfig();
-    const requestedWestern = {
-      ...((req.body && req.body.western) || {}),
-    };
-    delete requestedWestern.faceEmbeddingsUrl;
-    delete requestedWestern.faceApiKey;
     const adultLibrary = {
       ...(current.adultLibrary || {}),
       ...(req.body || {}),
@@ -1180,16 +1522,15 @@ function registerRoutes(app) {
         ...((current.adultLibrary && current.adultLibrary.japaneseJav) || {}),
         ...((req.body && req.body.japaneseJav) || {}),
       },
-      western: {
-        ...((current.adultLibrary && current.adultLibrary.western) || {}),
-        ...requestedWestern,
-      },
+      western: normalizeAdultWesternPatch(
+        (current.adultLibrary && current.adultLibrary.western) || {},
+        (req.body && req.body.western) || {},
+      ),
     };
     delete adultLibrary.western.faceEmbeddingsUrl;
     delete adultLibrary.western.faceApiKey;
+    delete adultLibrary.scanIntervalMinutes;
     const updated = configStore.patchConfig({ adultLibrary });
-    adultLibraryService.stopAllWatchers();
-    adultLibraryService.startAllWatchers();
     return sanitizeAdultLibraryForAdmin(updated.adultLibrary || {});
   });
 
@@ -1199,6 +1540,7 @@ function registerRoutes(app) {
     const cfg = configStore.loadConfig();
     return {
       transcodeTempRoot: cfg.transcodeTempRoot || '',
+      transcodeCleanupOrphansOnStartup: cfg.transcodeCleanupOrphansOnStartup !== false,
       transcodeReplaceConfirmRequired: cfg.transcodeReplaceConfirmRequired || false,
       ffmpegPath: cfg.ffmpegPath || 'ffmpeg',
       ffprobePath: cfg.ffprobePath || 'ffprobe',
@@ -1210,6 +1552,7 @@ function registerRoutes(app) {
   app.patch('/v1/admin/transcode/config', async (req) => {
     const allowed = [
       'transcodeTempRoot', 'transcodeReplaceConfirmRequired',
+      'transcodeCleanupOrphansOnStartup',
       'ffmpegPath', 'ffprobePath', 'transcodeEncodingDevices',
       'transcodeCpuParticipationStrategy',
     ];
@@ -1285,7 +1628,7 @@ function registerRoutes(app) {
 
   app.get('/v1/admin/nodes', async () => {
     const nodes = nodeStore.loadNodes();
-    const tasks = taskStore.loadTasks();
+    const tasks = taskStore.loadTasks({ includeHistory: false });
     const nodeList = nodes.map((n) => {
       const activeJobCount = tasks.filter((t) => t.nodeId === n.id && t.status === 'executing').length;
       return { ...n, apiKey: '********', activeJobCount };
@@ -1296,7 +1639,7 @@ function registerRoutes(app) {
   app.get('/v1/admin/nodes/:id', async (req) => {
     const node = nodeStore.getNode(req.params.id);
     if (!node) return { error: { code: 'NOT_FOUND', message: 'Node not found' } };
-    const tasks = taskStore.loadTasks();
+    const tasks = taskStore.loadTasks({ includeHistory: false });
     const activeJobCount = tasks.filter((t) => t.nodeId === node.id && t.status === 'executing').length;
     return { ...node, apiKey: '********', activeJobCount };
   });
@@ -1350,7 +1693,7 @@ function registerRoutes(app) {
 
     if (force && activeCount > 0) {
       // Cancel all active tasks on this node
-      const tasks = taskStore.loadTasks();
+      const tasks = taskStore.loadTasks({ includeHistory: false });
       for (const t of tasks) {
         if (t.nodeId === node.id && t.status === 'executing') {
           const flow = getFlow(t.actionType);
@@ -1383,7 +1726,7 @@ function registerRoutes(app) {
     }
 
     const updated = nodeStore.updateNode(req.params.id, patch);
-    const tasks = taskStore.loadTasks();
+    const tasks = taskStore.loadTasks({ includeHistory: false });
     const activeJobCount = tasks.filter((t) => t.nodeId === updated.id && t.status === 'executing').length;
     return { ...updated, apiKey: '********', activeJobCount };
   });
@@ -1479,30 +1822,30 @@ function registerRoutes(app) {
   app.get('/v1/admin/tasks', async (req) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
+    if (req.query.statuses) {
+      filter.statuses = String(req.query.statuses)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
     if (req.query.actionType) filter.actionType = req.query.actionType;
     if (req.query.q) filter.q = req.query.q;
-    const allTasks = taskStore.getTasks(filter);
-    // Sort by updatedAt descending (most recent first)
-    allTasks.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-    const byStatus = {};
-    for (const t of allTasks) {
-      byStatus[t.status] = (byStatus[t.status] || 0) + 1;
-    }
-
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
-    const total = allTasks.length;
-    const start = (page - 1) * pageSize;
-    const tasks = allTasks.slice(start, start + pageSize);
-
-    return { tasks, summary: { total, byStatus }, page, pageSize, total };
+    const result = taskStore.queryTaskSummaries(filter, { page, pageSize, orderBy: 'updatedAt', orderDir: 'desc' });
+    return {
+      tasks: result.tasks.map(taskListSummary),
+      summary: { total: result.total, byStatus: result.byStatus },
+      page: result.page,
+      pageSize: result.pageSize,
+      total: result.total,
+    };
   });
 
   app.get('/v1/admin/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    return task;
+    return taskDetailView(task);
   });
 
   app.patch('/v1/admin/tasks/:id', async (req, reply) => {
@@ -1522,7 +1865,7 @@ function registerRoutes(app) {
       if (!editable.includes(task.status)) {
         return apiError(reply, 409, 'TASK_CONFLICT', `Cannot set priority on task in status "${task.status}"`);
       }
-      const updated = taskStore.updateTask(task.id, { priority });
+      const updated = taskStore.updateTask(task.id, { priority, priorityManuallyAdjusted: true });
       return updated;
     }
 
@@ -1533,9 +1876,8 @@ function registerRoutes(app) {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
-    // Always cancel to clean up FFmpeg process and partial files
     const flow = getFlow(task.actionType);
-    if (flow) flow.cancel(task.id);
+    if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
 
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
@@ -1564,6 +1906,7 @@ function registerRoutes(app) {
 
 function getFlow(actionType) {
   switch (actionType) {
+    case 'ingest': return require('./ingestFlowExecutor');
     case 'delete': return require('./deleteFlowExecutor');
     case 'transcode': return require('./transcodeFlowExecutor');
     case 'upgrade': return require('./upgradeFlowExecutor');
@@ -1634,7 +1977,6 @@ async function buildApp(opts = {}) {
     taskScheduler.stopScheduler();
     healthCheck.stopHealthCheckTimer();
     mediaLibraryService.stopAllTimers();
-    adultLibraryService.stopAllWatchers();
     strategyEngine.stop();
     smartTaskEngine.stop();
   });
@@ -1642,14 +1984,18 @@ async function buildApp(opts = {}) {
   // Clean up orphan ffmpeg processes and temp dirs from previous run
   // Must run BEFORE scheduler starts dispatching tasks
   const startupCfg = configStore.loadConfig();
-  if (startupCfg.transcodeTempRoot) {
+  if (startupCfg.transcodeTempRoot && startupCfg.transcodeCleanupOrphansOnStartup !== false) {
     await transcodeService.cleanupOrphans(startupCfg);
+  }
+  try {
+    adultLibraryService.repairInvalidWesternScrapeState();
+  } catch (e) {
+    console.warn('[adultLibrary] invalid western scrape repair skipped:', e.message);
   }
 
   // Start health check timer and subLibrary timers
   healthCheck.startHealthCheckTimer();
   mediaLibraryService.startAllSubLibraryTimers();
-  adultLibraryService.startAllWatchers();
   taskScheduler.startScheduler();
   strategyEngine.start(configStore, mediaLibraryService);
   smartTaskEngine.start(configStore, mediaLibraryService, taskStore);

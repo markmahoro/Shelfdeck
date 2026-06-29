@@ -15,6 +15,11 @@ interface RemoteDevice extends DevicePoolEntry {
   backend?: string;
 }
 
+type DisplayDevice = DevicePoolEntry & {
+  status: 'idle' | 'busy' | 'error';
+  activeSlots: number;
+};
+
 export default function TranscodeConfigPage() {
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const queryClient = useQueryClient();
@@ -80,7 +85,7 @@ export default function TranscodeConfigPage() {
     mutationFn: async () => {
       // Save local devices
       await transcode.patchConfig({
-        transcodeEncodingDevices: localPoolDevices,
+        transcodeEncodingDevices: localPoolDevices.map(toPersistedLocalDevice),
         transcodeCpuParticipationStrategy: cpuStrategy,
       } as Partial<TranscodeConfig>);
 
@@ -200,26 +205,26 @@ export default function TranscodeConfigPage() {
   const liveStatusMap: Record<string, { status: string; activeSlots: number }> = {};
   if (poolData) {
     for (const d of poolData.devices) {
-      if (!(d as RemoteDevice).remote) liveStatusMap[d.stableKey] = { status: d.status, activeSlots: d.activeSlots };
+      if (!(d as RemoteDevice).remote) liveStatusMap[d.stableKey] = { status: d.status || 'idle', activeSlots: d.activeSlots || 0 };
     }
   }
 
-  const displayLocal = localPoolDevices.map((d) => ({
+  const displayLocal: DisplayDevice[] = localPoolDevices.map((d) => ({
     ...d,
-    status: (liveStatusMap[d.stableKey]?.status || d.status) as DevicePoolEntry['status'],
-    activeSlots: liveStatusMap[d.stableKey]?.activeSlots ?? d.activeSlots,
+    status: (liveStatusMap[d.stableKey]?.status || d.status || 'idle') as DisplayDevice['status'],
+    activeSlots: liveStatusMap[d.stableKey]?.activeSlots ?? d.activeSlots ?? 0,
   }));
 
   // Remote pool display: use local state merged with live server status
   const serverRemotes = ((poolData?.devices || []) as RemoteDevice[]).filter((d) => d.remote);
   const serverRemoteMap = new Map(serverRemotes.map((d) => [d.deviceId, d]));
 
-  const displayRemote = remotePoolState.filter((r) => r.inPool).map((r) => {
+  const displayRemote: (RemoteDevice & DisplayDevice)[] = remotePoolState.filter((r) => r.inPool).map((r) => {
     const live = serverRemoteMap.get(r.deviceId);
     return {
       ...r,
-      status: live?.status || r.status,
-      activeSlots: live?.activeSlots ?? r.activeSlots,
+      status: (live?.status || r.status || 'idle') as DisplayDevice['status'],
+      activeSlots: live?.activeSlots ?? r.activeSlots ?? 0,
       nodeStatus: live?.nodeStatus || r.nodeStatus,
     };
   });
@@ -251,14 +256,14 @@ export default function TranscodeConfigPage() {
 
       {/* Card 2: Available devices */}
       <section style={card}>
-        <h3 style={sectionTitle}>可用设备</h3>
+        <h3 style={sectionTitle}>可添加设备</h3>
         <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
           <button onClick={handleProbe} disabled={probing} style={primaryBtn}>{probing ? '检测中...' : '检测本机设备'}</button>
-          <span style={{ fontSize: 13, color: '#999' }}>检测本机 GPU 编码器。远程节点设备自动列出。</span>
+          <span style={{ fontSize: 13, color: '#999' }}>检测还未加入设备池的本机 GPU 编码器；远程节点中未入池的设备会自动列出。</span>
         </div>
 
         {probedLocalDevices.length === 0 && remoteAvailableDevices.length === 0 && (
-          <p style={{ color: '#888', fontSize: 14 }}>暂无可用设备。点击"检测本机设备"扫描本机 GPU，或在「转码节点」页面添加远程节点。</p>
+          <p style={{ color: '#888', fontSize: 14 }}>当前没有新的可添加设备。已加入设备池的设备在下方管理；需要新增本机 GPU 时点击“检测本机设备”。</p>
         )}
 
         {(probedLocalDevices.length > 0 || remoteAvailableDevices.length > 0) && (
@@ -308,7 +313,7 @@ export default function TranscodeConfigPage() {
         {poolLoading && displayLocal.length === 0 && displayRemote.length === 0 ? (
           <LoadingSpinner text="加载设备池..." />
         ) : displayLocal.length === 0 && displayRemote.length === 0 ? (
-          <p style={{ color: '#888', fontSize: 14 }}>设备池为空。请在上方"可用设备"中将设备入池，然后保存。</p>
+          <p style={{ color: '#888', fontSize: 14 }}>设备池为空。请在上方“可添加设备”中将设备入池，然后保存。</p>
         ) : (
           <>
             <table style={tableStyle}>
@@ -396,6 +401,16 @@ function StatusBadge({ status }: { status: string }) {
   const color = status === 'idle' ? '#27ae60' : status === 'busy' ? '#f39c12' : '#e74c3c';
   const label = status === 'idle' ? '空闲' : status === 'busy' ? '占用中' : status;
   return <span style={{ color, fontSize: 13 }}>{label}</span>;
+}
+
+function toPersistedLocalDevice(d: DevicePoolEntry): DevicePoolEntry {
+  return {
+    stableKey: d.stableKey,
+    inPool: d.inPool !== false,
+    priority: d.priority,
+    maxSlots: d.maxSlots,
+    encoder: d.encoder || '',
+  };
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { health, tasks, subLibraries, emby, activityLog, spaceStats, ruleTemplates } from '../api/client';
+import { health, tasks, subLibraries, emby, activityLog, spaceStats, ruleTemplates, systemConfig } from '../api/client';
 import type { ActivityEntry } from '../api/client';
 import type { SubLibrary, MediaFolder, MediaTask, RuleTemplate } from '../types';
 import HealthCard from '../components/HealthCard';
@@ -9,14 +9,39 @@ import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
-  transcode: '码率压缩', delete: '删除', upgrade: '洗版',
+  ingest: '入库', scrape: '刮削', transcode: '转码压缩', delete: '删除', upgrade: '洗版',
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  created: '已创建', pending_manual: '待手动', queued: '排队中', executing: '执行中',
-  pausing: '暂停中...', awaiting_user_confirm: '等待确认', paused: '已暂停',
-  interrupted: '已中断', done: '已完成', failed_hard: '失败',
+  created: '已创建', pending_manual: '待手动启动', queued: '排队中', executing: '执行中',
+  pausing: '暂停中', awaiting_user_confirm: '等待确认', paused: '已暂停',
+  interrupted: '已中断', waiting_media_source: '等待媒体文件',
+  done: '已完成', failed_hard: '失败', cancelled: '已取消', skipped: '已跳过', deleted: '已移除',
 };
+const ACTIVE_TASK_STATUSES = [
+  'created',
+  'pending_manual',
+  'queued',
+  'executing',
+  'pausing',
+  'awaiting_user_confirm',
+  'paused',
+  'interrupted',
+  'waiting_media_source',
+];
+const TERMINAL_TASK_STATUSES = ['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'];
+const FAILED_TASK_STATUSES = ['failed_hard'];
+
+function autoExecuteText(sl: SubLibrary) {
+  const mode = (sl.automationMode || (sl.scheduleMode === 'full_manual' ? 'manual' : 'auto'));
+  return mode === 'manual' ? '需要手动启动' : '自动开始执行';
+}
+
+function adultWatchRootPlaceholder(kind: 'emby' | 'japanese_jav' | 'western_adult') {
+  if (kind === 'western_adult') return '/adult_media/US';
+  if (kind === 'japanese_jav') return '/adult_media/JAV';
+  return '/media/movies';
+}
 
 export default function DashboardPage() {
   const qc = useQueryClient();
@@ -45,16 +70,34 @@ export default function DashboardPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingUuid, setEditingUuid] = useState('');
 
-  const { data: h, isLoading: hLoading } = useQuery({
+  const { data: h, isLoading: hLoading, isError: hError } = useQuery({
     queryKey: ['admin-health'],
     queryFn: health.check,
     refetchInterval: 30000,
   });
 
-  const { data: taskList, isLoading: tLoading } = useQuery({
-    queryKey: ['admin-tasks'],
-    queryFn: () => tasks.list(),
+  const { data: currentTaskList, isLoading: currentTasksLoading } = useQuery({
+    queryKey: ['dashboard-current-tasks'],
+    queryFn: () => tasks.list({ statuses: ACTIVE_TASK_STATUSES, page: 1, pageSize: 5 }),
     refetchInterval: 10000,
+  });
+
+  const { data: recentTaskList, isLoading: recentTasksLoading } = useQuery({
+    queryKey: ['dashboard-recent-task-results'],
+    queryFn: () => tasks.list({ statuses: TERMINAL_TASK_STATUSES, page: 1, pageSize: 5 }),
+    refetchInterval: 10000,
+  });
+
+  const { data: failedTaskList, isLoading: failedTasksLoading } = useQuery({
+    queryKey: ['dashboard-failed-tasks'],
+    queryFn: () => tasks.list({ statuses: FAILED_TASK_STATUSES, page: 1, pageSize: 5 }),
+    refetchInterval: 10000,
+  });
+
+  const { data: sysCfg } = useQuery({
+    queryKey: ['system-config-dashboard'],
+    queryFn: systemConfig.get,
+    refetchInterval: 30000,
   });
 
   const { data: slData, isLoading: slLoading } = useQuery({
@@ -88,17 +131,7 @@ export default function DashboardPage() {
 
   const deleteMut = useMutation({
     mutationFn: subLibraries.remove,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sublibraries'] }); setAlert({ type: 'success', msg: '媒体库已删除' }); },
-    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
-  });
-
-  const scanMut = useMutation({
-    mutationFn: subLibraries.scan,
-    onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ['sublibraries'] });
-      qc.invalidateQueries({ queryKey: ['space-stats'] });
-      setAlert({ type: 'success', msg: `扫描完成：${res.scanned} 个文件，${res.upserted} 个条目` });
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sublibraries'] }); setAlert({ type: 'success', msg: '媒体库配置已移除' }); },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
@@ -127,7 +160,6 @@ export default function DashboardPage() {
           adultRegion: libraryKind,
           scraperType: libraryKind === 'japanese_jav' ? 'shelfdeck_japanese_jav' : 'western_builtin',
           watchRoot,
-          scrapeEnabled: true,
         }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sublibraries'] });
@@ -177,6 +209,12 @@ export default function DashboardPage() {
     setTestError('');
   }
 
+  function deleteSubLibrary(sl: SubLibrary) {
+    const name = sl.name || sl.uuid;
+    const ok = confirm(`将删除 ShelfDeck 中「${name}」的媒体库配置和缓存条目。确认删除？`);
+    if (ok) deleteMut.mutate(sl.uuid);
+  }
+
   async function handleTestAndNext() {
     if (!baseUrl || !embyUsername || !embyPassword) { setTestError('请填写服务器地址、用户名和密码'); return; }
     setTesting(true);
@@ -196,10 +234,20 @@ export default function DashboardPage() {
     }
   }
 
-  if (hLoading || slLoading) return <LoadingSpinner />;
+  if (slLoading) return <LoadingSpinner text="加载媒体库中..." />;
 
-  const recentTasks: MediaTask[] = (taskList?.tasks || []).slice(0, 5);
+  const currentTasks: MediaTask[] = currentTaskList?.tasks || [];
+  const recentResultTasks: MediaTask[] = recentTaskList?.tasks || [];
+  const failedTasks: MediaTask[] = failedTaskList?.tasks || [];
+  const terminalSummary = recentTaskList?.summary?.byStatus || {};
+  const failedTotal = failedTaskList?.summary?.byStatus?.failed_hard || failedTaskList?.total || 0;
   const subLibs: SubLibrary[] = slData?.subLibraries || [];
+  const enabledAutoActions = sysCfg?.smartTaskEnabledActions;
+  const enabledAutoActionText = !enabledAutoActions
+    ? '读取中'
+    : enabledAutoActions.length > 0
+    ? enabledAutoActions.map((a) => ACTION_TYPE_LABELS[a] || a).join('、')
+    : '未选择任务类型';
 
   return (
     <div>
@@ -208,7 +256,13 @@ export default function DashboardPage() {
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
 
       <div style={{ marginBottom: 24 }}>
-        <HealthCard status={h?.status || 'red'} checks={h?.checks as Record<string, { status: string; message?: string }> | undefined} />
+        {hLoading ? (
+          <HealthPendingCard title="服务状态：检测中" message="健康检查正在返回，其他数据已先加载。" />
+        ) : hError || !h ? (
+          <HealthPendingCard title="服务状态：暂不可用" message="健康检查暂时没有返回，稍后会自动重试。" tone="red" />
+        ) : (
+          <HealthCard status={h.status} checks={h.checks as Record<string, { status: string; message?: string }> | undefined} />
+        )}
       </div>
 
       {/* Media Libraries */}
@@ -250,9 +304,8 @@ export default function DashboardPage() {
                       <span style={{ fontSize: 12, color: '#999' }}>{slSpace ? `${slSpace.itemCount} 条目` : ''}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      {sl.source === 'folder' && <button onClick={() => scanMut.mutate(sl.uuid)} style={cardBtn}>扫描</button>}
                       <button onClick={() => openEdit(sl)} style={cardBtn}>编辑</button>
-                      <button onClick={() => { if (confirm('确认删除此媒体库？')) deleteMut.mutate(sl.uuid); }} style={{ ...cardBtn, color: '#e74c3c', borderColor: '#f5c6cb' }}>删除</button>
+                      <button onClick={() => deleteSubLibrary(sl)} style={{ ...cardBtn, color: '#e74c3c', borderColor: '#f5c6cb' }}>移除库配置</button>
                     </div>
                   </div>
 
@@ -280,13 +333,16 @@ export default function DashboardPage() {
                       </div>
                     </SubCard>
 
-                    {/* Sub-card 3: Schedule Mode */}
-                    <SubCard title="任务执行模式">
+                    {/* Sub-card 3: Task execution after creation */}
+                    <SubCard title="任务创建后">
                       <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e' }}>
-                        {{ full_auto: '全自动' as const, custom: '自定义' as const, full_manual: '全手动' as const }[((sl as any).scheduleMode as string) || 'full_auto']}
+                        {autoExecuteText(sl)}
                       </div>
                       <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
-                        在「任务调度」页面按子库配置
+                        只控制已创建任务的启动方式，不负责自动创建任务
+                      </div>
+                      <div style={{ fontSize: 11, color: enabledAutoActions && enabledAutoActions.length === 0 ? '#c2410c' : '#6b7280', marginTop: 4 }}>
+                        后台自动入队任务类型：{enabledAutoActionText}
                       </div>
                     </SubCard>
 
@@ -309,13 +365,16 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Recent Tasks */}
+      {/* Current Tasks */}
       <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#1a1a2e' }}>最近任务</h3>
-        {tLoading ? (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>当前任务</h3>
+          <span style={{ fontSize: 12, color: '#888' }}>只显示执行中、排队中、待手动启动、等待确认和已暂停的任务</span>
+        </div>
+        {currentTasksLoading ? (
           <LoadingSpinner text="加载任务中..." />
-        ) : recentTasks.length === 0 ? (
-          <p style={{ color: '#888', fontSize: 14 }}>暂无任务</p>
+        ) : currentTasks.length === 0 ? (
+          <p style={{ color: '#888', fontSize: 14 }}>当前没有正在处理的任务</p>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
@@ -327,7 +386,7 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {recentTasks.map((t) => (
+              {currentTasks.map((t) => (
                 <tr key={t.id}>
                   <td style={tdStyle}>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</td>
                   <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
@@ -337,6 +396,77 @@ export default function DashboardPage() {
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* Task Results */}
+      <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>任务提醒</h3>
+          <span style={{ fontSize: 12, color: '#888' }}>优先显示失败任务；完成记录仅作为背景信息</span>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+          <TaskSummaryPill label="失败任务" value={failedTotal} color="#c62828" />
+          <TaskSummaryPill label="已完成" value={terminalSummary.done || 0} color="#2e7d32" />
+          <TaskSummaryPill label="已取消" value={terminalSummary.cancelled || 0} color="#666" />
+          <TaskSummaryPill label="已跳过" value={terminalSummary.skipped || 0} color="#777" />
+        </div>
+        {failedTasksLoading || recentTasksLoading ? (
+          <LoadingSpinner text="加载任务中..." />
+        ) : failedTasks.length > 0 ? (
+          <>
+            <div style={{ fontSize: 13, color: '#c62828', marginBottom: 8, fontWeight: 600 }}>
+              最近失败任务，需要到「任务中心」查看原因并重试
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>影片</th>
+                  <th style={thStyle}>类型</th>
+                  <th style={thStyle}>结果</th>
+                  <th style={thStyle}>更新时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {failedTasks.map((t) => (
+                  <tr key={t.id}>
+                    <td style={tdStyle}>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</td>
+                    <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
+                    <td style={{ ...tdStyle, color: '#c62828', fontWeight: 600 }}>{STATUS_LABELS[t.status] || t.status}</td>
+                    <td style={tdStyle}>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        ) : recentResultTasks.length === 0 ? (
+          <p style={{ color: '#888', fontSize: 14 }}>暂无需要处理的失败任务，也没有最近完成记录</p>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: '#666', marginBottom: 8, fontWeight: 600 }}>
+              没有失败任务，以下是最近完成或取消的记录
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>影片</th>
+                  <th style={thStyle}>类型</th>
+                  <th style={thStyle}>结果</th>
+                  <th style={thStyle}>更新时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentResultTasks.map((t) => (
+                  <tr key={t.id}>
+                    <td style={tdStyle}>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</td>
+                    <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
+                    <td style={tdStyle}>{STATUS_LABELS[t.status] || t.status}</td>
+                    <td style={tdStyle}>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
 
@@ -354,7 +484,7 @@ export default function DashboardPage() {
                 entry.source === 'media_library' ? '媒体库' :
                 entry.source === 'douban' ? '豆瓣' :
                 entry.source === 'strategy_engine' ? '策略引擎' :
-                entry.source === 'smart_task_engine' ? '智能入队' :
+                entry.source === 'smart_task_engine' ? '后台自动入队' :
                 entry.source === 'task' ? '任务' :
                 entry.source === 'health' ? '健康' :
                 entry.source === 'user_action' ? '用户' : entry.source;
@@ -384,8 +514,8 @@ export default function DashboardPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[
                   { key: 'emby', title: 'Emby 媒体库', desc: '电影/剧集' },
-                  { key: 'japanese_jav', title: 'JAV', desc: '内置刮削' },
-                  { key: 'western_adult', title: '欧美成人', desc: '预留自研刮削' },
+                  { key: 'japanese_jav', title: 'JAV', desc: '真实目录' },
+                  { key: 'western_adult', title: '欧美成人', desc: '真实目录' },
                 ].map((k) => (
                   <button
                     key={k.key}
@@ -399,7 +529,7 @@ export default function DashboardPage() {
                         setSubLibName('JAV');
                       } else if (next === 'western_adult') {
                         setMediaType('adult');
-                        setRuleTemplateId('adult_jav_default');
+                        setRuleTemplateId('adult_western_default');
                         setSubLibName('欧美成人');
                       } else {
                         setMediaType('movie');
@@ -447,13 +577,13 @@ export default function DashboardPage() {
             </>
             ) : (
               <div style={{ padding: 12, background: '#f8f9fb', borderRadius: 8, fontSize: 13, color: '#666', lineHeight: 1.6 }}>
-                文件夹库由 ShelfDeck 直接监听本地路径；JAV 使用内置 scraper，欧美成人库保留 scraper adapter。
+                文件夹库记录真实媒体目录；是否自动创建入库、刮削或转码任务，由「任务调度」里的后台自动入队统一控制。本页不提供独立自动扫描或自动刮削开关。
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <button onClick={closeWizard} style={secondaryBtn}>取消</button>
-              <button onClick={() => libraryKind === 'emby' ? handleTestAndNext() : setStep(3)} disabled={testing || libraryKind === 'western_adult'} style={primaryBtn}>
-                {libraryKind === 'emby' ? (testing ? '登录中...' : '登录 Emby') : libraryKind === 'western_adult' ? '暂未开放' : '下一步'}
+              <button onClick={() => libraryKind === 'emby' ? handleTestAndNext() : setStep(3)} disabled={testing} style={primaryBtn}>
+                {libraryKind === 'emby' ? (testing ? '登录中...' : '登录 Emby') : '下一步'}
               </button>
             </div>
           </div>
@@ -495,7 +625,7 @@ export default function DashboardPage() {
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>监控目录</label>
                   <input type="text" value={watchRoot} onChange={(e) => setWatchRoot(e.target.value)}
-                    placeholder="E:\\my_project\\emby_third_party\\jav_test"
+                    placeholder={adultWatchRootPlaceholder(libraryKind)}
                     style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
                 </div>
               </>
@@ -605,6 +735,35 @@ function fmtSizeBytes(bytes: number): string {
   return sign + abs + ' B';
 }
 
+function HealthPendingCard({ title, message, tone = 'yellow' }: { title: string; message: string; tone?: 'yellow' | 'red' }) {
+  const color = tone === 'red' ? '#e74c3c' : '#f39c12';
+  return (
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 10,
+        padding: 20,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+        borderLeft: `4px solid ${color}`,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <span
+          style={{
+            display: 'inline-block',
+            width: 12,
+            height: 12,
+            borderRadius: '50%',
+            background: color,
+          }}
+        />
+        <span style={{ fontSize: 16, fontWeight: 600 }}>{title}</span>
+      </div>
+      <div style={{ fontSize: 13, color: '#888' }}>{message}</div>
+    </div>
+  );
+}
+
 function SubCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ background: '#f8f9fb', borderRadius: 8, padding: 12, border: '1px solid #f0f0f0' }}>
@@ -620,6 +779,15 @@ function MiniStat({ label, value, sub, color }: { label: string; value: string; 
       <div style={{ fontSize: 13, fontWeight: 700, color }}>{value}</div>
       <div style={{ fontSize: 10, color: '#888' }}>{label}</div>
       {sub && <div style={{ fontSize: 9, color: '#aaa' }}>{sub}</div>}
+    </div>
+  );
+}
+
+function TaskSummaryPill({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 6, background: '#f8f9fb', border: '1px solid #eee' }}>
+      <span style={{ fontSize: 12, color: '#666' }}>{label}</span>
+      <span style={{ fontSize: 13, color, fontWeight: 700 }}>{value}</span>
     </div>
   );
 }

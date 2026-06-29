@@ -121,7 +121,7 @@ function getOnlineNodes() {
  */
 function getNodeActiveJobCount(nodeId, taskStore) {
   try {
-    const tasks = taskStore.loadTasks();
+    const tasks = taskStore.loadTasks({ includeHistory: false });
     return tasks.filter((t) => t.nodeId === nodeId && t.status === 'executing').length;
   } catch (_) { return 0; }
 }

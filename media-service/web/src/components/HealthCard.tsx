@@ -5,10 +5,14 @@ interface HealthCheckItem {
   runningTasks?: number;
   // smartTask
   enabled?: boolean;
+  enabledActions?: string[];
+  disabledReason?: string;
   lastRunAt?: string | null;
   // mediaLib
   totalSubLibraries?: number;
   enabledCount?: number;
+  scheduledRefreshCount?: number;
+  manualFolderCount?: number;
   staleSubLibraries?: string[];
   // douban
   hasSession?: boolean;
@@ -41,7 +45,7 @@ const LABELS: Record<string, string> = {
 
 const CHECK_LABELS: Record<string, string> = {
   scheduler:  '任务调度器',
-  smartTask:  '智能入队',
+  smartTask:  '后台自动入队',
   mediaLib:   '媒体库刷新',
   douban:     '豆瓣评分抓取',
   strategy:   '策略引擎',
@@ -57,13 +61,19 @@ function describe(key: string, item: HealthCheckItem): string {
     case 'scheduler':
       return item.runningTasks ? `${item.runningTasks} 个任务运行中` : '无运行中任务';
     case 'smartTask':
-      if (item.enabled === false) return '已停用';
+      if (item.enabled === false) {
+        if (item.disabledReason === 'no_enabled_actions') return '未启用自动入队';
+        return '已停用';
+      }
       if (!item.lastRunAt) return '等待首次运行';
       return `上次运行 ${new Date(item.lastRunAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
     case 'mediaLib':
       if (!item.totalSubLibraries || !item.enabledCount) return '未配置';
       if (item.staleSubLibraries && item.staleSubLibraries.length > 0) {
         return `超时：${item.staleSubLibraries.join('、')}`;
+      }
+      if (item.manualFolderCount) {
+        return `${item.scheduledRefreshCount || 0} 个定时刷新，${item.manualFolderCount} 个真实目录库`;
       }
       return `${item.enabledCount}/${item.totalSubLibraries} 个媒体库`;
     case 'douban':

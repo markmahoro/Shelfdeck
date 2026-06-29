@@ -2,6 +2,10 @@ node_modules/
 docker-compose.yml
 data/config.json
 data/tasks.json
+data/tasks.db
+data/tasks.db-wal
+data/tasks.db-shm
+data/tasks.json.migrated
 data/cache.json
 data/control-plane-state.json
 data/library.json

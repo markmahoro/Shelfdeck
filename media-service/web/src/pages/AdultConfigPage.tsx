@@ -13,14 +13,18 @@ function csvList(value: string): string[] {
   return value.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+function candidateHint(candidate: AdultImageCandidate): string {
+  const reasons = candidate.qualityReasons || [];
+  const source = reasons.includes('adult_source') ? '成人源' : reasons.includes('metadata_source') ? '元数据源' : '公开源';
+  const name = reasons.includes('name_exact') ? '精确' : reasons.includes('name_contains') ? '近似' : '相关';
+  return `${source} · ${name}`;
+}
+
 export default function AdultConfigPage() {
   const qc = useQueryClient();
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [initialized, setInitialized] = useState(false);
 
-  const [settleSeconds, setSettleSeconds] = useState(30);
-  const [scanIntervalMinutes, setScanIntervalMinutes] = useState(10);
-  const [autoScrape, setAutoScrape] = useState(true);
   const [proxyServer, setProxyServer] = useState('');
   const [retry, setRetry] = useState(2);
   const [timeout, setTimeoutValue] = useState('PT20S');
@@ -53,9 +57,6 @@ export default function AdultConfigPage() {
   useEffect(() => {
     if (!data || initialized) return;
     const j = data.japaneseJav || {};
-    setSettleSeconds(data.settleSeconds ?? 30);
-    setScanIntervalMinutes(data.scanIntervalMinutes ?? 10);
-    setAutoScrape(data.autoScrape !== false);
     setProxyServer(String(j.proxyServer || ''));
     setRetry(Number(j.retry ?? 2));
     setTimeoutValue(String(j.timeout || 'PT20S'));
@@ -78,7 +79,7 @@ export default function AdultConfigPage() {
     onSuccess: (res) => {
       setSelectedCandidate(res.candidates[0] || null);
       if (!res.candidates.length) {
-        setAlert({ type: 'error', msg: res.message || '未找到候选头像，可以换关键词或粘贴手动图片 URL' });
+        setAlert({ type: 'error', msg: res.message || '未找到候选头像，可以换关键词或粘贴手动图片地址' });
         return;
       }
       const proxyText = res.proxyUsed ? '，已使用代理' : '';
@@ -96,18 +97,44 @@ export default function AdultConfigPage() {
       imageUrl: manualImageUrl || selectedCandidate?.originalUrl || selectedCandidate?.imageUrl,
       imageBase64: uploadBase64 || undefined,
     }),
+    onSuccess: (person) => {
+      qc.invalidateQueries({ queryKey: ['adult-people'] });
+      setSelectedPersonId(person.personId);
+      setActorName(person.name);
+      setActorAliases(csv(person.aliases));
+      setManualImageUrl('');
+      setUploadBase64('');
+      setSelectedCandidate(null);
+      imageSearch.reset();
+      setAlert({ type: 'success', msg: selectedPersonId ? '演员参考人脸已替换' : '演员已创建' });
+    },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+
+  const updatePersonInfo = useMutation({
+    mutationFn: () => adult.updatePerson(selectedPersonId, {
+      name: actorName.trim(),
+      aliases: csvList(actorAliases),
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['adult-people'] });
-      setAlert({ type: 'success', msg: selectedPersonId ? '演员 reference 已替换' : '演员已创建' });
+      setAlert({ type: 'success', msg: '演员资料已保存' });
+    },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+
+  const deletePerson = useMutation({
+    mutationFn: (personId: string) => adult.deletePerson(personId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['adult-people'] });
+      setSelectedPersonId('');
+      setAlert({ type: 'success', msg: '演员已删除' });
     },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
   const save = useMutation({
     mutationFn: () => adult.patchConfig({
-      settleSeconds,
-      scanIntervalMinutes,
-      autoScrape,
       japaneseJav: {
         ...(data?.japaneseJav || {}),
         proxyServer,
@@ -141,21 +168,12 @@ export default function AdultConfigPage() {
     <div>
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
       <section style={card}>
-        <h3 style={title}>成人库默认设置</h3>
-        <div style={grid}>
-          <Field label="稳定等待（秒）"><input style={input} type="number" value={settleSeconds} min={1} onChange={(e) => setSettleSeconds(Number(e.target.value) || 30)} /></Field>
-          <Field label="定时扫描（分钟）"><input style={input} type="number" value={scanIntervalMinutes} min={1} onChange={(e) => setScanIntervalMinutes(Number(e.target.value) || 10)} /></Field>
-          <label style={check}><input type="checkbox" checked={autoScrape} onChange={(e) => setAutoScrape(e.target.checked)} />自动刮削</label>
-        </div>
-      </section>
-
-      <section style={card}>
         <h3 style={title}>JAV 刮削</h3>
         <div style={grid}>
           <Field label="代理服务器"><input style={inputWide} value={proxyServer} onChange={(e) => setProxyServer(e.target.value)} placeholder="http://127.0.0.1:7890" /></Field>
           <Field label="重试次数"><input style={input} type="number" value={retry} min={0} onChange={(e) => setRetry(Number(e.target.value) || 0)} /></Field>
           <Field label="超时"><input style={input} value={timeout} onChange={(e) => setTimeoutValue(e.target.value)} /></Field>
-          <Field label="Crawler 顺序"><input style={inputWide} value={crawlers} onChange={(e) => setCrawlers(e.target.value)} /></Field>
+          <Field label="刮削源顺序"><input style={inputWide} value={crawlers} onChange={(e) => setCrawlers(e.target.value)} /></Field>
           <label style={check}><input type="checkbox" checked={highresCover} onChange={(e) => setHighresCover(e.target.checked)} />高清封面</label>
           <label style={check}><input type="checkbox" checked={writeNfo} onChange={(e) => setWriteNfo(e.target.checked)} />写入 NFO</label>
         </div>
@@ -168,15 +186,15 @@ export default function AdultConfigPage() {
         <h3 style={title}>欧美成人库</h3>
         <div style={grid}>
           <Field label="计算模式"><select style={inputWide} value={computeMode} onChange={(e) => setComputeMode(e.target.value)}>
-            <option value="local">service 本地</option>
-            <option value="worker">远端 worker</option>
+            <option value="local">本机识别</option>
+            <option value="worker">远程识别服务</option>
           </select></Field>
-          <Field label="AI Worker URL"><input style={inputWide} value={aiWorkerBaseUrl} onChange={(e) => setAiWorkerBaseUrl(e.target.value)} placeholder="仅 worker 模式需要" /></Field>
-          <Field label="MetadataAPI / TPDB Base URL"><input style={inputWide} value={metadataApiBaseUrl} onChange={(e) => setMetadataApiBaseUrl(e.target.value)} /></Field>
-          <Field label="MetadataAPI Key"><input style={inputWide} type="password" value={metadataApiKey} onChange={(e) => setMetadataApiKey(e.target.value)} placeholder="可选" /></Field>
-          <Field label="Stash-box GraphQL URL"><input style={inputWide} value={stashBoxGraphqlUrl} onChange={(e) => setStashBoxGraphqlUrl(e.target.value)} placeholder="TPDB/FansDB endpoint" /></Field>
-          <Field label="Stash-box API Key"><input style={inputWide} type="password" value={stashBoxApiKey} onChange={(e) => setStashBoxApiKey(e.target.value)} placeholder="可选，素人演员建议配置" /></Field>
-          <Field label="TMDB API Key / Token"><input style={inputWide} type="password" value={tmdbApiKey} onChange={(e) => setTmdbApiKey(e.target.value)} placeholder="可选" /></Field>
+          <Field label="远程识别服务地址"><input style={inputWide} value={aiWorkerBaseUrl} onChange={(e) => setAiWorkerBaseUrl(e.target.value)} placeholder="仅远程识别服务模式需要" /></Field>
+          <Field label="MetadataAPI / TPDB 地址"><input style={inputWide} value={metadataApiBaseUrl} onChange={(e) => setMetadataApiBaseUrl(e.target.value)} /></Field>
+          <Field label="MetadataAPI 密钥"><input style={inputWide} type="password" value={metadataApiKey} onChange={(e) => setMetadataApiKey(e.target.value)} placeholder="可选" /></Field>
+          <Field label="TPDB GraphQL 地址"><input style={inputWide} value={stashBoxGraphqlUrl} onChange={(e) => setStashBoxGraphqlUrl(e.target.value)} placeholder="TPDB/FansDB 接口地址" /></Field>
+          <Field label="TPDB API Key"><input style={inputWide} type="password" value={stashBoxApiKey} onChange={(e) => setStashBoxApiKey(e.target.value)} placeholder="建议配置，用于欧美演员搜索" /></Field>
+          <Field label="TMDB 密钥 / Token"><input style={inputWide} type="password" value={tmdbApiKey} onChange={(e) => setTmdbApiKey(e.target.value)} placeholder="可选" /></Field>
         </div>
         <div style={{ marginTop: 18 }}>
           <button style={primaryBtn} onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? '保存中...' : '保存欧美配置'}</button>
@@ -196,7 +214,7 @@ export default function AdultConfigPage() {
         </div>
 
         <div style={{ marginTop: 14 }}>
-          <Field label="手动图片 URL"><input style={inputWide} value={manualImageUrl} onChange={(e) => { setManualImageUrl(e.target.value); setSelectedCandidate(null); }} placeholder="搜索不到素人演员时粘贴高清正脸图 URL" /></Field>
+          <Field label="手动图片地址"><input style={inputWide} value={manualImageUrl} onChange={(e) => { setManualImageUrl(e.target.value); setSelectedCandidate(null); }} placeholder="搜索不到演员时粘贴高清正脸图地址" /></Field>
         </div>
         <div style={{ marginTop: 10 }}>
           <input type="file" accept="image/*" onChange={(e) => {
@@ -219,13 +237,14 @@ export default function AdultConfigPage() {
               <button key={`${c.source}:${c.imageUrl}`} style={selectedCandidate?.imageUrl === c.imageUrl ? candidateActive : candidateCard} onClick={() => { setSelectedCandidate(c); setManualImageUrl(''); setUploadBase64(''); }}>
                 <img src={c.imageUrl} style={candidateImage} />
                 <span style={candidateCaption}>{c.source} · {c.title}</span>
+                <span style={candidateHintStyle}>{candidateHint(c)}</span>
               </button>
             ))}
           </div>
         )}
         {imageSearch.data && !imageSearch.data.candidates.length && (
           <div style={emptySearch}>
-            <div>{imageSearch.data.message || '未找到候选头像，可以换关键词或粘贴手动图片 URL。'}</div>
+            <div>{imageSearch.data.message || '未找到候选头像，可以换关键词或粘贴手动图片地址。'}</div>
             {!!imageSearch.data.errors?.length && (
               <div style={searchErrors}>
                 {imageSearch.data.errors.slice(0, 4).map((e) => (
@@ -238,18 +257,34 @@ export default function AdultConfigPage() {
 
         <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
           <button style={primaryBtn} onClick={() => savePerson.mutate()} disabled={!actorName || savePerson.isPending || !(selectedCandidate || manualImageUrl || uploadBase64)}>
-            {savePerson.isPending ? '生成 reference 中...' : selectedPersonId ? '替换 reference' : '创建演员'}
+            {savePerson.isPending ? '保存参考人脸中...' : selectedPersonId ? '替换参考人脸' : '创建演员'}
           </button>
+          {selectedPersonId && (
+            <button style={secondaryBtn} onClick={() => updatePersonInfo.mutate()} disabled={!actorName.trim() || updatePersonInfo.isPending}>
+              {updatePersonInfo.isPending ? '保存中...' : '保存演员资料'}
+            </button>
+          )}
         </div>
 
         <div style={{ marginTop: 18 }}>
           {(peopleData?.people || []).filter((p: AdultPerson) => !p.dismissed).map((p) => (
             <div key={p.personId} style={personRow}>
-              {p.referenceFaces?.[0]?.sampleImageBase64 ? <img src={`data:image/jpeg;base64,${p.referenceFaces[0].sampleImageBase64}`} style={personThumb} /> : <div style={personThumb} />}
+              {(p.referenceFaceCount ?? p.referenceFaces?.length ?? 0) > 0 ? <img src={adult.referenceImageUrl(p.personId, { thumbnail: true })} loading="lazy" style={personThumb} /> : <div style={personThumb} />}
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>{p.name} <span style={{ color: '#999', fontWeight: 400 }}>{p.canonicalCode}</span></div>
-                <div style={{ fontSize: 12, color: '#777' }}>{p.aliases?.join(', ') || '无别名'} · reference {p.referenceFaces?.length || 0}</div>
+                <div style={{ fontSize: 12, color: '#777' }}>{p.aliases?.join(', ') || '无别名'} · 参考人脸 {p.referenceFaceCount ?? p.referenceFaces?.length ?? 0}</div>
               </div>
+              <button style={smallBtn} onClick={() => {
+                setSelectedPersonId(p.personId);
+                setActorName(p.name);
+                setActorAliases(csv(p.aliases));
+                setManualImageUrl('');
+                setUploadBase64('');
+                setSelectedCandidate(null);
+              }}>编辑资料</button>
+              <button style={dangerBtn} onClick={() => {
+                if (window.confirm(`删除演员「${p.name}」？`)) deletePerson.mutate(p.personId);
+              }} disabled={deletePerson.isPending}>删除</button>
             </div>
           ))}
         </div>
@@ -270,11 +305,14 @@ const inputWide: React.CSSProperties = { ...input, width: '100%', boxSizing: 'bo
 const check: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#333', minHeight: 36 };
 const primaryBtn: React.CSSProperties = { background: '#1a1a2e', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
 const secondaryBtn: React.CSSProperties = { background: '#fff', color: '#1a1a2e', border: '1px solid #1a1a2e', padding: '8px 18px', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
+const smallBtn: React.CSSProperties = { background: '#fff', color: '#1a1a2e', border: '1px solid #d8d8df', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 };
+const dangerBtn: React.CSSProperties = { ...smallBtn, color: '#b42318', border: '1px solid #f0b8b2' };
 const candidateGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12, marginTop: 16 };
 const candidateCard: React.CSSProperties = { border: '1px solid #e0e0e0', background: '#fff', borderRadius: 8, padding: 8, cursor: 'pointer', textAlign: 'left' };
 const candidateActive: React.CSSProperties = { ...candidateCard, border: '2px solid #1a1a2e', padding: 7 };
 const candidateImage: React.CSSProperties = { width: '100%', aspectRatio: '3 / 4', objectFit: 'cover', borderRadius: 6, display: 'block' };
 const candidateCaption: React.CSSProperties = { display: 'block', marginTop: 6, fontSize: 12, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+const candidateHintStyle: React.CSSProperties = { display: 'block', marginTop: 3, fontSize: 11, color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const emptySearch: React.CSSProperties = { marginTop: 16, padding: 12, border: '1px solid #f0c36d', background: '#fff8e6', borderRadius: 6, color: '#6b4e00', fontSize: 13, lineHeight: 1.5 };
 const searchErrors: React.CSSProperties = { marginTop: 8, color: '#8a3b12', fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap' };
 const personRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid #eee', padding: '10px 0' };

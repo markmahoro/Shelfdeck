@@ -4,34 +4,32 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
-const chokidar = require('chokidar');
 
 const configStore = require('./configStore');
 const taskStore = require('./taskStore');
 const transcodeService = require('./services/transcodeService');
 const activityLog = require('./activityLog');
 const assetIdentity = require('./assetIdentity');
+const mediaLibraryService = require('./mediaLibraryService');
 const peopleStore = require('./peopleStore');
-
-const watchers = new Map();
-const settleTimers = new Map();
+const priorityEngine = require('./priorityEngine');
+const taskAdmission = require('./taskAdmission');
+const scrapeVerification = require('./scrapeVerification');
 
 const DEFAULT_EXTS = new Set(['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv']);
-const TERMINAL = new Set(['done', 'failed_hard', 'deleted']);
-
-function libraryFilePath() {
-  return path.join(configStore.resolveDataDir(), 'library.json');
-}
+const DEFAULT_ORGANIZED_FOLDER_NAME = 'scraped';
+const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 
 function loadLibrary() {
-  const f = libraryFilePath();
-  if (!fs.existsSync(f)) return { version: 1, items: [], cachedAt: null };
-  try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (_) { return { version: 1, items: [], cachedAt: null }; }
+  return mediaLibraryService.loadLibrary();
 }
 
 function saveLibrary(lib) {
-  fs.mkdirSync(configStore.resolveDataDir(), { recursive: true });
-  fs.writeFileSync(libraryFilePath(), JSON.stringify(lib, null, 2), 'utf8');
+  mediaLibraryService.saveLibrary(lib);
+}
+
+function updateLibraryItems(items) {
+  return mediaLibraryService.updateLibraryItems(items);
 }
 
 function nowIso() {
@@ -70,7 +68,10 @@ function isTemporaryFile(filePath) {
 function hasIgnoredSegment(filePath, subLib) {
   const ignoreName = subLib.organizeIgnoreFolderName || '';
   const segments = normalizePathForCompare(filePath).split('/');
-  return (ignoreName && segments.includes(String(ignoreName).toLowerCase())) || segments.includes('#不要扫描');
+  const organizedName = organizedFolderName(subLib);
+  return (ignoreName && segments.includes(String(ignoreName).toLowerCase()))
+    || (organizedName && segments.includes(String(organizedName).toLowerCase()))
+    || segments.includes('#不要扫描');
 }
 
 // Known Japanese JAV maker/series prefixes. A matched prefix => high confidence;
@@ -339,6 +340,21 @@ function shouldOrganizeFolder(subLib, scraperConfig) {
   return true;
 }
 
+function organizedFolderName(subLib = {}, scraperConfig = {}) {
+  const cfg = configStore.loadConfig();
+  const adultCfg = (cfg && cfg.adultLibrary) || {};
+  const regionDefaults = isWesternAdultSubLibrary(subLib)
+    ? (adultCfg.western || {})
+    : (adultCfg.japaneseJav || {});
+  const raw = subLib.organizedFolderName
+    || subLib.scrapedFolderName
+    || scraperConfig.organizedFolderName
+    || regionDefaults.organizedFolderName
+    || adultCfg.organizedFolderName
+    || DEFAULT_ORGANIZED_FOLDER_NAME;
+  return safePathName(raw, DEFAULT_ORGANIZED_FOLDER_NAME);
+}
+
 function organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog) {
   if (!shouldOrganizeFolder(subLib, scraperConfig)) {
     return { filePath, oldDir: path.dirname(filePath), newDir: path.dirname(filePath), renamed: false };
@@ -351,9 +367,8 @@ function organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog)
   }
 
   const targetName = safePathName(metadata.folderName || metadata.title || metadata.adultId, metadata.adultId || path.basename(oldDir));
-  const oldResolved = path.resolve(oldDir);
-  const parentDir = oldResolved === watchRoot ? oldDir : path.dirname(oldDir);
-  const newDir = path.join(parentDir, targetName);
+  const targetRoot = path.join(watchRoot, organizedFolderName(subLib, scraperConfig));
+  const newDir = path.join(targetRoot, targetName);
   const fileName = metadata.mediaFileName
     ? `${safePathName(metadata.mediaFileName, path.basename(filePath, path.extname(filePath)))}${path.extname(filePath)}`
     : path.basename(filePath);
@@ -365,7 +380,7 @@ function organizeScrapedFolder(filePath, metadata, subLib, scraperConfig, onLog)
 
   fs.mkdirSync(newDir, { recursive: true });
   fs.renameSync(filePath, newFilePath);
-  onLog && onLog('info', `Movie folder created: ${targetName}`);
+  onLog && onLog('info', `Movie folder created under ${path.basename(targetRoot)}: ${targetName}`);
   return {
     filePath: newFilePath,
     oldDir,
@@ -480,7 +495,9 @@ function collectMediaFiles(root, config, opts = {}) {
 async function probeFile(filePath, config) {
   const stat = fs.statSync(filePath);
   try {
-    const summary = await transcodeService.probeSummary(config, filePath);
+    const adultCfg = (config && config.adultLibrary) || {};
+    const timeoutMs = Number(adultCfg.probeTimeoutMs) > 0 ? Number(adultCfg.probeTimeoutMs) : 5000;
+    const summary = await transcodeService.probeSummary(config, filePath, { timeoutMs });
     const bitrate = summary.durationSec > 0 ? Math.round((stat.size * 8) / summary.durationSec) : 0;
     return {
       size: stat.size,
@@ -541,7 +558,76 @@ function itemInfoFromItem(item) {
   };
 }
 
-async function upsertFileItem(subLib, filePath, opts = {}) {
+function isGenericWesternTitle(value) {
+  const s = String(value || '').trim();
+  return /^unknown person\b/i.test(s) || /possibly a scene from a movie or tv show/i.test(s);
+}
+
+function fallbackWesternItemName(item) {
+  const fileBase = item && item.path ? path.basename(item.path, path.extname(item.path)) : '';
+  return fileBase || (item && item.adultMetadata && item.adultMetadata.adultId) || (item && item.itemId) || '未命名成人影片';
+}
+
+function repairInvalidWesternScrapeState(opts = {}) {
+  const cfg = configStore.loadConfig();
+  const subLibById = new Map((cfg.subLibraries || []).map((sl) => [sl.uuid, sl]));
+  const lib = loadLibrary();
+  const now = nowIso();
+  let repaired = 0;
+  const changedItems = [];
+
+  for (let i = 0; i < (lib.items || []).length; i++) {
+    const item = lib.items[i];
+    if (!item || item.source !== 'adult_folder') continue;
+    const subLib = subLibById.get(item.subLibraryId);
+    const region = (item.adultMetadata && item.adultMetadata.region) || (subLib && subLib.adultRegion) || '';
+    if (region !== 'western_adult') continue;
+    if (item.scraped !== true && (!item.adultMetadata || item.adultMetadata.scrapeStatus !== 'done')) continue;
+
+    const verification = scrapeVerification.verifyScrapedItem(item, {
+      config: cfg,
+      subLib,
+    });
+    if (verification.ok) continue;
+
+    const existingMeta = item.adultMetadata || {};
+    const genericTitle = isGenericWesternTitle(item.name) || isGenericWesternTitle(existingMeta.title);
+    const nextMeta = {
+      ...existingMeta,
+      title: genericTitle ? '' : existingMeta.title,
+      scrapeStatus: 'failed',
+      reviewStatus: 'needs_review',
+      scrapeError: `Scrape verification failed: ${verification.failures.map((f) => f.message).join('; ')}`,
+      scrapeFailedAt: now,
+      scrapeVerification: {
+        ok: false,
+        checkedAt: verification.checkedAt,
+        failures: verification.failures,
+        warnings: verification.warnings,
+      },
+    };
+    lib.items[i] = {
+      ...item,
+      name: genericTitle ? fallbackWesternItemName(item) : item.name,
+      scraped: false,
+      adultMetadata: nextMeta,
+      lastRefreshedAt: now,
+    };
+    changedItems.push(lib.items[i]);
+    repaired++;
+  }
+
+  if (repaired > 0) {
+    updateLibraryItems(changedItems);
+    if (!opts.silent) {
+      activityLog.addActivity('adult_library', `已修正 ${repaired} 条不符合刮削成功合同的欧美成人库旧数据`, { repaired });
+      console.log(`[adultLibrary] repaired invalid western scrape state: ${repaired}`);
+    }
+  }
+  return { repaired };
+}
+
+async function upsertFileItem(subLib, filePath) {
   const config = configStore.loadConfig();
   const nfo = parseNfo(findNfoForFile(filePath));
   // Pre-scraped NFO is authoritative → high confidence. Otherwise parse the
@@ -680,13 +766,6 @@ async function upsertFileItem(subLib, filePath, opts = {}) {
   lib.cachedAt = now;
   saveLibrary(lib);
 
-  // Put every newly discovered unscripted file into the scrape task flow. Even
-  // low-confidence IDs are attempted; if the result is wrong the user can fix
-  // the adult ID from the task center and re-scrape.
-  if (opts.enqueueScrape !== false && !nfo && subLib.scrapeEnabled !== false) {
-    enqueueScrapeTask(item, subLib);
-  }
-
   return item;
 }
 
@@ -807,9 +886,24 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
     adultMetadata,
     lastRefreshedAt: now,
   };
+  const verification = scrapeVerification.verifyScrapedItem(updated, {
+    config: configStore.loadConfig(),
+    subLib,
+    scrapeTaskId: opts.taskId,
+  });
+  if (!verification.ok) {
+    throw new Error(`Scrape verification failed: ${verification.failures.map((f) => f.message).join('; ')}`);
+  }
+  updated.adultMetadata = {
+    ...updated.adultMetadata,
+    scrapeVerification: {
+      ok: true,
+      checkedAt: verification.checkedAt,
+      warnings: verification.warnings,
+    },
+  };
   lib.items[idx] = updated;
-  lib.cachedAt = now;
-  saveLibrary(lib);
+  updateLibraryItems([updated]);
   return updated;
 }
 
@@ -925,8 +1019,7 @@ async function applyWesternCurationResultToItem(subLib, item, curation, opts = {
       lastRefreshedAt: now,
     };
     lib.items[idx] = updated;
-    lib.cachedAt = now;
-    saveLibrary(lib);
+    updateLibraryItems([updated]);
     return updated;
   }
 
@@ -1047,9 +1140,24 @@ async function applyWesternCurationResultToItem(subLib, item, curation, opts = {
     adultMetadata,
     lastRefreshedAt: now,
   };
+  const verification = scrapeVerification.verifyScrapedItem(updated, {
+    config,
+    subLib,
+    scrapeTaskId: opts.taskId,
+  });
+  if (!verification.ok) {
+    throw new Error(`Scrape verification failed: ${verification.failures.map((f) => f.message).join('; ')}`);
+  }
+  updated.adultMetadata = {
+    ...updated.adultMetadata,
+    scrapeVerification: {
+      ok: true,
+      checkedAt: verification.checkedAt,
+      warnings: verification.warnings,
+    },
+  };
   lib.items[idx] = updated;
-  lib.cachedAt = now;
-  saveLibrary(lib);
+  updateLibraryItems([updated]);
   return updated;
 }
 
@@ -1071,13 +1179,127 @@ function markScrapeFailed(itemId, message) {
     lastRefreshedAt: now,
   };
   lib.items[idx] = updated;
-  lib.cachedAt = now;
-  saveLibrary(lib);
+  updateLibraryItems([updated]);
   return updated;
 }
 
 function activeTaskForItem(itemId) {
   return taskStore.getTasks({ itemId }).find((t) => !TERMINAL.has(t.status));
+}
+
+function ingestTaskItemId(subLib, filePath) {
+  const norm = normalizePathForCompare(filePath);
+  const digest = crypto.createHash('sha1').update(`${subLib.uuid}:${norm}`).digest('hex').slice(0, 24);
+  return `ingest:${subLib.uuid}:${digest}`;
+}
+
+function findExistingItemByFilePath(subLib, filePath) {
+  const norm = normalizePathForCompare(filePath);
+  const lib = loadLibrary();
+  return lib.items.find((it) => it.subLibraryId === subLib.uuid && normalizePathForCompare(it.path) === norm) || null;
+}
+
+function fileSettled(filePath, config, nowMs = Date.now()) {
+  const settleSeconds = Number(config && config.adultLibrary && config.adultLibrary.settleSeconds);
+  const settleMs = Math.max(0, Number.isFinite(settleSeconds) ? settleSeconds : 30) * 1000;
+  if (settleMs <= 0) return true;
+  try {
+    const stat = fs.statSync(filePath);
+    return nowMs - stat.mtimeMs >= settleMs;
+  } catch (_) {
+    return false;
+  }
+}
+
+function ingestItemInfo(subLib, filePath) {
+  const name = path.basename(filePath, path.extname(filePath));
+  return {
+    itemId: ingestTaskItemId(subLib, filePath),
+    name,
+    path: filePath,
+    subLibraryId: subLib.uuid,
+    source: 'adult_folder',
+    mediaType: 'adult',
+    adultRegion: subLib.adultRegion || 'japanese_jav',
+    scraperType: subLib.scraperType || '',
+    assetRootPath: assetIdentity.inferAssetRootPath(filePath, false),
+  };
+}
+
+function listIngestCandidates(config = configStore.loadConfig(), opts = {}) {
+  const nowMs = Number(opts.nowMs) || Date.now();
+  const cfg = config || {};
+  const lib = loadLibrary();
+  const existingByPath = new Set();
+  for (const item of lib.items || []) {
+    if (item && item.path) existingByPath.add(normalizePathForCompare(item.path));
+  }
+
+  const candidates = [];
+  for (const subLib of cfg.subLibraries || []) {
+    if (!isAdultFolderSubLibrary(subLib) || !subLib.watchRoot) continue;
+    const files = collectMediaFiles(subLib.watchRoot, cfg, { subLib });
+    for (const filePath of files) {
+      const norm = normalizePathForCompare(filePath);
+      if (existingByPath.has(norm)) continue;
+      if (!fileSettled(filePath, cfg, nowMs)) continue;
+      let timestamp = 0;
+      try {
+        timestamp = fs.statSync(filePath).mtimeMs;
+      } catch (_) {
+        continue;
+      }
+      const itemInfo = ingestItemInfo(subLib, filePath);
+      candidates.push({
+        subLibraryId: subLib.uuid,
+        filePath,
+        itemInfo,
+        timestamp,
+      });
+    }
+  }
+  return candidates.sort((a, b) => String(a.filePath).localeCompare(String(b.filePath)));
+}
+
+function enqueueIngestTask(subLib, filePath, opts = {}) {
+  const cfg = configStore.loadConfig();
+  const source = opts.source || (opts.force ? 'manual' : 'auto');
+  const userInitiated = source === 'manual';
+  const itemInfo = ingestItemInfo(subLib, filePath);
+  itemInfo.taskSource = source;
+  const schedule = configStore.resolveSubLibSchedule(itemInfo, cfg);
+  const taskSnapshot = Array.isArray(opts.taskSnapshot) ? opts.taskSnapshot : null;
+  const admission = taskAdmission.canCreateTask({
+    item: itemInfo,
+    itemInfo,
+    actionType: 'ingest',
+    source,
+    config: cfg,
+    tasks: taskSnapshot || taskStore.getTasks(),
+  });
+  if (!admission.allowed) return null;
+  const priorityBreakdown = priorityEngine.explainPriority({
+    source: userInitiated ? 'manual' : 'auto',
+    actionType: 'ingest',
+    itemInfo,
+    config: cfg,
+  });
+  const taskData = {
+    itemId: itemInfo.itemId,
+    itemName: itemInfo.name,
+    actionType: 'ingest',
+    source,
+    status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
+    priority: priorityBreakdown.priority,
+    priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+    priorityBreakdown,
+    itemInfo,
+    logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Ingest task created by user action' : 'Ingest task created by background admission' }],
+  };
+  const task = opts.deferSave ? taskStore.buildTask(taskData) : taskStore.createTask(taskData);
+  if (taskSnapshot) taskSnapshot.push(task);
+  activityLog.addActivity('adult_library', `成人库「${subLib.name}」创建入库任务：${itemInfo.name}`, { taskId: task.id, itemId: itemInfo.itemId });
+  return task;
 }
 
 // Reset a previously-failed (or pending) item so a fresh scrape attempt can run.
@@ -1110,8 +1332,7 @@ function resetScrapeStatus(itemId, overrideAdultId = null) {
     lastRefreshedAt: nowIso(),
   };
   lib.items[idx] = updated;
-  lib.cachedAt = nowIso();
-  saveLibrary(lib);
+  updateLibraryItems([updated]);
   return updated;
 }
 
@@ -1137,172 +1358,64 @@ async function rescrapeItem(itemId, opts = {}) {
   const overrideAdultId = typeof opts.overrideAdultId === 'string' ? opts.overrideAdultId.trim() : '';
   resetScrapeStatus(itemId, overrideAdultId || null);
   const fresh = loadLibrary().items.find((it) => it.itemId === itemId);
-  // Manual rescrape is an explicit user intent: bypass the autoCreate gate that
-  // governs automatic enqueuing. autoExecute still decides queued vs pending_manual.
+  // Manual rescrape is an explicit user intent; autoExecute still decides
+  // queued vs pending_manual.
   return enqueueScrapeTask(fresh || libItem, subLib, { force: true });
 }
 
 function enqueueScrapeTask(item, subLib, opts = {}) {
-  if (activeTaskForItem(item.itemId)) return null;
   const cfg = configStore.loadConfig();
   const schedule = configStore.resolveSubLibSchedule(item, cfg);
-  // autoCreate gates *automatic* enqueuing (watcher / scan / smart engine).
-  // Manual rescrape passes force=true so an explicit user request always creates
-  // a task regardless of the sub-library's autoCreate setting.
-  if (!opts.force && !schedule.autoCreate) return null;
-  const task = taskStore.createTask({
+  const source = opts.source || (opts.force ? 'manual' : 'auto');
+  const userInitiated = source === 'manual';
+  const itemInfo = itemInfoFromItem(item);
+  itemInfo.taskSource = source;
+  const taskSnapshot = Array.isArray(opts.taskSnapshot) ? opts.taskSnapshot : null;
+  const admission = taskAdmission.canCreateTask({
+    item,
+    itemInfo,
+    actionType: 'scrape',
+    source,
+    config: cfg,
+    tasks: taskSnapshot || taskStore.getTasks(),
+  });
+  if (!admission.allowed) return null;
+  const priorityBreakdown = priorityEngine.explainPriority({
+    source: userInitiated ? 'manual' : 'auto',
+    actionType: 'scrape',
+    itemInfo,
+    config: cfg,
+  });
+  const taskData = {
     itemId: item.itemId,
     itemName: item.name,
     actionType: 'scrape',
-    status: schedule.autoExecute ? 'queued' : 'pending_manual',
-    itemInfo: itemInfoFromItem(item),
-    logs: [{ ts: nowIso(), level: 'info', msg: 'Scrape task created by adult folder watcher' }],
-  });
+    source,
+    status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
+    priority: priorityBreakdown.priority,
+    priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+    priorityBreakdown,
+    itemInfo,
+    logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Scrape task created by user action' : 'Scrape task created by background admission' }],
+  };
+  const task = opts.deferSave ? taskStore.buildTask(taskData) : taskStore.createTask(taskData);
+  if (taskSnapshot) taskSnapshot.push(task);
   activityLog.addActivity('adult_library', `成人库「${subLib.name}」创建刮削任务：${item.name}`, { taskId: task.id, itemId: item.itemId });
   return task;
-}
-
-async function scanSubLibrary(subLib, opts = {}) {
-  if (!isAdultFolderSubLibrary(subLib) || !subLib.watchRoot) return { scanned: 0, upserted: 0 };
-  const config = configStore.loadConfig();
-  const files = collectMediaFiles(subLib.watchRoot, config, { subLib, includeIgnored: !!opts.includeOrganized });
-  let upserted = 0;
-  for (const file of files) {
-    await upsertFileItem(subLib, file, { enqueueScrape: opts.enqueueScrape !== false && !hasIgnoredSegment(file, subLib) });
-    upserted++;
-  }
-  updateSubLibraryRefreshTime(subLib.uuid);
-  return { scanned: files.length, upserted };
-}
-
-async function reconcileSubLibrary(subLib) {
-  if (!isAdultFolderSubLibrary(subLib) || !subLib.watchRoot) return { scanned: 0, upserted: 0 };
-  return scanSubLibrary(subLib, { includeOrganized: true, enqueueScrape: false });
-}
-
-function updateSubLibraryRefreshTime(uuid) {
-  const cfg = configStore.loadConfig();
-  const subLibs = cfg.subLibraries || [];
-  const idx = subLibs.findIndex((s) => s.uuid === uuid);
-  if (idx >= 0) {
-    subLibs[idx].lastRefreshedAt = nowIso();
-    configStore.patchConfig({ subLibraries: subLibs });
-  }
-}
-
-async function refreshItemFromScrapedFiles(subLib, item) {
-  await reconcileSubLibrary(subLib);
-  const lib = loadLibrary();
-  const adultId = item.adultMetadata && item.adultMetadata.adultId || extractJavId(item.path);
-  const norm = normalizePathForCompare(item.path);
-  let found = null;
-  if (adultId) {
-    found = lib.items.find((it) =>
-      it.subLibraryId === subLib.uuid &&
-      it.adultMetadata &&
-      String(it.adultMetadata.adultId || '').toLowerCase() === adultId.toLowerCase() &&
-      it.adultMetadata.scrapeStatus === 'done'
-    );
-  }
-  if (!found) {
-    found = lib.items.find((it) => it.subLibraryId === subLib.uuid && normalizePathForCompare(it.path) === norm);
-  }
-  return found || item;
-}
-
-function scheduleSettle(subLib, filePath) {
-  const key = `${subLib.uuid}:${filePath}`;
-  if (settleTimers.has(key)) clearTimeout(settleTimers.get(key));
-  const cfg = configStore.loadConfig();
-  const seconds = Number((cfg.adultLibrary && cfg.adultLibrary.settleSeconds) ?? 30);
-  const timer = setTimeout(async () => {
-    settleTimers.delete(key);
-    try {
-      if (!fs.existsSync(filePath)) return;
-      await upsertFileItem(subLib, filePath, { enqueueScrape: true });
-    } catch (e) {
-      console.error('[adultLibrary] settle upsert failed:', e.message);
-    }
-  }, Math.max(1, seconds) * 1000);
-  timer.unref && timer.unref();
-  settleTimers.set(key, timer);
-}
-
-function startSubLibraryWatcher(subLib) {
-  stopSubLibraryWatcher(subLib.uuid);
-  if (!isAdultFolderSubLibrary(subLib) || !subLib.watchRoot) return;
-  if (!fs.existsSync(subLib.watchRoot)) {
-    console.warn('[adultLibrary] watch root does not exist:', subLib.watchRoot);
-    return;
-  }
-
-  const ignored = (p) => hasIgnoredSegment(p, subLib) || isTemporaryFile(p);
-  const watcher = chokidar.watch(subLib.watchRoot, {
-    ignoreInitial: true,
-    ignored,
-    persistent: true,
-    awaitWriteFinish: {
-      stabilityThreshold: Math.max(1000, Number(((configStore.loadConfig().adultLibrary || {}).settleSeconds) || 30) * 1000),
-      pollInterval: 1000,
-    },
-  });
-
-  watcher.on('add', (filePath) => {
-    const cfg = configStore.loadConfig();
-    if (isMediaFile(filePath, cfg)) scheduleSettle(subLib, filePath);
-  });
-  watcher.on('error', (err) => console.error('[adultLibrary] watcher error:', err.message));
-
-  const intervalMin = Number(subLib.scanIntervalMinutes || (configStore.loadConfig().adultLibrary || {}).scanIntervalMinutes || 10);
-  const interval = setInterval(() => {
-    const cfg = configStore.loadConfig();
-    const sl = (cfg.subLibraries || []).find((s) => s.uuid === subLib.uuid);
-    if (isAdultFolderSubLibrary(sl)) {
-      scanSubLibrary(sl).catch((e) => console.error('[adultLibrary] interval scan failed:', e.message));
-    }
-  }, Math.max(1, intervalMin) * 60000);
-  interval.unref && interval.unref();
-
-  watchers.set(subLib.uuid, { watcher, interval });
-  scanSubLibrary(subLib).catch((e) => console.error('[adultLibrary] startup scan failed:', e.message));
-}
-
-function stopSubLibraryWatcher(uuid) {
-  const rec = watchers.get(uuid);
-  if (!rec) return;
-  try { rec.watcher.close(); } catch (_) {}
-  if (rec.interval) clearInterval(rec.interval);
-  watchers.delete(uuid);
-}
-
-function startAllWatchers() {
-  const cfg = configStore.loadConfig();
-  for (const sl of cfg.subLibraries || []) {
-    if (isAdultFolderSubLibrary(sl)) startSubLibraryWatcher(sl);
-  }
-}
-
-function stopAllWatchers() {
-  for (const uuid of [...watchers.keys()]) stopSubLibraryWatcher(uuid);
-  for (const timer of settleTimers.values()) clearTimeout(timer);
-  settleTimers.clear();
 }
 
 module.exports = {
   isAdultFolderSubLibrary,
   isJapaneseJavSubLibrary,
   isWesternAdultSubLibrary,
-  startAllWatchers,
-  stopAllWatchers,
-  startSubLibraryWatcher,
-  stopSubLibraryWatcher,
-  scanSubLibrary,
-  reconcileSubLibrary,
-  refreshItemFromScrapedFiles,
+  listIngestCandidates,
   upsertFileItem,
+  enqueueIngestTask,
+  ingestTaskItemId,
   applyScrapeResultToItem,
   applyWesternCurationResultToItem,
   markScrapeFailed,
+  repairInvalidWesternScrapeState,
   resetScrapeStatus,
   rescrapeItem,
   itemInfoFromItem,

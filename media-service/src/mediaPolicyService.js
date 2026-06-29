@@ -9,9 +9,9 @@
  * and evaluated by StrategyEngine (strategyEngine.js). All modules
  * that previously called recommendedAction() / targetMbps() /
  * effectiveRating() have been migrated to read rule-evaluated fields
- * directly from library.json.
+ * directly from media library item records.
  *
- * The resolutionBucket() helper is kept for library.json's bucket
+ * The resolutionBucket() helper is kept for media library item bucket
  * field computation (mediaLibraryService.recomputeAllSelfFields).
  */
 

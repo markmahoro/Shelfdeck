@@ -3,7 +3,7 @@
 /**
  * SmartTaskEngine — independent periodic auto-enqueue engine.
  *
- * Scans library.json for items that are watched, rated, and have a
+ * Scans the media library store for items that are watched, rated, and have a
  * recommended action (transcode/upgrade/delete), then creates tasks
  * that feed into TaskScheduler.
  * Decoupled from StrategyEngine — only reads action/reason, never writes them.
@@ -11,13 +11,36 @@
 
 const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
+const metadataStatus = require('./metadataStatus');
 const assetIdentity = require('./assetIdentity');
 const priorityEngine = require('./priorityEngine');
+const taskAdmission = require('./taskAdmission');
+const adultLibraryService = require('./adultLibraryService');
 
 let timer = null;
+let initialTimer = null;
 let lastRunAt = null;
 let lastError = null;
 let _enabled = false;
+let configReader = null;
+let lastEnabledActions = [];
+
+function readEnabledActions(config) {
+  return Array.isArray(config.smartTaskEnabledActions)
+    ? config.smartTaskEnabledActions
+    : [];
+}
+
+function actionLabel(actionType) {
+  switch (actionType) {
+    case 'ingest': return '入库';
+    case 'scrape': return '刮削';
+    case 'transcode': return '转码压缩';
+    case 'upgrade': return '洗版';
+    case 'delete': return '删除';
+    default: return actionType;
+  }
+}
 
 function maxTimestamp(a, b) {
   if (!a && !b) return 0;
@@ -26,32 +49,167 @@ function maxTimestamp(a, b) {
   return Math.max(new Date(a).getTime(), new Date(b).getTime());
 }
 
-function start(configStore, mediaLibraryService, taskStore) {
+function itemTimestamp(item) {
+  const meta = item && item.adultMetadata || {};
+  return [
+    item && item.userRatingUpdatedAt,
+    item && item.doubanRatingUpdatedAt,
+    item && item.lastRefreshedAt,
+    item && item.updatedAt,
+    meta.scrapedAt,
+  ].reduce((latest, value) => maxTimestamp(latest, value), 0);
+}
+
+function isRetryableMissingMetadata(item) {
+  if (!item || item.source !== 'adult_folder') return false;
+  if (item.scraped === true) return false;
+  const meta = item.adultMetadata || {};
+  const status = String(meta.scrapeStatus || '').toLowerCase();
+  // Automatic scrape is state-based: only not-yet-scraped library items with an
+  // empty/pending scrape status are eligible. Failed, ambiguous, needs_review,
+  // done, and already-scraped items require an explicit user action or are done.
+  if (status !== '' && status !== 'pending') return false;
+  return true;
+}
+
+function isAutoMetadataCompletionCandidate(item, meta) {
+  if (!item || !meta || meta.metadataComplete) return false;
+  if (meta.metadataKind === 'adult') return isRetryableMissingMetadata(item);
+  return item.source === 'emby';
+}
+
+function buildItemInfo(item) {
+  return {
+    name: item.name,
+    itemId: item.itemId,
+    embyItemId: assetIdentity.getEmbyItemId(item),
+    path: item.path,
+    subLibraryId: item.subLibraryId,
+    assetKey: item.assetKey,
+    assetRootPath: item.assetRootPath,
+    externalRefs: item.externalRefs,
+    resolution: item.resolution,
+    bitrate: item.bitrate,
+    size: item.size,
+    duration: item.duration,
+    type: item.type,
+    isDiscLike: !!item.isDiscLike,
+    doubanRating: item.doubanRating,
+    userRating: item.userRating,
+    tmdbId: item.tmdbId,
+    seriesName: item.seriesName,
+    seasonNumber: item.seasonNumber,
+    targetBitrate: item.targetBitrate,
+    targetCodec: item.targetCodec,
+    seedPreferences: item.seedPreferences,
+    maxSizeGB: item.maxSizeGB,
+    equivalentBitrate: item.equivalentBitrate,
+    scraped: !!item.scraped,
+    adultMetadata: item.adultMetadata,
+    metadataStatus: item.metadataStatus,
+    metadataComplete: item.metadataComplete,
+    metadataMissingReasons: item.metadataMissingReasons,
+    metadataKind: item.metadataKind,
+  };
+}
+
+function buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff, config }) {
+  const isAdultFolder = item.source === 'adult_folder';
+  if (item.source !== 'emby' && !isAdultFolder) return null;
+  if (item.type === 'series') return null;
+
+  let actionType = '';
+  const meta = metadataStatus.resolveMetadataStatus(item, config);
+  const itemWithMetadata = {
+    ...item,
+    ...meta,
+  };
+  if (enabledActions.includes('scrape') && isAutoMetadataCompletionCandidate(item, meta)) {
+    actionType = 'scrape';
+  } else {
+    if (!meta.metadataComplete) return null;
+    if (!item.watched) return null;
+    if (!item.action || item.action === 'keep') return null;
+    if (!enabledActions.includes(item.action)) return null;
+    if (item.reason === '新入库') return null;
+    actionType = item.action;
+  }
+
+  if (isFirstOrResume && !isAdultFolder && actionType !== 'scrape') {
+    const ratingTs = maxTimestamp(item.userRatingUpdatedAt, item.doubanRatingUpdatedAt);
+    if (ratingTs < lookbackCutoff) return null;
+  }
+
+  const itemInfo = buildItemInfo(itemWithMetadata);
+  const priorityBreakdown = priorityEngine.explainPriority({
+    source: 'auto',
+    actionType,
+    itemInfo,
+    config,
+  });
+  return {
+    item: itemWithMetadata,
+    itemInfo,
+    actionType,
+    priority: priorityBreakdown.priority,
+    priorityBreakdown,
+    timestamp: itemTimestamp(item),
+  };
+}
+
+function buildIngestCandidate(candidate, config) {
+  const itemInfo = candidate && candidate.itemInfo;
+  if (!itemInfo || !itemInfo.itemId) return null;
+  const priorityBreakdown = priorityEngine.explainPriority({
+    source: 'auto',
+    actionType: 'ingest',
+    itemInfo,
+    config,
+  });
+  return {
+    item: itemInfo,
+    itemInfo,
+    actionType: 'ingest',
+    priority: priorityBreakdown.priority,
+    priorityBreakdown,
+    timestamp: Number(candidate.timestamp) || itemTimestamp(itemInfo),
+  };
+}
+
+function start(configStore, mediaLibraryService, taskStore, opts = {}) {
+  configReader = configStore;
+  const ingestCandidateProvider = typeof opts.ingestCandidateProvider === 'function'
+    ? opts.ingestCandidateProvider
+    : adultLibraryService.listIngestCandidates;
   const cfg = configStore.loadConfig();
+  lastEnabledActions = readEnabledActions(cfg);
   const intervalMs = (cfg.smartTaskPollIntervalMinutes || 10) * 60 * 1000;
 
   const run = () => {
     try {
       const cfg2 = configStore.loadConfig();
-      _enabled = true; // Enabling is now per-subLibrary via scheduleMode.autoCreate
+      const enabledActions = readEnabledActions(cfg2);
+      lastEnabledActions = enabledActions;
+      _enabled = enabledActions.length > 0;
+      if (enabledActions.length === 0) {
+        lastRunAt = Date.now();
+        return;
+      }
 
       const maxPerRun = cfg2.smartTaskMaxPerRun || 10;
-      const enabledActions = cfg2.smartTaskEnabledActions || ['transcode', 'upgrade'];
       const lookbackDays = cfg2.smartTaskLookbackDays || 30;
 
       const lib = mediaLibraryService.getLibrary();
       if (!lib || !lib.items) return;
 
       const allTasks = taskStore.getTasks();
+      const activeTasks = taskStore.loadTasks({ includeHistory: false });
       const optimizationIndex = optimizationStatus.buildOptimizationIndex(allTasks, cfg2);
 
       // Count active (non-terminal) tasks per action type
       const activeByType = {};
-      const activeItemIds = new Set();
-      for (const t of allTasks) {
-        if (['done', 'failed_hard', 'deleted'].includes(t.status)) continue;
+      for (const t of activeTasks) {
         activeByType[t.actionType] = (activeByType[t.actionType] || 0) + 1;
-        activeItemIds.add(t.itemId);
       }
 
       // Per-type queue cap: how many non-terminal tasks of a given type may be
@@ -60,6 +218,7 @@ function start(configStore, mediaLibraryService, taskStore) {
       // backlog forms and PriorityEngine ordering becomes meaningful.
       const maxQueueSize = Number(cfg2.smartTaskMaxQueueSize) > 0 ? Number(cfg2.smartTaskMaxQueueSize) : 50;
       const queueCap = {
+        ingest: maxQueueSize,
         delete: maxQueueSize,
         transcode: maxQueueSize,
         upgrade: maxQueueSize,
@@ -70,104 +229,63 @@ function start(configStore, mediaLibraryService, taskStore) {
       const lookbackCutoff = now - lookbackDays * 86400000;
       const isFirstOrResume = !lastRunAt || (now - lastRunAt > intervalMs * 2);
 
-      const candidates = lib.items.filter((item) => {
-        const isAdultFolder = item.source === 'adult_folder';
-        if (item.source !== 'emby' && !isAdultFolder) return false;
-        if (item.type === 'series') return false;
-        if (!item.watched) return false;
-        if (!item.action || item.action === 'keep') return false;
-        if (!enabledActions.includes(item.action)) return false;
-        if (item.reason === '新入库') return false;
-        if (activeItemIds.has(item.itemId)) return false;
-
-        // Per-subLibrary autoCreate check
-        const subLibSchedule = configStore.resolveSubLibSchedule(item, cfg2);
-        if (!subLibSchedule.autoCreate) return false;
-
-        // 48h freeze after task completion — wait for Emby to refresh metadata
-        if (item.lastTaskDoneAt) {
-          const freezeUntil = new Date(item.lastTaskDoneAt).getTime() + 48 * 3600 * 1000;
-          if (now < freezeUntil) return false;
+      const candidates = lib.items
+        .map((item) => buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff, config: cfg2 }))
+        .filter(Boolean);
+      if (enabledActions.includes('ingest')) {
+        for (const candidate of ingestCandidateProvider(cfg2) || []) {
+          const ingestCandidate = buildIngestCandidate(candidate, cfg2);
+          if (ingestCandidate) candidates.push(ingestCandidate);
         }
+      }
 
-        // Permanent anti-re-transcode: once transcoded, never auto-create again.
-        // Manual trigger (POST /v1/tasks) bypasses this — only affects auto-enqueue.
-        // The task/path lookup covers Emby itemId changes after disc-folder → MKV replacement.
-        const opt = optimizationStatus.resolveOptimization(item, optimizationIndex, cfg2);
-        if (item.action === 'transcode' && opt.optimizationStatus === 'transcoded') return false;
-
-        // Lookback window for first/resume run
-        if (isFirstOrResume && !isAdultFolder) {
-          const ratingTs = maxTimestamp(item.userRatingUpdatedAt, item.doubanRatingUpdatedAt);
-          if (ratingTs < lookbackCutoff) return false;
-        }
-
-        return true;
-      });
-
-      // Sort by rating available time DESC (most recent first)
-      candidates.sort((a, b) => {
-        return maxTimestamp(b.userRatingUpdatedAt, b.doubanRatingUpdatedAt)
-             - maxTimestamp(a.userRatingUpdatedAt, a.doubanRatingUpdatedAt);
-      });
+      // Sort by computed task priority first, then most recent signal. This
+      // keeps high-priority task types from being hidden behind large low-priority
+      // candidate pools when smartTaskMaxPerRun is small.
+      candidates.sort((a, b) => (a.priority - b.priority) || (b.timestamp - a.timestamp));
 
       const toEnqueue = [];
-      for (const item of candidates) {
+      for (const candidate of candidates) {
         if (toEnqueue.length >= maxPerRun) break;
+        const { item, itemInfo, actionType } = candidate;
 
         // Per-action-type queue depth cap. Skip this type once the backlog is
         // full so one action doesn't starve others.
-        const cur = activeByType[item.action] || 0;
-        const cap = queueCap[item.action] || maxQueueSize;
+        const cur = activeByType[actionType] || 0;
+        const cap = queueCap[actionType] || maxQueueSize;
         if (cur >= cap) continue;
-        activeByType[item.action] = cur + 1;
 
         const subLibSchedule2 = configStore.resolveSubLibSchedule(item, cfg2);
         const status = subLibSchedule2.autoExecute ? 'queued' : 'pending_manual';
 
-        // Compute initial priority via PriorityEngine (manual base for the
-        // manual trigger path; auto base + library weight + rules here).
-        const itemInfo = {
-          name: item.name,
-          itemId: item.itemId,
-          embyItemId: assetIdentity.getEmbyItemId(item),
-          path: item.path,
-          subLibraryId: item.subLibraryId,
-          assetKey: item.assetKey,
-          assetRootPath: item.assetRootPath,
-          externalRefs: item.externalRefs,
-          resolution: item.resolution,
-          bitrate: item.bitrate,
-          size: item.size,
-          duration: item.duration,
-          type: item.type,
-          isDiscLike: !!item.isDiscLike,
-          doubanRating: item.doubanRating,
-          userRating: item.userRating,
-          tmdbId: item.tmdbId,
-          seriesName: item.seriesName,
-          seasonNumber: item.seasonNumber,
-          targetBitrate: item.targetBitrate,
-          targetCodec: item.targetCodec,
-          seedPreferences: item.seedPreferences,
-          maxSizeGB: item.maxSizeGB,
-          equivalentBitrate: item.equivalentBitrate,
-          scraped: !!item.scraped,
-          adultMetadata: item.adultMetadata,
-        };
-        const priority = priorityEngine.computePriority({
+        const admission = taskAdmission.canCreateTask({
+          item,
+          itemInfo,
+          actionType,
           source: 'auto',
-          actionType: item.action,
+          config: cfg2,
+          tasks: allTasks,
+          optimizationIndex,
+        });
+        if (!admission.allowed) continue;
+        activeByType[actionType] = cur + 1;
+
+        const priorityBreakdown = priorityEngine.explainPriority({
+          source: 'auto',
+          actionType,
           itemInfo,
           config: cfg2,
         });
 
-        taskStore.createTask({
+        const task = taskStore.createTask({
           itemId: item.itemId,
           itemName: item.name,
-          actionType: item.action,
+          actionType,
+          source: 'auto',
           status,
-          priority,
+          priority: priorityBreakdown.priority,
+          priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+          priorityBreakdown,
           itemInfo,
           logs: [{
             ts: new Date().toISOString(),
@@ -175,20 +293,18 @@ function start(configStore, mediaLibraryService, taskStore) {
             action: 'auto_enqueued',
           }],
         });
-        console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${item.action} "${item.name}"`);
-        toEnqueue.push(item);
+        allTasks.push(task);
+        console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${actionType} "${item.name}"`);
+        toEnqueue.push({ item, actionType });
       }
 
       if (toEnqueue.length > 0) {
         const byAction = {};
-        for (const item of toEnqueue) {
-          byAction[item.action] = (byAction[item.action] || 0) + 1;
+        for (const entry of toEnqueue) {
+          byAction[entry.actionType] = (byAction[entry.actionType] || 0) + 1;
         }
-        const parts = Object.entries(byAction).map(([a, n]) => {
-          const label = a === 'transcode' ? '码率压缩' : a === 'upgrade' ? '洗版' : a === 'delete' ? '删除' : a;
-          return `${label} ${n} 个`;
-        });
-        const msg = `智能入队：${toEnqueue.length} 个任务已自动创建（${parts.join('，')}）`;
+        const parts = Object.entries(byAction).map(([a, n]) => `${actionLabel(a)} ${n} 个`);
+        const msg = `后台自动入队：${toEnqueue.length} 个任务已自动创建（${parts.join('，')}）`;
         console.log(`[smartTaskEngine] ${msg} (${candidates.length} candidates total)`);
         activityLog.addActivity('smart_task_engine', msg, { enqueued: toEnqueue.length, byAction, totalCandidates: candidates.length });
       }
@@ -200,16 +316,22 @@ function start(configStore, mediaLibraryService, taskStore) {
     }
   };
 
-  // Short delay to let StrategyEngine complete its first pass (runs synchronously on startup)
-  console.log(`[smartTaskEngine] will run first scan in 5s, then every ${intervalMs / 60000}min`);
-  setTimeout(() => {
+  const initialDelaySeconds = Math.max(0, Number(cfg.smartTaskInitialDelaySeconds) || 0);
+  console.log(`[smartTaskEngine] will run first scan in ${initialDelaySeconds}s, then every ${intervalMs / 60000}min`);
+  initialTimer = setTimeout(() => {
+    initialTimer = null;
     run();
     timer = setInterval(run, intervalMs);
     timer.unref && timer.unref();
-  }, 5000);
+  }, initialDelaySeconds * 1000);
+  initialTimer.unref && initialTimer.unref();
 }
 
 function stop() {
+  if (initialTimer) {
+    clearTimeout(initialTimer);
+    initialTimer = null;
+  }
   if (timer) {
     clearInterval(timer);
     timer = null;
@@ -219,14 +341,30 @@ function stop() {
 module.exports = { start, stop, getHealth };
 
 function getHealth() {
+  let enabledActions = lastEnabledActions;
+  if (configReader) {
+    try {
+      enabledActions = readEnabledActions(configReader.loadConfig());
+    } catch (_) {}
+  }
+  if (enabledActions.length === 0) {
+    return {
+      status: 'green',
+      enabled: false,
+      enabledActions,
+      disabledReason: 'no_enabled_actions',
+      message: '后台自动入队未启用',
+      lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
+    };
+  }
   if (!_enabled) {
-    return { status: 'green', enabled: false, lastRunAt: null };
+    return { status: 'green', enabled: true, enabledActions, lastRunAt: null };
   }
   if (!timer) {
-    return { status: 'red', enabled: true, lastRunAt };
+    return { status: 'red', enabled: true, enabledActions, lastRunAt };
   }
   if (!lastRunAt) {
-    return { status: 'yellow', enabled: true, lastRunAt: null };
+    return { status: 'yellow', enabled: true, enabledActions, lastRunAt: null };
   }
-  return { status: 'green', enabled: true, lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null };
+  return { status: 'green', enabled: true, enabledActions, lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null };
 }

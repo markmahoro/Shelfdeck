@@ -12,6 +12,7 @@ import type {
   DoubanSession,
   SpaceStats,
   RuleTemplate,
+  ApprovalPolicyConfig,
 } from '../types';
 
 function apiKey(): string {
@@ -110,8 +111,6 @@ export const subLibraries = {
     adultRegion?: string;
     scraperType?: string;
     watchRoot?: string;
-    scrapeEnabled?: boolean;
-    scanIntervalMinutes?: number;
     japaneseJav?: Record<string, unknown>;
   }) => post<SubLibrary>('/v1/admin/sublibraries', body),
 
@@ -121,16 +120,12 @@ export const subLibraries = {
   remove: (uuid: string) =>
     del<{ ok: boolean; uuid: string }>(`/v1/admin/sublibraries/${uuid}`),
 
-  scan: (uuid: string) =>
-    post<{ ok: boolean; scanned: number; upserted: number }>(`/v1/admin/sublibraries/${uuid}/actions/scan`),
 };
 
 // ── Adult Libraries ─────────────────────────────────────────────────────────
 
 export interface AdultLibraryConfig {
   settleSeconds: number;
-  scanIntervalMinutes: number;
-  autoScrape: boolean;
   videoExtensions: string[];
   japaneseJav: Record<string, unknown>;
   western?: Record<string, unknown>;
@@ -142,6 +137,7 @@ export interface AdultPerson {
   aliases?: string[];
   canonicalCode?: string;
   adultRegion?: string;
+  referenceFaceCount?: number;
   referenceFaces?: Array<{
     faceId?: string;
     sampleImageBase64?: string;
@@ -160,6 +156,8 @@ export interface AdultImageCandidate {
   width?: number;
   height?: number;
   license?: string;
+  rankScore?: number;
+  qualityReasons?: string[];
 }
 
 export interface AdultImageSearchError {
@@ -174,6 +172,7 @@ export interface AdultImageSearchResult {
   proxyUsed?: boolean;
   message?: string;
   sources?: Record<string, unknown>;
+  diagnostics?: Record<string, unknown>;
 }
 
 export const adult = {
@@ -182,6 +181,8 @@ export const adult = {
     patch<AdultLibraryConfig>('/v1/admin/adult/config', body),
   listPeople: () =>
     get<{ people: AdultPerson[] }>('/v1/admin/adult/people?adultRegion=western_adult'),
+  referenceImageUrl: (personId: string, options?: { thumbnail?: boolean }) =>
+    `/v1/admin/adult/people/${encodeURIComponent(personId)}/reference-image${options?.thumbnail ? '?thumbnail=1' : ''}`,
   searchPersonImages: (name: string) =>
     get<AdultImageSearchResult>(
       `/v1/admin/adult/people/search-images?name=${encodeURIComponent(name)}`,
@@ -270,9 +271,10 @@ export const upgrade = {
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
 export const tasks = {
-  list: (params?: { status?: string; actionType?: string; q?: string; page?: number; pageSize?: number }) => {
+  list: (params?: { status?: string; statuses?: string[]; actionType?: string; q?: string; page?: number; pageSize?: number }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
+    if (params?.statuses?.length) qs.set('statuses', params.statuses.join(','));
     if (params?.actionType) qs.set('actionType', params.actionType);
     if (params?.q) qs.set('q', params.q);
     if (params?.page) qs.set('page', String(params.page));
@@ -283,7 +285,7 @@ export const tasks = {
 
   get: (id: string) => get<MediaTask>(`/v1/admin/tasks/${id}`),
 
-  // Update queue priority (lower = runs first). Only allowed on queued/created/
+  // Update global queue priority (lower = runs first). Only allowed on queued/created/
   // pending_manual/interrupted/paused tasks; the server returns 409 otherwise.
   updatePriority: (id: string, priority: number) =>
     patch<MediaTask>(`/v1/admin/tasks/${id}`, { priority }),
@@ -326,20 +328,48 @@ export interface TaskReport {
   };
   bytesSaved?: number;
   bytesFreed?: number;
+  delete?: {
+    targetPath?: string;
+    targetKind?: string;
+  };
   tmdbVerified?: boolean;
   scrape?: {
     adultId?: string;
     title?: string;
+    source?: string;
+    sourceUrl?: string;
     scrapeStatus?: string;
     posterPath?: string;
+    fanartPath?: string;
     nfoPath?: string;
+    fileNfoPath?: string;
+    markerPath?: string;
+    organized?: boolean;
+    originalFolder?: string;
+    mediaPath?: string;
     actors?: string[];
-    protagonist?: { name?: string; adultId?: string } | null;
+    protagonist?: { personId?: string; name?: string; adultId?: string } | null;
     faceClusters?: Array<Record<string, unknown>>;
     unknownFaces?: Array<Record<string, unknown>>;
     actorConfidence?: Record<string, number>;
   };
   assets?: Record<string, boolean>;
+  scrapeVerification?: {
+    ok: boolean;
+    checkedAt?: string;
+    source?: 'completion_snapshot' | 'current_filesystem' | string;
+    checks?: Record<string, boolean>;
+    failures?: Array<{ code?: string; message?: string } | string>;
+    warnings?: Array<{ code?: string; message?: string } | string>;
+  };
+  currentScrapeVerification?: {
+    ok: boolean;
+    checkedAt?: string;
+    source?: 'current_filesystem' | string;
+    checks?: Record<string, boolean>;
+    failures?: Array<{ code?: string; message?: string } | string>;
+    warnings?: Array<{ code?: string; message?: string } | string>;
+  };
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────
@@ -368,6 +398,7 @@ export const publicHealth = {
 
 export interface SystemConfig {
   executionMode: 'auto' | 'manual';
+  ingestConcurrency: number;
   deleteConcurrency: number;
   transcodeConcurrency: number;
   upgradeConcurrency: number;
@@ -384,16 +415,25 @@ export interface SystemConfig {
   taskPriority?: {
     manualTaskPriority: number;
     autoTaskPriorityBase: number;
+    actionTypeWeights?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
     rules: {
+      ingest: PriorityRule[];
+      scrape: PriorityRule[];
+      delete: PriorityRule[];
       transcode: PriorityRule[];
       upgrade: PriorityRule[];
-      delete: PriorityRule[];
-      scrape: PriorityRule[];
     };
+  };
+  approvalPolicy?: ApprovalPolicyConfig;
+  taskAdmission?: {
+    defaultCooldownHours?: number;
+    defaultMaxQueued?: number;
+    cooldownHoursByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
+    maxQueuedByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
   };
 }
 
-// Advanced overlay rule. match is AND-combined; adjust mutates the running value.
+// Advanced overlay rule. match is AND-combined; adjust contributes a delta.
 export interface PriorityRule {
   match: {
     subLibraryId?: string;
@@ -403,7 +443,7 @@ export interface PriorityRule {
     resolution?: string;
     retryCount?: number | { gte?: number; lte?: number; gt?: number; lt?: number };
   };
-  adjust: { op: 'subtract' | 'add' | 'set'; value: number };
+  adjust: { op: 'subtract' | 'add'; value: number };
 }
 
 export const systemConfig = {
@@ -524,8 +564,30 @@ export const libraryApi = {
   getStatus: () =>
     get<{ subLibraries: SubLibraryInfo[] }>('/v1/library/status'),
 
-  getCache: (subLibraryId?: string) => {
-    const params = subLibraryId ? `?subLibraryId=${encodeURIComponent(subLibraryId)}` : '';
+  getCache: (options?: {
+    subLibraryId?: string;
+    limit?: number;
+    offset?: number;
+    search?: string;
+    action?: string;
+    resolution?: string;
+    codec?: string;
+    watched?: string;
+    bluRay?: string;
+    douban?: string;
+    userRating?: string;
+    task?: string;
+    scrape?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (options?.subLibraryId) q.set('subLibraryId', options.subLibraryId);
+    if (options?.limit) q.set('limit', String(options.limit));
+    if (options?.offset) q.set('offset', String(options.offset));
+    for (const key of ['search', 'action', 'resolution', 'codec', 'watched', 'bluRay', 'douban', 'userRating', 'task', 'scrape'] as const) {
+      const value = options?.[key];
+      if (value && value !== 'all') q.set(key, value);
+    }
+    const params = q.toString() ? `?${q.toString()}` : '';
     return get<{ items: unknown[]; total: number }>(`/v1/library${params}`);
   },
 
@@ -543,8 +605,9 @@ export const libraryApi = {
 };
 
 export const taskApi = {
-  getTasks: async () => {
-    const data = await get<{ tasks: MediaTask[] } | MediaTask[]>('/v1/tasks');
+  getTasks: async (options?: { activeOnly?: boolean }) => {
+    const params = options?.activeOnly ? '?activeOnly=1' : '';
+    const data = await get<{ tasks: MediaTask[] } | MediaTask[]>(`/v1/tasks${params}`);
     return Array.isArray(data) ? data : data.tasks ?? [];
   },
 

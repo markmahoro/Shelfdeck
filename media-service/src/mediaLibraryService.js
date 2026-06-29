@@ -3,41 +3,25 @@
 /**
  * MediaLibraryService (MEDIA_LIBRARY.md).
  *
- * Coordinator for the unified media library persistence table (data/library.json).
+ * Coordinator for the unified media library persistence table (data/library.db).
  * Manages subLibraries, independent refresh and douban sync timers per subLibrary.
  *
  * Principle: write first, recalculate action/reason only for affected items.
  */
 
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
+const path = require('path');
 
 const configStore = require('./configStore');
+const libraryStore = require('./libraryStore');
 const doubanMatchService = require('./doubanMatchService');
 const embyService = require('./services/embyService');
 const transcodeService = require('./services/transcodeService');
 const doubanService = require('./services/doubanService');
 const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
+const metadataStatus = require('./metadataStatus');
 const assetIdentity = require('./assetIdentity');
-
-function resolveDataDir() {
-  return (
-    process.env.CONTROL_PLANE_DATA_DIR ||
-    process.env.MEDIA_SERVICE_DATA_DIR ||
-    path.join(__dirname, '..', 'data')
-  );
-}
-
-function libraryFilePath() {
-  return path.join(resolveDataDir(), 'library.json');
-}
-
-function ensureDataDir() {
-  const dir = resolveDataDir();
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
 
 function generateUuid() {
   return crypto.randomUUID();
@@ -107,29 +91,26 @@ async function enrichDiscMetadata(incomingItems, subLib, config) {
 // ── Library file persistence ────────────────────────────────────────────────
 
 function loadLibrary() {
-  ensureDataDir();
-  const f = libraryFilePath();
-  if (!fs.existsSync(f)) {
-    return { version: 1, items: [], cachedAt: null };
-  }
-  try {
-    return JSON.parse(fs.readFileSync(f, 'utf8'));
-  } catch (err) {
-    console.error('[mediaLibrary] failed to load library:', err.message);
-    return { version: 1, items: [], cachedAt: null };
-  }
+  return libraryStore.loadLibrary();
 }
 
 function saveLibrary(lib) {
-  ensureDataDir();
-  fs.writeFileSync(libraryFilePath(), JSON.stringify(lib, null, 2), 'utf8');
+  libraryStore.saveLibrary(lib);
+}
+
+function updateLibraryItems(items) {
+  return libraryStore.updateItems(items);
 }
 
 // ── Item operations ─────────────────────────────────────────────────────────
 
 function upsertItems(subLibraryId, incomingItems, opts = {}) {
   const { fullSync = false } = opts;
-  const lib = loadLibrary();
+  const lib = {
+    version: 1,
+    cachedAt: null,
+    items: libraryStore.queryItems({ subLibraryId }).items,
+  };
   const now = new Date().toISOString();
   const cfg = configStore.loadConfig();
   const subLib = (cfg.subLibraries || []).find((s) => s.uuid === subLibraryId) || null;
@@ -249,6 +230,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         watched: incoming.watched != null ? incoming.watched : existing.watched,
         lastRefreshedAt: now,
         tmdbId: incoming.tmdbId !== undefined ? incoming.tmdbId : existing.tmdbId,
+        providerIds: incoming.providerIds !== undefined ? incoming.providerIds : existing.providerIds,
         seriesName: incoming.seriesName !== undefined ? incoming.seriesName : existing.seriesName,
         seriesId: incoming.seriesId !== undefined ? incoming.seriesId : existing.seriesId,
         seasonNumber: incoming.seasonNumber !== undefined ? incoming.seasonNumber : existing.seasonNumber,
@@ -293,6 +275,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         seasonNumber: incoming.seasonNumber || null,
         episodeCount: incoming.episodeCount || null,
         tmdbId: incoming.tmdbId || null,
+        providerIds: incoming.providerIds || {},
       };
       lib.items.push(newItem);
       upserted++;
@@ -313,7 +296,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
   }
 
   lib.cachedAt = now;
-  saveLibrary(lib);
+  libraryStore.replaceSubLibraryItems(subLibraryId, lib.items, { cachedAt: now });
 
   // Update subLibrary lastRefreshedAt
   if (subLib) {
@@ -329,37 +312,78 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
 }
 
 function updateUserRating(itemId, userRating) {
-  if (userRating < 1 || userRating > 5) throw new Error('Rating must be 1-5');
-  const lib = loadLibrary();
-  const item = lib.items.find((it) => it.itemId === itemId);
+  if (userRating !== null && (userRating < 1 || userRating > 5)) throw new Error('Rating must be 1-5');
+  const item = libraryStore.getItem(itemId);
   if (!item) throw new Error('Item not found');
 
   item.userRating = userRating;
-  item.userRatingUpdatedAt = new Date().toISOString();
+  item.userRatingUpdatedAt = userRating === null ? null : new Date().toISOString();
 
-  saveLibrary(lib);
-  activityLog.addActivity('user_action', `「${item.name}」已评分 ${'★'.repeat(userRating)}`);
+  libraryStore.updateItems([item]);
+  const message = userRating === null
+    ? `「${item.name}」评分已清空`
+    : `「${item.name}」已评分 ${'★'.repeat(userRating)}`;
+  activityLog.addActivity('user_action', message);
   return item;
 }
 
 function getLibrary(filter = {}, opts = {}) {
-  const lib = loadLibrary();
-  let items = lib.items;
-  if (filter.source) items = items.filter((it) => it.source === filter.source);
-  if (filter.type) items = items.filter((it) => it.type === filter.type);
-  if (filter.action) items = items.filter((it) => it.action === filter.action);
-  if (filter.subLibraryId) items = items.filter((it) => it.subLibraryId === filter.subLibraryId);
+  const storeFilter = { ...(filter || {}) };
+  const metadataStatusFilter = storeFilter.metadataStatus;
+  const needsMetadataStatusFilter = metadataStatusFilter === 'done'
+    || metadataStatusFilter === 'pending'
+    || metadataStatusFilter === 'failed';
+  if (needsMetadataStatusFilter) delete storeFilter.metadataStatus;
+  if (storeFilter.activeTaskIds) {
+    const activeTaskIds = storeFilter.activeTaskIds instanceof Set ? storeFilter.activeTaskIds : new Set();
+    const ids = [...activeTaskIds].filter(Boolean);
+    if (storeFilter.taskState === 'active') storeFilter.itemIds = ids;
+    if (storeFilter.taskState === 'none') storeFilter.excludeItemIds = ids;
+    delete storeFilter.activeTaskIds;
+    delete storeFilter.taskState;
+  }
+
+  const config = configStore.loadConfig();
+  const pageOpts = needsMetadataStatusFilter ? {} : opts;
+  const result = libraryStore.queryItems(storeFilter, pageOpts);
+  let items = result.items.map((item) => ({ ...item }));
+  items = metadataStatus.decorateItems(items, config);
+  if (needsMetadataStatusFilter) {
+    items = items.filter((item) => {
+      if (metadataStatusFilter === 'done') return item.metadataComplete;
+      if (metadataStatusFilter === 'pending') return !item.metadataComplete;
+      const meta = item.adultMetadata || {};
+      return String(meta.scrapeStatus || '').toLowerCase() === 'failed';
+    });
+  }
   if (opts.includeOptimizationStatus) {
     const taskStore = require('./taskStore');
-    const config = configStore.loadConfig();
-    items = optimizationStatus.decorateItems(items, taskStore.loadTasks(), config);
+    const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
+      ? taskStore.queryOptimizationTaskIndexRows()
+      : taskStore.loadTasks();
+    items = optimizationStatus.decorateItems(items, optimizationTasks, config);
   }
-  return { items, total: items.length };
+  if (needsMetadataStatusFilter) {
+    const offset = Math.max(0, Number(opts.offset) || 0);
+    const hasLimit = Number.isInteger(opts.limit) && opts.limit > 0;
+    return {
+      ...result,
+      items: hasLimit ? items.slice(offset, offset + Number(opts.limit)) : items,
+      total: items.length,
+      offset,
+      limit: hasLimit ? Number(opts.limit) : null,
+    };
+  }
+  return { ...result, items };
 }
 
 function getLibraryItem(itemId) {
-  const lib = loadLibrary();
-  return lib.items.find((it) => it.itemId === itemId) || null;
+  return libraryStore.getItem(itemId);
+}
+
+function getSpaceStatLibrary() {
+  const items = libraryStore.querySpaceStatItems();
+  return { items, total: items.length, offset: 0, limit: null };
 }
 
 function getLibraryStatus() {
@@ -402,15 +426,15 @@ function addSubLibrary(spec) {
     adultRegion: spec.adultRegion || (isAdult ? 'japanese_jav' : undefined),
     scraperType: spec.scraperType || (isAdult ? (spec.adultRegion === 'western_adult' ? 'western_builtin' : 'shelfdeck_japanese_jav') : undefined),
     watchRoot: spec.watchRoot || '',
-    scrapeEnabled: spec.scrapeEnabled !== undefined ? spec.scrapeEnabled : isAdult,
-    scanIntervalMinutes: spec.scanIntervalMinutes,
     japaneseJav: spec.japaneseJav || undefined,
     western: spec.western || undefined,
     ruleTemplateId: spec.ruleTemplateId || (mediaType === 'adult' ? (spec.adultRegion === 'western_adult' ? 'adult_western_default' : 'adult_jav_default') : mediaType === 'tv' ? 'tv_default' : 'default'),
     ...configStore.defaultSubLibSchedule(),
-    scheduleMode: spec.scheduleMode || 'full_auto',
-    autoCreate: spec.autoCreate !== undefined ? spec.autoCreate : true,
-    autoExecute: spec.autoExecute !== undefined ? spec.autoExecute : true,
+    automationMode: spec.automationMode || (spec.scheduleMode === 'full_manual' ? 'manual' : 'auto'),
+    scheduleMode: spec.scheduleMode || (spec.automationMode === 'manual' ? 'full_manual' : 'full_auto'),
+    autoCreate: true,
+    autoExecute: spec.autoExecute !== undefined ? spec.autoExecute : spec.automationMode !== 'manual',
+    approvalPolicy: spec.approvalPolicy || {},
     autoReplaceTranscode: spec.autoReplaceTranscode || false,
     autoReplaceUpgrade: spec.autoReplaceUpgrade || false,
     smartSelectEnabled: spec.smartSelectEnabled || false,
@@ -431,10 +455,9 @@ function addSubLibrary(spec) {
   // Start timers for this subLibrary
   startSubLibraryTimers(subLib);
 
-  // Kick off an immediate refresh, then recompute self-fields so
-  // equivalentBitrate is ready and strategy engine can produce results.
+  // Kick off an immediate refresh; refreshSubLibrary runs derived updates once
+  // after the fetched data has been persisted.
   refreshSubLibrary(subLib)
-    .then(() => recomputeAllSelfFields())
     .catch((e) => console.error('[mediaLibrary] addSubLibrary refresh error:', e));
 
   return subLib;
@@ -447,10 +470,7 @@ function deleteSubLibrary(uuid) {
   cfg.subLibraries.splice(idx, 1);
   configStore.saveConfig(cfg);
 
-  // Remove items belonging to this subLibrary
-  const lib = loadLibrary();
-  lib.items = lib.items.filter((it) => it.subLibraryId !== uuid);
-  saveLibrary(lib);
+  libraryStore.deleteBySubLibrary(uuid);
 
   return true;
 }
@@ -460,7 +480,7 @@ function updateSubLibrary(uuid, updates) {
   const subLibs = cfg.subLibraries || [];
   const idx = subLibs.findIndex((s) => s.uuid === uuid);
   if (idx < 0) return null;
-  const { scrapeSettleSeconds, ...allowedUpdates } = updates || {};
+  const { scrapeSettleSeconds, scrapeEnabled, scanIntervalMinutes, ...allowedUpdates } = updates || {};
   subLibs[idx] = { ...subLibs[idx], ...allowedUpdates };
   configStore.saveConfig(cfg);
   return subLibs[idx];
@@ -469,41 +489,44 @@ function updateSubLibrary(uuid, updates) {
 // ── Self-computed fields ──────────────────────────────────────────────────────
 
 let selfComputeTimer = null;
+let startupRefreshTimer = null;
 
 function recomputeAllSelfFields() {
   const lib = loadLibrary();
   if (!lib || !lib.items || lib.items.length === 0) return;
 
-  const cfg = configStore.loadConfig();
-  const subLibs = cfg.subLibraries || [];
   let changed = 0;
+  const changedItems = [];
 
   for (const item of lib.items) {
-    const subLib = subLibs.find((s) => s.uuid === item.subLibraryId);
+    let itemChanged = false;
 
     // bucket
     const bucket = computeBucket(item.resolution);
-    if (item.bucket !== bucket) { item.bucket = bucket; changed++; }
+    if (item.bucket !== bucket) { item.bucket = bucket; changed++; itemChanged = true; }
 
     // equivalentBitrate (Mbps)
     const eqMbps = item.bitrate > 0 ? item.bitrate / 1_000_000 : undefined;
-    if (item.equivalentBitrate !== eqMbps) { item.equivalentBitrate = eqMbps; changed++; }
+    if (item.equivalentBitrate !== eqMbps) { item.equivalentBitrate = eqMbps; changed++; itemChanged = true; }
 
     // targetBitrate and predictedSizeGb are now written by StrategyEngine
     // based on rule template evaluation — no longer computed here.
+    if (itemChanged) changedItems.push(item);
   }
 
   if (changed > 0) {
-    saveLibrary(lib);
+    libraryStore.updateItems(changedItems);
     const msg = `Library 自算完成，${changed} 个字段已更新`;
     console.log(`[mediaLibrary] ${msg}`);
     activityLog.addActivity('media_library', msg, { changed });
   }
 }
 
-function startSelfComputeTimer(intervalMs = 600000) {
+function startSelfComputeTimer(intervalMs = 600000, options = {}) {
   stopSelfComputeTimer();
-  recomputeAllSelfFields(); // run immediately on start
+  if (options.runImmediately !== false) {
+    recomputeAllSelfFields();
+  }
   selfComputeTimer = setInterval(recomputeAllSelfFields, intervalMs);
   selfComputeTimer.unref && selfComputeTimer.unref();
 }
@@ -528,7 +551,16 @@ function stopSubLibraryTimers(uuid) {
   }
 }
 
-async function refreshSubLibrary(subLib) {
+function runPostRefreshUpdates() {
+  recomputeAllSelfFields();
+  try {
+    const strategyEngine = require('./strategyEngine');
+    strategyEngine.runOnce();
+  } catch (_) { /* strategyEngine not yet started — timer will pick it up */ }
+}
+
+async function refreshSubLibrary(subLib, options = {}) {
+  const runDerivedUpdates = options.runDerivedUpdates !== false;
   const name = subLib.name || subLib.uuid;
   try {
     if (subLib.source === 'folder') {
@@ -541,11 +573,11 @@ async function refreshSubLibrary(subLib) {
       return;
     }
     activityLog.addActivity('media_library', `正在刷新子库「${name}」…`);
-    const beforeCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
+    const beforeCount = libraryStore.countBySubLibrary(subLib.uuid);
     const items = await embyService.getLibraryItems(server, subLib.sectionId);
     await enrichDiscMetadata(items, subLib, cfg);
     const result = upsertItems(subLib.uuid, items, { fullSync: true });
-    const afterCount = loadLibrary().items.filter((it) => it.subLibraryId === subLib.uuid).length;
+    const afterCount = libraryStore.countBySubLibrary(subLib.uuid);
     const newItems = Math.max(0, afterCount - beforeCount + result.removed);
     const msg = newItems > 0
       ? `子库「${name}」刷新完成，${newItems} 个新媒体入库，${result.removed} 个已清理`
@@ -555,11 +587,7 @@ async function refreshSubLibrary(subLib) {
 
     // Recompute self-fields (equivalentBitrate etc.) and re-run strategy engine
     // so the dashboard reflects fresh recommendations immediately after refresh.
-    recomputeAllSelfFields();
-    try {
-      const strategyEngine = require('./strategyEngine');
-      strategyEngine.runOnce();
-    } catch (_) { /* strategyEngine not yet started — timer will pick it up */ }
+    if (runDerivedUpdates) runPostRefreshUpdates();
   } catch (e) {
     activityLog.addActivity('media_library', `子库「${name}」刷新失败：${e.message}`);
     console.error('[mediaLibrary] refresh error for', subLib.uuid, e.message);
@@ -662,6 +690,36 @@ async function syncDoubanForSubLibrary(subLib) {
   }
 }
 
+async function completeEmbyItemMetadata(itemId, opts = {}) {
+  const cfg = opts.config || configStore.loadConfig();
+  const current = getLibraryItem(itemId);
+  if (!current) throw new Error('Library item not found');
+  const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === current.subLibraryId);
+  if (!subLib) throw new Error('SubLibrary not found');
+  if ((subLib.source || 'emby') !== 'emby') throw new Error('SubLibrary is not an Emby library');
+  const server = (cfg.embyServers || {})[subLib.embyServerId];
+  if (!server || !server.baseUrl) throw new Error('Emby server not configured for this subLibrary');
+
+  const embyItemId = assetIdentity.getEmbyItemId(current) || current.sourceId || current.itemId;
+  if (!embyItemId) throw new Error('Emby item id is missing');
+
+  const fetched = await embyService.getItemById(server, embyItemId);
+  await enrichDiscMetadata([fetched], subLib, cfg);
+  upsertItems(subLib.uuid, [fetched], { fullSync: false });
+
+  if (subLib.doubanEnabled) {
+    await syncDoubanForSubLibrary(subLib);
+  }
+
+  recomputeAllSelfFields();
+  try {
+    const strategyEngine = require('./strategyEngine');
+    strategyEngine.runOnce();
+  } catch (_) {}
+
+  return getLibraryItem(itemId) || current;
+}
+
 function startSubLibraryTimers(subLib) {
   const uuid = subLib.uuid;
   stopSubLibraryTimers(uuid);
@@ -699,22 +757,57 @@ function startAllSubLibraryTimers() {
   const cfg = configStore.loadConfig();
   const subLibs = (cfg.subLibraries || []).filter((sl) => sl.enabled !== false);
 
+  if (startupRefreshTimer) {
+    clearTimeout(startupRefreshTimer);
+    startupRefreshTimer = null;
+  }
+
   for (const sl of subLibs) {
     startSubLibraryTimers(sl);
   }
 
-  // Refresh all subLibraries first, then start self-computation once data is in.
-  // Self-compute needs bitrate/duration from the freshly fetched items to derive
-  // equivalentBitrate — running it before refresh completes produces all-zeroes.
-  const refreshes = subLibs.map((sl) =>
-    refreshSubLibrary(sl).catch((e) => console.error('[mediaLibrary] startup refresh error:', e))
-  );
-  Promise.all(refreshes).then(() => {
-    startSelfComputeTimer(600000);
-  });
+  const startSelfCompute = (options = {}) => {
+    startSelfComputeTimer(600000, {
+      runImmediately: options.runImmediately !== false && cfg.mediaLibrarySelfComputeOnStartup !== false,
+    });
+  };
+
+  if (cfg.mediaLibraryStartupRefreshOnStartup === false) {
+    console.log('[mediaLibrary] startup refresh disabled by config');
+    startSelfCompute();
+    return;
+  }
+
+  const delaySeconds = Math.max(0, Number(cfg.mediaLibraryStartupRefreshDelaySeconds) || 0);
+  console.log(`[mediaLibrary] startup refresh scheduled in ${delaySeconds}s`);
+  startupRefreshTimer = setTimeout(() => {
+    startupRefreshTimer = null;
+    const currentCfg = configStore.loadConfig();
+    if (currentCfg.mediaLibraryStartupRefreshOnStartup === false) {
+      console.log('[mediaLibrary] startup refresh skipped by config');
+      startSelfCompute();
+      return;
+    }
+
+    // Refresh all subLibraries first, then start self-computation once data is in.
+    // Self-compute needs bitrate/duration from the freshly fetched items to derive
+    // equivalentBitrate — running it before refresh completes produces all-zeroes.
+    const refreshes = subLibs.map((sl) =>
+      refreshSubLibrary(sl, { runDerivedUpdates: false }).catch((e) => console.error('[mediaLibrary] startup refresh error:', e))
+    );
+    Promise.all(refreshes).then(() => {
+      runPostRefreshUpdates();
+      startSelfCompute({ runImmediately: false });
+    });
+  }, delaySeconds * 1000);
+  startupRefreshTimer.unref && startupRefreshTimer.unref();
 }
 
 function stopAllTimers() {
+  if (startupRefreshTimer) {
+    clearTimeout(startupRefreshTimer);
+    startupRefreshTimer = null;
+  }
   for (const uuid of subLibraryTimers.keys()) {
     stopSubLibraryTimers(uuid);
   }
@@ -738,11 +831,14 @@ async function triggerDoubanSync(subLibraryId) {
 
 module.exports = {
   // Library CRUD
+  loadLibrary,
   getLibrary,
   getLibraryItem,
+  getSpaceStatLibrary,
   upsertItems,
   updateUserRating,
   saveLibrary,
+  updateLibraryItems,
   getLibraryStatus,
 
   // SubLibrary CRUD
@@ -764,6 +860,7 @@ module.exports = {
   // Manual triggers
   triggerRefresh,
   triggerDoubanSync,
+  completeEmbyItemMetadata,
 
   getHealth,
 };
@@ -771,11 +868,22 @@ module.exports = {
 function getHealth(config) {
   const subLibs = (config && config.subLibraries) || [];
   const enabled = subLibs.filter((sl) => sl.enabled !== false);
+  const refreshScheduled = enabled.filter((sl) => (sl.source || 'emby') !== 'folder');
   const totalSubLibraries = subLibs.length;
   const enabledCount = enabled.length;
+  const scheduledRefreshCount = refreshScheduled.length;
+  const manualFolderCount = enabledCount - scheduledRefreshCount;
 
   if (enabledCount === 0) {
-    return { status: 'green', totalSubLibraries, enabledCount: 0, staleSubLibraries: [] };
+    return { status: 'green', totalSubLibraries, enabledCount: 0, scheduledRefreshCount: 0, manualFolderCount: 0, staleSubLibraries: [] };
+  }
+
+  if (!libraryStore.getHealth()) {
+    return { status: 'red', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries: [] };
+  }
+
+  if (scheduledRefreshCount === 0) {
+    return { status: 'green', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries: [] };
   }
 
   const refreshIntervalMin = (config && config.defaultRefreshIntervalMinutes) || 60;
@@ -783,26 +891,20 @@ function getHealth(config) {
   const now = Date.now();
 
   const staleSubLibraries = [];
-  for (const sl of enabled) {
+  for (const sl of refreshScheduled) {
     const lastRefreshed = sl.lastRefreshedAt ? new Date(sl.lastRefreshedAt).getTime() : 0;
     if (now - lastRefreshed > graceMs) {
       staleSubLibraries.push(sl.name || sl.uuid);
     }
   }
 
-  if (staleSubLibraries.length === enabledCount) {
-    // Check if library.json is readable
-    try {
-      loadLibrary();
-    } catch (_) {
-      return { status: 'red', totalSubLibraries, enabledCount, staleSubLibraries };
-    }
-    return { status: 'red', totalSubLibraries, enabledCount, staleSubLibraries };
+  if (staleSubLibraries.length === scheduledRefreshCount) {
+    return { status: 'red', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries };
   }
 
   if (staleSubLibraries.length > 0) {
-    return { status: 'yellow', totalSubLibraries, enabledCount, staleSubLibraries };
+    return { status: 'yellow', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries };
   }
 
-  return { status: 'green', totalSubLibraries, enabledCount, staleSubLibraries: [] };
+  return { status: 'green', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries: [] };
 }

@@ -21,10 +21,10 @@ function ensureDataDir() {
 }
 
 // Template version constants — bump when buildDefaultTemplate / buildTVDefaultTemplate logic changes
-const DEFAULT_TEMPLATE_VERSION = 4;
-const TV_DEFAULT_TEMPLATE_VERSION = 4;
-const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 2;
-const ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION = 1;
+const DEFAULT_TEMPLATE_VERSION = 5;
+const TV_DEFAULT_TEMPLATE_VERSION = 5;
+const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 3;
+const ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION = 2;
 
 // ── Default rule template builder ──────────────────────────────────────────────
 
@@ -57,16 +57,6 @@ function buildDefaultTemplate(policy) {
   }
 
   const rules = [];
-
-  // P10: no rating → keep
-  rules.push({
-    priority: 10,
-    groupsConnector: 'and',
-    groups: [condGroup([['doubanRating', '=', null], ['userRating', '=', null]])],
-    action: 'keep',
-    actionParams: {},
-    reason: '无评分',
-  });
 
   // P9: 1-2★ → delete
   rules.push({
@@ -205,16 +195,6 @@ function buildTVDefaultTemplate(policy) {
 
   const rules = [];
 
-  // P10: no rating → keep
-  rules.push({
-    priority: 10,
-    groupsConnector: 'and',
-    groups: [condGroup([['doubanRating', '=', null], ['userRating', '=', null]])],
-    action: 'keep',
-    actionParams: {},
-    reason: '无评分',
-  });
-
   // P9: 1-2★ → delete
   rules.push({
     priority: 9,
@@ -339,7 +319,7 @@ function buildAdultJavDefaultTemplate(policy) {
       {
         priority: 10,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['codec', 'not in', ['h265', 'hevc']]])],
+        groups: [condGroup([['codec', 'not in', ['h265', 'hevc']]])],
         action: 'transcode',
         actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
         reason: `JAV 非 HEVC 编码，转为 H.265（目标 ${target1080p} Mbps）`,
@@ -347,7 +327,7 @@ function buildAdultJavDefaultTemplate(policy) {
       {
         priority: 9,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
+        groups: [condGroup([['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
         action: 'transcode',
         actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
         reason: `JAV 4K 码率 ${target4k} Mbps 超标，建议压缩`,
@@ -355,7 +335,7 @@ function buildAdultJavDefaultTemplate(policy) {
       {
         priority: 8,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
+        groups: [condGroup([['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
         action: 'transcode',
         actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
         reason: `JAV 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,
@@ -390,7 +370,7 @@ function buildAdultWesternDefaultTemplate(policy) {
       {
         priority: 10,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['codec', 'not in', ['h265', 'hevc']]])],
+        groups: [condGroup([['codec', 'not in', ['h265', 'hevc']]])],
         action: 'transcode',
         actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
         reason: `欧美成人非 HEVC 编码，转为 H.265（目标 ${target1080p} Mbps）`,
@@ -398,7 +378,7 @@ function buildAdultWesternDefaultTemplate(policy) {
       {
         priority: 9,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
+        groups: [condGroup([['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
         action: 'transcode',
         actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
         reason: `欧美成人 4K 码率 ${target4k} Mbps 超标，建议压缩`,
@@ -406,7 +386,7 @@ function buildAdultWesternDefaultTemplate(policy) {
       {
         priority: 8,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
+        groups: [condGroup([['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
         action: 'transcode',
         actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
         reason: `欧美成人 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,
@@ -428,33 +408,52 @@ function buildAdultWesternDefaultTemplate(policy) {
 
 function defaultSubLibSchedule() {
   return {
+    automationMode: 'auto',
     scheduleMode: 'full_auto',
     autoCreate: true,
     autoExecute: true,
-    autoReplaceTranscode: false,
-    autoReplaceUpgrade: false,
-    smartSelectEnabled: false,
   };
 }
 
 function resolveSubLibSchedule(itemInfo, config) {
   const subLibId = itemInfo && itemInfo.subLibraryId;
   const subLib = subLibId && (config.subLibraries || []).find((s) => s.uuid === subLibId);
+  const explicitAutomationMode = subLib && (subLib.automationMode === 'auto' || subLib.automationMode === 'manual')
+    ? subLib.automationMode
+    : null;
+  const automationMode = explicitAutomationMode;
+  if (automationMode === 'manual') {
+    return {
+      automationMode: 'manual',
+      autoCreate: true,
+      autoExecute: false,
+      approvalPolicy: (subLib && subLib.approvalPolicy) || {},
+    };
+  }
+  if (automationMode === 'auto') {
+    return {
+      automationMode: 'auto',
+      autoCreate: true,
+      autoExecute: true,
+      approvalPolicy: (subLib && subLib.approvalPolicy) || {},
+    };
+  }
+
+  // Legacy custom mode compatibility. New code should prefer automationMode +
+  // approvalPolicy; these booleans remain readable for old configs/tests.
   const mode = (subLib && subLib.scheduleMode) || 'full_auto';
 
   if (mode === 'full_auto') {
-    return { autoCreate: true, autoExecute: true, autoReplaceTranscode: true, autoReplaceUpgrade: true, smartSelectEnabled: true };
+    return { automationMode: 'auto', autoCreate: true, autoExecute: true, approvalPolicy: (subLib && subLib.approvalPolicy) || {} };
   }
   if (mode === 'full_manual') {
-    return { autoCreate: false, autoExecute: false, autoReplaceTranscode: false, autoReplaceUpgrade: false, smartSelectEnabled: false };
+    return { automationMode: 'manual', autoCreate: true, autoExecute: false, approvalPolicy: (subLib && subLib.approvalPolicy) || {} };
   }
-  // custom
   return {
-    autoCreate: !!(subLib && subLib.autoCreate),
+    automationMode: subLib && subLib.autoExecute ? 'auto' : 'manual',
+    autoCreate: true,
     autoExecute: !!(subLib && subLib.autoExecute),
-    autoReplaceTranscode: !!(subLib && subLib.autoReplaceTranscode),
-    autoReplaceUpgrade: !!(subLib && subLib.autoReplaceUpgrade),
-    smartSelectEnabled: !!(subLib && subLib.smartSelectEnabled),
+    approvalPolicy: (subLib && subLib.approvalPolicy) || {},
   };
 }
 
@@ -473,6 +472,7 @@ function getDefaultConfig() {
   return {
     // TaskScheduler
     executionMode: 'auto',
+    ingestConcurrency: 1,
     deleteConcurrency: 1,
     transcodeConcurrency: 1,
     upgradeConcurrency: 1,
@@ -483,16 +483,72 @@ function getDefaultConfig() {
     smartTaskPollIntervalMinutes: 10,
     smartTaskMaxPerRun: 10,
     smartTaskMaxQueueSize: 50,
-    smartTaskEnabledActions: ['transcode', 'upgrade'],
+    smartTaskEnabledActions: [],
     smartTaskLookbackDays: 30,
+    smartTaskInitialDelaySeconds: 60,
+
+    // Startup maintenance
+    mediaLibraryStartupRefreshOnStartup: true,
+    mediaLibraryStartupRefreshDelaySeconds: 30,
+    mediaLibrarySelfComputeOnStartup: true,
 
     // Task queue priority (PriorityEngine). Lower number = runs first.
+    // Final score = source weight + action weight + subLibrary weight + business
+    // signal + queue age + retry penalty + rule deltas.
     // Per-subLibrary weight lives on subLibrary.priorityWeight (default 100).
-    // Advanced overlay rules below are AND-matched, applied in order.
+    // Advanced overlay rules below are AND-matched, applied in order, and may
+    // only add/subtract from the running score. They must not override it.
     taskPriority: {
       manualTaskPriority: 0,     // manual tasks (POST /v1/tasks) always high priority
       autoTaskPriorityBase: 100, // base for smartTaskEngine-created tasks
-      rules: { transcode: [], upgrade: [], delete: [], scrape: [] },
+      actionTypeWeights: {
+        ingest: 60,
+        scrape: 80,
+        delete: 90,
+        upgrade: 110,
+        transcode: 130,
+      },
+      businessSignalWeights: {
+        adultWorkflowBonus: 20,
+        maxTranscodeSavingBonus: 30,
+      },
+      queueAgeStepMinutes: 60,
+      queueAgeBonusPerStep: 2,
+      maxQueueAgeBonus: 40,
+      retryPenalty: 20,
+      maxRetryPenalty: 80,
+      rules: { ingest: [], transcode: [], upgrade: [], delete: [], scrape: [] },
+    },
+
+    approvalPolicy: {
+      'delete.beforeExecute': 'confirm',
+      'transcode.dolbyVisionTonemap': 'auto',
+      'transcode.beforeReplace': 'confirm',
+      'upgrade.candidateSelect': 'confirm',
+      'upgrade.identityMismatch': 'forceConfirm',
+      'upgrade.beforeReplace': 'confirm',
+      'scrape.beforeWriteMetadata': 'auto',
+      'scrape.beforeOrganize': 'auto',
+      'scrape.reviewResult': 'auto',
+    },
+
+    taskAdmission: {
+      defaultCooldownHours: 48,
+      defaultMaxQueued: 50,
+      maxQueuedByAction: {
+        ingest: 50,
+        scrape: 20,
+        delete: 50,
+        transcode: 50,
+        upgrade: 50,
+      },
+      cooldownHoursByAction: {
+        ingest: 6,
+        scrape: 6,
+        delete: 48,
+        transcode: 48,
+        upgrade: 48,
+      },
     },
 
     // StrategyEngine
@@ -500,6 +556,7 @@ function getDefaultConfig() {
 
     // Transcode
     transcodeTempRoot: process.platform === 'linux' ? '/transcode' : '',
+    transcodeCleanupOrphansOnStartup: true,
     transcodeReplaceConfirmRequired: false,
     upgradeReplaceConfirmRequired: false,
     ffmpegPath: 'ffmpeg',
@@ -526,8 +583,8 @@ function getDefaultConfig() {
     // Adult folder libraries
     adultLibrary: {
       settleSeconds: 30,
-      scanIntervalMinutes: 10,
-      autoScrape: true,
+      probeTimeoutMs: 5000,
+      organizedFolderName: 'scraped',
       videoExtensions: ['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv'],
       japaneseJav: {
         proxyServer: '',
@@ -539,11 +596,13 @@ function getDefaultConfig() {
         posterBasename: 'poster',
         fanartBasename: 'fanart',
         organizeAfterScrape: true,
+        organizedFolderName: 'scraped',
       },
       western: {
         enabled: false,
         provider: 'http',
         computeMode: 'local',
+        localConcurrency: 1,
         aiWorkerBaseUrl: '',
         apiKey: '',
         timeoutMs: 600000,
@@ -556,6 +615,7 @@ function getDefaultConfig() {
         reviewRequired: false,
         writeNfo: true,
         organizeAfterScrape: true,
+        organizedFolderName: 'scraped',
         posterBasename: 'poster',
         fanartBasename: 'fanart',
         titleTemplate: '{actors} - {description}',
@@ -872,6 +932,14 @@ function normalizeAdultLibraryConfig(raw) {
     japaneseJav,
     western,
   };
+  if (Object.prototype.hasOwnProperty.call(raw.adultLibrary, 'autoScrape')) {
+    delete raw.adultLibrary.autoScrape;
+    migrated = true;
+  }
+  if (Object.prototype.hasOwnProperty.call(raw.adultLibrary, 'scanIntervalMinutes')) {
+    delete raw.adultLibrary.scanIntervalMinutes;
+    migrated = true;
+  }
   delete raw.adultLibrary.javsp;
 
   if (Array.isArray(raw.subLibraries)) {
@@ -882,6 +950,16 @@ function normalizeAdultLibraryConfig(raw) {
         migrated = true;
         next = { ...next };
         delete next.scrapeSettleSeconds;
+      }
+      if (next.mediaType === 'adult' && Object.prototype.hasOwnProperty.call(next, 'scrapeEnabled')) {
+        migrated = true;
+        next = { ...next };
+        delete next.scrapeEnabled;
+      }
+      if (next.mediaType === 'adult' && Object.prototype.hasOwnProperty.call(next, 'scanIntervalMinutes')) {
+        migrated = true;
+        next = { ...next };
+        delete next.scanIntervalMinutes;
       }
       if (next.mediaType === 'adult' && next.adultRegion === 'japanese_jav' && next.name === '日本 JAV') {
         migrated = true;
@@ -898,7 +976,84 @@ function normalizeAdultLibraryConfig(raw) {
   return { raw, migrated };
 }
 
+function normalizeTranscodeEncodingDevices(raw) {
+  const devices = Array.isArray(raw && raw.transcodeEncodingDevices)
+    ? raw.transcodeEncodingDevices
+    : [];
+  let migrated = false;
+  const normalized = [];
+
+  for (const dev of devices) {
+    if (!dev || typeof dev !== 'object') continue;
+    const stableKey = String(dev.stableKey || '').trim();
+    if (!stableKey) {
+      migrated = true;
+      continue;
+    }
+    const next = {
+      stableKey,
+      inPool: dev.inPool !== false,
+      priority: Math.max(1, Number.parseInt(dev.priority, 10) || 100),
+      maxSlots: Math.max(1, Number.parseInt(dev.maxSlots, 10) || 1),
+      encoder: String(dev.encoder || ''),
+    };
+    normalized.push(next);
+    const allowed = new Set(Object.keys(next));
+    for (const key of Object.keys(dev)) {
+      if (!allowed.has(key) || dev[key] !== next[key]) {
+        migrated = true;
+        break;
+      }
+    }
+  }
+
+  if (devices.length !== normalized.length) migrated = true;
+  return {
+    raw: { ...(raw || {}), transcodeEncodingDevices: normalized },
+    migrated,
+  };
+}
+
 // ── Load / Save ────────────────────────────────────────────────────────────────
+
+function mergeConfigWithDefaults(config) {
+  const defaults = getDefaultConfig();
+  const raw = normalizeTranscodeEncodingDevices(config || {}).raw;
+  const merged = { ...defaults, ...raw };
+
+  merged.taskAdmission = {
+    ...(defaults.taskAdmission || {}),
+    ...(raw.taskAdmission || {}),
+    cooldownHoursByAction: {
+      ...((defaults.taskAdmission || {}).cooldownHoursByAction || {}),
+      ...(((raw.taskAdmission || {}).cooldownHoursByAction) || {}),
+    },
+    maxQueuedByAction: {
+      ...((defaults.taskAdmission || {}).maxQueuedByAction || {}),
+      ...(((raw.taskAdmission || {}).maxQueuedByAction) || {}),
+    },
+  };
+
+  merged.taskPriority = {
+    ...(defaults.taskPriority || {}),
+    ...(raw.taskPriority || {}),
+    actionTypeWeights: {
+      ...((defaults.taskPriority || {}).actionTypeWeights || {}),
+      ...(((raw.taskPriority || {}).actionTypeWeights) || {}),
+    },
+    rules: {
+      ...((defaults.taskPriority || {}).rules || {}),
+      ...(((raw.taskPriority || {}).rules) || {}),
+    },
+  };
+
+  merged.approvalPolicy = {
+    ...(defaults.approvalPolicy || {}),
+    ...(raw.approvalPolicy || {}),
+  };
+
+  return merged;
+}
 
 function loadConfig() {
   ensureDataDir();
@@ -946,7 +1101,17 @@ function loadConfig() {
       raw = adultResult.raw;
     }
 
-    return { ...getDefaultConfig(), ...raw };
+    const transcodeResult = normalizeTranscodeEncodingDevices(raw);
+    if (transcodeResult.migrated) {
+      console.log('[configStore] transcode device config migration applied');
+      fs.writeFileSync(cfgFile + '.v8.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = transcodeResult.raw;
+      saveConfig(raw);
+    } else {
+      raw = transcodeResult.raw;
+    }
+
+    return mergeConfigWithDefaults(raw);
   } catch (err) {
     console.error('[configStore] failed to load config:', err.message);
     return getDefaultConfig();
@@ -955,7 +1120,7 @@ function loadConfig() {
 
 function saveConfig(config) {
   ensureDataDir();
-  const merged = { ...getDefaultConfig(), ...config };
+  const merged = mergeConfigWithDefaults(config);
   fs.writeFileSync(configFilePath(), JSON.stringify(merged, null, 2), 'utf8');
   return merged;
 }
