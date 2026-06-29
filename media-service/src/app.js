@@ -1906,15 +1906,10 @@ function registerRoutes(app) {
   app.get('/v1/admin/resources', async () => {
     const config = configStore.loadConfig();
     const runtimeEvents = runtimeResourceTracker.listEvents({ recentLimit: 100 }).events;
-    const result = taskStore.queryTaskSummaries({}, {
-      page: 1,
-      pageSize: 1000,
-      maxPageSize: 1000,
-      orderBy: 'createdAt',
-      orderDir: 'asc',
-      includeHistory: false,
-    });
-    const view = resourceProjection.buildResourceView(result.tasks, config, {
+    const tasks = typeof taskStore.querySchedulerTasks === 'function'
+      ? taskStore.querySchedulerTasks()
+      : taskStore.loadTasks({ includeHistory: false });
+    const view = resourceProjection.buildResourceView(tasks, config, {
       slotUsage: transcodeService.getDeviceSlotUsage(),
       runtimeEvents,
     });
