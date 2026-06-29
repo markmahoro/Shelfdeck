@@ -6,7 +6,7 @@
 
 - v2.5 是生产能力保留 + 局部架构探路。
 - v3.0 的关键不是重写所有功能，而是让 lifecycle、task bridge、flow、event、resource scheduling、projection 成为系统事实。
-- 后续采用连续长程目标推进：`v2.6 -> v2.6.1 -> v2.7 -> v3.0`。
+- 后续采用连续长程目标推进：`v2.6 -> v2.6.1 -> v2.6.2 -> v2.7 -> v3.0`。
 - 每个长程目标只推进一个版本；验收、部署、固化后再进入下一版。
 
 ## 总路线
@@ -15,6 +15,7 @@
 v2.5  当前基础：生产能力可用，已有 task_events/resource view/projection 的雏形
 v2.6  Event 可观测版本：先看清谁在干活、谁在吃资源
 v2.6.1 Diagnostic Log 版本：补全非 flow-node 的存储/系统诊断日志
+v2.6.2 Background I/O Guard 版本：先止住后台同步/SQLite I/O 卡住 UI/API
 v2.7  Task / Flow 语义收正版：任务变成 lifecycle bridge，flow 编排 event
 v3.0  数据模型与产品语义成型版：v3 模型成为 SQL facts / runtime / projections 的事实基础
 ```
@@ -23,6 +24,7 @@ v3.0  数据模型与产品语义成型版：v3 模型成为 SQL facts / runtime
 
 - v2.6 不大改业务语义，只补可观测性。
 - v2.6.1 固定 event 语义，补 diagnostic/resource log，不把数据库维护层混入 flow event。
+- v2.6.2 先解决生产可用性瓶颈：后台 refresh、Douban、SmartTask、SQLite checkpoint 不能再把 service HTTP 主路径卡死。
 - v2.7 收正 task、flow、event 的业务语义，但不做数据模型完全换代。
 - v3.0 再做 SQL facts、runtime state、projections、Admin Web 产品语义的正式收口。
 - 每版都必须可独立部署、独立验收、独立回滚。
@@ -35,6 +37,7 @@ v3.0  数据模型与产品语义成型版：v3 模型成为 SQL facts / runtime
 | --- | --- | --- | --- | --- |
 | v2.6 | 先让系统可观测 | 资源视图能解释媒体库加载、豆瓣同步、SmartTask、任务调度是谁在运行、耗时多久、占用什么资源 | 不改 task 业务语义，不重写 flow，不改危险文件操作 | 卡顿或 CPU 升高时，Admin Web/API 能归因到具体 runtime event |
 | v2.6.1 | 固定 event 语义并补诊断日志 | 当 event 证明不是业务 flow 卡住时，用户能继续看到 SQLite/WAL、store、projection、scheduler 等系统层瓶颈 | 不把数据库维护叫 event，不改 task/flow 语义，不清生产数据 | 资源/诊断页能区分 flow event、diagnostic log、metric，并解释 WAL/SQLite/Store 层耗时 |
+| v2.6.2 | 后台 I/O 止血 | 媒体库页、资源页、任务页不再被启动刷新、Douban 同步、SmartTask 扫描、SQLite checkpoint 间歇性拖死 | 不改 task/flow 语义，不做 store worker 大改，不清生产数据 | 后台同步运行时，HTTP 健康、媒体库查询、资源诊断页仍能稳定响应 |
 | v2.7 | 收正 task / flow / event 语义 | 任务中心能从 lifecycle bridge、flow plan、event history 解释任务为什么发生、如何执行、哪里失败 | 不做 SQL facts 全面换代，不做 Admin Web 全量产品重组 | 手动/自动任务仍可用，但新任务已能用 bridge + flow + event 表达 |
 | v3.0 | 让 v3 模型成为数据事实和产品语义 | 媒体库、任务中心、资源视图、诊断页都围绕 lifecycle、metadata、optimization、archive、flow、event 展示 | 不机械复制 v2 内部模型，不把 `actionType`/`payload_json` 当主模型 | SQL facts / runtime / projections 分层成立，生产数据可 dry-run 迁移或兼容导入 |
 
@@ -59,6 +62,7 @@ v3.0  数据模型与产品语义成型版：v3 模型成为 SQL facts / runtime
 - 后续每个长程目标只推进一个版本，不跨版偷跑。
 - 每个版本开始前先重新阅读本文件、`AGENTS.md`、`docs/v2/DEBUG_WORKFLOW.md`、`docs/v2/PRODUCTION_DEPLOYMENT.md`。
 - 每个版本先排摸当时的代码库现状，再决定具体实现；本文定义目标和边界，不替后续 agent 预写实现方案。
+- v2.7 不应在 v2.6.2 完成前启动；否则 task/flow 语义改动会和既有后台 I/O 卡顿混在一起，难以验收。
 - v2 生产能力是行为基线，v3 业务模型是方向；发生冲突时，先保护生产安全，再用小步迭代收正模型。
 - desktop 与 worker 不是这三版的主动重构对象；只有 service API 或资源调度兼容必须调整时才处理。
 - 任何真实删除、真实替换原文件、生产数据清理，都必须再次获得用户明确授权。
@@ -248,6 +252,119 @@ After：
 
 验收：
 v2.6.1 通过的标志是：event 语义保持干净，仍然代表 flow node；同时系统可以通过 diagnostic log / metric 解释 SQLite/WAL、store、projection、scheduler 等非 flow-node 的卡顿来源。
+```
+
+## v2.6.2 - Background I/O Guard 版本
+
+目标：先解决生产上已经被诊断出来的 service 主线程间歇性卡死问题，让后台 refresh、Douban sync、SmartTask scan、SQLite checkpoint 等重 I/O 不再拖死 Admin Web/API。
+
+### 背景
+
+v2.6.1 生产验证证明：
+
+- `/v1/library?limit=50` 可以很快完成，曾验证到 20-30ms 级别。
+- `/v1/admin/resources` 在轻量化后也可以毫秒级返回。
+- 但后台 Douban sync、媒体库 refresh、SmartTask 扫描、SQLite/WAL 写入或 checkpoint 叠加时，Node service 主线程仍会进入短时不可响应状态。
+- 当主线程被同步 I/O 压住时，浏览器页面、健康检查、诊断 API 会一起等待。
+
+因此 v2.6.2 是 v2.7 的前置稳定性版本。它不推进 task/flow 语义，而是先保证 service HTTP 主路径不被后台系统任务拖死。
+
+### 范围
+
+- 建立后台重 I/O guard：
+  - 启动刷新；
+  - Douban sync；
+  - SmartTask scan；
+  - 大批量 `libraryStore.replaceSubLibraryItems`；
+  - 大批量 `libraryStore.updateItems`；
+  - SQLite WAL checkpoint；
+  - strategy recompute。
+- 对重 I/O 后台任务做互斥、限流、错峰或降频。
+- 启动阶段避免 refresh、Douban、SmartTask、scheduler 同时重压 SQLite。
+- checkpoint 策略从“每次大写入后立即 TRUNCATE”调整为更温和的维护策略，例如：
+  - 只在 WAL 超阈值时 checkpoint；
+  - checkpoint 尽量错开用户请求高峰；
+  - checkpoint 正在运行时不重复触发；
+  - checkpoint 慢时进入 diagnostic log。
+- Admin Web 资源/诊断页展示后台 I/O guard 状态：
+  - 当前是否有 heavy background operation；
+  - 当前 operation 名称、开始时间、耗时；
+  - 最近被跳过/延后/合并的后台操作；
+  - WAL size 和 checkpoint 状态。
+- 保持 v2.6.1 的 event / diagnostic log / metric 语义不变。
+
+### 不做什么
+
+- 不改变 task / flow / event 业务语义。
+- 不把后台 I/O guard 包装成 flow event。
+- 不做 SQL facts 全面换代。
+- 不做 store worker / child process 大改；这属于 v3.0 或后续架构版。
+- 不清理生产数据、不删除历史任务、不改危险文件操作。
+- 不为了止血关闭核心业务能力；只能限流、错峰、降频、合并或延后。
+
+### 用户视角 Before / After
+
+Before：
+
+- 媒体库页有时卡住，但 `/v1/library?limit=50` 本身并不慢。
+- 资源页有时也跟着卡，因为 service 主线程被后台同步/SQLite I/O 压住。
+- 启动后 refresh、Douban、SmartTask 比较容易叠在一起。
+- 用户只能看到页面等很久，不知道后台系统任务是否正在占住服务。
+
+After：
+
+- 后台同步运行时，媒体库页、任务页、资源页仍然能响应。
+- 资源/诊断页能看到当前 heavy background operation。
+- 后台 refresh、Douban、SmartTask、checkpoint 不会无限叠加。
+- WAL 变大时系统能显示原因和处理状态，而不是靠 SSH 猜。
+- v2.7 开始前，系统有一个相对稳定的 service 响应基线。
+
+### 验收标准
+
+- 启动后 2 分钟内，反复访问以下接口不会长时间卡死：
+  - `GET /v1/health`
+  - `GET /v1/library?limit=50`
+  - `GET /v1/admin/resources`
+  - `GET /v1/admin/tasks?page=1&pageSize=1`
+- 后台 Douban sync 正在运行时，以上接口仍能稳定返回。
+- SmartTask scan 运行或自动入队时，以上接口仍能稳定返回。
+- 媒体库 refresh 运行时，资源/诊断页能显示对应 heavy background operation 或 store diagnostic。
+- SQLite checkpoint 不再无条件在每次大写入后同步压主线程；checkpoint 的触发、跳过、耗时、WAL size 进入 diagnostic log / metric。
+- `library.db-wal`、`tasks.db-wal` 能继续在资源/诊断页看到。
+- v2.6.1 的 event 语义不倒退：`library.query`、`douban.sync`、`strategy.run`、`smartTask.scan`、`task.dispatch` 仍是 runtime event；SQLite/WAL/checkpoint 仍是 diagnostic log / metric。
+- 单测通过，Admin Web build 通过。
+- 按标准流程部署生产，并在生产启动期、后台 Douban 同步期、SmartTask 扫描期做只读验收。
+
+### 长程目标提示词
+
+```text
+/goal 推进 ShelfDeck v2.6.2：Background I/O Guard 版本。
+
+目标：
+在 v2.6.1 已经能区分 runtime event、diagnostic log、metric 的基础上，解决生产上已经确认的 service 主线程被后台同步/SQLite I/O 间歇性压住的问题。v2.6.2 的目标是让后台 refresh、Douban sync、SmartTask scan、SQLite checkpoint 等重 I/O 不再拖死 Admin Web/API，为 v2.7 task/flow 语义改造提供稳定服务基线。
+
+边界：
+1. 本轮不改 task / flow / event 业务语义。
+2. 本轮不把后台 I/O guard、SQLite/WAL、checkpoint 叫 event。
+3. 本轮不做 SQL facts 全面换代，不做 store worker / child process 大改。
+4. 本轮不清理生产数据、不删除历史任务、不改变危险文件操作。
+5. 本轮只做 v2.6.2，完成后部署和验收，不继续推进 v2.7。
+
+必须完成：
+- 阅读 AGENTS.md、docs/v2/DEBUG_WORKFLOW.md、docs/v2/PRODUCTION_DEPLOYMENT.md、docs/v2.5/V2_6_TO_V3_ROADMAP.md。
+- 排摸 v2.6.1 当前的 mediaLibraryService、douban sync、smartTaskEngine、strategyEngine、libraryStore、taskStore、scheduler、diagnosticLog、resourceProjection。
+- 基于生产诊断，确认哪些后台路径会造成同步 I/O 压力：启动刷新、Douban sync、SmartTask scan、strategy recompute、SQLite checkpoint、大批量 store 写入。
+- 设计并实现轻量 Background I/O Guard：互斥、限流、错峰、降频或合并后台重 I/O。
+- 启动阶段避免 refresh、Douban、SmartTask、scheduler 同时压 SQLite。
+- 调整 WAL checkpoint 策略：不再每次大写入都无条件同步 TRUNCATE；按阈值、状态和时机触发，并把触发/跳过/耗时/WAL size 写入 diagnostic log / metric。
+- Admin Web 资源/诊断页展示 heavy background operation 状态。
+- 保持 v2.6.1 的 runtime event、diagnostic log、metric 三层语义不变。
+- 增加必要测试，覆盖 guard 互斥、checkpoint 降频、诊断输出、资源页 API 轻量响应。
+- 构建并按标准流程部署到 NAS。
+- 生产验证：启动后、Douban 同步中、SmartTask 扫描中，/v1/health、/v1/library?limit=50、/v1/admin/resources、/v1/admin/tasks?page=1&pageSize=1 都能稳定响应。
+
+验收：
+v2.6.2 通过的标志是：后台同步和 SQLite/WAL 维护仍可运行，但不再把 service HTTP 主路径拖死。用户打开媒体库页、任务页、资源/诊断页时，即使后台正在 refresh、Douban 或 SmartTask，也能看到系统当前在忙什么，而不是整个页面无响应。
 ```
 
 ## v2.7 - Task / Flow 语义收正版

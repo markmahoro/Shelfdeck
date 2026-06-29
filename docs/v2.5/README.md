@@ -31,7 +31,7 @@ v3.0  暂缓；是否需要更彻底重构，等 v2.5 稳定后再决定
 | `UPGRADE_STRATEGY.md` | v2.5 总体升级策略 |
 | `DATA_RUNTIME_MODEL.md` | SQL facts、内存 runtime、projection 的 v2.5 落地模型 |
 | `IMPLEMENTATION_STAGES.md` | 分阶段实施路线 |
-| `V2_6_TO_V3_ROADMAP.md` | v2.6、v2.6.1、v2.7、v3.0 迭代计划与验收标准 |
+| `V2_6_TO_V3_ROADMAP.md` | v2.6、v2.6.1、v2.6.2、v2.7、v3.0 迭代计划与验收标准 |
 | `GOAL_PROMPT.md` | 可用于开启 v2.5 长程任务的提示词 |
 
 ## 关键原则
