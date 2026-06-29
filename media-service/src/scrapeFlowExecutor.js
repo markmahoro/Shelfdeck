@@ -9,6 +9,7 @@ const japaneseJavScraper = require('./services/japaneseJavScraper');
 const westernAdultAiService = require('./services/westernAdultAiService');
 const approvalPolicy = require('./approvalPolicy');
 const scrapeVerification = require('./scrapeVerification');
+const metadataStatus = require('./metadataStatus');
 
 let scheduler = null;
 function setScheduler(s) { scheduler = s; }
@@ -44,6 +45,11 @@ async function runPrecheck(taskId, task) {
     const item = task.itemInfo || {};
     const subLib = getSubLibrary(config, item.subLibraryId);
     if (!subLib) throw new Error('SubLibrary not found');
+    if ((subLib.source || 'emby') === 'emby') {
+      taskStore.updateTask(taskId, { resumePoint: 'scrape_executing' });
+      await runExecuting(taskId, taskStore.getTask(taskId));
+      return;
+    }
     if (!adultLibraryService.isAdultFolderSubLibrary(subLib)) throw new Error('Task subLibrary is not an adult folder library');
     if (!subLib.watchRoot) throw new Error('watchRoot is not configured');
     if (!fs.existsSync(subLib.watchRoot)) throw new Error(`watchRoot does not exist: ${subLib.watchRoot}`);
@@ -69,6 +75,10 @@ async function runExecuting(taskId, task) {
     const config = configStore.loadConfig();
     const subLib = getSubLibrary(config, task.itemInfo && task.itemInfo.subLibraryId);
     if (!subLib) throw new Error('SubLibrary not found');
+    if ((subLib.source || 'emby') === 'emby') {
+      await runEmbyExecuting(taskId, task, config, subLib);
+      return;
+    }
 
     // The task's itemInfo is a snapshot from enqueue time and may be stale —
     // e.g. the user rescraped with a corrected 番号 override, which was written
@@ -105,6 +115,49 @@ async function runExecuting(taskId, task) {
   } catch (e) {
     appendLog(taskId, 'error', e.message);
     adultLibraryService.markScrapeFailed(task.itemId, e.message);
+    setPhase(taskId, 'failed_hard');
+    scheduler.reportStatus(taskId, 'failed_hard', 0);
+  }
+}
+
+async function runEmbyExecuting(taskId, task, config, subLib) {
+  setPhase(taskId, 'scrape_executing');
+  scheduler.reportStatus(taskId, 'executing', 20);
+  appendLog(taskId, 'info', 'Starting Emby metadata completion');
+  try {
+    const mediaLibraryService = require('./mediaLibraryService');
+    const latestItem = await mediaLibraryService.completeEmbyItemMetadata(task.itemId, { config });
+    scheduler.reportStatus(taskId, 'executing', 85);
+    const meta = metadataStatus.resolveMetadataStatus(latestItem, config);
+    if (!meta.metadataComplete) {
+      const updatedInfo = {
+        ...(task.itemInfo || {}),
+        ...buildUpdatedItemInfo(latestItem),
+      };
+      taskStore.updateTask(taskId, {
+        itemInfo: updatedInfo,
+        scrapeVerification: {
+          ok: false,
+          checkedAt: new Date().toISOString(),
+          checks: Object.fromEntries(meta.metadataMissingReasons.map((reason) => [reason, false])),
+          failures: meta.metadataMissingReasons.map((reason) => ({ code: reason, message: `Metadata missing: ${reason}` })),
+          warnings: [],
+          metadataStatus: meta.metadataStatus,
+          metadataMissingReasons: meta.metadataMissingReasons,
+          source: 'completion_snapshot',
+        },
+      });
+      appendLog(taskId, 'warn', `Emby metadata remains incomplete: ${meta.metadataMissingReasons.join(', ')}`);
+      setPhase(taskId, 'failed_hard');
+      scheduler.reportStatus(taskId, 'failed_hard', 0);
+      return;
+    }
+    appendLog(taskId, meta.metadataComplete ? 'info' : 'warn', meta.metadataComplete
+      ? 'Emby metadata completion verified'
+      : `Emby metadata remains incomplete: ${meta.metadataMissingReasons.join(', ')}`);
+    await afterScrapeApplied(taskId, task, config, latestItem, 'Emby metadata completion finished; strategy recalculated');
+  } catch (e) {
+    appendLog(taskId, 'error', e.message);
     setPhase(taskId, 'failed_hard');
     scheduler.reportStatus(taskId, 'failed_hard', 0);
   }
@@ -236,7 +289,7 @@ async function afterScrapeApplied(taskId, task, config, latestItem, logMessage) 
 
   const updatedInfo = {
     ...(task.itemInfo || {}),
-    ...(itemAfterStrategy ? adultLibraryService.itemInfoFromItem(itemAfterStrategy) : {}),
+    ...(itemAfterStrategy ? buildUpdatedItemInfo(itemAfterStrategy) : {}),
   };
   delete updatedInfo.pendingScrapeKind;
   delete updatedInfo.pendingScrapeResult;
@@ -266,6 +319,41 @@ async function afterScrapeApplied(taskId, task, config, latestItem, logMessage) 
   }
 
   await finishScrape(taskId);
+}
+
+function buildUpdatedItemInfo(item) {
+  if (!item) return {};
+  if (item.source === 'adult_folder') return adultLibraryService.itemInfoFromItem(item);
+  const meta = metadataStatus.resolveMetadataStatus(item, configStore.loadConfig());
+  return {
+    name: item.name,
+    itemId: item.itemId,
+    embyItemId: item.sourceId,
+    path: item.path,
+    subLibraryId: item.subLibraryId,
+    assetKey: item.assetKey,
+    assetRootPath: item.assetRootPath,
+    externalRefs: item.externalRefs,
+    resolution: item.resolution,
+    bitrate: item.bitrate,
+    size: item.size,
+    duration: item.duration,
+    type: item.type,
+    isDiscLike: !!item.isDiscLike,
+    doubanRating: item.doubanRating,
+    userRating: item.userRating,
+    watched: item.watched,
+    tmdbId: item.tmdbId,
+    providerIds: item.providerIds,
+    seriesName: item.seriesName,
+    seasonNumber: item.seasonNumber,
+    targetBitrate: item.targetBitrate,
+    targetCodec: item.targetCodec,
+    seedPreferences: item.seedPreferences,
+    maxSizeGB: item.maxSizeGB,
+    equivalentBitrate: item.equivalentBitrate,
+    ...meta,
+  };
 }
 
 async function finishScrape(taskId) {

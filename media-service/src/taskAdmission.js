@@ -1,6 +1,7 @@
 'use strict';
 
 const optimizationStatus = require('./optimizationStatus');
+const metadataStatus = require('./metadataStatus');
 
 const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 
@@ -104,6 +105,17 @@ function canCreateTask({ item, itemInfo, actionType, source, config, tasks, opti
       if (opt.optimizationStatus === 'transcoded') {
         return { allowed: false, reason: 'already_transcoded' };
       }
+    }
+  }
+
+  if (['delete', 'transcode', 'upgrade'].includes(actionType)) {
+    const meta = metadataStatus.resolveMetadataStatus(item || info, cfg);
+    if (!meta.metadataComplete) {
+      return {
+        allowed: false,
+        reason: 'metadata_missing',
+        metadataMissingReasons: meta.metadataMissingReasons,
+      };
     }
   }
 

@@ -131,7 +131,7 @@ async function getMediaFolders(serverConfig) {
 }
 
 const ITEM_FIELDS =
-  'BasicSyncInfo,RunTimeTicks,ImageTags,Type,MediaType,Path,VideoType,IsoType,SeriesName,SeriesId,ParentIndexNumber,IndexNumber,ParentId,MediaSources,UserData';
+  'BasicSyncInfo,RunTimeTicks,ImageTags,Type,MediaType,Path,VideoType,IsoType,SeriesName,SeriesId,ParentIndexNumber,IndexNumber,ParentId,ProviderIds,MediaSources,UserData';
 
 async function getLibraryItems(serverConfig, sectionId) {
   const userId = String(serverConfig.userId || '').trim();
@@ -331,6 +331,7 @@ function extractItemFields(item) {
     parentIndexNumber: typeof item.ParentIndexNumber === 'number' ? item.ParentIndexNumber : null,
     indexNumber: typeof item.IndexNumber === 'number' ? item.IndexNumber : null,
     parentId: item.ParentId || null,
+    providerIds: item.ProviderIds || {},
     tmdbId: (item.ProviderIds && item.ProviderIds.Tmdb) || null,
   };
 }

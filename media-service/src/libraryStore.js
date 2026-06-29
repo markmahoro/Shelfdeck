@@ -89,10 +89,39 @@ function getDb() {
     CREATE INDEX IF NOT EXISTS idx_media_items_updated_at ON media_items(updated_at);
     CREATE INDEX IF NOT EXISTS idx_media_items_scrape_status ON media_items(source, scraped, scrape_status);
   `);
+  ensureSpaceStatColumns(db);
   dbCache.set(dbPath, db);
   migrateJsonLibraryIfNeeded(db);
+  backfillSpaceStatColumns(db);
   checkpointWal(db, 'startup');
   return db;
+}
+
+function ensureSpaceStatColumns(db) {
+  const existing = new Set(db.prepare('PRAGMA table_info(media_items)').all().map((row) => row.name));
+  const columns = {
+    size_bytes: 'REAL',
+    bitrate: 'REAL',
+    equivalent_bitrate: 'REAL',
+    target_bitrate: 'REAL',
+  };
+  for (const [name, type] of Object.entries(columns)) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE media_items ADD COLUMN ${name} ${type}`);
+  }
+}
+
+function backfillSpaceStatColumns(db) {
+  const version = db.prepare('SELECT value FROM library_meta WHERE key = ?').get('space_stat_columns_backfilled');
+  if (version && version.value === '1') return;
+  db.prepare(`
+    UPDATE media_items
+    SET
+      size_bytes = json_extract(payload_json, '$.size'),
+      bitrate = json_extract(payload_json, '$.bitrate'),
+      equivalent_bitrate = json_extract(payload_json, '$.equivalentBitrate'),
+      target_bitrate = json_extract(payload_json, '$.targetBitrate')
+  `).run();
+  setMeta(db, 'space_stat_columns_backfilled', '1');
 }
 
 function checkpointWal(db, reason) {
@@ -161,6 +190,7 @@ function normalizeItem(item) {
 function itemToRow(item, ordinal) {
   const it = normalizeItem(item);
   const adultMetadata = it.adultMetadata || {};
+  const space = itemSpaceStatColumns(it);
   return {
     item_id: it.itemId,
     ordinal: Number.isInteger(ordinal) ? ordinal : 0,
@@ -182,6 +212,21 @@ function itemToRow(item, ordinal) {
     is_bluray_disc: it.isBluRayDisc ? 1 : 0,
     updated_at: String(it.lastRefreshedAt || it.userRatingUpdatedAt || it.doubanRatingUpdatedAt || ''),
     payload_json: jsonStringify(it),
+    ...space,
+  };
+}
+
+function finiteNumberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function itemSpaceStatColumns(item) {
+  return {
+    size_bytes: finiteNumberOrNull(item && item.size),
+    bitrate: finiteNumberOrNull(item && item.bitrate),
+    equivalent_bitrate: finiteNumberOrNull(item && item.equivalentBitrate),
+    target_bitrate: finiteNumberOrNull(item && item.targetBitrate),
   };
 }
 
@@ -196,11 +241,13 @@ const upsertSql = `
   INSERT INTO media_items
     (item_id, ordinal, sub_library_id, source, source_id, name, type, action, path,
      watched, scraped, scrape_status, adult_id, resolution, codec, user_rating,
-     douban_stars, is_bluray_disc, updated_at, payload_json)
+     douban_stars, is_bluray_disc, updated_at, payload_json,
+     size_bytes, bitrate, equivalent_bitrate, target_bitrate)
   VALUES
     (@item_id, @ordinal, @sub_library_id, @source, @source_id, @name, @type, @action, @path,
      @watched, @scraped, @scrape_status, @adult_id, @resolution, @codec, @user_rating,
-     @douban_stars, @is_bluray_disc, @updated_at, @payload_json)
+     @douban_stars, @is_bluray_disc, @updated_at, @payload_json,
+     @size_bytes, @bitrate, @equivalent_bitrate, @target_bitrate)
   ON CONFLICT(item_id) DO UPDATE SET
     ordinal = excluded.ordinal,
     sub_library_id = excluded.sub_library_id,
@@ -220,7 +267,11 @@ const upsertSql = `
     douban_stars = excluded.douban_stars,
     is_bluray_disc = excluded.is_bluray_disc,
     updated_at = excluded.updated_at,
-    payload_json = excluded.payload_json
+    payload_json = excluded.payload_json,
+    size_bytes = excluded.size_bytes,
+    bitrate = excluded.bitrate,
+    equivalent_bitrate = excluded.equivalent_bitrate,
+    target_bitrate = excluded.target_bitrate
 `;
 
 function setMeta(db, key, value) {
@@ -405,10 +456,10 @@ function querySpaceStatItems() {
       item_id,
       sub_library_id,
       action,
-      json_extract(payload_json, '$.size') AS size_bytes,
-      json_extract(payload_json, '$.bitrate') AS bitrate,
-      json_extract(payload_json, '$.equivalentBitrate') AS equivalent_bitrate,
-      json_extract(payload_json, '$.targetBitrate') AS target_bitrate
+      size_bytes,
+      bitrate,
+      equivalent_bitrate,
+      target_bitrate
     FROM media_items
     ORDER BY ordinal ASC, item_id ASC
   `).all();

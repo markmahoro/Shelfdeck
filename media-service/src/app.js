@@ -32,6 +32,7 @@ const peopleStore = require('./peopleStore');
 const adultActorImageSearchService = require('./services/adultActorImageSearchService');
 const westernAdultLocalAiService = require('./services/westernAdultLocalAiService');
 const scrapeVerification = require('./scrapeVerification');
+const metadataStatus = require('./metadataStatus');
 
 let serverReady = false;
 
@@ -181,12 +182,18 @@ function taskListItemInfo(itemInfo = {}) {
       protagonist: itemInfo.adultMetadata.protagonist,
     }
     : undefined;
-  return {
+  const compact = {
     name: itemInfo.name,
     title: itemInfo.title,
     type: itemInfo.type,
     seriesName: itemInfo.seriesName,
     seasonNumber: itemInfo.seasonNumber,
+    source: itemInfo.source,
+    watched: itemInfo.watched,
+    metadataStatus: itemInfo.metadataStatus,
+    metadataComplete: itemInfo.metadataComplete,
+    metadataMissingReasons: itemInfo.metadataMissingReasons,
+    metadataKind: itemInfo.metadataKind,
     path: itemInfo.path,
     subLibraryId: itemInfo.subLibraryId,
     adultMetadata,
@@ -197,6 +204,10 @@ function taskListItemInfo(itemInfo = {}) {
     originalWidth: itemInfo.originalWidth,
     originalHeight: itemInfo.originalHeight,
   };
+  Object.keys(compact).forEach((key) => {
+    if (compact[key] === undefined || compact[key] === null) delete compact[key];
+  });
+  return Object.keys(compact).length > 0 ? compact : undefined;
 }
 
 function taskListSummary(task) {
@@ -217,6 +228,8 @@ function taskListSummary(task) {
     itemInfo: taskListItemInfo(task.itemInfo),
     verifyResult: task.verifyResult,
     confirmData: task.confirmData,
+    metadataStatus: task.itemInfo && task.itemInfo.metadataStatus,
+    metadataMissingReasons: task.itemInfo && task.itemInfo.metadataMissingReasons,
   };
 }
 
@@ -399,9 +412,11 @@ function registerRoutes(app) {
 
     // Populate itemInfo from media library
     const libItem = mediaLibraryService.getLibraryItem(itemId);
+    const meta = libItem ? metadataStatus.resolveMetadataStatus(libItem, cfg) : null;
     const itemInfo = libItem ? {
       name: libItem.name,
       itemId: libItem.itemId,
+      source: libItem.source,
       embyItemId: assetIdentity.getEmbyItemId(libItem),
       path: libItem.path,
       subLibraryId: libItem.subLibraryId,
@@ -416,7 +431,9 @@ function registerRoutes(app) {
       isDiscLike: !!libItem.isDiscLike,
       doubanRating: libItem.doubanRating,
       userRating: libItem.userRating,
+      watched: libItem.watched,
       tmdbId: libItem.tmdbId,
+      providerIds: libItem.providerIds,
       seriesName: libItem.seriesName,
       seasonNumber: libItem.seasonNumber,
       targetBitrate: libItem.targetBitrate,
@@ -426,6 +443,7 @@ function registerRoutes(app) {
       equivalentBitrate: libItem.equivalentBitrate,
       scraped: !!libItem.scraped,
       adultMetadata: libItem.adultMetadata,
+      ...(meta || {}),
     } : null;
 
     const admissionItemInfo = itemInfo || { itemId };
@@ -571,6 +589,25 @@ function registerRoutes(app) {
       const cfg = configStore.loadConfig();
       const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
       const scrapeInfo = liveItem || { ...info, itemId: task.itemId };
+      const currentVerification = scrapeVerification.verifyScrapedItem(scrapeInfo, {
+        config: cfg,
+        subLib: (cfg.subLibraries || []).find((sl) => sl.uuid === scrapeInfo.subLibraryId) || null,
+        scrapeTaskId: task.id,
+      });
+      if (scrapeInfo.source !== 'adult_folder') {
+        report.metadata = {
+          itemId: scrapeInfo.itemId || task.itemId,
+          name: scrapeInfo.name || task.itemName || '',
+          source: scrapeInfo.source || '',
+          mediaPath: scrapeInfo.path || '',
+          metadataStatus: currentVerification.metadataStatus || (info && info.metadataStatus) || '',
+          metadataMissingReasons: currentVerification.metadataMissingReasons || (info && info.metadataMissingReasons) || [],
+        };
+        report.scrapeVerification = task.scrapeVerification && typeof task.scrapeVerification === 'object'
+          ? markScrapeVerificationSource(task.scrapeVerification, 'completion_snapshot')
+          : markScrapeVerificationSource(currentVerification, 'current_library_state');
+        return report;
+      }
       const meta = scrapeInfo.adultMetadata || {};
       const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === scrapeInfo.subLibraryId) || null;
       report.scrape = {
@@ -603,11 +640,6 @@ function registerRoutes(app) {
         nfo: !!meta.nfoPath,
         marker: !!meta.markerPath,
       };
-      const currentVerification = scrapeVerification.verifyScrapedItem(scrapeInfo, {
-        config: cfg,
-        subLib,
-        scrapeTaskId: task.id,
-      });
       if (task.scrapeVerification && typeof task.scrapeVerification === 'object') {
         report.scrapeVerification = markScrapeVerificationSource(task.scrapeVerification, 'completion_snapshot');
         if (currentVerification.ok !== task.scrapeVerification.ok || (currentVerification.failures || []).length > 0) {
@@ -754,7 +786,7 @@ function registerRoutes(app) {
       filter.taskState = query.task;
       filter.activeTaskIds = new Set(taskStore.loadTasks({ includeHistory: false }).map((t) => t.itemId));
     }
-    if (query.scrape === 'done' || query.scrape === 'pending' || query.scrape === 'failed') filter.scrapeStatus = query.scrape;
+    if (query.scrape === 'done' || query.scrape === 'pending' || query.scrape === 'failed') filter.metadataStatus = query.scrape;
     const rawPageSize = Number(query.pageSize);
     const rawPage = Number(query.page);
     const rawLimit = Number(query.limit);
@@ -797,7 +829,7 @@ function registerRoutes(app) {
   app.get('/v1/library/items/:itemId', async (req, reply) => {
     const item = mediaLibraryService.getLibraryItem(req.params.itemId);
     if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Item not found');
-    return item;
+    return libraryListItemView(metadataStatus.decorateItem(item, configStore.loadConfig()));
   });
 
   app.patch('/v1/library/ratings', async (req, reply) => {

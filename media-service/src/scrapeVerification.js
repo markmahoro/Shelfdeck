@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const metadataStatus = require('./metadataStatus');
 
 function addFailure(result, code, message) {
   result.failures.push({ code, message });
@@ -51,6 +52,9 @@ function effectiveRegionConfig(config = {}, subLib = {}, item = {}) {
 }
 
 function verifyScrapedItem(item, opts = {}) {
+  if (item && item.source !== 'adult_folder') {
+    return verifyMetadataCompleteItem(item, opts);
+  }
   const result = {
     ok: false,
     checkedAt: new Date().toISOString(),
@@ -131,6 +135,33 @@ function verifyScrapedItem(item, opts = {}) {
   }
 
   result.ok = result.failures.length === 0;
+  return result;
+}
+
+function verifyMetadataCompleteItem(item, opts = {}) {
+  const result = {
+    ok: false,
+    checkedAt: new Date().toISOString(),
+    checks: {},
+    failures: [],
+    warnings: [],
+  };
+  if (!item || !item.itemId) {
+    addFailure(result, 'item.present', 'Library item is missing');
+    return result;
+  }
+  const meta = metadataStatus.resolveMetadataStatus(item, opts.config || {});
+  if (meta.metadataComplete) {
+    markOk(result, 'metadata.complete');
+    result.ok = true;
+  } else {
+    addFailure(result, 'metadata.complete', `Metadata is incomplete: ${meta.metadataMissingReasons.join(', ')}`);
+    for (const reason of meta.metadataMissingReasons) {
+      result.checks[reason] = false;
+    }
+  }
+  result.metadataStatus = meta.metadataStatus;
+  result.metadataMissingReasons = meta.metadataMissingReasons;
   return result;
 }
 

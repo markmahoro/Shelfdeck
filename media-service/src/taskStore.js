@@ -71,6 +71,10 @@ function getDb() {
       updated_at TEXT NOT NULL DEFAULT '',
       payload_json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS task_store_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_action_status_priority ON tasks(action_type, status, priority, created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_item_id ON tasks(item_id);
@@ -79,10 +83,47 @@ function getDb() {
     CREATE INDEX IF NOT EXISTS idx_tasks_action_updated_at ON tasks(action_type, updated_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_action_status_updated_at ON tasks(action_type, status, updated_at);
   `);
+  ensureSpaceStatColumns(db);
   dbCache.set(dbPath, db);
   migrateJsonTasksIfNeeded(db);
+  backfillSpaceStatColumns(db);
   checkpointWal(db, 'startup');
   return db;
+}
+
+function ensureSpaceStatColumns(db) {
+  const existing = new Set(db.prepare('PRAGMA table_info(tasks)').all().map((row) => row.name));
+  const columns = {
+    verify_bytes_saved: 'REAL',
+    verify_size_bytes: 'REAL',
+    original_size_bytes: 'REAL',
+    upgrade_old_size: 'REAL',
+    upgrade_new_size: 'REAL',
+  };
+  for (const [name, type] of Object.entries(columns)) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`);
+  }
+}
+
+function backfillSpaceStatColumns(db) {
+  const version = db.prepare('SELECT value FROM task_store_meta WHERE key = ?').get('space_stat_columns_backfilled');
+  if (version && version.value === '1') return;
+  db.prepare(`
+    UPDATE tasks
+    SET
+      verify_bytes_saved = json_extract(payload_json, '$.verifyResult.bytesSaved'),
+      verify_size_bytes = json_extract(payload_json, '$.verifyResult.sizeBytes'),
+      original_size_bytes = json_extract(payload_json, '$.itemInfo.originalSizeBytes'),
+      upgrade_old_size = json_extract(payload_json, '$.upgradePreview.oldFile.size'),
+      upgrade_new_size = json_extract(payload_json, '$.upgradePreview.newFile.size')
+    WHERE status = 'done'
+      AND action_type IN ('transcode', 'upgrade', 'delete')
+  `).run();
+  db.prepare(`
+    INSERT INTO task_store_meta (key, value)
+    VALUES ('space_stat_columns_backfilled', '1')
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run();
 }
 
 function checkpointWal(db, reason) {
@@ -171,6 +212,7 @@ function normalizeTask(task) {
 
 function taskToRow(task) {
   const t = normalizeTask(task);
+  const space = taskSpaceStatColumns(t);
   return {
     id: t.id,
     item_id: t.itemId,
@@ -181,6 +223,25 @@ function taskToRow(task) {
     created_at: t.createdAt,
     updated_at: t.updatedAt,
     payload_json: jsonStringify(t),
+    ...space,
+  };
+}
+
+function finiteNumberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function taskSpaceStatColumns(task) {
+  const verify = task && task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
+  const info = task && task.itemInfo && typeof task.itemInfo === 'object' ? task.itemInfo : {};
+  const preview = task && task.upgradePreview && typeof task.upgradePreview === 'object' ? task.upgradePreview : {};
+  return {
+    verify_bytes_saved: finiteNumberOrNull(verify.bytesSaved),
+    verify_size_bytes: finiteNumberOrNull(verify.sizeBytes),
+    original_size_bytes: finiteNumberOrNull(info.originalSizeBytes),
+    upgrade_old_size: finiteNumberOrNull(preview.oldFile && preview.oldFile.size),
+    upgrade_new_size: finiteNumberOrNull(preview.newFile && preview.newFile.size),
   };
 }
 
@@ -201,9 +262,11 @@ function rowToTask(row) {
 
 const upsertSql = `
   INSERT INTO tasks
-    (id, item_id, item_name, action_type, status, priority, created_at, updated_at, payload_json)
+    (id, item_id, item_name, action_type, status, priority, created_at, updated_at, payload_json,
+     verify_bytes_saved, verify_size_bytes, original_size_bytes, upgrade_old_size, upgrade_new_size)
   VALUES
-    (@id, @item_id, @item_name, @action_type, @status, @priority, @created_at, @updated_at, @payload_json)
+    (@id, @item_id, @item_name, @action_type, @status, @priority, @created_at, @updated_at, @payload_json,
+     @verify_bytes_saved, @verify_size_bytes, @original_size_bytes, @upgrade_old_size, @upgrade_new_size)
   ON CONFLICT(id) DO UPDATE SET
     item_id = excluded.item_id,
     item_name = excluded.item_name,
@@ -212,7 +275,12 @@ const upsertSql = `
     priority = excluded.priority,
     created_at = excluded.created_at,
     updated_at = excluded.updated_at,
-    payload_json = excluded.payload_json
+    payload_json = excluded.payload_json,
+    verify_bytes_saved = excluded.verify_bytes_saved,
+    verify_size_bytes = excluded.verify_size_bytes,
+    original_size_bytes = excluded.original_size_bytes,
+    upgrade_old_size = excluded.upgrade_old_size,
+    upgrade_new_size = excluded.upgrade_new_size
 `;
 
 function buildTask(taskData, now = new Date().toISOString()) {
@@ -359,6 +427,8 @@ function queryTaskSummaries(filter = {}, options = {}) {
   const offset = (page - 1) * pageSize;
   const orderBy = options.orderBy === 'createdAt' ? 'created_at' : 'updated_at';
   const orderDir = String(options.orderDir || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+  const terminalList = [...TERMINAL_STATUSES].map((status) => `'${status}'`).join(', ');
+  const activeJson = (jsonPath) => `CASE WHEN status NOT IN (${terminalList}) THEN json_extract(payload_json, '${jsonPath}') END`;
 
   const total = db.prepare(`SELECT COUNT(*) AS count FROM tasks ${where}`).get(params).count || 0;
   const rows = db.prepare(`
@@ -371,30 +441,37 @@ function queryTaskSummaries(filter = {}, options = {}) {
       priority,
       created_at,
       updated_at,
-      json_extract(payload_json, '$.progress') AS progress,
-      json_extract(payload_json, '$.source') AS source,
-      json_extract(payload_json, '$.phase') AS phase,
-      json_extract(payload_json, '$.resumePoint') AS resume_point,
-      json_extract(payload_json, '$.approval') AS approval_json,
-      json_extract(payload_json, '$.verifyResult') AS verify_result_json,
-      json_extract(payload_json, '$.confirmData') AS confirm_data_json,
-      json_extract(payload_json, '$.itemInfo.name') AS info_name,
-      json_extract(payload_json, '$.itemInfo.title') AS info_title,
-      json_extract(payload_json, '$.itemInfo.type') AS info_type,
-      json_extract(payload_json, '$.itemInfo.seriesName') AS info_series_name,
-      json_extract(payload_json, '$.itemInfo.seasonNumber') AS info_season_number,
-      json_extract(payload_json, '$.itemInfo.path') AS info_path,
-      json_extract(payload_json, '$.itemInfo.subLibraryId') AS info_sub_library_id,
-      json_extract(payload_json, '$.itemInfo.originalSizeBytes') AS info_original_size_bytes,
-      json_extract(payload_json, '$.itemInfo.originalBitrate') AS info_original_bitrate,
-      json_extract(payload_json, '$.itemInfo.originalVideoCodec') AS info_original_video_codec,
-      json_extract(payload_json, '$.itemInfo.originalAudioCodec') AS info_original_audio_codec,
-      json_extract(payload_json, '$.itemInfo.originalWidth') AS info_original_width,
-      json_extract(payload_json, '$.itemInfo.originalHeight') AS info_original_height,
-      json_extract(payload_json, '$.itemInfo.adultMetadata.adultId') AS adult_id,
-      json_extract(payload_json, '$.itemInfo.adultMetadata.scrapeStatus') AS adult_scrape_status,
-      json_extract(payload_json, '$.itemInfo.adultMetadata.region') AS adult_region,
-      json_extract(payload_json, '$.itemInfo.adultMetadata.protagonist') AS adult_protagonist_json
+      ${activeJson('$.progress')} AS progress,
+      ${activeJson('$.source')} AS source,
+      ${activeJson('$.phase')} AS phase,
+      ${activeJson('$.resumePoint')} AS resume_point,
+      ${activeJson('$.approval')} AS approval_json,
+      ${activeJson('$.verifyResult.sizeBytes')} AS verify_size_bytes,
+      ${activeJson('$.verifyResult.bitrate')} AS verify_bitrate,
+      ${activeJson('$.verifyResult.videoCodec')} AS verify_video_codec,
+      ${activeJson('$.verifyResult.audioCodec')} AS verify_audio_codec,
+      ${activeJson('$.verifyResult.width')} AS verify_width,
+      ${activeJson('$.verifyResult.height')} AS verify_height,
+      ${activeJson('$.verifyResult.previewPath')} AS verify_preview_path,
+      ${activeJson('$.verifyResult.outputPath')} AS verify_output_path,
+      ${activeJson('$.verifyResult.bytesSaved')} AS verify_bytes_saved,
+      ${activeJson('$.itemInfo.name')} AS info_name,
+      ${activeJson('$.itemInfo.title')} AS info_title,
+      ${activeJson('$.itemInfo.type')} AS info_type,
+      ${activeJson('$.itemInfo.seriesName')} AS info_series_name,
+      ${activeJson('$.itemInfo.seasonNumber')} AS info_season_number,
+      ${activeJson('$.itemInfo.path')} AS info_path,
+      ${activeJson('$.itemInfo.subLibraryId')} AS info_sub_library_id,
+      ${activeJson('$.itemInfo.originalSizeBytes')} AS info_original_size_bytes,
+      ${activeJson('$.itemInfo.originalBitrate')} AS info_original_bitrate,
+      ${activeJson('$.itemInfo.originalVideoCodec')} AS info_original_video_codec,
+      ${activeJson('$.itemInfo.originalAudioCodec')} AS info_original_audio_codec,
+      ${activeJson('$.itemInfo.originalWidth')} AS info_original_width,
+      ${activeJson('$.itemInfo.originalHeight')} AS info_original_height,
+      ${activeJson('$.itemInfo.adultMetadata.adultId')} AS adult_id,
+      ${activeJson('$.itemInfo.adultMetadata.scrapeStatus')} AS adult_scrape_status,
+      ${activeJson('$.itemInfo.adultMetadata.region')} AS adult_region,
+      ${activeJson('$.itemInfo.adultMetadata.protagonist')} AS adult_protagonist_json
     FROM tasks ${where}
     ORDER BY ${orderBy} ${orderDir}, id ${orderDir}
     LIMIT @limit OFFSET @offset
@@ -436,6 +513,20 @@ function queryTaskSummaries(filter = {}, options = {}) {
       Object.keys(itemInfo).forEach((key) => {
         if (itemInfo[key] === undefined || itemInfo[key] === null) delete itemInfo[key];
       });
+      const verifyResult = {
+        sizeBytes: row.verify_size_bytes,
+        bitrate: row.verify_bitrate,
+        videoCodec: row.verify_video_codec || undefined,
+        audioCodec: row.verify_audio_codec || undefined,
+        width: row.verify_width,
+        height: row.verify_height,
+        previewPath: row.verify_preview_path || undefined,
+        outputPath: row.verify_output_path || undefined,
+        bytesSaved: row.verify_bytes_saved,
+      };
+      Object.keys(verifyResult).forEach((key) => {
+        if (verifyResult[key] === undefined || verifyResult[key] === null) delete verifyResult[key];
+      });
       return {
         id: row.id,
         itemId: row.item_id || '',
@@ -451,8 +542,7 @@ function queryTaskSummaries(filter = {}, options = {}) {
         createdAt: row.created_at || '',
         updatedAt: row.updated_at || '',
         itemInfo: Object.keys(itemInfo).length > 0 ? itemInfo : undefined,
-        verifyResult: jsonExtractObject(row.verify_result_json, undefined),
-        confirmData: jsonExtractObject(row.confirm_data_json, undefined),
+        verifyResult: Object.keys(verifyResult).length > 0 ? verifyResult : undefined,
       };
     }),
     total,
@@ -515,11 +605,11 @@ function querySpaceStatTaskRows() {
       id,
       item_id,
       action_type,
-      json_extract(payload_json, '$.verifyResult.bytesSaved') AS verify_bytes_saved,
-      json_extract(payload_json, '$.verifyResult.sizeBytes') AS verify_size_bytes,
-      json_extract(payload_json, '$.itemInfo.originalSizeBytes') AS original_size_bytes,
-      json_extract(payload_json, '$.upgradePreview.oldFile.size') AS upgrade_old_size,
-      json_extract(payload_json, '$.upgradePreview.newFile.size') AS upgrade_new_size
+      verify_bytes_saved,
+      verify_size_bytes,
+      original_size_bytes,
+      upgrade_old_size,
+      upgrade_new_size
     FROM tasks
     WHERE status = 'done'
       AND action_type IN ('transcode', 'upgrade', 'delete')

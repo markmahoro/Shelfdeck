@@ -21,10 +21,10 @@ function ensureDataDir() {
 }
 
 // Template version constants — bump when buildDefaultTemplate / buildTVDefaultTemplate logic changes
-const DEFAULT_TEMPLATE_VERSION = 4;
-const TV_DEFAULT_TEMPLATE_VERSION = 4;
-const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 2;
-const ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION = 1;
+const DEFAULT_TEMPLATE_VERSION = 5;
+const TV_DEFAULT_TEMPLATE_VERSION = 5;
+const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 3;
+const ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION = 2;
 
 // ── Default rule template builder ──────────────────────────────────────────────
 
@@ -57,16 +57,6 @@ function buildDefaultTemplate(policy) {
   }
 
   const rules = [];
-
-  // P10: no rating → keep
-  rules.push({
-    priority: 10,
-    groupsConnector: 'and',
-    groups: [condGroup([['doubanRating', '=', null], ['userRating', '=', null]])],
-    action: 'keep',
-    actionParams: {},
-    reason: '无评分',
-  });
 
   // P9: 1-2★ → delete
   rules.push({
@@ -205,16 +195,6 @@ function buildTVDefaultTemplate(policy) {
 
   const rules = [];
 
-  // P10: no rating → keep
-  rules.push({
-    priority: 10,
-    groupsConnector: 'and',
-    groups: [condGroup([['doubanRating', '=', null], ['userRating', '=', null]])],
-    action: 'keep',
-    actionParams: {},
-    reason: '无评分',
-  });
-
   // P9: 1-2★ → delete
   rules.push({
     priority: 9,
@@ -339,7 +319,7 @@ function buildAdultJavDefaultTemplate(policy) {
       {
         priority: 10,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['codec', 'not in', ['h265', 'hevc']]])],
+        groups: [condGroup([['codec', 'not in', ['h265', 'hevc']]])],
         action: 'transcode',
         actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
         reason: `JAV 非 HEVC 编码，转为 H.265（目标 ${target1080p} Mbps）`,
@@ -347,7 +327,7 @@ function buildAdultJavDefaultTemplate(policy) {
       {
         priority: 9,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
+        groups: [condGroup([['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
         action: 'transcode',
         actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
         reason: `JAV 4K 码率 ${target4k} Mbps 超标，建议压缩`,
@@ -355,7 +335,7 @@ function buildAdultJavDefaultTemplate(policy) {
       {
         priority: 8,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
+        groups: [condGroup([['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
         action: 'transcode',
         actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
         reason: `JAV 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,
@@ -390,7 +370,7 @@ function buildAdultWesternDefaultTemplate(policy) {
       {
         priority: 10,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['codec', 'not in', ['h265', 'hevc']]])],
+        groups: [condGroup([['codec', 'not in', ['h265', 'hevc']]])],
         action: 'transcode',
         actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
         reason: `欧美成人非 HEVC 编码，转为 H.265（目标 ${target1080p} Mbps）`,
@@ -398,7 +378,7 @@ function buildAdultWesternDefaultTemplate(policy) {
       {
         priority: 9,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
+        groups: [condGroup([['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
         action: 'transcode',
         actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
         reason: `欧美成人 4K 码率 ${target4k} Mbps 超标，建议压缩`,
@@ -406,7 +386,7 @@ function buildAdultWesternDefaultTemplate(policy) {
       {
         priority: 8,
         groupsConnector: 'and',
-        groups: [condGroup([['scraped', '=', true], ['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
+        groups: [condGroup([['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
         action: 'transcode',
         actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
         reason: `欧美成人 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,

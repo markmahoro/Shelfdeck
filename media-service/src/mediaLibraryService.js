@@ -20,6 +20,7 @@ const transcodeService = require('./services/transcodeService');
 const doubanService = require('./services/doubanService');
 const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
+const metadataStatus = require('./metadataStatus');
 const assetIdentity = require('./assetIdentity');
 
 function generateUuid() {
@@ -229,6 +230,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         watched: incoming.watched != null ? incoming.watched : existing.watched,
         lastRefreshedAt: now,
         tmdbId: incoming.tmdbId !== undefined ? incoming.tmdbId : existing.tmdbId,
+        providerIds: incoming.providerIds !== undefined ? incoming.providerIds : existing.providerIds,
         seriesName: incoming.seriesName !== undefined ? incoming.seriesName : existing.seriesName,
         seriesId: incoming.seriesId !== undefined ? incoming.seriesId : existing.seriesId,
         seasonNumber: incoming.seasonNumber !== undefined ? incoming.seasonNumber : existing.seasonNumber,
@@ -273,6 +275,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         seasonNumber: incoming.seasonNumber || null,
         episodeCount: incoming.episodeCount || null,
         tmdbId: incoming.tmdbId || null,
+        providerIds: incoming.providerIds || {},
       };
       lib.items.push(newItem);
       upserted++;
@@ -326,6 +329,11 @@ function updateUserRating(itemId, userRating) {
 
 function getLibrary(filter = {}, opts = {}) {
   const storeFilter = { ...(filter || {}) };
+  const metadataStatusFilter = storeFilter.metadataStatus;
+  const needsMetadataStatusFilter = metadataStatusFilter === 'done'
+    || metadataStatusFilter === 'pending'
+    || metadataStatusFilter === 'failed';
+  if (needsMetadataStatusFilter) delete storeFilter.metadataStatus;
   if (storeFilter.activeTaskIds) {
     const activeTaskIds = storeFilter.activeTaskIds instanceof Set ? storeFilter.activeTaskIds : new Set();
     const ids = [...activeTaskIds].filter(Boolean);
@@ -335,15 +343,36 @@ function getLibrary(filter = {}, opts = {}) {
     delete storeFilter.taskState;
   }
 
-  const result = libraryStore.queryItems(storeFilter, opts);
+  const config = configStore.loadConfig();
+  const pageOpts = needsMetadataStatusFilter ? {} : opts;
+  const result = libraryStore.queryItems(storeFilter, pageOpts);
   let items = result.items.map((item) => ({ ...item }));
+  items = metadataStatus.decorateItems(items, config);
+  if (needsMetadataStatusFilter) {
+    items = items.filter((item) => {
+      if (metadataStatusFilter === 'done') return item.metadataComplete;
+      if (metadataStatusFilter === 'pending') return !item.metadataComplete;
+      const meta = item.adultMetadata || {};
+      return String(meta.scrapeStatus || '').toLowerCase() === 'failed';
+    });
+  }
   if (opts.includeOptimizationStatus) {
     const taskStore = require('./taskStore');
-    const config = configStore.loadConfig();
     const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
       ? taskStore.queryOptimizationTaskIndexRows()
       : taskStore.loadTasks();
     items = optimizationStatus.decorateItems(items, optimizationTasks, config);
+  }
+  if (needsMetadataStatusFilter) {
+    const offset = Math.max(0, Number(opts.offset) || 0);
+    const hasLimit = Number.isInteger(opts.limit) && opts.limit > 0;
+    return {
+      ...result,
+      items: hasLimit ? items.slice(offset, offset + Number(opts.limit)) : items,
+      total: items.length,
+      offset,
+      limit: hasLimit ? Number(opts.limit) : null,
+    };
   }
   return { ...result, items };
 }
@@ -661,6 +690,36 @@ async function syncDoubanForSubLibrary(subLib) {
   }
 }
 
+async function completeEmbyItemMetadata(itemId, opts = {}) {
+  const cfg = opts.config || configStore.loadConfig();
+  const current = getLibraryItem(itemId);
+  if (!current) throw new Error('Library item not found');
+  const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === current.subLibraryId);
+  if (!subLib) throw new Error('SubLibrary not found');
+  if ((subLib.source || 'emby') !== 'emby') throw new Error('SubLibrary is not an Emby library');
+  const server = (cfg.embyServers || {})[subLib.embyServerId];
+  if (!server || !server.baseUrl) throw new Error('Emby server not configured for this subLibrary');
+
+  const embyItemId = assetIdentity.getEmbyItemId(current) || current.sourceId || current.itemId;
+  if (!embyItemId) throw new Error('Emby item id is missing');
+
+  const fetched = await embyService.getItemById(server, embyItemId);
+  await enrichDiscMetadata([fetched], subLib, cfg);
+  upsertItems(subLib.uuid, [fetched], { fullSync: false });
+
+  if (subLib.doubanEnabled) {
+    await syncDoubanForSubLibrary(subLib);
+  }
+
+  recomputeAllSelfFields();
+  try {
+    const strategyEngine = require('./strategyEngine');
+    strategyEngine.runOnce();
+  } catch (_) {}
+
+  return getLibraryItem(itemId) || current;
+}
+
 function startSubLibraryTimers(subLib) {
   const uuid = subLib.uuid;
   stopSubLibraryTimers(uuid);
@@ -801,6 +860,7 @@ module.exports = {
   // Manual triggers
   triggerRefresh,
   triggerDoubanSync,
+  completeEmbyItemMetadata,
 
   getHealth,
 };

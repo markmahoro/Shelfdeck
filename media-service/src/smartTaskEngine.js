@@ -11,6 +11,7 @@
 
 const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
+const metadataStatus = require('./metadataStatus');
 const assetIdentity = require('./assetIdentity');
 const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
@@ -59,7 +60,7 @@ function itemTimestamp(item) {
   ].reduce((latest, value) => maxTimestamp(latest, value), 0);
 }
 
-function isAutoScrapeAdultCandidate(item) {
+function isRetryableMissingMetadata(item) {
   if (!item || item.source !== 'adult_folder') return false;
   if (item.scraped === true) return false;
   const meta = item.adultMetadata || {};
@@ -69,6 +70,12 @@ function isAutoScrapeAdultCandidate(item) {
   // done, and already-scraped items require an explicit user action or are done.
   if (status !== '' && status !== 'pending') return false;
   return true;
+}
+
+function isAutoMetadataCompletionCandidate(item, meta) {
+  if (!item || !meta || meta.metadataComplete) return false;
+  if (meta.metadataKind === 'adult') return isRetryableMissingMetadata(item);
+  return item.source === 'emby';
 }
 
 function buildItemInfo(item) {
@@ -99,6 +106,10 @@ function buildItemInfo(item) {
     equivalentBitrate: item.equivalentBitrate,
     scraped: !!item.scraped,
     adultMetadata: item.adultMetadata,
+    metadataStatus: item.metadataStatus,
+    metadataComplete: item.metadataComplete,
+    metadataMissingReasons: item.metadataMissingReasons,
+    metadataKind: item.metadataKind,
   };
 }
 
@@ -108,9 +119,15 @@ function buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff,
   if (item.type === 'series') return null;
 
   let actionType = '';
-  if (isAdultFolder && enabledActions.includes('scrape') && isAutoScrapeAdultCandidate(item)) {
+  const meta = metadataStatus.resolveMetadataStatus(item, config);
+  const itemWithMetadata = {
+    ...item,
+    ...meta,
+  };
+  if (enabledActions.includes('scrape') && isAutoMetadataCompletionCandidate(item, meta)) {
     actionType = 'scrape';
   } else {
+    if (!meta.metadataComplete) return null;
     if (!item.watched) return null;
     if (!item.action || item.action === 'keep') return null;
     if (!enabledActions.includes(item.action)) return null;
@@ -118,12 +135,12 @@ function buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff,
     actionType = item.action;
   }
 
-  if (isFirstOrResume && !isAdultFolder) {
+  if (isFirstOrResume && !isAdultFolder && actionType !== 'scrape') {
     const ratingTs = maxTimestamp(item.userRatingUpdatedAt, item.doubanRatingUpdatedAt);
     if (ratingTs < lookbackCutoff) return null;
   }
 
-  const itemInfo = buildItemInfo(item);
+  const itemInfo = buildItemInfo(itemWithMetadata);
   const priorityBreakdown = priorityEngine.explainPriority({
     source: 'auto',
     actionType,
@@ -131,7 +148,7 @@ function buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff,
     config,
   });
   return {
-    item,
+    item: itemWithMetadata,
     itemInfo,
     actionType,
     priority: priorityBreakdown.priority,
