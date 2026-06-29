@@ -13,6 +13,8 @@
 - `docs/v2/TEST_ARCHITECTURE.md`
 - `docs/v2/DEBUG_WORKFLOW.md`
 - `docs/v3/OPERATION_CONTEXT.md`
+- `docs/v3/BUSINESS_MODEL_NOTES.md`
+- `docs/v3/V2_BEHAVIOR_PRESERVATION.md`
 - 本文件
 
 ## 2. Service 排摸
@@ -89,6 +91,7 @@ Worker 排摸目标：
 
 - v2 当前实现图。
 - v2 当前实现中最影响 v3 重写的边界问题。
+- v2 关键行为 inventory，至少覆盖 FFmpeg/FFprobe、外部 API、文件系统操作、任务状态机、审批 gate、配置默认值和 Admin Web 字段语义。
 - 必须改、可以后改、可删除、需兼容的清单。
 - 数据迁移风险。
 - 生产部署风险。
