@@ -1895,8 +1895,15 @@ test('GET /v1/admin/tasks attention queues are derived from task control actions
   assert.strictEqual(exhaustedRow.controlState.actions.retry.reason, 'retry_limit_reached');
 
   const originalGetTasks = taskStore.getTasks;
+  const originalQueryTaskSummaries = taskStore.queryTaskSummaries;
   taskStore.getTasks = () => {
     throw new Error('admin task list should use lightweight task summaries');
+  };
+  taskStore.queryTaskSummaries = (filter, options = {}) => {
+    if (options.includeAll) {
+      throw new Error('admin task list attention summary should use dedicated SQL audit facts');
+    }
+    return originalQueryTaskSummaries(filter, options);
   };
   try {
     const lightPlain = await app.inject({ method: 'GET', url: '/v1/admin/tasks?page=1&pageSize=1' });
@@ -1905,6 +1912,7 @@ test('GET /v1/admin/tasks attention queues are derived from task control actions
     assert.strictEqual(lightAttention.statusCode, 200);
   } finally {
     taskStore.getTasks = originalGetTasks;
+    taskStore.queryTaskSummaries = originalQueryTaskSummaries;
   }
 
   const recovery = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=recovery&page=1&pageSize=20' });

@@ -357,6 +357,42 @@ function buildAttentionSummary(tasks) {
   return summary;
 }
 
+const TASK_ATTENTION_CANDIDATE_STATUSES = [
+  'awaiting_user_confirm',
+  'created',
+  'pending_manual',
+  'interrupted',
+  'paused',
+  'pausing',
+  'failed_hard',
+  'failed_soft',
+];
+
+function attentionFactsFilter(filter = {}) {
+  const out = { ...(filter || {}) };
+  const candidateSet = new Set(TASK_ATTENTION_CANDIDATE_STATUSES);
+  const requested = [];
+  if (out.status) requested.push(String(out.status));
+  if (Array.isArray(out.statuses)) {
+    for (const status of out.statuses) requested.push(String(status || '').trim());
+  }
+  const filtered = requested.length > 0
+    ? requested.filter((status) => candidateSet.has(status))
+    : TASK_ATTENTION_CANDIDATE_STATUSES;
+  delete out.status;
+  out.statuses = [...new Set(filtered)].filter(Boolean);
+  return out;
+}
+
+function queryAttentionTasks(filter = {}) {
+  const attentionFilter = attentionFactsFilter(filter);
+  if (!Array.isArray(attentionFilter.statuses) || attentionFilter.statuses.length === 0) return [];
+  return taskStore.queryTaskLifecycleAuditFacts(attentionFilter, {
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  });
+}
+
 function primaryAttentionQueue(attentionSummary = {}) {
   const order = ['needs_action', 'confirmation', 'recovery', 'manual_start'];
   for (const key of order) {
@@ -3299,11 +3335,7 @@ function registerRoutes(app) {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
     if (attention) {
-      const baseTasks = sortTasksForAdminList(taskStore.queryTaskSummaries(filter, {
-        includeAll: true,
-        orderBy: 'updatedAt',
-        orderDir: 'desc',
-      }).tasks);
+      const baseTasks = sortTasksForAdminList(queryAttentionTasks(filter));
       const filteredTasks = baseTasks.filter((task) => taskMatchesAttention(task, attention));
       return {
         tasks: paginateTasks(filteredTasks, page, pageSize).map(taskListSummary),
@@ -3319,11 +3351,7 @@ function registerRoutes(app) {
       };
     }
     const result = taskStore.queryTaskSummaries(filter, { page, pageSize, orderBy: 'updatedAt', orderDir: 'desc' });
-    const summaryBaseTasks = taskStore.queryTaskSummaries(filter, {
-      includeAll: true,
-      orderBy: 'updatedAt',
-      orderDir: 'desc',
-    }).tasks;
+    const summaryBaseTasks = queryAttentionTasks(filter);
     return {
       tasks: result.tasks.map(taskListSummary),
       summary: {
