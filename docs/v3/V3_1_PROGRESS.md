@@ -2783,3 +2783,68 @@ S4 archived
 - 前端配置页尚未把 `archive` 暴露成可勾选自动 operation；本 slice 先完成后端业务模型，前端语义仍需 P1/P2 单独收口。
 - Archive gate 的业务细节目前是第一版技术定义：closure marker + blockers；更细的归档策略、保留周期、审计摘要后续再展开。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 62: Production P0-1 task lifecycle audit
+
+### 对应标准
+
+- P0-1: task 管理是否符合预期，每一种库类型下 task 的整个生命周期是否符合预期。
+- A2: 任务中心应能用 bridge / flow / event / recovery 解释 task，而不是让用户从旧 `actionType` 语义猜测。
+- A5: 任务中心和诊断页要给出可行动的错误解释；错误信号不能继续使用已经废弃的业务模型。
+
+### 本轮只读生产审计
+
+- 当前生产容器镜像：
+  - `markmahoro/shelfdeck:v3.1.0-task-lifecycle-audit-20260630-r1`
+  - 该镜像早于本地后续修复：普通库 metadata repair scrape 语义修正、历史 `archive.delete` 兼容投影、ingest/archive gate 一等 bridge 化。
+- 只读 API 观察：
+  - `GET /v1/health`: `yellow`
+  - `GET /v1/admin/tasks/lifecycle-audit`: total 2158
+  - status 分布：`done=1063`、`failed_hard=1025`、`queued=49`、`executing=1`、`skipped=20`
+  - bridge 分布：`metadata=1150`、`optimize=966`、`archive=42`
+  - operation 分布：`scrape=1148`、`transcode=965`、`delete=42`、`ingest=2`、`upgrade=1`
+- 按库型观察：
+  - movie: total 842，active 50，failed 231，`metadata scrape=49`，`delete/archive=38`
+  - adult: total 791，failed 372，`metadata=769`
+  - tv: total 525，failed 422，`metadata scrape=332`
+- 生产 lifecycle audit 的 `signals.byCode.standard_media_scrape_task=381` 是旧模型误报：
+  - 旧镜像仍认为“普通媒体不应进入 scrape task lifecycle”；
+  - 当前本地代码已修正为：普通 Emby `scrape` 是合法 metadata repair；只有 active 标准媒体 scrape 未使用 `emby` repair resource 才报 `standard_media_scrape_wrong_resource`，终态旧任务最多报 `legacy_standard_media_scrape_task` warn。
+- 生产 `GET /v1/admin/tasks?bridgeKind=archive` 仍返回 42 个历史 `archive.delete`：
+  - 这说明生产尚未包含 Slice 60 的兼容读模型；
+  - 当前本地代码会把历史 `archive.delete` 投影到 `optimize.delete`，并从 `bridgeKind=archive` 中排除。
+- 生产 active task 样本：
+  - 当前 active 主要是 movie transcode，bridge/flow/resource 基本一致：`optimize.transcode` / `operation=transcode` / `primaryResourceType=transcode`。
+  - 但生产 flow steps 中仍可见旧 `phase=verify`，不是当前本地模型里的 `transcode_verify`，也属于镜像未更新造成的读模型差异。
+
+### 结论
+
+- P0-1 的当前本地后端模型比生产镜像新：本地已经修复普通库 scrape 语义、历史 delete 兼容投影、ingest/archive gate 一等 bridge 化。
+- 生产任务中心的主要 P0-1 误报来自旧镜像，不应再按 `standard_media_scrape_task` 把普通库 metadata repair 当成业务错误。
+- P0-1 要完成生产验收，下一步需要用户授权部署当前本地镜像到 NAS 后，重新执行同一组只读审计：
+  - `GET /v1/admin/tasks/lifecycle-audit`
+  - `GET /v1/admin/tasks?bridgeKind=archive`
+  - `GET /v1/admin/tasks?statuses=executing,queued`
+  - 挑选 movie / tv / adult 各一个 task detail 检查 flow/event/recovery。
+
+### 同轮发现但不在 P0-1 内修复
+
+- 生产数据体量较大：
+  - `/app/data/tasks.db` 约 627MB
+  - `/app/data/library.db` 约 574MB
+  - `/app/data` 约 104GB，NAS mount 可用约 76GB
+- 生产响应有波动：
+  - `GET /v1/admin/tasks?page=1&pageSize=20` 日志中出现约 14.5s
+  - `GET /v1/admin/dashboard/health` 日志中出现约 13.3s
+  - `GET /v1/admin/tasks?actionType=scrape&pageSize=40` 日志中出现约 16.3s
+  - 同类请求也有 100ms-3s 的较快样本，说明存在数据量/缓存/并发背景任务相关的性能波动。
+- 这些属于用户列出的 P0 服务降级 / P0 资源视图性能排查范围，已记录为待修复；本 slice 不混入性能修复。
+
+### 本地变更
+
+- 本 slice 只更新进度纪要，不改运行代码；因为对应 P0-1 语义修复已经存在于当前本地代码和测试中。
+
+### 尚未满足
+
+- 未部署当前本地镜像到生产，生产 P0-1 验收仍未完成。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
