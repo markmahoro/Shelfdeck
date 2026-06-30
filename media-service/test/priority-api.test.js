@@ -38,6 +38,7 @@ function metadataReadyMovie(overrides = {}) {
     bitrate: 4_000_000,
     resolution: '1920x1080',
     codec: 'h264',
+    audioCodecs: ['aac'],
     watched: true,
     userRating: 4,
     tmdbId: '10001',

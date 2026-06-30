@@ -12,6 +12,125 @@ const FLOW_OPERATION_LABELS: Record<string, string> = {
   ingest: '入库', scrape: '刮削', transcode: '转码压缩', delete: '删除', upgrade: '洗版',
 };
 
+const METADATA_GATE_FIELDS = [
+  { id: 'identity.itemId', label: '条目 ID' },
+  { id: 'identity.externalId', label: '外部 ID' },
+  { id: 'identity.name', label: '名称' },
+  { id: 'identity.seriesName', label: '剧名' },
+  { id: 'identity.seasonNumber', label: '季号' },
+  { id: 'media.path', label: '路径' },
+  { id: 'media.size', label: '大小' },
+  { id: 'media.duration', label: '时长' },
+  { id: 'media.bitrate', label: '码率' },
+  { id: 'media.resolution', label: '分辨率' },
+  { id: 'media.codec', label: '编码' },
+  { id: 'media.audioCodecs', label: '音频编码' },
+  { id: 'decision.watched', label: '观看状态' },
+  { id: 'decision.rating', label: '任一评分' },
+  { id: 'decision.userRating', label: '本地评分' },
+  { id: 'decision.doubanRating', label: '豆瓣评分' },
+  { id: 'decision.providerId', label: '策略外部 ID' },
+  { id: 'adult.scraped', label: '成人已刮削' },
+  { id: 'adult.scrapeStatus', label: '成人刮削状态' },
+  { id: 'adult.adultId', label: '番号' },
+  { id: 'adult.title', label: '成人标题' },
+  { id: 'adult.protagonist', label: '主角' },
+];
+
+const EMBY_BASE_METADATA_GATE = [
+  'identity.itemId',
+  'identity.externalId',
+  'identity.name',
+  'identity.seriesName',
+  'identity.seasonNumber',
+  'media.path',
+  'media.size',
+  'media.duration',
+  'media.bitrate',
+  'media.resolution',
+  'media.codec',
+];
+
+const ADULT_BASE_METADATA_GATE = [
+  'adult.scraped',
+  'adult.scrapeStatus',
+  'adult.adultId',
+  'adult.title',
+  'adult.protagonist',
+  'media.path',
+  'media.size',
+  'media.duration',
+  'media.bitrate',
+  'media.resolution',
+  'media.codec',
+];
+
+function gateFieldLabel(field: string) {
+  return METADATA_GATE_FIELDS.find((f) => f.id === field)?.label || field;
+}
+
+function uniqueFields(fields: string[]) {
+  return Array.from(new Set(fields.filter(Boolean)));
+}
+
+function conditionField(condition: any) {
+  if (Array.isArray(condition)) return typeof condition[0] === 'string' ? condition[0] : '';
+  return typeof condition?.field === 'string' ? condition.field : '';
+}
+
+function mapStrategyField(field: string) {
+  switch (field) {
+    case 'bucket': return 'media.resolution';
+    case 'equivalentBitrate':
+    case 'bitrate': return 'media.bitrate';
+    case 'duration': return 'media.duration';
+    case 'size': return 'media.size';
+    case 'codec': return 'media.codec';
+    case 'audioCodecs': return 'media.audioCodecs';
+    case 'path': return 'media.path';
+    case 'watched': return 'decision.watched';
+    case 'userRating': return 'decision.userRating';
+    case 'doubanRating':
+    case 'doubanStars': return 'decision.doubanRating';
+    case 'tmdbId':
+    case 'doubanId': return 'decision.providerId';
+    default: return '';
+  }
+}
+
+function templateStrategyFields(template?: RuleTemplate) {
+  const fields: string[] = [];
+  for (const rule of template?.rules || []) {
+    for (const group of rule.groups || []) {
+      const rawConditions = Array.isArray(group) ? group : group.conditions || [];
+      const groupFields = rawConditions.map(conditionField).filter(Boolean);
+      if (groupFields.includes('userRating') && groupFields.includes('doubanRating')) {
+        fields.push('decision.rating');
+        continue;
+      }
+      for (const field of groupFields) {
+        const mapped = mapStrategyField(field);
+        if (mapped) fields.push(mapped);
+      }
+    }
+    if ((rule.action === 'transcode' || rule.action === 'upgrade') && rule.actionParams?.targetBitrate) {
+      fields.push('media.duration');
+    }
+  }
+  return uniqueFields(fields).sort();
+}
+
+function defaultMetadataGateFields(mediaType: string, ruleTemplateId: string, templates: RuleTemplate[]) {
+  const tpl = templates.find((t) => t.id === ruleTemplateId);
+  const base = mediaType === 'adult' ? ADULT_BASE_METADATA_GATE : EMBY_BASE_METADATA_GATE;
+  return uniqueFields([...base, ...templateStrategyFields(tpl)]);
+}
+
+function gateFieldsFromConfig(gate: SubLibrary['metadataGate']) {
+  const all = Array.isArray(gate?.all) ? gate.all : [];
+  return uniqueFields(all.filter((node): node is string => typeof node === 'string'));
+}
+
 function autoExecuteText(sl: SubLibrary) {
   const mode = (sl.automationMode || (sl.scheduleMode === 'full_manual' ? 'manual' : 'auto'));
   return mode === 'manual' ? '需要手动启动' : '自动开始执行';
@@ -39,6 +158,8 @@ export default function DashboardPage() {
   const [subLibName, setSubLibName] = useState('');
   const [doubanEnabled, setDoubanEnabled] = useState(false);
   const [ruleTemplateId, setRuleTemplateId] = useState('default');
+  const [metadataGateCustom, setMetadataGateCustom] = useState(false);
+  const [metadataGateFields, setMetadataGateFields] = useState<string[]>([]);
   const [mediaType, setMediaType] = useState('movie');
   const [watchRoot, setWatchRoot] = useState('');
   const [pathMapFrom, setPathMapFrom] = useState('');
@@ -107,6 +228,7 @@ export default function DashboardPage() {
           source: 'emby',
           doubanEnabled,
           ruleTemplateId,
+          metadataGate: metadataGateCustom ? { all: metadataGateFields } : undefined,
           pathMapFrom: pathMapFrom || '',
           pathMapTo: pathMapTo || '',
           mediaType,
@@ -118,6 +240,7 @@ export default function DashboardPage() {
           source: 'folder',
           doubanEnabled: false,
           ruleTemplateId: 'adult_jav_default',
+          metadataGate: metadataGateCustom ? { all: metadataGateFields } : undefined,
           mediaType: 'adult',
           adultRegion: libraryKind,
           scraperType: libraryKind === 'japanese_jav' ? 'shelfdeck_japanese_jav' : 'western_builtin',
@@ -137,6 +260,7 @@ export default function DashboardPage() {
         name: subLibName,
         doubanEnabled,
         ruleTemplateId,
+        metadataGate: metadataGateCustom ? { all: metadataGateFields } : null,
         pathMapFrom: pathMapFrom || '',
         pathMapTo: pathMapTo || '',
       }),
@@ -155,6 +279,12 @@ export default function DashboardPage() {
     setSubLibName(sl.name);
     setDoubanEnabled(sl.doubanEnabled || false);
     setRuleTemplateId(sl.ruleTemplateId || 'default');
+    setMediaType(sl.mediaType || 'movie');
+    const customFields = gateFieldsFromConfig(sl.metadataGate);
+    setMetadataGateCustom(customFields.length > 0);
+    setMetadataGateFields(customFields.length > 0
+      ? customFields
+      : defaultMetadataGateFields(sl.mediaType || 'movie', sl.ruleTemplateId || 'default', templates));
     setEditOpen(true);
   }
 
@@ -166,6 +296,8 @@ export default function DashboardPage() {
     setSelectedSectionId(''); setSubLibName('');
     setDoubanEnabled(false);
     setRuleTemplateId('default');
+    setMetadataGateCustom(false);
+    setMetadataGateFields([]);
     setMediaType('movie');
     setWatchRoot('');
     setTestError('');
@@ -205,6 +337,37 @@ export default function DashboardPage() {
     : enabledAutoActions.length > 0
     ? enabledAutoActions.map((a) => FLOW_OPERATION_LABELS[a] || a).join('、')
     : '未选择自动操作';
+
+  function applyRuleTemplate(nextRuleTemplateId: string) {
+    setRuleTemplateId(nextRuleTemplateId);
+    if (!metadataGateCustom) {
+      setMetadataGateFields(defaultMetadataGateFields(mediaType, nextRuleTemplateId, templates));
+    }
+  }
+
+  function applyMediaType(nextMediaType: string) {
+    setMediaType(nextMediaType);
+    const nextRuleTemplateId = nextMediaType === 'tv' ? 'tv_default' : 'default';
+    setRuleTemplateId(nextRuleTemplateId);
+    if (!metadataGateCustom) {
+      setMetadataGateFields(defaultMetadataGateFields(nextMediaType, nextRuleTemplateId, templates));
+    }
+  }
+
+  function toggleMetadataGateCustom(enabled: boolean) {
+    setMetadataGateCustom(enabled);
+    if (enabled && metadataGateFields.length === 0) {
+      setMetadataGateFields(defaultMetadataGateFields(mediaType, ruleTemplateId, templates));
+    }
+  }
+
+  function toggleMetadataGateField(field: string) {
+    setMetadataGateFields((current) => (
+      current.includes(field)
+        ? current.filter((value) => value !== field)
+        : uniqueFields([...current, field])
+    ));
+  }
 
   return (
     <div>
@@ -356,14 +519,17 @@ export default function DashboardPage() {
                       if (next === 'japanese_jav') {
                         setMediaType('adult');
                         setRuleTemplateId('adult_jav_default');
+                        if (!metadataGateCustom) setMetadataGateFields(defaultMetadataGateFields('adult', 'adult_jav_default', templates));
                         setSubLibName('JAV');
                       } else if (next === 'western_adult') {
                         setMediaType('adult');
                         setRuleTemplateId('adult_western_default');
+                        if (!metadataGateCustom) setMetadataGateFields(defaultMetadataGateFields('adult', 'adult_western_default', templates));
                         setSubLibName('欧美成人');
                       } else {
                         setMediaType('movie');
                         setRuleTemplateId('default');
+                        if (!metadataGateCustom) setMetadataGateFields(defaultMetadataGateFields('movie', 'default', templates));
                         setSubLibName('');
                       }
                     }}
@@ -477,7 +643,7 @@ export default function DashboardPage() {
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>媒体类型</label>
-              <select value={mediaType} onChange={(e) => { const mt = e.target.value; setMediaType(mt); setRuleTemplateId(mt === 'tv' ? 'tv_default' : 'default'); }}
+              <select value={mediaType} onChange={(e) => applyMediaType(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}>
                 <option value="movie">电影</option>
                 <option value="tv">剧集</option>
@@ -496,7 +662,7 @@ export default function DashboardPage() {
             )}
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>策略模板</label>
-              <select value={ruleTemplateId} onChange={(e) => setRuleTemplateId(e.target.value)}
+              <select value={ruleTemplateId} onChange={(e) => applyRuleTemplate(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}>
                 {templates.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}{t.description ? ` — ${t.description}` : ''}</option>
@@ -506,6 +672,13 @@ export default function DashboardPage() {
                 在「策略模板管理」页面编辑模板规则
               </div>
             </div>
+            <MetadataGateEditor
+              custom={metadataGateCustom}
+              fields={metadataGateFields}
+              defaultFields={defaultMetadataGateFields(mediaType, ruleTemplateId, templates)}
+              onCustomChange={toggleMetadataGateCustom}
+              onToggleField={toggleMetadataGateField}
+            />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <button onClick={() => setStep(libraryKind === 'emby' ? 2 : 1)} style={secondaryBtn}>上一步</button>
               <button onClick={() => createMut.mutate()} disabled={!subLibName || (libraryKind !== 'emby' && !watchRoot) || createMut.isPending} style={primaryBtn}>
@@ -532,7 +705,7 @@ export default function DashboardPage() {
         </div>
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>策略模板</label>
-          <select value={ruleTemplateId} onChange={(e) => setRuleTemplateId(e.target.value)}
+          <select value={ruleTemplateId} onChange={(e) => applyRuleTemplate(e.target.value)}
             style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}>
             {templates.map((t) => (
               <option key={t.id} value={t.id}>{t.name}{t.description ? ` — ${t.description}` : ''}</option>
@@ -542,6 +715,13 @@ export default function DashboardPage() {
             种子体积上限由策略模板规则定义 — 在「策略模板管理」页面编辑
           </div>
         </div>
+        <MetadataGateEditor
+          custom={metadataGateCustom}
+          fields={metadataGateFields}
+          defaultFields={defaultMetadataGateFields(mediaType, ruleTemplateId, templates)}
+          onCustomChange={toggleMetadataGateCustom}
+          onToggleField={toggleMetadataGateField}
+        />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button onClick={() => { setEditOpen(false); setEditingUuid(''); }} style={secondaryBtn}>取消</button>
@@ -550,6 +730,63 @@ export default function DashboardPage() {
           </button>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function MetadataGateEditor({
+  custom,
+  fields,
+  defaultFields,
+  onCustomChange,
+  onToggleField,
+}: {
+  custom: boolean;
+  fields: string[];
+  defaultFields: string[];
+  onCustomChange: (enabled: boolean) => void;
+  onToggleField: (field: string) => void;
+}) {
+  const visibleFields = custom ? fields : defaultFields;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: 'block', marginBottom: 4, fontSize: 14, fontWeight: 500 }}>元数据完整 Gate</label>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <button
+          type="button"
+          onClick={() => onCustomChange(false)}
+          style={custom ? secondaryBtn : primaryBtn}
+        >
+          系统默认
+        </button>
+        <button
+          type="button"
+          onClick={() => onCustomChange(true)}
+          style={custom ? primaryBtn : secondaryBtn}
+        >
+          自定义
+        </button>
+      </div>
+      {!custom ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {visibleFields.map((field) => (
+            <span key={field} style={gateChipStyle}>{gateFieldLabel(field)}</span>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))', gap: 8 }}>
+          {METADATA_GATE_FIELDS.map((field) => (
+            <label key={field.id} style={gateCheckStyle}>
+              <input
+                type="checkbox"
+                checked={fields.includes(field.id)}
+                onChange={() => onToggleField(field.id)}
+              />
+              <span>{field.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -900,4 +1137,29 @@ const primaryBtn: React.CSSProperties = {
 const secondaryBtn: React.CSSProperties = {
   background: '#f0f0f0', color: '#333', border: 'none', padding: '8px 20px',
   borderRadius: 6, cursor: 'pointer', fontSize: 14,
+};
+
+const gateChipStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  minHeight: 24,
+  padding: '2px 8px',
+  borderRadius: 6,
+  background: '#f3f4f6',
+  color: '#374151',
+  fontSize: 12,
+  fontWeight: 600,
+};
+
+const gateCheckStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  minHeight: 32,
+  padding: '6px 8px',
+  borderRadius: 6,
+  border: '1px solid #e5e7eb',
+  background: '#fff',
+  fontSize: 12,
+  color: '#374151',
 };

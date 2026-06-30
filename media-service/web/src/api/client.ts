@@ -106,6 +106,7 @@ export const subLibraries = {
     source?: string;
     doubanEnabled?: boolean;
     ruleTemplateId?: string;
+    metadataGate?: SubLibrary['metadataGate'];
     upgradeSmartSelect?: SubLibrary['upgradeSmartSelect'];
     pathMapFrom?: string;
     pathMapTo?: string;

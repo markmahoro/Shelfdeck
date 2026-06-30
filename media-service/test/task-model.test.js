@@ -529,6 +529,87 @@ test('metadataStatus uses sub-library metadataGate as the optimize-ready contrac
   assert.deepStrictEqual(meta.metadataMissingReasons, []);
 });
 
+test('metadataStatus default gate follows sub-library strategy inputs', () => {
+  const config = {
+    subLibraries: [{
+      uuid: 'cn-series-lib',
+      source: 'emby',
+      mediaType: 'tv',
+      ruleTemplateId: 'chn_series',
+    }],
+    ruleTemplates: [{
+      id: 'chn_series',
+      rules: [{
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [{ connector: 'and', conditions: [['watched', '=', true], ['bucket', '=', '1080p'], ['equivalentBitrate', '>', 3]] }],
+        action: 'transcode',
+        actionParams: { targetBitrate: 3, targetCodec: 'h265' },
+      }],
+    }],
+  };
+  const item = {
+    itemId: 'cn-season-no-rating',
+    source: 'emby',
+    sourceId: 'cn-season-no-rating',
+    name: '国产剧 Season 1',
+    type: 'season',
+    seriesName: '国产剧',
+    seasonNumber: 1,
+    subLibraryId: 'cn-series-lib',
+    path: '/media/cn-series/Season 1',
+    size: 1024 * 1024,
+    duration: 3600,
+    bitrate: 5_000_000,
+    equivalentBitrate: 5,
+    resolution: '1920x1080',
+    codec: 'h264',
+    watched: true,
+  };
+
+  const meta = metadataStatus.resolveMetadataStatus(item, config);
+  assert.strictEqual(meta.metadataStatus, 'complete');
+  assert.deepStrictEqual(meta.metadataMissingReasons, []);
+
+  const unwatched = metadataStatus.resolveMetadataStatus({ ...item, watched: undefined }, config);
+  assert.strictEqual(unwatched.metadataStatus, 'missing');
+  assert.ok(unwatched.metadataMissingReasons.includes('decision.watched'));
+  assert.ok(!unwatched.metadataMissingReasons.includes('decision.rating'));
+  assert.ok(!unwatched.metadataMissingReasons.includes('decision.providerId'));
+});
+
+test('metadataStatus default movie gate still requires rating consumed by strategy', () => {
+  const config = {
+    subLibraries: [{
+      uuid: 'movie-lib',
+      source: 'emby',
+      mediaType: 'movie',
+      ruleTemplateId: 'rating_strategy',
+    }],
+    ruleTemplates: [{
+      id: 'rating_strategy',
+      rules: [{
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
+        action: 'transcode',
+        actionParams: { targetBitrate: 4, targetCodec: 'h265' },
+      }],
+    }],
+  };
+
+  const missingRating = metadataStatus.resolveMetadataStatus(metadataReadyMovie({
+    itemId: 'movie-no-rating',
+    subLibraryId: 'movie-lib',
+    userRating: undefined,
+    doubanRating: undefined,
+    doubanStars: undefined,
+  }), config);
+
+  assert.strictEqual(missingRating.metadataStatus, 'missing');
+  assert.ok(missingRating.metadataMissingReasons.includes('decision.rating'));
+});
+
 test('metadataStatus marks a custom metadataGate contract broken when strategy inputs are not covered', () => {
   const config = {
     subLibraries: [{

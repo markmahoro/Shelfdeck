@@ -36,6 +36,13 @@ export interface MediaPolicy {
   target4k: Record<string, number>;
 }
 
+export type MetadataGateNode = string | { all?: MetadataGateNode[]; any?: MetadataGateNode[] };
+
+export interface MetadataGateConfig {
+  all?: MetadataGateNode[];
+  any?: MetadataGateNode[];
+}
+
 export interface SubLibrary {
   uuid: string;
   name: string;
@@ -48,6 +55,7 @@ export interface SubLibrary {
   doubanSyncedAt: string | null;
   mediaPolicy?: MediaPolicy;
   ruleTemplateId?: string;
+  metadataGate?: MetadataGateConfig | null;
   upgradeSmartSelect: UpgradeSmartSelect;
   automationMode?: 'auto' | 'manual';
   approvalPolicy?: ApprovalPolicyConfig;

@@ -13,9 +13,6 @@ const DEFAULT_EMBY_GATE = {
     'media.bitrate',
     'media.resolution',
     'media.codec',
-    'decision.watched',
-    'decision.rating',
-    'decision.providerId',
   ],
 };
 
@@ -129,10 +126,20 @@ function normalizeGate(gate) {
   return null;
 }
 
-function resolveGate(item, subLib, kind) {
+function buildDefaultEmbyGate(subLib, config = {}) {
+  const requiredInputs = collectSubLibraryStrategyInputRequirements(subLib, config);
+  return {
+    all: [...new Set([
+      ...DEFAULT_EMBY_GATE.all,
+      ...requiredInputs,
+    ])],
+  };
+}
+
+function resolveGate(item, subLib, kind, config = {}) {
   const custom = normalizeGate(subLib && subLib.metadataGate);
   if (custom) return custom;
-  return kind === 'adult' ? DEFAULT_ADULT_GATE : DEFAULT_EMBY_GATE;
+  return kind === 'adult' ? DEFAULT_ADULT_GATE : buildDefaultEmbyGate(subLib, config);
 }
 
 function evaluateGateNode(item, node, missingReasons) {
@@ -193,7 +200,7 @@ function embyMissingReasons(item) {
 function resolveMetadataStatus(item, config = {}) {
   const subLib = subLibraryFor(item, config);
   const kind = mediaKind(item, subLib);
-  const gate = resolveGate(item, subLib, kind);
+  const gate = resolveGate(item, subLib, kind, config);
   const missingReasons = gate
     ? missingReasonsForGate(item, gate)
     : (kind === 'adult' ? adultMissingReasons(item) : embyMissingReasons(item));
@@ -310,6 +317,18 @@ function collectTemplateInputRequirements(template) {
   return requirements;
 }
 
+function resolveRuleTemplateForSubLibrary(subLib = {}, config = {}) {
+  const templates = config.ruleTemplates || [];
+  const ruleTemplateId = subLib && subLib.ruleTemplateId;
+  return templates.find((tpl) => tpl.id === ruleTemplateId)
+    || templates.find((tpl) => tpl.id === 'default')
+    || null;
+}
+
+function collectSubLibraryStrategyInputRequirements(subLib = {}, config = {}) {
+  return [...collectTemplateInputRequirements(resolveRuleTemplateForSubLibrary(subLib, config))].sort();
+}
+
 function gateCoversRequirement(coverage, requirement) {
   if (coverage.has(requirement)) return true;
   if (requirement === 'decision.rating') {
@@ -322,9 +341,7 @@ function gateCoversRequirement(coverage, requirement) {
 function validateMetadataGateForSubLibrary(subLib = {}, config = {}) {
   const gate = normalizeGate(subLib.metadataGate);
   if (!gate) return { ok: true, missingRequirements: [], requiredInputs: [] };
-  const template = ((config.ruleTemplates || []).find((tpl) => tpl.id === subLib.ruleTemplateId))
-    || ((config.ruleTemplates || []).find((tpl) => tpl.id === 'default'));
-  const requiredInputs = [...collectTemplateInputRequirements(template)].sort();
+  const requiredInputs = collectSubLibraryStrategyInputRequirements(subLib, config);
   const coverage = gateCoverage(gate);
   const missingRequirements = requiredInputs.filter((req) => !gateCoversRequirement(coverage, req));
   return {
