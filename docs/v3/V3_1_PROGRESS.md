@@ -2166,3 +2166,63 @@ Slice 49/50 后，SmartTask 已基本变成 trigger，但继续检查手动创�
 - P0-1 仍未完整关闭：数据层和 API 层仍保留 legacy `actionType=transcode/upgrade/delete/scrape`，只是通过 `taskBridge` / `flowPlan` 明确了 lifecycle/flow 分层；是否升级为一等 `taskKind=metadata/optimize/archive` 仍需后续评估。
 - Flow recovery contract 仍只是初步目录化，各 flow 失败重试语义还没有逐类补齐。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 52: Scrape completion requires verified exit gate
+
+### 对应标准
+
+- A3: `metadataGate` 是 scrape exit gate，不是 scrape trigger。
+- A4: scrape task 执行后必须由当前 flow 给出成功、失败、恢复或用户确认语义，不能靠 SmartTask 下一轮重新创建 scrape task 来补救。
+- P0-1 新模型：scrape task 只有在能证明 exit gate 通过时才能进入 `done`。
+
+### 审计结果
+
+继续审计 scrape lifecycle 后确认：
+
+- 普通 Emby repair 主路径已在 `runEmbyExecuting()` 后校验 `metadataStatus.resolveMetadataStatus()`；
+- 成人 scrape 主路径已在 `finishScrape()` 里通过 `scrapeVerification.verifyScrapedItem()` 做 completion snapshot；
+- 当 verification 明确返回 `ok:false` 时，当前 task 会进入 `failed_hard`，并记录 `scrape.metadata_gate_failed`。
+
+但还有一个漏洞：
+
+- 如果 completion verification 过程本身抛异常，旧代码只写 warn log，然后 `finishScrape()` 继续把 task 标记为 `done`。
+- 这等价于“无法证明 metadataGate 通过时仍然完成 scrape”，违反 scrape exit gate 模型。
+
+判断：
+
+- 这是 P0-1 新业务模型问题。
+- 它不是性能问题，也不是前端语义问题，不应仅记待修。
+
+### 本切片修复
+
+- `captureCompletionVerification()` 捕获异常时不再返回 `null`。
+- 异常会被转换为明确的 verification snapshot：
+  - `ok: false`
+  - failure code: `verification.exception`
+  - `metadataMissingReasons: ['verification.exception']`
+  - `source: completion_snapshot`
+- `finishScrape()` 因此会走现有 `recordScrapeGateFailure()` 路径：
+  - task 进入 `failed_hard`；
+  - phase 进入 `failed_hard`；
+  - resumePoint 保留为 `scrape_executing`；
+  - 记录 `scrape.metadata_gate_failed`；
+  - 用户可以从失败点修复/重试。
+
+### 后端事实来源
+
+- `media-service/src/scrapeFlowExecutor.js`
+  - verification exception 现在会成为失败的 completion snapshot。
+- `media-service/test/api-inject.test.js`
+  - 新增回归用例：completion verification 抛异常时 scrape task 不能进入 `done`。
+
+### 本地验收
+
+- `node --test test/api-inject.test.js --test-name-pattern "scrape completion verification"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `api-inject.test.js` 全量，114 个测试通过。
+- `npm test`: pass，249 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS。
+- P0-1 仍未完整关闭：各 flow 的 recovery contract 仍需逐类补齐，尤其是 precheck/executing/write/review 每个阶段失败后的用户动作与幂等边界。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

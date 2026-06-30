@@ -450,9 +450,23 @@ function captureCompletionVerification(taskId) {
     });
     return verification;
   } catch (e) {
+    const verification = {
+      ok: false,
+      checkedAt: new Date().toISOString(),
+      checks: { 'verification.exception': false },
+      failures: [{
+        code: 'verification.exception',
+        message: `Scrape completion verification failed: ${e.message}`,
+      }],
+      warnings: [],
+      metadataStatus: 'unknown',
+      metadataMissingReasons: ['verification.exception'],
+      source: 'completion_snapshot',
+    };
+    taskStore.updateTask(taskId, { scrapeVerification: verification });
     appendLog(taskId, 'warn', `Scrape completion verification snapshot failed: ${e.message}`);
+    return verification;
   }
-  return null;
 }
 
 async function pause(taskId) {

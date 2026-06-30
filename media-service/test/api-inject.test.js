@@ -3544,6 +3544,82 @@ test('scrape completion verification blocks done when exit gate fails', async ()
   delete process.env.CONTROL_PLANE_DATA_DIR;
 });
 
+test('scrape completion verification exception blocks done', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const configStore = require('../src/configStore');
+  const taskStore = require('../src/taskStore');
+  const libraryStore = require('../src/libraryStore');
+  const scrapeVerification = require('../src/scrapeVerification');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const originalVerify = scrapeVerification.verifyScrapedItem;
+  scrapeVerification.verifyScrapedItem = () => {
+    throw new Error('verification service exploded');
+  };
+
+  const subLibraryId = 'standard-verification-exception-lib';
+  configStore.patchConfig({
+    subLibraries: [{
+      uuid: subLibraryId,
+      name: 'Verification Exception',
+      source: 'emby',
+      mediaType: 'movie',
+      enabled: true,
+      metadataGate: {
+        all: ['identity.itemId', 'identity.name', 'identity.providerId', 'media.path', 'media.duration', 'media.bitrate'],
+      },
+    }],
+  });
+  libraryStore.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId: 'standard-verification-exception',
+      subLibraryId,
+      name: 'Verification Exception Movie',
+      source: 'emby',
+      sourceId: 'emby-verification-exception',
+      tmdbId: '99901',
+      providerIds: { Tmdb: '99901' },
+    })],
+  });
+  const task = taskStore.createTask({
+    itemId: 'standard-verification-exception',
+    itemName: 'Verification Exception Movie',
+    actionType: 'scrape',
+    status: 'executing',
+    itemInfo: { subLibraryId, source: 'emby' },
+    resumePoint: 'scrape_review',
+  });
+
+  scrapeFlow.setScheduler({ reportStatus: (tid, status, progress) => { taskStore.updateTask(tid, { status, progress }); } });
+  try {
+    await scrapeFlow.driveTask(task.id);
+  } finally {
+    scrapeVerification.verifyScrapedItem = originalVerify;
+  }
+
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'failed_hard');
+  assert.strictEqual(afterTask.phase, 'failed_hard');
+  assert.strictEqual(afterTask.resumePoint, 'scrape_executing');
+  assert.strictEqual(afterTask.scrapeVerification.ok, false);
+  assert.ok(afterTask.scrapeVerification.failures.some((f) => f.code === 'verification.exception'));
+  assert.ok(afterTask.logs.some((l) => l.level === 'error' && l.msg.includes('Scrape completion verification failed')));
+
+  const events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 50, orderDir: 'asc' }).events;
+  const gateEvent = events.find((e) => e.eventType === 'scrape.metadata_gate_failed');
+  assert.ok(gateEvent, 'metadata gate failure event recorded');
+  assert.ok(gateEvent.payload.failureCodes.includes('verification.exception'));
+
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
 test('scrape fails when poster download fails', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
