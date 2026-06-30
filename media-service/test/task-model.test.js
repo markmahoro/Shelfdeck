@@ -1877,6 +1877,87 @@ test('taskStore persists v3 bridge flow runtime and event resource facts as SQL 
   }
 });
 
+test('taskStore projects legacy archive delete tasks and events as optimize delete', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'task-legacy-delete-projection-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  try {
+    const legacy = taskStore.createTask({
+      itemId: 'legacy-delete-item',
+      itemName: 'Legacy Delete Item',
+      actionType: 'delete',
+      source: 'manual',
+      status: 'queued',
+      itemInfo: { subLibraryId: 'lib-legacy', path: '/media/legacy-delete.mkv' },
+      taskBridge: {
+        kind: 'archive',
+        from: 'optimized_item',
+        to: 'archived_item',
+        reason: 'legacy archive delete',
+      },
+      flowPlan: {
+        version: 'v2.7',
+        bridgeKind: 'archive',
+        direction: 'archive.delete',
+        operationKind: 'delete',
+        executor: 'deleteFlowExecutor',
+        primaryResourceType: 'filesystem',
+        actionType: 'delete',
+        source: 'manual',
+        resourceTypes: ['filesystem'],
+        steps: [{ phase: 'precheck', eventType: 'archive.delete.precheck', resourceType: 'filesystem' }],
+      },
+    });
+    taskStore.appendTaskEvent(legacy, 'flow.dispatched', {
+      bridgeKind: 'archive',
+      flowDirection: 'archive.delete',
+      operationKind: 'delete',
+      resourceKey: 'filesystem',
+      resourceLabel: 'Local filesystem',
+    }, { resourceType: 'filesystem' });
+
+    const loaded = taskStore.getTask(legacy.id);
+    assert.strictEqual(loaded.taskBridge.kind, 'optimize');
+    assert.strictEqual(loaded.flowPlan.direction, 'optimize.delete');
+    assert.strictEqual(loaded.legacyTaskBridge.kind, 'archive');
+    assert.strictEqual(loaded.legacyFlowPlan.direction, 'archive.delete');
+    assert.strictEqual(loaded.compatibilityProjection.reason, 'legacy_archive_delete_projected_as_optimize_delete');
+
+    const optimizeSummaries = taskStore.queryTaskSummaries({ bridgeKind: 'optimize' }, { includeAll: true }).tasks;
+    assert.ok(optimizeSummaries.some((task) => task.id === legacy.id && task.taskBridge.kind === 'optimize'));
+    const archiveSummaries = taskStore.queryTaskSummaries({ bridgeKind: 'archive' }, { includeAll: true }).tasks;
+    assert.ok(!archiveSummaries.some((task) => task.id === legacy.id));
+
+    const schedulerRows = taskStore.querySchedulerTasks();
+    assert.ok(schedulerRows.some((task) => task.id === legacy.id && task.flowPlan.direction === 'optimize.delete'));
+
+    const stats = taskStore.queryDashboardTaskStats();
+    assert.strictEqual(stats.activeByBridgeKind.optimize, 1);
+    assert.strictEqual(stats.activeByBridgeKind.archive, undefined);
+
+    const events = taskStore.queryTaskEvents({ taskId: legacy.id }, { pageSize: 20 }).events;
+    const dispatched = events.find((event) => event.eventType === 'flow.dispatched');
+    assert.ok(dispatched);
+    assert.strictEqual(dispatched.bridgeKind, 'optimize');
+    assert.strictEqual(dispatched.flowDirection, 'optimize.delete');
+    assert.strictEqual(dispatched.legacyBridgeKind, 'archive');
+    assert.strictEqual(dispatched.legacyFlowDirection, 'archive.delete');
+
+    const optimizeEvents = taskStore.queryTaskEvents({ bridgeKind: 'optimize' }, { pageSize: 20 }).events;
+    assert.ok(optimizeEvents.some((event) => event.taskId === legacy.id && event.bridgeKind === 'optimize'));
+    const archiveEvents = taskStore.queryTaskEvents({ bridgeKind: 'archive' }, { pageSize: 20 }).events;
+    assert.ok(!archiveEvents.some((event) => event.taskId === legacy.id));
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
 test('v3 data migration script defaults to dry-run without creating backups', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3-migration-dry-run-'));
   fs.writeFileSync(path.join(dir, 'tasks.json'), JSON.stringify([

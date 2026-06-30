@@ -460,6 +460,62 @@ function normalizeTask(task) {
   return t;
 }
 
+function isLegacyArchiveDeletePlan(task = {}) {
+  const actionType = String(task.actionType || task.action_type || '');
+  const bridgeKind = String(
+    task.taskBridge && task.taskBridge.kind
+    || task.flowPlan && task.flowPlan.bridgeKind
+    || task.bridgeKind
+    || task.bridge_kind
+    || '',
+  );
+  const flowDirection = String(
+    task.flowPlan && task.flowPlan.direction
+    || task.flowDirection
+    || task.flow_direction
+    || '',
+  );
+  return actionType === 'delete' && (bridgeKind === 'archive' || flowDirection === 'archive.delete');
+}
+
+function projectLegacyDeleteTask(task) {
+  if (!isLegacyArchiveDeletePlan(task)) return task;
+  const planned = flowPlanner.planFlow({
+    actionType: 'delete',
+    source: task.source || '',
+    itemId: task.itemId || '',
+    itemInfo: task.itemInfo,
+    plannedAt: task.createdAt || '',
+  });
+  return {
+    ...task,
+    legacyTaskBridge: task.taskBridge,
+    legacyFlowPlan: task.flowPlan,
+    compatibilityProjection: {
+      reason: 'legacy_archive_delete_projected_as_optimize_delete',
+      originalBridgeKind: task.taskBridge && task.taskBridge.kind || '',
+      originalFlowDirection: task.flowPlan && task.flowPlan.direction || '',
+    },
+    taskBridge: planned.taskBridge,
+    flowPlan: planned.flowPlan,
+  };
+}
+
+function appendBridgeKindFilter(clauses, params, column, bridgeKind) {
+  const normalized = String(bridgeKind || '');
+  const bridgeColumn = column || 'bridge_kind';
+  if (normalized === 'optimize') {
+    clauses.push(`(${bridgeColumn} = @bridgeKind OR (action_type = 'delete' AND (${bridgeColumn} = 'archive' OR flow_direction = 'archive.delete')))`);
+    params.bridgeKind = normalized;
+  } else if (normalized === 'archive') {
+    clauses.push(`(${bridgeColumn} = @bridgeKind AND NOT (action_type = 'delete' AND (operation_kind = 'delete' OR flow_direction = 'archive.delete')))`);
+    params.bridgeKind = normalized;
+  } else {
+    clauses.push(`${bridgeColumn} = @bridgeKind`);
+    params.bridgeKind = normalized;
+  }
+}
+
 function taskToRow(task) {
   const t = normalizeTask(task);
   const space = taskSpaceStatColumns(t);
@@ -552,7 +608,7 @@ function taskEventToRow(event) {
 
 function rowToTaskEvent(row) {
   if (!row) return null;
-  return {
+  const event = {
     id: row.id,
     taskId: row.task_id || '',
     itemId: row.item_id || '',
@@ -570,6 +626,20 @@ function rowToTaskEvent(row) {
     createdAt: row.created_at || '',
     payload: jsonParse(row.payload_json, {}),
   };
+  if (event.actionType === 'delete' && (event.bridgeKind === 'archive' || event.flowDirection === 'archive.delete')) {
+    return {
+      ...event,
+      legacyBridgeKind: event.bridgeKind,
+      legacyFlowDirection: event.flowDirection,
+      bridgeKind: 'optimize',
+      flowDirection: 'optimize.delete',
+      operationKind: event.operationKind || 'delete',
+      compatibilityProjection: {
+        reason: 'legacy_archive_delete_event_projected_as_optimize_delete',
+      },
+    };
+  }
+  return event;
 }
 
 function appendTaskEvent(task, eventType, payload = {}, opts = {}) {
@@ -784,7 +854,7 @@ function rowToTask(row) {
     };
   }
   task.progress = progressCache.get(task.id) ?? task.progress ?? 0;
-  return task;
+  return projectLegacyDeleteTask(task);
 }
 
 const upsertSql = `
@@ -948,8 +1018,7 @@ function buildWhere(filter = {}, options = {}) {
     params.actionType = String(filter.actionType);
   }
   if (filter.bridgeKind) {
-    clauses.push('bridge_kind = @bridgeKind');
-    params.bridgeKind = String(filter.bridgeKind);
+    appendBridgeKindFilter(clauses, params, 'bridge_kind', filter.bridgeKind);
   }
   if (filter.operationKind) {
     clauses.push('operation_kind = @operationKind');
@@ -1042,6 +1111,9 @@ function queryTaskEvents(filter = {}, options = {}) {
   if (filter.status) {
     clauses.push('event_status = @status');
     params.status = String(filter.status);
+  }
+  if (filter.bridgeKind) {
+    appendBridgeKindFilter(clauses, params, 'bridge_kind', filter.bridgeKind);
   }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
@@ -1177,11 +1249,12 @@ function queryDashboardTaskStats() {
       GROUP BY status
       ORDER BY count DESC, key ASC
     `).all());
+    const bridgeProjection = "CASE WHEN action_type = 'delete' AND (bridge_kind = 'archive' OR flow_direction = 'archive.delete') THEN 'optimize' ELSE COALESCE(NULLIF(bridge_kind, ''), 'unknown') END";
     const activeByBridgeKind = countMap(db.prepare(`
-      SELECT COALESCE(NULLIF(bridge_kind, ''), 'unknown') AS key, COUNT(*) AS count
+      SELECT ${bridgeProjection} AS key, COUNT(*) AS count
       FROM tasks
       WHERE ${activeWhere}
-      GROUP BY COALESCE(NULLIF(bridge_kind, ''), 'unknown')
+      GROUP BY ${bridgeProjection}
       ORDER BY count DESC, key ASC
     `).all(params));
     const activeByOperationKind = countMap(db.prepare(`
@@ -1389,7 +1462,7 @@ function queryTaskSummaries(filter = {}, options = {}) {
           plannedAt: row.created_at || '',
         }
         : planned.flowPlan;
-      return {
+      return projectLegacyDeleteTask({
         id: row.id,
         itemId: row.item_id || '',
         itemName: row.item_name || '',
@@ -1409,7 +1482,7 @@ function queryTaskSummaries(filter = {}, options = {}) {
         updatedAt: row.updated_at || '',
         itemInfo: Object.keys(itemInfo).length > 0 ? itemInfo : undefined,
         verifyResult: Object.keys(verifyResult).length > 0 ? verifyResult : undefined,
-      };
+      });
     }),
     total,
     byStatus,
@@ -1513,30 +1586,30 @@ function querySchedulerTasks() {
           plannedAt: row.created_at || '',
         }
         : planned.flowPlan;
-      return {
-      id: row.id,
-      itemId: row.item_id || '',
-      itemName: row.item_name || '',
-      actionType: row.action_type || '',
-      taskBridge,
-      flowPlan,
-      status: row.status || '',
-      priority: typeof row.priority === 'number' ? row.priority : 100,
-      createdAt: row.created_at || '',
-      updatedAt: row.updated_at || '',
-      progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
-      source: row.source || '',
-      phase: row.phase,
-      resumePoint: row.resume_point,
-      manualExecuteRequested: !!row.manual_execute_requested,
-      priorityManuallyAdjusted: !!row.priority_manually_adjusted,
-      priorityModelVersion: row.priority_model_version,
-      priorityBreakdown: jsonExtractObject(row.priority_breakdown_json, undefined),
-      retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
-      pausingRequested: !!row.pausing_requested,
-      nodeId: row.node_id || undefined,
-      itemInfo,
-    };
+      return projectLegacyDeleteTask({
+        id: row.id,
+        itemId: row.item_id || '',
+        itemName: row.item_name || '',
+        actionType: row.action_type || '',
+        taskBridge,
+        flowPlan,
+        status: row.status || '',
+        priority: typeof row.priority === 'number' ? row.priority : 100,
+        createdAt: row.created_at || '',
+        updatedAt: row.updated_at || '',
+        progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
+        source: row.source || '',
+        phase: row.phase,
+        resumePoint: row.resume_point,
+        manualExecuteRequested: !!row.manual_execute_requested,
+        priorityManuallyAdjusted: !!row.priority_manually_adjusted,
+        priorityModelVersion: row.priority_model_version,
+        priorityBreakdown: jsonExtractObject(row.priority_breakdown_json, undefined),
+        retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
+        pausingRequested: !!row.pausing_requested,
+        nodeId: row.node_id || undefined,
+        itemInfo,
+      });
     });
   });
 }

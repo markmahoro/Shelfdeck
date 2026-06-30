@@ -2412,13 +2412,43 @@ test('GET /v1/admin/tasks filters by bridge and flow operation', async () => {
   taskStore.createTask({ itemId: 'optimize-transcode', actionType: 'transcode', status: 'queued' });
   taskStore.createTask({ itemId: 'metadata-scrape', actionType: 'scrape', status: 'queued' });
   taskStore.createTask({ itemId: 'optimize-delete', actionType: 'delete', status: 'queued' });
+  taskStore.createTask({
+    itemId: 'legacy-archive-delete',
+    actionType: 'delete',
+    status: 'queued',
+    taskBridge: {
+      kind: 'archive',
+      from: 'optimized_item',
+      to: 'archived_item',
+      reason: 'legacy archive delete',
+    },
+    flowPlan: {
+      version: 'v2.7',
+      bridgeKind: 'archive',
+      direction: 'archive.delete',
+      operationKind: 'delete',
+      executor: 'deleteFlowExecutor',
+      primaryResourceType: 'filesystem',
+      actionType: 'delete',
+      resourceTypes: ['filesystem'],
+      steps: [{ phase: 'precheck', eventType: 'archive.delete.precheck', resourceType: 'filesystem' }],
+    },
+  });
 
   const byBridge = await app.inject({ method: 'GET', url: '/v1/admin/tasks?bridgeKind=optimize&page=1&pageSize=10' });
   assert.strictEqual(byBridge.statusCode, 200);
   const bridgeBody = byBridge.json();
-  assert.strictEqual(bridgeBody.summary.total, 2);
-  assert.deepStrictEqual(new Set(bridgeBody.tasks.map((t) => t.itemId)), new Set(['optimize-transcode', 'optimize-delete']));
+  assert.strictEqual(bridgeBody.summary.total, 3);
+  assert.deepStrictEqual(new Set(bridgeBody.tasks.map((t) => t.itemId)), new Set(['optimize-transcode', 'optimize-delete', 'legacy-archive-delete']));
   assert.ok(bridgeBody.tasks.every((t) => t.taskBridge.kind === 'optimize'));
+  assert.strictEqual(
+    bridgeBody.tasks.find((t) => t.itemId === 'legacy-archive-delete').flowPlan.direction,
+    'optimize.delete',
+  );
+
+  const archiveBridge = await app.inject({ method: 'GET', url: '/v1/admin/tasks?bridgeKind=archive&page=1&pageSize=10' });
+  assert.strictEqual(archiveBridge.statusCode, 200);
+  assert.ok(!archiveBridge.json().tasks.some((t) => t.itemId === 'legacy-archive-delete'));
 
   const byOperation = await app.inject({ method: 'GET', url: '/v1/admin/tasks?operationKind=scrape&page=1&pageSize=10' });
   assert.strictEqual(byOperation.statusCode, 200);
@@ -2429,7 +2459,7 @@ test('GET /v1/admin/tasks filters by bridge and flow operation', async () => {
 
   const activeByBridge = await app.inject({ method: 'GET', url: '/v1/tasks?bridgeKind=optimize&activeOnly=1' });
   assert.strictEqual(activeByBridge.statusCode, 200);
-  assert.deepStrictEqual(new Set(activeByBridge.json().tasks.map((t) => t.itemId)), new Set(['optimize-transcode', 'optimize-delete']));
+  assert.deepStrictEqual(new Set(activeByBridge.json().tasks.map((t) => t.itemId)), new Set(['optimize-transcode', 'optimize-delete', 'legacy-archive-delete']));
 
   const activeByOperation = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=transcode&activeOnly=1' });
   assert.strictEqual(activeByOperation.statusCode, 200);

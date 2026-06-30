@@ -2656,3 +2656,59 @@ S4 archived
 
 - 历史生产任务中已持久化的 `bridgeKind=archive` / `flowDirection=archive.delete` 仍未做数据迁移；如果生产任务中心需要历史统一展示，后续需要 compatibility projection 或迁移。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 60: Project legacy archive delete as optimize delete
+
+### 对应标准
+
+- A1: 后端统一决策结果必须能给出 lifecycle / optimization / archive 状态，不能让旧 bridge 字段把任务中心语义拉回旧模型。
+- A2: `delete` 是 optimize gate 下的 destructive optimize flow，历史 `archive.delete` 任务在当前读模型里也必须按 `optimize.delete` 理解。
+- A5: 任务中心、事件流和 dashboard 统计需要使用同一套用户语义，不能同一个 delete 同时出现在 archive 和 optimize 两套分类里。
+- P0-1 新模型：archive gate 表示优化后的最终闭环归档，不承载 delete operation。
+
+### 本切片修复
+
+- `taskStore` 增加历史兼容投影：
+  - raw 持久化事实仍保留 `bridgeKind=archive` / `flowDirection=archive.delete`；
+  - 读模型返回 `taskBridge.kind=optimize` / `flowPlan.direction=optimize.delete`；
+  - 同时保留 `legacyTaskBridge` / `legacyFlowPlan` / `compatibilityProjection` 供审计。
+- 任务列表 SQL filter 统一：
+  - `bridgeKind=optimize` 包含历史 `archive.delete`；
+  - `bridgeKind=archive` 排除历史 delete；
+  - operation 仍保持 `delete`，不改写任务事实。
+- 事件读取增加同样的兼容投影：
+  - 历史 delete event 返回 `bridgeKind=optimize` / `flowDirection=optimize.delete`；
+  - 保留 `legacyBridgeKind` / `legacyFlowDirection`。
+- dashboard active bridge 统计将历史 `archive.delete` 归入 `optimize`，避免 dashboard / 任务中心出现两套 delete 语义。
+
+### 用户视角变化
+
+- 生产里已经存在的历史 delete task 不会再让用户看到“delete 是 archive task”的旧语义。
+- 用户按 optimize 过滤任务时，能看到历史 delete；按 archive 过滤时，不会混入历史 delete。
+- Event 卡片/事件流如果展示 bridge 和 flow，也会显示当前模型下的 `optimize.delete`。
+
+### 后端事实来源
+
+- `media-service/src/taskStore.js`
+  - 增加 legacy archive delete read projection。
+  - 统一 task/event bridge filter。
+  - dashboard bridge 统计按兼容投影聚合。
+- `media-service/test/task-model.test.js`
+  - 覆盖 getTask、queryTaskSummaries、querySchedulerTasks、queryDashboardTaskStats、queryTaskEvents。
+- `media-service/test/api-inject.test.js`
+  - 覆盖 admin task 和 desktop task 列表的 bridge filter 用户可见行为。
+
+### 本地验收
+
+- `node --check src/taskStore.js`: pass。
+- `node --test test/task-model.test.js --test-name-pattern "legacy archive delete|v3 bridge flow"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，52 个测试通过。
+- `node --test test/api-inject.test.js --test-name-pattern "filters by bridge"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `api-inject.test.js` 全量，115 个测试通过。
+- `npm test`: pass，255 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+- `git diff --check`: pass；仅有 Windows line-ending warning。
+
+### 尚未满足
+
+- 这是 compatibility projection，不是生产数据迁移；历史 raw facts 仍保持原样，便于审计。
+- P0-1 的 5 阶段 4 gate 架构仍需继续收口，特别是 ingest gate 和 archive gate 要落到统一业务流程中。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
