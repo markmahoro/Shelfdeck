@@ -548,6 +548,7 @@ function getDefaultConfig() {
       },
       cooldownHoursByAction: {
         ingest: 6,
+        archive: 0,
         scrape: 6,
         delete: 48,
         transcode: 48,
@@ -1018,6 +1019,35 @@ function normalizeTranscodeEncodingDevices(raw) {
   };
 }
 
+function normalizeLifecycleAutomationConfig(raw) {
+  const current = raw || {};
+  const actions = Array.isArray(current.smartTaskEnabledActions)
+    ? current.smartTaskEnabledActions.map((action) => String(action || '').trim()).filter(Boolean)
+    : [];
+  if (actions.length === 0 || actions.includes('archive')) {
+    return { raw: current, migrated: false };
+  }
+
+  const migrations = current.migrations && typeof current.migrations === 'object'
+    ? current.migrations
+    : {};
+  if (migrations.v31ArchiveAutomation === true) {
+    return { raw: current, migrated: false };
+  }
+
+  return {
+    raw: {
+      ...current,
+      smartTaskEnabledActions: [...actions, 'archive'],
+      migrations: {
+        ...migrations,
+        v31ArchiveAutomation: true,
+      },
+    },
+    migrated: true,
+  };
+}
+
 // ── Load / Save ────────────────────────────────────────────────────────────────
 
 function mergeConfigWithDefaults(config) {
@@ -1113,6 +1143,16 @@ function loadConfig() {
       saveConfig(raw);
     } else {
       raw = transcodeResult.raw;
+    }
+
+    const lifecycleAutomationResult = normalizeLifecycleAutomationConfig(raw);
+    if (lifecycleAutomationResult.migrated) {
+      console.log('[configStore] lifecycle automation config migration applied');
+      fs.writeFileSync(cfgFile + '.v9.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = lifecycleAutomationResult.raw;
+      saveConfig(raw);
+    } else {
+      raw = lifecycleAutomationResult.raw;
     }
 
     return mergeConfigWithDefaults(raw);

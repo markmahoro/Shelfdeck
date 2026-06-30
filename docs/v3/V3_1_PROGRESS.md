@@ -3164,3 +3164,71 @@ S4 archived
 - P0-1 仍未整体宣布完成。
 - 本 slice 只关闭了普通库半假 scrape 的 `audioCodecs` repair 能力和过期 task snapshot 继续打 Emby的问题。
 - 后续仍需继续按 P0-1 顺序审计 task 生命周期：ingest gate、metadata gate、optimize gate、archive gate 在每种库类型下是否完整闭环。
+
+## 2026-06-30 Slice 67: 旧自动化配置补齐 archive 闭环
+
+### 用户视角判定
+
+- v3.1 的完整心智是 `source/discovered -> ingested -> metadata-ready -> optimized -> archived`。
+- `archive` 是 optimized 之后的轻量 finalize bridge，不是 delete，也不是重资源 optimize。
+- 如果一个旧配置已经启用了自动任务，但缺少 v3.1 新增的 `archive` operation，用户会看到媒体停在 `optimized`，不能自然进入最终闭环；这属于 P0-1 生命周期配置迁移问题。
+
+### 本机 profile 发现
+
+- `.codex/local-prod-data` 同步的生产同构配置原始 `smartTaskEnabledActions` 为：
+  - `ingest`
+  - `scrape`
+  - `transcode`
+- 生产规模库中共有 2575 个 item。
+- 修复前生命周期分布显示：
+  - `optimized`: 369
+  - `lifecycleNextTask=archive`: 369
+  - 自动触发判定：`blocked:archive:action_not_enabled = 369`
+- 这说明有 369 个已优化 item 被旧 allow-list 卡在 archive gate 前，无法自动完成最终归档。
+
+### 已完成
+
+- `configStore` 新增 v3.1 lifecycle automation migration：
+  - 当旧配置的 `smartTaskEnabledActions` 非空且缺少 `archive` 时，自动追加 `archive`。
+  - 写入 `migrations.v31ArchiveAutomation=true`。
+  - 生成 `config.json.v9.backup`。
+  - 如果 `smartTaskEnabledActions` 是空数组，保持自动化关闭，不迁移打开。
+- 默认 `taskAdmission.cooldownHoursByAction.archive` 明确为 `0`：
+  - archive 是轻量 finalize bridge，不应因为通用 48 小时 cooldown 阻断闭环恢复。
+- `ARCH_OVERVIEW.md` 记录该配置迁移约束。
+
+### 本机 profile 复验
+
+- 触发本机 profile 配置迁移后：
+  - `smartTaskEnabledActions`: `ingest`, `scrape`, `transcode`, `archive`
+  - `migrations.v31ArchiveAutomation: true`
+  - `allowed:archive:archive_gate_not_met = 369`
+- 这 369 个 item 不再因旧配置缺 `archive` 被 TaskAdmission/SmartTask 自动触发层阻断。
+
+### 验证
+
+- `node --check src/configStore.js`：通过。
+- `node --test test/task-model.test.js --test-name-pattern "config migration"`：通过；Node 当前实际执行该文件 63 tests，全部通过。
+- `node --test test/api-contract.test.js`：通过，35 tests。
+- `node --test test/priority-api.test.js`：通过，14 tests。
+- `npm run build:web`：通过；Vite dynamic/static import warning 仍为既有 warning。
+- `node scripts/check-local-runtime-profile.js .codex/local-prod-data`：通过。
+
+### 全量测试限制
+
+- `npm test` 在 Windows 默认 child isolation 模式下 184 秒超时，未完成。
+- 这与前序已记录的全量套件 hang 风险一致；本 slice 不把窄测和专项测试冒充为全量通过。
+
+### 生产部署
+
+- 本 slice 未部署 NAS 生产。
+- 原因：当前流程已调整为普通 slice 先在本机测试环境验证；生产部署留给重大版本、真实 NAS 行为验证、生产 Admin Web 验收，或用户明确要求时执行。
+
+### 尚未满足
+
+- P0-1 仍未整体宣布完成。
+- 本 slice 关闭的是旧配置导致 `optimized -> archived` 自动闭环缺失的问题。
+- 后续仍需继续审计：
+  - archive task 执行后的 event/resource 解释是否足够；
+  - adult/standard item 在 archive gate 下是否都能给出一致的用户可读状态；
+  - optimize gate failed 时是否不会被错误地当成新 optimize task 自动重建。

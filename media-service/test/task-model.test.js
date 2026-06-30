@@ -197,6 +197,60 @@ test('resolveSubLibSchedule treats automationMode as the canonical scheduling sw
   );
 });
 
+test('config migration adds archive to legacy non-empty smart task automation allow-list', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  delete process.env.MEDIA_SERVICE_DATA_DIR;
+
+  try {
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+      smartTaskEnabledActions: ['ingest', 'scrape', 'transcode'],
+      ruleTemplates: configStore.getDefaultConfig().ruleTemplates,
+    }, null, 2));
+
+    const loaded = configStore.loadConfig();
+    assert.deepStrictEqual(loaded.smartTaskEnabledActions, ['ingest', 'scrape', 'transcode', 'archive']);
+    assert.strictEqual(loaded.migrations.v31ArchiveAutomation, true);
+    assert.ok(fs.existsSync(path.join(dir, 'config.json.v9.backup')));
+
+    const saved = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
+    assert.deepStrictEqual(saved.smartTaskEnabledActions, ['ingest', 'scrape', 'transcode', 'archive']);
+    assert.strictEqual(saved.migrations.v31ArchiveAutomation, true);
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
+test('config migration keeps an empty smart task automation allow-list disabled', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  delete process.env.MEDIA_SERVICE_DATA_DIR;
+
+  try {
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+      smartTaskEnabledActions: [],
+      ruleTemplates: configStore.getDefaultConfig().ruleTemplates,
+    }, null, 2));
+
+    const loaded = configStore.loadConfig();
+    assert.deepStrictEqual(loaded.smartTaskEnabledActions, []);
+    assert.strictEqual(loaded.migrations, undefined);
+    assert.strictEqual(fs.existsSync(path.join(dir, 'config.json.v9.backup')), false);
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
 test('taskAdmission allows automatic task creation for manual sub-libraries', () => {
   const config = {
     smartTaskEnabledActions: ['transcode'],

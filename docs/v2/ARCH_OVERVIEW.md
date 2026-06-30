@@ -140,6 +140,7 @@ Dolby Vision 转码属于转码能力层，而不是任务管理绕行策略。`
 - 当前审批 gate 包括 `delete.beforeExecute`、`transcode.dolbyVisionTonemap`、`transcode.beforeReplace`、`upgrade.candidateSelect`、`upgrade.identityMismatch`、`upgrade.beforeReplace`、`scrape.beforeWriteMetadata`、`scrape.beforeOrganize`、`scrape.reviewResult`。
 - `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；成人库没有独立目录级扫描或独立自动刮削能力，也不把大量新文件展开成完整刮削或转码动作。后台自动入库由 `SmartTaskEngine` 读取文件候选后统一经过 `smartTaskEnabledActions`、`TaskAdmission` 和 `PriorityEngine` 创建 `ingest` 任务。
 - `SmartTaskEngine` 的健康状态必须解释最近一轮自动扫描，而不只是显示开关状态。`smartTask.getHealth().lastScanSummary` 返回 enabled actions、library item 数、candidate 数、按 action 的候选/入队计数、admission rejected reason 分布、queue cap skip 分布、`maxPerRunReached`、跳过原因或错误。该摘要只来自单轮扫描的轻量计数，不包含媒体详情、task payload、日志或 face/AI heavy data。
+- v3.1 以后，`archive` 是 5 阶段生命周期闭环的轻量 finalize task。旧配置如果已经启用非空 `smartTaskEnabledActions` 但缺少 `archive`，加载时会迁移补上 `archive` 并记录 `migrations.v31ArchiveAutomation=true`；完全空的 allow-list 仍表示自动化关闭，不会被迁移打开。
 - 任务持久化使用 `data/tasks.db` SQLite。任务中心保留完成、失败等历史记录；调度器、节点统计、转码临时目录清理等热路径只读取非终态 active task，不能为了降低队列压力删除历史任务。
 - 启动期全局维护不属于单 item task。普通媒体库启动刷新由 `mediaLibraryStartupRefreshOnStartup` 和 `mediaLibraryStartupRefreshDelaySeconds` 控制；自算字段立即运行由 `mediaLibrarySelfComputeOnStartup` 控制；`SmartTaskEngine` 首次自动入队扫描由 `smartTaskInitialDelaySeconds` 控制。生产部署可通过这些开关先恢复 API 响应，再让周期任务按节奏运行。
 - 成人库 `ingest` 的媒体探测使用 `adultLibrary.probeTimeoutMs` 控制单文件 `ffprobe` 超时。坏文件或异常路径只记录 `probeError` 并继续入库，不应拖住整个 HTTP 服务。
