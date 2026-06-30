@@ -2689,3 +2689,19 @@ test('standard metadata repair aggregates TV season episodes without local ffpro
     else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
   }
 });
+
+test('local transcode uses low-noise ffmpeg progress output', () => {
+  const { args } = transcodeService._buildEncodeArgsForTest({
+    config: { ffmpegPath: 'ffmpeg' },
+    sourcePath: '/media/in.mkv',
+    partialPath: '/tmp/out.mkv',
+    encoderMode: 'qsv',
+    targetBitrate: 16,
+  });
+  assert.ok(args.includes('-nostats'));
+  const progressIndex = args.indexOf('-progress');
+  assert.notStrictEqual(progressIndex, -1);
+  assert.strictEqual(args[progressIndex + 1], 'pipe:2');
+  assert.strictEqual(transcodeService._parseFfmpegTimeMsForTest('out_time_ms=123456000'), 123456);
+  assert.strictEqual(transcodeService._parseFfmpegTimeMsForTest('out_time=00:02:03.500000'), 123500);
+});

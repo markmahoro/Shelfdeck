@@ -1430,7 +1430,7 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
   }
 
   // Hardware decode acceleration (before -i)
-  const preInput = ['-hide_banner', '-y'];
+  const preInput = ['-hide_banner', '-nostats', '-progress', 'pipe:2', '-y'];
   if (enc === 'qsv') {
     preInput.push('-hwaccel', 'qsv', '-hwaccel_output_format', 'qsv');
   } else if (enc === 'amf') {
@@ -1467,6 +1467,17 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
 }
 
 function parseFfmpegTimeMs(line) {
+  const outTimeMs = /^out_time_ms=(\d+)/.exec(String(line || '').trim());
+  if (outTimeMs) {
+    const value = Number(outTimeMs[1]);
+    return Number.isFinite(value) ? Math.max(0, value / 1000) : null;
+  }
+  const outTime = /^out_time=(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(String(line || '').trim());
+  if (outTime) {
+    const h = Number(outTime[1]), min = Number(outTime[2]), sec = Number(outTime[3]);
+    if (!Number.isFinite(h + min + sec)) return null;
+    return ((h * 60 + min) * 60 + sec) * 1000;
+  }
   const m = /time=(\d+):(\d+):(\d+\.\d+)/.exec(line);
   if (!m) return null;
   const h = Number(m[1]), min = Number(m[2]), sec = Number(m[3]);
@@ -2284,6 +2295,7 @@ module.exports = {
   findCpuSlot,
   normalizeEncodeError,
   _buildEncodeArgsForTest: buildEncodeArgs,
+  _parseFfmpegTimeMsForTest: parseFfmpegTimeMs,
   _resetDolbyVisionTonemapCacheForTest() { dvTonemapCapabilityCache = null; },
   _setRunCmdForTest(fn) {
     _runCmd = fn || runCmd;
