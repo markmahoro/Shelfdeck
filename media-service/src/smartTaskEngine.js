@@ -3,7 +3,7 @@
 /**
  * SmartTaskEngine — independent periodic auto-enqueue engine.
  *
- * Scans the media library store for items that are watched, rated, and have a
+ * Scans the media library store for items that meet lifecycle gates and have a
  * recommended action (transcode/upgrade/delete), then creates tasks
  * that feed into TaskScheduler.
  * Decoupled from StrategyEngine — only reads action/reason, never writes them.
@@ -171,7 +171,6 @@ function buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff,
     actionType = 'scrape';
   } else {
     if (!meta.metadataComplete) return null;
-    if (!item.watched) return null;
     if (!item.action || item.action === 'keep') return null;
     if (!enabledActions.includes(item.action)) return null;
     if (item.reason === '新入库') return null;

@@ -1933,3 +1933,55 @@ Slice 41 的 lifecycle audit 仍保留旧结论：`context.mediaType !== adult &
 - 本切片尚未部署 NAS；生产中已持久化的 lifecycle SQL facts 需要部署后通过刷新/策略重算或后续迁移刷新投影。
 - P0-1 仍有模型问题待继续收敛：`SmartTaskEngine` 仍在触发器内部硬编码 `watched=true`、`item.action`、`reason !== 新入库` 等 optimize trigger 条件。这个问题同样来自旧模型，不属于性能支线；后续需要把它从“聪明决策器”继续收敛成“只看 lifecycle gate 的任务触发器”。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 48: Watched is not a hidden SmartTask optimize gate
+
+### 对应标准
+
+- A2/A3: `metadataComplete` 在用户语义下应表示 scrape 阶段完成，并且媒体具备进入 optimize 阶段的前置条件。
+- A4: SmartTaskEngine 在新模型下应是任务触发器，不应把业务策略条件硬编码在触发器内部。
+- B3/B5: 如果用户希望“只处理已观看媒体”，这个条件应来自子库 metadata gate / 策略模板 / 自动化配置，而不是隐藏在后台触发器里。
+
+### 审计结果
+
+继续审计 `SmartTaskEngine.buildCandidate()` 时发现：
+
+- 当 item 已经 `metadataComplete=true`，且策略已产出 `action=transcode/upgrade/delete` 时，SmartTask 仍额外要求 `item.watched === true`。
+- 这意味着一个媒体即使已经显示“元数据完整”，并且策略已明确要求 optimize，只要未观看，就完全不会成为 optimize candidate。
+- 该行为没有独立配置入口，也不会在任务中心以明确 gate/配置阻断展示出来。
+
+判断：
+
+- 这是 P0-1 新业务模型问题。
+- `watched` 可以是策略输入，也可以是用户自定义 metadata gate 的字段；但不应该是 SmartTask 触发器的隐藏全局门槛。
+- 当前 `metadataStatus` 仍可校验 `decision.watched` 是否“已知”，即 true/false 都可满足；是否“必须已看过”应由策略模板表达，例如规则条件要求 `watched=true`。
+
+### 本切片修复
+
+- 移除 `SmartTaskEngine.buildCandidate()` 中 `if (!item.watched) return null` 的隐藏 optimize gate。
+- SmartTask 对 optimize candidate 的判断变为：
+  - metadata gate 已满足；
+  - strategy 已产出非 `keep` 的 action；
+  - action 在 `smartTaskEnabledActions` allow-list 中；
+  - 仍经过 TaskAdmission 的 active 去重、cooldown、queue limit 和已完成优化检查。
+- 更新 SmartTask 注释：它扫描的是满足 lifecycle gate 且有推荐 action 的 item，而不是“watched + rated”的旧模型。
+
+### 后端事实来源
+
+- `media-service/src/smartTaskEngine.js`
+  - 移除 hidden watched gate。
+  - 更新模块说明。
+- `media-service/test/task-model.test.js`
+  - 覆盖 metadata complete、`watched=false`、策略已产出 `transcode` 的媒体会创建 optimize task candidate。
+
+### 本地验收
+
+- `node --test test/task-model.test.js --test-name-pattern "smartTaskEngine"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，42 个测试通过。
+- `npm test`: pass，243 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS；生产当前如果 `smartTaskEnabledActions` 包含 optimize action，部署后 optimize candidate 范围可能扩大，需要结合队列上限和生产观察窗口验证。
+- P0-1 仍未完整关闭：SmartTask 仍直接消费 `item.action` 作为 operation，后续还要继续收敛“触发 task”和“选择 flow/operation”的边界。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
