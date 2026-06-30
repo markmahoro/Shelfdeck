@@ -410,7 +410,7 @@ export default function SystemConfigPage() {
 
       <section style={cardStyle}>
         <h3 style={sectionTitle}>任务并发数</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>Flow event 执行阶段的全局并发上限。</p>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>任务实现路径进入 event 执行阶段后的全局并发上限。</p>
         <div style={fourColGrid}>
           <NumberField label="入库并发" value={ingestConc} min={1} max={10} onChange={setIngestConc} />
           <NumberField label="删除并发" value={deleteConc} min={1} max={10} onChange={setDeleteConc} />
@@ -422,9 +422,9 @@ export default function SystemConfigPage() {
 
       <section style={cardStyle}>
         <h3 style={sectionTitle}>后台自动入队</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>后台自动入队统一控制系统可以自动推进哪些 flow 操作；task 仍表示跨阶段桥梁，具体转码、洗版、删除、刮削是 flow 内的操作方向。</p>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>后台自动入队统一控制系统可以自动推进哪些处理方向；任务表达要跨过的目标 Gate，转码、洗版、删除、刮削只是当前实现路径。</p>
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>允许自动创建的 flow 操作</label>
+          <label style={labelStyle}>允许自动推进的处理方向</label>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             {ACTIONS.map((a) => (
               <label key={a.key} style={checkboxLabel}>
@@ -435,7 +435,7 @@ export default function SystemConfigPage() {
           </div>
           {smartTaskActions.length === 0 ? (
             <div style={warningBox}>
-              当前没有选择任何自动操作。媒体库仍会显示“转码压缩、洗版、删除、刮削”等推荐方向，但系统不会自动创建对应任务桥；需要手动执行，或在这里勾选对应操作后保存。
+              当前没有选择任何自动处理方向。媒体库仍会显示“转码压缩、洗版、删除、刮削”等推荐方向，但系统不会自动创建对应任务；需要手动执行，或在这里勾选对应方向后保存。
             </div>
           ) : (
             <div style={infoBox}>
@@ -492,7 +492,7 @@ export default function SystemConfigPage() {
 
       <section style={cardStyle}>
         <h3 style={sectionTitle}>队列优先级</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>数值越小越优先。最终优先级由来源权重、flow 操作权重、子库权重、业务信号、等待时间、重试惩罚和高级规则叠加计算。</p>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>数值越小越优先。最终优先级由来源权重、处理方向权重、子库权重、业务信号、等待时间、重试惩罚和高级规则叠加计算。</p>
         <div style={fourColGrid}>
           <NumberField label="手动来源权重" value={manualPrio} min={0} max={999} onChange={setManualPrio} />
           <NumberField label="自动来源权重" value={autoPrioBase} min={0} max={999} onChange={setAutoPrioBase} />

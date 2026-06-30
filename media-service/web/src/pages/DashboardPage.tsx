@@ -473,7 +473,7 @@ export default function DashboardPage() {
                         只控制已创建任务的启动方式，不负责自动创建任务
                       </div>
                       <div style={{ fontSize: 11, color: enabledAutoActions && enabledAutoActions.length === 0 ? '#c2410c' : '#6b7280', marginTop: 4 }}>
-                        后台自动 flow 操作：{enabledAutoActionText}
+                        自动推进范围：{enabledAutoActionText}
                       </div>
                     </SubCard>
 
@@ -858,7 +858,7 @@ function DashboardHealthPanel({ data, loading, reclaimableBytes }: { data?: Dash
         <div>
           <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>媒体库健康</h3>
           <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-            后端聚合 lifecycle、metadata、任务桥和自动 flow 状态
+            后端聚合 lifecycle、metadata、任务目标和自动推进状态
           </div>
         </div>
         <span style={{ padding: '4px 10px', borderRadius: 6, background: tone.bg, color: tone.color, fontSize: 12, fontWeight: 700 }}>
@@ -876,7 +876,7 @@ function DashboardHealthPanel({ data, loading, reclaimableBytes }: { data?: Dash
             <DashboardMetric label="元数据缺失" value={media?.metadataIncompleteItems || 0} sub="会阻断优化入口" color={(media?.metadataIncompleteItems || 0) > 0 ? '#c62828' : '#2e7d32'} />
             <DashboardMetric label="等待优化" value={media?.pendingOptimizationItems || 0} sub="转码 / 洗版候选" color="#1565c0" />
             <DashboardMetric label="等待确认" value={taskStats?.awaitingConfirmationTasks || 0} sub="需要人工继续" color={(taskStats?.awaitingConfirmationTasks || 0) > 0 ? '#b45309' : '#2e7d32'} />
-            <DashboardMetric label="失败桥梁" value={taskStats?.failedTasks || 0} sub="查看任务中心 event" color={(taskStats?.failedTasks || 0) > 0 ? '#c62828' : '#2e7d32'} />
+            <DashboardMetric label="失败任务" value={taskStats?.failedTasks || 0} sub="查看任务中心 event" color={(taskStats?.failedTasks || 0) > 0 ? '#c62828' : '#2e7d32'} />
             <DashboardMetric label="处理队列" value={attentionCount} sub={attentionCount > 0 ? (primaryAttention?.label || '需要处理') : '无需人工处理'} color={attentionCount > 0 ? '#b45309' : '#2e7d32'} />
             <DashboardMetric label="活动流程" value={taskStats?.activeTasks || 0} sub="非终态任务" color="#1a1a2e" />
             <DashboardMetric label="可回收" value={fmtSizeBytes(reclaimableBytes)} sub="来自空间统计" color="#2e7d32" />
@@ -920,12 +920,12 @@ function DashboardHealthPanel({ data, loading, reclaimableBytes }: { data?: Dash
               </div>
             </SubCard>
 
-            <SubCard title="自动 flow 操作">
+            <SubCard title="自动推进范围">
               <div style={{ fontSize: 14, fontWeight: 700, color: enabledOps.length > 0 ? '#1a1a2e' : '#c2410c', lineHeight: 1.5 }}>
                 {enabledText}
               </div>
               <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-                SmartTask 只会自动创建 allow-list 内的操作
+                SmartTask 只会为允许范围内的目标创建任务
               </div>
             </SubCard>
           </div>

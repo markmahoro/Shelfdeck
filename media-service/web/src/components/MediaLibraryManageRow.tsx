@@ -61,7 +61,7 @@ const LIFECYCLE_LABEL: Record<string, string> = { discovered: '已发现', inges
 const METADATA_LABEL: Record<string, string> = { complete: '完整', done: '完整', missing: '缺失', pending: '待补齐', failed: '失败', ambiguous: '待确认' };
 const ARCHIVE_LABEL: Record<string, string> = { archived_like: '已归档', not_ready: '未就绪', failed: '归档失败', pending: '待归档' };
 const NEXT_TASK_LABEL: Record<string, string> = { metadata: '补元数据', optimize: '优化', archive: '归档' };
-const BRIDGE_LABEL: Record<string, string> = { metadata: '元数据桥', optimize: '优化桥', archive: '归档桥' };
+const GATE_LABEL: Record<string, string> = { metadata: '补元数据', optimize: '优化', archive: '归档' };
 
 function adultMetaString(item: ManagedMediaItem, key: string): string {
   const value = item.adultMetadata?.[key];
@@ -139,7 +139,7 @@ function MediaLibraryManageRowInner({
     item.lifecycleReason ? `原因：${item.lifecycleReason}` : '',
     item.metadataStatus ? `元数据：${item.metadataStatus}` : '',
     item.archiveStatus ? `归档：${item.archiveStatus}` : '',
-    item.businessFlowDecision?.nextBridge ? `下一座桥：${BRIDGE_LABEL[item.businessFlowDecision.nextBridge] || item.businessFlowDecision.nextBridge}` : '',
+    item.businessFlowDecision?.nextBridge ? `下一步目标：${GATE_LABEL[item.businessFlowDecision.nextBridge] || item.businessFlowDecision.nextBridge}` : '',
   ].filter(Boolean).join('\n');
   const metadataTitle = [
     item.metadataKind ? `类型：${item.metadataKind}` : '',
@@ -163,7 +163,7 @@ function MediaLibraryManageRowInner({
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
       {taskStatusLabelZh(rowTask.status)}（
-      {BRIDGE_LABEL[taskBridge] || taskBridge || '任务'}
+      {GATE_LABEL[taskBridge] || taskBridge || '任务'}
       {' / '}
       {ACTION_LABEL[taskOperation] || taskOperation}
       ）
@@ -177,7 +177,7 @@ function MediaLibraryManageRowInner({
     ? blockedReasonText(item, recommendedOperation)
     : '';
   const nextBridgeLabel = item.businessFlowDecision?.nextBridge
-    ? (BRIDGE_LABEL[item.businessFlowDecision.nextBridge] || item.businessFlowDecision.nextBridge)
+    ? (GATE_LABEL[item.businessFlowDecision.nextBridge] || item.businessFlowDecision.nextBridge)
     : (NEXT_TASK_LABEL[item.lifecycleNextTask || ''] || '');
 
   return (
@@ -289,7 +289,7 @@ function MediaLibraryManageRowInner({
           <button
             type="button"
             disabled={actionDisabled}
-            title={rowTask ? '该条目已有未结案任务' : isCreatingTask ? '正在创建任务' : item.businessFlowDecision?.nextBridge ? `下一座桥：${nextBridgeLabel}` : undefined}
+            title={rowTask ? '该条目已有未结案任务' : isCreatingTask ? '正在创建任务' : item.businessFlowDecision?.nextBridge ? `下一步目标：${nextBridgeLabel}` : undefined}
             onClick={() => onEnqueue(item, action)}
           >
             {isCreatingTask ? '创建中...' : ACTION_LABEL[action]}

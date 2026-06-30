@@ -51,6 +51,8 @@ function newScanSummary(enabledActions = []) {
     admissionRejectedByReason: {},
     skippedByQueueCap: 0,
     skippedByQueueCapByAction: {},
+    deferredByActiveBacklog: false,
+    activeBacklog: 0,
     maxPerRunReached: false,
     reason: '',
     error: '',
@@ -251,12 +253,25 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       runtimeEvent.update({ libraryItems: libraryItems.length });
       scanSummary.libraryItems = libraryItems.length;
 
-      const allTasks = typeof taskStore.queryTaskAdmissionRows === 'function'
-        ? taskStore.queryTaskAdmissionRows()
-        : taskStore.getTasks();
       const activeTasks = typeof taskStore.querySchedulerTasks === 'function'
         ? taskStore.querySchedulerTasks()
         : taskStore.loadTasks({ includeHistory: false });
+      scanSummary.activeBacklog = Array.isArray(activeTasks) ? activeTasks.length : 0;
+      if (cfg2.smartTaskDeferWhenActiveBacklog !== false && scanSummary.activeBacklog > 0) {
+        finalStatus = 'skipped';
+        finalPayload.reason = 'active_task_backlog';
+        finalPayload.activeBacklog = scanSummary.activeBacklog;
+        scanSummary.deferredByActiveBacklog = true;
+        finishScanSummary(scanSummary, finalStatus, {
+          reason: 'active_task_backlog',
+          activeBacklog: scanSummary.activeBacklog,
+        });
+        return;
+      }
+
+      const allTasks = typeof taskStore.queryTaskAdmissionRows === 'function'
+        ? taskStore.queryTaskAdmissionRows()
+        : taskStore.getTasks();
       const optimizationIndex = optimizationStatus.buildOptimizationIndex(allTasks, cfg2);
 
       // Count active (non-terminal) tasks per action type
@@ -301,6 +316,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       candidates.sort((a, b) => (a.priority - b.priority) || (b.timestamp - a.timestamp));
 
       const toEnqueue = [];
+      const taskDataToCreate = [];
       for (const candidate of candidates) {
         if (toEnqueue.length >= maxPerRun) {
           scanSummary.maxPerRunReached = true;
@@ -345,7 +361,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
           config: cfg2,
         });
 
-        const task = taskStore.createTask({
+        const taskData = {
           itemId: item.itemId,
           itemName: item.name,
           actionType,
@@ -363,12 +379,32 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
             source: 'smart_task_engine',
             action: 'auto_enqueued',
           }],
+        };
+        taskDataToCreate.push(taskData);
+        allTasks.push({
+          id: `smart-task-pending:${item.itemId}:${actionType}`,
+          itemId: item.itemId,
+          itemName: item.name,
+          actionType,
+          source: 'auto',
+          status,
+          taskTarget: admission.taskTarget,
+          taskBridge: admission.taskBridge,
+          flowPlan: admission.flowPlan,
+          itemInfo,
         });
-        allTasks.push(task);
         console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${actionType} "${item.name}"`);
         toEnqueue.push({ item, actionType });
         scanSummary.enqueued += 1;
         incrementCounter(scanSummary.enqueuedByAction, actionType);
+      }
+
+      if (taskDataToCreate.length > 0) {
+        if (typeof taskStore.createTasks === 'function') {
+          taskStore.createTasks(taskDataToCreate);
+        } else {
+          for (const taskData of taskDataToCreate) taskStore.createTask(taskData);
+        }
       }
 
       if (toEnqueue.length > 0) {

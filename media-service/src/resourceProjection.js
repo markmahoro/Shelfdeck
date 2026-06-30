@@ -134,6 +134,19 @@ function resourceForTask(task, config = {}) {
   };
 }
 
+function compactTaskTarget(taskTarget) {
+  if (!taskTarget || typeof taskTarget !== 'object') return null;
+  return {
+    object: taskTarget.object && typeof taskTarget.object === 'object' ? { ...taskTarget.object } : {},
+    targetGate: taskTarget.targetGate || '',
+    gateObjective: taskTarget.gateObjective && typeof taskTarget.gateObjective === 'object'
+      ? { ...taskTarget.gateObjective }
+      : null,
+    source: taskTarget.source || '',
+    operationHint: taskTarget.operationHint || '',
+  };
+}
+
 function compactTask(task, config) {
   const resource = resourceForTask(task, config);
   const step = flowPlanner.currentFlowStep(task || {});
@@ -143,6 +156,7 @@ function compactTask(task, config) {
     itemId: task.itemId,
     itemName: task.itemName,
     actionType: task.actionType,
+    taskTarget: compactTaskTarget(task.taskTarget),
     bridgeKind: task.taskBridge && task.taskBridge.kind,
     flowDirection: task.flowPlan && task.flowPlan.direction,
     operationKind: task.flowPlan && task.flowPlan.operationKind,

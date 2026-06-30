@@ -938,6 +938,8 @@ function compactSmartTaskScanSummary(summary) {
     admissionRejectedByReason: summary.admissionRejectedByReason || {},
     skippedByQueueCap: Number(summary.skippedByQueueCap || 0) || 0,
     skippedByQueueCapByAction: summary.skippedByQueueCapByAction || {},
+    deferredByActiveBacklog: !!summary.deferredByActiveBacklog,
+    activeBacklog: Number(summary.activeBacklog || 0) || 0,
     maxPerRunReached: !!summary.maxPerRunReached,
     reason: summary.reason || '',
     error: summary.error || '',
@@ -969,7 +971,7 @@ function buildDashboardHealthSignals(mediaStats, taskStats, config, automation =
     signals.push({ level, code, label, count, detail });
   };
 
-  push('red', 'failed_tasks', '失败任务桥', taskStats.failedTasks, '先到任务中心查看 flow / event 历史');
+  push('red', 'failed_tasks', '失败任务', taskStats.failedTasks, '先到任务中心查看实现路径和 event 历史');
   push('yellow', 'awaiting_confirmation', '等待确认', taskStats.awaitingConfirmationTasks, '需要人工确认后才能继续');
   push('yellow', 'metadata_incomplete', '元数据未完成', mediaStats.metadataIncompleteItems, '会阻断转码、洗版、删除等优化入口');
   push('yellow', 'pending_optimization', '等待优化', mediaStats.pendingOptimizationItems, '推荐动作仍未闭环');
@@ -980,9 +982,9 @@ function buildDashboardHealthSignals(mediaStats, taskStats, config, automation =
     signals.push({
       level: 'yellow',
       code: 'auto_actions_disabled',
-      label: '后台自动 flow 操作未启用',
+      label: '后台自动推进未启用',
       count: 1,
-      detail: 'SmartTask 只能生成被全局 allow-list 放行的操作',
+      detail: 'SmartTask 只能生成被全局 allow-list 放行的任务',
     });
   }
 
@@ -995,6 +997,9 @@ function buildDashboardHealthSignals(mediaStats, taskStats, config, automation =
   }
   if (scan && scan.skippedByQueueCap > 0) {
     push('yellow', 'smart_task_queue_cap', '自动入队队列已满', scan.skippedByQueueCap, '等待现有任务推进或调整队列上限');
+  }
+  if (scan && scan.deferredByActiveBacklog) {
+    push('yellow', 'smart_task_active_backlog', '自动入队等待现有队列', scan.activeBacklog || 1, '已有任务在推进，下一轮扫描会重新评估');
   }
   if (scan && scan.maxPerRunReached) {
     push('yellow', 'smart_task_max_per_run', '自动入队达到单轮上限', 1, '下一轮扫描会继续处理剩余候选');
@@ -1019,7 +1024,7 @@ const DASHBOARD_ACTION_LABELS = {
 
 const DASHBOARD_TASK_EVENT_LABELS = {
   'task.created': '任务创建',
-  'flow.planned': 'Flow 规划',
+  'flow.planned': '路径规划',
   'flow.dispatched': '开始执行',
   'flow.failed': '执行失败',
   'scrape.metadata_gate_failed': '元数据完整性未满足',
@@ -3456,11 +3461,7 @@ function registerRoutes(app) {
     const tasks = typeof taskStore.queryDashboardTaskStats === 'function'
       ? taskStore.queryDashboardTaskStats()
       : {};
-    const taskSummaryFacts = taskStore.queryTaskSummaries({}, {
-      includeAll: true,
-      orderBy: 'updatedAt',
-      orderDir: 'desc',
-    }).tasks;
+    const taskSummaryFacts = queryAttentionTasks({});
     const attention = buildAttentionSummary(taskSummaryFacts);
     const automation = buildDashboardAutomation(config);
     const signals = buildDashboardHealthSignals(media, tasks, config, automation);

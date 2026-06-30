@@ -3729,3 +3729,87 @@ Optimize task 的目标现在优先来自 Lifecycle objective resolver：
 - Resource View 和 Dashboard 仍有少量“桥梁 / flow 操作”文案，需要后续按同一用户语义继续收口。
 - Objective rule 配置 UI 仍未完整落地。
 - P0-1 仍未整体宣布完成。
+
+## 2026-07-01 Slice 77: v3.1 可用版生产交付收口
+
+### 对应标准
+
+- v3.1 可用版，不追求理想化完整版。
+- 核心页面和操作不能有阻断性问题。
+- 常用列表、任务流、媒体数据加载和前端交互不能出现重大性能问题。
+- 前端表达与结构按 v3.1 新框架收敛：Task 是 `object + targetGate + gateObjective`，Flow 只是实现路径。
+- 全自动模式必须完整可用且安全。
+
+### 已完成
+
+- Resource projection：
+  - `/v1/admin/resources` 的 compact task 补充 `taskTarget`，Resource View 能按任务目标解释资源占用。
+- Flow Planner：
+  - 兼容旧/部分 `flowPlan`，当缺少 `primaryResourceType` 或 `steps` 时按当前 planner 重算展示事实，避免资源页误归类。
+- SQLite / WAL：
+  - `taskStore` 和 `libraryStore` 的 routine WAL checkpoint 改为记录 deferred diagnostic，不再在服务热路径同步 `wal_checkpoint(TRUNCATE)`。
+  - forced migration checkpoint 保持可用。
+- Dashboard：
+  - health 聚合改用轻量 attention facts，不再为了首页健康摘要加载完整任务 payload。
+  - SmartTask active backlog 被压时在 dashboard signal 中明确显示“自动入队等待现有队列”。
+- SmartTask 全自动安全模式：
+  - 新增 active backlog 背压：已有 active task/backlog 时，本轮自动扫描记录 skipped，不继续堆任务。
+  - 新增 `taskStore.createTasks()` 批量创建入口，减少一轮自动入队中的多事务写入冲击。
+  - 仍保留 unified TaskAdmission、allow-list、queue cap、cooldown、active duplicate prevention。
+- Admin Web 文案：
+  - Dashboard / 任务中心 / 资源页 / 媒体管理 / 系统配置统一收口到“任务目标 / 目标 Gate / 实现路径 / 自动推进”。
+  - 去除用户可见旧框架词：`任务桥`、`桥梁`、`下一座桥`、`Flow 操作`、`Flow Planner`、`Flow direction`、`Flow 规划`。
+
+### 本机验证
+
+- `npm test`: 276 pass。
+- `npm run build:web`: pass。
+- `node --test --test-name-pattern "GET /v1/admin/dashboard/health returns media and task health aggregates|smartTaskEngine defers auto-enqueue" test/api-inject.test.js test/task-model.test.js`: pass。
+- `rg` 旧框架文案扫描：无命中。
+
+### 生产部署
+
+- 已部署 NAS 生产：`markmahoro/shelfdeck:v3.1.0-usable-20260630-r5`。
+- 镜像 tarball：`/vol1/1000/docker/shelfdeck/shelfdeck-v3.1.0-usable-20260630-r5.tar`。
+- SHA-256：`3bf6c69d0dbbd47cd4fbe6871a09a0100b09e9b31070ebb696d0947ee698c884`。
+- 部署流程：
+  - upload tarball 并远端 SHA 校验通过。
+  - `deploy-nas.js` dry run 通过。
+  - `deploy-nas.js --apply` 通过。
+  - v3 data migration dry-run 显示 `missingColumns: []`。
+  - 容器镜像 tag、挂载、scraper module 检查通过。
+
+### 生产验证
+
+- 生产接口延迟（r5，SmartTask 首轮之后）：
+  - `/admin`: 102ms / 7ms / 7ms。
+  - `/v1/health`: 7ms / 4ms / 4ms。
+  - `/v1/admin/health`: 5ms / 3ms / 4ms。
+  - `/v1/admin/dashboard/health`: 4559ms cold / 1561ms / 1380ms warm。
+  - `/v1/admin/resources`: 53ms / 28ms / 25ms。
+  - `/v1/admin/tasks?pageSize=5`: 198ms / 182ms / 182ms。
+  - `/v1/library?limit=20`: 28ms / 16ms / 16ms。
+- 生产 SmartTask：
+  - allow-list：`ingest`, `scrape`, `transcode`, `archive`。
+  - 首轮扫描读取 `2575` 个媒体项。
+  - 因 `activeBacklog: 49` 触发 `reason: active_task_backlog`，`enqueued: 0`。
+  - Dashboard signal 正确显示“自动入队等待现有队列”。
+- 生产前端资源：
+  - `/admin` HTML 200。
+  - `/assets/index-DxA0yv0x.js` 200，约 432KB，旧框架文案扫描无命中。
+  - `/assets/index-Iac3OZaj.css` 200，约 8.7KB。
+
+### 浏览器验证说明
+
+- 内置浏览器访问 `http://192.168.12.230:18080/v1/health` 在 `goto` 阶段超时。
+- 同一时间 PowerShell HTTP 和 NAS 日志显示服务端健康接口 1-7ms 返回。
+- 因此本轮判定内置浏览器问题不是 ShelfDeck 前端性能问题，更像浏览器插件/局域网访问层问题。
+- 本轮以生产 HTTP、服务端日志、静态资源、API 延迟作为验收依据。
+
+### 尚未满足 / 后续演进
+
+- Dashboard health warm 约 1.4-1.6s，cold 可到 4.6s；v3.1 可用版可接受，但完整新架构应继续做 materialized dashboard projection。
+- `library.db-wal` 仍约 1.2GB；routine checkpoint 已不阻塞热路径，但完整架构应引入离线/低峰 WAL maintenance worker 和可观测运行策略。
+- Objective 规则仍主要从 strategy/action facts 推导；完整新架构应提供 Lifecycle Objective Rule UI 和版本化规则解释。
+- Flow Planner 仍覆盖当前 `scrape/transcode/upgrade/delete/archive/ingest` 主路径；后续要扩展到字幕、音轨、Dolby Vision、remux 等多 objective 分支。
+- Resource Runtime 仍是 scheduler/executor/resource projection 的组合；完整标准应演进为显式 event queue、lease、capacity 和 backpressure 模型。

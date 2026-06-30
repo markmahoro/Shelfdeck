@@ -229,6 +229,28 @@ function checkpointWal(db, reason, opts = {}) {
     });
     return { skipped: true, reason: 'wal_below_threshold', before, minWalSizeBytes };
   }
+  if (!force) {
+    const endedAtMs = Date.now();
+    diagnosticLog.record({
+      category: 'storage',
+      scope: 'libraryStore.checkpointWal',
+      operation: 'wal_checkpoint',
+      component: 'libraryStore',
+      resourceType: 'sqlite',
+      resourceKey: 'library.db-wal',
+      status: 'skipped',
+      startedAtMs,
+      endedAtMs,
+      slowMs: 250,
+      payload: {
+        reason,
+        trigger: 'routine_checkpoint_deferred',
+        minWalSizeBytes,
+        before,
+      },
+    });
+    return { skipped: true, reason: 'routine_checkpoint_deferred', before, minWalSizeBytes };
+  }
   try {
     const result = db.pragma('wal_checkpoint(TRUNCATE)');
     const endedAtMs = Date.now();

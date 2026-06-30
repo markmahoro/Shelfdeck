@@ -1175,6 +1175,7 @@ test('smartTaskEngine health explains queue-cap skips without creating tasks', a
           smartTaskPollIntervalMinutes: 10,
           smartTaskMaxPerRun: 10,
           smartTaskMaxQueueSize: 1,
+          smartTaskDeferWhenActiveBacklog: false,
           smartTaskEnabledActions: ['transcode'],
           smartTaskLookbackDays: 30,
           taskPriority: {
@@ -1217,6 +1218,66 @@ test('smartTaskEngine health explains queue-cap skips without creating tasks', a
   assert.strictEqual(health.lastScanSummary.skippedByQueueCap, 1);
   assert.strictEqual(health.lastScanSummary.skippedByQueueCapByAction.transcode, 1);
   assert.strictEqual(health.lastScanSummary.admissionRejected, 0);
+});
+
+test('smartTaskEngine defers auto-enqueue while active backlog exists', async () => {
+  smartTaskEngine.stop();
+  const activeTasks = [{
+    id: 'running-transcode',
+    itemId: 'running-transcode-item',
+    actionType: 'transcode',
+    status: 'executing',
+    updatedAt: new Date().toISOString(),
+  }];
+  smartTaskEngine.start(
+    {
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['scrape'],
+          smartTaskLookbackDays: 30,
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { scrape: 130 },
+            rules: { scrape: [] },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [metadataReadyMovie({
+            itemId: 'deferred-candidate',
+            name: 'Deferred Candidate',
+            action: 'scrape',
+            reason: 'metadata incomplete',
+            metadataStatus: 'incomplete',
+            metadataComplete: false,
+          })],
+        };
+      },
+    },
+    {
+      getTasks: () => [...activeTasks],
+      loadTasks: () => [...activeTasks],
+      createTask() {
+        throw new Error('active backlog should defer automatic creation');
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  const health = smartTaskEngine.getHealth();
+  assert.strictEqual(health.lastScanSummary.status, 'skipped');
+  assert.strictEqual(health.lastScanSummary.reason, 'active_task_backlog');
+  assert.strictEqual(health.lastScanSummary.activeBacklog, 1);
+  assert.strictEqual(health.lastScanSummary.deferredByActiveBacklog, true);
+  assert.strictEqual(health.lastScanSummary.enqueued, 0);
 });
 
 test('smartTaskEngine auto-enqueues ingest candidates through unified priority before transcode', async () => {
@@ -2002,6 +2063,41 @@ test('taskStore records skipped WAL checkpoint for small saveTasks writes', () =
   }
 });
 
+test('routine WAL checkpoints are deferred off the service hot path', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const previousTaskMin = process.env.SHELFDECK_TASK_WAL_CHECKPOINT_MIN_BYTES;
+  const previousLibraryMin = process.env.SHELFDECK_LIBRARY_WAL_CHECKPOINT_MIN_BYTES;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'routine-checkpoint-deferred-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  process.env.SHELFDECK_TASK_WAL_CHECKPOINT_MIN_BYTES = '0';
+  process.env.SHELFDECK_LIBRARY_WAL_CHECKPOINT_MIN_BYTES = '0';
+  diagnosticLog.resetForTests();
+
+  try {
+    taskStore.saveTasks([
+      { id: 'checkpoint-deferred-1', itemId: 'i1', itemName: 'Deferred', actionType: 'scrape', status: 'queued' },
+    ]);
+    libraryStore.replaceSubLibraryItems('checkpoint-lib', [
+      { itemId: 'checkpoint-lib-1', subLibraryId: 'checkpoint-lib', name: 'Deferred Library', source: 'emby', type: 'movie', action: 'keep' },
+    ], { cachedAt: '2026-06-30T00:00:00.000Z' });
+
+    const logs = diagnosticLog.list({ limit: 40 }).logs;
+    assert.ok(logs.some((log) => log.scope === 'taskStore.checkpointWal' && log.payload?.trigger === 'routine_checkpoint_deferred'));
+    assert.ok(logs.some((log) => log.scope === 'libraryStore.checkpointWal' && log.payload?.trigger === 'routine_checkpoint_deferred'));
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+    if (previousTaskMin === undefined) delete process.env.SHELFDECK_TASK_WAL_CHECKPOINT_MIN_BYTES;
+    else process.env.SHELFDECK_TASK_WAL_CHECKPOINT_MIN_BYTES = previousTaskMin;
+    if (previousLibraryMin === undefined) delete process.env.SHELFDECK_LIBRARY_WAL_CHECKPOINT_MIN_BYTES;
+    else process.env.SHELFDECK_LIBRARY_WAL_CHECKPOINT_MIN_BYTES = previousLibraryMin;
+  }
+});
+
 test('taskStore exposes lightweight optimization task rows', () => {
   const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
   const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
@@ -2731,7 +2827,21 @@ test('taskScheduler records delete done as an optimize gate result on media item
 
 test('resourceProjection groups active tasks by resource rather than task type only', () => {
   const view = resourceProjection.buildResourceView([
-    { id: 't1', itemId: 'i1', itemName: 'Movie', actionType: 'transcode', status: 'executing', priority: 1 },
+    {
+      id: 't1',
+      itemId: 'i1',
+      itemName: 'Movie',
+      actionType: 'transcode',
+      status: 'executing',
+      priority: 1,
+      flowPlan: { direction: 'optimize.compress', operationKind: 'transcode' },
+      taskTarget: {
+        object: { type: 'media_item', itemId: 'i1' },
+        targetGate: 'optimize',
+        gateObjective: { kind: 'reduce_bitrate', targetBitrate: 2500, targetCodec: 'h264', source: 'policy' },
+        operationHint: 'transcode',
+      },
+    },
     { id: 't2', itemId: 'i2', itemName: 'Adult', actionType: 'scrape', status: 'queued', priority: 2, itemInfo: { subLibraryId: 'adult-western', adultMetadata: { region: 'western_adult' } } },
     { id: 't3', itemId: 'i3', itemName: 'Upgrade', actionType: 'upgrade', status: 'awaiting_user_confirm', priority: 3 },
   ], {
@@ -2771,6 +2881,13 @@ test('resourceProjection groups active tasks by resource rather than task type o
   assert.ok(doubanBucket);
   assert.strictEqual(doubanBucket.eventRunning, 1);
   assert.strictEqual(doubanBucket.events[0].eventType, 'douban.sync');
+  const transcodeBucket = view.resources.find((bucket) => bucket.resourceKey === 'local:ffmpeg');
+  assert.ok(transcodeBucket);
+  assert.strictEqual(transcodeBucket.tasks[0].taskTarget.targetGate, 'optimize');
+  assert.strictEqual(transcodeBucket.tasks[0].taskTarget.gateObjective.kind, 'reduce_bitrate');
+  assert.strictEqual(transcodeBucket.tasks[0].taskTarget.gateObjective.targetBitrate, 2500);
+  assert.strictEqual(transcodeBucket.tasks[0].taskTarget.operationHint, 'transcode');
+  assert.strictEqual(transcodeBucket.tasks[0].operationKind, 'transcode');
 });
 
 test('backgroundIoGuard serializes heavy background operations and records skips', () => {

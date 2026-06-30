@@ -634,6 +634,7 @@ export interface ResourceTask {
   itemId: string;
   itemName?: string;
   actionType: ActionType;
+  taskTarget?: TaskTarget | null;
   source?: 'manual' | 'auto' | string;
   status: TaskStatus;
   phase?: string;

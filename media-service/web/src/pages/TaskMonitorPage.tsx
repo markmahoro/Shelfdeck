@@ -89,8 +89,8 @@ const RESOURCE_LABELS: Record<string, string> = {
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   'task.created': '任务创建',
-  'flow.planned': 'Flow 规划',
-  'flow.dispatched': 'Flow 派发',
+  'flow.planned': '路径规划',
+  'flow.dispatched': '路径派发',
   'task.status_changed': '状态变化',
   'task.runtime_changed': '运行点变化',
   'approval.requested': '等待确认',
@@ -169,8 +169,8 @@ const CONTROL_REASON_LABELS: Record<string, string> = {
   confirmation_required: '等待确认后才能继续',
   failed_task_retry_available: '可从失败点重试',
   retry_limit_reached: '已达到重试上限',
-  unknown_resume_point: '恢复点不在当前 flow 合约内',
-  unsupported_flow: '当前 flow 未定义恢复合约',
+  unknown_resume_point: '恢复点不在当前恢复合约内',
+  unsupported_flow: '当前实现路径未定义恢复合约',
   terminal_task: '任务已结束',
   not_awaiting_confirmation: '当前不需要确认',
   retry_not_required: '当前不需要重试',
@@ -185,22 +185,22 @@ const CONTROL_EFFECT_LABELS: Record<string, string> = {
   resume_from_pause: '从暂停状态恢复执行',
   resume_after_interruption: '从中断点继续执行',
   clear_pause_request: '撤销暂停请求',
-  request_runtime_pause_and_cleanup_partial_work: '请求运行中的 flow 暂停并清理临时产物',
+  request_runtime_pause_and_cleanup_partial_work: '请求运行中的任务暂停并清理临时产物',
   move_waiting_task_to_paused: '把等待中的任务移入暂停状态',
   store_confirmation_and_queue_task: '保存确认结果并回到队列',
   cancel_runtime_then_remove_task: '取消运行态并移除任务记录',
   remove_waiting_task: '移除等待中的任务',
   remove_task_history_record: '只移除任务中心里的历史记录',
   queue_failed_task_from_resume_point: '按恢复点重新排队同一个任务',
-  queue_failed_task_from_flow_start: '从当前 flow 起点重新排队同一个任务',
+  queue_failed_task_from_flow_start: '从当前实现路径起点重新排队同一个任务',
   scheduler_or_executor_already_owns_task: '调度器或执行器已经接管任务',
   blocked_until_user_confirms: '用户确认前不会继续推进',
   cannot_execute_terminal_task: '终态任务不能再启动',
   cannot_pause_terminal_task: '终态任务不能暂停',
   retry_only_applies_to_interrupted_or_failed_tasks: '只有中断或失败任务需要重试',
   recovery_not_required: '当前不需要恢复',
-  flow_has_no_recovery_contract: '该 flow 没有可执行恢复合约',
-  resume_point_not_in_flow_recovery_contract: '当前恢复点不在 flow 恢复合约内',
+  flow_has_no_recovery_contract: '该实现路径没有可执行恢复合约',
+  resume_point_not_in_flow_recovery_contract: '当前恢复点不在恢复合约内',
   manual_recovery_retry_limit_reached: '已达到手动恢复重试上限',
 };
 
@@ -215,7 +215,7 @@ const RECOVERY_STATE_LABELS: Record<string, string> = {
 
 const INTENT_MODE_LABELS: Record<string, string> = {
   bridge_intent: '按目标 Gate 创建',
-  action_type_compatibility: '兼容旧操作创建',
+  action_type_compatibility: '兼容旧入口创建',
   adult_rescrape: '成人条目重刮入口',
 };
 
@@ -561,7 +561,7 @@ export default function TaskMonitorPage() {
 
   function acceptableOperationText(task: MediaTask): string {
     const operations = task.taskTarget?.gateObjective?.acceptableOperations;
-    if (!operations) return '按 Flow Planner 决定';
+    if (!operations) return '按实现路径规划决定';
     if (operations.length === 0) return '当前无可自动操作';
     return operations.map(operationLabel).join('、');
   }
@@ -817,7 +817,7 @@ export default function TaskMonitorPage() {
             <div style={controlMiniLabel}>后端解析</div>
             <div style={intentRow}><strong>解析 Gate</strong><span>{bridgeLabel(task.taskBridge?.kind || task.flowPlan?.bridgeKind)}</span></div>
             <div style={intentRow}><strong>实际操作</strong><span>{operationLabel(resolvedOperation)}</span></div>
-            <div style={intentRow}><strong>Flow direction</strong><span>{task.flowPlan?.direction || '—'}</span></div>
+            <div style={intentRow}><strong>实现路径</strong><span>{task.flowPlan?.direction || '—'}</span></div>
           </div>
         </div>
         <div style={{ marginTop: 8, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
@@ -1025,7 +1025,7 @@ export default function TaskMonitorPage() {
           <option value="archive">归档</option>
         </select>
         <select value={operationFilter} onChange={(e) => { setOperationFilter(e.target.value); setPage(1); }} style={selectStyle}>
-          <option value="">全部 flow 操作</option>
+          <option value="">全部实现路径</option>
           <option value="ingest">入库</option>
           <option value="scrape">刮削</option>
           <option value="transcode">转码压缩</option>
@@ -1164,8 +1164,8 @@ export default function TaskMonitorPage() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>实现路径</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', fontSize: 12, color: '#374151', marginBottom: 10 }}>
                   <div><strong>目标 Gate:</strong> {targetGateLabel(displayTask)}</div>
-                  <div><strong>Flow direction:</strong> {displayTask.flowPlan?.direction || '—'}</div>
-                  <div><strong>操作类型:</strong> {operationLabel(displayTask.flowPlan?.operationKind || displayTask.actionType)}</div>
+                  <div><strong>路径标识:</strong> {displayTask.flowPlan?.direction || '—'}</div>
+                  <div><strong>处理方向:</strong> {operationLabel(displayTask.flowPlan?.operationKind || displayTask.actionType)}</div>
                   <div><strong>执行器:</strong> {displayTask.flowPlan?.executor || '—'}</div>
                   <div><strong>主要资源:</strong> {resourceLabel(displayTask.flowPlan?.primaryResourceType)}</div>
                   <div><strong>资源集合:</strong> {displayTask.flowPlan?.resourceTypes?.map(resourceLabel).join(', ') || '—'}</div>

@@ -47,13 +47,15 @@ const EVENT_LABELS: Record<string, string> = {
   'metadata.scrape.fetch': '元数据抓取',
   'optimize.transcode.execute': '转码执行',
   'optimize.upgrade.download': '洗版下载',
-  'archive.delete.execute': '归档删除',
+  'optimize.delete.execute': '删除执行',
+  'archive.delete.execute': '历史删除执行',
   'task.restart_interrupted': '重启后中断恢复',
   'task.restart_recovery_queued': '重启后重新排队',
   'task.restart_recovery_failed': '重启恢复失败',
 };
 
 const BRIDGE_LABELS: Record<string, string> = {
+  ingest: '入库',
   metadata: '补元数据',
   optimize: '优化',
   archive: '归档',
@@ -65,6 +67,19 @@ const OPERATION_LABELS: Record<string, string> = {
   transcode: '转码压缩',
   upgrade: '洗版',
   delete: '删除',
+  archive: '归档',
+};
+
+const OBJECTIVE_LABELS: Record<string, string> = {
+  managed_item: '纳入管理',
+  metadata_complete: '元数据完整',
+  reduce_bitrate: '降低码率',
+  improve_source_quality: '提升片源质量',
+  remove_media: '删除媒体',
+  keep_current: '保持当前媒体',
+  finalize_lifecycle: '闭环归档',
+  optimize_strategy_pending: '等待优化策略',
+  repair_dolby_vision_compatibility: '修复播放兼容性',
 };
 
 const EVENT_STATUS_LABELS: Record<string, string> = {
@@ -174,11 +189,55 @@ function failureEventMeta(event: ResourceFailureEvent): string {
   return `${event.eventStatus || '-'} · ${resource} · ${recovery}/${action}${resumePoint ? ` · ${resumePoint}` : ''} · ${formatTime(event.createdAt)}${diagnostic}`;
 }
 
-function taskBusinessLabel(task: ResourceTask): string {
-  const bridge = task.bridgeKind ? (BRIDGE_LABELS[task.bridgeKind] || task.bridgeKind) : '桥梁';
-  const rawOp = task.operationKind || task.actionType;
-  const op = OPERATION_LABELS[rawOp] || rawOp;
-  return `${bridge} / ${op}`;
+function bridgeLabel(value?: string | null): string {
+  if (!value) return '目标 Gate 待补齐';
+  return BRIDGE_LABELS[value] || value;
+}
+
+function operationLabel(value?: string | null): string {
+  if (!value) return '-';
+  return OPERATION_LABELS[value] || value;
+}
+
+function objectiveLabel(kind?: string): string {
+  if (!kind) return '目标合同待补齐';
+  return OBJECTIVE_LABELS[kind] || kind;
+}
+
+function targetGateLabel(task: ResourceTask): string {
+  return bridgeLabel(task.taskTarget?.targetGate || task.bridgeKind);
+}
+
+function objectiveSummary(task: ResourceTask): string {
+  const objective = task.taskTarget?.gateObjective;
+  if (!objective) return '目标合同待补齐';
+  const kind = String(objective.kind || '');
+  const label = objectiveLabel(kind);
+  if (kind === 'reduce_bitrate') {
+    const parts = [
+      objective.targetBitrate ? `目标码率 ${objective.targetBitrate}` : '',
+      objective.targetCodec ? `目标编码 ${objective.targetCodec}` : '',
+    ].filter(Boolean);
+    return parts.length ? `${label}：${parts.join('，')}` : label;
+  }
+  if (kind === 'improve_source_quality') {
+    return objective.maxSizeGB ? `${label}：上限 ${objective.maxSizeGB} GB` : label;
+  }
+  if (kind === 'metadata_complete') {
+    return objective.repairMode ? `${label}：${String(objective.repairMode)}` : label;
+  }
+  if (kind === 'remove_media') return objective.destructive ? `${label}：破坏性操作` : label;
+  if (kind === 'optimize_strategy_pending') return objective.reason ? `${label}：${String(objective.reason)}` : label;
+  return label;
+}
+
+function operationPathSummary(task: ResourceTask): string {
+  const operation = task.operationKind || task.taskTarget?.operationHint || task.actionType;
+  return task.flowDirection ? `${operationLabel(operation)} · ${task.flowDirection}` : operationLabel(operation);
+}
+
+function currentEventSummary(task: ResourceTask): string {
+  return EVENT_LABELS[task.currentEventType || ''] || task.currentEventType || task.currentEventPhase || '-';
 }
 
 function payloadSummary(payload?: Record<string, unknown>): string {
@@ -254,7 +313,7 @@ export default function ResourceViewPage() {
       <Header isFetching={isFetching} onRefresh={() => void refetch()} generatedAt={summary?.generatedAt || ''} />
 
       <div style={summaryGrid}>
-        <Metric label="任务桥占用" value={summary?.totalTasks || 0} />
+        <Metric label="任务占用" value={summary?.totalTasks || 0} />
         <Metric label="运行中 event" value={summary?.runningEvents || 0} tone="green" />
         <Metric label="最近 event" value={summary?.recentEvents || 0} />
         <Metric label="运行中" value={summary?.byState.running || 0} tone="green" />
@@ -281,7 +340,7 @@ export default function ResourceViewPage() {
         </div>
 
         {buckets.length === 0 ? (
-          <div style={emptyBox}>当前没有等待、运行、阻塞中的任务桥或最近 event。</div>
+          <div style={emptyBox}>当前没有等待、运行、阻塞中的任务或最近 event。</div>
         ) : (
           <div style={bucketList}>
             {buckets.map((bucket) => (
@@ -351,7 +410,7 @@ function ResourceBucketView({ bucket }: { bucket: ResourceBucket }) {
             <thead>
               <tr>
                 <th style={thStyle}>媒体</th>
-                <th style={thStyle}>桥梁 / Flow</th>
+                <th style={thStyle}>任务目标 / 实现路径</th>
                 <th style={thStyle}>状态</th>
                 <th style={thStyle}>进度</th>
                 <th style={thStyle}>优先级</th>
@@ -366,8 +425,8 @@ function ResourceBucketView({ bucket }: { bucket: ResourceBucket }) {
                     <div style={taskIdText}>{task.taskId}</div>
                   </td>
                   <td style={tdStyle}>
-                    <div>{taskBusinessLabel(task)}</div>
-                    <div style={mutedText}>{EVENT_LABELS[task.currentEventType || ''] || task.currentEventType || task.currentEventPhase || '-'}</div>
+                    <div style={taskTargetText}>{targetGateLabel(task)} / {objectiveSummary(task)}</div>
+                    <div style={mutedText}>{operationPathSummary(task)} · {currentEventSummary(task)}</div>
                   </td>
                   <td style={tdStyle}>
                     <div style={statusStack}>
@@ -880,6 +939,14 @@ const taskName: CSSProperties = {
   color: '#111827',
   fontWeight: 600,
   maxWidth: 340,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+};
+
+const taskTargetText: CSSProperties = {
+  color: '#111827',
+  fontWeight: 600,
+  maxWidth: 360,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 };

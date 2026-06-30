@@ -7,7 +7,7 @@ export const BLOCKED_REASON_LABELS: Record<string, string> = {
   metadata_missing: '元数据不完整',
   scrape_not_supported_for_standard_media: '普通媒体元数据来自 Emby refresh / Douban sync',
   upgrade_not_supported_for_disc_like_source: '原盘暂不支持洗版',
-  action_not_enabled: '后台自动入队未启用该 flow 操作',
+  action_not_enabled: '后台自动入队未启用该处理方向',
   recent_task_cooldown: '最近已处理，仍在冷却期',
   queue_limit: '同类任务队列已达上限',
   already_transcoded: '已完成转码',

@@ -162,7 +162,7 @@ export default function MediaManagePage() {
       .filter(([, count]) => count > 0)
       .map(([action, count]) => `${ACTION_LABELS[action] || action} ${count} 条`);
     if (parts.length === 0) return null;
-    return `当前列表有 ${parts.join('、')}推荐方向未启用后台自动入队。这些条目只会显示下一步建议，不会自动创建任务桥；可以手动点击每行的操作按钮，或到「任务调度」启用对应 flow 操作。`;
+    return `当前列表有 ${parts.join('、')}推荐方向未启用后台自动入队。这些条目只会显示下一步建议，不会自动创建任务；可以手动点击每行的操作按钮，或到「任务调度」启用对应自动推进范围。`;
   }, [items, smartTaskActions]);
 
   const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);

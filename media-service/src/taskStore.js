@@ -358,6 +358,28 @@ function checkpointWal(db, reason, opts = {}) {
     });
     return { skipped: true, reason: 'wal_below_threshold', before, minWalSizeBytes };
   }
+  if (!force) {
+    const endedAtMs = Date.now();
+    diagnosticLog.record({
+      category: 'storage',
+      scope: 'taskStore.checkpointWal',
+      operation: 'wal_checkpoint',
+      component: 'taskStore',
+      resourceType: 'sqlite',
+      resourceKey: 'tasks.db-wal',
+      status: 'skipped',
+      startedAtMs,
+      endedAtMs,
+      slowMs: 250,
+      payload: {
+        reason,
+        trigger: 'routine_checkpoint_deferred',
+        minWalSizeBytes,
+        before,
+      },
+    });
+    return { skipped: true, reason: 'routine_checkpoint_deferred', before, minWalSizeBytes };
+  }
   try {
     const result = db.pragma('wal_checkpoint(TRUNCATE)');
     const endedAtMs = Date.now();
@@ -692,6 +714,15 @@ function rowToTaskEvent(row) {
   return event;
 }
 
+const insertTaskEventSql = `
+        INSERT INTO task_events
+          (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type,
+           resource_key, resource_label, bridge_kind, flow_direction, operation_kind, created_at, payload_json)
+        VALUES
+          (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type,
+           @resource_key, @resource_label, @bridge_kind, @flow_direction, @operation_kind, @created_at, @payload_json)
+      `;
+
 function appendTaskEvent(task, eventType, payload = {}, opts = {}) {
   if (!task || !task.id || !eventType) return null;
   try {
@@ -707,14 +738,7 @@ function appendTaskEvent(task, eventType, payload = {}, opts = {}) {
       successPayload: (event) => ({ writtenRows: event ? 1 : 0 }),
     }, () => {
       const event = buildTaskEvent(task, eventType, payload, opts);
-      getDb().prepare(`
-        INSERT INTO task_events
-          (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type,
-           resource_key, resource_label, bridge_kind, flow_direction, operation_kind, created_at, payload_json)
-        VALUES
-          (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type,
-           @resource_key, @resource_label, @bridge_kind, @flow_direction, @operation_kind, @created_at, @payload_json)
-      `).run(taskEventToRow(event));
+      getDb().prepare(insertTaskEventSql).run(taskEventToRow(event));
       return event;
     });
   } catch (err) {
@@ -739,14 +763,7 @@ function appendTaskEvents(events) {
       successPayload: (writtenRows) => ({ writtenRows }),
     }, () => {
       const db = getDb();
-      const insert = db.prepare(`
-        INSERT INTO task_events
-          (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type,
-           resource_key, resource_label, bridge_kind, flow_direction, operation_kind, created_at, payload_json)
-        VALUES
-          (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type,
-           @resource_key, @resource_label, @bridge_kind, @flow_direction, @operation_kind, @created_at, @payload_json)
-      `);
+      const insert = db.prepare(insertTaskEventSql);
       const tx = db.transaction((eventRows) => {
         for (const row of eventRows) insert.run(row);
       });
@@ -1042,6 +1059,56 @@ function createTask(taskData) {
       taskTarget: task.taskTarget,
     });
     return task;
+  });
+}
+
+function createTasks(taskItems) {
+  const inputs = Array.isArray(taskItems) ? taskItems : [];
+  if (inputs.length === 0) return [];
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'taskStore.createTasks',
+    operation: 'create_tasks_batch',
+    component: 'taskStore',
+    resourceType: 'sqlite',
+    resourceKey: 'tasks.db',
+    slowMs: 250,
+    payload: {
+      inputRows: inputs.length,
+      before: getStorageMetrics(),
+    },
+    successPayload: (tasks) => ({
+      taskIds: tasks.map((task) => task.id),
+      writtenRows: tasks.length,
+      after: getStorageMetrics(),
+    }),
+  }, () => {
+    const db = getDb();
+    const upsert = db.prepare(upsertSql);
+    const insertEvent = db.prepare(insertTaskEventSql);
+    const now = new Date().toISOString();
+    const tasks = inputs.map((taskData) => buildTask(taskData, now));
+    const tx = db.transaction((rows) => {
+      for (const task of rows) {
+        upsert.run(taskToRow(task));
+        insertEvent.run(taskEventToRow(buildTaskEvent(task, 'task.created', {
+          source: task.source,
+          priority: task.priority,
+          priorityModelVersion: task.priorityModelVersion,
+          requestedIntent: task.requestedIntent,
+          taskBridge: task.taskBridge,
+          flowPlan: task.flowPlan,
+          taskTarget: task.taskTarget,
+        }, { createdAt: task.createdAt })));
+        insertEvent.run(taskEventToRow(buildTaskEvent(task, 'flow.planned', {
+          taskBridge: task.taskBridge,
+          flowPlan: task.flowPlan,
+          taskTarget: task.taskTarget,
+        }, { createdAt: task.createdAt })));
+      }
+    });
+    tx(tasks);
+    return tasks;
   });
 }
 
@@ -2023,6 +2090,7 @@ function getCachedStatus(taskId) {
 module.exports = {
   buildTask,
   createTask,
+  createTasks,
   getTask,
   getTasks,
   updateTask,

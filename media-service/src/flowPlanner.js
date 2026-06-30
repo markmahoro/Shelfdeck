@@ -177,8 +177,15 @@ function bridgeKindForAction(actionType) {
   return (FLOW_DEFINITIONS[actionType] || defaultDefinition(actionType)).bridge.kind;
 }
 
+function currentPlanForTask(task) {
+  const stored = task && task.flowPlan && typeof task.flowPlan === 'object' ? task.flowPlan : null;
+  if (!stored) return planFlow(task || {}).flowPlan;
+  const hasResourceContract = stored.primaryResourceType || (Array.isArray(stored.steps) && stored.steps.length > 0);
+  return hasResourceContract ? stored : planFlow(task || {}).flowPlan;
+}
+
 function currentResourceType(task) {
-  const plan = task && task.flowPlan && typeof task.flowPlan === 'object' ? task.flowPlan : planFlow(task || {}).flowPlan;
+  const plan = currentPlanForTask(task);
   const phase = task && (task.phase || task.resumePoint);
   const steps = Array.isArray(plan.steps) ? plan.steps : [];
   const current = phase ? steps.find((step) => step.phase === phase) : null;
@@ -186,7 +193,7 @@ function currentResourceType(task) {
 }
 
 function currentFlowStep(task) {
-  const plan = task && task.flowPlan && typeof task.flowPlan === 'object' ? task.flowPlan : planFlow(task || {}).flowPlan;
+  const plan = currentPlanForTask(task);
   const phase = task && (task.phase || task.resumePoint);
   const steps = Array.isArray(plan.steps) ? plan.steps : [];
   const current = phase ? steps.find((step) => step.phase === phase) : null;
