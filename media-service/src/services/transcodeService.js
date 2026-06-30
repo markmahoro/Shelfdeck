@@ -1430,7 +1430,7 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
   }
 
   // Hardware decode acceleration (before -i)
-  const preInput = ['-hide_banner', '-nostats', '-progress', 'pipe:2', '-y'];
+  const preInput = ['-hide_banner', '-nostats', '-loglevel', 'error', '-y'];
   if (enc === 'qsv') {
     preInput.push('-hwaccel', 'qsv', '-hwaccel_output_format', 'qsv');
   } else if (enc === 'amf') {

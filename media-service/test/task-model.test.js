@@ -2690,7 +2690,7 @@ test('standard metadata repair aggregates TV season episodes without local ffpro
   }
 });
 
-test('local transcode uses low-noise ffmpeg progress output', () => {
+test('local transcode keeps ffmpeg progress output disabled for service responsiveness', () => {
   const { args } = transcodeService._buildEncodeArgsForTest({
     config: { ffmpegPath: 'ffmpeg' },
     sourcePath: '/media/in.mkv',
@@ -2699,9 +2699,10 @@ test('local transcode uses low-noise ffmpeg progress output', () => {
     targetBitrate: 16,
   });
   assert.ok(args.includes('-nostats'));
-  const progressIndex = args.indexOf('-progress');
-  assert.notStrictEqual(progressIndex, -1);
-  assert.strictEqual(args[progressIndex + 1], 'pipe:2');
+  assert.strictEqual(args.includes('-progress'), false);
+  const loglevelIndex = args.indexOf('-loglevel');
+  assert.notStrictEqual(loglevelIndex, -1);
+  assert.strictEqual(args[loglevelIndex + 1], 'error');
   assert.strictEqual(transcodeService._parseFfmpegTimeMsForTest('out_time_ms=123456000'), 123456);
   assert.strictEqual(transcodeService._parseFfmpegTimeMsForTest('out_time=00:02:03.500000'), 123500);
 });
