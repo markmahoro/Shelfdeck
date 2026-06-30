@@ -1631,3 +1631,56 @@ Dashboard health 的 `diagnostics.signals` 也会把自动化阻塞变成入口�
 - 还未用生产样本“黑炮事件”“凛冬的已至”验证 repair 后具体 gate 缺失项和 Resource View 压力。
 - 前端暂未提供 `metadataGate` 配置 UI；当前是后端模型和 API 校验先落地。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 43: Lifecycle audit semantics for standard metadata repair
+
+### 对应标准
+
+- A2/A5: task lifecycle audit 必须跟随新的普通库 metadata repair 模型，不能继续把所有普通库 `scrape` 都判为异常。
+- B3/B5: 任务中心/资源诊断看到普通库 scrape 时，应能区分正常 Emby metadata repair、旧历史任务和错误 resource 规划。
+- C4: 本轮基于生产只读诊断确认 degraded 现象的真实来源，并用测试覆盖新的审计判定。
+
+### 生产只读诊断
+
+生产当前仍运行 `markmahoro/shelfdeck:v3.1.0-task-lifecycle-audit-20260630-r1`，尚未部署 Slice 42/43。
+
+只读检查结果：
+
+- `GET /v1/health`: `green`。
+- `GET /v1/admin/health`: `green`。
+- `GET /v1/admin/dashboard/health`: `red`，主要来自业务层历史失败和待处理压力，而不是进程/外部依赖 health 降级。
+- Dashboard task facts: `failedTasks=1025`，其中 `scrape=737`、`transcode=287`、`upgrade=1`；当前 active task 为 50。
+- Resource View: `local_transcode` 当前 `running=1`、`waiting=49`，瓶颈是本地 FFmpeg 转码队列；没有看到 scrape/Emby 资源正在打外部依赖。
+- SmartTask 最近扫描：`transcode` candidate 1142 个因 queue cap 跳过；`scrape` candidate 287 个仍按旧生产镜像被 `scrape_not_supported_for_standard_media` 拒绝。
+- NAS 空间：`/vol1` 175G，总用量 113G，剩余 62G，使用率 65%；当前 shelfdeck 目录只看到一个约 903M 的镜像 tar，不是本轮瓶颈。
+
+### 用户视角判定
+
+Slice 41 的 lifecycle audit 仍保留旧结论：`context.mediaType !== adult && operationKind === scrape` 就报 `standard_media_scrape_task` error。这个判断在 v3.0.1 是正确的，但在 Slice 42 后已经不再符合产品模型。
+
+新的审计语义：
+
+- 普通库 `scrape` 如果 `flowPlan.primaryResourceType=emby` 或 `resourceTypes` 包含 `emby`，这是正常的 standard metadata repair，不再报错。
+- 普通库 `scrape` 如果仍规划到非 Emby resource，且任务还处于 active lifecycle，报 `standard_media_scrape_wrong_resource` error，表示它可能会走错资源路径。
+- 普通库 `scrape` 如果是终态历史任务且没有 Emby repair resource，报 `legacy_standard_media_scrape_task` warn，表示这是旧模型遗留历史，不能再用“普通库不允许 scrape”的旧结论解释。
+- Audit signal 现在返回 `primaryResourceType`、`expectedResourceType`、`actualResourceType`，方便任务中心解释“为什么这个 scrape 是正常 repair / 为什么这个 scrape 是旧历史 / 为什么这个 active scrape 资源不对”。
+
+### 后端事实来源
+
+- `media-service/src/app.js`
+  - 更新 `taskLifecycleSignals()` 的普通库 scrape 审计规则。
+  - Signal projection 增加 `primaryResourceType`。
+- `media-service/test/api-inject.test.js`
+  - lifecycle audit 测试同时覆盖正常 Emby metadata repair、active wrong-resource scrape、terminal legacy scrape。
+
+### 本地验收
+
+- `node --test test/api-inject.test.js --test-name-pattern "lifecycle-audit"`: pass，111 个测试通过。
+- `npm test`: pass，237 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS；生产生命周期 audit 的新 signal 需要与 Slice 42 一起部署后再验证。
+- P0-1 仍未完整关闭：还需要部署新模型后，用生产样本和任务中心继续确认普通库 repair lifecycle、成人库 scrape lifecycle、转码 queue lifecycle 是否符合预期。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

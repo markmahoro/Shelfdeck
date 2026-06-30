@@ -499,6 +499,7 @@ function taskLifecycleSignals(task, context, controlState) {
   const bridgeKind = task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '';
   const operationKind = task.flowPlan && task.flowPlan.operationKind || task.actionType || '';
   const primaryResourceType = task.flowPlan && task.flowPlan.primaryResourceType || '';
+  const resourceTypes = Array.isArray(task.flowPlan && task.flowPlan.resourceTypes) ? task.flowPlan.resourceTypes : [];
   const confirmationRequired = controlState && controlState.confirmation && controlState.confirmation.required;
 
   if (!context.subLibraryId) {
@@ -513,7 +514,19 @@ function taskLifecycleSignals(task, context, controlState) {
     signals.push({ severity: 'warn', code: 'missing_primary_resource', message: 'Task has no primary resource type for lifecycle/resource diagnosis.' });
   }
   if (context.mediaType !== 'adult' && operationKind === 'scrape') {
-    signals.push({ severity: 'error', code: 'standard_media_scrape_task', message: 'Standard media should not enter scrape task lifecycle.' });
+    const isEmbyRepair = primaryResourceType === 'emby' || resourceTypes.includes('emby');
+    if (!isEmbyRepair) {
+      const terminal = ['done', 'skipped', 'failed_hard', 'cancelled'].includes(status);
+      signals.push({
+        severity: terminal ? 'warn' : 'error',
+        code: terminal ? 'legacy_standard_media_scrape_task' : 'standard_media_scrape_wrong_resource',
+        message: terminal
+          ? 'Standard media scrape task predates the Emby metadata repair resource model.'
+          : 'Active standard media scrape must use the Emby metadata repair resource.',
+        expectedResourceType: 'emby',
+        actualResourceType: primaryResourceType || '',
+      });
+    }
   }
   if (context.mediaType === 'adult' && bridgeKind === 'metadata' && !['ingest', 'scrape'].includes(operationKind)) {
     signals.push({ severity: 'warn', code: 'adult_metadata_unexpected_operation', message: 'Adult metadata bridge should use ingest or scrape operation.' });
@@ -581,6 +594,7 @@ function buildTaskLifecycleAudit(tasks, config, opts = {}) {
         lifecycleStage: stage,
         bridgeKind: task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '',
         operationKind: task.flowPlan && task.flowPlan.operationKind || task.actionType || '',
+        primaryResourceType: task.flowPlan && task.flowPlan.primaryResourceType || '',
         source: task.source || '',
         subLibraryId: context.subLibraryId,
         subLibraryName: context.subLibraryName,
