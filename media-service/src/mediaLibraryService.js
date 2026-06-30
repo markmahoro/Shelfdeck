@@ -106,7 +106,9 @@ async function enrichFileMetadata(incomingItems, subLib, config) {
       || !(item.duration > 0)
       || !(item.size > 0)
       || !item.resolution
-      || !item.codec;
+      || !item.codec
+      || !Array.isArray(item.audioCodecs)
+      || item.audioCodecs.length === 0;
     if (!needsProbe) continue;
 
     const sourcePath = resolveMappedSourcePath(item.path, subLib);

@@ -84,7 +84,101 @@ test('standard scrape completes when custom/default TV metadata gate matches str
   assert.strictEqual(afterTask.status, 'done');
   assert.strictEqual(afterTask.phase, 'done');
   assert.strictEqual(afterTask.metadataGateFailure, undefined);
-  assert.ok(afterTask.logs.some((log) => log.level === 'info' && log.msg.includes('Standard metadata repair verified')));
+  assert.ok(afterTask.logs.some((log) => log.level === 'info'
+    && (log.msg.includes('Standard metadata repair verified') || log.msg.includes('already complete'))));
 
   delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('standard scrape skips stale repair task when live metadata gate is already complete', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const configStore = require('../src/configStore');
+  const taskStore = require('../src/taskStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const subLibraryId = 'movie-lib';
+  configStore.saveConfig({
+    ...configStore.getDefaultConfig(),
+    subLibraries: [{
+      uuid: subLibraryId,
+      name: 'Movie Library',
+      source: 'emby',
+      mediaType: 'movie',
+      enabled: true,
+      embyServerId: 'test-emby',
+      ruleTemplateId: 'movie_audio',
+    }],
+    ruleTemplates: [{
+      id: 'movie_audio',
+      rules: [{
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [{ connector: 'and', conditions: [['audioCodecs', 'overlap', ['truehd']]] }],
+        action: 'keep',
+        actionParams: {},
+      }],
+    }],
+  });
+
+  mediaLibraryService.upsertItems(subLibraryId, [{
+    itemId: 'movie-complete',
+    sourceId: 'movie-complete',
+    name: 'Movie Complete',
+    type: 'movie',
+    path: '/media/movie-complete.mkv',
+    size: 1024 * 1024,
+    duration: 3600,
+    bitrate: 5_000_000,
+    equivalentBitrate: 5,
+    resolution: '1920x1080',
+    codec: 'h264',
+    audioCodecs: ['truehd'],
+    watched: true,
+  }], { fullSync: true });
+
+  const item = mediaLibraryService.getLibrary().items.find((it) => it.subLibraryId === subLibraryId);
+  const originalComplete = mediaLibraryService.completeEmbyItemMetadata;
+  mediaLibraryService.completeEmbyItemMetadata = async () => {
+    throw new Error('Emby repair should not run when live metadata is already complete');
+  };
+
+  const task = taskStore.createTask({
+    itemId: item.itemId,
+    itemName: item.name,
+    actionType: 'scrape',
+    status: 'executing',
+    itemInfo: {
+      ...item,
+      audioCodecs: [],
+      metadataStatus: 'missing',
+      metadataComplete: false,
+      metadataMissingReasons: ['media.audioCodecs'],
+    },
+    resumePoint: 'scrape_executing',
+  });
+
+  scrapeFlow.setScheduler({
+    reportStatus: (tid, status, progress) => {
+      taskStore.updateTask(tid, { status, progress });
+    },
+  });
+
+  try {
+    await scrapeFlow.driveTask(task.id);
+    const afterTask = taskStore.getTask(task.id);
+    assert.strictEqual(afterTask.status, 'done');
+    assert.strictEqual(afterTask.phase, 'done');
+    assert.strictEqual(afterTask.resumePoint, null);
+    assert.deepStrictEqual(afterTask.itemInfo.audioCodecs, ['truehd']);
+    assert.deepStrictEqual(afterTask.itemInfo.metadataMissingReasons, []);
+    assert.ok(afterTask.logs.some((log) => log.level === 'info' && log.msg.includes('already complete')));
+  } finally {
+    mediaLibraryService.completeEmbyItemMetadata = originalComplete;
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+  }
 });

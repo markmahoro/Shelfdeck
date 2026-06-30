@@ -3111,3 +3111,56 @@ S4 archived
 - 后续 P0-1 / P0 排查优先在本机 profile 上复现和修复。
 - 生产 NAS 不再作为普通 slice 的默认测试面。
 - 本 slice 未部署生产，因为它只改变开发/测试工作流和本机脚本，不改变运行镜像或生产业务状态。
+
+## 2026-06-30 Slice 66: 普通库 metadata repair 补齐 audio gate 并跳过过期 scrape
+
+### 用户视角判定
+
+- 普通 Emby 媒体的 scrape task 在当前阶段是 metadata gate 未满足时的 metadata repair bridge，不是 TMDB 等真刮削。
+- 一个普通媒体经过该半假 scrape 后，如果 Emby、本地 Douban 缓存、自算字段和本地 probe 已经补齐 gate 所需事实，就应被标记为 `metadataStatus: complete`，并成为 optimize candidate。
+- 过期的 scrape task snapshot 不能继续以旧的 `metadataMissingReasons` 打 Emby；执行前必须以 live media item 重新验 gate。
+
+### 本机 profile 发现
+
+- 使用 `.codex/local-prod-data` 生产同构 profile 检查后，当前静态库仍有普通库 scrape candidate，主要集中在旧任务 snapshot 或少数技术字段缺失。
+- 发现一个关键缺口：`media.audioCodecs` 可以是策略消费字段，但普通库 repair 的本地 probe 触发条件没有把缺失 `audioCodecs` 当作需要 probe 的原因。
+- 发现另一个关键缺口：已经入队/执行中的标准 scrape task 会携带旧 `itemInfo.metadataMissingReasons`，即使 live item 已经满足 metadata gate，仍可能继续进入 Emby repair。
+
+### 已完成
+
+- `mediaLibraryService.enrichFileMetadata`：
+  - 当普通媒体缺失 `audioCodecs` 时也触发本地 `ffprobe`。
+  - 修复“Emby 已返回大部分技术字段但缺 audio stream，导致 metadata gate 永远卡在 `media.audioCodecs`”的问题。
+- `scrapeFlowExecutor`：
+  - 标准库 scrape 执行前先读取 live item 并重新验 metadata gate。
+  - 如果 live item 已经 complete，则直接把 task 标记为 done，更新 `itemInfo` 和 `scrapeVerification`，不再调用 Emby repair。
+  - task itemInfo 补充 `audioCodecs`，避免任务中心继续展示缺失 audio 的旧快照。
+- `smartTaskEngine`：
+  - 新建自动任务的 `itemInfo` 补充 `audioCodecs`，让后续 task center / executor 拿到更完整的技术事实。
+- `BUSINESS_MODEL_NOTES.md`：
+  - 记录普通 Emby scrape 当前是半假 scrape / metadata repair bridge；成人 scrape 和未来真 scrape 是同一 metadata bridge 下的不同 flow 编排。
+
+### 验证
+
+- `node --test test/scrape-flow-metadata-gate.test.js`：通过，2 tests。
+- `node --test test/task-model.test.js --test-name-pattern "standard metadata repair"`：通过，61 tests。
+- `node --test test/api-contract.test.js`：通过，35 tests。
+- `node --test test/priority-api.test.js`：通过，14 tests。
+- `npm run build:web`：通过；Vite dynamic/static import warning 仍是既有 warning。
+- `node scripts/check-local-runtime-profile.js .codex/local-prod-data`：通过。
+
+### 全量测试限制
+
+- `npm test` 在 Windows 默认 child isolation 模式下 184 秒超时，未完成。
+- 这与前序已记录的全量套件 hang 风险一致；本 slice 没有把窄测结果冒充为全量通过。
+
+### 生产部署
+
+- 本 slice 未部署 NAS 生产。
+- 原因：用户已修正流程，普通 slice 默认先在本机测试环境推进；生产部署留给重大版本、真实 NAS 行为验证、生产 Admin Web 验收，或用户明确要求时执行。
+
+### 尚未满足
+
+- P0-1 仍未整体宣布完成。
+- 本 slice 只关闭了普通库半假 scrape 的 `audioCodecs` repair 能力和过期 task snapshot 继续打 Emby的问题。
+- 后续仍需继续按 P0-1 顺序审计 task 生命周期：ingest gate、metadata gate、optimize gate、archive gate 在每种库类型下是否完整闭环。

@@ -74,6 +74,22 @@ function getSubLibrary(config, subLibraryId) {
   return (config.subLibraries || []).find((sl) => sl.uuid === subLibraryId) || null;
 }
 
+function metadataVerification(meta, source = 'completion_snapshot') {
+  const missingReasons = Array.isArray(meta && meta.metadataMissingReasons)
+    ? meta.metadataMissingReasons
+    : [];
+  return {
+    ok: missingReasons.length === 0,
+    checkedAt: new Date().toISOString(),
+    checks: Object.fromEntries(missingReasons.map((reason) => [reason, false])),
+    failures: missingReasons.map((reason) => ({ code: reason, message: `Metadata missing: ${reason}` })),
+    warnings: [],
+    metadataStatus: meta && meta.metadataStatus,
+    metadataMissingReasons: missingReasons,
+    source,
+  };
+}
+
 async function driveTask(taskId) {
   const task = taskStore.getTask(taskId);
   if (!task) return;
@@ -171,9 +187,30 @@ async function runExecuting(taskId, task) {
 async function runEmbyExecuting(taskId, task, config, subLib) {
   setPhase(taskId, 'scrape_executing');
   scheduler.reportStatus(taskId, 'executing', 20);
-  appendLog(taskId, 'info', 'Starting standard metadata repair');
   try {
     const mediaLibraryService = require('./mediaLibraryService');
+    const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
+    if (liveItem) {
+      const liveMeta = metadataStatus.resolveMetadataStatus(liveItem, config);
+      if (liveMeta.metadataComplete) {
+        const updatedInfo = {
+          ...(task.itemInfo || {}),
+          ...buildUpdatedItemInfo(liveItem),
+        };
+        taskStore.updateTask(taskId, {
+          itemInfo: updatedInfo,
+          scrapeVerification: metadataVerification(liveMeta, 'live_item_precheck'),
+          resumePoint: null,
+          approval: null,
+        });
+        appendLog(taskId, 'info', 'Standard metadata already complete; repair skipped');
+        setPhase(taskId, 'done');
+        scheduler.reportStatus(taskId, 'done', 100);
+        return;
+      }
+    }
+
+    appendLog(taskId, 'info', 'Starting standard metadata repair');
     const latestItem = await mediaLibraryService.completeEmbyItemMetadata(task.itemId, { config });
     const repairSummary = latestItem && latestItem.metadataRepairSummary || {};
     appendLog(taskId, 'info', 'Fetched latest item facts from Emby');
@@ -188,16 +225,7 @@ async function runEmbyExecuting(taskId, task, config, subLib) {
         ...(task.itemInfo || {}),
         ...buildUpdatedItemInfo(latestItem),
       };
-      const verification = {
-        ok: false,
-        checkedAt: new Date().toISOString(),
-        checks: Object.fromEntries(meta.metadataMissingReasons.map((reason) => [reason, false])),
-        failures: meta.metadataMissingReasons.map((reason) => ({ code: reason, message: `Metadata missing: ${reason}` })),
-        warnings: [],
-        metadataStatus: meta.metadataStatus,
-        metadataMissingReasons: meta.metadataMissingReasons,
-        source: 'completion_snapshot',
-      };
+      const verification = metadataVerification(meta, 'completion_snapshot');
       recordScrapeGateFailure(taskId, {
         itemInfo: updatedInfo,
         verification,
@@ -389,6 +417,7 @@ function buildUpdatedItemInfo(item) {
     externalRefs: item.externalRefs,
     resolution: item.resolution,
     bitrate: item.bitrate,
+    audioCodecs: item.audioCodecs,
     size: item.size,
     duration: item.duration,
     type: item.type,

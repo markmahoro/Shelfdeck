@@ -2690,6 +2690,110 @@ test('standard metadata repair aggregates TV season episodes without local ffpro
   }
 });
 
+test('standard metadata repair probes files when audio codecs are missing', async () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const originalGetItemById = embyService.getItemById;
+  const originalGetSeasonEpisodes = embyService.getSeasonEpisodes;
+  const originalProbeSummary = transcodeService.probeSummary;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  let probeCalls = 0;
+
+  try {
+    const subLib = {
+      uuid: 'movie-lib',
+      name: 'Movie Library',
+      source: 'emby',
+      mediaType: 'movie',
+      enabled: true,
+      embyServerId: 'server-a',
+      sectionId: 'section-a',
+      ruleTemplateId: 'movie_audio',
+      autoExecute: true,
+    };
+    configStore.saveConfig({
+      ...configStore.getDefaultConfig(),
+      embyServers: {
+        'server-a': {
+          baseUrl: 'http://emby.local',
+          apiKey: 'secret',
+          userId: 'user-a',
+        },
+      },
+      subLibraries: [subLib],
+      ruleTemplates: [{
+        id: 'movie_audio',
+        rules: [{
+          priority: 1,
+          groupsConnector: 'and',
+          groups: [{ connector: 'and', conditions: [['audioCodecs', 'overlap', ['truehd']]] }],
+          action: 'keep',
+          actionParams: {},
+        }],
+      }],
+    });
+
+    libraryStore.saveLibrary({
+      version: 1,
+      cachedAt: null,
+      items: [{
+        itemId: 'movie-a',
+        subLibraryId: 'movie-lib',
+        source: 'emby',
+        sourceId: 'emby-movie-a',
+        name: 'Movie A',
+        type: 'movie',
+        path: '/media/movie-a.mkv',
+        size: 1_000_000_000,
+        duration: 3600,
+        bitrate: 4_000_000,
+        resolution: '1920x1080',
+        codec: 'h264',
+        watched: true,
+      }],
+    });
+
+    embyService.getItemById = async () => ({
+      itemId: 'emby-movie-a',
+      sourceId: 'emby-movie-a',
+      name: 'Movie A',
+      type: 'movie',
+      path: '/media/movie-a.mkv',
+      size: 1_000_000_000,
+      duration: 3600,
+      bitrate: 4_000_000,
+      resolution: '1920x1080',
+      codec: 'h264',
+      audioCodecs: [],
+      watched: true,
+    });
+    embyService.getSeasonEpisodes = async () => {
+      throw new Error('season episodes should not be fetched for movies');
+    };
+    transcodeService.probeSummary = async () => {
+      probeCalls += 1;
+      return {
+        durationSec: 3600,
+        width: 1920,
+        height: 1080,
+        videoCodec: 'h264',
+        audioCodec: 'truehd',
+      };
+    };
+
+    const repaired = await mediaLibraryService.completeEmbyItemMetadata('movie-a');
+    assert.strictEqual(probeCalls, 1);
+    assert.deepStrictEqual(repaired.audioCodecs, ['truehd']);
+    assert.strictEqual(repaired.metadataRepairSummary.localProbe, true);
+  } finally {
+    embyService.getItemById = originalGetItemById;
+    embyService.getSeasonEpisodes = originalGetSeasonEpisodes;
+    transcodeService.probeSummary = originalProbeSummary;
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+  }
+});
+
 test('local transcode keeps ffmpeg progress output disabled for service responsiveness', () => {
   const { args } = transcodeService._buildEncodeArgsForTest({
     config: { ffmpegPath: 'ffmpeg' },

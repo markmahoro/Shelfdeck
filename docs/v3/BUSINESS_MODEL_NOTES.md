@@ -53,6 +53,8 @@ Gate 定义：
 - `optimize gate` 证明本次 optimize task/flow 声明的处置目标已经达成。Optimize flow 可以是 `keep`、`transcode`、`upgrade`、`delete` 等；delete 属于 optimize gate，不属于 archive gate。Gate 的判定对象不是“flow 是否跑过”，而是目标是否达成：例如转码不是 FFmpeg 执行完就成功，而是输出在宽容差内达到目标码率/编码/可播放/替换等合同。Optimize gate miss 属于当前 task 的 flow 结果；是否重试、重试次数、是否需要用户介入由该 task 的 flow retry policy 决定，SmartTaskEngine 和 TaskAdmission 不定义 gate miss 的重试策略。
 - `archive gate` 证明本轮 ShelfDeck 处理闭环已经归档。v3.1 第一版合同是：item 已经具备 optimized-like 结果（`keep` 决策成立，或 transcode/upgrade/delete 等 optimize flow 已达成目标）；没有显式 `archiveBlockers`；终态事实和必要摘要可解释。它不承载 delete 的核心执行语义，而是 optimized 之后的最终收口；未过 gate 的 item 应停在 `optimized` 并等待 archive bridge，而不是直接显示已闭环。
 
+当前普通 Emby 媒体的 scrape task 是“半假 scrape”：它是 metadata gate 未满足时的统一 metadata repair bridge，但不做 TMDB 等真刮削；它可以询问 Emby、读取本地 Douban 缓存、做本地技术字段 probe 和自算字段。成人 scrape 与未来真 scrape 仍属于同一座 metadata bridge，只是 flow/event 编排不同。
+
 `archive` 是最后一座轻量桥。它更接近验收和归档，不是重计算任务，也不是 delete 动作本身。验收不通过时，应该回到明确的前置阶段或产生可见的待处理事件，而不是把 item 标成完成。
 
 v3.1 第一版 Optimize Gate 已落地为读模型 evaluator：显式 `optimizeGate/optimizationGate` 结果优先；`keep` 是 no-op optimize；`transcode`/`upgrade`/`delete` 必须有对应完成 marker 或显式 gate 事实；转码/升级可按目标码率和目标编码做宽容差校验。Optimize gate miss 会输出可解释失败和 `automaticRetry=false` 的 retry policy，避免 SmartTaskEngine/TaskAdmission 把重资源 gate miss 误读成应该自动创建同类新任务。

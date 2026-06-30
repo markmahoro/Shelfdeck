@@ -116,6 +116,7 @@ function buildItemInfo(item) {
     externalRefs: item.externalRefs,
     resolution: item.resolution,
     bitrate: item.bitrate,
+    audioCodecs: item.audioCodecs,
     size: item.size,
     duration: item.duration,
     type: item.type,
