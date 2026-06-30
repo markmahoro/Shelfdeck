@@ -2,15 +2,10 @@
 
 const optimizationStatus = require('./optimizationStatus');
 const metadataStatus = require('./metadataStatus');
-const flowPlanner = require('./flowPlanner');
+const lifecycleTaskPlanner = require('./lifecycleTaskPlanner');
 
 const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
-const USER_OPERATIONS = ['scrape', 'transcode', 'upgrade', 'delete'];
-const MANUAL_INTENT_OPERATIONS = {
-  metadata: ['scrape'],
-  optimize: ['transcode', 'upgrade'],
-  archive: ['delete'],
-};
+const USER_OPERATIONS = lifecycleTaskPlanner.USER_OPERATIONS;
 
 function actionCooldownMs(config, actionType) {
   const cfg = config && config.taskAdmission || {};
@@ -106,92 +101,8 @@ function blocked(actionType, reason, extra = {}) {
   return { operation: actionType, allowed: false, reason, ...extra };
 }
 
-function cleanToken(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function requestedIntent(input = {}) {
-  const nested = input.intent && typeof input.intent === 'object' ? input.intent : {};
-  return {
-    bridgeKind: cleanToken(input.bridgeKind || nested.bridgeKind),
-    preferredOperation: cleanToken(input.preferredOperation || nested.preferredOperation),
-    actionType: cleanToken(input.actionType || input.operation || nested.actionType || nested.operation),
-  };
-}
-
-function intentResult(operation, bridgeKind, intentMode, intent) {
-  return {
-    allowed: true,
-    operation,
-    actionType: operation,
-    bridgeKind,
-    preferredOperation: intent.preferredOperation || '',
-    intentMode,
-    requestedIntent: {
-      bridgeKind: intent.bridgeKind || bridgeKind,
-      preferredOperation: intent.preferredOperation || '',
-      actionType: intent.actionType || '',
-    },
-  };
-}
-
 function resolveManualOperationIntent(input = {}) {
-  const intent = requestedIntent(input);
-  const item = input.item || input.itemInfo || {};
-  const bridgeKind = intent.bridgeKind;
-  const preferred = intent.preferredOperation;
-  const actionType = intent.actionType;
-
-  if (!bridgeKind) {
-    if (!actionType) return blocked('', 'missing_task_intent');
-    if (!USER_OPERATIONS.includes(actionType)) return blocked(actionType, 'invalid_action_type');
-    return intentResult(actionType, flowPlanner.bridgeKindForAction(actionType), 'action_type_compatibility', intent);
-  }
-
-  const supportedOperations = MANUAL_INTENT_OPERATIONS[bridgeKind];
-  if (!supportedOperations) {
-    return blocked(actionType || preferred, 'invalid_bridge_kind', { bridgeKind });
-  }
-
-  if (actionType && !USER_OPERATIONS.includes(actionType)) {
-    return blocked(actionType, 'invalid_action_type', { bridgeKind });
-  }
-  if (preferred && !USER_OPERATIONS.includes(preferred)) {
-    return blocked(preferred, 'invalid_preferred_operation', { bridgeKind });
-  }
-  if (actionType && preferred && actionType !== preferred) {
-    return blocked(actionType, 'conflicting_task_intent', {
-      bridgeKind,
-      preferredOperation: preferred,
-      actionType,
-    });
-  }
-
-  let operation = preferred || actionType || '';
-  if (operation && !supportedOperations.includes(operation)) {
-    return blocked(operation, 'preferred_operation_bridge_mismatch', {
-      bridgeKind,
-      preferredOperation: operation,
-      supportedOperations,
-    });
-  }
-
-  if (!operation) {
-    if (bridgeKind === 'metadata') operation = 'scrape';
-    else {
-      const recommended = cleanToken(item.action);
-      if (supportedOperations.includes(recommended)) operation = recommended;
-    }
-  }
-
-  if (!operation) {
-    return blocked('', 'preferred_operation_required', {
-      bridgeKind,
-      supportedOperations,
-    });
-  }
-
-  return intentResult(operation, bridgeKind, 'bridge_intent', intent);
+  return lifecycleTaskPlanner.resolveManualOperationIntent(input);
 }
 
 function evaluateManualIntent(input = {}) {
@@ -254,13 +165,11 @@ function resolveAutomaticTrigger(input = {}) {
     };
   }
 
-  const operation = cleanToken(item.action);
-  if (!operation || operation === 'keep' || operation === 'none') {
-    return blocked(operation, 'no_automatic_task_required', { item: itemWithMetadata });
+  const planned = lifecycleTaskPlanner.selectStrategyOperation(itemWithMetadata);
+  if (!planned.allowed) {
+    return blocked(planned.operation, planned.reason, { item: itemWithMetadata });
   }
-  if (!USER_OPERATIONS.includes(operation)) {
-    return blocked(operation, 'unsupported_recommended_operation', { item: itemWithMetadata });
-  }
+  const operation = planned.operation;
   if (!enabledAutoActions(cfg).includes(operation)) {
     return blocked(operation, 'action_not_enabled', { item: itemWithMetadata });
   }
@@ -270,7 +179,8 @@ function resolveAutomaticTrigger(input = {}) {
     reason: 'lifecycle_gate_met',
     operation,
     actionType: operation,
-    bridgeKind: flowPlanner.bridgeKindForAction(operation),
+    bridgeKind: planned.bridgeKind,
+    planningMode: planned.planningMode,
     item: itemWithMetadata,
   };
 }
@@ -359,7 +269,7 @@ function evaluateOperation(input = {}) {
     operation: actionType,
     allowed: true,
     reason: 'allowed',
-    ...flowPlanner.planFlow({ actionType, source, itemId, itemInfo: info }),
+    ...lifecycleTaskPlanner.planOperationFlow({ actionType, source, itemId, itemInfo: info }),
   };
 }
 

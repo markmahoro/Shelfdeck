@@ -10,6 +10,7 @@ const { spawnSync } = require('node:child_process');
 const approvalPolicy = require('../src/approvalPolicy');
 const businessFlowPolicy = require('../src/businessFlowPolicy');
 const configStore = require('../src/configStore');
+const lifecycleTaskPlanner = require('../src/lifecycleTaskPlanner');
 const libraryStore = require('../src/libraryStore');
 const taskAdmission = require('../src/taskAdmission');
 const smartTaskEngine = require('../src/smartTaskEngine');
@@ -316,6 +317,32 @@ test('businessFlowPolicy resolves automatic optimize triggers from strategy outp
   assert.strictEqual(trigger.actionType, 'transcode');
   assert.strictEqual(trigger.bridgeKind, 'optimize');
   assert.strictEqual(trigger.reason, 'lifecycle_gate_met');
+  assert.strictEqual(trigger.planningMode, 'strategy_result');
+});
+
+test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
+  const item = metadataReadyMovie({
+    itemId: 'movie-planner-upgrade',
+    action: 'upgrade',
+    reason: 'strategy selected upgrade',
+  });
+
+  const selected = lifecycleTaskPlanner.selectStrategyOperation(item);
+  assert.strictEqual(selected.allowed, true);
+  assert.strictEqual(selected.operation, 'upgrade');
+  assert.strictEqual(selected.bridgeKind, 'optimize');
+  assert.strictEqual(selected.planningMode, 'strategy_result');
+
+  const planned = lifecycleTaskPlanner.planOperationFlow({
+    actionType: selected.operation,
+    source: 'auto',
+    itemId: item.itemId,
+    itemInfo: item,
+  });
+  assert.strictEqual(planned.taskBridge.kind, 'optimize');
+  assert.strictEqual(planned.flowPlan.direction, 'optimize.upgrade');
+  assert.strictEqual(planned.flowPlan.operationKind, 'upgrade');
+  assert.strictEqual(planned.flowPlan.primaryResourceType, 'moviepilot');
 });
 
 test('businessFlowPolicy keeps disabled automatic operations out of SmartTask candidates', () => {

@@ -2109,3 +2109,60 @@ Slice 49 后继续检查 SmartTask 触发链路，发现 `SmartTaskEngine.buildC
 - 本切片尚未部署 NAS；生产自动触发行为仍需与 Slice 47/48/49 一起在观察窗口验证。
 - P0-1 仍未完整关闭：手动 optimize intent 仍会在没有 preferredOperation 时从 `item.action` 推导 operation；optimize task 下具体 flow 选择边界还需要继续收敛到策略/规划层。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 51: Extract lifecycle task planning from policy/admission
+
+### 对应标准
+
+- A3: Task Management 只管理任务实例，不应决定一个 lifecycle task 走哪个 flow。
+- A4: 自动任务创建仍必须经过 TaskAdmission；本切片不改变 queue cap、priority、scheduler 或 executor。
+- P0-1 新模型：`task = lifecycle 状态转换桥梁`，`flow = task 内部 event 编排`；flow/operation 选择需要收拢到 planning 层，而不是 SmartTask 或 TaskAdmission。
+
+### 审计结果
+
+Slice 49/50 后，SmartTask 已基本变成 trigger，但继续检查手动创建和自动触发链路发现：
+
+- `TaskAdmission` 本身已经很薄，只调用 `BusinessFlowPolicy`。
+- `BusinessFlowPolicy` 仍直接解析 manual intent、读取 `item.action`、并调用 `flowPlanner.planFlow()`。
+- 这会让代码边界看起来像是 policy/admission 仍在决定 optimize task 到底走 `transcode` 还是 `upgrade` flow。
+
+判断：
+
+- 这是 P0-1 新业务模型问题，但本切片不做数据库层 `actionType` 大迁移。
+- 当前更合适的最小切片是先把“lifecycle intent / strategy result -> operation / flow plan”的职责抽成明确 planner，让 TaskAdmission、SmartTask 和 BusinessFlowPolicy 都消费规划结果。
+
+### 本切片修复
+
+- 新增 `lifecycleTaskPlanner`：
+  - 定义 lifecycle bridge 支持的 operation：`metadata -> scrape`、`optimize -> transcode/upgrade`、`archive -> delete`；
+  - 解析手动 task intent；
+  - 从策略结果选择 operation，并标记 `planningMode: strategy_result`；
+  - 统一封装 operation 到 `flowPlan` / `taskBridge` 的规划入口。
+- `BusinessFlowPolicy` 改为委托 planner：
+  - `resolveManualOperationIntent()` 不再内联解析；
+  - 自动 optimize trigger 不再直接读取 `item.action` 做 flow selection，而是消费 planner 的 strategy operation 结果；
+  - `evaluateOperation()` 不再直接调用 `flowPlanner.planFlow()`。
+- 外部行为保持兼容：当前 task 仍以 legacy `actionType` 存储具体 operation，后续再评估是否需要更大的数据模型迁移。
+
+### 后端事实来源
+
+- `media-service/src/lifecycleTaskPlanner.js`
+  - 新增 lifecycle task planning 边界。
+- `media-service/src/businessFlowPolicy.js`
+  - 移除内联 manual intent 解析和直接 flowPlanner 调用。
+- `media-service/test/task-model.test.js`
+  - 覆盖 planner 从 strategy result 选择 optimize flow；
+  - 覆盖自动 trigger 暴露 `planningMode: strategy_result`。
+
+### 本地验收
+
+- `node --test test/task-model.test.js --test-name-pattern "lifecycleTaskPlanner|businessFlowPolicy|smartTaskEngine"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，47 个测试通过。
+- `npm test`: pass，248 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS。
+- P0-1 仍未完整关闭：数据层和 API 层仍保留 legacy `actionType=transcode/upgrade/delete/scrape`，只是通过 `taskBridge` / `flowPlan` 明确了 lifecycle/flow 分层；是否升级为一等 `taskKind=metadata/optimize/archive` 仍需后续评估。
+- Flow recovery contract 仍只是初步目录化，各 flow 失败重试语义还没有逐类补齐。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
