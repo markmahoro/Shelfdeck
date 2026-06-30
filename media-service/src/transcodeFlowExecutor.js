@@ -3,7 +3,7 @@
 /**
  * TranscodeFlowExecutor (TRANSCODE_FLOW.md).
  *
- * Flow phases: precheck → executing → verify → replace → done
+ * Flow phases: precheck → executing → transcode_verify → replace → done
  * Bidirectional API with TaskScheduler.
  */
 
@@ -199,7 +199,7 @@ async function runPrecheck(taskId, task, config) {
       partialPath = require('path').join(taskWorkDir, `${stem}.etp.partial${ext}`);
     }
 
-    // Persist essential fields needed by later phases (transcode_executing, verify, replace)
+    // Persist essential fields needed by later phases (transcode_executing, transcode_verify, replace)
     taskStore.updateTask(taskId, {
       itemInfo: {
         ...task.itemInfo,
@@ -411,7 +411,7 @@ async function runExecuting(taskId, task, config) {
 
 async function runVerify(taskId, task, config) {
   if (abortedTasks.has(taskId)) return;
-  setPhase(taskId, 'verify');
+  setPhase(taskId, 'transcode_verify');
   scheduler.reportStatus(taskId, 'executing', 90);
   appendLog(taskId, 'info', 'Verifying transcode output');
 

@@ -51,8 +51,8 @@ const FLOW_DEFINITIONS = {
     steps: [
       { phase: 'transcode_precheck', eventType: 'optimize.transcode.precheck', resourceType: 'filesystem' },
       { phase: 'transcode_executing', eventType: 'optimize.transcode.execute', resourceType: 'transcode' },
+      { phase: 'transcode_verify', eventType: 'optimize.transcode.verify', resourceType: 'filesystem' },
       { phase: 'transcode_replace', eventType: 'optimize.transcode.replace', resourceType: 'filesystem' },
-      { phase: 'verify', eventType: 'optimize.transcode.verify', resourceType: 'filesystem' },
     ],
   },
   upgrade: {

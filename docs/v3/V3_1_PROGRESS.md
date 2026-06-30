@@ -2341,3 +2341,68 @@ Slice 52 后继续审计失败/中断恢复链路，确认：
 - P0-1 仍未完整关闭：还需要继续审计 upgrade/delete/scrape/ingest 的 recovery contract 是否和 executor 真实步骤完全一致。
 - 本次未处理性能问题；如后续审计发现非 P0-1 问题，将先判断是否由新业务模型不满足导致，否则只记录为待修复。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 55: Align transcode verify node attribution with recovery contract
+
+### 对应标准
+
+- A2: transcode 任务中心和 Resource View 必须能解释当前 flow phase/event/resource。
+- A5: retry/resume 必须从正确的 flow node 继续，且 task event projection 不能把恢复点误解释成其他节点。
+- P0-1 新模型：flow 是 task 内部 event 编排；event/resource 展示、resumePoint 和 executor phase 必须使用同一套节点语义。
+
+### 审计结果
+
+Slice 54 加入 `transcode_verify` 后继续审计 flow planner 与 executor，确认：
+
+- `flowRecoveryContract` 使用 `transcode_verify` 作为恢复点；
+- `transcodeFlowExecutor.driveTask()` 已能从 `transcode_verify` 继续；
+- 但 `transcodeFlowExecutor.runVerify()` 仍把 phase 写成裸 `verify`；
+- `flowPlanner` 的 transcode steps 也仍是 `transcode_precheck -> transcode_executing -> transcode_replace -> verify`。
+
+判断：
+
+- 这是 P0-1 新业务模型问题。
+- 它不是性能问题。
+- 当任务以 `resumePoint=transcode_verify` 被调度时，`flowPlanner.currentFlowStep()` 会找不到同名 step，进而 fallback 到第一步；任务中心、runtime event 和 Resource View 可能把“从 verify 恢复”显示成错误的 flow node/resource。
+
+### 本切片修复
+
+- `flowPlanner` 的 transcode steps 改为：
+  - `transcode_precheck`
+  - `transcode_executing`
+  - `transcode_verify`
+  - `transcode_replace`
+- `transcodeFlowExecutor.runVerify()` 写入 `phase=transcode_verify`，和 resumePoint/contract 对齐。
+- 新增回归测试，证明 `resumePoint=transcode_verify` 时：
+  - `currentFlowStep()` 返回 `phase=transcode_verify`；
+  - event type 为 `optimize.transcode.verify`；
+  - resource attribution 为 `filesystem`。
+
+### 本轮记录的待审计项
+
+- `upgradeFlowExecutor` 中存在 replace 后 `runVerify()` 函数，但当前代码搜索显示没有实际调用路径；本轮判断它属于 P0-1 recovery/flow contract 后续审计项，需要下一切片继续确认是死代码、缺失节点，还是应纳入 upgrade contract。
+
+### 后端事实来源
+
+- `media-service/src/flowPlanner.js`
+  - transcode verify step 命名和 recovery contract 对齐。
+- `media-service/src/transcodeFlowExecutor.js`
+  - runVerify phase 命名和 resumePoint 对齐。
+- `media-service/test/task-model.test.js`
+  - 新增 transcode verify node attribution 回归测试。
+
+### 本地验收
+
+- `node --check src/flowPlanner.js`: pass。
+- `node --check src/transcodeFlowExecutor.js`: pass。
+- `node --check test/task-model.test.js`: pass。
+- `node --test test/task-model.test.js --test-name-pattern "flowRecoveryContract|transcode flow plan"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，48 个测试通过。
+- `node --test test/api-inject.test.js --test-name-pattern "transcode resume at verify"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `api-inject.test.js` 全量，115 个测试通过。
+- `npm test`: pass，251 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS。
+- P0-1 仍未完整关闭：还需要继续审计 upgrade/delete/scrape/ingest 的 recovery contract 是否和 executor 真实步骤完全一致。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

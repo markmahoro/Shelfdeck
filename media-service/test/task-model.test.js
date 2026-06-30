@@ -22,6 +22,7 @@ const diagnosticLog = require('../src/diagnosticLog');
 const backgroundIoGuard = require('../src/backgroundIoGuard');
 const metadataStatus = require('../src/metadataStatus');
 const flowRecoveryContract = require('../src/flowRecoveryContract');
+const flowPlanner = require('../src/flowPlanner');
 
 function metadataReadyMovie(overrides = {}) {
   const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
@@ -493,6 +494,32 @@ test('flowRecoveryContract rejects unknown resume points and exposes current poi
   assert.strictEqual(bad.available, false);
   assert.strictEqual(bad.reason, 'unknown_resume_point');
   assert.strictEqual(bad.effect, 'resume_point_not_in_flow_recovery_contract');
+});
+
+test('transcode flow plan uses the recovery resume point for verify node attribution', () => {
+  const { flowPlan } = flowPlanner.planFlow({
+    actionType: 'transcode',
+    source: 'manual',
+    itemId: 'transcode-verify-plan',
+    itemInfo: { itemId: 'transcode-verify-plan' },
+  });
+  const phases = flowPlan.steps.map((step) => step.phase);
+  assert.deepStrictEqual(phases, [
+    'transcode_precheck',
+    'transcode_executing',
+    'transcode_verify',
+    'transcode_replace',
+  ]);
+
+  const task = {
+    actionType: 'transcode',
+    flowPlan,
+    resumePoint: 'transcode_verify',
+  };
+  const step = flowPlanner.currentFlowStep(task);
+  assert.strictEqual(step.phase, 'transcode_verify');
+  assert.strictEqual(step.eventType, 'optimize.transcode.verify');
+  assert.strictEqual(flowPlanner.currentResourceType(task), 'filesystem');
 });
 
 test('smartTaskEngine treats an empty automatic allow-list as an intentional disabled state', () => {
