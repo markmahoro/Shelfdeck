@@ -18,6 +18,7 @@ const lifecycleProjection = require('../src/lifecycleProjection');
 const resourceProjection = require('../src/resourceProjection');
 const diagnosticLog = require('../src/diagnosticLog');
 const backgroundIoGuard = require('../src/backgroundIoGuard');
+const metadataStatus = require('../src/metadataStatus');
 
 function metadataReadyMovie(overrides = {}) {
   const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
@@ -262,6 +263,91 @@ test('taskAdmission treats a missing automatic allow-list as disabled', () => {
   assert.strictEqual(manual.allowed, true);
 });
 
+test('metadataStatus uses sub-library metadataGate as the optimize-ready contract', () => {
+  const config = {
+    subLibraries: [{
+      uuid: 'cn-tv-lib',
+      source: 'emby',
+      mediaType: 'tv',
+      ruleTemplateId: 'tv_technical_only',
+      metadataGate: {
+        all: [
+          'identity.itemId',
+          'identity.name',
+          'media.path',
+          'media.size',
+          'media.duration',
+          'media.bitrate',
+          'media.resolution',
+          'media.codec',
+        ],
+      },
+    }],
+    ruleTemplates: [{
+      id: 'tv_technical_only',
+      rules: [{
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [{ connector: 'and', conditions: [['codec', '=', 'h264'], ['equivalentBitrate', '>', 3]] }],
+        action: 'transcode',
+        actionParams: { targetBitrate: 3, targetCodec: 'h265' },
+      }],
+    }],
+  };
+  const item = {
+    itemId: 'cn-tv-season',
+    source: 'emby',
+    name: '国产剧集',
+    type: 'season',
+    subLibraryId: 'cn-tv-lib',
+    path: '/media/cn-tv-season',
+    size: 1024,
+    duration: 3600,
+    bitrate: 5000000,
+    resolution: '1920x1080',
+    codec: 'h264',
+  };
+
+  const meta = metadataStatus.resolveMetadataStatus(item, config);
+  assert.strictEqual(meta.metadataStatus, 'complete');
+  assert.deepStrictEqual(meta.metadataMissingReasons, []);
+});
+
+test('metadataStatus marks a custom metadataGate contract broken when strategy inputs are not covered', () => {
+  const config = {
+    subLibraries: [{
+      uuid: 'broken-movie-lib',
+      source: 'emby',
+      mediaType: 'movie',
+      ruleTemplateId: 'rating_strategy',
+      metadataGate: { all: ['identity.itemId', 'identity.name', 'media.path'] },
+    }],
+    ruleTemplates: [{
+      id: 'rating_strategy',
+      rules: [{
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
+        action: 'transcode',
+        actionParams: { targetBitrate: 4, targetCodec: 'h265' },
+      }],
+    }],
+  };
+  const item = metadataReadyMovie({
+    itemId: 'broken-gate-movie',
+    subLibraryId: 'broken-movie-lib',
+  });
+
+  const validation = metadataStatus.validateMetadataGateForSubLibrary(config.subLibraries[0], config);
+  assert.strictEqual(validation.ok, false);
+  assert.ok(validation.missingRequirements.includes('decision.rating'));
+  assert.ok(validation.missingRequirements.includes('media.duration'));
+
+  const meta = metadataStatus.resolveMetadataStatus(item, config);
+  assert.strictEqual(meta.metadataStatus, 'missing');
+  assert.ok(meta.metadataMissingReasons.includes('metadata_gate_contract_broken'));
+});
+
 test('smartTaskEngine treats an empty automatic allow-list as an intentional disabled state', () => {
   smartTaskEngine.stop();
   smartTaskEngine.start(
@@ -433,7 +519,7 @@ test('smartTaskEngine auto-enqueues pending adult scrape candidates through Task
   assert.strictEqual(created[0].source, 'auto');
 });
 
-test('smartTaskEngine cannot auto-enqueue standard media scrape', async () => {
+test('smartTaskEngine auto-enqueues standard metadata repair scrape', async () => {
   smartTaskEngine.stop();
   const created = [];
   smartTaskEngine.start(
@@ -494,15 +580,20 @@ test('smartTaskEngine cannot auto-enqueue standard media scrape', async () => {
 
   await new Promise((resolve) => setTimeout(resolve, 20));
   smartTaskEngine.stop();
-  assert.strictEqual(created.length, 0, 'standard media scrape remains unsupported even when scrape is enabled globally');
+  assert.strictEqual(created.length, 1);
+  assert.strictEqual(created[0].itemId, 'standard-missing-metadata');
+  assert.strictEqual(created[0].actionType, 'scrape');
+  assert.strictEqual(created[0].taskBridge.kind, 'metadata');
+  assert.strictEqual(created[0].flowPlan.primaryResourceType, 'emby');
+  assert.ok(created[0].flowPlan.resourceTypes.includes('emby'));
   const health = smartTaskEngine.getHealth();
   assert.strictEqual(health.lastScanSummary.status, 'done');
   assert.strictEqual(health.lastScanSummary.candidateCount, 1);
   assert.strictEqual(health.lastScanSummary.evaluatedCandidates, 1);
   assert.strictEqual(health.lastScanSummary.candidatesByAction.scrape, 1);
-  assert.strictEqual(health.lastScanSummary.enqueued, 0);
-  assert.strictEqual(health.lastScanSummary.admissionRejected, 1);
-  assert.strictEqual(health.lastScanSummary.admissionRejectedByReason.scrape_not_supported_for_standard_media, 1);
+  assert.strictEqual(health.lastScanSummary.enqueued, 1);
+  assert.strictEqual(health.lastScanSummary.enqueuedByAction.scrape, 1);
+  assert.strictEqual(health.lastScanSummary.admissionRejected, 0);
 });
 
 test('smartTaskEngine health explains queue-cap skips without creating tasks', async () => {

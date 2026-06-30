@@ -1578,3 +1578,56 @@ Dashboard health 的 `diagnostics.signals` 也会把自动化阻塞变成入口�
 
 - 本切片尚未部署 NAS；生产任务生命周期 audit 待浏览器/API 验证。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 42: Sub-library metadata gate and standard metadata repair scrape
+
+### 对应标准
+
+- A1/A2: “元数据完整”从全局硬编码字段改为子库级 scrape completion gate，用户语义是 optimize-ready。
+- A3/A4: 普通 Emby 媒体 metadata 缺失时可以进入统一 `metadata/scrape` flow；自动创建仍受 `smartTaskEnabledActions`、TaskAdmission、冷却和队列上限约束。
+- A5/B3/B5: 普通库半假 scrape 以 resource/event 表达为 Emby metadata repair，而不是成人外部 scraper；失败原因回到当前子库 gate 缺失项。
+- C3/C4: 普通 metadata repair 使用独立 `emby:metadata` resource bucket，避免 Resource View 把它和成人 scraper/本地 AI 混在一起。
+
+### 用户视角判定
+
+本切片覆盖此前 v3.0.1 / 早期 v3.1 中“普通媒体 scrape 一律不支持”的判断。新的产品模型是：
+
+- Admin Web 显示“元数据完整”时，表示该媒体已完成 scrape 阶段，并具备进入 optimize 阶段所需的前置条件。
+- 每个子库可以通过 `metadataGate` 自定义“元数据完整”需要哪些条件；默认 gate 保持既有普通 Emby / 成人库语义。
+- `metadataGate` 支持 `all` 和 `any`，例如评分可表达为至少满足 `userRating` / `doubanRating` 之一。
+- 用户自定义 gate 可以严于下游策略输入，但不能宽于下游策略输入。
+- 保存子库配置时，如果 gate 没覆盖当前策略模板消费的 optimize 输入，API 返回 `400 METADATA_GATE_CONTRACT_BROKEN`。
+- 运行时如果旧配置或迁移导致 gate 合同被破坏，`metadataMissingReasons` 会包含 `metadata_gate_contract_broken`，不会让 item 显示成“元数据完整”后又安静卡在 optimize 之前。
+- 普通 Emby item 的 `scrape` 不再表示真正 TMDB/海报/名称刮削，而是半假 metadata repair：问 Emby、读已有 Douban 缓存、自算技术字段和策略，再按当前子库 gate 判断是否完成。
+
+### 后端事实来源
+
+- `media-service/src/metadataStatus.js`
+  - 新增子库 `metadataGate` 解析和 `all` / `any` 条件判断。
+  - 新增策略输入覆盖校验，内部诊断码为 `metadata_gate_contract_broken`。
+- `media-service/src/businessFlowPolicy.js`
+  - 普通库 metadata 已完整时 `scrape` 返回 `metadata_already_complete`。
+  - 普通库 metadata 缺失时允许进入 `metadata/scrape` TaskAdmission。
+- `media-service/src/scrapeFlowExecutor.js`
+  - 普通 Emby `scrape` 日志改为 standard metadata repair。
+- `media-service/src/mediaLibraryService.js`
+  - 普通库 repair 只应用已有 Douban 缓存，不在 scrape 任务中临时外呼 Douban。
+  - 对单 item repair 补充文件技术探测和自算字段。
+- `media-service/src/flowPlanner.js`、`resourceProjection.js`、`taskScheduler.js`
+  - 普通 metadata repair scrape 使用 `emby` primary resource / `emby:metadata` bucket。
+- `media-service/src/app.js`
+  - 新增子库保存时 metadata gate 合同校验。
+
+### 本地验收
+
+- `node --test test/task-model.test.js --test-name-pattern "metadataStatus uses sub-library metadataGate|metadataStatus marks a custom metadataGate|smartTaskEngine auto-enqueues standard metadata repair scrape"`: pass，39 个测试通过。
+- `node --test test/api-inject.test.js --test-name-pattern "TaskAdmission accepts standard metadata repair scrape|PATCH /v1/admin/sublibraries rejects metadataGate|GET /v1/library exposes v3 business flow decision"`: pass，111 个测试通过。
+- `npm test`: pass，237 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS。原因：生产当前 `smartTaskEnabledActions` 包含 `scrape`，部署后普通库 scrape candidate 可能开始被自动入队并写生产任务数据，需要单独安排生产观察窗口。
+- 还未用生产样本“黑炮事件”“凛冬的已至”验证 repair 后具体 gate 缺失项和 Resource View 压力。
+- 前端暂未提供 `metadataGate` 配置 UI；当前是后端模型和 API 校验先落地。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

@@ -232,9 +232,10 @@ function evaluateOperation(input = {}) {
 
   if (actionType === 'scrape') {
     if (isStandardMediaItem(info, cfg)) {
-      return blocked(actionType, 'scrape_not_supported_for_standard_media', {
-        supportedEntry: 'POST /v1/admin/adult/items/:itemId/actions/rescrape',
-      });
+      const meta = metadataStatus.resolveMetadataStatus(item || info, cfg);
+      if (meta.metadataComplete) {
+        return blocked(actionType, 'metadata_already_complete');
+      }
     }
     if (isAdultFolderItem(info, cfg) && automatic && !isAutoScrapeCandidate(info)) {
       return blocked(actionType, 'scrape_state_not_auto_eligible');

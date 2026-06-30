@@ -123,10 +123,16 @@ async function runExecuting(taskId, task) {
 async function runEmbyExecuting(taskId, task, config, subLib) {
   setPhase(taskId, 'scrape_executing');
   scheduler.reportStatus(taskId, 'executing', 20);
-  appendLog(taskId, 'info', 'Starting Emby metadata completion');
+  appendLog(taskId, 'info', 'Starting standard metadata repair');
   try {
     const mediaLibraryService = require('./mediaLibraryService');
     const latestItem = await mediaLibraryService.completeEmbyItemMetadata(task.itemId, { config });
+    const repairSummary = latestItem && latestItem.metadataRepairSummary || {};
+    appendLog(taskId, 'info', 'Fetched latest item facts from Emby');
+    if (repairSummary.doubanCache) {
+      appendLog(taskId, 'info', `Applied local Douban cache: ${repairSummary.doubanCache.matched || 0} matched, ${repairSummary.doubanCache.changed || 0} changed`);
+    }
+    appendLog(taskId, 'info', 'Recomputed ShelfDeck media facts and strategy');
     scheduler.reportStatus(taskId, 'executing', 85);
     const meta = metadataStatus.resolveMetadataStatus(latestItem, config);
     if (!meta.metadataComplete) {
@@ -147,15 +153,15 @@ async function runEmbyExecuting(taskId, task, config, subLib) {
           source: 'completion_snapshot',
         },
       });
-      appendLog(taskId, 'warn', `Emby metadata remains incomplete: ${meta.metadataMissingReasons.join(', ')}`);
+      appendLog(taskId, 'warn', `Metadata repair incomplete: ${meta.metadataMissingReasons.join(', ')}`);
       setPhase(taskId, 'failed_hard');
       scheduler.reportStatus(taskId, 'failed_hard', 0);
       return;
     }
     appendLog(taskId, meta.metadataComplete ? 'info' : 'warn', meta.metadataComplete
-      ? 'Emby metadata completion verified'
-      : `Emby metadata remains incomplete: ${meta.metadataMissingReasons.join(', ')}`);
-    await afterScrapeApplied(taskId, task, config, latestItem, 'Emby metadata completion finished; strategy recalculated');
+      ? 'Standard metadata repair verified'
+      : `Metadata repair incomplete: ${meta.metadataMissingReasons.join(', ')}`);
+    await afterScrapeApplied(taskId, task, config, latestItem, 'Standard metadata repair finished; strategy recalculated');
   } catch (e) {
     appendLog(taskId, 'error', e.message);
     setPhase(taskId, 'failed_hard');

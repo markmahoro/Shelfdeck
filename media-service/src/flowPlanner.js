@@ -97,6 +97,11 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function isStandardMetadataRepair(actionType, itemInfo = {}) {
+  if (actionType !== 'scrape') return false;
+  return itemInfo.source === 'emby' || itemInfo.metadataKind === 'emby';
+}
+
 function defaultDefinition(actionType) {
   return {
     bridge: {
@@ -118,6 +123,15 @@ function planFlow(input = {}) {
   const source = String(input.source || '');
   const itemInfo = input.itemInfo && typeof input.itemInfo === 'object' ? input.itemInfo : {};
   const definition = clone(FLOW_DEFINITIONS[actionType] || defaultDefinition(actionType));
+  if (isStandardMetadataRepair(actionType, itemInfo)) {
+    definition.primaryResourceType = 'emby';
+    definition.steps = [
+      { phase: 'scrape_precheck', eventType: 'metadata.repair.precheck', resourceType: 'service_api' },
+      { phase: 'scrape_executing', eventType: 'metadata.repair.emby_fetch', resourceType: 'emby' },
+      { phase: 'scrape_write_metadata', eventType: 'metadata.repair.write', resourceType: 'service_api' },
+      { phase: 'scrape_review', eventType: 'metadata.repair.review', resourceType: 'service_api' },
+    ];
+  }
   const resourceTypes = [...new Set(definition.steps.map((step) => step.resourceType).filter(Boolean))];
   const plannedAt = input.plannedAt || new Date().toISOString();
   const taskBridge = {

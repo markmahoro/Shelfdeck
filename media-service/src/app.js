@@ -95,6 +95,25 @@ function apiError(reply, status, code, message) {
   return reply.code(status).send({ error: { code, message } });
 }
 
+function validateSubLibraryMetadataGateInput(reply, subLibCandidate, config) {
+  const result = metadataStatus.validateMetadataGateForSubLibrary(subLibCandidate, config);
+  if (result.ok) return null;
+  return apiError(
+    reply,
+    400,
+    'METADATA_GATE_CONTRACT_BROKEN',
+    `metadataGate does not cover optimize inputs: ${result.missingRequirements.join(', ')}`,
+  );
+}
+
+function defaultRuleTemplateIdForSubLibrary(input = {}) {
+  if (input.ruleTemplateId) return input.ruleTemplateId;
+  if (input.mediaType === 'adult') {
+    return input.adultRegion === 'western_adult' ? 'adult_western_default' : 'adult_jav_default';
+  }
+  return input.mediaType === 'tv' ? 'tv_default' : 'default';
+}
+
 function detectImageContentType(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 4) return 'image/jpeg';
   if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'image/jpeg';
@@ -2430,7 +2449,7 @@ function registerRoutes(app) {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
-      automationMode, approvalPolicy,
+      automationMode, approvalPolicy, metadataGate,
     } = req.body || {};
     if (!name) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name is required');
@@ -2446,11 +2465,16 @@ function registerRoutes(app) {
     if (!isFolderAdult && !(cfg.embyServers || {})[embyServerId]) {
       return apiError(reply, 404, 'NOT_FOUND', 'Emby server not found');
     }
+    const gateError = validateSubLibraryMetadataGateInput(reply, {
+      ruleTemplateId: defaultRuleTemplateIdForSubLibrary({ ruleTemplateId, mediaType, adultRegion }),
+      metadataGate,
+    }, cfg);
+    if (gateError) return gateError;
     const subLib = mediaLibraryService.addSubLibrary({
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
-      automationMode, approvalPolicy,
+      automationMode, approvalPolicy, metadataGate,
     });
     return reply.code(201).send(subLib);
   });
@@ -2462,6 +2486,11 @@ function registerRoutes(app) {
   });
 
   app.patch('/v1/admin/sublibraries/:uuid', async (req, reply) => {
+    const cfg = configStore.loadConfig();
+    const current = (cfg.subLibraries || []).find((s) => s.uuid === req.params.uuid);
+    if (!current) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
+    const gateError = validateSubLibraryMetadataGateInput(reply, { ...current, ...(req.body || {}) }, cfg);
+    if (gateError) return gateError;
     const updated = mediaLibraryService.updateSubLibrary(req.params.uuid, req.body || {});
     if (!updated) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
     return updated;

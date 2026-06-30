@@ -392,17 +392,19 @@ test('TaskAdmission rejects optimize/archive tasks when metadata is missing', as
   await app.close();
 });
 
-test('TaskAdmission rejects standard media scrape and records diagnostic', async () => {
+test('TaskAdmission accepts standard metadata repair scrape', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   diagnosticLog.resetForTests();
-  const itemId = 'standard-scrape-blocked';
+  const itemId = 'standard-scrape-repair';
   mediaLibraryService.saveLibrary({
     cachedAt: new Date().toISOString(),
     items: [metadataReadyMovie({
       itemId,
-      name: 'Standard Scrape Blocked',
+      name: 'Standard Scrape Repair',
       source: 'emby',
+      tmdbId: '',
+      doubanId: '',
     })],
   });
 
@@ -411,19 +413,14 @@ test('TaskAdmission rejects standard media scrape and records diagnostic', async
     url: '/v1/tasks',
     payload: { itemId, actionType: 'scrape' },
   });
-  assert.strictEqual(res.statusCode, 409);
+  assert.strictEqual(res.statusCode, 201);
   const body = res.json();
-  assert.strictEqual(body.error.code, 'TASK_ADMISSION_REJECTED');
-  assert.strictEqual(body.error.message, 'scrape_not_supported_for_standard_media');
-  assert.strictEqual(body.admission.operation, 'scrape');
-  assert.strictEqual(body.admission.reason, 'scrape_not_supported_for_standard_media');
-  assert.strictEqual(body.admission.supportedEntry, 'POST /v1/admin/adult/items/:itemId/actions/rescrape');
-  assert.strictEqual(body.businessFlowDecision.blockedReasons.scrape, 'scrape_not_supported_for_standard_media');
-  assert.ok(!body.businessFlowDecision.allowedOperations.some((op) => op.operation === 'scrape'));
+  assert.strictEqual(body.actionType, 'scrape');
+  assert.strictEqual(body.taskBridge.kind, 'metadata');
+  assert.strictEqual(body.flowPlan.primaryResourceType, 'emby');
+  assert.ok(body.flowPlan.resourceTypes.includes('emby'));
   const logs = diagnosticLog.list({ limit: 20 }).logs;
-  assert.ok(logs.some((entry) => entry.operation === 'reject_task'
-    && entry.payload.reason === 'scrape_not_supported_for_standard_media'
-    && entry.payload.itemId === itemId));
+  assert.ok(!logs.some((entry) => entry.operation === 'reject_task' && entry.payload.itemId === itemId));
   await app.close();
 });
 
@@ -455,7 +452,7 @@ test('GET /v1/library exposes v3 business flow decision for media rows', async (
   assert.strictEqual(item.businessFlowDecision.metadataStatus, 'complete');
   assert.strictEqual(item.businessFlowDecision.recommendedOperation, 'transcode');
   assert.ok(item.businessFlowDecision.allowedOperations.some((op) => op.operation === 'transcode' && op.bridgeKind === 'optimize'));
-  assert.strictEqual(item.businessFlowDecision.blockedReasons.scrape, 'scrape_not_supported_for_standard_media');
+  assert.strictEqual(item.businessFlowDecision.blockedReasons.scrape, 'metadata_already_complete');
   const keepItem = res.json().items.find((row) => row.itemId === 'business-flow-keep');
   assert.ok(keepItem, 'keep media row present');
   assert.strictEqual(keepItem.businessFlowDecision.lifecycleStage, 'archived');
@@ -2125,7 +2122,7 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
       candidatesByAction: { scrape: 2, transcode: 2 },
       enqueuedByAction: { transcode: 1 },
       admissionRejected: 1,
-      admissionRejectedByReason: { scrape_not_supported_for_standard_media: 1 },
+      admissionRejectedByReason: { recent_task_cooldown: 1 },
       skippedByQueueCap: 1,
       skippedByQueueCapByAction: { scrape: 1 },
       maxPerRunReached: true,
@@ -2169,7 +2166,7 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
   assert.strictEqual(body.automation.smartTask.lastRunAt, '2026-06-30T00:00:00.000Z');
   assert.strictEqual(body.automation.smartTask.lastScanSummary.candidateCount, 4);
   assert.strictEqual(body.automation.smartTask.lastScanSummary.enqueued, 1);
-  assert.strictEqual(body.automation.smartTask.lastScanSummary.admissionRejectedByReason.scrape_not_supported_for_standard_media, 1);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.admissionRejectedByReason.recent_task_cooldown, 1);
   assert.strictEqual(body.automation.smartTask.lastScanSummary.skippedByQueueCapByAction.scrape, 1);
   assert.strictEqual(body.automation.smartTask.lastScanSummary.maxPerRunReached, true);
   assert.strictEqual(body.automation.smartTask.lastScanSummary.payload, undefined);
@@ -2414,6 +2411,48 @@ test('PATCH /v1/admin/sublibraries cannot reintroduce adult private scheduling f
   const saved = list.json().subLibraries.find((sl) => sl.uuid === subLib.uuid);
   assert.strictEqual(saved.scrapeEnabled, undefined);
   assert.strictEqual(saved.scanIntervalMinutes, undefined);
+  await app.close();
+});
+
+test('PATCH /v1/admin/sublibraries rejects metadataGate that does not cover strategy inputs', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    embyServers: { emby: { baseUrl: 'http://emby.local', apiKey: 'token', userId: 'user' } },
+    subLibraries: [{
+      uuid: 'movie-lib',
+      name: 'Movies',
+      source: 'emby',
+      mediaType: 'movie',
+      embyServerId: 'emby',
+      sectionId: '1',
+      ruleTemplateId: 'rating_strategy',
+    }],
+    ruleTemplates: [{
+      id: 'rating_strategy',
+      rules: [{
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
+        action: 'transcode',
+        actionParams: { targetBitrate: 4, targetCodec: 'h265' },
+      }],
+    }],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const res = await app.inject({
+    method: 'PATCH',
+    url: '/v1/admin/sublibraries/movie-lib',
+    payload: {
+      metadataGate: {
+        all: ['identity.itemId', 'identity.name', 'media.path'],
+      },
+    },
+  });
+  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(res.json().error.code, 'METADATA_GATE_CONTRACT_BROKEN');
+  assert.match(res.json().error.message, /decision\.rating/);
+  assert.match(res.json().error.message, /media\.duration/);
   await app.close();
 });
 

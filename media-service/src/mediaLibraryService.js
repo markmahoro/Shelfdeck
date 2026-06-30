@@ -10,6 +10,7 @@
  */
 
 const crypto = require('crypto');
+const fs = require('fs');
 const path = require('path');
 
 const configStore = require('./configStore');
@@ -90,6 +91,50 @@ async function enrichDiscMetadata(incomingItems, subLib, config) {
   }
   if (probed > 0) {
     console.log('[mediaLibrary] disc metadata probe complete', { probed, filled, subLibraryId: subLib && subLib.uuid });
+  }
+  return { probed, filled };
+}
+
+async function enrichFileMetadata(incomingItems, subLib, config) {
+  let probed = 0;
+  let filled = 0;
+  for (const item of incomingItems) {
+    if (!item || item.isDiscLike || !item.path) continue;
+    const needsProbe = !(item.bitrate > 0)
+      || !(item.duration > 0)
+      || !(item.size > 0)
+      || !item.resolution
+      || !item.codec;
+    if (!needsProbe) continue;
+
+    const sourcePath = resolveMappedSourcePath(item.path, subLib);
+    try {
+      const summary = await transcodeService.probeSummary(config, sourcePath, {
+        timeoutMs: Number(config.metadataRepairProbeTimeoutMs) > 0 ? Number(config.metadataRepairProbeTimeoutMs) : 30000,
+      });
+      let stat = null;
+      try { stat = await fs.promises.stat(sourcePath); } catch (_) {}
+      probed++;
+      let changed = false;
+      if (!(item.duration > 0) && summary.durationSec > 0) { item.duration = Math.round(summary.durationSec); changed = true; }
+      if (!item.resolution && summary.width > 0 && summary.height > 0) { item.resolution = `${summary.width}x${summary.height}`; changed = true; }
+      if ((!item.codec || item.codec === 'h264') && summary.videoCodec) { item.codec = normalizeVideoCodec(summary.videoCodec); changed = true; }
+      if ((!Array.isArray(item.audioCodecs) || item.audioCodecs.length === 0) && summary.audioCodec) {
+        item.audioCodecs = [String(summary.audioCodec).toLowerCase()];
+        changed = true;
+      }
+      if (!(item.size > 0) && stat && stat.size > 0) { item.size = stat.size; changed = true; }
+      if (!(item.bitrate > 0) && item.size > 0 && item.duration > 0) {
+        item.bitrate = Math.round((item.size * 8) / item.duration);
+        changed = true;
+      }
+      if (changed) filled++;
+    } catch (e) {
+      console.warn('[mediaLibrary] file metadata probe skipped:', item.name || item.itemId, e.message);
+    }
+  }
+  if (probed > 0) {
+    console.log('[mediaLibrary] file metadata probe complete', { probed, filled, subLibraryId: subLib && subLib.uuid });
   }
   return { probed, filled };
 }
@@ -449,6 +494,7 @@ function addSubLibrary(spec) {
     japaneseJav: spec.japaneseJav || undefined,
     western: spec.western || undefined,
     ruleTemplateId: spec.ruleTemplateId || (mediaType === 'adult' ? (spec.adultRegion === 'western_adult' ? 'adult_western_default' : 'adult_jav_default') : mediaType === 'tv' ? 'tv_default' : 'default'),
+    metadataGate: spec.metadataGate || undefined,
     ...configStore.defaultSubLibSchedule(),
     automationMode: spec.automationMode || (spec.scheduleMode === 'full_manual' ? 'manual' : 'auto'),
     scheduleMode: spec.scheduleMode || (spec.automationMode === 'manual' ? 'full_manual' : 'full_auto'),
@@ -576,6 +622,94 @@ function stopSubLibraryTimers(uuid) {
   }
 }
 
+function doubanMatchForItem(item, byNormTitle, subjectIdByNormTitle) {
+  let stars = null;
+  let matchName = null;
+
+  if (item.type === 'movie') {
+    matchName = item.name;
+    stars = doubanMatchService.movieDoubanStars(item.name, 'Movie', byNormTitle);
+  } else if (item.type === 'season' && item.seriesName != null && item.seasonNumber != null) {
+    matchName = item.seriesName;
+    stars = doubanMatchService.seasonDoubanStars(item.seriesName, item.seasonNumber, byNormTitle);
+  }
+
+  if (stars == null) return null;
+  const subjectId = doubanMatchService
+    .embyTitleNormalizedKeys(matchName)
+    .map((key) => subjectIdByNormTitle.get(key))
+    .find(Boolean) || '';
+  return { stars, subjectId };
+}
+
+function applyDoubanEntriesToSubLibrary(subLib, entries, opts = {}) {
+  const list = Array.isArray(entries) ? entries : [];
+  if (!subLib || !subLib.uuid || list.length === 0) {
+    return { entries: list.length, libraryItems: 0, matched: 0, changed: 0 };
+  }
+
+  const byNormTitle = doubanMatchService.buildDoubanStarsByNormalizedTitle(list);
+  const subjectIdByNormTitle = new Map();
+  for (const entry of list) {
+    for (const key of doubanMatchService.doubanTitleNormalizedKeys(entry.title)) {
+      if (!subjectIdByNormTitle.has(key) && entry.subjectId) {
+        subjectIdByNormTitle.set(key, entry.subjectId);
+      }
+    }
+  }
+
+  const items = libraryStore.queryItems({ subLibraryId: subLib.uuid }).items;
+  const changedItems = [];
+  let matchedCount = 0;
+  let changedCount = 0;
+  const now = opts.now || new Date().toISOString();
+
+  for (const item of items) {
+    const match = doubanMatchForItem(item, byNormTitle, subjectIdByNormTitle);
+    if (!match) continue;
+    matchedCount++;
+    let changed = false;
+    if (item.doubanRating !== match.stars) {
+      item.doubanRating = match.stars;
+      item.doubanRatingUpdatedAt = now;
+      changed = true;
+    }
+    if (!item.doubanId && match.subjectId) {
+      item.doubanId = match.subjectId;
+      changed = true;
+    }
+    if (changed) {
+      changedCount++;
+      changedItems.push(item);
+    }
+  }
+
+  if (changedItems.length > 0) {
+    libraryStore.updateItems(changedItems);
+  }
+
+  return {
+    entries: list.length,
+    libraryItems: items.length,
+    matched: matchedCount,
+    changed: changedCount,
+  };
+}
+
+function applyCachedDoubanForSubLibrary(subLib) {
+  const entries = doubanService.loadCachedEntries();
+  const result = applyDoubanEntriesToSubLibrary(subLib, entries);
+  if (result.entries > 0 && result.changed > 0) {
+    activityLog.addActivity('douban', `子库「${subLib.name || subLib.uuid}」已应用本地豆瓣缓存，更新 ${result.changed} 个条目`, {
+      subLibraryId: subLib.uuid,
+      matched: result.matched,
+      changed: result.changed,
+      source: 'local_cache',
+    });
+  }
+  return result;
+}
+
 function runPostRefreshUpdates() {
   recomputeAllSelfFields();
   try {
@@ -686,56 +820,9 @@ async function syncDoubanForSubLibrary(subLib) {
     doubanService.saveCachedEntries(entries);
     runtimeEvent.update({ fetchedEntries: entries.length });
 
-    const byNormTitle = doubanMatchService.buildDoubanStarsByNormalizedTitle(entries);
-    const subjectIdByNormTitle = new Map();
-    for (const entry of entries) {
-      for (const key of doubanMatchService.doubanTitleNormalizedKeys(entry.title)) {
-        if (!subjectIdByNormTitle.has(key) && entry.subjectId) {
-          subjectIdByNormTitle.set(key, entry.subjectId);
-        }
-      }
-    }
-
     // Match against library items for this subLibrary
-    const items = libraryStore.queryItems({ subLibraryId: subLib.uuid }).items;
-    runtimeEvent.update({ libraryItems: items.length });
-    const changedItems = [];
-    let matchedCount = 0;
-    let newRatingCount = 0;
-    const now = new Date().toISOString();
-
-    // Match movie by name, season by series+season key
-    for (const item of items) {
-      let stars = null;
-      let matchName = null;
-
-      if (item.type === 'movie') {
-        matchName = item.name;
-        stars = doubanMatchService.movieDoubanStars(item.name, 'Movie', byNormTitle);
-      } else if (item.type === 'season' && item.seriesName != null && item.seasonNumber != null) {
-        matchName = item.seriesName;
-        stars = doubanMatchService.seasonDoubanStars(item.seriesName, item.seasonNumber, byNormTitle);
-      }
-      if (stars == null) continue;
-
-      matchedCount++;
-      if (item.doubanRating !== stars) {
-        item.doubanRating = stars;
-        item.doubanRatingUpdatedAt = now;
-        newRatingCount++;
-        changedItems.push(item);
-
-        const matchedSubjectId = doubanMatchService
-          .embyTitleNormalizedKeys(matchName)
-          .map((key) => subjectIdByNormTitle.get(key))
-          .find(Boolean);
-        if (matchedSubjectId) item.doubanId = matchedSubjectId;
-      }
-    }
-
-    if (newRatingCount > 0) {
-      libraryStore.updateItems(changedItems);
-    }
+    const applied = applyDoubanEntriesToSubLibrary(subLib, entries);
+    runtimeEvent.update({ libraryItems: applied.libraryItems });
 
     // Update subLibrary doubanSyncedAt
     const cfg = configStore.loadConfig();
@@ -746,14 +833,14 @@ async function syncDoubanForSubLibrary(subLib) {
       configStore.patchConfig({ subLibraries: subLibs });
     }
 
-    const msg = `子库「${name}」豆瓣评分同步完成，${matchedCount} 个匹配，${newRatingCount} 个新评分`;
+    const msg = `子库「${name}」豆瓣评分同步完成，${applied.matched} 个匹配，${applied.changed} 个条目更新`;
     Object.assign(finalPayload, {
       fetchedEntries: entries.length,
-      libraryItems: items.length,
-      matched: matchedCount,
-      newRatings: newRatingCount,
+      libraryItems: applied.libraryItems,
+      matched: applied.matched,
+      changed: applied.changed,
     });
-    activityLog.addActivity('douban', msg, { subLibraryId: subLib.uuid, matched: matchedCount, newRatings: newRatingCount });
+    activityLog.addActivity('douban', msg, { subLibraryId: subLib.uuid, matched: applied.matched, changed: applied.changed });
     console.log('[mediaLibrary] douban synced for', subLib.uuid);
   } catch (e) {
     finalStatus = 'failed';
@@ -781,10 +868,12 @@ async function completeEmbyItemMetadata(itemId, opts = {}) {
 
   const fetched = await embyService.getItemById(server, embyItemId);
   await enrichDiscMetadata([fetched], subLib, cfg);
+  await enrichFileMetadata([fetched], subLib, cfg);
   upsertItems(subLib.uuid, [fetched], { fullSync: false });
 
+  let doubanCache = null;
   if (subLib.doubanEnabled) {
-    await syncDoubanForSubLibrary(subLib);
+    doubanCache = applyCachedDoubanForSubLibrary(subLib);
   }
 
   recomputeAllSelfFields();
@@ -793,7 +882,13 @@ async function completeEmbyItemMetadata(itemId, opts = {}) {
     strategyEngine.runOnce();
   } catch (_) {}
 
-  return getLibraryItem(itemId) || current;
+  const latest = getLibraryItem(itemId) || current;
+  latest.metadataRepairSummary = {
+    embyFetched: true,
+    doubanCache,
+    selfComputed: true,
+  };
+  return latest;
 }
 
 function startSubLibraryTimers(subLib) {

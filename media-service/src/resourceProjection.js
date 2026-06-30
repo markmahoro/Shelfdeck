@@ -32,6 +32,8 @@ function concurrencyLimitForResource(taskResource, config = {}) {
       return config.transcodeConcurrency || 1;
     case 'moviepilot':
       return config.upgradeConcurrency || 1;
+    case 'emby':
+      return config.embyMetadataRepairConcurrency || config.scrapeConcurrency || 1;
     case 'scraper':
       return config.scrapeConcurrency || 1;
     case 'local_ai':
@@ -86,6 +88,13 @@ function resourceForTask(task, config = {}) {
       resourceType: 'moviepilot',
       resourceKey: 'moviepilot',
       resourceLabel: 'MoviePilot',
+    };
+  }
+  if (plannedResourceType === 'emby') {
+    return {
+      resourceType: 'emby',
+      resourceKey: 'emby:metadata',
+      resourceLabel: 'Emby metadata repair',
     };
   }
   if (plannedResourceType === 'filesystem') {

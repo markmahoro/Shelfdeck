@@ -236,6 +236,8 @@ function resourceConcurrencyLimit(resource, task, limits = {}) {
       return limits.transcodeConcurrency || 1;
     case 'moviepilot':
       return limits.upgradeConcurrency || 1;
+    case 'emby':
+      return limits.embyMetadataRepairConcurrency || limits.scrapeConcurrency || 1;
     case 'scraper':
       return limits.scrapeConcurrency || 1;
     case 'local_ai':
