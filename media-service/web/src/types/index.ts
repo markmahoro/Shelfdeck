@@ -183,7 +183,7 @@ export type TaskStatus =
   | 'awaiting_user_confirm' | 'pausing' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
-export type ActionType = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape';
+export type ActionType = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape' | 'archive';
 
 export type ApprovalMode = 'auto' | 'confirm' | 'forceConfirm';
 export type ApprovalPolicyConfig = Record<string, ApprovalMode>;
@@ -441,6 +441,7 @@ export interface MediaTask {
   itemId: string;
   itemName?: string;
   actionType: ActionType;
+  taskTarget?: TaskTarget;
   taskBridge?: TaskBridge;
   flowPlan?: FlowPlan;
   requestedIntent?: RequestedIntent;
@@ -484,6 +485,38 @@ export interface RequestedIntent {
   preferredOperation?: string;
   actionType?: string;
   intentMode?: string;
+  [key: string]: unknown;
+}
+
+export interface TaskTarget {
+  object?: {
+    type?: string;
+    itemId?: string;
+    subLibraryId?: string;
+    [key: string]: unknown;
+  };
+  targetGate?: string;
+  gateObjective?: GateObjective;
+  source?: string;
+  operationHint?: string;
+  [key: string]: unknown;
+}
+
+export interface GateObjective {
+  kind?: string;
+  description?: string;
+  source?: string;
+  reason?: string;
+  acceptableOperations?: string[];
+  operationHint?: string;
+  destructive?: boolean;
+  targetBitrate?: number | string;
+  targetCodec?: string;
+  equivalentBitrate?: number | string;
+  maxSizeGB?: number | string;
+  seedPreferences?: Record<string, unknown>;
+  metadataKind?: string;
+  repairMode?: string;
   [key: string]: unknown;
 }
 

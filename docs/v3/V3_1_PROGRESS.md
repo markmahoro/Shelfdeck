@@ -3663,3 +3663,69 @@ Optimize task 的目标现在优先来自 Lifecycle objective resolver：
 - Flow Planner 仍主要按 operation hint 选择当前 executor，后续还要让多 operation objective（如补字幕、换音轨、Dolby Vision 修复）拥有真实 planner 分支。
 - 任务中心还没有把 `taskTarget.gateObjective` 产品化展示为任务主语义。
 - P0-1 仍未整体宣布完成。
+
+## 2026-06-30 Slice 76: 任务中心展示 task target 主语义
+
+### 对应标准
+
+- P0-1: Task target 审计，任务中心必须能按 `object + targetGate + gateObjective` 解释 task。
+- P0-1: Optimize 审计，用户界面不能继续把 Flow Operation 当成 task 的用户语义目标。
+- B: 用户视角可用，用户打开任务中心时能先看到任务要跨过哪座 gate、目标合同是什么，再看到当前实现路径。
+
+### 用户视角判定
+
+任务中心现在把 task 分成两层展示：
+
+- 任务目标：`targetGate` 和 `gateObjective`，例如“优化 / 降低码率”“优化 / 删除媒体”“补元数据 / 元数据完整”“归档 / 闭环归档”。
+- 实现路径：Flow Planner 当前选择的 operation / direction / executor / resource，例如 `transcode`、`upgrade`、`delete`、`scrape`。
+
+用户在任务列表中能直接看到：
+
+- 每个任务的“任务目标”。
+- 每个任务的“实现路径”。
+- 状态、阶段、来源、审批、优先级仍保留原有位置。
+
+用户打开任务详情时能看到：
+
+- `任务目标` 卡片：目标 Gate、目标合同、目标对象、可接受操作、当前实现路径、Objective 来源。
+- `用户意图与解析结果` 卡片继续保留，但文案从“桥梁”收口到“目标 Gate”。
+- Flow 编排卡片改名为“实现路径”，不再抢占任务主语义。
+
+### 已完成
+
+- `media-service/web/src/types/index.ts`：
+  - 新增 `TaskTarget` / `GateObjective` 类型。
+  - `MediaTask` 增加 `taskTarget`。
+  - `ActionType` 补上 `archive` 兼容类型。
+- `TaskMonitorPage`：
+  - 新增 objective label / summary helper。
+  - 任务列表列名从“桥梁 / Flow 操作”改为“任务目标 / 实现路径”。
+  - 任务详情顶部摘要显示“任务目标 / 目标合同 / 实现路径”。
+  - 新增“任务目标”详情卡，直接消费 `taskTarget.gateObjective`。
+  - 过滤和空状态的显眼文案从“桥梁”收口为“目标 Gate / 任务”。
+
+### 后端事实来源
+
+- `GET /v1/admin/tasks`
+- `GET /v1/admin/tasks/:id`
+- `task.taskTarget.object`
+- `task.taskTarget.targetGate`
+- `task.taskTarget.gateObjective`
+- `task.flowPlan` 只作为实现路径展示。
+
+### 本机验证
+
+- `npm run build:web`: pass。
+- Vite 仍提示 `client.ts` 同时动态/静态 import，非本切片新增失败。
+
+### 生产部署
+
+- 本 slice 未部署 NAS 生产。
+- 原因：这是 Admin Web 展示层收口，已通过本机 build 验证；不涉及 NAS 特有 Docker/Linux、真实媒体 I/O、真实转码设备池或生产数据写入。
+
+### 尚未满足
+
+- 还没有端到端浏览器截图验收任务中心视觉呈现。
+- Resource View 和 Dashboard 仍有少量“桥梁 / flow 操作”文案，需要后续按同一用户语义继续收口。
+- Objective rule 配置 UI 仍未完整落地。
+- P0-1 仍未整体宣布完成。

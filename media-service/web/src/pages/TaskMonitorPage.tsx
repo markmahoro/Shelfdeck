@@ -47,6 +47,7 @@ const OPERATION_LABELS: Record<string, string> = {
   delete: '删除',
   upgrade: '洗版',
   scrape: '刮削',
+  archive: '归档',
 };
 
 const REPORT_LABELS: Record<string, string> = {
@@ -58,9 +59,22 @@ const REPORT_LABELS: Record<string, string> = {
 };
 
 const BRIDGE_LABELS: Record<string, string> = {
+  ingest: '入库',
   metadata: '补元数据',
   optimize: '优化',
   archive: '归档',
+};
+
+const OBJECTIVE_LABELS: Record<string, string> = {
+  managed_item: '纳入管理',
+  metadata_complete: '元数据完整',
+  reduce_bitrate: '降低码率',
+  improve_source_quality: '提升片源质量',
+  remove_media: '删除媒体',
+  keep_current: '保持当前媒体',
+  finalize_lifecycle: '闭环归档',
+  optimize_strategy_pending: '等待优化策略',
+  repair_dolby_vision_compatibility: '修复播放兼容性',
 };
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -200,7 +214,7 @@ const RECOVERY_STATE_LABELS: Record<string, string> = {
 };
 
 const INTENT_MODE_LABELS: Record<string, string> = {
-  bridge_intent: '按桥梁意图创建',
+  bridge_intent: '按目标 Gate 创建',
   action_type_compatibility: '兼容旧操作创建',
   adult_rescrape: '成人条目重刮入口',
 };
@@ -420,27 +434,27 @@ export default function TaskMonitorPage() {
         || { label: attentionPreset, hint: '符合后端处理队列定义' };
       return `当前没有「${preset.label}」任务。${preset.hint} 的任务会出现在这里。`;
     }
-    if (!bridgeFilter && !operationFilter) return '当前没有符合筛选条件的任务桥。';
+    if (!bridgeFilter && !operationFilter) return '当前没有符合筛选条件的任务。';
     const bridge = bridgeFilter ? (BRIDGE_LABELS[bridgeFilter] || bridgeFilter) : '';
     const operation = operationFilter ? (OPERATION_LABELS[operationFilter] || operationFilter) : '';
     const label = [bridge, operation].filter(Boolean).join(' / ');
     const enabledActions = sysCfg?.smartTaskEnabledActions || [];
     if (operationFilter && !enabledActions.includes(operationFilter)) {
       if (operationFilter === 'scrape') {
-        return `当前没有${label}桥梁。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作；具体影片仍可手动重新刮削。`;
+        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作；具体影片仍可手动重新刮削。`;
       }
       if (operationFilter === 'ingest') {
-        return `当前没有${label}桥梁。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作，后台来源不会自动进入任务中心。`;
+        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作，后台来源不会自动进入任务中心。`;
       }
-      return `当前没有${label}桥梁。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作，媒体库里的对应建议不会自动进入任务中心。`;
+      return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作，媒体库里的对应建议不会自动进入任务中心。`;
     }
     if (operationFilter === 'scrape') {
-      return `当前没有${label}桥梁。可能没有待刮削条目，或已被冷却时间、去重规则、队列上限拦截。`;
+      return `当前没有${label}任务。可能没有待刮削条目，或已被冷却时间、去重规则、队列上限拦截。`;
     }
     if (operationFilter === 'ingest') {
-      return `当前没有${label}桥梁。可能没有新文件，或已被冷却时间、去重规则、队列上限拦截。`;
+      return `当前没有${label}任务。可能没有新文件，或已被冷却时间、去重规则、队列上限拦截。`;
     }
-    return `当前没有${label}桥梁。若媒体库仍有对应推荐，可能被冷却时间、去重规则、队列上限或已完成闭环状态拦截。`;
+    return `当前没有${label}任务。若媒体库仍有对应推荐，可能被冷却时间、去重规则、队列上限或已完成闭环状态拦截。`;
   }
 
   function openDetail(task: MediaTask) {
@@ -505,6 +519,51 @@ export default function TaskMonitorPage() {
   function operationLabel(value?: string): string {
     if (!value) return '—';
     return OPERATION_LABELS[value] || value;
+  }
+
+  function targetGateLabel(task: MediaTask): string {
+    return bridgeLabel(task.taskTarget?.targetGate || task.taskBridge?.kind || task.flowPlan?.bridgeKind);
+  }
+
+  function objectiveLabel(kind?: string): string {
+    if (!kind) return '目标合同待补齐';
+    return OBJECTIVE_LABELS[kind] || kind;
+  }
+
+  function objectiveSummary(task: MediaTask): string {
+    const objective = task.taskTarget?.gateObjective;
+    if (!objective) return '目标合同待补齐';
+    const kind = String(objective.kind || '');
+    const label = objectiveLabel(kind);
+    if (kind === 'reduce_bitrate') {
+      const parts = [
+        objective.targetBitrate ? `目标码率 ${objective.targetBitrate}` : '',
+        objective.targetCodec ? `目标编码 ${objective.targetCodec}` : '',
+      ].filter(Boolean);
+      return parts.length ? `${label}：${parts.join('，')}` : label;
+    }
+    if (kind === 'improve_source_quality') {
+      return objective.maxSizeGB ? `${label}：上限 ${objective.maxSizeGB} GB` : label;
+    }
+    if (kind === 'metadata_complete') {
+      return objective.repairMode ? `${label}：${String(objective.repairMode)}` : label;
+    }
+    if (kind === 'remove_media') return objective.destructive ? `${label}：破坏性操作` : label;
+    if (kind === 'optimize_strategy_pending') return objective.reason ? `${label}：${String(objective.reason)}` : label;
+    return label;
+  }
+
+  function operationPathSummary(task: MediaTask): string {
+    const operation = task.flowPlan?.operationKind || task.taskTarget?.operationHint || task.actionType;
+    const direction = task.flowPlan?.direction || '';
+    return direction ? `${operationLabel(operation)} · ${direction}` : operationLabel(operation);
+  }
+
+  function acceptableOperationText(task: MediaTask): string {
+    const operations = task.taskTarget?.gateObjective?.acceptableOperations;
+    if (!operations) return '按 Flow Planner 决定';
+    if (operations.length === 0) return '当前无可自动操作';
+    return operations.map(operationLabel).join('、');
   }
 
   function intentModeLabel(value?: string): string {
@@ -751,18 +810,45 @@ export default function TaskMonitorPage() {
           <div style={intentPanel}>
             <div style={controlMiniLabel}>用户提交</div>
             <div style={intentRow}><strong>创建方式</strong><span>{intentModeLabel(intentMode)}</span></div>
-            <div style={intentRow}><strong>目标桥梁</strong><span>{bridgeLabel(bridgeKind)}</span></div>
+            <div style={intentRow}><strong>目标 Gate</strong><span>{bridgeLabel(bridgeKind)}</span></div>
             <div style={intentRow}><strong>偏好操作</strong><span>{preferredOperation ? operationLabel(preferredOperation) : legacyAction ? operationLabel(legacyAction) : '按当前推荐'}</span></div>
           </div>
           <div style={intentPanel}>
             <div style={controlMiniLabel}>后端解析</div>
-            <div style={intentRow}><strong>实际桥梁</strong><span>{bridgeLabel(task.taskBridge?.kind || task.flowPlan?.bridgeKind)}</span></div>
+            <div style={intentRow}><strong>解析 Gate</strong><span>{bridgeLabel(task.taskBridge?.kind || task.flowPlan?.bridgeKind)}</span></div>
             <div style={intentRow}><strong>实际操作</strong><span>{operationLabel(resolvedOperation)}</span></div>
             <div style={intentRow}><strong>Flow direction</strong><span>{task.flowPlan?.direction || '—'}</span></div>
           </div>
         </div>
         <div style={{ marginTop: 8, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-          任务执行、确认和恢复都以右侧解析结果为准；左侧保留用户最初想推进的业务桥。
+          任务执行、确认和恢复都以右侧解析结果为准；左侧保留用户最初想推进的目标 Gate。
+        </div>
+      </div>
+    );
+  }
+
+  function renderTaskTargetCard(task: MediaTask) {
+    const objective = task.taskTarget?.gateObjective;
+    return (
+      <div style={{ background: '#f8fafc', border: '1px solid #d8e2ee', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>任务目标</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div style={targetPanel}>
+            <div style={controlMiniLabel}>目标 Gate</div>
+            <div style={targetValue}>{targetGateLabel(task)}</div>
+            <div style={controlMiniText}>任务要推进的生命周期关口</div>
+          </div>
+          <div style={targetPanel}>
+            <div style={controlMiniLabel}>目标合同</div>
+            <div style={targetValue}>{objectiveSummary(task)}</div>
+            <div style={controlMiniText}>{objective?.description || '后端未提供目标说明'}</div>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', fontSize: 12, color: '#374151' }}>
+          <div><strong>目标对象:</strong> {task.taskTarget?.object?.itemId || task.itemId}</div>
+          <div><strong>可接受操作:</strong> {acceptableOperationText(task)}</div>
+          <div><strong>当前实现路径:</strong> {operationPathSummary(task)}</div>
+          <div><strong>Objective 来源:</strong> {objective?.source || '—'}</div>
         </div>
       </div>
     );
@@ -933,7 +1019,7 @@ export default function TaskMonitorPage() {
           ))}
         </select>
         <select value={bridgeFilter} onChange={(e) => { setBridgeFilter(e.target.value); setPage(1); }} style={selectStyle}>
-          <option value="">全部桥梁</option>
+          <option value="">全部目标 Gate</option>
           <option value="metadata">补元数据</option>
           <option value="optimize">优化</option>
           <option value="archive">归档</option>
@@ -961,8 +1047,8 @@ export default function TaskMonitorPage() {
             <thead>
               <tr style={{ background: '#f9fafb' }}>
                 <th style={thStyle}>影片</th>
-                <th style={thStyle}>桥梁</th>
-                <th style={thStyle}>Flow 操作</th>
+                <th style={thStyle}>任务目标</th>
+                <th style={thStyle}>实现路径</th>
                 <th style={thStyle}>状态</th>
                 <th style={thStyle}>阶段</th>
                 <th style={thStyle}>来源/审批/优先级</th>
@@ -977,8 +1063,14 @@ export default function TaskMonitorPage() {
                   <td style={tdStyle}>
                     <span>{formatItemName(t.itemInfo) || t.itemName || t.itemId}</span>
                   </td>
-                  <td style={tdStyle}>{bridgeLabel(t.taskBridge?.kind || t.flowPlan?.bridgeKind)}</td>
-                  <td style={tdStyle}>{OPERATION_LABELS[t.flowPlan?.operationKind || t.actionType] || t.flowPlan?.operationKind || t.actionType}</td>
+                  <td style={tdStyle}>
+                    <div style={{ fontWeight: 700, color: '#1f2937' }}>{targetGateLabel(t)}</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{objectiveSummary(t)}</div>
+                  </td>
+                  <td style={tdStyle}>
+                    <div>{operationLabel(t.flowPlan?.operationKind || t.taskTarget?.operationHint || t.actionType)}</div>
+                    <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>{t.flowPlan?.direction || '—'}</div>
+                  </td>
                   <td style={tdStyle}>
                     <span style={{ color: STATUS_COLORS[t.status] || '#999' }}>{STATUS_LABELS[t.status] || t.status}</span>
                   </td>
@@ -1042,14 +1134,15 @@ export default function TaskMonitorPage() {
       )}
 
       {/* Task Detail Modal */}
-      <Modal open={detailOpen} title="任务桥详情" onClose={() => { setDetailOpen(false); setSelectedTask(null); }} width={680}>
+      <Modal open={detailOpen} title="任务详情" onClose={() => { setDetailOpen(false); setSelectedTask(null); }} width={680}>
         {displayTask ? (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 12, marginBottom: 20 }}>
               <div><strong>任务 ID:</strong> {displayTask.id}</div>
               <div><strong>媒体项:</strong> {formatItemName(displayTask.itemInfo) || displayTask.itemId}</div>
-              <div><strong>桥梁:</strong> {bridgeLabel(displayTask.taskBridge?.kind || displayTask.flowPlan?.bridgeKind)}</div>
-              <div><strong>Flow 操作:</strong> {OPERATION_LABELS[displayTask.flowPlan?.operationKind || displayTask.actionType] || displayTask.flowPlan?.operationKind || displayTask.actionType}</div>
+              <div><strong>任务目标:</strong> {targetGateLabel(displayTask)}</div>
+              <div><strong>目标合同:</strong> {objectiveSummary(displayTask)}</div>
+              <div><strong>实现路径:</strong> {operationPathSummary(displayTask)}</div>
               <div><strong>状态:</strong> <span style={{ color: STATUS_COLORS[displayTask.status] }}>{STATUS_LABELS[displayTask.status] || displayTask.status}</span></div>
               <div><strong>阶段:</strong> {PHASE_LABELS[displayTask.phase || ''] || displayTask.phase || '—'}</div>
               <div><strong>进度:</strong> {Math.round(displayTask.progress || 0)}%</div>
@@ -1062,15 +1155,17 @@ export default function TaskMonitorPage() {
 
             {renderControlStateCard(displayTask)}
 
+            {renderTaskTargetCard(displayTask)}
+
             {renderIntentCard(displayTask)}
 
             {(displayTask.taskBridge || displayTask.flowPlan) && (
               <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>Flow 编排</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>实现路径</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', fontSize: 12, color: '#374151', marginBottom: 10 }}>
-                  <div><strong>跨阶段桥梁:</strong> {bridgeLabel(displayTask.taskBridge?.kind || displayTask.flowPlan?.bridgeKind)}</div>
+                  <div><strong>目标 Gate:</strong> {targetGateLabel(displayTask)}</div>
                   <div><strong>Flow direction:</strong> {displayTask.flowPlan?.direction || '—'}</div>
-                  <div><strong>操作类型:</strong> {OPERATION_LABELS[displayTask.flowPlan?.operationKind || displayTask.actionType] || displayTask.flowPlan?.operationKind || displayTask.actionType}</div>
+                  <div><strong>操作类型:</strong> {operationLabel(displayTask.flowPlan?.operationKind || displayTask.actionType)}</div>
                   <div><strong>执行器:</strong> {displayTask.flowPlan?.executor || '—'}</div>
                   <div><strong>主要资源:</strong> {resourceLabel(displayTask.flowPlan?.primaryResourceType)}</div>
                   <div><strong>资源集合:</strong> {displayTask.flowPlan?.resourceTypes?.map(resourceLabel).join(', ') || '—'}</div>
@@ -1750,6 +1845,20 @@ const intentPanel: React.CSSProperties = {
   border: '1px solid #e5edf5',
   borderRadius: 6,
   padding: '8px 10px',
+};
+
+const targetPanel: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #dfe8f2',
+  borderRadius: 6,
+  padding: '9px 10px',
+};
+
+const targetValue: React.CSSProperties = {
+  fontSize: 14,
+  color: '#102a43',
+  fontWeight: 800,
+  marginBottom: 4,
 };
 
 const intentRow: React.CSSProperties = {
