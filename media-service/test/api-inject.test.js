@@ -1952,6 +1952,94 @@ test('GET /v1/admin/tasks returns list with summary', async () => {
   await app.close();
 });
 
+test('GET /v1/admin/tasks/lifecycle-audit groups task lifecycles by library type', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    subLibraries: [
+      { uuid: 'movie-audit', name: 'Movies', source: 'emby', mediaType: 'movie', enabled: true },
+      { uuid: 'adult-audit', name: 'JAV', source: 'folder', mediaType: 'adult', adultRegion: 'japanese_jav', enabled: true },
+    ],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const taskStore = require('../src/taskStore');
+  taskStore.createTask({
+    itemId: 'movie-transcode',
+    itemName: 'Movie Transcode',
+    actionType: 'transcode',
+    status: 'queued',
+    source: 'auto',
+    itemInfo: { name: 'Movie Transcode', subLibraryId: 'movie-audit' },
+  });
+  taskStore.createTask({
+    itemId: 'movie-scrape',
+    itemName: 'Movie Scrape',
+    actionType: 'scrape',
+    status: 'queued',
+    source: 'manual',
+    itemInfo: { name: 'Movie Scrape', subLibraryId: 'movie-audit' },
+  });
+  taskStore.createTask({
+    itemId: 'adult-scrape',
+    itemName: 'Adult Scrape',
+    actionType: 'scrape',
+    status: 'awaiting_user_confirm',
+    source: 'manual',
+    itemInfo: {
+      name: 'Adult Scrape',
+      subLibraryId: 'adult-audit',
+      adultMetadata: { adultId: 'MVSD-175', scrapeStatus: 'needs_review', region: 'japanese_jav' },
+    },
+  });
+  taskStore.createTask({
+    itemId: 'unknown-task',
+    itemName: 'Unknown Library',
+    actionType: 'upgrade',
+    status: 'failed_hard',
+    source: 'manual',
+    itemInfo: { name: 'Unknown Library', subLibraryId: 'missing-lib' },
+  });
+
+  const originalGetTasks = taskStore.getTasks;
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.getTasks = () => {
+    throw new Error('lifecycle audit should use lightweight task summaries');
+  };
+  taskStore.loadTasks = () => {
+    throw new Error('lifecycle audit should not load full task payloads');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/admin/tasks/lifecycle-audit?sampleLimit=10' });
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.json();
+    assert.strictEqual(body.total, 4);
+    assert.strictEqual(body.summary.byLifecycleStage.queued, 2);
+    assert.strictEqual(body.summary.byLifecycleStage.user_gate, 1);
+    assert.strictEqual(body.summary.byLifecycleStage.terminal_failure, 1);
+    assert.strictEqual(body.byLibraryType.movie.total, 2);
+    assert.strictEqual(body.byLibraryType.movie.byOperationKind.scrape, 1);
+    assert.strictEqual(body.byLibraryType.adult.total, 1);
+    assert.strictEqual(body.byLibraryType.movie.bySource.auto, 1);
+    assert.strictEqual(body.signals.byCode.standard_media_scrape_task, 1);
+    assert.strictEqual(body.signals.byCode.unknown_sub_library, 1);
+    assert.ok(body.signals.items.some((item) => item.taskId && item.code === 'standard_media_scrape_task'));
+    const movieBucket = body.bySubLibrary.find((bucket) => bucket.subLibraryId === 'movie-audit');
+    assert.ok(movieBucket);
+    assert.strictEqual(movieBucket.name, 'Movies');
+    assert.strictEqual(movieBucket.byBridgeKind.optimize, 1);
+    assert.strictEqual(movieBucket.byBridgeKind.metadata, 1);
+
+    const adultOnly = await app.inject({ method: 'GET', url: '/v1/admin/tasks/lifecycle-audit?mediaType=adult' });
+    assert.strictEqual(adultOnly.statusCode, 200);
+    assert.strictEqual(adultOnly.json().total, 1);
+    assert.strictEqual(adultOnly.json().byLibraryType.adult.total, 1);
+    assert.strictEqual(adultOnly.json().signals.byCode.standard_media_scrape_task, undefined);
+  } finally {
+    taskStore.getTasks = originalGetTasks;
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
+});
+
 test('GET /v1/admin/dashboard/health returns media and task health aggregates', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({

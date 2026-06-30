@@ -1548,3 +1548,33 @@ Dashboard health 的 `diagnostics.signals` 也会把自动化阻塞变成入口�
 
 - 本切片尚未部署 NAS；生产 DV 转码能力和健康检查待部署后验证。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 41: Task lifecycle audit by library type
+
+### 对应标准
+
+- A2/A5: 任务中心需要能按库类型解释 task 从创建、排队、执行、等待确认、恢复到终态的生命周期。
+- B3/B5: 任务中心和资源诊断页可以直接拿到每种库类型下 bridge / operation / resource / status 是否合理，而不是靠前端扫任务列表猜。
+- C1/C2/C4: 审计 projection 只读 `queryTaskSummaries` current facts 和 config sub-library 定义，不读取完整 task payload、logs、report 或 heavy media payload。
+
+### 用户视角判定
+
+新增 `GET /v1/admin/tasks/lifecycle-audit`，面向任务中心的后端审计读模型：
+
+- 按 lifecycle stage 聚合：创建/待手动启动、排队、执行中、等待用户确认、暂停/中断恢复、成功终态、失败终态。
+- 按 `mediaType` 和 sub-library 聚合 task 总数、status、bridge kind、operation kind、source、active/terminal/failed/awaitingUser。
+- 返回 `signals`，指出明显不符合预期的任务生命周期样本，例如普通媒体 scrape task、缺少 sub-library context、找不到 sub-library、缺少 bridge/operation/resource、等待确认但没有 confirmation gate、执行中没有 phase。
+- 支持 `status/statuses/actionType/bridgeKind/operationKind/subLibraryId/mediaType/q/sampleLimit` 过滤，方便从当前生产任务中心挑具体任务分析。
+
+这样 P0 的“每一种库类型下 task 生命周期是否符合预期”有了后端事实入口；任务中心后续可以展示“电影库为什么出现 scrape”“成人库 metadata bridge 是否都是 ingest/scrape”“哪些 failed task 缺恢复解释”等问题，而不是把这些判断散落在 UI 分支里。
+
+### 本地验收
+
+- `node --test test/api-inject.test.js --test-name-pattern "lifecycle-audit|admin/tasks returns list"`: pass，110 个测试通过。
+- `npm test`: pass，234 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS；生产任务生命周期 audit 待浏览器/API 验证。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

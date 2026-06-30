@@ -1240,6 +1240,9 @@ function queryTaskSummaries(filter = {}, options = {}) {
   const orderDir = String(options.orderDir || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
   const terminalList = [...TERMINAL_STATUSES].map((status) => `'${status}'`).join(', ');
   const activeJson = (jsonPath) => `CASE WHEN status NOT IN (${terminalList}) THEN json_extract(payload_json, '${jsonPath}') END`;
+  const itemJson = (jsonPath) => options.includeTerminalItemInfo === true
+    ? `json_extract(payload_json, '${jsonPath}')`
+    : activeJson(jsonPath);
   const activeColumn = (column) => `CASE WHEN status NOT IN (${terminalList}) THEN ${column} END`;
 
   const total = db.prepare(`SELECT COUNT(*) AS count FROM tasks ${where}`).get(params).count || 0;
@@ -1280,23 +1283,23 @@ function queryTaskSummaries(filter = {}, options = {}) {
       ${activeJson('$.verifyResult.previewPath')} AS verify_preview_path,
       ${activeJson('$.verifyResult.outputPath')} AS verify_output_path,
       ${activeJson('$.verifyResult.bytesSaved')} AS verify_bytes_saved,
-      ${activeJson('$.itemInfo.name')} AS info_name,
-      ${activeJson('$.itemInfo.title')} AS info_title,
-      ${activeJson('$.itemInfo.type')} AS info_type,
-      ${activeJson('$.itemInfo.seriesName')} AS info_series_name,
-      ${activeJson('$.itemInfo.seasonNumber')} AS info_season_number,
-      ${activeJson('$.itemInfo.path')} AS info_path,
-      ${activeJson('$.itemInfo.subLibraryId')} AS info_sub_library_id,
-      ${activeJson('$.itemInfo.originalSizeBytes')} AS info_original_size_bytes,
-      ${activeJson('$.itemInfo.originalBitrate')} AS info_original_bitrate,
-      ${activeJson('$.itemInfo.originalVideoCodec')} AS info_original_video_codec,
-      ${activeJson('$.itemInfo.originalAudioCodec')} AS info_original_audio_codec,
-      ${activeJson('$.itemInfo.originalWidth')} AS info_original_width,
-      ${activeJson('$.itemInfo.originalHeight')} AS info_original_height,
-      ${activeJson('$.itemInfo.adultMetadata.adultId')} AS adult_id,
-      ${activeJson('$.itemInfo.adultMetadata.scrapeStatus')} AS adult_scrape_status,
-      ${activeJson('$.itemInfo.adultMetadata.region')} AS adult_region,
-      ${activeJson('$.itemInfo.adultMetadata.protagonist')} AS adult_protagonist_json
+      ${itemJson('$.itemInfo.name')} AS info_name,
+      ${itemJson('$.itemInfo.title')} AS info_title,
+      ${itemJson('$.itemInfo.type')} AS info_type,
+      ${itemJson('$.itemInfo.seriesName')} AS info_series_name,
+      ${itemJson('$.itemInfo.seasonNumber')} AS info_season_number,
+      ${itemJson('$.itemInfo.path')} AS info_path,
+      ${itemJson('$.itemInfo.subLibraryId')} AS info_sub_library_id,
+      ${itemJson('$.itemInfo.originalSizeBytes')} AS info_original_size_bytes,
+      ${itemJson('$.itemInfo.originalBitrate')} AS info_original_bitrate,
+      ${itemJson('$.itemInfo.originalVideoCodec')} AS info_original_video_codec,
+      ${itemJson('$.itemInfo.originalAudioCodec')} AS info_original_audio_codec,
+      ${itemJson('$.itemInfo.originalWidth')} AS info_original_width,
+      ${itemJson('$.itemInfo.originalHeight')} AS info_original_height,
+      ${itemJson('$.itemInfo.adultMetadata.adultId')} AS adult_id,
+      ${itemJson('$.itemInfo.adultMetadata.scrapeStatus')} AS adult_scrape_status,
+      ${itemJson('$.itemInfo.adultMetadata.region')} AS adult_region,
+      ${itemJson('$.itemInfo.adultMetadata.protagonist')} AS adult_protagonist_json
     FROM tasks ${where}
     ORDER BY ${orderBy} ${orderDir}, id ${orderDir}
     ${includeAll ? '' : 'LIMIT @limit OFFSET @offset'}

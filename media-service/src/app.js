@@ -356,6 +356,233 @@ function buildStatusSummary(tasks) {
   return byStatus;
 }
 
+const TASK_LIFECYCLE_STAGE_DEFS = {
+  intake: {
+    key: 'intake',
+    label: 'Created or waiting for manual start',
+    statuses: ['created', 'pending_manual'],
+  },
+  queued: {
+    key: 'queued',
+    label: 'Queued for scheduler dispatch',
+    statuses: ['queued'],
+  },
+  running: {
+    key: 'running',
+    label: 'Executing flow events',
+    statuses: ['executing', 'pausing_requested'],
+  },
+  user_gate: {
+    key: 'user_gate',
+    label: 'Waiting for user confirmation',
+    statuses: ['awaiting_user_confirm'],
+  },
+  recovery_hold: {
+    key: 'recovery_hold',
+    label: 'Paused or interrupted and needs recovery',
+    statuses: ['paused', 'interrupted'],
+  },
+  terminal_success: {
+    key: 'terminal_success',
+    label: 'Finished or skipped',
+    statuses: ['done', 'skipped'],
+  },
+  terminal_failure: {
+    key: 'terminal_failure',
+    label: 'Failed or cancelled',
+    statuses: ['failed_hard', 'cancelled'],
+  },
+};
+
+function taskLifecycleStage(status) {
+  const s = String(status || '').trim();
+  for (const def of Object.values(TASK_LIFECYCLE_STAGE_DEFS)) {
+    if (def.statuses.includes(s)) return def.key;
+  }
+  return 'unknown';
+}
+
+function inc(map, key, by = 1) {
+  const k = String(key || 'unknown') || 'unknown';
+  map[k] = (map[k] || 0) + by;
+}
+
+function makeLifecycleBucket(key, base = {}) {
+  return {
+    key,
+    ...base,
+    total: 0,
+    byStatus: {},
+    byLifecycleStage: {},
+    byBridgeKind: {},
+    byOperationKind: {},
+    bySource: {},
+    active: 0,
+    terminal: 0,
+    failed: 0,
+    awaitingUser: 0,
+  };
+}
+
+function addTaskToLifecycleBucket(bucket, task, stage) {
+  const status = task.status || 'unknown';
+  const bridgeKind = task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || 'unknown';
+  const operationKind = task.flowPlan && task.flowPlan.operationKind || task.actionType || 'unknown';
+  bucket.total += 1;
+  inc(bucket.byStatus, status);
+  inc(bucket.byLifecycleStage, stage);
+  inc(bucket.byBridgeKind, bridgeKind);
+  inc(bucket.byOperationKind, operationKind);
+  inc(bucket.bySource, task.source || 'unknown');
+  if (!['done', 'skipped', 'failed_hard', 'cancelled'].includes(status)) bucket.active += 1;
+  else bucket.terminal += 1;
+  if (status === 'failed_hard' || status === 'cancelled') bucket.failed += 1;
+  if (status === 'awaiting_user_confirm') bucket.awaitingUser += 1;
+}
+
+function taskSubLibraryId(task) {
+  return task && task.itemInfo && task.itemInfo.subLibraryId
+    || task && task.taskBridge && task.taskBridge.subLibraryId
+    || '';
+}
+
+function taskLibraryContext(task, subLibrariesById) {
+  const subLibraryId = taskSubLibraryId(task);
+  const subLibrary = subLibraryId ? subLibrariesById.get(subLibraryId) : null;
+  const itemInfo = task && task.itemInfo || {};
+  const inferredAdult = itemInfo.adultMetadata || task && task.source === 'adult_folder';
+  const inferredTv = itemInfo.type === 'season' || itemInfo.type === 'episode';
+  const mediaType = subLibrary && subLibrary.mediaType
+    || (inferredAdult ? 'adult' : inferredTv ? 'tv' : 'unknown');
+  const source = subLibrary && subLibrary.source || (inferredAdult ? 'folder' : 'unknown');
+  return {
+    subLibraryId: subLibraryId || '',
+    subLibraryName: subLibrary && subLibrary.name || (subLibraryId ? '(missing sub-library)' : '(no sub-library)'),
+    librarySource: source,
+    mediaType,
+    adultRegion: subLibrary && subLibrary.adultRegion || itemInfo.adultMetadata && itemInfo.adultMetadata.region || '',
+    found: !!subLibrary,
+  };
+}
+
+function addLifecycleSignal(signals, signal, sampleLimit) {
+  const code = signal.code || 'unknown';
+  const severity = signal.severity || 'info';
+  inc(signals.byCode, code);
+  inc(signals.bySeverity, severity);
+  signals.total += 1;
+  if (signals.items.length < sampleLimit) signals.items.push(signal);
+}
+
+function taskLifecycleSignals(task, context, controlState) {
+  const signals = [];
+  const status = task.status || '';
+  const bridgeKind = task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '';
+  const operationKind = task.flowPlan && task.flowPlan.operationKind || task.actionType || '';
+  const primaryResourceType = task.flowPlan && task.flowPlan.primaryResourceType || '';
+  const confirmationRequired = controlState && controlState.confirmation && controlState.confirmation.required;
+
+  if (!context.subLibraryId) {
+    signals.push({ severity: 'warn', code: 'missing_sub_library_context', message: 'Task has no subLibraryId in its lightweight facts.' });
+  } else if (!context.found) {
+    signals.push({ severity: 'warn', code: 'unknown_sub_library', message: 'Task references a sub-library that is not present in config.' });
+  }
+  if (!bridgeKind || !operationKind) {
+    signals.push({ severity: 'warn', code: 'missing_bridge_or_operation', message: 'Task cannot be explained by bridge/operation facts.' });
+  }
+  if (!primaryResourceType) {
+    signals.push({ severity: 'warn', code: 'missing_primary_resource', message: 'Task has no primary resource type for lifecycle/resource diagnosis.' });
+  }
+  if (context.mediaType !== 'adult' && operationKind === 'scrape') {
+    signals.push({ severity: 'error', code: 'standard_media_scrape_task', message: 'Standard media should not enter scrape task lifecycle.' });
+  }
+  if (context.mediaType === 'adult' && bridgeKind === 'metadata' && !['ingest', 'scrape'].includes(operationKind)) {
+    signals.push({ severity: 'warn', code: 'adult_metadata_unexpected_operation', message: 'Adult metadata bridge should use ingest or scrape operation.' });
+  }
+  if (status === 'awaiting_user_confirm' && !confirmationRequired) {
+    signals.push({ severity: 'error', code: 'awaiting_without_confirmation_gate', message: 'Task status is awaiting confirmation but controlState has no active confirmation gate.' });
+  }
+  if (status === 'executing' && !task.phase) {
+    signals.push({ severity: 'warn', code: 'executing_without_phase', message: 'Executing task has no current phase.' });
+  }
+  if (status === 'failed_hard' && !(controlState && controlState.recovery && controlState.recovery.reason)) {
+    signals.push({ severity: 'warn', code: 'failed_without_recovery_reason', message: 'Failed task does not expose a recovery reason.' });
+  }
+  return signals;
+}
+
+function buildTaskLifecycleAudit(tasks, config, opts = {}) {
+  const sampleLimit = Math.min(50, Math.max(1, Number(opts.sampleLimit) || 12));
+  const subLibrariesById = new Map((config.subLibraries || []).map((sl) => [sl.uuid, sl]));
+  const byLibraryType = {};
+  const bySubLibraryMap = new Map();
+  const byLifecycleStage = {};
+  const summary = makeLifecycleBucket('all', {});
+  const signals = { total: 0, bySeverity: {}, byCode: {}, items: [] };
+
+  for (const task of tasks || []) {
+    const context = taskLibraryContext(task, subLibrariesById);
+    const stage = taskLifecycleStage(task.status);
+    const stageDef = TASK_LIFECYCLE_STAGE_DEFS[stage] || { key: stage, label: 'Unknown lifecycle stage', statuses: [] };
+    const controlState = taskControlPolicy.buildTaskControlState(task);
+
+    if (!byLifecycleStage[stage]) {
+      byLifecycleStage[stage] = { key: stage, label: stageDef.label, statuses: stageDef.statuses || [], count: 0 };
+    }
+    byLifecycleStage[stage].count += 1;
+
+    if (!byLibraryType[context.mediaType]) {
+      byLibraryType[context.mediaType] = makeLifecycleBucket(context.mediaType, {
+        mediaType: context.mediaType,
+      });
+    }
+    const subKey = context.subLibraryId || '(none)';
+    if (!bySubLibraryMap.has(subKey)) {
+      bySubLibraryMap.set(subKey, makeLifecycleBucket(subKey, {
+        subLibraryId: context.subLibraryId,
+        name: context.subLibraryName,
+        mediaType: context.mediaType,
+        source: context.librarySource,
+        adultRegion: context.adultRegion,
+        found: context.found,
+      }));
+    }
+
+    addTaskToLifecycleBucket(summary, task, stage);
+    addTaskToLifecycleBucket(byLibraryType[context.mediaType], task, stage);
+    addTaskToLifecycleBucket(bySubLibraryMap.get(subKey), task, stage);
+
+    for (const signal of taskLifecycleSignals(task, context, controlState)) {
+      addLifecycleSignal(signals, {
+        ...signal,
+        taskId: task.id,
+        itemId: task.itemId,
+        itemName: task.itemName || task.itemInfo && task.itemInfo.name || '',
+        status: task.status || '',
+        lifecycleStage: stage,
+        bridgeKind: task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '',
+        operationKind: task.flowPlan && task.flowPlan.operationKind || task.actionType || '',
+        source: task.source || '',
+        subLibraryId: context.subLibraryId,
+        subLibraryName: context.subLibraryName,
+        mediaType: context.mediaType,
+      }, sampleLimit);
+    }
+  }
+
+  return {
+    total: summary.total,
+    summary,
+    byLifecycleStage,
+    byLibraryType,
+    bySubLibrary: [...bySubLibraryMap.values()].sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total;
+      return String(a.name || a.key).localeCompare(String(b.name || b.key));
+    }),
+    signals,
+  };
+}
+
 function sortTasksForAdminList(tasks) {
   return [...(tasks || [])].sort((a, b) => {
     const bTime = Date.parse(b.updatedAt || b.createdAt || '') || 0;
@@ -3063,6 +3290,54 @@ function registerRoutes(app) {
       page: result.page,
       pageSize: result.pageSize,
       total: result.total,
+    };
+  });
+
+  app.get('/v1/admin/tasks/lifecycle-audit', async (req) => {
+    const filter = {};
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.statuses) {
+      filter.statuses = String(req.query.statuses)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    if (req.query.actionType) filter.actionType = req.query.actionType;
+    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
+    if (req.query.operationKind) filter.operationKind = req.query.operationKind;
+    if (req.query.q) filter.q = req.query.q;
+    const config = configStore.loadConfig();
+    const allTasks = taskStore.queryTaskSummaries(filter, {
+      includeAll: true,
+      includeTerminalItemInfo: true,
+      orderBy: 'updatedAt',
+      orderDir: 'desc',
+    }).tasks;
+    const subLibraryId = req.query.subLibraryId ? String(req.query.subLibraryId).trim() : '';
+    const mediaType = req.query.mediaType ? String(req.query.mediaType).trim() : '';
+    const subLibrariesById = new Map((config.subLibraries || []).map((sl) => [sl.uuid, sl]));
+    const filteredTasks = allTasks.filter((task) => {
+      const context = taskLibraryContext(task, subLibrariesById);
+      if (subLibraryId && context.subLibraryId !== subLibraryId) return false;
+      if (mediaType && context.mediaType !== mediaType) return false;
+      return true;
+    });
+    const audit = buildTaskLifecycleAudit(filteredTasks, config, {
+      sampleLimit: req.query.sampleLimit,
+    });
+    return {
+      generatedAt: new Date().toISOString(),
+      filters: {
+        status: filter.status || '',
+        statuses: filter.statuses || undefined,
+        actionType: filter.actionType || '',
+        bridgeKind: filter.bridgeKind || '',
+        operationKind: filter.operationKind || '',
+        subLibraryId,
+        mediaType,
+        q: filter.q || '',
+      },
+      ...audit,
     };
   });
 
