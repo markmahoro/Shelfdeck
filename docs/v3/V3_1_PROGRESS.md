@@ -1873,3 +1873,63 @@ Slice 41 的 lifecycle audit 仍保留旧结论：`context.mediaType !== adult &
 - 本切片尚未部署 NAS；生产中既有 `done` task 的历史脏字段不会自动回填清理，部署后需要确认新闭合 task 不再保留 `resumePoint`。
 - P0-1 仍未完整关闭：还需要继续按库类型审计 `ingest -> scrape -> optimize -> archive` 下每类 task 的 lifecycle 是否符合新业务模型。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 47: Initial strategy placeholder is not lifecycle closure
+
+### 对应标准
+
+- A2/A3: 媒体生命周期必须遵循 `ingest -> scrape -> optimize -> archive` 的用户心智，不能因为内部默认字段把未完成阶段误投影为已闭环。
+- B3/B5: 媒体库和任务中心看到的生命周期状态必须能解释“为什么没有进入下一阶段”，而不是把“新入库占位策略”显示成归档完成。
+
+### 审计结果
+
+本轮继续审计 `SmartTaskEngine` / `lifecycleProjection` / `StrategyEngine` 时发现：
+
+- 新入库普通 Emby item 默认写入 `action=keep`、`reason=新入库`。
+- 成人文件夹新入库 item 也可能写入 `action=keep`、`reason=成人库新入库`。
+- `lifecycleProjection.resolveLifecycle()` 原先只要看到 `metadataComplete=true` 且 `action` 为空、`keep` 或 `none`，就直接投影为：
+  - `lifecycleStage=archived`
+  - `lifecycleDone=true`
+  - `archiveStatus=archived_like`
+  - `lifecycleReason=strategy_keep`
+
+判断：
+
+- 这是 P0-1 新业务模型问题。
+- 真正由策略计算得出的 `keep` 可以作为 archive-like closure；这是 v3.0.1 已接受的投影闭环。
+- 但 `新入库` / `成人库新入库` 是策略尚未认真计算前的占位状态，不是 optimize 阶段的结果。
+- 如果一个 item 已显示“元数据完整”，但只是因为默认 `keep/新入库` 被投影为 archived，用户会误以为它已经走完 optimize/archive，实际系统只是还没完成策略计算。
+
+### 本切片修复
+
+- `lifecycleProjection` 新增初始策略占位识别：
+  - `action` 为空或 `none`：`strategy_missing`；
+  - `action=keep` 且 `reason=新入库` / `成人库新入库`：`strategy_pending`。
+- 上述状态不再闭环，而是投影为：
+  - `lifecycleStage=metadata_ready`
+  - `lifecycleDone=false`
+  - `archiveStatus=not_ready`
+  - `lifecycleNextTask=optimize`
+- 明确策略产出的 `action=keep` 仍保持 `archived_like`，不创建 keep task，也不改变既有 keep 闭环模型。
+
+### 后端事实来源
+
+- `media-service/src/lifecycleProjection.js`
+  - 拆分初始占位 keep 与真实策略 keep。
+- `media-service/test/task-model.test.js`
+  - 覆盖 `keep/新入库` 不再 closed，而是 `metadata_ready -> optimize`。
+  - 覆盖 `action` 为空时是 `strategy_missing`，不再 closed。
+  - 覆盖明确策略 keep 仍为 `archived_like`。
+  - 覆盖 SQLite lifecycle query 中，新入库占位 keep 落在 open 集合，明确策略 keep 落在 done 集合。
+
+### 本地验收
+
+- `node --test test/task-model.test.js --test-name-pattern "lifecycleProjection|libraryStore persists v3 media lifecycle facts"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，41 个测试通过。
+- `npm test`: pass，242 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS；生产中已持久化的 lifecycle SQL facts 需要部署后通过刷新/策略重算或后续迁移刷新投影。
+- P0-1 仍有模型问题待继续收敛：`SmartTaskEngine` 仍在触发器内部硬编码 `watched=true`、`item.action`、`reason !== 新入库` 等 optimize trigger 条件。这个问题同样来自旧模型，不属于性能支线；后续需要把它从“聪明决策器”继续收敛成“只看 lifecycle gate 的任务触发器”。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

@@ -1514,15 +1514,30 @@ test('libraryStore persists v3 media lifecycle facts as SQL query fields', () =>
         type: 'movie',
         path: '/media/v3-two.mkv',
         action: 'keep',
+        reason: 'modern codec already within target',
+        metadataComplete: true,
+        metadataStatus: 'complete',
+      }, {
+        itemId: 'v3-media-3',
+        subLibraryId: 'lib-v3',
+        source: 'emby',
+        sourceId: 'emby-v3-media-3',
+        name: 'V3 Media Three',
+        type: 'movie',
+        path: '/media/v3-three.mkv',
+        action: 'keep',
+        reason: '新入库',
         metadataComplete: true,
         metadataStatus: 'complete',
       }],
     });
 
     const open = libraryStore.queryItems({ lifecycle: 'open' }).items;
-    assert.deepStrictEqual(open.map((item) => item.itemId), ['v3-media-1']);
+    assert.deepStrictEqual(open.map((item) => item.itemId), ['v3-media-1', 'v3-media-3']);
     assert.strictEqual(open[0].lifecycleStage, 'metadata_ready');
     assert.strictEqual(open[0].metadataStatus, 'complete');
+    assert.strictEqual(open[1].lifecycleStage, 'metadata_ready');
+    assert.strictEqual(open[1].lifecycleReason, 'strategy_pending');
 
     const closed = libraryStore.queryItems({ lifecycle: 'done' }).items;
     assert.deepStrictEqual(closed.map((item) => item.itemId), ['v3-media-2']);
@@ -1612,8 +1627,28 @@ test('lifecycleProjection separates metadata, optimize, and archive-like closure
   assert.strictEqual(pendingOptimize.lifecycleStage, 'metadata_ready');
   assert.strictEqual(pendingOptimize.lifecycleNextTask, 'optimize');
 
+  const strategyPending = lifecycleProjection.resolveLifecycle({
+    action: 'keep',
+    reason: '新入库',
+    metadataComplete: true,
+  });
+  assert.strictEqual(strategyPending.lifecycleStage, 'metadata_ready');
+  assert.strictEqual(strategyPending.lifecycleNextTask, 'optimize');
+  assert.strictEqual(strategyPending.lifecycleDone, false);
+  assert.strictEqual(strategyPending.lifecycleReason, 'strategy_pending');
+
+  const strategyMissing = lifecycleProjection.resolveLifecycle({
+    action: '',
+    metadataComplete: true,
+  });
+  assert.strictEqual(strategyMissing.lifecycleStage, 'metadata_ready');
+  assert.strictEqual(strategyMissing.lifecycleNextTask, 'optimize');
+  assert.strictEqual(strategyMissing.lifecycleDone, false);
+  assert.strictEqual(strategyMissing.lifecycleReason, 'strategy_missing');
+
   const keep = lifecycleProjection.resolveLifecycle({
     action: 'keep',
+    reason: 'modern codec already within target',
     metadataComplete: true,
   });
   assert.strictEqual(keep.lifecycleStage, 'archived');

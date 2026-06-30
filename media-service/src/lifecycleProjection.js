@@ -4,6 +4,16 @@ function normalizeAction(action) {
   return String(action || '').toLowerCase();
 }
 
+function normalizeReason(reason) {
+  return String(reason || '').trim();
+}
+
+function isInitialStrategyPlaceholder(action, reason) {
+  if (!action || action === 'none') return true;
+  if (action !== 'keep') return false;
+  return ['新入库', '成人库新入库'].includes(normalizeReason(reason));
+}
+
 function isOptimizationDone(item) {
   const status = String(item && item.optimizationStatus || '').toLowerCase();
   return status === 'transcoded' || status === 'upgraded';
@@ -11,6 +21,7 @@ function isOptimizationDone(item) {
 
 function resolveLifecycle(item) {
   const action = normalizeAction(item && item.action);
+  const reason = normalizeReason(item && item.reason);
   const metadataComplete = !!(item && item.metadataComplete);
 
   if (!metadataComplete) {
@@ -24,7 +35,18 @@ function resolveLifecycle(item) {
     };
   }
 
-  if (!action || action === 'keep' || action === 'none') {
+  if (isInitialStrategyPlaceholder(action, reason)) {
+    return {
+      lifecycleStage: 'metadata_ready',
+      lifecycleDone: false,
+      archiveStatus: 'not_ready',
+      lifecycleNextTask: 'optimize',
+      lifecycleReason: action ? 'strategy_pending' : 'strategy_missing',
+      optimizationDirection: null,
+    };
+  }
+
+  if (action === 'keep') {
     return {
       lifecycleStage: 'archived',
       lifecycleDone: true,
