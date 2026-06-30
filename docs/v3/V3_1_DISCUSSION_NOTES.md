@@ -242,3 +242,118 @@ metadataCompleteGate >= optimizeRequiredInputs
 - 如果 gate 已满足，后续应能进入 optimize lifecycle，或者出现明确的 optimize 阶段阻断/资源等待/配置错误诊断。
 
 因此后续实现顺序应先收敛 `metadataStatus` / gate 模型，再继续普通库半假 scrape 的准入和 executor 修复。
+
+## 11. Lifecycle / Task / Flow / Event 的分层模型
+
+本节记录 2026-06-30 继续讨论后确认的任务模型，后续 P0-1 不应再回到 `actionType` 作为主语义的旧模型。
+
+### 11.1 四层定义
+
+ShelfDeck 的顶层模型应按以下层次理解：
+
+```text
+lifecycle = 媒体状态
+task      = lifecycle 状态转换的桥梁
+flow      = task 内部 event 的编排
+event     = 原子能力 / 资源消耗节点
+```
+
+- `lifecycle` 是用户心智中的状态机，例如 `ingest -> scrape -> optimize -> archive`。
+- `task` 是一次状态转换尝试，例如“把这个媒体从 scrape 阶段推进到 optimize-ready”。
+- `flow` 是该 task 内部如何编排多个 event，例如普通 Emby repair、成人 JAV scrape、转码、洗版等。
+- `event` 是真正消耗资源的原子能力节点。未来如果存在大量 worker 节点，worker 提供的也应是 event 级能力，而不是直接抢 lifecycle 主语义。
+
+因此，任务管理不能把 `flow`、`event` 或旧 `actionType` 当成用户层 lifecycle 主语义。
+
+### 11.2 Flow 选择不属于 Task Management
+
+一个 task 类型下可能存在多种 flow。最典型的是 `optimize`：
+
+- 某个媒体的 optimize 可以走 `transcode` flow；
+- 另一个媒体的 optimize 可以走 `upgrade` flow；
+- 还有媒体可能通过 `keep` 直接收口。
+
+过去这些差异由“策略计算引擎”产出，但代码里常被压缩成 `actionType=transcode/upgrade`。后续应收敛为：
+
+- Task Management 只管理任务实例：创建、去重、排队、暂停、恢复、取消、历史。
+- Strategy / policy 产出阶段转换所需的业务事实，例如 optimize 阶段到底应压缩、洗版、保留还是删除。
+- Flow Selection / Task Planning 根据 lifecycle 阶段、item facts、strategy result、子库配置选择该 task 的 flow plan。
+- Scheduler 只执行已经确定的 flow event 编排。
+
+也就是说，task management 不应该“决定一个 task 走哪个 flow”。它应接收已经规划好的 task/flow facts，并负责生命周期内的任务实例管理。
+
+### 11.3 SmartTaskEngine 不是智能决策器，而是任务触发器
+
+在新模型下，`SmartTaskEngine` 不应该继续承担业务聪明判断。它应被理解为后台任务触发器：
+
+```text
+扫描 media item
+检查该 item 是否达到触发下一个 lifecycle task 的 gate
+若无同 item / 同阶段 active task，且触发层限额允许，则创建 task
+```
+
+它不应该决定：
+
+- 普通库 repair 和成人 scrape 是否是两套任务管理逻辑；
+- optimize 是走 transcode 还是 upgrade；
+- scrape 未 meet gate 后是否新建另一个 scrape task；
+- 某个 task 下游会消耗哪些资源。
+
+因此，SmartTaskEngine 应尽量简单。它只负责根据 lifecycle gate 触发 task；真正的 flow 选择、失败恢复和资源消耗不属于它。
+
+这里还缺一个需要后续明确的 gate：`ingest -> scrape` 的触发 gate。初步模型是：当 media item 已进入 ShelfDeck 的 `media_items`，并拥有稳定 `itemId`、`subLibraryId`、source identity / asset identity 后，就可以触发 scrape 阶段 task。
+
+### 11.4 MetadataGate 是 scrape exit gate，不是 scrape trigger
+
+此前容易混淆的一点是：`metadataGate` 不是“是否触发 scrape”的条件。
+
+正确模型是：
+
+```text
+ingest 完成后必然进入 scrape 阶段；
+scrape flow 执行后，用 metadataGate 判断 scrape 阶段是否完成；
+metadataGate 通过后才进入 optimize；
+metadataGate 不通过时，媒体停在 scrape 阶段，并由当前 scrape task/flow 给出失败、恢复或用户确认语义。
+```
+
+因此，`metadataGate` 是 scrape 阶段的完成判定，也就是 scrape exit gate。它不是 SmartTaskEngine 判断“要不要 scrape”的根条件。
+
+如果一个 scrape task 执行后没有 meet gate，不能依赖 SmartTaskEngine 下一轮再创建一个新的 scrape task 来补救。是否 retry、resume、confirm、fail hard、从哪个 event 继续，属于该 scrape flow 的 recovery contract。
+
+### 11.5 每种 Flow 的 Recovery Contract 必须补设计
+
+目前每种任务类型下失败重试的 flow 语义没有被认真完整设计过。后续 P0-1 需要逐类补齐 recovery contract：
+
+- `ingest`: 文件探测失败、部分写入 media item、文件移动或缺失后如何 retry。
+- `scrape`: 普通 repair 未 meet metadataGate、成人 scrape ambiguous / needs_review / 写入部分海报 NFO 后如何 retry 或转用户确认。
+- `transcode`: precheck、encode、replace、verify 各阶段失败后是否可重试、从哪里恢复、临时文件如何处理。
+- `upgrade`: 搜索、候选选择、下载、替换前验证、替换失败后是否会重复提交 MoviePilot 请求。
+- `delete/archive`: path safety、部分删除、marker 校验失败后是否可安全 retry。
+
+通用 retry endpoint 只能是外壳。真正能不能恢复、恢复点在哪里、是否幂等，必须由具体 flow contract 决定。
+
+### 11.6 SmartTaskEngine 不管理资源，只消费资源刹车信号
+
+SmartTaskEngine 触发 task 时理论上不消耗资源。真正消耗资源的是 task 开始执行 flow，并 dispatch 到具体 event/node 的时候。
+
+因此 SmartTaskEngine 不应该自己理解或计算：
+
+- 下游会走哪个 flow plan；
+- flow 里有多少 event；
+- event 会消耗 `emby`、`local_transcode`、`moviepilot`、`scraper` 还是其他资源；
+- 当前资源是否足够。
+
+如果需要避免任务触发过多，应该由资源视图/资源治理层给出刹车信号：
+
+```text
+Resource View / ResourceGovernor 观察 backlog、resource pressure、外部依赖健康
+=> 给 SmartTaskEngine 一个“暂时不要触发更多任务”的结论
+=> SmartTaskEngine 记录 skip reason，但不自己推导资源消耗
+```
+
+这和 Scheduler 的 event dispatch 限流是两件事：
+
+- Trigger pressure: 是否允许继续创建新 task，避免任务中心/队列膨胀。
+- Dispatch pressure: 是否允许 scheduler 分派某个 event，避免资源过载。
+
+SmartTaskEngine 只消费 trigger pressure 的结论；Scheduler 才负责 dispatch pressure 下的 event 执行节奏。
