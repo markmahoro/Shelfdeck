@@ -39,6 +39,7 @@ let schedulerBusy = false;
 // Concurrency protection
 const runningTasks = new Set(); // taskId Set — prevents re-entry within same polling round
 const justConfirmedIds = new Set(); // tasks confirmed by user this round — bypass awaiting guard
+const CLOSED_STATUSES = new Set(['done', 'skipped', 'cancelled', 'deleted']);
 
 function getFlow(actionType) {
   switch (actionType) {
@@ -132,6 +133,10 @@ function reportStatus(taskId, status, progress) {
 
   const oldTask = taskStore.getTask(taskId);
   const updates = { status };
+  if (CLOSED_STATUSES.has(status)) {
+    updates.resumePoint = null;
+    updates.approval = null;
+  }
   taskStore.updateTask(taskId, updates);
 
   // Activity log events for task lifecycle

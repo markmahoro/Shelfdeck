@@ -1821,3 +1821,55 @@ Slice 41 的 lifecycle audit 仍保留旧结论：`context.mediaType !== adult &
 - 不应简单放开并发打 Emby。
 - 应让 Emby 子库 refresh timer 错峰或进入串行队列，并对 `lock_busy` skipped 的 refresh 做补偿重试。
 - Dashboard health / lifecycle audit 的慢查询需要单独回到 C1/C4 性能标准下做 SQL/projection 硬化。
+
+## 2026-06-30 Slice 46: Closed task recovery state cleanup
+
+### 对应标准
+
+- A5: 任务生命周期必须能清晰解释当前 task 是否仍可恢复、是否需要用户确认、是否已经闭合。
+- B3/B5: 任务中心不应在成功闭合任务上继续展示 retry/resume 语义，避免用户误判这个 task 仍处在执行中或可恢复中。
+
+### 审计结果
+
+生产只读审计时发现 delete 任务列表中存在大量 `done` task 仍保留 `resumePoint=delete_executing`：
+
+- `/v1/admin/tasks?actionType=delete&pageSize=12`: total 42，样本均为 `status=done`。
+- 样本任务包括 `f2ea3ba67b32e6d5`（ABP-001）、`0a8501c2d9162ecb`（TR-001）等。
+- 这些任务已经是 `phase=done`、`bridgeKind=archive`、`flowDirection=archive.delete`、`operationKind=delete`、`primaryResourceType=filesystem`，但仍携带 `resumePoint=delete_executing`。
+
+判断：
+
+- 这是 P0-1 新业务模型下的生命周期语义问题。
+- `resumePoint` 是失败、暂停、中断或用户确认态的恢复上下文；成功闭合 task 不应该继续携带恢复点。
+- 否则任务中心会把一个已经完成的 archive/delete bridge 表达成仍有执行恢复点，破坏 `task = lifecycle 转换桥梁` 的心智。
+
+### 本切片修复
+
+- `taskScheduler.reportStatus()` 增加闭合状态统一清理：
+  - `done`
+  - `skipped`
+  - `cancelled`
+  - `deleted`
+- 当 task 进入上述闭合状态时，统一清理：
+  - `resumePoint=null`
+  - `approval=null`
+- `failed_hard` 等失败状态不清理 `resumePoint`，因为它们仍需要保留当前 flow 的恢复上下文。
+
+### 后端事实来源
+
+- `media-service/src/taskScheduler.js`
+  - 新增 closed status 集合。
+  - 在 `reportStatus()` 中集中清理闭合 task 的恢复/确认状态。
+- `media-service/test/priority-api.test.js`
+  - 覆盖 `done` task 会清理 `resumePoint` 和 `approval`。
+  - 覆盖 `failed_hard` task 会保留 `resumePoint`。
+
+### 本地验收
+
+- `npm test -- --test-name-pattern="taskScheduler clears resume state"`: pass；由于当前 npm/node-test 参数转发方式，本次实际跑到了全量 service 测试，242 个测试通过。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS；生产中既有 `done` task 的历史脏字段不会自动回填清理，部署后需要确认新闭合 task 不再保留 `resumePoint`。
+- P0-1 仍未完整关闭：还需要继续按库类型审计 `ingest -> scrape -> optimize -> archive` 下每类 task 的 lifecycle 是否符合新业务模型。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

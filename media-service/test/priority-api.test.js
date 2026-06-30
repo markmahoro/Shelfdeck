@@ -188,6 +188,47 @@ test('taskScheduler dispatch order is priority-ascending then FIFO', async () =>
   }
 });
 
+test('taskScheduler clears resume state when a task reaches a closed status', () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+
+  try {
+    const doneTask = taskStoreMod.createTask({
+      itemId: 'closed-done',
+      itemName: 'Closed Done',
+      actionType: 'delete',
+      status: 'executing',
+      phase: 'delete_executing',
+      resumePoint: 'delete_executing',
+    });
+    taskStoreMod.updateTask(doneTask.id, {
+      approval: { gateId: 'delete.beforeExecute', message: 'Delete?', options: ['approve'] },
+    });
+    scheduler.reportStatus(doneTask.id, 'done', 100);
+    const afterDone = taskStoreMod.getTask(doneTask.id);
+    assert.strictEqual(afterDone.status, 'done');
+    assert.strictEqual(afterDone.resumePoint, null);
+    assert.strictEqual(afterDone.approval, null);
+
+    const failedTask = taskStoreMod.createTask({
+      itemId: 'closed-failed',
+      itemName: 'Closed Failed',
+      actionType: 'scrape',
+      status: 'executing',
+      phase: 'scrape_executing',
+      resumePoint: 'scrape_executing',
+    });
+    scheduler.reportStatus(failedTask.id, 'failed_hard', 0);
+    const afterFailed = taskStoreMod.getTask(failedTask.id);
+    assert.strictEqual(afterFailed.status, 'failed_hard');
+    assert.strictEqual(afterFailed.resumePoint, 'scrape_executing');
+  } finally {
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
 test('taskScheduler records flow failure events and diagnostics when executor rejects', async () => {
   tmpDir();
   diagnosticLog.resetForTests();
