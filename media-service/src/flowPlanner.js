@@ -76,19 +76,19 @@ const FLOW_DEFINITIONS = {
   },
   delete: {
     bridge: {
-      kind: 'archive',
-      from: 'library_item',
-      to: 'removed_or_archived_item',
-      reason: 'Retire media from the active library under the existing mutation safety gates.',
+      kind: 'optimize',
+      from: 'metadata_ready_item',
+      to: 'removed_media',
+      reason: 'Remove media as a destructive optimize flow under the existing mutation safety gates.',
     },
-    direction: 'archive.delete',
+    direction: 'optimize.delete',
     operationKind: 'delete',
     executor: 'deleteFlowExecutor',
     primaryResourceType: 'filesystem',
     steps: [
-      { phase: 'precheck', eventType: 'archive.delete.precheck', resourceType: 'filesystem' },
-      { phase: 'executing', eventType: 'archive.delete.execute', resourceType: 'filesystem' },
-      { phase: 'verify', eventType: 'archive.delete.verify', resourceType: 'filesystem' },
+      { phase: 'delete_precheck', eventType: 'optimize.delete.precheck', resourceType: 'filesystem' },
+      { phase: 'delete_executing', eventType: 'optimize.delete.execute', resourceType: 'filesystem' },
+      { phase: 'delete_verify', eventType: 'optimize.delete.verify', resourceType: 'filesystem' },
     ],
   },
 };

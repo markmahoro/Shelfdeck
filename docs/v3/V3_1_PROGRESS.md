@@ -2528,3 +2528,61 @@ S4 archived
 - P0-1 尚未关闭：delete 仍有旧 archive bridge 语义，需要下一切片修复。
 - Optimize Gate 的事实写入还没有贯穿 transcode/upgrade/delete executor；当前是第一版读模型 evaluator。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 58: Move delete from archive bridge to optimize gate
+
+### 对应标准
+
+- A2: `delete / archive` 必须能从用户视角回答当前 lifecycle、下一座 bridge、flow operation、确认点和失败恢复语义。
+- A3: 高风险 delete 仍必须保留确认策略，但其 task 语义不能再把 delete 表达成 archive gate。
+- A4: 手动任务创建兼容旧 `actionType=delete`，但返回/记录的语义必须包含正确 bridge / operation / blocked reason。
+- P0-1 新模型：`delete` 是 optimize gate 下的 destructive optimize flow，不是 archive gate 本身。
+
+### 本切片修复
+
+- `flowPlanner` 将 `delete` 从旧 `archive.delete` 改为：
+  - `taskBridge.kind=optimize`
+  - `flowPlan.direction=optimize.delete`
+  - `flowPlan.operationKind=delete`
+  - flow steps: `delete_precheck` / `delete_executing` / `delete_verify`
+- `lifecycleTaskPlanner` 将 `delete` 纳入 `optimize` bridge 支持操作，`archive` bridge 第一版不再支持 destructive operation。
+- 手动 intent 调整：
+  - `{ bridgeKind: "optimize", preferredOperation: "delete" }` 可以创建 delete task；
+  - `{ bridgeKind: "archive", preferredOperation: "delete" }` 返回 `preferred_operation_bridge_mismatch`；
+  - 旧 `{ actionType: "delete" }` 仍作为兼容入口保留，但规划结果是 `optimize.delete`。
+- 任务中心、确认台和 active task 过滤测试改为按 `bridgeKind=optimize` 找到 delete task / delete confirmation。
+- `V3_0_1_BUSINESS_FLOW_DECISIONS.md` 增加历史文档提示，避免后续继续按 v3.0.1 旧表把 delete 规划成 archive bridge。
+
+### 用户视角变化
+
+- 用户看到的 delete task 不再是“归档任务”，而是“优化阶段下的删除处置”。
+- delete confirmation 仍然是 `delete.beforeExecute`，高风险确认没有放松。
+- Archive gate 继续表示 optimized 后的最终闭环归档，不再承担删除动作本身。
+
+### 后端事实来源
+
+- `media-service/src/flowPlanner.js`
+  - delete flow 规划改为 `optimize.delete`。
+- `media-service/src/lifecycleTaskPlanner.js`
+  - optimize bridge 支持 `transcode` / `upgrade` / `delete`。
+- `media-service/test/api-inject.test.js`
+  - 覆盖手动 intent、任务创建、确认台、任务列表 bridge/filter。
+- `media-service/test/task-model.test.js`
+  - 覆盖 strategy delete 选择 optimize bridge 和 flow step 命名。
+
+### 本地验收
+
+- `node --check src/flowPlanner.js`: pass。
+- `node --check src/lifecycleTaskPlanner.js`: pass。
+- `node --check test/api-inject.test.js`: pass。
+- `node --check test/task-model.test.js`: pass。
+- `node --test test/task-model.test.js --test-name-pattern "lifecycleTaskPlanner|flowRecoveryContract"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，50 个测试通过。
+- `node --test test/api-inject.test.js --test-name-pattern "delete task|bridge intent|filters by bridge|confirmations"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `api-inject.test.js` 全量，115 个测试通过。
+- `npm test`: pass，253 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- Delete executor 仍主要写 task `verifyResult` 和从库中移除 item；结构化 `optimizeGate` 事实写回还未贯穿 executor。
+- 历史生产任务中已持久化的 `bridgeKind=archive` / `flowDirection=archive.delete` 不会被本 slice 自动迁移；生产读模型需要后续评估是否做 compatibility projection 或数据迁移。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

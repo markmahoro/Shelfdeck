@@ -6,8 +6,8 @@ const USER_OPERATIONS = ['scrape', 'transcode', 'upgrade', 'delete'];
 
 const BRIDGE_OPERATIONS = {
   metadata: ['scrape'],
-  optimize: ['transcode', 'upgrade'],
-  archive: ['delete'],
+  optimize: ['transcode', 'upgrade', 'delete'],
+  archive: [],
 };
 
 function cleanToken(value) {

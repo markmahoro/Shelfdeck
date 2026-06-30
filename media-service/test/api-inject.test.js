@@ -288,7 +288,7 @@ test('POST /v1/tasks accepts optimize bridge intent and resolves recommended ope
   await app.close();
 });
 
-test('POST /v1/tasks accepts archive bridge intent only with delete operation', async () => {
+test('POST /v1/tasks accepts optimize bridge intent with delete operation', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const itemId = 'intent-delete-' + crypto.randomUUID().slice(0, 8);
@@ -305,18 +305,19 @@ test('POST /v1/tasks accepts archive bridge intent only with delete operation', 
   const res = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, intent: { bridgeKind: 'archive', preferredOperation: 'delete' } },
+    payload: { itemId, intent: { bridgeKind: 'optimize', preferredOperation: 'delete' } },
   });
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
   assert.strictEqual(body.actionType, 'delete');
-  assert.strictEqual(body.taskBridge.kind, 'archive');
+  assert.strictEqual(body.taskBridge.kind, 'optimize');
+  assert.strictEqual(body.flowPlan.direction, 'optimize.delete');
   assert.strictEqual(body.flowPlan.operationKind, 'delete');
   assert.strictEqual(body.admission.allowed, true);
   assert.strictEqual(body.admission.operation, 'delete');
-  assert.strictEqual(body.admission.bridgeKind, 'archive');
+  assert.strictEqual(body.admission.bridgeKind, 'optimize');
   assert.deepStrictEqual(body.requestedIntent, {
-    bridgeKind: 'archive',
+    bridgeKind: 'optimize',
     preferredOperation: 'delete',
     actionType: '',
   });
@@ -346,19 +347,19 @@ test('POST /v1/tasks rejects ambiguous or mismatched bridge intents as validatio
   const missingBody = missingOperation.json();
   assert.strictEqual(missingBody.error.message, 'preferred_operation_required');
   assert.strictEqual(missingBody.admission.reason, 'preferred_operation_required');
-  assert.deepStrictEqual(missingBody.admission.supportedOperations, ['transcode', 'upgrade']);
+  assert.deepStrictEqual(missingBody.admission.supportedOperations, ['transcode', 'upgrade', 'delete']);
   assert.ok(missingBody.businessFlowDecision.allowedOperations.some((op) => op.bridgeKind === 'optimize'));
 
   const mismatch = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, bridgeKind: 'archive', preferredOperation: 'transcode' },
+    payload: { itemId, bridgeKind: 'archive', preferredOperation: 'delete' },
   });
   assert.strictEqual(mismatch.statusCode, 400);
   const mismatchBody = mismatch.json();
   assert.strictEqual(mismatchBody.error.message, 'preferred_operation_bridge_mismatch');
   assert.strictEqual(mismatchBody.admission.reason, 'preferred_operation_bridge_mismatch');
-  assert.deepStrictEqual(mismatchBody.admission.supportedOperations, ['delete']);
+  assert.strictEqual(mismatchBody.admission.bridgeKind, 'archive');
   await app.close();
 });
 
@@ -556,13 +557,13 @@ test('GET /v1/library exposes latest terminal failure summary for media rows', a
   }
 });
 
-test('manual delete task is planned as archive bridge', async () => {
+test('manual delete task is planned as optimize bridge', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const itemId = 'archive-delete-item';
+  const itemId = 'optimize-delete-item';
   mediaLibraryService.saveLibrary({
     cachedAt: new Date().toISOString(),
-    items: [metadataReadyMovie({ itemId, name: 'Archive Candidate' })],
+    items: [metadataReadyMovie({ itemId, name: 'Delete Candidate' })],
   });
 
   const res = await app.inject({
@@ -571,8 +572,8 @@ test('manual delete task is planned as archive bridge', async () => {
     payload: { itemId, actionType: 'delete' },
   });
   assert.strictEqual(res.statusCode, 201);
-  assert.strictEqual(res.json().taskBridge.kind, 'archive');
-  assert.strictEqual(res.json().flowPlan.direction, 'archive.delete');
+  assert.strictEqual(res.json().taskBridge.kind, 'optimize');
+  assert.strictEqual(res.json().flowPlan.direction, 'optimize.delete');
   assert.strictEqual(res.json().flowPlan.operationKind, 'delete');
   await app.close();
 });
@@ -1652,8 +1653,7 @@ test('GET /v1/admin/confirmations exposes a lightweight confirmation queue', asy
     assert.strictEqual(body.summary.total, 2);
     assert.strictEqual(body.summary.byGate['upgrade.candidateSelect'], 1);
     assert.strictEqual(body.summary.byGate['delete.beforeExecute'], 1);
-    assert.strictEqual(body.summary.byBridgeKind.optimize, 1);
-    assert.strictEqual(body.summary.byBridgeKind.archive, 1);
+    assert.strictEqual(body.summary.byBridgeKind.optimize, 2);
     const upgrade = body.confirmations.find((item) => item.taskId === waitingUpgrade.id);
     assert.ok(upgrade, 'upgrade confirmation appears');
     assert.strictEqual(upgrade.confirmation.required, true);
@@ -1666,11 +1666,15 @@ test('GET /v1/admin/confirmations exposes a lightweight confirmation queue', asy
     assert.strictEqual(upgrade.recovery.nextAction, 'confirm');
     assert.strictEqual(upgrade.taskBridge.kind, 'optimize');
     assert.strictEqual(upgrade.flowPlan.operationKind, 'upgrade');
+    const deletion = body.confirmations.find((item) => item.taskId === waitingDelete.id);
+    assert.ok(deletion, 'delete confirmation appears');
+    assert.strictEqual(deletion.taskBridge.kind, 'optimize');
+    assert.strictEqual(deletion.flowPlan.operationKind, 'delete');
     assert.ok(!body.confirmations.some((item) => item.itemId === 'confirm-queued'));
 
-    const archiveOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?bridgeKind=archive&page=1&pageSize=20' });
-    assert.strictEqual(archiveOnly.statusCode, 200);
-    assert.deepStrictEqual(archiveOnly.json().confirmations.map((item) => item.taskId), [waitingDelete.id]);
+    const optimizeOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?bridgeKind=optimize&page=1&pageSize=20' });
+    assert.strictEqual(optimizeOnly.statusCode, 200);
+    assert.deepStrictEqual(new Set(optimizeOnly.json().confirmations.map((item) => item.taskId)), new Set([waitingUpgrade.id, waitingDelete.id]));
   } finally {
     taskStore.getTasks = originalGetTasks;
     taskStore.loadTasks = originalLoadTasks;
@@ -1790,6 +1794,7 @@ test('GET /v1/admin/confirmations includes adult review items without loading fu
     const archiveOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?bridgeKind=archive&page=1&pageSize=20' });
     assert.strictEqual(archiveOnly.statusCode, 200);
     assert.strictEqual(archiveOnly.json().reviewTotal, 0);
+    assert.strictEqual(archiveOnly.json().taskTotal, 0);
   } finally {
     libraryStore.loadLibrary = originalLoadLibrary;
     libraryStore.queryItems = originalQueryItems;
@@ -2398,14 +2403,14 @@ test('GET /v1/admin/tasks filters by bridge and flow operation', async () => {
   const taskStore = require('../src/taskStore');
   taskStore.createTask({ itemId: 'optimize-transcode', actionType: 'transcode', status: 'queued' });
   taskStore.createTask({ itemId: 'metadata-scrape', actionType: 'scrape', status: 'queued' });
-  taskStore.createTask({ itemId: 'archive-delete', actionType: 'delete', status: 'queued' });
+  taskStore.createTask({ itemId: 'optimize-delete', actionType: 'delete', status: 'queued' });
 
   const byBridge = await app.inject({ method: 'GET', url: '/v1/admin/tasks?bridgeKind=optimize&page=1&pageSize=10' });
   assert.strictEqual(byBridge.statusCode, 200);
   const bridgeBody = byBridge.json();
-  assert.strictEqual(bridgeBody.summary.total, 1);
-  assert.strictEqual(bridgeBody.tasks[0].itemId, 'optimize-transcode');
-  assert.strictEqual(bridgeBody.tasks[0].taskBridge.kind, 'optimize');
+  assert.strictEqual(bridgeBody.summary.total, 2);
+  assert.deepStrictEqual(new Set(bridgeBody.tasks.map((t) => t.itemId)), new Set(['optimize-transcode', 'optimize-delete']));
+  assert.ok(bridgeBody.tasks.every((t) => t.taskBridge.kind === 'optimize'));
 
   const byOperation = await app.inject({ method: 'GET', url: '/v1/admin/tasks?operationKind=scrape&page=1&pageSize=10' });
   assert.strictEqual(byOperation.statusCode, 200);
@@ -2414,9 +2419,9 @@ test('GET /v1/admin/tasks filters by bridge and flow operation', async () => {
   assert.strictEqual(operationBody.tasks[0].itemId, 'metadata-scrape');
   assert.strictEqual(operationBody.tasks[0].flowPlan.operationKind, 'scrape');
 
-  const activeByBridge = await app.inject({ method: 'GET', url: '/v1/tasks?bridgeKind=archive&activeOnly=1' });
+  const activeByBridge = await app.inject({ method: 'GET', url: '/v1/tasks?bridgeKind=optimize&activeOnly=1' });
   assert.strictEqual(activeByBridge.statusCode, 200);
-  assert.deepStrictEqual(activeByBridge.json().tasks.map((t) => t.itemId), ['archive-delete']);
+  assert.deepStrictEqual(new Set(activeByBridge.json().tasks.map((t) => t.itemId)), new Set(['optimize-transcode', 'optimize-delete']));
 
   const activeByOperation = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=transcode&activeOnly=1' });
   assert.strictEqual(activeByOperation.statusCode, 200);

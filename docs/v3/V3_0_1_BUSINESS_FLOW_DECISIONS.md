@@ -2,6 +2,8 @@
 
 本文是当前 worktree 的 v3.0.1 业务流程收口基准。
 
+注意：本文保留 v3.0.1 当时的历史判定。v3.1 已重新收口为 5 阶段、4 gate 模型；其中 `delete` 已从 `archive bridge` 调整为 `optimize gate` 下的 destructive optimize flow。继续实现时以 `docs/v3/BUSINESS_MODEL_NOTES.md` 和 `docs/v3/V3_1_PROGRESS.md` 的最新 slice 为准，不要再按本文旧表把 delete 规划成 archive bridge。
+
 背景结论：另一个分支中的 v3 重建路线已经因成本过高放弃。当前路线是在已宣称完成的 v3 上逐版本演进，v3.0.1 不新增大功能，专门重新判定 v2 action 时代留下的业务细节、入口和展示语义。
 
 术语以 `docs/v3/BUSINESS_MODEL_NOTES.md` 和 `docs/v3/DATA_MODEL_NOTES.md` 为准：

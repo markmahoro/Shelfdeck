@@ -344,6 +344,30 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
   assert.strictEqual(planned.flowPlan.direction, 'optimize.upgrade');
   assert.strictEqual(planned.flowPlan.operationKind, 'upgrade');
   assert.strictEqual(planned.flowPlan.primaryResourceType, 'moviepilot');
+
+  const deleteSelected = lifecycleTaskPlanner.selectStrategyOperation(metadataReadyMovie({
+    itemId: 'movie-planner-delete',
+    action: 'delete',
+    reason: 'strategy selected delete',
+  }));
+  assert.strictEqual(deleteSelected.allowed, true);
+  assert.strictEqual(deleteSelected.operation, 'delete');
+  assert.strictEqual(deleteSelected.bridgeKind, 'optimize');
+
+  const deletePlanned = lifecycleTaskPlanner.planOperationFlow({
+    actionType: deleteSelected.operation,
+    source: 'auto',
+    itemId: 'movie-planner-delete',
+    itemInfo: { itemId: 'movie-planner-delete' },
+  });
+  assert.strictEqual(deletePlanned.taskBridge.kind, 'optimize');
+  assert.strictEqual(deletePlanned.flowPlan.direction, 'optimize.delete');
+  assert.strictEqual(deletePlanned.flowPlan.operationKind, 'delete');
+  assert.deepStrictEqual(deletePlanned.flowPlan.steps.map((step) => step.phase), [
+    'delete_precheck',
+    'delete_executing',
+    'delete_verify',
+  ]);
 });
 
 test('businessFlowPolicy keeps disabled automatic operations out of SmartTask candidates', () => {
