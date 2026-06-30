@@ -59,6 +59,8 @@ Gate 定义：
 
 v3.1 第一版 Optimize Gate 已落地为读模型 evaluator：显式 `optimizeGate/optimizationGate` 结果优先；`keep` 是 no-op optimize；`transcode`/`upgrade`/`delete` 必须有对应完成 marker 或显式 gate 事实；转码/升级可按目标码率和目标编码做宽容差校验。Optimize gate miss 会输出可解释失败和 `automaticRetry=false` 的 retry policy，避免 SmartTaskEngine/TaskAdmission 把重资源 gate miss 误读成应该自动创建同类新任务。
 
+当 `optimizeGate.status=failed` 且 retry policy 不允许自动重试时，后台自动化不得重新创建同类 `transcode` / `upgrade` / `delete` optimize task。后续是否重试应由原 task 的 flow recovery / manual retry 语义解释。当前 v3.1 仍保留 legacy manual create task 兼容入口；最终应收口到任务中心对原失败 task 的 retry/recovery 操作。
+
 ## 3. Task
 
 Task 是阶段和阶段之间的桥梁。

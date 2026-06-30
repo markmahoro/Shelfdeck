@@ -3232,3 +3232,59 @@ S4 archived
   - archive task 执行后的 event/resource 解释是否足够；
   - adult/standard item 在 archive gate 下是否都能给出一致的用户可读状态；
   - optimize gate failed 时是否不会被错误地当成新 optimize task 自动重建。
+
+## 2026-06-30 Slice 68: Optimize gate failed 后阻止自动重建重资源任务
+
+### 用户视角判定
+
+- Optimize gate 证明的是 optimize task/flow 声明的目标是否达成，不是“执行过一次就算成功”。
+- 当 optimize gate 已经明确 failed，且 retry policy 不允许 automatic retry 时，后台自动化不能再新建同类重资源 task。
+- 这符合当前 P0-1 框架：SmartTaskEngine 只看 gate 和 policy 触发 task，不负责资源；gate miss 后是否重试属于原 task 内部 flow recovery / manual retry 语义。
+
+### 本机 profile 发现
+
+- 使用 `.codex/local-prod-data` 生产同构 profile 复查时，发现 266 个 item 具有 `optimizeGate.status=failed`。
+- 样本失败原因主要是 `target_bitrate_exceeded`，例如目标码率 4/10/16 Mbps，但实际输出仍超过宽目标上限。
+- 修复前这些 item 因 `action=transcode` 和 metadata complete，存在被 SmartTask 再次当成 `transcode` candidate 的风险。
+
+### 已完成
+
+- `businessFlowPolicy.resolveAutomaticTrigger`：
+  - 在 metadata gate 通过后、archive/strategy 自动触发前，先检查 optimize gate failed 状态。
+  - 当 failed operation 是 `transcode` / `upgrade` / `delete` 且 `retryPolicy.automaticRetry !== true` 时，返回 blocked。
+- `TaskAdmission.evaluateOperation`：
+  - 对 automatic source 的重资源 optimize operation 增加同一保护。
+  - 返回 `optimize_gate_failed_manual_retry_required`，并携带 `optimizeGate` 与 `retryPolicy`，供诊断/任务中心解释。
+- 手动入口边界：
+  - 目前 legacy manual create task 仍保留显式用户意图兼容。
+  - 严格 v3.1 最终模型应进一步收口到原失败 task 的 retry/recovery，而不是新建同类 task。
+
+### 本机 profile 复验
+
+- 266 个 failed optimize gate item 全部变为：
+  - `blocked:transcode:optimize_gate_failed_manual_retry_required`
+- 这些 item 不再会被后台自动化重新创建同类转码任务。
+
+### 验证
+
+- `node --check src/businessFlowPolicy.js`：通过。
+- `node --test test/task-model.test.js --test-name-pattern "optimize gate failed|automatic heavy optimize|re-transcode"`：通过；Node 当前实际执行该文件 65 tests，全部通过。
+- `node --test test/api-contract.test.js`：通过，35 tests。
+- `node --test test/priority-api.test.js`：通过，14 tests。
+- `npm run build:web`：通过；Vite dynamic/static import warning 仍为既有 warning。
+
+### 全量测试限制
+
+- `npm test` 在 Windows 默认 child isolation 模式下 184 秒超时，未完成。
+- 这与前序已记录的全量套件 hang 风险一致；本 slice 不把专项测试冒充为全量通过。
+
+### 生产部署
+
+- 本 slice 未部署 NAS 生产。
+- 原因：当前流程已调整为普通 slice 先在本机测试环境验证；生产部署留给重大版本、真实 NAS 行为验证、生产 Admin Web 验收，或用户明确要求时执行。
+
+### 尚未满足
+
+- P0-1 仍未整体宣布完成。
+- 本 slice 只关闭了自动化错误重建重资源 optimize task 的问题。
+- 后续仍需把手动新建同类 optimize task 的 legacy 兼容入口，进一步收口到任务中心 retry/recovery 语义。

@@ -423,6 +423,37 @@ test('businessFlowPolicy resolves automatic optimize triggers from strategy outp
   assert.strictEqual(trigger.planningMode, 'strategy_result');
 });
 
+test('businessFlowPolicy blocks automatic heavy optimize after optimize gate failed', () => {
+  const config = {
+    smartTaskEnabledActions: ['transcode'],
+    subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+  };
+  const trigger = businessFlowPolicy.resolveAutomaticTrigger({
+    config,
+    item: metadataReadyMovie({
+      itemId: 'movie-auto-optimize-failed',
+      subLibraryId: 'movie-lib',
+      action: 'transcode',
+      reason: 'strategy selected transcode',
+      optimizeGate: {
+        gate: 'optimize',
+        passed: false,
+        status: 'failed',
+        reason: 'target_bitrate_not_met',
+        operation: 'transcode',
+        failureReasons: ['target_bitrate_not_met'],
+        retryPolicy: { automaticRetry: false, manualRetryAllowed: true, reason: 'heavy_resource_gate_miss' },
+      },
+    }),
+  });
+
+  assert.strictEqual(trigger.allowed, false);
+  assert.strictEqual(trigger.operation, 'transcode');
+  assert.strictEqual(trigger.reason, 'optimize_gate_failed_manual_retry_required');
+  assert.strictEqual(trigger.optimizeGate.status, 'failed');
+  assert.strictEqual(trigger.retryPolicy.automaticRetry, false);
+});
+
 test('businessFlowPolicy resolves automatic archive trigger after optimize gate', () => {
   const config = {
     smartTaskEnabledActions: ['archive'],
@@ -1669,6 +1700,48 @@ test('taskAdmission blocks automatic re-transcode after successful transcode', (
   });
   assert.strictEqual(result.allowed, false);
   assert.strictEqual(result.reason, 'already_transcoded');
+});
+
+test('taskAdmission blocks automatic heavy optimize when optimize gate failed but keeps manual intent explicit', () => {
+  const config = {
+    smartTaskEnabledActions: ['transcode'],
+    subLibraries: [{ uuid: 'lib-a', source: 'emby', mediaType: 'movie', automationMode: 'auto' }],
+  };
+  const item = metadataReadyMovie({
+    itemId: 'failed-optimize-admission',
+    subLibraryId: 'lib-a',
+    action: 'transcode',
+    optimizeGate: {
+      gate: 'optimize',
+      passed: false,
+      status: 'failed',
+      reason: 'target_bitrate_exceeded',
+      operation: 'transcode',
+      failureReasons: ['target_bitrate_exceeded'],
+      retryPolicy: { automaticRetry: false, manualRetryAllowed: true, reason: 'heavy_resource_gate_miss' },
+    },
+  });
+
+  const auto = taskAdmission.canCreateTask({
+    item,
+    actionType: 'transcode',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(auto.allowed, false);
+  assert.strictEqual(auto.reason, 'optimize_gate_failed_manual_retry_required');
+  assert.strictEqual(auto.retryPolicy.manualRetryAllowed, true);
+
+  const manual = taskAdmission.canCreateTask({
+    item,
+    actionType: 'transcode',
+    source: 'manual',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(manual.allowed, true);
+  assert.strictEqual(manual.taskBridge.kind, 'optimize');
 });
 
 test('taskAdmission caps automatic queue by action type', () => {

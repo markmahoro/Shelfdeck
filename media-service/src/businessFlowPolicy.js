@@ -102,6 +102,25 @@ function blocked(actionType, reason, extra = {}) {
   return { operation: actionType, allowed: false, reason, ...extra };
 }
 
+function isHeavyOptimizeOperation(operation) {
+  return ['transcode', 'upgrade', 'delete'].includes(String(operation || ''));
+}
+
+function automaticOptimizeGateBlock(item, actionType = '') {
+  const optimizeGate = lifecycleProjection.evaluateOptimizeGate(item || {});
+  if (!optimizeGate || optimizeGate.status !== 'failed') return null;
+  const operation = optimizeGate.operation || actionType;
+  if (!isHeavyOptimizeOperation(operation)) return null;
+  if (actionType && operation && operation !== actionType) return null;
+  const retryPolicy = optimizeGate.retryPolicy || {};
+  if (retryPolicy.automaticRetry === true) return null;
+  return blocked(operation || actionType, 'optimize_gate_failed_manual_retry_required', {
+    item,
+    optimizeGate,
+    retryPolicy,
+  });
+}
+
 function resolveManualOperationIntent(input = {}) {
   return lifecycleTaskPlanner.resolveManualOperationIntent(input);
 }
@@ -167,6 +186,9 @@ function resolveAutomaticTrigger(input = {}) {
   }
 
   const lifecycle = lifecycleProjection.resolveLifecycle(itemWithMetadata);
+  const optimizeBlocked = automaticOptimizeGateBlock(itemWithMetadata);
+  if (optimizeBlocked) return optimizeBlocked;
+
   if (lifecycle.lifecycleNextTask === 'archive') {
     const archiveGate = lifecycle.archiveGate || {};
     if (Array.isArray(archiveGate.blockers) && archiveGate.blockers.length > 0) {
@@ -280,6 +302,11 @@ function evaluateOperation(input = {}) {
     const limit = queueLimit(cfg, actionType);
     if (limit !== null && queuedCountForAction(tasks, actionType) >= limit) {
       return blocked(actionType, 'queue_limit', { limit });
+    }
+
+    if (isHeavyOptimizeOperation(actionType)) {
+      const optimizeBlocked = automaticOptimizeGateBlock(item || info, actionType);
+      if (optimizeBlocked) return optimizeBlocked;
     }
 
     if (actionType === 'transcode') {
