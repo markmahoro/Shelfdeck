@@ -3351,12 +3351,10 @@ function registerRoutes(app) {
     if (req.query.operationKind) filter.operationKind = req.query.operationKind;
     if (req.query.q) filter.q = req.query.q;
     const config = configStore.loadConfig();
-    const allTasks = taskStore.queryTaskSummaries(filter, {
-      includeAll: true,
-      includeTerminalItemInfo: true,
+    const allTasks = taskStore.queryTaskLifecycleAuditFacts(filter, {
       orderBy: 'updatedAt',
       orderDir: 'desc',
-    }).tasks;
+    });
     const subLibraryId = req.query.subLibraryId ? String(req.query.subLibraryId).trim() : '';
     const mediaType = req.query.mediaType ? String(req.query.mediaType).trim() : '';
     const subLibrariesById = new Map((config.subLibraries || []).map((sl) => [sl.uuid, sl]));

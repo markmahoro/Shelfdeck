@@ -2129,11 +2129,15 @@ test('GET /v1/admin/tasks/lifecycle-audit groups task lifecycles by library type
 
   const originalGetTasks = taskStore.getTasks;
   const originalLoadTasks = taskStore.loadTasks;
+  const originalQueryTaskSummaries = taskStore.queryTaskSummaries;
   taskStore.getTasks = () => {
     throw new Error('lifecycle audit should use lightweight task summaries');
   };
   taskStore.loadTasks = () => {
     throw new Error('lifecycle audit should not load full task payloads');
+  };
+  taskStore.queryTaskSummaries = () => {
+    throw new Error('lifecycle audit should use dedicated SQL audit facts');
   };
   try {
     const res = await app.inject({ method: 'GET', url: '/v1/admin/tasks/lifecycle-audit?sampleLimit=10' });
@@ -2169,6 +2173,7 @@ test('GET /v1/admin/tasks/lifecycle-audit groups task lifecycles by library type
   } finally {
     taskStore.getTasks = originalGetTasks;
     taskStore.loadTasks = originalLoadTasks;
+    taskStore.queryTaskSummaries = originalQueryTaskSummaries;
     await app.close();
   }
 });

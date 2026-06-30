@@ -1491,6 +1491,112 @@ function queryTaskSummaries(filter = {}, options = {}) {
   };
 }
 
+function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'taskStore.queryTaskLifecycleAuditFacts',
+    operation: 'query_task_lifecycle_audit_facts',
+    component: 'taskStore',
+    resourceType: 'sqlite',
+    resourceKey: 'tasks.db',
+    slowMs: 150,
+    successPayload: (rows) => ({ rowCount: Array.isArray(rows) ? rows.length : 0 }),
+  }, () => {
+    const db = getDb();
+    const { where, params } = buildWhere(filter, options);
+    const orderBy = options.orderBy === 'createdAt' ? 'created_at' : 'updated_at';
+    const orderDir = String(options.orderDir || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    const rows = db.prepare(`
+      SELECT
+        id,
+        item_id,
+        item_name,
+        action_type,
+        status,
+        priority,
+        created_at,
+        updated_at,
+        retry_count,
+        source,
+        sub_library_id,
+        bridge_kind,
+        bridge_from,
+        bridge_to,
+        bridge_reason,
+        flow_version,
+        flow_direction,
+        operation_kind,
+        flow_executor,
+        primary_resource_type,
+        resource_types_json,
+        flow_steps_json,
+        phase,
+        resume_point,
+        CASE WHEN status = 'awaiting_user_confirm' THEN json_extract(payload_json, '$.approval') END AS approval_json
+      FROM tasks ${where}
+      ORDER BY ${orderBy} ${orderDir}, id ${orderDir}
+    `).all(params);
+
+    return rows.map((row) => {
+      const itemInfo = row.sub_library_id
+        ? { subLibraryId: row.sub_library_id }
+        : undefined;
+      const planned = flowPlanner.planFlow({
+        actionType: row.action_type || '',
+        source: row.source || '',
+        itemId: row.item_id || '',
+        itemInfo,
+        plannedAt: row.created_at || '',
+      });
+      const taskBridge = row.bridge_kind
+        ? {
+          kind: row.bridge_kind,
+          from: row.bridge_from || '',
+          to: row.bridge_to || '',
+          reason: row.bridge_reason || '',
+          actionType: row.action_type || '',
+          source: row.source || '',
+          itemId: row.item_id || '',
+          subLibraryId: row.sub_library_id || '',
+        }
+        : planned.taskBridge;
+      const flowPlan = row.flow_direction
+        ? {
+          version: row.flow_version || '',
+          bridgeKind: row.bridge_kind || '',
+          direction: row.flow_direction || '',
+          operationKind: row.operation_kind || row.action_type || '',
+          executor: row.flow_executor || '',
+          primaryResourceType: row.primary_resource_type || '',
+          actionType: row.action_type || '',
+          source: row.source || '',
+          resourceTypes: jsonParse(row.resource_types_json, []),
+          steps: jsonParse(row.flow_steps_json, []),
+          plannedAt: row.created_at || '',
+        }
+        : planned.flowPlan;
+      return projectLegacyDeleteTask({
+        id: row.id,
+        itemId: row.item_id || '',
+        itemName: row.item_name || '',
+        actionType: row.action_type || '',
+        status: row.status || '',
+        source: row.source || '',
+        taskBridge,
+        flowPlan,
+        phase: row.phase || '',
+        resumePoint: row.resume_point || '',
+        retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
+        priority: typeof row.priority === 'number' ? row.priority : 100,
+        createdAt: row.created_at || '',
+        updatedAt: row.updated_at || '',
+        approval: jsonExtractObject(row.approval_json, undefined),
+        itemInfo,
+      });
+    });
+  });
+}
+
 function querySchedulerTasks() {
   return diagnosticLog.track({
     category: 'store',
@@ -1808,6 +1914,7 @@ module.exports = {
   saveTasks,
   queryTasks,
   queryTaskSummaries,
+  queryTaskLifecycleAuditFacts,
   querySchedulerTasks,
   queryTaskEvents,
   queryRecentFailureEvents,
