@@ -3374,6 +3374,176 @@ test('scrape failure marks item failed_hard and item scrapeStatus=failed', async
   delete process.env.CONTROL_PLANE_DATA_DIR;
 });
 
+test('standard scrape fails current task when metadataGate remains unmet after repair', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const configStore = require('../src/configStore');
+  const taskStore = require('../src/taskStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const subLibraryId = 'standard-movie-lib';
+  configStore.patchConfig({
+    subLibraries: [{
+      uuid: subLibraryId,
+      name: 'Movies',
+      source: 'emby',
+      mediaType: 'movie',
+      enabled: true,
+      embyServerId: 'test-emby',
+      ruleTemplateId: 'rating_strategy',
+      metadataGate: {
+        all: [
+          'identity.itemId',
+          'identity.name',
+          'identity.providerId',
+          'media.path',
+          'media.duration',
+          'media.bitrate',
+          'media.resolution',
+          'media.codec',
+          'decision.rating',
+        ],
+      },
+    }],
+    ruleTemplates: [{
+      id: 'rating_strategy',
+      rules: [{
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
+        action: 'transcode',
+        actionParams: { targetBitrate: 4, targetCodec: 'h265' },
+      }],
+    }],
+  });
+
+  mediaLibraryService.upsertItems(subLibraryId, [{
+    itemId: 'emby-missing-provider',
+    sourceId: 'emby-missing-provider',
+    name: 'Missing Provider Movie',
+    type: 'movie',
+    path: '/media/missing-provider.mkv',
+    size: 1024 * 1024,
+    duration: 3600,
+    bitrate: 4_000_000,
+    resolution: '1920x1080',
+    codec: 'h264',
+    watched: true,
+    userRating: 4,
+  }], { fullSync: true });
+  const item = mediaLibraryService.getLibrary().items.find((it) => it.subLibraryId === subLibraryId);
+  const originalComplete = mediaLibraryService.completeEmbyItemMetadata;
+  mediaLibraryService.completeEmbyItemMetadata = async () => mediaLibraryService.getLibraryItem(item.itemId);
+
+  const task = taskStore.createTask({
+    itemId: item.itemId,
+    itemName: item.name,
+    actionType: 'scrape',
+    status: 'executing',
+    itemInfo: { ...item },
+    resumePoint: 'scrape_executing',
+  });
+
+  scrapeFlow.setScheduler({ reportStatus: (tid, status, progress) => { taskStore.updateTask(tid, { status, progress }); } });
+  try {
+    await scrapeFlow.driveTask(task.id);
+  } finally {
+    mediaLibraryService.completeEmbyItemMetadata = originalComplete;
+  }
+
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'failed_hard');
+  assert.strictEqual(afterTask.phase, 'failed_hard');
+  assert.strictEqual(afterTask.resumePoint, 'scrape_executing');
+  assert.strictEqual(afterTask.scrapeVerification.ok, false);
+  assert.ok(afterTask.scrapeVerification.metadataMissingReasons.includes('identity.providerId'));
+  assert.ok(afterTask.metadataGateFailure.metadataMissingReasons.includes('identity.providerId'));
+  assert.ok(afterTask.logs.some((l) => l.level === 'error' && l.msg.includes('Metadata repair incomplete')));
+
+  const events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 50, orderDir: 'asc' }).events;
+  const gateEvent = events.find((e) => e.eventType === 'scrape.metadata_gate_failed');
+  assert.ok(gateEvent, 'metadata gate failure event recorded');
+  assert.ok(gateEvent.payload.metadataMissingReasons.includes('identity.providerId'));
+  const failedEvent = events.find((e) => e.eventType === 'task.failed');
+  assert.ok(failedEvent, 'task failed event recorded');
+  assert.ok(failedEvent.payload.failureSummary.message.includes('Metadata repair incomplete'));
+
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('scrape completion verification blocks done when exit gate fails', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const configStore = require('../src/configStore');
+  const taskStore = require('../src/taskStore');
+  const libraryStore = require('../src/libraryStore');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const subLibraryId = 'adult-review-lib';
+  configStore.patchConfig({
+    subLibraries: [{
+      uuid: subLibraryId,
+      name: 'Adult Review',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'japanese_jav',
+      enabled: true,
+      scrapeEnabled: true,
+      watchRoot: dir,
+      japaneseJav: { writeNfo: true },
+    }],
+  });
+  libraryStore.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [{
+      itemId: 'adult-incomplete-exit',
+      subLibraryId,
+      name: 'MVSD-175 Incomplete',
+      source: 'adult_folder',
+      mediaType: 'adult',
+      path: path.join(dir, 'missing.mp4'),
+      scraped: true,
+      adultMetadata: {
+        region: 'japanese_jav',
+        scrapeStatus: 'done',
+        adultId: 'MVSD-175',
+        title: 'MVSD-175 Incomplete',
+      },
+    }],
+  });
+  const task = taskStore.createTask({
+    itemId: 'adult-incomplete-exit',
+    itemName: 'MVSD-175 Incomplete',
+    actionType: 'scrape',
+    status: 'executing',
+    itemInfo: { subLibraryId, source: 'adult_folder' },
+    resumePoint: 'scrape_review',
+  });
+
+  scrapeFlow.setScheduler({ reportStatus: (tid, status, progress) => { taskStore.updateTask(tid, { status, progress }); } });
+  await scrapeFlow.driveTask(task.id);
+
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'failed_hard');
+  assert.strictEqual(afterTask.phase, 'failed_hard');
+  assert.strictEqual(afterTask.resumePoint, 'scrape_executing');
+  assert.strictEqual(afterTask.scrapeVerification.ok, false);
+  assert.ok(afterTask.scrapeVerification.failures.some((f) => f.code === 'media.exists'));
+  assert.ok(afterTask.logs.some((l) => l.level === 'error' && l.msg.includes('Scrape completion verification failed')));
+
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
 test('scrape fails when poster download fails', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');

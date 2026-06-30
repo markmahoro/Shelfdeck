@@ -22,6 +22,54 @@ function setPhase(taskId, phase) {
   taskStore.updateTask(taskId, { phase });
 }
 
+function failureCodes(verification) {
+  return (verification && Array.isArray(verification.failures) ? verification.failures : [])
+    .map((failure) => failure && failure.code)
+    .filter(Boolean);
+}
+
+function recordScrapeGateFailure(taskId, opts = {}) {
+  const verification = opts.verification || null;
+  const codes = failureCodes(verification);
+  const message = opts.message || (codes.length
+    ? `Scrape metadata gate failed: ${codes.join(', ')}`
+    : 'Scrape metadata gate failed');
+  const updates = {
+    resumePoint: opts.resumePoint || 'scrape_executing',
+  };
+  if (opts.itemInfo !== undefined) updates.itemInfo = opts.itemInfo;
+  if (verification) {
+    updates.scrapeVerification = {
+      ...verification,
+      source: opts.source || verification.source || 'completion_snapshot',
+    };
+  }
+  updates.metadataGateFailure = {
+    gate: 'metadataGate',
+    checkedAt: (verification && verification.checkedAt) || new Date().toISOString(),
+    metadataStatus: verification && verification.metadataStatus,
+    metadataMissingReasons: verification && verification.metadataMissingReasons || codes,
+    failureCodes: codes,
+    recovery: 'retry_current_scrape_after_fixing_upstream_facts_or_gate_config',
+    userAction: 'inspect_gate_missing_reasons',
+  };
+  taskStore.updateTask(taskId, updates);
+  appendLog(taskId, 'error', message);
+  const latestTask = taskStore.getTask(taskId);
+  taskStore.appendTaskEvent(latestTask, 'scrape.metadata_gate_failed', {
+    message,
+    gate: 'metadataGate',
+    metadataStatus: updates.metadataGateFailure.metadataStatus,
+    metadataMissingReasons: updates.metadataGateFailure.metadataMissingReasons,
+    failureCodes: codes,
+    verification: updates.scrapeVerification || null,
+    recovery: updates.metadataGateFailure.recovery,
+    userAction: updates.metadataGateFailure.userAction,
+  });
+  setPhase(taskId, 'failed_hard');
+  scheduler.reportStatus(taskId, 'failed_hard', 0);
+}
+
 function getSubLibrary(config, subLibraryId) {
   return (config.subLibraries || []).find((sl) => sl.uuid === subLibraryId) || null;
 }
@@ -140,22 +188,21 @@ async function runEmbyExecuting(taskId, task, config, subLib) {
         ...(task.itemInfo || {}),
         ...buildUpdatedItemInfo(latestItem),
       };
-      taskStore.updateTask(taskId, {
+      const verification = {
+        ok: false,
+        checkedAt: new Date().toISOString(),
+        checks: Object.fromEntries(meta.metadataMissingReasons.map((reason) => [reason, false])),
+        failures: meta.metadataMissingReasons.map((reason) => ({ code: reason, message: `Metadata missing: ${reason}` })),
+        warnings: [],
+        metadataStatus: meta.metadataStatus,
+        metadataMissingReasons: meta.metadataMissingReasons,
+        source: 'completion_snapshot',
+      };
+      recordScrapeGateFailure(taskId, {
         itemInfo: updatedInfo,
-        scrapeVerification: {
-          ok: false,
-          checkedAt: new Date().toISOString(),
-          checks: Object.fromEntries(meta.metadataMissingReasons.map((reason) => [reason, false])),
-          failures: meta.metadataMissingReasons.map((reason) => ({ code: reason, message: `Metadata missing: ${reason}` })),
-          warnings: [],
-          metadataStatus: meta.metadataStatus,
-          metadataMissingReasons: meta.metadataMissingReasons,
-          source: 'completion_snapshot',
-        },
+        verification,
+        message: `Metadata repair incomplete: ${meta.metadataMissingReasons.join(', ')}`,
       });
-      appendLog(taskId, 'warn', `Metadata repair incomplete: ${meta.metadataMissingReasons.join(', ')}`);
-      setPhase(taskId, 'failed_hard');
-      scheduler.reportStatus(taskId, 'failed_hard', 0);
       return;
     }
     appendLog(taskId, meta.metadataComplete ? 'info' : 'warn', meta.metadataComplete
@@ -363,10 +410,23 @@ function buildUpdatedItemInfo(item) {
 }
 
 async function finishScrape(taskId) {
+  const verification = captureCompletionVerification(taskId);
+  if (verification && verification.ok === false) {
+    const codes = failureCodes(verification);
+    recordScrapeGateFailure(taskId, {
+      verification: {
+        ...verification,
+        source: 'completion_snapshot',
+      },
+      message: codes.length
+        ? `Scrape completion verification failed: ${codes.join(', ')}`
+        : 'Scrape completion verification failed',
+    });
+    return;
+  }
   taskStore.updateTask(taskId, { resumePoint: null, approval: null });
   setPhase(taskId, 'done');
   scheduler.reportStatus(taskId, 'done', 100);
-  captureCompletionVerification(taskId);
 }
 
 function captureCompletionVerification(taskId) {
@@ -388,9 +448,11 @@ function captureCompletionVerification(taskId) {
         source: 'completion_snapshot',
       },
     });
+    return verification;
   } catch (e) {
     appendLog(taskId, 'warn', `Scrape completion verification snapshot failed: ${e.message}`);
   }
+  return null;
 }
 
 async function pause(taskId) {

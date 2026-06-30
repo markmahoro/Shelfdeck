@@ -985,6 +985,7 @@ const DASHBOARD_TASK_EVENT_LABELS = {
   'flow.planned': 'Flow 规划',
   'flow.dispatched': '开始执行',
   'flow.failed': '执行失败',
+  'scrape.metadata_gate_failed': '元数据完整性未满足',
   'task.confirmed': '用户确认',
   'task.execute_requested': '请求执行',
   'task.pause_requested': '请求暂停',

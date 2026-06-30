@@ -1737,3 +1737,57 @@ Slice 41 的 lifecycle audit 仍保留旧结论：`context.mediaType !== adult &
 - 这只是 recovery contract 的首层事实化；各 flow 的真实幂等行为、部分写入清理、外部请求去重和用户确认点仍需要逐 flow 审计。
 - 本切片尚未部署 NAS；生产任务详情的 recovery contract 展示待后续浏览器验收。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 45: Scrape metadataGate failure semantics
+
+### 对应标准
+
+- A2/A5: scrape 执行后如果没有 meet `metadataGate`，必须留在当前 scrape task 的失败/恢复语义里，不能靠 SmartTaskEngine 下一轮再创建一个新 task 来解释。
+- B3/B5: 任务中心和 dashboard event 需要能解释“元数据完整性未满足”，并给出当前 task 的失败摘要、缺失项和恢复点。
+- C4: completion verification 不能只是旁路快照；如果 scrape 完成态 verification 失败，task 不能被标记为 `done`。
+
+### 审计结果
+
+本轮审计确认了两个问题：
+
+- 普通 Emby repair scrape 已经会在 `metadataStatus.metadataComplete=false` 时失败，但失败原因只记为 warn；因此 `task.failed.failureSummary` 经常为空，任务中心只能看到 failed_hard，看不到“为什么 metadataGate 没过”。
+- `finishScrape()` 原先先把任务标记为 `done`，再写 completion verification snapshot；如果 snapshot 失败，task 仍保持 `done`。这会破坏顶层心智：scrape 阶段没过 exit gate 时不应该进入后续 optimize candidate。
+
+### 本切片修复
+
+- `scrapeFlowExecutor` 新增统一的 `recordScrapeGateFailure()`：
+  - 写入 `scrapeVerification.ok=false`；
+  - 写入 `metadataGateFailure`，包含 `metadataMissingReasons` / `failureCodes` / `recovery` / `userAction`；
+  - 写入 error log，使 `task.failed.failureSummary` 能被任务中心读取；
+  - 追加 `scrape.metadata_gate_failed` event；
+  - 保留 `resumePoint=scrape_executing`，表示 retry/resume 仍属于当前 scrape flow。
+- 普通库半假 scrape 在 repair 后仍未满足 `metadataGate` 时，不再只是 warn，而是明确成为当前 scrape task 的 gate failure。
+- `finishScrape()` 改为先跑 completion verification；verification 不通过时直接失败，不再标记 `done`。
+- `taskStore.createTask()` 现在保留传入的 `phase` / `resumePoint` / `progress`。这个小修复是为了让恢复任务和恢复测试可以准确从指定 resume point 开始，而不是默默退回 precheck。
+- dashboard event label 增加 `scrape.metadata_gate_failed -> 元数据完整性未满足`。
+
+### 后端事实来源
+
+- `media-service/src/scrapeFlowExecutor.js`
+  - 新增 scrape gate failure 记录。
+  - 普通 Emby repair gate failure 进入同一失败路径。
+  - completion verification 从 done 后快照改为 done 前 exit gate。
+- `media-service/src/taskStore.js`
+  - `createTask()` 保留初始运行时恢复字段。
+- `media-service/src/app.js`
+  - dashboard task event label 增加元数据完整性未满足。
+- `media-service/test/api-inject.test.js`
+  - 覆盖普通库 repair 后仍缺 `identity.providerId` 时，当前 scrape task failed_hard、保留 resume point、记录 gate event 和 failureSummary。
+  - 覆盖 scrape review 末端 completion verification 失败时，task 不会被标记 done。
+
+### 本地验收
+
+- `npm test -- --test-name-pattern "standard scrape fails current task|scrape completion verification blocks done|scrape failure marks item failed_hard"`: pass；由于当前 npm/node-test 参数转发方式，本次实际跑到了全量 service 测试，241 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS；生产中的普通库 repair scrape 和成人 scrape 还需要部署后从任务中心挑具体样本复核。
+- 这只补了 scrape exit gate 的失败事实化；每个 flow 的 retry 幂等性、部分写入回滚和用户确认策略还需要继续逐 flow 设计。
+- P0-1 仍未完整关闭：下一步应继续审计每一种库类型下的 task lifecycle，并在生产样本上确认任务中心展示是否符合用户心智。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
