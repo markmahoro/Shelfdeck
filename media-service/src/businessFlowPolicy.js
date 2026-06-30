@@ -93,6 +93,15 @@ function isAutoScrapeCandidate(info) {
   return status === '' || status === 'pending';
 }
 
+function isSupportedAutomaticItem(item) {
+  if (!item) return false;
+  return item.source === 'emby' || item.source === 'adult_folder';
+}
+
+function isTaskMediaItem(item) {
+  return String((item && item.type) || '').toLowerCase() !== 'series';
+}
+
 function blocked(actionType, reason, extra = {}) {
   return { operation: actionType, allowed: false, reason, ...extra };
 }
@@ -201,6 +210,68 @@ function evaluateManualIntent(input = {}) {
     preferredOperation: resolved.preferredOperation,
     intentMode: resolved.intentMode,
     requestedIntent: resolved.requestedIntent,
+  };
+}
+
+function resolveAutomaticTrigger(input = {}) {
+  const cfg = input.config || {};
+  const item = input.item || input.itemInfo || {};
+  const itemId = item && item.itemId || '';
+  if (!itemId) return blocked('', 'missing_item_id');
+  if (!isSupportedAutomaticItem(item)) return blocked('', 'unsupported_source');
+  if (!isTaskMediaItem(item)) return blocked('', 'series_not_task_item');
+
+  const meta = metadataStatus.resolveMetadataStatus(item, cfg);
+  const itemWithMetadata = { ...item, ...meta };
+
+  if (!meta.metadataComplete) {
+    if (meta.metadataKind === 'adult' && !isAutoScrapeCandidate(itemWithMetadata)) {
+      return blocked('scrape', 'scrape_state_not_auto_eligible', {
+        item: itemWithMetadata,
+        metadataMissingReasons: meta.metadataMissingReasons,
+      });
+    }
+    if (meta.metadataKind !== 'adult' && item.source !== 'emby') {
+      return blocked('scrape', 'metadata_not_auto_repairable', {
+        item: itemWithMetadata,
+        metadataMissingReasons: meta.metadataMissingReasons,
+      });
+    }
+    if (!enabledAutoActions(cfg).includes('scrape')) {
+      return blocked('scrape', 'action_not_enabled', {
+        item: itemWithMetadata,
+        metadataMissingReasons: meta.metadataMissingReasons,
+      });
+    }
+    return {
+      allowed: true,
+      reason: 'metadata_gate_not_met',
+      operation: 'scrape',
+      actionType: 'scrape',
+      bridgeKind: 'metadata',
+      item: itemWithMetadata,
+      metadataMissingReasons: meta.metadataMissingReasons,
+    };
+  }
+
+  const operation = cleanToken(item.action);
+  if (!operation || operation === 'keep' || operation === 'none') {
+    return blocked(operation, 'no_automatic_task_required', { item: itemWithMetadata });
+  }
+  if (!USER_OPERATIONS.includes(operation)) {
+    return blocked(operation, 'unsupported_recommended_operation', { item: itemWithMetadata });
+  }
+  if (!enabledAutoActions(cfg).includes(operation)) {
+    return blocked(operation, 'action_not_enabled', { item: itemWithMetadata });
+  }
+
+  return {
+    allowed: true,
+    reason: 'lifecycle_gate_met',
+    operation,
+    actionType: operation,
+    bridgeKind: flowPlanner.bridgeKindForAction(operation),
+    item: itemWithMetadata,
   };
 }
 
@@ -455,6 +526,7 @@ function decorateItems(items, input = {}) {
 module.exports = {
   USER_OPERATIONS,
   evaluateOperation,
+  resolveAutomaticTrigger,
   resolveManualOperationIntent,
   evaluateManualIntent,
   buildItemDecision,

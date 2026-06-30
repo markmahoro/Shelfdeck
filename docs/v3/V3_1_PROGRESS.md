@@ -1985,3 +1985,71 @@ Slice 41 的 lifecycle audit 仍保留旧结论：`context.mediaType !== adult &
 - 本切片尚未部署 NAS；生产当前如果 `smartTaskEnabledActions` 包含 optimize action，部署后 optimize candidate 范围可能扩大，需要结合队列上限和生产观察窗口验证。
 - P0-1 仍未完整关闭：SmartTask 仍直接消费 `item.action` 作为 operation，后续还要继续收敛“触发 task”和“选择 flow/operation”的边界。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 49: Automatic trigger decision moves to BusinessFlowPolicy
+
+### 对应标准
+
+- A1: 后端必须能为媒体 item 给出统一的 v3 用户视角决策结果，避免 TaskAdmission、SmartTask、Admin Web 各自维护互相矛盾的规则。
+- A3: SmartTaskEngine 应是任务触发器，不应在自身内部决定普通 repair、成人 scrape 或 optimize operation 的业务规则。
+- A4: 自动入口仍必须经过 TaskAdmission；本切片不改变 admission、priority、scheduler 或 executor 行为。
+
+### 审计结果
+
+Slice 48 移除了 SmartTask 的隐藏 `watched=true` 门槛后，继续发现：
+
+- `SmartTaskEngine.buildCandidate()` 仍直接读取 `metadataStatus`、`item.action`、`item.source`、`item.type`、成人 `scrapeStatus` 来决定候选 operation。
+- 这些判断本质上属于“这个 item 当前是否该触发下一座 lifecycle task，以及推荐 operation 是什么”，不应该散落在 SmartTask 触发器内部。
+- 如果继续让 SmartTask 自己判断，后续 TaskAdmission、媒体页 `businessFlowDecision`、手动 intent API 很容易重新长出互相不一致的规则。
+
+判断：
+
+- 这是 P0-1 新业务模型问题。
+- 本切片先不试图一次性完成 optimize task 与 flow selection 的完整重构；先把自动触发决策收敛进 `BusinessFlowPolicy`，让 SmartTask 只消费结果。
+
+### 本切片修复
+
+- `businessFlowPolicy` 新增 `resolveAutomaticTrigger()`：
+  - 非 `emby` / `adult_folder` source 不触发；
+  - `series` container 不触发；
+  - metadata gate 未满足时：
+    - 普通 Emby item 触发 `metadata/scrape` repair candidate；
+    - 成人 item 仅 `scraped !== true` 且 `scrapeStatus` 为空或 `pending` 时触发 `metadata/scrape`；
+    - 对未启用的 operation 返回 `action_not_enabled`；
+  - metadata gate 已满足时：
+    - `keep` / 空 action 不触发；
+    - 非支持 operation 返回 `unsupported_recommended_operation`；
+    - 支持且已启用的 strategy operation 返回对应 bridge，例如 `transcode -> optimize`。
+- `SmartTaskEngine.buildCandidate()` 不再直接判断上述业务规则，只调用 `businessFlowPolicy.resolveAutomaticTrigger()`。
+- SmartTask 仍保留自身职责：
+  - 读取候选池；
+  - 应用现有 lookback / maxPerRun / queue cap；
+  - 计算 priority；
+  - 再走 TaskAdmission；
+  - 创建 task。
+
+### 后端事实来源
+
+- `media-service/src/businessFlowPolicy.js`
+  - 新增自动触发决策函数。
+- `media-service/src/smartTaskEngine.js`
+  - 删除本地 `isRetryableMissingMetadata()` / `isAutoMetadataCompletionCandidate()`。
+  - 自动候选生成改为消费 `BusinessFlowPolicy` 结果。
+- `media-service/test/task-model.test.js`
+  - 覆盖普通 metadata repair trigger 不在 SmartTask 内部判断；
+  - 覆盖 metadata complete + strategy action 产生 optimize trigger；
+  - 覆盖未启用 operation 由 policy 返回 `action_not_enabled`；
+  - 保留现有 SmartTask 自动 scrape / transcode / ingest 用例。
+
+### 本地验收
+
+- `node --test test/task-model.test.js --test-name-pattern "businessFlowPolicy|smartTaskEngine"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，45 个测试通过。
+- `npm test`: pass，246 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS；生产自动触发行为仍需与 Slice 47/48 一起在观察窗口验证。
+- P0-1 仍未完整关闭：SmartTask 仍有 `smartTaskLookbackDays` / `ratingTs` 这类 trigger-pressure 旧逻辑，它不是本切片修复范围；后续需要判断它是业务模型问题还是资源刹车/扫描节奏问题。
+- 手动 optimize intent 仍会在没有 preferredOperation 时从 `item.action` 推导 operation；这是手动入口模型的后续 P0-1 点，不混入本切片。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

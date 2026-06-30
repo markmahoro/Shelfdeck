@@ -11,7 +11,7 @@
 
 const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
-const metadataStatus = require('./metadataStatus');
+const businessFlowPolicy = require('./businessFlowPolicy');
 const assetIdentity = require('./assetIdentity');
 const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
@@ -103,24 +103,6 @@ function itemTimestamp(item) {
   ].reduce((latest, value) => maxTimestamp(latest, value), 0);
 }
 
-function isRetryableMissingMetadata(item) {
-  if (!item || item.source !== 'adult_folder') return false;
-  if (item.scraped === true) return false;
-  const meta = item.adultMetadata || {};
-  const status = String(meta.scrapeStatus || '').toLowerCase();
-  // Automatic scrape is state-based: only not-yet-scraped library items with an
-  // empty/pending scrape status are eligible. Failed, ambiguous, needs_review,
-  // done, and already-scraped items require an explicit user action or are done.
-  if (status !== '' && status !== 'pending') return false;
-  return true;
-}
-
-function isAutoMetadataCompletionCandidate(item, meta) {
-  if (!item || !meta || meta.metadataComplete) return false;
-  if (meta.metadataKind === 'adult') return isRetryableMissingMetadata(item);
-  return item.source === 'emby';
-}
-
 function buildItemInfo(item) {
   return {
     name: item.name,
@@ -156,26 +138,13 @@ function buildItemInfo(item) {
   };
 }
 
-function buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff, config }) {
-  const isAdultFolder = item.source === 'adult_folder';
-  if (item.source !== 'emby' && !isAdultFolder) return null;
-  if (item.type === 'series') return null;
+function buildCandidate(item, { isFirstOrResume, lookbackCutoff, config }) {
+  const trigger = businessFlowPolicy.resolveAutomaticTrigger({ item, config });
+  if (!trigger.allowed) return null;
 
-  let actionType = '';
-  const meta = metadataStatus.resolveMetadataStatus(item, config);
-  const itemWithMetadata = {
-    ...item,
-    ...meta,
-  };
-  if (enabledActions.includes('scrape') && isAutoMetadataCompletionCandidate(item, meta)) {
-    actionType = 'scrape';
-  } else {
-    if (!meta.metadataComplete) return null;
-    if (!item.action || item.action === 'keep') return null;
-    if (!enabledActions.includes(item.action)) return null;
-    if (item.reason === '新入库') return null;
-    actionType = item.action;
-  }
+  const isAdultFolder = item.source === 'adult_folder';
+  const actionType = trigger.actionType;
+  const itemWithMetadata = trigger.item || item;
 
   if (isFirstOrResume && !isAdultFolder && actionType !== 'scrape') {
     const ratingTs = maxTimestamp(item.userRatingUpdatedAt, item.doubanRatingUpdatedAt);
@@ -311,7 +280,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       const isFirstOrResume = !lastRunAt || (now - lastRunAt > intervalMs * 2);
 
       const candidates = libraryItems
-        .map((item) => buildCandidate(item, { enabledActions, isFirstOrResume, lookbackCutoff, config: cfg2 }))
+        .map((item) => buildCandidate(item, { isFirstOrResume, lookbackCutoff, config: cfg2 }))
         .filter(Boolean);
       if (enabledActions.includes('ingest')) {
         for (const candidate of ingestCandidateProvider(cfg2) || []) {

@@ -8,6 +8,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const approvalPolicy = require('../src/approvalPolicy');
+const businessFlowPolicy = require('../src/businessFlowPolicy');
 const configStore = require('../src/configStore');
 const libraryStore = require('../src/libraryStore');
 const taskAdmission = require('../src/taskAdmission');
@@ -262,6 +263,79 @@ test('taskAdmission treats a missing automatic allow-list as disabled', () => {
     tasks: [],
   });
   assert.strictEqual(manual.allowed, true);
+});
+
+test('businessFlowPolicy resolves automatic metadata repair triggers outside SmartTaskEngine', () => {
+  const config = {
+    smartTaskEnabledActions: ['scrape'],
+    subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+  };
+  const trigger = businessFlowPolicy.resolveAutomaticTrigger({
+    config,
+    item: {
+      itemId: 'movie-missing-metadata',
+      source: 'emby',
+      subLibraryId: 'movie-lib',
+      type: 'movie',
+      name: 'Movie Missing Metadata',
+      path: '/media/missing.mkv',
+      size: 1024,
+      duration: 3600,
+      bitrate: 4000000,
+      resolution: '1920x1080',
+      codec: 'h264',
+      watched: true,
+      userRating: 4,
+    },
+  });
+
+  assert.strictEqual(trigger.allowed, true);
+  assert.strictEqual(trigger.actionType, 'scrape');
+  assert.strictEqual(trigger.bridgeKind, 'metadata');
+  assert.strictEqual(trigger.reason, 'metadata_gate_not_met');
+  assert.ok(trigger.metadataMissingReasons.includes('identity.externalId'));
+});
+
+test('businessFlowPolicy resolves automatic optimize triggers from strategy output', () => {
+  const config = {
+    smartTaskEnabledActions: ['transcode'],
+    subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+  };
+  const trigger = businessFlowPolicy.resolveAutomaticTrigger({
+    config,
+    item: metadataReadyMovie({
+      itemId: 'movie-auto-optimize',
+      subLibraryId: 'movie-lib',
+      watched: false,
+      action: 'transcode',
+      reason: 'strategy selected transcode',
+    }),
+  });
+
+  assert.strictEqual(trigger.allowed, true);
+  assert.strictEqual(trigger.actionType, 'transcode');
+  assert.strictEqual(trigger.bridgeKind, 'optimize');
+  assert.strictEqual(trigger.reason, 'lifecycle_gate_met');
+});
+
+test('businessFlowPolicy keeps disabled automatic operations out of SmartTask candidates', () => {
+  const config = {
+    smartTaskEnabledActions: ['scrape'],
+    subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+  };
+  const trigger = businessFlowPolicy.resolveAutomaticTrigger({
+    config,
+    item: metadataReadyMovie({
+      itemId: 'movie-disabled-auto-optimize',
+      subLibraryId: 'movie-lib',
+      action: 'transcode',
+      reason: 'strategy selected transcode',
+    }),
+  });
+
+  assert.strictEqual(trigger.allowed, false);
+  assert.strictEqual(trigger.operation, 'transcode');
+  assert.strictEqual(trigger.reason, 'action_not_enabled');
 });
 
 test('metadataStatus uses sub-library metadataGate as the optimize-ready contract', () => {
