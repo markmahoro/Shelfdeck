@@ -3288,3 +3288,72 @@ S4 archived
 - P0-1 仍未整体宣布完成。
 - 本 slice 只关闭了自动化错误重建重资源 optimize task 的问题。
 - 后续仍需把手动新建同类 optimize task 的 legacy 兼容入口，进一步收口到任务中心 retry/recovery 语义。
+
+## 2026-06-30 Slice 69: 架构语义纪要固化
+
+### 用户模型修正
+
+本 slice 不改代码，专门固化 P0-1 讨论中形成的架构语义。
+
+已确认的目标架构组件是：
+
+| 架构组件 | 职责边界 |
+| --- | --- |
+| Lifecycle | 定义 5 阶段 4 gate；定义 gate objective；计算 stage/gate；为每个媒体计算 optimize objective；根据 objective + observed facts 判定 gate 是否通过 |
+| Task Creator | 消费 lifecycle snapshot、自动化扫描、用户 intent、Resource Runtime 安灯信号；准入并创建 object + targetGate + gateObjective 的 task；拒绝时给 blocked reason |
+| Task Scheduler | 给 runnable task 分配运行机会；控制 task 级并发、item lock、priority/retryAt/createdAt；保存 Flow Planner 返回的 task-level signal |
+| Flow Planner | 根据 task.object + targetGate + gateObjective 选择 flow operation；编排 event；消费 event/resource facts；处理 retry/fallback/wait/needs-review/fail；写 task/gate facts |
+| Resource Runtime | event 生产现场；管理 event queue、resource bucket、capacity/concurrency、lease、executor/worker、timeout、worker lost、orphan lease recovery；输出安灯信号和 Resource View |
+
+当前代码不要求立刻做到一个架构组件对应一个物理文件。真实实现仍是过渡态：
+
+- Task Creator 语义散落在 `SmartTaskEngine`、`TaskAdmission`、`BusinessFlowPolicy` 和 `/v1/tasks`。
+- Task Scheduler 当前仍偏厚，包含部分资源槽位、flow dispatch 和重启恢复。
+- Flow Planner 当前偏薄，更多 flow control 在各 `*FlowExecutor` 和 scheduler 中。
+- Resource Runtime 目前未形成独立物理模块，资源视图和运行事件分散在 `resourceProjection`、`runtimeResourceTracker`、scheduler 和 flow executor。
+
+### Optimize 关键结论
+
+本轮最关键的业务模型修正是：`Optimize Objective` 和 `Flow Operation` 必须拆开。
+
+- Optimize Objective 是用户语义目标，回答“用户希望这部媒体最终变成什么”。
+- Flow Operation 是实现路径，回答“系统准备用什么方式达成目标”。
+
+例子：
+
+- 降低码率是 objective；`transcode` 是可能的 operation。
+- 补中文字幕是 objective；`subtitle fetch`、`remux`、`upgrade` 都可能是 operation。
+- 替换更好音轨是 objective；`upgrade` 或 `remux` 是可能的 operation。
+- Dolby Vision/编码兼容性修复是 objective；它应通过转码/封装能力补强解决，不应绕到任务管理。
+- 删除媒体是 objective；`delete` 是 optimize gate 下的 destructive flow operation，不是 archive gate。
+
+因此：
+
+- Lifecycle 定义 optimize objective，也就是定义 optimize gate 的目标合同。
+- Flow Planner 读取 objective 后选择 operation，并控制 flow 执行。
+- Flow Planner 不能自己定义 optimize gate 的通过标准；它不是裁判。
+- Lifecycle 根据 objective + observed facts 判定 optimize gate 是否通过。
+- `action=transcode/upgrade/delete` 只能作为兼容字段或 flow hint，不能作为 task 的用户语义目标。
+
+### 文档更新
+
+- `docs/v3/BUSINESS_MODEL_NOTES.md`
+  - 将主流程统一为 `source/discovered -> ingested -> metadata-ready -> optimized -> archived`。
+  - 新增 5 个架构组件职责表。
+  - 新增 `Optimize Objective 和 Flow Operation` 独立章节。
+  - 明确 Task = object + targetGate + gateObjective。
+  - 明确 Resource View 是 Resource Runtime 的安灯输出，不是独立架构组件。
+- `docs/v2/ARCH_OVERVIEW.md`
+  - 将当前架构入口中的旧 `StrategyEngine` / `SmartTaskEngine` / `TaskAdmission` 语义改写为目标语义 + 当前物理实现过渡态。
+  - 明确当前代码不强制物理组件一一对应，但后续新增逻辑必须向目标职责边界靠拢。
+
+### 验证
+
+- 本 slice 只改文档，未运行 service 测试。
+- 未部署生产。
+
+### 尚未满足
+
+- P0-1 业务模型仍需继续落到真实代码行为，尤其是 task target / optimize objective / flow operation 的数据模型和任务中心展示。
+- 手动入口边界仍需继续讨论并收口。
+- 当前未提交代码改动中包含一组 manual optimize recovery 试探修改，尚未作为确认模型提交。
