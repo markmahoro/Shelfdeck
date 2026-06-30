@@ -150,3 +150,95 @@
 - 让普通库 metadata 缺失 item 在该 flow 后能 metadata OK，或给出明确不可补原因；
 - 用生产样本如“黑炮事件”和“凛冬的已至”验证，不只用合成测试；
 - 观察 Resource View，确认不会形成 Emby 请求风暴。
+
+## 10. “元数据完整”是用户语义 gate，不是技术字段分类
+
+本节记录 2026-06-30 继续讨论后确认的更高层模型。它会影响普通库半假 scrape、`metadataStatus`、TaskAdmission、SmartTask 和子库配置校验的后续实现。
+
+### 10.1 顶层产品心智
+
+ShelfDeck 对用户暴露的顶层生命周期心智是：
+
+```text
+ingest -> scrape -> optimize -> archive
+```
+
+在这个心智里，Admin Web 显示“元数据完整”时，用户会自然理解为：
+
+- 这个媒体已经完成 scrape 阶段；
+- 它已经具备进入 optimize 阶段所需的一切前置条件；
+- 如果它没有进入 optimize，应能看到明确的 optimize 阶段状态、资源等待、任务阻断、配置错误或系统 bug，而不是隐藏的前置条件缺失。
+
+因此，“元数据完整”不是工程上狭义的 metadata facts complete。它是用户语义上的 scrape completion gate，也可以理解为 optimize-ready gate。它叫“元数据完整”只是产品命名；即使命名为任意别的词，本质仍是这个生命周期 gate。
+
+### 10.2 子库可自定义 gate
+
+每个子库对“元数据完整”的定义可以不同。
+
+例如：
+
+- 电影子库可以要求技术事实、身份信息，并要求 `userRating` / `doubanRating` 至少一个存在。
+- 国产剧集子库如果后续 optimize 策略不消费评分，则可以不要求本地评分或豆瓣评分。
+- 成人子库可以要求成人 scrape 结果、番号/标题、整理状态和技术事实。
+
+用户可以把 gate 配得比下游 optimize 真正需要的字段更严格。系统应允许这种配置，因为它只是让 scrape 阶段完成条件更高。
+
+但用户不能把 gate 配得比下游 optimize 要消费的字段更宽松。否则就会破坏产品心智：页面显示“元数据完整”，但媒体无法进入 optimize，用户会困惑。
+
+### 10.3 系统必须校验 gate 覆盖 optimize 输入
+
+系统校验的核心合同是：
+
+```text
+metadataCompleteGate >= optimizeRequiredInputs
+```
+
+这里的 `>=` 是覆盖关系，不是字段数量。
+
+后续实现不能只做简单字段集合比较，还要支持组合语义：
+
+- `all`: 必须全部存在；
+- `any`: 至少一个存在，例如评分可以是 `any(userRating, doubanRating)`；
+- 按媒体类型或子库类型分支，例如 movie / season / adult 的 gate 不同；
+- 策略模板中 OR 条件、catch-all 规则、默认值和缺失分支需要谨慎分析。
+
+### 10.4 双相校验
+
+配置校验建议做成双相：
+
+1. 保存配置时校验。
+   - 用户修改子库“元数据完整 gate”、策略模板或子库绑定时，立即校验 gate 是否覆盖当前 optimize 策略会消费的输入。
+   - 覆盖则允许保存。
+   - 未覆盖则阻止保存或至少给强错误，提示“当前优化策略会使用 X，但元数据完整 gate 未要求 X”。
+
+2. 运行时 invariant 校验。
+   - 即使保存时通过，后续迁移、模板变化、代码版本变化仍可能破坏合同。
+   - 当系统发现 item 已显示 metadata complete，但 strategy/TaskAdmission/SmartTask 无法推进 optimize 且原因是 gate 未覆盖必要输入时，必须产出明确诊断。
+   - 建议内部诊断码为 `metadata_gate_contract_broken`。
+   - 用户层表达为“元数据完整规则与优化策略不一致，请检查子库配置”。
+
+### 10.5 技术拆分可以存在，但不能破坏用户语义
+
+内部实现可以为了清晰拆出：
+
+- technical facts；
+- identity facts；
+- strategy inputs；
+- automation signals；
+- operation-specific admission。
+
+但这些技术分类不能在用户层制造互相打架的生命周期状态。
+
+用户看到“元数据完整”时，它必须意味着该子库的 scrape completion gate 已通过，并且后续 optimize 没有隐藏的前置输入缺失。
+
+### 10.6 对半假 scrape 的影响
+
+普通库半假 scrape 的目标也要按这个模型修正：
+
+- 它不是满足一套全局硬编码 metadata required fields；
+- 它是尽量补齐当前子库配置的“元数据完整 gate”；
+- 它可以通过 Emby、已有 Douban 缓存和 ShelfDeck 自算技术事实来补齐；
+- 如果补不齐，失败原因必须指向该子库 gate 中哪个条件无法满足；
+- 如果 gate 已满足，后续应能进入 optimize lifecycle，或者出现明确的 optimize 阶段阻断/资源等待/配置错误诊断。
+
+因此后续实现顺序应先收敛 `metadataStatus` / gate 模型，再继续普通库半假 scrape 的准入和 executor 修复。
