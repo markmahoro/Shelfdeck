@@ -29,6 +29,48 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 上面的 Docker service 命令只用于本地或新环境验证。当前 NAS 生产部署固定走 `docs/v2/PRODUCTION_DEPLOYMENT.md`、`scripts/build-image.sh` 和 `scripts/deploy-nas.js`；不要把 `media-service/docker-compose.example.yml` 当成生产 compose。
 
+## 本机生产同构测试 Profile
+
+项目语境约定：
+
+| 术语 | 含义 |
+| --- | --- |
+| 测试环境 | 本机 Windows 环境 |
+| 生产环境 | NAS 上的 ShelfDeck Docker |
+
+普通切片默认先在本机测试环境验证，不需要每次部署 NAS 生产。需要生产同构配置或生产数据规模时，先同步 NAS runtime 数据到 ignored 目录：
+
+```bash
+node scripts/sync-nas-runtime-data.js --rewrite-local-paths
+```
+
+默认输出目录是 `.codex/local-prod-data/`，不会提交。脚本会只读下载：
+
+| 文件 | 用途 |
+| --- | --- |
+| `config.json` | 生产同构配置，包括 Emby / MoviePilot / 自动化配置 |
+| `library.db*` | 生产规模媒体库投影 |
+| `tasks.db*` | 生产规模任务和 task event 投影 |
+| `douban-entries-cache.json` | 本机复现 Douban cache 匹配 |
+
+`--rewrite-local-paths` 会保留 `config.nas-original.json`，并把本机测试路径改成：
+
+| 库类型 | 本机根目录 |
+| --- | --- |
+| 普通 Emby 库 | `Z:\` |
+| adult folder 库 | `Y:\` |
+
+本机运行时可使用：
+
+```powershell
+$env:CONTROL_PLANE_DATA_DIR=(Resolve-Path .codex\local-prod-data).Path
+$env:MEDIA_SERVICE_DATA_DIR=$env:CONTROL_PLANE_DATA_DIR
+cd media-service
+npm test
+```
+
+涉及真实媒体文件探测、普通 Emby metadata repair、adult ingest/scrape 的本机复现，应优先使用这个 profile。只有重大版本验收、真实 NAS 行为验证、Admin Web 生产浏览器验收，或用户明确要求时，才部署 NAS 生产。
+
 ## 成人库 / Ingest + Scrape Task 开发
 
 日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。成人库模块不再拥有自己的目录监听、定时扫描或整目录手动扫描入队逻辑；目录级 scan 只能用于只读核对，不创建 `ingest` 或 `scrape` 任务。`ingest` 是单 item 任务，完成单文件探测、NFO 预解析和媒体项写入后，未刮削 item 再按统一 `TaskAdmission` / `PriorityEngine` 判断是否创建 `actionType=scrape` 任务。具体执行由 `TaskScheduler` 按 `ingestConcurrency` / `scrapeConcurrency` 统一分配槽位。

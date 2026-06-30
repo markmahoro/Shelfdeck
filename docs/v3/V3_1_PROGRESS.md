@@ -3069,3 +3069,45 @@ S4 archived
   - 需要继续定位 Node 主进程 D/R 状态切换、系统 iowait、swap 满、SQLite/备份/SmartTask/scheduler 的真实关系。
 - 需要用户确认是否允许清理旧 `pre-image-adult-*` 数据快照备份。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 65: 本机测试环境成为默认测试环境
+
+### 用户约定
+
+- 后续对话中，“测试环境”默认指本机 Windows 环境。
+- “生产环境”指 NAS 上运行的 ShelfDeck Docker。
+- 普通 slice 不再默认部署生产；重大版本、真实 NAS 行为验证、生产 Admin Web 浏览器验收，或用户明确要求时才上生产。
+
+### 已完成
+
+- 新增 `scripts/sync-nas-runtime-data.js`
+  - 通过 SFTP 只读同步 NAS runtime 数据到本机 ignored 目录。
+  - 默认输出 `.codex/local-prod-data/`。
+  - 支持同步 `config.json`、`library.db*`、`tasks.db*`、`douban-entries-cache.json`。
+  - 支持 `--rewrite-local-paths`，把普通 Emby 库映射到 `Z:\`，adult folder 库映射到 `Y:\`。
+  - 重写前保留 `config.nas-original.json`。
+- 新增 `scripts/check-local-runtime-profile.js`
+  - 校验本机 profile 文件、路径映射、SQLite 可读性和关键计数。
+- `.gitignore` 增加 `.codex/`，避免提交本机 profile 和生产数据副本。
+- `docs/v2/DEVELOPMENT_WORKFLOW.md` 增加“本机生产同构测试 Profile”和术语约定。
+
+### 本机 profile 验证
+
+- 已执行：
+  - `node scripts/sync-nas-runtime-data.js --out .codex/local-prod-data --rewrite-local-paths`
+  - `node --check scripts/sync-nas-runtime-data.js`
+  - `node --check scripts/check-local-runtime-profile.js`
+  - `node scripts/check-local-runtime-profile.js .codex/local-prod-data`
+- 校验结果：
+  - `library.db`: 2575 个 media item。
+  - `tasks.db`: 2318 个 task。
+  - `task_events`: 5677 个 event。
+  - 普通 Emby 库本机根目录：`Z:\`。
+  - adult folder 库本机根目录：`Y:\`。
+  - 当前生产同构 `smartTaskEnabledActions`: `ingest`, `scrape`, `transcode`。
+
+### 影响
+
+- 后续 P0-1 / P0 排查优先在本机 profile 上复现和修复。
+- 生产 NAS 不再作为普通 slice 的默认测试面。
+- 本 slice 未部署生产，因为它只改变开发/测试工作流和本机脚本，不改变运行镜像或生产业务状态。

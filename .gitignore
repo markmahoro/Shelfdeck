@@ -51,6 +51,7 @@ media-worker/data/
 media-worker/temp/
 .tmp/
 .tmp-deploy/
+.codex/
 .deepseek/
 %SystemDrive%/
 test_film/
