@@ -1178,6 +1178,71 @@ test('smartTaskEngine treats metadata-complete unwatched items as optimize candi
   assert.strictEqual(created[0].taskBridge.kind, 'optimize');
 });
 
+test('smartTaskEngine does not hide optimize candidates behind rating lookback', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  const oldTimestamp = new Date(Date.now() - 365 * 86400000).toISOString();
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['transcode'],
+          smartTaskLookbackDays: 1,
+          subLibraries: [{ uuid: 'movie-lib', automationMode: 'auto', priorityWeight: 100 }],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { transcode: 130 },
+            rules: { transcode: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByAction: { transcode: 0 },
+            maxQueuedByAction: { transcode: 50 },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [metadataReadyMovie({
+            itemId: 'movie-old-rating-transcode',
+            name: 'Movie Old Rating Transcode',
+            action: 'transcode',
+            reason: 'strategy selected transcode',
+            subLibraryId: 'movie-lib',
+            path: '/media/movie-old-rating.mkv',
+            userRatingUpdatedAt: oldTimestamp,
+            doubanRatingUpdatedAt: oldTimestamp,
+            updatedAt: oldTimestamp,
+            lastRefreshedAt: oldTimestamp,
+          })],
+        };
+      },
+    },
+    {
+      getTasks: () => [...created],
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTask(taskData) {
+        const task = { id: `t-${created.length + 1}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...taskData };
+        created.push(task);
+        return task;
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  assert.strictEqual(created.length, 1);
+  assert.strictEqual(created[0].itemId, 'movie-old-rating-transcode');
+  assert.strictEqual(created[0].actionType, 'transcode');
+  assert.strictEqual(created[0].taskBridge.kind, 'optimize');
+});
+
 test('smartTaskEngine leaves ambiguous adult scrape candidates for explicit user action', async () => {
   smartTaskEngine.stop();
   const created = [];

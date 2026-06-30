@@ -138,18 +138,12 @@ function buildItemInfo(item) {
   };
 }
 
-function buildCandidate(item, { isFirstOrResume, lookbackCutoff, config }) {
+function buildCandidate(item, { config }) {
   const trigger = businessFlowPolicy.resolveAutomaticTrigger({ item, config });
   if (!trigger.allowed) return null;
 
-  const isAdultFolder = item.source === 'adult_folder';
   const actionType = trigger.actionType;
   const itemWithMetadata = trigger.item || item;
-
-  if (isFirstOrResume && !isAdultFolder && actionType !== 'scrape') {
-    const ratingTs = maxTimestamp(item.userRatingUpdatedAt, item.doubanRatingUpdatedAt);
-    if (ratingTs < lookbackCutoff) return null;
-  }
 
   const itemInfo = buildItemInfo(itemWithMetadata);
   const priorityBreakdown = priorityEngine.explainPriority({
@@ -234,7 +228,6 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       }
 
       const maxPerRun = cfg2.smartTaskMaxPerRun || 10;
-      const lookbackDays = cfg2.smartTaskLookbackDays || 30;
 
       const libraryItems = typeof mediaLibraryService.getSmartTaskCandidateItems === 'function'
         ? mediaLibraryService.getSmartTaskCandidateItems()
@@ -276,11 +269,8 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       };
 
       const now = Date.now();
-      const lookbackCutoff = now - lookbackDays * 86400000;
-      const isFirstOrResume = !lastRunAt || (now - lastRunAt > intervalMs * 2);
-
       const candidates = libraryItems
-        .map((item) => buildCandidate(item, { isFirstOrResume, lookbackCutoff, config: cfg2 }))
+        .map((item) => buildCandidate(item, { config: cfg2 }))
         .filter(Boolean);
       if (enabledActions.includes('ingest')) {
         for (const candidate of ingestCandidateProvider(cfg2) || []) {

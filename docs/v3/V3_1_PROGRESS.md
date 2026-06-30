@@ -2053,3 +2053,59 @@ Slice 48 移除了 SmartTask 的隐藏 `watched=true` 门槛后，继续发现�
 - P0-1 仍未完整关闭：SmartTask 仍有 `smartTaskLookbackDays` / `ratingTs` 这类 trigger-pressure 旧逻辑，它不是本切片修复范围；后续需要判断它是业务模型问题还是资源刹车/扫描节奏问题。
 - 手动 optimize intent 仍会在没有 preferredOperation 时从 `item.action` 推导 operation；这是手动入口模型的后续 P0-1 点，不混入本切片。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 50: Remove hidden SmartTask rating lookback gate
+
+### 对应标准
+
+- A3: SmartTaskEngine 是任务触发器，只应判断 lifecycle gate 是否满足并创建候选，不应藏有额外业务 gate。
+- A4: 自动任务仍必须经过 TaskAdmission；本切片不改变 admission、queue cap、priority 或 executor。
+- P0-1 新模型：metadata gate 已满足且策略给出 optimize operation 的媒体，应成为 optimize candidate；资源不足时应由 Resource View/Governor 明确阻止 trigger，而不是用评分更新时间静默过滤。
+
+### 审计结果
+
+Slice 49 后继续检查 SmartTask 触发链路，发现 `SmartTaskEngine.buildCandidate()` 仍有旧逻辑：
+
+- 服务首次扫描或长时间暂停后恢复时，普通库 optimize candidate 会读取 `userRatingUpdatedAt` / `doubanRatingUpdatedAt`。
+- 如果评分更新时间早于 `smartTaskLookbackDays`，candidate 会被直接丢弃。
+- 这个判断只作用于普通 optimize candidate，不作用于 scrape candidate，也不是 TaskAdmission 的显式拒绝原因。
+
+判断：
+
+- 这是 P0-1 新业务模型问题。
+- 它不是资源视图刹车，也不是下游 flow 重试策略；它会让 metadata gate 已满足、策略已给出 optimize action 的媒体静默停在 lifecycle 中间，破坏“元数据完整就应进入 optimize candidate”的用户心智。
+
+### 本切片修复
+
+- 删除 SmartTask 内部的 `smartTaskLookbackDays` / `ratingTs` 候选过滤。
+- SmartTask 候选生成现在只消费 `BusinessFlowPolicy.resolveAutomaticTrigger()` 的业务决策，然后继续走现有：
+  - queue cap；
+  - `smartTaskMaxPerRun`；
+  - PriorityEngine 排序；
+  - TaskAdmission；
+  - task creation。
+- `smartTaskLookbackDays` 配置字段暂时保留兼容，但不再作为 lifecycle trigger gate。
+
+### 后端事实来源
+
+- `media-service/src/smartTaskEngine.js`
+  - `buildCandidate()` 删除 first/resume + rating timestamp 过滤。
+  - 扫描循环不再计算 `lookbackCutoff` / `isFirstOrResume`。
+- `media-service/test/task-model.test.js`
+  - 新增回归用例：评分/刷新时间超过 lookback 的 metadata-complete 媒体，仍会触发 optimize candidate。
+
+### 非 P0-1 待修记录
+
+- Admin Web/System Config 里仍展示 `smartTaskLookbackDays`。这不是本次业务流程不满足的根因修复项，而是历史配置语义遗留；应在后续前端语义/P1 配置整理中删除、隐藏或重新定义。
+
+### 本地验收
+
+- `node --test test/task-model.test.js --test-name-pattern "rating lookback|smartTaskEngine"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，46 个测试通过。
+- `npm test`: pass，247 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS；生产自动触发行为仍需与 Slice 47/48/49 一起在观察窗口验证。
+- P0-1 仍未完整关闭：手动 optimize intent 仍会在没有 preferredOperation 时从 `item.action` 推导 operation；optimize task 下具体 flow 选择边界还需要继续收敛到策略/规划层。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
