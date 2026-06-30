@@ -1866,6 +1866,9 @@ test('POST /v1/tasks/:id/actions/retry rejects retry limit and active task confl
   assert.strictEqual(exhaustedView.statusCode, 200);
   assert.strictEqual(exhaustedView.json().controlState.actions.retry.enabled, false);
   assert.strictEqual(exhaustedView.json().controlState.actions.retry.reason, 'retry_limit_reached');
+  assert.strictEqual(exhaustedView.json().controlState.recoveryContract.flowKey, 'upgrade');
+  assert.strictEqual(exhaustedView.json().controlState.recoveryContract.currentResumePoint, 'upgrade_executing');
+  assert.ok(exhaustedView.json().controlState.recoveryContract.resumePoints.some((point) => point.resumePoint === 'upgrade_executing'));
 
   const retryLimit = await app.inject({ method: 'POST', url: `/v1/tasks/${exhausted.id}/actions/retry` });
   assert.strictEqual(retryLimit.statusCode, 409);

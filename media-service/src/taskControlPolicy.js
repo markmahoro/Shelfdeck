@@ -1,5 +1,7 @@
 'use strict';
 
+const flowRecoveryContract = require('./flowRecoveryContract');
+
 const TERMINAL_STATUSES = new Set(['done', 'failed_hard', 'failed_soft', 'cancelled', 'skipped', 'deleted']);
 const ACTIVE_CANCEL_STATUSES = new Set([
   'created',
@@ -14,22 +16,6 @@ const ACTIVE_CANCEL_STATUSES = new Set([
 ]);
 const PAUSE_STATUSES = new Set(['created', 'queued', 'executing', 'pausing', 'waiting_media_source']);
 const EXECUTE_STATUSES = new Set(['created', 'pending_manual', 'interrupted', 'paused', 'pausing']);
-const RETRYABLE_FAILED_STATUSES = new Set(['failed_hard', 'failed_soft']);
-const DEFAULT_RESUME_POINTS = {
-  ingest: 'ingest_precheck',
-  delete: 'delete_precheck',
-  transcode: 'transcode_precheck',
-  upgrade: 'upgrade_precheck',
-  scrape: 'scrape_precheck',
-};
-const FLOW_RESUME_POINTS = {
-  ingest: new Set(['ingest_precheck', 'ingest_commit']),
-  delete: new Set(['delete_precheck', 'delete_executing']),
-  transcode: new Set(['transcode_precheck', 'transcode_executing', 'transcode_replace']),
-  upgrade: new Set(['upgrade_precheck', 'upgrade_planning', 'upgrade_executing', 'upgrade_pre_replace_verify', 'upgrade_replace']),
-  scrape: new Set(['scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review']),
-};
-const MAX_MANUAL_RECOVERY_RETRIES = 3;
 
 function compactEvent(event) {
   if (!event || typeof event !== 'object') return null;
@@ -57,88 +43,7 @@ function action(enabled, reason, effect, extra = {}) {
 }
 
 function buildTaskRecoveryPlan(task) {
-  const status = task && task.status;
-  const actionType = task && task.actionType;
-  const retryCount = Number(task && task.retryCount || 0) || 0;
-  const defaultResumePoint = DEFAULT_RESUME_POINTS[actionType] || '';
-  const resumePoint = task && task.resumePoint || defaultResumePoint;
-  const knownResumePoints = FLOW_RESUME_POINTS[actionType];
-
-  if (status === 'interrupted' || status === 'paused') {
-    return {
-      available: true,
-      reason: 'resume_available',
-      action: 'execute',
-      effect: status === 'paused' ? 'resume_from_pause' : 'resume_after_interruption',
-      label: status === 'paused' ? '恢复任务' : '从中断点继续',
-      resumePoint: task && task.resumePoint || '',
-      retryCount,
-      maxRetryCount: MAX_MANUAL_RECOVERY_RETRIES,
-    };
-  }
-
-  if (!RETRYABLE_FAILED_STATUSES.has(status)) {
-    return {
-      available: false,
-      reason: 'not_failed_or_interrupted',
-      action: 'inspect_status',
-      effect: 'recovery_not_required',
-      label: '无需恢复',
-      resumePoint: task && task.resumePoint || '',
-      retryCount,
-      maxRetryCount: MAX_MANUAL_RECOVERY_RETRIES,
-    };
-  }
-
-  if (!defaultResumePoint || !knownResumePoints) {
-    return {
-      available: false,
-      reason: 'unsupported_flow',
-      action: 'inspect_events',
-      effect: 'flow_has_no_recovery_contract',
-      label: '查看事件',
-      resumePoint: task && task.resumePoint || '',
-      retryCount,
-      maxRetryCount: MAX_MANUAL_RECOVERY_RETRIES,
-    };
-  }
-
-  if (retryCount >= MAX_MANUAL_RECOVERY_RETRIES) {
-    return {
-      available: false,
-      reason: 'retry_limit_reached',
-      action: 'inspect_events',
-      effect: 'manual_recovery_retry_limit_reached',
-      label: '查看事件',
-      resumePoint,
-      retryCount,
-      maxRetryCount: MAX_MANUAL_RECOVERY_RETRIES,
-    };
-  }
-
-  if (!knownResumePoints.has(resumePoint)) {
-    return {
-      available: false,
-      reason: 'unknown_resume_point',
-      action: 'inspect_events',
-      effect: 'resume_point_not_in_flow_recovery_contract',
-      label: '查看事件',
-      resumePoint,
-      retryCount,
-      maxRetryCount: MAX_MANUAL_RECOVERY_RETRIES,
-    };
-  }
-
-  return {
-    available: true,
-    reason: 'failed_task_retry_available',
-    action: 'retry',
-    effect: task && task.resumePoint ? 'queue_failed_task_from_resume_point' : 'queue_failed_task_from_flow_start',
-    label: task && task.resumePoint ? '从失败点重试' : '重新排队',
-    resumePoint,
-    retryCount,
-    maxRetryCount: MAX_MANUAL_RECOVERY_RETRIES,
-  };
+  return flowRecoveryContract.buildRecoveryPlan(task);
 }
 
 function stateForTask(task) {
@@ -384,6 +289,7 @@ function buildTaskControlState(task, options = {}) {
     actions,
     confirmation: confirmationSummary(task),
     recovery: recoverySummary(task),
+    recoveryContract: flowRecoveryContract.buildContractProjection(task),
     latestEvent,
   };
 }

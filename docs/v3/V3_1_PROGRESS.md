@@ -1684,3 +1684,56 @@ Slice 41 的 lifecycle audit 仍保留旧结论：`context.mediaType !== adult &
 - 本切片尚未部署 NAS；生产生命周期 audit 的新 signal 需要与 Slice 42 一起部署后再验证。
 - P0-1 仍未完整关闭：还需要部署新模型后，用生产样本和任务中心继续确认普通库 repair lifecycle、成人库 scrape lifecycle、转码 queue lifecycle 是否符合预期。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 44: Flow recovery contract projection
+
+### 对应标准
+
+- A5: 失败任务的 retry/resume 不能只靠 `actionType` 硬编码，必须能解释当前 flow 允许哪些恢复点。
+- B3/B5: 任务中心可以从 `controlState.recoveryContract` 读取 flow 的默认恢复点、当前恢复点、可恢复 event 和用户检查建议。
+- C4: recovery contract 有单元测试覆盖，API 详情也验证会投影给任务详情。
+
+### 用户视角判定
+
+本切片把原先散落在 `TaskControlPolicy` 里的 resume point 表抽成 `flowRecoveryContract`：
+
+- `ingest`: `ingest_precheck` / `ingest_commit`
+- `scrape`: `scrape_precheck` / `scrape_executing` / `scrape_write_metadata` / `scrape_review`
+- `transcode`: `transcode_precheck` / `transcode_executing` / `transcode_replace`
+- `upgrade`: `upgrade_precheck` / `upgrade_planning` / `upgrade_executing` / `upgrade_pre_replace_verify` / `upgrade_replace`
+- `delete`: `delete_precheck` / `delete_executing`
+
+每个恢复点现在至少包含：
+
+- `label`: 任务中心可展示的 event 名称；
+- `retryStrategy`: `restart_step` / `resume_step` / `user_gated` 等恢复策略；
+- `idempotency`: 当前恢复点对幂等性的最低说明；
+- `userAction`: 失败时用户应检查或确认的方向。
+
+`TaskControlPolicy.buildTaskRecoveryPlan()` 继续保持原有 retry 行为和错误码，但它现在消费同一份 flow contract。任务详情的 `controlState.recoveryContract` 会告诉前端：这个 flow 是否有恢复合同、默认恢复点是什么、当前恢复点是什么、最大重试次数是多少、有哪些合法恢复点。
+
+### 后端事实来源
+
+- `media-service/src/flowRecoveryContract.js`
+  - 新增当前 flow recovery contract。
+  - 提供 `buildRecoveryPlan()` 和 `buildContractProjection()`。
+- `media-service/src/taskControlPolicy.js`
+  - 删除本地硬编码 resume point 表。
+  - `controlState` 增加 `recoveryContract`。
+- `media-service/test/task-model.test.js`
+  - 覆盖每个 flow 的恢复点、retry strategy、幂等性说明和未知恢复点拒绝。
+- `media-service/test/api-inject.test.js`
+  - 验证任务详情会投影 `controlState.recoveryContract`。
+
+### 本地验收
+
+- `node --test test/task-model.test.js --test-name-pattern "flowRecoveryContract"`: pass，41 个测试通过。
+- `node --test test/api-inject.test.js --test-name-pattern "actions/retry rejects retry limit"`: pass，111 个测试通过。
+- `npm test`: pass，239 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 这只是 recovery contract 的首层事实化；各 flow 的真实幂等行为、部分写入清理、外部请求去重和用户确认点仍需要逐 flow 审计。
+- 本切片尚未部署 NAS；生产任务详情的 recovery contract 展示待后续浏览器验收。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

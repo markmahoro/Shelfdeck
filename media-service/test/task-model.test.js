@@ -19,6 +19,7 @@ const resourceProjection = require('../src/resourceProjection');
 const diagnosticLog = require('../src/diagnosticLog');
 const backgroundIoGuard = require('../src/backgroundIoGuard');
 const metadataStatus = require('../src/metadataStatus');
+const flowRecoveryContract = require('../src/flowRecoveryContract');
 
 function metadataReadyMovie(overrides = {}) {
   const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
@@ -346,6 +347,51 @@ test('metadataStatus marks a custom metadataGate contract broken when strategy i
   const meta = metadataStatus.resolveMetadataStatus(item, config);
   assert.strictEqual(meta.metadataStatus, 'missing');
   assert.ok(meta.metadataMissingReasons.includes('metadata_gate_contract_broken'));
+});
+
+test('flowRecoveryContract documents retry points for every current flow', () => {
+  const expected = {
+    ingest: ['ingest_precheck', 'ingest_commit'],
+    scrape: ['scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review'],
+    transcode: ['transcode_precheck', 'transcode_executing', 'transcode_replace'],
+    upgrade: ['upgrade_precheck', 'upgrade_planning', 'upgrade_executing', 'upgrade_pre_replace_verify', 'upgrade_replace'],
+    delete: ['delete_precheck', 'delete_executing'],
+  };
+  for (const [flowKey, resumePoints] of Object.entries(expected)) {
+    const contract = flowRecoveryContract.getContract(flowKey);
+    assert.ok(contract, `${flowKey} recovery contract exists`);
+    assert.strictEqual(contract.flowKey, flowKey);
+    assert.ok(resumePoints.includes(contract.defaultResumePoint));
+    assert.deepStrictEqual(Object.keys(contract.resumePoints), resumePoints);
+    for (const resumePoint of resumePoints) {
+      const point = contract.resumePoints[resumePoint];
+      assert.ok(point.label, `${flowKey}/${resumePoint} has a label`);
+      assert.ok(point.retryStrategy, `${flowKey}/${resumePoint} has a retry strategy`);
+      assert.ok(point.idempotency, `${flowKey}/${resumePoint} has idempotency notes`);
+    }
+  }
+});
+
+test('flowRecoveryContract rejects unknown resume points and exposes current point details', () => {
+  const good = flowRecoveryContract.buildRecoveryPlan({
+    actionType: 'scrape',
+    status: 'failed_hard',
+    resumePoint: 'scrape_executing',
+    retryCount: 1,
+  });
+  assert.strictEqual(good.available, true);
+  assert.strictEqual(good.flowKey, 'scrape');
+  assert.strictEqual(good.resumePoint, 'scrape_executing');
+  assert.strictEqual(good.resumePointContract.retryStrategy, 'resume_step');
+
+  const bad = flowRecoveryContract.buildRecoveryPlan({
+    actionType: 'scrape',
+    status: 'failed_hard',
+    resumePoint: 'metadata_magic',
+  });
+  assert.strictEqual(bad.available, false);
+  assert.strictEqual(bad.reason, 'unknown_resume_point');
+  assert.strictEqual(bad.effect, 'resume_point_not_in_flow_recovery_contract');
 });
 
 test('smartTaskEngine treats an empty automatic allow-list as an intentional disabled state', () => {

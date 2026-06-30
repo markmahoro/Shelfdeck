@@ -123,6 +123,7 @@ Dolby Vision 转码属于转码能力层，而不是任务管理绕行策略。`
 - 当 executor 自己捕获错误并通过 `reportStatus(..., failed_hard)` 上报失败时，自动生成的 `task.failed` event 必须包含轻量 `failureSummary`、bridge/flow operation 和 primary resource facts。该摘要只取最近 error log 的时间、级别和消息，不把完整 logs 或 report payload 写入事件 projection。
 - 用户在任务中心触发的控制动作也必须进入 `task_events`。确认成功写 `task.confirmed`，开始/继续写 `task.execute_requested`，暂停写 `task.pause_requested`，取消/移除写 `task.cancel_requested`，失败重试继续写 `task.retry_requested` / `task.retry_recorded`。这些事件记录 `requestedBy=user`、action effect、原状态、恢复点和必要的 gate/confirmData 线索，用于任务详情和 Dashboard event projection 解释“用户刚推进了什么”。
 - 任务列表和任务详情 API 会返回 `controlState` 投影，用于解释当前 task 的控制语义：是否需要用户确认、execute/pause/confirm/cancel/retry 是否可用、不可用原因、动作会造成的状态推进、恢复建议和最近事件摘要。任务 action endpoint 必须以同一套 `controlState.actions` 语义作为服务端强约束；若动作不可用，返回 `409 TASK_ACTION_REJECTED` 和对应 reason。失败任务的 retry 不是无条件重跑，而是按 flow recovery contract 校验 `actionType`、`resumePoint`、`retryCount` 和同 item active task 冲突后，重新排队同一个 task。列表投影只依赖 task current facts；详情页可附带最近 event。
+- Flow recovery contract 由 `src/flowRecoveryContract.js` 统一定义，覆盖当前 `ingest/scrape/transcode/upgrade/delete` 的默认恢复点、允许的 resume points、重试策略和幂等性说明。`TaskControlPolicy` 只消费该合同，不再单独维护一套 resume point 表；任务 response 的 `controlState.recoveryContract` 会投影当前 flow 的恢复合同，供任务中心解释失败任务能否 retry、从哪个 event 继续、以及需要用户检查什么。
 - `/v1/tasks` 默认 active 列表和 `activeOnly=1` 必须走 `queryTaskSummaries(..., { includeHistory: false })`，返回轻量 task summary 与 `controlState`，不包含 logs/report/heavy adult face payload。只有显式 `includeHistory=1` 且不是 activeOnly 时才返回完整历史记录；单任务详情、report 和 events 继续作为按需读取入口。
 - 服务重启恢复必须可解释。启动时发现 `executing`、旧 phase runtime 状态或 `pausingRequested` 的任务，会先标记为 `interrupted` 并写 `task.restart_interrupted`；调度轮自动重排 interrupted task 时写 `task.restart_recovery_queued`，超过重启恢复重试上限时写 `task.restart_recovery_failed`。这些事件会记录原 status/phase/resumePoint、retryCount 和恢复效果，供任务中心与 Resource view 解释重启后的状态跳转。
 - `TaskScheduler` 的准入准出仍围绕 task 状态推进和 item lock，但并发容量开始按 `flowPlan`/event resource bucket 决策，例如 `local_transcode`/`worker_transcode`、`moviepilot`、`emby`、`scraper`、`local_ai`、`filesystem:ingest`、`filesystem:mutation`。`actionType` 只保留为 executor 分派和 v2 API 兼容字段。
@@ -196,7 +197,7 @@ Dolby Vision 转码属于转码能力层，而不是任务管理绕行策略。`
 | Scrape flow | `src/scrapeFlowExecutor.js` | 普通 Emby metadata repair 和成人库刮削/整理任务执行；普通库读取 Emby、已有 Douban 缓存和自算字段，成人库 JAV 调用内置 scraper，欧美成人默认 service-local AI |
 | Library | `src/mediaLibraryService.js` | 子库和媒体缓存管理 |
 | Adult folder library | `src/adultLibraryService.js` | 成人文件夹库单 item 入库、刮削、整理、演员库和只读目录核对 |
-| Policy | `src/mediaPolicyService.js`、`src/strategyEngine.js`、`src/smartTaskEngine.js` | 策略计算和自动入队 |
+| Policy | `src/mediaPolicyService.js`、`src/strategyEngine.js`、`src/smartTaskEngine.js`、`src/flowRecoveryContract.js` | 策略计算、自动入队和 flow recovery contract |
 | External adapters | `src/services/*Service.js` | Emby、Douban、MoviePilot、FFmpeg、成人库 scraper、欧美成人 service-local/worker AI |
 | Tray | `src/tray.js` | Windows 系统托盘 |
 | People store | `src/peopleStore.js` | `data/people.json` 欧美成人人物库 |
