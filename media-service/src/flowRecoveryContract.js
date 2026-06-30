@@ -21,6 +21,24 @@ const FLOW_RECOVERY_CONTRACTS = {
       },
     },
   },
+  archive: {
+    flowKey: 'archive',
+    defaultResumePoint: 'archive_precheck',
+    resumePoints: {
+      archive_precheck: {
+        label: 'Archive precheck',
+        retryStrategy: 'restart_step',
+        idempotency: 'read_only_gate_check',
+        userAction: 'inspect_optimize_or_archive_blocker',
+      },
+      archive_finalize: {
+        label: 'Finalize archive',
+        retryStrategy: 'resume_step',
+        idempotency: 'upsert_archive_closure_facts',
+        userAction: 'inspect_lifecycle_closure',
+      },
+    },
+  },
   scrape: {
     flowKey: 'scrape',
     defaultResumePoint: 'scrape_precheck',

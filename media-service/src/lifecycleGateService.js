@@ -279,21 +279,32 @@ function isOptimizedLike(item = {}) {
   return evaluateOptimizeGate(item).passed;
 }
 
+function hasArchiveClosureMarker(item = {}) {
+  const archiveStatus = normalize(item.archiveStatus);
+  return archiveStatus === 'archived'
+    || archiveStatus === 'archived_like'
+    || item.lifecycleDone === true
+    || !!item.archiveDoneAt;
+}
+
 function evaluateArchiveGate(item = {}) {
   const missing = [];
   const blockers = Array.isArray(item.archiveBlockers) ? item.archiveBlockers.filter(Boolean) : [];
 
   if (!isOptimizedLike(item)) missing.push('optimize.result');
+  else if (!hasArchiveClosureMarker(item)) missing.push('archive.finalization');
   if (blockers.length > 0) missing.push('archive.blocker');
 
   return {
     gate: 'archive',
     passed: missing.length === 0,
     status: missing.length === 0 ? 'passed' : 'not_ready',
-    reason: missing.length === 0 ? 'archive_gate_met' : 'archive_gate_not_ready',
+    reason: missing.length === 0 ? 'archive_gate_met'
+      : missing.includes('archive.finalization') ? 'archive_finalize_required'
+      : 'archive_gate_not_ready',
     missingReasons: missing,
     blockers,
-    userAction: missing.length === 0 ? '' : 'inspect_open_gate_or_active_blocker',
+    userAction: missing.length === 0 ? '' : 'finalize_archive_or_inspect_blocker',
   };
 }
 

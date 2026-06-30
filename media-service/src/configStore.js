@@ -503,6 +503,7 @@ function getDefaultConfig() {
       autoTaskPriorityBase: 100, // base for smartTaskEngine-created tasks
       actionTypeWeights: {
         ingest: 60,
+        archive: 70,
         scrape: 80,
         delete: 90,
         upgrade: 110,
@@ -517,7 +518,7 @@ function getDefaultConfig() {
       maxQueueAgeBonus: 40,
       retryPenalty: 20,
       maxRetryPenalty: 80,
-      rules: { ingest: [], transcode: [], upgrade: [], delete: [], scrape: [] },
+      rules: { ingest: [], archive: [], transcode: [], upgrade: [], delete: [], scrape: [] },
     },
 
     approvalPolicy: {
@@ -537,6 +538,7 @@ function getDefaultConfig() {
       defaultMaxQueued: 50,
       maxQueuedByAction: {
         ingest: 50,
+        archive: 50,
         scrape: 20,
         delete: 50,
         transcode: 50,

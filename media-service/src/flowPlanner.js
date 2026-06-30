@@ -5,18 +5,18 @@ const FLOW_PLAN_VERSION = 'v2.7';
 const FLOW_DEFINITIONS = {
   ingest: {
     bridge: {
-      kind: 'metadata',
+      kind: 'ingest',
       from: 'file_candidate',
-      to: 'library_item',
-      reason: 'Create or refresh library metadata from an observed media file.',
+      to: 'ingested_item',
+      reason: 'Turn an observed source candidate into a managed media item.',
     },
-    direction: 'metadata.ingest',
+    direction: 'ingest.commit',
     operationKind: 'ingest',
     executor: 'ingestFlowExecutor',
     primaryResourceType: 'filesystem',
     steps: [
-      { phase: 'ingest_precheck', eventType: 'metadata.ingest.precheck', resourceType: 'filesystem' },
-      { phase: 'ingest_commit', eventType: 'metadata.ingest.commit', resourceType: 'filesystem' },
+      { phase: 'ingest_precheck', eventType: 'ingest.precheck', resourceType: 'filesystem' },
+      { phase: 'ingest_commit', eventType: 'ingest.commit', resourceType: 'filesystem' },
     ],
   },
   scrape: {
@@ -89,6 +89,22 @@ const FLOW_DEFINITIONS = {
       { phase: 'delete_precheck', eventType: 'optimize.delete.precheck', resourceType: 'filesystem' },
       { phase: 'delete_executing', eventType: 'optimize.delete.execute', resourceType: 'filesystem' },
       { phase: 'delete_verify', eventType: 'optimize.delete.verify', resourceType: 'filesystem' },
+    ],
+  },
+  archive: {
+    bridge: {
+      kind: 'archive',
+      from: 'optimized_item',
+      to: 'archived_item',
+      reason: 'Finalize a media item lifecycle after the optimize gate is satisfied.',
+    },
+    direction: 'archive.finalize',
+    operationKind: 'archive',
+    executor: 'archiveFlowExecutor',
+    primaryResourceType: 'service_api',
+    steps: [
+      { phase: 'archive_precheck', eventType: 'archive.finalize.precheck', resourceType: 'service_api' },
+      { phase: 'archive_finalize', eventType: 'archive.finalize.write', resourceType: 'service_api' },
     ],
   },
 };

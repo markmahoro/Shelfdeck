@@ -456,9 +456,10 @@ test('GET /v1/library exposes v3 business flow decision for media rows', async (
   assert.strictEqual(item.businessFlowDecision.blockedReasons.scrape, 'metadata_already_complete');
   const keepItem = res.json().items.find((row) => row.itemId === 'business-flow-keep');
   assert.ok(keepItem, 'keep media row present');
-  assert.strictEqual(keepItem.businessFlowDecision.lifecycleStage, 'archived');
-  assert.strictEqual(keepItem.businessFlowDecision.recommendedOperation, 'keep');
-  assert.strictEqual(keepItem.businessFlowDecision.nextBridge, null);
+  assert.strictEqual(keepItem.businessFlowDecision.lifecycleStage, 'optimized');
+  assert.strictEqual(keepItem.businessFlowDecision.recommendedOperation, null);
+  assert.strictEqual(keepItem.businessFlowDecision.nextBridge, 'archive');
+  assert.ok(keepItem.businessFlowDecision.allowedOperations.some((op) => op.operation === 'archive' && op.bridgeKind === 'archive'));
   await app.close();
 });
 
@@ -2183,6 +2184,8 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
     name: 'Closed',
     action: 'keep',
     metadataComplete: true,
+    archiveStatus: 'archived_like',
+    archiveDoneAt: new Date().toISOString(),
   });
   const missing = metadataReadyMovie({
     itemId: 'dashboard-missing',
@@ -2807,8 +2810,8 @@ test('adult directory discovery is inventory only and ingest does not create scr
 
   const ingestTask = adultLibraryService.enqueueIngestTask(subLib, path.join(watchRoot, 'MVSD-175.mp4'), { source: 'auto' });
   assert.ok(ingestTask, 'auto ingest can still be admitted through TaskAdmission when ingest is enabled');
-  assert.strictEqual(ingestTask.taskBridge.kind, 'metadata');
-  assert.strictEqual(ingestTask.flowPlan.direction, 'metadata.ingest');
+  assert.strictEqual(ingestTask.taskBridge.kind, 'ingest');
+  assert.strictEqual(ingestTask.flowPlan.direction, 'ingest.commit');
   assert.strictEqual(ingestTask.flowPlan.operationKind, 'ingest');
 
   const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });

@@ -3,9 +3,10 @@
 const optimizationStatus = require('./optimizationStatus');
 const metadataStatus = require('./metadataStatus');
 const lifecycleTaskPlanner = require('./lifecycleTaskPlanner');
+const lifecycleProjection = require('./lifecycleProjection');
 
 const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
-const USER_OPERATIONS = lifecycleTaskPlanner.USER_OPERATIONS;
+const USER_OPERATIONS = ['scrape', 'transcode', 'upgrade', 'delete', 'archive'];
 
 function actionCooldownMs(config, actionType) {
   const cfg = config && config.taskAdmission || {};
@@ -165,6 +166,32 @@ function resolveAutomaticTrigger(input = {}) {
     };
   }
 
+  const lifecycle = lifecycleProjection.resolveLifecycle(itemWithMetadata);
+  if (lifecycle.lifecycleNextTask === 'archive') {
+    const archiveGate = lifecycle.archiveGate || {};
+    if (Array.isArray(archiveGate.blockers) && archiveGate.blockers.length > 0) {
+      return blocked('archive', 'archive_gate_blocked', {
+        item: itemWithMetadata,
+        archiveGate,
+      });
+    }
+    if (!enabledAutoActions(cfg).includes('archive')) {
+      return blocked('archive', 'action_not_enabled', {
+        item: itemWithMetadata,
+        archiveGate,
+      });
+    }
+    return {
+      allowed: true,
+      reason: 'archive_gate_not_met',
+      operation: 'archive',
+      actionType: 'archive',
+      bridgeKind: 'archive',
+      item: itemWithMetadata,
+      archiveGate,
+    };
+  }
+
   const planned = lifecycleTaskPlanner.selectStrategyOperation(itemWithMetadata);
   if (!planned.allowed) {
     return blocked(planned.operation, planned.reason, { item: itemWithMetadata });
@@ -225,6 +252,17 @@ function evaluateOperation(input = {}) {
 
   if (actionType === 'upgrade' && item && item.isDiscLike) {
     return blocked(actionType, 'upgrade_not_supported_for_disc_like_source');
+  }
+
+  if (actionType === 'archive') {
+    const lifecycle = lifecycleProjection.resolveLifecycle(item || info);
+    const archiveGate = lifecycle.archiveGate || lifecycleProjection.evaluateArchiveGate(item || info);
+    const missingReasons = Array.isArray(archiveGate.missingReasons) ? archiveGate.missingReasons : [];
+    if (archiveGate.passed) return blocked(actionType, 'archive_already_closed', { archiveGate });
+    if (missingReasons.includes('optimize.result')) return blocked(actionType, 'optimize_gate_missing', { archiveGate });
+    if (Array.isArray(archiveGate.blockers) && archiveGate.blockers.length > 0) {
+      return blocked(actionType, 'archive_gate_blocked', { archiveGate });
+    }
   }
 
   if (!manual) {

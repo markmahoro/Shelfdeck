@@ -2712,3 +2712,74 @@ S4 archived
 - 这是 compatibility projection，不是生产数据迁移；历史 raw facts 仍保持原样，便于审计。
 - P0-1 的 5 阶段 4 gate 架构仍需继续收口，特别是 ingest gate 和 archive gate 要落到统一业务流程中。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 61: Enforce ingest and archive gates as first-class bridges
+
+### 对应标准
+
+- A1: 后端统一决策结果必须能给出 lifecycle / metadata / optimization / archive 状态，并且状态推进不能只靠 `actionType` 推断。
+- A2: 每个 task 必须能解释自己连接哪个 lifecycle bridge、走哪个 flow、有哪些 event/recovery points。
+- P0-1 新模型：完整业务心智是 `source/discovered --ingest gate--> ingested --metadata gate--> metadata-ready --optimize gate--> optimized --archive gate--> archived`。
+
+### 本切片修复
+
+- `ingest` 从旧 `metadata.ingest` 中拆出，成为独立 bridge：
+  - `taskBridge.kind=ingest`
+  - `flowPlan.direction=ingest.commit`
+  - events: `ingest.precheck` / `ingest.commit`
+- 新增轻量 `archive` operation / flow：
+  - `taskBridge.kind=archive`
+  - `flowPlan.direction=archive.finalize`
+  - `ArchiveFlowExecutor` 只做 gate 校验和 closure facts 写回，不删除媒体、不碰重资源。
+- `archiveGate` 不再在 optimize gate passed 后自动通过；它需要明确 closure marker：
+  - `archiveStatus=archived_like|archived`
+  - 或 `archiveDoneAt`
+  - 或显式 `lifecycleDone=true`
+- `BusinessFlowPolicy` / `TaskAdmission` 支持：
+  - optimize gate satisfied 但 archive 未闭环时，允许 `archive` task；
+  - archive 已闭环时拒绝 `archive_already_closed`；
+  - optimize gate 未满足时拒绝 `optimize_gate_missing`；
+  - archive blockers 存在时拒绝 `archive_gate_blocked`。
+- `SmartTaskEngine` 可识别 archive candidate，并在 `smartTaskEnabledActions` 包含 `archive` 时统一经过 TaskAdmission / PriorityEngine 入队。
+- `TaskScheduler` 接入 `archiveFlowExecutor`、archive concurrency、archive recovery points。
+- `querySmartTaskCandidateItems()` 补充 optimization/archive facts，避免自动 archive 只能看到截断 item facts。
+
+### 用户视角变化
+
+- 已优化媒体会先进入 `optimized`，下一步是 `archive`；只有 archive finalize 写入 closure facts 后才显示为 `archived`。
+- `delete` 仍然是 optimize flow，不是 archive gate。
+- `ingest` 不再被任务中心解释成 metadata bridge，入库和刮削的用户语义拆开。
+
+### 后端事实来源
+
+- `media-service/src/flowPlanner.js`
+  - ingest bridge 改为 `ingest.commit`，新增 `archive.finalize`。
+- `media-service/src/lifecycleGateService.js`
+  - archive gate 要求 explicit closure marker。
+- `media-service/src/archiveFlowExecutor.js`
+  - 新增 archive finalize executor。
+- `media-service/src/businessFlowPolicy.js`
+  - archive admission / automatic trigger。
+- `media-service/src/taskScheduler.js`
+  - archive executor、concurrency、done facts。
+- `media-service/src/flowRecoveryContract.js`
+  - archive recovery contract。
+- `docs/v2/ARCH_OVERVIEW.md`
+  - 更新 5 阶段 4 gate 和 bridge/operation contract。
+
+### 本地验收
+
+- `node --check src/archiveFlowExecutor.js`: pass。
+- `node --check src/businessFlowPolicy.js`: pass。
+- `node --check src/taskScheduler.js`: pass。
+- `node --test test/task-model.test.js --test-name-pattern "archive|ingest|lifecycleProjection|flowRecoveryContract|lifecycleTaskPlanner"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，55 个测试通过。
+- `node --test test/api-inject.test.js --test-name-pattern "dashboard/health|business flow|ingest|archive|bridge intent|filters by bridge"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `api-inject.test.js` 全量，115 个测试通过。
+- `npm test`: pass，258 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+- `git diff --check`: pass；仅有 Windows line-ending warning。
+
+### 尚未满足
+
+- 前端配置页尚未把 `archive` 暴露成可勾选自动 operation；本 slice 先完成后端业务模型，前端语义仍需 P1/P2 单独收口。
+- Archive gate 的业务细节目前是第一版技术定义：closure marker + blockers；更细的归档策略、保留周期、审计摘要后续再展开。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

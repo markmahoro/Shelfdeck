@@ -2,12 +2,13 @@
 
 const flowPlanner = require('./flowPlanner');
 
-const USER_OPERATIONS = ['scrape', 'transcode', 'upgrade', 'delete'];
+const USER_OPERATIONS = ['ingest', 'scrape', 'transcode', 'upgrade', 'delete', 'archive'];
 
 const BRIDGE_OPERATIONS = {
+  ingest: ['ingest'],
   metadata: ['scrape'],
   optimize: ['transcode', 'upgrade', 'delete'],
-  archive: [],
+  archive: ['archive'],
 };
 
 function cleanToken(value) {
@@ -102,7 +103,9 @@ function resolveManualOperationIntent(input = {}) {
   }
 
   if (!operation) {
-    if (bridgeKind === 'metadata') operation = 'scrape';
+    if (bridgeKind === 'ingest') operation = 'ingest';
+    else if (bridgeKind === 'metadata') operation = 'scrape';
+    else if (bridgeKind === 'archive') operation = 'archive';
     else {
       const strategy = selectStrategyOperation(item);
       if (strategy.allowed && strategy.bridgeKind === bridgeKind && supportedOperations.includes(strategy.operation)) {

@@ -20,6 +20,7 @@ const transcodeFlow = require('./transcodeFlowExecutor');
 const upgradeFlow = require('./upgradeFlowExecutor');
 const scrapeFlow = require('./scrapeFlowExecutor');
 const ingestFlow = require('./ingestFlowExecutor');
+const archiveFlow = require('./archiveFlowExecutor');
 const healthCheck = require('./healthCheck');
 const activityLog = require('./activityLog');
 const nodeStore = require('./nodeStore');
@@ -45,6 +46,7 @@ const CLOSED_STATUSES = new Set(['done', 'skipped', 'cancelled', 'deleted']);
 function getFlow(actionType) {
   switch (actionType) {
     case 'ingest': return ingestFlow;
+    case 'archive': return archiveFlow;
     case 'delete': return deleteFlow;
     case 'transcode': return transcodeFlow;
     case 'upgrade': return upgradeFlow;
@@ -56,6 +58,7 @@ function getFlow(actionType) {
 function getConcurrencyLimit(actionType, limits) {
   switch (actionType) {
     case 'ingest': return limits.ingestConcurrency || 1;
+    case 'archive': return limits.archiveConcurrency || 1;
     case 'delete': return limits.deleteConcurrency || 1;
     case 'transcode': return limits.transcodeConcurrency || 1;
     case 'upgrade': return limits.upgradeConcurrency || 1;
@@ -127,6 +130,23 @@ function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt) {
     libItem.removedAt = doneAt;
     libItem.optimizeGate = gate;
     libItem.optimizationGate = gate;
+  }
+  if (task.actionType === 'archive') {
+    libItem.archiveStatus = 'archived_like';
+    libItem.archiveReason = 'archive_finalize_done';
+    libItem.archiveDoneAt = doneAt;
+    libItem.archiveTaskId = task.id;
+    libItem.lifecycleDone = true;
+    libItem.lifecycleNextTask = null;
+    libItem.archiveGate = task.archiveGate || {
+      gate: 'archive',
+      passed: true,
+      status: 'passed',
+      reason: 'archive_gate_met',
+      missingReasons: [],
+      blockers: [],
+      finalizedAt: doneAt,
+    };
   }
 }
 
@@ -204,6 +224,7 @@ function reportStatus(taskId, status, progress) {
       : oldTask.actionType === 'upgrade' ? '洗版'
       : oldTask.actionType === 'delete' ? '删除'
       : oldTask.actionType === 'ingest' ? '入库'
+      : oldTask.actionType === 'archive' ? '归档'
       : oldTask.actionType === 'scrape' ? '刮削'
       : oldTask.actionType;
 
@@ -242,7 +263,7 @@ function recoverInterruptedTasks() {
   const tasks = typeof taskStore.querySchedulerTasks === 'function'
     ? taskStore.querySchedulerTasks()
     : taskStore.loadTasks({ includeHistory: false });
-  const interruptible = ['precheck', 'executing', 'verify', 'ingest_precheck', 'ingest_commit', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review', 'planning', 'pre_replace_verify', 'pausing'];
+  const interruptible = ['precheck', 'executing', 'verify', 'ingest_precheck', 'ingest_commit', 'archive_precheck', 'archive_finalize', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review', 'planning', 'pre_replace_verify', 'pausing'];
   for (const t of tasks) {
     if (t.status === 'done' || t.status === 'failed_hard') continue;
     // awaiting_user_confirm is a stable state — user hasn't decided yet, preserve it
@@ -494,6 +515,7 @@ function startScheduler() {
   // Inject scheduler into Flow Executors
   deleteFlow.setScheduler({ pauseForConfirm, reportStatus });
   ingestFlow.setScheduler({ pauseForConfirm, reportStatus });
+  archiveFlow.setScheduler({ pauseForConfirm, reportStatus });
   transcodeFlow.setScheduler({ pauseForConfirm, reportStatus });
   upgradeFlow.setScheduler({ pauseForConfirm, reportStatus });
   scrapeFlow.setScheduler({ pauseForConfirm, reportStatus });

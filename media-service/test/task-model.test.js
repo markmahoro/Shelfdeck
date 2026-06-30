@@ -267,6 +267,51 @@ test('taskAdmission treats a missing automatic allow-list as disabled', () => {
   assert.strictEqual(manual.allowed, true);
 });
 
+test('taskAdmission allows archive only after optimize gate is satisfied and not closed', () => {
+  const config = {
+    smartTaskEnabledActions: ['archive'],
+    subLibraries: [{ uuid: 'lib-a', automationMode: 'auto' }],
+  };
+  const ready = metadataReadyMovie({
+    itemId: 'archive-ready',
+    subLibraryId: 'lib-a',
+    action: 'transcode',
+    optimizationStatus: 'transcoded',
+    optimizationAction: 'transcode',
+    optimizationDoneAt: new Date().toISOString(),
+  });
+  const allowed = taskAdmission.canCreateTask({
+    item: ready,
+    actionType: 'archive',
+    source: 'manual',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(allowed.allowed, true);
+  assert.strictEqual(allowed.taskBridge.kind, 'archive');
+  assert.strictEqual(allowed.flowPlan.direction, 'archive.finalize');
+
+  const notOptimized = taskAdmission.canCreateTask({
+    item: metadataReadyMovie({ itemId: 'archive-not-optimized', subLibraryId: 'lib-a', action: 'transcode' }),
+    actionType: 'archive',
+    source: 'manual',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(notOptimized.allowed, false);
+  assert.strictEqual(notOptimized.reason, 'optimize_gate_missing');
+
+  const closed = taskAdmission.canCreateTask({
+    item: { ...ready, archiveStatus: 'archived_like', archiveDoneAt: new Date().toISOString() },
+    actionType: 'archive',
+    source: 'manual',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(closed.allowed, false);
+  assert.strictEqual(closed.reason, 'archive_already_closed');
+});
+
 test('businessFlowPolicy resolves automatic metadata repair triggers outside SmartTaskEngine', () => {
   const config = {
     smartTaskEnabledActions: ['scrape'],
@@ -321,6 +366,31 @@ test('businessFlowPolicy resolves automatic optimize triggers from strategy outp
   assert.strictEqual(trigger.planningMode, 'strategy_result');
 });
 
+test('businessFlowPolicy resolves automatic archive trigger after optimize gate', () => {
+  const config = {
+    smartTaskEnabledActions: ['archive'],
+    subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+  };
+  const trigger = businessFlowPolicy.resolveAutomaticTrigger({
+    config,
+    item: metadataReadyMovie({
+      itemId: 'movie-auto-archive',
+      subLibraryId: 'movie-lib',
+      action: 'transcode',
+      reason: 'strategy selected transcode',
+      optimizationStatus: 'transcoded',
+      optimizationAction: 'transcode',
+      optimizationDoneAt: new Date().toISOString(),
+    }),
+  });
+
+  assert.strictEqual(trigger.allowed, true);
+  assert.strictEqual(trigger.actionType, 'archive');
+  assert.strictEqual(trigger.bridgeKind, 'archive');
+  assert.strictEqual(trigger.reason, 'archive_gate_not_met');
+  assert.ok(trigger.archiveGate.missingReasons.includes('archive.finalization'));
+});
+
 test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
   const item = metadataReadyMovie({
     itemId: 'movie-planner-upgrade',
@@ -368,6 +438,25 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
     'delete_executing',
     'delete_verify',
   ]);
+
+  const ingestPlanned = lifecycleTaskPlanner.planOperationFlow({
+    actionType: 'ingest',
+    source: 'auto',
+    itemId: 'ingest:adult-lib:file',
+    itemInfo: { itemId: 'ingest:adult-lib:file', subLibraryId: 'adult-lib' },
+  });
+  assert.strictEqual(ingestPlanned.taskBridge.kind, 'ingest');
+  assert.strictEqual(ingestPlanned.flowPlan.direction, 'ingest.commit');
+
+  const archivePlanned = lifecycleTaskPlanner.planOperationFlow({
+    actionType: 'archive',
+    source: 'auto',
+    itemId: 'movie-planner-archive',
+    itemInfo: { itemId: 'movie-planner-archive' },
+  });
+  assert.strictEqual(archivePlanned.taskBridge.kind, 'archive');
+  assert.strictEqual(archivePlanned.flowPlan.direction, 'archive.finalize');
+  assert.strictEqual(archivePlanned.flowPlan.operationKind, 'archive');
 });
 
 test('businessFlowPolicy keeps disabled automatic operations out of SmartTask candidates', () => {
@@ -478,6 +567,7 @@ test('metadataStatus marks a custom metadataGate contract broken when strategy i
 test('flowRecoveryContract documents retry points for every current flow', () => {
   const expected = {
     ingest: ['ingest_precheck', 'ingest_commit'],
+    archive: ['archive_precheck', 'archive_finalize'],
     scrape: ['scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review'],
     transcode: ['transcode_precheck', 'transcode_executing', 'transcode_verify', 'transcode_replace'],
     upgrade: ['upgrade_precheck', 'upgrade_planning', 'upgrade_executing', 'upgrade_pre_replace_verify', 'upgrade_replace'],
@@ -1799,6 +1889,8 @@ test('libraryStore persists v3 media lifecycle facts as SQL query fields', () =>
         reason: 'modern codec already within target',
         metadataComplete: true,
         metadataStatus: 'complete',
+        archiveStatus: 'archived_like',
+        archiveDoneAt: new Date().toISOString(),
       }, {
         itemId: 'v3-media-3',
         subLibraryId: 'lib-v3',
@@ -2050,10 +2142,28 @@ test('lifecycleProjection separates metadata, optimize, and archive-like closure
     reason: 'modern codec already within target',
     metadataComplete: true,
   });
-  assert.strictEqual(keep.lifecycleStage, 'archived');
-  assert.strictEqual(keep.archiveStatus, 'archived_like');
-  assert.strictEqual(keep.lifecycleDone, true);
-  assert.strictEqual(keep.archiveGate.passed, true);
+  assert.strictEqual(keep.lifecycleStage, 'optimized');
+  assert.strictEqual(keep.lifecycleNextTask, 'archive');
+  assert.strictEqual(keep.lifecycleDone, false);
+  assert.strictEqual(keep.archiveGate.passed, false);
+  assert.ok(keep.archiveGate.missingReasons.includes('archive.finalization'));
+
+  const archivedKeep = lifecycleProjection.resolveLifecycle({
+    itemId: 'archived-keep-movie',
+    source: 'emby',
+    sourceId: 'emby-archived-keep-movie',
+    path: '/media/archived-keep-movie.mkv',
+    duration: 3600,
+    action: 'keep',
+    reason: 'modern codec already within target',
+    metadataComplete: true,
+    archiveStatus: 'archived_like',
+    archiveDoneAt: new Date().toISOString(),
+  });
+  assert.strictEqual(archivedKeep.lifecycleStage, 'archived');
+  assert.strictEqual(archivedKeep.archiveStatus, 'archived_like');
+  assert.strictEqual(archivedKeep.lifecycleDone, true);
+  assert.strictEqual(archivedKeep.archiveGate.passed, true);
 });
 
 test('lifecycleProjection exposes first-class ingest and archive gate contracts', () => {
@@ -2128,11 +2238,36 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
       videoCodec: 'hevc',
     },
   });
-  assert.strictEqual(passed.lifecycleStage, 'archived');
-  assert.strictEqual(passed.lifecycleDone, true);
+  assert.strictEqual(passed.lifecycleStage, 'optimized');
+  assert.strictEqual(passed.lifecycleNextTask, 'archive');
+  assert.strictEqual(passed.lifecycleDone, false);
   assert.strictEqual(passed.optimizeGate.passed, true);
   assert.strictEqual(passed.optimizeGate.reason, 'optimize_gate_met');
   assert.strictEqual(passed.optimizeGate.operation, 'transcode');
+  assert.strictEqual(passed.archiveGate.passed, false);
+  assert.ok(passed.archiveGate.missingReasons.includes('archive.finalization'));
+
+  const archived = lifecycleProjection.resolveLifecycle({
+    itemId: 'archived-transcode-gate',
+    source: 'emby',
+    sourceId: 'emby-archived-transcode-gate',
+    path: '/media/archived-transcode-gate.mkv',
+    duration: 3600,
+    action: 'transcode',
+    metadataComplete: true,
+    optimizationStatus: 'transcoded',
+    targetBitrate: 4,
+    targetCodec: 'h265',
+    verifyResult: {
+      bitrate: 4_600_000,
+      videoCodec: 'hevc',
+    },
+    archiveStatus: 'archived_like',
+    archiveDoneAt: new Date().toISOString(),
+  });
+  assert.strictEqual(archived.lifecycleStage, 'archived');
+  assert.strictEqual(archived.lifecycleDone, true);
+  assert.strictEqual(archived.archiveGate.passed, true);
 
   const failed = lifecycleProjection.resolveLifecycle({
     itemId: 'failed-transcode-gate',
@@ -2157,6 +2292,63 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
   assert.strictEqual(failed.optimizeGate.retryPolicy.automaticRetry, false);
   assert.ok(failed.optimizeGate.failureReasons.includes('target_bitrate_exceeded'));
   assert.ok(failed.optimizeGate.failureReasons.includes('target_codec_not_met'));
+});
+
+test('archiveFlowExecutor finalizes optimized items into archived lifecycle state', async () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-flow-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  try {
+    const mediaLibraryService = require('../src/mediaLibraryService');
+    const archiveFlow = require('../src/archiveFlowExecutor');
+    mediaLibraryService.saveLibrary({
+      cachedAt: new Date().toISOString(),
+      items: [metadataReadyMovie({
+        itemId: 'archive-flow-item',
+        subLibraryId: 'lib-archive',
+        source: 'emby',
+        action: 'transcode',
+        reason: 'strategy selected transcode',
+        optimizationStatus: 'transcoded',
+        optimizationAction: 'transcode',
+        optimizationDoneAt: new Date().toISOString(),
+      })],
+    });
+    const task = taskStore.createTask({
+      itemId: 'archive-flow-item',
+      itemName: 'Archive Flow Item',
+      actionType: 'archive',
+      source: 'manual',
+      status: 'queued',
+      itemInfo: { itemId: 'archive-flow-item', subLibraryId: 'lib-archive' },
+    });
+    archiveFlow.setScheduler({
+      reportStatus: (id, status) => taskStore.updateTask(id, { status }),
+      pauseForConfirm: () => {},
+    });
+
+    await archiveFlow.driveTask(task.id);
+
+    const doneTask = taskStore.getTask(task.id);
+    assert.strictEqual(doneTask.status, 'done');
+    assert.strictEqual(doneTask.phase, 'done');
+    assert.strictEqual(doneTask.archiveGate.passed, true);
+    assert.strictEqual(doneTask.verifyResult.archiveStatus, 'archived_like');
+
+    const item = mediaLibraryService.loadLibrary().items.find((it) => it.itemId === 'archive-flow-item');
+    assert.strictEqual(item.archiveStatus, 'archived_like');
+    assert.strictEqual(item.lifecycleStage, 'archived');
+    assert.strictEqual(item.lifecycleDone, true);
+    assert.strictEqual(item.lifecycleNextTask, null);
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
 });
 
 test('taskScheduler records delete done as an optimize gate result on media item', () => {

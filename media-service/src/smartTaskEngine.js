@@ -77,6 +77,7 @@ function readEnabledActions(config) {
 function actionLabel(actionType) {
   switch (actionType) {
     case 'ingest': return '入库';
+    case 'archive': return '归档';
     case 'scrape': return '刮削';
     case 'transcode': return '转码压缩';
     case 'upgrade': return '洗版';
@@ -135,6 +136,14 @@ function buildItemInfo(item) {
     metadataComplete: item.metadataComplete,
     metadataMissingReasons: item.metadataMissingReasons,
     metadataKind: item.metadataKind,
+    optimizationStatus: item.optimizationStatus,
+    optimizationAction: item.optimizationAction,
+    optimizationDoneAt: item.optimizationDoneAt,
+    optimizationGate: item.optimizationGate,
+    optimizeGate: item.optimizeGate,
+    archiveStatus: item.archiveStatus,
+    archiveDoneAt: item.archiveDoneAt,
+    archiveBlockers: item.archiveBlockers,
   };
 }
 
@@ -262,6 +271,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       const maxQueueSize = Number(cfg2.smartTaskMaxQueueSize) > 0 ? Number(cfg2.smartTaskMaxQueueSize) : 50;
       const queueCap = {
         ingest: maxQueueSize,
+        archive: maxQueueSize,
         delete: maxQueueSize,
         transcode: maxQueueSize,
         upgrade: maxQueueSize,
