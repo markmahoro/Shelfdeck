@@ -1791,3 +1791,33 @@ Slice 41 的 lifecycle audit 仍保留旧结论：`context.mediaType !== adult &
 - 这只补了 scrape exit gate 的失败事实化；每个 flow 的 retry 幂等性、部分写入回滚和用户确认策略还需要继续逐 flow 设计。
 - P0-1 仍未完整关闭：下一步应继续审计每一种库类型下的 task lifecycle，并在生产样本上确认任务中心展示是否符合用户心智。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Pending Findings During P0-1 Audit
+
+### P0 服务 degraded / 后台刷新错峰问题（待修复，非 P0-1 主线）
+
+生产只读排查时发现：
+
+- `GET /v1/health`: `yellow`。
+- `GET /v1/admin/health`: `yellow`。
+- 降级来源是 `mediaLib.status=yellow`，`staleSubLibraries=["公共_剧集","公共_国产剧"]`。
+- `GET /v1/library/status` 显示：
+  - `公共_电影_原生` 最近刷新于 `2026-06-30T04:57:47.867Z`；
+  - `公共_剧集` 最近刷新于 `2026-06-30T02:58:26.901Z`；
+  - `公共_国产剧` 最近刷新于 `2026-06-30T02:58:33.188Z`。
+- Docker logs 显示同一轮定时刷新中，多个 Emby 子库 refresh 同时触发；`BackgroundIoGuard` 只允许一个 `mediaLibrary.refresh` 运行，另外两个被 `lock_busy` skipped：
+  - `公共_电影_原生` refresh 正常运行并完成；
+  - `公共_剧集` / `公共_国产剧` refresh 被 skipped，后续没有补偿重试，因此逐渐 stale。
+- 同一轮还观察到 `GET /v1/admin/dashboard/health` 在生产上出现约 3s 到 13s 响应；`GET /v1/admin/tasks/lifecycle-audit` 在部分全量查询下约 11s。
+
+归因判断：
+
+- 该问题不是当前 P0-1 新业务模型不满足导致的。
+- 它属于 P0 服务 degraded / P0 资源与性能问题：后台刷新定时器和 Background I/O Guard 的调度关系不合理，导致健康状态降级，并可能影响 Dashboard / audit 查询体感。
+- 按用户 2026-06-30 修正规则，本问题先记录为待修复，不抢 P0-1 业务流程模型审计主线。
+
+后续修复方向（待做）：
+
+- 不应简单放开并发打 Emby。
+- 应让 Emby 子库 refresh timer 错峰或进入串行队列，并对 `lock_busy` skipped 的 refresh 做补偿重试。
+- Dashboard health / lifecycle audit 的慢查询需要单独回到 C1/C4 性能标准下做 SQL/projection 硬化。
