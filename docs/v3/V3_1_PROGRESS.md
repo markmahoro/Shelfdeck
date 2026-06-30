@@ -2848,3 +2848,109 @@ S4 archived
 
 - 未部署当前本地镜像到生产，生产 P0-1 验收仍未完成。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 63: Deploy and verify production P0-1 lifecycle model
+
+### 对应标准
+
+- P0-1: 当前生产中的 task 管理必须符合新的业务模型，每一种库类型下 task 生命周期要能解释。
+- P0-1 新模型：完整业务心智是 5 阶段 4 gate：`source/discovered --ingest gate--> ingested --metadata gate--> metadata-ready --optimize gate--> optimized --archive gate--> archived`。
+- P0-1 新模型：task 是 lifecycle 状态转换的 bridge；flow 是 task 下 event 的编排；delete 属于 optimize gate，不属于 archive gate。
+
+### 生产部署
+
+本 slice 在用户明确授权后部署到生产 NAS。
+
+- 第一轮部署：`markmahoro/shelfdeck:v3.1.0-p0-1-lifecycle-47d7119`
+  - 包含本地 P0-1 业务模型修复。
+  - 部署后发现 `/v1/admin/tasks/lifecycle-audit` 在生产数据量下不可稳定返回，暴露出审计接口仍读取过重 task payload。
+- 第二轮部署：`markmahoro/shelfdeck:v3.1.0-p0-1-lifecycle-audit-2e53f12`
+  - commit `2e53f12 fix: use lightweight lifecycle audit facts`
+  - `lifecycle-audit` 改用轻量 SQL facts，而不是通过 `queryTaskSummaries(includeAll=true, includeTerminalItemInfo=true)` 扫大 payload。
+- 第三轮部署：`markmahoro/shelfdeck:v3.1.0-p0-1-task-list-7af1110`
+  - commit `7af1110 fix: summarize task attention from lightweight facts`
+  - 任务中心列表的 attention summary 改用轻量 facts，避免 filtered task list 因全量 attention 统计再次扫大 payload。
+
+最终生产镜像确认：
+
+- `docker inspect shelfdeck --format '{{.Config.Image}}'`
+- `markmahoro/shelfdeck:v3.1.0-p0-1-task-list-7af1110`
+
+### 本地验收
+
+两个代码修复都在部署前完成本地验证：
+
+- `npm test`: pass，258 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+- `api-inject` 中增加防回归断言：
+  - `lifecycle-audit` 不能再走 `getTasks` / `loadTasks` / `queryTaskSummaries`。
+  - 任务中心 attention summary 不能再使用 `queryTaskSummaries(includeAll=true)`。
+
+### 生产只读验收
+
+最终镜像部署后执行只读生产 API 验证。
+
+- `GET /v1/health`
+  - `green`
+- `GET /v1/admin/tasks/lifecycle-audit?sampleLimit=20`
+  - HTTP 200，约 9.5s
+  - total: 2188
+  - status: `failed_hard=1055`、`executing=1`、`queued=49`、`done=1063`、`skipped=20`
+  - lifecycle stage: `terminal_failure=1055`、`running=1`、`queued=49`、`terminal_success=1083`
+  - bridge: `metadata=1180`、`optimize=1008`
+  - operation: `scrape=1178`、`transcode=965`、`delete=42`、`ingest=2`、`upgrade=1`
+  - active: 50，terminal: 2138，awaitingUser: 0
+  - signals: total 382，全部是 warn
+    - `legacy_standard_media_scrape_task=381`
+    - `unknown_sub_library=1`
+- `GET /v1/admin/tasks?bridgeKind=archive&page=1&pageSize=8`
+  - HTTP 200，约 14ms
+  - total: 0
+  - 说明历史 delete 不再被任务中心解释为 archive bridge。
+- `GET /v1/admin/tasks?bridgeKind=optimize&operationKind=delete&page=1&pageSize=8`
+  - HTTP 200，约 7ms
+  - total: 42，全部是 done delete optimize 任务。
+- `GET /v1/admin/tasks?statuses=executing,queued,pending_manual,awaiting_user_confirm,interrupted,paused&page=1&pageSize=8`
+  - HTTP 200，约 9ms
+  - total: 50
+  - 当前 active 样本是 movie transcode：1 个 executing，49 个 queued。
+- `GET /v1/admin/tasks?actionType=scrape&page=1&pageSize=8`
+  - HTTP 200，约 190ms
+  - total: 1178
+  - status: `done=391`、`failed_hard=767`、`skipped=20`
+  - 这些主要是终态 scrape 历史任务；当前审计未发现 active 标准媒体 scrape 使用错误资源的 error signal。
+
+### P0-1 结论
+
+- 生产中的 P0-1 后端生命周期语义已经与当前新模型对齐：
+  - `ingest` / `metadata` / `optimize` / `archive` 是一等 lifecycle bridge。
+  - `scrape` 是 metadata bridge 下的 operation，可以承载普通库半假 scrape，也可以承载成人库 scrape。
+  - `delete` 已被统一解释为 optimize gate 下的 destructive optimize flow，不再属于 archive gate。
+  - `archive` 当前没有历史误挂 delete，生产查询 `bridgeKind=archive` 为 0。
+  - 当前 active workload 是 movie optimize/transcode，不是普通库 scrape storm。
+- 普通 movie/tv 的 scrape 不再被模型判定为天然错误；错误条件已经改成：
+  - active 标准媒体 scrape 如果没有走 `emby` repair resource，才是错误；
+  - 老终态标准媒体 scrape 只保留 `legacy_standard_media_scrape_task` warn，作为历史审计噪音。
+- 从任务中心只读数据看，普通库并没有因为 metadata repair scrape 的 admission 语义而永远进不了 optimize：
+  - 当前 50 个 active task 全部在 optimize/transcode 阶段；
+  - 任务中心可按 optimize/delete、active transcode 正常快速筛选。
+
+### 仍待处理，但本 slice 不并入 P0-1 语义修复
+
+- 生产启动/部署窗口仍出现短时服务降级：
+  - 部署后曾出现 connection reset / 408；
+  - 等待后台刷新和 ffprobe 压力下降后 health 回到 green。
+  - 这属于用户列出的 P0 服务降级 / 资源视图性能排查，不是当前 P0-1 lifecycle 语义不满足导致。
+- `lifecycle-audit` 虽然不再超时，但全量审计仍约 9.5s：
+  - 下一步应继续把 audit summary 下推到 SQL 聚合，避免在 Node 层循环 2000+ task facts。
+- 历史 scrape 失败仍很多：
+  - `failed_hard` 主要来自历史终态任务，不代表当前模型一定仍会自动重试。
+  - 是否要做历史任务清理、重放或迁移，需要另开明确策略；不能在 P0-1 语义收口里静默改生产数据。
+- `unknown_sub_library=1` 需要后续单独定位。
+- NAS 上本轮多次镜像 tar 上传后空间压力可能增加；按用户要求，后续清理旧 tar 时应先保留本地备份。
+
+### 尚未满足
+
+- P0-2 服务降级与 P0-3 资源视图性能排查尚未完成。
+- 前端 P1/P2 语义和媒体库字段整理尚未完成。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
