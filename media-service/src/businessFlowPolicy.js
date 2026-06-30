@@ -187,6 +187,12 @@ function resolveAutomaticTrigger(input = {}) {
       operation: 'scrape',
       actionType: 'scrape',
       bridgeKind: 'metadata',
+      ...lifecycleTaskPlanner.planOperationFlow({
+        actionType: 'scrape',
+        source: 'auto',
+        itemId,
+        itemInfo: itemWithMetadata,
+      }),
       item: itemWithMetadata,
       metadataMissingReasons: meta.metadataMissingReasons,
     };
@@ -216,6 +222,12 @@ function resolveAutomaticTrigger(input = {}) {
       operation: 'archive',
       actionType: 'archive',
       bridgeKind: 'archive',
+      ...lifecycleTaskPlanner.planOperationFlow({
+        actionType: 'archive',
+        source: 'auto',
+        itemId,
+        itemInfo: itemWithMetadata,
+      }),
       item: itemWithMetadata,
       archiveGate,
     };
@@ -237,6 +249,12 @@ function resolveAutomaticTrigger(input = {}) {
     actionType: operation,
     bridgeKind: planned.bridgeKind,
     planningMode: planned.planningMode,
+    ...lifecycleTaskPlanner.planOperationFlow({
+      actionType: operation,
+      source: 'auto',
+      itemId,
+      itemInfo: itemWithMetadata,
+    }),
     item: itemWithMetadata,
   };
 }

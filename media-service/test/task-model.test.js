@@ -476,6 +476,8 @@ test('businessFlowPolicy resolves automatic archive trigger after optimize gate'
   assert.strictEqual(trigger.allowed, true);
   assert.strictEqual(trigger.actionType, 'archive');
   assert.strictEqual(trigger.bridgeKind, 'archive');
+  assert.strictEqual(trigger.taskTarget.targetGate, 'archive');
+  assert.strictEqual(trigger.taskTarget.gateObjective.kind, 'finalize_lifecycle');
   assert.strictEqual(trigger.reason, 'archive_gate_not_met');
   assert.ok(trigger.archiveGate.missingReasons.includes('archive.finalization'));
 });
@@ -500,6 +502,10 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
     itemInfo: item,
   });
   assert.strictEqual(planned.taskBridge.kind, 'optimize');
+  assert.strictEqual(planned.taskTarget.object.itemId, item.itemId);
+  assert.strictEqual(planned.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(planned.taskTarget.gateObjective.kind, 'improve_source_quality');
+  assert.strictEqual(planned.taskTarget.operationHint, 'upgrade');
   assert.strictEqual(planned.flowPlan.direction, 'optimize.upgrade');
   assert.strictEqual(planned.flowPlan.operationKind, 'upgrade');
   assert.strictEqual(planned.flowPlan.primaryResourceType, 'moviepilot');
@@ -520,6 +526,9 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
     itemInfo: { itemId: 'movie-planner-delete' },
   });
   assert.strictEqual(deletePlanned.taskBridge.kind, 'optimize');
+  assert.strictEqual(deletePlanned.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(deletePlanned.taskTarget.gateObjective.kind, 'remove_media');
+  assert.strictEqual(deletePlanned.taskTarget.gateObjective.destructive, true);
   assert.strictEqual(deletePlanned.flowPlan.direction, 'optimize.delete');
   assert.strictEqual(deletePlanned.flowPlan.operationKind, 'delete');
   assert.deepStrictEqual(deletePlanned.flowPlan.steps.map((step) => step.phase), [
@@ -535,6 +544,8 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
     itemInfo: { itemId: 'ingest:adult-lib:file', subLibraryId: 'adult-lib' },
   });
   assert.strictEqual(ingestPlanned.taskBridge.kind, 'ingest');
+  assert.strictEqual(ingestPlanned.taskTarget.targetGate, 'ingest');
+  assert.strictEqual(ingestPlanned.taskTarget.gateObjective.kind, 'managed_item');
   assert.strictEqual(ingestPlanned.flowPlan.direction, 'ingest.commit');
 
   const archivePlanned = lifecycleTaskPlanner.planOperationFlow({
@@ -544,6 +555,8 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
     itemInfo: { itemId: 'movie-planner-archive' },
   });
   assert.strictEqual(archivePlanned.taskBridge.kind, 'archive');
+  assert.strictEqual(archivePlanned.taskTarget.targetGate, 'archive');
+  assert.strictEqual(archivePlanned.taskTarget.gateObjective.kind, 'finalize_lifecycle');
   assert.strictEqual(archivePlanned.flowPlan.direction, 'archive.finalize');
   assert.strictEqual(archivePlanned.flowPlan.operationKind, 'archive');
 });

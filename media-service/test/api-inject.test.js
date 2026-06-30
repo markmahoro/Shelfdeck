@@ -31,6 +31,7 @@ function metadataReadyMovie(overrides = {}) {
     bitrate: 4_000_000,
     resolution: '1920x1080',
     codec: 'h264',
+    audioCodecs: ['aac'],
     watched: true,
     userRating: 4,
     tmdbId: '10001',
@@ -236,6 +237,10 @@ test('POST /v1/tasks creates task and returns 201', async () => {
   assert.strictEqual(body.status, 'created');
   assert.strictEqual(body.actionType, 'transcode');
   assert.strictEqual(body.source, 'manual');
+  assert.strictEqual(body.taskTarget.object.itemId, itemId);
+  assert.strictEqual(body.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(body.taskTarget.gateObjective.kind, 'reduce_bitrate');
+  assert.strictEqual(body.taskTarget.operationHint, 'transcode');
   assert.strictEqual(body.taskBridge.kind, 'optimize');
   assert.strictEqual(body.flowPlan.direction, 'optimize.transcode');
   assert.strictEqual(body.flowPlan.operationKind, 'transcode');
@@ -244,13 +249,26 @@ test('POST /v1/tasks creates task and returns 201', async () => {
   assert.strictEqual(body.admission.reason, 'allowed');
   assert.strictEqual(body.admission.bridgeKind, 'optimize');
   assert.strictEqual(body.admission.intentMode, 'action_type_compatibility');
+  assert.strictEqual(body.admission.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(body.admission.taskTarget.gateObjective.kind, 'reduce_bitrate');
   assert.strictEqual(body.admission.taskBridge.kind, 'optimize');
   assert.strictEqual(body.admission.flowPlan.operationKind, 'transcode');
 
   const detail = await app.inject({ method: 'GET', url: `/v1/tasks/${body.id}?includeEvents=1` });
   assert.strictEqual(detail.statusCode, 200);
+  assert.strictEqual(detail.json().taskTarget.targetGate, 'optimize');
+  assert.strictEqual(detail.json().taskTarget.gateObjective.kind, 'reduce_bitrate');
   assert.strictEqual(detail.json().taskBridge.kind, 'optimize');
-  assert.ok(detail.json().events.some((event) => event.eventType === 'flow.planned'));
+  const plannedEvent = detail.json().events.find((event) => event.eventType === 'flow.planned');
+  assert.ok(plannedEvent);
+  assert.strictEqual(plannedEvent.payload.taskTarget.targetGate, 'optimize');
+
+  const list = await app.inject({ method: 'GET', url: '/v1/tasks' });
+  assert.strictEqual(list.statusCode, 200);
+  const listed = list.json().tasks.find((task) => task.id === body.id);
+  assert.ok(listed);
+  assert.strictEqual(listed.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(listed.taskTarget.gateObjective.kind, 'reduce_bitrate');
   await app.close();
 });
 
@@ -276,6 +294,8 @@ test('POST /v1/tasks accepts optimize bridge intent and resolves recommended ope
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
   assert.strictEqual(body.actionType, 'upgrade');
+  assert.strictEqual(body.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(body.taskTarget.gateObjective.kind, 'improve_source_quality');
   assert.strictEqual(body.taskBridge.kind, 'optimize');
   assert.strictEqual(body.flowPlan.operationKind, 'upgrade');
   assert.strictEqual(body.admission.allowed, true);
@@ -312,6 +332,9 @@ test('POST /v1/tasks accepts optimize bridge intent with delete operation', asyn
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
   assert.strictEqual(body.actionType, 'delete');
+  assert.strictEqual(body.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(body.taskTarget.gateObjective.kind, 'remove_media');
+  assert.strictEqual(body.taskTarget.gateObjective.destructive, true);
   assert.strictEqual(body.taskBridge.kind, 'optimize');
   assert.strictEqual(body.flowPlan.direction, 'optimize.delete');
   assert.strictEqual(body.flowPlan.operationKind, 'delete');
@@ -455,6 +478,7 @@ test('TaskAdmission accepts standard metadata repair scrape', async () => {
       source: 'emby',
       tmdbId: '',
       doubanId: '',
+      audioCodecs: [],
     })],
   });
 
@@ -466,12 +490,17 @@ test('TaskAdmission accepts standard metadata repair scrape', async () => {
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
   assert.strictEqual(body.actionType, 'scrape');
+  assert.strictEqual(body.taskTarget.targetGate, 'metadata');
+  assert.strictEqual(body.taskTarget.gateObjective.kind, 'metadata_complete');
+  assert.strictEqual(body.taskTarget.gateObjective.repairMode, 'emby_repair');
   assert.strictEqual(body.taskBridge.kind, 'metadata');
   assert.strictEqual(body.flowPlan.primaryResourceType, 'emby');
   assert.ok(body.flowPlan.resourceTypes.includes('emby'));
   const logs = diagnosticLog.list({ limit: 20 }).logs;
   assert.ok(!logs.some((entry) => entry.operation === 'reject_task' && entry.payload.itemId === itemId));
   await app.close();
+  smartTaskEngine.stop();
+  require('../src/taskScheduler').stopScheduler();
 });
 
 test('GET /v1/library exposes v3 business flow decision for media rows', async () => {

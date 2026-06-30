@@ -354,6 +354,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
           priority: priorityBreakdown.priority,
           priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
           priorityBreakdown,
+          taskTarget: admission.taskTarget,
           taskBridge: admission.taskBridge,
           flowPlan: admission.flowPlan,
           itemInfo,

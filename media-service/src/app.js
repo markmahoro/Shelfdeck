@@ -242,6 +242,7 @@ function taskListSummary(task) {
     itemId: task.itemId,
     itemName: task.itemName,
     actionType: task.actionType,
+    taskTarget: task.taskTarget,
     taskBridge: task.taskBridge,
     flowPlan: task.flowPlan,
     source: task.source,
@@ -1202,6 +1203,7 @@ function compactAdmissionAccept(admission = {}) {
     preferredOperation: admission.preferredOperation || '',
     intentMode: admission.intentMode || '',
     requestedIntent: admission.requestedIntent,
+    taskTarget: admission.taskTarget,
     taskBridge: admission.taskBridge,
     flowPlan: admission.flowPlan,
   };
@@ -1716,6 +1718,7 @@ function registerRoutes(app) {
       priority: priorityBreakdown.priority,
       priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
       priorityBreakdown,
+      taskTarget: admission.taskTarget,
       taskBridge: admission.taskBridge,
       flowPlan: admission.flowPlan,
       requestedIntent: admission.requestedIntent,

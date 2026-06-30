@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const diagnosticLog = require('./diagnosticLog');
 const flowPlanner = require('./flowPlanner');
+const lifecycleTaskPlanner = require('./lifecycleTaskPlanner');
 const v3Model = require('./v3Model');
 
 function resolveDataDir() {
@@ -94,6 +95,7 @@ function getDb() {
   migrateJsonTasksIfNeeded(db);
   backfillSpaceStatColumns(db);
   backfillV3TaskColumns(db);
+  backfillV31TaskTargetColumns(db);
   backfillV3TaskEventColumns(db);
   checkpointWal(db, 'startup');
   return db;
@@ -139,6 +141,9 @@ function ensureV3TaskColumns(db) {
     primary_resource_type: 'TEXT NOT NULL DEFAULT \'\'',
     resource_types_json: 'TEXT NOT NULL DEFAULT \'[]\'',
     flow_steps_json: 'TEXT NOT NULL DEFAULT \'[]\'',
+    target_gate: 'TEXT NOT NULL DEFAULT \'\'',
+    gate_objective_kind: 'TEXT NOT NULL DEFAULT \'\'',
+    gate_objective_json: 'TEXT NOT NULL DEFAULT \'{}\'',
   };
   for (const [name, type] of Object.entries(columns)) {
     if (!existing.has(name)) db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`);
@@ -148,6 +153,7 @@ function ensureV3TaskColumns(db) {
     CREATE INDEX IF NOT EXISTS idx_tasks_flow_resource_status ON tasks(primary_resource_type, status, priority, created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_operation_status_priority ON tasks(operation_kind, status, priority, created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_sub_library_status ON tasks(sub_library_id, status, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_target_gate_status ON tasks(target_gate, status, priority, created_at);
   `);
 }
 
@@ -242,7 +248,10 @@ function backfillV3TaskColumns(db) {
       flow_executor = @flow_executor,
       primary_resource_type = @primary_resource_type,
       resource_types_json = @resource_types_json,
-      flow_steps_json = @flow_steps_json
+      flow_steps_json = @flow_steps_json,
+      target_gate = @target_gate,
+      gate_objective_kind = @gate_objective_kind,
+      gate_objective_json = @gate_objective_json
     WHERE id = @id
   `);
   const tx = db.transaction((items) => {
@@ -255,6 +264,31 @@ function backfillV3TaskColumns(db) {
   db.prepare(`
     INSERT INTO task_store_meta (key, value)
     VALUES ('v3_task_columns_backfilled', '1')
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run();
+}
+
+function backfillV31TaskTargetColumns(db) {
+  const version = db.prepare('SELECT value FROM task_store_meta WHERE key = ?').get('v31_task_target_columns_backfilled');
+  if (version && version.value === '1') return;
+  const rows = db.prepare('SELECT id, payload_json FROM tasks').all();
+  const update = db.prepare(`
+    UPDATE tasks SET
+      target_gate = @target_gate,
+      gate_objective_kind = @gate_objective_kind,
+      gate_objective_json = @gate_objective_json
+    WHERE id = @id
+  `);
+  const tx = db.transaction((items) => {
+    for (const row of items) {
+      const task = normalizeTask(jsonParse(row.payload_json, {}));
+      update.run({ id: row.id, ...v3Model.taskFacts(task) });
+    }
+  });
+  tx(rows);
+  db.prepare(`
+    INSERT INTO task_store_meta (key, value)
+    VALUES ('v31_task_target_columns_backfilled', '1')
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `).run();
 }
@@ -457,6 +491,15 @@ function normalizeTask(task) {
   });
   t.taskBridge = t.taskBridge && typeof t.taskBridge === 'object' ? t.taskBridge : planned.taskBridge;
   t.flowPlan = t.flowPlan && typeof t.flowPlan === 'object' ? t.flowPlan : planned.flowPlan;
+  t.taskTarget = t.taskTarget && typeof t.taskTarget === 'object'
+    ? t.taskTarget
+    : lifecycleTaskPlanner.planTaskTarget({
+      actionType: t.actionType,
+      source: t.source,
+      itemId: t.itemId,
+      itemInfo: t.itemInfo,
+      bridgeKind: t.taskBridge && t.taskBridge.kind,
+    });
   return t;
 }
 
@@ -498,6 +541,13 @@ function projectLegacyDeleteTask(task) {
     },
     taskBridge: planned.taskBridge,
     flowPlan: planned.flowPlan,
+    taskTarget: lifecycleTaskPlanner.planTaskTarget({
+      actionType: 'delete',
+      source: task.source || '',
+      itemId: task.itemId || '',
+      itemInfo: task.itemInfo,
+      bridgeKind: planned.taskBridge && planned.taskBridge.kind,
+    }),
   };
 }
 
@@ -853,6 +903,20 @@ function rowToTask(row) {
       plannedAt: task.createdAt,
     };
   }
+  if (!task.taskTarget || typeof task.taskTarget !== 'object') {
+    task.taskTarget = {
+      object: {
+        type: 'media_item',
+        itemId: task.itemId,
+        subLibraryId: row.sub_library_id || (task.itemInfo && task.itemInfo.subLibraryId) || '',
+      },
+      targetGate: row.target_gate || (task.taskBridge && task.taskBridge.kind) || (task.flowPlan && task.flowPlan.bridgeKind) || '',
+      gateObjective: jsonParse(row.gate_objective_json, null)
+        || lifecycleTaskPlanner.objectiveForOperation(task.actionType, task.itemInfo || {}),
+      source: task.source,
+      operationHint: task.actionType,
+    };
+  }
   task.progress = progressCache.get(task.id) ?? task.progress ?? 0;
   return projectLegacyDeleteTask(task);
 }
@@ -864,14 +928,16 @@ const upsertSql = `
      source, progress, phase, resume_point, manual_execute_requested, priority_manually_adjusted,
      priority_model_version, retry_count, pausing_requested, node_id, sub_library_id, item_path,
      bridge_kind, bridge_from, bridge_to, bridge_reason, flow_version, flow_direction, operation_kind,
-     flow_executor, primary_resource_type, resource_types_json, flow_steps_json)
+     flow_executor, primary_resource_type, resource_types_json, flow_steps_json,
+     target_gate, gate_objective_kind, gate_objective_json)
   VALUES
     (@id, @item_id, @item_name, @action_type, @status, @priority, @created_at, @updated_at, @payload_json,
      @verify_bytes_saved, @verify_size_bytes, @original_size_bytes, @upgrade_old_size, @upgrade_new_size,
      @source, @progress, @phase, @resume_point, @manual_execute_requested, @priority_manually_adjusted,
      @priority_model_version, @retry_count, @pausing_requested, @node_id, @sub_library_id, @item_path,
      @bridge_kind, @bridge_from, @bridge_to, @bridge_reason, @flow_version, @flow_direction, @operation_kind,
-     @flow_executor, @primary_resource_type, @resource_types_json, @flow_steps_json)
+     @flow_executor, @primary_resource_type, @resource_types_json, @flow_steps_json,
+     @target_gate, @gate_objective_kind, @gate_objective_json)
   ON CONFLICT(id) DO UPDATE SET
     item_id = excluded.item_id,
     item_name = excluded.item_name,
@@ -908,7 +974,10 @@ const upsertSql = `
     flow_executor = excluded.flow_executor,
     primary_resource_type = excluded.primary_resource_type,
     resource_types_json = excluded.resource_types_json,
-    flow_steps_json = excluded.flow_steps_json
+    flow_steps_json = excluded.flow_steps_json,
+    target_gate = excluded.target_gate,
+    gate_objective_kind = excluded.gate_objective_kind,
+    gate_objective_json = excluded.gate_objective_json
 `;
 
 function buildTask(taskData, now = new Date().toISOString()) {
@@ -933,6 +1002,7 @@ function buildTask(taskData, now = new Date().toISOString()) {
     priorityBreakdown: taskData.priorityBreakdown,
     taskBridge: taskData.taskBridge,
     flowPlan: taskData.flowPlan,
+    taskTarget: taskData.taskTarget,
     requestedIntent: taskData.requestedIntent,
   });
 }
@@ -964,10 +1034,12 @@ function createTask(taskData) {
       requestedIntent: task.requestedIntent,
       taskBridge: task.taskBridge,
       flowPlan: task.flowPlan,
+      taskTarget: task.taskTarget,
     });
     appendTaskEvent(task, 'flow.planned', {
       taskBridge: task.taskBridge,
       flowPlan: task.flowPlan,
+      taskTarget: task.taskTarget,
     });
     return task;
   });
@@ -1343,6 +1415,8 @@ function queryTaskSummaries(filter = {}, options = {}) {
       primary_resource_type,
       resource_types_json,
       flow_steps_json,
+      target_gate,
+      gate_objective_json,
       phase,
       resume_point,
       ${activeColumn('node_id')} AS node_id,
@@ -1477,6 +1551,19 @@ function queryTaskSummaries(filter = {}, options = {}) {
         retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
         nodeId: row.node_id || undefined,
         approval: jsonExtractObject(row.approval_json, undefined),
+        taskTarget: row.target_gate
+          ? {
+            object: {
+              type: 'media_item',
+              itemId: row.item_id || '',
+              subLibraryId: row.info_sub_library_id || '',
+            },
+            targetGate: row.target_gate || '',
+            gateObjective: jsonParse(row.gate_objective_json, {}),
+            source: row.source || '',
+            operationHint: row.operation_kind || row.action_type || '',
+          }
+          : undefined,
         priority: typeof row.priority === 'number' ? row.priority : 100,
         createdAt: row.created_at || '',
         updatedAt: row.updated_at || '',
@@ -1530,6 +1617,8 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
         primary_resource_type,
         resource_types_json,
         flow_steps_json,
+        target_gate,
+        gate_objective_json,
         phase,
         resume_point,
         CASE WHEN status = 'awaiting_user_confirm' THEN json_extract(payload_json, '$.approval') END AS approval_json
@@ -1591,6 +1680,19 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
         createdAt: row.created_at || '',
         updatedAt: row.updated_at || '',
         approval: jsonExtractObject(row.approval_json, undefined),
+        taskTarget: row.target_gate
+          ? {
+            object: {
+              type: 'media_item',
+              itemId: row.item_id || '',
+              subLibraryId: row.sub_library_id || '',
+            },
+            targetGate: row.target_gate || '',
+            gateObjective: jsonParse(row.gate_objective_json, {}),
+            source: row.source || '',
+            operationHint: row.operation_kind || row.action_type || '',
+          }
+          : undefined,
         itemInfo,
       });
     });
@@ -1649,6 +1751,8 @@ function querySchedulerTasks() {
         primary_resource_type,
         resource_types_json,
         flow_steps_json,
+        target_gate,
+        gate_objective_json,
         json_extract(payload_json, '$.priorityBreakdown') AS priority_breakdown_json,
         json_extract(payload_json, '$.itemInfo') AS item_info_json
       FROM tasks
@@ -1714,6 +1818,19 @@ function querySchedulerTasks() {
         retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
         pausingRequested: !!row.pausing_requested,
         nodeId: row.node_id || undefined,
+        taskTarget: row.target_gate
+          ? {
+            object: {
+              type: 'media_item',
+              itemId: row.item_id || '',
+              subLibraryId: row.sub_library_id || (itemInfo && itemInfo.subLibraryId) || '',
+            },
+            targetGate: row.target_gate || '',
+            gateObjective: jsonParse(row.gate_objective_json, {}),
+            source: row.source || '',
+            operationHint: row.operation_kind || row.action_type || '',
+          }
+          : undefined,
         itemInfo,
       });
     });

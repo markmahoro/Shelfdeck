@@ -44,6 +44,98 @@ function intentResult(operation, bridgeKind, intentMode, intent) {
   };
 }
 
+function cleanObject(value = {}) {
+  const result = {};
+  for (const [key, entry] of Object.entries(value || {})) {
+    if (entry === undefined || entry === null || entry === '') continue;
+    if (Array.isArray(entry) && entry.length === 0) continue;
+    result[key] = entry;
+  }
+  return result;
+}
+
+function objectiveForOperation(actionType, itemInfo = {}) {
+  const operation = cleanToken(actionType);
+  if (operation === 'ingest') {
+    return {
+      kind: 'managed_item',
+      description: 'External source candidate becomes a managed ShelfDeck media item.',
+      acceptableOperations: ['ingest'],
+    };
+  }
+  if (operation === 'scrape') {
+    const metadataKind = cleanToken(itemInfo.metadataKind || (itemInfo.source === 'adult_folder' ? 'adult' : 'standard'));
+    return cleanObject({
+      kind: 'metadata_complete',
+      description: 'Item has enough user-semantic metadata to enter optimize.',
+      metadataKind,
+      repairMode: itemInfo.source === 'emby' || metadataKind === 'emby' ? 'emby_repair' : 'scrape',
+      acceptableOperations: ['scrape'],
+    });
+  }
+  if (operation === 'transcode') {
+    return cleanObject({
+      kind: 'reduce_bitrate',
+      description: 'Media should satisfy the configured bitrate or codec optimization target.',
+      targetBitrate: itemInfo.targetBitrate,
+      targetCodec: itemInfo.targetCodec,
+      equivalentBitrate: itemInfo.equivalentBitrate,
+      acceptableOperations: ['transcode'],
+      operationHint: 'transcode',
+    });
+  }
+  if (operation === 'upgrade') {
+    return cleanObject({
+      kind: 'improve_source_quality',
+      description: 'Media should be replaced by a better acceptable source.',
+      maxSizeGB: itemInfo.maxSizeGB,
+      seedPreferences: itemInfo.seedPreferences,
+      acceptableOperations: ['upgrade'],
+      operationHint: 'upgrade',
+    });
+  }
+  if (operation === 'delete') {
+    return {
+      kind: 'remove_media',
+      description: 'Media should be removed as a destructive optimize objective.',
+      destructive: true,
+      acceptableOperations: ['delete'],
+      operationHint: 'delete',
+    };
+  }
+  if (operation === 'archive') {
+    return {
+      kind: 'finalize_lifecycle',
+      description: 'Optimized-like result is accepted and the lifecycle closes for this item.',
+      acceptableOperations: ['archive'],
+    };
+  }
+  return cleanObject({
+    kind: operation || 'unknown',
+    description: 'Legacy task objective inferred from compatibility operation.',
+    acceptableOperations: operation ? [operation] : [],
+    operationHint: operation,
+  });
+}
+
+function planTaskTarget(input = {}) {
+  const itemInfo = input.itemInfo && typeof input.itemInfo === 'object' ? input.itemInfo : {};
+  const actionType = cleanToken(input.actionType || input.operation);
+  const bridgeKind = cleanToken(input.bridgeKind) || bridgeKindForAction(actionType);
+  const itemId = String(input.itemId || itemInfo.itemId || '');
+  return {
+    object: {
+      type: 'media_item',
+      itemId,
+      subLibraryId: itemInfo.subLibraryId || '',
+    },
+    targetGate: bridgeKind,
+    gateObjective: objectiveForOperation(actionType, itemInfo),
+    source: input.source || '',
+    operationHint: actionType,
+  };
+}
+
 function selectStrategyOperation(item = {}) {
   const operation = cleanToken(item.action);
   if (!operation || operation === 'keep' || operation === 'none') {
@@ -125,7 +217,14 @@ function resolveManualOperationIntent(input = {}) {
 }
 
 function planOperationFlow(input = {}) {
-  return flowPlanner.planFlow(input);
+  const planned = flowPlanner.planFlow(input);
+  return {
+    ...planned,
+    taskTarget: planTaskTarget({
+      ...input,
+      bridgeKind: planned.taskBridge && planned.taskBridge.kind,
+    }),
+  };
 }
 
 function bridgeKindForAction(actionType) {
@@ -138,6 +237,8 @@ module.exports = {
   cleanToken,
   selectStrategyOperation,
   resolveManualOperationIntent,
+  planTaskTarget,
+  objectiveForOperation,
   planOperationFlow,
   bridgeKindForAction,
 };

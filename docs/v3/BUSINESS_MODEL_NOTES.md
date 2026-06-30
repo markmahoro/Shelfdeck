@@ -76,6 +76,8 @@ Task 的核心内容是：
 - constraints：风险策略、允许的 operation 范围、是否需要确认等。
 - runtime state：等待、运行中、失败、完成、等待确认、暂停等。
 
+v3.1 过渡实现已经将 `taskTarget` 落到 task payload、SQLite projection、任务创建 API、任务列表、任务详情和 task event 中。`taskTarget` 当前包含 `object`、`targetGate`、`gateObjective` 和兼容 `operationHint`。这一步的意义是让 task 主语义先从旧 `actionType` 中抽出来；当前 `gateObjective` 仍是按 operation 的默认映射，后续还需要继续收口到可配置的 Lifecycle objective resolver。
+
 例子：
 
 - ingest task：把 source/discovered 推进到 ingested。

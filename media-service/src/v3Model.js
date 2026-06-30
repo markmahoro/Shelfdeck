@@ -2,6 +2,7 @@
 
 const lifecycleProjection = require('./lifecycleProjection');
 const flowPlanner = require('./flowPlanner');
+const lifecycleTaskPlanner = require('./lifecycleTaskPlanner');
 
 function jsonStringify(value) {
   return JSON.stringify(value == null ? null : value);
@@ -86,6 +87,18 @@ function taskFacts(task = {}) {
     ? task.flowPlan
     : planned.flowPlan;
   const itemInfo = task.itemInfo && typeof task.itemInfo === 'object' ? task.itemInfo : {};
+  const taskTarget = task.taskTarget && typeof task.taskTarget === 'object'
+    ? task.taskTarget
+    : lifecycleTaskPlanner.planTaskTarget({
+      actionType: task.actionType,
+      source: task.source,
+      itemId: task.itemId,
+      itemInfo,
+      bridgeKind: bridge.kind || flow.bridgeKind || '',
+    });
+  const gateObjective = taskTarget.gateObjective && typeof taskTarget.gateObjective === 'object'
+    ? taskTarget.gateObjective
+    : {};
   return {
     source: cleanString(task.source || ''),
     progress: numberOrNull(task.progress == null ? 0 : task.progress),
@@ -110,6 +123,9 @@ function taskFacts(task = {}) {
     primary_resource_type: cleanString(flow.primaryResourceType || ''),
     resource_types_json: jsonStringify(Array.isArray(flow.resourceTypes) ? flow.resourceTypes : []),
     flow_steps_json: jsonStringify(Array.isArray(flow.steps) ? flow.steps : []),
+    target_gate: cleanString(taskTarget.targetGate || bridge.kind || flow.bridgeKind || ''),
+    gate_objective_kind: cleanString(gateObjective.kind || ''),
+    gate_objective_json: jsonStringify(gateObjective),
   };
 }
 

@@ -3494,3 +3494,65 @@ v3.1 必须满足：
 - 任务中心 UI 仍需按“失败处理”产品化展示，而不是把 retry/resume/fallback 作为用户必须理解的主心智。
 - 旧历史 slice 68 中的 `optimize_gate_failed_manual_retry_required` 是当时记录；当前语义以本 slice 的 `optimize_gate_failed_requires_failure_handling` 为准。
 - P0-1 仍未整体宣布完成。
+
+## 2026-06-30 Slice 73: Task target 合同落地到任务读写模型
+
+### 对应标准
+
+- P0-1: Task target 审计，task 必须能表达 `object + targetGate + gateObjective`，不能只靠旧 `actionType` 作为主语义。
+- A: 业务架构语义可用，任务创建、自动触发、任务列表和任务详情都能解释目标 gate 与目标合同。
+- D: 全自动模式可用，自动创建的任务也要携带同一目标合同，不能让手动/自动形成两套模型。
+
+### 用户视角判定
+
+创建出来的 task 现在不只表达“要转码/洗版/删除/刮削”，还会携带 `taskTarget`：
+
+- `object`: 目标媒体 item。
+- `targetGate`: 要跨过的 gate，例如 `metadata`、`optimize`、`archive`。
+- `gateObjective`: gate 的目标合同，例如 `metadata_complete`、`reduce_bitrate`、`improve_source_quality`、`remove_media`、`finalize_lifecycle`。
+- `operationHint`: 旧 executor 兼容 operation，例如 `transcode`、`upgrade`、`delete`、`scrape`、`archive`。
+
+这意味着任务中心后续可以优先展示“任务目标”和“目标合同”，再展示当前任务链路使用了哪个 operation，而不是继续把 `actionType` 当成任务主语义。
+
+### 已完成
+
+- `lifecycleTaskPlanner`：
+  - 新增 `planTaskTarget()` 和默认 `objectiveForOperation()`。
+  - `planOperationFlow()` 同时返回 `taskBridge`、`flowPlan` 和 `taskTarget`。
+- `businessFlowPolicy`：
+  - automatic trigger 的 metadata / optimize / archive 候选返回 `taskTarget`，让扫描诊断不再只有 action。
+- `taskStore`：
+  - `normalizeTask()` 为新旧任务推导 `taskTarget`。
+  - 新增 SQLite projection：`target_gate`、`gate_objective_kind`、`gate_objective_json`。
+  - 新增独立 migration marker `v31_task_target_columns_backfilled`，避免已有 v3 backfill marker 导致旧库不回填新列。
+  - `task.created` 和 `flow.planned` event 写入 `taskTarget`。
+  - 任务列表、任务详情、生命周期审计 facts、scheduler 查询都带上 `taskTarget`。
+- `/v1/tasks`：
+  - 手动创建任务响应和 admission accept projection 返回 `taskTarget`。
+- `SmartTaskEngine`：
+  - 自动创建任务时写入同一 `taskTarget`。
+
+### 本机验证
+
+- `node --check src/lifecycleTaskPlanner.js`
+- `node --check src/v3Model.js`
+- `node --check src/taskStore.js`
+- `node --check src/app.js`
+- `node --check src/smartTaskEngine.js`
+- `node --test --test-name-pattern "POST /v1/tasks creates task and returns 201|POST /v1/tasks accepts optimize bridge intent and resolves recommended operation|POST /v1/tasks accepts optimize bridge intent with delete operation|TaskAdmission accepts standard metadata repair scrape" test/api-inject.test.js`
+- `node --test --test-name-pattern "lifecycleTaskPlanner selects optimize flow|taskAdmission|smartTaskEngine auto-enqueues standard metadata repair scrape" test/task-model.test.js`
+- `node --test test/api-contract.test.js`
+- `node --test test/priority-api.test.js`
+- 本地脚本模拟旧 `tasks.db` 已存在 `v3_task_columns_backfilled=1` marker，验证 `v31_task_target_columns_backfilled=1` 会单独回填 `target_gate/gate_objective_*` projection。
+
+### 生产部署
+
+- 本 slice 未部署 NAS 生产。
+- 原因：这是普通本机业务模型/projection 切片，不涉及 NAS 特有 Docker/Linux、真实媒体 I/O、转码设备池或生产 Admin Web 验收。
+
+### 尚未满足
+
+- `gateObjective` 仍是 operation 默认映射，不是最终可配置的 Lifecycle objective resolver。
+- 前端任务中心还没有把 `taskTarget` 产品化展示为任务主语义。
+- metadata gate 自定义配置与 optimize objective 消费字段的双相校验仍未完整落地。
+- P0-1 仍未整体宣布完成。
