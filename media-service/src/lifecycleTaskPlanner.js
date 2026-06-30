@@ -1,6 +1,7 @@
 'use strict';
 
 const flowPlanner = require('./flowPlanner');
+const lifecycleObjectiveResolver = require('./lifecycleObjectiveResolver');
 
 const USER_OPERATIONS = ['ingest', 'scrape', 'transcode', 'upgrade', 'delete', 'archive'];
 
@@ -74,34 +75,13 @@ function objectiveForOperation(actionType, itemInfo = {}) {
     });
   }
   if (operation === 'transcode') {
-    return cleanObject({
-      kind: 'reduce_bitrate',
-      description: 'Media should satisfy the configured bitrate or codec optimization target.',
-      targetBitrate: itemInfo.targetBitrate,
-      targetCodec: itemInfo.targetCodec,
-      equivalentBitrate: itemInfo.equivalentBitrate,
-      acceptableOperations: ['transcode'],
-      operationHint: 'transcode',
-    });
+    return lifecycleObjectiveResolver.resolveOptimizeObjective(itemInfo, { operationHint: 'transcode' });
   }
   if (operation === 'upgrade') {
-    return cleanObject({
-      kind: 'improve_source_quality',
-      description: 'Media should be replaced by a better acceptable source.',
-      maxSizeGB: itemInfo.maxSizeGB,
-      seedPreferences: itemInfo.seedPreferences,
-      acceptableOperations: ['upgrade'],
-      operationHint: 'upgrade',
-    });
+    return lifecycleObjectiveResolver.resolveOptimizeObjective(itemInfo, { operationHint: 'upgrade' });
   }
   if (operation === 'delete') {
-    return {
-      kind: 'remove_media',
-      description: 'Media should be removed as a destructive optimize objective.',
-      destructive: true,
-      acceptableOperations: ['delete'],
-      operationHint: 'delete',
-    };
+    return lifecycleObjectiveResolver.resolveOptimizeObjective(itemInfo, { operationHint: 'delete' });
   }
   if (operation === 'archive') {
     return {
@@ -123,6 +103,9 @@ function planTaskTarget(input = {}) {
   const actionType = cleanToken(input.actionType || input.operation);
   const bridgeKind = cleanToken(input.bridgeKind) || bridgeKindForAction(actionType);
   const itemId = String(input.itemId || itemInfo.itemId || '');
+  const gateObjective = bridgeKind === 'optimize'
+    ? lifecycleObjectiveResolver.resolveOptimizeObjective(itemInfo, { operationHint: actionType })
+    : objectiveForOperation(actionType, itemInfo);
   return {
     object: {
       type: 'media_item',
@@ -130,7 +113,7 @@ function planTaskTarget(input = {}) {
       subLibraryId: itemInfo.subLibraryId || '',
     },
     targetGate: bridgeKind,
-    gateObjective: objectiveForOperation(actionType, itemInfo),
+    gateObjective,
     source: input.source || '',
     operationHint: actionType,
   };
@@ -239,6 +222,7 @@ module.exports = {
   resolveManualOperationIntent,
   planTaskTarget,
   objectiveForOperation,
+  resolveOptimizeObjective: lifecycleObjectiveResolver.resolveOptimizeObjective,
   planOperationFlow,
   bridgeKindForAction,
 };

@@ -3609,3 +3609,57 @@ v3.1 必须满足：
 - 前端还没有完整的 metadata gate / optimize objective 配置 UI 和错误展示。
 - 任务中心还没有把 `taskTarget` 产品化展示为任务主语义。
 - P0-1 仍未整体宣布完成。
+
+## 2026-06-30 Slice 75: optimize objective resolver 接入 task target
+
+### 对应标准
+
+- P0-1: Optimize 审计，Optimize Objective 和 Flow Operation 必须拆开。
+- P0-1: Task target 审计，`gateObjective` 不能继续只由旧 `actionType` 默认映射承担。
+- D: 全自动模式可用，Lifecycle 尚未解析 objective 时必须保留可解释的 pending objective，而不是静默变成 keep 或某个 operation。
+
+### 用户视角判定
+
+Optimize task 的目标现在优先来自 Lifecycle objective resolver：
+
+- 显式 `optimizeObjective` / `optimizationObjective` / `gateObjective` 会作为用户语义目标保留。
+- `transcode` / `upgrade` / `delete` 仍是兼容 operation hint，用来帮助 Flow Planner 选择执行路径，不再是 objective 的唯一来源。
+- “新入库”这类策略占位 `keep` 会解析成 `optimize_strategy_pending`，表示 Lifecycle 规则尚未产生 optimize objective。
+- 手动明确选择 `delete` 时，即使 item 当前旧策略字段是 `keep`，`gateObjective` 也会是 `remove_media`，避免把 flow operation intent 误解释成 keep 闭环。
+- pending objective 保留 `acceptableOperations: []`，让 Task Creator / Task Center 后续能解释“当前没有可自动执行 operation”。
+
+### 已完成
+
+- 新增 `media-service/src/lifecycleObjectiveResolver.js`：
+  - 统一解析显式 optimize objective、strategy action、operation hint、keep/pending 和 legacy fallback。
+  - 支持 `reduce_bitrate`、`improve_source_quality`、`remove_media`、`keep_current`、`optimize_strategy_pending` 等 objective。
+- `lifecycleTaskPlanner`：
+  - optimize gate 的 `gateObjective` 改为调用 resolver。
+  - `objectiveForOperation()` 中 optimize operation 的默认 objective 也统一走 resolver。
+  - 导出 `resolveOptimizeObjective()`，供测试和后续 Lifecycle 配置入口复用。
+- 测试修正：
+  - 增加 resolver 合同测试，覆盖显式 Dolby Vision/兼容性 objective、manual delete operation hint 覆盖旧 `keep` action、以及新入库 pending objective。
+  - Dashboard health 测试更新为接受 archive 自动化迁移后的 allow-list。
+  - 标准 scrape 验证异常测试的 metadata gate fixture 补齐下游 optimize 消费字段，避免绕过 Slice 74 的硬校验。
+
+### 本机验证
+
+- `node --check src/lifecycleObjectiveResolver.js`
+- `node --check src/lifecycleTaskPlanner.js`
+- `node --check test/api-inject.test.js`
+- `node --test --test-name-pattern "lifecycleTaskPlanner selects optimize flow|lifecycleObjectiveResolver keeps optimize objective" test/task-model.test.js`
+- `node --test --test-name-pattern "POST /v1/tasks creates task and returns 201|POST /v1/tasks accepts optimize bridge intent with delete operation|POST /v1/tasks accepts optimize bridge intent and resolves recommended operation" test/api-inject.test.js`
+- `node --test --test-name-pattern "GET /v1/admin/dashboard/health returns media and task health aggregates|scrape completion verification exception blocks done|successful JAV scrape creates one movie folder|successful western adult curation writes nfo|western adult curation creates one movie folder|western adult startup repair demotes|manual scrape of low-confidence" test/api-inject.test.js`
+- `npm test`: 274 pass。
+
+### 生产部署
+
+- 本 slice 未部署 NAS 生产。
+- 原因：这是本机业务模型和测试合同收口，不涉及 NAS 特有 Docker/Linux、真实媒体 I/O、真实转码设备池或生产 Admin Web 验收。
+
+### 尚未满足
+
+- Optimize objective 仍主要由已有 strategy/action facts 推导，尚未提供完整的用户可配置 objective rule UI。
+- Flow Planner 仍主要按 operation hint 选择当前 executor，后续还要让多 operation objective（如补字幕、换音轨、Dolby Vision 修复）拥有真实 planner 分支。
+- 任务中心还没有把 `taskTarget.gateObjective` 产品化展示为任务主语义。
+- P0-1 仍未整体宣布完成。

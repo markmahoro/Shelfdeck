@@ -2389,7 +2389,7 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
   assert.strictEqual(body.tasks.primaryAttention.key, 'needs_action');
   assert.strictEqual(body.tasks.primaryAttention.count, 3);
   assert.strictEqual(body.tasks.byStatus.pending_manual, 1);
-  assert.deepStrictEqual(body.automation.enabledOperations, ['ingest', 'scrape']);
+  assert.deepStrictEqual(body.automation.enabledOperations, ['ingest', 'scrape', 'archive']);
   assert.strictEqual(body.automation.smartTask.status, 'green');
   assert.strictEqual(body.automation.smartTask.enabled, true);
   assert.strictEqual(body.automation.smartTask.lastRunAt, '2026-06-30T00:00:00.000Z');
@@ -3847,7 +3847,18 @@ test('scrape completion verification exception blocks done', async () => {
       mediaType: 'movie',
       enabled: true,
       metadataGate: {
-        all: ['identity.itemId', 'identity.name', 'identity.providerId', 'media.path', 'media.duration', 'media.bitrate'],
+        all: [
+          'identity.itemId',
+          'identity.name',
+          'identity.providerId',
+          'media.path',
+          'media.duration',
+          'media.bitrate',
+          'media.resolution',
+          'media.codec',
+          'media.audioCodecs',
+          'decision.rating',
+        ],
       },
     }],
   });

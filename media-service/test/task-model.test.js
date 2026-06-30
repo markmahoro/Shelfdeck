@@ -561,6 +561,46 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
   assert.strictEqual(archivePlanned.flowPlan.operationKind, 'archive');
 });
 
+test('lifecycleObjectiveResolver keeps optimize objective separate from flow operation hints', () => {
+  const explicit = lifecycleTaskPlanner.resolveOptimizeObjective({
+    action: 'transcode',
+    optimizeObjective: {
+      kind: 'repair_dolby_vision_compatibility',
+      description: 'Media should be playable on configured clients.',
+      acceptableOperations: ['transcode', 'remux'],
+      operationHint: 'remux',
+    },
+  }, { operationHint: 'transcode' });
+  assert.strictEqual(explicit.kind, 'repair_dolby_vision_compatibility');
+  assert.deepStrictEqual(explicit.acceptableOperations, ['transcode', 'remux']);
+  assert.strictEqual(explicit.operationHint, 'remux');
+  assert.strictEqual(explicit.source, 'explicit_lifecycle_objective');
+
+  const deleteTarget = lifecycleTaskPlanner.planTaskTarget({
+    actionType: 'delete',
+    source: 'manual',
+    itemId: 'manual-delete-objective',
+    itemInfo: metadataReadyMovie({
+      itemId: 'manual-delete-objective',
+      action: 'keep',
+      reason: 'already acceptable',
+    }),
+  });
+  assert.strictEqual(deleteTarget.targetGate, 'optimize');
+  assert.strictEqual(deleteTarget.gateObjective.kind, 'remove_media');
+  assert.strictEqual(deleteTarget.gateObjective.operationHint, 'delete');
+  assert.strictEqual(deleteTarget.gateObjective.destructive, true);
+
+  const pending = lifecycleTaskPlanner.resolveOptimizeObjective({
+    itemId: 'newly-discovered',
+    action: 'keep',
+    reason: '新入库',
+  });
+  assert.strictEqual(pending.kind, 'optimize_strategy_pending');
+  assert.strictEqual(pending.source, 'lifecycle_pending');
+  assert.deepStrictEqual(pending.acceptableOperations, []);
+});
+
 test('businessFlowPolicy keeps disabled automatic operations out of SmartTask candidates', () => {
   const config = {
     smartTaskEnabledActions: ['scrape'],
