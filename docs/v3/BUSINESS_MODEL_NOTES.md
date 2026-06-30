@@ -223,3 +223,39 @@ Flow Planner 不能自己设定 optimize gate 的通过标准。它是实现层�
 - 任务中心应优先表达 optimize objective 和当前 flow operation，而不是把 operation 当 task 名称。
 - metadata gate 自定义校验必须覆盖 optimize objective 会消费的输入字段，而不是覆盖某个旧 action 名称的隐式字段。
 - optimize gate failed 后是否重试属于原 task 的 flow recovery 语义；Task Creator 不应把失败 objective 简单重建成同类重资源 operation task。
+
+## 12. 用户可介入范围
+
+人工介入不是一个统一组件，也不是一种特殊 task 类型。它是用户在媒体处理旅程中允许提供规则、事实、授权或调度的范围。
+
+v3.1 的约定是：下表是用户可介入范围白名单；表外事项默认不开放给用户。后续讨论“人工还是自动”时，以本表判断。
+
+| 用户介入场景 | 类别 | 用户在解决什么 | 新架构落点 |
+| --- | --- | --- | --- |
+| 配置 metadata gate | 配置规则 | 定义每个子库什么叫“元数据完整” | Lifecycle |
+| 配置 optimize objective 规则 | 配置规则 | 定义媒体最终应该变成什么，比如降码率、补字幕、换音轨、删除、keep | Lifecycle |
+| 配置自动推进范围 | 配置规则 | 定义哪些 gate / objective 可以自动创建 task，哪些必须用户介入 | Task Creator |
+| 配置风险确认规则 | 配置规则 | 定义哪些 flow 节点必须等用户确认 | Flow Planner |
+| 建设欧美成人演员库 | 配置规则 | 建立人物身份、reference face、别名和识别知识库，提升后续识别能力 | Lifecycle facts / People Library |
+| 修改成人番号 | 纠正机器判断 | 机器无法可靠识别成人影片身份 | Lifecycle facts / Flow Planner |
+| 选择正确电影/剧集身份 | 纠正机器判断 | 外部 ID、标题、季集匹配不确定 | Lifecycle facts / Flow Planner |
+| 命名 unknown face | 纠正机器判断 | 机器无法判断演员/人物身份 | Lifecycle facts / Flow Planner |
+| 选择 scrape / metadata 候选 | 纠正机器判断 | 多个元数据候选都可能正确 | Flow Planner |
+| 选择 upgrade / subtitle / audio 候选 | 纠正机器判断 | 多个实现候选都可能满足 objective | Flow Planner |
+| 确认删除媒体 | 授权风险动作 | 允许破坏性删除以达成 optimize objective | Flow Planner |
+| 确认替换原文件 | 授权风险动作 | 允许覆盖当前媒体文件 | Flow Planner |
+| 确认移动/重命名目录 | 授权风险动作 | 允许改变文件组织结构 | Flow Planner |
+| 确认覆盖 NFO/封面 | 授权风险动作 | 允许覆盖已有元数据文件 | Flow Planner |
+| 确认画面/音频兼容性处理 | 授权风险动作 | 允许可能改变媒体表现的处理路径 | Flow Planner |
+| 提高/降低 task 优先级 | 调度已有任务 | 改变已有 task 的运行顺序 | Task Scheduler |
+| 暂停 task | 调度已有任务 | 暂停已有 task 的运行机会 | Task Scheduler |
+| 继续/启动 task | 调度已有任务 | 让已有 task 重新获得运行机会 | Task Scheduler |
+| 取消 task | 调度已有任务 | 停止已有 task | Task Scheduler |
+| 放弃/标记无需处理 | 失败处理 | 用户接受不继续处理，并形成可解释状态 | Lifecycle / Flow Planner |
+
+边界约束：
+
+- 用户调度权限只作用于 task 级：priority、暂停、继续/启动、取消。用户不直接调度 flow step、event、resource bucket、worker lease 或 FFmpeg/MoviePilot/Emby 队列。
+- 单个媒体不开放 objective 覆盖。Objective 由规则产生；用户要改变目标，应修改 Lifecycle 规则/策略配置，而不是在 item 上临时改目标。
+- retry、resume、fallback 等 flow recovery 细节不作为用户直接介入场景暴露。用户看到的是失败原因和可理解的处理选择，例如重新处理、放弃或补充必要事实；内部如何恢复由 Flow Planner 按 recovery contract 决定。
+- 运维干预不属于媒体处理旅程的人工介入范围。暂停自动化、降低并发、切换 worker、修外部依赖、清理磁盘等属于系统维护/配置，不进入本表。
