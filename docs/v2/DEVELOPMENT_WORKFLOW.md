@@ -71,6 +71,17 @@ npm test
 
 涉及真实媒体文件探测、普通 Emby metadata repair、adult ingest/scrape 的本机复现，应优先使用这个 profile。只有重大版本验收、真实 NAS 行为验证、Admin Web 生产浏览器验收，或用户明确要求时，才部署 NAS 生产。
 
+本机测试环境不是生产环境的完全等价替身，以下内容必须在 NAS 生产环境或 Linux/Docker 等价环境上验证：
+
+| 范围 | 原因 |
+| --- | --- |
+| transcode 设备池 / 硬件加速 | 本机设备池和 NAS 不同，QSV/VAAPI/驱动/设备槽位不能完全复现 |
+| Linux Docker 行为 | 本机是 Windows 非 Linux Docker runtime，路径、权限、进程和 I/O 行为不同 |
+| NAS 存储与系统压力 | NAS 的 iowait、swap、overlay、SMB/NFS 挂载和磁盘压力不能由本机证明 |
+| 生产 Admin Web 最终验收 | 用户真实访问面仍是 NAS 上的服务 |
+
+因此本机 profile 用于快速定位业务逻辑、SQL/projection、API、前端状态和大数据规模下的代码路径；涉及设备、容器、NAS I/O 或最终用户视角时，再进入生产环境验证。
+
 ## 成人库 / Ingest + Scrape Task 开发
 
 日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。成人库模块不再拥有自己的目录监听、定时扫描或整目录手动扫描入队逻辑；目录级 scan 只能用于只读核对，不创建 `ingest` 或 `scrape` 任务。`ingest` 是单 item 任务，完成单文件探测、NFO 预解析和媒体项写入后，未刮削 item 再按统一 `TaskAdmission` / `PriorityEngine` 判断是否创建 `actionType=scrape` 任务。具体执行由 `TaskScheduler` 按 `ingestConcurrency` / `scrapeConcurrency` 统一分配槽位。
