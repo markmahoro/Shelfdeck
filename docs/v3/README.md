@@ -18,6 +18,7 @@
 | `DATA_MODEL_NOTES.md` | SQL 持久化层、内存运行层、projection 的原则性数据模型共识 |
 | `V3_0_1_BUSINESS_FLOW_DECISIONS.md` | 当前 worktree v3.0.1 业务流程细节判定表、入口收口和剩余问题 |
 | `V3_1_PROGRESS.md` | v3.1 用户视角可用版的切片进度、事实来源和剩余标准 |
+| `V3_1_DISCUSSION_NOTES.md` | v3.1 推进中已讨论确认、后续切片必须先读的产品语义和排查结论 |
 | `V2_BEHAVIOR_PRESERVATION.md` | v3 重构前必须盘点和保护的 v2 生产行为细节 |
 | `DISCOVERY_CHECKLIST.md` | v3 agent 开工前需要排摸的代码、数据、测试和部署清单 |
 | `GOAL_PROMPT.md` | 可用于开启 v3 长程任务的提示词 |
