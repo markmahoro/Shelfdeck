@@ -558,16 +558,19 @@ test('taskScheduler clears stale runtime state for queued tasks without losing m
 
     assert.strictEqual(recoveredAfter.status, 'queued');
     assert.strictEqual(recoveredAfter.phase, null);
-    assert.strictEqual(recoveredAfter.resumePoint, null);
+    assert.strictEqual(recoveredAfter.resumePoint, 'transcode_executing');
     assert.strictEqual(recoveredAfter.progress, 0);
     assert.strictEqual(recoveredAfter.retryCount, 1);
+    assert.strictEqual(recoveredAfter.manualExecuteRequested, true);
     const recoveredEvents = taskStoreMod.queryTaskEvents({ taskId: recovered.id }, { pageSize: 50 }).events;
     const restartQueued = recoveredEvents.find((event) => event.eventType === 'task.restart_recovery_queued');
     assert.ok(restartQueued, 'interrupted task recovery writes restart queue event');
     assert.strictEqual(restartQueued.payload.reason, 'restart_recovery_auto_queue');
     assert.strictEqual(restartQueued.payload.fromPhase, 'transcode_executing');
     assert.strictEqual(restartQueued.payload.fromResumePoint, 'transcode_executing');
+    assert.strictEqual(restartQueued.payload.resumePoint, 'transcode_executing');
     assert.strictEqual(restartQueued.payload.retryCount, 1);
+    assert.strictEqual(restartQueued.payload.effect, 'queue_interrupted_task_from_resume_point');
     assert.ok(recoveredEvents.some((event) => event.eventType === 'task.retry_recorded'));
     const recoveryLogs = diagnosticLog.list({ limit: 50 }).logs
       .filter((log) => log.scope === 'scheduler.restartRecovery' && log.payload && log.payload.taskId === recovered.id);

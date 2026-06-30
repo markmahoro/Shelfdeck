@@ -27,6 +27,7 @@ const nodeService = require('./nodeService');
 const priorityEngine = require('./priorityEngine');
 const resourceProjection = require('./resourceProjection');
 const flowPlanner = require('./flowPlanner');
+const flowRecoveryContract = require('./flowRecoveryContract');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
@@ -541,6 +542,7 @@ async function scheduleRound() {
 
     const previousPhase = task.phase || '';
     const previousResumePoint = task.resumePoint || '';
+    const recoveryPlan = flowRecoveryContract.buildRecoveryPlan(task);
     const retryCount = (task.retryCount || 0) + 1;
     if (retryCount > 3) {
       const updated = taskStore.updateTask(task.id, { status: 'failed_hard', retryCount });
@@ -581,7 +583,8 @@ async function scheduleRound() {
       status: 'queued',
       retryCount,
       phase: null,
-      resumePoint: null,
+      resumePoint: recoveryPlan.resumePoint || null,
+      manualExecuteRequested: !!recoveryPlan.resumePoint,
       progress: 0,
     });
     if (updated) {
@@ -589,6 +592,7 @@ async function scheduleRound() {
       task.retryCount = updated.retryCount;
       task.phase = updated.phase;
       task.resumePoint = updated.resumePoint;
+      task.manualExecuteRequested = updated.manualExecuteRequested;
       task.progress = updated.progress;
     }
     taskStore.deleteProgress(task.id);
@@ -597,8 +601,9 @@ async function scheduleRound() {
       fromStatus: 'interrupted',
       fromPhase: previousPhase,
       fromResumePoint: previousResumePoint,
+      resumePoint: recoveryPlan.resumePoint || '',
       retryCount,
-      effect: 'queue_task_after_service_restart',
+      effect: recoveryPlan.resumePoint ? 'queue_interrupted_task_from_resume_point' : 'queue_interrupted_task_from_flow_start',
     }, {
       resourceType: 'scheduler',
     });
@@ -617,6 +622,7 @@ async function scheduleRound() {
         retryCount,
         fromPhase: previousPhase,
         fromResumePoint: previousResumePoint,
+        resumePoint: recoveryPlan.resumePoint || '',
         reason: 'restart_recovery_auto_queue',
       },
     });

@@ -2226,3 +2226,53 @@ Slice 49/50 后，SmartTask 已基本变成 trigger，但继续检查手动创�
 - 本切片尚未部署 NAS。
 - P0-1 仍未完整关闭：各 flow 的 recovery contract 仍需逐类补齐，尤其是 precheck/executing/write/review 每个阶段失败后的用户动作与幂等边界。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 53: Preserve resume point during restart recovery
+
+### 对应标准
+
+- A3: `flow` 是 task 内部 event 编排；失败、中断和恢复必须属于当前 task 的 flow 语义。
+- A4: Scheduler 执行已经确定的 flow event 编排，不应在恢复时丢失 flow recovery contract 给出的恢复点。
+- P0-1 新模型：服务重启导致的 interrupted task 应从 flow contract 对应的 resumePoint 继续，而不是静默退回 flow start。
+
+### 审计结果
+
+Slice 52 后继续审计失败/中断恢复链路，确认：
+
+- 手动 `POST /v1/tasks/:id/actions/retry` 已经会保留 failed task 的 `resumePoint`；
+- 但 scheduler 在服务重启后自动恢复 `interrupted` task 时，会把 `resumePoint` 清空；
+- 同一轮 dispatch 前的 queued runtime cleanup 也会清空普通 queued task 的 runtime state。
+
+判断：
+
+- 这是 P0-1 新业务模型问题。
+- 如果一个 task 在 `transcode_executing` / `upgrade_executing` / `scrape_executing` 等阶段中断，恢复时丢掉 `resumePoint` 会让 flow 从默认 precheck 重新开始，违背“失败重试/恢复属于 task 内部 flow”的模型。
+
+### 本切片修复
+
+- `taskScheduler` 的 interrupted restart recovery 改为读取 `flowRecoveryContract.buildRecoveryPlan(task)`。
+- 自动恢复 queued task 时保留 `recoveryPlan.resumePoint`。
+- 对存在 resumePoint 的恢复任务设置 `manualExecuteRequested=true`，使 queued runtime cleanup 不会再次清掉恢复点。
+- `task.restart_recovery_queued` 事件和 diagnostic log 记录实际恢复点：
+  - `resumePoint`
+  - `effect: queue_interrupted_task_from_resume_point` 或 `queue_interrupted_task_from_flow_start`
+
+### 后端事实来源
+
+- `media-service/src/taskScheduler.js`
+  - interrupted recovery 不再清空 resumePoint。
+- `media-service/test/priority-api.test.js`
+  - 更新 restart recovery 用例，断言 `transcode_executing` 恢复点被保留，且 recovery event 记录恢复点。
+
+### 本地验收
+
+- `node --test test/priority-api.test.js --test-name-pattern "restart recovery|retry|resume state"`: pass，14 个测试通过。
+- `node --test test/api-inject.test.js --test-name-pattern "actions/retry|recovery"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `api-inject.test.js` 全量，114 个测试通过。
+- `npm test`: pass，249 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS。
+- P0-1 仍未完整关闭：各 flow 的 contract 当前仍偏目录化，后续还需要逐 flow 审计“每个 resumePoint 是否真的幂等且从正确步骤继续”。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
