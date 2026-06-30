@@ -36,7 +36,9 @@ function collectTaskPathKeys(task, subLib) {
     info.originalSourcePath,
     info.replacementTargetPath,
     info.originalDiscPath,
+    info.deleteTargetPath,
     task && task.verifyResult && task.verifyResult.outputPath,
+    task && task.verifyResult && task.verifyResult.deletedPath,
     task && task.upgradePreview && task.upgradePreview.oldFile && task.upgradePreview.oldFile.path,
     task && task.upgradePreview && task.upgradePreview.newFile && task.upgradePreview.newFile.path,
   ];
@@ -51,15 +53,18 @@ function buildOptimizationIndex(tasks, config) {
 
   for (const task of tasks || []) {
     if (!task || task.status !== 'done') continue;
-    if (task.actionType !== 'transcode' && task.actionType !== 'upgrade') continue;
+    if (task.actionType !== 'transcode' && task.actionType !== 'upgrade' && task.actionType !== 'delete') continue;
 
     const subLibraryId = task.itemInfo && task.itemInfo.subLibraryId;
     const subLib = subLibs.find((s) => s.uuid === subLibraryId) || {};
+    const status = task.actionType === 'upgrade' ? 'upgraded'
+      : task.actionType === 'delete' ? 'deleted'
+      : 'transcoded';
     const entry = {
       action: task.actionType,
-      status: task.actionType === 'upgrade' ? 'upgraded' : 'transcoded',
+      status,
       taskId: task.id,
-      doneAt: task.updatedAt || task.createdAt || null,
+      doneAt: task.optimizationDoneAt || task.updatedAt || task.createdAt || null,
       subLibraryId: subLibraryId || null,
     };
 
@@ -86,7 +91,11 @@ function newer(a, b) {
 function statusFromMarker(item) {
   const transcodeAt = item && item.lastTranscodeDoneAt;
   const upgradeAt = item && item.lastUpgradeDoneAt;
-  if (!transcodeAt && !upgradeAt) return null;
+  const deleteAt = item && (item.deletedAt || item.removedAt || (item.optimizationStatus === 'deleted' ? item.optimizationDoneAt : null));
+  if (!transcodeAt && !upgradeAt && !deleteAt) return null;
+  if (deleteAt && (!transcodeAt || newer(deleteAt, transcodeAt)) && (!upgradeAt || newer(deleteAt, upgradeAt))) {
+    return { action: 'delete', status: 'deleted', taskId: item.optimizationTaskId || null, doneAt: deleteAt, subLibraryId: item.subLibraryId || null };
+  }
   if (upgradeAt && (!transcodeAt || newer(upgradeAt, transcodeAt))) {
     return { action: 'upgrade', status: 'upgraded', taskId: null, doneAt: upgradeAt, subLibraryId: item.subLibraryId || null };
   }

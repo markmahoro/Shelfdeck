@@ -2586,3 +2586,73 @@ S4 archived
 - Delete executor 仍主要写 task `verifyResult` 和从库中移除 item；结构化 `optimizeGate` 事实写回还未贯穿 executor。
 - 历史生产任务中已持久化的 `bridgeKind=archive` / `flowDirection=archive.delete` 不会被本 slice 自动迁移；生产读模型需要后续评估是否做 compatibility projection 或数据迁移。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 59: Persist delete optimize gate facts
+
+### 对应标准
+
+- A1: 后端统一决策结果必须能给出 lifecycle / optimization / archive 状态，不能只靠 actionType 推断。
+- A2: `delete` flow 必须能回答完成 gate、当前/历史 flow node 和恢复语义。
+- A5: 完成或失败后的 task detail 必须能解释 flow phase/event/resource，而不是只留下日志。
+- P0-1 新模型：delete 属于 optimize gate；delete 完成后应有结构化 `optimizeGate` 事实。
+
+### 本切片修复
+
+- `deleteFlowExecutor` 在 delete 成功或目标已不存在时写入 task 事实：
+  - `optimizeGate.passed=true`
+  - `optimizationGate.passed=true`
+  - `optimizationStatus=deleted`
+  - `optimizationAction=delete`
+  - `optimizationDoneAt`
+  - `verifyResult.deletedAt/deletedPath/deletedKind/bytesSaved`
+- `deleteFlowExecutor` 的运行 phase 改为和 flow plan 对齐：
+  - `delete_precheck`
+  - `delete_executing`
+  - `delete_verify`
+- `taskScheduler.reportStatus(done)` 在仍存在的 media item 上写回 delete projection：
+  - `optimizationStatus=deleted`
+  - `optimizationAction=delete`
+  - `optimizationTaskId`
+  - `deleted/removed/deletedAt/removedAt`
+  - `optimizeGate/optimizationGate`
+- `optimizationStatus.buildOptimizationIndex()` 将 done delete task 纳入 optimization projection，历史/查询层可推导 `deleted`。
+- `flowRecoveryContract` 增加 `delete_verify`，避免任务中心看到 flow plan 有 verify node 但 recovery contract 无法解释。
+
+### 用户视角变化
+
+- 用户查看 delete task detail 时，可以看到它已经通过 `optimize.delete` 的 gate，而不是只看到一个 done task。
+- 媒体 item 如果在 delete 后仍保留到下一次 refresh，会显示 `optimizationStatus=deleted`，生命周期可从 Optimize Gate 进入 archive gate。
+- 任务中心的 delete phase 和 flow plan / recovery contract 统一，不会再出现 `precheck/executing/verify` 与 `delete_*` 节点不一致。
+
+### 后端事实来源
+
+- `media-service/src/deleteFlowExecutor.js`
+  - 写 task-level optimize gate 和 delete verifyResult。
+- `media-service/src/taskScheduler.js`
+  - delete done 时写 item-level optimization facts。
+- `media-service/src/optimizationStatus.js`
+  - done delete task 可参与 optimization projection。
+- `media-service/src/flowRecoveryContract.js`
+  - 补齐 `delete_verify`。
+- `media-service/test/task-model.test.js`
+  - 覆盖 scheduler 将 delete done 写成 item optimize gate。
+- `media-service/test/api-inject.test.js`
+  - 覆盖真实 adult delete flow 的 task detail gate 事实。
+
+### 本地验收
+
+- `node --check src/deleteFlowExecutor.js`: pass。
+- `node --check src/taskScheduler.js`: pass。
+- `node --check src/optimizationStatus.js`: pass。
+- `node --check src/flowRecoveryContract.js`: pass。
+- `node --check test/task-model.test.js`: pass。
+- `node --check test/api-inject.test.js`: pass。
+- `node --test test/task-model.test.js --test-name-pattern "delete|flowRecoveryContract|lifecycleTaskPlanner"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，51 个测试通过。
+- `node --test test/api-inject.test.js --test-name-pattern "delete task removes|manual delete task|bridge intent"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `api-inject.test.js` 全量，115 个测试通过。
+- `npm test`: pass，254 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 历史生产任务中已持久化的 `bridgeKind=archive` / `flowDirection=archive.delete` 仍未做数据迁移；如果生产任务中心需要历史统一展示，后续需要 compatibility projection 或迁移。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

@@ -481,7 +481,7 @@ test('flowRecoveryContract documents retry points for every current flow', () =>
     scrape: ['scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review'],
     transcode: ['transcode_precheck', 'transcode_executing', 'transcode_verify', 'transcode_replace'],
     upgrade: ['upgrade_precheck', 'upgrade_planning', 'upgrade_executing', 'upgrade_pre_replace_verify', 'upgrade_replace'],
-    delete: ['delete_precheck', 'delete_executing'],
+    delete: ['delete_precheck', 'delete_executing', 'delete_verify'],
   };
   for (const [flowKey, resumePoints] of Object.entries(expected)) {
     const contract = flowRecoveryContract.getContract(flowKey);
@@ -2076,6 +2076,66 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
   assert.strictEqual(failed.optimizeGate.retryPolicy.automaticRetry, false);
   assert.ok(failed.optimizeGate.failureReasons.includes('target_bitrate_exceeded'));
   assert.ok(failed.optimizeGate.failureReasons.includes('target_codec_not_met'));
+});
+
+test('taskScheduler records delete done as an optimize gate result on media item', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'delete-optimize-gate-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  try {
+    const taskScheduler = require('../src/taskScheduler');
+    libraryStore.saveLibrary({
+      version: 1,
+      cachedAt: new Date().toISOString(),
+      items: [metadataReadyMovie({
+        itemId: 'delete-gate-item',
+        subLibraryId: 'movie-lib',
+        path: '/media/delete-gate-item.mkv',
+        action: 'delete',
+      })],
+    });
+    const task = taskStore.createTask({
+      itemId: 'delete-gate-item',
+      itemName: 'Delete Gate Item',
+      actionType: 'delete',
+      source: 'manual',
+      status: 'executing',
+      itemInfo: {
+        itemId: 'delete-gate-item',
+        subLibraryId: 'movie-lib',
+        path: '/media/delete-gate-item.mkv',
+        size: 4096,
+        embyItemId: 'emby-delete-gate-item',
+      },
+      verifyResult: {
+        bytesSaved: 4096,
+        deletedPath: '/media/delete-gate-item.mkv',
+        deletedKind: 'emby_item',
+        embyItemId: 'emby-delete-gate-item',
+      },
+    });
+
+    taskScheduler.reportStatus(task.id, 'done', 100);
+
+    const stored = libraryStore.getItem('delete-gate-item');
+    assert.strictEqual(stored.optimizationStatus, 'deleted');
+    assert.strictEqual(stored.optimizationAction, 'delete');
+    assert.strictEqual(stored.optimizationTaskId, task.id);
+    assert.strictEqual(stored.deleted, true);
+    assert.strictEqual(stored.removed, true);
+    assert.strictEqual(stored.optimizeGate.passed, true);
+    assert.strictEqual(stored.optimizeGate.operation, 'delete');
+    assert.strictEqual(stored.optimizeGate.reason, 'delete_target_removed');
+    assert.strictEqual(lifecycleProjection.resolveLifecycle(stored).optimizeGate.passed, true);
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
 });
 
 test('resourceProjection groups active tasks by resource rather than task type only', () => {

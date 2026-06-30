@@ -133,6 +133,12 @@ const FLOW_RECOVERY_CONTRACTS = {
         idempotency: 'delete_is_irreversible_but_missing_target_is_success',
         userAction: 'confirm_delete_or_inspect_target',
       },
+      delete_verify: {
+        label: 'Verify delete result',
+        retryStrategy: 'resume_step',
+        idempotency: 'read_only_missing_target_check',
+        userAction: 'inspect_delete_verify_failure',
+      },
     },
   },
 };

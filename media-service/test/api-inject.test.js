@@ -1077,6 +1077,11 @@ test('delete task removes an adult folder media directory and library item', asy
   assert.strictEqual(lib.json().total, 0, 'delete task should remove the library cache item');
   const done = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
   assert.strictEqual(done.json().status, 'done');
+  assert.strictEqual(done.json().flowPlan.direction, 'optimize.delete');
+  assert.strictEqual(done.json().optimizeGate.passed, true);
+  assert.strictEqual(done.json().optimizeGate.operation, 'delete');
+  assert.strictEqual(done.json().optimizeGate.reason, 'delete_target_removed');
+  assert.strictEqual(done.json().verifyResult.deletedAt, done.json().optimizeGate.observed.deletedAt);
   const report = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}/report` });
   assert.strictEqual(report.statusCode, 200);
   assert.strictEqual(report.json().bytesFreed, Buffer.byteLength('delete-me'));
@@ -1146,6 +1151,9 @@ test('delete task removes an adult scraped movie folder when the marker matches'
   assert.strictEqual(lib.json().total, 0, 'delete task should remove the library cache item');
   const report = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}/report` });
   assert.strictEqual(report.statusCode, 200);
+  const done = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
+  assert.strictEqual(done.json().optimizeGate.passed, true);
+  assert.strictEqual(done.json().optimizationStatus, 'deleted');
   assert.strictEqual(report.json().bytesFreed, expectedBytesFreed);
   assert.strictEqual(report.json().delete.targetKind, 'directory');
   assert.strictEqual(report.json().delete.targetPath, movieDir);

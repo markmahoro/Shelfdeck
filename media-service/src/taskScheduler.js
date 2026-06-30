@@ -73,6 +73,63 @@ function shouldRecomputeAutoPriority(task) {
     && task.itemInfo;
 }
 
+function buildDeleteOptimizeGateForItem(task, doneAt) {
+  const verify = task && task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
+  const info = task && task.itemInfo && typeof task.itemInfo === 'object' ? task.itemInfo : {};
+  return task && (task.optimizeGate || task.optimizationGate) || {
+    gate: 'optimize',
+    passed: true,
+    status: 'passed',
+    reason: 'delete_target_removed',
+    operation: 'delete',
+    target: {
+      operation: 'delete',
+      itemId: task && task.itemId || '',
+      path: verify.deletedPath || info.deleteTargetPath || info.path || '',
+      targetKind: verify.deletedKind || info.deleteTargetKind || (info.embyItemId ? 'emby_item' : ''),
+    },
+    observed: {
+      removed: true,
+      deletedAt: doneAt,
+      path: verify.deletedPath || info.deleteTargetPath || info.path || '',
+      targetKind: verify.deletedKind || info.deleteTargetKind || (info.embyItemId ? 'emby_item' : ''),
+      bytesSaved: verify.bytesSaved || info.size || info.originalSizeBytes || 0,
+      embyItemId: verify.embyItemId || info.embyItemId || '',
+    },
+    failureReasons: [],
+    evidenceLevel: 'objective',
+    retryPolicy: {
+      automaticRetry: false,
+      manualRetryAllowed: false,
+      reason: '',
+    },
+    userAction: '',
+  };
+}
+
+function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt) {
+  libItem.lastTaskDoneAt = doneAt;
+  if (task.actionType === 'transcode') {
+    libItem.lastTranscodeDoneAt = doneAt;
+  }
+  if (task.actionType === 'upgrade') {
+    libItem.lastUpgradeDoneAt = doneAt;
+  }
+  if (task.actionType === 'delete') {
+    const gate = buildDeleteOptimizeGateForItem(task, doneAt);
+    libItem.optimizationStatus = 'deleted';
+    libItem.optimizationAction = 'delete';
+    libItem.optimizationDoneAt = doneAt;
+    libItem.optimizationTaskId = task.id;
+    libItem.deleted = true;
+    libItem.removed = true;
+    libItem.deletedAt = doneAt;
+    libItem.removedAt = doneAt;
+    libItem.optimizeGate = gate;
+    libItem.optimizationGate = gate;
+  }
+}
+
 function reconcileAutoTaskPriorities(tasks, config) {
   for (const task of tasks) {
     if (!shouldRecomputeAutoPriority(task)) continue;
@@ -163,16 +220,12 @@ function reportStatus(taskId, status, progress) {
 
     // 48h freeze after task ends (done or failed_hard) — SmartTaskEngine won't re-enqueue
     if ((status === 'done' || status === 'failed_hard') && oldTask.itemId) {
-      const lib = mediaLibraryService.getLibrary();
+      const lib = mediaLibraryService.loadLibrary();
       const libItem = lib && lib.items && lib.items.find((it) => it.itemId === oldTask.itemId);
       if (libItem) {
-        libItem.lastTaskDoneAt = new Date().toISOString();
-        if (status === 'done' && oldTask.actionType === 'transcode') {
-          libItem.lastTranscodeDoneAt = new Date().toISOString();
-        }
-        if (status === 'done' && oldTask.actionType === 'upgrade') {
-          libItem.lastUpgradeDoneAt = new Date().toISOString();
-        }
+        const doneAt = new Date().toISOString();
+        if (status === 'done') applyDoneTaskFactsToLibraryItem(libItem, oldTask, doneAt);
+        else libItem.lastTaskDoneAt = doneAt;
         mediaLibraryService.saveLibrary(lib);
       }
     }
