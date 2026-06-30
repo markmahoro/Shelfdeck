@@ -2347,10 +2347,23 @@ function registerRoutes(app) {
     return maskSensitive(configStore.loadConfig());
   });
 
-  app.patch('/v1/config', async (req) => {
+  app.patch('/v1/config', async (req, reply) => {
     const patch = req.body && typeof req.body === 'object' ? req.body : {};
-    const updated = configStore.patchConfig(patch);
-    return maskSensitive(updated);
+    try {
+      const updated = configStore.patchConfig(patch);
+      return maskSensitive(updated);
+    } catch (err) {
+      if (err && err.code === 'METADATA_GATE_CONTRACT_BROKEN') {
+        return reply.code(400).send({
+          error: {
+            code: err.code,
+            message: err.message,
+            details: err.details || {},
+          },
+        });
+      }
+      throw err;
+    }
   });
 
   // ── Activity Log ────────────────────────────────────────────────────────

@@ -3556,3 +3556,56 @@ v3.1 必须满足：
 - 前端任务中心还没有把 `taskTarget` 产品化展示为任务主语义。
 - metadata gate 自定义配置与 optimize objective 消费字段的双相校验仍未完整落地。
 - P0-1 仍未整体宣布完成。
+
+## 2026-06-30 Slice 74: metadata gate 配置保存入口统一硬校验
+
+### 对应标准
+
+- P0-1: Lifecycle/gate 审计，metadata gate 自定义配置必须符合“gate >= optimize 消费字段”的用户心智。
+- D: 全自动模式可用，配置不完整或自相矛盾时必须停在可解释状态，不能让坏配置进入系统后静默卡住。
+- A: 业务架构语义可用，配置保存、运行时判定和任务创建不能对 metadata gate 有不同理解。
+
+### 用户视角判定
+
+用户自定义某个子库的“元数据完整” gate 时，系统必须校验：
+
+- 该 gate 覆盖当前子库策略模板会消费的 optimize 输入字段。
+- 用户可以把 gate 定义得比下游 optimize 消费字段更严格。
+- 用户不能把 gate 定义得比下游 optimize 消费字段更窄，否则会出现“元数据完整但不能进入 optimize”的困惑。
+
+### 已完成
+
+- `configStore`：
+  - 新增 `validateMetadataGateContracts()`，统一遍历所有 subLibrary 的自定义 `metadataGate`。
+  - `saveConfig()` / `patchConfig()` 默认硬校验，发现违约时抛出 `METADATA_GATE_CONTRACT_BROKEN`。
+  - `loadConfig()` 内部历史迁移写盘跳过硬校验，避免历史坏配置导致服务启动时退回默认配置；历史坏配置仍由运行时 `metadataStatus` 输出 `metadata_gate_contract_broken`。
+- `/v1/config`：
+  - 全局配置 patch 现在会返回 `400 METADATA_GATE_CONTRACT_BROKEN`，并带上违规子库和缺失字段 details。
+  - 不再能通过全局配置入口绕过 `/v1/admin/sublibraries` 已有的 metadata gate 校验。
+- 测试：
+  - `configStore.patchConfig()` 直接写坏配置会被拒绝，且不会写入坏 `subLibraries`。
+  - `/v1/config` 写坏配置会返回 400，并包含 `decision.rating` / `media.duration` 等缺失字段。
+
+### 本机验证
+
+- `node --check src/configStore.js`
+- `node --check src/app.js`
+- `node --test --test-name-pattern "configStore rejects metadataGate configs|metadataStatus marks a custom metadataGate contract broken" test/task-model.test.js`
+- `node --test --test-name-pattern "PATCH /v1/config rejects metadataGate contract violations globally|PATCH /v1/admin/sublibraries rejects metadataGate" test/api-inject.test.js`
+- `node --test --test-name-pattern "metadataStatus|config migration|configStore rejects metadataGate|taskAdmission" test/task-model.test.js`
+- `node --test test/api-contract.test.js`
+- `node --test --test-name-pattern "GET /v1/config|PATCH /v1/config|sublibraries" test/api-inject.test.js`
+- `node scripts/check-local-runtime-profile.js .codex/local-prod-data`
+- PowerShell: `$env:CONTROL_PLANE_DATA_DIR='E:\my_project\emby_third_party\.codex\local-prod-data'; cd media-service; node -e "const c=require('./src/configStore'); const cfg=c.loadConfig(); console.log(JSON.stringify(c.validateMetadataGateContracts(cfg)))"`：返回 `{"ok":true,"violations":[]}`。
+
+### 生产部署
+
+- 本 slice 未部署 NAS 生产。
+- 原因：这是本机业务配置合同切片；已用本机生产同构 profile 验证当前配置不会被新硬校验挡住，不涉及 NAS 特有 Docker/Linux、真实媒体 I/O 或转码设备池。
+
+### 尚未满足
+
+- `gateObjective` 仍是 operation 默认映射，不是最终可配置的 Lifecycle objective resolver。
+- 前端还没有完整的 metadata gate / optimize objective 配置 UI 和错误展示。
+- 任务中心还没有把 `taskTarget` 产品化展示为任务主语义。
+- P0-1 仍未整体宣布完成。

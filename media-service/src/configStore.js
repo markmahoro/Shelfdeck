@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const metadataStatus = require('./metadataStatus');
 
 function resolveDataDir() {
   return (
@@ -18,6 +19,15 @@ function configFilePath() {
 function ensureDataDir() {
   const dir = resolveDataDir();
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+class ConfigValidationError extends Error {
+  constructor(code, message, details = {}) {
+    super(message);
+    this.name = 'ConfigValidationError';
+    this.code = code;
+    this.details = details;
+  }
 }
 
 // Template version constants — bump when buildDefaultTemplate / buildTVDefaultTemplate logic changes
@@ -1048,6 +1058,31 @@ function normalizeLifecycleAutomationConfig(raw) {
   };
 }
 
+function validateMetadataGateContracts(config = {}) {
+  const violations = [];
+  const subLibraries = Array.isArray(config.subLibraries) ? config.subLibraries : [];
+  for (const subLib of subLibraries) {
+    const result = metadataStatus.validateMetadataGateForSubLibrary(subLib, config);
+    if (result.ok) continue;
+    violations.push({
+      subLibraryId: subLib && subLib.uuid || '',
+      subLibraryName: subLib && subLib.name || '',
+      ruleTemplateId: subLib && subLib.ruleTemplateId || '',
+      missingRequirements: result.missingRequirements,
+      requiredInputs: result.requiredInputs,
+    });
+  }
+  if (violations.length > 0) {
+    const first = violations[0];
+    throw new ConfigValidationError(
+      'METADATA_GATE_CONTRACT_BROKEN',
+      `metadataGate does not cover optimize inputs: ${first.missingRequirements.join(', ')}`,
+      { violations },
+    );
+  }
+  return { ok: true, violations: [] };
+}
+
 // ── Load / Save ────────────────────────────────────────────────────────────────
 
 function mergeConfigWithDefaults(config) {
@@ -1100,21 +1135,21 @@ function loadConfig() {
       console.log('[configStore] detected v1 config, migrating to v2 format');
       fs.writeFileSync(cfgFile + '.v1.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = migrateFromV1(raw);
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     }
 
     if (detectV2Config(raw)) {
       console.log('[configStore] detected v2 config (mediaPolicy), migrating to v3 (ruleTemplates)');
       fs.writeFileSync(cfgFile + '.v2.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = migrateFromV2(raw);
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     }
 
     if (detectV3Config(raw)) {
       console.log('[configStore] detected v3 config, migrating subLibrary scheduling to v4');
       fs.writeFileSync(cfgFile + '.v3.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = migrateFromV3(raw);
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     }
 
     const tmplResult = migrateDefaultTemplates(raw);
@@ -1122,7 +1157,7 @@ function loadConfig() {
       console.log('[configStore] template migration applied (tag added or default template regenerated)');
       fs.writeFileSync(cfgFile + '.v6.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = tmplResult.raw;
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     }
 
     const adultResult = normalizeAdultLibraryConfig(raw);
@@ -1130,7 +1165,7 @@ function loadConfig() {
       console.log('[configStore] adult library scraper config migration applied');
       fs.writeFileSync(cfgFile + '.v7.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = adultResult.raw;
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     } else {
       raw = adultResult.raw;
     }
@@ -1140,7 +1175,7 @@ function loadConfig() {
       console.log('[configStore] transcode device config migration applied');
       fs.writeFileSync(cfgFile + '.v8.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = transcodeResult.raw;
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     } else {
       raw = transcodeResult.raw;
     }
@@ -1150,7 +1185,7 @@ function loadConfig() {
       console.log('[configStore] lifecycle automation config migration applied');
       fs.writeFileSync(cfgFile + '.v9.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = lifecycleAutomationResult.raw;
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     } else {
       raw = lifecycleAutomationResult.raw;
     }
@@ -1162,9 +1197,10 @@ function loadConfig() {
   }
 }
 
-function saveConfig(config) {
+function saveConfig(config, options = {}) {
   ensureDataDir();
   const merged = mergeConfigWithDefaults(config);
+  if (options.skipMetadataGateValidation !== true) validateMetadataGateContracts(merged);
   fs.writeFileSync(configFilePath(), JSON.stringify(merged, null, 2), 'utf8');
   return merged;
 }
@@ -1175,4 +1211,17 @@ function patchConfig(updates) {
   return saveConfig(merged);
 }
 
-module.exports = { resolveDataDir, loadConfig, saveConfig, patchConfig, getDefaultConfig, buildDefaultTemplate, buildAdultJavDefaultTemplate, buildAdultWesternDefaultTemplate, defaultSubLibSchedule, resolveSubLibSchedule };
+module.exports = {
+  ConfigValidationError,
+  resolveDataDir,
+  loadConfig,
+  saveConfig,
+  patchConfig,
+  validateMetadataGateContracts,
+  getDefaultConfig,
+  buildDefaultTemplate,
+  buildAdultJavDefaultTemplate,
+  buildAdultWesternDefaultTemplate,
+  defaultSubLibSchedule,
+  resolveSubLibSchedule,
+};

@@ -55,6 +55,8 @@ Gate 定义：
 
 当前普通 Emby 媒体的 scrape task 是“半假 scrape”：它是 metadata gate 未满足时的统一 metadata repair bridge，但不做 TMDB 等真刮削；它可以询问 Emby、读取本地 Douban 缓存、做本地技术字段 probe 和自算字段。成人 scrape 与未来真 scrape 仍属于同一座 metadata bridge，只是 flow/event 编排不同。
 
+v3.1 过渡实现中，metadata gate 自定义配置已经具备双层保护：保存配置时由 `configStore` 统一硬校验自定义 `metadataGate` 是否覆盖当前子库策略模板消费的 optimize 输入字段；运行时由 `metadataStatus` 在发现历史坏配置时输出 `metadata_gate_contract_broken`，让 item 停在 metadata gate 而不是显示“元数据完整但不能优化”。
+
 `archive` 是最后一座轻量桥。它更接近验收和归档，不是重计算任务，也不是 delete 动作本身。验收不通过时，应该回到明确的前置阶段或产生可见的待处理事件，而不是把 item 标成完成。
 
 v3.1 第一版 Optimize Gate 已落地为读模型 evaluator：显式 `optimizeGate/optimizationGate` 结果优先；`keep` 是 no-op optimize；`transcode`/`upgrade`/`delete` 必须有对应完成 marker 或显式 gate 事实；转码/升级可按目标码率和目标编码做宽容差校验。Optimize gate miss 会输出可解释失败和 `automaticRetry=false` 的 retry policy，避免 Task Creator 把重资源 gate miss 误读成应该自动创建同类新任务。

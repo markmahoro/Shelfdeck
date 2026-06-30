@@ -2715,6 +2715,48 @@ test('PATCH /v1/admin/sublibraries rejects metadataGate that does not cover stra
   await app.close();
 });
 
+test('PATCH /v1/config rejects metadataGate contract violations globally', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const res = await app.inject({
+    method: 'PATCH',
+    url: '/v1/config',
+    payload: {
+      subLibraries: [{
+        uuid: 'broken-global-movie-lib',
+        name: 'Broken Global Movies',
+        source: 'emby',
+        mediaType: 'movie',
+        ruleTemplateId: 'rating_strategy',
+        metadataGate: { all: ['identity.itemId', 'identity.name', 'media.path'] },
+      }],
+      ruleTemplates: [{
+        id: 'rating_strategy',
+        rules: [{
+          priority: 1,
+          groupsConnector: 'and',
+          groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
+          action: 'transcode',
+          actionParams: { targetBitrate: 4, targetCodec: 'h265' },
+        }],
+      }],
+    },
+  });
+
+  assert.strictEqual(res.statusCode, 400);
+  const body = res.json();
+  assert.strictEqual(body.error.code, 'METADATA_GATE_CONTRACT_BROKEN');
+  assert.match(body.error.message, /decision\.rating/);
+  assert.match(body.error.message, /media\.duration/);
+  assert.strictEqual(body.error.details.violations[0].subLibraryId, 'broken-global-movie-lib');
+
+  const cfg = await app.inject({ method: 'GET', url: '/v1/config' });
+  assert.strictEqual(cfg.statusCode, 200);
+  assert.ok(!cfg.json().subLibraries.some((sl) => sl.uuid === 'broken-global-movie-lib'));
+  await app.close();
+});
+
 test('POST /v1/admin/sublibraries/:uuid/actions/scan is removed and has no side effects', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');

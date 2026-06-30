@@ -747,6 +747,57 @@ test('metadataStatus marks a custom metadataGate contract broken when strategy i
   assert.ok(meta.metadataMissingReasons.includes('metadata_gate_contract_broken'));
 });
 
+test('configStore rejects metadataGate configs that do not cover optimize inputs', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  delete process.env.MEDIA_SERVICE_DATA_DIR;
+
+  try {
+    configStore.saveConfig({
+      ...configStore.getDefaultConfig(),
+      subLibraries: [],
+    });
+
+    assert.throws(() => {
+      configStore.patchConfig({
+        subLibraries: [{
+          uuid: 'broken-movie-lib',
+          name: 'Broken Movies',
+          source: 'emby',
+          mediaType: 'movie',
+          ruleTemplateId: 'rating_strategy',
+          metadataGate: { all: ['identity.itemId', 'identity.name', 'media.path'] },
+        }],
+        ruleTemplates: [{
+          id: 'rating_strategy',
+          rules: [{
+            priority: 1,
+            groupsConnector: 'and',
+            groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
+            action: 'transcode',
+            actionParams: { targetBitrate: 4, targetCodec: 'h265' },
+          }],
+        }],
+      });
+    }, (err) => {
+      assert.strictEqual(err.code, 'METADATA_GATE_CONTRACT_BROKEN');
+      assert.ok(err.details.violations[0].missingRequirements.includes('decision.rating'));
+      assert.ok(err.details.violations[0].missingRequirements.includes('media.duration'));
+      return true;
+    });
+
+    const saved = configStore.loadConfig();
+    assert.deepStrictEqual(saved.subLibraries, []);
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
 test('flowRecoveryContract documents retry points for every current flow', () => {
   const expected = {
     ingest: ['ingest_precheck', 'ingest_commit'],
