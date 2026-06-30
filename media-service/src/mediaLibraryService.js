@@ -895,9 +895,19 @@ async function completeEmbyItemMetadata(itemId, opts = {}) {
   if (!embyItemId) throw new Error('Emby item id is missing');
 
   const fetched = await embyService.getItemById(server, embyItemId);
-  await enrichDiscMetadata([fetched], subLib, cfg);
-  await enrichFileMetadata([fetched], subLib, cfg);
-  upsertItems(subLib.uuid, [fetched], { fullSync: false });
+  let repairItems = [fetched];
+  let episodesFetched = 0;
+  let localProbe = false;
+  if (fetched && fetched.type === 'season' && typeof embyService.getSeasonEpisodes === 'function') {
+    const episodes = await embyService.getSeasonEpisodes(server, embyItemId);
+    episodesFetched = Array.isArray(episodes) ? episodes.length : 0;
+    repairItems = [fetched, ...(Array.isArray(episodes) ? episodes : [])];
+  } else {
+    await enrichDiscMetadata([fetched], subLib, cfg);
+    await enrichFileMetadata([fetched], subLib, cfg);
+    localProbe = true;
+  }
+  upsertItems(subLib.uuid, repairItems, { fullSync: false });
 
   let doubanCache = null;
   if (subLib.doubanEnabled) {
@@ -913,6 +923,8 @@ async function completeEmbyItemMetadata(itemId, opts = {}) {
   const latest = getLibraryItem(itemId) || current;
   latest.metadataRepairSummary = {
     embyFetched: true,
+    episodesFetched,
+    localProbe,
     doubanCache,
     selfComputed: true,
   };

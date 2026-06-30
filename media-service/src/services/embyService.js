@@ -174,6 +174,23 @@ async function getItemById(serverConfig, itemId) {
   return extractItemFields(data);
 }
 
+async function getSeasonEpisodes(serverConfig, seasonId) {
+  const userId = String(serverConfig.userId || '').trim();
+  if (!userId) throw new Error('Emby userId not configured');
+  const uid = encodeURIComponent(userId);
+  const query = {
+    ParentId: seasonId,
+    Recursive: 'true',
+    IncludeItemTypes: 'Episode',
+    Fields: ITEM_FIELDS,
+    SortBy: 'SortName',
+    SortOrder: 'Ascending',
+  };
+  const data = await embyFetchJson(serverConfig, `Users/${uid}/Items`, {}, query);
+  const items = data && Array.isArray(data.Items) ? data.Items : [];
+  return items.map((item) => extractItemFields(item));
+}
+
 async function libraryItemExists(serverConfig, itemId) {
   const uid = encodeURIComponent((serverConfig.userId || '').trim());
   const iid = encodeURIComponent(itemId);
@@ -551,6 +568,7 @@ module.exports = {
   getMediaFolders,
   getLibraryItems,
   getItemById,
+  getSeasonEpisodes,
   libraryItemExists,
   getItemDeleteInfo,
   deleteLibraryItem,

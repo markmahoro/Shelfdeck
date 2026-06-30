@@ -15,6 +15,8 @@ const libraryStore = require('../src/libraryStore');
 const taskAdmission = require('../src/taskAdmission');
 const smartTaskEngine = require('../src/smartTaskEngine');
 const taskStore = require('../src/taskStore');
+const embyService = require('../src/services/embyService');
+const transcodeService = require('../src/services/transcodeService');
 const scrapeVerification = require('../src/scrapeVerification');
 const lifecycleProjection = require('../src/lifecycleProjection');
 const resourceProjection = require('../src/resourceProjection');
@@ -2596,4 +2598,94 @@ test('startup library refresh only selects stale sublibraries within startup bud
     mediaLibraryStartupRefreshMaxLibraries: 0,
   }, now);
   assert.deepStrictEqual(unlimited.map((sl) => sl.uuid), ['oldest', 'older']);
+});
+
+test('standard metadata repair aggregates TV season episodes without local ffprobe', async () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const originalGetItemById = embyService.getItemById;
+  const originalGetSeasonEpisodes = embyService.getSeasonEpisodes;
+  const originalProbeSummary = transcodeService.probeSummary;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  try {
+    const subLib = {
+      uuid: 'tv-lib',
+      name: 'TV Library',
+      source: 'emby',
+      mediaType: 'tv',
+      enabled: true,
+      embyServerId: 'server-a',
+      sectionId: 'section-a',
+      ruleTemplateId: 'chn_series',
+      autoExecute: true,
+    };
+    configStore.saveConfig({
+      ...configStore.getDefaultConfig(),
+      embyServers: {
+        'server-a': {
+          baseUrl: 'http://emby.local',
+          apiKey: 'secret',
+          userId: 'user-a',
+        },
+      },
+      subLibraries: [subLib],
+    });
+
+    libraryStore.saveLibrary({
+      version: 1,
+      cachedAt: null,
+      items: [{
+        itemId: 'season-a',
+        subLibraryId: 'tv-lib',
+        source: 'emby',
+        sourceId: 'emby-season-a',
+        name: 'Season 1',
+        type: 'season',
+        path: '/media/show/Season 1',
+        watched: true,
+      }],
+    });
+
+    embyService.getItemById = async () => ({
+      itemId: 'emby-season-a',
+      sourceId: 'emby-season-a',
+      name: 'Season 1',
+      type: 'season',
+      path: '/media/show/Season 1',
+      watched: true,
+    });
+    embyService.getSeasonEpisodes = async () => ([{
+      itemId: 'episode-a',
+      sourceId: 'episode-a',
+      parentId: 'emby-season-a',
+      name: 'Episode 1',
+      type: 'episode',
+      path: '/media/show/Season 1/Episode 1.mkv',
+      size: 900_000_000,
+      duration: 1800,
+      bitrate: 4_000_000,
+      resolution: '1920x1080',
+      codec: 'h264',
+      audioCodecs: ['aac'],
+      watched: true,
+    }]);
+    transcodeService.probeSummary = async () => {
+      throw new Error('local ffprobe should not run for TV season metadata repair');
+    };
+
+    const repaired = await mediaLibraryService.completeEmbyItemMetadata('season-a');
+    assert.strictEqual(repaired.metadataRepairSummary.localProbe, false);
+    assert.strictEqual(repaired.metadataRepairSummary.episodesFetched, 1);
+    assert.strictEqual(repaired.duration, 1800);
+    assert.strictEqual(repaired.bitrate, 4_000_000);
+    assert.strictEqual(repaired.resolution, '1920x1080');
+    assert.strictEqual(repaired.codec, 'h264');
+  } finally {
+    embyService.getItemById = originalGetItemById;
+    embyService.getSeasonEpisodes = originalGetSeasonEpisodes;
+    transcodeService.probeSummary = originalProbeSummary;
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+  }
 });
