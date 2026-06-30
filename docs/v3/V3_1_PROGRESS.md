@@ -2474,3 +2474,57 @@ S4 archived
 - P0-1 后续代码审计要按 4 gate 重排：现有 `metadataStatus` 仍是 metadata gate 核心；`ingest/archive` gate 已有第一版 evaluator；下一步需要补 optimize gate 的事实结构和 evaluator。
 - Optimize gate 的目标/宽容差/失败解释还未落代码，尤其 transcode/upgrade/delete/keep 的 acceptance criteria 仍需逐 flow 实现。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 57: Implement first optimize gate evaluator
+
+### 对应标准
+
+- P0-1：业务流程必须收口到 5 阶段、4 gate。
+- P0-1 新模型：Optimize Gate 证明本次 optimize task/flow 的目标达成，而不是只证明 executor 跑过。
+- P0-1 新模型：Optimize gate miss 属于当前 task/flow 结果，默认不能让 SmartTaskEngine / TaskAdmission 自动创建同类重资源任务。
+
+### 本切片修复
+
+- `lifecycleGateService` 新增 `evaluateOptimizeGate()`。
+- Optimize Gate 第一版支持：
+  - 显式 `optimizeGate` / `optimizationGate` 结果优先；
+  - `keep` 作为 no-op optimize flow 通过 gate；
+  - `transcode` / `upgrade` / `delete` 必须有对应完成 marker 或显式 gate 事实；
+  - 转码按目标码率宽容差 `0.65x - 1.35x` 校验；
+  - 升级按目标码率下限 `0.9x` 校验；
+  - `h265/hevc`、`h264/avc` 等 codec alias 归一后校验；
+  - legacy marker 无目标/观测事实时仍可通过，但会标记为 `legacy_optimization_marker`，避免老数据突然断流。
+- `lifecycleProjection.resolveLifecycle()` 接入 Optimize Gate：
+  - metadata 已完整但 optimize 未尝试时，仍停在 `metadata_ready -> optimize`；
+  - optimize gate 通过后，才进入 archive gate；
+  - optimize gate failed 时，停在 `metadata_ready`，`lifecycleNextTask=null`，并输出 `retryPolicy.automaticRetry=false`，避免把重资源 gate miss 表达成可自动反复入队的普通候选。
+- Archive Gate 现在复用 Optimize Gate 判断 optimized-like 结果，避免 archive 独立维护另一套 optimize 完成定义。
+
+### 本轮记录的待审计项
+
+- 当前 API / planner / 测试中仍存在 `manual delete task is planned as archive bridge` 语义。这是 P0-1 新模型缺口：delete 应属于 optimize gate，不属于 archive gate。下一切片需要收口 delete 的 bridge intent、flow plan、TaskAdmission 和前端表述。
+- 当前 transcode/upgrade executor 尚未把结构化 `optimizeGate` 结果写回 item/task；本切片只是在 projection 层支持显式 gate 和现有 marker/verifyResult。后续需要把 flow executor 的 verify/replace 结果沉淀为稳定事实。
+
+### 后端事实来源
+
+- `media-service/src/lifecycleGateService.js`
+  - 新增 Optimize Gate evaluator、目标/观测归一、宽容差校验、默认 retry policy。
+- `media-service/src/lifecycleProjection.js`
+  - 生命周期推进从裸 `optimizationStatus` 改为使用 `optimizeGate`。
+- `media-service/test/task-model.test.js`
+  - 新增 pending/pass/fail 三类 Optimize Gate 回归测试。
+
+### 本地验收
+
+- `node --check src/lifecycleGateService.js`: pass。
+- `node --check src/lifecycleProjection.js`: pass。
+- `node --check test/task-model.test.js`: pass。
+- `node --test test/task-model.test.js --test-name-pattern "lifecycleProjection"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，50 个测试通过。
+- `npm test`: pass，253 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- P0-1 尚未关闭：delete 仍有旧 archive bridge 语义，需要下一切片修复。
+- Optimize Gate 的事实写入还没有贯穿 transcode/upgrade/delete executor；当前是第一版读模型 evaluator。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

@@ -1987,6 +1987,73 @@ test('lifecycleProjection exposes first-class ingest and archive gate contracts'
   assert.ok(blockedArchive.archiveGate.blockers.includes('pending_result_summary'));
 });
 
+test('lifecycleProjection evaluates optimize gate targets before archive closure', () => {
+  const pending = lifecycleProjection.resolveLifecycle({
+    itemId: 'pending-transcode-gate',
+    source: 'emby',
+    sourceId: 'emby-pending-transcode-gate',
+    path: '/media/pending-transcode-gate.mkv',
+    duration: 3600,
+    action: 'transcode',
+    metadataComplete: true,
+    targetBitrate: 4,
+    targetCodec: 'h265',
+    bitrate: 10_000_000,
+    codec: 'h264',
+  });
+  assert.strictEqual(pending.lifecycleStage, 'metadata_ready');
+  assert.strictEqual(pending.lifecycleNextTask, 'optimize');
+  assert.strictEqual(pending.optimizeGate.passed, false);
+  assert.strictEqual(pending.optimizeGate.status, 'pending');
+  assert.strictEqual(pending.optimizeGate.reason, 'optimize_not_attempted');
+
+  const passed = lifecycleProjection.resolveLifecycle({
+    itemId: 'passed-transcode-gate',
+    source: 'emby',
+    sourceId: 'emby-passed-transcode-gate',
+    path: '/media/passed-transcode-gate.mkv',
+    duration: 3600,
+    action: 'transcode',
+    metadataComplete: true,
+    optimizationStatus: 'transcoded',
+    targetBitrate: 4,
+    targetCodec: 'h265',
+    verifyResult: {
+      bitrate: 4_600_000,
+      videoCodec: 'hevc',
+    },
+  });
+  assert.strictEqual(passed.lifecycleStage, 'archived');
+  assert.strictEqual(passed.lifecycleDone, true);
+  assert.strictEqual(passed.optimizeGate.passed, true);
+  assert.strictEqual(passed.optimizeGate.reason, 'optimize_gate_met');
+  assert.strictEqual(passed.optimizeGate.operation, 'transcode');
+
+  const failed = lifecycleProjection.resolveLifecycle({
+    itemId: 'failed-transcode-gate',
+    source: 'emby',
+    sourceId: 'emby-failed-transcode-gate',
+    path: '/media/failed-transcode-gate.mkv',
+    duration: 3600,
+    action: 'transcode',
+    metadataComplete: true,
+    optimizationStatus: 'transcoded',
+    targetBitrate: 4,
+    targetCodec: 'h265',
+    verifyResult: {
+      bitrate: 8_000_000,
+      videoCodec: 'h264',
+    },
+  });
+  assert.strictEqual(failed.lifecycleStage, 'metadata_ready');
+  assert.strictEqual(failed.lifecycleNextTask, null);
+  assert.strictEqual(failed.lifecycleReason, 'optimize_gate_failed');
+  assert.strictEqual(failed.optimizeGate.status, 'failed');
+  assert.strictEqual(failed.optimizeGate.retryPolicy.automaticRetry, false);
+  assert.ok(failed.optimizeGate.failureReasons.includes('target_bitrate_exceeded'));
+  assert.ok(failed.optimizeGate.failureReasons.includes('target_codec_not_met'));
+});
+
 test('resourceProjection groups active tasks by resource rather than task type only', () => {
   const view = resourceProjection.buildResourceView([
     { id: 't1', itemId: 'i1', itemName: 'Movie', actionType: 'transcode', status: 'executing', priority: 1 },

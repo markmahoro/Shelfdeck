@@ -16,11 +16,6 @@ function isInitialStrategyPlaceholder(action, reason) {
   return ['新入库', '成人库新入库'].includes(normalizeReason(reason));
 }
 
-function isOptimizationDone(item) {
-  const status = String(item && item.optimizationStatus || '').toLowerCase();
-  return status === 'transcoded' || status === 'upgraded';
-}
-
 function resolveLifecycle(item) {
   const action = normalizeAction(item && item.action);
   const reason = normalizeReason(item && item.reason);
@@ -36,6 +31,7 @@ function resolveLifecycle(item) {
       lifecycleReason: ingestGate.reason,
       optimizationDirection: action || null,
       ingestGate,
+      optimizeGate: null,
       archiveGate: null,
     };
   }
@@ -49,6 +45,7 @@ function resolveLifecycle(item) {
       lifecycleReason: 'metadata_missing',
       optimizationDirection: action || null,
       ingestGate,
+      optimizeGate: null,
       archiveGate: null,
     };
   }
@@ -62,11 +59,13 @@ function resolveLifecycle(item) {
       lifecycleReason: action ? 'strategy_pending' : 'strategy_missing',
       optimizationDirection: null,
       ingestGate,
+      optimizeGate: null,
       archiveGate: null,
     };
   }
 
-  if (action === 'keep') {
+  const optimizeGate = lifecycleGateService.evaluateOptimizeGate(item || {});
+  if (optimizeGate.passed) {
     const archiveGate = lifecycleGateService.evaluateArchiveGate(item || {});
     if (!archiveGate.passed) {
       return {
@@ -75,8 +74,9 @@ function resolveLifecycle(item) {
         archiveStatus: 'not_ready',
         lifecycleNextTask: 'archive',
         lifecycleReason: archiveGate.reason,
-        optimizationDirection: 'keep',
+        optimizationDirection: optimizeGate.operation || action,
         ingestGate,
+        optimizeGate,
         archiveGate,
       };
     }
@@ -85,36 +85,25 @@ function resolveLifecycle(item) {
       lifecycleDone: true,
       archiveStatus: 'archived_like',
       lifecycleNextTask: null,
-      lifecycleReason: 'strategy_keep',
-      optimizationDirection: 'keep',
+      lifecycleReason: optimizeGate.reason,
+      optimizationDirection: optimizeGate.operation || action,
       ingestGate,
+      optimizeGate,
       archiveGate,
     };
   }
 
-  if (isOptimizationDone(item)) {
-    const archiveGate = lifecycleGateService.evaluateArchiveGate(item || {});
-    if (!archiveGate.passed) {
-      return {
-        lifecycleStage: 'optimized',
-        lifecycleDone: false,
-        archiveStatus: 'not_ready',
-        lifecycleNextTask: 'archive',
-        lifecycleReason: archiveGate.reason,
-        optimizationDirection: action,
-        ingestGate,
-        archiveGate,
-      };
-    }
+  if (optimizeGate.status === 'failed') {
     return {
-      lifecycleStage: 'archived',
-      lifecycleDone: true,
-      archiveStatus: 'archived_like',
+      lifecycleStage: 'metadata_ready',
+      lifecycleDone: false,
+      archiveStatus: 'not_ready',
       lifecycleNextTask: null,
-      lifecycleReason: 'optimization_done',
-      optimizationDirection: action,
+      lifecycleReason: optimizeGate.reason,
+      optimizationDirection: optimizeGate.operation || action,
       ingestGate,
-      archiveGate,
+      optimizeGate,
+      archiveGate: null,
     };
   }
 
@@ -124,8 +113,9 @@ function resolveLifecycle(item) {
     archiveStatus: 'not_ready',
     lifecycleNextTask: 'optimize',
     lifecycleReason: 'optimization_pending',
-    optimizationDirection: action,
+    optimizationDirection: optimizeGate.operation || action,
     ingestGate,
+    optimizeGate,
     archiveGate: null,
   };
 }
@@ -156,5 +146,6 @@ module.exports = {
   matchesFilter,
   resolveLifecycle,
   evaluateIngestGate: lifecycleGateService.evaluateIngestGate,
+  evaluateOptimizeGate: lifecycleGateService.evaluateOptimizeGate,
   evaluateArchiveGate: lifecycleGateService.evaluateArchiveGate,
 };

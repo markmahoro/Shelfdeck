@@ -55,6 +55,8 @@ Gate 定义：
 
 `archive` 是最后一座轻量桥。它更接近验收和归档，不是重计算任务，也不是 delete 动作本身。验收不通过时，应该回到明确的前置阶段或产生可见的待处理事件，而不是把 item 标成完成。
 
+v3.1 第一版 Optimize Gate 已落地为读模型 evaluator：显式 `optimizeGate/optimizationGate` 结果优先；`keep` 是 no-op optimize；`transcode`/`upgrade`/`delete` 必须有对应完成 marker 或显式 gate 事实；转码/升级可按目标码率和目标编码做宽容差校验。Optimize gate miss 会输出可解释失败和 `automaticRetry=false` 的 retry policy，避免 SmartTaskEngine/TaskAdmission 把重资源 gate miss 误读成应该自动创建同类新任务。
+
 ## 3. Task
 
 Task 是阶段和阶段之间的桥梁。
