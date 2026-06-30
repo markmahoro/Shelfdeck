@@ -395,6 +395,53 @@ test('TaskAdmission rejects optimize/archive tasks when metadata is missing', as
   await app.close();
 });
 
+test('POST /v1/tasks reports optimize gate failure handling without exposing recovery internals', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'failed-optimize-manual';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      source: 'emby',
+      name: 'Failed Optimize Manual',
+      action: 'transcode',
+      audioCodecs: ['aac'],
+      optimizeGate: {
+        gate: 'optimize',
+        passed: false,
+        status: 'failed',
+        reason: 'target_bitrate_exceeded',
+        operation: 'transcode',
+        failureReasons: ['target_bitrate_exceeded'],
+        retryPolicy: { automaticRetry: false, manualRetryAllowed: true, reason: 'heavy_resource_gate_miss' },
+      },
+    })],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, actionType: 'transcode' },
+  });
+  assert.strictEqual(res.statusCode, 409);
+  const body = res.json();
+  assert.strictEqual(body.error.code, 'TASK_ADMISSION_REJECTED');
+  assert.strictEqual(body.admission.reason, 'optimize_gate_failed_requires_failure_handling');
+  assert.strictEqual(body.admission.optimizeGate.status, 'failed');
+  assert.strictEqual(body.admission.optimizeGate.operation, 'transcode');
+  assert.deepStrictEqual(body.admission.optimizeGate.failureReasons, ['target_bitrate_exceeded']);
+  assert.strictEqual(body.admission.optimizeGate.retryPolicy, undefined);
+  assert.strictEqual(body.admission.optimizeGate.userAction, undefined);
+  assert.strictEqual(body.admission.retryPolicy, undefined);
+  assert.strictEqual(body.admission.recoveryAction, undefined);
+  assert.strictEqual(body.admission.failureHandling.surface, 'task_center');
+  assert.strictEqual(body.admission.failureHandling.userAction, 'inspect_failure_or_mark_no_action');
+  await app.close();
+  smartTaskEngine.stop();
+  require('../src/taskScheduler').stopScheduler();
+});
+
 test('TaskAdmission accepts standard metadata repair scrape', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });

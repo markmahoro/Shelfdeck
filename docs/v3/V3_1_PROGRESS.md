@@ -3458,3 +3458,39 @@ v3.1 必须满足：
 
 - 当前实现还没有完整按该全自动模式定义验收。
 - 后续 P0-1 需要把 task target / optimize objective / flow operation / 用户介入白名单 / 全自动模式串起来做行为审计。
+
+## 2026-06-30 Slice 72: Optimize gate failed 后手动入口收口到失败处理
+
+### 对应标准
+
+- P0-1: Task Creator 审计，手动入口不能绕过 lifecycle / gate 语义创建同类 operation task。
+- C: 用户介入模型可用，用户不直接理解 retry/resume/fallback 等 flow recovery 内部机制。
+- D: 全自动模式可用，失败 gate 不能被自动或手动入口误解释成“再创建一个同类重资源 task”。
+
+### 用户视角判定
+
+当一个 item 已经有明确的 `optimizeGate.status=failed`，并且 retry policy 不允许 automatic retry 时：
+
+- 自动扫描不能再创建同类 `transcode` / `upgrade` / `delete` 重资源 optimize operation task。
+- 手动 `/v1/tasks actionType=transcode|upgrade|delete` 也不能绕过失败 gate 创建一个新的同类 task。
+- 用户看到的是“需要失败处理”，而不是“请手动 retry”或“创建一个新转码任务”。
+- API 返回 `failureHandling.surface=task_center`，让前端把用户引导到任务中心/失败处理视角。
+- API 不再向用户入口暴露 `recoveryAction=retry_failed_task` 这类内部动作。
+
+### 已完成
+
+- `businessFlowPolicy`：
+  - 将 automatic/manual 重资源 optimize gate failed 统一阻断为 `optimize_gate_failed_requires_failure_handling`。
+  - 返回用户语义 `failureHandling`，而不是给手动入口单独开同类 task 创建通道。
+- `/v1/tasks` admission reject projection：
+  - 返回精简 `optimizeGate` 诊断信息。
+  - 不暴露 `retryPolicy` / `recoveryAction` 到用户创建任务入口。
+- 测试：
+  - 更新 `task-model.test.js`，验证 automatic/manual 都进入 failure handling。
+  - 新增 `api-inject.test.js` 覆盖 `/v1/tasks` 手动入口响应，确认不暴露 recovery internals。
+
+### 尚未满足
+
+- 任务中心 UI 仍需按“失败处理”产品化展示，而不是把 retry/resume/fallback 作为用户必须理解的主心智。
+- 旧历史 slice 68 中的 `optimize_gate_failed_manual_retry_required` 是当时记录；当前语义以本 slice 的 `optimize_gate_failed_requires_failure_handling` 为准。
+- P0-1 仍未整体宣布完成。

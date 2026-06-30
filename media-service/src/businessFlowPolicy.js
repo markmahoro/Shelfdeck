@@ -106,7 +106,7 @@ function isHeavyOptimizeOperation(operation) {
   return ['transcode', 'upgrade', 'delete'].includes(String(operation || ''));
 }
 
-function automaticOptimizeGateBlock(item, actionType = '') {
+function optimizeGateFailedBlock(item, actionType = '') {
   const optimizeGate = lifecycleProjection.evaluateOptimizeGate(item || {});
   if (!optimizeGate || optimizeGate.status !== 'failed') return null;
   const operation = optimizeGate.operation || actionType;
@@ -114,10 +114,17 @@ function automaticOptimizeGateBlock(item, actionType = '') {
   if (actionType && operation && operation !== actionType) return null;
   const retryPolicy = optimizeGate.retryPolicy || {};
   if (retryPolicy.automaticRetry === true) return null;
-  return blocked(operation || actionType, 'optimize_gate_failed_manual_retry_required', {
+  const reason = 'optimize_gate_failed_requires_failure_handling';
+  return blocked(operation || actionType, reason, {
     item,
     optimizeGate,
     retryPolicy,
+    failureHandling: {
+      required: true,
+      surface: 'task_center',
+      reason: 'optimize_gate_failed',
+      userAction: 'inspect_failure_or_mark_no_action',
+    },
   });
 }
 
@@ -186,7 +193,7 @@ function resolveAutomaticTrigger(input = {}) {
   }
 
   const lifecycle = lifecycleProjection.resolveLifecycle(itemWithMetadata);
-  const optimizeBlocked = automaticOptimizeGateBlock(itemWithMetadata);
+  const optimizeBlocked = optimizeGateFailedBlock(itemWithMetadata);
   if (optimizeBlocked) return optimizeBlocked;
 
   if (lifecycle.lifecycleNextTask === 'archive') {
@@ -287,6 +294,11 @@ function evaluateOperation(input = {}) {
     }
   }
 
+  if (manual && isHeavyOptimizeOperation(actionType)) {
+    const optimizeBlocked = optimizeGateFailedBlock(item || info, actionType);
+    if (optimizeBlocked) return optimizeBlocked;
+  }
+
   if (!manual) {
     const lastDoneAt = lastActionDoneAt(item || info, actionType) || lastTerminalTaskAt(tasks, itemId, actionType);
     const cooldown = actionCooldownMs(cfg, actionType);
@@ -305,7 +317,7 @@ function evaluateOperation(input = {}) {
     }
 
     if (isHeavyOptimizeOperation(actionType)) {
-      const optimizeBlocked = automaticOptimizeGateBlock(item || info, actionType);
+      const optimizeBlocked = optimizeGateFailedBlock(item || info, actionType);
       if (optimizeBlocked) return optimizeBlocked;
     }
 

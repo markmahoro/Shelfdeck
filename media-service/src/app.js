@@ -1152,6 +1152,25 @@ function isTaskIntentValidationReason(reason) {
   ].includes(reason);
 }
 
+function compactAdmissionOptimizeGate(gate) {
+  if (!gate || typeof gate !== 'object') return undefined;
+  const result = {
+    gate: gate.gate || 'optimize',
+    status: gate.status || '',
+    reason: gate.reason || '',
+    operation: gate.operation || '',
+    target: gate.target,
+    observed: gate.observed,
+    failureReasons: gate.failureReasons,
+    evidenceLevel: gate.evidenceLevel || '',
+  };
+  Object.keys(result).forEach((key) => {
+    if (result[key] === undefined || result[key] === null || result[key] === '') delete result[key];
+    if (Array.isArray(result[key]) && result[key].length === 0) delete result[key];
+  });
+  return result;
+}
+
 function compactAdmissionReject(admission = {}) {
   const result = {
     operation: admission.operation || admission.actionType || '',
@@ -1164,6 +1183,8 @@ function compactAdmissionReject(admission = {}) {
     activeTaskId: admission.activeTaskId || '',
     activeTaskBridge: admission.activeTaskBridge || '',
     activeFlowOperation: admission.activeFlowOperation || '',
+    optimizeGate: compactAdmissionOptimizeGate(admission.optimizeGate),
+    failureHandling: admission.failureHandling,
   };
   Object.keys(result).forEach((key) => {
     if (result[key] === undefined || result[key] === null || result[key] === '') delete result[key];

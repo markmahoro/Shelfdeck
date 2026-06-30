@@ -449,9 +449,10 @@ test('businessFlowPolicy blocks automatic heavy optimize after optimize gate fai
 
   assert.strictEqual(trigger.allowed, false);
   assert.strictEqual(trigger.operation, 'transcode');
-  assert.strictEqual(trigger.reason, 'optimize_gate_failed_manual_retry_required');
+  assert.strictEqual(trigger.reason, 'optimize_gate_failed_requires_failure_handling');
   assert.strictEqual(trigger.optimizeGate.status, 'failed');
   assert.strictEqual(trigger.retryPolicy.automaticRetry, false);
+  assert.strictEqual(trigger.failureHandling.surface, 'task_center');
 });
 
 test('businessFlowPolicy resolves automatic archive trigger after optimize gate', () => {
@@ -1702,7 +1703,7 @@ test('taskAdmission blocks automatic re-transcode after successful transcode', (
   assert.strictEqual(result.reason, 'already_transcoded');
 });
 
-test('taskAdmission blocks automatic heavy optimize when optimize gate failed but keeps manual intent explicit', () => {
+test('taskAdmission routes optimize gate failures to failure handling instead of new optimize tasks', () => {
   const config = {
     smartTaskEnabledActions: ['transcode'],
     subLibraries: [{ uuid: 'lib-a', source: 'emby', mediaType: 'movie', automationMode: 'auto' }],
@@ -1730,8 +1731,9 @@ test('taskAdmission blocks automatic heavy optimize when optimize gate failed bu
     tasks: [],
   });
   assert.strictEqual(auto.allowed, false);
-  assert.strictEqual(auto.reason, 'optimize_gate_failed_manual_retry_required');
+  assert.strictEqual(auto.reason, 'optimize_gate_failed_requires_failure_handling');
   assert.strictEqual(auto.retryPolicy.manualRetryAllowed, true);
+  assert.strictEqual(auto.failureHandling.surface, 'task_center');
 
   const manual = taskAdmission.canCreateTask({
     item,
@@ -1740,8 +1742,9 @@ test('taskAdmission blocks automatic heavy optimize when optimize gate failed bu
     config,
     tasks: [],
   });
-  assert.strictEqual(manual.allowed, true);
-  assert.strictEqual(manual.taskBridge.kind, 'optimize');
+  assert.strictEqual(manual.allowed, false);
+  assert.strictEqual(manual.reason, 'optimize_gate_failed_requires_failure_handling');
+  assert.strictEqual(manual.failureHandling.userAction, 'inspect_failure_or_mark_no_action');
 });
 
 test('taskAdmission caps automatic queue by action type', () => {
