@@ -2276,3 +2276,68 @@ Slice 52 后继续审计失败/中断恢复链路，确认：
 - 本切片尚未部署 NAS。
 - P0-1 仍未完整关闭：各 flow 的 contract 当前仍偏目录化，后续还需要逐 flow 审计“每个 resumePoint 是否真的幂等且从正确步骤继续”。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 54: Add transcode verify recovery point
+
+### 对应标准
+
+- A2: transcode 必须能解释当前 lifecycle、flow operation、phase/event，以及失败后如何恢复。
+- A5: retry/resume 不能只是按钮，必须从正确的 flow phase 继续，并保留 event/resource 语义。
+- P0-1 新模型：失败重试/恢复属于当前 task 内部 flow；恢复契约必须和 executor 的真实事件编排一致。
+
+### 审计结果
+
+继续审计 transcode flow recovery contract 后确认：
+
+- `transcodeFlowExecutor` 的真实 flow 包含 `precheck -> executing -> verify -> replace`；
+- `flowRecoveryContract` 只登记了 `transcode_precheck`、`transcode_executing`、`transcode_replace`；
+- executor 的 `driveTask()` 也没有处理 `resumePoint=transcode_verify`。
+
+判断：
+
+- 这是 P0-1 新业务模型问题。
+- 它不是性能问题，也不是前端语义问题。
+- 如果转码已经产出 partial output，但在 verify 阶段失败或服务中断，旧恢复契约会让 retry 从 `transcode_executing` 继续，存在重新编码 partial output 的风险；用户看到的是同一个 task 在恢复，却实际退回到了更早的资源消耗节点。
+
+### 本切片修复
+
+- `flowRecoveryContract` 新增 `transcode_verify`：
+  - `retryStrategy: resume_step`
+  - `idempotency: read_only_probe_partial_output`
+  - `userAction: inspect_verify_failure`
+- `transcodeFlowExecutor.driveTask()` 支持从 `transcode_verify` 直接恢复。
+- `runExecuting()` 在编码完成后、进入 verify 前持久化 `resumePoint=transcode_verify`。
+- `runVerify()` 在自动通过 replace 确认后、进入 replace 前持久化 `resumePoint=transcode_replace`。
+- 新增回归测试，证明 `resumePoint=transcode_verify` 时：
+  - 不会再次调用 `startEncode()`；
+  - 会直接 probe partial output；
+  - replace 自动通过时可以完成任务；
+  - 任务完成后清理 `resumePoint`。
+
+### 后端事实来源
+
+- `media-service/src/flowRecoveryContract.js`
+  - transcode recovery contract 现在覆盖真实 verify 阶段。
+- `media-service/src/transcodeFlowExecutor.js`
+  - executor 恢复分派和阶段间 resumePoint 持久化与真实 flow 对齐。
+- `media-service/test/api-inject.test.js`
+  - 新增 transcode verify 恢复回归用例。
+- `media-service/test/task-model.test.js`
+  - contract 测试覆盖 `transcode_verify`。
+
+### 本地验收
+
+- `node --check src/transcodeFlowExecutor.js`: pass。
+- `node --check src/flowRecoveryContract.js`: pass。
+- `node --check test/api-inject.test.js`: pass。
+- `node --test test/task-model.test.js --test-name-pattern "flowRecoveryContract"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，47 个测试通过。
+- `node --test test/api-inject.test.js --test-name-pattern "transcode resume at verify"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `api-inject.test.js` 全量，115 个测试通过。
+- `npm test`: pass，250 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+
+### 尚未满足
+
+- 本切片尚未部署 NAS。
+- P0-1 仍未完整关闭：还需要继续审计 upgrade/delete/scrape/ingest 的 recovery contract 是否和 executor 真实步骤完全一致。
+- 本次未处理性能问题；如后续审计发现非 P0-1 问题，将先判断是否由新业务模型不满足导致，否则只记录为待修复。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

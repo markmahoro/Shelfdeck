@@ -67,6 +67,12 @@ const FLOW_RECOVERY_CONTRACTS = {
         idempotency: 'replace_partial_output',
         userAction: 'inspect_encoder_failure',
       },
+      transcode_verify: {
+        label: 'Verify encoded output',
+        retryStrategy: 'resume_step',
+        idempotency: 'read_only_probe_partial_output',
+        userAction: 'inspect_verify_failure',
+      },
       transcode_replace: {
         label: 'Replace source with output',
         retryStrategy: 'resume_step',

@@ -1288,6 +1288,104 @@ test('POST /v1/tasks/:id/actions/execute non-existent task -> 404', async () => 
   await app.close();
 });
 
+test('transcode resume at verify does not re-encode partial output', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const configStore = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const transcodeService = require('../src/services/transcodeService');
+
+  const partialPath = path.join(dir, 'movie.etp.partial.mkv');
+  const sourcePath = path.join(dir, 'movie.mkv');
+  fs.writeFileSync(sourcePath, Buffer.alloc(2048));
+  fs.writeFileSync(partialPath, Buffer.alloc(1024));
+
+  configStore.patchConfig({
+    transcodeTempRoot: dir,
+    approvalPolicy: { 'transcode.beforeReplace': 'auto' },
+  });
+
+  const task = taskStore.createTask({
+    itemId: 'resume-transcode-verify',
+    itemName: 'Resume Transcode Verify',
+    actionType: 'transcode',
+    source: 'manual',
+    status: 'executing',
+    resumePoint: 'transcode_verify',
+    itemInfo: {
+      itemId: 'resume-transcode-verify',
+      name: 'Resume Transcode Verify',
+      sourcePath,
+      partialPath,
+      tempDir: dir,
+      durationSec: 10,
+      originalSizeBytes: 2048,
+      targetBitrate: 4,
+    },
+  });
+
+  const originalStartEncode = transcodeService.startEncode;
+  const originalProbeSummary = transcodeService.probeSummary;
+  const originalExtractPreviewClip = transcodeService.extractPreviewClip;
+  const originalReplaceWithRetries = transcodeService.replaceWithRetries;
+  let encodeCalls = 0;
+  let probeCalls = 0;
+  let replaceCalls = 0;
+  transcodeService.startEncode = async () => {
+    encodeCalls += 1;
+    throw new Error('resume should not encode again');
+  };
+  transcodeService.probeSummary = async () => {
+    probeCalls += 1;
+    return {
+      durationSec: 10,
+      width: 1920,
+      height: 1080,
+      videoCodec: 'hevc',
+      audioCodec: 'aac',
+    };
+  };
+  transcodeService.extractPreviewClip = async () => ({
+    method: 'stub',
+    duration: 5,
+    startSec: 0,
+    previewPath: path.join(dir, 'preview.mp4'),
+  });
+  transcodeService.replaceWithRetries = async () => {
+    replaceCalls += 1;
+    return { resultSizeBytes: 1024 };
+  };
+  transcodeFlow.setScheduler({
+    reportStatus: (id, status, progress) => {
+      const updates = { status, progress: progress ?? undefined };
+      if (status === 'done') {
+        updates.resumePoint = null;
+      }
+      taskStore.updateTask(id, updates);
+    },
+    pauseForConfirm: () => { throw new Error('replace confirmation should be auto-passed'); },
+  });
+
+  try {
+    await transcodeFlow.driveTask(task.id);
+  } finally {
+    transcodeService.startEncode = originalStartEncode;
+    transcodeService.probeSummary = originalProbeSummary;
+    transcodeService.extractPreviewClip = originalExtractPreviewClip;
+    transcodeService.replaceWithRetries = originalReplaceWithRetries;
+    await app.close();
+  }
+
+  const after = taskStore.getTask(task.id);
+  assert.strictEqual(encodeCalls, 0);
+  assert.strictEqual(probeCalls, 1);
+  assert.strictEqual(replaceCalls, 1);
+  assert.strictEqual(after.status, 'done');
+  assert.strictEqual(after.phase, 'done');
+  assert.strictEqual(after.resumePoint, null);
+  assert.strictEqual(after.verifyResult.videoCodec, 'hevc');
+});
+
 test('task action endpoints reject transitions disabled by control policy', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });

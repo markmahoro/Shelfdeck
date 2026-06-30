@@ -113,6 +113,8 @@ async function driveTask(taskId) {
     await runPrecheck(taskId, task, config);
   } else if (rp === 'transcode_executing') {
     await runExecuting(taskId, task, config);
+  } else if (rp === 'transcode_verify') {
+    await runVerify(taskId, task, config);
   } else if (rp === 'transcode_replace') {
     await runReplace(taskId, task, config);
   }
@@ -403,6 +405,7 @@ async function runExecuting(taskId, task, config) {
     }
   }
 
+  taskStore.updateTask(taskId, { resumePoint: 'transcode_verify' });
   await runVerify(taskId, taskStore.getTask(taskId), config);
 }
 
@@ -507,6 +510,7 @@ async function runVerify(taskId, task, config) {
     }
 
     appendLog(taskId, 'info', 'Replace approval auto-passed');
+    taskStore.updateTask(taskId, { resumePoint: 'transcode_replace' });
     await runReplace(taskId, latestTask, config);
   } catch (e) {
     if (abortedTasks.has(taskId)) return;

@@ -454,7 +454,7 @@ test('flowRecoveryContract documents retry points for every current flow', () =>
   const expected = {
     ingest: ['ingest_precheck', 'ingest_commit'],
     scrape: ['scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review'],
-    transcode: ['transcode_precheck', 'transcode_executing', 'transcode_replace'],
+    transcode: ['transcode_precheck', 'transcode_executing', 'transcode_verify', 'transcode_replace'],
     upgrade: ['upgrade_precheck', 'upgrade_planning', 'upgrade_executing', 'upgrade_pre_replace_verify', 'upgrade_replace'],
     delete: ['delete_precheck', 'delete_executing'],
   };
