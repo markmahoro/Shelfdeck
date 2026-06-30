@@ -1,5 +1,7 @@
 'use strict';
 
+const lifecycleGateService = require('./lifecycleGateService');
+
 function normalizeAction(action) {
   return String(action || '').toLowerCase();
 }
@@ -23,6 +25,20 @@ function resolveLifecycle(item) {
   const action = normalizeAction(item && item.action);
   const reason = normalizeReason(item && item.reason);
   const metadataComplete = !!(item && item.metadataComplete);
+  const ingestGate = lifecycleGateService.evaluateIngestGate(item || {});
+
+  if (!ingestGate.passed) {
+    return {
+      lifecycleStage: 'source_discovered',
+      lifecycleDone: false,
+      archiveStatus: 'not_ready',
+      lifecycleNextTask: 'ingest',
+      lifecycleReason: ingestGate.reason,
+      optimizationDirection: action || null,
+      ingestGate,
+      archiveGate: null,
+    };
+  }
 
   if (!metadataComplete) {
     return {
@@ -32,6 +48,8 @@ function resolveLifecycle(item) {
       lifecycleNextTask: 'metadata',
       lifecycleReason: 'metadata_missing',
       optimizationDirection: action || null,
+      ingestGate,
+      archiveGate: null,
     };
   }
 
@@ -43,10 +61,25 @@ function resolveLifecycle(item) {
       lifecycleNextTask: 'optimize',
       lifecycleReason: action ? 'strategy_pending' : 'strategy_missing',
       optimizationDirection: null,
+      ingestGate,
+      archiveGate: null,
     };
   }
 
   if (action === 'keep') {
+    const archiveGate = lifecycleGateService.evaluateArchiveGate(item || {});
+    if (!archiveGate.passed) {
+      return {
+        lifecycleStage: 'optimized',
+        lifecycleDone: false,
+        archiveStatus: 'not_ready',
+        lifecycleNextTask: 'archive',
+        lifecycleReason: archiveGate.reason,
+        optimizationDirection: 'keep',
+        ingestGate,
+        archiveGate,
+      };
+    }
     return {
       lifecycleStage: 'archived',
       lifecycleDone: true,
@@ -54,10 +87,25 @@ function resolveLifecycle(item) {
       lifecycleNextTask: null,
       lifecycleReason: 'strategy_keep',
       optimizationDirection: 'keep',
+      ingestGate,
+      archiveGate,
     };
   }
 
   if (isOptimizationDone(item)) {
+    const archiveGate = lifecycleGateService.evaluateArchiveGate(item || {});
+    if (!archiveGate.passed) {
+      return {
+        lifecycleStage: 'optimized',
+        lifecycleDone: false,
+        archiveStatus: 'not_ready',
+        lifecycleNextTask: 'archive',
+        lifecycleReason: archiveGate.reason,
+        optimizationDirection: action,
+        ingestGate,
+        archiveGate,
+      };
+    }
     return {
       lifecycleStage: 'archived',
       lifecycleDone: true,
@@ -65,6 +113,8 @@ function resolveLifecycle(item) {
       lifecycleNextTask: null,
       lifecycleReason: 'optimization_done',
       optimizationDirection: action,
+      ingestGate,
+      archiveGate,
     };
   }
 
@@ -75,6 +125,8 @@ function resolveLifecycle(item) {
     lifecycleNextTask: 'optimize',
     lifecycleReason: 'optimization_pending',
     optimizationDirection: action,
+    ingestGate,
+    archiveGate: null,
   };
 }
 
@@ -103,4 +155,6 @@ module.exports = {
   decorateItems,
   matchesFilter,
   resolveLifecycle,
+  evaluateIngestGate: lifecycleGateService.evaluateIngestGate,
+  evaluateArchiveGate: lifecycleGateService.evaluateArchiveGate,
 };

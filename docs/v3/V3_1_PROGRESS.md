@@ -2406,3 +2406,71 @@ Slice 54 加入 `transcode_verify` 后继续审计 flow planner 与 executor，�
 - 本切片尚未部署 NAS。
 - P0-1 仍未完整关闭：还需要继续审计 upgrade/delete/scrape/ingest 的 recovery contract 是否和 executor 真实步骤完全一致。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 56: Record five-stage four-gate lifecycle model
+
+### 对应标准
+
+- A1: 统一业务决策结果必须基于一致的 lifecycle/gate 模型。
+- A2: 每个关键流程都必须能回答当前 lifecycle、下一座 bridge、完成 gate 和失败恢复语义。
+- P0-1 新模型：v3.1 正式版必须收口为 5 阶段、4 gate，而不是继续混用 action/task/stage。
+
+### 本轮模型对齐
+
+确认 ShelfDeck 顶层 lifecycle 是 5 个阶段、4 个 gate：
+
+```text
+S0 source/discovered
+  -- G1 ingest gate -->
+S1 ingested
+  -- G2 metadata gate -->
+S2 metadata-ready
+  -- G3 optimize gate -->
+S3 optimized
+  -- G4 archive gate -->
+S4 archived
+```
+
+关键边界：
+
+- Stage 是用户语义状态。
+- Gate 是进入下一阶段的证明合同。
+- Task 是跨 gate 的桥。
+- Flow 是 task 内部 event 编排。
+- Event 是资源消耗、外部副作用、确认、失败和恢复事实。
+
+### Gate 定义
+
+- `ingest gate`：证明外部候选已经成为 ShelfDeck 可管理 item。v3.1 第一版合同是：稳定 `itemId` 已建立；来源或归属子库明确；source refs / asset identity / 媒体路径 / 外部引用至少有一种可追踪；基础媒体事实已写入，或 probe/读取失败原因已经作为可见事实落库。没有过 gate 的对象只能停在 `source/discovered`，不能表现成可优化媒体。
+- `metadata gate`：证明 item 已具备进入 optimize 的用户语义前提，即用户看到的“元数据完整”。它不限于狭义 metadata 字段；子库可自定义，但必须覆盖下游 optimize 策略消费字段。
+- `optimize gate`：证明本次 optimize task/flow 声明的处置目标已经达成。Optimize flow 包括 `keep`、`transcode`、`upgrade`、`delete`。delete 属于 optimize gate，不属于 archive gate。转码的成功不是 FFmpeg 跑完，而是输出在宽容差内达到目标码率/编码/可播放/替换等合同。Gate miss 是当前 task 的 flow 结果，是否重试属于 flow retry policy，不属于 SmartTaskEngine 或 TaskAdmission。
+- `archive gate`：证明 optimized 之后的本轮 ShelfDeck 处理闭环已经归档。v3.1 第一版合同是：item 已经具备 optimized-like 结果（`keep` 决策成立，或 transcode/upgrade/delete 等 optimize flow 已达成目标）；没有显式 `archiveBlockers`；终态事实和必要摘要可解释。未过 gate 的 item 应停在 `optimized` 并等待 archive bridge，而不是直接显示已闭环。
+
+### 本切片修复
+
+- 更新 `docs/v3/BUSINESS_MODEL_NOTES.md`，把原本粗粒度的主流程改写为 5 stage / 4 gate 模型。
+- 明确 `delete` 是 optimize flow。
+- 明确 gate miss 的重试策略属于当前 task flow，不属于 SmartTaskEngine / TaskAdmission。
+- 明确 TaskManagement 使用 gate 判定结果，但不定义 gate 合同。
+- 新增 `media-service/src/lifecycleGateService.js`，落地第一版 `evaluateIngestGate()` / `evaluateArchiveGate()`。
+- `lifecycleProjection.resolveLifecycle()` 接入 ingest/archive gate：
+  - ingest gate 未过时返回 `lifecycleStage=source_discovered`、`lifecycleNextTask=ingest`；
+  - metadata 缺失但 ingest gate 已过时才返回 `lifecycleStage=ingested`；
+  - optimized-like 结果存在但 archive gate 被 blocker 阻断时返回 `lifecycleStage=optimized`、`lifecycleNextTask=archive`；
+  - keep / optimization done 且 archive gate 通过时才返回 `archived`。
+
+### 本地验收
+
+- `node --check src/lifecycleGateService.js`: pass。
+- `node --check src/lifecycleProjection.js`: pass。
+- `node --check test/task-model.test.js`: pass。
+- `node --test test/task-model.test.js --test-name-pattern "lifecycleProjection|libraryStore persists v3 media lifecycle"`: pass；由于当前 node:test name pattern 运行方式，本次实际跑到 `task-model.test.js` 全量，49 个测试通过。
+- `npm test`: pass，252 个测试通过。
+- `npm run build:web`: pass；Vite 仍提示 `client.ts` 同时被 dynamic/static import，属于既有 chunking warning。
+- `git diff --check`: pass；仅有 Windows 换行提示。
+
+### 尚未满足
+
+- P0-1 后续代码审计要按 4 gate 重排：现有 `metadataStatus` 仍是 metadata gate 核心；`ingest/archive` gate 已有第一版 evaluator；下一步需要补 optimize gate 的事实结构和 evaluator。
+- Optimize gate 的目标/宽容差/失败解释还未落代码，尤其 transcode/upgrade/delete/keep 的 acceptance criteria 仍需逐 flow 实现。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。

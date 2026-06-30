@@ -1755,6 +1755,8 @@ test('libraryStore persists v3 media lifecycle facts as SQL query fields', () =>
         name: 'V3 Media One',
         type: 'movie',
         path: '/media/v3-one.mkv',
+        duration: 3600,
+        size: 1024,
         action: 'transcode',
         metadataComplete: true,
         metadataStatus: 'complete',
@@ -1767,6 +1769,8 @@ test('libraryStore persists v3 media lifecycle facts as SQL query fields', () =>
         name: 'V3 Media Two',
         type: 'movie',
         path: '/media/v3-two.mkv',
+        duration: 3600,
+        size: 1024,
         action: 'keep',
         reason: 'modern codec already within target',
         metadataComplete: true,
@@ -1779,6 +1783,8 @@ test('libraryStore persists v3 media lifecycle facts as SQL query fields', () =>
         name: 'V3 Media Three',
         type: 'movie',
         path: '/media/v3-three.mkv',
+        duration: 3600,
+        size: 1024,
         action: 'keep',
         reason: '新入库',
         metadataComplete: true,
@@ -1866,14 +1872,33 @@ test('v3 data migration script defaults to dry-run without creating backups', ()
 });
 
 test('lifecycleProjection separates metadata, optimize, and archive-like closure', () => {
+  const discovered = lifecycleProjection.resolveLifecycle({
+    action: 'transcode',
+    metadataComplete: false,
+  });
+  assert.strictEqual(discovered.lifecycleStage, 'source_discovered');
+  assert.strictEqual(discovered.lifecycleNextTask, 'ingest');
+  assert.strictEqual(discovered.ingestGate.passed, false);
+
   const missing = lifecycleProjection.resolveLifecycle({
+    itemId: 'missing-metadata-movie',
+    source: 'emby',
+    sourceId: 'emby-missing-metadata-movie',
+    path: '/media/missing-metadata-movie.mkv',
+    duration: 3600,
     action: 'transcode',
     metadataComplete: false,
   });
   assert.strictEqual(missing.lifecycleStage, 'ingested');
   assert.strictEqual(missing.lifecycleNextTask, 'metadata');
+  assert.strictEqual(missing.ingestGate.passed, true);
 
   const pendingOptimize = lifecycleProjection.resolveLifecycle({
+    itemId: 'pending-upgrade-movie',
+    source: 'emby',
+    sourceId: 'emby-pending-upgrade-movie',
+    path: '/media/pending-upgrade-movie.mkv',
+    duration: 3600,
     action: 'upgrade',
     metadataComplete: true,
     optimizationStatus: 'none',
@@ -1882,6 +1907,11 @@ test('lifecycleProjection separates metadata, optimize, and archive-like closure
   assert.strictEqual(pendingOptimize.lifecycleNextTask, 'optimize');
 
   const strategyPending = lifecycleProjection.resolveLifecycle({
+    itemId: 'strategy-pending-movie',
+    source: 'emby',
+    sourceId: 'emby-strategy-pending-movie',
+    path: '/media/strategy-pending-movie.mkv',
+    duration: 3600,
     action: 'keep',
     reason: '新入库',
     metadataComplete: true,
@@ -1892,6 +1922,11 @@ test('lifecycleProjection separates metadata, optimize, and archive-like closure
   assert.strictEqual(strategyPending.lifecycleReason, 'strategy_pending');
 
   const strategyMissing = lifecycleProjection.resolveLifecycle({
+    itemId: 'strategy-missing-movie',
+    source: 'emby',
+    sourceId: 'emby-strategy-missing-movie',
+    path: '/media/strategy-missing-movie.mkv',
+    duration: 3600,
     action: '',
     metadataComplete: true,
   });
@@ -1901,6 +1936,11 @@ test('lifecycleProjection separates metadata, optimize, and archive-like closure
   assert.strictEqual(strategyMissing.lifecycleReason, 'strategy_missing');
 
   const keep = lifecycleProjection.resolveLifecycle({
+    itemId: 'keep-movie',
+    source: 'emby',
+    sourceId: 'emby-keep-movie',
+    path: '/media/keep-movie.mkv',
+    duration: 3600,
     action: 'keep',
     reason: 'modern codec already within target',
     metadataComplete: true,
@@ -1908,6 +1948,43 @@ test('lifecycleProjection separates metadata, optimize, and archive-like closure
   assert.strictEqual(keep.lifecycleStage, 'archived');
   assert.strictEqual(keep.archiveStatus, 'archived_like');
   assert.strictEqual(keep.lifecycleDone, true);
+  assert.strictEqual(keep.archiveGate.passed, true);
+});
+
+test('lifecycleProjection exposes first-class ingest and archive gate contracts', () => {
+  const ingestGate = lifecycleProjection.evaluateIngestGate({
+    itemId: 'probe-failed-adult',
+    source: 'adult_folder',
+    subLibraryId: 'adult-lib',
+    path: '/adult/probe-failed.mp4',
+    probeError: 'ffprobe timed out',
+  });
+  assert.strictEqual(ingestGate.passed, true);
+  assert.strictEqual(ingestGate.reason, 'ingest_gate_met');
+
+  const incompleteIngest = lifecycleProjection.evaluateIngestGate({
+    source: 'adult_folder',
+    path: '/adult/no-id.mp4',
+  });
+  assert.strictEqual(incompleteIngest.passed, false);
+  assert.ok(incompleteIngest.missingReasons.includes('identity.itemId'));
+  assert.ok(incompleteIngest.missingReasons.includes('media.basic_facts_or_probe_failure'));
+
+  const blockedArchive = lifecycleProjection.resolveLifecycle({
+    itemId: 'blocked-archive-movie',
+    source: 'emby',
+    sourceId: 'emby-blocked-archive-movie',
+    path: '/media/blocked-archive-movie.mkv',
+    duration: 3600,
+    action: 'transcode',
+    metadataComplete: true,
+    optimizationStatus: 'transcoded',
+    archiveBlockers: ['pending_result_summary'],
+  });
+  assert.strictEqual(blockedArchive.lifecycleStage, 'optimized');
+  assert.strictEqual(blockedArchive.lifecycleNextTask, 'archive');
+  assert.strictEqual(blockedArchive.archiveGate.passed, false);
+  assert.ok(blockedArchive.archiveGate.blockers.includes('pending_result_summary'));
 });
 
 test('resourceProjection groups active tasks by resource rather than task type only', () => {
