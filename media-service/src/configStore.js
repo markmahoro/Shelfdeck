@@ -490,6 +490,8 @@ function getDefaultConfig() {
     // Startup maintenance
     mediaLibraryStartupRefreshOnStartup: true,
     mediaLibraryStartupRefreshDelaySeconds: 30,
+    mediaLibraryStartupRefreshStaleMinutes: 120,
+    mediaLibraryStartupRefreshMaxLibraries: 1,
     mediaLibrarySelfComputeOnStartup: true,
 
     // Task queue priority (PriorityEngine). Lower number = runs first.

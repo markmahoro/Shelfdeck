@@ -157,6 +157,8 @@ test('GET /v1/config includes v2 schema fields', async () => {
   assert.strictEqual(typeof cfg.smartTaskInitialDelaySeconds, 'number');
   assert.strictEqual(typeof cfg.mediaLibraryStartupRefreshOnStartup, 'boolean');
   assert.strictEqual(typeof cfg.mediaLibraryStartupRefreshDelaySeconds, 'number');
+  assert.strictEqual(typeof cfg.mediaLibraryStartupRefreshStaleMinutes, 'number');
+  assert.strictEqual(typeof cfg.mediaLibraryStartupRefreshMaxLibraries, 'number');
   assert.strictEqual(typeof cfg.mediaLibrarySelfComputeOnStartup, 'boolean');
   await app.close();
 });

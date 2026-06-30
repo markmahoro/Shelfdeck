@@ -20,6 +20,7 @@ const lifecycleProjection = require('../src/lifecycleProjection');
 const resourceProjection = require('../src/resourceProjection');
 const diagnosticLog = require('../src/diagnosticLog');
 const backgroundIoGuard = require('../src/backgroundIoGuard');
+const mediaLibraryService = require('../src/mediaLibraryService');
 const metadataStatus = require('../src/metadataStatus');
 const flowRecoveryContract = require('../src/flowRecoveryContract');
 const flowPlanner = require('../src/flowPlanner');
@@ -2572,4 +2573,27 @@ test('backgroundIoGuard serializes heavy background operations and records skips
   const logs = diagnosticLog.list({ limit: 10 }).logs;
   assert.ok(logs.some((log) => log.category === 'background_io' && log.status === 'skipped'));
   assert.ok(logs.some((log) => log.category === 'background_io' && log.status === 'done'));
+});
+
+test('startup library refresh only selects stale sublibraries within startup budget', () => {
+  const now = Date.parse('2026-06-30T10:00:00.000Z');
+  const subLibraries = [
+    { uuid: 'fresh', enabled: true, source: 'emby', lastRefreshedAt: '2026-06-30T09:30:00.000Z' },
+    { uuid: 'oldest', enabled: true, source: 'emby', lastRefreshedAt: '2026-06-30T05:00:00.000Z' },
+    { uuid: 'older', enabled: true, source: 'emby', lastRefreshedAt: '2026-06-30T06:00:00.000Z' },
+    { uuid: 'folder', enabled: true, source: 'folder', lastRefreshedAt: '2026-06-29T00:00:00.000Z' },
+    { uuid: 'disabled', enabled: false, source: 'emby', lastRefreshedAt: '2026-06-29T00:00:00.000Z' },
+  ];
+
+  const limited = mediaLibraryService._selectStartupRefreshSubLibrariesForTest(subLibraries, {
+    mediaLibraryStartupRefreshStaleMinutes: 120,
+    mediaLibraryStartupRefreshMaxLibraries: 1,
+  }, now);
+  assert.deepStrictEqual(limited.map((sl) => sl.uuid), ['oldest']);
+
+  const unlimited = mediaLibraryService._selectStartupRefreshSubLibrariesForTest(subLibraries, {
+    mediaLibraryStartupRefreshStaleMinutes: 120,
+    mediaLibraryStartupRefreshMaxLibraries: 0,
+  }, now);
+  assert.deepStrictEqual(unlimited.map((sl) => sl.uuid), ['oldest', 'older']);
 });

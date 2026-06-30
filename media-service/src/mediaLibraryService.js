@@ -29,6 +29,8 @@ const backgroundIoGuard = require('./backgroundIoGuard');
 
 const BACKGROUND_IO_LOCK = 'library_background_io';
 const STARTUP_REFRESH_STAGGER_MS = 5000;
+const DEFAULT_STARTUP_REFRESH_STALE_MINUTES = 120;
+const DEFAULT_STARTUP_REFRESH_MAX_LIBRARIES = 1;
 
 function generateUuid() {
   return crypto.randomUUID();
@@ -155,6 +157,32 @@ function updateLibraryItems(items) {
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function selectStartupRefreshSubLibraries(subLibs = [], config = {}, nowMs = Date.now()) {
+  const staleMinutes = Number(config.mediaLibraryStartupRefreshStaleMinutes) > 0
+    ? Number(config.mediaLibraryStartupRefreshStaleMinutes)
+    : DEFAULT_STARTUP_REFRESH_STALE_MINUTES;
+  const staleMs = staleMinutes * 60 * 1000;
+  const rawMax = Number(config.mediaLibraryStartupRefreshMaxLibraries);
+  const maxLibraries = Number.isFinite(rawMax) && rawMax >= 0
+    ? Math.floor(rawMax)
+    : DEFAULT_STARTUP_REFRESH_MAX_LIBRARIES;
+
+  const stale = (subLibs || []).filter((sl) => {
+    if (!sl || sl.enabled === false || sl.source === 'folder') return false;
+    const refreshedAt = sl.lastRefreshedAt ? new Date(sl.lastRefreshedAt).getTime() : 0;
+    return !refreshedAt || (nowMs - refreshedAt) >= staleMs;
+  });
+
+  stale.sort((a, b) => {
+    const at = a.lastRefreshedAt ? new Date(a.lastRefreshedAt).getTime() : 0;
+    const bt = b.lastRefreshedAt ? new Date(b.lastRefreshedAt).getTime() : 0;
+    return at - bt;
+  });
+
+  if (maxLibraries === 0) return stale;
+  return stale.slice(0, maxLibraries);
 }
 
 function runBackgroundLibraryOperation(input, fn) {
@@ -972,7 +1000,13 @@ function startAllSubLibraryTimers() {
     // Self-compute needs bitrate/duration from the freshly fetched items to derive
     // equivalentBitrate — running it before refresh completes produces all-zeroes.
     (async () => {
-      for (const sl of subLibs) {
+      const refreshTargets = selectStartupRefreshSubLibraries(subLibs, currentCfg);
+      if (refreshTargets.length === 0) {
+        console.log('[mediaLibrary] startup refresh skipped: no stale subLibrary within startup budget');
+      } else {
+        console.log(`[mediaLibrary] startup refresh will process ${refreshTargets.length} stale subLibraries`);
+      }
+      for (const sl of refreshTargets) {
         await runBackgroundLibraryOperation({
           operation: 'mediaLibrary.refresh',
           resourceKey: `mediaLibrary:${sl.uuid}`,
@@ -1046,6 +1080,8 @@ module.exports = {
   triggerRefresh,
   triggerDoubanSync,
   completeEmbyItemMetadata,
+
+  _selectStartupRefreshSubLibrariesForTest: selectStartupRefreshSubLibraries,
 
   getHealth,
 };
