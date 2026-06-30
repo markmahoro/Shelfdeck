@@ -3412,3 +3412,49 @@ S4 archived
 
 - 当前 Admin Web 和后端 API 尚未完全按该白名单收口；后续涉及人工/自动边界时以本表为准逐步修正。
 - P0-1 仍未整体宣布完成。
+
+## 2026-06-30 Slice 71: 全自动模式架构定义
+
+### 用户模型修正
+
+本 slice 不改代码，新增专门文档记录“用户介入与全自动模式”。
+
+已确认：
+
+- 全自动模式是一个架构定义，不是另一套 task 类型或执行链路。
+- 全自动模式表示：用户完成规则和授权配置后，系统可以在不需要运行时人工介入的情况下，自动推进允许范围内的媒体生命周期。
+- 全自动模式本质上是“用户可介入范围白名单”中可预授权项的一组配置组合。
+- 全自动模式是 v3.1 的交付标准之一：必须可用且符合预期。
+
+### 全自动模式交付标准
+
+v3.1 必须满足：
+
+- 用户可以配置 metadata gate、optimize objective、自动推进范围和风险确认规则。
+- 用户可以理解当前是否处于全自动模式，以及哪些事项仍会要求人工介入。
+- 系统可以在允许范围内自动创建 task，并从 discovered 推进到 archived。
+- 系统不会把 flow operation 当成 task 目标。
+- 系统不会在未预授权情况下自动执行高风险动作。
+- 系统遇到无法自动判断或无法自动恢复的事项时，会停在任务中心/确认台/失败队列中的可解释状态。
+- Dashboard / Task Center / Resource View 能解释全自动模式为什么在动、为什么停下、停在哪个 gate / objective / flow / resource。
+- 全自动模式不能绕过 Task Creator、Lifecycle gate、Flow Planner recovery contract 或 Resource Runtime 安灯信号。
+
+### 文档更新
+
+- 新增 `docs/v3/USER_INTERVENTION_AND_FULL_AUTO.md`：
+  - 定义用户介入白名单。
+  - 定义全自动模式。
+  - 定义全自动模式配置组合。
+  - 定义全自动模式允许自动完成的事项和必须停下的事项。
+  - 定义 v3.1 全自动模式交付标准。
+- `docs/v3/BUSINESS_MODEL_NOTES.md` 增加该文档链接，并声明具体白名单和全自动模式交付标准以后以该文档为准。
+
+### 验证
+
+- 本 slice 只改文档，未运行 service 测试。
+- 未部署生产。
+
+### 尚未满足
+
+- 当前实现还没有完整按该全自动模式定义验收。
+- 后续 P0-1 需要把 task target / optimize objective / flow operation / 用户介入白名单 / 全自动模式串起来做行为审计。

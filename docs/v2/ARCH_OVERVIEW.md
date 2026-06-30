@@ -311,4 +311,6 @@ Worker API:
 - `docs/v2/DEVELOPMENT_WORKFLOW.md`
 - `docs/v2/TEST_ARCHITECTURE.md`
 - `docs/v2/DEBUG_WORKFLOW.md`
+- `docs/v3/BUSINESS_MODEL_NOTES.md`
+- `docs/v3/USER_INTERVENTION_AND_FULL_AUTO.md`
 - `tests/TEST_ENV_CHECKLIST.md`（私有凭据，不提交）
