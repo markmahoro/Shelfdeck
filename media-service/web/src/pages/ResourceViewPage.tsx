@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { CSSProperties } from 'react';
 import { resources } from '../api/client';
-import type { BackgroundIoState, DiagnosticLogEntry, ResourceBucket, ResourceTask, RuntimeResourceEvent, StorageMetric } from '../types';
+import type { BackgroundIoState, DiagnosticLogEntry, ResourceBucket, ResourceFailureEvent, ResourceTask, RuntimeResourceEvent, StorageMetric } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -48,19 +48,53 @@ const EVENT_LABELS: Record<string, string> = {
   'optimize.transcode.execute': '转码执行',
   'optimize.upgrade.download': '洗版下载',
   'archive.delete.execute': '归档删除',
+  'task.restart_interrupted': '重启后中断恢复',
+  'task.restart_recovery_queued': '重启后重新排队',
+  'task.restart_recovery_failed': '重启恢复失败',
 };
 
 const BRIDGE_LABELS: Record<string, string> = {
-  metadata: 'metadata',
-  optimize: 'optimization',
-  archive: 'archive',
+  metadata: '补元数据',
+  optimize: '优化',
+  archive: '归档',
+};
+
+const OPERATION_LABELS: Record<string, string> = {
+  ingest: '入库',
+  scrape: '刮削',
+  transcode: '转码压缩',
+  upgrade: '洗版',
+  delete: '删除',
 };
 
 const EVENT_STATUS_LABELS: Record<string, string> = {
   running: '运行中',
+  executing: '执行中',
   done: '已完成',
   failed: '失败',
+  failed_hard: '失败',
+  interrupted: '已中断',
   skipped: '已跳过',
+};
+
+const RECOVERY_LABELS: Record<string, string> = {
+  retry_available: '可重试',
+  flow_specific_recovery_required: '需查看事件',
+  resume_available: '可继续',
+  waiting_for_user_confirmation: '等待确认',
+  terminal: '已结束',
+  not_needed: '无需恢复',
+  task_not_found: '任务记录缺失',
+};
+
+const NEXT_ACTION_LABELS: Record<string, string> = {
+  retry: '重试',
+  execute: '继续',
+  confirm: '确认',
+  inspect_events: '查看事件',
+  inspect_event: '查看事件',
+  inspect_status: '查看状态',
+  none: '无动作',
 };
 
 const DIAGNOSTIC_STATUS_LABELS: Record<string, string> = {
@@ -125,9 +159,25 @@ function eventTitle(event: RuntimeResourceEvent): string {
   return EVENT_LABELS[event.eventType] || event.eventType;
 }
 
+function failureEventTitle(event: ResourceFailureEvent): string {
+  const label = EVENT_LABELS[event.eventType] || event.eventType;
+  const target = event.task?.itemName || event.itemId || event.taskId;
+  return target ? `${label} · ${target}` : label;
+}
+
+function failureEventMeta(event: ResourceFailureEvent): string {
+  const resource = event.resourceContext?.resourceKey || event.resourceKey || event.resourceType || '-';
+  const recovery = event.recovery?.state ? (RECOVERY_LABELS[event.recovery.state] || event.recovery.state) : '恢复状态未知';
+  const action = event.recovery?.nextAction ? (NEXT_ACTION_LABELS[event.recovery.nextAction] || event.recovery.nextAction) : '-';
+  const resumePoint = event.recovery?.resumePoint || event.task?.resumePoint || event.resumePoint || '';
+  const diagnostic = event.diagnosticSummary?.error ? ` · ${String(event.diagnosticSummary.error)}` : '';
+  return `${event.eventStatus || '-'} · ${resource} · ${recovery}/${action}${resumePoint ? ` · ${resumePoint}` : ''} · ${formatTime(event.createdAt)}${diagnostic}`;
+}
+
 function taskBusinessLabel(task: ResourceTask): string {
-  const bridge = task.bridgeKind ? (BRIDGE_LABELS[task.bridgeKind] || task.bridgeKind) : 'bridge';
-  const op = task.operationKind || task.actionType;
+  const bridge = task.bridgeKind ? (BRIDGE_LABELS[task.bridgeKind] || task.bridgeKind) : '桥梁';
+  const rawOp = task.operationKind || task.actionType;
+  const op = OPERATION_LABELS[rawOp] || rawOp;
   return `${bridge} / ${op}`;
 }
 
@@ -204,9 +254,9 @@ export default function ResourceViewPage() {
       <Header isFetching={isFetching} onRefresh={() => void refetch()} generatedAt={summary?.generatedAt || ''} />
 
       <div style={summaryGrid}>
-        <Metric label="资源相关任务" value={summary?.totalTasks || 0} />
-        <Metric label="运行事件" value={summary?.runningEvents || 0} tone="green" />
-        <Metric label="最近事件" value={summary?.recentEvents || 0} />
+        <Metric label="任务桥占用" value={summary?.totalTasks || 0} />
+        <Metric label="运行中 event" value={summary?.runningEvents || 0} tone="green" />
+        <Metric label="最近 event" value={summary?.recentEvents || 0} />
         <Metric label="运行中" value={summary?.byState.running || 0} tone="green" />
         <Metric label="等待中" value={summary?.byState.waiting || 0} tone="blue" />
         <Metric label="已阻塞" value={summary?.byState.blocked || 0} tone="orange" />
@@ -226,12 +276,12 @@ export default function ResourceViewPage() {
 
       <div style={section}>
         <div style={sectionHeader}>
-          <h2 style={sectionTitle}>资源队列</h2>
-          <div style={mutedText}>{buckets.length} 个资源桶</div>
+          <h2 style={sectionTitle}>Event / Resource 占用</h2>
+          <div style={mutedText}>{buckets.length} 个资源桶，按资源键分组</div>
         </div>
 
         {buckets.length === 0 ? (
-          <div style={emptyBox}>当前没有等待、运行、阻塞中的任务或最近资源事件。</div>
+          <div style={emptyBox}>当前没有等待、运行、阻塞中的任务桥或最近 event。</div>
         ) : (
           <div style={bucketList}>
             {buckets.map((bucket) => (
@@ -292,7 +342,7 @@ function ResourceBucketView({ bucket }: { bucket: ResourceBucket }) {
         <span style={statPill}>等待 {bucket.waiting}</span>
         <span style={statPill}>阻塞 {bucket.blocked}</span>
         {events.length > 0 ? <span style={statPill}>event {events.length}</span> : null}
-        {(bucket.eventRunning || 0) > 0 ? <span style={statPill}>运行 event {bucket.eventRunning}</span> : null}
+        {(bucket.eventRunning || 0) > 0 ? <span style={statPill}>运行中 event {bucket.eventRunning}</span> : null}
       </div>
 
       {bucket.tasks.length > 0 ? (
@@ -301,7 +351,7 @@ function ResourceBucketView({ bucket }: { bucket: ResourceBucket }) {
             <thead>
               <tr>
                 <th style={thStyle}>媒体</th>
-                <th style={thStyle}>业务</th>
+                <th style={thStyle}>桥梁 / Flow</th>
                 <th style={thStyle}>状态</th>
                 <th style={thStyle}>进度</th>
                 <th style={thStyle}>优先级</th>
@@ -352,13 +402,13 @@ function DependencyDiagnosticsSection({
   bottlenecks,
 }: {
   dependencies: Array<Record<string, unknown>>;
-  failedEvents: Array<{ id: string; eventType: string; eventStatus: string; itemId?: string; resourceType?: string | null; resourceKey?: string; createdAt: string }>;
+  failedEvents: ResourceFailureEvent[];
   bottlenecks: Array<{ resourceKey: string; resourceLabel: string; configuredSlots: number; running: number; waiting: number; blocked: number }>;
 }) {
   return (
     <div style={sectionSpaced}>
       <div style={sectionHeader}>
-        <h2 style={sectionTitle}>诊断</h2>
+        <h2 style={sectionTitle}>外部依赖与瓶颈</h2>
         <div style={mutedText}>依赖、失败 event、资源瓶颈</div>
       </div>
       <div style={diagnosticGrid}>
@@ -376,8 +426,8 @@ function DependencyDiagnosticsSection({
           empty="最近没有失败 event。"
           rows={failedEvents.map((event) => ({
             key: event.id,
-            main: EVENT_LABELS[event.eventType] || event.eventType,
-            meta: `${event.eventStatus || '-'} · ${event.resourceKey || event.resourceType || '-'} · ${formatTime(event.createdAt)}`,
+            main: failureEventTitle(event),
+            meta: failureEventMeta(event),
           }))}
         />
         <DiagnosticList
@@ -418,11 +468,11 @@ function StorageMetricsSection({ metrics }: { metrics: StorageMetric[] }) {
   return (
     <div style={sectionSpaced}>
       <div style={sectionHeader}>
-        <h2 style={sectionTitle}>Storage metrics</h2>
-        <div style={mutedText}>{metrics.length} 个 SQLite store</div>
+        <h2 style={sectionTitle}>存储指标</h2>
+        <div style={mutedText}>{metrics.length} 个 SQLite store，来自 metric projection</div>
       </div>
       {metrics.length === 0 ? (
-        <div style={emptyBox}>暂无 storage metric。</div>
+        <div style={emptyBox}>暂无存储指标。</div>
       ) : (
         <div style={storageGrid}>
           {metrics.map((metric) => (
@@ -456,13 +506,13 @@ function BackgroundIoSection({ state }: { state?: BackgroundIoState }) {
   return (
     <div style={sectionSpaced}>
       <div style={sectionHeader}>
-        <h2 style={sectionTitle}>Background I/O Guard</h2>
+        <h2 style={sectionTitle}>后台 I/O Guard</h2>
         <div style={mutedText}>
           {active.length > 0 ? `${active.length} 个后台重 I/O 运行中` : '当前空闲'}
         </div>
       </div>
       {!state || rows.length === 0 ? (
-        <div style={emptyBox}>暂无 background I/O operation。</div>
+        <div style={emptyBox}>暂无后台重 I/O 操作。</div>
       ) : (
         <div style={tableWrap}>
           <table style={tableStyle}>
@@ -504,7 +554,7 @@ function DiagnosticLogSection({ logs }: { logs: DiagnosticLogEntry[] }) {
   return (
     <div style={sectionSpaced}>
       <div style={sectionHeader}>
-        <h2 style={sectionTitle}>Diagnostic log</h2>
+        <h2 style={sectionTitle}>诊断日志</h2>
         <div style={mutedText}>{logs.length} 条记录</div>
       </div>
       {logs.length === 0 ? (

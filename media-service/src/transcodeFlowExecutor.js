@@ -213,6 +213,8 @@ async function runPrecheck(taskId, task, config) {
         episodeFiles: isSeason ? episodeFiles : undefined,
         tempDir: taskWorkDir,
         isDolbyVision: result.isDolbyVision,
+        dolbyVisionTonemap: result.dolbyVisionTonemap || undefined,
+        dvTonemapFilter: result.dolbyVisionTonemap && result.dolbyVisionTonemap.filterGraph || undefined,
         durationSec: result.durationSec,
         originalSizeBytes: discRemux
           ? (discRemux.originalSizeBytes || result.originalSizeBytes)
@@ -226,6 +228,11 @@ async function runPrecheck(taskId, task, config) {
         originalBitrate: result.originalBitrate,
       },
     });
+
+    if (result.dolbyVisionTonemap) {
+      const level = result.dolbyVisionTonemap.mode === 'software' ? 'warn' : 'info';
+      appendLog(taskId, level, `Dolby Vision tonemap path: ${result.dolbyVisionTonemap.mode} (${result.dolbyVisionTonemap.message || result.dolbyVisionTonemap.label || 'available'})`);
+    }
 
     if (result.needsDvConfirm && !task.dvAcknowledged) {
       const cfg = configStore.loadConfig();
@@ -323,6 +330,8 @@ async function runExecuting(taskId, task, config) {
           orderedDeviceSlots: orderedSlots,
           isDolbyVision: info.isDolbyVision,
           dvAcknowledged: task.dvAcknowledged || false,
+          dolbyVisionTonemap: info.dolbyVisionTonemap,
+          dvTonemapFilter: info.dvTonemapFilter,
           durationSec: info.durationSec || 3600,
           targetBitrate: info.targetBitrate,
           onLog: (level, msg) => appendLog(taskId, level, msg),
@@ -375,6 +384,8 @@ async function runExecuting(taskId, task, config) {
           orderedDeviceSlots: orderedSlots,
           isDolbyVision: info.isDolbyVision,
           dvAcknowledged: task.dvAcknowledged || false,
+          dolbyVisionTonemap: info.dolbyVisionTonemap,
+          dvTonemapFilter: info.dvTonemapFilter,
           durationSec: info.durationSec || 3600,
           targetBitrate: info.targetBitrate,
           onLog: (level, msg) => appendLog(taskId, level, msg),

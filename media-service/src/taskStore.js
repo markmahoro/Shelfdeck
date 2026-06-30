@@ -671,6 +671,11 @@ function taskUpdateEvents(current, updated, updates = {}) {
       events.push(buildTaskEvent(updated, 'task.failed', {
         fromStatus: current.status,
         failureStatus: updated.status,
+        failureSummary: latestFailureSummary(updated),
+        bridgeKind: updated.taskBridge && updated.taskBridge.kind,
+        flowDirection: updated.flowPlan && updated.flowPlan.direction,
+        operationKind: updated.flowPlan && updated.flowPlan.operationKind,
+        primaryResourceType: updated.flowPlan && updated.flowPlan.primaryResourceType,
       }));
     }
   }
@@ -707,6 +712,28 @@ function taskUpdateEvents(current, updated, updates = {}) {
     }));
   }
   return events;
+}
+
+function latestFailureSummary(task) {
+  const logs = Array.isArray(task && task.logs) ? task.logs : [];
+  const latestError = [...logs].reverse().find((entry) => {
+    const level = String(entry && entry.level || '').toLowerCase();
+    return level === 'error' || level === 'fatal';
+  });
+  if (!latestError) {
+    return {
+      message: '',
+      level: '',
+      ts: '',
+      source: 'task_status',
+    };
+  }
+  return {
+    message: String(latestError.msg || latestError.message || ''),
+    level: String(latestError.level || ''),
+    ts: String(latestError.ts || latestError.at || ''),
+    source: 'task_log',
+  };
 }
 
 function rowToTask(row) {
@@ -836,6 +863,7 @@ function buildTask(taskData, now = new Date().toISOString()) {
     priorityBreakdown: taskData.priorityBreakdown,
     taskBridge: taskData.taskBridge,
     flowPlan: taskData.flowPlan,
+    requestedIntent: taskData.requestedIntent,
   });
 }
 
@@ -863,6 +891,7 @@ function createTask(taskData) {
       source: task.source,
       priority: task.priority,
       priorityModelVersion: task.priorityModelVersion,
+      requestedIntent: task.requestedIntent,
       taskBridge: task.taskBridge,
       flowPlan: task.flowPlan,
     });
@@ -929,6 +958,17 @@ function buildWhere(filter = {}, options = {}) {
   if (filter.itemId) {
     clauses.push('item_id = @itemId');
     params.itemId = String(filter.itemId);
+  }
+  if (Array.isArray(filter.itemIds) && filter.itemIds.length > 0) {
+    const itemIds = filter.itemIds.map((itemId) => String(itemId || '').trim()).filter(Boolean);
+    if (itemIds.length > 0) {
+      clauses.push(`item_id IN (${itemIds.map((_, i) => `@itemIdIn${i}`).join(', ')})`);
+      itemIds.forEach((itemId, i) => { params[`itemIdIn${i}`] = itemId; });
+    }
+  }
+  if (filter.nodeId) {
+    clauses.push('node_id = @nodeId');
+    params.nodeId = String(filter.nodeId);
   }
   if (filter.q) {
     clauses.push('(LOWER(item_name) LIKE @q OR LOWER(item_id) LIKE @q)');
@@ -1030,11 +1070,156 @@ function queryRecentFailureEvents(options = {}) {
     SELECT *
     FROM task_events
     WHERE event_status IN ('failed_hard', 'failed_soft', 'interrupted')
-       OR event_type IN ('task.failed', 'task.interrupted')
+       OR event_type IN ('task.failed', 'flow.failed', 'task.interrupted')
+    ORDER BY
+      CASE
+        WHEN event_type IN ('task.failed', 'flow.failed', 'task.interrupted') THEN 0
+        ELSE 1
+      END ASC,
+      created_at DESC,
+      id DESC
+    LIMIT @limit
+  `).all({ limit: pageSize });
+  return rows.map(rowToTaskEvent);
+}
+
+function queryLatestFailureEventsByItemIds(itemIds = [], options = {}) {
+  const ids = [...new Set((itemIds || []).map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const maxRows = Math.min(1000, Math.max(ids.length * 4, Number.parseInt(options.maxRows, 10) || ids.length * 4));
+  const params = { limit: maxRows };
+  const itemSql = ids.map((itemId, i) => {
+    params[`itemId${i}`] = itemId;
+    return `@itemId${i}`;
+  }).join(', ');
+  const rows = getDb().prepare(`
+    SELECT *
+    FROM task_events
+    WHERE item_id IN (${itemSql})
+      AND (
+        event_status IN ('failed_hard', 'failed_soft', 'interrupted')
+        OR event_type IN ('task.failed', 'flow.failed', 'task.interrupted')
+      )
+    ORDER BY
+      CASE
+        WHEN event_type IN ('task.failed', 'flow.failed', 'task.interrupted') THEN 0
+        ELSE 1
+      END ASC,
+      created_at DESC,
+      id DESC
+    LIMIT @limit
+  `).all(params);
+  const byItem = {};
+  for (const row of rows) {
+    const event = rowToTaskEvent(row);
+    if (!event.itemId || byItem[event.itemId]) continue;
+    byItem[event.itemId] = event;
+  }
+  return byItem;
+}
+
+function queryRecentTaskEvents(options = {}) {
+  const pageSize = Math.min(100, Math.max(1, Number.parseInt(options.pageSize, 10) || 20));
+  const rows = getDb().prepare(`
+    SELECT
+      id, task_id, item_id, action_type, event_type, event_status, phase, resume_point,
+      resource_type, resource_key, resource_label, bridge_kind, flow_direction,
+      operation_kind, created_at, NULL AS payload_json
+    FROM task_events
     ORDER BY created_at DESC, id DESC
     LIMIT @limit
   `).all({ limit: pageSize });
   return rows.map(rowToTaskEvent);
+}
+
+function countMap(rows, keyField = 'key') {
+  const out = {};
+  for (const row of rows || []) {
+    const key = row && row[keyField] ? String(row[keyField]) : 'unknown';
+    out[key] = Number(row.count) || 0;
+  }
+  return out;
+}
+
+function terminalWhereSql(params) {
+  const terminalSql = [...TERMINAL_STATUSES].map((status, i) => {
+    params[`terminal${i}`] = status;
+    return `@terminal${i}`;
+  }).join(', ');
+  return `status NOT IN (${terminalSql})`;
+}
+
+function queryDashboardTaskStats() {
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'taskStore.queryDashboardTaskStats',
+    operation: 'query_dashboard_task_stats',
+    component: 'taskStore',
+    resourceType: 'sqlite',
+    resourceKey: 'tasks.db',
+    slowMs: 150,
+  }, () => {
+    const db = getDb();
+    const params = {};
+    const activeWhere = terminalWhereSql(params);
+    const totals = db.prepare(`
+      SELECT
+        COUNT(*) AS totalTasks,
+        SUM(CASE WHEN ${activeWhere} THEN 1 ELSE 0 END) AS activeTasks,
+        SUM(CASE WHEN status = 'awaiting_user_confirm' THEN 1 ELSE 0 END) AS awaitingConfirmationTasks,
+        SUM(CASE WHEN status = 'failed_hard' THEN 1 ELSE 0 END) AS failedTasks,
+        SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS doneTasks
+      FROM tasks
+    `).get(params) || {};
+    const byStatus = countMap(db.prepare(`
+      SELECT status AS key, COUNT(*) AS count
+      FROM tasks
+      GROUP BY status
+      ORDER BY count DESC, key ASC
+    `).all());
+    const activeByBridgeKind = countMap(db.prepare(`
+      SELECT COALESCE(NULLIF(bridge_kind, ''), 'unknown') AS key, COUNT(*) AS count
+      FROM tasks
+      WHERE ${activeWhere}
+      GROUP BY COALESCE(NULLIF(bridge_kind, ''), 'unknown')
+      ORDER BY count DESC, key ASC
+    `).all(params));
+    const activeByOperationKind = countMap(db.prepare(`
+      SELECT COALESCE(NULLIF(operation_kind, ''), action_type, 'unknown') AS key, COUNT(*) AS count
+      FROM tasks
+      WHERE ${activeWhere}
+      GROUP BY COALESCE(NULLIF(operation_kind, ''), action_type, 'unknown')
+      ORDER BY count DESC, key ASC
+    `).all(params));
+    const activeBySource = countMap(db.prepare(`
+      SELECT COALESCE(NULLIF(source, ''), 'manual') AS key, COUNT(*) AS count
+      FROM tasks
+      WHERE ${activeWhere}
+      GROUP BY COALESCE(NULLIF(source, ''), 'manual')
+      ORDER BY count DESC, key ASC
+    `).all(params));
+    const failedByOperationKind = countMap(db.prepare(`
+      SELECT COALESCE(NULLIF(operation_kind, ''), action_type, 'unknown') AS key, COUNT(*) AS count
+      FROM tasks
+      WHERE status = 'failed_hard'
+      GROUP BY COALESCE(NULLIF(operation_kind, ''), action_type, 'unknown')
+      ORDER BY count DESC, key ASC
+    `).all());
+
+    return {
+      totalTasks: Number(totals.totalTasks) || 0,
+      activeTasks: Number(totals.activeTasks) || 0,
+      awaitingConfirmationTasks: Number(totals.awaitingConfirmationTasks) || 0,
+      failedTasks: Number(totals.failedTasks) || 0,
+      doneTasks: Number(totals.doneTasks) || 0,
+      byStatus,
+      activeByBridgeKind,
+      activeByOperationKind,
+      activeBySource,
+      failedByOperationKind,
+      recentFailureEvents: queryRecentFailureEvents({ pageSize: 5 }),
+    };
+  });
 }
 
 function jsonExtractObject(value, fallback = undefined) {
@@ -1050,6 +1235,7 @@ function queryTaskSummaries(filter = {}, options = {}) {
   const maxPageSize = Math.max(1, Number.parseInt(options.maxPageSize, 10) || 100);
   const pageSize = Math.min(maxPageSize, Math.max(1, Number.parseInt(options.pageSize, 10) || 20));
   const offset = (page - 1) * pageSize;
+  const includeAll = options.includeAll === true;
   const orderBy = options.orderBy === 'createdAt' ? 'created_at' : 'updated_at';
   const orderDir = String(options.orderDir || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
   const terminalList = [...TERMINAL_STATUSES].map((status) => `'${status}'`).join(', ');
@@ -1068,6 +1254,7 @@ function queryTaskSummaries(filter = {}, options = {}) {
       created_at,
       updated_at,
       ${activeColumn('progress')} AS progress,
+      retry_count,
       source,
       bridge_kind,
       bridge_from,
@@ -1080,8 +1267,8 @@ function queryTaskSummaries(filter = {}, options = {}) {
       primary_resource_type,
       resource_types_json,
       flow_steps_json,
-      ${activeColumn('phase')} AS phase,
-      ${activeColumn('resume_point')} AS resume_point,
+      phase,
+      resume_point,
       ${activeColumn('node_id')} AS node_id,
       ${activeJson('$.approval')} AS approval_json,
       ${activeJson('$.verifyResult.sizeBytes')} AS verify_size_bytes,
@@ -1112,8 +1299,8 @@ function queryTaskSummaries(filter = {}, options = {}) {
       ${activeJson('$.itemInfo.adultMetadata.protagonist')} AS adult_protagonist_json
     FROM tasks ${where}
     ORDER BY ${orderBy} ${orderDir}, id ${orderDir}
-    LIMIT @limit OFFSET @offset
-  `).all({ ...params, limit: pageSize, offset });
+    ${includeAll ? '' : 'LIMIT @limit OFFSET @offset'}
+  `).all(includeAll ? params : { ...params, limit: pageSize, offset });
   const statusRows = db.prepare(`
     SELECT status, COUNT(*) AS count
     FROM tasks ${where}
@@ -1211,6 +1398,7 @@ function queryTaskSummaries(filter = {}, options = {}) {
         progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
         phase: row.phase,
         resumePoint: row.resume_point,
+        retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
         nodeId: row.node_id || undefined,
         approval: jsonExtractObject(row.approval_json, undefined),
         priority: typeof row.priority === 'number' ? row.priority : 100,
@@ -1547,6 +1735,9 @@ module.exports = {
   querySchedulerTasks,
   queryTaskEvents,
   queryRecentFailureEvents,
+  queryLatestFailureEventsByItemIds,
+  queryRecentTaskEvents,
+  queryDashboardTaskStats,
   appendTaskEvent,
   queryOptimizationTaskIndexRows,
   queryTaskAdmissionRows,

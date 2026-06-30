@@ -189,7 +189,39 @@ function recoverInterruptedTasks() {
     // awaiting_user_confirm is a stable state — user hasn't decided yet, preserve it
     if (t.status === 'awaiting_user_confirm') continue;
     if (interruptible.includes(t.status) || t.pausingRequested) {
-      taskStore.updateTask(t.id, { status: 'interrupted' });
+      const previousStatus = t.status;
+      const previousPhase = t.phase || '';
+      const previousResumePoint = t.resumePoint || '';
+      const updated = taskStore.updateTask(t.id, { status: 'interrupted' });
+      const eventTask = updated || { ...t, status: 'interrupted' };
+      taskStore.appendTaskEvent(eventTask, 'task.restart_interrupted', {
+        reason: 'service_restart_runtime_state_recovered',
+        fromStatus: previousStatus,
+        fromPhase: previousPhase,
+        fromResumePoint: previousResumePoint,
+        pausingRequested: !!t.pausingRequested,
+        effect: 'mark_interrupted_for_scheduler_recovery',
+      }, {
+        resourceType: 'scheduler',
+      });
+      diagnosticLog.record({
+        category: 'scheduler',
+        scope: 'scheduler.restartRecovery',
+        operation: 'mark_interrupted',
+        component: 'taskScheduler',
+        resourceType: 'scheduler',
+        resourceKey: 'taskScheduler',
+        status: 'done',
+        payload: {
+          taskId: t.id,
+          itemId: t.itemId,
+          actionType: t.actionType,
+          fromStatus: previousStatus,
+          fromPhase: previousPhase,
+          fromResumePoint: previousResumePoint,
+          reason: 'service_restart_runtime_state_recovered',
+        },
+      });
       console.log('[scheduler] recovered interrupted task', t.id);
     }
   }
@@ -225,6 +257,58 @@ function incrementResourceCount(counts, resource, by = 1) {
   const key = resourceCountKey(resource);
   counts[key] = (counts[key] || 0) + by;
   return counts[key];
+}
+
+function errorSummary(err) {
+  return {
+    name: err && err.name ? String(err.name) : 'Error',
+    message: err && err.message ? String(err.message) : String(err),
+  };
+}
+
+function recordFlowFailure(task, resource, flowStep, err) {
+  const failure = errorSummary(err);
+  const freshTask = taskStore.getTask(task.id) || task;
+  taskStore.appendTaskEvent(freshTask, 'flow.failed', {
+    reason: 'flow_executor_rejected',
+    errorName: failure.name,
+    errorMessage: failure.message,
+    flowEventType: flowStep && flowStep.eventType,
+    flowEventPhase: flowStep && flowStep.phase,
+    resourceType: resource && resource.resourceType,
+    resourceKey: resource && resource.resourceKey,
+    resourceLabel: resource && resource.resourceLabel,
+    bridgeKind: task.taskBridge && task.taskBridge.kind,
+    flowDirection: task.flowPlan && task.flowPlan.direction,
+    operationKind: task.flowPlan && task.flowPlan.operationKind,
+    effect: 'mark_failed_hard_after_flow_exception',
+  }, {
+    resourceType: resource && resource.resourceType,
+  });
+  diagnosticLog.record({
+    category: 'scheduler',
+    scope: 'scheduler.flowDispatch',
+    operation: 'flow_executor_failed',
+    component: 'taskScheduler',
+    resourceType: resource && resource.resourceType || 'scheduler',
+    resourceKey: resource && resource.resourceKey || 'taskScheduler',
+    status: 'failed',
+    payload: {
+      taskId: task.id,
+      itemId: task.itemId,
+      actionType: task.actionType,
+      bridgeKind: task.taskBridge && task.taskBridge.kind,
+      flowDirection: task.flowPlan && task.flowPlan.direction,
+      operationKind: task.flowPlan && task.flowPlan.operationKind,
+      flowEventType: flowStep && flowStep.eventType,
+      flowEventPhase: flowStep && flowStep.phase,
+      resourceType: resource && resource.resourceType,
+      resourceKey: resource && resource.resourceKey,
+      errorName: failure.name,
+      errorMessage: failure.message,
+      effect: 'mark_failed_hard_after_flow_exception',
+    },
+  });
 }
 
 function isActiveStatus(status) {
@@ -448,6 +532,8 @@ async function scheduleRound() {
     if (task.status === 'done' || task.status === 'failed_hard') continue;
     if (task.status !== 'interrupted') continue;
 
+    const previousPhase = task.phase || '';
+    const previousResumePoint = task.resumePoint || '';
     const retryCount = (task.retryCount || 0) + 1;
     if (retryCount > 3) {
       const updated = taskStore.updateTask(task.id, { status: 'failed_hard', retryCount });
@@ -455,6 +541,32 @@ async function scheduleRound() {
         task.status = updated.status;
         task.retryCount = updated.retryCount;
       }
+      taskStore.appendTaskEvent(updated || task, 'task.restart_recovery_failed', {
+        reason: 'restart_recovery_retry_limit_reached',
+        fromStatus: 'interrupted',
+        fromPhase: previousPhase,
+        fromResumePoint: previousResumePoint,
+        retryCount,
+        effect: 'mark_failed_hard_after_restart_recovery_limit',
+      }, {
+        resourceType: 'scheduler',
+      });
+      diagnosticLog.record({
+        category: 'scheduler',
+        scope: 'scheduler.restartRecovery',
+        operation: 'recover_interrupted_task',
+        component: 'taskScheduler',
+        resourceType: 'scheduler',
+        resourceKey: 'taskScheduler',
+        status: 'failed',
+        payload: {
+          taskId: task.id,
+          itemId: task.itemId,
+          actionType: task.actionType,
+          retryCount,
+          reason: 'restart_recovery_retry_limit_reached',
+        },
+      });
       console.log('[scheduler] task', task.id, 'failed after', retryCount - 1, 'retries');
       continue;
     }
@@ -473,6 +585,34 @@ async function scheduleRound() {
       task.progress = updated.progress;
     }
     taskStore.deleteProgress(task.id);
+    taskStore.appendTaskEvent(updated || task, 'task.restart_recovery_queued', {
+      reason: 'restart_recovery_auto_queue',
+      fromStatus: 'interrupted',
+      fromPhase: previousPhase,
+      fromResumePoint: previousResumePoint,
+      retryCount,
+      effect: 'queue_task_after_service_restart',
+    }, {
+      resourceType: 'scheduler',
+    });
+    diagnosticLog.record({
+      category: 'scheduler',
+      scope: 'scheduler.restartRecovery',
+      operation: 'recover_interrupted_task',
+      component: 'taskScheduler',
+      resourceType: 'scheduler',
+      resourceKey: 'taskScheduler',
+      status: 'done',
+      payload: {
+        taskId: task.id,
+        itemId: task.itemId,
+        actionType: task.actionType,
+        retryCount,
+        fromPhase: previousPhase,
+        fromResumePoint: previousResumePoint,
+        reason: 'restart_recovery_auto_queue',
+      },
+    });
     recoveredIds.add(task.id);
   }
 
@@ -604,6 +744,7 @@ async function scheduleRound() {
         runtimeEvent.finish('failed', { error: err && err.message ? err.message : String(err) });
         console.error(`[scheduler] driveTask error for ${task.id}:`, err);
         reportStatus(task.id, 'failed_hard');
+        recordFlowFailure(task, resource, flowStep, err);
       });
     }
   }

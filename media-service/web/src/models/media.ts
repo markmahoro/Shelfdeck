@@ -1,7 +1,38 @@
 export type MediaRating = 1 | 2 | 3 | 4 | 5;
-export type MediaAction = 'delete' | 'transcode' | 'upgrade' | 'keep';
+export type MediaAction = 'delete' | 'transcode' | 'upgrade' | 'scrape' | 'keep';
 export type MediaOptimizationStatus = 'transcoded' | 'upgraded' | 'none';
 export type MediaLifecycleStage = 'ingested' | 'metadata_ready' | 'archived' | string;
+
+export type BusinessFlowOperation = {
+  operation: MediaAction | string;
+  bridgeKind?: string;
+  flowOperation?: string;
+};
+
+export type BlockedBusinessFlowOperation = {
+  operation: MediaAction | string;
+  reason: string;
+  metadataMissingReasons?: string[];
+  supportedEntry?: string;
+  activeTaskId?: string;
+};
+
+export type BusinessFlowDecision = {
+  lifecycleStage?: string;
+  lifecycleDone?: boolean;
+  metadataStatus?: string;
+  optimizationStatus?: string;
+  archiveStatus?: string;
+  nextBridge?: string | null;
+  recommendedOperation?: MediaAction | string | null;
+  allowedOperations?: BusinessFlowOperation[];
+  blockedOperations?: BlockedBusinessFlowOperation[];
+  blockedReasons?: Record<string, string>;
+  activeTaskBridge?: string | null;
+  activeFlowOperation?: string | null;
+  latestEventSummary?: Record<string, unknown> | null;
+  diagnosticSummary?: Record<string, unknown> | null;
+};
 
 export type ManagedMediaItem = {
   id: string;
@@ -40,6 +71,7 @@ export type ManagedMediaItem = {
   archiveStatus?: string;
   archiveReason?: string;
   archiveDoneAt?: string | null;
+  businessFlowDecision?: BusinessFlowDecision;
   embyWebUrl?: string;
   scraped?: boolean;
   adultMetadata?: Record<string, unknown>;

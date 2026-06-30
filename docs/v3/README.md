@@ -16,6 +16,8 @@
 | `OPERATION_CONTEXT.md` | v3 agent 需要知道的生产环境、NAS、部署、测试和安全边界 |
 | `BUSINESS_MODEL_NOTES.md` | v3 重构前已经确认过的业务概念共识，不规定技术实现 |
 | `DATA_MODEL_NOTES.md` | SQL 持久化层、内存运行层、projection 的原则性数据模型共识 |
+| `V3_0_1_BUSINESS_FLOW_DECISIONS.md` | 当前 worktree v3.0.1 业务流程细节判定表、入口收口和剩余问题 |
+| `V3_1_PROGRESS.md` | v3.1 用户视角可用版的切片进度、事实来源和剩余标准 |
 | `V2_BEHAVIOR_PRESERVATION.md` | v3 重构前必须盘点和保护的 v2 生产行为细节 |
 | `DISCOVERY_CHECKLIST.md` | v3 agent 开工前需要排摸的代码、数据、测试和部署清单 |
 | `GOAL_PROMPT.md` | 可用于开启 v3 长程任务的提示词 |

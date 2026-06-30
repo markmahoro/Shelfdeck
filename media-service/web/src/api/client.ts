@@ -12,6 +12,7 @@ import type {
   HealthStatus,
   DoubanSession,
   SpaceStats,
+  DashboardHealthSummary,
   RuleTemplate,
   ApprovalPolicyConfig,
 } from '../types';
@@ -204,7 +205,7 @@ export const adult = {
   deletePerson: (personId: string) =>
     del<{ ok: boolean; personId: string }>(`/v1/admin/adult/people/${encodeURIComponent(personId)}`),
   rescrapeItem: (itemId: string, adultId?: string) =>
-    post<{ ok: boolean; taskId: string }>(
+    post<{ ok: boolean; taskId: string; task?: MediaTask; taskBridge?: MediaTask['taskBridge']; flowPlan?: MediaTask['flowPlan']; requestedIntent?: MediaTask['requestedIntent']; controlState?: MediaTask['controlState'] }>(
       `/v1/admin/adult/items/${encodeURIComponent(itemId)}/actions/rescrape`,
       adultId ? { adultId } : undefined,
     ),
@@ -272,11 +273,14 @@ export const upgrade = {
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
 export const tasks = {
-  list: (params?: { status?: string; statuses?: string[]; actionType?: string; q?: string; page?: number; pageSize?: number }) => {
+  list: (params?: { status?: string; statuses?: string[]; attention?: string; actionType?: string; bridgeKind?: string; operationKind?: string; q?: string; page?: number; pageSize?: number }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.statuses?.length) qs.set('statuses', params.statuses.join(','));
+    if (params?.attention) qs.set('attention', params.attention);
     if (params?.actionType) qs.set('actionType', params.actionType);
+    if (params?.bridgeKind) qs.set('bridgeKind', params.bridgeKind);
+    if (params?.operationKind) qs.set('operationKind', params.operationKind);
     if (params?.q) qs.set('q', params.q);
     if (params?.page) qs.set('page', String(params.page));
     if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
@@ -297,6 +301,8 @@ export const tasks = {
   pause: (id: string) => post<{ id: string; status: string }>(`/v1/tasks/${id}/actions/pause`),
 
   execute: (id: string) => post<{ id: string; status: string }>(`/v1/tasks/${id}/actions/execute`),
+
+  retry: (id: string) => post<{ id: string; status: string }>(`/v1/tasks/${id}/actions/retry`),
 
   confirm: (id: string, confirmData?: Record<string, unknown>) =>
     patch<{ id: string; status: string }>(`/v1/tasks/${id}`, { confirmed: true, ...(confirmData ? { confirmData } : {}) }),
@@ -492,6 +498,10 @@ export const spaceStats = {
   get: () => get<SpaceStats>('/v1/space-stats'),
 };
 
+export const dashboardHealth = {
+  get: () => get<DashboardHealthSummary>('/v1/admin/dashboard/health'),
+};
+
 // ── Nodes ──────────────────────────────────────────────────────────────────────
 
 export interface NodeInfo {
@@ -585,12 +595,13 @@ export const libraryApi = {
     userRating?: string;
     task?: string;
     scrape?: string;
+    lifecycle?: string;
   }) => {
     const q = new URLSearchParams();
     if (options?.subLibraryId) q.set('subLibraryId', options.subLibraryId);
     if (options?.limit) q.set('limit', String(options.limit));
     if (options?.offset) q.set('offset', String(options.offset));
-    for (const key of ['search', 'action', 'resolution', 'codec', 'watched', 'bluRay', 'douban', 'userRating', 'task', 'scrape'] as const) {
+    for (const key of ['search', 'action', 'resolution', 'codec', 'watched', 'bluRay', 'douban', 'userRating', 'task', 'scrape', 'lifecycle'] as const) {
       const value = options?.[key];
       if (value && value !== 'all') q.set(key, value);
     }
@@ -618,14 +629,14 @@ export const taskApi = {
     return Array.isArray(data) ? data : data.tasks ?? [];
   },
 
-  createByIntent: async (body: { itemId: string; actionType: string }): Promise<MediaTask> => {
+  createByIntent: async (body: { itemId: string; actionType?: string; bridgeKind?: string; preferredOperation?: string }): Promise<MediaTask> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const key = apiKey();
     if (key) headers['x-api-key'] = key;
     const r = await fetch('/v1/tasks', { method: 'POST', headers, body: JSON.stringify(body) });
     if (r.status === 409) {
       const b = await r.json().catch(() => ({}));
-      throw new ApiConflictError(b.code || 'CONFLICT', b.error?.message || b.message || 'Conflict');
+      throw new ApiConflictError(b.error?.code || b.code || 'CONFLICT', b.error?.message || b.message || 'Conflict');
     }
     if (!r.ok) {
       const b = await r.json().catch(() => ({}));

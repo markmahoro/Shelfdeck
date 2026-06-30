@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adult, tasks, systemConfig } from '../api/client';
 import type { TaskReport } from '../api/client';
-import type { MediaTask, TaskItemInfo, VerifyResult, UpgradeCandidate } from '../types';
+import type { MediaTask, TaskControlAction, TaskControlState, TaskItemInfo, VerifyResult, UpgradeCandidate } from '../types';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -41,7 +41,7 @@ const STATUS_LABELS: Record<string, string> = {
   deleted: '已移除',
 };
 
-const ACTION_TYPE_LABELS: Record<string, string> = {
+const OPERATION_LABELS: Record<string, string> = {
   ingest: '入库',
   transcode: '转码压缩',
   delete: '删除',
@@ -58,18 +58,18 @@ const REPORT_LABELS: Record<string, string> = {
 };
 
 const BRIDGE_LABELS: Record<string, string> = {
-  metadata: 'Metadata',
-  optimize: 'Optimize',
-  archive: 'Archive',
+  metadata: '补元数据',
+  optimize: '优化',
+  archive: '归档',
 };
 
 const RESOURCE_LABELS: Record<string, string> = {
-  local_transcode: 'Local transcode',
-  worker_transcode: 'Worker transcode',
+  local_transcode: '本机转码',
+  worker_transcode: '远程转码',
   moviepilot: 'MoviePilot',
-  scraper: 'Metadata scraper',
-  local_ai: 'Local AI',
-  filesystem: 'Filesystem',
+  scraper: '元数据抓取',
+  local_ai: '本机 AI',
+  filesystem: '文件系统',
   service_api: 'Service API',
 };
 
@@ -83,7 +83,11 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   'task.paused': '暂停',
   'task.resumed': '恢复',
   'task.interrupted': '中断',
+  'task.restart_interrupted': '重启后中断恢复',
+  'task.restart_recovery_queued': '重启后重新排队',
+  'task.restart_recovery_failed': '重启恢复失败',
   'task.retry_recorded': '重试记录',
+  'task.retry_requested': '请求重试',
   'task.failed': '失败',
   'task.manual_execute_requested': '手动启动',
 };
@@ -132,7 +136,95 @@ const RESUME_POINT_APPROVAL_LABELS: Record<string, string> = {
   upgrade_replace: '洗版替换确认',
 };
 
+const CONTROL_STATE_LABELS: Record<string, string> = {
+  ready_to_start: '可启动',
+  queued: '排队中',
+  running: '执行中',
+  pausing: '暂停中',
+  paused: '已暂停',
+  interrupted: '可恢复',
+  awaiting_confirmation: '等待确认',
+  terminal: '已结束',
+  unknown: '未知',
+};
+
+const CONTROL_REASON_LABELS: Record<string, string> = {
+  available: '可执行',
+  already_active: '任务正在推进',
+  already_paused: '任务已暂停',
+  confirmation_required: '等待确认后才能继续',
+  failed_task_retry_available: '可从失败点重试',
+  retry_limit_reached: '已达到重试上限',
+  unknown_resume_point: '恢复点不在当前 flow 合约内',
+  unsupported_flow: '当前 flow 未定义恢复合约',
+  terminal_task: '任务已结束',
+  not_awaiting_confirmation: '当前不需要确认',
+  retry_not_required: '当前不需要重试',
+  not_failed_or_interrupted: '当前不需要恢复',
+  status_not_cancellable: '当前状态不能取消',
+  status_not_executable: '当前状态不能启动',
+  status_not_pausable: '当前状态不能暂停',
+};
+
+const CONTROL_EFFECT_LABELS: Record<string, string> = {
+  queue_for_scheduler_dispatch: '提交给调度器排队执行',
+  resume_from_pause: '从暂停状态恢复执行',
+  resume_after_interruption: '从中断点继续执行',
+  clear_pause_request: '撤销暂停请求',
+  request_runtime_pause_and_cleanup_partial_work: '请求运行中的 flow 暂停并清理临时产物',
+  move_waiting_task_to_paused: '把等待中的任务移入暂停状态',
+  store_confirmation_and_queue_task: '保存确认结果并回到队列',
+  cancel_runtime_then_remove_task: '取消运行态并移除任务记录',
+  remove_waiting_task: '移除等待中的任务',
+  remove_task_history_record: '只移除任务中心里的历史记录',
+  queue_failed_task_from_resume_point: '按恢复点重新排队同一个任务',
+  queue_failed_task_from_flow_start: '从当前 flow 起点重新排队同一个任务',
+  scheduler_or_executor_already_owns_task: '调度器或执行器已经接管任务',
+  blocked_until_user_confirms: '用户确认前不会继续推进',
+  cannot_execute_terminal_task: '终态任务不能再启动',
+  cannot_pause_terminal_task: '终态任务不能暂停',
+  retry_only_applies_to_interrupted_or_failed_tasks: '只有中断或失败任务需要重试',
+  recovery_not_required: '当前不需要恢复',
+  flow_has_no_recovery_contract: '该 flow 没有可执行恢复合约',
+  resume_point_not_in_flow_recovery_contract: '当前恢复点不在 flow 恢复合约内',
+  manual_recovery_retry_limit_reached: '已达到手动恢复重试上限',
+};
+
+const RECOVERY_STATE_LABELS: Record<string, string> = {
+  retry_available: '可重试',
+  resume_available: '可恢复',
+  waiting_for_user_confirmation: '等待用户确认',
+  flow_specific_recovery_required: '需要查看事件后处理',
+  terminal: '已结束',
+  not_needed: '无需恢复',
+};
+
+const INTENT_MODE_LABELS: Record<string, string> = {
+  bridge_intent: '按桥梁意图创建',
+  action_type_compatibility: '兼容旧操作创建',
+  adult_rescrape: '成人条目重刮入口',
+};
+
 const TERMINAL_TASK_STATUSES = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
+const ATTENTION_QUEUE_ORDER = ['needs_action', 'confirmation', 'recovery', 'manual_start'];
+const ATTENTION_QUEUE_FALLBACKS: Record<string, { label: string; hint: string }> = {
+  needs_action: {
+    label: '需要处理',
+    hint: '等待确认、可恢复、可重试和待手动启动',
+  },
+  confirmation: {
+    label: '等待确认',
+    hint: '需要用户确认后继续',
+  },
+  recovery: {
+    label: '可恢复/重试',
+    hint: '暂停、中断或失败后可继续处理',
+  },
+  manual_start: {
+    label: '待手动启动',
+    hint: '需要用户手动开始后进入调度队列',
+  },
+};
 
 function reportButtonLabel(task: MediaTask) {
   if (task.actionType === 'scrape' && task.status === 'failed_hard') return '识别报告';
@@ -154,14 +246,22 @@ function formatItemName(itemInfo?: TaskItemInfo): string {
 }
 
 function approvalLabel(task: MediaTask): string {
-  const gateId = task.approval?.gateId;
+  const gateId = task.controlState?.confirmation.gateId || task.approval?.gateId;
   if (gateId && APPROVAL_GATE_LABELS[gateId]) return APPROVAL_GATE_LABELS[gateId];
-  if (task.resumePoint && RESUME_POINT_APPROVAL_LABELS[task.resumePoint]) return RESUME_POINT_APPROVAL_LABELS[task.resumePoint];
+  const resumePoint = task.controlState?.confirmation.resumePoint || task.resumePoint;
+  if (resumePoint && RESUME_POINT_APPROVAL_LABELS[resumePoint]) return RESUME_POINT_APPROVAL_LABELS[resumePoint];
   return task.approval?.title || '等待用户确认';
 }
 
 function approvalMatches(task: MediaTask, gateId: string, legacyResumePoint: string): boolean {
-  return task.approval?.gateId === gateId || task.resumePoint === legacyResumePoint;
+  return task.controlState?.confirmation.gateId === gateId
+    || task.approval?.gateId === gateId
+    || task.controlState?.confirmation.resumePoint === legacyResumePoint
+    || task.resumePoint === legacyResumePoint;
+}
+
+function isAwaitingConfirmation(task: MediaTask): boolean {
+  return !!(task.controlState?.confirmation.required || task.status === 'awaiting_user_confirm');
 }
 
 function hasSpecialApprovalCard(task: MediaTask): boolean {
@@ -203,7 +303,9 @@ function formatEventTime(value?: string): string {
 export default function TaskMonitorPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const [attentionPreset, setAttentionPreset] = useState('');
+  const [bridgeFilter, setBridgeFilter] = useState('');
+  const [operationFilter, setOperationFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [selectedTask, setSelectedTask] = useState<MediaTask | null>(null);
@@ -219,10 +321,11 @@ export default function TaskMonitorPage() {
   const PAGE_SIZE = 20;
 
   const { data: taskData, isLoading, isFetching } = useQuery({
-    queryKey: ['admin-tasks', statusFilter, typeFilter, searchQuery, page],
+    queryKey: ['admin-tasks', statusFilter, attentionPreset, bridgeFilter, operationFilter, searchQuery, page],
     queryFn: () => tasks.list({
-      ...(statusFilter ? { status: statusFilter } : {}),
-      ...(typeFilter ? { actionType: typeFilter } : {}),
+      ...(attentionPreset ? { attention: attentionPreset } : statusFilter ? { status: statusFilter } : {}),
+      ...(bridgeFilter ? { bridgeKind: bridgeFilter } : {}),
+      ...(operationFilter ? { operationKind: operationFilter } : {}),
       ...(searchQuery ? { q: searchQuery } : {}),
       page,
       pageSize: PAGE_SIZE,
@@ -276,6 +379,12 @@ export default function TaskMonitorPage() {
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
+  const retryMut = useMutation({
+    mutationFn: tasks.retry,
+    onSuccess: (data) => { invalidate(); setAlert({ type: 'success', msg: `任务状态：${STATUS_LABELS[data.status] || data.status}` }); },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+
   const confirmMut = useMutation({
     mutationFn: (params: { id: string; confirmData?: Record<string, unknown> }) =>
       tasks.confirm(params.id, params.confirmData),
@@ -298,27 +407,40 @@ export default function TaskMonitorPage() {
 
   const taskList: MediaTask[] = taskData?.tasks || [];
   const displayTask = detailData || selectedTask;
+  const attentionQueues = ATTENTION_QUEUE_ORDER.map((key) => ({
+    key,
+    ...ATTENTION_QUEUE_FALLBACKS[key],
+    ...(fullTaskData?.summary?.attention?.[key] || {}),
+    count: Number(fullTaskData?.summary?.attention?.[key]?.count || 0),
+  }));
 
   function emptyTaskText(): string {
-    if (!typeFilter) return '当前没有符合筛选条件的任务';
-    const label = ACTION_TYPE_LABELS[typeFilter] || typeFilter;
+    if (attentionPreset) {
+      const preset = attentionQueues.find((queue) => queue.key === attentionPreset)
+        || { label: attentionPreset, hint: '符合后端处理队列定义' };
+      return `当前没有「${preset.label}」任务。${preset.hint} 的任务会出现在这里。`;
+    }
+    if (!bridgeFilter && !operationFilter) return '当前没有符合筛选条件的任务桥。';
+    const bridge = bridgeFilter ? (BRIDGE_LABELS[bridgeFilter] || bridgeFilter) : '';
+    const operation = operationFilter ? (OPERATION_LABELS[operationFilter] || operationFilter) : '';
+    const label = [bridge, operation].filter(Boolean).join(' / ');
     const enabledActions = sysCfg?.smartTaskEnabledActions || [];
-    if (!enabledActions.includes(typeFilter)) {
-      if (typeFilter === 'scrape') {
-        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务；具体影片仍可手动重新刮削。`;
+    if (operationFilter && !enabledActions.includes(operationFilter)) {
+      if (operationFilter === 'scrape') {
+        return `当前没有${label}桥梁。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作；具体影片仍可手动重新刮削。`;
       }
-      if (typeFilter === 'ingest') {
-        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务，后台来源不会自动进入任务中心。`;
+      if (operationFilter === 'ingest') {
+        return `当前没有${label}桥梁。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作，后台来源不会自动进入任务中心。`;
       }
-      return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${label}任务，媒体库里的${label}推荐不会自动进入任务中心。`;
+      return `当前没有${label}桥梁。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作，媒体库里的对应建议不会自动进入任务中心。`;
     }
-    if (typeFilter === 'scrape') {
-      return `当前没有${label}任务。可能没有待刮削条目，或已被冷却时间、去重规则、队列上限拦截。`;
+    if (operationFilter === 'scrape') {
+      return `当前没有${label}桥梁。可能没有待刮削条目，或已被冷却时间、去重规则、队列上限拦截。`;
     }
-    if (typeFilter === 'ingest') {
-      return `当前没有${label}任务。可能没有新文件，或已被冷却时间、去重规则、队列上限拦截。`;
+    if (operationFilter === 'ingest') {
+      return `当前没有${label}桥梁。可能没有新文件，或已被冷却时间、去重规则、队列上限拦截。`;
     }
-    return `当前没有${label}任务。若媒体库仍有${label}推荐，可能被冷却时间、去重规则、队列上限或已优化状态拦截。`;
+    return `当前没有${label}桥梁。若媒体库仍有对应推荐，可能被冷却时间、去重规则、队列上限或已完成闭环状态拦截。`;
   }
 
   function openDetail(task: MediaTask) {
@@ -331,7 +453,7 @@ export default function TaskMonitorPage() {
     const label = dim.label || dim.key;
     const value = Number(dim.value) || 0;
     const signed = value > 0 ? `+${value}` : `${value}`;
-    if (dim.key === 'actionType') return `${label}（${ACTION_TYPE_LABELS[String(dim.actionType || '')] || dim.actionType || '未知'}） ${signed}`;
+    if (dim.key === 'actionType') return `${label}（${OPERATION_LABELS[String(dim.actionType || '')] || dim.actionType || '未知'}） ${signed}`;
     if (dim.key === 'retry') return `${label}（${dim.retryCount || 0} 次） ${signed}`;
     return `${label} ${signed}`;
   }
@@ -360,61 +482,290 @@ export default function TaskMonitorPage() {
     return `${mb.toFixed(1)} MB`;
   }
 
-  function renderActions(t: MediaTask) {
-    const btns: React.ReactNode[] = [];
-    if (t.status === 'executing') {
-      btns.push(<button key="pause" onClick={() => pauseMut.mutate(t.id)} style={warnBtn}>暂停</button>);
-      btns.push(<button key="cancel" onClick={() => removeTask(t)} style={{ ...warnBtn, background: '#e74c3c' }}>取消任务</button>);
+  function controlStateLabel(value?: string): string {
+    if (!value) return '—';
+    return CONTROL_STATE_LABELS[value] || value;
+  }
+
+  function reasonLabel(value?: string): string {
+    if (!value) return '—';
+    return CONTROL_REASON_LABELS[value] || value;
+  }
+
+  function effectLabel(value?: string): string {
+    if (!value) return '—';
+    return CONTROL_EFFECT_LABELS[value] || value;
+  }
+
+  function recoveryStateLabel(value?: string): string {
+    if (!value) return '—';
+    return RECOVERY_STATE_LABELS[value] || value;
+  }
+
+  function operationLabel(value?: string): string {
+    if (!value) return '—';
+    return OPERATION_LABELS[value] || value;
+  }
+
+  function intentModeLabel(value?: string): string {
+    if (!value) return '历史任务';
+    return INTENT_MODE_LABELS[value] || value;
+  }
+
+  function actionPending(key: string): boolean {
+    if (key === 'execute') return executeMut.isPending;
+    if (key === 'pause') return pauseMut.isPending;
+    if (key === 'retry') return retryMut.isPending;
+    if (key === 'confirm') return confirmMut.isPending;
+    if (key === 'cancel') return deleteMut.isPending;
+    return false;
+  }
+
+  function hasSpecialConfirmation(task: MediaTask): boolean {
+    return isAwaitingConfirmation(task) && hasSpecialApprovalCard(task);
+  }
+
+  function performControlAction(task: MediaTask, key: 'execute' | 'pause' | 'retry' | 'confirm' | 'cancel') {
+    if (key === 'execute') executeMut.mutate(task.id);
+    if (key === 'pause') pauseMut.mutate(task.id);
+    if (key === 'retry') retryMut.mutate(task.id);
+    if (key === 'confirm') {
+      if (hasSpecialConfirmation(task)) {
+        openDetail(task);
+        return;
+      }
+      if (confirm(`确认：${approvalLabel(task)}？`)) confirmMut.mutate({ id: task.id });
     }
-    if (t.status === 'pausing') {
-      btns.push(<button key="pausing" disabled style={{ ...warnBtn, opacity: 0.6, cursor: 'not-allowed' }}>暂停中</button>);
+    if (key === 'cancel') removeTask(task);
+  }
+
+  function actionButtonStyle(action: TaskControlAction, key: string): React.CSSProperties {
+    if (key === 'cancel') {
+      return action.destructive ? { ...dangerInlineBtn } : deleteBtn;
     }
-    if (t.status === 'paused' || t.status === 'pending_manual' || t.status === 'created') {
-      const executeLabel = t.status === 'paused' ? '继续' : '启动';
-      btns.push(<button key="exec" onClick={() => executeMut.mutate(t.id)} style={execBtn}>{executeLabel}</button>);
-      btns.push(<button key="cancel" onClick={() => removeTask(t)} style={{ ...warnBtn, background: '#e74c3c' }}>取消任务</button>);
+    if (key === 'pause') return warnBtn;
+    if (key === 'confirm' || key === 'execute' || key === 'retry') return execBtn;
+    return actionBtn;
+  }
+
+  function renderControlButton(task: MediaTask, key: 'execute' | 'pause' | 'retry' | 'confirm' | 'cancel', action: TaskControlAction) {
+    if (!action.enabled) return null;
+    if (key === 'confirm' && hasSpecialConfirmation(task)) {
+      const label = approvalMatches(task, 'upgrade.candidateSelect', 'upgrade_executing')
+        ? '选择版本'
+        : '查看确认';
+      return (
+        <button
+          key={key}
+          onClick={() => openDetail(task)}
+          style={execBtn}
+          title={effectLabel(action.effect)}
+        >
+          {label}
+        </button>
+      );
     }
-    if (t.status === 'done') {
-      btns.push(<button key="report" onClick={() => {
-        setReportTask(t.id);
+    const pending = actionPending(key);
+    return (
+      <button
+        key={key}
+        onClick={() => performControlAction(task, key)}
+        disabled={pending}
+        style={{ ...actionButtonStyle(action, key), opacity: pending ? 0.6 : 1, cursor: pending ? 'not-allowed' : 'pointer' }}
+        title={effectLabel(action.effect)}
+      >
+        {pending ? '提交中...' : action.label || key}
+      </button>
+    );
+  }
+
+  function renderControlActions(task: MediaTask, opts: { includeCancel?: boolean; detail?: boolean } = {}) {
+    const control = task.controlState;
+    if (!control) return null;
+    const order: Array<'confirm' | 'execute' | 'retry' | 'pause' | 'cancel'> = ['confirm', 'execute', 'retry', 'pause'];
+    if (opts.includeCancel) order.push('cancel');
+    return order
+      .map((key) => renderControlButton(task, key, control.actions[key]))
+      .filter(Boolean);
+  }
+
+  function controlHint(task: MediaTask): string {
+    const control = task.controlState;
+    if (!control) return '';
+    const primary = control.primaryAction ? control.actions[control.primaryAction as keyof TaskControlState['actions']] : null;
+    if (primary && primary.enabled) return effectLabel(primary.effect);
+    if (control.recovery?.state && control.recovery.state !== 'not_needed') {
+      return `${recoveryStateLabel(control.recovery.state)}：${reasonLabel(control.recovery.reason)}`;
+    }
+    if (control.confirmation?.required) return control.confirmation.message || '等待用户确认后继续。';
+    return controlStateLabel(control.state);
+  }
+
+  function reportButton(task: MediaTask) {
+    return (
+      <button key="report" onClick={() => {
+        setReportTask(task.id);
         setReportLoading(true);
         import('../api/client').then(({ tasks: tk }) => {
-          tk.report(t.id).then(data => { setReportData(data); setReportLoading(false); });
+          tk.report(task.id).then(data => { setReportData(data); setReportLoading(false); });
         });
-      }} style={execBtn}>{reportButtonLabel(t)}</button>);
+      }} style={execBtn}>{reportButtonLabel(task)}</button>
+    );
+  }
+
+  function renderActions(t: MediaTask) {
+    const btns: React.ReactNode[] = [];
+    btns.push(...(renderControlActions(t, { includeCancel: true }) || []));
+    if (t.status === 'done') {
+      btns.push(reportButton(t));
       if (t.actionType === 'scrape') {
         btns.push(<button key="fix-scrape-done" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
       }
     }
     if (t.status === 'failed_hard' && t.actionType === 'scrape') {
-      btns.push(<button key="scrape-report" onClick={() => {
-        setReportTask(t.id);
-        setReportLoading(true);
-        import('../api/client').then(({ tasks: tk }) => {
-          tk.report(t.id).then(data => { setReportData(data); setReportLoading(false); });
-        });
-      }} style={execBtn}>{reportButtonLabel(t)}</button>);
+      btns.push(reportButton(t));
       btns.push(<button key="fix-scrape" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
-    }
-    if (t.status === 'awaiting_user_confirm') {
-      if (approvalMatches(t, 'transcode.beforeReplace', 'transcode_replace') && t.verifyResult) {
-        btns.push(<button key="compare" onClick={() => openDetail(t)} style={execBtn}>查看对比</button>);
-      } else if (approvalMatches(t, 'upgrade.candidateSelect', 'upgrade_executing')) {
-        btns.push(<button key="select" onClick={() => openDetail(t)} style={execBtn}>选择版本</button>);
-      } else if (approvalMatches(t, 'upgrade.beforeReplace', 'upgrade_replace')) {
-        btns.push(<button key="compare" onClick={() => openDetail(t)} style={execBtn}>查看对比</button>);
-      } else {
-        btns.push(<button key="confirm" onClick={() => { if (confirm(`确认：${approvalLabel(t)}？`)) confirmMut.mutate({ id: t.id }); }} style={execBtn}>确认</button>);
-      }
     }
     return btns;
   }
 
-  function showRowRemoveButton(t: MediaTask) {
-    return isTerminalTask(t)
-      || t.status === 'queued'
-      || t.status === 'pausing'
-      || t.status === 'awaiting_user_confirm';
+  function renderControlStateCard(task: MediaTask) {
+    const control = task.controlState;
+    if (!control) return null;
+    const actions = Object.entries(control.actions) as Array<[keyof TaskControlState['actions'], TaskControlAction]>;
+    const latest = control.latestEvent;
+    return (
+      <div style={{ background: '#f8fafc', border: '1px solid #dbe7f3', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#16324f', marginBottom: 4 }}>控制状态</div>
+            <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.6 }}>
+              {controlStateLabel(control.state)}
+              {control.resumePoint ? ` · 恢复点 ${control.resumePoint}` : ''}
+              {control.retryCount ? ` · 已重试 ${control.retryCount} 次` : ''}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {renderControlActions(task, { includeCancel: false, detail: true })}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div style={controlMiniPanel}>
+            <div style={controlMiniLabel}>恢复建议</div>
+            <div style={controlMiniValue}>{recoveryStateLabel(control.recovery.state)}</div>
+            <div style={controlMiniText}>
+              {reasonLabel(control.recovery.reason)}
+              {control.recovery.resumePoint ? `；从 ${control.recovery.resumePoint} 继续` : ''}
+            </div>
+          </div>
+          <div style={controlMiniPanel}>
+            <div style={controlMiniLabel}>确认点</div>
+            <div style={controlMiniValue}>{control.confirmation.required ? (APPROVAL_GATE_LABELS[control.confirmation.gateId] || approvalLabel(task)) : '无需确认'}</div>
+            <div style={controlMiniText}>{control.confirmation.message || effectLabel(control.confirmation.effect)}</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8 }}>
+          {actions.map(([key, action]) => (
+            <div key={key} style={{ background: '#fff', border: '1px solid #e5edf5', borderRadius: 6, padding: '8px 10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>{action.label || key}</span>
+                <span style={{ fontSize: 12, color: action.enabled ? '#167a3f' : '#8a5b1f', fontWeight: 700 }}>
+                  {action.enabled ? '可用' : reasonLabel(action.reason)}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>{effectLabel(action.effect)}</div>
+            </div>
+          ))}
+        </div>
+
+        {latest && (
+          <div style={{ marginTop: 10, fontSize: 12, color: '#64748b' }}>
+            最近事件：{eventTypeLabel(latest.eventType)} · {latest.createdAt ? new Date(latest.createdAt).toLocaleString() : '—'}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderConfirmationConsole(task: MediaTask) {
+    const confirmation = task.controlState?.confirmation;
+    if (!confirmation?.required) return null;
+    const special = hasSpecialApprovalCard(task);
+    const options = Array.isArray(confirmation.options) ? confirmation.options : [];
+    return (
+      <div style={{ background: '#fff7ed', borderRadius: 8, padding: 12, marginBottom: 16, border: '1px solid #fed7aa' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#9a3412', marginBottom: 4 }}>
+              确认台 · {approvalLabel(task)}
+              {task.approval?.mode === 'forceConfirm' ? '（强制确认）' : ''}
+            </div>
+            <div style={{ fontSize: 12, color: '#7c2d12', lineHeight: 1.6 }}>
+              {confirmation.message || task.approval?.message || '任务正在等待用户确认后继续。'}
+            </div>
+          </div>
+          {!special && (
+            <button
+              onClick={() => { if (confirm(`确认：${approvalLabel(task)}？`)) confirmMut.mutate({ id: task.id }); }}
+              disabled={confirmMut.isPending}
+              style={{ ...execBtn, marginRight: 0 }}
+            >
+              {confirmMut.isPending ? '确认中...' : (task.controlState?.actions.confirm.label || '确认并继续')}
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+          {confirmation.gateId && <span style={confirmChip}>Gate: {APPROVAL_GATE_LABELS[confirmation.gateId] || confirmation.gateId}</span>}
+          {confirmation.resumePoint && <span style={confirmChip}>恢复点: {confirmation.resumePoint}</span>}
+          <span style={confirmChip}>{effectLabel(confirmation.effect)}</span>
+          {special && <span style={confirmChip}>在下方确认卡里完成选择或对比</span>}
+        </div>
+        {options.length > 0 && (
+          <div style={{ marginTop: 8, fontSize: 12, color: '#7c2d12' }}>
+            选项：{options.map((option) => {
+              if (typeof option === 'string') return option;
+              if (option && typeof option === 'object' && 'label' in option) return String((option as { label?: unknown }).label || '');
+              return JSON.stringify(option);
+            }).filter(Boolean).join('、')}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderIntentCard(task: MediaTask) {
+    const intent = task.requestedIntent;
+    const bridgeKind = intent?.bridgeKind || task.taskBridge?.kind || task.flowPlan?.bridgeKind || '';
+    const preferredOperation = intent?.preferredOperation || '';
+    const legacyAction = intent?.actionType || '';
+    const resolvedOperation = task.flowPlan?.operationKind || task.actionType;
+    const intentMode = intent?.intentMode || (intent ? 'bridge_intent' : '');
+    if (!intent && !task.taskBridge && !task.flowPlan) return null;
+
+    return (
+      <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>用户意图与解析结果</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={intentPanel}>
+            <div style={controlMiniLabel}>用户提交</div>
+            <div style={intentRow}><strong>创建方式</strong><span>{intentModeLabel(intentMode)}</span></div>
+            <div style={intentRow}><strong>目标桥梁</strong><span>{bridgeLabel(bridgeKind)}</span></div>
+            <div style={intentRow}><strong>偏好操作</strong><span>{preferredOperation ? operationLabel(preferredOperation) : legacyAction ? operationLabel(legacyAction) : '按当前推荐'}</span></div>
+          </div>
+          <div style={intentPanel}>
+            <div style={controlMiniLabel}>后端解析</div>
+            <div style={intentRow}><strong>实际桥梁</strong><span>{bridgeLabel(task.taskBridge?.kind || task.flowPlan?.bridgeKind)}</span></div>
+            <div style={intentRow}><strong>实际操作</strong><span>{operationLabel(resolvedOperation)}</span></div>
+            <div style={intentRow}><strong>Flow direction</strong><span>{task.flowPlan?.direction || '—'}</span></div>
+          </div>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+          任务执行、确认和恢复都以右侧解析结果为准；左侧保留用户最初想推进的业务桥。
+        </div>
+      </div>
+    );
   }
 
   function renderCompareTable(orig: TaskItemInfo, result: VerifyResult) {
@@ -517,7 +868,7 @@ export default function TaskMonitorPage() {
           {Object.entries(fullTaskData.summary.byStatus || {}).map(([k, v]) => (
             <button
               key={k}
-              onClick={() => { setStatusFilter(k); setPage(1); }}
+              onClick={() => { setStatusFilter(k); setAttentionPreset(''); setPage(1); }}
               style={{
                 ...summaryBadge,
                 background: (STATUS_COLORS[k] || '#999') + '20',
@@ -532,7 +883,41 @@ export default function TaskMonitorPage() {
         </div>
       )}
 
-      {/* Filters */}
+      <div style={{ background: '#fff', border: '1px solid #eef0f4', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>处理队列</div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 3 }}>把需要人工推进的任务先捞出来</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {attentionQueues.map((queue) => {
+              const active = attentionPreset === queue.key;
+              return (
+                <button
+                  key={queue.key}
+                  type="button"
+                  onClick={() => {
+                    setAttentionPreset(active ? '' : queue.key);
+                    setStatusFilter('');
+                    setPage(1);
+                  }}
+                  title={queue.hint}
+                  style={{
+                    ...attentionBtn,
+                    background: active ? '#1a1a2e' : '#fff',
+                    color: active ? '#fff' : '#1a1a2e',
+                    borderColor: active ? '#1a1a2e' : '#d7dbe3',
+                  }}
+                >
+                  {queue.label}
+                  <span style={{ fontVariantNumeric: 'tabular-nums', opacity: active ? 0.9 : 0.65 }}> {queue.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
         <input
           type="text"
@@ -541,19 +926,25 @@ export default function TaskMonitorPage() {
           placeholder="搜索影片名称..."
           style={{ padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 12, width: 220 }}
         />
-        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={selectStyle}>
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setAttentionPreset(''); setPage(1); }} style={selectStyle}>
           <option value="">全部状态</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
-        <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} style={selectStyle}>
-          <option value="">全部类型</option>
+        <select value={bridgeFilter} onChange={(e) => { setBridgeFilter(e.target.value); setPage(1); }} style={selectStyle}>
+          <option value="">全部桥梁</option>
+          <option value="metadata">补元数据</option>
+          <option value="optimize">优化</option>
+          <option value="archive">归档</option>
+        </select>
+        <select value={operationFilter} onChange={(e) => { setOperationFilter(e.target.value); setPage(1); }} style={selectStyle}>
+          <option value="">全部 flow 操作</option>
           <option value="ingest">入库</option>
-          <option value="transcode">转码压缩</option>
           <option value="scrape">刮削</option>
-          <option value="delete">删除</option>
+          <option value="transcode">转码压缩</option>
           <option value="upgrade">洗版</option>
+          <option value="delete">删除</option>
         </select>
       </div>
 
@@ -570,7 +961,8 @@ export default function TaskMonitorPage() {
             <thead>
               <tr style={{ background: '#f9fafb' }}>
                 <th style={thStyle}>影片</th>
-                <th style={thStyle}>类型</th>
+                <th style={thStyle}>桥梁</th>
+                <th style={thStyle}>Flow 操作</th>
                 <th style={thStyle}>状态</th>
                 <th style={thStyle}>阶段</th>
                 <th style={thStyle}>来源/审批/优先级</th>
@@ -585,7 +977,8 @@ export default function TaskMonitorPage() {
                   <td style={tdStyle}>
                     <span>{formatItemName(t.itemInfo) || t.itemName || t.itemId}</span>
                   </td>
-                  <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
+                  <td style={tdStyle}>{bridgeLabel(t.taskBridge?.kind || t.flowPlan?.bridgeKind)}</td>
+                  <td style={tdStyle}>{OPERATION_LABELS[t.flowPlan?.operationKind || t.actionType] || t.flowPlan?.operationKind || t.actionType}</td>
                   <td style={tdStyle}>
                     <span style={{ color: STATUS_COLORS[t.status] || '#999' }}>{STATUS_LABELS[t.status] || t.status}</span>
                   </td>
@@ -595,8 +988,8 @@ export default function TaskMonitorPage() {
                       <span style={{ color: t.source || t.itemInfo?.taskSource ? '#555' : '#999' }}>
                         {taskSourceLabel(t)}
                       </span>
-                      <span style={{ color: t.status === 'awaiting_user_confirm' ? '#e67e22' : '#888' }}>
-                        {t.status === 'awaiting_user_confirm' ? approvalLabel(t) : '—'}
+                      <span style={{ color: t.controlState?.requiresUserAction ? '#e67e22' : '#64748b' }}>
+                        {controlHint(t) || '—'}
                       </span>
                       <span style={{ fontSize: 11, color: '#999' }}>P{typeof t.priority === 'number' ? t.priority : 100}</span>
                     </div>
@@ -617,9 +1010,6 @@ export default function TaskMonitorPage() {
                   <td style={tdStyle}>
                     {renderActions(t)}
                     <button onClick={() => openDetail(t)} style={actionBtn}>详情</button>
-                    {showRowRemoveButton(t) && (
-                      <button onClick={() => removeTask(t)} style={deleteBtn}>{isTerminalTask(t) ? '移除记录' : '取消任务'}</button>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -652,33 +1042,38 @@ export default function TaskMonitorPage() {
       )}
 
       {/* Task Detail Modal */}
-      <Modal open={detailOpen} title="任务详情" onClose={() => { setDetailOpen(false); setSelectedTask(null); }} width={600}>
+      <Modal open={detailOpen} title="任务桥详情" onClose={() => { setDetailOpen(false); setSelectedTask(null); }} width={680}>
         {displayTask ? (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 12, marginBottom: 20 }}>
-              <div><strong>任务ID:</strong> {displayTask.id}</div>
+              <div><strong>任务 ID:</strong> {displayTask.id}</div>
               <div><strong>媒体项:</strong> {formatItemName(displayTask.itemInfo) || displayTask.itemId}</div>
-              <div><strong>类型:</strong> {ACTION_TYPE_LABELS[displayTask.actionType] || displayTask.actionType}</div>
+              <div><strong>桥梁:</strong> {bridgeLabel(displayTask.taskBridge?.kind || displayTask.flowPlan?.bridgeKind)}</div>
+              <div><strong>Flow 操作:</strong> {OPERATION_LABELS[displayTask.flowPlan?.operationKind || displayTask.actionType] || displayTask.flowPlan?.operationKind || displayTask.actionType}</div>
               <div><strong>状态:</strong> <span style={{ color: STATUS_COLORS[displayTask.status] }}>{STATUS_LABELS[displayTask.status] || displayTask.status}</span></div>
               <div><strong>阶段:</strong> {PHASE_LABELS[displayTask.phase || ''] || displayTask.phase || '—'}</div>
               <div><strong>进度:</strong> {Math.round(displayTask.progress || 0)}%</div>
               <div><strong>来源:</strong> {taskSourceLabel(displayTask)}</div>
               <div><strong>优先级:</strong> {typeof displayTask.priority === 'number' ? displayTask.priority : 100}</div>
-              <div><strong>审批节点:</strong> {displayTask.status === 'awaiting_user_confirm' ? approvalLabel(displayTask) : '—'}</div>
+              <div><strong>审批节点:</strong> {isAwaitingConfirmation(displayTask) ? approvalLabel(displayTask) : '—'}</div>
               <div><strong>创建时间:</strong> {displayTask.createdAt ? new Date(displayTask.createdAt).toLocaleString() : '—'}</div>
               <div><strong>更新时间:</strong> {displayTask.updatedAt ? new Date(displayTask.updatedAt).toLocaleString() : '—'}</div>
             </div>
 
+            {renderControlStateCard(displayTask)}
+
+            {renderIntentCard(displayTask)}
+
             {(displayTask.taskBridge || displayTask.flowPlan) && (
               <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>Flow</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>Flow 编排</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', fontSize: 12, color: '#374151', marginBottom: 10 }}>
-                  <div><strong>Bridge:</strong> {bridgeLabel(displayTask.taskBridge?.kind || displayTask.flowPlan?.bridgeKind)}</div>
-                  <div><strong>Direction:</strong> {displayTask.flowPlan?.direction || '—'}</div>
-                  <div><strong>Operation:</strong> {displayTask.flowPlan?.operationKind || displayTask.actionType}</div>
-                  <div><strong>Executor:</strong> {displayTask.flowPlan?.executor || '—'}</div>
-                  <div><strong>Primary resource:</strong> {resourceLabel(displayTask.flowPlan?.primaryResourceType)}</div>
-                  <div><strong>Resources:</strong> {displayTask.flowPlan?.resourceTypes?.map(resourceLabel).join(', ') || '—'}</div>
+                  <div><strong>跨阶段桥梁:</strong> {bridgeLabel(displayTask.taskBridge?.kind || displayTask.flowPlan?.bridgeKind)}</div>
+                  <div><strong>Flow direction:</strong> {displayTask.flowPlan?.direction || '—'}</div>
+                  <div><strong>操作类型:</strong> {OPERATION_LABELS[displayTask.flowPlan?.operationKind || displayTask.actionType] || displayTask.flowPlan?.operationKind || displayTask.actionType}</div>
+                  <div><strong>执行器:</strong> {displayTask.flowPlan?.executor || '—'}</div>
+                  <div><strong>主要资源:</strong> {resourceLabel(displayTask.flowPlan?.primaryResourceType)}</div>
+                  <div><strong>资源集合:</strong> {displayTask.flowPlan?.resourceTypes?.map(resourceLabel).join(', ') || '—'}</div>
                 </div>
                 {(displayTask.flowPlan?.steps?.length || 0) > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -694,7 +1089,7 @@ export default function TaskMonitorPage() {
 
             {(displayTask.events?.length || 0) > 0 && (
               <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>Event history</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>Event 历史</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr>
@@ -736,17 +1131,7 @@ export default function TaskMonitorPage() {
               </div>
             ) : null}
 
-            {displayTask.status === 'awaiting_user_confirm' && (
-              <div style={{ background: '#fff7ed', borderRadius: 8, padding: 12, marginBottom: 16, border: '1px solid #fed7aa' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#9a3412', marginBottom: 4 }}>
-                  {approvalLabel(displayTask)}
-                  {displayTask.approval?.mode === 'forceConfirm' ? '（强制确认）' : ''}
-                </div>
-                <div style={{ fontSize: 12, color: '#7c2d12', lineHeight: 1.6 }}>
-                  {displayTask.approval?.message || '任务正在等待用户确认后继续。'}
-                </div>
-              </div>
-            )}
+            {renderConfirmationConsole(displayTask)}
 
             {/* Scrape completion/failure remediation card */}
             {(displayTask.status === 'failed_hard' || displayTask.status === 'done') && displayTask.actionType === 'scrape' && (
@@ -764,7 +1149,7 @@ export default function TaskMonitorPage() {
             )}
 
             {/* Replace confirm comparison card */}
-            {displayTask.status === 'awaiting_user_confirm' && approvalMatches(displayTask, 'transcode.beforeReplace', 'transcode_replace') && displayTask.verifyResult && displayTask.itemInfo && (
+            {isAwaitingConfirmation(displayTask) && approvalMatches(displayTask, 'transcode.beforeReplace', 'transcode_replace') && displayTask.verifyResult && displayTask.itemInfo && (
               <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
                 <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#1a1a2e' }}>转码结果对比</h4>
                 {renderCompareTable(displayTask.itemInfo, displayTask.verifyResult)}
@@ -789,7 +1174,7 @@ export default function TaskMonitorPage() {
             )}
 
             {/* Upgrade candidate selection card */}
-            {displayTask.status === 'awaiting_user_confirm' && approvalMatches(displayTask, 'upgrade.candidateSelect', 'upgrade_executing') && (
+            {isAwaitingConfirmation(displayTask) && approvalMatches(displayTask, 'upgrade.candidateSelect', 'upgrade_executing') && (
               <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
                 <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: '#1a1a2e' }}>选择洗版版本</h4>
                 <p style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
@@ -861,7 +1246,7 @@ export default function TaskMonitorPage() {
             )}
 
             {/* Upgrade replace confirm card */}
-            {displayTask.status === 'awaiting_user_confirm' && approvalMatches(displayTask, 'upgrade.beforeReplace', 'upgrade_replace') && displayTask.verifyResult && (
+            {isAwaitingConfirmation(displayTask) && approvalMatches(displayTask, 'upgrade.beforeReplace', 'upgrade_replace') && displayTask.verifyResult && (
               <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
                 <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#1a1a2e' }}>洗版结果对比</h4>
                 {renderUpgradeCompareTable(displayTask)}
@@ -903,30 +1288,18 @@ export default function TaskMonitorPage() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
               <div style={{ display: 'flex', gap: 8 }}>
-                {displayTask.status === 'executing' && (
-                  <button onClick={() => pauseMut.mutate(displayTask.id)} disabled={pauseMut.isPending} style={warnBtn}>
-                    {pauseMut.isPending ? '暂停中' : '暂停'}
-                  </button>
-                )}
-                {(displayTask.status === 'paused' || displayTask.status === 'pending_manual' || displayTask.status === 'created') && (
-                  <button onClick={() => executeMut.mutate(displayTask.id)} disabled={executeMut.isPending} style={execBtn}>
-                    {executeMut.isPending ? '提交中...' : displayTask.status === 'paused' ? '继续' : '启动'}
-                  </button>
-                )}
-                {displayTask.status === 'awaiting_user_confirm' && !hasSpecialApprovalCard(displayTask) && (
-                  <button onClick={() => { if (confirm(`确认：${approvalLabel(displayTask)}？`)) confirmMut.mutate({ id: displayTask.id }); }} disabled={confirmMut.isPending} style={execBtn}>
-                    {confirmMut.isPending ? '确认中...' : '确认'}
-                  </button>
-                )}
+                {renderControlActions(displayTask, { includeCancel: false, detail: true })}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => { setDetailOpen(false); setSelectedTask(null); }} style={secondaryBtn}>关闭</button>
-                <button
-                  onClick={() => removeTask(displayTask)}
-                  style={dangerBtn}
-                >
-                  {isTerminalTask(displayTask) ? '移除记录' : '取消任务'}
-                </button>
+                {displayTask.controlState?.actions.cancel.enabled && (
+                  <button
+                    onClick={() => removeTask(displayTask)}
+                    style={displayTask.controlState.actions.cancel.destructive ? dangerBtn : secondaryBtn}
+                  >
+                    {displayTask.controlState.actions.cancel.label || (isTerminalTask(displayTask) ? '移除记录' : '取消任务')}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1302,6 +1675,19 @@ const warnBtn: React.CSSProperties = {
   background: 'none', border: 'none', color: '#f39c12', cursor: 'pointer', fontSize: 12, marginRight: 8, fontWeight: 600,
 };
 
+const dangerInlineBtn: React.CSSProperties = {
+  background: 'none', border: 'none', color: '#c0392b', cursor: 'pointer', fontSize: 12, marginRight: 8, fontWeight: 700,
+};
+
+const attentionBtn: React.CSSProperties = {
+  border: '1px solid #d7dbe3',
+  borderRadius: 6,
+  padding: '6px 10px',
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: 'pointer',
+};
+
 const secondaryBtn: React.CSSProperties = {
   background: '#f0f0f0', color: '#333', border: 'none', padding: '8px 20px',
   borderRadius: 6, cursor: 'pointer', fontSize: 12,
@@ -1322,6 +1708,57 @@ const candidateTh: React.CSSProperties = {
 
 const compareTd: React.CSSProperties = {
   padding: '8px 12px', fontSize: 12,
+};
+
+const controlMiniPanel: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #e5edf5',
+  borderRadius: 6,
+  padding: '8px 10px',
+};
+
+const controlMiniLabel: React.CSSProperties = {
+  fontSize: 11,
+  color: '#64748b',
+  marginBottom: 4,
+};
+
+const controlMiniValue: React.CSSProperties = {
+  fontSize: 13,
+  color: '#16324f',
+  fontWeight: 700,
+  marginBottom: 4,
+};
+
+const controlMiniText: React.CSSProperties = {
+  fontSize: 12,
+  color: '#64748b',
+  lineHeight: 1.5,
+};
+
+const confirmChip: React.CSSProperties = {
+  fontSize: 12,
+  color: '#7c2d12',
+  background: '#ffedd5',
+  border: '1px solid #fed7aa',
+  borderRadius: 6,
+  padding: '4px 8px',
+};
+
+const intentPanel: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #e5edf5',
+  borderRadius: 6,
+  padding: '8px 10px',
+};
+
+const intentRow: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 12,
+  fontSize: 12,
+  color: '#374151',
+  padding: '3px 0',
 };
 
 const eventTh: React.CSSProperties = {

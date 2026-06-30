@@ -8,10 +8,14 @@ const os = require('os');
 const crypto = require('crypto');
 const { buildApp } = require('../src/app');
 const taskStore = require('../src/taskStore');
+const libraryStore = require('../src/libraryStore');
 const mediaLibraryService = require('../src/mediaLibraryService');
 const runtimeResourceTracker = require('../src/runtimeResourceTracker');
 const diagnosticLog = require('../src/diagnosticLog');
 const backgroundIoGuard = require('../src/backgroundIoGuard');
+const activityLog = require('../src/activityLog');
+const smartTaskEngine = require('../src/smartTaskEngine');
+const nodeStore = require('../src/nodeStore');
 
 function metadataReadyMovie(overrides = {}) {
   const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
@@ -233,11 +237,128 @@ test('POST /v1/tasks creates task and returns 201', async () => {
   assert.strictEqual(body.taskBridge.kind, 'optimize');
   assert.strictEqual(body.flowPlan.direction, 'optimize.transcode');
   assert.strictEqual(body.flowPlan.operationKind, 'transcode');
+  assert.strictEqual(body.admission.allowed, true);
+  assert.strictEqual(body.admission.operation, 'transcode');
+  assert.strictEqual(body.admission.reason, 'allowed');
+  assert.strictEqual(body.admission.bridgeKind, 'optimize');
+  assert.strictEqual(body.admission.intentMode, 'action_type_compatibility');
+  assert.strictEqual(body.admission.taskBridge.kind, 'optimize');
+  assert.strictEqual(body.admission.flowPlan.operationKind, 'transcode');
 
   const detail = await app.inject({ method: 'GET', url: `/v1/tasks/${body.id}?includeEvents=1` });
   assert.strictEqual(detail.statusCode, 200);
   assert.strictEqual(detail.json().taskBridge.kind, 'optimize');
   assert.ok(detail.json().events.some((event) => event.eventType === 'flow.planned'));
+  await app.close();
+});
+
+test('POST /v1/tasks accepts optimize bridge intent and resolves recommended operation', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'intent-upgrade-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Intent Upgrade Movie',
+      path: '/media/intent-upgrade.mkv',
+      action: 'upgrade',
+    })],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, bridgeKind: 'optimize' },
+  });
+  assert.strictEqual(res.statusCode, 201);
+  const body = res.json();
+  assert.strictEqual(body.actionType, 'upgrade');
+  assert.strictEqual(body.taskBridge.kind, 'optimize');
+  assert.strictEqual(body.flowPlan.operationKind, 'upgrade');
+  assert.strictEqual(body.admission.allowed, true);
+  assert.strictEqual(body.admission.operation, 'upgrade');
+  assert.strictEqual(body.admission.bridgeKind, 'optimize');
+  assert.strictEqual(body.admission.intentMode, 'bridge_intent');
+  assert.deepStrictEqual(body.requestedIntent, {
+    bridgeKind: 'optimize',
+    preferredOperation: '',
+    actionType: '',
+  });
+  await app.close();
+});
+
+test('POST /v1/tasks accepts archive bridge intent only with delete operation', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'intent-delete-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Intent Delete Movie',
+      path: '/media/intent-delete.mkv',
+      action: 'keep',
+    })],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, intent: { bridgeKind: 'archive', preferredOperation: 'delete' } },
+  });
+  assert.strictEqual(res.statusCode, 201);
+  const body = res.json();
+  assert.strictEqual(body.actionType, 'delete');
+  assert.strictEqual(body.taskBridge.kind, 'archive');
+  assert.strictEqual(body.flowPlan.operationKind, 'delete');
+  assert.strictEqual(body.admission.allowed, true);
+  assert.strictEqual(body.admission.operation, 'delete');
+  assert.strictEqual(body.admission.bridgeKind, 'archive');
+  assert.deepStrictEqual(body.requestedIntent, {
+    bridgeKind: 'archive',
+    preferredOperation: 'delete',
+    actionType: '',
+  });
+  await app.close();
+});
+
+test('POST /v1/tasks rejects ambiguous or mismatched bridge intents as validation errors', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'intent-keep-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Intent Keep Movie',
+      path: '/media/intent-keep.mkv',
+      action: 'keep',
+    })],
+  });
+
+  const missingOperation = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, bridgeKind: 'optimize' },
+  });
+  assert.strictEqual(missingOperation.statusCode, 400);
+  const missingBody = missingOperation.json();
+  assert.strictEqual(missingBody.error.message, 'preferred_operation_required');
+  assert.strictEqual(missingBody.admission.reason, 'preferred_operation_required');
+  assert.deepStrictEqual(missingBody.admission.supportedOperations, ['transcode', 'upgrade']);
+  assert.ok(missingBody.businessFlowDecision.allowedOperations.some((op) => op.bridgeKind === 'optimize'));
+
+  const mismatch = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, bridgeKind: 'archive', preferredOperation: 'transcode' },
+  });
+  assert.strictEqual(mismatch.statusCode, 400);
+  const mismatchBody = mismatch.json();
+  assert.strictEqual(mismatchBody.error.message, 'preferred_operation_bridge_mismatch');
+  assert.strictEqual(mismatchBody.admission.reason, 'preferred_operation_bridge_mismatch');
+  assert.deepStrictEqual(mismatchBody.admission.supportedOperations, ['delete']);
   await app.close();
 });
 
@@ -261,9 +382,181 @@ test('TaskAdmission rejects optimize/archive tasks when metadata is missing', as
     payload: { itemId, actionType: 'delete' },
   });
   assert.strictEqual(res.statusCode, 409);
-  assert.strictEqual(res.json().error.code, 'TASK_ADMISSION_REJECTED');
-  assert.strictEqual(res.json().error.message, 'metadata_missing');
+  const body = res.json();
+  assert.strictEqual(body.error.code, 'TASK_ADMISSION_REJECTED');
+  assert.strictEqual(body.error.message, 'metadata_missing');
+  assert.strictEqual(body.admission.operation, 'delete');
+  assert.strictEqual(body.admission.reason, 'metadata_missing');
+  assert.ok(Array.isArray(body.admission.metadataMissingReasons));
+  assert.strictEqual(body.businessFlowDecision.blockedReasons.delete, 'metadata_missing');
   await app.close();
+});
+
+test('TaskAdmission rejects standard media scrape and records diagnostic', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  diagnosticLog.resetForTests();
+  const itemId = 'standard-scrape-blocked';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Standard Scrape Blocked',
+      source: 'emby',
+    })],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, actionType: 'scrape' },
+  });
+  assert.strictEqual(res.statusCode, 409);
+  const body = res.json();
+  assert.strictEqual(body.error.code, 'TASK_ADMISSION_REJECTED');
+  assert.strictEqual(body.error.message, 'scrape_not_supported_for_standard_media');
+  assert.strictEqual(body.admission.operation, 'scrape');
+  assert.strictEqual(body.admission.reason, 'scrape_not_supported_for_standard_media');
+  assert.strictEqual(body.admission.supportedEntry, 'POST /v1/admin/adult/items/:itemId/actions/rescrape');
+  assert.strictEqual(body.businessFlowDecision.blockedReasons.scrape, 'scrape_not_supported_for_standard_media');
+  assert.ok(!body.businessFlowDecision.allowedOperations.some((op) => op.operation === 'scrape'));
+  const logs = diagnosticLog.list({ limit: 20 }).logs;
+  assert.ok(logs.some((entry) => entry.operation === 'reject_task'
+    && entry.payload.reason === 'scrape_not_supported_for_standard_media'
+    && entry.payload.itemId === itemId));
+  await app.close();
+});
+
+test('GET /v1/library exposes v3 business flow decision for media rows', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'business-flow-row';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Business Flow Row',
+      source: 'emby',
+      action: 'transcode',
+    }), metadataReadyMovie({
+      itemId: 'business-flow-keep',
+      name: 'Business Flow Keep',
+      source: 'emby',
+      action: 'keep',
+    })],
+  });
+
+  const res = await app.inject({ method: 'GET', url: '/v1/library?limit=20' });
+  assert.strictEqual(res.statusCode, 200);
+  const item = res.json().items.find((row) => row.itemId === itemId);
+  assert.ok(item, 'media row present');
+  assert.ok(item.businessFlowDecision, 'business decision present');
+  assert.strictEqual(item.businessFlowDecision.lifecycleStage, 'metadata_ready');
+  assert.strictEqual(item.businessFlowDecision.metadataStatus, 'complete');
+  assert.strictEqual(item.businessFlowDecision.recommendedOperation, 'transcode');
+  assert.ok(item.businessFlowDecision.allowedOperations.some((op) => op.operation === 'transcode' && op.bridgeKind === 'optimize'));
+  assert.strictEqual(item.businessFlowDecision.blockedReasons.scrape, 'scrape_not_supported_for_standard_media');
+  const keepItem = res.json().items.find((row) => row.itemId === 'business-flow-keep');
+  assert.ok(keepItem, 'keep media row present');
+  assert.strictEqual(keepItem.businessFlowDecision.lifecycleStage, 'archived');
+  assert.strictEqual(keepItem.businessFlowDecision.recommendedOperation, 'keep');
+  assert.strictEqual(keepItem.businessFlowDecision.nextBridge, null);
+  await app.close();
+});
+
+test('GET /v1/library explains active task as operation blocker', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  const itemId = 'business-flow-active';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Business Flow Active',
+      action: 'upgrade',
+    })],
+  });
+  const task = taskStore.createTask({
+    itemId,
+    itemName: 'Business Flow Active',
+    actionType: 'upgrade',
+    status: 'queued',
+  });
+
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.loadTasks = () => {
+    throw new Error('library business decision should use lightweight active summaries');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/library?limit=20' });
+    assert.strictEqual(res.statusCode, 200);
+    const item = res.json().items.find((row) => row.itemId === itemId);
+    assert.ok(item, 'media row present');
+    assert.deepStrictEqual(item.businessFlowDecision.allowedOperations, []);
+    assert.strictEqual(item.businessFlowDecision.blockedReasons.upgrade, 'active_task_exists');
+    assert.strictEqual(item.businessFlowDecision.activeTaskBridge, 'optimize');
+    assert.strictEqual(item.businessFlowDecision.activeFlowOperation, 'upgrade');
+    assert.strictEqual(item.businessFlowDecision.latestEventSummary.taskId, task.id);
+
+    const detail = await app.inject({ method: 'GET', url: `/v1/library/items/${itemId}` });
+    assert.strictEqual(detail.statusCode, 200);
+    assert.strictEqual(detail.json().businessFlowDecision.latestEventSummary.taskId, task.id);
+  } finally {
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
+});
+
+test('GET /v1/library exposes latest terminal failure summary for media rows', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  const itemId = 'business-flow-failed';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Business Flow Failed',
+      action: 'transcode',
+    })],
+  });
+  const failed = taskStore.createTask({
+    itemId,
+    itemName: 'Business Flow Failed',
+    actionType: 'transcode',
+    status: 'queued',
+  });
+  taskStore.updateTask(failed.id, {
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    logs: [{ ts: '2026-06-30T00:00:00.000Z', level: 'error', msg: 'Encoder failed before replace' }],
+  });
+  taskStore.updateTask(failed.id, { status: 'failed_hard' });
+
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.loadTasks = () => {
+    throw new Error('library failure summary should use task event projection');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/library?limit=20' });
+    assert.strictEqual(res.statusCode, 200);
+    const item = res.json().items.find((row) => row.itemId === itemId);
+    assert.ok(item, 'media row present');
+    assert.strictEqual(item.businessFlowDecision.latestEventSummary.kind, 'failure_event');
+    assert.strictEqual(item.businessFlowDecision.latestEventSummary.taskId, failed.id);
+    assert.strictEqual(item.businessFlowDecision.latestEventSummary.eventType, 'task.failed');
+    assert.strictEqual(item.businessFlowDecision.latestEventSummary.failureSummary.message, 'Encoder failed before replace');
+    assert.strictEqual(item.businessFlowDecision.diagnosticSummary.latestFailure.message, 'Encoder failed before replace');
+
+    const detail = await app.inject({ method: 'GET', url: `/v1/library/items/${itemId}` });
+    assert.strictEqual(detail.statusCode, 200);
+    assert.strictEqual(detail.json().businessFlowDecision.latestEventSummary.kind, 'failure_event');
+    assert.strictEqual(detail.json().businessFlowDecision.latestEventSummary.failureSummary.source, 'task_log');
+  } finally {
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
 });
 
 test('manual delete task is planned as archive bridge', async () => {
@@ -304,6 +597,35 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
     itemInfo: { subLibraryId: 'movie-lib', path: '/media/resource-item.mkv' },
   });
   taskStore.updateTask(task.id, { status: 'executing', phase: 'transcode_executing' });
+  const failedTask = taskStore.createTask({
+    itemId: 'resource-failed',
+    itemName: 'Resource Failed',
+    actionType: 'transcode',
+    source: 'manual',
+    status: 'queued',
+    itemInfo: { subLibraryId: 'movie-lib', path: '/media/resource-failed.mkv' },
+  });
+  taskStore.updateTask(failedTask.id, {
+    status: 'failed_hard',
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    retryCount: 1,
+    logs: [{ ts: '2026-06-30T00:00:00.000Z', level: 'error', msg: 'Encoder exited with code 1' }],
+  });
+  diagnosticLog.record({
+    category: 'flow',
+    scope: 'transcode.execute',
+    operation: 'encode',
+    component: 'transcodeFlow',
+    resourceType: 'local_transcode',
+    resourceKey: 'local:ffmpeg',
+    status: 'failed',
+    payload: {
+      taskId: failedTask.id,
+      itemId: failedTask.itemId,
+      error: 'encoder exited',
+    },
+  });
 
   let res = await app.inject({ method: 'GET', url: `/v1/tasks/${task.id}/events` });
   assert.strictEqual(res.statusCode, 200);
@@ -350,9 +672,87 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
   assert.ok(resources.diagnostics.backgroundIo, 'background I/O diagnostics present');
   assert.strictEqual(resources.diagnostics.backgroundIo.summary.activeCount, 1);
   assert.strictEqual(resources.diagnostics.backgroundIo.active[0].operation, 'test.background.write');
+  const failedEvent = resources.diagnostics.failedEvents.find((event) => event.taskId === failedTask.id);
+  assert.ok(failedEvent, 'failed task event appears in resource diagnostics');
+  assert.strictEqual(failedEvent.task.id, failedTask.id);
+  assert.strictEqual(failedEvent.task.status, 'failed_hard');
+  assert.strictEqual(failedEvent.recovery.state, 'retry_available');
+  assert.strictEqual(failedEvent.recovery.resumePoint, 'transcode_executing');
+  assert.strictEqual(failedEvent.controlState.actions.retry.enabled, true);
+  assert.strictEqual(failedEvent.controlState.actions.retry.effect, 'queue_failed_task_from_resume_point');
+  assert.strictEqual(failedEvent.resourceContext.resourceKey, 'local:ffmpeg');
+  assert.strictEqual(failedEvent.diagnosticSummary.scope, 'transcode.execute');
+  assert.strictEqual(failedEvent.diagnosticSummary.error, 'encoder exited');
+  assert.strictEqual(failedEvent.failureSummary.message, 'Encoder exited with code 1');
+  assert.strictEqual(failedEvent.failureSummary.level, 'error');
+  assert.strictEqual(failedEvent.failureSummary.source, 'task_log');
   guardHandle.finish('done');
 
   await app.close();
+});
+
+test('DELETE /v1/admin/nodes/:id explains active worker job conflicts from task summaries', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+
+  const node = nodeStore.addNode({
+    name: 'GPU Node',
+    address: '127.0.0.1:19000',
+    apiKey: 'node-key',
+    capabilities: { devices: [] },
+  });
+  const task = taskStore.createTask({
+    itemId: 'node-active-item',
+    itemName: 'Node Active Item',
+    actionType: 'transcode',
+    source: 'manual',
+    status: 'queued',
+    itemInfo: { path: '/media/node-active-item.mkv' },
+  });
+  taskStore.updateTask(task.id, {
+    status: 'executing',
+    phase: 'transcode_executing',
+    nodeId: node.id,
+  });
+
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.loadTasks = () => {
+    throw new Error('DELETE node conflict must not load full task history');
+  };
+  try {
+    const res = await app.inject({ method: 'DELETE', url: `/v1/admin/nodes/${node.id}` });
+    assert.strictEqual(res.statusCode, 409);
+    const body = res.json();
+    assert.strictEqual(body.error.code, 'NODE_HAS_ACTIVE_JOBS');
+    assert.strictEqual(body.error.message, 'node_has_active_jobs');
+    assert.strictEqual(body.node.id, node.id);
+    assert.strictEqual(body.node.name, 'GPU Node');
+    assert.strictEqual(body.resourceContext.resourceType, 'worker_node');
+    assert.strictEqual(body.resourceContext.resourceKey, `node:${node.id}`);
+    assert.strictEqual(body.activeJobCount, 1);
+    assert.strictEqual(body.activeTasks.length, 1);
+    assert.strictEqual(body.activeTasks[0].id, task.id);
+    assert.strictEqual(body.activeTasks[0].nodeId, node.id);
+    assert.strictEqual(body.activeTasks[0].flowPlan.operationKind, 'transcode');
+    assert.strictEqual(body.activeTasks[0].controlState.state, 'running');
+    assert.strictEqual(body.forceDelete.available, true);
+    assert.strictEqual(body.forceDelete.effect, 'mark_active_tasks_failed_hard_then_delete_node');
+
+    const force = await app.inject({ method: 'DELETE', url: `/v1/admin/nodes/${node.id}?force=true` });
+    assert.strictEqual(force.statusCode, 200);
+    assert.strictEqual(force.json().ok, true);
+    assert.strictEqual(force.json().node.id, node.id);
+    assert.strictEqual(force.json().resourceContext.resourceKey, `node:${node.id}`);
+    assert.strictEqual(force.json().forceDelete.applied, true);
+    assert.strictEqual(force.json().forceDelete.effect, 'marked_active_tasks_failed_hard_then_deleted_node');
+    assert.deepStrictEqual(force.json().forceDelete.affectedTaskIds, [task.id]);
+    assert.strictEqual(nodeStore.getNode(node.id), null);
+    assert.strictEqual(taskStore.getTask(task.id).status, 'failed_hard');
+  } finally {
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
 });
 
 test('task event journal records retry, interruption, and failure semantics', async () => {
@@ -457,8 +857,19 @@ test('POST /v1/tasks manual admission does not load full task history', async ()
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   require('../src/taskScheduler').stopScheduler();
   const originalGetTasks = taskStore.getTasks;
+  const originalLoadTasks = taskStore.loadTasks;
+  const unrelated = taskStore.createTask({
+    itemId: 'manual-fast-path-other',
+    itemName: 'Other Active Item',
+    actionType: 'transcode',
+    source: 'manual',
+    status: 'queued',
+  });
   taskStore.getTasks = () => {
     throw new Error('full history should not be loaded for manual admission');
+  };
+  taskStore.loadTasks = () => {
+    throw new Error('full active task list should not be loaded for manual admission');
   };
   try {
     mediaLibraryService.saveLibrary({
@@ -472,8 +883,10 @@ test('POST /v1/tasks manual admission does not load full task history', async ()
     });
     assert.strictEqual(res.statusCode, 201);
     assert.ok(res.json().id);
+    assert.notStrictEqual(res.json().id, unrelated.id);
   } finally {
     taskStore.getTasks = originalGetTasks;
+    taskStore.loadTasks = originalLoadTasks;
     await app.close();
   }
 });
@@ -498,16 +911,30 @@ test('GET /v1/tasks defaults to active tasks and includeHistory returns complete
   await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-active', actionType: 'scrape' } });
   taskStore.updateTask(done.json().id, { status: 'done' });
 
-  const res = await app.inject({ method: 'GET', url: '/v1/tasks' });
-  assert.strictEqual(res.statusCode, 200);
-  const body = res.json();
-  assert.deepStrictEqual(body.tasks.map((t) => t.itemId), ['i-active']);
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.loadTasks = () => {
+    throw new Error('active task list should use lightweight summaries');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/tasks' });
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.json();
+    assert.deepStrictEqual(body.tasks.map((t) => t.itemId), ['i-active']);
+    assert.strictEqual(body.tasks[0].controlState.state, 'ready_to_start');
+    assert.strictEqual(body.tasks[0].logs, undefined);
 
-  const historyRes = await app.inject({ method: 'GET', url: '/v1/tasks?includeHistory=1' });
-  assert.strictEqual(historyRes.statusCode, 200);
-  const historyIds = historyRes.json().tasks.map((t) => t.itemId).sort();
-  assert.deepStrictEqual(historyIds, ['i-active', 'i-done']);
-  await app.close();
+    const activeByOperation = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=scrape&activeOnly=1' });
+    assert.strictEqual(activeByOperation.statusCode, 200);
+    assert.deepStrictEqual(activeByOperation.json().tasks.map((t) => t.itemId), ['i-active']);
+
+    const historyRes = await app.inject({ method: 'GET', url: '/v1/tasks?includeHistory=1' });
+    assert.strictEqual(historyRes.statusCode, 200);
+    const historyIds = historyRes.json().tasks.map((t) => t.itemId).sort();
+    assert.deepStrictEqual(historyIds, ['i-active', 'i-done']);
+  } finally {
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
 });
 
 test('GET /v1/tasks/:id returns task detail', async () => {
@@ -809,7 +1236,13 @@ test('POST /v1/tasks/:id/actions/pause returns paused status', async () => {
   const body = res.json();
   assert.strictEqual(body.id, id);
   assert.strictEqual(body.status, 'paused');
+  assert.strictEqual(body.controlState.state, 'paused');
+  assert.strictEqual(body.controlState.primaryAction, 'execute');
+  assert.strictEqual(body.controlState.actions.execute.enabled, true);
+  assert.strictEqual(body.controlState.actions.execute.effect, 'resume_from_pause');
+  assert.strictEqual(body.controlState.recovery.state, 'resume_available');
   const events = await app.inject({ method: 'GET', url: `/v1/tasks/${id}/events` });
+  assert.ok(events.json().events.some((event) => event.eventType === 'task.pause_requested'));
   assert.ok(events.json().events.some((event) => event.eventType === 'task.paused'));
   await app.close();
 });
@@ -836,10 +1269,16 @@ test('POST /v1/tasks/:id/actions/execute resumes paused task to queued', async (
   const body = res.json();
   assert.strictEqual(body.id, id);
   assert.strictEqual(body.status, 'queued');
+  assert.strictEqual(body.controlState.state, 'queued');
+  assert.strictEqual(body.controlState.actions.execute.enabled, false);
+  assert.strictEqual(body.controlState.actions.execute.reason, 'already_active');
+  assert.strictEqual(body.controlState.actions.pause.enabled, true);
   // Verify persisted
   const get = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
   assert.strictEqual(get.json().status, 'queued');
+  assert.strictEqual(get.json().controlState.state, 'queued');
   const events = await app.inject({ method: 'GET', url: `/v1/tasks/${id}/events` });
+  assert.ok(events.json().events.some((event) => event.eventType === 'task.execute_requested'));
   assert.ok(events.json().events.some((event) => event.eventType === 'task.resumed'));
   await app.close();
 });
@@ -849,6 +1288,51 @@ test('POST /v1/tasks/:id/actions/execute non-existent task -> 404', async () => 
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const res = await app.inject({ method: 'POST', url: '/v1/tasks/nonexistent/actions/execute' });
   assert.strictEqual(res.statusCode, 404);
+  await app.close();
+});
+
+test('task action endpoints reject transitions disabled by control policy', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const queued = taskStore.createTask({
+    itemId: 'control-reject-queued',
+    actionType: 'transcode',
+    status: 'queued',
+  });
+  const execute = await app.inject({ method: 'POST', url: `/v1/tasks/${queued.id}/actions/execute` });
+  assert.strictEqual(execute.statusCode, 409);
+  assert.strictEqual(execute.json().error.code, 'TASK_ACTION_REJECTED');
+  assert.strictEqual(execute.json().error.message, 'already_active');
+  assert.strictEqual(execute.json().actionName, 'execute');
+  assert.strictEqual(execute.json().action.enabled, false);
+  assert.strictEqual(execute.json().action.reason, 'already_active');
+  assert.strictEqual(execute.json().controlState.state, 'queued');
+  assert.strictEqual(execute.json().controlState.actions.pause.enabled, true);
+  assert.strictEqual(execute.json().task.id, queued.id);
+  assert.strictEqual(taskStore.getTask(queued.id).status, 'queued');
+
+  const waiting = taskStore.createTask({
+    itemId: 'control-reject-confirm',
+    actionType: 'upgrade',
+    status: 'queued',
+  });
+  taskStore.updateTask(waiting.id, {
+    status: 'awaiting_user_confirm',
+    resumePoint: 'upgrade_executing',
+    approval: { gateId: 'upgrade.candidateSelect', message: 'Choose candidate' },
+  });
+  const pause = await app.inject({ method: 'POST', url: `/v1/tasks/${waiting.id}/actions/pause` });
+  assert.strictEqual(pause.statusCode, 409);
+  assert.strictEqual(pause.json().error.code, 'TASK_ACTION_REJECTED');
+  assert.strictEqual(pause.json().error.message, 'confirmation_required');
+  assert.strictEqual(pause.json().actionName, 'pause');
+  assert.strictEqual(pause.json().action.reason, 'confirmation_required');
+  assert.strictEqual(pause.json().controlState.state, 'awaiting_confirmation');
+  assert.strictEqual(pause.json().controlState.confirmation.gateId, 'upgrade.candidateSelect');
+  assert.strictEqual(pause.json().recovery.nextAction, 'confirm');
+  assert.strictEqual(taskStore.getTask(waiting.id).status, 'awaiting_user_confirm');
+
   await app.close();
 });
 
@@ -868,6 +1352,9 @@ test('DELETE /v1/tasks/:id cancels then removes executing task', async () => {
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.json().ok, true);
   assert.strictEqual(fs.existsSync(partialPath), false, 'executing task cancel should clean partial file');
+  const events = taskStore.queryTaskEvents({ taskId: id }, { pageSize: 50 }).events;
+  assert.ok(events.some((event) => event.eventType === 'task.cancel_requested'));
+  assert.ok(events.some((event) => event.eventType === 'task.deleted'));
   // Verify gone
   const get = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
   assert.strictEqual(get.statusCode, 404);
@@ -889,6 +1376,9 @@ test('DELETE /v1/tasks/:id removes queued task without running flow cancel', asy
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.json().ok, true);
   assert.strictEqual(fs.existsSync(partialPath), true, 'queued task removal should not run transcode cancel cleanup');
+  const events = taskStore.queryTaskEvents({ taskId: id }, { pageSize: 50 }).events;
+  assert.ok(events.some((event) => event.eventType === 'task.cancel_requested'));
+  assert.ok(events.some((event) => event.eventType === 'task.deleted'));
   fs.rmSync(partialPath, { force: true });
 
   const get = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
@@ -942,6 +1432,482 @@ test('pause on executing transcode task deletes partial file', async () => {
   await app.close();
 });
 
+test('GET /v1/admin/tasks exposes task control semantics for confirmation and recovery', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const waiting = taskStore.createTask({
+    itemId: 'control-confirm',
+    itemName: 'Control Confirm',
+    actionType: 'upgrade',
+    status: 'queued',
+  });
+  const waitingApproval = {
+    gateId: 'upgrade.candidateSelect',
+    message: 'Choose upgrade candidate',
+    options: [{ label: 'Candidate A' }],
+  };
+  taskStore.updateTask(waiting.id, {
+    status: 'awaiting_user_confirm',
+    phase: 'upgrade_candidate_select',
+    resumePoint: 'upgrade_executing',
+    approval: waitingApproval,
+  });
+  taskStore.appendTaskEvent(taskStore.getTask(waiting.id), 'approval.requested', {
+      gateId: 'upgrade.candidateSelect',
+      message: 'Choose upgrade candidate',
+  });
+  const failed = taskStore.createTask({
+    itemId: 'control-failed',
+    itemName: 'Control Failed',
+    actionType: 'transcode',
+    status: 'queued',
+  });
+  const failedRuntime = taskStore.updateTask(failed.id, {
+    status: 'failed_hard',
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    retryCount: 2,
+  });
+  taskStore.appendTaskEvent(failedRuntime, 'task.failed', { message: 'Encoder failed' });
+
+  const list = await app.inject({ method: 'GET', url: '/v1/admin/tasks?statuses=awaiting_user_confirm,failed_hard&page=1&pageSize=10' });
+  assert.strictEqual(list.statusCode, 200);
+  const waitingRow = list.json().tasks.find((task) => task.id === waiting.id);
+  assert.ok(waitingRow, 'waiting task appears in list');
+  assert.strictEqual(waitingRow.controlState.state, 'awaiting_confirmation');
+  assert.strictEqual(waitingRow.controlState.requiresUserAction, true);
+  assert.strictEqual(waitingRow.controlState.actions.confirm.enabled, true);
+  assert.strictEqual(waitingRow.controlState.actions.execute.reason, 'confirmation_required');
+
+  const detail = await app.inject({ method: 'GET', url: `/v1/admin/tasks/${waiting.id}?includeEvents=1` });
+  assert.strictEqual(detail.statusCode, 200);
+  assert.strictEqual(detail.json().controlState.confirmation.gateId, 'upgrade.candidateSelect');
+  assert.strictEqual(detail.json().controlState.recovery.state, 'waiting_for_user_confirmation');
+  assert.ok(detail.json().events.some((event) => event.eventType === 'approval.requested'));
+
+  const failedDetail = await app.inject({ method: 'GET', url: `/v1/admin/tasks/${failed.id}?includeEvents=1` });
+  assert.strictEqual(failedDetail.statusCode, 200);
+  assert.strictEqual(failedDetail.json().controlState.state, 'terminal');
+  assert.strictEqual(failedDetail.json().controlState.primaryAction, 'retry');
+  assert.strictEqual(failedDetail.json().controlState.actions.retry.enabled, true);
+  assert.strictEqual(failedDetail.json().controlState.actions.retry.effect, 'queue_failed_task_from_resume_point');
+  assert.strictEqual(failedDetail.json().controlState.actions.retry.endpoint, `/v1/tasks/${failed.id}/actions/retry`);
+  assert.strictEqual(failedDetail.json().controlState.recovery.state, 'retry_available');
+  assert.strictEqual(failedDetail.json().controlState.recovery.nextAction, 'retry');
+  assert.ok(failedDetail.json().events.some((event) => event.eventType === 'task.failed'));
+  await app.close();
+});
+
+test('GET /v1/admin/confirmations exposes a lightweight confirmation queue', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const waitingUpgrade = taskStore.createTask({
+    itemId: 'confirm-upgrade',
+    itemName: 'Confirm Upgrade',
+    actionType: 'upgrade',
+    status: 'queued',
+    priority: 8,
+  });
+  taskStore.updateTask(waitingUpgrade.id, {
+    status: 'awaiting_user_confirm',
+    phase: 'upgrade_candidate_select',
+    resumePoint: 'upgrade_executing',
+    approval: {
+      gateId: 'upgrade.candidateSelect',
+      message: 'Choose upgrade candidate',
+      options: [{ label: 'Candidate A', value: 'a' }],
+    },
+  });
+  const waitingDelete = taskStore.createTask({
+    itemId: 'confirm-delete',
+    itemName: 'Confirm Delete',
+    actionType: 'delete',
+    status: 'queued',
+  });
+  taskStore.updateTask(waitingDelete.id, {
+    status: 'awaiting_user_confirm',
+    phase: 'delete_precheck',
+    resumePoint: 'delete_executing',
+    approval: {
+      gateId: 'delete.beforeExecute',
+      message: 'Delete this media?',
+      options: ['approve', 'reject'],
+    },
+  });
+  taskStore.createTask({
+    itemId: 'confirm-queued',
+    itemName: 'Confirm Queued',
+    actionType: 'transcode',
+    status: 'queued',
+  });
+
+  const originalGetTasks = taskStore.getTasks;
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.getTasks = () => {
+    throw new Error('confirmation queue should use lightweight summaries');
+  };
+  taskStore.loadTasks = () => {
+    throw new Error('confirmation queue should not load full task history');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?page=1&pageSize=20' });
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.json();
+    assert.strictEqual(body.total, 2);
+    assert.strictEqual(body.summary.total, 2);
+    assert.strictEqual(body.summary.byGate['upgrade.candidateSelect'], 1);
+    assert.strictEqual(body.summary.byGate['delete.beforeExecute'], 1);
+    assert.strictEqual(body.summary.byBridgeKind.optimize, 1);
+    assert.strictEqual(body.summary.byBridgeKind.archive, 1);
+    const upgrade = body.confirmations.find((item) => item.taskId === waitingUpgrade.id);
+    assert.ok(upgrade, 'upgrade confirmation appears');
+    assert.strictEqual(upgrade.confirmation.required, true);
+    assert.strictEqual(upgrade.confirmation.gateId, 'upgrade.candidateSelect');
+    assert.strictEqual(upgrade.confirmation.message, 'Choose upgrade candidate');
+    assert.strictEqual(upgrade.confirmation.resumePoint, 'upgrade_executing');
+    assert.strictEqual(upgrade.confirmation.whyRequired, 'flow_gate_requires_user_decision');
+    assert.strictEqual(upgrade.confirmAction.enabled, true);
+    assert.strictEqual(upgrade.confirmAction.effect, 'store_confirmation_and_queue_task');
+    assert.strictEqual(upgrade.recovery.nextAction, 'confirm');
+    assert.strictEqual(upgrade.taskBridge.kind, 'optimize');
+    assert.strictEqual(upgrade.flowPlan.operationKind, 'upgrade');
+    assert.ok(!body.confirmations.some((item) => item.itemId === 'confirm-queued'));
+
+    const archiveOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?bridgeKind=archive&page=1&pageSize=20' });
+    assert.strictEqual(archiveOnly.statusCode, 200);
+    assert.deepStrictEqual(archiveOnly.json().confirmations.map((item) => item.taskId), [waitingDelete.id]);
+  } finally {
+    taskStore.getTasks = originalGetTasks;
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
+});
+
+test('GET /v1/admin/confirmations includes adult review items without loading full library payloads', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [
+      {
+        itemId: 'adult-ambiguous-review',
+        subLibraryId: 'adult-lib',
+        source: 'adult_folder',
+        sourceId: 'ZZZZZ-001',
+        name: 'ZZZZZ-001 Low Confidence',
+        type: 'movie',
+        path: path.join(dir, 'adult', 'ambiguous.mp4'),
+        scraped: false,
+        adultMetadata: {
+          region: 'japanese_jav',
+          adultId: 'ZZZZZ-001',
+          title: 'ZZZZZ-001 Low Confidence',
+          scrapeStatus: 'ambiguous',
+          idConfidence: 'low',
+        },
+      },
+      {
+        itemId: 'adult-needs-review',
+        subLibraryId: 'adult-lib',
+        source: 'adult_folder',
+        sourceId: 'WEST-001',
+        name: 'WEST-001 Needs Review',
+        type: 'movie',
+        path: path.join(dir, 'adult', 'western.mp4'),
+        scraped: false,
+        adultMetadata: {
+          region: 'western_adult',
+          adultId: 'WEST-001',
+          title: 'WEST-001 Needs Review',
+          scrapeStatus: 'needs_review',
+          reviewStatus: 'needs_review',
+          protagonist: { name: 'Unknown Performer' },
+          scrapeError: 'No confirmed protagonist',
+        },
+      },
+      {
+        itemId: 'adult-done-review',
+        subLibraryId: 'adult-lib',
+        source: 'adult_folder',
+        sourceId: 'DONE-001',
+        name: 'DONE-001 Done',
+        type: 'movie',
+        path: path.join(dir, 'adult', 'done.mp4'),
+        scraped: true,
+        adultMetadata: {
+          region: 'japanese_jav',
+          adultId: 'DONE-001',
+          scrapeStatus: 'done',
+        },
+      },
+    ],
+  });
+  const waitingUpgrade = taskStore.createTask({
+    itemId: 'confirm-plus-review',
+    itemName: 'Confirm Plus Review',
+    actionType: 'upgrade',
+    status: 'queued',
+  });
+  taskStore.updateTask(waitingUpgrade.id, {
+    status: 'awaiting_user_confirm',
+    resumePoint: 'upgrade_executing',
+    approval: { gateId: 'upgrade.candidateSelect', message: 'Choose upgrade candidate' },
+  });
+
+  const originalLoadLibrary = libraryStore.loadLibrary;
+  const originalQueryItems = libraryStore.queryItems;
+  libraryStore.loadLibrary = () => {
+    throw new Error('confirmation review queue should not load full library');
+  };
+  libraryStore.queryItems = () => {
+    throw new Error('confirmation review queue should use adult review summaries');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?page=1&pageSize=20' });
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.json();
+    assert.strictEqual(body.total, 3);
+    assert.strictEqual(body.taskTotal, 1);
+    assert.strictEqual(body.reviewTotal, 2);
+    assert.strictEqual(body.confirmations.length, 1);
+    assert.strictEqual(body.reviews.length, 2);
+    assert.strictEqual(body.items.length, 3);
+    assert.strictEqual(body.summary.taskConfirmations.byGate['upgrade.candidateSelect'], 1);
+    assert.strictEqual(body.summary.adultReviews.byScrapeStatus.ambiguous, 1);
+    assert.strictEqual(body.summary.adultReviews.byReviewStatus.needs_review, 1);
+    assert.strictEqual(body.summary.adultReviews.byRegion.western_adult, 1);
+    const ambiguous = body.reviews.find((item) => item.itemId === 'adult-ambiguous-review');
+    assert.ok(ambiguous, 'ambiguous adult review appears');
+    assert.strictEqual(ambiguous.kind, 'adult_review');
+    assert.strictEqual(ambiguous.confirmation.required, true);
+    assert.strictEqual(ambiguous.confirmation.whyRequired, 'adult_identity_ambiguous');
+    assert.strictEqual(ambiguous.taskBridge.kind, 'metadata');
+    assert.strictEqual(ambiguous.flowPlan.operationKind, 'scrape');
+    assert.strictEqual(ambiguous.confirmAction.enabled, false);
+    assert.strictEqual(ambiguous.recovery.nextAction, 'review');
+    assert.ok(!body.items.some((item) => item.itemId === 'adult-done-review'));
+
+    const reviewOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?kind=adult_review&q=WEST&page=1&pageSize=20' });
+    assert.strictEqual(reviewOnly.statusCode, 200);
+    assert.deepStrictEqual(reviewOnly.json().reviews.map((item) => item.itemId), ['adult-needs-review']);
+    assert.deepStrictEqual(reviewOnly.json().confirmations, []);
+
+    const archiveOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?bridgeKind=archive&page=1&pageSize=20' });
+    assert.strictEqual(archiveOnly.statusCode, 200);
+    assert.strictEqual(archiveOnly.json().reviewTotal, 0);
+  } finally {
+    libraryStore.loadLibrary = originalLoadLibrary;
+    libraryStore.queryItems = originalQueryItems;
+    await app.close();
+  }
+});
+
+test('GET /v1/admin/tasks attention queues are derived from task control actions', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const waiting = taskStore.createTask({
+    itemId: 'attention-confirm',
+    itemName: 'Attention Confirm',
+    actionType: 'upgrade',
+    status: 'awaiting_user_confirm',
+  });
+  taskStore.updateTask(waiting.id, {
+    approval: { gateId: 'upgrade.candidateSelect', mode: 'confirm', message: 'Choose upgrade candidate' },
+  });
+  const failed = taskStore.createTask({
+    itemId: 'attention-failed',
+    itemName: 'Attention Failed',
+    actionType: 'transcode',
+    status: 'failed_hard',
+  });
+  taskStore.updateTask(failed.id, {
+    resumePoint: 'transcode_executing',
+    retryCount: 1,
+  });
+  const paused = taskStore.createTask({
+    itemId: 'attention-paused',
+    itemName: 'Attention Paused',
+    actionType: 'transcode',
+    status: 'paused',
+  });
+  taskStore.updateTask(paused.id, {
+    resumePoint: 'transcode_executing',
+  });
+  const manual = taskStore.createTask({
+    itemId: 'attention-manual',
+    itemName: 'Attention Manual',
+    actionType: 'scrape',
+    status: 'pending_manual',
+  });
+  const active = taskStore.createTask({
+    itemId: 'attention-active',
+    itemName: 'Attention Active',
+    actionType: 'scrape',
+    status: 'queued',
+  });
+  const exhausted = taskStore.createTask({
+    itemId: 'attention-exhausted',
+    itemName: 'Attention Exhausted',
+    actionType: 'upgrade',
+    status: 'failed_hard',
+  });
+  taskStore.updateTask(exhausted.id, {
+    resumePoint: 'upgrade_executing',
+    retryCount: 3,
+  });
+
+  const needsAction = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=needs_action&page=1&pageSize=20' });
+  assert.strictEqual(needsAction.statusCode, 200);
+  const needsActionBody = needsAction.json();
+  const needsActionIds = new Set(needsActionBody.tasks.map((task) => task.id));
+  assert.strictEqual(needsActionBody.attention, 'needs_action');
+  assert.strictEqual(needsActionBody.summary.total, 4);
+  assert.ok(needsActionIds.has(waiting.id));
+  assert.ok(needsActionIds.has(failed.id));
+  assert.ok(needsActionIds.has(paused.id));
+  assert.ok(needsActionIds.has(manual.id));
+  assert.ok(!needsActionIds.has(active.id), 'queued active task is not a user attention task');
+  assert.ok(!needsActionIds.has(exhausted.id), 'retry-exhausted failure is not actionable');
+  assert.strictEqual(needsActionBody.summary.attention.needs_action.count, 4);
+  assert.strictEqual(needsActionBody.summary.attention.confirmation.count, 1);
+  assert.strictEqual(needsActionBody.summary.attention.recovery.count, 2);
+  assert.strictEqual(needsActionBody.summary.attention.manual_start.count, 1);
+
+  const plainList = await app.inject({ method: 'GET', url: '/v1/admin/tasks?page=1&pageSize=20' });
+  assert.strictEqual(plainList.statusCode, 200);
+  const plainBody = plainList.json();
+  assert.strictEqual(plainBody.summary.attention.needs_action.count, 4);
+  assert.strictEqual(plainBody.summary.attention.recovery.count, 2);
+  const exhaustedRow = plainBody.tasks.find((task) => task.id === exhausted.id);
+  assert.ok(exhaustedRow, 'retry-exhausted task appears in ordinary list');
+  assert.strictEqual(exhaustedRow.retryCount, 3);
+  assert.strictEqual(exhaustedRow.controlState.actions.retry.enabled, false);
+  assert.strictEqual(exhaustedRow.controlState.actions.retry.reason, 'retry_limit_reached');
+
+  const originalGetTasks = taskStore.getTasks;
+  taskStore.getTasks = () => {
+    throw new Error('admin task list should use lightweight task summaries');
+  };
+  try {
+    const lightPlain = await app.inject({ method: 'GET', url: '/v1/admin/tasks?page=1&pageSize=1' });
+    assert.strictEqual(lightPlain.statusCode, 200);
+    const lightAttention = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=needs_action&page=1&pageSize=1' });
+    assert.strictEqual(lightAttention.statusCode, 200);
+  } finally {
+    taskStore.getTasks = originalGetTasks;
+  }
+
+  const recovery = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=recovery&page=1&pageSize=20' });
+  assert.strictEqual(recovery.statusCode, 200);
+  const recoveryIds = new Set(recovery.json().tasks.map((task) => task.id));
+  assert.deepStrictEqual(recoveryIds, new Set([failed.id, paused.id]));
+
+  const manualStart = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=manual_start&page=1&pageSize=20' });
+  assert.strictEqual(manualStart.statusCode, 200);
+  assert.deepStrictEqual(new Set(manualStart.json().tasks.map((task) => task.id)), new Set([manual.id]));
+
+  const invalid = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=unknown' });
+  assert.strictEqual(invalid.statusCode, 400);
+  assert.strictEqual(invalid.json().error.code, 'VALIDATION_ERROR');
+  await app.close();
+});
+
+test('POST /v1/tasks/:id/actions/retry queues failed task with recovery event', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const failed = taskStore.createTask({
+    itemId: 'retry-failed',
+    itemName: 'Retry Failed',
+    actionType: 'transcode',
+    status: 'queued',
+  });
+  taskStore.updateTask(failed.id, {
+    status: 'failed_hard',
+    phase: 'failed_hard',
+    resumePoint: 'transcode_executing',
+    retryCount: 1,
+    progress: 72,
+  });
+
+  const res = await app.inject({ method: 'POST', url: `/v1/tasks/${failed.id}/actions/retry` });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.status, 'queued');
+  assert.strictEqual(body.controlState.state, 'queued');
+  assert.strictEqual(body.controlState.actions.retry.enabled, false);
+  assert.strictEqual(body.controlState.actions.pause.enabled, true);
+
+  const stored = taskStore.getTask(failed.id);
+  assert.strictEqual(stored.status, 'queued');
+  assert.strictEqual(stored.retryCount, 2);
+  assert.strictEqual(stored.resumePoint, 'transcode_executing');
+  assert.strictEqual(stored.phase, null);
+  assert.strictEqual(stored.progress, 0);
+  assert.strictEqual(stored.manualExecuteRequested, true);
+
+  const events = taskStore.queryTaskEvents({ taskId: failed.id }, { pageSize: 50 }).events;
+  assert.ok(events.some((event) => event.eventType === 'task.retry_requested'));
+  assert.ok(events.some((event) => event.eventType === 'task.retry_recorded'));
+  await app.close();
+});
+
+test('POST /v1/tasks/:id/actions/retry rejects retry limit and active task conflict', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const exhausted = taskStore.createTask({
+    itemId: 'retry-exhausted',
+    actionType: 'upgrade',
+    status: 'queued',
+  });
+  taskStore.updateTask(exhausted.id, {
+    status: 'failed_hard',
+    resumePoint: 'upgrade_executing',
+    retryCount: 3,
+  });
+  const exhaustedView = await app.inject({ method: 'GET', url: `/v1/tasks/${exhausted.id}` });
+  assert.strictEqual(exhaustedView.statusCode, 200);
+  assert.strictEqual(exhaustedView.json().controlState.actions.retry.enabled, false);
+  assert.strictEqual(exhaustedView.json().controlState.actions.retry.reason, 'retry_limit_reached');
+
+  const retryLimit = await app.inject({ method: 'POST', url: `/v1/tasks/${exhausted.id}/actions/retry` });
+  assert.strictEqual(retryLimit.statusCode, 409);
+  assert.strictEqual(retryLimit.json().error.code, 'TASK_RECOVERY_REJECTED');
+  assert.strictEqual(retryLimit.json().error.message, 'retry_limit_reached');
+  assert.strictEqual(retryLimit.json().actionName, 'retry');
+  assert.strictEqual(retryLimit.json().action.enabled, false);
+  assert.strictEqual(retryLimit.json().action.reason, 'retry_limit_reached');
+  assert.strictEqual(retryLimit.json().controlState.actions.retry.effect, 'manual_recovery_retry_limit_reached');
+  assert.strictEqual(retryLimit.json().recovery.state, 'flow_specific_recovery_required');
+  assert.strictEqual(retryLimit.json().recoveryPlan.reason, 'retry_limit_reached');
+
+  const failed = taskStore.createTask({
+    itemId: 'retry-conflict',
+    actionType: 'transcode',
+    status: 'queued',
+  });
+  taskStore.updateTask(failed.id, {
+    status: 'failed_hard',
+    resumePoint: 'transcode_executing',
+  });
+  const blocker = taskStore.createTask({
+    itemId: 'retry-conflict',
+    actionType: 'transcode',
+    status: 'queued',
+  });
+  const conflict = await app.inject({ method: 'POST', url: `/v1/tasks/${failed.id}/actions/retry` });
+  assert.strictEqual(conflict.statusCode, 409);
+  assert.strictEqual(conflict.json().error.code, 'TASK_RECOVERY_REJECTED');
+  assert.strictEqual(conflict.json().error.message, 'active_task_conflict');
+  assert.strictEqual(conflict.json().actionName, 'retry');
+  assert.strictEqual(conflict.json().action.enabled, true);
+  assert.strictEqual(conflict.json().controlState.actions.retry.enabled, true);
+  assert.strictEqual(conflict.json().recoveryPlan.reason, 'active_task_conflict');
+  assert.strictEqual(conflict.json().activeTask.id, blocker.id);
+  assert.strictEqual(conflict.json().activeTask.controlState.state, 'queued');
+  await app.close();
+});
+
 // ── Admin tasks ────────────────────────────────────────────────────────────────
 
 test('GET /v1/admin/tasks returns list with summary', async () => {
@@ -983,6 +1949,156 @@ test('GET /v1/admin/tasks returns list with summary', async () => {
   if (scrapeSummary) {
     assert.strictEqual(scrapeSummary.itemInfo.adultMetadata.faceClusters, undefined, 'list payload omits heavy face clusters');
   }
+  await app.close();
+});
+
+test('GET /v1/admin/dashboard/health returns media and task health aggregates', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    smartTaskEnabledActions: ['ingest', 'scrape'],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const closed = metadataReadyMovie({
+    itemId: 'dashboard-closed',
+    name: 'Closed',
+    action: 'keep',
+    metadataComplete: true,
+  });
+  const missing = metadataReadyMovie({
+    itemId: 'dashboard-missing',
+    name: 'Missing Metadata',
+    action: 'transcode',
+    metadataComplete: false,
+    metadataStatus: 'missing',
+    metadataMissingReasons: ['tmdb_id_missing'],
+  });
+  const pending = metadataReadyMovie({
+    itemId: 'dashboard-pending',
+    name: 'Pending Optimize',
+    action: 'transcode',
+    metadataComplete: true,
+    optimizationStatus: 'none',
+  });
+  libraryStore.saveLibrary({ version: 1, cachedAt: new Date().toISOString(), items: [closed, missing, pending] });
+  const waiting = taskStore.createTask({
+    itemId: 'dashboard-pending',
+    itemName: 'Pending Optimize',
+    actionType: 'transcode',
+    status: 'awaiting_user_confirm',
+    itemInfo: { name: 'Pending Optimize', subLibraryId: '' },
+  });
+  taskStore.createTask({
+    itemId: 'dashboard-failed',
+    itemName: 'Failed Bridge',
+    actionType: 'upgrade',
+    status: 'failed_hard',
+    itemInfo: { name: 'Failed Bridge', subLibraryId: '' },
+  });
+  const manual = taskStore.createTask({
+    itemId: 'dashboard-manual',
+    itemName: 'Manual Start',
+    actionType: 'scrape',
+    status: 'pending_manual',
+    itemInfo: { name: 'Manual Start', subLibraryId: '' },
+  });
+  taskStore.createTask({
+    itemId: 'dashboard-queued',
+    itemName: 'Queued Active',
+    actionType: 'scrape',
+    status: 'queued',
+    itemInfo: { name: 'Queued Active', subLibraryId: '' },
+  });
+  taskStore.appendTaskEvent(waiting, 'task.awaiting_confirmation', { bridgeKind: 'optimize' });
+  activityLog.addActivity('health', 'Emby 服务器连接已恢复', { ok: true });
+
+  const originalGetTasks = taskStore.getTasks;
+  const originalQueryTaskEvents = taskStore.queryTaskEvents;
+  const originalSmartTaskHealth = smartTaskEngine.getHealth;
+  taskStore.getTasks = () => {
+    throw new Error('dashboard health should use lightweight task summaries');
+  };
+  taskStore.queryTaskEvents = () => {
+    throw new Error('dashboard health should use recent task event projection');
+  };
+  smartTaskEngine.getHealth = () => ({
+    status: 'green',
+    enabled: true,
+    enabledActions: ['scrape', 'transcode'],
+    lastRunAt: '2026-06-30T00:00:00.000Z',
+    lastScanSummary: {
+      status: 'done',
+      startedAt: '2026-06-30T00:00:00.000Z',
+      finishedAt: '2026-06-30T00:00:01.000Z',
+      enabledActions: ['scrape', 'transcode'],
+      libraryItems: 9,
+      candidateCount: 4,
+      evaluatedCandidates: 3,
+      enqueued: 1,
+      candidatesByAction: { scrape: 2, transcode: 2 },
+      enqueuedByAction: { transcode: 1 },
+      admissionRejected: 1,
+      admissionRejectedByReason: { scrape_not_supported_for_standard_media: 1 },
+      skippedByQueueCap: 1,
+      skippedByQueueCapByAction: { scrape: 1 },
+      maxPerRunReached: true,
+      payload: { shouldNotLeak: true },
+    },
+  });
+  let res;
+  try {
+    res = await app.inject({ method: 'GET', url: '/v1/admin/dashboard/health' });
+  } finally {
+    taskStore.getTasks = originalGetTasks;
+    taskStore.queryTaskEvents = originalQueryTaskEvents;
+    smartTaskEngine.getHealth = originalSmartTaskHealth;
+  }
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.status, 'red');
+  assert.strictEqual(body.media.totalItems, 3);
+  assert.strictEqual(body.media.closedItems, 1);
+  assert.strictEqual(body.media.openItems, 2);
+  assert.strictEqual(body.media.metadataIncompleteItems, 1);
+  assert.strictEqual(body.media.pendingOptimizationItems, 1);
+  assert.strictEqual(body.media.byRecommendedAction.transcode, 2);
+  assert.strictEqual(body.media.pendingBridges.metadata, 1);
+  assert.strictEqual(body.media.pendingBridges.optimize, 1);
+  assert.deepStrictEqual(body.media.topMetadataMissingReasons[0], { reason: 'tmdb_id_missing', count: 1 });
+  assert.strictEqual(body.tasks.awaitingConfirmationTasks, 1);
+  assert.strictEqual(body.tasks.failedTasks, 1);
+  assert.strictEqual(body.tasks.activeTasks, 3);
+  assert.strictEqual(body.tasks.activeByBridgeKind.optimize, 1);
+  assert.strictEqual(body.tasks.attention.needs_action.count, 3);
+  assert.strictEqual(body.tasks.attention.confirmation.count, 1);
+  assert.strictEqual(body.tasks.attention.manual_start.count, 1);
+  assert.strictEqual(body.tasks.attention.recovery.count, 1);
+  assert.strictEqual(body.tasks.primaryAttention.key, 'needs_action');
+  assert.strictEqual(body.tasks.primaryAttention.count, 3);
+  assert.strictEqual(body.tasks.byStatus.pending_manual, 1);
+  assert.deepStrictEqual(body.automation.enabledOperations, ['ingest', 'scrape']);
+  assert.strictEqual(body.automation.smartTask.status, 'green');
+  assert.strictEqual(body.automation.smartTask.enabled, true);
+  assert.strictEqual(body.automation.smartTask.lastRunAt, '2026-06-30T00:00:00.000Z');
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.candidateCount, 4);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.enqueued, 1);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.admissionRejectedByReason.scrape_not_supported_for_standard_media, 1);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.skippedByQueueCapByAction.scrape, 1);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.maxPerRunReached, true);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.payload, undefined);
+  assert.ok(manual.id, 'manual task fixture created');
+  assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'failed_tasks'));
+  assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'smart_task_admission_rejected'));
+  assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'smart_task_queue_cap'));
+  assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'smart_task_max_per_run'));
+  assert.ok(body.diagnostics.storage.some((metric) => metric.store === 'library'));
+  assert.ok(body.diagnostics.storage.some((metric) => metric.store === 'tasks'));
+  assert.ok(body.events.recent.length > 0, 'dashboard health includes event projection');
+  assert.ok(body.events.bySource.task_event > 0);
+  assert.ok(body.events.recent.some((entry) => entry.source === 'health' && entry.sourceLabel === '健康'));
+  const waitingEvent = body.events.recent.find((entry) => entry.kind === 'task_event' && entry.taskId === waiting.id);
+  assert.ok(waitingEvent, 'task event projection includes recent task event');
+  assert.strictEqual(waitingEvent.detail, undefined);
+  assert.strictEqual(waitingEvent.payload, undefined);
   await app.close();
 });
 
@@ -1066,6 +2182,38 @@ test('GET /v1/admin/tasks filters by multiple statuses', async () => {
   assert.strictEqual(body.summary.byStatus.queued, 1);
   assert.strictEqual(body.summary.byStatus.executing, 1);
   assert.strictEqual(body.summary.byStatus.done, undefined);
+  await app.close();
+});
+
+test('GET /v1/admin/tasks filters by bridge and flow operation', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const taskStore = require('../src/taskStore');
+  taskStore.createTask({ itemId: 'optimize-transcode', actionType: 'transcode', status: 'queued' });
+  taskStore.createTask({ itemId: 'metadata-scrape', actionType: 'scrape', status: 'queued' });
+  taskStore.createTask({ itemId: 'archive-delete', actionType: 'delete', status: 'queued' });
+
+  const byBridge = await app.inject({ method: 'GET', url: '/v1/admin/tasks?bridgeKind=optimize&page=1&pageSize=10' });
+  assert.strictEqual(byBridge.statusCode, 200);
+  const bridgeBody = byBridge.json();
+  assert.strictEqual(bridgeBody.summary.total, 1);
+  assert.strictEqual(bridgeBody.tasks[0].itemId, 'optimize-transcode');
+  assert.strictEqual(bridgeBody.tasks[0].taskBridge.kind, 'optimize');
+
+  const byOperation = await app.inject({ method: 'GET', url: '/v1/admin/tasks?operationKind=scrape&page=1&pageSize=10' });
+  assert.strictEqual(byOperation.statusCode, 200);
+  const operationBody = byOperation.json();
+  assert.strictEqual(operationBody.summary.total, 1);
+  assert.strictEqual(operationBody.tasks[0].itemId, 'metadata-scrape');
+  assert.strictEqual(operationBody.tasks[0].flowPlan.operationKind, 'scrape');
+
+  const activeByBridge = await app.inject({ method: 'GET', url: '/v1/tasks?bridgeKind=archive&activeOnly=1' });
+  assert.strictEqual(activeByBridge.statusCode, 200);
+  assert.deepStrictEqual(activeByBridge.json().tasks.map((t) => t.itemId), ['archive-delete']);
+
+  const activeByOperation = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=transcode&activeOnly=1' });
+  assert.strictEqual(activeByOperation.statusCode, 200);
+  assert.deepStrictEqual(activeByOperation.json().tasks.map((t) => t.itemId), ['optimize-transcode']);
   await app.close();
 });
 
@@ -1976,6 +3124,19 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
   const rescrape = await app.inject({ method: 'POST', url: `/v1/admin/adult/items/${itemId}/actions/rescrape` });
   assert.strictEqual(rescrape.statusCode, 201);
   assert.ok(rescrape.json().taskId, 'rescrape returns a task id');
+  assert.strictEqual(rescrape.json().task.id, rescrape.json().taskId);
+  assert.strictEqual(rescrape.json().taskBridge.kind, 'metadata');
+  assert.strictEqual(rescrape.json().flowPlan.operationKind, 'scrape');
+  assert.strictEqual(rescrape.json().requestedIntent.bridgeKind, 'metadata');
+  assert.strictEqual(rescrape.json().requestedIntent.preferredOperation, 'scrape');
+  assert.strictEqual(rescrape.json().requestedIntent.intentMode, 'adult_rescrape');
+  assert.strictEqual(rescrape.json().controlState.state, 'queued');
+  assert.strictEqual(rescrape.json().controlState.actions.pause.enabled, true);
+
+  const taskDetail = await app.inject({ method: 'GET', url: `/v1/tasks/${rescrape.json().taskId}` });
+  assert.strictEqual(taskDetail.statusCode, 200);
+  assert.strictEqual(taskDetail.json().requestedIntent.intentMode, 'adult_rescrape');
+  assert.strictEqual(taskDetail.json().taskBridge.kind, 'metadata');
 
   // resetScrapeStatus cleared the failure marker.
   const lib2 = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
@@ -1984,6 +3145,19 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
   // A second rescrape while a task is active → 409.
   const dup = await app.inject({ method: 'POST', url: `/v1/admin/adult/items/${itemId}/actions/rescrape` });
   assert.strictEqual(dup.statusCode, 409);
+  assert.strictEqual(dup.json().error.code, 'TASK_CONFLICT');
+  assert.strictEqual(dup.json().error.message, 'active_task_exists');
+  assert.strictEqual(dup.json().admission.operation, 'scrape');
+  assert.strictEqual(dup.json().admission.reason, 'active_task_exists');
+  assert.strictEqual(dup.json().admission.bridgeKind, 'metadata');
+  assert.strictEqual(dup.json().admission.activeTaskId, rescrape.json().taskId);
+  assert.strictEqual(dup.json().activeTask.id, rescrape.json().taskId);
+  assert.strictEqual(dup.json().activeTask.taskBridge.kind, 'metadata');
+  assert.strictEqual(dup.json().activeTask.flowPlan.operationKind, 'scrape');
+  assert.strictEqual(dup.json().activeTask.controlState.state, 'queued');
+  assert.strictEqual(dup.json().businessFlowDecision.blockedReasons.scrape, 'active_task_exists');
+  assert.strictEqual(dup.json().businessFlowDecision.activeTaskBridge, 'metadata');
+  assert.strictEqual(dup.json().businessFlowDecision.activeFlowOperation, 'scrape');
   await app.close();
 });
 
@@ -2936,8 +4110,12 @@ test('GET /v1/library/queries/manage task filter stays on SQL pagination path', 
 
   const libraryStore = require('../src/libraryStore');
   const originalLoadLibrary = libraryStore.loadLibrary;
+  const originalLoadTasks = taskStore.loadTasks;
   libraryStore.loadLibrary = () => {
     throw new Error('task filter should not load full library');
+  };
+  taskStore.loadTasks = () => {
+    throw new Error('task filter should not load full task payloads');
   };
   try {
     const none = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sub-task-filter&task=none&page=1&pageSize=10' });
@@ -2949,6 +4127,7 @@ test('GET /v1/library/queries/manage task filter stays on SQL pagination path', 
     assert.deepStrictEqual(active.json().items.map((item) => item.itemId), ['task-filter-item-2']);
   } finally {
     libraryStore.loadLibrary = originalLoadLibrary;
+    taskStore.loadTasks = originalLoadTasks;
     await app.close();
   }
 });
@@ -3130,6 +4309,10 @@ test('PATCH /v1/tasks/:id confirm with confirmData stores selection', async () =
   assert.ok(task.confirmData);
   assert.strictEqual(task.confirmData.selectedIndex, 2);
   assert.strictEqual(task.status, 'queued');
+  const events = taskStore.queryTaskEvents({ taskId: id }, { pageSize: 50 }).events;
+  const confirmedEvent = events.find((event) => event.eventType === 'task.confirmed');
+  assert.ok(confirmedEvent);
+  assert.deepStrictEqual(confirmedEvent.payload.confirmDataKeys, ['selectedIndex']);
 
   await app.close();
 });

@@ -38,6 +38,8 @@ const resourceProjection = require('./resourceProjection');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
+const businessFlowPolicy = require('./businessFlowPolicy');
+const taskControlPolicy = require('./taskControlPolicy');
 
 let serverReady = false;
 
@@ -228,6 +230,8 @@ function taskListSummary(task) {
     progress: task.progress,
     phase: task.phase,
     resumePoint: task.resumePoint,
+    retryCount: Number(task.retryCount || 0) || 0,
+    nodeId: task.nodeId,
     approval: task.approval,
     priority: task.priority,
     createdAt: task.createdAt,
@@ -237,6 +241,311 @@ function taskListSummary(task) {
     confirmData: task.confirmData,
     metadataStatus: task.itemInfo && task.itemInfo.metadataStatus,
     metadataMissingReasons: task.itemInfo && task.itemInfo.metadataMissingReasons,
+    controlState: taskControlPolicy.buildTaskControlState(task),
+  };
+}
+
+function publicNodeSummary(node) {
+  if (!node) return null;
+  return {
+    id: node.id,
+    name: node.name,
+    address: node.address,
+    status: node.status,
+  };
+}
+
+function nodeResourceContext(node) {
+  return {
+    resourceType: 'worker_node',
+    resourceKey: `node:${node.id}`,
+    resourceLabel: node.name || node.address || node.id,
+    nodeId: node.id,
+  };
+}
+
+function activeNodeTaskSummaries(nodeId) {
+  return taskStore.queryTaskSummaries({ nodeId, statuses: ['executing'] }, {
+    includeHistory: false,
+    includeAll: true,
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  }).tasks.map(taskListSummary);
+}
+
+const TASK_ATTENTION_QUEUES = {
+  needs_action: {
+    key: 'needs_action',
+    label: '需要处理',
+    hint: '等待确认、可恢复、可重试和待手动启动',
+  },
+  confirmation: {
+    key: 'confirmation',
+    label: '等待确认',
+    hint: '需要用户确认后继续',
+  },
+  recovery: {
+    key: 'recovery',
+    label: '可恢复/重试',
+    hint: '暂停、中断或失败后可继续处理',
+  },
+  manual_start: {
+    key: 'manual_start',
+    label: '待手动启动',
+    hint: '需要用户手动开始后进入调度队列',
+  },
+};
+
+function taskAttentionKeys(task) {
+  const controlState = taskControlPolicy.buildTaskControlState(task);
+  const primaryAction = controlState.primaryAction || '';
+  const executeEffect = controlState.actions
+    && controlState.actions.execute
+    && controlState.actions.execute.effect;
+  const keys = new Set();
+
+  if (primaryAction === 'confirm') keys.add('confirmation');
+  if (primaryAction === 'retry') keys.add('recovery');
+  if (primaryAction === 'execute') {
+    if (executeEffect === 'queue_for_scheduler_dispatch') keys.add('manual_start');
+    if (
+      executeEffect === 'resume_from_pause'
+      || executeEffect === 'resume_after_interruption'
+      || executeEffect === 'clear_pause_request'
+    ) {
+      keys.add('recovery');
+    }
+  }
+  if (keys.size > 0) keys.add('needs_action');
+  return keys;
+}
+
+function taskMatchesAttention(task, attentionKey) {
+  if (!TASK_ATTENTION_QUEUES[attentionKey]) return false;
+  return taskAttentionKeys(task).has(attentionKey);
+}
+
+function buildAttentionSummary(tasks) {
+  const summary = {};
+  for (const [key, def] of Object.entries(TASK_ATTENTION_QUEUES)) {
+    summary[key] = { ...def, count: 0 };
+  }
+  for (const task of tasks || []) {
+    for (const key of taskAttentionKeys(task)) {
+      if (summary[key]) summary[key].count += 1;
+    }
+  }
+  return summary;
+}
+
+function primaryAttentionQueue(attentionSummary = {}) {
+  const order = ['needs_action', 'confirmation', 'recovery', 'manual_start'];
+  for (const key of order) {
+    const queue = attentionSummary[key];
+    if (queue && Number(queue.count || 0) > 0) return queue;
+  }
+  return null;
+}
+
+function buildStatusSummary(tasks) {
+  const byStatus = {};
+  for (const task of tasks || []) {
+    const status = task && task.status || 'unknown';
+    byStatus[status] = (byStatus[status] || 0) + 1;
+  }
+  return byStatus;
+}
+
+function sortTasksForAdminList(tasks) {
+  return [...(tasks || [])].sort((a, b) => {
+    const bTime = Date.parse(b.updatedAt || b.createdAt || '') || 0;
+    const aTime = Date.parse(a.updatedAt || a.createdAt || '') || 0;
+    if (bTime !== aTime) return bTime - aTime;
+    return String(b.id || '').localeCompare(String(a.id || ''));
+  });
+}
+
+function paginateTasks(tasks, page, pageSize) {
+  const start = (page - 1) * pageSize;
+  return tasks.slice(start, start + pageSize);
+}
+
+function summarizeConfirmationQueue(tasks = []) {
+  const byGate = {};
+  const byBridgeKind = {};
+  const byOperationKind = {};
+  for (const task of tasks || []) {
+    const control = taskControlPolicy.buildTaskControlState(task);
+    const gate = control.confirmation && control.confirmation.gateId || 'unknown';
+    const bridge = task.taskBridge && task.taskBridge.kind || 'unknown';
+    const operation = task.flowPlan && task.flowPlan.operationKind || task.actionType || 'unknown';
+    byGate[gate] = (byGate[gate] || 0) + 1;
+    byBridgeKind[bridge] = (byBridgeKind[bridge] || 0) + 1;
+    byOperationKind[operation] = (byOperationKind[operation] || 0) + 1;
+  }
+  return {
+    total: tasks.length,
+    byGate,
+    byBridgeKind,
+    byOperationKind,
+  };
+}
+
+function summarizeAdultReviewQueue(items = []) {
+  const byReviewStatus = {};
+  const byScrapeStatus = {};
+  const byRegion = {};
+  for (const item of items || []) {
+    const reviewStatus = item.reviewStatus || item.scrapeStatus || 'unknown';
+    const scrapeStatus = item.scrapeStatus || 'unknown';
+    const region = item.adultRegion || 'unknown';
+    byReviewStatus[reviewStatus] = (byReviewStatus[reviewStatus] || 0) + 1;
+    byScrapeStatus[scrapeStatus] = (byScrapeStatus[scrapeStatus] || 0) + 1;
+    byRegion[region] = (byRegion[region] || 0) + 1;
+  }
+  return {
+    total: items.length,
+    byReviewStatus,
+    byScrapeStatus,
+    byRegion,
+  };
+}
+
+function adultReviewReason(item) {
+  const reviewStatus = item && item.reviewStatus || '';
+  const scrapeStatus = item && item.scrapeStatus || '';
+  const idConfidence = item && item.idConfidence || '';
+  if (scrapeStatus === 'ambiguous' || idConfidence === 'low') return 'adult_identity_ambiguous';
+  if (reviewStatus === 'needs_review' || scrapeStatus === 'needs_review') return 'adult_scrape_result_needs_review';
+  return 'adult_item_requires_user_review';
+}
+
+function adultReviewQueueItem(item) {
+  const reason = adultReviewReason(item);
+  const message = reason === 'adult_identity_ambiguous'
+    ? 'Adult item identity is ambiguous and requires user confirmation.'
+    : 'Adult scrape result requires user review before it can be treated as complete.';
+  return {
+    id: `adult-review:${item.itemId}`,
+    kind: 'adult_review',
+    itemId: item.itemId,
+    itemName: item.name || item.adultTitle || item.adultId || '',
+    source: item.source || 'adult_folder',
+    subLibraryId: item.subLibraryId || '',
+    status: item.reviewStatus || item.scrapeStatus || 'needs_review',
+    updatedAt: item.updatedAt || '',
+    taskBridge: {
+      kind: 'metadata',
+      from: 'ingested',
+      to: 'metadata_ready',
+      reason,
+      actionType: 'scrape',
+      source: item.source || 'adult_folder',
+      itemId: item.itemId,
+      subLibraryId: item.subLibraryId || '',
+    },
+    flowPlan: {
+      version: 'v3',
+      bridgeKind: 'metadata',
+      direction: 'metadata.scrape',
+      operationKind: 'scrape',
+      executor: 'scrapeFlow',
+      primaryResourceType: item.adultRegion === 'western_adult' ? 'local_ai' : 'scraper',
+      actionType: 'scrape',
+      source: item.source || 'adult_folder',
+      resourceTypes: item.adultRegion === 'western_adult'
+        ? ['local_ai', 'filesystem']
+        : ['scraper', 'filesystem'],
+      steps: [],
+      plannedAt: item.updatedAt || '',
+    },
+    itemInfo: {
+      name: item.name || item.adultTitle || item.adultId || '',
+      title: item.adultTitle || '',
+      type: item.type || '',
+      source: item.source || 'adult_folder',
+      path: item.path || '',
+      subLibraryId: item.subLibraryId || '',
+      metadataStatus: item.metadataStatus || '',
+      metadataComplete: !!item.metadataComplete,
+      metadataKind: item.metadataKind || 'adult',
+      metadataMissingReasons: Array.isArray(item.metadataMissingReasons) ? item.metadataMissingReasons : [],
+      adultMetadata: {
+        adultId: item.adultId || '',
+        scrapeStatus: item.scrapeStatus || '',
+        reviewStatus: item.reviewStatus || '',
+        region: item.adultRegion || '',
+        idConfidence: item.idConfidence || '',
+        title: item.adultTitle || '',
+        originalTitle: item.adultOriginalTitle || '',
+        protagonist: item.protagonist,
+        scrapeError: item.scrapeError || '',
+        scrapeFailedAt: item.scrapeFailedAt || '',
+      },
+    },
+    confirmation: {
+      required: true,
+      gateId: reason,
+      message,
+      options: reason === 'adult_identity_ambiguous'
+        ? ['correct_identity', 'rescrape_after_fix']
+        : ['approve_result', 'rescrape'],
+      resumePoint: 'adult_review',
+      effect: 'user_must_review_adult_metadata_before_metadata_ready',
+      whyRequired: reason,
+    },
+    confirmAction: {
+      enabled: false,
+      reason: 'adult_review_requires_dedicated_action',
+      label: 'review',
+      endpoint: `/v1/admin/adult/items/${encodeURIComponent(item.itemId)}`,
+      method: 'GET',
+      effect: 'open_adult_item_review',
+    },
+    recovery: {
+      state: 'user_review_required',
+      reason,
+      resumePoint: 'adult_review',
+      nextAction: 'review',
+    },
+  };
+}
+
+function confirmationQueueItem(task) {
+  const controlState = taskControlPolicy.buildTaskControlState(task);
+  const confirmation = controlState.confirmation || {};
+  return {
+    kind: 'task_confirmation',
+    id: task.id,
+    taskId: task.id,
+    itemId: task.itemId,
+    itemName: task.itemName || '',
+    actionType: task.actionType,
+    taskBridge: task.taskBridge,
+    flowPlan: task.flowPlan,
+    source: task.source || '',
+    status: task.status,
+    phase: task.phase || '',
+    resumePoint: task.resumePoint || '',
+    retryCount: Number(task.retryCount || 0) || 0,
+    priority: task.priority,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    itemInfo: taskListItemInfo(task.itemInfo),
+    confirmation: {
+      required: !!confirmation.required,
+      gateId: confirmation.gateId || '',
+      message: confirmation.message || '',
+      options: Array.isArray(confirmation.options) ? confirmation.options : [],
+      resumePoint: confirmation.resumePoint || '',
+      effect: confirmation.effect || '',
+      whyRequired: confirmation.gateId || confirmation.message
+        ? 'flow_gate_requires_user_decision'
+        : 'task_is_waiting_for_user_confirmation',
+    },
+    confirmAction: controlState.actions && controlState.actions.confirm,
+    recovery: controlState.recovery,
+    controlState,
   };
 }
 
@@ -306,7 +615,306 @@ function libraryListItemView(item) {
   };
 }
 
-function taskDetailView(task) {
+function decorateLibraryItemsForUi(items, config) {
+  const itemIds = (items || []).map((item) => item && item.itemId);
+  const activeTasks = activeTaskSummariesForItems(itemIds);
+  const latestFailureEventsByItem = taskStore.queryLatestFailureEventsByItemIds(itemIds);
+  return businessFlowPolicy
+    .decorateItems(items, { config, tasks: activeTasks, latestFailureEventsByItem })
+    .map(libraryListItemView);
+}
+
+function compactSmartTaskScanSummary(summary) {
+  if (!summary || typeof summary !== 'object') return null;
+  return {
+    status: summary.status || '',
+    startedAt: summary.startedAt || null,
+    finishedAt: summary.finishedAt || null,
+    enabledActions: Array.isArray(summary.enabledActions) ? summary.enabledActions : [],
+    libraryItems: Number(summary.libraryItems || 0) || 0,
+    candidateCount: Number(summary.candidateCount || 0) || 0,
+    evaluatedCandidates: Number(summary.evaluatedCandidates || 0) || 0,
+    enqueued: Number(summary.enqueued || 0) || 0,
+    candidatesByAction: summary.candidatesByAction || {},
+    enqueuedByAction: summary.enqueuedByAction || {},
+    admissionRejected: Number(summary.admissionRejected || 0) || 0,
+    admissionRejectedByReason: summary.admissionRejectedByReason || {},
+    skippedByQueueCap: Number(summary.skippedByQueueCap || 0) || 0,
+    skippedByQueueCapByAction: summary.skippedByQueueCapByAction || {},
+    maxPerRunReached: !!summary.maxPerRunReached,
+    reason: summary.reason || '',
+    error: summary.error || '',
+  };
+}
+
+function buildDashboardAutomation(config) {
+  const health = smartTaskEngine.getHealth ? (smartTaskEngine.getHealth() || {}) : {};
+  return {
+    enabledOperations: Array.isArray(config.smartTaskEnabledActions)
+      ? config.smartTaskEnabledActions
+      : [],
+    smartTask: {
+      status: health.status || '',
+      enabled: !!health.enabled,
+      disabledReason: health.disabledReason || '',
+      message: health.message || '',
+      lastRunAt: health.lastRunAt || null,
+      lastError: health.lastError || '',
+      lastScanSummary: compactSmartTaskScanSummary(health.lastScanSummary),
+    },
+  };
+}
+
+function buildDashboardHealthSignals(mediaStats, taskStats, config, automation = {}) {
+  const signals = [];
+  const push = (level, code, label, count, detail = '') => {
+    if (!count) return;
+    signals.push({ level, code, label, count, detail });
+  };
+
+  push('red', 'failed_tasks', '失败任务桥', taskStats.failedTasks, '先到任务中心查看 flow / event 历史');
+  push('yellow', 'awaiting_confirmation', '等待确认', taskStats.awaitingConfirmationTasks, '需要人工确认后才能继续');
+  push('yellow', 'metadata_incomplete', '元数据未完成', mediaStats.metadataIncompleteItems, '会阻断转码、洗版、删除等优化入口');
+  push('yellow', 'pending_optimization', '等待优化', mediaStats.pendingOptimizationItems, '推荐动作仍未闭环');
+  push('yellow', 'open_lifecycle', '未闭环媒体', mediaStats.openItems, '仍有业务桥需要推进');
+
+  const autoActions = Array.isArray(config.smartTaskEnabledActions) ? config.smartTaskEnabledActions : [];
+  if (autoActions.length === 0) {
+    signals.push({
+      level: 'yellow',
+      code: 'auto_actions_disabled',
+      label: '后台自动 flow 操作未启用',
+      count: 1,
+      detail: 'SmartTask 只能生成被全局 allow-list 放行的操作',
+    });
+  }
+
+  const scan = automation.smartTask && automation.smartTask.lastScanSummary;
+  if (scan && scan.status === 'failed') {
+    push('red', 'smart_task_scan_failed', '自动入队扫描失败', 1, scan.error || '查看 Resource diagnostics');
+  }
+  if (scan && scan.admissionRejected > 0) {
+    push('yellow', 'smart_task_admission_rejected', '自动入队被策略拒绝', scan.admissionRejected, '查看 admission rejected reason 分布');
+  }
+  if (scan && scan.skippedByQueueCap > 0) {
+    push('yellow', 'smart_task_queue_cap', '自动入队队列已满', scan.skippedByQueueCap, '等待现有任务推进或调整队列上限');
+  }
+  if (scan && scan.maxPerRunReached) {
+    push('yellow', 'smart_task_max_per_run', '自动入队达到单轮上限', 1, '下一轮扫描会继续处理剩余候选');
+  }
+
+  return signals.slice(0, 8);
+}
+
+function dashboardBusinessStatus(signals) {
+  if ((signals || []).some((signal) => signal.level === 'red')) return 'red';
+  if ((signals || []).some((signal) => signal.level === 'yellow')) return 'yellow';
+  return 'green';
+}
+
+const DASHBOARD_ACTION_LABELS = {
+  ingest: '入库',
+  scrape: '刮削',
+  transcode: '转码压缩',
+  upgrade: '洗版',
+  delete: '删除',
+};
+
+const DASHBOARD_TASK_EVENT_LABELS = {
+  'task.created': '任务创建',
+  'flow.planned': 'Flow 规划',
+  'flow.dispatched': '开始执行',
+  'flow.failed': '执行失败',
+  'task.confirmed': '用户确认',
+  'task.execute_requested': '请求执行',
+  'task.pause_requested': '请求暂停',
+  'task.cancel_requested': '请求取消',
+  'task.status_changed': '状态变化',
+  'task.manual_execute_requested': '手动启动',
+  'task.paused': '已暂停',
+  'task.resumed': '已恢复',
+  'task.awaiting_confirmation': '等待确认',
+  'task.failed': '任务失败',
+  'task.retry_requested': '请求重试',
+  'task.retry_recorded': '重试入队',
+  'task.restart_interrupted': '重启中断',
+  'task.restart_recovery_queued': '恢复入队',
+  'task.restart_recovery_failed': '恢复失败',
+  'task.deleted': '任务删除',
+};
+
+function dashboardEventSeverityFromTaskEvent(event) {
+  const status = event && event.eventStatus ? String(event.eventStatus) : '';
+  const type = event && event.eventType ? String(event.eventType) : '';
+  if (status === 'failed_hard' || status === 'failed_soft' || type.includes('failed')) return 'red';
+  if (status === 'interrupted' || type.includes('interrupted')) return 'yellow';
+  if (status === 'awaiting_user_confirm' || type.includes('confirmation')) return 'yellow';
+  if (status === 'done' || type.includes('recovery_queued') || type.includes('retry')) return 'green';
+  return 'neutral';
+}
+
+function dashboardActivitySeverity(entry) {
+  const source = entry && entry.source ? String(entry.source) : '';
+  const message = entry && entry.message ? String(entry.message) : '';
+  if (/失败|异常|error|failed/i.test(message)) return 'red';
+  if (/等待|跳过|未启用|warning|warn/i.test(message)) return 'yellow';
+  if (source === 'health' && /恢复/.test(message)) return 'green';
+  return 'neutral';
+}
+
+function dashboardActivitySourceLabel(source) {
+  switch (source) {
+    case 'media_library': return '媒体库';
+    case 'adult_library': return '成人库';
+    case 'douban': return '豆瓣';
+    case 'strategy_engine': return '策略';
+    case 'smart_task_engine': return '自动入队';
+    case 'task': return '任务';
+    case 'health': return '健康';
+    case 'user_action': return '用户';
+    default: return source || '系统';
+  }
+}
+
+function dashboardTaskEventMessage(event) {
+  const label = DASHBOARD_TASK_EVENT_LABELS[event.eventType] || event.eventType || '任务事件';
+  const action = DASHBOARD_ACTION_LABELS[event.actionType] || event.actionType || '任务';
+  const resource = event.resourceLabel || event.resourceType || '';
+  if (resource) return `${label}：${action} · ${resource}`;
+  return `${label}：${action}`;
+}
+
+function countDashboardEventSources(events) {
+  const bySource = {};
+  for (const event of events || []) {
+    const key = event.source || 'system';
+    bySource[key] = (bySource[key] || 0) + 1;
+  }
+  return bySource;
+}
+
+function buildDashboardEvents(limit = 15) {
+  const eventLimit = Math.min(50, Math.max(1, Number.parseInt(limit, 10) || 15));
+  const activityEvents = activityLog.getRecent(eventLimit).map((entry, index) => ({
+    id: `activity:${entry.ts || index}:${entry.source || 'system'}`,
+    kind: 'activity',
+    source: entry.source || 'system',
+    sourceLabel: dashboardActivitySourceLabel(entry.source || 'system'),
+    ts: entry.ts,
+    severity: dashboardActivitySeverity(entry),
+    message: entry.message || '',
+    detail: entry.detail && typeof entry.detail === 'object' ? entry.detail : undefined,
+  }));
+  const taskEvents = (typeof taskStore.queryRecentTaskEvents === 'function'
+    ? taskStore.queryRecentTaskEvents({ pageSize: eventLimit })
+    : taskStore.queryTaskEvents({}, { pageSize: eventLimit, orderDir: 'desc' }).events
+  ).map((event) => ({
+    id: `task_event:${event.id}`,
+    kind: 'task_event',
+    source: 'task_event',
+    sourceLabel: '任务事件',
+    ts: event.createdAt,
+    severity: dashboardEventSeverityFromTaskEvent(event),
+    message: dashboardTaskEventMessage(event),
+    taskId: event.taskId || '',
+    itemId: event.itemId || '',
+    actionType: event.actionType || '',
+    eventType: event.eventType || '',
+    eventStatus: event.eventStatus || '',
+    resourceType: event.resourceType || '',
+    resourceKey: event.resourceKey || '',
+    resourceLabel: event.resourceLabel || '',
+    bridgeKind: event.bridgeKind || '',
+    operationKind: event.operationKind || '',
+  }));
+  const recent = [...activityEvents, ...taskEvents]
+    .filter((event) => event.ts && event.message)
+    .sort((a, b) => {
+      const bTime = Date.parse(b.ts || '') || 0;
+      const aTime = Date.parse(a.ts || '') || 0;
+      if (bTime !== aTime) return bTime - aTime;
+      return String(b.id).localeCompare(String(a.id));
+    })
+    .slice(0, eventLimit);
+  return {
+    latestAt: recent[0] ? recent[0].ts : null,
+    bySource: countDashboardEventSources(recent),
+    recent,
+  };
+}
+
+function isTaskIntentValidationReason(reason) {
+  return [
+    'missing_task_intent',
+    'invalid_action_type',
+    'invalid_bridge_kind',
+    'invalid_preferred_operation',
+    'preferred_operation_bridge_mismatch',
+    'conflicting_task_intent',
+    'preferred_operation_required',
+  ].includes(reason);
+}
+
+function compactAdmissionReject(admission = {}) {
+  const result = {
+    operation: admission.operation || admission.actionType || '',
+    reason: admission.reason || '',
+    bridgeKind: admission.bridgeKind || '',
+    preferredOperation: admission.preferredOperation || '',
+    supportedEntry: admission.supportedEntry || '',
+    supportedOperations: admission.supportedOperations,
+    metadataMissingReasons: admission.metadataMissingReasons,
+    activeTaskId: admission.activeTaskId || '',
+    activeTaskBridge: admission.activeTaskBridge || '',
+    activeFlowOperation: admission.activeFlowOperation || '',
+  };
+  Object.keys(result).forEach((key) => {
+    if (result[key] === undefined || result[key] === null || result[key] === '') delete result[key];
+    if (Array.isArray(result[key]) && result[key].length === 0) delete result[key];
+  });
+  return result;
+}
+
+function compactAdmissionAccept(admission = {}) {
+  const result = {
+    allowed: true,
+    operation: admission.operation || admission.actionType || '',
+    reason: admission.reason || 'allowed',
+    bridgeKind: admission.bridgeKind || '',
+    preferredOperation: admission.preferredOperation || '',
+    intentMode: admission.intentMode || '',
+    requestedIntent: admission.requestedIntent,
+    taskBridge: admission.taskBridge,
+    flowPlan: admission.flowPlan,
+  };
+  Object.keys(result).forEach((key) => {
+    if (result[key] === undefined || result[key] === null || result[key] === '') delete result[key];
+    if (Array.isArray(result[key]) && result[key].length === 0) delete result[key];
+  });
+  return result;
+}
+
+function taskAdmissionRejectPayload(code, message, admission, item, itemInfo, config, tasks, extra = {}) {
+  const subject = item
+    ? { ...item, ...(itemInfo || {}) }
+    : (itemInfo || null);
+  return {
+    error: { code, message },
+    admission: compactAdmissionReject(admission),
+    businessFlowDecision: subject
+      ? businessFlowPolicy.buildItemDecision({ item: subject, config, tasks })
+      : null,
+    ...extra,
+  };
+}
+
+function latestTaskEvent(taskId) {
+  if (!taskId) return null;
+  const result = taskStore.queryTaskEvents({ taskId }, { pageSize: 1, orderDir: 'desc' });
+  return result.events && result.events[0] ? result.events[0] : null;
+}
+
+function taskDetailView(task, opts = {}) {
   if (!task || typeof task !== 'object') return task;
   const itemInfo = task.itemInfo && typeof task.itemInfo === 'object'
     ? {
@@ -317,7 +925,256 @@ function taskDetailView(task) {
       }),
     }
     : task.itemInfo;
-  return { ...task, itemInfo };
+  const latestEvent = opts.latestEvent === undefined ? latestTaskEvent(task.id) : opts.latestEvent;
+  return {
+    ...task,
+    itemInfo,
+    controlState: taskControlPolicy.buildTaskControlState(task, { latestEvent }),
+  };
+}
+
+function taskActionResponse(task) {
+  const fresh = task && task.id ? (taskStore.getTask(task.id) || task) : task;
+  return {
+    id: fresh.id,
+    status: fresh.status,
+    updatedAt: fresh.updatedAt,
+    controlState: taskControlPolicy.buildTaskControlState(fresh, { latestEvent: latestTaskEvent(fresh.id) }),
+  };
+}
+
+function taskActionReject(reply, task, actionName, code, message, extra = {}) {
+  const fresh = task && task.id ? (taskStore.getTask(task.id) || task) : task;
+  const latestEvent = fresh && fresh.id ? latestTaskEvent(fresh.id) : null;
+  const controlState = fresh ? taskControlPolicy.buildTaskControlState(fresh, { latestEvent }) : null;
+  const action = controlState && controlState.actions ? controlState.actions[actionName] : null;
+  return reply.code(409).send({
+    error: { code, message },
+    task: fresh ? taskListSummary(fresh) : null,
+    actionName,
+    action: action || null,
+    controlState,
+    recovery: controlState ? controlState.recovery : null,
+    ...extra,
+  });
+}
+
+function activeTaskConflictFor(itemId, excludeTaskId) {
+  if (!itemId) return null;
+  return taskStore.queryTaskSummaries({ itemId }, {
+    includeHistory: false,
+    includeAll: true,
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  }).tasks.find((t) => t.id !== excludeTaskId) || null;
+}
+
+function activeTaskAdmissionSummary(itemId, activeTaskId) {
+  if (!itemId) return null;
+  const activeTasks = taskStore.queryTaskSummaries({ itemId }, {
+    includeHistory: false,
+    includeAll: true,
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  }).tasks;
+  const active = activeTaskId
+    ? activeTasks.find((t) => t.id === activeTaskId)
+    : activeTasks[0];
+  return active ? taskListSummary(active) : null;
+}
+
+function activeTaskSummariesForItem(itemId) {
+  if (!itemId) return [];
+  return activeTaskSummariesForItems([itemId]);
+}
+
+function activeTaskSummariesForItems(itemIds) {
+  const ids = [...new Set((itemIds || []).map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+  if (ids.length === 0) return [];
+  return taskStore.queryTaskSummaries({ itemIds: ids }, {
+    includeHistory: false,
+    includeAll: true,
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  }).tasks;
+}
+
+function activeTaskItemIds() {
+  return new Set(taskStore.queryTaskSummaries({}, {
+    includeHistory: false,
+    includeAll: true,
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  }).tasks.map((task) => task.itemId).filter(Boolean));
+}
+
+const PRIORITY_EDITABLE_STATUSES = ['created', 'pending_manual', 'queued', 'interrupted', 'paused'];
+
+function priorityAdjustmentState(task, requestedPriority) {
+  const status = task && task.status || '';
+  const editable = PRIORITY_EDITABLE_STATUSES.includes(status);
+  return {
+    enabled: editable,
+    reason: editable ? 'available' : 'status_not_priority_editable',
+    effect: editable ? 'override_queue_priority' : 'priority_locked_after_dispatch_or_terminal_state',
+    requestedPriority: requestedPriority === undefined ? null : requestedPriority,
+    currentPriority: task && typeof task.priority === 'number' ? task.priority : 100,
+    editableStatuses: PRIORITY_EDITABLE_STATUSES,
+  };
+}
+
+function priorityAdjustmentReject(reply, task, statusCode, code, message, requestedPriority, extra = {}) {
+  const fresh = task && task.id ? (taskStore.getTask(task.id) || task) : task;
+  const latestEvent = fresh && fresh.id ? latestTaskEvent(fresh.id) : null;
+  const controlState = fresh ? taskControlPolicy.buildTaskControlState(fresh, { latestEvent }) : null;
+  return reply.code(statusCode).send({
+    error: { code, message },
+    task: fresh ? taskListSummary(fresh) : null,
+    controlState,
+    priorityAdjustment: priorityAdjustmentState(fresh, requestedPriority),
+    ...extra,
+  });
+}
+
+function getTaskActionOrReject(reply, task, actionName) {
+  const action = taskControlPolicy.getTaskAction(task, actionName);
+  if (!action.enabled) {
+    taskActionReject(reply, task, actionName, 'TASK_ACTION_REJECTED', action.reason || 'action_not_available');
+    return null;
+  }
+  return action;
+}
+
+function appendTaskControlEvent(task, actionName, action, payload = {}) {
+  if (!task || !task.id || !actionName) return null;
+  return taskStore.appendTaskEvent(task, `task.${actionName}_requested`, {
+    requestedBy: 'user',
+    actionName,
+    actionEffect: action && action.effect || '',
+    fromStatus: task.status || '',
+    resumePoint: task.resumePoint || '',
+    ...payload,
+  });
+}
+
+function diagnosticMatchesFailureEvent(log, event, task) {
+  if (!log || !event) return false;
+  const payload = log.payload && typeof log.payload === 'object' ? log.payload : {};
+  if (payload.taskId && payload.taskId === event.taskId) return true;
+  if (payload.itemId && payload.itemId === event.itemId) return true;
+  if (task && payload.taskId && payload.taskId === task.id) return true;
+  if (task && payload.itemId && payload.itemId === task.itemId) return true;
+  if (log.resourceKey && event.resourceKey && log.resourceKey === event.resourceKey) return true;
+  if (log.resourceType && event.resourceType && log.resourceType === event.resourceType && log.status === 'failed') return true;
+  return false;
+}
+
+function compactFailureDiagnostic(log) {
+  if (!log) return null;
+  const payload = log.payload && typeof log.payload === 'object' ? log.payload : {};
+  return {
+    logId: log.logId || log.id || '',
+    scope: log.scope || '',
+    operation: log.operation || '',
+    component: log.component || '',
+    status: log.status || '',
+    resourceType: log.resourceType || '',
+    resourceKey: log.resourceKey || '',
+    endedAt: log.endedAt || '',
+    error: payload.error || payload.reason || '',
+  };
+}
+
+function latestTaskErrorSummary(task) {
+  const logs = Array.isArray(task && task.logs) ? task.logs : [];
+  const latestError = [...logs].reverse().find((entry) => {
+    const level = String(entry && entry.level || '').toLowerCase();
+    return level === 'error' || level === 'fatal';
+  });
+  if (!latestError) return null;
+  return {
+    message: String(latestError.msg || latestError.message || ''),
+    level: String(latestError.level || ''),
+    ts: String(latestError.ts || latestError.at || ''),
+    source: 'task_log',
+  };
+}
+
+function compactFailureSummary(event, diagnostic, task) {
+  const payload = event && event.payload && typeof event.payload === 'object' ? event.payload : {};
+  const embedded = payload.failureSummary && typeof payload.failureSummary === 'object'
+    ? payload.failureSummary
+    : null;
+  const taskLogSummary = latestTaskErrorSummary(task);
+  const diagnosticPayload = diagnostic && diagnostic.payload && typeof diagnostic.payload === 'object'
+    ? diagnostic.payload
+    : {};
+  const message = (embedded && embedded.message)
+    || (taskLogSummary && taskLogSummary.message)
+    || payload.errorMessage
+    || payload.message
+    || payload.error
+    || payload.reason
+    || diagnosticPayload.error
+    || diagnosticPayload.reason
+    || '';
+  const level = (embedded && embedded.level) || (message ? 'error' : '');
+  const ts = (embedded && embedded.ts) || (taskLogSummary && taskLogSummary.ts) || (event && event.createdAt) || (diagnostic && diagnostic.endedAt) || '';
+  const source = (embedded && embedded.source)
+    || (taskLogSummary && taskLogSummary.source)
+    || (payload.errorMessage ? 'flow_event' : '')
+    || (payload.message || payload.error || payload.reason ? 'event_payload' : '')
+    || (diagnostic ? 'diagnostic_log' : '');
+  return {
+    message: String(message || ''),
+    level: String(level || ''),
+    ts: String(ts || ''),
+    source: String(source || ''),
+    errorName: payload.errorName || '',
+  };
+}
+
+function enrichFailureEvent(event, config, diagnosticRows = []) {
+  const task = event && event.taskId ? taskStore.getTask(event.taskId) : null;
+  const latestEvent = event || null;
+  const controlState = task ? taskControlPolicy.buildTaskControlState(task, { latestEvent }) : null;
+  const taskResource = task ? resourceProjection.resourceForTask(task, config) : null;
+  const diagnostic = diagnosticRows.find((log) => diagnosticMatchesFailureEvent(log, event, task));
+  const recovery = controlState && controlState.recovery ? controlState.recovery : {
+    state: 'task_not_found',
+    reason: 'task_record_missing',
+    resumePoint: event && event.resumePoint || '',
+    nextAction: 'inspect_event',
+  };
+  return {
+    ...event,
+    task: task ? {
+      id: task.id,
+      itemId: task.itemId,
+      itemName: task.itemName || '',
+      actionType: task.actionType,
+      status: task.status,
+      phase: task.phase || '',
+      resumePoint: task.resumePoint || '',
+      retryCount: Number(task.retryCount || 0) || 0,
+      bridgeKind: task.taskBridge && task.taskBridge.kind || '',
+      flowDirection: task.flowPlan && task.flowPlan.direction || '',
+      operationKind: task.flowPlan && task.flowPlan.operationKind || '',
+    } : null,
+    resourceContext: {
+      resourceType: event.resourceType || (taskResource && taskResource.resourceType) || '',
+      resourceKey: event.resourceKey || (taskResource && taskResource.resourceKey) || '',
+      resourceLabel: event.resourceLabel || (taskResource && taskResource.resourceLabel) || '',
+    },
+    recovery,
+    controlState,
+    diagnosticSummary: compactFailureDiagnostic(diagnostic),
+    failureSummary: compactFailureSummary(event, diagnostic, task),
+  };
+}
+
+function enrichFailureEvents(events, config, diagnosticRows = []) {
+  return (events || []).map((event) => enrichFailureEvent(event, config, diagnosticRows));
 }
 
 function markScrapeVerificationSource(verification, source) {
@@ -407,12 +1264,10 @@ function registerRoutes(app) {
   // ── Tasks ───────────────────────────────────────────────────────────────
 
   app.post('/v1/tasks', async (req, reply) => {
-    const { itemId, actionType } = req.body || {};
-    if (!itemId || !actionType) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId and actionType are required');
-    }
-    if (!['delete', 'transcode', 'upgrade', 'scrape'].includes(actionType)) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'Invalid actionType');
+    const body = req.body || {};
+    const { itemId } = body;
+    if (!itemId) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
     }
 
     const cfg = configStore.loadConfig();
@@ -454,19 +1309,73 @@ function registerRoutes(app) {
     } : null;
 
     const admissionItemInfo = itemInfo || { itemId };
-    const admission = taskAdmission.canCreateTask({
+    const activeAdmissionTasks = activeTaskSummariesForItem(itemId);
+    const admission = taskAdmission.canCreateManualIntent({
       item: libItem,
       itemInfo: admissionItemInfo,
-      actionType,
-      source: 'manual',
+      actionType: body.actionType,
+      bridgeKind: body.bridgeKind,
+      preferredOperation: body.preferredOperation,
+      intent: body.intent,
       config: cfg,
-      tasks: taskStore.loadTasks({ includeHistory: false }),
+      tasks: activeAdmissionTasks,
     });
+    const actionType = admission.actionType || admission.operation || body.actionType;
     if (!admission.allowed) {
-      if (admission.reason === 'active_task_exists') {
-        return apiError(reply, 409, 'TASK_CONFLICT', `Item ${itemId} already has an active task (${admission.activeTaskId})`);
+      diagnosticLog.record({
+        category: 'admission',
+        scope: 'taskAdmission.manual',
+        operation: 'reject_task',
+        component: 'taskAdmission',
+        resourceType: 'task',
+        resourceKey: `task:${actionType}`,
+        status: 'rejected',
+        payload: {
+          itemId,
+          actionType,
+          bridgeKind: body.bridgeKind || (body.intent && body.intent.bridgeKind) || '',
+          preferredOperation: body.preferredOperation || (body.intent && body.intent.preferredOperation) || '',
+          source: 'manual',
+          reason: admission.reason,
+          supportedEntry: admission.supportedEntry,
+          supportedOperations: admission.supportedOperations,
+          metadataMissingReasons: admission.metadataMissingReasons,
+        },
+      });
+      if (isTaskIntentValidationReason(admission.reason)) {
+        return reply.code(400).send(taskAdmissionRejectPayload(
+          'VALIDATION_ERROR',
+          admission.reason,
+          admission,
+          libItem,
+          admissionItemInfo,
+          cfg,
+          activeAdmissionTasks,
+        ));
       }
-      return apiError(reply, 409, 'TASK_ADMISSION_REJECTED', admission.reason);
+      if (admission.reason === 'active_task_exists') {
+        return reply.code(409).send(taskAdmissionRejectPayload(
+          'TASK_CONFLICT',
+          `Item ${itemId} already has an active task (${admission.activeTaskId})`,
+          admission,
+          libItem,
+          admissionItemInfo,
+          cfg,
+          activeAdmissionTasks,
+          {
+            activeTask: activeTaskAdmissionSummary(itemId, admission.activeTaskId),
+          },
+        ));
+      }
+      return reply.code(409).send(taskAdmissionRejectPayload(
+        'TASK_ADMISSION_REJECTED',
+        admission.reason,
+        admission,
+        libItem,
+        admissionItemInfo,
+        cfg,
+        activeAdmissionTasks,
+      ));
     }
 
     const schedule = itemInfo && itemInfo.subLibraryId
@@ -491,27 +1400,35 @@ function registerRoutes(app) {
       priorityBreakdown,
       taskBridge: admission.taskBridge,
       flowPlan: admission.flowPlan,
+      requestedIntent: admission.requestedIntent,
       itemInfo,
       logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user action' }],
     });
 
-    return reply.code(201).send(task);
+    const response = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
+    response.admission = compactAdmissionAccept(admission);
+    return reply.code(201).send(response);
   });
 
   app.get('/v1/tasks', async (req) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (req.query.actionType) filter.actionType = req.query.actionType;
+    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
+    if (req.query.operationKind) filter.operationKind = req.query.operationKind;
     const includeHistory = req.query.includeHistory === '1' || req.query.includeHistory === 'true';
     const activeOnly = !includeHistory || req.query.activeOnly === '1' || req.query.activeOnly === 'true';
-    const tasks = activeOnly
-      ? taskStore.loadTasks({ includeHistory: false }).filter((t) => {
-        if (filter.status && t.status !== filter.status) return false;
-        if (filter.actionType && t.actionType !== filter.actionType) return false;
-        return true;
-      })
-      : taskStore.getTasks(filter);
-    return { tasks };
+    if (activeOnly) {
+      const tasks = taskStore.queryTaskSummaries(filter, {
+        includeHistory: false,
+        includeAll: true,
+        orderBy: 'updatedAt',
+        orderDir: 'desc',
+      }).tasks;
+      return { tasks: tasks.map(taskListSummary) };
+    }
+    const tasks = taskStore.getTasks(filter);
+    return { tasks: tasks.map((task) => ({ ...task, controlState: taskControlPolicy.buildTaskControlState(task) })) };
   });
 
   app.get('/v1/tasks/:id/events', async (req, reply) => {
@@ -528,6 +1445,9 @@ function registerRoutes(app) {
     const detail = taskDetailView(task);
     if (req.query.includeEvents === '1' || req.query.includeEvents === 'true') {
       detail.events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 200 }).events;
+      detail.controlState = taskControlPolicy.buildTaskControlState(task, {
+        latestEvent: detail.events && detail.events.length ? detail.events[detail.events.length - 1] : null,
+      });
     }
     return detail;
   });
@@ -722,9 +1642,8 @@ function registerRoutes(app) {
 
     const { confirmed, confirmData } = req.body || {};
     if (!confirmed) return apiError(reply, 400, 'VALIDATION_ERROR', 'confirmed must be true');
-    if (task.status !== 'awaiting_user_confirm') {
-      return apiError(reply, 409, 'TASK_CONFLICT', 'Task is not awaiting confirmation');
-    }
+    const action = getTaskActionOrReject(reply, task, 'confirm');
+    if (!action) return;
 
     // Store user selection data (e.g. selectedIndex for upgrade flow)
     if (confirmData) {
@@ -738,48 +1657,118 @@ function registerRoutes(app) {
     // Re-queue for scheduler, mark as just-confirmed to bypass awaiting guard
     taskScheduler.markConfirmed(task.id);
     const updated = taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
-    return { id: updated.id, status: updated.status, updatedAt: updated.updatedAt };
+    if (updated) {
+      taskStore.appendTaskEvent(updated, 'task.confirmed', {
+        requestedBy: 'user',
+        actionName: 'confirm',
+        actionEffect: action.effect || '',
+        fromStatus: task.status || '',
+        toStatus: updated.status || '',
+        gateId: task.approval && task.approval.gateId || '',
+        resumePoint: task.resumePoint || '',
+        confirmDataKeys: confirmData && typeof confirmData === 'object' ? Object.keys(confirmData) : [],
+      });
+    }
+    return taskActionResponse(updated);
   });
 
   app.post('/v1/tasks/:id/actions/execute', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const action = getTaskActionOrReject(reply, task, 'execute');
+    if (!action) return;
 
-    if (task.status === 'pending_manual' || task.status === 'interrupted' || task.status === 'created') {
+    if (action.effect === 'queue_for_scheduler_dispatch' || action.effect === 'resume_after_interruption' || action.effect === 'resume_from_pause') {
+      appendTaskControlEvent(task, 'execute', action);
       taskScheduler.markConfirmed(task.id);
-      taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
-      return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
+      const updated = taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
+      return taskActionResponse(updated);
     }
-    if (task.status === 'paused') {
-      taskScheduler.markConfirmed(task.id);
-      taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
-      return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
-    }
-    if (task.status === 'pausing') {
+    if (action.effect === 'clear_pause_request') {
       // Clear pause request — hash acquisition loop will fall back to normal polling
-      taskStore.updateTask(task.id, { pausingRequested: false, status: 'executing' });
-      return { id: task.id, status: 'executing', updatedAt: new Date().toISOString() };
+      appendTaskControlEvent(task, 'execute', action);
+      const updated = taskStore.updateTask(task.id, { pausingRequested: false, status: 'executing' });
+      return taskActionResponse(updated);
     }
-    return { id: task.id, status: task.status, updatedAt: task.updatedAt };
+    return taskActionReject(reply, task, 'execute', 'TASK_ACTION_REJECTED', action.reason || 'unsupported_execute_transition');
+  });
+
+  app.post('/v1/tasks/:id/actions/retry', async (req, reply) => {
+    const task = taskStore.getTask(req.params.id);
+    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+
+    const plan = taskControlPolicy.buildTaskRecoveryPlan(task);
+    if (!plan.available || plan.action !== 'retry') {
+      return taskActionReject(reply, task, 'retry', 'TASK_RECOVERY_REJECTED', plan.reason || 'recovery_not_available', {
+        recoveryPlan: plan,
+      });
+    }
+
+    const activeConflict = activeTaskConflictFor(task.itemId, task.id);
+    if (activeConflict) {
+      return taskActionReject(reply, task, 'retry', 'TASK_RECOVERY_REJECTED', 'active_task_conflict', {
+        recoveryPlan: { ...plan, available: false, reason: 'active_task_conflict' },
+        activeTask: taskListSummary(activeConflict),
+      });
+    }
+
+    taskScheduler.markConfirmed(task.id);
+    const updates = {
+      status: 'queued',
+      manualExecuteRequested: true,
+      retryCount: Number(task.retryCount || 0) + 1,
+      phase: null,
+      progress: 0,
+    };
+    if (plan.resumePoint && plan.resumePoint !== task.resumePoint) updates.resumePoint = plan.resumePoint;
+    const updated = taskStore.updateTask(task.id, updates);
+    taskStore.deleteProgress(task.id);
+    if (updated) {
+      taskStore.appendTaskEvent(updated, 'task.retry_requested', {
+        fromStatus: task.status,
+        toStatus: updated.status,
+        retryCount: updated.retryCount || 0,
+        recovery: {
+          reason: plan.reason,
+          effect: plan.effect,
+          resumePoint: plan.resumePoint || '',
+        },
+      });
+    }
+    return taskActionResponse(updated || taskStore.getTask(task.id) || task);
   });
 
   app.post('/v1/tasks/:id/actions/pause', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const action = getTaskActionOrReject(reply, task, 'pause');
+    if (!action) return;
 
-    const flow = getFlow(task.actionType);
-    if (flow) await flow.pause(task.id);
+    if (action.effect === 'move_waiting_task_to_paused') {
+      appendTaskControlEvent(task, 'pause', action);
+      const updated = taskStore.updateTask(task.id, { status: 'paused' });
+      return taskActionResponse(updated);
+    }
+    if (action.effect === 'request_runtime_pause_and_cleanup_partial_work') {
+      appendTaskControlEvent(task, 'pause', action);
+      const flow = getFlow(task.actionType);
+      if (flow) await flow.pause(task.id);
+      return taskActionResponse(taskStore.getTask(task.id) || { ...task, status: 'paused' });
+    }
 
-    return { id: task.id, status: 'paused', updatedAt: new Date().toISOString() };
+    return taskActionReject(reply, task, 'pause', 'TASK_ACTION_REJECTED', action.reason || 'unsupported_pause_transition');
   });
 
   app.delete('/v1/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const action = getTaskActionOrReject(reply, task, 'cancel');
+    if (!action) return;
 
     const flow = getFlow(task.actionType);
     if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
 
+    appendTaskControlEvent(task, 'cancel', action);
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
   });
@@ -805,7 +1794,7 @@ function registerRoutes(app) {
     else if (query.userRating) filter.userRating = Number(query.userRating);
     if (query.task === 'active' || query.task === 'none') {
       filter.taskState = query.task;
-      filter.activeTaskIds = new Set(taskStore.loadTasks({ includeHistory: false }).map((t) => t.itemId));
+      filter.activeTaskIds = activeTaskItemIds();
     }
     if (query.scrape === 'done' || query.scrape === 'pending' || query.scrape === 'failed') filter.metadataStatus = query.scrape;
     if (query.lifecycle) filter.lifecycle = query.lifecycle;
@@ -851,7 +1840,7 @@ function registerRoutes(app) {
           }
         }
       }
-      result.items = result.items.map(libraryListItemView);
+      result.items = decorateLibraryItemsForUi(result.items, cfg);
       return result;
     });
   });
@@ -872,14 +1861,22 @@ function registerRoutes(app) {
       }),
     }, () => {
       const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
-      return { ...result, items: result.items.map(libraryListItemView) };
+      const cfg = configStore.loadConfig();
+      return { ...result, items: decorateLibraryItemsForUi(result.items, cfg) };
     });
   });
 
   app.get('/v1/library/items/:itemId', async (req, reply) => {
     const item = mediaLibraryService.getLibraryItem(req.params.itemId);
     if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Item not found');
-    return libraryListItemView(item);
+    const cfg = configStore.loadConfig();
+    const activeTasks = activeTaskSummariesForItem(req.params.itemId);
+    const latestFailureEventsByItem = taskStore.queryLatestFailureEventsByItemIds([req.params.itemId]);
+    return libraryListItemView(businessFlowPolicy.decorateItem(item, {
+      config: cfg,
+      tasks: activeTasks,
+      latestFailureEventsByItem,
+    }));
   });
 
   app.patch('/v1/library/ratings', async (req, reply) => {
@@ -1259,8 +2256,42 @@ function registerRoutes(app) {
         req.params.itemId,
         typeof overrideAdultId === 'string' ? { overrideAdultId } : {},
       );
-      if (!task) return apiError(reply, 409, 'CONFLICT', 'An active scrape task already exists for this item');
-      return reply.code(201).send({ ok: true, taskId: task.id });
+      if (!task) {
+        const config = configStore.loadConfig();
+        const item = mediaLibraryService.getLibraryItem(req.params.itemId);
+        const activeTask = activeTaskAdmissionSummary(req.params.itemId);
+        const admission = {
+          operation: 'scrape',
+          actionType: 'scrape',
+          reason: 'active_task_exists',
+          bridgeKind: 'metadata',
+          preferredOperation: 'scrape',
+          supportedEntry: 'POST /v1/admin/adult/items/:itemId/actions/rescrape',
+          activeTaskId: activeTask && activeTask.id,
+          activeTaskBridge: activeTask && activeTask.taskBridge && activeTask.taskBridge.kind,
+          activeFlowOperation: activeTask && activeTask.flowPlan && activeTask.flowPlan.operationKind,
+        };
+        return reply.code(409).send(taskAdmissionRejectPayload(
+          'TASK_CONFLICT',
+          'active_task_exists',
+          admission,
+          item,
+          item ? adultLibraryService.itemInfoFromItem(item) : { itemId: req.params.itemId },
+          config,
+          activeTask ? [activeTask] : [],
+          { activeTask },
+        ));
+      }
+      const taskView = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
+      return reply.code(201).send({
+        ok: true,
+        taskId: task.id,
+        task: taskView,
+        taskBridge: taskView.taskBridge,
+        flowPlan: taskView.flowPlan,
+        requestedIntent: taskView.requestedIntent,
+        controlState: taskView.controlState,
+      });
     } catch (e) {
       const code = /not found|does not exist|watchRoot/i.test(e.message) ? 'NOT_FOUND' : 'RESCRAPE_FAILED';
       const status = code === 'NOT_FOUND' ? 404 : 500;
@@ -1740,29 +2771,44 @@ function registerRoutes(app) {
     if (!node) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Node not found' } });
 
     const force = req.query && req.query.force === 'true';
-    const activeCount = nodeStore.getNodeActiveJobCount(req.params.id, taskStore);
+    const activeTasks = activeNodeTaskSummaries(req.params.id);
+    const activeCount = activeTasks.length;
 
     if (activeCount > 0 && !force) {
       return reply.code(409).send({
-        error: { code: 'NODE_HAS_ACTIVE_JOBS', message: `Node has ${activeCount} active job(s). Use ?force=true to force delete.` },
+        error: { code: 'NODE_HAS_ACTIVE_JOBS', message: 'node_has_active_jobs' },
+        node: publicNodeSummary(node),
+        resourceContext: nodeResourceContext(node),
         activeJobCount: activeCount,
+        activeTasks,
+        forceDelete: {
+          available: true,
+          query: 'force=true',
+          effect: 'mark_active_tasks_failed_hard_then_delete_node',
+        },
       });
     }
 
     if (force && activeCount > 0) {
       // Cancel all active tasks on this node
-      const tasks = taskStore.loadTasks({ includeHistory: false });
-      for (const t of tasks) {
-        if (t.nodeId === node.id && t.status === 'executing') {
-          const flow = getFlow(t.actionType);
-          if (flow) { try { await flow.cancel(t.id); } catch (_) {} }
-          taskStore.updateTask(t.id, { status: 'failed_hard', logs: [{ ts: new Date().toISOString(), level: 'error', msg: `Node ${node.name} deleted by admin` }] });
-        }
+      for (const t of activeTasks) {
+        const flow = getFlow(t.actionType);
+        if (flow) { try { await flow.cancel(t.id); } catch (_) {} }
+        taskStore.updateTask(t.id, { status: 'failed_hard', logs: [{ ts: new Date().toISOString(), level: 'error', msg: `Node ${node.name} deleted by admin` }] });
       }
     }
 
     nodeStore.deleteNode(req.params.id);
-    return { ok: true };
+    return {
+      ok: true,
+      node: publicNodeSummary(node),
+      resourceContext: nodeResourceContext(node),
+      forceDelete: force ? {
+        applied: activeCount > 0,
+        effect: activeCount > 0 ? 'marked_active_tasks_failed_hard_then_deleted_node' : 'deleted_node_without_active_tasks',
+        affectedTaskIds: activeTasks.map((task) => task.id),
+      } : undefined,
+    };
   });
 
   app.patch('/v1/admin/nodes/:id', async (req, reply) => {
@@ -1877,7 +2923,92 @@ function registerRoutes(app) {
 
   // ── Admin: Tasks ────────────────────────────────────────────────────────
 
-  app.get('/v1/admin/tasks', async (req) => {
+  app.get('/v1/admin/confirmations', async (req, reply) => {
+    const kind = String(req.query.kind || 'all');
+    if (!['all', 'task', 'adult_review'].includes(kind)) {
+      reply.code(400);
+      return { error: { code: 'VALIDATION_ERROR', message: 'invalid kind' } };
+    }
+    const filter = { statuses: ['awaiting_user_confirm'] };
+    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
+    if (req.query.operationKind) filter.operationKind = req.query.operationKind;
+    if (req.query.actionType) filter.actionType = req.query.actionType;
+    if (req.query.q) filter.q = req.query.q;
+    const reviewFilter = {};
+    if (req.query.subLibraryId) reviewFilter.subLibraryId = req.query.subLibraryId;
+    if (req.query.reviewStatus) {
+      reviewFilter.reviewStatuses = String(req.query.reviewStatus)
+        .split(',')
+        .map((status) => status.trim())
+        .filter(Boolean);
+    }
+    if (req.query.q) reviewFilter.q = req.query.q;
+    const includeTasks = kind !== 'adult_review';
+    const includeReviews = kind !== 'task'
+      && (!req.query.bridgeKind || req.query.bridgeKind === 'metadata')
+      && (!req.query.operationKind || req.query.operationKind === 'scrape')
+      && (!req.query.actionType || req.query.actionType === 'scrape');
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
+    const taskResult = !includeTasks
+      ? { tasks: [], page, pageSize, total: 0 }
+      : taskStore.queryTaskSummaries(filter, {
+      page,
+      pageSize,
+      orderBy: 'updatedAt',
+      orderDir: 'desc',
+    });
+    const summaryTasks = !includeTasks
+      ? []
+      : taskStore.queryTaskSummaries(filter, {
+      includeAll: true,
+      orderBy: 'updatedAt',
+      orderDir: 'desc',
+    }).tasks;
+    const reviewResult = !includeReviews
+      ? { items: [], page, pageSize, total: 0 }
+      : libraryStore.queryAdultReviewSummaries(reviewFilter, {
+        page,
+        pageSize,
+        orderBy: 'updatedAt',
+        orderDir: 'desc',
+      });
+    const summaryReviewItems = !includeReviews
+      ? []
+      : libraryStore.queryAdultReviewSummaries(reviewFilter, {
+        includeAll: true,
+        orderBy: 'updatedAt',
+        orderDir: 'desc',
+      }).items;
+    const taskConfirmations = taskResult.tasks.map(confirmationQueueItem);
+    const adultReviews = reviewResult.items.map(adultReviewQueueItem);
+    const items = [...taskConfirmations, ...adultReviews].sort((a, b) => {
+      const bTime = Date.parse(b.updatedAt || '') || 0;
+      const aTime = Date.parse(a.updatedAt || '') || 0;
+      if (bTime !== aTime) return bTime - aTime;
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
+    const taskSummary = summarizeConfirmationQueue(summaryTasks);
+    const adultReviewSummary = summarizeAdultReviewQueue(summaryReviewItems);
+    return {
+      items,
+      confirmations: taskConfirmations,
+      reviews: adultReviews,
+      summary: {
+        ...taskSummary,
+        total: taskSummary.total + adultReviewSummary.total,
+        taskConfirmations: taskSummary,
+        adultReviews: adultReviewSummary,
+      },
+      page,
+      pageSize,
+      total: taskSummary.total + adultReviewSummary.total,
+      taskTotal: taskResult.total,
+      reviewTotal: reviewResult.total,
+    };
+  });
+
+  app.get('/v1/admin/tasks', async (req, reply) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (req.query.statuses) {
@@ -1887,16 +3018,88 @@ function registerRoutes(app) {
         .filter(Boolean);
     }
     if (req.query.actionType) filter.actionType = req.query.actionType;
+    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
+    if (req.query.operationKind) filter.operationKind = req.query.operationKind;
     if (req.query.q) filter.q = req.query.q;
+    const attention = req.query.attention ? String(req.query.attention).trim() : '';
+    if (attention && !TASK_ATTENTION_QUEUES[attention]) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', `unknown attention queue: ${attention}`);
+    }
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
+    if (attention) {
+      const baseTasks = sortTasksForAdminList(taskStore.queryTaskSummaries(filter, {
+        includeAll: true,
+        orderBy: 'updatedAt',
+        orderDir: 'desc',
+      }).tasks);
+      const filteredTasks = baseTasks.filter((task) => taskMatchesAttention(task, attention));
+      return {
+        tasks: paginateTasks(filteredTasks, page, pageSize).map(taskListSummary),
+        summary: {
+          total: filteredTasks.length,
+          byStatus: buildStatusSummary(filteredTasks),
+          attention: buildAttentionSummary(baseTasks),
+        },
+        page,
+        pageSize,
+        total: filteredTasks.length,
+        attention,
+      };
+    }
     const result = taskStore.queryTaskSummaries(filter, { page, pageSize, orderBy: 'updatedAt', orderDir: 'desc' });
+    const summaryBaseTasks = taskStore.queryTaskSummaries(filter, {
+      includeAll: true,
+      orderBy: 'updatedAt',
+      orderDir: 'desc',
+    }).tasks;
     return {
       tasks: result.tasks.map(taskListSummary),
-      summary: { total: result.total, byStatus: result.byStatus },
+      summary: {
+        total: result.total,
+        byStatus: result.byStatus,
+        attention: buildAttentionSummary(summaryBaseTasks),
+      },
       page: result.page,
       pageSize: result.pageSize,
       total: result.total,
+    };
+  });
+
+  app.get('/v1/admin/dashboard/health', async () => {
+    const config = configStore.loadConfig();
+    const media = typeof libraryStore.queryDashboardMediaStats === 'function'
+      ? libraryStore.queryDashboardMediaStats()
+      : {};
+    const tasks = typeof taskStore.queryDashboardTaskStats === 'function'
+      ? taskStore.queryDashboardTaskStats()
+      : {};
+    const taskSummaryFacts = taskStore.queryTaskSummaries({}, {
+      includeAll: true,
+      orderBy: 'updatedAt',
+      orderDir: 'desc',
+    }).tasks;
+    const attention = buildAttentionSummary(taskSummaryFacts);
+    const automation = buildDashboardAutomation(config);
+    const signals = buildDashboardHealthSignals(media, tasks, config, automation);
+    return {
+      status: dashboardBusinessStatus(signals),
+      generatedAt: new Date().toISOString(),
+      media,
+      tasks: {
+        ...tasks,
+        attention,
+        primaryAttention: primaryAttentionQueue(attention),
+      },
+      automation,
+      events: buildDashboardEvents(15),
+      diagnostics: {
+        signals,
+        storage: [
+          libraryStore.getStorageMetrics(),
+          taskStore.getStorageMetrics(),
+        ],
+      },
     };
   });
 
@@ -1939,7 +3142,7 @@ function registerRoutes(app) {
       diagnostics: {
         ...diagnostics,
         dependencies,
-        failedEvents: taskStore.queryRecentFailureEvents({ pageSize: 20 }),
+        failedEvents: enrichFailureEvents(taskStore.queryRecentFailureEvents({ pageSize: 20 }), config, diagnostics.logs),
         bottlenecks,
         backgroundIo: backgroundIoGuard.getState({ recentLimit: 40 }),
         metrics: {
@@ -1958,6 +3161,9 @@ function registerRoutes(app) {
     const detail = taskDetailView(task);
     if (req.query.includeEvents === '1' || req.query.includeEvents === 'true') {
       detail.events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 200 }).events;
+      detail.controlState = taskControlPolicy.buildTaskControlState(task, {
+        latestEvent: detail.events && detail.events.length ? detail.events[detail.events.length - 1] : null,
+      });
     }
     return detail;
   });
@@ -1973,14 +3179,18 @@ function registerRoutes(app) {
     if (body.priority !== undefined) {
       const priority = Number(body.priority);
       if (!Number.isFinite(priority) || priority < 0 || !Number.isInteger(priority)) {
-        return apiError(reply, 400, 'VALIDATION_ERROR', 'priority must be a non-negative integer');
+        return priorityAdjustmentReject(reply, task, 400, 'VALIDATION_ERROR', 'priority must be a non-negative integer', body.priority, {
+          validation: { field: 'priority', reason: 'non_negative_integer_required' },
+        });
       }
-      const editable = ['created', 'pending_manual', 'queued', 'interrupted', 'paused'];
-      if (!editable.includes(task.status)) {
-        return apiError(reply, 409, 'TASK_CONFLICT', `Cannot set priority on task in status "${task.status}"`);
+      const adjustment = priorityAdjustmentState(task, priority);
+      if (!adjustment.enabled) {
+        return priorityAdjustmentReject(reply, task, 409, 'TASK_PRIORITY_REJECTED', adjustment.reason, priority);
       }
       const updated = taskStore.updateTask(task.id, { priority, priorityManuallyAdjusted: true });
-      return updated;
+      const response = taskDetailView(updated);
+      response.priorityAdjustment = priorityAdjustmentState(updated, priority);
+      return response;
     }
 
     return apiError(reply, 400, 'VALIDATION_ERROR', 'No supported fields to update');
@@ -1989,10 +3199,13 @@ function registerRoutes(app) {
   app.delete('/v1/admin/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const action = getTaskActionOrReject(reply, task, 'cancel');
+    if (!action) return;
 
     const flow = getFlow(task.actionType);
     if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
 
+    appendTaskControlEvent(task, 'cancel', action, { endpoint: 'admin' });
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
   });

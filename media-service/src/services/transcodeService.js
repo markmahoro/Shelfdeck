@@ -188,9 +188,11 @@ function runCmd(bin, args, opts = {}) {
   });
 }
 
+let _runCmd = runCmd;
+
 async function ffprobeJson(config, filePath, opts = {}) {
   const probe = resolveFfprobeBin(config);
-  const r = await runCmd(
+  const r = await _runCmd(
     probe,
     ['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', filePath],
     opts,
@@ -204,12 +206,133 @@ async function resolveSevenZipBin() {
   const candidates = explicit ? [explicit] : ['7z', '7zz', '7za'];
   for (const bin of candidates) {
     try {
-      const r = await runCmd(bin, ['i']);
+      const r = await _runCmd(bin, ['i']);
       const formats = `${r.out}\n${r.err}`;
       if (r.code === 0 && /\bUdf\b/i.test(formats) && /\bIso\b/i.test(formats)) return bin;
     } catch (_) {}
   }
   return null;
+}
+
+const DV_TONEMAP_LIBPLACEBO_FILTER = 'libplacebo=tonemapping=bt.2390,format=yuv420p10le';
+const DV_TONEMAP_SOFTWARE_FILTER = 'zscale=t=linear:npl=100,format=gbrpf32le,tonemap=tonemap=hable:desat=0,zscale=p=bt709:t=bt709:m=bt709:r=tv,format=yuv420p10le';
+const DV_TONEMAP_SELFTEST_LAVFI = 'testsrc2=s=64x64:d=0.1,format=yuv420p10le,setparams=colorspace=bt2020nc:color_primaries=bt2020:color_trc=smpte2084';
+const DV_TONEMAP_CACHE_MS = 60 * 1000;
+let dvTonemapCapabilityCache = null;
+
+function escapeRegex(s) {
+  return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function ffmpegFilterExists(filterListText, filterName) {
+  const name = escapeRegex(filterName);
+  return new RegExp(`(^|\\s)${name}(\\s|$)`, 'im').test(String(filterListText || ''));
+}
+
+async function loadFfmpegFilterList(config) {
+  const ff = resolveFfmpegBin(config);
+  const r = await _runCmd(ff, ['-hide_banner', '-filters'], { timeoutMs: 10000 });
+  return {
+    ok: r.code === 0,
+    text: `${r.out || ''}\n${r.err || ''}`,
+    error: r.code === 0 ? '' : String(r.err || r.out || '').slice(-400),
+  };
+}
+
+async function runTonemapFilterSelfTest(config, filterGraph) {
+  const ff = resolveFfmpegBin(config);
+  try {
+    const r = await _runCmd(ff, [
+      '-hide_banner',
+      '-loglevel', 'error',
+      '-f', 'lavfi',
+      '-i', DV_TONEMAP_SELFTEST_LAVFI,
+      '-frames:v', '1',
+      '-vf', filterGraph,
+      '-f', 'null',
+      '-',
+    ], { timeoutMs: 15000 });
+    if (r.code === 0) return { ok: true, error: '' };
+    return { ok: false, error: String(r.err || r.out || '').slice(-600) || `ffmpeg exit code ${r.code}` };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+}
+
+function tonemapPlanPayload({ mode, filterGraph, message, fallbackFrom, libplaceboError, softwareError }) {
+  return {
+    ok: true,
+    mode,
+    filterGraph,
+    label: mode === 'libplacebo' ? 'FFmpeg libplacebo HDR→SDR tonemap' : 'FFmpeg software zscale/tonemap HDR→SDR fallback',
+    message: message || '',
+    fallbackFrom: fallbackFrom || '',
+    libplaceboError: libplaceboError || '',
+    softwareError: softwareError || '',
+  };
+}
+
+async function resolveDolbyVisionTonemapPlan(config, opts = {}) {
+  const ff = resolveFfmpegBin(config);
+  const cacheKey = `${ff}`;
+  const now = Date.now();
+  if (!opts.forceRefresh && dvTonemapCapabilityCache && dvTonemapCapabilityCache.key === cacheKey && dvTonemapCapabilityCache.expiresAt > now) {
+    return dvTonemapCapabilityCache.value;
+  }
+
+  const filters = await loadFfmpegFilterList(config);
+  if (!filters.ok) {
+    const value = { ok: false, mode: 'unavailable', message: `Unable to inspect FFmpeg filters: ${filters.error}` };
+    dvTonemapCapabilityCache = { key: cacheKey, expiresAt: now + DV_TONEMAP_CACHE_MS, value };
+    return value;
+  }
+
+  let libplaceboError = '';
+  if (ffmpegFilterExists(filters.text, 'libplacebo')) {
+    const libplacebo = await runTonemapFilterSelfTest(config, DV_TONEMAP_LIBPLACEBO_FILTER);
+    if (libplacebo.ok) {
+      const value = tonemapPlanPayload({
+        mode: 'libplacebo',
+        filterGraph: DV_TONEMAP_LIBPLACEBO_FILTER,
+        message: 'libplacebo runtime self-test passed',
+      });
+      dvTonemapCapabilityCache = { key: cacheKey, expiresAt: now + DV_TONEMAP_CACHE_MS, value };
+      return value;
+    }
+    libplaceboError = libplacebo.error || 'libplacebo self-test failed';
+  } else {
+    libplaceboError = 'libplacebo filter not found';
+  }
+
+  let softwareError = '';
+  const hasSoftwareFilters = ffmpegFilterExists(filters.text, 'zscale') && ffmpegFilterExists(filters.text, 'tonemap');
+  if (hasSoftwareFilters) {
+    const software = await runTonemapFilterSelfTest(config, DV_TONEMAP_SOFTWARE_FILTER);
+    if (software.ok) {
+      const value = tonemapPlanPayload({
+        mode: 'software',
+        filterGraph: DV_TONEMAP_SOFTWARE_FILTER,
+        fallbackFrom: 'libplacebo',
+        libplaceboError,
+        message: 'libplacebo unavailable at runtime; using software zscale/tonemap fallback',
+      });
+      dvTonemapCapabilityCache = { key: cacheKey, expiresAt: now + DV_TONEMAP_CACHE_MS, value };
+      return value;
+    }
+    softwareError = software.error || 'software tonemap self-test failed';
+  } else {
+    softwareError = 'zscale and tonemap filters are required for software fallback';
+  }
+
+  const value = {
+    ok: false,
+    mode: 'unavailable',
+    message: `No usable Dolby Vision tonemap path. libplacebo: ${libplaceboError}; software fallback: ${softwareError}`,
+    libplaceboError,
+    softwareError,
+  };
+  dvTonemapCapabilityCache = { key: cacheKey, expiresAt: now + DV_TONEMAP_CACHE_MS, value };
+  return value;
 }
 
 function detectDolbyVision(j) {
@@ -221,12 +344,6 @@ function detectDolbyVision(j) {
     }
   }
   return false;
-}
-
-async function hasLibplaceboFilter(config) {
-  const ff = resolveFfmpegBin(config);
-  const r = await runCmd(ff, ['-hide_banner', '-filters']);
-  return r.code === 0 && /libplacebo/i.test(r.out + r.err);
 }
 
 function sanitizeTaskId(id) {
@@ -685,7 +802,7 @@ function archiveRelPathToLocal(root, relPath) {
 async function extractArchivePaths(archiveBin, isoPath, outputDir, relPaths) {
   fs.mkdirSync(outputDir, { recursive: true });
   for (const relPath of relPaths) {
-    const r = await runCmd(archiveBin, ['x', '-y', `-o${outputDir}`, isoPath, relPath]);
+    const r = await _runCmd(archiveBin, ['x', '-y', `-o${outputDir}`, isoPath, relPath]);
     if (r.code !== 0) {
       throw new Error(`7z extract failed (${r.code}): ${(r.err || r.out).slice(0, 400)}`);
     }
@@ -693,7 +810,7 @@ async function extractArchivePaths(archiveBin, isoPath, outputDir, relPaths) {
 }
 
 async function listArchiveEntries(archiveBin, isoPath, relPaths) {
-  const r = await runCmd(archiveBin, ['l', '-slt', isoPath, ...relPaths]);
+  const r = await _runCmd(archiveBin, ['l', '-slt', isoPath, ...relPaths]);
   if (r.code !== 0) throw new Error(`7z list failed (${r.code}): ${(r.err || r.out).slice(0, 400)}`);
   const entries = [];
   let cur = null;
@@ -1295,11 +1412,17 @@ function fileHashSha256(fp) {
 const ENCODER_SELFTEST_LAVFI = 'color=c=black:s=256x256:r=1';
 
 async function encoderSelfTest(ff, encArgs, env) {
-  const r = await runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', ENCODER_SELFTEST_LAVFI, '-frames:v', '1', ...encArgs, '-f', 'null', '-'], { env: env || process.env });
+  const r = await _runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', ENCODER_SELFTEST_LAVFI, '-frames:v', '1', ...encArgs, '-f', 'null', '-'], { env: env || process.env });
   return r.code === 0;
 }
 
-function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolbyVision, dvAcknowledged, targetBitrate }) {
+function resolveTonemapFilterGraph(dolbyVisionTonemap, explicitFilter) {
+  if (explicitFilter) return String(explicitFilter);
+  if (dolbyVisionTonemap && dolbyVisionTonemap.filterGraph) return String(dolbyVisionTonemap.filterGraph);
+  return DV_TONEMAP_LIBPLACEBO_FILTER;
+}
+
+function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolbyVision, dvAcknowledged, targetBitrate, dolbyVisionTonemap, dvTonemapFilter }) {
   const ff = resolveFfmpegBin(config);
   let enc = String(encoderMode || 'cpu').toLowerCase();
   if (isDolbyVision && dvAcknowledged) {
@@ -1316,7 +1439,7 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
 
   const args = [...preInput, '-i', sourcePath, '-map', '0:v:0', '-map', '0:a?', '-map', '0:s?', '-dn'];
   if (isDolbyVision && dvAcknowledged) {
-    args.push('-vf', 'libplacebo=tonemapping=bt.2390,format=yuv420p10le');
+    args.push('-vf', resolveTonemapFilterGraph(dolbyVisionTonemap, dvTonemapFilter));
   }
   const bitrate = typeof targetBitrate === 'number' && targetBitrate > 0 ? String(targetBitrate) + 'M' : null;
   // Cap peak bitrate at 2x target so the output never exceeds the source
@@ -1404,16 +1527,19 @@ async function precheck(config, sourcePath) {
     : (durationSec > 0 ? Math.round((originalSizeBytes * 8) / (durationSec * 1000)) : 0);
 
   const ff = resolveFfmpegBin(config);
-  const rFf = await runCmd(ff, ['-hide_banner', '-version']);
+  const rFf = await _runCmd(ff, ['-hide_banner', '-version']);
   if (rFf.code !== 0) throw new Error('ffmpeg not available');
 
   const probe = resolveFfprobeBin(config);
-  const rProbe = await runCmd(probe, ['-hide_banner', '-version']);
+  const rProbe = await _runCmd(probe, ['-hide_banner', '-version']);
   if (rProbe.code !== 0) throw new Error('ffprobe not available');
 
+  let dolbyVisionTonemap = null;
   if (isDv) {
-    const okLp = await hasLibplaceboFilter(config);
-    if (!okLp) throw new Error('Dolby Vision source requires FFmpeg with libplacebo filter');
+    dolbyVisionTonemap = await resolveDolbyVisionTonemapPlan(config);
+    if (!dolbyVisionTonemap.ok) {
+      throw new Error(`Dolby Vision source requires a usable FFmpeg tonemap path: ${dolbyVisionTonemap.message}`);
+    }
   }
 
   return {
@@ -1428,6 +1554,7 @@ async function precheck(config, sourcePath) {
     originalHeight,
     originalAudioCodec,
     originalBitrate,
+    dolbyVisionTonemap,
   };
 }
 
@@ -1706,7 +1833,7 @@ function runLocalEncode({ ffmpegBin, args, spawnEnv, tid, durationSec, onProgres
  */
 async function attemptLocalEncode({
   config, taskId, sourcePath, partialPath, deviceId, encoderMode,
-  isDolbyVision, dvAcknowledged, durationSec, targetBitrate, onProgress,
+  isDolbyVision, dvAcknowledged, durationSec, targetBitrate, dolbyVisionTonemap, dvTonemapFilter, onProgress,
 }) {
   const tid = String(taskId || '');
 
@@ -1716,6 +1843,7 @@ async function attemptLocalEncode({
   const { ffmpegBin, args } = buildEncodeArgs({
     config, sourcePath, partialPath, encoderMode,
     isDolbyVision: !!isDolbyVision, dvAcknowledged: !!dvAcknowledged, targetBitrate,
+    dolbyVisionTonemap, dvTonemapFilter,
   });
 
   const { backend: devBack, gpuIndex: devGpu } = parseStableKey(deviceId);
@@ -1769,7 +1897,7 @@ function normalizeEncodeError(err) {
 }
 
 async function startEncode(onProgress, params) {
-  const { config, taskId, sourcePath, partialPath, orderedDeviceSlots, isDolbyVision, dvAcknowledged, durationSec, targetBitrate } = params;
+  const { config, taskId, sourcePath, partialPath, orderedDeviceSlots, isDolbyVision, dvAcknowledged, durationSec, targetBitrate, dolbyVisionTonemap, dvTonemapFilter } = params;
   const onLog = typeof params.onLog === 'function' ? params.onLog : null;
   const tid = String(taskId || '');
   if (encodeJobs.has(tid)) throw new Error('Task already has an active encode process');
@@ -1798,7 +1926,7 @@ async function startEncode(onProgress, params) {
     try {
       return await attemptLocalEncode({
         config, taskId, sourcePath, partialPath, deviceId, encoderMode: firstBackend,
-        isDolbyVision, dvAcknowledged, durationSec, targetBitrate, onProgress,
+        isDolbyVision, dvAcknowledged, durationSec, targetBitrate, dolbyVisionTonemap, dvTonemapFilter, onProgress,
       });
     } finally {
       releaseEncodeDeviceSlotForTask(tid, deviceId);
@@ -1821,7 +1949,7 @@ async function startEncode(onProgress, params) {
     try {
       return await attemptLocalEncode({
         config, taskId, sourcePath, partialPath, deviceId: cpuId, encoderMode: 'cpu',
-        isDolbyVision, dvAcknowledged, durationSec, targetBitrate, onProgress,
+        isDolbyVision, dvAcknowledged, durationSec, targetBitrate, dolbyVisionTonemap, dvTonemapFilter, onProgress,
       });
     } catch (secondErr) {
       const tail2 = String(secondErr && secondErr.stderrTail || '').trim();
@@ -1982,11 +2110,11 @@ async function extractPreviewClip(config, sourcePath, outputPath) {
 
   // Try copy first (fast, no quality loss)
   const copyArgs = [ff, ['-hide_banner', '-loglevel', 'error', '-ss', String(startSec), '-i', sourcePath, '-t', String(dur), '-c', 'copy', '-movflags', '+faststart', '-y', outputPath]];
-  const r1 = await runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-ss', String(startSec), '-i', sourcePath, '-t', String(dur), '-c', 'copy', '-movflags', '+faststart', '-y', outputPath]);
+  const r1 = await _runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-ss', String(startSec), '-i', sourcePath, '-t', String(dur), '-c', 'copy', '-movflags', '+faststart', '-y', outputPath]);
   if (r1.code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) return { previewPath: outputPath, method: 'copy', startSec, duration: dur };
 
   // Fallback: fast software encode
-  const r2 = await runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-ss', String(startSec), '-i', sourcePath, '-t', String(dur), '-c:v', 'libx265', '-crf', '28', '-preset', 'veryfast', '-an', '-movflags', '+faststart', '-y', outputPath]);
+  const r2 = await _runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-ss', String(startSec), '-i', sourcePath, '-t', String(dur), '-c:v', 'libx265', '-crf', '28', '-preset', 'veryfast', '-an', '-movflags', '+faststart', '-y', outputPath]);
   if (r2.code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) return { previewPath: outputPath, method: 'encode', startSec, duration: dur };
 
   throw new Error('Failed to extract preview clip');
@@ -2150,10 +2278,17 @@ module.exports = {
   resolveFfprobeBin,
   getDeviceSlotUsage,
   getHealth,
+  resolveDolbyVisionTonemapPlan,
   cleanupOrphans,
   // Test surface for the GPU→CPU fallback path (TRANSCODE_FALLBACK).
   findCpuSlot,
   normalizeEncodeError,
+  _buildEncodeArgsForTest: buildEncodeArgs,
+  _resetDolbyVisionTonemapCacheForTest() { dvTonemapCapabilityCache = null; },
+  _setRunCmdForTest(fn) {
+    _runCmd = fn || runCmd;
+    dvTonemapCapabilityCache = null;
+  },
   _setSpawnForTest(fn) { _spawn = fn || spawn; },
 };
 
@@ -2185,5 +2320,27 @@ async function getHealth(config) {
     return { status: 'yellow', ffmpegOk: true, deviceCount: 0, message: '未配置编码设备' };
   }
 
-  return { status: 'green', ffmpegOk: true, deviceCount: devices.length };
+  const dvPlan = await resolveDolbyVisionTonemapPlan(config).catch((e) => ({
+    ok: false,
+    mode: 'unavailable',
+    message: e && e.message ? e.message : String(e),
+  }));
+  const dolbyVisionTonemap = {
+    ok: !!(dvPlan && dvPlan.ok),
+    mode: dvPlan && dvPlan.mode || 'unavailable',
+    label: dvPlan && dvPlan.label || '',
+    message: dvPlan && dvPlan.message || '',
+  };
+
+  if (!dolbyVisionTonemap.ok) {
+    return {
+      status: 'yellow',
+      ffmpegOk: true,
+      deviceCount: devices.length,
+      dolbyVisionTonemap,
+      message: `Dolby Vision tonemap 不可用：${dolbyVisionTonemap.message || 'no usable path'}`,
+    };
+  }
+
+  return { status: 'green', ffmpegOk: true, deviceCount: devices.length, dolbyVisionTonemap };
 }

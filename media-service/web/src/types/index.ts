@@ -196,6 +196,48 @@ export interface TaskLogEntry {
   msg: string;
 }
 
+export interface TaskControlAction {
+  enabled: boolean;
+  reason: string;
+  effect: string;
+  label?: string;
+  endpoint?: string;
+  method?: string;
+  destructive?: boolean;
+  resumePoint?: string;
+  retryCount?: number;
+  maxRetryCount?: number;
+  [key: string]: unknown;
+}
+
+export interface TaskControlState {
+  state: string;
+  requiresUserAction: boolean;
+  phase: string;
+  resumePoint: string;
+  retryCount: number;
+  primaryAction: string;
+  actions: Record<'execute' | 'pause' | 'confirm' | 'cancel' | 'retry', TaskControlAction>;
+  confirmation: {
+    required: boolean;
+    gateId: string;
+    message: string;
+    options: unknown[];
+    resumePoint: string;
+    effect: string;
+  };
+  recovery: {
+    state: string;
+    reason: string;
+    resumePoint: string;
+    nextAction: string;
+    effect?: string;
+    retryCount?: number;
+    maxRetryCount?: number;
+  };
+  latestEvent?: TaskEvent | null;
+}
+
 export interface TaskItemInfo {
   name?: string;
   title?: string;
@@ -302,6 +344,90 @@ export interface SpaceStats {
   subLibraries: SpaceStatsSubLibrary[];
 }
 
+export interface DashboardCountSignal {
+  level: 'green' | 'yellow' | 'red';
+  code: string;
+  label: string;
+  count: number;
+  detail?: string;
+}
+
+export interface DashboardEventEntry {
+  id: string;
+  kind: 'activity' | 'task_event';
+  source: string;
+  sourceLabel: string;
+  ts: string;
+  severity: 'neutral' | 'green' | 'yellow' | 'red';
+  message: string;
+  detail?: Record<string, unknown>;
+  taskId?: string;
+  itemId?: string;
+  actionType?: string;
+  eventType?: string;
+  eventStatus?: string;
+  resourceType?: string;
+  resourceKey?: string;
+  resourceLabel?: string;
+  bridgeKind?: string;
+  operationKind?: string;
+}
+
+export interface DashboardHealthSummary {
+  status: 'green' | 'yellow' | 'red';
+  generatedAt: string;
+  media: {
+    totalItems: number;
+    closedItems: number;
+    openItems: number;
+    metadataIncompleteItems: number;
+    pendingOptimizationItems: number;
+    archiveReadyItems: number;
+    archiveLikeItems: number;
+    byLifecycleStage: Record<string, number>;
+    byMetadataStatus: Record<string, number>;
+    byRecommendedAction: Record<string, number>;
+    bySource: Record<string, number>;
+    pendingBridges: Record<string, number>;
+    topMetadataMissingReasons: { reason: string; count: number }[];
+    bySubLibrary: {
+      subLibraryId: string;
+      totalItems: number;
+      closedItems: number;
+      openItems: number;
+      metadataIncompleteItems: number;
+      pendingOptimizationItems: number;
+    }[];
+  };
+  tasks: {
+    totalTasks: number;
+    activeTasks: number;
+    awaitingConfirmationTasks: number;
+    failedTasks: number;
+    doneTasks: number;
+    byStatus: Record<string, number>;
+    activeByBridgeKind: Record<string, number>;
+    activeByOperationKind: Record<string, number>;
+    activeBySource: Record<string, number>;
+    failedByOperationKind: Record<string, number>;
+    recentFailureEvents: unknown[];
+    attention?: Record<string, TaskAttentionQueue>;
+    primaryAttention?: TaskAttentionQueue | null;
+  };
+  automation: {
+    enabledOperations: string[];
+  };
+  events?: {
+    latestAt: string | null;
+    bySource: Record<string, number>;
+    recent: DashboardEventEntry[];
+  };
+  diagnostics: {
+    signals: DashboardCountSignal[];
+    storage?: unknown[];
+  };
+}
+
 export interface MediaTask {
   id: string;
   itemId: string;
@@ -309,11 +435,13 @@ export interface MediaTask {
   actionType: ActionType;
   taskBridge?: TaskBridge;
   flowPlan?: FlowPlan;
+  requestedIntent?: RequestedIntent;
   source?: 'manual' | 'auto' | string;
   status: TaskStatus;
   progress: number;
   phase: string;
   resumePoint: string | null;
+  retryCount?: number;
   approval?: TaskApproval | null;
   // Queue priority (lower = runs first globally). Absent on legacy tasks
   // (treated as 100 by the scheduler).
@@ -340,6 +468,15 @@ export interface MediaTask {
   upgradePreview?: UpgradePreview;
   confirmData?: Record<string, unknown>;
   events?: TaskEvent[];
+  controlState?: TaskControlState;
+}
+
+export interface RequestedIntent {
+  bridgeKind?: string;
+  preferredOperation?: string;
+  actionType?: string;
+  intentMode?: string;
+  [key: string]: unknown;
 }
 
 export interface TaskBridge {
@@ -392,15 +529,58 @@ export interface TaskEvent {
   payload?: Record<string, unknown>;
 }
 
+export interface ResourceFailureEvent extends TaskEvent {
+  task?: {
+    id: string;
+    itemId: string;
+    itemName?: string;
+    actionType: string;
+    status: string;
+    phase?: string;
+    resumePoint?: string;
+    retryCount?: number;
+    bridgeKind?: string;
+    flowDirection?: string;
+    operationKind?: string;
+  } | null;
+  resourceContext?: {
+    resourceType: string;
+    resourceKey: string;
+    resourceLabel: string;
+  };
+  recovery?: TaskControlState['recovery'];
+  controlState?: TaskControlState | null;
+  diagnosticSummary?: {
+    logId: string;
+    scope: string;
+    operation: string;
+    component: string;
+    status: string;
+    resourceType: string;
+    resourceKey: string;
+    endedAt: string;
+    error?: unknown;
+  } | null;
+}
+
+export interface TaskAttentionQueue {
+  key: string;
+  label: string;
+  hint: string;
+  count: number;
+}
+
 export interface TaskListResponse {
   tasks: MediaTask[];
   summary: {
     total: number;
     byStatus: Record<string, number>;
+    attention?: Record<string, TaskAttentionQueue>;
   };
   page: number;
   pageSize: number;
   total: number;
+  attention?: string;
 }
 
 // ── Resource View ────────────────────────────────────────────────────────────
@@ -552,7 +732,7 @@ export interface ResourceView {
   diagnostics?: {
     logs: DiagnosticLogEntry[];
     dependencies?: Array<Record<string, unknown>>;
-    failedEvents?: TaskEvent[];
+    failedEvents?: ResourceFailureEvent[];
     bottlenecks?: Array<{
       resourceType: string;
       resourceKey: string;

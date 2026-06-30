@@ -832,6 +832,143 @@ function querySmartTaskCandidateItems() {
   });
 }
 
+function buildAdultReviewWhere(filter = {}) {
+  const clauses = ["source = 'adult_folder'"];
+  const params = {};
+  const reviewStatuses = Array.isArray(filter.reviewStatuses) && filter.reviewStatuses.length > 0
+    ? filter.reviewStatuses.map((status) => String(status || '').trim()).filter(Boolean)
+    : ['ambiguous', 'needs_review'];
+
+  if (reviewStatuses.length > 0) {
+    const statusKeys = reviewStatuses.map((_, i) => `@reviewStatus${i}`);
+    clauses.push(`(scrape_status IN (${statusKeys.join(', ')}) OR json_extract(payload_json, '$.adultMetadata.reviewStatus') IN (${statusKeys.join(', ')}))`);
+    reviewStatuses.forEach((status, i) => { params[`reviewStatus${i}`] = status; });
+  }
+  if (filter.subLibraryId) {
+    clauses.push('sub_library_id = @subLibraryId');
+    params.subLibraryId = String(filter.subLibraryId);
+  }
+  if (filter.q) {
+    const q = String(filter.q || '').trim();
+    if (q) {
+      clauses.push('(name LIKE @q COLLATE NOCASE OR source_id LIKE @q COLLATE NOCASE OR adult_id LIKE @q COLLATE NOCASE)');
+      params.q = `%${q}%`;
+    }
+  }
+  return {
+    where: `WHERE ${clauses.join(' AND ')}`,
+    params,
+  };
+}
+
+function queryAdultReviewSummaries(filter = {}, opts = {}) {
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'libraryStore.queryAdultReviewSummaries',
+    operation: 'query_adult_review_summaries',
+    component: 'libraryStore',
+    resourceType: 'sqlite',
+    resourceKey: 'library.db',
+    slowMs: 150,
+    payload: {
+      subLibraryId: filter.subLibraryId || '',
+      hasSearch: !!filter.q,
+      reviewStatuses: Array.isArray(filter.reviewStatuses) ? filter.reviewStatuses.length : undefined,
+      includeAll: opts.includeAll === true,
+    },
+    successPayload: (result) => ({
+      rowCount: result && Array.isArray(result.items) ? result.items.length : 0,
+      total: result && typeof result.total === 'number' ? result.total : undefined,
+    }),
+  }, () => {
+    const db = getDb();
+    const { where, params } = buildAdultReviewWhere(filter);
+    const page = Math.max(1, Number.parseInt(opts.page, 10) || 1);
+    const maxPageSize = Math.max(1, Number.parseInt(opts.maxPageSize, 10) || 100);
+    const pageSize = Math.min(maxPageSize, Math.max(1, Number.parseInt(opts.pageSize, 10) || 20));
+    const offset = (page - 1) * pageSize;
+    const includeAll = opts.includeAll === true;
+    const limitClause = includeAll ? '' : 'LIMIT @limit OFFSET @offset';
+    const total = db.prepare(`SELECT COUNT(*) AS count FROM media_items ${where}`).get(params).count || 0;
+    const rows = db.prepare(`
+      SELECT
+        item_id,
+        sub_library_id,
+        source,
+        source_id,
+        name,
+        type,
+        path,
+        scraped,
+        scrape_status,
+        adult_id,
+        updated_at,
+        metadata_status,
+        metadata_kind,
+        metadata_complete,
+        metadata_missing_reasons_json,
+        lifecycle_stage,
+        lifecycle_done,
+        lifecycle_next_task,
+        lifecycle_reason,
+        optimization_status,
+        optimization_action,
+        archive_status,
+        archive_reason,
+        json_extract(payload_json, '$.adultMetadata.reviewStatus') AS review_status,
+        json_extract(payload_json, '$.adultMetadata.idConfidence') AS id_confidence,
+        json_extract(payload_json, '$.adultMetadata.region') AS adult_region,
+        json_extract(payload_json, '$.adultMetadata.title') AS adult_title,
+        json_extract(payload_json, '$.adultMetadata.originalTitle') AS adult_original_title,
+        json_extract(payload_json, '$.adultMetadata.scrapeError') AS scrape_error,
+        json_extract(payload_json, '$.adultMetadata.scrapeFailedAt') AS scrape_failed_at,
+        json_extract(payload_json, '$.adultMetadata.protagonist') AS adult_protagonist_json
+      FROM media_items
+      ${where}
+      ORDER BY updated_at DESC, ordinal ASC, item_id ASC
+      ${limitClause}
+    `).all({ ...params, limit: includeAll ? undefined : pageSize, offset: includeAll ? undefined : offset });
+    return {
+      items: rows.map((row) => ({
+        itemId: row.item_id || '',
+        subLibraryId: row.sub_library_id || '',
+        source: row.source || '',
+        sourceId: row.source_id || '',
+        name: row.name || row.adult_title || row.adult_id || '',
+        type: row.type || '',
+        path: row.path || '',
+        scraped: row.scraped === 1,
+        scrapeStatus: row.scrape_status || '',
+        reviewStatus: row.review_status || '',
+        adultId: row.adult_id || '',
+        adultTitle: row.adult_title || '',
+        adultOriginalTitle: row.adult_original_title || '',
+        adultRegion: row.adult_region || '',
+        idConfidence: row.id_confidence || '',
+        scrapeError: row.scrape_error || '',
+        scrapeFailedAt: row.scrape_failed_at || '',
+        protagonist: jsonParse(row.adult_protagonist_json, undefined),
+        updatedAt: row.updated_at || '',
+        lifecycleStage: row.lifecycle_stage || '',
+        lifecycleDone: row.lifecycle_done === 1,
+        lifecycleNextTask: row.lifecycle_next_task || '',
+        lifecycleReason: row.lifecycle_reason || '',
+        metadataStatus: row.metadata_status || '',
+        metadataKind: row.metadata_kind || '',
+        metadataComplete: row.metadata_complete === 1,
+        metadataMissingReasons: jsonParse(row.metadata_missing_reasons_json, []),
+        optimizationStatus: row.optimization_status || '',
+        optimizationAction: row.optimization_action || '',
+        archiveStatus: row.archive_status || '',
+        archiveReason: row.archive_reason || '',
+      })),
+      total,
+      page,
+      pageSize,
+    };
+  });
+}
+
 function querySpaceStatItems() {
   const rows = getDb().prepare(`
     SELECT
@@ -855,6 +992,121 @@ function querySpaceStatItems() {
     equivalentBitrate: row.equivalent_bitrate == null ? undefined : Number(row.equivalent_bitrate),
     targetBitrate: row.target_bitrate == null ? undefined : Number(row.target_bitrate),
   }));
+}
+
+function countMap(rows, keyField = 'key') {
+  const out = {};
+  for (const row of rows || []) {
+    const key = row && row[keyField] ? String(row[keyField]) : 'unknown';
+    out[key] = Number(row.count) || 0;
+  }
+  return out;
+}
+
+function queryDashboardMediaStats() {
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'libraryStore.queryDashboardMediaStats',
+    operation: 'query_dashboard_media_stats',
+    component: 'libraryStore',
+    resourceType: 'sqlite',
+    resourceKey: 'library.db',
+    slowMs: 150,
+  }, () => {
+    const db = getDb();
+    const totals = db.prepare(`
+      SELECT
+        COUNT(*) AS totalItems,
+        SUM(CASE WHEN lifecycle_done = 1 THEN 1 ELSE 0 END) AS closedItems,
+        SUM(CASE WHEN lifecycle_done = 0 THEN 1 ELSE 0 END) AS openItems,
+        SUM(CASE WHEN metadata_complete = 0 THEN 1 ELSE 0 END) AS metadataIncompleteItems,
+        SUM(CASE WHEN metadata_complete = 1 AND optimization_action IN ('transcode', 'upgrade') AND lifecycle_done = 0 THEN 1 ELSE 0 END) AS pendingOptimizationItems,
+        SUM(CASE WHEN archive_status = 'archived_like' THEN 1 ELSE 0 END) AS archiveReadyItems,
+        SUM(CASE WHEN archive_status IN ('archived', 'archived_like') OR lifecycle_done = 1 THEN 1 ELSE 0 END) AS archiveLikeItems
+      FROM media_items
+    `).get() || {};
+    const byLifecycleStage = countMap(db.prepare(`
+      SELECT COALESCE(NULLIF(lifecycle_stage, ''), 'unknown') AS key, COUNT(*) AS count
+      FROM media_items
+      GROUP BY COALESCE(NULLIF(lifecycle_stage, ''), 'unknown')
+      ORDER BY count DESC, key ASC
+    `).all());
+    const byMetadataStatus = countMap(db.prepare(`
+      SELECT COALESCE(NULLIF(metadata_status, ''), 'unknown') AS key, COUNT(*) AS count
+      FROM media_items
+      GROUP BY COALESCE(NULLIF(metadata_status, ''), 'unknown')
+      ORDER BY count DESC, key ASC
+    `).all());
+    const byRecommendedAction = countMap(db.prepare(`
+      SELECT COALESCE(NULLIF(action, ''), 'keep') AS key, COUNT(*) AS count
+      FROM media_items
+      GROUP BY COALESCE(NULLIF(action, ''), 'keep')
+      ORDER BY count DESC, key ASC
+    `).all());
+    const bySource = countMap(db.prepare(`
+      SELECT COALESCE(NULLIF(source, ''), 'unknown') AS key, COUNT(*) AS count
+      FROM media_items
+      GROUP BY COALESCE(NULLIF(source, ''), 'unknown')
+      ORDER BY count DESC, key ASC
+    `).all());
+    const pendingBridges = countMap(db.prepare(`
+      SELECT COALESCE(NULLIF(lifecycle_next_task, ''), 'none') AS key, COUNT(*) AS count
+      FROM media_items
+      WHERE lifecycle_done = 0
+      GROUP BY COALESCE(NULLIF(lifecycle_next_task, ''), 'none')
+      ORDER BY count DESC, key ASC
+    `).all());
+    const topMetadataMissingReasons = db.prepare(`
+      SELECT json_each.value AS reason, COUNT(*) AS count
+      FROM media_items,
+        json_each(CASE
+          WHEN json_valid(metadata_missing_reasons_json) THEN metadata_missing_reasons_json
+          ELSE '[]'
+        END)
+      WHERE metadata_complete = 0
+        AND json_each.value IS NOT NULL
+        AND json_each.value != ''
+      GROUP BY json_each.value
+      ORDER BY count DESC, reason ASC
+      LIMIT 8
+    `).all().map((row) => ({ reason: String(row.reason || ''), count: Number(row.count) || 0 }));
+    const bySubLibrary = db.prepare(`
+      SELECT
+        sub_library_id AS subLibraryId,
+        COUNT(*) AS totalItems,
+        SUM(CASE WHEN lifecycle_done = 1 THEN 1 ELSE 0 END) AS closedItems,
+        SUM(CASE WHEN lifecycle_done = 0 THEN 1 ELSE 0 END) AS openItems,
+        SUM(CASE WHEN metadata_complete = 0 THEN 1 ELSE 0 END) AS metadataIncompleteItems,
+        SUM(CASE WHEN metadata_complete = 1 AND optimization_action IN ('transcode', 'upgrade') AND lifecycle_done = 0 THEN 1 ELSE 0 END) AS pendingOptimizationItems
+      FROM media_items
+      GROUP BY sub_library_id
+      ORDER BY totalItems DESC, sub_library_id ASC
+    `).all().map((row) => ({
+      subLibraryId: row.subLibraryId || '',
+      totalItems: Number(row.totalItems) || 0,
+      closedItems: Number(row.closedItems) || 0,
+      openItems: Number(row.openItems) || 0,
+      metadataIncompleteItems: Number(row.metadataIncompleteItems) || 0,
+      pendingOptimizationItems: Number(row.pendingOptimizationItems) || 0,
+    }));
+
+    return {
+      totalItems: Number(totals.totalItems) || 0,
+      closedItems: Number(totals.closedItems) || 0,
+      openItems: Number(totals.openItems) || 0,
+      metadataIncompleteItems: Number(totals.metadataIncompleteItems) || 0,
+      pendingOptimizationItems: Number(totals.pendingOptimizationItems) || 0,
+      archiveReadyItems: Number(totals.archiveReadyItems) || 0,
+      archiveLikeItems: Number(totals.archiveLikeItems) || 0,
+      byLifecycleStage,
+      byMetadataStatus,
+      byRecommendedAction,
+      bySource,
+      pendingBridges,
+      topMetadataMissingReasons,
+      bySubLibrary,
+    };
+  });
 }
 
 function countBySubLibrary(subLibraryId) {
@@ -884,7 +1136,9 @@ module.exports = {
   queryItems,
   getStorageMetrics,
   querySmartTaskCandidateItems,
+  queryAdultReviewSummaries,
   querySpaceStatItems,
+  queryDashboardMediaStats,
   countBySubLibrary,
   getHealth,
 };

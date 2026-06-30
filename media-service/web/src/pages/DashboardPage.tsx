@@ -1,36 +1,16 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { health, tasks, subLibraries, emby, activityLog, spaceStats, ruleTemplates, systemConfig } from '../api/client';
-import type { ActivityEntry } from '../api/client';
-import type { SubLibrary, MediaFolder, MediaTask, RuleTemplate } from '../types';
+import { health, subLibraries, emby, spaceStats, ruleTemplates, systemConfig, dashboardHealth } from '../api/client';
+import type { DashboardEventEntry, DashboardHealthSummary, SubLibrary, MediaFolder, RuleTemplate } from '../types';
 import HealthCard from '../components/HealthCard';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-const ACTION_TYPE_LABELS: Record<string, string> = {
+const FLOW_OPERATION_LABELS: Record<string, string> = {
   ingest: '入库', scrape: '刮削', transcode: '转码压缩', delete: '删除', upgrade: '洗版',
 };
-
-const STATUS_LABELS: Record<string, string> = {
-  created: '已创建', pending_manual: '待手动启动', queued: '排队中', executing: '执行中',
-  pausing: '暂停中', awaiting_user_confirm: '等待确认', paused: '已暂停',
-  interrupted: '已中断', waiting_media_source: '等待媒体文件',
-  done: '已完成', failed_hard: '失败', cancelled: '已取消', skipped: '已跳过', deleted: '已移除',
-};
-const ACTIVE_TASK_STATUSES = [
-  'created',
-  'pending_manual',
-  'queued',
-  'executing',
-  'pausing',
-  'awaiting_user_confirm',
-  'paused',
-  'interrupted',
-  'waiting_media_source',
-];
-const TERMINAL_TASK_STATUSES = ['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'];
-const FAILED_TASK_STATUSES = ['failed_hard'];
 
 function autoExecuteText(sl: SubLibrary) {
   const mode = (sl.automationMode || (sl.scheduleMode === 'full_manual' ? 'manual' : 'auto'));
@@ -76,22 +56,10 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   });
 
-  const { data: currentTaskList, isLoading: currentTasksLoading } = useQuery({
-    queryKey: ['dashboard-current-tasks'],
-    queryFn: () => tasks.list({ statuses: ACTIVE_TASK_STATUSES, page: 1, pageSize: 5 }),
-    refetchInterval: 10000,
-  });
-
-  const { data: recentTaskList, isLoading: recentTasksLoading } = useQuery({
-    queryKey: ['dashboard-recent-task-results'],
-    queryFn: () => tasks.list({ statuses: TERMINAL_TASK_STATUSES, page: 1, pageSize: 5 }),
-    refetchInterval: 10000,
-  });
-
-  const { data: failedTaskList, isLoading: failedTasksLoading } = useQuery({
-    queryKey: ['dashboard-failed-tasks'],
-    queryFn: () => tasks.list({ statuses: FAILED_TASK_STATUSES, page: 1, pageSize: 5 }),
-    refetchInterval: 10000,
+  const { data: businessHealth, isLoading: businessHealthLoading } = useQuery({
+    queryKey: ['dashboard-health'],
+    queryFn: dashboardHealth.get,
+    refetchInterval: 30000,
   });
 
   const { data: sysCfg } = useQuery({
@@ -103,12 +71,6 @@ export default function DashboardPage() {
   const { data: slData, isLoading: slLoading } = useQuery({
     queryKey: ['sublibraries'],
     queryFn: subLibraries.list,
-  });
-
-  const { data: activityData } = useQuery({
-    queryKey: ['activity-log'],
-    queryFn: () => activityLog.getRecent(10),
-    refetchInterval: 15000,
   });
 
   const { data: spaceData } = useQuery({
@@ -236,18 +198,13 @@ export default function DashboardPage() {
 
   if (slLoading) return <LoadingSpinner text="加载媒体库中..." />;
 
-  const currentTasks: MediaTask[] = currentTaskList?.tasks || [];
-  const recentResultTasks: MediaTask[] = recentTaskList?.tasks || [];
-  const failedTasks: MediaTask[] = failedTaskList?.tasks || [];
-  const terminalSummary = recentTaskList?.summary?.byStatus || {};
-  const failedTotal = failedTaskList?.summary?.byStatus?.failed_hard || failedTaskList?.total || 0;
   const subLibs: SubLibrary[] = slData?.subLibraries || [];
   const enabledAutoActions = sysCfg?.smartTaskEnabledActions;
   const enabledAutoActionText = !enabledAutoActions
     ? '读取中'
     : enabledAutoActions.length > 0
-    ? enabledAutoActions.map((a) => ACTION_TYPE_LABELS[a] || a).join('、')
-    : '未选择任务类型';
+    ? enabledAutoActions.map((a) => FLOW_OPERATION_LABELS[a] || a).join('、')
+    : '未选择自动操作';
 
   return (
     <div>
@@ -264,6 +221,17 @@ export default function DashboardPage() {
           <HealthCard status={h.status} checks={h.checks as Record<string, { status: string; message?: string }> | undefined} />
         )}
       </div>
+
+      <DashboardHealthPanel
+        data={businessHealth}
+        loading={businessHealthLoading}
+        reclaimableBytes={spaceData?.reclaimableBytes || 0}
+      />
+
+      <DashboardActionStrip
+        libraryCount={subLibs.length}
+        onAddLibrary={() => setWizardOpen(true)}
+      />
 
       {/* Media Libraries */}
       <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
@@ -342,7 +310,7 @@ export default function DashboardPage() {
                         只控制已创建任务的启动方式，不负责自动创建任务
                       </div>
                       <div style={{ fontSize: 11, color: enabledAutoActions && enabledAutoActions.length === 0 ? '#c2410c' : '#6b7280', marginTop: 4 }}>
-                        后台自动入队任务类型：{enabledAutoActionText}
+                        后台自动 flow 操作：{enabledAutoActionText}
                       </div>
                     </SubCard>
 
@@ -365,145 +333,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Current Tasks */}
-      <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>当前任务</h3>
-          <span style={{ fontSize: 12, color: '#888' }}>只显示执行中、排队中、待手动启动、等待确认和已暂停的任务</span>
-        </div>
-        {currentTasksLoading ? (
-          <LoadingSpinner text="加载任务中..." />
-        ) : currentTasks.length === 0 ? (
-          <p style={{ color: '#888', fontSize: 14 }}>当前没有正在处理的任务</p>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-            <thead>
-              <tr>
-                <th style={thStyle}>影片</th>
-                <th style={thStyle}>类型</th>
-                <th style={thStyle}>状态</th>
-                <th style={thStyle}>进度</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentTasks.map((t) => (
-                <tr key={t.id}>
-                  <td style={tdStyle}>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</td>
-                  <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
-                  <td style={tdStyle}>{STATUS_LABELS[t.status] || t.status}</td>
-                  <td style={tdStyle}>{Math.round(t.progress || 0)}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Task Results */}
-      <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a2e', margin: 0 }}>任务提醒</h3>
-          <span style={{ fontSize: 12, color: '#888' }}>优先显示失败任务；完成记录仅作为背景信息</span>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-          <TaskSummaryPill label="失败任务" value={failedTotal} color="#c62828" />
-          <TaskSummaryPill label="已完成" value={terminalSummary.done || 0} color="#2e7d32" />
-          <TaskSummaryPill label="已取消" value={terminalSummary.cancelled || 0} color="#666" />
-          <TaskSummaryPill label="已跳过" value={terminalSummary.skipped || 0} color="#777" />
-        </div>
-        {failedTasksLoading || recentTasksLoading ? (
-          <LoadingSpinner text="加载任务中..." />
-        ) : failedTasks.length > 0 ? (
-          <>
-            <div style={{ fontSize: 13, color: '#c62828', marginBottom: 8, fontWeight: 600 }}>
-              最近失败任务，需要到「任务中心」查看原因并重试
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>影片</th>
-                  <th style={thStyle}>类型</th>
-                  <th style={thStyle}>结果</th>
-                  <th style={thStyle}>更新时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                {failedTasks.map((t) => (
-                  <tr key={t.id}>
-                    <td style={tdStyle}>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</td>
-                    <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
-                    <td style={{ ...tdStyle, color: '#c62828', fontWeight: 600 }}>{STATUS_LABELS[t.status] || t.status}</td>
-                    <td style={tdStyle}>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        ) : recentResultTasks.length === 0 ? (
-          <p style={{ color: '#888', fontSize: 14 }}>暂无需要处理的失败任务，也没有最近完成记录</p>
-        ) : (
-          <>
-            <div style={{ fontSize: 13, color: '#666', marginBottom: 8, fontWeight: 600 }}>
-              没有失败任务，以下是最近完成或取消的记录
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>影片</th>
-                  <th style={thStyle}>类型</th>
-                  <th style={thStyle}>结果</th>
-                  <th style={thStyle}>更新时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentResultTasks.map((t) => (
-                  <tr key={t.id}>
-                    <td style={tdStyle}>{t.itemName || (t.itemInfo && t.itemInfo.name) || t.itemId}</td>
-                    <td style={tdStyle}>{ACTION_TYPE_LABELS[t.actionType] || t.actionType}</td>
-                    <td style={tdStyle}>{STATUS_LABELS[t.status] || t.status}</td>
-                    <td style={tdStyle}>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-      </div>
-
-      {/* Real-time Activity Log */}
-      <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: '#1a1a2e' }}>实时日志</h3>
-        {!activityData?.entries || activityData.entries.length === 0 ? (
-          <p style={{ color: '#888', fontSize: 14 }}>暂无活动记录</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {(activityData.entries as ActivityEntry[]).slice(0, 15).map((entry, i) => {
-              const ts = new Date(entry.ts);
-              const timeStr = ts.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-              const sourceLabel =
-                entry.source === 'media_library' ? '媒体库' :
-                entry.source === 'douban' ? '豆瓣' :
-                entry.source === 'strategy_engine' ? '策略引擎' :
-                entry.source === 'smart_task_engine' ? '后台自动入队' :
-                entry.source === 'task' ? '任务' :
-                entry.source === 'health' ? '健康' :
-                entry.source === 'user_action' ? '用户' : entry.source;
-              return (
-                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, lineHeight: 1.5 }}>
-                  <span style={{ color: '#888', whiteSpace: 'nowrap', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span>
-                  <span style={{ color: '#1a1a2e', fontWeight: 500, flexShrink: 0 }}>[{sourceLabel}]</span>
-                  <span style={{ color: '#333' }}>{entry.message}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <div style={{ marginTop: 12, textAlign: 'right' }}>
-          <a href="/v1/admin/log" target="_blank" style={{ fontSize: 12, color: '#888', textDecoration: 'none' }}>
-            查看完整运行日志 →
-          </a>
-        </div>
-      </div>
+      <DashboardEventFeed entries={businessHealth?.events?.recent || []} />
 
       {/* Add Wizard Modal */}
       <Modal open={wizardOpen} title={`添加媒体库 (${step}/3)`} onClose={closeWizard} width={560}>
@@ -735,6 +565,211 @@ function fmtSizeBytes(bytes: number): string {
   return sign + abs + ' B';
 }
 
+function pct(part: number, total: number): string {
+  if (!total) return '0%';
+  return `${Math.round((part / total) * 100)}%`;
+}
+
+function healthTone(status?: DashboardHealthSummary['status']) {
+  if (status === 'red') return { label: '需要处理', color: '#c62828', bg: '#ffebee' };
+  if (status === 'green') return { label: '稳定', color: '#2e7d32', bg: '#e8f5e9' };
+  return { label: '有待推进', color: '#b45309', bg: '#fff7ed' };
+}
+
+function DashboardActionStrip({ libraryCount, onAddLibrary }: { libraryCount: number; onAddLibrary: () => void }) {
+  return (
+    <div style={actionStripStyle}>
+      <div>
+        <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 700, marginBottom: 4 }}>关键入口</div>
+        <div style={{ fontSize: 15, color: '#1a1a2e', fontWeight: 800 }}>
+          {libraryCount > 0 ? `${libraryCount} 个媒体库已接入` : '还没有媒体库'}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <button type="button" onClick={onAddLibrary} style={primaryBtn}>添加媒体库</button>
+        <DashboardLinkButton to="/tasks">任务中心</DashboardLinkButton>
+        <DashboardLinkButton to="/resources">资源视图</DashboardLinkButton>
+        <DashboardLinkButton to="/media">媒体库</DashboardLinkButton>
+      </div>
+    </div>
+  );
+}
+
+function DashboardLinkButton({ to, children }: { to: string; children: React.ReactNode }) {
+  return (
+    <Link to={to} style={linkBtnStyle}>
+      {children}
+    </Link>
+  );
+}
+
+function DashboardHealthPanel({ data, loading, reclaimableBytes }: { data?: DashboardHealthSummary; loading: boolean; reclaimableBytes: number }) {
+  const tone = healthTone(data?.status);
+  const media = data?.media;
+  const taskStats = data?.tasks;
+  const signals = data?.diagnostics?.signals || [];
+  const primaryAttention = taskStats?.primaryAttention || taskStats?.attention?.needs_action || null;
+  const attentionCount = Number(primaryAttention?.count || 0);
+  const enabledOps = data?.automation?.enabledOperations || [];
+  const enabledText = enabledOps.length > 0
+    ? enabledOps.map((op) => FLOW_OPERATION_LABELS[op] || op).join('、')
+    : '未启用';
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>媒体库健康</h3>
+          <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+            后端聚合 lifecycle、metadata、任务桥和自动 flow 状态
+          </div>
+        </div>
+        <span style={{ padding: '4px 10px', borderRadius: 6, background: tone.bg, color: tone.color, fontSize: 12, fontWeight: 700 }}>
+          {loading ? '读取中' : tone.label}
+        </span>
+      </div>
+
+      {loading || !data ? (
+        <LoadingSpinner text="加载业务健康指标中..." />
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 10, marginBottom: 16 }}>
+            <DashboardMetric label="总条目" value={media?.totalItems || 0} sub={`闭环 ${pct(media?.closedItems || 0, media?.totalItems || 0)}`} color="#1a1a2e" />
+            <DashboardMetric label="未闭环" value={media?.openItems || 0} sub={`${media?.closedItems || 0} 已闭环`} color={(media?.openItems || 0) > 0 ? '#b45309' : '#2e7d32'} />
+            <DashboardMetric label="元数据缺失" value={media?.metadataIncompleteItems || 0} sub="会阻断优化入口" color={(media?.metadataIncompleteItems || 0) > 0 ? '#c62828' : '#2e7d32'} />
+            <DashboardMetric label="等待优化" value={media?.pendingOptimizationItems || 0} sub="转码 / 洗版候选" color="#1565c0" />
+            <DashboardMetric label="等待确认" value={taskStats?.awaitingConfirmationTasks || 0} sub="需要人工继续" color={(taskStats?.awaitingConfirmationTasks || 0) > 0 ? '#b45309' : '#2e7d32'} />
+            <DashboardMetric label="失败桥梁" value={taskStats?.failedTasks || 0} sub="查看任务中心 event" color={(taskStats?.failedTasks || 0) > 0 ? '#c62828' : '#2e7d32'} />
+            <DashboardMetric label="处理队列" value={attentionCount} sub={attentionCount > 0 ? (primaryAttention?.label || '需要处理') : '无需人工处理'} color={attentionCount > 0 ? '#b45309' : '#2e7d32'} />
+            <DashboardMetric label="活动流程" value={taskStats?.activeTasks || 0} sub="非终态任务" color="#1a1a2e" />
+            <DashboardMetric label="可回收" value={fmtSizeBytes(reclaimableBytes)} sub="来自空间统计" color="#2e7d32" />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+            <SubCard title="主要信号">
+              {signals.length === 0 ? (
+                <div style={{ fontSize: 13, color: '#2e7d32', fontWeight: 700 }}>暂无明显阻塞</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {signals.map((signal) => {
+                    const signalTone = healthTone(signal.level);
+                    return (
+                      <div key={signal.code} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start', fontSize: 13 }}>
+                        <div>
+                          <span style={{ color: signalTone.color, fontWeight: 700 }}>{signal.label}</span>
+                          {signal.detail && <span style={{ color: '#888', marginLeft: 6 }}>{signal.detail}</span>}
+                        </div>
+                        <span style={{ color: signalTone.color, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{signal.count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </SubCard>
+
+            <SubCard title="下一步">
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: attentionCount > 0 ? '#b45309' : '#2e7d32' }}>
+                    {attentionCount > 0 ? (primaryAttention?.label || '需要处理') : '暂无人工处理队列'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                    {attentionCount > 0 ? (primaryAttention?.hint || '任务中心已有待处理项') : '系统会继续刷新事件和健康状态'}
+                  </div>
+                </div>
+                <Link to="/tasks" style={{ ...linkBtnStyle, padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                  任务中心
+                </Link>
+              </div>
+            </SubCard>
+
+            <SubCard title="自动 flow 操作">
+              <div style={{ fontSize: 14, fontWeight: 700, color: enabledOps.length > 0 ? '#1a1a2e' : '#c2410c', lineHeight: 1.5 }}>
+                {enabledText}
+              </div>
+              <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
+                SmartTask 只会自动创建 allow-list 内的操作
+              </div>
+            </SubCard>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function activitySourceMeta(source: string) {
+  switch (source) {
+    case 'media_library': return { label: '媒体库', color: '#1565c0', bg: '#e3f2fd' };
+    case 'douban': return { label: '豆瓣', color: '#7b1fa2', bg: '#f3e5f5' };
+    case 'strategy_engine': return { label: '策略', color: '#2e7d32', bg: '#e8f5e9' };
+    case 'smart_task_engine': return { label: '自动入队', color: '#b45309', bg: '#fff7ed' };
+    case 'task': return { label: '任务', color: '#1a1a2e', bg: '#eef0f4' };
+    case 'task_event': return { label: '任务事件', color: '#1a1a2e', bg: '#eef0f4' };
+    case 'health': return { label: '健康', color: '#047857', bg: '#d1fae5' };
+    case 'user_action': return { label: '用户', color: '#6d28d9', bg: '#ede9fe' };
+    default: return { label: source || '系统', color: '#4b5563', bg: '#f3f4f6' };
+  }
+}
+
+function eventSeverityColor(entry: DashboardEventEntry, fallback: string) {
+  if (entry.severity === 'red') return '#c62828';
+  if (entry.severity === 'yellow') return '#b45309';
+  if (entry.severity === 'green') return '#2e7d32';
+  return fallback;
+}
+
+function DashboardEventFeed({ entries }: { entries: DashboardEventEntry[] }) {
+  const latest = entries[0] ? new Date(entries[0].ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '';
+  return (
+    <div style={{ background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+        <div>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>系统事件</h3>
+          <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+            {latest ? `最近更新 ${latest}` : '等待后台事件'}
+          </div>
+        </div>
+        <a href="/v1/admin/log" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#666', textDecoration: 'none', fontWeight: 700 }}>
+          完整记录
+        </a>
+      </div>
+      {entries.length === 0 ? (
+        <div style={{ color: '#888', fontSize: 14, padding: '8px 0' }}>暂无事件</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {entries.slice(0, 15).map((entry, i) => {
+            const ts = new Date(entry.ts);
+            const timeStr = ts.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const source = activitySourceMeta(entry.source);
+            const eventColor = eventSeverityColor(entry, source.color);
+            return (
+              <div key={`${entry.ts}-${i}`} style={eventRowStyle}>
+                <div style={eventStemStyle}>
+                  <span style={{ ...eventDotStyle, background: eventColor }} />
+                </div>
+                <div style={{ width: 78, color: '#888', flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontSize: 12 }}>{timeStr}</div>
+                <span style={{ ...eventSourceStyle, color: source.color, background: source.bg }}>{entry.sourceLabel || source.label}</span>
+                <div style={{ color: '#333', fontSize: 13, lineHeight: 1.5, minWidth: 0 }}>{entry.message}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DashboardMetric({ label, value, sub, color }: { label: string; value: number | string; sub: string; color: string }) {
+  return (
+    <div style={{ border: '1px solid #eef0f4', borderRadius: 8, padding: 12, minHeight: 76, background: '#fbfcfe' }}>
+      <div style={{ fontSize: 11, color: '#888', fontWeight: 700, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 22, lineHeight: 1.1, color, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+      <div style={{ fontSize: 11, color: '#999', marginTop: 5 }}>{sub}</div>
+    </div>
+  );
+}
+
 function HealthPendingCard({ title, message, tone = 'yellow' }: { title: string; message: string; tone?: 'yellow' | 'red' }) {
   const color = tone === 'red' ? '#e74c3c' : '#f39c12';
   return (
@@ -783,26 +818,78 @@ function MiniStat({ label, value, sub, color }: { label: string; value: string; 
   );
 }
 
-function TaskSummaryPill({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 6, background: '#f8f9fb', border: '1px solid #eee' }}>
-      <span style={{ fontSize: 12, color: '#666' }}>{label}</span>
-      <span style={{ fontSize: 13, color, fontWeight: 700 }}>{value}</span>
-    </div>
-  );
-}
-
 const cardBtn: React.CSSProperties = {
   background: 'none', border: '1px solid #ddd', color: '#555',
   padding: '4px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13,
 };
 
-const thStyle: React.CSSProperties = {
-  textAlign: 'left', padding: '8px', borderBottom: '2px solid #eee', color: '#666',
+const actionStripStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 16,
+  background: '#fff',
+  borderRadius: 8,
+  padding: 16,
+  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+  marginBottom: 24,
+  border: '1px solid #eef0f4',
 };
 
-const tdStyle: React.CSSProperties = {
-  padding: '8px', borderBottom: '1px solid #f0f0f0',
+const linkBtnStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: 34,
+  padding: '8px 14px',
+  borderRadius: 6,
+  border: '1px solid #d7dbe3',
+  color: '#1a1a2e',
+  textDecoration: 'none',
+  fontSize: 14,
+  fontWeight: 700,
+  background: '#fff',
+  boxSizing: 'border-box',
+};
+
+const eventRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 8,
+  minHeight: 32,
+  padding: '5px 0',
+  position: 'relative',
+};
+
+const eventStemStyle: React.CSSProperties = {
+  width: 14,
+  minHeight: 32,
+  position: 'relative',
+  flexShrink: 0,
+  borderLeft: '1px solid #e5e7eb',
+  marginLeft: 5,
+};
+
+const eventDotStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 4,
+  left: -5,
+  width: 9,
+  height: 9,
+  borderRadius: '50%',
+  border: '2px solid #fff',
+  boxShadow: '0 0 0 1px #e5e7eb',
+};
+
+const eventSourceStyle: React.CSSProperties = {
+  flexShrink: 0,
+  minWidth: 62,
+  textAlign: 'center',
+  padding: '2px 7px',
+  borderRadius: 6,
+  fontSize: 11,
+  fontWeight: 800,
+  lineHeight: 1.5,
 };
 
 const primaryBtn: React.CSSProperties = {

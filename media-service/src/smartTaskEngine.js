@@ -28,6 +28,45 @@ let lastError = null;
 let _enabled = false;
 let configReader = null;
 let lastEnabledActions = [];
+let lastScanSummary = null;
+
+function incrementCounter(target, key, amount = 1) {
+  const safeKey = String(key || 'unknown');
+  target[safeKey] = (target[safeKey] || 0) + amount;
+}
+
+function newScanSummary(enabledActions = []) {
+  return {
+    status: 'running',
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    enabledActions: [...enabledActions],
+    libraryItems: 0,
+    candidateCount: 0,
+    evaluatedCandidates: 0,
+    enqueued: 0,
+    candidatesByAction: {},
+    enqueuedByAction: {},
+    admissionRejected: 0,
+    admissionRejectedByReason: {},
+    skippedByQueueCap: 0,
+    skippedByQueueCapByAction: {},
+    maxPerRunReached: false,
+    reason: '',
+    error: '',
+  };
+}
+
+function finishScanSummary(summary, status, extra = {}) {
+  const finished = {
+    ...(summary || newScanSummary()),
+    ...extra,
+    status,
+    finishedAt: new Date().toISOString(),
+  };
+  lastScanSummary = finished;
+  return finished;
+}
 
 function readEnabledActions(config) {
   return Array.isArray(config.smartTaskEnabledActions)
@@ -182,6 +221,9 @@ function buildIngestCandidate(candidate, config) {
 
 function start(configStore, mediaLibraryService, taskStore, opts = {}) {
   configReader = configStore;
+  lastRunAt = null;
+  lastError = null;
+  lastScanSummary = null;
   const ingestCandidateProvider = typeof opts.ingestCandidateProvider === 'function'
     ? opts.ingestCandidateProvider
     : adultLibraryService.listIngestCandidates;
@@ -206,9 +248,12 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
     });
     let finalStatus = 'done';
     const finalPayload = {};
+    let scanSummary = null;
     try {
+      lastError = null;
       const cfg2 = configStore.loadConfig();
       const enabledActions = readEnabledActions(cfg2);
+      scanSummary = newScanSummary(enabledActions);
       runtimeEvent.update({ enabledActions });
       lastEnabledActions = enabledActions;
       _enabled = enabledActions.length > 0;
@@ -216,6 +261,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         lastRunAt = Date.now();
         finalStatus = 'skipped';
         finalPayload.reason = 'no_enabled_actions';
+        finishScanSummary(scanSummary, finalStatus, { reason: 'no_enabled_actions' });
         return;
       }
 
@@ -228,9 +274,11 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       if (!Array.isArray(libraryItems)) {
         finalStatus = 'skipped';
         finalPayload.reason = 'no_library_items';
+        finishScanSummary(scanSummary, finalStatus, { reason: 'no_library_items' });
         return;
       }
       runtimeEvent.update({ libraryItems: libraryItems.length });
+      scanSummary.libraryItems = libraryItems.length;
 
       const allTasks = typeof taskStore.queryTaskAdmissionRows === 'function'
         ? taskStore.queryTaskAdmissionRows()
@@ -273,6 +321,10 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         }
       }
       runtimeEvent.update({ candidateCount: candidates.length });
+      scanSummary.candidateCount = candidates.length;
+      for (const candidate of candidates) {
+        incrementCounter(scanSummary.candidatesByAction, candidate.actionType);
+      }
 
       // Sort by computed task priority first, then most recent signal. This
       // keeps high-priority task types from being hidden behind large low-priority
@@ -281,14 +333,22 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
 
       const toEnqueue = [];
       for (const candidate of candidates) {
-        if (toEnqueue.length >= maxPerRun) break;
+        if (toEnqueue.length >= maxPerRun) {
+          scanSummary.maxPerRunReached = true;
+          break;
+        }
         const { item, itemInfo, actionType } = candidate;
+        scanSummary.evaluatedCandidates += 1;
 
         // Per-action-type queue depth cap. Skip this type once the backlog is
         // full so one action doesn't starve others.
         const cur = activeByType[actionType] || 0;
         const cap = queueCap[actionType] || maxQueueSize;
-        if (cur >= cap) continue;
+        if (cur >= cap) {
+          scanSummary.skippedByQueueCap += 1;
+          incrementCounter(scanSummary.skippedByQueueCapByAction, actionType);
+          continue;
+        }
 
         const subLibSchedule2 = configStore.resolveSubLibSchedule(item, cfg2);
         const status = subLibSchedule2.autoExecute ? 'queued' : 'pending_manual';
@@ -302,7 +362,11 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
           tasks: allTasks,
           optimizationIndex,
         });
-        if (!admission.allowed) continue;
+        if (!admission.allowed) {
+          scanSummary.admissionRejected += 1;
+          incrementCounter(scanSummary.admissionRejectedByReason, admission.reason || 'rejected');
+          continue;
+        }
         activeByType[actionType] = cur + 1;
 
         const priorityBreakdown = priorityEngine.explainPriority({
@@ -333,6 +397,8 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         allTasks.push(task);
         console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${actionType} "${item.name}"`);
         toEnqueue.push({ item, actionType });
+        scanSummary.enqueued += 1;
+        incrementCounter(scanSummary.enqueuedByAction, actionType);
       }
 
       if (toEnqueue.length > 0) {
@@ -350,12 +416,16 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       Object.assign(finalPayload, {
         candidateCount: candidates.length,
         enqueued: toEnqueue.length,
+        admissionRejected: scanSummary.admissionRejected,
+        skippedByQueueCap: scanSummary.skippedByQueueCap,
         enabledActions,
       });
+      finishScanSummary(scanSummary, finalStatus);
     } catch (e) {
       lastError = e.message;
       finalStatus = 'failed';
       finalPayload.error = e.message;
+      finishScanSummary(scanSummary, finalStatus, { error: e.message });
       console.error('[smartTaskEngine] error:', e.message);
     } finally {
       runtimeEvent.finish(finalStatus, finalPayload);
@@ -363,6 +433,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
   }, {
     onSkipped: () => {
       console.log('[smartTaskEngine] scan skipped: background I/O guard is busy');
+      finishScanSummary(newScanSummary(lastEnabledActions), 'skipped', { reason: 'background_io_busy' });
       return null;
     },
   });
@@ -406,16 +477,24 @@ function getHealth() {
       disabledReason: 'no_enabled_actions',
       message: '后台自动入队未启用',
       lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
+      lastScanSummary,
     };
   }
   if (!_enabled) {
-    return { status: 'green', enabled: true, enabledActions, lastRunAt: null };
+    return { status: 'green', enabled: true, enabledActions, lastRunAt: null, lastScanSummary };
   }
   if (!timer) {
-    return { status: 'red', enabled: true, enabledActions, lastRunAt };
+    return { status: 'red', enabled: true, enabledActions, lastRunAt, lastError, lastScanSummary };
   }
   if (!lastRunAt) {
-    return { status: 'yellow', enabled: true, enabledActions, lastRunAt: null };
+    return { status: 'yellow', enabled: true, enabledActions, lastRunAt: null, lastError, lastScanSummary };
   }
-  return { status: 'green', enabled: true, enabledActions, lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null };
+  return {
+    status: 'green',
+    enabled: true,
+    enabledActions,
+    lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
+    lastError,
+    lastScanSummary,
+  };
 }

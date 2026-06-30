@@ -433,6 +433,139 @@ test('smartTaskEngine auto-enqueues pending adult scrape candidates through Task
   assert.strictEqual(created[0].source, 'auto');
 });
 
+test('smartTaskEngine cannot auto-enqueue standard media scrape', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['scrape'],
+          smartTaskLookbackDays: 30,
+          subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie', automationMode: 'auto' }],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { scrape: 80 },
+            rules: { scrape: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByAction: { scrape: 0 },
+            maxQueuedByAction: { scrape: 20 },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [{
+            itemId: 'standard-missing-metadata',
+            source: 'emby',
+            name: 'Standard Missing Metadata',
+            type: 'movie',
+            subLibraryId: 'movie-lib',
+            path: '/media/standard-missing-metadata.mkv',
+            size: 1024,
+            duration: 3600,
+            bitrate: 4000000,
+            resolution: '1920x1080',
+            codec: 'h264',
+            watched: true,
+            userRating: 4,
+          }],
+        };
+      },
+    },
+    {
+      getTasks: () => [...created],
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTask(taskData) {
+        const task = { id: `t-${created.length + 1}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...taskData };
+        created.push(task);
+        return task;
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  assert.strictEqual(created.length, 0, 'standard media scrape remains unsupported even when scrape is enabled globally');
+  const health = smartTaskEngine.getHealth();
+  assert.strictEqual(health.lastScanSummary.status, 'done');
+  assert.strictEqual(health.lastScanSummary.candidateCount, 1);
+  assert.strictEqual(health.lastScanSummary.evaluatedCandidates, 1);
+  assert.strictEqual(health.lastScanSummary.candidatesByAction.scrape, 1);
+  assert.strictEqual(health.lastScanSummary.enqueued, 0);
+  assert.strictEqual(health.lastScanSummary.admissionRejected, 1);
+  assert.strictEqual(health.lastScanSummary.admissionRejectedByReason.scrape_not_supported_for_standard_media, 1);
+});
+
+test('smartTaskEngine health explains queue-cap skips without creating tasks', async () => {
+  smartTaskEngine.stop();
+  const activeTasks = [{
+    id: 'active-transcode',
+    itemId: 'active-transcode-item',
+    actionType: 'transcode',
+    status: 'queued',
+    updatedAt: new Date().toISOString(),
+  }];
+  smartTaskEngine.start(
+    {
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 1,
+          smartTaskEnabledActions: ['transcode'],
+          smartTaskLookbackDays: 30,
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { transcode: 130 },
+            rules: { transcode: [] },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [metadataReadyMovie({
+            itemId: 'queue-cap-candidate',
+            name: 'Queue Cap Candidate',
+            action: 'transcode',
+            reason: 'high bitrate',
+          })],
+        };
+      },
+    },
+    {
+      getTasks: () => [...activeTasks],
+      loadTasks: () => [...activeTasks],
+      createTask() {
+        throw new Error('queue cap should prevent task creation');
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  const health = smartTaskEngine.getHealth();
+  assert.strictEqual(health.lastScanSummary.status, 'done');
+  assert.strictEqual(health.lastScanSummary.candidateCount, 1);
+  assert.strictEqual(health.lastScanSummary.evaluatedCandidates, 1);
+  assert.strictEqual(health.lastScanSummary.candidatesByAction.transcode, 1);
+  assert.strictEqual(health.lastScanSummary.enqueued, 0);
+  assert.strictEqual(health.lastScanSummary.skippedByQueueCap, 1);
+  assert.strictEqual(health.lastScanSummary.skippedByQueueCapByAction.transcode, 1);
+  assert.strictEqual(health.lastScanSummary.admissionRejected, 0);
+});
+
 test('smartTaskEngine auto-enqueues ingest candidates through unified priority before transcode', async () => {
   smartTaskEngine.stop();
   const created = [];
@@ -1123,6 +1256,47 @@ test('taskStore writes task event journal without replacing task payload', () =>
     taskStore.deleteTask(task.id);
     const afterDelete = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 20 }).events;
     assert.ok(afterDelete.some((event) => event.eventType === 'task.deleted'));
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
+test('taskStore records failure summary on task.failed events', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'task-failure-summary-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  try {
+    const task = taskStore.createTask({
+      itemId: 'failure-summary-item',
+      itemName: 'Failure Summary Item',
+      actionType: 'transcode',
+      status: 'executing',
+      phase: 'executing',
+      resumePoint: 'transcode_executing',
+      itemInfo: { path: '/media/failure-summary-item.mkv' },
+    });
+
+    taskStore.updateTask(task.id, {
+      logs: [{ ts: '2026-06-30T00:00:00.000Z', level: 'error', msg: 'Encoder failed with code 1' }],
+    });
+    taskStore.updateTask(task.id, { status: 'failed_hard' });
+
+    const events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 50 }).events;
+    const failed = events.find((event) => event.eventType === 'task.failed');
+    assert.ok(failed, 'failed status transition writes task.failed');
+    assert.strictEqual(failed.payload.failureStatus, 'failed_hard');
+    assert.strictEqual(failed.payload.failureSummary.message, 'Encoder failed with code 1');
+    assert.strictEqual(failed.payload.failureSummary.level, 'error');
+    assert.strictEqual(failed.payload.failureSummary.source, 'task_log');
+    assert.strictEqual(failed.payload.operationKind, 'transcode');
+    assert.strictEqual(failed.payload.bridgeKind, 'optimize');
+    assert.strictEqual(failed.payload.primaryResourceType, taskStore.getTask(task.id).flowPlan.primaryResourceType);
   } finally {
     if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
     else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;

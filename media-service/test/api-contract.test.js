@@ -654,7 +654,12 @@ test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
   // Task status is 'created' — confirm must return 409
   const res = await app.inject({ method: 'PATCH', url: `/v1/tasks/${id}`, payload: { confirmed: true } });
   assert.strictEqual(res.statusCode, 409);
-  assert.strictEqual(res.json().error.code, 'TASK_CONFLICT');
+  assert.strictEqual(res.json().error.code, 'TASK_ACTION_REJECTED');
+  assert.strictEqual(res.json().error.message, 'not_awaiting_confirmation');
+  assert.strictEqual(res.json().actionName, 'confirm');
+  assert.strictEqual(res.json().action.enabled, false);
+  assert.strictEqual(res.json().controlState.actions.confirm.reason, 'not_awaiting_confirmation');
+  assert.strictEqual(res.json().task.id, id);
   await app.close();
 });
 
@@ -663,10 +668,16 @@ test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
 test('POST /v1/tasks duplicate itemId (active task exists) -> 409', async () => {
   const app = await buildEmptyApp();
   const itemId = 'dup-item-' + crypto.randomUUID().slice(0, 8);
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'scrape' } });
+  const first = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'scrape' } });
   const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'delete' } });
   assert.strictEqual(res.statusCode, 409);
   assert.strictEqual(res.json().error.code, 'TASK_CONFLICT');
+  assert.strictEqual(res.json().admission.reason, 'active_task_exists');
+  assert.strictEqual(res.json().activeTask.id, first.json().id);
+  assert.strictEqual(res.json().activeTask.itemId, itemId);
+  assert.strictEqual(res.json().activeTask.taskBridge.kind, 'metadata');
+  assert.strictEqual(res.json().activeTask.flowPlan.operationKind, 'scrape');
+  assert.strictEqual(res.json().businessFlowDecision.blockedReasons.delete, 'active_task_exists');
   await app.close();
 });
 

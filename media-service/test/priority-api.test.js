@@ -14,6 +14,7 @@ const { buildApp } = require('../src/app');
 const taskStore = require('../src/taskStore');
 const configStore = require('../src/configStore');
 const mediaLibraryService = require('../src/mediaLibraryService');
+const diagnosticLog = require('../src/diagnosticLog');
 
 function tmpDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-prio-'));
@@ -57,6 +58,10 @@ test('PATCH /v1/admin/tasks/:id sets priority on a queued task', async () => {
     assert.strictEqual(res.statusCode, 200);
     const body = res.json();
     assert.strictEqual(body.priority, 5);
+    assert.strictEqual(body.priorityAdjustment.enabled, true);
+    assert.strictEqual(body.priorityAdjustment.effect, 'override_queue_priority');
+    assert.strictEqual(body.priorityAdjustment.requestedPriority, 5);
+    assert.strictEqual(body.controlState.state, 'queued');
     // Persisted
     const persisted = taskStore.getTask(created.id);
     assert.strictEqual(persisted.priority, 5);
@@ -75,8 +80,13 @@ test('PATCH /v1/admin/tasks/:id rejects negative / non-integer priority', async 
     const created = taskStore.createTask({ itemId: 'i2', actionType: 'transcode', status: 'queued' });
     const r1 = await app.inject({ method: 'PATCH', url: `/v1/admin/tasks/${created.id}`, payload: { priority: -1 } });
     assert.strictEqual(r1.statusCode, 400);
+    assert.strictEqual(r1.json().error.code, 'VALIDATION_ERROR');
+    assert.strictEqual(r1.json().validation.reason, 'non_negative_integer_required');
+    assert.strictEqual(r1.json().priorityAdjustment.requestedPriority, -1);
+    assert.strictEqual(r1.json().priorityAdjustment.enabled, true);
     const r2 = await app.inject({ method: 'PATCH', url: `/v1/admin/tasks/${created.id}`, payload: { priority: 1.5 } });
     assert.strictEqual(r2.statusCode, 400);
+    assert.strictEqual(r2.json().priorityAdjustment.requestedPriority, 1.5);
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
@@ -91,6 +101,13 @@ test('PATCH /v1/admin/tasks/:id refuses priority change on executing task (409)'
     const created = taskStore.createTask({ itemId: 'i3', actionType: 'transcode', status: 'executing', priority: 100 });
     const res = await app.inject({ method: 'PATCH', url: `/v1/admin/tasks/${created.id}`, payload: { priority: 1 } });
     assert.strictEqual(res.statusCode, 409);
+    assert.strictEqual(res.json().error.code, 'TASK_PRIORITY_REJECTED');
+    assert.strictEqual(res.json().error.message, 'status_not_priority_editable');
+    assert.strictEqual(res.json().task.id, created.id);
+    assert.strictEqual(res.json().controlState.state, 'running');
+    assert.strictEqual(res.json().priorityAdjustment.enabled, false);
+    assert.strictEqual(res.json().priorityAdjustment.requestedPriority, 1);
+    assert.ok(res.json().priorityAdjustment.editableStatuses.includes('queued'));
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
@@ -166,6 +183,63 @@ test('taskScheduler dispatch order is priority-ascending then FIFO', async () =>
   } finally {
     transcodeFlow.driveTask = origDrive;
     transcodeFlow.setScheduler(origSet);
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler records flow failure events and diagnostics when executor rejects', async () => {
+  tmpDir();
+  diagnosticLog.resetForTests();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.executionMode = 'auto';
+  cfg.transcodeConcurrency = 1;
+  configStoreMod.saveConfig(cfg);
+
+  const task = taskStoreMod.createTask({
+    itemId: 'flow-fail-item',
+    itemName: 'Flow Fail Item',
+    actionType: 'transcode',
+    source: 'manual',
+    status: 'queued',
+    priority: 1,
+    itemInfo: { path: '/media/flow-fail-item.mkv', subLibraryId: 'sub-flow-fail' },
+  });
+
+  const origDrive = transcodeFlow.driveTask;
+  transcodeFlow.driveTask = async () => {
+    throw new Error('encoder exploded in test');
+  };
+
+  try {
+    await scheduler.scheduleRound();
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const after = taskStoreMod.getTask(task.id);
+    assert.strictEqual(after.status, 'failed_hard');
+
+    const events = taskStoreMod.queryTaskEvents({ taskId: task.id }, { pageSize: 50 }).events;
+    const failed = events.find((event) => event.eventType === 'flow.failed');
+    assert.ok(failed, 'scheduler writes flow.failed event on executor rejection');
+    assert.strictEqual(failed.eventStatus, 'failed_hard');
+    assert.strictEqual(failed.resourceType, 'local_transcode');
+    assert.strictEqual(failed.payload.reason, 'flow_executor_rejected');
+    assert.strictEqual(failed.payload.errorMessage, 'encoder exploded in test');
+    assert.strictEqual(failed.payload.operationKind, 'transcode');
+    assert.strictEqual(failed.payload.effect, 'mark_failed_hard_after_flow_exception');
+
+    const logs = diagnosticLog.list({ limit: 50 }).logs
+      .filter((log) => log.scope === 'scheduler.flowDispatch' && log.payload && log.payload.taskId === task.id);
+    assert.ok(logs.some((log) => log.status === 'failed' && log.operation === 'flow_executor_failed'));
+    assert.ok(logs.some((log) => log.payload.errorMessage === 'encoder exploded in test'));
+  } finally {
+    transcodeFlow.driveTask = origDrive;
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
   }
@@ -296,11 +370,73 @@ test('taskScheduler reconciles queued automatic task priorities with the current
   }
 });
 
+test('taskScheduler restart recovery marks active runtime tasks with explanatory events', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  diagnosticLog.resetForTests();
+
+  const executing = taskStoreMod.createTask({
+    itemId: 'restart-executing',
+    itemName: 'Restart Executing',
+    actionType: 'transcode',
+    status: 'executing',
+  });
+  taskStoreMod.updateTask(executing.id, {
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    progress: 42,
+  });
+  const pausing = taskStoreMod.createTask({
+    itemId: 'restart-pausing-requested',
+    itemName: 'Restart Pausing Requested',
+    actionType: 'upgrade',
+    status: 'queued',
+  });
+  taskStoreMod.updateTask(pausing.id, {
+    phase: 'upgrade_executing',
+    resumePoint: 'upgrade_executing',
+    pausingRequested: true,
+  });
+
+  try {
+    scheduler.recoverInterruptedTasks();
+
+    const executingAfter = taskStoreMod.getTask(executing.id);
+    const pausingAfter = taskStoreMod.getTask(pausing.id);
+    assert.strictEqual(executingAfter.status, 'interrupted');
+    assert.strictEqual(pausingAfter.status, 'interrupted');
+
+    const executingEvents = taskStoreMod.queryTaskEvents({ taskId: executing.id }, { pageSize: 50 }).events;
+    const restartInterrupted = executingEvents.find((event) => event.eventType === 'task.restart_interrupted');
+    assert.ok(restartInterrupted, 'restart recovery writes an explanatory interruption event');
+    assert.strictEqual(restartInterrupted.payload.reason, 'service_restart_runtime_state_recovered');
+    assert.strictEqual(restartInterrupted.payload.fromStatus, 'executing');
+    assert.strictEqual(restartInterrupted.payload.fromPhase, 'transcode_executing');
+    assert.strictEqual(restartInterrupted.payload.fromResumePoint, 'transcode_executing');
+    assert.strictEqual(restartInterrupted.payload.effect, 'mark_interrupted_for_scheduler_recovery');
+
+    const pausingEvents = taskStoreMod.queryTaskEvents({ taskId: pausing.id }, { pageSize: 50 }).events;
+    const pausingRestart = pausingEvents.find((event) => event.eventType === 'task.restart_interrupted');
+    assert.ok(pausingRestart);
+    assert.strictEqual(pausingRestart.payload.pausingRequested, true);
+
+    const logs = diagnosticLog.list({ limit: 50 }).logs
+      .filter((log) => log.scope === 'scheduler.restartRecovery');
+    assert.ok(logs.some((log) => log.operation === 'mark_interrupted' && log.payload.taskId === executing.id));
+    assert.ok(logs.some((log) => log.operation === 'mark_interrupted' && log.payload.taskId === pausing.id));
+  } finally {
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
 test('taskScheduler clears stale runtime state for queued tasks without losing manual resumes', async () => {
   tmpDir();
   const scheduler = require('../src/taskScheduler');
   const taskStoreMod = require('../src/taskStore');
   const configStoreMod = require('../src/configStore');
+  diagnosticLog.resetForTests();
 
   const cfg = configStoreMod.getDefaultConfig();
   cfg.transcodeConcurrency = 1;
@@ -383,6 +519,18 @@ test('taskScheduler clears stale runtime state for queued tasks without losing m
     assert.strictEqual(recoveredAfter.phase, null);
     assert.strictEqual(recoveredAfter.resumePoint, null);
     assert.strictEqual(recoveredAfter.progress, 0);
+    assert.strictEqual(recoveredAfter.retryCount, 1);
+    const recoveredEvents = taskStoreMod.queryTaskEvents({ taskId: recovered.id }, { pageSize: 50 }).events;
+    const restartQueued = recoveredEvents.find((event) => event.eventType === 'task.restart_recovery_queued');
+    assert.ok(restartQueued, 'interrupted task recovery writes restart queue event');
+    assert.strictEqual(restartQueued.payload.reason, 'restart_recovery_auto_queue');
+    assert.strictEqual(restartQueued.payload.fromPhase, 'transcode_executing');
+    assert.strictEqual(restartQueued.payload.fromResumePoint, 'transcode_executing');
+    assert.strictEqual(restartQueued.payload.retryCount, 1);
+    assert.ok(recoveredEvents.some((event) => event.eventType === 'task.retry_recorded'));
+    const recoveryLogs = diagnosticLog.list({ limit: 50 }).logs
+      .filter((log) => log.scope === 'scheduler.restartRecovery' && log.payload && log.payload.taskId === recovered.id);
+    assert.ok(recoveryLogs.some((log) => log.operation === 'recover_interrupted_task' && log.status === 'done'));
 
     assert.strictEqual(manualAfter.status, 'queued');
     assert.strictEqual(manualAfter.phase, 'transcode_executing');

@@ -7,18 +7,25 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const configStore = require('./configStore');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const FILE_PATH = path.join(DATA_DIR, 'nodes.json');
+function dataDir() {
+  return configStore.resolveDataDir();
+}
+
+function filePath() {
+  return path.join(dataDir(), 'nodes.json');
+}
 
 function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  const dir = dataDir();
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
 function loadNodes() {
   ensureDataDir();
   try {
-    const raw = fs.readFileSync(FILE_PATH, 'utf8');
+    const raw = fs.readFileSync(filePath(), 'utf8');
     return JSON.parse(raw);
   } catch (_) {
     return [];
@@ -27,7 +34,7 @@ function loadNodes() {
 
 function saveNodes(nodes) {
   ensureDataDir();
-  fs.writeFileSync(FILE_PATH, JSON.stringify(nodes, null, 2), 'utf8');
+  fs.writeFileSync(filePath(), JSON.stringify(nodes, null, 2), 'utf8');
 }
 
 function getNode(id) {
@@ -121,7 +128,14 @@ function getOnlineNodes() {
  */
 function getNodeActiveJobCount(nodeId, taskStore) {
   try {
-    const tasks = taskStore.loadTasks({ includeHistory: false });
+    const tasks = taskStore.queryTaskSummaries
+      ? taskStore.queryTaskSummaries({ nodeId, statuses: ['executing'] }, {
+        includeHistory: false,
+        includeAll: true,
+        orderBy: 'updatedAt',
+        orderDir: 'desc',
+      }).tasks
+      : taskStore.loadTasks({ includeHistory: false });
     return tasks.filter((t) => t.nodeId === nodeId && t.status === 'executing').length;
   } catch (_) { return 0; }
 }

@@ -1399,6 +1399,13 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
     priorityBreakdown,
     taskBridge: admission.taskBridge,
     flowPlan: admission.flowPlan,
+    requestedIntent: userInitiated ? {
+      bridgeKind: 'metadata',
+      preferredOperation: 'scrape',
+      actionType: 'scrape',
+      intentMode: 'adult_rescrape',
+      entryPoint: 'POST /v1/admin/adult/items/:itemId/actions/rescrape',
+    } : undefined,
     itemInfo,
     logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Scrape task created by user action' : 'Scrape task created by background admission' }],
   };

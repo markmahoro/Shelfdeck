@@ -1,5 +1,6 @@
 import { memo, useState } from 'react';
 import type { ManagedMediaItem, MediaAction, MediaRating } from '../models/media';
+import { blockedReasonText, preferredTaskAction } from '../models/mediaActionPolicy';
 import { taskStatusLabelZh } from '../models/task';
 import type { MediaTask } from '../types';
 
@@ -38,6 +39,8 @@ function StarInput({ value, onChange }: { value: MediaRating | null; onChange: (
 export type MediaLibraryManageRowProps = {
   item: ManagedMediaItem;
   isSelected: boolean;
+  selectionDisabled?: boolean;
+  selectionTitle?: string;
   isHighlighted: boolean;
   rowTask: MediaTask | undefined;
   isCreatingTask?: boolean;
@@ -54,8 +57,11 @@ export type MediaLibraryManageRowProps = {
 const MAX_STARS = 5;
 const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '转码压缩', upgrade: '洗版', scrape: '刮削', ingest: '入库' };
 const OPTIMIZATION_LABEL: Record<string, string> = { transcoded: '已转码', upgraded: '已洗版', none: '未优化' };
-const LIFECYCLE_LABEL: Record<string, string> = { ingested: '已入库', metadata_ready: '元数据就绪', archived: '已收口' };
-const NEXT_TASK_LABEL: Record<string, string> = { metadata: 'metadata', optimize: 'optimization', archive: 'archive' };
+const LIFECYCLE_LABEL: Record<string, string> = { discovered: '已发现', ingested: '已入库', metadata_ready: '元数据就绪', optimized: '已优化', archived: '已归档' };
+const METADATA_LABEL: Record<string, string> = { complete: '完整', done: '完整', missing: '缺失', pending: '待补齐', failed: '失败', ambiguous: '待确认' };
+const ARCHIVE_LABEL: Record<string, string> = { archived_like: '已归档', not_ready: '未就绪', failed: '归档失败', pending: '待归档' };
+const NEXT_TASK_LABEL: Record<string, string> = { metadata: '补元数据', optimize: '优化', archive: '归档' };
+const BRIDGE_LABEL: Record<string, string> = { metadata: '元数据桥', optimize: '优化桥', archive: '归档桥' };
 
 function adultMetaString(item: ManagedMediaItem, key: string): string {
   const value = item.adultMetadata?.[key];
@@ -99,6 +105,8 @@ function adultScrapeStatus(item: ManagedMediaItem): { label: string; tone: 'done
 function MediaLibraryManageRowInner({
   item,
   isSelected,
+  selectionDisabled,
+  selectionTitle,
   isHighlighted,
   rowTask,
   isCreatingTask,
@@ -111,7 +119,9 @@ function MediaLibraryManageRowInner({
   onEnqueue,
   onRescrape,
 }: MediaLibraryManageRowProps) {
-  const action = item.recommendedAction ?? 'keep';
+  const policyAction = preferredTaskAction(item);
+  const recommendedOperation = item.businessFlowDecision?.recommendedOperation || item.recommendedAction || 'keep';
+  const action = policyAction ?? 'keep';
   const eq = item.equivalentBitrate;
   const target = item.targetBitrate;
   const predictGb = item.predictedSizeGb;
@@ -119,10 +129,21 @@ function MediaLibraryManageRowInner({
     ? `${OPTIMIZATION_LABEL[item.optimizationStatus]}：${new Date(item.optimizationDoneAt).toLocaleString()}`
     : OPTIMIZATION_LABEL[item.optimizationStatus];
   const lifecycleLabel = LIFECYCLE_LABEL[item.lifecycleStage || ''] || item.lifecycleStage || '生命周期未知';
+  const metadataLabel = item.metadataComplete
+    ? '完整'
+    : (METADATA_LABEL[item.metadataStatus || ''] || item.metadataStatus || '未知');
+  const archiveLabel = item.lifecycleDone
+    ? '已归档'
+    : (ARCHIVE_LABEL[item.archiveStatus || ''] || item.archiveStatus || '未就绪');
   const lifecycleTitle = [
     item.lifecycleReason ? `原因：${item.lifecycleReason}` : '',
-    item.metadataStatus ? `metadata：${item.metadataStatus}` : '',
-    item.archiveStatus ? `archive：${item.archiveStatus}` : '',
+    item.metadataStatus ? `元数据：${item.metadataStatus}` : '',
+    item.archiveStatus ? `归档：${item.archiveStatus}` : '',
+    item.businessFlowDecision?.nextBridge ? `下一座桥：${BRIDGE_LABEL[item.businessFlowDecision.nextBridge] || item.businessFlowDecision.nextBridge}` : '',
+  ].filter(Boolean).join('\n');
+  const metadataTitle = [
+    item.metadataKind ? `类型：${item.metadataKind}` : '',
+    item.metadataMissingReasons?.length ? `缺失：${item.metadataMissingReasons.join('、')}` : '',
   ].filter(Boolean).join('\n');
   const scrapeStatus = adultScrapeStatus(item);
   const adultId = adultMetaString(item, 'adultId');
@@ -137,17 +158,27 @@ function MediaLibraryManageRowInner({
     premiered ? `发行：${premiered}` : '',
   ].filter(Boolean).join('\n');
 
+  const taskBridge = rowTask?.taskBridge?.kind || item.businessFlowDecision?.activeTaskBridge || '';
+  const taskOperation = rowTask?.flowPlan?.operationKind || item.businessFlowDecision?.activeFlowOperation || rowTask?.actionType || '';
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
       {taskStatusLabelZh(rowTask.status)}（
-      {ACTION_LABEL[rowTask.actionType] || rowTask.actionType}
+      {BRIDGE_LABEL[taskBridge] || taskBridge || '任务'}
+      {' / '}
+      {ACTION_LABEL[taskOperation] || taskOperation}
       ）
     </span>
   ) : (
     '—'
   );
 
-  const actionDisabled = !!rowTask || !!isCreatingTask || (item.isBluRayDisc && action === 'upgrade');
+  const actionDisabled = !!rowTask || !!isCreatingTask;
+  const recommendedBlockedReason = typeof recommendedOperation === 'string'
+    ? blockedReasonText(item, recommendedOperation)
+    : '';
+  const nextBridgeLabel = item.businessFlowDecision?.nextBridge
+    ? (BRIDGE_LABEL[item.businessFlowDecision.nextBridge] || item.businessFlowDecision.nextBridge)
+    : (NEXT_TASK_LABEL[item.lifecycleNextTask || ''] || '');
 
   return (
     <div
@@ -158,11 +189,22 @@ function MediaLibraryManageRowInner({
         <input
           type="checkbox"
           checked={isSelected}
+          disabled={selectionDisabled}
           onChange={() => onToggleSelect(item.id)}
-          title="勾选后可参与左侧批量操作"
+          title={selectionTitle || '勾选后可参与左侧批量操作'}
         />
         <span className="mediaManageTitleWrap">
           <span className="mediaManageTitle">{item.name}</span>
+        </span>
+      </div>
+      <div>
+        <span className={`lifecycleBadge lifecycleBadge-${item.lifecycleDone ? 'done' : 'open'}`} title={lifecycleTitle || lifecycleLabel}>
+          {lifecycleLabel}
+        </span>
+      </div>
+      <div>
+        <span className={`metadataBadge metadataBadge-${item.metadataComplete ? 'done' : 'open'}`} title={metadataTitle || metadataLabel}>
+          {metadataLabel}
         </span>
       </div>
       {showAdultFields && (
@@ -204,13 +246,13 @@ function MediaLibraryManageRowInner({
       <div className="tabular-nums">{target != null ? `${target.toFixed(1)} Mbps` : '—'}</div>
       <div className="tabular-nums">{predictGb != null ? `${predictGb.toFixed(1)} GB` : '—'}</div>
       <div>
-        <span className="lifecycleStack">
-          <span className={`lifecycleBadge lifecycleBadge-${item.lifecycleDone ? 'done' : 'open'}`} title={lifecycleTitle || lifecycleLabel}>
-            {lifecycleLabel}
-          </span>
-          <span className={`optimizationBadge optimizationBadge-${item.optimizationStatus}`} title={optimizationTitle}>
-            {OPTIMIZATION_LABEL[item.optimizationStatus]}
-          </span>
+        <span className={`optimizationBadge optimizationBadge-${item.optimizationStatus}`} title={optimizationTitle}>
+          {OPTIMIZATION_LABEL[item.optimizationStatus]}
+        </span>
+      </div>
+      <div>
+        <span className={`archiveBadge archiveBadge-${item.lifecycleDone ? 'done' : 'open'}`} title={item.archiveReason || lifecycleTitle || archiveLabel}>
+          {archiveLabel}
         </span>
       </div>
       {showStandardFields && (
@@ -238,14 +280,16 @@ function MediaLibraryManageRowInner({
       )}
       <div>
         {action === 'keep' ? (
-          <span className="hint" title={item.archiveReason || item.reason}>
-            {item.lifecycleDone ? 'archive' : (NEXT_TASK_LABEL[item.lifecycleNextTask || ''] || item.reason || '已达标')}
+          <span className="hint" title={recommendedBlockedReason || item.archiveReason || item.reason}>
+            {item.lifecycleDone
+              ? '已闭环'
+              : (recommendedBlockedReason || nextBridgeLabel || item.reason || '暂无可执行操作')}
           </span>
         ) : (
           <button
             type="button"
             disabled={actionDisabled}
-            title={rowTask ? '该条目已有未结案任务' : isCreatingTask ? '正在创建任务' : item.isBluRayDisc && action === 'upgrade' ? '原盘暂不支持洗版' : undefined}
+            title={rowTask ? '该条目已有未结案任务' : isCreatingTask ? '正在创建任务' : item.businessFlowDecision?.nextBridge ? `下一座桥：${nextBridgeLabel}` : undefined}
             onClick={() => onEnqueue(item, action)}
           >
             {isCreatingTask ? '创建中...' : ACTION_LABEL[action]}
@@ -263,6 +307,8 @@ function rowPropsEqual(a: MediaLibraryManageRowProps, b: MediaLibraryManageRowPr
   return (
     a.item === b.item &&
     a.isSelected === b.isSelected &&
+    a.selectionDisabled === b.selectionDisabled &&
+    a.selectionTitle === b.selectionTitle &&
     a.isHighlighted === b.isHighlighted &&
     a.rowTask === b.rowTask &&
     a.isCreatingTask === b.isCreatingTask &&
