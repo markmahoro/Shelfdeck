@@ -2954,3 +2954,118 @@ S4 archived
 - P0-2 服务降级与 P0-3 资源视图性能排查尚未完成。
 - 前端 P1/P2 语义和媒体库字段整理尚未完成。
 - v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
+
+## 2026-06-30 Slice 64: P0-1 configurable metadata gate and standard scrape repair hardening
+
+### 对应标准
+
+- P0-1: task 生命周期必须符合 5 阶段 4 gate 新模型。
+- P0-1: `metadataGate` 的默认定义必须满足 `gate >= optimize 消费字段`，但不能凭空卡住与当前子库策略无关的字段。
+- D2: 影响 Admin Web 和生产业务状态的改动必须部署 NAS 并验证。
+
+### 用户模型修正
+
+本 slice 明确接受用户修正：P0-1 不只是“后端默认 gate 推导”，还必须包含“用户可自定义每个子库 metadata gate”。
+
+- 用户语义上，“元数据完整”就是能进入 optimize 的候选。
+- 自定义 gate 可以大于下游 optimize 消费字段。
+- 系统必须校验自定义 gate 覆盖当前子库策略模板的实际输入字段。
+- 如果没有自定义 gate，系统默认 gate = 基础身份/技术字段 + 当前子库策略模板实际消费字段。
+
+### 已修复
+
+- commit `8f2180b feat: make metadata gates sub-library configurable`
+  - 后端 `metadataStatus` 改为按子库策略模板生成默认 gate。
+  - Admin Web 子库新增/编辑入口增加“元数据完整 Gate”配置。
+  - PATCH/POST 子库时校验自定义 gate 是否覆盖策略输入。
+  - 生产 `公共_国产剧` 已写入显式自定义 gate：
+    - identity: itemId/externalId/name/seriesName/seasonNumber
+    - media: path/size/duration/bitrate/resolution/codec
+    - decision: watched
+- commit `c59cbea fix: budget startup library refresh`
+  - 启动 refresh 增加 stale/max 预算，避免每次部署后默认全量刷新所有子库。
+- commit `3aa9e85 fix: repair tv season metadata from emby episodes`
+  - 普通 TV season 的半假 scrape repair 不再对 season 容器路径跑本地 ffprobe。
+  - season repair 改为从 Emby 拉取 episode，再复用 episode 聚合逻辑补齐 season 技术字段。
+- commit `f636ffb fix: reduce local ffmpeg progress noise`
+- commit `36c0933 fix: silence local ffmpeg progress output`
+  - 这是排查生产不可响应时的运行态修复尝试。
+  - 后续用户指出 transcode 长期运行过，不应被直接判断为根因；本纪要保留这个修正：transcode 只能视为同机并发背景/放大因素，不能作为本次服务不可响应的充分根因。
+
+### 本地验证
+
+- `node --test test/task-model.test.js --test-name-pattern "metadataStatus"`：通过。
+- `node --test test/task-model.test.js --test-name-pattern "startup library refresh|standard metadata repair aggregates|ffmpeg progress output disabled|metadataStatus"`：通过。
+- `node --test test/scrape-flow-metadata-gate.test.js`：通过。
+- `node --test --test-isolation=none --test-name-pattern "GET /v1/config includes v2 schema fields" test/api-inject.test.js`：通过。
+- `node --test test/api-contract.test.js`：通过。
+- `node --test test/priority-api.test.js`：通过。
+- `npm run build:web`：通过；Vite dynamic/static import warning 仍为既有 warning。
+- `npm test` 默认模式未完成：Windows 下 `api-inject.test.js` 在默认 child isolation 模式仍会挂起；`--test-isolation=none` 可跑窄测，但全量会有状态污染，因此不能把它当全量替代。
+
+### 生产部署
+
+本 slice 多次部署生产 NAS，最终运行版本：
+
+- image: `markmahoro/shelfdeck:v3.1.0-p0-1-silent-ffmpeg-36c0933`
+- tar sha256: `37b2483a2ec2dc8030ae5bccdc274f24888610dfd8fac22a00fbc459ab665a2d`
+- deploy 脚本最终完成，running image tag 已验证。
+
+中间部署版本：
+
+- `v3.1.0-p0-1-metadata-gate-8f2180b`
+- `v3.1.0-p0-1-metadata-gate-startup-io-c59cbea`
+- `v3.1.0-p0-1-tv-season-repair-3aa9e85`
+- `v3.1.0-p0-1-ffmpeg-progress-f636ffb`
+
+### 生产业务验证
+
+- `公共_国产剧` 的样本 item 在自定义 gate 后不再缺 `decision.rating` / `decision.providerId`：
+  - `81945`
+  - `81966`
+  - `97626`
+  - `82255`
+  - `82551`
+- 上述样本均返回：
+  - `metadataStatus: complete`
+  - `metadataComplete: true`
+  - `metadataMissingReasons: []`
+  - `lifecycleStage: metadata_ready`
+  - `lifecycleNextTask: optimize`
+
+### 生产运行发现
+
+- P0-1 业务模型修复后，SmartTask 开始看到大量普通库 scrape candidate：
+  - 日志显示 `1784 candidates total`
+  - 每轮自动入队 10 个 `scrape`
+  - 这是新模型下“metadataGate 未满足 -> scrape repair”的直接后果，但需要进一步确认自动入队节奏是否符合资源模型。
+- TV season repair 曾暴露错误：
+  - 日志出现 `季 4/季 5 ffprobe failed/timed out`
+  - 已通过 `3aa9e85` 修正为 episode 聚合，不再对 season 容器路径 ffprobe。
+- 生产 Admin Web / 静态资源仍出现不可用窗口：
+  - 8KB CSS `/assets/index-Iac3OZaj.css` 曾耗时约 144s。
+  - `/v1/health` 也会出现 5s/20s 超时窗口。
+  - 这说明不是单个业务 API 查询慢，而是 Node 主线程/系统 I/O 被拖住。
+- 用户纠正后，当前判断更新为：
+  - transcode 不是充分根因；项目曾长期 transcode 并保持可访问。
+  - 当前更可疑的是 NAS I/O/内存压力、SQLite 大文件、部署备份和 SmartTask/scheduler 在大数据集上的同步路径叠加。
+
+### NAS 空间与备份状态
+
+- 已按用户授权清理 NAS 上旧镜像 tar，并保留本地 `dist-image` 备份。
+- NAS 当前仅保留运行镜像 tar：
+  - `/vol1/1000/docker/shelfdeck/shelfdeck-v3.1.0-p0-1-silent-ffmpeg-36c0933.tar`
+- `/vol1/1000` 可用空间清理后约 43GB。
+- 仍发现 `/vol1/1000/docker/shelfdeck/data` 约 117GB：
+  - 主要是部署脚本生成的大量 `*.pre-image-adult-*` SQLite 备份。
+  - 单个 `tasks.db` / `library.db` 备份约 600MB。
+  - 这些不是运行主数据，但属于生产数据快照；未经用户确认，暂不删除。
+
+### 尚未满足
+
+- P0-1 不能宣布完成：
+  - 后端业务模型和关键 repair 路径已修，但生产 Admin Web 浏览器验收仍被服务不可响应窗口阻塞。
+- P0 服务降级仍未解决：
+  - 需要继续定位 Node 主进程 D/R 状态切换、系统 iowait、swap 满、SQLite/备份/SmartTask/scheduler 的真实关系。
+- 需要用户确认是否允许清理旧 `pre-image-adult-*` 数据快照备份。
+- v3.1 总目标仍未完成，不能标记 v3.1 为正式完成。
