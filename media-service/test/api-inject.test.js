@@ -126,6 +126,26 @@ test('media library health does not mark manual folder libraries stale', async (
   assert.strictEqual(health.manualFolderCount, 1);
 });
 
+test('media library health keeps stale refresh state out of service availability', async () => {
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const health = mediaLibraryService.getHealth({
+    defaultRefreshIntervalMinutes: 60,
+    subLibraries: [
+      {
+        uuid: 'emby-stale',
+        name: '电影',
+        enabled: true,
+        source: 'emby',
+        lastRefreshedAt: '2020-01-01T00:00:00.000Z',
+      },
+    ],
+  });
+
+  assert.strictEqual(health.status, 'green');
+  assert.deepStrictEqual(health.staleSubLibraries, ['电影']);
+  assert.strictEqual(health.scheduledRefreshCount, 1);
+});
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 test('X-API-Key enforced when apiKey set', async () => {

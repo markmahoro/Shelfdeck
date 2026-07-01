@@ -1182,13 +1182,5 @@ function getHealth(config) {
     }
   }
 
-  if (staleSubLibraries.length === scheduledRefreshCount) {
-    return { status: 'red', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries };
-  }
-
-  if (staleSubLibraries.length > 0) {
-    return { status: 'yellow', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries };
-  }
-
-  return { status: 'green', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries: [] };
+  return { status: 'green', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries };
 }
