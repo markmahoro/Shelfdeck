@@ -19,12 +19,15 @@
 markmahoro/shelfdeck:v3.2.4-13f5bd8f
 ```
 
-部署脚本最近两次生产快照后缀：
+部署脚本已确认存在的生产快照后缀包括：
 
 ```text
+20260701113426
 20260701112533
 20260701111816
 ```
+
+最新快照以后以 `scripts/production-readonly-diagnostics.js` 的 `latest deployment backups` 输出为准，不在本文持续追逐每次部署产生的新时间戳。
 
 最近一次部署后观测到的数据文件大小：
 
@@ -94,7 +97,7 @@ Admin API 诊断仍然保留：
 最近一次部署快照文件模式：
 
 ```text
-/vol1/1000/docker/shelfdeck/data/<name>.pre-image-adult-20260701112533.bak
+/vol1/1000/docker/shelfdeck/data/<name>.pre-image-adult-<YYYYMMDDHHMMSS>.bak
 ```
 
 回滚前必须先复制当前生产 data 目录作为事故现场；不得直接覆盖或删除现有文件。
