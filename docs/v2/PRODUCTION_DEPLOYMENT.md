@@ -104,6 +104,13 @@ apply 模式必须保持这些保护：
 - 不要把源码目录 bind mount 到生产容器；生产代码必须来自构建出的 Docker image。
 - 当前开发期允许部署中断正在运行的转码、刮削、删除、洗版任务；不要改用其他部署方法规避这个固定流程。
 - 涉及生产问题排查时，先读 `tests/TEST_ENV_CHECKLIST.md` 和 `docs/v2/DEBUG_WORKFLOW.md`，但只做只读诊断，除非用户明确授权变更生产状态。
+- v3.2.5 起，生产安全基线见 `docs/v3/PRODUCTION_SAFETY_BASELINE.md`。排查生产实验态、数据文件大小、最近备份、DB 聚合计数时，优先使用只读脚本：
+
+```bash
+node scripts/production-readonly-diagnostics.js
+```
+
+该脚本不得支持 `--apply`，不得写生产数据，不得输出凭据或媒体标题。
 
 ## 部署后的最小验收
 
