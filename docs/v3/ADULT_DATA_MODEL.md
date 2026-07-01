@@ -146,6 +146,15 @@ ai:             711 rows / 47284 bytes
 
 因此 v3.3-beta.1 不能只看 `library.db`；历史迁移来源必须包含旧 `library.json` 中的成人条目。迁移目标是把这些 item 以 light adult metadata 写回 `media_items`，并把 cold artifacts 写入 `adult-artifacts/<itemId>.json`。迁移必须保持 item identity、subLibrary、path、Lifecycle facts 和 Task target facts 不变。
 
+v3.3-beta.1 的生产 apply 入口：
+
+```bash
+node scripts/production-adult-migration-apply.js
+node scripts/production-adult-migration-apply.js --apply --confirm-adult-migration
+```
+
+默认模式只输出远端迁移计划，不写生产。`--apply --confirm-adult-migration` 会先备份 `library.db`、`library.db-wal`、`library.db-shm`、`library.json` 和已有 `adult-artifacts`，再通过服务镜像内的 `libraryStore.replaceSubLibraryItems()` 写回热数据，通过 `adultColdArtifactStore.saveArtifacts()` 写冷数据。该迁移不创建 task，不改变 Lifecycle objective，不绕过 TaskAdmission，也不把 AI artifacts 放回 Admin Web 普通列表、dashboard 或 TaskAdmission 热路径。
+
 ## 9. 测试约束
 
 当前约束测试在 `media-service/test/adult-data-model.test.js`：
