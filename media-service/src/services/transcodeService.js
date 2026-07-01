@@ -18,7 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
-const { spawn } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 
 function log(...args) {
   console.log('[transcode]', new Date().toISOString(), ...args);
@@ -2304,15 +2304,20 @@ module.exports = {
   _setSpawnForTest(fn) { _spawn = fn || spawn; },
 };
 
-const { execFileSync } = require('child_process');
+function executableReferenceAvailable(bin) {
+  const value = String(bin || '').trim();
+  if (!value) return false;
+  if (!path.isAbsolute(value) && !value.includes('/') && !value.includes('\\')) return true;
+  try {
+    return fs.existsSync(value);
+  } catch (_) {
+    return false;
+  }
+}
 
 async function getHealth(config) {
   const ff = resolveFfmpegBin(config);
-  let ffmpegOk = false;
-  try {
-    execFileSync(ff, ['-version'], { timeout: 5000, windowsHide: true });
-    ffmpegOk = true;
-  } catch (_) {}
+  const ffmpegOk = executableReferenceAvailable(ff);
 
   const tempRoot = (config && config.transcodeTempRoot || '').trim();
   let tempOk = false;
@@ -2332,27 +2337,5 @@ async function getHealth(config) {
     return { status: 'yellow', ffmpegOk: true, deviceCount: 0, message: '未配置编码设备' };
   }
 
-  const dvPlan = await resolveDolbyVisionTonemapPlan(config).catch((e) => ({
-    ok: false,
-    mode: 'unavailable',
-    message: e && e.message ? e.message : String(e),
-  }));
-  const dolbyVisionTonemap = {
-    ok: !!(dvPlan && dvPlan.ok),
-    mode: dvPlan && dvPlan.mode || 'unavailable',
-    label: dvPlan && dvPlan.label || '',
-    message: dvPlan && dvPlan.message || '',
-  };
-
-  if (!dolbyVisionTonemap.ok) {
-    return {
-      status: 'yellow',
-      ffmpegOk: true,
-      deviceCount: devices.length,
-      dolbyVisionTonemap,
-      message: `Dolby Vision tonemap 不可用：${dolbyVisionTonemap.message || 'no usable path'}`,
-    };
-  }
-
-  return { status: 'green', ffmpegOk: true, deviceCount: devices.length, dolbyVisionTonemap };
+  return { status: 'green', ffmpegOk: true, deviceCount: devices.length };
 }

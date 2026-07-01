@@ -13,6 +13,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { EventEmitter } = require('events');
+const os = require('os');
 
 const transcodeService = require('../src/services/transcodeService');
 
@@ -143,6 +144,18 @@ test('buildEncodeArgs uses selected Dolby Vision software tonemap filter and CPU
   assert.ok(codecIndex >= 0, 'DV encode should set a video codec');
   assert.strictEqual(built.args[codecIndex + 1], 'libx265');
   assert.ok(!built.args.includes('hevc_qsv'), 'DV encode should not use QSV codec when acknowledged');
+});
+
+test('transcode health does not spawn ffmpeg for command-name references', async () => {
+  const health = await transcodeService.getHealth({
+    ffmpegPath: 'definitely-not-a-real-ffmpeg-for-health',
+    transcodeTempRoot: os.tmpdir(),
+    transcodeEncodingDevices: [{ id: 'cpu', inPool: true }],
+  });
+
+  assert.strictEqual(health.status, 'green');
+  assert.strictEqual(health.ffmpegOk, true);
+  assert.strictEqual(health.deviceCount, 1);
 });
 
 test('startEncode falls back from GPU to CPU when the GPU encode fails', async () => {
