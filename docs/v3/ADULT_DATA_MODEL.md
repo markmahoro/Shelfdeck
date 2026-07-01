@@ -108,7 +108,25 @@ Status: v3.3-alpha.1 contract.
 4. `v3.3-beta.1`：备份后迁移历史数据，保持 item identity、Lifecycle facts、Task target facts 不变。
 5. `v3.3-beta.2`：恢复 JAV/US 普通可见路径；列表走热数据，详情和人脸操作按需读冷数据。
 
-## 8. 测试约束
+## 8. 生产 Dry-run
+
+生产成人库迁移分析入口：
+
+```bash
+node scripts/production-adult-migration-dry-run.js
+```
+
+该脚本只读执行：
+
+- 读取当前生产镜像和 `library.db` / WAL / SHM / `library.json` 文件大小。
+- 识别 `mediaType=adult` 或带 `adultRegion` 的 Kairox subLibrary。
+- 统计 adult rows、rows with cold artifacts、各 cold field 的行数、字节数、最大单字段体积。
+- 输出计划冷数据目标：`adult-artifacts/<itemId>.json`。
+- 输出未来 apply 前必须满足的备份和回滚条件。
+
+该脚本拒绝 `--apply`，不得写生产数据。v3.3-alpha.3 的生产 dry-run 结果显示：当前生产配置中存在 `JAV` 和 `US` 两个成人子库，但 `media_items` adult rows 为 0，旧 adult AI artifacts 为 0 bytes；因此 v3.3-beta.1 历史迁移在当前生产状态下预期是 no-op，但仍必须保留备份和回滚流程。
+
+## 9. 测试约束
 
 当前约束测试在 `media-service/test/adult-data-model.test.js`：
 
@@ -116,3 +134,4 @@ Status: v3.3-alpha.1 contract.
 - protagonist 只能保留 `personId/name/adultId`。
 - cold artifact detector 必须识别 face、embedding、gallery、base64 和 AI 中间字段。
 - light projection 不得包含 cold artifact。
+- cold artifact store 必须把冷字段写到 hot payload 之外，并可按 itemId 读回。
