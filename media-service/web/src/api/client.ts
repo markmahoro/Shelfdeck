@@ -274,14 +274,13 @@ export const upgrade = {
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
 export const tasks = {
-  list: (params?: { status?: string; statuses?: string[]; attention?: string; actionType?: string; bridgeKind?: string; operationKind?: string; q?: string; page?: number; pageSize?: number; includeAttentionSummary?: boolean }) => {
+  list: (params?: { status?: string; statuses?: string[]; attention?: string; operationKind?: string; bridgeKind?: string; q?: string; page?: number; pageSize?: number; includeAttentionSummary?: boolean }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.statuses?.length) qs.set('statuses', params.statuses.join(','));
     if (params?.attention) qs.set('attention', params.attention);
-    if (params?.actionType) qs.set('actionType', params.actionType);
-    if (params?.bridgeKind) qs.set('bridgeKind', params.bridgeKind);
     if (params?.operationKind) qs.set('operationKind', params.operationKind);
+    if (params?.bridgeKind) qs.set('bridgeKind', params.bridgeKind);
     if (params?.q) qs.set('q', params.q);
     if (params?.page) qs.set('page', String(params.page));
     if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
@@ -327,7 +326,7 @@ export interface TaskReport {
   taskId: string;
   itemId?: string;
   itemName: string;
-  actionType: string;
+  operationKind: string;
   elapsedSec: number | null;
   encoder: string | null;
   original?: {
@@ -438,10 +437,10 @@ export interface SystemConfig {
   taskPriority?: {
     manualTaskPriority: number;
     autoTaskPriorityBase: number;
-    targetGateWeights?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive', number>>;
-    optimizeOperationHints?: Partial<Record<'transcode' | 'upgrade' | 'delete', number>>;
-    actionTypeWeights?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
-    rulesByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive', PriorityRule[]>>;
+    targetGateWeights?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
+    optimizeOperationHints?: Partial<Record<'transcode' | 'upgrade', number>>;
+    operationKindWeights?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
+    rulesByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', PriorityRule[]>>;
     rules: {
       ingest: PriorityRule[];
       scrape: PriorityRule[];
@@ -454,8 +453,8 @@ export interface SystemConfig {
   taskAdmission?: {
     defaultCooldownHours?: number;
     defaultMaxQueued?: number;
-    cooldownHoursByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive', number>>;
-    maxQueuedByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive', number>>;
+    cooldownHoursByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
+    maxQueuedByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
     cooldownHoursByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
     maxQueuedByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
   };
@@ -479,6 +478,43 @@ export const systemConfig = {
 
   patch: (body: Partial<SystemConfig>) =>
     patch<SystemConfig>('/v1/config', body),
+};
+
+// ── Delete Candidates ────────────────────────────────────────────────────────
+
+export interface DeleteCandidate {
+  itemId: string;
+  itemName: string;
+  subLibraryId: string;
+  candidateStatus: 'pending_review' | 'confirmed' | 'kept_archived' | 'snoozed' | 'suppressed' | 'deleted';
+  eligibilityReason: string;
+  matchedRule?: {
+    ruleId: string;
+    ruleName: string;
+    archivedForDays: number;
+    rating: number | null;
+    archivedAt: string;
+  } | null;
+  archivedAt: string;
+  eligibleAt: string;
+  decision?: string;
+  decisionAt?: string;
+  snoozedUntil?: string;
+  taskId?: string;
+  updatedAt?: string;
+}
+
+export const deleteCandidates = {
+  list: (includeDecided = false) =>
+    get<{ candidates: DeleteCandidate[]; total: number }>(`/v1/admin/delete-candidates${includeDecided ? '?includeDecided=1' : ''}`),
+  confirmDelete: (itemId: string) =>
+    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/confirm-delete`, {}),
+  keepArchived: (itemId: string) =>
+    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/keep-archived`, {}),
+  snooze: (itemId: string, days = 30) =>
+    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/snooze`, { days }),
+  suppress: (itemId: string) =>
+    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/suppress`, {}),
 };
 
 // ── Activity Log ─────────────────────────────────────────────────────────────────
@@ -650,7 +686,7 @@ export const taskApi = {
     return Array.isArray(data) ? data : data.tasks ?? [];
   },
 
-  createByIntent: async (body: { itemId: string; actionType?: string; bridgeKind?: string; preferredOperation?: string }): Promise<MediaTask> => {
+  createByIntent: async (body: { itemId: string; operationKind?: string; bridgeKind?: string; preferredOperation?: string }): Promise<MediaTask> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const key = apiKey();
     if (key) headers['x-api-key'] = key;

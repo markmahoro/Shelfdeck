@@ -8,10 +8,10 @@ const lifecycleProjection = require('./lifecycleProjection');
 const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 const USER_OPERATIONS = ['scrape', 'transcode', 'upgrade', 'delete', 'archive'];
 const AUTO_ACTION_ALIASES = {
-  optimize: ['transcode', 'upgrade', 'delete'],
+  optimize: ['transcode', 'upgrade'],
 };
-const TASK_TARGETS = new Set(['ingest', 'metadata', 'optimize', 'archive']);
-const OPTIMIZE_OPERATIONS = new Set(['transcode', 'upgrade', 'delete']);
+const TASK_TARGETS = new Set(['ingest', 'metadata', 'optimize', 'archive', 'delete']);
+const OPTIMIZE_OPERATIONS = new Set(['transcode', 'upgrade']);
 const EMBY_AUTO_METADATA_REPAIRABLE_REASONS = new Set([
   'identity.itemId',
   'identity.externalId',
@@ -27,8 +27,6 @@ const EMBY_AUTO_METADATA_REPAIRABLE_REASONS = new Set([
   'media.resolution',
   'media.codec',
   'media.audioCodecs',
-  'decision.watched',
-  'decision.providerId',
 ]);
 
 function normalizeAutoAction(value) {
@@ -44,6 +42,7 @@ function resolveAutoEnabledActions(config) {
   if (taskTargets.includes('ingest')) expanded.add('ingest');
   if (taskTargets.includes('metadata')) expanded.add('scrape');
   if (taskTargets.includes('archive')) expanded.add('archive');
+  if (taskTargets.includes('delete')) expanded.add('delete');
   if (taskTargets.includes('optimize')) {
     for (const operation of optimizeOperations) expanded.add(operation);
   }
@@ -79,6 +78,8 @@ function legacyAutomaticConfig(config = {}) {
       taskTargets.add('metadata');
     } else if (normalized === 'archive') {
       taskTargets.add('archive');
+    } else if (normalized === 'delete') {
+      taskTargets.add('delete');
     } else if (normalized === 'optimize') {
       taskTargets.add('optimize');
       for (const operation of AUTO_ACTION_ALIASES.optimize) optimizeOperations.add(operation);
@@ -108,11 +109,12 @@ function resolveOptimizeAllowedOperations(config = {}) {
   return legacyAutomaticConfig(config).optimizeAllowedOperations;
 }
 
-function targetForAction(actionType) {
-  const action = normalizeAutoAction(actionType);
+function targetForAction(operationKind) {
+  const action = normalizeAutoAction(operationKind);
   if (action === 'ingest') return 'ingest';
   if (action === 'scrape' || action === 'metadata') return 'metadata';
   if (action === 'archive') return 'archive';
+  if (action === 'delete') return 'delete';
   if (OPTIMIZE_OPERATIONS.has(action)) return 'optimize';
   return action || '';
 }
@@ -125,39 +127,39 @@ function optimizeOperationEnabled(config, operation) {
   return resolveOptimizeAllowedOperations(config).includes(operation);
 }
 
-function automaticActionEnabled(config, actionType) {
-  const target = targetForAction(actionType);
+function automaticActionEnabled(config, operationKind) {
+  const target = targetForAction(operationKind);
   if (!automaticTargetEnabled(config, target)) return false;
-  if (target === 'optimize') return optimizeOperationEnabled(config, actionType);
+  if (target === 'optimize') return optimizeOperationEnabled(config, operationKind);
   return true;
 }
 
-function actionCooldownMs(config, actionType) {
+function actionCooldownMs(config, operationKind) {
   const cfg = config && config.taskAdmission || {};
-  const target = targetForAction(actionType);
+  const target = targetForAction(operationKind);
   const byTarget = cfg.cooldownHoursByTargetGate || {};
   const byAction = cfg.cooldownHoursByAction || {};
   const hours = typeof byTarget[target] === 'number'
     ? byTarget[target]
-    : typeof byAction[actionType] === 'number'
-    ? byAction[actionType]
+    : typeof byAction[operationKind] === 'number'
+    ? byAction[operationKind]
     : (typeof cfg.defaultCooldownHours === 'number' ? cfg.defaultCooldownHours : 48);
   return Math.max(0, hours) * 3600 * 1000;
 }
 
-function lastActionDoneAt(item, actionType) {
+function lastActionDoneAt(item, operationKind) {
   if (!item) return null;
-  if (actionType === 'transcode' && item.lastTranscodeDoneAt) return item.lastTranscodeDoneAt;
-  if (actionType === 'upgrade' && item.lastUpgradeDoneAt) return item.lastUpgradeDoneAt;
+  if (operationKind === 'transcode' && item.lastTranscodeDoneAt) return item.lastTranscodeDoneAt;
+  if (operationKind === 'upgrade' && item.lastUpgradeDoneAt) return item.lastUpgradeDoneAt;
   if (item.lastTaskDoneAt) return item.lastTaskDoneAt;
   return null;
 }
 
-function lastTerminalTaskAt(tasks, itemId, actionType) {
+function lastTerminalTaskAt(tasks, itemId, operationKind) {
   if (!itemId) return null;
   let latest = null;
   for (const task of tasks || []) {
-    if (!task || task.itemId !== itemId || task.actionType !== actionType) continue;
+    if (!task || task.itemId !== itemId || task.operationKind !== operationKind) continue;
     if (!TERMINAL.has(task.status)) continue;
     const at = task.updatedAt || task.createdAt;
     if (!at) continue;
@@ -170,30 +172,50 @@ function activeTaskForItem(tasks, itemId) {
   return (tasks || []).find((t) => t && t.itemId === itemId && !TERMINAL.has(t.status));
 }
 
-function queuedCountForAction(tasks, actionType) {
-  return (tasks || []).filter((t) => t && t.actionType === actionType && !TERMINAL.has(t.status)).length;
+function taskTargetGate(task = {}) {
+  return String(
+    task.taskTarget && task.taskTarget.targetGate
+    || task.targetGate
+    || task.taskBridge && task.taskBridge.kind
+    || task.flowPlan && task.flowPlan.bridgeKind
+    || targetForAction(task.operationKind)
+    || '',
+  );
 }
 
-function queueLimit(config, actionType) {
+function activeTaskForItemTarget(tasks, itemId, targetGate) {
+  return (tasks || []).find((t) => (
+    t
+    && t.itemId === itemId
+    && !TERMINAL.has(t.status)
+    && taskTargetGate(t) === targetGate
+  ));
+}
+
+function activeCountForAction(tasks, operationKind) {
+  return (tasks || []).filter((t) => t && t.operationKind === operationKind && !TERMINAL.has(t.status)).length;
+}
+
+function queueLimit(config, operationKind) {
   const cfg = config && config.taskAdmission || {};
-  const target = targetForAction(actionType);
+  const target = targetForAction(operationKind);
   const byTarget = cfg.maxQueuedByTargetGate || {};
   const byAction = cfg.maxQueuedByAction || {};
   const raw = byTarget[target] !== undefined
     ? byTarget[target]
-    : byAction[actionType] !== undefined
-      ? byAction[actionType]
+    : byAction[operationKind] !== undefined
+      ? byAction[operationKind]
       : cfg.defaultMaxQueued;
   const value = Number(raw);
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
-function queuedCountForTargetGate(tasks, actionType) {
-  const target = targetForAction(actionType);
+function queuedCountForTargetGate(tasks, operationKind) {
+  const target = targetForAction(operationKind);
   return (tasks || []).filter((t) => (
     t
     && !TERMINAL.has(t.status)
-    && targetForAction(t.actionType) === target
+    && targetForAction(t.operationKind) === target
   )).length;
 }
 
@@ -248,24 +270,69 @@ function embyMetadataAutoRepairability(missingReasons = []) {
   };
 }
 
-function blocked(actionType, reason, extra = {}) {
-  return { operation: actionType, allowed: false, reason, ...extra };
+function blocked(operationKind, reason, extra = {}) {
+  return { operation: operationKind, allowed: false, reason, ...extra };
 }
 
 function isHeavyOptimizeOperation(operation) {
-  return ['transcode', 'upgrade', 'delete'].includes(String(operation || ''));
+  return ['transcode', 'upgrade'].includes(String(operation || ''));
 }
 
-function optimizeGateFailedBlock(item, actionType = '') {
+function isArchivedForDelete(item = {}) {
+  const archiveStatus = String(item.archiveStatus || '').toLowerCase();
+  return archiveStatus === 'archived' || archiveStatus === 'archived_like' || item.lifecycleDone === true || !!item.archiveDoneAt;
+}
+
+function deleteReviewConfirmed(item = {}) {
+  const candidate = item.deleteCandidate && typeof item.deleteCandidate === 'object' ? item.deleteCandidate : {};
+  return candidate.candidateStatus === 'confirmed' || candidate.decision === 'confirm_delete';
+}
+
+function destructivePreAuthorized(input = {}) {
+  const intent = input.intent && typeof input.intent === 'object' ? input.intent : {};
+  return intent.destructivePreAuthorized === true || input.destructivePreAuthorized === true;
+}
+
+function moviepilotConfigured(config = {}) {
+  const mp = config.moviepilot || {};
+  if (!mp.baseUrl || !mp.apiKey) return false;
+  if ((config.upgradeCanary || {}).requireMoviePilotConfig === false) return true;
+  return !!String(config.upgradeStagingLocalPath || '').trim();
+}
+
+function upgradeCanaryMaxActive(config = {}) {
+  const raw = config.upgradeCanary && config.upgradeCanary.maxActiveTasks;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+function buildUpgradeFlowSafetyFacts({ item = {}, config = {}, tasks = [] } = {}) {
+  return {
+    isDiscLike: !!item.isDiscLike,
+    allowDiscLike: !!(config.upgradeCanary && config.upgradeCanary.allowDiscLike),
+    moviepilotConfigured: moviepilotConfigured(config),
+    upgradeCanarySlotAvailable: activeCountForAction(tasks, 'upgrade') < upgradeCanaryMaxActive(config),
+  };
+}
+
+function upgradeCanaryBlock(item, config, tasks) {
+  const safety = buildUpgradeFlowSafetyFacts({ item, config, tasks });
+  if (!safety.allowDiscLike && safety.isDiscLike) return blocked('upgrade', 'upgrade_not_supported_for_disc_like_source', { flowSafetyFacts: safety });
+  if (!safety.moviepilotConfigured) return blocked('upgrade', 'moviepilot_not_configured', { flowSafetyFacts: safety });
+  if (!safety.upgradeCanarySlotAvailable) return blocked('upgrade', 'upgrade_canary_limit', { flowSafetyFacts: safety });
+  return null;
+}
+
+function optimizeGateFailedBlock(item, operationKind = '') {
   const optimizeGate = lifecycleProjection.evaluateOptimizeGate(item || {});
   if (!optimizeGate || optimizeGate.status !== 'failed') return null;
-  const operation = optimizeGate.operation || actionType;
+  const operation = optimizeGate.operation || operationKind;
   if (!isHeavyOptimizeOperation(operation)) return null;
-  if (actionType && operation && operation !== actionType) return null;
+  if (operationKind && operation && operation !== operationKind) return null;
   const retryPolicy = optimizeGate.retryPolicy || {};
   if (retryPolicy.automaticRetry === true) return null;
   const reason = 'optimize_gate_failed_requires_failure_handling';
-  return blocked(operation || actionType, reason, {
+  return blocked(operation || operationKind, reason, {
     item,
     optimizeGate,
     retryPolicy,
@@ -287,13 +354,13 @@ function evaluateManualIntent(input = {}) {
   if (!resolved.allowed) return resolved;
   const decision = evaluateOperation({
     ...input,
-    actionType: resolved.operation,
+    operationKind: resolved.operation,
     operation: resolved.operation,
     source: 'manual',
   });
   return {
     ...decision,
-    actionType: resolved.operation,
+    operationKind: resolved.operation,
     bridgeKind: resolved.bridgeKind,
     preferredOperation: resolved.preferredOperation,
     intentMode: resolved.intentMode,
@@ -352,10 +419,10 @@ function resolveAutomaticTrigger(input = {}) {
       allowed: true,
       reason: 'metadata_gate_not_met',
       operation: 'scrape',
-      actionType: 'scrape',
+      operationKind: 'scrape',
       bridgeKind: 'metadata',
       ...lifecycleTaskPlanner.planOperationFlow({
-        actionType: 'scrape',
+        operationKind: 'scrape',
         source: 'auto',
         itemId,
         itemInfo: itemWithMetadata,
@@ -368,6 +435,26 @@ function resolveAutomaticTrigger(input = {}) {
   const lifecycle = lifecycleProjection.resolveLifecycle(itemWithMetadata);
   const optimizeBlocked = optimizeGateFailedBlock(itemWithMetadata);
   if (optimizeBlocked) return optimizeBlocked;
+
+  if (deleteReviewConfirmed(itemWithMetadata)) {
+    if (!automaticTargetEnabled(cfg, 'delete')) {
+      return blocked('delete', 'action_not_enabled', { item: itemWithMetadata });
+    }
+    return {
+      allowed: true,
+      reason: 'delete_candidate_confirmed',
+      operation: 'delete',
+      operationKind: 'delete',
+      bridgeKind: 'delete',
+      ...lifecycleTaskPlanner.planOperationFlow({
+        operationKind: 'delete',
+        source: 'auto',
+        itemId,
+        itemInfo: itemWithMetadata,
+      }),
+      item: itemWithMetadata,
+    };
+  }
 
   if (lifecycle.lifecycleNextTask === 'archive') {
     const archiveGate = lifecycle.archiveGate || {};
@@ -387,10 +474,10 @@ function resolveAutomaticTrigger(input = {}) {
       allowed: true,
       reason: 'archive_gate_not_met',
       operation: 'archive',
-      actionType: 'archive',
+      operationKind: 'archive',
       bridgeKind: 'archive',
       ...lifecycleTaskPlanner.planOperationFlow({
-        actionType: 'archive',
+        operationKind: 'archive',
         source: 'auto',
         itemId,
         itemInfo: itemWithMetadata,
@@ -400,9 +487,16 @@ function resolveAutomaticTrigger(input = {}) {
     };
   }
 
-  const planned = lifecycleTaskPlanner.selectStrategyOperation(itemWithMetadata);
+  const planned = lifecycleTaskPlanner.selectStrategyOperation(itemWithMetadata, {
+    allowedOptimizeOperations: resolveOptimizeAllowedOperations(cfg),
+    flowSafetyFacts: buildUpgradeFlowSafetyFacts({ item: itemWithMetadata, config: cfg, tasks: input.tasks || [] }),
+  });
   if (!planned.allowed) {
-    return blocked(planned.operation, planned.reason, { item: itemWithMetadata });
+    return blocked(planned.operation, planned.reason, {
+      item: itemWithMetadata,
+      flowSelection: planned.flowSelection,
+      planningMode: planned.planningMode,
+    });
   }
   const operation = planned.operation;
   if (!automaticTargetEnabled(cfg, 'optimize')) {
@@ -416,11 +510,12 @@ function resolveAutomaticTrigger(input = {}) {
     allowed: true,
     reason: 'lifecycle_gate_met',
     operation,
-    actionType: operation,
+    operationKind: operation,
     bridgeKind: planned.bridgeKind,
     planningMode: planned.planningMode,
+    flowSelection: planned.flowSelection,
     ...lifecycleTaskPlanner.planOperationFlow({
-      actionType: operation,
+      operationKind: operation,
       source: 'auto',
       itemId,
       itemInfo: itemWithMetadata,
@@ -431,19 +526,21 @@ function resolveAutomaticTrigger(input = {}) {
 
 function evaluateOperation(input = {}) {
   const cfg = input.config || {};
-  const actionType = String(input.actionType || input.operation || '');
+  const operationKind = String(input.operationKind || input.operation || '');
   const source = input.source || 'manual';
   const info = input.itemInfo || input.item || {};
   const item = input.item || info;
   const tasks = input.tasks || [];
   const itemId = info.itemId || (item && item.itemId) || '';
+  const targetGate = targetForAction(operationKind);
 
-  if (!itemId) return blocked(actionType, 'missing_item_id');
+  if (!itemId) return blocked(operationKind, 'missing_item_id');
 
-  const active = activeTaskForItem(tasks, itemId);
+  const active = activeTaskForItemTarget(tasks, itemId, targetGate);
   if (active) {
-    return blocked(actionType, 'active_task_exists', {
+    return blocked(operationKind, 'active_task_exists', {
       activeTaskId: active.id,
+      activeTaskTargetGate: targetGate,
       activeTaskBridge: active.taskBridge && active.taskBridge.kind,
       activeFlowOperation: active.flowPlan && active.flowPlan.operationKind,
     });
@@ -451,90 +548,111 @@ function evaluateOperation(input = {}) {
 
   const manual = source === 'manual';
   const automatic = !manual;
-  if (automatic && !automaticActionEnabled(cfg, actionType)) {
-    return blocked(actionType, 'action_not_enabled');
+  if (automatic && !automaticActionEnabled(cfg, operationKind)) {
+    return blocked(operationKind, 'action_not_enabled');
   }
 
-  if (actionType === 'scrape') {
+  if (operationKind === 'scrape') {
     if (isStandardMediaItem(info, cfg)) {
       const meta = metadataStatus.resolveMetadataStatus(item || info, cfg);
       if (meta.metadataComplete) {
-        return blocked(actionType, 'metadata_already_complete');
+        return blocked(operationKind, 'metadata_already_complete');
       }
     }
     if (isAdultFolderItem(info, cfg) && automatic && !isAutoScrapeCandidate(info)) {
-      return blocked(actionType, 'scrape_state_not_auto_eligible');
+      return blocked(operationKind, 'scrape_state_not_auto_eligible');
     }
   }
 
-  if (actionType === 'upgrade' && item && item.isDiscLike) {
-    return blocked(actionType, 'upgrade_not_supported_for_disc_like_source');
+  if (operationKind === 'upgrade' && item && item.isDiscLike) {
+    return blocked(operationKind, 'upgrade_not_supported_for_disc_like_source');
   }
 
-  if (actionType === 'archive') {
+  if (automatic && operationKind === 'upgrade') {
+    const upgradeBlock = upgradeCanaryBlock(item || info, cfg, tasks);
+    if (upgradeBlock) return upgradeBlock;
+  }
+
+  if (operationKind === 'archive') {
     const lifecycle = lifecycleProjection.resolveLifecycle(item || info);
     const archiveGate = lifecycle.archiveGate || lifecycleProjection.evaluateArchiveGate(item || info);
     const missingReasons = Array.isArray(archiveGate.missingReasons) ? archiveGate.missingReasons : [];
-    if (archiveGate.passed) return blocked(actionType, 'archive_already_closed', { archiveGate });
-    if (missingReasons.includes('optimize.result')) return blocked(actionType, 'optimize_gate_missing', { archiveGate });
+    if (archiveGate.passed) return blocked(operationKind, 'archive_already_closed', { archiveGate });
+    if (missingReasons.includes('optimize.result')) return blocked(operationKind, 'optimize_gate_missing', { archiveGate });
     if (Array.isArray(archiveGate.blockers) && archiveGate.blockers.length > 0) {
-      return blocked(actionType, 'archive_gate_blocked', { archiveGate });
+      return blocked(operationKind, 'archive_gate_blocked', { archiveGate });
     }
   }
 
-  if (manual && isHeavyOptimizeOperation(actionType)) {
-    const optimizeBlocked = optimizeGateFailedBlock(item || info, actionType);
+  if (manual && isHeavyOptimizeOperation(operationKind)) {
+    const optimizeBlocked = optimizeGateFailedBlock(item || info, operationKind);
     if (optimizeBlocked) return optimizeBlocked;
   }
 
   if (!manual) {
-    const lastDoneAt = lastActionDoneAt(item || info, actionType) || lastTerminalTaskAt(tasks, itemId, actionType);
-    const cooldown = actionCooldownMs(cfg, actionType);
+    const lastDoneAt = lastActionDoneAt(item || info, operationKind) || lastTerminalTaskAt(tasks, itemId, operationKind);
+    const cooldown = actionCooldownMs(cfg, operationKind);
     if (lastDoneAt && cooldown > 0) {
       const nextEligibleAtMs = new Date(lastDoneAt).getTime() + cooldown;
       if (Date.now() < nextEligibleAtMs) {
-        return blocked(actionType, 'recent_task_cooldown', {
+        return blocked(operationKind, 'recent_task_cooldown', {
           nextEligibleAt: new Date(nextEligibleAtMs).toISOString(),
         });
       }
     }
 
-    const limit = queueLimit(cfg, actionType);
-    if (limit !== null && queuedCountForTargetGate(tasks, actionType) >= limit) {
-      return blocked(actionType, 'queue_limit', { limit });
+    const limit = queueLimit(cfg, operationKind);
+    if (limit !== null && queuedCountForTargetGate(tasks, operationKind) >= limit) {
+      return blocked(operationKind, 'queue_limit', { limit });
     }
 
-    if (isHeavyOptimizeOperation(actionType)) {
-      const optimizeBlocked = optimizeGateFailedBlock(item || info, actionType);
+    if (isHeavyOptimizeOperation(operationKind)) {
+      const optimizeBlocked = optimizeGateFailedBlock(item || info, operationKind);
       if (optimizeBlocked) return optimizeBlocked;
     }
 
-    if (actionType === 'transcode') {
+    if (operationKind === 'transcode') {
       const opt = optimizationStatus.resolveOptimization(
         item || info,
         input.optimizationIndex || optimizationStatus.buildOptimizationIndex(tasks, cfg),
         cfg,
       );
       if (opt.optimizationStatus === 'transcoded') {
-        return blocked(actionType, 'already_transcoded');
+        return blocked(operationKind, 'already_transcoded');
       }
     }
   }
 
-  if (['delete', 'transcode', 'upgrade'].includes(actionType)) {
+  if (operationKind === 'delete') {
+    if (!isArchivedForDelete(item || info)) {
+      return blocked(operationKind, 'delete_requires_archived_item');
+    }
+    if (!deleteReviewConfirmed(item || info) && !destructivePreAuthorized(input)) {
+      return blocked(operationKind, 'delete_review_required');
+    }
+  }
+
+  if (['delete', 'transcode', 'upgrade'].includes(operationKind)) {
     const meta = metadataStatus.resolveMetadataStatus(item || info, cfg);
     if (!meta.metadataComplete) {
-      return blocked(actionType, 'metadata_missing', {
+      return blocked(operationKind, 'metadata_missing', {
         metadataMissingReasons: meta.metadataMissingReasons,
       });
     }
   }
 
   return {
-    operation: actionType,
+    operation: operationKind,
     allowed: true,
     reason: 'allowed',
-    ...lifecycleTaskPlanner.planOperationFlow({ actionType, source, itemId, itemInfo: info }),
+    ...lifecycleTaskPlanner.planOperationFlow({
+      operationKind,
+      source,
+      itemId,
+      itemInfo: info,
+      allowedOptimizeOperations: resolveOptimizeAllowedOperations(cfg),
+      flowSafetyFacts: buildUpgradeFlowSafetyFacts({ item: item || info, config: cfg, tasks }),
+    }),
   };
 }
 
@@ -624,7 +742,7 @@ function buildItemDecision(input = {}) {
     const decision = evaluateOperation({
       item,
       itemInfo: item,
-      actionType: operation,
+      operationKind: operation,
       source: 'manual',
       config: cfg,
       tasks,

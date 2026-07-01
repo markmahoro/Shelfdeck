@@ -46,10 +46,10 @@ function setPhase(taskId, phase) {
   taskStore.updateTask(taskId, { phase });
 }
 
-function buildDeleteOptimizeGate(task, observed = {}) {
+function buildDeleteGate(task, observed = {}) {
   const doneAt = observed.doneAt || new Date().toISOString();
   return {
-    gate: 'optimize',
+    gate: 'delete',
     passed: true,
     status: 'passed',
     reason: 'delete_target_removed',
@@ -79,9 +79,9 @@ function buildDeleteOptimizeGate(task, observed = {}) {
   };
 }
 
-function markTaskDeleteOptimized(taskId, task, observed = {}) {
+function markTaskDeleted(taskId, task, observed = {}) {
   const doneAt = observed.doneAt || new Date().toISOString();
-  const optimizeGate = buildDeleteOptimizeGate(task, { ...observed, doneAt });
+  const deleteGate = buildDeleteGate(task, { ...observed, doneAt });
   const verifyResult = {
     ...(task && task.verifyResult || {}),
     bytesSaved: observed.bytesSaved || (task && task.verifyResult && task.verifyResult.bytesSaved) || 0,
@@ -92,13 +92,12 @@ function markTaskDeleteOptimized(taskId, task, observed = {}) {
   if (observed.embyItemId) verifyResult.embyItemId = observed.embyItemId;
   taskStore.updateTask(taskId, {
     verifyResult,
-    optimizeGate,
-    optimizationGate: optimizeGate,
-    optimizationStatus: 'deleted',
-    optimizationAction: 'delete',
-    optimizationDoneAt: doneAt,
+    deleteGate,
+    deletionGate: deleteGate,
+    deleteStatus: 'deleted',
+    deleteDoneAt: doneAt,
   });
-  return optimizeGate;
+  return deleteGate;
 }
 
 function getEmbyItemId(task) {
@@ -280,7 +279,7 @@ async function runAdultFolderPrecheck(taskId, task, target) {
 
   if (!target.exists) {
     appendLog(taskId, 'info', 'Local media target already missing — removing library cache item');
-    markTaskDeleteOptimized(taskId, task, {
+    markTaskDeleted(taskId, task, {
       targetPath: target.targetPath,
       targetKind: target.targetKind,
       bytesSaved: target.sizeBytes,
@@ -344,7 +343,7 @@ async function runAdultFolderExecuting(taskId, task, target) {
   try {
     fs.rmSync(target.targetPath, { recursive: true, force: true });
     if (fs.existsSync(target.targetPath)) throw new Error('target still exists after delete');
-    markTaskDeleteOptimized(taskId, task, {
+    markTaskDeleted(taskId, task, {
       targetPath: target.targetPath,
       targetKind: target.targetKind,
       bytesSaved: target.sizeBytes,
@@ -369,7 +368,7 @@ async function runPrecheck(taskId, task, serverConfig) {
     const deleteInfo = await embyService.getItemDeleteInfo(serverConfig, embyItemId);
     if (!deleteInfo) {
       appendLog(taskId, 'info', 'Item not found in Emby — treating as already deleted');
-      markTaskDeleteOptimized(taskId, task, {
+      markTaskDeleted(taskId, task, {
         targetPath: task.itemInfo && task.itemInfo.path || '',
         targetKind: 'emby_item',
         bytesSaved: task.itemInfo && (task.itemInfo.size || task.itemInfo.originalSizeBytes) || 0,
@@ -383,7 +382,7 @@ async function runPrecheck(taskId, task, serverConfig) {
     const exists = await embyService.libraryItemExists(serverConfig, embyItemId);
     if (!exists) {
       appendLog(taskId, 'info', 'Item no longer exists in Emby');
-      markTaskDeleteOptimized(taskId, task, {
+      markTaskDeleted(taskId, task, {
         targetPath: task.itemInfo && task.itemInfo.path || '',
         targetKind: 'emby_item',
         bytesSaved: task.itemInfo && (task.itemInfo.size || task.itemInfo.originalSizeBytes) || 0,
@@ -482,7 +481,7 @@ async function runVerify(taskId, task, serverConfig) {
   }
 
   appendLog(taskId, 'info', 'Delete completed successfully');
-  markTaskDeleteOptimized(taskId, task, {
+  markTaskDeleted(taskId, task, {
     targetPath: task.itemInfo && task.itemInfo.path || '',
     targetKind: 'emby_item',
     bytesSaved: task.itemInfo && (task.itemInfo.size || task.itemInfo.originalSizeBytes) || 0,

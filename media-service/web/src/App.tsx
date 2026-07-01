@@ -11,6 +11,7 @@ import RuleTemplatesPage from './pages/RuleTemplatesPage';
 import NodesPage from './pages/NodesPage';
 import AdultConfigPage from './pages/AdultConfigPage';
 import ResourceCapacityPage from './pages/ResourceCapacityPage';
+import DeleteCandidatesPage from './pages/DeleteCandidatesPage';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="media" element={<MediaManagePage />} />
         <Route path="nodes" element={<NodesPage />} />
         <Route path="tasks" element={<TaskMonitorPage />} />
+        <Route path="delete-candidates" element={<DeleteCandidatesPage />} />
         <Route path="rules" element={<RuleTemplatesPage />} />
         <Route path="system" element={<SystemConfigPage />} />
         <Route path="capacity" element={<ResourceCapacityPage />} />

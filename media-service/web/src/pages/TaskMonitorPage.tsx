@@ -63,6 +63,7 @@ const BRIDGE_LABELS: Record<string, string> = {
   metadata: '补元数据',
   optimize: '优化',
   archive: '归档',
+  delete: '处置删除',
 };
 
 const OBJECTIVE_LABELS: Record<string, string> = {
@@ -70,7 +71,8 @@ const OBJECTIVE_LABELS: Record<string, string> = {
   metadata_complete: '元数据完整',
   reduce_bitrate: '降低码率',
   improve_source_quality: '提升片源质量',
-  remove_media: '删除媒体',
+  remove_media: '旧删除目标',
+  delete_archived_media: '归档后处置',
   keep_current: '保持当前媒体',
   finalize_lifecycle: '闭环归档',
   optimize_strategy_pending: '等待优化目标',
@@ -231,7 +233,7 @@ const RECOVERY_STATE_LABELS: Record<string, string> = {
 
 const INTENT_MODE_LABELS: Record<string, string> = {
   bridge_intent: '按目标 Gate 创建',
-  action_type_compatibility: '兼容旧入口创建',
+  operation_kind: '按执行路径创建',
   adult_rescrape: '成人条目重刮入口',
 };
 
@@ -257,14 +259,14 @@ const ATTENTION_QUEUE_FALLBACKS: Record<string, { label: string; hint: string }>
 };
 
 function reportButtonLabel(task: MediaTask) {
-  if (task.actionType === 'scrape' && task.status === 'failed_hard') return '识别报告';
-  return REPORT_LABELS[task.actionType] || '任务报告';
+  if (task.operationKind === 'scrape' && task.status === 'failed_hard') return '识别报告';
+  return REPORT_LABELS[task.operationKind] || '任务报告';
 }
 
 function reportModalTitle(report: TaskReport | null) {
   if (!report) return '任务报告';
-  if (report.actionType === 'scrape') return '刮削识别报告';
-  return REPORT_LABELS[report.actionType] || '任务报告';
+  if (report.operationKind === 'scrape') return '刮削识别报告';
+  return REPORT_LABELS[report.operationKind] || '任务报告';
 }
 
 function formatItemName(itemInfo?: TaskItemInfo): string {
@@ -484,7 +486,7 @@ export default function TaskMonitorPage() {
     const label = dim.label || dim.key;
     const value = Number(dim.value) || 0;
     const signed = value > 0 ? `+${value}` : `${value}`;
-    if (dim.key === 'actionType') return `${label}（${OPERATION_LABELS[String(dim.actionType || '')] || dim.actionType || '未知'}） ${signed}`;
+    if (dim.key === 'operationKind') return `${label}（${OPERATION_LABELS[String(dim.operationKind || '')] || dim.operationKind || '未知'}） ${signed}`;
     if (dim.key === 'retry') return `${label}（${dim.retryCount || 0} 次） ${signed}`;
     return `${label} ${signed}`;
   }
@@ -565,13 +567,14 @@ export default function TaskMonitorPage() {
     if (kind === 'metadata_complete') {
       return objective.repairMode ? `${label}：${String(objective.repairMode)}` : label;
     }
-    if (kind === 'remove_media') return objective.destructive ? `${label}：破坏性操作` : label;
+    if (kind === 'remove_media') return `${label}：需要迁移到处置队列`;
+    if (kind === 'delete_archived_media') return objective.archivedAt ? `${label}：${String(objective.archivedAt)}` : label;
     if (kind === 'optimize_strategy_pending') return objective.reason ? `${label}：${String(objective.reason)}` : label;
     return label;
   }
 
   function operationPathSummary(task: MediaTask): string {
-    const operation = task.flowPlan?.operationKind || task.taskTarget?.operationHint || task.actionType;
+    const operation = task.flowPlan?.operationKind || task.taskTarget?.operationHint || task.operationKind;
     const direction = task.flowPlan?.direction || '';
     return direction ? `${operationLabel(operation)} · ${direction}` : operationLabel(operation);
   }
@@ -694,11 +697,11 @@ export default function TaskMonitorPage() {
     btns.push(...(renderControlActions(t, { includeCancel: true }) || []));
     if (t.status === 'done') {
       btns.push(reportButton(t));
-      if (t.actionType === 'scrape') {
+      if (t.operationKind === 'scrape') {
         btns.push(<button key="fix-scrape-done" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
       }
     }
-    if (t.status === 'failed_hard' && t.actionType === 'scrape') {
+    if (t.status === 'failed_hard' && t.operationKind === 'scrape') {
       btns.push(reportButton(t));
       btns.push(<button key="fix-scrape" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
     }
@@ -815,8 +818,8 @@ export default function TaskMonitorPage() {
     const intent = task.requestedIntent;
     const bridgeKind = intent?.bridgeKind || task.taskBridge?.kind || task.flowPlan?.bridgeKind || '';
     const preferredOperation = intent?.preferredOperation || '';
-    const legacyAction = intent?.actionType || '';
-    const resolvedOperation = task.flowPlan?.operationKind || task.actionType;
+    const legacyAction = intent?.operationKind || '';
+    const resolvedOperation = task.flowPlan?.operationKind || task.operationKind;
     const intentMode = intent?.intentMode || (intent ? 'bridge_intent' : '');
     if (!intent && !task.taskBridge && !task.flowPlan) return null;
 
@@ -1091,7 +1094,7 @@ export default function TaskMonitorPage() {
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{objectiveSummary(t)}</div>
                   </td>
                   <td style={tdStyle}>
-                    <div>{operationLabel(t.flowPlan?.operationKind || t.taskTarget?.operationHint || t.actionType)}</div>
+                    <div>{operationLabel(t.flowPlan?.operationKind || t.taskTarget?.operationHint || t.operationKind)}</div>
                     <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>{t.flowPlan?.direction || '—'}</div>
                   </td>
                   <td style={tdStyle}>
@@ -1188,7 +1191,7 @@ export default function TaskMonitorPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', fontSize: 12, color: '#374151', marginBottom: 10 }}>
                   <div><strong>目标 Gate:</strong> {targetGateLabel(displayTask)}</div>
                   <div><strong>路径标识:</strong> {displayTask.flowPlan?.direction || '—'}</div>
-                  <div><strong>处理方向:</strong> {operationLabel(displayTask.flowPlan?.operationKind || displayTask.actionType)}</div>
+                  <div><strong>处理方向:</strong> {operationLabel(displayTask.flowPlan?.operationKind || displayTask.operationKind)}</div>
                   <div><strong>执行器:</strong> {displayTask.flowPlan?.executor || '—'}</div>
                   <div><strong>主要资源:</strong> {resourceLabel(displayTask.flowPlan?.primaryResourceType)}</div>
                   <div><strong>资源集合:</strong> {displayTask.flowPlan?.resourceTypes?.map(resourceLabel).join(', ') || '—'}</div>
@@ -1252,7 +1255,7 @@ export default function TaskMonitorPage() {
             {renderConfirmationConsole(displayTask)}
 
             {/* Scrape completion/failure remediation card */}
-            {(displayTask.status === 'failed_hard' || displayTask.status === 'done') && displayTask.actionType === 'scrape' && (
+            {(displayTask.status === 'failed_hard' || displayTask.status === 'done') && displayTask.operationKind === 'scrape' && (
               <div style={{ background: displayTask.status === 'done' ? '#f0fdf4' : '#fff7ed', borderRadius: 8, padding: 12, marginBottom: 16, border: displayTask.status === 'done' ? '1px solid #bbf7d0' : '1px solid #fed7aa' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: displayTask.status === 'done' ? '#166534' : '#9a3412', marginBottom: 4 }}>
                   {displayTask.status === 'done' ? '刮削已完成' : '刮削失败'}
@@ -1505,10 +1508,10 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
     return value && value.trim() ? value : '—';
   }
 
-  const isTranscode = report.actionType === 'transcode';
-  const isDelete = report.actionType === 'delete';
-  const isUpgrade = report.actionType === 'upgrade';
-  const isScrape = report.actionType === 'scrape';
+  const isTranscode = report.operationKind === 'transcode';
+  const isDelete = report.operationKind === 'delete';
+  const isUpgrade = report.operationKind === 'upgrade';
+  const isScrape = report.operationKind === 'scrape';
   const faceRows = [
     ...((report.scrape?.faceClusters || []) as Array<Record<string, unknown>>),
     ...((report.scrape?.unknownFaces || []) as Array<Record<string, unknown>>),

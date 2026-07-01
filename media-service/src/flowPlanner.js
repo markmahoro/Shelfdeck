@@ -76,19 +76,19 @@ const FLOW_DEFINITIONS = {
   },
   delete: {
     bridge: {
-      kind: 'optimize',
-      from: 'metadata_ready_item',
-      to: 'removed_media',
-      reason: 'Remove media as a destructive optimize flow under the existing mutation safety gates.',
+      kind: 'delete',
+      from: 'archived_item',
+      to: 'deleted_item',
+      reason: 'Remove an archived media item through the delete gate review flow.',
     },
-    direction: 'optimize.delete',
+    direction: 'delete.execute',
     operationKind: 'delete',
     executor: 'deleteFlowExecutor',
     primaryResourceType: 'filesystem',
     steps: [
-      { phase: 'delete_precheck', eventType: 'optimize.delete.precheck', resourceType: 'filesystem' },
-      { phase: 'delete_executing', eventType: 'optimize.delete.execute', resourceType: 'filesystem' },
-      { phase: 'delete_verify', eventType: 'optimize.delete.verify', resourceType: 'filesystem' },
+      { phase: 'delete_precheck', eventType: 'delete.precheck', resourceType: 'filesystem' },
+      { phase: 'delete_executing', eventType: 'delete.execute', resourceType: 'filesystem' },
+      { phase: 'delete_verify', eventType: 'delete.verify', resourceType: 'filesystem' },
     ],
   },
   archive: {
@@ -113,12 +113,393 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function isStandardMetadataRepair(actionType, itemInfo = {}) {
-  if (actionType !== 'scrape') return false;
+function isStandardMetadataRepair(operationKind, itemInfo = {}) {
+  if (operationKind !== 'scrape') return false;
   return itemInfo.source === 'emby' || itemInfo.metadataKind === 'emby';
 }
 
-function defaultDefinition(actionType) {
+function cleanToken(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function numberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function normalizeBitrateMbps(value) {
+  const n = numberOrNull(value);
+  if (n == null) return null;
+  return n > 100000 ? n / 1000000 : n;
+}
+
+function normalizeCodec(value) {
+  const raw = cleanToken(value).replace(/[^a-z0-9]/g, '');
+  if (['h265', 'x265', 'hevc'].includes(raw)) return 'h265';
+  if (['h264', 'x264', 'avc', 'avc1'].includes(raw)) return 'h264';
+  return raw;
+}
+
+function parseResolutionRank(value, item = {}) {
+  const explicit = cleanToken(value || item.bucket || item.resolutionBucket);
+  if (explicit.includes('4k') || explicit.includes('2160')) return 4;
+  if (explicit.includes('1080')) return 3;
+  if (explicit.includes('720')) return 2;
+  if (explicit.includes('480')) return 1;
+  const width = Number(item.width || item.originalWidth || 0);
+  const height = Number(item.height || item.originalHeight || 0);
+  const text = String(value || item.resolution || '');
+  const match = text.match(/(\d{3,5})\D+(\d{3,5})/);
+  const w = width || (match ? Number(match[1]) : 0);
+  const h = height || (match ? Number(match[2]) : 0);
+  if (w >= 3000 || h >= 2000) return 4;
+  if (w >= 1600 || h >= 900) return 3;
+  if (w >= 1100 || h >= 650) return 2;
+  if (w > 0 || h > 0) return 1;
+  return 0;
+}
+
+function resolutionLabel(rank) {
+  if (rank >= 4) return '4K';
+  if (rank === 3) return '1080p';
+  if (rank === 2) return '720p';
+  if (rank === 1) return 'SD';
+  return '';
+}
+
+function bucketForItem(item = {}) {
+  const rank = parseResolutionRank(item.resolution || item.bucket, item);
+  return rank >= 4 ? '4K' : '1080p';
+}
+
+function targetBitrateForObjective(objective = {}, item = {}) {
+  const target = objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
+    ? objective.targetMediaFacts
+    : objective;
+  if (numberOrNull(target.targetBitrate) != null) return Number(target.targetBitrate);
+  const byBucket = target.targetBitrateByBucket && typeof target.targetBitrateByBucket === 'object'
+    ? target.targetBitrateByBucket
+    : {};
+  const bucket = bucketForItem(item);
+  return numberOrNull(byBucket[bucket]) != null ? Number(byBucket[bucket]) : null;
+}
+
+function objectiveTargetFacts(objective = {}, item = {}) {
+  const target = objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
+    ? objective.targetMediaFacts
+    : {};
+  return {
+    qualityTier: target.qualityTier || objective.qualityTier || '',
+    minResolution: target.minResolution || objective.minResolution || '',
+    targetBitrate: targetBitrateForObjective(objective, item),
+    targetCodec: normalizeCodec(target.targetCodec || target.codec || objective.targetCodec),
+    maxSizeGB: target.maxSizeGB || objective.maxSizeGB || null,
+  };
+}
+
+function currentMediaFacts(item = {}) {
+  return {
+    bitrate: normalizeBitrateMbps(item.equivalentBitrate || item.bitrate || item.originalBitrate),
+    codec: normalizeCodec(item.codec || item.videoCodec || item.originalVideoCodec),
+    resolutionRank: parseResolutionRank(item.resolution || item.bucket, item),
+    resolution: resolutionLabel(parseResolutionRank(item.resolution || item.bucket, item)),
+    isDiscLike: !!item.isDiscLike,
+  };
+}
+
+function operationAuthorized(operation, allowedOperations) {
+  if (!Array.isArray(allowedOperations) || allowedOperations.length === 0) return true;
+  return allowedOperations.includes(operation);
+}
+
+function upgradeSafetyBlocker(item = {}, flowSafetyFacts = {}) {
+  const facts = flowSafetyFacts && typeof flowSafetyFacts === 'object' ? flowSafetyFacts : {};
+  if (facts.allowDiscLike !== true && (item.isDiscLike || facts.isDiscLike)) {
+    return 'upgrade_not_supported_for_disc_like_source';
+  }
+  if (facts.moviepilotConfigured === false) return 'moviepilot_not_configured';
+  if (facts.upgradeCanarySlotAvailable === false) return 'upgrade_canary_limit';
+  return '';
+}
+
+function flowSelectionResult(input = {}) {
+  const result = {
+    selectedOperation: input.selectedOperation || 'blocked',
+    operation: input.operation || '',
+    allowed: !!input.allowed,
+    reason: input.reason || '',
+    blockedReason: input.blockedReason || '',
+    objectiveHash: input.objectiveHash || '',
+    currentFacts: input.currentFacts || {},
+    targetFacts: input.targetFacts || {},
+    gap: input.gap || [],
+  };
+  Object.keys(result).forEach((key) => {
+    if (result[key] === '' || result[key] === null || result[key] === undefined) delete result[key];
+    if (Array.isArray(result[key]) && result[key].length === 0) delete result[key];
+  });
+  return result;
+}
+
+function selectOptimizeFlow(input = {}) {
+  const item = input.currentMediaFacts || input.itemInfo || input.item || {};
+  const objective = input.optimizeObjective || item.optimizeObjective || item.optimizationObjective || {};
+  const objectiveStatus = cleanToken(input.optimizeObjectiveStatus || item.optimizeObjectiveStatus || '');
+  const objectiveHash = input.objectiveHash || item.objectiveHash || '';
+  const currentFacts = currentMediaFacts(item);
+  const targetFacts = objectiveTargetFacts(objective, item);
+  const kind = cleanToken(objective.kind);
+  const allowedOperations = input.allowedOperations || input.operationAuthorization || [];
+  const flowSafetyFacts = input.flowSafetyFacts || {};
+
+  if (objectiveStatus && objectiveStatus !== 'ready') {
+    return flowSelectionResult({
+      selectedOperation: 'blocked',
+      allowed: false,
+      reason: 'objective_not_ready',
+      blockedReason: objectiveStatus,
+      objectiveHash,
+      currentFacts,
+      targetFacts,
+    });
+  }
+
+  if (kind === 'keep_current') {
+    return flowSelectionResult({
+      selectedOperation: 'no_op',
+      operation: 'no_op',
+      allowed: true,
+      reason: 'objective_already_satisfied',
+      objectiveHash,
+      currentFacts,
+      targetFacts,
+    });
+  }
+
+  if (kind === 'remove_media') {
+    return flowSelectionResult({
+      selectedOperation: 'blocked',
+      allowed: false,
+      reason: 'delete_is_not_optimize',
+      blockedReason: 'delete_gate_required',
+      objectiveHash,
+      currentFacts,
+      targetFacts,
+    });
+  }
+
+  const hasTargetCriteria = !!(
+    targetFacts.minResolution
+    || targetFacts.targetBitrate != null
+    || targetFacts.targetCodec
+  );
+  const legacyOperation = cleanToken(objective.operationHint || item.action);
+  const legacyOptimizeOperation = ['transcode', 'upgrade'].includes(legacyOperation) ? legacyOperation : '';
+  if (!hasTargetCriteria && legacyOptimizeOperation) {
+    return flowSelectionResult({
+      selectedOperation: legacyOptimizeOperation,
+      operation: legacyOptimizeOperation,
+      allowed: true,
+      reason: 'legacy_operation_hint',
+      objectiveHash,
+      currentFacts,
+      targetFacts,
+    });
+  }
+  if (!hasTargetCriteria) {
+    return flowSelectionResult({
+      selectedOperation: 'blocked',
+      allowed: false,
+      reason: 'objective_not_plannable',
+      blockedReason: 'objective_gap_unknown',
+      objectiveHash,
+      currentFacts,
+      targetFacts,
+    });
+  }
+
+  const gap = [];
+  const missing = [];
+  const minResolutionRank = parseResolutionRank(targetFacts.minResolution);
+  if (minResolutionRank > 0) {
+    if (!currentFacts.resolutionRank) {
+      missing.push('media.resolution');
+    } else if (currentFacts.resolutionRank < minResolutionRank) {
+      gap.push({
+        field: 'resolution',
+        current: currentFacts.resolution,
+        target: resolutionLabel(minResolutionRank),
+        operation: 'upgrade',
+        reason: 'resolution_below_target',
+      });
+    }
+  }
+
+  if (targetFacts.targetBitrate != null) {
+    if (currentFacts.bitrate == null) {
+      missing.push('media.bitrate');
+    } else if (currentFacts.bitrate < targetFacts.targetBitrate * 0.65) {
+      gap.push({
+        field: 'bitrate',
+        current: currentFacts.bitrate,
+        target: targetFacts.targetBitrate,
+        operation: 'upgrade',
+        reason: 'bitrate_below_target',
+      });
+    } else if (currentFacts.bitrate > targetFacts.targetBitrate * 1.35) {
+      gap.push({
+        field: 'bitrate',
+        current: currentFacts.bitrate,
+        target: targetFacts.targetBitrate,
+        operation: 'transcode',
+        reason: 'bitrate_above_target',
+      });
+    }
+  }
+
+  if (targetFacts.targetCodec) {
+    if (!currentFacts.codec) {
+      missing.push('media.codec');
+    } else if (currentFacts.codec !== targetFacts.targetCodec) {
+      const localCanSatisfy = targetFacts.targetCodec === 'h265';
+      gap.push({
+        field: 'codec',
+        current: currentFacts.codec,
+        target: targetFacts.targetCodec,
+        operation: localCanSatisfy ? 'transcode' : 'blocked',
+        reason: localCanSatisfy ? 'codec_mismatch' : 'unsupported_target_codec',
+      });
+    }
+  }
+
+  if (missing.length > 0) {
+    return flowSelectionResult({
+      selectedOperation: 'blocked',
+      allowed: false,
+      reason: 'facts_missing',
+      blockedReason: 'needs_metadata_repair',
+      objectiveHash,
+      currentFacts,
+      targetFacts,
+      gap: missing.map((field) => ({ field, reason: 'missing_fact' })),
+    });
+  }
+
+  if (gap.length === 0) {
+    return flowSelectionResult({
+      selectedOperation: 'no_op',
+      operation: 'no_op',
+      allowed: true,
+      reason: 'objective_already_satisfied',
+      objectiveHash,
+      currentFacts,
+      targetFacts,
+    });
+  }
+
+  if (gap.some((entry) => entry.operation === 'blocked')) {
+    return flowSelectionResult({
+      selectedOperation: 'blocked',
+      allowed: false,
+      reason: 'unsupported_objective',
+      blockedReason: 'unsupported_target_codec',
+      objectiveHash,
+      currentFacts,
+      targetFacts,
+      gap,
+    });
+  }
+
+  if (gap.some((entry) => entry.operation === 'upgrade')) {
+    if (!operationAuthorized('upgrade', allowedOperations)) {
+      return flowSelectionResult({
+        selectedOperation: 'blocked',
+        operation: 'upgrade',
+        allowed: false,
+        reason: 'better_source_required',
+        blockedReason: 'needs_upgrade',
+        objectiveHash,
+        currentFacts,
+        targetFacts,
+        gap,
+      });
+    }
+    const safetyBlocker = upgradeSafetyBlocker(item, flowSafetyFacts);
+    if (safetyBlocker) {
+      return flowSelectionResult({
+        selectedOperation: 'blocked',
+        operation: 'upgrade',
+        allowed: false,
+        reason: 'upgrade_safety_blocked',
+        blockedReason: safetyBlocker,
+        objectiveHash,
+        currentFacts,
+        targetFacts,
+        gap,
+      });
+    }
+    return flowSelectionResult({
+      selectedOperation: 'upgrade',
+      operation: 'upgrade',
+      allowed: true,
+      reason: 'better_source_required',
+      objectiveHash,
+      currentFacts,
+      targetFacts,
+      gap,
+    });
+  }
+
+  if (gap.some((entry) => entry.operation === 'transcode')) {
+    if (!operationAuthorized('transcode', allowedOperations)) {
+      return flowSelectionResult({
+        selectedOperation: 'blocked',
+        operation: 'transcode',
+        allowed: false,
+        reason: 'local_transform_required',
+        blockedReason: 'transcode_not_authorized',
+        objectiveHash,
+        currentFacts,
+        targetFacts,
+        gap,
+      });
+    }
+    return flowSelectionResult({
+      selectedOperation: 'transcode',
+      operation: 'transcode',
+      allowed: true,
+      reason: 'local_transform_satisfies_objective',
+      objectiveHash,
+      currentFacts,
+      targetFacts,
+      gap,
+    });
+  }
+
+  if (legacyOptimizeOperation) {
+    return flowSelectionResult({
+      selectedOperation: legacyOptimizeOperation,
+      operation: legacyOptimizeOperation,
+      allowed: true,
+      reason: 'legacy_operation_hint',
+      objectiveHash,
+      currentFacts,
+      targetFacts,
+    });
+  }
+
+  return flowSelectionResult({
+    selectedOperation: 'blocked',
+    allowed: false,
+    reason: 'objective_not_plannable',
+    blockedReason: 'objective_gap_unknown',
+    objectiveHash,
+    currentFacts,
+    targetFacts,
+  });
+}
+
+function defaultDefinition(operationKind) {
   return {
     bridge: {
       kind: 'metadata',
@@ -127,7 +508,7 @@ function defaultDefinition(actionType) {
       reason: 'Legacy task without a known v2.7 flow definition.',
     },
     direction: 'metadata.unknown',
-    operationKind: String(actionType || 'unknown'),
+    operationKind: String(operationKind || 'unknown'),
     executor: '',
     primaryResourceType: 'service_api',
     steps: [],
@@ -135,11 +516,11 @@ function defaultDefinition(actionType) {
 }
 
 function planFlow(input = {}) {
-  const actionType = String(input.actionType || '');
+  const operationKind = String(input.operationKind || '');
   const source = String(input.source || '');
   const itemInfo = input.itemInfo && typeof input.itemInfo === 'object' ? input.itemInfo : {};
-  const definition = clone(FLOW_DEFINITIONS[actionType] || defaultDefinition(actionType));
-  if (isStandardMetadataRepair(actionType, itemInfo)) {
+  const definition = clone(FLOW_DEFINITIONS[operationKind] || defaultDefinition(operationKind));
+  if (isStandardMetadataRepair(operationKind, itemInfo)) {
     definition.primaryResourceType = 'emby';
     definition.steps = [
       { phase: 'scrape_precheck', eventType: 'metadata.repair.precheck', resourceType: 'service_api' },
@@ -152,7 +533,7 @@ function planFlow(input = {}) {
   const plannedAt = input.plannedAt || new Date().toISOString();
   const taskBridge = {
     ...definition.bridge,
-    actionType,
+    operationKind,
     source,
     itemId: input.itemId || itemInfo.itemId || '',
     subLibraryId: itemInfo.subLibraryId || '',
@@ -164,17 +545,30 @@ function planFlow(input = {}) {
     operationKind: definition.operationKind,
     executor: definition.executor,
     primaryResourceType: definition.primaryResourceType,
-    actionType,
     source,
     resourceTypes,
     steps: definition.steps,
     plannedAt,
   };
+  if (taskBridge.kind === 'optimize') {
+    const taskTarget = input.taskTarget && typeof input.taskTarget === 'object' ? input.taskTarget : {};
+    flowPlan.flowSelection = selectOptimizeFlow({
+      itemInfo,
+      optimizeObjective: input.optimizeObjective
+        || input.gateObjective
+        || taskTarget.gateObjective
+        || itemInfo.optimizeObjective,
+      optimizeObjectiveStatus: input.optimizeObjectiveStatus || itemInfo.optimizeObjectiveStatus,
+      objectiveHash: input.objectiveHash || itemInfo.objectiveHash,
+      allowedOperations: input.allowedOptimizeOperations || input.allowedOperations,
+      flowSafetyFacts: input.flowSafetyFacts,
+    });
+  }
   return { taskBridge, flowPlan };
 }
 
-function bridgeKindForAction(actionType) {
-  return (FLOW_DEFINITIONS[actionType] || defaultDefinition(actionType)).bridge.kind;
+function bridgeKindForAction(operationKind) {
+  return (FLOW_DEFINITIONS[operationKind] || defaultDefinition(operationKind)).bridge.kind;
 }
 
 function currentPlanForTask(task) {
@@ -207,6 +601,7 @@ function currentFlowStep(task) {
 module.exports = {
   FLOW_PLAN_VERSION,
   planFlow,
+  selectOptimizeFlow,
   bridgeKindForAction,
   currentResourceType,
   currentFlowStep,

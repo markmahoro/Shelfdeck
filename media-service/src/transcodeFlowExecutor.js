@@ -30,6 +30,40 @@ function setPhase(taskId, phase) {
   taskStore.updateTask(taskId, { phase });
 }
 
+function setPhaseResumePoint(taskId, phase, resumePoint) {
+  taskStore.updateTask(taskId, { phase, resumePoint });
+}
+
+function failureContext(task, phase, err, extra = {}) {
+  const message = err && err.message ? err.message : String(err || extra.message || '');
+  return {
+    source: 'transcode_flow',
+    flowKey: 'transcode',
+    phase,
+    resumePoint: extra.resumePoint || phase,
+    recoveryClass: extra.recoveryClass || 'manual_retry_available',
+    userAction: extra.userAction || 'inspect_task_failure_and_retry',
+    message,
+    failedAt: new Date().toISOString(),
+    objectiveHash: extra.objectiveHash || (task && task.itemInfo && task.itemInfo.objectiveHash) || '',
+    targetBitrate: extra.targetBitrate,
+    targetCodec: extra.targetCodec,
+    partialPath: extra.partialPath,
+    sourcePath: extra.sourcePath,
+  };
+}
+
+function failTask(taskId, task, phase, err, extra = {}) {
+  const message = err && err.message ? err.message : String(err || extra.message || '');
+  appendLog(taskId, 'error', `${extra.prefix || 'Transcode failed'}: ${message}`);
+  taskStore.updateTask(taskId, {
+    resumePoint: extra.resumePoint || phase,
+    failureContext: failureContext(task, phase, err, extra),
+  });
+  scheduler.reportStatus(taskId, 'failed_hard');
+  setPhase(taskId, 'failed_hard');
+}
+
 function buildDeviceSlots(config) {
   const devices = config.transcodeEncodingDevices || [];
   const cpuStrategy = config.transcodeCpuParticipationStrategy || 'normal';
@@ -97,6 +131,71 @@ function resolveSourcePath(sourcePath, task, config) {
   return sourcePath;
 }
 
+function normalizeCodec(value) {
+  const raw = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (['h265', 'x265', 'hevc'].includes(raw)) return 'h265';
+  if (['h264', 'x264', 'avc', 'avc1'].includes(raw)) return 'h264';
+  return raw;
+}
+
+function resolutionBucket(info = {}) {
+  const text = String(info.bucket || info.resolution || '').toLowerCase();
+  const width = Number(info.originalWidth || info.width || 0);
+  const height = Number(info.originalHeight || info.height || 0);
+  if (text.includes('4k') || text.includes('2160') || width >= 3000 || height >= 2000) return '4K';
+  return '1080p';
+}
+
+function objectiveForTask(task = {}) {
+  const target = task.taskTarget && task.taskTarget.gateObjective;
+  if (target && typeof target === 'object') return target;
+  const info = task.itemInfo && typeof task.itemInfo === 'object' ? task.itemInfo : {};
+  return info.optimizeObjective && typeof info.optimizeObjective === 'object' ? info.optimizeObjective : {};
+}
+
+function transcodeTargetForTask(task = {}, infoOverride = {}) {
+  const info = {
+    ...((task.itemInfo && typeof task.itemInfo === 'object') ? task.itemInfo : {}),
+    ...(infoOverride || {}),
+  };
+  const objective = objectiveForTask(task);
+  const targetFacts = objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
+    ? objective.targetMediaFacts
+    : {};
+  const byBucket = targetFacts.targetBitrateByBucket && typeof targetFacts.targetBitrateByBucket === 'object'
+    ? targetFacts.targetBitrateByBucket
+    : {};
+  const bucket = resolutionBucket(info);
+  const targetBitrate = Number(info.targetBitrate || objective.targetBitrate || targetFacts.targetBitrate || byBucket[bucket] || 0);
+  return {
+    targetBitrate: Number.isFinite(targetBitrate) && targetBitrate > 0 ? targetBitrate : undefined,
+    targetCodec: normalizeCodec(info.targetCodec || objective.targetCodec || targetFacts.targetCodec),
+    objectiveHash: task.objectiveHash || info.objectiveHash || (task.taskTarget && task.taskTarget.gateObjective && task.taskTarget.gateObjective.objectiveHash) || '',
+  };
+}
+
+function assertVerifySatisfiesObjective({ task, info, summary, outBitrate }) {
+  const target = transcodeTargetForTask(task, info);
+  const expectedDuration = Number(info && (info.durationSec || info.duration));
+  const actualDuration = Number(summary && summary.durationSec);
+  if (Number.isFinite(expectedDuration) && expectedDuration > 0 && Number.isFinite(actualDuration) && actualDuration > 0) {
+    const tolerance = Math.max(5, expectedDuration * 0.1);
+    if (Math.abs(actualDuration - expectedDuration) > tolerance) {
+      throw new Error(`Output duration ${actualDuration}s does not match source duration ${expectedDuration}s`);
+    }
+  }
+  if (target.targetCodec) {
+    const actualCodec = normalizeCodec(summary && summary.videoCodec);
+    if (actualCodec && actualCodec !== target.targetCodec) {
+      throw new Error(`Output codec ${actualCodec} does not satisfy objective codec ${target.targetCodec}`);
+    }
+  }
+  if (target.targetBitrate && outBitrate > target.targetBitrate * 1000 * 1.35) {
+    throw new Error(`Output bitrate ${outBitrate} kbps exceeds objective bitrate ${target.targetBitrate} Mbps`);
+  }
+  return target;
+}
+
 // ── Flow Executor API ────────────────────────────────────────────────────────
 
 async function driveTask(taskId) {
@@ -121,7 +220,7 @@ async function driveTask(taskId) {
 }
 
 async function runPrecheck(taskId, task, config) {
-  setPhase(taskId, 'precheck');
+  setPhaseResumePoint(taskId, 'precheck', 'transcode_precheck');
   appendLog(taskId, 'info', 'Transcode precheck started');
 
   try {
@@ -182,6 +281,10 @@ async function runPrecheck(taskId, task, config) {
 
     const probePath = effectiveSourcePath;
     const result = await transcodeService.precheck(config, probePath);
+    const objectiveTarget = transcodeTargetForTask(task, {
+      originalWidth: result.originalWidth,
+      originalHeight: result.originalHeight,
+    });
 
     let partialPath, partialPaths;
     if (isSeason) {
@@ -228,6 +331,8 @@ async function runPrecheck(taskId, task, config) {
         originalHeight: result.originalHeight,
         originalAudioCodec: result.originalAudioCodec,
         originalBitrate: result.originalBitrate,
+        targetBitrate: objectiveTarget.targetBitrate || task.itemInfo.targetBitrate,
+        targetCodec: objectiveTarget.targetCodec || task.itemInfo.targetCodec,
       },
     });
 
@@ -279,14 +384,17 @@ async function runPrecheck(taskId, task, config) {
     await runExecuting(taskId, taskStore.getTask(taskId), config);
   } catch (e) {
     if (abortedTasks.has(taskId)) return;
-    appendLog(taskId, 'error', `Precheck failed: ${e.message}`);
-    scheduler.reportStatus(taskId, 'failed_hard');
-    setPhase(taskId, 'failed_hard');
+    failTask(taskId, task, 'transcode_precheck', e, {
+      prefix: 'Precheck failed',
+      recoveryClass: 'precheck_retry',
+      userAction: 'inspect_source_and_encoder_config',
+      sourcePath: task && task.itemInfo && task.itemInfo.path,
+    });
   }
 }
 
 async function runExecuting(taskId, task, config) {
-  setPhase(taskId, 'transcode_executing');
+  setPhaseResumePoint(taskId, 'transcode_executing', 'transcode_executing');
   appendLog(taskId, 'info', 'Transcode encoding started');
 
   const info = task.itemInfo || {};
@@ -296,8 +404,11 @@ async function runExecuting(taskId, task, config) {
     // ── Season: encode each episode sequentially ──
     const pairs = info.partialPaths;
     if (!pairs || pairs.length === 0) {
-      appendLog(taskId, 'error', 'No episode files to encode');
-      scheduler.reportStatus(taskId, 'failed_hard');
+      failTask(taskId, task, 'transcode_executing', new Error('No episode files to encode'), {
+        prefix: 'Encoding failed',
+        recoveryClass: 'encode_retry',
+        userAction: 'inspect_encoder_failure',
+      });
       return;
     }
 
@@ -349,8 +460,13 @@ async function runExecuting(taskId, task, config) {
     const partialPath = info.partialPath;
 
     if (!sourcePath || !partialPath) {
-      appendLog(taskId, 'error', 'Missing source or partial path');
-      scheduler.reportStatus(taskId, 'failed_hard');
+      failTask(taskId, task, 'transcode_executing', new Error('Missing source or partial path'), {
+        prefix: 'Encoding failed',
+        recoveryClass: 'encode_retry',
+        userAction: 'inspect_source_and_partial_path',
+        sourcePath,
+        partialPath,
+      });
       return;
     }
 
@@ -398,9 +514,15 @@ async function runExecuting(taskId, task, config) {
       appendLog(taskId, 'info', 'Encoding complete');
     } catch (e) {
       if (abortedTasks.has(taskId)) return;
-      appendLog(taskId, 'error', `Encoding failed: ${e.message}`);
-      scheduler.reportStatus(taskId, 'failed_hard');
-      setPhase(taskId, 'failed_hard');
+      failTask(taskId, task, 'transcode_executing', e, {
+        prefix: 'Encoding failed',
+        recoveryClass: 'encode_retry',
+        userAction: 'inspect_encoder_failure',
+        sourcePath,
+        partialPath,
+        targetBitrate: info.targetBitrate,
+        targetCodec: info.targetCodec,
+      });
       return;
     }
   }
@@ -411,7 +533,7 @@ async function runExecuting(taskId, task, config) {
 
 async function runVerify(taskId, task, config) {
   if (abortedTasks.has(taskId)) return;
-  setPhase(taskId, 'transcode_verify');
+  setPhaseResumePoint(taskId, 'transcode_verify', 'transcode_verify');
   scheduler.reportStatus(taskId, 'executing', 90);
   appendLog(taskId, 'info', 'Verifying transcode output');
 
@@ -420,8 +542,11 @@ async function runVerify(taskId, task, config) {
   const partialPath = info.partialPath;
 
   if (!partialPath) {
-    appendLog(taskId, 'error', 'Partial path not available for verify');
-    scheduler.reportStatus(taskId, 'failed_hard');
+    failTask(taskId, task, 'transcode_verify', new Error('Partial path not available for verify'), {
+      prefix: 'Verify failed',
+      recoveryClass: 'verify_retry',
+      userAction: 'inspect_partial_output',
+    });
     return;
   }
 
@@ -430,8 +555,12 @@ async function runVerify(taskId, task, config) {
     const pairs = info.partialPaths || [];
     for (const { partial } of pairs) {
       if (!fs.existsSync(partial)) {
-        appendLog(taskId, 'error', `Missing partial: ${partial}`);
-        scheduler.reportStatus(taskId, 'failed_hard');
+        failTask(taskId, task, 'transcode_verify', new Error(`Missing partial: ${partial}`), {
+          prefix: 'Verify failed',
+          recoveryClass: 'verify_retry',
+          userAction: 'inspect_partial_output',
+          partialPath: partial,
+        });
         return;
       }
     }
@@ -476,6 +605,13 @@ async function runVerify(taskId, task, config) {
       appendLog(taskId, 'warn', `Preview clip generation failed: ${e.message}`);
     }
 
+    const objectiveTarget = assertVerifySatisfiesObjective({
+      task,
+      info,
+      summary,
+      outBitrate,
+    });
+
     taskStore.updateTask(taskId, {
       verifyResult: {
         sizeBytes: outSizeBytes,
@@ -485,8 +621,12 @@ async function runVerify(taskId, task, config) {
         height: summary.height,
         bitrate: outBitrate,
         durationSec: summary.durationSec,
+        outputPath: partialPath,
         previewPath,
         bytesSaved: ((task.itemInfo && task.itemInfo.originalSizeBytes || 0) - outSizeBytes),
+        objectiveHash: objectiveTarget.objectiveHash || undefined,
+        targetBitrate: objectiveTarget.targetBitrate || undefined,
+        targetCodec: objectiveTarget.targetCodec || undefined,
       },
     });
 
@@ -514,14 +654,19 @@ async function runVerify(taskId, task, config) {
     await runReplace(taskId, latestTask, config);
   } catch (e) {
     if (abortedTasks.has(taskId)) return;
-    appendLog(taskId, 'error', `Verify failed: ${e.message}`);
-    scheduler.reportStatus(taskId, 'failed_hard');
-    setPhase(taskId, 'failed_hard');
+    failTask(taskId, task, 'transcode_verify', e, {
+      prefix: 'Verify failed',
+      recoveryClass: 'verify_retry',
+      userAction: 'inspect_verify_failure',
+      partialPath,
+      targetBitrate: info.targetBitrate,
+      targetCodec: info.targetCodec,
+    });
   }
 }
 
 async function runReplace(taskId, task, config) {
-  setPhase(taskId, 'transcode_replace');
+  setPhaseResumePoint(taskId, 'transcode_replace', 'transcode_replace');
   appendLog(taskId, 'info', 'Replacing original file');
 
   const info = task.itemInfo || {};
@@ -531,8 +676,11 @@ async function runReplace(taskId, task, config) {
     // Season: replace each episode file individually
     const pairs = info.partialPaths || [];
     if (pairs.length === 0) {
-      appendLog(taskId, 'error', 'No episode partial paths for replace');
-      scheduler.reportStatus(taskId, 'failed_hard');
+      failTask(taskId, task, 'transcode_replace', new Error('No episode partial paths for replace'), {
+        prefix: 'Replace failed',
+        recoveryClass: 'replace_retry',
+        userAction: 'inspect_replace_target',
+      });
       return;
     }
     appendLog(taskId, 'info', `Replacing ${pairs.length} episode files`);
@@ -549,9 +697,11 @@ async function runReplace(taskId, task, config) {
       if (tempDir) transcodeService.cleanupTaskWorkdir(tempDir);
     } catch (e) {
       if (abortedTasks.has(taskId)) return;
-      appendLog(taskId, 'error', `Replace failed: ${e.message}`);
-      scheduler.reportStatus(taskId, 'failed_hard');
-      setPhase(taskId, 'failed_hard');
+      failTask(taskId, task, 'transcode_replace', e, {
+        prefix: 'Replace failed',
+        recoveryClass: 'replace_retry',
+        userAction: 'inspect_replace_target',
+      });
     }
     return;
   }
@@ -561,8 +711,13 @@ async function runReplace(taskId, task, config) {
   const partialPath = info.partialPath;
 
   if (!targetPath || !partialPath) {
-    appendLog(taskId, 'error', 'Missing paths for replace');
-    scheduler.reportStatus(taskId, 'failed_hard');
+    failTask(taskId, task, 'transcode_replace', new Error('Missing paths for replace'), {
+      prefix: 'Replace failed',
+      recoveryClass: 'replace_retry',
+      userAction: 'inspect_replace_target',
+      sourcePath: targetPath,
+      partialPath,
+    });
     return;
   }
 
@@ -580,9 +735,13 @@ async function runReplace(taskId, task, config) {
     if (tempDir) transcodeService.cleanupTaskWorkdir(tempDir);
   } catch (e) {
     if (abortedTasks.has(taskId)) return;
-    appendLog(taskId, 'error', `Replace failed: ${e.message}`);
-    scheduler.reportStatus(taskId, 'failed_hard');
-    setPhase(taskId, 'failed_hard');
+    failTask(taskId, task, 'transcode_replace', e, {
+      prefix: 'Replace failed',
+      recoveryClass: 'replace_retry',
+      userAction: 'inspect_replace_target',
+      sourcePath: targetPath,
+      partialPath,
+    });
   }
 }
 

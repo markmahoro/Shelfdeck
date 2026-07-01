@@ -44,8 +44,8 @@ const runningTasks = new Set(); // taskId Set — prevents re-entry within same 
 const justConfirmedIds = new Set(); // tasks confirmed by user this round — bypass awaiting guard
 const CLOSED_STATUSES = new Set(['done', 'skipped', 'cancelled', 'deleted']);
 
-function getFlow(actionType) {
-  switch (actionType) {
+function getFlow(operationKind) {
+  switch (operationKind) {
     case 'ingest': return ingestFlow;
     case 'archive': return archiveFlow;
     case 'delete': return deleteFlow;
@@ -56,8 +56,8 @@ function getFlow(actionType) {
   }
 }
 
-function getConcurrencyLimit(actionType, limits) {
-  switch (actionType) {
+function getConcurrencyLimit(operationKind, limits) {
+  switch (operationKind) {
     case 'ingest': return limits.ingestConcurrency || 1;
     case 'archive': return limits.archiveConcurrency || 1;
     case 'delete': return limits.deleteConcurrency || 1;
@@ -68,11 +68,11 @@ function getConcurrencyLimit(actionType, limits) {
   }
 }
 
-function buildDeleteOptimizeGateForItem(task, doneAt) {
+function buildDeleteGateForItem(task, doneAt) {
   const verify = task && task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
   const info = task && task.itemInfo && typeof task.itemInfo === 'object' ? task.itemInfo : {};
-  return task && (task.optimizeGate || task.optimizationGate) || {
-    gate: 'optimize',
+  return task && (task.deleteGate || task.deletionGate) || {
+    gate: 'delete',
     passed: true,
     status: 'passed',
     reason: 'delete_target_removed',
@@ -102,28 +102,149 @@ function buildDeleteOptimizeGateForItem(task, doneAt) {
   };
 }
 
+function gateObjectiveForTask(task = {}) {
+  return task.taskTarget && task.taskTarget.gateObjective && typeof task.taskTarget.gateObjective === 'object'
+    ? task.taskTarget.gateObjective
+    : {};
+}
+
+function objectiveHashForTask(task = {}, verify = {}) {
+  return verify.objectiveHash
+    || task.objectiveHash
+    || (task.itemInfo && task.itemInfo.objectiveHash)
+    || '';
+}
+
+function targetFactsForObjective(objective = {}) {
+  return objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
+    ? objective.targetMediaFacts
+    : {};
+}
+
+function buildObjectiveOptimizeGateForItem(task, doneAt, operation) {
+  const verify = task && task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
+  const objective = gateObjectiveForTask(task);
+  const targetFacts = targetFactsForObjective(objective);
+  return {
+    gate: 'optimize',
+    passed: true,
+    status: 'passed',
+    reason: 'optimize_gate_met',
+    operation,
+    target: {
+      objectiveHash: objectiveHashForTask(task, verify),
+      ...targetFacts,
+      targetBitrate: verify.targetBitrate || targetFacts.targetBitrate || undefined,
+      targetCodec: verify.targetCodec || targetFacts.targetCodec || targetFacts.codec || undefined,
+    },
+    observed: {
+      sizeBytes: verify.sizeBytes,
+      bitrate: verify.bitrate,
+      bitrateMbps: typeof verify.bitrate === 'number' ? verify.bitrate / 1000 : undefined,
+      codec: verify.videoCodec,
+      audioCodec: verify.audioCodec,
+      width: verify.width,
+      height: verify.height,
+      durationSec: verify.durationSec,
+      outputPath: verify.outputPath,
+      bytesSaved: verify.bytesSaved,
+    },
+    failureReasons: [],
+    evidenceLevel: 'objective',
+    retryPolicy: {
+      automaticRetry: false,
+      manualRetryAllowed: false,
+      reason: '',
+    },
+    userAction: '',
+    completedAt: doneAt,
+  };
+}
+
+function applyVerifyMediaFacts(libItem, verify = {}) {
+  if (typeof verify.sizeBytes === 'number') libItem.size = verify.sizeBytes;
+  if (typeof verify.bitrate === 'number') {
+    libItem.bitrate = verify.bitrate * 1000;
+    libItem.equivalentBitrate = verify.bitrate / 1000;
+  }
+  if (verify.videoCodec) libItem.codec = verify.videoCodec;
+  if (verify.width && verify.height) libItem.resolution = `${verify.width}x${verify.height}`;
+  if (typeof verify.durationSec === 'number') libItem.duration = verify.durationSec;
+}
+
+function buildOptimizationResult(task, operation) {
+  const verify = task && task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
+  const result = {
+    operation,
+    objectiveHash: objectiveHashForTask(task, verify),
+    sizeBytes: verify.sizeBytes,
+    bitrateKbps: verify.bitrate,
+    bitrateMbps: typeof verify.bitrate === 'number' ? verify.bitrate / 1000 : undefined,
+    codec: verify.videoCodec,
+    audioCodec: verify.audioCodec,
+    width: verify.width,
+    height: verify.height,
+    durationSec: verify.durationSec,
+    outputPath: verify.outputPath,
+    bytesSaved: verify.bytesSaved,
+  };
+  Object.keys(result).forEach((key) => {
+    if (result[key] === undefined || result[key] === null || result[key] === '') delete result[key];
+  });
+  return result;
+}
+
 function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt) {
   libItem.lastTaskDoneAt = doneAt;
-  if (task.actionType === 'transcode') {
+  if (task.operationKind === 'transcode') {
     libItem.lastTranscodeDoneAt = doneAt;
-  }
-  if (task.actionType === 'upgrade') {
-    libItem.lastUpgradeDoneAt = doneAt;
-  }
-  if (task.actionType === 'delete') {
-    const gate = buildDeleteOptimizeGateForItem(task, doneAt);
-    libItem.optimizationStatus = 'deleted';
-    libItem.optimizationAction = 'delete';
+    libItem.optimizationStatus = 'transcoded';
+    libItem.optimizationAction = 'transcode';
     libItem.optimizationDoneAt = doneAt;
     libItem.optimizationTaskId = task.id;
+    const verify = task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
+    if (Object.keys(verify).length > 0) {
+      libItem.optimizationResult = buildOptimizationResult(task, 'transcode');
+      applyVerifyMediaFacts(libItem, verify);
+      libItem.optimizeGate = buildObjectiveOptimizeGateForItem(task, doneAt, 'transcode');
+      libItem.optimizationGate = libItem.optimizeGate;
+    }
+  }
+  if (task.operationKind === 'upgrade') {
+    libItem.lastUpgradeDoneAt = doneAt;
+    libItem.optimizationStatus = 'upgraded';
+    libItem.optimizationAction = 'upgrade';
+    libItem.optimizationDoneAt = doneAt;
+    libItem.optimizationTaskId = task.id;
+    const verify = task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
+    if (Object.keys(verify).length > 0) {
+      libItem.optimizationResult = buildOptimizationResult(task, 'upgrade');
+      applyVerifyMediaFacts(libItem, verify);
+      libItem.optimizeGate = buildObjectiveOptimizeGateForItem(task, doneAt, 'upgrade');
+      libItem.optimizationGate = libItem.optimizeGate;
+    }
+  }
+  if (task.operationKind === 'delete') {
+    const gate = buildDeleteGateForItem(task, doneAt);
     libItem.deleted = true;
     libItem.removed = true;
     libItem.deletedAt = doneAt;
     libItem.removedAt = doneAt;
-    libItem.optimizeGate = gate;
-    libItem.optimizationGate = gate;
+    libItem.deleteGate = gate;
+    libItem.deletionGate = gate;
+    libItem.deleteStatus = 'deleted';
+    libItem.deleteTaskId = task.id;
+    libItem.deleteDoneAt = doneAt;
+    libItem.deleteCandidate = {
+      ...(libItem.deleteCandidate || {}),
+      candidateStatus: 'deleted',
+      decision: 'confirm_delete',
+      decisionAt: (libItem.deleteCandidate && libItem.deleteCandidate.decisionAt) || doneAt,
+      deletedAt: doneAt,
+      taskId: task.id,
+    };
   }
-  if (task.actionType === 'archive') {
+  if (task.operationKind === 'archive') {
     libItem.archiveStatus = 'archived_like';
     libItem.archiveReason = 'archive_finalize_done';
     libItem.archiveDoneAt = doneAt;
@@ -187,23 +308,23 @@ function reportStatus(taskId, status, progress) {
   // Activity log events for task lifecycle
   if (oldTask) {
     const name = oldTask.itemName || oldTask.itemId;
-    const actionLabel = oldTask.actionType === 'transcode' ? '码率压缩'
-      : oldTask.actionType === 'upgrade' ? '洗版'
-      : oldTask.actionType === 'delete' ? '删除'
-      : oldTask.actionType === 'ingest' ? '入库'
-      : oldTask.actionType === 'archive' ? '归档'
-      : oldTask.actionType === 'scrape' ? '刮削'
-      : oldTask.actionType;
+    const actionLabel = oldTask.operationKind === 'transcode' ? '码率压缩'
+      : oldTask.operationKind === 'upgrade' ? '洗版'
+      : oldTask.operationKind === 'delete' ? '删除'
+      : oldTask.operationKind === 'ingest' ? '入库'
+      : oldTask.operationKind === 'archive' ? '归档'
+      : oldTask.operationKind === 'scrape' ? '刮削'
+      : oldTask.operationKind;
 
     if (status === 'executing' && oldTask.status !== 'executing') {
-      activityLog.addActivity('task', `任务「${name}」开始${actionLabel}…`, { taskId, actionType: oldTask.actionType });
+      activityLog.addActivity('task', `任务「${name}」开始${actionLabel}…`, { taskId, operationKind: oldTask.operationKind });
     }
     if (status === 'done') {
-      activityLog.addActivity('task', `任务「${name}」${actionLabel}完成 ✓`, { taskId, actionType: oldTask.actionType });
+      activityLog.addActivity('task', `任务「${name}」${actionLabel}完成 ✓`, { taskId, operationKind: oldTask.operationKind });
 
     }
     if (status === 'failed_hard') {
-      activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, actionType: oldTask.actionType });
+      activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, operationKind: oldTask.operationKind });
     }
 
     // 48h freeze after task ends (done or failed_hard) — SmartTaskEngine won't re-enqueue
@@ -231,7 +352,7 @@ function reportGateInvalidation(taskId, signal = {}) {
     ...signal,
     taskId,
     itemId,
-    sourceActionType: signal.sourceActionType || (task && task.actionType) || '',
+    sourceOperationKind: signal.sourceOperationKind || (task && task.operationKind) || '',
     sourceTargetGate: signal.sourceTargetGate
       || (task && task.taskTarget && task.taskTarget.targetGate)
       || (task && task.taskBridge && task.taskBridge.kind)
@@ -251,7 +372,7 @@ function reportGateInvalidation(taskId, signal = {}) {
     reason: invalidation.reason,
     message: invalidation.message,
     evidence: invalidation.evidence,
-    sourceActionType: invalidation.sourceActionType,
+    sourceOperationKind: invalidation.sourceOperationKind,
     sourceTargetGate: invalidation.sourceTargetGate,
     recovery: invalidation.recovery,
     stored: invalidation.stored,
@@ -270,7 +391,7 @@ function reportGateInvalidation(taskId, signal = {}) {
       itemId,
       invalidatedGate: gate,
       reason: invalidation.reason,
-      sourceActionType: invalidation.sourceActionType,
+      sourceOperationKind: invalidation.sourceOperationKind,
       sourceTargetGate: invalidation.sourceTargetGate,
       stored: invalidation.stored,
       storeReason: invalidation.storeReason,
@@ -317,7 +438,7 @@ function recoverInterruptedTasks() {
         payload: {
           taskId: t.id,
           itemId: t.itemId,
-          actionType: t.actionType,
+          operationKind: t.operationKind,
           fromStatus: previousStatus,
           fromPhase: previousPhase,
           fromResumePoint: previousResumePoint,
@@ -350,7 +471,7 @@ function resourceConcurrencyLimit(resource, task, limits = {}) {
       if (resourceKey === 'filesystem:mutation') return limits.deleteConcurrency || 1;
       return 1;
     default:
-      return getConcurrencyLimit(task && task.actionType, limits);
+      return getConcurrencyLimit(task && task.operationKind, limits);
     }
   })();
   return resourceCapacity.capacityForResource(resource, limits, legacyFallback);
@@ -403,7 +524,7 @@ function recordFlowFailure(task, resource, flowStep, err) {
     payload: {
       taskId: task.id,
       itemId: task.itemId,
-      actionType: task.actionType,
+      operationKind: task.operationKind,
       bridgeKind: task.taskBridge && task.taskBridge.kind,
       flowDirection: task.flowPlan && task.flowPlan.direction,
       operationKind: task.flowPlan && task.flowPlan.operationKind,
@@ -423,7 +544,7 @@ function isActiveStatus(status) {
 }
 
 function isLocalWesternAiScrapeTask(task, config) {
-  if (!task || task.actionType !== 'scrape') return false;
+  if (!task || task.operationKind !== 'scrape') return false;
   const itemInfo = task.itemInfo || {};
   const adultMetadata = itemInfo.adultMetadata || {};
   const subLib = (config.subLibraries || []).find((s) => s.uuid === itemInfo.subLibraryId) || {};
@@ -437,7 +558,7 @@ function isLocalWesternAiScrapeTask(task, config) {
 }
 
 function staleAutoScrapeReason(task) {
-  if (!task || task.actionType !== 'scrape') return '';
+  if (!task || task.operationKind !== 'scrape') return '';
   if (task.source !== 'auto') return '';
   if (task.manualExecuteRequested || justConfirmedIds.has(task.id)) return '';
   const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
@@ -477,7 +598,7 @@ function skipStaleAutoScrapeTask(task, reason) {
   }
   activityLog.addActivity('task', `自动刮削任务「${task.itemName || task.itemId}」已跳过：${reason}`, {
     taskId: task.id,
-    actionType: task.actionType,
+    operationKind: task.operationKind,
     reason,
   });
 }
@@ -613,7 +734,7 @@ async function scheduleRound() {
     ? taskStore.querySchedulerTasks()
     : taskStore.loadTasks({ includeHistory: false });
 
-  // Count active work by resource bucket. actionType remains the executor/API
+  // Count active work by resource bucket. operationKind remains the executor/API
   // compatibility field; scheduling capacity follows flow/resource semantics.
   const activeResourceCount = {};
   let activeTaskCount = 0;
@@ -671,7 +792,7 @@ async function scheduleRound() {
         payload: {
           taskId: task.id,
           itemId: task.itemId,
-          actionType: task.actionType,
+          operationKind: task.operationKind,
           retryCount,
           reason: 'restart_recovery_retry_limit_reached',
         },
@@ -718,7 +839,7 @@ async function scheduleRound() {
       payload: {
         taskId: task.id,
         itemId: task.itemId,
-        actionType: task.actionType,
+        operationKind: task.operationKind,
         retryCount,
         fromPhase: previousPhase,
         fromResumePoint: previousResumePoint,
@@ -757,7 +878,7 @@ async function scheduleRound() {
     // Skip waiting_media_source (flow parks, retry handled by flow timer)
     if (task.status === 'waiting_media_source') continue;
 
-    if (task.actionType === 'scrape' && task.status === 'queued' && !task.manualExecuteRequested && !justConfirmedIds.has(task.id)) {
+    if (task.operationKind === 'scrape' && task.status === 'queued' && !task.manualExecuteRequested && !justConfirmedIds.has(task.id)) {
       const subLibSchedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
       if (!subLibSchedule.autoExecute) {
         taskStore.updateTask(task.id, { status: 'pending_manual' });
@@ -807,7 +928,7 @@ async function scheduleRound() {
         continue;
       }
 
-      const flow = getFlow(task.actionType);
+      const flow = getFlow(task.operationKind);
       if (!flow) continue;
 
       runningTasks.add(task.id);
@@ -838,7 +959,7 @@ async function scheduleRound() {
         itemName: task.itemName,
         source: task.source,
         payload: {
-          actionType: task.actionType,
+          operationKind: task.operationKind,
           bridgeKind: task.taskBridge && task.taskBridge.kind,
           flowDirection: task.flowPlan && task.flowPlan.direction,
           operationKind: task.flowPlan && task.flowPlan.operationKind,

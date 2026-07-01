@@ -124,30 +124,30 @@ function computeSpaceStats(library, tasks, config) {
     // Prefer explicitly stored bytesSaved
     if (task.verifyResult && typeof task.verifyResult.bytesSaved === 'number') {
       bytesSaved = task.verifyResult.bytesSaved;
-    } else if (task.actionType === 'transcode' && task.itemInfo && task.verifyResult) {
+    } else if (task.operationKind === 'transcode' && task.itemInfo && task.verifyResult) {
       if (typeof task.itemInfo.originalSizeBytes === 'number' && typeof task.verifyResult.sizeBytes === 'number') {
         bytesSaved = task.itemInfo.originalSizeBytes - task.verifyResult.sizeBytes;
       }
-    } else if (task.actionType === 'upgrade' && task.upgradePreview) {
+    } else if (task.operationKind === 'upgrade' && task.upgradePreview) {
       const oldSize = task.upgradePreview.oldFile && task.upgradePreview.oldFile.size;
       const newSize = task.upgradePreview.newFile && task.upgradePreview.newFile.size;
       if (typeof oldSize === 'number' && typeof newSize === 'number') {
         bytesSaved = oldSize - newSize;
       }
-    } else if (task.actionType === 'delete' && task.itemInfo) {
+    } else if (task.operationKind === 'delete' && task.itemInfo) {
       if (typeof task.itemInfo.originalSizeBytes === 'number') {
         bytesSaved = task.itemInfo.originalSizeBytes;
       }
     }
 
     if (bytesSaved != null) {
-      if (task.actionType === 'transcode') {
+      if (task.operationKind === 'transcode') {
         transcodeRealizedSavings += bytesSaved;
-      } else if (task.actionType === 'upgrade') {
+      } else if (task.operationKind === 'upgrade') {
         // bytesSaved negative → file got bigger → realizedIncrease positive
         if (bytesSaved < 0) upgradeRealizedIncrease += Math.abs(bytesSaved);
         else transcodeRealizedSavings += bytesSaved; // rare: upgrade actually saved space
-      } else if (task.actionType === 'delete') {
+      } else if (task.operationKind === 'delete') {
         deleteRealizedSavings += bytesSaved;
       }
     }
@@ -169,30 +169,30 @@ function computeSpaceStats(library, tasks, config) {
     let bytesSaved = null;
     if (task.verifyResult && typeof task.verifyResult.bytesSaved === 'number') {
       bytesSaved = task.verifyResult.bytesSaved;
-    } else if (task.actionType === 'transcode' && task.itemInfo && task.verifyResult) {
+    } else if (task.operationKind === 'transcode' && task.itemInfo && task.verifyResult) {
       if (typeof task.itemInfo.originalSizeBytes === 'number' && typeof task.verifyResult.sizeBytes === 'number') {
         bytesSaved = task.itemInfo.originalSizeBytes - task.verifyResult.sizeBytes;
       }
-    } else if (task.actionType === 'upgrade' && task.upgradePreview) {
+    } else if (task.operationKind === 'upgrade' && task.upgradePreview) {
       const oldSize = task.upgradePreview.oldFile && task.upgradePreview.oldFile.size;
       const newSize = task.upgradePreview.newFile && task.upgradePreview.newFile.size;
       if (typeof oldSize === 'number' && typeof newSize === 'number') {
         bytesSaved = oldSize - newSize;
       }
-    } else if (task.actionType === 'delete' && task.itemInfo) {
+    } else if (task.operationKind === 'delete' && task.itemInfo) {
       if (typeof task.itemInfo.originalSizeBytes === 'number') {
         bytesSaved = task.itemInfo.originalSizeBytes;
       }
     }
 
     if (bytesSaved != null) {
-      if (task.actionType === 'transcode') {
+      if (task.operationKind === 'transcode') {
         detail.transcode.realizedSavingsBytes = (detail.transcode.realizedSavingsBytes || 0) + bytesSaved;
-      } else if (task.actionType === 'upgrade') {
+      } else if (task.operationKind === 'upgrade') {
         if (bytesSaved < 0) {
           detail.upgrade.realizedIncreaseBytes = (detail.upgrade.realizedIncreaseBytes || 0) + Math.abs(bytesSaved);
         }
-      } else if (task.actionType === 'delete') {
+      } else if (task.operationKind === 'delete') {
         detail.delete.realizedSavingsBytes = (detail.delete.realizedSavingsBytes || 0) + bytesSaved;
       }
     }

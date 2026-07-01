@@ -7,8 +7,12 @@ import Alert from '../components/Alert';
 
 // ── constants ──────────────────────────────────────────────────────────────────
 
-const ACTION_LABELS: Record<string, string> = {
-  keep: '保留', delete: '删除', transcode: '转码', upgrade: '洗版',
+const TARGET_TIER_LABELS: Record<string, string> = {
+  premium: 'Premium',
+  high: 'High',
+  standard: 'Standard',
+  baseline: 'Baseline',
+  adult_baseline: 'Adult Baseline',
 };
 
 const CONNECTOR_LABELS: Record<string, string> = {
@@ -18,16 +22,13 @@ const CONNECTOR_LABELS: Record<string, string> = {
 const FIELDS: { value: string; label: string; type: 'number' | 'string' | 'boolean' | 'null' }[] = [
   { value: 'doubanRating', label: '豆瓣评分', type: 'number' },
   { value: 'userRating', label: '用户评分', type: 'number' },
-  { value: 'equivalentBitrate', label: '码率 (Mbps)', type: 'number' },
-  { value: 'bucket', label: '分辨率分类', type: 'string' },
-  { value: 'codec', label: '编码', type: 'string' },
-  { value: 'isDiscLike', label: '是否原盘', type: 'boolean' },
   { value: 'watched', label: '已观看', type: 'boolean' },
-  { value: 'scraped', label: '已刮削', type: 'boolean' },
-  { value: 'duration', label: '时长 (秒)', type: 'number' },
+  { value: 'playCount', label: '播放次数', type: 'number' },
+  { value: 'favorite', label: '收藏', type: 'boolean' },
+  { value: 'manualTier', label: '手动分层', type: 'string' },
+  { value: 'bucket', label: '分辨率分类', type: 'string' },
+  { value: 'isDiscLike', label: '是否原盘', type: 'boolean' },
   { value: 'type', label: '媒体类型', type: 'string' },
-  { value: 'resolution', label: '分辨率 (WxH)', type: 'string' },
-  { value: 'audioCodecs', label: '音频编码', type: 'string' },
 ];
 
 const NUMERIC_OPS = ['>', '>=', '<', '<=', '='];
@@ -56,8 +57,9 @@ function defaultRule(priority: number): Rule {
     priority,
     groupsConnector: 'and',
     groups: [emptyGroup()],
-    action: 'keep',
-    actionParams: {},
+    targetMediaFacts: { qualityTier: 'standard', targetCodec: 'h265', targetBitrateByBucket: { '1080p': 4, '4K': 10 } },
+    action: 'transcode',
+    actionParams: { targetBitrate: 4, targetCodec: 'h265' },
     reason: '',
   };
 }
@@ -199,15 +201,39 @@ function RuleEditor({ rule, onChange, onDelete }: {
     update({ groups: next });
   }
 
-  function setAction(action: Rule['action']) {
-    const params: Rule['actionParams'] = {};
-    if (action === 'transcode') params.targetBitrate = rule.actionParams?.targetBitrate ?? 8;
-    if (action === 'transcode' || action === 'upgrade') params.targetCodec = rule.actionParams?.targetCodec ?? 'h265';
-    if (action === 'upgrade') {
-      params.maxSizeGB = rule.actionParams?.maxSizeGB;
-      params.seedPreferences = rule.actionParams?.seedPreferences ?? { codecPreference: [], resolutionPreference: [], audioPreference: [], sitePreference: [], preferCNSub: false };
-    }
-    update({ action, actionParams: params });
+  function qualityTier() {
+    return rule.targetMediaFacts?.qualityTier || 'standard';
+  }
+
+  function targetBitrateFor(bucket: '1080p' | '4K') {
+    return rule.targetMediaFacts?.targetBitrateByBucket?.[bucket]
+      ?? (bucket === '1080p' ? rule.actionParams?.targetBitrate : undefined)
+      ?? '';
+  }
+
+  function updateTargetFacts(patch: NonNullable<Rule['targetMediaFacts']>) {
+    const targetMediaFacts = { ...(rule.targetMediaFacts || {}), ...patch };
+    const byBucket = targetMediaFacts.targetBitrateByBucket || {};
+    update({
+      targetMediaFacts,
+      action: 'transcode',
+      actionParams: {
+        ...rule.actionParams,
+        targetBitrate: byBucket['1080p'] || byBucket['4K'] || targetMediaFacts.targetBitrate,
+        targetCodec: targetMediaFacts.targetCodec || rule.actionParams?.targetCodec || 'h265',
+      },
+    });
+  }
+
+  function setTargetTier(tier: string) {
+    const defaults: Record<string, NonNullable<Rule['targetMediaFacts']>> = {
+      premium: { qualityTier: 'premium', minResolution: '4K', targetCodec: 'h265', targetBitrateByBucket: { '1080p': 12, '4K': 25 } },
+      high: { qualityTier: 'high', targetCodec: 'h265', targetBitrateByBucket: { '1080p': 7, '4K': 16 } },
+      standard: { qualityTier: 'standard', targetCodec: 'h265', targetBitrateByBucket: { '1080p': 4, '4K': 10 } },
+      baseline: { qualityTier: 'baseline', targetCodec: 'h265', targetBitrateByBucket: { '1080p': 2, '4K': 5 } },
+      adult_baseline: { qualityTier: 'adult_baseline', targetCodec: 'h265', targetBitrateByBucket: { '1080p': 2.5, '4K': 6 } },
+    };
+    updateTargetFacts(defaults[tier] || defaults.standard);
   }
 
   return (
@@ -260,113 +286,30 @@ function RuleEditor({ rule, onChange, onDelete }: {
       ))}
       <button style={s.addBtn} onClick={addGroup}>+ 添加条件组</button>
 
-      {/* Action */}
+      {/* Archive-before target */}
       <div style={{ marginTop: 12, borderTop: '1px solid #e8e8e8', paddingTop: 10 }}>
         <div style={s.paramRow}>
-          <span style={s.paramLabel}>动作:</span>
-          <select style={s.select} value={rule.action} onChange={(e) => setAction(e.target.value as Rule['action'])}>
-            {Object.entries(ACTION_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          <span style={s.paramLabel}>目标层级</span>
+          <select style={s.select} value={qualityTier()} onChange={(e) => setTargetTier(e.target.value)}>
+            {Object.entries(TARGET_TIER_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </div>
 
-        {rule.action === 'transcode' && (
-          <>
-            <div style={s.paramRow}>
-              <span style={s.paramLabel}>目标码率 (Mbps)</span>
-              <input style={s.input} type="number" value={rule.actionParams?.targetBitrate ?? ''} onChange={(e) => update({ actionParams: { ...rule.actionParams, targetBitrate: Number(e.target.value) || undefined } })} />
-            </div>
-            <div style={s.paramRow}>
-              <span style={s.paramLabel}>输出编码</span>
-              <select style={s.select} value={rule.actionParams?.targetCodec ?? 'h265'} onChange={(e) => update({ actionParams: { ...rule.actionParams, targetCodec: e.target.value } })}>
-                <option value="h265">h265</option>
-                <option value="av1">av1</option>
-              </select>
-            </div>
-          </>
-        )}
-
-        {rule.action === 'upgrade' && (
-          <div style={s.paramRow}>
-            <span style={s.paramLabel}>目标码率 (Mbps)</span>
-            <input style={s.input} type="number" value={rule.actionParams?.targetBitrate ?? ''} onChange={(e) => update({ actionParams: { ...rule.actionParams, targetBitrate: Number(e.target.value) || undefined } })} />
-          </div>
-        )}
-
-        {rule.action === 'upgrade' && (
-          <>
-            <div style={s.paramRow}>
-              <span style={s.paramLabel}>种子体积上限 (GB)</span>
-              <input style={s.input} type="number" value={rule.actionParams?.maxSizeGB ?? ''} onChange={(e) => update({ actionParams: { ...rule.actionParams, maxSizeGB: Number(e.target.value) || undefined } })} />
-            </div>
-
-            {/* Seed preferences: checkboxes */}
-            <div style={{ marginTop: 8, padding: '10px 12px', background: '#f8f9fb', borderRadius: 6 }}>
-              <div style={{ ...s.groupLabel, marginBottom: 8 }}>种子筛选（留空 = 不限制）</div>
-
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: '#666', marginBottom: 4, display: 'block' }}>编码格式</span>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {(['h265','h264','dv'] as const).map((opt) => {
-                    const arr = rule.actionParams?.seedPreferences?.codecPreference || [];
-                    const checked = arr.includes(opt);
-                    return (
-                      <label key={opt} style={{ fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <input type="checkbox" checked={checked} onChange={() => {
-                          const next = checked ? arr.filter((x: string) => x !== opt) : [...arr, opt];
-                          update({ actionParams: { ...rule.actionParams, seedPreferences: { ...(rule.actionParams?.seedPreferences || {}), codecPreference: next } } });
-                        }} />
-                        {{ h265: 'H.265', h264: 'H.264', dv: 'Dolby Vision' }[opt]}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: '#666', marginBottom: 4, display: 'block' }}>分辨率</span>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {['4K','1080p','720p'].map((opt) => {
-                    const arr = rule.actionParams?.seedPreferences?.resolutionPreference || [];
-                    const checked = arr.includes(opt);
-                    return (
-                      <label key={opt} style={{ fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <input type="checkbox" checked={checked} onChange={() => {
-                          const next = checked ? arr.filter((x: string) => x !== opt) : [...arr, opt];
-                          update({ actionParams: { ...rule.actionParams, seedPreferences: { ...(rule.actionParams?.seedPreferences || {}), resolutionPreference: next } } });
-                        }} />
-                        {opt}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: '#666', marginBottom: 4, display: 'block' }}>音轨</span>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {['DTS','TrueHD','Atmos','AC3','AAC','FLAC'].map((opt) => {
-                    const arr = rule.actionParams?.seedPreferences?.audioPreference || [];
-                    const checked = arr.includes(opt);
-                    return (
-                      <label key={opt} style={{ fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <input type="checkbox" checked={checked} onChange={() => {
-                          const next = checked ? arr.filter((x: string) => x !== opt) : [...arr, opt];
-                          update({ actionParams: { ...rule.actionParams, seedPreferences: { ...(rule.actionParams?.seedPreferences || {}), audioPreference: next } } });
-                        }} />
-                        {opt}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <label style={{ fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <input type="checkbox" checked={!!rule.actionParams?.seedPreferences?.preferCNSub} onChange={(e) => update({ actionParams: { ...rule.actionParams, seedPreferences: { ...(rule.actionParams?.seedPreferences || {}), preferCNSub: e.target.checked } } })} />
-                仅含中文字幕的种子
-              </label>
-            </div>
-          </>
-        )}
+        <div style={s.paramRow}>
+          <span style={s.paramLabel}>1080p Mbps</span>
+          <input style={s.input} type="number" value={targetBitrateFor('1080p')} onChange={(e) => updateTargetFacts({ targetBitrateByBucket: { ...(rule.targetMediaFacts?.targetBitrateByBucket || {}), '1080p': Number(e.target.value) || 0 } })} />
+        </div>
+        <div style={s.paramRow}>
+          <span style={s.paramLabel}>4K Mbps</span>
+          <input style={s.input} type="number" value={targetBitrateFor('4K')} onChange={(e) => updateTargetFacts({ targetBitrateByBucket: { ...(rule.targetMediaFacts?.targetBitrateByBucket || {}), '4K': Number(e.target.value) || 0 } })} />
+        </div>
+        <div style={s.paramRow}>
+          <span style={s.paramLabel}>目标编码</span>
+          <select style={s.select} value={rule.targetMediaFacts?.targetCodec ?? rule.actionParams?.targetCodec ?? 'h265'} onChange={(e) => updateTargetFacts({ targetCodec: e.target.value })}>
+            <option value="h265">h265</option>
+            <option value="av1">av1</option>
+          </select>
+        </div>
 
         <div style={s.paramRow}>
           <span style={s.paramLabel}>说明文字</span>
@@ -517,12 +460,21 @@ function TemplateCard({ tpl }: { tpl: RuleTemplate }) {
       };
     }
     const groups = (rule.groups || []).map(normalizeGroup);
+    const targetMediaFacts = rule.targetMediaFacts || {
+      qualityTier: rule.action === 'upgrade' ? 'premium' : rule.action === 'keep' ? 'baseline' : 'standard',
+      targetCodec: rule.actionParams?.targetCodec || 'h265',
+      targetBitrateByBucket: {
+        '1080p': rule.actionParams?.targetBitrate || 4,
+        '4K': rule.actionParams?.targetBitrate ? Math.max(rule.actionParams.targetBitrate, 6) : 10,
+      },
+    };
     return {
       priority: typeof rule.priority === 'number' ? rule.priority : 1,
       groupsConnector: rule.groupsConnector || 'and',
       groups,
-      action: rule.action || 'keep',
-      actionParams: rule.actionParams || {},
+      targetMediaFacts,
+      action: rule.action || 'transcode',
+      actionParams: rule.actionParams || { targetBitrate: targetMediaFacts.targetBitrateByBucket?.['1080p'], targetCodec: targetMediaFacts.targetCodec },
       reason: rule.reason || '',
     };
   }
@@ -633,7 +585,7 @@ function TemplateCard({ tpl }: { tpl: RuleTemplate }) {
               {(tpl.rules || []).sort((a, b) => b.priority - a.priority).map((rule, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid #f0f0f0', fontSize: 13 }}>
                   <span style={{ color: '#999', fontSize: 11, minWidth: 24 }}>P{rule.priority}</span>
-                  <span style={{ fontWeight: 600, color: '#1a1a2e' }}>{ACTION_LABELS[rule.action] || rule.action}</span>
+                  <span style={{ fontWeight: 600, color: '#1a1a2e' }}>{TARGET_TIER_LABELS[rule.targetMediaFacts?.qualityTier || ''] || rule.targetMediaFacts?.qualityTier || 'Target'}</span>
                   <span style={{ color: '#666' }}>{rule.reason}</span>
                 </div>
               ))}
@@ -671,7 +623,7 @@ export default function RuleTemplatesPage() {
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <h1 style={s.title}>策略模板管理</h1>
+        <h1 style={s.title}>归档前目标</h1>
         <button style={{ ...s.btn, ...s.btnPrimary }} onClick={() => setCreateOpen(true)}>+ 新建模板</button>
       </div>
 

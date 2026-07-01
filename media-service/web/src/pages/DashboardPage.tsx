@@ -24,11 +24,7 @@ const METADATA_GATE_FIELDS = [
   { id: 'media.resolution', label: '分辨率' },
   { id: 'media.codec', label: '编码' },
   { id: 'media.audioCodecs', label: '音频编码' },
-  { id: 'decision.watched', label: '观看状态' },
-  { id: 'decision.rating', label: '任一评分' },
-  { id: 'decision.userRating', label: '本地评分' },
-  { id: 'decision.doubanRating', label: '豆瓣评分' },
-  { id: 'decision.providerId', label: '策略外部 ID' },
+  { id: 'identity.providerId', label: '外部 Provider ID' },
   { id: 'adult.scraped', label: '成人已刮削' },
   { id: 'adult.scrapeStatus', label: '成人刮削状态' },
   { id: 'adult.adultId', label: '番号' },
@@ -72,6 +68,16 @@ function uniqueFields(fields: string[]) {
   return Array.from(new Set(fields.filter(Boolean)));
 }
 
+function sanitizeMetadataGateField(field: string) {
+  if (field === 'decision.providerId') return 'identity.providerId';
+  if (field.startsWith('decision.')) return '';
+  return field;
+}
+
+function sanitizeMetadataGateFields(fields: string[]) {
+  return uniqueFields(fields.map(sanitizeMetadataGateField));
+}
+
 function conditionField(condition: any) {
   if (Array.isArray(condition)) return typeof condition[0] === 'string' ? condition[0] : '';
   return typeof condition?.field === 'string' ? condition.field : '';
@@ -87,12 +93,12 @@ function mapStrategyField(field: string) {
     case 'codec': return 'media.codec';
     case 'audioCodecs': return 'media.audioCodecs';
     case 'path': return 'media.path';
-    case 'watched': return 'decision.watched';
-    case 'userRating': return 'decision.userRating';
-    case 'doubanRating':
-    case 'doubanStars': return 'decision.doubanRating';
     case 'tmdbId':
-    case 'doubanId': return 'decision.providerId';
+    case 'doubanId': return 'identity.providerId';
+    case 'watched':
+    case 'userRating':
+    case 'doubanRating':
+    case 'doubanStars':
     default: return '';
   }
 }
@@ -103,10 +109,6 @@ function templateStrategyFields(template?: RuleTemplate) {
     for (const group of rule.groups || []) {
       const rawConditions = Array.isArray(group) ? group : group.conditions || [];
       const groupFields = rawConditions.map(conditionField).filter(Boolean);
-      if (groupFields.includes('userRating') && groupFields.includes('doubanRating')) {
-        fields.push('decision.rating');
-        continue;
-      }
       for (const field of groupFields) {
         const mapped = mapStrategyField(field);
         if (mapped) fields.push(mapped);
@@ -127,7 +129,9 @@ function defaultMetadataGateFields(mediaType: string, ruleTemplateId: string, te
 
 function gateFieldsFromConfig(gate: SubLibrary['metadataGate']) {
   const all = Array.isArray(gate?.all) ? gate.all : [];
-  return uniqueFields(all.filter((node): node is string => typeof node === 'string'));
+  return uniqueFields(all
+    .filter((node): node is string => typeof node === 'string')
+    .map(sanitizeMetadataGateField));
 }
 
 function autoExecuteText(sl: SubLibrary) {
@@ -221,7 +225,7 @@ export default function DashboardPage() {
           source: 'emby',
           doubanEnabled,
           ruleTemplateId,
-          metadataGate: metadataGateCustom ? { all: metadataGateFields } : undefined,
+          metadataGate: metadataGateCustom ? { all: sanitizeMetadataGateFields(metadataGateFields) } : undefined,
           pathMapFrom: pathMapFrom || '',
           pathMapTo: pathMapTo || '',
           mediaType,
@@ -233,7 +237,7 @@ export default function DashboardPage() {
           source: 'folder',
           doubanEnabled: false,
           ruleTemplateId: 'adult_jav_default',
-          metadataGate: metadataGateCustom ? { all: metadataGateFields } : undefined,
+          metadataGate: metadataGateCustom ? { all: sanitizeMetadataGateFields(metadataGateFields) } : undefined,
           mediaType: 'adult',
           adultRegion: libraryKind,
           scraperType: libraryKind === 'japanese_jav' ? 'shelfdeck_japanese_jav' : 'western_builtin',
@@ -253,7 +257,7 @@ export default function DashboardPage() {
         name: subLibName,
         doubanEnabled,
         ruleTemplateId,
-        metadataGate: metadataGateCustom ? { all: metadataGateFields } : null,
+        metadataGate: metadataGateCustom ? { all: sanitizeMetadataGateFields(metadataGateFields) } : null,
         pathMapFrom: pathMapFrom || '',
         pathMapTo: pathMapTo || '',
       }),

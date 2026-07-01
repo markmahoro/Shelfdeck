@@ -62,7 +62,7 @@ test('standard scrape completes when custom/default TV metadata gate matches str
   const task = taskStore.createTask({
     itemId: item.itemId,
     itemName: item.name,
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'executing',
     itemInfo: { ...item },
     resumePoint: 'scrape_executing',
@@ -149,7 +149,7 @@ test('standard scrape skips stale repair task when live metadata gate is already
   const task = taskStore.createTask({
     itemId: item.itemId,
     itemName: item.name,
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'executing',
     itemInfo: {
       ...item,

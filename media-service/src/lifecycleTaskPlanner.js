@@ -8,8 +8,9 @@ const USER_OPERATIONS = ['ingest', 'scrape', 'transcode', 'upgrade', 'delete', '
 const BRIDGE_OPERATIONS = {
   ingest: ['ingest'],
   metadata: ['scrape'],
-  optimize: ['transcode', 'upgrade', 'delete'],
+  optimize: ['transcode', 'upgrade'],
   archive: ['archive'],
+  delete: ['delete'],
 };
 
 function cleanToken(value) {
@@ -21,7 +22,7 @@ function requestedIntent(input = {}) {
   return {
     bridgeKind: cleanToken(input.bridgeKind || nested.bridgeKind),
     preferredOperation: cleanToken(input.preferredOperation || nested.preferredOperation),
-    actionType: cleanToken(input.actionType || input.operation || nested.actionType || nested.operation),
+    operationKind: cleanToken(input.operationKind || input.operation || nested.operationKind || nested.operation),
   };
 }
 
@@ -33,14 +34,14 @@ function intentResult(operation, bridgeKind, intentMode, intent) {
   return {
     allowed: true,
     operation,
-    actionType: operation,
+    operationKind: operation,
     bridgeKind,
     preferredOperation: intent.preferredOperation || '',
     intentMode,
     requestedIntent: {
       bridgeKind: intent.bridgeKind || bridgeKind,
       preferredOperation: intent.preferredOperation || '',
-      actionType: intent.actionType || '',
+      operationKind: intent.operationKind || '',
     },
   };
 }
@@ -55,8 +56,8 @@ function cleanObject(value = {}) {
   return result;
 }
 
-function objectiveForOperation(actionType, itemInfo = {}) {
-  const operation = cleanToken(actionType);
+function objectiveForOperation(operationKind, itemInfo = {}) {
+  const operation = cleanToken(operationKind);
   if (operation === 'ingest') {
     return {
       kind: 'managed_item',
@@ -81,7 +82,13 @@ function objectiveForOperation(actionType, itemInfo = {}) {
     return lifecycleObjectiveResolver.resolveOptimizeObjective(itemInfo, { operationHint: 'upgrade' });
   }
   if (operation === 'delete') {
-    return lifecycleObjectiveResolver.resolveOptimizeObjective(itemInfo, { operationHint: 'delete' });
+    return cleanObject({
+      kind: 'delete_archived_media',
+      description: 'Archived media item is eligible for delete gate disposal after user review.',
+      acceptableOperations: ['delete'],
+      archivedAt: itemInfo.archiveDoneAt || '',
+      deleteCandidate: itemInfo.deleteCandidate || null,
+    });
   }
   if (operation === 'archive') {
     return {
@@ -100,12 +107,13 @@ function objectiveForOperation(actionType, itemInfo = {}) {
 
 function planTaskTarget(input = {}) {
   const itemInfo = input.itemInfo && typeof input.itemInfo === 'object' ? input.itemInfo : {};
-  const actionType = cleanToken(input.actionType || input.operation);
-  const bridgeKind = cleanToken(input.bridgeKind) || bridgeKindForAction(actionType);
+  const operationKind = cleanToken(input.operationKind || input.operation);
+  const bridgeKind = cleanToken(input.targetGate || input.bridgeKind) || bridgeKindForAction(operationKind);
   const itemId = String(input.itemId || itemInfo.itemId || '');
-  const gateObjective = bridgeKind === 'optimize'
-    ? lifecycleObjectiveResolver.resolveOptimizeObjective(itemInfo, { operationHint: actionType })
-    : objectiveForOperation(actionType, itemInfo);
+  const explicitGateObjective = input.gateObjective && typeof input.gateObjective === 'object' ? input.gateObjective : null;
+  const gateObjective = explicitGateObjective || (bridgeKind === 'optimize'
+    ? lifecycleObjectiveResolver.resolveOptimizeObjective(itemInfo, { operationHint: operationKind })
+    : objectiveForOperation(operationKind, itemInfo));
   return {
     object: {
       type: 'media_item',
@@ -115,11 +123,50 @@ function planTaskTarget(input = {}) {
     targetGate: bridgeKind,
     gateObjective,
     source: input.source || '',
-    operationHint: actionType,
+    operationHint: operationKind,
   };
 }
 
-function selectStrategyOperation(item = {}) {
+function selectStrategyOperation(item = {}, options = {}) {
+  const hasObjective = item && item.optimizeObjective && typeof item.optimizeObjective === 'object';
+  if (hasObjective || item.optimizeObjectiveStatus) {
+    const selection = flowPlanner.selectOptimizeFlow({
+      itemInfo: item,
+      optimizeObjective: item.optimizeObjective,
+      optimizeObjectiveStatus: item.optimizeObjectiveStatus,
+      objectiveHash: item.objectiveHash,
+      allowedOperations: options.allowedOptimizeOperations,
+      flowSafetyFacts: options.flowSafetyFacts,
+    });
+    if (selection.selectedOperation === 'no_op') {
+      return blocked('', 'objective_already_satisfied', {
+        planningMode: 'objective_gap_analysis',
+        flowSelection: selection,
+      });
+    }
+    if (!selection.allowed) {
+      return blocked(selection.operation || selection.selectedOperation || '', selection.blockedReason || selection.reason, {
+        planningMode: 'objective_gap_analysis',
+        flowSelection: selection,
+      });
+    }
+    const operation = cleanToken(selection.operation || selection.selectedOperation);
+    if (!USER_OPERATIONS.includes(operation)) {
+      return blocked(operation, 'unsupported_recommended_operation', {
+        planningMode: 'objective_gap_analysis',
+        flowSelection: selection,
+      });
+    }
+    return {
+      allowed: true,
+      operation,
+      operationKind: operation,
+      bridgeKind: flowPlanner.bridgeKindForAction(operation),
+      planningMode: 'objective_gap_analysis',
+      flowSelection: selection,
+    };
+  }
+
   const operation = cleanToken(item.action);
   if (!operation || operation === 'keep' || operation === 'none') {
     return blocked(operation, 'no_automatic_task_required');
@@ -130,7 +177,7 @@ function selectStrategyOperation(item = {}) {
   return {
     allowed: true,
     operation,
-    actionType: operation,
+    operationKind: operation,
     bridgeKind: flowPlanner.bridgeKindForAction(operation),
     planningMode: 'strategy_result',
   };
@@ -141,34 +188,34 @@ function resolveManualOperationIntent(input = {}) {
   const item = input.item || input.itemInfo || {};
   const bridgeKind = intent.bridgeKind;
   const preferred = intent.preferredOperation;
-  const actionType = intent.actionType;
+  const operationKind = intent.operationKind;
 
   if (!bridgeKind) {
-    if (!actionType) return blocked('', 'missing_task_intent');
-    if (!USER_OPERATIONS.includes(actionType)) return blocked(actionType, 'invalid_action_type');
-    return intentResult(actionType, flowPlanner.bridgeKindForAction(actionType), 'action_type_compatibility', intent);
+    if (!operationKind) return blocked('', 'missing_task_intent');
+    if (!USER_OPERATIONS.includes(operationKind)) return blocked(operationKind, 'invalid_operation_kind');
+    return intentResult(operationKind, flowPlanner.bridgeKindForAction(operationKind), 'operation_kind', intent);
   }
 
   const supportedOperations = BRIDGE_OPERATIONS[bridgeKind];
   if (!supportedOperations) {
-    return blocked(actionType || preferred, 'invalid_bridge_kind', { bridgeKind });
+    return blocked(operationKind || preferred, 'invalid_bridge_kind', { bridgeKind });
   }
 
-  if (actionType && !USER_OPERATIONS.includes(actionType)) {
-    return blocked(actionType, 'invalid_action_type', { bridgeKind });
+  if (operationKind && !USER_OPERATIONS.includes(operationKind)) {
+    return blocked(operationKind, 'invalid_operation_kind', { bridgeKind });
   }
   if (preferred && !USER_OPERATIONS.includes(preferred)) {
     return blocked(preferred, 'invalid_preferred_operation', { bridgeKind });
   }
-  if (actionType && preferred && actionType !== preferred) {
-    return blocked(actionType, 'conflicting_task_intent', {
+  if (operationKind && preferred && operationKind !== preferred) {
+    return blocked(operationKind, 'conflicting_task_intent', {
       bridgeKind,
       preferredOperation: preferred,
-      actionType,
+      operationKind,
     });
   }
 
-  let operation = preferred || actionType || '';
+  let operation = preferred || operationKind || '';
   if (operation && !supportedOperations.includes(operation)) {
     return blocked(operation, 'preferred_operation_bridge_mismatch', {
       bridgeKind,
@@ -200,18 +247,23 @@ function resolveManualOperationIntent(input = {}) {
 }
 
 function planOperationFlow(input = {}) {
-  const planned = flowPlanner.planFlow(input);
+  const taskTarget = planTaskTarget(input);
+  const planned = flowPlanner.planFlow({
+    ...input,
+    taskTarget,
+    gateObjective: taskTarget.gateObjective,
+  });
   return {
     ...planned,
-    taskTarget: planTaskTarget({
-      ...input,
-      bridgeKind: planned.taskBridge && planned.taskBridge.kind,
-    }),
+    taskTarget: {
+      ...taskTarget,
+      targetGate: taskTarget.targetGate || (planned.taskBridge && planned.taskBridge.kind),
+    },
   };
 }
 
-function bridgeKindForAction(actionType) {
-  return flowPlanner.bridgeKindForAction(actionType);
+function bridgeKindForAction(operationKind) {
+  return flowPlanner.bridgeKindForAction(operationKind);
 }
 
 module.exports = {

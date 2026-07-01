@@ -1,5 +1,7 @@
 'use strict';
 
+const flowPlanner = require('./flowPlanner');
+
 function clean(value) {
   return value == null ? '' : String(value).trim();
 }
@@ -109,8 +111,6 @@ function resolveOptimizeOperation(item = {}, gate = null) {
   if (item.optimizationAction) return normalize(item.optimizationAction);
   if (status === 'transcoded') return 'transcode';
   if (status === 'upgraded') return 'upgrade';
-  if (status === 'deleted' || status === 'removed') return 'delete';
-  if (item.deleted === true || item.removed === true || item.removedAt || item.deletedAt) return 'delete';
   return action || null;
 }
 
@@ -179,10 +179,6 @@ function hasOptimizeDoneMarker(item = {}, operation = '') {
   const status = normalize(item.optimizationStatus);
   if (operation === 'transcode') return status === 'transcoded' || !!item.lastTranscodeDoneAt;
   if (operation === 'upgrade') return status === 'upgraded' || !!item.lastUpgradeDoneAt;
-  if (operation === 'delete') {
-    return status === 'deleted' || status === 'removed'
-      || item.deleted === true || item.removed === true || !!item.deletedAt || !!item.removedAt;
-  }
   return false;
 }
 
@@ -246,12 +242,32 @@ function evaluateOptimizeGate(item = {}) {
     return optimizeGateResult({
       passed: true,
       status: 'passed',
-      reason: 'keep_strategy_satisfied',
-      operation: 'keep',
-      target: { operation: 'keep' },
+      reason: 'objective_already_satisfied',
+      operation: 'no_op',
+      target: { operation: 'no_op' },
       observed: { action: 'keep' },
       evidenceLevel: 'strategy',
     });
+  }
+
+  if (item.optimizeObjective && item.optimizeObjectiveStatus !== 'pending_metadata') {
+    const selection = flowPlanner.selectOptimizeFlow({
+      itemInfo: item,
+      optimizeObjective: item.optimizeObjective,
+      optimizeObjectiveStatus: item.optimizeObjectiveStatus,
+      objectiveHash: item.objectiveHash,
+    });
+    if (selection.selectedOperation === 'no_op') {
+      return optimizeGateResult({
+        passed: true,
+        status: 'passed',
+        reason: 'objective_already_satisfied',
+        operation: 'no_op',
+        target: selection.targetFacts,
+        observed: selection.currentFacts,
+        evidenceLevel: 'objective',
+      });
+    }
   }
 
   if (!operation || operation === 'none') {
@@ -267,7 +283,20 @@ function evaluateOptimizeGate(item = {}) {
     });
   }
 
-  if (['transcode', 'upgrade', 'delete'].includes(operation) && !hasOptimizeDoneMarker(item, operation)) {
+  if (operation === 'delete') {
+    return optimizeGateResult({
+      passed: false,
+      status: 'blocked',
+      reason: 'delete_gate_required',
+      operation: null,
+      target,
+      observed,
+      failureReasons: ['delete_is_not_optimize'],
+      evidenceLevel: 'contract',
+    });
+  }
+
+  if (['transcode', 'upgrade'].includes(operation) && !hasOptimizeDoneMarker(item, operation)) {
     return optimizeGateResult({
       passed: false,
       status: 'pending',
@@ -340,8 +369,69 @@ function evaluateArchiveGate(item = {}) {
   };
 }
 
+function explicitDeleteGate(item = {}) {
+  const gate = item.deleteGate || item.deletionGate;
+  return gate && typeof gate === 'object' ? gate : null;
+}
+
+function evaluateDeleteGate(item = {}) {
+  const gate = explicitDeleteGate(item);
+  if (gate && gate.passed === true) {
+    return {
+      gate: 'delete',
+      passed: true,
+      status: 'passed',
+      reason: gate.reason || 'delete_gate_met',
+      target: gate.target || {},
+      observed: gate.observed || {},
+      evidenceLevel: 'explicit',
+      userAction: '',
+    };
+  }
+  if (gate && gate.passed === false) {
+    return {
+      gate: 'delete',
+      passed: false,
+      status: gate.status || 'failed',
+      reason: gate.reason || 'delete_gate_failed',
+      target: gate.target || {},
+      observed: gate.observed || {},
+      failureReasons: gate.failureReasons || ['explicit_delete_gate_failed'],
+      evidenceLevel: 'explicit',
+      userAction: 'inspect_delete_result_or_retry',
+    };
+  }
+  if (item.deleted === true || item.removed === true || item.removedAt || item.deletedAt) {
+    return {
+      gate: 'delete',
+      passed: true,
+      status: 'passed',
+      reason: 'delete_marker_present',
+      target: {},
+      observed: {
+        deletedAt: item.deletedAt || item.removedAt || '',
+        removed: true,
+      },
+      evidenceLevel: 'marker',
+      userAction: '',
+    };
+  }
+  return {
+    gate: 'delete',
+    passed: false,
+    status: 'not_ready',
+    reason: 'delete_not_requested',
+    target: {},
+    observed: {},
+    missingReasons: ['delete.confirmed_result'],
+    evidenceLevel: 'none',
+    userAction: 'review_delete_candidate',
+  };
+}
+
 module.exports = {
   evaluateIngestGate,
   evaluateOptimizeGate,
   evaluateArchiveGate,
+  evaluateDeleteGate,
 };

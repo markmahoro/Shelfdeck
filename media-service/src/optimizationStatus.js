@@ -53,15 +53,13 @@ function buildOptimizationIndex(tasks, config) {
 
   for (const task of tasks || []) {
     if (!task || task.status !== 'done') continue;
-    if (task.actionType !== 'transcode' && task.actionType !== 'upgrade' && task.actionType !== 'delete') continue;
+    if (task.operationKind !== 'transcode' && task.operationKind !== 'upgrade') continue;
 
     const subLibraryId = task.itemInfo && task.itemInfo.subLibraryId;
     const subLib = subLibs.find((s) => s.uuid === subLibraryId) || {};
-    const status = task.actionType === 'upgrade' ? 'upgraded'
-      : task.actionType === 'delete' ? 'deleted'
-      : 'transcoded';
+    const status = task.operationKind === 'upgrade' ? 'upgraded' : 'transcoded';
     const entry = {
-      action: task.actionType,
+      action: task.operationKind,
       status,
       taskId: task.id,
       doneAt: task.optimizationDoneAt || task.updatedAt || task.createdAt || null,
@@ -91,11 +89,7 @@ function newer(a, b) {
 function statusFromMarker(item) {
   const transcodeAt = item && item.lastTranscodeDoneAt;
   const upgradeAt = item && item.lastUpgradeDoneAt;
-  const deleteAt = item && (item.deletedAt || item.removedAt || (item.optimizationStatus === 'deleted' ? item.optimizationDoneAt : null));
-  if (!transcodeAt && !upgradeAt && !deleteAt) return null;
-  if (deleteAt && (!transcodeAt || newer(deleteAt, transcodeAt)) && (!upgradeAt || newer(deleteAt, upgradeAt))) {
-    return { action: 'delete', status: 'deleted', taskId: item.optimizationTaskId || null, doneAt: deleteAt, subLibraryId: item.subLibraryId || null };
-  }
+  if (!transcodeAt && !upgradeAt) return null;
   if (upgradeAt && (!transcodeAt || newer(upgradeAt, transcodeAt))) {
     return { action: 'upgrade', status: 'upgraded', taskId: null, doneAt: upgradeAt, subLibraryId: item.subLibraryId || null };
   }

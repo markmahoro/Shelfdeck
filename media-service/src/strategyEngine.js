@@ -12,6 +12,7 @@
 
 const activityLog = require('./activityLog');
 const metadataStatus = require('./metadataStatus');
+const lifecycleObjectiveResolver = require('./lifecycleObjectiveResolver');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const backgroundIoGuard = require('./backgroundIoGuard');
 
@@ -84,12 +85,16 @@ function ruleMatches(item, rule) {
 // ── Result computation ─────────────────────────────────────────────────────────
 
 function applyRule(item, rule) {
-  item.action = rule.action;
+  const projection = deriveLegacyProjection(item, rule);
+  item.action = projection.action;
   item.reason = rule.reason;
+  item.targetMediaFacts = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object'
+    ? { ...rule.targetMediaFacts }
+    : undefined;
 
-  const params = rule.actionParams || {};
+  const params = projection.actionParams || {};
 
-  if (rule.action === 'transcode' || rule.action === 'upgrade') {
+  if (projection.action === 'transcode' || projection.action === 'upgrade') {
     item.targetBitrate = params.targetBitrate;
     item.targetCodec = params.targetCodec;
   } else {
@@ -97,7 +102,7 @@ function applyRule(item, rule) {
     item.targetCodec = undefined;
   }
 
-  if (rule.action === 'upgrade') {
+  if (projection.action === 'upgrade') {
     item.seedPreferences = params.seedPreferences || {};
     item.maxSizeGB = params.maxSizeGB;
   } else {
@@ -106,15 +111,87 @@ function applyRule(item, rule) {
   }
 
   // predictedSizeGb
-  if ((rule.action === 'transcode' || rule.action === 'upgrade') && params.targetBitrate && item.duration) {
+  if ((projection.action === 'transcode' || projection.action === 'upgrade') && params.targetBitrate && item.duration) {
     item.predictedSizeGb = (params.targetBitrate * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024);
-  } else if (rule.action === 'keep' && item.size) {
+  } else if (projection.action === 'keep' && item.size) {
     item.predictedSizeGb = item.size / (1024 * 1024 * 1024);
-  } else if (rule.action === 'delete') {
+  } else if (projection.action === 'delete') {
     item.predictedSizeGb = undefined;
   } else {
     item.predictedSizeGb = undefined;
   }
+}
+
+function normalizeCodec(value) {
+  const raw = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (['h265', 'x265', 'hevc'].includes(raw)) return 'h265';
+  if (['h264', 'x264', 'avc', 'avc1'].includes(raw)) return 'h264';
+  return raw;
+}
+
+function normalizeBucket(value) {
+  const raw = String(value || '').trim();
+  if (/4k/i.test(raw)) return '4K';
+  if (/1080/i.test(raw)) return '1080p';
+  if (/720/i.test(raw)) return '720p';
+  return raw || '1080p';
+}
+
+function bitrateForTarget(target = {}, item = {}) {
+  if (typeof target.targetBitrate === 'number') return target.targetBitrate;
+  const byBucket = target.targetBitrateByBucket || {};
+  const bucket = normalizeBucket(item.bucket || item.resolution);
+  const value = byBucket[bucket] || byBucket[normalizeBucket(bucket)] || byBucket['1080p'] || byBucket['4K'];
+  return typeof value === 'number' ? value : undefined;
+}
+
+function resolutionRank(value) {
+  const raw = normalizeBucket(value);
+  if (raw === '4K') return 4;
+  if (raw === '1080p') return 3;
+  if (raw === '720p') return 2;
+  return 0;
+}
+
+function deriveActionFromTarget(item = {}, target = {}) {
+  const targetBitrate = bitrateForTarget(target, item);
+  const targetCodec = target.targetCodec || target.codec;
+  const currentCodec = normalizeCodec(item.codec || item.videoCodec);
+  const normalizedTargetCodec = normalizeCodec(targetCodec);
+  const currentBitrate = Number(item.equivalentBitrate || (item.bitrate ? Number(item.bitrate) / 1000000 : 0));
+
+  if (target.minResolution && resolutionRank(item.bucket || item.resolution) < resolutionRank(target.minResolution)) {
+    return 'upgrade';
+  }
+  if (target.minBitrate && currentBitrate > 0 && currentBitrate < Number(target.minBitrate) * 0.9) {
+    return 'upgrade';
+  }
+  if (targetBitrate && currentBitrate > targetBitrate * 1.35) {
+    return 'transcode';
+  }
+  if (normalizedTargetCodec && currentCodec && normalizedTargetCodec !== currentCodec) {
+    return 'transcode';
+  }
+  return 'keep';
+}
+
+function deriveLegacyProjection(item = {}, rule = {}) {
+  const target = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object' ? rule.targetMediaFacts : null;
+  if (!target) {
+    return { action: rule.action, actionParams: rule.actionParams || {} };
+  }
+  const action = deriveActionFromTarget(item, target);
+  const targetBitrate = bitrateForTarget(target, item);
+  return {
+    action,
+    actionParams: {
+      ...(rule.actionParams || {}),
+      targetBitrate,
+      targetCodec: target.targetCodec || target.codec || (rule.actionParams || {}).targetCodec,
+      maxSizeGB: target.maxSizeGB || (rule.actionParams || {}).maxSizeGB,
+      seedPreferences: target.seedPreferences || (rule.actionParams || {}).seedPreferences,
+    },
+  };
 }
 
 function clearOptimization(item, reason) {
@@ -126,6 +203,7 @@ function clearOptimization(item, reason) {
     seedPreferences: JSON.stringify(item.seedPreferences || null),
     maxSizeGB: item.maxSizeGB,
     predictedSizeGb: item.predictedSizeGb,
+    targetMediaFacts: JSON.stringify(item.targetMediaFacts || null),
   };
   item.action = '';
   item.reason = reason || '';
@@ -134,6 +212,7 @@ function clearOptimization(item, reason) {
   item.seedPreferences = undefined;
   item.maxSizeGB = undefined;
   item.predictedSizeGb = undefined;
+  item.targetMediaFacts = undefined;
   return (
     item.action !== old.action ||
     item.reason !== old.reason ||
@@ -141,8 +220,32 @@ function clearOptimization(item, reason) {
     item.targetCodec !== old.targetCodec ||
     JSON.stringify(item.seedPreferences || null) !== old.seedPreferences ||
     item.maxSizeGB !== old.maxSizeGB ||
-    item.predictedSizeGb !== old.predictedSizeGb
+    item.predictedSizeGb !== old.predictedSizeGb ||
+    JSON.stringify(item.targetMediaFacts || null) !== old.targetMediaFacts
   );
+}
+
+function projectLifecycleObjective(item, config = {}) {
+  const before = JSON.stringify({
+    optimizeObjectiveStatus: item.optimizeObjectiveStatus || null,
+    optimizeObjective: item.optimizeObjective || null,
+    objectiveHash: item.objectiveHash || null,
+    objectiveVersion: item.objectiveVersion || null,
+    objectiveDerivedFrom: item.objectiveDerivedFrom || null,
+    objectiveBlockedReason: item.objectiveBlockedReason || null,
+    objectiveMissingPerceptionFacts: item.objectiveMissingPerceptionFacts || null,
+  });
+  lifecycleObjectiveResolver.applyOptimizeObjectiveProjection(item, { config, ignoreExistingProjection: true });
+  const after = JSON.stringify({
+    optimizeObjectiveStatus: item.optimizeObjectiveStatus || null,
+    optimizeObjective: item.optimizeObjective || null,
+    objectiveHash: item.objectiveHash || null,
+    objectiveVersion: item.objectiveVersion || null,
+    objectiveDerivedFrom: item.objectiveDerivedFrom || null,
+    objectiveBlockedReason: item.objectiveBlockedReason || null,
+    objectiveMissingPerceptionFacts: item.objectiveMissingPerceptionFacts || null,
+  });
+  return before !== after;
 }
 
 // ── Engine ─────────────────────────────────────────────────────────────────────
@@ -159,11 +262,13 @@ function evaluateItem(item, templates, subLibs, config = {}) {
   item.metadataKind = meta.metadataKind;
 
   if (!meta.metadataComplete) {
-    return clearOptimization(item, `元数据缺失：${meta.metadataMissingReasons.join(', ')}`);
+    const changed = clearOptimization(item, `元数据缺失：${meta.metadataMissingReasons.join(', ')}`);
+    return projectLifecycleObjective(item, config) || changed;
   }
 
   if (!template || !template.rules || template.rules.length === 0) {
-    return clearOptimization(item, '无策略模板');
+    const changed = clearOptimization(item, '无策略模板');
+    return projectLifecycleObjective(item, config) || changed;
   }
 
   // Sort rules by priority ascending (P1 → P10), evaluate, last match wins
@@ -177,7 +282,8 @@ function evaluateItem(item, templates, subLibs, config = {}) {
   }
 
   if (!matched) {
-    return clearOptimization(item, '策略未覆盖');
+    const changed = clearOptimization(item, '策略未覆盖');
+    return projectLifecycleObjective(item, config) || changed;
   }
 
   const oldAction = item.action;
@@ -187,18 +293,21 @@ function evaluateItem(item, templates, subLibs, config = {}) {
   const oldSeedPreferences = JSON.stringify(item.seedPreferences || null);
   const oldMaxSizeGB = item.maxSizeGB;
   const oldPredictedSizeGb = item.predictedSizeGb;
+  const oldTargetMediaFacts = JSON.stringify(item.targetMediaFacts || null);
 
   applyRule(item, matched);
 
-  return (
+  const changed = (
     item.action !== oldAction ||
     item.reason !== oldReason ||
     item.targetBitrate !== oldTargetBitrate ||
     item.targetCodec !== oldTargetCodec ||
     JSON.stringify(item.seedPreferences || null) !== oldSeedPreferences ||
     item.maxSizeGB !== oldMaxSizeGB ||
-    item.predictedSizeGb !== oldPredictedSizeGb
+    item.predictedSizeGb !== oldPredictedSizeGb ||
+    JSON.stringify(item.targetMediaFacts || null) !== oldTargetMediaFacts
   );
+  return projectLifecycleObjective(item, config) || changed;
 }
 
 let _configStore = null;

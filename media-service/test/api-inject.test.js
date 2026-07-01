@@ -208,14 +208,14 @@ test('PATCH /v1/config persists and reloads', async () => {
 test('POST /v1/tasks missing itemId -> 400', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { actionType: 'delete' } });
+  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { operationKind: 'delete' } });
   assert.strictEqual(res.statusCode, 400);
   const body = res.json();
   assert.strictEqual(body.error.code, 'VALIDATION_ERROR');
   await app.close();
 });
 
-test('POST /v1/tasks missing actionType -> 400', async () => {
+test('POST /v1/tasks missing operationKind -> 400', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'abc' } });
@@ -225,10 +225,10 @@ test('POST /v1/tasks missing actionType -> 400', async () => {
   await app.close();
 });
 
-test('POST /v1/tasks invalid actionType -> 400', async () => {
+test('POST /v1/tasks invalid operationKind -> 400', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'abc', actionType: 'invalid' } });
+  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'abc', operationKind: 'invalid' } });
   assert.strictEqual(res.statusCode, 400);
   const body = res.json();
   assert.strictEqual(body.error.code, 'VALIDATION_ERROR');
@@ -245,18 +245,23 @@ test('POST /v1/tasks creates task and returns 201', async () => {
       itemId,
       name: 'Task Create Movie',
       path: '/media/task-create-movie.mkv',
+      bitrate: 10_000_000,
+      equivalentBitrate: 10,
+      codec: 'h264',
+      targetBitrate: 4,
+      targetCodec: 'h265',
     })],
   });
   const res = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, actionType: 'transcode' },
+    payload: { itemId, operationKind: 'transcode' },
   });
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
   assert.ok(body.id, 'task id present');
   assert.strictEqual(body.status, 'created');
-  assert.strictEqual(body.actionType, 'transcode');
+  assert.strictEqual(body.operationKind, 'transcode');
   assert.strictEqual(body.source, 'manual');
   assert.strictEqual(body.taskTarget.object.itemId, itemId);
   assert.strictEqual(body.taskTarget.targetGate, 'optimize');
@@ -269,11 +274,14 @@ test('POST /v1/tasks creates task and returns 201', async () => {
   assert.strictEqual(body.admission.operation, 'transcode');
   assert.strictEqual(body.admission.reason, 'allowed');
   assert.strictEqual(body.admission.bridgeKind, 'optimize');
-  assert.strictEqual(body.admission.intentMode, 'action_type_compatibility');
+  assert.strictEqual(body.admission.intentMode, 'operation_kind');
   assert.strictEqual(body.admission.taskTarget.targetGate, 'optimize');
   assert.strictEqual(body.admission.taskTarget.gateObjective.kind, 'reduce_bitrate');
   assert.strictEqual(body.admission.taskBridge.kind, 'optimize');
   assert.strictEqual(body.admission.flowPlan.operationKind, 'transcode');
+  assert.strictEqual(body.flowPlan.flowSelection.selectedOperation, 'transcode');
+  assert.strictEqual(body.flowPlan.flowSelection.currentFacts.codec, 'h264');
+  assert.strictEqual(body.flowPlan.flowSelection.targetFacts.targetCodec, 'h265');
 
   const detail = await app.inject({ method: 'GET', url: `/v1/tasks/${body.id}?includeEvents=1` });
   assert.strictEqual(detail.statusCode, 200);
@@ -314,7 +322,7 @@ test('POST /v1/tasks accepts optimize bridge intent and resolves recommended ope
   });
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
-  assert.strictEqual(body.actionType, 'upgrade');
+  assert.strictEqual(body.operationKind, 'upgrade');
   assert.strictEqual(body.taskTarget.targetGate, 'optimize');
   assert.strictEqual(body.taskTarget.gateObjective.kind, 'improve_source_quality');
   assert.strictEqual(body.taskBridge.kind, 'optimize');
@@ -326,12 +334,12 @@ test('POST /v1/tasks accepts optimize bridge intent and resolves recommended ope
   assert.deepStrictEqual(body.requestedIntent, {
     bridgeKind: 'optimize',
     preferredOperation: '',
-    actionType: '',
+    operationKind: '',
   });
   await app.close();
 });
 
-test('POST /v1/tasks accepts optimize bridge intent with delete operation', async () => {
+test('POST /v1/tasks rejects delete as an optimize bridge operation', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const itemId = 'intent-delete-' + crypto.randomUUID().slice(0, 8);
@@ -350,23 +358,11 @@ test('POST /v1/tasks accepts optimize bridge intent with delete operation', asyn
     url: '/v1/tasks',
     payload: { itemId, intent: { bridgeKind: 'optimize', preferredOperation: 'delete' } },
   });
-  assert.strictEqual(res.statusCode, 201);
+  assert.strictEqual(res.statusCode, 400);
   const body = res.json();
-  assert.strictEqual(body.actionType, 'delete');
-  assert.strictEqual(body.taskTarget.targetGate, 'optimize');
-  assert.strictEqual(body.taskTarget.gateObjective.kind, 'remove_media');
-  assert.strictEqual(body.taskTarget.gateObjective.destructive, true);
-  assert.strictEqual(body.taskBridge.kind, 'optimize');
-  assert.strictEqual(body.flowPlan.direction, 'optimize.delete');
-  assert.strictEqual(body.flowPlan.operationKind, 'delete');
-  assert.strictEqual(body.admission.allowed, true);
-  assert.strictEqual(body.admission.operation, 'delete');
-  assert.strictEqual(body.admission.bridgeKind, 'optimize');
-  assert.deepStrictEqual(body.requestedIntent, {
-    bridgeKind: 'optimize',
-    preferredOperation: 'delete',
-    actionType: '',
-  });
+  assert.strictEqual(body.error.code, 'VALIDATION_ERROR');
+  assert.strictEqual(body.admission.reason, 'preferred_operation_bridge_mismatch');
+  assert.deepStrictEqual(body.admission.supportedOperations, ['transcode', 'upgrade']);
   await app.close();
 });
 
@@ -393,7 +389,7 @@ test('POST /v1/tasks rejects ambiguous or mismatched bridge intents as validatio
   const missingBody = missingOperation.json();
   assert.strictEqual(missingBody.error.message, 'preferred_operation_required');
   assert.strictEqual(missingBody.admission.reason, 'preferred_operation_required');
-  assert.deepStrictEqual(missingBody.admission.supportedOperations, ['transcode', 'upgrade', 'delete']);
+  assert.deepStrictEqual(missingBody.admission.supportedOperations, ['transcode', 'upgrade']);
   assert.ok(missingBody.businessFlowDecision.allowedOperations.some((op) => op.bridgeKind === 'optimize'));
 
   const mismatch = await app.inject({
@@ -409,7 +405,7 @@ test('POST /v1/tasks rejects ambiguous or mismatched bridge intents as validatio
   await app.close();
 });
 
-test('TaskAdmission rejects optimize/archive tasks when metadata is missing', async () => {
+test('TaskAdmission rejects optimize tasks when metadata is missing', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const itemId = 'metadata-missing-item';
@@ -426,16 +422,16 @@ test('TaskAdmission rejects optimize/archive tasks when metadata is missing', as
   const res = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, actionType: 'delete' },
+    payload: { itemId, operationKind: 'transcode' },
   });
   assert.strictEqual(res.statusCode, 409);
   const body = res.json();
   assert.strictEqual(body.error.code, 'TASK_ADMISSION_REJECTED');
   assert.strictEqual(body.error.message, 'metadata_missing');
-  assert.strictEqual(body.admission.operation, 'delete');
+  assert.strictEqual(body.admission.operation, 'transcode');
   assert.strictEqual(body.admission.reason, 'metadata_missing');
   assert.ok(Array.isArray(body.admission.metadataMissingReasons));
-  assert.strictEqual(body.businessFlowDecision.blockedReasons.delete, 'metadata_missing');
+  assert.strictEqual(body.businessFlowDecision.blockedReasons.transcode, 'metadata_missing');
   await app.close();
 });
 
@@ -466,7 +462,7 @@ test('POST /v1/tasks reports optimize gate failure handling without exposing rec
   const res = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, actionType: 'transcode' },
+    payload: { itemId, operationKind: 'transcode' },
   });
   assert.strictEqual(res.statusCode, 409);
   const body = res.json();
@@ -499,6 +495,7 @@ test('TaskAdmission accepts standard metadata repair scrape', async () => {
       source: 'emby',
       tmdbId: '',
       doubanId: '',
+      duration: undefined,
       audioCodecs: [],
     })],
   });
@@ -506,11 +503,11 @@ test('TaskAdmission accepts standard metadata repair scrape', async () => {
   const res = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, actionType: 'scrape' },
+    payload: { itemId, operationKind: 'scrape' },
   });
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
-  assert.strictEqual(body.actionType, 'scrape');
+  assert.strictEqual(body.operationKind, 'scrape');
   assert.strictEqual(body.taskTarget.targetGate, 'metadata');
   assert.strictEqual(body.taskTarget.gateObjective.kind, 'metadata_complete');
   assert.strictEqual(body.taskTarget.gateObjective.repairMode, 'emby_repair');
@@ -578,7 +575,7 @@ test('GET /v1/library explains active task as operation blocker', async () => {
   const task = taskStore.createTask({
     itemId,
     itemName: 'Business Flow Active',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     status: 'queued',
   });
 
@@ -622,7 +619,7 @@ test('GET /v1/library exposes latest terminal failure summary for media rows', a
   const failed = taskStore.createTask({
     itemId,
     itemName: 'Business Flow Failed',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'queued',
   });
   taskStore.updateTask(failed.id, {
@@ -657,23 +654,31 @@ test('GET /v1/library exposes latest terminal failure summary for media rows', a
   }
 });
 
-test('manual delete task is planned as optimize bridge', async () => {
+test('manual delete task is planned as delete gate after review confirmation', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const itemId = 'optimize-delete-item';
   mediaLibraryService.saveLibrary({
     cachedAt: new Date().toISOString(),
-    items: [metadataReadyMovie({ itemId, name: 'Delete Candidate' })],
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Delete Candidate',
+      archiveStatus: 'archived',
+      archiveDoneAt: new Date().toISOString(),
+      deleteCandidate: { candidateStatus: 'confirmed', decision: 'confirm_delete' },
+    })],
   });
 
   const res = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, actionType: 'delete' },
+    payload: { itemId, operationKind: 'delete' },
   });
   assert.strictEqual(res.statusCode, 201);
-  assert.strictEqual(res.json().taskBridge.kind, 'optimize');
-  assert.strictEqual(res.json().flowPlan.direction, 'optimize.delete');
+  assert.strictEqual(res.json().taskTarget.targetGate, 'delete');
+  assert.strictEqual(res.json().taskTarget.gateObjective.kind, 'delete_archived_media');
+  assert.strictEqual(res.json().taskBridge.kind, 'delete');
+  assert.strictEqual(res.json().flowPlan.direction, 'delete.execute');
   assert.strictEqual(res.json().flowPlan.operationKind, 'delete');
   await app.close();
 });
@@ -689,7 +694,7 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
   const task = taskStore.createTask({
     itemId: 'resource-item',
     itemName: 'Resource Item',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     status: 'queued',
     itemInfo: { subLibraryId: 'movie-lib', path: '/media/resource-item.mkv' },
@@ -698,7 +703,7 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
   const failedTask = taskStore.createTask({
     itemId: 'resource-failed',
     itemName: 'Resource Failed',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     status: 'queued',
     itemInfo: { subLibraryId: 'movie-lib', path: '/media/resource-failed.mkv' },
@@ -803,7 +808,7 @@ test('DELETE /v1/admin/nodes/:id explains active worker job conflicts from task 
   const task = taskStore.createTask({
     itemId: 'node-active-item',
     itemName: 'Node Active Item',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     status: 'queued',
     itemInfo: { path: '/media/node-active-item.mkv' },
@@ -861,7 +866,7 @@ test('task event journal records retry, interruption, and failure semantics', as
   const task = taskStore.createTask({
     itemId: 'event-failure-item',
     itemName: 'Event Failure Item',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     status: 'queued',
     itemInfo: { itemId: 'event-failure-item', name: 'Event Failure Item' },
@@ -987,7 +992,7 @@ test('admin task/resource/dashboard routes record lightweight diagnostics withou
   taskStore.createTask({
     itemId: 'diag-admin-task',
     itemName: 'secret-search-text Admin Task',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'failed_hard',
     itemInfo: {
       name: 'secret-search-text Admin Task',
@@ -1134,7 +1139,7 @@ test('POST /v1/tasks follows sub-library automation mode for initial status', as
   const autoRes = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'auto-lib-item', actionType: 'transcode' },
+    payload: { itemId: 'auto-lib-item', operationKind: 'transcode' },
   });
   assert.strictEqual(autoRes.statusCode, 201);
   assert.strictEqual(autoRes.json().status, 'created');
@@ -1142,7 +1147,7 @@ test('POST /v1/tasks follows sub-library automation mode for initial status', as
   const manualRes = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'manual-lib-item', actionType: 'transcode' },
+    payload: { itemId: 'manual-lib-item', operationKind: 'transcode' },
   });
   assert.strictEqual(manualRes.statusCode, 201);
   assert.strictEqual(manualRes.json().status, 'pending_manual');
@@ -1158,7 +1163,7 @@ test('POST /v1/tasks manual admission does not load full task history', async ()
   const unrelated = taskStore.createTask({
     itemId: 'manual-fast-path-other',
     itemName: 'Other Active Item',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     status: 'queued',
   });
@@ -1176,7 +1181,7 @@ test('POST /v1/tasks manual admission does not load full task history', async ()
     const res = await app.inject({
       method: 'POST',
       url: '/v1/tasks',
-      payload: { itemId: 'manual-fast-path', actionType: 'transcode' },
+      payload: { itemId: 'manual-fast-path', operationKind: 'transcode' },
     });
     assert.strictEqual(res.statusCode, 201);
     assert.ok(res.json().id);
@@ -1191,8 +1196,8 @@ test('POST /v1/tasks manual admission does not load full task history', async ()
 test('GET /v1/tasks lists created tasks', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i1', actionType: 'scrape' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i2', actionType: 'scrape' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i1', operationKind: 'scrape' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i2', operationKind: 'scrape' } });
   const res = await app.inject({ method: 'GET', url: '/v1/tasks' });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
@@ -1204,8 +1209,8 @@ test('GET /v1/tasks lists created tasks', async () => {
 test('GET /v1/tasks defaults to active tasks and includeHistory returns completed history', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const done = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-done', actionType: 'scrape' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-active', actionType: 'scrape' } });
+  const done = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-done', operationKind: 'scrape' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-active', operationKind: 'scrape' } });
   taskStore.updateTask(done.json().id, { status: 'done' });
 
   const originalLoadTasks = taskStore.loadTasks;
@@ -1237,7 +1242,7 @@ test('GET /v1/tasks defaults to active tasks and includeHistory returns complete
 test('GET /v1/tasks/:id returns task detail', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-detail', actionType: 'scrape' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-detail', operationKind: 'scrape' } });
   const { id } = create.json();
   const res = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
   assert.strictEqual(res.statusCode, 200);
@@ -1255,7 +1260,7 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
   const task = taskStore.createTask({
     itemId: 'scrape-report-item',
     itemName: 'SORA-107',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'done',
     itemInfo: {
       source: 'adult_folder',
@@ -1294,7 +1299,7 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
   const res = await app.inject({ method: 'GET', url: `/v1/tasks/${task.id}/report` });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
-  assert.strictEqual(body.actionType, 'scrape');
+  assert.strictEqual(body.operationKind, 'scrape');
   assert.strictEqual(body.scrape.adultId, 'SORA-107');
   assert.strictEqual(body.scrape.source, 'javbus');
   assert.strictEqual(body.scrape.organized, true);
@@ -1314,7 +1319,7 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
 test('DELETE /v1/tasks/:id removes task', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-del', actionType: 'scrape' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-del', operationKind: 'scrape' } });
   const { id } = create.json();
   const res = await app.inject({ method: 'DELETE', url: `/v1/tasks/${id}` });
   assert.strictEqual(res.statusCode, 200);
@@ -1358,9 +1363,12 @@ test('delete task removes an adult folder media directory and library item', asy
     name: item.name || 'MVSD-175 Delete Me',
     path: filePath,
     size: Buffer.byteLength('delete-me'),
+    archiveStatus: 'archived',
+    archiveDoneAt: new Date().toISOString(),
+    deleteCandidate: { candidateStatus: 'confirmed', decision: 'confirm_delete' },
   })]);
 
-  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, actionType: 'delete' } });
+  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, operationKind: 'delete' } });
   assert.strictEqual(createTask.statusCode, 201);
 
   const taskStore = require('../src/taskStore');
@@ -1376,11 +1384,12 @@ test('delete task removes an adult folder media directory and library item', asy
   assert.strictEqual(lib.json().total, 0, 'delete task should remove the library cache item');
   const done = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
   assert.strictEqual(done.json().status, 'done');
-  assert.strictEqual(done.json().flowPlan.direction, 'optimize.delete');
-  assert.strictEqual(done.json().optimizeGate.passed, true);
-  assert.strictEqual(done.json().optimizeGate.operation, 'delete');
-  assert.strictEqual(done.json().optimizeGate.reason, 'delete_target_removed');
-  assert.strictEqual(done.json().verifyResult.deletedAt, done.json().optimizeGate.observed.deletedAt);
+  assert.strictEqual(done.json().flowPlan.direction, 'delete.execute');
+  assert.strictEqual(done.json().deleteGate.passed, true);
+  assert.strictEqual(done.json().deleteGate.operation, 'delete');
+  assert.strictEqual(done.json().deleteGate.reason, 'delete_target_removed');
+  assert.strictEqual(done.json().verifyResult.deletedAt, done.json().deleteGate.observed.deletedAt);
+  assert.strictEqual(done.json().optimizeGate, undefined);
   const report = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}/report` });
   assert.strictEqual(report.statusCode, 200);
   assert.strictEqual(report.json().bytesFreed, Buffer.byteLength('delete-me'));
@@ -1422,6 +1431,9 @@ test('delete task removes an adult scraped movie folder when the marker matches'
     name: item.name || 'MVSD-175 Some Title',
     path: filePath,
     size: fs.statSync(filePath).size,
+    archiveStatus: 'archived',
+    archiveDoneAt: new Date().toISOString(),
+    deleteCandidate: { candidateStatus: 'confirmed', decision: 'confirm_delete' },
   })]);
   fs.writeFileSync(path.join(movieDir, '.shelfdeck.json'), JSON.stringify({
     itemId: item.itemId,
@@ -1433,7 +1445,7 @@ test('delete task removes an adult scraped movie folder when the marker matches'
     .map((name) => fs.statSync(path.join(movieDir, name)).size)
     .reduce((sum, size) => sum + size, 0);
 
-  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, actionType: 'delete' } });
+  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, operationKind: 'delete' } });
   assert.strictEqual(createTask.statusCode, 201);
 
   const taskStore = require('../src/taskStore');
@@ -1451,8 +1463,9 @@ test('delete task removes an adult scraped movie folder when the marker matches'
   const report = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}/report` });
   assert.strictEqual(report.statusCode, 200);
   const done = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
-  assert.strictEqual(done.json().optimizeGate.passed, true);
-  assert.strictEqual(done.json().optimizationStatus, 'deleted');
+  assert.strictEqual(done.json().deleteGate.passed, true);
+  assert.strictEqual(done.json().deleteStatus, 'deleted');
+  assert.strictEqual(done.json().optimizeGate, undefined);
   assert.strictEqual(report.json().bytesFreed, expectedBytesFreed);
   assert.strictEqual(report.json().delete.targetKind, 'directory');
   assert.strictEqual(report.json().delete.targetPath, movieDir);
@@ -1502,6 +1515,9 @@ test('delete task refuses adult folder media paths outside watchRoot', async () 
     resolution: '1920x1080',
     codec: 'h264',
     scraped: true,
+    archiveStatus: 'archived',
+    archiveDoneAt: new Date().toISOString(),
+    deleteCandidate: { candidateStatus: 'confirmed', decision: 'confirm_delete' },
     adultMetadata: {
       region: 'japanese_jav',
       scrapeStatus: 'done',
@@ -1511,7 +1527,7 @@ test('delete task refuses adult folder media paths outside watchRoot', async () 
   }];
   mediaLibraryService.saveLibrary(lib);
 
-  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'delete' } });
+  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, operationKind: 'delete' } });
   assert.strictEqual(createTask.statusCode, 201);
 
   const taskStore = require('../src/taskStore');
@@ -1534,7 +1550,7 @@ test('POST /v1/tasks/:id/actions/pause returns paused status', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-pause' })] });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-pause', actionType: 'transcode' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-pause', operationKind: 'transcode' } });
   const { id } = create.json();
   const res = await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/pause` });
   assert.strictEqual(res.statusCode, 200);
@@ -1564,7 +1580,7 @@ test('POST /v1/tasks/:id/actions/execute resumes paused task to queued', async (
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-resume' })] });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-resume', actionType: 'transcode' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-resume', operationKind: 'transcode' } });
   const { id } = create.json();
   // Pause first
   await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/pause` });
@@ -1616,7 +1632,7 @@ test('transcode resume at verify does not re-encode partial output', async () =>
   const task = taskStore.createTask({
     itemId: 'resume-transcode-verify',
     itemName: 'Resume Transcode Verify',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     status: 'executing',
     resumePoint: 'transcode_verify',
@@ -1694,13 +1710,85 @@ test('transcode resume at verify does not re-encode partial output', async () =>
   assert.strictEqual(after.verifyResult.videoCodec, 'hevc');
 });
 
+test('transcode encode failure persists recovery context and resume point', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const configStore = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const transcodeService = require('../src/services/transcodeService');
+
+  const sourcePath = path.join(dir, 'encode-fail.mkv');
+  const partialPath = path.join(dir, 'encode-fail.etp.partial.mkv');
+  fs.writeFileSync(sourcePath, Buffer.alloc(2048));
+
+  configStore.patchConfig({
+    transcodeTempRoot: dir,
+    approvalPolicy: { 'transcode.beforeReplace': 'auto' },
+  });
+
+  const task = taskStore.createTask({
+    itemId: 'encode-failure-context',
+    itemName: 'Encode Failure Context',
+    operationKind: 'transcode',
+    source: 'manual',
+    status: 'executing',
+    resumePoint: 'transcode_executing',
+    itemInfo: {
+      itemId: 'encode-failure-context',
+      name: 'Encode Failure Context',
+      sourcePath,
+      partialPath,
+      tempDir: dir,
+      durationSec: 10,
+      targetBitrate: 4,
+      targetCodec: 'h265',
+      objectiveHash: 'failureobjective1',
+    },
+  });
+
+  const originalStartEncode = transcodeService.startEncode;
+  transcodeService.startEncode = async () => {
+    throw new Error('encoder exploded for recovery context');
+  };
+  transcodeFlow.setScheduler({
+    reportStatus: (id, status, progress) => {
+      const updates = { status, progress: progress ?? undefined };
+      taskStore.updateTask(id, updates);
+    },
+    pauseForConfirm: () => { throw new Error('encode failure should not request confirmation'); },
+  });
+
+  try {
+    await transcodeFlow.driveTask(task.id);
+  } finally {
+    transcodeService.startEncode = originalStartEncode;
+    await app.close();
+  }
+
+  const after = taskStore.getTask(task.id);
+  assert.strictEqual(after.status, 'failed_hard');
+  assert.strictEqual(after.phase, 'failed_hard');
+  assert.strictEqual(after.resumePoint, 'transcode_executing');
+  assert.strictEqual(after.failureContext.phase, 'transcode_executing');
+  assert.strictEqual(after.failureContext.recoveryClass, 'encode_retry');
+  assert.strictEqual(after.failureContext.userAction, 'inspect_encoder_failure');
+  assert.strictEqual(after.failureContext.objectiveHash, 'failureobjective1');
+
+  const events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 20 }).events;
+  const failed = events.find((event) => event.eventType === 'task.failed');
+  assert.ok(failed, 'task.failed event is recorded');
+  assert.strictEqual(failed.payload.failureSummary.recoveryClass, 'encode_retry');
+  assert.strictEqual(failed.payload.failureSummary.resumePoint, 'transcode_executing');
+  assert.strictEqual(failed.payload.failureSummary.userAction, 'inspect_encoder_failure');
+});
+
 test('task action endpoints reject transitions disabled by control policy', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
 
   const queued = taskStore.createTask({
     itemId: 'control-reject-queued',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'queued',
   });
   const execute = await app.inject({ method: 'POST', url: `/v1/tasks/${queued.id}/actions/execute` });
@@ -1717,7 +1805,7 @@ test('task action endpoints reject transitions disabled by control policy', asyn
 
   const waiting = taskStore.createTask({
     itemId: 'control-reject-confirm',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     status: 'queued',
   });
   taskStore.updateTask(waiting.id, {
@@ -1743,7 +1831,7 @@ test('DELETE /v1/tasks/:id cancels then removes executing task', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-cancel-del' })] });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-cancel-del', actionType: 'transcode' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-cancel-del', operationKind: 'transcode' } });
   const { id } = create.json();
   // Manually set task to executing via taskStore
   const taskStore = require('../src/taskStore');
@@ -1768,7 +1856,7 @@ test('DELETE /v1/tasks/:id removes queued task without running flow cancel', asy
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-remove-queued' })] });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-remove-queued', actionType: 'transcode' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-remove-queued', operationKind: 'transcode' } });
   const { id } = create.json();
   const taskStore = require('../src/taskStore');
   const partialPath = path.join(dir, 'queued.etp.partial.mkv');
@@ -1802,7 +1890,7 @@ test('pause on executing transcode task deletes partial file', async () => {
   require('../src/taskScheduler').stopScheduler();
 
   mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-partial' })] });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-partial', actionType: 'transcode' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-partial', operationKind: 'transcode' } });
   const { id } = create.json();
 
   // Set up executing state with a partial file
@@ -1841,7 +1929,7 @@ test('GET /v1/admin/tasks exposes task control semantics for confirmation and re
   const waiting = taskStore.createTask({
     itemId: 'control-confirm',
     itemName: 'Control Confirm',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     status: 'queued',
   });
   const waitingApproval = {
@@ -1862,7 +1950,7 @@ test('GET /v1/admin/tasks exposes task control semantics for confirmation and re
   const failed = taskStore.createTask({
     itemId: 'control-failed',
     itemName: 'Control Failed',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'queued',
   });
   const failedRuntime = taskStore.updateTask(failed.id, {
@@ -1907,7 +1995,7 @@ test('GET /v1/admin/confirmations exposes a lightweight confirmation queue', asy
   const waitingUpgrade = taskStore.createTask({
     itemId: 'confirm-upgrade',
     itemName: 'Confirm Upgrade',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     status: 'queued',
     priority: 8,
   });
@@ -1924,7 +2012,7 @@ test('GET /v1/admin/confirmations exposes a lightweight confirmation queue', asy
   const waitingDelete = taskStore.createTask({
     itemId: 'confirm-delete',
     itemName: 'Confirm Delete',
-    actionType: 'delete',
+    operationKind: 'delete',
     status: 'queued',
   });
   taskStore.updateTask(waitingDelete.id, {
@@ -1940,7 +2028,7 @@ test('GET /v1/admin/confirmations exposes a lightweight confirmation queue', asy
   taskStore.createTask({
     itemId: 'confirm-queued',
     itemName: 'Confirm Queued',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'queued',
   });
 
@@ -1960,7 +2048,8 @@ test('GET /v1/admin/confirmations exposes a lightweight confirmation queue', asy
     assert.strictEqual(body.summary.total, 2);
     assert.strictEqual(body.summary.byGate['upgrade.candidateSelect'], 1);
     assert.strictEqual(body.summary.byGate['delete.beforeExecute'], 1);
-    assert.strictEqual(body.summary.byBridgeKind.optimize, 2);
+    assert.strictEqual(body.summary.byBridgeKind.optimize, 1);
+    assert.strictEqual(body.summary.byBridgeKind.delete, 1);
     const upgrade = body.confirmations.find((item) => item.taskId === waitingUpgrade.id);
     assert.ok(upgrade, 'upgrade confirmation appears');
     assert.strictEqual(upgrade.confirmation.required, true);
@@ -1975,13 +2064,16 @@ test('GET /v1/admin/confirmations exposes a lightweight confirmation queue', asy
     assert.strictEqual(upgrade.flowPlan.operationKind, 'upgrade');
     const deletion = body.confirmations.find((item) => item.taskId === waitingDelete.id);
     assert.ok(deletion, 'delete confirmation appears');
-    assert.strictEqual(deletion.taskBridge.kind, 'optimize');
+    assert.strictEqual(deletion.taskBridge.kind, 'delete');
     assert.strictEqual(deletion.flowPlan.operationKind, 'delete');
     assert.ok(!body.confirmations.some((item) => item.itemId === 'confirm-queued'));
 
     const optimizeOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?bridgeKind=optimize&page=1&pageSize=20' });
     assert.strictEqual(optimizeOnly.statusCode, 200);
-    assert.deepStrictEqual(new Set(optimizeOnly.json().confirmations.map((item) => item.taskId)), new Set([waitingUpgrade.id, waitingDelete.id]));
+    assert.deepStrictEqual(new Set(optimizeOnly.json().confirmations.map((item) => item.taskId)), new Set([waitingUpgrade.id]));
+    const deleteOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?bridgeKind=delete&page=1&pageSize=20' });
+    assert.strictEqual(deleteOnly.statusCode, 200);
+    assert.deepStrictEqual(new Set(deleteOnly.json().confirmations.map((item) => item.taskId)), new Set([waitingDelete.id]));
   } finally {
     taskStore.getTasks = originalGetTasks;
     taskStore.loadTasks = originalLoadTasks;
@@ -2051,7 +2143,7 @@ test('GET /v1/admin/confirmations includes adult review items without loading fu
   const waitingUpgrade = taskStore.createTask({
     itemId: 'confirm-plus-review',
     itemName: 'Confirm Plus Review',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     status: 'queued',
   });
   taskStore.updateTask(waitingUpgrade.id, {
@@ -2116,7 +2208,7 @@ test('GET /v1/admin/tasks attention queues are derived from task control actions
   const waiting = taskStore.createTask({
     itemId: 'attention-confirm',
     itemName: 'Attention Confirm',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     status: 'awaiting_user_confirm',
   });
   taskStore.updateTask(waiting.id, {
@@ -2125,7 +2217,7 @@ test('GET /v1/admin/tasks attention queues are derived from task control actions
   const failed = taskStore.createTask({
     itemId: 'attention-failed',
     itemName: 'Attention Failed',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'failed_hard',
   });
   taskStore.updateTask(failed.id, {
@@ -2135,7 +2227,7 @@ test('GET /v1/admin/tasks attention queues are derived from task control actions
   const paused = taskStore.createTask({
     itemId: 'attention-paused',
     itemName: 'Attention Paused',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'paused',
   });
   taskStore.updateTask(paused.id, {
@@ -2144,19 +2236,19 @@ test('GET /v1/admin/tasks attention queues are derived from task control actions
   const manual = taskStore.createTask({
     itemId: 'attention-manual',
     itemName: 'Attention Manual',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'pending_manual',
   });
   const active = taskStore.createTask({
     itemId: 'attention-active',
     itemName: 'Attention Active',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'queued',
   });
   const exhausted = taskStore.createTask({
     itemId: 'attention-exhausted',
     itemName: 'Attention Exhausted',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     status: 'failed_hard',
   });
   taskStore.updateTask(exhausted.id, {
@@ -2237,7 +2329,7 @@ test('POST /v1/tasks/:id/actions/retry queues failed task with recovery event', 
   const failed = taskStore.createTask({
     itemId: 'retry-failed',
     itemName: 'Retry Failed',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'queued',
   });
   taskStore.updateTask(failed.id, {
@@ -2275,7 +2367,7 @@ test('POST /v1/tasks/:id/actions/retry rejects retry limit and active task confl
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const exhausted = taskStore.createTask({
     itemId: 'retry-exhausted',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     status: 'queued',
   });
   taskStore.updateTask(exhausted.id, {
@@ -2304,7 +2396,7 @@ test('POST /v1/tasks/:id/actions/retry rejects retry limit and active task confl
 
   const failed = taskStore.createTask({
     itemId: 'retry-conflict',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'queued',
   });
   taskStore.updateTask(failed.id, {
@@ -2313,7 +2405,7 @@ test('POST /v1/tasks/:id/actions/retry rejects retry limit and active task confl
   });
   const blocker = taskStore.createTask({
     itemId: 'retry-conflict',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'queued',
   });
   const conflict = await app.inject({ method: 'POST', url: `/v1/tasks/${failed.id}/actions/retry` });
@@ -2335,11 +2427,11 @@ test('GET /v1/admin/tasks returns list with summary', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const taskStore = require('../src/taskStore');
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a1', actionType: 'scrape' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a2', actionType: 'scrape' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a1', operationKind: 'scrape' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a2', operationKind: 'scrape' } });
   taskStore.createTask({
     itemId: 'a3',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'queued',
     itemInfo: {
       name: 'Heavy adult scrape',
@@ -2386,7 +2478,7 @@ test('GET /v1/admin/tasks/lifecycle-audit groups task lifecycles by library type
   taskStore.createTask({
     itemId: 'movie-transcode',
     itemName: 'Movie Transcode',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'queued',
     source: 'auto',
     itemInfo: { name: 'Movie Transcode', subLibraryId: 'movie-audit' },
@@ -2394,7 +2486,7 @@ test('GET /v1/admin/tasks/lifecycle-audit groups task lifecycles by library type
   taskStore.createTask({
     itemId: 'movie-repair-scrape',
     itemName: 'Movie Repair Scrape',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'queued',
     source: 'manual',
     itemInfo: { name: 'Movie Repair Scrape', subLibraryId: 'movie-audit', source: 'emby', metadataKind: 'emby' },
@@ -2402,7 +2494,7 @@ test('GET /v1/admin/tasks/lifecycle-audit groups task lifecycles by library type
   taskStore.createTask({
     itemId: 'movie-wrong-scrape',
     itemName: 'Movie Wrong Scrape',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'queued',
     source: 'manual',
     itemInfo: { name: 'Movie Wrong Scrape', subLibraryId: 'movie-audit' },
@@ -2410,7 +2502,7 @@ test('GET /v1/admin/tasks/lifecycle-audit groups task lifecycles by library type
   taskStore.createTask({
     itemId: 'movie-legacy-scrape',
     itemName: 'Movie Legacy Scrape',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'failed_hard',
     source: 'manual',
     itemInfo: { name: 'Movie Legacy Scrape', subLibraryId: 'movie-audit' },
@@ -2418,7 +2510,7 @@ test('GET /v1/admin/tasks/lifecycle-audit groups task lifecycles by library type
   taskStore.createTask({
     itemId: 'adult-scrape',
     itemName: 'Adult Scrape',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'awaiting_user_confirm',
     source: 'manual',
     itemInfo: {
@@ -2430,7 +2522,7 @@ test('GET /v1/admin/tasks/lifecycle-audit groups task lifecycles by library type
   taskStore.createTask({
     itemId: 'unknown-task',
     itemName: 'Unknown Library',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     status: 'failed_hard',
     source: 'manual',
     itemInfo: { name: 'Unknown Library', subLibraryId: 'missing-lib' },
@@ -2523,28 +2615,28 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
   const waiting = taskStore.createTask({
     itemId: 'dashboard-pending',
     itemName: 'Pending Optimize',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'awaiting_user_confirm',
     itemInfo: { name: 'Pending Optimize', subLibraryId: '' },
   });
   taskStore.createTask({
     itemId: 'dashboard-failed',
     itemName: 'Failed Bridge',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     status: 'failed_hard',
     itemInfo: { name: 'Failed Bridge', subLibraryId: '' },
   });
   const manual = taskStore.createTask({
     itemId: 'dashboard-manual',
     itemName: 'Manual Start',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'pending_manual',
     itemInfo: { name: 'Manual Start', subLibraryId: '' },
   });
   taskStore.createTask({
     itemId: 'dashboard-queued',
     itemName: 'Queued Active',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'queued',
     itemInfo: { name: 'Queued Active', subLibraryId: '' },
   });
@@ -2675,7 +2767,7 @@ test('GET /v1/admin/tasks/:id omits heavy adult face payloads', async () => {
   const task = taskStore.createTask({
     itemId: 'heavy-detail',
     itemName: 'Heavy Detail',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'failed_hard',
     itemInfo: {
       name: 'Heavy Detail',
@@ -2707,7 +2799,7 @@ test('GET /v1/tasks/:id omits heavy adult face payloads', async () => {
   const task = taskStore.createTask({
     itemId: 'heavy-public-detail',
     itemName: 'Heavy Public Detail',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'failed_hard',
     itemInfo: {
       name: 'Heavy Public Detail',
@@ -2736,9 +2828,9 @@ test('GET /v1/admin/tasks filters by multiple statuses', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const taskStore = require('../src/taskStore');
-  taskStore.createTask({ itemId: 'active-1', actionType: 'transcode', status: 'queued' });
-  taskStore.createTask({ itemId: 'active-2', actionType: 'scrape', status: 'executing' });
-  taskStore.createTask({ itemId: 'done-1', actionType: 'delete', status: 'done' });
+  taskStore.createTask({ itemId: 'active-1', operationKind: 'transcode', status: 'queued' });
+  taskStore.createTask({ itemId: 'active-2', operationKind: 'scrape', status: 'executing' });
+  taskStore.createTask({ itemId: 'done-1', operationKind: 'delete', status: 'done' });
 
   const res = await app.inject({ method: 'GET', url: '/v1/admin/tasks?statuses=queued,executing&page=1&pageSize=10' });
   assert.strictEqual(res.statusCode, 200);
@@ -2755,12 +2847,12 @@ test('GET /v1/admin/tasks filters by bridge and flow operation', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const taskStore = require('../src/taskStore');
-  taskStore.createTask({ itemId: 'optimize-transcode', actionType: 'transcode', status: 'queued' });
-  taskStore.createTask({ itemId: 'metadata-scrape', actionType: 'scrape', status: 'queued' });
-  taskStore.createTask({ itemId: 'optimize-delete', actionType: 'delete', status: 'queued' });
+  taskStore.createTask({ itemId: 'optimize-transcode', operationKind: 'transcode', status: 'queued' });
+  taskStore.createTask({ itemId: 'metadata-scrape', operationKind: 'scrape', status: 'queued' });
+  taskStore.createTask({ itemId: 'delete-gate', operationKind: 'delete', status: 'queued' });
   taskStore.createTask({
     itemId: 'legacy-archive-delete',
-    actionType: 'delete',
+    operationKind: 'delete',
     status: 'queued',
     taskBridge: {
       kind: 'archive',
@@ -2775,7 +2867,7 @@ test('GET /v1/admin/tasks filters by bridge and flow operation', async () => {
       operationKind: 'delete',
       executor: 'deleteFlowExecutor',
       primaryResourceType: 'filesystem',
-      actionType: 'delete',
+      operationKind: 'delete',
       resourceTypes: ['filesystem'],
       steps: [{ phase: 'precheck', eventType: 'archive.delete.precheck', resourceType: 'filesystem' }],
     },
@@ -2784,17 +2876,19 @@ test('GET /v1/admin/tasks filters by bridge and flow operation', async () => {
   const byBridge = await app.inject({ method: 'GET', url: '/v1/admin/tasks?bridgeKind=optimize&page=1&pageSize=10' });
   assert.strictEqual(byBridge.statusCode, 200);
   const bridgeBody = byBridge.json();
-  assert.strictEqual(bridgeBody.summary.total, 3);
-  assert.deepStrictEqual(new Set(bridgeBody.tasks.map((t) => t.itemId)), new Set(['optimize-transcode', 'optimize-delete', 'legacy-archive-delete']));
+  assert.strictEqual(bridgeBody.summary.total, 1);
+  assert.deepStrictEqual(new Set(bridgeBody.tasks.map((t) => t.itemId)), new Set(['optimize-transcode']));
   assert.ok(bridgeBody.tasks.every((t) => t.taskBridge.kind === 'optimize'));
-  assert.strictEqual(
-    bridgeBody.tasks.find((t) => t.itemId === 'legacy-archive-delete').flowPlan.direction,
-    'optimize.delete',
-  );
+
+  const deleteBridge = await app.inject({ method: 'GET', url: '/v1/admin/tasks?bridgeKind=delete&page=1&pageSize=10' });
+  assert.strictEqual(deleteBridge.statusCode, 200);
+  const deleteBody = deleteBridge.json();
+  assert.deepStrictEqual(new Set(deleteBody.tasks.map((t) => t.itemId)), new Set(['delete-gate']));
+  assert.ok(deleteBody.tasks.every((t) => t.taskBridge.kind === 'delete'));
 
   const archiveBridge = await app.inject({ method: 'GET', url: '/v1/admin/tasks?bridgeKind=archive&page=1&pageSize=10' });
   assert.strictEqual(archiveBridge.statusCode, 200);
-  assert.ok(!archiveBridge.json().tasks.some((t) => t.itemId === 'legacy-archive-delete'));
+  assert.ok(archiveBridge.json().tasks.some((t) => t.itemId === 'legacy-archive-delete'));
 
   const byOperation = await app.inject({ method: 'GET', url: '/v1/admin/tasks?operationKind=scrape&page=1&pageSize=10' });
   assert.strictEqual(byOperation.statusCode, 200);
@@ -2805,7 +2899,7 @@ test('GET /v1/admin/tasks filters by bridge and flow operation', async () => {
 
   const activeByBridge = await app.inject({ method: 'GET', url: '/v1/tasks?bridgeKind=optimize&activeOnly=1' });
   assert.strictEqual(activeByBridge.statusCode, 200);
-  assert.deepStrictEqual(new Set(activeByBridge.json().tasks.map((t) => t.itemId)), new Set(['optimize-transcode', 'optimize-delete', 'legacy-archive-delete']));
+  assert.deepStrictEqual(new Set(activeByBridge.json().tasks.map((t) => t.itemId)), new Set(['optimize-transcode']));
 
   const activeByOperation = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=transcode&activeOnly=1' });
   assert.strictEqual(activeByOperation.statusCode, 200);
@@ -2962,8 +3056,8 @@ test('PATCH /v1/admin/sublibraries rejects metadataGate that does not cover stra
   });
   assert.strictEqual(res.statusCode, 400);
   assert.strictEqual(res.json().error.code, 'METADATA_GATE_CONTRACT_BROKEN');
-  assert.match(res.json().error.message, /decision\.rating/);
   assert.match(res.json().error.message, /media\.duration/);
+  assert.doesNotMatch(res.json().error.message, /decision\.rating/);
   await app.close();
 });
 
@@ -2999,8 +3093,8 @@ test('PATCH /v1/config rejects metadataGate contract violations globally', async
   assert.strictEqual(res.statusCode, 400);
   const body = res.json();
   assert.strictEqual(body.error.code, 'METADATA_GATE_CONTRACT_BROKEN');
-  assert.match(body.error.message, /decision\.rating/);
   assert.match(body.error.message, /media\.duration/);
+  assert.doesNotMatch(body.error.message, /decision\.rating/);
   assert.strictEqual(body.error.details.violations[0].subLibraryId, 'broken-global-movie-lib');
 
   const cfg = await app.inject({ method: 'GET', url: '/v1/config' });
@@ -3039,7 +3133,7 @@ test('POST /v1/admin/sublibraries/:uuid/actions/scan is removed and has no side 
   assert.strictEqual(lib.statusCode, 200);
   assert.strictEqual(lib.json().total, 0, 'removed scan should not upsert items');
 
-  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=ingest' });
   assert.strictEqual(ingestTasks.statusCode, 200);
   assert.strictEqual(ingestTasks.json().tasks.length, 0, 'removed scan should not create ingest tasks');
   await app.close();
@@ -3131,7 +3225,7 @@ test('western adult ingest uses path identity before scrape', async () => {
   const beforeIngest = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(beforeIngest.json().total, 0, 'ingest should not upsert western items before it runs');
 
-  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=ingest' });
   const taskStore = require('../src/taskStore');
   const ingestFlow = require('../src/ingestFlowExecutor');
   ingestFlow.setScheduler({
@@ -3148,9 +3242,9 @@ test('western adult ingest uses path identity before scrape', async () => {
   assert.strictEqual(item.adultMetadata.scrapeStatus, 'pending');
   assert.ok(item.assetKey.includes(':adult:'), 'western adult uses itemId-based identity (番号 is metadata, not the key)');
 
-  const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape&includeHistory=1' });
+  const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=scrape&includeHistory=1' });
   assert.strictEqual(
-    tasks.json().tasks.some((t) => t.itemId === item.itemId && t.actionType === 'scrape'),
+    tasks.json().tasks.some((t) => t.itemId === item.itemId && t.operationKind === 'scrape'),
     false,
     'ingest ends at 已入库 and must not create a scrape task',
   );
@@ -3190,7 +3284,7 @@ test('adult directory discovery is inventory only and ingest does not create scr
 
   const candidates = adultLibraryService.listIngestCandidates();
   assert.strictEqual(candidates.length, 1, 'folder discovery exposes a single ingest candidate');
-  assert.strictEqual(candidates[0].itemInfo.actionType, undefined, 'candidate discovery does not pre-create a task shape');
+  assert.strictEqual(candidates[0].itemInfo.operationKind, undefined, 'candidate discovery does not pre-create a task shape');
   assert.strictEqual(candidates[0].itemInfo.subLibraryId, subLib.uuid);
 
   const ingestTask = adultLibraryService.enqueueIngestTask(subLib, path.join(watchRoot, 'MVSD-175.mp4'), { source: 'auto' });
@@ -3199,7 +3293,7 @@ test('adult directory discovery is inventory only and ingest does not create scr
   assert.strictEqual(ingestTask.flowPlan.direction, 'ingest.commit');
   assert.strictEqual(ingestTask.flowPlan.operationKind, 'ingest');
 
-  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=ingest' });
   const taskStore = require('../src/taskStore');
   const ingestFlow = require('../src/ingestFlowExecutor');
   ingestFlow.setScheduler({
@@ -3208,7 +3302,7 @@ test('adult directory discovery is inventory only and ingest does not create scr
   });
   await ingestFlow.driveTask(ingestTasks.json().tasks[0].id);
 
-  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape&includeHistory=1' });
+  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=scrape&includeHistory=1' });
   assert.strictEqual(scrapeTasks.statusCode, 200);
   assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'ingest must not create scrape even when scrape is globally enabled');
 
@@ -3252,9 +3346,9 @@ test('sub-library directory scan endpoint is removed and discovery creates no ta
 
   const candidates = adultLibraryService.listIngestCandidates();
   assert.strictEqual(candidates.length, 1, 'candidate discovery is inventory only and does not create tasks');
-  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=ingest' });
   assert.strictEqual(ingestTasks.json().tasks.length, 0, 'candidate discovery never creates ingest tasks');
-  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=scrape' });
   assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'candidate discovery never creates scrape tasks');
 
   const manualScan = await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
@@ -3305,9 +3399,9 @@ test('adult directory discovery does not avalanche item or task creation', async
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(lib.json().total, 0, 'candidate discovery should not write library items directly');
 
-  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=ingest' });
   assert.strictEqual(ingestTasks.json().tasks.length, 0, 'candidate discovery should not create ingest tasks');
-  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=scrape' });
   assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'candidate discovery should not create scrape tasks');
   await app.close();
 });
@@ -3751,7 +3845,7 @@ test('queued scrape task respects sub-library autoExecute=false after restart', 
 
   const task = taskStore.createTask({
     itemId: 'manual-scrape-item',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'queued',
     itemInfo: { subLibraryId: 'adult-western-manual', name: 'Queued Scrape' },
   });
@@ -3788,12 +3882,12 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
   // Simulate a prior failed scrape: the original scrape task failed_hard and
   // the library item was marked failed. A real scrape failure does both.
   const taskStore = require('../src/taskStore');
-  let origTask = taskStore.getTasks({ itemId }).find((t) => t.actionType === 'scrape');
+  let origTask = taskStore.getTasks({ itemId }).find((t) => t.operationKind === 'scrape');
   if (!origTask) {
     origTask = taskStore.createTask({
       itemId,
       itemName: item.name,
-      actionType: 'scrape',
+      operationKind: 'scrape',
       status: 'failed_hard',
       itemInfo: adultLibraryService.itemInfoFromItem(item),
     });
@@ -3882,7 +3976,7 @@ test('scrape failure marks item failed_hard and item scrapeStatus=failed', async
 
   const item = await adultLibraryService.upsertFileItem(sl, path.join(watchRoot, 'MVSD-175.mp4'));
   const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    itemId: item.itemId, itemName: item.name, operationKind: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
   });
@@ -3953,7 +4047,7 @@ test('scrape source-missing failure invalidates upstream ingest gate', async () 
     const item = await adultLibraryService.upsertFileItem(sl, mediaPath);
     fs.unlinkSync(mediaPath);
     const task = taskStore.createTask({
-      itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+      itemId: item.itemId, itemName: item.name, operationKind: 'scrape',
       status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
       resumePoint: 'scrape_executing',
     });
@@ -4055,7 +4149,7 @@ test('standard scrape fails current task when metadataGate remains unmet after r
   const task = taskStore.createTask({
     itemId: item.itemId,
     itemName: item.name,
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'executing',
     itemInfo: { ...item },
     resumePoint: 'scrape_executing',
@@ -4136,7 +4230,7 @@ test('scrape completion verification blocks done when exit gate fails', async ()
   const task = taskStore.createTask({
     itemId: 'adult-incomplete-exit',
     itemName: 'MVSD-175 Incomplete',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'executing',
     itemInfo: { subLibraryId, source: 'adult_folder' },
     resumePoint: 'scrape_review',
@@ -4214,7 +4308,7 @@ test('scrape completion verification exception blocks done', async () => {
   const task = taskStore.createTask({
     itemId: 'standard-verification-exception',
     itemName: 'Verification Exception Movie',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'executing',
     itemInfo: { subLibraryId, source: 'emby' },
     resumePoint: 'scrape_review',
@@ -4288,7 +4382,7 @@ test('scrape fails when poster download fails', async () => {
   configStore.patchConfig({ subLibraries: [sl] });
   const item = await adultLibraryService.upsertFileItem(sl, path.join(movieDir, 'MVSD-175.mp4'));
   const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    itemId: item.itemId, itemName: item.name, operationKind: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
   });
@@ -4357,7 +4451,7 @@ test('successful JAV scrape creates one movie folder and keeps original naming c
   configStore.patchConfig({ subLibraries: [sl] });
   const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
   const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    itemId: item.itemId, itemName: item.name, operationKind: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
   });
@@ -4479,7 +4573,7 @@ test('western adult curation without protagonist fails without writing success a
   const sl = configStore.loadConfig().subLibraries[0];
   const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
   const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    itemId: item.itemId, itemName: item.name, operationKind: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
   });
@@ -4582,7 +4676,7 @@ test('successful western adult curation writes nfo and marks item scraped', asyn
   const sl = configStore.loadConfig().subLibraries[0];
   const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
   const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    itemId: item.itemId, itemName: item.name, operationKind: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
   });
@@ -4672,7 +4766,7 @@ test('western adult curation creates one movie folder and leaves sibling videos 
   await adultLibraryService.upsertFileItem(sl, siblingFile);
   const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
   const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    itemId: item.itemId, itemName: item.name, operationKind: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
   });
@@ -4903,7 +4997,7 @@ test('manual scrape of low-confidence (unknown prefix) item enters queue and att
   assert.strictEqual(item.adultMetadata.scrapeStatus, 'ambiguous');
   assert.strictEqual(item.adultMetadata.idConfidence, 'low');
 
-  let tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  let tasks = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=scrape' });
   assert.strictEqual(
     tasks.json().tasks.some((t) => t.itemId === item.itemId),
     false,
@@ -4918,7 +5012,7 @@ test('manual scrape of low-confidence (unknown prefix) item enters queue and att
 
   // Ambiguous items can still enter the task flow through explicit user intent;
   // the scrape executor attempts the detected ID instead of failing before it contacts a scraper.
-  tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  tasks = await app.inject({ method: 'GET', url: '/v1/tasks?operationKind=scrape' });
   const task = tasks.json().tasks.find((t) => t.itemId === item.itemId);
   assert.ok(task, 'manual scrape task exists for ambiguous item');
 
@@ -5218,7 +5312,7 @@ test('GET /v1/library/queries/manage task filter stays on SQL pagination path', 
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'task-filter-item-2', actionType: 'transcode' },
+    payload: { itemId: 'task-filter-item-2', operationKind: 'transcode' },
   });
   assert.strictEqual(create.statusCode, 201);
 
@@ -5285,28 +5379,20 @@ test('strategyEngine rule evaluation scenarios', async () => {
   assert.ok(!ruleMatches({ bucket: '4K', equivalentBitrate: 8, codec: 'h264' }, ruleOr));
 });
 
-test('adult JAV default template transcodes non-HEVC or high bitrate facts', async () => {
+test('adult JAV default template defines a single baseline target', async () => {
   const { buildAdultJavDefaultTemplate } = require('../src/configStore');
   const { ruleMatches } = require('../src/strategyEngine');
   const tpl = buildAdultJavDefaultTemplate();
-  assert.strictEqual(tpl.tag.version, 3);
-  const nonHevc = tpl.rules.find((r) => r.reason.includes('非 HEVC'));
-  const transcode1080p = tpl.rules.find((r) => r.action === 'transcode' && r.reason.includes('1080p'));
-  const transcode4k = tpl.rules.find((r) => r.action === 'transcode' && r.reason.includes('4K'));
+  assert.strictEqual(tpl.tag.version, 5);
+  assert.strictEqual(tpl.rules.length, 1);
+  const baseline = tpl.rules[0];
 
-  assert.ok(nonHevc, 'non-HEVC transcode rule exists');
-  assert.ok(transcode1080p, '1080p transcode rule exists');
-  assert.ok(transcode4k, '4K transcode rule exists');
-  assert.strictEqual(nonHevc.actionParams.targetBitrate, 2.5);
-  assert.strictEqual(transcode1080p.actionParams.targetBitrate, 2.5);
-  assert.strictEqual(transcode4k.actionParams.targetBitrate, 6);
-
-  assert.ok(ruleMatches({ scraped: true, codec: 'h264', bucket: '1080p', equivalentBitrate: 1.8 }, nonHevc));
-  assert.ok(!ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 1.8 }, nonHevc));
-  assert.ok(ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 3 }, transcode1080p));
-  assert.ok(!ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 2.4 }, transcode1080p));
-  assert.ok(ruleMatches({ scraped: false, codec: 'h264', bucket: '1080p', equivalentBitrate: 8 }, nonHevc));
-  assert.ok(ruleMatches({ bucket: '1080p', equivalentBitrate: 8 }, transcode1080p));
+  assert.strictEqual(baseline.targetMediaFacts.qualityTier, 'adult_baseline');
+  assert.strictEqual(baseline.targetMediaFacts.targetBitrateByBucket['1080p'], 2.5);
+  assert.strictEqual(baseline.targetMediaFacts.targetBitrateByBucket['4K'], 6);
+  assert.strictEqual(baseline.targetMediaFacts.targetCodec, 'h265');
+  assert.ok(ruleMatches({ scraped: true, codec: 'h264', bucket: '1080p', equivalentBitrate: 1.8 }, baseline));
+  assert.ok(ruleMatches({ scraped: false, codec: 'h265', bucket: '4K', equivalentBitrate: 8 }, baseline));
 });
 
 // ── 404 handling ──────────────────────────────────────────────────────────────
@@ -5329,7 +5415,7 @@ test('GET unknown /v1/ endpoint -> 404', async () => {
 
 // ── Upgrade Flow ──────────────────────────────────────────────────────────────
 
-test('POST /v1/tasks upgrade actionType -> 201', async () => {
+test('POST /v1/tasks upgrade operationKind -> 201', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const itemId = 'upgrade-test-' + crypto.randomUUID().slice(0, 8);
@@ -5337,12 +5423,12 @@ test('POST /v1/tasks upgrade actionType -> 201', async () => {
   const res = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, actionType: 'upgrade' },
+    payload: { itemId, operationKind: 'upgrade' },
   });
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
   assert.ok(body.id);
-  assert.strictEqual(body.actionType, 'upgrade');
+  assert.strictEqual(body.operationKind, 'upgrade');
   assert.strictEqual(body.status, 'created');
   assert.strictEqual(body.taskBridge.kind, 'optimize');
   assert.strictEqual(body.flowPlan.direction, 'optimize.upgrade');
@@ -5401,7 +5487,7 @@ test('PATCH /v1/tasks/:id confirm with confirmData stores selection', async () =
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, actionType: 'upgrade' },
+    payload: { itemId, operationKind: 'upgrade' },
   });
   const { id } = create.json();
 
@@ -5440,7 +5526,7 @@ test('POST /v1/tasks/:id/actions/pause on upgrade task', async () => {
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, actionType: 'upgrade' },
+    payload: { itemId, operationKind: 'upgrade' },
   });
   const { id } = create.json();
 
@@ -5460,7 +5546,7 @@ test('POST /v1/tasks/:id/actions/execute resumes paused upgrade task', async () 
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, actionType: 'upgrade' },
+    payload: { itemId, operationKind: 'upgrade' },
   });
   const { id } = create.json();
   await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/pause` });
@@ -5485,7 +5571,7 @@ test('upgrade task with no MoviePilot config -> precheck fails to failed_hard', 
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId, actionType: 'upgrade' },
+    payload: { itemId, operationKind: 'upgrade' },
   });
   const { id } = create.json();
 
@@ -5535,7 +5621,7 @@ test('upgrade task with MoviePilot config proceeds to planning', async () => {
     url: '/v1/tasks',
     payload: {
       itemId,
-      actionType: 'upgrade',
+      operationKind: 'upgrade',
     },
   });
   const { id } = create.json();

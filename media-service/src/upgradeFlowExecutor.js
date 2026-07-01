@@ -63,6 +63,88 @@ function resolveStagingFromTransfer(mpDest, mpSavePath, localStagingPath) {
   return null;
 }
 
+function cleanToken(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeCodec(value) {
+  const raw = cleanToken(value).replace(/[^a-z0-9]/g, '');
+  if (['h265', 'x265', 'hevc'].includes(raw)) return 'h265';
+  if (['h264', 'x264', 'avc', 'avc1'].includes(raw)) return 'h264';
+  return raw;
+}
+
+function resolutionRankFromSize(width, height) {
+  const w = Number(width || 0);
+  const h = Number(height || 0);
+  if (w >= 3000 || h >= 2000) return 4;
+  if (w >= 1600 || h >= 900) return 3;
+  if (w >= 1100 || h >= 650) return 2;
+  if (w > 0 || h > 0) return 1;
+  return 0;
+}
+
+function resolutionRankFromLabel(value) {
+  const text = cleanToken(value);
+  if (text.includes('4k') || text.includes('2160')) return 4;
+  if (text.includes('1080')) return 3;
+  if (text.includes('720')) return 2;
+  if (text.includes('480')) return 1;
+  return 0;
+}
+
+function resolutionBucketFromSize(width, height) {
+  return resolutionRankFromSize(width, height) >= 4 ? '4K' : '1080p';
+}
+
+function objectiveForTask(task = {}) {
+  return task.taskTarget && task.taskTarget.gateObjective && typeof task.taskTarget.gateObjective === 'object'
+    ? task.taskTarget.gateObjective
+    : {};
+}
+
+function targetFactsForTask(task = {}, width = 0, height = 0) {
+  const objective = objectiveForTask(task);
+  const target = objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
+    ? objective.targetMediaFacts
+    : {};
+  const byBucket = target.targetBitrateByBucket && typeof target.targetBitrateByBucket === 'object'
+    ? target.targetBitrateByBucket
+    : {};
+  const bucket = resolutionBucketFromSize(width, height);
+  return {
+    objectiveHash: (task.itemInfo && task.itemInfo.objectiveHash) || task.objectiveHash || '',
+    minResolution: target.minResolution || '',
+    targetBitrate: Number(target.targetBitrate || byBucket[bucket] || 0) || null,
+    targetCodec: normalizeCodec(target.targetCodec || target.codec),
+  };
+}
+
+function assertUpgradeSatisfiesObjective(task, verifyResult) {
+  const target = targetFactsForTask(task, verifyResult.width, verifyResult.height);
+  const failures = [];
+  const minResolutionRank = resolutionRankFromLabel(target.minResolution);
+  if (minResolutionRank > 0 && resolutionRankFromSize(verifyResult.width, verifyResult.height) < minResolutionRank) {
+    failures.push(`resolution below objective target (${target.minResolution})`);
+  }
+  if (target.targetBitrate != null) {
+    const bitrateMbps = typeof verifyResult.bitrate === 'number' ? verifyResult.bitrate / 1000 : null;
+    if (bitrateMbps == null || bitrateMbps < target.targetBitrate * 0.65 || bitrateMbps > target.targetBitrate * 1.35) {
+      failures.push(`bitrate outside objective target (${target.targetBitrate} Mbps)`);
+    }
+  }
+  if (target.targetCodec) {
+    const codec = normalizeCodec(verifyResult.videoCodec);
+    if (!codec || codec !== target.targetCodec) failures.push(`codec does not match objective target (${target.targetCodec})`);
+  }
+  if (failures.length > 0) {
+    const err = new Error(`Upgrade output does not satisfy optimize objective: ${failures.join('; ')}`);
+    err.objectiveFailures = failures;
+    throw err;
+  }
+  return target;
+}
+
 // ── NFO parsing ───────────────────────────────────────────────────────────────
 
 function extractTmdbIdFromNfo(dirPath) {
@@ -876,6 +958,15 @@ async function runPreReplaceVerify(taskId, task) {
       appendLog(taskId, 'warn', `Probe summary failed: ${e.message}`);
     }
 
+    const objectiveTarget = assertUpgradeSatisfiesObjective(task, {
+      sizeBytes: outSizeBytes,
+      videoCodec: outCodec,
+      width: outWidth,
+      height: outHeight,
+      bitrate: outBitrate,
+      durationSec: outDuration,
+    });
+
     // Generate a preview clip from middle of the staging file (in dedicated subdir, not inside staging)
     let previewPath = null;
     let previewDir = null;
@@ -907,6 +998,11 @@ async function runPreReplaceVerify(taskId, task) {
         height: outHeight,
         bitrate: outBitrate,
         durationSec: outDuration,
+        outputPath: stagingMediaPath,
+        objectiveHash: objectiveTarget.objectiveHash,
+        targetBitrate: objectiveTarget.targetBitrate,
+        targetCodec: objectiveTarget.targetCodec,
+        minResolution: objectiveTarget.minResolution,
         previewPath,
       },
       upgradePreview: {

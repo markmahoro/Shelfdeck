@@ -3,6 +3,7 @@
 const lifecycleProjection = require('./lifecycleProjection');
 const flowPlanner = require('./flowPlanner');
 const lifecycleTaskPlanner = require('./lifecycleTaskPlanner');
+const metadataStatus = require('./metadataStatus');
 
 function jsonStringify(value) {
   return JSON.stringify(value == null ? null : value);
@@ -26,15 +27,19 @@ function resolveMetadataFacts(item = {}) {
     ? item.adultMetadata
     : {};
   const missingReasons = Array.isArray(item.metadataMissingReasons)
-    ? item.metadataMissingReasons
+    ? metadataStatus.sanitizeMetadataMissingReasons(item.metadataMissingReasons)
     : [];
   const explicitStatus = cleanString(item.metadataStatus || adultMetadata.scrapeStatus).toLowerCase();
+  const legacyPerceptionOnlyIncomplete = item.metadataComplete === false
+    && Array.isArray(item.metadataMissingReasons)
+    && item.metadataMissingReasons.length > 0
+    && missingReasons.length === 0;
   const metadataComplete = item.metadataComplete !== undefined
-    ? !!item.metadataComplete
+    ? (legacyPerceptionOnlyIncomplete ? true : !!item.metadataComplete)
     : !!(item.scraped || adultMetadata.scrapeStatus === 'done' || item.tmdbId || item.doubanId || item.providerIds);
-  const metadataStatus = explicitStatus || (metadataComplete ? 'complete' : 'missing');
+  const status = legacyPerceptionOnlyIncomplete ? 'complete' : (explicitStatus || (metadataComplete ? 'complete' : 'missing'));
   return {
-    metadata_status: metadataStatus,
+    metadata_status: status,
     metadata_kind: cleanString(item.metadataKind || (item.source === 'adult_folder' ? 'adult' : 'standard')),
     metadata_complete: boolInt(metadataComplete),
     metadata_missing_reasons_json: jsonStringify(missingReasons),
@@ -45,8 +50,11 @@ function resolveMetadataFacts(item = {}) {
 function resolveOptimizationFacts(item = {}) {
   const action = cleanString(item.action || '').toLowerCase();
   const explicitStatus = cleanString(item.optimizationStatus || '').toLowerCase();
-  const status = explicitStatus || 'none';
-  const actionValue = cleanString(item.optimizationAction || (['transcode', 'upgrade'].includes(action) ? action : ''));
+  const explicitAction = cleanString(item.optimizationAction || '').toLowerCase();
+  const status = explicitStatus === 'deleted' ? 'none' : (explicitStatus || 'none');
+  const actionValue = ['transcode', 'upgrade'].includes(explicitAction)
+    ? explicitAction
+    : (['transcode', 'upgrade'].includes(action) ? action : '');
   return {
     optimization_status: status,
     optimization_action: actionValue,
@@ -74,7 +82,7 @@ function mediaItemFacts(item = {}) {
 
 function taskFacts(task = {}) {
   const planned = flowPlanner.planFlow({
-    actionType: task.actionType,
+    operationKind: task.operationKind,
     source: task.source,
     itemId: task.itemId,
     itemInfo: task.itemInfo,
@@ -90,7 +98,7 @@ function taskFacts(task = {}) {
   const taskTarget = task.taskTarget && typeof task.taskTarget === 'object'
     ? task.taskTarget
     : lifecycleTaskPlanner.planTaskTarget({
-      actionType: task.actionType,
+      operationKind: task.operationKind,
       source: task.source,
       itemId: task.itemId,
       itemInfo,
@@ -118,7 +126,7 @@ function taskFacts(task = {}) {
     bridge_reason: cleanString(bridge.reason || ''),
     flow_version: cleanString(flow.version || ''),
     flow_direction: cleanString(flow.direction || ''),
-    operation_kind: cleanString(flow.operationKind || task.actionType || ''),
+    operation_kind: cleanString(flow.operationKind || task.operationKind || ''),
     flow_executor: cleanString(flow.executor || ''),
     primary_resource_type: cleanString(flow.primaryResourceType || ''),
     resource_types_json: jsonStringify(Array.isArray(flow.resourceTypes) ? flow.resourceTypes : []),
@@ -134,7 +142,7 @@ function taskEventFacts(event = {}) {
   return {
     bridge_kind: cleanString(payload.bridgeKind || (payload.taskBridge && payload.taskBridge.kind) || ''),
     flow_direction: cleanString(payload.flowDirection || (payload.flowPlan && payload.flowPlan.direction) || ''),
-    operation_kind: cleanString(payload.operationKind || (payload.flowPlan && payload.flowPlan.operationKind) || event.actionType || ''),
+    operation_kind: cleanString(payload.operationKind || (payload.flowPlan && payload.flowPlan.operationKind) || event.operationKind || ''),
     resource_key: cleanString(payload.resourceKey || ''),
     resource_label: cleanString(payload.resourceLabel || ''),
   };

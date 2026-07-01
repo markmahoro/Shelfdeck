@@ -41,6 +41,7 @@ const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const businessFlowPolicy = require('./businessFlowPolicy');
 const taskControlPolicy = require('./taskControlPolicy');
+const deleteCandidateService = require('./deleteCandidateService');
 
 let serverReady = false;
 
@@ -242,7 +243,7 @@ function taskListSummary(task) {
     id: task.id,
     itemId: task.itemId,
     itemName: task.itemName,
-    actionType: task.actionType,
+    operationKind: task.operationKind,
     taskTarget: task.taskTarget,
     taskBridge: task.taskBridge,
     flowPlan: task.flowPlan,
@@ -399,7 +400,6 @@ function compactTaskRouteFilter(filter = {}) {
   return {
     status: filter.status || '',
     statuses: Array.isArray(filter.statuses) ? filter.statuses.length : undefined,
-    actionType: filter.actionType || '',
     bridgeKind: filter.bridgeKind || '',
     operationKind: filter.operationKind || '',
     hasSearch: !!filter.q,
@@ -495,7 +495,7 @@ function makeLifecycleBucket(key, base = {}) {
 function addTaskToLifecycleBucket(bucket, task, stage) {
   const status = task.status || 'unknown';
   const bridgeKind = task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || 'unknown';
-  const operationKind = task.flowPlan && task.flowPlan.operationKind || task.actionType || 'unknown';
+  const operationKind = task.flowPlan && task.flowPlan.operationKind || task.operationKind || 'unknown';
   bucket.total += 1;
   inc(bucket.byStatus, status);
   inc(bucket.byLifecycleStage, stage);
@@ -546,7 +546,7 @@ function taskLifecycleSignals(task, context, controlState) {
   const signals = [];
   const status = task.status || '';
   const bridgeKind = task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '';
-  const operationKind = task.flowPlan && task.flowPlan.operationKind || task.actionType || '';
+  const operationKind = task.flowPlan && task.flowPlan.operationKind || task.operationKind || '';
   const primaryResourceType = task.flowPlan && task.flowPlan.primaryResourceType || '';
   const resourceTypes = Array.isArray(task.flowPlan && task.flowPlan.resourceTypes) ? task.flowPlan.resourceTypes : [];
   const confirmationRequired = controlState && controlState.confirmation && controlState.confirmation.required;
@@ -642,7 +642,7 @@ function buildTaskLifecycleAudit(tasks, config, opts = {}) {
         status: task.status || '',
         lifecycleStage: stage,
         bridgeKind: task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '',
-        operationKind: task.flowPlan && task.flowPlan.operationKind || task.actionType || '',
+        operationKind: task.flowPlan && task.flowPlan.operationKind || task.operationKind || '',
         primaryResourceType: task.flowPlan && task.flowPlan.primaryResourceType || '',
         source: task.source || '',
         subLibraryId: context.subLibraryId,
@@ -687,7 +687,7 @@ function summarizeConfirmationQueue(tasks = []) {
     const control = taskControlPolicy.buildTaskControlState(task);
     const gate = control.confirmation && control.confirmation.gateId || 'unknown';
     const bridge = task.taskBridge && task.taskBridge.kind || 'unknown';
-    const operation = task.flowPlan && task.flowPlan.operationKind || task.actionType || 'unknown';
+    const operation = task.flowPlan && task.flowPlan.operationKind || task.operationKind || 'unknown';
     byGate[gate] = (byGate[gate] || 0) + 1;
     byBridgeKind[bridge] = (byBridgeKind[bridge] || 0) + 1;
     byOperationKind[operation] = (byOperationKind[operation] || 0) + 1;
@@ -748,7 +748,7 @@ function adultReviewQueueItem(item) {
       from: 'ingested',
       to: 'metadata_ready',
       reason,
-      actionType: 'scrape',
+      operationKind: 'scrape',
       source: item.source || 'adult_folder',
       itemId: item.itemId,
       subLibraryId: item.subLibraryId || '',
@@ -760,7 +760,7 @@ function adultReviewQueueItem(item) {
       operationKind: 'scrape',
       executor: 'scrapeFlow',
       primaryResourceType: item.adultRegion === 'western_adult' ? 'local_ai' : 'scraper',
-      actionType: 'scrape',
+      operationKind: 'scrape',
       source: item.source || 'adult_folder',
       resourceTypes: item.adultRegion === 'western_adult'
         ? ['local_ai', 'filesystem']
@@ -829,7 +829,7 @@ function confirmationQueueItem(task) {
     taskId: task.id,
     itemId: task.itemId,
     itemName: task.itemName || '',
-    actionType: task.actionType,
+    operationKind: task.operationKind,
     taskBridge: task.taskBridge,
     flowPlan: task.flowPlan,
     source: task.source || '',
@@ -1163,7 +1163,7 @@ function dashboardActivitySourceLabel(source) {
 
 function dashboardTaskEventMessage(event) {
   const label = DASHBOARD_TASK_EVENT_LABELS[event.eventType] || event.eventType || '任务事件';
-  const action = DASHBOARD_ACTION_LABELS[event.actionType] || event.actionType || '任务';
+  const action = DASHBOARD_ACTION_LABELS[event.operationKind] || event.operationKind || '任务';
   const resource = event.resourceLabel || event.resourceType || '';
   if (resource) return `${label}：${action} · ${resource}`;
   return `${label}：${action}`;
@@ -1203,7 +1203,7 @@ function buildDashboardEvents(limit = 15) {
     message: dashboardTaskEventMessage(event),
     taskId: event.taskId || '',
     itemId: event.itemId || '',
-    actionType: event.actionType || '',
+    operationKind: event.operationKind || '',
     eventType: event.eventType || '',
     eventStatus: event.eventStatus || '',
     resourceType: event.resourceType || '',
@@ -1231,7 +1231,7 @@ function buildDashboardEvents(limit = 15) {
 function isTaskIntentValidationReason(reason) {
   return [
     'missing_task_intent',
-    'invalid_action_type',
+    'invalid_operation_kind',
     'invalid_bridge_kind',
     'invalid_preferred_operation',
     'preferred_operation_bridge_mismatch',
@@ -1261,7 +1261,7 @@ function compactAdmissionOptimizeGate(gate) {
 
 function compactAdmissionReject(admission = {}) {
   const result = {
-    operation: admission.operation || admission.actionType || '',
+    operation: admission.operation || admission.operationKind || '',
     reason: admission.reason || '',
     bridgeKind: admission.bridgeKind || '',
     preferredOperation: admission.preferredOperation || '',
@@ -1284,7 +1284,7 @@ function compactAdmissionReject(admission = {}) {
 function compactAdmissionAccept(admission = {}) {
   const result = {
     allowed: true,
-    operation: admission.operation || admission.actionType || '',
+    operation: admission.operation || admission.operationKind || '',
     reason: admission.reason || 'allowed',
     bridgeKind: admission.bridgeKind || '',
     preferredOperation: admission.preferredOperation || '',
@@ -1559,7 +1559,7 @@ function enrichFailureEvent(event, config, diagnosticRows = []) {
       id: task.id,
       itemId: task.itemId,
       itemName: task.itemName || '',
-      actionType: task.actionType,
+      operationKind: task.operationKind,
       status: task.status,
       phase: task.phase || '',
       resumePoint: task.resumePoint || '',
@@ -1693,6 +1693,10 @@ function registerRoutes(app) {
       assetRootPath: libItem.assetRootPath,
       externalRefs: libItem.externalRefs,
       resolution: libItem.resolution,
+      codec: libItem.codec,
+      videoCodec: libItem.videoCodec,
+      originalVideoCodec: libItem.originalVideoCodec,
+      audioCodecs: libItem.audioCodecs,
       bitrate: libItem.bitrate,
       size: libItem.size,
       duration: libItem.duration,
@@ -1720,14 +1724,14 @@ function registerRoutes(app) {
     const admission = taskAdmission.canCreateManualIntent({
       item: libItem,
       itemInfo: admissionItemInfo,
-      actionType: body.actionType,
+      operationKind: body.operationKind,
       bridgeKind: body.bridgeKind,
       preferredOperation: body.preferredOperation,
       intent: body.intent,
       config: cfg,
       tasks: activeAdmissionTasks,
     });
-    const actionType = admission.actionType || admission.operation || body.actionType;
+    const operationKind = admission.operationKind || admission.operation || body.operationKind;
     if (!admission.allowed) {
       diagnosticLog.record({
         category: 'admission',
@@ -1735,11 +1739,11 @@ function registerRoutes(app) {
         operation: 'reject_task',
         component: 'taskAdmission',
         resourceType: 'task',
-        resourceKey: `task:${actionType}`,
+        resourceKey: `task:${operationKind}`,
         status: 'rejected',
         payload: {
           itemId,
-          actionType,
+          operationKind,
           bridgeKind: body.bridgeKind || (body.intent && body.intent.bridgeKind) || '',
           preferredOperation: body.preferredOperation || (body.intent && body.intent.preferredOperation) || '',
           source: 'manual',
@@ -1794,13 +1798,13 @@ function registerRoutes(app) {
       taskTarget: admission.taskTarget,
       itemInfo,
       config: cfg,
-      actionType,
+      operationKind,
     });
 
     const task = taskStore.createTask({
       itemId,
       itemName: libItem ? libItem.name : undefined,
-      actionType,
+      operationKind,
       source: 'manual',
       status,
       priority: priorityBreakdown.priority,
@@ -1819,12 +1823,100 @@ function registerRoutes(app) {
     return reply.code(201).send(response);
   });
 
+  app.get('/v1/admin/delete-candidates', async (req) => {
+    return deleteCandidateService.listCandidates({
+      includeDecided: req.query.includeDecided === '1' || req.query.includeDecided === 'true',
+    });
+  });
+
+  app.post('/v1/admin/delete-candidates/:itemId/actions/keep-archived', async (req, reply) => {
+    const candidate = deleteCandidateService.keepArchived(req.params.itemId);
+    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
+    return { candidate };
+  });
+
+  app.post('/v1/admin/delete-candidates/:itemId/actions/snooze', async (req, reply) => {
+    const candidate = deleteCandidateService.snooze(req.params.itemId, req.body || {});
+    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
+    return { candidate };
+  });
+
+  app.post('/v1/admin/delete-candidates/:itemId/actions/suppress', async (req, reply) => {
+    const candidate = deleteCandidateService.suppress(req.params.itemId);
+    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
+    return { candidate };
+  });
+
+  app.post('/v1/admin/delete-candidates/:itemId/actions/confirm-delete', async (req, reply) => {
+    const itemId = req.params.itemId;
+    const candidate = deleteCandidateService.confirmDelete(itemId);
+    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
+
+    const cfg = configStore.loadConfig();
+    const libItem = mediaLibraryService.getLibraryItem(itemId);
+    if (!libItem) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
+    const activeAdmissionTasks = activeTaskSummariesForItem(itemId);
+    const admission = taskAdmission.canCreateManualIntent({
+      item: libItem,
+      itemInfo: libItem,
+      operationKind: 'delete',
+      bridgeKind: 'delete',
+      preferredOperation: 'delete',
+      intent: {
+        bridgeKind: 'delete',
+        preferredOperation: 'delete',
+        entryPoint: 'delete_candidate_confirm',
+      },
+      config: cfg,
+      tasks: activeAdmissionTasks,
+    });
+    if (!admission.allowed) {
+      return reply.code(409).send(taskAdmissionRejectPayload(
+        admission.reason === 'active_task_exists' ? 'TASK_CONFLICT' : 'TASK_ADMISSION_REJECTED',
+        admission.reason,
+        admission,
+        libItem,
+        libItem,
+        cfg,
+        activeAdmissionTasks,
+      ));
+    }
+
+    const priorityBreakdown = priorityEngine.explainTaskPriority({
+      source: 'manual',
+      taskTarget: admission.taskTarget,
+      itemInfo: libItem,
+      config: cfg,
+      operationKind: 'delete',
+    });
+    const task = taskStore.createTask({
+      itemId,
+      itemName: libItem.name,
+      operationKind: 'delete',
+      source: 'manual',
+      status: 'created',
+      priority: priorityBreakdown.priority,
+      priorityModelVersion: priorityEngine.TASK_PRIORITY_MODEL_VERSION,
+      priorityBreakdown,
+      taskTarget: admission.taskTarget,
+      taskBridge: admission.taskBridge,
+      flowPlan: admission.flowPlan,
+      requestedIntent: admission.requestedIntent,
+      itemInfo: libItem,
+      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Delete task created from delete candidate confirmation' }],
+    });
+    const updatedCandidate = deleteCandidateService.attachTask(itemId, task.id) || candidate;
+    const response = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
+    response.candidate = updatedCandidate;
+    response.admission = compactAdmissionAccept(admission);
+    return reply.code(201).send(response);
+  });
+
   app.get('/v1/tasks', async (req) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
-    if (req.query.actionType) filter.actionType = req.query.actionType;
-    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
     if (req.query.operationKind) filter.operationKind = req.query.operationKind;
+    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
     const includeHistory = req.query.includeHistory === '1' || req.query.includeHistory === 'true';
     const activeOnly = !includeHistory || req.query.activeOnly === '1' || req.query.activeOnly === 'true';
     if (activeOnly) {
@@ -1864,7 +1956,7 @@ function registerRoutes(app) {
   app.get('/v1/tasks/:id/report', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    if (task.status !== 'done' && !(task.status === 'failed_hard' && task.actionType === 'scrape')) {
+    if (task.status !== 'done' && !(task.status === 'failed_hard' && task.operationKind === 'scrape')) {
       return apiError(reply, 400, 'BAD_REQUEST', 'Task not completed yet');
     }
 
@@ -1885,12 +1977,12 @@ function registerRoutes(app) {
       itemName: (info.type === 'season' && info.seriesName && info.seasonNumber != null
         ? `${info.seriesName} 第${info.seasonNumber}季`
         : (task.itemName || task.itemId)),
-      actionType: task.actionType,
+      operationKind: task.operationKind,
       elapsedSec,
       encoder,
     };
 
-    if (task.actionType === 'transcode') {
+    if (task.operationKind === 'transcode') {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,
         videoCodec: info.originalVideoCodec || info.codec || '?',
@@ -1907,13 +1999,13 @@ function registerRoutes(app) {
         height: vr.height,
       };
       report.bytesSaved = vr.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
-    } else if (task.actionType === 'delete') {
+    } else if (task.operationKind === 'delete') {
       report.bytesFreed = vr.bytesSaved || info.size || info.originalSizeBytes || 0;
       report.delete = {
         targetPath: vr.deletedPath || info.deleteTargetPath || info.path || '',
         targetKind: vr.deletedKind || info.deleteTargetKind || (info.embyItemId ? 'emby_item' : ''),
       };
-    } else if (task.actionType === 'upgrade') {
+    } else if (task.operationKind === 'upgrade') {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,
         videoCodec: info.originalVideoCodec || info.codec || '?',
@@ -1935,7 +2027,7 @@ function registerRoutes(app) {
         report.bytesSaved = up.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
         report.tmdbVerified = up.tmdbVerified;
       }
-    } else if (task.actionType === 'scrape') {
+    } else if (task.operationKind === 'scrape') {
       const cfg = configStore.loadConfig();
       const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
       const scrapeInfo = liveItem || { ...info, itemId: task.itemId };
@@ -2061,7 +2153,7 @@ function registerRoutes(app) {
     }
 
     // Call Flow.confirmReceived
-    const flow = getFlow(task.actionType);
+    const flow = getFlow(task.operationKind);
     if (flow) flow.confirmReceived(task.id);
 
     // Re-queue for scheduler, mark as just-confirmed to bypass awaiting guard
@@ -2161,7 +2253,7 @@ function registerRoutes(app) {
     }
     if (action.effect === 'request_runtime_pause_and_cleanup_partial_work') {
       appendTaskControlEvent(task, 'pause', action);
-      const flow = getFlow(task.actionType);
+      const flow = getFlow(task.operationKind);
       if (flow) await flow.pause(task.id);
       return taskActionResponse(taskStore.getTask(task.id) || { ...task, status: 'paused' });
     }
@@ -2175,7 +2267,7 @@ function registerRoutes(app) {
     const action = getTaskActionOrReject(reply, task, 'cancel');
     if (!action) return;
 
-    const flow = getFlow(task.actionType);
+    const flow = getFlow(task.operationKind);
     if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
 
     appendTaskControlEvent(task, 'cancel', action);
@@ -2790,7 +2882,7 @@ function registerRoutes(app) {
         const activeTask = activeTaskAdmissionSummary(req.params.itemId);
         const admission = {
           operation: 'scrape',
-          actionType: 'scrape',
+          operationKind: 'scrape',
           reason: 'active_task_exists',
           bridgeKind: 'metadata',
           preferredOperation: 'scrape',
@@ -3055,7 +3147,7 @@ function registerRoutes(app) {
     if (list.find((t) => t.id === id)) {
       return apiError(reply, 409, 'CONFLICT', 'Template id already exists');
     }
-    const tpl = { id, name, description: description || '', rules: rules || [], tag: { type: 'user' } };
+    const tpl = configStore.normalizeRuleTemplate({ id, name, description: description || '', rules: rules || [], tag: { type: 'user' } });
     cfg.ruleTemplates = [...list, tpl];
     configStore.saveConfig(cfg);
     return reply.code(201).send(tpl);
@@ -3073,12 +3165,12 @@ function registerRoutes(app) {
     }
 
     const { name, description, rules } = req.body || {};
-    list[idx] = {
+    list[idx] = configStore.normalizeRuleTemplate({
       ...existing,
       ...(name !== undefined ? { name } : {}),
       ...(description !== undefined ? { description } : {}),
       ...(rules !== undefined ? { rules } : {}),
-    };
+    });
     cfg.ruleTemplates = list;
     configStore.saveConfig(cfg);
     return list[idx];
@@ -3324,7 +3416,7 @@ function registerRoutes(app) {
     if (force && activeCount > 0) {
       // Cancel all active tasks on this node
       for (const t of activeTasks) {
-        const flow = getFlow(t.actionType);
+        const flow = getFlow(t.operationKind);
         if (flow) { try { await flow.cancel(t.id); } catch (_) {} }
         taskStore.updateTask(t.id, { status: 'failed_hard', logs: [{ ts: new Date().toISOString(), level: 'error', msg: `Node ${node.name} deleted by admin` }] });
       }
@@ -3464,7 +3556,6 @@ function registerRoutes(app) {
     const filter = { statuses: ['awaiting_user_confirm'] };
     if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
     if (req.query.operationKind) filter.operationKind = req.query.operationKind;
-    if (req.query.actionType) filter.actionType = req.query.actionType;
     if (req.query.q) filter.q = req.query.q;
     const reviewFilter = {};
     if (req.query.subLibraryId) reviewFilter.subLibraryId = req.query.subLibraryId;
@@ -3478,8 +3569,7 @@ function registerRoutes(app) {
     const includeTasks = kind !== 'adult_review';
     const includeReviews = kind !== 'task'
       && (!req.query.bridgeKind || req.query.bridgeKind === 'metadata')
-      && (!req.query.operationKind || req.query.operationKind === 'scrape')
-      && (!req.query.actionType || req.query.actionType === 'scrape');
+      && (!req.query.operationKind || req.query.operationKind === 'scrape');
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
     const taskResult = !includeTasks
@@ -3549,9 +3639,8 @@ function registerRoutes(app) {
         .map((s) => s.trim())
         .filter(Boolean);
     }
-    if (req.query.actionType) filter.actionType = req.query.actionType;
-    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
     if (req.query.operationKind) filter.operationKind = req.query.operationKind;
+    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
     if (req.query.q) filter.q = req.query.q;
     const attention = req.query.attention ? String(req.query.attention).trim() : '';
     if (attention && !TASK_ATTENTION_QUEUES[attention]) {
@@ -3627,9 +3716,8 @@ function registerRoutes(app) {
         .map((s) => s.trim())
         .filter(Boolean);
     }
-    if (req.query.actionType) filter.actionType = req.query.actionType;
-    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
     if (req.query.operationKind) filter.operationKind = req.query.operationKind;
+    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
     if (req.query.q) filter.q = req.query.q;
     const config = configStore.loadConfig();
     const allTasks = taskStore.queryTaskLifecycleAuditFacts(filter, {
@@ -3653,7 +3741,6 @@ function registerRoutes(app) {
       filters: {
         status: filter.status || '',
         statuses: filter.statuses || undefined,
-        actionType: filter.actionType || '',
         bridgeKind: filter.bridgeKind || '',
         operationKind: filter.operationKind || '',
         subLibraryId,
@@ -3896,7 +3983,7 @@ function registerRoutes(app) {
     const action = getTaskActionOrReject(reply, task, 'cancel');
     if (!action) return;
 
-    const flow = getFlow(task.actionType);
+    const flow = getFlow(task.operationKind);
     if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
 
     appendTaskControlEvent(task, 'cancel', action, { endpoint: 'admin' });
@@ -3925,8 +4012,8 @@ function registerRoutes(app) {
 
 // ── Flow helper ─────────────────────────────────────────────────────────────
 
-function getFlow(actionType) {
-  switch (actionType) {
+function getFlow(operationKind) {
+  switch (operationKind) {
     case 'ingest': return require('./ingestFlowExecutor');
     case 'delete': return require('./deleteFlowExecutor');
     case 'transcode': return require('./transcodeFlowExecutor');

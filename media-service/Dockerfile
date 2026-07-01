@@ -35,6 +35,8 @@ RUN python3 -m venv /opt/shelfdeck-face \
 
 COPY media-service/src/ ./src/
 COPY media-service/scripts/v3-data-migration.js ./scripts/v3-data-migration.js
+COPY media-service/scripts/kairox-beta-cutover.js ./scripts/kairox-beta-cutover.js
+COPY media-service/scripts/kairox-beta-production-e2e.js ./scripts/kairox-beta-production-e2e.js
 COPY media-service/scripts/all-in-one-supervisor.py /usr/local/bin/shelfdeck-all-in-one
 COPY --from=web-builder /build/dist/admin ./dist/admin/
 

@@ -526,9 +526,9 @@ test('GET /v1/space-stats uses lightweight SQLite rows', async () => {
     ],
   });
   taskStore.saveTasks([
-    { id: 'space-task-1', itemId: 'space-transcode', actionType: 'transcode', status: 'done', verifyResult: { bytesSaved: 400 }, itemInfo: { originalSizeBytes: 2000 } },
-    { id: 'space-task-2', itemId: 'space-upgrade', actionType: 'upgrade', status: 'done', upgradePreview: { oldFile: { size: 3000 }, newFile: { size: 5000 } } },
-    { id: 'space-task-3', itemId: 'ignored-scrape', actionType: 'scrape', status: 'done', logs: [{ msg: 'not needed for space stats' }] },
+    { id: 'space-task-1', itemId: 'space-transcode', operationKind: 'transcode', status: 'done', verifyResult: { bytesSaved: 400 }, itemInfo: { originalSizeBytes: 2000 } },
+    { id: 'space-task-2', itemId: 'space-upgrade', operationKind: 'upgrade', status: 'done', upgradePreview: { oldFile: { size: 3000 }, newFile: { size: 5000 } } },
+    { id: 'space-task-3', itemId: 'ignored-scrape', operationKind: 'scrape', status: 'done', logs: [{ msg: 'not needed for space stats' }] },
   ]);
 
   const originalGetLibrary = mediaLibraryService.getLibrary;
@@ -686,7 +686,7 @@ test('GET /v1/integrations/douban/fetch/ratings missing subLibraryId -> 400', as
 test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
   // Per API.md §5.4: only awaiting_user_confirm tasks can be confirmed.
   const app = await buildEmptyApp();
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'confirm-wrong-status', actionType: 'scrape' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'confirm-wrong-status', operationKind: 'scrape' } });
   const { id } = create.json();
   // Task status is 'created' — confirm must return 409
   const res = await app.inject({ method: 'PATCH', url: `/v1/tasks/${id}`, payload: { confirmed: true } });
@@ -705,8 +705,8 @@ test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
 test('POST /v1/tasks duplicate itemId (active task exists) -> 409', async () => {
   const app = await buildEmptyApp();
   const itemId = 'dup-item-' + crypto.randomUUID().slice(0, 8);
-  const first = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'scrape' } });
-  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'delete' } });
+  const first = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, operationKind: 'scrape' } });
+  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, operationKind: 'scrape' } });
   assert.strictEqual(res.statusCode, 409);
   assert.strictEqual(res.json().error.code, 'TASK_CONFLICT');
   assert.strictEqual(res.json().admission.reason, 'active_task_exists');
@@ -714,7 +714,7 @@ test('POST /v1/tasks duplicate itemId (active task exists) -> 409', async () => 
   assert.strictEqual(res.json().activeTask.itemId, itemId);
   assert.strictEqual(res.json().activeTask.taskBridge.kind, 'metadata');
   assert.strictEqual(res.json().activeTask.flowPlan.operationKind, 'scrape');
-  assert.strictEqual(res.json().businessFlowDecision.blockedReasons.delete, 'active_task_exists');
+  assert.strictEqual(res.json().businessFlowDecision.blockedReasons.scrape, 'active_task_exists');
   await app.close();
 });
 
@@ -725,7 +725,7 @@ test('POST /v1/tasks/:id/actions/execute pending_manual -> queued', async () => 
   // Write config with manual mode
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ executionMode: 'manual' }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'manual-exec', actionType: 'scrape' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'manual-exec', operationKind: 'scrape' } });
   const { id } = create.json();
   assert.strictEqual(create.json().status, 'pending_manual');
   const res = await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/execute` });

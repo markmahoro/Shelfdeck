@@ -38,6 +38,9 @@
 | `V3_0_1_BUSINESS_FLOW_DECISIONS.md` | 当前 worktree v3.0.1 业务流程细节判定表、入口收口和剩余问题 |
 | `V3_1_PROGRESS.md` | v3.1 用户视角可用版的切片进度、事实来源和剩余标准 |
 | `V3_1_DISCUSSION_NOTES.md` | v3.1 推进中已讨论确认、后续切片必须先读的产品语义和排查结论 |
+| `V3_3_GA_RECOVERY_PLAN.md` | v3.3 GA 恢复计划、生产验收事实和恢复期 guardrails |
+| `V3_4_REBASELINE_PLAN.md` | Kairox 引入 User Perception 后的 v3.4+ active rebaseline 计划 |
+| `V3_4_PLUS_ROADMAP.md` | v3.3 GA 之后 v3.4+ 的版本拆分、目标和验收标准 |
 | `V2_BEHAVIOR_PRESERVATION.md` | v3 重构前必须盘点和保护的 v2 生产行为细节 |
 | `DISCOVERY_CHECKLIST.md` | v3 agent 开工前需要排摸的代码、数据、测试和部署清单 |
 | `GOAL_PROMPT.md` | 可用于开启 v3 长程任务的提示词 |

@@ -48,7 +48,8 @@ const EVENT_LABELS: Record<string, string> = {
   'metadata.scrape.fetch': '元数据抓取',
   'optimize.transcode.execute': '转码执行',
   'optimize.upgrade.download': '洗版下载',
-  'optimize.delete.execute': '删除执行',
+  'delete.execute': '处置删除执行',
+  'optimize.delete.execute': '历史优化删除执行',
   'archive.delete.execute': '历史删除执行',
   'task.restart_interrupted': '重启后中断恢复',
   'task.restart_recovery_queued': '重启后重新排队',
@@ -60,6 +61,7 @@ const BRIDGE_LABELS: Record<string, string> = {
   metadata: '补元数据',
   optimize: '优化',
   archive: '归档',
+  delete: '处置删除',
 };
 
 const OPERATION_LABELS: Record<string, string> = {
@@ -76,7 +78,8 @@ const OBJECTIVE_LABELS: Record<string, string> = {
   metadata_complete: '元数据完整',
   reduce_bitrate: '降低码率',
   improve_source_quality: '提升片源质量',
-  remove_media: '删除媒体',
+  remove_media: '旧删除目标',
+  delete_archived_media: '归档后处置',
   keep_current: '保持当前媒体',
   finalize_lifecycle: '闭环归档',
   optimize_strategy_pending: '等待优化目标',
@@ -227,13 +230,14 @@ function objectiveSummary(task: ResourceTask): string {
   if (kind === 'metadata_complete') {
     return objective.repairMode ? `${label}：${String(objective.repairMode)}` : label;
   }
-  if (kind === 'remove_media') return objective.destructive ? `${label}：破坏性操作` : label;
+  if (kind === 'remove_media') return `${label}：需要迁移到处置队列`;
+  if (kind === 'delete_archived_media') return objective.archivedAt ? `${label}：${String(objective.archivedAt)}` : label;
   if (kind === 'optimize_strategy_pending') return objective.reason ? `${label}：${String(objective.reason)}` : label;
   return label;
 }
 
 function operationPathSummary(task: ResourceTask): string {
-  const operation = task.operationKind || task.taskTarget?.operationHint || task.actionType;
+  const operation = task.operationKind || task.taskTarget?.operationHint || task.operationKind;
   return task.flowDirection ? `${operationLabel(operation)} · ${task.flowDirection}` : operationLabel(operation);
 }
 

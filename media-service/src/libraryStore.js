@@ -6,6 +6,8 @@ const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const diagnosticLog = require('./diagnosticLog');
 const v3Model = require('./v3Model');
+const metadataStatus = require('./metadataStatus');
+const userPerceptionManagement = require('./userPerceptionManagement');
 
 function resolveDataDir() {
   return (
@@ -98,6 +100,7 @@ function getDb() {
   migrateJsonLibraryIfNeeded(db);
   backfillSpaceStatColumns(db);
   backfillV3MediaItemColumns(db);
+  backfillKairoxMetadataGateFields(db);
   checkpointWal(db, 'startup');
   return db;
 }
@@ -192,6 +195,44 @@ function backfillV3MediaItemColumns(db) {
   });
   tx(rows);
   setMeta(db, 'v3_media_item_columns_backfilled', '1');
+}
+
+function backfillKairoxMetadataGateFields(db) {
+  const version = db.prepare('SELECT value FROM library_meta WHERE key = ?').get('kairox_metadata_gate_fields_backfilled_v1');
+  if (version && version.value === '1') return;
+  const rows = db.prepare(`
+    SELECT
+      item_id,
+      payload_json,
+      metadata_status,
+      metadata_complete,
+      metadata_missing_reasons_json
+    FROM media_items
+    WHERE metadata_missing_reasons_json LIKE '%decision.%'
+  `).all();
+  if (rows.length > 0) {
+    const update = db.prepare(`
+      UPDATE media_items SET
+        metadata_status = @metadata_status,
+        metadata_kind = @metadata_kind,
+        metadata_complete = @metadata_complete,
+        metadata_missing_reasons_json = @metadata_missing_reasons_json,
+        metadata_updated_at = @metadata_updated_at
+      WHERE item_id = @item_id
+    `);
+    const tx = db.transaction((items) => {
+      for (const row of items) {
+        const item = normalizeItem(jsonParse(row.payload_json, {}));
+        item.metadataStatus = row.metadata_status || item.metadataStatus;
+        item.metadataComplete = row.metadata_complete === 1;
+        item.metadataMissingReasons = jsonParse(row.metadata_missing_reasons_json, []);
+        const facts = v3Model.mediaItemFacts(item);
+        update.run({ item_id: row.item_id, ...facts });
+      }
+    });
+    tx(rows);
+  }
+  setMeta(db, 'kairox_metadata_gate_fields_backfilled_v1', '1');
 }
 
 function walCheckpointMinBytes() {
@@ -580,6 +621,7 @@ function normalizeItem(item) {
 
 function itemToRow(item, ordinal) {
   const it = normalizeItem(item);
+  userPerceptionManagement.projectItem(it, { now: new Date().toISOString() });
   const adultMetadata = it.adultMetadata || {};
   const space = itemSpaceStatColumns(it);
   const facts = v3Model.mediaItemFacts(it);
@@ -634,8 +676,11 @@ function rowToItem(row) {
     item.lifecycleReason = row.lifecycle_reason || item.lifecycleReason;
     item.metadataStatus = row.metadata_status || item.metadataStatus;
     item.metadataKind = row.metadata_kind || item.metadataKind;
-    item.metadataComplete = row.metadata_complete === 1 || item.metadataComplete === true;
-    item.metadataMissingReasons = jsonParse(row.metadata_missing_reasons_json, item.metadataMissingReasons || []);
+    const rawStoredMissingReasons = jsonParse(row.metadata_missing_reasons_json, item.metadataMissingReasons || []);
+    const storedMissingReasons = metadataStatus.sanitizeMetadataMissingReasons(rawStoredMissingReasons);
+    item.metadataComplete = row.metadata_complete === 1
+      || (row.metadata_complete === 0 && rawStoredMissingReasons.length > 0 && storedMissingReasons.length === 0);
+    item.metadataMissingReasons = storedMissingReasons;
     item.metadataUpdatedAt = row.metadata_updated_at || item.metadataUpdatedAt;
     item.optimizationStatus = row.optimization_status || item.optimizationStatus || 'none';
     item.optimizationAction = row.optimization_action || item.optimizationAction || null;
@@ -1186,39 +1231,45 @@ function queryAdultReviewSummaries(filter = {}, opts = {}) {
       ${limitClause}
     `).all({ ...params, limit: includeAll ? undefined : pageSize, offset: includeAll ? undefined : offset });
     return {
-      items: rows.map((row) => ({
-        itemId: row.item_id || '',
-        subLibraryId: row.sub_library_id || '',
-        source: row.source || '',
-        sourceId: row.source_id || '',
-        name: row.name || row.adult_title || row.adult_id || '',
-        type: row.type || '',
-        path: row.path || '',
-        scraped: row.scraped === 1,
-        scrapeStatus: row.scrape_status || '',
-        reviewStatus: row.review_status || '',
-        adultId: row.adult_id || '',
-        adultTitle: row.adult_title || '',
-        adultOriginalTitle: row.adult_original_title || '',
-        adultRegion: row.adult_region || '',
-        idConfidence: row.id_confidence || '',
-        scrapeError: row.scrape_error || '',
-        scrapeFailedAt: row.scrape_failed_at || '',
-        protagonist: jsonParse(row.adult_protagonist_json, undefined),
-        updatedAt: row.updated_at || '',
-        lifecycleStage: row.lifecycle_stage || '',
-        lifecycleDone: row.lifecycle_done === 1,
-        lifecycleNextTask: row.lifecycle_next_task || '',
-        lifecycleReason: row.lifecycle_reason || '',
-        metadataStatus: row.metadata_status || '',
-        metadataKind: row.metadata_kind || '',
-        metadataComplete: row.metadata_complete === 1,
-        metadataMissingReasons: jsonParse(row.metadata_missing_reasons_json, []),
-        optimizationStatus: row.optimization_status || '',
-        optimizationAction: row.optimization_action || '',
-        archiveStatus: row.archive_status || '',
-        archiveReason: row.archive_reason || '',
-      })),
+      items: rows.map((row) => {
+        const rawMissingReasons = jsonParse(row.metadata_missing_reasons_json, []);
+        const missingReasons = metadataStatus.sanitizeMetadataMissingReasons(rawMissingReasons);
+        const metadataComplete = row.metadata_complete === 1
+          || (row.metadata_complete === 0 && rawMissingReasons.length > 0 && missingReasons.length === 0);
+        return {
+          itemId: row.item_id || '',
+          subLibraryId: row.sub_library_id || '',
+          source: row.source || '',
+          sourceId: row.source_id || '',
+          name: row.name || row.adult_title || row.adult_id || '',
+          type: row.type || '',
+          path: row.path || '',
+          scraped: row.scraped === 1,
+          scrapeStatus: row.scrape_status || '',
+          reviewStatus: row.review_status || '',
+          adultId: row.adult_id || '',
+          adultTitle: row.adult_title || '',
+          adultOriginalTitle: row.adult_original_title || '',
+          adultRegion: row.adult_region || '',
+          idConfidence: row.id_confidence || '',
+          scrapeError: row.scrape_error || '',
+          scrapeFailedAt: row.scrape_failed_at || '',
+          protagonist: jsonParse(row.adult_protagonist_json, undefined),
+          updatedAt: row.updated_at || '',
+          lifecycleStage: row.lifecycle_stage || '',
+          lifecycleDone: row.lifecycle_done === 1,
+          lifecycleNextTask: row.lifecycle_next_task || '',
+          lifecycleReason: row.lifecycle_reason || '',
+          metadataStatus: metadataComplete ? 'complete' : (row.metadata_status || ''),
+          metadataKind: row.metadata_kind || '',
+          metadataComplete,
+          metadataMissingReasons: missingReasons,
+          optimizationStatus: row.optimization_status || '',
+          optimizationAction: row.optimization_action || '',
+          archiveStatus: row.archive_status || '',
+          archiveReason: row.archive_reason || '',
+        };
+      }),
       total,
       page,
       pageSize,

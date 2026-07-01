@@ -24,6 +24,7 @@ const optimizationStatus = require('./optimizationStatus');
 const metadataStatus = require('./metadataStatus');
 const assetIdentity = require('./assetIdentity');
 const lifecycleProjection = require('./lifecycleProjection');
+const userPerceptionManagement = require('./userPerceptionManagement');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const diagnosticLog = require('./diagnosticLog');
@@ -353,6 +354,13 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         genres: incoming.genres || existing.genres,
         isDiscLike: incoming.isDiscLike != null ? incoming.isDiscLike : existing.isDiscLike,
         watched: incoming.watched != null ? incoming.watched : existing.watched,
+        watchedSource: incoming.watched != null ? 'emby' : existing.watchedSource,
+        watchedUpdatedAt: incoming.watched != null && incoming.watched !== existing.watched ? now : existing.watchedUpdatedAt,
+        playCount: incoming.playCount != null ? incoming.playCount : existing.playCount,
+        playCountSource: incoming.playCount != null ? 'emby' : existing.playCountSource,
+        lastPlayedAt: incoming.lastPlayedAt != null ? incoming.lastPlayedAt : existing.lastPlayedAt,
+        favorite: incoming.favorite != null ? incoming.favorite : existing.favorite,
+        favoriteSource: incoming.favorite != null ? 'emby' : existing.favoriteSource,
         lastRefreshedAt: now,
         tmdbId: incoming.tmdbId !== undefined ? incoming.tmdbId : existing.tmdbId,
         providerIds: incoming.providerIds !== undefined ? incoming.providerIds : existing.providerIds,
@@ -362,6 +370,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         episodeCount: incoming.episodeCount !== undefined ? incoming.episodeCount : existing.episodeCount,
       };
       projectMediaFactsForItem(merged);
+      userPerceptionManagement.projectItem(merged, { now, source: 'emby' });
       lib.items[existingIdx] = merged;
       upserted++;
     } else {
@@ -388,6 +397,13 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         genres: incoming.genres || [],
         isDiscLike: incoming.isDiscLike || false,
         watched: incoming.watched || false,
+        watchedSource: 'emby',
+        watchedUpdatedAt: now,
+        playCount: incoming.playCount == null ? null : incoming.playCount,
+        playCountSource: incoming.playCount == null ? undefined : 'emby',
+        lastPlayedAt: incoming.lastPlayedAt || null,
+        favorite: incoming.favorite == null ? null : incoming.favorite,
+        favoriteSource: incoming.favorite == null ? undefined : 'emby',
         doubanId: null,
         doubanRating: null,
         doubanRatingUpdatedAt: null,
@@ -404,6 +420,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         providerIds: incoming.providerIds || {},
       };
       projectMediaFactsForItem(newItem);
+      userPerceptionManagement.projectItem(newItem, { now, source: 'emby' });
       lib.items.push(newItem);
       upserted++;
     }
@@ -445,6 +462,7 @@ function updateUserRating(itemId, userRating) {
 
   item.userRating = userRating;
   item.userRatingUpdatedAt = userRating === null ? null : new Date().toISOString();
+  userPerceptionManagement.projectItem(item, { now: item.userRatingUpdatedAt || new Date().toISOString(), source: 'local' });
 
   libraryStore.updateItems([item]);
   const message = userRating === null
@@ -515,6 +533,7 @@ function getLibrary(filter = {}, opts = {}) {
     const config = measure('loadConfigMs', () => configStore.loadConfig());
     const result = measure('queryItemsMs', () => libraryStore.queryItems(storeFilter, opts));
     let items = result.items.map((item) => ({ ...item }));
+    items = measure('perceptionDecorateMs', () => userPerceptionManagement.decorateItems(items));
     items = measure('metadataDecorateMs', () => metadataStatus.decorateItems(items, config));
     if (opts.includeOptimizationStatus || opts.includeLifecycleStatus || storeFilter.lifecycle || storeFilter.optimizationStatus) {
       const taskStore = require('./taskStore');
@@ -533,7 +552,8 @@ function getLibraryItem(itemId) {
   const item = libraryStore.getItem(itemId);
   if (!item) return null;
   const config = configStore.loadConfig();
-  let decorated = metadataStatus.decorateItem(item, config);
+  let decorated = userPerceptionManagement.decorateItem(item);
+  decorated = metadataStatus.decorateItem(decorated, config);
   const taskStore = require('./taskStore');
   const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
     ? taskStore.queryOptimizationTaskIndexRows({ itemIds: [item.itemId] })
@@ -779,6 +799,7 @@ function applyDoubanEntriesToSubLibrary(subLib, entries, opts = {}) {
       changed = true;
     }
     if (changed) {
+      userPerceptionManagement.projectItem(item, { now, source: 'douban' });
       changedCount++;
       changedItems.push(item);
     }

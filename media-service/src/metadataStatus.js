@@ -32,6 +32,17 @@ const DEFAULT_ADULT_GATE = {
   ],
 };
 
+const LEGACY_PERCEPTION_GATE_FIELDS = new Set([
+  'decision.watched',
+  'decision.rating',
+  'decision.userRating',
+  'decision.doubanRating',
+]);
+
+const LEGACY_GATE_FIELD_REWRITES = {
+  'decision.providerId': 'identity.providerId',
+};
+
 function hasText(value) {
   return String(value == null ? '' : value).trim().length > 0;
 }
@@ -102,11 +113,13 @@ const FIELD_CHECKS = {
   'media.codec': (item) => hasText(item && item.codec),
   'media.audioCodecs': (item) => Array.isArray(item && item.audioCodecs) && item.audioCodecs.length > 0,
 
-  'decision.watched': (item) => hasWatchedState(item),
-  'decision.rating': (item) => hasRating(item),
-  'decision.userRating': (item) => hasUserRating(item),
-  'decision.doubanRating': (item) => hasDoubanRating(item),
-  'decision.providerId': (item) => hasText(item && item.tmdbId) || hasText(item && item.doubanId),
+  // Legacy names kept readable for old configs, but user perception cannot block
+  // metadata gate completeness under Kairox.
+  'decision.watched': () => true,
+  'decision.rating': () => true,
+  'decision.userRating': () => true,
+  'decision.doubanRating': () => true,
+  'decision.providerId': () => true,
 
   'adult.scraped': (item) => !!(item && item.scraped === true),
   'adult.scrapeStatus': (item) => String(((item && item.adultMetadata) || {}).scrapeStatus || '').toLowerCase() === 'done',
@@ -120,10 +133,48 @@ const FIELD_CHECKS = {
 
 function normalizeGate(gate) {
   if (!gate) return null;
-  if (Array.isArray(gate)) return { all: gate };
-  if (typeof gate === 'string') return { all: [gate] };
-  if (typeof gate === 'object') return gate;
+  if (Array.isArray(gate)) return sanitizeMetadataGate({ all: gate });
+  if (typeof gate === 'string') return sanitizeMetadataGate({ all: [gate] });
+  if (typeof gate === 'object') return sanitizeMetadataGate(gate);
   return null;
+}
+
+function sanitizeMetadataGateField(field) {
+  const normalized = String(field || '').trim();
+  if (!normalized || LEGACY_PERCEPTION_GATE_FIELDS.has(normalized)) return null;
+  return LEGACY_GATE_FIELD_REWRITES[normalized] || normalized;
+}
+
+function sanitizeMetadataGateNode(node) {
+  if (typeof node === 'string') return sanitizeMetadataGateField(node);
+  if (Array.isArray(node)) return sanitizeMetadataGateNode({ all: node });
+  if (!node || typeof node !== 'object') return null;
+
+  if (Array.isArray(node.all)) {
+    const all = node.all.map(sanitizeMetadataGateNode).filter(Boolean);
+    return all.length > 0 ? { ...node, all } : null;
+  }
+
+  if (Array.isArray(node.any)) {
+    const any = node.any.map(sanitizeMetadataGateNode).filter(Boolean);
+    return any.length > 0 ? { ...node, any } : null;
+  }
+
+  return null;
+}
+
+function sanitizeMetadataGate(gate) {
+  return sanitizeMetadataGateNode(gate);
+}
+
+function sanitizeMetadataMissingReasons(reasons = []) {
+  const cleaned = [];
+  for (const reason of Array.isArray(reasons) ? reasons : []) {
+    const value = String(reason || '').trim();
+    if (!value || LEGACY_PERCEPTION_GATE_FIELDS.has(value)) continue;
+    cleaned.push(LEGACY_GATE_FIELD_REWRITES[value] || value);
+  }
+  return [...new Set(cleaned)];
 }
 
 function buildDefaultEmbyGate(subLib, config = {}) {
@@ -240,10 +291,6 @@ function gateCoverage(node, out = new Set()) {
     for (const child of node.all) gateCoverage(child, out);
   }
   if (Array.isArray(node.any)) {
-    const anyFields = node.any.filter((child) => typeof child === 'string');
-    if (anyFields.includes('decision.userRating') && anyFields.includes('decision.doubanRating')) {
-      out.add('decision.rating');
-    }
     for (const child of node.any) gateCoverage(child, out);
   }
   return out;
@@ -272,12 +319,13 @@ function mapStrategyField(field) {
     case 'codec': return 'media.codec';
     case 'audioCodecs': return 'media.audioCodecs';
     case 'path': return 'media.path';
-    case 'watched': return 'decision.watched';
-    case 'userRating': return 'decision.userRating';
+    case 'watched':
+    case 'userRating':
     case 'doubanRating':
-    case 'doubanStars': return 'decision.doubanRating';
+    case 'doubanStars':
     case 'tmdbId':
-    case 'doubanId': return 'decision.providerId';
+    case 'doubanId':
+      return null;
     case 'isDiscLike': return null;
     default: return null;
   }
@@ -289,21 +337,19 @@ function collectRuleInputRequirements(rule) {
   for (const rawGroup of groups) {
     const group = normalizeConditionGroup(rawGroup);
     const fields = group.conditions.map(conditionField).filter(Boolean);
-    if (
-      group.connector === 'or'
-      && fields.includes('userRating')
-      && fields.includes('doubanRating')
-    ) {
-      requirements.add('decision.rating');
-      continue;
-    }
     for (const field of fields) {
       const mapped = mapStrategyField(field);
       if (mapped) requirements.add(mapped);
     }
   }
+  const targetFacts = rule && rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object'
+    ? rule.targetMediaFacts
+    : {};
   const params = rule && rule.actionParams || {};
-  if ((rule.action === 'transcode' || rule.action === 'upgrade') && params.targetBitrate) {
+  const hasTargetBitrate = targetFacts.targetBitrate != null
+    || !!(targetFacts.targetBitrateByBucket && Object.values(targetFacts.targetBitrateByBucket).some((value) => value != null))
+    || ((rule.action === 'transcode' || rule.action === 'upgrade') && params.targetBitrate);
+  if (hasTargetBitrate) {
     requirements.add('media.duration');
   }
   return requirements;
@@ -331,10 +377,6 @@ function collectSubLibraryStrategyInputRequirements(subLib = {}, config = {}) {
 
 function gateCoversRequirement(coverage, requirement) {
   if (coverage.has(requirement)) return true;
-  if (requirement === 'decision.rating') {
-    return coverage.has('decision.rating')
-      || (coverage.has('decision.userRating') && coverage.has('decision.doubanRating'));
-  }
   return false;
 }
 
@@ -357,6 +399,9 @@ module.exports = {
   resolveMetadataStatus,
   resolveGate,
   missingReasonsForGate,
+  sanitizeMetadataGate,
+  sanitizeMetadataGateField,
+  sanitizeMetadataMissingReasons,
   collectTemplateInputRequirements,
   validateMetadataGateForSubLibrary,
 };

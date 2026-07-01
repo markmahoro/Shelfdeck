@@ -15,8 +15,8 @@ function resourceStateForStatus(status) {
   return 'waiting';
 }
 
-function concurrencyLimitForAction(actionType, config = {}) {
-  switch (actionType) {
+function concurrencyLimitForAction(operationKind, config = {}) {
+  switch (operationKind) {
     case 'ingest': return config.ingestConcurrency || 1;
     case 'delete': return config.deleteConcurrency || 1;
     case 'transcode': return config.transcodeConcurrency || 1;
@@ -45,7 +45,7 @@ function concurrencyLimitForResource(taskResource, config = {}) {
       if (taskResource.resourceKey === 'filesystem:mutation') return config.deleteConcurrency || 1;
       return 1;
     default:
-      return concurrencyLimitForAction(taskResource && taskResource.actionType, config);
+      return concurrencyLimitForAction(taskResource && taskResource.operationKind, config);
   }
   })();
   return resourceCapacity.capacityForResource(taskResource, config, legacyFallback);
@@ -57,7 +57,7 @@ function subLibraryForTask(task, config = {}) {
 }
 
 function isWesternAiScrape(task, config = {}) {
-  if (!task || task.actionType !== 'scrape') return false;
+  if (!task || task.operationKind !== 'scrape') return false;
   const itemInfo = task.itemInfo || {};
   const meta = itemInfo.adultMetadata || {};
   const subLib = subLibraryForTask(task, config);
@@ -71,7 +71,7 @@ function isWesternAiScrape(task, config = {}) {
 }
 
 function resourceForTask(task, config = {}) {
-  const actionType = task && task.actionType;
+  const operationKind = task && task.operationKind;
   const plannedResourceType = flowPlanner.currentResourceType(task || {});
   if (plannedResourceType === 'transcode') {
     if (task.nodeId) {
@@ -103,7 +103,7 @@ function resourceForTask(task, config = {}) {
   }
   if (plannedResourceType === 'filesystem') {
     const operationKind = task && task.flowPlan && task.flowPlan.operationKind;
-    const suffix = operationKind === 'ingest' || actionType === 'ingest' ? 'ingest' : 'mutation';
+    const suffix = operationKind === 'ingest' || operationKind === 'ingest' ? 'ingest' : 'mutation';
     return {
       resourceType: 'filesystem',
       resourceKey: `filesystem:${suffix}`,
@@ -133,7 +133,7 @@ function resourceForTask(task, config = {}) {
   }
   return {
     resourceType: 'unknown',
-    resourceKey: `unknown:${actionType || 'task'}`,
+    resourceKey: `unknown:${operationKind || 'task'}`,
     resourceLabel: 'Unknown resource',
   };
 }
@@ -159,7 +159,7 @@ function compactTask(task, config) {
     taskId: task.id,
     itemId: task.itemId,
     itemName: task.itemName,
-    actionType: task.actionType,
+    operationKind: task.operationKind,
     taskTarget: compactTaskTarget(task.taskTarget),
     bridgeKind: task.taskBridge && task.taskBridge.kind,
     flowDirection: task.flowPlan && task.flowPlan.direction,

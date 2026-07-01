@@ -2,11 +2,11 @@
 
 const businessFlowPolicy = require('./businessFlowPolicy');
 
-function canCreateTask({ item, itemInfo, actionType, source, config, tasks, optimizationIndex }) {
+function canCreateTask({ item, itemInfo, operationKind, source, config, tasks, optimizationIndex }) {
   return businessFlowPolicy.evaluateOperation({
     item,
     itemInfo,
-    actionType,
+    operationKind,
     source,
     config,
     tasks,
@@ -14,11 +14,11 @@ function canCreateTask({ item, itemInfo, actionType, source, config, tasks, opti
   });
 }
 
-function canCreateManualIntent({ item, itemInfo, actionType, bridgeKind, preferredOperation, intent, config, tasks, optimizationIndex }) {
+function canCreateManualIntent({ item, itemInfo, operationKind, bridgeKind, preferredOperation, intent, config, tasks, optimizationIndex }) {
   return businessFlowPolicy.evaluateManualIntent({
     item,
     itemInfo,
-    actionType,
+    operationKind,
     bridgeKind,
     preferredOperation,
     intent,

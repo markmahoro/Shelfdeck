@@ -94,6 +94,23 @@ export interface Rule {
   groupsConnector: 'and' | 'or';
   groups: RuleGroup[];
   action: 'keep' | 'delete' | 'transcode' | 'upgrade';
+  targetMediaFacts?: {
+    qualityTier?: string;
+    minResolution?: string;
+    targetBitrate?: number;
+    targetBitrateByBucket?: Record<string, number>;
+    targetCodec?: string;
+    preferredAudioCodecs?: string[];
+    maxSizeGB?: number;
+    seedPreferences?: {
+      codecPreference?: string[];
+      resolutionPreference?: string[];
+      audioPreference?: string[];
+      sitePreference?: string[];
+      preferCNSub?: boolean;
+    };
+    [key: string]: unknown;
+  };
   actionParams: {
     targetBitrate?: number;
     targetCodec?: string;
@@ -183,7 +200,7 @@ export type TaskStatus =
   | 'awaiting_user_confirm' | 'pausing' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
-export type ActionType = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape' | 'archive';
+export type TaskOperationKind = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape' | 'archive';
 
 export type ApprovalMode = 'auto' | 'confirm' | 'forceConfirm';
 export type ApprovalPolicyConfig = Record<string, ApprovalMode>;
@@ -371,14 +388,13 @@ export interface DashboardEventEntry {
   detail?: Record<string, unknown>;
   taskId?: string;
   itemId?: string;
-  actionType?: string;
+  operationKind?: string;
   eventType?: string;
   eventStatus?: string;
   resourceType?: string;
   resourceKey?: string;
   resourceLabel?: string;
   bridgeKind?: string;
-  operationKind?: string;
 }
 
 export interface DashboardStatusGroup {
@@ -458,7 +474,7 @@ export interface MediaTask {
   id: string;
   itemId: string;
   itemName?: string;
-  actionType: ActionType;
+  operationKind: TaskOperationKind;
   taskTarget?: TaskTarget;
   taskBridge?: TaskBridge;
   flowPlan?: FlowPlan;
@@ -501,7 +517,7 @@ export interface MediaTask {
 export interface RequestedIntent {
   bridgeKind?: string;
   preferredOperation?: string;
-  actionType?: string;
+  operationKind?: string;
   intentMode?: string;
   [key: string]: unknown;
 }
@@ -543,7 +559,7 @@ export interface TaskBridge {
   from?: string;
   to?: string;
   reason?: string;
-  actionType?: string;
+  operationKind?: string;
   source?: string;
   itemId?: string;
   subLibraryId?: string;
@@ -562,7 +578,6 @@ export interface FlowPlan {
   operationKind?: string;
   executor?: string;
   primaryResourceType?: string;
-  actionType?: string;
   source?: string;
   resourceTypes?: string[];
   steps?: FlowStep[];
@@ -573,7 +588,7 @@ export interface TaskEvent {
   id: string;
   taskId: string;
   itemId?: string;
-  actionType?: string;
+  operationKind?: string;
   eventType: string;
   eventStatus: string;
   phase?: string | null;
@@ -583,7 +598,6 @@ export interface TaskEvent {
   resourceLabel?: string;
   bridgeKind?: string;
   flowDirection?: string;
-  operationKind?: string;
   createdAt: string;
   payload?: Record<string, unknown>;
 }
@@ -593,14 +607,13 @@ export interface ResourceFailureEvent extends TaskEvent {
     id: string;
     itemId: string;
     itemName?: string;
-    actionType: string;
+    operationKind: string;
     status: string;
     phase?: string;
     resumePoint?: string;
     retryCount?: number;
     bridgeKind?: string;
     flowDirection?: string;
-    operationKind?: string;
   } | null;
   resourceContext?: {
     resourceType: string;
@@ -651,7 +664,7 @@ export interface ResourceTask {
   taskId: string;
   itemId: string;
   itemName?: string;
-  actionType: ActionType;
+  operationKind: TaskOperationKind;
   taskTarget?: TaskTarget | null;
   source?: 'manual' | 'auto' | string;
   status: TaskStatus;
@@ -664,7 +677,6 @@ export interface ResourceTask {
   nodeId?: string | null;
   bridgeKind?: string;
   flowDirection?: string;
-  operationKind?: string;
   currentEventType?: string;
   currentEventPhase?: string;
   resourceState: ResourceTaskState;

@@ -6,9 +6,9 @@ import type { PriorityRule } from '../api/client';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-type ActionType = 'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode';
-type TaskTarget = 'ingest' | 'metadata' | 'optimize' | 'archive';
-type OptimizeOperation = 'transcode' | 'upgrade' | 'delete';
+type operationKind = 'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode';
+type TaskTarget = 'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete';
+type OptimizeOperation = 'transcode' | 'upgrade';
 type PriorityMatch = NonNullable<PriorityRule['match']>;
 type PriorityMatchKey = keyof PriorityMatch;
 
@@ -23,12 +23,12 @@ const TASK_TARGETS: Array<{ key: TaskTarget; label: string; desc: string }> = [
   { key: 'metadata', label: '自动补元数据', desc: '允许系统为元数据不完整的条目创建刮削/修复任务' },
   { key: 'optimize', label: '自动优化', desc: '允许系统为已具备优化目标的条目创建优化任务' },
   { key: 'archive', label: '自动归档', desc: '允许系统为已完成处理的条目创建闭环归档任务' },
+  { key: 'delete', label: '删除处置', desc: '允许系统在用户确认后创建归档媒体的删除任务' },
 ];
 
 const OPTIMIZE_OPERATIONS: Array<{ key: OptimizeOperation; label: string }> = [
   { key: 'transcode', label: '转码压缩' },
   { key: 'upgrade', label: '洗版' },
-  { key: 'delete', label: '删除' },
 ];
 
 const APPROVAL_GATES: Array<{ key: string; label: string; desc: string; force?: boolean }> = [
@@ -60,12 +60,12 @@ const DEFAULT_TARGET_GATE_WEIGHTS: Record<TaskTarget, number> = {
   metadata: 80,
   optimize: 110,
   archive: 70,
+  delete: 90,
 };
 
 const DEFAULT_OPTIMIZE_OPERATION_HINTS: Record<OptimizeOperation, number> = {
   transcode: 20,
   upgrade: 0,
-  delete: -20,
 };
 
 const DEFAULT_GATE_COOLDOWNS: Record<TaskTarget, number> = {
@@ -73,6 +73,7 @@ const DEFAULT_GATE_COOLDOWNS: Record<TaskTarget, number> = {
   metadata: 6,
   optimize: 48,
   archive: 0,
+  delete: 48,
 };
 
 const DEFAULT_GATE_QUEUE_LIMITS: Record<TaskTarget, number> = {
@@ -80,6 +81,7 @@ const DEFAULT_GATE_QUEUE_LIMITS: Record<TaskTarget, number> = {
   metadata: 20,
   optimize: 50,
   archive: 50,
+  delete: 50,
 };
 
 function modeLabel(mode: ApprovalMode): string {
@@ -100,12 +102,12 @@ function splitLegacySmartTaskActions(actions: string[] = []): { automaticTaskTar
     if (action === 'ingest') targets.add('ingest');
     else if (action === 'scrape' || action === 'metadata') targets.add('metadata');
     else if (action === 'archive') targets.add('archive');
+    else if (action === 'delete') targets.add('delete');
     else if (action === 'optimize') {
       targets.add('optimize');
       operations.add('transcode');
       operations.add('upgrade');
-      operations.add('delete');
-    } else if (action === 'transcode' || action === 'upgrade' || action === 'delete') {
+    } else if (action === 'transcode' || action === 'upgrade') {
       targets.add('optimize');
       operations.add(action);
     }
@@ -119,11 +121,12 @@ function projectLegacySmartTaskActions(targets: TaskTarget[], operations: Optimi
   if (targets.includes('metadata')) actions.push('scrape');
   if (targets.includes('optimize')) actions.push(...operations);
   if (targets.includes('archive')) actions.push('archive');
+  if (targets.includes('delete')) actions.push('delete');
   return actions;
 }
 
-function legacyActionWeightsToGateWeights(weights: Partial<Record<ActionType, number>> = {}): Record<TaskTarget, number> {
-  const optimizeValues = [weights.transcode, weights.upgrade, weights.delete]
+function legacyActionWeightsToGateWeights(weights: Partial<Record<operationKind, number>> = {}): Record<TaskTarget, number> {
+  const optimizeValues = [weights.transcode, weights.upgrade]
     .map((value) => Number(value))
     .filter(Number.isFinite);
   return {
@@ -131,21 +134,22 @@ function legacyActionWeightsToGateWeights(weights: Partial<Record<ActionType, nu
     metadata: typeof weights.scrape === 'number' ? weights.scrape : DEFAULT_TARGET_GATE_WEIGHTS.metadata,
     optimize: optimizeValues.length ? Math.round(optimizeValues.reduce((sum, value) => sum + value, 0) / optimizeValues.length) : DEFAULT_TARGET_GATE_WEIGHTS.optimize,
     archive: DEFAULT_TARGET_GATE_WEIGHTS.archive,
+    delete: typeof weights.delete === 'number' ? weights.delete : DEFAULT_TARGET_GATE_WEIGHTS.delete,
   };
 }
 
-function gateWeightsToLegacyActionWeights(weights: Record<TaskTarget, number>, hints: Record<OptimizeOperation, number>): Record<ActionType, number> {
+function gateWeightsToLegacyActionWeights(weights: Record<TaskTarget, number>, hints: Record<OptimizeOperation, number>): Record<operationKind, number> {
   return {
     ingest: weights.ingest,
     scrape: weights.metadata,
     transcode: weights.optimize + hints.transcode,
     upgrade: weights.optimize + hints.upgrade,
-    delete: weights.optimize + hints.delete,
+    delete: weights.delete,
   };
 }
 
-function legacyActionMapToGateMap(values: Partial<Record<ActionType, number>> = {}, defaults: Record<TaskTarget, number>): Record<TaskTarget, number> {
-  const optimizeValues = [values.transcode, values.upgrade, values.delete]
+function legacyActionMapToGateMap(values: Partial<Record<operationKind, number>> = {}, defaults: Record<TaskTarget, number>): Record<TaskTarget, number> {
+  const optimizeValues = [values.transcode, values.upgrade]
     .map((value) => Number(value))
     .filter(Number.isFinite);
   return {
@@ -153,35 +157,37 @@ function legacyActionMapToGateMap(values: Partial<Record<ActionType, number>> = 
     metadata: typeof values.scrape === 'number' ? values.scrape : defaults.metadata,
     optimize: optimizeValues.length ? Math.min(...optimizeValues) : defaults.optimize,
     archive: defaults.archive,
+    delete: typeof values.delete === 'number' ? values.delete : defaults.delete,
   };
 }
 
-function gateMapToLegacyActionMap(values: Record<TaskTarget, number>): Record<ActionType, number> {
+function gateMapToLegacyActionMap(values: Record<TaskTarget, number>): Record<operationKind, number> {
   return {
     ingest: values.ingest,
     scrape: values.metadata,
     transcode: values.optimize,
     upgrade: values.optimize,
-    delete: values.optimize,
+    delete: values.delete,
   };
 }
 
-function legacyRulesToGateRules(rules: Partial<Record<ActionType, PriorityRule[]>> = {}): Record<TaskTarget, PriorityRule[]> {
+function legacyRulesToGateRules(rules: Partial<Record<operationKind, PriorityRule[]>> = {}): Record<TaskTarget, PriorityRule[]> {
   return {
     ingest: rules.ingest || [],
     metadata: rules.scrape || [],
-    optimize: [...(rules.transcode || []), ...(rules.upgrade || []), ...(rules.delete || [])],
+    optimize: [...(rules.transcode || []), ...(rules.upgrade || [])],
     archive: [],
+    delete: rules.delete || [],
   };
 }
 
-function gateRulesToLegacyRules(rules: Record<TaskTarget, PriorityRule[]>): Record<ActionType, PriorityRule[]> {
+function gateRulesToLegacyRules(rules: Record<TaskTarget, PriorityRule[]>): Record<operationKind, PriorityRule[]> {
   return {
     ingest: rules.ingest || [],
     scrape: rules.metadata || [],
     transcode: rules.optimize || [],
     upgrade: [],
-    delete: [],
+    delete: rules.delete || [],
   };
 }
 
@@ -262,6 +268,7 @@ export default function SystemConfigPage() {
     metadata: [],
     optimize: [],
     archive: [],
+    delete: [],
   });
   const [globalApprovalPolicy, setGlobalApprovalPolicy] = useState<ApprovalPolicyConfig>(DEFAULT_APPROVAL_POLICY);
   const [gateCooldowns, setGateCooldowns] = useState<Record<TaskTarget, number>>(DEFAULT_GATE_COOLDOWNS);
@@ -295,7 +302,7 @@ export default function SystemConfigPage() {
         setManualPrio(sysCfg.taskPriority?.manualTaskPriority ?? 0);
         setAutoPrioBase(sysCfg.taskPriority?.autoTaskPriorityBase ?? 100);
         setTargetGateWeights({
-          ...legacyActionWeightsToGateWeights(sysCfg.taskPriority?.actionTypeWeights || {}),
+          ...legacyActionWeightsToGateWeights(sysCfg.taskPriority?.operationKindWeights || {}),
           ...(sysCfg.taskPriority?.targetGateWeights || {}),
         });
         setOptimizeOperationHints({ ...DEFAULT_OPTIMIZE_OPERATION_HINTS, ...(sysCfg.taskPriority?.optimizeOperationHints || {}) });
@@ -419,7 +426,7 @@ export default function SystemConfigPage() {
             targetGateWeights,
             optimizeOperationHints,
             rulesByTargetGate: priorityRulesByTargetGate,
-            actionTypeWeights: compatActionWeights,
+            operationKindWeights: compatActionWeights,
             rules: compatPriorityRules,
           },
         }),

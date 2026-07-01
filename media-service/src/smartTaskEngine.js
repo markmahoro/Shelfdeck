@@ -74,15 +74,15 @@ function readEnabledActions(config) {
   return businessFlowPolicy.resolveAutoEnabledActions(config);
 }
 
-function actionLabel(actionType) {
-  switch (actionType) {
+function actionLabel(operationKind) {
+  switch (operationKind) {
     case 'ingest': return '入库';
     case 'archive': return '归档';
     case 'scrape': return '刮削';
     case 'transcode': return '转码压缩';
     case 'upgrade': return '洗版';
     case 'delete': return '删除';
-    default: return actionType;
+    default: return operationKind;
   }
 }
 
@@ -128,9 +128,17 @@ function buildItemInfo(item) {
     seasonNumber: item.seasonNumber,
     targetBitrate: item.targetBitrate,
     targetCodec: item.targetCodec,
+    targetMediaFacts: item.targetMediaFacts,
+    optimizeObjectiveStatus: item.optimizeObjectiveStatus,
+    optimizeObjective: item.optimizeObjective,
+    objectiveHash: item.objectiveHash,
+    objectiveVersion: item.objectiveVersion,
+    objectiveDerivedFrom: item.objectiveDerivedFrom,
     seedPreferences: item.seedPreferences,
     maxSizeGB: item.maxSizeGB,
     equivalentBitrate: item.equivalentBitrate,
+    codec: item.codec,
+    videoCodec: item.videoCodec,
     scraped: !!item.scraped,
     adultMetadata: item.adultMetadata,
     metadataStatus: item.metadataStatus,
@@ -152,13 +160,13 @@ function buildCandidate(item, { config }) {
   const trigger = businessFlowPolicy.resolveAutomaticTrigger({ item, config });
   if (!trigger.allowed) return null;
 
-  const actionType = trigger.actionType;
+  const operationKind = trigger.operationKind;
   const itemWithMetadata = trigger.item || item;
   const itemInfo = buildItemInfo(itemWithMetadata);
   return {
     item: itemWithMetadata,
     itemInfo,
-    actionType,
+    operationKind,
     timestamp: itemTimestamp(item),
   };
 }
@@ -169,7 +177,7 @@ function buildIngestCandidate(candidate) {
   return {
     item: itemInfo,
     itemInfo,
-    actionType: 'ingest',
+    operationKind: 'ingest',
     timestamp: Number(candidate.timestamp) || itemTimestamp(itemInfo),
   };
 }
@@ -259,10 +267,10 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         : taskStore.getTasks();
       const optimizationIndex = optimizationStatus.buildOptimizationIndex(allTasks, cfg2);
 
-      // Count active (non-terminal) tasks per action type
+      // Count active (non-terminal) tasks per operation kind
       const activeByType = {};
       for (const t of activeTasks) {
-        activeByType[t.actionType] = (activeByType[t.actionType] || 0) + 1;
+        activeByType[t.operationKind] = (activeByType[t.operationKind] || 0) + 1;
       }
 
       // Per-type queue cap: how many non-terminal tasks of a given type may be
@@ -292,12 +300,12 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       runtimeEvent.update({ candidateCount: candidates.length });
       scanSummary.candidateCount = candidates.length;
       for (const candidate of candidates) {
-        incrementCounter(scanSummary.candidatesByAction, candidate.actionType);
+        incrementCounter(scanSummary.candidatesByAction, candidate.operationKind);
       }
 
       const admittedTasks = [];
       for (const candidate of candidates) {
-        const { item, itemInfo, actionType } = candidate;
+        const { item, itemInfo, operationKind } = candidate;
         scanSummary.evaluatedCandidates += 1;
 
         const subLibSchedule2 = typeof configStore.resolveSubLibSchedule === 'function'
@@ -308,7 +316,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         const admission = taskAdmission.canCreateTask({
           item,
           itemInfo,
-          actionType,
+          operationKind,
           source: 'auto',
           config: cfg2,
           tasks: allTasks,
@@ -325,17 +333,17 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
           taskTarget: admission.taskTarget,
           itemInfo,
           config: cfg2,
-          actionType,
+          operationKind,
         });
 
         admittedTasks.push({
           item,
-          actionType,
+          operationKind,
           timestamp: candidate.timestamp,
           taskData: {
             itemId: item.itemId,
             itemName: item.name,
-            actionType,
+            operationKind,
             source: 'auto',
             status,
             priority: priorityBreakdown.priority,
@@ -368,27 +376,27 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         }
         const itemId = admitted.item && admitted.item.itemId || admitted.taskData.itemId;
         if (itemId && selectedItemIds.has(itemId)) continue;
-        const cur = activeByType[admitted.actionType] || 0;
-        const cap = queueCap[admitted.actionType] || maxQueueSize;
+        const cur = activeByType[admitted.operationKind] || 0;
+        const cap = queueCap[admitted.operationKind] || maxQueueSize;
         if (cur >= cap) {
           scanSummary.skippedByQueueCap += 1;
-          incrementCounter(scanSummary.skippedByQueueCapByAction, admitted.actionType);
+          incrementCounter(scanSummary.skippedByQueueCapByAction, admitted.operationKind);
           continue;
         }
         selectedTasks.push(admitted);
         if (itemId) selectedItemIds.add(itemId);
-        activeByType[admitted.actionType] = cur + 1;
+        activeByType[admitted.operationKind] = cur + 1;
       }
 
       const toEnqueue = [];
       const taskDataToCreate = [];
       for (const admitted of selectedTasks) {
-        const { item, actionType, taskData } = admitted;
+        const { item, operationKind, taskData } = admitted;
         taskDataToCreate.push(taskData);
-        console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${actionType} "${item.name}"`);
-        toEnqueue.push({ item, actionType });
+        console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${operationKind} "${item.name}"`);
+        toEnqueue.push({ item, operationKind });
         scanSummary.enqueued += 1;
-        incrementCounter(scanSummary.enqueuedByAction, actionType);
+        incrementCounter(scanSummary.enqueuedByAction, operationKind);
       }
 
       if (taskDataToCreate.length > 0) {
@@ -402,7 +410,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       if (toEnqueue.length > 0) {
         const byAction = {};
         for (const entry of toEnqueue) {
-          byAction[entry.actionType] = (byAction[entry.actionType] || 0) + 1;
+          byAction[entry.operationKind] = (byAction[entry.operationKind] || 0) + 1;
         }
         const parts = Object.entries(byAction).map(([a, n]) => `${actionLabel(a)} ${n} 个`);
         const msg = `后台自动入队：${toEnqueue.length} 个任务已自动创建（${parts.join('，')}）`;

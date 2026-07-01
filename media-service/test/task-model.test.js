@@ -18,6 +18,7 @@ const taskStore = require('../src/taskStore');
 const embyService = require('../src/services/embyService');
 const transcodeService = require('../src/services/transcodeService');
 const scrapeVerification = require('../src/scrapeVerification');
+const lifecycleGateService = require('../src/lifecycleGateService');
 const lifecycleProjection = require('../src/lifecycleProjection');
 const resourceProjection = require('../src/resourceProjection');
 const diagnosticLog = require('../src/diagnosticLog');
@@ -26,6 +27,8 @@ const mediaLibraryService = require('../src/mediaLibraryService');
 const metadataStatus = require('../src/metadataStatus');
 const flowRecoveryContract = require('../src/flowRecoveryContract');
 const flowPlanner = require('../src/flowPlanner');
+const optimizationStatus = require('../src/optimizationStatus');
+const v3Model = require('../src/v3Model');
 
 function metadataReadyMovie(overrides = {}) {
   const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
@@ -124,7 +127,7 @@ test('scrapeVerification judges scraped item state instead of task completion st
     checkFiles: false,
     requireMarker: false,
     scrapeTaskId: 'scrape-task-1',
-    task: { id: 'scrape-task-1', actionType: 'scrape', status: 'executing' },
+    task: { id: 'scrape-task-1', operationKind: 'scrape', status: 'executing' },
     config: { adultLibrary: { japaneseJav: { writeNfo: true } } },
     subLib: { uuid: 'adult-lib', adultRegion: 'japanese_jav' },
   });
@@ -230,6 +233,59 @@ test('config migration adds archive to legacy non-empty smart task automation al
   }
 });
 
+test('config migration projects legacy delete as a delete target, not an optimize operation', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  delete process.env.MEDIA_SERVICE_DATA_DIR;
+
+  try {
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+      smartTaskEnabledActions: ['transcode', 'delete'],
+      ruleTemplates: configStore.getDefaultConfig().ruleTemplates,
+    }, null, 2));
+
+    const loaded = configStore.loadConfig();
+    assert.deepStrictEqual(loaded.automaticTaskTargets, ['optimize', 'delete', 'archive']);
+    assert.deepStrictEqual(loaded.optimizeAllowedOperations, ['transcode']);
+    assert.deepStrictEqual(loaded.smartTaskEnabledActions, ['transcode', 'archive', 'delete']);
+    assert.strictEqual(loaded.deleteGatePolicy.enabled, false);
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
+test('config migration removes delete from new optimize operation allow-list', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  delete process.env.MEDIA_SERVICE_DATA_DIR;
+
+  try {
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+      automaticTaskTargets: ['optimize'],
+      optimizeAllowedOperations: ['transcode', 'delete'],
+      smartTaskEnabledActions: ['transcode', 'delete'],
+      ruleTemplates: configStore.getDefaultConfig().ruleTemplates,
+    }, null, 2));
+
+    const loaded = configStore.loadConfig();
+    assert.deepStrictEqual(loaded.automaticTaskTargets, ['optimize', 'delete']);
+    assert.deepStrictEqual(loaded.optimizeAllowedOperations, ['transcode']);
+    assert.deepStrictEqual(loaded.smartTaskEnabledActions, ['transcode', 'delete']);
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
 test('config migration keeps an empty smart task automation allow-list disabled', () => {
   const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
   const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
@@ -304,14 +360,14 @@ test('taskAdmission allows automatic task creation for manual sub-libraries', ()
   const item = metadataReadyMovie({ itemId: 'i1', subLibraryId: 'manual-lib' });
   const auto = taskAdmission.canCreateTask({
     item,
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'auto',
     config,
     tasks: [],
   });
   const manual = taskAdmission.canCreateTask({
     item,
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     config,
     tasks: [],
@@ -327,7 +383,7 @@ test('taskAdmission uses smartTaskEnabledActions as the global automatic allow-l
   };
   const scrape = taskAdmission.canCreateTask({
     item: { itemId: 'i1', subLibraryId: 'lib-a' },
-    actionType: 'scrape',
+    operationKind: 'scrape',
     source: 'auto',
     config,
     tasks: [],
@@ -337,7 +393,7 @@ test('taskAdmission uses smartTaskEnabledActions as the global automatic allow-l
 
   const ingest = taskAdmission.canCreateTask({
     item: { itemId: 'i2', subLibraryId: 'lib-a' },
-    actionType: 'ingest',
+    operationKind: 'ingest',
     source: 'auto',
     config,
     tasks: [],
@@ -352,7 +408,7 @@ test('taskAdmission allows automatic optimize operations when `optimize` is conf
   };
   const auto = taskAdmission.canCreateTask({
     item: metadataReadyMovie({ itemId: 'i1', subLibraryId: 'lib-a' }),
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'auto',
     config,
     tasks: [],
@@ -370,7 +426,7 @@ test('taskAdmission separates automatic task targets from optimize operation aut
 
   const scrape = taskAdmission.canCreateTask({
     item: { itemId: 'missing-metadata', source: 'emby', subLibraryId: 'lib-a', type: 'movie', name: 'Missing Metadata' },
-    actionType: 'scrape',
+    operationKind: 'scrape',
     source: 'auto',
     config,
     tasks: [],
@@ -380,7 +436,7 @@ test('taskAdmission separates automatic task targets from optimize operation aut
 
   const transcode = taskAdmission.canCreateTask({
     item: metadataReadyMovie({ itemId: 'transcode-allowed', subLibraryId: 'lib-a' }),
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'auto',
     config,
     tasks: [],
@@ -390,7 +446,7 @@ test('taskAdmission separates automatic task targets from optimize operation aut
 
   const upgrade = taskAdmission.canCreateTask({
     item: metadataReadyMovie({ itemId: 'upgrade-blocked', subLibraryId: 'lib-a' }),
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     source: 'auto',
     config,
     tasks: [],
@@ -400,7 +456,7 @@ test('taskAdmission separates automatic task targets from optimize operation aut
 
   const ingest = taskAdmission.canCreateTask({
     item: { itemId: 'ingest-blocked', subLibraryId: 'lib-a' },
-    actionType: 'ingest',
+    operationKind: 'ingest',
     source: 'auto',
     config,
     tasks: [],
@@ -415,7 +471,7 @@ test('taskAdmission treats a missing automatic allow-list as disabled', () => {
   };
   const auto = taskAdmission.canCreateTask({
     item: { itemId: 'i1', subLibraryId: 'lib-a' },
-    actionType: 'scrape',
+    operationKind: 'scrape',
     source: 'auto',
     config,
     tasks: [],
@@ -425,7 +481,7 @@ test('taskAdmission treats a missing automatic allow-list as disabled', () => {
 
   const manual = taskAdmission.canCreateTask({
     item: { itemId: 'i1', subLibraryId: 'lib-a' },
-    actionType: 'scrape',
+    operationKind: 'scrape',
     source: 'manual',
     config,
     tasks: [],
@@ -448,7 +504,7 @@ test('taskAdmission allows archive only after optimize gate is satisfied and not
   });
   const allowed = taskAdmission.canCreateTask({
     item: ready,
-    actionType: 'archive',
+    operationKind: 'archive',
     source: 'manual',
     config,
     tasks: [],
@@ -459,7 +515,7 @@ test('taskAdmission allows archive only after optimize gate is satisfied and not
 
   const notOptimized = taskAdmission.canCreateTask({
     item: metadataReadyMovie({ itemId: 'archive-not-optimized', subLibraryId: 'lib-a', action: 'transcode' }),
-    actionType: 'archive',
+    operationKind: 'archive',
     source: 'manual',
     config,
     tasks: [],
@@ -469,7 +525,7 @@ test('taskAdmission allows archive only after optimize gate is satisfied and not
 
   const closed = taskAdmission.canCreateTask({
     item: { ...ready, archiveStatus: 'archived_like', archiveDoneAt: new Date().toISOString() },
-    actionType: 'archive',
+    operationKind: 'archive',
     source: 'manual',
     config,
     tasks: [],
@@ -503,13 +559,13 @@ test('businessFlowPolicy resolves automatic metadata repair triggers outside Sma
   });
 
   assert.strictEqual(trigger.allowed, true);
-  assert.strictEqual(trigger.actionType, 'scrape');
+  assert.strictEqual(trigger.operationKind, 'scrape');
   assert.strictEqual(trigger.bridgeKind, 'metadata');
   assert.strictEqual(trigger.reason, 'metadata_gate_not_met');
   assert.ok(trigger.metadataMissingReasons.includes('identity.externalId'));
 });
 
-test('businessFlowPolicy does not auto-repair metadata when missing reasons require external rating facts', () => {
+test('businessFlowPolicy does not treat missing perception as metadata repair work', () => {
   const config = {
     smartTaskEnabledActions: ['scrape'],
     subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie', ruleTemplateId: 'default' }],
@@ -547,9 +603,9 @@ test('businessFlowPolicy does not auto-repair metadata when missing reasons requ
   });
 
   assert.strictEqual(trigger.allowed, false);
-  assert.strictEqual(trigger.reason, 'metadata_not_auto_repairable');
-  assert.ok(trigger.metadataMissingReasons.includes('decision.rating'));
-  assert.deepStrictEqual(trigger.unsupportedReasons, ['decision.rating']);
+  assert.strictEqual(trigger.allowed, false);
+  assert.strictEqual(trigger.reason, 'no_automatic_task_required');
+  assert.strictEqual(trigger.metadataMissingReasons, undefined);
 });
 
 test('businessFlowPolicy stops metadata automation after upstream ingest gate invalidation', () => {
@@ -607,10 +663,251 @@ test('businessFlowPolicy resolves automatic optimize triggers from strategy outp
   });
 
   assert.strictEqual(trigger.allowed, true);
-  assert.strictEqual(trigger.actionType, 'transcode');
+  assert.strictEqual(trigger.operationKind, 'transcode');
   assert.strictEqual(trigger.bridgeKind, 'optimize');
   assert.strictEqual(trigger.reason, 'lifecycle_gate_met');
   assert.strictEqual(trigger.planningMode, 'strategy_result');
+});
+
+test('flowPlanner selects no-op, transcode, and blocked upgrade from objective gaps', () => {
+  const objective = {
+    kind: 'target_media_facts',
+    targetMediaFacts: {
+      qualityTier: 'standard',
+      targetBitrateByBucket: { '1080p': 4 },
+      targetCodec: 'h265',
+    },
+  };
+
+  const satisfied = flowPlanner.selectOptimizeFlow({
+    itemInfo: metadataReadyMovie({ bitrate: 4_200_000, equivalentBitrate: 4.2, codec: 'hevc' }),
+    optimizeObjective: objective,
+    optimizeObjectiveStatus: 'ready',
+  });
+  assert.strictEqual(satisfied.selectedOperation, 'no_op');
+  assert.strictEqual(satisfied.operation, 'no_op');
+  assert.strictEqual(satisfied.reason, 'objective_already_satisfied');
+
+  const transcode = flowPlanner.selectOptimizeFlow({
+    itemInfo: metadataReadyMovie({ bitrate: 10_000_000, equivalentBitrate: 10, codec: 'h264' }),
+    optimizeObjective: objective,
+    optimizeObjectiveStatus: 'ready',
+    allowedOperations: ['transcode'],
+  });
+  assert.strictEqual(transcode.selectedOperation, 'transcode');
+  assert.strictEqual(transcode.operation, 'transcode');
+  assert.ok(transcode.gap.some((gap) => gap.reason === 'bitrate_above_target'));
+  assert.ok(transcode.gap.some((gap) => gap.reason === 'codec_mismatch'));
+
+  const plannedFromTaskTarget = flowPlanner.planFlow({
+    operationKind: 'transcode',
+    source: 'manual',
+    itemId: 'movie-root-objective',
+    itemInfo: metadataReadyMovie({
+      itemId: 'movie-root-objective',
+      bitrate: 10_000_000,
+      equivalentBitrate: 10,
+      resolution: '3840x2160',
+      codec: 'h265',
+    }),
+    taskTarget: {
+      targetGate: 'optimize',
+      gateObjective: {
+        kind: 'reduce_bitrate',
+        targetBitrate: 6,
+        targetCodec: 'h265',
+      },
+    },
+    allowedOperations: ['transcode'],
+  });
+  assert.strictEqual(plannedFromTaskTarget.flowPlan.flowSelection.selectedOperation, 'transcode');
+  assert.strictEqual(plannedFromTaskTarget.flowPlan.flowSelection.reason, 'local_transform_satisfies_objective');
+
+  const needsUpgrade = flowPlanner.selectOptimizeFlow({
+    itemInfo: metadataReadyMovie({ bitrate: 4_000_000, equivalentBitrate: 4, resolution: '1920x1080', codec: 'hevc' }),
+    optimizeObjective: {
+      kind: 'target_media_facts',
+      targetMediaFacts: {
+        qualityTier: 'premium',
+        minResolution: '4K',
+        targetBitrateByBucket: { '1080p': 8, '4K': 18 },
+        targetCodec: 'h265',
+      },
+    },
+    optimizeObjectiveStatus: 'ready',
+    allowedOperations: ['transcode'],
+  });
+  assert.strictEqual(needsUpgrade.selectedOperation, 'blocked');
+  assert.strictEqual(needsUpgrade.operation, 'upgrade');
+  assert.strictEqual(needsUpgrade.blockedReason, 'needs_upgrade');
+
+  const upgrade = flowPlanner.selectOptimizeFlow({
+    itemInfo: metadataReadyMovie({ bitrate: 4_000_000, equivalentBitrate: 4, resolution: '1920x1080', codec: 'hevc' }),
+    optimizeObjective: {
+      kind: 'target_media_facts',
+      targetMediaFacts: {
+        qualityTier: 'premium',
+        minResolution: '4K',
+        targetBitrateByBucket: { '1080p': 8, '4K': 18 },
+        targetCodec: 'h265',
+      },
+    },
+    optimizeObjectiveStatus: 'ready',
+    allowedOperations: ['upgrade'],
+    flowSafetyFacts: {
+      moviepilotConfigured: true,
+      upgradeCanarySlotAvailable: true,
+    },
+  });
+  assert.strictEqual(upgrade.selectedOperation, 'upgrade');
+  assert.strictEqual(upgrade.operation, 'upgrade');
+  assert.strictEqual(upgrade.reason, 'better_source_required');
+});
+
+test('businessFlowPolicy uses objective gap analysis for optimize task creation', () => {
+  const config = {
+    automaticTaskTargets: ['optimize'],
+    optimizeAllowedOperations: ['transcode'],
+    subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+  };
+  const trigger = businessFlowPolicy.resolveAutomaticTrigger({
+    config,
+    item: metadataReadyMovie({
+      itemId: 'movie-objective-gap-transcode',
+      subLibraryId: 'movie-lib',
+      bitrate: 10_000_000,
+      equivalentBitrate: 10,
+      codec: 'h264',
+      targetMediaFacts: {
+        qualityTier: 'standard',
+        targetBitrateByBucket: { '1080p': 4 },
+        targetCodec: 'h265',
+      },
+      optimizeObjectiveStatus: 'ready',
+      optimizeObjective: {
+        kind: 'target_media_facts',
+        targetMediaFacts: {
+          qualityTier: 'standard',
+          targetBitrateByBucket: { '1080p': 4 },
+          targetCodec: 'h265',
+        },
+        acceptableOperations: ['transcode', 'upgrade'],
+      },
+      objectiveHash: 'objectivehash1234',
+    }),
+  });
+
+  assert.strictEqual(trigger.allowed, true);
+  assert.strictEqual(trigger.operationKind, 'transcode');
+  assert.strictEqual(trigger.bridgeKind, 'optimize');
+  assert.strictEqual(trigger.planningMode, 'objective_gap_analysis');
+  assert.strictEqual(trigger.flowSelection.selectedOperation, 'transcode');
+  assert.strictEqual(trigger.flowPlan.flowSelection.selectedOperation, 'transcode');
+  assert.strictEqual(trigger.flowPlan.flowSelection.objectiveHash, 'objectivehash1234');
+});
+
+test('businessFlowPolicy blocks better-source objective when upgrade is not authorized', () => {
+  const config = {
+    automaticTaskTargets: ['optimize'],
+    optimizeAllowedOperations: ['transcode'],
+    subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+  };
+  const trigger = businessFlowPolicy.resolveAutomaticTrigger({
+    config,
+    item: metadataReadyMovie({
+      itemId: 'movie-objective-gap-upgrade',
+      subLibraryId: 'movie-lib',
+      bitrate: 8_000_000,
+      equivalentBitrate: 8,
+      resolution: '1920x1080',
+      codec: 'hevc',
+      optimizeObjectiveStatus: 'ready',
+      optimizeObjective: {
+        kind: 'target_media_facts',
+        targetMediaFacts: {
+          qualityTier: 'premium',
+          minResolution: '4K',
+          targetBitrateByBucket: { '1080p': 8, '4K': 18 },
+          targetCodec: 'h265',
+        },
+        acceptableOperations: ['transcode', 'upgrade'],
+      },
+      objectiveHash: 'needsupgradehash1',
+    }),
+  });
+
+  assert.strictEqual(trigger.allowed, false);
+  assert.strictEqual(trigger.reason, 'needs_upgrade');
+  assert.strictEqual(trigger.flowSelection.selectedOperation, 'blocked');
+  assert.strictEqual(trigger.flowSelection.operation, 'upgrade');
+});
+
+test('businessFlowPolicy gates objective-driven automatic upgrade canary', () => {
+  const objectiveItem = metadataReadyMovie({
+    itemId: 'movie-objective-upgrade-canary',
+    subLibraryId: 'movie-lib',
+    bitrate: 8_000_000,
+    equivalentBitrate: 8,
+    resolution: '1920x1080',
+    codec: 'hevc',
+    optimizeObjectiveStatus: 'ready',
+    optimizeObjective: {
+      kind: 'target_media_facts',
+      targetMediaFacts: {
+        qualityTier: 'premium',
+        minResolution: '4K',
+        targetBitrateByBucket: { '1080p': 8, '4K': 18 },
+        targetCodec: 'h265',
+      },
+      acceptableOperations: ['transcode', 'upgrade'],
+    },
+    objectiveHash: 'upgradecanaryhash',
+  });
+  const baseConfig = {
+    automaticTaskTargets: ['optimize'],
+    optimizeAllowedOperations: ['upgrade'],
+    upgradeStagingLocalPath: 'C:\\staging',
+    subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+  };
+
+  const missingMoviePilot = businessFlowPolicy.resolveAutomaticTrigger({
+    config: baseConfig,
+    item: objectiveItem,
+  });
+  assert.strictEqual(missingMoviePilot.allowed, false);
+  assert.strictEqual(missingMoviePilot.reason, 'moviepilot_not_configured');
+  assert.strictEqual(missingMoviePilot.flowSelection.blockedReason, 'moviepilot_not_configured');
+
+  const configured = businessFlowPolicy.resolveAutomaticTrigger({
+    config: {
+      ...baseConfig,
+      moviepilot: { baseUrl: 'http://moviepilot.local', apiKey: 'token' },
+    },
+    item: objectiveItem,
+  });
+  assert.strictEqual(configured.allowed, true);
+  assert.strictEqual(configured.operationKind, 'upgrade');
+  assert.strictEqual(configured.flowSelection.selectedOperation, 'upgrade');
+
+  const activeUpgrade = {
+    id: 'active-upgrade',
+    itemId: 'other-item',
+    operationKind: 'upgrade',
+    status: 'queued',
+  };
+  const canaryFull = taskAdmission.canCreateTask({
+    item: objectiveItem,
+    itemInfo: objectiveItem,
+    operationKind: 'upgrade',
+    source: 'auto',
+    config: {
+      ...baseConfig,
+      moviepilot: { baseUrl: 'http://moviepilot.local', apiKey: 'token' },
+    },
+    tasks: [activeUpgrade],
+  });
+  assert.strictEqual(canaryFull.allowed, false);
+  assert.strictEqual(canaryFull.reason, 'upgrade_canary_limit');
 });
 
 test('businessFlowPolicy resolves automatic optimize triggers when `optimize` is configured', () => {
@@ -631,7 +928,7 @@ test('businessFlowPolicy resolves automatic optimize triggers when `optimize` is
 
   assert.strictEqual(trigger.allowed, true);
   assert.strictEqual(trigger.operation, 'transcode');
-  assert.strictEqual(trigger.actionType, 'transcode');
+  assert.strictEqual(trigger.operationKind, 'transcode');
   assert.strictEqual(trigger.bridgeKind, 'optimize');
 });
 
@@ -675,7 +972,7 @@ test('businessFlowPolicy requires both optimize target and operation authorizati
     item,
   });
   assert.strictEqual(both.allowed, true);
-  assert.strictEqual(both.actionType, 'upgrade');
+  assert.strictEqual(both.operationKind, 'upgrade');
   assert.strictEqual(both.bridgeKind, 'optimize');
 });
 
@@ -730,7 +1027,7 @@ test('businessFlowPolicy resolves automatic archive trigger after optimize gate'
   });
 
   assert.strictEqual(trigger.allowed, true);
-  assert.strictEqual(trigger.actionType, 'archive');
+  assert.strictEqual(trigger.operationKind, 'archive');
   assert.strictEqual(trigger.bridgeKind, 'archive');
   assert.strictEqual(trigger.taskTarget.targetGate, 'archive');
   assert.strictEqual(trigger.taskTarget.gateObjective.kind, 'finalize_lifecycle');
@@ -752,7 +1049,7 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
   assert.strictEqual(selected.planningMode, 'strategy_result');
 
   const planned = lifecycleTaskPlanner.planOperationFlow({
-    actionType: selected.operation,
+    operationKind: selected.operation,
     source: 'auto',
     itemId: item.itemId,
     itemInfo: item,
@@ -766,6 +1063,25 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
   assert.strictEqual(planned.flowPlan.operationKind, 'upgrade');
   assert.strictEqual(planned.flowPlan.primaryResourceType, 'moviepilot');
 
+  const transcodePlanned = lifecycleTaskPlanner.planOperationFlow({
+    operationKind: 'transcode',
+    source: 'manual',
+    itemId: 'movie-planner-transcode',
+    itemInfo: metadataReadyMovie({
+      itemId: 'movie-planner-transcode',
+      bitrate: 10_000_000,
+      equivalentBitrate: 10,
+      resolution: '3840x2160',
+      codec: 'h265',
+      targetBitrate: 6,
+      targetCodec: 'h265',
+      action: 'transcode',
+    }),
+  });
+  assert.strictEqual(transcodePlanned.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(transcodePlanned.taskTarget.gateObjective.targetBitrate, 6);
+  assert.strictEqual(transcodePlanned.flowPlan.flowSelection.selectedOperation, 'transcode');
+
   const deleteSelected = lifecycleTaskPlanner.selectStrategyOperation(metadataReadyMovie({
     itemId: 'movie-planner-delete',
     action: 'delete',
@@ -773,19 +1089,18 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
   }));
   assert.strictEqual(deleteSelected.allowed, true);
   assert.strictEqual(deleteSelected.operation, 'delete');
-  assert.strictEqual(deleteSelected.bridgeKind, 'optimize');
+  assert.strictEqual(deleteSelected.bridgeKind, 'delete');
 
   const deletePlanned = lifecycleTaskPlanner.planOperationFlow({
-    actionType: deleteSelected.operation,
+    operationKind: deleteSelected.operation,
     source: 'auto',
     itemId: 'movie-planner-delete',
     itemInfo: { itemId: 'movie-planner-delete' },
   });
-  assert.strictEqual(deletePlanned.taskBridge.kind, 'optimize');
-  assert.strictEqual(deletePlanned.taskTarget.targetGate, 'optimize');
-  assert.strictEqual(deletePlanned.taskTarget.gateObjective.kind, 'remove_media');
-  assert.strictEqual(deletePlanned.taskTarget.gateObjective.destructive, true);
-  assert.strictEqual(deletePlanned.flowPlan.direction, 'optimize.delete');
+  assert.strictEqual(deletePlanned.taskBridge.kind, 'delete');
+  assert.strictEqual(deletePlanned.taskTarget.targetGate, 'delete');
+  assert.strictEqual(deletePlanned.taskTarget.gateObjective.kind, 'delete_archived_media');
+  assert.strictEqual(deletePlanned.flowPlan.direction, 'delete.execute');
   assert.strictEqual(deletePlanned.flowPlan.operationKind, 'delete');
   assert.deepStrictEqual(deletePlanned.flowPlan.steps.map((step) => step.phase), [
     'delete_precheck',
@@ -794,7 +1109,7 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
   ]);
 
   const ingestPlanned = lifecycleTaskPlanner.planOperationFlow({
-    actionType: 'ingest',
+    operationKind: 'ingest',
     source: 'auto',
     itemId: 'ingest:adult-lib:file',
     itemInfo: { itemId: 'ingest:adult-lib:file', subLibraryId: 'adult-lib' },
@@ -805,7 +1120,7 @@ test('lifecycleTaskPlanner selects optimize flow from strategy result', () => {
   assert.strictEqual(ingestPlanned.flowPlan.direction, 'ingest.commit');
 
   const archivePlanned = lifecycleTaskPlanner.planOperationFlow({
-    actionType: 'archive',
+    operationKind: 'archive',
     source: 'auto',
     itemId: 'movie-planner-archive',
     itemInfo: { itemId: 'movie-planner-archive' },
@@ -833,7 +1148,7 @@ test('lifecycleObjectiveResolver keeps optimize objective separate from flow ope
   assert.strictEqual(explicit.source, 'explicit_lifecycle_objective');
 
   const deleteTarget = lifecycleTaskPlanner.planTaskTarget({
-    actionType: 'delete',
+    operationKind: 'delete',
     source: 'manual',
     itemId: 'manual-delete-objective',
     itemInfo: metadataReadyMovie({
@@ -842,10 +1157,9 @@ test('lifecycleObjectiveResolver keeps optimize objective separate from flow ope
       reason: 'already acceptable',
     }),
   });
-  assert.strictEqual(deleteTarget.targetGate, 'optimize');
-  assert.strictEqual(deleteTarget.gateObjective.kind, 'remove_media');
-  assert.strictEqual(deleteTarget.gateObjective.operationHint, 'delete');
-  assert.strictEqual(deleteTarget.gateObjective.destructive, true);
+  assert.strictEqual(deleteTarget.targetGate, 'delete');
+  assert.strictEqual(deleteTarget.gateObjective.kind, 'delete_archived_media');
+  assert.deepStrictEqual(deleteTarget.gateObjective.acceptableOperations, ['delete']);
 
   const pending = lifecycleTaskPlanner.resolveOptimizeObjective({
     itemId: 'newly-discovered',
@@ -855,6 +1169,74 @@ test('lifecycleObjectiveResolver keeps optimize objective separate from flow ope
   assert.strictEqual(pending.kind, 'optimize_strategy_pending');
   assert.strictEqual(pending.source, 'lifecycle_pending');
   assert.deepStrictEqual(pending.acceptableOperations, []);
+});
+
+test('flowPlanner blocks legacy remove_media objectives from optimize flow selection', () => {
+  const selection = flowPlanner.selectOptimizeFlow({
+    itemInfo: metadataReadyMovie({
+      itemId: 'legacy-remove-media',
+      optimizeObjective: { kind: 'remove_media', destructive: true },
+      optimizeObjectiveStatus: 'ready',
+    }),
+    optimizeObjective: { kind: 'remove_media', destructive: true },
+    optimizeObjectiveStatus: 'ready',
+    allowedOperations: ['transcode', 'upgrade', 'delete'],
+  });
+
+  assert.strictEqual(selection.selectedOperation, 'blocked');
+  assert.strictEqual(selection.allowed, false);
+  assert.strictEqual(selection.reason, 'delete_is_not_optimize');
+  assert.strictEqual(selection.blockedReason, 'delete_gate_required');
+});
+
+test('legacy keep strategy evidence passes optimize gate as no-op', () => {
+  const gate = lifecycleGateService.evaluateOptimizeGate(metadataReadyMovie({
+    itemId: 'legacy-keep-no-op',
+    action: 'keep',
+    reason: 'already acceptable',
+  }));
+  assert.strictEqual(gate.passed, true);
+  assert.strictEqual(gate.operation, 'no_op');
+  assert.strictEqual(gate.reason, 'objective_already_satisfied');
+  assert.deepStrictEqual(gate.target, { operation: 'no_op' });
+});
+
+test('optimization read model does not project delete as an optimize result', () => {
+  const deleteOnly = optimizationStatus.resolveOptimization({
+    itemId: 'deleted-item',
+    subLibraryId: 'lib-a',
+    deletedAt: '2026-07-01T00:00:00.000Z',
+    removed: true,
+    optimizationStatus: 'deleted',
+    optimizationAction: 'delete',
+    optimizationDoneAt: '2026-07-01T00:00:00.000Z',
+  }, optimizationStatus.buildOptimizationIndex([
+    {
+      id: 'delete-task',
+      itemId: 'deleted-item',
+      operationKind: 'delete',
+      status: 'done',
+      updatedAt: '2026-07-01T00:00:00.000Z',
+      itemInfo: { subLibraryId: 'lib-a', path: '/media/deleted.mkv' },
+    },
+  ], { subLibraries: [{ uuid: 'lib-a' }] }), { subLibraries: [{ uuid: 'lib-a' }] });
+
+  assert.deepStrictEqual(deleteOnly, {
+    optimizationStatus: 'none',
+    optimizationAction: null,
+    optimizationDoneAt: null,
+    optimizationTaskId: null,
+  });
+
+  const facts = v3Model.mediaItemFacts({
+    itemId: 'legacy-deleted-item',
+    optimizationStatus: 'deleted',
+    optimizationAction: 'delete',
+    deleted: true,
+    deleteGate: { gate: 'delete', passed: true, status: 'passed', reason: 'legacy_delete_marker_migrated' },
+  });
+  assert.strictEqual(facts.optimization_status, 'none');
+  assert.strictEqual(facts.optimization_action, '');
 });
 
 test('businessFlowPolicy keeps disabled automatic operations out of SmartTask candidates', () => {
@@ -970,13 +1352,13 @@ test('metadataStatus default gate follows sub-library strategy inputs', () => {
   assert.deepStrictEqual(meta.metadataMissingReasons, []);
 
   const unwatched = metadataStatus.resolveMetadataStatus({ ...item, watched: undefined }, config);
-  assert.strictEqual(unwatched.metadataStatus, 'missing');
-  assert.ok(unwatched.metadataMissingReasons.includes('decision.watched'));
+  assert.strictEqual(unwatched.metadataStatus, 'complete');
+  assert.deepStrictEqual(unwatched.metadataMissingReasons, []);
   assert.ok(!unwatched.metadataMissingReasons.includes('decision.rating'));
   assert.ok(!unwatched.metadataMissingReasons.includes('decision.providerId'));
 });
 
-test('metadataStatus default movie gate still requires rating consumed by strategy', () => {
+test('metadataStatus default movie gate does not require user perception consumed by strategy', () => {
   const config = {
     subLibraries: [{
       uuid: 'movie-lib',
@@ -1004,8 +1386,95 @@ test('metadataStatus default movie gate still requires rating consumed by strate
     doubanStars: undefined,
   }), config);
 
-  assert.strictEqual(missingRating.metadataStatus, 'missing');
-  assert.ok(missingRating.metadataMissingReasons.includes('decision.rating'));
+  assert.strictEqual(missingRating.metadataStatus, 'complete');
+  assert.deepStrictEqual(missingRating.metadataMissingReasons, []);
+});
+
+test('metadataStatus sanitizes legacy perception fields from custom metadataGate', () => {
+  const config = {
+    subLibraries: [{
+      uuid: 'legacy-gate-lib',
+      source: 'emby',
+      mediaType: 'movie',
+      metadataGate: {
+        all: [
+          'identity.itemId',
+          'identity.name',
+          'decision.rating',
+          'decision.watched',
+          'decision.providerId',
+          'media.path',
+          'media.duration',
+          'media.bitrate',
+          'media.resolution',
+          'media.codec',
+        ],
+      },
+    }],
+  };
+  const item = metadataReadyMovie({
+    itemId: 'legacy-perception-gate-movie',
+    subLibraryId: 'legacy-gate-lib',
+    userRating: undefined,
+    doubanRating: undefined,
+    doubanStars: undefined,
+    watched: undefined,
+    tmdbId: '12345',
+  });
+
+  const gate = metadataStatus.resolveGate(item, config.subLibraries[0], 'emby', config);
+  assert.ok(!gate.all.includes('decision.rating'));
+  assert.ok(!gate.all.includes('decision.watched'));
+  assert.ok(gate.all.includes('identity.providerId'));
+
+  const meta = metadataStatus.resolveMetadataStatus(item, config);
+  assert.strictEqual(meta.metadataStatus, 'complete');
+  assert.deepStrictEqual(meta.metadataMissingReasons, []);
+});
+
+test('configStore migrates legacy perception fields out of saved metadataGate', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  delete process.env.MEDIA_SERVICE_DATA_DIR;
+
+  try {
+    const cfg = configStore.saveConfig({
+      ...configStore.getDefaultConfig(),
+      subLibraries: [{
+        uuid: 'legacy-config-gate-lib',
+        name: 'Legacy Config Gate',
+        source: 'emby',
+        mediaType: 'movie',
+        ruleTemplateId: 'default',
+        metadataGate: {
+          all: [
+            'identity.itemId',
+            'decision.watched',
+            'decision.rating',
+            'decision.providerId',
+            'media.path',
+            'media.duration',
+            'media.bitrate',
+            'media.resolution',
+            'media.codec',
+          ],
+        },
+      }],
+    });
+
+    const gateFields = cfg.subLibraries[0].metadataGate.all;
+    assert.ok(!gateFields.includes('decision.watched'));
+    assert.ok(!gateFields.includes('decision.rating'));
+    assert.ok(!gateFields.includes('decision.providerId'));
+    assert.ok(gateFields.includes('identity.providerId'));
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
 });
 
 test('metadataStatus marks a custom metadataGate contract broken when strategy inputs are not covered', () => {
@@ -1035,7 +1504,7 @@ test('metadataStatus marks a custom metadataGate contract broken when strategy i
 
   const validation = metadataStatus.validateMetadataGateForSubLibrary(config.subLibraries[0], config);
   assert.strictEqual(validation.ok, false);
-  assert.ok(validation.missingRequirements.includes('decision.rating'));
+  assert.ok(!validation.missingRequirements.includes('decision.rating'));
   assert.ok(validation.missingRequirements.includes('media.duration'));
 
   const meta = metadataStatus.resolveMetadataStatus(item, config);
@@ -1079,7 +1548,7 @@ test('configStore rejects metadataGate configs that do not cover optimize inputs
       });
     }, (err) => {
       assert.strictEqual(err.code, 'METADATA_GATE_CONTRACT_BROKEN');
-      assert.ok(err.details.violations[0].missingRequirements.includes('decision.rating'));
+      assert.ok(!err.details.violations[0].missingRequirements.includes('decision.rating'));
       assert.ok(err.details.violations[0].missingRequirements.includes('media.duration'));
       return true;
     });
@@ -1120,7 +1589,7 @@ test('flowRecoveryContract documents retry points for every current flow', () =>
 
 test('flowRecoveryContract rejects unknown resume points and exposes current point details', () => {
   const good = flowRecoveryContract.buildRecoveryPlan({
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'failed_hard',
     resumePoint: 'scrape_executing',
     retryCount: 1,
@@ -1131,7 +1600,7 @@ test('flowRecoveryContract rejects unknown resume points and exposes current poi
   assert.strictEqual(good.resumePointContract.retryStrategy, 'resume_step');
 
   const bad = flowRecoveryContract.buildRecoveryPlan({
-    actionType: 'scrape',
+    operationKind: 'scrape',
     status: 'failed_hard',
     resumePoint: 'metadata_magic',
   });
@@ -1142,7 +1611,7 @@ test('flowRecoveryContract rejects unknown resume points and exposes current poi
 
 test('transcode flow plan uses the recovery resume point for verify node attribution', () => {
   const { flowPlan } = flowPlanner.planFlow({
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     itemId: 'transcode-verify-plan',
     itemInfo: { itemId: 'transcode-verify-plan' },
@@ -1156,7 +1625,7 @@ test('transcode flow plan uses the recovery resume point for verify node attribu
   ]);
 
   const task = {
-    actionType: 'transcode',
+    operationKind: 'transcode',
     flowPlan,
     resumePoint: 'transcode_verify',
   };
@@ -1226,7 +1695,7 @@ test('smartTaskEngine creates pending_manual tasks for manual sub-libraries', as
           smartTaskEnabledActions: ['transcode'],
           smartTaskLookbackDays: 30,
           subLibraries: [{ uuid: 'manual-lib', automationMode: 'manual' }],
-          taskPriority: { autoTaskPriorityBase: 100, actionTypeWeights: { transcode: 130 }, rules: { transcode: [] } },
+          taskPriority: { autoTaskPriorityBase: 100, operationKindWeights: { transcode: 130 }, rules: { transcode: [] } },
         };
       },
     },
@@ -1282,7 +1751,7 @@ test('smartTaskEngine auto-enqueues pending adult scrape candidates through Task
           ],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { scrape: 80, transcode: 130 },
+            operationKindWeights: { scrape: 80, transcode: 130 },
             rules: { scrape: [], transcode: [] },
           },
           taskAdmission: {
@@ -1332,7 +1801,7 @@ test('smartTaskEngine auto-enqueues pending adult scrape candidates through Task
   smartTaskEngine.stop();
   assert.strictEqual(created.length, 1);
   assert.strictEqual(created[0].itemId, 'adult-pending-scrape');
-  assert.strictEqual(created[0].actionType, 'scrape');
+  assert.strictEqual(created[0].operationKind, 'scrape');
   assert.strictEqual(created[0].priority, 260);
   assert.strictEqual(created[0].source, 'auto');
 });
@@ -1354,7 +1823,7 @@ test('smartTaskEngine auto-enqueues standard metadata repair scrape', async () =
           subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie', automationMode: 'auto' }],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { scrape: 80 },
+            operationKindWeights: { scrape: 80 },
             rules: { scrape: [] },
           },
           taskAdmission: {
@@ -1400,7 +1869,7 @@ test('smartTaskEngine auto-enqueues standard metadata repair scrape', async () =
   smartTaskEngine.stop();
   assert.strictEqual(created.length, 1);
   assert.strictEqual(created[0].itemId, 'standard-missing-metadata');
-  assert.strictEqual(created[0].actionType, 'scrape');
+  assert.strictEqual(created[0].operationKind, 'scrape');
   assert.strictEqual(created[0].taskBridge.kind, 'metadata');
   assert.strictEqual(created[0].flowPlan.primaryResourceType, 'emby');
   assert.ok(created[0].flowPlan.resourceTypes.includes('emby'));
@@ -1444,7 +1913,7 @@ test('smartTaskEngine does not auto-enqueue standard scrape when only rating fac
           }],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { scrape: 80 },
+            operationKindWeights: { scrape: 80 },
             rules: { scrape: [] },
           },
           taskAdmission: {
@@ -1498,7 +1967,7 @@ test('smartTaskEngine health explains queue-cap skips without creating tasks', a
   const activeTasks = [{
     id: 'active-transcode',
     itemId: 'active-transcode-item',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'queued',
     updatedAt: new Date().toISOString(),
   }];
@@ -1515,7 +1984,7 @@ test('smartTaskEngine health explains queue-cap skips without creating tasks', a
           smartTaskLookbackDays: 30,
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { transcode: 130 },
+            operationKindWeights: { transcode: 130 },
             rules: { transcode: [] },
           },
         };
@@ -1560,7 +2029,7 @@ test('smartTaskEngine defers auto-enqueue while active backlog exists', async ()
   const activeTasks = [{
     id: 'running-transcode',
     itemId: 'running-transcode-item',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'executing',
     updatedAt: new Date().toISOString(),
   }];
@@ -1576,7 +2045,7 @@ test('smartTaskEngine defers auto-enqueue while active backlog exists', async ()
           smartTaskLookbackDays: 30,
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { scrape: 130 },
+            operationKindWeights: { scrape: 130 },
             rules: { scrape: [] },
           },
         };
@@ -1635,7 +2104,7 @@ test('smartTaskEngine auto-enqueues ingest candidates through unified priority b
           ],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { ingest: 60, transcode: 130 },
+            operationKindWeights: { ingest: 60, transcode: 130 },
             rules: { ingest: [], transcode: [] },
           },
           taskAdmission: {
@@ -1690,7 +2159,7 @@ test('smartTaskEngine auto-enqueues ingest candidates through unified priority b
   await new Promise((resolve) => setTimeout(resolve, 20));
   smartTaskEngine.stop();
   assert.strictEqual(created.length, 1);
-  assert.strictEqual(created[0].actionType, 'ingest');
+  assert.strictEqual(created[0].operationKind, 'ingest');
   assert.strictEqual(created[0].itemId, 'ingest:adult-lib:new-file');
   assert.strictEqual(created[0].priority, 240);
   assert.strictEqual(created[0].source, 'auto');
@@ -1713,7 +2182,7 @@ test('smartTaskEngine leaves failed adult scrape candidates for explicit user ac
           subLibraries: [{ uuid: 'adult-lib', automationMode: 'auto' }],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { scrape: 80 },
+            operationKindWeights: { scrape: 80 },
             rules: { scrape: [] },
           },
           taskAdmission: {
@@ -1773,7 +2242,7 @@ test('smartTaskEngine auto-enqueues western adult pending scrape candidates for 
           subLibraries: [{ uuid: 'adult-western', automationMode: 'auto' }],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { scrape: 80 },
+            operationKindWeights: { scrape: 80 },
             rules: { scrape: [] },
           },
           taskAdmission: {
@@ -1821,7 +2290,7 @@ test('smartTaskEngine auto-enqueues western adult pending scrape candidates for 
   smartTaskEngine.stop();
   assert.strictEqual(created.length, 1);
   assert.strictEqual(created[0].itemId, 'western-unknown-pending');
-  assert.strictEqual(created[0].actionType, 'scrape');
+  assert.strictEqual(created[0].operationKind, 'scrape');
   assert.strictEqual(created[0].priority, 260);
 });
 
@@ -1854,7 +2323,7 @@ test('smartTaskEngine auto scrape trigger is based on not-scraped pending item s
           subLibraries: [{ uuid: 'adult-lib', automationMode: 'auto' }],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { scrape: 80 },
+            operationKindWeights: { scrape: 80 },
             rules: { scrape: [] },
           },
           taskAdmission: {
@@ -1893,10 +2362,10 @@ test('smartTaskEngine auto scrape trigger is based on not-scraped pending item s
   await new Promise((resolve) => setTimeout(resolve, 20));
   smartTaskEngine.stop();
   assert.deepStrictEqual(created.map((t) => t.itemId).sort(), ['empty-status', 'pending-status']);
-  assert.ok(created.every((t) => t.actionType === 'scrape'));
+  assert.ok(created.every((t) => t.operationKind === 'scrape'));
 });
 
-test('smartTaskEngine keeps transcode action priority when library weight is neutral', async () => {
+test('smartTaskEngine keeps transcode operation priority when library weight is neutral', async () => {
   smartTaskEngine.stop();
   const created = [];
   smartTaskEngine.start(
@@ -1913,7 +2382,7 @@ test('smartTaskEngine keeps transcode action priority when library weight is neu
           subLibraries: [{ uuid: 'movie-lib', automationMode: 'auto', priorityWeight: 100 }],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { transcode: 130 },
+            operationKindWeights: { transcode: 130 },
             rules: { transcode: [] },
           },
           taskAdmission: {
@@ -1951,7 +2420,7 @@ test('smartTaskEngine keeps transcode action priority when library weight is neu
   await new Promise((resolve) => setTimeout(resolve, 20));
   smartTaskEngine.stop();
   assert.strictEqual(created.length, 1);
-  assert.strictEqual(created[0].actionType, 'transcode');
+  assert.strictEqual(created[0].operationKind, 'transcode');
   assert.strictEqual(created[0].priority, 330);
 });
 
@@ -1972,7 +2441,7 @@ test('smartTaskEngine auto-enqueues transcode when only optimize umbrella is ena
           subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie', automationMode: 'auto' }],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { transcode: 130, upgrade: 110, delete: 90 },
+            operationKindWeights: { transcode: 130, upgrade: 110, delete: 90 },
             rules: { transcode: [], upgrade: [], delete: [] },
           },
           taskAdmission: {
@@ -2010,11 +2479,11 @@ test('smartTaskEngine auto-enqueues transcode when only optimize umbrella is ena
   await new Promise((resolve) => setTimeout(resolve, 20));
   smartTaskEngine.stop();
   assert.strictEqual(created.length, 1);
-  assert.strictEqual(created[0].actionType, 'transcode');
+  assert.strictEqual(created[0].operationKind, 'transcode');
   assert.strictEqual(created[0].source, 'auto');
   const health = smartTaskEngine.getHealth();
-  assert.deepStrictEqual(health.enabledActions, ['transcode', 'upgrade', 'delete']);
-  assert.deepStrictEqual(health.lastScanSummary.enabledActions, ['transcode', 'upgrade', 'delete']);
+  assert.deepStrictEqual(health.enabledActions, ['transcode', 'upgrade']);
+  assert.deepStrictEqual(health.lastScanSummary.enabledActions, ['transcode', 'upgrade']);
 });
 
 test('smartTaskEngine treats metadata-complete unwatched items as optimize candidates', async () => {
@@ -2034,7 +2503,7 @@ test('smartTaskEngine treats metadata-complete unwatched items as optimize candi
           subLibraries: [{ uuid: 'movie-lib', automationMode: 'auto', priorityWeight: 100 }],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { transcode: 130 },
+            operationKindWeights: { transcode: 130 },
             rules: { transcode: [] },
           },
           taskAdmission: {
@@ -2074,7 +2543,7 @@ test('smartTaskEngine treats metadata-complete unwatched items as optimize candi
   smartTaskEngine.stop();
   assert.strictEqual(created.length, 1);
   assert.strictEqual(created[0].itemId, 'movie-unwatched-transcode');
-  assert.strictEqual(created[0].actionType, 'transcode');
+  assert.strictEqual(created[0].operationKind, 'transcode');
   assert.strictEqual(created[0].taskBridge.kind, 'optimize');
 });
 
@@ -2096,7 +2565,7 @@ test('smartTaskEngine does not hide optimize candidates behind rating lookback',
           subLibraries: [{ uuid: 'movie-lib', automationMode: 'auto', priorityWeight: 100 }],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { transcode: 130 },
+            operationKindWeights: { transcode: 130 },
             rules: { transcode: [] },
           },
           taskAdmission: {
@@ -2139,7 +2608,7 @@ test('smartTaskEngine does not hide optimize candidates behind rating lookback',
   smartTaskEngine.stop();
   assert.strictEqual(created.length, 1);
   assert.strictEqual(created[0].itemId, 'movie-old-rating-transcode');
-  assert.strictEqual(created[0].actionType, 'transcode');
+  assert.strictEqual(created[0].operationKind, 'transcode');
   assert.strictEqual(created[0].taskBridge.kind, 'optimize');
 });
 
@@ -2160,7 +2629,7 @@ test('smartTaskEngine leaves ambiguous adult scrape candidates for explicit user
           subLibraries: [{ uuid: 'adult-lib', automationMode: 'auto' }],
           taskPriority: {
             autoTaskPriorityBase: 100,
-            actionTypeWeights: { scrape: 80 },
+            operationKindWeights: { scrape: 80 },
             rules: { scrape: [] },
           },
           taskAdmission: {
@@ -2206,6 +2675,8 @@ test('smartTaskEngine leaves ambiguous adult scrape candidates for explicit user
 test('taskAdmission applies cooldown and active task dedupe', () => {
   const config = {
     smartTaskEnabledActions: ['upgrade', 'scrape'],
+    moviepilot: { baseUrl: 'http://moviepilot.local', apiKey: 'token' },
+    upgradeStagingLocalPath: 'C:\\staging',
     taskAdmission: { defaultCooldownHours: 48 },
     subLibraries: [{ uuid: 'lib-a', automationMode: 'auto' }],
   };
@@ -2216,7 +2687,7 @@ test('taskAdmission applies cooldown and active task dedupe', () => {
   };
   const cooled = taskAdmission.canCreateTask({
     item,
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     source: 'auto',
     config,
     tasks: [],
@@ -2227,10 +2698,16 @@ test('taskAdmission applies cooldown and active task dedupe', () => {
 
   const active = taskAdmission.canCreateTask({
     item: { itemId: 'i2', subLibraryId: 'lib-a' },
-    actionType: 'scrape',
+    operationKind: 'scrape',
     source: 'auto',
     config,
-    tasks: [{ id: 't1', itemId: 'i2', status: 'queued' }],
+    tasks: [{
+      id: 't1',
+      itemId: 'i2',
+      operationKind: 'scrape',
+      status: 'queued',
+      taskTarget: { targetGate: 'metadata' },
+    }],
   });
   assert.strictEqual(active.allowed, false);
   assert.strictEqual(active.reason, 'active_task_exists');
@@ -2250,13 +2727,13 @@ test('taskAdmission blocks automatic re-transcode after successful transcode', (
   const tasks = [{
     id: 'done-transcode',
     itemId: 'old-id',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'done',
     itemInfo: { subLibraryId: 'lib-a', path: '/media/movie.mkv', assetKey: 'asset-1' },
   }];
   const result = taskAdmission.canCreateTask({
     item,
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'auto',
     config,
     tasks,
@@ -2287,7 +2764,7 @@ test('taskAdmission routes optimize gate failures to failure handling instead of
 
   const auto = taskAdmission.canCreateTask({
     item,
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'auto',
     config,
     tasks: [],
@@ -2299,7 +2776,7 @@ test('taskAdmission routes optimize gate failures to failure handling instead of
 
   const manual = taskAdmission.canCreateTask({
     item,
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     config,
     tasks: [],
@@ -2309,7 +2786,7 @@ test('taskAdmission routes optimize gate failures to failure handling instead of
   assert.strictEqual(manual.failureHandling.userAction, 'inspect_failure_or_mark_no_action');
 });
 
-test('taskAdmission caps automatic queue by action type', () => {
+test('taskAdmission caps automatic queue by target gate', () => {
   const config = {
     smartTaskEnabledActions: ['ingest'],
     taskAdmission: {
@@ -2319,13 +2796,13 @@ test('taskAdmission caps automatic queue by action type', () => {
     subLibraries: [{ uuid: 'lib-a', automationMode: 'auto' }],
   };
   const tasks = [
-    { id: 't1', itemId: 'ingest:a', actionType: 'ingest', status: 'queued' },
-    { id: 't2', itemId: 'ingest:b', actionType: 'ingest', status: 'pending_manual' },
-    { id: 's1', itemId: 'item-c', actionType: 'scrape', status: 'queued' },
+    { id: 't1', itemId: 'ingest:a', operationKind: 'ingest', status: 'queued' },
+    { id: 't2', itemId: 'ingest:b', operationKind: 'ingest', status: 'pending_manual' },
+    { id: 's1', itemId: 'item-c', operationKind: 'scrape', status: 'queued' },
   ];
   const auto = taskAdmission.canCreateTask({
     item: { itemId: 'ingest:c', subLibraryId: 'lib-a' },
-    actionType: 'ingest',
+    operationKind: 'ingest',
     source: 'auto',
     config,
     tasks,
@@ -2336,7 +2813,7 @@ test('taskAdmission caps automatic queue by action type', () => {
 
   const manual = taskAdmission.canCreateTask({
     item: { itemId: 'ingest:c', subLibraryId: 'lib-a' },
-    actionType: 'ingest',
+    operationKind: 'ingest',
     source: 'manual',
     config,
     tasks,
@@ -2355,13 +2832,13 @@ test('taskAdmission applies cooldown from terminal task history', () => {
   };
   const result = taskAdmission.canCreateTask({
     item: { itemId: 'ingest:lib-a:file-a', subLibraryId: 'lib-a' },
-    actionType: 'ingest',
+    operationKind: 'ingest',
     source: 'auto',
     config,
     tasks: [{
       id: 'old-ingest',
       itemId: 'ingest:lib-a:file-a',
-      actionType: 'ingest',
+      operationKind: 'ingest',
       status: 'failed_hard',
       updatedAt: new Date().toISOString(),
     }],
@@ -2407,9 +2884,9 @@ test('taskStore migrates JSON history to SQLite without feeding scheduler hot pa
   process.env.MEDIA_SERVICE_DATA_DIR = dir;
   try {
     const legacy = [
-      { id: 'done-1', itemId: 'i1', itemName: 'Done', actionType: 'scrape', status: 'done', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:01:00.000Z' },
-      { id: 'failed-1', itemId: 'i2', itemName: 'Failed', actionType: 'scrape', status: 'failed_hard', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:02:00.000Z' },
-      { id: 'queued-1', itemId: 'i3', itemName: 'Queued', actionType: 'ingest', status: 'queued', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:03:00.000Z' },
+      { id: 'done-1', itemId: 'i1', itemName: 'Done', operationKind: 'scrape', status: 'done', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:01:00.000Z' },
+      { id: 'failed-1', itemId: 'i2', itemName: 'Failed', operationKind: 'scrape', status: 'failed_hard', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:02:00.000Z' },
+      { id: 'queued-1', itemId: 'i3', itemName: 'Queued', operationKind: 'ingest', status: 'queued', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:03:00.000Z' },
     ];
     fs.writeFileSync(path.join(dir, 'tasks.json'), JSON.stringify(legacy, null, 2), 'utf8');
 
@@ -2445,7 +2922,7 @@ test('taskStore records skipped WAL checkpoint for small saveTasks writes', () =
 
   try {
     taskStore.saveTasks([
-      { id: 'checkpoint-small-1', itemId: 'i1', itemName: 'Small', actionType: 'scrape', status: 'queued' },
+      { id: 'checkpoint-small-1', itemId: 'i1', itemName: 'Small', operationKind: 'scrape', status: 'queued' },
     ]);
 
     const logs = diagnosticLog.list({ limit: 20 }).logs
@@ -2474,7 +2951,7 @@ test('routine WAL checkpoints are deferred off the service hot path', () => {
 
   try {
     taskStore.saveTasks([
-      { id: 'checkpoint-deferred-1', itemId: 'i1', itemName: 'Deferred', actionType: 'scrape', status: 'queued' },
+      { id: 'checkpoint-deferred-1', itemId: 'i1', itemName: 'Deferred', operationKind: 'scrape', status: 'queued' },
     ]);
     libraryStore.replaceSubLibraryItems('checkpoint-lib', [
       { itemId: 'checkpoint-lib-1', subLibraryId: 'checkpoint-lib', name: 'Deferred Library', source: 'emby', type: 'movie', action: 'keep' },
@@ -2506,7 +2983,7 @@ test('taskStore exposes lightweight optimization task rows', () => {
     const done = taskStore.createTask({
       itemId: 'item-opt',
       itemName: 'Optimized Movie',
-      actionType: 'transcode',
+      operationKind: 'transcode',
       status: 'executing',
       itemInfo: {
         subLibraryId: 'sub-opt',
@@ -2522,7 +2999,7 @@ test('taskStore exposes lightweight optimization task rows', () => {
     taskStore.createTask({
       itemId: 'item-active',
       itemName: 'Active Movie',
-      actionType: 'transcode',
+      operationKind: 'transcode',
       status: 'queued',
     });
 
@@ -2580,7 +3057,7 @@ test('libraryStore smart task candidate projection keeps strategy media facts', 
       item,
     });
     assert.strictEqual(trigger.allowed, true);
-    assert.strictEqual(trigger.actionType, 'transcode');
+    assert.strictEqual(trigger.operationKind, 'transcode');
     assert.strictEqual(trigger.bridgeKind, 'optimize');
   } finally {
     if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
@@ -2601,7 +3078,7 @@ test('taskStore writes task event journal without replacing task payload', () =>
     const task = taskStore.createTask({
       itemId: 'event-item',
       itemName: 'Event Item',
-      actionType: 'transcode',
+      operationKind: 'transcode',
       status: 'created',
       priority: 42,
       itemInfo: { path: '/media/event-item.mkv' },
@@ -2640,7 +3117,7 @@ test('taskStore records failure summary on task.failed events', () => {
     const task = taskStore.createTask({
       itemId: 'failure-summary-item',
       itemName: 'Failure Summary Item',
-      actionType: 'transcode',
+      operationKind: 'transcode',
       status: 'executing',
       phase: 'executing',
       resumePoint: 'transcode_executing',
@@ -2681,7 +3158,7 @@ test('taskStore exposes scheduler lightweight rows for active tasks only', () =>
     const active = taskStore.createTask({
       itemId: 'scheduler-active',
       itemName: 'Scheduler Active',
-      actionType: 'scrape',
+      operationKind: 'scrape',
       status: 'queued',
       source: 'auto',
       itemInfo: {
@@ -2693,7 +3170,7 @@ test('taskStore exposes scheduler lightweight rows for active tasks only', () =>
     taskStore.createTask({
       itemId: 'scheduler-done',
       itemName: 'Scheduler Done',
-      actionType: 'scrape',
+      operationKind: 'scrape',
       status: 'done',
     });
 
@@ -2797,7 +3274,7 @@ test('taskStore persists v3 bridge flow runtime and event resource facts as SQL 
     const task = taskStore.createTask({
       itemId: 'v3-task-item',
       itemName: 'V3 Task Item',
-      actionType: 'upgrade',
+      operationKind: 'upgrade',
       source: 'manual',
       status: 'queued',
       itemInfo: { subLibraryId: 'lib-v3', path: '/media/v3-task.mkv' },
@@ -2829,7 +3306,7 @@ test('taskStore persists v3 bridge flow runtime and event resource facts as SQL 
   }
 });
 
-test('taskStore projects legacy archive delete tasks and events as optimize delete', () => {
+test('taskStore does not project legacy archive delete tasks into delete gate runtime', () => {
   const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
   const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'task-legacy-delete-projection-'));
@@ -2840,7 +3317,7 @@ test('taskStore projects legacy archive delete tasks and events as optimize dele
     const legacy = taskStore.createTask({
       itemId: 'legacy-delete-item',
       itemName: 'Legacy Delete Item',
-      actionType: 'delete',
+      operationKind: 'delete',
       source: 'manual',
       status: 'queued',
       itemInfo: { subLibraryId: 'lib-legacy', path: '/media/legacy-delete.mkv' },
@@ -2857,7 +3334,7 @@ test('taskStore projects legacy archive delete tasks and events as optimize dele
         operationKind: 'delete',
         executor: 'deleteFlowExecutor',
         primaryResourceType: 'filesystem',
-        actionType: 'delete',
+        operationKind: 'delete',
         source: 'manual',
         resourceTypes: ['filesystem'],
         steps: [{ phase: 'precheck', eventType: 'archive.delete.precheck', resourceType: 'filesystem' }],
@@ -2872,36 +3349,42 @@ test('taskStore projects legacy archive delete tasks and events as optimize dele
     }, { resourceType: 'filesystem' });
 
     const loaded = taskStore.getTask(legacy.id);
-    assert.strictEqual(loaded.taskBridge.kind, 'optimize');
-    assert.strictEqual(loaded.flowPlan.direction, 'optimize.delete');
-    assert.strictEqual(loaded.legacyTaskBridge.kind, 'archive');
-    assert.strictEqual(loaded.legacyFlowPlan.direction, 'archive.delete');
-    assert.strictEqual(loaded.compatibilityProjection.reason, 'legacy_archive_delete_projected_as_optimize_delete');
+    assert.strictEqual(loaded.taskBridge.kind, 'archive');
+    assert.strictEqual(loaded.flowPlan.direction, 'archive.delete');
+    assert.strictEqual(loaded.taskTarget.targetGate, 'archive');
+    assert.strictEqual(loaded.legacyTaskBridge, undefined);
+    assert.strictEqual(loaded.legacyFlowPlan, undefined);
+    assert.strictEqual(loaded.compatibilityProjection, undefined);
 
     const optimizeSummaries = taskStore.queryTaskSummaries({ bridgeKind: 'optimize' }, { includeAll: true }).tasks;
-    assert.ok(optimizeSummaries.some((task) => task.id === legacy.id && task.taskBridge.kind === 'optimize'));
+    assert.ok(!optimizeSummaries.some((task) => task.id === legacy.id));
+    const deleteSummaries = taskStore.queryTaskSummaries({ bridgeKind: 'delete' }, { includeAll: true }).tasks;
+    assert.ok(!deleteSummaries.some((task) => task.id === legacy.id));
     const archiveSummaries = taskStore.queryTaskSummaries({ bridgeKind: 'archive' }, { includeAll: true }).tasks;
-    assert.ok(!archiveSummaries.some((task) => task.id === legacy.id));
+    assert.ok(archiveSummaries.some((task) => task.id === legacy.id));
 
     const schedulerRows = taskStore.querySchedulerTasks();
-    assert.ok(schedulerRows.some((task) => task.id === legacy.id && task.flowPlan.direction === 'optimize.delete'));
+    assert.ok(schedulerRows.some((task) => task.id === legacy.id && task.flowPlan.direction === 'archive.delete'));
 
     const stats = taskStore.queryDashboardTaskStats();
-    assert.strictEqual(stats.activeByBridgeKind.optimize, 1);
-    assert.strictEqual(stats.activeByBridgeKind.archive, undefined);
+    assert.strictEqual(stats.activeByBridgeKind.delete, undefined);
+    assert.strictEqual(stats.activeByBridgeKind.optimize, undefined);
+    assert.strictEqual(stats.activeByBridgeKind.archive, 1);
 
     const events = taskStore.queryTaskEvents({ taskId: legacy.id }, { pageSize: 20 }).events;
     const dispatched = events.find((event) => event.eventType === 'flow.dispatched');
     assert.ok(dispatched);
-    assert.strictEqual(dispatched.bridgeKind, 'optimize');
-    assert.strictEqual(dispatched.flowDirection, 'optimize.delete');
-    assert.strictEqual(dispatched.legacyBridgeKind, 'archive');
-    assert.strictEqual(dispatched.legacyFlowDirection, 'archive.delete');
+    assert.strictEqual(dispatched.bridgeKind, 'archive');
+    assert.strictEqual(dispatched.flowDirection, 'archive.delete');
+    assert.strictEqual(dispatched.legacyBridgeKind, undefined);
+    assert.strictEqual(dispatched.legacyFlowDirection, undefined);
 
     const optimizeEvents = taskStore.queryTaskEvents({ bridgeKind: 'optimize' }, { pageSize: 20 }).events;
-    assert.ok(optimizeEvents.some((event) => event.taskId === legacy.id && event.bridgeKind === 'optimize'));
+    assert.ok(!optimizeEvents.some((event) => event.taskId === legacy.id));
+    const deleteEvents = taskStore.queryTaskEvents({ bridgeKind: 'delete' }, { pageSize: 20 }).events;
+    assert.ok(!deleteEvents.some((event) => event.taskId === legacy.id));
     const archiveEvents = taskStore.queryTaskEvents({ bridgeKind: 'archive' }, { pageSize: 20 }).events;
-    assert.ok(!archiveEvents.some((event) => event.taskId === legacy.id));
+    assert.ok(archiveEvents.some((event) => event.taskId === legacy.id));
   } finally {
     if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
     else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
@@ -2913,7 +3396,7 @@ test('taskStore projects legacy archive delete tasks and events as optimize dele
 test('v3 data migration script defaults to dry-run without creating backups', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3-migration-dry-run-'));
   fs.writeFileSync(path.join(dir, 'tasks.json'), JSON.stringify([
-    { id: 'dry-run-task', itemId: 'i1', actionType: 'scrape', status: 'done' },
+    { id: 'dry-run-task', itemId: 'i1', operationKind: 'scrape', status: 'done' },
   ]), 'utf8');
 
   const script = path.join(__dirname, '..', 'scripts', 'v3-data-migration.js');
@@ -3183,6 +3666,193 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
   assert.ok(failed.optimizeGate.failureReasons.includes('target_codec_not_met'));
 });
 
+test('lifecycleProjection passes optimize gate when target media facts are already satisfied', () => {
+  const lifecycle = lifecycleProjection.resolveLifecycle(metadataReadyMovie({
+    itemId: 'objective-no-op-pass',
+    source: 'emby',
+    subLibraryId: 'movie-lib',
+    metadataComplete: true,
+    bitrate: 4_300_000,
+    equivalentBitrate: 4.3,
+    codec: 'hevc',
+    action: 'transcode',
+    optimizeObjectiveStatus: 'ready',
+    optimizeObjective: {
+      kind: 'target_media_facts',
+      targetMediaFacts: {
+        qualityTier: 'standard',
+        targetBitrateByBucket: { '1080p': 4 },
+        targetCodec: 'h265',
+      },
+      acceptableOperations: ['transcode', 'upgrade'],
+    },
+    objectiveHash: 'noopobjective123',
+  }));
+
+  assert.strictEqual(lifecycle.lifecycleStage, 'optimized');
+  assert.strictEqual(lifecycle.lifecycleNextTask, 'archive');
+  assert.strictEqual(lifecycle.optimizeGate.passed, true);
+  assert.strictEqual(lifecycle.optimizeGate.operation, 'no_op');
+  assert.strictEqual(lifecycle.optimizeGate.reason, 'objective_already_satisfied');
+});
+
+test('rule templates persist archive-before target facts without action-like fields', () => {
+  const cfg = configStore.getDefaultConfig();
+  const defaultTemplates = cfg.ruleTemplates.filter((tpl) => tpl && tpl.tag && tpl.tag.type === 'default');
+  assert.ok(defaultTemplates.length >= 4);
+  for (const tpl of defaultTemplates) {
+    for (const rule of tpl.rules || []) {
+      assert.ok(rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object');
+      assert.strictEqual(Object.prototype.hasOwnProperty.call(rule, 'action'), false);
+      assert.strictEqual(Object.prototype.hasOwnProperty.call(rule, 'actionParams'), false);
+    }
+  }
+
+  const normalized = configStore.normalizeRuleTemplate({
+    id: 'legacy-template',
+    rules: [{
+      priority: 1,
+      groupsConnector: 'and',
+      groups: [{ connector: 'and', conditions: [['userRating', '>=', 4]] }],
+      action: 'transcode',
+      actionParams: { targetBitrate: 6, targetCodec: 'h265' },
+      reason: 'legacy input',
+    }],
+  });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(normalized.rules[0], 'action'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(normalized.rules[0], 'actionParams'), false);
+  assert.deepStrictEqual(normalized.rules[0].targetMediaFacts, {
+    qualityTier: 'standard',
+    targetBitrate: 6,
+    targetCodec: 'h265',
+  });
+});
+
+test('lifecycleProjection exposes optimize objective readiness and revision facts', () => {
+  const cfg = {
+    subLibraries: [{ uuid: 'movie-lib', ruleTemplateId: 'rating_strategy' }],
+    ruleTemplates: [{
+      id: 'rating_strategy',
+      rules: [{
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [{ connector: 'or', conditions: [['userRating', '=', 5], ['doubanRating', '=', 5]] }],
+        action: 'transcode',
+        reason: 'premium target',
+        actionParams: { targetBitrate: 8, targetCodec: 'h265' },
+      }],
+    }],
+  };
+
+  const pendingPerception = lifecycleProjection.resolveLifecycle(metadataReadyMovie({
+    itemId: 'pending-perception-objective',
+    subLibraryId: 'movie-lib',
+    metadataComplete: true,
+    userRating: null,
+    doubanRating: null,
+    action: '',
+    reason: '策略未覆盖',
+  }), cfg);
+  assert.strictEqual(pendingPerception.lifecycleNextTask, 'optimize');
+  assert.strictEqual(pendingPerception.lifecycleReason, 'pending_perception');
+  assert.strictEqual(pendingPerception.optimizeObjectiveStatus, 'pending_perception');
+  assert.deepStrictEqual(pendingPerception.objectiveMissingPerceptionFacts.sort(), ['doubanRating', 'userRating']);
+
+  const ready = lifecycleProjection.resolveLifecycle(metadataReadyMovie({
+    itemId: 'ready-objective',
+    subLibraryId: 'movie-lib',
+    metadataComplete: true,
+    action: 'transcode',
+    reason: 'premium target',
+    targetBitrate: 8,
+    targetCodec: 'h265',
+    perceptionVersion: 3,
+  }), cfg);
+  assert.strictEqual(ready.optimizeObjectiveStatus, 'ready');
+  assert.strictEqual(ready.optimizeObjective.kind, 'reduce_bitrate');
+  assert.strictEqual(ready.optimizeObjective.targetBitrate, 8);
+  assert.strictEqual(ready.objectiveHash.length, 16);
+  assert.strictEqual(ready.objectiveVersion, 1);
+  assert.strictEqual(ready.objectiveDerivedFrom.perceptionVersion, 3);
+
+  const revised = lifecycleProjection.resolveLifecycle(metadataReadyMovie({
+    itemId: 'revised-objective',
+    subLibraryId: 'movie-lib',
+    metadataComplete: true,
+    action: 'transcode',
+    reason: 'premium target',
+    targetBitrate: 8,
+    targetCodec: 'h265',
+    objectiveHash: 'previous-objective',
+    objectiveVersion: 4,
+  }), cfg);
+  assert.strictEqual(revised.objectiveVersion, 5);
+});
+
+test('strategyEngine persists lifecycle objective projection after compatibility strategy evaluation', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'objective-projection-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  const strategyEngine = require('../src/strategyEngine');
+
+  try {
+    configStore.patchConfig({
+      subLibraries: [{
+        uuid: 'movie-lib',
+        name: 'Movies',
+        source: 'emby',
+        mediaType: 'movie',
+        enabled: true,
+        ruleTemplateId: 'rating_strategy',
+      }],
+      ruleTemplates: [{
+        id: 'rating_strategy',
+        rules: [{
+          priority: 1,
+          groupsConnector: 'and',
+          groups: [{ connector: 'and', conditions: [['userRating', '>=', 4]] }],
+          action: 'transcode',
+          reason: 'high perception target',
+          actionParams: { targetBitrate: 6, targetCodec: 'h265' },
+        }],
+      }],
+      strategyPollIntervalMinutes: 0,
+    });
+    libraryStore.saveLibrary({
+      version: 1,
+      cachedAt: new Date().toISOString(),
+      items: [metadataReadyMovie({
+        itemId: 'strategy-objective-projection',
+        subLibraryId: 'movie-lib',
+        metadataComplete: true,
+        action: '',
+        reason: '',
+        userRating: 5,
+      })],
+    });
+
+    strategyEngine.start(configStore, mediaLibraryService);
+    const result = strategyEngine.runOnce();
+    assert.strictEqual(result.changed, 1);
+
+    const stored = libraryStore.getItem('strategy-objective-projection');
+    assert.strictEqual(stored.action, 'transcode');
+    assert.strictEqual(stored.optimizeObjectiveStatus, 'ready');
+    assert.strictEqual(stored.optimizeObjective.kind, 'target_media_facts');
+    assert.strictEqual(stored.optimizeObjective.targetBitrate, 6);
+    assert.strictEqual(stored.objectiveHash.length, 16);
+    assert.ok(Number.isInteger(stored.objectiveVersion) && stored.objectiveVersion >= 1);
+  } finally {
+    strategyEngine.stop();
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
 test('archiveFlowExecutor finalizes optimized items into archived lifecycle state', async () => {
   const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
   const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
@@ -3209,7 +3879,7 @@ test('archiveFlowExecutor finalizes optimized items into archived lifecycle stat
     const task = taskStore.createTask({
       itemId: 'archive-flow-item',
       itemName: 'Archive Flow Item',
-      actionType: 'archive',
+      operationKind: 'archive',
       source: 'manual',
       status: 'queued',
       itemInfo: { itemId: 'archive-flow-item', subLibraryId: 'lib-archive' },
@@ -3240,7 +3910,154 @@ test('archiveFlowExecutor finalizes optimized items into archived lifecycle stat
   }
 });
 
-test('taskScheduler records delete done as an optimize gate result on media item', () => {
+test('taskScheduler writes transcode verify facts back to the library item on success', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'transcode-done-facts-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  try {
+    const taskScheduler = require('../src/taskScheduler');
+    mediaLibraryService.saveLibrary({
+      cachedAt: new Date().toISOString(),
+      items: [metadataReadyMovie({
+        itemId: 'transcode-done-facts',
+        subLibraryId: 'movie-lib',
+        bitrate: 10_000_000,
+        equivalentBitrate: 10,
+        codec: 'h264',
+        targetBitrate: 4,
+        targetCodec: 'h265',
+      })],
+    });
+    const task = taskStore.createTask({
+      itemId: 'transcode-done-facts',
+      itemName: 'Transcode Done Facts',
+      operationKind: 'transcode',
+      status: 'executing',
+      itemInfo: {
+        itemId: 'transcode-done-facts',
+        subLibraryId: 'movie-lib',
+        objectiveHash: 'doneobjective123',
+      },
+      taskTarget: {
+        targetGate: 'optimize',
+        gateObjective: {
+          kind: 'target_media_facts',
+          targetBitrate: 4,
+          targetCodec: 'h265',
+        },
+      },
+    });
+    taskStore.updateTask(task.id, {
+      verifyResult: {
+        sizeBytes: 1_500_000_000,
+        bitrate: 4200,
+        videoCodec: 'hevc',
+        audioCodec: 'aac',
+        width: 1920,
+        height: 1080,
+        durationSec: 3600,
+        outputPath: '/tmp/transcode-done-facts.partial.mkv',
+        bytesSaved: 500_000_000,
+        objectiveHash: 'doneobjective123',
+        targetBitrate: 4,
+        targetCodec: 'h265',
+      },
+    });
+
+    taskScheduler.reportStatus(task.id, 'done', 100);
+    const stored = mediaLibraryService.loadLibrary().items.find((item) => item.itemId === 'transcode-done-facts');
+    assert.strictEqual(stored.optimizationStatus, 'transcoded');
+    assert.strictEqual(stored.optimizationAction, 'transcode');
+    assert.strictEqual(stored.bitrate, 4_200_000);
+    assert.strictEqual(stored.equivalentBitrate, 4.2);
+    assert.strictEqual(stored.codec, 'hevc');
+    assert.strictEqual(stored.resolution, '1920x1080');
+    assert.strictEqual(stored.optimizeGate.passed, true);
+    assert.strictEqual(stored.optimizeGate.operation, 'transcode');
+    assert.strictEqual(stored.optimizeGate.target.objectiveHash, 'doneobjective123');
+    assert.strictEqual(stored.optimizeGate.observed.outputPath, '/tmp/transcode-done-facts.partial.mkv');
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+  }
+});
+
+test('taskScheduler writes upgrade verify facts back to the library item on success', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'upgrade-done-facts-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  try {
+    const taskScheduler = require('../src/taskScheduler');
+    mediaLibraryService.saveLibrary({
+      cachedAt: new Date().toISOString(),
+      items: [metadataReadyMovie({
+        itemId: 'upgrade-done-facts',
+        subLibraryId: 'movie-lib',
+        bitrate: 4_000_000,
+        equivalentBitrate: 4,
+        codec: 'h264',
+        resolution: '1920x1080',
+      })],
+    });
+    const task = taskStore.createTask({
+      itemId: 'upgrade-done-facts',
+      itemName: 'Upgrade Done Facts',
+      operationKind: 'upgrade',
+      status: 'executing',
+      itemInfo: {
+        itemId: 'upgrade-done-facts',
+        subLibraryId: 'movie-lib',
+        objectiveHash: 'upgradeobjective123',
+      },
+      taskTarget: {
+        targetGate: 'optimize',
+        gateObjective: {
+          kind: 'target_media_facts',
+          targetMediaFacts: {
+            qualityTier: 'premium',
+            minResolution: '4K',
+            targetBitrateByBucket: { '4K': 18 },
+            targetCodec: 'h265',
+          },
+        },
+      },
+    });
+    taskStore.updateTask(task.id, {
+      verifyResult: {
+        sizeBytes: 9_000_000_000,
+        bitrate: 18500,
+        videoCodec: 'hevc',
+        width: 3840,
+        height: 2160,
+        durationSec: 3900,
+        outputPath: 'C:\\staging\\upgrade-done-facts.mkv',
+        objectiveHash: 'upgradeobjective123',
+        targetBitrate: 18,
+        targetCodec: 'h265',
+        minResolution: '4K',
+      },
+    });
+
+    taskScheduler.reportStatus(task.id, 'done', 100);
+    const stored = mediaLibraryService.loadLibrary().items.find((item) => item.itemId === 'upgrade-done-facts');
+    assert.strictEqual(stored.optimizationStatus, 'upgraded');
+    assert.strictEqual(stored.optimizationAction, 'upgrade');
+    assert.strictEqual(stored.bitrate, 18_500_000);
+    assert.strictEqual(stored.equivalentBitrate, 18.5);
+    assert.strictEqual(stored.codec, 'hevc');
+    assert.strictEqual(stored.resolution, '3840x2160');
+    assert.strictEqual(stored.optimizeGate.passed, true);
+    assert.strictEqual(stored.optimizeGate.operation, 'upgrade');
+    assert.strictEqual(stored.optimizeGate.target.objectiveHash, 'upgradeobjective123');
+    assert.strictEqual(stored.optimizeGate.target.minResolution, '4K');
+    assert.strictEqual(stored.optimizeGate.observed.outputPath, 'C:\\staging\\upgrade-done-facts.mkv');
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+  }
+});
+
+test('taskScheduler records delete done as a delete gate result on media item', () => {
   const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
   const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'delete-optimize-gate-'));
@@ -3262,7 +4079,7 @@ test('taskScheduler records delete done as an optimize gate result on media item
     const task = taskStore.createTask({
       itemId: 'delete-gate-item',
       itemName: 'Delete Gate Item',
-      actionType: 'delete',
+      operationKind: 'delete',
       source: 'manual',
       status: 'executing',
       itemInfo: {
@@ -3283,15 +4100,15 @@ test('taskScheduler records delete done as an optimize gate result on media item
     taskScheduler.reportStatus(task.id, 'done', 100);
 
     const stored = libraryStore.getItem('delete-gate-item');
-    assert.strictEqual(stored.optimizationStatus, 'deleted');
-    assert.strictEqual(stored.optimizationAction, 'delete');
-    assert.strictEqual(stored.optimizationTaskId, task.id);
     assert.strictEqual(stored.deleted, true);
     assert.strictEqual(stored.removed, true);
-    assert.strictEqual(stored.optimizeGate.passed, true);
-    assert.strictEqual(stored.optimizeGate.operation, 'delete');
-    assert.strictEqual(stored.optimizeGate.reason, 'delete_target_removed');
-    assert.strictEqual(lifecycleProjection.resolveLifecycle(stored).optimizeGate.passed, true);
+    assert.strictEqual(stored.deleteStatus, 'deleted');
+    assert.strictEqual(stored.deleteTaskId, task.id);
+    assert.strictEqual(stored.deleteGate.passed, true);
+    assert.strictEqual(stored.deleteGate.operation, 'delete');
+    assert.strictEqual(stored.deleteGate.reason, 'delete_target_removed');
+    assert.strictEqual(stored.optimizeGate, undefined);
+    assert.strictEqual(lifecycleProjection.resolveLifecycle(stored).deleteGate.passed, true);
   } finally {
     if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
     else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
@@ -3306,7 +4123,7 @@ test('resourceProjection groups active tasks by resource rather than task type o
       id: 't1',
       itemId: 'i1',
       itemName: 'Movie',
-      actionType: 'transcode',
+      operationKind: 'transcode',
       status: 'executing',
       priority: 1,
       flowPlan: { direction: 'optimize.compress', operationKind: 'transcode' },
@@ -3317,8 +4134,8 @@ test('resourceProjection groups active tasks by resource rather than task type o
         operationHint: 'transcode',
       },
     },
-    { id: 't2', itemId: 'i2', itemName: 'Adult', actionType: 'scrape', status: 'queued', priority: 2, itemInfo: { subLibraryId: 'adult-western', adultMetadata: { region: 'western_adult' } } },
-    { id: 't3', itemId: 'i3', itemName: 'Upgrade', actionType: 'upgrade', status: 'awaiting_user_confirm', priority: 3 },
+    { id: 't2', itemId: 'i2', itemName: 'Adult', operationKind: 'scrape', status: 'queued', priority: 2, itemInfo: { subLibraryId: 'adult-western', adultMetadata: { region: 'western_adult' } } },
+    { id: 't3', itemId: 'i3', itemName: 'Upgrade', operationKind: 'upgrade', status: 'awaiting_user_confirm', priority: 3 },
   ], {
     transcodeConcurrency: 2,
     scrapeConcurrency: 3,

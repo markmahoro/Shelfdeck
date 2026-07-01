@@ -32,10 +32,10 @@ class ConfigValidationError extends Error {
 }
 
 // Template version constants — bump when buildDefaultTemplate / buildTVDefaultTemplate logic changes
-const DEFAULT_TEMPLATE_VERSION = 5;
-const TV_DEFAULT_TEMPLATE_VERSION = 5;
-const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 3;
-const ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION = 2;
+const DEFAULT_TEMPLATE_VERSION = 7;
+const TV_DEFAULT_TEMPLATE_VERSION = 7;
+const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 5;
+const ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION = 4;
 
 // ── Default rule template builder ──────────────────────────────────────────────
 
@@ -49,128 +49,55 @@ function buildDefaultTemplate(policy) {
   function ratingGroupIn(vals) {
     return { connector: 'or', conditions: [['doubanRating', 'in', vals], ['userRating', 'in', vals]] };
   }
-  function condGroup(conds) {
-    return { connector: 'and', conditions: conds };
-  }
-
-  function transcodeRule(priority, rating, bucket, threshold, targetBitrate) {
+  function targetRule(priority, conditionGroups, targetMediaFacts, reason) {
     return {
       priority,
       groupsConnector: 'and',
-      groups: [
-        ratingGroup(rating),
-        condGroup([['bucket', '=', bucket], ['equivalentBitrate', '>', threshold]]),
-      ],
-      action: 'transcode',
-      actionParams: { targetBitrate, targetCodec: 'h265' },
-      reason: `${rating}★ ${bucket} 码率 ${threshold} Mbps 超标，建议压缩`,
+      groups: conditionGroups,
+      targetMediaFacts,
+      reason,
     };
   }
 
   const rules = [];
 
-  // P9: 1-2★ → delete
-  rules.push({
-    priority: 9,
-    groupsConnector: 'and',
-    groups: [ratingGroupIn([1, 2])],
-    action: 'delete',
-    actionParams: {},
-    reason: '低分删除',
-  });
+  rules.push(targetRule(5, [ratingGroup(5)], {
+    qualityTier: 'premium',
+    minResolution: '4K',
+    targetBitrateByBucket: { '1080p': t1080[5] || 12, '4K': t4k[5] || 25 },
+    targetCodec: 'h265',
+    preferredAudioCodecs: ['DTS', 'TrueHD', 'Atmos'],
+    maxSizeGB: 38,
+  }, '5★ Premium 归档前目标'));
 
-  // P8: 5★ + 4K H.265 high-bitrate + high-quality audio → keep (already optimal)
-  rules.push({
-    priority: 8,
-    groupsConnector: 'and',
-    groups: [
-      ratingGroup(5),
-      condGroup([
-        ['bucket', '=', '4K'],
-        ['codec', 'in', ['h265', 'hevc']],
-        ['equivalentBitrate', '>=', 20],
-        ['audioCodecs', 'overlap', ['dts', 'truehd', 'atmos']],
-      ]),
-    ],
-    action: 'keep',
-    actionParams: {},
-    reason: '5★ 已是4K H.265 高码率 + 高品质音轨，无需洗版',
-  });
+  rules.push(targetRule(4, [ratingGroup(4)], {
+    qualityTier: 'high',
+    targetBitrateByBucket: { '1080p': t1080[4] || 7, '4K': t4k[4] || 16 },
+    targetCodec: 'h265',
+  }, '4★ High 归档前目标'));
 
-  // P7: 5★ → upgrade
-  rules.push({
-    priority: 7,
-    groupsConnector: 'and',
-    groups: [ratingGroup(5)],
-    action: 'upgrade',
-    actionParams: {
-      targetBitrate: 25,
-      targetCodec: 'h265',
-      maxSizeGB: 38,
-      seedPreferences: {
-        resolutionPreference: ['4K'],
-        codecPreference: ['h265', 'dv'],
-        audioPreference: ['DTS', 'TrueHD', 'Atmos'],
-        preferCNSub: true,
-      },
-    },
-    reason: '5★ 洗版至4K高码率优质音轨',
-  });
+  rules.push(targetRule(3, [ratingGroup(3)], {
+    qualityTier: 'standard',
+    targetBitrateByBucket: { '1080p': t1080[3] || 4, '4K': t4k[3] || 10 },
+    targetCodec: 'h265',
+  }, '3★ Standard 归档前目标'));
 
-  // P8: 5★ disc-like sources are protected from both transcode and upgrade.
-  rules.push({
-    priority: 8,
-    groupsConnector: 'and',
-    groups: [
-      ratingGroup(5),
-      condGroup([['isDiscLike', '=', true]]),
-    ],
-    action: 'keep',
-    actionParams: {},
-    reason: '5★ 原盘保留，不压缩',
-  });
+  rules.push(targetRule(1, [ratingGroupIn([1, 2])], {
+    qualityTier: 'baseline',
+    targetBitrateByBucket: { '1080p': t1080[2] || 2, '4K': t4k[2] || 5 },
+    targetCodec: 'h265',
+  }, '1-2★ Baseline 归档前目标'));
 
-  // P5: 3-4★ + modern codec + bitrate already within target → keep (already optimal)
-  function modernKeepRule(priority, rating, bucket, threshold) {
-    return {
-      priority,
-      groupsConnector: 'and',
-      groups: [
-        ratingGroup(rating),
-        condGroup([['bucket', '=', bucket], ['codec', 'in', ['h265', 'hevc', 'av1']], ['equivalentBitrate', '<=', threshold]]),
-      ],
-      action: 'keep',
-      actionParams: {},
-      reason: `${rating}★ ${bucket} 现代编码且码率≤${threshold}M，已达标`,
-    };
-  }
-  if (t1080[3]) rules.push(modernKeepRule(5, 3, '1080p', t1080[3]));
-  if (t4k[3]) rules.push(modernKeepRule(5, 3, '4K', t4k[3]));
-  if (t1080[4]) rules.push(modernKeepRule(5, 4, '1080p', t1080[4]));
-  if (t4k[4]) rules.push(modernKeepRule(5, 4, '4K', t4k[4]));
-
-  // P4: 3★ needs transcode (unless already optimal)
-  if (t1080[3]) rules.push(transcodeRule(4, 3, '1080p', t1080[3], t1080[3]));
-  if (t4k[3]) rules.push(transcodeRule(4, 3, '4K', t4k[3], t4k[3]));
-
-  // P3: 4★ needs transcode (unless already optimal)
-  if (t1080[4]) rules.push(transcodeRule(3, 4, '1080p', t1080[4], t1080[4]));
-  if (t4k[4]) rules.push(transcodeRule(3, 4, '4K', t4k[4], t4k[4]));
-
-  // P1: catch-all → keep
-  rules.push({
-    priority: 1,
-    groupsConnector: 'and',
-    groups: [],
-    action: 'keep',
-    actionParams: {},
-    reason: '策略未覆盖',
-  });
+  rules.push(targetRule(0, [], {
+    qualityTier: 'baseline',
+    targetBitrateByBucket: { '1080p': t1080[3] || 4, '4K': t4k[3] || 10 },
+    targetCodec: 'h265',
+  }, 'Baseline 归档前目标'));
 
   return {
     id: 'default',
     name: '默认策略（电影）',
-    description: '依据用户喜好智能生成策略',
+    description: '依据用户感知映射归档前目标',
     rules,
     tag: { type: 'default', version: DEFAULT_TEMPLATE_VERSION },
   };
@@ -186,128 +113,55 @@ function buildTVDefaultTemplate(policy) {
   function ratingGroupIn(vals) {
     return { connector: 'or', conditions: [['doubanRating', 'in', vals], ['userRating', 'in', vals]] };
   }
-  function condGroup(conds) {
-    return { connector: 'and', conditions: conds };
-  }
-
-  function transcodeRule(priority, rating, bucket, threshold, targetBitrate) {
+  function targetRule(priority, conditionGroups, targetMediaFacts, reason) {
     return {
       priority,
       groupsConnector: 'and',
-      groups: [
-        ratingGroup(rating),
-        condGroup([['bucket', '=', bucket], ['equivalentBitrate', '>', threshold]]),
-      ],
-      action: 'transcode',
-      actionParams: { targetBitrate, targetCodec: 'h265' },
-      reason: `${rating}★ ${bucket} 码率 ${threshold} Mbps 超标，建议压缩`,
+      groups: conditionGroups,
+      targetMediaFacts,
+      reason,
     };
   }
 
   const rules = [];
 
-  // P9: 1-2★ → delete
-  rules.push({
-    priority: 9,
-    groupsConnector: 'and',
-    groups: [ratingGroupIn([1, 2])],
-    action: 'delete',
-    actionParams: {},
-    reason: '低分删除',
-  });
+  rules.push(targetRule(5, [ratingGroup(5)], {
+    qualityTier: 'premium',
+    minResolution: '4K',
+    targetBitrateByBucket: { '1080p': t1080[5] || 8, '4K': t4k[5] || 18 },
+    targetCodec: 'h265',
+    preferredAudioCodecs: ['DTS', 'TrueHD', 'Atmos'],
+    maxSizeGB: 50,
+  }, '5★ Premium 归档前目标'));
 
-  // P8: 5★ + 4K H.265 high-bitrate + high-quality audio → keep (already optimal)
-  rules.push({
-    priority: 8,
-    groupsConnector: 'and',
-    groups: [
-      ratingGroup(5),
-      condGroup([
-        ['bucket', '=', '4K'],
-        ['codec', 'in', ['h265', 'hevc']],
-        ['equivalentBitrate', '>=', 15],
-        ['audioCodecs', 'overlap', ['dts', 'truehd', 'atmos']],
-      ]),
-    ],
-    action: 'keep',
-    actionParams: {},
-    reason: '5★ 已是4K H.265 高码率 + 高品质音轨，无需洗版',
-  });
+  rules.push(targetRule(4, [ratingGroup(4)], {
+    qualityTier: 'high',
+    targetBitrateByBucket: { '1080p': t1080[4] || 5, '4K': t4k[4] || 12 },
+    targetCodec: 'h265',
+  }, '4★ High 归档前目标'));
 
-  // P7: 5★ → upgrade (TV: lower bitrate target, season packs average lower Mbps)
-  rules.push({
-    priority: 7,
-    groupsConnector: 'and',
-    groups: [ratingGroup(5)],
-    action: 'upgrade',
-    actionParams: {
-      targetBitrate: 15,
-      targetCodec: 'h265',
-      maxSizeGB: 50,
-      seedPreferences: {
-        resolutionPreference: ['4K'],
-        codecPreference: ['h265', 'dv'],
-        audioPreference: ['DTS', 'TrueHD', 'Atmos'],
-        preferCNSub: true,
-      },
-    },
-    reason: '5★ 洗版至4K高码率优质音轨',
-  });
+  rules.push(targetRule(3, [ratingGroup(3)], {
+    qualityTier: 'standard',
+    targetBitrateByBucket: { '1080p': t1080[3] || 3, '4K': t4k[3] || 7 },
+    targetCodec: 'h265',
+  }, '3★ Standard 归档前目标'));
 
-  // P8: 5★ disc-like sources are protected from both transcode and upgrade.
-  rules.push({
-    priority: 8,
-    groupsConnector: 'and',
-    groups: [
-      ratingGroup(5),
-      condGroup([['isDiscLike', '=', true]]),
-    ],
-    action: 'keep',
-    actionParams: {},
-    reason: '5★ 原盘保留，不压缩',
-  });
+  rules.push(targetRule(1, [ratingGroupIn([1, 2])], {
+    qualityTier: 'baseline',
+    targetBitrateByBucket: { '1080p': t1080[2] || 1.5, '4K': t4k[2] || 3 },
+    targetCodec: 'h265',
+  }, '1-2★ Baseline 归档前目标'));
 
-  // P5: 3-4★ + modern codec + bitrate already within target → keep (already optimal)
-  function modernKeepRule(priority, rating, bucket, threshold) {
-    return {
-      priority,
-      groupsConnector: 'and',
-      groups: [
-        ratingGroup(rating),
-        condGroup([['bucket', '=', bucket], ['codec', 'in', ['h265', 'hevc', 'av1']], ['equivalentBitrate', '<=', threshold]]),
-      ],
-      action: 'keep',
-      actionParams: {},
-      reason: `${rating}★ ${bucket} 现代编码且码率≤${threshold}M，已达标`,
-    };
-  }
-  if (t1080[3]) rules.push(modernKeepRule(5, 3, '1080p', t1080[3]));
-  if (t4k[3]) rules.push(modernKeepRule(5, 3, '4K', t4k[3]));
-  if (t1080[4]) rules.push(modernKeepRule(5, 4, '1080p', t1080[4]));
-  if (t4k[4]) rules.push(modernKeepRule(5, 4, '4K', t4k[4]));
-
-  // P4: 3★ needs transcode (unless already optimal)
-  if (t1080[3]) rules.push(transcodeRule(4, 3, '1080p', t1080[3], t1080[3]));
-  if (t4k[3]) rules.push(transcodeRule(4, 3, '4K', t4k[3], t4k[3]));
-
-  // P3: 4★ needs transcode (unless already optimal)
-  if (t1080[4]) rules.push(transcodeRule(3, 4, '1080p', t1080[4], t1080[4]));
-  if (t4k[4]) rules.push(transcodeRule(3, 4, '4K', t4k[4], t4k[4]));
-
-  // P1: catch-all → keep
-  rules.push({
-    priority: 1,
-    groupsConnector: 'and',
-    groups: [],
-    action: 'keep',
-    actionParams: {},
-    reason: '策略未覆盖',
-  });
+  rules.push(targetRule(0, [], {
+    qualityTier: 'baseline',
+    targetBitrateByBucket: { '1080p': t1080[3] || 3, '4K': t4k[3] || 7 },
+    targetCodec: 'h265',
+  }, 'Baseline 归档前目标'));
 
   return {
     id: 'tv_default',
     name: '默认策略（剧集）',
-    description: '剧集类码率阈值整体低于电影一档',
+    description: '剧集类归档前目标整体低于电影一档',
     rules,
     tag: { type: 'default', version: TV_DEFAULT_TEMPLATE_VERSION },
   };
@@ -318,46 +172,21 @@ function buildAdultJavDefaultTemplate(policy) {
   const target1080p = p.target1080p || 2.5;
   const target4k = p.target4k || 6;
 
-  function condGroup(conds) {
-    return { connector: 'and', conditions: conds };
-  }
-
   return {
     id: 'adult_jav_default',
     name: '默认策略（JAV）',
-    description: '成人 JAV 文件夹库默认压缩策略，不依赖豆瓣评分或观看状态',
+    description: '成人 JAV 文件夹库默认归档前目标，不依赖豆瓣评分或观看状态',
     rules: [
-      {
-        priority: 10,
-        groupsConnector: 'and',
-        groups: [condGroup([['codec', 'not in', ['h265', 'hevc']]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
-        reason: `JAV 非 HEVC 编码，转为 H.265（目标 ${target1080p} Mbps）`,
-      },
-      {
-        priority: 9,
-        groupsConnector: 'and',
-        groups: [condGroup([['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
-        reason: `JAV 4K 码率 ${target4k} Mbps 超标，建议压缩`,
-      },
-      {
-        priority: 8,
-        groupsConnector: 'and',
-        groups: [condGroup([['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
-        reason: `JAV 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,
-      },
       {
         priority: 1,
         groupsConnector: 'and',
         groups: [],
-        action: 'keep',
-        actionParams: {},
-        reason: '成人库策略未触发转码',
+        targetMediaFacts: {
+          qualityTier: 'adult_baseline',
+          targetBitrateByBucket: { '1080p': target1080p, '4K': target4k },
+          targetCodec: 'h265',
+        },
+        reason: 'Adult Baseline 归档前目标',
       },
     ],
     tag: { type: 'default', version: ADULT_JAV_DEFAULT_TEMPLATE_VERSION },
@@ -369,49 +198,66 @@ function buildAdultWesternDefaultTemplate(policy) {
   const target1080p = p.target1080p || 2.5;
   const target4k = p.target4k || 6;
 
-  function condGroup(conds) {
-    return { connector: 'and', conditions: conds };
-  }
-
   return {
     id: 'adult_western_default',
     name: '默认策略（欧美成人）',
-    description: '欧美成人文件夹库默认压缩策略，等待 AI 整理完成后再进入转码判断',
+    description: '欧美成人文件夹库默认归档前目标，等待 AI 整理完成后再计算',
     rules: [
-      {
-        priority: 10,
-        groupsConnector: 'and',
-        groups: [condGroup([['codec', 'not in', ['h265', 'hevc']]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
-        reason: `欧美成人非 HEVC 编码，转为 H.265（目标 ${target1080p} Mbps）`,
-      },
-      {
-        priority: 9,
-        groupsConnector: 'and',
-        groups: [condGroup([['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
-        reason: `欧美成人 4K 码率 ${target4k} Mbps 超标，建议压缩`,
-      },
-      {
-        priority: 8,
-        groupsConnector: 'and',
-        groups: [condGroup([['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
-        reason: `欧美成人 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,
-      },
       {
         priority: 1,
         groupsConnector: 'and',
         groups: [],
-        action: 'keep',
-        actionParams: {},
-        reason: '成人库策略未触发转码',
+        targetMediaFacts: {
+          qualityTier: 'adult_baseline',
+          targetBitrateByBucket: { '1080p': target1080p, '4K': target4k },
+          targetCodec: 'h265',
+        },
+        reason: 'Adult Baseline 归档前目标',
       },
     ],
     tag: { type: 'default', version: ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION },
+  };
+}
+
+function legacyTargetFactsForRule(rule = {}) {
+  if (rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object') return { ...rule.targetMediaFacts };
+  const params = rule.actionParams || {};
+  if (rule.action === 'upgrade') {
+    return {
+      qualityTier: 'premium',
+      minResolution: '4K',
+      targetBitrate: params.targetBitrate,
+      targetCodec: params.targetCodec || 'h265',
+      maxSizeGB: params.maxSizeGB,
+      seedPreferences: params.seedPreferences,
+    };
+  }
+  if (rule.action === 'transcode') {
+    return {
+      qualityTier: 'standard',
+      targetBitrate: params.targetBitrate,
+      targetCodec: params.targetCodec || 'h265',
+    };
+  }
+  return {
+    qualityTier: 'baseline',
+    targetCodec: params.targetCodec || 'h265',
+  };
+}
+
+function normalizeRuleTemplateRule(rule = {}) {
+  const targetMediaFacts = legacyTargetFactsForRule(rule);
+  const { action, actionParams, ...rest } = rule;
+  return {
+    ...rest,
+    targetMediaFacts,
+  };
+}
+
+function normalizeRuleTemplate(template = {}) {
+  return {
+    ...template,
+    rules: (template.rules || []).map(normalizeRuleTemplateRule),
   };
 }
 
@@ -498,6 +344,11 @@ function getDefaultConfig() {
     smartTaskEnabledActions: [],
     automaticTaskTargets: [],
     optimizeAllowedOperations: [],
+    upgradeCanary: {
+      maxActiveTasks: 1,
+      requireMoviePilotConfig: true,
+      allowDiscLike: false,
+    },
     smartTaskLookbackDays: 30,
     smartTaskInitialDelaySeconds: 60,
 
@@ -521,15 +372,15 @@ function getDefaultConfig() {
       targetGateWeights: {
         ingest: 60,
         archive: 70,
+        delete: 90,
         metadata: 80,
         optimize: 110,
       },
       optimizeOperationHints: {
-        delete: -20,
         upgrade: 0,
         transcode: 20,
       },
-      actionTypeWeights: {
+      operationKindWeights: {
         ingest: 60,
         archive: 70,
         scrape: 80,
@@ -546,7 +397,7 @@ function getDefaultConfig() {
       maxQueueAgeBonus: 40,
       retryPenalty: 20,
       maxRetryPenalty: 80,
-      rulesByTargetGate: { ingest: [], metadata: [], optimize: [], archive: [] },
+      rulesByTargetGate: { ingest: [], metadata: [], optimize: [], archive: [], delete: [] },
       rules: { ingest: [], archive: [], transcode: [], upgrade: [], delete: [], scrape: [] },
     },
 
@@ -578,6 +429,7 @@ function getDefaultConfig() {
         metadata: 20,
         optimize: 50,
         archive: 50,
+        delete: 50,
       },
       cooldownHoursByAction: {
         ingest: 6,
@@ -592,7 +444,13 @@ function getDefaultConfig() {
         metadata: 6,
         optimize: 48,
         archive: 0,
+        delete: 48,
       },
+    },
+
+    deleteGatePolicy: {
+      enabled: false,
+      rules: [],
     },
 
     // StrategyEngine
@@ -889,7 +747,7 @@ function migrateDefaultTemplates(raw) {
         return buildTVDefaultTemplate(policy);
       }
       migrated = true;
-      return { ...tpl, tag: { type: 'user' } };
+      return normalizeRuleTemplate({ ...tpl, tag: { type: 'user' } });
     }
 
     if (tpl.tag.type === 'default') {
@@ -907,7 +765,7 @@ function migrateDefaultTemplates(raw) {
       }
     }
 
-    return tpl;
+    return normalizeRuleTemplate(tpl);
   });
 
   const ids = new Set((raw.ruleTemplates || []).map((tpl) => tpl.id));
@@ -1058,8 +916,8 @@ function normalizeTranscodeEncodingDevices(raw) {
   };
 }
 
-const AUTOMATIC_TASK_TARGETS = new Set(['ingest', 'metadata', 'optimize', 'archive']);
-const OPTIMIZE_ALLOWED_OPERATIONS = new Set(['transcode', 'upgrade', 'delete']);
+const AUTOMATIC_TASK_TARGETS = new Set(['ingest', 'metadata', 'optimize', 'archive', 'delete']);
+const OPTIMIZE_ALLOWED_OPERATIONS = new Set(['transcode', 'upgrade']);
 
 function normalizeStringList(values, allowed) {
   const result = [];
@@ -1082,6 +940,7 @@ function splitLegacySmartTaskActions(actions = []) {
     if (normalized === 'ingest') taskTargets.add('ingest');
     else if (normalized === 'scrape' || normalized === 'metadata') taskTargets.add('metadata');
     else if (normalized === 'archive') taskTargets.add('archive');
+    else if (normalized === 'delete') taskTargets.add('delete');
     else if (normalized === 'optimize') {
       taskTargets.add('optimize');
       for (const operation of OPTIMIZE_ALLOWED_OPERATIONS) optimizeOperations.add(operation);
@@ -1104,6 +963,7 @@ function projectSmartTaskEnabledActions(automaticTaskTargets = [], optimizeAllow
   if (targets.includes('metadata')) actions.push('scrape');
   if (targets.includes('optimize')) actions.push(...operations);
   if (targets.includes('archive')) actions.push('archive');
+  if (targets.includes('delete')) actions.push('delete');
   return actions;
 }
 
@@ -1127,6 +987,12 @@ function normalizeLifecycleAutomationConfig(raw) {
     automaticTaskTargets = legacy.automaticTaskTargets;
     optimizeAllowedOperations = legacy.optimizeAllowedOperations;
     if (actions.length > 0) migrated = true;
+  }
+
+  if (actions.map((action) => String(action || '').trim().toLowerCase()).includes('delete')
+    && !automaticTaskTargets.includes('delete')) {
+    automaticTaskTargets.push('delete');
+    migrated = true;
   }
 
   if (!hasNewAutomationFields && actions.length > 0 && !automaticTaskTargets.includes('archive') && actions.includes('archive')) {
@@ -1162,6 +1028,24 @@ function normalizeLifecycleAutomationConfig(raw) {
   return { raw: next, migrated };
 }
 
+function normalizeMetadataGateConfig(raw) {
+  if (!raw || !Array.isArray(raw.subLibraries)) return { raw, migrated: false };
+  let migrated = false;
+  const subLibraries = raw.subLibraries.map((sl) => {
+    if (!sl || !Object.prototype.hasOwnProperty.call(sl, 'metadataGate')) return sl;
+    const sanitized = metadataStatus.sanitizeMetadataGate(sl.metadataGate);
+    const before = JSON.stringify(sl.metadataGate || null);
+    const after = JSON.stringify(sanitized || null);
+    if (before === after) return sl;
+    migrated = true;
+    const next = { ...sl };
+    if (sanitized) next.metadataGate = sanitized;
+    else delete next.metadataGate;
+    return next;
+  });
+  return { raw: { ...raw, subLibraries }, migrated };
+}
+
 function validateMetadataGateContracts(config = {}) {
   const violations = [];
   const subLibraries = Array.isArray(config.subLibraries) ? config.subLibraries : [];
@@ -1192,7 +1076,8 @@ function validateMetadataGateContracts(config = {}) {
 function mergeConfigWithDefaults(config) {
   const defaults = getDefaultConfig();
   const transcodeNormalized = normalizeTranscodeEncodingDevices(config || {}).raw;
-  const raw = normalizeLifecycleAutomationConfig(transcodeNormalized).raw;
+  const lifecycleNormalized = normalizeLifecycleAutomationConfig(transcodeNormalized).raw;
+  const raw = normalizeMetadataGateConfig(lifecycleNormalized).raw;
   const merged = { ...defaults, ...raw };
   merged.resourceCapacity = {
     ...(defaults.resourceCapacity || {}),
@@ -1234,9 +1119,9 @@ function mergeConfigWithDefaults(config) {
       ...((defaults.taskPriority || {}).optimizeOperationHints || {}),
       ...(((raw.taskPriority || {}).optimizeOperationHints) || {}),
     },
-    actionTypeWeights: {
-      ...((defaults.taskPriority || {}).actionTypeWeights || {}),
-      ...(((raw.taskPriority || {}).actionTypeWeights) || {}),
+    operationKindWeights: {
+      ...((defaults.taskPriority || {}).operationKindWeights || {}),
+      ...(((raw.taskPriority || {}).operationKindWeights) || {}),
     },
     rulesByTargetGate: {
       ...((defaults.taskPriority || {}).rulesByTargetGate || {}),
@@ -1253,6 +1138,19 @@ function mergeConfigWithDefaults(config) {
     ...(raw.approvalPolicy || {}),
   };
 
+  merged.upgradeCanary = {
+    ...(defaults.upgradeCanary || {}),
+    ...(raw.upgradeCanary || {}),
+  };
+
+  merged.deleteGatePolicy = {
+    ...(defaults.deleteGatePolicy || {}),
+    ...(raw.deleteGatePolicy || {}),
+    rules: Array.isArray(raw.deleteGatePolicy && raw.deleteGatePolicy.rules)
+      ? raw.deleteGatePolicy.rules
+      : ((defaults.deleteGatePolicy || {}).rules || []),
+  };
+
   return merged;
 }
 
@@ -1261,7 +1159,8 @@ function legacyActionAdmissionToTargetGate(byAction = {}) {
   if (typeof byAction.ingest === 'number') result.ingest = byAction.ingest;
   if (typeof byAction.scrape === 'number') result.metadata = byAction.scrape;
   if (typeof byAction.archive === 'number') result.archive = byAction.archive;
-  const optimizeValues = ['transcode', 'upgrade', 'delete']
+  if (typeof byAction.delete === 'number') result.delete = byAction.delete;
+  const optimizeValues = ['transcode', 'upgrade']
     .map((key) => Number(byAction[key]))
     .filter(Number.isFinite);
   if (optimizeValues.length > 0) result.optimize = Math.min(...optimizeValues);
@@ -1348,6 +1247,16 @@ function loadConfig() {
       raw = lifecycleAutomationResult.raw;
     }
 
+    const metadataGateResult = normalizeMetadataGateConfig(raw);
+    if (metadataGateResult.migrated) {
+      console.log('[configStore] metadata gate config migration applied');
+      fs.writeFileSync(cfgFile + '.v10.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = metadataGateResult.raw;
+      saveConfig(raw, { skipMetadataGateValidation: true });
+    } else {
+      raw = metadataGateResult.raw;
+    }
+
     return mergeConfigWithDefaults(raw);
   } catch (err) {
     console.error('[configStore] failed to load config:', err.message);
@@ -1380,6 +1289,7 @@ module.exports = {
   buildDefaultTemplate,
   buildAdultJavDefaultTemplate,
   buildAdultWesternDefaultTemplate,
+  normalizeRuleTemplate,
   defaultSubLibSchedule,
   resolveSubLibSchedule,
 };

@@ -51,7 +51,7 @@ test('PATCH /v1/admin/tasks/:id sets priority on a queued task', async () => {
   const dir = tmpDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   try {
-    const created = taskStore.createTask({ itemId: 'i1', actionType: 'transcode', status: 'queued', priority: 100 });
+    const created = taskStore.createTask({ itemId: 'i1', operationKind: 'transcode', status: 'queued', priority: 100 });
     const res = await app.inject({
       method: 'PATCH', url: `/v1/admin/tasks/${created.id}`,
       payload: { priority: 5 },
@@ -78,7 +78,7 @@ test('PATCH /v1/admin/tasks/:id rejects negative / non-integer priority', async 
   const dir = tmpDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   try {
-    const created = taskStore.createTask({ itemId: 'i2', actionType: 'transcode', status: 'queued' });
+    const created = taskStore.createTask({ itemId: 'i2', operationKind: 'transcode', status: 'queued' });
     const r1 = await app.inject({ method: 'PATCH', url: `/v1/admin/tasks/${created.id}`, payload: { priority: -1 } });
     assert.strictEqual(r1.statusCode, 400);
     assert.strictEqual(r1.json().error.code, 'VALIDATION_ERROR');
@@ -99,7 +99,7 @@ test('PATCH /v1/admin/tasks/:id refuses priority change on executing task (409)'
   const dir = tmpDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   try {
-    const created = taskStore.createTask({ itemId: 'i3', actionType: 'transcode', status: 'executing', priority: 100 });
+    const created = taskStore.createTask({ itemId: 'i3', operationKind: 'transcode', status: 'executing', priority: 100 });
     const res = await app.inject({ method: 'PATCH', url: `/v1/admin/tasks/${created.id}`, payload: { priority: 1 } });
     assert.strictEqual(res.statusCode, 409);
     assert.strictEqual(res.json().error.code, 'TASK_PRIORITY_REJECTED');
@@ -128,7 +128,7 @@ test('POST /v1/tasks (manual) assigns Kairox task priority from source, target g
     });
     const res = await app.inject({
       method: 'POST', url: '/v1/tasks',
-      payload: { itemId: 'manual-1', actionType: 'transcode' },
+      payload: { itemId: 'manual-1', operationKind: 'transcode' },
     });
     assert.strictEqual(res.statusCode, 201);
     const body = res.json();
@@ -156,9 +156,9 @@ test('taskScheduler dispatch order is priority-ascending then FIFO', async () =>
 
   // Three queued transcode tasks with different priorities and createdAt order.
   // Lower priority should dispatch first regardless of creation order.
-  const tLow = taskStoreMod.createTask({ itemId: 'low', actionType: 'transcode', status: 'queued', priority: 5 });
-  const tHigh = taskStoreMod.createTask({ itemId: 'high', actionType: 'transcode', status: 'queued', priority: 200 });
-  const tMid = taskStoreMod.createTask({ itemId: 'mid', actionType: 'transcode', status: 'queued', priority: 50 });
+  const tLow = taskStoreMod.createTask({ itemId: 'low', operationKind: 'transcode', status: 'queued', priority: 5 });
+  const tHigh = taskStoreMod.createTask({ itemId: 'high', operationKind: 'transcode', status: 'queued', priority: 200 });
+  const tMid = taskStoreMod.createTask({ itemId: 'mid', operationKind: 'transcode', status: 'queued', priority: 50 });
 
   // Capture dispatch order by stubbing the flow executors to record itemId.
   const dispatched = [];
@@ -199,7 +199,7 @@ test('taskScheduler clears resume state when a task reaches a closed status', ()
     const doneTask = taskStoreMod.createTask({
       itemId: 'closed-done',
       itemName: 'Closed Done',
-      actionType: 'delete',
+      operationKind: 'delete',
       status: 'executing',
       phase: 'delete_executing',
       resumePoint: 'delete_executing',
@@ -216,7 +216,7 @@ test('taskScheduler clears resume state when a task reaches a closed status', ()
     const failedTask = taskStoreMod.createTask({
       itemId: 'closed-failed',
       itemName: 'Closed Failed',
-      actionType: 'scrape',
+      operationKind: 'scrape',
       status: 'executing',
       phase: 'scrape_executing',
       resumePoint: 'scrape_executing',
@@ -247,7 +247,7 @@ test('taskScheduler records flow failure events and diagnostics when executor re
   const task = taskStoreMod.createTask({
     itemId: 'flow-fail-item',
     itemName: 'Flow Fail Item',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     status: 'queued',
     priority: 1,
@@ -288,7 +288,7 @@ test('taskScheduler records flow failure events and diagnostics when executor re
   }
 });
 
-test('taskScheduler capacity follows flow resource rather than legacy actionType', async () => {
+test('taskScheduler capacity follows flow resource rather than legacy operationKind', async () => {
   tmpDir();
   const scheduler = require('../src/taskScheduler');
   const taskStoreMod = require('../src/taskStore');
@@ -312,7 +312,7 @@ test('taskScheduler capacity follows flow resource rather than legacy actionType
     operationKind: 'transcode',
     executor: 'transcodeFlowExecutor',
     primaryResourceType: 'moviepilot',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     resourceTypes: ['moviepilot'],
     steps: [],
@@ -321,17 +321,17 @@ test('taskScheduler capacity follows flow resource rather than legacy actionType
   const plannedTranscode = taskStoreMod.createTask({
     itemId: 'planned-moviepilot-transcode',
     itemName: 'Planned MoviePilot Transcode',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     status: 'queued',
     priority: 1,
     flowPlan: moviepilotPlan,
-    taskBridge: { kind: 'optimize', actionType: 'transcode', source: 'manual' },
+    taskBridge: { kind: 'optimize', operationKind: 'transcode', source: 'manual' },
   });
   const upgrade = taskStoreMod.createTask({
     itemId: 'regular-upgrade',
     itemName: 'Regular Upgrade',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     source: 'manual',
     status: 'queued',
     priority: 2,
@@ -341,11 +341,11 @@ test('taskScheduler capacity follows flow resource rather than legacy actionType
   const origTranscodeDrive = transcodeFlow.driveTask;
   const origUpgradeDrive = upgradeFlow.driveTask;
   transcodeFlow.driveTask = async (taskId) => {
-    dispatched.push({ taskId, actionType: 'transcode' });
+    dispatched.push({ taskId, operationKind: 'transcode' });
     scheduler.reportStatus(taskId, 'done', 100);
   };
   upgradeFlow.driveTask = async (taskId) => {
-    dispatched.push({ taskId, actionType: 'upgrade' });
+    dispatched.push({ taskId, operationKind: 'upgrade' });
     scheduler.reportStatus(taskId, 'done', 100);
   };
 
@@ -386,7 +386,7 @@ test('taskScheduler preserves Task Creator priority instead of recomputing busin
   const stale = taskStoreMod.createTask({
     itemId: 'auto-stale-priority',
     itemName: 'Auto Stale Priority',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     source: 'auto',
     status: 'pending_manual',
     priority: 80,
@@ -395,7 +395,7 @@ test('taskScheduler preserves Task Creator priority instead of recomputing busin
   const manualOverride = taskStoreMod.createTask({
     itemId: 'auto-manual-override',
     itemName: 'Auto Manual Override',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     source: 'auto',
     status: 'pending_manual',
     priority: 7,
@@ -426,7 +426,7 @@ test('taskScheduler restart recovery marks active runtime tasks with explanatory
   const executing = taskStoreMod.createTask({
     itemId: 'restart-executing',
     itemName: 'Restart Executing',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'executing',
   });
   taskStoreMod.updateTask(executing.id, {
@@ -437,7 +437,7 @@ test('taskScheduler restart recovery marks active runtime tasks with explanatory
   const pausing = taskStoreMod.createTask({
     itemId: 'restart-pausing-requested',
     itemName: 'Restart Pausing Requested',
-    actionType: 'upgrade',
+    operationKind: 'upgrade',
     status: 'queued',
   });
   taskStoreMod.updateTask(pausing.id, {
@@ -492,13 +492,13 @@ test('taskScheduler clears stale runtime state for queued tasks without losing m
   taskStoreMod.createTask({
     itemId: 'slot-blocker',
     itemName: 'Slot Blocker',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     status: 'executing',
   });
   const staleQueued = taskStoreMod.createTask({
     itemId: 'stale-queued',
     itemName: 'Stale Queued',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'auto',
     status: 'queued',
     itemInfo: { name: 'Stale Queued' },
@@ -511,7 +511,7 @@ test('taskScheduler clears stale runtime state for queued tasks without losing m
   const recovered = taskStoreMod.createTask({
     itemId: 'recovered-interrupted',
     itemName: 'Recovered Interrupted',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'auto',
     status: 'interrupted',
     itemInfo: { name: 'Recovered Interrupted' },
@@ -524,7 +524,7 @@ test('taskScheduler clears stale runtime state for queued tasks without losing m
   const manualResume = taskStoreMod.createTask({
     itemId: 'manual-resume',
     itemName: 'Manual Resume',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'manual',
     status: 'queued',
     manualExecuteRequested: true,
@@ -538,7 +538,7 @@ test('taskScheduler clears stale runtime state for queued tasks without losing m
   const staleManualFlag = taskStoreMod.createTask({
     itemId: 'stale-manual-flag',
     itemName: 'Stale Manual Flag',
-    actionType: 'transcode',
+    operationKind: 'transcode',
     source: 'auto',
     status: 'queued',
     manualExecuteRequested: true,
@@ -623,7 +623,7 @@ test('taskScheduler caps service-local western adult AI scrape to one active tas
     taskStoreMod.createTask({
       itemId: `western-${i}`,
       itemName: `Western ${i}`,
-      actionType: 'scrape',
+      operationKind: 'scrape',
       status: 'queued',
       priority: 80,
       itemInfo: {
@@ -673,7 +673,7 @@ test('taskScheduler skips stale automatic scrape tasks when the live item now re
   const task = taskStoreMod.createTask({
     itemId: 'western-failed-live',
     itemName: 'Western Failed Live',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     source: 'auto',
     status: 'queued',
     priority: 280,
@@ -735,7 +735,7 @@ test('taskScheduler dispatches automatic western pending scrape tasks before ide
   const task = taskStoreMod.createTask({
     itemId: 'western-no-identity',
     itemName: 'UNK-999',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     source: 'auto',
     status: 'queued',
     priority: 280,

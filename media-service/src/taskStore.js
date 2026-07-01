@@ -69,7 +69,6 @@ function getDb() {
       id TEXT PRIMARY KEY,
       item_id TEXT NOT NULL DEFAULT '',
       item_name TEXT NOT NULL DEFAULT '',
-      action_type TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT '',
       priority INTEGER NOT NULL DEFAULT 100,
       created_at TEXT NOT NULL DEFAULT '',
@@ -81,12 +80,9 @@ function getDb() {
       value TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-    CREATE INDEX IF NOT EXISTS idx_tasks_action_status_priority ON tasks(action_type, status, priority, created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_item_id ON tasks(item_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_updated_at ON tasks(updated_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_status_updated_at ON tasks(status, updated_at);
-    CREATE INDEX IF NOT EXISTS idx_tasks_action_updated_at ON tasks(action_type, updated_at);
-    CREATE INDEX IF NOT EXISTS idx_tasks_action_status_updated_at ON tasks(action_type, status, updated_at);
   `);
   ensureSpaceStatColumns(db);
   ensureV3TaskColumns(db);
@@ -163,7 +159,6 @@ function ensureTaskEventTable(db) {
       id TEXT PRIMARY KEY,
       task_id TEXT NOT NULL DEFAULT '',
       item_id TEXT NOT NULL DEFAULT '',
-      action_type TEXT NOT NULL DEFAULT '',
       event_type TEXT NOT NULL DEFAULT '',
       event_status TEXT NOT NULL DEFAULT '',
       phase TEXT,
@@ -211,7 +206,7 @@ function backfillSpaceStatColumns(db) {
       upgrade_old_size = json_extract(payload_json, '$.upgradePreview.oldFile.size'),
       upgrade_new_size = json_extract(payload_json, '$.upgradePreview.newFile.size')
     WHERE status = 'done'
-      AND action_type IN ('transcode', 'upgrade', 'delete')
+      AND operation_kind IN ('transcode', 'upgrade', 'delete')
   `).run();
   db.prepare(`
     INSERT INTO task_store_meta (key, value)
@@ -296,7 +291,7 @@ function backfillV31TaskTargetColumns(db) {
 function backfillV3TaskEventColumns(db) {
   const version = db.prepare('SELECT value FROM task_store_meta WHERE key = ?').get('v3_task_event_columns_backfilled');
   if (version && version.value === '1') return;
-  const rows = db.prepare('SELECT id, action_type, payload_json FROM task_events').all();
+  const rows = db.prepare('SELECT id, operation_kind, payload_json FROM task_events').all();
   const update = db.prepare(`
     UPDATE task_events SET
       bridge_kind = @bridge_kind,
@@ -311,7 +306,7 @@ function backfillV3TaskEventColumns(db) {
       const payload = jsonParse(row.payload_json, {});
       update.run({
         id: row.id,
-        ...v3Model.taskEventFacts({ actionType: row.action_type, payload }),
+        ...v3Model.taskEventFacts({ operationKind: row.operation_kind, payload }),
       });
     }
   });
@@ -459,9 +454,9 @@ function migrateJsonTasksIfNeeded(db) {
     const tasks = readLegacyJsonTasks(jsonPath);
     const insert = db.prepare(`
       INSERT OR IGNORE INTO tasks
-        (id, item_id, item_name, action_type, status, priority, created_at, updated_at, payload_json)
+        (id, item_id, item_name, status, priority, created_at, updated_at, payload_json)
       VALUES
-        (@id, @item_id, @item_name, @action_type, @status, @priority, @created_at, @updated_at, @payload_json)
+        (@id, @item_id, @item_name, @status, @priority, @created_at, @updated_at, @payload_json)
     `);
     const tx = db.transaction((rows) => {
       for (const task of rows) insert.run(taskToRow(normalizeTask(task)));
@@ -492,7 +487,7 @@ function normalizeTask(task) {
   t.id = String(t.id || generateId());
   t.itemId = String(t.itemId || '');
   t.itemName = String(t.itemName || (t.itemInfo && t.itemInfo.name) || '');
-  t.actionType = String(t.actionType || '');
+  t.operationKind = String(t.operationKind || '');
   t.source = String(t.source || (t.itemInfo && t.itemInfo.taskSource) || '');
   t.status = String(t.status || 'created');
   t.progress = typeof t.progress === 'number' ? t.progress : 0;
@@ -505,10 +500,12 @@ function normalizeTask(task) {
   t.itemInfo = t.itemInfo === undefined ? null : t.itemInfo;
   t.manualExecuteRequested = !!t.manualExecuteRequested;
   const planned = flowPlanner.planFlow({
-    actionType: t.actionType,
+    operationKind: t.operationKind,
     source: t.source,
     itemId: t.itemId,
     itemInfo: t.itemInfo,
+    taskTarget: t.taskTarget,
+    gateObjective: t.taskTarget && t.taskTarget.gateObjective,
     plannedAt: t.createdAt || now,
   });
   t.taskBridge = t.taskBridge && typeof t.taskBridge === 'object' ? t.taskBridge : planned.taskBridge;
@@ -516,7 +513,7 @@ function normalizeTask(task) {
   t.taskTarget = t.taskTarget && typeof t.taskTarget === 'object'
     ? t.taskTarget
     : lifecycleTaskPlanner.planTaskTarget({
-      actionType: t.actionType,
+      operationKind: t.operationKind,
       source: t.source,
       itemId: t.itemId,
       itemInfo: t.itemInfo,
@@ -526,7 +523,7 @@ function normalizeTask(task) {
 }
 
 function isLegacyArchiveDeletePlan(task = {}) {
-  const actionType = String(task.actionType || task.action_type || '');
+  const operationKind = String(task.operationKind || '');
   const bridgeKind = String(
     task.taskBridge && task.taskBridge.kind
     || task.flowPlan && task.flowPlan.bridgeKind
@@ -540,52 +537,18 @@ function isLegacyArchiveDeletePlan(task = {}) {
     || task.flow_direction
     || '',
   );
-  return actionType === 'delete' && (bridgeKind === 'archive' || flowDirection === 'archive.delete');
+  return operationKind === 'delete' && (bridgeKind === 'archive' || flowDirection === 'archive.delete');
 }
 
 function projectLegacyDeleteTask(task) {
-  if (!isLegacyArchiveDeletePlan(task)) return task;
-  const planned = flowPlanner.planFlow({
-    actionType: 'delete',
-    source: task.source || '',
-    itemId: task.itemId || '',
-    itemInfo: task.itemInfo,
-    plannedAt: task.createdAt || '',
-  });
-  return {
-    ...task,
-    legacyTaskBridge: task.taskBridge,
-    legacyFlowPlan: task.flowPlan,
-    compatibilityProjection: {
-      reason: 'legacy_archive_delete_projected_as_optimize_delete',
-      originalBridgeKind: task.taskBridge && task.taskBridge.kind || '',
-      originalFlowDirection: task.flowPlan && task.flowPlan.direction || '',
-    },
-    taskBridge: planned.taskBridge,
-    flowPlan: planned.flowPlan,
-    taskTarget: lifecycleTaskPlanner.planTaskTarget({
-      actionType: 'delete',
-      source: task.source || '',
-      itemId: task.itemId || '',
-      itemInfo: task.itemInfo,
-      bridgeKind: planned.taskBridge && planned.taskBridge.kind,
-    }),
-  };
+  return task;
 }
 
 function appendBridgeKindFilter(clauses, params, column, bridgeKind) {
   const normalized = String(bridgeKind || '');
   const bridgeColumn = column || 'bridge_kind';
-  if (normalized === 'optimize') {
-    clauses.push(`(${bridgeColumn} = @bridgeKind OR (action_type = 'delete' AND (${bridgeColumn} = 'archive' OR flow_direction = 'archive.delete')))`);
-    params.bridgeKind = normalized;
-  } else if (normalized === 'archive') {
-    clauses.push(`(${bridgeColumn} = @bridgeKind AND NOT (action_type = 'delete' AND (operation_kind = 'delete' OR flow_direction = 'archive.delete')))`);
-    params.bridgeKind = normalized;
-  } else {
-    clauses.push(`${bridgeColumn} = @bridgeKind`);
-    params.bridgeKind = normalized;
-  }
+  clauses.push(`${bridgeColumn} = @bridgeKind`);
+  params.bridgeKind = normalized;
 }
 
 function taskToRow(task) {
@@ -596,7 +559,6 @@ function taskToRow(task) {
     id: t.id,
     item_id: t.itemId,
     item_name: t.itemName || (t.itemInfo && t.itemInfo.name) || '',
-    action_type: t.actionType,
     status: t.status,
     priority: typeof t.priority === 'number' ? t.priority : 100,
     created_at: t.createdAt,
@@ -631,7 +593,7 @@ function eventPayloadFor(task, payload = {}) {
     ...base,
     taskId: task && task.id,
     itemId: task && task.itemId,
-    actionType: task && task.actionType,
+    operationKind: task && task.operationKind,
     status: task && task.status,
     phase: task && task.phase,
     resumePoint: task && task.resumePoint,
@@ -645,7 +607,7 @@ function buildTaskEvent(task, eventType, payload = {}, opts = {}) {
     id: opts.id || generateId(),
     taskId: String(opts.taskId || t.id || ''),
     itemId: String(opts.itemId || t.itemId || ''),
-    actionType: String(opts.actionType || t.actionType || ''),
+    operationKind: String(opts.operationKind || t.operationKind || ''),
     eventType: String(eventType || opts.eventType || ''),
     eventStatus: String(opts.eventStatus || t.status || ''),
     phase: opts.phase !== undefined ? opts.phase : (t.phase === undefined ? null : t.phase),
@@ -662,7 +624,6 @@ function taskEventToRow(event) {
     id: event.id,
     task_id: event.taskId,
     item_id: event.itemId,
-    action_type: event.actionType,
     event_type: event.eventType,
     event_status: event.eventStatus,
     phase: event.phase,
@@ -684,7 +645,7 @@ function rowToTaskEvent(row) {
     id: row.id,
     taskId: row.task_id || '',
     itemId: row.item_id || '',
-    actionType: row.action_type || '',
+    operationKind: row.operation_kind || '',
     eventType: row.event_type || '',
     eventStatus: row.event_status || '',
     phase: row.phase,
@@ -698,28 +659,15 @@ function rowToTaskEvent(row) {
     createdAt: row.created_at || '',
     payload: jsonParse(row.payload_json, {}),
   };
-  if (event.actionType === 'delete' && (event.bridgeKind === 'archive' || event.flowDirection === 'archive.delete')) {
-    return {
-      ...event,
-      legacyBridgeKind: event.bridgeKind,
-      legacyFlowDirection: event.flowDirection,
-      bridgeKind: 'optimize',
-      flowDirection: 'optimize.delete',
-      operationKind: event.operationKind || 'delete',
-      compatibilityProjection: {
-        reason: 'legacy_archive_delete_event_projected_as_optimize_delete',
-      },
-    };
-  }
   return event;
 }
 
 const insertTaskEventSql = `
         INSERT INTO task_events
-          (id, task_id, item_id, action_type, event_type, event_status, phase, resume_point, resource_type,
+          (id, task_id, item_id, event_type, event_status, phase, resume_point, resource_type,
            resource_key, resource_label, bridge_kind, flow_direction, operation_kind, created_at, payload_json)
         VALUES
-          (@id, @task_id, @item_id, @action_type, @event_type, @event_status, @phase, @resume_point, @resource_type,
+          (@id, @task_id, @item_id, @event_type, @event_status, @phase, @resume_point, @resource_type,
            @resource_key, @resource_label, @bridge_kind, @flow_direction, @operation_kind, @created_at, @payload_json)
       `;
 
@@ -734,7 +682,7 @@ function appendTaskEvent(task, eventType, payload = {}, opts = {}) {
       resourceType: 'sqlite',
       resourceKey: 'tasks.db',
       slowMs: 100,
-      payload: { taskId: task.id, eventType, actionType: task.actionType },
+      payload: { taskId: task.id, eventType, operationKind: task.operationKind },
       successPayload: (event) => ({ writtenRows: event ? 1 : 0 }),
     }, () => {
       const event = buildTaskEvent(task, eventType, payload, opts);
@@ -852,11 +800,27 @@ function taskUpdateEvents(current, updated, updates = {}) {
 }
 
 function latestFailureSummary(task) {
+  const context = task && task.failureContext && typeof task.failureContext === 'object'
+    ? task.failureContext
+    : null;
   const logs = Array.isArray(task && task.logs) ? task.logs : [];
   const latestError = [...logs].reverse().find((entry) => {
     const level = String(entry && entry.level || '').toLowerCase();
     return level === 'error' || level === 'fatal';
   });
+  if (context) {
+    return {
+      message: String(context.message || (latestError && (latestError.msg || latestError.message)) || ''),
+      level: String(context.level || (latestError && latestError.level) || 'error'),
+      ts: String(context.failedAt || context.ts || (latestError && (latestError.ts || latestError.at)) || ''),
+      source: String(context.source || 'failure_context'),
+      phase: String(context.phase || ''),
+      resumePoint: String(context.resumePoint || ''),
+      recoveryClass: String(context.recoveryClass || ''),
+      userAction: String(context.userAction || ''),
+      objectiveHash: String(context.objectiveHash || ''),
+    };
+  }
   if (!latestError) {
     return {
       message: '',
@@ -879,7 +843,7 @@ function rowToTask(row) {
   task.id = row.id;
   task.itemId = row.item_id || task.itemId || '';
   task.itemName = row.item_name || task.itemName || '';
-  task.actionType = row.action_type || task.actionType || '';
+  task.operationKind = row.operation_kind || task.operationKind || '';
   task.status = row.status || task.status || '';
   task.priority = typeof row.priority === 'number' ? row.priority : task.priority;
   task.createdAt = row.created_at || task.createdAt;
@@ -899,7 +863,7 @@ function rowToTask(row) {
       from: row.bridge_from || '',
       to: row.bridge_to || '',
       reason: row.bridge_reason || '',
-      actionType: task.actionType,
+      operationKind: task.operationKind,
       source: task.source,
       itemId: task.itemId,
       subLibraryId: row.sub_library_id || (task.itemInfo && task.itemInfo.subLibraryId) || '',
@@ -910,10 +874,10 @@ function rowToTask(row) {
       version: row.flow_version || '',
       bridgeKind: row.bridge_kind || '',
       direction: row.flow_direction || '',
-      operationKind: row.operation_kind || task.actionType || '',
+      operationKind: row.operation_kind || task.operationKind || '',
       executor: row.flow_executor || '',
       primaryResourceType: row.primary_resource_type || '',
-      actionType: task.actionType,
+      operationKind: task.operationKind,
       source: task.source,
       resourceTypes: jsonParse(row.resource_types_json, []),
       steps: jsonParse(row.flow_steps_json, []),
@@ -929,9 +893,9 @@ function rowToTask(row) {
       },
       targetGate: row.target_gate || (task.taskBridge && task.taskBridge.kind) || (task.flowPlan && task.flowPlan.bridgeKind) || '',
       gateObjective: jsonParse(row.gate_objective_json, null)
-        || lifecycleTaskPlanner.objectiveForOperation(task.actionType, task.itemInfo || {}),
+        || lifecycleTaskPlanner.objectiveForOperation(task.operationKind, task.itemInfo || {}),
       source: task.source,
-      operationHint: task.actionType,
+      operationHint: task.operationKind,
     };
   }
   task.progress = progressCache.get(task.id) ?? task.progress ?? 0;
@@ -940,7 +904,7 @@ function rowToTask(row) {
 
 const upsertSql = `
   INSERT INTO tasks
-    (id, item_id, item_name, action_type, status, priority, created_at, updated_at, payload_json,
+    (id, item_id, item_name, status, priority, created_at, updated_at, payload_json,
      verify_bytes_saved, verify_size_bytes, original_size_bytes, upgrade_old_size, upgrade_new_size,
      source, progress, phase, resume_point, manual_execute_requested, priority_manually_adjusted,
      priority_model_version, retry_count, pausing_requested, node_id, sub_library_id, item_path,
@@ -948,7 +912,7 @@ const upsertSql = `
      flow_executor, primary_resource_type, resource_types_json, flow_steps_json,
      target_gate, gate_objective_kind, gate_objective_json)
   VALUES
-    (@id, @item_id, @item_name, @action_type, @status, @priority, @created_at, @updated_at, @payload_json,
+    (@id, @item_id, @item_name, @status, @priority, @created_at, @updated_at, @payload_json,
      @verify_bytes_saved, @verify_size_bytes, @original_size_bytes, @upgrade_old_size, @upgrade_new_size,
      @source, @progress, @phase, @resume_point, @manual_execute_requested, @priority_manually_adjusted,
      @priority_model_version, @retry_count, @pausing_requested, @node_id, @sub_library_id, @item_path,
@@ -958,7 +922,6 @@ const upsertSql = `
   ON CONFLICT(id) DO UPDATE SET
     item_id = excluded.item_id,
     item_name = excluded.item_name,
-    action_type = excluded.action_type,
     status = excluded.status,
     priority = excluded.priority,
     created_at = excluded.created_at,
@@ -1002,7 +965,7 @@ function buildTask(taskData, now = new Date().toISOString()) {
     id: generateId(),
     itemId: taskData.itemId || '',
     itemName: taskData.itemName || (taskData.itemInfo && taskData.itemInfo.name) || '',
-    actionType: taskData.actionType,
+    operationKind: taskData.operationKind,
     source: taskData.source || (taskData.itemInfo && taskData.itemInfo.taskSource) || '',
     status: taskData.status || 'created',
     progress: typeof taskData.progress === 'number' ? taskData.progress : 0,
@@ -1035,7 +998,7 @@ function createTask(taskData) {
     slowMs: 150,
     payload: {
       itemId: taskData && taskData.itemId,
-      actionType: taskData && taskData.actionType,
+      operationKind: taskData && taskData.operationKind,
       source: taskData && taskData.source,
       before: getStorageMetrics(),
     },
@@ -1152,9 +1115,9 @@ function buildWhere(filter = {}, options = {}) {
       statuses.forEach((status, i) => { params[`statusIn${i}`] = status; });
     }
   }
-  if (filter.actionType) {
-    clauses.push('action_type = @actionType');
-    params.actionType = String(filter.actionType);
+  if (filter.operationKind) {
+    clauses.push('operation_kind = @operationKind');
+    params.operationKind = String(filter.operationKind);
   }
   if (filter.bridgeKind) {
     appendBridgeKindFilter(clauses, params, 'bridge_kind', filter.bridgeKind);
@@ -1370,7 +1333,7 @@ function queryRecentTaskEvents(options = {}) {
   const pageSize = Math.min(100, Math.max(1, Number.parseInt(options.pageSize, 10) || 20));
   const rows = getDb().prepare(`
     SELECT
-      id, task_id, item_id, action_type, event_type, event_status, phase, resume_point,
+      id, task_id, item_id, event_type, event_status, phase, resume_point,
       resource_type, resource_key, resource_label, bridge_kind, flow_direction,
       operation_kind, created_at, NULL AS payload_json
     FROM task_events
@@ -1425,7 +1388,7 @@ function queryDashboardTaskStats() {
       GROUP BY status
       ORDER BY count DESC, key ASC
     `).all());
-    const bridgeProjection = "CASE WHEN action_type = 'delete' AND (bridge_kind = 'archive' OR flow_direction = 'archive.delete') THEN 'optimize' ELSE COALESCE(NULLIF(bridge_kind, ''), 'unknown') END";
+    const bridgeProjection = "COALESCE(NULLIF(bridge_kind, ''), 'unknown')";
     const activeByBridgeKind = countMap(db.prepare(`
       SELECT ${bridgeProjection} AS key, COUNT(*) AS count
       FROM tasks
@@ -1434,10 +1397,10 @@ function queryDashboardTaskStats() {
       ORDER BY count DESC, key ASC
     `).all(params));
     const activeByOperationKind = countMap(db.prepare(`
-      SELECT COALESCE(NULLIF(operation_kind, ''), action_type, 'unknown') AS key, COUNT(*) AS count
+      SELECT COALESCE(NULLIF(operation_kind, ''), 'unknown') AS key, COUNT(*) AS count
       FROM tasks
       WHERE ${activeWhere}
-      GROUP BY COALESCE(NULLIF(operation_kind, ''), action_type, 'unknown')
+      GROUP BY COALESCE(NULLIF(operation_kind, ''), 'unknown')
       ORDER BY count DESC, key ASC
     `).all(params));
     const activeBySource = countMap(db.prepare(`
@@ -1448,10 +1411,10 @@ function queryDashboardTaskStats() {
       ORDER BY count DESC, key ASC
     `).all(params));
     const failedByOperationKind = countMap(db.prepare(`
-      SELECT COALESCE(NULLIF(operation_kind, ''), action_type, 'unknown') AS key, COUNT(*) AS count
+      SELECT COALESCE(NULLIF(operation_kind, ''), 'unknown') AS key, COUNT(*) AS count
       FROM tasks
       WHERE status = 'failed_hard'
-      GROUP BY COALESCE(NULLIF(operation_kind, ''), action_type, 'unknown')
+      GROUP BY COALESCE(NULLIF(operation_kind, ''), 'unknown')
       ORDER BY count DESC, key ASC
     `).all());
 
@@ -1500,7 +1463,6 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
       id,
       item_id,
       item_name,
-      action_type,
       status,
       priority,
       created_at,
@@ -1607,7 +1569,7 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
         if (verifyResult[key] === undefined || verifyResult[key] === null) delete verifyResult[key];
       });
       const planned = flowPlanner.planFlow({
-        actionType: row.action_type || '',
+        operationKind: row.operation_kind || '',
         source: row.source || '',
         itemId: row.item_id || '',
         itemInfo,
@@ -1619,7 +1581,7 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
           from: row.bridge_from || '',
           to: row.bridge_to || '',
           reason: row.bridge_reason || '',
-          actionType: row.action_type || '',
+          operationKind: row.operation_kind || '',
           source: row.source || '',
           itemId: row.item_id || '',
           subLibraryId: row.info_sub_library_id || '',
@@ -1630,10 +1592,9 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
           version: row.flow_version || '',
           bridgeKind: row.bridge_kind || '',
           direction: row.flow_direction || '',
-          operationKind: row.operation_kind || row.action_type || '',
+          operationKind: row.operation_kind || '',
           executor: row.flow_executor || '',
           primaryResourceType: row.primary_resource_type || '',
-          actionType: row.action_type || '',
           source: row.source || '',
           resourceTypes: jsonParse(row.resource_types_json, []),
           steps: jsonParse(row.flow_steps_json, []),
@@ -1644,7 +1605,7 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
         id: row.id,
         itemId: row.item_id || '',
         itemName: row.item_name || '',
-        actionType: row.action_type || '',
+        operationKind: row.operation_kind || '',
         source: row.source || '',
         taskBridge,
         flowPlan,
@@ -1665,7 +1626,7 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
             targetGate: row.target_gate || '',
             gateObjective: jsonParse(row.gate_objective_json, {}),
             source: row.source || '',
-            operationHint: row.operation_kind || row.action_type || '',
+            operationHint: row.operation_kind || '',
           }
           : undefined,
         priority: typeof row.priority === 'number' ? row.priority : 100,
@@ -1697,7 +1658,6 @@ function queryTaskSummaries(filter = {}, options = {}) {
         itemIds: Array.isArray(filter.itemIds) ? filter.itemIds.length : undefined,
         status: filter.status || '',
         statuses: Array.isArray(filter.statuses) ? filter.statuses.length : undefined,
-        actionType: filter.actionType || '',
         bridgeKind: filter.bridgeKind || '',
         operationKind: filter.operationKind || '',
         nodeId: filter.nodeId || '',
@@ -1742,7 +1702,6 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
         id,
         item_id,
         item_name,
-        action_type,
         status,
         priority,
         created_at,
@@ -1775,7 +1734,7 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
         ? { subLibraryId: row.sub_library_id }
         : undefined;
       const planned = flowPlanner.planFlow({
-        actionType: row.action_type || '',
+        operationKind: row.operation_kind || '',
         source: row.source || '',
         itemId: row.item_id || '',
         itemInfo,
@@ -1787,7 +1746,7 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
           from: row.bridge_from || '',
           to: row.bridge_to || '',
           reason: row.bridge_reason || '',
-          actionType: row.action_type || '',
+          operationKind: row.operation_kind || '',
           source: row.source || '',
           itemId: row.item_id || '',
           subLibraryId: row.sub_library_id || '',
@@ -1798,10 +1757,9 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
           version: row.flow_version || '',
           bridgeKind: row.bridge_kind || '',
           direction: row.flow_direction || '',
-          operationKind: row.operation_kind || row.action_type || '',
+          operationKind: row.operation_kind || '',
           executor: row.flow_executor || '',
           primaryResourceType: row.primary_resource_type || '',
-          actionType: row.action_type || '',
           source: row.source || '',
           resourceTypes: jsonParse(row.resource_types_json, []),
           steps: jsonParse(row.flow_steps_json, []),
@@ -1812,7 +1770,7 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
         id: row.id,
         itemId: row.item_id || '',
         itemName: row.item_name || '',
-        actionType: row.action_type || '',
+        operationKind: row.operation_kind || '',
         status: row.status || '',
         source: row.source || '',
         taskBridge,
@@ -1834,7 +1792,7 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
             targetGate: row.target_gate || '',
             gateObjective: jsonParse(row.gate_objective_json, {}),
             source: row.source || '',
-            operationHint: row.operation_kind || row.action_type || '',
+            operationHint: row.operation_kind || '',
           }
           : undefined,
         itemInfo,
@@ -1867,7 +1825,6 @@ function querySchedulerTasks() {
         id,
         item_id,
         item_name,
-        action_type,
         status,
         priority,
         created_at,
@@ -1907,7 +1864,7 @@ function querySchedulerTasks() {
     return rows.map((row) => {
       const itemInfo = jsonExtractObject(row.item_info_json, null);
       const planned = flowPlanner.planFlow({
-        actionType: row.action_type || '',
+        operationKind: row.operation_kind || '',
         source: row.source || '',
         itemId: row.item_id || '',
         itemInfo,
@@ -1919,7 +1876,7 @@ function querySchedulerTasks() {
           from: row.bridge_from || '',
           to: row.bridge_to || '',
           reason: row.bridge_reason || '',
-          actionType: row.action_type || '',
+          operationKind: row.operation_kind || '',
           source: row.source || '',
           itemId: row.item_id || '',
           subLibraryId: row.sub_library_id || (itemInfo && itemInfo.subLibraryId) || '',
@@ -1930,10 +1887,9 @@ function querySchedulerTasks() {
           version: row.flow_version || '',
           bridgeKind: row.bridge_kind || '',
           direction: row.flow_direction || '',
-          operationKind: row.operation_kind || row.action_type || '',
+          operationKind: row.operation_kind || '',
           executor: row.flow_executor || '',
           primaryResourceType: row.primary_resource_type || '',
-          actionType: row.action_type || '',
           source: row.source || '',
           resourceTypes: jsonParse(row.resource_types_json, []),
           steps: jsonParse(row.flow_steps_json, []),
@@ -1944,7 +1900,7 @@ function querySchedulerTasks() {
         id: row.id,
         itemId: row.item_id || '',
         itemName: row.item_name || '',
-        actionType: row.action_type || '',
+        operationKind: row.operation_kind || '',
         taskBridge,
         flowPlan,
         status: row.status || '',
@@ -1972,7 +1928,7 @@ function querySchedulerTasks() {
             targetGate: row.target_gate || '',
             gateObjective: jsonParse(row.gate_objective_json, {}),
             source: row.source || '',
-            operationHint: row.operation_kind || row.action_type || '',
+            operationHint: row.operation_kind || '',
           }
           : undefined,
         itemInfo,
@@ -1996,7 +1952,7 @@ function queryOptimizationTaskIndexRows(filter = {}) {
     SELECT
       id,
       item_id,
-      action_type,
+      operation_kind,
       created_at,
       updated_at,
       json_extract(payload_json, '$.itemInfo.subLibraryId') AS sub_library_id,
@@ -2010,14 +1966,14 @@ function queryOptimizationTaskIndexRows(filter = {}) {
       json_extract(payload_json, '$.upgradePreview.newFile.path') AS new_file_path
     FROM tasks
     WHERE status = 'done'
-      AND action_type IN ('transcode', 'upgrade')
+      AND operation_kind IN ('transcode', 'upgrade')
       ${itemFilter}
   `).all(params);
 
   return rows.map((row) => ({
     id: row.id,
     itemId: row.item_id,
-    actionType: row.action_type,
+    operationKind: row.operation_kind,
     status: 'done',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -2051,7 +2007,7 @@ function queryTaskAdmissionRows() {
     successPayload: (rows) => ({ rowCount: Array.isArray(rows) ? rows.length : 0 }),
   }, () => {
     const rows = getDb().prepare(`
-      SELECT id, item_id, action_type, status, created_at, updated_at
+      SELECT id, item_id, operation_kind, status, created_at, updated_at
       FROM tasks
       ORDER BY updated_at DESC, id DESC
     `).all();
@@ -2059,7 +2015,7 @@ function queryTaskAdmissionRows() {
     return rows.map((row) => ({
       id: row.id,
       itemId: row.item_id || '',
-      actionType: row.action_type || '',
+      operationKind: row.operation_kind || '',
       status: row.status || '',
       createdAt: row.created_at || '',
       updatedAt: row.updated_at || '',
@@ -2072,7 +2028,7 @@ function querySpaceStatTaskRows() {
     SELECT
       id,
       item_id,
-      action_type,
+      operation_kind,
       verify_bytes_saved,
       verify_size_bytes,
       original_size_bytes,
@@ -2080,14 +2036,14 @@ function querySpaceStatTaskRows() {
       upgrade_new_size
     FROM tasks
     WHERE status = 'done'
-      AND action_type IN ('transcode', 'upgrade', 'delete')
+      AND operation_kind IN ('transcode', 'upgrade', 'delete')
   `).all();
 
   return rows.map((row) => {
     const task = {
       id: row.id,
       itemId: row.item_id,
-      actionType: row.action_type,
+      operationKind: row.operation_kind,
       status: 'done',
       itemInfo: {},
       verifyResult: {},

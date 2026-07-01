@@ -9,11 +9,11 @@ const TASK_PRIORITY_MODEL_VERSION = 'kairox-task-creator-v1';
  * Lower number = higher priority (runs first in the global task queue).
  *
  * Formula:
- *   priority = sum(source, actionType, subLibrary, businessSignal, queueAge, retry, matchedRules)
+ *   priority = sum(source, operationKind, subLibrary, businessSignal, queueAge, retry, matchedRules)
  *
  * Evaluation order:
- *   1. Add source, action type, library, business signal, queue age, and retry dimensions.
- *   2. Advanced overlay rules (config.taskPriority.rules[actionType], ordered):
+ *   1. Add source, operation kind, library, business signal, queue age, and retry dimensions.
+ *   2. Advanced overlay rules (config.taskPriority.rules[operationKind], ordered):
  *      each matching rule contributes a delta (subtract=add priority, add=defer).
  *   3. clamp to >= 0.
  *
@@ -25,26 +25,26 @@ const TASK_PRIORITY_MODEL_VERSION = 'kairox-task-creator-v1';
 /**
  * @param {object} params
  * @param {'manual'|'auto'} params.source       task origin
- * @param {string} params.actionType            transcode|upgrade|delete|scrape
+ * @param {string} params.operationKind            transcode|upgrade|delete|scrape
  * @param {object} [params.itemInfo]            task.itemInfo (subLibraryId, type, ...)
  * @param {object} [params.task]                optional queued task context (createdAt, retryCount)
  * @param {object} params.config                full config (taskPriority + subLibraries)
  * @returns {number}                            priority value (lower = first)
  */
-function computePriority({ source, actionType, itemInfo, config, task }) {
-  return explainPriority({ source, actionType, itemInfo, config, task }).priority;
+function computePriority({ source, operationKind, itemInfo, config, task }) {
+  return explainPriority({ source, operationKind, itemInfo, config, task }).priority;
 }
 
-function explainTaskPriority({ source, taskTarget, itemInfo, config, task, actionType }) {
+function explainTaskPriority({ source, taskTarget, itemInfo, config, task, operationKind }) {
   const cfg = config && config.taskPriority || {};
   const manualBase = typeof cfg.manualTaskPriority === 'number' ? cfg.manualTaskPriority : 0;
   const autoBase = typeof cfg.autoTaskPriorityBase === 'number' ? cfg.autoTaskPriorityBase : 100;
-  const context = buildTaskContext({ itemInfo, task, taskTarget, actionType });
+  const context = buildTaskContext({ itemInfo, task, taskTarget, operationKind });
 
   const targetGateWeights = cfg.targetGateWeights || {};
-  const legacyActionWeights = cfg.actionTypeWeights || {};
-  const targetGate = context.targetGate || targetGateForAction(context.actionType);
-  const operationHint = context.operationHint || operationHintForAction(context.actionType);
+  const legacyActionWeights = cfg.operationKindWeights || {};
+  const targetGate = context.targetGate || targetGateForAction(context.operationKind);
+  const operationHint = context.operationHint || operationHintForAction(context.operationKind);
   const targetGateWeight = typeof targetGateWeights[targetGate] === 'number'
     ? targetGateWeights[targetGate]
     : legacyTargetGateWeight(targetGate, legacyActionWeights);
@@ -57,7 +57,7 @@ function explainTaskPriority({ source, taskTarget, itemInfo, config, task, actio
 
   const sourceWeight = source === 'manual' ? manualBase : autoBase;
   const libraryWeight = resolveLibraryWeight(context, config);
-  const businessSignalWeight = computeBusinessSignalDelta(operationHint || context.actionType || targetGate, context, cfg);
+  const businessSignalWeight = computeBusinessSignalDelta(operationHint || context.operationKind || targetGate, context, cfg);
   const queueAgeWeight = computeQueueAgeDelta(context, cfg);
   const retryWeight = computeRetryDelta(context, cfg);
   const dimensions = [
@@ -108,27 +108,27 @@ function explainTaskPriority({ source, taskTarget, itemInfo, config, task, actio
   };
 }
 
-function explainPriority({ source, actionType, itemInfo, config, task }) {
+function explainPriority({ source, operationKind, itemInfo, config, task }) {
   const cfg = config && config.taskPriority || {};
   const manualBase = typeof cfg.manualTaskPriority === 'number' ? cfg.manualTaskPriority : 0;
   const autoBase = typeof cfg.autoTaskPriorityBase === 'number' ? cfg.autoTaskPriorityBase : 100;
-  const actionWeights = cfg.actionTypeWeights || {};
-  const actionWeight = typeof actionWeights[actionType] === 'number' ? actionWeights[actionType] : 0;
+  const actionWeights = cfg.operationKindWeights || {};
+  const actionWeight = typeof actionWeights[operationKind] === 'number' ? actionWeights[operationKind] : 0;
   const context = buildContext(itemInfo, task);
 
-  // ── 1. source + action type + library + dynamic queue dimensions ──────────
+  // ── 1. source + operation kind + library + dynamic queue dimensions ───────
   const sourceWeight = source === 'manual' ? manualBase : autoBase;
   const libraryWeight = resolveLibraryWeight(context, config);
-  const businessSignalWeight = computeBusinessSignalDelta(actionType, context, cfg);
+  const businessSignalWeight = computeBusinessSignalDelta(operationKind, context, cfg);
   const queueAgeWeight = computeQueueAgeDelta(context, cfg);
   const retryWeight = computeRetryDelta(context, cfg);
   const dimensions = [
     { key: 'source', label: source === 'manual' ? '手动来源' : '自动来源', value: sourceWeight },
-    { key: 'actionType', label: '任务类型', actionType, value: actionWeight },
+    { key: 'operationKind', label: '任务类型', operationKind, value: actionWeight },
     { key: 'subLibrary', label: '子库权重', subLibraryId: context.subLibraryId || '', value: libraryWeight },
   ];
   if (businessSignalWeight !== 0) {
-    dimensions.push({ key: 'businessSignal', label: '业务信号', actionType, value: businessSignalWeight });
+    dimensions.push({ key: 'businessSignal', label: '业务信号', operationKind, value: businessSignalWeight });
   }
   if (queueAgeWeight !== 0) {
     dimensions.push({ key: 'queueAge', label: '等待时间', createdAt: context.createdAt || '', value: queueAgeWeight });
@@ -137,8 +137,8 @@ function explainPriority({ source, actionType, itemInfo, config, task }) {
     dimensions.push({ key: 'retry', label: '重试惩罚', retryCount: context.retryCount || 0, value: retryWeight });
   }
 
-  // ── 2. advanced overlay rules (per actionType, ordered) ───────────────────
-  const rules = ((cfg.rules || {})[actionType] || []);
+  // ── 2. advanced overlay rules (per operationKind, ordered) ───────────────────
+  const rules = ((cfg.rules || {})[operationKind] || []);
   for (const [index, rule] of rules.entries()) {
     if (!rule || typeof rule !== 'object') continue;
     if (matchConditions(rule.match, context)) {
@@ -161,7 +161,7 @@ function explainPriority({ source, actionType, itemInfo, config, task }) {
   return {
     modelVersion: PRIORITY_MODEL_VERSION,
     lowerIsEarlier: true,
-    formula: 'source + actionType + subLibrary + businessSignal + queueAge + retry + matchedRules',
+    formula: 'source + operationKind + subLibrary + businessSignal + queueAge + retry + matchedRules',
     dimensions,
     raw,
     priority: Math.max(0, Math.round(raw)),
@@ -178,38 +178,40 @@ function buildContext(itemInfo, task) {
   };
 }
 
-function buildTaskContext({ itemInfo, task, taskTarget, actionType }) {
+function buildTaskContext({ itemInfo, task, taskTarget, operationKind }) {
   const context = buildContext(itemInfo, task);
   const target = taskTarget && typeof taskTarget === 'object' ? taskTarget : {};
-  const inferredAction = actionType || target.operationHint || context.actionType;
+  const inferredAction = operationKind || target.operationHint || context.operationKind;
   return {
     ...context,
-    actionType: inferredAction,
+    operationKind: inferredAction,
     targetGate: target.targetGate || targetForAction(inferredAction),
     gateObjective: target.gateObjective || context.gateObjective || {},
     operationHint: target.operationHint || operationHintForAction(inferredAction),
   };
 }
 
-function targetForAction(actionType) {
-  const action = String(actionType || '').trim().toLowerCase();
+function targetForAction(operationKind) {
+  const action = String(operationKind || '').trim().toLowerCase();
   if (action === 'ingest') return 'ingest';
   if (action === 'scrape' || action === 'metadata') return 'metadata';
   if (action === 'archive') return 'archive';
-  if (action === 'transcode' || action === 'upgrade' || action === 'delete') return 'optimize';
+  if (action === 'delete') return 'delete';
+  if (action === 'transcode' || action === 'upgrade') return 'optimize';
   return action || '';
 }
 
-function operationHintForAction(actionType) {
-  return String(actionType || '').trim().toLowerCase();
+function operationHintForAction(operationKind) {
+  return String(operationKind || '').trim().toLowerCase();
 }
 
 function legacyTargetGateWeight(targetGate, actionWeights = {}) {
   if (targetGate === 'ingest') return numberOr(actionWeights.ingest, 60);
   if (targetGate === 'metadata') return numberOr(actionWeights.scrape, 80);
   if (targetGate === 'archive') return numberOr(actionWeights.archive, 70);
+  if (targetGate === 'delete') return numberOr(actionWeights.delete, 90);
   if (targetGate === 'optimize') {
-    const values = ['transcode', 'upgrade', 'delete']
+    const values = ['transcode', 'upgrade']
       .map((key) => Number(actionWeights[key]))
       .filter(Number.isFinite);
     if (values.length) return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
@@ -232,6 +234,7 @@ function taskPriorityRules(cfg, targetGate, operationHint) {
   if (targetGate === 'metadata') return legacyRules.scrape || [];
   if (targetGate === 'ingest') return legacyRules.ingest || [];
   if (targetGate === 'archive') return legacyRules.archive || [];
+  if (targetGate === 'delete') return legacyRules.delete || [];
   if (targetGate === 'optimize') return legacyRules[operationHint] || [];
   return [];
 }
@@ -246,21 +249,21 @@ function resolveLibraryWeight(itemInfo, config) {
   return 100;
 }
 
-function computeBusinessSignalDelta(actionType, itemInfo, cfg) {
+function computeBusinessSignalDelta(operationKind, itemInfo, cfg) {
   const weights = cfg.businessSignalWeights || {};
   const adultWorkflowBonus = numberOr(weights.adultWorkflowBonus, 20);
   const maxTranscodeSavingBonus = numberOr(weights.maxTranscodeSavingBonus, 30);
   const info = itemInfo || {};
   const meta = info.adultMetadata || {};
 
-  if (actionType === 'ingest') {
+  if (operationKind === 'ingest') {
     if (info.source === 'adult_folder' || info.mediaType === 'adult' || meta.region) {
       return -adultWorkflowBonus;
     }
     return 0;
   }
 
-  if (actionType === 'scrape') {
+  if (operationKind === 'scrape') {
     const scrapeStatus = String(meta.scrapeStatus || '').toLowerCase();
     if (info.scraped === false || scrapeStatus === '' || scrapeStatus === 'pending') {
       return -adultWorkflowBonus;
@@ -268,7 +271,7 @@ function computeBusinessSignalDelta(actionType, itemInfo, cfg) {
     return 0;
   }
 
-  if (actionType === 'transcode') {
+  if (operationKind === 'transcode') {
     const bitrate = Number(info.equivalentBitrate || info.bitrate || 0);
     const target = Number(info.targetBitrate || 0);
     const size = Number(info.size || info.originalSizeBytes || 0);

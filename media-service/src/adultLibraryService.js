@@ -1277,7 +1277,7 @@ function enqueueIngestTask(subLib, filePath, opts = {}) {
   const admission = taskAdmission.canCreateTask({
     item: itemInfo,
     itemInfo,
-    actionType: 'ingest',
+    operationKind: 'ingest',
     source,
     config: cfg,
     tasks: taskSnapshot || taskStore.getTasks(),
@@ -1285,14 +1285,14 @@ function enqueueIngestTask(subLib, filePath, opts = {}) {
   if (!admission.allowed) return null;
   const priorityBreakdown = priorityEngine.explainPriority({
     source: userInitiated ? 'manual' : 'auto',
-    actionType: 'ingest',
+    operationKind: 'ingest',
     itemInfo,
     config: cfg,
   });
   const taskData = {
     itemId: itemInfo.itemId,
     itemName: itemInfo.name,
-    actionType: 'ingest',
+    operationKind: 'ingest',
     source,
     status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
     priority: priorityBreakdown.priority,
@@ -1381,7 +1381,7 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
   const admission = taskAdmission.canCreateTask({
     item,
     itemInfo,
-    actionType: 'scrape',
+    operationKind: 'scrape',
     source,
     config: cfg,
     tasks: taskSnapshot || taskStore.getTasks(),
@@ -1389,14 +1389,14 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
   if (!admission.allowed) return null;
   const priorityBreakdown = priorityEngine.explainPriority({
     source: userInitiated ? 'manual' : 'auto',
-    actionType: 'scrape',
+    operationKind: 'scrape',
     itemInfo,
     config: cfg,
   });
   const taskData = {
     itemId: item.itemId,
     itemName: item.name,
-    actionType: 'scrape',
+    operationKind: 'scrape',
     source,
     status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
     priority: priorityBreakdown.priority,
@@ -1407,7 +1407,7 @@ function enqueueScrapeTask(item, subLib, opts = {}) {
     requestedIntent: userInitiated ? {
       bridgeKind: 'metadata',
       preferredOperation: 'scrape',
-      actionType: 'scrape',
+      operationKind: 'scrape',
       intentMode: 'adult_rescrape',
       entryPoint: 'POST /v1/admin/adult/items/:itemId/actions/rescrape',
     } : undefined,

@@ -123,7 +123,7 @@ function reportIngestInvalidation(taskId, task, err, phase) {
           phase: phase || '',
         },
         sourceTaskId: taskId,
-        sourceActionType: task && task.actionType || 'scrape',
+        sourceOperationKind: task && task.operationKind || 'scrape',
         sourceTargetGate: 'metadata',
         invalidatedAt: new Date().toISOString(),
         recovery: 'rerun_ingest_source_sync',
@@ -530,7 +530,7 @@ function captureCompletionVerification(taskId) {
   try {
     const mediaLibraryService = require('./mediaLibraryService');
     const task = taskStore.getTask(taskId);
-    if (!task || task.actionType !== 'scrape') return;
+    if (!task || task.operationKind !== 'scrape') return;
     const config = configStore.loadConfig();
     const item = mediaLibraryService.getLibraryItem(task.itemId);
     const subLib = item ? getSubLibrary(config, item.subLibraryId) : null;
