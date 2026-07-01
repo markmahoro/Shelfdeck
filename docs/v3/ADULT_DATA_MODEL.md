@@ -120,11 +120,31 @@ node scripts/production-adult-migration-dry-run.js
 
 - 读取当前生产镜像和 `library.db` / WAL / SHM / `library.json` 文件大小。
 - 识别 `mediaType=adult` 或带 `adultRegion` 的 Kairox subLibrary。
-- 统计 adult rows、rows with cold artifacts、各 cold field 的行数、字节数、最大单字段体积。
+- 统计 `library.db` adult rows、旧 `library.json` adult rows、rows with cold artifacts、各 cold field 的行数、字节数、最大单字段体积。
 - 输出计划冷数据目标：`adult-artifacts/<itemId>.json`。
 - 输出未来 apply 前必须满足的备份和回滚条件。
 
-该脚本拒绝 `--apply`，不得写生产数据。v3.3-alpha.3 的生产 dry-run 结果显示：当前生产配置中存在 `JAV` 和 `US` 两个成人子库，但 `media_items` adult rows 为 0，旧 adult AI artifacts 为 0 bytes；因此 v3.3-beta.1 历史迁移在当前生产状态下预期是 no-op，但仍必须保留备份和回滚流程。
+该脚本拒绝 `--apply`，不得写生产数据。v3.3-alpha.3 的生产 dry-run 结果显示：
+
+```text
+library.db adult rows:                 0
+library.json adult rows:               1393
+library.json rows with cold artifacts: 711
+library.json adult payload:            213216676 bytes
+estimated cold artifact bytes:         209953468 bytes
+estimated hot payload reduction:       98.4695%
+```
+
+主要冷字段来源：
+
+```text
+faceClusters:   711 rows / 89564446 bytes
+unknownFaces:   711 rows / 85628834 bytes
+galleryImages:  200 rows / 34657348 bytes
+ai:             711 rows / 47284 bytes
+```
+
+因此 v3.3-beta.1 不能只看 `library.db`；历史迁移来源必须包含旧 `library.json` 中的成人条目。迁移目标是把这些 item 以 light adult metadata 写回 `media_items`，并把 cold artifacts 写入 `adult-artifacts/<itemId>.json`。迁移必须保持 item identity、subLibrary、path、Lifecycle facts 和 Task target facts 不变。
 
 ## 9. 测试约束
 

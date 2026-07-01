@@ -121,6 +121,78 @@ function all(db, sql) {
   }
 }
 
+function payloadBytes(value) {
+  try {
+    return Buffer.byteLength(JSON.stringify(value || {}));
+  } catch {
+    return 0;
+  }
+}
+
+function coldValueBytes(metadata, key) {
+  if (!metadata || typeof metadata !== 'object' || !Object.prototype.hasOwnProperty.call(metadata, key)) return 0;
+  return payloadBytes(metadata[key]);
+}
+
+function analyzeLibraryJson(adultIds) {
+  const file = DATA_DIR + '/library.json';
+  if (!fs.existsSync(file)) {
+    return { exists: false, sizeBytes: 0, adultRows: 0, rowsWithColdArtifacts: 0, payloadBytes: 0, bySubLibrary: [], coldFields: [] };
+  }
+  const sizeBytes = fileSize('library.json');
+  const parsed = readJson(file, { items: [] });
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
+  const adultIdSet = new Set(adultIds);
+  const adultItems = items.filter((item) => {
+    return item && (
+      item.source === 'adult_folder'
+      || item.mediaType === 'adult'
+      || adultIdSet.has(String(item.subLibraryId || ''))
+      || (item.adultMetadata && typeof item.adultMetadata === 'object')
+    );
+  });
+  const bySubLibraryMap = new Map();
+  const coldStats = new Map(coldFields.map((field) => [field.key, { key: field.key, rows: 0, bytes: 0, maxBytes: 0, plannedTarget: 'adult-artifacts/<itemId>.json ' + field.target }]));
+  let totalPayloadBytes = 0;
+  let rowsWithColdArtifacts = 0;
+  for (const item of adultItems) {
+    const itemBytes = payloadBytes(item);
+    totalPayloadBytes += itemBytes;
+    const subLibraryId = String(item.subLibraryId || 'unknown');
+    const sub = bySubLibraryMap.get(subLibraryId) || { subLibraryId, rows: 0, payloadBytes: 0 };
+    sub.rows += 1;
+    sub.payloadBytes += itemBytes;
+    bySubLibraryMap.set(subLibraryId, sub);
+    let hasCold = false;
+    const metadata = item.adultMetadata || {};
+    for (const field of coldFields) {
+      const bytes = coldValueBytes(metadata, field.key);
+      if (bytes > 0) {
+        hasCold = true;
+        const stat = coldStats.get(field.key);
+        stat.rows += 1;
+        stat.bytes += bytes;
+        stat.maxBytes = Math.max(stat.maxBytes, bytes);
+      }
+    }
+    if (hasCold) rowsWithColdArtifacts += 1;
+  }
+  const estimatedColdArtifactBytes = [...coldStats.values()].reduce((sum, field) => sum + field.bytes, 0);
+  return {
+    exists: true,
+    sizeBytes,
+    adultRows: adultItems.length,
+    rowsWithColdArtifacts,
+    payloadBytes: totalPayloadBytes,
+    averagePayloadBytes: adultItems.length ? totalPayloadBytes / adultItems.length : 0,
+    maxPayloadBytes: adultItems.reduce((max, item) => Math.max(max, payloadBytes(item)), 0),
+    estimatedColdArtifactBytes,
+    estimatedHotPayloadReductionRatio: totalPayloadBytes > 0 ? Number((estimatedColdArtifactBytes / totalPayloadBytes).toFixed(6)) : 0,
+    bySubLibrary: [...bySubLibraryMap.values()].sort((a, b) => b.payloadBytes - a.payloadBytes),
+    coldFields: [...coldStats.values()],
+  };
+}
+
 const config = readJson(DATA_DIR + '/config.json', {});
 const adultLibs = adultSubLibraries(config);
 const adultIds = adultLibs.map((lib) => lib.uuid);
@@ -173,8 +245,9 @@ const bySubLibrary = all(db, [
 ].join(' '));
 
 const estimatedColdBytes = byField.reduce((sum, field) => sum + field.bytes, 0);
-const payloadBytes = Number(adultPayload.payloadBytes || 0);
-const estimatedReductionRatio = payloadBytes > 0 ? estimatedColdBytes / payloadBytes : 0;
+const adultPayloadBytes = Number(adultPayload.payloadBytes || 0);
+const estimatedReductionRatio = adultPayloadBytes > 0 ? estimatedColdBytes / adultPayloadBytes : 0;
+const libraryJsonAnalysis = analyzeLibraryJson(adultIds);
 
 const result = {
   mode: 'dry-run',
@@ -191,8 +264,9 @@ const result = {
     rowsWithColdArtifacts: Number(rowsWithCold.rows || 0),
     bySubLibrary,
   },
+  libraryJsonSource: libraryJsonAnalysis,
   payload: {
-    totalBytes: payloadBytes,
+    totalBytes: adultPayloadBytes,
     averageBytes: Number(adultPayload.averagePayloadBytes || 0),
     maxBytes: Number(adultPayload.maxPayloadBytes || 0),
     estimatedColdArtifactBytes: estimatedColdBytes,
