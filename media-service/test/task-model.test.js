@@ -509,6 +509,49 @@ test('businessFlowPolicy resolves automatic metadata repair triggers outside Sma
   assert.ok(trigger.metadataMissingReasons.includes('identity.externalId'));
 });
 
+test('businessFlowPolicy does not auto-repair metadata when missing reasons require external rating facts', () => {
+  const config = {
+    smartTaskEnabledActions: ['scrape'],
+    subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie', ruleTemplateId: 'default' }],
+    ruleTemplates: [{
+      id: 'default',
+      rules: [{
+        action: 'transcode',
+        groups: [{
+          connector: 'or',
+          conditions: [
+            ['userRating', '>=', 4],
+            ['doubanRating', '>=', 8],
+          ],
+        }],
+      }],
+    }],
+  };
+  const trigger = businessFlowPolicy.resolveAutomaticTrigger({
+    config,
+    item: {
+      itemId: 'movie-missing-rating',
+      source: 'emby',
+      subLibraryId: 'movie-lib',
+      type: 'movie',
+      name: 'Movie Missing Rating',
+      tmdbId: '12345',
+      path: '/media/missing-rating.mkv',
+      size: 1024,
+      duration: 3600,
+      bitrate: 4000000,
+      resolution: '1920x1080',
+      codec: 'h264',
+      watched: true,
+    },
+  });
+
+  assert.strictEqual(trigger.allowed, false);
+  assert.strictEqual(trigger.reason, 'metadata_not_auto_repairable');
+  assert.ok(trigger.metadataMissingReasons.includes('decision.rating'));
+  assert.deepStrictEqual(trigger.unsupportedReasons, ['decision.rating']);
+});
+
 test('businessFlowPolicy resolves automatic optimize triggers from strategy output', () => {
   const config = {
     smartTaskEnabledActions: ['transcode'],
@@ -1331,6 +1374,85 @@ test('smartTaskEngine auto-enqueues standard metadata repair scrape', async () =
   assert.strictEqual(health.lastScanSummary.enqueued, 1);
   assert.strictEqual(health.lastScanSummary.enqueuedByAction.scrape, 1);
   assert.strictEqual(health.lastScanSummary.admissionRejected, 0);
+});
+
+test('smartTaskEngine does not auto-enqueue standard scrape when only rating facts are missing', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['scrape'],
+          smartTaskLookbackDays: 30,
+          subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie', automationMode: 'auto', ruleTemplateId: 'default' }],
+          ruleTemplates: [{
+            id: 'default',
+            rules: [{
+              action: 'transcode',
+              groups: [{
+                connector: 'or',
+                conditions: [
+                  ['userRating', '>=', 4],
+                  ['doubanRating', '>=', 8],
+                ],
+              }],
+            }],
+          }],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { scrape: 80 },
+            rules: { scrape: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByAction: { scrape: 0 },
+            maxQueuedByAction: { scrape: 20 },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [{
+            itemId: 'standard-missing-rating',
+            source: 'emby',
+            name: 'Standard Missing Rating',
+            type: 'movie',
+            subLibraryId: 'movie-lib',
+            tmdbId: '12345',
+            path: '/media/standard-missing-rating.mkv',
+            size: 1024,
+            duration: 3600,
+            bitrate: 4000000,
+            resolution: '1920x1080',
+            codec: 'h264',
+            watched: true,
+          }],
+        };
+      },
+    },
+    {
+      getTasks: () => [...created],
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTask() {
+        throw new Error('rating-only metadata gap must not auto-enqueue a scrape task');
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  assert.strictEqual(created.length, 0);
+  const health = smartTaskEngine.getHealth();
+  assert.strictEqual(health.lastScanSummary.status, 'done');
+  assert.strictEqual(health.lastScanSummary.candidateCount, 0);
+  assert.strictEqual(health.lastScanSummary.enqueued, 0);
 });
 
 test('smartTaskEngine health explains queue-cap skips without creating tasks', async () => {

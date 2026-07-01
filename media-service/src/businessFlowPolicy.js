@@ -12,6 +12,24 @@ const AUTO_ACTION_ALIASES = {
 };
 const TASK_TARGETS = new Set(['ingest', 'metadata', 'optimize', 'archive']);
 const OPTIMIZE_OPERATIONS = new Set(['transcode', 'upgrade', 'delete']);
+const EMBY_AUTO_METADATA_REPAIRABLE_REASONS = new Set([
+  'identity.itemId',
+  'identity.externalId',
+  'identity.name',
+  'identity.seriesName',
+  'identity.seasonNumber',
+  'identity.providerId',
+  'media.path',
+  'media.size',
+  'media.duration',
+  'media.bitrate',
+  'media.equivalentBitrate',
+  'media.resolution',
+  'media.codec',
+  'media.audioCodecs',
+  'decision.watched',
+  'decision.providerId',
+]);
 
 function normalizeAutoAction(value) {
   const action = String(value || '').trim().toLowerCase();
@@ -221,6 +239,15 @@ function isTaskMediaItem(item) {
   return String((item && item.type) || '').toLowerCase() !== 'series';
 }
 
+function embyMetadataAutoRepairability(missingReasons = []) {
+  const reasons = Array.isArray(missingReasons) ? missingReasons : [];
+  const unsupportedReasons = reasons.filter((reason) => !EMBY_AUTO_METADATA_REPAIRABLE_REASONS.has(reason));
+  return {
+    repairable: unsupportedReasons.length === 0,
+    unsupportedReasons,
+  };
+}
+
 function blocked(actionType, reason, extra = {}) {
   return { operation: actionType, allowed: false, reason, ...extra };
 }
@@ -297,6 +324,16 @@ function resolveAutomaticTrigger(input = {}) {
         item: itemWithMetadata,
         metadataMissingReasons: meta.metadataMissingReasons,
       });
+    }
+    if (meta.metadataKind !== 'adult') {
+      const repairability = embyMetadataAutoRepairability(meta.metadataMissingReasons);
+      if (!repairability.repairable) {
+        return blocked('scrape', 'metadata_not_auto_repairable', {
+          item: itemWithMetadata,
+          metadataMissingReasons: meta.metadataMissingReasons,
+          unsupportedReasons: repairability.unsupportedReasons,
+        });
+      }
     }
     if (!automaticTargetEnabled(cfg, 'metadata')) {
       return blocked('scrape', 'action_not_enabled', {
