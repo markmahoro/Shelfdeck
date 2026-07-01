@@ -53,7 +53,38 @@ v3.3 不是从头开始。以下阶段已经完成并提交：
 - `v3.3-rc.7`：Task priority 已归 Task Creator；manual 和 SmartTask 入队都使用 Task Creator 准入结果中的 taskTarget 计算 priority；Scheduler 不再业务重算 priority。
 - `v3.3-rc.8`：任务调度页已按 Kairox task target / gate 收敛，资源并发槽位从该页移除。
 - `v3.3-rc.9`：`resourceCapacity` 配置与“资源容量”设置页已落地；Resource Runtime capacity 以 resource key 为主，旧 concurrency 字段仅兼容。
-- `v3.3-rc.10` 起仍需要部署生产后逐项打开自动能力并观察，不能在本地代码里假装完成。
+- `v3.3-rc.10`：已部署生产并恢复 `automaticTaskTargets=['ingest','metadata']`。metadata / scrape 自动任务会通过 Task Creator 创建；source missing 不再伪装成 scrape failure，而是通过 upstream gate invalidation 回退到 ingest gate。生产观察中 dashboard / media / tasks / config 热路径保持可用。
+- `v3.3-rc.11`：已部署生产并恢复 `automaticTaskTargets=['ingest','metadata','optimize']` + `optimizeAllowedOperations=['transcode']`。先用 canary 配置只放行 1 个 automatic transcode，确认 task target 为 `optimize`、flow operation 为 `transcode`、`upgrade/delete` 未被创建；canary task 完成 verify 和 replace。后续仍需完整 GA 验收。
+
+## 2.1 Production Capacity Test Note
+
+2026-07-02 讨论确认：当前 `SmartTaskEngine` 的 `activeBacklog > 0` 整轮 defer 策略适合恢复阶段的生产保护，但不是长期最优形态。它能防止自动任务在刚恢复 metadata / transcode 时堆积，但也可能让资源利用走向另一个极端：
+
+- 一个长时间 transcode 正在执行时，metadata / ingest 这类轻任务也会被整轮挡住。
+- 一个任务处于 executing / queued / awaiting confirmation 时，自动创建整体暂停，可能造成资源空闲。
+- scrape 与 transcode 使用的 Resource Runtime 容量不同，长期应该由 queue cap、global priority、resource capacity 和 scheduler dispatch 共同控制，而不是只靠全局 active backlog。
+
+后续若要从保守恢复模式进入更高吞吐模式，先做压测计划，不直接凭感觉调参。压测目标：
+
+- 控制面：dashboard / media / tasks / settings 在后台任务存在时仍不卡。
+- 自动创建：`smartTaskMaxPerRun`、queue cap、cooldown 不导致队列单调增长。
+- 调度：Scheduler 按已保存的 global priority / createdAt 调度，不回到 operation bucket。
+- 资源：`scraper:metadata`、`local:ffmpeg`、`filesystem:*` 可以分别限流，互不拖死控制面。
+- 数据：`library.db`、`tasks.db`、WAL、diagnostic log 不持续快速膨胀。
+- 失败：source missing、metadata gate failure、transcode failure 都可解释，且不会重复刷同一个 item。
+
+压测分阶段建议：
+
+| Phase | Config | Acceptance |
+| --- | --- | --- |
+| Baseline | 当前保守模式，active backlog defer | 单个 transcode / metadata 任务运行时控制面稳定 |
+| Queue Canary | 关闭全局 defer 之前，`maxPerRun=1`、queue cap 小 | 只补少量队列，不重复创建同 item |
+| Mixed Light | metadata + ingest 小批量，`scraper:metadata=1` | scrape 不拖慢 dashboard / media |
+| Mixed Heavy | metadata + transcode，`local:ffmpeg=1`，queue cap 5-10 | transcode 跑时轻任务可排队，API 仍秒级 |
+| Stress Step | `maxPerRun` 1 -> 3 -> 5 -> 10 | 找到 API latency / queue growth 拐点 |
+| Soak | 稳定配置跑 12-24h | 无持续膨胀、无失败风暴、无全页 loading |
+
+这部分是后续容量调优输入，不阻塞 v3.3 GA；v3.3 GA 仍以“可用、稳定、不卡、自动 transcode 可控恢复”为优先。
 
 ## 3. Public Interfaces
 
