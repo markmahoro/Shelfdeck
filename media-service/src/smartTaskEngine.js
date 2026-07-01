@@ -201,6 +201,10 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
     : adultLibraryService.listIngestCandidates;
   const cfg = configStore.loadConfig();
   lastEnabledActions = readEnabledActions(cfg);
+  if (lastEnabledActions.length === 0) {
+    console.log('[smartTaskEngine] disabled: no enabled automatic actions');
+    return;
+  }
   const intervalMs = (cfg.smartTaskPollIntervalMinutes || 10) * 60 * 1000;
 
   const run = () => backgroundIoGuard.runExclusive({

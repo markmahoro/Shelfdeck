@@ -503,6 +503,7 @@ function getDefaultConfig() {
     mediaLibraryStartupRefreshStaleMinutes: 120,
     mediaLibraryStartupRefreshMaxLibraries: 1,
     mediaLibrarySelfComputeOnStartup: true,
+    mediaLibrarySelfComputeEnabled: true,
 
     // Task queue priority (PriorityEngine). Lower number = runs first.
     // Final score = source weight + action weight + subLibrary weight + business

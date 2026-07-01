@@ -21,6 +21,7 @@ let timer = null;
 let lastRunAt = null;
 let lastChanged = 0;
 let lastError = null;
+let disabledReason = '';
 
 // ── Condition evaluation ───────────────────────────────────────────────────────
 
@@ -278,9 +279,16 @@ function runOnce(options = {}) {
 function start(configStore, mediaLibraryService) {
   _configStore = configStore;
   _mediaLibraryService = mediaLibraryService;
+  disabledReason = '';
 
   const cfg = configStore.loadConfig();
-  const intervalMs = (cfg.strategyPollIntervalMinutes || 30) * 60 * 1000;
+  const pollMinutes = Number(cfg.strategyPollIntervalMinutes);
+  if (Number.isFinite(pollMinutes) && pollMinutes <= 0) {
+    disabledReason = 'poll_interval_disabled';
+    console.log('[strategyEngine] disabled: strategyPollIntervalMinutes <= 0');
+    return;
+  }
+  const intervalMs = (pollMinutes || 30) * 60 * 1000;
 
   runOnce({ background: true, trigger: 'startup' });
 
@@ -296,6 +304,9 @@ function stop() {
 }
 
 function getHealth() {
+  if (disabledReason) {
+    return { status: 'green', disabled: true, disabledReason, lastRunAt, lastChanged };
+  }
   if (!timer) {
     return { status: 'red', lastRunAt: null, lastChanged: null };
   }

@@ -1037,8 +1037,13 @@ function startAllSubLibraryTimers() {
   }
 
   const startSelfCompute = (options = {}) => {
+    const currentCfg = configStore.loadConfig();
+    if (currentCfg.mediaLibrarySelfComputeEnabled === false) {
+      console.log('[mediaLibrary] self-compute disabled by config');
+      return;
+    }
     startSelfComputeTimer(600000, {
-      runImmediately: options.runImmediately !== false && cfg.mediaLibrarySelfComputeOnStartup !== false,
+      runImmediately: options.runImmediately !== false && currentCfg.mediaLibrarySelfComputeOnStartup !== false,
     });
   };
 
