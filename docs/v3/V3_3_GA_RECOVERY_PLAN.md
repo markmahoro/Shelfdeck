@@ -1,6 +1,6 @@
 # ShelfDeck v3.3 GA Recovery Plan
 
-Status: v3.3-rc.1 through v3.3-rc.6 accepted on production on 2026-07-01. v3.3-rc.7 through v3.3-rc.9 are implemented locally and pending deployment acceptance. v3.3-rc.10 and later remain production-gated restore steps.
+Status: v3.3 GA accepted on production on 2026-07-02. v3.3-rc.1 through v3.3-rc.11 are implemented, deployed, and production-validated. v3.3 GA restores ordinary library, adult library visibility, task center, settings, automatic ingest, automatic metadata, and automatic optimize transcode. Automatic upgrade and delete remain out of scope for v3.3 GA.
 
 本文记录 ShelfDeck 从已完成的 v3.3 alpha/beta 进入 v3.3 GA 的恢复计划。所有开发、修复、迁移、部署和验收都必须符合 `docs/v3/KAIROX_ARCHITECTURE.md`，不允许绕过 Kairox 的 Lifecycle、Task Creator、Task Scheduler、Flow Planner、Resource Runtime、Admin Web projection 和 production safety 边界。TaskAdmission 不是 Kairox 独立组件，只是 Task Creator 内部的准入校验实现细节。
 
@@ -54,9 +54,55 @@ v3.3 不是从头开始。以下阶段已经完成并提交：
 - `v3.3-rc.8`：任务调度页已按 Kairox task target / gate 收敛，资源并发槽位从该页移除。
 - `v3.3-rc.9`：`resourceCapacity` 配置与“资源容量”设置页已落地；Resource Runtime capacity 以 resource key 为主，旧 concurrency 字段仅兼容。
 - `v3.3-rc.10`：已部署生产并恢复 `automaticTaskTargets=['ingest','metadata']`。metadata / scrape 自动任务会通过 Task Creator 创建；source missing 不再伪装成 scrape failure，而是通过 upstream gate invalidation 回退到 ingest gate。生产观察中 dashboard / media / tasks / config 热路径保持可用。
-- `v3.3-rc.11`：已部署生产并恢复 `automaticTaskTargets=['ingest','metadata','optimize']` + `optimizeAllowedOperations=['transcode']`。先用 canary 配置只放行 1 个 automatic transcode，确认 task target 为 `optimize`、flow operation 为 `transcode`、`upgrade/delete` 未被创建；canary task 完成 verify 和 replace。后续仍需完整 GA 验收。
+- `v3.3-rc.11`：已部署生产并恢复 `automaticTaskTargets=['ingest','metadata','optimize']` + `optimizeAllowedOperations=['transcode']`。先用 canary 配置只放行 1 个 automatic transcode，确认 task target 为 `optimize`、flow operation 为 `transcode`、`upgrade/delete` 未被创建；canary task 完成 verify 和 replace。
+- `v3.3`：生产 GA 验收通过。dashboard / media / tasks / settings / resource capacity 浏览器打开无白屏、无全页 loading、无控制台错误；API 热路径保持秒级；生产配置只恢复 automatic ingest / metadata / optimize transcode，不恢复 automatic upgrade / delete。
 
-## 2.1 Production Capacity Test Note
+## 2.1 v3.3 GA Production Acceptance
+
+2026-07-02 在 NAS production `192.168.12.230:18080` 完成 v3.3 GA 验收。
+
+生产配置：
+
+- `automaticTaskTargets=['ingest','metadata','optimize']`
+- `optimizeAllowedOperations=['transcode']`
+- `smartTaskEnabledActions=['ingest','scrape','transcode']`
+- `smartTaskMaxPerRun=10`
+- `resourceCapacity` 已启用 resource key 配置：`filesystem:ingest`、`filesystem:mutation`、`scraper:metadata`、`emby:metadata`、`local:western-ai`、`local:ffmpeg`、`worker:*`、`moviepilot`、`service:task`
+
+API 秒表：
+
+| API | Status | Latency | Payload |
+| --- | --- | ---: | ---: |
+| `/v1/health` | 200 | 125 ms | 57 B |
+| `/v1/admin/dashboard/health` | 200 | 39 ms | 18,298 B |
+| `/v1/library` | 200 | 418 ms | 7,187,864 B |
+| `/v1/config` | 200 | 6 ms | 21,911 B |
+| `/v1/tasks` | 200 | 4 ms | 12 B |
+| `/v1/admin/tasks?pageSize=20` | 200 | 13 ms | 77,903 B |
+
+浏览器验收：
+
+| Route | Result |
+| --- | --- |
+| `/` dashboard | 无白屏、无全页 loading、无控制台错误 |
+| `/media` media library | 无白屏、无全页 loading、无控制台错误；可见渲染约 3.9s |
+| `/tasks` task center | 无白屏、无全页 loading、无控制台错误 |
+| `/system` settings | 无白屏、无全页 loading、无控制台错误 |
+| `/capacity` resource capacity | 无白屏、无全页 loading、无控制台错误 |
+
+自动能力验收：
+
+- Automatic metadata / scrape 已恢复，并通过 Task Creator 创建任务。
+- Source missing 不再伪装成 metadata scrape failure；flow 上报 upstream gate invalidation，Lifecycle 回退到 ingest gate。
+- Automatic optimize 仅恢复 `transcode` flow；canary transcode task 完成 encode / verify / replace，未自动创建 `upgrade` / `delete`。
+- 当前 active / queued / running 任务为 0，控制面热路径稳定。
+
+GA 结论：
+
+- v3.3 GA 达成“普通库、成人库、任务中心、设置页、automatic ingest、automatic metadata、automatic transcode 可用且页面不卡”的目标。
+- `upgrade` / `delete` 自动化、吞吐压测和容量调优进入后续专项，不阻塞 v3.3 GA。
+
+## 2.2 Production Capacity Test Note
 
 2026-07-02 讨论确认：当前 `SmartTaskEngine` 的 `activeBacklog > 0` 整轮 defer 策略适合恢复阶段的生产保护，但不是长期最优形态。它能防止自动任务在刚恢复 metadata / transcode 时堆积，但也可能让资源利用走向另一个极端：
 
