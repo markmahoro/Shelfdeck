@@ -1,6 +1,12 @@
 # ARCH_OVERVIEW - 系统结构总览
 
-本文是 ShelfDeck 当前唯一架构入口。更细的实现细节以代码和测试为准；当代码行为改变到影响组件边界、数据所有权、部署目标或外部集成时，必须同步更新本文。
+Status: Current implementation map, not architecture contract.
+
+本文记录 ShelfDeck 当前代码已经落地的系统事实、兼容结构和运行形态。它不是 v3.1 之后的架构契约。
+
+若本文与 `docs/v3/KAIROX_ARCHITECTURE.md` 冲突，以 Kairox 为准。本文只能作为当前实现地图使用，不能覆盖 Kairox 的 Lifecycle、Task、Flow、Event、Resource Runtime、全自动模式或 Mirex 兼容边界。
+
+当代码行为改变到影响组件边界、数据所有权、部署目标或外部集成时，必须同步更新本文；当架构方向改变时，必须先更新 Kairox 或对应 ADR。
 
 ## 1. 产品定位
 
@@ -308,6 +314,7 @@ Worker API:
 
 ## 11. 关联文档
 
+- `docs/v3/KAIROX_ARCHITECTURE.md`
 - `docs/v2/DEVELOPMENT_WORKFLOW.md`
 - `docs/v2/TEST_ARCHITECTURE.md`
 - `docs/v2/DEBUG_WORKFLOW.md`

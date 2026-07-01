@@ -1,5 +1,11 @@
 # 用户介入与全自动模式
 
+Status: Semantic reference under Kairox.
+
+本文是 Kairox 架构下的用户介入和全自动模式参考。若本文与 `docs/v3/KAIROX_ARCHITECTURE.md` 冲突，以 Kairox 为准。
+
+本文描述用户介入白名单和全自动模式，不改变 Kairox 的 Task / Flow / Event 分层。旧 `actionType` 只可作为 Mirex compatibility hint。
+
 本文记录 v3.1 对“用户介入”和“全自动模式”的架构定义。它是判断人工/自动边界的准绳。
 
 ## 1. 基本定义
@@ -92,8 +98,8 @@
 - 自动 metadata repair / scrape。
 - 自动接受高置信度 metadata / identity 候选。
 - 自动根据 optimize objective 创建 optimize task。
-- 自动选择 flow operation。
-- 自动 transcode / upgrade / delete / remux / subtitle / audio 等 operation。
+- 自动选择 flow implementation operation。
+- 自动执行 transcode / upgrade / delete / remux / subtitle / audio 等 flow operation。
 - 自动 archive。
 - 自动按 priority 调度 task。
 - 自动处理 recovery contract 允许的可恢复失败。
@@ -124,7 +130,7 @@ v3.1 必须交付可用且符合预期的全自动模式。
 - 用户可以配置 metadata gate、optimize objective、自动推进范围和风险确认规则。
 - 用户可以理解当前是否处于全自动模式，以及哪些事项仍会要求人工介入。
 - 系统可以在允许范围内自动创建 task，并从 discovered 推进到 archived。
-- 系统不会把 flow operation 当成 task 目标。
+- 系统不会把 flow operation 当成 task target 或 gate objective。
 - 系统不会在未预授权情况下自动执行高风险动作。
 - 系统遇到无法自动判断或无法自动恢复的事项时，会停在任务中心/确认台/失败队列中的可解释状态。
 - Dashboard / Task Center / Resource View 能解释全自动模式为什么在动、为什么停下、停在哪个 gate / objective / flow / resource。
@@ -136,7 +142,7 @@ v3.1 必须交付可用且符合预期的全自动模式。
 
 - 自动触发入口主要在 `SmartTaskEngine`。
 - 准入规则主要在 `TaskAdmission` / `BusinessFlowPolicy`。
-- flow operation 仍大量通过旧 `actionType` 兼容字段表达。
+- flow operation 仍大量通过旧 `actionType` 兼容字段表达；这些字段属于 Mirex compatibility，不是新行为的语义来源。
 - Resource Runtime 还没有完全独立成物理组件。
 
 后续实现可以逐步迁移，但人工/自动边界和全自动模式验收必须按本文定义判断。

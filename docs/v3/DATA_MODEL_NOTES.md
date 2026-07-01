@@ -1,5 +1,11 @@
 # ShelfDeck v3 Data Model Notes
 
+Status: Semantic reference under Kairox.
+
+本文是 Kairox 架构下的数据模型原则参考，不是最终 schema 合同。若本文与 `docs/v3/KAIROX_ARCHITECTURE.md` 冲突，以 Kairox 为准。
+
+本文中的 task、flow、event 按 Kairox 定义解释。旧的 `bridge` / `taskBridge` / “桥”说法只表示 Mirex compatibility 或历史上下文，不作为当前数据模型主语义。
+
 本文记录 v3 数据模型的原则性共识。
 
 它不是最终 schema 设计，不规定具体表名、字段名、索引或 ORM。v3 agent 必须先排摸 v2 的 `library.db`、`tasks.db`、`config.json`、`nodes.json`、`people.json` 和生产数据规模，再提出最终数据模型。
@@ -73,8 +79,8 @@ SQL 层应该支持：
 
 原则：
 
-- task current 解决“现在这座桥到哪了”。
-- event history 解决“这座桥为什么这样走”。
+- task current 解决“当前 gate-crossing attempt 到哪了”。
+- event history 解决“这次 attempt 实际发生了什么、为什么这样推进或失败”。
 - projection 解决“页面和调度器如何快读”。
 
 ## 5. Projection

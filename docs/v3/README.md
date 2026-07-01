@@ -1,8 +1,26 @@
 # ShelfDeck v3 Agent Context
 
-本文档目录不是 v3 架构设计书，不规定 v3 的具体技术实现。
+本文档目录包含 v3/v3.1 的架构契约、语义参考、运行上下文和历史记录。不同文件地位不同，不能互相覆盖。
 
-它只用于给后续执行 v3 service 优先重构升级的 agent 提供必要上下文，避免它不知道当前生产基线、NAS 部署方式、测试环境和项目边界。
+从 v3.1 起，`KAIROX_ARCHITECTURE.md` 是本目录中的命名架构契约入口。其他文件继续作为业务语义、运行上下文、讨论结论和切片事实来源。
+
+## 文档优先级
+
+| 地位 | 文档 | 使用规则 |
+| --- | --- | --- |
+| Contract | `KAIROX_ARCHITECTURE.md` | 最高优先级；核心链路改动以它为准 |
+| Implementation map | `docs/v2/ARCH_OVERVIEW.md` | 当前代码已经落地的系统事实；不是架构契约 |
+| Semantic reference | `BUSINESS_MODEL_NOTES.md`、`USER_INTERVENTION_AND_FULL_AUTO.md`、`DATA_MODEL_NOTES.md` | Kairox 下的细节参考；冲突时以 Kairox 为准 |
+| Operational reference | `OPERATION_CONTEXT.md`、`docs/v2/PRODUCTION_DEPLOYMENT.md`、`docs/v2/DEBUG_WORKFLOW.md` | 生产、部署、调试和安全入口 |
+| Historical log | `V3_1_PROGRESS.md`、`V3_1_DISCUSSION_NOTES.md` | 历史讨论和切片证据；不能覆盖 Kairox |
+| Historical/deprecated | `V3_0_1_BUSINESS_FLOW_DECISIONS.md` | Kairox 前的历史判定；只能用于理解旧上下文 |
+
+如果历史文档和 Kairox 冲突：
+
+1. 实现以 Kairox 为准。
+2. 当前落地实现事实可参考 `docs/v2/ARCH_OVERVIEW.md`，但它不能覆盖 Kairox。
+3. 只有为了考古、回滚或迁移旧行为时，才读取历史文档中的旧判断。
+4. 若历史记录继续造成实现歧义，应在该文档顶部补状态说明，而不是把旧判断复制进新设计。
 
 ## 当前命名
 
@@ -13,6 +31,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
+| `KAIROX_ARCHITECTURE.md` | Kairox 架构契约；v3.1 之后核心链路改动前必须先读 |
 | `OPERATION_CONTEXT.md` | v3 agent 需要知道的生产环境、NAS、部署、测试和安全边界 |
 | `BUSINESS_MODEL_NOTES.md` | v3 重构前已经确认过的业务概念共识，不规定技术实现 |
 | `DATA_MODEL_NOTES.md` | SQL 持久化层、内存运行层、projection 的原则性数据模型共识 |
@@ -25,8 +44,10 @@
 
 ## 重要原则
 
+- Kairox 架构是 ShelfDeck v3.1 演进阶段的命名架构契约；修改 scheduler、task admission、automation、flow executor、resource runtime、生产部署或模块边界前，必须先读 `KAIROX_ARCHITECTURE.md`。
+- Mirex 是 Kairox 之前的旧兼容模型；允许识别、兼容和迁移，不允许作为新功能设计来源。
 - v3 agent 必须先排摸代码库，再提出架构和实施方案。
-- 本目录不预设 v3 的具体组件拆法、数据模型或迁移实现。
+- 除 Kairox 明确规定的架构方向外，本目录不预设 v3 的具体组件拆法、数据模型或迁移实现。
 - `BUSINESS_MODEL_NOTES.md` 只约束业务语义，不约束技术形态。
 - `DATA_MODEL_NOTES.md` 只约束数据分层原则，不约束最终 schema。
 - `V2_BEHAVIOR_PRESERVATION.md` 用于防止重构时遗漏 v2 生产细节。

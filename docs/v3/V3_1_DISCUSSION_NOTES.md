@@ -1,5 +1,9 @@
 # ShelfDeck v3.1 Discussion Notes
 
+Status: Historical discussion log.
+
+本文保留 v3.1 推进过程中的讨论证据和阶段性结论，不是当前架构契约。若本文与 `docs/v3/KAIROX_ARCHITECTURE.md` 冲突，以 Kairox 为准。
+
 本文记录 v3.1 推进过程中已经讨论清楚、但容易在后续切片中被遗忘的产品语义、排查结论和工作约定。
 
 后续继续 v3.1 P0/P1/P2 任务前，应先读本文，再读 `V3_1_PROGRESS.md` 和相关代码。本文不是最终架构合同；当代码和生产证据推翻本文时，应先更新本文，再继续实现。

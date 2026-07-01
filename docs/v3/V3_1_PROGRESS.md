@@ -1,5 +1,9 @@
 # ShelfDeck v3.1 Progress
 
+Status: Historical slice log.
+
+本文记录 v3.1 切片、验证、部署和剩余风险，不是当前架构契约。若本文中的历史 slice 结论与 `docs/v3/KAIROX_ARCHITECTURE.md` 冲突，以 Kairox 为准。
+
 本文记录 v3.1 “用户视角可用版”的增量切片。v3.1 只有在 A/B/C/D 全部满足后才能标记完成；本文中的单轮记录只代表对应切片完成。
 
 ## 2026-06-30 Slice 1: media item business flow decision

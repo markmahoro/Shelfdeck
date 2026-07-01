@@ -1,5 +1,11 @@
 # ShelfDeck v3 Business Model Notes
 
+Status: Semantic reference under Kairox.
+
+本文是 Kairox 架构下的业务语义参考。若本文与 `docs/v3/KAIROX_ARCHITECTURE.md` 冲突，以 Kairox 为准；若代码和生产事实已经更新，应同步修订本文。
+
+本文中的 task、flow、event 术语按 Kairox 定义解释。旧的 `bridge` / `taskBridge` / “桥”说法只表示 Mirex compatibility 或历史上下文，不是当前架构主语义。
+
 本文记录 v3 重构前已经确认过的业务概念共识。
 
 它不是技术架构设计书，不规定数据库、模块、类名或具体实现方式。v3 agent 必须先排摸 v2 代码和生产事实，再决定实现方案。
@@ -36,7 +42,7 @@ S3 optimized
 S4 archived
 ```
 
-阶段是用户语义状态，gate 是从一个阶段进入下一个阶段的证明合同。Task 是跨 gate 的桥，flow 是 task 内部的 event 编排，event 是资源消耗、外部副作用、用户确认、失败和恢复事实。
+阶段是用户语义状态，gate 是从一个阶段进入下一个阶段的证明合同。Task 是一次把 object 推过 target gate 的 attempt，flow 是 task 内部的 implementation path，event 是资源消耗、外部副作用、用户确认、失败和恢复事实。
 
 阶段定义：
 
@@ -51,21 +57,21 @@ Gate 定义：
 - `ingest gate` 证明外部候选已经成为 ShelfDeck 可管理 item。v3.1 第一版合同是：稳定 `itemId` 已建立；来源或归属子库明确；source refs / asset identity / 媒体路径 / 外部引用至少有一种可追踪；基础媒体事实已写入，或 probe/读取失败原因已经作为可见事实落库。普通 Emby refresh、成人文件 ingest、未来其他来源都必须收敛到这个 gate；没有过 gate 的对象只能停在 `source/discovered`，不能表现成可优化媒体。
 - `metadata gate` 证明 item 已具备进入 optimize 的用户语义前提。它就是用户看到的“元数据完整” gate，不限于狭义 metadata 字段；子库可自定义 gate，但配置必须覆盖下游 optimize 策略会消费的字段，避免出现“元数据完整但不能优化”的状态。
 - `optimize gate` 证明当前媒体的 optimize objective 已经达成。Optimize objective 由 Lifecycle 定义，是用户希望媒体最终变成什么，例如降低码率、提升画质、补中文字幕、替换更好音轨、修复编码/杜比视界兼容性、删除媒体或保持当前状态闭环。`transcode`、`upgrade`、`delete`、`remux` 等只是 Flow Planner 为达成 objective 选择的 flow operation，不是 gate 目标本身。delete 属于 optimize gate，不属于 archive gate。Gate 的判定对象不是“flow 是否跑过”，而是 objective 是否达成：例如转码不是 FFmpeg 执行完就成功，而是输出在宽容差内达到目标码率/编码/可播放/替换等合同。Optimize gate miss 属于当前 task 的 flow 结果；是否重试、重试次数、是否需要用户介入由该 task 的 flow retry policy 决定，Task Creator 不定义 gate miss 的重试策略。
-- `archive gate` 证明本轮 ShelfDeck 处理闭环已经归档。v3.1 第一版合同是：item 已经具备 optimized-like 结果（`keep` 决策成立，或 transcode/upgrade/delete 等 optimize flow 已达成目标）；没有显式 `archiveBlockers`；终态事实和必要摘要可解释。它不承载 delete 的核心执行语义，而是 optimized 之后的最终收口；未过 gate 的 item 应停在 `optimized` 并等待 archive bridge，而不是直接显示已闭环。
+- `archive gate` 证明本轮 ShelfDeck 处理闭环已经归档。v3.1 第一版合同是：item 已经具备 optimized-like 结果（`keep` 决策成立，或 transcode/upgrade/delete 等 optimize flow 已达成目标）；没有显式 `archiveBlockers`；终态事实和必要摘要可解释。它不承载 delete 的核心执行语义，而是 optimized 之后的最终收口；未过 gate 的 item 应停在 `optimized`，等待 archive gate task 或等价的归档收口事实，而不是直接显示已闭环。
 
-当前普通 Emby 媒体的 scrape task 是“半假 scrape”：它是 metadata gate 未满足时的统一 metadata repair bridge，但不做 TMDB 等真刮削；它可以询问 Emby、读取本地 Douban 缓存、做本地技术字段 probe 和自算字段。成人 scrape 与未来真 scrape 仍属于同一座 metadata bridge，只是 flow/event 编排不同。
+当前普通 Emby 媒体的 scrape task 是“半假 scrape”：它是 metadata gate 未满足时的 metadata target task / metadata repair flow，但不做 TMDB 等真刮削；它可以询问 Emby、读取本地 Douban 缓存、做本地技术字段 probe 和自算字段。成人 scrape 与未来真 scrape 仍以 metadata gate 为目标，只是 flow/event 编排不同。
 
 v3.1 过渡实现中，metadata gate 自定义配置已经具备双层保护：保存配置时由 `configStore` 统一硬校验自定义 `metadataGate` 是否覆盖当前子库策略模板消费的 optimize 输入字段；运行时由 `metadataStatus` 在发现历史坏配置时输出 `metadata_gate_contract_broken`，让 item 停在 metadata gate 而不是显示“元数据完整但不能优化”。
 
-`archive` 是最后一座轻量桥。它更接近验收和归档，不是重计算任务，也不是 delete 动作本身。验收不通过时，应该回到明确的前置阶段或产生可见的待处理事件，而不是把 item 标成完成。
+`archive` 是最后的轻量 gate 收口。它更接近验收和归档，不是重计算任务，也不是 delete 动作本身。验收不通过时，应该回到明确的前置阶段或产生可见的待处理事件，而不是把 item 标成完成。
 
 v3.1 第一版 Optimize Gate 已落地为读模型 evaluator：显式 `optimizeGate/optimizationGate` 结果优先；`keep` 是 no-op optimize；`transcode`/`upgrade`/`delete` 必须有对应完成 marker 或显式 gate 事实；转码/升级可按目标码率和目标编码做宽容差校验。Optimize gate miss 会输出可解释失败和 `automaticRetry=false` 的 retry policy，避免 Task Creator 把重资源 gate miss 误读成应该自动创建同类新任务。
 
-当 `optimizeGate.status=failed` 且 retry policy 不允许自动重试时，后台自动化不得重新创建同类 `transcode` / `upgrade` / `delete` optimize task。后续是否重试应由原 task 的 flow recovery / manual retry 语义解释。当前 v3.1 仍保留 legacy manual create task 兼容入口；最终应收口到任务中心对原失败 task 的 retry/recovery 操作。
+当 `optimizeGate.status=failed` 且 retry policy 不允许自动重试时，后台自动化不得重新创建同类 `transcode` / `upgrade` / `delete` optimize task。后续是否重试应由原 task 的 flow recovery / manual retry 语义解释。当前 v3.1 仍保留 Mirex-compatible manual create task 入口；最终应收口到任务中心对原失败 task 的 retry/recovery 操作。
 
 ## 3. Task
 
-Task 是阶段和阶段之间的桥梁。
+Task 是一次 gate-crossing attempt。
 
 Task 的业务语义应该保持纯净：它表示“某个对象要达成某个 lifecycle gate 目标”，而不是提前把所有执行细节混进 task 本身。
 
@@ -89,7 +95,7 @@ v3.1 过渡实现已经将 `taskTarget` 落到 task payload、SQLite projection�
 
 Task 本身不应该承载每一次底层执行尝试的完整日志。Task 可以有业务状态，例如等待、运行中、失败、完成、归档失败，但具体重试、中断、资源占用和执行细节应进入 event。
 
-Task 可以失败。它失败的语义是“这座桥当前没跨过去”，不是每个 event 都必须失败。失败后的下一步应该由 flow 和 event 历史解释清楚。
+Task 可以失败。它失败的语义是“这次 gate-crossing attempt 当前未达成目标”，不是每个 event 都必须失败。失败后的下一步应该由 flow 和 event 历史解释清楚。
 
 ## 4. Event
 
@@ -124,12 +130,12 @@ Flow Planner 不是 gate 的裁判。它不能自己定义 optimize objective，
 
 ## 6. Action
 
-Action 更适合理解成 event 类型或 flow 中的操作类型，而不是 task 的同义词。
+Action 更适合理解成 event 类型或 flow 中的 operation 类型，而不是 task 的同义词。
 
 在 v2 里 `actionType=transcode/delete/upgrade/scrape/ingest` 承担了过多语义。v3 可以继续保留类似字段作为兼容或展示字段，但业务建模时应区分：
 
-- task：跨阶段的桥。
-- flow：桥里的编排规则。
+- task：一次把 object 推过 target gate 的 attempt。
+- flow：task 内部的 implementation path 和 event 编排规则。
 - event/action：具体发生的操作。
 
 ## 7. Manual 和 Automatic

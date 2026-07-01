@@ -1,5 +1,9 @@
 # ShelfDeck v3.0.1 Business Flow Decisions
 
+Status: Historical/deprecated pre-Kairox decision table.
+
+本文保留 Kairox 成型前的 v3.0.1 历史判定，只能用于理解旧上下文、兼容和迁移。若本文与 `docs/v3/KAIROX_ARCHITECTURE.md` 冲突，以 Kairox 为准。
+
 本文是当前 worktree 的 v3.0.1 业务流程收口基准。
 
 注意：本文保留 v3.0.1 当时的历史判定。v3.1 已重新收口为 5 阶段、4 gate 模型；其中 `delete` 已从 `archive bridge` 调整为 `optimize gate` 下的 destructive optimize flow。继续实现时以 `docs/v3/BUSINESS_MODEL_NOTES.md` 和 `docs/v3/V3_1_PROGRESS.md` 的最新 slice 为准，不要再按本文旧表把 delete 规划成 archive bridge。
