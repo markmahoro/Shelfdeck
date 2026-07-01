@@ -71,9 +71,7 @@ function finishScanSummary(summary, status, extra = {}) {
 }
 
 function readEnabledActions(config) {
-  return Array.isArray(config.smartTaskEnabledActions)
-    ? config.smartTaskEnabledActions
-    : [];
+  return businessFlowPolicy.resolveAutoEnabledActions(config);
 }
 
 function actionLabel(actionType) {

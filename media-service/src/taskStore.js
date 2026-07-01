@@ -1275,7 +1275,7 @@ function queryTaskEvents(filter = {}, options = {}) {
   };
 }
 
-function queryRecentFailureEvents(options = {}) {
+function queryRecentFailureEventsInner(options = {}) {
   const pageSize = Math.min(200, Math.max(1, Number.parseInt(options.pageSize, 10) || 20));
   const rows = getDb().prepare(`
     SELECT *
@@ -1294,7 +1294,25 @@ function queryRecentFailureEvents(options = {}) {
   return rows.map(rowToTaskEvent);
 }
 
-function queryLatestFailureEventsByItemIds(itemIds = [], options = {}) {
+function queryRecentFailureEvents(options = {}) {
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'taskStore.queryRecentFailureEvents',
+    operation: 'query_recent_failure_events',
+    component: 'taskStore',
+    resourceType: 'sqlite',
+    resourceKey: 'tasks.db',
+    slowMs: 150,
+    payload: {
+      pageSize: options.pageSize || 20,
+    },
+    successPayload: (events) => ({
+      rowCount: Array.isArray(events) ? events.length : 0,
+    }),
+  }, () => queryRecentFailureEventsInner(options));
+}
+
+function queryLatestFailureEventsByItemIdsInner(itemIds = [], options = {}) {
   const ids = [...new Set((itemIds || []).map((itemId) => String(itemId || '').trim()).filter(Boolean))];
   if (ids.length === 0) return {};
   const maxRows = Math.min(1000, Math.max(ids.length * 4, Number.parseInt(options.maxRows, 10) || ids.length * 4));
@@ -1327,6 +1345,25 @@ function queryLatestFailureEventsByItemIds(itemIds = [], options = {}) {
     byItem[event.itemId] = event;
   }
   return byItem;
+}
+
+function queryLatestFailureEventsByItemIds(itemIds = [], options = {}) {
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'taskStore.queryLatestFailureEventsByItemIds',
+    operation: 'query_latest_failure_events_by_item',
+    component: 'taskStore',
+    resourceType: 'sqlite',
+    resourceKey: 'tasks.db',
+    slowMs: 150,
+    payload: {
+      itemIds: Array.isArray(itemIds) ? itemIds.length : 0,
+      maxRows: options.maxRows || undefined,
+    },
+    successPayload: (byItem) => ({
+      rowCount: byItem && typeof byItem === 'object' ? Object.keys(byItem).length : 0,
+    }),
+  }, () => queryLatestFailureEventsByItemIdsInner(itemIds, options));
 }
 
 function queryRecentTaskEvents(options = {}) {
@@ -1440,7 +1477,7 @@ function jsonExtractObject(value, fallback = undefined) {
   return value;
 }
 
-function queryTaskSummaries(filter = {}, options = {}) {
+function queryTaskSummariesInner(filter = {}, options = {}) {
   const db = getDb();
   const { where, params } = buildWhere(filter, options);
   const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
@@ -1643,6 +1680,46 @@ function queryTaskSummaries(filter = {}, options = {}) {
     page,
     pageSize,
   };
+}
+
+function queryTaskSummaries(filter = {}, options = {}) {
+  return diagnosticLog.track({
+    category: 'store',
+    scope: 'taskStore.queryTaskSummaries',
+    operation: 'query_task_summaries',
+    component: 'taskStore',
+    resourceType: 'sqlite',
+    resourceKey: 'tasks.db',
+    slowMs: 150,
+    payload: {
+      filter: {
+        hasItemId: !!filter.itemId,
+        itemIds: Array.isArray(filter.itemIds) ? filter.itemIds.length : undefined,
+        status: filter.status || '',
+        statuses: Array.isArray(filter.statuses) ? filter.statuses.length : undefined,
+        actionType: filter.actionType || '',
+        bridgeKind: filter.bridgeKind || '',
+        operationKind: filter.operationKind || '',
+        nodeId: filter.nodeId || '',
+        hasSearch: !!filter.q,
+      },
+      page: {
+        page: options.page || 1,
+        pageSize: options.pageSize || 20,
+        includeAll: options.includeAll === true,
+        includeHistory: options.includeHistory === true,
+      },
+      order: {
+        orderBy: options.orderBy || 'updatedAt',
+        orderDir: options.orderDir || 'desc',
+      },
+    },
+    successPayload: (result) => ({
+      rowCount: result && Array.isArray(result.tasks) ? result.tasks.length : 0,
+      total: result && typeof result.total === 'number' ? result.total : undefined,
+      byStatusKeys: result && result.byStatus ? Object.keys(result.byStatus).length : 0,
+    }),
+  }, () => queryTaskSummariesInner(filter, options));
 }
 
 function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {

@@ -381,9 +381,26 @@ export interface DashboardEventEntry {
   operationKind?: string;
 }
 
+export interface DashboardStatusGroup {
+  status: 'green' | 'yellow' | 'red';
+  generatedAt?: string | null;
+  checks: {
+    key: string;
+    label: string;
+    status: 'green' | 'yellow' | 'red';
+    message?: string;
+  }[];
+}
+
 export interface DashboardHealthSummary {
   status: 'green' | 'yellow' | 'red';
   generatedAt: string;
+  serviceAvailability?: DashboardStatusGroup;
+  externalIntegrations?: DashboardStatusGroup;
+  businessStatus?: {
+    status: 'green' | 'yellow' | 'red';
+    signals: DashboardCountSignal[];
+  };
   media: {
     totalItems: number;
     closedItems: number;
@@ -405,6 +422,7 @@ export interface DashboardHealthSummary {
       openItems: number;
       metadataIncompleteItems: number;
       pendingOptimizationItems: number;
+      byLifecycleStage?: Record<string, number>;
     }[];
   };
   tasks: {
@@ -760,6 +778,7 @@ export interface BackgroundIoState {
 }
 
 export interface ResourceView {
+  detail?: 'summary' | 'full' | string;
   summary: {
     totalTasks: number;
     totalEvents?: number;

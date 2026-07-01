@@ -281,18 +281,32 @@ function eventBadge(state: string): CSSProperties {
 }
 
 export default function ResourceViewPage() {
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ['admin-resources'],
-    queryFn: resources.get,
+  const summaryQuery = useQuery({
+    queryKey: ['admin-resources', 'summary'],
+    queryFn: () => resources.get({ detail: 'summary' }),
     refetchInterval: 5000,
   });
+  const fullQuery = useQuery({
+    queryKey: ['admin-resources', 'full'],
+    queryFn: () => resources.get({ detail: 'full' }),
+    enabled: !!summaryQuery.data,
+    refetchInterval: 15000,
+  });
+  const data = fullQuery.data || summaryQuery.data;
+  const isLoading = summaryQuery.isLoading;
+  const isFetching = summaryQuery.isFetching || fullQuery.isFetching;
+  const error = summaryQuery.error;
+  const refetch = () => {
+    void summaryQuery.refetch();
+    void fullQuery.refetch();
+  };
 
-  if (isLoading) return <LoadingSpinner text="加载资源视图..." />;
+  if (isLoading) return <LoadingSpinner text="加载资源概览 /v1/admin/resources?detail=summary..." />;
 
   if (error) {
     return (
       <div>
-        <Header isFetching={isFetching} onRefresh={() => void refetch()} generatedAt="" />
+        <Header isFetching={isFetching} onRefresh={refetch} generatedAt="" />
         <div style={errorBox}>{error instanceof Error ? error.message : '资源视图加载失败'}</div>
       </div>
     );
@@ -307,10 +321,20 @@ export default function ResourceViewPage() {
   const bottlenecks = diagnostics?.bottlenecks || [];
   const storageMetrics = diagnostics?.metrics?.storage || [];
   const backgroundIo = diagnostics?.backgroundIo;
+  const detailPending = !!summaryQuery.data && fullQuery.isLoading;
+  const detailError = fullQuery.error;
 
   return (
     <div>
-      <Header isFetching={isFetching} onRefresh={() => void refetch()} generatedAt={summary?.generatedAt || ''} />
+      <Header isFetching={isFetching} onRefresh={refetch} generatedAt={summary?.generatedAt || ''} />
+
+      {(detailPending || detailError) && (
+        <div style={detailStatusBox}>
+          {detailPending
+            ? '资源概览已加载，正在后台加载完整诊断 /v1/admin/resources?detail=full。'
+            : `完整诊断加载失败：${detailError instanceof Error ? detailError.message : 'detail=full request failed'}`}
+        </div>
+      )}
 
       <div style={summaryGrid}>
         <Metric label="任务占用" value={summary?.totalTasks || 0} />
@@ -970,4 +994,14 @@ const errorBox: CSSProperties = {
   borderRadius: 8,
   padding: 16,
   fontSize: 13,
+};
+
+const detailStatusBox: CSSProperties = {
+  background: '#f8fafc',
+  border: '1px solid #dbeafe',
+  color: '#1e3a8a',
+  borderRadius: 8,
+  padding: '10px 12px',
+  fontSize: 12,
+  marginBottom: 16,
 };

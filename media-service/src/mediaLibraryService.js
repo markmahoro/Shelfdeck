@@ -26,6 +26,7 @@ const assetIdentity = require('./assetIdentity');
 const lifecycleProjection = require('./lifecycleProjection');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const backgroundIoGuard = require('./backgroundIoGuard');
+const diagnosticLog = require('./diagnosticLog');
 
 const BACKGROUND_IO_LOCK = 'library_background_io';
 const STARTUP_REFRESH_STAGGER_MS = 5000;
@@ -433,30 +434,78 @@ function updateUserRating(itemId, userRating) {
 }
 
 function getLibrary(filter = {}, opts = {}) {
-  const storeFilter = { ...(filter || {}) };
-  if (storeFilter.activeTaskIds) {
-    const activeTaskIds = storeFilter.activeTaskIds instanceof Set ? storeFilter.activeTaskIds : new Set();
-    const ids = [...activeTaskIds].filter(Boolean);
-    if (storeFilter.taskState === 'active') storeFilter.itemIds = ids;
-    if (storeFilter.taskState === 'none') storeFilter.excludeItemIds = ids;
-    delete storeFilter.activeTaskIds;
-    delete storeFilter.taskState;
-  }
+  const stageMs = {};
+  const measure = (stage, fn) => {
+    const started = Date.now();
+    try {
+      return fn();
+    } finally {
+      stageMs[stage] = Date.now() - started;
+    }
+  };
 
-  const config = configStore.loadConfig();
-  const result = libraryStore.queryItems(storeFilter, opts);
-  let items = result.items.map((item) => ({ ...item }));
-  items = metadataStatus.decorateItems(items, config);
-  if (opts.includeOptimizationStatus || opts.includeLifecycleStatus || storeFilter.lifecycle || storeFilter.optimizationStatus) {
-    const taskStore = require('./taskStore');
-    const itemIds = items.map((item) => item.itemId).filter(Boolean);
-    const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
-      ? taskStore.queryOptimizationTaskIndexRows(itemIds && itemIds.length > 0 ? { itemIds } : {})
-      : taskStore.loadTasks();
-    items = optimizationStatus.decorateItems(items, optimizationTasks, config);
-  }
-  items = lifecycleProjection.decorateItems(items, config);
-  return { ...result, items };
+  return diagnosticLog.track({
+    category: 'service',
+    scope: 'mediaLibraryService.getLibrary',
+    operation: 'get_library',
+    component: 'mediaLibraryService',
+    resourceType: 'sqlite',
+    resourceKey: 'library.db',
+    slowMs: 250,
+    payload: {
+      filter: {
+        source: filter.source || '',
+        type: filter.type || '',
+        action: filter.action || '',
+        subLibraryId: filter.subLibraryId || '',
+        hasSearch: !!filter.search,
+        hasActiveTaskFilter: !!filter.activeTaskIds,
+        taskState: filter.taskState || '',
+        lifecycle: filter.lifecycle || '',
+        metadataStatus: filter.metadataStatus || filter.scrapeStatus || '',
+      },
+      page: {
+        limit: opts.limit || null,
+        offset: opts.offset || 0,
+      },
+      projection: {
+        includeOptimizationStatus: !!opts.includeOptimizationStatus,
+        includeLifecycleStatus: !!opts.includeLifecycleStatus,
+        hasLifecycleFilter: !!filter.lifecycle,
+        hasOptimizationFilter: !!filter.optimizationStatus,
+      },
+    },
+    successPayload: (result) => ({
+      rowCount: result && Array.isArray(result.items) ? result.items.length : 0,
+      total: result && typeof result.total === 'number' ? result.total : undefined,
+      stages: stageMs,
+    }),
+  }, () => {
+    const storeFilter = { ...(filter || {}) };
+    if (storeFilter.activeTaskIds) {
+      const activeTaskIds = storeFilter.activeTaskIds instanceof Set ? storeFilter.activeTaskIds : new Set();
+      const ids = [...activeTaskIds].filter(Boolean);
+      if (storeFilter.taskState === 'active') storeFilter.itemIds = ids;
+      if (storeFilter.taskState === 'none') storeFilter.excludeItemIds = ids;
+      delete storeFilter.activeTaskIds;
+      delete storeFilter.taskState;
+    }
+
+    const config = measure('loadConfigMs', () => configStore.loadConfig());
+    const result = measure('queryItemsMs', () => libraryStore.queryItems(storeFilter, opts));
+    let items = result.items.map((item) => ({ ...item }));
+    items = measure('metadataDecorateMs', () => metadataStatus.decorateItems(items, config));
+    if (opts.includeOptimizationStatus || opts.includeLifecycleStatus || storeFilter.lifecycle || storeFilter.optimizationStatus) {
+      const taskStore = require('./taskStore');
+      const itemIds = items.map((item) => item.itemId).filter(Boolean);
+      const optimizationTasks = measure('queryOptimizationTasksMs', () => (typeof taskStore.queryOptimizationTaskIndexRows === 'function'
+        ? taskStore.queryOptimizationTaskIndexRows(itemIds && itemIds.length > 0 ? { itemIds } : {})
+        : taskStore.loadTasks()));
+      items = measure('optimizationDecorateMs', () => optimizationStatus.decorateItems(items, optimizationTasks, config));
+    }
+    items = measure('lifecycleDecorateMs', () => lifecycleProjection.decorateItems(items, config));
+    return { ...result, items };
+  });
 }
 
 function getLibraryItem(itemId) {

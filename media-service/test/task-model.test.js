@@ -300,6 +300,22 @@ test('taskAdmission uses smartTaskEnabledActions as the global automatic allow-l
   assert.strictEqual(ingest.allowed, true);
 });
 
+test('taskAdmission allows automatic optimize operations when `optimize` is configured', () => {
+  const config = {
+    smartTaskEnabledActions: ['optimize'],
+    subLibraries: [{ uuid: 'lib-a', source: 'emby', mediaType: 'movie', automationMode: 'auto' }],
+  };
+  const auto = taskAdmission.canCreateTask({
+    item: metadataReadyMovie({ itemId: 'i1', subLibraryId: 'lib-a' }),
+    actionType: 'transcode',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(auto.allowed, true);
+  assert.strictEqual(auto.taskBridge.kind, 'optimize');
+});
+
 test('taskAdmission treats a missing automatic allow-list as disabled', () => {
   const config = {
     subLibraries: [{ uuid: 'lib-a', automationMode: 'auto' }],
@@ -421,6 +437,28 @@ test('businessFlowPolicy resolves automatic optimize triggers from strategy outp
   assert.strictEqual(trigger.bridgeKind, 'optimize');
   assert.strictEqual(trigger.reason, 'lifecycle_gate_met');
   assert.strictEqual(trigger.planningMode, 'strategy_result');
+});
+
+test('businessFlowPolicy resolves automatic optimize triggers when `optimize` is configured', () => {
+  const config = {
+    smartTaskEnabledActions: ['optimize'],
+    subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+  };
+  const trigger = businessFlowPolicy.resolveAutomaticTrigger({
+    config,
+    item: metadataReadyMovie({
+      itemId: 'movie-auto-optimize-aliased',
+      subLibraryId: 'movie-lib',
+      watched: false,
+      action: 'transcode',
+      reason: 'strategy selected transcode',
+    }),
+  });
+
+  assert.strictEqual(trigger.allowed, true);
+  assert.strictEqual(trigger.operation, 'transcode');
+  assert.strictEqual(trigger.actionType, 'transcode');
+  assert.strictEqual(trigger.bridgeKind, 'optimize');
 });
 
 test('businessFlowPolicy blocks automatic heavy optimize after optimize gate failed', () => {
@@ -1620,6 +1658,68 @@ test('smartTaskEngine keeps transcode action priority when library weight is neu
   assert.strictEqual(created[0].priority, 330);
 });
 
+test('smartTaskEngine auto-enqueues transcode when only optimize umbrella is enabled', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 1,
+          smartTaskMaxQueueSize: 50,
+          smartTaskEnabledActions: ['optimize'],
+          smartTaskLookbackDays: 30,
+          subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie', automationMode: 'auto' }],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            actionTypeWeights: { transcode: 130, upgrade: 110, delete: 90 },
+            rules: { transcode: [], upgrade: [], delete: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByAction: { transcode: 0, upgrade: 0, delete: 0 },
+            maxQueuedByAction: { transcode: 50, upgrade: 50, delete: 50 },
+          },
+        };
+      },
+    },
+    {
+      getLibrary() {
+        return {
+          items: [metadataReadyMovie({
+            itemId: 'movie-optimize-aliased',
+            name: 'Movie Aliased Optimize',
+            action: 'transcode',
+            reason: 'high bitrate',
+            subLibraryId: 'movie-lib',
+            path: '/media/movie.mkv',
+          })],
+        };
+      },
+    },
+    {
+      getTasks: () => [...created],
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTask(taskData) {
+        const task = { id: `t-${created.length + 1}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...taskData };
+        created.push(task);
+        return task;
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  assert.strictEqual(created.length, 1);
+  assert.strictEqual(created[0].actionType, 'transcode');
+  assert.strictEqual(created[0].source, 'auto');
+  const health = smartTaskEngine.getHealth();
+  assert.deepStrictEqual(health.enabledActions, ['transcode', 'upgrade', 'delete']);
+  assert.deepStrictEqual(health.lastScanSummary.enabledActions, ['transcode', 'upgrade', 'delete']);
+});
+
 test('smartTaskEngine treats metadata-complete unwatched items as optimize candidates', async () => {
   smartTaskEngine.stop();
   const created = [];
@@ -2136,6 +2236,55 @@ test('taskStore exposes lightweight optimization task rows', () => {
     assert.strictEqual(rows[0].itemInfo.path, '/media/movie.mkv');
     assert.strictEqual(rows[0].verifyResult.outputPath, '/transcode/movie.partial.mkv');
     assert.strictEqual(rows[0].logs, undefined);
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
+test('libraryStore smart task candidate projection keeps strategy media facts', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'library-smart-candidates-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  try {
+    libraryStore.replaceSubLibraryItems('candidate-lib', [
+      metadataReadyMovie({
+        itemId: 'candidate-optimize',
+        subLibraryId: 'candidate-lib',
+        action: 'transcode',
+        reason: '4 star 1080p bitrate above target',
+        bucket: '1080p',
+        audioCodecs: ['aac'],
+        equivalentBitrate: 8,
+        targetBitrate: 7,
+        targetCodec: 'h265',
+      }),
+    ], { cachedAt: new Date().toISOString() });
+
+    const rows = libraryStore.querySmartTaskCandidateItems();
+    const item = rows.find((row) => row.itemId === 'candidate-optimize');
+    assert.ok(item);
+    assert.strictEqual(item.bucket, '1080p');
+    assert.deepStrictEqual(item.audioCodecs, ['aac']);
+    assert.strictEqual(item.equivalentBitrate, 8);
+    assert.strictEqual(item.targetBitrate, 7);
+    assert.strictEqual(item.targetCodec, 'h265');
+
+    const trigger = businessFlowPolicy.resolveAutomaticTrigger({
+      config: {
+        smartTaskEnabledActions: ['optimize'],
+        subLibraries: [{ uuid: 'candidate-lib', source: 'emby', mediaType: 'movie', automationMode: 'auto' }],
+      },
+      item,
+    });
+    assert.strictEqual(trigger.allowed, true);
+    assert.strictEqual(trigger.actionType, 'transcode');
+    assert.strictEqual(trigger.bridgeKind, 'optimize');
   } finally {
     if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
     else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;

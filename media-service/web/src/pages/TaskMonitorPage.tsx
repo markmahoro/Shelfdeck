@@ -106,6 +106,22 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   'task.manual_execute_requested': '手动启动',
 };
 
+function resolveEnabledTaskOperations(actions: string[]): string[] {
+  const expanded = new Set<string>();
+  actions.forEach((raw) => {
+    const action = String(raw || '').trim().toLowerCase();
+    if (!action) return;
+    if (action === 'optimize') {
+      expanded.add('transcode');
+      expanded.add('upgrade');
+      expanded.add('delete');
+      return;
+    }
+    expanded.add(action);
+  });
+  return [...expanded];
+}
+
 const PHASE_LABELS: Record<string, string> = {
   precheck: '预检',
   planning: '搜索候选',
@@ -334,7 +350,7 @@ export default function TaskMonitorPage() {
 
   const PAGE_SIZE = 20;
 
-  const { data: taskData, isLoading, isFetching } = useQuery({
+  const { data: taskData, isLoading, isFetching, error: taskListError } = useQuery({
     queryKey: ['admin-tasks', statusFilter, attentionPreset, bridgeFilter, operationFilter, searchQuery, page],
     queryFn: () => tasks.list({
       ...(attentionPreset ? { attention: attentionPreset } : statusFilter ? { status: statusFilter } : {}),
@@ -343,6 +359,7 @@ export default function TaskMonitorPage() {
       ...(searchQuery ? { q: searchQuery } : {}),
       page,
       pageSize: PAGE_SIZE,
+      includeAttentionSummary: false,
     }),
   });
 
@@ -438,7 +455,7 @@ export default function TaskMonitorPage() {
     const bridge = bridgeFilter ? (BRIDGE_LABELS[bridgeFilter] || bridgeFilter) : '';
     const operation = operationFilter ? (OPERATION_LABELS[operationFilter] || operationFilter) : '';
     const label = [bridge, operation].filter(Boolean).join(' / ');
-    const enabledActions = sysCfg?.smartTaskEnabledActions || [];
+    const enabledActions = resolveEnabledTaskOperations(sysCfg?.smartTaskEnabledActions || []);
     if (operationFilter && !enabledActions.includes(operationFilter)) {
       if (operationFilter === 'scrape') {
         return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作；具体影片仍可手动重新刮削。`;
@@ -946,6 +963,12 @@ export default function TaskMonitorPage() {
       </div>
 
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
+      {taskListError && (
+        <Alert
+          type="error"
+          message={`任务列表加载失败：${taskListError instanceof Error ? taskListError.message : 'GET /v1/admin/tasks failed'}`}
+        />
+      )}
 
       {/* Summary — always from full dataset */}
       {fullTaskData?.summary && (
@@ -1036,7 +1059,7 @@ export default function TaskMonitorPage() {
 
       {/* Task Table */}
       {isLoading ? (
-        <LoadingSpinner />
+        <LoadingSpinner text="加载任务列表 /v1/admin/tasks..." />
       ) : taskList.length === 0 ? (
         <div style={{ background: '#fff', borderRadius: 10, padding: 40, textAlign: 'center', color: '#888' }}>
           {emptyTaskText()}

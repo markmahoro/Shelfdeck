@@ -167,7 +167,7 @@ export default function SystemConfigPage() {
   const [showGlobalApproval, setShowGlobalApproval] = useState(false);
   const [expandedApprovalLibs, setExpandedApprovalLibs] = useState<Record<string, boolean>>({});
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, error: loadError, refetch } = useQuery({
     queryKey: ['system-config-full'],
     queryFn: async () => {
       const [sysCfg, slRes] = await Promise.all([
@@ -309,7 +309,30 @@ export default function SystemConfigPage() {
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
-  if (isLoading) return <LoadingSpinner />;
+  if (isLoading) {
+    return (
+      <div>
+        <LoadingSpinner text="加载设置页..." />
+        <div style={{ ...hintStyle, marginTop: 12 }}>
+          正在请求 /v1/config 和 /v1/admin/sublibraries。
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div>
+        <Alert
+          type="error"
+          message={`设置页加载失败：${loadError instanceof Error ? loadError.message : 'GET /v1/config failed'}`}
+        />
+        <button type="button" onClick={() => void refetch()} style={primaryBtn}>
+          {isFetching ? '重试中...' : '重试加载'}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>

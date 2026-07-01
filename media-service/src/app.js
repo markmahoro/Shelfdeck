@@ -394,6 +394,17 @@ function queryAttentionTasks(filter = {}) {
   });
 }
 
+function compactTaskRouteFilter(filter = {}) {
+  return {
+    status: filter.status || '',
+    statuses: Array.isArray(filter.statuses) ? filter.statuses.length : undefined,
+    actionType: filter.actionType || '',
+    bridgeKind: filter.bridgeKind || '',
+    operationKind: filter.operationKind || '',
+    hasSearch: !!filter.q,
+  };
+}
+
 function primaryAttentionQueue(attentionSummary = {}) {
   const order = ['needs_action', 'confirmation', 'recovery', 'manual_start'];
   for (const key of order) {
@@ -921,6 +932,11 @@ function decorateLibraryItemsForUi(items, config) {
     .map(libraryListItemView);
 }
 
+function projectLibraryItemsForUi(items, config, projection = {}) {
+  if (projection.includeBusinessFlow) return decorateLibraryItemsForUi(items, config);
+  return (items || []).map(libraryListItemView);
+}
+
 function compactSmartTaskScanSummary(summary) {
   if (!summary || typeof summary !== 'object') return null;
   return {
@@ -949,9 +965,7 @@ function compactSmartTaskScanSummary(summary) {
 function buildDashboardAutomation(config) {
   const health = smartTaskEngine.getHealth ? (smartTaskEngine.getHealth() || {}) : {};
   return {
-    enabledOperations: Array.isArray(config.smartTaskEnabledActions)
-      ? config.smartTaskEnabledActions
-      : [],
+    enabledOperations: businessFlowPolicy.resolveAutoEnabledActions(config),
     smartTask: {
       status: health.status || '',
       enabled: !!health.enabled,
@@ -961,6 +975,64 @@ function buildDashboardAutomation(config) {
       lastError: health.lastError || '',
       lastScanSummary: compactSmartTaskScanSummary(health.lastScanSummary),
     },
+  };
+}
+
+const DASHBOARD_HEALTH_LABELS = {
+  api: 'Service API',
+  scheduler: 'Task Scheduler',
+  smartTask: 'Task Creator',
+  mediaLib: 'Library Store',
+  strategy: 'Lifecycle Policy',
+  transcode: 'Transcode Runtime',
+  emby: 'Emby',
+  douban: 'Douban',
+  upgrade: 'MoviePilot',
+};
+
+function aggregateDashboardStatus(items) {
+  const statuses = (items || []).map((item) => item && item.status).filter(Boolean);
+  if (statuses.includes('red')) return 'red';
+  if (statuses.includes('yellow')) return 'yellow';
+  return 'green';
+}
+
+function dashboardHealthCheckItem(key, item = {}) {
+  return {
+    key,
+    label: DASHBOARD_HEALTH_LABELS[key] || key,
+    status: item.status || 'green',
+    message: item.message || '',
+  };
+}
+
+function buildDashboardServiceProjection(health) {
+  const checks = health && health.checks && typeof health.checks === 'object' ? health.checks : {};
+  const serviceKeys = ['scheduler', 'smartTask', 'mediaLib', 'strategy', 'transcode'];
+  const externalKeys = ['emby', 'douban', 'upgrade'];
+  const serviceChecks = [
+    dashboardHealthCheckItem('api', { status: 'green', message: 'Admin API is responding' }),
+    ...serviceKeys
+      .filter((key) => checks[key])
+      .map((key) => dashboardHealthCheckItem(key, checks[key])),
+  ];
+  const externalChecks = externalKeys
+    .filter((key) => checks[key])
+    .map((key) => dashboardHealthCheckItem(key, checks[key]));
+  const serviceAvailability = {
+    status: aggregateDashboardStatus(serviceChecks),
+    checks: serviceChecks,
+    generatedAt: health && health.timestamp ? health.timestamp : null,
+  };
+  const externalIntegrations = {
+    status: aggregateDashboardStatus(externalChecks),
+    checks: externalChecks,
+    generatedAt: health && health.timestamp ? health.timestamp : null,
+  };
+  return {
+    status: aggregateDashboardStatus([serviceAvailability, externalIntegrations]),
+    serviceAvailability,
+    externalIntegrations,
   };
 }
 
@@ -2122,7 +2194,12 @@ function registerRoutes(app) {
       filter.taskState = query.task;
       filter.activeTaskIds = activeTaskItemIds();
     }
-    if (query.scrape === 'done' || query.scrape === 'pending' || query.scrape === 'failed') filter.metadataStatus = query.scrape;
+    const metadataQuery = query.metadata || query.metadataStatus || query.scrape;
+    if (metadataQuery) {
+      const metadataStatus = String(metadataQuery).toLowerCase();
+      const allowedMetadataFilters = new Set(['done', 'pending', 'failed', 'complete', 'missing', 'ambiguous', 'needs_review']);
+      if (allowedMetadataFilters.has(metadataStatus)) filter.metadataStatus = metadataStatus;
+    }
     if (query.lifecycle) filter.lifecycle = query.lifecycle;
     const rawPageSize = Number(query.pageSize);
     const rawPage = Number(query.page);
@@ -2137,9 +2214,82 @@ function registerRoutes(app) {
     return { filter, page: { limit, offset } };
   }
 
+  function compactLibraryRouteFilter(filter = {}) {
+    return {
+      source: filter.source || '',
+      type: filter.type || '',
+      action: filter.action || '',
+      subLibraryId: filter.subLibraryId || '',
+      resolution: filter.resolution || '',
+      codec: filter.codec || '',
+      watched: filter.watched === undefined ? undefined : !!filter.watched,
+      isBluRayDisc: filter.isBluRayDisc === undefined ? undefined : !!filter.isBluRayDisc,
+      hasSearch: !!filter.search,
+      hasDoubanStarsFilter: filter.doubanStars !== undefined,
+      hasUserRatingFilter: filter.userRating !== undefined,
+      taskState: filter.taskState || '',
+      activeTaskItemCount: filter.activeTaskIds instanceof Set ? filter.activeTaskIds.size : undefined,
+      metadataStatus: filter.metadataStatus || '',
+      lifecycle: filter.lifecycle || '',
+    };
+  }
+
+  function truthyQueryFlag(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+  }
+
+  function falseQueryFlag(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off';
+  }
+
+  function libraryProjectionFromQuery(query = {}, fallback = 'summary') {
+    const raw = String(query.projection || fallback || 'summary').trim().toLowerCase();
+    const projection = ['manage', 'full', 'compat'].includes(raw) ? raw : 'summary';
+    const heavy = projection === 'manage' || projection === 'full' || projection === 'compat';
+    return {
+      projection,
+      includeOptimizationStatus: heavy || truthyQueryFlag(query.includeOptimizationStatus),
+      includeBusinessFlow: heavy || truthyQueryFlag(query.includeBusinessFlow),
+    };
+  }
+
+  function libraryRouteDiagnostic(route, filter, page, projection, fn) {
+    return diagnosticLog.track({
+      category: 'api',
+      scope: `route.${route}`,
+      operation: 'http_get',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: route,
+      slowMs: 250,
+      payload: {
+        route,
+        filter: compactLibraryRouteFilter(filter),
+        page: {
+          limit: page.limit || null,
+          offset: page.offset || 0,
+          pageSize: page.limit || null,
+        },
+        projection: {
+          name: projection.projection,
+          includeOptimizationStatus: !!projection.includeOptimizationStatus,
+          includeBusinessFlow: !!projection.includeBusinessFlow,
+          compactAdultMetadata: true,
+        },
+      },
+      successPayload: (result) => ({
+        rowCount: result && Array.isArray(result.items) ? result.items.length : 0,
+        total: result && typeof result.total === 'number' ? result.total : undefined,
+      }),
+    }, fn);
+  }
+
   app.get('/v1/library', async (req) => {
     const { filter, page } = parseLibraryQuery(req.query);
-    return runtimeResourceTracker.trackEvent({
+    const projection = libraryProjectionFromQuery(req.query, 'summary');
+    return libraryRouteDiagnostic('/v1/library', filter, page, projection, () => runtimeResourceTracker.trackEvent({
       eventType: 'library.query',
       component: 'admin-web-api',
       resourceType: 'service_api',
@@ -2152,7 +2302,7 @@ function registerRoutes(app) {
         total: result && typeof result.total === 'number' ? result.total : undefined,
       }),
     }, () => {
-      const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
+      const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: projection.includeOptimizationStatus, ...page });
       // Attach embyWebUrl for desktop play button
       const cfg = configStore.loadConfig();
       const servers = cfg.embyServers || {};
@@ -2166,14 +2316,15 @@ function registerRoutes(app) {
           }
         }
       }
-      result.items = decorateLibraryItemsForUi(result.items, cfg);
+      result.items = projectLibraryItemsForUi(result.items, cfg, projection);
       return result;
-    });
+    }));
   });
 
   app.get('/v1/library/queries/manage', async (req) => {
     const { filter, page } = parseLibraryQuery(req.query);
-    return runtimeResourceTracker.trackEvent({
+    const projection = libraryProjectionFromQuery(req.query, 'manage');
+    return libraryRouteDiagnostic('/v1/library/queries/manage', filter, page, projection, () => runtimeResourceTracker.trackEvent({
       eventType: 'library.query',
       component: 'admin-web-api',
       resourceType: 'service_api',
@@ -2186,10 +2337,10 @@ function registerRoutes(app) {
         total: result && typeof result.total === 'number' ? result.total : undefined,
       }),
     }, () => {
-      const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
+      const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: projection.includeOptimizationStatus, ...page });
       const cfg = configStore.loadConfig();
-      return { ...result, items: decorateLibraryItemsForUi(result.items, cfg) };
-    });
+      return { ...result, items: projectLibraryItemsForUi(result.items, cfg, projection) };
+    }));
   });
 
   app.get('/v1/library/items/:itemId', async (req, reply) => {
@@ -3374,37 +3525,65 @@ function registerRoutes(app) {
     if (attention && !TASK_ATTENTION_QUEUES[attention]) {
       return apiError(reply, 400, 'VALIDATION_ERROR', `unknown attention queue: ${attention}`);
     }
+    const includeAttentionSummary = !falseQueryFlag(req.query.includeAttentionSummary || req.query.includeAttention);
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
-    if (attention) {
-      const baseTasks = sortTasksForAdminList(queryAttentionTasks(filter));
-      const filteredTasks = baseTasks.filter((task) => taskMatchesAttention(task, attention));
-      return {
-        tasks: paginateTasks(filteredTasks, page, pageSize).map(taskListSummary),
-        summary: {
-          total: filteredTasks.length,
-          byStatus: buildStatusSummary(filteredTasks),
-          attention: buildAttentionSummary(baseTasks),
-        },
+    return diagnosticLog.track({
+      category: 'api',
+      scope: 'route./v1/admin/tasks',
+      operation: 'http_get',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: '/v1/admin/tasks',
+      slowMs: 250,
+      payload: {
+        route: '/v1/admin/tasks',
+        filter: compactTaskRouteFilter(filter),
         page,
         pageSize,
-        total: filteredTasks.length,
-        attention,
-      };
-    }
-    const result = taskStore.queryTaskSummaries(filter, { page, pageSize, orderBy: 'updatedAt', orderDir: 'desc' });
-    const summaryBaseTasks = queryAttentionTasks(filter);
-    return {
-      tasks: result.tasks.map(taskListSummary),
-      summary: {
-        total: result.total,
-        byStatus: result.byStatus,
-        attention: buildAttentionSummary(summaryBaseTasks),
+        attention: attention || '',
+        projection: {
+          includeTaskSummaries: !attention,
+          includeAttentionSummary: attention ? true : includeAttentionSummary,
+          includeFullPayload: false,
+        },
       },
-      page: result.page,
-      pageSize: result.pageSize,
-      total: result.total,
-    };
+      successPayload: (result) => ({
+        rowCount: result && Array.isArray(result.tasks) ? result.tasks.length : 0,
+        total: result && typeof result.total === 'number' ? result.total : undefined,
+        attention: result && result.attention || '',
+      }),
+    }, () => {
+      if (attention) {
+        const baseTasks = sortTasksForAdminList(queryAttentionTasks(filter));
+        const filteredTasks = baseTasks.filter((task) => taskMatchesAttention(task, attention));
+        return {
+          tasks: paginateTasks(filteredTasks, page, pageSize).map(taskListSummary),
+          summary: {
+            total: filteredTasks.length,
+            byStatus: buildStatusSummary(filteredTasks),
+            attention: buildAttentionSummary(baseTasks),
+          },
+          page,
+          pageSize,
+          total: filteredTasks.length,
+          attention,
+        };
+      }
+      const result = taskStore.queryTaskSummaries(filter, { page, pageSize, orderBy: 'updatedAt', orderDir: 'desc' });
+      const summaryBaseTasks = includeAttentionSummary ? queryAttentionTasks(filter) : [];
+      return {
+        tasks: result.tasks.map(taskListSummary),
+        summary: {
+          total: result.total,
+          byStatus: result.byStatus,
+          ...(includeAttentionSummary ? { attention: buildAttentionSummary(summaryBaseTasks) } : {}),
+        },
+        page: result.page,
+        pageSize: result.pageSize,
+        total: result.total,
+      };
+    });
   });
 
   app.get('/v1/admin/tasks/lifecycle-audit', async (req) => {
@@ -3454,36 +3633,70 @@ function registerRoutes(app) {
   });
 
   app.get('/v1/admin/dashboard/health', async () => {
-    const config = configStore.loadConfig();
-    const media = typeof libraryStore.queryDashboardMediaStats === 'function'
-      ? libraryStore.queryDashboardMediaStats()
-      : {};
-    const tasks = typeof taskStore.queryDashboardTaskStats === 'function'
-      ? taskStore.queryDashboardTaskStats()
-      : {};
-    const taskSummaryFacts = queryAttentionTasks({});
-    const attention = buildAttentionSummary(taskSummaryFacts);
-    const automation = buildDashboardAutomation(config);
-    const signals = buildDashboardHealthSignals(media, tasks, config, automation);
-    return {
-      status: dashboardBusinessStatus(signals),
-      generatedAt: new Date().toISOString(),
-      media,
-      tasks: {
-        ...tasks,
-        attention,
-        primaryAttention: primaryAttentionQueue(attention),
+    return diagnosticLog.track({
+      category: 'api',
+      scope: 'route./v1/admin/dashboard/health',
+      operation: 'http_get',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: '/v1/admin/dashboard/health',
+      slowMs: 250,
+      payload: {
+        route: '/v1/admin/dashboard/health',
+        projection: {
+          includeMediaStats: true,
+          includeTaskStats: true,
+          includeAttentionSummary: true,
+          includeDashboardEvents: true,
+        },
       },
-      automation,
-      events: buildDashboardEvents(15),
-      diagnostics: {
-        signals,
-        storage: [
-          libraryStore.getStorageMetrics(),
-          taskStore.getStorageMetrics(),
-        ],
-      },
-    };
+      successPayload: (result) => ({
+        status: result && result.status || '',
+        mediaTotal: result && result.media ? result.media.totalItems : undefined,
+        taskTotal: result && result.tasks ? result.tasks.totalTasks : undefined,
+        activeTasks: result && result.tasks ? result.tasks.activeTasks : undefined,
+        eventCount: result && result.events && Array.isArray(result.events.recent) ? result.events.recent.length : undefined,
+        signalCount: result && result.diagnostics && Array.isArray(result.diagnostics.signals) ? result.diagnostics.signals.length : undefined,
+      }),
+    }, () => {
+      const config = configStore.loadConfig();
+      const media = typeof libraryStore.queryDashboardMediaStats === 'function'
+        ? libraryStore.queryDashboardMediaStats()
+        : {};
+      const tasks = typeof taskStore.queryDashboardTaskStats === 'function'
+        ? taskStore.queryDashboardTaskStats()
+        : {};
+      const taskSummaryFacts = queryAttentionTasks({});
+      const attention = buildAttentionSummary(taskSummaryFacts);
+      const automation = buildDashboardAutomation(config);
+      const signals = buildDashboardHealthSignals(media, tasks, config, automation);
+      const serviceProjection = buildDashboardServiceProjection(healthCheck.getLastResult());
+      return {
+        status: serviceProjection.status,
+        generatedAt: new Date().toISOString(),
+        serviceAvailability: serviceProjection.serviceAvailability,
+        externalIntegrations: serviceProjection.externalIntegrations,
+        businessStatus: {
+          status: dashboardBusinessStatus(signals),
+          signals,
+        },
+        media,
+        tasks: {
+          ...tasks,
+          attention,
+          primaryAttention: primaryAttentionQueue(attention),
+        },
+        automation,
+        events: buildDashboardEvents(15),
+        diagnostics: {
+          signals,
+          storage: [
+            libraryStore.getStorageMetrics(),
+            taskStore.getStorageMetrics(),
+          ],
+        },
+      };
+    });
   });
 
   app.get('/v1/admin/tasks/:id/events', async (req, reply) => {
@@ -3494,48 +3707,104 @@ function registerRoutes(app) {
     return taskStore.queryTaskEvents({ taskId: task.id }, { page, pageSize, orderDir: 'asc' });
   });
 
-  app.get('/v1/admin/resources', async () => {
-    const config = configStore.loadConfig();
-    const runtimeEvents = runtimeResourceTracker.listEvents({ recentLimit: 100 }).events;
-    const tasks = typeof taskStore.querySchedulerTasks === 'function'
-      ? taskStore.querySchedulerTasks()
-      : taskStore.loadTasks({ includeHistory: false });
-    const view = resourceProjection.buildResourceView(tasks, config, {
-      slotUsage: transcodeService.getDeviceSlotUsage(),
-      runtimeEvents,
-    });
-    const diagnostics = diagnosticLog.list({ limit: 120 });
-    const health = healthCheck.getLastResult();
-    const dependencies = health && health.checks && typeof health.checks === 'object'
-      ? Object.entries(health.checks).map(([key, value]) => ({ key, ...(value || {}) }))
-      : [];
-    const bottlenecks = (view.resources || [])
-      .filter((bucket) => (bucket.waiting > 0 || bucket.blocked > 0) && bucket.configuredSlots > 0 && bucket.running >= bucket.configuredSlots)
-      .map((bucket) => ({
-        resourceType: bucket.resourceType,
-        resourceKey: bucket.resourceKey,
-        resourceLabel: bucket.resourceLabel,
-        configuredSlots: bucket.configuredSlots,
-        running: bucket.running,
-        waiting: bucket.waiting,
-        blocked: bucket.blocked,
-      }));
-    return {
-      ...view,
-      diagnostics: {
-        ...diagnostics,
-        dependencies,
-        failedEvents: enrichFailureEvents(taskStore.queryRecentFailureEvents({ pageSize: 20 }), config, diagnostics.logs),
-        bottlenecks,
-        backgroundIo: backgroundIoGuard.getState({ recentLimit: 40 }),
-        metrics: {
-          storage: [
-            libraryStore.getStorageMetrics(),
-            taskStore.getStorageMetrics(),
-          ],
+  app.get('/v1/admin/resources', async (req) => {
+    const detail = String(req.query.detail || '').trim().toLowerCase();
+    const includeFullDetail = detail === 'full'
+      || truthyQueryFlag(req.query.full)
+      || truthyQueryFlag(req.query.includeDiagnostics)
+      || truthyQueryFlag(req.query.includeFailureEvents)
+      || truthyQueryFlag(req.query.includeStorageMetrics)
+      || truthyQueryFlag(req.query.includeBackgroundIo);
+    const projectionName = includeFullDetail ? 'full' : 'summary';
+    return diagnosticLog.track({
+      category: 'api',
+      scope: 'route./v1/admin/resources',
+      operation: 'http_get',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: '/v1/admin/resources',
+      slowMs: 250,
+      payload: {
+        route: '/v1/admin/resources',
+        projection: {
+          detail: projectionName,
+          includeRuntimeEvents: true,
+          includeSchedulerTasks: true,
+          includeDiagnosticLogs: includeFullDetail,
+          includeFailureEvents: includeFullDetail,
+          includeStorageMetrics: includeFullDetail,
+          includeBackgroundIo: includeFullDetail,
         },
       },
-    };
+      successPayload: (result) => ({
+        resourceCount: result && Array.isArray(result.resources) ? result.resources.length : 0,
+        totalTasks: result && result.summary ? result.summary.totalTasks : undefined,
+        totalEvents: result && result.summary ? result.summary.totalEvents : undefined,
+        failedEvents: result && result.diagnostics && Array.isArray(result.diagnostics.failedEvents) ? result.diagnostics.failedEvents.length : undefined,
+        dependencyCount: result && result.diagnostics && Array.isArray(result.diagnostics.dependencies) ? result.diagnostics.dependencies.length : undefined,
+        bottleneckCount: result && result.diagnostics && Array.isArray(result.diagnostics.bottlenecks) ? result.diagnostics.bottlenecks.length : undefined,
+      }),
+    }, () => {
+      const config = configStore.loadConfig();
+      const runtimeEvents = runtimeResourceTracker.listEvents({ recentLimit: includeFullDetail ? 100 : 40 }).events;
+      const tasks = typeof taskStore.querySchedulerTasks === 'function'
+        ? taskStore.querySchedulerTasks()
+        : taskStore.loadTasks({ includeHistory: false });
+      const view = resourceProjection.buildResourceView(tasks, config, {
+        slotUsage: transcodeService.getDeviceSlotUsage(),
+        runtimeEvents,
+      });
+      const diagnostics = includeFullDetail
+        ? diagnosticLog.list({ limit: 120 })
+        : { logs: [], summary: null };
+      const health = healthCheck.getLastResult();
+      const dependencies = health && health.checks && typeof health.checks === 'object'
+        ? Object.entries(health.checks).map(([key, value]) => ({ key, ...(value || {}) }))
+        : [];
+      const bottlenecks = (view.resources || [])
+        .filter((bucket) => (bucket.waiting > 0 || bucket.blocked > 0) && bucket.configuredSlots > 0 && bucket.running >= bucket.configuredSlots)
+        .map((bucket) => ({
+          resourceType: bucket.resourceType,
+          resourceKey: bucket.resourceKey,
+          resourceLabel: bucket.resourceLabel,
+          configuredSlots: bucket.configuredSlots,
+          running: bucket.running,
+          waiting: bucket.waiting,
+          blocked: bucket.blocked,
+        }));
+      const diagnosticSummary = includeFullDetail
+        ? diagnostics.summary
+        : {
+          totalLogs: 0,
+          slowLogs: 0,
+          failedLogs: 0,
+          byStatus: {},
+          byCategory: {},
+          generatedAt: new Date().toISOString(),
+        };
+      return {
+        ...view,
+        detail: projectionName,
+        diagnostics: {
+          logs: includeFullDetail ? diagnostics.logs : [],
+          summary: diagnosticSummary,
+          dependencies,
+          failedEvents: includeFullDetail
+            ? enrichFailureEvents(taskStore.queryRecentFailureEvents({ pageSize: 20 }), config, diagnostics.logs)
+            : [],
+          bottlenecks,
+          ...(includeFullDetail ? { backgroundIo: backgroundIoGuard.getState({ recentLimit: 40 }) } : {}),
+          ...(includeFullDetail ? {
+            metrics: {
+              storage: [
+                libraryStore.getStorageMetrics(),
+                taskStore.getStorageMetrics(),
+              ],
+            },
+          } : {}),
+        },
+      };
+    });
   });
 
   app.get('/v1/admin/tasks/:id', async (req, reply) => {

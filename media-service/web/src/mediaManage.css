@@ -308,6 +308,26 @@
   gap: 4px;
 }
 
+.mediaManageStackCell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  line-height: 1.35;
+}
+
+.mediaManageSubline {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .adultScrapeCell {
   display: flex;
   min-width: 0;
@@ -364,17 +384,17 @@
 
 .mediaManageGridMixed {
   grid-template-columns:
-    18rem 5.8rem 5rem 8.5rem 7rem 3rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 4.5rem 4.8rem 2.5rem 5.5rem 5rem 6rem 11rem 4.5rem;
+    minmax(18rem, 1.5fr) 8rem 8.5rem 13rem 12rem 12rem 8rem;
 }
 
 .mediaManageGridAdult {
   grid-template-columns:
-    18rem 5.8rem 5rem 8.5rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 4.5rem 4.8rem 5rem 11rem 4.5rem;
+    minmax(18rem, 1.5fr) 8rem 8.5rem 13rem 12rem 12rem 8rem;
 }
 
 .mediaManageGridStandard {
   grid-template-columns:
-    18rem 5.8rem 5rem 7rem 3rem 3.5rem 4rem 4rem 4.5rem 4.5rem 4.5rem 4.5rem 4.8rem 2.5rem 5.5rem 5rem 6rem 11rem 4.5rem;
+    minmax(18rem, 1.5fr) 8rem 8.5rem 13rem 12rem 12rem 8rem;
 }
 
 .adultRescrapeBtn {

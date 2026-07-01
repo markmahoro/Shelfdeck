@@ -775,7 +775,9 @@ function querySmartTaskCandidateItems() {
       archive_done_at,
       updated_at,
       json_extract(payload_json, '$.reason') AS reason,
+      json_extract(payload_json, '$.bucket') AS bucket,
       json_extract(payload_json, '$.duration') AS duration,
+      json_extract(payload_json, '$.audioCodecs') AS audio_codecs_json,
       json_extract(payload_json, '$.doubanRating') AS douban_rating,
       json_extract(payload_json, '$.doubanId') AS douban_id,
       json_extract(payload_json, '$.userRatingUpdatedAt') AS user_rating_updated_at,
@@ -826,7 +828,9 @@ function querySmartTaskCandidateItems() {
       scraped: row.scraped === 1,
       adultMetadata,
       resolution: row.resolution || '',
+      bucket: row.bucket || undefined,
       codec: row.codec || '',
+      audioCodecs: jsonParse(row.audio_codecs_json, undefined),
       userRating: row.user_rating,
       doubanStars: row.douban_stars,
       doubanRating: row.douban_rating == null ? row.douban_stars : row.douban_rating,
@@ -1102,7 +1106,7 @@ function queryDashboardMediaStats() {
       ORDER BY count DESC, reason ASC
       LIMIT 8
     `).all().map((row) => ({ reason: String(row.reason || ''), count: Number(row.count) || 0 }));
-    const bySubLibrary = db.prepare(`
+    const subLibraryRows = db.prepare(`
       SELECT
         sub_library_id AS subLibraryId,
         COUNT(*) AS totalItems,
@@ -1113,13 +1117,31 @@ function queryDashboardMediaStats() {
       FROM media_items
       GROUP BY sub_library_id
       ORDER BY totalItems DESC, sub_library_id ASC
-    `).all().map((row) => ({
+    `).all();
+    const subLibraryStageRows = db.prepare(`
+      SELECT
+        sub_library_id AS subLibraryId,
+        COALESCE(NULLIF(lifecycle_stage, ''), 'unknown') AS lifecycleStage,
+        COUNT(*) AS count
+      FROM media_items
+      GROUP BY sub_library_id, COALESCE(NULLIF(lifecycle_stage, ''), 'unknown')
+      ORDER BY sub_library_id ASC, count DESC, lifecycleStage ASC
+    `).all();
+    const bySubLibraryStage = new Map();
+    for (const row of subLibraryStageRows) {
+      const subLibraryId = row.subLibraryId || '';
+      const current = bySubLibraryStage.get(subLibraryId) || {};
+      current[row.lifecycleStage || 'unknown'] = Number(row.count) || 0;
+      bySubLibraryStage.set(subLibraryId, current);
+    }
+    const bySubLibrary = subLibraryRows.map((row) => ({
       subLibraryId: row.subLibraryId || '',
       totalItems: Number(row.totalItems) || 0,
       closedItems: Number(row.closedItems) || 0,
       openItems: Number(row.openItems) || 0,
       metadataIncompleteItems: Number(row.metadataIncompleteItems) || 0,
       pendingOptimizationItems: Number(row.pendingOptimizationItems) || 0,
+      byLifecycleStage: bySubLibraryStage.get(row.subLibraryId || '') || {},
     }));
 
     return {

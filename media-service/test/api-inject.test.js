@@ -15,6 +15,7 @@ const diagnosticLog = require('../src/diagnosticLog');
 const backgroundIoGuard = require('../src/backgroundIoGuard');
 const activityLog = require('../src/activityLog');
 const smartTaskEngine = require('../src/smartTaskEngine');
+const healthCheck = require('../src/healthCheck');
 const nodeStore = require('../src/nodeStore');
 
 function metadataReadyMovie(overrides = {}) {
@@ -522,7 +523,7 @@ test('GET /v1/library exposes v3 business flow decision for media rows', async (
     })],
   });
 
-  const res = await app.inject({ method: 'GET', url: '/v1/library?limit=20' });
+  const res = await app.inject({ method: 'GET', url: '/v1/library?projection=manage&limit=20' });
   assert.strictEqual(res.statusCode, 200);
   const item = res.json().items.find((row) => row.itemId === itemId);
   assert.ok(item, 'media row present');
@@ -566,7 +567,7 @@ test('GET /v1/library explains active task as operation blocker', async () => {
     throw new Error('library business decision should use lightweight active summaries');
   };
   try {
-    const res = await app.inject({ method: 'GET', url: '/v1/library?limit=20' });
+    const res = await app.inject({ method: 'GET', url: '/v1/library?projection=manage&limit=20' });
     assert.strictEqual(res.statusCode, 200);
     const item = res.json().items.find((row) => row.itemId === itemId);
     assert.ok(item, 'media row present');
@@ -616,7 +617,7 @@ test('GET /v1/library exposes latest terminal failure summary for media rows', a
     throw new Error('library failure summary should use task event projection');
   };
   try {
-    const res = await app.inject({ method: 'GET', url: '/v1/library?limit=20' });
+    const res = await app.inject({ method: 'GET', url: '/v1/library?projection=manage&limit=20' });
     assert.strictEqual(res.statusCode, 200);
     const item = res.json().items.find((row) => row.itemId === itemId);
     assert.ok(item, 'media row present');
@@ -726,7 +727,7 @@ test('GET task events and admin resource view expose v2.5 projections', async ()
     resourceKey: 'test:background-write',
   });
 
-  res = await app.inject({ method: 'GET', url: '/v1/admin/resources' });
+  res = await app.inject({ method: 'GET', url: '/v1/admin/resources?detail=full' });
   assert.strictEqual(res.statusCode, 200);
   const resources = res.json();
   assert.strictEqual(resources.summary.totalTasks, 1);
@@ -872,7 +873,7 @@ test('GET /v1/library records a runtime library.query event for resource attribu
   let res = await app.inject({ method: 'GET', url: '/v1/library?limit=1' });
   assert.strictEqual(res.statusCode, 200);
 
-  res = await app.inject({ method: 'GET', url: '/v1/admin/resources' });
+  res = await app.inject({ method: 'GET', url: '/v1/admin/resources?detail=full' });
   assert.strictEqual(res.statusCode, 200);
   const view = res.json();
   assert.strictEqual(view.summary.totalEvents, 1);
@@ -888,6 +889,205 @@ test('GET /v1/library records a runtime library.query event for resource attribu
   assert.ok(libraryMetric.files.some((file) => file.name === 'library.db-wal'), 'library WAL metric exists');
 
   await app.close();
+});
+
+test('GET /v1/library list routes record safe route and service diagnostics', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    embyServers: {
+      main: { baseUrl: 'http://emby.local:8096', apiKey: 'library-route-secret-key' },
+    },
+    moviepilot: { apiKey: 'moviepilot-route-secret-key' },
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  diagnosticLog.resetForTests();
+
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [
+      metadataReadyMovie({
+        itemId: 'diag-library-1',
+        subLibraryId: 'diag-library',
+        name: 'Diagnostic Search Match',
+      }),
+      metadataReadyMovie({
+        itemId: 'diag-library-2',
+        subLibraryId: 'diag-library',
+        name: 'Other Movie',
+      }),
+    ],
+  });
+
+  const list = await app.inject({
+    method: 'GET',
+    url: '/v1/library?subLibraryId=diag-library&search=Diagnostic&pageSize=1&page=1',
+  });
+  assert.strictEqual(list.statusCode, 200);
+  const manage = await app.inject({
+    method: 'GET',
+    url: '/v1/library/queries/manage?subLibraryId=diag-library&search=Diagnostic&pageSize=1&page=1',
+  });
+  assert.strictEqual(manage.statusCode, 200);
+
+  const logs = diagnosticLog.list({ limit: 50 }).logs;
+  const listRoute = logs.find((log) => log.scope === 'route./v1/library');
+  const manageRoute = logs.find((log) => log.scope === 'route./v1/library/queries/manage');
+  const serviceLog = logs.find((log) => log.scope === 'mediaLibraryService.getLibrary');
+  assert.ok(listRoute, 'library route diagnostic exists');
+  assert.ok(manageRoute, 'manage route diagnostic exists');
+  assert.ok(serviceLog, 'media library service diagnostic exists');
+  assert.strictEqual(listRoute.payload.filter.subLibraryId, 'diag-library');
+  assert.strictEqual(listRoute.payload.filter.hasSearch, true);
+  assert.strictEqual(listRoute.payload.filter.search, undefined);
+  assert.strictEqual(listRoute.payload.page.pageSize, 1);
+  assert.strictEqual(typeof listRoute.durationMs, 'number');
+  assert.strictEqual(listRoute.payload.rowCount, 1);
+  assert.strictEqual(listRoute.payload.total, 1);
+  assert.ok(serviceLog.payload.stages && typeof serviceLog.payload.stages.queryItemsMs === 'number');
+
+  const serializedLogs = JSON.stringify(logs);
+  assert.ok(!serializedLogs.includes('library-route-secret-key'));
+  assert.ok(!serializedLogs.includes('moviepilot-route-secret-key'));
+  assert.ok(!serializedLogs.includes('Diagnostic Search Match'));
+
+  await app.close();
+});
+
+test('admin task/resource/dashboard routes record lightweight diagnostics without full task payloads', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    moviepilot: { apiKey: 'admin-route-secret-key' },
+    smartTaskEnabledActions: ['scrape'],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  diagnosticLog.resetForTests();
+
+  taskStore.createTask({
+    itemId: 'diag-admin-task',
+    itemName: 'secret-search-text Admin Task',
+    actionType: 'scrape',
+    status: 'failed_hard',
+    itemInfo: {
+      name: 'secret-search-text Admin Task',
+      subLibraryId: 'diag-admin',
+      path: '/private/path/should-not-leak.mkv',
+      adultMetadata: {
+        unknownFaces: [{ sampleImageBase64: Buffer.alloc(1024, 7).toString('base64') }],
+      },
+    },
+    logs: [{ ts: new Date().toISOString(), level: 'error', msg: 'private error detail should not leak into diagnostics' }],
+  });
+
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.loadTasks = () => {
+    throw new Error('route diagnostics must not require full task payloads');
+  };
+  try {
+    const tasks = await app.inject({ method: 'GET', url: '/v1/admin/tasks?page=1&pageSize=1&q=secret-search-text' });
+    assert.strictEqual(tasks.statusCode, 200);
+    const dashboard = await app.inject({ method: 'GET', url: '/v1/admin/dashboard/health' });
+    assert.strictEqual(dashboard.statusCode, 200);
+    const resources = await app.inject({ method: 'GET', url: '/v1/admin/resources?detail=full' });
+    assert.strictEqual(resources.statusCode, 200);
+  } finally {
+    taskStore.loadTasks = originalLoadTasks;
+  }
+
+  const logs = diagnosticLog.list({ limit: 80 }).logs;
+  const scopes = new Set(logs.map((log) => log.scope));
+  assert.ok(scopes.has('route./v1/admin/tasks'));
+  assert.ok(scopes.has('route./v1/admin/dashboard/health'));
+  assert.ok(scopes.has('route./v1/admin/resources'));
+  assert.ok(scopes.has('taskStore.queryTaskSummaries'));
+  assert.ok(scopes.has('taskStore.queryRecentFailureEvents'));
+  const taskRoute = logs.find((log) => log.scope === 'route./v1/admin/tasks');
+  assert.strictEqual(taskRoute.payload.filter.hasSearch, true);
+  assert.strictEqual(taskRoute.payload.filter.q, undefined);
+  assert.strictEqual(taskRoute.payload.projection.includeFullPayload, false);
+  assert.strictEqual(taskRoute.payload.rowCount, 1);
+
+  const serializedLogs = JSON.stringify(logs);
+  assert.ok(!serializedLogs.includes('admin-route-secret-key'));
+  assert.ok(!serializedLogs.includes('secret-search-text'));
+  assert.ok(!serializedLogs.includes('/private/path/should-not-leak.mkv'));
+  assert.ok(!serializedLogs.includes('private error detail should not leak into diagnostics'));
+  assert.ok(!serializedLogs.includes('sampleImageBase64'));
+
+  await app.close();
+});
+
+test('GET /v1/admin/resources defaults to summary and only loads heavy diagnostics for full detail', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+
+  const originalDiagnosticList = diagnosticLog.list;
+  const originalRecentFailures = taskStore.queryRecentFailureEvents;
+  const originalBackgroundIo = backgroundIoGuard.getState;
+  const originalLibraryMetrics = libraryStore.getStorageMetrics;
+  const originalTaskMetrics = taskStore.getStorageMetrics;
+  const calls = {
+    diagnosticList: 0,
+    recentFailures: 0,
+    backgroundIo: 0,
+    libraryMetrics: 0,
+    taskMetrics: 0,
+  };
+  diagnosticLog.list = (...args) => {
+    calls.diagnosticList += 1;
+    return originalDiagnosticList(...args);
+  };
+  taskStore.queryRecentFailureEvents = (...args) => {
+    calls.recentFailures += 1;
+    return originalRecentFailures(...args);
+  };
+  backgroundIoGuard.getState = (...args) => {
+    calls.backgroundIo += 1;
+    return originalBackgroundIo(...args);
+  };
+  libraryStore.getStorageMetrics = (...args) => {
+    calls.libraryMetrics += 1;
+    return originalLibraryMetrics(...args);
+  };
+  taskStore.getStorageMetrics = (...args) => {
+    calls.taskMetrics += 1;
+    return originalTaskMetrics(...args);
+  };
+
+  try {
+    const summary = await app.inject({ method: 'GET', url: '/v1/admin/resources' });
+    assert.strictEqual(summary.statusCode, 200);
+    assert.strictEqual(summary.json().detail, 'summary');
+    assert.deepStrictEqual(summary.json().diagnostics.logs, []);
+    assert.deepStrictEqual(summary.json().diagnostics.failedEvents, []);
+    assert.strictEqual(summary.json().diagnostics.backgroundIo, undefined);
+    assert.strictEqual(summary.json().diagnostics.metrics, undefined);
+    assert.deepStrictEqual(calls, {
+      diagnosticList: 0,
+      recentFailures: 0,
+      backgroundIo: 0,
+      libraryMetrics: 0,
+      taskMetrics: 0,
+    });
+
+    const full = await app.inject({ method: 'GET', url: '/v1/admin/resources?detail=full' });
+    assert.strictEqual(full.statusCode, 200);
+    assert.strictEqual(full.json().detail, 'full');
+    assert.ok(calls.diagnosticList > 0);
+    assert.ok(calls.recentFailures > 0);
+    assert.ok(calls.backgroundIo > 0);
+    assert.ok(calls.libraryMetrics > 0);
+    assert.ok(calls.taskMetrics > 0);
+  } finally {
+    diagnosticLog.list = originalDiagnosticList;
+    taskStore.queryRecentFailureEvents = originalRecentFailures;
+    backgroundIoGuard.getState = originalBackgroundIo;
+    libraryStore.getStorageMetrics = originalLibraryMetrics;
+    taskStore.getStorageMetrics = originalTaskMetrics;
+    await app.close();
+  }
 });
 
 test('POST /v1/tasks follows sub-library automation mode for initial status', async () => {
@@ -1986,6 +2186,9 @@ test('GET /v1/admin/tasks attention queues are derived from task control actions
   try {
     const lightPlain = await app.inject({ method: 'GET', url: '/v1/admin/tasks?page=1&pageSize=1' });
     assert.strictEqual(lightPlain.statusCode, 200);
+    const noAttentionSummary = await app.inject({ method: 'GET', url: '/v1/admin/tasks?page=1&pageSize=1&includeAttentionSummary=0' });
+    assert.strictEqual(noAttentionSummary.statusCode, 200);
+    assert.strictEqual(noAttentionSummary.json().summary.attention, undefined);
     const lightAttention = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=needs_action&page=1&pageSize=1' });
     assert.strictEqual(lightAttention.statusCode, 200);
   } finally {
@@ -2273,6 +2476,7 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
   const closed = metadataReadyMovie({
     itemId: 'dashboard-closed',
     name: 'Closed',
+    subLibraryId: 'dashboard-lib',
     action: 'keep',
     metadataComplete: true,
     archiveStatus: 'archived_like',
@@ -2281,6 +2485,7 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
   const missing = metadataReadyMovie({
     itemId: 'dashboard-missing',
     name: 'Missing Metadata',
+    subLibraryId: 'dashboard-lib',
     action: 'transcode',
     metadataComplete: false,
     metadataStatus: 'missing',
@@ -2289,6 +2494,7 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
   const pending = metadataReadyMovie({
     itemId: 'dashboard-pending',
     name: 'Pending Optimize',
+    subLibraryId: 'dashboard-lib',
     action: 'transcode',
     metadataComplete: true,
     optimizationStatus: 'none',
@@ -2328,6 +2534,7 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
   const originalGetTasks = taskStore.getTasks;
   const originalQueryTaskEvents = taskStore.queryTaskEvents;
   const originalSmartTaskHealth = smartTaskEngine.getHealth;
+  const originalHealthResult = healthCheck.getLastResult;
   taskStore.getTasks = () => {
     throw new Error('dashboard health should use lightweight task summaries');
   };
@@ -2358,6 +2565,20 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
       payload: { shouldNotLeak: true },
     },
   });
+  healthCheck.getLastResult = () => ({
+    status: 'green',
+    timestamp: '2026-06-30T00:00:00.000Z',
+    checks: {
+      scheduler: { status: 'green', runningTasks: 0 },
+      smartTask: { status: 'green', enabled: true },
+      mediaLib: { status: 'green', totalSubLibraries: 1, enabledCount: 1 },
+      strategy: { status: 'green' },
+      transcode: { status: 'green', ffmpegOk: true },
+      emby: { status: 'green' },
+      douban: { status: 'green' },
+      upgrade: { status: 'green' },
+    },
+  });
   let res;
   try {
     res = await app.inject({ method: 'GET', url: '/v1/admin/dashboard/health' });
@@ -2365,10 +2586,14 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
     taskStore.getTasks = originalGetTasks;
     taskStore.queryTaskEvents = originalQueryTaskEvents;
     smartTaskEngine.getHealth = originalSmartTaskHealth;
+    healthCheck.getLastResult = originalHealthResult;
   }
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
-  assert.strictEqual(body.status, 'red');
+  assert.strictEqual(body.status, 'green');
+  assert.strictEqual(body.serviceAvailability.status, 'green');
+  assert.strictEqual(body.externalIntegrations.status, 'green');
+  assert.strictEqual(body.businessStatus.status, 'red');
   assert.strictEqual(body.media.totalItems, 3);
   assert.strictEqual(body.media.closedItems, 1);
   assert.strictEqual(body.media.openItems, 2);
@@ -2378,6 +2603,12 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
   assert.strictEqual(body.media.pendingBridges.metadata, 1);
   assert.strictEqual(body.media.pendingBridges.optimize, 1);
   assert.deepStrictEqual(body.media.topMetadataMissingReasons[0], { reason: 'tmdb_id_missing', count: 1 });
+  const subLibraryStats = body.media.bySubLibrary.find((entry) => entry.subLibraryId === 'dashboard-lib');
+  assert.ok(subLibraryStats);
+  assert.strictEqual(subLibraryStats.totalItems, 3);
+  assert.strictEqual(subLibraryStats.byLifecycleStage.archived, 1);
+  assert.strictEqual(subLibraryStats.byLifecycleStage.ingested, 1);
+  assert.strictEqual(subLibraryStats.byLifecycleStage.metadata_ready, 1);
   assert.strictEqual(body.tasks.awaitingConfirmationTasks, 1);
   assert.strictEqual(body.tasks.failedTasks, 1);
   assert.strictEqual(body.tasks.activeTasks, 3);
@@ -2400,6 +2631,7 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
   assert.strictEqual(body.automation.smartTask.lastScanSummary.maxPerRunReached, true);
   assert.strictEqual(body.automation.smartTask.lastScanSummary.payload, undefined);
   assert.ok(manual.id, 'manual task fixture created');
+  assert.ok(body.businessStatus.signals.some((signal) => signal.code === 'open_lifecycle'));
   assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'failed_tasks'));
   assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'smart_task_admission_rejected'));
   assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'smart_task_queue_cap'));
@@ -4698,6 +4930,52 @@ test('GET /v1/library returns library items', async () => {
   await app.close();
 });
 
+test('GET /v1/library default summary skips heavy business and optimization projections', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId: 'library-light-projection',
+      name: 'Library Light Projection',
+      action: 'transcode',
+    })],
+  });
+
+  const originalOptimizationRows = taskStore.queryOptimizationTaskIndexRows;
+  const originalFailureRows = taskStore.queryLatestFailureEventsByItemIds;
+  const calls = { optimization: 0, failures: 0 };
+  taskStore.queryOptimizationTaskIndexRows = (...args) => {
+    calls.optimization += 1;
+    return originalOptimizationRows(...args);
+  };
+  taskStore.queryLatestFailureEventsByItemIds = (...args) => {
+    calls.failures += 1;
+    return originalFailureRows(...args);
+  };
+
+  try {
+    const summary = await app.inject({ method: 'GET', url: '/v1/library?limit=20' });
+    assert.strictEqual(summary.statusCode, 200);
+    const summaryItem = summary.json().items.find((row) => row.itemId === 'library-light-projection');
+    assert.ok(summaryItem);
+    assert.strictEqual(summaryItem.businessFlowDecision, undefined);
+    assert.deepStrictEqual(calls, { optimization: 0, failures: 0 });
+
+    const manage = await app.inject({ method: 'GET', url: '/v1/library?projection=manage&limit=20' });
+    assert.strictEqual(manage.statusCode, 200);
+    const manageItem = manage.json().items.find((row) => row.itemId === 'library-light-projection');
+    assert.ok(manageItem.businessFlowDecision, 'manage projection keeps operation/task explanation fields');
+    assert.ok(calls.optimization > 0);
+    assert.ok(calls.failures > 0);
+  } finally {
+    taskStore.queryOptimizationTaskIndexRows = originalOptimizationRows;
+    taskStore.queryLatestFailureEventsByItemIds = originalFailureRows;
+    await app.close();
+  }
+});
+
 test('GET /v1/library list endpoints omit heavy adult face payloads', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
@@ -4769,6 +5047,51 @@ test('GET /v1/library/queries/manage supports page and pageSize pagination', asy
   assert.strictEqual(body.limit, 2);
   assert.strictEqual(body.offset, 2);
   assert.deepStrictEqual(body.items.map((item) => item.name), ['Paged Movie 3', 'Paged Movie 4']);
+  await app.close();
+});
+
+test('GET /v1/library metadata filter accepts new metadata and legacy scrape query names', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/mediaLibraryService').saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [
+      metadataReadyMovie({
+        itemId: 'metadata-filter-complete',
+        subLibraryId: 'metadata-filter',
+        name: 'Metadata Complete',
+        metadataComplete: true,
+        metadataStatus: 'complete',
+      }),
+      metadataReadyMovie({
+        itemId: 'metadata-filter-missing',
+        subLibraryId: 'metadata-filter',
+        name: 'Metadata Missing',
+        metadataComplete: false,
+        metadataStatus: 'missing',
+      }),
+      metadataReadyMovie({
+        itemId: 'metadata-filter-failed',
+        subLibraryId: 'metadata-filter',
+        name: 'Metadata Failed',
+        metadataComplete: false,
+        metadataStatus: 'failed',
+      }),
+    ],
+  });
+
+  const next = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=metadata-filter&metadata=pending' });
+  assert.strictEqual(next.statusCode, 200);
+  assert.deepStrictEqual(next.json().items.map((item) => item.itemId).sort(), ['metadata-filter-failed', 'metadata-filter-missing']);
+
+  const legacy = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=metadata-filter&scrape=done' });
+  assert.strictEqual(legacy.statusCode, 200);
+  assert.deepStrictEqual(legacy.json().items.map((item) => item.itemId), ['metadata-filter-complete']);
+
+  const failed = await app.inject({ method: 'GET', url: '/v1/library?subLibraryId=metadata-filter&metadata=failed' });
+  assert.strictEqual(failed.statusCode, 200);
+  assert.deepStrictEqual(failed.json().items.map((item) => item.itemId), ['metadata-filter-failed']);
+
   await app.close();
 });
 

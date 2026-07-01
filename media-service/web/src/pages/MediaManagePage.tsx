@@ -11,7 +11,7 @@ const ACTION_LABELS: Record<string, string> = {
   delete: '删除',
   transcode: '转码压缩',
   upgrade: '洗版',
-  scrape: '刮削',
+  scrape: '补元数据',
   ingest: '入库',
 };
 const ACTIVE_ROW_TASK_STATUSES = new Set(['created', 'pending_manual', 'queued', 'executing', 'pausing', 'awaiting_user_confirm', 'paused', 'interrupted', 'waiting_media_source']);
@@ -28,6 +28,7 @@ export default function MediaManagePage() {
   const [page, setPage] = useState(0);
   const [tasks, setTasks] = useState<MediaTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingTarget, setLoadingTarget] = useState('/v1/library?projection=manage');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -41,7 +42,7 @@ export default function MediaManagePage() {
   const [doubanFilter, setDoubanFilter] = useState<string>('all');
   const [localRatingFilter, setLocalRatingFilter] = useState<string>('all');
   const [taskFilter, setTaskFilter] = useState<string>('all');
-  const [scrapeFilter, setScrapeFilter] = useState<string>('all');
+  const [metadataFilter, setMetadataFilter] = useState<string>('all');
   const [lifecycleFilter, setLifecycleFilter] = useState<string>('all');
   const [pageSize, setPageSize] = useState<number>(() => {
     const saved = Number(localStorage.getItem(MEDIA_MANAGE_PAGE_SIZE_KEY));
@@ -73,6 +74,10 @@ export default function MediaManagePage() {
     () => subLibraries.find((sl) => sl.uuid === subLibraryId) || null,
     [subLibraries, subLibraryId],
   );
+  const subLibraryDisplayById = useMemo(
+    () => new Map(subLibraries.map((sl) => [sl.uuid, { name: sl.name, typeLabel: formatSubLibraryType(sl) }])),
+    [subLibraries],
+  );
   const showAdultFields = !subLibraryId || selectedSubLibrary?.mediaType === 'adult';
   const showStandardFields = !subLibraryId || selectedSubLibrary?.mediaType !== 'adult';
   const mediaGridClass = showAdultFields && showStandardFields
@@ -82,19 +87,18 @@ export default function MediaManagePage() {
       : 'mediaManageGridStandard';
 
   useEffect(() => {
-    if (!showAdultFields && scrapeFilter !== 'all') setScrapeFilter('all');
     if (!showStandardFields) {
       if (watchedFilter !== 'all') setWatchedFilter('all');
       if (bluRayFilter !== 'all') setBluRayFilter('all');
       if (doubanFilter !== 'all') setDoubanFilter('all');
       if (actionFilter === 'upgrade') setActionFilter('all');
     }
-  }, [showAdultFields, showStandardFields, scrapeFilter, watchedFilter, bluRayFilter, doubanFilter, actionFilter]);
+  }, [showStandardFields, watchedFilter, bluRayFilter, doubanFilter, actionFilter]);
 
   useEffect(() => {
     setPage(0);
     setSelectedIds(new Set());
-  }, [subLibraryId, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter, lifecycleFilter, pageSize]);
+  }, [subLibraryId, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, metadataFilter, lifecycleFilter, pageSize]);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -103,12 +107,16 @@ export default function MediaManagePage() {
   // Fetch library data when subLibraryId changes
   useEffect(() => {
     let active = true;
+    const target = `/v1/library?projection=manage&pageSize=${pageSize}&page=${page + 1}`;
     setLoading(true);
+    setLoadingTarget(target);
+    setError(null);
     libraryApi
       .getCache({
         subLibraryId: subLibraryId || undefined,
         limit: pageSize,
         offset: page * pageSize,
+        projection: 'manage',
         search: searchQuery.trim() || undefined,
         action: actionFilter,
         resolution: resolutionFilter,
@@ -118,7 +126,7 @@ export default function MediaManagePage() {
         douban: showStandardFields ? doubanFilter : 'all',
         userRating: localRatingFilter,
         task: taskFilter,
-        scrape: showAdultFields ? scrapeFilter : 'all',
+        metadata: metadataFilter,
         lifecycle: lifecycleFilter,
       })
       .then((data) => {
@@ -136,7 +144,7 @@ export default function MediaManagePage() {
         setLoading(false);
       });
     return () => { active = false; };
-  }, [subLibraryId, page, pageSize, refreshKey, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter, lifecycleFilter, showAdultFields]);
+  }, [subLibraryId, page, pageSize, refreshKey, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, metadataFilter, lifecycleFilter, showStandardFields]);
 
   // Poll tasks
   useEffect(() => {
@@ -292,7 +300,14 @@ export default function MediaManagePage() {
     );
   }, []);
 
-  if (loading) return <div className="page"><p>加载媒体库数据...</p></div>;
+  if (loading) {
+    return (
+      <div className="page">
+        <p>加载媒体库数据...</p>
+        <p className="muted">正在请求 {loadingTarget}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
@@ -335,7 +350,7 @@ export default function MediaManagePage() {
           )}
         </div>
         <div className="filterRow">
-          <span className="filterLabel">下一步</span>
+          <span className="filterLabel">操作</span>
           <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
             <option value="all">全部</option>
             <option value="transcode">转码压缩</option>
@@ -345,7 +360,16 @@ export default function MediaManagePage() {
           </select>
         </div>
         <div className="filterRow">
-          <span className="filterLabel">闭环</span>
+          <span className="filterLabel">元数据</span>
+          <select value={metadataFilter} onChange={(e) => setMetadataFilter(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="done">完整</option>
+            <option value="pending">待补齐</option>
+            <option value="failed">失败</option>
+          </select>
+        </div>
+        <div className="filterRow">
+          <span className="filterLabel">生命周期</span>
           <select value={lifecycleFilter} onChange={(e) => setLifecycleFilter(e.target.value)}>
             <option value="all">全部</option>
             <option value="open">未收口</option>
@@ -425,18 +449,6 @@ export default function MediaManagePage() {
             <option value="none">无任务</option>
           </select>
         </div>
-        {showAdultFields && (
-          <div className="filterRow">
-            <span className="filterLabel">刮削</span>
-            <select value={scrapeFilter} onChange={(e) => setScrapeFilter(e.target.value)}>
-              <option value="all">全部</option>
-              <option value="done">已刮削</option>
-              <option value="pending">待刮削</option>
-              <option value="failed">刮削失败</option>
-            </select>
-          </div>
-        )}
-
         <button
           className="sidebarFilterReset"
           type="button"
@@ -452,7 +464,7 @@ export default function MediaManagePage() {
             }
             setLocalRatingFilter('all');
             setTaskFilter('all');
-            if (showAdultFields) setScrapeFilter('all');
+            setMetadataFilter('all');
             setLifecycleFilter('all');
           }}
         >
@@ -535,28 +547,16 @@ export default function MediaManagePage() {
             <div>
               <div className={`mediaManageGrid ${mediaGridClass} mediaManageHead`}>
                 <div className="mediaManageTitleCell">名称</div>
-                <div>生命周期</div>
+                <div>生命周期状态</div>
                 <div>元数据</div>
-                {showAdultFields && <div>刮削</div>}
-                {showStandardFields && <div>剧名</div>}
-                {showStandardFields && <div>季</div>}
-                <div>体积</div>
-                <div>分辨率</div>
-                <div>编码</div>
-                <div>当前码率</div>
-                <div>目标码率</div>
-                <div>预测体积</div>
-                <div>优化</div>
-                <div>归档</div>
-                {showStandardFields && <div>原盘</div>}
-                {showStandardFields && <div>豆瓣评分</div>}
-                <div>本地评分</div>
-                {showStandardFields && <div>标记已看</div>}
-                <div>下一步</div>
+                <div>媒体事实</div>
+                <div>用户信号</div>
+                <div>操作</div>
                 <div>任务</div>
               </div>
               {items.map((item) => {
                 const rowTask = activeTaskByItemId.get(item.id);
+                const subLibraryDisplay = subLibraryDisplayById.get(item.sectionId);
                 return (
                   <MediaLibraryManageRow
                     key={item.id}
@@ -570,6 +570,8 @@ export default function MediaManagePage() {
                     showAdultFields={showAdultFields}
                     showStandardFields={showStandardFields}
                     gridClassName={mediaGridClass}
+                    subLibraryName={subLibraryDisplay?.name || ''}
+                    subLibraryTypeLabel={subLibraryDisplay?.typeLabel || '子库未知'}
                     onToggleSelect={toggleSelectedItem}
                     onWatchChange={handleWatchChange}
                     onRatingChange={handleRatingChange}
@@ -655,6 +657,18 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
     adultMetadata: o.adultMetadata && typeof o.adultMetadata === 'object' ? (o.adultMetadata as Record<string, unknown>) : undefined,
     businessFlowDecision: coerceBusinessFlowDecision(o.businessFlowDecision),
   };
+}
+
+function formatSubLibraryType(subLibrary: SubLibraryInfo | null): string {
+  if (!subLibrary) return '子库未知';
+  if (subLibrary.mediaType === 'adult') {
+    if (subLibrary.adultRegion === 'western_adult') return '成人/欧美';
+    if (subLibrary.adultRegion === 'japanese_jav' || subLibrary.scraperType === 'shelfdeck_japanese_jav') return '成人/JAV';
+    return '成人';
+  }
+  if (subLibrary.mediaType === 'tv') return '剧集';
+  if (subLibrary.mediaType === 'movie' || subLibrary.source === 'emby') return '电影';
+  return subLibrary.mediaType || subLibrary.source || '媒体';
 }
 
 function coerceBusinessFlowDecision(value: unknown): BusinessFlowDecision | undefined {

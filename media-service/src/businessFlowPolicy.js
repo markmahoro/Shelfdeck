@@ -7,6 +7,35 @@ const lifecycleProjection = require('./lifecycleProjection');
 
 const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 const USER_OPERATIONS = ['scrape', 'transcode', 'upgrade', 'delete', 'archive'];
+const AUTO_ACTION_ALIASES = {
+  optimize: ['transcode', 'upgrade', 'delete'],
+};
+
+function normalizeAutoAction(value) {
+  const action = String(value || '').trim().toLowerCase();
+  return action || null;
+}
+
+function resolveAutoEnabledActions(config) {
+  const actions = Array.isArray(config && config.smartTaskEnabledActions)
+    ? config.smartTaskEnabledActions
+    : [];
+  const expanded = new Set();
+
+  for (const action of actions) {
+    const normalized = normalizeAutoAction(action);
+    if (!normalized) continue;
+    if (Array.isArray(AUTO_ACTION_ALIASES[normalized])) {
+      for (const expandedAction of AUTO_ACTION_ALIASES[normalized]) {
+        expanded.add(expandedAction);
+      }
+      continue;
+    }
+    expanded.add(normalized);
+  }
+
+  return Array.from(expanded);
+}
 
 function actionCooldownMs(config, actionType) {
   const cfg = config && config.taskAdmission || {};
@@ -55,9 +84,7 @@ function queueLimit(config, actionType) {
 }
 
 function enabledAutoActions(config) {
-  return Array.isArray(config && config.smartTaskEnabledActions)
-    ? config.smartTaskEnabledActions
-    : [];
+  return resolveAutoEnabledActions(config);
 }
 
 function subLibraryFor(info, config) {
@@ -530,6 +557,7 @@ function decorateItems(items, input = {}) {
 
 module.exports = {
   USER_OPERATIONS,
+  resolveAutoEnabledActions,
   evaluateOperation,
   resolveAutomaticTrigger,
   resolveManualOperationIntent,

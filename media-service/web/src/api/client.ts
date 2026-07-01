@@ -274,7 +274,7 @@ export const upgrade = {
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
 export const tasks = {
-  list: (params?: { status?: string; statuses?: string[]; attention?: string; actionType?: string; bridgeKind?: string; operationKind?: string; q?: string; page?: number; pageSize?: number }) => {
+  list: (params?: { status?: string; statuses?: string[]; attention?: string; actionType?: string; bridgeKind?: string; operationKind?: string; q?: string; page?: number; pageSize?: number; includeAttentionSummary?: boolean }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.statuses?.length) qs.set('statuses', params.statuses.join(','));
@@ -285,6 +285,7 @@ export const tasks = {
     if (params?.q) qs.set('q', params.q);
     if (params?.page) qs.set('page', String(params.page));
     if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
+    if (params?.includeAttentionSummary === false) qs.set('includeAttentionSummary', '0');
     const q = qs.toString();
     return get<TaskListResponse>(`/v1/admin/tasks${q ? `?${q}` : ''}`);
   },
@@ -314,7 +315,12 @@ export const tasks = {
 // ── Resources ────────────────────────────────────────────────────────────────
 
 export const resources = {
-  get: () => get<ResourceView>('/v1/admin/resources'),
+  get: (params?: { detail?: 'summary' | 'full' }) => {
+    const qs = new URLSearchParams();
+    if (params?.detail) qs.set('detail', params.detail);
+    const q = qs.toString();
+    return get<ResourceView>(`/v1/admin/resources${q ? `?${q}` : ''}`);
+  },
 };
 
 export interface TaskReport {
@@ -595,14 +601,17 @@ export const libraryApi = {
     douban?: string;
     userRating?: string;
     task?: string;
+    metadata?: string;
     scrape?: string;
     lifecycle?: string;
+    projection?: 'summary' | 'manage' | 'full' | 'compat';
   }) => {
     const q = new URLSearchParams();
     if (options?.subLibraryId) q.set('subLibraryId', options.subLibraryId);
     if (options?.limit) q.set('limit', String(options.limit));
     if (options?.offset) q.set('offset', String(options.offset));
-    for (const key of ['search', 'action', 'resolution', 'codec', 'watched', 'bluRay', 'douban', 'userRating', 'task', 'scrape', 'lifecycle'] as const) {
+    if (options?.projection) q.set('projection', options.projection);
+    for (const key of ['search', 'action', 'resolution', 'codec', 'watched', 'bluRay', 'douban', 'userRating', 'task', 'metadata', 'scrape', 'lifecycle'] as const) {
       const value = options?.[key];
       if (value && value !== 'all') q.set(key, value);
     }

@@ -47,6 +47,8 @@ export type MediaLibraryManageRowProps = {
   showAdultFields: boolean;
   showStandardFields: boolean;
   gridClassName: string;
+  subLibraryName?: string;
+  subLibraryTypeLabel?: string;
   onToggleSelect: (id: string) => void;
   onWatchChange: (item: ManagedMediaItem, watched: boolean) => void;
   onRatingChange: (item: ManagedMediaItem, rating: MediaRating | null) => void;
@@ -55,7 +57,7 @@ export type MediaLibraryManageRowProps = {
 };
 
 const MAX_STARS = 5;
-const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '转码压缩', upgrade: '洗版', scrape: '刮削', ingest: '入库' };
+const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '转码压缩', upgrade: '洗版', scrape: '补元数据', ingest: '入库' };
 const OPTIMIZATION_LABEL: Record<string, string> = { transcoded: '已转码', upgraded: '已洗版', none: '未优化' };
 const LIFECYCLE_LABEL: Record<string, string> = { discovered: '已发现', ingested: '已入库', metadata_ready: '元数据就绪', optimized: '已优化', archived: '已归档' };
 const METADATA_LABEL: Record<string, string> = { complete: '完整', done: '完整', missing: '缺失', pending: '待补齐', failed: '失败', ambiguous: '待确认' };
@@ -68,7 +70,7 @@ function adultMetaString(item: ManagedMediaItem, key: string): string {
   return typeof value === 'string' ? value : '';
 }
 
-function adultScrapeStatus(item: ManagedMediaItem): { label: string; tone: 'done' | 'pending' | 'failed' | 'ambiguous'; title: string } | null {
+function adultMetadataFlowStatus(item: ManagedMediaItem): { label: string; tone: 'done' | 'pending' | 'failed' | 'ambiguous'; title: string } | null {
   if (item.source !== 'adult_folder') return null;
   const status = adultMetaString(item, 'scrapeStatus');
   const adultId = adultMetaString(item, 'adultId');
@@ -76,16 +78,16 @@ function adultScrapeStatus(item: ManagedMediaItem): { label: string; tone: 'done
   const nfoPath = adultMetaString(item, 'nfoPath');
   if (item.scraped || status === 'done') {
     return {
-      label: '已刮削',
+      label: '元数据完整',
       tone: 'done',
-      title: nfoPath ? `已读取 NFO：${nfoPath}` : '已刮削',
+      title: nfoPath ? `已读取 NFO：${nfoPath}` : '元数据完整',
     };
   }
   if (status === 'failed') {
     return {
-      label: '刮削失败',
+      label: '元数据失败',
       tone: 'failed',
-      title: adultId ? `番号：${adultId}` : '刮削失败',
+      title: adultId ? `番号：${adultId}` : '元数据补齐失败',
     };
   }
   if (status === 'ambiguous' || idConfidence === 'low') {
@@ -96,9 +98,9 @@ function adultScrapeStatus(item: ManagedMediaItem): { label: string; tone: 'done
     };
   }
   return {
-    label: '待刮削',
+    label: '待补齐',
     tone: 'pending',
-    title: adultId ? `番号：${adultId}` : '等待识别番号并刮削',
+    title: adultId ? `番号：${adultId}` : '等待补齐元数据',
   };
 }
 
@@ -113,6 +115,8 @@ function MediaLibraryManageRowInner({
   showAdultFields,
   showStandardFields,
   gridClassName,
+  subLibraryName,
+  subLibraryTypeLabel,
   onToggleSelect,
   onWatchChange,
   onRatingChange,
@@ -145,18 +149,64 @@ function MediaLibraryManageRowInner({
     item.metadataKind ? `类型：${item.metadataKind}` : '',
     item.metadataMissingReasons?.length ? `缺失：${item.metadataMissingReasons.join('、')}` : '',
   ].filter(Boolean).join('\n');
-  const scrapeStatus = adultScrapeStatus(item);
+  const adultMetadataStatus = adultMetadataFlowStatus(item);
   const adultId = adultMetaString(item, 'adultId');
   const studio = adultMetaString(item, 'studio');
   const director = adultMetaString(item, 'director');
   const premiered = adultMetaString(item, 'premiered');
-  const adultSummary = [adultId, studio].filter(Boolean).join(' · ');
+  const protagonist = (() => {
+    const value = item.adultMetadata?.protagonist;
+    if (!value || typeof value !== 'object') return '';
+    const name = (value as Record<string, unknown>).name;
+    return typeof name === 'string' ? name : '';
+  })();
+  const adultSummary = [adultId, studio || protagonist].filter(Boolean).join(' · ');
   const adultTitle = [
     adultId ? `番号：${adultId}` : '',
     studio ? `制作商：${studio}` : '',
     director ? `导演：${director}` : '',
     premiered ? `发行：${premiered}` : '',
+    protagonist ? `主角：${protagonist}` : '',
   ].filter(Boolean).join('\n');
+  const typeLabel = subLibraryTypeLabel || (item.source === 'adult_folder' ? '成人' : item.itemType === 'Season' ? '剧集' : '电影');
+  const libraryTitle = [subLibraryName ? `子库：${subLibraryName}` : '', `类型：${typeLabel}`].filter(Boolean).join('\n');
+  const mediaFactTitle = [
+    libraryTitle,
+    item.seriesName ? `剧名：${item.seriesName}` : '',
+    item.seasonNumber != null ? `季：S${String(item.seasonNumber).padStart(2, '0')}` : '',
+    item.isBluRayDisc ? '原盘：是' : '',
+    eq != null ? `当前码率：${eq.toFixed(1)} Mbps` : '',
+    target != null ? `目标码率：${target.toFixed(1)} Mbps` : '',
+    predictGb != null ? `预测体积：${predictGb.toFixed(1)} GB` : '',
+    adultTitle,
+  ].filter(Boolean).join('\n');
+  const mediaFactLines = [
+    `${item.sizeGb.toFixed(1)} GB · ${item.resolution} · ${item.codec.toUpperCase()}`,
+    eq != null || target != null
+      ? `码率 ${eq != null ? `${eq.toFixed(1)} Mbps` : '—'} → ${target != null ? `${target.toFixed(1)} Mbps` : '—'}`
+      : '',
+    predictGb != null ? `预测 ${predictGb.toFixed(1)} GB` : '',
+    showStandardFields && item.seriesName
+      ? `${item.seriesName}${item.seasonNumber != null ? ` S${String(item.seasonNumber).padStart(2, '0')}` : ''}`
+      : '',
+    showStandardFields && item.isBluRayDisc ? '原盘' : '',
+    showAdultFields && adultSummary ? adultSummary : '',
+  ].filter(Boolean);
+  const nextBridgeLabel = item.businessFlowDecision?.nextBridge
+    ? (GATE_LABEL[item.businessFlowDecision.nextBridge] || item.businessFlowDecision.nextBridge)
+    : (NEXT_TASK_LABEL[item.lifecycleNextTask || ''] || '');
+  const recommendedBlockedReason = typeof recommendedOperation === 'string'
+    ? blockedReasonText(item, recommendedOperation)
+    : '';
+  const lifecycleDetails = [
+    item.lifecycleDone ? '闭环：已归档' : (archiveLabel ? `闭环：${archiveLabel}` : ''),
+    nextBridgeLabel ? `下一目标：${nextBridgeLabel}` : '',
+  ].filter(Boolean);
+  const operationDetails = [
+    `优化：${OPTIMIZATION_LABEL[item.optimizationStatus]}`,
+    recommendedOperation && recommendedOperation !== 'keep' ? `建议：${ACTION_LABEL[recommendedOperation] || recommendedOperation}` : '',
+    recommendedBlockedReason ? `阻止：${recommendedBlockedReason}` : '',
+  ].filter(Boolean);
 
   const taskBridge = rowTask?.taskBridge?.kind || item.businessFlowDecision?.activeTaskBridge || '';
   const taskOperation = rowTask?.flowPlan?.operationKind || item.businessFlowDecision?.activeFlowOperation || rowTask?.actionType || '';
@@ -173,12 +223,6 @@ function MediaLibraryManageRowInner({
   );
 
   const actionDisabled = !!rowTask || !!isCreatingTask;
-  const recommendedBlockedReason = typeof recommendedOperation === 'string'
-    ? blockedReasonText(item, recommendedOperation)
-    : '';
-  const nextBridgeLabel = item.businessFlowDecision?.nextBridge
-    ? (GATE_LABEL[item.businessFlowDecision.nextBridge] || item.businessFlowDecision.nextBridge)
-    : (NEXT_TASK_LABEL[item.lifecycleNextTask || ''] || '');
 
   return (
     <div
@@ -195,90 +239,81 @@ function MediaLibraryManageRowInner({
         />
         <span className="mediaManageTitleWrap">
           <span className="mediaManageTitle">{item.name}</span>
+          <span className="mediaManageSubline" title={libraryTitle}>
+            {typeLabel}{subLibraryName ? ` · ${subLibraryName}` : ''}
+          </span>
         </span>
       </div>
-      <div>
+      <div className="mediaManageStackCell">
         <span className={`lifecycleBadge lifecycleBadge-${item.lifecycleDone ? 'done' : 'open'}`} title={lifecycleTitle || lifecycleLabel}>
           {lifecycleLabel}
         </span>
+        {lifecycleDetails.map((line) => (
+          <span key={line} className="mediaManageSubline">{line}</span>
+        ))}
       </div>
-      <div>
+      <div className="mediaManageStackCell">
         <span className={`metadataBadge metadataBadge-${item.metadataComplete ? 'done' : 'open'}`} title={metadataTitle || metadataLabel}>
           {metadataLabel}
         </span>
+        {adultMetadataStatus && (
+          <span className={`adultScrapeBadge adultScrapeBadge-${adultMetadataStatus.tone}`} title={adultMetadataStatus.title}>
+            {adultMetadataStatus.label}
+          </span>
+        )}
+        {item.metadataMissingReasons?.length ? (
+          <span className="mediaManageSubline" title={item.metadataMissingReasons.join('、')}>
+            缺失 {item.metadataMissingReasons.length} 项
+          </span>
+        ) : null}
       </div>
-      {showAdultFields && (
-        <div className="adultScrapeCell">
-          {scrapeStatus ? (
-            <>
-              <span className={`adultScrapeBadge adultScrapeBadge-${scrapeStatus.tone}`} title={scrapeStatus.title}>
-                {scrapeStatus.label}
-              </span>
-              {adultSummary ? (
-                <span className="adultScrapeSummary" title={adultTitle || scrapeStatus.title}>
-                  {adultSummary}
-                </span>
-              ) : (
-                <span className="adultScrapeSummary">—</span>
-              )}
-              {onRescrape && !rowTask && (
-                <button
-                  type="button"
-                  className="adultRescrapeBtn"
-                  title="重新刮削该条目"
-                  onClick={() => onRescrape(item)}
-                >
-                  重刮
-                </button>
-              )}
-            </>
-          ) : (
-            <span className="hint">—</span>
-          )}
-        </div>
-      )}
-      {showStandardFields && <div>{item.seriesName || '—'}</div>}
-      {showStandardFields && <div className="tabular-nums">{item.seasonNumber != null ? `S${String(item.seasonNumber).padStart(2, '0')}` : '—'}</div>}
-      <div className="tabular-nums">{item.sizeGb.toFixed(1)} GB</div>
-      <div>{item.resolution}</div>
-      <div>{item.codec.toUpperCase()}</div>
-      <div className="tabular-nums">{eq != null ? `${eq.toFixed(1)} Mbps` : '—'}</div>
-      <div className="tabular-nums">{target != null ? `${target.toFixed(1)} Mbps` : '—'}</div>
-      <div className="tabular-nums">{predictGb != null ? `${predictGb.toFixed(1)} GB` : '—'}</div>
-      <div>
+      <div className="mediaManageStackCell tabular-nums" title={mediaFactTitle}>
+        {mediaFactLines.map((line) => (
+          <span key={line}>{line}</span>
+        ))}
+      </div>
+      <div className="mediaManageStackCell">
+        {showStandardFields && (
+          <span title={item.doubanStars != null ? `豆瓣 ${item.doubanStars} 星` : '未抓取到'}>
+            豆瓣 <Stars count={item.doubanStars} max={MAX_STARS} />
+          </span>
+        )}
+        <span>
+          本地 <StarInput value={item.rating} onChange={(r) => onRatingChange(item, r)} />
+        </span>
+        {showStandardFields && (
+          <span className="mediaManageWatchedCell">
+            <button type="button" disabled={item.watched} onClick={() => onWatchChange(item, true)}>
+              已看
+            </button>
+            <button type="button" disabled={!item.watched} onClick={() => onWatchChange(item, false)}>
+              未看
+            </button>
+          </span>
+        )}
+        {showAdultFields && item.source === 'adult_folder' && adultSummary && (
+          <span className="mediaManageSubline" title={adultTitle}>
+            {adultSummary}
+          </span>
+        )}
+      </div>
+      <div className="mediaManageStackCell">
         <span className={`optimizationBadge optimizationBadge-${item.optimizationStatus}`} title={optimizationTitle}>
           {OPTIMIZATION_LABEL[item.optimizationStatus]}
         </span>
-      </div>
-      <div>
-        <span className={`archiveBadge archiveBadge-${item.lifecycleDone ? 'done' : 'open'}`} title={item.archiveReason || lifecycleTitle || archiveLabel}>
-          {archiveLabel}
-        </span>
-      </div>
-      {showStandardFields && (
-        <div title={item.isBluRayDisc ? '原盘（ISO/BDMV）' : undefined}>
-          {item.isBluRayDisc ? '是' : '否'}
-        </div>
-      )}
-      {showStandardFields && (
-        <div title={item.doubanStars != null ? `豆瓣 ${item.doubanStars} 星` : '未抓取到'}>
-          <Stars count={item.doubanStars} max={MAX_STARS} />
-        </div>
-      )}
-      <div>
-        <StarInput value={item.rating} onChange={(r) => onRatingChange(item, r)} />
-      </div>
-      {showStandardFields && (
-        <div className="mediaManageWatchedCell">
-          <button type="button" disabled={item.watched} onClick={() => onWatchChange(item, true)}>
-            已看
+        {operationDetails.slice(1).map((line) => (
+          <span key={line} className="mediaManageSubline">{line}</span>
+        ))}
+        {onRescrape && showAdultFields && item.source === 'adult_folder' && !rowTask && (
+          <button
+            type="button"
+            className="adultRescrapeBtn"
+            title="重新创建 metadata gate 的补元数据 flow"
+            onClick={() => onRescrape(item)}
+          >
+            重补元数据
           </button>
-          <button type="button" disabled={!item.watched} onClick={() => onWatchChange(item, false)}>
-            未看
-          </button>
-        </div>
-      )}
-      <div>
+        )}
         {action === 'keep' ? (
           <span className="hint" title={recommendedBlockedReason || item.archiveReason || item.reason}>
             {item.lifecycleDone
@@ -315,6 +350,8 @@ function rowPropsEqual(a: MediaLibraryManageRowProps, b: MediaLibraryManageRowPr
     a.showAdultFields === b.showAdultFields &&
     a.showStandardFields === b.showStandardFields &&
     a.gridClassName === b.gridClassName &&
+    a.subLibraryName === b.subLibraryName &&
+    a.subLibraryTypeLabel === b.subLibraryTypeLabel &&
     a.onToggleSelect === b.onToggleSelect &&
     a.onWatchChange === b.onWatchChange &&
     a.onRatingChange === b.onRatingChange &&

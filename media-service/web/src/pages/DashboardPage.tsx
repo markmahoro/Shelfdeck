@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { health, subLibraries, emby, spaceStats, ruleTemplates, systemConfig, dashboardHealth } from '../api/client';
+import { subLibraries, emby, spaceStats, ruleTemplates, systemConfig, dashboardHealth } from '../api/client';
 import type { DashboardEventEntry, DashboardHealthSummary, SubLibrary, MediaFolder, RuleTemplate } from '../types';
-import HealthCard from '../components/HealthCard';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -170,12 +169,6 @@ export default function DashboardPage() {
   // Edit state
   const [editOpen, setEditOpen] = useState(false);
   const [editingUuid, setEditingUuid] = useState('');
-
-  const { data: h, isLoading: hLoading, isError: hError } = useQuery({
-    queryKey: ['admin-health'],
-    queryFn: health.check,
-    refetchInterval: 30000,
-  });
 
   const { data: businessHealth, isLoading: businessHealthLoading } = useQuery({
     queryKey: ['dashboard-health'],
@@ -375,16 +368,6 @@ export default function DashboardPage() {
 
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
 
-      <div style={{ marginBottom: 24 }}>
-        {hLoading ? (
-          <HealthPendingCard title="服务状态：检测中" message="健康检查正在返回，其他数据已先加载。" />
-        ) : hError || !h ? (
-          <HealthPendingCard title="服务状态：暂不可用" message="健康检查暂时没有返回，稍后会自动重试。" tone="red" />
-        ) : (
-          <HealthCard status={h.status} checks={h.checks as Record<string, { status: string; message?: string }> | undefined} />
-        )}
-      </div>
-
       <DashboardHealthPanel
         data={businessHealth}
         loading={businessHealthLoading}
@@ -416,6 +399,7 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {subLibs.map((sl) => {
               const slSpace = (spaceData?.subLibraries || []).find((s) => s.uuid === sl.uuid);
+              const slMedia = (businessHealth?.media?.bySubLibrary || []).find((s) => s.subLibraryId === sl.uuid);
               const tpl = templates.find((t) => t.id === (sl.ruleTemplateId || 'default'));
               const typeLabel = sl.mediaType === 'adult'
                 ? (sl.adultRegion === 'western_adult' ? '欧美成人' : 'JAV')
@@ -432,7 +416,7 @@ export default function DashboardPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 17, fontWeight: 700, color: '#1a1a2e' }}>{sl.name}</span>
                       <span style={{ fontSize: 11, padding: '1px 8px', borderRadius: 10, background: typeColor.bg, color: typeColor.fg, fontWeight: 600 }}>{typeLabel}</span>
-                      <span style={{ fontSize: 12, color: '#999' }}>{slSpace ? `${slSpace.itemCount} 条目` : ''}</span>
+                      <span style={{ fontSize: 12, color: '#999' }}>{slMedia ? `${slMedia.totalItems} 条目` : (slSpace ? `${slSpace.itemCount} 条目` : '')}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => openEdit(sl)} style={cardBtn}>编辑</button>
@@ -440,14 +424,17 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* 2x2 sub-card grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
                     {/* Sub-card 1: Sync Status */}
                     <SubCard title="同步状态">
                       <div style={{ fontSize: 13, lineHeight: 1.8 }}>
                         <div>最后刷新: {sl.lastRefreshedAt ? new Date(sl.lastRefreshedAt).toLocaleString() : '—'}</div>
                         <div>豆瓣同步: {sl.doubanEnabled ? (sl.doubanSyncedAt ? new Date(sl.doubanSyncedAt).toLocaleString() : '等待中') : '未启用'}</div>
                       </div>
+                    </SubCard>
+
+                    <SubCard title="生命周期阶段">
+                      <StageCounts counts={slMedia?.byLifecycleStage || {}} total={slMedia?.totalItems || 0} />
                     </SubCard>
 
                     {/* Sub-card 2: Strategy Template */}
@@ -808,9 +795,103 @@ function pct(part: number, total: number): string {
 }
 
 function healthTone(status?: DashboardHealthSummary['status']) {
-  if (status === 'red') return { label: '需要处理', color: '#c62828', bg: '#ffebee' };
-  if (status === 'green') return { label: '稳定', color: '#2e7d32', bg: '#e8f5e9' };
-  return { label: '有待推进', color: '#b45309', bg: '#fff7ed' };
+  if (status === 'red') return { label: '异常', color: '#c62828', bg: '#ffebee' };
+  if (status === 'green') return { label: '正常', color: '#2e7d32', bg: '#e8f5e9' };
+  return { label: '降级', color: '#b45309', bg: '#fff7ed' };
+}
+
+const LIFECYCLE_STAGE_LABELS: Record<string, string> = {
+  source_discovered: 'source/discovered',
+  ingested: 'ingested',
+  metadata_ready: 'metadata-ready',
+  optimized: 'optimized',
+  archived: 'archived',
+  unknown: 'unknown',
+};
+
+const LIFECYCLE_STAGE_ORDER = ['source_discovered', 'ingested', 'metadata_ready', 'optimized', 'archived', 'unknown'];
+
+function lifecycleStageEntries(counts: Record<string, number>) {
+  const seen = new Set<string>();
+  const ordered = LIFECYCLE_STAGE_ORDER
+    .filter((key) => {
+      seen.add(key);
+      return Number(counts[key] || 0) > 0;
+    })
+    .map((key) => [key, Number(counts[key] || 0)] as const);
+  const extra = Object.entries(counts || {})
+    .filter(([key, count]) => !seen.has(key) && Number(count || 0) > 0)
+    .map(([key, count]) => [key, Number(count || 0)] as const);
+  return [...ordered, ...extra];
+}
+
+function StatusGroupCard({
+  title,
+  group,
+  emptyText = '等待健康检查',
+}: {
+  title: string;
+  group?: DashboardHealthSummary['serviceAvailability'];
+  emptyText?: string;
+}) {
+  const tone = healthTone(group?.status);
+  const checks = group?.checks || [];
+  return (
+    <SubCard title={title}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontSize: 18, fontWeight: 800, color: tone.color }}>{tone.label}</span>
+        <span style={{ width: 10, height: 10, borderRadius: 999, background: tone.color }} />
+      </div>
+      {checks.length === 0 ? (
+        <div style={{ fontSize: 12, color: '#888' }}>{emptyText}</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {checks.map((check) => {
+            const checkTone = healthTone(check.status);
+            return (
+              <div key={check.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', fontSize: 12 }}>
+                <span style={{ color: '#333', fontWeight: 700 }}>{check.label}</span>
+                <span title={check.message || check.label} style={{ color: checkTone.color, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {check.message || checkTone.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </SubCard>
+  );
+}
+
+function StageCounts({ counts, total }: { counts: Record<string, number>; total: number }) {
+  const entries = lifecycleStageEntries(counts);
+  if (!total || entries.length === 0) {
+    return <div style={{ fontSize: 12, color: '#999' }}>暂无条目</div>;
+  }
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {entries.map(([key, count]) => (
+        <span
+          key={key}
+          title={`${LIFECYCLE_STAGE_LABELS[key] || key}: ${count}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '4px 7px',
+            borderRadius: 6,
+            background: key === 'archived' ? '#e8f5e9' : '#eef2ff',
+            color: key === 'archived' ? '#2e7d32' : '#1f3a8a',
+            fontSize: 11,
+            fontWeight: 700,
+          }}
+        >
+          <span>{LIFECYCLE_STAGE_LABELS[key] || key}</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{count}</span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function DashboardActionStrip({ libraryCount, onAddLibrary }: { libraryCount: number; onAddLibrary: () => void }) {
@@ -841,7 +922,6 @@ function DashboardLinkButton({ to, children }: { to: string; children: React.Rea
 }
 
 function DashboardHealthPanel({ data, loading, reclaimableBytes }: { data?: DashboardHealthSummary; loading: boolean; reclaimableBytes: number }) {
-  const tone = healthTone(data?.status);
   const media = data?.media;
   const taskStats = data?.tasks;
   const signals = data?.diagnostics?.signals || [];
@@ -856,34 +936,33 @@ function DashboardHealthPanel({ data, loading, reclaimableBytes }: { data?: Dash
     <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 16 }}>
         <div>
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>媒体库健康</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>服务状态</h3>
           <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-            后端聚合 lifecycle、metadata、任务目标和自动推进状态
+            可用性与外部集成
           </div>
         </div>
-        <span style={{ padding: '4px 10px', borderRadius: 6, background: tone.bg, color: tone.color, fontSize: 12, fontWeight: 700 }}>
-          {loading ? '读取中' : tone.label}
-        </span>
       </div>
 
       {loading || !data ? (
-        <LoadingSpinner text="加载业务健康指标中..." />
+        <LoadingSpinner text="加载服务状态中..." />
       ) : (
         <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 16 }}>
+            <StatusGroupCard title="服务可用性" group={data.serviceAvailability} />
+            <StatusGroupCard title="外部集成" group={data.externalIntegrations} emptyText="未配置外部集成" />
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 10, marginBottom: 16 }}>
-            <DashboardMetric label="总条目" value={media?.totalItems || 0} sub={`闭环 ${pct(media?.closedItems || 0, media?.totalItems || 0)}`} color="#1a1a2e" />
-            <DashboardMetric label="未闭环" value={media?.openItems || 0} sub={`${media?.closedItems || 0} 已闭环`} color={(media?.openItems || 0) > 0 ? '#b45309' : '#2e7d32'} />
-            <DashboardMetric label="元数据缺失" value={media?.metadataIncompleteItems || 0} sub="会阻断优化入口" color={(media?.metadataIncompleteItems || 0) > 0 ? '#c62828' : '#2e7d32'} />
-            <DashboardMetric label="等待优化" value={media?.pendingOptimizationItems || 0} sub="转码 / 洗版候选" color="#1565c0" />
             <DashboardMetric label="等待确认" value={taskStats?.awaitingConfirmationTasks || 0} sub="需要人工继续" color={(taskStats?.awaitingConfirmationTasks || 0) > 0 ? '#b45309' : '#2e7d32'} />
             <DashboardMetric label="失败任务" value={taskStats?.failedTasks || 0} sub="查看任务中心 event" color={(taskStats?.failedTasks || 0) > 0 ? '#c62828' : '#2e7d32'} />
             <DashboardMetric label="处理队列" value={attentionCount} sub={attentionCount > 0 ? (primaryAttention?.label || '需要处理') : '无需人工处理'} color={attentionCount > 0 ? '#b45309' : '#2e7d32'} />
             <DashboardMetric label="活动流程" value={taskStats?.activeTasks || 0} sub="非终态任务" color="#1a1a2e" />
+            <DashboardMetric label="媒体总数" value={media?.totalItems || 0} sub={`已闭环 ${pct(media?.closedItems || 0, media?.totalItems || 0)}`} color="#1a1a2e" />
             <DashboardMetric label="可回收" value={fmtSizeBytes(reclaimableBytes)} sub="来自空间统计" color="#2e7d32" />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
-            <SubCard title="主要信号">
+            <SubCard title="业务待处理">
               {signals.length === 0 ? (
                 <div style={{ fontSize: 13, color: '#2e7d32', fontWeight: 700 }}>暂无明显阻塞</div>
               ) : (
@@ -1003,35 +1082,6 @@ function DashboardMetric({ label, value, sub, color }: { label: string; value: n
       <div style={{ fontSize: 11, color: '#888', fontWeight: 700, marginBottom: 6 }}>{label}</div>
       <div style={{ fontSize: 22, lineHeight: 1.1, color, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       <div style={{ fontSize: 11, color: '#999', marginTop: 5 }}>{sub}</div>
-    </div>
-  );
-}
-
-function HealthPendingCard({ title, message, tone = 'yellow' }: { title: string; message: string; tone?: 'yellow' | 'red' }) {
-  const color = tone === 'red' ? '#e74c3c' : '#f39c12';
-  return (
-    <div
-      style={{
-        background: '#fff',
-        borderRadius: 10,
-        padding: 20,
-        boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-        borderLeft: `4px solid ${color}`,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-        <span
-          style={{
-            display: 'inline-block',
-            width: 12,
-            height: 12,
-            borderRadius: '50%',
-            background: color,
-          }}
-        />
-        <span style={{ fontSize: 16, fontWeight: 600 }}>{title}</span>
-      </div>
-      <div style={{ fontSize: 13, color: '#888' }}>{message}</div>
     </div>
   );
 }
