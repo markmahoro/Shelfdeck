@@ -371,7 +371,6 @@ export default function DashboardPage() {
       <DashboardHealthPanel
         data={businessHealth}
         loading={businessHealthLoading}
-        reclaimableBytes={spaceData?.reclaimableBytes || 0}
       />
 
       <DashboardActionStrip
@@ -789,11 +788,6 @@ function fmtSizeBytes(bytes: number): string {
   return sign + abs + ' B';
 }
 
-function pct(part: number, total: number): string {
-  if (!total) return '0%';
-  return `${Math.round((part / total) * 100)}%`;
-}
-
 function healthTone(status?: DashboardHealthSummary['status']) {
   if (status === 'red') return { label: '异常', color: '#c62828', bg: '#ffebee' };
   if (status === 'green') return { label: '正常', color: '#2e7d32', bg: '#e8f5e9' };
@@ -920,12 +914,7 @@ function DashboardLinkButton({ to, children }: { to: string; children: React.Rea
   );
 }
 
-function DashboardHealthPanel({ data, loading, reclaimableBytes }: { data?: DashboardHealthSummary; loading: boolean; reclaimableBytes: number }) {
-  const media = data?.media;
-  const taskStats = data?.tasks;
-  const signals = data?.diagnostics?.signals || [];
-  const primaryAttention = taskStats?.primaryAttention || taskStats?.attention?.needs_action || null;
-  const attentionCount = Number(primaryAttention?.count || 0);
+function DashboardHealthPanel({ data, loading }: { data?: DashboardHealthSummary; loading: boolean }) {
   const enabledOps = data?.automation?.enabledOperations || [];
   const enabledText = enabledOps.length > 0
     ? enabledOps.map((op) => FLOW_OPERATION_LABELS[op] || op).join('、')
@@ -951,59 +940,20 @@ function DashboardHealthPanel({ data, loading, reclaimableBytes }: { data?: Dash
             <StatusGroupCard title="外部集成" group={data.externalIntegrations} emptyText="未配置外部集成" />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 10, marginBottom: 16 }}>
-            <DashboardMetric label="等待确认" value={taskStats?.awaitingConfirmationTasks || 0} sub="需要人工继续" color={(taskStats?.awaitingConfirmationTasks || 0) > 0 ? '#b45309' : '#2e7d32'} />
-            <DashboardMetric label="失败任务" value={taskStats?.failedTasks || 0} sub="查看任务中心 event" color={(taskStats?.failedTasks || 0) > 0 ? '#c62828' : '#2e7d32'} />
-            <DashboardMetric label="处理队列" value={attentionCount} sub={attentionCount > 0 ? (primaryAttention?.label || '需要处理') : '无需人工处理'} color={attentionCount > 0 ? '#b45309' : '#2e7d32'} />
-            <DashboardMetric label="活动流程" value={taskStats?.activeTasks || 0} sub="非终态任务" color="#1a1a2e" />
-            <DashboardMetric label="媒体总数" value={media?.totalItems || 0} sub={`已闭环 ${pct(media?.closedItems || 0, media?.totalItems || 0)}`} color="#1a1a2e" />
-            <DashboardMetric label="可回收" value={fmtSizeBytes(reclaimableBytes)} sub="来自空间统计" color="#2e7d32" />
-          </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
-            <SubCard title="业务待处理">
-              {signals.length === 0 ? (
-                <div style={{ fontSize: 13, color: '#2e7d32', fontWeight: 700 }}>暂无明显阻塞</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {signals.map((signal) => {
-                    const signalTone = healthTone(signal.level);
-                    return (
-                      <div key={signal.code} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start', fontSize: 13 }}>
-                        <div>
-                          <span style={{ color: signalTone.color, fontWeight: 700 }}>{signal.label}</span>
-                          {signal.detail && <span style={{ color: '#888', marginLeft: 6 }}>{signal.detail}</span>}
-                        </div>
-                        <span style={{ color: signalTone.color, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{signal.count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </SubCard>
-
-            <SubCard title="下一步">
+            <SubCard title="自动推进">
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: attentionCount > 0 ? '#b45309' : '#2e7d32' }}>
-                    {attentionCount > 0 ? (primaryAttention?.label || '需要处理') : '暂无人工处理队列'}
+                  <div style={{ fontSize: 14, fontWeight: 700, color: enabledOps.length > 0 ? '#1a1a2e' : '#c2410c', lineHeight: 1.5 }}>
+                    {enabledText}
                   </div>
                   <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-                    {attentionCount > 0 ? (primaryAttention?.hint || '任务中心已有待处理项') : '系统会继续刷新事件和健康状态'}
+                    {enabledOps.length > 0 ? '系统仅在已授权范围内自动推进' : '自动推进当前关闭，可在任务调度中配置'}
                   </div>
                 </div>
-                <Link to="/tasks" style={{ ...linkBtnStyle, padding: '6px 10px', whiteSpace: 'nowrap' }}>
-                  任务中心
+                <Link to="/system" style={{ ...linkBtnStyle, padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                  任务调度
                 </Link>
-              </div>
-            </SubCard>
-
-            <SubCard title="自动推进范围">
-              <div style={{ fontSize: 14, fontWeight: 700, color: enabledOps.length > 0 ? '#1a1a2e' : '#c2410c', lineHeight: 1.5 }}>
-                {enabledText}
-              </div>
-              <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-                SmartTask 只会为允许范围内的目标创建任务
               </div>
             </SubCard>
           </div>
@@ -1071,16 +1021,6 @@ function DashboardEventFeed({ entries }: { entries: DashboardEventEntry[] }) {
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-function DashboardMetric({ label, value, sub, color }: { label: string; value: number | string; sub: string; color: string }) {
-  return (
-    <div style={{ border: '1px solid #eef0f4', borderRadius: 8, padding: 12, minHeight: 76, background: '#fbfcfe' }}>
-      <div style={{ fontSize: 11, color: '#888', fontWeight: 700, marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 22, lineHeight: 1.1, color, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-      <div style={{ fontSize: 11, color: '#999', marginTop: 5 }}>{sub}</div>
     </div>
   );
 }
