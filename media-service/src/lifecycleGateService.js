@@ -30,11 +30,43 @@ function normalizeCodec(value) {
   return raw;
 }
 
+function explicitGateInvalidation(item = {}, gate) {
+  const direct = gate === 'ingest' ? item.ingestGateFailure : null;
+  const invalidations = item.gateInvalidations && typeof item.gateInvalidations === 'object'
+    ? item.gateInvalidations
+    : {};
+  const invalidation = direct || invalidations[gate];
+  if (!invalidation || typeof invalidation !== 'object') return null;
+  if (invalidation.clearedAt) return null;
+  return invalidation;
+}
+
+function invalidationMissingReason(invalidation) {
+  const reason = normalize(invalidation && invalidation.reason);
+  if (reason === 'source_missing' || reason === 'source_unavailable') return 'source.file';
+  if (reason === 'source_identity_invalid') return 'source.location_or_reference';
+  return 'upstream_fact_invalidated';
+}
+
 function evaluateIngestGate(item = {}) {
   const missing = [];
   const adultMetadata = item.adultMetadata && typeof item.adultMetadata === 'object'
     ? item.adultMetadata
     : {};
+  const invalidation = explicitGateInvalidation(item, 'ingest');
+
+  if (invalidation) {
+    const missingReason = invalidationMissingReason(invalidation);
+    return {
+      gate: 'ingest',
+      passed: false,
+      status: 'invalidated',
+      reason: 'ingest_gate_invalidated',
+      missingReasons: [missingReason],
+      invalidation,
+      userAction: invalidation.userAction || 'rerun_ingest_source_sync',
+    };
+  }
 
   if (!hasAny(item.itemId)) missing.push('identity.itemId');
   if (!hasAny(item.source, item.subLibraryId, item.mediaType)) missing.push('identity.source_or_sub_library');

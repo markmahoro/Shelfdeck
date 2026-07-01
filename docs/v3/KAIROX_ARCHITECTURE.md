@@ -255,7 +255,50 @@ Kairox 没有 `self-compute` 这个一等概念。所谓“自算”必须拆回
 
 因此：metadata / media facts 不完整的对象不能进入 optimize gate；缺事实时应停留在 metadata gate，等待手动或自动 metadata scrape task。
 
-### 4.7 Task Creator is unified
+### 4.7 Upstream gate invalidation is a standard flow signal
+
+Kairox gate projection 读取的是已持久化 facts，不是每次实时重扫外部世界。因此 gate 可能出现“曾经通过，但执行时发现事实已经失效”的情况。例如：
+
+- metadata / scrape flow 发现源文件已被用户移动或删除，说明 ingest gate 的 source facts 失效。
+- optimize flow 发现 metadata / media facts 不可信或缺失，说明 metadata gate 的事实基础失效。
+- archive flow 发现 optimize result 或替换产物不一致，说明 optimize gate 的事实基础失效。
+
+这类问题必须走统一的 upstream gate invalidation 机制：
+
+```text
+Flow / Event
+  discovers upstream fact invalidation
+  -> returns invalidatedGate + reason + evidence as task-level signal
+
+Task Scheduler
+  persists task event and item gate invalidation fact
+  -> does not invent lifecycle objective
+
+Lifecycle projection
+  reads gate invalidation fact
+  -> projects item back to the invalidated gate
+
+Task Creator
+  reads the new lifecycle snapshot
+  -> decides whether and when to create the next task
+```
+
+边界要求：
+
+- Flow / Event 只报告事实失效，例如 `invalidatedGate=ingest`、`reason=source_missing`、`evidence.path=...`。
+- Task Scheduler 只承接并持久化 flow signal，记录 task event / failure summary / item gate invalidation fact；它不能自行定义新的 stage 或 objective。
+- Lifecycle 根据持久化 gate invalidation fact 回退 stage，例如 source missing 应使对象回到 `source_discovered`，`lifecycleNextTask=ingest`。
+- Task Creator 只能基于回退后的 lifecycle snapshot 决定是否创建 task，不能由下游 flow 链式私建上游 task。
+- 后续 ingest / metadata / optimize flow 成功写入新的 gate facts 后，必须清理或覆盖对应 invalidation fact。
+
+明确禁止：
+
+- 在 Task Creator / BusinessFlowPolicy 里通过实时文件系统探测代替 ingest gate facts。
+- 把 upstream gate invalidation 伪装成当前 gate 的普通失败，例如把 source missing 记成 metadata scrape failed。
+- 在 scrape / optimize / archive executor 内部直接创建上游补救 task。
+- 用 retry 当前 task 代替回退上游 gate；若上游事实失效，必须先让 Lifecycle 重新投影。
+
+### 4.8 Task Creator is unified
 
 所有自动 task 创建必须通过统一 TaskAdmission / BusinessFlowPolicy / Task Creator 语义。
 
@@ -284,7 +327,7 @@ Kairox 没有 `self-compute` 这个一等概念。所谓“自算”必须拆回
 - failed optimize gate 被 SmartTaskEngine 误判为应该自动创建同类新 task。
 - 用隐藏按钮、禁用任务或绕过任务中心代替 flow capability 修复。
 
-### 4.8 Recovery belongs to flow contract
+### 4.9 Recovery belongs to flow contract
 
 Retry/resume/fallback 不是通用按钮语义。
 
@@ -299,7 +342,7 @@ Retry/resume/fallback 不是通用按钮语义。
 - 是否需要用户确认。
 - 重试是否可能重复提交外部副作用。
 
-### 4.9 Full-auto is configured authorization
+### 4.10 Full-auto is configured authorization
 
 全自动模式不是另一条执行链路。
 
@@ -314,7 +357,7 @@ Retry/resume/fallback 不是通用按钮语义。
 
 全自动遇到低置信度、多候选、配置矛盾、未授权风险动作、不可恢复失败或资源安灯信号时，必须停在可解释状态。
 
-### 4.10 Admin Web is a user projection, not an operations console
+### 4.11 Admin Web is a user projection, not an operations console
 
 Admin Web 面向普通用户和家庭长期服务心智，不是运维控制台。前端 projection 的目标是让用户快速确认“服务大体可用、外部集成是否配置正确、媒体库状态是否清楚”，而不是让用户理解内部资源、数据库或调度细节。
 
@@ -339,7 +382,7 @@ Admin Web 面向普通用户和家庭长期服务心智，不是运维控制台�
 
 成人库恢复必须遵守 `docs/v3/ADULT_DATA_MODEL.md`：成人库仍是 Kairox subLibrary；`media_items` 热数据只保存 item identity、file facts、Lifecycle/gate facts、task target facts 和 light adult metadata；face clusters、embedding、gallery、base64 图片和 AI 中间输出属于 cold AI artifacts 或 file assets，不能进入普通列表、dashboard 或 TaskAdmission 热路径。
 
-### 4.11 Optimize target projection is not a strategy layer
+### 4.12 Optimize target projection is not a strategy layer
 
 Kairox 没有 `strategy` 这个一等架构层。旧实现中的 `strategyEngine` 只能作为 legacy implementation module 保留，其架构语义是 optimize gate target projection。
 
@@ -352,7 +395,7 @@ Optimize gate target projection 的职责：
 
 若 optimize target 无法计算，原因必须回到 metadata gate 或 media facts contract，例如 `metadata_missing`、`metadata_gate_contract_broken`、`optimize_required_input_missing`。不能把“strategy 未运行”作为用户语义，也不能让对象在事实不完整时显示为 optimize-ready。
 
-### 4.12 Service owns orchestration
+### 4.13 Service owns orchestration
 
 Service 拥有任务、媒体库、配置、People、策略结果和生产数据。
 
@@ -360,7 +403,7 @@ Desktop 是 HTTP thin client，不直接访问 Emby、Douban、MoviePilot、serv
 
 Worker 是被动计算节点，只提供计算能力和临时 job 状态。Worker 不拥有媒体库语义，不直接访问 Emby/MoviePilot/service 数据文件，不决定 Lifecycle、TaskAdmission 或 Flow objective。
 
-### 4.13 Production path is canonical
+### 4.14 Production path is canonical
 
 NAS ShelfDeck Docker 是生产环境。
 

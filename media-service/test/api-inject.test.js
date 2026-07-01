@@ -3903,6 +3903,90 @@ test('scrape failure marks item failed_hard and item scrapeStatus=failed', async
   delete process.env.CONTROL_PLANE_DATA_DIR;
 });
 
+test('scrape source-missing failure invalidates upstream ingest gate', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  const mediaPath = path.join(watchRoot, 'MVSD-176.mp4');
+  fs.writeFileSync(mediaPath, 'fake-video');
+
+  const scraperPath = require.resolve('../src/services/japaneseJavScraper');
+  delete require.cache[scraperPath];
+  require.cache[scraperPath] = {
+    exports: {
+      scrapeJapaneseJav: async () => ({
+        source: 'stub',
+        adultId: 'MVSD-176',
+        title: 'MVSD-176 Some Title',
+        originalTitle: 'Some Title',
+        posterUrl: 'https://example.test/poster.jpg',
+        fanartUrl: 'https://example.test/poster.jpg',
+      }),
+      fetchBinary: async () => { throw new Error('no net'); },
+      abort: () => false,
+      normalizeAdultId: (v) => v,
+    },
+  };
+
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  const configStore = require('../src/configStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const taskStore = require('../src/taskStore');
+  const taskScheduler = require('../src/taskScheduler');
+  const lifecycleProjection = require('../src/lifecycleProjection');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  try {
+    const cfg = configStore.loadConfig();
+    const sl = {
+      uuid: crypto.randomUUID(), name: 'JAV', source: 'folder', mediaType: 'adult',
+      adultRegion: 'japanese_jav', scraperType: 'shelfdeck_japanese_jav',
+      watchRoot, scrapeEnabled: true, enabled: true, scheduleMode: 'full_auto',
+      autoCreate: true, autoExecute: true, ruleTemplateId: 'adult_jav_default',
+      videoExtensions: cfg.adultLibrary.videoExtensions,
+    };
+    configStore.patchConfig({ subLibraries: [sl] });
+
+    const item = await adultLibraryService.upsertFileItem(sl, mediaPath);
+    fs.unlinkSync(mediaPath);
+    const task = taskStore.createTask({
+      itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+      status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
+      resumePoint: 'scrape_executing',
+    });
+
+    const reported = [];
+    scrapeFlow.setScheduler({
+      reportStatus: (id, status, prog) => {
+        reported.push({ id, status, prog });
+        taskStore.updateTask(id, { status, progress: prog });
+      },
+      reportGateInvalidation: taskScheduler.reportGateInvalidation,
+    });
+    await scrapeFlow.driveTask(task.id);
+
+    assert.ok(reported.some((r) => r.status === 'failed_hard'), 'scheduler received failed_hard');
+    const afterTask = taskStore.getTask(task.id);
+    assert.strictEqual(afterTask.upstreamGateInvalidation.invalidatedGate, 'ingest');
+    assert.strictEqual(afterTask.upstreamGateInvalidation.reason, 'source_missing');
+    const afterItem = require('../src/mediaLibraryService').getLibraryItem(item.itemId);
+    assert.strictEqual(afterItem.ingestGateFailure.reason, 'source_missing');
+    assert.strictEqual(afterItem.adultMetadata.scrapeStatus, 'pending');
+    const lifecycle = lifecycleProjection.resolveLifecycle(afterItem);
+    assert.strictEqual(lifecycle.lifecycleStage, 'source_discovered');
+    assert.strictEqual(lifecycle.lifecycleNextTask, 'ingest');
+    assert.strictEqual(lifecycle.ingestGate.status, 'invalidated');
+  } finally {
+    delete require.cache[scraperPath];
+    delete require.cache[executorPath];
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+  }
+});
+
 test('standard scrape fails current task when metadataGate remains unmet after repair', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   process.env.CONTROL_PLANE_DATA_DIR = dir;

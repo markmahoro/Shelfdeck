@@ -90,6 +90,59 @@ function metadataVerification(meta, source = 'completion_snapshot') {
   };
 }
 
+function isMediaSourceMissingError(err) {
+  const message = String(err && err.message || err || '');
+  return message.startsWith('Media file does not exist:');
+}
+
+function reportIngestInvalidation(taskId, task, err, phase) {
+  if (!isMediaSourceMissingError(err)) return false;
+  const message = String(err && err.message || err || '');
+  const itemInfo = task && task.itemInfo || {};
+  if (scheduler && typeof scheduler.reportGateInvalidation === 'function') {
+    scheduler.reportGateInvalidation(taskId, {
+      invalidatedGate: 'ingest',
+      reason: 'source_missing',
+      message,
+      evidence: {
+        path: itemInfo.path || '',
+        phase: phase || '',
+      },
+      recovery: 'rerun_ingest_source_sync',
+      userAction: 'rerun_ingest_source_sync',
+    });
+  } else {
+    taskStore.updateTask(taskId, {
+      upstreamGateInvalidation: {
+        gate: 'ingest',
+        invalidatedGate: 'ingest',
+        reason: 'source_missing',
+        message,
+        evidence: {
+          path: itemInfo.path || '',
+          phase: phase || '',
+        },
+        sourceTaskId: taskId,
+        sourceActionType: task && task.actionType || 'scrape',
+        sourceTargetGate: 'metadata',
+        invalidatedAt: new Date().toISOString(),
+        recovery: 'rerun_ingest_source_sync',
+        userAction: 'rerun_ingest_source_sync',
+        stored: false,
+        storeReason: 'scheduler_report_gate_invalidation_unavailable',
+      },
+    });
+  }
+  taskStore.appendTaskEvent(taskStore.getTask(taskId) || task, 'scrape.upstream_gate_invalidated', {
+    invalidatedGate: 'ingest',
+    reason: 'source_missing',
+    message,
+    phase: phase || '',
+    recovery: 'rerun_ingest_source_sync',
+  });
+  return true;
+}
+
 async function driveTask(taskId) {
   const task = taskStore.getTask(taskId);
   if (!task) return;
@@ -126,6 +179,11 @@ async function runPrecheck(taskId, task) {
     await runExecuting(taskId, taskStore.getTask(taskId));
   } catch (e) {
     appendLog(taskId, 'error', e.message);
+    if (reportIngestInvalidation(taskId, task, e, 'scrape_precheck')) {
+      setPhase(taskId, 'failed_hard');
+      scheduler.reportStatus(taskId, 'failed_hard', 0);
+      return;
+    }
     adultLibraryService.markScrapeFailed(task.itemId, e.message);
     scheduler.reportStatus(taskId, 'failed_hard', 0);
   }
@@ -178,6 +236,11 @@ async function runExecuting(taskId, task) {
     await applyJavScrapeResult(taskId, task, config, subLib, liveItem, scrapeResult);
   } catch (e) {
     appendLog(taskId, 'error', e.message);
+    if (reportIngestInvalidation(taskId, task, e, 'scrape_executing')) {
+      setPhase(taskId, 'failed_hard');
+      scheduler.reportStatus(taskId, 'failed_hard', 0);
+      return;
+    }
     adultLibraryService.markScrapeFailed(task.itemId, e.message);
     setPhase(taskId, 'failed_hard');
     scheduler.reportStatus(taskId, 'failed_hard', 0);
@@ -263,6 +326,11 @@ async function runWriteMetadata(taskId, task) {
     await applyJavScrapeResult(taskId, task, config, subLib, liveItem, task.itemInfo && task.itemInfo.pendingScrapeResult);
   } catch (e) {
     appendLog(taskId, 'error', e.message);
+    if (reportIngestInvalidation(taskId, task, e, 'scrape_write_metadata')) {
+      setPhase(taskId, 'failed_hard');
+      scheduler.reportStatus(taskId, 'failed_hard', 0);
+      return;
+    }
     adultLibraryService.markScrapeFailed(task.itemId, e.message);
     setPhase(taskId, 'failed_hard');
     scheduler.reportStatus(taskId, 'failed_hard', 0);

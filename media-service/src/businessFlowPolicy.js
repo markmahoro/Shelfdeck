@@ -311,6 +311,13 @@ function resolveAutomaticTrigger(input = {}) {
 
   const meta = metadataStatus.resolveMetadataStatus(item, cfg);
   const itemWithMetadata = { ...item, ...meta };
+  const ingestGate = lifecycleProjection.evaluateIngestGate(itemWithMetadata);
+  if (ingestGate.status === 'invalidated') {
+    return blocked('ingest', 'ingest_gate_invalidated', {
+      item: itemWithMetadata,
+      ingestGate,
+    });
+  }
 
   if (!meta.metadataComplete) {
     if (meta.metadataKind === 'adult' && !isAutoScrapeCandidate(itemWithMetadata)) {

@@ -32,6 +32,7 @@ const flowRecoveryContract = require('./flowRecoveryContract');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
+const gateInvalidationService = require('./gateInvalidationService');
 
 let schedulerInterval = null;
 let nodeHealthInterval = null;
@@ -221,6 +222,61 @@ function reportStatus(taskId, status, progress) {
   if (status === 'done' || status === 'failed_hard' || status === 'interrupted' || status === 'paused') {
     runningTasks.delete(taskId);
   }
+}
+
+function reportGateInvalidation(taskId, signal = {}) {
+  const task = taskStore.getTask(taskId);
+  const itemId = signal.itemId || (task && task.itemId) || '';
+  const invalidation = gateInvalidationService.recordGateInvalidation({
+    ...signal,
+    taskId,
+    itemId,
+    sourceActionType: signal.sourceActionType || (task && task.actionType) || '',
+    sourceTargetGate: signal.sourceTargetGate
+      || (task && task.taskTarget && task.taskTarget.targetGate)
+      || (task && task.taskBridge && task.taskBridge.kind)
+      || '',
+  });
+  const gate = invalidation.invalidatedGate;
+  const taskInvalidations = {
+    ...((task && task.gateInvalidations) || {}),
+    [gate]: invalidation,
+  };
+  const updated = taskStore.updateTask(taskId, {
+    upstreamGateInvalidation: invalidation,
+    gateInvalidations: taskInvalidations,
+  });
+  taskStore.appendTaskEvent(updated || task || { id: taskId, itemId }, 'gate.invalidated', {
+    invalidatedGate: gate,
+    reason: invalidation.reason,
+    message: invalidation.message,
+    evidence: invalidation.evidence,
+    sourceActionType: invalidation.sourceActionType,
+    sourceTargetGate: invalidation.sourceTargetGate,
+    recovery: invalidation.recovery,
+    stored: invalidation.stored,
+    storeReason: invalidation.storeReason,
+  });
+  diagnosticLog.record({
+    category: 'scheduler',
+    scope: 'scheduler.gateInvalidation',
+    operation: 'report_gate_invalidation',
+    component: 'taskScheduler',
+    resourceType: 'scheduler',
+    resourceKey: 'taskScheduler',
+    status: invalidation.stored ? 'done' : 'warning',
+    payload: {
+      taskId,
+      itemId,
+      invalidatedGate: gate,
+      reason: invalidation.reason,
+      sourceActionType: invalidation.sourceActionType,
+      sourceTargetGate: invalidation.sourceTargetGate,
+      stored: invalidation.stored,
+      storeReason: invalidation.storeReason,
+    },
+  });
+  return invalidation;
 }
 
 // ── Scheduling ──────────────────────────────────────────────────────────────
@@ -482,12 +538,12 @@ function startScheduler() {
   recoverInterruptedTasks();
 
   // Inject scheduler into Flow Executors
-  deleteFlow.setScheduler({ pauseForConfirm, reportStatus });
-  ingestFlow.setScheduler({ pauseForConfirm, reportStatus });
-  archiveFlow.setScheduler({ pauseForConfirm, reportStatus });
-  transcodeFlow.setScheduler({ pauseForConfirm, reportStatus });
-  upgradeFlow.setScheduler({ pauseForConfirm, reportStatus });
-  scrapeFlow.setScheduler({ pauseForConfirm, reportStatus });
+  deleteFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
+  ingestFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
+  archiveFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
+  transcodeFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
+  upgradeFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
+  scrapeFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
 
   healthCheck.setSchedulerState({ running: true, runningTasks: 0 });
 
@@ -819,6 +875,7 @@ module.exports = {
   stopScheduler,
   pauseForConfirm,
   reportStatus,
+  reportGateInvalidation,
   markConfirmed,
   isRunning,
   scheduleRound,

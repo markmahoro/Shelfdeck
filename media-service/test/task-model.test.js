@@ -552,6 +552,44 @@ test('businessFlowPolicy does not auto-repair metadata when missing reasons requ
   assert.deepStrictEqual(trigger.unsupportedReasons, ['decision.rating']);
 });
 
+test('businessFlowPolicy stops metadata automation after upstream ingest gate invalidation', () => {
+  const config = {
+    automaticTaskTargets: ['metadata'],
+    subLibraries: [{ uuid: 'adult-lib', source: 'folder', mediaType: 'adult' }],
+  };
+  const trigger = businessFlowPolicy.resolveAutomaticTrigger({
+    config,
+    item: {
+      itemId: 'adult-source-missing',
+      source: 'adult_folder',
+      subLibraryId: 'adult-lib',
+      type: 'movie',
+      name: 'Adult Source Missing',
+      path: '/adult/missing.mp4',
+      size: 1024,
+      duration: 3600,
+      bitrate: 4000000,
+      resolution: '1920x1080',
+      codec: 'h264',
+      scraped: false,
+      adultMetadata: { scrapeStatus: 'pending' },
+      ingestGateFailure: {
+        gate: 'ingest',
+        invalidatedGate: 'ingest',
+        reason: 'source_missing',
+        message: 'Media file does not exist: /adult/missing.mp4',
+        invalidatedAt: new Date().toISOString(),
+      },
+    },
+  });
+
+  assert.strictEqual(trigger.allowed, false);
+  assert.strictEqual(trigger.operation, 'ingest');
+  assert.strictEqual(trigger.reason, 'ingest_gate_invalidated');
+  assert.strictEqual(trigger.ingestGate.status, 'invalidated');
+  assert.ok(trigger.ingestGate.missingReasons.includes('source.file'));
+});
+
 test('businessFlowPolicy resolves automatic optimize triggers from strategy output', () => {
   const config = {
     smartTaskEnabledActions: ['transcode'],
@@ -3022,6 +3060,35 @@ test('lifecycleProjection exposes first-class ingest and archive gate contracts'
   assert.strictEqual(blockedArchive.lifecycleNextTask, 'archive');
   assert.strictEqual(blockedArchive.archiveGate.passed, false);
   assert.ok(blockedArchive.archiveGate.blockers.includes('pending_result_summary'));
+});
+
+test('lifecycleProjection projects upstream ingest invalidation back to ingest', () => {
+  const lifecycle = lifecycleProjection.resolveLifecycle({
+    itemId: 'source-moved-after-ingest',
+    source: 'adult_folder',
+    subLibraryId: 'adult-lib',
+    mediaType: 'adult',
+    path: '/adult/moved.mp4',
+    size: 1024,
+    duration: 3600,
+    bitrate: 4000000,
+    resolution: '1920x1080',
+    codec: 'h264',
+    metadataComplete: false,
+    ingestGateFailure: {
+      gate: 'ingest',
+      invalidatedGate: 'ingest',
+      reason: 'source_missing',
+      message: 'Media file does not exist: /adult/moved.mp4',
+      invalidatedAt: new Date().toISOString(),
+    },
+  });
+
+  assert.strictEqual(lifecycle.lifecycleStage, 'source_discovered');
+  assert.strictEqual(lifecycle.lifecycleNextTask, 'ingest');
+  assert.strictEqual(lifecycle.ingestGate.status, 'invalidated');
+  assert.strictEqual(lifecycle.ingestGate.reason, 'ingest_gate_invalidated');
+  assert.ok(lifecycle.ingestGate.missingReasons.includes('source.file'));
 });
 
 test('lifecycleProjection evaluates optimize gate targets before archive closure', () => {
