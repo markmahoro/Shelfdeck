@@ -8,7 +8,6 @@ const GROUP_1 = [
 const GROUP_2 = [
   { to: '/media', label: '媒体库' },
   { to: '/tasks', label: '任务中心' },
-  { to: '/resources', label: '资源视图' },
 ];
 
 const GROUP_3 = [

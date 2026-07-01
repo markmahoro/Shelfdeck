@@ -303,6 +303,227 @@ function getStorageMetrics() {
   });
 }
 
+function normalizePayloadFieldNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function payloadBucketFromRows(rows, totalPayloadBytes) {
+  return rows.map((row) => {
+    const payloadBytes = normalizePayloadFieldNumber(row.payloadBytes);
+    const itemCount = normalizePayloadFieldNumber(row.itemCount);
+    const key = String(row.key || 'unknown');
+    return {
+      key,
+      itemCount,
+      payloadBytes,
+      payloadBytesAverage: itemCount > 0 ? Math.round(payloadBytes / itemCount) : 0,
+      payloadBytesSharePercent: totalPayloadBytes > 0
+        ? Number(((payloadBytes / totalPayloadBytes) * 100).toFixed(2))
+        : 0,
+    };
+  });
+}
+
+function getLibraryPayloadHealthSummary(options = {}) {
+  const includeBuckets = options.includeBuckets !== false;
+  const includeFieldBreakdown = options.includeFieldBreakdown !== false;
+  const includeAdultCache = options.includeAdultCache !== false;
+  const adultSubLibraryIds = Array.isArray(options.adultSubLibraryIds)
+    ? [...new Set(options.adultSubLibraryIds.map((id) => String(id || '').trim()).filter(Boolean))]
+    : [];
+  const db = getDb();
+  const storage = getStorageMetrics();
+
+  const total = db.prepare(`
+    SELECT
+      COUNT(*) AS mediaItemCount,
+      IFNULL(SUM(length(payload_json)), 0) AS payloadBytesTotal,
+      IFNULL(AVG(length(payload_json)), 0) AS payloadBytesAverage,
+      IFNULL(MAX(length(payload_json)), 0) AS payloadBytesMax,
+      IFNULL(MIN(length(payload_json)), 0) AS payloadBytesMin
+    FROM media_items
+  `).get() || {};
+
+  const mediaItemCount = normalizePayloadFieldNumber(total.mediaItemCount);
+  const payloadBytesTotal = normalizePayloadFieldNumber(total.payloadBytesTotal);
+  const payloadBytesAverage = normalizePayloadFieldNumber(total.payloadBytesAverage);
+  const payloadBytesMax = normalizePayloadFieldNumber(total.payloadBytesMax);
+  const payloadBytesMin = normalizePayloadFieldNumber(total.payloadBytesMin);
+
+  const bySubLibrary = includeBuckets
+    ? payloadBucketFromRows(db.prepare(`
+      SELECT
+        COALESCE(NULLIF(sub_library_id, ''), 'unknown') AS key,
+        COUNT(*) AS itemCount,
+        IFNULL(SUM(length(payload_json)), 0) AS payloadBytes
+      FROM media_items
+      GROUP BY COALESCE(NULLIF(sub_library_id, ''), 'unknown')
+      ORDER BY payloadBytes DESC
+    `).all(), payloadBytesTotal)
+    : [];
+
+  const bySource = includeBuckets
+    ? payloadBucketFromRows(db.prepare(`
+      SELECT
+        COALESCE(NULLIF(source, ''), 'unknown') AS key,
+        COUNT(*) AS itemCount,
+        IFNULL(SUM(length(payload_json)), 0) AS payloadBytes
+      FROM media_items
+      GROUP BY COALESCE(NULLIF(source, ''), 'unknown')
+      ORDER BY payloadBytes DESC
+    `).all(), payloadBytesTotal)
+    : [];
+
+  const byType = includeBuckets
+    ? payloadBucketFromRows(db.prepare(`
+      SELECT
+        COALESCE(NULLIF(type, ''), 'unknown') AS key,
+        COUNT(*) AS itemCount,
+        IFNULL(SUM(length(payload_json)), 0) AS payloadBytes
+      FROM media_items
+      GROUP BY COALESCE(NULLIF(type, ''), 'unknown')
+      ORDER BY payloadBytes DESC
+    `).all(), payloadBytesTotal)
+    : [];
+
+  const maxPayloadRow = includeFieldBreakdown
+    ? db.prepare(`
+      SELECT
+        COALESCE(NULLIF(source, ''), 'unknown') AS source,
+        COALESCE(NULLIF(sub_library_id, ''), 'unknown') AS subLibraryId,
+        COALESCE(NULLIF(type, ''), 'unknown') AS type,
+        IFNULL(length(payload_json), 0) AS payloadBytes,
+        IFNULL(length(json_extract(payload_json, '$.adultMetadata.faceClusters')), 0) AS faceClustersBytes,
+        IFNULL(length(json_extract(payload_json, '$.adultMetadata.unknownFaces')), 0) AS unknownFacesBytes,
+        IFNULL(length(json_extract(payload_json, '$.adultMetadata.galleryImages')), 0) AS galleryImagesBytes,
+        IFNULL(length(json_extract(payload_json, '$.adultMetadata.embedding')), 0) AS embeddingBytes,
+        IFNULL(length(json_extract(payload_json, '$.adultMetadata.sampleImageBase64')), 0) AS sampleImageBase64Bytes
+      FROM media_items
+      ORDER BY payloadBytes DESC
+      LIMIT 1
+    `).get() || null
+    : null;
+
+  const maxPayloadFieldBreakdown = maxPayloadRow ? [
+    { field: 'adultMetadata.faceClusters', bytes: normalizePayloadFieldNumber(maxPayloadRow.faceClustersBytes) },
+    { field: 'adultMetadata.unknownFaces', bytes: normalizePayloadFieldNumber(maxPayloadRow.unknownFacesBytes) },
+    { field: 'adultMetadata.galleryImages', bytes: normalizePayloadFieldNumber(maxPayloadRow.galleryImagesBytes) },
+    { field: 'adultMetadata.embedding', bytes: normalizePayloadFieldNumber(maxPayloadRow.embeddingBytes) },
+    { field: 'adultMetadata.sampleImageBase64', bytes: normalizePayloadFieldNumber(maxPayloadRow.sampleImageBase64Bytes) },
+  ].filter((item) => item.bytes > 0).sort((a, b) => b.bytes - a.bytes) : [];
+
+  const maxPayload = maxPayloadRow
+    ? {
+      payloadBytes: normalizePayloadFieldNumber(maxPayloadRow.payloadBytes),
+      source: String(maxPayloadRow.source || ''),
+      subLibraryId: String(maxPayloadRow.subLibraryId || ''),
+      type: String(maxPayloadRow.type || ''),
+      fieldBreakdown: maxPayloadFieldBreakdown,
+    }
+    : {
+      payloadBytes: 0,
+      source: '',
+      subLibraryId: '',
+      type: '',
+      fieldBreakdown: [],
+    };
+
+  let adultCache = null;
+  if (includeAdultCache && adultSubLibraryIds.length > 0) {
+    const placeholders = adultSubLibraryIds.map(() => '?').join(', ');
+    adultCache = db.prepare(`
+      SELECT
+        COUNT(*) AS totalAdultItems,
+        SUM(CASE WHEN json_type(payload_json, '$.adultMetadata') IS NOT NULL THEN 1 ELSE 0 END) AS cachedAdultItems,
+        SUM(CASE WHEN json_type(payload_json, '$.adultMetadata') IS NULL THEN 1 ELSE 0 END) AS missingAdultMetadataItems,
+        SUM(CASE
+          WHEN json_type(payload_json, '$.adultMetadata') IS NOT NULL
+            AND (
+              TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.adultId'), '')) = ''
+              OR TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.region'), '')) = ''
+              OR TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.scrapeStatus'), '')) = ''
+            )
+          THEN 1 ELSE 0 END) AS incompleteAdultMetadataItems,
+        SUM(CASE WHEN TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.adultId'), '')) = '' THEN 1 ELSE 0 END) AS missingAdultMetadataAdultIdItems,
+        SUM(CASE WHEN TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.region'), '')) = '' THEN 1 ELSE 0 END) AS missingAdultMetadataRegionItems,
+        SUM(CASE WHEN TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.scrapeStatus'), '')) = '' THEN 1 ELSE 0 END) AS missingAdultMetadataScrapeStatusItems
+      FROM media_items
+      WHERE sub_library_id IN (${placeholders})
+    `).get(...adultSubLibraryIds);
+  } else if (includeAdultCache) {
+    adultCache = db.prepare(`
+      SELECT
+        COUNT(*) AS totalAdultItems,
+        SUM(CASE WHEN json_type(payload_json, '$.adultMetadata') IS NOT NULL THEN 1 ELSE 0 END) AS cachedAdultItems,
+        SUM(CASE WHEN json_type(payload_json, '$.adultMetadata') IS NULL THEN 1 ELSE 0 END) AS missingAdultMetadataItems,
+        SUM(CASE
+          WHEN json_type(payload_json, '$.adultMetadata') IS NOT NULL
+            AND (
+              TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.adultId'), '')) = ''
+              OR TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.region'), '')) = ''
+              OR TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.scrapeStatus'), '')) = ''
+            )
+          THEN 1 ELSE 0 END) AS incompleteAdultMetadataItems,
+        SUM(CASE WHEN TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.adultId'), '')) = '' THEN 1 ELSE 0 END) AS missingAdultMetadataAdultIdItems,
+        SUM(CASE WHEN TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.region'), '')) = '' THEN 1 ELSE 0 END) AS missingAdultMetadataRegionItems,
+        SUM(CASE WHEN TRIM(COALESCE(json_extract(payload_json, '$.adultMetadata.scrapeStatus'), '')) = '' THEN 1 ELSE 0 END) AS missingAdultMetadataScrapeStatusItems
+      FROM media_items
+      WHERE source = 'adult_folder'
+    `).get();
+  }
+
+  const totalAdultItems = adultCache ? normalizePayloadFieldNumber(adultCache.totalAdultItems) : 0;
+  const cachedAdultItems = adultCache ? normalizePayloadFieldNumber(adultCache.cachedAdultItems) : 0;
+  const missingAdultMetadataItems = adultCache ? normalizePayloadFieldNumber(adultCache.missingAdultMetadataItems) : 0;
+  const incompleteAdultMetadataItems = adultCache ? normalizePayloadFieldNumber(adultCache.incompleteAdultMetadataItems) : 0;
+  const expectedAdultSubLibraryCount = adultSubLibraryIds.length;
+  const adultLibraryCache = includeAdultCache
+    ? {
+      expectedAdultSubLibraryCount,
+      totalAdultItems,
+      cachedAdultItems,
+      missingAdultMetadataItems,
+      incompleteAdultMetadataItems,
+      missingFieldCounts: adultCache ? {
+        adultId: normalizePayloadFieldNumber(adultCache.missingAdultMetadataAdultIdItems),
+        region: normalizePayloadFieldNumber(adultCache.missingAdultMetadataRegionItems),
+        scrapeStatus: normalizePayloadFieldNumber(adultCache.missingAdultMetadataScrapeStatusItems),
+      } : {},
+      status: totalAdultItems > 0
+        ? (cachedAdultItems === 0
+          ? 'missing'
+          : ((incompleteAdultMetadataItems + missingAdultMetadataItems) > 0 ? 'partial' : 'complete'))
+        : (expectedAdultSubLibraryCount > 0 ? 'missing' : 'not_applicable'),
+    }
+    : {
+      expectedAdultSubLibraryCount: 0,
+      totalAdultItems: 0,
+      cachedAdultItems: 0,
+      missingAdultMetadataItems: 0,
+      incompleteAdultMetadataItems: 0,
+      missingFieldCounts: {},
+      status: 'not_applicable',
+    };
+
+  return {
+    generatedAt: new Date().toISOString(),
+    dbSizeBytes: normalizePayloadFieldNumber(storage.dbSizeBytes),
+    walSizeBytes: normalizePayloadFieldNumber(storage.walSizeBytes),
+    totalSizeBytes: normalizePayloadFieldNumber(storage.totalSizeBytes),
+    mediaItemCount,
+    payloadBytesTotal,
+    payloadBytesAverage,
+    payloadBytesMax,
+    payloadBytesMin,
+    bySubLibrary,
+    bySource,
+    byType,
+    maxPayload,
+    adultLibraryCache,
+  };
+}
+
 function readLegacyJsonLibrary(filePath) {
   if (!fs.existsSync(filePath)) return { version: 1, cachedAt: null, items: [] };
   const raw = fs.readFileSync(filePath, 'utf8');
@@ -1189,6 +1410,7 @@ module.exports = {
   getItem,
   queryItems,
   getStorageMetrics,
+  getLibraryPayloadHealthSummary,
   querySmartTaskCandidateItems,
   queryAdultReviewSummaries,
   querySpaceStatItems,

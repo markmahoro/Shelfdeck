@@ -35,7 +35,7 @@ Kairox = Lifecycle gate owns user semantics; Task targets a gate; Flow implement
 - Task target、task control、retry/resume/cancel/confirm。
 - Flow Planner、flow recovery contract、flow executor。
 - TaskScheduler、resource projection、resource throttling、worker dispatch。
-- Dashboard、Task Center、Resource View、Media Management 的用户语义展示。
+- Dashboard、Task Center、Media Management 的用户语义展示，以及内部诊断 projection 的可见性边界。
 - metadata gate / optimize objective / archive gate 配置和校验。
 - 全自动模式、用户介入白名单、风险动作确认。
 - NAS production deploy、migration、production data safety。
@@ -109,14 +109,16 @@ Flow Planner 可以选择不同 operation，但不能临时发明 Lifecycle obje
 
 Event 是实际消耗资源的原子执行事实。
 
-Resource View 应围绕 event/resource 展示：
+Resource projection / internal diagnostics 应围绕 event/resource 解释：
 
 - running / waiting / failed。
 - resource bucket、capacity、lease、backpressure。
 - external dependency health。
 - recovery、confirmation、failure summary。
 
-SmartTaskEngine 不直接管理资源。它只消费 Resource Runtime 或 Resource View 给出的 trigger pressure / backpressure 信号，决定是否暂缓创建新 task。
+SmartTaskEngine 不直接管理资源。它只消费 Resource Runtime 或 service resource projection 给出的 trigger pressure / backpressure 信号，决定是否暂缓创建新 task。
+
+这条合同约束的是 service 后端 projection 和内部排障能力，不表示普通 Admin Web 必须暴露一个面向用户的资源视图页面。资源、DB/WAL、payload、I/O guard、diagnostic log 等运维事实应优先保留在后端诊断接口、日志和测试中，默认不进入普通用户前端。
 
 ### 4.5 Task / Flow / Event relationship
 
@@ -181,7 +183,7 @@ events
 - Event history 是执行审计和恢复依据；失败不能只写 task 终态，必须能追到 event/resource/failure summary。
 - Scheduler 只能调度 runnable task 和 dispatch flow event，不能把业务 objective 塞进调度分支。
 - UI 可以展示实现路径，但主标题、筛选、诊断入口应优先展示 task target。
-- Resource View 只能从 event/resource 解释运行压力，不能把 task target 简化成 resource bucket。
+- Resource projection 只能从 event/resource 解释运行压力，不能把 task target 简化成 resource bucket；普通用户前端不应把 resource bucket 当成核心产品页面。
 
 明确禁止：
 
@@ -189,7 +191,7 @@ events
 - 在 flow executor 内部私自修改 `targetGate` 或 `gateObjective`。
 - 在 event 执行成功后绕过 Lifecycle/Task Creator 直接创建下一个 gate 的 task。
 - 用 task retry 代替 flow recovery contract。
-- 用 Resource View 的 resource queue 反向决定媒体的 Lifecycle objective。
+- 用 resource queue / resource projection 反向决定媒体的 Lifecycle objective。
 
 ### 4.6 Metadata gate is a scrape exit gate
 
@@ -254,7 +256,30 @@ Retry/resume/fallback 不是通用按钮语义。
 
 全自动遇到低置信度、多候选、配置矛盾、未授权风险动作、不可恢复失败或资源安灯信号时，必须停在可解释状态。
 
-### 4.10 Service owns orchestration
+### 4.10 Admin Web is a user projection, not an operations console
+
+Admin Web 面向普通用户和家庭长期服务心智，不是运维控制台。前端 projection 的目标是让用户快速确认“服务大体可用、外部集成是否配置正确、媒体库状态是否清楚”，而不是让用户理解内部资源、数据库或调度细节。
+
+前端 health check 是安心状态灯：
+
+- ShelfDeck 服务可用性。
+- 外部集成状态，例如 Emby、MoviePilot、Douban、Worker、转码节点。
+- 配置导向提示：红灯必须尽量指向用户可以执行的配置检查或授权动作。
+
+普通用户前端不应默认展示：
+
+- DB / WAL / payload_json 体积、表级统计、慢查询诊断。
+- resource bucket、capacity、lease、backpressure、I/O guard。
+- diagnostic log、slow log、内部 event payload、worker 低层状态。
+- 要求用户理解 scheduler、TaskAdmission、Flow recovery 的排障信息。
+
+这些事实必须保留在后端诊断接口、日志、测试和必要的内部工具中，便于开发者排查根因；但默认不作为 Admin Web 主路径可视化。若确需临时暴露，必须满足：
+
+- 入口明确标记为内部诊断或 debug。
+- 不影响 dashboard、媒体库、任务中心等普通页面首屏性能。
+- 不让用户把运维事实误解为可直接操作的业务状态。
+
+### 4.11 Service owns orchestration
 
 Service 拥有任务、媒体库、配置、People、策略结果和生产数据。
 
@@ -262,7 +287,7 @@ Desktop 是 HTTP thin client，不直接访问 Emby、Douban、MoviePilot、serv
 
 Worker 是被动计算节点，只提供计算能力和临时 job 状态。Worker 不拥有媒体库语义，不直接访问 Emby/MoviePilot/service 数据文件，不决定 Lifecycle、TaskAdmission 或 Flow objective。
 
-### 4.11 Production path is canonical
+### 4.12 Production path is canonical
 
 NAS ShelfDeck Docker 是生产环境。
 
@@ -288,6 +313,7 @@ node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha
 - 新增一个 resource 限流，却让 SmartTaskEngine 自己推导 flow event 消耗。
 - 新增一个 metadata complete 判定，却没有校验 optimize inputs。
 - 新增一个 worker 能力，却让 worker 持有 service 的业务事实。
+- 新增一个普通前端卡片或页面来展示 DB/WAL、payload、resource bucket、I/O guard、diagnostic log 等运维事实。
 - 为了处理某类失败而隐藏任务、跳过事件、清空历史或静默 fallback。
 - 修改生产数据或部署方式，却没有 dry-run、checksum、回滚和验证说明。
 
@@ -348,7 +374,7 @@ Kairox 可以演进，但不能在实现中静默漂移。
 - 用户语义是否仍能表达为 `object + targetGate + gateObjective`？
 - 自动和手动入口是否共用同一准入模型？
 - 失败、确认、重试、恢复是否有 event 和 recovery contract？
-- Resource View 是否能解释资源压力和失败点？
+- 资源压力和失败点是否能在后端诊断中解释？普通前端是否避免暴露运维细节？
 - metadata gate 是否仍覆盖 optimize objective 输入？
 - 全自动模式遇到不可判断事项时是否会停在可解释状态？
 - 是否影响 service Docker、service Windows、desktop Windows 或 worker node 边界？

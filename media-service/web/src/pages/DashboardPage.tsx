@@ -906,7 +906,6 @@ function DashboardActionStrip({ libraryCount, onAddLibrary }: { libraryCount: nu
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         <button type="button" onClick={onAddLibrary} style={primaryBtn}>添加媒体库</button>
         <DashboardLinkButton to="/tasks">任务中心</DashboardLinkButton>
-        <DashboardLinkButton to="/resources">资源视图</DashboardLinkButton>
         <DashboardLinkButton to="/media">媒体库</DashboardLinkButton>
       </div>
     </div>

@@ -1036,6 +1036,13 @@ function buildDashboardServiceProjection(health) {
   };
 }
 
+function adultSubLibraryIds(config = {}) {
+  return (Array.isArray(config.subLibraries) ? config.subLibraries : [])
+    .filter((sl) => sl && (sl.mediaType === 'adult' || sl.adultRegion))
+    .map((sl) => String(sl.uuid || '').trim())
+    .filter(Boolean);
+}
+
 function buildDashboardHealthSignals(mediaStats, taskStats, config, automation = {}) {
   const signals = [];
   const push = (level, code, label, count, detail = '') => {
@@ -3782,6 +3789,15 @@ function registerRoutes(app) {
           byCategory: {},
           generatedAt: new Date().toISOString(),
         };
+      const payloadSummary = includeFullDetail
+        ? libraryStore.getLibraryPayloadHealthSummary({
+          includeBuckets: true,
+          includeFieldBreakdown: true,
+          includeAdultCache: true,
+          adultSubLibraryIds: adultSubLibraryIds(config),
+        })
+        : null;
+
       return {
         ...view,
         detail: projectionName,
@@ -3794,6 +3810,7 @@ function registerRoutes(app) {
             : [],
           bottlenecks,
           ...(includeFullDetail ? { backgroundIo: backgroundIoGuard.getState({ recentLimit: 40 }) } : {}),
+          ...(payloadSummary ? { payloadSummary } : {}),
           ...(includeFullDetail ? {
             metrics: {
               storage: [

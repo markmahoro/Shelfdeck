@@ -450,7 +450,7 @@ export interface DashboardHealthSummary {
   };
   diagnostics: {
     signals: DashboardCountSignal[];
-    storage?: unknown[];
+    storage?: StorageMetric[];
   };
 }
 
