@@ -56,12 +56,15 @@ export default function MediaManagePage() {
   // Fetch subLibrary list
   useEffect(() => {
     libraryApi.getStatus().then((s) => {
-      const enabled = s.subLibraries.filter((sl) => sl.enabled);
+      const enabled = s.subLibraries.filter((sl) => sl.enabled && sl.mediaType !== 'adult');
       setSubLibraries(enabled);
       setSubLibraryId((current) => {
-        if (current) return current;
+        if (current && enabled.some((sl) => sl.uuid === current)) return current;
         const saved = localStorage.getItem(MEDIA_MANAGE_SUB_LIBRARY_KEY);
         if (saved !== null && (saved === '' || enabled.some((sl) => sl.uuid === saved))) return saved;
+        if (saved && !enabled.some((sl) => sl.uuid === saved)) {
+          localStorage.setItem(MEDIA_MANAGE_SUB_LIBRARY_KEY, '');
+        }
         return '';
       });
     }).catch(() => {});
@@ -78,8 +81,8 @@ export default function MediaManagePage() {
     () => new Map(subLibraries.map((sl) => [sl.uuid, { name: sl.name, typeLabel: formatSubLibraryType(sl) }])),
     [subLibraries],
   );
-  const showAdultFields = !subLibraryId || selectedSubLibrary?.mediaType === 'adult';
-  const showStandardFields = !subLibraryId || selectedSubLibrary?.mediaType !== 'adult';
+  const showAdultFields = selectedSubLibrary?.mediaType === 'adult';
+  const showStandardFields = !selectedSubLibrary || selectedSubLibrary.mediaType !== 'adult';
   const mediaGridClass = showAdultFields && showStandardFields
     ? 'mediaManageGridMixed'
     : showAdultFields
@@ -324,7 +327,7 @@ export default function MediaManagePage() {
             setSelectedIds(new Set());
           }}
         >
-          <option value="">全部（{subLibraries.length} 个库）</option>
+          <option value="">全部普通库（{subLibraries.length} 个）</option>
         {subLibraries.map((sl) => (
             <option key={sl.uuid} value={sl.uuid}>{sl.name}</option>
           ))}
@@ -542,7 +545,7 @@ export default function MediaManagePage() {
             </div>
           </div>
           {items.length === 0 ? (
-            <p>暂未获取到媒体库数据。请先在管理端配置媒体库。</p>
+            <p>{subLibraries.length === 0 ? '暂未配置普通媒体库。' : '当前筛选条件下没有媒体。'}</p>
           ) : (
             <div>
               <div className={`mediaManageGrid ${mediaGridClass} mediaManageHead`}>
