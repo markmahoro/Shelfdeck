@@ -2,6 +2,7 @@
 
 const diagnosticLog = require('./diagnosticLog');
 const flowPlanner = require('./flowPlanner');
+const resourceCapacity = require('./resourceCapacity');
 
 const ACTIVE_STATUSES = new Set(['executing', 'pausing']);
 const BLOCKED_STATUSES = new Set(['awaiting_user_confirm', 'paused']);
@@ -26,6 +27,7 @@ function concurrencyLimitForAction(actionType, config = {}) {
 }
 
 function concurrencyLimitForResource(taskResource, config = {}) {
+  const legacyFallback = (() => {
   switch (taskResource && taskResource.resourceType) {
     case 'local_transcode':
     case 'worker_transcode':
@@ -45,6 +47,8 @@ function concurrencyLimitForResource(taskResource, config = {}) {
     default:
       return concurrencyLimitForAction(taskResource && taskResource.actionType, config);
   }
+  })();
+  return resourceCapacity.capacityForResource(taskResource, config, legacyFallback);
 }
 
 function subLibraryForTask(task, config = {}) {

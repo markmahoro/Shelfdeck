@@ -217,7 +217,7 @@ async function runEmbyExecuting(taskId, task, config, subLib) {
     if (repairSummary.doubanCache) {
       appendLog(taskId, 'info', `Applied local Douban cache: ${repairSummary.doubanCache.matched || 0} matched, ${repairSummary.doubanCache.changed || 0} changed`);
     }
-    appendLog(taskId, 'info', 'Recomputed ShelfDeck media facts and strategy');
+    appendLog(taskId, 'info', 'Recomputed ShelfDeck media facts and optimize targets');
     scheduler.reportStatus(taskId, 'executing', 85);
     const meta = metadataStatus.resolveMetadataStatus(latestItem, config);
     if (!meta.metadataComplete) {
@@ -236,7 +236,7 @@ async function runEmbyExecuting(taskId, task, config, subLib) {
     appendLog(taskId, meta.metadataComplete ? 'info' : 'warn', meta.metadataComplete
       ? 'Standard metadata repair verified'
       : `Metadata repair incomplete: ${meta.metadataMissingReasons.join(', ')}`);
-    await afterScrapeApplied(taskId, task, config, latestItem, 'Standard metadata repair finished; strategy recalculated');
+    await afterScrapeApplied(taskId, task, config, latestItem, 'Standard metadata repair finished; optimize targets recalculated');
   } catch (e) {
     appendLog(taskId, 'error', e.message);
     setPhase(taskId, 'failed_hard');
@@ -307,7 +307,7 @@ async function applyJavScrapeResult(taskId, task, config, subLib, liveItem, scra
     taskId,
     onLog: (level, msg) => appendLog(taskId, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
   });
-  await afterScrapeApplied(taskId, task, config, latestItem, 'Scrape metadata saved; strategy recalculated');
+  await afterScrapeApplied(taskId, task, config, latestItem, 'Scrape metadata saved; optimize targets recalculated');
 }
 
 async function runWesternExecuting(taskId, task, config, subLib, liveItem) {
@@ -356,13 +356,13 @@ async function applyWesternCuration(taskId, task, config, subLib, liveItem, cura
     return;
   }
 
-  await afterScrapeApplied(taskId, task, config, latestItem, 'Western adult AI metadata saved; strategy recalculated');
+  await afterScrapeApplied(taskId, task, config, latestItem, 'Western adult AI metadata saved; optimize targets recalculated');
 }
 
 async function afterScrapeApplied(taskId, task, config, latestItem, logMessage) {
   const mediaLibraryService = require('./mediaLibraryService');
   const strategyEngine = require('./strategyEngine');
-  try { mediaLibraryService.recomputeAllSelfFields(); } catch (_) {}
+  try { mediaLibraryService.projectStoredMediaFactsForItem(task.itemId); } catch (_) {}
   try { strategyEngine.runOnce(); } catch (_) {}
 
   const itemAfterStrategy = mediaLibraryService.getLibraryItem(task.itemId) || latestItem;

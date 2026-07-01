@@ -116,7 +116,7 @@ test('PATCH /v1/admin/tasks/:id refuses priority change on executing task (409)'
   }
 });
 
-test('POST /v1/tasks (manual) assigns additive priority from source, action, and library dimensions', async () => {
+test('POST /v1/tasks (manual) assigns Kairox task priority from source, target gate, and library dimensions', async () => {
   const dir = tmpDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   try {
@@ -132,9 +132,10 @@ test('POST /v1/tasks (manual) assigns additive priority from source, action, and
     });
     assert.strictEqual(res.statusCode, 201);
     const body = res.json();
-    assert.strictEqual(body.priority, 230, 'manual transcode should add manual source + transcode action + default library weights');
-    assert.strictEqual(body.priorityModelVersion, 'additive-v3');
-    assert.deepStrictEqual(body.priorityBreakdown.dimensions.map((d) => d.value), [0, 130, 100]);
+    assert.strictEqual(body.priority, 230, 'manual optimize/transcode should add manual source + optimize gate + operation hint + default library weights');
+    assert.strictEqual(body.priorityModelVersion, 'kairox-task-creator-v1');
+    assert.deepStrictEqual(body.priorityBreakdown.dimensions.map((d) => d.key), ['source', 'targetGate', 'optimizeOperationHint', 'subLibrary']);
+    assert.deepStrictEqual(body.priorityBreakdown.dimensions.map((d) => d.value), [0, 110, 20, 100]);
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
@@ -297,7 +298,11 @@ test('taskScheduler capacity follows flow resource rather than legacy actionType
 
   const cfg = configStoreMod.getDefaultConfig();
   cfg.transcodeConcurrency = 2;
-  cfg.upgradeConcurrency = 1;
+  cfg.upgradeConcurrency = 99;
+  cfg.resourceCapacity = {
+    ...(cfg.resourceCapacity || {}),
+    moviepilot: 1,
+  };
   configStoreMod.saveConfig(cfg);
 
   const moviepilotPlan = {
@@ -362,7 +367,7 @@ test('taskScheduler capacity follows flow resource rather than legacy actionType
   }
 });
 
-test('taskScheduler reconciles queued automatic task priorities with the current additive model', async () => {
+test('taskScheduler preserves Task Creator priority instead of recomputing business priority', async () => {
   tmpDir();
   const scheduler = require('../src/taskScheduler');
   const taskStoreMod = require('../src/taskStore');
@@ -402,9 +407,9 @@ test('taskScheduler reconciles queued automatic task priorities with the current
     await scheduler.scheduleRound();
     const reconciled = taskStoreMod.getTask(stale.id);
     const preserved = taskStoreMod.getTask(manualOverride.id);
-    assert.strictEqual(reconciled.priority, 260);
-    assert.strictEqual(reconciled.priorityModelVersion, 'additive-v3');
-    assert.deepStrictEqual(reconciled.priorityBreakdown.dimensions.map((d) => d.value), [100, 80, 100, -20]);
+    assert.strictEqual(reconciled.priority, 80);
+    assert.strictEqual(reconciled.priorityModelVersion || '', '');
+    assert.strictEqual(reconciled.priorityBreakdown, undefined);
     assert.strictEqual(preserved.priority, 7);
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;

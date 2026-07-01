@@ -1,6 +1,7 @@
 'use strict';
 
 const PRIORITY_MODEL_VERSION = 'additive-v3';
+const TASK_PRIORITY_MODEL_VERSION = 'kairox-task-creator-v1';
 
 /**
  * PriorityEngine — computes a task's initial `priority` value.
@@ -32,6 +33,79 @@ const PRIORITY_MODEL_VERSION = 'additive-v3';
  */
 function computePriority({ source, actionType, itemInfo, config, task }) {
   return explainPriority({ source, actionType, itemInfo, config, task }).priority;
+}
+
+function explainTaskPriority({ source, taskTarget, itemInfo, config, task, actionType }) {
+  const cfg = config && config.taskPriority || {};
+  const manualBase = typeof cfg.manualTaskPriority === 'number' ? cfg.manualTaskPriority : 0;
+  const autoBase = typeof cfg.autoTaskPriorityBase === 'number' ? cfg.autoTaskPriorityBase : 100;
+  const context = buildTaskContext({ itemInfo, task, taskTarget, actionType });
+
+  const targetGateWeights = cfg.targetGateWeights || {};
+  const legacyActionWeights = cfg.actionTypeWeights || {};
+  const targetGate = context.targetGate || targetGateForAction(context.actionType);
+  const operationHint = context.operationHint || operationHintForAction(context.actionType);
+  const targetGateWeight = typeof targetGateWeights[targetGate] === 'number'
+    ? targetGateWeights[targetGate]
+    : legacyTargetGateWeight(targetGate, legacyActionWeights);
+  const optimizeOperationHints = cfg.optimizeOperationHints || {};
+  const operationHintWeight = targetGate === 'optimize'
+    ? (typeof optimizeOperationHints[operationHint] === 'number'
+      ? optimizeOperationHints[operationHint]
+      : legacyOptimizeOperationHint(operationHint, legacyActionWeights, targetGateWeight))
+    : 0;
+
+  const sourceWeight = source === 'manual' ? manualBase : autoBase;
+  const libraryWeight = resolveLibraryWeight(context, config);
+  const businessSignalWeight = computeBusinessSignalDelta(operationHint || context.actionType || targetGate, context, cfg);
+  const queueAgeWeight = computeQueueAgeDelta(context, cfg);
+  const retryWeight = computeRetryDelta(context, cfg);
+  const dimensions = [
+    { key: 'source', label: source === 'manual' ? '手动来源' : '自动来源', value: sourceWeight },
+    { key: 'targetGate', label: '目标 Gate', targetGate, value: targetGateWeight },
+  ];
+  if (operationHintWeight !== 0) {
+    dimensions.push({ key: 'optimizeOperationHint', label: '优化路径提示', operationHint, value: operationHintWeight });
+  }
+  dimensions.push({ key: 'subLibrary', label: '子库权重', subLibraryId: context.subLibraryId || '', value: libraryWeight });
+  if (businessSignalWeight !== 0) {
+    dimensions.push({ key: 'businessSignal', label: '业务信号', targetGate, operationHint, value: businessSignalWeight });
+  }
+  if (queueAgeWeight !== 0) {
+    dimensions.push({ key: 'queueAge', label: '等待时间', createdAt: context.createdAt || '', value: queueAgeWeight });
+  }
+  if (retryWeight !== 0) {
+    dimensions.push({ key: 'retry', label: '重试惩罚', retryCount: context.retryCount || 0, value: retryWeight });
+  }
+
+  for (const [index, rule] of taskPriorityRules(cfg, targetGate, operationHint).entries()) {
+    if (!rule || typeof rule !== 'object') continue;
+    if (matchConditions(rule.match, context)) {
+      const delta = computeAdjustDelta(rule.adjust);
+      if (delta !== 0) {
+        dimensions.push({
+          key: 'rule',
+          label: '高级规则',
+          index,
+          match: rule.match || {},
+          adjust: normalizeAdjust(rule.adjust),
+          value: delta,
+        });
+      }
+    }
+  }
+
+  const raw = dimensions.reduce((sum, dim) => sum + dim.value, 0);
+  return {
+    modelVersion: TASK_PRIORITY_MODEL_VERSION,
+    lowerIsEarlier: true,
+    formula: 'source + targetGate + optimizeOperationHint + subLibrary + businessSignal + queueAge + retry + matchedRules',
+    targetGate,
+    operationHint,
+    dimensions,
+    raw,
+    priority: Math.max(0, Math.round(raw)),
+  };
 }
 
 function explainPriority({ source, actionType, itemInfo, config, task }) {
@@ -102,6 +176,64 @@ function buildContext(itemInfo, task) {
     createdAt: t.createdAt || info.createdAt,
     retryCount: t.retryCount !== undefined ? t.retryCount : info.retryCount,
   };
+}
+
+function buildTaskContext({ itemInfo, task, taskTarget, actionType }) {
+  const context = buildContext(itemInfo, task);
+  const target = taskTarget && typeof taskTarget === 'object' ? taskTarget : {};
+  const inferredAction = actionType || target.operationHint || context.actionType;
+  return {
+    ...context,
+    actionType: inferredAction,
+    targetGate: target.targetGate || targetForAction(inferredAction),
+    gateObjective: target.gateObjective || context.gateObjective || {},
+    operationHint: target.operationHint || operationHintForAction(inferredAction),
+  };
+}
+
+function targetForAction(actionType) {
+  const action = String(actionType || '').trim().toLowerCase();
+  if (action === 'ingest') return 'ingest';
+  if (action === 'scrape' || action === 'metadata') return 'metadata';
+  if (action === 'archive') return 'archive';
+  if (action === 'transcode' || action === 'upgrade' || action === 'delete') return 'optimize';
+  return action || '';
+}
+
+function operationHintForAction(actionType) {
+  return String(actionType || '').trim().toLowerCase();
+}
+
+function legacyTargetGateWeight(targetGate, actionWeights = {}) {
+  if (targetGate === 'ingest') return numberOr(actionWeights.ingest, 60);
+  if (targetGate === 'metadata') return numberOr(actionWeights.scrape, 80);
+  if (targetGate === 'archive') return numberOr(actionWeights.archive, 70);
+  if (targetGate === 'optimize') {
+    const values = ['transcode', 'upgrade', 'delete']
+      .map((key) => Number(actionWeights[key]))
+      .filter(Number.isFinite);
+    if (values.length) return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+    return 110;
+  }
+  return 0;
+}
+
+function legacyOptimizeOperationHint(operationHint, actionWeights = {}, targetGateWeight = 0) {
+  const actionWeight = Number(actionWeights[operationHint]);
+  if (Number.isFinite(actionWeight)) return actionWeight - targetGateWeight;
+  return 0;
+}
+
+function taskPriorityRules(cfg, targetGate, operationHint) {
+  if (cfg.rulesByTargetGate && Array.isArray(cfg.rulesByTargetGate[targetGate])) {
+    return cfg.rulesByTargetGate[targetGate];
+  }
+  const legacyRules = cfg.rules || {};
+  if (targetGate === 'metadata') return legacyRules.scrape || [];
+  if (targetGate === 'ingest') return legacyRules.ingest || [];
+  if (targetGate === 'archive') return legacyRules.archive || [];
+  if (targetGate === 'optimize') return legacyRules[operationHint] || [];
+  return [];
 }
 
 function resolveLibraryWeight(itemInfo, config) {
@@ -188,6 +320,8 @@ function matchConditions(match, itemInfo) {
 
   if (match.subLibraryId !== undefined && info.subLibraryId !== match.subLibraryId) return false;
   if (match.type !== undefined && info.type !== match.type) return false;
+  if (match.targetGate !== undefined && info.targetGate !== match.targetGate) return false;
+  if (match.operationHint !== undefined && info.operationHint !== match.operationHint) return false;
   if (match.isDiscLike !== undefined && !!info.isDiscLike !== !!match.isDiscLike) return false;
   if (match.isDolbyVision !== undefined && !!info.isDolbyVision !== !!match.isDolbyVision) return false;
 
@@ -242,7 +376,9 @@ function computeAdjustDelta(adjust) {
 module.exports = {
   computePriority,
   explainPriority,
+  explainTaskPriority,
   PRIORITY_MODEL_VERSION,
+  TASK_PRIORITY_MODEL_VERSION,
   // exported for unit testing
   _matchConditions: matchConditions,
   _applyAdjust: applyAdjust,

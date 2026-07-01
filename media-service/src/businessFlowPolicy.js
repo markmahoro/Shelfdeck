@@ -10,6 +10,8 @@ const USER_OPERATIONS = ['scrape', 'transcode', 'upgrade', 'delete', 'archive'];
 const AUTO_ACTION_ALIASES = {
   optimize: ['transcode', 'upgrade', 'delete'],
 };
+const TASK_TARGETS = new Set(['ingest', 'metadata', 'optimize', 'archive']);
+const OPTIMIZE_OPERATIONS = new Set(['transcode', 'upgrade', 'delete']);
 
 function normalizeAutoAction(value) {
   const action = String(value || '').trim().toLowerCase();
@@ -17,30 +19,109 @@ function normalizeAutoAction(value) {
 }
 
 function resolveAutoEnabledActions(config) {
-  const actions = Array.isArray(config && config.smartTaskEnabledActions)
-    ? config.smartTaskEnabledActions
-    : [];
+  const taskTargets = resolveAutomaticTaskTargets(config);
+  const optimizeOperations = resolveOptimizeAllowedOperations(config);
   const expanded = new Set();
 
-  for (const action of actions) {
-    const normalized = normalizeAutoAction(action);
-    if (!normalized) continue;
-    if (Array.isArray(AUTO_ACTION_ALIASES[normalized])) {
-      for (const expandedAction of AUTO_ACTION_ALIASES[normalized]) {
-        expanded.add(expandedAction);
-      }
-      continue;
-    }
-    expanded.add(normalized);
+  if (taskTargets.includes('ingest')) expanded.add('ingest');
+  if (taskTargets.includes('metadata')) expanded.add('scrape');
+  if (taskTargets.includes('archive')) expanded.add('archive');
+  if (taskTargets.includes('optimize')) {
+    for (const operation of optimizeOperations) expanded.add(operation);
   }
 
   return Array.from(expanded);
 }
 
+function normalizeList(values, allowed) {
+  const result = [];
+  const seen = new Set();
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = normalizeAutoAction(value);
+    if (!normalized || !allowed.has(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
+function legacyAutomaticConfig(config = {}) {
+  const actions = Array.isArray(config && config.smartTaskEnabledActions)
+    ? config.smartTaskEnabledActions
+    : [];
+  const taskTargets = new Set();
+  const optimizeOperations = new Set();
+
+  for (const action of actions) {
+    const normalized = normalizeAutoAction(action);
+    if (!normalized) continue;
+    if (normalized === 'ingest') {
+      taskTargets.add('ingest');
+    } else if (normalized === 'scrape' || normalized === 'metadata') {
+      taskTargets.add('metadata');
+    } else if (normalized === 'archive') {
+      taskTargets.add('archive');
+    } else if (normalized === 'optimize') {
+      taskTargets.add('optimize');
+      for (const operation of AUTO_ACTION_ALIASES.optimize) optimizeOperations.add(operation);
+    } else if (OPTIMIZE_OPERATIONS.has(normalized)) {
+      taskTargets.add('optimize');
+      optimizeOperations.add(normalized);
+    }
+  }
+
+  return {
+    automaticTaskTargets: Array.from(taskTargets),
+    optimizeAllowedOperations: Array.from(optimizeOperations),
+  };
+}
+
+function resolveAutomaticTaskTargets(config = {}) {
+  if (Array.isArray(config.automaticTaskTargets)) {
+    return normalizeList(config.automaticTaskTargets, TASK_TARGETS);
+  }
+  return legacyAutomaticConfig(config).automaticTaskTargets;
+}
+
+function resolveOptimizeAllowedOperations(config = {}) {
+  if (Array.isArray(config.optimizeAllowedOperations)) {
+    return normalizeList(config.optimizeAllowedOperations, OPTIMIZE_OPERATIONS);
+  }
+  return legacyAutomaticConfig(config).optimizeAllowedOperations;
+}
+
+function targetForAction(actionType) {
+  const action = normalizeAutoAction(actionType);
+  if (action === 'ingest') return 'ingest';
+  if (action === 'scrape' || action === 'metadata') return 'metadata';
+  if (action === 'archive') return 'archive';
+  if (OPTIMIZE_OPERATIONS.has(action)) return 'optimize';
+  return action || '';
+}
+
+function automaticTargetEnabled(config, target) {
+  return resolveAutomaticTaskTargets(config).includes(target);
+}
+
+function optimizeOperationEnabled(config, operation) {
+  return resolveOptimizeAllowedOperations(config).includes(operation);
+}
+
+function automaticActionEnabled(config, actionType) {
+  const target = targetForAction(actionType);
+  if (!automaticTargetEnabled(config, target)) return false;
+  if (target === 'optimize') return optimizeOperationEnabled(config, actionType);
+  return true;
+}
+
 function actionCooldownMs(config, actionType) {
   const cfg = config && config.taskAdmission || {};
+  const target = targetForAction(actionType);
+  const byTarget = cfg.cooldownHoursByTargetGate || {};
   const byAction = cfg.cooldownHoursByAction || {};
-  const hours = typeof byAction[actionType] === 'number'
+  const hours = typeof byTarget[target] === 'number'
+    ? byTarget[target]
+    : typeof byAction[actionType] === 'number'
     ? byAction[actionType]
     : (typeof cfg.defaultCooldownHours === 'number' ? cfg.defaultCooldownHours : 48);
   return Math.max(0, hours) * 3600 * 1000;
@@ -77,10 +158,25 @@ function queuedCountForAction(tasks, actionType) {
 
 function queueLimit(config, actionType) {
   const cfg = config && config.taskAdmission || {};
+  const target = targetForAction(actionType);
+  const byTarget = cfg.maxQueuedByTargetGate || {};
   const byAction = cfg.maxQueuedByAction || {};
-  const raw = byAction[actionType] !== undefined ? byAction[actionType] : cfg.defaultMaxQueued;
+  const raw = byTarget[target] !== undefined
+    ? byTarget[target]
+    : byAction[actionType] !== undefined
+      ? byAction[actionType]
+      : cfg.defaultMaxQueued;
   const value = Number(raw);
   return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function queuedCountForTargetGate(tasks, actionType) {
+  const target = targetForAction(actionType);
+  return (tasks || []).filter((t) => (
+    t
+    && !TERMINAL.has(t.status)
+    && targetForAction(t.actionType) === target
+  )).length;
 }
 
 function enabledAutoActions(config) {
@@ -202,7 +298,7 @@ function resolveAutomaticTrigger(input = {}) {
         metadataMissingReasons: meta.metadataMissingReasons,
       });
     }
-    if (!enabledAutoActions(cfg).includes('scrape')) {
+    if (!automaticTargetEnabled(cfg, 'metadata')) {
       return blocked('scrape', 'action_not_enabled', {
         item: itemWithMetadata,
         metadataMissingReasons: meta.metadataMissingReasons,
@@ -237,7 +333,7 @@ function resolveAutomaticTrigger(input = {}) {
         archiveGate,
       });
     }
-    if (!enabledAutoActions(cfg).includes('archive')) {
+    if (!automaticTargetEnabled(cfg, 'archive')) {
       return blocked('archive', 'action_not_enabled', {
         item: itemWithMetadata,
         archiveGate,
@@ -265,7 +361,10 @@ function resolveAutomaticTrigger(input = {}) {
     return blocked(planned.operation, planned.reason, { item: itemWithMetadata });
   }
   const operation = planned.operation;
-  if (!enabledAutoActions(cfg).includes(operation)) {
+  if (!automaticTargetEnabled(cfg, 'optimize')) {
+    return blocked(operation, 'action_not_enabled', { item: itemWithMetadata });
+  }
+  if (!optimizeOperationEnabled(cfg, operation)) {
     return blocked(operation, 'action_not_enabled', { item: itemWithMetadata });
   }
 
@@ -308,7 +407,7 @@ function evaluateOperation(input = {}) {
 
   const manual = source === 'manual';
   const automatic = !manual;
-  if (automatic && !enabledAutoActions(cfg).includes(actionType)) {
+  if (automatic && !automaticActionEnabled(cfg, actionType)) {
     return blocked(actionType, 'action_not_enabled');
   }
 
@@ -357,7 +456,7 @@ function evaluateOperation(input = {}) {
     }
 
     const limit = queueLimit(cfg, actionType);
-    if (limit !== null && queuedCountForAction(tasks, actionType) >= limit) {
+    if (limit !== null && queuedCountForTargetGate(tasks, actionType) >= limit) {
       return blocked(actionType, 'queue_limit', { limit });
     }
 
@@ -558,6 +657,8 @@ function decorateItems(items, input = {}) {
 module.exports = {
   USER_OPERATIONS,
   resolveAutoEnabledActions,
+  resolveAutomaticTaskTargets,
+  resolveOptimizeAllowedOperations,
   evaluateOperation,
   resolveAutomaticTrigger,
   resolveManualOperationIntent,

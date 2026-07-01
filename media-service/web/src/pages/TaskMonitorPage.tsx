@@ -73,7 +73,7 @@ const OBJECTIVE_LABELS: Record<string, string> = {
   remove_media: '删除媒体',
   keep_current: '保持当前媒体',
   finalize_lifecycle: '闭环归档',
-  optimize_strategy_pending: '等待优化策略',
+  optimize_strategy_pending: '等待优化目标',
   repair_dolby_vision_compatibility: '修复播放兼容性',
 };
 

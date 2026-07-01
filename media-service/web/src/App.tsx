@@ -10,6 +10,7 @@ import MediaManagePage from './pages/MediaManagePage';
 import RuleTemplatesPage from './pages/RuleTemplatesPage';
 import NodesPage from './pages/NodesPage';
 import AdultConfigPage from './pages/AdultConfigPage';
+import ResourceCapacityPage from './pages/ResourceCapacityPage';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="tasks" element={<TaskMonitorPage />} />
         <Route path="rules" element={<RuleTemplatesPage />} />
         <Route path="system" element={<SystemConfigPage />} />
+        <Route path="capacity" element={<ResourceCapacityPage />} />
         <Route path="douban" element={<DoubanConfigPage />} />
         <Route path="transcode" element={<TranscodeConfigPage />} />
         <Route path="adult" element={<AdultConfigPage />} />

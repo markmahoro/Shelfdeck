@@ -7,6 +7,8 @@ import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 type ActionType = 'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode';
+type TaskTarget = 'ingest' | 'metadata' | 'optimize' | 'archive';
+type OptimizeOperation = 'transcode' | 'upgrade' | 'delete';
 type PriorityMatch = NonNullable<PriorityRule['match']>;
 type PriorityMatchKey = keyof PriorityMatch;
 
@@ -16,12 +18,17 @@ interface SubLibScheduleState {
   priorityWeight: number;
 }
 
-const ACTIONS: Array<{ key: ActionType; label: string }> = [
-  { key: 'ingest', label: '入库' },
-  { key: 'scrape', label: '刮削' },
-  { key: 'delete', label: '删除' },
-  { key: 'upgrade', label: '洗版' },
+const TASK_TARGETS: Array<{ key: TaskTarget; label: string; desc: string }> = [
+  { key: 'ingest', label: '自动入库', desc: '允许系统把外部候选纳入 ShelfDeck 管理' },
+  { key: 'metadata', label: '自动补元数据', desc: '允许系统为元数据不完整的条目创建刮削/修复任务' },
+  { key: 'optimize', label: '自动优化', desc: '允许系统为已具备优化目标的条目创建优化任务' },
+  { key: 'archive', label: '自动归档', desc: '允许系统为已完成处理的条目创建闭环归档任务' },
+];
+
+const OPTIMIZE_OPERATIONS: Array<{ key: OptimizeOperation; label: string }> = [
   { key: 'transcode', label: '转码压缩' },
+  { key: 'upgrade', label: '洗版' },
+  { key: 'delete', label: '删除' },
 ];
 
 const APPROVAL_GATES: Array<{ key: string; label: string; desc: string; force?: boolean }> = [
@@ -48,28 +55,31 @@ const DEFAULT_APPROVAL_POLICY: ApprovalPolicyConfig = {
   'scrape.reviewResult': 'auto',
 };
 
-const DEFAULT_ACTION_WEIGHTS: Record<ActionType, number> = {
+const DEFAULT_TARGET_GATE_WEIGHTS: Record<TaskTarget, number> = {
   ingest: 60,
-  scrape: 80,
-  delete: 90,
-  upgrade: 110,
-  transcode: 130,
+  metadata: 80,
+  optimize: 110,
+  archive: 70,
 };
 
-const DEFAULT_COOLDOWNS: Record<ActionType, number> = {
+const DEFAULT_OPTIMIZE_OPERATION_HINTS: Record<OptimizeOperation, number> = {
+  transcode: 20,
+  upgrade: 0,
+  delete: -20,
+};
+
+const DEFAULT_GATE_COOLDOWNS: Record<TaskTarget, number> = {
   ingest: 6,
-  scrape: 6,
-  delete: 48,
-  upgrade: 48,
-  transcode: 48,
+  metadata: 6,
+  optimize: 48,
+  archive: 0,
 };
 
-const DEFAULT_QUEUE_LIMITS: Record<ActionType, number> = {
+const DEFAULT_GATE_QUEUE_LIMITS: Record<TaskTarget, number> = {
   ingest: 50,
-  scrape: 20,
-  delete: 50,
-  upgrade: 50,
-  transcode: 50,
+  metadata: 20,
+  optimize: 50,
+  archive: 50,
 };
 
 function modeLabel(mode: ApprovalMode): string {
@@ -80,6 +90,99 @@ function modeLabel(mode: ApprovalMode): string {
 
 function normalizeApprovalPolicy(policy?: ApprovalPolicyConfig): ApprovalPolicyConfig {
   return { ...DEFAULT_APPROVAL_POLICY, ...(policy || {}), 'upgrade.identityMismatch': 'forceConfirm' };
+}
+
+function splitLegacySmartTaskActions(actions: string[] = []): { automaticTaskTargets: TaskTarget[]; optimizeAllowedOperations: OptimizeOperation[] } {
+  const targets = new Set<TaskTarget>();
+  const operations = new Set<OptimizeOperation>();
+  for (const raw of actions) {
+    const action = String(raw || '').trim().toLowerCase();
+    if (action === 'ingest') targets.add('ingest');
+    else if (action === 'scrape' || action === 'metadata') targets.add('metadata');
+    else if (action === 'archive') targets.add('archive');
+    else if (action === 'optimize') {
+      targets.add('optimize');
+      operations.add('transcode');
+      operations.add('upgrade');
+      operations.add('delete');
+    } else if (action === 'transcode' || action === 'upgrade' || action === 'delete') {
+      targets.add('optimize');
+      operations.add(action);
+    }
+  }
+  return { automaticTaskTargets: [...targets], optimizeAllowedOperations: [...operations] };
+}
+
+function projectLegacySmartTaskActions(targets: TaskTarget[], operations: OptimizeOperation[]): string[] {
+  const actions: string[] = [];
+  if (targets.includes('ingest')) actions.push('ingest');
+  if (targets.includes('metadata')) actions.push('scrape');
+  if (targets.includes('optimize')) actions.push(...operations);
+  if (targets.includes('archive')) actions.push('archive');
+  return actions;
+}
+
+function legacyActionWeightsToGateWeights(weights: Partial<Record<ActionType, number>> = {}): Record<TaskTarget, number> {
+  const optimizeValues = [weights.transcode, weights.upgrade, weights.delete]
+    .map((value) => Number(value))
+    .filter(Number.isFinite);
+  return {
+    ingest: typeof weights.ingest === 'number' ? weights.ingest : DEFAULT_TARGET_GATE_WEIGHTS.ingest,
+    metadata: typeof weights.scrape === 'number' ? weights.scrape : DEFAULT_TARGET_GATE_WEIGHTS.metadata,
+    optimize: optimizeValues.length ? Math.round(optimizeValues.reduce((sum, value) => sum + value, 0) / optimizeValues.length) : DEFAULT_TARGET_GATE_WEIGHTS.optimize,
+    archive: DEFAULT_TARGET_GATE_WEIGHTS.archive,
+  };
+}
+
+function gateWeightsToLegacyActionWeights(weights: Record<TaskTarget, number>, hints: Record<OptimizeOperation, number>): Record<ActionType, number> {
+  return {
+    ingest: weights.ingest,
+    scrape: weights.metadata,
+    transcode: weights.optimize + hints.transcode,
+    upgrade: weights.optimize + hints.upgrade,
+    delete: weights.optimize + hints.delete,
+  };
+}
+
+function legacyActionMapToGateMap(values: Partial<Record<ActionType, number>> = {}, defaults: Record<TaskTarget, number>): Record<TaskTarget, number> {
+  const optimizeValues = [values.transcode, values.upgrade, values.delete]
+    .map((value) => Number(value))
+    .filter(Number.isFinite);
+  return {
+    ingest: typeof values.ingest === 'number' ? values.ingest : defaults.ingest,
+    metadata: typeof values.scrape === 'number' ? values.scrape : defaults.metadata,
+    optimize: optimizeValues.length ? Math.min(...optimizeValues) : defaults.optimize,
+    archive: defaults.archive,
+  };
+}
+
+function gateMapToLegacyActionMap(values: Record<TaskTarget, number>): Record<ActionType, number> {
+  return {
+    ingest: values.ingest,
+    scrape: values.metadata,
+    transcode: values.optimize,
+    upgrade: values.optimize,
+    delete: values.optimize,
+  };
+}
+
+function legacyRulesToGateRules(rules: Partial<Record<ActionType, PriorityRule[]>> = {}): Record<TaskTarget, PriorityRule[]> {
+  return {
+    ingest: rules.ingest || [],
+    metadata: rules.scrape || [],
+    optimize: [...(rules.transcode || []), ...(rules.upgrade || []), ...(rules.delete || [])],
+    archive: [],
+  };
+}
+
+function gateRulesToLegacyRules(rules: Record<TaskTarget, PriorityRule[]>): Record<ActionType, PriorityRule[]> {
+  return {
+    ingest: rules.ingest || [],
+    scrape: rules.metadata || [],
+    transcode: rules.optimize || [],
+    upgrade: [],
+    delete: [],
+  };
 }
 
 function firstMatchKey(match: PriorityMatch = {}): string {
@@ -144,24 +247,25 @@ export default function SystemConfigPage() {
   const [upgradeConc, setUpgradeConc] = useState(1);
   const [scrapeConc, setScrapeConc] = useState(1);
   const [smartTaskMax, setSmartTaskMax] = useState(10);
-  const [smartTaskActions, setSmartTaskActions] = useState<string[]>(['ingest', 'scrape', 'transcode', 'upgrade']);
+  const [automaticTaskTargets, setAutomaticTaskTargets] = useState<TaskTarget[]>([]);
+  const [optimizeAllowedOperations, setOptimizeAllowedOperations] = useState<OptimizeOperation[]>([]);
   const [smartTaskInterval, setSmartTaskInterval] = useState(10);
   const [smartTaskLookback, setSmartTaskLookback] = useState(30);
   const [smartTaskQueueMax, setSmartTaskQueueMax] = useState(50);
   const [strategyInterval, setStrategyInterval] = useState(30);
   const [manualPrio, setManualPrio] = useState(0);
   const [autoPrioBase, setAutoPrioBase] = useState(100);
-  const [actionWeights, setActionWeights] = useState<Record<ActionType, number>>(DEFAULT_ACTION_WEIGHTS);
-  const [priorityRules, setPriorityRules] = useState<Record<ActionType, PriorityRule[]>>({
+  const [targetGateWeights, setTargetGateWeights] = useState<Record<TaskTarget, number>>(DEFAULT_TARGET_GATE_WEIGHTS);
+  const [optimizeOperationHints, setOptimizeOperationHints] = useState<Record<OptimizeOperation, number>>(DEFAULT_OPTIMIZE_OPERATION_HINTS);
+  const [priorityRulesByTargetGate, setPriorityRulesByTargetGate] = useState<Record<TaskTarget, PriorityRule[]>>({
     ingest: [],
-    scrape: [],
-    delete: [],
-    upgrade: [],
-    transcode: [],
+    metadata: [],
+    optimize: [],
+    archive: [],
   });
   const [globalApprovalPolicy, setGlobalApprovalPolicy] = useState<ApprovalPolicyConfig>(DEFAULT_APPROVAL_POLICY);
-  const [cooldowns, setCooldowns] = useState<Record<ActionType, number>>(DEFAULT_COOLDOWNS);
-  const [queueLimits, setQueueLimits] = useState<Record<ActionType, number>>(DEFAULT_QUEUE_LIMITS);
+  const [gateCooldowns, setGateCooldowns] = useState<Record<TaskTarget, number>>(DEFAULT_GATE_COOLDOWNS);
+  const [gateQueueLimits, setGateQueueLimits] = useState<Record<TaskTarget, number>>(DEFAULT_GATE_QUEUE_LIMITS);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showPriorityAdvanced, setShowPriorityAdvanced] = useState(false);
   const [showGlobalApproval, setShowGlobalApproval] = useState(false);
@@ -181,24 +285,33 @@ export default function SystemConfigPage() {
         setUpgradeConc(sysCfg.upgradeConcurrency ?? 1);
         setScrapeConc(sysCfg.scrapeConcurrency ?? 1);
         setSmartTaskMax(sysCfg.smartTaskMaxPerRun ?? 10);
-        setSmartTaskActions(sysCfg.smartTaskEnabledActions ?? []);
+        const split = splitLegacySmartTaskActions(sysCfg.smartTaskEnabledActions ?? []);
+        setAutomaticTaskTargets((sysCfg.automaticTaskTargets as TaskTarget[] | undefined) ?? split.automaticTaskTargets);
+        setOptimizeAllowedOperations((sysCfg.optimizeAllowedOperations as OptimizeOperation[] | undefined) ?? split.optimizeAllowedOperations);
         setSmartTaskInterval(sysCfg.smartTaskPollIntervalMinutes ?? 10);
         setSmartTaskLookback(sysCfg.smartTaskLookbackDays ?? 30);
         setSmartTaskQueueMax(sysCfg.smartTaskMaxQueueSize ?? 50);
         setStrategyInterval(sysCfg.strategyPollIntervalMinutes ?? 30);
         setManualPrio(sysCfg.taskPriority?.manualTaskPriority ?? 0);
         setAutoPrioBase(sysCfg.taskPriority?.autoTaskPriorityBase ?? 100);
-        setActionWeights({ ...DEFAULT_ACTION_WEIGHTS, ...(sysCfg.taskPriority?.actionTypeWeights || {}) });
-        setPriorityRules({
-          ingest: sysCfg.taskPriority?.rules?.ingest || [],
-          scrape: sysCfg.taskPriority?.rules?.scrape || [],
-          delete: sysCfg.taskPriority?.rules?.delete || [],
-          upgrade: sysCfg.taskPriority?.rules?.upgrade || [],
-          transcode: sysCfg.taskPriority?.rules?.transcode || [],
+        setTargetGateWeights({
+          ...legacyActionWeightsToGateWeights(sysCfg.taskPriority?.actionTypeWeights || {}),
+          ...(sysCfg.taskPriority?.targetGateWeights || {}),
+        });
+        setOptimizeOperationHints({ ...DEFAULT_OPTIMIZE_OPERATION_HINTS, ...(sysCfg.taskPriority?.optimizeOperationHints || {}) });
+        setPriorityRulesByTargetGate({
+          ...legacyRulesToGateRules(sysCfg.taskPriority?.rules || {}),
+          ...(sysCfg.taskPriority?.rulesByTargetGate || {}),
         });
         setGlobalApprovalPolicy(normalizeApprovalPolicy(sysCfg.approvalPolicy));
-        setCooldowns({ ...DEFAULT_COOLDOWNS, ...(sysCfg.taskAdmission?.cooldownHoursByAction || {}) });
-        setQueueLimits({ ...DEFAULT_QUEUE_LIMITS, ...(sysCfg.taskAdmission?.maxQueuedByAction || {}) });
+        setGateCooldowns({
+          ...legacyActionMapToGateMap(sysCfg.taskAdmission?.cooldownHoursByAction || {}, DEFAULT_GATE_COOLDOWNS),
+          ...(sysCfg.taskAdmission?.cooldownHoursByTargetGate || {}),
+        });
+        setGateQueueLimits({
+          ...legacyActionMapToGateMap(sysCfg.taskAdmission?.maxQueuedByAction || {}, DEFAULT_GATE_QUEUE_LIMITS),
+          ...(sysCfg.taskAdmission?.maxQueuedByTargetGate || {}),
+        });
         const scheds: Record<string, SubLibScheduleState> = {};
         for (const sl of slRes.subLibraries || []) {
           const legacyManual = sl.scheduleMode === 'full_manual' || sl.autoExecute === false;
@@ -217,8 +330,22 @@ export default function SystemConfigPage() {
 
   const subLibs = data?.subLibs || [];
 
-  function toggleAction(a: string) {
-    setSmartTaskActions((prev) => prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]);
+  function toggleTaskTarget(target: TaskTarget) {
+    setAutomaticTaskTargets((prev) => {
+      const next = prev.includes(target) ? prev.filter((x) => x !== target) : [...prev, target];
+      if (!next.includes('optimize')) setOptimizeAllowedOperations([]);
+      return next;
+    });
+  }
+
+  function toggleOptimizeOperation(operation: OptimizeOperation) {
+    setOptimizeAllowedOperations((prev) => {
+      const next = prev.includes(operation) ? prev.filter((x) => x !== operation) : [...prev, operation];
+      if (next.length > 0 && !automaticTaskTargets.includes('optimize')) {
+        setAutomaticTaskTargets((targets) => targets.includes('optimize') ? targets : [...targets, 'optimize']);
+      }
+      return next;
+    });
   }
 
   function updateSubLib(uuid: string, patch: Partial<SubLibScheduleState>) {
@@ -233,17 +360,17 @@ export default function SystemConfigPage() {
     setExpandedApprovalLibs((prev) => ({ ...prev, [uuid]: !prev[uuid] }));
   }
 
-  function addPriorityRule(at: ActionType) {
-    setPriorityRules((prev) => ({
+  function addPriorityRule(target: TaskTarget) {
+    setPriorityRulesByTargetGate((prev) => ({
       ...prev,
-      [at]: [...(prev[at] || []), { match: { subLibraryId: subLibs[0]?.uuid || '' }, adjust: { op: 'subtract', value: 50 } }],
+      [target]: [...(prev[target] || []), { match: { subLibraryId: subLibs[0]?.uuid || '' }, adjust: { op: 'subtract', value: 50 } }],
     }));
   }
 
-  function updatePriorityRule(at: ActionType, idx: number, patch: Partial<PriorityRule>) {
-    setPriorityRules((prev) => ({
+  function updatePriorityRule(target: TaskTarget, idx: number, patch: Partial<PriorityRule>) {
+    setPriorityRulesByTargetGate((prev) => ({
       ...prev,
-      [at]: (prev[at] || []).map((r, i) => (
+      [target]: (prev[target] || []).map((r, i) => (
         i === idx
           ? { ...r, ...patch, match: { ...r.match, ...(patch.match || {}) }, adjust: { ...r.adjust, ...(patch.adjust || {}) } }
           : r
@@ -251,12 +378,17 @@ export default function SystemConfigPage() {
     }));
   }
 
-  function removePriorityRule(at: ActionType, idx: number) {
-    setPriorityRules((prev) => ({ ...prev, [at]: (prev[at] || []).filter((_, i) => i !== idx) }));
+  function removePriorityRule(target: TaskTarget, idx: number) {
+    setPriorityRulesByTargetGate((prev) => ({ ...prev, [target]: (prev[target] || []).filter((_, i) => i !== idx) }));
   }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const compatSmartTaskActions = projectLegacySmartTaskActions(automaticTaskTargets, optimizeAllowedOperations);
+      const compatActionWeights = gateWeightsToLegacyActionWeights(targetGateWeights, optimizeOperationHints);
+      const compatCooldowns = gateMapToLegacyActionMap(gateCooldowns);
+      const compatQueueLimits = gateMapToLegacyActionMap(gateQueueLimits);
+      const compatPriorityRules = gateRulesToLegacyRules(priorityRulesByTargetGate);
       const promises: Promise<unknown>[] = [
         systemConfig.patch({
           ingestConcurrency: ingestConc,
@@ -265,7 +397,9 @@ export default function SystemConfigPage() {
           upgradeConcurrency: upgradeConc,
           scrapeConcurrency: scrapeConc,
           smartTaskMaxPerRun: smartTaskMax,
-          smartTaskEnabledActions: smartTaskActions,
+          automaticTaskTargets,
+          optimizeAllowedOperations,
+          smartTaskEnabledActions: compatSmartTaskActions,
           smartTaskPollIntervalMinutes: smartTaskInterval,
           smartTaskLookbackDays: smartTaskLookback,
           smartTaskMaxQueueSize: smartTaskQueueMax,
@@ -274,14 +408,19 @@ export default function SystemConfigPage() {
           taskAdmission: {
             defaultCooldownHours: data?.sysCfg.taskAdmission?.defaultCooldownHours ?? 48,
             defaultMaxQueued: data?.sysCfg.taskAdmission?.defaultMaxQueued ?? 50,
-            cooldownHoursByAction: cooldowns,
-            maxQueuedByAction: queueLimits,
+            cooldownHoursByTargetGate: gateCooldowns,
+            maxQueuedByTargetGate: gateQueueLimits,
+            cooldownHoursByAction: compatCooldowns,
+            maxQueuedByAction: compatQueueLimits,
           },
           taskPriority: {
             manualTaskPriority: manualPrio,
             autoTaskPriorityBase: autoPrioBase,
-            actionTypeWeights: actionWeights,
-            rules: priorityRules,
+            targetGateWeights,
+            optimizeOperationHints,
+            rulesByTargetGate: priorityRulesByTargetGate,
+            actionTypeWeights: compatActionWeights,
+            rules: compatPriorityRules,
           },
         }),
       ];
@@ -432,37 +571,48 @@ export default function SystemConfigPage() {
       </section>
 
       <section style={cardStyle}>
-        <h3 style={sectionTitle}>任务并发数</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>任务实现路径进入 event 执行阶段后的全局并发上限。</p>
-        <div style={fourColGrid}>
-          <NumberField label="入库并发" value={ingestConc} min={1} max={10} onChange={setIngestConc} />
-          <NumberField label="删除并发" value={deleteConc} min={1} max={10} onChange={setDeleteConc} />
-          <NumberField label="转码并发" value={transcodeConc} min={1} max={10} onChange={setTranscodeConc} />
-          <NumberField label="洗版并发" value={upgradeConc} min={1} max={10} onChange={setUpgradeConc} />
-          <NumberField label="刮削并发" value={scrapeConc} min={1} max={10} onChange={setScrapeConc} />
-        </div>
-      </section>
-
-      <section style={cardStyle}>
         <h3 style={sectionTitle}>后台自动入队</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>后台自动入队统一控制系统可以自动推进哪些处理方向；任务表达要跨过的目标 Gate，转码、洗版、删除、刮削只是当前实现路径。</p>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>后台自动入队分两层授权：先决定系统能不能自动创建某个 Gate 的任务，再决定优化任务里允许哪些操作路径。</p>
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>允许自动推进的处理方向</label>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            {ACTIONS.map((a) => (
-              <label key={a.key} style={checkboxLabel}>
-                <input type="checkbox" checked={smartTaskActions.includes(a.key)} onChange={() => toggleAction(a.key)} />
-                {a.label}
+          <label style={labelStyle}>允许自动创建的任务目标</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+            {TASK_TARGETS.map((target) => (
+              <label key={target.key} style={checkboxCard}>
+                <input type="checkbox" checked={automaticTaskTargets.includes(target.key)} onChange={() => toggleTaskTarget(target.key)} />
+                <span>
+                  <strong>{target.label}</strong>
+                  <small>{target.desc}</small>
+                </span>
               </label>
             ))}
           </div>
-          {smartTaskActions.length === 0 ? (
+          <div style={{ marginTop: 16 }}>
+            <label style={labelStyle}>优化任务允许的操作</label>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              {OPTIMIZE_OPERATIONS.map((operation) => (
+                <label key={operation.key} style={checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={optimizeAllowedOperations.includes(operation.key)}
+                    onChange={() => toggleOptimizeOperation(operation.key)}
+                  />
+                  {operation.label}
+                </label>
+              ))}
+            </div>
+          </div>
+          {automaticTaskTargets.length === 0 ? (
             <div style={warningBox}>
-              当前没有选择任何自动处理方向。媒体库仍会显示“转码压缩、洗版、删除、刮削”等推荐方向，但系统不会自动创建对应任务；需要手动执行，或在这里勾选对应方向后保存。
+              当前没有选择任何自动任务目标。媒体库仍会显示推荐方向，但系统不会自动创建任务；需要手动执行，或在这里授权对应 Gate 后保存。
+            </div>
+          ) : automaticTaskTargets.includes('optimize') && optimizeAllowedOperations.length === 0 ? (
+            <div style={warningBox}>
+              已允许自动创建优化任务，但没有授权任何优化操作。系统不会自动创建转码、洗版或删除任务。
             </div>
           ) : (
             <div style={infoBox}>
-              当前允许自动创建：{smartTaskActions.map((key) => ACTIONS.find((a) => a.key === key)?.label || key).join('、')}。
+              当前允许自动任务目标：{automaticTaskTargets.map((key) => TASK_TARGETS.find((target) => target.key === key)?.label || key).join('、')}。
+              {automaticTaskTargets.includes('optimize') ? ` 优化操作：${optimizeAllowedOperations.map((key) => OPTIMIZE_OPERATIONS.find((operation) => operation.key === key)?.label || key).join('、') || '未授权'}。` : ''}
             </div>
           )}
           <div style={{ ...hintStyle, marginTop: 8 }}>用户在具体条目上手动创建任务属于明确操作，不受这个自动入队开关拦截，但仍会保留 active task 去重等安全规则。</div>
@@ -476,35 +626,35 @@ export default function SystemConfigPage() {
               <NumberField label="每轮最多入队数" value={smartTaskMax} min={1} max={100} onChange={setSmartTaskMax} />
               <NumberField label="队列上限" value={smartTaskQueueMax} min={1} max={500} onChange={setSmartTaskQueueMax} />
               <NumberField label="轮询间隔（分钟）" value={smartTaskInterval} min={5} max={120} onChange={setSmartTaskInterval} />
-              <NumberField label="策略计算间隔（分钟）" value={strategyInterval} min={10} max={360} onChange={setStrategyInterval} />
+              <NumberField label="优化目标计算间隔（分钟）" value={strategyInterval} min={10} max={360} onChange={setStrategyInterval} />
               <NumberField label="回溯天数" value={smartTaskLookback} min={1} max={365} onChange={setSmartTaskLookback} />
             </div>
             <div style={{ marginTop: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>失败/重复入队冷却</div>
-              <div style={fiveColGrid}>
-                {ACTIONS.map((a) => (
+              <div style={fourColGrid}>
+                {TASK_TARGETS.map((target) => (
                   <NumberField
-                    key={a.key}
-                    label={`${a.label}（小时）`}
-                    value={cooldowns[a.key]}
+                    key={target.key}
+                    label={`${target.label}（小时）`}
+                    value={gateCooldowns[target.key]}
                     min={0}
                     max={240}
-                    onChange={(v) => setCooldowns((prev) => ({ ...prev, [a.key]: v }))}
+                    onChange={(v) => setGateCooldowns((prev) => ({ ...prev, [target.key]: v }))}
                   />
                 ))}
               </div>
             </div>
             <div style={{ marginTop: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>自动队列上限</div>
-              <div style={fiveColGrid}>
-                {ACTIONS.map((a) => (
+              <div style={fourColGrid}>
+                {TASK_TARGETS.map((target) => (
                   <NumberField
-                    key={a.key}
-                    label={a.label}
-                    value={queueLimits[a.key]}
+                    key={target.key}
+                    label={target.label}
+                    value={gateQueueLimits[target.key]}
                     min={1}
                     max={500}
-                    onChange={(v) => setQueueLimits((prev) => ({ ...prev, [a.key]: v }))}
+                    onChange={(v) => setGateQueueLimits((prev) => ({ ...prev, [target.key]: v }))}
                   />
                 ))}
               </div>
@@ -515,18 +665,30 @@ export default function SystemConfigPage() {
 
       <section style={cardStyle}>
         <h3 style={sectionTitle}>队列优先级</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>数值越小越优先。最终优先级由来源权重、处理方向权重、子库权重、业务信号、等待时间、重试惩罚和高级规则叠加计算。</p>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>数值越小越优先。最终优先级由来源权重、目标 Gate 权重、优化操作提示、子库权重、业务信号、等待时间、重试惩罚和高级规则叠加计算。</p>
         <div style={fourColGrid}>
           <NumberField label="手动来源权重" value={manualPrio} min={0} max={999} onChange={setManualPrio} />
           <NumberField label="自动来源权重" value={autoPrioBase} min={0} max={999} onChange={setAutoPrioBase} />
-          {ACTIONS.map((a) => (
+          {TASK_TARGETS.map((target) => (
             <NumberField
-              key={a.key}
-              label={`${a.label}操作权重`}
-              value={actionWeights[a.key]}
+              key={target.key}
+              label={`${target.label}权重`}
+              value={targetGateWeights[target.key]}
               min={0}
               max={999}
-              onChange={(v) => setActionWeights((prev) => ({ ...prev, [a.key]: v }))}
+              onChange={(v) => setTargetGateWeights((prev) => ({ ...prev, [target.key]: v }))}
+            />
+          ))}
+        </div>
+        <div style={{ ...fourColGrid, marginTop: 16 }}>
+          {OPTIMIZE_OPERATIONS.map((operation) => (
+            <NumberField
+              key={operation.key}
+              label={`${operation.label}提示`}
+              value={optimizeOperationHints[operation.key]}
+              min={-999}
+              max={999}
+              onChange={(v) => setOptimizeOperationHints((prev) => ({ ...prev, [operation.key]: v }))}
             />
           ))}
         </div>
@@ -537,29 +699,29 @@ export default function SystemConfigPage() {
           {showPriorityAdvanced && (
             <div style={advancedBox}>
               <p style={{ ...hintStyle, marginBottom: 12 }}>规则按顺序叠加到当前分数上：更优先会减分，延后会加分；不使用绝对覆盖。</p>
-              {ACTIONS.map((at) => (
-                <div key={at.key} style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{at.label}</div>
-                  {(priorityRules[at.key] || []).map((rule, idx) => (
+              {TASK_TARGETS.map((target) => (
+                <div key={target.key} style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{target.label}</div>
+                  {(priorityRulesByTargetGate[target.key] || []).map((rule, idx) => (
                     <div key={idx} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-                      <select value={rule.adjust.op} onChange={(e) => updatePriorityRule(at.key, idx, { adjust: { ...rule.adjust, op: e.target.value as PriorityRule['adjust']['op'] } })} style={{ ...inputStyle, width: 90 }}>
+                      <select value={rule.adjust.op} onChange={(e) => updatePriorityRule(target.key, idx, { adjust: { ...rule.adjust, op: e.target.value as PriorityRule['adjust']['op'] } })} style={{ ...inputStyle, width: 90 }}>
                         <option value="subtract">更优先 -</option>
                         <option value="add">延后 +</option>
                       </select>
-                      <input type="number" value={rule.adjust.value} onChange={(e) => updatePriorityRule(at.key, idx, { adjust: { ...rule.adjust, value: parseInt(e.target.value, 10) || 0 } })} style={{ ...inputStyle, width: 70 }} />
+                      <input type="number" value={rule.adjust.value} onChange={(e) => updatePriorityRule(target.key, idx, { adjust: { ...rule.adjust, value: parseInt(e.target.value, 10) || 0 } })} style={{ ...inputStyle, width: 70 }} />
                       <span style={{ fontSize: 11, color: '#999' }}>当</span>
-                      <select value={firstMatchKey(rule.match)} onChange={(e) => updatePriorityRule(at.key, idx, { match: setSingleMatch(rule.match, e.target.value) })} style={{ ...inputStyle, width: 120 }}>
+                      <select value={firstMatchKey(rule.match)} onChange={(e) => updatePriorityRule(target.key, idx, { match: setSingleMatch(rule.match, e.target.value) })} style={{ ...inputStyle, width: 120 }}>
                         <option value="subLibraryId">媒体库</option>
                         <option value="type">类型</option>
                         <option value="isDiscLike">原盘</option>
                         <option value="isDolbyVision">杜比视界</option>
                         <option value="resolution">分辨率前缀</option>
                       </select>
-                      <MatchValueInput rule={rule} subLibs={subLibs} onChange={(val) => updatePriorityRule(at.key, idx, { match: setSingleMatchValue(rule.match, val) })} />
-                      <button onClick={() => removePriorityRule(at.key, idx)} style={deleteTextBtn}>删除</button>
+                      <MatchValueInput rule={rule} subLibs={subLibs} onChange={(val) => updatePriorityRule(target.key, idx, { match: setSingleMatchValue(rule.match, val) })} />
+                      <button onClick={() => removePriorityRule(target.key, idx)} style={deleteTextBtn}>删除</button>
                     </div>
                   ))}
-                  <button onClick={() => addPriorityRule(at.key)} style={dashBtn}>+ 添加规则</button>
+                  <button onClick={() => addPriorityRule(target.key)} style={dashBtn}>+ 添加规则</button>
                 </div>
               ))}
             </div>
@@ -739,6 +901,18 @@ const checkboxLabel: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+const checkboxCard: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 8,
+  border: '1px solid #e2e5ea',
+  borderRadius: 6,
+  padding: 10,
+  fontSize: 13,
+  cursor: 'pointer',
+  background: '#fff',
+};
+
 const collapseBtn: React.CSSProperties = {
   background: 'none',
   border: '1px solid #d9d9d9',
@@ -783,12 +957,6 @@ const fourColGrid: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(4, minmax(130px, 1fr))',
   gap: 16,
-};
-
-const fiveColGrid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(5, minmax(120px, 1fr))',
-  gap: 12,
 };
 
 const emptyStyle: React.CSSProperties = {

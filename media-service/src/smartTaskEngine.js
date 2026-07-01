@@ -154,39 +154,22 @@ function buildCandidate(item, { config }) {
 
   const actionType = trigger.actionType;
   const itemWithMetadata = trigger.item || item;
-
   const itemInfo = buildItemInfo(itemWithMetadata);
-  const priorityBreakdown = priorityEngine.explainPriority({
-    source: 'auto',
-    actionType,
-    itemInfo,
-    config,
-  });
   return {
     item: itemWithMetadata,
     itemInfo,
     actionType,
-    priority: priorityBreakdown.priority,
-    priorityBreakdown,
     timestamp: itemTimestamp(item),
   };
 }
 
-function buildIngestCandidate(candidate, config) {
+function buildIngestCandidate(candidate) {
   const itemInfo = candidate && candidate.itemInfo;
   if (!itemInfo || !itemInfo.itemId) return null;
-  const priorityBreakdown = priorityEngine.explainPriority({
-    source: 'auto',
-    actionType: 'ingest',
-    itemInfo,
-    config,
-  });
   return {
     item: itemInfo,
     itemInfo,
     actionType: 'ingest',
-    priority: priorityBreakdown.priority,
-    priorityBreakdown,
     timestamp: Number(candidate.timestamp) || itemTimestamp(itemInfo),
   };
 }
@@ -312,32 +295,14 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         incrementCounter(scanSummary.candidatesByAction, candidate.actionType);
       }
 
-      // Sort by computed task priority first, then most recent signal. This
-      // keeps high-priority task types from being hidden behind large low-priority
-      // candidate pools when smartTaskMaxPerRun is small.
-      candidates.sort((a, b) => (a.priority - b.priority) || (b.timestamp - a.timestamp));
-
-      const toEnqueue = [];
-      const taskDataToCreate = [];
+      const admittedTasks = [];
       for (const candidate of candidates) {
-        if (toEnqueue.length >= maxPerRun) {
-          scanSummary.maxPerRunReached = true;
-          break;
-        }
         const { item, itemInfo, actionType } = candidate;
         scanSummary.evaluatedCandidates += 1;
 
-        // Per-action-type queue depth cap. Skip this type once the backlog is
-        // full so one action doesn't starve others.
-        const cur = activeByType[actionType] || 0;
-        const cap = queueCap[actionType] || maxQueueSize;
-        if (cur >= cap) {
-          scanSummary.skippedByQueueCap += 1;
-          incrementCounter(scanSummary.skippedByQueueCapByAction, actionType);
-          continue;
-        }
-
-        const subLibSchedule2 = configStore.resolveSubLibSchedule(item, cfg2);
+        const subLibSchedule2 = typeof configStore.resolveSubLibSchedule === 'function'
+          ? configStore.resolveSubLibSchedule(item, cfg2)
+          : { autoExecute: true };
         const status = subLibSchedule2.autoExecute ? 'queued' : 'pending_manual';
 
         const admission = taskAdmission.canCreateTask({
@@ -354,47 +319,72 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
           incrementCounter(scanSummary.admissionRejectedByReason, admission.reason || 'rejected');
           continue;
         }
-        activeByType[actionType] = cur + 1;
 
-        const priorityBreakdown = priorityEngine.explainPriority({
+        const priorityBreakdown = priorityEngine.explainTaskPriority({
           source: 'auto',
-          actionType,
+          taskTarget: admission.taskTarget,
           itemInfo,
           config: cfg2,
+          actionType,
         });
 
-        const taskData = {
-          itemId: item.itemId,
-          itemName: item.name,
+        admittedTasks.push({
+          item,
           actionType,
-          source: 'auto',
-          status,
-          priority: priorityBreakdown.priority,
-          priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
-          priorityBreakdown,
-          taskTarget: admission.taskTarget,
-          taskBridge: admission.taskBridge,
-          flowPlan: admission.flowPlan,
-          itemInfo,
-          logs: [{
-            ts: new Date().toISOString(),
-            source: 'smart_task_engine',
-            action: 'auto_enqueued',
-          }],
-        };
-        taskDataToCreate.push(taskData);
-        allTasks.push({
-          id: `smart-task-pending:${item.itemId}:${actionType}`,
-          itemId: item.itemId,
-          itemName: item.name,
-          actionType,
-          source: 'auto',
-          status,
-          taskTarget: admission.taskTarget,
-          taskBridge: admission.taskBridge,
-          flowPlan: admission.flowPlan,
-          itemInfo,
+          timestamp: candidate.timestamp,
+          taskData: {
+            itemId: item.itemId,
+            itemName: item.name,
+            actionType,
+            source: 'auto',
+            status,
+            priority: priorityBreakdown.priority,
+            priorityModelVersion: priorityEngine.TASK_PRIORITY_MODEL_VERSION,
+            priorityBreakdown,
+            taskTarget: admission.taskTarget,
+            taskBridge: admission.taskBridge,
+            flowPlan: admission.flowPlan,
+            itemInfo,
+            logs: [{
+              ts: new Date().toISOString(),
+              source: 'smart_task_engine',
+              action: 'auto_enqueued',
+            }],
+          },
         });
+      }
+
+      admittedTasks.sort((a, b) => (
+        (a.taskData.priority - b.taskData.priority)
+        || (b.timestamp - a.timestamp)
+      ));
+
+      const selectedTasks = [];
+      const selectedItemIds = new Set();
+      for (const admitted of admittedTasks) {
+        if (selectedTasks.length >= maxPerRun) {
+          scanSummary.maxPerRunReached = true;
+          break;
+        }
+        const itemId = admitted.item && admitted.item.itemId || admitted.taskData.itemId;
+        if (itemId && selectedItemIds.has(itemId)) continue;
+        const cur = activeByType[admitted.actionType] || 0;
+        const cap = queueCap[admitted.actionType] || maxQueueSize;
+        if (cur >= cap) {
+          scanSummary.skippedByQueueCap += 1;
+          incrementCounter(scanSummary.skippedByQueueCapByAction, admitted.actionType);
+          continue;
+        }
+        selectedTasks.push(admitted);
+        if (itemId) selectedItemIds.add(itemId);
+        activeByType[admitted.actionType] = cur + 1;
+      }
+
+      const toEnqueue = [];
+      const taskDataToCreate = [];
+      for (const admitted of selectedTasks) {
+        const { item, actionType, taskData } = admitted;
+        taskDataToCreate.push(taskData);
         console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${actionType} "${item.name}"`);
         toEnqueue.push({ item, actionType });
         scanSummary.enqueued += 1;

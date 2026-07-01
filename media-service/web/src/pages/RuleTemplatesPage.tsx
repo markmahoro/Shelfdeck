@@ -487,7 +487,7 @@ function TemplateCard({ tpl }: { tpl: RuleTemplate }) {
 
   const save = useMutation({
     mutationFn: () => ruleTemplates.update(tpl.id, { name, description: desc, rules: denormalizeRules(rules) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ruleTemplates'] }); setAlert({ type: 'success', msg: '模板已保存，策略引擎将在下个周期自动应用' }); setEditing(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ruleTemplates'] }); setAlert({ type: 'success', msg: '模板已保存，优化目标计算将在下个周期自动应用' }); setEditing(false); },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 

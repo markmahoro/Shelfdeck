@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const metadataStatus = require('./metadataStatus');
+const { DEFAULT_RESOURCE_CAPACITY } = require('./resourceCapacity');
 
 function resolveDataDir() {
   return (
@@ -487,6 +488,7 @@ function getDefaultConfig() {
     transcodeConcurrency: 1,
     upgradeConcurrency: 1,
     scrapeConcurrency: 1,
+    resourceCapacity: { ...DEFAULT_RESOURCE_CAPACITY },
     wallRatingAutoEnqueue: false,
 
     // SmartTaskEngine
@@ -494,6 +496,8 @@ function getDefaultConfig() {
     smartTaskMaxPerRun: 10,
     smartTaskMaxQueueSize: 50,
     smartTaskEnabledActions: [],
+    automaticTaskTargets: [],
+    optimizeAllowedOperations: [],
     smartTaskLookbackDays: 30,
     smartTaskInitialDelaySeconds: 60,
 
@@ -514,6 +518,17 @@ function getDefaultConfig() {
     taskPriority: {
       manualTaskPriority: 0,     // manual tasks (POST /v1/tasks) always high priority
       autoTaskPriorityBase: 100, // base for smartTaskEngine-created tasks
+      targetGateWeights: {
+        ingest: 60,
+        archive: 70,
+        metadata: 80,
+        optimize: 110,
+      },
+      optimizeOperationHints: {
+        delete: -20,
+        upgrade: 0,
+        transcode: 20,
+      },
       actionTypeWeights: {
         ingest: 60,
         archive: 70,
@@ -531,6 +546,7 @@ function getDefaultConfig() {
       maxQueueAgeBonus: 40,
       retryPenalty: 20,
       maxRetryPenalty: 80,
+      rulesByTargetGate: { ingest: [], metadata: [], optimize: [], archive: [] },
       rules: { ingest: [], archive: [], transcode: [], upgrade: [], delete: [], scrape: [] },
     },
 
@@ -557,6 +573,12 @@ function getDefaultConfig() {
         transcode: 50,
         upgrade: 50,
       },
+      maxQueuedByTargetGate: {
+        ingest: 50,
+        metadata: 20,
+        optimize: 50,
+        archive: 50,
+      },
       cooldownHoursByAction: {
         ingest: 6,
         archive: 0,
@@ -564,6 +586,12 @@ function getDefaultConfig() {
         delete: 48,
         transcode: 48,
         upgrade: 48,
+      },
+      cooldownHoursByTargetGate: {
+        ingest: 6,
+        metadata: 6,
+        optimize: 48,
+        archive: 0,
       },
     },
 
@@ -1030,33 +1058,108 @@ function normalizeTranscodeEncodingDevices(raw) {
   };
 }
 
+const AUTOMATIC_TASK_TARGETS = new Set(['ingest', 'metadata', 'optimize', 'archive']);
+const OPTIMIZE_ALLOWED_OPERATIONS = new Set(['transcode', 'upgrade', 'delete']);
+
+function normalizeStringList(values, allowed) {
+  const result = [];
+  const seen = new Set();
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized || !allowed.has(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
+function splitLegacySmartTaskActions(actions = []) {
+  const taskTargets = new Set();
+  const optimizeOperations = new Set();
+  for (const action of Array.isArray(actions) ? actions : []) {
+    const normalized = String(action || '').trim().toLowerCase();
+    if (!normalized) continue;
+    if (normalized === 'ingest') taskTargets.add('ingest');
+    else if (normalized === 'scrape' || normalized === 'metadata') taskTargets.add('metadata');
+    else if (normalized === 'archive') taskTargets.add('archive');
+    else if (normalized === 'optimize') {
+      taskTargets.add('optimize');
+      for (const operation of OPTIMIZE_ALLOWED_OPERATIONS) optimizeOperations.add(operation);
+    } else if (OPTIMIZE_ALLOWED_OPERATIONS.has(normalized)) {
+      taskTargets.add('optimize');
+      optimizeOperations.add(normalized);
+    }
+  }
+  return {
+    automaticTaskTargets: Array.from(taskTargets),
+    optimizeAllowedOperations: Array.from(optimizeOperations),
+  };
+}
+
+function projectSmartTaskEnabledActions(automaticTaskTargets = [], optimizeAllowedOperations = []) {
+  const actions = [];
+  const targets = normalizeStringList(automaticTaskTargets, AUTOMATIC_TASK_TARGETS);
+  const operations = normalizeStringList(optimizeAllowedOperations, OPTIMIZE_ALLOWED_OPERATIONS);
+  if (targets.includes('ingest')) actions.push('ingest');
+  if (targets.includes('metadata')) actions.push('scrape');
+  if (targets.includes('optimize')) actions.push(...operations);
+  if (targets.includes('archive')) actions.push('archive');
+  return actions;
+}
+
 function normalizeLifecycleAutomationConfig(raw) {
   const current = raw || {};
   const actions = Array.isArray(current.smartTaskEnabledActions)
     ? current.smartTaskEnabledActions.map((action) => String(action || '').trim()).filter(Boolean)
     : [];
-  if (actions.length === 0 || actions.includes('archive')) {
-    return { raw: current, migrated: false };
-  }
-
   const migrations = current.migrations && typeof current.migrations === 'object'
     ? current.migrations
     : {};
-  if (migrations.v31ArchiveAutomation === true) {
-    return { raw: current, migrated: false };
+  let migrated = false;
+
+  let automaticTaskTargets = normalizeStringList(current.automaticTaskTargets, AUTOMATIC_TASK_TARGETS);
+  let optimizeAllowedOperations = normalizeStringList(current.optimizeAllowedOperations, OPTIMIZE_ALLOWED_OPERATIONS);
+  const hasNewAutomationFields = Array.isArray(current.automaticTaskTargets)
+    || Array.isArray(current.optimizeAllowedOperations);
+
+  if (!hasNewAutomationFields) {
+    const legacy = splitLegacySmartTaskActions(actions);
+    automaticTaskTargets = legacy.automaticTaskTargets;
+    optimizeAllowedOperations = legacy.optimizeAllowedOperations;
+    if (actions.length > 0) migrated = true;
   }
 
-  return {
-    raw: {
-      ...current,
-      smartTaskEnabledActions: [...actions, 'archive'],
-      migrations: {
-        ...migrations,
-        v31ArchiveAutomation: true,
-      },
-    },
-    migrated: true,
+  if (!hasNewAutomationFields && actions.length > 0 && !automaticTaskTargets.includes('archive') && actions.includes('archive')) {
+    automaticTaskTargets.push('archive');
+  }
+
+  if (!hasNewAutomationFields && actions.length > 0 && !actions.includes('archive') && migrations.v31ArchiveAutomation !== true) {
+    automaticTaskTargets = normalizeStringList([...automaticTaskTargets, 'archive'], AUTOMATIC_TASK_TARGETS);
+    migrated = true;
+  }
+
+  const smartTaskEnabledActions = projectSmartTaskEnabledActions(automaticTaskTargets, optimizeAllowedOperations);
+  const nextMigrations = !hasNewAutomationFields && actions.length > 0 && migrations.v31ArchiveAutomation !== true
+    ? { ...migrations, v31ArchiveAutomation: true }
+    : migrations;
+
+  const next = {
+    ...current,
+    automaticTaskTargets,
+    optimizeAllowedOperations,
+    smartTaskEnabledActions,
   };
+  if (Object.keys(nextMigrations).length > 0 || current.migrations !== undefined) {
+    next.migrations = nextMigrations;
+  }
+
+  if (Array.isArray(current.automaticTaskTargets)
+    && JSON.stringify(current.automaticTaskTargets) !== JSON.stringify(automaticTaskTargets)) migrated = true;
+  if (Array.isArray(current.optimizeAllowedOperations)
+    && JSON.stringify(current.optimizeAllowedOperations) !== JSON.stringify(optimizeAllowedOperations)) migrated = true;
+  if (JSON.stringify(actions) !== JSON.stringify(smartTaskEnabledActions)) migrated = true;
+
+  return { raw: next, migrated };
 }
 
 function validateMetadataGateContracts(config = {}) {
@@ -1088,12 +1191,28 @@ function validateMetadataGateContracts(config = {}) {
 
 function mergeConfigWithDefaults(config) {
   const defaults = getDefaultConfig();
-  const raw = normalizeTranscodeEncodingDevices(config || {}).raw;
+  const transcodeNormalized = normalizeTranscodeEncodingDevices(config || {}).raw;
+  const raw = normalizeLifecycleAutomationConfig(transcodeNormalized).raw;
   const merged = { ...defaults, ...raw };
+  merged.resourceCapacity = {
+    ...(defaults.resourceCapacity || {}),
+    ...legacyConcurrencyToResourceCapacity(raw || {}),
+    ...((raw && raw.resourceCapacity) || {}),
+  };
 
   merged.taskAdmission = {
     ...(defaults.taskAdmission || {}),
     ...(raw.taskAdmission || {}),
+    cooldownHoursByTargetGate: {
+      ...((defaults.taskAdmission || {}).cooldownHoursByTargetGate || {}),
+      ...legacyActionAdmissionToTargetGate(((raw.taskAdmission || {}).cooldownHoursByAction) || {}),
+      ...(((raw.taskAdmission || {}).cooldownHoursByTargetGate) || {}),
+    },
+    maxQueuedByTargetGate: {
+      ...((defaults.taskAdmission || {}).maxQueuedByTargetGate || {}),
+      ...legacyActionAdmissionToTargetGate(((raw.taskAdmission || {}).maxQueuedByAction) || {}),
+      ...(((raw.taskAdmission || {}).maxQueuedByTargetGate) || {}),
+    },
     cooldownHoursByAction: {
       ...((defaults.taskAdmission || {}).cooldownHoursByAction || {}),
       ...(((raw.taskAdmission || {}).cooldownHoursByAction) || {}),
@@ -1107,9 +1226,21 @@ function mergeConfigWithDefaults(config) {
   merged.taskPriority = {
     ...(defaults.taskPriority || {}),
     ...(raw.taskPriority || {}),
+    targetGateWeights: {
+      ...((defaults.taskPriority || {}).targetGateWeights || {}),
+      ...(((raw.taskPriority || {}).targetGateWeights) || {}),
+    },
+    optimizeOperationHints: {
+      ...((defaults.taskPriority || {}).optimizeOperationHints || {}),
+      ...(((raw.taskPriority || {}).optimizeOperationHints) || {}),
+    },
     actionTypeWeights: {
       ...((defaults.taskPriority || {}).actionTypeWeights || {}),
       ...(((raw.taskPriority || {}).actionTypeWeights) || {}),
+    },
+    rulesByTargetGate: {
+      ...((defaults.taskPriority || {}).rulesByTargetGate || {}),
+      ...(((raw.taskPriority || {}).rulesByTargetGate) || {}),
     },
     rules: {
       ...((defaults.taskPriority || {}).rules || {}),
@@ -1123,6 +1254,32 @@ function mergeConfigWithDefaults(config) {
   };
 
   return merged;
+}
+
+function legacyActionAdmissionToTargetGate(byAction = {}) {
+  const result = {};
+  if (typeof byAction.ingest === 'number') result.ingest = byAction.ingest;
+  if (typeof byAction.scrape === 'number') result.metadata = byAction.scrape;
+  if (typeof byAction.archive === 'number') result.archive = byAction.archive;
+  const optimizeValues = ['transcode', 'upgrade', 'delete']
+    .map((key) => Number(byAction[key]))
+    .filter(Number.isFinite);
+  if (optimizeValues.length > 0) result.optimize = Math.min(...optimizeValues);
+  return result;
+}
+
+function legacyConcurrencyToResourceCapacity(raw = {}) {
+  const result = {};
+  if (typeof raw.ingestConcurrency === 'number') result['filesystem:ingest'] = raw.ingestConcurrency;
+  if (typeof raw.deleteConcurrency === 'number') result['filesystem:mutation'] = raw.deleteConcurrency;
+  if (typeof raw.scrapeConcurrency === 'number') result['scraper:metadata'] = raw.scrapeConcurrency;
+  if (typeof raw.embyMetadataRepairConcurrency === 'number') result['emby:metadata'] = raw.embyMetadataRepairConcurrency;
+  if (typeof raw.transcodeConcurrency === 'number') {
+    result['local:ffmpeg'] = raw.transcodeConcurrency;
+    result['worker:*'] = raw.transcodeConcurrency;
+  }
+  if (typeof raw.upgradeConcurrency === 'number') result.moviepilot = raw.upgradeConcurrency;
+  return result;
 }
 
 function loadConfig() {

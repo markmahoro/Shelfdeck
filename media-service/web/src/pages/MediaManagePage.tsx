@@ -49,7 +49,7 @@ export default function MediaManagePage() {
     return PAGE_SIZE_OPTIONS.includes(saved) ? saved : DEFAULT_MEDIA_MANAGE_PAGE_SIZE;
   });
   const [, setActiveSubLibName] = useState<string>('全部');
-  const [strategyMsg, setStrategyMsg] = useState<string | null>(null);
+  const [optimizeTargetMsg, setOptimizeTargetMsg] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [smartTaskActions, setSmartTaskActions] = useState<string[] | null>(null);
 
@@ -207,7 +207,7 @@ export default function MediaManagePage() {
     const allowedOperation = allowedOperationForItem(item, action);
     if (!allowedOperation) {
       setNotice(null);
-      setError(`创建任务被策略阻止：${item.name}，${blockedReasonText(item, action, '当前操作不可用')}`);
+      setError(`创建任务被准入规则阻止：${item.name}，${blockedReasonText(item, action, '当前操作不可用')}`);
       return null;
     }
     setCreatingTaskIds((prev) => new Set(prev).add(item.id));
@@ -479,19 +479,19 @@ export default function MediaManagePage() {
           type="button"
           style={{ background: '#f0f0f0', border: '1px solid #d0d0d0', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 13, marginTop: 12 }}
           onClick={async () => {
-            setStrategyMsg('重算中...');
+            setOptimizeTargetMsg('重算中...');
             try {
-              const res = await libraryApi.recomputeStrategy();
-              setStrategyMsg(`策略重算完成：${res.changed} 条变更`);
+              const res = await libraryApi.recomputeOptimizeTargets();
+              setOptimizeTargetMsg(`优化目标计算完成：${res.changed} 条变更`);
               setRefreshKey(k => k + 1);
             } catch (e: any) {
-              setStrategyMsg(`重算失败：${e.message}`);
+              setOptimizeTargetMsg(`重算失败：${e.message}`);
             }
           }}
         >
-          刷新媒体库管理策略
+          重新计算优化目标
         </button>
-        {strategyMsg && <span style={{ fontSize: 12, color: '#666', marginLeft: 8 }}>{strategyMsg}</span>}
+        {optimizeTargetMsg && <span style={{ fontSize: 12, color: '#666', marginLeft: 8 }}>{optimizeTargetMsg}</span>}
 
         <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>

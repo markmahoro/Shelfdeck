@@ -4,7 +4,7 @@
  * MediaLibraryService (MEDIA_LIBRARY.md).
  *
  * Coordinator for the unified media library persistence table (data/library.db).
- * Manages subLibraries, independent refresh and douban sync timers per subLibrary.
+ * Manages subLibraries, independent ingest and douban sync timers per subLibrary.
  *
  * Principle: write first, recalculate action/reason only for affected items.
  */
@@ -43,6 +43,25 @@ function computeBucket(resolution) {
   const w = parseInt(parts[0], 10) || 0;
   const h = parseInt(parts[1], 10) || 0;
   return (w >= 3840 || h >= 2160) ? '4K' : '1080p';
+}
+
+function projectMediaFactsForItem(item) {
+  if (!item || typeof item !== 'object') return 0;
+  let changed = 0;
+
+  const bucket = computeBucket(item.resolution);
+  if (item.bucket !== bucket) {
+    item.bucket = bucket;
+    changed++;
+  }
+
+  const eqMbps = item.bitrate > 0 ? item.bitrate / 1_000_000 : undefined;
+  if (item.equivalentBitrate !== eqMbps) {
+    item.equivalentBitrate = eqMbps;
+    changed++;
+  }
+
+  return changed;
 }
 
 function normalizeVideoCodec(raw) {
@@ -162,7 +181,7 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function selectStartupRefreshSubLibraries(subLibs = [], config = {}, nowMs = Date.now()) {
+function selectStartupIngestSubLibraries(subLibs = [], config = {}, nowMs = Date.now()) {
   const staleMinutes = Number(config.mediaLibraryStartupRefreshStaleMinutes) > 0
     ? Number(config.mediaLibraryStartupRefreshStaleMinutes)
     : DEFAULT_STARTUP_REFRESH_STALE_MINUTES;
@@ -342,6 +361,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         seasonNumber: incoming.seasonNumber !== undefined ? incoming.seasonNumber : existing.seasonNumber,
         episodeCount: incoming.episodeCount !== undefined ? incoming.episodeCount : existing.episodeCount,
       };
+      projectMediaFactsForItem(merged);
       lib.items[existingIdx] = merged;
       upserted++;
     } else {
@@ -383,6 +403,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         tmdbId: incoming.tmdbId || null,
         providerIds: incoming.providerIds || {},
       };
+      projectMediaFactsForItem(newItem);
       lib.items.push(newItem);
       upserted++;
     }
@@ -600,14 +621,14 @@ function addSubLibrary(spec) {
   // Start timers for this subLibrary
   startSubLibraryTimers(subLib);
 
-  // Kick off an immediate refresh; refreshSubLibrary runs derived updates once
+  // Kick off an immediate ingest; ingestSubLibrary runs derived updates once
   // after the fetched data has been persisted.
   runBackgroundLibraryOperation({
-    operation: 'mediaLibrary.refresh',
+    operation: 'mediaLibrary.ingest',
     resourceKey: `mediaLibrary:${subLib.uuid}`,
     payload: { subLibraryId: subLib.uuid, subLibraryName: subLib.name || subLib.uuid, trigger: 'add_sub_library' },
-  }, () => refreshSubLibrary(subLib))
-    .catch((e) => console.error('[mediaLibrary] addSubLibrary refresh error:', e));
+  }, () => ingestSubLibrary(subLib))
+    .catch((e) => console.error('[mediaLibrary] addSubLibrary ingest error:', e));
 
   return subLib;
 }
@@ -635,12 +656,12 @@ function updateSubLibrary(uuid, updates) {
   return subLibs[idx];
 }
 
-// ── Self-computed fields ──────────────────────────────────────────────────────
+// ── Media facts projection replay ────────────────────────────────────────────
 
-let selfComputeTimer = null;
-let startupRefreshTimer = null;
+let mediaFactsProjectionTimer = null;
+let startupIngestTimer = null;
 
-function recomputeAllSelfFields() {
+function replayMediaFactsProjection() {
   const lib = loadLibrary();
   if (!lib || !lib.items || lib.items.length === 0) return;
 
@@ -648,54 +669,54 @@ function recomputeAllSelfFields() {
   const changedItems = [];
 
   for (const item of lib.items) {
-    let itemChanged = false;
-
-    // bucket
-    const bucket = computeBucket(item.resolution);
-    if (item.bucket !== bucket) { item.bucket = bucket; changed++; itemChanged = true; }
-
-    // equivalentBitrate (Mbps)
-    const eqMbps = item.bitrate > 0 ? item.bitrate / 1_000_000 : undefined;
-    if (item.equivalentBitrate !== eqMbps) { item.equivalentBitrate = eqMbps; changed++; itemChanged = true; }
-
-    // targetBitrate and predictedSizeGb are now written by StrategyEngine
-    // based on rule template evaluation — no longer computed here.
-    if (itemChanged) changedItems.push(item);
+    const itemChanged = projectMediaFactsForItem(item);
+    changed += itemChanged;
+    if (itemChanged > 0) changedItems.push(item);
   }
 
   if (changed > 0) {
     libraryStore.updateItems(changedItems);
-    const msg = `Library 自算完成，${changed} 个字段已更新`;
+    const msg = `Media facts projection replay complete, ${changed} field(s) updated`;
     console.log(`[mediaLibrary] ${msg}`);
     activityLog.addActivity('media_library', msg, { changed });
   }
 }
 
-function startSelfComputeTimer(intervalMs = 600000, options = {}) {
-  stopSelfComputeTimer();
-  if (options.runImmediately !== false) {
-    recomputeAllSelfFields();
-  }
-  selfComputeTimer = setInterval(recomputeAllSelfFields, intervalMs);
-  selfComputeTimer.unref && selfComputeTimer.unref();
+function projectStoredMediaFactsForItem(itemId) {
+  const item = getLibraryItem(itemId);
+  if (!item) return { item: null, changed: 0 };
+  const changed = projectMediaFactsForItem(item);
+  if (changed > 0) libraryStore.updateItems([item]);
+  return { item, changed };
 }
 
-function stopSelfComputeTimer() {
-  if (selfComputeTimer) {
-    clearInterval(selfComputeTimer);
-    selfComputeTimer = null;
+function startMediaFactsProjectionReplayTimer(intervalMs = 600000, options = {}) {
+  stopMediaFactsProjectionReplayTimer();
+  if (options.runImmediately !== false) {
+    replayMediaFactsProjection();
+  }
+  mediaFactsProjectionTimer = setInterval(replayMediaFactsProjection, intervalMs);
+  mediaFactsProjectionTimer.unref && mediaFactsProjectionTimer.unref();
+}
+
+function stopMediaFactsProjectionReplayTimer() {
+  if (mediaFactsProjectionTimer) {
+    clearInterval(mediaFactsProjectionTimer);
+    mediaFactsProjectionTimer = null;
   }
 }
+
+const recomputeAllSelfFields = replayMediaFactsProjection;
 
 // ── SubLibrary timers ───────────────────────────────────────────────────────
 
-const subLibraryTimers = new Map(); // uuid → { refresh: Interval, douban: Interval }
+const subLibraryTimers = new Map(); // uuid → { ingest: Interval, douban: Interval }
 const doubanSyncInFlight = new Set();
 
 function stopSubLibraryTimers(uuid) {
   const timers = subLibraryTimers.get(uuid);
   if (timers) {
-    if (timers.refresh) clearInterval(timers.refresh);
+    if (timers.ingest) clearInterval(timers.ingest);
     if (timers.douban) clearInterval(timers.douban);
     subLibraryTimers.delete(uuid);
   }
@@ -789,15 +810,15 @@ function applyCachedDoubanForSubLibrary(subLib) {
   return result;
 }
 
-function runPostRefreshUpdates() {
-  recomputeAllSelfFields();
+function runPostIngestUpdates() {
+  replayMediaFactsProjection();
   try {
     const strategyEngine = require('./strategyEngine');
     strategyEngine.runOnce();
   } catch (_) { /* strategyEngine not yet started — timer will pick it up */ }
 }
 
-async function refreshSubLibrary(subLib, options = {}) {
+async function ingestSubLibrary(subLib, options = {}) {
   const runDerivedUpdates = options.runDerivedUpdates !== false;
   const name = subLib.name || subLib.uuid;
   try {
@@ -807,10 +828,10 @@ async function refreshSubLibrary(subLib, options = {}) {
     const cfg = configStore.loadConfig();
     const server = (cfg.embyServers || {})[subLib.embyServerId];
     if (!server || !server.baseUrl) {
-      console.log('[mediaLibrary] skip refresh: no server config for', subLib.uuid);
+      console.log('[mediaLibrary] skip ingest: no server config for', subLib.uuid);
       return;
     }
-    activityLog.addActivity('media_library', `正在刷新子库「${name}」…`);
+    activityLog.addActivity('media_library', `正在同步入库「${name}」…`);
     const beforeCount = libraryStore.countBySubLibrary(subLib.uuid);
     const items = await embyService.getLibraryItems(server, subLib.sectionId);
     await enrichDiscMetadata(items, subLib, cfg);
@@ -818,19 +839,21 @@ async function refreshSubLibrary(subLib, options = {}) {
     const afterCount = libraryStore.countBySubLibrary(subLib.uuid);
     const newItems = Math.max(0, afterCount - beforeCount + result.removed);
     const msg = newItems > 0
-      ? `子库「${name}」刷新完成，${newItems} 个新媒体入库，${result.removed} 个已清理`
-      : `子库「${name}」刷新完成，无新增内容`;
+      ? `子库「${name}」入库同步完成，${newItems} 个新媒体入库，${result.removed} 个已清理`
+      : `子库「${name}」入库同步完成，无新增内容`;
     activityLog.addActivity('media_library', msg, { subLibraryId: subLib.uuid, itemCount: items.length, newItems, removed: result.removed });
-    console.log('[mediaLibrary] refreshed', subLib.uuid, 'items:', items.length);
+    console.log('[mediaLibrary] ingested', subLib.uuid, 'items:', items.length);
 
-    // Recompute self-fields (equivalentBitrate etc.) and re-run strategy engine
-    // so the dashboard reflects fresh recommendations immediately after refresh.
-    if (runDerivedUpdates) runPostRefreshUpdates();
+    // Replay media facts projection and optimize target projection so the
+    // dashboard reflects fresh recommendations immediately after ingest.
+    if (runDerivedUpdates) runPostIngestUpdates();
   } catch (e) {
-    activityLog.addActivity('media_library', `子库「${name}」刷新失败：${e.message}`);
-    console.error('[mediaLibrary] refresh error for', subLib.uuid, e.message);
+    activityLog.addActivity('media_library', `子库「${name}」入库同步失败：${e.message}`);
+    console.error('[mediaLibrary] ingest error for', subLib.uuid, e.message);
   }
 }
+
+const refreshSubLibrary = ingestSubLibrary;
 
 async function syncDoubanForSubLibrary(subLib) {
   const name = subLib.name || subLib.uuid;
@@ -965,7 +988,7 @@ async function completeEmbyItemMetadata(itemId, opts = {}) {
     doubanCache = applyCachedDoubanForSubLibrary(subLib);
   }
 
-  recomputeAllSelfFields();
+  projectStoredMediaFactsForItem(itemId);
   try {
     const strategyEngine = require('./strategyEngine');
     strategyEngine.runOnce();
@@ -977,7 +1000,7 @@ async function completeEmbyItemMetadata(itemId, opts = {}) {
     episodesFetched,
     localProbe,
     doubanCache,
-    selfComputed: true,
+    mediaFactsProjected: true,
   };
   return latest;
 }
@@ -992,16 +1015,16 @@ function startSubLibraryTimers(subLib) {
 
   const timers = {};
 
-  // Emby refresh timer (1h)
-  timers.refresh = setInterval(() => {
+  // Emby ingest timer (1h)
+  timers.ingest = setInterval(() => {
     const cfg = configStore.loadConfig();
     const sl = (cfg.subLibraries || []).find((s) => s.uuid === uuid);
     if (sl && sl.enabled !== false) {
       runBackgroundLibraryOperation({
-        operation: 'mediaLibrary.refresh',
+        operation: 'mediaLibrary.ingest',
         resourceKey: `mediaLibrary:${uuid}`,
         payload: { subLibraryId: uuid, subLibraryName: sl.name || uuid, trigger: 'timer' },
-      }, () => refreshSubLibrary(sl)).catch((e) => console.error('[mediaLibrary] timer refresh error:', e));
+      }, () => ingestSubLibrary(sl)).catch((e) => console.error('[mediaLibrary] timer ingest error:', e));
     }
   }, 3600000);
 
@@ -1027,85 +1050,86 @@ function startAllSubLibraryTimers() {
   const cfg = configStore.loadConfig();
   const subLibs = (cfg.subLibraries || []).filter((sl) => sl.enabled !== false);
 
-  if (startupRefreshTimer) {
-    clearTimeout(startupRefreshTimer);
-    startupRefreshTimer = null;
+  if (startupIngestTimer) {
+    clearTimeout(startupIngestTimer);
+    startupIngestTimer = null;
   }
 
   for (const sl of subLibs) {
     startSubLibraryTimers(sl);
   }
 
-  const startSelfCompute = (options = {}) => {
+  const runMediaFactsMaintenance = (options = {}) => {
     const currentCfg = configStore.loadConfig();
     if (currentCfg.mediaLibrarySelfComputeEnabled === false) {
-      console.log('[mediaLibrary] self-compute disabled by config');
+      console.log('[mediaLibrary] media facts projection maintenance disabled by config');
       return;
     }
-    startSelfComputeTimer(600000, {
-      runImmediately: options.runImmediately !== false && currentCfg.mediaLibrarySelfComputeOnStartup !== false,
-    });
+    if (options.runImmediately !== false && currentCfg.mediaLibrarySelfComputeOnStartup !== false) {
+      replayMediaFactsProjection();
+    }
   };
 
   if (cfg.mediaLibraryStartupRefreshOnStartup === false) {
-    console.log('[mediaLibrary] startup refresh disabled by config');
-    startSelfCompute();
+    console.log('[mediaLibrary] startup ingest disabled by config');
+    runMediaFactsMaintenance();
     return;
   }
 
   const delaySeconds = Math.max(0, Number(cfg.mediaLibraryStartupRefreshDelaySeconds) || 0);
-  console.log(`[mediaLibrary] startup refresh scheduled in ${delaySeconds}s`);
-  startupRefreshTimer = setTimeout(() => {
-    startupRefreshTimer = null;
+  console.log(`[mediaLibrary] startup ingest scheduled in ${delaySeconds}s`);
+  startupIngestTimer = setTimeout(() => {
+    startupIngestTimer = null;
     const currentCfg = configStore.loadConfig();
     if (currentCfg.mediaLibraryStartupRefreshOnStartup === false) {
-      console.log('[mediaLibrary] startup refresh skipped by config');
-      startSelfCompute();
+      console.log('[mediaLibrary] startup ingest skipped by config');
+      runMediaFactsMaintenance();
       return;
     }
 
-    // Refresh all subLibraries first, then start self-computation once data is in.
-    // Self-compute needs bitrate/duration from the freshly fetched items to derive
-    // equivalentBitrate — running it before refresh completes produces all-zeroes.
+    // Ingest stale subLibraries first, then replay media facts projection once
+    // data is in. equivalentBitrate depends on bitrate/duration facts.
     (async () => {
-      const refreshTargets = selectStartupRefreshSubLibraries(subLibs, currentCfg);
-      if (refreshTargets.length === 0) {
-        console.log('[mediaLibrary] startup refresh skipped: no stale subLibrary within startup budget');
+      const ingestTargets = selectStartupIngestSubLibraries(subLibs, currentCfg);
+      if (ingestTargets.length === 0) {
+        console.log('[mediaLibrary] startup ingest skipped: no stale subLibrary within startup budget');
       } else {
-        console.log(`[mediaLibrary] startup refresh will process ${refreshTargets.length} stale subLibraries`);
+        console.log(`[mediaLibrary] startup ingest will process ${ingestTargets.length} stale subLibraries`);
       }
-      for (const sl of refreshTargets) {
+      for (const sl of ingestTargets) {
         await runBackgroundLibraryOperation({
-          operation: 'mediaLibrary.refresh',
+          operation: 'mediaLibrary.ingest',
           resourceKey: `mediaLibrary:${sl.uuid}`,
           payload: { subLibraryId: sl.uuid, subLibraryName: sl.name || sl.uuid, trigger: 'startup' },
-        }, () => refreshSubLibrary(sl, { runDerivedUpdates: false }));
+        }, () => ingestSubLibrary(sl, { runDerivedUpdates: false }));
         await wait(STARTUP_REFRESH_STAGGER_MS);
       }
-      runPostRefreshUpdates();
-      startSelfCompute({ runImmediately: false });
-    })().catch((e) => console.error('[mediaLibrary] startup refresh error:', e));
+      runPostIngestUpdates();
+      runMediaFactsMaintenance({ runImmediately: false });
+    })().catch((e) => console.error('[mediaLibrary] startup ingest error:', e));
   }, delaySeconds * 1000);
-  startupRefreshTimer.unref && startupRefreshTimer.unref();
+  startupIngestTimer.unref && startupIngestTimer.unref();
 }
 
 function stopAllTimers() {
-  if (startupRefreshTimer) {
-    clearTimeout(startupRefreshTimer);
-    startupRefreshTimer = null;
+  if (startupIngestTimer) {
+    clearTimeout(startupIngestTimer);
+    startupIngestTimer = null;
   }
   for (const uuid of subLibraryTimers.keys()) {
     stopSubLibraryTimers(uuid);
   }
-  stopSelfComputeTimer();
+  stopMediaFactsProjectionReplayTimer();
 }
 
-async function triggerRefresh(subLibraryId) {
+async function triggerIngest(subLibraryId) {
   const cfg = configStore.loadConfig();
   const sl = (cfg.subLibraries || []).find((s) => s.uuid === subLibraryId);
   if (!sl) throw new Error('SubLibrary not found');
-  await refreshSubLibrary(sl);
+  await ingestSubLibrary(sl);
 }
+
+const triggerRefresh = triggerIngest;
 
 async function triggerDoubanSync(subLibraryId) {
   const cfg = configStore.loadConfig();
@@ -1133,10 +1157,13 @@ module.exports = {
   deleteSubLibrary,
   updateSubLibrary,
 
-  // Self-computed fields
+  // Media facts projection
+  projectMediaFactsForItem,
+  projectStoredMediaFactsForItem,
+  replayMediaFactsProjection,
   recomputeAllSelfFields,
-  startSelfComputeTimer,
-  stopSelfComputeTimer,
+  startMediaFactsProjectionReplayTimer,
+  stopMediaFactsProjectionReplayTimer,
 
   // Timer management
   startAllSubLibraryTimers,
@@ -1145,11 +1172,15 @@ module.exports = {
   stopSubLibraryTimers,
 
   // Manual triggers
+  ingestSubLibrary,
+  refreshSubLibrary,
+  triggerIngest,
   triggerRefresh,
   triggerDoubanSync,
   completeEmbyItemMetadata,
 
-  _selectStartupRefreshSubLibrariesForTest: selectStartupRefreshSubLibraries,
+  _selectStartupRefreshSubLibrariesForTest: selectStartupIngestSubLibraries,
+  _selectStartupIngestSubLibrariesForTest: selectStartupIngestSubLibraries,
 
   getHealth,
 };

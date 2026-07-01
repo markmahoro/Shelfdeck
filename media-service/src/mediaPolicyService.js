@@ -12,7 +12,7 @@
  * directly from media library item records.
  *
  * The resolutionBucket() helper is kept for media library item bucket
- * field computation (mediaLibraryService.recomputeAllSelfFields).
+ * projection (mediaLibraryService.projectMediaFactsForItem).
  */
 
 function resolutionBucket(resolutionOrItem) {

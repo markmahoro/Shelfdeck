@@ -176,7 +176,29 @@ test('PATCH /v1/library/ratings writes userRating and returns ok', async () => {
   await app.close();
 });
 
-// ── Library: actions/refresh ─────────────────────────────────────────────────────
+// ── Library: actions/ingest ──────────────────────────────────────────────────────
+
+test('POST /v1/library/actions/ingest missing subLibraryId -> 400', async () => {
+  const app = await buildEmptyApp();
+  const res = await app.inject({ method: 'POST', url: '/v1/library/actions/ingest', payload: {} });
+  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(res.json().error.code, 'VALIDATION_ERROR');
+  await app.close();
+});
+
+test('POST /v1/library/actions/ingest valid returns 202 Accepted', async () => {
+  // Ingest is async; the route returns 202 immediately.
+  // Unknown subLibraryId failure surfaces asynchronously (not in HTTP response).
+  const dir = tempDir();
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ subLibraries: [{ uuid: 'sublib-rf', name: 'R', embyServerId: 'srv', sectionId: 'sec', enabled: true }] }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const res = await app.inject({ method: 'POST', url: '/v1/library/actions/ingest', payload: { subLibraryId: 'sublib-rf' } });
+  assert.strictEqual(res.statusCode, 202);
+  assert.strictEqual(res.json().message, 'Ingest triggered');
+  await app.close();
+});
+
+// Legacy alias retained for compatibility.
 
 test('POST /v1/library/actions/refresh missing subLibraryId -> 400', async () => {
   const app = await buildEmptyApp();
@@ -187,13 +209,28 @@ test('POST /v1/library/actions/refresh missing subLibraryId -> 400', async () =>
 });
 
 test('POST /v1/library/actions/refresh valid returns 202 Accepted', async () => {
-  // Refresh is async; the route returns 202 immediately.
+  // Refresh is a compatibility alias for ingest.
   // Unknown subLibraryId failure surfaces asynchronously (not in HTTP response).
   const dir = tempDir();
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ subLibraries: [{ uuid: 'sublib-rf', name: 'R', embyServerId: 'srv', sectionId: 'sec', enabled: true }] }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const res = await app.inject({ method: 'POST', url: '/v1/library/actions/refresh', payload: { subLibraryId: 'sublib-rf' } });
   assert.strictEqual(res.statusCode, 202);
+  assert.strictEqual(res.json().message, 'Ingest triggered');
+  await app.close();
+});
+
+test('POST /v1/library/actions/recompute-optimize-targets keeps recompute-strategy as compatibility alias', async () => {
+  const app = await buildEmptyApp();
+  const current = await app.inject({ method: 'POST', url: '/v1/library/actions/recompute-optimize-targets' });
+  assert.strictEqual(current.statusCode, 200);
+  assert.strictEqual(current.json().ok, true);
+  assert.strictEqual(typeof current.json().changed, 'number');
+
+  const legacy = await app.inject({ method: 'POST', url: '/v1/library/actions/recompute-strategy' });
+  assert.strictEqual(legacy.statusCode, 200);
+  assert.strictEqual(legacy.json().ok, true);
+  assert.strictEqual(typeof legacy.json().changed, 'number');
   await app.close();
 });
 

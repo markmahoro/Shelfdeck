@@ -212,11 +212,15 @@ test('config migration adds archive to legacy non-empty smart task automation al
 
     const loaded = configStore.loadConfig();
     assert.deepStrictEqual(loaded.smartTaskEnabledActions, ['ingest', 'scrape', 'transcode', 'archive']);
+    assert.deepStrictEqual(loaded.automaticTaskTargets, ['ingest', 'metadata', 'optimize', 'archive']);
+    assert.deepStrictEqual(loaded.optimizeAllowedOperations, ['transcode']);
     assert.strictEqual(loaded.migrations.v31ArchiveAutomation, true);
     assert.ok(fs.existsSync(path.join(dir, 'config.json.v9.backup')));
 
     const saved = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
     assert.deepStrictEqual(saved.smartTaskEnabledActions, ['ingest', 'scrape', 'transcode', 'archive']);
+    assert.deepStrictEqual(saved.automaticTaskTargets, ['ingest', 'metadata', 'optimize', 'archive']);
+    assert.deepStrictEqual(saved.optimizeAllowedOperations, ['transcode']);
     assert.strictEqual(saved.migrations.v31ArchiveAutomation, true);
   } finally {
     if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
@@ -241,8 +245,49 @@ test('config migration keeps an empty smart task automation allow-list disabled'
 
     const loaded = configStore.loadConfig();
     assert.deepStrictEqual(loaded.smartTaskEnabledActions, []);
+    assert.deepStrictEqual(loaded.automaticTaskTargets, []);
+    assert.deepStrictEqual(loaded.optimizeAllowedOperations, []);
     assert.strictEqual(loaded.migrations, undefined);
     assert.strictEqual(fs.existsSync(path.join(dir, 'config.json.v9.backup')), false);
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+    if (previousMediaDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = previousMediaDir;
+  }
+});
+
+test('config normalization keeps new automatic task targets authoritative over legacy projection', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const previousMediaDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  delete process.env.MEDIA_SERVICE_DATA_DIR;
+
+  try {
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+      automaticTaskTargets: ['ingest'],
+      optimizeAllowedOperations: [],
+      smartTaskEnabledActions: ['ingest'],
+      ruleTemplates: configStore.getDefaultConfig().ruleTemplates,
+    }, null, 2));
+
+    const loaded = configStore.loadConfig();
+    assert.deepStrictEqual(loaded.automaticTaskTargets, ['ingest']);
+    assert.deepStrictEqual(loaded.optimizeAllowedOperations, []);
+    assert.deepStrictEqual(loaded.smartTaskEnabledActions, ['ingest']);
+    assert.strictEqual(loaded.migrations, undefined);
+    assert.strictEqual(fs.existsSync(path.join(dir, 'config.json.v9.backup')), false);
+
+    const saved = configStore.saveConfig({
+      ...loaded,
+      automaticTaskTargets: ['ingest'],
+      optimizeAllowedOperations: [],
+      smartTaskEnabledActions: ['ingest'],
+    });
+    assert.deepStrictEqual(saved.automaticTaskTargets, ['ingest']);
+    assert.deepStrictEqual(saved.optimizeAllowedOperations, []);
+    assert.deepStrictEqual(saved.smartTaskEnabledActions, ['ingest']);
   } finally {
     if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
     else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
@@ -314,6 +359,54 @@ test('taskAdmission allows automatic optimize operations when `optimize` is conf
   });
   assert.strictEqual(auto.allowed, true);
   assert.strictEqual(auto.taskBridge.kind, 'optimize');
+});
+
+test('taskAdmission separates automatic task targets from optimize operation authorization', () => {
+  const config = {
+    automaticTaskTargets: ['metadata', 'optimize'],
+    optimizeAllowedOperations: ['transcode'],
+    subLibraries: [{ uuid: 'lib-a', source: 'emby', mediaType: 'movie', automationMode: 'auto' }],
+  };
+
+  const scrape = taskAdmission.canCreateTask({
+    item: { itemId: 'missing-metadata', source: 'emby', subLibraryId: 'lib-a', type: 'movie', name: 'Missing Metadata' },
+    actionType: 'scrape',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(scrape.allowed, true);
+  assert.strictEqual(scrape.taskBridge.kind, 'metadata');
+
+  const transcode = taskAdmission.canCreateTask({
+    item: metadataReadyMovie({ itemId: 'transcode-allowed', subLibraryId: 'lib-a' }),
+    actionType: 'transcode',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(transcode.allowed, true);
+  assert.strictEqual(transcode.taskBridge.kind, 'optimize');
+
+  const upgrade = taskAdmission.canCreateTask({
+    item: metadataReadyMovie({ itemId: 'upgrade-blocked', subLibraryId: 'lib-a' }),
+    actionType: 'upgrade',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(upgrade.allowed, false);
+  assert.strictEqual(upgrade.reason, 'action_not_enabled');
+
+  const ingest = taskAdmission.canCreateTask({
+    item: { itemId: 'ingest-blocked', subLibraryId: 'lib-a' },
+    actionType: 'ingest',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(ingest.allowed, false);
+  assert.strictEqual(ingest.reason, 'action_not_enabled');
 });
 
 test('taskAdmission treats a missing automatic allow-list as disabled', () => {
@@ -459,6 +552,50 @@ test('businessFlowPolicy resolves automatic optimize triggers when `optimize` is
   assert.strictEqual(trigger.operation, 'transcode');
   assert.strictEqual(trigger.actionType, 'transcode');
   assert.strictEqual(trigger.bridgeKind, 'optimize');
+});
+
+test('businessFlowPolicy requires both optimize target and operation authorization', () => {
+  const item = metadataReadyMovie({
+    itemId: 'movie-auto-upgrade-blocked',
+    subLibraryId: 'movie-lib',
+    watched: false,
+    action: 'upgrade',
+    reason: 'optimize target projection selected upgrade',
+  });
+
+  const targetOnly = businessFlowPolicy.resolveAutomaticTrigger({
+    config: {
+      automaticTaskTargets: ['optimize'],
+      optimizeAllowedOperations: [],
+      subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+    },
+    item,
+  });
+  assert.strictEqual(targetOnly.allowed, false);
+  assert.strictEqual(targetOnly.reason, 'action_not_enabled');
+
+  const operationOnly = businessFlowPolicy.resolveAutomaticTrigger({
+    config: {
+      automaticTaskTargets: [],
+      optimizeAllowedOperations: ['upgrade'],
+      subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+    },
+    item,
+  });
+  assert.strictEqual(operationOnly.allowed, false);
+  assert.strictEqual(operationOnly.reason, 'action_not_enabled');
+
+  const both = businessFlowPolicy.resolveAutomaticTrigger({
+    config: {
+      automaticTaskTargets: ['optimize'],
+      optimizeAllowedOperations: ['upgrade'],
+      subLibraries: [{ uuid: 'movie-lib', source: 'emby', mediaType: 'movie' }],
+    },
+    item,
+  });
+  assert.strictEqual(both.allowed, true);
+  assert.strictEqual(both.actionType, 'upgrade');
+  assert.strictEqual(both.bridgeKind, 'optimize');
 });
 
 test('businessFlowPolicy blocks automatic heavy optimize after optimize gate failed', () => {
@@ -3077,7 +3214,7 @@ test('backgroundIoGuard serializes heavy background operations and records skips
   assert.ok(logs.some((log) => log.category === 'background_io' && log.status === 'done'));
 });
 
-test('startup library refresh only selects stale sublibraries within startup budget', () => {
+test('startup library ingest only selects stale sublibraries within startup budget', () => {
   const now = Date.parse('2026-06-30T10:00:00.000Z');
   const subLibraries = [
     { uuid: 'fresh', enabled: true, source: 'emby', lastRefreshedAt: '2026-06-30T09:30:00.000Z' },
@@ -3087,13 +3224,13 @@ test('startup library refresh only selects stale sublibraries within startup bud
     { uuid: 'disabled', enabled: false, source: 'emby', lastRefreshedAt: '2026-06-29T00:00:00.000Z' },
   ];
 
-  const limited = mediaLibraryService._selectStartupRefreshSubLibrariesForTest(subLibraries, {
+  const limited = mediaLibraryService._selectStartupIngestSubLibrariesForTest(subLibraries, {
     mediaLibraryStartupRefreshStaleMinutes: 120,
     mediaLibraryStartupRefreshMaxLibraries: 1,
   }, now);
   assert.deepStrictEqual(limited.map((sl) => sl.uuid), ['oldest']);
 
-  const unlimited = mediaLibraryService._selectStartupRefreshSubLibrariesForTest(subLibraries, {
+  const unlimited = mediaLibraryService._selectStartupIngestSubLibrariesForTest(subLibraries, {
     mediaLibraryStartupRefreshStaleMinutes: 120,
     mediaLibraryStartupRefreshMaxLibraries: 0,
   }, now);

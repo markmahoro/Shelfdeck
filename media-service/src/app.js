@@ -984,7 +984,7 @@ const DASHBOARD_HEALTH_LABELS = {
   scheduler: 'Task Scheduler',
   smartTask: 'Task Creator',
   mediaLib: 'Library Store',
-  strategy: 'Lifecycle Policy',
+  strategy: 'Optimize Targets',
   transcode: 'Transcode Runtime',
   emby: 'Emby',
   douban: 'Douban',
@@ -1150,7 +1150,9 @@ function dashboardActivitySourceLabel(source) {
     case 'media_library': return '媒体库';
     case 'adult_library': return '成人库';
     case 'douban': return '豆瓣';
-    case 'strategy_engine': return '策略';
+    case 'strategy_engine':
+    case 'optimize_target_projection':
+      return '优化目标';
     case 'smart_task_engine': return '自动入队';
     case 'task': return '任务';
     case 'health': return '健康';
@@ -1787,11 +1789,12 @@ function registerRoutes(app) {
       ? configStore.resolveSubLibSchedule(itemInfo, cfg)
       : { autoExecute: cfg.executionMode === 'auto' };
     const status = schedule.autoExecute ? 'created' : 'pending_manual';
-    const priorityBreakdown = priorityEngine.explainPriority({
+    const priorityBreakdown = priorityEngine.explainTaskPriority({
       source: 'manual',
-      actionType,
+      taskTarget: admission.taskTarget,
       itemInfo,
       config: cfg,
+      actionType,
     });
 
     const task = taskStore.createTask({
@@ -1801,7 +1804,7 @@ function registerRoutes(app) {
       source: 'manual',
       status,
       priority: priorityBreakdown.priority,
-      priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
+      priorityModelVersion: priorityEngine.TASK_PRIORITY_MODEL_VERSION,
       priorityBreakdown,
       taskTarget: admission.taskTarget,
       taskBridge: admission.taskBridge,
@@ -2381,20 +2384,36 @@ function registerRoutes(app) {
     }
   });
 
-  app.post('/v1/library/actions/refresh', async (req, reply) => {
+  async function triggerLibraryIngest(req, reply) {
     const { subLibraryId } = req.body || {};
     if (!subLibraryId) return apiError(reply, 400, 'VALIDATION_ERROR', 'subLibraryId is required');
     try {
-      mediaLibraryService.triggerRefresh(subLibraryId);
-      return reply.code(202).send({ ok: true, message: 'Refresh triggered' });
+      mediaLibraryService.triggerIngest(subLibraryId);
+      return reply.code(202).send({ ok: true, message: 'Ingest triggered' });
     } catch (e) {
       return apiError(reply, 404, 'NOT_FOUND', e.message);
     }
+  }
+
+  app.post('/v1/library/actions/ingest', async (req, reply) => {
+    return triggerLibraryIngest(req, reply);
+  });
+
+  app.post('/v1/library/actions/refresh', async (req, reply) => {
+    return triggerLibraryIngest(req, reply);
+  });
+
+  function recomputeOptimizeTargets() {
+    const result = strategyEngine.runOnce();
+    return { ok: true, changed: result.changed };
+  }
+
+  app.post('/v1/library/actions/recompute-optimize-targets', async () => {
+    return recomputeOptimizeTargets();
   });
 
   app.post('/v1/library/actions/recompute-strategy', async () => {
-    const result = strategyEngine.runOnce();
-    return { ok: true, changed: result.changed };
+    return recomputeOptimizeTargets();
   });
 
   app.get('/v1/library/status', async () => {

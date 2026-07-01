@@ -5,7 +5,7 @@ export const TASK_CREATION_ACTIONS = new Set<MediaAction>(['delete', 'transcode'
 export const BLOCKED_REASON_LABELS: Record<string, string> = {
   active_task_exists: '已有未结案任务',
   metadata_missing: '元数据不完整',
-  scrape_not_supported_for_standard_media: '普通媒体元数据来自 Emby refresh / Douban sync',
+  scrape_not_supported_for_standard_media: '普通媒体元数据来自 Emby ingest / Douban sync',
   upgrade_not_supported_for_disc_like_source: '原盘暂不支持洗版',
   action_not_enabled: '后台自动入队未启用该处理方向',
   recent_task_cooldown: '最近已处理，仍在冷却期',

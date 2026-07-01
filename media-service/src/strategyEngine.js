@@ -1,13 +1,13 @@
 'use strict';
 
 /**
- * StrategyEngine — rule-based strategy evaluation.
+ * StrategyEngine — legacy module for optimize target projection.
  *
  * Reads the media library store, evaluates each item against the subLibrary's rule
  * template, and writes action/reason/targetBitrate/targetCodec/predictedSizeGb.
  *
  * Decoupled from all data-writing paths. Only reads library + config,
- * only writes strategy fields.
+ * only writes optimize target projection fields.
  */
 
 const activityLog = require('./activityLog');
@@ -207,11 +207,11 @@ let _mediaLibraryService = null;
 function runOnce(options = {}) {
   if (options.background === true) {
     return backgroundIoGuard.runExclusive({
-      operation: 'strategy.run',
+      operation: 'optimize.target_projection.run',
       component: 'strategyEngine',
       lockKey: BACKGROUND_IO_LOCK,
       resourceType: 'background_io',
-      resourceKey: 'strategy:run',
+      resourceKey: 'optimize-targets:run',
       source: 'background',
       payload: { trigger: options.trigger || 'timer' },
     }, () => runOnce({ ...options, background: false }), {
@@ -220,11 +220,11 @@ function runOnce(options = {}) {
   }
 
   return runtimeResourceTracker.trackEvent({
-    eventType: 'strategy.run',
+    eventType: 'optimize.target_projection.run',
     component: 'strategyEngine',
     resourceType: 'service_cpu',
-    resourceKey: 'service:strategy',
-    resourceLabel: 'Strategy engine',
+    resourceKey: 'service:optimize-targets',
+    resourceLabel: 'Optimize target projection',
     successPayload: (result) => result,
   }, () => {
     const lib = _mediaLibraryService.getLibrary();
@@ -266,9 +266,9 @@ function runOnce(options = {}) {
       } else {
         _mediaLibraryService.saveLibrary(lib);
       }
-      const msg = `策略重新计算完成，${changed} 个条目的推荐操作已更新`;
+      const msg = `优化目标计算完成，${changed} 个条目的推荐操作已更新`;
       console.log(`[strategyEngine] ${msg}`);
-      activityLog.addActivity('strategy_engine', msg, { changed });
+      activityLog.addActivity('optimize_target_projection', msg, { changed });
     }
 
     lastError = null;

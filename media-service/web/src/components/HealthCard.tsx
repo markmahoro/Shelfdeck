@@ -17,7 +17,7 @@ interface HealthCheckItem {
   // douban
   hasSession?: boolean;
   doubanEnabledSubLibCount?: number;
-  // strategy
+  // optimize target projection
   lastChanged?: number | null;
   // upgrade
   smartSelectEnabled?: boolean;
@@ -46,9 +46,9 @@ const LABELS: Record<string, string> = {
 const CHECK_LABELS: Record<string, string> = {
   scheduler:  '任务调度器',
   smartTask:  '后台自动入队',
-  mediaLib:   '媒体库刷新',
+  mediaLib:   '媒体库入库同步',
   douban:     '豆瓣评分抓取',
-  strategy:   '策略引擎',
+  strategy:   '优化目标计算',
   emby:       'Emby 连接',
   upgrade:    '洗版服务',
   transcode:  '转码服务',
@@ -73,7 +73,7 @@ function describe(key: string, item: HealthCheckItem): string {
         return `超时：${item.staleSubLibraries.join('、')}`;
       }
       if (item.manualFolderCount) {
-        return `${item.scheduledRefreshCount || 0} 个定时刷新，${item.manualFolderCount} 个真实目录库`;
+        return `${item.scheduledRefreshCount || 0} 个定时入库同步，${item.manualFolderCount} 个真实目录库`;
       }
       return `${item.enabledCount}/${item.totalSubLibraries} 个媒体库`;
     case 'douban':

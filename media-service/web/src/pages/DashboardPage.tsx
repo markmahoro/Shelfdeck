@@ -427,7 +427,7 @@ export default function DashboardPage() {
                     {/* Sub-card 1: Sync Status */}
                     <SubCard title="同步状态">
                       <div style={{ fontSize: 13, lineHeight: 1.8 }}>
-                        <div>最后刷新: {sl.lastRefreshedAt ? new Date(sl.lastRefreshedAt).toLocaleString() : '—'}</div>
+                        <div>最后入库同步: {sl.lastRefreshedAt ? new Date(sl.lastRefreshedAt).toLocaleString() : '—'}</div>
                         <div>豆瓣同步: {sl.doubanEnabled ? (sl.doubanSyncedAt ? new Date(sl.doubanSyncedAt).toLocaleString() : '等待中') : '未启用'}</div>
                       </div>
                     </SubCard>
@@ -967,7 +967,9 @@ function activitySourceMeta(source: string) {
   switch (source) {
     case 'media_library': return { label: '媒体库', color: '#1565c0', bg: '#e3f2fd' };
     case 'douban': return { label: '豆瓣', color: '#7b1fa2', bg: '#f3e5f5' };
-    case 'strategy_engine': return { label: '策略', color: '#2e7d32', bg: '#e8f5e9' };
+    case 'strategy_engine':
+    case 'optimize_target_projection':
+      return { label: '优化目标', color: '#2e7d32', bg: '#e8f5e9' };
     case 'smart_task_engine': return { label: '自动入队', color: '#b45309', bg: '#fff7ed' };
     case 'task': return { label: '任务', color: '#1a1a2e', bg: '#eef0f4' };
     case 'task_event': return { label: '任务事件', color: '#1a1a2e', bg: '#eef0f4' };

@@ -25,8 +25,8 @@ const healthCheck = require('./healthCheck');
 const activityLog = require('./activityLog');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
-const priorityEngine = require('./priorityEngine');
 const resourceProjection = require('./resourceProjection');
+const resourceCapacity = require('./resourceCapacity');
 const flowPlanner = require('./flowPlanner');
 const flowRecoveryContract = require('./flowRecoveryContract');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
@@ -65,15 +65,6 @@ function getConcurrencyLimit(actionType, limits) {
     case 'scrape': return limits.scrapeConcurrency || 1;
     default: return 1;
   }
-}
-
-function shouldRecomputeAutoPriority(task) {
-  return task
-    && task.source === 'auto'
-    && !task.priorityManuallyAdjusted
-    && ['created', 'pending_manual', 'queued'].includes(task.status)
-    && task.actionType
-    && task.itemInfo;
 }
 
 function buildDeleteOptimizeGateForItem(task, doneAt) {
@@ -147,31 +138,6 @@ function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt) {
       blockers: [],
       finalizedAt: doneAt,
     };
-  }
-}
-
-function reconcileAutoTaskPriorities(tasks, config) {
-  for (const task of tasks) {
-    if (!shouldRecomputeAutoPriority(task)) continue;
-    const priorityBreakdown = priorityEngine.explainPriority({
-      source: 'auto',
-      actionType: task.actionType,
-      itemInfo: task.itemInfo,
-      config,
-      task,
-    });
-    const priority = priorityBreakdown.priority;
-    if (task.priority === priority && task.priorityModelVersion === priorityEngine.PRIORITY_MODEL_VERSION) continue;
-    const updated = taskStore.updateTask(task.id, {
-      priority,
-      priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
-      priorityBreakdown,
-    });
-    if (updated) {
-      task.priority = updated.priority;
-      task.priorityModelVersion = updated.priorityModelVersion;
-      task.priorityBreakdown = updated.priorityBreakdown;
-    }
   }
 }
 
@@ -310,7 +276,8 @@ function recoverInterruptedTasks() {
 function resourceConcurrencyLimit(resource, task, limits = {}) {
   const resourceType = resource && resource.resourceType;
   const resourceKey = resource && resource.resourceKey;
-  switch (resourceType) {
+  const legacyFallback = (() => {
+    switch (resourceType) {
     case 'local_transcode':
     case 'worker_transcode':
       return limits.transcodeConcurrency || 1;
@@ -328,7 +295,9 @@ function resourceConcurrencyLimit(resource, task, limits = {}) {
       return 1;
     default:
       return getConcurrencyLimit(task && task.actionType, limits);
-  }
+    }
+  })();
+  return resourceCapacity.capacityForResource(resource, limits, legacyFallback);
 }
 
 function resourceCountKey(resource) {
@@ -703,8 +672,6 @@ async function scheduleRound() {
     });
     recoveredIds.add(task.id);
   }
-
-  reconcileAutoTaskPriorities(tasks, config);
 
   // ── Pass 2: dispatch queued tasks, ordered by queue priority ──────────
   // Lower priority value = runs first. Recovered (interrupted) tasks get a

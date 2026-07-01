@@ -26,6 +26,36 @@ object + targetGate + gateObjective
 Kairox = Lifecycle gate owns user semantics; Task targets a gate; Flow implements the path; Event consumes resources.
 ```
 
+### 1.1 五个架构组件
+
+Kairox 的目标语义收敛为 5 个架构组件。这里的组件是职责边界，不要求当前代码立刻做到一个组件对应一个物理文件。
+
+| 架构组件 | 核心问题 | 负责 | 不负责 |
+| --- | --- | --- | --- |
+| Lifecycle | 媒体现在在哪，gate 过没过，目标是什么 | 定义 5 阶段 4 gate；定义 gate objective；按子库计算 ingest / metadata gate；为每个媒体计算 optimize objective；根据 objective + observed facts 判定 optimize gate；推进 stage | 创建 task；选择 flow；执行 event；控制资源 |
+| Task Creator | 现在要不要创建 task，创建什么目标 task | 消费 lifecycle snapshot、自动化扫描、用户 intent、Resource Runtime 安灯信号；执行准入；创建 `object + targetGate + gateObjective` 的 task；拒绝时给 blocked reason | 定义 gate / objective；选择 flow；执行 event；控制资源 |
+| Task Scheduler | 哪些 task 现在获得运行机会 | 找 runnable task；控制 task 级并发；控制 item lock；按 priority / retryAt / createdAt 排序；给 task 一次 tick；保存 Flow Planner 返回的 task-level signal | 创建 task；判断 gate；选择 flow；生成 objective；生成 event；决定 retry / fallback；控制资源 |
+| Flow Planner | 为了达成 task 目标，具体怎么做 | 根据 task.object + targetGate + gateObjective 选择 flow operation；生成 event 编排；发出 event intent；消费 event / resource facts；处理 retry / fallback / wait / needs-review / fail；写 task facts / gate facts；返回 task-level signal | 定义 gate / objective；判定 lifecycle stage；控制资源容量；创建 task |
+| Resource Runtime | event 怎么执行，工厂产能如何 | 读取 event intent；管理 event queue、resource bucket、capacity、concurrency、lease；调用 executor / worker；处理 timeout / worker lost / orphan lease；写 event / resource facts；输出安灯信号并提供 Resource View | 创建 task；判断 lifecycle gate；选择 flow operation；定义 optimize objective |
+
+主链路是：
+
+```text
+Lifecycle
+  -> Task Creator
+  -> Task(object + targetGate + gateObjective)
+
+Task Scheduler
+  -> Flow Planner
+  -> Resource Runtime
+  -> event/resource facts
+  -> Flow Planner
+  -> task/gate facts
+  -> Lifecycle
+```
+
+Task / event 的事实必须持久化。内存态用于实时运行、快速查询和减少反复 IO；持久化 store 是恢复、审计和迁移的事实来源。
+
 ## 2. 适用范围
 
 凡是修改以下领域，必须先读本文：
@@ -79,6 +109,14 @@ Kairox 下的核心用户心智是：
 | archive gate | 本轮处理闭环归档 | `targetGate=archive` |
 
 实现可以继续有兼容字段，但 UI、API projection、诊断和文档不应继续把 `actionType` 当成用户语义主语。
+
+Kairox 没有 `refresh` 这个一等概念。旧实现中的 refresh / startup refresh / manual refresh / scheduled refresh，架构语义都应收口为 `ingest`：
+
+- ingest 从 Emby、文件夹、成人 watch root 等 source 同步 source facts。
+- ingest 对齐 inventory identity、source path、基础 media facts 和 subLibrary 归属。
+- ingest 写入或更新事实后，Lifecycle gate projection 重新判断当前对象停在哪个 gate。
+- ingest 不直接创建后续 metadata / optimize task；自动 task 创建仍必须通过 Task Creator / TaskAdmission。
+- startup/background ingest 必须有预算和 backpressure，不能阻塞 Admin Web projection。
 
 ### 4.2 Task targets a gate
 
@@ -208,6 +246,15 @@ metadataCompleteGate >= optimizeRequiredInputs
 
 保存配置时必须硬校验；运行时发现历史坏配置时必须产生 `metadata_gate_contract_broken`，不能显示“元数据完整”又在 optimize 阶段静默卡死。
 
+Kairox 没有 `self-compute` 这个一等概念。所谓“自算”必须拆回以下语义：
+
+- 若只是 `resolution -> bucket`、`bitrate -> equivalentBitrate` 这类确定性派生，属于 scrape / metadata repair flow 内的 media facts projection event。推荐事件名是 `scrape.project_media_facts`，它应在 `scrape.fetch_or_probe_metadata` / `scrape.write_metadata` 之后、`scrape.verify_metadata_gate` 之前执行。
+- 若派生依赖的原始事实缺失，例如 bitrate、duration、codec、path identity 等缺失，则 metadata gate 不完整，必须通过 scrape / metadata repair flow 补齐。
+- scrape flow 完成必要事实后，相关 media facts projection 才能使对象自然进入 optimize gate。
+- 后台 maintenance 可以重放或补跑 scrape flow 的安全 event，但不能拥有 Lifecycle objective，不能替代 scrape，也不能让 metadata gate 在事实不完整时通过。
+
+因此：metadata / media facts 不完整的对象不能进入 optimize gate；缺事实时应停留在 metadata gate，等待手动或自动 metadata scrape task。
+
 ### 4.7 Task Creator is unified
 
 所有自动 task 创建必须通过统一 TaskAdmission / BusinessFlowPolicy / Task Creator 语义。
@@ -215,10 +262,20 @@ metadataCompleteGate >= optimizeRequiredInputs
 必须保持：
 
 - active task duplicate prevention。
-- `smartTaskEnabledActions` / 自动推进 allow-list。
+- 自动 task 创建 allow-list。新配置语义应表达为 `automaticTaskTargets`，用于决定系统是否可以自动创建 `ingest`、`metadata`、`optimize`、`archive` 这类 gate target task。
+- optimize flow operation allow-list。新配置语义应表达为 `optimizeAllowedOperations`，用于决定 optimize task 内允许选择 `transcode`、`upgrade`、`delete` 等 operation path。
 - queue cap、cooldown、backlog pressure。
 - standard/adult/manual/background source 的同一准入模型。
 - manual intent 可以表达用户明确意图，但仍保留 active duplicate、风险动作和 flow safety 校验。
+
+旧 `smartTaskEnabledActions` 是兼容字段，不能继续作为 Kairox 架构概念扩张。迁移期可以按以下规则投影：
+
+- `ingest` -> `automaticTaskTargets` 包含 `ingest`。
+- `scrape` -> `automaticTaskTargets` 包含 `metadata`。
+- `transcode` / `upgrade` / `delete` -> `automaticTaskTargets` 包含 `optimize`，同时写入对应 `optimizeAllowedOperations`。
+- `delete` 即使出现在兼容字段中，也必须继续受风险动作确认和显式授权约束，不能成为默认自动项。
+
+这两个授权层不能互相替代：允许自动创建 optimize task 不等于允许所有 optimize operation；允许某个 optimize operation 也不等于系统可以绕过 Task Creator / TaskAdmission 自动建 task。
 
 明确禁止：
 
@@ -282,7 +339,20 @@ Admin Web 面向普通用户和家庭长期服务心智，不是运维控制台�
 
 成人库恢复必须遵守 `docs/v3/ADULT_DATA_MODEL.md`：成人库仍是 Kairox subLibrary；`media_items` 热数据只保存 item identity、file facts、Lifecycle/gate facts、task target facts 和 light adult metadata；face clusters、embedding、gallery、base64 图片和 AI 中间输出属于 cold AI artifacts 或 file assets，不能进入普通列表、dashboard 或 TaskAdmission 热路径。
 
-### 4.11 Service owns orchestration
+### 4.11 Optimize target projection is not a strategy layer
+
+Kairox 没有 `strategy` 这个一等架构层。旧实现中的 `strategyEngine` 只能作为 legacy implementation module 保留，其架构语义是 optimize gate target projection。
+
+Optimize gate target projection 的职责：
+
+- 只在 metadata gate / required media facts 满足后运行。
+- 基于 media facts、用户信号、subLibrary policy，计算 optimize gate 的 target / gateObjective，例如 keep、reduce bitrate、upgrade source quality、delete candidate。
+- 输出推荐事实和参数，例如 action hint、reason、targetBitrate、targetCodec、predictedSizeGb、seedPreferences。
+- 不补 metadata，不读取外部 source facts，不创建 task，不绕过 TaskAdmission。
+
+若 optimize target 无法计算，原因必须回到 metadata gate 或 media facts contract，例如 `metadata_missing`、`metadata_gate_contract_broken`、`optimize_required_input_missing`。不能把“strategy 未运行”作为用户语义，也不能让对象在事实不完整时显示为 optimize-ready。
+
+### 4.12 Service owns orchestration
 
 Service 拥有任务、媒体库、配置、People、策略结果和生产数据。
 
@@ -290,7 +360,7 @@ Desktop 是 HTTP thin client，不直接访问 Emby、Douban、MoviePilot、serv
 
 Worker 是被动计算节点，只提供计算能力和临时 job 状态。Worker 不拥有媒体库语义，不直接访问 Emby/MoviePilot/service 数据文件，不决定 Lifecycle、TaskAdmission 或 Flow objective。
 
-### 4.12 Production path is canonical
+### 4.13 Production path is canonical
 
 NAS ShelfDeck Docker 是生产环境。
 
@@ -315,6 +385,8 @@ node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha
 - 新增一个 flow executor，却没有 flow recovery contract。
 - 新增一个 resource 限流，却让 SmartTaskEngine 自己推导 flow event 消耗。
 - 新增一个 metadata complete 判定，却没有校验 optimize inputs。
+- 新增 `refresh`、`strategy`、`self-compute` 作为 Kairox 一等概念，而不是收口到 ingest、metadata gate、optimize gate、TaskAdmission。
+- 缺少必要 media facts 时仍让对象通过 metadata gate 或进入 optimize gate。
 - 新增一个 worker 能力，却让 worker 持有 service 的业务事实。
 - 新增一个普通前端卡片或页面来展示 DB/WAL、payload、resource bucket、I/O guard、diagnostic log 等运维事实。
 - 为了处理某类失败而隐藏任务、跳过事件、清空历史或静默 fallback。

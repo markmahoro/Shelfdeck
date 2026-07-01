@@ -1288,7 +1288,7 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
         }],
       },
     },
-    logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Scrape metadata saved; strategy recalculated' }],
+    logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Scrape metadata saved; optimize targets recalculated' }],
   });
 
   const res = await app.inject({ method: 'GET', url: `/v1/tasks/${task.id}/report` });

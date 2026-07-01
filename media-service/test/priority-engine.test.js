@@ -149,6 +149,53 @@ test('explainPriority returns a stable additive breakdown', () => {
   assert.deepStrictEqual(explained.dimensions.map((d) => d.value), [100, 130, 10, -25]);
 });
 
+test('explainTaskPriority uses Kairox target gate semantics', () => {
+  const c = config({
+    subLibraries: [{ uuid: 'film', priorityWeight: 10 }],
+  });
+  c.taskPriority.targetGateWeights = { ingest: 60, metadata: 80, optimize: 110, archive: 70 };
+  c.taskPriority.optimizeOperationHints = { transcode: 20, upgrade: 0, delete: -20 };
+
+  const explained = pe.explainTaskPriority({
+    source: 'auto',
+    taskTarget: {
+      targetGate: 'optimize',
+      gateObjective: { kind: 'reduce_bitrate' },
+      operationHint: 'transcode',
+    },
+    itemInfo: { subLibraryId: 'film', equivalentBitrate: 12000, targetBitrate: 8000 },
+    config: c,
+  });
+
+  assert.strictEqual(explained.modelVersion, 'kairox-task-creator-v1');
+  assert.strictEqual(explained.formula, 'source + targetGate + optimizeOperationHint + subLibrary + businessSignal + queueAge + retry + matchedRules');
+  assert.strictEqual(explained.targetGate, 'optimize');
+  assert.strictEqual(explained.operationHint, 'transcode');
+  assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['source', 'targetGate', 'optimizeOperationHint', 'subLibrary', 'businessSignal']);
+  assert.strictEqual(explained.priority, 225);
+});
+
+test('explainTaskPriority maps legacy action weights without using flow plan', () => {
+  const c = config();
+  c.taskPriority.actionTypeWeights = { scrape: 80, transcode: 130, upgrade: 110, delete: 90 };
+
+  const explained = pe.explainTaskPriority({
+    source: 'auto',
+    taskTarget: {
+      targetGate: 'metadata',
+      gateObjective: { kind: 'metadata_complete' },
+    },
+    itemInfo: { scraped: false, adultMetadata: { scrapeStatus: 'pending' } },
+    config: c,
+    actionType: 'scrape',
+  });
+
+  assert.strictEqual(explained.targetGate, 'metadata');
+  assert.strictEqual(explained.dimensions.find((d) => d.key === 'targetGate').value, 80);
+  assert.ok(!explained.dimensions.some((d) => d.key === 'actionType'));
+  assert.ok(!Object.prototype.hasOwnProperty.call(explained, 'flowPlan'));
+});
+
 test('adult workflow business signal keeps ingest and scrape ahead of transcode', () => {
   const c = config();
   c.taskPriority.actionTypeWeights = { ingest: 60, scrape: 80, transcode: 130 };

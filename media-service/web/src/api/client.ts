@@ -423,9 +423,12 @@ export interface SystemConfig {
   transcodeConcurrency: number;
   upgradeConcurrency: number;
   scrapeConcurrency: number;
+  resourceCapacity?: Record<string, number>;
   wallRatingAutoEnqueue: boolean;
   smartTaskMaxPerRun: number;
   smartTaskEnabledActions: string[];
+  automaticTaskTargets?: string[];
+  optimizeAllowedOperations?: string[];
   smartTaskPollIntervalMinutes: number;
   smartTaskLookbackDays: number;
   smartTaskMaxQueueSize: number;
@@ -435,7 +438,10 @@ export interface SystemConfig {
   taskPriority?: {
     manualTaskPriority: number;
     autoTaskPriorityBase: number;
+    targetGateWeights?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive', number>>;
+    optimizeOperationHints?: Partial<Record<'transcode' | 'upgrade' | 'delete', number>>;
     actionTypeWeights?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
+    rulesByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive', PriorityRule[]>>;
     rules: {
       ingest: PriorityRule[];
       scrape: PriorityRule[];
@@ -448,6 +454,8 @@ export interface SystemConfig {
   taskAdmission?: {
     defaultCooldownHours?: number;
     defaultMaxQueued?: number;
+    cooldownHoursByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive', number>>;
+    maxQueuedByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive', number>>;
     cooldownHoursByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
     maxQueuedByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
   };
@@ -627,6 +635,9 @@ export const libraryApi = {
 
   patchRatings: (itemId: string, userRating: number | null) =>
     patch<{ ok: boolean }>('/v1/library/ratings', { itemId, userRating }),
+
+  recomputeOptimizeTargets: () =>
+    post<{ ok: boolean; changed: number }>('/v1/library/actions/recompute-optimize-targets'),
 
   recomputeStrategy: () =>
     post<{ ok: boolean; changed: number }>('/v1/library/actions/recompute-strategy'),
