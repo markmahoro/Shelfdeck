@@ -12,10 +12,20 @@ const LIGHT_ADULT_METADATA_KEYS = Object.freeze([
   'scrapeStatus',
   'reviewStatus',
   'idConfidence',
+  'scraperType',
+  'source',
+  'sourceUrl',
   'protagonist',
   'posterPath',
+  'fanartPath',
   'nfoPath',
+  'fileNfoPath',
+  'markerPath',
   'organized',
+  'originalFolder',
+  'scrapedAt',
+  'scrapeError',
+  'scrapeFailedAt',
   'scrapeVerification',
 ]);
 
@@ -93,6 +103,21 @@ function projectLightAdultMetadata(metadata = {}) {
   return compactObject(projected);
 }
 
+function splitAdultMetadata(metadata = {}) {
+  const source = metadata && typeof metadata === 'object' ? metadata : {};
+  const coldArtifacts = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (COLD_ADULT_ARTIFACT_KEY_SET.has(key) || isBase64LikeKey(key)) {
+      coldArtifacts[key] = cloneJson(value);
+    }
+  }
+  return {
+    lightMetadata: projectLightAdultMetadata(source),
+    coldArtifacts,
+    coldArtifactPaths: collectColdAdultArtifactPaths(source),
+  };
+}
+
 function isBase64LikeKey(key) {
   return /base64$/i.test(String(key || ''));
 }
@@ -130,6 +155,7 @@ module.exports = {
   LIGHT_ADULT_METADATA_KEY_SET,
   COLD_ADULT_ARTIFACT_KEY_SET,
   projectLightAdultMetadata,
+  splitAdultMetadata,
   collectColdAdultArtifactPaths,
   hasColdAdultArtifacts,
 };

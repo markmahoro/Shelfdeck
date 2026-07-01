@@ -15,6 +15,7 @@ const peopleStore = require('./peopleStore');
 const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
 const scrapeVerification = require('./scrapeVerification');
+const adultColdArtifactStore = require('./adultColdArtifactStore');
 
 const DEFAULT_EXTS = new Set(['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv']);
 const DEFAULT_ORGANIZED_FOLDER_NAME = 'scraped';
@@ -558,6 +559,10 @@ function itemInfoFromItem(item) {
   };
 }
 
+function persistHotAdultMetadata(itemId, adultMetadata) {
+  return adultColdArtifactStore.splitAndPersistAdultMetadata(itemId, adultMetadata).adultMetadata;
+}
+
 function isGenericWesternTitle(value) {
   const s = String(value || '').trim();
   return /^unknown person\b/i.test(s) || /possibly a scene from a movie or tv show/i.test(s);
@@ -610,7 +615,7 @@ function repairInvalidWesternScrapeState(opts = {}) {
       ...item,
       name: genericTitle ? fallbackWesternItemName(item) : item.name,
       scraped: false,
-      adultMetadata: nextMeta,
+      adultMetadata: persistHotAdultMetadata(item.itemId, nextMeta),
       lastRefreshedAt: now,
     };
     changedItems.push(lib.items[i]);
@@ -707,10 +712,8 @@ async function upsertFileItem(subLib, filePath) {
   };
   if (westernAdult) {
     adultMetadata.reviewStatus = nfo ? 'approved' : 'pending';
-    adultMetadata.ai = {};
-    adultMetadata.faceClusters = [];
-    adultMetadata.unknownFaces = [];
   }
+  const hotAdultMetadata = persistHotAdultMetadata(itemId, adultMetadata);
 
   const base = {
     subLibraryId: subLib.uuid,
@@ -729,7 +732,7 @@ async function upsertFileItem(subLib, filePath) {
     codec: meta.codec || '',
     audioCodecs: meta.audioCodecs || [],
     bucket: computeBucket(meta.resolution),
-    premiereDate: adultMetadata.premiered || null,
+    premiereDate: hotAdultMetadata.premiered || null,
     genres: adultMetadata.genres || [],
     scraped: nfo ? true : false,
     isDiscLike: false,
@@ -740,7 +743,7 @@ async function upsertFileItem(subLib, filePath) {
     userRating: null,
     userRatingUpdatedAt: null,
     lastRefreshedAt: now,
-    adultMetadata,
+    adultMetadata: hotAdultMetadata,
   };
 
   let item;
@@ -902,6 +905,7 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
       warnings: verification.warnings,
     },
   };
+  updated.adultMetadata = persistHotAdultMetadata(updated.itemId, updated.adultMetadata);
   lib.items[idx] = updated;
   updateLibraryItems([updated]);
   return updated;
@@ -1015,7 +1019,7 @@ async function applyWesternCurationResultToItem(subLib, item, curation, opts = {
     const updated = {
       ...existing,
       scraped: false,
-      adultMetadata,
+      adultMetadata: persistHotAdultMetadata(existing.itemId, adultMetadata),
       lastRefreshedAt: now,
     };
     lib.items[idx] = updated;
@@ -1156,6 +1160,7 @@ async function applyWesternCurationResultToItem(subLib, item, curation, opts = {
       warnings: verification.warnings,
     },
   };
+  updated.adultMetadata = persistHotAdultMetadata(updated.itemId, updated.adultMetadata);
   lib.items[idx] = updated;
   updateLibraryItems([updated]);
   return updated;
@@ -1170,12 +1175,12 @@ function markScrapeFailed(itemId, message) {
   const updated = {
     ...existing,
     scraped: false,
-    adultMetadata: {
+    adultMetadata: persistHotAdultMetadata(existing.itemId, {
       ...(existing.adultMetadata || {}),
       scrapeStatus: 'failed',
       scrapeError: String(message || ''),
       scrapeFailedAt: now,
-    },
+    }),
     lastRefreshedAt: now,
   };
   lib.items[idx] = updated;
@@ -1324,13 +1329,13 @@ function resetScrapeStatus(itemId, overrideAdultId = null) {
   const updated = {
     ...existing,
     scraped: false,
-    adultMetadata: {
+    adultMetadata: persistHotAdultMetadata(existing.itemId, {
       ...(existing.adultMetadata || {}),
       ...adultIdPatch,
       scrapeStatus: 'pending',
       scrapeError: '',
       scrapeFailedAt: null,
-    },
+    }),
     lastRefreshedAt: nowIso(),
   };
   lib.items[idx] = updated;

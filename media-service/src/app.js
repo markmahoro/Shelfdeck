@@ -29,6 +29,7 @@ const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
 const assetIdentity = require('./assetIdentity');
 const adultLibraryService = require('./adultLibraryService');
+const adultColdArtifactStore = require('./adultColdArtifactStore');
 const peopleStore = require('./peopleStore');
 const adultActorImageSearchService = require('./services/adultActorImageSearchService');
 const westernAdultLocalAiService = require('./services/westernAdultLocalAiService');
@@ -1954,7 +1955,8 @@ function registerRoutes(app) {
           : markScrapeVerificationSource(currentVerification, 'current_library_state');
         return report;
       }
-      const meta = scrapeInfo.adultMetadata || {};
+      const scrapeInfoWithCold = adultColdArtifactStore.mergeColdArtifacts(scrapeInfo);
+      const meta = scrapeInfoWithCold.adultMetadata || {};
       const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === scrapeInfo.subLibraryId) || null;
       report.scrape = {
         adultId: meta.adultId || scrapeInfo.sourceId || '',
@@ -2929,11 +2931,13 @@ function registerRoutes(app) {
       if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
       // Face clusters (post-clustering) are the primary source; fall back to the
       // legacy unknownFaces list for older items.
-      const clusters = (item.adultMetadata && Array.isArray(item.adultMetadata.faceClusters))
-        ? item.adultMetadata.faceClusters
+      const itemWithCold = adultColdArtifactStore.mergeColdArtifacts(item);
+      const metadata = itemWithCold.adultMetadata || {};
+      const clusters = Array.isArray(metadata.faceClusters)
+        ? metadata.faceClusters
         : [];
-      const unknowns = (item.adultMetadata && Array.isArray(item.adultMetadata.unknownFaces))
-        ? item.adultMetadata.unknownFaces
+      const unknowns = Array.isArray(metadata.unknownFaces)
+        ? metadata.unknownFaces
         : [];
       const pool = clusters.length ? clusters : unknowns;
       const face = body.clusterId
@@ -2965,9 +2969,11 @@ function registerRoutes(app) {
     try {
       const item = mediaLibraryService.getLibraryItem(String(req.params.itemId));
       if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
-      const clusters = (item.adultMetadata && Array.isArray(item.adultMetadata.faceClusters))
-        ? item.adultMetadata.faceClusters
-        : (item.adultMetadata && item.adultMetadata.unknownFaces) || [];
+      const itemWithCold = adultColdArtifactStore.mergeColdArtifacts(item);
+      const metadata = itemWithCold.adultMetadata || {};
+      const clusters = Array.isArray(metadata.faceClusters)
+        ? metadata.faceClusters
+        : metadata.unknownFaces || [];
       const face = clusters.find((f) => String(f.clusterId || f.faceId || '') === String(req.params.clusterId));
       if (!face) return apiError(reply, 404, 'NOT_FOUND', 'Face cluster not found');
       const emb = (face.embedding || []).map(Number).filter((x) => Number.isFinite(x));

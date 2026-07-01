@@ -2,8 +2,12 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
+const os = require('node:os');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const adultDataModel = require('../src/adultDataModel');
+const adultColdArtifactStore = require('../src/adultColdArtifactStore');
 
 test('adult data model keeps only Kairox light metadata in the hot projection', () => {
   const projected = adultDataModel.projectLightAdultMetadata({
@@ -18,6 +22,9 @@ test('adult data model keeps only Kairox light metadata in the hot projection', 
     scrapeStatus: 'done',
     reviewStatus: 'approved',
     idConfidence: 'high',
+    scraperType: 'western_builtin',
+    source: 'western_builtin',
+    sourceUrl: '',
     protagonist: {
       personId: 'person-1',
       name: 'Actor A',
@@ -26,8 +33,15 @@ test('adult data model keeps only Kairox light metadata in the hot projection', 
       sampleImageBase64: 'not-hot',
     },
     posterPath: '/library/poster.jpg',
+    fanartPath: '/library/fanart.jpg',
     nfoPath: '/library/movie.nfo',
+    fileNfoPath: '/library/AAA-001.nfo',
+    markerPath: '/library/.shelfdeck.json',
     organized: true,
+    originalFolder: '/library/raw',
+    scrapedAt: '2026-07-01T00:00:00.000Z',
+    scrapeError: '',
+    scrapeFailedAt: null,
     scrapeVerification: {
       ok: true,
       checkedAt: '2026-07-01T00:00:00.000Z',
@@ -78,4 +92,45 @@ test('adult data model identifies cold AI artifacts and image payload fields', (
   assert.ok(paths.includes('ai'));
   assert.ok(paths.includes('scene'));
   assert.ok(paths.includes('safetyFlags'));
+});
+
+test('adult cold artifact store persists cold fields outside hot metadata', () => {
+  const oldDataDir = process.env.MEDIA_SERVICE_DATA_DIR;
+  const oldControlPlaneDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'adult-cold-artifacts-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+  try {
+    const split = adultColdArtifactStore.splitAndPersistAdultMetadata('adult:item:1', {
+      adultId: 'UNK-001',
+      title: 'Needs Review',
+      region: 'western_adult',
+      scrapeStatus: 'needs_review',
+      reviewStatus: 'needs_review',
+      unknownFaces: [{ clusterId: 'u1', embedding: [0.1], sampleImageBase64: 'face' }],
+      galleryImages: [{ imageBase64: 'gallery' }],
+      ai: { model: 'local' },
+    });
+
+    assert.deepStrictEqual(split.adultMetadata, {
+      adultId: 'UNK-001',
+      title: 'Needs Review',
+      region: 'western_adult',
+      scrapeStatus: 'needs_review',
+      reviewStatus: 'needs_review',
+    });
+    assert.strictEqual(adultDataModel.hasColdAdultArtifacts(split.adultMetadata), false);
+    assert.deepStrictEqual(split.coldArtifactKeys.sort(), ['ai', 'galleryImages', 'unknownFaces']);
+
+    const record = adultColdArtifactStore.loadArtifacts('adult:item:1');
+    assert.deepStrictEqual(record.artifacts.unknownFaces[0].embedding, [0.1]);
+    assert.strictEqual(record.artifacts.unknownFaces[0].sampleImageBase64, 'face');
+    assert.strictEqual(record.artifacts.galleryImages[0].imageBase64, 'gallery');
+    assert.strictEqual(record.artifacts.ai.model, 'local');
+  } finally {
+    if (oldDataDir === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR;
+    else process.env.MEDIA_SERVICE_DATA_DIR = oldDataDir;
+    if (oldControlPlaneDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = oldControlPlaneDir;
+  }
 });

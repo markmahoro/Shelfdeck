@@ -55,9 +55,11 @@ Status: v3.3-alpha.1 contract.
 | `region` | `japanese_jav` / `western_adult` 等子库区域事实 |
 | `scrapeStatus` / `reviewStatus` | metadata gate 和审核状态 |
 | `idConfidence` | JAV 番号识别置信度 |
+| `scraperType` / `source` / `sourceUrl` | 刮削来源合同字段，用于 metadata gate 校验和问题解释 |
 | `protagonist` | 欧美成人主角轻量摘要：`personId/name/adultId` |
-| `posterPath` / `nfoPath` | 文件资产引用 |
-| `organized` | 是否已整理 |
+| `posterPath` / `fanartPath` / `nfoPath` / `fileNfoPath` / `markerPath` | 文件资产引用，不保存文件内容 |
+| `organized` / `originalFolder` / `scrapedAt` | 整理和刮削完成摘要 |
+| `scrapeError` / `scrapeFailedAt` | 失败摘要，不能包含完整 AI 输出 |
 | `scrapeVerification` | 刮削合同校验摘要 |
 
 这些字段由 `media-service/src/adultDataModel.js` 中的 `projectLightAdultMetadata()` 固化。后续写入路径必须使用该投影，不能各 flow 自己挑字段。
@@ -114,4 +116,3 @@ Status: v3.3-alpha.1 contract.
 - protagonist 只能保留 `personId/name/adultId`。
 - cold artifact detector 必须识别 face、embedding、gallery、base64 和 AI 中间字段。
 - light projection 不得包含 cold artifact。
-

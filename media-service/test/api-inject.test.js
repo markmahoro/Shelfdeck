@@ -4368,6 +4368,7 @@ test('western adult curation without protagonist fails without writing success a
   const adultLibraryService = require('../src/adultLibraryService');
   const taskStore = require('../src/taskStore');
   const mediaLibraryService = require('../src/mediaLibraryService');
+  const adultColdArtifactStore = require('../src/adultColdArtifactStore');
   const executorPath = require.resolve('../src/scrapeFlowExecutor');
   delete require.cache[executorPath];
   const scrapeFlow = require('../src/scrapeFlowExecutor');
@@ -4409,7 +4410,8 @@ test('western adult curation without protagonist fails without writing success a
   assert.strictEqual(afterItem.scraped, false);
   assert.strictEqual(afterItem.path, sourceFile);
   assert.strictEqual(afterItem.adultMetadata.scrapeStatus, 'failed');
-  assert.strictEqual(afterItem.adultMetadata.unknownFaces.length, 1);
+  assert.strictEqual(afterItem.adultMetadata.unknownFaces, undefined);
+  assert.strictEqual(adultColdArtifactStore.loadArtifacts(item.itemId).artifacts.unknownFaces.length, 1);
   assert.strictEqual(fs.existsSync(path.join(movieDir, 'movie.nfo')), false);
   assert.strictEqual(fs.existsSync(path.join(movieDir, '.shelfdeck.json')), false);
   assert.strictEqual(fs.existsSync(path.join(movieDir, 'poster.jpg')), false);
