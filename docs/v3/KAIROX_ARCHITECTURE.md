@@ -49,6 +49,7 @@ Kairox 是 v3.1 架构契约入口，但不是唯一细节来源。
 | 架构契约入口 | `docs/v3/KAIROX_ARCHITECTURE.md` | 判断一个改动是否符合 v3.1 架构方向 |
 | 当前实现地图 | `docs/v2/ARCH_OVERVIEW.md` | 记录当前代码已经落地的系统事实；不是架构契约 |
 | 业务语义 | `docs/v3/BUSINESS_MODEL_NOTES.md` | Lifecycle、gate、task、flow、objective 的业务定义 |
+| 成人库数据模型 | `docs/v3/ADULT_DATA_MODEL.md` | 成人库 hot media facts、light adult metadata、cold AI artifacts、file assets 分层 |
 | 自动/人工边界 | `docs/v3/USER_INTERVENTION_AND_FULL_AUTO.md` | 用户介入白名单和全自动模式标准 |
 | 历史讨论 | `docs/v3/V3_1_DISCUSSION_NOTES.md` | 讨论证据和历史结论，不覆盖 Kairox |
 | 切片日志 | `docs/v3/V3_1_PROGRESS.md` | 已完成切片、验证、生产部署和剩余风险，不覆盖 Kairox |
@@ -278,6 +279,8 @@ Admin Web 面向普通用户和家庭长期服务心智，不是运维控制台�
 - 入口明确标记为内部诊断或 debug。
 - 不影响 dashboard、媒体库、任务中心等普通页面首屏性能。
 - 不让用户把运维事实误解为可直接操作的业务状态。
+
+成人库恢复必须遵守 `docs/v3/ADULT_DATA_MODEL.md`：成人库仍是 Kairox subLibrary；`media_items` 热数据只保存 item identity、file facts、Lifecycle/gate facts、task target facts 和 light adult metadata；face clusters、embedding、gallery、base64 图片和 AI 中间输出属于 cold AI artifacts 或 file assets，不能进入普通列表、dashboard 或 TaskAdmission 热路径。
 
 ### 4.11 Service owns orchestration
 
