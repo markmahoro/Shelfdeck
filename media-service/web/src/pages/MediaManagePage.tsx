@@ -56,7 +56,7 @@ export default function MediaManagePage() {
   // Fetch subLibrary list
   useEffect(() => {
     libraryApi.getStatus().then((s) => {
-      const enabled = s.subLibraries.filter((sl) => sl.enabled && sl.mediaType !== 'adult');
+      const enabled = s.subLibraries.filter((sl) => sl.enabled);
       setSubLibraries(enabled);
       setSubLibraryId((current) => {
         if (current && enabled.some((sl) => sl.uuid === current)) return current;
@@ -81,7 +81,8 @@ export default function MediaManagePage() {
     () => new Map(subLibraries.map((sl) => [sl.uuid, { name: sl.name, typeLabel: formatSubLibraryType(sl) }])),
     [subLibraries],
   );
-  const showAdultFields = selectedSubLibrary?.mediaType === 'adult';
+  const showAdultFields = selectedSubLibrary?.mediaType === 'adult'
+    || (!selectedSubLibrary && items.some((it) => it.source === 'adult_folder' || !!it.adultMetadata));
   const showStandardFields = !selectedSubLibrary || selectedSubLibrary.mediaType !== 'adult';
   const mediaGridClass = showAdultFields && showStandardFields
     ? 'mediaManageGridMixed'
@@ -327,7 +328,7 @@ export default function MediaManagePage() {
             setSelectedIds(new Set());
           }}
         >
-          <option value="">全部普通库（{subLibraries.length} 个）</option>
+          <option value="">全部媒体库（{subLibraries.length} 个）</option>
         {subLibraries.map((sl) => (
             <option key={sl.uuid} value={sl.uuid}>{sl.name}</option>
           ))}
@@ -545,7 +546,7 @@ export default function MediaManagePage() {
             </div>
           </div>
           {items.length === 0 ? (
-            <p>{subLibraries.length === 0 ? '暂未配置普通媒体库。' : '当前筛选条件下没有媒体。'}</p>
+            <p>{subLibraries.length === 0 ? '暂未配置媒体库。' : '当前筛选条件下没有媒体。'}</p>
           ) : (
             <div>
               <div className={`mediaManageGrid ${mediaGridClass} mediaManageHead`}>
