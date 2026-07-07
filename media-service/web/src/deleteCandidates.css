@@ -1,0 +1,137 @@
+.kairoxDeletePage {
+  padding: 20px;
+  color: #1f2937;
+}
+
+.kairoxDeleteHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.kairoxDeleteHeader h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+
+.kairoxDeleteHeader p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.kairoxDeleteHeader button,
+.kairoxDeleteActions button {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2937;
+  padding: 7px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.kairoxDeleteActions button.danger {
+  border-color: #b91c1c;
+  background: #b91c1c;
+  color: #fff;
+}
+
+.kairoxDeleteActions button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.kairoxDeleteTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.kairoxDeleteTabs button {
+  border: 1px solid #dbe4ee;
+  border-radius: 999px;
+  background: #fff;
+  color: #334155;
+  padding: 7px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.kairoxDeleteTabs button.active {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.kairoxDeleteTabs span {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  opacity: .72;
+}
+
+.kairoxDeleteList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kairoxDeleteRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.kairoxDeleteTitle {
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 6px;
+}
+
+.kairoxDeleteFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.kairoxDeleteReason {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.kairoxDeleteActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.kairoxDeleteEmpty {
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+  padding: 32px;
+  text-align: center;
+}
+
+@media (max-width: 860px) {
+  .kairoxDeleteRow {
+    grid-template-columns: 1fr;
+  }
+
+  .kairoxDeleteActions {
+    justify-content: flex-start;
+  }
+}

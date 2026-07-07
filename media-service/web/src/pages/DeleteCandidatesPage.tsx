@@ -1,122 +1,109 @@
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type React from 'react';
 import { deleteCandidates } from '../api/client';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
-
-function fmtDate(value?: string) {
-  if (!value) return '-';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString();
-}
-
-function statusLabel(status: string) {
-  switch (status) {
-    case 'pending_review': return '待确认';
-    case 'confirmed': return '已确认';
-    case 'kept_archived': return '继续归档';
-    case 'snoozed': return '已延后';
-    case 'suppressed': return '不再建议';
-    case 'deleted': return '已删除';
-    default: return status || '-';
-  }
-}
+import {
+  DELETE_CANDIDATE_TABS,
+  canConfirmDelete,
+  canReview,
+  toKairoxDeleteCandidateView,
+} from '../kairox';
+import type { DeleteCandidateTab, KairoxDeleteCandidateView } from '../kairox';
+import '../deleteCandidates.css';
 
 export default function DeleteCandidatesPage() {
   const qc = useQueryClient();
+  const [tab, setTab] = useState<DeleteCandidateTab>('pending_review');
+  const [alert, setAlert] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const q = useQuery({
     queryKey: ['delete-candidates'],
     queryFn: () => deleteCandidates.list(true),
   });
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['delete-candidates'] });
-  const confirmMut = useMutation({ mutationFn: deleteCandidates.confirmDelete, onSuccess: invalidate });
-  const keepMut = useMutation({ mutationFn: deleteCandidates.keepArchived, onSuccess: invalidate });
-  const snoozeMut = useMutation({ mutationFn: (itemId: string) => deleteCandidates.snooze(itemId, 30), onSuccess: invalidate });
-  const suppressMut = useMutation({ mutationFn: deleteCandidates.suppress, onSuccess: invalidate });
 
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['delete-candidates'] });
+  const confirmMut = useMutation({
+    mutationFn: deleteCandidates.confirmDelete,
+    onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '已创建删除执行任务，可在任务中心继续确认和跟踪。' }); },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+  const keepMut = useMutation({
+    mutationFn: deleteCandidates.keepArchived,
+    onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '已保持为已归档，不会继续建议删除。' }); },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+  const snoozeMut = useMutation({
+    mutationFn: (itemId: string) => deleteCandidates.snooze(itemId, 30),
+    onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '已延后 30 天提醒。' }); },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+  const suppressMut = useMutation({
+    mutationFn: deleteCandidates.suppress,
+    onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '已设为不再建议。' }); },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
+
+  const views = useMemo(() => (q.data?.candidates || []).map(toKairoxDeleteCandidateView), [q.data?.candidates]);
+  const counts = useMemo(() => views.reduce<Record<string, number>>((acc, view) => {
+    acc[view.status] = (acc[view.status] || 0) + 1;
+    return acc;
+  }, {}), [views]);
+  const visible = views.filter((view) => view.status === tab);
   const busy = confirmMut.isPending || keepMut.isPending || snoozeMut.isPending || suppressMut.isPending;
-  const err = q.error || confirmMut.error || keepMut.error || snoozeMut.error || suppressMut.error;
+
+  function confirmDelete(view: KairoxDeleteCandidateView) {
+    const ok = confirm(`确认将「${view.title}」送入删除执行任务？\n\n这一步不会绕过 TaskAdmission，也不会把删除作为 optimize；实际文件删除仍由 targetGate=delete 任务执行。`);
+    if (ok) confirmMut.mutate(view.itemId);
+  }
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1 style={{ margin: '0 0 16px', fontSize: 24 }}>处置队列</h1>
-      {err && <Alert type="error" message={err instanceof Error ? err.message : String(err)} />}
+    <div className="kairoxDeletePage">
+      <div className="kairoxDeleteHeader">
+        <div>
+          <h1>处置队列</h1>
+          <p>这里处理已归档媒体的删除建议。未确认前不会创建 destructive delete 任务。</p>
+        </div>
+        <button onClick={() => invalidate()}>刷新</button>
+      </div>
+
+      {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} />}
+      {q.error && <Alert type="error" message={q.error instanceof Error ? q.error.message : String(q.error)} />}
+
+      <div className="kairoxDeleteTabs">
+        {DELETE_CANDIDATE_TABS.map((entry) => (
+          <button key={entry.value} className={tab === entry.value ? 'active' : ''} onClick={() => setTab(entry.value)}>
+            {entry.label}<span>{counts[entry.value] || 0}</span>
+          </button>
+        ))}
+      </div>
+
       {q.isLoading ? <LoadingSpinner /> : (
-        <div style={{ display: 'grid', gap: 12 }}>
-          {(q.data?.candidates || []).length === 0 && (
-            <div style={emptyStyle}>暂无需要处置的已归档媒体。</div>
-          )}
-          {(q.data?.candidates || []).map((candidate) => (
-            <div key={candidate.itemId} style={rowStyle}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>{candidate.itemName || candidate.itemId}</div>
-                <div style={metaStyle}>
-                  <span>状态：{statusLabel(candidate.candidateStatus)}</span>
-                  <span>归档时间：{fmtDate(candidate.archivedAt)}</span>
-                  <span>命中：{candidate.matchedRule?.ruleName || candidate.eligibilityReason || '-'}</span>
-                  {candidate.matchedRule && <span>评分：{candidate.matchedRule.rating ?? '-'}</span>}
-                  {candidate.taskId && <span>任务：{candidate.taskId}</span>}
+        <div className="kairoxDeleteList">
+          {visible.length === 0 && <div className="kairoxDeleteEmpty">当前分组没有处置候选。</div>}
+          {visible.map((view) => (
+            <article key={view.itemId} className="kairoxDeleteRow">
+              <div className="kairoxDeleteMain">
+                <div className="kairoxDeleteTitle">{view.title}</div>
+                <div className="kairoxDeleteFacts">
+                  <span>状态：{view.statusLabel}</span>
+                  <span>归档时间：{view.archivedAt}</span>
+                  <span>可处置时间：{view.eligibleAt}</span>
+                  <span>命中规则：{view.rule}</span>
+                  <span>评分：{view.rating}</span>
+                  {view.taskId && <span>删除任务：{view.taskId}</span>}
                 </div>
+                <div className="kairoxDeleteReason">{view.reason}</div>
               </div>
-              <div style={actionsStyle}>
-                <button style={dangerBtn} disabled={busy || candidate.candidateStatus === 'deleted'} onClick={() => confirmMut.mutate(candidate.itemId)}>确认删除</button>
-                <button style={btn} disabled={busy} onClick={() => keepMut.mutate(candidate.itemId)}>继续归档</button>
-                <button style={btn} disabled={busy} onClick={() => snoozeMut.mutate(candidate.itemId)}>延后</button>
-                <button style={btn} disabled={busy} onClick={() => suppressMut.mutate(candidate.itemId)}>不再建议</button>
+              <div className="kairoxDeleteActions">
+                {canConfirmDelete(view) && <button className="danger" disabled={busy} onClick={() => confirmDelete(view)}>确认删除</button>}
+                {canReview(view) && <button disabled={busy} onClick={() => keepMut.mutate(view.itemId)}>继续已归档</button>}
+                {canReview(view) && <button disabled={busy} onClick={() => snoozeMut.mutate(view.itemId)}>延后 30 天</button>}
+                {canReview(view) && <button disabled={busy} onClick={() => suppressMut.mutate(view.itemId)}>不再建议</button>}
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}
     </div>
   );
 }
-
-const rowStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) auto',
-  gap: 16,
-  alignItems: 'center',
-  padding: 16,
-  border: '1px solid #e5e7eb',
-  borderRadius: 8,
-  background: '#fff',
-};
-
-const metaStyle: React.CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: '8px 14px',
-  color: '#5f6b7a',
-  fontSize: 13,
-};
-
-const actionsStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: 8,
-  flexWrap: 'wrap',
-  justifyContent: 'flex-end',
-};
-
-const btn: React.CSSProperties = {
-  border: '1px solid #d1d5db',
-  background: '#fff',
-  borderRadius: 6,
-  padding: '8px 10px',
-  cursor: 'pointer',
-};
-
-const dangerBtn: React.CSSProperties = {
-  ...btn,
-  borderColor: '#dc2626',
-  color: '#b91c1c',
-};
-
-const emptyStyle: React.CSSProperties = {
-  border: '1px dashed #d1d5db',
-  borderRadius: 8,
-  padding: 20,
-  color: '#5f6b7a',
-  background: '#fff',
-};
