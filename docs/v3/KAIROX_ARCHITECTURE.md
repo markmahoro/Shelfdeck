@@ -127,6 +127,28 @@ Kairox 没有 `refresh` 这个一等概念。旧实现中的 refresh / startup r
 - ingest 不直接创建后续 metadata / optimize task；自动 task 创建仍必须通过 Task Creator / TaskAdmission。
 - startup/background ingest 必须有预算和 backpressure，不能阻塞 Admin Web projection。
 
+状态 0 不是 media item，而是 `SourceReference`。Source Adapter Sync 只回答“外部源里现在有什么引用”，例如 Emby item id 或成人库文件路径；它不是 Kairox task，也不能发布 ShelfDeck canonical facts。Ingest task 才是 ShelfDeck 接管 source reference 并发布 canonical `sourceFacts` 的唯一入口。
+
+统一边界：
+
+```text
+Source Adapter Sync
+  -> SourceReference
+  -> Task Creator / TaskAdmission
+  -> targetGate=ingest task
+  -> Ingest Flow calls adapter.observe(sourceRef)
+  -> Ingest Flow publishes canonical sourceFacts
+  -> Lifecycle evaluates ingest gate
+```
+
+`SourceReference` 至少包含：
+
+```text
+source, sourceRefId, subLibraryId, sourceAdapterId, observedAt, locator
+```
+
+Emby 状态 0 只应表达 `source='emby'`、`embyItemId/sourceRefId`、`subLibraryId`、Emby server/section locator 和可选 path hint。成人库状态 0 只应表达 `source='adult_folder'`、稳定文件引用、`subLibraryId` 和 path locator。`sourceSnapshot`、文件 probe、NFO、adultId、poster、codec、bitrate、duration 都只能是 observation evidence 或 metadata task 输入，不能是状态 0 的必需事实。
+
 ### 4.2 User Perception Management owns user perception facts
 
 User Perception Management 管理“用户怎么看这个媒体”的 durable facts。它是 Kairox 核心组件，和 Lifecycle 并列，不是 metadata gate 的一部分。

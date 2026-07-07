@@ -3438,7 +3438,25 @@ test('lifecycleProjection exposes first-class ingest and archive gate contracts'
   });
   assert.strictEqual(incompleteIngest.passed, false);
   assert.ok(incompleteIngest.missingReasons.includes('identity.itemId'));
-  assert.ok(incompleteIngest.missingReasons.includes('media.basic_facts_or_probe_failure'));
+  assert.ok(!incompleteIngest.missingReasons.includes('media.basic_facts_or_probe_failure'));
+
+  const metadataPending = lifecycleProjection.resolveLifecycle({
+    itemId: 'source-only-adult',
+    source: 'adult_folder',
+    subLibraryId: 'adult-lib',
+    mediaType: 'adult',
+    path: '/adult/source-only.mp4',
+    sourceExists: true,
+    factsFreshness: {
+      sourceFacts: { status: 'fresh' },
+      mediaFacts: { status: 'stale', refreshTargetGate: 'metadata' },
+      metadataFacts: { status: 'stale', refreshTargetGate: 'metadata' },
+    },
+    metadataComplete: false,
+  });
+  assert.strictEqual(metadataPending.ingestGate.passed, true);
+  assert.strictEqual(metadataPending.lifecycleStage, 'ingested');
+  assert.strictEqual(metadataPending.lifecycleNextTask, 'metadata');
 
   const blockedArchive = lifecycleProjection.resolveLifecycle({
     itemId: 'blocked-archive-movie',

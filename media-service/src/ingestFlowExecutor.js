@@ -1,7 +1,5 @@
 'use strict';
 
-const fs = require('fs');
-
 const taskStore = require('./taskStore');
 const configStore = require('./configStore');
 const adultLibraryService = require('./adultLibraryService');
@@ -49,7 +47,6 @@ async function runPrecheck(taskId, task) {
     } else {
       if (!adultLibraryService.isAdultFolderSubLibrary(subLib)) throw new Error('Task subLibrary is not an adult folder library');
       if (!item.path) throw new Error('Media file path is required');
-      if (!fs.existsSync(item.path)) throw new Error(`Media file does not exist: ${item.path}`);
     }
 
     taskStore.updateTask(taskId, { resumePoint: 'ingest_commit' });
@@ -71,7 +68,7 @@ async function runCommit(taskId, task) {
     const subLib = getSubLibrary(config, item.subLibraryId);
     if (!subLib) throw new Error('SubLibrary not found');
     if (isEmbySourceCandidate(item, subLib)) {
-      const result = mediaLibraryService.commitEmbySourceCandidate(item, { config });
+      const result = await mediaLibraryService.commitEmbySourceCandidate(item, { config });
       taskStore.updateTask(taskId, {
         itemInfo: {
           ...(task.itemInfo || {}),
@@ -87,9 +84,8 @@ async function runCommit(taskId, task) {
       scheduler.reportStatus(taskId, 'done', 100);
       return;
     }
-    if (!item.path || !fs.existsSync(item.path)) throw new Error(`Media file does not exist: ${item.path || ''}`);
-
-    const libItem = await adultLibraryService.upsertFileItem(subLib, item.path);
+    const result = adultLibraryService.commitAdultFolderSourceReference(subLib, item);
+    const libItem = result.item;
     const itemInfo = adultLibraryService.itemInfoFromItem(libItem);
     taskStore.updateTask(taskId, {
       itemInfo: {

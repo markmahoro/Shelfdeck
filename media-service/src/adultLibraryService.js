@@ -13,6 +13,8 @@ const mediaLibraryService = require('./mediaLibraryService');
 const peopleStore = require('./peopleStore');
 const scrapeVerification = require('./scrapeVerification');
 const adultColdArtifactStore = require('./adultColdArtifactStore');
+const factsFreshnessService = require('./factsFreshnessService');
+const sourceReference = require('./sourceReference');
 
 const DEFAULT_EXTS = new Set(['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv']);
 const DEFAULT_ORGANIZED_FOLDER_NAME = 'scraped';
@@ -628,7 +630,7 @@ function repairInvalidWesternScrapeState(opts = {}) {
   return { repaired };
 }
 
-async function upsertFileItem(subLib, filePath) {
+function buildAdultMetadataSeed(subLib, filePath, itemId) {
   const config = configStore.loadConfig();
   const nfo = parseNfo(findNfoForFile(filePath));
   // Pre-scraped NFO is authoritative → high confidence. Otherwise parse the
@@ -657,29 +659,7 @@ async function upsertFileItem(subLib, filePath) {
     adultId = detected.adultId;
     idConfidence = detected.confidence;
   }
-  const meta = await probeFile(filePath, config);
-  const lib = loadLibrary();
   const now = nowIso();
-  const normPath = normalizePathForCompare(filePath);
-
-  // Adult library identity: itemId (UUID) is the immutable surrogate primary key.
-  // assetKey is built from itemId, NEVER from the 番号 (adultId). The 番号 lives
-  // in adultMetadata.adultId as mutable metadata (scraped for JAV, self-assigned
-  // and actor-encoded for western). This keeps the same item stable across
-  // renumbering, renaming, and organize operations.
-  //
-  // Lookup order for upsert:
-  //   1. existing item by path fallback (file may have moved; identity follows
-  //      the file, not a derived key)
-  //   2. brand new item — assign itemId first, then derive assetKey from it
-  // For an existing item the assetKey is rewritten from its own itemId so legacy
-  // items (whose assetKey was derived from 番号) are migrated on first scan.
-  // (Western library is brand new; JAV library is remounted fresh in production,
-  //  so no cross-version migration script is needed.)
-  let idx = lib.items.findIndex((it) => it.subLibraryId === subLib.uuid && normalizePathForCompare(it.path) === normPath);
-  const itemId = idx >= 0 ? (lib.items[idx].itemId || crypto.randomUUID()) : crypto.randomUUID();
-  const assetKey = `${subLib.uuid}:adult:${String(itemId).toLowerCase()}`;
-  const sourceId = adultId || normPath;
 
   const displayName = (nfo && (nfo.title || nfo.originalTitle)) || adultId || path.basename(filePath, path.extname(filePath));
   const scrapeStatus = nfo ? 'done' : (westernAdult ? 'pending' : (idConfidence === 'low' ? 'ambiguous' : 'pending'));
@@ -709,18 +689,138 @@ async function upsertFileItem(subLib, filePath) {
   if (westernAdult) {
     adultMetadata.reviewStatus = nfo ? 'approved' : 'pending';
   }
-  const hotAdultMetadata = persistHotAdultMetadata(itemId, adultMetadata);
+  return { adultMetadata, displayName, nfo };
+}
 
+function commitAdultFolderSourceReference(subLib, itemInfo = {}, opts = {}) {
+  const filePath = itemInfo.path || (itemInfo.locator && itemInfo.locator.path) || itemInfo.sourceRefId || '';
+  const now = opts.now || nowIso();
+  const lib = loadLibrary();
+  const normPath = normalizePathForCompare(filePath);
+  let idx = lib.items.findIndex((it) => it.itemId && itemInfo.itemId && it.itemId === itemInfo.itemId);
+  if (idx < 0) {
+    idx = lib.items.findIndex((it) => it.subLibraryId === subLib.uuid && normalizePathForCompare(it.path) === normPath);
+  }
+  if (!filePath || !fs.existsSync(filePath)) {
+    if (idx < 0) throw new Error(`Media file does not exist: ${filePath || ''}`);
+    const missing = {
+      ...lib.items[idx],
+      sourceExists: false,
+      sourceMissingAt: now,
+      sourceObservedAt: now,
+      lastRefreshedAt: now,
+    };
+    lib.items[idx] = missing;
+    updateLibraryItems([missing]);
+    factsFreshnessService.markFresh(missing.itemId, ['sourceFacts'], {
+      now,
+      updatedAt: now,
+      observedAt: now,
+      evidence: { source: 'adult_folder', observationKind: 'source_missing', path: filePath },
+    });
+    factsFreshnessService.markStale(missing.itemId, ['mediaFacts', 'metadataFacts'], {
+      now,
+      reason: 'source_missing',
+      refreshTargetGate: 'ingest',
+      evidence: { source: 'adult_folder', path: filePath },
+    });
+    return { item: missing, created: false, observationKind: 'source_missing' };
+  }
+
+  const stat = fs.statSync(filePath);
+  const itemId = idx >= 0 ? (lib.items[idx].itemId || crypto.randomUUID()) : crypto.randomUUID();
+  const assetKey = `${subLib.uuid}:adult:${String(itemId).toLowerCase()}`;
+  const sourceId = normPath;
   const base = {
     subLibraryId: subLib.uuid,
-    name: displayName,
+    name: path.basename(filePath, path.extname(filePath)),
     path: filePath,
     source: 'adult_folder',
+    sourceRefId: sourceId,
     sourceId,
+    sourceExists: true,
+    sourceMissingAt: null,
+    sourceObservedAt: now,
+    mediaType: 'adult',
+    adultRegion: subLib.adultRegion || 'japanese_jav',
+    scraperType: subLib.scraperType || '',
     assetKey,
     assetRootPath: assetIdentity.inferAssetRootPath(filePath, false),
-    externalRefs: { adultFolder: { path: filePath, adultId, lastSeenAt: now } },
+    externalRefs: { adultFolder: { path: filePath, sourceRefId: sourceId, lastSeenAt: now } },
     type: 'movie',
+    size: stat.size || 0,
+    isDiscLike: false,
+    watched: true,
+    lastRefreshedAt: now,
+  };
+
+  let item;
+  if (idx >= 0) {
+    item = {
+      ...lib.items[idx],
+      ...base,
+      itemId,
+      scraped: lib.items[idx].scraped === true ? true : false,
+      adultMetadata: lib.items[idx].adultMetadata || {},
+      reason: lib.items[idx].reason || '成人库来源已入库',
+    };
+    lib.items[idx] = item;
+  } else {
+    item = {
+      itemId,
+      ...base,
+      bitrate: 0,
+      duration: 0,
+      resolution: '',
+      codec: '',
+      audioCodecs: [],
+      bucket: '',
+      premiereDate: null,
+      genres: [],
+      scraped: false,
+      adultMetadata: {},
+      doubanId: null,
+      doubanRating: null,
+      doubanRatingUpdatedAt: null,
+      userRating: null,
+      userRatingUpdatedAt: null,
+      reason: '成人库来源已入库',
+    };
+    lib.items.push(item);
+  }
+
+  lib.cachedAt = now;
+  saveLibrary(lib);
+  factsFreshnessService.markFresh(item.itemId, ['sourceFacts'], {
+    now,
+    updatedAt: now,
+    observedAt: now,
+    evidence: { source: 'adult_folder', observationKind: idx >= 0 ? 'source_changed' : 'new_source_observed', path: filePath },
+  });
+  factsFreshnessService.markStale(item.itemId, ['mediaFacts', 'metadataFacts'], {
+    now,
+    reason: idx >= 0 ? 'source_changed' : 'source_ingested',
+    refreshTargetGate: 'metadata',
+    evidence: { source: 'adult_folder', path: filePath },
+  });
+  return { item, created: idx < 0, observationKind: idx >= 0 ? 'source_changed' : 'new_source_observed' };
+}
+
+async function prepareAdultMetadataForScrape(subLib, item, opts = {}) {
+  if (!item || !item.itemId) throw new Error('Adult library item is required');
+  const filePath = item.path;
+  if (!filePath || !fs.existsSync(filePath)) throw new Error(`Media file does not exist: ${filePath || ''}`);
+  const config = configStore.loadConfig();
+  const { adultMetadata, displayName } = buildAdultMetadataSeed(subLib, filePath, item.itemId);
+  const meta = await probeFile(filePath, config);
+  const lib = loadLibrary();
+  const idx = lib.items.findIndex((it) => it.itemId === item.itemId);
+  if (idx < 0) throw new Error('Library item not found');
+  const now = opts.now || nowIso();
+  const hotAdultMetadata = persistHotAdultMetadata(item.itemId, adultMetadata);
+
+  const base = {
+    name: displayName,
     bitrate: meta.bitrate || 0,
     duration: meta.duration || 0,
     resolution: meta.resolution || '',
@@ -730,40 +830,34 @@ async function upsertFileItem(subLib, filePath) {
     bucket: computeBucket(meta.resolution),
     premiereDate: hotAdultMetadata.premiered || null,
     genres: adultMetadata.genres || [],
-    scraped: nfo ? true : false,
-    isDiscLike: false,
-    watched: true,
-    doubanId: null,
-    doubanRating: null,
-    doubanRatingUpdatedAt: null,
-    userRating: null,
-    userRatingUpdatedAt: null,
+    scraped: adultMetadata.scrapeStatus === 'done',
     lastRefreshedAt: now,
+    metadataUpdatedAt: now,
     adultMetadata: hotAdultMetadata,
   };
 
-  let item;
-  if (idx >= 0) {
-    item = {
-      ...lib.items[idx],
-      ...base,
-      itemId, // preserve the canonical itemId (surrogate key)
-      reason: lib.items[idx].reason || '成人库新入库',
-    };
-    lib.items[idx] = item;
-  } else {
-    item = {
-      itemId,
-      ...base,
-      reason: '成人库新入库',
-    };
-    lib.items.push(item);
-  }
+  const updated = {
+    ...lib.items[idx],
+    ...base,
+    reason: lib.items[idx].reason || '成人库元数据已刷新',
+  };
+  lib.items[idx] = updated;
 
   lib.cachedAt = now;
   saveLibrary(lib);
+  factsFreshnessService.markFresh(updated.itemId, ['mediaFacts', 'metadataFacts'], {
+    now,
+    updatedAt: now,
+    observedAt: now,
+    evidence: { source: 'adult_metadata_scrape', path: filePath },
+  });
 
-  return item;
+  return updated;
+}
+
+async function upsertFileItem(subLib, filePath) {
+  const committed = commitAdultFolderSourceReference(subLib, { path: filePath });
+  return prepareAdultMetadataForScrape(subLib, committed.item);
 }
 
 async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
@@ -1208,17 +1302,27 @@ function fileSettled(filePath, config, nowMs = Date.now()) {
 
 function ingestItemInfo(subLib, filePath) {
   const name = path.basename(filePath, path.extname(filePath));
-  return {
+  const ref = sourceReference.normalizeSourceReference({
+    source: 'adult_folder',
+    sourceRefId: normalizePathForCompare(filePath),
+    subLibraryId: subLib.uuid,
+    sourceAdapterId: 'adult-folder-local',
+    locator: { path: filePath },
+  });
+  return sourceReference.applySourceReference({
     itemId: ingestTaskItemId(subLib, filePath),
     name,
     path: filePath,
     subLibraryId: subLib.uuid,
     source: 'adult_folder',
+    sourceRefId: ref.sourceRefId,
+    sourceAdapterId: ref.sourceAdapterId,
     mediaType: 'adult',
     adultRegion: subLib.adultRegion || 'japanese_jav',
     scraperType: subLib.scraperType || '',
     assetRootPath: assetIdentity.inferAssetRootPath(filePath, false),
-  };
+    locator: ref.locator,
+  }, ref);
 }
 
 function listIngestCandidates(config = configStore.loadConfig(), opts = {}) {
@@ -1373,7 +1477,9 @@ module.exports = {
   isJapaneseJavSubLibrary,
   isWesternAdultSubLibrary,
   listIngestCandidates,
+  commitAdultFolderSourceReference,
   upsertFileItem,
+  prepareAdultMetadataForScrape,
   buildIngestTaskIntent,
   buildMetadataTaskIntent,
   ingestTaskItemId,

@@ -20,6 +20,10 @@ const STAGE_ORDER = [
   'stage9',
   'stage10',
   'stage11',
+  'stage12',
+  'stage13',
+  'stage14',
+  'stage15',
 ];
 const FORBIDDEN_METADATA_REASONS = new Set([
   'decision.rating',
@@ -272,6 +276,37 @@ function compactItem(item = {}) {
   };
 }
 
+function freshnessStatus(item = {}, key) {
+  const freshness = item.factsFreshness && typeof item.factsFreshness === 'object'
+    ? item.factsFreshness
+    : {};
+  return freshness[key] && freshness[key].status || '';
+}
+
+function factsBaseline(item = {}) {
+  return {
+    canary: compactItem(item),
+    factsFreshness: item.factsFreshness || null,
+    hasSourceFacts: !!(item.sourceFacts || item.path || item.sourceId || item.source),
+    hasMediaFacts: !!(item.mediaFacts || item.duration || item.bitrate || item.codec || item.resolution),
+    hasMetadataFacts: !!(item.metadataFacts || item.metadataComplete || item.metadataStatus),
+    hasUserPerceptionFacts: !!(item.userPerceptionFacts || item.userRating !== undefined || item.watched !== undefined),
+    hasGateFacts: !!(item.ingestGate || item.metadataGate || item.optimizeGate || item.archiveGate || item.deleteGate),
+    lifecycle: {
+      lifecycleStage: item.lifecycleStage || '',
+      lifecycleNextTask: item.lifecycleNextTask || '',
+      lifecycleReason: item.lifecycleReason || '',
+    },
+    activeTask: item.activeTask ? { id: item.activeTask.id, targetGate: targetGateOf(item.activeTask), status: item.activeTask.status } : null,
+    deleteCandidate: item.deleteCandidate || null,
+  };
+}
+
+async function canaryDetail(args, context, label = 'canaryDetail') {
+  const itemId = itemIdOf(context.canary);
+  return httpJson(args, label, `/v1/library/items/${encodeURIComponent(itemId)}`);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -416,6 +451,74 @@ async function stage1(args) {
 }
 
 async function stage2(args, context) {
+  const detail = await canaryDetail(args, context, 'canaryFactsBaseline');
+  if (!detail.ok) return fail('canary_detail_failed', { status: detail.status, error: detail.error });
+  const item = detail.body || {};
+  context.latestItem = item;
+  const baseline = factsBaseline(item);
+  const missing = [];
+  if (!baseline.hasSourceFacts) missing.push('sourceFacts');
+  if (!baseline.hasMediaFacts) missing.push('mediaFacts');
+  if (!baseline.hasMetadataFacts) missing.push('metadataFacts');
+  if (!baseline.hasUserPerceptionFacts) missing.push('userPerceptionFacts');
+  if (!baseline.hasGateFacts) missing.push('gateFacts');
+  if (missing.length > 0) return fail('canary_projection_missing_fact_groups', { missing, baseline });
+  if (!item.factsFreshness || typeof item.factsFreshness !== 'object') {
+    return fail('canary_projection_missing_facts_freshness', { baseline });
+  }
+  if (baseline.activeTask) return blocked('canary_has_active_task_before_business_e2e', { activeTask: baseline.activeTask });
+  return pass(baseline);
+}
+
+async function stage3(args, context) {
+  const itemId = itemIdOf(context.canary);
+  const before = await canaryDetail(args, context, 'canaryBeforeFreshnessOwnership');
+  if (!before.ok) return fail('canary_detail_before_freshness_failed', { status: before.status, error: before.error });
+  const cacheWrite = await httpJson(args, 'legacyCacheWriteDisabled', '/v1/library/cache', {
+    method: 'POST',
+    body: { itemId, metadataComplete: true },
+  });
+  if (cacheWrite.status !== 410) {
+    return fail('legacy_cache_write_not_disabled', { status: cacheWrite.status, body: cacheWrite.body });
+  }
+
+  const subLibraryId = context.subLibrary && (context.subLibrary.uuid || context.subLibrary.id || context.subLibrary.subLibraryId);
+  let scan = null;
+  if (args.mode === 'destructive' && subLibraryId) {
+    scan = await httpJson(args, 'libraryIngestIntent', '/v1/library/actions/ingest', {
+      method: 'POST',
+      body: { subLibraryId },
+    });
+    if (!scan.ok) return fail('library_ingest_intent_failed', { status: scan.status, body: scan.body, error: scan.error });
+    if (scan.body && scan.body.mode !== 'kairox_scan') {
+      return fail('library_ingest_intent_not_kairox_scan', { body: scan.body });
+    }
+  }
+
+  const after = await canaryDetail(args, context, 'canaryAfterFreshnessOwnership');
+  if (!after.ok) return fail('canary_detail_after_freshness_failed', { status: after.status, error: after.error });
+  const item = after.body || {};
+  const sourceStatus = freshnessStatus(item, 'sourceFacts');
+  const mediaStatus = freshnessStatus(item, 'mediaFacts');
+  const metadataStatusValue = freshnessStatus(item, 'metadataFacts');
+  if (!sourceStatus || !mediaStatus || !metadataStatusValue) {
+    return fail('freshness_projection_missing_required_groups', {
+      factsFreshness: item.factsFreshness || null,
+    });
+  }
+  context.latestItem = item;
+  return pass({
+    mode: args.mode,
+    cacheWriteStatus: cacheWrite.status,
+    scanSummary: scan && scan.body && scan.body.summary || null,
+    sourceFactsStatus: sourceStatus,
+    mediaFactsStatus: mediaStatus,
+    metadataFactsStatus: metadataStatusValue,
+    note: 'Refresh intent is verified as Kairox scan; canonical ownership is validated through factsFreshness projection.',
+  });
+}
+
+async function stage4(args, context) {
   const itemId = itemIdOf(context.canary);
   const before = await httpJson(args, 'canaryBeforePerception', `/v1/library/items/${encodeURIComponent(itemId)}`);
   if (!before.ok) return fail('canary_detail_failed', { status: before.status, error: before.error });
@@ -453,6 +556,24 @@ async function stage2(args, context) {
       directTasks: directTasks.map((task) => ({ id: task.id, targetGate: targetGateOf(task), status: task.status })),
     });
   }
+  let restored = false;
+  if (originalRating != null && originalRating !== nextRating) {
+    const restore = await httpJson(args, 'restoreRatingAfterPerceptionCheck', '/v1/library/ratings', {
+      method: 'PATCH',
+      body: { itemId, userRating: originalRating },
+    });
+    if (!restore.ok) return fail('rating_restore_failed', { status: restore.status, body: restore.body, error: restore.error });
+    restored = true;
+    const restoredActiveTasks = await httpJson(args, 'activeTasksAfterPerceptionRestore', `/v1/tasks?activeOnly=1`);
+    const restoreDirectTasks = restoredActiveTasks.ok && Array.isArray(restoredActiveTasks.body.tasks)
+      ? restoredActiveTasks.body.tasks.filter((task) => task.itemId === itemId && !context.canaryActiveTasks.some((oldTask) => oldTask.id === task.id))
+      : [];
+    if (restoreDirectTasks.length > 0) {
+      return fail('perception_restore_created_task_directly', {
+        restoreDirectTasks: restoreDirectTasks.map((task) => ({ id: task.id, targetGate: targetGateOf(task), status: task.status })),
+      });
+    }
+  }
   return pass({
     originalRating,
     nextRating,
@@ -460,10 +581,11 @@ async function stage2(args, context) {
     afterVersion,
     ratingChanged: after.body.userRating === nextRating,
     versionAdvanced: afterVersion >= beforeVersion,
+    restored,
   });
 }
 
-async function stage3(args, context) {
+async function stage5(args, context) {
   const itemId = itemIdOf(context.canary);
   if (args.mode === 'destructive') {
     await httpJson(args, 'recomputeOptimizeTargets', '/v1/library/actions/recompute-optimize-targets', { method: 'POST', body: {} });
@@ -488,7 +610,7 @@ async function stage3(args, context) {
   });
 }
 
-async function stage4(args, context) {
+async function stage6(args, context) {
   if (args.mode !== 'destructive') return skipped('task_creation_requires_destructive_mode');
   const itemId = itemIdOf(context.canary);
   let gateObjective = context.optimizeObjective && typeof context.optimizeObjective === 'object' ? context.optimizeObjective : null;
@@ -538,7 +660,7 @@ async function stage4(args, context) {
   });
 }
 
-async function stage5(args, context) {
+async function stage7(args, context) {
   const task = context.optimizeTask || context.optimizeCreate && context.optimizeCreate.body;
   if (!task || !task.id) {
     if (context.optimizeCreate && context.optimizeCreate.status === 409) return blocked('no_optimize_task_due_to_admission_rejection');
@@ -562,7 +684,7 @@ async function stage5(args, context) {
   });
 }
 
-async function stage6(args, context) {
+async function stage8(args, context) {
   if (args.mode !== 'destructive') return skipped('execution_requires_destructive_mode');
   const task = context.optimizeTask || context.optimizeCreate && context.optimizeCreate.body;
   if (!task || !task.id) return skipped('no_optimize_task_to_execute');
@@ -591,7 +713,61 @@ async function stage6(args, context) {
   });
 }
 
-async function stage7(args, context) {
+async function stage9(args, context) {
+  const detail = await canaryDetail(args, context, 'canaryPostOptimizePendingRefresh');
+  if (!detail.ok) return fail('canary_after_optimize_detail_failed', { status: detail.status, error: detail.error });
+  const item = detail.body || {};
+  const gate = item.optimizeGate || item.optimizationGate || null;
+  context.latestItem = item;
+  context.pendingRefreshGate = gate;
+  if (args.mode !== 'destructive') {
+    return skipped('post_optimize_refresh_requires_destructive_mode');
+  }
+  if (context.optimizeTerminal && context.optimizeTerminal.status === 'failed_hard') {
+    return fail('flow_attempt_failed_but_should_not_close_gate', {
+      taskId: context.optimizeTerminal.id,
+      optimizeGate: gate,
+      lifecycleNextTask: item.lifecycleNextTask || '',
+    });
+  }
+  if (!context.optimizeTerminal || context.optimizeTerminal.status !== 'done') {
+    return blocked('optimize_task_not_done_before_post_optimize_refresh_check', {
+      task: context.optimizeTerminal ? { id: context.optimizeTerminal.id, status: context.optimizeTerminal.status } : null,
+    });
+  }
+  if (!gate) return fail('optimize_done_without_optimize_gate_facts', { canary: compactItem(item) });
+  if (gate.passed === true) {
+    return fail('optimize_gate_passed_before_canonical_refresh', { gate, factsFreshness: item.factsFreshness || null });
+  }
+  const pending = gate.status === 'pending_canonical_refresh'
+    || item.optimizeGateStatus === 'pending_canonical_refresh'
+    || item.optimizationStatus === 'pending_canonical_refresh';
+  if (!pending) {
+    return fail('optimize_done_without_pending_canonical_refresh', {
+      gate,
+      canary: compactItem(item),
+      factsFreshness: item.factsFreshness || null,
+    });
+  }
+  const nextTargetGate = item.lifecycleNextTask || '';
+  if (!['ingest', 'metadata'].includes(nextTargetGate)) {
+    return blocked('pending_canonical_refresh_without_refresh_target_gate', {
+      canary: compactItem(item),
+      optimizeGateStatus: gate.status || '',
+      lifecycleNextTask: nextTargetGate,
+      factsFreshness: item.factsFreshness || null,
+    });
+  }
+  return pass({
+    canary: compactItem(item),
+    optimizeGateStatus: gate.status || '',
+    lifecycleNextTask: nextTargetGate,
+    factsFreshness: item.factsFreshness || null,
+    gate,
+  });
+}
+
+async function stage10(args, context) {
   const itemId = itemIdOf(context.canary);
   const refreshRuns = [];
   let detail = await httpJson(args, 'canaryAfterOptimize', `/v1/library/items/${encodeURIComponent(itemId)}`);
@@ -660,7 +836,7 @@ async function stage7(args, context) {
   });
 }
 
-async function stage8(args, context) {
+async function stage11(args, context) {
   if (args.mode !== 'destructive') return skipped('archive_execution_requires_destructive_mode');
   const itemId = itemIdOf(context.canary);
   const create = await httpJson(args, 'createArchiveTask', '/v1/tasks', {
@@ -685,7 +861,7 @@ async function stage8(args, context) {
   });
 }
 
-async function stage9(args, context) {
+async function stage12(args, context) {
   if (args.mode !== 'destructive') return skipped('delete_candidate_requires_destructive_mode');
   const itemId = itemIdOf(context.canary);
   await httpJson(args, 'setLowRatingForDelete', '/v1/library/ratings', {
@@ -717,7 +893,7 @@ async function stage9(args, context) {
   return pass({ candidate });
 }
 
-async function stage10(args, context) {
+async function stage13(args, context) {
   if (args.mode !== 'destructive') return skipped('confirmed_delete_requires_destructive_mode');
   if (!context.deleteCandidate) return skipped('no_delete_candidate_available');
   const itemId = itemIdOf(context.canary);
@@ -746,7 +922,7 @@ async function stage10(args, context) {
   });
 }
 
-async function stage11(args, context) {
+async function stage14(args, context) {
   const tasks = context.initial && context.initial.adminTasks && context.initial.adminTasks.body && Array.isArray(context.initial.adminTasks.body.tasks)
     ? context.initial.adminTasks.body.tasks
     : [];
@@ -781,6 +957,48 @@ async function stage11(args, context) {
     return fail('delete_as_optimize_task_detected', { count: deleteOptimizeTasks.length, taskIds: deleteOptimizeTasks.map((task) => task.id) });
   }
   return pass({ checkedTaskCount: allTasks.length, optimizeAllowedOperations });
+}
+
+async function stage15(args, context) {
+  const subLibraryId = context.subLibrary && (context.subLibrary.uuid || context.subLibrary.id || context.subLibrary.subLibraryId) || '';
+  const routes = [
+    ['health', '/v1/health'],
+    ['dashboardHealth', '/v1/admin/dashboard/health'],
+    ['libraryManage', `/v1/library/queries/manage?subLibraryId=${encodeURIComponent(subLibraryId)}&page=1&pageSize=50&projection=manage`],
+    ['tasks', '/v1/tasks?activeOnly=1'],
+    ['deleteCandidates', '/v1/admin/delete-candidates?includeDecided=1'],
+    ['config', '/v1/config'],
+  ];
+  const results = [];
+  for (const [label, route] of routes) {
+    results.push(await httpJson(args, `performance_${label}`, route));
+  }
+  const failed = results.filter((result) => !result.ok);
+  if (failed.length > 0) return fail('control_plane_smoke_api_failed', { failed });
+  const slow = results.filter((result) => result.elapsedMs > 5000);
+  if (slow.length > 0) return blocked('control_plane_api_not_seconds_level', { slow });
+
+  const activeTasks = results.find((result) => result.label === 'performance_tasks');
+  const tasks = activeTasks && activeTasks.body && Array.isArray(activeTasks.body.tasks) ? activeTasks.body.tasks : [];
+  const seen = new Set();
+  const duplicates = [];
+  for (const task of tasks) {
+    const key = `${task.itemId || ''}:${targetGateOf(task)}`;
+    if (!task.itemId || !targetGateOf(task)) continue;
+    if (seen.has(key)) duplicates.push({ key, taskId: task.id });
+    seen.add(key);
+  }
+  if (duplicates.length > 0) return fail('duplicate_active_task_by_item_target_gate', { duplicates });
+
+  return pass({
+    timings: results.map((result) => ({
+      label: result.label,
+      route: result.route,
+      status: result.status,
+      elapsedMs: result.elapsedMs,
+    })),
+    activeTaskCount: tasks.length,
+  });
 }
 
 function reportMarkdown({ args, run, stages }) {
@@ -898,16 +1116,20 @@ async function main() {
   const stageDefinitions = [
     ['stage0', 'Readonly production precheck', () => stage0(args, context)],
     ['stage1', 'Frontend Kairox projection smoke', () => stage1(args)],
-    ['stage2', 'Fact ownership and perception separation', () => stage2(args, context)],
-    ['stage3', 'Lifecycle objective projection', () => stage3(args, context)],
-    ['stage4', 'Task Creator and Admission', () => stage4(args, context)],
-    ['stage5', 'Flow Planner selection', () => stage5(args, context)],
-    ['stage6', 'Resource Runtime execution', () => stage6(args, context)],
-    ['stage7', 'Optimize gate and canonical refresh', () => stage7(args, context)],
-    ['stage8', 'Archive gate', () => stage8(args, context)],
-    ['stage9', 'Delete candidate review', () => stage9(args, context)],
-    ['stage10', 'Confirmed delete', () => stage10(args, context)],
-    ['stage11', 'Kairox/Mirex regression checks', () => stage11(args, context)],
+    ['stage2', 'Canary facts baseline', () => stage2(args, context)],
+    ['stage3', 'Ingest and metadata freshness ownership', () => stage3(args, context)],
+    ['stage4', 'User perception', () => stage4(args, context)],
+    ['stage5', 'Lifecycle objective projection', () => stage5(args, context)],
+    ['stage6', 'Task Creator and Admission', () => stage6(args, context)],
+    ['stage7', 'Flow Planner selection', () => stage7(args, context)],
+    ['stage8', 'Resource Runtime execution', () => stage8(args, context)],
+    ['stage9', 'Post-optimize canonical refresh', () => stage9(args, context)],
+    ['stage10', 'Refresh then gate achievement', () => stage10(args, context)],
+    ['stage11', 'Archive gate', () => stage11(args, context)],
+    ['stage12', 'Delete candidate review', () => stage12(args, context)],
+    ['stage13', 'Confirmed delete', () => stage13(args, context)],
+    ['stage14', 'Kairox/Mirex regression checks', () => stage14(args, context)],
+    ['stage15', 'Control plane performance smoke', () => stage15(args, context)],
   ];
 
   if (args.stage) {

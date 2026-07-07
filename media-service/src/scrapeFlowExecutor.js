@@ -230,8 +230,14 @@ async function runExecuting(taskId, task) {
     // to library.json by resetScrapeStatus but never propagated into task.itemInfo.
     // Read the live library item so the override takes effect here.
     const mediaLibraryService = require('./mediaLibraryService');
-    const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
+    let liveItem = mediaLibraryService.getLibraryItem(task.itemId);
     if (!liveItem) throw new Error('Library item not found');
+    liveItem = await adultLibraryService.prepareAdultMetadataForScrape(subLib, liveItem);
+    const preparedMeta = metadataStatus.resolveMetadataStatus(liveItem, config);
+    if (preparedMeta.metadataComplete && !isRefreshObjective(task, liveItem)) {
+      await afterScrapeApplied(taskId, task, config, liveItem, 'Adult metadata already complete; scrape skipped');
+      return;
+    }
     const region = subLib.adultRegion || 'japanese_jav';
     if (region === 'western_adult') {
       await runWesternExecuting(taskId, task, config, subLib, liveItem);
@@ -454,6 +460,15 @@ async function afterScrapeApplied(taskId, task, config, latestItem, logMessage) 
   const mediaLibraryService = require('./mediaLibraryService');
   const strategyEngine = require('./strategyEngine');
   try { mediaLibraryService.projectStoredMediaFactsForItem(task.itemId); } catch (_) {}
+  try {
+    factsFreshnessService.markFresh(task.itemId, ['mediaFacts', 'metadataFacts'], {
+      evidence: {
+        source: 'metadata_flow',
+        taskId,
+        flowKind: task && task.flowPlan && task.flowPlan.flowKind || 'scrape',
+      },
+    });
+  } catch (_) {}
   try { strategyEngine.runOnce(); } catch (_) {}
 
   const itemAfterStrategy = mediaLibraryService.getLibraryItem(task.itemId) || latestItem;

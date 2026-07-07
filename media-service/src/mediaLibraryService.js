@@ -29,6 +29,7 @@ const factsFreshnessService = require('./factsFreshnessService');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const diagnosticLog = require('./diagnosticLog');
+const sourceReference = require('./sourceReference');
 
 const BACKGROUND_IO_LOCK = 'library_background_io';
 const DEFAULT_STARTUP_REFRESH_STALE_MINUTES = 120;
@@ -140,11 +141,24 @@ function embyObservationItemInfo(subLib, incoming, existing = null, observationK
   const externalRefs = incoming
     ? { emby: assetIdentity.makeExternalEmbyRef(incoming, subLib, now) }
     : existing && existing.externalRefs;
-  return {
+  const ref = sourceReference.normalizeSourceReference({
+    source: 'emby',
+    sourceRefId: sourceId,
+    subLibraryId: subLib.uuid,
+    sourceAdapterId: subLib.embyServerId || '',
+    observedAt: now,
+    locator: {
+      path: incoming && incoming.path || existing && existing.path || '',
+      parentRefId: incoming && (incoming.parentId || incoming.seriesId) || existing && (existing.parentId || existing.seriesId) || '',
+    },
+  });
+  return sourceReference.applySourceReference({
     itemId,
     name: incoming && incoming.name || existing && existing.name || sourceId || itemId,
     subLibraryId: subLib.uuid,
     source: 'emby',
+    sourceRefId: ref.sourceRefId,
+    sourceAdapterId: ref.sourceAdapterId,
     sourceId,
     embyItemId: sourceId,
     path: incoming && incoming.path || existing && existing.path || '',
@@ -155,8 +169,8 @@ function embyObservationItemInfo(subLib, incoming, existing = null, observationK
     sourceExists: observationKind !== 'source_missing',
     sourceObservationKind: observationKind,
     sourceObservedAt: now,
-    sourceSnapshot: incoming || null,
-  };
+    locator: ref.locator,
+  }, ref);
 }
 
 function sourceFactsChanged(existing = {}, incoming = {}, subLibraryId = '') {
@@ -1027,17 +1041,59 @@ async function listSourceObservationCandidates(config = configStore.loadConfig()
   return candidates;
 }
 
-function commitEmbySourceCandidate(itemInfo = {}, opts = {}) {
-  const now = opts.now || new Date().toISOString();
+async function observeEmbySourceReference(itemInfo = {}, opts = {}) {
   const cfg = opts.config || configStore.loadConfig();
   const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === itemInfo.subLibraryId);
   if (!subLib) throw new Error('SubLibrary not found');
-  const observationKind = String(itemInfo.sourceObservationKind || '').trim() || 'source_changed';
-  const sourceId = itemInfo.sourceId || itemInfo.embyItemId || '';
+  const server = (cfg.embyServers || {})[subLib.embyServerId];
+  if (!server || !server.baseUrl) throw new Error('Emby server not configured for this subLibrary');
+  const sourceId = itemInfo.sourceRefId || itemInfo.sourceId || itemInfo.embyItemId || '';
+  if (!sourceId) throw new Error('Emby source id is required');
+  const existing = itemInfo.itemId ? libraryStore.getItem(itemInfo.itemId) : null;
+  try {
+    const fetched = await embyService.getItemById(server, sourceId);
+    let observationItems = [fetched];
+    if (fetched && fetched.type === 'season' && typeof embyService.getSeasonEpisodes === 'function') {
+      const episodes = await embyService.getSeasonEpisodes(server, sourceId);
+      observationItems = [fetched, ...(Array.isArray(episodes) ? episodes : [])];
+    }
+    const manageable = manageableEmbyItems(observationItems);
+    const incoming = manageable.find((item) => String(item.sourceId || item.itemId || '') === String(sourceId))
+      || manageable[0]
+      || fetched;
+    const observationKind = existing
+      ? (sourceFactsChanged(existing, incoming, subLib.uuid) ? 'source_changed' : 'source_observed')
+      : 'new_source_observed';
+    return {
+      subLib,
+      sourceId,
+      incoming,
+      observationKind,
+      sourceExists: true,
+    };
+  } catch (e) {
+    if (String(e && e.message || '').includes('(404)')) {
+      return {
+        subLib,
+        sourceId,
+        incoming: null,
+        observationKind: 'source_missing',
+        sourceExists: false,
+      };
+    }
+    throw e;
+  }
+}
+
+async function commitEmbySourceCandidate(itemInfo = {}, opts = {}) {
+  const now = opts.now || new Date().toISOString();
+  const cfg = opts.config || configStore.loadConfig();
+  const observation = await observeEmbySourceReference(itemInfo, { config: cfg });
+  const subLib = observation.subLib;
+  const observationKind = observation.observationKind || String(itemInfo.sourceObservationKind || '').trim() || 'source_changed';
+  const sourceId = observation.sourceId || itemInfo.sourceRefId || itemInfo.sourceId || itemInfo.embyItemId || '';
   let item = itemInfo.itemId && libraryStore.getItem(itemInfo.itemId);
-  const sourceSnapshot = itemInfo.sourceSnapshot && typeof itemInfo.sourceSnapshot === 'object'
-    ? itemInfo.sourceSnapshot
-    : null;
+  const sourceObservation = observation.incoming;
 
   if (observationKind === 'source_missing') {
     if (!item) throw new Error('Source missing target item not found');
@@ -1061,33 +1117,33 @@ function commitEmbySourceCandidate(itemInfo = {}, opts = {}) {
     return { item, created: false, observationKind };
   }
 
-  if (!sourceSnapshot) throw new Error('Emby source snapshot is required');
-  const incomingAssetKey = assetIdentity.computeAssetKey(sourceSnapshot, subLib.uuid);
-  const incomingAssetRootPath = assetIdentity.inferAssetRootPath(sourceSnapshot.path, sourceSnapshot.isDiscLike);
-  const incomingExternalRefs = { emby: assetIdentity.makeExternalEmbyRef(sourceSnapshot, subLib, now) };
+  if (!sourceObservation) throw new Error('Emby source observation is required');
+  const incomingAssetKey = assetIdentity.computeAssetKey(sourceObservation, subLib.uuid);
+  const incomingAssetRootPath = assetIdentity.inferAssetRootPath(sourceObservation.path, sourceObservation.isDiscLike);
+  const incomingExternalRefs = { emby: assetIdentity.makeExternalEmbyRef(sourceObservation, subLib, now) };
 
   if (!item) {
     item = {
       itemId: generateUuid(),
       subLibraryId: subLib.uuid,
-      name: sourceSnapshot.name || itemInfo.name || '',
-      path: sourceSnapshot.path || '',
+      name: sourceObservation.name || itemInfo.name || '',
+      path: sourceObservation.path || '',
       source: 'emby',
       sourceId,
       assetKey: incomingAssetKey,
       assetRootPath: incomingAssetRootPath,
       externalRefs: incomingExternalRefs,
-      type: sourceSnapshot.type || itemInfo.type || 'movie',
+      type: sourceObservation.type || itemInfo.type || 'movie',
       bitrate: 0,
       duration: 0,
       resolution: '',
-      size: sourceSnapshot.size || 0,
+      size: sourceObservation.size || 0,
       codec: '',
       audioCodecs: [],
       bucket: '',
       premiereDate: null,
       genres: [],
-      isDiscLike: !!sourceSnapshot.isDiscLike,
+      isDiscLike: !!sourceObservation.isDiscLike,
       watched: false,
       playCount: null,
       lastPlayedAt: null,
@@ -1101,12 +1157,12 @@ function commitEmbySourceCandidate(itemInfo = {}, opts = {}) {
       sourceExists: true,
       sourceObservedAt: now,
       reason: 'source observed',
-      seriesName: sourceSnapshot.seriesName || null,
-      seriesId: sourceSnapshot.seriesId || null,
-      seasonNumber: sourceSnapshot.seasonNumber || null,
-      episodeCount: sourceSnapshot.episodeCount || null,
-      tmdbId: sourceSnapshot.tmdbId || null,
-      providerIds: sourceSnapshot.providerIds || {},
+      seriesName: sourceObservation.seriesName || null,
+      seriesId: sourceObservation.seriesId || null,
+      seasonNumber: sourceObservation.seasonNumber || null,
+      episodeCount: sourceObservation.episodeCount || null,
+      tmdbId: sourceObservation.tmdbId || null,
+      providerIds: sourceObservation.providerIds || {},
     };
     const lib = loadLibrary();
     lib.items = Array.isArray(lib.items) ? lib.items : [];
@@ -1121,11 +1177,11 @@ function commitEmbySourceCandidate(itemInfo = {}, opts = {}) {
       assetKey: incomingAssetKey || item.assetKey,
       assetRootPath: incomingAssetRootPath || item.assetRootPath,
       externalRefs: { ...(item.externalRefs || {}), ...incomingExternalRefs },
-      name: sourceSnapshot.name || item.name,
-      path: sourceSnapshot.path || item.path,
-      type: sourceSnapshot.type || item.type,
-      size: sourceSnapshot.size > 0 ? sourceSnapshot.size : item.size,
-      isDiscLike: sourceSnapshot.isDiscLike != null ? sourceSnapshot.isDiscLike : item.isDiscLike,
+      name: sourceObservation.name || item.name,
+      path: sourceObservation.path || item.path,
+      type: sourceObservation.type || item.type,
+      size: sourceObservation.size > 0 ? sourceObservation.size : item.size,
+      isDiscLike: sourceObservation.isDiscLike != null ? sourceObservation.isDiscLike : item.isDiscLike,
       sourceExists: true,
       sourceMissingAt: null,
       sourceObservedAt: now,

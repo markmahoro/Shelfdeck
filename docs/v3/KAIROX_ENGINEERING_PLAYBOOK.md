@@ -55,6 +55,7 @@ transcode task -> optimize task with selectedFlow=transcode
 | `event evidence` / 执行证据 | 证明 staged facts 可信的执行记录 | Task events、Resource Runtime、diagnostic | 不能替代权威事实 |
 | `factRefreshRequest` / 事实刷新请求 | 权威事实过期后的 declarative signal | Flow Executor output、Lifecycle projection input | 不能直接创建 task；不能绕过 Task Creator |
 | `refresh` / 刷新 | 用户或系统请求重新观察外部 source 的意图 | API 文案、activity、scan request | 不能是 targetGate、flowKind 或 task type；不能直接写权威事实 |
+| `SourceReference` / 来源引用 | 状态 0，对外部 source 的最小引用 | Source Adapter Sync 输出、ingest task object/itemInfo | 不能携带 canonical media/metadata/gate 结论 |
 
 硬边界：
 
@@ -282,8 +283,9 @@ Task Creator 只创建 targetGate task
 
 负责：
 
-- 发现外部 source candidate，例如 Emby inventory、文件夹 watch root、成人库目录扫描。
-- 写入 source candidate、metadata hint、perception input 等输入事实。
+- 发现外部 source reference，例如 Emby inventory、文件夹 watch root、成人库目录扫描。
+- 提供 `observe(sourceRef)` 能力，让 ingest / metadata flow 在执行时实时取证。
+- 写入 metadata hint、perception input 等非 canonical 输入事实。
 - 提供 domain-specific helper，例如成人库 `adultId` candidate、NFO 读取、light adult metadata split。
 
 不负责：
@@ -293,7 +295,7 @@ Task Creator 只创建 targetGate task
 - 选择 scrape / transcode / upgrade / delete flow。
 - 发布跨 gate 的权威事实。
 
-成人库模块属于 Source Adapter / Domain Fact Writer。它可以发现文件、写 candidate facts、reset metadata facts 以便重新进入 metadata gate，但不能自己 enqueue ingest/scrape task。
+成人库模块属于 Source Adapter / Domain Fact Writer。它可以发现文件、reset metadata facts 以便重新进入 metadata gate，但不能自己 enqueue ingest/scrape task。成人库目录扫描只产生 `SourceReference`，不能解析 adultId、生成 UNK、probe 视频技术事实、读取 NFO 或写 canonical media/metadata facts；这些属于 metadata task / scrape flow。
 
 Emby 媒体库 refresh 也属于 Source Adapter / observation 入口。它只能发现：
 
@@ -303,7 +305,7 @@ source_changed
 source_missing
 ```
 
-这些 observation 必须由 SmartTaskEngine / Task Creator 转成 `targetGate=ingest` 或 `targetGate=metadata` task。`refresh` 本身不能直接调用 canonical fact writer。Emby 中消失的条目只能先写入 `sourceExists=false` / `sourceMissingAt` 这类 source facts，不能直接从 ShelfDeck 删除。
+这些 observation 必须由 SmartTaskEngine / Task Creator 转成 `targetGate=ingest` 或 `targetGate=metadata` task。`refresh` 本身不能直接调用 canonical fact writer。Emby 中消失的条目只能先写入 `sourceExists=false` / `sourceMissingAt` 这类 source facts，不能直接从 ShelfDeck 删除。`sourceSnapshot` 可以作为可选 observation evidence，但 ingest flow 不能依赖它；ingest flow 必须能凭 `SourceReference` 实时 observe source。
 
 ### Task Creator / TaskAdmission
 

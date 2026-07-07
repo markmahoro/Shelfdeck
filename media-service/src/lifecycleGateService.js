@@ -52,9 +52,6 @@ function invalidationMissingReason(invalidation) {
 
 function evaluateIngestGate(item = {}) {
   const missing = [];
-  const adultMetadata = item.adultMetadata && typeof item.adultMetadata === 'object'
-    ? item.adultMetadata
-    : {};
   const invalidation = explicitGateInvalidation(item, 'ingest');
 
   if (invalidation) {
@@ -88,12 +85,6 @@ function evaluateIngestGate(item = {}) {
   if (!hasAny(item.path, item.sourceId, item.embyItemId, item.assetKey, item.assetRootPath)) {
     missing.push('source.location_or_reference');
   }
-
-  const hasMediaFacts = hasAny(item.duration, item.size, item.bitrate, item.resolution, item.codec)
-    || item.probeError
-    || adultMetadata.probeError
-    || item.mediaFactsUnavailable === true;
-  if (!hasMediaFacts) missing.push('media.basic_facts_or_probe_failure');
 
   return {
     gate: 'ingest',

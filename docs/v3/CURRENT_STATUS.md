@@ -1,19 +1,19 @@
 # ShelfDeck v3 Current Status
 
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
 ## Production
 
 - Current release goal: `Kairox Beta Candidate`
 - Worktree scope: this worktree stops at `Kairox Beta`; later goals require a new worktree.
 - Production URL: `http://192.168.12.230:18080`
-- Latest deployed image: `markmahoro/shelfdeck:kairox-e2e-fix-20260707-f540698e`
-- Latest deployed commit: `f540698e Respect canonical facts after optimize flows`
-- Latest deployed image SHA256: `057643d17b16e4c28537134b3a560ffb06c7f4dcc894e62324e7af95a6efe51c`
-- Latest deployment time: `2026-07-07 23:52 Asia/Shanghai`
+- Latest deployed image: `markmahoro/shelfdeck:kairox-e2e-fix-20260708-327549be`
+- Latest deployed commit: `327549be Separate gate achievement from task attempts`
+- Latest deployed image SHA256: `3d615cf6c22aa30fb9b6218750877d3ed378902c1a0d465174be9ed2742cac46`
+- Latest deployment time: `2026-07-08 00:48 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: paused before full restart on the new canary; `Kairox Beta` is not achieved until E2E passes.
+- Production E2E status: restarted after deploying gate/attempt/retry boundary fix; `Kairox Beta` is not achieved until E2E passes.
 - Refresh cutover blocker status: deployed and production-validated for ingest -> metadata refresh on the new canary.
 
 ## Current Architecture State
@@ -32,6 +32,10 @@ Last updated: 2026-07-07
   - transcode / upgrade completion records staged facts and evidence.
   - transcode / upgrade no longer directly publish source/media/metadata canonical facts.
   - pending canonical refresh drives Lifecycle back to ingest or metadata before optimize gate is re-evaluated.
+- Gate achievement / task attempt / event retry boundary has been implemented and deployed:
+  - flow attempt failure no longer closes optimize gate.
+  - automatic task attempt budget is handled by TaskCreationPolicy attemptKey.
+  - task retryCount remains event/recovery state, not Lifecycle gate state.
 
 ## Frontend State
 

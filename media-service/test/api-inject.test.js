@@ -17,6 +17,7 @@ const activityLog = require('../src/activityLog');
 const smartTaskEngine = require('../src/smartTaskEngine');
 const healthCheck = require('../src/healthCheck');
 const nodeStore = require('../src/nodeStore');
+const embyService = require('../src/services/embyService');
 
 function metadataReadyMovie(overrides = {}) {
   const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
@@ -3341,10 +3342,14 @@ test('western adult ingest uses path identity before scrape', async () => {
 
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   const item = lib.json().items[0];
-  assert.strictEqual(item.adultMetadata.region, 'western_adult');
-  // 番号 is now self-assigned metadata (UNK-NNN placeholder) at ingest, not ''.
-  assert.ok(/^UNK-\d+$/.test(item.adultMetadata.adultId), 'western adult gets an UNK placeholder 番号 at ingest');
-  assert.strictEqual(item.adultMetadata.scrapeStatus, 'pending');
+  assert.strictEqual(item.source, 'adult_folder');
+  assert.strictEqual(item.sourceExists, true);
+  assert.strictEqual(item.factsFreshness.sourceFacts.status, 'fresh');
+  assert.strictEqual(item.factsFreshness.mediaFacts.status, 'stale');
+  assert.strictEqual(item.factsFreshness.metadataFacts.status, 'stale');
+  assert.strictEqual(item.lifecycleNextTask, 'metadata');
+  assert.strictEqual(item.adultMetadata && item.adultMetadata.adultId, undefined, 'adultId is metadata and is not written by ingest');
+  assert.strictEqual(item.codec || '', '', 'media codec is not written by ingest');
   assert.ok(item.assetKey.includes(':adult:'), 'western adult uses itemId-based identity (番号 is metadata, not the key)');
 
   const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?targetGate=metadata&includeHistory=1' });
@@ -3353,6 +3358,10 @@ test('western adult ingest uses path identity before scrape', async () => {
     false,
     'ingest ends at 已入库 and must not create a metadata task',
   );
+
+  const prepared = await adultLibraryService.prepareAdultMetadataForScrape(subLib, mediaLibraryService.getLibraryItem(item.itemId));
+  assert.ok(/^UNK-\d+$/.test(prepared.adultMetadata.adultId), 'western adult gets an UNK placeholder from metadata preparation, not ingest');
+  assert.strictEqual(prepared.adultMetadata.scrapeStatus, 'pending');
   await app.close();
 });
 
@@ -5375,25 +5384,31 @@ test('GET /v1/library/queries/manage supports page and pageSize pagination', asy
 test('commitEmbySourceCandidate creates source facts without direct refresh API', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    embyServers: { srv: { baseUrl: 'http://emby.test', apiKey: 'key', userId: 'user' } },
     subLibraries: [{ uuid: 'emby-source-lib', name: 'Emby Source', source: 'emby', embyServerId: 'srv', sectionId: 'sec', enabled: true }],
   }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const result = mediaLibraryService.commitEmbySourceCandidate({
+  const originalGetItemById = embyService.getItemById;
+  const originalGetSeasonEpisodes = embyService.getSeasonEpisodes;
+  embyService.getItemById = async () => ({
+      sourceId: 'emby-new',
+      name: 'New Source Movie',
+      type: 'movie',
+      path: '/media/new-source.mkv',
+      size: 123456,
+      isDiscLike: false,
+  });
+  embyService.getSeasonEpisodes = async () => [];
+  const result = await mediaLibraryService.commitEmbySourceCandidate({
     itemId: 'ingest:emby-source-lib:emby-new',
     subLibraryId: 'emby-source-lib',
     source: 'emby',
     sourceId: 'emby-new',
     embyItemId: 'emby-new',
     sourceObservationKind: 'new_source_observed',
-    sourceSnapshot: {
-      sourceId: 'emby-new',
-      name: 'New Source Movie',
-      type: 'Movie',
-      path: '/media/new-source.mkv',
-      size: 123456,
-      isDiscLike: false,
-    },
   });
+  embyService.getItemById = originalGetItemById;
+  embyService.getSeasonEpisodes = originalGetSeasonEpisodes;
   const stored = mediaLibraryService.getLibraryItem(result.item.itemId);
   assert.ok(stored, 'source item should be persisted');
   assert.strictEqual(stored.sourceId, 'emby-new');
@@ -5406,6 +5421,7 @@ test('commitEmbySourceCandidate creates source facts without direct refresh API'
 test('commitEmbySourceCandidate marks missing source without deleting item', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    embyServers: { srv: { baseUrl: 'http://emby.test', apiKey: 'key', userId: 'user' } },
     subLibraries: [{ uuid: 'emby-missing-lib', name: 'Emby Missing', source: 'emby', embyServerId: 'srv', sectionId: 'sec', enabled: true }],
   }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
@@ -5418,13 +5434,18 @@ test('commitEmbySourceCandidate marks missing source without deleting item', asy
       path: '/media/missing.mkv',
     })],
   });
-  const result = mediaLibraryService.commitEmbySourceCandidate({
+  const originalGetItemById = embyService.getItemById;
+  embyService.getItemById = async () => {
+    throw new Error('Emby request failed (404): Not Found');
+  };
+  const result = await mediaLibraryService.commitEmbySourceCandidate({
     itemId: 'missing-source-item',
     subLibraryId: 'emby-missing-lib',
     source: 'emby',
     sourceId: 'missing-source',
     sourceObservationKind: 'source_missing',
   });
+  embyService.getItemById = originalGetItemById;
   const stored = mediaLibraryService.getLibraryItem('missing-source-item');
   assert.ok(stored, 'missing source should not delete ShelfDeck item');
   assert.strictEqual(result.created, false);
