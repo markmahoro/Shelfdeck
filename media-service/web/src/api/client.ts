@@ -274,12 +274,11 @@ export const upgrade = {
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
 export const tasks = {
-  list: (params?: { status?: string; statuses?: string[]; attention?: string; selectedFlow?: string; targetGate?: string; q?: string; page?: number; pageSize?: number; includeAttentionSummary?: boolean }) => {
+  list: (params?: { status?: string; statuses?: string[]; attention?: string; targetGate?: string; q?: string; page?: number; pageSize?: number; includeAttentionSummary?: boolean }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.statuses?.length) qs.set('statuses', params.statuses.join(','));
     if (params?.attention) qs.set('attention', params.attention);
-    if (params?.selectedFlow) qs.set('selectedFlow', params.selectedFlow);
     if (params?.targetGate) qs.set('targetGate', params.targetGate);
     if (params?.q) qs.set('q', params.q);
     if (params?.page) qs.set('page', String(params.page));
