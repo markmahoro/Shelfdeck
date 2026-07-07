@@ -677,7 +677,7 @@ export const taskApi = {
     return Array.isArray(data) ? data : data.tasks ?? [];
   },
 
-  createByIntent: async (body: { itemId: string; targetGate?: string; gateObjective?: Record<string, unknown>; preferredFlow?: string; selectedFlow?: string }): Promise<MediaTask> => {
+  createByIntent: async (body: { itemId: string; targetGate?: string; gateObjective?: Record<string, unknown>; flowPreference?: Record<string, unknown> }): Promise<MediaTask> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const key = apiKey();
     if (key) headers['x-api-key'] = key;
