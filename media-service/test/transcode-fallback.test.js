@@ -266,6 +266,38 @@ test('startEncode falls back from GPU to CPU when the GPU encode fails', async (
   }
 });
 
+test('startEncode allows explicit CPU rate-control strategy to use backup-only CPU slot', async () => {
+  const { fn, attempts } = makeFakeSpawn();
+  transcodeService._setSpawnForTest(fn);
+  const orderedDeviceSlots = [
+    { deviceId: 'cpu:libx265', maxSlots: 1, cpuBackupOnly: true },
+  ];
+  try {
+    const result = await transcodeService.startEncode(() => {}, {
+      config: config(),
+      taskId: 'cpu-rate-control-backup',
+      sourcePath: '/src.mkv',
+      partialPath: '/out.etp.partial.mkv',
+      orderedDeviceSlots,
+      isDolbyVision: false,
+      dvAcknowledged: false,
+      durationSec: 10,
+      targetBitrate: 1.5,
+      bitrateProfile: { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+      rateControlStrategy: 'cpu_two_pass_abr',
+    });
+
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.encoderUsed, 'cpu');
+    assert.strictEqual(result.resolvedDeviceId, 'cpu:libx265');
+    assert.strictEqual(attempts.length, 2, 'two-pass CPU encode should spawn first and second pass');
+    assert.ok(attempts.every((attempt) => !attempt.isGpu));
+    assert.strictEqual(transcodeService.getDeviceSlotUsage()['cpu:libx265'], 0);
+  } finally {
+    transcodeService._setSpawnForTest(null);
+  }
+});
+
 test('startEncode fails loudly (no fallback) when GPU fails and no CPU slot exists', async () => {
   const { fn, attempts } = makeFakeSpawn({ gpuExitCode: 187 });
   transcodeService._setSpawnForTest(fn);

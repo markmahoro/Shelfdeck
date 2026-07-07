@@ -2142,8 +2142,12 @@ async function startEncode(onProgress, params) {
   const slots = Array.isArray(orderedDeviceSlots) ? orderedDeviceSlots : [];
   if (slots.length === 0) throw new Error('No encode devices in pool');
 
-  const needsCpu = !!(isDolbyVision && dvAcknowledged);
-  const deviceId = await acquireFirstAvailableAmong(slots, { needsCpu });
+  const explicitCpuStrategy = String(rateControlStrategy || '').startsWith('cpu_');
+  const needsCpu = !!(isDolbyVision && dvAcknowledged) || explicitCpuStrategy;
+  const deviceId = await acquireFirstAvailableAmong(slots, {
+    needsCpu,
+    allowCpuBackup: explicitCpuStrategy,
+  });
   assignEncodeDeviceSlot(tid, deviceId);
 
   // Remote encode path — not subject to local GPU→CPU fallback.
