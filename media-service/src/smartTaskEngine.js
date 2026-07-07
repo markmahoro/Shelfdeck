@@ -30,6 +30,9 @@ let lastRunAt = null;
 let lastError = null;
 let _enabled = false;
 let configReader = null;
+let mediaLibraryReader = null;
+let taskStoreReader = null;
+let candidateProvider = null;
 let lastEnabledTaskTargets = [];
 let lastAllowedOptimizeFlows = [];
 let lastScanSummary = null;
@@ -199,17 +202,20 @@ function buildCandidate(item, { config }) {
     timestamp: itemTimestamp(item),
   };
 }
-function buildIngestCandidate(candidate) {
+function buildSourceCandidate(candidate) {
   const itemInfo = candidate && candidate.itemInfo;
   if (!itemInfo || !itemInfo.itemId) return null;
+  const targetGate = candidate.targetGate || 'ingest';
   return {
     item: itemInfo,
     itemInfo,
-    targetGate: 'ingest',
-    gateObjective: {},
+    targetGate,
+    gateObjective: candidate.gateObjective || {},
     timestamp: Number(candidate.timestamp) || itemTimestamp(itemInfo),
   };
 }
+
+const buildIngestCandidate = buildSourceCandidate;
 function createTargetGateTask(input = {}) {
   const config = input.config || (configReader && configReader.loadConfig && configReader.loadConfig()) || {};
   const store = input.taskStore || taskStoreModule;
@@ -320,39 +326,32 @@ function resourceQueueLimit(resourceKey, resource = {}, config = {}) {
   return Math.max(1, Math.floor((Number.isFinite(capacity) && capacity > 0 ? capacity : 1) * safeMultiplier));
 }
 
-function start(configStore, mediaLibraryService, taskStore, opts = {}) {
-  configReader = configStore;
-  lastRunAt = null;
-  lastError = null;
-  lastScanSummary = null;
-  const ingestCandidateProvider = typeof opts.ingestCandidateProvider === 'function'
-    ? opts.ingestCandidateProvider
-    : adultLibraryService.listIngestCandidates;
-  const cfg = configStore.loadConfig();
-  const initialAutomation = automationSnapshot(cfg);
-  lastEnabledTaskTargets = initialAutomation.enabledTaskTargets;
-  lastAllowedOptimizeFlows = initialAutomation.allowedOptimizeFlowKinds;
-  const initialEnabledTaskTargets = readEnabledTaskTargets(cfg);
-  if (initialEnabledTaskTargets.length === 0) {
-    console.log('[smartTaskEngine] disabled: no enabled automatic task targets');
-    return;
-  }
-  const intervalMs = (cfg.smartTaskPollIntervalMinutes || 10) * 60 * 1000;
-
-  const run = () => backgroundIoGuard.runExclusive({
+async function runScan(input = {}) {
+  const configStore = input.configStore || configReader;
+  const mediaLibraryService = input.mediaLibraryService || mediaLibraryReader;
+  const taskStore = input.taskStore || taskStoreReader || taskStoreModule;
+  const ingestCandidateProvider = input.ingestCandidateProvider || candidateProvider || adultLibraryService.listIngestCandidates;
+  const explicitIntent = input.explicitIntent === true;
+  const requestedSubLibraryId = String(input.subLibraryId || '').trim();
+  const source = explicitIntent ? 'manual' : 'auto';
+  return backgroundIoGuard.runExclusive({
     operation: 'smartTask.scan',
     component: 'smartTaskEngine',
     lockKey: BACKGROUND_IO_LOCK,
     resourceType: 'background_io',
     resourceKey: 'smartTask:scan',
-    source: 'background',
-  }, () => {
+    source: explicitIntent ? 'manual' : 'background',
+  }, async () => {
     const runtimeEvent = runtimeResourceTracker.startEvent({
       eventType: 'smartTask.scan',
       component: 'smartTaskEngine',
       resourceType: 'service_cpu',
       resourceKey: 'service:smart-task',
       resourceLabel: 'Smart task scan',
+      payload: {
+        explicitIntent,
+        subLibraryId: requestedSubLibraryId || undefined,
+      },
     });
     let finalStatus = 'done';
     const finalPayload = {};
@@ -363,19 +362,20 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       const enabledTaskTargets = readEnabledTaskTargets(cfg2);
       const enabledAutomation = automationSnapshot(cfg2);
       scanSummary = newScanSummary(enabledAutomation);
+      scanSummary.explicitIntent = explicitIntent;
+      scanSummary.subLibraryId = requestedSubLibraryId || '';
       runtimeEvent.update({
         enabledTaskTargets: enabledAutomation.enabledTaskTargets,
         allowedOptimizeFlowKinds: enabledAutomation.allowedOptimizeFlowKinds,
       });
       lastEnabledTaskTargets = enabledAutomation.enabledTaskTargets;
       lastAllowedOptimizeFlows = enabledAutomation.allowedOptimizeFlowKinds;
-      _enabled = enabledTaskTargets.length > 0;
-      if (enabledTaskTargets.length === 0) {
+      _enabled = enabledTaskTargets.length > 0 || explicitIntent;
+      if (!explicitIntent && enabledTaskTargets.length === 0) {
         lastRunAt = Date.now();
         finalStatus = 'skipped';
         finalPayload.reason = 'no_enabled_task_targets';
-        finishScanSummary(scanSummary, finalStatus, { reason: 'no_enabled_task_targets' });
-        return;
+        return finishScanSummary(scanSummary, finalStatus, { reason: 'no_enabled_task_targets' });
       }
 
       const maxPerRun = cfg2.smartTaskMaxPerRun || 10;
@@ -386,11 +386,13 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       if (!Array.isArray(libraryItems)) {
         finalStatus = 'skipped';
         finalPayload.reason = 'no_library_items';
-        finishScanSummary(scanSummary, finalStatus, { reason: 'no_library_items' });
-        return;
+        return finishScanSummary(scanSummary, finalStatus, { reason: 'no_library_items' });
       }
-      runtimeEvent.update({ libraryItems: libraryItems.length });
-      scanSummary.libraryItems = libraryItems.length;
+      const scopedLibraryItems = requestedSubLibraryId
+        ? libraryItems.filter((item) => item && item.subLibraryId === requestedSubLibraryId)
+        : libraryItems;
+      runtimeEvent.update({ libraryItems: scopedLibraryItems.length });
+      scanSummary.libraryItems = scopedLibraryItems.length;
 
       const activeTasks = typeof taskStore.querySchedulerTasks === 'function'
         ? taskStore.querySchedulerTasks()
@@ -399,17 +401,16 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       const pressure = pressureSnapshot(activeTasks, cfg2);
       scanSummary.activeBacklogByTargetGate = pressure.byTargetGate;
       scanSummary.activeBacklogByResource = pressure.byResource;
-      if (cfg2.smartTaskDeferWhenActiveBacklog === true && scanSummary.activeBacklog > 0) {
+      if (!explicitIntent && cfg2.smartTaskDeferWhenActiveBacklog === true && scanSummary.activeBacklog > 0) {
         finalStatus = 'skipped';
         finalPayload.reason = 'active_task_backlog';
         finalPayload.activeBacklog = scanSummary.activeBacklog;
         scanSummary.deferredByActiveBacklog = true;
         scanSummary.supplyPolicy = 'defer_all_active_backlog';
-        finishScanSummary(scanSummary, finalStatus, {
+        return finishScanSummary(scanSummary, finalStatus, {
           reason: 'active_task_backlog',
           activeBacklog: scanSummary.activeBacklog,
         });
-        return;
       }
 
       const allTasks = typeof taskStore.queryTaskAdmissionRows === 'function'
@@ -433,13 +434,19 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       };
 
       const now = Date.now();
-      const candidates = libraryItems
+      const candidates = scopedLibraryItems
         .map((item) => buildCandidate(item, { config: cfg2 }))
         .filter(Boolean);
-      if (enabledTaskTargets.includes('ingest')) {
-        for (const candidate of ingestCandidateProvider(cfg2) || []) {
-          const ingestCandidate = buildIngestCandidate(candidate, cfg2);
-          if (ingestCandidate) candidates.push(ingestCandidate);
+      const canDiscoverIngest = explicitIntent || enabledTaskTargets.includes('ingest');
+      if (canDiscoverIngest) {
+        const provided = await Promise.resolve(ingestCandidateProvider(cfg2, {
+          subLibraryId: requestedSubLibraryId || undefined,
+          explicitIntent,
+          source,
+        }) || []);
+        for (const candidate of provided) {
+          const sourceCandidate = buildSourceCandidate(candidate, cfg2);
+          if (sourceCandidate) candidates.push(sourceCandidate);
         }
       }
       runtimeEvent.update({ candidateCount: candidates.length });
@@ -463,7 +470,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
           itemInfo,
           targetGate,
           gateObjective,
-          source: 'auto',
+          source,
           config: cfg2,
           tasks: allTasks,
         });
@@ -474,7 +481,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         }
 
         const priorityBreakdown = priorityEngine.explainTaskPriority({
-          source: 'auto',
+          source,
           taskTarget: admission.taskTarget,
           itemInfo,
           config: cfg2,
@@ -487,7 +494,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
           taskData: {
             itemId: item.itemId,
             itemName: item.name,
-            source: 'auto',
+            source,
             status,
             priority: priorityBreakdown.priority,
             priorityModelVersion: priorityEngine.TASK_PRIORITY_MODEL_VERSION,
@@ -497,8 +504,8 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
             itemInfo,
             logs: [{
               ts: new Date().toISOString(),
-              source: 'smart_task_engine',
-              event: 'auto_enqueued',
+              source: source === 'auto' ? 'smart_task_engine' : 'manual_scan',
+              event: source === 'auto' ? 'auto_enqueued' : 'manual_scan_enqueued',
             }],
           },
         });
@@ -564,7 +571,7 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         const { item, taskData } = admitted;
         taskDataToCreate.push(taskData);
         const targetGate = taskData.taskTarget && taskData.taskTarget.targetGate || 'unknown';
-        console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} targetGate=${targetGate} "${item.name}"`);
+        console.log(`[smartTaskEngine] ${source}-enqueue ${item.itemId} targetGate=${targetGate} "${item.name}"`);
         toEnqueue.push({ item, targetGate });
         scanSummary.enqueued += 1;
         incrementCounter(scanSummary.enqueuedByTargetGate, targetGate);
@@ -598,26 +605,56 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         enabledTaskTargets: enabledAutomation.enabledTaskTargets,
         allowedOptimizeFlowKinds: enabledAutomation.allowedOptimizeFlowKinds,
       });
-      finishScanSummary(scanSummary, finalStatus);
+      return finishScanSummary(scanSummary, finalStatus);
     } catch (e) {
       lastError = e.message;
       finalStatus = 'failed';
       finalPayload.error = e.message;
-      finishScanSummary(scanSummary, finalStatus, { error: e.message });
+      const summary = finishScanSummary(scanSummary, finalStatus, { error: e.message });
       console.error('[smartTaskEngine] error:', e.message);
+      return summary;
     } finally {
       runtimeEvent.finish(finalStatus, finalPayload);
     }
   }, {
     onSkipped: () => {
       console.log('[smartTaskEngine] scan skipped: background I/O guard is busy');
-      finishScanSummary(newScanSummary({
+      return finishScanSummary(newScanSummary({
         enabledTaskTargets: lastEnabledTaskTargets,
         allowedOptimizeFlowKinds: lastAllowedOptimizeFlows,
       }), 'skipped', { reason: 'background_io_busy' });
-      return null;
     },
   });
+}
+
+function start(configStore, mediaLibraryService, taskStore, opts = {}) {
+  configReader = configStore;
+  mediaLibraryReader = mediaLibraryService;
+  taskStoreReader = taskStore;
+  lastRunAt = null;
+  lastError = null;
+  lastScanSummary = null;
+  candidateProvider = typeof opts.ingestCandidateProvider === 'function'
+    ? opts.ingestCandidateProvider
+    : async (scanConfig, scanOptions = {}) => {
+      const adultCandidates = adultLibraryService.listIngestCandidates(scanConfig) || [];
+      const embyCandidates = typeof mediaLibraryService.listSourceObservationCandidates === 'function'
+        ? await mediaLibraryService.listSourceObservationCandidates(scanConfig, scanOptions)
+        : [];
+      return [...adultCandidates, ...(Array.isArray(embyCandidates) ? embyCandidates : [])];
+    };
+  const cfg = configStore.loadConfig();
+  const initialAutomation = automationSnapshot(cfg);
+  lastEnabledTaskTargets = initialAutomation.enabledTaskTargets;
+  lastAllowedOptimizeFlows = initialAutomation.allowedOptimizeFlowKinds;
+  const initialEnabledTaskTargets = readEnabledTaskTargets(cfg);
+  if (initialEnabledTaskTargets.length === 0) {
+    console.log('[smartTaskEngine] disabled: no enabled automatic task targets');
+    return;
+  }
+  const intervalMs = (cfg.smartTaskPollIntervalMinutes || 10) * 60 * 1000;
+
+  const run = () => runScan({ configStore, mediaLibraryService, taskStore, ingestCandidateProvider: candidateProvider });
 
   const initialDelaySeconds = Math.max(0, Number(cfg.smartTaskInitialDelaySeconds) || 0);
   console.log(`[smartTaskEngine] will run first scan in ${initialDelaySeconds}s, then every ${intervalMs / 60000}min`);
@@ -641,7 +678,14 @@ function stop() {
   }
 }
 
-module.exports = { start, stop, getHealth, createTargetGateTask, buildIngestCandidate };
+function runOnce(options = {}) {
+  if (!configReader || !mediaLibraryReader || !taskStoreReader) {
+    throw new Error('SmartTaskEngine has not been started');
+  }
+  return runScan(options);
+}
+
+module.exports = { start, stop, getHealth, runOnce, createTargetGateTask, buildIngestCandidate, buildSourceCandidate };
 
 function getHealth() {
   let automation = {

@@ -31,7 +31,6 @@ const backgroundIoGuard = require('./backgroundIoGuard');
 const diagnosticLog = require('./diagnosticLog');
 
 const BACKGROUND_IO_LOCK = 'library_background_io';
-const STARTUP_REFRESH_STAGGER_MS = 5000;
 const DEFAULT_STARTUP_REFRESH_STALE_MINUTES = 120;
 const DEFAULT_STARTUP_REFRESH_MAX_LIBRARIES = 1;
 
@@ -64,6 +63,112 @@ function projectMediaFactsForItem(item) {
   }
 
   return changed;
+}
+
+function manageableEmbyItems(incomingItems = []) {
+  const movies = [];
+  const series = [];
+  const seasons = [];
+  const episodes = [];
+
+  for (const incoming of incomingItems || []) {
+    const t = (incoming.type || '').toLowerCase();
+    switch (t) {
+      case 'movie': movies.push(incoming); break;
+      case 'series': series.push(incoming); break;
+      case 'season': seasons.push(incoming); break;
+      case 'episode': episodes.push(incoming); break;
+      default: break;
+    }
+  }
+
+  const epAgg = new Map();
+  for (const ep of episodes) {
+    const pid = ep.parentId;
+    if (!pid) continue;
+    let agg = epAgg.get(pid);
+    if (!agg) {
+      agg = { totalSize: 0, totalDuration: 0, maxH: 0, maxRes: '', codecTally: {}, audioSet: new Set(), allWatched: true };
+      epAgg.set(pid, agg);
+    }
+    agg.totalSize += ep.size || 0;
+    agg.totalDuration += ep.duration || 0;
+    const h = parseInt((ep.resolution || '').split('x')[1], 10) || 0;
+    if (h > agg.maxH) { agg.maxH = h; agg.maxRes = ep.resolution; }
+    const c = ep.codec || 'h264';
+    agg.codecTally[c] = (agg.codecTally[c] || 0) + 1;
+    for (const ac of (ep.audioCodecs || [])) agg.audioSet.add(ac);
+    if (!ep.watched) agg.allWatched = false;
+  }
+
+  for (const s of seasons) {
+    if (typeof s.indexNumber === 'number') s.seasonNumber = s.indexNumber;
+    const agg = epAgg.get(s.sourceId);
+    if (!agg) continue;
+    s.totalSize = agg.totalSize;
+    s.totalDuration = agg.totalDuration;
+    s.bitrate = agg.totalDuration > 0 ? Math.round((agg.totalSize * 8) / agg.totalDuration) : 0;
+    s.resolution = agg.maxRes || s.resolution;
+    s.size = agg.totalSize;
+    s.duration = agg.totalDuration;
+    let majorityCodec = s.codec || 'h264';
+    let maxTally = 0;
+    for (const [codec, n] of Object.entries(agg.codecTally)) {
+      if (n > maxTally) { maxTally = n; majorityCodec = codec; }
+    }
+    s.codec = majorityCodec;
+    s.audioCodecs = [...agg.audioSet];
+    s.watched = agg.allWatched;
+    s.episodeCount = episodes.filter((ep) => ep.parentId === s.sourceId).length;
+  }
+
+  return [...movies, ...seasons];
+}
+
+function embyObservationItemInfo(subLib, incoming, existing = null, observationKind = 'new_source_observed') {
+  const now = new Date().toISOString();
+  const sourceId = incoming && (incoming.sourceId || incoming.itemId) || existing && existing.sourceId || '';
+  const itemId = existing && existing.itemId
+    ? existing.itemId
+    : `ingest:${subLib.uuid}:${sourceId || crypto.createHash('sha1').update(String(incoming && incoming.path || now)).digest('hex')}`;
+  const assetKey = incoming
+    ? assetIdentity.computeAssetKey(incoming, subLib.uuid)
+    : existing && existing.assetKey;
+  const assetRootPath = incoming
+    ? assetIdentity.inferAssetRootPath(incoming.path, incoming.isDiscLike)
+    : existing && existing.assetRootPath;
+  const externalRefs = incoming
+    ? { emby: assetIdentity.makeExternalEmbyRef(incoming, subLib, now) }
+    : existing && existing.externalRefs;
+  return {
+    itemId,
+    name: incoming && incoming.name || existing && existing.name || sourceId || itemId,
+    subLibraryId: subLib.uuid,
+    source: 'emby',
+    sourceId,
+    embyItemId: sourceId,
+    path: incoming && incoming.path || existing && existing.path || '',
+    type: incoming && incoming.type || existing && existing.type || 'movie',
+    assetKey,
+    assetRootPath,
+    externalRefs,
+    sourceExists: observationKind !== 'source_missing',
+    sourceObservationKind: observationKind,
+    sourceObservedAt: now,
+    sourceSnapshot: incoming || null,
+  };
+}
+
+function sourceFactsChanged(existing = {}, incoming = {}, subLibraryId = '') {
+  const incomingSourceId = incoming.sourceId || incoming.itemId || '';
+  const incomingAssetKey = assetIdentity.computeAssetKey(incoming, subLibraryId);
+  const incomingAssetRootPath = assetIdentity.inferAssetRootPath(incoming.path, incoming.isDiscLike);
+  return String(existing.sourceId || '') !== String(incomingSourceId || '')
+    || String(existing.path || '') !== String(incoming.path || '')
+    || Number(existing.size || 0) !== Number(incoming.size || 0)
+    || String(existing.assetKey || '') !== String(incomingAssetKey || '')
+    || String(existing.assetRootPath || '') !== String(incomingAssetRootPath || '')
+    || existing.sourceExists === false;
 }
 
 function normalizeVideoCodec(raw) {
@@ -177,10 +282,6 @@ function saveLibrary(lib) {
 
 function updateLibraryItems(items) {
   return libraryStore.updateItems(items);
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function selectStartupIngestSubLibraries(subLibs = [], config = {}, nowMs = Date.now()) {
@@ -483,6 +584,38 @@ function updateUserRating(itemId, userRating) {
   return item;
 }
 
+function applyEmbyPerceptionFacts(itemId, embyItem = {}, opts = {}) {
+  const item = libraryStore.getItem(itemId);
+  if (!item) throw new Error('Item not found');
+  const now = opts.now || new Date().toISOString();
+  let changed = false;
+  if (embyItem.watched != null && item.watched !== embyItem.watched) {
+    item.watched = embyItem.watched;
+    item.watchedSource = 'emby';
+    item.watchedUpdatedAt = now;
+    changed = true;
+  }
+  if (embyItem.playCount != null && item.playCount !== embyItem.playCount) {
+    item.playCount = embyItem.playCount;
+    item.playCountSource = 'emby';
+    changed = true;
+  }
+  if (embyItem.lastPlayedAt != null && item.lastPlayedAt !== embyItem.lastPlayedAt) {
+    item.lastPlayedAt = embyItem.lastPlayedAt;
+    changed = true;
+  }
+  if (embyItem.favorite != null && item.favorite !== embyItem.favorite) {
+    item.favorite = embyItem.favorite;
+    item.favoriteSource = 'emby';
+    changed = true;
+  }
+  if (changed) {
+    userPerceptionManagement.projectItem(item, { now, source: 'emby' });
+    libraryStore.updateItems([item]);
+  }
+  return item;
+}
+
 function getLibrary(filter = {}, opts = {}) {
   const stageMs = {};
   const measure = (stage, fn) => {
@@ -652,15 +785,6 @@ function addSubLibrary(spec) {
 
   // Start timers for this subLibrary
   startSubLibraryTimers(subLib);
-
-  // Kick off an immediate ingest; ingestSubLibrary runs derived updates once
-  // after the fetched data has been persisted.
-  runBackgroundLibraryOperation({
-    operation: 'mediaLibrary.ingest',
-    resourceKey: `mediaLibrary:${subLib.uuid}`,
-    payload: { subLibraryId: subLib.uuid, subLibraryName: subLib.name || subLib.uuid, trigger: 'add_sub_library' },
-  }, () => ingestSubLibrary(subLib))
-    .catch((e) => console.error('[mediaLibrary] addSubLibrary ingest error:', e));
 
   return subLib;
 }
@@ -843,50 +967,187 @@ function applyCachedDoubanForSubLibrary(subLib) {
   return result;
 }
 
-function runPostIngestUpdates() {
-  replayMediaFactsProjection();
-  try {
-    const strategyEngine = require('./strategyEngine');
-    strategyEngine.runOnce();
-  } catch (_) { /* strategyEngine not yet started — timer will pick it up */ }
-}
+async function listSourceObservationCandidates(config = configStore.loadConfig(), options = {}) {
+  const requestedSubLibraryId = String(options.subLibraryId || '').trim();
+  const candidates = [];
+  const subLibs = (config.subLibraries || []).filter((sl) => (
+    sl
+    && sl.enabled !== false
+    && (sl.source || 'emby') !== 'folder'
+    && (!requestedSubLibraryId || sl.uuid === requestedSubLibraryId)
+  ));
 
-async function ingestSubLibrary(subLib, options = {}) {
-  const runDerivedUpdates = options.runDerivedUpdates !== false;
-  const name = subLib.name || subLib.uuid;
-  try {
-    if (subLib.source === 'folder') {
-      return;
-    }
-    const cfg = configStore.loadConfig();
-    const server = (cfg.embyServers || {})[subLib.embyServerId];
-    if (!server || !server.baseUrl) {
-      console.log('[mediaLibrary] skip ingest: no server config for', subLib.uuid);
-      return;
-    }
-    activityLog.addActivity('media_library', `正在同步入库「${name}」…`);
-    const beforeCount = libraryStore.countBySubLibrary(subLib.uuid);
-    const items = await embyService.getLibraryItems(server, subLib.sectionId);
-    await enrichDiscMetadata(items, subLib, cfg);
-    const result = upsertItems(subLib.uuid, items, { fullSync: true });
-    const afterCount = libraryStore.countBySubLibrary(subLib.uuid);
-    const newItems = Math.max(0, afterCount - beforeCount + result.removed);
-    const msg = newItems > 0
-      ? `子库「${name}」入库同步完成，${newItems} 个新媒体入库，${result.removed} 个已清理`
-      : `子库「${name}」入库同步完成，无新增内容`;
-    activityLog.addActivity('media_library', msg, { subLibraryId: subLib.uuid, itemCount: items.length, newItems, removed: result.removed });
-    console.log('[mediaLibrary] ingested', subLib.uuid, 'items:', items.length);
+  for (const subLib of subLibs) {
+    const server = (config.embyServers || {})[subLib.embyServerId];
+    if (!server || !server.baseUrl) continue;
+    const inventory = await embyService.getLibraryItems(server, subLib.sectionId);
+    const manageable = manageableEmbyItems(inventory);
+    const existingItems = libraryStore.queryItems({ subLibraryId: subLib.uuid }).items
+      .filter((item) => (item.source || 'emby') === 'emby');
+    const matchedExisting = new Set();
 
-    // Replay media facts projection and optimize target projection so the
-    // dashboard reflects fresh recommendations immediately after ingest.
-    if (runDerivedUpdates) runPostIngestUpdates();
-  } catch (e) {
-    activityLog.addActivity('media_library', `子库「${name}」入库同步失败：${e.message}`);
-    console.error('[mediaLibrary] ingest error for', subLib.uuid, e.message);
+    for (const incoming of manageable) {
+      const existingIdx = assetIdentity.findExistingItemIndex(existingItems, incoming, subLib, subLib.uuid);
+      const existing = existingIdx >= 0 ? existingItems[existingIdx] : null;
+      const observationKind = existing ? 'source_changed' : 'new_source_observed';
+      if (existing) matchedExisting.add(existing.itemId);
+      if (existing && !sourceFactsChanged(existing, incoming, subLib.uuid)) continue;
+      const itemInfo = embyObservationItemInfo(subLib, incoming, existing, observationKind);
+      candidates.push({
+        targetGate: 'ingest',
+        itemInfo,
+        gateObjective: {
+          kind: 'source_observation',
+          observationKind,
+          source: 'emby',
+          subLibraryId: subLib.uuid,
+        },
+        timestamp: Date.now(),
+      });
+    }
+
+    for (const existing of existingItems) {
+      if (matchedExisting.has(existing.itemId)) continue;
+      if (existing.sourceExists === false) continue;
+      const itemInfo = embyObservationItemInfo(subLib, null, existing, 'source_missing');
+      candidates.push({
+        targetGate: 'ingest',
+        itemInfo,
+        gateObjective: {
+          kind: 'source_observation',
+          observationKind: 'source_missing',
+          source: 'emby',
+          subLibraryId: subLib.uuid,
+        },
+        timestamp: Date.now(),
+      });
+    }
   }
+
+  return candidates;
 }
 
-const refreshSubLibrary = ingestSubLibrary;
+function commitEmbySourceCandidate(itemInfo = {}, opts = {}) {
+  const now = opts.now || new Date().toISOString();
+  const cfg = opts.config || configStore.loadConfig();
+  const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === itemInfo.subLibraryId);
+  if (!subLib) throw new Error('SubLibrary not found');
+  const observationKind = String(itemInfo.sourceObservationKind || '').trim() || 'source_changed';
+  const sourceId = itemInfo.sourceId || itemInfo.embyItemId || '';
+  let item = itemInfo.itemId && libraryStore.getItem(itemInfo.itemId);
+  const sourceSnapshot = itemInfo.sourceSnapshot && typeof itemInfo.sourceSnapshot === 'object'
+    ? itemInfo.sourceSnapshot
+    : null;
+
+  if (observationKind === 'source_missing') {
+    if (!item) throw new Error('Source missing target item not found');
+    item.sourceExists = false;
+    item.sourceMissingAt = now;
+    item.sourceObservedAt = now;
+    item.lastRefreshedAt = now;
+    libraryStore.updateItems([item]);
+    factsFreshnessService.markFresh(item.itemId, ['sourceFacts'], {
+      now,
+      updatedAt: now,
+      observedAt: now,
+      evidence: { source: 'emby_inventory', observationKind, subLibraryId: subLib.uuid },
+    });
+    factsFreshnessService.markStale(item.itemId, ['mediaFacts', 'metadataFacts'], {
+      now,
+      reason: 'source_missing',
+      refreshTargetGate: 'ingest',
+      evidence: { source: 'emby_inventory', observationKind, subLibraryId: subLib.uuid },
+    });
+    return { item, created: false, observationKind };
+  }
+
+  if (!sourceSnapshot) throw new Error('Emby source snapshot is required');
+  const incomingAssetKey = assetIdentity.computeAssetKey(sourceSnapshot, subLib.uuid);
+  const incomingAssetRootPath = assetIdentity.inferAssetRootPath(sourceSnapshot.path, sourceSnapshot.isDiscLike);
+  const incomingExternalRefs = { emby: assetIdentity.makeExternalEmbyRef(sourceSnapshot, subLib, now) };
+
+  if (!item) {
+    item = {
+      itemId: generateUuid(),
+      subLibraryId: subLib.uuid,
+      name: sourceSnapshot.name || itemInfo.name || '',
+      path: sourceSnapshot.path || '',
+      source: 'emby',
+      sourceId,
+      assetKey: incomingAssetKey,
+      assetRootPath: incomingAssetRootPath,
+      externalRefs: incomingExternalRefs,
+      type: sourceSnapshot.type || itemInfo.type || 'movie',
+      bitrate: 0,
+      duration: 0,
+      resolution: '',
+      size: sourceSnapshot.size || 0,
+      codec: '',
+      audioCodecs: [],
+      bucket: '',
+      premiereDate: null,
+      genres: [],
+      isDiscLike: !!sourceSnapshot.isDiscLike,
+      watched: false,
+      playCount: null,
+      lastPlayedAt: null,
+      favorite: null,
+      doubanId: null,
+      doubanRating: null,
+      doubanRatingUpdatedAt: null,
+      userRating: null,
+      userRatingUpdatedAt: null,
+      lastRefreshedAt: now,
+      sourceExists: true,
+      sourceObservedAt: now,
+      reason: 'source observed',
+      seriesName: sourceSnapshot.seriesName || null,
+      seriesId: sourceSnapshot.seriesId || null,
+      seasonNumber: sourceSnapshot.seasonNumber || null,
+      episodeCount: sourceSnapshot.episodeCount || null,
+      tmdbId: sourceSnapshot.tmdbId || null,
+      providerIds: sourceSnapshot.providerIds || {},
+    };
+    const lib = loadLibrary();
+    lib.items = Array.isArray(lib.items) ? lib.items : [];
+    lib.items.push(item);
+    lib.cachedAt = now;
+    saveLibrary(lib);
+  } else {
+    item = {
+      ...item,
+      source: 'emby',
+      sourceId: sourceId || item.sourceId,
+      assetKey: incomingAssetKey || item.assetKey,
+      assetRootPath: incomingAssetRootPath || item.assetRootPath,
+      externalRefs: { ...(item.externalRefs || {}), ...incomingExternalRefs },
+      name: sourceSnapshot.name || item.name,
+      path: sourceSnapshot.path || item.path,
+      type: sourceSnapshot.type || item.type,
+      size: sourceSnapshot.size > 0 ? sourceSnapshot.size : item.size,
+      isDiscLike: sourceSnapshot.isDiscLike != null ? sourceSnapshot.isDiscLike : item.isDiscLike,
+      sourceExists: true,
+      sourceMissingAt: null,
+      sourceObservedAt: now,
+      lastRefreshedAt: now,
+    };
+    libraryStore.updateItems([item]);
+  }
+
+  factsFreshnessService.markFresh(item.itemId, ['sourceFacts'], {
+    now,
+    updatedAt: now,
+    observedAt: now,
+    evidence: { source: 'emby_inventory', observationKind, subLibraryId: subLib.uuid },
+  });
+  factsFreshnessService.markStale(item.itemId, ['mediaFacts', 'metadataFacts'], {
+    now,
+    reason: observationKind,
+    refreshTargetGate: 'metadata',
+    evidence: { source: 'emby_inventory', observationKind, subLibraryId: subLib.uuid },
+  });
+  return { item, created: observationKind === 'new_source_observed', observationKind };
+}
 
 async function syncDoubanForSubLibrary(subLib) {
   const name = subLib.name || subLib.uuid;
@@ -1056,19 +1317,6 @@ function startSubLibraryTimers(subLib) {
 
   const timers = {};
 
-  // Emby ingest timer (1h)
-  timers.ingest = setInterval(() => {
-    const cfg = configStore.loadConfig();
-    const sl = (cfg.subLibraries || []).find((s) => s.uuid === uuid);
-    if (sl && sl.enabled !== false) {
-      runBackgroundLibraryOperation({
-        operation: 'mediaLibrary.ingest',
-        resourceKey: `mediaLibrary:${uuid}`,
-        payload: { subLibraryId: uuid, subLibraryName: sl.name || uuid, trigger: 'timer' },
-      }, () => ingestSubLibrary(sl)).catch((e) => console.error('[mediaLibrary] timer ingest error:', e));
-    }
-  }, 3600000);
-
   // Douban sync timer (6h) — only if enabled
   if (subLib.doubanEnabled) {
     timers.douban = setInterval(() => {
@@ -1111,45 +1359,7 @@ function startAllSubLibraryTimers() {
     }
   };
 
-  if (cfg.mediaLibraryStartupRefreshOnStartup === false) {
-    console.log('[mediaLibrary] startup ingest disabled by config');
-    runMediaFactsMaintenance();
-    return;
-  }
-
-  const delaySeconds = Math.max(0, Number(cfg.mediaLibraryStartupRefreshDelaySeconds) || 0);
-  console.log(`[mediaLibrary] startup ingest scheduled in ${delaySeconds}s`);
-  startupIngestTimer = setTimeout(() => {
-    startupIngestTimer = null;
-    const currentCfg = configStore.loadConfig();
-    if (currentCfg.mediaLibraryStartupRefreshOnStartup === false) {
-      console.log('[mediaLibrary] startup ingest skipped by config');
-      runMediaFactsMaintenance();
-      return;
-    }
-
-    // Ingest stale subLibraries first, then replay media facts projection once
-    // data is in. equivalentBitrate depends on bitrate/duration facts.
-    (async () => {
-      const ingestTargets = selectStartupIngestSubLibraries(subLibs, currentCfg);
-      if (ingestTargets.length === 0) {
-        console.log('[mediaLibrary] startup ingest skipped: no stale subLibrary within startup budget');
-      } else {
-        console.log(`[mediaLibrary] startup ingest will process ${ingestTargets.length} stale subLibraries`);
-      }
-      for (const sl of ingestTargets) {
-        await runBackgroundLibraryOperation({
-          operation: 'mediaLibrary.ingest',
-          resourceKey: `mediaLibrary:${sl.uuid}`,
-          payload: { subLibraryId: sl.uuid, subLibraryName: sl.name || sl.uuid, trigger: 'startup' },
-        }, () => ingestSubLibrary(sl, { runDerivedUpdates: false }));
-        await wait(STARTUP_REFRESH_STAGGER_MS);
-      }
-      runPostIngestUpdates();
-      runMediaFactsMaintenance({ runImmediately: false });
-    })().catch((e) => console.error('[mediaLibrary] startup ingest error:', e));
-  }, delaySeconds * 1000);
-  startupIngestTimer.unref && startupIngestTimer.unref();
+  runMediaFactsMaintenance();
 }
 
 function stopAllTimers() {
@@ -1162,15 +1372,6 @@ function stopAllTimers() {
   }
   stopMediaFactsProjectionReplayTimer();
 }
-
-async function triggerIngest(subLibraryId) {
-  const cfg = configStore.loadConfig();
-  const sl = (cfg.subLibraries || []).find((s) => s.uuid === subLibraryId);
-  if (!sl) throw new Error('SubLibrary not found');
-  await ingestSubLibrary(sl);
-}
-
-const triggerRefresh = triggerIngest;
 
 async function triggerDoubanSync(subLibraryId) {
   const cfg = configStore.loadConfig();
@@ -1189,9 +1390,12 @@ module.exports = {
   getSmartTaskCandidateItems,
   upsertItems,
   updateUserRating,
+  applyEmbyPerceptionFacts,
   saveLibrary,
   updateLibraryItems,
   getLibraryStatus,
+  listSourceObservationCandidates,
+  commitEmbySourceCandidate,
 
   // SubLibrary CRUD
   addSubLibrary,
@@ -1213,10 +1417,6 @@ module.exports = {
   stopSubLibraryTimers,
 
   // Manual triggers
-  ingestSubLibrary,
-  refreshSubLibrary,
-  triggerIngest,
-  triggerRefresh,
   triggerDoubanSync,
   completeEmbyItemMetadata,
 

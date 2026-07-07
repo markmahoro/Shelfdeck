@@ -13,7 +13,8 @@ Last updated: 2026-07-07
 - Latest deployment time: `2026-07-07 22:02 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: paused before rerun after deployment; `Kairox Beta` is not achieved until E2E passes.
+- Production E2E status: paused at Stage 6; `Kairox Beta` is not achieved until E2E passes.
+- Refresh cutover blocker status: implemented locally and verified by tests; not yet deployed to production and not yet re-validated by E2E.
 
 ## Current Architecture State
 
@@ -50,6 +51,8 @@ Last updated: 2026-07-07
 - The sample was shortened to about one minute per episode and Emby was refreshed by the user.
 - The previous blocker was stale ShelfDeck facts after the media files changed.
 - That blocker should now be addressed by the deployed facts freshness implementation.
+- Stage 0-6 produced useful evidence, but the run is not accepted as Beta proof because refresh cutover still needs production deployment and E2E re-validation.
+- E2E Stage 7+ must not continue until the refresh cutover is deployed and the affected E2E stage is rerun.
 
 ## Release Goal Status
 
@@ -63,7 +66,13 @@ Last updated: 2026-07-07
 
 ## Unresolved / Not Yet Proven
 
-- Production Frontend/API E2E has not yet been rerun after deploying facts freshness.
+- Production Frontend/API E2E is paused at Stage 6.
+- Refresh cutover is implemented in the worktree:
+  - manual `/v1/library/actions/ingest` and `/refresh` request Kairox SmartTask scan.
+  - sublibrary add / startup / timer no longer run direct Emby ingest.
+  - public cache write API returns `LEGACY_CACHE_WRITE_DISABLED`.
+  - Emby inventory observations become `targetGate=ingest` candidates.
+  - Emby source commit writes source facts and marks media/metadata stale.
 - Kairox business chain still needs production proof:
   - frontend page visibility.
   - media projection correctness.

@@ -13,14 +13,18 @@ function readRepoFile(relativePath) {
 
 test('Kairox rebaseline docs define User Perception and active roadmap', () => {
   const architecture = readRepoFile('docs/v3/KAIROX_ARCHITECTURE.md');
-  const rebaseline = readRepoFile('docs/v3/V3_4_REBASELINE_PLAN.md');
+  const currentPlan = readRepoFile('docs/v3/CURRENT_PLAN.md');
+  const releaseGoals = readRepoFile('docs/v3/RELEASE_GOALS.md');
+  const playbook = readRepoFile('docs/v3/KAIROX_ENGINEERING_PLAYBOOK.md');
   const adr = readRepoFile('docs/v3/adr/0004-user-perception-management.md');
 
   assert.match(architecture, /User Perception Management/);
   assert.match(architecture, /metadata gate 不覆盖 user perception facts/);
   assert.match(architecture, /metadata gate passed` 不等于 `optimize objective ready/);
-  assert.match(rebaseline, /Status: Active plan after Kairox User Perception update/);
-  assert.match(rebaseline, /Flow Planner Gap Analysis/);
+  assert.match(currentPlan, /Kairox Beta/);
+  assert.match(currentPlan, /refresh capability Kairox cutover/);
+  assert.match(releaseGoals, /Kairox Beta/);
+  assert.match(playbook, /User Perception Management/);
   assert.match(adr, /Douban 私人评分/);
 });
 

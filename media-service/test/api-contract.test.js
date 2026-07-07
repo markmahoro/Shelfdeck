@@ -25,6 +25,11 @@ function buildEmptyApp(apiKey) {
   return buildApp({ logger: false, dataDir: dir, apiKey: apiKey || '' });
 }
 
+function seedLibraryCache(subLibraryId, items, opts = {}) {
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  return mediaLibraryService.upsertItems(subLibraryId, items, opts);
+}
+
 // ── Library: queries/manage ──────────────────────────────────────────────────────
 
 test('GET /v1/library/queries/manage returns { items, total }', async () => {
@@ -97,15 +102,7 @@ test('GET /v1/library/items/:itemId returns 404 for unknown item', async () => {
 test('GET /v1/library/items/:itemId returns item after cache write', async () => {
   const dir = tempDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  // Write an item via cache endpoint
-  await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: {
-      subLibraryId: 'sublib-test',
-      items: [{ sourceId: 'emby-item-x', name: 'Test Movie', type: 'Movie', path: '/m/test.mkv', bitrate: 10000000, duration: 3600, resolution: '1920x1080', size: 5000000000, premiereDate: '2025-01-01', genres: ['Action'], isDiscLike: false }],
-    },
-  });
+  seedLibraryCache('sublib-test', [{ sourceId: 'emby-item-x', name: 'Test Movie', type: 'Movie', path: '/m/test.mkv', bitrate: 10000000, duration: 3600, resolution: '1920x1080', size: 5000000000, premiereDate: '2025-01-01', genres: ['Action'], isDiscLike: false }]);
   // Now query it
   const items = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sublib-test' });
   const found = items.json().items.find((i) => i.sourceId === 'emby-item-x');
@@ -147,15 +144,7 @@ test('PATCH /v1/library/ratings userRating > 5 -> 400', async () => {
 test('PATCH /v1/library/ratings writes userRating and returns ok', async () => {
   const dir = tempDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  // First cache an item
-  await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: {
-      subLibraryId: 'sublib-rating',
-      items: [{ sourceId: 'emby-rate-1', name: 'Rating Test', type: 'Movie', path: '/m/r.mkv', bitrate: 15000000, duration: 5400, resolution: '1920x1080', size: 8000000000, premiereDate: '2024-06-01', genres: ['Drama'], isDiscLike: false }],
-    },
-  });
+  seedLibraryCache('sublib-rating', [{ sourceId: 'emby-rate-1', name: 'Rating Test', type: 'Movie', path: '/m/r.mkv', bitrate: 15000000, duration: 5400, resolution: '1920x1080', size: 8000000000, premiereDate: '2024-06-01', genres: ['Drama'], isDiscLike: false }]);
   // Find its itemId
   const items = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sublib-rating' });
   const found = items.json().items.find((i) => i.sourceId === 'emby-rate-1');
@@ -186,14 +175,14 @@ test('POST /v1/library/actions/ingest missing subLibraryId -> 400', async () => 
 });
 
 test('POST /v1/library/actions/ingest valid returns 202 Accepted', async () => {
-  // Ingest is async; the route returns 202 immediately.
-  // Unknown subLibraryId failure surfaces asynchronously (not in HTTP response).
+  // Ingest is a Kairox scan request; direct cache writes are not performed here.
   const dir = tempDir();
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ subLibraries: [{ uuid: 'sublib-rf', name: 'R', embyServerId: 'srv', sectionId: 'sec', enabled: true }] }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const res = await app.inject({ method: 'POST', url: '/v1/library/actions/ingest', payload: { subLibraryId: 'sublib-rf' } });
   assert.strictEqual(res.statusCode, 202);
-  assert.strictEqual(res.json().message, 'Ingest triggered');
+  assert.strictEqual(res.json().mode, 'kairox_scan');
+  assert.strictEqual(res.json().subLibraryId, 'sublib-rf');
   await app.close();
 });
 
@@ -208,14 +197,14 @@ test('POST /v1/library/actions/refresh missing subLibraryId -> 400', async () =>
 });
 
 test('POST /v1/library/actions/refresh valid returns 202 Accepted', async () => {
-  // Refresh is a compatibility alias for ingest.
-  // Unknown subLibraryId failure surfaces asynchronously (not in HTTP response).
+  // Refresh is an intent alias for a Kairox scan, not a direct cache write.
   const dir = tempDir();
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ subLibraries: [{ uuid: 'sublib-rf', name: 'R', embyServerId: 'srv', sectionId: 'sec', enabled: true }] }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const res = await app.inject({ method: 'POST', url: '/v1/library/actions/refresh', payload: { subLibraryId: 'sublib-rf' } });
   assert.strictEqual(res.statusCode, 202);
-  assert.strictEqual(res.json().message, 'Ingest triggered');
+  assert.strictEqual(res.json().mode, 'kairox_scan');
+  assert.strictEqual(res.json().subLibraryId, 'sublib-rf');
   await app.close();
 });
 
@@ -247,7 +236,7 @@ test('GET /v1/library/status returns subLibraries array', async () => {
 
 // ── Library: cache ───────────────────────────────────────────────────────────────
 
-test('POST /v1/library/cache upserts items and returns counts', async () => {
+test('POST /v1/library/cache is disabled for Kairox runtime', async () => {
   const app = await buildEmptyApp();
   const payload = {
     subLibraryId: 'sublib-cache-1',
@@ -257,30 +246,20 @@ test('POST /v1/library/cache upserts items and returns counts', async () => {
     ],
   };
   const res = await app.inject({ method: 'POST', url: '/v1/library/cache', payload });
-  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.statusCode, 410);
   const body = res.json();
-  assert.strictEqual(body.ok, true);
-  assert.strictEqual(body.upserted, 2);
-  // Verify items appear in library
-  const lib = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sublib-cache-1' });
-  assert.strictEqual(lib.json().total, 2);
+  assert.strictEqual(body.ok, false);
+  assert.strictEqual(body.error.code, 'LEGACY_CACHE_WRITE_DISABLED');
   await app.close();
 });
 
 test('GET /v1/library supports server-side pagination and search', async () => {
   const app = await buildEmptyApp();
-  await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: {
-      subLibraryId: 'sublib-page',
-      items: [
-        { sourceId: 'src-1', name: 'Movie Alpha', type: 'Movie', path: '/m/a.mkv', bitrate: 10000000, duration: 3600, resolution: '1920x1080', size: 4000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
-        { sourceId: 'src-2', name: 'Movie Beta', type: 'Movie', path: '/m/b.mkv', bitrate: 12000000, duration: 7200, resolution: '1920x1080', size: 5000000000, premiereDate: '2025-02-01', genres: [], isDiscLike: false },
-        { sourceId: 'src-3', name: 'Movie Gamma', type: 'Movie', path: '/m/c.mkv', bitrate: 8000000, duration: 5400, resolution: '1920x1080', size: 3000000000, premiereDate: '2025-03-01', genres: [], isDiscLike: false },
-      ],
-    },
-  });
+  seedLibraryCache('sublib-page', [
+    { sourceId: 'src-1', name: 'Movie Alpha', type: 'Movie', path: '/m/a.mkv', bitrate: 10000000, duration: 3600, resolution: '1920x1080', size: 4000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
+    { sourceId: 'src-2', name: 'Movie Beta', type: 'Movie', path: '/m/b.mkv', bitrate: 12000000, duration: 7200, resolution: '1920x1080', size: 5000000000, premiereDate: '2025-02-01', genres: [], isDiscLike: false },
+    { sourceId: 'src-3', name: 'Movie Gamma', type: 'Movie', path: '/m/c.mkv', bitrate: 8000000, duration: 5400, resolution: '1920x1080', size: 3000000000, premiereDate: '2025-03-01', genres: [], isDiscLike: false },
+  ]);
 
   const res = await app.inject({ method: 'GET', url: '/v1/library?subLibraryId=sublib-page&search=Movie&limit=2&offset=1' });
   assert.strictEqual(res.statusCode, 200);
@@ -486,24 +465,18 @@ test('libraryStore updateItems updates only existing rows', async () => {
   await app.close();
 });
 
-test('POST /v1/library/cache removes stale items', async () => {
+test('library fixture helper removes stale items', async () => {
   const app = await buildEmptyApp();
   // First insert 2 items
-  await app.inject({
-    method: 'POST', url: '/v1/library/cache',
-    payload: { subLibraryId: 'sublib-rm', items: [
-      { sourceId: 'src-keep', name: 'Keep', type: 'Movie', path: '/m/k.mkv', bitrate: 10000000, duration: 3600, resolution: '1280x720', size: 2000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
-      { sourceId: 'src-rm', name: 'Remove', type: 'Movie', path: '/m/r.mkv', bitrate: 5000000, duration: 1800, resolution: '640x480', size: 1000000000, premiereDate: '2024-01-01', genres: [], isDiscLike: false },
-    ] },
-  });
+  seedLibraryCache('sublib-rm', [
+    { sourceId: 'src-keep', name: 'Keep', type: 'Movie', path: '/m/k.mkv', bitrate: 10000000, duration: 3600, resolution: '1280x720', size: 2000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
+    { sourceId: 'src-rm', name: 'Remove', type: 'Movie', path: '/m/r.mkv', bitrate: 5000000, duration: 1800, resolution: '640x480', size: 1000000000, premiereDate: '2024-01-01', genres: [], isDiscLike: false },
+  ], { fullSync: true });
   // Second batch drops src-rm
-  const res = await app.inject({
-    method: 'POST', url: '/v1/library/cache',
-    payload: { subLibraryId: 'sublib-rm', items: [
-      { sourceId: 'src-keep', name: 'Keep', type: 'Movie', path: '/m/k.mkv', bitrate: 10000000, duration: 3600, resolution: '1280x720', size: 2000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
-    ] },
-  });
-  assert.strictEqual(res.json().removed, 1);
+  const res = seedLibraryCache('sublib-rm', [
+    { sourceId: 'src-keep', name: 'Keep', type: 'Movie', path: '/m/k.mkv', bitrate: 10000000, duration: 3600, resolution: '1280x720', size: 2000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
+  ], { fullSync: true });
+  assert.strictEqual(res.removed, 1);
   const lib = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sublib-rm' });
   assert.strictEqual(lib.json().total, 1);
   await app.close();
@@ -553,34 +526,25 @@ test('GET /v1/space-stats uses lightweight SQLite rows', async () => {
   }
 });
 
-test('POST /v1/library/cache keeps stable ShelfDeck itemId when Emby Id changes', async () => {
+test('library fixture helper keeps stable ShelfDeck itemId when Emby Id changes', async () => {
   const app = await buildEmptyApp();
   const subLibraryId = 'sublib-stable-id';
   const discPath = '/volume1/Media/Film/Fight Club (1999)/Fight Club (1999) - x264 2Audio';
   const mkvPath = `${discPath}.mkv`;
 
-  await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: {
-      subLibraryId,
-      items: [
-        {
-          sourceId: 'emby-old-id',
-          name: 'Fight Club',
-          type: 'Movie',
-          path: discPath,
-          bitrate: 14000000,
-          duration: 8348,
-          resolution: '1920x1080',
-          size: 15000000000,
-          premiereDate: '1999-10-15',
-          genres: [],
-          isDiscLike: true,
-        },
-      ],
-    },
-  });
+  seedLibraryCache(subLibraryId, [{
+    sourceId: 'emby-old-id',
+    name: 'Fight Club',
+    type: 'Movie',
+    path: discPath,
+    bitrate: 14000000,
+    duration: 8348,
+    resolution: '1920x1080',
+    size: 15000000000,
+    premiereDate: '1999-10-15',
+    genres: [],
+    isDiscLike: true,
+  }], { fullSync: true });
 
   const first = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLibraryId}` });
   const firstItem = first.json().items[0];
@@ -593,28 +557,19 @@ test('POST /v1/library/cache keeps stable ShelfDeck itemId when Emby Id changes'
   stored.lastTranscodeDoneAt = '2026-06-23T02:21:55.016Z';
   mediaLibraryService.saveLibrary(lib);
 
-  await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: {
-      subLibraryId,
-      items: [
-        {
-          sourceId: 'emby-new-id',
-          name: 'Fight Club',
-          type: 'Movie',
-          path: mkvPath,
-          bitrate: 8700000,
-          duration: 8348,
-          resolution: '1920x1080',
-          size: 9000000000,
-          premiereDate: '1999-10-15',
-          genres: [],
-          isDiscLike: false,
-        },
-      ],
-    },
-  });
+  seedLibraryCache(subLibraryId, [{
+    sourceId: 'emby-new-id',
+    name: 'Fight Club',
+    type: 'Movie',
+    path: mkvPath,
+    bitrate: 8700000,
+    duration: 8348,
+    resolution: '1920x1080',
+    size: 9000000000,
+    premiereDate: '1999-10-15',
+    genres: [],
+    isDiscLike: false,
+  }], { fullSync: true });
 
   const second = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLibraryId}` });
   const body = second.json();
@@ -751,12 +706,9 @@ test('GET /v1/library returns items with embyWebUrl when server configured', asy
   }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   // Insert item into this sublib
-  await app.inject({
-    method: 'POST', url: '/v1/library/cache',
-    payload: { subLibraryId: 'sublib-web', items: [
-      { sourceId: 'emby-web-1', name: 'Web Test', type: 'Movie', path: '/m/w.mkv', bitrate: 8000000, duration: 3600, resolution: '1920x1080', size: 3000000000, premiereDate: '2025-03-01', genres: [], isDiscLike: false },
-    ] },
-  });
+  seedLibraryCache('sublib-web', [
+    { sourceId: 'emby-web-1', name: 'Web Test', type: 'Movie', path: '/m/w.mkv', bitrate: 8000000, duration: 3600, resolution: '1920x1080', size: 3000000000, premiereDate: '2025-03-01', genres: [], isDiscLike: false },
+  ]);
   const res = await app.inject({ method: 'GET', url: '/v1/library?subLibraryId=sublib-web' });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();

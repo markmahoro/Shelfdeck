@@ -54,6 +54,7 @@ transcode task -> optimize task with selectedFlow=transcode
 | `staged facts` / 暂存事实 | flow 产出的待接受结果 | Flow Executor output、Resource Runtime、flow verification | 不能直接当成 Lifecycle gate passed |
 | `event evidence` / 执行证据 | 证明 staged facts 可信的执行记录 | Task events、Resource Runtime、diagnostic | 不能替代权威事实 |
 | `factRefreshRequest` / 事实刷新请求 | 权威事实过期后的 declarative signal | Flow Executor output、Lifecycle projection input | 不能直接创建 task；不能绕过 Task Creator |
+| `refresh` / 刷新 | 用户或系统请求重新观察外部 source 的意图 | API 文案、activity、scan request | 不能是 targetGate、flowKind 或 task type；不能直接写权威事实 |
 
 ## 3. 禁止术语
 
@@ -269,6 +270,16 @@ Task Creator 只创建 targetGate task
 - 发布跨 gate 的权威事实。
 
 成人库模块属于 Source Adapter / Domain Fact Writer。它可以发现文件、写 candidate facts、reset metadata facts 以便重新进入 metadata gate，但不能自己 enqueue ingest/scrape task。
+
+Emby 媒体库 refresh 也属于 Source Adapter / observation 入口。它只能发现：
+
+```text
+new_source_observed
+source_changed
+source_missing
+```
+
+这些 observation 必须由 SmartTaskEngine / Task Creator 转成 `targetGate=ingest` 或 `targetGate=metadata` task。`refresh` 本身不能直接调用 canonical fact writer。Emby 中消失的条目只能先写入 `sourceExists=false` / `sourceMissingAt` 这类 source facts，不能直接从 ShelfDeck 删除。
 
 ### Task Creator / TaskAdmission
 

@@ -120,14 +120,8 @@ class ApiClient {
   }
 
   async setLibraryCache(items: unknown[]): Promise<{ items: unknown[]; cachedAt: string }> {
-    const url = `${this.getBaseUrl()}/v1/library/cache`;
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ items }),
-    });
-    if (!r.ok) throw new Error(`Failed to set library cache: HTTP ${r.status}`);
-    return r.json();
+    void items;
+    throw new Error('Direct library cache writes are disabled. Use Kairox ingest/metadata tasks.');
   }
 
   async getItemRatings(): Promise<Record<string, { rating: number; updatedAt: string }>> {

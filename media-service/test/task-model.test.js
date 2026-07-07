@@ -1816,6 +1816,143 @@ test('smartTaskEngine auto-enqueues ingest candidates through unified priority b
   assert.strictEqual(created[0].source, 'auto');
 });
 
+test('smartTaskEngine runOnce treats manual refresh as explicit target-gate intent', async () => {
+  smartTaskEngine.stop();
+  const created = [];
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 999,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          automaticTaskTargets: [],
+          optimizeAllowedFlowKinds: [],
+          subLibraries: [{ uuid: 'emby-lib', source: 'emby', automationMode: 'auto', priorityWeight: 100 }],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            manualTaskPriority: 0,
+            targetGateWeights: { ingest: 60 },
+            rulesByTargetGate: { ingest: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByTargetGate: { ingest: 0 },
+            maxQueuedByTargetGate: { ingest: 10 },
+          },
+        };
+      },
+    },
+    {
+      getSmartTaskCandidateItems() {
+        return [];
+      },
+    },
+    {
+      getTasks: () => created,
+      loadTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      createTasks(taskItems) {
+        for (const taskData of taskItems) {
+          created.push({ id: `t-${created.length + 1}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...taskData });
+        }
+      },
+      querySchedulerTasks: () => created.filter((t) => !['done', 'failed_hard', 'cancelled', 'skipped', 'deleted'].includes(t.status)),
+      queryTaskAdmissionRows: () => created,
+    },
+    {
+      async ingestCandidateProvider() {
+        return [{
+          targetGate: 'ingest',
+          itemInfo: {
+            itemId: 'ingest:emby-lib:new-source',
+            name: 'New Emby Source',
+            subLibraryId: 'emby-lib',
+            source: 'emby',
+            sourceId: 'emby-new-source',
+          },
+          gateObjective: { kind: 'source_observation', observationKind: 'new_source_observed' },
+        }];
+      },
+    },
+  );
+
+  const summary = await smartTaskEngine.runOnce({ subLibraryId: 'emby-lib', explicitIntent: true });
+  smartTaskEngine.stop();
+  assert.strictEqual(summary.status, 'done');
+  assert.strictEqual(summary.enqueuedByTargetGate.ingest, 1);
+  assert.strictEqual(created.length, 1);
+  assert.strictEqual(created[0].source, 'manual');
+  assert.strictEqual(created[0].taskTarget.targetGate, 'ingest');
+});
+
+test('smartTaskEngine runOnce respects duplicate active ingest tasks', async () => {
+  smartTaskEngine.stop();
+  const active = [{
+    id: 'active-ingest',
+    itemId: 'ingest:emby-lib:dup-source',
+    taskTarget: { targetGate: 'ingest', gateObjective: { kind: 'source_observation' } },
+    status: 'queued',
+  }];
+  smartTaskEngine.start(
+    {
+      resolveSubLibSchedule: configStore.resolveSubLibSchedule,
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 999,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          automaticTaskTargets: [],
+          optimizeAllowedFlowKinds: [],
+          subLibraries: [{ uuid: 'emby-lib', source: 'emby', automationMode: 'auto', priorityWeight: 100 }],
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            manualTaskPriority: 0,
+            targetGateWeights: { ingest: 60 },
+            rulesByTargetGate: { ingest: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByTargetGate: { ingest: 0 },
+            maxQueuedByTargetGate: { ingest: 10 },
+          },
+        };
+      },
+    },
+    { getSmartTaskCandidateItems: () => [] },
+    {
+      getTasks: () => active,
+      loadTasks: () => active,
+      createTasks() {
+        throw new Error('duplicate candidate should not create task');
+      },
+      querySchedulerTasks: () => active,
+      queryTaskAdmissionRows: () => active,
+    },
+    {
+      async ingestCandidateProvider() {
+        return [{
+          targetGate: 'ingest',
+          itemInfo: {
+            itemId: 'ingest:emby-lib:dup-source',
+            name: 'Duplicate Emby Source',
+            subLibraryId: 'emby-lib',
+            source: 'emby',
+            sourceId: 'dup-source',
+          },
+          gateObjective: { kind: 'source_observation', observationKind: 'new_source_observed' },
+        }];
+      },
+    },
+  );
+
+  const summary = await smartTaskEngine.runOnce({ subLibraryId: 'emby-lib', explicitIntent: true });
+  smartTaskEngine.stop();
+  assert.strictEqual(summary.status, 'done');
+  assert.strictEqual(summary.enqueued, 0);
+  assert.strictEqual(summary.admissionRejectedByReason.active_task_exists, 1);
+});
+
 test('smartTaskEngine leaves failed adult metadata candidates for explicit user action', async () => {
   smartTaskEngine.stop();
   const created = [];

@@ -163,7 +163,7 @@ describe('Library', () => {
   const subLibId = `int-lib-${Date.now()}`;
 
   beforeAll(async () => {
-    // Seed library data via cache endpoint
+    // Direct cache writes are disabled after Kairox refresh cutover.
     const r = await fetch(`${SERVICE_URL}/v1/library/cache`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -174,14 +174,13 @@ describe('Library', () => {
         ],
       }),
     });
-    expect(r.ok).toBe(true);
+    expect(r.status).toBe(410);
   });
 
   it('getLibraryCache returns { items, total }', async () => {
     const result = await apiClient.getLibraryCache(subLibId);
     expect(Array.isArray(result.items)).toBe(true);
     expect(typeof result.total).toBe('number');
-    expect(result.total).toBeGreaterThanOrEqual(1);
   });
 
   it('getLibraryCache without filter returns all', async () => {

@@ -2483,10 +2483,21 @@ function registerRoutes(app) {
     const { subLibraryId } = req.body || {};
     if (!subLibraryId) return apiError(reply, 400, 'VALIDATION_ERROR', 'subLibraryId is required');
     try {
-      mediaLibraryService.triggerIngest(subLibraryId);
-      return reply.code(202).send({ ok: true, message: 'Ingest triggered' });
+      const cfg = configStore.loadConfig();
+      const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === subLibraryId);
+      if (!subLib) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
+      const summary = await smartTaskEngine.runOnce({
+        subLibraryId,
+        explicitIntent: true,
+      });
+      return reply.code(202).send({
+        ok: true,
+        mode: 'kairox_scan',
+        subLibraryId,
+        summary,
+      });
     } catch (e) {
-      return apiError(reply, 404, 'NOT_FOUND', e.message);
+      return apiError(reply, 500, 'SMART_TASK_SCAN_FAILED', e.message);
     }
   }
 
@@ -2515,13 +2526,14 @@ function registerRoutes(app) {
     return mediaLibraryService.getLibraryStatus();
   });
 
-  app.post('/v1/library/cache', async (req) => {
-    const { subLibraryId, items } = req.body || {};
-    if (!subLibraryId || !Array.isArray(items)) {
-      return { ok: true, upserted: 0, removed: 0 };
-    }
-    const result = mediaLibraryService.upsertItems(subLibraryId, items, { fullSync: true });
-    return { ok: true, ...result };
+  app.post('/v1/library/cache', async (req, reply) => {
+    return reply.code(410).send({
+      ok: false,
+      error: {
+        code: 'LEGACY_CACHE_WRITE_DISABLED',
+        message: 'Direct library cache writes are disabled. Use Kairox ingest/metadata target-gate tasks.',
+      },
+    });
   });
 
   // ── Library: mark played / unplayed ─────────────────────────────────────
@@ -2539,7 +2551,7 @@ function registerRoutes(app) {
 
       // Fetch single item from Emby to get updated watched status
       const fetchedItem = await embyService.getItem(resolved.serverConfig, embyItemId);
-      mediaLibraryService.upsertItems(resolved.subLib.uuid, [fetchedItem]);
+      mediaLibraryService.applyEmbyPerceptionFacts(itemId, fetchedItem);
 
       activityLog.addActivity('user_action', `「${fetchedItem.name || itemId}」已标记为已看`);
       return { ok: true };
@@ -2561,7 +2573,7 @@ function registerRoutes(app) {
 
       // Fetch single item from Emby to get updated watched status
       const fetchedItem = await embyService.getItem(resolved.serverConfig, embyItemId);
-      mediaLibraryService.upsertItems(resolved.subLib.uuid, [fetchedItem]);
+      mediaLibraryService.applyEmbyPerceptionFacts(itemId, fetchedItem);
 
       return { ok: true };
     } catch (e) {

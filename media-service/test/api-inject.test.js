@@ -5349,12 +5349,10 @@ test('GET /v1/library/queries/manage supports page and pageSize pagination', asy
     action: 'transcode',
     path: `/media/paged-${index + 1}.mkv`,
   }));
-  const cache = await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: { subLibraryId: 'sub-page', items },
+  require('../src/mediaLibraryService').saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items,
   });
-  assert.strictEqual(cache.statusCode, 200);
 
   const res = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?page=2&pageSize=2' });
   assert.strictEqual(res.statusCode, 200);
@@ -5363,6 +5361,68 @@ test('GET /v1/library/queries/manage supports page and pageSize pagination', asy
   assert.strictEqual(body.limit, 2);
   assert.strictEqual(body.offset, 2);
   assert.deepStrictEqual(body.items.map((item) => item.name), ['Paged Movie 3', 'Paged Movie 4']);
+  await app.close();
+});
+
+test('commitEmbySourceCandidate creates source facts without direct refresh API', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    subLibraries: [{ uuid: 'emby-source-lib', name: 'Emby Source', source: 'emby', embyServerId: 'srv', sectionId: 'sec', enabled: true }],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const result = mediaLibraryService.commitEmbySourceCandidate({
+    itemId: 'ingest:emby-source-lib:emby-new',
+    subLibraryId: 'emby-source-lib',
+    source: 'emby',
+    sourceId: 'emby-new',
+    embyItemId: 'emby-new',
+    sourceObservationKind: 'new_source_observed',
+    sourceSnapshot: {
+      sourceId: 'emby-new',
+      name: 'New Source Movie',
+      type: 'Movie',
+      path: '/media/new-source.mkv',
+      size: 123456,
+      isDiscLike: false,
+    },
+  });
+  const stored = mediaLibraryService.getLibraryItem(result.item.itemId);
+  assert.ok(stored, 'source item should be persisted');
+  assert.strictEqual(stored.sourceId, 'emby-new');
+  assert.strictEqual(stored.sourceExists, true);
+  assert.strictEqual(stored.factsFreshness.sourceFacts.status, 'fresh');
+  assert.strictEqual(stored.factsFreshness.mediaFacts.status, 'stale');
+  await app.close();
+});
+
+test('commitEmbySourceCandidate marks missing source without deleting item', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    subLibraries: [{ uuid: 'emby-missing-lib', name: 'Emby Missing', source: 'emby', embyServerId: 'srv', sectionId: 'sec', enabled: true }],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId: 'missing-source-item',
+      subLibraryId: 'emby-missing-lib',
+      sourceId: 'missing-source',
+      path: '/media/missing.mkv',
+    })],
+  });
+  const result = mediaLibraryService.commitEmbySourceCandidate({
+    itemId: 'missing-source-item',
+    subLibraryId: 'emby-missing-lib',
+    source: 'emby',
+    sourceId: 'missing-source',
+    sourceObservationKind: 'source_missing',
+  });
+  const stored = mediaLibraryService.getLibraryItem('missing-source-item');
+  assert.ok(stored, 'missing source should not delete ShelfDeck item');
+  assert.strictEqual(result.created, false);
+  assert.strictEqual(stored.sourceExists, false);
+  assert.ok(stored.sourceMissingAt);
+  assert.strictEqual(stored.factsFreshness.sourceFacts.status, 'fresh');
   await app.close();
 });
 

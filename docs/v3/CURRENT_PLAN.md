@@ -10,7 +10,9 @@ Reach `Kairox Beta` in this worktree.
 
 This worktree stops at `Kairox Beta`. Later goals require a new worktree.
 
-The next concrete action is to rerun the production Kairox E2E from Stage 0 using the `漫长的季节` test sample.
+The production Kairox E2E is paused at Stage 6.
+
+The current blocker `refresh capability Kairox cutover` has been implemented locally and verified by tests. It still needs deployment and E2E re-validation before Stage 7+ continues.
 
 The E2E goal is to prove:
 
@@ -28,27 +30,17 @@ frontend pages are visible
 
 ## Current Execution Order
 
-1. Finish documentation rebaseline.
-2. Finish versioning rebaseline.
-3. Confirm current docs are clear:
-   - `README.md`
-   - `CURRENT_STATUS.md`
-   - `CURRENT_PLAN.md`
-   - `RELEASE_GOALS.md`
-   - `VERSIONING.md`
-   - `acceptance/KAIROX_FRONTEND_API_E2E_PLAN.md`
-4. Resume production E2E only after the user asks to continue.
-5. Run E2E one stage at a time.
-6. After each stage, report:
-   - stage name.
-   - pass/fail.
-   - evidence.
-   - next action.
-7. If a stage fails:
-   - stop at that stage.
-   - identify root cause.
-   - classify as backend semantic gap, projection gap, frontend connection gap, data state issue, or test script issue.
-   - ask the user to confirm the fix direction before modifying production-affecting behavior.
+1. Keep `Kairox Beta E2E` as the main thread objective.
+2. Stop E2E at Stage 6 while the refresh blocker is active.
+3. Refresh cutover implementation is complete locally:
+   - `refresh` remains an intent / scan request, not a task type.
+   - Emby inventory discovery produces source observations.
+   - SmartTaskEngine / Task Creator turn observations into target-gate tasks.
+   - TaskAdmission remains the only creation gate.
+   - Resource Runtime and executors publish facts through the owning gate.
+4. Commit the blocker fix.
+5. Deploy only after explicit user authorization.
+6. Resume E2E from the affected stage and continue one stage at a time.
 
 ## Active E2E Plan
 
@@ -74,10 +66,12 @@ docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
 - Do not use old v3.x roadmap names as current version identity.
 - Do not treat package version `1.0.0` or Docker `latest` as production version identity.
 - Do not run destructive production actions outside the selected E2E canary scope.
+- Do not add a `refresh` target gate, flow kind, or task type.
+- Do not restore batch refresh as a direct canonical facts writer.
 
 ## Next Recommended Action
 
-After document / release-goal cleanup is reviewed, resume production E2E:
+After the refresh cutover is deployed, resume production E2E from the affected stage:
 
 ```powershell
 cd media-service
