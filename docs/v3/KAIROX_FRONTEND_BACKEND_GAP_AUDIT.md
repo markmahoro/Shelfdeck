@@ -19,7 +19,7 @@
 | 媒体库 | 媒体当前 facts 是什么；ShelfDeck 准备如何管理 | `KairoxMediaProjection`：facts 分组、lifecycle、objective、nextAction | `/v1/library?projection=manage`、`/v1/tasks?activeOnly=1` | frontend_adapter | 暂不新增字段；由前端 adapter 从 manage projection 投影 facts 分组、active task 和 nextAction，后续可补更强 detail API | Slice 2 已重构列表和详情抽屉 | 媒体行可解释 facts + lifecycle；创建任务只传 `targetGate + gateObjective` |
 | 任务中心 | 系统在做什么；哪里需要介入；失败后怎么恢复 | `KairoxTaskProjection`、`KairoxInterventionProjection` | `/v1/admin/tasks`、`/v1/tasks/:id/actions/*`、task detail events | frontend_adapter | 暂不新增后端字段；API 仍携带兼容字段，但新页面只按 targetGate/gateObjective/controlState 组织 | Slice 3 已重构任务中心 | 主筛选按 targetGate/attention/status，不按 flow |
 | 处置队列 | 哪些归档媒体建议处置；用户如何决策 | `DeleteCandidate` + perception/rule/task summary | `/v1/admin/delete-candidates` | frontend_adapter | 暂不新增后端字段；confirm-delete 已经通过 TaskAdmission 创建 `targetGate=delete` 任务 | Slice 4 已重构处置队列 | 未确认不创建 destructive task；页面不显示 delete-as-optimize |
-| 管理策略 | ShelfDeck 应该按什么规则管理媒体库 | `KairoxPolicyProjection`：媒体库、感知、优化目标、自动化、处置 | `/v1/admin/sublibraries`、`/v1/admin/rule-templates`、`/v1/config`、Douban/MoviePilot/Adult APIs | backend_gap | 后续补统一 policy projection，处置策略配置仍缺口 | Slice 5 合并配置页 | 不再有独立豆瓣/成人库/转码/洗版一级页 |
+| 管理策略 | ShelfDeck 应该按什么规则管理媒体库 | `KairoxPolicyProjection`：媒体库、感知、优化目标、自动化、处置 | `/v1/admin/sublibraries`、`/v1/admin/rule-templates`、`/v1/config`、Douban/MoviePilot/Adult APIs | frontend_adapter | 暂不新增统一 policy API；处置策略已接入 `deleteGatePolicy`，其余 tab 复用现有配置 API | Slice 5 已合并配置页 | 不再有独立豆瓣/成人库/转码/洗版一级页；处置策略可读写 |
 | 高级 | 资源为什么不够；系统为什么慢；如何排障 | Resource/diagnostic projection | `/v1/admin/resources`、nodes、transcode config | ready | 无 | Slice 6 聚合高级页 | 高级信息不进入普通路径 |
 
 ## Contract Rules

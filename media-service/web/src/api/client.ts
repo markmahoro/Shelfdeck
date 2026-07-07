@@ -449,6 +449,22 @@ export interface SystemConfig {
     cooldownHoursByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
     maxQueuedByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
   };
+  deleteGatePolicy?: {
+    enabled?: boolean;
+    rules?: Array<{
+      id?: string;
+      name?: string;
+      enabled?: boolean;
+      archivedForDays?: number;
+      minArchivedDays?: number;
+      ratingLte?: number;
+      maxRating?: number;
+      ratingGte?: number;
+      minRating?: number;
+      subLibraryId?: string;
+      mediaType?: string;
+    }>;
+  };
 }
 
 // Advanced overlay rule. match is AND-combined; adjust contributes a delta.

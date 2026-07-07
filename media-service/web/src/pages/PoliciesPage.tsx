@@ -2,6 +2,7 @@ import { useMemo, type CSSProperties } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AdultConfigPage from './AdultConfigPage';
 import DoubanConfigPage from './DoubanConfigPage';
+import DisposalPolicyPage from './DisposalPolicyPage';
 import MoviePilotConfigPage from './MoviePilotConfigPage';
 import RuleTemplatesPage from './RuleTemplatesPage';
 import SystemConfigPage from './SystemConfigPage';
@@ -57,19 +58,8 @@ export default function PoliciesPage() {
             <MoviePilotConfigPage />
           </>
         )}
-        {activeTab === 'disposal' && <DisposalPolicyPlaceholder />}
+        {activeTab === 'disposal' && <DisposalPolicyPage />}
       </section>
-    </div>
-  );
-}
-
-function DisposalPolicyPlaceholder() {
-  return (
-    <div style={placeholderStyle}>
-      <h2 style={placeholderTitleStyle}>处置策略</h2>
-      <p style={placeholderTextStyle}>
-        本切片先固定页面位置。后续 Slice 5 会接入 archived 后 delete candidate 规则配置。
-      </p>
     </div>
   );
 }
@@ -95,12 +85,3 @@ const activeTabStyle: CSSProperties = {
   color: '#fff',
 };
 const contentStyle: CSSProperties = { background: '#f5f7fb' };
-const placeholderStyle: CSSProperties = {
-  margin: 24,
-  padding: 24,
-  background: '#fff',
-  border: '1px solid #e2e8f0',
-  borderRadius: 8,
-};
-const placeholderTitleStyle: CSSProperties = { margin: '0 0 8px', color: '#1a1a2e' };
-const placeholderTextStyle: CSSProperties = { margin: 0, color: '#64748b', lineHeight: 1.6 };
