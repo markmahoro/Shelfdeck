@@ -54,6 +54,11 @@ export interface KairoxDashboardProjection {
     archivedItems: number;
     deleteCandidateItems: number;
   };
+  optimization: {
+    reclaimableBytes: number;
+    realizedReclaimedBytes: number;
+    optimizedItemCount: number;
+  };
   risks: Array<{ code: string; label: string; count: number; target?: string }>;
 }
 

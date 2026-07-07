@@ -15,7 +15,7 @@
 
 | 页面 | 用户问题 | 页面数据合同 | 当前 API | 状态 | 后端动作 | 前端动作 | 验收 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 仪表盘 | ShelfDeck 是否正常运转；媒体库管理成果如何 | `KairoxDashboardProjection`：健康、成果、风险摘要 | `/v1/admin/dashboard/health`、`/v1/space-stats`、`/v1/admin/health` | backend_gap | 后续补用户成果 projection，隐藏普通路径诊断字段 | Slice 1 重构 Dashboard | Dashboard 不展示 DB/WAL/resource bucket |
+| 仪表盘 | ShelfDeck 是否正常运转；媒体库管理成果如何 | `KairoxDashboardProjection`：健康、成果、风险摘要 | `/v1/admin/dashboard/health`、`/v1/space-stats` | frontend_adapter | 暂不新增后端字段；由前端 adapter 隐藏诊断字段并投影成果 | Slice 1 已重构 Dashboard | Dashboard 不展示 DB/WAL/resource bucket |
 | 媒体库 | 媒体当前 facts 是什么；ShelfDeck 准备如何管理 | `KairoxMediaProjection`：facts 分组、lifecycle、objective、nextAction | `/v1/library?projection=manage`、`/v1/library/items/:itemId` | backend_gap | 后续补 facts 分组、active task、delete candidate、nextAction | Slice 2 重构列表和详情 | 媒体行可解释 facts + lifecycle |
 | 任务中心 | 系统在做什么；哪里需要介入；失败后怎么恢复 | `KairoxTaskProjection`、`KairoxInterventionProjection` | `/v1/admin/tasks`、`/v1/admin/confirmations`、`/v1/tasks/:id/preview` | semantic_gap | 后续收口 task API projection，主语义只用 targetGate/gateObjective/flowPlan.flowKind | Slice 3 重构任务中心 | 主筛选按 targetGate，不按 flow |
 | 处置队列 | 哪些归档媒体建议处置；用户如何决策 | `DeleteCandidate` + perception/rule/task summary | `/v1/admin/delete-candidates` | frontend_adapter | 后续按需补 archived age、perception summary、linked task | Slice 4 重构处置队列 | 未确认不创建 destructive task |
