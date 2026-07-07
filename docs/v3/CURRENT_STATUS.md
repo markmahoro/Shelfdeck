@@ -7,14 +7,14 @@ Last updated: 2026-07-08
 - Current release goal: `Kairox Beta Candidate`
 - Worktree scope: this worktree stops at `Kairox Beta`; later goals require a new worktree.
 - Production URL: `http://192.168.12.230:18080`
-- Latest deployed image: `markmahoro/shelfdeck:kairox-e2e-fix-20260708-327549be`
-- Latest deployed commit: `327549be Separate gate achievement from task attempts`
-- Latest deployed image SHA256: `3d615cf6c22aa30fb9b6218750877d3ed378902c1a0d465174be9ed2742cac46`
-- Latest deployment time: `2026-07-08 00:48 Asia/Shanghai`
+- Latest deployed image: `markmahoro/shelfdeck:kairox-source-ref-20260708-44302eb4`
+- Latest deployed commit: `44302eb4 Fix SourceReference ingest boundary`
+- Latest deployed image SHA256: `726afc66d7cca321faf3055b8eed388fba062245f87a7bbf8b41718f8907a157`
+- Latest deployment time: `2026-07-08 01:32 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: restarted after deploying gate/attempt/retry boundary fix; `Kairox Beta` is not achieved until E2E passes.
-- Refresh cutover blocker status: deployed and production-validated for ingest -> metadata refresh on the new canary.
+- Production E2E status: restarted after deploying SourceReference -> ingest gate boundary fix; blocked at Stage 10 on optimize objective bitrate semantics.
+- Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 
 ## Current Architecture State
 
@@ -32,6 +32,10 @@ Last updated: 2026-07-08
   - transcode / upgrade completion records staged facts and evidence.
   - transcode / upgrade no longer directly publish source/media/metadata canonical facts.
   - pending canonical refresh drives Lifecycle back to ingest or metadata before optimize gate is re-evaluated.
+- SourceReference -> ingest gate boundary has been implemented and deployed:
+  - source adapters publish source references, not canonical source facts.
+  - Emby ingest observes the source at task execution time and no longer requires `sourceSnapshot` in task payload.
+  - adult folder ingest only publishes source facts; metadata/probe/NFO/adultId work belongs to metadata flow.
 - Gate achievement / task attempt / event retry boundary has been implemented and deployed:
   - flow attempt failure no longer closes optimize gate.
   - automatic task attempt budget is handled by TaskCreationPolicy attemptKey.
@@ -57,7 +61,7 @@ Last updated: 2026-07-08
 - Test library: `公共 国产剧库`.
 - Current canary item: `81945 / 爱很美味 / Season 1`.
 - The sample was shortened to about 10 seconds per episode and Emby was refreshed by the user.
-- Production validation after deploy:
+- Previous production validation before SourceReference deployment:
   - manual library ingest scan returned `mode=kairox_scan`.
   - scan created `targetGate=ingest` task `b5840cad0adbad9d` for item `81945`.
   - ingest completed and marked `sourceFacts=fresh`, `mediaFacts/metadataFacts=stale`.
@@ -79,7 +83,14 @@ Last updated: 2026-07-08
 
 ## Unresolved / Not Yet Proven
 
-- Production Frontend/API E2E needs a fresh run on item `81945`.
+- Production Frontend/API E2E restarted on item `81945` and is blocked at Stage 10.
+- Stage 10 blocker:
+  - the previous `Emby source snapshot is required` blocker is fixed.
+  - post-optimize ingest and metadata refresh completed and facts are fresh.
+  - refreshed canonical facts are `h265 / 0.708Mbps / 1080p`.
+  - current objective is `h265 / 1.5Mbps`.
+  - Flow Planner / Lifecycle currently treat bitrate below target as `better_source_required`, so optimize remains `not_passed`.
+  - next decision needed: whether objective bitrate is a quality floor, a resource-cost cap, or separate min/max facts.
 - Refresh cutover is implemented and deployed:
   - manual `/v1/library/actions/ingest` and `/refresh` request Kairox SmartTask scan.
   - sublibrary add / startup / timer no longer run direct Emby ingest.
