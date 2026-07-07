@@ -63,15 +63,6 @@ const BRIDGE_LABELS: Record<string, string> = {
   delete: '处置删除',
 };
 
-const OPERATION_LABELS: Record<string, string> = {
-  ingest: '入库',
-  scrape: '刮削',
-  transcode: '转码压缩',
-  upgrade: '洗版',
-  delete: '删除',
-  archive: '归档',
-};
-
 const OBJECTIVE_LABELS: Record<string, string> = {
   managed_item: '纳入管理',
   metadata_complete: '元数据完整',
@@ -196,11 +187,6 @@ function bridgeLabel(value?: string | null): string {
   return BRIDGE_LABELS[value] || value;
 }
 
-function selectedFlowLabel(value?: string | null): string {
-  if (!value) return '-';
-  return OPERATION_LABELS[value] || value;
-}
-
 function objectiveLabel(kind?: string): string {
   if (!kind) return '目标合同待补齐';
   return OBJECTIVE_LABELS[kind] || kind;
@@ -234,8 +220,7 @@ function objectiveSummary(task: ResourceTask): string {
 }
 
 function flowPathSummary(task: ResourceTask): string {
-  const selectedFlow = task.taskTarget?.selectedFlow || task.taskTarget?.flowKind || task.SelectedFlow;
-  return task.flowDirection ? `${selectedFlowLabel(selectedFlow)} · ${task.flowDirection}` : selectedFlowLabel(selectedFlow);
+  return task.flowDirection || '由 Flow Planner 规划';
 }
 
 function currentEventSummary(task: ResourceTask): string {
