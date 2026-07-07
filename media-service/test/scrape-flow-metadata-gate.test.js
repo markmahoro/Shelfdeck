@@ -180,3 +180,92 @@ test('standard scrape skips stale repair task when live metadata gate is already
     else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
   }
 });
+
+test('standard scrape refresh objective runs even when live metadata gate is complete', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const configStore = require('../src/configStore');
+  const taskStore = require('../src/taskStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const subLibraryId = 'refresh-movie-lib';
+  configStore.saveConfig({
+    ...configStore.getDefaultConfig(),
+    subLibraries: [{
+      uuid: subLibraryId,
+      name: 'Refresh Movie Library',
+      source: 'emby',
+      mediaType: 'movie',
+      enabled: true,
+      embyServerId: 'test-emby',
+      ruleTemplateId: 'movie_audio',
+    }],
+    ruleTemplates: [{
+      id: 'movie_audio',
+      rules: [{
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [{ connector: 'and', conditions: [['audioCodecs', 'overlap', ['truehd']]] }],
+        targetMediaFacts: { qualityTier: 'baseline', targetCodec: 'h265' },
+      }],
+    }],
+  });
+
+  mediaLibraryService.upsertItems(subLibraryId, [{
+    itemId: 'movie-refresh-complete',
+    sourceId: 'movie-refresh-complete',
+    name: 'Movie Refresh Complete',
+    type: 'movie',
+    path: '/media/movie-refresh-complete.mkv',
+    size: 1024 * 1024,
+    duration: 3600,
+    bitrate: 5_000_000,
+    equivalentBitrate: 5,
+    resolution: '1920x1080',
+    codec: 'h264',
+    audioCodecs: ['truehd'],
+    watched: true,
+  }], { fullSync: true });
+
+  const item = mediaLibraryService.getLibrary().items.find((it) => it.subLibraryId === subLibraryId);
+  const originalComplete = mediaLibraryService.completeEmbyItemMetadata;
+  let repairCalled = false;
+  mediaLibraryService.completeEmbyItemMetadata = async () => {
+    repairCalled = true;
+    return mediaLibraryService.getLibraryItem(item.itemId);
+  };
+
+  const task = taskStore.createTask({
+    itemId: item.itemId,
+    itemName: item.name,
+    status: 'executing',
+    itemInfo: { ...item },
+    taskTarget: {
+      object: { type: 'media_item', itemId: item.itemId },
+      targetGate: 'metadata',
+      gateObjective: { kind: 'metadata_refresh', refreshFacts: ['mediaFacts', 'metadataFacts'] },
+      source: 'manual',
+    },
+    resumePoint: 'scrape_executing',
+  });
+
+  scrapeFlow.setScheduler({
+    reportStatus: (tid, status, progress) => {
+      taskStore.updateTask(tid, { status, progress });
+    },
+  });
+
+  try {
+    await scrapeFlow.driveTask(task.id);
+    const afterTask = taskStore.getTask(task.id);
+    assert.strictEqual(afterTask.status, 'done');
+    assert.strictEqual(repairCalled, true);
+  } finally {
+    mediaLibraryService.completeEmbyItemMetadata = originalComplete;
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+  }
+});

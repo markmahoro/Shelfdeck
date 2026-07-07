@@ -96,6 +96,7 @@ function getDb() {
   `);
   ensureSpaceStatColumns(db);
   ensureV3MediaItemColumns(db);
+  ensureMediaFactFreshnessTable(db);
   dbCache.set(dbPath, db);
   migrateJsonLibraryIfNeeded(db);
   backfillSpaceStatColumns(db);
@@ -195,6 +196,31 @@ function backfillV3MediaItemColumns(db) {
   });
   tx(rows);
   setMeta(db, 'v3_media_item_columns_backfilled', '1');
+}
+
+function ensureMediaFactFreshnessTable(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS media_fact_freshness (
+      item_id TEXT NOT NULL,
+      fact_group TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'unknown',
+      owner_gate TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT '',
+      observed_at TEXT NOT NULL DEFAULT '',
+      stale_reason TEXT NOT NULL DEFAULT '',
+      stale_source TEXT NOT NULL DEFAULT '',
+      refresh_target_gate TEXT NOT NULL DEFAULT '',
+      refresh_task_id TEXT NOT NULL DEFAULT '',
+      evidence_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT '',
+      row_updated_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (item_id, fact_group)
+    );
+    CREATE INDEX IF NOT EXISTS idx_media_fact_freshness_status_group ON media_fact_freshness(status, fact_group);
+    CREATE INDEX IF NOT EXISTS idx_media_fact_freshness_item_group ON media_fact_freshness(item_id, fact_group);
+    CREATE INDEX IF NOT EXISTS idx_media_fact_freshness_refresh ON media_fact_freshness(refresh_target_gate, status);
+    CREATE INDEX IF NOT EXISTS idx_media_fact_freshness_observed ON media_fact_freshness(fact_group, observed_at);
+  `);
 }
 
 function backfillKairoxMetadataGateFields(db) {
@@ -1303,6 +1329,149 @@ function querySpaceStatItems() {
   }));
 }
 
+function normalizeFreshnessRow(input = {}) {
+  const now = input.rowUpdatedAt || input.now || new Date().toISOString();
+  const factGroup = String(input.factGroup || input.fact_group || '').trim();
+  const itemId = String(input.itemId || input.item_id || '').trim();
+  return {
+    item_id: itemId,
+    fact_group: factGroup,
+    status: String(input.status || 'unknown').trim() || 'unknown',
+    owner_gate: String(input.ownerGate || input.owner_gate || '').trim(),
+    updated_at: String(input.updatedAt || input.updated_at || '').trim(),
+    observed_at: String(input.observedAt || input.observed_at || '').trim(),
+    stale_reason: String(input.staleReason || input.stale_reason || '').trim(),
+    stale_source: String(input.staleSource || input.stale_source || '').trim(),
+    refresh_target_gate: String(input.refreshTargetGate || input.refresh_target_gate || '').trim(),
+    refresh_task_id: String(input.refreshTaskId || input.refresh_task_id || '').trim(),
+    evidence_json: jsonStringify(input.evidence || jsonParse(input.evidence_json, {})),
+    created_at: String(input.createdAt || input.created_at || now).trim(),
+    row_updated_at: now,
+  };
+}
+
+function freshnessRowToEntry(row) {
+  if (!row) return null;
+  return {
+    itemId: row.item_id || '',
+    factGroup: row.fact_group || '',
+    status: row.status || 'unknown',
+    ownerGate: row.owner_gate || '',
+    updatedAt: row.updated_at || '',
+    observedAt: row.observed_at || '',
+    staleReason: row.stale_reason || '',
+    staleSource: row.stale_source || '',
+    refreshTargetGate: row.refresh_target_gate || '',
+    refreshTaskId: row.refresh_task_id || '',
+    evidence: jsonParse(row.evidence_json, {}),
+    createdAt: row.created_at || '',
+    rowUpdatedAt: row.row_updated_at || '',
+  };
+}
+
+function upsertFactFreshness(entry = {}) {
+  const row = normalizeFreshnessRow(entry);
+  if (!row.item_id || !row.fact_group) throw new Error('itemId and factGroup are required');
+  getDb().prepare(`
+    INSERT INTO media_fact_freshness
+      (item_id, fact_group, status, owner_gate, updated_at, observed_at, stale_reason, stale_source,
+       refresh_target_gate, refresh_task_id, evidence_json, created_at, row_updated_at)
+    VALUES
+      (@item_id, @fact_group, @status, @owner_gate, @updated_at, @observed_at, @stale_reason, @stale_source,
+       @refresh_target_gate, @refresh_task_id, @evidence_json, @created_at, @row_updated_at)
+    ON CONFLICT(item_id, fact_group) DO UPDATE SET
+      status = excluded.status,
+      owner_gate = excluded.owner_gate,
+      updated_at = excluded.updated_at,
+      observed_at = excluded.observed_at,
+      stale_reason = excluded.stale_reason,
+      stale_source = excluded.stale_source,
+      refresh_target_gate = excluded.refresh_target_gate,
+      refresh_task_id = excluded.refresh_task_id,
+      evidence_json = excluded.evidence_json,
+      row_updated_at = excluded.row_updated_at
+  `).run(row);
+  return getFactFreshness(row.item_id, row.fact_group);
+}
+
+function getFactFreshness(itemId, factGroup) {
+  const row = getDb().prepare(`
+    SELECT * FROM media_fact_freshness
+    WHERE item_id = ? AND fact_group = ?
+  `).get(String(itemId || ''), String(factGroup || ''));
+  return freshnessRowToEntry(row);
+}
+
+function getFactFreshnessForItem(itemId) {
+  const rows = getDb().prepare(`
+    SELECT * FROM media_fact_freshness
+    WHERE item_id = ?
+    ORDER BY fact_group ASC
+  `).all(String(itemId || ''));
+  const result = {};
+  for (const row of rows) {
+    const entry = freshnessRowToEntry(row);
+    if (entry && entry.factGroup) result[entry.factGroup] = entry;
+  }
+  return result;
+}
+
+function getFactFreshnessForItems(itemIds = []) {
+  const ids = [...new Set((itemIds || []).map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const params = {};
+  const placeholders = ids.map((itemId, i) => {
+    params[`itemId${i}`] = itemId;
+    return `@itemId${i}`;
+  }).join(', ');
+  const rows = getDb().prepare(`
+    SELECT * FROM media_fact_freshness
+    WHERE item_id IN (${placeholders})
+    ORDER BY item_id ASC, fact_group ASC
+  `).all(params);
+  const result = {};
+  for (const row of rows) {
+    const entry = freshnessRowToEntry(row);
+    if (!entry || !entry.itemId || !entry.factGroup) continue;
+    if (!result[entry.itemId]) result[entry.itemId] = {};
+    result[entry.itemId][entry.factGroup] = entry;
+  }
+  return result;
+}
+
+function queryFactFreshness(filter = {}, opts = {}) {
+  const clauses = [];
+  const params = {};
+  if (filter.itemId) {
+    clauses.push('item_id = @itemId');
+    params.itemId = String(filter.itemId);
+  }
+  if (filter.factGroup) {
+    clauses.push('fact_group = @factGroup');
+    params.factGroup = String(filter.factGroup);
+  }
+  if (filter.status) {
+    clauses.push('status = @status');
+    params.status = String(filter.status);
+  }
+  if (filter.refreshTargetGate) {
+    clauses.push('refresh_target_gate = @refreshTargetGate');
+    params.refreshTargetGate = String(filter.refreshTargetGate);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const limit = Math.min(1000, Math.max(1, Number.parseInt(opts.limit, 10) || 200));
+  return getDb().prepare(`
+    SELECT * FROM media_fact_freshness
+    ${where}
+    ORDER BY row_updated_at DESC, item_id ASC, fact_group ASC
+    LIMIT @limit
+  `).all({ ...params, limit }).map(freshnessRowToEntry);
+}
+
+function deleteFactFreshnessForItem(itemId) {
+  return getDb().prepare('DELETE FROM media_fact_freshness WHERE item_id = ?').run(String(itemId || '')).changes || 0;
+}
+
 function countMap(rows, keyField = 'key') {
   const out = {};
   for (const row of rows || []) {
@@ -1466,6 +1635,12 @@ module.exports = {
   querySmartTaskCandidateItems,
   queryAdultReviewSummaries,
   querySpaceStatItems,
+  upsertFactFreshness,
+  getFactFreshness,
+  getFactFreshnessForItem,
+  getFactFreshnessForItems,
+  queryFactFreshness,
+  deleteFactFreshnessForItem,
   queryDashboardMediaStats,
   countBySubLibrary,
   getHealth,

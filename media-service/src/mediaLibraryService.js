@@ -25,6 +25,7 @@ const metadataStatus = require('./metadataStatus');
 const assetIdentity = require('./assetIdentity');
 const lifecycleProjection = require('./lifecycleProjection');
 const userPerceptionManagement = require('./userPerceptionManagement');
+const factsFreshnessService = require('./factsFreshnessService');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const diagnosticLog = require('./diagnosticLog');
@@ -241,6 +242,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
   const cfg = configStore.loadConfig();
   const subLib = (cfg.subLibraries || []).find((s) => s.uuid === subLibraryId) || null;
   let upserted = 0;
+  const touchedItemIds = new Set();
 
   // Safety: if Emby returns empty data during a full sync, don't purge everything
   if (incomingItems.length === 0) {
@@ -372,6 +374,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
       projectMediaFactsForItem(merged);
       userPerceptionManagement.projectItem(merged, { now, source: 'emby' });
       lib.items[existingIdx] = merged;
+      touchedItemIds.add(merged.itemId);
       upserted++;
     } else {
       const itemId = generateUuid();
@@ -421,6 +424,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
       projectMediaFactsForItem(newItem);
       userPerceptionManagement.projectItem(newItem, { now, source: 'emby' });
       lib.items.push(newItem);
+      touchedItemIds.add(newItem.itemId);
       upserted++;
     }
   }
@@ -440,6 +444,14 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
 
   lib.cachedAt = now;
   libraryStore.replaceSubLibraryItems(subLibraryId, lib.items, { cachedAt: now });
+  for (const itemId of touchedItemIds) {
+    factsFreshnessService.markFresh(itemId, ['sourceFacts', 'mediaFacts', 'metadataFacts'], {
+      now,
+      updatedAt: now,
+      observedAt: now,
+      evidence: { source: 'emby_ingest', subLibraryId },
+    });
+  }
 
   // Update subLibrary lastRefreshedAt
   if (subLib) {
@@ -533,6 +545,7 @@ function getLibrary(filter = {}, opts = {}) {
     let items = result.items.map((item) => ({ ...item }));
     items = measure('perceptionDecorateMs', () => userPerceptionManagement.decorateItems(items));
     items = measure('metadataDecorateMs', () => metadataStatus.decorateItems(items, config));
+    items = measure('factsFreshnessDecorateMs', () => factsFreshnessService.decorateItems(items));
     if (opts.includeOptimizationStatus || opts.includeLifecycleStatus || storeFilter.lifecycle || storeFilter.optimizationStatus) {
       const taskStore = require('./taskStore');
       const itemIds = items.map((item) => item.itemId).filter(Boolean);
@@ -552,6 +565,7 @@ function getLibraryItem(itemId) {
   const config = configStore.loadConfig();
   let decorated = userPerceptionManagement.decorateItem(item);
   decorated = metadataStatus.decorateItem(decorated, config);
+  decorated = factsFreshnessService.decorateItem(decorated);
   const taskStore = require('./taskStore');
   const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
     ? taskStore.queryOptimizationTaskIndexRows({ itemIds: [item.itemId] })
@@ -566,7 +580,7 @@ function getSpaceStatLibrary() {
 }
 
 function getSmartTaskCandidateItems() {
-  return libraryStore.querySmartTaskCandidateItems();
+  return factsFreshnessService.decorateItems(libraryStore.querySmartTaskCandidateItems());
 }
 
 function getLibraryStatus() {
@@ -1001,6 +1015,14 @@ async function completeEmbyItemMetadata(itemId, opts = {}) {
     localProbe = true;
   }
   upsertItems(subLib.uuid, repairItems, { fullSync: false });
+  factsFreshnessService.markFresh(itemId, ['mediaFacts', 'metadataFacts'], {
+    now: new Date().toISOString(),
+    evidence: {
+      source: 'emby_metadata_refresh',
+      embyItemId,
+      episodesFetched,
+    },
+  });
 
   let doubanCache = null;
   if (subLib.doubanEnabled) {

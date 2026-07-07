@@ -9,6 +9,7 @@ import {
   targetGateLabel,
   taskItemId,
   toKairoxMediaProjection,
+  freshnessLabel,
 } from '../kairox';
 import '../mediaManage.css';
 
@@ -126,7 +127,7 @@ export default function MediaManagePage() {
       const task = await taskApi.createByIntent({
         itemId: item.id,
         targetGate,
-        gateObjective: item.objective || undefined,
+        gateObjective: item.nextAction?.gateObjective || (targetGate === 'optimize' ? item.objective || undefined : undefined),
       });
       setTasks((prev) => [task, ...prev.filter((t) => t.id !== task.id)]);
       setNotice(`已创建「${targetGateLabel(targetGate)}」任务：${item.title}`);
@@ -354,12 +355,40 @@ function MediaDetailDrawer({ item, onClose }: { item: KairoxMediaProjection; onC
         <FactSection title="来源事实" facts={item.sourceFacts} />
         <FactSection title="媒体事实" facts={item.mediaFacts} />
         <FactSection title="元数据事实" facts={item.metadataFacts} />
+        <FreshnessSection factsFreshness={item.factsFreshness} />
         <FactSection title="用户感知" facts={item.userPerceptionFacts} />
         <FactSection title="Gate facts" facts={item.gateFacts} />
         <FactSection title="媒体优化目标" facts={item.objective || {}} empty="暂无目标" />
         {item.activeTask && <FactSection title="进行中的任务" facts={item.activeTask as unknown as Record<string, unknown>} />}
       </aside>
     </div>
+  );
+}
+
+function FreshnessSection({ factsFreshness }: { factsFreshness: KairoxMediaProjection['factsFreshness'] }) {
+  const rows = [
+    ['来源事实', factsFreshness.sourceFacts],
+    ['媒体事实', factsFreshness.mediaFacts],
+    ['元数据事实', factsFreshness.metadataFacts],
+    ['用户感知', factsFreshness.userPerceptionFacts],
+    ['Gate facts', factsFreshness.gateFacts],
+  ] as const;
+  return (
+    <section className="kairoxFactSection">
+      <h3>事实新鲜度</h3>
+      <dl>
+        {rows.map(([label, entry]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>
+              {freshnessLabel(entry)}
+              {entry?.staleReason ? ` · ${entry.staleReason}` : ''}
+              {entry?.observedAt ? ` · 观察于 ${entry.observedAt}` : ''}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 

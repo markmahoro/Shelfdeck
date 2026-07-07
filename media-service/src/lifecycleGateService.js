@@ -70,6 +70,19 @@ function evaluateIngestGate(item = {}) {
     };
   }
 
+  const sourceFreshness = item.factsFreshness && item.factsFreshness.sourceFacts;
+  if (sourceFreshness && ['stale', 'invalidated', 'blocked', 'refreshing'].includes(normalize(sourceFreshness.status))) {
+    return {
+      gate: 'ingest',
+      passed: false,
+      status: normalize(sourceFreshness.status) || 'stale',
+      reason: sourceFreshness.staleReason || 'source_facts_stale',
+      missingReasons: ['source.facts_stale'],
+      freshness: sourceFreshness,
+      userAction: 'refresh_source_facts',
+    };
+  }
+
   if (!hasAny(item.itemId)) missing.push('identity.itemId');
   if (!hasAny(item.source, item.subLibraryId, item.mediaType)) missing.push('identity.source_or_sub_library');
   if (!hasAny(item.path, item.sourceId, item.embyItemId, item.assetKey, item.assetRootPath)) {

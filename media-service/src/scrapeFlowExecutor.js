@@ -10,6 +10,7 @@ const westernAdultAiService = require('./services/westernAdultAiService');
 const approvalPolicy = require('./approvalPolicy');
 const scrapeVerification = require('./scrapeVerification');
 const metadataStatus = require('./metadataStatus');
+const factsFreshnessService = require('./factsFreshnessService');
 
 let scheduler = null;
 function setScheduler(s) { scheduler = s; }
@@ -88,6 +89,28 @@ function metadataVerification(meta, source = 'completion_snapshot') {
     metadataMissingReasons: missingReasons,
     source,
   };
+}
+
+function cleanToken(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function taskGateObjective(task = {}) {
+  return task.taskTarget && task.taskTarget.gateObjective && typeof task.taskTarget.gateObjective === 'object'
+    ? task.taskTarget.gateObjective
+    : {};
+}
+
+function isRefreshObjective(task = {}, item = {}) {
+  const objective = taskGateObjective(task);
+  const kind = cleanToken(objective.kind);
+  if (['metadata_refresh', 'media_facts_refresh', 'refresh_metadata', 'refresh_media_facts'].includes(kind)) return true;
+  if (objective.forceRefresh === true || objective.refresh === true || Array.isArray(objective.refreshFacts)) return true;
+  const projection = item && item.factsFreshness
+    ? item.factsFreshness
+    : factsFreshnessService.projectForItem(item || {});
+  return factsFreshnessService.isBlockingStale(projection, 'mediaFacts')
+    || factsFreshnessService.isBlockingStale(projection, 'metadataFacts');
 }
 
 function isMediaSourceMissingError(err) {
@@ -255,7 +278,7 @@ async function runEmbyExecuting(taskId, task, config, subLib) {
     const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
     if (liveItem) {
       const liveMeta = metadataStatus.resolveMetadataStatus(liveItem, config);
-      if (liveMeta.metadataComplete) {
+      if (liveMeta.metadataComplete && !isRefreshObjective(task, liveItem)) {
         const updatedInfo = {
           ...(task.itemInfo || {}),
           ...buildUpdatedItemInfo(liveItem),

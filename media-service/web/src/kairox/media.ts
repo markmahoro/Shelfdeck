@@ -1,5 +1,5 @@
 import type { MediaTask } from '../types';
-import type { KairoxMediaProjection, KairoxTargetGate } from './types';
+import type { FactsFreshnessEntry, FactsFreshnessProjection, KairoxMediaProjection, KairoxTargetGate } from './types';
 import { normalizeTargetGate, toKairoxTaskProjection } from './projections';
 
 const ACTIVE_TASK_STATUSES = new Set([
@@ -49,6 +49,8 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
     || normalizeTargetGate(asRecord(item.lifecycle).nextTargetGate);
   const objective = buildObjective(item);
   const projectedTask = activeTask ? toKairoxTaskProjection(activeTask) : null;
+  const factsFreshness = buildFactsFreshness(item);
+  const nextAction = buildNextAction(projectedTask, nextTargetGate, objective, factsFreshness);
 
   return {
     id,
@@ -110,6 +112,7 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
       objectiveHash: item.objectiveHash,
       objectiveVersion: item.objectiveVersion,
     }),
+    factsFreshness,
     lifecycle: {
       stage: stringValue(item.lifecycleStage),
       currentGate: currentGate(item, nextTargetGate),
@@ -119,11 +122,7 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
     objective,
     activeTask: projectedTask,
     deleteCandidate: asOptionalRecord(item.deleteCandidate),
-    nextAction: projectedTask
-      ? { kind: 'view_task', label: '查看进行中的任务', targetGate: projectedTask.targetGate }
-      : nextTargetGate
-        ? { kind: nextTargetGate === 'delete' ? 'review_delete_candidate' : 'create_task', targetGate: nextTargetGate, label: TARGET_GATE_LABEL[nextTargetGate] }
-        : { kind: 'none', label: '无需处理' },
+    nextAction,
   };
 }
 
@@ -134,6 +133,7 @@ export function mediaDisplayFacts(projection: KairoxMediaProjection): Array<{ la
     { label: '大小', value: formatSize(projection.mediaFacts.sizeGb) },
     { label: '感知', value: formatPerception(projection.userPerceptionFacts) },
     { label: '元数据', value: stringValue(projection.metadataFacts.metadataStatus) || (projection.metadataFacts.metadataComplete === true ? 'complete' : '-') },
+    { label: '事实', value: freshnessSummary(projection.factsFreshness) },
   ];
 }
 
@@ -158,6 +158,83 @@ function buildObjective(item: Record<string, unknown>): Record<string, unknown> 
     reason: item.reason,
   });
   return Object.keys(target).length > 0 ? target : null;
+}
+
+function buildFactsFreshness(item: Record<string, unknown>): FactsFreshnessProjection {
+  const raw = asRecord(item.factsFreshness);
+  return {
+    sourceFacts: normalizeFreshnessEntry(asRecord(raw.sourceFacts)),
+    mediaFacts: normalizeFreshnessEntry(asRecord(raw.mediaFacts)),
+    metadataFacts: normalizeFreshnessEntry(asRecord(raw.metadataFacts)),
+    userPerceptionFacts: normalizeFreshnessEntry(asRecord(raw.userPerceptionFacts)),
+    gateFacts: normalizeFreshnessEntry(asRecord(raw.gateFacts)),
+  };
+}
+
+function normalizeFreshnessEntry(raw: Record<string, unknown>): FactsFreshnessEntry {
+  return {
+    status: stringValue(raw.status) || 'unknown',
+    ownerGate: stringValue(raw.ownerGate) || undefined,
+    updatedAt: stringValue(raw.updatedAt) || undefined,
+    observedAt: stringValue(raw.observedAt) || undefined,
+    staleReason: stringValue(raw.staleReason) || undefined,
+    staleSource: stringValue(raw.staleSource) || undefined,
+    refreshTargetGate: stringValue(raw.refreshTargetGate) || undefined,
+    refreshTaskId: stringValue(raw.refreshTaskId) || undefined,
+    evidence: asOptionalRecord(raw.evidence) || undefined,
+  };
+}
+
+function buildNextAction(
+  projectedTask: ReturnType<typeof toKairoxTaskProjection> | null,
+  nextTargetGate: KairoxTargetGate | null,
+  objective: Record<string, unknown> | null,
+  factsFreshness: FactsFreshnessProjection,
+): KairoxMediaProjection['nextAction'] {
+  if (projectedTask) return { kind: 'view_task', label: '查看进行中的任务', targetGate: projectedTask.targetGate };
+  if (!nextTargetGate) return { kind: 'none', label: '无需处理' };
+  if (nextTargetGate === 'delete') return { kind: 'review_delete_candidate', targetGate: nextTargetGate, label: TARGET_GATE_LABEL[nextTargetGate] };
+  if (nextTargetGate === 'metadata' && hasBlockingMetadataFreshness(factsFreshness)) {
+    return {
+      kind: 'create_task',
+      targetGate: nextTargetGate,
+      label: '刷新媒体事实',
+      gateObjective: {
+        kind: 'metadata_refresh',
+        refreshFacts: ['mediaFacts', 'metadataFacts'],
+        reason: 'user_requested_refresh',
+      },
+    };
+  }
+  return {
+    kind: 'create_task',
+    targetGate: nextTargetGate,
+    label: TARGET_GATE_LABEL[nextTargetGate],
+    gateObjective: nextTargetGate === 'optimize' && objective ? objective : undefined,
+  };
+}
+
+function hasBlockingMetadataFreshness(factsFreshness: FactsFreshnessProjection): boolean {
+  return [factsFreshness.mediaFacts, factsFreshness.metadataFacts].some((entry) => (
+    entry && ['stale', 'invalidated', 'blocked', 'refreshing'].includes(String(entry.status || '').toLowerCase())
+  ));
+}
+
+function freshnessSummary(factsFreshness: FactsFreshnessProjection): string {
+  const media = freshnessLabel(factsFreshness.mediaFacts);
+  const metadata = freshnessLabel(factsFreshness.metadataFacts);
+  if (media === metadata) return media;
+  return `媒体${media} / 元数据${metadata}`;
+}
+
+export function freshnessLabel(entry?: FactsFreshnessEntry): string {
+  const status = String(entry?.status || 'unknown').toLowerCase();
+  if (status === 'fresh') return '已更新';
+  if (status === 'needs_check') return '待巡检';
+  if (status === 'stale' || status === 'invalidated') return '需刷新';
+  if (status === 'refreshing') return '刷新中';
+  if (status === 'blocked') return '刷新受阻';
+  return '未知';
 }
 
 function currentGate(item: Record<string, unknown>, nextTargetGate: KairoxTargetGate | null): string | undefined {

@@ -1,6 +1,7 @@
 'use strict';
 
 const automationPolicy = require('./automationPolicy');
+const factsFreshnessService = require('./factsFreshnessService');
 
 const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 
@@ -82,6 +83,33 @@ function destructivePreAuthorized(input = {}) {
   return input.destructivePreAuthorized === true
     || input.preAuthorized === true
     || (input.intent && input.intent.destructivePreAuthorized === true);
+}
+
+function objectiveKind(objective = {}) {
+  return cleanToken(objective && objective.kind);
+}
+
+function isMetadataRefreshObjective(objective = {}) {
+  const kind = objectiveKind(objective);
+  return kind === 'metadata_refresh'
+    || kind === 'media_facts_refresh'
+    || kind === 'refresh_metadata'
+    || kind === 'refresh_media_facts'
+    || objective.forceRefresh === true
+    || objective.refresh === true
+    || Array.isArray(objective.refreshFacts);
+}
+
+function metadataFactsFresh(item = {}) {
+  const projection = item.factsFreshness || factsFreshnessService.projectForItem(item);
+  return factsFreshnessService.isFresh(projection, 'mediaFacts')
+    && factsFreshnessService.isFresh(projection, 'metadataFacts');
+}
+
+function metadataFactsStale(item = {}) {
+  const projection = item.factsFreshness || factsFreshnessService.projectForItem(item);
+  return factsFreshnessService.isBlockingStale(projection, 'mediaFacts')
+    || factsFreshnessService.isBlockingStale(projection, 'metadataFacts');
 }
 
 function buildTaskTarget({ item = {}, itemInfo = {}, targetGate = '', gateObjective = {}, source = '' } = {}) {
@@ -173,14 +201,19 @@ function canCreateTargetTask(input = {}) {
   }
 
   if (targetGate === 'metadata' && item.metadataComplete === true) {
-    return blocked(targetGate, 'metadata_already_complete');
+    const refreshIntent = isMetadataRefreshObjective(resolvedGateObjective);
+    const stale = metadataFactsStale(item);
+    if (!refreshIntent && !stale && metadataFactsFresh(item)) {
+      return blocked(targetGate, 'metadata_already_complete');
+    }
   }
   if (targetGate === 'optimize') {
-    const objectiveKind = cleanToken(resolvedGateObjective && resolvedGateObjective.kind);
-    if (objectiveKind === 'remove_media' || objectiveKind === 'delete' || objectiveKind === 'delete_archived_media') {
+    const kind = objectiveKind(resolvedGateObjective);
+    if (kind === 'remove_media' || kind === 'delete' || kind === 'delete_archived_media') {
       return blocked(targetGate, 'delete_is_not_optimize');
     }
     if (item.metadataComplete !== true) return blocked(targetGate, 'metadata_missing');
+    if (!metadataFactsFresh(item)) return blocked(targetGate, 'metadata_facts_stale');
     if (item.optimizeObjectiveStatus && item.optimizeObjectiveStatus !== 'ready') {
       return blocked(targetGate, 'optimize_objective_not_ready', { optimizeObjectiveStatus: item.optimizeObjectiveStatus });
     }

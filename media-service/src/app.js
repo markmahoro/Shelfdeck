@@ -184,6 +184,22 @@ function maskAdultLibrarySecrets(adultLibrary = {}) {
 
 function maskSensitive(config) {
   const masked = { ...config };
+  delete masked.smartTaskEnabledActions;
+  delete masked.optimizeAllowedOperations;
+  if (masked.taskAdmission && typeof masked.taskAdmission === 'object') {
+    masked.taskAdmission = { ...masked.taskAdmission };
+    delete masked.taskAdmission.maxQueuedByAction;
+    delete masked.taskAdmission.cooldownHoursByAction;
+  }
+  if (masked.taskPriority && typeof masked.taskPriority === 'object') {
+    masked.taskPriority = { ...masked.taskPriority };
+    delete masked.taskPriority.operationKindWeights;
+    delete masked.taskPriority.actionTypeWeights;
+    if (masked.taskPriority.optimizeOperationHints && typeof masked.taskPriority.optimizeOperationHints === 'object') {
+      masked.taskPriority.optimizeOperationHints = { ...masked.taskPriority.optimizeOperationHints };
+      delete masked.taskPriority.optimizeOperationHints.delete;
+    }
+  }
   if (masked.apiKey) masked.apiKey = MASKED_SECRET;
   if (masked.douban && masked.douban.cookieHeader) {
     masked.douban = { ...masked.douban, cookieHeader: MASKED_SECRET };
@@ -1726,6 +1742,7 @@ function registerRoutes(app) {
       objectiveVersion: libItem.objectiveVersion,
       scraped: !!libItem.scraped,
       adultMetadata: libItem.adultMetadata,
+      factsFreshness: libItem.factsFreshness,
       ...(meta || {}),
     } : null;
 

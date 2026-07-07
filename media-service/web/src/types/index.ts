@@ -187,7 +187,7 @@ export type TaskStatus =
   | 'awaiting_user_confirm' | 'pausing' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
-export type TaskSelectedFlow = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape' | 'archive';
+export type TaskFlowKind = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape' | 'archive' | 'no_op' | 'blocked' | string;
 
 export type ApprovalMode = 'auto' | 'confirm' | 'forceConfirm';
 export type ApprovalPolicyConfig = Record<string, ApprovalMode>;
@@ -375,7 +375,7 @@ export interface DashboardEventEntry {
   detail?: Record<string, unknown>;
   taskId?: string;
   itemId?: string;
-  SelectedFlow?: string;
+  flowKind?: string;
   eventType?: string;
   eventStatus?: string;
   resourceType?: string;
@@ -436,9 +436,9 @@ export interface DashboardHealthSummary {
     doneTasks: number;
     byStatus: Record<string, number>;
     activeByBridgeKind: Record<string, number>;
-    activeBySelectedFlow: Record<string, number>;
+    activeByFlowKind?: Record<string, number>;
     activeBySource: Record<string, number>;
-    failedBySelectedFlow: Record<string, number>;
+    failedByFlowKind?: Record<string, number>;
     recentFailureEvents: unknown[];
     attention?: Record<string, TaskAttentionQueue>;
     primaryAttention?: TaskAttentionQueue | null;
@@ -462,7 +462,7 @@ export interface MediaTask {
   id: string;
   itemId: string;
   itemName?: string;
-  SelectedFlow: TaskSelectedFlow;
+  flowKind?: TaskFlowKind;
   taskTarget?: TaskTarget;
   taskBridge?: TaskBridge;
   flowPlan?: FlowPlan;
@@ -504,7 +504,7 @@ export interface MediaTask {
 
 export interface RequestedIntent {
   targetGate?: string;
-  preferredFlow?: string;
+  flowPreference?: Record<string, unknown>;
   intentMode?: string;
   [key: string]: unknown;
 }
@@ -519,7 +519,6 @@ export interface TaskTarget {
   targetGate?: string;
   gateObjective?: GateObjective;
   source?: string;
-  selectedFlow?: string;
   flowKind?: string;
   [key: string]: unknown;
 }
@@ -546,7 +545,7 @@ export interface TaskBridge {
   from?: string;
   to?: string;
   reason?: string;
-  SelectedFlow?: string;
+  flowKind?: string;
   source?: string;
   itemId?: string;
   subLibraryId?: string;
@@ -562,7 +561,7 @@ export interface FlowPlan {
   version?: string;
   bridgeKind?: string;
   direction?: string;
-  SelectedFlow?: string;
+  flowKind?: string;
   executor?: string;
   primaryResourceType?: string;
   source?: string;
@@ -575,7 +574,7 @@ export interface TaskEvent {
   id: string;
   taskId: string;
   itemId?: string;
-  SelectedFlow?: string;
+  flowKind?: string;
   eventType: string;
   eventStatus: string;
   phase?: string | null;
@@ -594,7 +593,7 @@ export interface ResourceFailureEvent extends TaskEvent {
     id: string;
     itemId: string;
     itemName?: string;
-    SelectedFlow: string;
+    flowKind?: string;
     status: string;
     phase?: string;
     resumePoint?: string;
@@ -651,7 +650,7 @@ export interface ResourceTask {
   taskId: string;
   itemId: string;
   itemName?: string;
-  SelectedFlow: TaskSelectedFlow;
+  flowKind?: TaskFlowKind;
   taskTarget?: TaskTarget | null;
   source?: 'manual' | 'auto' | string;
   status: TaskStatus;

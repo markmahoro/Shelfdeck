@@ -20,6 +20,7 @@ const nodeStore = require('../src/nodeStore');
 
 function metadataReadyMovie(overrides = {}) {
   const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
+  const now = new Date().toISOString();
   return {
     itemId,
     source: 'emby',
@@ -38,6 +39,8 @@ function metadataReadyMovie(overrides = {}) {
     tmdbId: '10001',
     metadataComplete: true,
     metadataStatus: 'complete',
+    lastRefreshedAt: now,
+    metadataUpdatedAt: now,
     optimizeObjectiveStatus: 'ready',
     optimizeObjective: {
       kind: 'target_media_facts',

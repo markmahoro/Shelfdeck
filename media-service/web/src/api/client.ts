@@ -325,7 +325,7 @@ export interface TaskReport {
   taskId: string;
   itemId?: string;
   itemName: string;
-  SelectedFlow: string;
+  flowKind?: string;
   elapsedSec: number | null;
   encoder: string | null;
   original?: {
@@ -425,7 +425,7 @@ export interface SystemConfig {
   wallRatingAutoEnqueue: boolean;
   smartTaskMaxPerRun: number;
   automaticTaskTargets?: string[];
-  optimizeAllowedOperations?: string[];
+  optimizeAllowedFlowKinds?: string[];
   smartTaskPollIntervalMinutes: number;
   smartTaskLookbackDays: number;
   smartTaskMaxQueueSize: number;

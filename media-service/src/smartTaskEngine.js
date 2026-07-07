@@ -20,6 +20,7 @@ const runtimeResourceTracker = require('./runtimeResourceTracker');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const resourceProjection = require('./resourceProjection');
 const resourceCapacity = require('./resourceCapacity');
+const factsFreshnessService = require('./factsFreshnessService');
 
 const BACKGROUND_IO_LOCK = 'library_background_io';
 
@@ -156,6 +157,7 @@ function buildItemInfo(item) {
     metadataComplete: item.metadataComplete,
     metadataMissingReasons: item.metadataMissingReasons,
     metadataKind: item.metadataKind,
+    factsFreshness: item.factsFreshness,
     optimizationStatus: item.optimizationStatus,
     optimizeFlowKind: item.optimizeFlowKind,
     optimizationDoneAt: item.optimizationDoneAt,
@@ -173,15 +175,26 @@ function buildCandidate(item, { config }) {
   if (!targetGate) return null;
   const adultMeta = projected.adultMetadata && typeof projected.adultMetadata === 'object' ? projected.adultMetadata : {};
   const scrapeStatus = String(adultMeta.scrapeStatus || '').trim().toLowerCase();
-  if (targetGate === 'metadata' && (projected.scraped === true || scrapeStatus === 'done')) return null;
+  const metadataFactsStale = targetGate === 'metadata' && (
+    factsFreshnessService.isBlockingStale(projected.factsFreshness || {}, 'mediaFacts')
+    || factsFreshnessService.isBlockingStale(projected.factsFreshness || {}, 'metadataFacts')
+  );
+  if (targetGate === 'metadata' && !metadataFactsStale && (projected.scraped === true || scrapeStatus === 'done')) return null;
   if (targetGate === 'metadata' && ['failed', 'ambiguous', 'needs_review'].includes(scrapeStatus)) return null;
   if (!automationPolicy.automaticTargetEnabled(config, targetGate)) return null;
   const itemInfo = buildItemInfo(projected);
+  const metadataRefreshObjective = {
+    kind: 'metadata_refresh',
+    refreshFacts: ['mediaFacts', 'metadataFacts'],
+    reason: projected.lifecycleReason || 'facts_stale',
+  };
   return {
     item: projected,
     itemInfo,
     targetGate,
-    gateObjective: targetGate === 'optimize' ? (projected.optimizeObjective || {}) : {},
+    gateObjective: targetGate === 'optimize'
+      ? (projected.optimizeObjective || {})
+      : (metadataFactsStale ? metadataRefreshObjective : {}),
     allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(config),
     timestamp: itemTimestamp(item),
   };

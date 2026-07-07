@@ -215,7 +215,11 @@ async function resolveSevenZipBin() {
 }
 
 const DV_TONEMAP_LIBPLACEBO_FILTER = 'libplacebo=tonemapping=bt.2390,format=yuv420p10le';
-const DV_TONEMAP_SOFTWARE_FILTER = 'zscale=t=linear:npl=100,format=gbrpf32le,tonemap=tonemap=hable:desat=0,zscale=p=bt709:t=bt709:m=bt709:r=tv,format=yuv420p10le';
+const DV_TONEMAP_SOFTWARE_INPUT_PARAMS = 'setparams=colorspace=bt2020nc:color_primaries=bt2020:color_trc=smpte2084:range=pc';
+const DV_TONEMAP_SOFTWARE_PIPELINE = `${DV_TONEMAP_SOFTWARE_INPUT_PARAMS},zscale=t=linear:npl=100,format=gbrpf32le,tonemap=tonemap=hable:desat=0,zscale=p=bt709:t=bt709:m=bt709:r=tv`;
+const DV_TONEMAP_SOFTWARE_FILTER_10BIT = `${DV_TONEMAP_SOFTWARE_PIPELINE},format=yuv420p10le`;
+const DV_TONEMAP_SOFTWARE_FILTER_8BIT = `${DV_TONEMAP_SOFTWARE_PIPELINE},format=yuv420p`;
+const DV_TONEMAP_SOFTWARE_FILTER = DV_TONEMAP_SOFTWARE_FILTER_10BIT;
 const DV_TONEMAP_SELFTEST_LAVFI = 'testsrc2=s=64x64:d=0.1,format=yuv420p10le,setparams=colorspace=bt2020nc:color_primaries=bt2020:color_trc=smpte2084';
 const DV_TONEMAP_CACHE_MS = 60 * 1000;
 let dvTonemapCapabilityCache = null;
@@ -259,11 +263,36 @@ async function runTonemapFilterSelfTest(config, filterGraph) {
   }
 }
 
-function tonemapPlanPayload({ mode, filterGraph, message, fallbackFrom, libplaceboError, softwareError }) {
+async function runTonemapEncodeSelfTest(config, filterGraph) {
+  const ff = resolveFfmpegBin(config);
+  try {
+    const r = await _runCmd(ff, [
+      '-hide_banner',
+      '-loglevel', 'error',
+      '-f', 'lavfi',
+      '-i', DV_TONEMAP_SELFTEST_LAVFI,
+      '-frames:v', '1',
+      '-vf', filterGraph,
+      '-c:v', 'libx265',
+      '-preset', 'ultrafast',
+      '-x265-params', 'log-level=error',
+      '-f', 'null',
+      '-',
+    ], { timeoutMs: 20000 });
+    if (r.code === 0) return { ok: true, error: '' };
+    return { ok: false, error: String(r.err || r.out || '').slice(-600) || `ffmpeg exit code ${r.code}` };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+}
+
+function tonemapPlanPayload({ mode, filterGraph, message, fallbackFrom, libplaceboError, softwareError, pixelFormat, bitDepth }) {
   return {
     ok: true,
     mode,
     filterGraph,
+    pixelFormat: pixelFormat || '',
+    bitDepth: bitDepth || null,
     label: mode === 'libplacebo' ? 'FFmpeg libplacebo HDR→SDR tonemap' : 'FFmpeg software zscale/tonemap HDR→SDR fallback',
     message: message || '',
     fallbackFrom: fallbackFrom || '',
@@ -307,19 +336,36 @@ async function resolveDolbyVisionTonemapPlan(config, opts = {}) {
   let softwareError = '';
   const hasSoftwareFilters = ffmpegFilterExists(filters.text, 'zscale') && ffmpegFilterExists(filters.text, 'tonemap');
   if (hasSoftwareFilters) {
-    const software = await runTonemapFilterSelfTest(config, DV_TONEMAP_SOFTWARE_FILTER);
-    if (software.ok) {
+    const software10 = await runTonemapEncodeSelfTest(config, DV_TONEMAP_SOFTWARE_FILTER_10BIT);
+    if (software10.ok) {
       const value = tonemapPlanPayload({
         mode: 'software',
-        filterGraph: DV_TONEMAP_SOFTWARE_FILTER,
+        filterGraph: DV_TONEMAP_SOFTWARE_FILTER_10BIT,
         fallbackFrom: 'libplacebo',
         libplaceboError,
-        message: 'libplacebo unavailable at runtime; using software zscale/tonemap fallback',
+        pixelFormat: 'yuv420p10le',
+        bitDepth: 10,
+        message: 'libplacebo unavailable at runtime; using 10-bit software zscale/tonemap fallback',
       });
       dvTonemapCapabilityCache = { key: cacheKey, expiresAt: now + DV_TONEMAP_CACHE_MS, value };
       return value;
     }
-    softwareError = software.error || 'software tonemap self-test failed';
+    const software8 = await runTonemapEncodeSelfTest(config, DV_TONEMAP_SOFTWARE_FILTER_8BIT);
+    if (software8.ok) {
+      const value = tonemapPlanPayload({
+        mode: 'software',
+        filterGraph: DV_TONEMAP_SOFTWARE_FILTER_8BIT,
+        fallbackFrom: 'libplacebo',
+        libplaceboError,
+        softwareError: software10.error || '10-bit software tonemap encode self-test failed',
+        pixelFormat: 'yuv420p',
+        bitDepth: 8,
+        message: 'libplacebo and 10-bit software tonemap unavailable at runtime; using 8-bit software zscale/tonemap fallback',
+      });
+      dvTonemapCapabilityCache = { key: cacheKey, expiresAt: now + DV_TONEMAP_CACHE_MS, value };
+      return value;
+    }
+    softwareError = `10-bit: ${software10.error || 'failed'}; 8-bit: ${software8.error || 'failed'}`;
   } else {
     softwareError = 'zscale and tonemap filters are required for software fallback';
   }

@@ -16,6 +16,28 @@ export interface KairoxTaskProjection {
   needsUserAction: boolean;
 }
 
+export type FactsFreshnessStatus = 'fresh' | 'needs_check' | 'stale' | 'unknown' | 'refreshing' | 'blocked' | 'invalidated';
+
+export interface FactsFreshnessEntry {
+  status: FactsFreshnessStatus | string;
+  ownerGate?: string;
+  updatedAt?: string;
+  observedAt?: string;
+  staleReason?: string;
+  staleSource?: string;
+  refreshTargetGate?: KairoxTargetGate | string;
+  refreshTaskId?: string;
+  evidence?: Record<string, unknown>;
+}
+
+export interface FactsFreshnessProjection {
+  sourceFacts?: FactsFreshnessEntry;
+  mediaFacts?: FactsFreshnessEntry;
+  metadataFacts?: FactsFreshnessEntry;
+  userPerceptionFacts?: FactsFreshnessEntry;
+  gateFacts?: FactsFreshnessEntry;
+}
+
 export interface KairoxMediaProjection {
   id: string;
   title: string;
@@ -25,6 +47,7 @@ export interface KairoxMediaProjection {
   metadataFacts: Record<string, unknown>;
   userPerceptionFacts: Record<string, unknown>;
   gateFacts: Record<string, unknown>;
+  factsFreshness: FactsFreshnessProjection;
   lifecycle: {
     stage?: string;
     currentGate?: string;
@@ -37,6 +60,7 @@ export interface KairoxMediaProjection {
   nextAction?: {
     kind: 'none' | 'set_perception' | 'create_task' | 'view_task' | 'review_delete_candidate';
     targetGate?: KairoxTargetGate;
+    gateObjective?: Record<string, unknown>;
     label: string;
   };
 }

@@ -7,7 +7,7 @@ import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 type TaskTarget = 'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete';
-type OptimizeOperation = 'transcode' | 'upgrade';
+type OptimizeFlowKind = 'transcode' | 'upgrade';
 type PriorityMatch = NonNullable<PriorityRule['match']>;
 type PriorityMatchKey = keyof PriorityMatch;
 
@@ -19,13 +19,13 @@ interface SubLibScheduleState {
 
 const TASK_TARGETS: Array<{ key: TaskTarget; label: string; desc: string }> = [
   { key: 'ingest', label: '自动入库', desc: '允许系统把外部候选纳入 ShelfDeck 管理' },
-  { key: 'metadata', label: '自动补元数据', desc: '允许系统为元数据不完整的条目创建刮削/修复任务' },
+  { key: 'metadata', label: '自动元数据', desc: '允许系统为元数据缺失或事实过期的条目创建元数据/媒体事实刷新任务' },
   { key: 'optimize', label: '自动优化', desc: '允许系统为已具备优化目标的条目创建优化任务' },
   { key: 'archive', label: '自动归档', desc: '允许系统为已完成处理的条目创建闭环归档任务' },
   { key: 'delete', label: '删除处置', desc: '允许系统在用户确认后创建归档媒体的删除任务' },
 ];
 
-const OPTIMIZE_OPERATIONS: Array<{ key: OptimizeOperation; label: string }> = [
+const OPTIMIZE_FLOW_KINDS: Array<{ key: OptimizeFlowKind; label: string }> = [
   { key: 'transcode', label: '转码压缩' },
   { key: 'upgrade', label: '洗版' },
 ];
@@ -62,7 +62,7 @@ const DEFAULT_TARGET_GATE_WEIGHTS: Record<TaskTarget, number> = {
   delete: 90,
 };
 
-const DEFAULT_OPTIMIZE_OPERATION_HINTS: Record<OptimizeOperation, number> = {
+const DEFAULT_OPTIMIZE_OPERATION_HINTS: Record<OptimizeFlowKind, number> = {
   transcode: 20,
   upgrade: 0,
 };
@@ -156,7 +156,7 @@ export default function SystemConfigPage() {
   const [scrapeConc, setScrapeConc] = useState(1);
   const [smartTaskMax, setSmartTaskMax] = useState(10);
   const [automaticTaskTargets, setAutomaticTaskTargets] = useState<TaskTarget[]>([]);
-  const [optimizeAllowedOperations, setOptimizeAllowedOperations] = useState<OptimizeOperation[]>([]);
+  const [optimizeAllowedFlowKinds, setOptimizeAllowedFlowKinds] = useState<OptimizeFlowKind[]>([]);
   const [smartTaskInterval, setSmartTaskInterval] = useState(10);
   const [smartTaskLookback, setSmartTaskLookback] = useState(30);
   const [smartTaskQueueMax, setSmartTaskQueueMax] = useState(50);
@@ -164,7 +164,7 @@ export default function SystemConfigPage() {
   const [manualPrio, setManualPrio] = useState(0);
   const [autoPrioBase, setAutoPrioBase] = useState(100);
   const [targetGateWeights, setTargetGateWeights] = useState<Record<TaskTarget, number>>(DEFAULT_TARGET_GATE_WEIGHTS);
-  const [optimizeOperationHints, setOptimizeOperationHints] = useState<Record<OptimizeOperation, number>>(DEFAULT_OPTIMIZE_OPERATION_HINTS);
+  const [optimizeOperationHints, setOptimizeOperationHints] = useState<Record<OptimizeFlowKind, number>>(DEFAULT_OPTIMIZE_OPERATION_HINTS);
   const [priorityRulesByTargetGate, setPriorityRulesByTargetGate] = useState<Record<TaskTarget, PriorityRule[]>>({
     ingest: [],
     metadata: [],
@@ -195,7 +195,7 @@ export default function SystemConfigPage() {
         setScrapeConc(sysCfg.scrapeConcurrency ?? 1);
         setSmartTaskMax(sysCfg.smartTaskMaxPerRun ?? 10);
         setAutomaticTaskTargets((sysCfg.automaticTaskTargets as TaskTarget[] | undefined) ?? []);
-        setOptimizeAllowedOperations((sysCfg.optimizeAllowedOperations as OptimizeOperation[] | undefined) ?? []);
+        setOptimizeAllowedFlowKinds((sysCfg.optimizeAllowedFlowKinds as OptimizeFlowKind[] | undefined) ?? []);
         setSmartTaskInterval(sysCfg.smartTaskPollIntervalMinutes ?? 10);
         setSmartTaskLookback(sysCfg.smartTaskLookbackDays ?? 30);
         setSmartTaskQueueMax(sysCfg.smartTaskMaxQueueSize ?? 50);
@@ -245,14 +245,14 @@ export default function SystemConfigPage() {
   function toggleTaskTarget(target: TaskTarget) {
     setAutomaticTaskTargets((prev) => {
       const next = prev.includes(target) ? prev.filter((x) => x !== target) : [...prev, target];
-      if (!next.includes('optimize')) setOptimizeAllowedOperations([]);
+      if (!next.includes('optimize')) setOptimizeAllowedFlowKinds([]);
       return next;
     });
   }
 
-  function toggleOptimizeOperation(operation: OptimizeOperation) {
-    setOptimizeAllowedOperations((prev) => {
-      const next = prev.includes(operation) ? prev.filter((x) => x !== operation) : [...prev, operation];
+  function toggleOptimizeFlowKind(flowKind: OptimizeFlowKind) {
+    setOptimizeAllowedFlowKinds((prev) => {
+      const next = prev.includes(flowKind) ? prev.filter((x) => x !== flowKind) : [...prev, flowKind];
       if (next.length > 0 && !automaticTaskTargets.includes('optimize')) {
         setAutomaticTaskTargets((targets) => targets.includes('optimize') ? targets : [...targets, 'optimize']);
       }
@@ -305,7 +305,7 @@ export default function SystemConfigPage() {
           scrapeConcurrency: scrapeConc,
           smartTaskMaxPerRun: smartTaskMax,
           automaticTaskTargets,
-          optimizeAllowedOperations,
+          optimizeAllowedFlowKinds,
           smartTaskPollIntervalMinutes: smartTaskInterval,
           smartTaskLookbackDays: smartTaskLookback,
           smartTaskMaxQueueSize: smartTaskQueueMax,
@@ -491,14 +491,14 @@ export default function SystemConfigPage() {
           <div style={{ marginTop: 16 }}>
             <label style={labelStyle}>优化任务允许的操作</label>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              {OPTIMIZE_OPERATIONS.map((operation) => (
-                <label key={operation.key} style={checkboxLabel}>
+              {OPTIMIZE_FLOW_KINDS.map((flowKind) => (
+                <label key={flowKind.key} style={checkboxLabel}>
                   <input
                     type="checkbox"
-                    checked={optimizeAllowedOperations.includes(operation.key)}
-                    onChange={() => toggleOptimizeOperation(operation.key)}
+                    checked={optimizeAllowedFlowKinds.includes(flowKind.key)}
+                    onChange={() => toggleOptimizeFlowKind(flowKind.key)}
                   />
-                  {operation.label}
+                  {flowKind.label}
                 </label>
               ))}
             </div>
@@ -507,14 +507,14 @@ export default function SystemConfigPage() {
             <div style={warningBox}>
               当前没有选择任何自动任务目标。媒体库仍会显示推荐方向，但系统不会自动创建任务；需要手动执行，或在这里授权对应 Gate 后保存。
             </div>
-          ) : automaticTaskTargets.includes('optimize') && optimizeAllowedOperations.length === 0 ? (
+          ) : automaticTaskTargets.includes('optimize') && optimizeAllowedFlowKinds.length === 0 ? (
             <div style={warningBox}>
-              已允许自动创建优化任务，但没有授权任何优化操作。系统不会自动创建转码、洗版或删除任务。
+              已允许自动创建优化任务，但没有授权任何优化路径。系统不会自动创建转码或洗版任务。
             </div>
           ) : (
             <div style={infoBox}>
               当前允许自动任务目标：{automaticTaskTargets.map((key) => TASK_TARGETS.find((target) => target.key === key)?.label || key).join('、')}。
-              {automaticTaskTargets.includes('optimize') ? ` 优化操作：${optimizeAllowedOperations.map((key) => OPTIMIZE_OPERATIONS.find((operation) => operation.key === key)?.label || key).join('、') || '未授权'}。` : ''}
+              {automaticTaskTargets.includes('optimize') ? ` 优化路径：${optimizeAllowedFlowKinds.map((key) => OPTIMIZE_FLOW_KINDS.find((flowKind) => flowKind.key === key)?.label || key).join('、') || '未授权'}。` : ''}
             </div>
           )}
           <div style={{ ...hintStyle, marginTop: 8 }}>用户在具体条目上手动创建任务属于明确操作，不受这个自动入队开关拦截，但仍会保留 active task 去重等安全规则。</div>
@@ -583,7 +583,7 @@ export default function SystemConfigPage() {
           ))}
         </div>
         <div style={{ ...fourColGrid, marginTop: 16 }}>
-          {OPTIMIZE_OPERATIONS.map((operation) => (
+          {OPTIMIZE_FLOW_KINDS.map((operation) => (
             <NumberField
               key={operation.key}
               label={`${operation.label}提示`}

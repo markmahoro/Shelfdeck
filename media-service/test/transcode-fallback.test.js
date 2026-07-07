@@ -50,7 +50,13 @@ function makeFakeSpawn({ gpuExitCode = 187, gpuStderr = 'qsv init failed: No cap
 
 const config = () => ({ ffmpegPath: FAKE_BIN, ffprobePath: FAKE_BIN, transcodeTempRoot: '/tmp' });
 
-function makeFakeRunCmdForDvPlan({ libplaceboOk = false, softwareOk = true, includeSoftwareFilters = true } = {}) {
+function makeFakeRunCmdForDvPlan({
+  libplaceboOk = false,
+  softwareOk = true,
+  software10Ok = null,
+  software8Ok = null,
+  includeSoftwareFilters = true,
+} = {}) {
   const calls = [];
   const filterLines = [
     ' ... libplacebo        V->V       Apply various GPU filters from libplacebo',
@@ -67,9 +73,13 @@ function makeFakeRunCmdForDvPlan({ libplaceboOk = false, softwareOk = true, incl
         : { code: 187, out: '', err: 'Failed initializing vulkan device' };
     }
     if (argv.includes('zscale=') && argv.includes('tonemap=tonemap=hable')) {
-      return softwareOk
+      const is10Bit = argv.includes('r=tv,format=yuv420p10le');
+      const ok = is10Bit
+        ? (software10Ok == null ? softwareOk : software10Ok)
+        : (software8Ok == null ? softwareOk : software8Ok);
+      return ok
         ? { code: 0, out: '', err: '' }
-        : { code: 1, out: '', err: 'zscale failed' };
+        : { code: 1, out: '', err: is10Bit ? 'libx265 10-bit failed' : 'zscale 8-bit failed' };
     }
     return { code: 0, out: '', err: '' };
   };
@@ -101,11 +111,32 @@ test('resolveDolbyVisionTonemapPlan falls back to software tonemap when libplace
     const plan = await transcodeService.resolveDolbyVisionTonemapPlan(config(), { forceRefresh: true });
     assert.strictEqual(plan.ok, true);
     assert.strictEqual(plan.mode, 'software');
+    assert.strictEqual(plan.bitDepth, 10);
+    assert.strictEqual(plan.pixelFormat, 'yuv420p10le');
+    assert.ok(/setparams=.*bt2020/.test(plan.filterGraph));
     assert.ok(/zscale/.test(plan.filterGraph));
     assert.ok(/tonemap=hable/.test(plan.filterGraph));
     assert.ok(/vulkan/i.test(plan.libplaceboError));
     assert.ok(calls.some((c) => c.argv.includes('libplacebo=tonemapping')), 'libplacebo self-test should run');
     assert.ok(calls.some((c) => c.argv.includes('tonemap=tonemap=hable')), 'software self-test should run');
+  } finally {
+    transcodeService._setRunCmdForTest(null);
+  }
+});
+
+test('resolveDolbyVisionTonemapPlan falls back to 8-bit software tonemap when x265 cannot encode 10-bit', async () => {
+  const { fn, calls } = makeFakeRunCmdForDvPlan({ libplaceboOk: false, software10Ok: false, software8Ok: true });
+  transcodeService._setRunCmdForTest(fn);
+  try {
+    const plan = await transcodeService.resolveDolbyVisionTonemapPlan(config(), { forceRefresh: true });
+    assert.strictEqual(plan.ok, true);
+    assert.strictEqual(plan.mode, 'software');
+    assert.strictEqual(plan.bitDepth, 8);
+    assert.strictEqual(plan.pixelFormat, 'yuv420p');
+    assert.ok(/format=yuv420p(?:,|$)/.test(plan.filterGraph));
+    assert.ok(/10-bit/i.test(plan.softwareError));
+    assert.ok(calls.some((c) => c.argv.includes('format=yuv420p10le') && c.argv.includes('-c:v libx265')), '10-bit encode self-test should run');
+    assert.ok(calls.some((c) => c.argv.includes('format=yuv420p') && c.argv.includes('-c:v libx265')), '8-bit encode self-test should run');
   } finally {
     transcodeService._setRunCmdForTest(null);
   }

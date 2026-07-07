@@ -29,8 +29,18 @@ const flowPlanner = require('../src/flowPlanner');
 const optimizationStatus = require('../src/optimizationStatus');
 const v3Model = require('../src/v3Model');
 
+const TEST_FRESH_AT = '2026-01-01T00:00:00.000Z';
+
+function freshMetadataFacts() {
+  return {
+    lastRefreshedAt: TEST_FRESH_AT,
+    metadataUpdatedAt: TEST_FRESH_AT,
+  };
+}
+
 function metadataReadyMovie(overrides = {}) {
   const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
+  const now = new Date().toISOString();
   return {
     itemId,
     source: 'emby',
@@ -48,6 +58,8 @@ function metadataReadyMovie(overrides = {}) {
     tmdbId: '10001',
     metadataComplete: true,
     metadataStatus: 'complete',
+    lastRefreshedAt: now,
+    metadataUpdatedAt: now,
     optimizeObjectiveStatus: 'ready',
     optimizeObjective: {
       kind: 'target_media_facts',
@@ -1407,6 +1419,7 @@ test('smartTaskEngine does not auto-enqueue standard scrape when only rating fac
             tmdbId: '12345',
             metadataComplete: true,
             metadataStatus: 'complete',
+            ...freshMetadataFacts(),
             path: '/media/standard-missing-rating.mkv',
             size: 1024,
             duration: 3600,
@@ -2867,6 +2880,7 @@ test('libraryStore persists v3 media lifecycle facts as SQL query fields', () =>
         action: 'transcode',
         metadataComplete: true,
         metadataStatus: 'complete',
+        ...freshMetadataFacts(),
         optimizationStatus: 'none',
       }, {
         itemId: 'v3-media-2',
@@ -2881,6 +2895,7 @@ test('libraryStore persists v3 media lifecycle facts as SQL query fields', () =>
         reason: 'modern codec already within target',
         metadataComplete: true,
         metadataStatus: 'complete',
+        ...freshMetadataFacts(),
         targetMediaFacts: { targetCodec: 'h264' },
         targetCodec: 'h264',
         codec: 'h264',
@@ -2899,6 +2914,7 @@ test('libraryStore persists v3 media lifecycle facts as SQL query fields', () =>
         reason: '新入库',
         metadataComplete: true,
         metadataStatus: 'complete',
+        ...freshMetadataFacts(),
       }],
     });
 
@@ -3101,6 +3117,7 @@ test('lifecycleProjection separates metadata, optimize, and archive-like closure
     resolution: '1920x1080',
     targetMediaFacts: { minResolution: '4K', targetCodec: 'h265' },
     metadataComplete: true,
+    ...freshMetadataFacts(),
     optimizationStatus: 'none',
   });
   assert.strictEqual(pendingOptimize.lifecycleStage, 'metadata_ready');
@@ -3114,6 +3131,7 @@ test('lifecycleProjection separates metadata, optimize, and archive-like closure
     duration: 3600,
     reason: '新入库',
     metadataComplete: true,
+    ...freshMetadataFacts(),
   });
   assert.strictEqual(strategyPending.lifecycleStage, 'metadata_ready');
   assert.strictEqual(strategyPending.lifecycleNextTask, null);
@@ -3127,6 +3145,7 @@ test('lifecycleProjection separates metadata, optimize, and archive-like closure
     path: '/media/strategy-missing-movie.mkv',
     duration: 3600,
     metadataComplete: true,
+    ...freshMetadataFacts(),
   });
   assert.strictEqual(strategyMissing.lifecycleStage, 'metadata_ready');
   assert.strictEqual(strategyMissing.lifecycleNextTask, null);
@@ -3144,6 +3163,7 @@ test('lifecycleProjection separates metadata, optimize, and archive-like closure
     targetCodec: 'h264',
     codec: 'h264',
     metadataComplete: true,
+    ...freshMetadataFacts(),
   });
   assert.strictEqual(keep.lifecycleStage, 'optimized');
   assert.strictEqual(keep.lifecycleNextTask, 'archive');
@@ -3160,6 +3180,7 @@ test('lifecycleProjection separates metadata, optimize, and archive-like closure
     reason: 'modern codec already within target',
     optimizeGate: { passed: true, operation: 'no_op', reason: 'objective_already_satisfied' },
     metadataComplete: true,
+    ...freshMetadataFacts(),
     archiveStatus: 'archived_like',
     archiveDoneAt: new Date().toISOString(),
   });
@@ -3195,6 +3216,7 @@ test('lifecycleProjection exposes first-class ingest and archive gate contracts'
     path: '/media/blocked-archive-movie.mkv',
     duration: 3600,
     metadataComplete: true,
+    ...freshMetadataFacts(),
     optimizationStatus: 'transcoded',
     targetMediaFacts: { targetCodec: 'h264' },
     targetCodec: 'h264',
@@ -3244,6 +3266,7 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     path: '/media/pending-transcode-gate.mkv',
     duration: 3600,
     metadataComplete: true,
+    ...freshMetadataFacts(),
     targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
     targetBitrate: 4,
     targetCodec: 'h265',
@@ -3263,6 +3286,7 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     path: '/media/passed-transcode-gate.mkv',
     duration: 3600,
     metadataComplete: true,
+    ...freshMetadataFacts(),
     targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
     optimizationStatus: 'transcoded',
     targetBitrate: 4,
@@ -3288,6 +3312,7 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     path: '/media/archived-transcode-gate.mkv',
     duration: 3600,
     metadataComplete: true,
+    ...freshMetadataFacts(),
     targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
     optimizationStatus: 'transcoded',
     targetBitrate: 4,
@@ -3310,6 +3335,7 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     path: '/media/failed-transcode-gate.mkv',
     duration: 3600,
     metadataComplete: true,
+    ...freshMetadataFacts(),
     targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
     optimizationStatus: 'transcoded',
     targetBitrate: 4,

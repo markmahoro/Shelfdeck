@@ -2,6 +2,7 @@
 
 const lifecycleGateService = require('./lifecycleGateService');
 const lifecycleObjectiveResolver = require('./lifecycleObjectiveResolver');
+const factsFreshnessService = require('./factsFreshnessService');
 
 function normalizeReason(reason) {
   return String(reason || '').trim();
@@ -20,8 +21,12 @@ function objectiveLifecycleReason(projection, fallback) {
 function resolveLifecycle(item, config = {}) {
   const reason = normalizeReason(item && item.reason);
   const metadataComplete = !!(item && item.metadataComplete);
-  const ingestGate = lifecycleGateService.evaluateIngestGate(item || {});
-  const objectiveProjection = lifecycleObjectiveResolver.projectOptimizeObjective(item || {}, { config });
+  const factsFreshness = item && item.factsFreshness
+    ? item.factsFreshness
+    : factsFreshnessService.projectForItem(item || {});
+  const itemWithFreshness = { ...(item || {}), factsFreshness };
+  const ingestGate = lifecycleGateService.evaluateIngestGate(itemWithFreshness);
+  const objectiveProjection = lifecycleObjectiveResolver.projectOptimizeObjective(itemWithFreshness, { config });
 
   if (!ingestGate.passed) {
     return {
@@ -32,22 +37,40 @@ function resolveLifecycle(item, config = {}) {
       lifecycleReason: ingestGate.reason,
       optimizeFlowKind: null,
       ...objectiveProjection,
+      factsFreshness,
       ingestGate,
       optimizeGate: null,
       archiveGate: null,
     };
   }
 
-  if (!metadataComplete) {
+  const metadataFresh = factsFreshnessService.isFresh(factsFreshness, 'mediaFacts')
+    && factsFreshnessService.isFresh(factsFreshness, 'metadataFacts');
+  const staleMetadataFacts = factsFreshnessService.isBlockingStale(factsFreshness, 'mediaFacts')
+    || factsFreshnessService.isBlockingStale(factsFreshness, 'metadataFacts');
+  if (!metadataComplete || !metadataFresh) {
     return {
       lifecycleStage: 'ingested',
       lifecycleDone: false,
       archiveStatus: 'not_ready',
       lifecycleNextTask: 'metadata',
-      lifecycleReason: 'metadata_missing',
+      lifecycleReason: staleMetadataFacts ? 'metadata_facts_stale' : 'metadata_missing',
       optimizeFlowKind: null,
       ...objectiveProjection,
+      factsFreshness,
       ingestGate,
+      metadataGate: {
+        gate: 'metadata',
+        passed: false,
+        status: staleMetadataFacts ? 'stale' : 'missing',
+        reason: staleMetadataFacts ? 'metadata_facts_stale' : 'metadata_missing',
+        missingReasons: metadataComplete ? [] : (item && item.metadataMissingReasons || []),
+        freshness: {
+          mediaFacts: factsFreshness.mediaFacts,
+          metadataFacts: factsFreshness.metadataFacts,
+        },
+        userAction: staleMetadataFacts ? 'refresh_media_or_metadata_facts' : 'repair_metadata',
+      },
       optimizeGate: null,
       archiveGate: null,
     };
@@ -65,6 +88,7 @@ function resolveLifecycle(item, config = {}) {
       lifecycleReason: objectiveLifecycleReason(objectiveProjection, reason ? 'strategy_pending' : 'strategy_missing'),
       optimizeFlowKind: null,
       ...objectiveProjection,
+      factsFreshness,
       ingestGate,
       optimizeGate: null,
       archiveGate: null,
@@ -85,6 +109,7 @@ function resolveLifecycle(item, config = {}) {
       lifecycleReason: terminalDeleteGate.reason,
       optimizeFlowKind: optimizeGate.flowKind || null,
       ...objectiveProjection,
+      factsFreshness,
       ingestGate,
       optimizeGate,
       archiveGate,
@@ -104,6 +129,7 @@ function resolveLifecycle(item, config = {}) {
         lifecycleReason: archiveGate.reason,
         optimizeFlowKind: optimizeGate.flowKind || null,
         ...objectiveProjection,
+        factsFreshness,
         ingestGate,
         optimizeGate,
         archiveGate,
@@ -120,6 +146,7 @@ function resolveLifecycle(item, config = {}) {
         lifecycleReason: deleteGate.reason,
         optimizeFlowKind: optimizeGate.flowKind || null,
         ...objectiveProjection,
+        factsFreshness,
         ingestGate,
         optimizeGate,
         archiveGate,
@@ -135,6 +162,7 @@ function resolveLifecycle(item, config = {}) {
       lifecycleReason: optimizeGate.reason,
       optimizeFlowKind: optimizeGate.flowKind || null,
       ...objectiveProjection,
+      factsFreshness,
       ingestGate,
       optimizeGate,
       archiveGate,
@@ -151,6 +179,7 @@ function resolveLifecycle(item, config = {}) {
       lifecycleReason: optimizeGate.reason,
       optimizeFlowKind: optimizeGate.flowKind || null,
       ...objectiveProjection,
+      factsFreshness,
       ingestGate,
       optimizeGate,
       archiveGate: null,
@@ -165,6 +194,7 @@ function resolveLifecycle(item, config = {}) {
     lifecycleReason: 'optimization_pending',
     optimizeFlowKind: optimizeGate.flowKind || null,
     ...objectiveProjection,
+    factsFreshness,
     ingestGate,
     optimizeGate,
     archiveGate: null,
