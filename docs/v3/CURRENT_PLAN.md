@@ -10,9 +10,9 @@ Reach `Kairox Beta` in this worktree.
 
 This worktree stops at `Kairox Beta`. Later goals require a new worktree.
 
-The production Kairox E2E is paused at Stage 6.
+The previous production Kairox E2E run is stopped.
 
-The current blocker `refresh capability Kairox cutover` has been implemented locally and verified by tests. It still needs deployment and E2E re-validation before Stage 7+ continues.
+The current blocker `refresh capability Kairox cutover` and the post-optimize canonical refresh fix have been deployed. Production has validated ingest -> metadata refresh on the new canary item.
 
 The E2E goal is to prove:
 
@@ -31,16 +31,18 @@ frontend pages are visible
 ## Current Execution Order
 
 1. Keep `Kairox Beta E2E` as the main thread objective.
-2. Stop E2E at Stage 6 while the refresh blocker is active.
-3. Refresh cutover implementation is complete locally:
+2. Restart E2E on the current canary item `81945 / 爱很美味 / Season 1`.
+3. Refresh cutover implementation is complete and deployed:
    - `refresh` remains an intent / scan request, not a task type.
    - Emby inventory discovery produces source observations.
    - SmartTaskEngine / Task Creator turn observations into target-gate tasks.
    - TaskAdmission remains the only creation gate.
    - Resource Runtime and executors publish facts through the owning gate.
-4. Commit the blocker fix.
-5. Deploy only after explicit user authorization.
-6. Resume E2E from the affected stage and continue one stage at a time.
+4. Post-optimize canonical refresh implementation is complete and deployed:
+   - transcode / upgrade write staged facts and evidence, not canonical media facts.
+   - Lifecycle projects `pending_canonical_refresh` back to ingest / metadata.
+   - E2E Stage 7 validates canonical refresh before archive.
+5. Continue E2E one stage at a time on item `81945`.
 
 ## Active E2E Plan
 
@@ -71,7 +73,7 @@ docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
 
 ## Next Recommended Action
 
-After the refresh cutover is deployed, resume production E2E from the affected stage:
+Restart production E2E on the current canary:
 
 ```powershell
 cd media-service
@@ -82,10 +84,18 @@ node scripts/kairox-frontend-api-e2e.js `
   --allow-production `
   --confirm-destructive-e2e `
   --library-name="公共 国产剧库" `
-  --canary-item-id=82397 `
+  --canary-item-id=81945 `
   --stage=stage0 `
   --out=../docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md `
   --state=../docs/v3/acceptance/.kairox_frontend_api_e2e_state.json
 ```
 
-If item `82397` is not found, first query the test library for `漫长的季节` and report the replacement item id before continuing.
+The current canary item already has fresh source/media/metadata facts after production validation:
+
+```text
+81945 / 爱很美味 / Season 1
+duration=200
+size=20493967
+bitrate=819759
+lifecycleNextTask=optimize
+```

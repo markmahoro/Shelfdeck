@@ -7,14 +7,14 @@ Last updated: 2026-07-07
 - Current release goal: `Kairox Beta Candidate`
 - Worktree scope: this worktree stops at `Kairox Beta`; later goals require a new worktree.
 - Production URL: `http://192.168.12.230:18080`
-- Latest deployed image: `markmahoro/shelfdeck:kairox-freshness-20260707-263ef161`
-- Latest deployed commit: `263ef161 Implement Kairox facts freshness and E2E tooling`
-- Latest deployed image SHA256: `0840d9864e9c0b4f0782a458acd10f1e5b80d51d914f34528b54e63ef573868d`
-- Latest deployment time: `2026-07-07 22:02 Asia/Shanghai`
+- Latest deployed image: `markmahoro/shelfdeck:kairox-e2e-fix-20260707-f540698e`
+- Latest deployed commit: `f540698e Respect canonical facts after optimize flows`
+- Latest deployed image SHA256: `057643d17b16e4c28537134b3a560ffb06c7f4dcc894e62324e7af95a6efe51c`
+- Latest deployment time: `2026-07-07 23:52 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: paused at Stage 6; `Kairox Beta` is not achieved until E2E passes.
-- Refresh cutover blocker status: implemented locally and verified by tests; not yet deployed to production and not yet re-validated by E2E.
+- Production E2E status: paused before full restart on the new canary; `Kairox Beta` is not achieved until E2E passes.
+- Refresh cutover blocker status: deployed and production-validated for ingest -> metadata refresh on the new canary.
 
 ## Current Architecture State
 
@@ -28,6 +28,10 @@ Last updated: 2026-07-07
   - canonical facts freshness is stored in `media_fact_freshness`.
   - stale media / metadata facts can drive lifecycle back to metadata refresh.
   - optimize task creation is blocked when canonical facts are stale.
+- Post-optimize canonical refresh has been implemented and deployed:
+  - transcode / upgrade completion records staged facts and evidence.
+  - transcode / upgrade no longer directly publish source/media/metadata canonical facts.
+  - pending canonical refresh drives Lifecycle back to ingest or metadata before optimize gate is re-evaluated.
 
 ## Frontend State
 
@@ -45,14 +49,19 @@ Last updated: 2026-07-07
 
 ## Current E2E Context
 
-- Current production E2E sample: `漫长的季节`.
+- Current production E2E sample: `爱很美味`.
 - Test library: `公共 国产剧库`.
-- Known intended canary item from earlier work: `82397 / 漫长的季节 / Season 1`.
-- The sample was shortened to about one minute per episode and Emby was refreshed by the user.
-- The previous blocker was stale ShelfDeck facts after the media files changed.
-- That blocker should now be addressed by the deployed facts freshness implementation.
-- Stage 0-6 produced useful evidence, but the run is not accepted as Beta proof because refresh cutover still needs production deployment and E2E re-validation.
-- E2E Stage 7+ must not continue until the refresh cutover is deployed and the affected E2E stage is rerun.
+- Current canary item: `81945 / 爱很美味 / Season 1`.
+- The sample was shortened to about 10 seconds per episode and Emby was refreshed by the user.
+- Production validation after deploy:
+  - manual library ingest scan returned `mode=kairox_scan`.
+  - scan created `targetGate=ingest` task `b5840cad0adbad9d` for item `81945`.
+  - ingest completed and marked `sourceFacts=fresh`, `mediaFacts/metadataFacts=stale`.
+  - manual `targetGate=metadata` task `6f02d08dd1452d1c` completed through `flowPlan.flowKind=scrape`.
+  - final canonical facts: `duration=200`, `size=20493967`, `bitrate=819759`, `source/media/metadata freshness=fresh`.
+  - final lifecycle projection: `lifecycleStage=metadata_ready`, `lifecycleNextTask=optimize`.
+- The earlier `漫长的季节` Stage 0-6 evidence remains useful but is not the current accepted E2E run.
+- The next full E2E run should restart on item `81945`.
 
 ## Release Goal Status
 
@@ -66,13 +75,17 @@ Last updated: 2026-07-07
 
 ## Unresolved / Not Yet Proven
 
-- Production Frontend/API E2E is paused at Stage 6.
-- Refresh cutover is implemented in the worktree:
+- Production Frontend/API E2E needs a fresh run on item `81945`.
+- Refresh cutover is implemented and deployed:
   - manual `/v1/library/actions/ingest` and `/refresh` request Kairox SmartTask scan.
   - sublibrary add / startup / timer no longer run direct Emby ingest.
   - public cache write API returns `LEGACY_CACHE_WRITE_DISABLED`.
   - Emby inventory observations become `targetGate=ingest` candidates.
   - Emby source commit writes source facts and marks media/metadata stale.
+- Post-optimize canonical refresh is implemented and deployed:
+  - transcode / upgrade write staged facts and fact refresh request.
+  - Lifecycle projects `pending_canonical_refresh` back to ingest / metadata.
+  - E2E Stage 7 now validates refresh tasks before archive.
 - Kairox business chain still needs production proof:
   - frontend page visibility.
   - media projection correctness.

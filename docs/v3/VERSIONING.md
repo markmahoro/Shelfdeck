@@ -12,9 +12,9 @@ Last updated: 2026-07-07
 | --- | --- | --- |
 | Product line | `v3 / Kairox` | 当前产品和架构演进线 |
 | Current release goal | `Kairox Beta Candidate` | 当前大版本目标，见 `RELEASE_GOALS.md` 和 `CURRENT_PLAN.md` |
-| Latest deployed image | `markmahoro/shelfdeck:kairox-freshness-20260707-263ef161` | 当前生产运行镜像 |
-| Latest deployed commit | `263ef161` | 当前生产代码来源 |
-| Latest deployed image SHA256 | `0840d9864e9c0b4f0782a458acd10f1e5b80d51d914f34528b54e63ef573868d` | 本地构建 tar 与 NAS 上传校验 hash |
+| Latest deployed image | `markmahoro/shelfdeck:kairox-e2e-fix-20260707-f540698e` | 当前生产运行镜像 |
+| Latest deployed commit | `f540698e` | 当前生产代码来源 |
+| Latest deployed image SHA256 | `057643d17b16e4c28537134b3a560ffb06c7f4dcc894e62324e7af95a6efe51c` | 本地构建 tar 与 NAS 上传校验 hash |
 | Latest Git release tag | `v2.0.0` | 历史 release tag，不代表当前 v3/Kairox 生产镜像 |
 | package versions | `1.0.0` | 当前不作为 v3/Kairox 阶段版本来源 |
 
