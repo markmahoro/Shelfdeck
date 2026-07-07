@@ -23,19 +23,21 @@ frontend pages are visible
 ## Current Execution Order
 
 1. Finish documentation rebaseline.
-2. Confirm current docs are clear:
+2. Finish versioning rebaseline.
+3. Confirm current docs are clear:
    - `README.md`
    - `CURRENT_STATUS.md`
    - `CURRENT_PLAN.md`
+   - `VERSIONING.md`
    - `acceptance/KAIROX_FRONTEND_API_E2E_PLAN.md`
-3. Resume production E2E only after the user asks to continue.
-4. Run E2E one stage at a time.
-5. After each stage, report:
+4. Resume production E2E only after the user asks to continue.
+5. Run E2E one stage at a time.
+6. After each stage, report:
    - stage name.
    - pass/fail.
    - evidence.
    - next action.
-6. If a stage fails:
+7. If a stage fails:
    - stop at that stage.
    - identify root cause.
    - classify as backend semantic gap, projection gap, frontend connection gap, data state issue, or test script issue.
@@ -61,6 +63,8 @@ docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
 - Do not start Frontend GA polish before production E2E proves the business chain.
 - Do not create another roadmap or competing active plan.
 - Do not use archived Codex plans as implementation guidance.
+- Do not use old v3.x roadmap names as current version identity.
+- Do not treat package version `1.0.0` or Docker `latest` as production version identity.
 - Do not run destructive production actions outside the selected E2E canary scope.
 
 ## Next Recommended Action

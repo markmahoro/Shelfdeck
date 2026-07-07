@@ -25,6 +25,7 @@ Use the smallest relevant set:
 | Situation | Read first |
 | --- | --- |
 | Current v3 status or next task | `docs/v3/README.md`, then `docs/v3/CURRENT_STATUS.md` and `docs/v3/CURRENT_PLAN.md` |
+| Version naming, release tag, image tag, package version, or deployment identity | `docs/v3/VERSIONING.md`, then `docs/v3/CURRENT_STATUS.md` |
 | Architecture, scheduler, task admission, automation, flow, resource runtime, module boundary | `docs/v3/KAIROX_ARCHITECTURE.md`, then `docs/v3/KAIROX_ENGINEERING_PLAYBOOK.md`; use `docs/v2/ARCH_OVERVIEW.md` only as current implementation map |
 | v3 docs conflict or historical context | `docs/v3/README.md` |
 | Runtime bug/debugging | `tests/TEST_ENV_CHECKLIST.md`, then `docs/v2/DEBUG_WORKFLOW.md` |
@@ -37,6 +38,7 @@ Use the smallest relevant set:
 ## Architecture Memory
 
 - Kairox is the named architecture contract for v3.1 evolution.
+- v3.x roadmap names, Kairox milestone names, Docker image tags, Git release tags, and package versions are different concepts. Use `docs/v3/VERSIONING.md` as the source of truth.
 - `docs/v2/ARCH_OVERVIEW.md` is a current implementation map, not an architecture contract. It must not override Kairox.
 - Mirex is the legacy compatibility model before Kairox. Recognize, migrate, and preserve it only for compatibility; do not extend it for new behavior.
 - Kairox task semantics are `object + targetGate + gateObjective`.
@@ -99,6 +101,7 @@ Do not run `npm run dev` as a long-running blocking command from Codex. Tell the
 - No workarounds or silent fallbacks when debugging; find the precise root cause.
 - When changing API, config, scheduler, task admission, flow behavior, resource behavior, or architecture contracts, update relevant tests and docs.
 - v3 planning documents must not multiply. Keep the active plan in `docs/v3/CURRENT_PLAN.md`, active status in `docs/v3/CURRENT_STATUS.md`, and move completed/superseded/evidence documents under `docs/v3/archive/`.
+- Do not invent or reuse version names during implementation. For production deployments record the Docker image tag, git commit, SHA256, and E2E status in `docs/v3/CURRENT_STATUS.md`; reserve Git release tags for accepted releases.
 - Verify impact across service Windows, service Docker, and desktop Windows according to `docs/v2/DEVELOPMENT_WORKFLOW.md`.
 - Passing tests are evidence, not proof; be honest about untested risk.
 - Code, code comments, and commit messages are English. Docs are Chinese with English technical terms where appropriate.

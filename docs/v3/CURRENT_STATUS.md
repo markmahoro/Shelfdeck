@@ -7,6 +7,9 @@ Last updated: 2026-07-07
 - Production URL: `http://192.168.12.230:18080`
 - Latest deployed image: `markmahoro/shelfdeck:kairox-freshness-20260707-263ef161`
 - Latest deployed commit: `263ef161 Implement Kairox facts freshness and E2E tooling`
+- Latest deployed image SHA256: `0840d9864e9c0b4f0782a458acd10f1e5b80d51d914f34528b54e63ef573868d`
+- Latest deployment time: `2026-07-07 22:02 Asia/Shanghai`
+- Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
 - Production E2E status: paused before rerun after deployment.
 
