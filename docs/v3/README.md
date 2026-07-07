@@ -60,6 +60,9 @@
 ## Documentation Rules
 
 - 同一时间只能有一份当前计划：`CURRENT_PLAN.md`。
+- Codex Plan Mode 中的 `<proposed_plan>` 是对话协作产物，不是仓库长期计划文档。
+- 计划确认进入执行后，只能更新现有入口：总体计划更新 `CURRENT_PLAN.md`，状态更新 `CURRENT_STATUS.md`，验收细节更新 `acceptance/` 下已有计划。
+- 不得因为 Plan Mode 生成新 active plan 文档，例如 `KAIROX_BETA_PLAN.md`、`KAIROX_E2E_PLAN_V2.md` 或其他并列当前计划。
 - 阶段计划完成后移动到 `archive/completed/`。
 - 被推翻、暂停或重排的计划移动到 `archive/superseded/`。
 - 验收报告和生产运行证据移动到 `archive/evidence/` 或 `acceptance/`。

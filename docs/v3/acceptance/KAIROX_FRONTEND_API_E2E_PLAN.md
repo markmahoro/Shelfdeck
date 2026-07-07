@@ -416,7 +416,7 @@ rg -n "actionType|operationKind|operation_kind|selectedOperation|bySelectedFlow|
 实际验收报告输出：
 
 ```text
-docs/v3/KAIROX_FRONTEND_API_E2E.md
+docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
 ```
 
 报告必须包含：
@@ -446,14 +446,14 @@ cd media-service && npm run build:web
 
 ```bash
 cd media-service
-node scripts/kairox-frontend-api-e2e.js --base-url=http://192.168.12.230:18080 --frontend-url=http://192.168.12.230:18080 --mode=readonly --allow-production --library-name="公共 国产剧库" --out=docs/v3/KAIROX_FRONTEND_API_E2E.md
+node scripts/kairox-frontend-api-e2e.js --base-url=http://192.168.12.230:18080 --frontend-url=http://192.168.12.230:18080 --mode=readonly --allow-production --library-name="公共 国产剧库" --out=../docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md --state=../docs/v3/acceptance/.kairox_frontend_api_e2e_state.json
 ```
 
 生产 destructive E2E：
 
 ```bash
 cd media-service
-node scripts/kairox-frontend-api-e2e.js --base-url=http://192.168.12.230:18080 --frontend-url=http://192.168.12.230:18080 --mode=destructive --allow-production --confirm-destructive-e2e --library-name="公共 国产剧库" --out=docs/v3/KAIROX_FRONTEND_API_E2E.md
+node scripts/kairox-frontend-api-e2e.js --base-url=http://192.168.12.230:18080 --frontend-url=http://192.168.12.230:18080 --mode=destructive --allow-production --confirm-destructive-e2e --library-name="公共 国产剧库" --out=../docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md --state=../docs/v3/acceptance/.kairox_frontend_api_e2e_state.json
 ```
 
 ## 6. 完成判定
@@ -472,4 +472,3 @@ node scripts/kairox-frontend-api-e2e.js --base-url=http://192.168.12.230:18080 -
 - destructive delete 只作用于 canary。
 - 无 delete-as-optimize。
 - 无 P0/P1 Mirex 主路径残留。
-

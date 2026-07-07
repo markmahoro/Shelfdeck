@@ -104,6 +104,7 @@ Do not run `npm run dev` as a long-running blocking command from Codex. Tell the
 - No workarounds or silent fallbacks when debugging; find the precise root cause.
 - When changing API, config, scheduler, task admission, flow behavior, resource behavior, or architecture contracts, update relevant tests and docs.
 - v3 planning documents must not multiply. Keep the active plan in `docs/v3/CURRENT_PLAN.md`, active status in `docs/v3/CURRENT_STATUS.md`, and move completed/superseded/evidence documents under `docs/v3/archive/`.
+- Codex Plan Mode does not create new active plan documents. A confirmed plan updates `docs/v3/CURRENT_PLAN.md`; acceptance details update an existing file under `docs/v3/acceptance/`; do not create parallel active plan files.
 - Do not invent or reuse version names during implementation. For production deployments record the Docker image tag, git commit, SHA256, and E2E status in `docs/v3/CURRENT_STATUS.md`; reserve Git release tags for accepted releases.
 - Verify impact across service Windows, service Docker, and desktop Windows according to `docs/v2/DEVELOPMENT_WORKFLOW.md`.
 - Passing tests are evidence, not proof; be honest about untested risk.
