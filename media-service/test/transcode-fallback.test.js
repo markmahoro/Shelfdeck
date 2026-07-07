@@ -14,6 +14,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { EventEmitter } = require('events');
 const os = require('os');
+const path = require('path');
 
 const transcodeService = require('../src/services/transcodeService');
 
@@ -175,6 +176,50 @@ test('buildEncodeArgs uses selected Dolby Vision software tonemap filter and CPU
   assert.ok(codecIndex >= 0, 'DV encode should set a video codec');
   assert.strictEqual(built.args[codecIndex + 1], 'libx265');
   assert.ok(!built.args.includes('hevc_qsv'), 'DV encode should not use QSV codec when acknowledged');
+});
+
+test('buildEncodeArgs uses strict QSV CBR for bitrate target hit attempts', () => {
+  const built = transcodeService._buildEncodeArgsForTest({
+    config: config(),
+    sourcePath: '/src.mkv',
+    partialPath: '/out.mkv',
+    encoderMode: 'qsv',
+    isDolbyVision: false,
+    dvAcknowledged: false,
+    targetBitrate: 1.5,
+    bitrateProfile: { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+    rateControlStrategy: 'qsv_cbr',
+  });
+  const argv = built.args.join(' ');
+  assert.match(argv, /-c:v hevc_qsv/);
+  assert.match(argv, /-b:v 1\.5M/);
+  assert.match(argv, /-minrate 1\.5M/);
+  assert.match(argv, /-maxrate 1\.5M/);
+  assert.match(argv, /-bufsize 3M/);
+  assert.ok(!built.args.includes('-rc'), 'CBR attempt should not use QSV VBR rc flag');
+});
+
+test('buildTwoPassEncodeArgs creates CPU libx265 two-pass ABR commands', () => {
+  const built = transcodeService._buildTwoPassEncodeArgsForTest({
+    config: config(),
+    sourcePath: '/src.mkv',
+    partialPath: path.join(os.tmpdir(), 'out-two-pass.mkv'),
+    targetBitrate: 1.5,
+    bitrateProfile: { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+    isDolbyVision: false,
+    dvAcknowledged: false,
+  });
+  const first = built.firstPassArgs.join(' ');
+  const second = built.secondPassArgs.join(' ');
+  assert.match(first, /-c:v libx265/);
+  assert.match(second, /-c:v libx265/);
+  assert.match(first, /-b:v 1\.5M/);
+  assert.match(second, /-b:v 1\.5M/);
+  assert.match(first, /-pass 1/);
+  assert.match(second, /-pass 2/);
+  assert.match(first, /vbv-maxrate=2025:vbv-bufsize=4050/);
+  assert.match(second, /vbv-maxrate=2025:vbv-bufsize=4050/);
+  assert.ok(built.passLogFile.includes('ffmpeg2pass'));
 });
 
 test('transcode health does not spawn ffmpeg for command-name references', async () => {

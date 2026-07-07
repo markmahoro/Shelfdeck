@@ -535,6 +535,18 @@ async function stage4(args, context) {
 
   const originalRating = before.body.userRating ?? null;
   const nextRating = originalRating === 2 ? 3 : 2;
+  const prePatchActiveTasks = await httpJson(args, 'activeTasksBeforePerception', `/v1/tasks?activeOnly=1`);
+  if (!prePatchActiveTasks.ok) {
+    return fail('active_tasks_before_perception_failed', {
+      status: prePatchActiveTasks.status,
+      error: prePatchActiveTasks.error,
+    });
+  }
+  const prePatchTaskIds = new Set(
+    Array.isArray(prePatchActiveTasks.body && prePatchActiveTasks.body.tasks)
+      ? prePatchActiveTasks.body.tasks.map((task) => task.id)
+      : []
+  );
   const patch = await httpJson(args, 'patchRating', '/v1/library/ratings', {
     method: 'PATCH',
     body: { itemId, userRating: nextRating },
@@ -547,17 +559,35 @@ async function stage4(args, context) {
   const afterVersion = Number(after.body.perceptionVersion || after.body.userPerceptionFacts && after.body.userPerceptionFacts.perceptionVersion || 0);
   const activeTasks = await httpJson(args, 'activeTasksAfterPerception', `/v1/tasks?activeOnly=1`);
   const directTasks = activeTasks.ok && Array.isArray(activeTasks.body.tasks)
-    ? activeTasks.body.tasks.filter((task) => task.itemId === itemId && !context.canaryActiveTasks.some((oldTask) => oldTask.id === task.id))
+    ? activeTasks.body.tasks.filter((task) => task.itemId === itemId && !prePatchTaskIds.has(task.id))
     : [];
   if (directTasks.length > 0) {
     return fail('perception_writer_created_task_directly', {
       originalRating,
       nextRating,
-      directTasks: directTasks.map((task) => ({ id: task.id, targetGate: targetGateOf(task), status: task.status })),
+      directTasks: directTasks.map((task) => ({
+        id: task.id,
+        targetGate: targetGateOf(task),
+        status: task.status,
+        source: task.source || '',
+        createdAt: task.createdAt || '',
+      })),
     });
   }
   let restored = false;
   if (originalRating != null && originalRating !== nextRating) {
+    const preRestoreActiveTasks = await httpJson(args, 'activeTasksBeforePerceptionRestore', `/v1/tasks?activeOnly=1`);
+    if (!preRestoreActiveTasks.ok) {
+      return fail('active_tasks_before_perception_restore_failed', {
+        status: preRestoreActiveTasks.status,
+        error: preRestoreActiveTasks.error,
+      });
+    }
+    const preRestoreTaskIds = new Set(
+      Array.isArray(preRestoreActiveTasks.body && preRestoreActiveTasks.body.tasks)
+        ? preRestoreActiveTasks.body.tasks.map((task) => task.id)
+        : []
+    );
     const restore = await httpJson(args, 'restoreRatingAfterPerceptionCheck', '/v1/library/ratings', {
       method: 'PATCH',
       body: { itemId, userRating: originalRating },
@@ -566,11 +596,17 @@ async function stage4(args, context) {
     restored = true;
     const restoredActiveTasks = await httpJson(args, 'activeTasksAfterPerceptionRestore', `/v1/tasks?activeOnly=1`);
     const restoreDirectTasks = restoredActiveTasks.ok && Array.isArray(restoredActiveTasks.body.tasks)
-      ? restoredActiveTasks.body.tasks.filter((task) => task.itemId === itemId && !context.canaryActiveTasks.some((oldTask) => oldTask.id === task.id))
+      ? restoredActiveTasks.body.tasks.filter((task) => task.itemId === itemId && !preRestoreTaskIds.has(task.id))
       : [];
     if (restoreDirectTasks.length > 0) {
       return fail('perception_restore_created_task_directly', {
-        restoreDirectTasks: restoreDirectTasks.map((task) => ({ id: task.id, targetGate: targetGateOf(task), status: task.status })),
+        restoreDirectTasks: restoreDirectTasks.map((task) => ({
+          id: task.id,
+          targetGate: targetGateOf(task),
+          status: task.status,
+          source: task.source || '',
+          createdAt: task.createdAt || '',
+        })),
       });
     }
   }

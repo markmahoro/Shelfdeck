@@ -13,7 +13,7 @@ Last updated: 2026-07-08
 - Latest deployment time: `2026-07-08 01:32 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: stopped at Stage 10 while fixing optimize bitrate profile semantics; fix is local until committed/deployed.
+- Production E2E status: stopped at Stage 8 while fixing transcode rate-control retry; fix is local until committed/deployed.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 
 ## Current Architecture State
@@ -40,6 +40,10 @@ Last updated: 2026-07-08
   - optimize objective uses `targetBitrateProfileByBucket` with `minMbps / targetMbps / maxMbps`.
   - Flow Planner, Lifecycle, transcode verify, and upgrade verify share the same profile semantics.
   - old rule templates are rebuilt to the new default profile schema instead of kept as a runtime compatibility layer.
+- Transcode rate-control retry is being implemented locally:
+  - QSV VBR output below objective range should retry inside the same task.
+  - retry ladder is QSV VBR -> CPU two-pass ABR -> QSV CBR -> CPU strict fallback.
+  - Lifecycle gate semantics remain canonical facts + objective only.
 - Gate achievement / task attempt / event retry boundary has been implemented and deployed:
   - flow attempt failure no longer closes optimize gate.
   - automatic task attempt budget is handled by TaskCreationPolicy attemptKey.
@@ -87,14 +91,13 @@ Last updated: 2026-07-08
 
 ## Unresolved / Not Yet Proven
 
-- Production Frontend/API E2E restarted on item `81945` and was stopped at Stage 10.
-- Stage 10 blocker being fixed:
+- Production Frontend/API E2E restarted on item `81945` and was stopped at Stage 8.
+- Stage 8 blocker being fixed:
   - the previous `Emby source snapshot is required` blocker is fixed.
-  - post-optimize ingest and metadata refresh completed and facts are fresh.
-  - refreshed canonical facts are `h265 / 0.708Mbps / 1080p`.
-  - current objective is `h265 / 1.5Mbps`.
-  - decision: objective bitrate is now a three-number profile; `targetMbps` is the FFmpeg target, `minMbps/maxMbps` are gate bounds.
-  - after deployment, the E2E sample should be rebuilt and Stage 0 restarted rather than reusing the already-transcoded `0.708Mbps` sample.
+  - objective bitrate is already a three-number profile; `targetMbps` is the FFmpeg target, `minMbps/maxMbps` are gate bounds.
+  - QSV VBR produced an output below the objective range and `transcode_verify` failed hard.
+  - decision: keep verify strict, but retry rate-control strategies inside the same task before final failure.
+  - after deployment, restart production E2E from Stage 0 on item `81945`.
 - Refresh cutover is implemented and deployed:
   - manual `/v1/library/actions/ingest` and `/refresh` request Kairox SmartTask scan.
   - sublibrary add / startup / timer no longer run direct Emby ingest.

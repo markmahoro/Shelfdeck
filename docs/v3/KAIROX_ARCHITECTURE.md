@@ -631,6 +631,17 @@ minMbps <= actualBitrate <= maxMbps 且其他 target facts 满足 -> no-op / opt
 
 `targetMbps` 只用于 transcode flow 调用 FFmpeg 的编码目标。Lifecycle / gate achievement 只看 canonical facts 是否落在 `[minMbps, maxMbps]`，不能把 `targetMbps` 当 exact gate 判定值。
 
+Transcode flow 的 verify 仍必须拦截未落入 profile 的产物，但码率偏离属于同一个 task 内的 event retry 场景，不应第一次 verify 偏离就把 task 直接打成最终失败。推荐的 rate-control ladder 是：
+
+```text
+QSV VBR
+  -> CPU libx265 two-pass ABR
+  -> QSV CBR
+  -> CPU libx265 strict fallback
+```
+
+若 QSV encoder 初始化失败、设备不可用或格式不支持，应把 QSV 标记为本 task 内不可用，后续只走 CPU ladder。若产物生成成功但 `bitrate_below_range / bitrate_above_range`，应记录 attempt evidence、清理 partial output，并切换下一 rate-control strategy。只有所有 strategy 都无法命中 `[minMbps, maxMbps]` 时，task 才能以 `unable_to_hit_bitrate_profile_after_retries` 结束。Lifecycle 不读取这些 retry 细节，也不能因此放宽 gate。
+
 Optimize objective readiness 是 Lifecycle projection，不是 Task Creator 判断：
 
 ```text

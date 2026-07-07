@@ -1779,6 +1779,348 @@ test('transcode resume at verify does not re-encode partial output', async () =>
   assert.strictEqual(after.verifyResult.videoCodec, 'hevc');
 });
 
+test('transcode verify retries with next rate-control strategy when output bitrate is below objective range', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const configStore = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const transcodeService = require('../src/services/transcodeService');
+
+  const sourcePath = path.join(dir, 'rate-source.mkv');
+  const partialPath = path.join(dir, 'rate-output.etp.partial.mkv');
+  fs.writeFileSync(sourcePath, Buffer.alloc(5_000_000));
+  fs.writeFileSync(partialPath, Buffer.alloc(625_000)); // 500 kbps over 10s, below 0.975 Mbps.
+
+  configStore.patchConfig({
+    transcodeTempRoot: dir,
+    approvalPolicy: { 'transcode.beforeReplace': 'auto' },
+    transcodeEncodingDevices: [
+      { stableKey: 'qsv:0', inPool: true, maxSlots: 1, priority: 10 },
+      { stableKey: 'cpu:libx265', inPool: true, maxSlots: 1, priority: 20 },
+    ],
+    transcodeCpuParticipationStrategy: 'normal',
+  });
+
+  const gateObjective = {
+    kind: 'target_media_facts',
+    targetMediaFacts: {
+      targetCodec: 'h265',
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+      },
+    },
+  };
+  const task = taskStore.createTask({
+    itemId: 'rate-control-retry-below',
+    itemName: 'Rate Control Retry Below',
+    source: 'manual',
+    status: 'executing',
+    resumePoint: 'transcode_verify',
+    taskTarget: {
+      object: { type: 'media_item', itemId: 'rate-control-retry-below' },
+      targetGate: 'optimize',
+      gateObjective,
+    },
+    itemInfo: {
+      itemId: 'rate-control-retry-below',
+      name: 'Rate Control Retry Below',
+      sourcePath,
+      partialPath,
+      tempDir: dir,
+      durationSec: 10,
+      originalSizeBytes: 5_000_000,
+      targetMbps: 1.5,
+      targetCodec: 'h265',
+      bucket: '1080p',
+    },
+  });
+
+  const originalStartEncode = transcodeService.startEncode;
+  const originalProbeSummary = transcodeService.probeSummary;
+  const originalExtractPreviewClip = transcodeService.extractPreviewClip;
+  const originalReplaceWithRetries = transcodeService.replaceWithRetries;
+  const strategies = [];
+  let probeCalls = 0;
+  let replaceCalls = 0;
+  transcodeService.startEncode = async (_onProgress, params) => {
+    strategies.push(params.rateControlStrategy);
+    assert.strictEqual(params.rateControlStrategy, 'cpu_two_pass_abr');
+    fs.writeFileSync(params.partialPath, Buffer.alloc(1_875_000)); // 1.5 Mbps over 10s.
+    return { ok: true, encoderUsed: 'cpu', resolvedDeviceId: 'cpu:libx265', rateControlStrategy: params.rateControlStrategy };
+  };
+  transcodeService.probeSummary = async () => {
+    probeCalls += 1;
+    return {
+      durationSec: 10,
+      width: 1920,
+      height: 1080,
+      videoCodec: 'hevc',
+      audioCodec: 'aac',
+    };
+  };
+  transcodeService.extractPreviewClip = async () => ({
+    method: 'stub',
+    duration: 5,
+    startSec: 0,
+    previewPath: path.join(dir, 'preview.mp4'),
+  });
+  transcodeService.replaceWithRetries = async () => {
+    replaceCalls += 1;
+    return { resultSizeBytes: 1_875_000 };
+  };
+  transcodeFlow.setScheduler({
+    reportStatus: (id, status, progress) => {
+      const updates = { status, progress: progress ?? undefined };
+      if (status === 'done') updates.resumePoint = null;
+      taskStore.updateTask(id, updates);
+    },
+    pauseForConfirm: () => { throw new Error('replace confirmation should be auto-passed'); },
+  });
+
+  try {
+    await transcodeFlow.driveTask(task.id);
+  } finally {
+    transcodeService.startEncode = originalStartEncode;
+    transcodeService.probeSummary = originalProbeSummary;
+    transcodeService.extractPreviewClip = originalExtractPreviewClip;
+    transcodeService.replaceWithRetries = originalReplaceWithRetries;
+    await app.close();
+  }
+
+  const after = taskStore.getTask(task.id);
+  assert.deepStrictEqual(strategies, ['cpu_two_pass_abr']);
+  assert.strictEqual(probeCalls, 2);
+  assert.strictEqual(replaceCalls, 1);
+  assert.strictEqual(after.status, 'done');
+  assert.strictEqual(after.verifyResult.bitrate, 1500);
+  assert.deepStrictEqual(
+    after.itemInfo.transcodeRateControl.attempts.map((row) => [row.strategy, row.status, row.reason || '']),
+    [
+      ['qsv_vbr', 'produced_but_not_in_range', 'bitrate_below_range'],
+      ['cpu_two_pass_abr', 'verified', ''],
+    ],
+  );
+});
+
+test('transcode QSV capability failure disables QSV attempts and continues with CPU ladder', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const configStore = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const transcodeService = require('../src/services/transcodeService');
+
+  const sourcePath = path.join(dir, 'cap-source.mkv');
+  const partialPath = path.join(dir, 'cap-output.etp.partial.mkv');
+  fs.writeFileSync(sourcePath, Buffer.alloc(5_000_000));
+
+  configStore.patchConfig({
+    transcodeTempRoot: dir,
+    approvalPolicy: { 'transcode.beforeReplace': 'auto' },
+    transcodeEncodingDevices: [
+      { stableKey: 'qsv:0', inPool: true, maxSlots: 1, priority: 10 },
+      { stableKey: 'cpu:libx265', inPool: true, maxSlots: 1, priority: 20 },
+    ],
+    transcodeCpuParticipationStrategy: 'normal',
+  });
+
+  const gateObjective = {
+    kind: 'target_media_facts',
+    targetMediaFacts: {
+      targetCodec: 'h265',
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+      },
+    },
+  };
+  const task = taskStore.createTask({
+    itemId: 'rate-control-capability',
+    itemName: 'Rate Control Capability',
+    source: 'manual',
+    status: 'executing',
+    resumePoint: 'transcode_executing',
+    taskTarget: {
+      object: { type: 'media_item', itemId: 'rate-control-capability' },
+      targetGate: 'optimize',
+      gateObjective,
+    },
+    itemInfo: {
+      itemId: 'rate-control-capability',
+      name: 'Rate Control Capability',
+      sourcePath,
+      partialPath,
+      tempDir: dir,
+      durationSec: 10,
+      originalSizeBytes: 5_000_000,
+      targetMbps: 1.5,
+      targetCodec: 'h265',
+      bucket: '1080p',
+    },
+  });
+
+  const originalStartEncode = transcodeService.startEncode;
+  const originalProbeSummary = transcodeService.probeSummary;
+  const originalExtractPreviewClip = transcodeService.extractPreviewClip;
+  const originalReplaceWithRetries = transcodeService.replaceWithRetries;
+  const strategies = [];
+  transcodeService.startEncode = async (_onProgress, params) => {
+    strategies.push(params.rateControlStrategy);
+    if (params.rateControlStrategy === 'qsv_vbr') {
+      throw new Error('qsv init failed');
+    }
+    if (params.rateControlStrategy === 'cpu_two_pass_abr') {
+      throw new Error('cpu two-pass failed');
+    }
+    assert.strictEqual(params.rateControlStrategy, 'cpu_strict_fallback');
+    fs.writeFileSync(params.partialPath, Buffer.alloc(1_875_000));
+    return { ok: true, encoderUsed: 'cpu', resolvedDeviceId: 'cpu:libx265', rateControlStrategy: params.rateControlStrategy };
+  };
+  transcodeService.probeSummary = async () => ({
+    durationSec: 10,
+    width: 1920,
+    height: 1080,
+    videoCodec: 'hevc',
+    audioCodec: 'aac',
+  });
+  transcodeService.extractPreviewClip = async () => ({
+    method: 'stub',
+    duration: 5,
+    startSec: 0,
+    previewPath: path.join(dir, 'preview.mp4'),
+  });
+  transcodeService.replaceWithRetries = async () => ({ resultSizeBytes: 1_875_000 });
+  transcodeFlow.setScheduler({
+    reportStatus: (id, status, progress) => {
+      const updates = { status, progress: progress ?? undefined };
+      if (status === 'done') updates.resumePoint = null;
+      taskStore.updateTask(id, updates);
+    },
+    pauseForConfirm: () => { throw new Error('replace confirmation should be auto-passed'); },
+  });
+
+  try {
+    await transcodeFlow.driveTask(task.id);
+  } finally {
+    transcodeService.startEncode = originalStartEncode;
+    transcodeService.probeSummary = originalProbeSummary;
+    transcodeService.extractPreviewClip = originalExtractPreviewClip;
+    transcodeService.replaceWithRetries = originalReplaceWithRetries;
+    await app.close();
+  }
+
+  const after = taskStore.getTask(task.id);
+  assert.deepStrictEqual(strategies, ['qsv_vbr', 'cpu_two_pass_abr', 'cpu_strict_fallback']);
+  assert.strictEqual(after.status, 'done');
+  assert.deepStrictEqual(after.itemInfo.transcodeRateControl.disabledEncoders, ['qsv']);
+  assert.ok(!strategies.includes('qsv_cbr'), 'QSV CBR should be skipped after QSV capability failure');
+});
+
+test('transcode verify fails hard only after rate-control ladder is exhausted', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const configStore = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const transcodeService = require('../src/services/transcodeService');
+
+  const sourcePath = path.join(dir, 'exhaust-source.mkv');
+  const partialPath = path.join(dir, 'exhaust-output.etp.partial.mkv');
+  fs.writeFileSync(sourcePath, Buffer.alloc(5_000_000));
+  fs.writeFileSync(partialPath, Buffer.alloc(625_000));
+
+  configStore.patchConfig({
+    transcodeTempRoot: dir,
+    approvalPolicy: { 'transcode.beforeReplace': 'auto' },
+    transcodeEncodingDevices: [
+      { stableKey: 'qsv:0', inPool: true, maxSlots: 1, priority: 10 },
+      { stableKey: 'cpu:libx265', inPool: true, maxSlots: 1, priority: 20 },
+    ],
+    transcodeCpuParticipationStrategy: 'normal',
+  });
+
+  const gateObjective = {
+    kind: 'target_media_facts',
+    targetMediaFacts: {
+      targetCodec: 'h265',
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+      },
+    },
+  };
+  const task = taskStore.createTask({
+    itemId: 'rate-control-exhausted',
+    itemName: 'Rate Control Exhausted',
+    source: 'manual',
+    status: 'executing',
+    resumePoint: 'transcode_verify',
+    taskTarget: {
+      object: { type: 'media_item', itemId: 'rate-control-exhausted' },
+      targetGate: 'optimize',
+      gateObjective,
+    },
+    itemInfo: {
+      itemId: 'rate-control-exhausted',
+      name: 'Rate Control Exhausted',
+      sourcePath,
+      partialPath,
+      tempDir: dir,
+      durationSec: 10,
+      originalSizeBytes: 5_000_000,
+      targetMbps: 1.5,
+      targetCodec: 'h265',
+      bucket: '1080p',
+      transcodeRateControl: {
+        currentAttemptIndex: 3,
+        attempts: [
+          { index: 1, strategy: 'qsv_vbr', status: 'produced_but_not_in_range' },
+          { index: 2, strategy: 'cpu_two_pass_abr', status: 'produced_but_not_in_range' },
+          { index: 3, strategy: 'qsv_cbr', status: 'produced_but_not_in_range' },
+        ],
+        disabledEncoders: [],
+      },
+    },
+  });
+
+  const originalStartEncode = transcodeService.startEncode;
+  const originalProbeSummary = transcodeService.probeSummary;
+  const originalExtractPreviewClip = transcodeService.extractPreviewClip;
+  transcodeService.startEncode = async () => { throw new Error('ladder exhausted should not encode again'); };
+  transcodeService.probeSummary = async () => ({
+    durationSec: 10,
+    width: 1920,
+    height: 1080,
+    videoCodec: 'hevc',
+    audioCodec: 'aac',
+  });
+  transcodeService.extractPreviewClip = async () => ({
+    method: 'stub',
+    duration: 5,
+    startSec: 0,
+    previewPath: path.join(dir, 'preview.mp4'),
+  });
+  transcodeFlow.setScheduler({
+    reportStatus: (id, status, progress) => {
+      const updates = { status, progress: progress ?? undefined };
+      taskStore.updateTask(id, updates);
+    },
+    pauseForConfirm: () => { throw new Error('failed verify should not request confirmation'); },
+  });
+
+  try {
+    await transcodeFlow.driveTask(task.id);
+  } finally {
+    transcodeService.startEncode = originalStartEncode;
+    transcodeService.probeSummary = originalProbeSummary;
+    transcodeService.extractPreviewClip = originalExtractPreviewClip;
+    await app.close();
+  }
+
+  const after = taskStore.getTask(task.id);
+  assert.strictEqual(after.status, 'failed_hard');
+  assert.strictEqual(after.phase, 'failed_hard');
+  assert.strictEqual(after.failureContext.message, 'unable_to_hit_bitrate_profile_after_retries');
+  assert.strictEqual(after.itemInfo.transcodeRateControl.attempts.at(-1).strategy, 'cpu_strict_fallback');
+  assert.strictEqual(after.itemInfo.transcodeRateControl.attempts.at(-1).reason, 'bitrate_below_range');
+});
+
 test('transcode encode failure persists recovery context and resume point', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });

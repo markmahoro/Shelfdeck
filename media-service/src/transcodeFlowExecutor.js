@@ -120,6 +120,139 @@ function parseStableKey(stableKey) {
   return null;
 }
 
+const RATE_CONTROL_ATTEMPTS = [
+  { strategy: 'qsv_vbr', encoderKind: 'qsv', label: 'QSV VBR' },
+  { strategy: 'cpu_two_pass_abr', encoderKind: 'cpu', label: 'CPU two-pass ABR' },
+  { strategy: 'qsv_cbr', encoderKind: 'qsv', label: 'QSV CBR' },
+  { strategy: 'cpu_strict_fallback', encoderKind: 'cpu', label: 'CPU strict fallback' },
+];
+
+function rateControlState(info = {}) {
+  const existing = info.transcodeRateControl && typeof info.transcodeRateControl === 'object'
+    ? info.transcodeRateControl
+    : {};
+  return {
+    currentAttemptIndex: Number.isInteger(existing.currentAttemptIndex) ? existing.currentAttemptIndex : 0,
+    attempts: Array.isArray(existing.attempts) ? existing.attempts : [],
+    disabledEncoders: Array.isArray(existing.disabledEncoders) ? existing.disabledEncoders : [],
+  };
+}
+
+function attemptByIndex(index) {
+  return RATE_CONTROL_ATTEMPTS[index] || null;
+}
+
+function attemptSlots(allSlots, attempt) {
+  const list = Array.isArray(allSlots) ? allSlots : [];
+  if (!attempt) return [];
+  return list.filter((slot) => {
+    const sk = parseStableKey(slot.deviceId);
+    return sk && sk.backend === attempt.encoderKind;
+  });
+}
+
+function persistRateControlState(taskId, info, state) {
+  taskStore.updateTask(taskId, {
+    itemInfo: {
+      ...info,
+      transcodeRateControl: {
+        currentAttemptIndex: state.currentAttemptIndex,
+        attempts: state.attempts,
+        disabledEncoders: state.disabledEncoders,
+      },
+    },
+  });
+}
+
+function currentRateControlAttempt(taskId, task, config) {
+  const info = task.itemInfo || {};
+  const allSlots = buildDeviceSlots(config);
+  const state = rateControlState(info);
+  const disabled = new Set(state.disabledEncoders);
+
+  while (state.currentAttemptIndex < RATE_CONTROL_ATTEMPTS.length) {
+    const attempt = attemptByIndex(state.currentAttemptIndex);
+    if (!attempt || disabled.has(attempt.encoderKind)) {
+      state.currentAttemptIndex += 1;
+      continue;
+    }
+    const slots = attemptSlots(allSlots, attempt);
+    if (slots.length > 0) {
+      persistRateControlState(taskId, info, state);
+      return { attempt, slots, state };
+    }
+    state.attempts.push({
+      index: state.currentAttemptIndex + 1,
+      strategy: attempt.strategy,
+      encoderKind: attempt.encoderKind,
+      status: 'skipped',
+      reason: 'encoder_slot_unavailable',
+      at: new Date().toISOString(),
+    });
+    if (attempt.encoderKind === 'qsv') disabled.add('qsv');
+    state.disabledEncoders = Array.from(disabled);
+    state.currentAttemptIndex += 1;
+  }
+
+  persistRateControlState(taskId, info, state);
+  return { attempt: null, slots: [], state };
+}
+
+function recordRateControlAttempt(taskId, task, patch) {
+  const info = task.itemInfo || {};
+  const state = rateControlState(info);
+  const attempt = attemptByIndex(state.currentAttemptIndex);
+  const row = {
+    index: state.currentAttemptIndex + 1,
+    strategy: attempt ? attempt.strategy : '',
+    encoderKind: attempt ? attempt.encoderKind : '',
+    at: new Date().toISOString(),
+    ...patch,
+  };
+  state.attempts.push(row);
+  persistRateControlState(taskId, info, state);
+  return state;
+}
+
+function disableEncoderForTask(taskId, task, encoderKind) {
+  const info = task.itemInfo || {};
+  const state = rateControlState(info);
+  if (encoderKind && !state.disabledEncoders.includes(encoderKind)) {
+    state.disabledEncoders.push(encoderKind);
+  }
+  persistRateControlState(taskId, info, state);
+  return state;
+}
+
+function advanceRateControlAttempt(taskId, task) {
+  const info = task.itemInfo || {};
+  const state = rateControlState(info);
+  state.currentAttemptIndex += 1;
+  persistRateControlState(taskId, info, state);
+  return state.currentAttemptIndex < RATE_CONTROL_ATTEMPTS.length;
+}
+
+function cleanupPartialOutputs(info = {}) {
+  if (Array.isArray(info.partialPaths)) {
+    for (const row of info.partialPaths) {
+      if (row && row.partial) unlinkWithRetrySync(row.partial);
+    }
+    return;
+  }
+  if (info.partialPath) unlinkWithRetrySync(info.partialPath);
+}
+
+function isBitrateRangeVerifyError(err) {
+  return err && (err.code === 'bitrate_below_range' || err.code === 'bitrate_above_range');
+}
+
+function unableToHitBitrateProfileError(lastErr) {
+  const e = new Error('unable_to_hit_bitrate_profile_after_retries');
+  e.code = 'unable_to_hit_bitrate_profile_after_retries';
+  e.lastReason = lastErr && lastErr.code;
+  return e;
+}
+
 function resolveSourcePath(sourcePath, task, config) {
   const subLibId = task.itemInfo && task.itemInfo.subLibraryId;
   const subLib = subLibId && (config.subLibraries || []).find((s) => s.uuid === subLibId);
@@ -197,10 +330,18 @@ function assertVerifySatisfiesObjective({ task, info, summary, outBitrate }) {
     const outMbps = Number(outBitrate) / 1000;
     const comparison = bitrateObjectiveProfile.compareBitrateToProfile(outMbps, target.bitrateProfile);
     if (comparison.status === 'below') {
-      throw new Error(`Output bitrate ${outBitrate} kbps is below objective range ${target.bitrateProfile.minMbps}-${target.bitrateProfile.maxMbps} Mbps`);
+      const err = new Error(`Output bitrate ${outBitrate} kbps is below objective range ${target.bitrateProfile.minMbps}-${target.bitrateProfile.maxMbps} Mbps`);
+      err.code = 'bitrate_below_range';
+      err.bitrateKbps = outBitrate;
+      err.bitrateProfile = target.bitrateProfile;
+      throw err;
     }
     if (comparison.status === 'above') {
-      throw new Error(`Output bitrate ${outBitrate} kbps exceeds objective range ${target.bitrateProfile.minMbps}-${target.bitrateProfile.maxMbps} Mbps`);
+      const err = new Error(`Output bitrate ${outBitrate} kbps exceeds objective range ${target.bitrateProfile.minMbps}-${target.bitrateProfile.maxMbps} Mbps`);
+      err.code = 'bitrate_above_range';
+      err.bitrateKbps = outBitrate;
+      err.bitrateProfile = target.bitrateProfile;
+      throw err;
     }
   }
   return target;
@@ -409,6 +550,16 @@ async function runExecuting(taskId, task, config) {
 
   const info = task.itemInfo || {};
   const isSeason = info.type === 'season';
+  const selected = currentRateControlAttempt(taskId, task, config);
+  if (!selected.attempt) {
+    failTask(taskId, task, 'transcode_executing', unableToHitBitrateProfileError(), {
+      prefix: 'Encoding failed',
+      recoveryClass: 'encode_retry',
+      userAction: 'inspect_encoder_failure',
+    });
+    return;
+  }
+  appendLog(taskId, 'info', `Rate-control attempt ${selected.state.currentAttemptIndex + 1}: ${selected.attempt.label}`);
 
   if (isSeason) {
     // ── Season: encode each episode sequentially ──
@@ -422,45 +573,70 @@ async function runExecuting(taskId, task, config) {
       return;
     }
 
-    const slots = buildDeviceSlots(config);
-    const orderedSlots = slots.map((s) => ({ deviceId: s.deviceId, maxSlots: s.maxSlots, cpuBackupOnly: s.cpuBackupOnly }));
+    const orderedSlots = selected.slots.map((s) => ({ deviceId: s.deviceId, maxSlots: s.maxSlots, cpuBackupOnly: s.cpuBackupOnly }));
     const encoderLabel = orderedSlots.length > 0 ? orderedSlots.map((s) => s.deviceId).join(', ') : 'cpu';
     appendLog(taskId, 'info', `Encoder: ${encoderLabel}, encoding ${pairs.length} episodes`);
 
-    const totalCount = pairs.length;
-    for (let i = 0; i < totalCount; i++) {
-      if (abortedTasks.has(taskId)) return;
-      const { source, partial } = pairs[i];
-      appendLog(taskId, 'info', `Encoding episode ${i + 1}/${totalCount}: ${require('path').basename(source)}`);
+    try {
+      const totalCount = pairs.length;
+      for (let i = 0; i < totalCount; i++) {
+        if (abortedTasks.has(taskId)) return;
+        const { source, partial } = pairs[i];
+        appendLog(taskId, 'info', `Encoding episode ${i + 1}/${totalCount}: ${require('path').basename(source)}`);
 
-      // Clean up residual partial
-      if (fs.existsSync(partial)) {
-        unlinkWithRetrySync(partial);
+        // Clean up residual partial
+        if (fs.existsSync(partial)) {
+          unlinkWithRetrySync(partial);
+        }
+
+        const baseProgress = (i / totalCount) * 100;
+        await transcodeService.startEncode(
+          (pct) => {
+            const overall = Math.round(baseProgress + pct / totalCount);
+            taskStore.setProgress(taskId, overall);
+            scheduler.reportStatus(taskId, 'executing', overall);
+          },
+          {
+            config,
+            taskId,
+            sourcePath: source,
+            partialPath: partial,
+            orderedDeviceSlots: orderedSlots,
+            isDolbyVision: info.isDolbyVision,
+            dvAcknowledged: task.dvAcknowledged || false,
+            dolbyVisionTonemap: info.dolbyVisionTonemap,
+            dvTonemapFilter: info.dvTonemapFilter,
+            durationSec: info.durationSec || 3600,
+            targetBitrate: info.targetMbps,
+            bitrateProfile: selected.attempt ? transcodeTargetForTask(task, info).bitrateProfile : null,
+            rateControlStrategy: selected.attempt.strategy,
+            allowGpuCpuFallback: false,
+            onLog: (level, msg) => appendLog(taskId, level, msg),
+          },
+        );
+        appendLog(taskId, 'info', `Episode ${i + 1}/${totalCount} complete`);
       }
-
-      const baseProgress = (i / totalCount) * 100;
-      await transcodeService.startEncode(
-        (pct) => {
-          const overall = Math.round(baseProgress + pct / totalCount);
-          taskStore.setProgress(taskId, overall);
-          scheduler.reportStatus(taskId, 'executing', overall);
-        },
-        {
-          config,
-          taskId,
-          sourcePath: source,
-          partialPath: partial,
-          orderedDeviceSlots: orderedSlots,
-          isDolbyVision: info.isDolbyVision,
-          dvAcknowledged: task.dvAcknowledged || false,
-          dolbyVisionTonemap: info.dolbyVisionTonemap,
-          dvTonemapFilter: info.dvTonemapFilter,
-          durationSec: info.durationSec || 3600,
-          targetBitrate: info.targetMbps,
-          onLog: (level, msg) => appendLog(taskId, level, msg),
-        },
-      );
-      appendLog(taskId, 'info', `Episode ${i + 1}/${totalCount} complete`);
+    } catch (e) {
+      if (abortedTasks.has(taskId)) return;
+      recordRateControlAttempt(taskId, taskStore.getTask(taskId) || task, {
+        status: selected.attempt.encoderKind === 'qsv' ? 'capability_failed' : 'encode_failed',
+        reason: e && e.message || String(e || 'encode_failed'),
+      });
+      if (selected.attempt.encoderKind === 'qsv') {
+        disableEncoderForTask(taskId, taskStore.getTask(taskId) || task, 'qsv');
+      }
+      cleanupPartialOutputs(info);
+      if (advanceRateControlAttempt(taskId, taskStore.getTask(taskId) || task)) {
+        appendLog(taskId, 'warn', `Rate-control attempt failed during encode; switching strategy: ${e.message}`);
+        await runExecuting(taskId, taskStore.getTask(taskId), config);
+        return;
+      }
+      failTask(taskId, taskStore.getTask(taskId) || task, 'transcode_executing', e, {
+        prefix: 'Encoding failed',
+        recoveryClass: 'encode_retry',
+        userAction: 'inspect_encoder_failure',
+      });
+      return;
     }
 
     appendLog(taskId, 'info', 'All episodes encoded');
@@ -490,8 +666,7 @@ async function runExecuting(taskId, task, config) {
       }
     }
 
-    const slots = buildDeviceSlots(config);
-    const orderedSlots = slots.map((s) => ({ deviceId: s.deviceId, maxSlots: s.maxSlots, cpuBackupOnly: s.cpuBackupOnly }));
+    const orderedSlots = selected.slots.map((s) => ({ deviceId: s.deviceId, maxSlots: s.maxSlots, cpuBackupOnly: s.cpuBackupOnly }));
 
     try {
       const encoderLabel = orderedSlots.length > 0
@@ -516,6 +691,9 @@ async function runExecuting(taskId, task, config) {
           dvTonemapFilter: info.dvTonemapFilter,
           durationSec: info.durationSec || 3600,
           targetBitrate: info.targetMbps,
+          bitrateProfile: selected.attempt ? transcodeTargetForTask(task, info).bitrateProfile : null,
+          rateControlStrategy: selected.attempt.strategy,
+          allowGpuCpuFallback: false,
           onLog: (level, msg) => appendLog(taskId, level, msg),
         },
       );
@@ -524,6 +702,19 @@ async function runExecuting(taskId, task, config) {
       appendLog(taskId, 'info', 'Encoding complete');
     } catch (e) {
       if (abortedTasks.has(taskId)) return;
+      recordRateControlAttempt(taskId, taskStore.getTask(taskId) || task, {
+        status: selected.attempt.encoderKind === 'qsv' ? 'capability_failed' : 'encode_failed',
+        reason: e && e.message || String(e || 'encode_failed'),
+      });
+      if (selected.attempt.encoderKind === 'qsv') {
+        disableEncoderForTask(taskId, taskStore.getTask(taskId) || task, 'qsv');
+      }
+      cleanupPartialOutputs(info);
+      if (advanceRateControlAttempt(taskId, taskStore.getTask(taskId) || task)) {
+        appendLog(taskId, 'warn', `Rate-control attempt failed during encode; switching strategy: ${e.message}`);
+        await runExecuting(taskId, taskStore.getTask(taskId), config);
+        return;
+      }
       failTask(taskId, task, 'transcode_executing', e, {
         prefix: 'Encoding failed',
         recoveryClass: 'encode_retry',
@@ -621,6 +812,13 @@ async function runVerify(taskId, task, config) {
       summary,
       outBitrate,
     });
+    const latestBeforeVerifyResult = taskStore.getTask(taskId) || task;
+    const rcState = recordRateControlAttempt(taskId, latestBeforeVerifyResult, {
+      status: 'verified',
+      actualKbps: outBitrate,
+      bitrateProfile: objectiveTarget.bitrateProfile || undefined,
+    });
+    const latestAfterAttemptRecord = taskStore.getTask(taskId) || latestBeforeVerifyResult;
 
     taskStore.updateTask(taskId, {
       verifyResult: {
@@ -637,10 +835,17 @@ async function runVerify(taskId, task, config) {
         objectiveHash: objectiveTarget.objectiveHash || undefined,
         targetMbps: objectiveTarget.targetMbps || undefined,
         targetCodec: objectiveTarget.targetCodec || undefined,
+        bitrateProfile: objectiveTarget.bitrateProfile || undefined,
+        rateControlAttempt: {
+          index: rcState.currentAttemptIndex + 1,
+          strategy: attemptByIndex(rcState.currentAttemptIndex) && attemptByIndex(rcState.currentAttemptIndex).strategy,
+        },
+        rateControlAttempts: rcState.attempts,
+        disabledEncoders: rcState.disabledEncoders,
       },
     });
 
-    const latestTask = taskStore.getTask(taskId) || task;
+    const latestTask = taskStore.getTask(taskId) || latestAfterAttemptRecord;
     if (approvalPolicy.requiresConfirmation('transcode.beforeReplace', { task: latestTask, itemInfo: latestTask.itemInfo, config })) {
       const approval = approvalPolicy.makeApproval('transcode.beforeReplace', {
         task: latestTask,
@@ -664,6 +869,31 @@ async function runVerify(taskId, task, config) {
     await runReplace(taskId, latestTask, config);
   } catch (e) {
     if (abortedTasks.has(taskId)) return;
+    if (isBitrateRangeVerifyError(e)) {
+      const latest = taskStore.getTask(taskId) || task;
+      recordRateControlAttempt(taskId, latest, {
+        status: 'produced_but_not_in_range',
+        reason: e.code,
+        actualKbps: e.bitrateKbps,
+        bitrateProfile: e.bitrateProfile,
+      });
+      cleanupPartialOutputs((latest && latest.itemInfo) || info);
+      if (advanceRateControlAttempt(taskId, taskStore.getTask(taskId) || latest)) {
+        appendLog(taskId, 'warn', `Rate-control attempt produced ${e.code}; switching strategy`);
+        taskStore.updateTask(taskId, { resumePoint: 'transcode_executing' });
+        await runExecuting(taskId, taskStore.getTask(taskId), config);
+        return;
+      }
+      failTask(taskId, taskStore.getTask(taskId) || latest, 'transcode_verify', unableToHitBitrateProfileError(e), {
+        prefix: 'Verify failed',
+        recoveryClass: 'verify_retry',
+        userAction: 'inspect_verify_failure',
+        partialPath,
+        targetMbps: info.targetMbps,
+        targetCodec: info.targetCodec,
+      });
+      return;
+    }
     failTask(taskId, task, 'transcode_verify', e, {
       prefix: 'Verify failed',
       recoveryClass: 'verify_retry',

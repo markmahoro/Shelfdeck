@@ -86,6 +86,20 @@ maxMbps    = optimize gate 容忍上限
 
 Flow Planner、Lifecycle Gate、transcode verify、upgrade verify 必须共用同一个 bitrate profile helper。禁止在业务模块里直接写 `target * 0.65`、`target * 1.35` 或读取旧 `targetBitrateByBucket` 作为运行时兼容层。旧模板在 Kairox Beta 中重建；新模板必须直接保存 `targetBitrateProfileByBucket`。
 
+Transcode verify 发现 `bitrate_below_range / bitrate_above_range` 时，优先级是：
+
+```text
+目标区间命中 > 画质 > 时间
+```
+
+这属于同一个 task 内的 event retry，不创建新 optimize task，不改变 Lifecycle gate 语义。rate-control ladder 固定为：
+
+```text
+QSV VBR -> CPU two-pass ABR -> QSV CBR -> CPU strict fallback
+```
+
+如果 QSV capability failed，本 task 后续禁用 QSV，只走 CPU ladder；如果产物生成成功但码率不在区间内，记录 attempt evidence、删除 partial、切换下一策略。所有策略失败后才允许 task failed_hard，reason 使用 `unable_to_hit_bitrate_profile_after_retries`。
+
 ## 3. 禁止术语
 
 以下词在 runtime 主路径中属于 Mirex 重力源，新增代码默认禁止。

@@ -1468,12 +1468,74 @@ function resolveTonemapFilterGraph(dolbyVisionTonemap, explicitFilter) {
   return DV_TONEMAP_LIBPLACEBO_FILTER;
 }
 
-function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolbyVision, dvAcknowledged, targetBitrate, dolbyVisionTonemap, dvTonemapFilter }) {
+function numberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function mbpsArg(value) {
+  const n = numberOrNull(value);
+  return n == null ? null : `${Math.round(n * 1000) / 1000}M`;
+}
+
+function kbpsValue(value) {
+  const n = numberOrNull(value);
+  return n == null ? null : Math.round(n * 1000);
+}
+
+function bitrateProfileFromParams(targetBitrate, bitrateProfile) {
+  const target = numberOrNull(targetBitrate)
+    || numberOrNull(bitrateProfile && bitrateProfile.targetMbps);
+  const max = numberOrNull(bitrateProfile && bitrateProfile.maxMbps)
+    || (target ? target * 1.3 : null);
+  return {
+    minMbps: numberOrNull(bitrateProfile && bitrateProfile.minMbps),
+    targetMbps: target,
+    maxMbps: max,
+  };
+}
+
+function buildX265VbvParams(profile, mode) {
+  const targetKbps = kbpsValue(profile.targetMbps);
+  const maxKbps = kbpsValue(profile.maxMbps);
+  if (!targetKbps) return '';
+  if (mode === 'strict') {
+    return [
+      `bitrate=${targetKbps}`,
+      `vbv-maxrate=${targetKbps}`,
+      `vbv-bufsize=${targetKbps * 2}`,
+      'strict-cbr=1',
+    ].join(':');
+  }
+  if (maxKbps) {
+    return [
+      `vbv-maxrate=${maxKbps}`,
+      `vbv-bufsize=${maxKbps * 2}`,
+    ].join(':');
+  }
+  return '';
+}
+
+function buildEncodeArgs({
+  config,
+  sourcePath,
+  partialPath,
+  encoderMode,
+  isDolbyVision,
+  dvAcknowledged,
+  targetBitrate,
+  bitrateProfile,
+  rateControlStrategy,
+  dolbyVisionTonemap,
+  dvTonemapFilter,
+}) {
   const ff = resolveFfmpegBin(config);
   let enc = String(encoderMode || 'cpu').toLowerCase();
   if (isDolbyVision && dvAcknowledged) {
     enc = 'cpu';
   }
+  const strategy = String(rateControlStrategy || '').trim();
+  const profile = bitrateProfileFromParams(targetBitrate, bitrateProfile);
 
   // Hardware decode acceleration (before -i)
   const preInput = ['-hide_banner', '-nostats', '-loglevel', 'error', '-y'];
@@ -1487,29 +1549,94 @@ function buildEncodeArgs({ config, sourcePath, partialPath, encoderMode, isDolby
   if (isDolbyVision && dvAcknowledged) {
     args.push('-vf', resolveTonemapFilterGraph(dolbyVisionTonemap, dvTonemapFilter));
   }
-  const bitrate = typeof targetBitrate === 'number' && targetBitrate > 0 ? String(targetBitrate) + 'M' : null;
-  // Cap peak bitrate at 2x target so the output never exceeds the source
-  const maxrate = bitrate ? String(Math.round(targetBitrate * 1.3)) + 'M' : null;
-  const bufsize = maxrate;
+  const bitrate = mbpsArg(profile.targetMbps);
+  const maxrate = mbpsArg(profile.maxMbps);
+  const defaultBufsize = maxrate;
+  const targetBufsize = mbpsArg(profile.targetMbps ? profile.targetMbps * 2 : null);
   if (enc === 'nvenc') {
     args.push('-c:v', 'hevc_nvenc', '-rc', 'vbr', '-preset', 'p5');
-    if (bitrate) args.push('-b:v', bitrate, '-maxrate', maxrate, '-bufsize', bufsize);
+    if (bitrate) args.push('-b:v', bitrate, '-maxrate', maxrate, '-bufsize', defaultBufsize);
     else args.push('-cq', '24');
   } else if (enc === 'qsv') {
     args.push('-c:v', 'hevc_qsv', '-preset', 'medium');
-    if (bitrate) { args.push('-rc', 'vbr', '-b:v', bitrate, '-maxrate', maxrate, '-bufsize', bufsize); }
+    if (strategy === 'qsv_cbr' && bitrate) {
+      args.push('-b:v', bitrate, '-minrate', bitrate, '-maxrate', bitrate, '-bufsize', targetBufsize || bitrate);
+    } else if (bitrate) {
+      args.push('-rc', 'vbr', '-b:v', bitrate, '-maxrate', maxrate, '-bufsize', defaultBufsize);
+    }
     else args.push('-global_quality', '24');
   } else if (enc === 'amf') {
     args.push('-c:v', 'hevc_amf', '-quality', 'balanced');
-    if (bitrate) args.push('-rc', 'vbr', '-b:v', bitrate, '-maxrate', maxrate, '-bufsize', bufsize);
+    if (bitrate) args.push('-rc', 'vbr', '-b:v', bitrate, '-maxrate', maxrate, '-bufsize', defaultBufsize);
     else args.push('-rc', 'cqp', '-qp_i', '24', '-qp_p', '24');
   } else {
     args.push('-c:v', 'libx265', '-preset', 'medium');
-    if (bitrate) args.push('-b:v', bitrate, '-maxrate', maxrate, '-bufsize', bufsize);
+    if (strategy === 'cpu_strict_fallback' && bitrate) {
+      const x265Params = buildX265VbvParams(profile, 'strict');
+      if (x265Params) args.push('-x265-params', x265Params);
+    } else if (bitrate) {
+      args.push('-b:v', bitrate);
+      const x265Params = buildX265VbvParams(profile, 'vbv');
+      if (x265Params) args.push('-x265-params', x265Params);
+    }
     else args.push('-crf', '22');
   }
   args.push('-c:a', 'copy', '-c:s', 'copy', partialPath);
   return { ffmpegBin: ff, args };
+}
+
+function buildTwoPassEncodeArgs({
+  config,
+  sourcePath,
+  partialPath,
+  targetBitrate,
+  bitrateProfile,
+  isDolbyVision,
+  dvAcknowledged,
+  dolbyVisionTonemap,
+  dvTonemapFilter,
+}) {
+  const ff = resolveFfmpegBin(config);
+  const profile = bitrateProfileFromParams(targetBitrate, bitrateProfile);
+  const bitrate = mbpsArg(profile.targetMbps);
+  if (!bitrate) throw new Error('CPU two-pass ABR requires target bitrate');
+
+  const passLogFile = path.join(path.dirname(partialPath), `${path.basename(partialPath)}.ffmpeg2pass`);
+  const nullOutput = process.platform === 'win32' ? 'NUL' : '/dev/null';
+  const videoArgs = ['-c:v', 'libx265', '-preset', 'medium', '-b:v', bitrate];
+  const x265Params = buildX265VbvParams(profile, 'vbv');
+  if (x265Params) videoArgs.push('-x265-params', x265Params);
+  const filterArgs = [];
+  if (isDolbyVision && dvAcknowledged) {
+    filterArgs.push('-vf', resolveTonemapFilterGraph(dolbyVisionTonemap, dvTonemapFilter));
+  }
+  return {
+    ffmpegBin: ff,
+    passLogFile,
+    firstPassArgs: [
+      '-hide_banner', '-nostats', '-loglevel', 'error', '-y',
+      '-i', sourcePath,
+      '-map', '0:v:0',
+      ...filterArgs,
+      ...videoArgs,
+      '-pass', '1',
+      '-passlogfile', passLogFile,
+      '-an', '-sn', '-dn',
+      '-f', 'mp4',
+      nullOutput,
+    ],
+    secondPassArgs: [
+      '-hide_banner', '-nostats', '-loglevel', 'error', '-y',
+      '-i', sourcePath,
+      '-map', '0:v:0', '-map', '0:a?', '-map', '0:s?', '-dn',
+      ...filterArgs,
+      ...videoArgs,
+      '-pass', '2',
+      '-passlogfile', passLogFile,
+      '-c:a', 'copy', '-c:s', 'copy',
+      partialPath,
+    ],
+  };
 }
 
 function parseFfmpegTimeMs(line) {
@@ -1720,7 +1847,7 @@ function sleep(ms) {
 
 async function startRemoteEncode(onProgress, params) {
   const { config, taskId, sourcePath, partialPath, deviceId,
-    isDolbyVision, dvAcknowledged, durationSec, targetBitrate } = params;
+    isDolbyVision, dvAcknowledged, durationSec, targetBitrate, bitrateProfile, rateControlStrategy } = params;
   const tid = String(taskId || '');
 
   const remote = parseRemoteDeviceId(deviceId);
@@ -1743,7 +1870,7 @@ async function startRemoteEncode(onProgress, params) {
   const { args: ffmpegArgs } = buildEncodeArgs({
     config, sourcePath: sourceFileName, partialPath: 'output.etp.partial.mkv',
     encoderMode: remote.backend, isDolbyVision: !!isDolbyVision,
-    dvAcknowledged: !!dvAcknowledged, targetBitrate,
+    dvAcknowledged: !!dvAcknowledged, targetBitrate, bitrateProfile, rateControlStrategy,
   });
 
   // Phase 1: Create job + upload source (0-10%)
@@ -1881,6 +2008,47 @@ function runLocalEncode({ ffmpegBin, args, spawnEnv, tid, durationSec, onProgres
   });
 }
 
+async function runLocalTwoPassEncode({
+  ffmpegBin,
+  firstPassArgs,
+  secondPassArgs,
+  passLogFile,
+  spawnEnv,
+  tid,
+  durationSec,
+  onProgress,
+}) {
+  const first = await runLocalEncode({
+    ffmpegBin,
+    args: firstPassArgs,
+    spawnEnv,
+    tid,
+    durationSec,
+    onProgress: (pct) => {
+      try { onProgress(Math.min(49, Math.floor(pct / 2))); } catch (_) {}
+    },
+  });
+  if (first.code !== 0) return first;
+
+  const second = await runLocalEncode({
+    ffmpegBin,
+    args: secondPassArgs,
+    spawnEnv,
+    tid,
+    durationSec,
+    onProgress: (pct) => {
+      try { onProgress(50 + Math.min(49, Math.floor(pct / 2))); } catch (_) {}
+    },
+  });
+
+  for (const suffix of ['', '.mbtree', '-0.log', '-0.log.mbtree']) {
+    if (!passLogFile) continue;
+    const p = suffix ? `${passLogFile}${suffix}` : passLogFile;
+    try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch (_) {}
+  }
+  return second;
+}
+
 /**
  * One local encode attempt on a given device. Resolves { ok, encoderUsed,
  * resolvedDeviceId } on success; rejects { code, message, stderrTail } on
@@ -1890,18 +2058,12 @@ function runLocalEncode({ ffmpegBin, args, spawnEnv, tid, durationSec, onProgres
  */
 async function attemptLocalEncode({
   config, taskId, sourcePath, partialPath, deviceId, encoderMode,
-  isDolbyVision, dvAcknowledged, durationSec, targetBitrate, dolbyVisionTonemap, dvTonemapFilter, onProgress,
+  isDolbyVision, dvAcknowledged, durationSec, targetBitrate, bitrateProfile, rateControlStrategy, dolbyVisionTonemap, dvTonemapFilter, onProgress,
 }) {
   const tid = String(taskId || '');
 
   // FFmpeg cannot resume a partial; ensure a clean output target.
   try { if (fs.existsSync(partialPath)) fs.unlinkSync(partialPath); } catch (_) {}
-
-  const { ffmpegBin, args } = buildEncodeArgs({
-    config, sourcePath, partialPath, encoderMode,
-    isDolbyVision: !!isDolbyVision, dvAcknowledged: !!dvAcknowledged, targetBitrate,
-    dolbyVisionTonemap, dvTonemapFilter,
-  });
 
   const { backend: devBack, gpuIndex: devGpu } = parseStableKey(deviceId);
   log('attemptLocalEncode', tid, deviceId, devBack);
@@ -1909,10 +2071,27 @@ async function attemptLocalEncode({
   const spawnEnv = { ...process.env };
   if (devBack === 'nvenc' && devGpu >= 0) spawnEnv.CUDA_VISIBLE_DEVICES = String(devGpu);
 
-  const result = await runLocalEncode({ ffmpegBin, args, spawnEnv, tid, durationSec, onProgress });
+  let result;
+  if (rateControlStrategy === 'cpu_two_pass_abr' && devBack === 'cpu') {
+    const { ffmpegBin, firstPassArgs, secondPassArgs, passLogFile } = buildTwoPassEncodeArgs({
+      config, sourcePath, partialPath, targetBitrate, bitrateProfile,
+      isDolbyVision: !!isDolbyVision, dvAcknowledged: !!dvAcknowledged,
+      dolbyVisionTonemap, dvTonemapFilter,
+    });
+    result = await runLocalTwoPassEncode({
+      ffmpegBin, firstPassArgs, secondPassArgs, passLogFile, spawnEnv, tid, durationSec, onProgress,
+    });
+  } else {
+    const { ffmpegBin, args } = buildEncodeArgs({
+      config, sourcePath, partialPath, encoderMode,
+      isDolbyVision: !!isDolbyVision, dvAcknowledged: !!dvAcknowledged, targetBitrate, bitrateProfile, rateControlStrategy,
+      dolbyVisionTonemap, dvTonemapFilter,
+    });
+    result = await runLocalEncode({ ffmpegBin, args, spawnEnv, tid, durationSec, onProgress });
+  }
 
   if (result.code === 0) {
-    return { ok: true, encoderUsed: devBack, resolvedDeviceId: deviceId };
+    return { ok: true, encoderUsed: devBack, resolvedDeviceId: deviceId, rateControlStrategy: rateControlStrategy || '' };
   }
   throw {
     code: result.code,
@@ -1954,8 +2133,9 @@ function normalizeEncodeError(err) {
 }
 
 async function startEncode(onProgress, params) {
-  const { config, taskId, sourcePath, partialPath, orderedDeviceSlots, isDolbyVision, dvAcknowledged, durationSec, targetBitrate, dolbyVisionTonemap, dvTonemapFilter } = params;
+  const { config, taskId, sourcePath, partialPath, orderedDeviceSlots, isDolbyVision, dvAcknowledged, durationSec, targetBitrate, bitrateProfile, rateControlStrategy, dolbyVisionTonemap, dvTonemapFilter } = params;
   const onLog = typeof params.onLog === 'function' ? params.onLog : null;
+  const allowGpuCpuFallback = params.allowGpuCpuFallback !== false;
   const tid = String(taskId || '');
   if (encodeJobs.has(tid)) throw new Error('Task already has an active encode process');
 
@@ -1983,7 +2163,7 @@ async function startEncode(onProgress, params) {
     try {
       return await attemptLocalEncode({
         config, taskId, sourcePath, partialPath, deviceId, encoderMode: firstBackend,
-        isDolbyVision, dvAcknowledged, durationSec, targetBitrate, dolbyVisionTonemap, dvTonemapFilter, onProgress,
+        isDolbyVision, dvAcknowledged, durationSec, targetBitrate, bitrateProfile, rateControlStrategy, dolbyVisionTonemap, dvTonemapFilter, onProgress,
       });
     } finally {
       releaseEncodeDeviceSlotForTask(tid, deviceId);
@@ -1995,7 +2175,7 @@ async function startEncode(onProgress, params) {
     //  - a CPU device in the pool already (e.g. cpuStrategy 'normal') => nothing to fall back to
     const isGpuFirst = firstBackend !== 'cpu';
     const cpuSlot = isGpuFirst && !needsCpu ? findCpuSlot(slots) : null;
-    if (!cpuSlot) throw normalizeEncodeError(firstErr);
+    if (!allowGpuCpuFallback || !cpuSlot) throw normalizeEncodeError(firstErr);
 
     const stderrTail = String(firstErr && firstErr.stderrTail || '').trim();
     const tailSnippet = stderrTail ? `: ${stderrTail.slice(-512)}` : '';
@@ -2006,7 +2186,7 @@ async function startEncode(onProgress, params) {
     try {
       return await attemptLocalEncode({
         config, taskId, sourcePath, partialPath, deviceId: cpuId, encoderMode: 'cpu',
-        isDolbyVision, dvAcknowledged, durationSec, targetBitrate, dolbyVisionTonemap, dvTonemapFilter, onProgress,
+        isDolbyVision, dvAcknowledged, durationSec, targetBitrate, bitrateProfile, rateControlStrategy, dolbyVisionTonemap, dvTonemapFilter, onProgress,
       });
     } catch (secondErr) {
       const tail2 = String(secondErr && secondErr.stderrTail || '').trim();
@@ -2341,6 +2521,7 @@ module.exports = {
   findCpuSlot,
   normalizeEncodeError,
   _buildEncodeArgsForTest: buildEncodeArgs,
+  _buildTwoPassEncodeArgsForTest: buildTwoPassEncodeArgs,
   _parseFfmpegTimeMsForTest: parseFfmpegTimeMs,
   _resetDolbyVisionTonemapCacheForTest() { dvTonemapCapabilityCache = null; },
   _setRunCmdForTest(fn) {
