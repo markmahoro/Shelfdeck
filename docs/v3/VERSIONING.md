@@ -1,6 +1,8 @@
 # ShelfDeck Versioning
 
-本文档定义 ShelfDeck v3 / Kairox 阶段的版本管理口径。它解决的是“项目阶段名、生产镜像、Git tag、package version 混在一起”的问题。
+本文档定义 ShelfDeck v3 / Kairox 阶段的技术版本管理口径。它解决的是“生产镜像、Git tag、package version 混在一起”的问题。
+
+大版本目标语义见 `RELEASE_GOALS.md`。如果讨论“达到 Kairox Beta / Usable / GA 是什么意思”，以 `RELEASE_GOALS.md` 为准。
 
 ## Current Version State
 
@@ -9,7 +11,7 @@ Last updated: 2026-07-07
 | 项 | 当前值 | 说明 |
 | --- | --- | --- |
 | Product line | `v3 / Kairox` | 当前产品和架构演进线 |
-| Current milestone | `Kairox Frontend/API E2E` | 当前唯一阶段目标，见 `CURRENT_PLAN.md` |
+| Current release goal | `Kairox Beta Candidate` | 当前大版本目标，见 `RELEASE_GOALS.md` 和 `CURRENT_PLAN.md` |
 | Latest deployed image | `markmahoro/shelfdeck:kairox-freshness-20260707-263ef161` | 当前生产运行镜像 |
 | Latest deployed commit | `263ef161` | 当前生产代码来源 |
 | Latest deployed image SHA256 | `0840d9864e9c0b4f0782a458acd10f1e5b80d51d914f34528b54e63ef573868d` | 本地构建 tar 与 NAS 上传校验 hash |
@@ -22,24 +24,24 @@ ShelfDeck 版本分四层，不能互相替代。
 
 | 层级 | 用途 | 示例 | 管理规则 |
 | --- | --- | --- | --- |
-| Product milestone | 描述当前业务/架构阶段 | `Kairox Beta`、`Kairox Frontend/API E2E`、`Kairox GA` | 只写在 `CURRENT_PLAN.md` / `CURRENT_STATUS.md`，不是可部署版本号 |
+| Release goal | 描述当前业务/架构阶段 | `Kairox Beta`、`Kairox Usable`、`Kairox GA` | 定义在 `RELEASE_GOALS.md`，不是可部署版本号 |
 | Deployable build | 标识一个生产可部署镜像 | `markmahoro/shelfdeck:kairox-freshness-20260707-263ef161` | 每次部署必须记录 image tag、commit、sha256 |
 | Git release tag | 标识正式发布点 | `v3.0.0-beta.1`、`v3.0.0` | 只有 E2E / release 验收通过后才打 tag |
 | Package version | npm / desktop package 元数据 | `1.0.0` | 不再用它表达 v3 阶段；公开发行前再统一 bump |
 
 ## Naming Rules
 
-### Product Milestones
+### Release Goals
 
-Product milestone 用自然语言命名，不伪装成语义化版本。
+Release goal 用自然语言命名，不伪装成语义化版本。
 
 推荐：
 
 ```text
-Kairox Runtime Cutover
-Kairox Frontend/API E2E
-Kairox Frontend GA
+Kairox Beta
+Kairox Usable
 Kairox Performance
+Kairox GA Candidate
 Kairox GA
 ```
 
@@ -147,6 +149,7 @@ E2E accepted build
 ## What Not To Do
 
 - 不用旧 v3.4/v3.8/v3.11 roadmap 判断当前版本。
+- 不把工程切片名当成大版本名，例如 `Backend Beta`、`Frontend/API Beta`。
 - 不把 package `1.0.0` 当成当前产品版本。
 - 不把 `latest` 当成生产版本记录。
 - 不复用已经部署过的 Docker tag。

@@ -25,6 +25,7 @@ Use the smallest relevant set:
 | Situation | Read first |
 | --- | --- |
 | Current v3 status or next task | `docs/v3/README.md`, then `docs/v3/CURRENT_STATUS.md` and `docs/v3/CURRENT_PLAN.md` |
+| Kairox release goal meaning, whether a version is done, or worktree scope | `docs/v3/RELEASE_GOALS.md`, then `docs/v3/CURRENT_STATUS.md` |
 | Version naming, release tag, image tag, package version, or deployment identity | `docs/v3/VERSIONING.md`, then `docs/v3/CURRENT_STATUS.md` |
 | Architecture, scheduler, task admission, automation, flow, resource runtime, module boundary | `docs/v3/KAIROX_ARCHITECTURE.md`, then `docs/v3/KAIROX_ENGINEERING_PLAYBOOK.md`; use `docs/v2/ARCH_OVERVIEW.md` only as current implementation map |
 | v3 docs conflict or historical context | `docs/v3/README.md` |
@@ -38,6 +39,8 @@ Use the smallest relevant set:
 ## Architecture Memory
 
 - Kairox is the named architecture contract for v3.1 evolution.
+- Kairox release goals are user-value milestones, not engineering slices. Use `docs/v3/RELEASE_GOALS.md` to decide what "Kairox Beta", "Kairox Usable", "Kairox Performance", "Kairox GA Candidate", and "Kairox GA" mean.
+- This worktree is scoped to `Kairox Beta` only. Do not start `Kairox Usable`, `Kairox Performance`, `Kairox GA Candidate`, or `Kairox GA` implementation here; those require a new worktree after Beta is accepted.
 - v3.x roadmap names, Kairox milestone names, Docker image tags, Git release tags, and package versions are different concepts. Use `docs/v3/VERSIONING.md` as the source of truth.
 - `docs/v2/ARCH_OVERVIEW.md` is a current implementation map, not an architecture contract. It must not override Kairox.
 - Mirex is the legacy compatibility model before Kairox. Recognize, migrate, and preserve it only for compatibility; do not extend it for new behavior.

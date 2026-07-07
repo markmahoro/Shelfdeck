@@ -4,6 +4,8 @@ Last updated: 2026-07-07
 
 ## Production
 
+- Current release goal: `Kairox Beta Candidate`
+- Worktree scope: this worktree stops at `Kairox Beta`; later goals require a new worktree.
 - Production URL: `http://192.168.12.230:18080`
 - Latest deployed image: `markmahoro/shelfdeck:kairox-freshness-20260707-263ef161`
 - Latest deployed commit: `263ef161 Implement Kairox facts freshness and E2E tooling`
@@ -11,7 +13,7 @@ Last updated: 2026-07-07
 - Latest deployment time: `2026-07-07 22:02 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: paused before rerun after deployment.
+- Production E2E status: paused before rerun after deployment; `Kairox Beta` is not achieved until E2E passes.
 
 ## Current Architecture State
 
@@ -49,6 +51,16 @@ Last updated: 2026-07-07
 - The previous blocker was stale ShelfDeck facts after the media files changed.
 - That blocker should now be addressed by the deployed facts freshness implementation.
 
+## Release Goal Status
+
+| Goal | Status | Notes |
+| --- | --- | --- |
+| `Kairox Beta` | Candidate | Code is deployed, production E2E still pending |
+| `Kairox Usable` | Not started | Requires new worktree after Kairox Beta |
+| `Kairox Performance` | Not started | Requires new worktree after Kairox Beta |
+| `Kairox GA Candidate` | Not started | Requires new worktree after Kairox Beta |
+| `Kairox GA` | Not started | Requires new worktree after Kairox Beta |
+
 ## Unresolved / Not Yet Proven
 
 - Production Frontend/API E2E has not yet been rerun after deploying facts freshness.
@@ -64,6 +76,7 @@ Last updated: 2026-07-07
   - optimize / archive / delete review gate progression.
 - Scheduler pressure optimization is not the current priority.
 - Full UI GA is not the current priority until E2E proves the chain.
+- This worktree must not start `Kairox Usable`, `Kairox Performance`, or `Kairox GA` implementation.
 
 ## Worktree Notes
 

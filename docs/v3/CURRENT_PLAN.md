@@ -4,7 +4,13 @@ Last updated: 2026-07-07
 
 ## Current Objective
 
-Clean up the project documents first, then rerun the production Kairox Frontend/API E2E from Stage 0 using the `漫长的季节` test sample.
+Reach `Kairox Beta` in this worktree.
+
+`Kairox Beta` means proving the Kairox business chain works in production with a real test sample. It does not mean UI GA or scheduler performance optimization.
+
+This worktree stops at `Kairox Beta`. Later goals require a new worktree.
+
+The next concrete action is to rerun the production Kairox E2E from Stage 0 using the `漫长的季节` test sample.
 
 The E2E goal is to prove:
 
@@ -28,6 +34,7 @@ frontend pages are visible
    - `README.md`
    - `CURRENT_STATUS.md`
    - `CURRENT_PLAN.md`
+   - `RELEASE_GOALS.md`
    - `VERSIONING.md`
    - `acceptance/KAIROX_FRONTEND_API_E2E_PLAN.md`
 4. Resume production E2E only after the user asks to continue.
@@ -61,6 +68,7 @@ docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
 
 - Do not start Kairox Performance work before production E2E proves the business chain.
 - Do not start Frontend GA polish before production E2E proves the business chain.
+- Do not start Kairox Usable, Kairox Performance, Kairox GA Candidate, or Kairox GA work in this worktree.
 - Do not create another roadmap or competing active plan.
 - Do not use archived Codex plans as implementation guidance.
 - Do not use old v3.x roadmap names as current version identity.
@@ -69,7 +77,7 @@ docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
 
 ## Next Recommended Action
 
-After document cleanup is reviewed, resume production E2E:
+After document / release-goal cleanup is reviewed, resume production E2E:
 
 ```powershell
 cd media-service

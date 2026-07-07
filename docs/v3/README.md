@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | Current status | `CURRENT_STATUS.md` | 当前项目状态、生产部署状态、已完成和未验收事项 |
 | Current plan | `CURRENT_PLAN.md` | 当前唯一执行计划；没有被这里引用的旧计划不能作为执行依据 |
+| Release goals | `RELEASE_GOALS.md` | Kairox Beta / Usable / Performance / GA 的目标语义和验收边界 |
 | Versioning | `VERSIONING.md` | 当前版本口径、镜像 tag、release tag 和 package version 管理规则 |
 | Architecture contract | `KAIROX_ARCHITECTURE.md` | Kairox 架构契约，定义业务语义和组件边界 |
 | Engineering guardrail | `KAIROX_ENGINEERING_PLAYBOOK.md` | Kairox 工程施工规范，改核心链路前必须读 |
@@ -51,9 +52,10 @@
 2. 当前事实以 `CURRENT_STATUS.md` 为准。
 3. 架构语义以 `KAIROX_ARCHITECTURE.md` 为准。
 4. 工程边界以 `KAIROX_ENGINEERING_PLAYBOOK.md` 为准。
-5. 版本口径以 `VERSIONING.md` 为准。
-6. `archive/` 下的文档只能用于考古、回滚、对照或理解历史，不得直接指导新实现。
-7. 如果旧文档和当前文档冲突，更新当前文档或把旧文档继续归档，不要复制旧判断进入新计划。
+5. 大版本目标语义以 `RELEASE_GOALS.md` 为准。
+6. 技术版本口径以 `VERSIONING.md` 为准。
+7. `archive/` 下的文档只能用于考古、回滚、对照或理解历史，不得直接指导新实现。
+8. 如果旧文档和当前文档冲突，更新当前文档或把旧文档继续归档，不要复制旧判断进入新计划。
 
 ## Documentation Rules
 
@@ -64,3 +66,4 @@
 - Codex 生成的计划文档必须有明确状态：Current、Completed、Superseded 或 Evidence。
 - 新增计划前，先确认是否应更新 `CURRENT_PLAN.md`，不要再把多个 active plan 散落在根目录。
 - 新增部署或 release 前，先更新或核对 `VERSIONING.md` 和 `CURRENT_STATUS.md`，不要混用 product milestone、Docker image tag、Git release tag 和 package version。
+- 本 worktree 只推进到 `Kairox Beta`。`Kairox Usable`、`Kairox Performance`、`Kairox GA Candidate`、`Kairox GA` 必须新开 worktree。
