@@ -48,13 +48,13 @@ test('GET /v1/library/queries/manage filters by source', async () => {
   await app.close();
 });
 
-test('GET /v1/library/queries/manage filters by action', async () => {
+test('GET /v1/library/queries/manage accepts lifecycle filter', async () => {
   const app = await buildEmptyApp();
-  const res = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?action=keep' });
+  const res = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?lifecycle=open' });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
   for (const item of body.items) {
-    assert.strictEqual(item.action, 'keep');
+    assert.strictEqual(item.lifecycleDone, false);
   }
   await app.close();
 });
@@ -71,7 +71,6 @@ test('GET /v1/library/queries/manage filters adult pending scrape items', async 
       name: 'Adult Pending Empty Status',
       source: 'adult_folder',
       type: 'movie',
-      action: 'keep',
       scraped: false,
       path: '/adult/pending.mp4',
       adultMetadata: { scrapeStatus: '' },
@@ -369,7 +368,7 @@ test('adultLibraryService ingest discovery reads through the shared media cache'
         watchRoot,
       }],
       adultLibrary: { settleSeconds: 0 },
-      smartTaskEnabledActions: ['ingest'],
+      automaticTaskTargets: ['ingest'], optimizeAllowedOperations: [],
     });
     assert.strictEqual(candidates.length, 0, 'already cached adult items are not rediscovered as ingest candidates');
   } finally {
@@ -384,7 +383,7 @@ test('libraryStore migrates library.json to SQLite and keeps the source JSON', a
     version: 1,
     cachedAt: '2026-06-28T00:00:00.000Z',
     items: [
-      { itemId: 'legacy-1', subLibraryId: 'legacy-lib', name: 'Legacy Alpha', source: 'emby', type: 'movie', action: 'keep' },
+      { itemId: 'legacy-1', subLibraryId: 'legacy-lib', name: 'Legacy Alpha', source: 'emby', type: 'movie' },
       { itemId: 'legacy-2', subLibraryId: 'legacy-lib', name: 'Legacy Beta', source: 'emby', type: 'movie', action: 'transcode' },
     ],
   };
@@ -414,7 +413,7 @@ test('libraryStore replaces one subLibrary without touching other libraries', as
     version: 1,
     cachedAt: '2026-06-28T00:00:00.000Z',
     items: [
-      { itemId: 'lib-a-1', subLibraryId: 'lib-a', name: 'Old A', source: 'emby', type: 'movie', action: 'keep' },
+      { itemId: 'lib-a-1', subLibraryId: 'lib-a', name: 'Old A', source: 'emby', type: 'movie' },
       { itemId: 'lib-b-1', subLibraryId: 'lib-b', name: 'Keep B', source: 'emby', type: 'movie', action: 'delete' },
     ],
   });
@@ -451,7 +450,7 @@ test('libraryStore records skipped WAL checkpoint when WAL is below threshold', 
     })),
   });
   libraryStore.replaceSubLibraryItems('bulk-lib', [
-    { itemId: 'bulk-new', subLibraryId: 'bulk-lib', name: 'Bulk New', source: 'emby', type: 'movie', action: 'keep' },
+    { itemId: 'bulk-new', subLibraryId: 'bulk-lib', name: 'Bulk New', source: 'emby', type: 'movie' },
   ], { cachedAt: '2026-06-28T01:00:00.000Z' });
 
   const checkpointLogs = diagnosticLog.list({ limit: 20 }).logs
@@ -471,8 +470,8 @@ test('libraryStore updateItems updates only existing rows', async () => {
     version: 1,
     cachedAt: '2026-06-28T00:00:00.000Z',
     items: [
-      { itemId: 'update-a', subLibraryId: 'lib-a', name: 'A', source: 'emby', type: 'movie', action: 'keep' },
-      { itemId: 'update-b', subLibraryId: 'lib-b', name: 'B', source: 'emby', type: 'movie', action: 'delete' },
+      { itemId: 'update-a', subLibraryId: 'lib-a', name: 'A', source: 'emby', type: 'movie' },
+      { itemId: 'update-b', subLibraryId: 'lib-b', name: 'B', source: 'emby', type: 'movie' },
     ],
   });
 
@@ -481,8 +480,8 @@ test('libraryStore updateItems updates only existing rows', async () => {
   const count = libraryStore.updateItems([changed, { itemId: 'missing-item', subLibraryId: 'lib-a', name: 'Missing' }]);
 
   assert.strictEqual(count, 1);
-  assert.strictEqual(mediaLibraryService.getLibraryItem('update-a').action, 'transcode');
-  assert.strictEqual(mediaLibraryService.getLibraryItem('update-b').action, 'delete');
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(mediaLibraryService.getLibraryItem('update-a'), 'action'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(mediaLibraryService.getLibraryItem('update-b'), 'action'), false);
   assert.strictEqual(mediaLibraryService.getLibrary().total, 2);
   await app.close();
 });
@@ -520,15 +519,15 @@ test('GET /v1/space-stats uses lightweight SQLite rows', async () => {
     version: 1,
     cachedAt: new Date().toISOString(),
     items: [
-      { itemId: 'space-delete', subLibraryId: 'space-lib', name: 'Delete Me', size: 1000, action: 'delete' },
-      { itemId: 'space-transcode', subLibraryId: 'space-lib', name: 'Shrink Me', size: 2000, bitrate: 10_000_000, equivalentBitrate: 10, targetBitrate: 5, action: 'transcode' },
-      { itemId: 'space-upgrade', subLibraryId: 'space-lib', name: 'Grow Me', size: 3000, bitrate: 5_000_000, equivalentBitrate: 5, targetBitrate: 8, action: 'upgrade' },
+      { itemId: 'space-delete', subLibraryId: 'space-lib', name: 'Delete Me', size: 1000 },
+      { itemId: 'space-transcode', subLibraryId: 'space-lib', name: 'Shrink Me', size: 2000, bitrate: 10_000_000, equivalentBitrate: 10, targetMediaFacts: { targetBitrate: 5, targetCodec: 'h265' } },
+      { itemId: 'space-upgrade', subLibraryId: 'space-lib', name: 'Grow Me', size: 3000, bitrate: 5_000_000, equivalentBitrate: 5, targetMediaFacts: { minResolution: '4K', targetCodec: 'h265' } },
     ],
   });
   taskStore.saveTasks([
-    { id: 'space-task-1', itemId: 'space-transcode', operationKind: 'transcode', status: 'done', verifyResult: { bytesSaved: 400 }, itemInfo: { originalSizeBytes: 2000 } },
-    { id: 'space-task-2', itemId: 'space-upgrade', operationKind: 'upgrade', status: 'done', upgradePreview: { oldFile: { size: 3000 }, newFile: { size: 5000 } } },
-    { id: 'space-task-3', itemId: 'ignored-scrape', operationKind: 'scrape', status: 'done', logs: [{ msg: 'not needed for space stats' }] },
+    { id: 'space-task-1', itemId: 'space-transcode', flowPlan: { flowKind: 'transcode' }, status: 'done', verifyResult: { bytesSaved: 400 }, itemInfo: { originalSizeBytes: 2000 } },
+    { id: 'space-task-2', itemId: 'space-upgrade', flowPlan: { flowKind: 'upgrade' }, status: 'done', upgradePreview: { oldFile: { size: 3000 }, newFile: { size: 5000 } } },
+    { id: 'space-task-3', itemId: 'ignored-scrape', flowPlan: { flowKind: 'scrape' }, status: 'done', logs: [{ msg: 'not needed for space stats' }] },
   ]);
 
   const originalGetLibrary = mediaLibraryService.getLibrary;
@@ -541,10 +540,10 @@ test('GET /v1/space-stats uses lightweight SQLite rows', async () => {
     assert.strictEqual(res.statusCode, 200);
     const body = res.json();
     assert.strictEqual(body.currentTotalBytes, 6000);
-    assert.strictEqual(body.delete.expectedSavingsBytes, 1000);
+    assert.strictEqual(body.delete.expectedSavingsBytes, 0);
     assert.strictEqual(body.transcode.expectedSavingsBytes, 1000);
     assert.strictEqual(body.transcode.realizedSavingsBytes, 400);
-    assert.ok(Math.abs(body.upgrade.expectedIncreaseBytes - 1800) < 0.001);
+    assert.strictEqual(body.upgrade.expectedIncreaseBytes, 0);
     assert.strictEqual(body.upgrade.realizedIncreaseBytes, 2000);
     assert.strictEqual(body.subLibraries[0].itemCount, 3);
   } finally {
@@ -686,7 +685,7 @@ test('GET /v1/integrations/douban/fetch/ratings missing subLibraryId -> 400', as
 test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
   // Per API.md §5.4: only awaiting_user_confirm tasks can be confirmed.
   const app = await buildEmptyApp();
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'confirm-wrong-status', operationKind: 'scrape' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'confirm-wrong-status', targetGate: 'metadata' } });
   const { id } = create.json();
   // Task status is 'created' — confirm must return 409
   const res = await app.inject({ method: 'PATCH', url: `/v1/tasks/${id}`, payload: { confirmed: true } });
@@ -705,16 +704,15 @@ test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
 test('POST /v1/tasks duplicate itemId (active task exists) -> 409', async () => {
   const app = await buildEmptyApp();
   const itemId = 'dup-item-' + crypto.randomUUID().slice(0, 8);
-  const first = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, operationKind: 'scrape' } });
-  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, operationKind: 'scrape' } });
+  const first = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, targetGate: 'metadata' } });
+  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, targetGate: 'metadata' } });
   assert.strictEqual(res.statusCode, 409);
   assert.strictEqual(res.json().error.code, 'TASK_CONFLICT');
   assert.strictEqual(res.json().admission.reason, 'active_task_exists');
   assert.strictEqual(res.json().activeTask.id, first.json().id);
   assert.strictEqual(res.json().activeTask.itemId, itemId);
   assert.strictEqual(res.json().activeTask.taskBridge.kind, 'metadata');
-  assert.strictEqual(res.json().activeTask.flowPlan.operationKind, 'scrape');
-  assert.strictEqual(res.json().businessFlowDecision.blockedReasons.scrape, 'active_task_exists');
+  assert.strictEqual(res.json().activeTask.flowPlan.flowKind, 'scrape');
   await app.close();
 });
 
@@ -725,7 +723,7 @@ test('POST /v1/tasks/:id/actions/execute pending_manual -> queued', async () => 
   // Write config with manual mode
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ executionMode: 'manual' }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'manual-exec', operationKind: 'scrape' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'manual-exec', targetGate: 'metadata' } });
   const { id } = create.json();
   assert.strictEqual(create.json().status, 'pending_manual');
   const res = await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/execute` });

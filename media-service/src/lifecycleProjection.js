@@ -3,18 +3,8 @@
 const lifecycleGateService = require('./lifecycleGateService');
 const lifecycleObjectiveResolver = require('./lifecycleObjectiveResolver');
 
-function normalizeAction(action) {
-  return String(action || '').toLowerCase();
-}
-
 function normalizeReason(reason) {
   return String(reason || '').trim();
-}
-
-function isInitialStrategyPlaceholder(action, reason) {
-  if (!action || action === 'none') return true;
-  if (action !== 'keep') return false;
-  return ['新入库', '成人库新入库'].includes(normalizeReason(reason));
 }
 
 function objectiveLifecycleReason(projection, fallback) {
@@ -28,7 +18,6 @@ function objectiveLifecycleReason(projection, fallback) {
 }
 
 function resolveLifecycle(item, config = {}) {
-  const action = normalizeAction(item && item.action);
   const reason = normalizeReason(item && item.reason);
   const metadataComplete = !!(item && item.metadataComplete);
   const ingestGate = lifecycleGateService.evaluateIngestGate(item || {});
@@ -41,7 +30,7 @@ function resolveLifecycle(item, config = {}) {
       archiveStatus: 'not_ready',
       lifecycleNextTask: 'ingest',
       lifecycleReason: ingestGate.reason,
-      optimizationDirection: action || null,
+      optimizeFlowKind: null,
       ...objectiveProjection,
       ingestGate,
       optimizeGate: null,
@@ -56,7 +45,7 @@ function resolveLifecycle(item, config = {}) {
       archiveStatus: 'not_ready',
       lifecycleNextTask: 'metadata',
       lifecycleReason: 'metadata_missing',
-      optimizationDirection: action || null,
+      optimizeFlowKind: null,
       ...objectiveProjection,
       ingestGate,
       optimizeGate: null,
@@ -64,14 +53,17 @@ function resolveLifecycle(item, config = {}) {
     };
   }
 
-  if (isInitialStrategyPlaceholder(action, reason)) {
+  const hasGateClosureFacts = !!(
+    item && (item.optimizeGate || item.optimizationGate || item.archiveStatus || item.archiveDoneAt)
+  );
+  if (!hasGateClosureFacts && objectiveProjection.optimizeObjectiveStatus !== 'ready') {
     return {
       lifecycleStage: 'metadata_ready',
       lifecycleDone: false,
       archiveStatus: 'not_ready',
-      lifecycleNextTask: 'optimize',
-      lifecycleReason: objectiveLifecycleReason(objectiveProjection, action ? 'strategy_pending' : 'strategy_missing'),
-      optimizationDirection: null,
+      lifecycleNextTask: null,
+      lifecycleReason: objectiveLifecycleReason(objectiveProjection, reason ? 'strategy_pending' : 'strategy_missing'),
+      optimizeFlowKind: null,
       ...objectiveProjection,
       ingestGate,
       optimizeGate: null,
@@ -91,7 +83,7 @@ function resolveLifecycle(item, config = {}) {
       deleteStatus: 'deleted',
       lifecycleNextTask: null,
       lifecycleReason: terminalDeleteGate.reason,
-      optimizationDirection: optimizeGate.operation || action || null,
+      optimizeFlowKind: optimizeGate.flowKind || null,
       ...objectiveProjection,
       ingestGate,
       optimizeGate,
@@ -110,7 +102,7 @@ function resolveLifecycle(item, config = {}) {
         archiveStatus: 'not_ready',
         lifecycleNextTask: 'archive',
         lifecycleReason: archiveGate.reason,
-        optimizationDirection: optimizeGate.operation || action,
+        optimizeFlowKind: optimizeGate.flowKind || null,
         ...objectiveProjection,
         ingestGate,
         optimizeGate,
@@ -126,7 +118,7 @@ function resolveLifecycle(item, config = {}) {
         deleteStatus: 'deleted',
         lifecycleNextTask: null,
         lifecycleReason: deleteGate.reason,
-        optimizationDirection: optimizeGate.operation || action,
+        optimizeFlowKind: optimizeGate.flowKind || null,
         ...objectiveProjection,
         ingestGate,
         optimizeGate,
@@ -141,7 +133,7 @@ function resolveLifecycle(item, config = {}) {
       deleteStatus: 'not_deleted',
       lifecycleNextTask: null,
       lifecycleReason: optimizeGate.reason,
-      optimizationDirection: optimizeGate.operation || action,
+      optimizeFlowKind: optimizeGate.flowKind || null,
       ...objectiveProjection,
       ingestGate,
       optimizeGate,
@@ -157,7 +149,7 @@ function resolveLifecycle(item, config = {}) {
       archiveStatus: 'not_ready',
       lifecycleNextTask: null,
       lifecycleReason: optimizeGate.reason,
-      optimizationDirection: optimizeGate.operation || action,
+      optimizeFlowKind: optimizeGate.flowKind || null,
       ...objectiveProjection,
       ingestGate,
       optimizeGate,
@@ -171,7 +163,7 @@ function resolveLifecycle(item, config = {}) {
     archiveStatus: 'not_ready',
     lifecycleNextTask: 'optimize',
     lifecycleReason: 'optimization_pending',
-    optimizationDirection: optimizeGate.operation || action,
+    optimizeFlowKind: optimizeGate.flowKind || null,
     ...objectiveProjection,
     ingestGate,
     optimizeGate,

@@ -18,7 +18,7 @@ source/discovered -> ingested -> metadata-ready -> optimized -> archived -> dele
 object + targetGate + gateObjective
 ```
 
-`ingest`、`scrape`、`transcode`、`upgrade`、`archive`、`delete` 在当前实现中仍作为兼容 operation 或 flow executor 存在，但不能再被当成 task 的唯一主语义。
+`ingest`、`scrape`、`transcode`、`upgrade`、`archive`、`delete` 只能作为 `flowPlan.flowKind`、executor 或 event 细节存在，不能再被当成 task 主语义，也不能作为 task 顶层字段换皮保留。
 
 一句话：
 
@@ -33,11 +33,11 @@ Kairox 的目标语义收敛为 6 个架构组件。这里的组件是职责边�
 | 架构组件 | 核心问题 | 负责 | 不负责 |
 | --- | --- | --- | --- |
 | User Perception Management | 用户怎么看这个媒体 | 管理 rating、watched、playCount、favorite、manual tier、perception source、perception version；从 Admin Web、Desktop、Emby、Douban 私人账号、播放历史和导入数据采集并合并用户感知事实；写 perception change facts | 定义 Lifecycle gate；计算 optimize objective；创建 task；选择 flow；执行 event |
-| Lifecycle | 媒体现在在哪，gate 过没过，目标是什么 | 定义 6 阶段 5 gate；定义 gate objective；按子库计算 ingest / metadata gate；消费 metadata/media facts、user perception facts 和 policy facts；为每个媒体计算 optimize objective readiness、objective revision 和 delete eligibility；根据 objective + observed facts 判定 optimize / archive / delete gate；推进 stage | 管理用户感知来源；创建 task；选择 flow；执行 event；控制资源 |
+| Lifecycle | 媒体现在在哪，gate 过没过，目标是什么 | 定义 6 阶段 5 gate；定义 gate objective；按子库计算 ingest / metadata gate；消费权威事实、fact freshness、fact refresh request、user perception facts 和 policy facts；为每个媒体计算 optimize objective readiness、objective revision 和 delete eligibility；根据 objective + 最新权威事实判定 optimize / archive / delete gate；推进 stage | 管理用户感知来源；创建 task；选择 flow；执行 event；控制资源 |
 | Task Creator | 现在要不要创建 task，创建什么目标 task | 消费 lifecycle snapshot、自动化扫描、用户 intent、Resource Runtime 安灯信号；执行准入；创建 `object + targetGate + gateObjective` 的 task；拒绝时给 blocked reason | 定义 gate / objective；选择 flow；执行 event；控制资源 |
-| Task Scheduler | 哪些 task 现在获得运行机会 | 找 runnable task；控制 task 级并发；控制 item lock；按 priority / retryAt / createdAt 排序；给 task 一次 tick；保存 Flow Planner 返回的 task-level signal | 创建 task；判断 gate；选择 flow；生成 objective；生成 event；决定 retry / fallback；控制资源 |
-| Flow Planner | 为了达成 task 目标，具体怎么做 | 根据 task.object + targetGate + gateObjective 选择 flow operation；生成 event 编排；发出 event intent；消费 event / resource facts；处理 retry / fallback / wait / needs-review / fail；写 task facts / gate facts；返回 task-level signal | 定义 gate / objective；判定 lifecycle stage；控制资源容量；创建 task |
-| Resource Runtime | event 怎么执行，工厂产能如何 | 读取 event intent；管理 event queue、resource bucket、capacity、concurrency、lease；调用 executor / worker；处理 timeout / worker lost / orphan lease；写 event / resource facts；输出安灯信号并提供 Resource View | 创建 task；判断 lifecycle gate；选择 flow operation；定义 optimize objective |
+| Task Scheduler | 哪些 task 现在获得运行机会 | 找 runnable task；控制 task 级并发；控制 item lock；按 priority / retryAt / createdAt 排序；给 task 一次 tick；保存 Flow Planner / Resource Runtime 返回的 task-level signal | 创建 task；判断 gate；选择 flow；生成 objective；生成 event；决定 retry / fallback；控制资源 |
+| Flow Planner | 为了达成 task 目标，具体怎么做 | 根据 task.object + targetGate + gateObjective，以及 current facts、policy facts、flow safety facts，产出 `flowPlan.flowKind`、event 编排、resource requirements、recovery contract 和 explanation | 定义 gate / objective；判定 lifecycle stage；控制资源容量；创建 task；调度 event |
+| Resource Runtime | event 怎么执行，工厂产能如何 | 读取 flowPlan / event intent；管理 event queue、resource bucket、capacity、concurrency、lease；调用 executor / worker；处理 timeout / worker lost / orphan lease；写 event / resource facts、staged facts、fact refresh request；输出安灯信号并提供 Resource View | 创建 task；判断 lifecycle gate；选择 flowKind；定义 optimize objective；发布权威事实 |
 
 主链路是：
 
@@ -67,7 +67,7 @@ Task / event 的事实必须持久化。内存态用于实时运行、快速查�
 
 - Lifecycle stage、gate、metadata status、user perception status、optimization status、archive status、delete status。
 - User Perception Management、Douban 私人评分、Emby watched / playCount、manual tier、favorite、perception version。
-- TaskAdmission、BusinessFlowPolicy、SmartTaskEngine、手动 `/v1/tasks` 创建入口。
+- TaskAdmission、Task Creator、SmartTaskEngine、手动 `/v1/tasks` 创建入口。
 - Task target、task control、retry/resume/cancel/confirm。
 - Flow Planner、flow recovery contract、flow executor。
 - TaskScheduler、resource projection、resource throttling、worker dispatch。
@@ -115,7 +115,7 @@ Kairox 下的核心用户心智是：
 | archive gate | 媒体进入已归档状态 | `targetGate=archive` |
 | delete gate | 已归档媒体满足处置条件并完成删除 | `targetGate=delete` |
 
-实现可以继续有兼容字段，但 UI、API projection、诊断和文档不应继续把 `actionType` 当成用户语义主语。
+当前业务/API/UI 不再保留 Mirex compatibility layer。旧 `actionType` / action / operation / operationKind / operation_kind / 顶层 selectedFlow 字段只允许出现在一次性迁移脚本、负向回归测试或历史文档中；不得作为 runtime task identity、用户语义、task candidate、规则模板或 Dashboard/Task Center 主解释。
 
 `archive` 在 Kairox 中保留“已归档”的用户语义。已归档表示媒体已经完成入库、元数据和必要优化，当前可以安心放在库中；它不是生命周期终点，也不等于“永不删除”。已归档媒体后续可以被 delete gate 的处置规则纳入删除候选。
 
@@ -169,7 +169,78 @@ User Perception Management
 - User Perception Management 直接调用 Task Creator 创建 optimize/delete task。
 - Task Creator 自己比较 rating、watched、playCount 或 objective hash 来判断是否需要任务。
 
-### 4.3 Task targets a gate
+### 4.3 Fact ownership and freshness
+
+ShelfDeck 对一个媒体的“真实认知”必须来自权威事实（canonical facts）。Flow 执行中可以产生暂存事实（staged facts）和执行证据（event evidence），但不能直接把一个 gate 判为通过，也不能绕过事实归属发布新的权威事实。
+
+统一术语：
+
+| English | 中文 | 含义 |
+| --- | --- | --- |
+| canonical facts | 权威事实 | ShelfDeck 当前正式承认、用于 Lifecycle gate 判断和用户展示的媒体真实状态 |
+| staged facts | 暂存事实 | 某个 flow 产出的待接受结果，可用于验证“如果激活该结果，是否满足 gate objective” |
+| event evidence | 执行证据 | 证明 staged facts 可信的执行过程、probe、校验、替换和资源记录 |
+| fact refresh request | 事实刷新请求 | 下游 flow 发现权威事实已过期后写入的 declarative signal；它不是 task 创建请求 |
+
+Kairox 将媒体相关事实分成五类，每类有唯一 canonical owner：
+
+| Fact 类别 | 中文 | Canonical owner | 典型字段 | 边界 |
+| --- | --- | --- | --- | --- |
+| `sourceFacts` / `ingestFacts` | 来源事实 / 入库事实 | ingest gate / ingest flow | `itemId`、`subLibraryId`、`source`、`sourceId`、`path`、`originalPath`、`fileName`、`extension`、`assetRootPath`、`externalRefs`、`size`、`mtime`、`sourceExists`、`fileSettled` | 描述媒体从哪里来、当前物理源在哪里；不包含标题、演员、用户评分 |
+| `mediaFacts` | 媒体技术事实 | metadata gate / scrape-probe flow | `duration`、`bitrate`、`codec`、`container`、`resolution`、`audioCodecs`、`subtitleTracks`、`isDiscLike`、`equivalentBitrate`、`bucket` | 描述文件技术属性；optimize objective 可以消费 |
+| `metadataFacts` | 内容元数据事实 | metadata gate / scrape flow | `title`、`originalTitle`、`year`、`premiereDate`、`genres`、`studio`、`director`、`actors`、`plot`、`poster`、`fanart`、`nfoPath`、`metadataSource`、`scrapeStatus`、`scrapedAt`、成人库 `adultId` / `censor` / `protagonist` | 描述内容是什么；不包含文件路径、码率、用户是否看过 |
+| `userPerceptionFacts` | 用户感知事实 | User Perception Management | `rating`、`ratingSource`、`watched`、`playCount`、`lastPlayedAt`、`favorite`、`manualTier`、`perceptionVersion`、`perceptionUpdatedAt` | 描述用户怎么看这个媒体；不属于 metadata gate |
+| `gateFacts` | Gate 事实 | Lifecycle + 对应 gate flow verification | `ingestGate`、`metadataGate`、`optimizeGate`、`archiveGate`、`deleteGate`、`objectiveHash`、`gatePassedAt`、`gateEvidence` | 描述 gate 判定结果和证据；不替代上面的媒体事实 |
+
+Emby sync、文件夹扫描、成人库目录扫描、Douban 同步等 domain module 是 Source Adapter / Domain Fact Writer。它们可以发现输入、写 source candidate、metadata hint 或 perception input，但不能创建 task、调用 TaskAdmission、判断 gate 或选择 flow。
+
+权威事实刷新规则：
+
+- `sourceFacts / ingestFacts` 的权威刷新有且仅有 ingest task。
+- `mediaFacts / metadataFacts` 的权威刷新有且仅有 metadata task，其实现路径通常是 `flowPlan.flowKind=scrape` 或 metadata repair / probe。
+- `userPerceptionFacts` 的权威刷新有且仅有 User Perception Management。
+- `gateFacts` 的权威刷新由 Lifecycle 判定和对应 flow verification 共同完成，但最终 gate passed / blocked 状态必须回到 Lifecycle projection。
+- transcode / upgrade / archive / delete 这类执行型 flow 只能写 staged facts、event evidence 和 fact refresh request；不能直接发布 `sourceFacts`、`mediaFacts` 或 `metadataFacts` 的权威事实。
+
+Gate passed 的通用条件是：
+
+```text
+gate passed = required facts complete + required facts fresh + required facts satisfy gate objective
+```
+
+字段齐全但过期，不算 gate passed。例如：
+
+- 文件路径、文件存在性、source identity 发生变化后，ingest gate 必须重新通过。
+- codec、bitrate、duration、resolution 等 media facts 发生变化后，metadata gate 必须重新通过。
+- metadata gate passed 不等于 optimize objective ready；若 objective policy 需要 user perception，但 perception 不足，应投影为 `pending_perception`，不能把对象打回 metadata gate。
+
+执行型 flow 完成后的正确闭环：
+
+```text
+optimize task
+  -> Flow Planner selects transcode / upgrade / no_op / blocked
+  -> Resource Runtime executes flow
+  -> Executor writes staged facts + event evidence
+  -> physical result is activated / replaced
+  -> Executor writes fact refresh request
+  -> Lifecycle reads stale facts / refresh request
+  -> Lifecycle projects required targetGate=ingest and/or targetGate=metadata
+  -> Task Creator creates refresh task through TaskAdmission
+  -> ingest / metadata task refreshes canonical facts
+  -> Lifecycle evaluates optimize gate using fresh canonical facts
+```
+
+这不是 chain task。下游 executor 没有创建后续 task，只是写了“权威事实已经过期”的事实。是否创建 ingest / metadata task，仍由 Lifecycle projection 和 Task Creator / TaskAdmission 决定。
+
+当 optimize flow 已完成物理结果但权威事实尚未刷新时，Lifecycle 应投影为：
+
+```text
+optimizeGateStatus = pending_canonical_refresh
+```
+
+该状态表示“执行结果已产生，但 ShelfDeck 对该媒体的权威认知尚未更新”。在此状态下，Task Creator 不应基于旧 mediaFacts 重复创建新的 optimize task。
+
+### 4.4 Task targets a gate
 
 Task 是一次把 object 推过某个 target gate 的尝试。
 
@@ -178,25 +249,38 @@ Task 必须能表达：
 - `object`: 目标媒体 item 或 source candidate。
 - `targetGate`: 要跨过的 gate。
 - `gateObjective`: gate 的目标合同。
-- `operationHint`: 兼容旧 executor 的实现提示，只能作为 hint。
 
-自动入口、手动入口、adult rescrape 入口和未来 background source 都必须进入同一套 Task Creator / TaskAdmission 语义。不能为某个库类型或某种自动化单独开一条私有入队路径。
+Task 不保存顶层 flow identity。`flowKind` 只能出现在 Flow Planner 产出的 `flowPlan.flowKind` 中；Task Creator / TaskAdmission 不得在创建 task 时预选 `transcode`、`upgrade`、`scrape` 或 `delete`。
 
-### 4.4 Flow implements the path
+自动入口、手动入口、adult rescrape API/user intent adapter 和未来 background source 都必须进入同一套 Task Creator / TaskAdmission 语义。不能为某个库类型或某种自动化单独开一条私有入队路径；成人库 domain module 本身不能直接 createTask 或调用 TaskAdmission。
+
+### 4.5 Flow implements the path
 
 Flow 是 task 内部的实现路径，不拥有顶层用户目标。
 
-例如 optimize task 可以选择：
+例如 optimize task 的 Flow Planner 可以选择：
 
-- `transcode` operation 达成降低码率或兼容性目标。
-- `upgrade` operation 达成提升媒体事实目标。
-- 未来 `remux`、字幕、音轨或 HDR repair operation 达成更细的媒体事实目标。
+- `flowKind=transcode` 达成降低码率或兼容性目标。
+- `flowKind=upgrade` 达成提升媒体事实目标。
+- 未来 `flowKind=remux`、字幕、音轨或 HDR repair 达成更细的媒体事实目标。
 
-Flow Planner 可以选择不同 operation，但不能临时发明 Lifecycle objective。Objective 必须来自 Lifecycle 规则、策略事实或明确的用户配置。
+Flow Planner 可以选择不同 `flowKind`，但不能临时发明 Lifecycle objective。Objective 必须来自 Lifecycle 规则、策略事实或明确的用户配置。
 
-`delete` 不是 optimize flow operation。删除媒体不是“把媒体事实优化到某个目标值”，而是已归档媒体在后续 delete gate 中进入处置流程。Delete flow 属于 `targetGate=delete` 的实现路径。
+`delete` 不是 optimize flow。删除媒体不是“把媒体事实优化到某个目标值”，而是已归档媒体在后续 delete gate 中进入处置流程。Delete flow 属于 `targetGate=delete` 的实现路径。
 
-### 4.5 Event consumes resources
+用户可以参与 optimize task 的 flow 决策，但不能绕过 Flow Planner 直接指定 executor。正确模型是：
+
+```text
+用户触发 targetGate=optimize task
+  -> Flow Planner 生成 proposed flowPlan / flowReview
+  -> 用户确认建议，或提交 flowPreference
+  -> Flow Planner 基于 current facts + gateObjective + flowPreference 重新规划
+  -> Resource Runtime 执行 final flowPlan.flowKind
+```
+
+`flowReview.proposedFlowKind` 是系统建议，`flowPreference.preferredFlowKind` 是用户偏好；二者都不是 task identity，也不能替代 `object + targetGate + gateObjective`。用户改选 flow 后仍必须通过 authorization、safety facts 和 objective gap 检查。
+
+### 4.6 Event consumes resources
 
 Event 是实际消耗资源的原子执行事实。
 
@@ -211,7 +295,7 @@ SmartTaskEngine 不直接管理资源。它只消费 Resource Runtime 或 servic
 
 这条合同约束的是 service 后端 projection 和内部排障能力，不表示普通 Admin Web 必须暴露一个面向用户的资源视图页面。资源、DB/WAL、payload、I/O guard、diagnostic log 等运维事实应优先保留在后端诊断接口、日志和测试中，默认不进入普通用户前端。
 
-### 4.6 Task / Flow / Event relationship
+### 4.7 Task / Flow / Event relationship
 
 Task、Flow、Event 是三层不同对象，不能互相代替。
 
@@ -231,7 +315,7 @@ Event
 ```text
 one task
   owns one target contract
-  may use one selected flow plan at a time
+  may have one flowPlan produced by Flow Planner at a time
   records many events over time
 ```
 
@@ -254,8 +338,8 @@ task
     codec in [hevc, av1]
     resolution preserved
 
-flow
-  operation = transcode
+flowPlan
+  flowKind = transcode
   executor = transcodeFlowExecutor
   recoveryContract = transcode recovery points
 
@@ -278,8 +362,8 @@ task
   gateObjective = archived media disposal
     rule = rating <= 2 and archivedFor >= 6 months
 
-flow
-  operation = delete
+flowPlan
+  flowKind = delete
   executor = deleteFlowExecutor
   recoveryContract = delete recovery points
 
@@ -290,28 +374,29 @@ events
   delete.verify
 ```
 
-在这个例子里，用户语义是“从已归档媒体中处置不再需要的条目”。`delete` 是 delete gate 的实现路径，不是 optimize gate 的 operation。
+在这个例子里，用户语义是“从已归档媒体中处置不再需要的条目”。`delete` 是 delete gate 的实现路径，不是 optimize gate 的 flow。
 
 硬约束：
 
-- 一个 task 必须先能解释 `object + targetGate + gateObjective`，再谈 flow operation。
+- 一个 task 必须先能解释 `object + targetGate + gateObjective`，再谈 `flowPlan.flowKind`。
 - Task status 描述 gate-crossing attempt 的当前处境，不能用 `actionType` 或 executor 名称替代。
 - Flow Planner 可以为同一个 gate objective 选择不同 flow，但不能改变 task target。
 - Event history 是执行审计和恢复依据；失败不能只写 task 终态，必须能追到 event/resource/failure summary。
-- Scheduler 只能调度 runnable task 和 dispatch flow event，不能把业务 objective 塞进调度分支。
+- Task Scheduler 只能调度 runnable task，不能调度 flow event，不能把业务 objective 或 flow selection 塞进调度分支。
+- Resource Runtime 根据 flowPlan / event intent 调度 event 和资源。
 - UI 可以展示实现路径，但主标题、筛选、诊断入口应优先展示 task target。
 - Resource projection 只能从 event/resource 解释运行压力，不能把 task target 简化成 resource bucket；普通用户前端不应把 resource bucket 当成核心产品页面。
 
 明确禁止：
 
-- 把 `transcode task`、`upgrade task` 当成长期用户语义。Kairox 下它们是 optimize task 的 operation path。
-- 把 `delete` 当成 optimize task 的 operation path。Kairox 下 delete 是独立 delete gate 的 flow operation。
+- 把 `transcode task`、`upgrade task` 当成长期用户语义。Kairox 下它们只能是 optimize task 的 `flowPlan.flowKind`。
+- 把 `delete` 当成 optimize task 的 flow。Kairox 下 delete 是独立 delete gate 的 `flowPlan.flowKind`。
 - 在 flow executor 内部私自修改 `targetGate` 或 `gateObjective`。
 - 在 event 执行成功后绕过 Lifecycle/Task Creator 直接创建下一个 gate 的 task。
 - 用 task retry 代替 flow recovery contract。
 - 用 resource queue / resource projection 反向决定媒体的 Lifecycle objective。
 
-### 4.7 Metadata gate is a scrape exit gate
+### 4.8 Metadata gate is a scrape exit gate
 
 `metadataGate` 不是“要不要 scrape”的触发条件，而是 scrape 阶段是否完成的 exit gate。
 
@@ -336,7 +421,7 @@ Kairox 没有 `self-compute` 这个一等概念。所谓“自算”必须拆回
 
 因此：metadata / media facts 不完整的对象不能进入 optimize gate；user perception facts 不完整的对象不应回退 metadata gate，而应由 Lifecycle 投影为 `optimizeObjectiveStatus=pending_perception`、默认 baseline objective 或其他可解释状态，具体取决于子库 objective policy。
 
-### 4.8 Upstream gate invalidation is a standard flow signal
+### 4.9 Upstream gate invalidation is a standard flow signal
 
 Kairox gate projection 读取的是已持久化 facts，不是每次实时重扫外部世界。因此 gate 可能出现“曾经通过，但执行时发现事实已经失效”的情况。例如：
 
@@ -375,33 +460,33 @@ Task Creator
 
 明确禁止：
 
-- 在 Task Creator / BusinessFlowPolicy 里通过实时文件系统探测代替 ingest gate facts。
+- 在 Task Creator / policy 模块里通过实时文件系统探测代替 ingest gate facts。
 - 把 upstream gate invalidation 伪装成当前 gate 的普通失败，例如把 source missing 记成 metadata scrape failed。
 - 在 scrape / optimize / archive / delete executor 内部直接创建上游补救 task。
 - 用 retry 当前 task 代替回退上游 gate；若上游事实失效，必须先让 Lifecycle 重新投影。
 
-### 4.9 Task Creator is unified
+### 4.10 Task Creator is unified
 
-所有自动 task 创建必须通过统一 TaskAdmission / BusinessFlowPolicy / Task Creator 语义。
+所有自动 task 创建必须通过统一 TaskAdmission / Task Creator 语义。
 
 必须保持：
 
 - active task duplicate prevention。
 - 自动 task 创建 allow-list。新配置语义应表达为 `automaticTaskTargets`，用于决定系统是否可以自动创建 `ingest`、`metadata`、`optimize`、`archive`、`delete` 这类 gate target task。
-- optimize flow operation allow-list。新配置语义应表达为 `optimizeAllowedOperations`，用于决定 optimize task 内允许选择 `transcode`、`upgrade`、未来 `remux` 等媒体事实优化 operation path。
+- optimize flow allow-list。新配置语义应表达为 `optimizeAllowedFlowKinds`，用于决定 optimize task 内允许 Flow Planner 选择 `transcode`、`upgrade`、未来 `remux` 等媒体事实优化 flowKind。
 - queue cap、cooldown、backlog pressure。
 - standard/adult/manual/background source 的同一准入模型。
 - manual intent 可以表达用户明确意图，但仍保留 active duplicate、风险动作和 flow safety 校验。
 
-旧 `smartTaskEnabledActions` 是兼容字段，不能继续作为 Kairox 架构概念扩张。迁移期可以按以下规则投影：
+历史 `smartTaskEnabledActions` 只能作为 config normalize / cutover 的一次性迁移输入读取，不能继续作为运行时配置、API projection、Dashboard 摘要或 UI 保存字段。迁移读取时必须按以下规则投影，并在保存的新配置中删除旧字段：
 
 - `ingest` -> `automaticTaskTargets` 包含 `ingest`。
 - `scrape` -> `automaticTaskTargets` 包含 `metadata`。
-- `transcode` / `upgrade` -> `automaticTaskTargets` 包含 `optimize`，同时写入对应 `optimizeAllowedOperations`。
+- `transcode` / `upgrade` -> `automaticTaskTargets` 包含 `optimize`，同时写入对应 `optimizeAllowedFlowKinds`。
 - `archive` -> `automaticTaskTargets` 包含 `archive`。
-- `delete` -> `automaticTaskTargets` 包含 `delete`。delete 不能投影为 optimize operation。
+- `delete` -> `automaticTaskTargets` 包含 `delete`。delete 不能投影为 optimize flow。
 
-这几个授权层不能互相替代：允许自动创建 optimize task 不等于允许所有 optimize operation；允许某个 optimize operation 也不等于系统可以绕过 Task Creator / TaskAdmission 自动建 task；允许系统产生 delete candidate 或 delete task 也不等于允许无确认删除。
+这几个授权层不能互相替代：允许自动创建 optimize task 不等于允许所有 optimize flow；允许某个 optimize flow 也不等于系统可以绕过 Task Creator / TaskAdmission 自动建 task；允许系统产生 delete candidate 或 delete task 也不等于允许无确认删除。
 
 Delete gate 默认应是 review-first：
 
@@ -419,7 +504,7 @@ Delete gate 默认应是 review-first：
 - 已归档媒体进入 delete candidate 后绕过 delete review / destructive authorization 直接执行删除。
 - 用隐藏按钮、禁用任务或绕过任务中心代替 flow capability 修复。
 
-### 4.10 Recovery belongs to flow contract
+### 4.11 Recovery belongs to flow contract
 
 Retry/resume/fallback 不是通用按钮语义。
 
@@ -434,7 +519,7 @@ Retry/resume/fallback 不是通用按钮语义。
 - 是否需要用户确认。
 - 重试是否可能重复提交外部副作用。
 
-### 4.11 Full-auto is configured authorization
+### 4.12 Full-auto is configured authorization
 
 全自动模式不是另一条执行链路。
 
@@ -451,7 +536,7 @@ Retry/resume/fallback 不是通用按钮语义。
 
 Delete gate 的全自动授权必须比普通 optimize 授权更窄。默认允许系统计算 delete candidate，但不默认允许 destructive delete；只有明确 destructive pre-authorization、审计和验证合同齐备时，才可以从 review-first 演进到自动执行。
 
-### 4.12 Admin Web is a user projection, not an operations console
+### 4.13 Admin Web is a user projection, not an operations console
 
 Admin Web 面向普通用户和家庭长期服务心智，不是运维控制台。前端 projection 的目标是让用户快速确认“服务大体可用、外部集成是否配置正确、媒体库状态是否清楚”，而不是让用户理解内部资源、数据库或调度细节。
 
@@ -478,7 +563,7 @@ Delete candidates / 处置队列是普通业务页面，不是运维页面。它
 
 成人库恢复必须遵守 `docs/v3/ADULT_DATA_MODEL.md`：成人库仍是 Kairox subLibrary；`media_items` 热数据只保存 item identity、file facts、Lifecycle/gate facts、task target facts 和 light adult metadata；face clusters、embedding、gallery、base64 图片和 AI 中间输出属于 cold AI artifacts 或 file assets，不能进入普通列表、dashboard 或 TaskAdmission 热路径。
 
-### 4.13 Optimize target projection is not a strategy layer
+### 4.14 Optimize target projection is not a strategy layer
 
 Kairox 没有 `strategy` 这个一等架构层。旧实现中的 `strategyEngine` 只能作为 legacy implementation module 保留，其架构语义是 optimize gate target projection。
 
@@ -488,7 +573,7 @@ Optimize gate target projection 的职责：
 - 基于 metadata/media facts、User Perception Management 提供的 normalized perception facts、subLibrary policy，计算 optimize gate 的 target / gateObjective。
 - optimize gateObjective 是归档前媒体事实目标合同，例如码率区间、编码、分辨率、HDR、音轨、字幕、容器、体积上限或来源质量要求。
 - 如果当前 observed media facts 已满足目标合同，optimize gate 直接通过；不需要把 `keep` 建模成一个独立目标。
-- 输出推荐事实和参数，例如 target media facts、reason、targetBitrate、targetCodec、predictedSizeGb、seedPreferences，以及可选 operation hint。
+- 输出推荐事实和参数，例如 target media facts、reason、targetBitrate、targetCodec、predictedSizeGb、seedPreferences。不得输出 task 顶层 flow identity；任何实现路径只能由 Flow Planner 写入 `flowPlan.flowKind`。
 - 不补 metadata，不采集或合并 user perception，不读取外部 source facts，不创建 task，不绕过 TaskAdmission。
 
 Optimize objective readiness 是 Lifecycle projection，不是 Task Creator 判断：
@@ -539,7 +624,7 @@ Delete eligibility 不属于 optimize target projection。删除规则依赖已�
   delete candidate waits for user review
 ```
 
-### 4.14 Service owns orchestration
+### 4.15 Service owns orchestration
 
 Service 拥有任务、媒体库、配置、People、策略结果和生产数据。
 
@@ -547,7 +632,7 @@ Desktop 是 HTTP thin client，不直接访问 Emby、Douban、MoviePilot、serv
 
 Worker 是被动计算节点，只提供计算能力和临时 job 状态。Worker 不拥有媒体库语义，不直接访问 Emby/MoviePilot/service 数据文件，不决定 Lifecycle、TaskAdmission 或 Flow objective。
 
-### 4.15 Production path is canonical
+### 4.16 Production path is canonical
 
 NAS ShelfDeck Docker 是生产环境。
 
@@ -577,7 +662,7 @@ node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha
 - 把 `doubanRating`、`userRating`、`watched`、`playCount` 当成 metadata gate required facts。
 - Task Creator 自己比较 user perception facts 或 objective hash 来发现 objective revision。
 - Lifecycle 在 objective revision 后直接调用 Task Creator 创建任务，而不是只写 projection。
-- 把 delete candidate 或 delete task 伪装成 optimize objective / optimize operation。
+- 把 delete candidate 或 delete task 伪装成 optimize objective / optimize flow。
 - 把已归档理解成生命周期终点，导致 delete gate 无法表达归档库后续处置。
 - 新增一个 worker 能力，却让 worker 持有 service 的业务事实。
 - 新增一个普通前端卡片或页面来展示 DB/WAL、payload、resource bucket、I/O guard、diagnostic log 等运维事实。
@@ -598,20 +683,21 @@ Kairox 代码可以读取或写入 Mirex 字段用于兼容、迁移和回滚，
 | --- | --- | --- |
 | Task 主语义 | `actionType` | `object + targetGate + gateObjective` |
 | 用户感知 | 混在 metadata / strategy 条件里 | User Perception Management owns perception facts |
-| `transcode` / `upgrade` | task 类型 | optimize flow operation |
-| `delete` | task 类型或 optimize operation | delete gate 的 flow operation |
-| Scheduler | 调度和部分业务判断混合 | 调度 runnable task / dispatch flow event |
+| `transcode` / `upgrade` | task 类型 | optimize task 的 `flowPlan.flowKind` |
+| `delete` | task 类型或 optimize flow | delete gate 的 `flowPlan.flowKind` |
+| Scheduler | 调度和部分业务判断混合 | Task Scheduler 只调度 runnable task；Resource Runtime 调度 event/resource |
 | SmartTask | 自动决策器倾向 | task trigger，消费 gate 和 backpressure |
 | Flow | 常和 task/action 混在一起 | task 内部 implementation path |
 | Event | 日志或辅助事实 | durable execution step |
 | Resource | executor 限流或运行状态 | event/resource runtime |
 | UI | action / 任务类型 | task target / gate / objective |
 
-Mirex compatibility rules:
+Mirex residual rules:
 
-- `actionType`、`taskBridge`、`flowPlan.operationKind`、legacy task status 可以保留为兼容字段。
-- 新 API、新 UI、新测试和新文档必须优先表达 Kairox target semantics。
-- 修 bug 时可以补 Mirex compatibility，但必须避免让 Mirex 成为新行为的设计入口。
+- `actionType`、action/actionParams、operationHint、operationKind、operation_kind、顶层 selectedFlow 不再作为运行时业务兼容层保留。
+- `taskBridge` 只可作为历史 projection 逐步迁移；`flowPlan.operationKind`、SQLite `operation_kind`、SQLite `selected_flow` 不得作为新 runtime 字段。旧数据问题应通过一次性 cutover 备份、清空或迁移到 `flowPlan.flowKind`。
+- 新 API、新 UI、新测试和新文档必须表达 Kairox target semantics。
+- 修 bug 时不得补 Mirex compatibility；旧数据问题应通过 cutover/migration 投影到 Kairox target facts。
 - 迁移旧数据时应把 Mirex 字段投影到 Kairox target facts；投影失败必须可诊断。
 - 当 Kairox 与 Mirex 解释冲突时，除非正在修兼容/迁移问题，否则以 Kairox 为准。
 

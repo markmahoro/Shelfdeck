@@ -3,21 +3,23 @@
 /**
  * SmartTaskEngine — independent periodic auto-enqueue engine.
  *
- * Scans the media library store for items that meet lifecycle gates and have a
- * recommended action (transcode/upgrade/delete), then creates tasks
- * that feed into TaskScheduler.
- * Decoupled from StrategyEngine — only reads action/reason, never writes them.
+ * Scans the media library store for items that meet lifecycle gates, then
+ * creates target-gate tasks that feed into TaskScheduler. Flow operations are
+ * implementation paths inside those tasks.
  */
 
 const activityLog = require('./activityLog');
-const optimizationStatus = require('./optimizationStatus');
-const businessFlowPolicy = require('./businessFlowPolicy');
+const lifecycleProjection = require('./lifecycleProjection');
+const automationPolicy = require('./automationPolicy');
 const assetIdentity = require('./assetIdentity');
 const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
+const taskStoreModule = require('./taskStore');
 const adultLibraryService = require('./adultLibraryService');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const backgroundIoGuard = require('./backgroundIoGuard');
+const resourceProjection = require('./resourceProjection');
+const resourceCapacity = require('./resourceCapacity');
 
 const BACKGROUND_IO_LOCK = 'library_background_io';
 
@@ -27,7 +29,8 @@ let lastRunAt = null;
 let lastError = null;
 let _enabled = false;
 let configReader = null;
-let lastEnabledActions = [];
+let lastEnabledTaskTargets = [];
+let lastAllowedOptimizeFlows = [];
 let lastScanSummary = null;
 
 function incrementCounter(target, key, amount = 1) {
@@ -35,25 +38,34 @@ function incrementCounter(target, key, amount = 1) {
   target[safeKey] = (target[safeKey] || 0) + amount;
 }
 
-function newScanSummary(enabledActions = []) {
+function automationSnapshot(config = {}) {
+  return automationPolicy.automationSnapshot(config);
+}
+function newScanSummary(automation = {}) {
   return {
     status: 'running',
     startedAt: new Date().toISOString(),
     finishedAt: null,
-    enabledActions: [...enabledActions],
+    enabledTaskTargets: Array.isArray(automation.enabledTaskTargets) ? [...automation.enabledTaskTargets] : [],
+    allowedOptimizeFlowKinds: Array.isArray(automation.allowedOptimizeFlowKinds) ? [...automation.allowedOptimizeFlowKinds] : [],
     libraryItems: 0,
     candidateCount: 0,
     evaluatedCandidates: 0,
     enqueued: 0,
-    candidatesByAction: {},
-    enqueuedByAction: {},
+    candidatesByTargetGate: {},
+    enqueuedByTargetGate: {},
     admissionRejected: 0,
     admissionRejectedByReason: {},
     skippedByQueueCap: 0,
-    skippedByQueueCapByAction: {},
+    skippedByQueueCapByTargetGate: {},
+    skippedByResourcePressure: 0,
+    skippedByResourcePressureByResource: {},
     deferredByActiveBacklog: false,
     activeBacklog: 0,
+    activeBacklogByTargetGate: {},
+    activeBacklogByResource: {},
     maxPerRunReached: false,
+    supplyPolicy: 'pressure_aware',
     reason: '',
     error: '',
   };
@@ -70,19 +82,18 @@ function finishScanSummary(summary, status, extra = {}) {
   return finished;
 }
 
-function readEnabledActions(config) {
-  return businessFlowPolicy.resolveAutoEnabledActions(config);
+function readEnabledTaskTargets(config) {
+  return automationPolicy.resolveAutomaticTaskTargets(config);
 }
 
-function actionLabel(operationKind) {
-  switch (operationKind) {
+function targetGateLabel(targetGate) {
+  switch (targetGate) {
     case 'ingest': return '入库';
+    case 'metadata': return '元数据';
+    case 'optimize': return '优化';
     case 'archive': return '归档';
-    case 'scrape': return '刮削';
-    case 'transcode': return '转码压缩';
-    case 'upgrade': return '洗版';
-    case 'delete': return '删除';
-    default: return operationKind;
+    case 'delete': return '处置';
+    default: return targetGate;
   }
 }
 
@@ -146,7 +157,7 @@ function buildItemInfo(item) {
     metadataMissingReasons: item.metadataMissingReasons,
     metadataKind: item.metadataKind,
     optimizationStatus: item.optimizationStatus,
-    optimizationAction: item.optimizationAction,
+    optimizeFlowKind: item.optimizeFlowKind,
     optimizationDoneAt: item.optimizationDoneAt,
     optimizationGate: item.optimizationGate,
     optimizeGate: item.optimizeGate,
@@ -157,29 +168,143 @@ function buildItemInfo(item) {
 }
 
 function buildCandidate(item, { config }) {
-  const trigger = businessFlowPolicy.resolveAutomaticTrigger({ item, config });
-  if (!trigger.allowed) return null;
-
-  const operationKind = trigger.operationKind;
-  const itemWithMetadata = trigger.item || item;
-  const itemInfo = buildItemInfo(itemWithMetadata);
+  const projected = lifecycleProjection.decorateItem(item, config);
+  const targetGate = projected.lifecycleNextTask || '';
+  if (!targetGate) return null;
+  const adultMeta = projected.adultMetadata && typeof projected.adultMetadata === 'object' ? projected.adultMetadata : {};
+  const scrapeStatus = String(adultMeta.scrapeStatus || '').trim().toLowerCase();
+  if (targetGate === 'metadata' && (projected.scraped === true || scrapeStatus === 'done')) return null;
+  if (targetGate === 'metadata' && ['failed', 'ambiguous', 'needs_review'].includes(scrapeStatus)) return null;
+  if (!automationPolicy.automaticTargetEnabled(config, targetGate)) return null;
+  const itemInfo = buildItemInfo(projected);
   return {
-    item: itemWithMetadata,
+    item: projected,
     itemInfo,
-    operationKind,
+    targetGate,
+    gateObjective: targetGate === 'optimize' ? (projected.optimizeObjective || {}) : {},
+    allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(config),
     timestamp: itemTimestamp(item),
   };
 }
-
 function buildIngestCandidate(candidate) {
   const itemInfo = candidate && candidate.itemInfo;
   if (!itemInfo || !itemInfo.itemId) return null;
   return {
     item: itemInfo,
     itemInfo,
-    operationKind: 'ingest',
+    targetGate: 'ingest',
+    gateObjective: {},
     timestamp: Number(candidate.timestamp) || itemTimestamp(itemInfo),
   };
+}
+function createTargetGateTask(input = {}) {
+  const config = input.config || (configReader && configReader.loadConfig && configReader.loadConfig()) || {};
+  const store = input.taskStore || taskStoreModule;
+  const item = input.item || input.itemInfo || {};
+  const itemInfo = input.itemInfo || item;
+  const targetGate = input.targetGate || (input.taskTarget && input.taskTarget.targetGate) || '';
+  const source = input.source || 'manual';
+  const tasks = input.tasks || (store && store.getTasks ? store.getTasks() : []);
+  const admissionInput = {
+    item,
+    itemInfo,
+    targetGate,
+    gateObjective: input.gateObjective || {},
+    flowPreference: input.flowPreference,
+    intent: input.requestedIntent || input.intent,
+    config,
+    tasks,
+  };
+  const admission = source === 'manual'
+    ? taskAdmission.canCreateManualIntent(admissionInput)
+    : taskAdmission.canCreateTask({ ...admissionInput, source });
+  if (!admission.allowed) return { allowed: false, admission };
+
+  const priorityBreakdown = priorityEngine.explainTaskPriority({
+    source,
+    taskTarget: admission.taskTarget,
+    itemInfo,
+    config,
+  });
+  const taskData = {
+    itemId: itemInfo.itemId || item.itemId,
+    itemName: itemInfo.name || item.name,
+    source,
+    status: input.status || (source === 'auto' ? 'queued' : 'created'),
+    priority: priorityBreakdown.priority,
+    priorityModelVersion: priorityEngine.TASK_PRIORITY_MODEL_VERSION,
+    priorityBreakdown,
+    taskTarget: admission.taskTarget,
+    flowPreference: input.flowPreference || null,
+    requestedIntent: admission.requestedIntent || input.requestedIntent || input.intent,
+    allowedOptimizeFlowKinds: input.allowedOptimizeFlowKinds,
+    itemInfo,
+    logs: input.logs || [{
+      ts: new Date().toISOString(),
+      source: source === 'auto' ? 'smart_task_engine' : 'manual_task_creator',
+      event: 'target_gate_task_created',
+    }],
+  };
+  const task = input.deferSave && store.buildTask
+    ? store.buildTask(taskData)
+    : store.createTask(taskData);
+  return { allowed: true, admission, task, taskData };
+}
+
+function taskTargetGate(task = {}) {
+  return String(
+    task.taskTarget && task.taskTarget.targetGate
+    || task.targetGate
+    || task.taskBridge && task.taskBridge.kind
+    || '',
+  );
+}
+
+function resourceKeyForTask(task = {}, config = {}) {
+  const resource = resourceProjection.resourceForTask(task, config);
+  return resource && resource.resourceKey || 'unknown:task';
+}
+
+function resourceStateForTask(task = {}) {
+  return resourceProjection.resourceStateForStatus(task.status);
+}
+
+function pressureSnapshot(tasks = [], config = {}) {
+  const byTargetGate = {};
+  const byResource = {};
+  for (const task of tasks || []) {
+    const targetGate = taskTargetGate(task) || 'unknown';
+    incrementCounter(byTargetGate, targetGate);
+    const resourceKey = resourceKeyForTask(task, config);
+    const state = resourceStateForTask(task);
+    if (!byResource[resourceKey]) {
+      const resource = resourceProjection.resourceForTask(task, config);
+      byResource[resourceKey] = {
+        resourceType: resource.resourceType || '',
+        resourceKey,
+        resourceLabel: resource.resourceLabel || resourceKey,
+        configuredSlots: resourceCapacity.capacityForResource(resource, config, 1),
+        running: 0,
+        waiting: 0,
+        blocked: 0,
+        total: 0,
+      };
+    }
+    byResource[resourceKey][state] = (byResource[resourceKey][state] || 0) + 1;
+    byResource[resourceKey].total += 1;
+  }
+  return { byTargetGate, byResource };
+}
+
+function resourceQueueLimit(resourceKey, resource = {}, config = {}) {
+  const explicit = config.smartTaskMaxQueuedByResource && config.smartTaskMaxQueuedByResource[resourceKey];
+  const explicitNumber = Number(explicit);
+  if (Number.isFinite(explicitNumber) && explicitNumber > 0) return Math.floor(explicitNumber);
+
+  const capacity = Number(resource.configuredSlots || 1);
+  const multiplier = Number(config.smartTaskResourceQueueMultiplier || 5);
+  const safeMultiplier = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 5;
+  return Math.max(1, Math.floor((Number.isFinite(capacity) && capacity > 0 ? capacity : 1) * safeMultiplier));
 }
 
 function start(configStore, mediaLibraryService, taskStore, opts = {}) {
@@ -191,9 +316,12 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
     ? opts.ingestCandidateProvider
     : adultLibraryService.listIngestCandidates;
   const cfg = configStore.loadConfig();
-  lastEnabledActions = readEnabledActions(cfg);
-  if (lastEnabledActions.length === 0) {
-    console.log('[smartTaskEngine] disabled: no enabled automatic actions');
+  const initialAutomation = automationSnapshot(cfg);
+  lastEnabledTaskTargets = initialAutomation.enabledTaskTargets;
+  lastAllowedOptimizeFlows = initialAutomation.allowedOptimizeFlowKinds;
+  const initialEnabledTaskTargets = readEnabledTaskTargets(cfg);
+  if (initialEnabledTaskTargets.length === 0) {
+    console.log('[smartTaskEngine] disabled: no enabled automatic task targets');
     return;
   }
   const intervalMs = (cfg.smartTaskPollIntervalMinutes || 10) * 60 * 1000;
@@ -219,16 +347,21 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
     try {
       lastError = null;
       const cfg2 = configStore.loadConfig();
-      const enabledActions = readEnabledActions(cfg2);
-      scanSummary = newScanSummary(enabledActions);
-      runtimeEvent.update({ enabledActions });
-      lastEnabledActions = enabledActions;
-      _enabled = enabledActions.length > 0;
-      if (enabledActions.length === 0) {
+      const enabledTaskTargets = readEnabledTaskTargets(cfg2);
+      const enabledAutomation = automationSnapshot(cfg2);
+      scanSummary = newScanSummary(enabledAutomation);
+      runtimeEvent.update({
+        enabledTaskTargets: enabledAutomation.enabledTaskTargets,
+        allowedOptimizeFlowKinds: enabledAutomation.allowedOptimizeFlowKinds,
+      });
+      lastEnabledTaskTargets = enabledAutomation.enabledTaskTargets;
+      lastAllowedOptimizeFlows = enabledAutomation.allowedOptimizeFlowKinds;
+      _enabled = enabledTaskTargets.length > 0;
+      if (enabledTaskTargets.length === 0) {
         lastRunAt = Date.now();
         finalStatus = 'skipped';
-        finalPayload.reason = 'no_enabled_actions';
-        finishScanSummary(scanSummary, finalStatus, { reason: 'no_enabled_actions' });
+        finalPayload.reason = 'no_enabled_task_targets';
+        finishScanSummary(scanSummary, finalStatus, { reason: 'no_enabled_task_targets' });
         return;
       }
 
@@ -250,11 +383,15 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         ? taskStore.querySchedulerTasks()
         : taskStore.loadTasks({ includeHistory: false });
       scanSummary.activeBacklog = Array.isArray(activeTasks) ? activeTasks.length : 0;
-      if (cfg2.smartTaskDeferWhenActiveBacklog !== false && scanSummary.activeBacklog > 0) {
+      const pressure = pressureSnapshot(activeTasks, cfg2);
+      scanSummary.activeBacklogByTargetGate = pressure.byTargetGate;
+      scanSummary.activeBacklogByResource = pressure.byResource;
+      if (cfg2.smartTaskDeferWhenActiveBacklog === true && scanSummary.activeBacklog > 0) {
         finalStatus = 'skipped';
         finalPayload.reason = 'active_task_backlog';
         finalPayload.activeBacklog = scanSummary.activeBacklog;
         scanSummary.deferredByActiveBacklog = true;
+        scanSummary.supplyPolicy = 'defer_all_active_backlog';
         finishScanSummary(scanSummary, finalStatus, {
           reason: 'active_task_backlog',
           activeBacklog: scanSummary.activeBacklog,
@@ -265,33 +402,28 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       const allTasks = typeof taskStore.queryTaskAdmissionRows === 'function'
         ? taskStore.queryTaskAdmissionRows()
         : taskStore.getTasks();
-      const optimizationIndex = optimizationStatus.buildOptimizationIndex(allTasks, cfg2);
 
-      // Count active (non-terminal) tasks per operation kind
-      const activeByType = {};
+      const activeByTargetGate = {};
       for (const t of activeTasks) {
-        activeByType[t.operationKind] = (activeByType[t.operationKind] || 0) + 1;
+        const targetGate = taskTargetGate(t) || 'unknown';
+        activeByTargetGate[targetGate] = (activeByTargetGate[targetGate] || 0) + 1;
       }
+      const resourcePressure = { ...pressure.byResource };
 
-      // Per-type queue cap: how many non-terminal tasks of a given type may be
-      // in the queue at once. This decouples queue depth from concurrency slots
-      // (previously concurrency×5, which kept the queue nearly empty) so a real
-      // backlog forms and PriorityEngine ordering becomes meaningful.
       const maxQueueSize = Number(cfg2.smartTaskMaxQueueSize) > 0 ? Number(cfg2.smartTaskMaxQueueSize) : 50;
       const queueCap = {
         ingest: maxQueueSize,
         archive: maxQueueSize,
         delete: maxQueueSize,
-        transcode: maxQueueSize,
-        upgrade: maxQueueSize,
-        scrape: maxQueueSize,
+        optimize: maxQueueSize,
+        metadata: maxQueueSize,
       };
 
       const now = Date.now();
       const candidates = libraryItems
         .map((item) => buildCandidate(item, { config: cfg2 }))
         .filter(Boolean);
-      if (enabledActions.includes('ingest')) {
+      if (enabledTaskTargets.includes('ingest')) {
         for (const candidate of ingestCandidateProvider(cfg2) || []) {
           const ingestCandidate = buildIngestCandidate(candidate, cfg2);
           if (ingestCandidate) candidates.push(ingestCandidate);
@@ -300,12 +432,12 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       runtimeEvent.update({ candidateCount: candidates.length });
       scanSummary.candidateCount = candidates.length;
       for (const candidate of candidates) {
-        incrementCounter(scanSummary.candidatesByAction, candidate.operationKind);
+        incrementCounter(scanSummary.candidatesByTargetGate, candidate.targetGate || 'unknown');
       }
 
       const admittedTasks = [];
       for (const candidate of candidates) {
-        const { item, itemInfo, operationKind } = candidate;
+        const { item, itemInfo, targetGate, gateObjective } = candidate;
         scanSummary.evaluatedCandidates += 1;
 
         const subLibSchedule2 = typeof configStore.resolveSubLibSchedule === 'function'
@@ -316,11 +448,11 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         const admission = taskAdmission.canCreateTask({
           item,
           itemInfo,
-          operationKind,
+          targetGate,
+          gateObjective,
           source: 'auto',
           config: cfg2,
           tasks: allTasks,
-          optimizationIndex,
         });
         if (!admission.allowed) {
           scanSummary.admissionRejected += 1;
@@ -333,30 +465,27 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
           taskTarget: admission.taskTarget,
           itemInfo,
           config: cfg2,
-          operationKind,
         });
 
         admittedTasks.push({
           item,
-          operationKind,
+          targetGate,
           timestamp: candidate.timestamp,
           taskData: {
             itemId: item.itemId,
             itemName: item.name,
-            operationKind,
             source: 'auto',
             status,
             priority: priorityBreakdown.priority,
             priorityModelVersion: priorityEngine.TASK_PRIORITY_MODEL_VERSION,
             priorityBreakdown,
             taskTarget: admission.taskTarget,
-            taskBridge: admission.taskBridge,
-            flowPlan: admission.flowPlan,
+            allowedOptimizeFlowKinds: candidate.allowedOptimizeFlowKinds,
             itemInfo,
             logs: [{
               ts: new Date().toISOString(),
               source: 'smart_task_engine',
-              action: 'auto_enqueued',
+              event: 'auto_enqueued',
             }],
           },
         });
@@ -376,27 +505,56 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         }
         const itemId = admitted.item && admitted.item.itemId || admitted.taskData.itemId;
         if (itemId && selectedItemIds.has(itemId)) continue;
-        const cur = activeByType[admitted.operationKind] || 0;
-        const cap = queueCap[admitted.operationKind] || maxQueueSize;
+        const targetGate = admitted.targetGate || (admitted.taskData.taskTarget && admitted.taskData.taskTarget.targetGate) || 'unknown';
+        const cur = activeByTargetGate[targetGate] || 0;
+        const cap = queueCap[targetGate] || maxQueueSize;
         if (cur >= cap) {
           scanSummary.skippedByQueueCap += 1;
-          incrementCounter(scanSummary.skippedByQueueCapByAction, admitted.operationKind);
+          incrementCounter(scanSummary.skippedByQueueCapByTargetGate, targetGate);
+          continue;
+        }
+        const resourceKey = resourceKeyForTask(admitted.taskData, cfg2);
+        const existingResource = resourcePressure[resourceKey]
+          || (() => {
+            const resource = resourceProjection.resourceForTask(admitted.taskData, cfg2);
+            return {
+              resourceType: resource.resourceType || '',
+              resourceKey,
+              resourceLabel: resource.resourceLabel || resourceKey,
+              configuredSlots: resourceCapacity.capacityForResource(resource, cfg2, 1),
+              running: 0,
+              waiting: 0,
+              blocked: 0,
+              total: 0,
+            };
+          })();
+        const resourceUsage = (existingResource.running || 0) + (existingResource.waiting || 0);
+        const resourceCap = resourceQueueLimit(resourceKey, existingResource, cfg2);
+        if (resourceUsage >= resourceCap) {
+          scanSummary.skippedByResourcePressure += 1;
+          incrementCounter(scanSummary.skippedByResourcePressureByResource, resourceKey);
+          resourcePressure[resourceKey] = existingResource;
           continue;
         }
         selectedTasks.push(admitted);
         if (itemId) selectedItemIds.add(itemId);
-        activeByType[admitted.operationKind] = cur + 1;
+        activeByTargetGate[targetGate] = cur + 1;
+        existingResource.waiting = (existingResource.waiting || 0) + 1;
+        existingResource.total = (existingResource.total || 0) + 1;
+        resourcePressure[resourceKey] = existingResource;
       }
+      scanSummary.activeBacklogByResource = resourcePressure;
 
       const toEnqueue = [];
       const taskDataToCreate = [];
       for (const admitted of selectedTasks) {
-        const { item, operationKind, taskData } = admitted;
+        const { item, taskData } = admitted;
         taskDataToCreate.push(taskData);
-        console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} ${operationKind} "${item.name}"`);
-        toEnqueue.push({ item, operationKind });
+        const targetGate = taskData.taskTarget && taskData.taskTarget.targetGate || 'unknown';
+        console.log(`[smartTaskEngine] auto-enqueue ${item.itemId} targetGate=${targetGate} "${item.name}"`);
+        toEnqueue.push({ item, targetGate });
         scanSummary.enqueued += 1;
-        incrementCounter(scanSummary.enqueuedByAction, operationKind);
+        incrementCounter(scanSummary.enqueuedByTargetGate, targetGate);
       }
 
       if (taskDataToCreate.length > 0) {
@@ -408,14 +566,14 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
       }
 
       if (toEnqueue.length > 0) {
-        const byAction = {};
+        const byTargetGate = {};
         for (const entry of toEnqueue) {
-          byAction[entry.operationKind] = (byAction[entry.operationKind] || 0) + 1;
+          byTargetGate[entry.targetGate] = (byTargetGate[entry.targetGate] || 0) + 1;
         }
-        const parts = Object.entries(byAction).map(([a, n]) => `${actionLabel(a)} ${n} 个`);
+        const parts = Object.entries(byTargetGate).map(([a, n]) => `${targetGateLabel(a)} ${n} 个`);
         const msg = `后台自动入队：${toEnqueue.length} 个任务已自动创建（${parts.join('，')}）`;
-        console.log(`[smartTaskEngine] ${msg} (${candidates.length} candidates total)`);
-        activityLog.addActivity('smart_task_engine', msg, { enqueued: toEnqueue.length, byAction, totalCandidates: candidates.length });
+        console.log(`[smartTaskEngine] ${msg} (${candidates.length} target-gate candidates total)`);
+        activityLog.addActivity('smart_task_engine', msg, { enqueued: toEnqueue.length, byTargetGate, totalCandidates: candidates.length });
       }
 
       lastRunAt = now;
@@ -424,7 +582,8 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         enqueued: toEnqueue.length,
         admissionRejected: scanSummary.admissionRejected,
         skippedByQueueCap: scanSummary.skippedByQueueCap,
-        enabledActions,
+        enabledTaskTargets: enabledAutomation.enabledTaskTargets,
+        allowedOptimizeFlowKinds: enabledAutomation.allowedOptimizeFlowKinds,
       });
       finishScanSummary(scanSummary, finalStatus);
     } catch (e) {
@@ -439,7 +598,10 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
   }, {
     onSkipped: () => {
       console.log('[smartTaskEngine] scan skipped: background I/O guard is busy');
-      finishScanSummary(newScanSummary(lastEnabledActions), 'skipped', { reason: 'background_io_busy' });
+      finishScanSummary(newScanSummary({
+        enabledTaskTargets: lastEnabledTaskTargets,
+        allowedOptimizeFlowKinds: lastAllowedOptimizeFlows,
+      }), 'skipped', { reason: 'background_io_busy' });
       return null;
     },
   });
@@ -466,39 +628,52 @@ function stop() {
   }
 }
 
-module.exports = { start, stop, getHealth };
+module.exports = { start, stop, getHealth, createTargetGateTask, buildIngestCandidate };
 
 function getHealth() {
-  let enabledActions = lastEnabledActions;
+  let automation = {
+    enabledTaskTargets: lastEnabledTaskTargets,
+    allowedOptimizeFlowKinds: lastAllowedOptimizeFlows,
+  };
+  let enabledTaskTargets = readEnabledTaskTargets({
+    automaticTaskTargets: automation.enabledTaskTargets,
+    optimizeAllowedFlowKinds: automation.allowedOptimizeFlowKinds,
+  });
   if (configReader) {
     try {
-      enabledActions = readEnabledActions(configReader.loadConfig());
+      const config = configReader.loadConfig();
+      automation = automationSnapshot(config);
+      enabledTaskTargets = readEnabledTaskTargets(config);
     } catch (_) {}
   }
-  if (enabledActions.length === 0) {
+  const kairoxAutomation = {
+    enabledTaskTargets: automation.enabledTaskTargets,
+    allowedOptimizeFlowKinds: automation.allowedOptimizeFlowKinds,
+  };
+  if (enabledTaskTargets.length === 0) {
     return {
       status: 'green',
       enabled: false,
-      enabledActions,
-      disabledReason: 'no_enabled_actions',
+      ...kairoxAutomation,
+      disabledReason: 'no_enabled_task_targets',
       message: '后台自动入队未启用',
       lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
       lastScanSummary,
     };
   }
   if (!_enabled) {
-    return { status: 'green', enabled: true, enabledActions, lastRunAt: null, lastScanSummary };
+    return { status: 'green', enabled: true, ...kairoxAutomation, lastRunAt: null, lastScanSummary };
   }
   if (!timer) {
-    return { status: 'red', enabled: true, enabledActions, lastRunAt, lastError, lastScanSummary };
+    return { status: 'red', enabled: true, ...kairoxAutomation, lastRunAt, lastError, lastScanSummary };
   }
   if (!lastRunAt) {
-    return { status: 'yellow', enabled: true, enabledActions, lastRunAt: null, lastError, lastScanSummary };
+    return { status: 'yellow', enabled: true, ...kairoxAutomation, lastRunAt: null, lastError, lastScanSummary };
   }
   return {
     status: 'green',
     enabled: true,
-    enabledActions,
+    ...kairoxAutomation,
     lastRunAt: lastRunAt ? new Date(lastRunAt).toISOString() : null,
     lastError,
     lastScanSummary,

@@ -11,7 +11,7 @@ const FLOW_DEFINITIONS = {
       reason: 'Turn an observed source candidate into a managed media item.',
     },
     direction: 'ingest.commit',
-    operationKind: 'ingest',
+    flowKind: 'ingest',
     executor: 'ingestFlowExecutor',
     primaryResourceType: 'filesystem',
     steps: [
@@ -27,7 +27,7 @@ const FLOW_DEFINITIONS = {
       reason: 'Resolve missing or incomplete metadata for an existing media item.',
     },
     direction: 'metadata.enrich',
-    operationKind: 'scrape',
+    flowKind: 'scrape',
     executor: 'scrapeFlowExecutor',
     primaryResourceType: 'scraper',
     steps: [
@@ -45,7 +45,7 @@ const FLOW_DEFINITIONS = {
       reason: 'Produce a lower-cost playable derivative while preserving the media item.',
     },
     direction: 'optimize.transcode',
-    operationKind: 'transcode',
+    flowKind: 'transcode',
     executor: 'transcodeFlowExecutor',
     primaryResourceType: 'transcode',
     steps: [
@@ -63,7 +63,7 @@ const FLOW_DEFINITIONS = {
       reason: 'Replace a media item with a better source selected by the upgrade flow.',
     },
     direction: 'optimize.upgrade',
-    operationKind: 'upgrade',
+    flowKind: 'upgrade',
     executor: 'upgradeFlowExecutor',
     primaryResourceType: 'moviepilot',
     steps: [
@@ -82,7 +82,7 @@ const FLOW_DEFINITIONS = {
       reason: 'Remove an archived media item through the delete gate review flow.',
     },
     direction: 'delete.execute',
-    operationKind: 'delete',
+    flowKind: 'delete',
     executor: 'deleteFlowExecutor',
     primaryResourceType: 'filesystem',
     steps: [
@@ -99,7 +99,7 @@ const FLOW_DEFINITIONS = {
       reason: 'Finalize a media item lifecycle after the optimize gate is satisfied.',
     },
     direction: 'archive.finalize',
-    operationKind: 'archive',
+    flowKind: 'archive',
     executor: 'archiveFlowExecutor',
     primaryResourceType: 'service_api',
     steps: [
@@ -113,8 +113,8 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function isStandardMetadataRepair(operationKind, itemInfo = {}) {
-  if (operationKind !== 'scrape') return false;
+function isStandardMetadataRepair(flowKind, itemInfo = {}) {
+  if (flowKind !== 'scrape') return false;
   return itemInfo.source === 'emby' || itemInfo.metadataKind === 'emby';
 }
 
@@ -207,9 +207,10 @@ function currentMediaFacts(item = {}) {
   };
 }
 
-function operationAuthorized(operation, allowedOperations) {
-  if (!Array.isArray(allowedOperations) || allowedOperations.length === 0) return true;
-  return allowedOperations.includes(operation);
+function flowAuthorized(flowKind, allowedFlows) {
+  if (!Array.isArray(allowedFlows)) return true;
+  if (allowedFlows.length === 0) return false;
+  return allowedFlows.includes(flowKind);
 }
 
 function upgradeSafetyBlocker(item = {}, flowSafetyFacts = {}) {
@@ -224,8 +225,8 @@ function upgradeSafetyBlocker(item = {}, flowSafetyFacts = {}) {
 
 function flowSelectionResult(input = {}) {
   const result = {
-    selectedOperation: input.selectedOperation || 'blocked',
-    operation: input.operation || '',
+    flowKind: input.flowKind || 'blocked',
+    suggestedFlowKind: input.suggestedFlowKind || '',
     allowed: !!input.allowed,
     reason: input.reason || '',
     blockedReason: input.blockedReason || '',
@@ -249,12 +250,12 @@ function selectOptimizeFlow(input = {}) {
   const currentFacts = currentMediaFacts(item);
   const targetFacts = objectiveTargetFacts(objective, item);
   const kind = cleanToken(objective.kind);
-  const allowedOperations = input.allowedOperations || input.operationAuthorization || [];
+  const allowedFlows = input.allowedOptimizeFlowKinds || input.allowedOptimizeFlows;
   const flowSafetyFacts = input.flowSafetyFacts || {};
 
   if (objectiveStatus && objectiveStatus !== 'ready') {
     return flowSelectionResult({
-      selectedOperation: 'blocked',
+      flowKind: 'blocked',
       allowed: false,
       reason: 'objective_not_ready',
       blockedReason: objectiveStatus,
@@ -266,8 +267,7 @@ function selectOptimizeFlow(input = {}) {
 
   if (kind === 'keep_current') {
     return flowSelectionResult({
-      selectedOperation: 'no_op',
-      operation: 'no_op',
+      flowKind: 'no_op',
       allowed: true,
       reason: 'objective_already_satisfied',
       objectiveHash,
@@ -278,7 +278,7 @@ function selectOptimizeFlow(input = {}) {
 
   if (kind === 'remove_media') {
     return flowSelectionResult({
-      selectedOperation: 'blocked',
+      flowKind: 'blocked',
       allowed: false,
       reason: 'delete_is_not_optimize',
       blockedReason: 'delete_gate_required',
@@ -293,22 +293,9 @@ function selectOptimizeFlow(input = {}) {
     || targetFacts.targetBitrate != null
     || targetFacts.targetCodec
   );
-  const legacyOperation = cleanToken(objective.operationHint || item.action);
-  const legacyOptimizeOperation = ['transcode', 'upgrade'].includes(legacyOperation) ? legacyOperation : '';
-  if (!hasTargetCriteria && legacyOptimizeOperation) {
-    return flowSelectionResult({
-      selectedOperation: legacyOptimizeOperation,
-      operation: legacyOptimizeOperation,
-      allowed: true,
-      reason: 'legacy_operation_hint',
-      objectiveHash,
-      currentFacts,
-      targetFacts,
-    });
-  }
   if (!hasTargetCriteria) {
     return flowSelectionResult({
-      selectedOperation: 'blocked',
+      flowKind: 'blocked',
       allowed: false,
       reason: 'objective_not_plannable',
       blockedReason: 'objective_gap_unknown',
@@ -329,7 +316,7 @@ function selectOptimizeFlow(input = {}) {
         field: 'resolution',
         current: currentFacts.resolution,
         target: resolutionLabel(minResolutionRank),
-        operation: 'upgrade',
+        requiredFlowKind: 'upgrade',
         reason: 'resolution_below_target',
       });
     }
@@ -343,7 +330,7 @@ function selectOptimizeFlow(input = {}) {
         field: 'bitrate',
         current: currentFacts.bitrate,
         target: targetFacts.targetBitrate,
-        operation: 'upgrade',
+        requiredFlowKind: 'upgrade',
         reason: 'bitrate_below_target',
       });
     } else if (currentFacts.bitrate > targetFacts.targetBitrate * 1.35) {
@@ -351,7 +338,7 @@ function selectOptimizeFlow(input = {}) {
         field: 'bitrate',
         current: currentFacts.bitrate,
         target: targetFacts.targetBitrate,
-        operation: 'transcode',
+        requiredFlowKind: 'transcode',
         reason: 'bitrate_above_target',
       });
     }
@@ -366,7 +353,7 @@ function selectOptimizeFlow(input = {}) {
         field: 'codec',
         current: currentFacts.codec,
         target: targetFacts.targetCodec,
-        operation: localCanSatisfy ? 'transcode' : 'blocked',
+        requiredFlowKind: localCanSatisfy ? 'transcode' : 'blocked',
         reason: localCanSatisfy ? 'codec_mismatch' : 'unsupported_target_codec',
       });
     }
@@ -374,7 +361,7 @@ function selectOptimizeFlow(input = {}) {
 
   if (missing.length > 0) {
     return flowSelectionResult({
-      selectedOperation: 'blocked',
+      flowKind: 'blocked',
       allowed: false,
       reason: 'facts_missing',
       blockedReason: 'needs_metadata_repair',
@@ -387,8 +374,7 @@ function selectOptimizeFlow(input = {}) {
 
   if (gap.length === 0) {
     return flowSelectionResult({
-      selectedOperation: 'no_op',
-      operation: 'no_op',
+      flowKind: 'no_op',
       allowed: true,
       reason: 'objective_already_satisfied',
       objectiveHash,
@@ -397,9 +383,9 @@ function selectOptimizeFlow(input = {}) {
     });
   }
 
-  if (gap.some((entry) => entry.operation === 'blocked')) {
+  if (gap.some((entry) => entry.requiredFlowKind === 'blocked')) {
     return flowSelectionResult({
-      selectedOperation: 'blocked',
+      flowKind: 'blocked',
       allowed: false,
       reason: 'unsupported_objective',
       blockedReason: 'unsupported_target_codec',
@@ -410,11 +396,11 @@ function selectOptimizeFlow(input = {}) {
     });
   }
 
-  if (gap.some((entry) => entry.operation === 'upgrade')) {
-    if (!operationAuthorized('upgrade', allowedOperations)) {
+  if (gap.some((entry) => entry.requiredFlowKind === 'upgrade')) {
+    if (!flowAuthorized('upgrade', allowedFlows)) {
       return flowSelectionResult({
-        selectedOperation: 'blocked',
-        operation: 'upgrade',
+        flowKind: 'blocked',
+        suggestedFlowKind: 'upgrade',
         allowed: false,
         reason: 'better_source_required',
         blockedReason: 'needs_upgrade',
@@ -427,8 +413,8 @@ function selectOptimizeFlow(input = {}) {
     const safetyBlocker = upgradeSafetyBlocker(item, flowSafetyFacts);
     if (safetyBlocker) {
       return flowSelectionResult({
-        selectedOperation: 'blocked',
-        operation: 'upgrade',
+        flowKind: 'blocked',
+        suggestedFlowKind: 'upgrade',
         allowed: false,
         reason: 'upgrade_safety_blocked',
         blockedReason: safetyBlocker,
@@ -439,8 +425,7 @@ function selectOptimizeFlow(input = {}) {
       });
     }
     return flowSelectionResult({
-      selectedOperation: 'upgrade',
-      operation: 'upgrade',
+      flowKind: 'upgrade',
       allowed: true,
       reason: 'better_source_required',
       objectiveHash,
@@ -450,11 +435,11 @@ function selectOptimizeFlow(input = {}) {
     });
   }
 
-  if (gap.some((entry) => entry.operation === 'transcode')) {
-    if (!operationAuthorized('transcode', allowedOperations)) {
+  if (gap.some((entry) => entry.requiredFlowKind === 'transcode')) {
+    if (!flowAuthorized('transcode', allowedFlows)) {
       return flowSelectionResult({
-        selectedOperation: 'blocked',
-        operation: 'transcode',
+        flowKind: 'blocked',
+        suggestedFlowKind: 'transcode',
         allowed: false,
         reason: 'local_transform_required',
         blockedReason: 'transcode_not_authorized',
@@ -465,8 +450,7 @@ function selectOptimizeFlow(input = {}) {
       });
     }
     return flowSelectionResult({
-      selectedOperation: 'transcode',
-      operation: 'transcode',
+      flowKind: 'transcode',
       allowed: true,
       reason: 'local_transform_satisfies_objective',
       objectiveHash,
@@ -476,20 +460,8 @@ function selectOptimizeFlow(input = {}) {
     });
   }
 
-  if (legacyOptimizeOperation) {
-    return flowSelectionResult({
-      selectedOperation: legacyOptimizeOperation,
-      operation: legacyOptimizeOperation,
-      allowed: true,
-      reason: 'legacy_operation_hint',
-      objectiveHash,
-      currentFacts,
-      targetFacts,
-    });
-  }
-
   return flowSelectionResult({
-    selectedOperation: 'blocked',
+    flowKind: 'blocked',
     allowed: false,
     reason: 'objective_not_plannable',
     blockedReason: 'objective_gap_unknown',
@@ -499,7 +471,7 @@ function selectOptimizeFlow(input = {}) {
   });
 }
 
-function defaultDefinition(operationKind) {
+function defaultDefinition(flowKind) {
   return {
     bridge: {
       kind: 'metadata',
@@ -508,19 +480,50 @@ function defaultDefinition(operationKind) {
       reason: 'Legacy task without a known v2.7 flow definition.',
     },
     direction: 'metadata.unknown',
-    operationKind: String(operationKind || 'unknown'),
+    flowKind: String(flowKind || 'unknown'),
     executor: '',
     primaryResourceType: 'service_api',
     steps: [],
   };
 }
 
+function targetGateForInput(input = {}) {
+  const taskTarget = input.taskTarget && typeof input.taskTarget === 'object' ? input.taskTarget : {};
+  return cleanToken(input.targetGate || taskTarget.targetGate || input.bridgeKind || '');
+}
+
+function deterministicFlowKindForGate(targetGate) {
+  if (targetGate === 'ingest') return 'ingest';
+  if (targetGate === 'metadata') return 'scrape';
+  if (targetGate === 'archive') return 'archive';
+  if (targetGate === 'delete') return 'delete';
+  return '';
+}
+
 function planFlow(input = {}) {
-  const operationKind = String(input.operationKind || '');
   const source = String(input.source || '');
   const itemInfo = input.itemInfo && typeof input.itemInfo === 'object' ? input.itemInfo : {};
-  const definition = clone(FLOW_DEFINITIONS[operationKind] || defaultDefinition(operationKind));
-  if (isStandardMetadataRepair(operationKind, itemInfo)) {
+  const taskTarget = input.taskTarget && typeof input.taskTarget === 'object' ? input.taskTarget : {};
+  const targetGate = targetGateForInput(input);
+  let flowSelection = null;
+  let flowKind = deterministicFlowKindForGate(targetGate);
+  if (targetGate === 'optimize') {
+    flowSelection = selectOptimizeFlow({
+      itemInfo,
+      optimizeObjective: input.optimizeObjective
+        || input.gateObjective
+        || taskTarget.gateObjective
+        || itemInfo.optimizeObjective,
+      optimizeObjectiveStatus: input.optimizeObjectiveStatus || itemInfo.optimizeObjectiveStatus,
+      objectiveHash: input.objectiveHash || itemInfo.objectiveHash,
+      allowedOptimizeFlowKinds: input.allowedOptimizeFlowKinds || input.allowedOptimizeFlows,
+      flowSafetyFacts: input.flowSafetyFacts,
+    });
+    flowKind = flowSelection.flowKind;
+  }
+  flowKind = flowKind || 'blocked';
+  const definition = clone(FLOW_DEFINITIONS[flowKind] || defaultDefinition(flowKind));
+  if (isStandardMetadataRepair(flowKind, itemInfo)) {
     definition.primaryResourceType = 'emby';
     definition.steps = [
       { phase: 'scrape_precheck', eventType: 'metadata.repair.precheck', resourceType: 'service_api' },
@@ -533,7 +536,7 @@ function planFlow(input = {}) {
   const plannedAt = input.plannedAt || new Date().toISOString();
   const taskBridge = {
     ...definition.bridge,
-    operationKind,
+    flowKind,
     source,
     itemId: input.itemId || itemInfo.itemId || '',
     subLibraryId: itemInfo.subLibraryId || '',
@@ -542,7 +545,7 @@ function planFlow(input = {}) {
     version: FLOW_PLAN_VERSION,
     bridgeKind: taskBridge.kind,
     direction: definition.direction,
-    operationKind: definition.operationKind,
+    flowKind: definition.flowKind,
     executor: definition.executor,
     primaryResourceType: definition.primaryResourceType,
     source,
@@ -550,25 +553,12 @@ function planFlow(input = {}) {
     steps: definition.steps,
     plannedAt,
   };
-  if (taskBridge.kind === 'optimize') {
-    const taskTarget = input.taskTarget && typeof input.taskTarget === 'object' ? input.taskTarget : {};
-    flowPlan.flowSelection = selectOptimizeFlow({
-      itemInfo,
-      optimizeObjective: input.optimizeObjective
-        || input.gateObjective
-        || taskTarget.gateObjective
-        || itemInfo.optimizeObjective,
-      optimizeObjectiveStatus: input.optimizeObjectiveStatus || itemInfo.optimizeObjectiveStatus,
-      objectiveHash: input.objectiveHash || itemInfo.objectiveHash,
-      allowedOperations: input.allowedOptimizeOperations || input.allowedOperations,
-      flowSafetyFacts: input.flowSafetyFacts,
-    });
-  }
+  if (flowSelection) flowPlan.flowSelection = flowSelection;
   return { taskBridge, flowPlan };
 }
 
-function bridgeKindForAction(operationKind) {
-  return (FLOW_DEFINITIONS[operationKind] || defaultDefinition(operationKind)).bridge.kind;
+function bridgeKindForFlowKind(flowKind) {
+  return (FLOW_DEFINITIONS[flowKind] || defaultDefinition(flowKind)).bridge.kind;
 }
 
 function currentPlanForTask(task) {
@@ -602,7 +592,7 @@ module.exports = {
   FLOW_PLAN_VERSION,
   planFlow,
   selectOptimizeFlow,
-  bridgeKindForAction,
+  bridgeKindForFlowKind,
   currentResourceType,
   currentFlowStep,
 };

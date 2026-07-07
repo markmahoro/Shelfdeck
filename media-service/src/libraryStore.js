@@ -616,6 +616,7 @@ function migrateJsonLibraryIfNeeded(db) {
 function normalizeItem(item) {
   const it = item && typeof item === 'object' ? { ...item } : {};
   it.itemId = String(it.itemId || crypto.randomUUID());
+  delete it.action;
   return it;
 }
 
@@ -633,7 +634,7 @@ function itemToRow(item, ordinal) {
     source_id: String(it.sourceId || ''),
     name: String(it.name || ''),
     type: String(it.type || ''),
-    action: String(it.action || ''),
+    action: '',
     path: String(it.path || ''),
     watched: it.watched ? 1 : 0,
     scraped: it.scraped ? 1 : 0,
@@ -683,7 +684,7 @@ function rowToItem(row) {
     item.metadataMissingReasons = storedMissingReasons;
     item.metadataUpdatedAt = row.metadata_updated_at || item.metadataUpdatedAt;
     item.optimizationStatus = row.optimization_status || item.optimizationStatus || 'none';
-    item.optimizationAction = row.optimization_action || item.optimizationAction || null;
+    item.optimizeFlowKind = row.optimization_action || item.optimizeFlowKind || null;
     item.optimizationDoneAt = row.optimization_done_at || item.optimizationDoneAt || null;
     item.optimizationTaskId = row.optimization_task_id || item.optimizationTaskId || null;
     item.archiveStatus = row.archive_status || item.archiveStatus;
@@ -876,7 +877,6 @@ function buildWhere(filter = {}) {
   const params = {};
   if (filter.source) { clauses.push('source = @source'); params.source = String(filter.source); }
   if (filter.type) { clauses.push('type = @type'); params.type = String(filter.type); }
-  if (filter.action) { clauses.push('action = @action'); params.action = String(filter.action); }
   if (filter.lifecycle) {
     const lifecycle = String(filter.lifecycle || '').toLowerCase();
     if (lifecycle === 'done' || lifecycle === 'closed') clauses.push('lifecycle_done = 1');
@@ -975,7 +975,6 @@ function queryItems(filter = {}, opts = {}) {
       filter: {
         source: filter.source || '',
         type: filter.type || '',
-        action: filter.action || '',
         subLibraryId: filter.subLibraryId || '',
         hasSearch: !!filter.search,
         itemIds: Array.isArray(filter.itemIds) ? filter.itemIds.length : undefined,
@@ -1019,7 +1018,6 @@ function querySmartTaskCandidateItems() {
       source_id,
       name,
       type,
-      action,
       path,
       watched,
       scraped,
@@ -1054,6 +1052,7 @@ function querySmartTaskCandidateItems() {
       json_extract(payload_json, '$.seriesName') AS series_name,
       json_extract(payload_json, '$.seasonNumber') AS season_number,
       json_extract(payload_json, '$.targetCodec') AS target_codec,
+      json_extract(payload_json, '$.targetMediaFacts') AS target_media_facts_json,
       json_extract(payload_json, '$.seedPreferences') AS seed_preferences_json,
       json_extract(payload_json, '$.maxSizeGB') AS max_size_gb,
       json_extract(payload_json, '$.assetKey') AS asset_key,
@@ -1087,7 +1086,6 @@ function querySmartTaskCandidateItems() {
       sourceId: row.source_id || '',
       name: row.name || '',
       type: row.type || '',
-      action: row.action || '',
       reason: row.reason || '',
       path: row.path || '',
       watched: row.watched === 1,
@@ -1107,7 +1105,7 @@ function querySmartTaskCandidateItems() {
       equivalentBitrate: row.equivalent_bitrate == null ? undefined : Number(row.equivalent_bitrate),
       targetBitrate: row.target_bitrate == null ? undefined : Number(row.target_bitrate),
       optimizationStatus: row.optimization_status || undefined,
-      optimizationAction: row.optimization_action || undefined,
+      optimizeFlowKind: row.optimization_action || undefined,
       optimizationDoneAt: row.optimization_done_at || undefined,
       archiveStatus: row.archive_status || undefined,
       archiveDoneAt: row.archive_done_at || undefined,
@@ -1121,6 +1119,7 @@ function querySmartTaskCandidateItems() {
       seriesName: row.series_name || undefined,
       seasonNumber: row.season_number,
       targetCodec: row.target_codec || undefined,
+      targetMediaFacts: jsonParse(row.target_media_facts_json, undefined),
       seedPreferences: jsonParse(row.seed_preferences_json, undefined),
       maxSizeGB: jsonParse(row.max_size_gb, row.max_size_gb),
       assetKey: row.asset_key || undefined,
@@ -1265,7 +1264,7 @@ function queryAdultReviewSummaries(filter = {}, opts = {}) {
           metadataComplete,
           metadataMissingReasons: missingReasons,
           optimizationStatus: row.optimization_status || '',
-          optimizationAction: row.optimization_action || '',
+          optimizeFlowKind: row.optimization_action || '',
           archiveStatus: row.archive_status || '',
           archiveReason: row.archive_reason || '',
         };
@@ -1282,11 +1281,12 @@ function querySpaceStatItems() {
     SELECT
       item_id,
       sub_library_id,
-      action,
       size_bytes,
       bitrate,
       equivalent_bitrate,
-      target_bitrate
+      target_bitrate,
+      json_extract(payload_json, '$.targetCodec') AS target_codec,
+      json_extract(payload_json, '$.targetMediaFacts') AS target_media_facts_json
     FROM media_items
     ORDER BY ordinal ASC, item_id ASC
   `).all();
@@ -1294,11 +1294,12 @@ function querySpaceStatItems() {
   return rows.map((row) => ({
     itemId: row.item_id,
     subLibraryId: row.sub_library_id || '',
-    action: row.action || 'keep',
     size: Number(row.size_bytes) || 0,
     bitrate: Number(row.bitrate) || 0,
     equivalentBitrate: row.equivalent_bitrate == null ? undefined : Number(row.equivalent_bitrate),
     targetBitrate: row.target_bitrate == null ? undefined : Number(row.target_bitrate),
+    targetCodec: row.target_codec || undefined,
+    targetMediaFacts: jsonParse(row.target_media_facts_json, undefined),
   }));
 }
 
@@ -1328,7 +1329,7 @@ function queryDashboardMediaStats() {
         SUM(CASE WHEN lifecycle_done = 1 THEN 1 ELSE 0 END) AS closedItems,
         SUM(CASE WHEN lifecycle_done = 0 THEN 1 ELSE 0 END) AS openItems,
         SUM(CASE WHEN metadata_complete = 0 THEN 1 ELSE 0 END) AS metadataIncompleteItems,
-        SUM(CASE WHEN metadata_complete = 1 AND optimization_action IN ('transcode', 'upgrade') AND lifecycle_done = 0 THEN 1 ELSE 0 END) AS pendingOptimizationItems,
+        SUM(CASE WHEN lifecycle_next_task = 'optimize' AND lifecycle_done = 0 THEN 1 ELSE 0 END) AS pendingOptimizationItems,
         SUM(CASE WHEN archive_status = 'archived_like' THEN 1 ELSE 0 END) AS archiveReadyItems,
         SUM(CASE WHEN archive_status IN ('archived', 'archived_like') OR lifecycle_done = 1 THEN 1 ELSE 0 END) AS archiveLikeItems
       FROM media_items
@@ -1345,10 +1346,10 @@ function queryDashboardMediaStats() {
       GROUP BY COALESCE(NULLIF(metadata_status, ''), 'unknown')
       ORDER BY count DESC, key ASC
     `).all());
-    const byRecommendedAction = countMap(db.prepare(`
-      SELECT COALESCE(NULLIF(action, ''), 'keep') AS key, COUNT(*) AS count
+    const byRecommendedTargetGate = countMap(db.prepare(`
+      SELECT COALESCE(NULLIF(lifecycle_next_task, ''), 'none') AS key, COUNT(*) AS count
       FROM media_items
-      GROUP BY COALESCE(NULLIF(action, ''), 'keep')
+      GROUP BY COALESCE(NULLIF(lifecycle_next_task, ''), 'none')
       ORDER BY count DESC, key ASC
     `).all());
     const bySource = countMap(db.prepare(`
@@ -1385,7 +1386,7 @@ function queryDashboardMediaStats() {
         SUM(CASE WHEN lifecycle_done = 1 THEN 1 ELSE 0 END) AS closedItems,
         SUM(CASE WHEN lifecycle_done = 0 THEN 1 ELSE 0 END) AS openItems,
         SUM(CASE WHEN metadata_complete = 0 THEN 1 ELSE 0 END) AS metadataIncompleteItems,
-        SUM(CASE WHEN metadata_complete = 1 AND optimization_action IN ('transcode', 'upgrade') AND lifecycle_done = 0 THEN 1 ELSE 0 END) AS pendingOptimizationItems
+        SUM(CASE WHEN lifecycle_next_task = 'optimize' AND lifecycle_done = 0 THEN 1 ELSE 0 END) AS pendingOptimizationItems
       FROM media_items
       GROUP BY sub_library_id
       ORDER BY totalItems DESC, sub_library_id ASC
@@ -1426,7 +1427,7 @@ function queryDashboardMediaStats() {
       archiveLikeItems: Number(totals.archiveLikeItems) || 0,
       byLifecycleStage,
       byMetadataStatus,
-      byRecommendedAction,
+      byRecommendedTargetGate,
       bySource,
       pendingBridges,
       topMetadataMissingReasons,

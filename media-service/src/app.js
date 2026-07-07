@@ -21,6 +21,7 @@ const transcodeService = require('./services/transcodeService');
 const moviepilotService = require('./services/moviepilotService');
 const strategyEngine = require('./strategyEngine');
 const smartTaskEngine = require('./smartTaskEngine');
+const automationPolicy = require('./automationPolicy');
 const priorityEngine = require('./priorityEngine');
 const taskAdmission = require('./taskAdmission');
 const activityLog = require('./activityLog');
@@ -37,11 +38,12 @@ const scrapeVerification = require('./scrapeVerification');
 const metadataStatus = require('./metadataStatus');
 const resourceProjection = require('./resourceProjection');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
+const resourceRuntime = require('./resourceRuntime');
 const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
-const businessFlowPolicy = require('./businessFlowPolicy');
 const taskControlPolicy = require('./taskControlPolicy');
 const deleteCandidateService = require('./deleteCandidateService');
+const lifecycleProjection = require('./lifecycleProjection');
 
 let serverReady = false;
 
@@ -243,10 +245,10 @@ function taskListSummary(task) {
     id: task.id,
     itemId: task.itemId,
     itemName: task.itemName,
-    operationKind: task.operationKind,
     taskTarget: task.taskTarget,
     taskBridge: task.taskBridge,
     flowPlan: task.flowPlan,
+    flowKind: flowKindForTask(task),
     source: task.source,
     status: task.status,
     progress: task.progress,
@@ -396,14 +398,23 @@ function queryAttentionTasks(filter = {}) {
   });
 }
 
+function flowKindForTask(task = {}) {
+  return String(task.flowPlan && task.flowPlan.flowKind || '');
+}
+
 function compactTaskRouteFilter(filter = {}) {
   return {
     status: filter.status || '',
     statuses: Array.isArray(filter.statuses) ? filter.statuses.length : undefined,
-    bridgeKind: filter.bridgeKind || '',
-    operationKind: filter.operationKind || '',
+    targetGate: filter.bridgeKind || '',
     hasSearch: !!filter.q,
   };
+}
+
+function applyTaskTargetQuery(filter, query = {}) {
+  if (query.targetGate) filter.bridgeKind = query.targetGate;
+  if (query.flowKind) filter.flowKind = query.flowKind;
+  return filter;
 }
 
 function primaryAttentionQueue(attentionSummary = {}) {
@@ -483,7 +494,7 @@ function makeLifecycleBucket(key, base = {}) {
     byStatus: {},
     byLifecycleStage: {},
     byBridgeKind: {},
-    byOperationKind: {},
+    byFlowKind: {},
     bySource: {},
     active: 0,
     terminal: 0,
@@ -495,12 +506,12 @@ function makeLifecycleBucket(key, base = {}) {
 function addTaskToLifecycleBucket(bucket, task, stage) {
   const status = task.status || 'unknown';
   const bridgeKind = task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || 'unknown';
-  const operationKind = task.flowPlan && task.flowPlan.operationKind || task.operationKind || 'unknown';
+  const flowKind = flowKindForTask(task) || 'unknown';
   bucket.total += 1;
   inc(bucket.byStatus, status);
   inc(bucket.byLifecycleStage, stage);
   inc(bucket.byBridgeKind, bridgeKind);
-  inc(bucket.byOperationKind, operationKind);
+  inc(bucket.byFlowKind, flowKind);
   inc(bucket.bySource, task.source || 'unknown');
   if (!['done', 'skipped', 'failed_hard', 'cancelled'].includes(status)) bucket.active += 1;
   else bucket.terminal += 1;
@@ -546,7 +557,7 @@ function taskLifecycleSignals(task, context, controlState) {
   const signals = [];
   const status = task.status || '';
   const bridgeKind = task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '';
-  const operationKind = task.flowPlan && task.flowPlan.operationKind || task.operationKind || '';
+  const flowKind = flowKindForTask(task);
   const primaryResourceType = task.flowPlan && task.flowPlan.primaryResourceType || '';
   const resourceTypes = Array.isArray(task.flowPlan && task.flowPlan.resourceTypes) ? task.flowPlan.resourceTypes : [];
   const confirmationRequired = controlState && controlState.confirmation && controlState.confirmation.required;
@@ -556,13 +567,13 @@ function taskLifecycleSignals(task, context, controlState) {
   } else if (!context.found) {
     signals.push({ severity: 'warn', code: 'unknown_sub_library', message: 'Task references a sub-library that is not present in config.' });
   }
-  if (!bridgeKind || !operationKind) {
-    signals.push({ severity: 'warn', code: 'missing_bridge_or_operation', message: 'Task cannot be explained by bridge/operation facts.' });
+  if (!bridgeKind || !flowKind) {
+    signals.push({ severity: 'warn', code: 'missing_bridge_or_flow_kind', message: 'Task cannot be explained by target gate / flow facts.' });
   }
   if (!primaryResourceType) {
     signals.push({ severity: 'warn', code: 'missing_primary_resource', message: 'Task has no primary resource type for lifecycle/resource diagnosis.' });
   }
-  if (context.mediaType !== 'adult' && operationKind === 'scrape') {
+  if (context.mediaType !== 'adult' && flowKind === 'scrape') {
     const isEmbyRepair = primaryResourceType === 'emby' || resourceTypes.includes('emby');
     if (!isEmbyRepair) {
       const terminal = ['done', 'skipped', 'failed_hard', 'cancelled'].includes(status);
@@ -577,8 +588,8 @@ function taskLifecycleSignals(task, context, controlState) {
       });
     }
   }
-  if (context.mediaType === 'adult' && bridgeKind === 'metadata' && !['ingest', 'scrape'].includes(operationKind)) {
-    signals.push({ severity: 'warn', code: 'adult_metadata_unexpected_operation', message: 'Adult metadata bridge should use ingest or scrape operation.' });
+  if (context.mediaType === 'adult' && bridgeKind === 'metadata' && !['ingest', 'scrape'].includes(flowKind)) {
+    signals.push({ severity: 'warn', code: 'adult_metadata_unexpected_flow', message: 'Adult metadata bridge should use ingest or scrape flow.' });
   }
   if (status === 'awaiting_user_confirm' && !confirmationRequired) {
     signals.push({ severity: 'error', code: 'awaiting_without_confirmation_gate', message: 'Task status is awaiting confirmation but controlState has no active confirmation gate.' });
@@ -642,7 +653,7 @@ function buildTaskLifecycleAudit(tasks, config, opts = {}) {
         status: task.status || '',
         lifecycleStage: stage,
         bridgeKind: task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '',
-        operationKind: task.flowPlan && task.flowPlan.operationKind || task.operationKind || '',
+        flowKind: flowKindForTask(task),
         primaryResourceType: task.flowPlan && task.flowPlan.primaryResourceType || '',
         source: task.source || '',
         subLibraryId: context.subLibraryId,
@@ -682,21 +693,21 @@ function paginateTasks(tasks, page, pageSize) {
 function summarizeConfirmationQueue(tasks = []) {
   const byGate = {};
   const byBridgeKind = {};
-  const byOperationKind = {};
+  const byFlowKind = {};
   for (const task of tasks || []) {
     const control = taskControlPolicy.buildTaskControlState(task);
     const gate = control.confirmation && control.confirmation.gateId || 'unknown';
     const bridge = task.taskBridge && task.taskBridge.kind || 'unknown';
-    const operation = task.flowPlan && task.flowPlan.operationKind || task.operationKind || 'unknown';
+    const flowKind = flowKindForTask(task) || 'unknown';
     byGate[gate] = (byGate[gate] || 0) + 1;
     byBridgeKind[bridge] = (byBridgeKind[bridge] || 0) + 1;
-    byOperationKind[operation] = (byOperationKind[operation] || 0) + 1;
+    byFlowKind[flowKind] = (byFlowKind[flowKind] || 0) + 1;
   }
   return {
     total: tasks.length,
     byGate,
     byBridgeKind,
-    byOperationKind,
+    byFlowKind,
   };
 }
 
@@ -748,7 +759,7 @@ function adultReviewQueueItem(item) {
       from: 'ingested',
       to: 'metadata_ready',
       reason,
-      operationKind: 'scrape',
+      flowKind: 'scrape',
       source: item.source || 'adult_folder',
       itemId: item.itemId,
       subLibraryId: item.subLibraryId || '',
@@ -757,10 +768,9 @@ function adultReviewQueueItem(item) {
       version: 'v3',
       bridgeKind: 'metadata',
       direction: 'metadata.scrape',
-      operationKind: 'scrape',
-      executor: 'scrapeFlow',
+      flowKind: 'scrape',
+      executor: 'scrapeFlowExecutor',
       primaryResourceType: item.adultRegion === 'western_adult' ? 'local_ai' : 'scraper',
-      operationKind: 'scrape',
       source: item.source || 'adult_folder',
       resourceTypes: item.adultRegion === 'western_adult'
         ? ['local_ai', 'filesystem']
@@ -805,7 +815,7 @@ function adultReviewQueueItem(item) {
     },
     confirmAction: {
       enabled: false,
-      reason: 'adult_review_requires_dedicated_action',
+      reason: 'adult_review_requires_dedicated_metadata_review',
       label: 'review',
       endpoint: `/v1/admin/adult/items/${encodeURIComponent(item.itemId)}`,
       method: 'GET',
@@ -829,7 +839,7 @@ function confirmationQueueItem(task) {
     taskId: task.id,
     itemId: task.itemId,
     itemName: task.itemName || '',
-    operationKind: task.operationKind,
+    flowKind: flowKindForTask(task),
     taskBridge: task.taskBridge,
     flowPlan: task.flowPlan,
     source: task.source || '',
@@ -925,12 +935,7 @@ function libraryListItemView(item) {
 }
 
 function decorateLibraryItemsForUi(items, config) {
-  const itemIds = (items || []).map((item) => item && item.itemId);
-  const activeTasks = activeTaskSummariesForItems(itemIds);
-  const latestFailureEventsByItem = taskStore.queryLatestFailureEventsByItemIds(itemIds);
-  return businessFlowPolicy
-    .decorateItems(items, { config, tasks: activeTasks, latestFailureEventsByItem })
-    .map(libraryListItemView);
+  return lifecycleProjection.decorateItems(items, config).map(libraryListItemView);
 }
 
 function projectLibraryItemsForUi(items, config, projection = {}) {
@@ -944,20 +949,26 @@ function compactSmartTaskScanSummary(summary) {
     status: summary.status || '',
     startedAt: summary.startedAt || null,
     finishedAt: summary.finishedAt || null,
-    enabledActions: Array.isArray(summary.enabledActions) ? summary.enabledActions : [],
+    enabledTaskTargets: Array.isArray(summary.enabledTaskTargets) ? summary.enabledTaskTargets : [],
+    allowedOptimizeFlowKinds: Array.isArray(summary.allowedOptimizeFlowKinds) ? summary.allowedOptimizeFlowKinds : [],
     libraryItems: Number(summary.libraryItems || 0) || 0,
     candidateCount: Number(summary.candidateCount || 0) || 0,
     evaluatedCandidates: Number(summary.evaluatedCandidates || 0) || 0,
     enqueued: Number(summary.enqueued || 0) || 0,
-    candidatesByAction: summary.candidatesByAction || {},
-    enqueuedByAction: summary.enqueuedByAction || {},
+    candidatesByTargetGate: summary.candidatesByTargetGate || {},
+    enqueuedByTargetGate: summary.enqueuedByTargetGate || {},
     admissionRejected: Number(summary.admissionRejected || 0) || 0,
     admissionRejectedByReason: summary.admissionRejectedByReason || {},
     skippedByQueueCap: Number(summary.skippedByQueueCap || 0) || 0,
-    skippedByQueueCapByAction: summary.skippedByQueueCapByAction || {},
+    skippedByQueueCapByTargetGate: summary.skippedByQueueCapByTargetGate || {},
+    skippedByResourcePressure: Number(summary.skippedByResourcePressure || 0) || 0,
+    skippedByResourcePressureByResource: summary.skippedByResourcePressureByResource || {},
     deferredByActiveBacklog: !!summary.deferredByActiveBacklog,
     activeBacklog: Number(summary.activeBacklog || 0) || 0,
+    activeBacklogByTargetGate: summary.activeBacklogByTargetGate || {},
+    activeBacklogByResource: summary.activeBacklogByResource || {},
     maxPerRunReached: !!summary.maxPerRunReached,
+    supplyPolicy: summary.supplyPolicy || '',
     reason: summary.reason || '',
     error: summary.error || '',
   };
@@ -966,10 +977,13 @@ function compactSmartTaskScanSummary(summary) {
 function buildDashboardAutomation(config) {
   const health = smartTaskEngine.getHealth ? (smartTaskEngine.getHealth() || {}) : {};
   return {
-    enabledOperations: businessFlowPolicy.resolveAutoEnabledActions(config),
+    enabledTaskTargets: automationPolicy.resolveAutomaticTaskTargets(config),
+    allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(config),
     smartTask: {
       status: health.status || '',
       enabled: !!health.enabled,
+      enabledTaskTargets: Array.isArray(health.enabledTaskTargets) ? health.enabledTaskTargets : [],
+      allowedOptimizeFlowKinds: Array.isArray(health.allowedOptimizeFlowKinds) ? health.allowedOptimizeFlowKinds : [],
       disabledReason: health.disabledReason || '',
       message: health.message || '',
       lastRunAt: health.lastRunAt || null,
@@ -1057,11 +1071,11 @@ function buildDashboardHealthSignals(mediaStats, taskStats, config, automation =
   push('yellow', 'pending_optimization', '等待优化', mediaStats.pendingOptimizationItems, '推荐动作仍未闭环');
   push('yellow', 'open_lifecycle', '未闭环媒体', mediaStats.openItems, '仍有业务桥需要推进');
 
-  const autoActions = Array.isArray(config.smartTaskEnabledActions) ? config.smartTaskEnabledActions : [];
-  if (autoActions.length === 0) {
+  const automaticTaskTargets = automationPolicy.resolveAutomaticTaskTargets(config);
+  if (automaticTaskTargets.length === 0) {
     signals.push({
       level: 'yellow',
-      code: 'auto_actions_disabled',
+      code: 'auto_targets_disabled',
       label: '后台自动推进未启用',
       count: 1,
       detail: 'SmartTask 只能生成被全局 allow-list 放行的任务',
@@ -1078,6 +1092,9 @@ function buildDashboardHealthSignals(mediaStats, taskStats, config, automation =
   if (scan && scan.skippedByQueueCap > 0) {
     push('yellow', 'smart_task_queue_cap', '自动入队队列已满', scan.skippedByQueueCap, '等待现有任务推进或调整队列上限');
   }
+  if (scan && scan.skippedByResourcePressure > 0) {
+    push('yellow', 'smart_task_resource_pressure', '自动入队资源压力受限', scan.skippedByResourcePressure, '查看 resource pressure 分布或调整资源供给上限');
+  }
   if (scan && scan.deferredByActiveBacklog) {
     push('yellow', 'smart_task_active_backlog', '自动入队等待现有队列', scan.activeBacklog || 1, '已有任务在推进，下一轮扫描会重新评估');
   }
@@ -1085,7 +1102,7 @@ function buildDashboardHealthSignals(mediaStats, taskStats, config, automation =
     push('yellow', 'smart_task_max_per_run', '自动入队达到单轮上限', 1, '下一轮扫描会继续处理剩余候选');
   }
 
-  return signals.slice(0, 8);
+  return signals.slice(0, 10);
 }
 
 function dashboardBusinessStatus(signals) {
@@ -1163,7 +1180,7 @@ function dashboardActivitySourceLabel(source) {
 
 function dashboardTaskEventMessage(event) {
   const label = DASHBOARD_TASK_EVENT_LABELS[event.eventType] || event.eventType || '任务事件';
-  const action = DASHBOARD_ACTION_LABELS[event.operationKind] || event.operationKind || '任务';
+  const action = DASHBOARD_ACTION_LABELS[event.flowKind] || event.flowKind || '任务';
   const resource = event.resourceLabel || event.resourceType || '';
   if (resource) return `${label}：${action} · ${resource}`;
   return `${label}：${action}`;
@@ -1203,14 +1220,14 @@ function buildDashboardEvents(limit = 15) {
     message: dashboardTaskEventMessage(event),
     taskId: event.taskId || '',
     itemId: event.itemId || '',
-    operationKind: event.operationKind || '',
+    flowKind: event.flowKind || '',
     eventType: event.eventType || '',
     eventStatus: event.eventStatus || '',
     resourceType: event.resourceType || '',
     resourceKey: event.resourceKey || '',
     resourceLabel: event.resourceLabel || '',
     bridgeKind: event.bridgeKind || '',
-    operationKind: event.operationKind || '',
+    flowKind: event.flowKind || '',
   }));
   const recent = [...activityEvents, ...taskEvents]
     .filter((event) => event.ts && event.message)
@@ -1231,12 +1248,11 @@ function buildDashboardEvents(limit = 15) {
 function isTaskIntentValidationReason(reason) {
   return [
     'missing_task_intent',
-    'invalid_operation_kind',
+    'invalid_gate',
     'invalid_bridge_kind',
-    'invalid_preferred_operation',
-    'preferred_operation_bridge_mismatch',
-    'conflicting_task_intent',
-    'preferred_operation_required',
+    'invalid_target_gate',
+    'missing_item_id',
+    'delete_is_not_optimize',
   ].includes(reason);
 }
 
@@ -1261,16 +1277,13 @@ function compactAdmissionOptimizeGate(gate) {
 
 function compactAdmissionReject(admission = {}) {
   const result = {
-    operation: admission.operation || admission.operationKind || '',
+    targetGate: admission.targetGate || admission.bridgeKind || '',
     reason: admission.reason || '',
-    bridgeKind: admission.bridgeKind || '',
-    preferredOperation: admission.preferredOperation || '',
     supportedEntry: admission.supportedEntry || '',
-    supportedOperations: admission.supportedOperations,
+    supportedFlows: admission.supportedFlows || admission.supportedOperations,
     metadataMissingReasons: admission.metadataMissingReasons,
     activeTaskId: admission.activeTaskId || '',
-    activeTaskBridge: admission.activeTaskBridge || '',
-    activeFlowOperation: admission.activeFlowOperation || '',
+    activeTaskTargetGate: admission.activeTaskBridge || '',
     optimizeGate: compactAdmissionOptimizeGate(admission.optimizeGate),
     failureHandling: admission.failureHandling,
   };
@@ -1284,15 +1297,11 @@ function compactAdmissionReject(admission = {}) {
 function compactAdmissionAccept(admission = {}) {
   const result = {
     allowed: true,
-    operation: admission.operation || admission.operationKind || '',
+    targetGate: admission.targetGate || admission.bridgeKind || '',
     reason: admission.reason || 'allowed',
-    bridgeKind: admission.bridgeKind || '',
-    preferredOperation: admission.preferredOperation || '',
     intentMode: admission.intentMode || '',
     requestedIntent: admission.requestedIntent,
     taskTarget: admission.taskTarget,
-    taskBridge: admission.taskBridge,
-    flowPlan: admission.flowPlan,
   };
   Object.keys(result).forEach((key) => {
     if (result[key] === undefined || result[key] === null || result[key] === '') delete result[key];
@@ -1308,9 +1317,7 @@ function taskAdmissionRejectPayload(code, message, admission, item, itemInfo, co
   return {
     error: { code, message },
     admission: compactAdmissionReject(admission),
-    businessFlowDecision: subject
-      ? businessFlowPolicy.buildItemDecision({ item: subject, config, tasks })
-      : null,
+    lifecycleProjection: subject ? lifecycleProjection.resolveLifecycle(subject, config) : null,
     ...extra,
   };
 }
@@ -1559,14 +1566,13 @@ function enrichFailureEvent(event, config, diagnosticRows = []) {
       id: task.id,
       itemId: task.itemId,
       itemName: task.itemName || '',
-      operationKind: task.operationKind,
       status: task.status,
       phase: task.phase || '',
       resumePoint: task.resumePoint || '',
       retryCount: Number(task.retryCount || 0) || 0,
       bridgeKind: task.taskBridge && task.taskBridge.kind || '',
       flowDirection: task.flowPlan && task.flowPlan.direction || '',
-      operationKind: task.flowPlan && task.flowPlan.operationKind || '',
+      flowKind: flowKindForTask(task),
     } : null,
     resourceContext: {
       resourceType: event.resourceType || (taskResource && taskResource.resourceType) || '',
@@ -1714,6 +1720,10 @@ function registerRoutes(app) {
       seedPreferences: libItem.seedPreferences,
       maxSizeGB: libItem.maxSizeGB,
       equivalentBitrate: libItem.equivalentBitrate,
+      optimizeObjectiveStatus: libItem.optimizeObjectiveStatus,
+      optimizeObjective: libItem.optimizeObjective,
+      objectiveHash: libItem.objectiveHash,
+      objectiveVersion: libItem.objectiveVersion,
       scraped: !!libItem.scraped,
       adultMetadata: libItem.adultMetadata,
       ...(meta || {}),
@@ -1724,14 +1734,13 @@ function registerRoutes(app) {
     const admission = taskAdmission.canCreateManualIntent({
       item: libItem,
       itemInfo: admissionItemInfo,
-      operationKind: body.operationKind,
-      bridgeKind: body.bridgeKind,
-      preferredOperation: body.preferredOperation,
+      targetGate: body.targetGate,
+      gateObjective: body.gateObjective,
+      flowPreference: body.flowPreference,
       intent: body.intent,
       config: cfg,
       tasks: activeAdmissionTasks,
     });
-    const operationKind = admission.operationKind || admission.operation || body.operationKind;
     if (!admission.allowed) {
       diagnosticLog.record({
         category: 'admission',
@@ -1739,17 +1748,16 @@ function registerRoutes(app) {
         operation: 'reject_task',
         component: 'taskAdmission',
         resourceType: 'task',
-        resourceKey: `task:${operationKind}`,
+        resourceKey: `task:${admission.targetGate || body.targetGate || 'unknown'}`,
         status: 'rejected',
         payload: {
           itemId,
-          operationKind,
-          bridgeKind: body.bridgeKind || (body.intent && body.intent.bridgeKind) || '',
-          preferredOperation: body.preferredOperation || (body.intent && body.intent.preferredOperation) || '',
+          targetGate: body.targetGate || (body.intent && body.intent.targetGate) || '',
+          flowPreference: body.flowPreference || (body.intent && body.intent.flowPreference) || null,
           source: 'manual',
           reason: admission.reason,
           supportedEntry: admission.supportedEntry,
-          supportedOperations: admission.supportedOperations,
+          supportedFlows: admission.supportedFlows || admission.supportedOperations,
           metadataMissingReasons: admission.metadataMissingReasons,
         },
       });
@@ -1798,24 +1806,21 @@ function registerRoutes(app) {
       taskTarget: admission.taskTarget,
       itemInfo,
       config: cfg,
-      operationKind,
     });
 
     const task = taskStore.createTask({
       itemId,
       itemName: libItem ? libItem.name : undefined,
-      operationKind,
       source: 'manual',
       status,
       priority: priorityBreakdown.priority,
       priorityModelVersion: priorityEngine.TASK_PRIORITY_MODEL_VERSION,
       priorityBreakdown,
       taskTarget: admission.taskTarget,
-      taskBridge: admission.taskBridge,
-      flowPlan: admission.flowPlan,
+      flowPreference: body.flowPreference || null,
       requestedIntent: admission.requestedIntent,
       itemInfo,
-      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user action' }],
+      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user intent' }],
     });
 
     const response = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
@@ -1859,12 +1864,9 @@ function registerRoutes(app) {
     const admission = taskAdmission.canCreateManualIntent({
       item: libItem,
       itemInfo: libItem,
-      operationKind: 'delete',
-      bridgeKind: 'delete',
-      preferredOperation: 'delete',
+      targetGate: 'delete',
       intent: {
-        bridgeKind: 'delete',
-        preferredOperation: 'delete',
+        targetGate: 'delete',
         entryPoint: 'delete_candidate_confirm',
       },
       config: cfg,
@@ -1887,20 +1889,16 @@ function registerRoutes(app) {
       taskTarget: admission.taskTarget,
       itemInfo: libItem,
       config: cfg,
-      operationKind: 'delete',
     });
     const task = taskStore.createTask({
       itemId,
       itemName: libItem.name,
-      operationKind: 'delete',
       source: 'manual',
       status: 'created',
       priority: priorityBreakdown.priority,
       priorityModelVersion: priorityEngine.TASK_PRIORITY_MODEL_VERSION,
       priorityBreakdown,
       taskTarget: admission.taskTarget,
-      taskBridge: admission.taskBridge,
-      flowPlan: admission.flowPlan,
       requestedIntent: admission.requestedIntent,
       itemInfo: libItem,
       logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Delete task created from delete candidate confirmation' }],
@@ -1915,8 +1913,7 @@ function registerRoutes(app) {
   app.get('/v1/tasks', async (req) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
-    if (req.query.operationKind) filter.operationKind = req.query.operationKind;
-    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
+    applyTaskTargetQuery(filter, req.query);
     const includeHistory = req.query.includeHistory === '1' || req.query.includeHistory === 'true';
     const activeOnly = !includeHistory || req.query.activeOnly === '1' || req.query.activeOnly === 'true';
     if (activeOnly) {
@@ -1956,7 +1953,8 @@ function registerRoutes(app) {
   app.get('/v1/tasks/:id/report', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    if (task.status !== 'done' && !(task.status === 'failed_hard' && task.operationKind === 'scrape')) {
+    const flowKind = flowKindForTask(task);
+    if (task.status !== 'done' && !(task.status === 'failed_hard' && flowKind === 'scrape')) {
       return apiError(reply, 400, 'BAD_REQUEST', 'Task not completed yet');
     }
 
@@ -1977,12 +1975,12 @@ function registerRoutes(app) {
       itemName: (info.type === 'season' && info.seriesName && info.seasonNumber != null
         ? `${info.seriesName} 第${info.seasonNumber}季`
         : (task.itemName || task.itemId)),
-      operationKind: task.operationKind,
+      flowKind,
       elapsedSec,
       encoder,
     };
 
-    if (task.operationKind === 'transcode') {
+    if (flowKind === 'transcode') {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,
         videoCodec: info.originalVideoCodec || info.codec || '?',
@@ -1999,13 +1997,13 @@ function registerRoutes(app) {
         height: vr.height,
       };
       report.bytesSaved = vr.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
-    } else if (task.operationKind === 'delete') {
+    } else if (flowKind === 'delete') {
       report.bytesFreed = vr.bytesSaved || info.size || info.originalSizeBytes || 0;
       report.delete = {
         targetPath: vr.deletedPath || info.deleteTargetPath || info.path || '',
         targetKind: vr.deletedKind || info.deleteTargetKind || (info.embyItemId ? 'emby_item' : ''),
       };
-    } else if (task.operationKind === 'upgrade') {
+    } else if (flowKind === 'upgrade') {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,
         videoCodec: info.originalVideoCodec || info.codec || '?',
@@ -2027,7 +2025,7 @@ function registerRoutes(app) {
         report.bytesSaved = up.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
         report.tmdbVerified = up.tmdbVerified;
       }
-    } else if (task.operationKind === 'scrape') {
+    } else if (flowKind === 'scrape') {
       const cfg = configStore.loadConfig();
       const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
       const scrapeInfo = liveItem || { ...info, itemId: task.itemId };
@@ -2152,9 +2150,7 @@ function registerRoutes(app) {
       taskStore.updateTask(task.id, { confirmData });
     }
 
-    // Call Flow.confirmReceived
-    const flow = getFlow(task.operationKind);
-    if (flow) flow.confirmReceived(task.id);
+    resourceRuntime.confirmTask(task);
 
     // Re-queue for scheduler, mark as just-confirmed to bypass awaiting guard
     taskScheduler.markConfirmed(task.id);
@@ -2253,8 +2249,7 @@ function registerRoutes(app) {
     }
     if (action.effect === 'request_runtime_pause_and_cleanup_partial_work') {
       appendTaskControlEvent(task, 'pause', action);
-      const flow = getFlow(task.operationKind);
-      if (flow) await flow.pause(task.id);
+      await resourceRuntime.pauseTask(task);
       return taskActionResponse(taskStore.getTask(task.id) || { ...task, status: 'paused' });
     }
 
@@ -2267,8 +2262,7 @@ function registerRoutes(app) {
     const action = getTaskActionOrReject(reply, task, 'cancel');
     if (!action) return;
 
-    const flow = getFlow(task.operationKind);
-    if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
+    if (taskNeedsFlowCancel(task)) await resourceRuntime.cancelTask(task);
 
     appendTaskControlEvent(task, 'cancel', action);
     taskStore.deleteTask(task.id);
@@ -2281,7 +2275,6 @@ function registerRoutes(app) {
     const filter = {};
     if (query.source) filter.source = query.source;
     if (query.type) filter.type = query.type;
-    if (query.action) filter.action = query.action;
     if (query.subLibraryId) filter.subLibraryId = query.subLibraryId;
     if (query.search) filter.search = query.search;
     if (query.resolution) filter.resolution = query.resolution;
@@ -2322,7 +2315,6 @@ function registerRoutes(app) {
     return {
       source: filter.source || '',
       type: filter.type || '',
-      action: filter.action || '',
       subLibraryId: filter.subLibraryId || '',
       resolution: filter.resolution || '',
       codec: filter.codec || '',
@@ -2451,13 +2443,7 @@ function registerRoutes(app) {
     const item = mediaLibraryService.getLibraryItem(req.params.itemId);
     if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Item not found');
     const cfg = configStore.loadConfig();
-    const activeTasks = activeTaskSummariesForItem(req.params.itemId);
-    const latestFailureEventsByItem = taskStore.queryLatestFailureEventsByItemIds([req.params.itemId]);
-    return libraryListItemView(businessFlowPolicy.decorateItem(item, {
-      config: cfg,
-      tasks: activeTasks,
-      latestFailureEventsByItem,
-    }));
+    return libraryListItemView(lifecycleProjection.decorateItem(item, cfg));
   });
 
   app.patch('/v1/library/ratings', async (req, reply) => {
@@ -2872,36 +2858,49 @@ function registerRoutes(app) {
   app.post('/v1/admin/adult/items/:itemId/actions/rescrape', async (req, reply) => {
     try {
       const overrideAdultId = typeof req.body === 'object' && req.body ? req.body.adultId : undefined;
-      const task = await adultLibraryService.rescrapeItem(
+      const intent = await adultLibraryService.prepareRescrapeIntent(
         req.params.itemId,
         typeof overrideAdultId === 'string' ? { overrideAdultId } : {},
       );
-      if (!task) {
-        const config = configStore.loadConfig();
+      const config = configStore.loadConfig();
+      const activeAdmissionTasks = activeTaskSummariesForItem(req.params.itemId);
+      const created = smartTaskEngine.createTargetGateTask({
+        ...intent,
+        source: 'manual',
+        config,
+        tasks: activeAdmissionTasks,
+        logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Metadata task created by adult rescrape user intent' }],
+      });
+      if (!created.allowed) {
         const item = mediaLibraryService.getLibraryItem(req.params.itemId);
         const activeTask = activeTaskAdmissionSummary(req.params.itemId);
-        const admission = {
-          operation: 'scrape',
-          operationKind: 'scrape',
-          reason: 'active_task_exists',
-          bridgeKind: 'metadata',
-          preferredOperation: 'scrape',
-          supportedEntry: 'POST /v1/admin/adult/items/:itemId/actions/rescrape',
-          activeTaskId: activeTask && activeTask.id,
-          activeTaskBridge: activeTask && activeTask.taskBridge && activeTask.taskBridge.kind,
-          activeFlowOperation: activeTask && activeTask.flowPlan && activeTask.flowPlan.operationKind,
+        const rejectionAdmission = {
+          ...created.admission,
+          activeTaskId: created.admission.activeTaskId || (created.admission.activeTask && created.admission.activeTask.id),
+          activeTaskBridge: created.admission.activeTaskBridge || (created.admission.activeTask && created.admission.activeTask.targetGate),
         };
         return reply.code(409).send(taskAdmissionRejectPayload(
-          'TASK_CONFLICT',
-          'active_task_exists',
-          admission,
+          rejectionAdmission.reason === 'active_task_exists' ? 'TASK_CONFLICT' : 'TASK_ADMISSION_REJECTED',
+          rejectionAdmission.reason,
+          rejectionAdmission,
           item,
           item ? adultLibraryService.itemInfoFromItem(item) : { itemId: req.params.itemId },
           config,
-          activeTask ? [activeTask] : [],
+          activeAdmissionTasks,
           { activeTask },
         ));
       }
+      const committed = adultLibraryService.resetScrapeStatus(
+        req.params.itemId,
+        typeof overrideAdultId === 'string' ? overrideAdultId : null,
+      );
+      const task = created.task;
+      if (committed) {
+        const itemInfo = adultLibraryService.itemInfoFromItem(committed);
+        taskStore.updateTask(task.id, { itemInfo });
+        task.itemInfo = itemInfo;
+      }
+      activityLog.addActivity('adult_library', `成人库创建元数据任务：${task.itemName || task.itemId}`, { taskId: task.id, itemId: task.itemId });
       const taskView = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
       return reply.code(201).send({
         ok: true,
@@ -3416,8 +3415,7 @@ function registerRoutes(app) {
     if (force && activeCount > 0) {
       // Cancel all active tasks on this node
       for (const t of activeTasks) {
-        const flow = getFlow(t.operationKind);
-        if (flow) { try { await flow.cancel(t.id); } catch (_) {} }
+        try { await resourceRuntime.cancelTask(t); } catch (_) {}
         taskStore.updateTask(t.id, { status: 'failed_hard', logs: [{ ts: new Date().toISOString(), level: 'error', msg: `Node ${node.name} deleted by admin` }] });
       }
     }
@@ -3554,8 +3552,7 @@ function registerRoutes(app) {
       return { error: { code: 'VALIDATION_ERROR', message: 'invalid kind' } };
     }
     const filter = { statuses: ['awaiting_user_confirm'] };
-    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
-    if (req.query.operationKind) filter.operationKind = req.query.operationKind;
+    applyTaskTargetQuery(filter, req.query);
     if (req.query.q) filter.q = req.query.q;
     const reviewFilter = {};
     if (req.query.subLibraryId) reviewFilter.subLibraryId = req.query.subLibraryId;
@@ -3568,8 +3565,7 @@ function registerRoutes(app) {
     if (req.query.q) reviewFilter.q = req.query.q;
     const includeTasks = kind !== 'adult_review';
     const includeReviews = kind !== 'task'
-      && (!req.query.bridgeKind || req.query.bridgeKind === 'metadata')
-      && (!req.query.operationKind || req.query.operationKind === 'scrape');
+      && (!req.query.targetGate || req.query.targetGate === 'metadata');
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
     const taskResult = !includeTasks
@@ -3639,8 +3635,7 @@ function registerRoutes(app) {
         .map((s) => s.trim())
         .filter(Boolean);
     }
-    if (req.query.operationKind) filter.operationKind = req.query.operationKind;
-    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
+    applyTaskTargetQuery(filter, req.query);
     if (req.query.q) filter.q = req.query.q;
     const attention = req.query.attention ? String(req.query.attention).trim() : '';
     if (attention && !TASK_ATTENTION_QUEUES[attention]) {
@@ -3716,8 +3711,7 @@ function registerRoutes(app) {
         .map((s) => s.trim())
         .filter(Boolean);
     }
-    if (req.query.operationKind) filter.operationKind = req.query.operationKind;
-    if (req.query.bridgeKind) filter.bridgeKind = req.query.bridgeKind;
+    applyTaskTargetQuery(filter, req.query);
     if (req.query.q) filter.q = req.query.q;
     const config = configStore.loadConfig();
     const allTasks = taskStore.queryTaskLifecycleAuditFacts(filter, {
@@ -3741,8 +3735,7 @@ function registerRoutes(app) {
       filters: {
         status: filter.status || '',
         statuses: filter.statuses || undefined,
-        bridgeKind: filter.bridgeKind || '',
-        operationKind: filter.operationKind || '',
+        targetGate: filter.bridgeKind || '',
         subLibraryId,
         mediaType,
         q: filter.q || '',
@@ -3983,8 +3976,7 @@ function registerRoutes(app) {
     const action = getTaskActionOrReject(reply, task, 'cancel');
     if (!action) return;
 
-    const flow = getFlow(task.operationKind);
-    if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
+    if (taskNeedsFlowCancel(task)) await resourceRuntime.cancelTask(task);
 
     appendTaskControlEvent(task, 'cancel', action, { endpoint: 'admin' });
     taskStore.deleteTask(task.id);
@@ -4008,19 +4000,6 @@ function registerRoutes(app) {
     }
     return result;
   });
-}
-
-// ── Flow helper ─────────────────────────────────────────────────────────────
-
-function getFlow(operationKind) {
-  switch (operationKind) {
-    case 'ingest': return require('./ingestFlowExecutor');
-    case 'delete': return require('./deleteFlowExecutor');
-    case 'transcode': return require('./transcodeFlowExecutor');
-    case 'upgrade': return require('./upgradeFlowExecutor');
-    case 'scrape': return require('./scrapeFlowExecutor');
-    default: return null;
-  }
 }
 
 // ── Build App ───────────────────────────────────────────────────────────────

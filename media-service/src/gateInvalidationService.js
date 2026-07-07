@@ -18,7 +18,7 @@ function buildInvalidation(input = {}) {
     message: String(input.message || ''),
     evidence: input.evidence && typeof input.evidence === 'object' ? input.evidence : {},
     sourceTaskId: input.taskId || input.sourceTaskId || '',
-    sourceOperationKind: input.sourceOperationKind || '',
+    sourceFlowKind: input.sourceFlowKind || '',
     sourceTargetGate: input.sourceTargetGate || '',
     invalidatedAt: now,
     recovery: input.recovery || `rerun_${invalidatedGate}`,

@@ -32,8 +32,7 @@ test('standard scrape completes when custom/default TV metadata gate matches str
         priority: 1,
         groupsConnector: 'and',
         groups: [{ connector: 'and', conditions: [['watched', '=', true], ['bucket', '=', '1080p'], ['equivalentBitrate', '>', 3]] }],
-        action: 'transcode',
-        actionParams: { targetBitrate: 3, targetCodec: 'h265' },
+        targetMediaFacts: { targetBitrate: 3, targetCodec: 'h265' },
       }],
     }],
   });
@@ -62,7 +61,7 @@ test('standard scrape completes when custom/default TV metadata gate matches str
   const task = taskStore.createTask({
     itemId: item.itemId,
     itemName: item.name,
-    operationKind: 'scrape',
+    SelectedFlow: 'scrape',
     status: 'executing',
     itemInfo: { ...item },
     resumePoint: 'scrape_executing',
@@ -118,8 +117,7 @@ test('standard scrape skips stale repair task when live metadata gate is already
         priority: 1,
         groupsConnector: 'and',
         groups: [{ connector: 'and', conditions: [['audioCodecs', 'overlap', ['truehd']]] }],
-        action: 'keep',
-        actionParams: {},
+        targetMediaFacts: { qualityTier: 'baseline', targetCodec: 'h265' },
       }],
     }],
   });
@@ -149,7 +147,7 @@ test('standard scrape skips stale repair task when live metadata gate is already
   const task = taskStore.createTask({
     itemId: item.itemId,
     itemName: item.name,
-    operationKind: 'scrape',
+    SelectedFlow: 'scrape',
     status: 'executing',
     itemInfo: {
       ...item,

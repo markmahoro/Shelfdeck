@@ -219,34 +219,13 @@ function buildAdultWesternDefaultTemplate(policy) {
   };
 }
 
-function legacyTargetFactsForRule(rule = {}) {
+function targetFactsForRule(rule = {}) {
   if (rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object') return { ...rule.targetMediaFacts };
-  const params = rule.actionParams || {};
-  if (rule.action === 'upgrade') {
-    return {
-      qualityTier: 'premium',
-      minResolution: '4K',
-      targetBitrate: params.targetBitrate,
-      targetCodec: params.targetCodec || 'h265',
-      maxSizeGB: params.maxSizeGB,
-      seedPreferences: params.seedPreferences,
-    };
-  }
-  if (rule.action === 'transcode') {
-    return {
-      qualityTier: 'standard',
-      targetBitrate: params.targetBitrate,
-      targetCodec: params.targetCodec || 'h265',
-    };
-  }
-  return {
-    qualityTier: 'baseline',
-    targetCodec: params.targetCodec || 'h265',
-  };
+  return { qualityTier: 'standard', targetCodec: 'h265', targetBitrateByBucket: { '1080p': 4, '4K': 10 } };
 }
 
 function normalizeRuleTemplateRule(rule = {}) {
-  const targetMediaFacts = legacyTargetFactsForRule(rule);
+  const targetMediaFacts = targetFactsForRule(rule);
   const { action, actionParams, ...rest } = rule;
   return {
     ...rest,
@@ -341,9 +320,11 @@ function getDefaultConfig() {
     smartTaskPollIntervalMinutes: 10,
     smartTaskMaxPerRun: 10,
     smartTaskMaxQueueSize: 50,
-    smartTaskEnabledActions: [],
+    smartTaskDeferWhenActiveBacklog: false,
+    smartTaskResourceQueueMultiplier: 5,
+    smartTaskMaxQueuedByResource: {},
     automaticTaskTargets: [],
-    optimizeAllowedOperations: [],
+    optimizeAllowedFlowKinds: [],
     upgradeCanary: {
       maxActiveTasks: 1,
       requireMoviePilotConfig: true,
@@ -361,7 +342,7 @@ function getDefaultConfig() {
     mediaLibrarySelfComputeEnabled: true,
 
     // Task queue priority (PriorityEngine). Lower number = runs first.
-    // Final score = source weight + action weight + subLibrary weight + business
+    // Final score = source weight + target gate weight + selected-flow hint + subLibrary weight + business
     // signal + queue age + retry penalty + rule deltas.
     // Per-subLibrary weight lives on subLibrary.priorityWeight (default 100).
     // Advanced overlay rules below are AND-matched, applied in order, and may
@@ -380,14 +361,6 @@ function getDefaultConfig() {
         upgrade: 0,
         transcode: 20,
       },
-      operationKindWeights: {
-        ingest: 60,
-        archive: 70,
-        scrape: 80,
-        delete: 90,
-        upgrade: 110,
-        transcode: 130,
-      },
       businessSignalWeights: {
         adultWorkflowBonus: 20,
         maxTranscodeSavingBonus: 30,
@@ -398,7 +371,6 @@ function getDefaultConfig() {
       retryPenalty: 20,
       maxRetryPenalty: 80,
       rulesByTargetGate: { ingest: [], metadata: [], optimize: [], archive: [], delete: [] },
-      rules: { ingest: [], archive: [], transcode: [], upgrade: [], delete: [], scrape: [] },
     },
 
     approvalPolicy: {
@@ -416,28 +388,12 @@ function getDefaultConfig() {
     taskAdmission: {
       defaultCooldownHours: 48,
       defaultMaxQueued: 50,
-      maxQueuedByAction: {
-        ingest: 50,
-        archive: 50,
-        scrape: 20,
-        delete: 50,
-        transcode: 50,
-        upgrade: 50,
-      },
       maxQueuedByTargetGate: {
         ingest: 50,
         metadata: 20,
         optimize: 50,
         archive: 50,
         delete: 50,
-      },
-      cooldownHoursByAction: {
-        ingest: 6,
-        archive: 0,
-        scrape: 6,
-        delete: 48,
-        transcode: 48,
-        upgrade: 48,
       },
       cooldownHoursByTargetGate: {
         ingest: 6,
@@ -688,7 +644,6 @@ function extractPolicyFromTemplate(template) {
   const target4k = {};
 
   for (const rule of template.rules) {
-    if (rule.action !== 'transcode' && rule.action !== 'upgrade') continue;
     const groups = rule.groups || [];
     if (groups.length < 2) continue;
 
@@ -703,7 +658,11 @@ function extractPolicyFromTemplate(template) {
     if (!bucketCond) continue;
     const bucket = bucketCond[2];
 
-    const tgt = rule.actionParams && rule.actionParams.targetBitrate;
+    const targetFacts = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object' ? rule.targetMediaFacts : {};
+    const byBucket = targetFacts.targetBitrateByBucket && typeof targetFacts.targetBitrateByBucket === 'object'
+      ? targetFacts.targetBitrateByBucket
+      : {};
+    const tgt = byBucket[bucket] != null ? byBucket[bucket] : targetFacts.targetBitrate;
     if (typeof tgt !== 'number') continue;
 
     if (bucket === '1080p') target1080p[String(rating)] = tgt;
@@ -917,7 +876,7 @@ function normalizeTranscodeEncodingDevices(raw) {
 }
 
 const AUTOMATIC_TASK_TARGETS = new Set(['ingest', 'metadata', 'optimize', 'archive', 'delete']);
-const OPTIMIZE_ALLOWED_OPERATIONS = new Set(['transcode', 'upgrade']);
+const OPTIMIZE_ALLOWED_FLOW_KINDS = new Set(['transcode', 'upgrade']);
 
 function normalizeStringList(values, allowed) {
   const result = [];
@@ -933,7 +892,7 @@ function normalizeStringList(values, allowed) {
 
 function splitLegacySmartTaskActions(actions = []) {
   const taskTargets = new Set();
-  const optimizeOperations = new Set();
+  const optimizeFlowKinds = new Set();
   for (const action of Array.isArray(actions) ? actions : []) {
     const normalized = String(action || '').trim().toLowerCase();
     if (!normalized) continue;
@@ -943,28 +902,16 @@ function splitLegacySmartTaskActions(actions = []) {
     else if (normalized === 'delete') taskTargets.add('delete');
     else if (normalized === 'optimize') {
       taskTargets.add('optimize');
-      for (const operation of OPTIMIZE_ALLOWED_OPERATIONS) optimizeOperations.add(operation);
-    } else if (OPTIMIZE_ALLOWED_OPERATIONS.has(normalized)) {
+      for (const flowKind of OPTIMIZE_ALLOWED_FLOW_KINDS) optimizeFlowKinds.add(flowKind);
+    } else if (OPTIMIZE_ALLOWED_FLOW_KINDS.has(normalized)) {
       taskTargets.add('optimize');
-      optimizeOperations.add(normalized);
+      optimizeFlowKinds.add(normalized);
     }
   }
   return {
     automaticTaskTargets: Array.from(taskTargets),
-    optimizeAllowedOperations: Array.from(optimizeOperations),
+    optimizeAllowedFlowKinds: Array.from(optimizeFlowKinds),
   };
-}
-
-function projectSmartTaskEnabledActions(automaticTaskTargets = [], optimizeAllowedOperations = []) {
-  const actions = [];
-  const targets = normalizeStringList(automaticTaskTargets, AUTOMATIC_TASK_TARGETS);
-  const operations = normalizeStringList(optimizeAllowedOperations, OPTIMIZE_ALLOWED_OPERATIONS);
-  if (targets.includes('ingest')) actions.push('ingest');
-  if (targets.includes('metadata')) actions.push('scrape');
-  if (targets.includes('optimize')) actions.push(...operations);
-  if (targets.includes('archive')) actions.push('archive');
-  if (targets.includes('delete')) actions.push('delete');
-  return actions;
 }
 
 function normalizeLifecycleAutomationConfig(raw) {
@@ -978,14 +925,14 @@ function normalizeLifecycleAutomationConfig(raw) {
   let migrated = false;
 
   let automaticTaskTargets = normalizeStringList(current.automaticTaskTargets, AUTOMATIC_TASK_TARGETS);
-  let optimizeAllowedOperations = normalizeStringList(current.optimizeAllowedOperations, OPTIMIZE_ALLOWED_OPERATIONS);
+  let optimizeAllowedFlowKinds = normalizeStringList(current.optimizeAllowedFlowKinds, OPTIMIZE_ALLOWED_FLOW_KINDS);
   const hasNewAutomationFields = Array.isArray(current.automaticTaskTargets)
-    || Array.isArray(current.optimizeAllowedOperations);
+    || Array.isArray(current.optimizeAllowedFlowKinds);
 
   if (!hasNewAutomationFields) {
     const legacy = splitLegacySmartTaskActions(actions);
     automaticTaskTargets = legacy.automaticTaskTargets;
-    optimizeAllowedOperations = legacy.optimizeAllowedOperations;
+    optimizeAllowedFlowKinds = legacy.optimizeAllowedFlowKinds;
     if (actions.length > 0) migrated = true;
   }
 
@@ -1004,7 +951,6 @@ function normalizeLifecycleAutomationConfig(raw) {
     migrated = true;
   }
 
-  const smartTaskEnabledActions = projectSmartTaskEnabledActions(automaticTaskTargets, optimizeAllowedOperations);
   const nextMigrations = !hasNewAutomationFields && actions.length > 0 && migrations.v31ArchiveAutomation !== true
     ? { ...migrations, v31ArchiveAutomation: true }
     : migrations;
@@ -1012,18 +958,20 @@ function normalizeLifecycleAutomationConfig(raw) {
   const next = {
     ...current,
     automaticTaskTargets,
-    optimizeAllowedOperations,
-    smartTaskEnabledActions,
+    optimizeAllowedFlowKinds,
   };
+  delete next.smartTaskEnabledActions;
+  delete next.optimizeAllowedOperations;
   if (Object.keys(nextMigrations).length > 0 || current.migrations !== undefined) {
     next.migrations = nextMigrations;
   }
 
   if (Array.isArray(current.automaticTaskTargets)
     && JSON.stringify(current.automaticTaskTargets) !== JSON.stringify(automaticTaskTargets)) migrated = true;
-  if (Array.isArray(current.optimizeAllowedOperations)
-    && JSON.stringify(current.optimizeAllowedOperations) !== JSON.stringify(optimizeAllowedOperations)) migrated = true;
-  if (JSON.stringify(actions) !== JSON.stringify(smartTaskEnabledActions)) migrated = true;
+  if (Array.isArray(current.optimizeAllowedFlowKinds)
+    && JSON.stringify(current.optimizeAllowedFlowKinds) !== JSON.stringify(optimizeAllowedFlowKinds)) migrated = true;
+  if (Object.prototype.hasOwnProperty.call(current, 'optimizeAllowedOperations')) migrated = true;
+  if (Object.prototype.hasOwnProperty.call(current, 'smartTaskEnabledActions')) migrated = true;
 
   return { raw: next, migrated };
 }
@@ -1098,14 +1046,6 @@ function mergeConfigWithDefaults(config) {
       ...legacyActionAdmissionToTargetGate(((raw.taskAdmission || {}).maxQueuedByAction) || {}),
       ...(((raw.taskAdmission || {}).maxQueuedByTargetGate) || {}),
     },
-    cooldownHoursByAction: {
-      ...((defaults.taskAdmission || {}).cooldownHoursByAction || {}),
-      ...(((raw.taskAdmission || {}).cooldownHoursByAction) || {}),
-    },
-    maxQueuedByAction: {
-      ...((defaults.taskAdmission || {}).maxQueuedByAction || {}),
-      ...(((raw.taskAdmission || {}).maxQueuedByAction) || {}),
-    },
   };
 
   merged.taskPriority = {
@@ -1119,17 +1059,9 @@ function mergeConfigWithDefaults(config) {
       ...((defaults.taskPriority || {}).optimizeOperationHints || {}),
       ...(((raw.taskPriority || {}).optimizeOperationHints) || {}),
     },
-    operationKindWeights: {
-      ...((defaults.taskPriority || {}).operationKindWeights || {}),
-      ...(((raw.taskPriority || {}).operationKindWeights) || {}),
-    },
     rulesByTargetGate: {
       ...((defaults.taskPriority || {}).rulesByTargetGate || {}),
       ...(((raw.taskPriority || {}).rulesByTargetGate) || {}),
-    },
-    rules: {
-      ...((defaults.taskPriority || {}).rules || {}),
-      ...(((raw.taskPriority || {}).rules) || {}),
     },
   };
 

@@ -9,11 +9,11 @@ const TASK_PRIORITY_MODEL_VERSION = 'kairox-task-creator-v1';
  * Lower number = higher priority (runs first in the global task queue).
  *
  * Formula:
- *   priority = sum(source, operationKind, subLibrary, businessSignal, queueAge, retry, matchedRules)
+ *   priority = sum(source, targetGate, flowKind, subLibrary, businessSignal, queueAge, retry, matchedRules)
  *
  * Evaluation order:
- *   1. Add source, operation kind, library, business signal, queue age, and retry dimensions.
- *   2. Advanced overlay rules (config.taskPriority.rules[operationKind], ordered):
+ *   1. Add source, target gate, optional flow kind, library, business signal, queue age, and retry dimensions.
+ *   2. Advanced overlay rules (config.taskPriority.rulesByTargetGate[targetGate], ordered):
  *      each matching rule contributes a delta (subtract=add priority, add=defer).
  *   3. clamp to >= 0.
  *
@@ -25,51 +25,50 @@ const TASK_PRIORITY_MODEL_VERSION = 'kairox-task-creator-v1';
 /**
  * @param {object} params
  * @param {'manual'|'auto'} params.source       task origin
- * @param {string} params.operationKind            transcode|upgrade|delete|scrape
+ * @param {string} [params.flowKind]            planned flow kind for gate-local execution, when known
  * @param {object} [params.itemInfo]            task.itemInfo (subLibraryId, type, ...)
  * @param {object} [params.task]                optional queued task context (createdAt, retryCount)
  * @param {object} params.config                full config (taskPriority + subLibraries)
  * @returns {number}                            priority value (lower = first)
  */
-function computePriority({ source, operationKind, itemInfo, config, task }) {
-  return explainPriority({ source, operationKind, itemInfo, config, task }).priority;
+function computePriority({ source, taskTarget, flowKind, itemInfo, config, task }) {
+  return explainPriority({ source, taskTarget, flowKind, itemInfo, config, task }).priority;
 }
 
-function explainTaskPriority({ source, taskTarget, itemInfo, config, task, operationKind }) {
+function explainTaskPriority({ source, taskTarget, flowKind, itemInfo, config, task }) {
   const cfg = config && config.taskPriority || {};
   const manualBase = typeof cfg.manualTaskPriority === 'number' ? cfg.manualTaskPriority : 0;
   const autoBase = typeof cfg.autoTaskPriorityBase === 'number' ? cfg.autoTaskPriorityBase : 100;
-  const context = buildTaskContext({ itemInfo, task, taskTarget, operationKind });
+  const context = buildTaskContext({ itemInfo, task, taskTarget, flowKind });
 
   const targetGateWeights = cfg.targetGateWeights || {};
-  const legacyActionWeights = cfg.operationKindWeights || {};
-  const targetGate = context.targetGate || targetGateForAction(context.operationKind);
-  const operationHint = context.operationHint || operationHintForAction(context.operationKind);
+  const targetGate = context.targetGate || targetForFlowKind(context.flowKind);
+  const plannedFlowKind = context.flowKind;
   const targetGateWeight = typeof targetGateWeights[targetGate] === 'number'
     ? targetGateWeights[targetGate]
-    : legacyTargetGateWeight(targetGate, legacyActionWeights);
+    : defaultTargetGateWeight(targetGate);
   const optimizeOperationHints = cfg.optimizeOperationHints || {};
-  const operationHintWeight = targetGate === 'optimize'
-    ? (typeof optimizeOperationHints[operationHint] === 'number'
-      ? optimizeOperationHints[operationHint]
-      : legacyOptimizeOperationHint(operationHint, legacyActionWeights, targetGateWeight))
+  const flowKindWeight = targetGate === 'optimize'
+    ? (typeof optimizeOperationHints[plannedFlowKind] === 'number'
+      ? optimizeOperationHints[plannedFlowKind]
+      : 0)
     : 0;
 
   const sourceWeight = source === 'manual' ? manualBase : autoBase;
   const libraryWeight = resolveLibraryWeight(context, config);
-  const businessSignalWeight = computeBusinessSignalDelta(operationHint || context.operationKind || targetGate, context, cfg);
+  const businessSignalWeight = computeBusinessSignalDelta(plannedFlowKind || targetGate, context, cfg);
   const queueAgeWeight = computeQueueAgeDelta(context, cfg);
   const retryWeight = computeRetryDelta(context, cfg);
   const dimensions = [
     { key: 'source', label: source === 'manual' ? '手动来源' : '自动来源', value: sourceWeight },
     { key: 'targetGate', label: '目标 Gate', targetGate, value: targetGateWeight },
   ];
-  if (operationHintWeight !== 0) {
-    dimensions.push({ key: 'optimizeOperationHint', label: '优化路径提示', operationHint, value: operationHintWeight });
+  if (flowKindWeight !== 0) {
+    dimensions.push({ key: 'flowKind', label: 'Flow Kind', flowKind: plannedFlowKind, value: flowKindWeight });
   }
   dimensions.push({ key: 'subLibrary', label: '子库权重', subLibraryId: context.subLibraryId || '', value: libraryWeight });
   if (businessSignalWeight !== 0) {
-    dimensions.push({ key: 'businessSignal', label: '业务信号', targetGate, operationHint, value: businessSignalWeight });
+    dimensions.push({ key: 'businessSignal', label: '业务信号', targetGate, flowKind: plannedFlowKind, value: businessSignalWeight });
   }
   if (queueAgeWeight !== 0) {
     dimensions.push({ key: 'queueAge', label: '等待时间', createdAt: context.createdAt || '', value: queueAgeWeight });
@@ -78,7 +77,7 @@ function explainTaskPriority({ source, taskTarget, itemInfo, config, task, opera
     dimensions.push({ key: 'retry', label: '重试惩罚', retryCount: context.retryCount || 0, value: retryWeight });
   }
 
-  for (const [index, rule] of taskPriorityRules(cfg, targetGate, operationHint).entries()) {
+  for (const [index, rule] of taskPriorityRules(cfg, targetGate, plannedFlowKind).entries()) {
     if (!rule || typeof rule !== 'object') continue;
     if (matchConditions(rule.match, context)) {
       const delta = computeAdjustDelta(rule.adjust);
@@ -99,73 +98,17 @@ function explainTaskPriority({ source, taskTarget, itemInfo, config, task, opera
   return {
     modelVersion: TASK_PRIORITY_MODEL_VERSION,
     lowerIsEarlier: true,
-    formula: 'source + targetGate + optimizeOperationHint + subLibrary + businessSignal + queueAge + retry + matchedRules',
+    formula: 'source + targetGate + flowKind + subLibrary + businessSignal + queueAge + retry + matchedRules',
     targetGate,
-    operationHint,
+    flowKind: plannedFlowKind,
     dimensions,
     raw,
     priority: Math.max(0, Math.round(raw)),
   };
 }
 
-function explainPriority({ source, operationKind, itemInfo, config, task }) {
-  const cfg = config && config.taskPriority || {};
-  const manualBase = typeof cfg.manualTaskPriority === 'number' ? cfg.manualTaskPriority : 0;
-  const autoBase = typeof cfg.autoTaskPriorityBase === 'number' ? cfg.autoTaskPriorityBase : 100;
-  const actionWeights = cfg.operationKindWeights || {};
-  const actionWeight = typeof actionWeights[operationKind] === 'number' ? actionWeights[operationKind] : 0;
-  const context = buildContext(itemInfo, task);
-
-  // ── 1. source + operation kind + library + dynamic queue dimensions ───────
-  const sourceWeight = source === 'manual' ? manualBase : autoBase;
-  const libraryWeight = resolveLibraryWeight(context, config);
-  const businessSignalWeight = computeBusinessSignalDelta(operationKind, context, cfg);
-  const queueAgeWeight = computeQueueAgeDelta(context, cfg);
-  const retryWeight = computeRetryDelta(context, cfg);
-  const dimensions = [
-    { key: 'source', label: source === 'manual' ? '手动来源' : '自动来源', value: sourceWeight },
-    { key: 'operationKind', label: '任务类型', operationKind, value: actionWeight },
-    { key: 'subLibrary', label: '子库权重', subLibraryId: context.subLibraryId || '', value: libraryWeight },
-  ];
-  if (businessSignalWeight !== 0) {
-    dimensions.push({ key: 'businessSignal', label: '业务信号', operationKind, value: businessSignalWeight });
-  }
-  if (queueAgeWeight !== 0) {
-    dimensions.push({ key: 'queueAge', label: '等待时间', createdAt: context.createdAt || '', value: queueAgeWeight });
-  }
-  if (retryWeight !== 0) {
-    dimensions.push({ key: 'retry', label: '重试惩罚', retryCount: context.retryCount || 0, value: retryWeight });
-  }
-
-  // ── 2. advanced overlay rules (per operationKind, ordered) ───────────────────
-  const rules = ((cfg.rules || {})[operationKind] || []);
-  for (const [index, rule] of rules.entries()) {
-    if (!rule || typeof rule !== 'object') continue;
-    if (matchConditions(rule.match, context)) {
-      const delta = computeAdjustDelta(rule.adjust);
-      if (delta !== 0) {
-        dimensions.push({
-          key: 'rule',
-          label: '高级规则',
-          index,
-          match: rule.match || {},
-          adjust: normalizeAdjust(rule.adjust),
-          value: delta,
-        });
-      }
-    }
-  }
-
-  // ── 3. clamp ──────────────────────────────────────────────────────────────
-  const raw = dimensions.reduce((sum, dim) => sum + dim.value, 0);
-  return {
-    modelVersion: PRIORITY_MODEL_VERSION,
-    lowerIsEarlier: true,
-    formula: 'source + operationKind + subLibrary + businessSignal + queueAge + retry + matchedRules',
-    dimensions,
-    raw,
-    priority: Math.max(0, Math.round(raw)),
-  };
+function explainPriority({ source, taskTarget, flowKind, itemInfo, config, task }) {
+  return explainTaskPriority({ source, taskTarget, flowKind, itemInfo, config, task });
 }
 
 function buildContext(itemInfo, task) {
@@ -178,64 +121,55 @@ function buildContext(itemInfo, task) {
   };
 }
 
-function buildTaskContext({ itemInfo, task, taskTarget, operationKind }) {
+function buildTaskContext({ itemInfo, task, taskTarget, flowKind }) {
   const context = buildContext(itemInfo, task);
   const target = taskTarget && typeof taskTarget === 'object' ? taskTarget : {};
-  const inferredAction = operationKind || target.operationHint || context.operationKind;
+  const plan = task && task.flowPlan && typeof task.flowPlan === 'object' ? task.flowPlan : {};
+  const inferredFlowKind = flowKind || target.flowKind || plan.flowKind || context.flowKind || deterministicFlowKindForGate(target.targetGate || context.targetGate);
   return {
     ...context,
-    operationKind: inferredAction,
-    targetGate: target.targetGate || targetForAction(inferredAction),
+    targetGate: target.targetGate || context.targetGate || targetForFlowKind(inferredFlowKind),
     gateObjective: target.gateObjective || context.gateObjective || {},
-    operationHint: target.operationHint || operationHintForAction(inferredAction),
+    flowKind: normalizeFlowKind(inferredFlowKind),
   };
 }
 
-function targetForAction(operationKind) {
-  const action = String(operationKind || '').trim().toLowerCase();
-  if (action === 'ingest') return 'ingest';
-  if (action === 'scrape' || action === 'metadata') return 'metadata';
-  if (action === 'archive') return 'archive';
-  if (action === 'delete') return 'delete';
-  if (action === 'transcode' || action === 'upgrade') return 'optimize';
-  return action || '';
+function targetForFlowKind(flowKind) {
+  const flow = normalizeFlowKind(flowKind);
+  if (flow === 'ingest') return 'ingest';
+  if (flow === 'scrape' || flow === 'metadata') return 'metadata';
+  if (flow === 'archive') return 'archive';
+  if (flow === 'delete') return 'delete';
+  if (flow === 'transcode' || flow === 'upgrade') return 'optimize';
+  return flow || '';
 }
 
-function operationHintForAction(operationKind) {
-  return String(operationKind || '').trim().toLowerCase();
+function normalizeFlowKind(flowKind) {
+  return String(flowKind || '').trim().toLowerCase();
 }
 
-function legacyTargetGateWeight(targetGate, actionWeights = {}) {
-  if (targetGate === 'ingest') return numberOr(actionWeights.ingest, 60);
-  if (targetGate === 'metadata') return numberOr(actionWeights.scrape, 80);
-  if (targetGate === 'archive') return numberOr(actionWeights.archive, 70);
-  if (targetGate === 'delete') return numberOr(actionWeights.delete, 90);
-  if (targetGate === 'optimize') {
-    const values = ['transcode', 'upgrade']
-      .map((key) => Number(actionWeights[key]))
-      .filter(Number.isFinite);
-    if (values.length) return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
-    return 110;
-  }
+function deterministicFlowKindForGate(targetGate) {
+  const gate = String(targetGate || '').trim().toLowerCase();
+  if (gate === 'ingest') return 'ingest';
+  if (gate === 'metadata') return 'scrape';
+  if (gate === 'archive') return 'archive';
+  if (gate === 'delete') return 'delete';
+  return '';
+}
+
+function defaultTargetGateWeight(targetGate) {
+  if (targetGate === 'ingest') return 60;
+  if (targetGate === 'metadata') return 80;
+  if (targetGate === 'archive') return 70;
+  if (targetGate === 'delete') return 90;
+  if (targetGate === 'optimize') return 110;
   return 0;
 }
 
-function legacyOptimizeOperationHint(operationHint, actionWeights = {}, targetGateWeight = 0) {
-  const actionWeight = Number(actionWeights[operationHint]);
-  if (Number.isFinite(actionWeight)) return actionWeight - targetGateWeight;
-  return 0;
-}
-
-function taskPriorityRules(cfg, targetGate, operationHint) {
+function taskPriorityRules(cfg, targetGate, flowKind) {
   if (cfg.rulesByTargetGate && Array.isArray(cfg.rulesByTargetGate[targetGate])) {
     return cfg.rulesByTargetGate[targetGate];
   }
-  const legacyRules = cfg.rules || {};
-  if (targetGate === 'metadata') return legacyRules.scrape || [];
-  if (targetGate === 'ingest') return legacyRules.ingest || [];
-  if (targetGate === 'archive') return legacyRules.archive || [];
-  if (targetGate === 'delete') return legacyRules.delete || [];
-  if (targetGate === 'optimize') return legacyRules[operationHint] || [];
   return [];
 }
 
@@ -249,21 +183,21 @@ function resolveLibraryWeight(itemInfo, config) {
   return 100;
 }
 
-function computeBusinessSignalDelta(operationKind, itemInfo, cfg) {
+function computeBusinessSignalDelta(flowKind, itemInfo, cfg) {
   const weights = cfg.businessSignalWeights || {};
   const adultWorkflowBonus = numberOr(weights.adultWorkflowBonus, 20);
   const maxTranscodeSavingBonus = numberOr(weights.maxTranscodeSavingBonus, 30);
   const info = itemInfo || {};
   const meta = info.adultMetadata || {};
 
-  if (operationKind === 'ingest') {
+  if (flowKind === 'ingest') {
     if (info.source === 'adult_folder' || info.mediaType === 'adult' || meta.region) {
       return -adultWorkflowBonus;
     }
     return 0;
   }
 
-  if (operationKind === 'scrape') {
+  if (flowKind === 'scrape') {
     const scrapeStatus = String(meta.scrapeStatus || '').toLowerCase();
     if (info.scraped === false || scrapeStatus === '' || scrapeStatus === 'pending') {
       return -adultWorkflowBonus;
@@ -271,9 +205,9 @@ function computeBusinessSignalDelta(operationKind, itemInfo, cfg) {
     return 0;
   }
 
-  if (operationKind === 'transcode') {
-    const bitrate = Number(info.equivalentBitrate || info.bitrate || 0);
-    const target = Number(info.targetBitrate || 0);
+  if (flowKind === 'transcode') {
+    const bitrate = normalizeBitrateMbps(info.equivalentBitrate || info.bitrate || 0);
+    const target = normalizeBitrateMbps(info.targetBitrate || 0);
     const size = Number(info.size || info.originalSizeBytes || 0);
     let bonus = 0;
     if (bitrate > 0 && target > 0 && bitrate > target) {
@@ -286,6 +220,12 @@ function computeBusinessSignalDelta(operationKind, itemInfo, cfg) {
   }
 
   return 0;
+}
+
+function normalizeBitrateMbps(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n > 100000 ? n / 1000000 : n;
 }
 
 function computeQueueAgeDelta(itemInfo, cfg) {
@@ -324,7 +264,7 @@ function matchConditions(match, itemInfo) {
   if (match.subLibraryId !== undefined && info.subLibraryId !== match.subLibraryId) return false;
   if (match.type !== undefined && info.type !== match.type) return false;
   if (match.targetGate !== undefined && info.targetGate !== match.targetGate) return false;
-  if (match.operationHint !== undefined && info.operationHint !== match.operationHint) return false;
+  if (match.flowKind !== undefined && info.flowKind !== match.flowKind) return false;
   if (match.isDiscLike !== undefined && !!info.isDiscLike !== !!match.isDiscLike) return false;
   if (match.isDolbyVision !== undefined && !!info.isDolbyVision !== !!match.isDolbyVision) return false;
 

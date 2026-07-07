@@ -345,10 +345,8 @@ function collectRuleInputRequirements(rule) {
   const targetFacts = rule && rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object'
     ? rule.targetMediaFacts
     : {};
-  const params = rule && rule.actionParams || {};
   const hasTargetBitrate = targetFacts.targetBitrate != null
-    || !!(targetFacts.targetBitrateByBucket && Object.values(targetFacts.targetBitrateByBucket).some((value) => value != null))
-    || ((rule.action === 'transcode' || rule.action === 'upgrade') && params.targetBitrate);
+    || !!(targetFacts.targetBitrateByBucket && Object.values(targetFacts.targetBitrateByBucket).some((value) => value != null));
   if (hasTargetBitrate) {
     requirements.add('media.duration');
   }

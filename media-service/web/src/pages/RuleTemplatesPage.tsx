@@ -58,8 +58,6 @@ function defaultRule(priority: number): Rule {
     groupsConnector: 'and',
     groups: [emptyGroup()],
     targetMediaFacts: { qualityTier: 'standard', targetCodec: 'h265', targetBitrateByBucket: { '1080p': 4, '4K': 10 } },
-    action: 'transcode',
-    actionParams: { targetBitrate: 4, targetCodec: 'h265' },
     reason: '',
   };
 }
@@ -207,22 +205,12 @@ function RuleEditor({ rule, onChange, onDelete }: {
 
   function targetBitrateFor(bucket: '1080p' | '4K') {
     return rule.targetMediaFacts?.targetBitrateByBucket?.[bucket]
-      ?? (bucket === '1080p' ? rule.actionParams?.targetBitrate : undefined)
       ?? '';
   }
 
   function updateTargetFacts(patch: NonNullable<Rule['targetMediaFacts']>) {
     const targetMediaFacts = { ...(rule.targetMediaFacts || {}), ...patch };
-    const byBucket = targetMediaFacts.targetBitrateByBucket || {};
-    update({
-      targetMediaFacts,
-      action: 'transcode',
-      actionParams: {
-        ...rule.actionParams,
-        targetBitrate: byBucket['1080p'] || byBucket['4K'] || targetMediaFacts.targetBitrate,
-        targetCodec: targetMediaFacts.targetCodec || rule.actionParams?.targetCodec || 'h265',
-      },
-    });
+    update({ targetMediaFacts });
   }
 
   function setTargetTier(tier: string) {
@@ -305,7 +293,7 @@ function RuleEditor({ rule, onChange, onDelete }: {
         </div>
         <div style={s.paramRow}>
           <span style={s.paramLabel}>目标编码</span>
-          <select style={s.select} value={rule.targetMediaFacts?.targetCodec ?? rule.actionParams?.targetCodec ?? 'h265'} onChange={(e) => updateTargetFacts({ targetCodec: e.target.value })}>
+          <select style={s.select} value={rule.targetMediaFacts?.targetCodec ?? 'h265'} onChange={(e) => updateTargetFacts({ targetCodec: e.target.value })}>
             <option value="h265">h265</option>
             <option value="av1">av1</option>
           </select>
@@ -420,7 +408,10 @@ function TemplateCard({ tpl }: { tpl: RuleTemplate }) {
   // Convert editor objects back to API format (arrays for conditions)
   function denormalizeRules(editorRules: Rule[]): any[] {
     return editorRules.map((r) => ({
-      ...r,
+      priority: r.priority,
+      groupsConnector: r.groupsConnector,
+      targetMediaFacts: r.targetMediaFacts,
+      reason: r.reason,
       groups: r.groups.map((g) => ({
         connector: g.connector,
         conditions: g.conditions.map((c) => [c.field, c.op, c.value]),
@@ -461,20 +452,15 @@ function TemplateCard({ tpl }: { tpl: RuleTemplate }) {
     }
     const groups = (rule.groups || []).map(normalizeGroup);
     const targetMediaFacts = rule.targetMediaFacts || {
-      qualityTier: rule.action === 'upgrade' ? 'premium' : rule.action === 'keep' ? 'baseline' : 'standard',
-      targetCodec: rule.actionParams?.targetCodec || 'h265',
-      targetBitrateByBucket: {
-        '1080p': rule.actionParams?.targetBitrate || 4,
-        '4K': rule.actionParams?.targetBitrate ? Math.max(rule.actionParams.targetBitrate, 6) : 10,
-      },
+      qualityTier: 'standard',
+      targetCodec: 'h265',
+      targetBitrateByBucket: { '1080p': 4, '4K': 10 },
     };
     return {
       priority: typeof rule.priority === 'number' ? rule.priority : 1,
       groupsConnector: rule.groupsConnector || 'and',
       groups,
       targetMediaFacts,
-      action: rule.action || 'transcode',
-      actionParams: rule.actionParams || { targetBitrate: targetMediaFacts.targetBitrateByBucket?.['1080p'], targetCodec: targetMediaFacts.targetCodec },
       reason: rule.reason || '',
     };
   }

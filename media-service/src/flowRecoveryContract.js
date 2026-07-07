@@ -163,8 +163,7 @@ const FLOW_RECOVERY_CONTRACTS = {
 
 function flowKeyForTask(task) {
   return String(
-    task && task.flowPlan && task.flowPlan.operationKind
-    || task && task.operationKind
+    task && task.flowPlan && task.flowPlan.flowKind
     || '',
   );
 }

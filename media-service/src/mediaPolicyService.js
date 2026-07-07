@@ -7,9 +7,8 @@
  *
  * Strategy rules are now defined as rule templates in config.json
  * and evaluated by StrategyEngine (strategyEngine.js). All modules
- * that previously called recommendedAction() / targetMbps() /
- * effectiveRating() have been migrated to read rule-evaluated fields
- * directly from media library item records.
+ * that previously called policy helper functions have been migrated to
+ * read target facts from media library item records.
  *
  * The resolutionBucket() helper is kept for media library item bucket
  * projection (mediaLibraryService.projectMediaFactsForItem).

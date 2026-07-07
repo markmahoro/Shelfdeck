@@ -274,13 +274,13 @@ export const upgrade = {
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
 export const tasks = {
-  list: (params?: { status?: string; statuses?: string[]; attention?: string; operationKind?: string; bridgeKind?: string; q?: string; page?: number; pageSize?: number; includeAttentionSummary?: boolean }) => {
+  list: (params?: { status?: string; statuses?: string[]; attention?: string; selectedFlow?: string; targetGate?: string; q?: string; page?: number; pageSize?: number; includeAttentionSummary?: boolean }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.statuses?.length) qs.set('statuses', params.statuses.join(','));
     if (params?.attention) qs.set('attention', params.attention);
-    if (params?.operationKind) qs.set('operationKind', params.operationKind);
-    if (params?.bridgeKind) qs.set('bridgeKind', params.bridgeKind);
+    if (params?.selectedFlow) qs.set('selectedFlow', params.selectedFlow);
+    if (params?.targetGate) qs.set('targetGate', params.targetGate);
     if (params?.q) qs.set('q', params.q);
     if (params?.page) qs.set('page', String(params.page));
     if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
@@ -326,7 +326,7 @@ export interface TaskReport {
   taskId: string;
   itemId?: string;
   itemName: string;
-  operationKind: string;
+  SelectedFlow: string;
   elapsedSec: number | null;
   encoder: string | null;
   original?: {
@@ -425,12 +425,14 @@ export interface SystemConfig {
   resourceCapacity?: Record<string, number>;
   wallRatingAutoEnqueue: boolean;
   smartTaskMaxPerRun: number;
-  smartTaskEnabledActions: string[];
   automaticTaskTargets?: string[];
   optimizeAllowedOperations?: string[];
   smartTaskPollIntervalMinutes: number;
   smartTaskLookbackDays: number;
   smartTaskMaxQueueSize: number;
+  smartTaskDeferWhenActiveBacklog?: boolean;
+  smartTaskResourceQueueMultiplier?: number;
+  smartTaskMaxQueuedByResource?: Record<string, number>;
   strategyPollIntervalMinutes: number;
   smartSelectMode?: 'auto' | 'manual' | 'per_library';
   // Queue priority policy (PriorityEngine). Lower number = runs first.
@@ -439,15 +441,7 @@ export interface SystemConfig {
     autoTaskPriorityBase: number;
     targetGateWeights?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
     optimizeOperationHints?: Partial<Record<'transcode' | 'upgrade', number>>;
-    operationKindWeights?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
     rulesByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', PriorityRule[]>>;
-    rules: {
-      ingest: PriorityRule[];
-      scrape: PriorityRule[];
-      delete: PriorityRule[];
-      transcode: PriorityRule[];
-      upgrade: PriorityRule[];
-    };
   };
   approvalPolicy?: ApprovalPolicyConfig;
   taskAdmission?: {
@@ -455,8 +449,6 @@ export interface SystemConfig {
     defaultMaxQueued?: number;
     cooldownHoursByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
     maxQueuedByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
-    cooldownHoursByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
-    maxQueuedByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
   };
 }
 
@@ -637,7 +629,6 @@ export const libraryApi = {
     limit?: number;
     offset?: number;
     search?: string;
-    action?: string;
     resolution?: string;
     codec?: string;
     watched?: string;
@@ -655,7 +646,7 @@ export const libraryApi = {
     if (options?.limit) q.set('limit', String(options.limit));
     if (options?.offset) q.set('offset', String(options.offset));
     if (options?.projection) q.set('projection', options.projection);
-    for (const key of ['search', 'action', 'resolution', 'codec', 'watched', 'bluRay', 'douban', 'userRating', 'task', 'metadata', 'scrape', 'lifecycle'] as const) {
+    for (const key of ['search', 'resolution', 'codec', 'watched', 'bluRay', 'douban', 'userRating', 'task', 'metadata', 'scrape', 'lifecycle'] as const) {
       const value = options?.[key];
       if (value && value !== 'all') q.set(key, value);
     }
@@ -686,7 +677,7 @@ export const taskApi = {
     return Array.isArray(data) ? data : data.tasks ?? [];
   },
 
-  createByIntent: async (body: { itemId: string; operationKind?: string; bridgeKind?: string; preferredOperation?: string }): Promise<MediaTask> => {
+  createByIntent: async (body: { itemId: string; targetGate?: string; gateObjective?: Record<string, unknown>; preferredFlow?: string; selectedFlow?: string }): Promise<MediaTask> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const key = apiKey();
     if (key) headers['x-api-key'] = key;

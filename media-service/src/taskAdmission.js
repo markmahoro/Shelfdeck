@@ -1,31 +1,18 @@
 'use strict';
 
-const businessFlowPolicy = require('./businessFlowPolicy');
+const taskCreationPolicy = require('./taskCreationPolicy');
 
-function canCreateTask({ item, itemInfo, operationKind, source, config, tasks, optimizationIndex }) {
-  return businessFlowPolicy.evaluateOperation({
-    item,
-    itemInfo,
-    operationKind,
-    source,
-    config,
-    tasks,
-    optimizationIndex,
-  });
+function canCreateTask(input = {}) {
+  return taskCreationPolicy.canCreateTargetTask(input);
 }
 
-function canCreateManualIntent({ item, itemInfo, operationKind, bridgeKind, preferredOperation, intent, config, tasks, optimizationIndex }) {
-  return businessFlowPolicy.evaluateManualIntent({
-    item,
-    itemInfo,
-    operationKind,
-    bridgeKind,
-    preferredOperation,
-    intent,
+function canCreateManualIntent(input = {}) {
+  const intent = input.intent && typeof input.intent === 'object' ? input.intent : {};
+  return taskCreationPolicy.canCreateTargetTask({
+    ...input,
+    targetGate: input.targetGate || intent.targetGate,
+    gateObjective: input.gateObjective || intent.gateObjective,
     source: 'manual',
-    config,
-    tasks,
-    optimizationIndex,
   });
 }
 

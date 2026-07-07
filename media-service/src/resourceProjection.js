@@ -15,8 +15,8 @@ function resourceStateForStatus(status) {
   return 'waiting';
 }
 
-function concurrencyLimitForAction(operationKind, config = {}) {
-  switch (operationKind) {
+function concurrencyLimitForFlowKind(flowKind, config = {}) {
+  switch (flowKind) {
     case 'ingest': return config.ingestConcurrency || 1;
     case 'delete': return config.deleteConcurrency || 1;
     case 'transcode': return config.transcodeConcurrency || 1;
@@ -45,7 +45,7 @@ function concurrencyLimitForResource(taskResource, config = {}) {
       if (taskResource.resourceKey === 'filesystem:mutation') return config.deleteConcurrency || 1;
       return 1;
     default:
-      return concurrencyLimitForAction(taskResource && taskResource.operationKind, config);
+      return concurrencyLimitForFlowKind(taskResource && taskResource.flowKind, config);
   }
   })();
   return resourceCapacity.capacityForResource(taskResource, config, legacyFallback);
@@ -56,8 +56,14 @@ function subLibraryForTask(task, config = {}) {
   return ((config.subLibraries || []).find((s) => s.uuid === subLibraryId)) || {};
 }
 
+function flowKindForTask(task = {}) {
+  return String(task.flowPlan && task.flowPlan.flowKind
+    || task.taskBridge && task.taskBridge.flowKind
+    || '').trim().toLowerCase();
+}
+
 function isWesternAiScrape(task, config = {}) {
-  if (!task || task.operationKind !== 'scrape') return false;
+  if (!task || flowKindForTask(task) !== 'scrape') return false;
   const itemInfo = task.itemInfo || {};
   const meta = itemInfo.adultMetadata || {};
   const subLib = subLibraryForTask(task, config);
@@ -71,7 +77,7 @@ function isWesternAiScrape(task, config = {}) {
 }
 
 function resourceForTask(task, config = {}) {
-  const operationKind = task && task.operationKind;
+  const flowKind = flowKindForTask(task);
   const plannedResourceType = flowPlanner.currentResourceType(task || {});
   if (plannedResourceType === 'transcode') {
     if (task.nodeId) {
@@ -102,8 +108,7 @@ function resourceForTask(task, config = {}) {
     };
   }
   if (plannedResourceType === 'filesystem') {
-    const operationKind = task && task.flowPlan && task.flowPlan.operationKind;
-    const suffix = operationKind === 'ingest' || operationKind === 'ingest' ? 'ingest' : 'mutation';
+    const suffix = flowKind === 'ingest' ? 'ingest' : 'mutation';
     return {
       resourceType: 'filesystem',
       resourceKey: `filesystem:${suffix}`,
@@ -133,7 +138,7 @@ function resourceForTask(task, config = {}) {
   }
   return {
     resourceType: 'unknown',
-    resourceKey: `unknown:${operationKind || 'task'}`,
+    resourceKey: `unknown:${flowKind || 'task'}`,
     resourceLabel: 'Unknown resource',
   };
 }
@@ -147,7 +152,7 @@ function compactTaskTarget(taskTarget) {
       ? { ...taskTarget.gateObjective }
       : null,
     source: taskTarget.source || '',
-    operationHint: taskTarget.operationHint || '',
+    flowKind: taskTarget.flowKind || '',
   };
 }
 
@@ -155,15 +160,15 @@ function compactTask(task, config) {
   const resource = resourceForTask(task, config);
   const step = flowPlanner.currentFlowStep(task || {});
   const resourceState = resourceStateForStatus(task.status);
+  const flowKind = flowKindForTask(task);
   return {
     taskId: task.id,
     itemId: task.itemId,
     itemName: task.itemName,
-    operationKind: task.operationKind,
     taskTarget: compactTaskTarget(task.taskTarget),
     bridgeKind: task.taskBridge && task.taskBridge.kind,
     flowDirection: task.flowPlan && task.flowPlan.direction,
-    operationKind: task.flowPlan && task.flowPlan.operationKind,
+    flowKind,
     currentEventType: step.eventType,
     currentEventPhase: step.phase,
     source: task.source,

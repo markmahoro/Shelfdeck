@@ -6,7 +6,6 @@ import type { PriorityRule } from '../api/client';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-type operationKind = 'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode';
 type TaskTarget = 'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete';
 type OptimizeOperation = 'transcode' | 'upgrade';
 type PriorityMatch = NonNullable<PriorityRule['match']>;
@@ -92,103 +91,6 @@ function modeLabel(mode: ApprovalMode): string {
 
 function normalizeApprovalPolicy(policy?: ApprovalPolicyConfig): ApprovalPolicyConfig {
   return { ...DEFAULT_APPROVAL_POLICY, ...(policy || {}), 'upgrade.identityMismatch': 'forceConfirm' };
-}
-
-function splitLegacySmartTaskActions(actions: string[] = []): { automaticTaskTargets: TaskTarget[]; optimizeAllowedOperations: OptimizeOperation[] } {
-  const targets = new Set<TaskTarget>();
-  const operations = new Set<OptimizeOperation>();
-  for (const raw of actions) {
-    const action = String(raw || '').trim().toLowerCase();
-    if (action === 'ingest') targets.add('ingest');
-    else if (action === 'scrape' || action === 'metadata') targets.add('metadata');
-    else if (action === 'archive') targets.add('archive');
-    else if (action === 'delete') targets.add('delete');
-    else if (action === 'optimize') {
-      targets.add('optimize');
-      operations.add('transcode');
-      operations.add('upgrade');
-    } else if (action === 'transcode' || action === 'upgrade') {
-      targets.add('optimize');
-      operations.add(action);
-    }
-  }
-  return { automaticTaskTargets: [...targets], optimizeAllowedOperations: [...operations] };
-}
-
-function projectLegacySmartTaskActions(targets: TaskTarget[], operations: OptimizeOperation[]): string[] {
-  const actions: string[] = [];
-  if (targets.includes('ingest')) actions.push('ingest');
-  if (targets.includes('metadata')) actions.push('scrape');
-  if (targets.includes('optimize')) actions.push(...operations);
-  if (targets.includes('archive')) actions.push('archive');
-  if (targets.includes('delete')) actions.push('delete');
-  return actions;
-}
-
-function legacyActionWeightsToGateWeights(weights: Partial<Record<operationKind, number>> = {}): Record<TaskTarget, number> {
-  const optimizeValues = [weights.transcode, weights.upgrade]
-    .map((value) => Number(value))
-    .filter(Number.isFinite);
-  return {
-    ingest: typeof weights.ingest === 'number' ? weights.ingest : DEFAULT_TARGET_GATE_WEIGHTS.ingest,
-    metadata: typeof weights.scrape === 'number' ? weights.scrape : DEFAULT_TARGET_GATE_WEIGHTS.metadata,
-    optimize: optimizeValues.length ? Math.round(optimizeValues.reduce((sum, value) => sum + value, 0) / optimizeValues.length) : DEFAULT_TARGET_GATE_WEIGHTS.optimize,
-    archive: DEFAULT_TARGET_GATE_WEIGHTS.archive,
-    delete: typeof weights.delete === 'number' ? weights.delete : DEFAULT_TARGET_GATE_WEIGHTS.delete,
-  };
-}
-
-function gateWeightsToLegacyActionWeights(weights: Record<TaskTarget, number>, hints: Record<OptimizeOperation, number>): Record<operationKind, number> {
-  return {
-    ingest: weights.ingest,
-    scrape: weights.metadata,
-    transcode: weights.optimize + hints.transcode,
-    upgrade: weights.optimize + hints.upgrade,
-    delete: weights.delete,
-  };
-}
-
-function legacyActionMapToGateMap(values: Partial<Record<operationKind, number>> = {}, defaults: Record<TaskTarget, number>): Record<TaskTarget, number> {
-  const optimizeValues = [values.transcode, values.upgrade]
-    .map((value) => Number(value))
-    .filter(Number.isFinite);
-  return {
-    ingest: typeof values.ingest === 'number' ? values.ingest : defaults.ingest,
-    metadata: typeof values.scrape === 'number' ? values.scrape : defaults.metadata,
-    optimize: optimizeValues.length ? Math.min(...optimizeValues) : defaults.optimize,
-    archive: defaults.archive,
-    delete: typeof values.delete === 'number' ? values.delete : defaults.delete,
-  };
-}
-
-function gateMapToLegacyActionMap(values: Record<TaskTarget, number>): Record<operationKind, number> {
-  return {
-    ingest: values.ingest,
-    scrape: values.metadata,
-    transcode: values.optimize,
-    upgrade: values.optimize,
-    delete: values.delete,
-  };
-}
-
-function legacyRulesToGateRules(rules: Partial<Record<operationKind, PriorityRule[]>> = {}): Record<TaskTarget, PriorityRule[]> {
-  return {
-    ingest: rules.ingest || [],
-    metadata: rules.scrape || [],
-    optimize: [...(rules.transcode || []), ...(rules.upgrade || [])],
-    archive: [],
-    delete: rules.delete || [],
-  };
-}
-
-function gateRulesToLegacyRules(rules: Record<TaskTarget, PriorityRule[]>): Record<operationKind, PriorityRule[]> {
-  return {
-    ingest: rules.ingest || [],
-    scrape: rules.metadata || [],
-    transcode: rules.optimize || [],
-    upgrade: [],
-    delete: rules.delete || [],
-  };
 }
 
 function firstMatchKey(match: PriorityMatch = {}): string {
@@ -292,9 +194,8 @@ export default function SystemConfigPage() {
         setUpgradeConc(sysCfg.upgradeConcurrency ?? 1);
         setScrapeConc(sysCfg.scrapeConcurrency ?? 1);
         setSmartTaskMax(sysCfg.smartTaskMaxPerRun ?? 10);
-        const split = splitLegacySmartTaskActions(sysCfg.smartTaskEnabledActions ?? []);
-        setAutomaticTaskTargets((sysCfg.automaticTaskTargets as TaskTarget[] | undefined) ?? split.automaticTaskTargets);
-        setOptimizeAllowedOperations((sysCfg.optimizeAllowedOperations as OptimizeOperation[] | undefined) ?? split.optimizeAllowedOperations);
+        setAutomaticTaskTargets((sysCfg.automaticTaskTargets as TaskTarget[] | undefined) ?? []);
+        setOptimizeAllowedOperations((sysCfg.optimizeAllowedOperations as OptimizeOperation[] | undefined) ?? []);
         setSmartTaskInterval(sysCfg.smartTaskPollIntervalMinutes ?? 10);
         setSmartTaskLookback(sysCfg.smartTaskLookbackDays ?? 30);
         setSmartTaskQueueMax(sysCfg.smartTaskMaxQueueSize ?? 50);
@@ -302,21 +203,25 @@ export default function SystemConfigPage() {
         setManualPrio(sysCfg.taskPriority?.manualTaskPriority ?? 0);
         setAutoPrioBase(sysCfg.taskPriority?.autoTaskPriorityBase ?? 100);
         setTargetGateWeights({
-          ...legacyActionWeightsToGateWeights(sysCfg.taskPriority?.operationKindWeights || {}),
+          ...DEFAULT_TARGET_GATE_WEIGHTS,
           ...(sysCfg.taskPriority?.targetGateWeights || {}),
         });
         setOptimizeOperationHints({ ...DEFAULT_OPTIMIZE_OPERATION_HINTS, ...(sysCfg.taskPriority?.optimizeOperationHints || {}) });
         setPriorityRulesByTargetGate({
-          ...legacyRulesToGateRules(sysCfg.taskPriority?.rules || {}),
+          ingest: [],
+          metadata: [],
+          optimize: [],
+          archive: [],
+          delete: [],
           ...(sysCfg.taskPriority?.rulesByTargetGate || {}),
         });
         setGlobalApprovalPolicy(normalizeApprovalPolicy(sysCfg.approvalPolicy));
         setGateCooldowns({
-          ...legacyActionMapToGateMap(sysCfg.taskAdmission?.cooldownHoursByAction || {}, DEFAULT_GATE_COOLDOWNS),
+          ...DEFAULT_GATE_COOLDOWNS,
           ...(sysCfg.taskAdmission?.cooldownHoursByTargetGate || {}),
         });
         setGateQueueLimits({
-          ...legacyActionMapToGateMap(sysCfg.taskAdmission?.maxQueuedByAction || {}, DEFAULT_GATE_QUEUE_LIMITS),
+          ...DEFAULT_GATE_QUEUE_LIMITS,
           ...(sysCfg.taskAdmission?.maxQueuedByTargetGate || {}),
         });
         const scheds: Record<string, SubLibScheduleState> = {};
@@ -391,11 +296,6 @@ export default function SystemConfigPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const compatSmartTaskActions = projectLegacySmartTaskActions(automaticTaskTargets, optimizeAllowedOperations);
-      const compatActionWeights = gateWeightsToLegacyActionWeights(targetGateWeights, optimizeOperationHints);
-      const compatCooldowns = gateMapToLegacyActionMap(gateCooldowns);
-      const compatQueueLimits = gateMapToLegacyActionMap(gateQueueLimits);
-      const compatPriorityRules = gateRulesToLegacyRules(priorityRulesByTargetGate);
       const promises: Promise<unknown>[] = [
         systemConfig.patch({
           ingestConcurrency: ingestConc,
@@ -406,7 +306,6 @@ export default function SystemConfigPage() {
           smartTaskMaxPerRun: smartTaskMax,
           automaticTaskTargets,
           optimizeAllowedOperations,
-          smartTaskEnabledActions: compatSmartTaskActions,
           smartTaskPollIntervalMinutes: smartTaskInterval,
           smartTaskLookbackDays: smartTaskLookback,
           smartTaskMaxQueueSize: smartTaskQueueMax,
@@ -417,8 +316,6 @@ export default function SystemConfigPage() {
             defaultMaxQueued: data?.sysCfg.taskAdmission?.defaultMaxQueued ?? 50,
             cooldownHoursByTargetGate: gateCooldowns,
             maxQueuedByTargetGate: gateQueueLimits,
-            cooldownHoursByAction: compatCooldowns,
-            maxQueuedByAction: compatQueueLimits,
           },
           taskPriority: {
             manualTaskPriority: manualPrio,
@@ -426,8 +323,6 @@ export default function SystemConfigPage() {
             targetGateWeights,
             optimizeOperationHints,
             rulesByTargetGate: priorityRulesByTargetGate,
-            operationKindWeights: compatActionWeights,
-            rules: compatPriorityRules,
           },
         }),
       ];

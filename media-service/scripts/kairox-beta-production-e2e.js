@@ -132,9 +132,8 @@ function summarizeChecks(results, args) {
     {
       id: 'automatic_targets_can_express_delete',
       name: 'automaticTaskTargets may express delete independently',
-      ...pass(!Array.isArray(config.smartTaskEnabledActions) || true, {
+      ...pass(Array.isArray(config.automaticTaskTargets), {
         automaticTaskTargets: config.automaticTaskTargets || [],
-        smartTaskEnabledActions: config.smartTaskEnabledActions || [],
       }),
     },
     {
@@ -246,7 +245,7 @@ async function main() {
     ['dashboardHealth', '/v1/admin/dashboard/health'],
     ['library', '/v1/library?page=1&pageSize=20'],
     ['tasks', '/v1/tasks?activeOnly=1'],
-    ['adminTasksOptimizeDelete', '/v1/admin/tasks?bridgeKind=optimize&operationKind=delete&page=1&pageSize=20'],
+    ['adminTasksOptimizeDelete', '/v1/admin/tasks?targetGate=optimize&selectedFlow=delete&page=1&pageSize=20'],
     ['deleteCandidates', '/v1/admin/delete-candidates'],
     ['config', '/v1/config'],
   ];

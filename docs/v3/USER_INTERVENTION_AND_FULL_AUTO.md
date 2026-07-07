@@ -4,7 +4,7 @@ Status: Semantic reference under Kairox.
 
 本文是 Kairox 架构下的用户介入和全自动模式参考。若本文与 `docs/v3/KAIROX_ARCHITECTURE.md` 冲突，以 Kairox 为准。
 
-本文描述用户介入白名单和全自动模式，不改变 Kairox 的 Task / Flow / Event 分层。旧 `actionType` 只可作为 Mirex compatibility hint。
+本文描述用户介入白名单和全自动模式，不改变 Kairox 的 Task / Flow / Event 分层。运行时用户语义只能使用 `targetGate/gateObjective`；旧 Mirex 字段只允许出现在迁移输入、历史数据解释或 executor 物理投影中。
 
 本文记录 v3.1 对“用户介入”和“全自动模式”的架构定义。它是判断人工/自动边界的准绳。
 
@@ -138,11 +138,11 @@ v3.1 必须交付可用且符合预期的全自动模式。
 
 ## 8. 和当前实现的关系
 
-当前代码仍是过渡态：
+当前代码的判断口径：
 
-- 自动触发入口主要在 `SmartTaskEngine`。
+- 自动触发入口由 `SmartTaskEngine` 扫描 lifecycle projection，并统一经过 `TaskAdmission`。
 - 准入规则主要在 `TaskAdmission` / `BusinessFlowPolicy`。
-- flow operation 仍大量通过旧 `actionType` 兼容字段表达；这些字段属于 Mirex compatibility，不是新行为的语义来源。
-- Resource Runtime 还没有完全独立成物理组件。
+- flow path 只能作为 `selectedFlow/flowKind` 表达，不能反向成为 task target 或用户业务目标。
+- Resource Runtime 仍是物理执行投影，不拥有业务 objective。
 
-后续实现可以逐步迁移，但人工/自动边界和全自动模式验收必须按本文定义判断。
+人工/自动边界和全自动模式验收必须按本文定义判断。

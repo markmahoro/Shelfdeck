@@ -71,7 +71,6 @@ const OBJECTIVE_LABELS: Record<string, string> = {
   metadata_complete: '元数据完整',
   reduce_bitrate: '降低码率',
   improve_source_quality: '提升片源质量',
-  remove_media: '旧删除目标',
   delete_archived_media: '归档后处置',
   keep_current: '保持当前媒体',
   finalize_lifecycle: '闭环归档',
@@ -108,20 +107,15 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   'task.manual_execute_requested': '手动启动',
 };
 
-function resolveEnabledTaskOperations(actions: string[]): string[] {
-  const expanded = new Set<string>();
-  actions.forEach((raw) => {
-    const action = String(raw || '').trim().toLowerCase();
-    if (!action) return;
-    if (action === 'optimize') {
-      expanded.add('transcode');
-      expanded.add('upgrade');
-      expanded.add('delete');
-      return;
-    }
-    expanded.add(action);
-  });
-  return [...expanded];
+function isFlowAutoAllowed(flow: string, targets: string[] = [], optimizeFlows: string[] = []) {
+  if (flow === 'ingest') return targets.includes('ingest');
+  if (flow === 'scrape') return targets.includes('metadata');
+  if (flow === 'archive') return targets.includes('archive');
+  if (flow === 'delete') return targets.includes('delete');
+  if (flow === 'transcode' || flow === 'upgrade') {
+    return targets.includes('optimize') && optimizeFlows.includes(flow);
+  }
+  return false;
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -233,7 +227,6 @@ const RECOVERY_STATE_LABELS: Record<string, string> = {
 
 const INTENT_MODE_LABELS: Record<string, string> = {
   bridge_intent: '按目标 Gate 创建',
-  operation_kind: '按执行路径创建',
   adult_rescrape: '成人条目重刮入口',
 };
 
@@ -259,14 +252,14 @@ const ATTENTION_QUEUE_FALLBACKS: Record<string, { label: string; hint: string }>
 };
 
 function reportButtonLabel(task: MediaTask) {
-  if (task.operationKind === 'scrape' && task.status === 'failed_hard') return '识别报告';
-  return REPORT_LABELS[task.operationKind] || '任务报告';
+  if (task.SelectedFlow === 'scrape' && task.status === 'failed_hard') return '识别报告';
+  return REPORT_LABELS[task.SelectedFlow] || '任务报告';
 }
 
 function reportModalTitle(report: TaskReport | null) {
   if (!report) return '任务报告';
-  if (report.operationKind === 'scrape') return '刮削识别报告';
-  return REPORT_LABELS[report.operationKind] || '任务报告';
+  if (report.SelectedFlow === 'scrape') return '刮削识别报告';
+  return REPORT_LABELS[report.SelectedFlow] || '任务报告';
 }
 
 function formatItemName(itemInfo?: TaskItemInfo): string {
@@ -356,8 +349,8 @@ export default function TaskMonitorPage() {
     queryKey: ['admin-tasks', statusFilter, attentionPreset, bridgeFilter, operationFilter, searchQuery, page],
     queryFn: () => tasks.list({
       ...(attentionPreset ? { attention: attentionPreset } : statusFilter ? { status: statusFilter } : {}),
-      ...(bridgeFilter ? { bridgeKind: bridgeFilter } : {}),
-      ...(operationFilter ? { operationKind: operationFilter } : {}),
+      ...(bridgeFilter ? { targetGate: bridgeFilter } : {}),
+      ...(operationFilter ? { selectedFlow: operationFilter } : {}),
       ...(searchQuery ? { q: searchQuery } : {}),
       page,
       pageSize: PAGE_SIZE,
@@ -457,15 +450,16 @@ export default function TaskMonitorPage() {
     const bridge = bridgeFilter ? (BRIDGE_LABELS[bridgeFilter] || bridgeFilter) : '';
     const operation = operationFilter ? (OPERATION_LABELS[operationFilter] || operationFilter) : '';
     const label = [bridge, operation].filter(Boolean).join(' / ');
-    const enabledActions = resolveEnabledTaskOperations(sysCfg?.smartTaskEnabledActions || []);
-    if (operationFilter && !enabledActions.includes(operationFilter)) {
+    const enabledTargets = sysCfg?.automaticTaskTargets || [];
+    const allowedOptimizeFlows = sysCfg?.optimizeAllowedOperations || [];
+    if (operationFilter && !isFlowAutoAllowed(operationFilter, enabledTargets, allowedOptimizeFlows)) {
       if (operationFilter === 'scrape') {
-        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作；具体影片仍可手动重新刮削。`;
+        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许自动推进 metadata 目标；具体影片仍可手动重新刮削。`;
       }
       if (operationFilter === 'ingest') {
-        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作，后台来源不会自动进入任务中心。`;
+        return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许自动推进 ingest 目标，后台来源不会自动进入任务中心。`;
       }
-      return `当前没有${label}任务。「任务调度 > 后台自动入队」未允许后台自动创建${operation}操作，媒体库里的对应建议不会自动进入任务中心。`;
+      return `当前没有${label}任务。「任务调度 > 后台自动入队」未授权对应 target gate 或 optimize flow，媒体库里的对应建议不会自动进入任务中心。`;
     }
     if (operationFilter === 'scrape') {
       return `当前没有${label}任务。可能没有待刮削条目，或已被冷却时间、去重规则、队列上限拦截。`;
@@ -486,7 +480,7 @@ export default function TaskMonitorPage() {
     const label = dim.label || dim.key;
     const value = Number(dim.value) || 0;
     const signed = value > 0 ? `+${value}` : `${value}`;
-    if (dim.key === 'operationKind') return `${label}（${OPERATION_LABELS[String(dim.operationKind || '')] || dim.operationKind || '未知'}） ${signed}`;
+    if (dim.key === 'SelectedFlow') return `${label}（${OPERATION_LABELS[String(dim.SelectedFlow || '')] || dim.SelectedFlow || '未知'}） ${signed}`;
     if (dim.key === 'retry') return `${label}（${dim.retryCount || 0} 次） ${signed}`;
     return `${label} ${signed}`;
   }
@@ -535,7 +529,7 @@ export default function TaskMonitorPage() {
     return RECOVERY_STATE_LABELS[value] || value;
   }
 
-  function operationLabel(value?: string): string {
+  function selectedFlowLabel(value?: string): string {
     if (!value) return '—';
     return OPERATION_LABELS[value] || value;
   }
@@ -567,23 +561,22 @@ export default function TaskMonitorPage() {
     if (kind === 'metadata_complete') {
       return objective.repairMode ? `${label}：${String(objective.repairMode)}` : label;
     }
-    if (kind === 'remove_media') return `${label}：需要迁移到处置队列`;
     if (kind === 'delete_archived_media') return objective.archivedAt ? `${label}：${String(objective.archivedAt)}` : label;
     if (kind === 'optimize_strategy_pending') return objective.reason ? `${label}：${String(objective.reason)}` : label;
     return label;
   }
 
-  function operationPathSummary(task: MediaTask): string {
-    const operation = task.flowPlan?.operationKind || task.taskTarget?.operationHint || task.operationKind;
+  function flowPathSummary(task: MediaTask): string {
+    const selectedFlow = task.taskTarget?.selectedFlow || task.taskTarget?.flowKind || task.flowPlan?.SelectedFlow || task.SelectedFlow;
     const direction = task.flowPlan?.direction || '';
-    return direction ? `${operationLabel(operation)} · ${direction}` : operationLabel(operation);
+    return direction ? `${selectedFlowLabel(selectedFlow)} · ${direction}` : selectedFlowLabel(selectedFlow);
   }
 
-  function acceptableOperationText(task: MediaTask): string {
-    const operations = task.taskTarget?.gateObjective?.acceptableOperations;
-    if (!operations) return '按实现路径规划决定';
-    if (operations.length === 0) return '当前无可自动操作';
-    return operations.map(operationLabel).join('、');
+  function acceptableFlowText(task: MediaTask): string {
+    const flows = task.taskTarget?.gateObjective?.acceptableFlows;
+    if (!flows) return '按实现路径规划决定';
+    if (flows.length === 0) return '当前无可用实现路径';
+    return flows.map(selectedFlowLabel).join('、');
   }
 
   function intentModeLabel(value?: string): string {
@@ -697,11 +690,11 @@ export default function TaskMonitorPage() {
     btns.push(...(renderControlActions(t, { includeCancel: true }) || []));
     if (t.status === 'done') {
       btns.push(reportButton(t));
-      if (t.operationKind === 'scrape') {
+      if (t.SelectedFlow === 'scrape') {
         btns.push(<button key="fix-scrape-done" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
       }
     }
-    if (t.status === 'failed_hard' && t.operationKind === 'scrape') {
+    if (t.status === 'failed_hard' && t.SelectedFlow === 'scrape') {
       btns.push(reportButton(t));
       btns.push(<button key="fix-scrape" onClick={() => openScrapeFix(t)} style={execBtn}>修正番号</button>);
     }
@@ -816,10 +809,9 @@ export default function TaskMonitorPage() {
 
   function renderIntentCard(task: MediaTask) {
     const intent = task.requestedIntent;
-    const bridgeKind = intent?.bridgeKind || task.taskBridge?.kind || task.flowPlan?.bridgeKind || '';
-    const preferredOperation = intent?.preferredOperation || '';
-    const legacyAction = intent?.operationKind || '';
-    const resolvedOperation = task.flowPlan?.operationKind || task.operationKind;
+    const targetGate = intent?.targetGate || task.taskTarget?.targetGate || task.taskBridge?.kind || task.flowPlan?.bridgeKind || '';
+    const preferredFlow = intent?.preferredFlow || '';
+    const selectedFlow = task.flowPlan?.SelectedFlow || task.SelectedFlow;
     const intentMode = intent?.intentMode || (intent ? 'bridge_intent' : '');
     if (!intent && !task.taskBridge && !task.flowPlan) return null;
 
@@ -830,18 +822,18 @@ export default function TaskMonitorPage() {
           <div style={intentPanel}>
             <div style={controlMiniLabel}>用户提交</div>
             <div style={intentRow}><strong>创建方式</strong><span>{intentModeLabel(intentMode)}</span></div>
-            <div style={intentRow}><strong>目标 Gate</strong><span>{bridgeLabel(bridgeKind)}</span></div>
-            <div style={intentRow}><strong>偏好操作</strong><span>{preferredOperation ? operationLabel(preferredOperation) : legacyAction ? operationLabel(legacyAction) : '按当前推荐'}</span></div>
+            <div style={intentRow}><strong>目标 Gate</strong><span>{bridgeLabel(targetGate)}</span></div>
+            <div style={intentRow}><strong>偏好 Flow</strong><span>{preferredFlow ? selectedFlowLabel(preferredFlow) : '由 Flow Planner 选择'}</span></div>
           </div>
           <div style={intentPanel}>
             <div style={controlMiniLabel}>后端解析</div>
             <div style={intentRow}><strong>解析 Gate</strong><span>{bridgeLabel(task.taskBridge?.kind || task.flowPlan?.bridgeKind)}</span></div>
-            <div style={intentRow}><strong>实际操作</strong><span>{operationLabel(resolvedOperation)}</span></div>
+            <div style={intentRow}><strong>Selected Flow</strong><span>{selectedFlowLabel(selectedFlow)}</span></div>
             <div style={intentRow}><strong>实现路径</strong><span>{task.flowPlan?.direction || '—'}</span></div>
           </div>
         </div>
         <div style={{ marginTop: 8, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-          任务执行、确认和恢复都以右侧解析结果为准；左侧保留用户最初想推进的目标 Gate。
+          任务执行、确认和恢复都以右侧解析结果为准；左侧保留用户最初想推进的目标 Gate 和 Flow 偏好。
         </div>
       </div>
     );
@@ -866,8 +858,8 @@ export default function TaskMonitorPage() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', fontSize: 12, color: '#374151' }}>
           <div><strong>目标对象:</strong> {task.taskTarget?.object?.itemId || task.itemId}</div>
-          <div><strong>可接受操作:</strong> {acceptableOperationText(task)}</div>
-          <div><strong>当前实现路径:</strong> {operationPathSummary(task)}</div>
+          <div><strong>可接受 Flow:</strong> {acceptableFlowText(task)}</div>
+          <div><strong>当前实现路径:</strong> {flowPathSummary(task)}</div>
           <div><strong>Objective 来源:</strong> {objective?.source || '—'}</div>
         </div>
       </div>
@@ -1094,7 +1086,7 @@ export default function TaskMonitorPage() {
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{objectiveSummary(t)}</div>
                   </td>
                   <td style={tdStyle}>
-                    <div>{operationLabel(t.flowPlan?.operationKind || t.taskTarget?.operationHint || t.operationKind)}</div>
+                    <div>{selectedFlowLabel(t.taskTarget?.selectedFlow || t.taskTarget?.flowKind || t.flowPlan?.SelectedFlow || t.SelectedFlow)}</div>
                     <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>{t.flowPlan?.direction || '—'}</div>
                   </td>
                   <td style={tdStyle}>
@@ -1168,7 +1160,7 @@ export default function TaskMonitorPage() {
               <div><strong>媒体项:</strong> {formatItemName(displayTask.itemInfo) || displayTask.itemId}</div>
               <div><strong>任务目标:</strong> {targetGateLabel(displayTask)}</div>
               <div><strong>目标合同:</strong> {objectiveSummary(displayTask)}</div>
-              <div><strong>实现路径:</strong> {operationPathSummary(displayTask)}</div>
+              <div><strong>实现路径:</strong> {flowPathSummary(displayTask)}</div>
               <div><strong>状态:</strong> <span style={{ color: STATUS_COLORS[displayTask.status] }}>{STATUS_LABELS[displayTask.status] || displayTask.status}</span></div>
               <div><strong>阶段:</strong> {PHASE_LABELS[displayTask.phase || ''] || displayTask.phase || '—'}</div>
               <div><strong>进度:</strong> {Math.round(displayTask.progress || 0)}%</div>
@@ -1191,7 +1183,7 @@ export default function TaskMonitorPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', fontSize: 12, color: '#374151', marginBottom: 10 }}>
                   <div><strong>目标 Gate:</strong> {targetGateLabel(displayTask)}</div>
                   <div><strong>路径标识:</strong> {displayTask.flowPlan?.direction || '—'}</div>
-                  <div><strong>处理方向:</strong> {operationLabel(displayTask.flowPlan?.operationKind || displayTask.operationKind)}</div>
+                  <div><strong>Selected Flow:</strong> {selectedFlowLabel(displayTask.taskTarget?.selectedFlow || displayTask.taskTarget?.flowKind || displayTask.flowPlan?.SelectedFlow || displayTask.SelectedFlow)}</div>
                   <div><strong>执行器:</strong> {displayTask.flowPlan?.executor || '—'}</div>
                   <div><strong>主要资源:</strong> {resourceLabel(displayTask.flowPlan?.primaryResourceType)}</div>
                   <div><strong>资源集合:</strong> {displayTask.flowPlan?.resourceTypes?.map(resourceLabel).join(', ') || '—'}</div>
@@ -1255,7 +1247,7 @@ export default function TaskMonitorPage() {
             {renderConfirmationConsole(displayTask)}
 
             {/* Scrape completion/failure remediation card */}
-            {(displayTask.status === 'failed_hard' || displayTask.status === 'done') && displayTask.operationKind === 'scrape' && (
+            {(displayTask.status === 'failed_hard' || displayTask.status === 'done') && displayTask.SelectedFlow === 'scrape' && (
               <div style={{ background: displayTask.status === 'done' ? '#f0fdf4' : '#fff7ed', borderRadius: 8, padding: 12, marginBottom: 16, border: displayTask.status === 'done' ? '1px solid #bbf7d0' : '1px solid #fed7aa' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: displayTask.status === 'done' ? '#166534' : '#9a3412', marginBottom: 4 }}>
                   {displayTask.status === 'done' ? '刮削已完成' : '刮削失败'}
@@ -1508,10 +1500,10 @@ function ReportContent({ report }: { report: import('../api/client').TaskReport 
     return value && value.trim() ? value : '—';
   }
 
-  const isTranscode = report.operationKind === 'transcode';
-  const isDelete = report.operationKind === 'delete';
-  const isUpgrade = report.operationKind === 'upgrade';
-  const isScrape = report.operationKind === 'scrape';
+  const isTranscode = report.SelectedFlow === 'transcode';
+  const isDelete = report.SelectedFlow === 'delete';
+  const isUpgrade = report.SelectedFlow === 'upgrade';
+  const isScrape = report.SelectedFlow === 'scrape';
   const faceRows = [
     ...((report.scrape?.faceClusters || []) as Array<Record<string, unknown>>),
     ...((report.scrape?.unknownFaces || []) as Array<Record<string, unknown>>),

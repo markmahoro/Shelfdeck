@@ -35,12 +35,16 @@ test('Kairox metadata gate no longer derives required inputs from perception fie
 });
 
 test('Kairox Beta audit prevents delete-as-optimize regression', () => {
-  const businessFlowPolicy = readRepoFile('media-service/src/businessFlowPolicy.js');
+  const automationPolicy = readRepoFile('media-service/src/automationPolicy.js');
+  const taskCreationPolicy = readRepoFile('media-service/src/taskCreationPolicy.js');
   const flowPlanner = readRepoFile('media-service/src/flowPlanner.js');
 
-  assert.match(businessFlowPolicy, /const TASK_TARGETS = new Set\(\['ingest', 'metadata', 'optimize', 'archive', 'delete'\]\)/);
-  assert.match(businessFlowPolicy, /const OPTIMIZE_OPERATIONS = new Set\(\['transcode', 'upgrade'\]\)/);
-  assert.doesNotMatch(businessFlowPolicy, /optimize: \['transcode', 'upgrade', 'delete'\]/);
+  assert.strictEqual(fs.existsSync(path.join(repoRoot, 'media-service/src/businessFlowPolicy.js')), false);
+  assert.strictEqual(fs.existsSync(path.join(repoRoot, 'media-service/src/lifecycleTaskPlanner.js')), false);
+  assert.match(automationPolicy, /TASK_TARGETS = new Set\(\['ingest', 'metadata', 'optimize', 'archive', 'delete'\]\)/);
+  assert.match(automationPolicy, /OPTIMIZE_FLOW_KINDS = new Set\(\['transcode', 'upgrade'\]\)/);
+  assert.match(taskCreationPolicy, /targetGate === 'delete'/);
+  assert.doesNotMatch(automationPolicy, /OPTIMIZE_FLOW_KINDS = new Set\(\['transcode', 'upgrade', 'delete'\]\)/);
   assert.doesNotMatch(flowPlanner, /direction: 'optimize\.delete'/);
   assert.match(flowPlanner, /direction: 'delete\.execute'/);
   assert.match(flowPlanner, /delete_is_not_optimize/);

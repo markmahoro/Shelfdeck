@@ -3,11 +3,11 @@ import { libraryApi, taskApi, ApiConflictError, adult as adultApi, systemConfig 
 import type { SubLibraryInfo } from '../api/client';
 import { MediaLibraryManageRow } from '../components/MediaLibraryManageRow';
 import type { MediaTask } from '../types';
-import type { BusinessFlowDecision, ManagedMediaItem, MediaAction, MediaRating } from '../models/media';
-import { allowedOperationForItem, blockedReasonText, preferredTaskAction } from '../models/mediaActionPolicy';
+import type { BusinessFlowDecision, ManagedMediaItem, MediaRating, MediaSelectedFlow } from '../models/media';
+import { allowedTargetFlowForItem, blockedReasonText, preferredTaskFlow } from '../models/mediaActionPolicy';
 import '../mediaManage.css';
 
-const ACTION_LABELS: Record<string, string> = {
+const FLOW_LABELS: Record<string, string> = {
   delete: '删除',
   transcode: '转码压缩',
   upgrade: '洗版',
@@ -19,6 +19,17 @@ const MEDIA_MANAGE_SUB_LIBRARY_KEY = 'media_manage_sub_library_id';
 const MEDIA_MANAGE_PAGE_SIZE_KEY = 'media_manage_page_size';
 const DEFAULT_MEDIA_MANAGE_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
+
+function isAutoFlowAllowed(flow: string, config: { targets: string[]; optimizeFlows: string[] }) {
+  if (flow === 'ingest') return config.targets.includes('ingest');
+  if (flow === 'scrape') return config.targets.includes('metadata');
+  if (flow === 'archive') return config.targets.includes('archive');
+  if (flow === 'delete') return config.targets.includes('delete');
+  if (flow === 'transcode' || flow === 'upgrade') {
+    return config.targets.includes('optimize') && config.optimizeFlows.includes(flow);
+  }
+  return false;
+}
 
 export default function MediaManagePage() {
   const [subLibraries, setSubLibraries] = useState<SubLibraryInfo[]>([]);
@@ -34,7 +45,6 @@ export default function MediaManagePage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [creatingTaskIds, setCreatingTaskIds] = useState<Set<string>>(() => new Set());
   const [searchQuery, setSearchQuery] = useState('');
-  const [actionFilter, setActionFilter] = useState<string>('all');
   const [resolutionFilter, setResolutionFilter] = useState<string>('all');
   const [codecFilter, setCodecFilter] = useState<string>('all');
   const [watchedFilter, setWatchedFilter] = useState<string>('all');
@@ -51,7 +61,7 @@ export default function MediaManagePage() {
   const [, setActiveSubLibName] = useState<string>('全部');
   const [optimizeTargetMsg, setOptimizeTargetMsg] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [smartTaskActions, setSmartTaskActions] = useState<string[] | null>(null);
+  const [automationConfig, setAutomationConfig] = useState<{ targets: string[]; optimizeFlows: string[] } | null>(null);
 
   // Fetch subLibrary list
   useEffect(() => {
@@ -69,7 +79,10 @@ export default function MediaManagePage() {
       });
     }).catch(() => {});
     systemConfig.get().then((cfg) => {
-      setSmartTaskActions(Array.isArray(cfg.smartTaskEnabledActions) ? cfg.smartTaskEnabledActions : []);
+      setAutomationConfig({
+        targets: Array.isArray(cfg.automaticTaskTargets) ? cfg.automaticTaskTargets : [],
+        optimizeFlows: Array.isArray(cfg.optimizeAllowedOperations) ? cfg.optimizeAllowedOperations : [],
+      });
     }).catch(() => {});
   }, []);
 
@@ -95,14 +108,13 @@ export default function MediaManagePage() {
       if (watchedFilter !== 'all') setWatchedFilter('all');
       if (bluRayFilter !== 'all') setBluRayFilter('all');
       if (doubanFilter !== 'all') setDoubanFilter('all');
-      if (actionFilter === 'upgrade') setActionFilter('all');
     }
-  }, [showStandardFields, watchedFilter, bluRayFilter, doubanFilter, actionFilter]);
+  }, [showStandardFields, watchedFilter, bluRayFilter, doubanFilter]);
 
   useEffect(() => {
     setPage(0);
     setSelectedIds(new Set());
-  }, [subLibraryId, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, metadataFilter, lifecycleFilter, pageSize]);
+  }, [subLibraryId, searchQuery, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, metadataFilter, lifecycleFilter, pageSize]);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -122,7 +134,6 @@ export default function MediaManagePage() {
         offset: page * pageSize,
         projection: 'manage',
         search: searchQuery.trim() || undefined,
-        action: actionFilter,
         resolution: resolutionFilter,
         codec: codecFilter,
         watched: showStandardFields ? watchedFilter : 'all',
@@ -148,7 +159,7 @@ export default function MediaManagePage() {
         setLoading(false);
       });
     return () => { active = false; };
-  }, [subLibraryId, page, pageSize, refreshKey, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, metadataFilter, lifecycleFilter, showStandardFields]);
+  }, [subLibraryId, page, pageSize, refreshKey, searchQuery, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, metadataFilter, lifecycleFilter, showStandardFields]);
 
   // Poll tasks
   useEffect(() => {
@@ -162,20 +173,20 @@ export default function MediaManagePage() {
 
   const autoEntryNotice = useMemo(() => {
     const disabledCounts: Record<string, number> = {};
-    if (!smartTaskActions) return null;
+    if (!automationConfig) return null;
     for (const it of items) {
-      const action = preferredTaskAction(it) || it.businessFlowDecision?.recommendedOperation || it.recommendedAction || 'keep';
-      if (action === 'keep') continue;
-      if (!smartTaskActions.includes(action)) {
-        disabledCounts[action] = (disabledCounts[action] || 0) + 1;
+      const flow = preferredTaskFlow(it);
+      if (!flow) continue;
+      if (!isAutoFlowAllowed(flow, automationConfig)) {
+        disabledCounts[flow] = (disabledCounts[flow] || 0) + 1;
       }
     }
     const parts = Object.entries(disabledCounts)
       .filter(([, count]) => count > 0)
-      .map(([action, count]) => `${ACTION_LABELS[action] || action} ${count} 条`);
+      .map(([flow, count]) => `${FLOW_LABELS[flow] || flow} ${count} 条`);
     if (parts.length === 0) return null;
-    return `当前列表有 ${parts.join('、')}推荐方向未启用后台自动入队。这些条目只会显示下一步建议，不会自动创建任务；可以手动点击每行的操作按钮，或到「任务调度」启用对应自动推进范围。`;
-  }, [items, smartTaskActions]);
+    return `当前列表有 ${parts.join('、')}推荐实现路径未启用后台自动入队。这些条目只会显示下一步目标，不会自动创建任务；可以手动点击每行的任务按钮，或到「任务调度」启用对应自动推进范围。`;
+  }, [items, automationConfig]);
 
   const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
   const rangeStart = total === 0 ? 0 : page * pageSize + 1;
@@ -188,7 +199,7 @@ export default function MediaManagePage() {
     return map;
   }, [tasks]);
   const batchableItems = useMemo(
-    () => items.filter((it) => !activeTaskByItemId.has(it.id) && preferredTaskAction(it)),
+    () => items.filter((it) => !activeTaskByItemId.has(it.id) && preferredTaskFlow(it)),
     [activeTaskByItemId, items],
   );
   const selectedBatchableCount = useMemo(
@@ -203,26 +214,26 @@ export default function MediaManagePage() {
     });
   }, []);
 
-  const enqueueManagedAction = useCallback(async (item: ManagedMediaItem, action: MediaAction): Promise<MediaTask | null> => {
-    const allowedOperation = allowedOperationForItem(item, action);
-    if (!allowedOperation) {
+  const enqueueManagedTargetFlow = useCallback(async (item: ManagedMediaItem, flow: MediaSelectedFlow): Promise<MediaTask | null> => {
+    const allowedTargetFlow = allowedTargetFlowForItem(item, flow);
+    if (!allowedTargetFlow) {
       setNotice(null);
-      setError(`创建任务被准入规则阻止：${item.name}，${blockedReasonText(item, action, '当前操作不可用')}`);
+      setError(`创建任务被准入规则阻止：${item.name}，${blockedReasonText(item, flow, '当前目标不可用')}`);
       return null;
     }
     setCreatingTaskIds((prev) => new Set(prev).add(item.id));
     try {
       const task = await taskApi.createByIntent({
         itemId: item.id,
-        bridgeKind: allowedOperation.bridgeKind,
-        preferredOperation: allowedOperation.flowOperation || allowedOperation.operation,
+        targetGate: allowedTargetFlow.targetGate,
+        preferredFlow: allowedTargetFlow.selectedFlow || allowedTargetFlow.operation,
       });
       upsertActiveTask(task);
       setError(null);
       const statusHint = task.status === 'pending_manual'
         ? '当前状态为待手动启动，可在任务中心点击“启动”。'
         : '已进入任务调度，可在任务中心查看进度。';
-      setNotice(`已创建「${ACTION_LABELS[action] || action}」任务：${item.name}。${statusHint}`);
+      setNotice(`已创建「${FLOW_LABELS[flow] || flow}」实现路径任务：${item.name}。${statusHint}`);
       return task;
     } catch (e) {
       setNotice(null);
@@ -248,18 +259,18 @@ export default function MediaManagePage() {
         skipped += 1;
         continue;
       }
-      const action = preferredTaskAction(it);
-      if (!action) {
+      const flow = preferredTaskFlow(it);
+      if (!flow) {
         skipped += 1;
         continue;
       }
-      const task = await enqueueManagedAction(it, action);
+      const task = await enqueueManagedTargetFlow(it, flow);
       if (task) created += 1;
       else failed += 1;
     }
     setNotice(`批量创建完成：成功 ${created} 条，跳过 ${skipped} 条，失败 ${failed} 条。`);
     if (created > 0) setSelectedIds(new Set());
-  }, [activeTaskByItemId, enqueueManagedAction, items, selectedIds]);
+  }, [activeTaskByItemId, enqueueManagedTargetFlow, items, selectedIds]);
 
   const rescrapeAdultItem = useCallback(async (item: ManagedMediaItem) => {
     try {
@@ -352,16 +363,6 @@ export default function MediaManagePage() {
               ×
             </button>
           )}
-        </div>
-        <div className="filterRow">
-          <span className="filterLabel">操作</span>
-          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="transcode">转码压缩</option>
-            {showStandardFields && <option value="upgrade">洗版</option>}
-            <option value="keep">无需优化</option>
-            <option value="delete">删除</option>
-          </select>
         </div>
         <div className="filterRow">
           <span className="filterLabel">元数据</span>
@@ -458,7 +459,6 @@ export default function MediaManagePage() {
           type="button"
           onClick={() => {
             setSearchQuery('');
-            setActionFilter('all');
             setResolutionFilter('all');
             setCodecFilter('all');
             if (showStandardFields) {
@@ -493,10 +493,10 @@ export default function MediaManagePage() {
         </button>
         {optimizeTargetMsg && <span style={{ fontSize: 12, color: '#666', marginLeft: 8 }}>{optimizeTargetMsg}</span>}
 
-        <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
+        <div className="sidebarMuted" style={{ marginTop: 16 }}>批量任务</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
           <button type="button" onClick={() => setSelectedIds(new Set(batchableItems.map((it) => it.id)))} disabled={batchableItems.length === 0}>
-            选择可创建
+            选择可创建任务
           </button>
           <button
             type="button"
@@ -555,7 +555,7 @@ export default function MediaManagePage() {
                 <div>元数据</div>
                 <div>媒体事实</div>
                 <div>用户信号</div>
-                <div>操作</div>
+                <div>下一步</div>
                 <div>任务</div>
               </div>
               {items.map((item) => {
@@ -566,8 +566,8 @@ export default function MediaManagePage() {
                     key={item.id}
                     item={item}
                     isSelected={selectedIds.has(item.id)}
-                    selectionDisabled={!!rowTask || !preferredTaskAction(item)}
-                    selectionTitle={rowTask ? '该条目已有未结案任务，不能参与批量创建' : preferredTaskAction(item) ? '勾选后可参与左侧批量操作' : blockedReasonText(item, item.businessFlowDecision?.recommendedOperation || item.recommendedAction, '当前操作不可用')}
+                    selectionDisabled={!!rowTask || !preferredTaskFlow(item)}
+                    selectionTitle={rowTask ? '该条目已有未结案任务，不能参与批量创建' : preferredTaskFlow(item) ? '勾选后可参与左侧批量任务' : blockedReasonText(item, preferredTaskFlow(item) || undefined, '当前目标不可用')}
                     isHighlighted={false}
                     rowTask={rowTask}
                     isCreatingTask={creatingTaskIds.has(item.id)}
@@ -579,7 +579,7 @@ export default function MediaManagePage() {
                     onToggleSelect={toggleSelectedItem}
                     onWatchChange={handleWatchChange}
                     onRatingChange={handleRatingChange}
-                    onEnqueue={enqueueManagedAction}
+                    onEnqueue={enqueueManagedTargetFlow}
                     onRescrape={rescrapeAdultItem}
                   />
                 );
@@ -638,7 +638,6 @@ function coerceManagedItem(x: unknown): ManagedMediaItem | null {
     doubanStars: typeof o.doubanRating === 'number' ? (o.doubanRating as MediaRating) : null,
     watched: Boolean(o.watched),
     reason: typeof o.reason === 'string' ? o.reason : undefined,
-    recommendedAction: typeof o.action === 'string' ? (o.action as MediaAction) : undefined,
     equivalentBitrate: typeof o.equivalentBitrate === 'number' ? o.equivalentBitrate : undefined,
     targetBitrate: typeof o.targetBitrate === 'number' ? o.targetBitrate : undefined,
     predictedSizeGb: typeof o.predictedSizeGb === 'number' ? o.predictedSizeGb : undefined,
@@ -678,20 +677,22 @@ function formatSubLibraryType(subLibrary: SubLibraryInfo | null): string {
 function coerceBusinessFlowDecision(value: unknown): BusinessFlowDecision | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const o = value as Record<string, unknown>;
-  const allowedOperations = Array.isArray(o.allowedOperations)
-    ? o.allowedOperations
-      .filter((op): op is Record<string, unknown> => !!op && typeof op === 'object' && typeof op.operation === 'string')
+  const allowedTargets = Array.isArray(o.allowedTargets)
+    ? o.allowedTargets
+      .filter((op): op is Record<string, unknown> => !!op && typeof op === 'object' && typeof op.targetGate === 'string')
       .map((op) => ({
-        operation: op.operation as string,
-        bridgeKind: typeof op.bridgeKind === 'string' ? op.bridgeKind : undefined,
-        flowOperation: typeof op.flowOperation === 'string' ? op.flowOperation : undefined,
+        operation: typeof op.operation === 'string' ? op.operation : (typeof op.selectedFlow === 'string' ? op.selectedFlow : ''),
+        targetGate: op.targetGate as string,
+        selectedFlow: typeof op.selectedFlow === 'string' ? op.selectedFlow : undefined,
       }))
     : undefined;
-  const blockedOperations = Array.isArray(o.blockedOperations)
-    ? o.blockedOperations
-      .filter((op): op is Record<string, unknown> => !!op && typeof op === 'object' && typeof op.operation === 'string')
+  const blockedTargets = Array.isArray(o.blockedTargets)
+    ? o.blockedTargets
+      .filter((op): op is Record<string, unknown> => !!op && typeof op === 'object' && typeof op.targetGate === 'string')
       .map((op) => ({
-        operation: op.operation as string,
+        operation: typeof op.operation === 'string' ? op.operation : (typeof op.selectedFlow === 'string' ? op.selectedFlow : ''),
+        targetGate: op.targetGate as string,
+        selectedFlow: typeof op.selectedFlow === 'string' ? op.selectedFlow : undefined,
         reason: typeof op.reason === 'string' ? op.reason : '',
         metadataMissingReasons: Array.isArray(op.metadataMissingReasons)
           ? op.metadataMissingReasons.filter((x): x is string => typeof x === 'string')
@@ -700,9 +701,9 @@ function coerceBusinessFlowDecision(value: unknown): BusinessFlowDecision | unde
         activeTaskId: typeof op.activeTaskId === 'string' ? op.activeTaskId : undefined,
       }))
     : undefined;
-  const blockedReasons = o.blockedReasons && typeof o.blockedReasons === 'object'
+  const blockedReasonsByTargetGate = o.blockedReasonsByTargetGate && typeof o.blockedReasonsByTargetGate === 'object'
     ? Object.fromEntries(
-      Object.entries(o.blockedReasons as Record<string, unknown>)
+      Object.entries(o.blockedReasonsByTargetGate as Record<string, unknown>)
         .filter(([, reason]) => typeof reason === 'string'),
     ) as Record<string, string>
     : undefined;
@@ -712,11 +713,11 @@ function coerceBusinessFlowDecision(value: unknown): BusinessFlowDecision | unde
     metadataStatus: typeof o.metadataStatus === 'string' ? o.metadataStatus : undefined,
     optimizationStatus: typeof o.optimizationStatus === 'string' ? o.optimizationStatus : undefined,
     archiveStatus: typeof o.archiveStatus === 'string' ? o.archiveStatus : undefined,
-    nextBridge: typeof o.nextBridge === 'string' ? o.nextBridge : null,
-    recommendedOperation: typeof o.recommendedOperation === 'string' ? o.recommendedOperation : null,
-    allowedOperations,
-    blockedOperations,
-    blockedReasons,
+    nextTargetGate: typeof o.nextTargetGate === 'string' ? o.nextTargetGate : null,
+    recommendedTargetGate: typeof o.recommendedTargetGate === 'string' ? o.recommendedTargetGate : null,
+    allowedTargets,
+    blockedTargets,
+    blockedReasonsByTargetGate,
     activeTaskBridge: typeof o.activeTaskBridge === 'string' ? o.activeTaskBridge : null,
     activeFlowOperation: typeof o.activeFlowOperation === 'string' ? o.activeFlowOperation : null,
     latestEventSummary: o.latestEventSummary && typeof o.latestEventSummary === 'object' ? (o.latestEventSummary as Record<string, unknown>) : null,

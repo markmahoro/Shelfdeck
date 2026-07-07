@@ -3,33 +3,25 @@
 /**
  * TaskScheduler (TASK_SCHEDULER.md).
  *
- * Scheduler ↔ Flow Executor bidirectional API:
- *   Scheduler → Flow:  flow.driveTask(taskId), flow.pause(taskId), flow.cancel(taskId)
- *   Flow → Scheduler:  scheduler.pauseForConfirm(taskId, resumePoint), scheduler.reportStatus(taskId, status, progress?)
- *   Confirm API → Flow: flow.confirmReceived(taskId)
+ * Scheduler ↔ ResourceRuntime bidirectional API:
+ *   Scheduler → ResourceRuntime: resourceRuntime.dispatchTask(task)
+ *   Executor → Scheduler callbacks: pauseForConfirm(taskId, resumePoint), reportStatus(taskId, status, progress?)
  *
  * status (Scheduler-managed) vs phase (Flow-managed):
- *   Scheduler reads/writes status only; Flow reads/writes phase only.
+ *   Scheduler reads/writes status only; Resource Runtime / Flow executors read/write phase.
  */
 
 const taskStore = require('./taskStore');
 const configStore = require('./configStore');
 const mediaLibraryService = require('./mediaLibraryService');
-const deleteFlow = require('./deleteFlowExecutor');
-const transcodeFlow = require('./transcodeFlowExecutor');
-const upgradeFlow = require('./upgradeFlowExecutor');
-const scrapeFlow = require('./scrapeFlowExecutor');
-const ingestFlow = require('./ingestFlowExecutor');
-const archiveFlow = require('./archiveFlowExecutor');
 const healthCheck = require('./healthCheck');
 const activityLog = require('./activityLog');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
 const resourceProjection = require('./resourceProjection');
 const resourceCapacity = require('./resourceCapacity');
-const flowPlanner = require('./flowPlanner');
 const flowRecoveryContract = require('./flowRecoveryContract');
-const runtimeResourceTracker = require('./runtimeResourceTracker');
+const resourceRuntime = require('./resourceRuntime');
 const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const gateInvalidationService = require('./gateInvalidationService');
@@ -44,20 +36,12 @@ const runningTasks = new Set(); // taskId Set — prevents re-entry within same 
 const justConfirmedIds = new Set(); // tasks confirmed by user this round — bypass awaiting guard
 const CLOSED_STATUSES = new Set(['done', 'skipped', 'cancelled', 'deleted']);
 
-function getFlow(operationKind) {
-  switch (operationKind) {
-    case 'ingest': return ingestFlow;
-    case 'archive': return archiveFlow;
-    case 'delete': return deleteFlow;
-    case 'transcode': return transcodeFlow;
-    case 'upgrade': return upgradeFlow;
-    case 'scrape': return scrapeFlow;
-    default: return null;
-  }
+function flowKindForTask(task = {}) {
+  return String(task.flowPlan && task.flowPlan.flowKind || '');
 }
 
-function getConcurrencyLimit(operationKind, limits) {
-  switch (operationKind) {
+function getConcurrencyLimit(flowKind, limits) {
+  switch (flowKind) {
     case 'ingest': return limits.ingestConcurrency || 1;
     case 'archive': return limits.archiveConcurrency || 1;
     case 'delete': return limits.deleteConcurrency || 1;
@@ -76,9 +60,9 @@ function buildDeleteGateForItem(task, doneAt) {
     passed: true,
     status: 'passed',
     reason: 'delete_target_removed',
-    operation: 'delete',
+    flowKind: 'delete',
     target: {
-      operation: 'delete',
+      flowKind: 'delete',
       itemId: task && task.itemId || '',
       path: verify.deletedPath || info.deleteTargetPath || info.path || '',
       targetKind: verify.deletedKind || info.deleteTargetKind || (info.embyItemId ? 'emby_item' : ''),
@@ -121,7 +105,7 @@ function targetFactsForObjective(objective = {}) {
     : {};
 }
 
-function buildObjectiveOptimizeGateForItem(task, doneAt, operation) {
+function buildObjectiveOptimizeGateForItem(task, doneAt, flowKind) {
   const verify = task && task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
   const objective = gateObjectiveForTask(task);
   const targetFacts = targetFactsForObjective(objective);
@@ -130,7 +114,7 @@ function buildObjectiveOptimizeGateForItem(task, doneAt, operation) {
     passed: true,
     status: 'passed',
     reason: 'optimize_gate_met',
-    operation,
+    flowKind,
     target: {
       objectiveHash: objectiveHashForTask(task, verify),
       ...targetFacts,
@@ -172,10 +156,10 @@ function applyVerifyMediaFacts(libItem, verify = {}) {
   if (typeof verify.durationSec === 'number') libItem.duration = verify.durationSec;
 }
 
-function buildOptimizationResult(task, operation) {
+function buildOptimizationResult(task, flowKind) {
   const verify = task && task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
   const result = {
-    operation,
+    flowKind,
     objectiveHash: objectiveHashForTask(task, verify),
     sizeBytes: verify.sizeBytes,
     bitrateKbps: verify.bitrate,
@@ -195,11 +179,12 @@ function buildOptimizationResult(task, operation) {
 }
 
 function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt) {
+  const flowKind = flowKindForTask(task);
   libItem.lastTaskDoneAt = doneAt;
-  if (task.operationKind === 'transcode') {
+  if (flowKind === 'transcode') {
     libItem.lastTranscodeDoneAt = doneAt;
     libItem.optimizationStatus = 'transcoded';
-    libItem.optimizationAction = 'transcode';
+    libItem.optimizeFlowKind = 'transcode';
     libItem.optimizationDoneAt = doneAt;
     libItem.optimizationTaskId = task.id;
     const verify = task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
@@ -210,10 +195,10 @@ function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt) {
       libItem.optimizationGate = libItem.optimizeGate;
     }
   }
-  if (task.operationKind === 'upgrade') {
+  if (flowKind === 'upgrade') {
     libItem.lastUpgradeDoneAt = doneAt;
     libItem.optimizationStatus = 'upgraded';
-    libItem.optimizationAction = 'upgrade';
+    libItem.optimizeFlowKind = 'upgrade';
     libItem.optimizationDoneAt = doneAt;
     libItem.optimizationTaskId = task.id;
     const verify = task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
@@ -224,7 +209,7 @@ function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt) {
       libItem.optimizationGate = libItem.optimizeGate;
     }
   }
-  if (task.operationKind === 'delete') {
+  if (flowKind === 'delete') {
     const gate = buildDeleteGateForItem(task, doneAt);
     libItem.deleted = true;
     libItem.removed = true;
@@ -244,7 +229,7 @@ function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt) {
       taskId: task.id,
     };
   }
-  if (task.operationKind === 'archive') {
+  if (flowKind === 'archive') {
     libItem.archiveStatus = 'archived_like';
     libItem.archiveReason = 'archive_finalize_done';
     libItem.archiveDoneAt = doneAt;
@@ -308,23 +293,23 @@ function reportStatus(taskId, status, progress) {
   // Activity log events for task lifecycle
   if (oldTask) {
     const name = oldTask.itemName || oldTask.itemId;
-    const actionLabel = oldTask.operationKind === 'transcode' ? '码率压缩'
-      : oldTask.operationKind === 'upgrade' ? '洗版'
-      : oldTask.operationKind === 'delete' ? '删除'
-      : oldTask.operationKind === 'ingest' ? '入库'
-      : oldTask.operationKind === 'archive' ? '归档'
-      : oldTask.operationKind === 'scrape' ? '刮削'
-      : oldTask.operationKind;
+    const actionLabel = flowKindForTask(oldTask) === 'transcode' ? '码率压缩'
+      : flowKindForTask(oldTask) === 'upgrade' ? '洗版'
+      : flowKindForTask(oldTask) === 'delete' ? '删除'
+      : flowKindForTask(oldTask) === 'ingest' ? '入库'
+      : flowKindForTask(oldTask) === 'archive' ? '归档'
+      : flowKindForTask(oldTask) === 'scrape' ? '刮削'
+      : flowKindForTask(oldTask);
 
     if (status === 'executing' && oldTask.status !== 'executing') {
-      activityLog.addActivity('task', `任务「${name}」开始${actionLabel}…`, { taskId, operationKind: oldTask.operationKind });
+      activityLog.addActivity('task', `任务「${name}」开始${actionLabel}…`, { taskId, flowKind: flowKindForTask(oldTask) });
     }
     if (status === 'done') {
-      activityLog.addActivity('task', `任务「${name}」${actionLabel}完成 ✓`, { taskId, operationKind: oldTask.operationKind });
+      activityLog.addActivity('task', `任务「${name}」${actionLabel}完成 ✓`, { taskId, flowKind: flowKindForTask(oldTask) });
 
     }
     if (status === 'failed_hard') {
-      activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, operationKind: oldTask.operationKind });
+      activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, flowKind: flowKindForTask(oldTask) });
     }
 
     // 48h freeze after task ends (done or failed_hard) — SmartTaskEngine won't re-enqueue
@@ -352,7 +337,7 @@ function reportGateInvalidation(taskId, signal = {}) {
     ...signal,
     taskId,
     itemId,
-    sourceOperationKind: signal.sourceOperationKind || (task && task.operationKind) || '',
+    sourceFlowKind: signal.sourceFlowKind || (task && flowKindForTask(task)) || '',
     sourceTargetGate: signal.sourceTargetGate
       || (task && task.taskTarget && task.taskTarget.targetGate)
       || (task && task.taskBridge && task.taskBridge.kind)
@@ -372,7 +357,7 @@ function reportGateInvalidation(taskId, signal = {}) {
     reason: invalidation.reason,
     message: invalidation.message,
     evidence: invalidation.evidence,
-    sourceOperationKind: invalidation.sourceOperationKind,
+    sourceFlowKind: invalidation.sourceFlowKind,
     sourceTargetGate: invalidation.sourceTargetGate,
     recovery: invalidation.recovery,
     stored: invalidation.stored,
@@ -391,7 +376,7 @@ function reportGateInvalidation(taskId, signal = {}) {
       itemId,
       invalidatedGate: gate,
       reason: invalidation.reason,
-      sourceOperationKind: invalidation.sourceOperationKind,
+      sourceFlowKind: invalidation.sourceFlowKind,
       sourceTargetGate: invalidation.sourceTargetGate,
       stored: invalidation.stored,
       storeReason: invalidation.storeReason,
@@ -438,7 +423,7 @@ function recoverInterruptedTasks() {
         payload: {
           taskId: t.id,
           itemId: t.itemId,
-          operationKind: t.operationKind,
+          flowKind: flowKindForTask(t),
           fromStatus: previousStatus,
           fromPhase: previousPhase,
           fromResumePoint: previousResumePoint,
@@ -471,7 +456,7 @@ function resourceConcurrencyLimit(resource, task, limits = {}) {
       if (resourceKey === 'filesystem:mutation') return limits.deleteConcurrency || 1;
       return 1;
     default:
-      return getConcurrencyLimit(task && task.operationKind, limits);
+      return getConcurrencyLimit(task && flowKindForTask(task), limits);
     }
   })();
   return resourceCapacity.capacityForResource(resource, limits, legacyFallback);
@@ -487,64 +472,12 @@ function incrementResourceCount(counts, resource, by = 1) {
   return counts[key];
 }
 
-function errorSummary(err) {
-  return {
-    name: err && err.name ? String(err.name) : 'Error',
-    message: err && err.message ? String(err.message) : String(err),
-  };
-}
-
-function recordFlowFailure(task, resource, flowStep, err) {
-  const failure = errorSummary(err);
-  const freshTask = taskStore.getTask(task.id) || task;
-  taskStore.appendTaskEvent(freshTask, 'flow.failed', {
-    reason: 'flow_executor_rejected',
-    errorName: failure.name,
-    errorMessage: failure.message,
-    flowEventType: flowStep && flowStep.eventType,
-    flowEventPhase: flowStep && flowStep.phase,
-    resourceType: resource && resource.resourceType,
-    resourceKey: resource && resource.resourceKey,
-    resourceLabel: resource && resource.resourceLabel,
-    bridgeKind: task.taskBridge && task.taskBridge.kind,
-    flowDirection: task.flowPlan && task.flowPlan.direction,
-    operationKind: task.flowPlan && task.flowPlan.operationKind,
-    effect: 'mark_failed_hard_after_flow_exception',
-  }, {
-    resourceType: resource && resource.resourceType,
-  });
-  diagnosticLog.record({
-    category: 'scheduler',
-    scope: 'scheduler.flowDispatch',
-    operation: 'flow_executor_failed',
-    component: 'taskScheduler',
-    resourceType: resource && resource.resourceType || 'scheduler',
-    resourceKey: resource && resource.resourceKey || 'taskScheduler',
-    status: 'failed',
-    payload: {
-      taskId: task.id,
-      itemId: task.itemId,
-      operationKind: task.operationKind,
-      bridgeKind: task.taskBridge && task.taskBridge.kind,
-      flowDirection: task.flowPlan && task.flowPlan.direction,
-      operationKind: task.flowPlan && task.flowPlan.operationKind,
-      flowEventType: flowStep && flowStep.eventType,
-      flowEventPhase: flowStep && flowStep.phase,
-      resourceType: resource && resource.resourceType,
-      resourceKey: resource && resource.resourceKey,
-      errorName: failure.name,
-      errorMessage: failure.message,
-      effect: 'mark_failed_hard_after_flow_exception',
-    },
-  });
-}
-
 function isActiveStatus(status) {
   return status === 'executing' || status === 'pausing' || status === 'awaiting_user_confirm';
 }
 
 function isLocalWesternAiScrapeTask(task, config) {
-  if (!task || task.operationKind !== 'scrape') return false;
+  if (!task || flowKindForTask(task) !== 'scrape') return false;
   const itemInfo = task.itemInfo || {};
   const adultMetadata = itemInfo.adultMetadata || {};
   const subLib = (config.subLibraries || []).find((s) => s.uuid === itemInfo.subLibraryId) || {};
@@ -558,7 +491,7 @@ function isLocalWesternAiScrapeTask(task, config) {
 }
 
 function staleAutoScrapeReason(task) {
-  if (!task || task.operationKind !== 'scrape') return '';
+  if (!task || flowKindForTask(task) !== 'scrape') return '';
   if (task.source !== 'auto') return '';
   if (task.manualExecuteRequested || justConfirmedIds.has(task.id)) return '';
   const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
@@ -598,7 +531,7 @@ function skipStaleAutoScrapeTask(task, reason) {
   }
   activityLog.addActivity('task', `自动刮削任务「${task.itemName || task.itemId}」已跳过：${reason}`, {
     taskId: task.id,
-    operationKind: task.operationKind,
+    flowKind: flowKindForTask(task),
     reason,
   });
 }
@@ -658,13 +591,7 @@ function startScheduler() {
 
   recoverInterruptedTasks();
 
-  // Inject scheduler into Flow Executors
-  deleteFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
-  ingestFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
-  archiveFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
-  transcodeFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
-  upgradeFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
-  scrapeFlow.setScheduler({ pauseForConfirm, reportStatus, reportGateInvalidation });
+  resourceRuntime.setSchedulerCallbacks({ pauseForConfirm, reportStatus, reportGateInvalidation });
 
   healthCheck.setSchedulerState({ running: true, runningTasks: 0 });
 
@@ -734,7 +661,7 @@ async function scheduleRound() {
     ? taskStore.querySchedulerTasks()
     : taskStore.loadTasks({ includeHistory: false });
 
-  // Count active work by resource bucket. operationKind remains the executor/API
+  // Count active work by resource bucket. flowKind remains the executor/API
   // compatibility field; scheduling capacity follows flow/resource semantics.
   const activeResourceCount = {};
   let activeTaskCount = 0;
@@ -792,7 +719,7 @@ async function scheduleRound() {
         payload: {
           taskId: task.id,
           itemId: task.itemId,
-          operationKind: task.operationKind,
+          flowKind: flowKindForTask(task),
           retryCount,
           reason: 'restart_recovery_retry_limit_reached',
         },
@@ -839,7 +766,7 @@ async function scheduleRound() {
       payload: {
         taskId: task.id,
         itemId: task.itemId,
-        operationKind: task.operationKind,
+        flowKind: flowKindForTask(task),
         retryCount,
         fromPhase: previousPhase,
         fromResumePoint: previousResumePoint,
@@ -878,7 +805,7 @@ async function scheduleRound() {
     // Skip waiting_media_source (flow parks, retry handled by flow timer)
     if (task.status === 'waiting_media_source') continue;
 
-    if (task.operationKind === 'scrape' && task.status === 'queued' && !task.manualExecuteRequested && !justConfirmedIds.has(task.id)) {
+    if (flowKindForTask(task) === 'scrape' && task.status === 'queued' && !task.manualExecuteRequested && !justConfirmedIds.has(task.id)) {
       const subLibSchedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
       if (!subLibSchedule.autoExecute) {
         taskStore.updateTask(task.id, { status: 'pending_manual' });
@@ -928,56 +855,17 @@ async function scheduleRound() {
         continue;
       }
 
-      const flow = getFlow(task.operationKind);
-      if (!flow) continue;
-
       runningTasks.add(task.id);
       incrementResourceCount(activeResourceCount, resource);
       if (isLocalWesternAiScrapeTask(task, config)) activeLocalWesternAiScrapes++;
       usedItemIds.add(task.itemId);
       reportStatus(task.id, 'executing', task.progress || 0);
       task.status = 'executing';
-      const flowStep = flowPlanner.currentFlowStep(task);
-      taskStore.appendTaskEvent(taskStore.getTask(task.id) || task, 'flow.dispatched', {
-        flowEventType: flowStep.eventType,
-        flowEventPhase: flowStep.phase,
-        resourceType: resource.resourceType,
-        resourceKey: resource.resourceKey,
-        resourceLabel: resource.resourceLabel,
-        bridgeKind: task.taskBridge && task.taskBridge.kind,
-        flowDirection: task.flowPlan && task.flowPlan.direction,
-        operationKind: task.flowPlan && task.flowPlan.operationKind,
-      }, { resourceType: resource.resourceType });
-      const runtimeEvent = runtimeResourceTracker.startEvent({
-        eventType: 'task.dispatch',
-        component: 'taskScheduler',
-        resourceType: resource.resourceType,
-        resourceKey: resource.resourceKey,
-        resourceLabel: resource.resourceLabel,
-        taskId: task.id,
-        itemId: task.itemId,
-        itemName: task.itemName,
-        source: task.source,
-        payload: {
-          operationKind: task.operationKind,
-          bridgeKind: task.taskBridge && task.taskBridge.kind,
-          flowDirection: task.flowPlan && task.flowPlan.direction,
-          operationKind: task.flowPlan && task.flowPlan.operationKind,
-          phase: task.phase,
-          priority: task.priority,
-          status: 'executing',
-        },
-      });
-
-      // Fire-and-forget: Flow calls reportStatus when done
-      flow.driveTask(task.id).then(() => {
-        runtimeEvent.finish('done');
-      }).catch((err) => {
-        runtimeEvent.finish('failed', { error: err && err.message ? err.message : String(err) });
-        console.error(`[scheduler] driveTask error for ${task.id}:`, err);
+      const dispatch = resourceRuntime.dispatchTask(task, { resource });
+      if (!dispatch.dispatched) {
+        console.warn(`[scheduler] resource runtime could not dispatch task ${task.id}: ${dispatch.reason}`);
         reportStatus(task.id, 'failed_hard');
-        recordFlowFailure(task, resource, flowStep, err);
-      });
+      }
     }
   }
   justConfirmedIds.clear();

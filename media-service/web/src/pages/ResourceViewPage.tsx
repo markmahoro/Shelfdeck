@@ -49,7 +49,6 @@ const EVENT_LABELS: Record<string, string> = {
   'optimize.transcode.execute': '转码执行',
   'optimize.upgrade.download': '洗版下载',
   'delete.execute': '处置删除执行',
-  'optimize.delete.execute': '历史优化删除执行',
   'archive.delete.execute': '历史删除执行',
   'task.restart_interrupted': '重启后中断恢复',
   'task.restart_recovery_queued': '重启后重新排队',
@@ -78,7 +77,6 @@ const OBJECTIVE_LABELS: Record<string, string> = {
   metadata_complete: '元数据完整',
   reduce_bitrate: '降低码率',
   improve_source_quality: '提升片源质量',
-  remove_media: '旧删除目标',
   delete_archived_media: '归档后处置',
   keep_current: '保持当前媒体',
   finalize_lifecycle: '闭环归档',
@@ -198,7 +196,7 @@ function bridgeLabel(value?: string | null): string {
   return BRIDGE_LABELS[value] || value;
 }
 
-function operationLabel(value?: string | null): string {
+function selectedFlowLabel(value?: string | null): string {
   if (!value) return '-';
   return OPERATION_LABELS[value] || value;
 }
@@ -230,15 +228,14 @@ function objectiveSummary(task: ResourceTask): string {
   if (kind === 'metadata_complete') {
     return objective.repairMode ? `${label}：${String(objective.repairMode)}` : label;
   }
-  if (kind === 'remove_media') return `${label}：需要迁移到处置队列`;
   if (kind === 'delete_archived_media') return objective.archivedAt ? `${label}：${String(objective.archivedAt)}` : label;
   if (kind === 'optimize_strategy_pending') return objective.reason ? `${label}：${String(objective.reason)}` : label;
   return label;
 }
 
-function operationPathSummary(task: ResourceTask): string {
-  const operation = task.operationKind || task.taskTarget?.operationHint || task.operationKind;
-  return task.flowDirection ? `${operationLabel(operation)} · ${task.flowDirection}` : operationLabel(operation);
+function flowPathSummary(task: ResourceTask): string {
+  const selectedFlow = task.taskTarget?.selectedFlow || task.taskTarget?.flowKind || task.SelectedFlow;
+  return task.flowDirection ? `${selectedFlowLabel(selectedFlow)} · ${task.flowDirection}` : selectedFlowLabel(selectedFlow);
 }
 
 function currentEventSummary(task: ResourceTask): string {
@@ -455,7 +452,7 @@ function ResourceBucketView({ bucket }: { bucket: ResourceBucket }) {
                   </td>
                   <td style={tdStyle}>
                     <div style={taskTargetText}>{targetGateLabel(task)} / {objectiveSummary(task)}</div>
-                    <div style={mutedText}>{operationPathSummary(task)} · {currentEventSummary(task)}</div>
+                    <div style={mutedText}>{flowPathSummary(task)} · {currentEventSummary(task)}</div>
                   </td>
                   <td style={tdStyle}>
                     <div style={statusStack}>

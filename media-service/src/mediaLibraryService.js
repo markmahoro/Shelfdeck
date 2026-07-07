@@ -6,7 +6,7 @@
  * Coordinator for the unified media library persistence table (data/library.db).
  * Manages subLibraries, independent ingest and douban sync timers per subLibrary.
  *
- * Principle: write first, recalculate action/reason only for affected items.
+ * Principle: write first, then refresh gate projections for affected items.
  */
 
 const crypto = require('crypto');
@@ -410,7 +410,6 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         userRating: null,
         userRatingUpdatedAt: null,
         lastRefreshedAt: now,
-        action: 'keep',
         reason: '新入库',
         seriesName: incoming.seriesName || null,
         seriesId: incoming.seriesId || null,
@@ -495,7 +494,6 @@ function getLibrary(filter = {}, opts = {}) {
       filter: {
         source: filter.source || '',
         type: filter.type || '',
-        action: filter.action || '',
         subLibraryId: filter.subLibraryId || '',
         hasSearch: !!filter.search,
         hasActiveTaskFilter: !!filter.activeTaskIds,

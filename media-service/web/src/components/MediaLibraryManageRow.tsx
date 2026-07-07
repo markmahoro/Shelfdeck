@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
-import type { ManagedMediaItem, MediaAction, MediaRating } from '../models/media';
-import { blockedReasonText, preferredTaskAction } from '../models/mediaActionPolicy';
+import type { ManagedMediaItem, MediaRating, MediaSelectedFlow } from '../models/media';
+import { blockedReasonText, preferredTaskFlow } from '../models/mediaActionPolicy';
 import { taskStatusLabelZh } from '../models/task';
 import type { MediaTask } from '../types';
 
@@ -52,12 +52,12 @@ export type MediaLibraryManageRowProps = {
   onToggleSelect: (id: string) => void;
   onWatchChange: (item: ManagedMediaItem, watched: boolean) => void;
   onRatingChange: (item: ManagedMediaItem, rating: MediaRating | null) => void;
-  onEnqueue: (item: ManagedMediaItem, action: MediaAction) => void;
+  onEnqueue: (item: ManagedMediaItem, flow: MediaSelectedFlow) => void;
   onRescrape?: (item: ManagedMediaItem) => void;
 };
 
 const MAX_STARS = 5;
-const ACTION_LABEL: Record<string, string> = { delete: '删除', transcode: '转码压缩', upgrade: '洗版', scrape: '补元数据', ingest: '入库' };
+const FLOW_LABEL: Record<string, string> = { delete: '删除', transcode: '转码压缩', upgrade: '洗版', scrape: '补元数据', ingest: '入库' };
 const OPTIMIZATION_LABEL: Record<string, string> = { transcoded: '已转码', upgraded: '已洗版', none: '未优化' };
 const LIFECYCLE_LABEL: Record<string, string> = { discovered: '已发现', ingested: '已入库', metadata_ready: '元数据就绪', optimized: '已优化', archived: '已归档' };
 const METADATA_LABEL: Record<string, string> = { complete: '完整', done: '完整', missing: '缺失', pending: '待补齐', failed: '失败', ambiguous: '待确认' };
@@ -123,9 +123,9 @@ function MediaLibraryManageRowInner({
   onEnqueue,
   onRescrape,
 }: MediaLibraryManageRowProps) {
-  const policyAction = preferredTaskAction(item);
-  const recommendedOperation = item.businessFlowDecision?.recommendedOperation || item.recommendedAction || 'keep';
-  const action = policyAction ?? 'keep';
+  const policyFlow = preferredTaskFlow(item);
+  const recommendedTargetGate = item.businessFlowDecision?.recommendedTargetGate || item.businessFlowDecision?.nextTargetGate || item.lifecycleNextTask || '';
+  const selectedFlow = policyFlow;
   const eq = item.equivalentBitrate;
   const target = item.targetBitrate;
   const predictGb = item.predictedSizeGb;
@@ -143,7 +143,7 @@ function MediaLibraryManageRowInner({
     item.lifecycleReason ? `原因：${item.lifecycleReason}` : '',
     item.metadataStatus ? `元数据：${item.metadataStatus}` : '',
     item.archiveStatus ? `归档：${item.archiveStatus}` : '',
-    item.businessFlowDecision?.nextBridge ? `下一步目标：${GATE_LABEL[item.businessFlowDecision.nextBridge] || item.businessFlowDecision.nextBridge}` : '',
+    item.businessFlowDecision?.nextTargetGate ? `下一步目标：${GATE_LABEL[item.businessFlowDecision.nextTargetGate] || item.businessFlowDecision.nextTargetGate}` : '',
   ].filter(Boolean).join('\n');
   const metadataTitle = [
     item.metadataKind ? `类型：${item.metadataKind}` : '',
@@ -192,11 +192,11 @@ function MediaLibraryManageRowInner({
     showStandardFields && item.isBluRayDisc ? '原盘' : '',
     showAdultFields && adultSummary ? adultSummary : '',
   ].filter(Boolean);
-  const nextBridgeLabel = item.businessFlowDecision?.nextBridge
-    ? (GATE_LABEL[item.businessFlowDecision.nextBridge] || item.businessFlowDecision.nextBridge)
+  const nextBridgeLabel = item.businessFlowDecision?.nextTargetGate
+    ? (GATE_LABEL[item.businessFlowDecision.nextTargetGate] || item.businessFlowDecision.nextTargetGate)
     : (NEXT_TASK_LABEL[item.lifecycleNextTask || ''] || '');
-  const recommendedBlockedReason = typeof recommendedOperation === 'string'
-    ? blockedReasonText(item, recommendedOperation)
+  const recommendedBlockedReason = typeof policyFlow === 'string'
+    ? blockedReasonText(item, policyFlow)
     : '';
   const lifecycleDetails = [
     item.lifecycleDone ? '闭环：已归档' : (archiveLabel ? `闭环：${archiveLabel}` : ''),
@@ -204,25 +204,26 @@ function MediaLibraryManageRowInner({
   ].filter(Boolean);
   const operationDetails = [
     `优化：${OPTIMIZATION_LABEL[item.optimizationStatus]}`,
-    recommendedOperation && recommendedOperation !== 'keep' ? `建议：${ACTION_LABEL[recommendedOperation] || recommendedOperation}` : '',
+    recommendedTargetGate ? `建议目标：${GATE_LABEL[recommendedTargetGate] || recommendedTargetGate}` : '',
+    policyFlow ? `Selected Flow：${FLOW_LABEL[policyFlow] || policyFlow}` : '',
     recommendedBlockedReason ? `阻止：${recommendedBlockedReason}` : '',
   ].filter(Boolean);
 
   const taskBridge = rowTask?.taskBridge?.kind || item.businessFlowDecision?.activeTaskBridge || '';
-  const taskOperation = rowTask?.flowPlan?.operationKind || item.businessFlowDecision?.activeFlowOperation || rowTask?.operationKind || '';
+  const taskOperation = rowTask?.flowPlan?.SelectedFlow || item.businessFlowDecision?.activeFlowOperation || rowTask?.SelectedFlow || '';
   const taskCell = rowTask ? (
     <span title={rowTask.id}>
       {taskStatusLabelZh(rowTask.status)}（
       {GATE_LABEL[taskBridge] || taskBridge || '任务'}
       {' / '}
-      {ACTION_LABEL[taskOperation] || taskOperation}
+      {FLOW_LABEL[taskOperation] || taskOperation}
       ）
     </span>
   ) : (
     '—'
   );
 
-  const actionDisabled = !!rowTask || !!isCreatingTask;
+  const enqueueDisabled = !!rowTask || !!isCreatingTask;
 
   return (
     <div
@@ -235,7 +236,7 @@ function MediaLibraryManageRowInner({
           checked={isSelected}
           disabled={selectionDisabled}
           onChange={() => onToggleSelect(item.id)}
-          title={selectionTitle || '勾选后可参与左侧批量操作'}
+          title={selectionTitle || '勾选后可参与左侧批量任务'}
         />
         <span className="mediaManageTitleWrap">
           <span className="mediaManageTitle">{item.name}</span>
@@ -314,20 +315,20 @@ function MediaLibraryManageRowInner({
             重补元数据
           </button>
         )}
-        {action === 'keep' ? (
+        {!selectedFlow ? (
           <span className="hint" title={recommendedBlockedReason || item.archiveReason || item.reason}>
             {item.lifecycleDone
               ? '已闭环'
-              : (recommendedBlockedReason || nextBridgeLabel || item.reason || '暂无可执行操作')}
+              : (recommendedBlockedReason || nextBridgeLabel || item.reason || '暂无可创建任务')}
           </span>
         ) : (
           <button
             type="button"
-            disabled={actionDisabled}
-            title={rowTask ? '该条目已有未结案任务' : isCreatingTask ? '正在创建任务' : item.businessFlowDecision?.nextBridge ? `下一步目标：${nextBridgeLabel}` : undefined}
-            onClick={() => onEnqueue(item, action)}
+            disabled={enqueueDisabled}
+            title={rowTask ? '该条目已有未结案任务' : isCreatingTask ? '正在创建任务' : item.businessFlowDecision?.nextTargetGate ? `下一步目标：${nextBridgeLabel}` : undefined}
+            onClick={() => onEnqueue(item, selectedFlow)}
           >
-            {isCreatingTask ? '创建中...' : ACTION_LABEL[action]}
+            {isCreatingTask ? '创建中...' : FLOW_LABEL[selectedFlow]}
           </button>
         )}
       </div>

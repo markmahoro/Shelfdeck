@@ -53,9 +53,9 @@ function buildDeleteGate(task, observed = {}) {
     passed: true,
     status: 'passed',
     reason: 'delete_target_removed',
-    operation: 'delete',
+    flowKind: 'delete',
     target: {
-      operation: 'delete',
+      flowKind: 'delete',
       itemId: task && task.itemId || '',
       path: observed.targetPath || '',
       targetKind: observed.targetKind || '',

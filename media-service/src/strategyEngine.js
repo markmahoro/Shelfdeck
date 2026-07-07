@@ -4,10 +4,10 @@
  * StrategyEngine — legacy module for optimize target projection.
  *
  * Reads the media library store, evaluates each item against the subLibrary's rule
- * template, and writes action/reason/targetBitrate/targetCodec/predictedSizeGb.
+ * template, and writes archive-before target facts for lifecycle objective projection.
  *
  * Decoupled from all data-writing paths. Only reads library + config,
- * only writes optimize target projection fields.
+ * only writes optimize target projection fields. It must not make flow/task decisions.
  */
 
 const activityLog = require('./activityLog');
@@ -85,38 +85,23 @@ function ruleMatches(item, rule) {
 // ── Result computation ─────────────────────────────────────────────────────────
 
 function applyRule(item, rule) {
-  const projection = deriveLegacyProjection(item, rule);
-  item.action = projection.action;
+  const projection = deriveTargetProjection(item, rule);
   item.reason = rule.reason;
   item.targetMediaFacts = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object'
     ? { ...rule.targetMediaFacts }
     : undefined;
 
-  const params = projection.actionParams || {};
+  const targetProjection = projection.targetProjection || {};
 
-  if (projection.action === 'transcode' || projection.action === 'upgrade') {
-    item.targetBitrate = params.targetBitrate;
-    item.targetCodec = params.targetCodec;
-  } else {
-    item.targetBitrate = undefined;
-    item.targetCodec = undefined;
-  }
+  item.targetBitrate = targetProjection.targetBitrate;
+  item.targetCodec = targetProjection.targetCodec;
 
-  if (projection.action === 'upgrade') {
-    item.seedPreferences = params.seedPreferences || {};
-    item.maxSizeGB = params.maxSizeGB;
-  } else {
-    item.seedPreferences = undefined;
-    item.maxSizeGB = undefined;
-  }
+  item.seedPreferences = targetProjection.seedPreferences;
+  item.maxSizeGB = targetProjection.maxSizeGB;
 
   // predictedSizeGb
-  if ((projection.action === 'transcode' || projection.action === 'upgrade') && params.targetBitrate && item.duration) {
-    item.predictedSizeGb = (params.targetBitrate * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024);
-  } else if (projection.action === 'keep' && item.size) {
-    item.predictedSizeGb = item.size / (1024 * 1024 * 1024);
-  } else if (projection.action === 'delete') {
-    item.predictedSizeGb = undefined;
+  if (targetProjection.targetBitrate && item.duration) {
+    item.predictedSizeGb = (targetProjection.targetBitrate * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024);
   } else {
     item.predictedSizeGb = undefined;
   }
@@ -145,58 +130,24 @@ function bitrateForTarget(target = {}, item = {}) {
   return typeof value === 'number' ? value : undefined;
 }
 
-function resolutionRank(value) {
-  const raw = normalizeBucket(value);
-  if (raw === '4K') return 4;
-  if (raw === '1080p') return 3;
-  if (raw === '720p') return 2;
-  return 0;
-}
-
-function deriveActionFromTarget(item = {}, target = {}) {
-  const targetBitrate = bitrateForTarget(target, item);
-  const targetCodec = target.targetCodec || target.codec;
-  const currentCodec = normalizeCodec(item.codec || item.videoCodec);
-  const normalizedTargetCodec = normalizeCodec(targetCodec);
-  const currentBitrate = Number(item.equivalentBitrate || (item.bitrate ? Number(item.bitrate) / 1000000 : 0));
-
-  if (target.minResolution && resolutionRank(item.bucket || item.resolution) < resolutionRank(target.minResolution)) {
-    return 'upgrade';
-  }
-  if (target.minBitrate && currentBitrate > 0 && currentBitrate < Number(target.minBitrate) * 0.9) {
-    return 'upgrade';
-  }
-  if (targetBitrate && currentBitrate > targetBitrate * 1.35) {
-    return 'transcode';
-  }
-  if (normalizedTargetCodec && currentCodec && normalizedTargetCodec !== currentCodec) {
-    return 'transcode';
-  }
-  return 'keep';
-}
-
-function deriveLegacyProjection(item = {}, rule = {}) {
+function deriveTargetProjection(item = {}, rule = {}) {
   const target = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object' ? rule.targetMediaFacts : null;
   if (!target) {
-    return { action: rule.action, actionParams: rule.actionParams || {} };
+    return { targetProjection: {} };
   }
-  const action = deriveActionFromTarget(item, target);
   const targetBitrate = bitrateForTarget(target, item);
   return {
-    action,
-    actionParams: {
-      ...(rule.actionParams || {}),
+    targetProjection: {
       targetBitrate,
-      targetCodec: target.targetCodec || target.codec || (rule.actionParams || {}).targetCodec,
-      maxSizeGB: target.maxSizeGB || (rule.actionParams || {}).maxSizeGB,
-      seedPreferences: target.seedPreferences || (rule.actionParams || {}).seedPreferences,
+      targetCodec: target.targetCodec || target.codec,
+      maxSizeGB: target.maxSizeGB,
+      seedPreferences: target.seedPreferences,
     },
   };
 }
 
 function clearOptimization(item, reason) {
   const old = {
-    action: item.action,
     reason: item.reason,
     targetBitrate: item.targetBitrate,
     targetCodec: item.targetCodec,
@@ -205,7 +156,6 @@ function clearOptimization(item, reason) {
     predictedSizeGb: item.predictedSizeGb,
     targetMediaFacts: JSON.stringify(item.targetMediaFacts || null),
   };
-  item.action = '';
   item.reason = reason || '';
   item.targetBitrate = undefined;
   item.targetCodec = undefined;
@@ -214,7 +164,6 @@ function clearOptimization(item, reason) {
   item.predictedSizeGb = undefined;
   item.targetMediaFacts = undefined;
   return (
-    item.action !== old.action ||
     item.reason !== old.reason ||
     item.targetBitrate !== old.targetBitrate ||
     item.targetCodec !== old.targetCodec ||
@@ -286,7 +235,6 @@ function evaluateItem(item, templates, subLibs, config = {}) {
     return projectLifecycleObjective(item, config) || changed;
   }
 
-  const oldAction = item.action;
   const oldReason = item.reason;
   const oldTargetBitrate = item.targetBitrate;
   const oldTargetCodec = item.targetCodec;
@@ -298,7 +246,6 @@ function evaluateItem(item, templates, subLibs, config = {}) {
   applyRule(item, matched);
 
   const changed = (
-    item.action !== oldAction ||
     item.reason !== oldReason ||
     item.targetBitrate !== oldTargetBitrate ||
     item.targetCodec !== oldTargetCodec ||
@@ -348,8 +295,7 @@ function runOnce(options = {}) {
     for (const item of lib.items) {
       if (item.type === 'series') {
         // Series items are rating anchors only — never produce tasks
-        if (item.action !== 'keep' || item.reason !== '系列条目(非媒体文件)') {
-          item.action = 'keep';
+        if (item.reason !== '系列条目(非媒体文件)') {
           item.reason = '系列条目(非媒体文件)';
           item.targetBitrate = undefined;
           item.targetCodec = undefined;
@@ -375,7 +321,7 @@ function runOnce(options = {}) {
       } else {
         _mediaLibraryService.saveLibrary(lib);
       }
-      const msg = `优化目标计算完成，${changed} 个条目的推荐操作已更新`;
+      const msg = `优化目标计算完成，${changed} 个条目的归档前目标已更新`;
       console.log(`[strategyEngine] ${msg}`);
       activityLog.addActivity('optimize_target_projection', msg, { changed });
     }

@@ -6,20 +6,16 @@ const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 const configStore = require('./configStore');
-const taskStore = require('./taskStore');
 const transcodeService = require('./services/transcodeService');
 const activityLog = require('./activityLog');
 const assetIdentity = require('./assetIdentity');
 const mediaLibraryService = require('./mediaLibraryService');
 const peopleStore = require('./peopleStore');
-const priorityEngine = require('./priorityEngine');
-const taskAdmission = require('./taskAdmission');
 const scrapeVerification = require('./scrapeVerification');
 const adultColdArtifactStore = require('./adultColdArtifactStore');
 
 const DEFAULT_EXTS = new Set(['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv']);
 const DEFAULT_ORGANIZED_FOLDER_NAME = 'scraped';
-const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 
 function loadLibrary() {
   return mediaLibraryService.loadLibrary();
@@ -752,7 +748,6 @@ async function upsertFileItem(subLib, filePath) {
       ...lib.items[idx],
       ...base,
       itemId, // preserve the canonical itemId (surrogate key)
-      action: lib.items[idx].action || 'keep',
       reason: lib.items[idx].reason || '成人库新入库',
     };
     lib.items[idx] = item;
@@ -760,7 +755,6 @@ async function upsertFileItem(subLib, filePath) {
     item = {
       itemId,
       ...base,
-      action: 'keep',
       reason: '成人库新入库',
     };
     lib.items.push(item);
@@ -1188,10 +1182,6 @@ function markScrapeFailed(itemId, message) {
   return updated;
 }
 
-function activeTaskForItem(itemId) {
-  return taskStore.getTasks({ itemId }).find((t) => !TERMINAL.has(t.status));
-}
-
 function ingestTaskItemId(subLib, filePath) {
   const norm = normalizePathForCompare(filePath);
   const digest = crypto.createHash('sha1').update(`${subLib.uuid}:${norm}`).digest('hex').slice(0, 24);
@@ -1266,56 +1256,27 @@ function listIngestCandidates(config = configStore.loadConfig(), opts = {}) {
   return candidates.sort((a, b) => String(a.filePath).localeCompare(String(b.filePath)));
 }
 
-function enqueueIngestTask(subLib, filePath, opts = {}) {
-  const cfg = configStore.loadConfig();
+function buildIngestTaskIntent(subLib, filePath, opts = {}) {
   const source = opts.source || (opts.force ? 'manual' : 'auto');
-  const userInitiated = source === 'manual';
   const itemInfo = ingestItemInfo(subLib, filePath);
   itemInfo.taskSource = source;
-  const schedule = configStore.resolveSubLibSchedule(itemInfo, cfg);
-  const taskSnapshot = Array.isArray(opts.taskSnapshot) ? opts.taskSnapshot : null;
-  const admission = taskAdmission.canCreateTask({
+  return {
     item: itemInfo,
     itemInfo,
-    operationKind: 'ingest',
+    targetGate: 'ingest',
+    gateObjective: {},
     source,
-    config: cfg,
-    tasks: taskSnapshot || taskStore.getTasks(),
-  });
-  if (!admission.allowed) return null;
-  const priorityBreakdown = priorityEngine.explainPriority({
-    source: userInitiated ? 'manual' : 'auto',
-    operationKind: 'ingest',
-    itemInfo,
-    config: cfg,
-  });
-  const taskData = {
-    itemId: itemInfo.itemId,
-    itemName: itemInfo.name,
-    operationKind: 'ingest',
-    source,
-    status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
-    priority: priorityBreakdown.priority,
-    priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
-    priorityBreakdown,
-    taskBridge: admission.taskBridge,
-    flowPlan: admission.flowPlan,
-    itemInfo,
-    logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Ingest task created by user action' : 'Ingest task created by background admission' }],
+    requestedIntent: source === 'manual' ? {
+      targetGate: 'ingest',
+      intentMode: 'adult_ingest',
+      entryPoint: opts.entryPoint || 'adult_source_adapter',
+      filePath,
+    } : undefined,
   };
-  const task = opts.deferSave ? taskStore.buildTask(taskData) : taskStore.createTask(taskData);
-  if (taskSnapshot) taskSnapshot.push(task);
-  activityLog.addActivity('adult_library', `成人库「${subLib.name}」创建入库任务：${itemInfo.name}`, { taskId: task.id, itemId: itemInfo.itemId });
-  return task;
 }
 
-// Reset a previously-failed (or pending) item so a fresh scrape attempt can run.
-// Clears the stale scrapeError and flips scrapeStatus back to pending.
-function resetScrapeStatus(itemId, overrideAdultId = null) {
-  const lib = loadLibrary();
-  const idx = lib.items.findIndex((it) => it.itemId === itemId);
-  if (idx < 0) return null;
-  const existing = lib.items[idx];
+function buildResetScrapeItem(existing, overrideAdultId = null) {
+  if (!existing) return null;
   let adultIdPatch = {};
   if (overrideAdultId) {
     const japaneseJavScraper = require('./services/japaneseJavScraper');
@@ -1326,9 +1287,19 @@ function resetScrapeStatus(itemId, overrideAdultId = null) {
       idConfidence: 'high',
     };
   }
-  const updated = {
+  return {
     ...existing,
     scraped: false,
+    metadataComplete: false,
+    metadataStatus: 'pending',
+    metadataMissingReasons: ['metadata.refresh_requested'],
+    metadataGate: {
+      ...((existing && existing.metadataGate) || {}),
+      passed: false,
+      status: 'pending_canonical_refresh',
+      reason: 'adult_rescrape_requested',
+      invalidatedAt: nowIso(),
+    },
     adultMetadata: persistHotAdultMetadata(existing.itemId, {
       ...(existing.adultMetadata || {}),
       ...adultIdPatch,
@@ -1338,15 +1309,42 @@ function resetScrapeStatus(itemId, overrideAdultId = null) {
     }),
     lastRefreshedAt: nowIso(),
   };
+}
+
+// Reset a previously-failed (or pending) item so a fresh metadata task can run.
+// Clears the stale scrapeError and flips scrapeStatus back to pending.
+function resetScrapeStatus(itemId, overrideAdultId = null) {
+  const lib = loadLibrary();
+  const idx = lib.items.findIndex((it) => it.itemId === itemId);
+  if (idx < 0) return null;
+  const updated = buildResetScrapeItem(lib.items[idx], overrideAdultId);
   lib.items[idx] = updated;
   updateLibraryItems([updated]);
   return updated;
 }
 
-// Manual rescrape entry point: reset failure state, then enqueue a fresh scrape
-// task (skipped if one is already active for the item). Returns the new task or
-// null if a task is already active / scheduling is off / item is missing.
-async function rescrapeItem(itemId, opts = {}) {
+function buildMetadataTaskIntent(item, subLib, opts = {}) {
+  const source = opts.source || (opts.force ? 'manual' : 'auto');
+  const itemInfo = itemInfoFromItem(item);
+  itemInfo.taskSource = source;
+  return {
+    item,
+    itemInfo,
+    targetGate: 'metadata',
+    gateObjective: {},
+    source,
+    requestedIntent: source === 'manual' ? {
+      targetGate: 'metadata',
+      intentMode: opts.intentMode || 'adult_rescrape',
+      entryPoint: opts.entryPoint || 'POST /v1/admin/adult/items/:itemId/actions/rescrape',
+    } : undefined,
+  };
+}
+
+// Manual rescrape intent: build the metadata reset view used for admission.
+// The API adapter commits resetScrapeStatus only after TaskAdmission accepts.
+// This function does not create, admit, or persist tasks.
+async function prepareRescrapeIntent(itemId, opts = {}) {
   const config = configStore.loadConfig();
   let item = null;
   for (const sl of config.subLibraries || []) {
@@ -1359,65 +1357,15 @@ async function rescrapeItem(itemId, opts = {}) {
   const { subLib, item: libItem } = item;
   if (!subLib.watchRoot) throw new Error('watchRoot is not configured');
   if (!libItem.path || !fs.existsSync(libItem.path)) throw new Error(`Media file does not exist: ${libItem.path || ''}`);
-  if (activeTaskForItem(itemId)) return null;
   // Optional user-provided 番号 override — lets the user correct a low-confidence
   // or wrong auto-detected ID before re-scraping.
   const overrideAdultId = typeof opts.overrideAdultId === 'string' ? opts.overrideAdultId.trim() : '';
-  resetScrapeStatus(itemId, overrideAdultId || null);
-  const fresh = loadLibrary().items.find((it) => it.itemId === itemId);
-  // Manual rescrape is an explicit user intent; autoExecute still decides
-  // queued vs pending_manual.
-  return enqueueScrapeTask(fresh || libItem, subLib, { force: true });
-}
-
-function enqueueScrapeTask(item, subLib, opts = {}) {
-  const cfg = configStore.loadConfig();
-  const schedule = configStore.resolveSubLibSchedule(item, cfg);
-  const source = opts.source || (opts.force ? 'manual' : 'auto');
-  const userInitiated = source === 'manual';
-  const itemInfo = itemInfoFromItem(item);
-  itemInfo.taskSource = source;
-  const taskSnapshot = Array.isArray(opts.taskSnapshot) ? opts.taskSnapshot : null;
-  const admission = taskAdmission.canCreateTask({
-    item,
-    itemInfo,
-    operationKind: 'scrape',
-    source,
-    config: cfg,
-    tasks: taskSnapshot || taskStore.getTasks(),
+  const prepared = buildResetScrapeItem(libItem, overrideAdultId || null) || libItem;
+  return buildMetadataTaskIntent(prepared, subLib, {
+    source: 'manual',
+    intentMode: 'adult_rescrape',
+    entryPoint: 'POST /v1/admin/adult/items/:itemId/actions/rescrape',
   });
-  if (!admission.allowed) return null;
-  const priorityBreakdown = priorityEngine.explainPriority({
-    source: userInitiated ? 'manual' : 'auto',
-    operationKind: 'scrape',
-    itemInfo,
-    config: cfg,
-  });
-  const taskData = {
-    itemId: item.itemId,
-    itemName: item.name,
-    operationKind: 'scrape',
-    source,
-    status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
-    priority: priorityBreakdown.priority,
-    priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
-    priorityBreakdown,
-    taskBridge: admission.taskBridge,
-    flowPlan: admission.flowPlan,
-    requestedIntent: userInitiated ? {
-      bridgeKind: 'metadata',
-      preferredOperation: 'scrape',
-      operationKind: 'scrape',
-      intentMode: 'adult_rescrape',
-      entryPoint: 'POST /v1/admin/adult/items/:itemId/actions/rescrape',
-    } : undefined,
-    itemInfo,
-    logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Scrape task created by user action' : 'Scrape task created by background admission' }],
-  };
-  const task = opts.deferSave ? taskStore.buildTask(taskData) : taskStore.createTask(taskData);
-  if (taskSnapshot) taskSnapshot.push(task);
-  activityLog.addActivity('adult_library', `成人库「${subLib.name}」创建刮削任务：${item.name}`, { taskId: task.id, itemId: item.itemId });
-  return task;
 }
 
 module.exports = {
@@ -1426,14 +1374,15 @@ module.exports = {
   isWesternAdultSubLibrary,
   listIngestCandidates,
   upsertFileItem,
-  enqueueIngestTask,
+  buildIngestTaskIntent,
+  buildMetadataTaskIntent,
   ingestTaskItemId,
   applyScrapeResultToItem,
   applyWesternCurationResultToItem,
   markScrapeFailed,
   repairInvalidWesternScrapeState,
   resetScrapeStatus,
-  rescrapeItem,
+  prepareRescrapeIntent,
   itemInfoFromItem,
   extractJavId,
   computeRightCoverCrop,

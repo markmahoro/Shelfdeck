@@ -7,8 +7,16 @@ import Modal from '../components/Modal';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-const FLOW_OPERATION_LABELS: Record<string, string> = {
+const FLOW_LABELS: Record<string, string> = {
   ingest: '入库', scrape: '刮削', transcode: '转码压缩', delete: '删除', upgrade: '洗版',
+};
+
+const TARGET_GATE_LABELS: Record<string, string> = {
+  ingest: '入库',
+  metadata: '元数据',
+  optimize: '归档前目标',
+  archive: '归档',
+  delete: '处置',
 };
 
 const METADATA_GATE_FIELDS = [
@@ -114,7 +122,11 @@ function templateStrategyFields(template?: RuleTemplate) {
         if (mapped) fields.push(mapped);
       }
     }
-    if ((rule.action === 'transcode' || rule.action === 'upgrade') && rule.actionParams?.targetBitrate) {
+    const targetFacts = rule.targetMediaFacts;
+    if (
+      targetFacts?.targetBitrate != null
+      || (targetFacts?.targetBitrateByBucket && Object.values(targetFacts.targetBitrateByBucket).some((value) => value != null))
+    ) {
       fields.push('media.duration');
     }
   }
@@ -328,12 +340,13 @@ export default function DashboardPage() {
   if (slLoading) return <LoadingSpinner text="加载媒体库中..." />;
 
   const subLibs: SubLibrary[] = slData?.subLibraries || [];
-  const enabledAutoActions = sysCfg?.smartTaskEnabledActions;
-  const enabledAutoActionText = !enabledAutoActions
+  const enabledAutoTargets = sysCfg?.automaticTaskTargets;
+  const allowedOptimizeFlows = sysCfg?.optimizeAllowedOperations || [];
+  const enabledAutoTargetText = !enabledAutoTargets
     ? '读取中'
-    : enabledAutoActions.length > 0
-    ? enabledAutoActions.map((a) => FLOW_OPERATION_LABELS[a] || a).join('、')
-    : '未选择自动操作';
+    : enabledAutoTargets.length > 0
+    ? `${enabledAutoTargets.map((gate) => TARGET_GATE_LABELS[gate] || gate).join('、')}${allowedOptimizeFlows.length > 0 ? `；Optimize flow：${allowedOptimizeFlows.map((flow) => FLOW_LABELS[flow] || flow).join('、')}` : ''}`
+    : '未选择自动目标';
 
   function applyRuleTemplate(nextRuleTemplateId: string) {
     setRuleTemplateId(nextRuleTemplateId);
@@ -450,7 +463,7 @@ export default function DashboardPage() {
                         {tpl ? `${tpl.rules.length} 条规则` : '未配置'}
                       </div>
                       <div style={{ fontSize: 10, color: '#aaa', marginTop: 6 }}>
-                        策略模板中的规则决定视频的推荐操作
+                        策略模板中的规则决定归档前目标
                       </div>
                     </SubCard>
 
@@ -462,8 +475,8 @@ export default function DashboardPage() {
                       <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
                         只控制已创建任务的启动方式，不负责自动创建任务
                       </div>
-                      <div style={{ fontSize: 11, color: enabledAutoActions && enabledAutoActions.length === 0 ? '#c2410c' : '#6b7280', marginTop: 4 }}>
-                        自动推进范围：{enabledAutoActionText}
+                      <div style={{ fontSize: 11, color: enabledAutoTargets && enabledAutoTargets.length === 0 ? '#c2410c' : '#6b7280', marginTop: 4 }}>
+                        自动推进目标：{enabledAutoTargetText}
                       </div>
                     </SubCard>
 
@@ -919,10 +932,14 @@ function DashboardLinkButton({ to, children }: { to: string; children: React.Rea
 }
 
 function DashboardHealthPanel({ data, loading }: { data?: DashboardHealthSummary; loading: boolean }) {
-  const enabledOps = data?.automation?.enabledOperations || [];
-  const enabledText = enabledOps.length > 0
-    ? enabledOps.map((op) => FLOW_OPERATION_LABELS[op] || op).join('、')
+  const enabledTargets = data?.automation?.enabledTaskTargets || [];
+  const allowedOptimizeFlows = data?.automation?.allowedOptimizeFlows || [];
+  const enabledText = enabledTargets.length > 0
+    ? enabledTargets.map((gate) => TARGET_GATE_LABELS[gate] || gate).join('、')
     : '未启用';
+  const flowText = allowedOptimizeFlows.length > 0
+    ? `Optimize 可用 flow：${allowedOptimizeFlows.map((flow) => FLOW_LABELS[flow] || flow).join('、')}`
+    : '';
 
   return (
     <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
@@ -948,11 +965,11 @@ function DashboardHealthPanel({ data, loading }: { data?: DashboardHealthSummary
             <SubCard title="自动推进">
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: enabledOps.length > 0 ? '#1a1a2e' : '#c2410c', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: enabledTargets.length > 0 ? '#1a1a2e' : '#c2410c', lineHeight: 1.5 }}>
                     {enabledText}
                   </div>
                   <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-                    {enabledOps.length > 0 ? '系统仅在已授权范围内自动推进' : '自动推进当前关闭，可在任务调度中配置'}
+                    {enabledTargets.length > 0 ? (flowText || '系统仅在已授权 target gate 内自动推进') : '自动推进当前关闭，可在任务调度中配置'}
                   </div>
                 </div>
                 <Link to="/system" style={{ ...linkBtnStyle, padding: '6px 10px', whiteSpace: 'nowrap' }}>

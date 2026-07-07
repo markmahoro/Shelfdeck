@@ -65,7 +65,7 @@ function titleForGate(gateId) {
     case 'delete.beforeExecute': return 'Confirm delete';
     case 'transcode.dolbyVisionTonemap': return 'Confirm Dolby Vision tonemap';
     case 'transcode.beforeReplace': return 'Confirm transcode replacement';
-    case 'upgrade.candidateSelect': return 'Select upgrade candidate';
+    case 'upgrade.candidateSelect': return 'Select replacement source';
     case 'upgrade.identityMismatch': return 'Verify upgrade identity';
     case 'upgrade.beforeReplace': return 'Confirm upgrade replacement';
     case 'scrape.beforeWriteMetadata': return 'Confirm metadata write';

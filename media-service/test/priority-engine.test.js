@@ -1,221 +1,175 @@
 'use strict';
 
 // Tests for PriorityEngine — initial task priority computation.
-// Lower number = runs first. See priorityEngine.js for the evaluation contract.
+// Lower number = runs first. The business dimension is targetGate; flowKind
+// only participates after a flow plan exists.
 
 const test = require('node:test');
 const assert = require('node:assert');
 const pe = require('../src/priorityEngine');
 
-function config({ manualTaskPriority, autoTaskPriorityBase, rules, subLibraries } = {}) {
+function config({ manualTaskPriority, autoTaskPriorityBase, rulesByTargetGate, subLibraries } = {}) {
   return {
     taskPriority: {
       manualTaskPriority: manualTaskPriority ?? 0,
       autoTaskPriorityBase: autoTaskPriorityBase ?? 100,
-      rules: rules || { transcode: [], upgrade: [], delete: [], scrape: [] },
+      targetGateWeights: {
+        ingest: 60,
+        metadata: 80,
+        optimize: 110,
+        archive: 70,
+        delete: 90,
+      },
+      optimizeOperationHints: {
+        transcode: 20,
+        upgrade: 0,
+      },
+      rulesByTargetGate: rulesByTargetGate || { ingest: [], metadata: [], optimize: [], archive: [], delete: [] },
     },
     subLibraries: subLibraries || [],
   };
 }
 
-test('manual tasks add source, action, and library dimensions', () => {
+function targetGate(targetGate) {
+  return { targetGate };
+}
+
+function taskContext(targetGateValue, flowKind = '') {
+  return {
+    taskTarget: targetGate(targetGateValue),
+    flowKind,
+  };
+}
+
+test('manual tasks add source, target gate, flow kind, and library dimensions when planned flow is known', () => {
   const c = config();
-  c.taskPriority.operationKindWeights = { transcode: 130 };
-  const p = pe.computePriority({ source: 'manual', operationKind: 'transcode', itemInfo: {}, config: c });
-  assert.strictEqual(p, 230);
+  const explained = pe.explainPriority({ source: 'manual', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c });
+  assert.strictEqual(explained.priority, 230);
+  assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['source', 'targetGate', 'flowKind', 'subLibrary']);
 });
 
-test('auto tasks add source and default library dimensions when no action weight exists', () => {
+test('optimize target-gate tasks do not need a flow kind at creation time', () => {
   const c = config();
-  const p = pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: {}, config: c });
-  assert.strictEqual(p, 200);
+  const explained = pe.explainPriority({ source: 'manual', taskTarget: targetGate('optimize'), itemInfo: {}, config: c });
+  assert.strictEqual(explained.priority, 210);
+  assert.strictEqual(explained.flowKind, '');
+  assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['source', 'targetGate', 'subLibrary']);
 });
 
-test('operationKindWeights add per-operation dimensions', () => {
+test('auto tasks add source and default library dimensions', () => {
   const c = config();
-  c.taskPriority.operationKindWeights = { ingest: 60, scrape: 80, transcode: 130 };
-  assert.strictEqual(pe.computePriority({ source: 'auto', operationKind: 'ingest', itemInfo: {}, config: c }), 260);
-  assert.strictEqual(pe.computePriority({ source: 'auto', operationKind: 'scrape', itemInfo: {}, config: c }), 260);
-  assert.strictEqual(pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: {}, config: c }), 330);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c }), 330);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('metadata', 'scrape'), itemInfo: { scraped: true, adultMetadata: { scrapeStatus: 'done' } }, config: c }), 280);
 });
 
-test('neutral library weight is still additive and does not erase operationKind order', () => {
-  const c = config({ subLibraries: [{ uuid: 'movie-lib', priorityWeight: 100 }] });
-  c.taskPriority.operationKindWeights = { ingest: 60, scrape: 80, transcode: 130 };
-
-  assert.strictEqual(pe.computePriority({
-    source: 'auto',
-    operationKind: 'transcode',
-    itemInfo: { subLibraryId: 'movie-lib' },
-    config: c,
-  }), 330);
+test('targetGateWeights order target gates without treating flows as task targets', () => {
+  const c = config();
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('ingest', 'ingest'), itemInfo: {}, config: c }), 260);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('metadata', 'scrape'), itemInfo: { scraped: true, adultMetadata: { scrapeStatus: 'done' } }, config: c }), 280);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c }), 330);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'upgrade'), itemInfo: {}, config: c }), 310);
 });
 
 test('library weight is added as an independent dimension', () => {
-  const subLibs = [{ uuid: 'film', priorityWeight: 10 }, { uuid: 'series', priorityWeight: 50 }];
-  const c = config({ subLibraries: subLibs });
-  c.taskPriority.operationKindWeights = { transcode: 130 };
+  const subLibraries = [{ uuid: 'film', priorityWeight: 10 }, { uuid: 'series', priorityWeight: 50 }];
+  const c = config({ subLibraries });
 
-  const filmAuto = pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: { subLibraryId: 'film' }, config: c });
-  const seriesAuto = pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: { subLibraryId: 'series' }, config: c });
-  assert.strictEqual(filmAuto, 240, 'film library (weight 10) should outrank series (weight 50)');
+  const filmAuto = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film' }, config: c });
+  const seriesAuto = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'series' }, config: c });
+  assert.strictEqual(filmAuto, 240);
   assert.strictEqual(seriesAuto, 280);
-  assert.ok(filmAuto < seriesAuto, 'film auto task should have smaller priority value');
+  assert.ok(filmAuto < seriesAuto);
 
-  const filmManual = pe.computePriority({ source: 'manual', operationKind: 'transcode', itemInfo: { subLibraryId: 'film' }, config: c });
-  assert.strictEqual(filmManual, 140, 'manual source weight still participates in the same additive formula');
+  const filmManual = pe.computePriority({ source: 'manual', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film' }, config: c });
+  assert.strictEqual(filmManual, 140);
 });
 
-test('library weight larger than default can defer a lower-priority library', () => {
-  const subLibs = [{ uuid: 'low', priorityWeight: 999 }];
-  const c = config({ autoTaskPriorityBase: 100, subLibraries: subLibs });
-  const p = pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: { subLibraryId: 'low' }, config: c });
-  assert.strictEqual(p, 1099, 'a larger library weight adds delay instead of being ignored');
-});
-
-test('rules are operationKind-isolated', () => {
+test('rulesByTargetGate applies by lifecycle target gate', () => {
   const c = config({
-    rules: {
-      transcode: [{ match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 5 } }],
-      upgrade: [],
+    rulesByTargetGate: {
+      ingest: [],
+      metadata: [],
+      optimize: [{ match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 25 } }],
+      archive: [],
+      delete: [],
     },
-    subLibraries: [],
   });
-  // A film transcode gets the subtract rule; a film upgrade does not.
-  const tc = pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: { subLibraryId: 'film' }, config: c });
-  const up = pe.computePriority({ source: 'auto', operationKind: 'upgrade', itemInfo: { subLibraryId: 'film' }, config: c });
-  assert.strictEqual(tc, 195, 'transcode rule subtracts from the additive score');
-  assert.strictEqual(up, 200, 'upgrade has no rules -> source + default library');
+
+  const transcode = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film' }, config: c });
+  const upgrade = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'upgrade'), itemInfo: { subLibraryId: 'film' }, config: c });
+  const scrape = pe.computePriority({ source: 'auto', ...taskContext('metadata', 'scrape'), itemInfo: { subLibraryId: 'film', scraped: true, adultMetadata: { scrapeStatus: 'done' } }, config: c });
+  assert.strictEqual(transcode, 305);
+  assert.strictEqual(upgrade, 285);
+  assert.strictEqual(scrape, 280);
 });
 
-test('multiple rules apply in order, each adjusting the running value', () => {
+test('multiple target-gate rules apply in order', () => {
   const c = config({
-    rules: {
-      transcode: [
-        { match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 50 } }, // 200 - 50 = 150
-        { match: { type: 'season' }, adjust: { op: 'add', value: 20 } },           // 150 + 20 = 170
-        { match: { isDolbyVision: true }, adjust: { op: 'subtract', value: 10 } }, // does NOT match -> 170
-      ],
-    },
-    subLibraries: [],
-  });
-  const p = pe.computePriority({
-    source: 'auto', operationKind: 'transcode',
-    itemInfo: { subLibraryId: 'film', type: 'season', isDiscLike: true, isDolbyVision: false },
-    config: c,
-  });
-  assert.strictEqual(p, 170);
-});
-
-test('legacy set adjustment is ignored so one rule cannot override additive dimensions', () => {
-  const c = config({
-    rules: {
-      transcode: [
+    rulesByTargetGate: {
+      ingest: [],
+      metadata: [],
+      optimize: [
         { match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 50 } },
-        { match: { type: 'season' }, adjust: { op: 'set', value: 999 } },
+        { match: { type: 'season' }, adjust: { op: 'add', value: 20 } },
+        { match: { isDolbyVision: true }, adjust: { op: 'subtract', value: 10 } },
       ],
+      archive: [],
+      delete: [],
     },
   });
   const p = pe.computePriority({
     source: 'auto',
-    operationKind: 'transcode',
-    itemInfo: { subLibraryId: 'film', type: 'season' },
+    ...taskContext('optimize', 'transcode'),
+    itemInfo: { subLibraryId: 'film', type: 'season', isDolbyVision: false },
     config: c,
   });
-  assert.strictEqual(p, 150);
+  assert.strictEqual(p, 300);
 });
 
-test('explainPriority returns a stable additive breakdown', () => {
+test('explainPriority returns the Kairox additive breakdown', () => {
   const c = config({
     subLibraries: [{ uuid: 'film', priorityWeight: 10 }],
-    rules: {
-      transcode: [
-        { match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 25 } },
-      ],
+    rulesByTargetGate: {
+      ingest: [],
+      metadata: [],
+      optimize: [{ match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 25 } }],
+      archive: [],
+      delete: [],
     },
   });
-  c.taskPriority.operationKindWeights = { transcode: 130 };
 
   const explained = pe.explainPriority({
     source: 'auto',
-    operationKind: 'transcode',
+    ...taskContext('optimize', 'transcode'),
     itemInfo: { subLibraryId: 'film' },
     config: c,
   });
 
-  assert.strictEqual(explained.modelVersion, 'additive-v3');
-  assert.strictEqual(explained.formula, 'source + operationKind + subLibrary + businessSignal + queueAge + retry + matchedRules');
-  assert.strictEqual(explained.priority, 215);
-  assert.deepStrictEqual(explained.dimensions.map((d) => d.value), [100, 130, 10, -25]);
-});
-
-test('explainTaskPriority uses Kairox target gate semantics', () => {
-  const c = config({
-    subLibraries: [{ uuid: 'film', priorityWeight: 10 }],
-  });
-  c.taskPriority.targetGateWeights = { ingest: 60, metadata: 80, optimize: 110, archive: 70 };
-  c.taskPriority.optimizeOperationHints = { transcode: 20, upgrade: 0, delete: -20 };
-
-  const explained = pe.explainTaskPriority({
-    source: 'auto',
-    taskTarget: {
-      targetGate: 'optimize',
-      gateObjective: { kind: 'reduce_bitrate' },
-      operationHint: 'transcode',
-    },
-    itemInfo: { subLibraryId: 'film', equivalentBitrate: 12000, targetBitrate: 8000 },
-    config: c,
-  });
-
   assert.strictEqual(explained.modelVersion, 'kairox-task-creator-v1');
-  assert.strictEqual(explained.formula, 'source + targetGate + optimizeOperationHint + subLibrary + businessSignal + queueAge + retry + matchedRules');
-  assert.strictEqual(explained.targetGate, 'optimize');
-  assert.strictEqual(explained.operationHint, 'transcode');
-  assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['source', 'targetGate', 'optimizeOperationHint', 'subLibrary', 'businessSignal']);
-  assert.strictEqual(explained.priority, 225);
+  assert.strictEqual(explained.formula, 'source + targetGate + flowKind + subLibrary + businessSignal + queueAge + retry + matchedRules');
+  assert.strictEqual(explained.priority, 215);
+  assert.deepStrictEqual(explained.dimensions.map((d) => d.value), [100, 110, 20, 10, -25]);
 });
 
-test('explainTaskPriority maps operation weights without using flow plan', () => {
+test('adult workflow business signal keeps ingest and metadata ahead of transcode', () => {
   const c = config();
-  c.taskPriority.operationKindWeights = { scrape: 80, transcode: 130, upgrade: 110, delete: 90 };
-
-  const explained = pe.explainTaskPriority({
-    source: 'auto',
-    taskTarget: {
-      targetGate: 'metadata',
-      gateObjective: { kind: 'metadata_complete' },
-    },
-    itemInfo: { scraped: false, adultMetadata: { scrapeStatus: 'pending' } },
-    config: c,
-    operationKind: 'scrape',
-  });
-
-  assert.strictEqual(explained.targetGate, 'metadata');
-  assert.strictEqual(explained.dimensions.find((d) => d.key === 'targetGate').value, 80);
-  assert.ok(!explained.dimensions.some((d) => d.key === 'operationKind'));
-  assert.ok(!Object.prototype.hasOwnProperty.call(explained, 'flowPlan'));
-});
-
-test('adult workflow business signal keeps ingest and scrape ahead of transcode', () => {
-  const c = config();
-  c.taskPriority.operationKindWeights = { ingest: 60, scrape: 80, transcode: 130 };
   c.taskPriority.businessSignalWeights = { adultWorkflowBonus: 20, maxTranscodeSavingBonus: 30 };
 
   const ingest = pe.explainPriority({
     source: 'auto',
-    operationKind: 'ingest',
+    ...taskContext('ingest', 'ingest'),
     itemInfo: { source: 'adult_folder', mediaType: 'adult' },
     config: c,
   });
   const scrape = pe.explainPriority({
     source: 'auto',
-    operationKind: 'scrape',
+    ...taskContext('metadata', 'scrape'),
     itemInfo: { scraped: false, adultMetadata: { scrapeStatus: 'pending' } },
     config: c,
   });
   const transcode = pe.explainPriority({
     source: 'auto',
-    operationKind: 'transcode',
+    ...taskContext('optimize', 'transcode'),
     itemInfo: { equivalentBitrate: 12000, targetBitrate: 8000 },
     config: c,
   });
@@ -229,7 +183,6 @@ test('adult workflow business signal keeps ingest and scrape ahead of transcode'
 
 test('queue age and retry are additive dynamic dimensions', () => {
   const c = config();
-  c.taskPriority.operationKindWeights = { transcode: 130 };
   c.taskPriority.queueAgeStepMinutes = 60;
   c.taskPriority.queueAgeBonusPerStep = 2;
   c.taskPriority.maxQueueAgeBonus = 40;
@@ -241,14 +194,14 @@ test('queue age and retry are additive dynamic dimensions', () => {
   try {
     const explained = pe.explainPriority({
       source: 'auto',
-      operationKind: 'transcode',
+      ...taskContext('optimize', 'transcode'),
       itemInfo: {},
       task: { createdAt: '2026-06-29T07:30:00.000Z', retryCount: 2 },
       config: c,
     });
     assert.strictEqual(explained.priority, 362);
-    assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['source', 'operationKind', 'subLibrary', 'queueAge', 'retry']);
-    assert.deepStrictEqual(explained.dimensions.map((d) => d.value), [100, 130, 100, -8, 40]);
+    assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['source', 'targetGate', 'flowKind', 'subLibrary', 'queueAge', 'retry']);
+    assert.deepStrictEqual(explained.dimensions.map((d) => d.value), [100, 110, 20, 100, -8, 40]);
   } finally {
     Date.now = realNow;
   }
@@ -256,40 +209,50 @@ test('queue age and retry are additive dynamic dimensions', () => {
 
 test('match is AND-combined; undefined fields do not constrain', () => {
   const c = config({
-    rules: { transcode: [{ match: { subLibraryId: 'film', type: 'movie' }, adjust: { op: 'subtract', value: 30 } }] },
-    subLibraries: [],
+    rulesByTargetGate: {
+      ingest: [],
+      metadata: [],
+      optimize: [{ match: { subLibraryId: 'film', type: 'movie' }, adjust: { op: 'subtract', value: 30 } }],
+      archive: [],
+      delete: [],
+    },
   });
-  // Both match -> apply
-  assert.strictEqual(pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: { subLibraryId: 'film', type: 'movie' }, config: c }), 170);
-  // Only one matches -> no apply
-  assert.strictEqual(pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: { subLibraryId: 'film', type: 'season' }, config: c }), 200);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film', type: 'movie' }, config: c }), 300);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film', type: 'season' }, config: c }), 330);
 });
 
-test('resolution match uses prefix semantics (4K deferral rule)', () => {
+test('resolution match uses prefix semantics', () => {
   const c = config({
-    rules: { transcode: [{ match: { resolution: '3840' }, adjust: { op: 'add', value: 40 } }] },
-    subLibraries: [],
+    rulesByTargetGate: {
+      ingest: [],
+      metadata: [],
+      optimize: [{ match: { resolution: '3840' }, adjust: { op: 'add', value: 40 } }],
+      archive: [],
+      delete: [],
+    },
   });
-  // 4K (3840x2160) is deferred
-  assert.strictEqual(pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: { resolution: '3840x2160' }, config: c }), 240);
-  // 1080p unaffected
-  assert.strictEqual(pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: { resolution: '1920x1080' }, config: c }), 200);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { resolution: '3840x2160' }, config: c }), 370);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { resolution: '1920x1080' }, config: c }), 330);
 });
 
 test('result is clamped to >= 0 and rounded', () => {
   const c = config({
-    rules: { transcode: [{ match: {}, adjust: { op: 'subtract', value: 250 } }] },
-    subLibraries: [],
+    rulesByTargetGate: {
+      ingest: [],
+      metadata: [],
+      optimize: [{ match: {}, adjust: { op: 'subtract', value: 500 } }],
+      archive: [],
+      delete: [],
+    },
   });
-  const p = pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: {}, config: c });
-  assert.strictEqual(p, 0, 'priority never goes negative');
+  const p = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c });
+  assert.strictEqual(p, 0);
 });
 
-test('missing taskPriority config falls back to safe defaults', () => {
-  // No taskPriority key at all
+test('missing taskPriority config falls back to target gate defaults', () => {
   const c = { subLibraries: [] };
-  assert.strictEqual(pe.computePriority({ source: 'manual', operationKind: 'transcode', itemInfo: {}, config: c }), 100);
-  assert.strictEqual(pe.computePriority({ source: 'auto', operationKind: 'transcode', itemInfo: {}, config: c }), 200);
+  assert.strictEqual(pe.computePriority({ source: 'manual', taskTarget: targetGate('optimize'), itemInfo: {}, config: c }), 210);
+  assert.strictEqual(pe.computePriority({ source: 'auto', taskTarget: targetGate('optimize'), itemInfo: {}, config: c }), 310);
 });
 
 test('_applyAdjust handles subtract / add and ignores invalid or legacy set', () => {

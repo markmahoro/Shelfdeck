@@ -92,34 +92,26 @@ function evaluateIngestGate(item = {}) {
   };
 }
 
-function isInitialStrategyPlaceholder(action, reason) {
-  if (!action || action === 'none') return true;
-  if (action !== 'keep') return false;
-  return ['新入库', '成人库新入库'].includes(clean(reason));
-}
-
 function explicitOptimizeGate(item = {}) {
   const gate = item.optimizeGate || item.optimizationGate;
   return gate && typeof gate === 'object' ? gate : null;
 }
 
-function resolveOptimizeOperation(item = {}, gate = null) {
-  const action = normalize(item.action);
+function resolveOptimizeFlowKind(item = {}, gate = null) {
   const status = normalize(item.optimizationStatus);
 
-  if (gate && gate.operation) return normalize(gate.operation);
-  if (item.optimizationAction) return normalize(item.optimizationAction);
+  if (gate && gate.flowKind) return normalize(gate.flowKind);
+  if (gate && gate.appliedFlowKind) return normalize(gate.appliedFlowKind);
   if (status === 'transcoded') return 'transcode';
   if (status === 'upgraded') return 'upgrade';
-  return action || null;
+  return null;
 }
 
 function resolveOptimizeTarget(item = {}, gate = null) {
   const target = gate && gate.target && typeof gate.target === 'object' ? gate.target : {};
-  const actionParams = item.actionParams && typeof item.actionParams === 'object' ? item.actionParams : {};
   return {
-    bitrateMbps: normalizeBitrateMbps(target.bitrateMbps || target.targetBitrate || item.targetBitrate || actionParams.targetBitrate),
-    codec: normalizeCodec(target.codec || target.targetCodec || item.targetCodec || actionParams.targetCodec),
+    bitrateMbps: normalizeBitrateMbps(target.bitrateMbps || target.targetBitrate || item.targetBitrate),
+    codec: normalizeCodec(target.codec || target.targetCodec || item.targetCodec),
   };
 }
 
@@ -159,13 +151,13 @@ function optimizeRetryPolicy(reason) {
   };
 }
 
-function optimizeGateResult({ passed, status, reason, operation, target, observed, failureReasons, evidenceLevel }) {
+function optimizeGateResult({ passed, status, reason, flowKind, target, observed, failureReasons, evidenceLevel }) {
   return {
     gate: 'optimize',
     passed: !!passed,
     status,
     reason,
-    operation: operation || null,
+    flowKind: flowKind || null,
     target: target || {},
     observed: observed || {},
     failureReasons: failureReasons || [],
@@ -175,16 +167,16 @@ function optimizeGateResult({ passed, status, reason, operation, target, observe
   };
 }
 
-function hasOptimizeDoneMarker(item = {}, operation = '') {
+function hasOptimizeDoneMarker(item = {}, flowKind = '') {
   const status = normalize(item.optimizationStatus);
-  if (operation === 'transcode') return status === 'transcoded' || !!item.lastTranscodeDoneAt;
-  if (operation === 'upgrade') return status === 'upgraded' || !!item.lastUpgradeDoneAt;
+  if (flowKind === 'transcode') return status === 'transcoded' || !!item.lastTranscodeDoneAt;
+  if (flowKind === 'upgrade') return status === 'upgraded' || !!item.lastUpgradeDoneAt;
   return false;
 }
 
-function targetFailures(operation, target, observed) {
+function targetFailures(flowKind, target, observed) {
   const failures = [];
-  const bitrateTolerance = operation === 'upgrade'
+  const bitrateTolerance = flowKind === 'upgrade'
     ? { minRatio: 0.9, maxRatio: null }
     : { minRatio: 0.65, maxRatio: 1.35 };
 
@@ -204,7 +196,7 @@ function targetFailures(operation, target, observed) {
 
 function evaluateOptimizeGate(item = {}) {
   const gate = explicitOptimizeGate(item);
-  const operation = resolveOptimizeOperation(item, gate);
+  let flowKind = resolveOptimizeFlowKind(item, gate);
   const target = resolveOptimizeTarget(item, gate);
   const observed = resolveOptimizeObserved(item, gate);
 
@@ -216,7 +208,7 @@ function evaluateOptimizeGate(item = {}) {
       passed: false,
       status: normalize(gate.status) || 'failed',
       reason: gate.reason || 'optimize_gate_failed',
-      operation,
+      flowKind,
       target,
       observed,
       failureReasons,
@@ -229,53 +221,52 @@ function evaluateOptimizeGate(item = {}) {
       passed: true,
       status: 'passed',
       reason: gate.reason || 'optimize_gate_met',
-      operation,
+      flowKind,
       target,
       observed,
       evidenceLevel: 'explicit',
     });
   }
 
-  const action = normalize(item.action);
-  const reason = clean(item.reason);
-  if (action === 'keep' && !isInitialStrategyPlaceholder(action, reason)) {
-    return optimizeGateResult({
-      passed: true,
-      status: 'passed',
-      reason: 'objective_already_satisfied',
-      operation: 'no_op',
-      target: { operation: 'no_op' },
-      observed: { action: 'keep' },
-      evidenceLevel: 'strategy',
-    });
-  }
-
-  if (item.optimizeObjective && item.optimizeObjectiveStatus !== 'pending_metadata') {
+  const projectedObjective = item.optimizeObjective || (item.targetMediaFacts && typeof item.targetMediaFacts === 'object'
+    ? {
+      kind: 'target_media_facts',
+      targetMediaFacts: item.targetMediaFacts,
+      targetBitrate: item.targetBitrate,
+      targetCodec: item.targetCodec,
+      maxSizeGB: item.maxSizeGB,
+      seedPreferences: item.seedPreferences,
+    }
+    : null);
+  if (projectedObjective && item.optimizeObjectiveStatus !== 'pending_metadata') {
     const selection = flowPlanner.selectOptimizeFlow({
       itemInfo: item,
-      optimizeObjective: item.optimizeObjective,
+      optimizeObjective: projectedObjective,
       optimizeObjectiveStatus: item.optimizeObjectiveStatus,
       objectiveHash: item.objectiveHash,
     });
-    if (selection.selectedOperation === 'no_op') {
+    if (selection.flowKind === 'no_op') {
       return optimizeGateResult({
         passed: true,
         status: 'passed',
         reason: 'objective_already_satisfied',
-        operation: 'no_op',
+        flowKind: 'no_op',
         target: selection.targetFacts,
         observed: selection.currentFacts,
         evidenceLevel: 'objective',
       });
     }
+    if (!flowKind && selection.allowed && ['transcode', 'upgrade'].includes(selection.flowKind)) {
+      flowKind = selection.flowKind;
+    }
   }
 
-  if (!operation || operation === 'none') {
+  if (!flowKind || flowKind === 'none') {
     return optimizeGateResult({
       passed: false,
       status: 'pending',
       reason: 'strategy_missing',
-      operation: null,
+      flowKind: null,
       target,
       observed,
       failureReasons: ['strategy_missing'],
@@ -283,12 +274,12 @@ function evaluateOptimizeGate(item = {}) {
     });
   }
 
-  if (operation === 'delete') {
+  if (flowKind === 'delete') {
     return optimizeGateResult({
       passed: false,
       status: 'blocked',
       reason: 'delete_gate_required',
-      operation: null,
+      flowKind: null,
       target,
       observed,
       failureReasons: ['delete_is_not_optimize'],
@@ -296,12 +287,12 @@ function evaluateOptimizeGate(item = {}) {
     });
   }
 
-  if (['transcode', 'upgrade'].includes(operation) && !hasOptimizeDoneMarker(item, operation)) {
+  if (['transcode', 'upgrade'].includes(flowKind) && !hasOptimizeDoneMarker(item, flowKind)) {
     return optimizeGateResult({
       passed: false,
       status: 'pending',
       reason: 'optimize_not_attempted',
-      operation,
+      flowKind,
       target,
       observed,
       failureReasons: ['optimize_result_missing'],
@@ -309,13 +300,13 @@ function evaluateOptimizeGate(item = {}) {
     });
   }
 
-  const failures = targetFailures(operation, target, observed);
+  const failures = targetFailures(flowKind, target, observed);
   if (failures.length > 0) {
     return optimizeGateResult({
       passed: false,
       status: 'failed',
       reason: 'optimize_gate_failed',
-      operation,
+      flowKind,
       target,
       observed,
       failureReasons: failures,
@@ -327,7 +318,7 @@ function evaluateOptimizeGate(item = {}) {
     passed: true,
     status: 'passed',
     reason: target.bitrateMbps || target.codec ? 'optimize_gate_met' : 'legacy_optimization_marker',
-    operation,
+    flowKind,
     target,
     observed,
     evidenceLevel: target.bitrateMbps || target.codec ? 'objective_or_marker' : 'marker',

@@ -1,16 +1,18 @@
 export type MediaRating = 1 | 2 | 3 | 4 | 5;
-export type MediaAction = 'delete' | 'transcode' | 'upgrade' | 'scrape' | 'keep';
+export type MediaSelectedFlow = 'delete' | 'transcode' | 'upgrade' | 'scrape';
 export type MediaOptimizationStatus = 'transcoded' | 'upgraded' | 'none';
 export type MediaLifecycleStage = 'ingested' | 'metadata_ready' | 'archived' | string;
 
 export type BusinessFlowOperation = {
-  operation: MediaAction | string;
-  bridgeKind?: string;
-  flowOperation?: string;
+  targetGate?: string;
+  selectedFlow?: string;
+  operation: MediaSelectedFlow | string;
 };
 
 export type BlockedBusinessFlowOperation = {
-  operation: MediaAction | string;
+  targetGate?: string;
+  selectedFlow?: string;
+  operation: MediaSelectedFlow | string;
   reason: string;
   metadataMissingReasons?: string[];
   supportedEntry?: string;
@@ -23,11 +25,11 @@ export type BusinessFlowDecision = {
   metadataStatus?: string;
   optimizationStatus?: string;
   archiveStatus?: string;
-  nextBridge?: string | null;
-  recommendedOperation?: MediaAction | string | null;
-  allowedOperations?: BusinessFlowOperation[];
-  blockedOperations?: BlockedBusinessFlowOperation[];
-  blockedReasons?: Record<string, string>;
+  nextTargetGate?: string | null;
+  recommendedTargetGate?: string | null;
+  allowedTargets?: BusinessFlowOperation[];
+  blockedTargets?: BlockedBusinessFlowOperation[];
+  blockedReasonsByTargetGate?: Record<string, string>;
   activeTaskBridge?: string | null;
   activeFlowOperation?: string | null;
   latestEventSummary?: Record<string, unknown> | null;
@@ -52,7 +54,6 @@ export type ManagedMediaItem = {
   doubanStars: MediaRating | null;
   watched: boolean;
   reason?: string;
-  recommendedAction?: MediaAction;
   equivalentBitrate?: number;
   targetBitrate?: number;
   predictedSizeGb?: number;

@@ -418,7 +418,7 @@ async function runPrecheck(taskId, task) {
 
 async function runPlanning(taskId, task) {
   setPhase(taskId, 'planning');
-  appendLog(taskId, 'info', 'Searching for upgrade candidates');
+  appendLog(taskId, 'info', 'Searching for replacement sources');
 
   const mpConfig = getMpConfig();
   if (!mpConfig) {
@@ -541,7 +541,7 @@ async function runPlanning(taskId, task) {
       index: 0,
     })).map((c, i) => ({ ...c, index: i }));
 
-    appendLog(taskId, 'info', `Found ${simplified.length} upgrade candidates`);
+    appendLog(taskId, 'info', `Found ${simplified.length} replacement sources`);
 
     taskStore.updateTask(taskId, {
       itemInfo: {
@@ -558,7 +558,7 @@ async function runPlanning(taskId, task) {
       task: selectionTask,
       itemInfo: selectionTask.itemInfo,
       config,
-      message: `Select one of ${simplified.length} upgrade candidates.`,
+      message: `Select one of ${simplified.length} replacement sources.`,
       options: ['approve'],
       payload: { candidates: simplified },
     });

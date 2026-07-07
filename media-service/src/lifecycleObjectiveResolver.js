@@ -59,28 +59,33 @@ function explicitOptimizeObjective(item = {}, options = {}) {
   return objective && typeof objective === 'object' ? objective : null;
 }
 
-function inferOperation(item = {}, operationHint = '', options = {}) {
-  return cleanToken(
-    (explicitOptimizeObjective(item, options) || {}).operationHint
-    || operationHint
-    || item.optimizationAction
-    || item.action
-  );
-}
-
-function isStrategyPlaceholder(action, reason) {
-  if (!action || action === 'none') return true;
-  if (action !== 'keep') return false;
-  return ['新入库', '成人库新入库'].includes(String(reason || '').trim());
-}
-
 function commonObjective(input = {}) {
   return cleanObject({
     source: input.source || 'lifecycle_strategy',
     reason: input.reason || '',
-    acceptableOperations: input.acceptableOperations,
-    operationHint: input.operationHint,
   });
+}
+
+function sanitizeObjective(objective = {}) {
+  const sanitized = { ...objective };
+  delete sanitized.selectedFlow;
+  delete sanitized.SelectedFlow;
+  delete sanitized.flowHint;
+  delete sanitized.preferredFlow;
+  delete sanitized.operation;
+  delete sanitized.operationKind;
+  delete sanitized.actionType;
+  if (cleanToken(sanitized.kind) === 'remove_media') {
+    return cleanObject({
+      kind: 'unknown',
+      description: 'Legacy remove_media objective is not a valid optimize objective.',
+      ...commonObjective({
+        source: 'legacy_remove_media_rejected',
+        reason: sanitized.reason || '',
+      }),
+    });
+  }
+  return cleanObject(sanitized);
 }
 
 function findSubLibrary(item = {}, config = {}) {
@@ -141,8 +146,7 @@ function objectiveDerivedFrom(item = {}, config = {}) {
     perceptionUpdatedAt: item.perceptionUpdatedAt || (item.userPerceptionFacts || {}).perceptionUpdatedAt,
     subLibraryId: item.subLibraryId || (subLibrary && subLibrary.uuid),
     ruleTemplateId: templateId,
-    legacyAction: item.action,
-    legacyReason: item.reason,
+    reason: item.reason,
   });
 }
 
@@ -159,14 +163,12 @@ function resolveOptimizeObjective(item = {}, options = {}) {
   const explicit = explicitOptimizeObjective(item, options);
   if (explicit) {
     return cleanObject({
-      ...explicit,
+      ...sanitizeObjective(explicit),
       source: explicit.source || 'explicit_lifecycle_objective',
-      operationHint: explicit.operationHint || options.operationHint || inferOperation(item, options.operationHint, options),
     });
   }
 
   if (item.targetMediaFacts && typeof item.targetMediaFacts === 'object') {
-    const operation = inferOperation(item, options.operationHint, options);
     return cleanObject({
       kind: 'target_media_facts',
       description: 'Media should satisfy the configured archive-before target facts.',
@@ -178,91 +180,17 @@ function resolveOptimizeObjective(item = {}, options = {}) {
       seedPreferences: item.seedPreferences || item.targetMediaFacts.seedPreferences,
       ...commonObjective({
         reason: item.reason || '',
-        acceptableOperations: ['transcode', 'upgrade'],
-        operationHint: operation,
       }),
     });
   }
 
-  const operation = inferOperation(item, options.operationHint, options);
   const reason = item.reason || '';
-  if (isStrategyPlaceholder(operation, reason)) {
-    return cleanObject({
-      kind: 'optimize_strategy_pending',
-      description: 'Optimize objective has not been resolved by Lifecycle rules yet.',
-      ...commonObjective({
-        source: 'lifecycle_pending',
-        reason,
-        acceptableOperations: [],
-        operationHint: operation || options.operationHint || '',
-      }),
-    });
-  }
-
-  if (operation === 'keep') {
-    return cleanObject({
-      kind: 'keep_current',
-      description: 'Current media already satisfies the configured optimize objective.',
-      ...commonObjective({
-        reason,
-        acceptableOperations: ['archive'],
-        operationHint: 'keep',
-      }),
-    });
-  }
-
-  if (operation === 'transcode') {
-    return cleanObject({
-      kind: 'reduce_bitrate',
-      description: 'Media should satisfy the configured bitrate or codec optimization target.',
-      targetBitrate: item.targetBitrate,
-      targetCodec: item.targetCodec,
-      equivalentBitrate: item.equivalentBitrate,
-      ...commonObjective({
-        reason,
-        acceptableOperations: ['transcode'],
-        operationHint: 'transcode',
-      }),
-    });
-  }
-
-  if (operation === 'upgrade') {
-    return cleanObject({
-      kind: 'improve_source_quality',
-      description: 'Media should be replaced by a better acceptable source.',
-      targetBitrate: item.targetBitrate,
-      targetCodec: item.targetCodec,
-      maxSizeGB: item.maxSizeGB,
-      seedPreferences: item.seedPreferences,
-      ...commonObjective({
-        reason,
-        acceptableOperations: ['upgrade'],
-        operationHint: 'upgrade',
-      }),
-    });
-  }
-
-  if (options.operationHint) {
-    return cleanObject({
-      kind: cleanToken(options.operationHint) || 'unknown',
-      description: 'Legacy optimize objective inferred from compatibility operation hint.',
-      ...commonObjective({
-        source: 'operation_hint_compatibility',
-        reason,
-        acceptableOperations: [cleanToken(options.operationHint)].filter(Boolean),
-        operationHint: cleanToken(options.operationHint),
-      }),
-    });
-  }
-
   return cleanObject({
-    kind: 'unknown',
-    description: 'Optimize objective could not be resolved from lifecycle facts.',
+    kind: 'optimize_strategy_pending',
+    description: 'Optimize objective has not been resolved by Lifecycle target rules yet.',
     ...commonObjective({
-      source: 'unresolved',
+      source: 'lifecycle_pending',
       reason,
-      acceptableOperations: [],
-      operationHint: operation,
     }),
   });
 }

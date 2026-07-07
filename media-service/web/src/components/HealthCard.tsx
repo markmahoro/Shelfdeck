@@ -5,7 +5,8 @@ interface HealthCheckItem {
   runningTasks?: number;
   // smartTask
   enabled?: boolean;
-  enabledActions?: string[];
+  enabledTaskTargets?: string[];
+  allowedOptimizeFlows?: string[];
   disabledReason?: string;
   lastRunAt?: string | null;
   // mediaLib
@@ -62,7 +63,7 @@ function describe(key: string, item: HealthCheckItem): string {
       return item.runningTasks ? `${item.runningTasks} 个任务运行中` : '无运行中任务';
     case 'smartTask':
       if (item.enabled === false) {
-        if (item.disabledReason === 'no_enabled_actions') return '未启用自动入队';
+        if (item.disabledReason === 'no_enabled_task_targets') return '未启用自动入队';
         return '已停用';
       }
       if (!item.lastRunAt) return '等待首次运行';

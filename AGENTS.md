@@ -24,7 +24,7 @@ Use the smallest relevant set:
 
 | Situation | Read first |
 | --- | --- |
-| Architecture, scheduler, task admission, automation, flow, resource runtime, module boundary | `docs/v3/KAIROX_ARCHITECTURE.md`; use `docs/v2/ARCH_OVERVIEW.md` only as current implementation map |
+| Architecture, scheduler, task admission, automation, flow, resource runtime, module boundary | `docs/v3/KAIROX_ARCHITECTURE.md`, then `docs/v3/KAIROX_ENGINEERING_PLAYBOOK.md`; use `docs/v2/ARCH_OVERVIEW.md` only as current implementation map |
 | v3 docs conflict or historical context | `docs/v3/README.md` |
 | Runtime bug/debugging | `tests/TEST_ENV_CHECKLIST.md`, then `docs/v2/DEBUG_WORKFLOW.md` |
 | Production deploy/release/upgrade | `docs/v2/PRODUCTION_DEPLOYMENT.md` |
@@ -39,13 +39,13 @@ Use the smallest relevant set:
 - `docs/v2/ARCH_OVERVIEW.md` is a current implementation map, not an architecture contract. It must not override Kairox.
 - Mirex is the legacy compatibility model before Kairox. Recognize, migrate, and preserve it only for compatibility; do not extend it for new behavior.
 - Kairox task semantics are `object + targetGate + gateObjective`.
-- Legacy `actionType`, flow operation names, `taskBridge`, and operation-kind fields are compatibility hints, not the primary user-facing task meaning.
+- Legacy `actionType`, operation-kind fields, and top-level selected-flow fields are Mirex remnants. They may only appear in historical docs, negative tests, or one-time cutover/migration inputs, not in new runtime task identity.
 - Task / Flow / Event boundaries are hard:
   - Task: one attempt to move one object across one target gate.
-  - Flow: selected implementation path inside that task.
+  - Flow: implementation path selected by Flow Planner and stored as `flowPlan.flowKind`.
   - Event: durable execution step inside that flow, usually tied to resource usage.
 - All automatic task creation must use unified TaskAdmission / Task Creator semantics. There must be no adult-library-only or background-only auto-enqueue path.
-- `smartTaskEnabledActions` is the global allow-list for automatic task types. Manual user actions may bypass the automatic allow-list as explicit intent, but not safety checks such as duplicate active-task prevention.
+- `automaticTaskTargets` is the global allow-list for automatic target-gate tasks. Manual user actions may bypass the automatic allow-list as explicit intent, but not safety checks such as duplicate active-task prevention.
 
 ## Production Safety
 

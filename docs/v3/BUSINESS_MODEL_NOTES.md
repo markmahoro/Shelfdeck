@@ -48,7 +48,7 @@ S4 archived
 
 - `source/discovered` 是阶段 0，表示 ShelfDeck 已经知道一个外部媒体候选，但它还没有成为完整的 ShelfDeck media item。
 - `ingested` 表示媒体已经归一成 ShelfDeck item，拥有稳定 itemId、source refs、路径和基础媒体事实。
-- `metadata-ready` 表示识别、元数据、评分、观看状态、成人刮削等优化前提已经完成或明确失败。
+- `metadata-ready` 表示识别、元数据、成人刮削等媒体描述事实已经完成或明确失败。评分、观看状态、播放次数等属于 user perception facts，不属于 metadata gate。
 - `optimized` 表示这个媒体已经经过策略判断和必要优化处置；如果策略结果是 `keep`，可以通过 no-op optimize flow 达成。
 - `archived` 表示 ShelfDeck 对该 item 的本轮处理闭环已经验收完成，用户可以把它理解为“绿灯”或“处理完了”。
 
@@ -56,8 +56,9 @@ Gate 定义：
 
 - `ingest gate` 证明外部候选已经成为 ShelfDeck 可管理 item。v3.1 第一版合同是：稳定 `itemId` 已建立；来源或归属子库明确；source refs / asset identity / 媒体路径 / 外部引用至少有一种可追踪；基础媒体事实已写入，或 probe/读取失败原因已经作为可见事实落库。普通 Emby refresh、成人文件 ingest、未来其他来源都必须收敛到这个 gate；没有过 gate 的对象只能停在 `source/discovered`，不能表现成可优化媒体。
 - `metadata gate` 证明 item 已具备进入 optimize 的用户语义前提。它就是用户看到的“元数据完整” gate，不限于狭义 metadata 字段；子库可自定义 gate，但配置必须覆盖下游 optimize 策略会消费的字段，避免出现“元数据完整但不能优化”的状态。
-- `optimize gate` 证明当前媒体的 optimize objective 已经达成。Optimize objective 由 Lifecycle 定义，是用户希望媒体最终变成什么，例如降低码率、提升画质、补中文字幕、替换更好音轨、修复编码/杜比视界兼容性、删除媒体或保持当前状态闭环。`transcode`、`upgrade`、`delete`、`remux` 等只是 Flow Planner 为达成 objective 选择的 flow operation，不是 gate 目标本身。delete 属于 optimize gate，不属于 archive gate。Gate 的判定对象不是“flow 是否跑过”，而是 objective 是否达成：例如转码不是 FFmpeg 执行完就成功，而是输出在宽容差内达到目标码率/编码/可播放/替换等合同。Optimize gate miss 属于当前 task 的 flow 结果；是否重试、重试次数、是否需要用户介入由该 task 的 flow retry policy 决定，Task Creator 不定义 gate miss 的重试策略。
-- `archive gate` 证明本轮 ShelfDeck 处理闭环已经归档。v3.1 第一版合同是：item 已经具备 optimized-like 结果（`keep` 决策成立，或 transcode/upgrade/delete 等 optimize flow 已达成目标）；没有显式 `archiveBlockers`；终态事实和必要摘要可解释。它不承载 delete 的核心执行语义，而是 optimized 之后的最终收口；未过 gate 的 item 应停在 `optimized`，等待 archive gate task 或等价的归档收口事实，而不是直接显示已闭环。
+- `optimize gate` 证明当前媒体的 optimize objective 已经达成。Optimize objective 由 Lifecycle 定义，是用户希望媒体在归档前达到的目标媒体事实，例如目标码率、codec、质量层级、字幕/音轨约束或兼容性约束。`no_op`、`transcode`、`upgrade`、未来 `remux` 等只是 Flow Planner 为达成 objective 选择的 selected flow，不是 gate 目标本身。delete 不属于 optimize gate。Gate 的判定对象不是“flow 是否跑过”，而是 objective 是否达成：例如转码不是 FFmpeg 执行完就成功，而是输出在宽容差内达到目标码率/编码/可播放/替换等合同。Optimize gate miss 属于当前 task 的 flow 结果；是否重试、重试次数、是否需要用户介入由该 task 的 flow retry policy 决定，Task Creator 不定义 gate miss 的重试策略。
+- `archive gate` 证明本轮 ShelfDeck 处理闭环已经归档。合同是：item 已经具备 optimized-like 结果（objective 已满足或 no-op 成立）；没有显式 `archiveBlockers`；终态事实和必要摘要可解释。它不承载 delete 的核心执行语义，而是 optimized 之后的已归档状态；未过 gate 的 item 应停在 `optimized`，等待 archive gate task 或等价的归档收口事实，而不是直接显示已闭环。
+- `delete gate` 证明已归档媒体完成处置闭环。Delete eligibility 由归档事实、归档时长、user perception facts 和用户处置决策决定；delete candidate 必须来自 archive 后 review，未确认前不得执行 destructive delete。
 
 当前普通 Emby 媒体的 scrape task 是“半假 scrape”：它是 metadata gate 未满足时的 metadata target task / metadata repair flow，但不做 TMDB 等真刮削；它可以询问 Emby、读取本地 Douban 缓存、做本地技术字段 probe 和自算字段。成人 scrape 与未来真 scrape 仍以 metadata gate 为目标，只是 flow/event 编排不同。
 
@@ -84,13 +85,13 @@ Task 的核心内容是：
 - constraints：风险策略、允许的 operation 范围、是否需要确认等。
 - runtime state：等待、运行中、失败、完成、等待确认、暂停等。
 
-v3.1 过渡实现已经将 `taskTarget` 落到 task payload、SQLite projection、任务创建 API、任务列表、任务详情和 task event 中。`taskTarget` 当前包含 `object`、`targetGate`、`gateObjective` 和兼容 `operationHint`。这一步的意义是让 task 主语义先从旧 `actionType` 中抽出来；当前 `gateObjective` 仍是按 operation 的默认映射，后续还需要继续收口到可配置的 Lifecycle objective resolver。
+Kairox Beta 后，`taskTarget` 已经落到 task payload、SQLite projection、任务创建 API、任务列表、任务详情和 task event 中。`taskTarget` 的主语义是 `object`、`targetGate`、`gateObjective`；`selectedFlow/flowKind` 只表示 gate 内部选择的实现路径。运行时不再保留旧 action compatibility layer，旧字段只允许作为迁移输入、历史数据解释或 executor 物理投影存在。
 
 例子：
 
 - ingest task：把 source/discovered 推进到 ingested。
 - metadata task：把 ingested 推进到 metadata-ready。
-- optimize task：表示这个媒体要跨过 optimize gate；具体 objective 可以是降低码率、提升画质、补字幕、换音轨、兼容性修复、删除、keep/review 等，具体 operation 是 flow 内决策。
+- optimize task：表示这个媒体要跨过 optimize gate；objective 只能表达目标媒体事实，例如目标码率、codec、质量层级或约束。no-op、transcode、upgrade、blocked 都是 Flow Planner 选择的 `selectedFlow`，delete 不属于 optimize。
 - archive task：把 optimized 推进到 archived，重点是验收和归档。
 
 Task 本身不应该承载每一次底层执行尝试的完整日志。Task 可以有业务状态，例如等待、运行中、失败、完成、归档失败，但具体重试、中断、资源占用和执行细节应进入 event。
@@ -128,15 +129,15 @@ Flow 的职责是解释：
 
 Flow Planner 不是 gate 的裁判。它不能自己定义 optimize objective，也不能把“flow 跑完”当成 gate 通过。最终 gate 是否通过，由 Lifecycle 根据 gateObjective 和 observed facts 判定。
 
-## 6. Action
+## 6. Flow Implementation
 
-Action 更适合理解成 event 类型或 flow 中的 operation 类型，而不是 task 的同义词。
+Flow implementation 更适合理解成 event 类型或 flow 中的 executor 路径，而不是 task 的同义词。
 
-在 v2 里 `actionType=transcode/delete/upgrade/scrape/ingest` 承担了过多语义。v3 可以继续保留类似字段作为兼容或展示字段，但业务建模时应区分：
+在 Mirex/v2 里，scrape/transcode/upgrade/delete 一类字段承担了过多语义。Kairox 运行时必须区分：
 
 - task：一次把 object 推过 target gate 的 attempt。
 - flow：task 内部的 implementation path 和 event 编排规则。
-- event/action：具体发生的操作。
+- event：具体发生的执行步骤或资源事件。
 
 ## 7. Manual 和 Automatic
 
@@ -212,8 +213,9 @@ v3.1 后必须拆开：
 
 | 概念 | 含义 | 例子 | 归属 |
 | --- | --- | --- | --- |
-| Optimize Objective | 用户语义目标，即媒体最终应该变成什么 | 降低码率、提升画质、补中文字幕、替换更好音轨、修复 Dolby Vision/编码兼容性、删除媒体、keep 闭环 | Lifecycle / optimize gate |
-| Flow Operation | 达成目标的实现路径 | transcode、upgrade、delete、remux、subtitle fetch、audio replace 等 | Flow Planner |
+| Optimize Objective | 用户语义目标，即媒体归档前应该具备哪些目标媒体事实 | 目标码率、codec、质量层级、字幕/音轨约束、Dolby Vision/编码兼容性约束 | Lifecycle / optimize gate |
+| Selected Flow | 达成目标的实现路径 | no-op、transcode、upgrade、未来 remux/subtitle/audio flow | Flow Planner |
+| Delete Objective | 已归档媒体处置目标 | 删除、保持已归档、延后、不再建议 | Lifecycle / delete gate review |
 
 因此，`optimize task` 的目标不是“转码”或“洗版”，而是让某个媒体通过 optimize gate。它携带的是 object + targetGate + gateObjective。Flow Planner 读取这个 objective 后，才决定走哪条 flow operation。
 
@@ -223,15 +225,15 @@ v3.1 后必须拆开：
 - objective 是补中文字幕：Flow Planner 可以选择 subtitle fetch、remux 或 upgrade，而不是把它提前建模成“洗版任务”。
 - objective 是替换更好音轨：Flow Planner 可以选择 upgrade 或 remux。
 - objective 是 Dolby Vision 兼容性修复：这是转码/封装能力补强问题，不是任务管理绕行问题。
-- objective 是删除媒体：Flow Planner 选择 `delete`，但 delete 仍属于 optimize gate 下的 destructive flow operation，不是 archive gate。
+- archived item 满足 delete policy：进入 delete candidate review；用户确认后创建 `targetGate=delete` task，delete flow 不经过 optimize。
 
 Flow Planner 不能自己设定 optimize gate 的通过标准。它是实现层，不是裁判。Lifecycle 定义 objective，并在 flow 执行后根据 objective + observed facts 判定 gate 是否通过。
 
 这条拆分的直接后果：
 
-- `action=transcode/upgrade/delete` 只能作为兼容字段或 flow hint，不能作为用户语义 task 目标。
-- 任务中心应优先表达 optimize objective 和当前 flow operation，而不是把 operation 当 task 名称。
-- metadata gate 自定义校验必须覆盖 optimize objective 会消费的输入字段，而不是覆盖某个旧 action 名称的隐式字段。
+- transcode/upgrade/delete 只能作为 selected flow 或 executor path，不能作为用户语义 task 目标。
+- 任务中心应优先表达 target gate、gate objective 和 selected flow，而不是把 flow 当 task 名称。
+- metadata gate 自定义校验必须覆盖 optimize objective 会消费的输入字段，而不是覆盖某个旧 flow 名称的隐式字段。
 - optimize gate failed 后是否重试属于原 task 的 flow recovery 语义；Task Creator 不应把失败 objective 简单重建成同类重资源 operation task。
 
 ## 12. 用户可介入范围

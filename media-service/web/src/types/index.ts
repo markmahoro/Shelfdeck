@@ -93,7 +93,6 @@ export interface Rule {
   priority: number;
   groupsConnector: 'and' | 'or';
   groups: RuleGroup[];
-  action: 'keep' | 'delete' | 'transcode' | 'upgrade';
   targetMediaFacts?: {
     qualityTier?: string;
     minResolution?: string;
@@ -110,18 +109,6 @@ export interface Rule {
       preferCNSub?: boolean;
     };
     [key: string]: unknown;
-  };
-  actionParams: {
-    targetBitrate?: number;
-    targetCodec?: string;
-    maxSizeGB?: number;
-    seedPreferences?: {
-      codecPreference?: string[];
-      resolutionPreference?: string[];
-      audioPreference?: string[];
-      sitePreference?: string[];
-      preferCNSub?: boolean;
-    };
   };
   reason: string;
 }
@@ -200,7 +187,7 @@ export type TaskStatus =
   | 'awaiting_user_confirm' | 'pausing' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
-export type TaskOperationKind = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape' | 'archive';
+export type TaskSelectedFlow = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape' | 'archive';
 
 export type ApprovalMode = 'auto' | 'confirm' | 'forceConfirm';
 export type ApprovalPolicyConfig = Record<string, ApprovalMode>;
@@ -388,7 +375,7 @@ export interface DashboardEventEntry {
   detail?: Record<string, unknown>;
   taskId?: string;
   itemId?: string;
-  operationKind?: string;
+  SelectedFlow?: string;
   eventType?: string;
   eventStatus?: string;
   resourceType?: string;
@@ -427,7 +414,7 @@ export interface DashboardHealthSummary {
     archiveLikeItems: number;
     byLifecycleStage: Record<string, number>;
     byMetadataStatus: Record<string, number>;
-    byRecommendedAction: Record<string, number>;
+    byRecommendedTargetGate: Record<string, number>;
     bySource: Record<string, number>;
     pendingBridges: Record<string, number>;
     topMetadataMissingReasons: { reason: string; count: number }[];
@@ -449,15 +436,16 @@ export interface DashboardHealthSummary {
     doneTasks: number;
     byStatus: Record<string, number>;
     activeByBridgeKind: Record<string, number>;
-    activeByOperationKind: Record<string, number>;
+    activeBySelectedFlow: Record<string, number>;
     activeBySource: Record<string, number>;
-    failedByOperationKind: Record<string, number>;
+    failedBySelectedFlow: Record<string, number>;
     recentFailureEvents: unknown[];
     attention?: Record<string, TaskAttentionQueue>;
     primaryAttention?: TaskAttentionQueue | null;
   };
   automation: {
-    enabledOperations: string[];
+    enabledTaskTargets: string[];
+    allowedOptimizeFlows: string[];
   };
   events?: {
     latestAt: string | null;
@@ -474,7 +462,7 @@ export interface MediaTask {
   id: string;
   itemId: string;
   itemName?: string;
-  operationKind: TaskOperationKind;
+  SelectedFlow: TaskSelectedFlow;
   taskTarget?: TaskTarget;
   taskBridge?: TaskBridge;
   flowPlan?: FlowPlan;
@@ -515,9 +503,8 @@ export interface MediaTask {
 }
 
 export interface RequestedIntent {
-  bridgeKind?: string;
-  preferredOperation?: string;
-  operationKind?: string;
+  targetGate?: string;
+  preferredFlow?: string;
   intentMode?: string;
   [key: string]: unknown;
 }
@@ -532,7 +519,8 @@ export interface TaskTarget {
   targetGate?: string;
   gateObjective?: GateObjective;
   source?: string;
-  operationHint?: string;
+  selectedFlow?: string;
+  flowKind?: string;
   [key: string]: unknown;
 }
 
@@ -541,8 +529,7 @@ export interface GateObjective {
   description?: string;
   source?: string;
   reason?: string;
-  acceptableOperations?: string[];
-  operationHint?: string;
+  acceptableFlows?: string[];
   destructive?: boolean;
   targetBitrate?: number | string;
   targetCodec?: string;
@@ -559,7 +546,7 @@ export interface TaskBridge {
   from?: string;
   to?: string;
   reason?: string;
-  operationKind?: string;
+  SelectedFlow?: string;
   source?: string;
   itemId?: string;
   subLibraryId?: string;
@@ -575,7 +562,7 @@ export interface FlowPlan {
   version?: string;
   bridgeKind?: string;
   direction?: string;
-  operationKind?: string;
+  SelectedFlow?: string;
   executor?: string;
   primaryResourceType?: string;
   source?: string;
@@ -588,7 +575,7 @@ export interface TaskEvent {
   id: string;
   taskId: string;
   itemId?: string;
-  operationKind?: string;
+  SelectedFlow?: string;
   eventType: string;
   eventStatus: string;
   phase?: string | null;
@@ -607,7 +594,7 @@ export interface ResourceFailureEvent extends TaskEvent {
     id: string;
     itemId: string;
     itemName?: string;
-    operationKind: string;
+    SelectedFlow: string;
     status: string;
     phase?: string;
     resumePoint?: string;
@@ -664,7 +651,7 @@ export interface ResourceTask {
   taskId: string;
   itemId: string;
   itemName?: string;
-  operationKind: TaskOperationKind;
+  SelectedFlow: TaskSelectedFlow;
   taskTarget?: TaskTarget | null;
   source?: 'manual' | 'auto' | string;
   status: TaskStatus;

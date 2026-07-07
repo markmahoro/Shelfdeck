@@ -9,6 +9,7 @@
 | 地位 | 文档 | 使用规则 |
 | --- | --- | --- |
 | Contract | `KAIROX_ARCHITECTURE.md` | 最高优先级；核心链路改动以它为准 |
+| Engineering guardrail | `KAIROX_ENGINEERING_PLAYBOOK.md` | Kairox 工程施工规范；核心链路动手前必须读，防止把 Mirex 换皮成 Kairox |
 | Implementation map | `docs/v2/ARCH_OVERVIEW.md` | 当前代码已经落地的系统事实；不是架构契约 |
 | Semantic reference | `BUSINESS_MODEL_NOTES.md`、`USER_INTERVENTION_AND_FULL_AUTO.md`、`DATA_MODEL_NOTES.md` | Kairox 下的细节参考；冲突时以 Kairox 为准 |
 | Operational reference | `OPERATION_CONTEXT.md`、`docs/v2/PRODUCTION_DEPLOYMENT.md`、`docs/v2/DEBUG_WORKFLOW.md` | 生产、部署、调试和安全入口 |
@@ -32,6 +33,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | `KAIROX_ARCHITECTURE.md` | Kairox 架构契约；v3.1 之后核心链路改动前必须先读 |
+| `KAIROX_ENGINEERING_PLAYBOOK.md` | Kairox 工程施工规范；固定术语、分层禁区、开工检查、审计命令和完成判定 |
 | `OPERATION_CONTEXT.md` | v3 agent 需要知道的生产环境、NAS、部署、测试和安全边界 |
 | `BUSINESS_MODEL_NOTES.md` | v3 重构前已经确认过的业务概念共识，不规定技术实现 |
 | `DATA_MODEL_NOTES.md` | SQL 持久化层、内存运行层、projection 的原则性数据模型共识 |
@@ -41,13 +43,14 @@
 | `V3_3_GA_RECOVERY_PLAN.md` | v3.3 GA 恢复计划、生产验收事实和恢复期 guardrails |
 | `V3_4_REBASELINE_PLAN.md` | Kairox 引入 User Perception 后的 v3.4+ active rebaseline 计划 |
 | `V3_4_PLUS_ROADMAP.md` | v3.3 GA 之后 v3.4+ 的版本拆分、目标和验收标准 |
+| `KAIROX_PERFORMANCE_PLAN.md` | Kairox Beta 后的调度供给、性能 smoke 和生产压测验收计划 |
 | `V2_BEHAVIOR_PRESERVATION.md` | v3 重构前必须盘点和保护的 v2 生产行为细节 |
 | `DISCOVERY_CHECKLIST.md` | v3 agent 开工前需要排摸的代码、数据、测试和部署清单 |
 | `GOAL_PROMPT.md` | 可用于开启 v3 长程任务的提示词 |
 
 ## 重要原则
 
-- Kairox 架构是 ShelfDeck v3.1 演进阶段的命名架构契约；修改 scheduler、task admission、automation、flow executor、resource runtime、生产部署或模块边界前，必须先读 `KAIROX_ARCHITECTURE.md`。
+- Kairox 架构是 ShelfDeck v3.1 演进阶段的命名架构契约；修改 scheduler、task admission、automation、flow executor、resource runtime、生产部署或模块边界前，必须先读 `KAIROX_ARCHITECTURE.md` 和 `KAIROX_ENGINEERING_PLAYBOOK.md`。
 - Mirex 是 Kairox 之前的旧兼容模型；允许识别、兼容和迁移，不允许作为新功能设计来源。
 - v3 agent 必须先排摸代码库，再提出架构和实施方案。
 - 除 Kairox 明确规定的架构方向外，本目录不预设 v3 的具体组件拆法、数据模型或迁移实现。

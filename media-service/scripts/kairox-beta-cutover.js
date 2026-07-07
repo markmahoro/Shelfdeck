@@ -169,17 +169,10 @@ function normalizeConfig() {
   if (legacyActions.map((action) => String(action || '').toLowerCase()).includes('delete')) targets.add('delete');
   const optimizeAllowedOperations = (Array.isArray(cfg.optimizeAllowedOperations) ? cfg.optimizeAllowedOperations : [])
     .filter((operation) => operation === 'transcode' || operation === 'upgrade');
-  const smartTaskEnabledActions = [];
-  if (targets.has('ingest')) smartTaskEnabledActions.push('ingest');
-  if (targets.has('metadata')) smartTaskEnabledActions.push('scrape');
-  if (targets.has('optimize')) smartTaskEnabledActions.push(...optimizeAllowedOperations);
-  if (targets.has('archive')) smartTaskEnabledActions.push('archive');
-  if (targets.has('delete')) smartTaskEnabledActions.push('delete');
   return configStore.saveConfig({
     ...cfg,
     automaticTaskTargets: [...targets],
     optimizeAllowedOperations,
-    smartTaskEnabledActions,
     deleteGatePolicy: {
       enabled: !!(cfg.deleteGatePolicy && cfg.deleteGatePolicy.enabled),
       rules: Array.isArray(cfg.deleteGatePolicy && cfg.deleteGatePolicy.rules) ? cfg.deleteGatePolicy.rules : [],

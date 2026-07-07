@@ -19,7 +19,7 @@
 | dashboardHealth | /v1/admin/dashboard/health | 200 | 31 | PASS |  |
 | library | /v1/library?page=1&pageSize=20 | 200 | 11 | PASS |  |
 | tasks | /v1/tasks?activeOnly=1 | 200 | 3 | PASS |  |
-| adminTasksOptimizeDelete | /v1/admin/tasks?bridgeKind=optimize&operationKind=delete&page=1&pageSize=20 | 200 | 4 | PASS |  |
+| adminTasksOptimizeDelete | /v1/admin/tasks?targetGate=optimize&selectedFlow=delete&page=1&pageSize=20 | 200 | 4 | PASS |  |
 | deleteCandidates | /v1/admin/delete-candidates | 200 | 312 | PASS |  |
 | config | /v1/config | 200 | 4 | PASS |  |
 
