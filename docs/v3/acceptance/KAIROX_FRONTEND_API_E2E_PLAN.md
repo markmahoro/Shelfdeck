@@ -287,19 +287,24 @@ destructive 验收只允许作用于明确选中的 canary item。除非用户�
 
 - optimize flow 完成后读取媒体 projection。
 - 检查 optimize gate facts、objectiveHash、event evidence。
-- 检查是否需要 canonical facts refresh。
+- 若显示 `pending_canonical_refresh`，按 `lifecycleNextTask` 只通过公开 API 创建 `targetGate=ingest` 或 `targetGate=metadata` 刷新任务。
+- 等待 ingest / metadata 刷新完成后重新读取媒体 projection。
+- 再由 Lifecycle 基于刷新后的 canonical facts 判断 optimize gate。
 
 通过标准：
 
 - optimize gate facts 与 gateObjective/objectiveHash 对齐。
-- 如果权威 media/source facts 已刷新，Lifecycle 可投影 optimize passed。
-- 如果权威事实未刷新，应显示 `pending_canonical_refresh` 或等价状态。
+- transcode / upgrade executor 不直接发布 source/media/metadata canonical facts。
+- 权威事实未刷新时显示 `pending_canonical_refresh`，且下一步只投影为 `ingest` 或 `metadata`。
+- ingest / metadata 刷新完成后，Lifecycle 可投影 optimize passed；若不满足目标，必须给出 blocked/mismatch 原因。
 - 不会基于旧 mediaFacts 重复创建 optimize task。
 
 失败后动作：
 
 - executor 直接发布非 owner canonical facts：修 fact ownership。
 - 无 pending refresh 且 facts 明显过期：修 Lifecycle freshness。
+- pending refresh 没有 `ingest/metadata` 下一步：修 Lifecycle projection。
+- ingest / metadata refresh 无法通过 TaskAdmission：修 Task Creator / Admission。
 - 重复创建 optimize：修 Lifecycle/Task Creator 对 pending refresh 的处理。
 
 ### Stage 8: Archive gate

@@ -18,6 +18,12 @@ function objectiveLifecycleReason(projection, fallback) {
   return fallback;
 }
 
+function pendingCanonicalOptimizeGate(item = {}, factsFreshness = {}) {
+  const gate = item.optimizeGate || item.optimizationGate;
+  if (!gate || gate.status !== 'pending_canonical_refresh') return null;
+  return lifecycleGateService.evaluateOptimizeGate({ ...item, factsFreshness });
+}
+
 function resolveLifecycle(item, config = {}) {
   const reason = normalizeReason(item && item.reason);
   const metadataComplete = !!(item && item.metadataComplete);
@@ -27,6 +33,7 @@ function resolveLifecycle(item, config = {}) {
   const itemWithFreshness = { ...(item || {}), factsFreshness };
   const ingestGate = lifecycleGateService.evaluateIngestGate(itemWithFreshness);
   const objectiveProjection = lifecycleObjectiveResolver.projectOptimizeObjective(itemWithFreshness, { config });
+  const pendingOptimizeGate = pendingCanonicalOptimizeGate(item || {}, factsFreshness);
 
   if (!ingestGate.passed) {
     return {
@@ -39,7 +46,7 @@ function resolveLifecycle(item, config = {}) {
       ...objectiveProjection,
       factsFreshness,
       ingestGate,
-      optimizeGate: null,
+      optimizeGate: pendingOptimizeGate,
       archiveGate: null,
     };
   }
@@ -71,7 +78,7 @@ function resolveLifecycle(item, config = {}) {
         },
         userAction: staleMetadataFacts ? 'refresh_media_or_metadata_facts' : 'repair_metadata',
       },
-      optimizeGate: null,
+      optimizeGate: pendingOptimizeGate,
       archiveGate: null,
     };
   }

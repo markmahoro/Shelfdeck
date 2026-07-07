@@ -290,6 +290,57 @@ async function waitForTaskTerminal(args, taskId, maxWaitMs) {
   return { detail: null, task: last, terminal: false };
 }
 
+function canonicalRefreshObjective(targetGate) {
+  if (targetGate === 'ingest') {
+    return { kind: 'source_refresh', reason: 'post_optimize_replace' };
+  }
+  if (targetGate === 'metadata') {
+    return {
+      kind: 'metadata_refresh',
+      reason: 'post_optimize_replace',
+      refreshFacts: ['mediaFacts', 'metadataFacts'],
+    };
+  }
+  return {};
+}
+
+async function createAndRunTargetGateTask(args, itemId, targetGate) {
+  const create = await httpJson(args, `create_${targetGate}_refresh_task`, '/v1/tasks', {
+    method: 'POST',
+    body: { itemId, targetGate, gateObjective: canonicalRefreshObjective(targetGate) },
+  });
+  if (create.status === 409) {
+    return { ok: false, result: blocked(`${targetGate}_refresh_task_admission_rejected`, { body: create.body }) };
+  }
+  if (!create.ok) {
+    return { ok: false, result: fail(`${targetGate}_refresh_task_create_failed`, { status: create.status, body: create.body, error: create.error }) };
+  }
+  const task = create.body || {};
+  if (targetGateOf(task) !== targetGate) {
+    return { ok: false, result: fail(`${targetGate}_refresh_task_wrong_target_gate`, { taskTarget: task.taskTarget }) };
+  }
+  if (['created', 'pending_manual', 'paused', 'interrupted'].includes(task.status)) {
+    await httpJson(args, `execute_${targetGate}_refresh_task`, `/v1/tasks/${encodeURIComponent(task.id)}/actions/execute`, {
+      method: 'POST',
+      body: {},
+    });
+  }
+  const terminal = await waitForTaskTerminal(args, task.id, args.maxWaitMs);
+  if (!terminal.task) {
+    return { ok: false, result: blocked(`${targetGate}_refresh_task_no_terminal_state_observed`, { taskId: task.id }) };
+  }
+  if (terminal.task.status === 'failed_hard') {
+    return {
+      ok: false,
+      result: fail(`${targetGate}_refresh_task_failed_hard`, {
+        taskId: task.id,
+        controlState: terminal.task.controlState || null,
+      }),
+    };
+  }
+  return { ok: true, task, terminal: terminal.task };
+}
+
 async function collectInitialContext(args) {
   const routes = [
     ['health', '/v1/health'],
@@ -542,17 +593,69 @@ async function stage6(args, context) {
 
 async function stage7(args, context) {
   const itemId = itemIdOf(context.canary);
-  const detail = await httpJson(args, 'canaryAfterOptimize', `/v1/library/items/${encodeURIComponent(itemId)}`);
+  const refreshRuns = [];
+  let detail = await httpJson(args, 'canaryAfterOptimize', `/v1/library/items/${encodeURIComponent(itemId)}`);
   if (!detail.ok) return fail('canary_after_optimize_detail_failed', { status: detail.status, error: detail.error });
-  const item = detail.body || {};
-  const gate = item.optimizeGate || item.optimizationGate || null;
+  let item = detail.body || {};
+  let gate = item.optimizeGate || item.optimizationGate || null;
   if (!gate && args.mode === 'destructive' && context.optimizeTerminal && context.optimizeTerminal.status === 'done') {
     return fail('optimize_done_without_optimize_gate_facts', { canary: compactItem(item) });
+  }
+
+  for (let i = 0; i < 3; i += 1) {
+    const pending = gate && gate.status === 'pending_canonical_refresh'
+      || item.optimizeGateStatus === 'pending_canonical_refresh'
+      || item.optimizationStatus === 'pending_canonical_refresh';
+    if (!pending) break;
+
+    const nextTargetGate = item.lifecycleNextTask || '';
+    if (!['ingest', 'metadata'].includes(nextTargetGate)) {
+      return blocked('pending_canonical_refresh_without_refresh_target_gate', {
+        canary: compactItem(item),
+        optimizeGateStatus: gate && gate.status || '',
+        lifecycleNextTask: nextTargetGate,
+        factsFreshness: item.factsFreshness || null,
+      });
+    }
+
+    const refresh = await createAndRunTargetGateTask(args, itemId, nextTargetGate);
+    if (!refresh.ok) return refresh.result;
+    refreshRuns.push({
+      targetGate: nextTargetGate,
+      taskId: refresh.task.id,
+      finalStatus: refresh.terminal.status,
+    });
+
+    detail = await httpJson(args, `canaryAfter_${nextTargetGate}_refresh`, `/v1/library/items/${encodeURIComponent(itemId)}`);
+    if (!detail.ok) return fail(`${nextTargetGate}_refresh_detail_failed`, { status: detail.status, error: detail.error });
+    item = detail.body || {};
+    gate = item.optimizeGate || item.optimizationGate || null;
+  }
+
+  const finalPending = gate && gate.status === 'pending_canonical_refresh'
+    || item.optimizeGateStatus === 'pending_canonical_refresh'
+    || item.optimizationStatus === 'pending_canonical_refresh';
+  if (finalPending) {
+    return blocked('canonical_refresh_not_completed', {
+      canary: compactItem(item),
+      refreshRuns,
+      gate,
+      factsFreshness: item.factsFreshness || null,
+    });
+  }
+  if (!gate || gate.passed !== true) {
+    return blocked('canonical_refresh_completed_but_optimize_not_passed', {
+      canary: compactItem(item),
+      refreshRuns,
+      gate,
+      lifecycleNextTask: item.lifecycleNextTask || '',
+    });
   }
   return pass({
     canary: compactItem(item),
     optimizeGateStatus: gate && (gate.status || gate.reason) || '',
-    pendingCanonicalRefresh: item.optimizeGateStatus === 'pending_canonical_refresh' || item.optimizationStatus === 'pending_canonical_refresh',
+    pendingCanonicalRefresh: false,
+    refreshRuns,
     gate,
   });
 }

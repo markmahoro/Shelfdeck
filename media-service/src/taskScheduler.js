@@ -25,6 +25,7 @@ const resourceRuntime = require('./resourceRuntime');
 const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const gateInvalidationService = require('./gateInvalidationService');
+const postOptimizeCanonicalRefresh = require('./postOptimizeCanonicalRefresh');
 
 let schedulerInterval = null;
 let nodeHealthInterval = null;
@@ -86,128 +87,14 @@ function buildDeleteGateForItem(task, doneAt) {
   };
 }
 
-function gateObjectiveForTask(task = {}) {
-  return task.taskTarget && task.taskTarget.gateObjective && typeof task.taskTarget.gateObjective === 'object'
-    ? task.taskTarget.gateObjective
-    : {};
-}
-
-function objectiveHashForTask(task = {}, verify = {}) {
-  return verify.objectiveHash
-    || task.objectiveHash
-    || (task.itemInfo && task.itemInfo.objectiveHash)
-    || '';
-}
-
-function targetFactsForObjective(objective = {}) {
-  return objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
-    ? objective.targetMediaFacts
-    : {};
-}
-
-function buildObjectiveOptimizeGateForItem(task, doneAt, flowKind) {
-  const verify = task && task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
-  const objective = gateObjectiveForTask(task);
-  const targetFacts = targetFactsForObjective(objective);
-  return {
-    gate: 'optimize',
-    passed: true,
-    status: 'passed',
-    reason: 'optimize_gate_met',
-    flowKind,
-    target: {
-      objectiveHash: objectiveHashForTask(task, verify),
-      ...targetFacts,
-      targetBitrate: verify.targetBitrate || targetFacts.targetBitrate || undefined,
-      targetCodec: verify.targetCodec || targetFacts.targetCodec || targetFacts.codec || undefined,
-    },
-    observed: {
-      sizeBytes: verify.sizeBytes,
-      bitrate: verify.bitrate,
-      bitrateMbps: typeof verify.bitrate === 'number' ? verify.bitrate / 1000 : undefined,
-      codec: verify.videoCodec,
-      audioCodec: verify.audioCodec,
-      width: verify.width,
-      height: verify.height,
-      durationSec: verify.durationSec,
-      outputPath: verify.outputPath,
-      bytesSaved: verify.bytesSaved,
-    },
-    failureReasons: [],
-    evidenceLevel: 'objective',
-    retryPolicy: {
-      automaticRetry: false,
-      manualRetryAllowed: false,
-      reason: '',
-    },
-    userAction: '',
-    completedAt: doneAt,
-  };
-}
-
-function applyVerifyMediaFacts(libItem, verify = {}) {
-  if (typeof verify.sizeBytes === 'number') libItem.size = verify.sizeBytes;
-  if (typeof verify.bitrate === 'number') {
-    libItem.bitrate = verify.bitrate * 1000;
-    libItem.equivalentBitrate = verify.bitrate / 1000;
-  }
-  if (verify.videoCodec) libItem.codec = verify.videoCodec;
-  if (verify.width && verify.height) libItem.resolution = `${verify.width}x${verify.height}`;
-  if (typeof verify.durationSec === 'number') libItem.duration = verify.durationSec;
-}
-
-function buildOptimizationResult(task, flowKind) {
-  const verify = task && task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
-  const result = {
-    flowKind,
-    objectiveHash: objectiveHashForTask(task, verify),
-    sizeBytes: verify.sizeBytes,
-    bitrateKbps: verify.bitrate,
-    bitrateMbps: typeof verify.bitrate === 'number' ? verify.bitrate / 1000 : undefined,
-    codec: verify.videoCodec,
-    audioCodec: verify.audioCodec,
-    width: verify.width,
-    height: verify.height,
-    durationSec: verify.durationSec,
-    outputPath: verify.outputPath,
-    bytesSaved: verify.bytesSaved,
-  };
-  Object.keys(result).forEach((key) => {
-    if (result[key] === undefined || result[key] === null || result[key] === '') delete result[key];
-  });
-  return result;
-}
-
 function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt) {
   const flowKind = flowKindForTask(task);
   libItem.lastTaskDoneAt = doneAt;
   if (flowKind === 'transcode') {
-    libItem.lastTranscodeDoneAt = doneAt;
-    libItem.optimizationStatus = 'transcoded';
-    libItem.optimizeFlowKind = 'transcode';
-    libItem.optimizationDoneAt = doneAt;
-    libItem.optimizationTaskId = task.id;
-    const verify = task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
-    if (Object.keys(verify).length > 0) {
-      libItem.optimizationResult = buildOptimizationResult(task, 'transcode');
-      applyVerifyMediaFacts(libItem, verify);
-      libItem.optimizeGate = buildObjectiveOptimizeGateForItem(task, doneAt, 'transcode');
-      libItem.optimizationGate = libItem.optimizeGate;
-    }
+    postOptimizeCanonicalRefresh.recordPostOptimizeReplacement(libItem, task, doneAt, 'transcode');
   }
   if (flowKind === 'upgrade') {
-    libItem.lastUpgradeDoneAt = doneAt;
-    libItem.optimizationStatus = 'upgraded';
-    libItem.optimizeFlowKind = 'upgrade';
-    libItem.optimizationDoneAt = doneAt;
-    libItem.optimizationTaskId = task.id;
-    const verify = task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
-    if (Object.keys(verify).length > 0) {
-      libItem.optimizationResult = buildOptimizationResult(task, 'upgrade');
-      applyVerifyMediaFacts(libItem, verify);
-      libItem.optimizeGate = buildObjectiveOptimizeGateForItem(task, doneAt, 'upgrade');
-      libItem.optimizationGate = libItem.optimizeGate;
-    }
+    postOptimizeCanonicalRefresh.recordPostOptimizeReplacement(libItem, task, doneAt, 'upgrade');
   }
   if (flowKind === 'delete') {
     const gate = buildDeleteGateForItem(task, doneAt);

@@ -28,6 +28,7 @@ const flowRecoveryContract = require('../src/flowRecoveryContract');
 const flowPlanner = require('../src/flowPlanner');
 const optimizationStatus = require('../src/optimizationStatus');
 const v3Model = require('../src/v3Model');
+const factsFreshnessService = require('../src/factsFreshnessService');
 
 const TEST_FRESH_AT = '2026-01-01T00:00:00.000Z';
 
@@ -3740,7 +3741,7 @@ test('archiveFlowExecutor finalizes optimized items into archived lifecycle stat
   }
 });
 
-test('taskScheduler writes transcode verify facts back to the library item on success', () => {
+test('taskScheduler records transcode staged facts and requests canonical refresh on success', () => {
   const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'transcode-done-facts-'));
   process.env.CONTROL_PLANE_DATA_DIR = dir;
@@ -3796,23 +3797,32 @@ test('taskScheduler writes transcode verify facts back to the library item on su
 
     taskScheduler.reportStatus(task.id, 'done', 100);
     const stored = mediaLibraryService.loadLibrary().items.find((item) => item.itemId === 'transcode-done-facts');
-    assert.strictEqual(stored.optimizationStatus, 'transcoded');
+    const freshness = factsFreshnessService.projectForItem(stored);
+    assert.strictEqual(stored.optimizationStatus, 'pending_canonical_refresh');
     assert.strictEqual(stored.optimizeFlowKind, 'transcode');
-    assert.strictEqual(stored.bitrate, 4_200_000);
-    assert.strictEqual(stored.equivalentBitrate, 4.2);
-    assert.strictEqual(stored.codec, 'hevc');
+    assert.strictEqual(stored.bitrate, 10_000_000);
+    assert.strictEqual(stored.equivalentBitrate, 10);
+    assert.strictEqual(stored.codec, 'h264');
     assert.strictEqual(stored.resolution, '1920x1080');
-    assert.strictEqual(stored.optimizeGate.passed, true);
+    assert.strictEqual(stored.optimizeGate.passed, false);
+    assert.strictEqual(stored.optimizeGate.status, 'pending_canonical_refresh');
     assert.strictEqual(stored.optimizeGate.flowKind, 'transcode');
     assert.strictEqual(stored.optimizeGate.target.objectiveHash, 'doneobjective123');
-    assert.strictEqual(stored.optimizeGate.observed.outputPath, '/tmp/transcode-done-facts.partial.mkv');
+    assert.strictEqual(stored.optimizeGate.stagedFacts.outputPath, '/tmp/transcode-done-facts.partial.mkv');
+    assert.strictEqual(stored.optimizeGate.stagedFacts.codec, 'hevc');
+    assert.strictEqual(freshness.sourceFacts.status, 'stale');
+    assert.strictEqual(freshness.sourceFacts.refreshTargetGate, 'ingest');
+    assert.strictEqual(freshness.mediaFacts.status, 'stale');
+    assert.strictEqual(freshness.mediaFacts.refreshTargetGate, 'metadata');
+    assert.strictEqual(freshness.metadataFacts.status, 'stale');
+    assert.strictEqual(freshness.metadataFacts.refreshTargetGate, 'metadata');
   } finally {
     if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
     else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
   }
 });
 
-test('taskScheduler writes upgrade verify facts back to the library item on success', () => {
+test('taskScheduler records upgrade staged facts and requests canonical refresh on success', () => {
   const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'upgrade-done-facts-'));
   process.env.CONTROL_PLANE_DATA_DIR = dir;
@@ -3870,17 +3880,26 @@ test('taskScheduler writes upgrade verify facts back to the library item on succ
 
     taskScheduler.reportStatus(task.id, 'done', 100);
     const stored = mediaLibraryService.loadLibrary().items.find((item) => item.itemId === 'upgrade-done-facts');
-    assert.strictEqual(stored.optimizationStatus, 'upgraded');
+    const freshness = factsFreshnessService.projectForItem(stored);
+    assert.strictEqual(stored.optimizationStatus, 'pending_canonical_refresh');
     assert.strictEqual(stored.optimizeFlowKind, 'upgrade');
-    assert.strictEqual(stored.bitrate, 18_500_000);
-    assert.strictEqual(stored.equivalentBitrate, 18.5);
-    assert.strictEqual(stored.codec, 'hevc');
-    assert.strictEqual(stored.resolution, '3840x2160');
-    assert.strictEqual(stored.optimizeGate.passed, true);
+    assert.strictEqual(stored.bitrate, 4_000_000);
+    assert.strictEqual(stored.equivalentBitrate, 4);
+    assert.strictEqual(stored.codec, 'h264');
+    assert.strictEqual(stored.resolution, '1920x1080');
+    assert.strictEqual(stored.optimizeGate.passed, false);
+    assert.strictEqual(stored.optimizeGate.status, 'pending_canonical_refresh');
     assert.strictEqual(stored.optimizeGate.flowKind, 'upgrade');
     assert.strictEqual(stored.optimizeGate.target.objectiveHash, 'upgradeobjective123');
     assert.strictEqual(stored.optimizeGate.target.minResolution, '4K');
-    assert.strictEqual(stored.optimizeGate.observed.outputPath, 'C:\\staging\\upgrade-done-facts.mkv');
+    assert.strictEqual(stored.optimizeGate.stagedFacts.outputPath, 'C:\\staging\\upgrade-done-facts.mkv');
+    assert.strictEqual(stored.optimizeGate.stagedFacts.codec, 'hevc');
+    assert.strictEqual(freshness.sourceFacts.status, 'stale');
+    assert.strictEqual(freshness.sourceFacts.refreshTargetGate, 'ingest');
+    assert.strictEqual(freshness.mediaFacts.status, 'stale');
+    assert.strictEqual(freshness.mediaFacts.refreshTargetGate, 'metadata');
+    assert.strictEqual(freshness.metadataFacts.status, 'stale');
+    assert.strictEqual(freshness.metadataFacts.refreshTargetGate, 'metadata');
   } finally {
     if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
     else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;

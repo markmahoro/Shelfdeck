@@ -180,6 +180,20 @@ function optimizeGateResult({ passed, status, reason, flowKind, target, observed
   };
 }
 
+function isBlockingFreshnessStatus(value) {
+  return ['stale', 'invalidated', 'blocked', 'refreshing'].includes(normalize(value));
+}
+
+function hasPendingCanonicalRefresh(item = {}, gate = {}) {
+  if (!gate || normalize(gate.status) !== 'pending_canonical_refresh') return false;
+  const freshness = item.factsFreshness && typeof item.factsFreshness === 'object'
+    ? item.factsFreshness
+    : {};
+  return isBlockingFreshnessStatus(freshness.sourceFacts && freshness.sourceFacts.status)
+    || isBlockingFreshnessStatus(freshness.mediaFacts && freshness.mediaFacts.status)
+    || isBlockingFreshnessStatus(freshness.metadataFacts && freshness.metadataFacts.status);
+}
+
 function hasOptimizeDoneMarker(item = {}, flowKind = '') {
   const status = normalize(item.optimizationStatus);
   if (flowKind === 'transcode') return status === 'transcoded' || !!item.lastTranscodeDoneAt;
@@ -213,7 +227,20 @@ function evaluateOptimizeGate(item = {}) {
   const target = resolveOptimizeTarget(item, gate);
   const observed = resolveOptimizeObserved(item, gate);
 
-  if (gate && gate.passed === false) {
+  if (hasPendingCanonicalRefresh(item, gate)) {
+    return optimizeGateResult({
+      passed: false,
+      status: 'pending_canonical_refresh',
+      reason: gate.reason || 'canonical_facts_stale_after_optimize',
+      flowKind,
+      target,
+      observed,
+      failureReasons: ['canonical_facts_stale'],
+      evidenceLevel: 'staged',
+    });
+  }
+
+  if (gate && gate.passed === false && normalize(gate.status) !== 'pending_canonical_refresh') {
     const failureReasons = Array.isArray(gate.failureReasons) && gate.failureReasons.length > 0
       ? gate.failureReasons
       : ['explicit_optimize_gate_failed'];

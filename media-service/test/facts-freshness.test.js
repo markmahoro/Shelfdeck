@@ -90,6 +90,86 @@ test('metadata gate fails when complete fields are stale', () => {
   assert.strictEqual(projected.metadataGate.status, 'stale');
 });
 
+test('post-optimize pending canonical refresh projects ingest before re-optimizing', () => {
+  const item = completeItem({
+    itemId: 'pending-refresh-source-stale',
+    optimizeGate: {
+      gate: 'optimize',
+      passed: false,
+      status: 'pending_canonical_refresh',
+      reason: 'canonical_facts_stale_after_optimize',
+      flowKind: 'transcode',
+    },
+    factsFreshness: {
+      sourceFacts: { status: 'stale', refreshTargetGate: 'ingest', staleReason: 'post_optimize_replace' },
+      mediaFacts: { status: 'stale', refreshTargetGate: 'metadata', staleReason: 'post_optimize_replace' },
+      metadataFacts: { status: 'stale', refreshTargetGate: 'metadata', staleReason: 'post_optimize_replace' },
+      userPerceptionFacts: { status: 'fresh' },
+      gateFacts: { status: 'fresh' },
+    },
+  });
+
+  const projected = lifecycleProjection.decorateItem(item, {});
+  assert.strictEqual(projected.lifecycleNextTask, 'ingest');
+  assert.strictEqual(projected.ingestGate.status, 'stale');
+  assert.strictEqual(projected.optimizeGate.status, 'pending_canonical_refresh');
+  assert.strictEqual(projected.optimizeGate.passed, false);
+});
+
+test('post-optimize pending canonical refresh projects metadata after source refresh', () => {
+  const item = completeItem({
+    itemId: 'pending-refresh-metadata-stale',
+    optimizeGate: {
+      gate: 'optimize',
+      passed: false,
+      status: 'pending_canonical_refresh',
+      reason: 'canonical_facts_stale_after_optimize',
+      flowKind: 'transcode',
+    },
+    factsFreshness: {
+      sourceFacts: { status: 'fresh' },
+      mediaFacts: { status: 'stale', refreshTargetGate: 'metadata', staleReason: 'post_optimize_replace' },
+      metadataFacts: { status: 'stale', refreshTargetGate: 'metadata', staleReason: 'post_optimize_replace' },
+      userPerceptionFacts: { status: 'fresh' },
+      gateFacts: { status: 'fresh' },
+    },
+  });
+
+  const projected = lifecycleProjection.decorateItem(item, {});
+  assert.strictEqual(projected.lifecycleNextTask, 'metadata');
+  assert.strictEqual(projected.metadataGate.status, 'stale');
+  assert.strictEqual(projected.optimizeGate.status, 'pending_canonical_refresh');
+  assert.strictEqual(projected.optimizeGate.passed, false);
+});
+
+test('fresh canonical facts re-evaluate objective instead of keeping stale pending optimize gate', () => {
+  const item = completeItem({
+    itemId: 'pending-refresh-now-fresh',
+    bitrate: 3_000_000,
+    equivalentBitrate: 3,
+    codec: 'h265',
+    optimizeGate: {
+      gate: 'optimize',
+      passed: false,
+      status: 'pending_canonical_refresh',
+      reason: 'canonical_facts_stale_after_optimize',
+      flowKind: 'transcode',
+    },
+    factsFreshness: {
+      sourceFacts: { status: 'fresh' },
+      mediaFacts: { status: 'fresh' },
+      metadataFacts: { status: 'fresh' },
+      userPerceptionFacts: { status: 'fresh' },
+      gateFacts: { status: 'fresh' },
+    },
+  });
+
+  const projected = lifecycleProjection.decorateItem(item, {});
+  assert.strictEqual(projected.lifecycleNextTask, 'archive');
+  assert.strictEqual(projected.optimizeGate.passed, true);
+  assert.strictEqual(projected.optimizeGate.reason, 'objective_already_satisfied');
+});
+
 test('needs_check remains non-blocking until source adapter finds evidence', () => {
   const item = completeItem({
     itemId: 'needs-check-item',
