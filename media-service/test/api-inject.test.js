@@ -502,9 +502,9 @@ test('POST /v1/tasks allows optimize when previous flow failure evidence does no
         gate: 'optimize',
         passed: false,
         status: 'failed',
-        reason: 'target_bitrate_exceeded',
+        reason: 'bitrate_above_range',
         flowKind: 'transcode',
-        failureReasons: ['target_bitrate_exceeded'],
+        failureReasons: ['bitrate_above_range'],
         retryPolicy: { automaticRetry: false, manualRetryAllowed: true, reason: 'heavy_resource_gate_miss' },
       },
     })],
@@ -3186,7 +3186,12 @@ test('PATCH /v1/config rejects metadataGate contract violations globally', async
           priority: 1,
           groupsConnector: 'and',
           groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
-          targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
+          targetMediaFacts: {
+            targetBitrateProfileByBucket: {
+              '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+            },
+            targetCodec: 'h265',
+          },
         }],
       }],
     },
@@ -5588,13 +5593,15 @@ test('adult JAV default template defines a single baseline target', async () => 
   const { buildAdultJavDefaultTemplate } = require('../src/configStore');
   const { ruleMatches } = require('../src/strategyEngine');
   const tpl = buildAdultJavDefaultTemplate();
-  assert.strictEqual(tpl.tag.version, 5);
+  assert.strictEqual(tpl.tag.version, 6);
   assert.strictEqual(tpl.rules.length, 1);
   const baseline = tpl.rules[0];
 
   assert.strictEqual(baseline.targetMediaFacts.qualityTier, 'adult_baseline');
-  assert.strictEqual(baseline.targetMediaFacts.targetBitrateByBucket['1080p'], 2.5);
-  assert.strictEqual(baseline.targetMediaFacts.targetBitrateByBucket['4K'], 6);
+  assert.strictEqual(baseline.targetMediaFacts.targetBitrateProfileByBucket['1080p'].targetMbps, 2.5);
+  assert.strictEqual(baseline.targetMediaFacts.targetBitrateProfileByBucket['1080p'].minMbps, 1.625);
+  assert.strictEqual(baseline.targetMediaFacts.targetBitrateProfileByBucket['1080p'].maxMbps, 3.375);
+  assert.strictEqual(baseline.targetMediaFacts.targetBitrateProfileByBucket['4K'].targetMbps, 6);
   assert.strictEqual(baseline.targetMediaFacts.targetCodec, 'h265');
   assert.ok(ruleMatches({ scraped: true, codec: 'h264', bucket: '1080p', equivalentBitrate: 1.8 }, baseline));
   assert.ok(ruleMatches({ scraped: false, codec: 'h265', bucket: '4K', equivalentBitrate: 8 }, baseline));

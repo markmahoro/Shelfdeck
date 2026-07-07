@@ -13,7 +13,7 @@ Last updated: 2026-07-08
 - Latest deployment time: `2026-07-08 01:32 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: restarted after deploying SourceReference -> ingest gate boundary fix; blocked at Stage 10 on optimize objective bitrate semantics.
+- Production E2E status: stopped at Stage 10 while fixing optimize bitrate profile semantics; fix is local until committed/deployed.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 
 ## Current Architecture State
@@ -36,6 +36,10 @@ Last updated: 2026-07-08
   - source adapters publish source references, not canonical source facts.
   - Emby ingest observes the source at task execution time and no longer requires `sourceSnapshot` in task payload.
   - adult folder ingest only publishes source facts; metadata/probe/NFO/adultId work belongs to metadata flow.
+- Optimize bitrate profile has been implemented locally:
+  - optimize objective uses `targetBitrateProfileByBucket` with `minMbps / targetMbps / maxMbps`.
+  - Flow Planner, Lifecycle, transcode verify, and upgrade verify share the same profile semantics.
+  - old rule templates are rebuilt to the new default profile schema instead of kept as a runtime compatibility layer.
 - Gate achievement / task attempt / event retry boundary has been implemented and deployed:
   - flow attempt failure no longer closes optimize gate.
   - automatic task attempt budget is handled by TaskCreationPolicy attemptKey.
@@ -83,14 +87,14 @@ Last updated: 2026-07-08
 
 ## Unresolved / Not Yet Proven
 
-- Production Frontend/API E2E restarted on item `81945` and is blocked at Stage 10.
-- Stage 10 blocker:
+- Production Frontend/API E2E restarted on item `81945` and was stopped at Stage 10.
+- Stage 10 blocker being fixed:
   - the previous `Emby source snapshot is required` blocker is fixed.
   - post-optimize ingest and metadata refresh completed and facts are fresh.
   - refreshed canonical facts are `h265 / 0.708Mbps / 1080p`.
   - current objective is `h265 / 1.5Mbps`.
-  - Flow Planner / Lifecycle currently treat bitrate below target as `better_source_required`, so optimize remains `not_passed`.
-  - next decision needed: whether objective bitrate is a quality floor, a resource-cost cap, or separate min/max facts.
+  - decision: objective bitrate is now a three-number profile; `targetMbps` is the FFmpeg target, `minMbps/maxMbps` are gate bounds.
+  - after deployment, the E2E sample should be rebuilt and Stage 0 restarted rather than reusing the already-transcoded `0.708Mbps` sample.
 - Refresh cutover is implemented and deployed:
   - manual `/v1/library/actions/ingest` and `/refresh` request Kairox SmartTask scan.
   - sublibrary add / startup / timer no longer run direct Emby ingest.

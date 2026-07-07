@@ -345,8 +345,8 @@ function collectRuleInputRequirements(rule) {
   const targetFacts = rule && rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object'
     ? rule.targetMediaFacts
     : {};
-  const hasTargetBitrate = targetFacts.targetBitrate != null
-    || !!(targetFacts.targetBitrateByBucket && Object.values(targetFacts.targetBitrateByBucket).some((value) => value != null));
+  const hasTargetBitrate = !!(targetFacts.targetBitrateProfileByBucket
+    && Object.values(targetFacts.targetBitrateProfileByBucket).some((value) => value && typeof value === 'object'));
   if (hasTargetBitrate) {
     requirements.add('media.duration');
   }

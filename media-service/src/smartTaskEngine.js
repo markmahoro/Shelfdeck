@@ -141,7 +141,6 @@ function buildItemInfo(item) {
     tmdbId: item.tmdbId,
     seriesName: item.seriesName,
     seasonNumber: item.seasonNumber,
-    targetBitrate: item.targetBitrate,
     targetCodec: item.targetCodec,
     targetMediaFacts: item.targetMediaFacts,
     optimizeObjectiveStatus: item.optimizeObjectiveStatus,

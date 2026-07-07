@@ -13,6 +13,7 @@ const configStore = require('./configStore');
 const transcodeService = require('./services/transcodeService');
 const nodeStore = require('./nodeStore');
 const approvalPolicy = require('./approvalPolicy');
+const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 
 // Tracks tasks intentionally aborted by pause/cancel so catch blocks
 // in async flow phases don't overwrite the status with failed_hard.
@@ -46,7 +47,7 @@ function failureContext(task, phase, err, extra = {}) {
     message,
     failedAt: new Date().toISOString(),
     objectiveHash: extra.objectiveHash || (task && task.itemInfo && task.itemInfo.objectiveHash) || '',
-    targetBitrate: extra.targetBitrate,
+    targetMbps: extra.targetMbps,
     targetCodec: extra.targetCodec,
     partialPath: extra.partialPath,
     sourcePath: extra.sourcePath,
@@ -162,13 +163,15 @@ function transcodeTargetForTask(task = {}, infoOverride = {}) {
   const targetFacts = objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
     ? objective.targetMediaFacts
     : {};
-  const byBucket = targetFacts.targetBitrateByBucket && typeof targetFacts.targetBitrateByBucket === 'object'
-    ? targetFacts.targetBitrateByBucket
-    : {};
   const bucket = resolutionBucket(info);
-  const targetBitrate = Number(info.targetBitrate || objective.targetBitrate || targetFacts.targetBitrate || byBucket[bucket] || 0);
+  const bitrateProfile = bitrateObjectiveProfile.resolveBitrateProfile({
+    objective,
+    item: { ...info, bucket },
+    bucket,
+  });
   return {
-    targetBitrate: Number.isFinite(targetBitrate) && targetBitrate > 0 ? targetBitrate : undefined,
+    bitrateProfile,
+    targetMbps: bitrateProfile ? bitrateProfile.targetMbps : undefined,
     targetCodec: normalizeCodec(info.targetCodec || objective.targetCodec || targetFacts.targetCodec),
     objectiveHash: task.objectiveHash || info.objectiveHash || (task.taskTarget && task.taskTarget.gateObjective && task.taskTarget.gateObjective.objectiveHash) || '',
   };
@@ -190,8 +193,15 @@ function assertVerifySatisfiesObjective({ task, info, summary, outBitrate }) {
       throw new Error(`Output codec ${actualCodec} does not satisfy objective codec ${target.targetCodec}`);
     }
   }
-  if (target.targetBitrate && outBitrate > target.targetBitrate * 1000 * 1.35) {
-    throw new Error(`Output bitrate ${outBitrate} kbps exceeds objective bitrate ${target.targetBitrate} Mbps`);
+  if (target.bitrateProfile) {
+    const outMbps = Number(outBitrate) / 1000;
+    const comparison = bitrateObjectiveProfile.compareBitrateToProfile(outMbps, target.bitrateProfile);
+    if (comparison.status === 'below') {
+      throw new Error(`Output bitrate ${outBitrate} kbps is below objective range ${target.bitrateProfile.minMbps}-${target.bitrateProfile.maxMbps} Mbps`);
+    }
+    if (comparison.status === 'above') {
+      throw new Error(`Output bitrate ${outBitrate} kbps exceeds objective range ${target.bitrateProfile.minMbps}-${target.bitrateProfile.maxMbps} Mbps`);
+    }
   }
   return target;
 }
@@ -331,7 +341,7 @@ async function runPrecheck(taskId, task, config) {
         originalHeight: result.originalHeight,
         originalAudioCodec: result.originalAudioCodec,
         originalBitrate: result.originalBitrate,
-        targetBitrate: objectiveTarget.targetBitrate || task.itemInfo.targetBitrate,
+        targetMbps: objectiveTarget.targetMbps,
         targetCodec: objectiveTarget.targetCodec || task.itemInfo.targetCodec,
       },
     });
@@ -446,7 +456,7 @@ async function runExecuting(taskId, task, config) {
           dolbyVisionTonemap: info.dolbyVisionTonemap,
           dvTonemapFilter: info.dvTonemapFilter,
           durationSec: info.durationSec || 3600,
-          targetBitrate: info.targetBitrate,
+          targetBitrate: info.targetMbps,
           onLog: (level, msg) => appendLog(taskId, level, msg),
         },
       );
@@ -505,7 +515,7 @@ async function runExecuting(taskId, task, config) {
           dolbyVisionTonemap: info.dolbyVisionTonemap,
           dvTonemapFilter: info.dvTonemapFilter,
           durationSec: info.durationSec || 3600,
-          targetBitrate: info.targetBitrate,
+          targetBitrate: info.targetMbps,
           onLog: (level, msg) => appendLog(taskId, level, msg),
         },
       );
@@ -520,7 +530,7 @@ async function runExecuting(taskId, task, config) {
         userAction: 'inspect_encoder_failure',
         sourcePath,
         partialPath,
-        targetBitrate: info.targetBitrate,
+        targetMbps: info.targetMbps,
         targetCodec: info.targetCodec,
       });
       return;
@@ -625,7 +635,7 @@ async function runVerify(taskId, task, config) {
         previewPath,
         bytesSaved: ((task.itemInfo && task.itemInfo.originalSizeBytes || 0) - outSizeBytes),
         objectiveHash: objectiveTarget.objectiveHash || undefined,
-        targetBitrate: objectiveTarget.targetBitrate || undefined,
+        targetMbps: objectiveTarget.targetMbps || undefined,
         targetCodec: objectiveTarget.targetCodec || undefined,
       },
     });
@@ -659,7 +669,7 @@ async function runVerify(taskId, task, config) {
       recoveryClass: 'verify_retry',
       userAction: 'inspect_verify_failure',
       partialPath,
-      targetBitrate: info.targetBitrate,
+      targetMbps: info.targetMbps,
       targetCodec: info.targetCodec,
     });
   }

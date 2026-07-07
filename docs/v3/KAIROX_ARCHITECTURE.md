@@ -608,8 +608,28 @@ Optimize gate target projection 的职责：
 - 基于 metadata/media facts、User Perception Management 提供的 normalized perception facts、subLibrary policy，计算 optimize gate 的 target / gateObjective。
 - optimize gateObjective 是归档前媒体事实目标合同，例如码率区间、编码、分辨率、HDR、音轨、字幕、容器、体积上限或来源质量要求。
 - 如果当前 observed media facts 已满足目标合同，optimize gate 直接通过；不需要把 `keep` 建模成一个独立目标。
-- 输出推荐事实和参数，例如 target media facts、reason、targetBitrate、targetCodec、predictedSizeGb、seedPreferences。不得输出 task 顶层 flow identity；任何实现路径只能由 Flow Planner 写入 `flowPlan.flowKind`。
+- 输出推荐事实和参数，例如 target media facts、reason、bitrate profile、targetCodec、predictedSizeGb、seedPreferences。不得输出 task 顶层 flow identity；任何实现路径只能由 Flow Planner 写入 `flowPlan.flowKind`。
 - 不补 metadata，不采集或合并 user perception，不读取外部 source facts，不创建 task，不绕过 TaskAdmission。
+
+Optimize objective 的码率合同必须使用三数字 profile：
+
+```text
+targetMbps = FFmpeg 转码目标码率
+minMbps    = optimize gate 容忍下限
+maxMbps    = optimize gate 容忍上限
+```
+
+规则模板和 gateObjective 只允许表达 `targetBitrateProfileByBucket`。运行时主路径不得读取旧 `targetBitrate` / `targetBitrateByBucket` 作为 objective 兼容层。旧模板在 Kairox Beta cutover 中直接重建为新默认模板；用户后续创建的新模板必须保存为 profile schema。
+
+统一判断规则：
+
+```text
+actualBitrate > maxMbps -> Flow Planner 选择 transcode
+actualBitrate < minMbps -> Flow Planner 选择 upgrade / needs better source
+minMbps <= actualBitrate <= maxMbps 且其他 target facts 满足 -> no-op / optimize gate passed
+```
+
+`targetMbps` 只用于 transcode flow 调用 FFmpeg 的编码目标。Lifecycle / gate achievement 只看 canonical facts 是否落在 `[minMbps, maxMbps]`，不能把 `targetMbps` 当 exact gate 判定值。
 
 Optimize objective readiness 是 Lifecycle projection，不是 Task Creator 判断：
 

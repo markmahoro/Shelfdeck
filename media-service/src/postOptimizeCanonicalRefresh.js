@@ -54,7 +54,7 @@ function buildOptimizationResult(task = {}, flowKind = '') {
     verifyEvidence: {
       outputPath: verify.outputPath || '',
       objectiveHash: objectiveHashForTask(task, verify),
-      targetBitrate: verify.targetBitrate,
+      targetMbps: verify.targetMbps,
       targetCodec: verify.targetCodec,
       minResolution: verify.minResolution,
     },
@@ -75,7 +75,7 @@ function buildPendingOptimizeGate(task = {}, doneAt = '', flowKind = '') {
     target: {
       objectiveHash: objectiveHashForTask(task, verify),
       ...targetFacts,
-      targetBitrate: verify.targetBitrate || targetFacts.targetBitrate || undefined,
+      targetMbps: verify.targetMbps || undefined,
       targetCodec: verify.targetCodec || targetFacts.targetCodec || targetFacts.codec || undefined,
       minResolution: verify.minResolution || targetFacts.minResolution || undefined,
     },

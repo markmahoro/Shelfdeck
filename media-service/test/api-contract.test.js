@@ -493,7 +493,20 @@ test('GET /v1/space-stats uses lightweight SQLite rows', async () => {
     cachedAt: new Date().toISOString(),
     items: [
       { itemId: 'space-delete', subLibraryId: 'space-lib', name: 'Delete Me', size: 1000 },
-      { itemId: 'space-transcode', subLibraryId: 'space-lib', name: 'Shrink Me', size: 2000, bitrate: 10_000_000, equivalentBitrate: 10, targetMediaFacts: { targetBitrate: 5, targetCodec: 'h265' } },
+      {
+        itemId: 'space-transcode',
+        subLibraryId: 'space-lib',
+        name: 'Shrink Me',
+        size: 2000,
+        bitrate: 10_000_000,
+        equivalentBitrate: 10,
+        targetMediaFacts: {
+          targetBitrateProfileByBucket: {
+            '1080p': { minMbps: 3.25, targetMbps: 5, maxMbps: 6.75 },
+          },
+          targetCodec: 'h265',
+        },
+      },
       { itemId: 'space-upgrade', subLibraryId: 'space-lib', name: 'Grow Me', size: 3000, bitrate: 5_000_000, equivalentBitrate: 5, targetMediaFacts: { minResolution: '4K', targetCodec: 'h265' } },
     ],
   });

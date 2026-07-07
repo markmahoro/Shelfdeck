@@ -1,5 +1,7 @@
 'use strict';
 
+const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
+
 /**
  * SpaceStats — computes library space metrics.
  *
@@ -18,25 +20,15 @@ function fmtBytes(bytes) {
   return bytes + ' B';
 }
 
-function targetBitrateFromObjective(item = {}) {
+function targetMbpsFromObjective(item = {}) {
   const objective = item.optimizeObjective && typeof item.optimizeObjective === 'object'
     ? item.optimizeObjective
     : {};
   const targetFacts = objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
     ? objective.targetMediaFacts
     : (item.targetMediaFacts && typeof item.targetMediaFacts === 'object' ? item.targetMediaFacts : {});
-  if (targetFacts.targetBitrate != null) return Number(targetFacts.targetBitrate);
-  const bucketTargets = targetFacts.targetBitrateByBucket;
-  if (bucketTargets && typeof bucketTargets === 'object') {
-    const resolution = String(item.resolution || '');
-    if (/2160|4k/i.test(resolution) && bucketTargets['4K'] != null) return Number(bucketTargets['4K']);
-    if (bucketTargets['1080p'] != null) return Number(bucketTargets['1080p']);
-    const first = Object.values(bucketTargets).find((value) => value != null);
-    return Number(first);
-  }
-  if (objective.targetBitrate != null) return Number(objective.targetBitrate);
-  if (item.targetBitrate != null) return Number(item.targetBitrate);
-  return 0;
+  const profile = bitrateObjectiveProfile.resolveBitrateProfile({ targetMediaFacts: targetFacts, item });
+  return profile ? profile.targetMbps : 0;
 }
 
 function normalizeFlowKind(value) {
@@ -62,7 +54,7 @@ function estimatedDelta(item) {
   const size = typeof item.size === 'number' ? item.size : 0;
   if (size <= 0) return { flowKind, delta: 0 };
 
-  const target = targetBitrateFromObjective(item);
+  const target = targetMbpsFromObjective(item);
   if (target > 0) {
     const currentMbps = item.equivalentBitrate ?? (typeof item.bitrate === 'number' ? item.bitrate / 1_000_000 : 0);
     if (currentMbps > target) {

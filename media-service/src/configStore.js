@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const metadataStatus = require('./metadataStatus');
 const { DEFAULT_RESOURCE_CAPACITY } = require('./resourceCapacity');
+const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 
 function resolveDataDir() {
   return (
@@ -32,12 +33,19 @@ class ConfigValidationError extends Error {
 }
 
 // Template version constants — bump when buildDefaultTemplate / buildTVDefaultTemplate logic changes
-const DEFAULT_TEMPLATE_VERSION = 7;
-const TV_DEFAULT_TEMPLATE_VERSION = 7;
-const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 5;
-const ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION = 4;
+const DEFAULT_TEMPLATE_VERSION = 8;
+const TV_DEFAULT_TEMPLATE_VERSION = 8;
+const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 6;
+const ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION = 5;
 
 // ── Default rule template builder ──────────────────────────────────────────────
+
+function profileByBucket(target1080p, target4k) {
+  return {
+    '1080p': bitrateObjectiveProfile.targetBitrateProfileFromTarget(target1080p, '1080p'),
+    '4K': bitrateObjectiveProfile.targetBitrateProfileFromTarget(target4k, '4K'),
+  };
+}
 
 function buildDefaultTemplate(policy) {
   const t1080 = (policy && policy.target1080p) || {};
@@ -64,7 +72,7 @@ function buildDefaultTemplate(policy) {
   rules.push(targetRule(5, [ratingGroup(5)], {
     qualityTier: 'premium',
     minResolution: '4K',
-    targetBitrateByBucket: { '1080p': t1080[5] || 12, '4K': t4k[5] || 25 },
+    targetBitrateProfileByBucket: profileByBucket(t1080[5] || 12, t4k[5] || 25),
     targetCodec: 'h265',
     preferredAudioCodecs: ['DTS', 'TrueHD', 'Atmos'],
     maxSizeGB: 38,
@@ -72,25 +80,25 @@ function buildDefaultTemplate(policy) {
 
   rules.push(targetRule(4, [ratingGroup(4)], {
     qualityTier: 'high',
-    targetBitrateByBucket: { '1080p': t1080[4] || 7, '4K': t4k[4] || 16 },
+    targetBitrateProfileByBucket: profileByBucket(t1080[4] || 7, t4k[4] || 16),
     targetCodec: 'h265',
   }, '4★ High 归档前目标'));
 
   rules.push(targetRule(3, [ratingGroup(3)], {
     qualityTier: 'standard',
-    targetBitrateByBucket: { '1080p': t1080[3] || 4, '4K': t4k[3] || 10 },
+    targetBitrateProfileByBucket: profileByBucket(t1080[3] || 4, t4k[3] || 10),
     targetCodec: 'h265',
   }, '3★ Standard 归档前目标'));
 
   rules.push(targetRule(1, [ratingGroupIn([1, 2])], {
     qualityTier: 'baseline',
-    targetBitrateByBucket: { '1080p': t1080[2] || 2, '4K': t4k[2] || 5 },
+    targetBitrateProfileByBucket: profileByBucket(t1080[2] || 2, t4k[2] || 5),
     targetCodec: 'h265',
   }, '1-2★ Baseline 归档前目标'));
 
   rules.push(targetRule(0, [], {
     qualityTier: 'baseline',
-    targetBitrateByBucket: { '1080p': t1080[3] || 4, '4K': t4k[3] || 10 },
+    targetBitrateProfileByBucket: profileByBucket(t1080[3] || 4, t4k[3] || 10),
     targetCodec: 'h265',
   }, 'Baseline 归档前目标'));
 
@@ -128,7 +136,7 @@ function buildTVDefaultTemplate(policy) {
   rules.push(targetRule(5, [ratingGroup(5)], {
     qualityTier: 'premium',
     minResolution: '4K',
-    targetBitrateByBucket: { '1080p': t1080[5] || 8, '4K': t4k[5] || 18 },
+    targetBitrateProfileByBucket: profileByBucket(t1080[5] || 8, t4k[5] || 18),
     targetCodec: 'h265',
     preferredAudioCodecs: ['DTS', 'TrueHD', 'Atmos'],
     maxSizeGB: 50,
@@ -136,25 +144,25 @@ function buildTVDefaultTemplate(policy) {
 
   rules.push(targetRule(4, [ratingGroup(4)], {
     qualityTier: 'high',
-    targetBitrateByBucket: { '1080p': t1080[4] || 5, '4K': t4k[4] || 12 },
+    targetBitrateProfileByBucket: profileByBucket(t1080[4] || 5, t4k[4] || 12),
     targetCodec: 'h265',
   }, '4★ High 归档前目标'));
 
   rules.push(targetRule(3, [ratingGroup(3)], {
     qualityTier: 'standard',
-    targetBitrateByBucket: { '1080p': t1080[3] || 3, '4K': t4k[3] || 7 },
+    targetBitrateProfileByBucket: profileByBucket(t1080[3] || 3, t4k[3] || 7),
     targetCodec: 'h265',
   }, '3★ Standard 归档前目标'));
 
   rules.push(targetRule(1, [ratingGroupIn([1, 2])], {
     qualityTier: 'baseline',
-    targetBitrateByBucket: { '1080p': t1080[2] || 1.5, '4K': t4k[2] || 3 },
+    targetBitrateProfileByBucket: profileByBucket(t1080[2] || 1.5, t4k[2] || 3),
     targetCodec: 'h265',
   }, '1-2★ Baseline 归档前目标'));
 
   rules.push(targetRule(0, [], {
     qualityTier: 'baseline',
-    targetBitrateByBucket: { '1080p': t1080[3] || 3, '4K': t4k[3] || 7 },
+    targetBitrateProfileByBucket: profileByBucket(t1080[3] || 3, t4k[3] || 7),
     targetCodec: 'h265',
   }, 'Baseline 归档前目标'));
 
@@ -183,7 +191,7 @@ function buildAdultJavDefaultTemplate(policy) {
         groups: [],
         targetMediaFacts: {
           qualityTier: 'adult_baseline',
-          targetBitrateByBucket: { '1080p': target1080p, '4K': target4k },
+          targetBitrateProfileByBucket: profileByBucket(target1080p, target4k),
           targetCodec: 'h265',
         },
         reason: 'Adult Baseline 归档前目标',
@@ -209,7 +217,7 @@ function buildAdultWesternDefaultTemplate(policy) {
         groups: [],
         targetMediaFacts: {
           qualityTier: 'adult_baseline',
-          targetBitrateByBucket: { '1080p': target1080p, '4K': target4k },
+          targetBitrateProfileByBucket: profileByBucket(target1080p, target4k),
           targetCodec: 'h265',
         },
         reason: 'Adult Baseline 归档前目标',
@@ -220,8 +228,15 @@ function buildAdultWesternDefaultTemplate(policy) {
 }
 
 function targetFactsForRule(rule = {}) {
-  if (rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object') return { ...rule.targetMediaFacts };
-  return { qualityTier: 'standard', targetCodec: 'h265', targetBitrateByBucket: { '1080p': 4, '4K': 10 } };
+  const facts = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object'
+    ? { ...rule.targetMediaFacts }
+    : { qualityTier: 'standard', targetCodec: 'h265', targetBitrateProfileByBucket: profileByBucket(4, 10) };
+  if (!facts.targetBitrateProfileByBucket) {
+    facts.targetBitrateProfileByBucket = profileByBucket(4, 10);
+  }
+  delete facts.targetBitrateByBucket;
+  delete facts.targetBitrate;
+  return facts;
 }
 
 function normalizeRuleTemplateRule(rule = {}) {
@@ -645,50 +660,7 @@ function migrateFromV3(raw) {
   return raw;
 }
 
-function extractPolicyFromTemplate(template) {
-  if (!template || !template.rules) return null;
-  const target1080p = {};
-  const target4k = {};
-
-  for (const rule of template.rules) {
-    const groups = rule.groups || [];
-    if (groups.length < 2) continue;
-
-    const g0 = Array.isArray(groups[0]) ? groups[0] : (groups[0].conditions || []);
-    const g1 = Array.isArray(groups[1]) ? groups[1] : (groups[1].conditions || []);
-
-    const ratingCond = g0.find((c) => c[0] === 'doubanRating' || c[0] === 'userRating');
-    if (!ratingCond) continue;
-    const rating = ratingCond[2];
-
-    const bucketCond = g1.find((c) => c[0] === 'bucket');
-    if (!bucketCond) continue;
-    const bucket = bucketCond[2];
-
-    const targetFacts = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object' ? rule.targetMediaFacts : {};
-    const byBucket = targetFacts.targetBitrateByBucket && typeof targetFacts.targetBitrateByBucket === 'object'
-      ? targetFacts.targetBitrateByBucket
-      : {};
-    const tgt = byBucket[bucket] != null ? byBucket[bucket] : targetFacts.targetBitrate;
-    if (typeof tgt !== 'number') continue;
-
-    if (bucket === '1080p') target1080p[String(rating)] = tgt;
-    else if (bucket === '4K') target4k[String(rating)] = tgt;
-  }
-
-  const hasData = Object.keys(target1080p).length > 0 || Object.keys(target4k).length > 0;
-  if (!hasData) return null;
-
-  return { target1080p, target4k };
-}
-
 function migrateDefaultTemplates(raw) {
-  const templates = raw.ruleTemplates || [];
-  if (templates.length === 0) {
-    raw.ruleTemplates = getDefaultConfig().ruleTemplates;
-    return { raw, migrated: true };
-  }
-
   const MOVIE_DEFAULTS = {
     target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
     target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
@@ -697,62 +669,25 @@ function migrateDefaultTemplates(raw) {
     target1080p: { '2': 1.5, '3': 3, '4': 5, '5': 8 },
     target4k: { '2': 3, '3': 7, '4': 12, '5': 18 },
   };
-
-  let migrated = false;
-
-  raw.ruleTemplates = templates.map((tpl) => {
-    if (!tpl.tag) {
-      if (tpl.id === 'default') {
-        const policy = extractPolicyFromTemplate(tpl) || MOVIE_DEFAULTS;
-        migrated = true;
-        return buildDefaultTemplate(policy);
-      }
-      if (tpl.id === 'tv_default') {
-        const policy = extractPolicyFromTemplate(tpl) || TV_DEFAULTS;
-        migrated = true;
-        return buildTVDefaultTemplate(policy);
-      }
-      migrated = true;
-      return normalizeRuleTemplate({ ...tpl, tag: { type: 'user' } });
-    }
-
-    if (tpl.tag.type === 'default') {
-      const expected = tpl.id === 'default' ? DEFAULT_TEMPLATE_VERSION
-        : tpl.id === 'tv_default' ? TV_DEFAULT_TEMPLATE_VERSION
-        : tpl.id === 'adult_jav_default' ? ADULT_JAV_DEFAULT_TEMPLATE_VERSION
-          : tpl.id === 'adult_western_default' ? ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION : null;
-      if (expected != null && tpl.tag.version !== expected) {
-        const policy = extractPolicyFromTemplate(tpl) || {};
-        migrated = true;
-        if (tpl.id === 'default') return buildDefaultTemplate(policy);
-        if (tpl.id === 'tv_default') return buildTVDefaultTemplate(policy);
-        if (tpl.id === 'adult_jav_default') return buildAdultJavDefaultTemplate();
-        if (tpl.id === 'adult_western_default') return buildAdultWesternDefaultTemplate();
-      }
-    }
-
-    return normalizeRuleTemplate(tpl);
-  });
-
-  const ids = new Set((raw.ruleTemplates || []).map((tpl) => tpl.id));
-  if (!ids.has('default')) {
-    raw.ruleTemplates.push(buildDefaultTemplate(MOVIE_DEFAULTS));
-    migrated = true;
+  const desired = [
+    buildDefaultTemplate(MOVIE_DEFAULTS),
+    buildTVDefaultTemplate(TV_DEFAULTS),
+    buildAdultJavDefaultTemplate(),
+    buildAdultWesternDefaultTemplate(),
+  ];
+  const defaultIds = new Set(desired.map((tpl) => tpl.id));
+  const preservedUserTemplates = [];
+  for (const tpl of raw.ruleTemplates || []) {
+    if (!tpl || defaultIds.has(tpl.id) || (tpl.tag && tpl.tag.type === 'default')) continue;
+    preservedUserTemplates.push(normalizeRuleTemplate({
+      ...tpl,
+      tag: tpl.tag || { type: 'user' },
+    }));
   }
-  if (!ids.has('tv_default')) {
-    raw.ruleTemplates.push(buildTVDefaultTemplate(TV_DEFAULTS));
-    migrated = true;
-  }
-  if (!ids.has('adult_jav_default')) {
-    raw.ruleTemplates.push(buildAdultJavDefaultTemplate());
-    migrated = true;
-  }
-  if (!ids.has('adult_western_default')) {
-    raw.ruleTemplates.push(buildAdultWesternDefaultTemplate());
-    migrated = true;
-  }
-
-  return { raw, migrated };
+  const before = JSON.stringify(raw.ruleTemplates || []);
+  const next = [...desired, ...preservedUserTemplates];
+  raw.ruleTemplates = next;
+  return { raw, migrated: before !== JSON.stringify(next) };
 }
 
 function normalizeAdultLibraryConfig(raw) {

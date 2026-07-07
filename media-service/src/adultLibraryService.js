@@ -549,7 +549,6 @@ function itemInfoFromItem(item) {
     duration: item.duration,
     type: item.type,
     isDiscLike: !!item.isDiscLike,
-    targetBitrate: item.targetBitrate,
     targetCodec: item.targetCodec,
     equivalentBitrate: item.equivalentBitrate,
     scraped: !!item.scraped,

@@ -1,5 +1,7 @@
 'use strict';
 
+const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
+
 const FLOW_PLAN_VERSION = 'v2.7';
 
 const FLOW_DEFINITIONS = {
@@ -167,31 +169,16 @@ function resolutionLabel(rank) {
   return '';
 }
 
-function bucketForItem(item = {}) {
-  const rank = parseResolutionRank(item.resolution || item.bucket, item);
-  return rank >= 4 ? '4K' : '1080p';
-}
-
-function targetBitrateForObjective(objective = {}, item = {}) {
-  const target = objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
-    ? objective.targetMediaFacts
-    : objective;
-  if (numberOrNull(target.targetBitrate) != null) return Number(target.targetBitrate);
-  const byBucket = target.targetBitrateByBucket && typeof target.targetBitrateByBucket === 'object'
-    ? target.targetBitrateByBucket
-    : {};
-  const bucket = bucketForItem(item);
-  return numberOrNull(byBucket[bucket]) != null ? Number(byBucket[bucket]) : null;
-}
-
 function objectiveTargetFacts(objective = {}, item = {}) {
   const target = objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
     ? objective.targetMediaFacts
     : {};
+  const bitrateProfile = bitrateObjectiveProfile.resolveBitrateProfile({ objective, item });
   return {
     qualityTier: target.qualityTier || objective.qualityTier || '',
     minResolution: target.minResolution || objective.minResolution || '',
-    targetBitrate: targetBitrateForObjective(objective, item),
+    bitrateProfile,
+    targetMbps: bitrateProfile ? bitrateProfile.targetMbps : null,
     targetCodec: normalizeCodec(target.targetCodec || target.codec || objective.targetCodec),
     maxSizeGB: target.maxSizeGB || objective.maxSizeGB || null,
   };
@@ -290,7 +277,7 @@ function selectOptimizeFlow(input = {}) {
 
   const hasTargetCriteria = !!(
     targetFacts.minResolution
-    || targetFacts.targetBitrate != null
+    || targetFacts.bitrateProfile
     || targetFacts.targetCodec
   );
   if (!hasTargetCriteria) {
@@ -322,25 +309,32 @@ function selectOptimizeFlow(input = {}) {
     }
   }
 
-  if (targetFacts.targetBitrate != null) {
+  if (targetFacts.bitrateProfile) {
     if (currentFacts.bitrate == null) {
       missing.push('media.bitrate');
-    } else if (currentFacts.bitrate < targetFacts.targetBitrate * 0.65) {
-      gap.push({
-        field: 'bitrate',
-        current: currentFacts.bitrate,
-        target: targetFacts.targetBitrate,
-        requiredFlowKind: 'upgrade',
-        reason: 'bitrate_below_target',
-      });
-    } else if (currentFacts.bitrate > targetFacts.targetBitrate * 1.35) {
-      gap.push({
-        field: 'bitrate',
-        current: currentFacts.bitrate,
-        target: targetFacts.targetBitrate,
-        requiredFlowKind: 'transcode',
-        reason: 'bitrate_above_target',
-      });
+    } else {
+      const bitrateComparison = bitrateObjectiveProfile.compareBitrateToProfile(currentFacts.bitrate, targetFacts.bitrateProfile);
+      if (bitrateComparison.status === 'below') {
+        gap.push({
+          field: 'bitrate',
+          current: currentFacts.bitrate,
+          target: targetFacts.bitrateProfile.targetMbps,
+          min: targetFacts.bitrateProfile.minMbps,
+          max: targetFacts.bitrateProfile.maxMbps,
+          requiredFlowKind: 'upgrade',
+          reason: 'bitrate_below_range',
+        });
+      } else if (bitrateComparison.status === 'above') {
+        gap.push({
+          field: 'bitrate',
+          current: currentFacts.bitrate,
+          target: targetFacts.bitrateProfile.targetMbps,
+          min: targetFacts.bitrateProfile.minMbps,
+          max: targetFacts.bitrateProfile.maxMbps,
+          requiredFlowKind: 'transcode',
+          reason: 'bitrate_above_range',
+        });
+      }
     }
   }
 

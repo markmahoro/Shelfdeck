@@ -52,6 +52,7 @@ transcode task -> optimize task with selectedFlow=transcode
 | `facts` | 持久化事实 | media facts、metadata facts、perception facts、gate facts、event facts | 不能用内存推断替代事实写入 |
 | `canonical facts` / 权威事实 | ShelfDeck 当前正式承认的媒体真实状态 | Lifecycle gate 判断、用户展示、Task Creator projection | 不能由非 owner flow 随手改写 |
 | `staged facts` / 暂存事实 | flow 产出的待接受结果 | Flow Executor output、Resource Runtime、flow verification | 不能直接当成 Lifecycle gate passed |
+| `bitrate profile` / 码率目标档案 | optimize objective 的三数字码率合同：`minMbps / targetMbps / maxMbps` | Rule template、gateObjective、Flow Planner explanation、verify evidence | 不能退回单点 `targetBitrate`；不能在各模块散写容忍比例 |
 | `event evidence` / 执行证据 | 证明 staged facts 可信的执行记录 | Task events、Resource Runtime、diagnostic | 不能替代权威事实 |
 | `factRefreshRequest` / 事实刷新请求 | 权威事实过期后的 declarative signal | Flow Executor output、Lifecycle projection input | 不能直接创建 task；不能绕过 Task Creator |
 | `refresh` / 刷新 | 用户或系统请求重新观察外部 source 的意图 | API 文案、activity、scan request | 不能是 targetGate、flowKind 或 task type；不能直接写权威事实 |
@@ -74,6 +75,16 @@ Lifecycle gate re-evaluation: Lifecycle 管，只看 canonical facts + gate obje
 ```
 
 `task.retryCount` 只属于 event retry / recovery，不得作为 Lifecycle gate 判断依据，也不得直接替代 automatic task attempt budget。
+
+Optimize 码率目标固定为三数字模型：
+
+```text
+targetMbps = FFmpeg 转码目标码率
+minMbps    = optimize gate 容忍下限
+maxMbps    = optimize gate 容忍上限
+```
+
+Flow Planner、Lifecycle Gate、transcode verify、upgrade verify 必须共用同一个 bitrate profile helper。禁止在业务模块里直接写 `target * 0.65`、`target * 1.35` 或读取旧 `targetBitrateByBucket` 作为运行时兼容层。旧模板在 Kairox Beta 中重建；新模板必须直接保存 `targetBitrateProfileByBucket`。
 
 ## 3. 禁止术语
 

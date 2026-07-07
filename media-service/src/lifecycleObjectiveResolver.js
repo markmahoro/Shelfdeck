@@ -174,7 +174,6 @@ function resolveOptimizeObjective(item = {}, options = {}) {
       description: 'Media should satisfy the configured archive-before target facts.',
       targetMediaFacts: item.targetMediaFacts,
       qualityTier: item.targetMediaFacts.qualityTier,
-      targetBitrate: item.targetBitrate,
       targetCodec: item.targetCodec || item.targetMediaFacts.targetCodec,
       maxSizeGB: item.maxSizeGB || item.targetMediaFacts.maxSizeGB,
       seedPreferences: item.seedPreferences || item.targetMediaFacts.seedPreferences,

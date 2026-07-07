@@ -29,8 +29,33 @@ const flowPlanner = require('../src/flowPlanner');
 const optimizationStatus = require('../src/optimizationStatus');
 const v3Model = require('../src/v3Model');
 const factsFreshnessService = require('../src/factsFreshnessService');
+const bitrateObjectiveProfile = require('../src/bitrateObjectiveProfile');
 
 const TEST_FRESH_AT = '2026-01-01T00:00:00.000Z';
+
+test('bitrateObjectiveProfile resolves explicit three-number profile only', () => {
+  const profile = bitrateObjectiveProfile.resolveBitrateProfile({
+    targetMediaFacts: {
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+      },
+    },
+    item: { resolution: '1920x1080' },
+  });
+  assert.deepStrictEqual(profile, {
+    minMbps: 2.6,
+    targetMbps: 4,
+    maxMbps: 5.4,
+    bucket: '1080p',
+    source: 'targetBitrateProfileByBucket',
+  });
+
+  const legacy = bitrateObjectiveProfile.resolveBitrateProfile({
+    targetMediaFacts: { targetBitrateByBucket: { '1080p': 4 } },
+    item: { resolution: '1920x1080' },
+  });
+  assert.strictEqual(legacy, null);
+});
 
 function freshMetadataFacts() {
   return {
@@ -552,7 +577,9 @@ test('flowPlanner selects no-op, transcode, and blocked upgrade from objective g
     kind: 'target_media_facts',
     targetMediaFacts: {
       qualityTier: 'standard',
-      targetBitrateByBucket: { '1080p': 4 },
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+      },
       targetCodec: 'h265',
     },
   };
@@ -572,8 +599,12 @@ test('flowPlanner selects no-op, transcode, and blocked upgrade from objective g
     allowedOptimizeFlowKinds: ['transcode'],
   });
   assert.strictEqual(transcode.flowKind, 'transcode');
-  assert.ok(transcode.gap.some((gap) => gap.reason === 'bitrate_above_target'));
+  assert.ok(transcode.gap.some((gap) => gap.reason === 'bitrate_above_range'));
   assert.ok(transcode.gap.some((gap) => gap.reason === 'codec_mismatch'));
+  const bitrateGap = transcode.gap.find((gap) => gap.reason === 'bitrate_above_range');
+  assert.strictEqual(bitrateGap.min, 2.6);
+  assert.strictEqual(bitrateGap.target, 4);
+  assert.strictEqual(bitrateGap.max, 5.4);
 
   const plannedFromTaskTarget = flowPlanner.planFlow({
     targetGate: 'optimize',
@@ -590,7 +621,12 @@ test('flowPlanner selects no-op, transcode, and blocked upgrade from objective g
       targetGate: 'optimize',
       gateObjective: {
         kind: 'reduce_bitrate',
-        targetBitrate: 6,
+        targetMediaFacts: {
+          targetBitrateProfileByBucket: {
+            '4K': { minMbps: 3.9, targetMbps: 6, maxMbps: 8.1 },
+          },
+          targetCodec: 'h265',
+        },
         targetCodec: 'h265',
       },
     },
@@ -606,7 +642,10 @@ test('flowPlanner selects no-op, transcode, and blocked upgrade from objective g
       targetMediaFacts: {
         qualityTier: 'premium',
         minResolution: '4K',
-        targetBitrateByBucket: { '1080p': 8, '4K': 18 },
+        targetBitrateProfileByBucket: {
+          '1080p': { minMbps: 5.2, targetMbps: 8, maxMbps: 10.8 },
+          '4K': { minMbps: 11.7, targetMbps: 18, maxMbps: 24.3 },
+        },
         targetCodec: 'h265',
       },
     },
@@ -624,7 +663,10 @@ test('flowPlanner selects no-op, transcode, and blocked upgrade from objective g
       targetMediaFacts: {
         qualityTier: 'premium',
         minResolution: '4K',
-        targetBitrateByBucket: { '1080p': 8, '4K': 18 },
+        targetBitrateProfileByBucket: {
+          '1080p': { minMbps: 5.2, targetMbps: 8, maxMbps: 10.8 },
+          '4K': { minMbps: 11.7, targetMbps: 18, maxMbps: 24.3 },
+        },
         targetCodec: 'h265',
       },
     },
@@ -852,7 +894,12 @@ test('metadataStatus default movie gate does not require user perception consume
         priority: 1,
         groupsConnector: 'and',
         groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
-        targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
+        targetMediaFacts: {
+          targetBitrateProfileByBucket: {
+            '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+          },
+          targetCodec: 'h265',
+        },
       }],
     }],
   };
@@ -971,7 +1018,12 @@ test('metadataStatus marks a custom metadataGate contract broken when strategy i
         priority: 1,
         groupsConnector: 'and',
         groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
-        targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
+        targetMediaFacts: {
+          targetBitrateProfileByBucket: {
+            '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+          },
+          targetCodec: 'h265',
+        },
       }],
     }],
   };
@@ -1019,7 +1071,12 @@ test('configStore rejects metadataGate configs that do not cover optimize inputs
             priority: 1,
             groupsConnector: 'and',
             groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
-            targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
+            targetMediaFacts: {
+              targetBitrateProfileByBucket: {
+                '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+              },
+              targetCodec: 'h265',
+            },
           }],
         }],
       });
@@ -2556,9 +2613,9 @@ test('taskAdmission allows optimize when previous flow failure evidence does not
       gate: 'optimize',
       passed: false,
       status: 'failed',
-      reason: 'target_bitrate_exceeded',
+      reason: 'bitrate_above_range',
       flowKind: 'transcode',
-      failureReasons: ['target_bitrate_exceeded'],
+      failureReasons: ['bitrate_above_range'],
       retryPolicy: { automaticRetry: false, manualRetryAllowed: true, reason: 'heavy_resource_gate_miss' },
     },
   });
@@ -3516,8 +3573,12 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     duration: 3600,
     metadataComplete: true,
     ...freshMetadataFacts(),
-    targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
-    targetBitrate: 4,
+    targetMediaFacts: {
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+      },
+      targetCodec: 'h265',
+    },
     targetCodec: 'h265',
     bitrate: 10_000_000,
     codec: 'h264',
@@ -3536,8 +3597,12 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     duration: 3600,
     metadataComplete: true,
     ...freshMetadataFacts(),
-    targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
-    targetBitrate: 4,
+    targetMediaFacts: {
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+      },
+      targetCodec: 'h265',
+    },
     targetCodec: 'h265',
     bitrate: 4_300_000,
     equivalentBitrate: 4.3,
@@ -3560,8 +3625,12 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     duration: 3600,
     metadataComplete: true,
     ...freshMetadataFacts(),
-    targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
-    targetBitrate: 4,
+    targetMediaFacts: {
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+      },
+      targetCodec: 'h265',
+    },
     targetCodec: 'h265',
     bitrate: 4_300_000,
     equivalentBitrate: 4.3,
@@ -3581,8 +3650,12 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     duration: 3600,
     metadataComplete: true,
     ...freshMetadataFacts(),
-    targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
-    targetBitrate: 4,
+    targetMediaFacts: {
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+      },
+      targetCodec: 'h265',
+    },
     targetCodec: 'h265',
     bitrate: 8_000_000,
     equivalentBitrate: 8,
@@ -3602,7 +3675,7 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
   assert.strictEqual(notSatisfied.optimizeGate.status, 'not_passed');
   assert.strictEqual(notSatisfied.optimizeGate.reason, 'objective_not_satisfied');
   assert.strictEqual(notSatisfied.optimizeGate.flowKind, 'transcode');
-  assert.ok(notSatisfied.optimizeGate.failureReasons.includes('bitrate_above_target'));
+  assert.ok(notSatisfied.optimizeGate.failureReasons.includes('bitrate_above_range'));
   assert.ok(notSatisfied.optimizeGate.failureReasons.includes('codec_mismatch'));
 
   const upgradeSafetyBlocked = lifecycleProjection.resolveLifecycle({
@@ -3613,7 +3686,13 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     duration: 3600,
     metadataComplete: true,
     ...freshMetadataFacts(),
-    targetMediaFacts: { targetBitrate: 8, targetCodec: 'h265', minResolution: '4K' },
+    targetMediaFacts: {
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 5.2, targetMbps: 8, maxMbps: 10.8 },
+      },
+      targetCodec: 'h265',
+      minResolution: '4K',
+    },
     bitrate: 2_000_000,
     equivalentBitrate: 2,
     codec: 'h264',
@@ -3634,7 +3713,12 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     duration: 3600,
     metadataComplete: true,
     ...freshMetadataFacts(),
-    targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
+    targetMediaFacts: {
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+      },
+      targetCodec: 'h265',
+    },
   });
   assert.strictEqual(missingFacts.lifecycleStage, 'metadata_ready');
   assert.strictEqual(missingFacts.lifecycleNextTask, 'optimize');
@@ -3657,7 +3741,9 @@ test('lifecycleProjection passes optimize gate when target media facts are alrea
       kind: 'target_media_facts',
       targetMediaFacts: {
         qualityTier: 'standard',
-        targetBitrateByBucket: { '1080p': 4 },
+        targetBitrateProfileByBucket: {
+          '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+        },
         targetCodec: 'h265',
       },
       acceptableFlows: ['transcode', 'upgrade'],
@@ -3690,7 +3776,13 @@ test('rule templates persist archive-before target facts without action-like fie
       priority: 1,
       groupsConnector: 'and',
       groups: [{ connector: 'and', conditions: [['userRating', '>=', 4]] }],
-      targetMediaFacts: { qualityTier: 'standard', targetBitrate: 6, targetCodec: 'h265' },
+      targetMediaFacts: {
+        qualityTier: 'standard',
+        targetBitrateProfileByBucket: {
+          '1080p': { minMbps: 3.9, targetMbps: 6, maxMbps: 8.1 },
+        },
+        targetCodec: 'h265',
+      },
       reason: 'target facts input',
     }],
   });
@@ -3698,7 +3790,9 @@ test('rule templates persist archive-before target facts without action-like fie
   assert.strictEqual(Object.prototype.hasOwnProperty.call(normalized.rules[0], 'actionParams'), false);
   assert.deepStrictEqual(normalized.rules[0].targetMediaFacts, {
     qualityTier: 'standard',
-    targetBitrate: 6,
+    targetBitrateProfileByBucket: {
+      '1080p': { minMbps: 3.9, targetMbps: 6, maxMbps: 8.1 },
+    },
     targetCodec: 'h265',
   });
 });
@@ -3713,7 +3807,12 @@ test('lifecycleProjection exposes optimize objective readiness and revision fact
         groupsConnector: 'and',
         groups: [{ connector: 'or', conditions: [['userRating', '=', 5], ['doubanRating', '=', 5]] }],
         reason: 'premium target',
-        targetMediaFacts: { targetBitrate: 8, targetCodec: 'h265' },
+        targetMediaFacts: {
+          targetBitrateProfileByBucket: {
+            '1080p': { minMbps: 5.2, targetMbps: 8, maxMbps: 10.8 },
+          },
+          targetCodec: 'h265',
+        },
       }],
     }],
   };
@@ -3740,15 +3839,19 @@ test('lifecycleProjection exposes optimize objective readiness and revision fact
     subLibraryId: 'movie-lib',
     metadataComplete: true,
     reason: 'premium target',
-    targetMediaFacts: { targetBitrate: 8, targetCodec: 'h265' },
-    targetBitrate: 8,
+    targetMediaFacts: {
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 5.2, targetMbps: 8, maxMbps: 10.8 },
+      },
+      targetCodec: 'h265',
+    },
     targetCodec: 'h265',
     optimizeObjective: undefined,
     perceptionVersion: 3,
   }), cfg);
   assert.strictEqual(ready.optimizeObjectiveStatus, 'ready');
   assert.strictEqual(ready.optimizeObjective.kind, 'target_media_facts');
-  assert.strictEqual(ready.optimizeObjective.targetBitrate, 8);
+  assert.strictEqual(ready.optimizeObjective.targetMediaFacts.targetBitrateProfileByBucket['1080p'].targetMbps, 8);
   assert.strictEqual(ready.objectiveHash.length, 16);
   assert.strictEqual(ready.objectiveVersion, 1);
   assert.strictEqual(ready.objectiveDerivedFrom.perceptionVersion, 3);
@@ -3758,8 +3861,12 @@ test('lifecycleProjection exposes optimize objective readiness and revision fact
     subLibraryId: 'movie-lib',
     metadataComplete: true,
     reason: 'premium target',
-    targetMediaFacts: { targetBitrate: 8, targetCodec: 'h265' },
-    targetBitrate: 8,
+    targetMediaFacts: {
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 5.2, targetMbps: 8, maxMbps: 10.8 },
+      },
+      targetCodec: 'h265',
+    },
     targetCodec: 'h265',
     optimizeObjective: undefined,
     objectiveHash: 'previous-objective',
@@ -3793,7 +3900,12 @@ test('strategyEngine persists lifecycle objective projection after compatibility
           groupsConnector: 'and',
           groups: [{ connector: 'and', conditions: [['userRating', '>=', 4]] }],
           reason: 'high perception target',
-          targetMediaFacts: { targetBitrate: 6, targetCodec: 'h265' },
+          targetMediaFacts: {
+            targetBitrateProfileByBucket: {
+              '1080p': { minMbps: 3.9, targetMbps: 6, maxMbps: 8.1 },
+            },
+            targetCodec: 'h265',
+          },
         }],
       }],
       strategyPollIntervalMinutes: 0,
@@ -3817,10 +3929,15 @@ test('strategyEngine persists lifecycle objective projection after compatibility
 
     const stored = libraryStore.getItem('strategy-objective-projection');
     assert.strictEqual(stored.action || '', '');
-    assert.deepStrictEqual(stored.targetMediaFacts, { targetBitrate: 6, targetCodec: 'h265' });
+    assert.deepStrictEqual(stored.targetMediaFacts, {
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 3.9, targetMbps: 6, maxMbps: 8.1 },
+      },
+      targetCodec: 'h265',
+    });
     assert.strictEqual(stored.optimizeObjectiveStatus, 'ready');
     assert.strictEqual(stored.optimizeObjective.kind, 'target_media_facts');
-    assert.strictEqual(stored.optimizeObjective.targetBitrate, 6);
+    assert.strictEqual(stored.optimizeObjective.targetMediaFacts.targetBitrateProfileByBucket['1080p'].targetMbps, 6);
     assert.strictEqual(stored.objectiveHash.length, 16);
     assert.ok(Number.isInteger(stored.objectiveVersion) && stored.objectiveVersion >= 1);
   } finally {
@@ -4006,7 +4123,9 @@ test('taskScheduler records upgrade staged facts and requests canonical refresh 
           targetMediaFacts: {
             qualityTier: 'premium',
             minResolution: '4K',
-            targetBitrateByBucket: { '4K': 18 },
+            targetBitrateProfileByBucket: {
+              '4K': { minMbps: 11.7, targetMbps: 18, maxMbps: 24.3 },
+            },
             targetCodec: 'h265',
           },
         },

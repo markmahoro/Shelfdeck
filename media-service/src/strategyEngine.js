@@ -15,6 +15,7 @@ const metadataStatus = require('./metadataStatus');
 const lifecycleObjectiveResolver = require('./lifecycleObjectiveResolver');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const backgroundIoGuard = require('./backgroundIoGuard');
+const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 
 const BACKGROUND_IO_LOCK = 'library_background_io';
 
@@ -90,18 +91,18 @@ function applyRule(item, rule) {
   item.targetMediaFacts = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object'
     ? { ...rule.targetMediaFacts }
     : undefined;
+  delete item.targetBitrate;
 
   const targetProjection = projection.targetProjection || {};
 
-  item.targetBitrate = targetProjection.targetBitrate;
   item.targetCodec = targetProjection.targetCodec;
 
   item.seedPreferences = targetProjection.seedPreferences;
   item.maxSizeGB = targetProjection.maxSizeGB;
 
   // predictedSizeGb
-  if (targetProjection.targetBitrate && item.duration) {
-    item.predictedSizeGb = (targetProjection.targetBitrate * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024);
+  if (targetProjection.targetMbps && item.duration) {
+    item.predictedSizeGb = (targetProjection.targetMbps * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024);
   } else {
     item.predictedSizeGb = undefined;
   }
@@ -114,31 +115,15 @@ function normalizeCodec(value) {
   return raw;
 }
 
-function normalizeBucket(value) {
-  const raw = String(value || '').trim();
-  if (/4k/i.test(raw)) return '4K';
-  if (/1080/i.test(raw)) return '1080p';
-  if (/720/i.test(raw)) return '720p';
-  return raw || '1080p';
-}
-
-function bitrateForTarget(target = {}, item = {}) {
-  if (typeof target.targetBitrate === 'number') return target.targetBitrate;
-  const byBucket = target.targetBitrateByBucket || {};
-  const bucket = normalizeBucket(item.bucket || item.resolution);
-  const value = byBucket[bucket] || byBucket[normalizeBucket(bucket)] || byBucket['1080p'] || byBucket['4K'];
-  return typeof value === 'number' ? value : undefined;
-}
-
 function deriveTargetProjection(item = {}, rule = {}) {
   const target = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object' ? rule.targetMediaFacts : null;
   if (!target) {
     return { targetProjection: {} };
   }
-  const targetBitrate = bitrateForTarget(target, item);
+  const profile = bitrateObjectiveProfile.resolveBitrateProfile({ targetMediaFacts: target, item });
   return {
     targetProjection: {
-      targetBitrate,
+      targetMbps: profile ? profile.targetMbps : undefined,
       targetCodec: target.targetCodec || target.codec,
       maxSizeGB: target.maxSizeGB,
       seedPreferences: target.seedPreferences,
@@ -147,9 +132,9 @@ function deriveTargetProjection(item = {}, rule = {}) {
 }
 
 function clearOptimization(item, reason) {
+  const hadLegacyTargetBitrate = Object.prototype.hasOwnProperty.call(item, 'targetBitrate');
   const old = {
     reason: item.reason,
-    targetBitrate: item.targetBitrate,
     targetCodec: item.targetCodec,
     seedPreferences: JSON.stringify(item.seedPreferences || null),
     maxSizeGB: item.maxSizeGB,
@@ -157,7 +142,7 @@ function clearOptimization(item, reason) {
     targetMediaFacts: JSON.stringify(item.targetMediaFacts || null),
   };
   item.reason = reason || '';
-  item.targetBitrate = undefined;
+  delete item.targetBitrate;
   item.targetCodec = undefined;
   item.seedPreferences = undefined;
   item.maxSizeGB = undefined;
@@ -165,7 +150,7 @@ function clearOptimization(item, reason) {
   item.targetMediaFacts = undefined;
   return (
     item.reason !== old.reason ||
-    item.targetBitrate !== old.targetBitrate ||
+    hadLegacyTargetBitrate ||
     item.targetCodec !== old.targetCodec ||
     JSON.stringify(item.seedPreferences || null) !== old.seedPreferences ||
     item.maxSizeGB !== old.maxSizeGB ||
@@ -236,7 +221,7 @@ function evaluateItem(item, templates, subLibs, config = {}) {
   }
 
   const oldReason = item.reason;
-  const oldTargetBitrate = item.targetBitrate;
+  const hadLegacyTargetBitrate = Object.prototype.hasOwnProperty.call(item, 'targetBitrate');
   const oldTargetCodec = item.targetCodec;
   const oldSeedPreferences = JSON.stringify(item.seedPreferences || null);
   const oldMaxSizeGB = item.maxSizeGB;
@@ -247,7 +232,7 @@ function evaluateItem(item, templates, subLibs, config = {}) {
 
   const changed = (
     item.reason !== oldReason ||
-    item.targetBitrate !== oldTargetBitrate ||
+    hadLegacyTargetBitrate ||
     item.targetCodec !== oldTargetCodec ||
     JSON.stringify(item.seedPreferences || null) !== oldSeedPreferences ||
     item.maxSizeGB !== oldMaxSizeGB ||
@@ -297,7 +282,7 @@ function runOnce(options = {}) {
         // Series items are rating anchors only — never produce tasks
         if (item.reason !== '系列条目(非媒体文件)') {
           item.reason = '系列条目(非媒体文件)';
-          item.targetBitrate = undefined;
+          delete item.targetBitrate;
           item.targetCodec = undefined;
           item.seedPreferences = undefined;
           item.predictedSizeGb = undefined;

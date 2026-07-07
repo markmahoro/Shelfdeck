@@ -14,6 +14,7 @@ const configStore = require('./configStore');
 const moviepilotService = require('./services/moviepilotService');
 const smartSeedSelect = require('./smartSeedSelect');
 const approvalPolicy = require('./approvalPolicy');
+const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 
 let scheduler = null;
 function setScheduler(s) { scheduler = s; }
@@ -108,14 +109,17 @@ function targetFactsForTask(task = {}, width = 0, height = 0) {
   const target = objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
     ? objective.targetMediaFacts
     : {};
-  const byBucket = target.targetBitrateByBucket && typeof target.targetBitrateByBucket === 'object'
-    ? target.targetBitrateByBucket
-    : {};
   const bucket = resolutionBucketFromSize(width, height);
+  const profile = bitrateObjectiveProfile.resolveBitrateProfile({
+    objective,
+    bucket,
+    item: { width, height, bucket },
+  });
   return {
     objectiveHash: (task.itemInfo && task.itemInfo.objectiveHash) || task.objectiveHash || '',
     minResolution: target.minResolution || '',
-    targetBitrate: Number(target.targetBitrate || byBucket[bucket] || 0) || null,
+    bitrateProfile: profile,
+    targetMbps: profile ? profile.targetMbps : null,
     targetCodec: normalizeCodec(target.targetCodec || target.codec),
   };
 }
@@ -127,10 +131,13 @@ function assertUpgradeSatisfiesObjective(task, verifyResult) {
   if (minResolutionRank > 0 && resolutionRankFromSize(verifyResult.width, verifyResult.height) < minResolutionRank) {
     failures.push(`resolution below objective target (${target.minResolution})`);
   }
-  if (target.targetBitrate != null) {
+  if (target.bitrateProfile != null) {
     const bitrateMbps = typeof verifyResult.bitrate === 'number' ? verifyResult.bitrate / 1000 : null;
-    if (bitrateMbps == null || bitrateMbps < target.targetBitrate * 0.65 || bitrateMbps > target.targetBitrate * 1.35) {
-      failures.push(`bitrate outside objective target (${target.targetBitrate} Mbps)`);
+    const comparison = bitrateObjectiveProfile.compareBitrateToProfile(bitrateMbps, target.bitrateProfile);
+    if (comparison.status === 'missing') {
+      failures.push('bitrate missing for objective range');
+    } else if (comparison.status !== 'within') {
+      failures.push(`bitrate outside objective range (${target.bitrateProfile.minMbps}-${target.bitrateProfile.maxMbps} Mbps)`);
     }
   }
   if (target.targetCodec) {
@@ -1000,7 +1007,7 @@ async function runPreReplaceVerify(taskId, task) {
         durationSec: outDuration,
         outputPath: stagingMediaPath,
         objectiveHash: objectiveTarget.objectiveHash,
-        targetBitrate: objectiveTarget.targetBitrate,
+        targetMbps: objectiveTarget.targetMbps,
         targetCodec: objectiveTarget.targetCodec,
         minResolution: objectiveTarget.minResolution,
         previewPath,

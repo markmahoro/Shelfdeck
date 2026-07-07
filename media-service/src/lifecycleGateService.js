@@ -1,6 +1,7 @@
 'use strict';
 
 const flowPlanner = require('./flowPlanner');
+const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 
 function clean(value) {
   return value == null ? '' : String(value).trim();
@@ -113,8 +114,14 @@ function resolveOptimizeFlowKind(item = {}, gate = null) {
 
 function resolveOptimizeTarget(item = {}, gate = null) {
   const target = gate && gate.target && typeof gate.target === 'object' ? gate.target : {};
+  const projectedObjective = projectedOptimizeObjective(item);
+  const bitrateProfile = target.bitrateProfile || bitrateObjectiveProfile.resolveBitrateProfile({
+    objective: projectedObjective || { targetMediaFacts: item.targetMediaFacts || {} },
+    item,
+  });
   return {
-    bitrateMbps: normalizeBitrateMbps(target.bitrateMbps || target.targetBitrate || item.targetBitrate),
+    bitrateProfile,
+    bitrateMbps: bitrateProfile ? bitrateProfile.targetMbps : normalizeBitrateMbps(target.bitrateMbps),
     codec: normalizeCodec(target.codec || target.targetCodec || item.targetCodec),
   };
 }
@@ -192,19 +199,13 @@ function hasOptimizeDoneMarker(item = {}, flowKind = '') {
   return false;
 }
 
-function targetFailures(flowKind, target, observed) {
+function targetFailures(_flowKind, target, observed) {
   const failures = [];
-  const bitrateTolerance = flowKind === 'upgrade'
-    ? { minRatio: 0.9, maxRatio: null }
-    : { minRatio: 0.65, maxRatio: 1.35 };
 
-  if (target.bitrateMbps != null && observed.bitrateMbps != null) {
-    if (bitrateTolerance.minRatio != null && observed.bitrateMbps < target.bitrateMbps * bitrateTolerance.minRatio) {
-      failures.push('target_bitrate_not_met');
-    }
-    if (bitrateTolerance.maxRatio != null && observed.bitrateMbps > target.bitrateMbps * bitrateTolerance.maxRatio) {
-      failures.push('target_bitrate_exceeded');
-    }
+  if (target.bitrateProfile && observed.bitrateMbps != null) {
+    const comparison = bitrateObjectiveProfile.compareBitrateToProfile(observed.bitrateMbps, target.bitrateProfile);
+    if (comparison.status === 'below') failures.push('bitrate_below_range');
+    if (comparison.status === 'above') failures.push('bitrate_above_range');
   }
   if (target.codec && observed.codec && target.codec !== observed.codec) {
     failures.push('target_codec_not_met');
@@ -217,7 +218,6 @@ function projectedOptimizeObjective(item = {}) {
     ? {
       kind: 'target_media_facts',
       targetMediaFacts: item.targetMediaFacts,
-      targetBitrate: item.targetBitrate,
       targetCodec: item.targetCodec,
       maxSizeGB: item.maxSizeGB,
       seedPreferences: item.seedPreferences,

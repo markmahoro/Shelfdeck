@@ -535,7 +535,6 @@ function buildUpdatedItemInfo(item) {
     providerIds: item.providerIds,
     seriesName: item.seriesName,
     seasonNumber: item.seasonNumber,
-    targetBitrate: item.targetBitrate,
     targetCodec: item.targetCodec,
     seedPreferences: item.seedPreferences,
     maxSizeGB: item.maxSizeGB,
