@@ -173,6 +173,18 @@ User Perception Management
 
 ShelfDeck 对一个媒体的“真实认知”必须来自权威事实（canonical facts）。Flow 执行中可以产生暂存事实（staged facts）和执行证据（event evidence），但不能直接把一个 gate 判为通过，也不能绕过事实归属发布新的权威事实。
 
+同样重要的是，Flow 执行结果不能等同于 Gate 达成状态：
+
+```text
+Task / Flow execution result is not Gate achievement.
+```
+
+事情有没有做成，是 task / flow / runtime 的问题；目标有没有达成，是 Lifecycle / gate 的问题。一次 `transcode` 或 `upgrade` attempt 失败，只能写入 task status、task events、failure context、recovery evidence；不能写成 `optimizeGate.status=failed` 并阻断当前或后续 objective 的 lifecycle projection。反过来，一次 flow attempt 成功也不等于 gate passed，仍必须等权威事实刷新后由 Lifecycle 用 canonical facts + gate objective 判定。
+
+避免同一个 gate 无限制自动重试，不属于 Lifecycle 职责。Lifecycle 应持续表达“当前 gate 未达成”；Task Creator / TaskAdmission / TaskCreationPolicy 才负责判断是否允许再次创建 task attempt。自动模式必须使用 attempt budget 防风暴，attempt key 至少包含 item、targetGate、gateObjective 和相关 canonical facts 版本。用户手动 intent 可以绕过自动 attempt budget，但不能绕过 active duplicate、facts freshness、objective readiness 和 destructive safety。
+
+Event retry 和 task attempt retry 也必须分开。`retryCount`、`resumePoint` 和 recovery contract 描述的是同一个 task 内部的 event retry / resume，不消耗 automatic task attempt budget；只有 task 最终 terminal failed 后，TaskCreationPolicy 才按 attempt key 计算是否允许自动创建新的 task attempt。
+
 统一术语：
 
 | English | 中文 | 含义 |
@@ -199,8 +211,9 @@ Emby sync、文件夹扫描、成人库目录扫描、Douban 同步等 domain mo
 - `sourceFacts / ingestFacts` 的权威刷新有且仅有 ingest task。
 - `mediaFacts / metadataFacts` 的权威刷新有且仅有 metadata task，其实现路径通常是 `flowPlan.flowKind=scrape` 或 metadata repair / probe。
 - `userPerceptionFacts` 的权威刷新有且仅有 User Perception Management。
-- `gateFacts` 的权威刷新由 Lifecycle 判定和对应 flow verification 共同完成，但最终 gate passed / blocked 状态必须回到 Lifecycle projection。
+- `gateFacts` 的权威刷新由 Lifecycle 判定和对应 flow verification 共同完成，但最终 gate passed / not passed / blocked 状态必须回到 Lifecycle projection。
 - transcode / upgrade / archive / delete 这类执行型 flow 只能写 staged facts、event evidence 和 fact refresh request；不能直接发布 `sourceFacts`、`mediaFacts` 或 `metadataFacts` 的权威事实。
+- transcode / upgrade attempt 失败属于 task/runtime evidence，不属于 optimize gate closure；Lifecycle 仍应基于当前 canonical facts 判断 optimize gate 是否达成，并在未达成时继续投影 `targetGate=optimize`。
 
 Gate passed 的通用条件是：
 

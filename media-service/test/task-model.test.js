@@ -2542,7 +2542,7 @@ test('taskAdmission blocks automatic optimize when optimize gate already passed'
   assert.strictEqual(result.reason, 'optimize_gate_already_passed');
 });
 
-test('taskAdmission routes optimize gate failures to failure handling instead of new optimize tasks', () => {
+test('taskAdmission allows optimize when previous flow failure evidence does not satisfy current objective', () => {
   const config = {
     automaticTaskTargets: ['optimize'], optimizeAllowedFlowKinds: ['transcode'],
     subLibraries: [{ uuid: 'lib-a', source: 'emby', mediaType: 'movie', automationMode: 'auto' }],
@@ -2570,10 +2570,8 @@ test('taskAdmission routes optimize gate failures to failure handling instead of
     config,
     tasks: [],
   });
-  assert.strictEqual(auto.allowed, false);
-  assert.strictEqual(auto.reason, 'optimize_gate_failed_requires_failure_handling');
-  assert.strictEqual(auto.retryPolicy.manualRetryAllowed, true);
-  assert.strictEqual(auto.failureHandling.surface, 'task_center');
+  assert.strictEqual(auto.allowed, true);
+  assert.strictEqual(auto.targetGate, 'optimize');
 
   const manual = taskAdmission.canCreateTask({
     item,
@@ -2582,9 +2580,104 @@ test('taskAdmission routes optimize gate failures to failure handling instead of
     config,
     tasks: [],
   });
-  assert.strictEqual(manual.allowed, false);
-  assert.strictEqual(manual.reason, 'optimize_gate_failed_requires_failure_handling');
-  assert.strictEqual(manual.failureHandling.userAction, 'inspect_failure_or_mark_no_action');
+  assert.strictEqual(manual.allowed, true);
+  assert.strictEqual(manual.targetGate, 'optimize');
+});
+
+test('taskAdmission applies automatic attempt limits by target gate attempt key', () => {
+  const config = {
+    automaticTaskTargets: ['optimize'], optimizeAllowedFlowKinds: ['transcode'],
+    taskAdmission: {
+      cooldownHoursByTargetGate: { optimize: 0 },
+      maxQueuedByTargetGate: { optimize: 10 },
+      automaticAttemptLimitsByTargetGate: { optimize: 1 },
+    },
+    subLibraries: [{ uuid: 'lib-a', source: 'emby', mediaType: 'movie', automationMode: 'auto' }],
+  };
+  const item = metadataReadyMovie({
+    itemId: 'attempt-budget-item',
+    subLibraryId: 'lib-a',
+    metadataUpdatedAt: '2026-01-01T00:00:00.000Z',
+    lastRefreshedAt: '2026-01-01T00:00:00.000Z',
+  });
+  const first = taskAdmission.canCreateTask({
+    item,
+    targetGate: 'optimize',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(first.allowed, true);
+  const attemptKey = first.taskTarget.attemptKey;
+  assert.ok(attemptKey);
+
+  const failedSameAttempt = {
+    id: 'failed-same-attempt',
+    itemId: item.itemId,
+    source: 'auto',
+    status: 'failed_hard',
+    taskTarget: {
+      targetGate: 'optimize',
+      gateObjective: first.taskTarget.gateObjective,
+      attemptKey,
+    },
+    retryCount: 3,
+    updatedAt: '2026-01-01T00:05:00.000Z',
+  };
+  const repeatedAuto = taskAdmission.canCreateTask({
+    item,
+    targetGate: 'optimize',
+    source: 'auto',
+    config,
+    tasks: [failedSameAttempt],
+  });
+  assert.strictEqual(repeatedAuto.allowed, false);
+  assert.strictEqual(repeatedAuto.reason, 'automatic_attempt_limit_reached');
+  assert.strictEqual(repeatedAuto.automaticAttemptLimit, 1);
+  assert.strictEqual(repeatedAuto.automaticAttemptCount, 1);
+
+  const manual = taskAdmission.canCreateTask({
+    item,
+    targetGate: 'optimize',
+    source: 'manual',
+    config,
+    tasks: [failedSameAttempt],
+  });
+  assert.strictEqual(manual.allowed, true);
+
+  const changedFacts = {
+    ...item,
+    metadataUpdatedAt: '2026-01-01T00:10:00.000Z',
+    factsFreshness: {
+      sourceFacts: { status: 'fresh', updatedAt: '2026-01-01T00:00:00.000Z' },
+      mediaFacts: { status: 'fresh', updatedAt: '2026-01-01T00:10:00.000Z' },
+      metadataFacts: { status: 'fresh', updatedAt: '2026-01-01T00:10:00.000Z' },
+      userPerceptionFacts: { status: 'fresh', updatedAt: '2026-01-01T00:00:00.000Z' },
+    },
+  };
+  const changedAuto = taskAdmission.canCreateTask({
+    item: changedFacts,
+    targetGate: 'optimize',
+    source: 'auto',
+    config,
+    tasks: [failedSameAttempt],
+  });
+  assert.strictEqual(changedAuto.allowed, true);
+  assert.notStrictEqual(changedAuto.taskTarget.attemptKey, attemptKey);
+
+  const eventRetrySameTask = taskAdmission.canCreateTask({
+    item,
+    targetGate: 'optimize',
+    source: 'auto',
+    config,
+    tasks: [{
+      ...failedSameAttempt,
+      id: 'interrupted-recoverable-attempt',
+      status: 'interrupted',
+    }],
+  });
+  assert.strictEqual(eventRetrySameTask.allowed, false);
+  assert.strictEqual(eventRetrySameTask.reason, 'active_task_exists');
 });
 
 test('taskAdmission caps automatic queue by target gate', () => {
@@ -3414,8 +3507,8 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
   assert.strictEqual(pending.lifecycleStage, 'metadata_ready');
   assert.strictEqual(pending.lifecycleNextTask, 'optimize');
   assert.strictEqual(pending.optimizeGate.passed, false);
-  assert.strictEqual(pending.optimizeGate.status, 'pending');
-  assert.strictEqual(pending.optimizeGate.reason, 'optimize_not_attempted');
+  assert.strictEqual(pending.optimizeGate.status, 'not_passed');
+  assert.strictEqual(pending.optimizeGate.reason, 'objective_not_satisfied');
 
   const passed = lifecycleProjection.resolveLifecycle({
     itemId: 'passed-transcode-gate',
@@ -3426,20 +3519,18 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     metadataComplete: true,
     ...freshMetadataFacts(),
     targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
-    optimizationStatus: 'transcoded',
     targetBitrate: 4,
     targetCodec: 'h265',
-    verifyResult: {
-      bitrate: 4_600_000,
-      videoCodec: 'hevc',
-    },
+    bitrate: 4_300_000,
+    equivalentBitrate: 4.3,
+    codec: 'hevc',
   });
   assert.strictEqual(passed.lifecycleStage, 'optimized');
   assert.strictEqual(passed.lifecycleNextTask, 'archive');
   assert.strictEqual(passed.lifecycleDone, false);
   assert.strictEqual(passed.optimizeGate.passed, true);
-  assert.strictEqual(passed.optimizeGate.reason, 'optimize_gate_met');
-  assert.strictEqual(passed.optimizeGate.flowKind, 'transcode');
+  assert.strictEqual(passed.optimizeGate.reason, 'objective_already_satisfied');
+  assert.strictEqual(passed.optimizeGate.flowKind, 'no_op');
   assert.strictEqual(passed.archiveGate.passed, false);
   assert.ok(passed.archiveGate.missingReasons.includes('archive.finalization'));
 
@@ -3452,13 +3543,11 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
     metadataComplete: true,
     ...freshMetadataFacts(),
     targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
-    optimizationStatus: 'transcoded',
     targetBitrate: 4,
     targetCodec: 'h265',
-    verifyResult: {
-      bitrate: 4_600_000,
-      videoCodec: 'hevc',
-    },
+    bitrate: 4_300_000,
+    equivalentBitrate: 4.3,
+    codec: 'hevc',
     archiveStatus: 'archived_like',
     archiveDoneAt: new Date().toISOString(),
   });
@@ -3466,30 +3555,73 @@ test('lifecycleProjection evaluates optimize gate targets before archive closure
   assert.strictEqual(archived.lifecycleDone, true);
   assert.strictEqual(archived.archiveGate.passed, true);
 
-  const failed = lifecycleProjection.resolveLifecycle({
-    itemId: 'failed-transcode-gate',
+  const notSatisfied = lifecycleProjection.resolveLifecycle({
+    itemId: 'not-satisfied-transcode-gate',
     source: 'emby',
-    sourceId: 'emby-failed-transcode-gate',
-    path: '/media/failed-transcode-gate.mkv',
+    sourceId: 'emby-not-satisfied-transcode-gate',
+    path: '/media/not-satisfied-transcode-gate.mkv',
     duration: 3600,
     metadataComplete: true,
     ...freshMetadataFacts(),
     targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
-    optimizationStatus: 'transcoded',
     targetBitrate: 4,
     targetCodec: 'h265',
-    verifyResult: {
-      bitrate: 8_000_000,
-      videoCodec: 'h264',
+    bitrate: 8_000_000,
+    equivalentBitrate: 8,
+    codec: 'h264',
+    optimizeGate: {
+      gate: 'optimize',
+      passed: false,
+      status: 'failed',
+      reason: 'encoder_failed_before_replace',
+      flowKind: 'transcode',
+      failureReasons: ['encoder_failed_before_replace'],
     },
   });
-  assert.strictEqual(failed.lifecycleStage, 'metadata_ready');
-  assert.strictEqual(failed.lifecycleNextTask, null);
-  assert.strictEqual(failed.lifecycleReason, 'optimize_gate_failed');
-  assert.strictEqual(failed.optimizeGate.status, 'failed');
-  assert.strictEqual(failed.optimizeGate.retryPolicy.automaticRetry, false);
-  assert.ok(failed.optimizeGate.failureReasons.includes('target_bitrate_exceeded'));
-  assert.ok(failed.optimizeGate.failureReasons.includes('target_codec_not_met'));
+  assert.strictEqual(notSatisfied.lifecycleStage, 'metadata_ready');
+  assert.strictEqual(notSatisfied.lifecycleNextTask, 'optimize');
+  assert.strictEqual(notSatisfied.lifecycleReason, 'objective_not_satisfied');
+  assert.strictEqual(notSatisfied.optimizeGate.status, 'not_passed');
+  assert.strictEqual(notSatisfied.optimizeGate.reason, 'objective_not_satisfied');
+  assert.strictEqual(notSatisfied.optimizeGate.flowKind, 'transcode');
+  assert.ok(notSatisfied.optimizeGate.failureReasons.includes('bitrate_above_target'));
+  assert.ok(notSatisfied.optimizeGate.failureReasons.includes('codec_mismatch'));
+
+  const upgradeSafetyBlocked = lifecycleProjection.resolveLifecycle({
+    itemId: 'upgrade-safety-blocked-gate',
+    source: 'emby',
+    sourceId: 'emby-upgrade-safety-blocked-gate',
+    path: '/media/upgrade-safety-blocked-gate.mkv',
+    duration: 3600,
+    metadataComplete: true,
+    ...freshMetadataFacts(),
+    targetMediaFacts: { targetBitrate: 8, targetCodec: 'h265', minResolution: '4K' },
+    bitrate: 2_000_000,
+    equivalentBitrate: 2,
+    codec: 'h264',
+    resolution: '1080p',
+    isDiscLike: true,
+  });
+  assert.strictEqual(upgradeSafetyBlocked.lifecycleStage, 'metadata_ready');
+  assert.strictEqual(upgradeSafetyBlocked.lifecycleNextTask, 'optimize');
+  assert.strictEqual(upgradeSafetyBlocked.optimizeGate.status, 'not_passed');
+  assert.strictEqual(upgradeSafetyBlocked.optimizeGate.reason, 'objective_not_satisfied');
+  assert.ok(upgradeSafetyBlocked.optimizeGate.failureReasons.includes('upgrade_safety_blocked'));
+
+  const missingFacts = lifecycleProjection.resolveLifecycle({
+    itemId: 'missing-optimize-facts-gate',
+    source: 'emby',
+    sourceId: 'emby-missing-optimize-facts-gate',
+    path: '/media/missing-optimize-facts-gate.mkv',
+    duration: 3600,
+    metadataComplete: true,
+    ...freshMetadataFacts(),
+    targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
+  });
+  assert.strictEqual(missingFacts.lifecycleStage, 'metadata_ready');
+  assert.strictEqual(missingFacts.lifecycleNextTask, 'optimize');
+  assert.strictEqual(missingFacts.optimizeGate.status, 'blocked');
+  assert.strictEqual(missingFacts.optimizeGate.reason, 'blocked_by_missing_or_stale_facts');
 });
 
 test('lifecycleProjection passes optimize gate when target media facts are already satisfied', () => {

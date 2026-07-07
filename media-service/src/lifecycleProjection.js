@@ -177,28 +177,12 @@ function resolveLifecycle(item, config = {}) {
     };
   }
 
-  if (optimizeGate.status === 'failed') {
-    return {
-      lifecycleStage: 'metadata_ready',
-      lifecycleDone: false,
-      archiveStatus: 'not_ready',
-      lifecycleNextTask: null,
-      lifecycleReason: optimizeGate.reason,
-      optimizeFlowKind: optimizeGate.flowKind || null,
-      ...objectiveProjection,
-      factsFreshness,
-      ingestGate,
-      optimizeGate,
-      archiveGate: null,
-    };
-  }
-
   return {
     lifecycleStage: 'metadata_ready',
     lifecycleDone: false,
     archiveStatus: 'not_ready',
     lifecycleNextTask: 'optimize',
-    lifecycleReason: 'optimization_pending',
+    lifecycleReason: optimizeGate.reason === 'objective_not_satisfied' ? 'objective_not_satisfied' : 'optimization_pending',
     optimizeFlowKind: optimizeGate.flowKind || null,
     ...objectiveProjection,
     factsFreshness,

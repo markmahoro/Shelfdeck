@@ -402,6 +402,13 @@ function getDefaultConfig() {
         archive: 0,
         delete: 48,
       },
+      automaticAttemptLimitsByTargetGate: {
+        ingest: 3,
+        metadata: 3,
+        optimize: 1,
+        archive: 1,
+        delete: 1,
+      },
     },
 
     deleteGatePolicy: {
@@ -1045,6 +1052,10 @@ function mergeConfigWithDefaults(config) {
       ...((defaults.taskAdmission || {}).maxQueuedByTargetGate || {}),
       ...legacyActionAdmissionToTargetGate(((raw.taskAdmission || {}).maxQueuedByAction) || {}),
       ...(((raw.taskAdmission || {}).maxQueuedByTargetGate) || {}),
+    },
+    automaticAttemptLimitsByTargetGate: {
+      ...((defaults.taskAdmission || {}).automaticAttemptLimitsByTargetGate || {}),
+      ...(((raw.taskAdmission || {}).automaticAttemptLimitsByTargetGate) || {}),
     },
   };
 

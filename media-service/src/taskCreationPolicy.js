@@ -1,9 +1,11 @@
 'use strict';
 
+const crypto = require('crypto');
 const automationPolicy = require('./automationPolicy');
 const factsFreshnessService = require('./factsFreshnessService');
 
-const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
+const TERMINAL = new Set(['done', 'failed_hard', 'failed_soft', 'cancelled', 'skipped', 'deleted']);
+const ATTEMPT_FAILURE_STATUSES = new Set(['failed_hard', 'failed_soft', 'interrupted']);
 
 function cleanToken(value) {
   return String(value || '').trim().toLowerCase();
@@ -48,6 +50,81 @@ function lastTerminalTaskAt(tasks, itemId, targetGate) {
     if (!latest || new Date(at).getTime() > new Date(latest).getTime()) latest = at;
   }
   return latest;
+}
+
+function stableValue(value) {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (value && typeof value === 'object') {
+    return Object.keys(value).sort().reduce((acc, key) => {
+      const child = stableValue(value[key]);
+      if (child !== undefined) acc[key] = child;
+      return acc;
+    }, {});
+  }
+  if (value === undefined) return undefined;
+  return value;
+}
+
+function hashObject(value) {
+  return crypto.createHash('sha256')
+    .update(JSON.stringify(stableValue(value)))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function factVersion(entry = {}) {
+  if (!entry || typeof entry !== 'object') return '';
+  return String(entry.updatedAt || entry.observedAt || entry.rowUpdatedAt || '');
+}
+
+function perceptionVersion(item = {}, freshness = {}) {
+  return String(
+    item.perceptionVersion
+    || item.userPerceptionFacts && item.userPerceptionFacts.perceptionVersion
+    || factVersion(freshness.userPerceptionFacts)
+    || item.perceptionUpdatedAt
+    || '',
+  );
+}
+
+function buildAttemptKey({ item = {}, itemInfo = {}, itemId = '', targetGate = '', gateObjective = {} } = {}) {
+  const freshness = item.factsFreshness || itemInfo.factsFreshness || factsFreshnessService.projectForItem(item);
+  return hashObject({
+    itemId,
+    targetGate,
+    gateObjective: gateObjective || {},
+    sourceFactsUpdatedAt: factVersion(freshness.sourceFacts),
+    mediaFactsUpdatedAt: factVersion(freshness.mediaFacts),
+    metadataFactsUpdatedAt: factVersion(freshness.metadataFacts),
+    perceptionVersion: perceptionVersion(item, freshness),
+  });
+}
+
+function taskAttemptKey(task = {}) {
+  return String(
+    task.taskAttempt && task.taskAttempt.attemptKey
+    || task.taskTarget && task.taskTarget.attemptKey
+    || '',
+  );
+}
+
+function automaticAttemptLimit(config = {}, targetGate = '') {
+  const cfg = config.taskAdmission || {};
+  const byTarget = cfg.automaticAttemptLimitsByTargetGate || {};
+  const raw = byTarget[targetGate];
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function failedAttemptCount(tasks, itemId, targetGate, attemptKey) {
+  if (!attemptKey) return 0;
+  return (tasks || []).filter((task) => (
+    task
+    && task.itemId === itemId
+    && taskTargetGate(task) === targetGate
+    && ATTEMPT_FAILURE_STATUSES.has(task.status)
+    && taskAttemptKey(task) === attemptKey
+  )).length;
 }
 
 function queueLimitForTarget(config = {}, targetGate = '') {
@@ -221,15 +298,6 @@ function canCreateTargetTask(input = {}) {
     if (automatic && optimizeGate.passed === true) {
       return blocked(targetGate, 'optimize_gate_already_passed', { optimizeGate });
     }
-    if (optimizeGate.status === 'failed' || optimizeGate.passed === false && optimizeGate.reason === 'optimize_gate_failed') {
-      return blocked(targetGate, 'optimize_gate_failed_requires_failure_handling', {
-        retryPolicy: optimizeGate.retryPolicy || {},
-        failureHandling: {
-          surface: 'task_center',
-          userAction: 'inspect_failure_or_mark_no_action',
-        },
-      });
-    }
   }
   if (targetGate === 'archive') {
     const optimizeGate = item.optimizeGate || item.optimizationGate || {};
@@ -244,14 +312,35 @@ function canCreateTargetTask(input = {}) {
     }
   }
 
+  const attemptKey = buildAttemptKey({
+    item,
+    itemInfo,
+    itemId,
+    targetGate,
+    gateObjective: resolvedGateObjective,
+  });
+  if (automatic) {
+    const limit = automaticAttemptLimit(config, targetGate);
+    const failedAttempts = failedAttemptCount(tasks, itemId, targetGate, attemptKey);
+    if (limit !== null && failedAttempts >= limit) {
+      return blocked(targetGate, 'automatic_attempt_limit_reached', {
+        attemptKey,
+        automaticAttemptLimit: limit,
+        automaticAttemptCount: failedAttempts,
+      });
+    }
+  }
+
   const taskTarget = input.taskTarget && typeof input.taskTarget === 'object'
     ? {
       object: input.taskTarget.object || buildTaskTarget({ item, itemInfo, targetGate, gateObjective, source }).object,
       targetGate,
       gateObjective: resolvedGateObjective,
       source,
+      attemptKey: input.taskTarget.attemptKey || attemptKey,
     }
     : buildTaskTarget({ item, itemInfo, targetGate, gateObjective: resolvedGateObjective, source });
+  taskTarget.attemptKey = taskTarget.attemptKey || attemptKey;
 
   return allow(targetGate, taskTarget);
 }
@@ -260,6 +349,7 @@ module.exports = {
   TERMINAL,
   taskTargetGate,
   activeTaskForItemTarget,
+  buildAttemptKey,
   canCreateTargetTask,
   buildTaskTarget,
   queueLimitForTarget,

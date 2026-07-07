@@ -221,11 +221,46 @@ function targetFailures(flowKind, target, observed) {
   return failures;
 }
 
+function projectedOptimizeObjective(item = {}) {
+  return item.optimizeObjective || (item.targetMediaFacts && typeof item.targetMediaFacts === 'object'
+    ? {
+      kind: 'target_media_facts',
+      targetMediaFacts: item.targetMediaFacts,
+      targetBitrate: item.targetBitrate,
+      targetCodec: item.targetCodec,
+      maxSizeGB: item.maxSizeGB,
+      seedPreferences: item.seedPreferences,
+    }
+    : null);
+}
+
+function gapFailureReasons(selection = {}) {
+  const reasons = ['objective_not_satisfied'];
+  for (const gap of selection.gap || []) {
+    if (gap && gap.reason && !reasons.includes(gap.reason)) reasons.push(gap.reason);
+  }
+  if (selection.reason && !reasons.includes(selection.reason)) reasons.push(selection.reason);
+  if (selection.blockedReason && !reasons.includes(selection.blockedReason)) reasons.push(selection.blockedReason);
+  return reasons;
+}
+
+function gateBlockedReasonForSelection(selection = {}) {
+  const reason = normalize(selection.reason);
+  const blockedReason = normalize(selection.blockedReason);
+  if (reason === 'objective_not_ready') return 'objective_not_ready';
+  if (reason === 'facts_missing' || blockedReason === 'needs_metadata_repair') return 'blocked_by_missing_or_stale_facts';
+  if (reason === 'objective_not_plannable' || blockedReason === 'objective_gap_unknown') return 'objective_not_plannable';
+  if (reason === 'delete_is_not_optimize' || blockedReason === 'delete_gate_required') return 'delete_gate_required';
+  if (reason === 'unsupported_objective' || blockedReason === 'unsupported_target_codec') return 'unsupported_objective';
+  return '';
+}
+
 function evaluateOptimizeGate(item = {}) {
   const gate = explicitOptimizeGate(item);
   let flowKind = resolveOptimizeFlowKind(item, gate);
   const target = resolveOptimizeTarget(item, gate);
   const observed = resolveOptimizeObserved(item, gate);
+  const projectedObjective = projectedOptimizeObjective(item);
 
   if (hasPendingCanonicalRefresh(item, gate)) {
     return optimizeGateResult({
@@ -240,23 +275,7 @@ function evaluateOptimizeGate(item = {}) {
     });
   }
 
-  if (gate && gate.passed === false && normalize(gate.status) !== 'pending_canonical_refresh') {
-    const failureReasons = Array.isArray(gate.failureReasons) && gate.failureReasons.length > 0
-      ? gate.failureReasons
-      : ['explicit_optimize_gate_failed'];
-    return optimizeGateResult({
-      passed: false,
-      status: normalize(gate.status) || 'failed',
-      reason: gate.reason || 'optimize_gate_failed',
-      flowKind,
-      target,
-      observed,
-      failureReasons,
-      evidenceLevel: 'explicit',
-    });
-  }
-
-  if (gate && gate.passed === true) {
+  if (gate && gate.passed === true && (!projectedObjective || item.optimizeObjectiveStatus !== 'ready' || normalize(projectedObjective.kind) === 'optimize_strategy_pending')) {
     return optimizeGateResult({
       passed: true,
       status: 'passed',
@@ -268,16 +287,6 @@ function evaluateOptimizeGate(item = {}) {
     });
   }
 
-  const projectedObjective = item.optimizeObjective || (item.targetMediaFacts && typeof item.targetMediaFacts === 'object'
-    ? {
-      kind: 'target_media_facts',
-      targetMediaFacts: item.targetMediaFacts,
-      targetBitrate: item.targetBitrate,
-      targetCodec: item.targetCodec,
-      maxSizeGB: item.maxSizeGB,
-      seedPreferences: item.seedPreferences,
-    }
-    : null);
   if (projectedObjective && item.optimizeObjectiveStatus !== 'pending_metadata') {
     const selection = flowPlanner.selectOptimizeFlow({
       itemInfo: item,
@@ -296,8 +305,43 @@ function evaluateOptimizeGate(item = {}) {
         evidenceLevel: 'objective',
       });
     }
-    if (!flowKind && selection.allowed && ['transcode', 'upgrade'].includes(selection.flowKind)) {
+    if (selection.allowed && ['transcode', 'upgrade'].includes(selection.flowKind)) {
       flowKind = selection.flowKind;
+      return optimizeGateResult({
+        passed: false,
+        status: 'not_passed',
+        reason: 'objective_not_satisfied',
+        flowKind,
+        target: selection.targetFacts,
+        observed: selection.currentFacts,
+        failureReasons: gapFailureReasons(selection),
+        evidenceLevel: 'objective',
+      });
+    }
+    if (selection.flowKind === 'blocked') {
+      const gateBlockedReason = gateBlockedReasonForSelection(selection);
+      if (!gateBlockedReason) {
+        return optimizeGateResult({
+          passed: false,
+          status: 'not_passed',
+          reason: 'objective_not_satisfied',
+          flowKind: null,
+          target: selection.targetFacts,
+          observed: selection.currentFacts,
+          failureReasons: gapFailureReasons(selection),
+          evidenceLevel: 'objective',
+        });
+      }
+      return optimizeGateResult({
+        passed: false,
+        status: 'blocked',
+        reason: gateBlockedReason,
+        flowKind: null,
+        target: selection.targetFacts,
+        observed: selection.currentFacts,
+        failureReasons: gapFailureReasons(selection),
+        evidenceLevel: 'objective',
+      });
     }
   }
 
@@ -344,8 +388,8 @@ function evaluateOptimizeGate(item = {}) {
   if (failures.length > 0) {
     return optimizeGateResult({
       passed: false,
-      status: 'failed',
-      reason: 'optimize_gate_failed',
+      status: 'not_passed',
+      reason: 'objective_not_satisfied',
       flowKind,
       target,
       observed,

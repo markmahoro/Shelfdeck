@@ -56,6 +56,24 @@ transcode task -> optimize task with selectedFlow=transcode
 | `factRefreshRequest` / 事实刷新请求 | 权威事实过期后的 declarative signal | Flow Executor output、Lifecycle projection input | 不能直接创建 task；不能绕过 Task Creator |
 | `refresh` / 刷新 | 用户或系统请求重新观察外部 source 的意图 | API 文案、activity、scan request | 不能是 targetGate、flowKind 或 task type；不能直接写权威事实 |
 
+硬边界：
+
+```text
+Task / Flow execution result is not Gate achievement.
+```
+
+task / flow / runtime 只回答“这次事情有没有做成”；Lifecycle / gate 只回答“当前目标有没有达成”。`transcode`、`upgrade`、`archive`、`delete` 的 attempt failure 必须留在 task status、event evidence、failure context、recovery contract 中，不能被写成 gate failed 来阻塞 lifecycle projection。
+
+重试分层：
+
+```text
+Event retry: Resource Runtime / Executor recovery contract 管，同一个 task 内重试 resumePoint，不创建新 task。
+Task attempt retry: TaskCreationPolicy / TaskAdmission 管，基于 attemptKey 和 automatic attempt budget 判断是否创建新 task。
+Lifecycle gate re-evaluation: Lifecycle 管，只看 canonical facts + gate objective，不看 retryCount。
+```
+
+`task.retryCount` 只属于 event retry / recovery，不得作为 Lifecycle gate 判断依据，也不得直接替代 automatic task attempt budget。
+
 ## 3. 禁止术语
 
 以下词在 runtime 主路径中属于 Mirex 重力源，新增代码默认禁止。
@@ -103,6 +121,7 @@ gate passed = required facts complete + required facts fresh + required facts sa
 Flow Executor
   -> writes staged facts + event evidence
   -> writes factRefreshRequest when canonical facts are stale
+  -> never writes transcode/upgrade attempt failure as optimize gate failure
   -> does not create follow-up task
 
 Lifecycle
@@ -111,6 +130,10 @@ Lifecycle
 
 Task Creator
   -> creates targetGate task through TaskAdmission
+
+TaskCreationPolicy
+  -> limits automatic task attempts by attemptKey
+  -> prevents repeated automatic attempts for the same unchanged facts/objective
 ```
 
 `factRefreshRequest` 不是 task。它只是事实：
@@ -162,6 +185,7 @@ Kairox 的逻辑组件必须落到明确的物理模块。改代码前先确认�
 - 如果代码需要按 `flowPlan.flowKind` 找 executor，它必须在 `resourceRuntime.js` 或 Flow Executor 内部。
 - 如果代码需要决定 optimize 走 `transcode`、`upgrade`、`no_op` 或 `blocked`，它必须在 `flowPlanner.js`。
 - 如果代码需要创建 task，它必须走 Task Creator + TaskAdmission + Task/Event Store。
+- 如果代码需要防止同一目标自动反复创建 task，它必须在 TaskCreationPolicy，用 attemptKey / automatic attempt budget 表达，不能塞进 Lifecycle。
 - 如果一个文件的目标物理承载不包含该职责，不要为了“先跑通”把职责塞进去。
 
 ## 6. 下一步目标：Kairox Physical Runtime Cutover

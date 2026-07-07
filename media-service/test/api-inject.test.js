@@ -486,7 +486,7 @@ test('TaskAdmission rejects optimize tasks when metadata is missing', async () =
   await app.close();
 });
 
-test('POST /v1/tasks reports optimize gate failure handling without exposing recovery internals', async () => {
+test('POST /v1/tasks allows optimize when previous flow failure evidence does not close the gate', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const itemId = 'failed-optimize-manual';
@@ -514,18 +514,11 @@ test('POST /v1/tasks reports optimize gate failure handling without exposing rec
     url: '/v1/tasks',
     payload: { itemId, targetGate: 'optimize' },
   });
-  assert.strictEqual(res.statusCode, 409);
+  assert.strictEqual(res.statusCode, 201);
   const body = res.json();
-  assert.strictEqual(body.error.code, 'TASK_ADMISSION_REJECTED');
-  assert.strictEqual(body.admission.reason, 'optimize_gate_failed_requires_failure_handling');
-  assert.strictEqual(body.lifecycleProjection.optimizeGate.status, 'failed');
-  assert.strictEqual(body.lifecycleProjection.optimizeGate.flowKind, 'transcode');
-  assert.deepStrictEqual(body.lifecycleProjection.optimizeGate.failureReasons, ['target_bitrate_exceeded']);
-  assert.strictEqual(body.admission.optimizeGate, undefined);
-  assert.strictEqual(body.admission.retryPolicy, undefined);
-  assert.strictEqual(body.admission.recoveryAction, undefined);
-  assert.strictEqual(body.admission.failureHandling.surface, 'task_center');
-  assert.strictEqual(body.admission.failureHandling.userAction, 'inspect_failure_or_mark_no_action');
+  assert.strictEqual(body.taskTarget.targetGate, 'optimize');
+  assert.ok(body.taskTarget.attemptKey);
+  assert.strictEqual(body.admission.reason, 'allowed');
   await app.close();
   smartTaskEngine.stop();
   require('../src/taskScheduler').stopScheduler();
@@ -626,7 +619,7 @@ test('GET /v1/library exposes Kairox lifecycle projection for media rows', async
   assert.strictEqual(item.metadataStatus, 'complete');
   assert.strictEqual(item.lifecycleNextTask, 'optimize');
   assert.strictEqual(item.optimizeFlowKind, 'transcode');
-  assert.strictEqual(item.optimizeGate.status, 'pending');
+  assert.strictEqual(item.optimizeGate.status, 'not_passed');
   const keepItem = res.json().items.find((row) => row.itemId === 'business-flow-keep');
   assert.ok(keepItem, 'keep media row present');
   assert.strictEqual(keepItem.lifecycleStage, 'optimized');
@@ -678,7 +671,7 @@ test('GET /v1/library exposes active task context without legacy operation block
   }
 });
 
-test('GET /v1/library exposes optimize gate failure summary for media rows', async () => {
+test('GET /v1/library keeps flow failure evidence separate from optimize gate achievement', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   require('../src/taskScheduler').stopScheduler();
@@ -719,13 +712,13 @@ test('GET /v1/library exposes optimize gate failure summary for media rows', asy
     assert.strictEqual(res.statusCode, 200);
     const item = res.json().items.find((row) => row.itemId === itemId);
     assert.ok(item, 'media row present');
-    assert.strictEqual(item.optimizeGate.status, 'failed');
+    assert.strictEqual(item.optimizeGate.status, 'not_passed');
     assert.strictEqual(item.optimizeGate.flowKind, 'transcode');
-    assert.deepStrictEqual(item.optimizeGate.failureReasons, ['encoder_failed_before_replace']);
+    assert.ok(item.optimizeGate.failureReasons.includes('codec_mismatch'));
 
     const detail = await app.inject({ method: 'GET', url: `/v1/library/items/${itemId}` });
     assert.strictEqual(detail.statusCode, 200);
-    assert.strictEqual(detail.json().optimizeGate.status, 'failed');
+    assert.strictEqual(detail.json().optimizeGate.status, 'not_passed');
   } finally {
     taskStore.loadTasks = originalLoadTasks;
     await app.close();
@@ -2643,6 +2636,21 @@ test('GET /v1/admin/dashboard/health returns media and task health aggregates', 
     name: 'Closed',
     subLibraryId: 'dashboard-lib',
     action: undefined,
+    codec: 'h264',
+    equivalentBitrate: 4,
+    targetBitrate: 4,
+    targetCodec: 'h264',
+    targetMediaFacts: {
+      targetBitrate: 4,
+      targetCodec: 'h264',
+    },
+    optimizeObjective: {
+      kind: 'target_media_facts',
+      targetMediaFacts: {
+        targetBitrate: 4,
+        targetCodec: 'h264',
+      },
+    },
     metadataComplete: true,
     optimizeGate: {
       passed: true,
