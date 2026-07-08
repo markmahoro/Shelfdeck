@@ -398,6 +398,7 @@ destructive 验收只允许作用于明确选中的 canary item。除非用户�
 - optimize flow 完成后读取媒体 projection。
 - 检查 task events、staged facts、verify evidence、fact refresh request。
 - 检查 factsFreshness 和 optimize gate projection。
+- 检查媒体是否进入 `mediaFreeze`。
 
 通过标准：
 
@@ -407,6 +408,7 @@ destructive 验收只允许作用于明确选中的 canary item。除非用户�
 - 权威事实未刷新时显示 `optimizeGate.status=pending_canonical_refresh`。
 - Lifecycle 在 pending refresh 下不重复投影 optimize task。
 - 下一步只投影为 `targetGate=ingest` 或 `targetGate=metadata`。
+- 如果 completed targetGate 配置了 Media Freeze，media projection 显示 `mediaFreeze.frozen=true`，来源指向刚完成的 optimize task。
 
 失败后动作：
 
@@ -421,16 +423,19 @@ destructive 验收只允许作用于明确选中的 canary item。除非用户�
 
 - gate 是否达成回到 Lifecycle 和权威事实。
 - flow attempt result 与 gate achievement 分离。
+- Media Freeze 可以阻止 post-optimize 后过早创建 refresh task，避免外部系统技术事实尚未稳定时读取旧事实。
 
 执行：
 
-- 按 `lifecycleNextTask` 创建并推进 `targetGate=ingest` 或 `targetGate=metadata` refresh task。
-- 等待刷新完成。
-- 重新读取 media projection。
+- 读取 `lifecycleNextTask` 和 `mediaFreeze`。
+- 若 `mediaFreeze.frozen=true`，尝试创建 `lifecycleNextTask` 对应 task，验证 TaskAdmission 返回 `media_frozen`。
+- 若未冻结，按 `lifecycleNextTask` 创建并推进 `targetGate=ingest` 或 `targetGate=metadata` refresh task。
+- 等待刷新完成，重新读取 media projection。
 - 由 Lifecycle 基于 refreshed canonical facts 判断 optimize gate。
 
 通过标准：
 
+- 若媒体冻结中，任何 immediate ingest/metadata refresh 创建都被 `media_frozen` 拦截，并记录 `frozenUntil/sourceTaskId/sourceTargetGate/sourceFlowKind`。这视为 Stage 10 PASS，不继续强行推进刷新。
 - ingest / metadata refresh 完成后 factsFreshness 变为 fresh。
 - canonical media facts 反映实际物理结果。
 - 若满足 objective，`optimizeGate.status=passed`。
@@ -439,6 +444,8 @@ destructive 验收只允许作用于明确选中的 canary item。除非用户�
 
 失败后动作：
 
+- 冻结媒体仍能创建新 task：修 TaskAdmission / TaskCreationPolicy。
+- Resource Runtime / executor done 后未写 Media Freeze 且配置要求冻结：修 task finalizer。
 - ingest / metadata refresh 无法通过 TaskAdmission：修 Task Creator / Admission。
 - refresh 后 facts 不变：修 ingest / metadata owner。
 - objective 满足但 gate 不 passed：修 Lifecycle gate evaluation。

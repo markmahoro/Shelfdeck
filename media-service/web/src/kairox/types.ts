@@ -38,6 +38,15 @@ export interface FactsFreshnessProjection {
   gateFacts?: FactsFreshnessEntry;
 }
 
+export interface MediaFreezeProjection {
+  frozen: boolean;
+  frozenUntil?: string;
+  reason?: string;
+  sourceTaskId?: string;
+  sourceTargetGate?: string;
+  sourceFlowKind?: string;
+}
+
 export interface KairoxMediaProjection {
   id: string;
   title: string;
@@ -48,6 +57,7 @@ export interface KairoxMediaProjection {
   userPerceptionFacts: Record<string, unknown>;
   gateFacts: Record<string, unknown>;
   factsFreshness: FactsFreshnessProjection;
+  mediaFreeze: MediaFreezeProjection;
   lifecycle: {
     stage?: string;
     currentGate?: string;
@@ -58,7 +68,7 @@ export interface KairoxMediaProjection {
   activeTask?: KairoxTaskProjection | null;
   deleteCandidate?: Record<string, unknown> | null;
   nextAction?: {
-    kind: 'none' | 'set_perception' | 'create_task' | 'view_task' | 'review_delete_candidate';
+    kind: 'none' | 'set_perception' | 'create_task' | 'view_task' | 'review_delete_candidate' | 'wait_media_freeze';
     targetGate?: KairoxTargetGate;
     gateObjective?: Record<string, unknown>;
     label: string;

@@ -357,6 +357,46 @@ test('POST /v1/tasks creates task and returns 201', async () => {
   await app.close();
 });
 
+test('POST /v1/tasks rejects frozen media and item detail exposes mediaFreeze', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'frozen-api-' + crypto.randomUUID().slice(0, 8);
+  const frozenUntil = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Frozen API Movie',
+      mediaFreeze: {
+        frozenUntil,
+        reason: 'post_optimize_external_settle',
+        sourceTaskId: 'task-freeze-source',
+        sourceTargetGate: 'optimize',
+        sourceFlowKind: 'transcode',
+      },
+    })],
+  });
+
+  const detail = await app.inject({ method: 'GET', url: `/v1/library/items/${encodeURIComponent(itemId)}` });
+  assert.strictEqual(detail.statusCode, 200);
+  assert.strictEqual(detail.json().mediaFreeze.frozen, true);
+  assert.strictEqual(detail.json().mediaFreeze.frozenUntil, frozenUntil);
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, targetGate: 'optimize' },
+  });
+  assert.strictEqual(res.statusCode, 409);
+  const body = res.json();
+  assert.strictEqual(body.admission.reason, 'media_frozen');
+  assert.strictEqual(body.admission.frozenUntil, frozenUntil);
+  assert.strictEqual(body.admission.sourceTargetGate, 'optimize');
+  assert.strictEqual(body.admission.sourceFlowKind, 'transcode');
+  assert.match(body.error.message, /媒体冻结中/);
+  await app.close();
+});
+
 test('POST /v1/tasks accepts optimize target intent and selects flow from objective', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });

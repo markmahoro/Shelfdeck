@@ -8,6 +8,7 @@ const diagnosticLog = require('./diagnosticLog');
 const v3Model = require('./v3Model');
 const metadataStatus = require('./metadataStatus');
 const userPerceptionManagement = require('./userPerceptionManagement');
+const mediaFreeze = require('./mediaFreeze');
 
 function resolveDataDir() {
   return (
@@ -138,6 +139,11 @@ function ensureV3MediaItemColumns(db) {
     archive_status: 'TEXT NOT NULL DEFAULT \'\'',
     archive_reason: 'TEXT NOT NULL DEFAULT \'\'',
     archive_done_at: 'TEXT NOT NULL DEFAULT \'\'',
+    media_frozen_until: 'TEXT NOT NULL DEFAULT \'\'',
+    media_freeze_reason: 'TEXT NOT NULL DEFAULT \'\'',
+    media_freeze_source_task_id: 'TEXT NOT NULL DEFAULT \'\'',
+    media_freeze_source_target_gate: 'TEXT NOT NULL DEFAULT \'\'',
+    media_freeze_source_flow_kind: 'TEXT NOT NULL DEFAULT \'\'',
   };
   for (const [name, type] of Object.entries(columns)) {
     if (!existing.has(name)) db.exec(`ALTER TABLE media_items ADD COLUMN ${name} ${type}`);
@@ -183,17 +189,31 @@ function backfillV3MediaItemColumns(db) {
       optimization_action = @optimization_action,
       optimization_done_at = @optimization_done_at,
       optimization_task_id = @optimization_task_id,
-      archive_status = @archive_status,
-      archive_reason = @archive_reason,
-      archive_done_at = @archive_done_at
+    archive_status = @archive_status,
+    archive_reason = @archive_reason,
+    archive_done_at = @archive_done_at,
+    media_frozen_until = @media_frozen_until,
+    media_freeze_reason = @media_freeze_reason,
+    media_freeze_source_task_id = @media_freeze_source_task_id,
+    media_freeze_source_target_gate = @media_freeze_source_target_gate,
+    media_freeze_source_flow_kind = @media_freeze_source_flow_kind
     WHERE item_id = @item_id
   `);
   const tx = db.transaction((items) => {
-    for (const row of items) {
-      const item = normalizeItem(jsonParse(row.payload_json, {}));
-      update.run({ item_id: row.item_id, ...v3Model.mediaItemFacts(item) });
-    }
-  });
+      for (const row of items) {
+        const item = normalizeItem(jsonParse(row.payload_json, {}));
+        const freeze = mediaFreeze.project(item);
+        update.run({
+          item_id: row.item_id,
+          ...v3Model.mediaItemFacts(item),
+          media_frozen_until: freeze.frozenUntil,
+          media_freeze_reason: freeze.reason,
+          media_freeze_source_task_id: freeze.sourceTaskId,
+          media_freeze_source_target_gate: freeze.sourceTargetGate,
+          media_freeze_source_flow_kind: freeze.sourceFlowKind,
+        });
+      }
+    });
   tx(rows);
   setMeta(db, 'v3_media_item_columns_backfilled', '1');
 }
@@ -652,6 +672,7 @@ function itemToRow(item, ordinal) {
   const adultMetadata = it.adultMetadata || {};
   const space = itemSpaceStatColumns(it);
   const facts = v3Model.mediaItemFacts(it);
+  const freeze = mediaFreeze.project(it);
   return {
     item_id: it.itemId,
     ordinal: Number.isInteger(ordinal) ? ordinal : 0,
@@ -675,6 +696,11 @@ function itemToRow(item, ordinal) {
     payload_json: jsonStringify(it),
     ...space,
     ...facts,
+    media_frozen_until: freeze.frozenUntil,
+    media_freeze_reason: freeze.reason,
+    media_freeze_source_task_id: freeze.sourceTaskId,
+    media_freeze_source_target_gate: freeze.sourceTargetGate,
+    media_freeze_source_flow_kind: freeze.sourceFlowKind,
   };
 }
 
@@ -717,6 +743,14 @@ function rowToItem(row) {
     item.archiveReason = row.archive_reason || item.archiveReason;
     item.archiveDoneAt = row.archive_done_at || item.archiveDoneAt || null;
   }
+  if (row.media_frozen_until !== undefined) {
+    item.mediaFrozenUntil = row.media_frozen_until || '';
+    item.mediaFreezeReason = row.media_freeze_reason || '';
+    item.mediaFreezeSourceTaskId = row.media_freeze_source_task_id || '';
+    item.mediaFreezeSourceTargetGate = row.media_freeze_source_target_gate || '';
+    item.mediaFreezeSourceFlowKind = row.media_freeze_source_flow_kind || '';
+    item.mediaFreeze = mediaFreeze.project(item);
+  }
   return item;
 }
 
@@ -729,7 +763,9 @@ const upsertSql = `
      lifecycle_stage, lifecycle_done, lifecycle_next_task, lifecycle_reason,
      metadata_status, metadata_kind, metadata_complete, metadata_missing_reasons_json, metadata_updated_at,
      optimization_status, optimization_action, optimization_done_at, optimization_task_id,
-     archive_status, archive_reason, archive_done_at)
+     archive_status, archive_reason, archive_done_at,
+     media_frozen_until, media_freeze_reason, media_freeze_source_task_id,
+     media_freeze_source_target_gate, media_freeze_source_flow_kind)
   VALUES
     (@item_id, @ordinal, @sub_library_id, @source, @source_id, @name, @type, @action, @path,
      @watched, @scraped, @scrape_status, @adult_id, @resolution, @codec, @user_rating,
@@ -738,7 +774,9 @@ const upsertSql = `
      @lifecycle_stage, @lifecycle_done, @lifecycle_next_task, @lifecycle_reason,
      @metadata_status, @metadata_kind, @metadata_complete, @metadata_missing_reasons_json, @metadata_updated_at,
      @optimization_status, @optimization_action, @optimization_done_at, @optimization_task_id,
-     @archive_status, @archive_reason, @archive_done_at)
+     @archive_status, @archive_reason, @archive_done_at,
+     @media_frozen_until, @media_freeze_reason, @media_freeze_source_task_id,
+     @media_freeze_source_target_gate, @media_freeze_source_flow_kind)
   ON CONFLICT(item_id) DO UPDATE SET
     ordinal = excluded.ordinal,
     sub_library_id = excluded.sub_library_id,
@@ -778,7 +816,12 @@ const upsertSql = `
     optimization_task_id = excluded.optimization_task_id,
     archive_status = excluded.archive_status,
     archive_reason = excluded.archive_reason,
-    archive_done_at = excluded.archive_done_at
+    archive_done_at = excluded.archive_done_at,
+    media_frozen_until = excluded.media_frozen_until,
+    media_freeze_reason = excluded.media_freeze_reason,
+    media_freeze_source_task_id = excluded.media_freeze_source_task_id,
+    media_freeze_source_target_gate = excluded.media_freeze_source_target_gate,
+    media_freeze_source_flow_kind = excluded.media_freeze_source_flow_kind
 `;
 
 function setMeta(db, key, value) {
@@ -1063,6 +1106,11 @@ function querySmartTaskCandidateItems() {
       optimization_done_at,
       archive_status,
       archive_done_at,
+      media_frozen_until,
+      media_freeze_reason,
+      media_freeze_source_task_id,
+      media_freeze_source_target_gate,
+      media_freeze_source_flow_kind,
       updated_at,
       json_extract(payload_json, '$.reason') AS reason,
       json_extract(payload_json, '$.bucket') AS bucket,
@@ -1135,6 +1183,13 @@ function querySmartTaskCandidateItems() {
       optimizationDoneAt: row.optimization_done_at || undefined,
       archiveStatus: row.archive_status || undefined,
       archiveDoneAt: row.archive_done_at || undefined,
+      mediaFreeze: mediaFreeze.project({
+        mediaFrozenUntil: row.media_frozen_until || '',
+        mediaFreezeReason: row.media_freeze_reason || '',
+        mediaFreezeSourceTaskId: row.media_freeze_source_task_id || '',
+        mediaFreezeSourceTargetGate: row.media_freeze_source_target_gate || '',
+        mediaFreezeSourceFlowKind: row.media_freeze_source_flow_kind || '',
+      }),
       duration: row.duration == null ? undefined : Number(row.duration),
       updatedAt: row.updated_at || undefined,
       userRatingUpdatedAt: row.user_rating_updated_at || undefined,

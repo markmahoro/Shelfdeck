@@ -345,6 +345,18 @@ async function createAndRunTargetGateTask(args, itemId, targetGate) {
     body: { itemId, targetGate, gateObjective: canonicalRefreshObjective(targetGate) },
   });
   if (create.status === 409) {
+    const admission = create.body && create.body.admission || {};
+    if (admission.reason === 'media_frozen') {
+      return {
+        ok: false,
+        result: pass({
+          status: 'deferred_by_media_freeze',
+          targetGate,
+          admission,
+          mediaFreeze: admission.mediaFreeze || null,
+        }),
+      };
+    }
     return { ok: false, result: blocked(`${targetGate}_refresh_task_admission_rejected`, { body: create.body }) };
   }
   if (!create.ok) {
@@ -866,7 +878,22 @@ async function stage10(args, context) {
     }
 
     const refresh = await createAndRunTargetGateTask(args, itemId, nextTargetGate);
-    if (!refresh.ok) return refresh.result;
+    if (!refresh.ok) {
+      if (refresh.result && refresh.result.status === 'PASS' && refresh.result.evidence && refresh.result.evidence.status === 'deferred_by_media_freeze') {
+        return pass({
+          canary: compactItem(item),
+          optimizeGateStatus: gate && gate.status || '',
+          lifecycleNextTask: nextTargetGate,
+          refreshRuns,
+          gate,
+          factsFreshness: item.factsFreshness || null,
+          mediaFreeze: refresh.result.evidence.mediaFreeze || null,
+          admission: refresh.result.evidence.admission || null,
+          note: 'post_optimize_refresh_deferred_by_media_freeze',
+        });
+      }
+      return refresh.result;
+    }
     refreshRuns.push({
       targetGate: nextTargetGate,
       taskId: refresh.task.id,

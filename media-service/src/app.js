@@ -1300,12 +1300,25 @@ function compactAdmissionReject(admission = {}) {
     activeTaskTargetGate: admission.activeTaskBridge || '',
     optimizeGate: compactAdmissionOptimizeGate(admission.optimizeGate),
     failureHandling: admission.failureHandling,
+    mediaFreeze: admission.mediaFreeze,
+    frozenUntil: admission.frozenUntil,
+    freezeReason: admission.freezeReason,
+    sourceTaskId: admission.sourceTaskId,
+    sourceTargetGate: admission.sourceTargetGate,
+    sourceFlowKind: admission.sourceFlowKind,
   };
   Object.keys(result).forEach((key) => {
     if (result[key] === undefined || result[key] === null || result[key] === '') delete result[key];
     if (Array.isArray(result[key]) && result[key].length === 0) delete result[key];
   });
   return result;
+}
+
+function taskAdmissionRejectMessage(admission = {}) {
+  if (admission.reason === 'media_frozen') {
+    return `媒体冻结中，等待外部系统完成后处理。冻结至 ${admission.frozenUntil || '稍后'}`;
+  }
+  return admission.reason || 'task_admission_rejected';
 }
 
 function compactAdmissionAccept(admission = {}) {
@@ -1811,7 +1824,7 @@ function registerRoutes(app) {
       }
       return reply.code(409).send(taskAdmissionRejectPayload(
         'TASK_ADMISSION_REJECTED',
-        admission.reason,
+        taskAdmissionRejectMessage(admission),
         admission,
         libItem,
         admissionItemInfo,
@@ -1882,7 +1895,7 @@ function registerRoutes(app) {
     if (!admission.allowed) {
       return reply.code(409).send(taskAdmissionRejectPayload(
         admission.reason === 'active_task_exists' ? 'TASK_CONFLICT' : 'TASK_ADMISSION_REJECTED',
-        admission.reason,
+        taskAdmissionRejectMessage(admission),
         admission,
         libItem,
         libItem,
@@ -2870,7 +2883,7 @@ function registerRoutes(app) {
         };
         return reply.code(409).send(taskAdmissionRejectPayload(
           rejectionAdmission.reason === 'active_task_exists' ? 'TASK_CONFLICT' : 'TASK_ADMISSION_REJECTED',
-          rejectionAdmission.reason,
+          taskAdmissionRejectMessage(rejectionAdmission),
           rejectionAdmission,
           item,
           item ? adultLibraryService.itemInfoFromItem(item) : { itemId: req.params.itemId },

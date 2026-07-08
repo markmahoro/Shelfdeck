@@ -2643,6 +2643,68 @@ test('taskAdmission applies cooldown and active task dedupe', () => {
   assert.strictEqual(active.reason, 'active_task_exists');
 });
 
+test('taskAdmission blocks any target gate while media is frozen', () => {
+  const future = new Date(Date.now() + 3600 * 1000).toISOString();
+  const config = {
+    automaticTaskTargets: ['ingest', 'metadata', 'optimize', 'archive', 'delete'],
+    optimizeAllowedFlowKinds: ['transcode'],
+    taskAdmission: {
+      cooldownHoursByTargetGate: { ingest: 0, metadata: 0, optimize: 0, archive: 0, delete: 0 },
+      maxQueuedByTargetGate: { ingest: 10, metadata: 10, optimize: 10, archive: 10, delete: 10 },
+      automaticAttemptLimitsByTargetGate: { ingest: 3, metadata: 3, optimize: 1, archive: 1, delete: 1 },
+    },
+    subLibraries: [{ uuid: 'lib-a', automationMode: 'auto' }],
+  };
+  const item = metadataReadyMovie({
+    itemId: 'frozen-media',
+    subLibraryId: 'lib-a',
+    mediaFreeze: {
+      frozenUntil: future,
+      reason: 'post_optimize_external_settle',
+      sourceTaskId: 'task-optimize-done',
+      sourceTargetGate: 'optimize',
+      sourceFlowKind: 'transcode',
+    },
+  });
+
+  const automatic = taskAdmission.canCreateTask({
+    item,
+    targetGate: 'ingest',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(automatic.allowed, false);
+  assert.strictEqual(automatic.reason, 'media_frozen');
+  assert.strictEqual(automatic.frozenUntil, future);
+  assert.strictEqual(automatic.sourceTargetGate, 'optimize');
+  assert.strictEqual(automatic.sourceFlowKind, 'transcode');
+
+  const manual = taskAdmission.canCreateTask({
+    item,
+    targetGate: 'optimize',
+    source: 'manual',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(manual.allowed, false);
+  assert.strictEqual(manual.reason, 'media_frozen');
+
+  const expired = taskAdmission.canCreateTask({
+    item: {
+      itemId: 'expired-freeze-media',
+      subLibraryId: 'lib-a',
+      mediaFreeze: { frozenUntil: '2020-01-01T00:00:00.000Z', reason: 'post_optimize_external_settle' },
+    },
+    targetGate: 'ingest',
+    source: 'auto',
+    config,
+    tasks: [],
+  });
+  assert.strictEqual(expired.allowed, true);
+  assert.strictEqual(expired.taskTarget.targetGate, 'ingest');
+});
+
 test('taskAdmission blocks automatic optimize when optimize gate already passed', () => {
   const config = {
     automaticTaskTargets: ['optimize'], optimizeAllowedFlowKinds: ['transcode'],
@@ -4131,6 +4193,12 @@ test('taskScheduler records transcode staged facts and requests canonical refres
     taskScheduler.reportStatus(task.id, 'done', 100);
     const stored = mediaLibraryService.loadLibrary().items.find((item) => item.itemId === 'transcode-done-facts');
     const freshness = factsFreshnessService.projectForItem(stored);
+    assert.strictEqual(stored.mediaFreeze.frozen, true);
+    assert.strictEqual(stored.mediaFreeze.reason, 'post_optimize_external_settle');
+    assert.strictEqual(stored.mediaFreeze.sourceTaskId, task.id);
+    assert.strictEqual(stored.mediaFreeze.sourceTargetGate, 'optimize');
+    assert.strictEqual(stored.mediaFreeze.sourceFlowKind, 'transcode');
+    assert.ok(Date.parse(stored.mediaFreeze.frozenUntil) > Date.now());
     assert.strictEqual(stored.optimizationStatus, 'pending_canonical_refresh');
     assert.strictEqual(stored.optimizeFlowKind, 'transcode');
     assert.strictEqual(stored.bitrate, 10_000_000);
@@ -4216,6 +4284,11 @@ test('taskScheduler records upgrade staged facts and requests canonical refresh 
     taskScheduler.reportStatus(task.id, 'done', 100);
     const stored = mediaLibraryService.loadLibrary().items.find((item) => item.itemId === 'upgrade-done-facts');
     const freshness = factsFreshnessService.projectForItem(stored);
+    assert.strictEqual(stored.mediaFreeze.frozen, true);
+    assert.strictEqual(stored.mediaFreeze.reason, 'post_optimize_external_settle');
+    assert.strictEqual(stored.mediaFreeze.sourceTaskId, task.id);
+    assert.strictEqual(stored.mediaFreeze.sourceTargetGate, 'optimize');
+    assert.strictEqual(stored.mediaFreeze.sourceFlowKind, 'upgrade');
     assert.strictEqual(stored.optimizationStatus, 'pending_canonical_refresh');
     assert.strictEqual(stored.optimizeFlowKind, 'upgrade');
     assert.strictEqual(stored.bitrate, 4_000_000);
@@ -4235,6 +4308,39 @@ test('taskScheduler records upgrade staged facts and requests canonical refresh 
     assert.strictEqual(freshness.mediaFacts.refreshTargetGate, 'metadata');
     assert.strictEqual(freshness.metadataFacts.status, 'stale');
     assert.strictEqual(freshness.metadataFacts.refreshTargetGate, 'metadata');
+  } finally {
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+  }
+});
+
+test('taskScheduler does not write media freeze for failed tasks', () => {
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'failed-task-no-freeze-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  try {
+    const taskScheduler = require('../src/taskScheduler');
+    mediaLibraryService.saveLibrary({
+      cachedAt: new Date().toISOString(),
+      items: [metadataReadyMovie({
+        itemId: 'failed-task-no-freeze',
+        subLibraryId: 'movie-lib',
+      })],
+    });
+    const task = taskStore.createTask({
+      itemId: 'failed-task-no-freeze',
+      itemName: 'Failed Task No Freeze',
+      flowPlan: { flowKind: 'transcode' },
+      taskTarget: { targetGate: 'optimize', gateObjective: { kind: 'target_media_facts' } },
+      status: 'executing',
+      itemInfo: { itemId: 'failed-task-no-freeze', subLibraryId: 'movie-lib' },
+    });
+
+    taskScheduler.reportStatus(task.id, 'failed_hard', 0);
+    const stored = mediaLibraryService.loadLibrary().items.find((item) => item.itemId === 'failed-task-no-freeze');
+    assert.ok(stored.lastTaskDoneAt);
+    assert.strictEqual(stored.mediaFreeze.frozen, false);
+    assert.strictEqual(stored.mediaFreeze.frozenUntil, '');
   } finally {
     if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
     else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
@@ -4292,6 +4398,7 @@ test('taskScheduler records delete done as a delete gate result on media item', 
     assert.strictEqual(stored.deleteGate.flowKind, 'delete');
     assert.strictEqual(stored.deleteGate.reason, 'delete_target_removed');
     assert.strictEqual(stored.optimizeGate, undefined);
+    assert.strictEqual(stored.mediaFreeze.frozen, false);
     assert.strictEqual(lifecycleProjection.resolveLifecycle(stored).deleteGate.passed, true);
   } finally {
     if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;

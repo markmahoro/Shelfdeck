@@ -449,6 +449,7 @@ export interface SystemConfig {
     cooldownHoursByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
     maxQueuedByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
     automaticAttemptLimitsByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
+    mediaFreezeHoursByCompletedTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
   };
   deleteGatePolicy?: {
     enabled?: boolean;
@@ -617,6 +618,7 @@ export class ApiConflictError extends Error {
   constructor(
     public readonly code: string,
     message: string,
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'ApiConflictError';
@@ -700,7 +702,7 @@ export const taskApi = {
     const r = await fetch('/v1/tasks', { method: 'POST', headers, body: JSON.stringify(body) });
     if (r.status === 409) {
       const b = await r.json().catch(() => ({}));
-      throw new ApiConflictError(b.error?.code || b.code || 'CONFLICT', b.error?.message || b.message || 'Conflict');
+      throw new ApiConflictError(b.error?.code || b.code || 'CONFLICT', b.error?.message || b.message || 'Conflict', b);
     }
     if (!r.ok) {
       const b = await r.json().catch(() => ({}));

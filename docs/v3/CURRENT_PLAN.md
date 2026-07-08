@@ -10,9 +10,9 @@ Reach `Kairox Beta` in this worktree.
 
 This worktree stops at `Kairox Beta`. Later goals require a new worktree.
 
-The previous production Kairox E2E run is stopped while the automation model is being closed cleanly.
+The previous production Kairox E2E run is stopped at post-optimize canonical refresh while `Media Freeze` is being added.
 
-The current implementation task is `Kairox automation model closure`.
+The current implementation task is `Media Freeze admission guard`.
 
 Automation must now follow:
 
@@ -23,6 +23,18 @@ queue scheduling layer: schedule already-created tasks only
 ```
 
 User-visible run scan / refresh library is removed from the product model. Users can only intervene on a concrete media item, concrete task, or concrete delete candidate.
+
+Media Freeze must now follow:
+
+```text
+task terminal done
+-> task finalizer writes mediaFreeze when configured for completed targetGate
+-> Lifecycle can still project nextTargetGate
+-> TaskAdmission rejects any new task while mediaFreeze is active
+-> periodic scan or manual intent can create tasks only after freeze expires
+```
+
+This prevents post-optimize ingest/metadata refresh from reading external technical facts before Emby or the filesystem has stabilized. It is not a chained task and does not change gate achievement semantics.
 
 The E2E goal is to prove:
 
@@ -41,7 +53,7 @@ frontend pages are visible
 ## Current Execution Order
 
 1. Keep `Kairox Beta E2E` as the main thread objective.
-2. Finish automation model closure before restarting production E2E:
+2. Automation model closure is complete and deployed:
    - `POST /v1/library/actions/refresh` and `/ingest` are removed from product runtime.
    - SmartTaskEngine automatic creation only comes from the internal periodic timer.
    - SmartTaskEngine consumes LifecycleSnapshot, not lightweight media rows.
@@ -57,7 +69,12 @@ frontend pages are visible
    - transcode / upgrade write staged facts and evidence, not canonical media facts.
    - Lifecycle projects `pending_canonical_refresh` back to ingest / metadata.
    - E2E Stage 7 validates canonical refresh before archive.
-5. After automation closure is verified and deployed, restart E2E one stage at a time on item `81945`.
+5. Implement Media Freeze before restarting production E2E:
+   - `media_items` stores freeze state in hot columns, not `payload_json` only.
+   - optimize done writes a 24h media freeze by default.
+   - TaskAdmission rejects automatic and manual tasks for frozen media with `media_frozen`.
+   - media list/detail projection and E2E Stage 10 expose freeze evidence.
+6. After Media Freeze is tested and deployed, restart E2E one stage at a time on item `81945`.
 
 ## Active E2E Plan
 
@@ -90,7 +107,7 @@ docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
 
 ## Next Recommended Action
 
-Complete and deploy automation model closure, then restart production E2E on the current canary:
+Complete and deploy Media Freeze, then restart production E2E on the current canary:
 
 ```powershell
 cd media-service

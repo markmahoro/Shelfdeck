@@ -135,7 +135,7 @@ export default function MediaManagePage() {
       setRefreshKey((v) => v + 1);
     } catch (e) {
       setNotice(null);
-      setError(e instanceof ApiConflictError ? e.message : `创建任务失败：${e instanceof Error ? e.message : String(e)}`);
+      setError(e instanceof ApiConflictError ? formatTaskConflict(e) : `创建任务失败：${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setCreatingTaskIds((prev) => {
         const next = new Set(prev);
@@ -295,6 +295,7 @@ function MediaProjectionRow({
 
       <div className="kairoxLifecycleCell">
         <span className="kairoxGateBadge">{targetGateLabel(item.lifecycle.nextTargetGate) || '无'}</span>
+        {item.mediaFreeze.frozen && <span className="kairoxGateBadge">冻结中</span>}
         <span>{item.lifecycle.reason || item.lifecycle.stage || '当前无待推进目标'}</span>
       </div>
 
@@ -333,6 +334,8 @@ function MediaProjectionRow({
           </button>
         ) : item.nextAction?.kind === 'review_delete_candidate' ? (
           <button onClick={() => onOpenDetail(item)}>查看处置</button>
+        ) : item.nextAction?.kind === 'wait_media_freeze' ? (
+          <span className="hint">冻结至 {formatTimestamp(item.mediaFreeze.frozenUntil)}</span>
         ) : (
           <span className="hint">{item.nextAction?.label || '无需处理'}</span>
         )}
@@ -358,6 +361,7 @@ function MediaDetailDrawer({ item, onClose }: { item: KairoxMediaProjection; onC
         <FreshnessSection factsFreshness={item.factsFreshness} />
         <FactSection title="用户感知" facts={item.userPerceptionFacts} />
         <FactSection title="Gate facts" facts={item.gateFacts} />
+        <FactSection title="媒体冻结" facts={item.mediaFreeze as unknown as Record<string, unknown>} />
         <FactSection title="媒体优化目标" facts={item.objective || {}} empty="暂无目标" />
         {item.activeTask && <FactSection title="进行中的任务" facts={item.activeTask as unknown as Record<string, unknown>} />}
       </aside>
@@ -434,6 +438,22 @@ function FilterSelect({
       </select>
     </div>
   );
+}
+
+function formatTaskConflict(error: ApiConflictError): string {
+  const details = error.details || {};
+  const admission = (details.admission && typeof details.admission === 'object' ? details.admission : {}) as Record<string, unknown>;
+  if (admission.reason === 'media_frozen') {
+    return `媒体冻结中，等待外部系统完成后处理。冻结至 ${formatTimestamp(String(admission.frozenUntil || ''))}`;
+  }
+  return error.message;
+}
+
+function formatTimestamp(value?: string): string {
+  if (!value) return '稍后';
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return value;
+  return new Date(parsed).toLocaleString();
 }
 
 function compactJson(value: Record<string, unknown>): string {

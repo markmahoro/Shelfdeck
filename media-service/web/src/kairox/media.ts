@@ -50,7 +50,8 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
   const objective = buildObjective(item);
   const projectedTask = activeTask ? toKairoxTaskProjection(activeTask) : null;
   const factsFreshness = buildFactsFreshness(item);
-  const nextAction = buildNextAction(projectedTask, nextTargetGate, objective, factsFreshness);
+  const mediaFreeze = buildMediaFreeze(item);
+  const nextAction = buildNextAction(projectedTask, nextTargetGate, objective, factsFreshness, mediaFreeze);
 
   return {
     id,
@@ -113,6 +114,7 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
       objectiveVersion: item.objectiveVersion,
     }),
     factsFreshness,
+    mediaFreeze,
     lifecycle: {
       stage: stringValue(item.lifecycleStage),
       currentGate: currentGate(item, nextTargetGate),
@@ -171,6 +173,20 @@ function buildFactsFreshness(item: Record<string, unknown>): FactsFreshnessProje
   };
 }
 
+function buildMediaFreeze(item: Record<string, unknown>): KairoxMediaProjection['mediaFreeze'] {
+  const raw = asRecord(item.mediaFreeze);
+  const frozenUntil = stringValue(raw.frozenUntil) || stringValue(item.mediaFrozenUntil);
+  const untilMs = Date.parse(frozenUntil || '');
+  return {
+    frozen: raw.frozen === true || (Number.isFinite(untilMs) && untilMs > Date.now()),
+    frozenUntil: frozenUntil || undefined,
+    reason: stringValue(raw.reason) || stringValue(item.mediaFreezeReason) || undefined,
+    sourceTaskId: stringValue(raw.sourceTaskId) || stringValue(item.mediaFreezeSourceTaskId) || undefined,
+    sourceTargetGate: stringValue(raw.sourceTargetGate) || stringValue(item.mediaFreezeSourceTargetGate) || undefined,
+    sourceFlowKind: stringValue(raw.sourceFlowKind) || stringValue(item.mediaFreezeSourceFlowKind) || undefined,
+  };
+}
+
 function normalizeFreshnessEntry(raw: Record<string, unknown>): FactsFreshnessEntry {
   return {
     status: stringValue(raw.status) || 'unknown',
@@ -190,8 +206,10 @@ function buildNextAction(
   nextTargetGate: KairoxTargetGate | null,
   objective: Record<string, unknown> | null,
   factsFreshness: FactsFreshnessProjection,
+  mediaFreeze: KairoxMediaProjection['mediaFreeze'],
 ): KairoxMediaProjection['nextAction'] {
   if (projectedTask) return { kind: 'view_task', label: '查看进行中的任务', targetGate: projectedTask.targetGate };
+  if (mediaFreeze.frozen) return { kind: 'wait_media_freeze', label: '媒体冻结中' };
   if (!nextTargetGate) return { kind: 'none', label: '无需处理' };
   if (nextTargetGate === 'delete') return { kind: 'review_delete_candidate', targetGate: nextTargetGate, label: TARGET_GATE_LABEL[nextTargetGate] };
   if (nextTargetGate === 'metadata' && hasBlockingMetadataFreshness(factsFreshness)) {

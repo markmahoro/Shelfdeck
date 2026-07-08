@@ -57,6 +57,7 @@ transcode task -> optimize task with selectedFlow=transcode
 | `factRefreshRequest` / 事实刷新请求 | 权威事实过期后的 declarative signal | Flow Executor output、Lifecycle projection input | 不能直接创建 task；不能绕过 Task Creator |
 | `refresh` / 刷新 | 历史术语；现在只能作为事实过期原因或内部诊断语义 | stale reason、factRefreshRequest evidence、历史兼容说明 | 不能是 targetGate、flowKind、task type、用户 API 或自动化触发机制 |
 | `SourceReference` / 来源引用 | 状态 0，对外部 source 的最小引用 | Source Adapter Sync 输出、ingest task object/itemInfo | 不能携带 canonical media/metadata/gate 结论 |
+| `mediaFreeze` / 媒体冻结 | 媒体完成某类 task 后等待外部后处理稳定的媒体级准入状态 | TaskAdmission / TaskCreationPolicy、media item 热列、UI projection | 不能由 Lifecycle 判断；不能由 Scheduler 判断；不能创建后续 task |
 
 硬边界：
 
@@ -75,6 +76,8 @@ Lifecycle gate re-evaluation: Lifecycle 管，只看 canonical facts + gate obje
 ```
 
 `task.retryCount` 只属于 event retry / recovery，不得作为 Lifecycle gate 判断依据，也不得直接替代 automatic task attempt budget。
+
+Media Freeze 是 TaskCreationPolicy 的媒体级准入闸，不是 retry budget。冻结期内 automatic 和 manual task 都应被拒绝，原因是 `media_frozen`；这不改变 Lifecycle 的 `nextTargetGate` 投影，也不能让 Resource Runtime 链式创建后续 task。
 
 Optimize 码率目标固定为三数字模型：
 
@@ -194,7 +197,7 @@ Kairox 的逻辑组件必须落到明确的物理模块。改代码前先确认�
 | Delete Eligibility / Review | `deleteCandidateService.js`、部分 `lifecycleProjection.js` | `deleteCandidateService.js` | 保留为 delete gate review；禁止 delete 回到 optimize |
 | Source Adapter / Domain Fact Writer | `adultLibraryService.js`、Emby/Douban/source sync 入口、部分 `app.js` | source-specific adapters + fact writer APIs | 发现 source candidate、写 source/metadata/perception 输入事实；不能 createTask、不能调用 TaskAdmission、不能决定 targetGate 或 flowKind |
 | Task Creator | `smartTaskEngine.js`、手动 API in `app.js` | `smartTaskEngine.js` + manual task creation API adapter | 只创建 `object + targetGate + gateObjective` task，不创建 flow task |
-| TaskAdmission | `taskAdmission.js`、`taskCreationPolicy.js` | `taskAdmission.js` + `taskCreationPolicy.js` | 准入只看 targetGate、duplicate、cooldown、queue cap、destructive approval |
+| TaskAdmission | `taskAdmission.js`、`taskCreationPolicy.js` | `taskAdmission.js` + `taskCreationPolicy.js` | 准入只看 targetGate、duplicate、cooldown、mediaFreeze、queue cap、destructive approval |
 | Automation Policy | `automationPolicy.js`、`configStore.js` normalize | `automationPolicy.js` | 判断哪些 targetGate 允许自动化；不判断 optimize 选哪条 flow |
 | Flow Planner | `flowPlanner.js` | `flowPlanner.js` | 唯一决定 `flowPlan.flowKind=no_op/transcode/upgrade/blocked/scrape/archive/delete` |
 | Task Scheduler | `taskScheduler.js` | `taskScheduler.js` | 只选 runnable task、控制 item lock / retry / task 并发；移除 executor routing |
@@ -212,6 +215,7 @@ Kairox 的逻辑组件必须落到明确的物理模块。改代码前先确认�
 - 如果代码需要决定 optimize 走 `transcode`、`upgrade`、`no_op` 或 `blocked`，它必须在 `flowPlanner.js`。
 - 如果代码需要创建 task，它必须走 Task Creator + TaskAdmission + Task/Event Store。
 - 如果代码需要防止同一目标自动反复创建 task，它必须在 TaskCreationPolicy，用 attemptKey / automatic attempt budget 表达，不能塞进 Lifecycle。
+- 如果代码需要防止同一媒体在 task 完成后跨 gate 过快推进，它必须在 TaskCreationPolicy，用 mediaFreeze 表达，不能塞进 Lifecycle、Task Creator 或 Scheduler。
 - 如果一个文件的目标物理承载不包含该职责，不要为了“先跑通”把职责塞进去。
 
 ## 6. 下一步目标：Kairox Physical Runtime Cutover
@@ -338,6 +342,7 @@ source_missing
 
 - 根据 LifecycleSnapshot 或明确 manual intent 创建 target-gate task。
 - 执行 duplicate prevention、cooldown、queue cap、destructive authorization。
+- 执行 Media Freeze 准入：冻结期内拒绝任何 targetGate task，返回 `media_frozen` 和冻结来源。
 - 拒绝时写清楚 targetGate 级别原因。
 
 不负责：
@@ -347,6 +352,7 @@ source_missing
 - 绕过 Flow Planner 创建 flow 任务。
 - 从缩水 item 自行推断 lifecycle。
 - 响应 Source Adapter、User Perception、policy 保存或 executor 完成事件直接创建自动 task。
+- 判断或改写 Lifecycle gate achievement 来绕过 Media Freeze。
 
 自动化必须拆成三层：
 

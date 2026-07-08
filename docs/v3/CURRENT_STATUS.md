@@ -13,7 +13,7 @@ Last updated: 2026-07-08
 - Latest deployment time: `2026-07-08 12:04 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: ready to restart from Stage 0 on canary `81945` after automation model closure deployment.
+- Production E2E status: paused at Stage 10 on canary `81945`; deploy Media Freeze before retry.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 - Automation model closure status: deployed; public run-scan APIs return `410 KAIROX_RUN_SCAN_REMOVED`.
 
@@ -55,6 +55,11 @@ Last updated: 2026-07-08
   - user-facing run-scan / refresh-library APIs are removed.
   - manual task creation is bound to a concrete item and `targetGate`.
   - SmartTaskEngine consumes LifecycleSnapshot instead of reduced media rows.
+- Media Freeze implementation is complete locally and not yet deployed:
+  - goal: after optimize done, freeze the media before any immediate ingest/metadata/archive/delete task can be created.
+  - owner: TaskAdmission / TaskCreationPolicy.
+  - storage target: `media_items` hot columns, not `payload_json` only.
+  - default Beta policy: optimize done -> 24h freeze; other target gates -> 0h.
 
 ## Frontend State
 
@@ -98,7 +103,11 @@ Last updated: 2026-07-08
 
 ## Unresolved / Not Yet Proven
 
-- Production Frontend/API E2E must restart on item `81945` from Stage 0 after the latest deployment.
+- Production Frontend/API E2E is paused on item `81945` at Stage 10.
+- Stage 10 blocker:
+  - post-optimize refresh immediately created ingest/metadata tasks.
+  - Emby had not refreshed technical facts yet, so canonical facts still read old h264/high-bitrate values.
+  - decision: add Media Freeze so task creation waits for external post-processing instead of chaining refresh too early.
 - Previous Stage 8 blocker status:
   - the previous `Emby source snapshot is required` blocker is fixed.
   - objective bitrate is already a three-number profile; `targetMbps` is the FFmpeg target, `minMbps/maxMbps` are gate bounds.

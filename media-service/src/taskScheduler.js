@@ -26,6 +26,7 @@ const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const gateInvalidationService = require('./gateInvalidationService');
 const postOptimizeCanonicalRefresh = require('./postOptimizeCanonicalRefresh');
+const mediaFreeze = require('./mediaFreeze');
 
 let schedulerInterval = null;
 let nodeHealthInterval = null;
@@ -87,9 +88,10 @@ function buildDeleteGateForItem(task, doneAt) {
   };
 }
 
-function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt) {
+function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt, config = {}) {
   const flowKind = flowKindForTask(task);
   libItem.lastTaskDoneAt = doneAt;
+  mediaFreeze.applyCompletedTaskFreeze(libItem, task, doneAt, config);
   if (flowKind === 'transcode') {
     postOptimizeCanonicalRefresh.recordPostOptimizeReplacement(libItem, task, doneAt, 'transcode');
   }
@@ -199,13 +201,13 @@ function reportStatus(taskId, status, progress) {
       activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, flowKind: flowKindForTask(oldTask) });
     }
 
-    // 48h freeze after task ends (done or failed_hard) — SmartTaskEngine won't re-enqueue
+    // Keep media item task timestamps and terminal gate facts in sync with task closure.
     if ((status === 'done' || status === 'failed_hard') && oldTask.itemId) {
       const lib = mediaLibraryService.loadLibrary();
       const libItem = lib && lib.items && lib.items.find((it) => it.itemId === oldTask.itemId);
       if (libItem) {
         const doneAt = new Date().toISOString();
-        if (status === 'done') applyDoneTaskFactsToLibraryItem(libItem, oldTask, doneAt);
+        if (status === 'done') applyDoneTaskFactsToLibraryItem(libItem, oldTask, doneAt, configStore.loadConfig());
         else libItem.lastTaskDoneAt = doneAt;
         mediaLibraryService.saveLibrary(lib);
       }

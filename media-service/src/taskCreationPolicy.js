@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const automationPolicy = require('./automationPolicy');
 const factsFreshnessService = require('./factsFreshnessService');
+const mediaFreeze = require('./mediaFreeze');
 
 const TERMINAL = new Set(['done', 'failed_hard', 'failed_soft', 'cancelled', 'skipped', 'deleted']);
 const ATTEMPT_FAILURE_STATUSES = new Set(['failed_hard', 'failed_soft', 'interrupted']);
@@ -258,6 +259,18 @@ function canCreateTargetTask(input = {}) {
   if (!itemId) return blocked(targetGate, 'missing_item_id');
   if (!automationPolicy.TASK_TARGETS.has(targetGate)) return blocked(targetGate, 'invalid_target_gate');
 
+  const freeze = mediaFreeze.project(itemInfo && Object.keys(itemInfo).length ? { ...item, ...itemInfo } : item);
+  if (freeze.frozen) {
+    return blocked(targetGate, 'media_frozen', {
+      mediaFreeze: freeze,
+      frozenUntil: freeze.frozenUntil,
+      freezeReason: freeze.reason,
+      sourceTaskId: freeze.sourceTaskId,
+      sourceTargetGate: freeze.sourceTargetGate,
+      sourceFlowKind: freeze.sourceFlowKind,
+    });
+  }
+
   const active = activeTaskForItemTarget(tasks, itemId, targetGate);
   if (active) return blocked(targetGate, 'active_task_exists', { activeTask: { id: active.id, status: active.status, targetGate } });
 
@@ -350,6 +363,7 @@ module.exports = {
   taskTargetGate,
   activeTaskForItemTarget,
   buildAttemptKey,
+  mediaFreezeStatus: mediaFreeze.project,
   canCreateTargetTask,
   buildTaskTarget,
   queueLimitForTarget,

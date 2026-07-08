@@ -424,6 +424,13 @@ function getDefaultConfig() {
         archive: 1,
         delete: 1,
       },
+      mediaFreezeHoursByCompletedTargetGate: {
+        ingest: 0,
+        metadata: 0,
+        optimize: 24,
+        archive: 0,
+        delete: 0,
+      },
     },
 
     deleteGatePolicy: {
@@ -991,6 +998,10 @@ function mergeConfigWithDefaults(config) {
     automaticAttemptLimitsByTargetGate: {
       ...((defaults.taskAdmission || {}).automaticAttemptLimitsByTargetGate || {}),
       ...(((raw.taskAdmission || {}).automaticAttemptLimitsByTargetGate) || {}),
+    },
+    mediaFreezeHoursByCompletedTargetGate: {
+      ...((defaults.taskAdmission || {}).mediaFreezeHoursByCompletedTargetGate || {}),
+      ...(((raw.taskAdmission || {}).mediaFreezeHoursByCompletedTargetGate) || {}),
     },
   };
 

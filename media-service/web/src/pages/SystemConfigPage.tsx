@@ -91,6 +91,14 @@ const DEFAULT_ATTEMPT_LIMITS: Record<TaskTarget, number> = {
   delete: 1,
 };
 
+const DEFAULT_MEDIA_FREEZE_HOURS: Record<TaskTarget, number> = {
+  ingest: 0,
+  metadata: 0,
+  optimize: 24,
+  archive: 0,
+  delete: 0,
+};
+
 function modeLabel(mode: ApprovalMode): string {
   if (mode === 'auto') return '自动';
   if (mode === 'forceConfirm') return '强制确认';
@@ -184,6 +192,7 @@ export default function SystemConfigPage() {
   const [gateCooldowns, setGateCooldowns] = useState<Record<TaskTarget, number>>(DEFAULT_GATE_COOLDOWNS);
   const [gateQueueLimits, setGateQueueLimits] = useState<Record<TaskTarget, number>>(DEFAULT_GATE_QUEUE_LIMITS);
   const [attemptLimits, setAttemptLimits] = useState<Record<TaskTarget, number>>(DEFAULT_ATTEMPT_LIMITS);
+  const [mediaFreezeHours, setMediaFreezeHours] = useState<Record<TaskTarget, number>>(DEFAULT_MEDIA_FREEZE_HOURS);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showPriorityAdvanced, setShowPriorityAdvanced] = useState(false);
   const [showGlobalApproval, setShowGlobalApproval] = useState(false);
@@ -236,6 +245,10 @@ export default function SystemConfigPage() {
         setAttemptLimits({
           ...DEFAULT_ATTEMPT_LIMITS,
           ...(sysCfg.taskAdmission?.automaticAttemptLimitsByTargetGate || {}),
+        });
+        setMediaFreezeHours({
+          ...DEFAULT_MEDIA_FREEZE_HOURS,
+          ...(sysCfg.taskAdmission?.mediaFreezeHoursByCompletedTargetGate || {}),
         });
         const scheds: Record<string, SubLibScheduleState> = {};
         for (const sl of slRes.subLibraries || []) {
@@ -330,6 +343,7 @@ export default function SystemConfigPage() {
             cooldownHoursByTargetGate: gateCooldowns,
             maxQueuedByTargetGate: gateQueueLimits,
             automaticAttemptLimitsByTargetGate: attemptLimits,
+            mediaFreezeHoursByCompletedTargetGate: mediaFreezeHours,
           },
           taskPriority: {
             manualTaskPriority: manualPrio,
@@ -591,6 +605,22 @@ export default function SystemConfigPage() {
                     min={0}
                     max={20}
                     onChange={(v) => setAttemptLimits((prev) => ({ ...prev, [target.key]: v }))}
+                  />
+                ))}
+              </div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>任务后媒体冻结</div>
+              <p style={{ ...hintStyle, marginBottom: 10 }}>媒体级冻结用于等待外部系统完成后处理；冻结期内不会为同一媒体创建任何新任务。</p>
+              <div style={fourColGrid}>
+                {TASK_TARGETS.map((target) => (
+                  <NumberField
+                    key={target.key}
+                    label={`${target.label}完成后（小时）`}
+                    value={mediaFreezeHours[target.key]}
+                    min={0}
+                    max={240}
+                    onChange={(v) => setMediaFreezeHours((prev) => ({ ...prev, [target.key]: v }))}
                   />
                 ))}
               </div>

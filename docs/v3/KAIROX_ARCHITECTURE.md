@@ -207,6 +207,17 @@ Task / Flow execution result is not Gate achievement.
 
 Event retry 和 task attempt retry 也必须分开。`retryCount`、`resumePoint` 和 recovery contract 描述的是同一个 task 内部的 event retry / resume，不消耗 automatic task attempt budget；只有 task 最终 terminal failed 后，TaskCreationPolicy 才按 attempt key 计算是否允许自动创建新的 task attempt。
 
+Media Freeze 是另一层创建准入策略，用来表达“同一个媒体刚完成某类 task 后，外部系统或文件系统仍可能在后处理”。它属于 TaskAdmission / TaskCreationPolicy，不属于 Lifecycle、Task Creator、Scheduler 或 Flow Planner。
+
+Media Freeze 与 targetGate cooldown 分工不同：
+
+- `targetGate cooldown` 防同一媒体同一 gate 在自动模式下反复重试。
+- `media freeze` 防同一媒体跨 gate 连续推进过快。
+
+冻结状态必须是媒体级热状态，至少包含 `frozenUntil`、`reason`、`sourceTaskId`、`sourceTargetGate`、`sourceFlowKind`。冻结期内任何 automatic/manual targetGate task 创建都必须被 TaskAdmission 拒绝，原因是 `media_frozen`。delete confirm 也不绕过冻结，除非未来另行设计 emergency override。
+
+Resource Runtime / task finalizer 只能在 task terminal `done` 后写入 Media Freeze；失败、取消、跳过、中断不能写冻结。写入冻结不是 chain task，也不能直接创建 ingest/metadata/archive/delete task。Lifecycle 继续只投影 `nextTargetGate`；是否因为冻结而暂缓创建 task，是 TaskAdmission 的职责。
+
 统一术语：
 
 | English | 中文 | 含义 |
