@@ -7,14 +7,15 @@ Last updated: 2026-07-08
 - Current release goal: `Kairox Beta Candidate`
 - Worktree scope: this worktree stops at `Kairox Beta`; later goals require a new worktree.
 - Production URL: `http://192.168.12.230:18080`
-- Latest deployed image: `markmahoro/shelfdeck:kairox-source-ref-20260708-44302eb4`
-- Latest deployed commit: `44302eb4 Fix SourceReference ingest boundary`
-- Latest deployed image SHA256: `726afc66d7cca321faf3055b8eed388fba062245f87a7bbf8b41718f8907a157`
-- Latest deployment time: `2026-07-08 01:32 Asia/Shanghai`
+- Latest deployed image: `markmahoro/shelfdeck:kairox-beta-automation-20260708-9f471605`
+- Latest deployed commit: `9f471605 Align Kairox automation task creation model`
+- Latest deployed image SHA256: `5068f4a206c30691d139c15d73b47ce3dd90efbda94130e11cc8d272af8f1ad3`
+- Latest deployment time: `2026-07-08 12:04 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: stopped at Stage 8 while fixing transcode rate-control retry; fix is local until committed/deployed.
+- Production E2E status: ready to restart from Stage 0 on canary `81945` after automation model closure deployment.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
+- Automation model closure status: deployed; public run-scan APIs return `410 KAIROX_RUN_SCAN_REMOVED`.
 
 ## Current Architecture State
 
@@ -36,11 +37,11 @@ Last updated: 2026-07-08
   - source adapters publish source references, not canonical source facts.
   - Emby ingest observes the source at task execution time and no longer requires `sourceSnapshot` in task payload.
   - adult folder ingest only publishes source facts; metadata/probe/NFO/adultId work belongs to metadata flow.
-- Optimize bitrate profile has been implemented locally:
+- Optimize bitrate profile has been implemented and deployed:
   - optimize objective uses `targetBitrateProfileByBucket` with `minMbps / targetMbps / maxMbps`.
   - Flow Planner, Lifecycle, transcode verify, and upgrade verify share the same profile semantics.
   - old rule templates are rebuilt to the new default profile schema instead of kept as a runtime compatibility layer.
-- Transcode rate-control retry is being implemented locally:
+- Transcode rate-control retry has been implemented and deployed:
   - QSV VBR output below objective range should retry inside the same task.
   - retry ladder is QSV VBR -> CPU two-pass ABR -> QSV CBR -> CPU strict fallback.
   - Lifecycle gate semantics remain canonical facts + objective only.
@@ -48,6 +49,12 @@ Last updated: 2026-07-08
   - flow attempt failure no longer closes optimize gate.
   - automatic task attempt budget is handled by TaskCreationPolicy attemptKey.
   - task retryCount remains event/recovery state, not Lifecycle gate state.
+- Automation model closure has been implemented and deployed:
+  - information changes only write facts / freshness / policy / evidence.
+  - periodic SmartTaskEngine scan is the only background automatic task creation mechanism.
+  - user-facing run-scan / refresh-library APIs are removed.
+  - manual task creation is bound to a concrete item and `targetGate`.
+  - SmartTaskEngine consumes LifecycleSnapshot instead of reduced media rows.
 
 ## Frontend State
 
@@ -91,15 +98,19 @@ Last updated: 2026-07-08
 
 ## Unresolved / Not Yet Proven
 
-- Production Frontend/API E2E restarted on item `81945` and was stopped at Stage 8.
-- Stage 8 blocker being fixed:
+- Production Frontend/API E2E must restart on item `81945` from Stage 0 after the latest deployment.
+- Previous Stage 8 blocker status:
   - the previous `Emby source snapshot is required` blocker is fixed.
   - objective bitrate is already a three-number profile; `targetMbps` is the FFmpeg target, `minMbps/maxMbps` are gate bounds.
   - QSV VBR produced an output below the objective range and `transcode_verify` failed hard.
-  - decision: keep verify strict, but retry rate-control strategies inside the same task before final failure.
-  - after deployment, restart production E2E from Stage 0 on item `81945`.
-- Refresh cutover is implemented and deployed:
-  - manual `/v1/library/actions/ingest` and `/refresh` request Kairox SmartTask scan.
+  - decision implemented: keep verify strict, but retry rate-control strategies inside the same task before final failure.
+- Automation model closure is implemented and deployed:
+  - manual `/v1/library/actions/ingest` and `/refresh` now return `410 KAIROX_RUN_SCAN_REMOVED`.
+  - user-facing frontend no longer exposes scan/refresh library actions.
+  - automatic creation is handled by periodic SmartTaskEngine scan only.
+  - manual user intervention creates concrete item target-gate tasks.
+  - approvalPolicy remains a Resource Runtime / flow execution confirmation concept, not automation authorization.
+- Refresh cutover remains implemented and deployed:
   - sublibrary add / startup / timer no longer run direct Emby ingest.
   - public cache write API returns `LEGACY_CACHE_WRITE_DISABLED`.
   - Emby inventory observations become `targetGate=ingest` candidates.
