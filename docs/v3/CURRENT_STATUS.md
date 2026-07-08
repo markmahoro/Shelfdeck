@@ -7,13 +7,13 @@ Last updated: 2026-07-08
 - Current release goal: `Kairox Beta Candidate`
 - Worktree scope: this worktree stops at `Kairox Beta`; later goals require a new worktree.
 - Production URL: `http://192.168.12.230:18080`
-- Latest deployed image: `markmahoro/shelfdeck:kairox-beta-automation-20260708-9f471605`
-- Latest deployed commit: `9f471605 Align Kairox automation task creation model`
-- Latest deployed image SHA256: `5068f4a206c30691d139c15d73b47ce3dd90efbda94130e11cc8d272af8f1ad3`
-- Latest deployment time: `2026-07-08 12:04 Asia/Shanghai`
+- Latest deployed image: `markmahoro/shelfdeck:kairox-media-freeze-20260708-46c40d62`
+- Latest deployed commit: `46c40d62 Add media freeze admission guard`
+- Latest deployed image SHA256: `cc8917014320b0141f014d176829a442d09a768ac75cfb1fa6d508f5cf75c7d4`
+- Latest deployment time: `2026-07-08 13:18 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: paused at Stage 10 on canary `81945`; deploy Media Freeze before retry.
+- Production E2E status: paused before restart; next run must re-slice the canary video and refresh Emby first.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 - Automation model closure status: deployed; public run-scan APIs return `410 KAIROX_RUN_SCAN_REMOVED`.
 
@@ -55,7 +55,7 @@ Last updated: 2026-07-08
   - user-facing run-scan / refresh-library APIs are removed.
   - manual task creation is bound to a concrete item and `targetGate`.
   - SmartTaskEngine consumes LifecycleSnapshot instead of reduced media rows.
-- Media Freeze implementation is complete locally and not yet deployed:
+- Media Freeze has been implemented and deployed:
   - goal: after optimize done, freeze the media before any immediate ingest/metadata/archive/delete task can be created.
   - owner: TaskAdmission / TaskCreationPolicy.
   - storage target: `media_items` hot columns, not `payload_json` only.
@@ -80,7 +80,8 @@ Last updated: 2026-07-08
 - Current production E2E sample: `爱很美味`.
 - Test library: `公共 国产剧库`.
 - Current canary item: `81945 / 爱很美味 / Season 1`.
-- The sample was shortened to about 10 seconds per episode and Emby was refreshed by the user.
+- Before the next E2E restart, the sample must be cut again and Emby must be refreshed by the user.
+- The previous sample was shortened to about 10 seconds per episode and Emby was refreshed by the user.
 - Previous production validation before SourceReference deployment:
   - manual library ingest scan returned `mode=kairox_scan`.
   - scan created `targetGate=ingest` task `b5840cad0adbad9d` for item `81945`.
@@ -103,11 +104,12 @@ Last updated: 2026-07-08
 
 ## Unresolved / Not Yet Proven
 
-- Production Frontend/API E2E is paused on item `81945` at Stage 10.
-- Stage 10 blocker:
+- Production Frontend/API E2E is paused before restart on item `81945`.
+- Previous Stage 10 blocker:
   - post-optimize refresh immediately created ingest/metadata tasks.
   - Emby had not refreshed technical facts yet, so canonical facts still read old h264/high-bitrate values.
-  - decision: add Media Freeze so task creation waits for external post-processing instead of chaining refresh too early.
+  - decision implemented and deployed: add Media Freeze so task creation waits for external post-processing instead of allowing immediate cross-gate task creation.
+  - proof pending: re-slice the canary sample, refresh Emby, then restart production E2E.
 - Previous Stage 8 blocker status:
   - the previous `Emby source snapshot is required` blocker is fixed.
   - objective bitrate is already a three-number profile; `targetMbps` is the FFmpeg target, `minMbps/maxMbps` are gate bounds.
