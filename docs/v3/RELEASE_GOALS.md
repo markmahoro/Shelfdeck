@@ -20,7 +20,7 @@
 
 | 大版本 | 一句话目标 | 当前状态 |
 | --- | --- | --- |
-| `Kairox Beta` | 证明 Kairox 业务主链路在生产真实样本中跑通；用户不一定好用，但系统语义必须正确 | Candidate，待生产 E2E 验收 |
+| `Kairox Beta` | 证明 Kairox 业务主链路在生产真实样本中跑通；用户不一定好用，但系统语义必须正确 | Achieved，生产 E2E 已通过 |
 | `Kairox Usable` | 普通用户可以通过前端完成核心媒体管理流程，不需要理解内部架构 | Not started，新 worktree |
 | `Kairox Performance` | 在真实库规模下，系统能持续自动跑，控制面稳定，资源利用率可接受 | Not started，新 worktree |
 | `Kairox GA Candidate` | 功能、体验、性能、恢复、安全处置都达到发布前候选状态 | Not started，新 worktree |
@@ -191,4 +191,3 @@ Kairox Beta achieved.
 - 用户批准。
 - Git release tag 可创建。
 - 后续进入常规迭代。
-

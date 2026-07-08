@@ -4,7 +4,7 @@ Last updated: 2026-07-08
 
 ## Production
 
-- Current release goal: `Kairox Beta Candidate`
+- Current release goal: `Kairox Beta achieved`
 - Worktree scope: this worktree stops at `Kairox Beta`; later goals require a new worktree.
 - Production URL: `http://192.168.12.230:18080`
 - Latest deployed image: `markmahoro/shelfdeck:kairox-media-freeze-20260708-46c40d62`
@@ -13,7 +13,7 @@ Last updated: 2026-07-08
 - Latest deployment time: `2026-07-08 13:18 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: Stage 0-15 passed on `公共 国产剧库 / 81945 / 爱很美味 / Season 1`; awaiting user acceptance of `Kairox Beta`.
+- Production E2E status: Stage 0-15 passed on `公共 国产剧库 / 81945 / 爱很美味 / Season 1`; user accepted `Kairox Beta` as achieved for this worktree.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 - Automation model closure status: deployed; public run-scan APIs return `410 KAIROX_RUN_SCAN_REMOVED`.
 
@@ -102,7 +102,7 @@ Last updated: 2026-07-08
 
 | Goal | Status | Notes |
 | --- | --- | --- |
-| `Kairox Beta` | E2E passed; awaiting user acceptance | Production Frontend/API business E2E Stage 0-15 passed on item `81945` |
+| `Kairox Beta` | Achieved | Production Frontend/API business E2E Stage 0-15 passed on item `81945`; this worktree is ready to merge to `main` |
 | `Kairox Usable` | Not started | Requires new worktree after Kairox Beta |
 | `Kairox Performance` | Not started | Requires new worktree after Kairox Beta |
 | `Kairox GA Candidate` | Not started | Requires new worktree after Kairox Beta |
@@ -110,6 +110,16 @@ Last updated: 2026-07-08
 
 ## Unresolved / Not Yet Proven
 
+- Production automation audit after Beta acceptance found a real-library automatic creation issue:
+  - `source_missing` adult-library items repeatedly consume each SmartTaskEngine scan with `targetGate=ingest`.
+  - `optimizeAllowedFlowKinds=[]` means automatic optimize can be created but cannot select transcode/upgrade flow until configured.
+  - `archive` is not in `automaticTaskTargets`, so archive-ready items do not auto-archive.
+  - These are recorded in `docs/v3/acceptance/KAIROX_PRODUCTION_AUTOMATION_AUDIT.md`.
+  - They do not block `Kairox Beta`; they belong to the next onboarding/offboarding/automation governance work.
+- Architecture boundary discovered during Beta closure:
+  - `Kairox Beta` proves the in-library management chain, not the final ShelfDeck governance model.
+  - Onboarding and Offboarding need a later architecture upgrade instead of being forced into lifecycle gates.
+  - Resource Runtime remains lifecycle-first; a future global resource management platform is out of this worktree.
 - Follow-up found during test-only freeze clearing:
   - Media Freeze currently appears in both `media_items` hot columns and historical payload fields for the canary.
   - Runtime behavior passed because normal finalization writes the active projection, but this duplicate storage is a data-model cleanup risk.
@@ -144,9 +154,9 @@ Last updated: 2026-07-08
   - flow planning.
   - flow execution.
   - optimize / archive / delete review gate progression.
-- Scheduler pressure optimization is not the current priority.
-- Full UI GA is not the current priority until E2E proves the chain.
-- This worktree must not start `Kairox Usable`, `Kairox Performance`, or `Kairox GA` implementation.
+- Scheduler pressure optimization is not part of this completed Beta worktree.
+- Full UI GA is not part of this completed Beta worktree.
+- This worktree is closed at `Kairox Beta` and must not start `Kairox Usable`, `Kairox Performance`, `Kairox Governance`, or `Kairox GA` implementation.
 
 ## Worktree Notes
 

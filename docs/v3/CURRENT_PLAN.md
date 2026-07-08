@@ -4,15 +4,15 @@ Last updated: 2026-07-08
 
 ## Current Objective
 
-Reach `Kairox Beta` in this worktree.
+Close `Kairox Beta` in this worktree.
 
 `Kairox Beta` means proving the Kairox business chain works in production with a real test sample. It does not mean UI GA or scheduler performance optimization.
 
 This worktree stops at `Kairox Beta`. Later goals require a new worktree.
 
-The production Kairox Frontend/API E2E run has passed Stage 0-15 on the canary item.
+The production Kairox Frontend/API E2E run has passed Stage 0-15 on the canary item and `Kairox Beta` is accepted as achieved.
 
-The current implementation task is complete; the next decision is whether to accept `Kairox Beta` for this worktree.
+The current implementation task is complete. The remaining work in this worktree is documentation closure, commit, and merge to `main`.
 
 Automation must now follow:
 
@@ -52,7 +52,7 @@ frontend pages are visible
 
 ## Current Execution Order
 
-1. Keep `Kairox Beta E2E` as the main thread objective.
+1. Do not implement additional runtime changes in this worktree.
 2. Automation model closure is complete and deployed:
    - `POST /v1/library/actions/refresh` and `/ingest` are removed from product runtime.
    - SmartTaskEngine automatic creation only comes from the internal periodic timer.
@@ -75,6 +75,10 @@ frontend pages are visible
    - TaskAdmission rejects automatic and manual tasks for frozen media with `media_frozen`.
    - media list/detail projection and E2E Stage 10 expose freeze evidence.
 6. Production E2E has passed one stage at a time on item `81945`.
+7. Production automation audit is recorded as follow-up evidence:
+   - `source_missing` ingest loop is a next-stage onboarding/automation governance issue.
+   - `optimizeAllowedFlowKinds=[]` and archive automatic target configuration are production configuration/follow-up issues.
+   - These findings do not block `Kairox Beta` acceptance.
 
 ## Active E2E Plan
 
@@ -107,10 +111,10 @@ docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
 
 ## Next Recommended Action
 
-Review the completed E2E report:
+Finish worktree closure:
 
 ```text
-docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
+1. Commit the closure documentation and production automation audit.
+2. Merge this worktree branch to main.
+3. Start any next release goal in a new worktree.
 ```
-
-If accepted, close this worktree as `Kairox Beta` and start any next release goal in a new worktree.
