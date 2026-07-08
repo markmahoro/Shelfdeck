@@ -55,7 +55,7 @@ transcode task -> optimize task with selectedFlow=transcode
 | `bitrate profile` / 码率目标档案 | optimize objective 的三数字码率合同：`minMbps / targetMbps / maxMbps` | Rule template、gateObjective、Flow Planner explanation、verify evidence | 不能退回单点 `targetBitrate`；不能在各模块散写容忍比例 |
 | `event evidence` / 执行证据 | 证明 staged facts 可信的执行记录 | Task events、Resource Runtime、diagnostic | 不能替代权威事实 |
 | `factRefreshRequest` / 事实刷新请求 | 权威事实过期后的 declarative signal | Flow Executor output、Lifecycle projection input | 不能直接创建 task；不能绕过 Task Creator |
-| `refresh` / 刷新 | 用户或系统请求重新观察外部 source 的意图 | API 文案、activity、scan request | 不能是 targetGate、flowKind 或 task type；不能直接写权威事实 |
+| `refresh` / 刷新 | 历史术语；现在只能作为事实过期原因或内部诊断语义 | stale reason、factRefreshRequest evidence、历史兼容说明 | 不能是 targetGate、flowKind、task type、用户 API 或自动化触发机制 |
 | `SourceReference` / 来源引用 | 状态 0，对外部 source 的最小引用 | Source Adapter Sync 输出、ingest task object/itemInfo | 不能携带 canonical media/metadata/gate 结论 |
 
 硬边界：
@@ -336,7 +336,7 @@ source_missing
 
 负责：
 
-- 根据 Lifecycle projection 创建 target-gate task。
+- 根据 LifecycleSnapshot 或明确 manual intent 创建 target-gate task。
 - 执行 duplicate prevention、cooldown、queue cap、destructive authorization。
 - 拒绝时写清楚 targetGate 级别原因。
 
@@ -345,6 +345,24 @@ source_missing
 - 为 optimize 预选 transcode / upgrade。
 - 自己比较 rating、watched、objectiveHash。
 - 绕过 Flow Planner 创建 flow 任务。
+- 从缩水 item 自行推断 lifecycle。
+- 响应 Source Adapter、User Perception、policy 保存或 executor 完成事件直接创建自动 task。
+
+自动化必须拆成三层：
+
+- 信息变更层：Source Adapter、User Perception、Policy Writer、Flow Executor 只写 facts / freshness / policy / evidence。
+- 周期扫描层：只有 SmartTaskEngine 内部 timer 能创建 automatic task；用户不可触发 run scan。
+- 队列调度层：Task Scheduler 只调度已创建 task，不创建 task，不判断业务 gate。
+
+targetGate 触发条件固定为：
+
+- `ingest`: `sourceFacts missing/stale`。
+- `metadata`: `sourceFacts fresh` 且 `mediaFacts` / `metadataFacts missing/stale`。
+- `optimize`: metadata gate passed，objective ready，objective 未达成。
+- `archive`: optimize gate passed，archive gate not passed。
+- `delete`: delete candidate 经用户确认或显式 destructive pre-authorization。
+
+`post_optimize_replace` 只是 `sourceFacts stale` 的 reason，不是另一种任务触发条件。`approvalPolicy` 是 flow execution 的确认节点，不属于自动化授权，也不参与 Task Creator 是否创建 task。
 
 Task Creator 创建 optimize task 时，只能表达：
 
@@ -488,6 +506,8 @@ Kairox 允许用户参与 optimize task 的 flow 决策，但用户不能绕过 
 10. UI 主语义是否仍然是 gate/objective，而不是 flow/executor？
 11. 自动任务是否全部经过 TaskAdmission？
 12. 是否新增了 compatibility alias？如果是，它是否只存在于一次性 cutover 脚本？
+13. 是否暴露了用户可触发 run scan / refresh？如果是，停止；用户只能操作具体 item、task 或 delete candidate。
+14. 是否把 approvalPolicy 当成自动化授权？如果是，停止；审批属于 flow execution 用户介入节点。
 
 ## 9. 施工方式
 

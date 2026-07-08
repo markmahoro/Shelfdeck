@@ -523,6 +523,24 @@ Task Creator
 
 这几个授权层不能互相替代：允许自动创建 optimize task 不等于允许所有 optimize flow；允许某个 optimize flow 也不等于系统可以绕过 Task Creator / TaskAdmission 自动建 task；允许系统产生 delete candidate 或 delete task 也不等于允许无确认删除。
 
+自动化必须拆成三层：
+
+- 信息变更层只写 facts / freshness / policy / evidence，不创建 task，也不触发用户可见 scan。
+- 周期扫描层是唯一后台自动任务创建机制。SmartTaskEngine 的内部 timer 周期读取 LifecycleSnapshot，再交给 Task Creator / TaskAdmission。
+- 队列调度层只处理已经创建的 task；Task Scheduler 不判断业务 gate，也不创建 task。
+
+targetGate 的自动触发条件只来自 LifecycleSnapshot：
+
+- `ingest`: `sourceFacts missing/stale`。`post_optimize_replace` 只是 stale reason，不是另一种任务触发条件。
+- `metadata`: `sourceFacts fresh` 且 `mediaFacts` / `metadataFacts missing/stale`。
+- `optimize`: metadata gate passed，objective ready，且当前 canonical facts 未达成 objective。
+- `archive`: optimize gate passed，且 archive gate not passed。
+- `delete`: archived item 进入 delete candidate，且用户确认或显式 destructive pre-authorization。
+
+用户不能触发 run scan。`POST /v1/library/actions/refresh`、`POST /v1/library/actions/ingest` 这类产品入口不属于 Kairox runtime。用户介入只能绑定具体对象：对某个媒体创建 targetGate task、对某个 task 提权/暂停/恢复/确认/重试、或处理某个 delete candidate。
+
+审批/确认不是自动化能力。`approvalPolicy` / confirmation 属于 Resource Runtime / Flow Execution 的用户介入节点，只在 task 已创建并执行到相应 flow 节点后生效；它不参与 task 触发条件，不参与 `automaticTaskTargets`，也不决定 Task Creator 是否能创建 task。
+
 Delete gate 默认应是 review-first：
 
 - Lifecycle / policy 可以自动计算已归档媒体的 delete eligibility。
@@ -534,6 +552,7 @@ Delete gate 默认应是 review-first：
 明确禁止：
 
 - 成人库独立目录扫描或监听后绕过 TaskAdmission 自动创建 scrape/optimize/delete task。
+- 用户触发 run scan 或通过 refresh/ingest API 批量创建 task。
 - scrape flow 完成后链式私自创建 optimize task。
 - failed optimize gate 被 SmartTaskEngine 误判为应该自动创建同类新 task。
 - 已归档媒体进入 delete candidate 后绕过 delete review / destructive authorization 直接执行删除。
@@ -724,6 +743,7 @@ node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha
 - 新增一个 resource 限流，却让 SmartTaskEngine 自己推导 flow event 消耗。
 - 新增一个 metadata complete 判定，却没有校验 optimize inputs。
 - 新增 `refresh`、`strategy`、`self-compute` 作为 Kairox 一等概念，而不是收口到 ingest、metadata gate、optimize gate、TaskAdmission。
+- 新增用户可触发的 run scan / refresh API，或把信息变更入口做成自动任务触发器。
 - 缺少必要 media facts 时仍让对象通过 metadata gate 或进入 optimize gate。
 - 把 `doubanRating`、`userRating`、`watched`、`playCount` 当成 metadata gate required facts。
 - Task Creator 自己比较 user perception facts 或 objective hash 来发现 objective revision。

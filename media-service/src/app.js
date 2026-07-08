@@ -22,8 +22,6 @@ const moviepilotService = require('./services/moviepilotService');
 const strategyEngine = require('./strategyEngine');
 const smartTaskEngine = require('./smartTaskEngine');
 const automationPolicy = require('./automationPolicy');
-const priorityEngine = require('./priorityEngine');
-const taskAdmission = require('./taskAdmission');
 const activityLog = require('./activityLog');
 const spaceStats = require('./spaceStats');
 const nodeStore = require('./nodeStore');
@@ -1748,16 +1746,24 @@ function registerRoutes(app) {
 
     const admissionItemInfo = itemInfo || { itemId };
     const activeAdmissionTasks = activeTaskSummariesForItem(itemId);
-    const admission = taskAdmission.canCreateManualIntent({
+    const schedule = itemInfo && itemInfo.subLibraryId
+      ? configStore.resolveSubLibSchedule(itemInfo, cfg)
+      : { autoExecute: cfg.executionMode === 'auto' };
+    const status = schedule.autoExecute ? 'created' : 'pending_manual';
+    const created = smartTaskEngine.createTargetGateTask({
       item: libItem,
       itemInfo: admissionItemInfo,
       targetGate: body.targetGate,
       gateObjective: body.gateObjective,
       flowPreference: body.flowPreference,
-      intent: body.intent,
+      requestedIntent: body.intent,
+      source: 'manual',
+      status,
       config: cfg,
       tasks: activeAdmissionTasks,
+      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user intent' }],
     });
+    const admission = created.admission;
     if (!admission.allowed) {
       diagnosticLog.record({
         category: 'admission',
@@ -1814,31 +1820,7 @@ function registerRoutes(app) {
       ));
     }
 
-    const schedule = itemInfo && itemInfo.subLibraryId
-      ? configStore.resolveSubLibSchedule(itemInfo, cfg)
-      : { autoExecute: cfg.executionMode === 'auto' };
-    const status = schedule.autoExecute ? 'created' : 'pending_manual';
-    const priorityBreakdown = priorityEngine.explainTaskPriority({
-      source: 'manual',
-      taskTarget: admission.taskTarget,
-      itemInfo,
-      config: cfg,
-    });
-
-    const task = taskStore.createTask({
-      itemId,
-      itemName: libItem ? libItem.name : undefined,
-      source: 'manual',
-      status,
-      priority: priorityBreakdown.priority,
-      priorityModelVersion: priorityEngine.TASK_PRIORITY_MODEL_VERSION,
-      priorityBreakdown,
-      taskTarget: admission.taskTarget,
-      flowPreference: body.flowPreference || null,
-      requestedIntent: admission.requestedIntent,
-      itemInfo,
-      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user intent' }],
-    });
+    const task = created.task;
 
     const response = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
     response.admission = compactAdmissionAccept(admission);
@@ -1878,17 +1860,25 @@ function registerRoutes(app) {
     const libItem = mediaLibraryService.getLibraryItem(itemId);
     if (!libItem) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
     const activeAdmissionTasks = activeTaskSummariesForItem(itemId);
-    const admission = taskAdmission.canCreateManualIntent({
-      item: libItem,
-      itemInfo: libItem,
+    const itemWithCandidate = { ...libItem, deleteCandidate: candidate };
+    const created = smartTaskEngine.createTargetGateTask({
+      item: itemWithCandidate,
+      itemInfo: itemWithCandidate,
       targetGate: 'delete',
-      intent: {
+      gateObjective: {
+        kind: 'delete_archived_media',
+        eligibilityReason: candidate.eligibilityReason || '',
+        matchedRule: candidate.matchedRule || null,
+      },
+      requestedIntent: {
         targetGate: 'delete',
         entryPoint: 'delete_candidate_confirm',
       },
       config: cfg,
       tasks: activeAdmissionTasks,
+      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Delete task created from delete candidate confirmation' }],
     });
+    const admission = created.admission;
     if (!admission.allowed) {
       return reply.code(409).send(taskAdmissionRejectPayload(
         admission.reason === 'active_task_exists' ? 'TASK_CONFLICT' : 'TASK_ADMISSION_REJECTED',
@@ -1901,25 +1891,7 @@ function registerRoutes(app) {
       ));
     }
 
-    const priorityBreakdown = priorityEngine.explainTaskPriority({
-      source: 'manual',
-      taskTarget: admission.taskTarget,
-      itemInfo: libItem,
-      config: cfg,
-    });
-    const task = taskStore.createTask({
-      itemId,
-      itemName: libItem.name,
-      source: 'manual',
-      status: 'created',
-      priority: priorityBreakdown.priority,
-      priorityModelVersion: priorityEngine.TASK_PRIORITY_MODEL_VERSION,
-      priorityBreakdown,
-      taskTarget: admission.taskTarget,
-      requestedIntent: admission.requestedIntent,
-      itemInfo: libItem,
-      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Delete task created from delete candidate confirmation' }],
-    });
+    const task = created.task;
     const updatedCandidate = deleteCandidateService.attachTask(itemId, task.id) || candidate;
     const response = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
     response.candidate = updatedCandidate;
@@ -2479,34 +2451,22 @@ function registerRoutes(app) {
     }
   });
 
-  async function triggerLibraryIngest(req, reply) {
-    const { subLibraryId } = req.body || {};
-    if (!subLibraryId) return apiError(reply, 400, 'VALIDATION_ERROR', 'subLibraryId is required');
-    try {
-      const cfg = configStore.loadConfig();
-      const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === subLibraryId);
-      if (!subLib) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
-      const summary = await smartTaskEngine.runOnce({
-        subLibraryId,
-        explicitIntent: true,
-      });
-      return reply.code(202).send({
-        ok: true,
-        mode: 'kairox_scan',
-        subLibraryId,
-        summary,
-      });
-    } catch (e) {
-      return apiError(reply, 500, 'SMART_TASK_SCAN_FAILED', e.message);
-    }
-  }
-
   app.post('/v1/library/actions/ingest', async (req, reply) => {
-    return triggerLibraryIngest(req, reply);
+    return apiError(
+      reply,
+      410,
+      'KAIROX_RUN_SCAN_REMOVED',
+      'Kairox no longer exposes user-triggered library scan. Create a targetGate task for a specific media item instead.',
+    );
   });
 
   app.post('/v1/library/actions/refresh', async (req, reply) => {
-    return triggerLibraryIngest(req, reply);
+    return apiError(
+      reply,
+      410,
+      'KAIROX_RUN_SCAN_REMOVED',
+      'Kairox no longer exposes user-triggered library refresh. Create a targetGate task for a specific media item instead.',
+    );
   });
 
   function recomputeOptimizeTargets() {

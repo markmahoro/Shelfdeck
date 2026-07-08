@@ -483,15 +483,42 @@ async function stage3(args, context) {
   }
 
   const subLibraryId = context.subLibrary && (context.subLibrary.uuid || context.subLibrary.id || context.subLibrary.subLibraryId);
-  let scan = null;
-  if (args.mode === 'destructive' && subLibraryId) {
-    scan = await httpJson(args, 'libraryIngestIntent', '/v1/library/actions/ingest', {
+  const removedRunScanChecks = [];
+  if (subLibraryId) {
+    const removedIngest = await httpJson(args, 'removedLibraryIngestIntent', '/v1/library/actions/ingest', {
       method: 'POST',
       body: { subLibraryId },
     });
-    if (!scan.ok) return fail('library_ingest_intent_failed', { status: scan.status, body: scan.body, error: scan.error });
-    if (scan.body && scan.body.mode !== 'kairox_scan') {
-      return fail('library_ingest_intent_not_kairox_scan', { body: scan.body });
+    const removedRefresh = await httpJson(args, 'removedLibraryRefreshIntent', '/v1/library/actions/refresh', {
+      method: 'POST',
+      body: { subLibraryId },
+    });
+    removedRunScanChecks.push(removedIngest, removedRefresh);
+    const notGone = removedRunScanChecks.filter((result) => result.status !== 410);
+    if (notGone.length > 0) {
+      return fail('run_scan_endpoint_not_removed', {
+        endpoints: notGone.map((result) => ({
+          label: result.label,
+          route: result.route,
+          status: result.status,
+          body: result.body,
+          error: result.error,
+        })),
+      });
+    }
+    const wrongCode = removedRunScanChecks.filter((result) => {
+      const code = result.body && result.body.error && result.body.error.code || '';
+      return code && code !== 'KAIROX_RUN_SCAN_REMOVED';
+    });
+    if (wrongCode.length > 0) {
+      return fail('run_scan_endpoint_wrong_error_code', {
+        endpoints: wrongCode.map((result) => ({
+          label: result.label,
+          route: result.route,
+          status: result.status,
+          body: result.body,
+        })),
+      });
     }
   }
 
@@ -510,11 +537,15 @@ async function stage3(args, context) {
   return pass({
     mode: args.mode,
     cacheWriteStatus: cacheWrite.status,
-    scanSummary: scan && scan.body && scan.body.summary || null,
+    removedRunScanEndpoints: removedRunScanChecks.map((result) => ({
+      label: result.label,
+      status: result.status,
+      code: result.body && result.body.error && result.body.error.code || '',
+    })),
     sourceFactsStatus: sourceStatus,
     mediaFactsStatus: mediaStatus,
     metadataFactsStatus: metadataStatusValue,
-    note: 'Refresh intent is verified as Kairox scan; canonical ownership is validated through factsFreshness projection.',
+    note: 'Public run-scan endpoints are removed; canonical ownership is validated through factsFreshness projection and later targetGate tasks.',
   });
 }
 
@@ -765,6 +796,10 @@ async function stage9(args, context) {
       optimizeGate: gate,
       lifecycleNextTask: item.lifecycleNextTask || '',
     });
+  }
+  if (context.optimizeTerminal && context.optimizeTerminal.id && context.optimizeTerminal.status !== 'done') {
+    const terminal = await waitForTaskTerminal(args, context.optimizeTerminal.id, args.maxWaitMs);
+    if (terminal.task) context.optimizeTerminal = terminal.task;
   }
   if (!context.optimizeTerminal || context.optimizeTerminal.status !== 'done') {
     return blocked('optimize_task_not_done_before_post_optimize_refresh_check', {

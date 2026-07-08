@@ -164,47 +164,37 @@ test('PATCH /v1/library/ratings writes userRating and returns ok', async () => {
   await app.close();
 });
 
-// ── Library: actions/ingest ──────────────────────────────────────────────────────
+// ── Library: removed run-scan actions ─────────────────────────────────────────────
 
-test('POST /v1/library/actions/ingest missing subLibraryId -> 400', async () => {
+test('POST /v1/library/actions/ingest returns 410 because user run-scan is removed', async () => {
   const app = await buildEmptyApp();
   const res = await app.inject({ method: 'POST', url: '/v1/library/actions/ingest', payload: {} });
-  assert.strictEqual(res.statusCode, 400);
-  assert.strictEqual(res.json().error.code, 'VALIDATION_ERROR');
+  assert.strictEqual(res.statusCode, 410);
+  assert.strictEqual(res.json().error.code, 'KAIROX_RUN_SCAN_REMOVED');
   await app.close();
 });
 
-test('POST /v1/library/actions/ingest valid returns 202 Accepted', async () => {
-  // Ingest is a Kairox scan request; direct cache writes are not performed here.
-  const dir = tempDir();
-  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ subLibraries: [{ uuid: 'sublib-rf', name: 'R', embyServerId: 'srv', sectionId: 'sec', enabled: true }] }));
-  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+test('POST /v1/library/actions/ingest with subLibraryId still returns 410', async () => {
+  const app = await buildEmptyApp();
   const res = await app.inject({ method: 'POST', url: '/v1/library/actions/ingest', payload: { subLibraryId: 'sublib-rf' } });
-  assert.strictEqual(res.statusCode, 202);
-  assert.strictEqual(res.json().mode, 'kairox_scan');
-  assert.strictEqual(res.json().subLibraryId, 'sublib-rf');
+  assert.strictEqual(res.statusCode, 410);
+  assert.strictEqual(res.json().error.code, 'KAIROX_RUN_SCAN_REMOVED');
   await app.close();
 });
 
-// Legacy alias retained for compatibility.
-
-test('POST /v1/library/actions/refresh missing subLibraryId -> 400', async () => {
+test('POST /v1/library/actions/refresh returns 410 because user run-scan is removed', async () => {
   const app = await buildEmptyApp();
   const res = await app.inject({ method: 'POST', url: '/v1/library/actions/refresh', payload: {} });
-  assert.strictEqual(res.statusCode, 400);
-  assert.strictEqual(res.json().error.code, 'VALIDATION_ERROR');
+  assert.strictEqual(res.statusCode, 410);
+  assert.strictEqual(res.json().error.code, 'KAIROX_RUN_SCAN_REMOVED');
   await app.close();
 });
 
-test('POST /v1/library/actions/refresh valid returns 202 Accepted', async () => {
-  // Refresh is an intent alias for a Kairox scan, not a direct cache write.
-  const dir = tempDir();
-  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ subLibraries: [{ uuid: 'sublib-rf', name: 'R', embyServerId: 'srv', sectionId: 'sec', enabled: true }] }));
-  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+test('POST /v1/library/actions/refresh with subLibraryId still returns 410', async () => {
+  const app = await buildEmptyApp();
   const res = await app.inject({ method: 'POST', url: '/v1/library/actions/refresh', payload: { subLibraryId: 'sublib-rf' } });
-  assert.strictEqual(res.statusCode, 202);
-  assert.strictEqual(res.json().mode, 'kairox_scan');
-  assert.strictEqual(res.json().subLibraryId, 'sublib-rf');
+  assert.strictEqual(res.statusCode, 410);
+  assert.strictEqual(res.json().error.code, 'KAIROX_RUN_SCAN_REMOVED');
   await app.close();
 });
 

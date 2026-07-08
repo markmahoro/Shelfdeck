@@ -1,6 +1,6 @@
 # ShelfDeck v3 Current Plan
 
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
 ## Current Objective
 
@@ -10,9 +10,19 @@ Reach `Kairox Beta` in this worktree.
 
 This worktree stops at `Kairox Beta`. Later goals require a new worktree.
 
-The previous production Kairox E2E run is stopped.
+The previous production Kairox E2E run is stopped while the automation model is being closed cleanly.
 
-The current blocker `refresh capability Kairox cutover` and the post-optimize canonical refresh fix have been deployed. Production has validated ingest -> metadata refresh on the new canary item.
+The current implementation task is `Kairox automation model closure`.
+
+Automation must now follow:
+
+```text
+information change layer: write facts / freshness / policy / evidence only
+periodic scan layer: the only background automatic task creation mechanism
+queue scheduling layer: schedule already-created tasks only
+```
+
+User-visible run scan / refresh library is removed from the product model. Users can only intervene on a concrete media item, concrete task, or concrete delete candidate.
 
 The E2E goal is to prove:
 
@@ -31,18 +41,23 @@ frontend pages are visible
 ## Current Execution Order
 
 1. Keep `Kairox Beta E2E` as the main thread objective.
-2. Restart E2E on the current canary item `81945 / 爱很美味 / Season 1`.
+2. Finish automation model closure before restarting production E2E:
+   - `POST /v1/library/actions/refresh` and `/ingest` are removed from product runtime.
+   - SmartTaskEngine automatic creation only comes from the internal periodic timer.
+   - SmartTaskEngine consumes LifecycleSnapshot, not lightweight media rows.
+   - delete confirm / adult rescrape / media-detail manual task creation use unified Task Creator + TaskAdmission.
+   - frontend automation configuration separates automatic creation, periodic scan, creation protection, queue priority, and flow execution confirmation.
 3. Refresh cutover implementation is complete and deployed:
-   - `refresh` remains an intent / scan request, not a task type.
+   - `refresh` is not a targetGate, flowKind, task type, or user-triggered scan.
    - Emby inventory discovery produces source observations.
-   - SmartTaskEngine / Task Creator turn observations into target-gate tasks.
+   - LifecycleSnapshot / Task Creator turn observations into target-gate tasks during periodic scan.
    - TaskAdmission remains the only creation gate.
    - Resource Runtime and executors publish facts through the owning gate.
 4. Post-optimize canonical refresh implementation is complete and deployed:
    - transcode / upgrade write staged facts and evidence, not canonical media facts.
    - Lifecycle projects `pending_canonical_refresh` back to ingest / metadata.
    - E2E Stage 7 validates canonical refresh before archive.
-5. Continue E2E one stage at a time on item `81945`.
+5. After automation closure is verified and deployed, restart E2E one stage at a time on item `81945`.
 
 ## Active E2E Plan
 
@@ -70,10 +85,12 @@ docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
 - Do not run destructive production actions outside the selected E2E canary scope.
 - Do not add a `refresh` target gate, flow kind, or task type.
 - Do not restore batch refresh as a direct canonical facts writer.
+- Do not expose user-triggered run scan, refresh library, or scan sub-library as a product capability.
+- Do not treat approval/confirmation as automation authorization; approval belongs to task flow execution.
 
 ## Next Recommended Action
 
-Restart production E2E on the current canary:
+Complete and deploy automation model closure, then restart production E2E on the current canary:
 
 ```powershell
 cd media-service

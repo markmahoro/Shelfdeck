@@ -730,6 +730,20 @@ function getSmartTaskCandidateItems() {
   return factsFreshnessService.decorateItems(libraryStore.querySmartTaskCandidateItems());
 }
 
+function getLifecycleSnapshots() {
+  const config = configStore.loadConfig();
+  let items = libraryStore.queryItems({}).items;
+  items = userPerceptionManagement.decorateItems(items);
+  items = metadataStatus.decorateItems(items, config);
+  items = factsFreshnessService.decorateItems(items);
+  const taskStore = require('./taskStore');
+  const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
+    ? taskStore.queryOptimizationTaskIndexRows({ itemIds: items.map((item) => item.itemId).filter(Boolean) })
+    : taskStore.loadTasks();
+  items = optimizationStatus.decorateItems(items, optimizationTasks, config);
+  return lifecycleProjection.toLifecycleSnapshots(items, config);
+}
+
 function getLibraryStatus() {
   const cfg = configStore.loadConfig();
   return {
@@ -1444,6 +1458,7 @@ module.exports = {
   getLibraryItem,
   getSpaceStatLibrary,
   getSmartTaskCandidateItems,
+  getLifecycleSnapshots,
   upsertItems,
   updateUserRating,
   applyEmbyPerceptionFacts,

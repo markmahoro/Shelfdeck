@@ -192,6 +192,74 @@ function resolveLifecycle(item, config = {}) {
   };
 }
 
+function metadataRefreshObjective(projection = {}) {
+  return {
+    kind: 'metadata_refresh',
+    refreshFacts: ['mediaFacts', 'metadataFacts'],
+    reason: projection.lifecycleReason || 'facts_stale',
+  };
+}
+
+function ingestRefreshObjective(projection = {}) {
+  return {
+    kind: 'source_ingested',
+    reason: projection.lifecycleReason || 'source_facts_stale',
+  };
+}
+
+function gateObjectiveForProjection(projection = {}) {
+  const targetGate = projection.lifecycleNextTask || '';
+  if (targetGate === 'optimize') return projection.optimizeObjective || {};
+  if (targetGate === 'metadata') {
+    const freshness = projection.factsFreshness || {};
+    const stale = factsFreshnessService.isBlockingStale(freshness, 'mediaFacts')
+      || factsFreshnessService.isBlockingStale(freshness, 'metadataFacts');
+    return stale ? metadataRefreshObjective(projection) : {};
+  }
+  if (targetGate === 'ingest') return ingestRefreshObjective(projection);
+  if (targetGate === 'archive') return { kind: 'archive_item' };
+  return {};
+}
+
+function blockedReasonForProjection(projection = {}) {
+  const targetGate = projection.lifecycleNextTask || '';
+  if (targetGate !== 'metadata') return '';
+  const adultMeta = projection.adultMetadata && typeof projection.adultMetadata === 'object' ? projection.adultMetadata : {};
+  const scrapeStatus = String(adultMeta.scrapeStatus || '').trim().toLowerCase();
+  const metadataFactsStale = factsFreshnessService.isBlockingStale(projection.factsFreshness || {}, 'mediaFacts')
+    || factsFreshnessService.isBlockingStale(projection.factsFreshness || {}, 'metadataFacts');
+  if (!metadataFactsStale && (projection.scraped === true || scrapeStatus === 'done')) return 'metadata_already_scraped';
+  if (['failed', 'ambiguous', 'needs_review'].includes(scrapeStatus)) return `metadata_${scrapeStatus}`;
+  return '';
+}
+
+function toLifecycleSnapshot(item, config = {}) {
+  const projection = decorateItem(item, config);
+  const blockedReason = blockedReasonForProjection(projection);
+  const nextTargetGate = blockedReason ? null : (projection.lifecycleNextTask || null);
+  return {
+    itemId: projection.itemId || '',
+    object: {
+      type: nextTargetGate === 'ingest' ? 'source_candidate' : 'media_item',
+      itemId: projection.itemId || '',
+    },
+    item: projection,
+    itemInfo: projection,
+    nextTargetGate,
+    gateObjective: nextTargetGate ? gateObjectiveForProjection({ ...projection, lifecycleNextTask: nextTargetGate }) : {},
+    lifecycleReason: projection.lifecycleReason || '',
+    factsFreshness: projection.factsFreshness || {},
+    optimizeObjectiveStatus: projection.optimizeObjectiveStatus || '',
+    deleteEligibility: projection.deleteEligibility || null,
+    blockedReason,
+    timestamp: projection.updatedAt ? new Date(projection.updatedAt).getTime() : 0,
+  };
+}
+
+function toLifecycleSnapshots(items, config = {}) {
+  return (items || []).map((item) => toLifecycleSnapshot(item, config));
+}
+
 function decorateItem(item, config = {}) {
   return {
     ...item,
@@ -221,4 +289,6 @@ module.exports = {
   evaluateOptimizeGate: lifecycleGateService.evaluateOptimizeGate,
   evaluateArchiveGate: lifecycleGateService.evaluateArchiveGate,
   evaluateDeleteGate: lifecycleGateService.evaluateDeleteGate,
+  toLifecycleSnapshot,
+  toLifecycleSnapshots,
 };

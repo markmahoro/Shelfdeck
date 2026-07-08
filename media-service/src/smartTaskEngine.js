@@ -20,7 +20,6 @@ const runtimeResourceTracker = require('./runtimeResourceTracker');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const resourceProjection = require('./resourceProjection');
 const resourceCapacity = require('./resourceCapacity');
-const factsFreshnessService = require('./factsFreshnessService');
 
 const BACKGROUND_IO_LOCK = 'library_background_io';
 
@@ -171,34 +170,27 @@ function buildItemInfo(item) {
   };
 }
 
-function buildCandidate(item, { config }) {
-  const projected = lifecycleProjection.decorateItem(item, config);
-  const targetGate = projected.lifecycleNextTask || '';
+function snapshotFromItem(item, config = {}) {
+  if (item && (Object.prototype.hasOwnProperty.call(item, 'nextTargetGate') || Object.prototype.hasOwnProperty.call(item, 'gateObjective'))) {
+    return item;
+  }
+  return lifecycleProjection.toLifecycleSnapshot(item, config);
+}
+
+function buildCandidate(snapshot, { config }) {
+  const projected = snapshotFromItem(snapshot, config);
+  const targetGate = projected.nextTargetGate || '';
   if (!targetGate) return null;
-  const adultMeta = projected.adultMetadata && typeof projected.adultMetadata === 'object' ? projected.adultMetadata : {};
-  const scrapeStatus = String(adultMeta.scrapeStatus || '').trim().toLowerCase();
-  const metadataFactsStale = targetGate === 'metadata' && (
-    factsFreshnessService.isBlockingStale(projected.factsFreshness || {}, 'mediaFacts')
-    || factsFreshnessService.isBlockingStale(projected.factsFreshness || {}, 'metadataFacts')
-  );
-  if (targetGate === 'metadata' && !metadataFactsStale && (projected.scraped === true || scrapeStatus === 'done')) return null;
-  if (targetGate === 'metadata' && ['failed', 'ambiguous', 'needs_review'].includes(scrapeStatus)) return null;
   if (!automationPolicy.automaticTargetEnabled(config, targetGate)) return null;
-  const itemInfo = buildItemInfo(projected);
-  const metadataRefreshObjective = {
-    kind: 'metadata_refresh',
-    refreshFacts: ['mediaFacts', 'metadataFacts'],
-    reason: projected.lifecycleReason || 'facts_stale',
-  };
+  const item = projected.item || projected.itemInfo || projected;
+  const itemInfo = buildItemInfo(projected.itemInfo || item);
   return {
-    item: projected,
+    item,
     itemInfo,
     targetGate,
-    gateObjective: targetGate === 'optimize'
-      ? (projected.optimizeObjective || {})
-      : (metadataFactsStale ? metadataRefreshObjective : {}),
+    gateObjective: projected.gateObjective || {},
     allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(config),
-    timestamp: itemTimestamp(item),
+    timestamp: Number(projected.timestamp) || itemTimestamp(item),
   };
 }
 function buildSourceCandidate(candidate) {
@@ -227,7 +219,7 @@ function createTargetGateTask(input = {}) {
     item,
     itemInfo,
     targetGate,
-    gateObjective: input.gateObjective || {},
+    gateObjective: input.gateObjective,
     flowPreference: input.flowPreference,
     intent: input.requestedIntent || input.intent,
     config,
@@ -330,16 +322,15 @@ async function runScan(input = {}) {
   const mediaLibraryService = input.mediaLibraryService || mediaLibraryReader;
   const taskStore = input.taskStore || taskStoreReader || taskStoreModule;
   const ingestCandidateProvider = input.ingestCandidateProvider || candidateProvider || adultLibraryService.listIngestCandidates;
-  const explicitIntent = input.explicitIntent === true;
   const requestedSubLibraryId = String(input.subLibraryId || '').trim();
-  const source = explicitIntent ? 'manual' : 'auto';
+  const source = 'auto';
   return backgroundIoGuard.runExclusive({
     operation: 'smartTask.scan',
     component: 'smartTaskEngine',
     lockKey: BACKGROUND_IO_LOCK,
     resourceType: 'background_io',
     resourceKey: 'smartTask:scan',
-    source: explicitIntent ? 'manual' : 'background',
+    source: 'background',
   }, async () => {
     const runtimeEvent = runtimeResourceTracker.startEvent({
       eventType: 'smartTask.scan',
@@ -348,7 +339,6 @@ async function runScan(input = {}) {
       resourceKey: 'service:smart-task',
       resourceLabel: 'Smart task scan',
       payload: {
-        explicitIntent,
         subLibraryId: requestedSubLibraryId || undefined,
       },
     });
@@ -361,7 +351,6 @@ async function runScan(input = {}) {
       const enabledTaskTargets = readEnabledTaskTargets(cfg2);
       const enabledAutomation = automationSnapshot(cfg2);
       scanSummary = newScanSummary(enabledAutomation);
-      scanSummary.explicitIntent = explicitIntent;
       scanSummary.subLibraryId = requestedSubLibraryId || '';
       runtimeEvent.update({
         enabledTaskTargets: enabledAutomation.enabledTaskTargets,
@@ -369,8 +358,8 @@ async function runScan(input = {}) {
       });
       lastEnabledTaskTargets = enabledAutomation.enabledTaskTargets;
       lastAllowedOptimizeFlows = enabledAutomation.allowedOptimizeFlowKinds;
-      _enabled = enabledTaskTargets.length > 0 || explicitIntent;
-      if (!explicitIntent && enabledTaskTargets.length === 0) {
+      _enabled = enabledTaskTargets.length > 0;
+      if (enabledTaskTargets.length === 0) {
         lastRunAt = Date.now();
         finalStatus = 'skipped';
         finalPayload.reason = 'no_enabled_task_targets';
@@ -379,17 +368,20 @@ async function runScan(input = {}) {
 
       const maxPerRun = cfg2.smartTaskMaxPerRun || 10;
 
-      const libraryItems = typeof mediaLibraryService.getSmartTaskCandidateItems === 'function'
-        ? mediaLibraryService.getSmartTaskCandidateItems()
-        : ((mediaLibraryService.getLibrary() || {}).items || []);
-      if (!Array.isArray(libraryItems)) {
+      const lifecycleSnapshots = typeof mediaLibraryService.getLifecycleSnapshots === 'function'
+        ? mediaLibraryService.getLifecycleSnapshots()
+        : lifecycleProjection.toLifecycleSnapshots((mediaLibraryService.getLibrary() || {}).items || [], cfg2);
+      if (!Array.isArray(lifecycleSnapshots)) {
         finalStatus = 'skipped';
         finalPayload.reason = 'no_library_items';
         return finishScanSummary(scanSummary, finalStatus, { reason: 'no_library_items' });
       }
       const scopedLibraryItems = requestedSubLibraryId
-        ? libraryItems.filter((item) => item && item.subLibraryId === requestedSubLibraryId)
-        : libraryItems;
+        ? lifecycleSnapshots.filter((snapshot) => {
+          const item = snapshot && (snapshot.item || snapshot.itemInfo || snapshot);
+          return item && item.subLibraryId === requestedSubLibraryId;
+        })
+        : lifecycleSnapshots;
       runtimeEvent.update({ libraryItems: scopedLibraryItems.length });
       scanSummary.libraryItems = scopedLibraryItems.length;
 
@@ -400,7 +392,7 @@ async function runScan(input = {}) {
       const pressure = pressureSnapshot(activeTasks, cfg2);
       scanSummary.activeBacklogByTargetGate = pressure.byTargetGate;
       scanSummary.activeBacklogByResource = pressure.byResource;
-      if (!explicitIntent && cfg2.smartTaskDeferWhenActiveBacklog === true && scanSummary.activeBacklog > 0) {
+      if (cfg2.smartTaskDeferWhenActiveBacklog === true && scanSummary.activeBacklog > 0) {
         finalStatus = 'skipped';
         finalPayload.reason = 'active_task_backlog';
         finalPayload.activeBacklog = scanSummary.activeBacklog;
@@ -436,11 +428,9 @@ async function runScan(input = {}) {
       const candidates = scopedLibraryItems
         .map((item) => buildCandidate(item, { config: cfg2 }))
         .filter(Boolean);
-      const canDiscoverIngest = explicitIntent || enabledTaskTargets.includes('ingest');
-      if (canDiscoverIngest) {
+      if (enabledTaskTargets.includes('ingest')) {
         const provided = await Promise.resolve(ingestCandidateProvider(cfg2, {
           subLibraryId: requestedSubLibraryId || undefined,
-          explicitIntent,
           source,
         }) || []);
         for (const candidate of provided) {
@@ -503,8 +493,8 @@ async function runScan(input = {}) {
             itemInfo,
             logs: [{
               ts: new Date().toISOString(),
-              source: source === 'auto' ? 'smart_task_engine' : 'manual_scan',
-              event: source === 'auto' ? 'auto_enqueued' : 'manual_scan_enqueued',
+              source: 'smart_task_engine',
+              event: 'auto_enqueued',
             }],
           },
         });

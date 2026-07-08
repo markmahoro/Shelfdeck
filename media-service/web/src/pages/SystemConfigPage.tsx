@@ -83,6 +83,14 @@ const DEFAULT_GATE_QUEUE_LIMITS: Record<TaskTarget, number> = {
   delete: 50,
 };
 
+const DEFAULT_ATTEMPT_LIMITS: Record<TaskTarget, number> = {
+  ingest: 3,
+  metadata: 3,
+  optimize: 1,
+  archive: 1,
+  delete: 1,
+};
+
 function modeLabel(mode: ApprovalMode): string {
   if (mode === 'auto') return '自动';
   if (mode === 'forceConfirm') return '强制确认';
@@ -175,6 +183,7 @@ export default function SystemConfigPage() {
   const [globalApprovalPolicy, setGlobalApprovalPolicy] = useState<ApprovalPolicyConfig>(DEFAULT_APPROVAL_POLICY);
   const [gateCooldowns, setGateCooldowns] = useState<Record<TaskTarget, number>>(DEFAULT_GATE_COOLDOWNS);
   const [gateQueueLimits, setGateQueueLimits] = useState<Record<TaskTarget, number>>(DEFAULT_GATE_QUEUE_LIMITS);
+  const [attemptLimits, setAttemptLimits] = useState<Record<TaskTarget, number>>(DEFAULT_ATTEMPT_LIMITS);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showPriorityAdvanced, setShowPriorityAdvanced] = useState(false);
   const [showGlobalApproval, setShowGlobalApproval] = useState(false);
@@ -223,6 +232,10 @@ export default function SystemConfigPage() {
         setGateQueueLimits({
           ...DEFAULT_GATE_QUEUE_LIMITS,
           ...(sysCfg.taskAdmission?.maxQueuedByTargetGate || {}),
+        });
+        setAttemptLimits({
+          ...DEFAULT_ATTEMPT_LIMITS,
+          ...(sysCfg.taskAdmission?.automaticAttemptLimitsByTargetGate || {}),
         });
         const scheds: Record<string, SubLibScheduleState> = {};
         for (const sl of slRes.subLibraries || []) {
@@ -316,6 +329,7 @@ export default function SystemConfigPage() {
             defaultMaxQueued: data?.sysCfg.taskAdmission?.defaultMaxQueued ?? 50,
             cooldownHoursByTargetGate: gateCooldowns,
             maxQueuedByTargetGate: gateQueueLimits,
+            automaticAttemptLimitsByTargetGate: attemptLimits,
           },
           taskPriority: {
             manualTaskPriority: manualPrio,
@@ -380,8 +394,8 @@ export default function SystemConfigPage() {
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
 
       <section style={cardStyle}>
-        <h3 style={sectionTitle}>任务执行方式</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>任务执行方式决定任务创建后是否自动进入执行队列；后台是否自动创建任务由「后台自动入队」统一控制。</p>
+        <h3 style={sectionTitle}>任务进入队列方式</h3>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>这里只决定 task 创建后是否自动进入执行队列；是否自动创建 task 由「自动创建授权」控制。</p>
         {subLibs.length === 0 ? (
           <div style={emptyStyle}>暂无子库，请先在仪表盘添加媒体库</div>
         ) : (
@@ -430,8 +444,8 @@ export default function SystemConfigPage() {
       </section>
 
       <section style={cardStyle}>
-        <h3 style={sectionTitle}>审批策略</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>审批策略控制任务内部关键节点。子库未单独调整时，按全局策略执行；强制确认节点不可降级。</p>
+        <h3 style={sectionTitle}>任务执行与用户介入策略</h3>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>这些确认发生在 task 已创建并执行到对应 flow 节点之后，不影响是否自动创建任务。</p>
         <button onClick={() => setShowGlobalApproval((v) => !v)} style={collapseBtn}>
           {showGlobalApproval ? '收起全局策略' : '展开全局策略'}
         </button>
@@ -455,7 +469,7 @@ export default function SystemConfigPage() {
                   <div style={hintStyle}>{approvalSummary(sched.approvalPolicy)}</div>
                 </div>
                 <button onClick={() => toggleSubLibApproval(sl.uuid)} style={collapseBtn}>
-                  {expanded ? '收起审批策略' : '展开审批策略'}
+                  {expanded ? '收起介入策略' : '展开介入策略'}
                 </button>
               </div>
               {expanded && (
@@ -473,8 +487,8 @@ export default function SystemConfigPage() {
       </section>
 
       <section style={cardStyle}>
-        <h3 style={sectionTitle}>后台自动入队</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>后台自动入队分两层授权：先决定系统能不能自动创建某个 Gate 的任务，再决定优化任务里允许哪些操作路径。</p>
+        <h3 style={sectionTitle}>自动创建授权</h3>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>自动 task 只由系统周期扫描创建。信息变更只写 facts，不会立即触发任务；用户手动任务必须在具体媒体上创建。</p>
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>允许自动创建的任务目标</label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
@@ -489,7 +503,7 @@ export default function SystemConfigPage() {
             ))}
           </div>
           <div style={{ marginTop: 16 }}>
-            <label style={labelStyle}>优化任务允许的操作</label>
+            <label style={labelStyle}>优化任务允许的 Flow</label>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               {OPTIMIZE_FLOW_KINDS.map((flowKind) => (
                 <label key={flowKind.key} style={checkboxLabel}>
@@ -505,11 +519,11 @@ export default function SystemConfigPage() {
           </div>
           {automaticTaskTargets.length === 0 ? (
             <div style={warningBox}>
-              当前没有选择任何自动任务目标。媒体库仍会显示推荐方向，但系统不会自动创建任务；需要手动执行，或在这里授权对应 Gate 后保存。
+              当前没有选择任何自动任务目标。媒体库仍会显示生命周期状态，但系统周期扫描不会自动创建任务；需要在具体媒体上手动创建任务。
             </div>
           ) : automaticTaskTargets.includes('optimize') && optimizeAllowedFlowKinds.length === 0 ? (
             <div style={warningBox}>
-              已允许自动创建优化任务，但没有授权任何优化路径。系统不会自动创建转码或洗版任务。
+              已允许自动创建优化任务，但没有授权任何优化 Flow。系统不会自动创建可执行的优化任务。
             </div>
           ) : (
             <div style={infoBox}>
@@ -517,22 +531,27 @@ export default function SystemConfigPage() {
               {automaticTaskTargets.includes('optimize') ? ` 优化路径：${optimizeAllowedFlowKinds.map((key) => OPTIMIZE_FLOW_KINDS.find((flowKind) => flowKind.key === key)?.label || key).join('、') || '未授权'}。` : ''}
             </div>
           )}
-          <div style={{ ...hintStyle, marginTop: 8 }}>用户在具体条目上手动创建任务属于明确操作，不受这个自动入队开关拦截，但仍会保留 active task 去重等安全规则。</div>
+          <div style={{ ...hintStyle, marginTop: 8 }}>用户在具体条目上手动创建任务属于明确 intent，不受自动创建授权限制，但仍受 active task 去重、事实新鲜度和 destructive safety 保护。</div>
         </div>
         <button onClick={() => setShowAdvanced(!showAdvanced)} style={collapseBtn}>
           {showAdvanced ? '收起高级配置' : '展开高级配置'}
         </button>
         {showAdvanced && (
           <div style={advancedBox}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>周期扫描</div>
             <div style={fourColGrid}>
               <NumberField label="每轮最多入队数" value={smartTaskMax} min={1} max={100} onChange={setSmartTaskMax} />
-              <NumberField label="队列上限" value={smartTaskQueueMax} min={1} max={500} onChange={setSmartTaskQueueMax} />
               <NumberField label="轮询间隔（分钟）" value={smartTaskInterval} min={5} max={120} onChange={setSmartTaskInterval} />
               <NumberField label="优化目标计算间隔（分钟）" value={strategyInterval} min={10} max={360} onChange={setStrategyInterval} />
               <NumberField label="回溯天数" value={smartTaskLookback} min={1} max={365} onChange={setSmartTaskLookback} />
             </div>
             <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>失败/重复入队冷却</div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>创建保护</div>
+              <p style={{ ...hintStyle, marginBottom: 10 }}>创建保护发生在 TaskAdmission 之前，用于防重、防风暴和控制自动供给；它不是任务执行审批，也不是队列优先级。</p>
+              <NumberField label="全局队列上限" value={smartTaskQueueMax} min={1} max={500} onChange={setSmartTaskQueueMax} />
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>失败/重复创建冷却</div>
               <div style={fourColGrid}>
                 {TASK_TARGETS.map((target) => (
                   <NumberField
@@ -547,7 +566,7 @@ export default function SystemConfigPage() {
               </div>
             </div>
             <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>自动队列上限</div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>按 Gate 的自动创建上限</div>
               <div style={fourColGrid}>
                 {TASK_TARGETS.map((target) => (
                   <NumberField
@@ -557,6 +576,21 @@ export default function SystemConfigPage() {
                     min={1}
                     max={500}
                     onChange={(v) => setGateQueueLimits((prev) => ({ ...prev, [target.key]: v }))}
+                  />
+                ))}
+              </div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>自动尝试次数上限</div>
+              <div style={fourColGrid}>
+                {TASK_TARGETS.map((target) => (
+                  <NumberField
+                    key={target.key}
+                    label={target.label}
+                    value={attemptLimits[target.key]}
+                    min={0}
+                    max={20}
+                    onChange={(v) => setAttemptLimits((prev) => ({ ...prev, [target.key]: v }))}
                   />
                 ))}
               </div>

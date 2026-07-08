@@ -191,25 +191,27 @@ destructive 验收只允许作用于明确选中的 canary item。除非用户�
 - `sourceFacts / ingestFacts` 由 ingest task 刷新。
 - `mediaFacts / metadataFacts` 由 metadata task 刷新。
 - 不存在 Mirex 式直接 refresh 写权威事实绕过 task 的主路径。
+- 用户不能触发“扫描/刷新媒体库”这类全局 run-scan；自动创建只来自系统周期扫描，用户只能对具体媒体创建 targetGate task。
 
 执行：
 
-- 对 canary 或测试库触发公开 ingest scan intent。
-- 观察是否通过 SmartTaskEngine / TaskAdmission 生成 `targetGate=ingest` task。
-- 推进 ingest task。
-- 若 media/metadata stale，创建并推进 `targetGate=metadata` task。
-- 重新读取 facts 和 freshness。
+- 调用旧公开入口 `/v1/library/actions/ingest` 和 `/v1/library/actions/refresh`。
+- 验证两个入口都返回 `410 KAIROX_RUN_SCAN_REMOVED`。
+- 读取 canary facts/freshness projection。
+- 后续如需刷新事实，只能在具体媒体上创建 `targetGate=ingest` 或 `targetGate=metadata` task；该行为在 Stage 10 验证。
 
 通过标准：
 
 - ingest task 只负责 source/ingest ownership。
 - metadata task 负责 media/metadata ownership。
-- refresh intent 不是独立 targetGate 或 flowKind。
+- refresh / run-scan 不是用户可触发能力，不是独立 targetGate 或 flowKind。
+- 旧 run-scan API 不创建 task，不写 canonical facts。
 - executor 不链式创建后续 task。
 - freshness 从 stale/invalidated 变为 fresh 有明确 owner 证据。
 
 失败后动作：
 
+- 旧 run-scan API 仍可用：修 API 产品入口和前端入口，不继续 E2E。
 - domain module 直接 createTask：修 Source Adapter / Task Creator 边界。
 - refresh 直接写 canonical facts：修 fact ownership。
 - ingest / metadata 职责混写：修对应 executor 或 projection。

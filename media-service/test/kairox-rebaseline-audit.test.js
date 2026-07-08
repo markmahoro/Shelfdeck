@@ -22,7 +22,7 @@ test('Kairox rebaseline docs define User Perception and active roadmap', () => {
   assert.match(architecture, /metadata gate 不覆盖 user perception facts/);
   assert.match(architecture, /metadata gate passed` 不等于 `optimize objective ready/);
   assert.match(currentPlan, /Kairox Beta/);
-  assert.match(currentPlan, /refresh capability Kairox cutover/);
+  assert.match(currentPlan, /Kairox automation model closure/);
   assert.match(releaseGoals, /Kairox Beta/);
   assert.match(playbook, /User Perception Management/);
   assert.match(adr, /Douban 私人评分/);

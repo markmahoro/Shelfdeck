@@ -448,6 +448,7 @@ export interface SystemConfig {
     defaultMaxQueued?: number;
     cooldownHoursByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
     maxQueuedByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
+    automaticAttemptLimitsByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
   };
   deleteGatePolicy?: {
     enabled?: boolean;

@@ -1507,6 +1507,74 @@ test('smartTaskEngine does not auto-enqueue standard scrape when only rating fac
   assert.strictEqual(health.lastScanSummary.enqueued, 0);
 });
 
+test('smartTaskEngine consumes lifecycle snapshots instead of recalculating from lightweight items', async () => {
+  smartTaskEngine.stop();
+  smartTaskEngine.start(
+    {
+      loadConfig() {
+        return {
+          smartTaskInitialDelaySeconds: 0,
+          smartTaskPollIntervalMinutes: 10,
+          smartTaskMaxPerRun: 10,
+          smartTaskMaxQueueSize: 50,
+          automaticTaskTargets: ['metadata'],
+          optimizeAllowedFlowKinds: [],
+          smartTaskLookbackDays: 30,
+          taskPriority: {
+            autoTaskPriorityBase: 100,
+            targetGateWeights: { metadata: 80 },
+            rulesByTargetGate: { metadata: [] },
+          },
+          taskAdmission: {
+            cooldownHoursByTargetGate: { metadata: 0 },
+            maxQueuedByTargetGate: { metadata: 20 },
+          },
+        };
+      },
+    },
+    {
+      getLifecycleSnapshots() {
+        return [{
+          itemId: 'complete-from-snapshot',
+          item: {
+            itemId: 'complete-from-snapshot',
+            name: 'Complete From Snapshot',
+            subLibraryId: 'movie-lib',
+            metadataComplete: true,
+          },
+          itemInfo: {
+            itemId: 'complete-from-snapshot',
+            name: 'Complete From Snapshot',
+            subLibraryId: 'movie-lib',
+            metadataComplete: true,
+          },
+          nextTargetGate: null,
+          gateObjective: {},
+          lifecycleReason: 'metadata_complete',
+          factsFreshness: {},
+        }];
+      },
+      getLibrary() {
+        throw new Error('SmartTaskEngine should not recalculate lifecycle from raw library rows');
+      },
+    },
+    {
+      getTasks: () => [],
+      loadTasks: () => [],
+      createTask() {
+        throw new Error('snapshot without nextTargetGate must not create a task');
+      },
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  smartTaskEngine.stop();
+  const health = smartTaskEngine.getHealth();
+  assert.strictEqual(health.lastScanSummary.status, 'done');
+  assert.strictEqual(health.lastScanSummary.candidateCount, 0);
+  assert.strictEqual(health.lastScanSummary.enqueued, 0);
+});
+
 test('smartTaskEngine health explains queue-cap skips without creating tasks', async () => {
   smartTaskEngine.stop();
   const activeTasks = [{
@@ -1874,7 +1942,7 @@ test('smartTaskEngine auto-enqueues ingest candidates through unified priority b
   assert.strictEqual(created[0].source, 'auto');
 });
 
-test('smartTaskEngine runOnce treats manual refresh as explicit target-gate intent', async () => {
+test('smartTaskEngine runOnce does not bypass automatic task target authorization', async () => {
   smartTaskEngine.stop();
   const created = [];
   smartTaskEngine.start(
@@ -1903,8 +1971,8 @@ test('smartTaskEngine runOnce treats manual refresh as explicit target-gate inte
       },
     },
     {
-      getSmartTaskCandidateItems() {
-        return [];
+      getLibrary() {
+        return { items: [] };
       },
     },
     {
@@ -1935,13 +2003,11 @@ test('smartTaskEngine runOnce treats manual refresh as explicit target-gate inte
     },
   );
 
-  const summary = await smartTaskEngine.runOnce({ subLibraryId: 'emby-lib', explicitIntent: true });
+  const summary = await smartTaskEngine.runOnce({ subLibraryId: 'emby-lib' });
   smartTaskEngine.stop();
-  assert.strictEqual(summary.status, 'done');
-  assert.strictEqual(summary.enqueuedByTargetGate.ingest, 1);
-  assert.strictEqual(created.length, 1);
-  assert.strictEqual(created[0].source, 'manual');
-  assert.strictEqual(created[0].taskTarget.targetGate, 'ingest');
+  assert.strictEqual(summary.status, 'skipped');
+  assert.strictEqual(summary.reason, 'no_enabled_task_targets');
+  assert.strictEqual(created.length, 0);
 });
 
 test('smartTaskEngine runOnce respects duplicate active ingest tasks', async () => {
@@ -1961,7 +2027,7 @@ test('smartTaskEngine runOnce respects duplicate active ingest tasks', async () 
           smartTaskPollIntervalMinutes: 10,
           smartTaskMaxPerRun: 10,
           smartTaskMaxQueueSize: 50,
-          automaticTaskTargets: [],
+          automaticTaskTargets: ['ingest'],
           optimizeAllowedFlowKinds: [],
           subLibraries: [{ uuid: 'emby-lib', source: 'emby', automationMode: 'auto', priorityWeight: 100 }],
           taskPriority: {
@@ -1977,7 +2043,7 @@ test('smartTaskEngine runOnce respects duplicate active ingest tasks', async () 
         };
       },
     },
-    { getSmartTaskCandidateItems: () => [] },
+    { getLibrary: () => ({ items: [] }) },
     {
       getTasks: () => active,
       loadTasks: () => active,
@@ -2004,7 +2070,7 @@ test('smartTaskEngine runOnce respects duplicate active ingest tasks', async () 
     },
   );
 
-  const summary = await smartTaskEngine.runOnce({ subLibraryId: 'emby-lib', explicitIntent: true });
+  const summary = await smartTaskEngine.runOnce({ subLibraryId: 'emby-lib' });
   smartTaskEngine.stop();
   assert.strictEqual(summary.status, 'done');
   assert.strictEqual(summary.enqueued, 0);
