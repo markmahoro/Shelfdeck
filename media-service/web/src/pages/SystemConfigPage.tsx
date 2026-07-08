@@ -6,7 +6,8 @@ import type { PriorityRule } from '../api/client';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-type ActionType = 'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode';
+type TaskTarget = 'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete';
+type OptimizeFlowKind = 'transcode' | 'upgrade';
 type PriorityMatch = NonNullable<PriorityRule['match']>;
 type PriorityMatchKey = keyof PriorityMatch;
 
@@ -16,12 +17,17 @@ interface SubLibScheduleState {
   priorityWeight: number;
 }
 
-const ACTIONS: Array<{ key: ActionType; label: string }> = [
-  { key: 'ingest', label: '入库' },
-  { key: 'scrape', label: '刮削' },
-  { key: 'delete', label: '删除' },
-  { key: 'upgrade', label: '洗版' },
+const TASK_TARGETS: Array<{ key: TaskTarget; label: string; desc: string }> = [
+  { key: 'ingest', label: '自动入库', desc: '允许系统把外部候选纳入 ShelfDeck 管理' },
+  { key: 'metadata', label: '自动元数据', desc: '允许系统为元数据缺失或事实过期的条目创建元数据/媒体事实刷新任务' },
+  { key: 'optimize', label: '自动优化', desc: '允许系统为已具备优化目标的条目创建优化任务' },
+  { key: 'archive', label: '自动归档', desc: '允许系统为已完成处理的条目创建闭环归档任务' },
+  { key: 'delete', label: '删除处置', desc: '允许系统在用户确认后创建归档媒体的删除任务' },
+];
+
+const OPTIMIZE_FLOW_KINDS: Array<{ key: OptimizeFlowKind; label: string }> = [
   { key: 'transcode', label: '转码压缩' },
+  { key: 'upgrade', label: '洗版' },
 ];
 
 const APPROVAL_GATES: Array<{ key: string; label: string; desc: string; force?: boolean }> = [
@@ -48,28 +54,49 @@ const DEFAULT_APPROVAL_POLICY: ApprovalPolicyConfig = {
   'scrape.reviewResult': 'auto',
 };
 
-const DEFAULT_ACTION_WEIGHTS: Record<ActionType, number> = {
+const DEFAULT_TARGET_GATE_WEIGHTS: Record<TaskTarget, number> = {
   ingest: 60,
-  scrape: 80,
+  metadata: 80,
+  optimize: 110,
+  archive: 70,
   delete: 90,
-  upgrade: 110,
-  transcode: 130,
 };
 
-const DEFAULT_COOLDOWNS: Record<ActionType, number> = {
+const DEFAULT_OPTIMIZE_OPERATION_HINTS: Record<OptimizeFlowKind, number> = {
+  transcode: 20,
+  upgrade: 0,
+};
+
+const DEFAULT_GATE_COOLDOWNS: Record<TaskTarget, number> = {
   ingest: 6,
-  scrape: 6,
+  metadata: 6,
+  optimize: 48,
+  archive: 0,
   delete: 48,
-  upgrade: 48,
-  transcode: 48,
 };
 
-const DEFAULT_QUEUE_LIMITS: Record<ActionType, number> = {
+const DEFAULT_GATE_QUEUE_LIMITS: Record<TaskTarget, number> = {
   ingest: 50,
-  scrape: 20,
+  metadata: 20,
+  optimize: 50,
+  archive: 50,
   delete: 50,
-  upgrade: 50,
-  transcode: 50,
+};
+
+const DEFAULT_ATTEMPT_LIMITS: Record<TaskTarget, number> = {
+  ingest: 3,
+  metadata: 3,
+  optimize: 1,
+  archive: 1,
+  delete: 1,
+};
+
+const DEFAULT_MEDIA_FREEZE_HOURS: Record<TaskTarget, number> = {
+  ingest: 0,
+  metadata: 0,
+  optimize: 24,
+  archive: 0,
+  delete: 0,
 };
 
 function modeLabel(mode: ApprovalMode): string {
@@ -144,30 +171,34 @@ export default function SystemConfigPage() {
   const [upgradeConc, setUpgradeConc] = useState(1);
   const [scrapeConc, setScrapeConc] = useState(1);
   const [smartTaskMax, setSmartTaskMax] = useState(10);
-  const [smartTaskActions, setSmartTaskActions] = useState<string[]>(['ingest', 'scrape', 'transcode', 'upgrade']);
+  const [automaticTaskTargets, setAutomaticTaskTargets] = useState<TaskTarget[]>([]);
+  const [optimizeAllowedFlowKinds, setOptimizeAllowedFlowKinds] = useState<OptimizeFlowKind[]>([]);
   const [smartTaskInterval, setSmartTaskInterval] = useState(10);
   const [smartTaskLookback, setSmartTaskLookback] = useState(30);
   const [smartTaskQueueMax, setSmartTaskQueueMax] = useState(50);
   const [strategyInterval, setStrategyInterval] = useState(30);
   const [manualPrio, setManualPrio] = useState(0);
   const [autoPrioBase, setAutoPrioBase] = useState(100);
-  const [actionWeights, setActionWeights] = useState<Record<ActionType, number>>(DEFAULT_ACTION_WEIGHTS);
-  const [priorityRules, setPriorityRules] = useState<Record<ActionType, PriorityRule[]>>({
+  const [targetGateWeights, setTargetGateWeights] = useState<Record<TaskTarget, number>>(DEFAULT_TARGET_GATE_WEIGHTS);
+  const [optimizeOperationHints, setOptimizeOperationHints] = useState<Record<OptimizeFlowKind, number>>(DEFAULT_OPTIMIZE_OPERATION_HINTS);
+  const [priorityRulesByTargetGate, setPriorityRulesByTargetGate] = useState<Record<TaskTarget, PriorityRule[]>>({
     ingest: [],
-    scrape: [],
+    metadata: [],
+    optimize: [],
+    archive: [],
     delete: [],
-    upgrade: [],
-    transcode: [],
   });
   const [globalApprovalPolicy, setGlobalApprovalPolicy] = useState<ApprovalPolicyConfig>(DEFAULT_APPROVAL_POLICY);
-  const [cooldowns, setCooldowns] = useState<Record<ActionType, number>>(DEFAULT_COOLDOWNS);
-  const [queueLimits, setQueueLimits] = useState<Record<ActionType, number>>(DEFAULT_QUEUE_LIMITS);
+  const [gateCooldowns, setGateCooldowns] = useState<Record<TaskTarget, number>>(DEFAULT_GATE_COOLDOWNS);
+  const [gateQueueLimits, setGateQueueLimits] = useState<Record<TaskTarget, number>>(DEFAULT_GATE_QUEUE_LIMITS);
+  const [attemptLimits, setAttemptLimits] = useState<Record<TaskTarget, number>>(DEFAULT_ATTEMPT_LIMITS);
+  const [mediaFreezeHours, setMediaFreezeHours] = useState<Record<TaskTarget, number>>(DEFAULT_MEDIA_FREEZE_HOURS);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showPriorityAdvanced, setShowPriorityAdvanced] = useState(false);
   const [showGlobalApproval, setShowGlobalApproval] = useState(false);
   const [expandedApprovalLibs, setExpandedApprovalLibs] = useState<Record<string, boolean>>({});
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, error: loadError, refetch } = useQuery({
     queryKey: ['system-config-full'],
     queryFn: async () => {
       const [sysCfg, slRes] = await Promise.all([
@@ -181,24 +212,44 @@ export default function SystemConfigPage() {
         setUpgradeConc(sysCfg.upgradeConcurrency ?? 1);
         setScrapeConc(sysCfg.scrapeConcurrency ?? 1);
         setSmartTaskMax(sysCfg.smartTaskMaxPerRun ?? 10);
-        setSmartTaskActions(sysCfg.smartTaskEnabledActions ?? []);
+        setAutomaticTaskTargets((sysCfg.automaticTaskTargets as TaskTarget[] | undefined) ?? []);
+        setOptimizeAllowedFlowKinds((sysCfg.optimizeAllowedFlowKinds as OptimizeFlowKind[] | undefined) ?? []);
         setSmartTaskInterval(sysCfg.smartTaskPollIntervalMinutes ?? 10);
         setSmartTaskLookback(sysCfg.smartTaskLookbackDays ?? 30);
         setSmartTaskQueueMax(sysCfg.smartTaskMaxQueueSize ?? 50);
         setStrategyInterval(sysCfg.strategyPollIntervalMinutes ?? 30);
         setManualPrio(sysCfg.taskPriority?.manualTaskPriority ?? 0);
         setAutoPrioBase(sysCfg.taskPriority?.autoTaskPriorityBase ?? 100);
-        setActionWeights({ ...DEFAULT_ACTION_WEIGHTS, ...(sysCfg.taskPriority?.actionTypeWeights || {}) });
-        setPriorityRules({
-          ingest: sysCfg.taskPriority?.rules?.ingest || [],
-          scrape: sysCfg.taskPriority?.rules?.scrape || [],
-          delete: sysCfg.taskPriority?.rules?.delete || [],
-          upgrade: sysCfg.taskPriority?.rules?.upgrade || [],
-          transcode: sysCfg.taskPriority?.rules?.transcode || [],
+        setTargetGateWeights({
+          ...DEFAULT_TARGET_GATE_WEIGHTS,
+          ...(sysCfg.taskPriority?.targetGateWeights || {}),
+        });
+        setOptimizeOperationHints({ ...DEFAULT_OPTIMIZE_OPERATION_HINTS, ...(sysCfg.taskPriority?.optimizeOperationHints || {}) });
+        setPriorityRulesByTargetGate({
+          ingest: [],
+          metadata: [],
+          optimize: [],
+          archive: [],
+          delete: [],
+          ...(sysCfg.taskPriority?.rulesByTargetGate || {}),
         });
         setGlobalApprovalPolicy(normalizeApprovalPolicy(sysCfg.approvalPolicy));
-        setCooldowns({ ...DEFAULT_COOLDOWNS, ...(sysCfg.taskAdmission?.cooldownHoursByAction || {}) });
-        setQueueLimits({ ...DEFAULT_QUEUE_LIMITS, ...(sysCfg.taskAdmission?.maxQueuedByAction || {}) });
+        setGateCooldowns({
+          ...DEFAULT_GATE_COOLDOWNS,
+          ...(sysCfg.taskAdmission?.cooldownHoursByTargetGate || {}),
+        });
+        setGateQueueLimits({
+          ...DEFAULT_GATE_QUEUE_LIMITS,
+          ...(sysCfg.taskAdmission?.maxQueuedByTargetGate || {}),
+        });
+        setAttemptLimits({
+          ...DEFAULT_ATTEMPT_LIMITS,
+          ...(sysCfg.taskAdmission?.automaticAttemptLimitsByTargetGate || {}),
+        });
+        setMediaFreezeHours({
+          ...DEFAULT_MEDIA_FREEZE_HOURS,
+          ...(sysCfg.taskAdmission?.mediaFreezeHoursByCompletedTargetGate || {}),
+        });
         const scheds: Record<string, SubLibScheduleState> = {};
         for (const sl of slRes.subLibraries || []) {
           const legacyManual = sl.scheduleMode === 'full_manual' || sl.autoExecute === false;
@@ -217,8 +268,22 @@ export default function SystemConfigPage() {
 
   const subLibs = data?.subLibs || [];
 
-  function toggleAction(a: string) {
-    setSmartTaskActions((prev) => prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]);
+  function toggleTaskTarget(target: TaskTarget) {
+    setAutomaticTaskTargets((prev) => {
+      const next = prev.includes(target) ? prev.filter((x) => x !== target) : [...prev, target];
+      if (!next.includes('optimize')) setOptimizeAllowedFlowKinds([]);
+      return next;
+    });
+  }
+
+  function toggleOptimizeFlowKind(flowKind: OptimizeFlowKind) {
+    setOptimizeAllowedFlowKinds((prev) => {
+      const next = prev.includes(flowKind) ? prev.filter((x) => x !== flowKind) : [...prev, flowKind];
+      if (next.length > 0 && !automaticTaskTargets.includes('optimize')) {
+        setAutomaticTaskTargets((targets) => targets.includes('optimize') ? targets : [...targets, 'optimize']);
+      }
+      return next;
+    });
   }
 
   function updateSubLib(uuid: string, patch: Partial<SubLibScheduleState>) {
@@ -233,17 +298,17 @@ export default function SystemConfigPage() {
     setExpandedApprovalLibs((prev) => ({ ...prev, [uuid]: !prev[uuid] }));
   }
 
-  function addPriorityRule(at: ActionType) {
-    setPriorityRules((prev) => ({
+  function addPriorityRule(target: TaskTarget) {
+    setPriorityRulesByTargetGate((prev) => ({
       ...prev,
-      [at]: [...(prev[at] || []), { match: { subLibraryId: subLibs[0]?.uuid || '' }, adjust: { op: 'subtract', value: 50 } }],
+      [target]: [...(prev[target] || []), { match: { subLibraryId: subLibs[0]?.uuid || '' }, adjust: { op: 'subtract', value: 50 } }],
     }));
   }
 
-  function updatePriorityRule(at: ActionType, idx: number, patch: Partial<PriorityRule>) {
-    setPriorityRules((prev) => ({
+  function updatePriorityRule(target: TaskTarget, idx: number, patch: Partial<PriorityRule>) {
+    setPriorityRulesByTargetGate((prev) => ({
       ...prev,
-      [at]: (prev[at] || []).map((r, i) => (
+      [target]: (prev[target] || []).map((r, i) => (
         i === idx
           ? { ...r, ...patch, match: { ...r.match, ...(patch.match || {}) }, adjust: { ...r.adjust, ...(patch.adjust || {}) } }
           : r
@@ -251,8 +316,8 @@ export default function SystemConfigPage() {
     }));
   }
 
-  function removePriorityRule(at: ActionType, idx: number) {
-    setPriorityRules((prev) => ({ ...prev, [at]: (prev[at] || []).filter((_, i) => i !== idx) }));
+  function removePriorityRule(target: TaskTarget, idx: number) {
+    setPriorityRulesByTargetGate((prev) => ({ ...prev, [target]: (prev[target] || []).filter((_, i) => i !== idx) }));
   }
 
   const saveMutation = useMutation({
@@ -265,7 +330,8 @@ export default function SystemConfigPage() {
           upgradeConcurrency: upgradeConc,
           scrapeConcurrency: scrapeConc,
           smartTaskMaxPerRun: smartTaskMax,
-          smartTaskEnabledActions: smartTaskActions,
+          automaticTaskTargets,
+          optimizeAllowedFlowKinds,
           smartTaskPollIntervalMinutes: smartTaskInterval,
           smartTaskLookbackDays: smartTaskLookback,
           smartTaskMaxQueueSize: smartTaskQueueMax,
@@ -274,14 +340,17 @@ export default function SystemConfigPage() {
           taskAdmission: {
             defaultCooldownHours: data?.sysCfg.taskAdmission?.defaultCooldownHours ?? 48,
             defaultMaxQueued: data?.sysCfg.taskAdmission?.defaultMaxQueued ?? 50,
-            cooldownHoursByAction: cooldowns,
-            maxQueuedByAction: queueLimits,
+            cooldownHoursByTargetGate: gateCooldowns,
+            maxQueuedByTargetGate: gateQueueLimits,
+            automaticAttemptLimitsByTargetGate: attemptLimits,
+            mediaFreezeHoursByCompletedTargetGate: mediaFreezeHours,
           },
           taskPriority: {
             manualTaskPriority: manualPrio,
             autoTaskPriorityBase: autoPrioBase,
-            actionTypeWeights: actionWeights,
-            rules: priorityRules,
+            targetGateWeights,
+            optimizeOperationHints,
+            rulesByTargetGate: priorityRulesByTargetGate,
           },
         }),
       ];
@@ -309,15 +378,38 @@ export default function SystemConfigPage() {
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
 
-  if (isLoading) return <LoadingSpinner />;
+  if (isLoading) {
+    return (
+      <div>
+        <LoadingSpinner text="加载设置页..." />
+        <div style={{ ...hintStyle, marginTop: 12 }}>
+          正在请求 /v1/config 和 /v1/admin/sublibraries。
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div>
+        <Alert
+          type="error"
+          message={`设置页加载失败：${loadError instanceof Error ? loadError.message : 'GET /v1/config failed'}`}
+        />
+        <button type="button" onClick={() => void refetch()} style={primaryBtn}>
+          {isFetching ? '重试中...' : '重试加载'}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
       {alert && <Alert type={alert.type} message={alert.msg} onClose={() => setAlert(null)} autoCloseMs={3000} />}
 
       <section style={cardStyle}>
-        <h3 style={sectionTitle}>任务执行方式</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>任务执行方式决定任务创建后是否自动进入执行队列；后台是否自动创建任务由「后台自动入队」统一控制。</p>
+        <h3 style={sectionTitle}>任务进入队列方式</h3>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>这里只决定 task 创建后是否自动进入执行队列；是否自动创建 task 由「自动创建授权」控制。</p>
         {subLibs.length === 0 ? (
           <div style={emptyStyle}>暂无子库，请先在仪表盘添加媒体库</div>
         ) : (
@@ -366,8 +458,8 @@ export default function SystemConfigPage() {
       </section>
 
       <section style={cardStyle}>
-        <h3 style={sectionTitle}>审批策略</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>审批策略控制任务内部关键节点。子库未单独调整时，按全局策略执行；强制确认节点不可降级。</p>
+        <h3 style={sectionTitle}>任务执行与用户介入策略</h3>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>这些确认发生在 task 已创建并执行到对应 flow 节点之后，不影响是否自动创建任务。</p>
         <button onClick={() => setShowGlobalApproval((v) => !v)} style={collapseBtn}>
           {showGlobalApproval ? '收起全局策略' : '展开全局策略'}
         </button>
@@ -391,7 +483,7 @@ export default function SystemConfigPage() {
                   <div style={hintStyle}>{approvalSummary(sched.approvalPolicy)}</div>
                 </div>
                 <button onClick={() => toggleSubLibApproval(sl.uuid)} style={collapseBtn}>
-                  {expanded ? '收起审批策略' : '展开审批策略'}
+                  {expanded ? '收起介入策略' : '展开介入策略'}
                 </button>
               </div>
               {expanded && (
@@ -409,79 +501,126 @@ export default function SystemConfigPage() {
       </section>
 
       <section style={cardStyle}>
-        <h3 style={sectionTitle}>任务并发数</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>执行阶段的全局并发上限。</p>
-        <div style={fourColGrid}>
-          <NumberField label="入库并发" value={ingestConc} min={1} max={10} onChange={setIngestConc} />
-          <NumberField label="删除并发" value={deleteConc} min={1} max={10} onChange={setDeleteConc} />
-          <NumberField label="转码并发" value={transcodeConc} min={1} max={10} onChange={setTranscodeConc} />
-          <NumberField label="洗版并发" value={upgradeConc} min={1} max={10} onChange={setUpgradeConc} />
-          <NumberField label="刮削并发" value={scrapeConc} min={1} max={10} onChange={setScrapeConc} />
-        </div>
-      </section>
-
-      <section style={cardStyle}>
-        <h3 style={sectionTitle}>后台自动入队</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>后台自动入队统一控制系统自动创建哪些任务，包括普通媒体库推荐策略、入库任务后的后续动作，以及其他后台来源。</p>
+        <h3 style={sectionTitle}>自动创建授权</h3>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>自动 task 只由系统周期扫描创建。信息变更只写 facts，不会立即触发任务；用户手动任务必须在具体媒体上创建。</p>
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>允许自动创建的任务类型</label>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            {ACTIONS.map((a) => (
-              <label key={a.key} style={checkboxLabel}>
-                <input type="checkbox" checked={smartTaskActions.includes(a.key)} onChange={() => toggleAction(a.key)} />
-                {a.label}
+          <label style={labelStyle}>允许自动创建的任务目标</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+            {TASK_TARGETS.map((target) => (
+              <label key={target.key} style={checkboxCard}>
+                <input type="checkbox" checked={automaticTaskTargets.includes(target.key)} onChange={() => toggleTaskTarget(target.key)} />
+                <span>
+                  <strong>{target.label}</strong>
+                  <small>{target.desc}</small>
+                </span>
               </label>
             ))}
           </div>
-          {smartTaskActions.length === 0 ? (
+          <div style={{ marginTop: 16 }}>
+            <label style={labelStyle}>优化任务允许的 Flow</label>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              {OPTIMIZE_FLOW_KINDS.map((flowKind) => (
+                <label key={flowKind.key} style={checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={optimizeAllowedFlowKinds.includes(flowKind.key)}
+                    onChange={() => toggleOptimizeFlowKind(flowKind.key)}
+                  />
+                  {flowKind.label}
+                </label>
+              ))}
+            </div>
+          </div>
+          {automaticTaskTargets.length === 0 ? (
             <div style={warningBox}>
-              当前没有选择任何任务类型。媒体库仍会显示“转码压缩、洗版、删除、刮削”等推荐策略，但系统不会自动创建这些任务；需要手动执行，或在这里勾选对应类型后保存。
+              当前没有选择任何自动任务目标。媒体库仍会显示生命周期状态，但系统周期扫描不会自动创建任务；需要在具体媒体上手动创建任务。
+            </div>
+          ) : automaticTaskTargets.includes('optimize') && optimizeAllowedFlowKinds.length === 0 ? (
+            <div style={warningBox}>
+              已允许自动创建优化任务，但没有授权任何优化 Flow。系统不会自动创建可执行的优化任务。
             </div>
           ) : (
             <div style={infoBox}>
-              当前允许自动创建：{smartTaskActions.map((key) => ACTIONS.find((a) => a.key === key)?.label || key).join('、')}。
+              当前允许自动任务目标：{automaticTaskTargets.map((key) => TASK_TARGETS.find((target) => target.key === key)?.label || key).join('、')}。
+              {automaticTaskTargets.includes('optimize') ? ` 优化路径：${optimizeAllowedFlowKinds.map((key) => OPTIMIZE_FLOW_KINDS.find((flowKind) => flowKind.key === key)?.label || key).join('、') || '未授权'}。` : ''}
             </div>
           )}
-          <div style={{ ...hintStyle, marginTop: 8 }}>用户在具体条目上手动创建任务属于明确操作，不受这个自动入队开关拦截，但仍会保留 active task 去重等安全规则。</div>
+          <div style={{ ...hintStyle, marginTop: 8 }}>用户在具体条目上手动创建任务属于明确 intent，不受自动创建授权限制，但仍受 active task 去重、事实新鲜度和 destructive safety 保护。</div>
         </div>
         <button onClick={() => setShowAdvanced(!showAdvanced)} style={collapseBtn}>
           {showAdvanced ? '收起高级配置' : '展开高级配置'}
         </button>
         {showAdvanced && (
           <div style={advancedBox}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>周期扫描</div>
             <div style={fourColGrid}>
               <NumberField label="每轮最多入队数" value={smartTaskMax} min={1} max={100} onChange={setSmartTaskMax} />
-              <NumberField label="队列上限" value={smartTaskQueueMax} min={1} max={500} onChange={setSmartTaskQueueMax} />
               <NumberField label="轮询间隔（分钟）" value={smartTaskInterval} min={5} max={120} onChange={setSmartTaskInterval} />
-              <NumberField label="策略计算间隔（分钟）" value={strategyInterval} min={10} max={360} onChange={setStrategyInterval} />
+              <NumberField label="优化目标计算间隔（分钟）" value={strategyInterval} min={10} max={360} onChange={setStrategyInterval} />
               <NumberField label="回溯天数" value={smartTaskLookback} min={1} max={365} onChange={setSmartTaskLookback} />
             </div>
             <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>失败/重复入队冷却</div>
-              <div style={fiveColGrid}>
-                {ACTIONS.map((a) => (
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>创建保护</div>
+              <p style={{ ...hintStyle, marginBottom: 10 }}>创建保护发生在 TaskAdmission 之前，用于防重、防风暴和控制自动供给；它不是任务执行审批，也不是队列优先级。</p>
+              <NumberField label="全局队列上限" value={smartTaskQueueMax} min={1} max={500} onChange={setSmartTaskQueueMax} />
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>失败/重复创建冷却</div>
+              <div style={fourColGrid}>
+                {TASK_TARGETS.map((target) => (
                   <NumberField
-                    key={a.key}
-                    label={`${a.label}（小时）`}
-                    value={cooldowns[a.key]}
+                    key={target.key}
+                    label={`${target.label}（小时）`}
+                    value={gateCooldowns[target.key]}
                     min={0}
                     max={240}
-                    onChange={(v) => setCooldowns((prev) => ({ ...prev, [a.key]: v }))}
+                    onChange={(v) => setGateCooldowns((prev) => ({ ...prev, [target.key]: v }))}
                   />
                 ))}
               </div>
             </div>
             <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>自动队列上限</div>
-              <div style={fiveColGrid}>
-                {ACTIONS.map((a) => (
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>按 Gate 的自动创建上限</div>
+              <div style={fourColGrid}>
+                {TASK_TARGETS.map((target) => (
                   <NumberField
-                    key={a.key}
-                    label={a.label}
-                    value={queueLimits[a.key]}
+                    key={target.key}
+                    label={target.label}
+                    value={gateQueueLimits[target.key]}
                     min={1}
                     max={500}
-                    onChange={(v) => setQueueLimits((prev) => ({ ...prev, [a.key]: v }))}
+                    onChange={(v) => setGateQueueLimits((prev) => ({ ...prev, [target.key]: v }))}
+                  />
+                ))}
+              </div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>自动尝试次数上限</div>
+              <div style={fourColGrid}>
+                {TASK_TARGETS.map((target) => (
+                  <NumberField
+                    key={target.key}
+                    label={target.label}
+                    value={attemptLimits[target.key]}
+                    min={0}
+                    max={20}
+                    onChange={(v) => setAttemptLimits((prev) => ({ ...prev, [target.key]: v }))}
+                  />
+                ))}
+              </div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>任务后媒体冻结</div>
+              <p style={{ ...hintStyle, marginBottom: 10 }}>媒体级冻结用于等待外部系统完成后处理；冻结期内不会为同一媒体创建任何新任务。</p>
+              <div style={fourColGrid}>
+                {TASK_TARGETS.map((target) => (
+                  <NumberField
+                    key={target.key}
+                    label={`${target.label}完成后（小时）`}
+                    value={mediaFreezeHours[target.key]}
+                    min={0}
+                    max={240}
+                    onChange={(v) => setMediaFreezeHours((prev) => ({ ...prev, [target.key]: v }))}
                   />
                 ))}
               </div>
@@ -492,18 +631,30 @@ export default function SystemConfigPage() {
 
       <section style={cardStyle}>
         <h3 style={sectionTitle}>队列优先级</h3>
-        <p style={{ ...hintStyle, marginBottom: 16 }}>数值越小越优先。最终优先级由来源权重、任务类型权重、子库权重、业务信号、等待时间、重试惩罚和高级规则叠加计算。</p>
+        <p style={{ ...hintStyle, marginBottom: 16 }}>数值越小越优先。最终优先级由来源权重、目标 Gate 权重、优化操作提示、子库权重、业务信号、等待时间、重试惩罚和高级规则叠加计算。</p>
         <div style={fourColGrid}>
           <NumberField label="手动来源权重" value={manualPrio} min={0} max={999} onChange={setManualPrio} />
           <NumberField label="自动来源权重" value={autoPrioBase} min={0} max={999} onChange={setAutoPrioBase} />
-          {ACTIONS.map((a) => (
+          {TASK_TARGETS.map((target) => (
             <NumberField
-              key={a.key}
-              label={`${a.label}类型权重`}
-              value={actionWeights[a.key]}
+              key={target.key}
+              label={`${target.label}权重`}
+              value={targetGateWeights[target.key]}
               min={0}
               max={999}
-              onChange={(v) => setActionWeights((prev) => ({ ...prev, [a.key]: v }))}
+              onChange={(v) => setTargetGateWeights((prev) => ({ ...prev, [target.key]: v }))}
+            />
+          ))}
+        </div>
+        <div style={{ ...fourColGrid, marginTop: 16 }}>
+          {OPTIMIZE_FLOW_KINDS.map((operation) => (
+            <NumberField
+              key={operation.key}
+              label={`${operation.label}提示`}
+              value={optimizeOperationHints[operation.key]}
+              min={-999}
+              max={999}
+              onChange={(v) => setOptimizeOperationHints((prev) => ({ ...prev, [operation.key]: v }))}
             />
           ))}
         </div>
@@ -514,29 +665,29 @@ export default function SystemConfigPage() {
           {showPriorityAdvanced && (
             <div style={advancedBox}>
               <p style={{ ...hintStyle, marginBottom: 12 }}>规则按顺序叠加到当前分数上：更优先会减分，延后会加分；不使用绝对覆盖。</p>
-              {ACTIONS.map((at) => (
-                <div key={at.key} style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{at.label}</div>
-                  {(priorityRules[at.key] || []).map((rule, idx) => (
+              {TASK_TARGETS.map((target) => (
+                <div key={target.key} style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{target.label}</div>
+                  {(priorityRulesByTargetGate[target.key] || []).map((rule, idx) => (
                     <div key={idx} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-                      <select value={rule.adjust.op} onChange={(e) => updatePriorityRule(at.key, idx, { adjust: { ...rule.adjust, op: e.target.value as PriorityRule['adjust']['op'] } })} style={{ ...inputStyle, width: 90 }}>
+                      <select value={rule.adjust.op} onChange={(e) => updatePriorityRule(target.key, idx, { adjust: { ...rule.adjust, op: e.target.value as PriorityRule['adjust']['op'] } })} style={{ ...inputStyle, width: 90 }}>
                         <option value="subtract">更优先 -</option>
                         <option value="add">延后 +</option>
                       </select>
-                      <input type="number" value={rule.adjust.value} onChange={(e) => updatePriorityRule(at.key, idx, { adjust: { ...rule.adjust, value: parseInt(e.target.value, 10) || 0 } })} style={{ ...inputStyle, width: 70 }} />
+                      <input type="number" value={rule.adjust.value} onChange={(e) => updatePriorityRule(target.key, idx, { adjust: { ...rule.adjust, value: parseInt(e.target.value, 10) || 0 } })} style={{ ...inputStyle, width: 70 }} />
                       <span style={{ fontSize: 11, color: '#999' }}>当</span>
-                      <select value={firstMatchKey(rule.match)} onChange={(e) => updatePriorityRule(at.key, idx, { match: setSingleMatch(rule.match, e.target.value) })} style={{ ...inputStyle, width: 120 }}>
+                      <select value={firstMatchKey(rule.match)} onChange={(e) => updatePriorityRule(target.key, idx, { match: setSingleMatch(rule.match, e.target.value) })} style={{ ...inputStyle, width: 120 }}>
                         <option value="subLibraryId">媒体库</option>
                         <option value="type">类型</option>
                         <option value="isDiscLike">原盘</option>
                         <option value="isDolbyVision">杜比视界</option>
                         <option value="resolution">分辨率前缀</option>
                       </select>
-                      <MatchValueInput rule={rule} subLibs={subLibs} onChange={(val) => updatePriorityRule(at.key, idx, { match: setSingleMatchValue(rule.match, val) })} />
-                      <button onClick={() => removePriorityRule(at.key, idx)} style={deleteTextBtn}>删除</button>
+                      <MatchValueInput rule={rule} subLibs={subLibs} onChange={(val) => updatePriorityRule(target.key, idx, { match: setSingleMatchValue(rule.match, val) })} />
+                      <button onClick={() => removePriorityRule(target.key, idx)} style={deleteTextBtn}>删除</button>
                     </div>
                   ))}
-                  <button onClick={() => addPriorityRule(at.key)} style={dashBtn}>+ 添加规则</button>
+                  <button onClick={() => addPriorityRule(target.key)} style={dashBtn}>+ 添加规则</button>
                 </div>
               ))}
             </div>
@@ -716,6 +867,18 @@ const checkboxLabel: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+const checkboxCard: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 8,
+  border: '1px solid #e2e5ea',
+  borderRadius: 6,
+  padding: 10,
+  fontSize: 13,
+  cursor: 'pointer',
+  background: '#fff',
+};
+
 const collapseBtn: React.CSSProperties = {
   background: 'none',
   border: '1px solid #d9d9d9',
@@ -760,12 +923,6 @@ const fourColGrid: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(4, minmax(130px, 1fr))',
   gap: 16,
-};
-
-const fiveColGrid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(5, minmax(120px, 1fr))',
-  gap: 12,
 };
 
 const emptyStyle: React.CSSProperties = {

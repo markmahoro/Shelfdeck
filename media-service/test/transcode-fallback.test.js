@@ -13,6 +13,8 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { EventEmitter } = require('events');
+const os = require('os');
+const path = require('path');
 
 const transcodeService = require('../src/services/transcodeService');
 
@@ -49,6 +51,42 @@ function makeFakeSpawn({ gpuExitCode = 187, gpuStderr = 'qsv init failed: No cap
 
 const config = () => ({ ffmpegPath: FAKE_BIN, ffprobePath: FAKE_BIN, transcodeTempRoot: '/tmp' });
 
+function makeFakeRunCmdForDvPlan({
+  libplaceboOk = false,
+  softwareOk = true,
+  software10Ok = null,
+  software8Ok = null,
+  includeSoftwareFilters = true,
+} = {}) {
+  const calls = [];
+  const filterLines = [
+    ' ... libplacebo        V->V       Apply various GPU filters from libplacebo',
+    includeSoftwareFilters ? ' ... zscale            V->V       Apply resizing, colorspace and bit depth conversion' : '',
+    includeSoftwareFilters ? ' ... tonemap           V->V       Conversion to/from different dynamic ranges' : '',
+  ].filter(Boolean).join('\n');
+  const fn = async function fakeRunCmd(bin, args) {
+    const argv = Array.isArray(args) ? args.join(' ') : String(args);
+    calls.push({ bin, argv });
+    if (argv.includes('-filters')) return { code: 0, out: filterLines, err: '' };
+    if (argv.includes('libplacebo=tonemapping')) {
+      return libplaceboOk
+        ? { code: 0, out: '', err: '' }
+        : { code: 187, out: '', err: 'Failed initializing vulkan device' };
+    }
+    if (argv.includes('zscale=') && argv.includes('tonemap=tonemap=hable')) {
+      const is10Bit = argv.includes('r=tv,format=yuv420p10le');
+      const ok = is10Bit
+        ? (software10Ok == null ? softwareOk : software10Ok)
+        : (software8Ok == null ? softwareOk : software8Ok);
+      return ok
+        ? { code: 0, out: '', err: '' }
+        : { code: 1, out: '', err: is10Bit ? 'libx265 10-bit failed' : 'zscale 8-bit failed' };
+    }
+    return { code: 0, out: '', err: '' };
+  };
+  return { fn, calls };
+}
+
 test('findCpuSlot returns the CPU device from an ordered pool', () => {
   const pool = [
     { deviceId: 'qsv:0', maxSlots: 1, cpuBackupOnly: false },
@@ -65,6 +103,135 @@ test('normalizeEncodeError turns a rejection object into a diagnostic Error', ()
   assert.ok(/qsv init failed/.test(e.message));
   const real = new Error('spawn ENOENT');
   assert.strictEqual(transcodeService.normalizeEncodeError(real), real);
+});
+
+test('resolveDolbyVisionTonemapPlan falls back to software tonemap when libplacebo runtime fails', async () => {
+  const { fn, calls } = makeFakeRunCmdForDvPlan({ libplaceboOk: false, softwareOk: true });
+  transcodeService._setRunCmdForTest(fn);
+  try {
+    const plan = await transcodeService.resolveDolbyVisionTonemapPlan(config(), { forceRefresh: true });
+    assert.strictEqual(plan.ok, true);
+    assert.strictEqual(plan.mode, 'software');
+    assert.strictEqual(plan.bitDepth, 10);
+    assert.strictEqual(plan.pixelFormat, 'yuv420p10le');
+    assert.ok(/setparams=.*bt2020/.test(plan.filterGraph));
+    assert.ok(/zscale/.test(plan.filterGraph));
+    assert.ok(/tonemap=hable/.test(plan.filterGraph));
+    assert.ok(/vulkan/i.test(plan.libplaceboError));
+    assert.ok(calls.some((c) => c.argv.includes('libplacebo=tonemapping')), 'libplacebo self-test should run');
+    assert.ok(calls.some((c) => c.argv.includes('tonemap=tonemap=hable')), 'software self-test should run');
+  } finally {
+    transcodeService._setRunCmdForTest(null);
+  }
+});
+
+test('resolveDolbyVisionTonemapPlan falls back to 8-bit software tonemap when x265 cannot encode 10-bit', async () => {
+  const { fn, calls } = makeFakeRunCmdForDvPlan({ libplaceboOk: false, software10Ok: false, software8Ok: true });
+  transcodeService._setRunCmdForTest(fn);
+  try {
+    const plan = await transcodeService.resolveDolbyVisionTonemapPlan(config(), { forceRefresh: true });
+    assert.strictEqual(plan.ok, true);
+    assert.strictEqual(plan.mode, 'software');
+    assert.strictEqual(plan.bitDepth, 8);
+    assert.strictEqual(plan.pixelFormat, 'yuv420p');
+    assert.ok(/format=yuv420p(?:,|$)/.test(plan.filterGraph));
+    assert.ok(/10-bit/i.test(plan.softwareError));
+    assert.ok(calls.some((c) => c.argv.includes('format=yuv420p10le') && c.argv.includes('-c:v libx265')), '10-bit encode self-test should run');
+    assert.ok(calls.some((c) => c.argv.includes('format=yuv420p') && c.argv.includes('-c:v libx265')), '8-bit encode self-test should run');
+  } finally {
+    transcodeService._setRunCmdForTest(null);
+  }
+});
+
+test('resolveDolbyVisionTonemapPlan reports unavailable when both DV tonemap paths fail', async () => {
+  const { fn } = makeFakeRunCmdForDvPlan({ libplaceboOk: false, softwareOk: false });
+  transcodeService._setRunCmdForTest(fn);
+  try {
+    const plan = await transcodeService.resolveDolbyVisionTonemapPlan(config(), { forceRefresh: true });
+    assert.strictEqual(plan.ok, false);
+    assert.strictEqual(plan.mode, 'unavailable');
+    assert.ok(/libplacebo/i.test(plan.message));
+    assert.ok(/software fallback/i.test(plan.message));
+  } finally {
+    transcodeService._setRunCmdForTest(null);
+  }
+});
+
+test('buildEncodeArgs uses selected Dolby Vision software tonemap filter and CPU encoder', () => {
+  const customFilter = 'zscale=t=linear,tonemap=tonemap=hable,format=yuv420p10le';
+  const built = transcodeService._buildEncodeArgsForTest({
+    config: config(),
+    sourcePath: '/src-dv.mkv',
+    partialPath: '/out-dv.mkv',
+    encoderMode: 'qsv',
+    isDolbyVision: true,
+    dvAcknowledged: true,
+    targetBitrate: 5,
+    dolbyVisionTonemap: { mode: 'software', filterGraph: customFilter },
+  });
+  const vfIndex = built.args.indexOf('-vf');
+  const codecIndex = built.args.indexOf('-c:v');
+  assert.ok(vfIndex >= 0, 'DV encode should include a video filter');
+  assert.strictEqual(built.args[vfIndex + 1], customFilter);
+  assert.ok(codecIndex >= 0, 'DV encode should set a video codec');
+  assert.strictEqual(built.args[codecIndex + 1], 'libx265');
+  assert.ok(!built.args.includes('hevc_qsv'), 'DV encode should not use QSV codec when acknowledged');
+});
+
+test('buildEncodeArgs uses strict QSV CBR for bitrate target hit attempts', () => {
+  const built = transcodeService._buildEncodeArgsForTest({
+    config: config(),
+    sourcePath: '/src.mkv',
+    partialPath: '/out.mkv',
+    encoderMode: 'qsv',
+    isDolbyVision: false,
+    dvAcknowledged: false,
+    targetBitrate: 1.5,
+    bitrateProfile: { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+    rateControlStrategy: 'qsv_cbr',
+  });
+  const argv = built.args.join(' ');
+  assert.match(argv, /-c:v hevc_qsv/);
+  assert.match(argv, /-b:v 1\.5M/);
+  assert.match(argv, /-minrate 1\.5M/);
+  assert.match(argv, /-maxrate 1\.5M/);
+  assert.match(argv, /-bufsize 3M/);
+  assert.ok(!built.args.includes('-rc'), 'CBR attempt should not use QSV VBR rc flag');
+});
+
+test('buildTwoPassEncodeArgs creates CPU libx265 two-pass ABR commands', () => {
+  const built = transcodeService._buildTwoPassEncodeArgsForTest({
+    config: config(),
+    sourcePath: '/src.mkv',
+    partialPath: path.join(os.tmpdir(), 'out-two-pass.mkv'),
+    targetBitrate: 1.5,
+    bitrateProfile: { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+    isDolbyVision: false,
+    dvAcknowledged: false,
+  });
+  const first = built.firstPassArgs.join(' ');
+  const second = built.secondPassArgs.join(' ');
+  assert.match(first, /-c:v libx265/);
+  assert.match(second, /-c:v libx265/);
+  assert.match(first, /-b:v 1\.5M/);
+  assert.match(second, /-b:v 1\.5M/);
+  assert.match(first, /-pass 1/);
+  assert.match(second, /-pass 2/);
+  assert.match(first, /vbv-maxrate=2025:vbv-bufsize=4050/);
+  assert.match(second, /vbv-maxrate=2025:vbv-bufsize=4050/);
+  assert.ok(built.passLogFile.includes('ffmpeg2pass'));
+});
+
+test('transcode health does not spawn ffmpeg for command-name references', async () => {
+  const health = await transcodeService.getHealth({
+    ffmpegPath: 'definitely-not-a-real-ffmpeg-for-health',
+    transcodeTempRoot: os.tmpdir(),
+    transcodeEncodingDevices: [{ id: 'cpu', inPool: true }],
+  });
+
+  assert.strictEqual(health.status, 'green');
+  assert.strictEqual(health.ffmpegOk, true);
+  assert.strictEqual(health.deviceCount, 1);
 });
 
 test('startEncode falls back from GPU to CPU when the GPU encode fails', async () => {
@@ -94,6 +261,38 @@ test('startEncode falls back from GPU to CPU when the GPU encode fails', async (
     assert.strictEqual(fb.level, 'warn');
     assert.ok(/187/.test(fb.msg));
     assert.ok(/qsv init failed/i.test(fb.msg));
+  } finally {
+    transcodeService._setSpawnForTest(null);
+  }
+});
+
+test('startEncode allows explicit CPU rate-control strategy to use backup-only CPU slot', async () => {
+  const { fn, attempts } = makeFakeSpawn();
+  transcodeService._setSpawnForTest(fn);
+  const orderedDeviceSlots = [
+    { deviceId: 'cpu:libx265', maxSlots: 1, cpuBackupOnly: true },
+  ];
+  try {
+    const result = await transcodeService.startEncode(() => {}, {
+      config: config(),
+      taskId: 'cpu-rate-control-backup',
+      sourcePath: '/src.mkv',
+      partialPath: '/out.etp.partial.mkv',
+      orderedDeviceSlots,
+      isDolbyVision: false,
+      dvAcknowledged: false,
+      durationSec: 10,
+      targetBitrate: 1.5,
+      bitrateProfile: { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+      rateControlStrategy: 'cpu_two_pass_abr',
+    });
+
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.encoderUsed, 'cpu');
+    assert.strictEqual(result.resolvedDeviceId, 'cpu:libx265');
+    assert.strictEqual(attempts.length, 2, 'two-pass CPU encode should spawn first and second pass');
+    assert.ok(attempts.every((attempt) => !attempt.isGpu));
+    assert.strictEqual(transcodeService.getDeviceSlotUsage()['cpu:libx265'], 0);
   } finally {
     transcodeService._setSpawnForTest(null);
   }

@@ -1,18 +1,24 @@
 # ARCH_OVERVIEW - 系统结构总览
 
-本文是 ShelfDeck 当前唯一架构入口。更细的实现细节以代码和测试为准；当代码行为改变到影响组件边界、数据所有权、部署目标或外部集成时，必须同步更新本文。
+Status: Current implementation map, not architecture contract.
+
+本文记录 ShelfDeck 当前代码已经落地的系统事实、兼容结构和运行形态。它不是 v3.1 之后的架构契约。
+
+若本文与 `docs/v3/KAIROX_ARCHITECTURE.md` 冲突，以 Kairox 为准。本文只能作为当前实现地图使用，不能覆盖 Kairox 的 Lifecycle、Task、Flow、Event、Resource Runtime、全自动模式或 Mirex 兼容边界。
+
+当代码行为改变到影响组件边界、数据所有权、部署目标或外部集成时，必须同步更新本文；当架构方向改变时，必须先更新 Kairox 或对应 ADR。
 
 ## 1. 产品定位
 
-ShelfDeck 是媒体库管家：基于 Emby 媒体数据、观看状态、用户评分和 Douban 评分，判断影片应该保留、删除、转码或洗版，并把动作交给 service 执行。
+ShelfDeck 是媒体库管家：基于 Emby 媒体数据、观看状态、用户评分、Douban 评分和媒体技术事实，判断每个媒体应达成什么生命周期目标，并把目标交给 service 选择合适 flow 执行。
 
 当前主要能力：
 
 | 能力 | 说明 |
 | --- | --- |
 | 资产盘点 | 同步 Emby 电影库，保存媒体技术信息和用户关系数据 |
-| 策略推荐 | 根据评分、观看状态、码率、编码、分辨率计算 action/reason |
-| 空间管理 | 执行 delete/transcode/upgrade/scrape 等统一任务 |
+| 生命周期目标 | 根据评分、观看状态、码率、编码、分辨率和子库策略计算 metadata / optimize / archive gate 目标 |
+| 空间管理 | 通过 optimize task 下的 delete/transcode/upgrade/remux 等 flow operation 达成目标 |
 | 成人库管理 | 管理成人文件夹库的单 item 入库、刮削、整理和演员库；不再通过私有目录监听/扫描自动发现并批量入队 |
 | Admin Web | 配置 service、媒体库、策略、任务和外部集成 |
 | Desktop | 浏览媒体库、下发意图、展示任务状态 |
@@ -101,22 +107,49 @@ desktop / Admin Web
 
 1. service 同步 Emby 媒体库到 `media-service/data/library.db`。
 2. service 同步 Douban 或接收用户评分。
-3. `StrategyEngine` 计算每个媒体项的 `action/reason`。
-4. `SmartTaskEngine` 或用户操作创建任务。
-5. `TaskAdmission` 先判断任务是否允许入队，`PriorityEngine` 计算队列优先级。
-6. `TaskScheduler` 根据 `actionType` 分派到 `IngestFlowExecutor`、`DeleteFlowExecutor`、`TranscodeFlowExecutor`、`UpgradeFlowExecutor` 或 `ScrapeFlowExecutor`。
+3. Lifecycle projection 计算每个媒体项的 stage、gate 和 gate objective。当前物理实现由 `StrategyEngine` 投影 `targetMediaFacts` / objective facts，不再把 `action` 当作 optimize 目标。
+4. Task Creator 语义负责从自动扫描或用户 intent 创建 task。当前物理实现散落在 `SmartTaskEngine`、`TaskAdmission`、`BusinessFlowPolicy` 和 `/v1/tasks` 路由中，后续修改必须保持同一套准入语义。
+5. task 的核心是 object + targetGate + gateObjective。当前物理实现仍保存 `taskBridge`、`flowPlan` 和 SQLite `operation_kind` 供 executor dispatch / historical projection 使用；这些字段不再是用户语义或 task candidate 来源。
+6. `TaskScheduler` 仍使用内部 selected flow / operation_kind 做 executor 分派。目标语义上它只是 task 运行机会调度器；当前物理实现仍承担部分 flow dispatch、资源槽位判断和重启恢复，后续新增业务规则不应继续塞入 scheduler。
 7. 本机转码直接在 service 执行；远程转码通过 `NodeService` 上传源文件到 transcode node，轮询状态，下载输出，再由 service 完成校验和替换。
 8. desktop 和 Admin Web 轮询 REST API 获取任务、媒体库和健康状态。
 
+Dolby Vision 转码属于转码能力层，而不是任务管理绕行策略。`TranscodeService.precheck()` 必须为 Dolby Vision 源选择一个可运行的 HDR→SDR tonemap path：优先使用 FFmpeg `libplacebo`，但必须通过实际 filter graph self-test 验证运行时可用；如果 `libplacebo` 因 Vulkan/runtime 不可用失败，则降级到软件 `zscale+tonemap` path。两条 path 都不可用时，precheck 才失败，并把原因暴露给健康检查和任务事件。任务中心只展示该能力路径、resource 和失败摘要，不通过阻断或隐藏任务来替代转码能力补强。
+
 任务模型：
 
-- 任务分为系统级定时任务、子库级定时任务、单 item 任务三类。`StrategyEngine` 是子库/全局长周期策略计算，不是 item task；`delete/transcode/upgrade/scrape/ingest` 属于单 item task。
-- 子库只有两种调度模式：`automationMode=auto` 和 `automationMode=manual`。调度模式只决定任务创建后是否自动执行：`auto` 进入执行队列，`manual` 创建为待手动启动；后台是否自动创建任务由 `smartTaskEnabledActions` 和 `TaskAdmission` 统一控制。
-- `TaskAdmission` 是任务创建闸门，统一处理自动/手动来源、active task 去重、失败冷却、按任务类型的自动队列上限、已转码不重复自动转码等规则。48 小时冻结属于 admission，不属于 priority。
+- 任务分为系统级定时任务、子库级定时任务、单 item 任务三类。单 item task 的顶层语义是 object + targetGate + gateObjective；`ingest/scrape/transcode/upgrade/delete/archive` 是 gate 内部 selected flow / executor dispatch，不是任务目标。
+- v3.1 单 item task 是生命周期 gate 的目标任务。完整用户心智是 `source/discovered --ingest gate--> ingested --metadata gate--> metadata-ready --optimize gate--> optimized --archive gate--> archived --delete gate--> deleted`。`ingest` task 目标是通过 ingest gate；`metadata` task 目标是通过 metadata gate；`optimize` task 目标是通过 optimize gate，并携带由 Lifecycle 定义的 optimize objective；`archive` task 目标是通过 archive gate；`delete` task 目标是通过 delete gate。`transcode`、`upgrade`、`remux` 等是 Flow Planner 为达成 optimize objective 选择的 flow，不是 task 目标本身；`delete` 只属于 delete gate flow。
+- 当前任务会保存 `taskBridge.kind`、`flowPlan.direction`、`flowPlan.operationKind`、`flowPlan.executor`、`flowPlan.steps` 和每步 `resourceType`。这些字段用于现有 executor 分派和历史投影；用户主路径应展示 `targetGate`、`gateObjective` 和 `selectedFlow`。新业务入口不能再接受 `actionType` 作为任务主语义。
+- 子库只有两种调度模式：`automationMode=auto` 和 `automationMode=manual`。调度模式只决定 task 创建后是否自动执行：`auto` 进入执行队列，`manual` 创建为待手动启动；后台是否自动创建任务由 Task Creator 语义统一控制。当前物理实现通过 `automaticTaskTargets`、`optimizeAllowedOperations`、`SmartTaskEngine`、`TaskAdmission` 和 `BusinessFlowPolicy` 实现该职责。旧 `smartTaskEnabledActions` 只作为 config normalize 的一次性迁移输入，运行配置和 API projection 不再输出该字段。
+- Task Creator 语义统一处理自动/手动来源、active task 去重、失败冷却、按 target gate 的自动队列上限、已转码不重复自动转码等规则。当前代码入口是 `TaskAdmission` / `BusinessFlowPolicy` / `SmartTaskEngine` / `/v1/tasks`。手动创建主输入是 `targetGate + gateObjective + optional preferredFlow/selectedFlow`；后端先解析目标 gate，再由 planner/准入生成内部 selected flow 和 executor dispatch。手动入口只查询当前 `itemId` 的 active task summary，用于去重和 `businessFlowDecision`，不能为了单个按钮点击读取全局 active task 列表或完整 task history。admission 成功响应会返回结构化 `admission.allowed/reason/targetGate/selectedFlow/taskTarget/taskBridge/flowPlan`；admission 拒绝仍保持标准 `error`，并返回结构化 `admission` 和当前 `businessFlowDecision`，让前端能直接展示 blocked reason、缺失元数据、支持入口和可选 flow。active task conflict 还会返回轻量 `activeTask` 摘要，说明哪个现有任务占用了该 item + targetGate。48 小时冻结属于 Task Creator 语义，不属于 priority。
+- `/v1/library`、`/v1/library/queries/manage` 和 `/v1/library/items/:itemId` 的 `businessFlowDecision` 只能使用当前页/当前 item 的 active task summary projection；列表页按本页 `itemId` 集合查询 `queryTaskSummaries({ itemIds })`，单 item 详情查询 `queryTaskSummaries({ itemId })`。`task=active|none` 过滤也只从 active summary projection 取得 itemId 集合。媒体页不能为了展示按钮或 blocked reason 读取完整 task payload、logs、report 或历史记录。
+- 媒体页 `businessFlowDecision.latestEventSummary` 不只展示 active task。若当前 item 没有 active task，但最近有失败/中断 task event，服务端会按当前页 `itemId` 集合从 `task_events` 查询轻量 recent failure projection，并返回 `kind=failure_event`、task/event/bridge/operation/resource 和 `failureSummary`。active task summary 优先级高于 terminal failure summary；两者都不能触发完整 task history 或 logs/report 读取。
+- `task_events` 是任务内部执行事实的事件层。任务创建会写入 `task.created` 和 `flow.planned`；调度会写入带资源类型的 `flow.dispatched`；状态、phase、resumePoint、审批、暂停、恢复、中断、重试、失败等变化会追加事件，任务详情 API 可通过 `includeEvents=1` 或 `/events` 读取历史。
+- `flow.dispatched` 之后如果 flow executor 抛错或 promise reject，Scheduler 必须把 task 标记为 `failed_hard`，并追加带当前 flow step、resource、bridge/operation 和错误摘要的 `flow.failed` 事件，同时写入 `scheduler.flowDispatch` diagnostic log。失败不能只表现为 task 终态变化；任务中心、Dashboard event 和 Resource view 必须能追到失败发生在哪个 flow/resource。
+- 当 executor 自己捕获错误并通过 `reportStatus(..., failed_hard)` 上报失败时，自动生成的 `task.failed` event 必须包含轻量 `failureSummary`、bridge/flow operation 和 primary resource facts。该摘要只取最近 error log 的时间、级别和消息，不把完整 logs 或 report payload 写入事件 projection。
+- 用户在任务中心触发的控制动作也必须进入 `task_events`。确认成功写 `task.confirmed`，开始/继续写 `task.execute_requested`，暂停写 `task.pause_requested`，取消/移除写 `task.cancel_requested`，失败重试继续写 `task.retry_requested` / `task.retry_recorded`。这些事件记录 `requestedBy=user`、action effect、原状态、恢复点和必要的 gate/confirmData 线索，用于任务详情和 Dashboard event projection 解释“用户刚推进了什么”。
+- 任务列表和任务详情 API 会返回 `controlState` 投影，用于解释当前 task 的控制语义：是否需要用户确认、execute/pause/confirm/cancel/retry 是否可用、不可用原因、动作会造成的状态推进、恢复建议和最近事件摘要。任务 action endpoint 必须以同一套 `controlState.actions` 语义作为服务端强约束；若动作不可用，返回 `409 TASK_ACTION_REJECTED` 和对应 reason。失败任务的 retry 不是无条件重跑，而是按 flow recovery contract 校验 selected flow、`resumePoint`、`retryCount` 和同 item active task 冲突后，重新排队同一个 task。列表投影只依赖 task current facts；详情页可附带最近 event。
+- Flow recovery contract 由 `src/flowRecoveryContract.js` 统一定义，覆盖当前 `ingest/archive/scrape/transcode/upgrade/delete` 的默认恢复点、允许的 resume points、重试策略和幂等性说明。`TaskControlPolicy` 只消费该合同，不再单独维护一套 resume point 表；任务 response 的 `controlState.recoveryContract` 会投影当前 flow 的恢复合同，供任务中心解释失败任务能否 retry、从哪个 event 继续、以及需要用户检查什么。
+- `/v1/tasks` 默认 active 列表和 `activeOnly=1` 必须走 `queryTaskSummaries(..., { includeHistory: false })`，返回轻量 task summary 与 `controlState`，不包含 logs/report/heavy adult face payload。只有显式 `includeHistory=1` 且不是 activeOnly 时才返回完整历史记录；单任务详情、report 和 events 继续作为按需读取入口。
+- 服务重启恢复必须可解释。启动时发现 `executing`、旧 phase runtime 状态或 `pausingRequested` 的任务，会先标记为 `interrupted` 并写 `task.restart_interrupted`；调度轮自动重排 interrupted task 时写 `task.restart_recovery_queued`，超过重启恢复重试上限时写 `task.restart_recovery_failed`。这些事件会记录原 status/phase/resumePoint、retryCount 和恢复效果，供任务中心与 Resource view 解释重启后的状态跳转。
+- 目标架构中，`TaskScheduler` 只负责 runnable task、task 级并发、item lock、priority/retryAt/createdAt 排序，以及给 task 一次 tick 机会。当前物理实现仍在 `taskScheduler.js` 中承担部分资源槽位和 flow dispatch，这是过渡态；新增业务判断应优先收敛到 Lifecycle / Task Creator / Flow Planner，而不是继续加厚 scheduler。`operation_kind` 只保留为 executor 分派和历史物理 projection。
+- v3.0 起，ShelfDeck 的业务解释以 SQLite facts 为事实层，而不是依赖 legacy action / payload 混合解释。`payload_json` 继续保存详情、报告和迁移上下文，但核心查询、调度、恢复和 Admin Web 展示必须优先使用 SQL columns。
+- `media_items` 分为四组事实：`lifecycle_*` 描述媒体生命周期阶段和是否结案；`metadata_*` 描述用户语义上的“元数据完整” gate 完成度和缺失原因；`optimization_*` 描述转码/洗版结果；`archive_*` 描述归档/删除/keep-like 收口状态。媒体库页以 lifecycle、metadata、optimization、archive 命名，不再把 `action` 当作唯一产品语义。
+- `ingestGate` 定义一个 source candidate 是否已经成为可管理媒体项：至少需要 item identity、source/sub-library identity、source location/reference，以及基础媒体事实或 probe failure 事实。`optimizeGate` 的 objective 由 Lifecycle 定义，不由 Flow Planner 临时发明；它描述用户希望媒体在归档前达到什么媒体事实，例如降低码率、提升画质、补字幕、换音轨或兼容性修复。`archiveGate` 定义归档闭环：必须先满足 optimize gate，再由 `archive.finalize` 写入 `archiveStatus=archived_like` / `archiveDoneAt` 等 closure marker。`deleteGate` 定义已归档媒体的处置闭环；delete 不是 optimize objective 或 optimize flow。
+- “元数据完整”是 scrape 阶段完成、可进入 optimize 阶段的用户语义 gate，不是狭义技术字段分类。子库可通过 `metadataGate` 自定义该 gate，支持 `all` / `any` 条件；未配置时使用按普通 Emby / 成人库区分的默认 gate。配置保存和运行时都必须校验自定义 gate 覆盖当前子库策略模板会消费的 optimize 输入；若不覆盖，保存配置返回 `METADATA_GATE_CONTRACT_BROKEN`，运行时 `metadataMissingReasons` 包含 `metadata_gate_contract_broken`，避免出现“显示元数据完整但无法进入 optimize”的状态。
+- `tasks` 分为 target facts、flow facts、runtime state 和 projection payload。target facts 描述 object + targetGate + gateObjective；`flow_direction/operation_kind/primary_resource_type/resource_types_json/flow_steps_json` 描述执行编排；`source/progress/phase/resume_point/retry_count/node_id` 是 runtime state。任务中心按目标、objective、selected flow、event 展示。
+- `task_events` 是持久 event history，包含 `resource_type/resource_key/resource_label/bridge_kind/flow_direction/operation_kind`。Resource Runtime 是 event 生产现场，目标职责包括 event queue、resource bucket、capacity/concurrency、lease、executor/worker、timeout、worker lost、orphan lease recovery、event/resource facts 和安灯信号。当前物理实现暂时分散在 `taskScheduler.js`、各 flow executor、`runtimeResourceTracker.js` 和 `resourceProjection.js`。
+- Resource View 是 Resource Runtime 的安灯输出面，不是独立业务组件。它以 event/resource 为中心展示运行、等待、阻塞、失败、瓶颈和系统降级信号。普通 Emby metadata repair scrape 使用 `emby:metadata` 资源 bucket，成人外部刮削继续使用 `scraper` 或 `local_ai`，两者不能混成同一种资源压力。
+- Resource View 的 `diagnostics.failedEvents` 不只是裸 `task_events` 行；服务端会对最近失败/中断事件补充当前 task facts、`resourceContext`、`controlState.recovery`、标准化 `failureSummary` 和最近匹配的 `diagnosticSummary`。`failureSummary` 优先来自 `task.failed` / `flow.failed` event payload，其次从当前 task 的最近 error log 或 diagnostic log 提取轻量摘要；Resource View 不能要求前端解析完整 task logs/report。用户应能从资源诊断页看到失败发生在哪个 event/resource、当前是否可 retry/continue/confirm、恢复点是什么，以及可读错误摘要是什么。
 - `PriorityEngine` 只决定可入队任务的执行顺序。优先级是多维度叠加分数：`来源权重 + 任务类型权重 + 子库权重 + 业务信号 + 等待时间 + 重试惩罚 + 规则修正`，数值越小越优先；高级规则只能贡献加减分，不能把总分设为绝对值。任务会保存 `priorityBreakdown`，用于解释各维度如何叠加成最终分数。用户手动调整任务优先级会直接覆盖任务上的最终分数。
+- `PATCH /v1/admin/tasks/:id` priority 调整属于用户调度意图，成功响应会返回更新后的 task、`controlState` 和 `priorityAdjustment`；无效 priority 或任务状态不可编辑时，响应仍保持标准 `error`，并返回当前 task 摘要、`controlState`、`priorityAdjustment.enabled/reason/effect/currentPriority/requestedPriority/editableStatuses`。可编辑状态限定为 `created|pending_manual|queued|interrupted|paused`，已 dispatch 的 running task 和终态历史不能改 priority。
 - 审批策略与调度策略分离。`approvalPolicy` 控制任务内部关键节点是否暂停，模式为 `auto`、`confirm`、`forceConfirm`；`forceConfirm` 不能被全局、子库或任务级覆盖降级。
 - 当前审批 gate 包括 `delete.beforeExecute`、`transcode.dolbyVisionTonemap`、`transcode.beforeReplace`、`upgrade.candidateSelect`、`upgrade.identityMismatch`、`upgrade.beforeReplace`、`scrape.beforeWriteMetadata`、`scrape.beforeOrganize`、`scrape.reviewResult`。
-- `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；成人库没有独立目录级扫描或独立自动刮削能力，也不把大量新文件展开成完整刮削或转码动作。后台自动入库由 `SmartTaskEngine` 读取文件候选后统一经过 `smartTaskEnabledActions`、`TaskAdmission` 和 `PriorityEngine` 创建 `ingest` 任务。
+- `ingest` 是单 item 入库任务类型，用于把文件候选转换为媒体项和技术探测结果；成人库没有独立目录级扫描或独立自动刮削能力，也不把大量新文件展开成完整刮削或转码动作。后台自动入库属于 Task Creator 语义，当前由 `SmartTaskEngine` 读取文件候选后统一经过 `automaticTaskTargets`、`TaskAdmission` 和 `PriorityEngine` 创建 `targetGate=ingest` 任务。
+- `SmartTaskEngine` 是当前物理实现中的自动扫描入口，架构语义上归入 Task Creator。它的健康状态必须解释最近一轮自动扫描，而不只是显示开关状态。`smartTask.getHealth().lastScanSummary` 返回 `enabledTaskTargets`、`allowedOptimizeFlows`、library item 数、candidate 数、按 targetGate 的候选/入队计数、按 selectedFlow 的实现路径分布、admission rejected reason 分布、queue cap skip 分布、resource pressure skip 分布、`maxPerRunReached`、跳过原因或错误。该摘要只来自单轮扫描的轻量计数，不包含媒体详情、task payload、日志或 face/AI heavy data。
+- 旧配置里的 `smartTaskEnabledActions` 只在 config normalize 时作为迁移输入读取，并投影为 `automaticTaskTargets` / `optimizeAllowedOperations` 后删除；新保存的配置不再写回该字段。新配置不会再因为非空自动化列表而偷偷补 `archive` target，是否自动归档由 `automaticTaskTargets` 显式表达。
+- v3.3 起，成人库恢复必须遵守 `docs/v3/ADULT_DATA_MODEL.md`。当前旧实现曾把 `faceClusters`、`unknownFaces`、`galleryImages`、embedding、base64 图片和 AI 中间输出混入 `adultMetadata` 热 payload；这些字段在 v3.3 中归为 cold AI artifacts 或 file assets。`media_items` 热路径只保留 item identity、file facts、Lifecycle/gate facts、task target facts 和 light adult metadata，避免普通列表、dashboard、任务准入被成人库 AI 大对象拖慢。
 - 任务持久化使用 `data/tasks.db` SQLite。任务中心保留完成、失败等历史记录；调度器、节点统计、转码临时目录清理等热路径只读取非终态 active task，不能为了降低队列压力删除历史任务。
 - 启动期全局维护不属于单 item task。普通媒体库启动刷新由 `mediaLibraryStartupRefreshOnStartup` 和 `mediaLibraryStartupRefreshDelaySeconds` 控制；自算字段立即运行由 `mediaLibrarySelfComputeOnStartup` 控制；`SmartTaskEngine` 首次自动入队扫描由 `smartTaskInitialDelaySeconds` 控制。生产部署可通过这些开关先恢复 API 响应，再让周期任务按节奏运行。
 - 成人库 `ingest` 的媒体探测使用 `adultLibrary.probeTimeoutMs` 控制单文件 `ffprobe` 超时。坏文件或异常路径只记录 `probeError` 并继续入库，不应拖住整个 HTTP 服务。
@@ -124,16 +157,16 @@ desktop / Admin Web
 成人文件夹库流：
 
 1. 用户创建 `mediaType=adult`、`source=folder` 的子库，并配置 `watchRoot`。
-2. 不存在目录级 scan 任务创建入口；候选发现只是 `SmartTaskEngine` 的只读输入，不写媒体库、不刷新子库状态、不创建 `scrape`。
+2. 不存在目录级 scan 任务创建入口；候选发现只是 Task Creator 自动扫描输入，当前物理实现由 `SmartTaskEngine` 承担；候选发现不写媒体库、不刷新子库状态、不创建 `scrape`。
    `POST /v1/admin/sublibraries/:uuid/actions/scan` 已废弃并返回 `410 SUBLIBRARY_SCAN_REMOVED`。
-3. `SmartTaskEngine` 在 `smartTaskEnabledActions` 包含 `ingest` 时读取未入库文件候选，并按统一 admission/priority 创建单 item `ingest` 任务；候选发现本身不写媒体库、不创建 scrape。
+3. Task Creator 在 `automaticTaskTargets` 包含 `ingest` 时读取未入库文件候选，并按统一 admission/priority 创建单 item `targetGate=ingest` 任务；当前物理实现由 `SmartTaskEngine` 扫描候选。候选发现本身不写媒体库、不创建 scrape。
 4. `IngestFlowExecutor` 每次只处理一个文件候选，完成文件探测、NFO 预解析和媒体项写入，任务到“已入库”即结束。已前置刮削的文件会直接成为 `scraped=true` item；未刮削文件只写成 `scraped=false`、`adultMetadata.scrapeStatus=pending` 的库 item，不在 ingest 内创建 `scrape` 任务。
 5. 日本 JAV 子库使用 `scraperType=shelfdeck_japanese_jav`；欧美成人库使用 `scraperType=western_builtin`。两者的单 item 入库和后续刮削都复用统一任务模型。
 6. `ScrapeFlowExecutor` 每次只处理一个 item。JAV 通过内置 Node.js scraper 拉取元数据；欧美成人默认在 service 内本地执行 FFmpeg 抽帧、调用容器内 face-service 生成 embedding、匹配 People 人物库并生成 deterministic composite poster。`computeMode=worker` 仅作为兼容扩展路径。
    service-local 欧美成人 AI 跑在主 service 进程内，为保护 Admin Web/API 响应性，调度器必须单独限制该路径同一时间只执行 1 个本地分析任务；JAV scrape 和 `computeMode=worker` 不受此本地 AI 槽限制。
 7. 刮削/整理成功后由 ShelfDeck 移动影片到库目录下的统一归拢目录（默认 `scraped/`），写入 `movie.nfo`、同名 NFO、封面、`.shelfdeck.json`，并通过 `ScrapeVerification` 合同校验后才更新 `adultMetadata`、`scraped=true` 和媒体技术信息；欧美成人未识别 protagonist 时任务失败，只保留 unknown face 诊断数据，不写成功态 NFO/封面。
-8. `StrategyEngine` 使用成人库策略模板计算 `transcode/keep`；`scrape` flow 不直接链式创建转码任务，后续是否转码由 `SmartTaskEngine` 根据 `scraped=true` 等策略条件决定。
-9. 后续转码继续复用现有 `TranscodeFlowExecutor`。
+8. 成人库策略模板参与 Lifecycle 的 optimize objective 计算；`scrape` flow 不直接链式创建转码任务。后续是否需要 optimize task 由 Lifecycle gate/objective 和 Task Creator 统一判定，而不是 scrape flow 自己创建。
+9. 如果 optimize objective 需要降低码率或兼容性修复，Flow Planner 可以选择现有 `TranscodeFlowExecutor` 对应的 transcode operation。
 
 欧美成人库补充规则：
 
@@ -141,16 +174,16 @@ desktop / Admin Web
 - People 人物库归 service 持久化；用户搜索/上传高清正脸图建立 reference face，后续匹配以该 reference embedding 为真值。演员图片搜索源包括 Stash-box GraphQL（默认 TPDB endpoint，可配置 FansDB/其他 stash-box）、MetadataAPI、TMDB、Wikimedia，出站请求默认复用日本 JAV scraper 的代理配置，并在无候选/源失败时向 UI 返回诊断信息；同时保留手动图片 URL/本地上传兜底以覆盖素人演员。
 - service Docker all-in-one 内部启动 InsightFace face-service，默认地址为 `http://127.0.0.1:19110/v1/face/embeddings`；该地址不是用户配置项，仅可通过环境变量覆盖。
 - 初次未知人脸由 service-local 分析返回 `unknownFaces`，包含头像样本和 embedding 诊断；用户命名后，service 通过 `/v1/admin/adult/people/from-face` 将该 cluster 写入 People reference faces。
-- 自动 `scrape` 的触发条件是库 item 状态，而不是 ingest 任务链式触发：`source=adult_folder`、`scraped !== true`、`adultMetadata.scrapeStatus` 为空或 `pending`，并且 `smartTaskEnabledActions` 包含 `scrape`，再经过 `TaskAdmission` 去重、冷却和队列上限。欧美成人 `pending` item 即使还没有 protagonist 或演员身份信号也可以自动创建首次 `scrape` 任务；首次 AI 分析负责产生 `unknownFaces`/`faceClusters` 供用户命名。`failed`、`ambiguous`、`needs_review`、`done` 不会自动反复重试，需要显式用户动作或已完成。
-- 欧美成人匹配不到 protagonist 时等同于 JAV 识别不到番号：任务 `failed_hard`，item 保持 `scraped=false`，不会进入自动转码策略。
-- 自动通过的 item 标记 `scraped=true`，后续转码继续复用现有 `TranscodeFlowExecutor`。
+- 自动 metadata task 的触发条件是 metadata gate 未满足且 policy 允许，而不是 ingest 任务链式触发。当前成人库默认实现通常体现为：`source=adult_folder`、`scraped !== true`、`adultMetadata.scrapeStatus` 为空或 `pending`，并且 `automaticTaskTargets` 包含 `metadata`，再经过 Task Creator/Admission 去重、冷却和队列上限。欧美成人 `pending` item 即使还没有 protagonist 或演员身份信号也可以自动创建首次 metadata task；首次 AI 分析负责产生 `unknownFaces`/`faceClusters` 供用户命名。`failed`、`ambiguous`、`needs_review`、`done` 不会自动反复重试，需要显式用户动作或已完成。
+- 欧美成人匹配不到 protagonist 时等同于 JAV 识别不到番号：任务 `failed_hard`，item 保持 `scraped=false`，metadata gate 不通过，也不会进入 optimize task 创建。
+- 自动通过的 item 标记 `scraped=true`，后续由 Lifecycle/Task Creator 决定是否创建 optimize task。
 - 刮削成功会在库目录下的统一归拢目录（默认 `scraped/`，可通过 `adultLibrary.organizedFolderName` 或分区配置覆盖）中新建标准影片目录并移动当前视频：欧美成人目录/视频名为 `{adultId} {protagonist}`；JAV 目录/视频名沿用 scraper 返回的标题命名规范。已有目录不直接改名，目录内其他视频不被一起移动。ShelfDeck 的目录核对默认忽略该归拢目录，Emby 可只监控这个归拢目录。
 - `scraped=true` 不能由目录位置或任务状态推断。ShelfDeck scrape 成功必须满足结构化 item 合同：媒体文件存在、`adultMetadata.scrapeStatus=done`、关键元数据存在、按配置写出的 NFO/封面存在、`.shelfdeck.json` 可读且 `itemId/subLibraryId/mediaPath/scrapeTaskId/scrapedAt` 与当前 item 匹配。任务状态只作为执行审计，不参与判断视频是否已刮削；任务报告会返回 `scrapeVerification` 结果。
 
 混合成人库处理：
 
 - 已经由 JavSP 或其他工具前置刮削的目录，只要媒体旁边存在 `movie.nfo` 或同名 `.nfo`，`ingest` 时会解析 NFO，标记为 `scraped=true`，不会再自动创建刮削任务。
-- 未刮削的裸视频会在 `ingest` 时从文件名/路径识别番号或生成欧美成人占位番号，标记为 `scraped=false`、`adultMetadata.scrapeStatus=pending`。后续是否创建 `scrape` 任务只由 `SmartTaskEngine` 基于库 item 状态、`smartTaskEnabledActions`、`TaskAdmission` 和 `PriorityEngine` 决定。
+- 未刮削的裸视频会在 `ingest` 时从文件名/路径识别番号或生成欧美成人占位番号，标记为 `scraped=false`、`adultMetadata.scrapeStatus=pending`。后续是否创建 metadata task 由 Task Creator 语义基于 Lifecycle metadata gate、`automaticTaskTargets`、admission 和 priority 决定；当前物理实现仍由 `SmartTaskEngine` 发起扫描。
 - Admin Web 的媒体库管理页在成人库条目的名称下展示“已刮削 / 待刮削 / 刮削失败”状态、番号和 studio，并提供刮削状态筛选；整目录手动扫描入口已移除。
 
 ## 6. Service 模块
@@ -162,6 +195,8 @@ desktop / Admin Web
 | Config | `src/configStore.js` | `data/config.json` 读写、默认值、平台路径 |
 | Library store | `src/libraryStore.js` | `data/library.db` SQLite 读写；启动时从旧 `library.json` 一次性迁移 |
 | Task store | `src/taskStore.js` | `data/tasks.db` SQLite 读写；启动时从旧 `tasks.json` 一次性迁移 |
+| Flow planner | `src/flowPlanner.js` | 根据 `targetGate/gateObjective`、当前 facts、授权和安全事实选择 gate 内部 `selectedFlow`，并生成 executor 所需的物理 `flowPlan` |
+| v3 model | `src/v3Model.js` | 将媒体项、任务和事件规范化为 v3 SQL facts；迁移、写入和查询共用 |
 | Scheduler | `src/taskScheduler.js` | 轮询、锁、并发、flow dispatch |
 | Task admission | `src/taskAdmission.js` | 自动/手动入队闸门、去重、冷却、业务幂等 |
 | Approval policy | `src/approvalPolicy.js` | 任务内部关键节点审批策略 |
@@ -170,10 +205,11 @@ desktop / Admin Web
 | Transcode flow | `src/transcodeFlowExecutor.js` | 转码任务执行 |
 | Upgrade flow | `src/upgradeFlowExecutor.js` | MoviePilot 洗版任务执行 |
 | Ingest flow | `src/ingestFlowExecutor.js` | 文件候选入库任务执行；单文件探测、NFO 预解析、媒体项写入 |
-| Scrape flow | `src/scrapeFlowExecutor.js` | 成人库刮削/整理任务执行；JAV 调用内置 scraper，欧美成人默认 service-local AI |
+| Archive flow | `src/archiveFlowExecutor.js` | 优化完成后的轻量生命周期闭环；写入 archive closure facts，不删除媒体 |
+| Scrape flow | `src/scrapeFlowExecutor.js` | 普通 Emby metadata repair 和成人库刮削/整理任务执行；普通库读取 Emby、已有 Douban 缓存和自算字段，成人库 JAV 调用内置 scraper，欧美成人默认 service-local AI |
 | Library | `src/mediaLibraryService.js` | 子库和媒体缓存管理 |
 | Adult folder library | `src/adultLibraryService.js` | 成人文件夹库单 item 入库、刮削、整理、演员库和只读目录核对 |
-| Policy | `src/mediaPolicyService.js`、`src/strategyEngine.js`、`src/smartTaskEngine.js` | 策略计算和自动入队 |
+| Policy | `src/mediaPolicyService.js`、`src/strategyEngine.js`、`src/smartTaskEngine.js`、`src/flowRecoveryContract.js` | 策略计算、自动入队和 flow recovery contract |
 | External adapters | `src/services/*Service.js` | Emby、Douban、MoviePilot、FFmpeg、成人库 scraper、欧美成人 service-local/worker AI |
 | Tray | `src/tray.js` | Windows 系统托盘 |
 | People store | `src/peopleStore.js` | `data/people.json` 欧美成人人物库 |
@@ -202,6 +238,7 @@ worker node 是被动计算节点，欧美成人管理不依赖 worker：
 - Face endpoint 由 `FACE_EMBEDDINGS_URL` 指定，约定输入 `{ images: [{ imageId, imageIndex, data, mimeType }], detect, returnCrops }`，输出 `{ faces: [{ faceId, imageIndex, bbox, embedding, sampleImageBase64 }] }`。默认 all-in-one 内部地址是 `http://127.0.0.1:19110/v1/face/embeddings`。
 - 由 service 负责任务持久化、调度、校验和替换。
 - 默认端口是 `19000`。
+- 删除 worker node 前，service 使用 task summary projection 查询绑定该 `nodeId` 且正在 `executing` 的转码任务；如果存在 active job，`DELETE /v1/admin/nodes/:id` 返回 `409 NODE_HAS_ACTIVE_JOBS`，同时给出 `node`、`resourceContext`、`activeTasks` 和 `forceDelete` 后果。`?force=true` 会先尝试取消执行器，再把这些 active task 标记为 `failed_hard` 后删除节点。
 
 ## 8. Runtime Data
 
@@ -214,7 +251,7 @@ Runtime data 不入库：
 | `media-service/data/tasks.json` | service | 旧版任务存储；存在时启动自动迁移到 `tasks.db`，迁移后仅作为原始记录保留 |
 | `media-service/data/library.db` | service | 媒体库主存储；列表分页、筛选和 item 读写从 SQLite 读取 |
 | `media-service/data/library.json` | service | 旧版媒体库缓存；存在时启动自动迁移到 `library.db`，迁移后仅作为原始记录保留 |
-| `media-service/data/nodes.json` | service | 转码节点登记 |
+| `media-service/data/nodes.json` | service | 转码节点登记；跟随 service data dir |
 | `media-service/data/people.json` | service | 欧美成人 People 人物库 |
 | `media-worker/config.json` | worker node | worker 本机配置 |
 | `media-worker/data/ai/` | worker node | AI source asset、抽帧缓存和模型侧运行数据 |
@@ -239,7 +276,17 @@ API 细节以 `src/app.js` 和现有 tests 为准。新增或变更 API 时必�
 - `GET/PATCH /v1/admin/adult/config` 管理成人库全局默认配置、日本 JAV scraper 默认项和欧美成人配置；face-service 不作为用户配置项暴露。
 - `GET/POST/PATCH/DELETE /v1/admin/adult/people` 管理 service-owned People 人物库。
 - `POST /v1/admin/adult/people/from-face` 从某个 item 的 unknown face cluster 创建 People reference face。
-- `actionType=ingest` 和 `actionType=scrape` 都是正式任务类型，进入统一任务队列和任务监控。
+- `/v1/tasks` 手动创建使用 `targetGate=ingest|metadata|optimize|archive|delete`，可带 `gateObjective` 和 `preferredFlow/selectedFlow`。`metadata` gate 可偏好 `scrape` flow，`optimize` gate 可偏好 `transcode|upgrade` flow，`delete` gate 只允许 `delete` flow。没有明确 flow 时，后端只能根据当前 lifecycle objective 和 Flow Planner 选择；不能把 flow 名称当 task target。
+- `POST /v1/admin/adult/items/:itemId/actions/rescrape` 是成人条目的显式 metadata target 入口。它通过 Task Creator/Admission 创建当前兼容的 `scrape` flow task，任务记录 `requestedIntent.intentMode=adult_rescrape`，响应保留 `taskId` 兼容字段，并返回 `task`、`taskBridge`、`flowPlan`、`requestedIntent` 和 `controlState`，让前端能解释“用户要求重刮”实际落到哪个 flow。若同 item 已有 active scrape task，返回 `409 TASK_CONFLICT`、`admission.reason=active_task_exists`、当前 `businessFlowDecision` 和轻量 `activeTask` 摘要，避免重复入口只给裸 conflict。
+- `/v1/tasks`、`/v1/tasks/:id`、`/v1/admin/tasks`、`/v1/admin/tasks/:id` 的 task response 包含 `controlState`。前端应优先使用该字段展示任务控制按钮、确认点和恢复建议，而不是只按 status 或 executor flow 自行推断。
+- `GET /v1/admin/tasks` 支持 `attention=needs_action|confirmation|recovery|manual_start`，并在 `summary.attention` 返回同一组处理队列计数。该投影由 `controlState.primaryAction` 和 action effect 推导：等待确认进入 `confirmation`，可 retry 或 resume 的任务进入 `recovery`，需要手动开始的任务进入 `manual_start`，三者合并为 `needs_action`。运行中的 queued/executing 任务、已达 retry 上限的失败任务、终态历史记录不能仅因为 status 相似就进入处理队列。列表和 attention summary 必须使用 `queryTaskSummaries` 这类轻量 current-facts projection，不能读取完整 task payload、logs、report 或 adult face clusters。
+- `GET /v1/admin/tasks/lifecycle-audit` 是任务中心和诊断页使用的任务生命周期审计 projection。它只读取 `queryTaskSummaries` current facts 和 config 中的 sub-library 定义，按 `mediaType`、sub-library、status、lifecycle stage、bridge kind、operation kind、source 聚合，并返回异常 signal 样本，例如普通媒体 scrape task、缺少 sub-library context、缺少 bridge/operation/resource、等待确认但没有 confirmation gate、执行中缺 phase。该接口用于回答“每种库类型下 task 生命周期是否符合预期”，不能从完整 task payload、logs、report 或媒体库 heavy payload 中反推。
+- `GET /v1/admin/confirmations` 是任务中心确认/审核队列的专用 lightweight projection。它默认合并两类用户待处理事项：`tasks.db` 中的 `awaiting_user_confirm` task，以及 `library.db` 中成人条目的 `scrape_status=ambiguous|needs_review` 或 `adultMetadata.reviewStatus=needs_review`。task confirmation 返回 `confirmation.gateId/message/options/resumePoint/effect/whyRequired`、`confirmAction`、`recovery`、`taskBridge` 和 `flowPlan`，并提供按 gate、bridge kind、selected flow 的 summary；adult review 以 `kind=adult_review` 返回 metadata/scrape bridge、review reason、review action 和轻量 item/adult metadata。该接口支持 `kind=task|adult_review|all`、`bridgeKind`、`selectedFlow`、`reviewStatus`、`subLibraryId` 和 `q` 过滤。任务中心可以直接展示“为什么要用户确认/审核、确认后会继续到哪里”；前端不能从通用任务列表、完整 logs、report、完整媒体 payload 或 adult face clusters 中反推确认台。
+- `GET /v1/admin/dashboard/health` 的 `tasks` 聚合会包含同一套 `attention` 队列计数和 `primaryAttention`。Dashboard 只展示入口级健康信号和任务中心跳转，不复制任务中心明细列表；处理队列的业务判定仍以后端 `TaskControlPolicy` 为准。`automation` 聚合会返回当前 `enabledTaskTargets`、`allowedOptimizeFlows` 和精简 `smartTask` health，其中 `lastScanSummary` 只包含上一轮自动扫描的候选/入队/拒绝/跳过计数与 reason 分布，供 Dashboard 解释自动化为什么动或没动。Kairox Performance 之后，SmartTaskEngine 默认不再因 `activeBacklog > 0` 整轮 defer；active backlog 会投影为 target gate / resource bucket pressure，自动供给继续经过 TaskAdmission、target gate queue cap、cooldown 和 resource supply cap。只有显式设置 `smartTaskDeferWhenActiveBacklog=true` 才回退旧全局保护模式。
+- `GET /v1/admin/dashboard/health` 同时返回 `events.recent` Dashboard event projection。该 projection 合并内存 `activityLog` 与最近 `task_events` current facts，输出统一的 `kind/source/sourceLabel/severity/message/ts/taskId/resource` 字段；Dashboard 的“系统事件”卡片消费这个结构化 projection，不再单独轮询 `/v1/activity-log`，也不读取 task event payload、完整 task history 或原始 service log。
+- `POST /v1/tasks/:id/actions/execute`、`POST /v1/tasks/:id/actions/pause`、`PATCH /v1/tasks/:id` confirm、`DELETE /v1/tasks/:id` 和 `DELETE /v1/admin/tasks/:id` 必须先校验对应 `controlState.actions.*.enabled`；不可用时返回 `409 TASK_ACTION_REJECTED`，避免直接调用 API 绕过前端按钮状态。任务 action / recovery 的 409 response 保留标准 `error`，并额外返回 `task`、`actionName`、`action`、`controlState`、`recovery`，让任务中心能解释当前为什么不可执行以及下一步应看确认、恢复还是事件。retry 遇到同 item active task 冲突时返回 `TASK_RECOVERY_REJECTED`、`recoveryPlan.reason=active_task_conflict` 和轻量 `activeTask` 摘要，而不是裸 `TASK_CONFLICT`。
+- `POST /v1/tasks/:id/actions/retry` 只恢复 `controlState.actions.retry.enabled=true` 的失败任务。成功后同一个 task 回到 `queued`，`retryCount` 增加，保留或补齐 flow `resumePoint`，写入 `task.retry_requested` / `task.retry_recorded` 事件；若重试次数到达上限、resumePoint 不在该 flow contract 内，或同 item 已存在 active task，则返回 409。
+- `GET /v1/admin/resources` 返回 Resource view，其中 `diagnostics.failedEvents[]` 每行保留 task event 字段，并额外包含 `task`、`resourceContext`、`recovery`、`controlState`、`diagnosticSummary`。该投影只读取最近失败 event、对应 task current facts 和最近 diagnostic log，不扫描完整 task history 或 heavy payload。
 - `approvalPolicy` 和 `automationMode` 属于子库任务配置；旧的 `scheduleMode/custom/autoReplace*` 字段仅作为兼容旧配置保留。
 
 Worker API:
@@ -268,7 +315,10 @@ Worker API:
 
 ## 11. 关联文档
 
+- `docs/v3/KAIROX_ARCHITECTURE.md`
 - `docs/v2/DEVELOPMENT_WORKFLOW.md`
 - `docs/v2/TEST_ARCHITECTURE.md`
 - `docs/v2/DEBUG_WORKFLOW.md`
+- `docs/v3/BUSINESS_MODEL_NOTES.md`
+- `docs/v3/USER_INTERVENTION_AND_FULL_AUTO.md`
 - `tests/TEST_ENV_CHECKLIST.md`（私有凭据，不提交）

@@ -8,6 +8,123 @@ const os = require('os');
 const crypto = require('crypto');
 const { buildApp } = require('../src/app');
 const taskStore = require('../src/taskStore');
+const libraryStore = require('../src/libraryStore');
+const mediaLibraryService = require('../src/mediaLibraryService');
+const runtimeResourceTracker = require('../src/runtimeResourceTracker');
+const diagnosticLog = require('../src/diagnosticLog');
+const backgroundIoGuard = require('../src/backgroundIoGuard');
+const activityLog = require('../src/activityLog');
+const smartTaskEngine = require('../src/smartTaskEngine');
+const healthCheck = require('../src/healthCheck');
+const nodeStore = require('../src/nodeStore');
+const embyService = require('../src/services/embyService');
+
+function metadataReadyMovie(overrides = {}) {
+  const itemId = overrides.itemId || 'movie-' + crypto.randomUUID().slice(0, 8);
+  const now = new Date().toISOString();
+  return {
+    itemId,
+    source: 'emby',
+    sourceId: itemId,
+    name: 'Metadata Ready Movie',
+    type: 'movie',
+    path: `/media/${itemId}.mkv`,
+    size: 1024 * 1024 * 1024,
+    duration: 3600,
+    bitrate: 4_000_000,
+    resolution: '1920x1080',
+    codec: 'h264',
+    audioCodecs: ['aac'],
+    watched: true,
+    userRating: 4,
+    tmdbId: '10001',
+    metadataComplete: true,
+    metadataStatus: 'complete',
+    lastRefreshedAt: now,
+    metadataUpdatedAt: now,
+    optimizeObjectiveStatus: 'ready',
+    optimizeObjective: {
+      kind: 'target_media_facts',
+      targetMediaFacts: {
+        targetBitrate: 4,
+        targetCodec: 'h265',
+      },
+    },
+    ...overrides,
+  };
+}
+
+function metadataReadyAdultItem(item, overrides = {}) {
+  const base = item || {};
+  return {
+    ...base,
+    source: base.source || 'adult_folder',
+    mediaType: 'adult',
+    scraped: true,
+    size: base.size || 1024 * 1024,
+    duration: base.duration || 1200,
+    bitrate: base.bitrate || 3_000_000,
+    resolution: base.resolution || '1920x1080',
+    codec: base.codec || 'h264',
+    adultMetadata: {
+      ...((base && base.adultMetadata) || {}),
+      region: 'japanese_jav',
+      scrapeStatus: 'done',
+      adultId: 'MVSD-175',
+      title: base.name || 'MVSD-175',
+    },
+    ...overrides,
+  };
+}
+
+function targetGateForFlowKind(flowKind) {
+  if (flowKind === 'ingest') return 'ingest';
+  if (flowKind === 'scrape') return 'metadata';
+  if (flowKind === 'archive') return 'archive';
+  if (flowKind === 'delete') return 'delete';
+  return 'optimize';
+}
+
+function resourceForFlowKind(flowKind) {
+  if (flowKind === 'scrape') return 'scraper';
+  if (flowKind === 'upgrade') return 'moviepilot';
+  if (flowKind === 'delete') return 'filesystem';
+  if (flowKind === 'archive') return 'service_api';
+  if (flowKind === 'ingest') return 'filesystem';
+  return 'transcode';
+}
+
+function kairoxTask(flowKind, overrides = {}) {
+  const targetGate = overrides.targetGate || targetGateForFlowKind(flowKind);
+  const itemId = overrides.itemId || `${targetGate}-${crypto.randomUUID().slice(0, 8)}`;
+  const source = overrides.source || 'manual';
+  const primaryResourceType = overrides.primaryResourceType || resourceForFlowKind(flowKind);
+  const baseFlowPlan = {
+    version: 'test',
+    bridgeKind: targetGate,
+    direction: `${targetGate}.${flowKind}`,
+    flowKind,
+    executor: `${flowKind}FlowExecutor`,
+    primaryResourceType,
+    source,
+    resourceTypes: [primaryResourceType],
+    steps: [{ phase: `${flowKind}_executing`, eventType: `${targetGate}.${flowKind}.execute`, resourceType: primaryResourceType }],
+    plannedAt: new Date().toISOString(),
+  };
+  return {
+    ...overrides,
+    itemId,
+    source,
+    taskTarget: overrides.taskTarget || {
+      object: { type: 'media_item', itemId },
+      targetGate,
+      gateObjective: overrides.gateObjective || {},
+      source,
+    },
+    taskBridge: overrides.taskBridge || { kind: targetGate, flowKind, source },
+    flowPlan: { ...baseFlowPlan, ...(overrides.flowPlan || {}) },
+  };
+}
 
 // ── Health ────────────────────────────────────────────────────────────────────
 
@@ -21,7 +138,6 @@ test('GET /v1/health (no auth) returns v2 format', async () => {
   assert.ok(body.timestamp, 'timestamp present');
   await app.close();
 });
-
 test('GET /v1/admin/health includes checks detail', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
@@ -71,6 +187,26 @@ test('media library health does not mark manual folder libraries stale', async (
   assert.strictEqual(health.manualFolderCount, 1);
 });
 
+test('media library health keeps stale refresh state out of service availability', async () => {
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const health = mediaLibraryService.getHealth({
+    defaultRefreshIntervalMinutes: 60,
+    subLibraries: [
+      {
+        uuid: 'emby-stale',
+        name: '电影',
+        enabled: true,
+        source: 'emby',
+        lastRefreshedAt: '2020-01-01T00:00:00.000Z',
+      },
+    ],
+  });
+
+  assert.strictEqual(health.status, 'green');
+  assert.deepStrictEqual(health.staleSubLibraries, ['电影']);
+  assert.strictEqual(health.scheduledRefreshCount, 1);
+});
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 test('X-API-Key enforced when apiKey set', async () => {
@@ -104,6 +240,8 @@ test('GET /v1/config includes v2 schema fields', async () => {
   assert.strictEqual(typeof cfg.smartTaskInitialDelaySeconds, 'number');
   assert.strictEqual(typeof cfg.mediaLibraryStartupRefreshOnStartup, 'boolean');
   assert.strictEqual(typeof cfg.mediaLibraryStartupRefreshDelaySeconds, 'number');
+  assert.strictEqual(typeof cfg.mediaLibraryStartupRefreshStaleMinutes, 'number');
+  assert.strictEqual(typeof cfg.mediaLibraryStartupRefreshMaxLibraries, 'number');
   assert.strictEqual(typeof cfg.mediaLibrarySelfComputeOnStartup, 'boolean');
   await app.close();
 });
@@ -131,14 +269,14 @@ test('PATCH /v1/config persists and reloads', async () => {
 test('POST /v1/tasks missing itemId -> 400', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { actionType: 'delete' } });
+  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { targetGate: 'delete' } });
   assert.strictEqual(res.statusCode, 400);
   const body = res.json();
   assert.strictEqual(body.error.code, 'VALIDATION_ERROR');
   await app.close();
 });
 
-test('POST /v1/tasks missing actionType -> 400', async () => {
+test('POST /v1/tasks missing targetGate -> 400', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'abc' } });
@@ -148,10 +286,10 @@ test('POST /v1/tasks missing actionType -> 400', async () => {
   await app.close();
 });
 
-test('POST /v1/tasks invalid actionType -> 400', async () => {
+test('POST /v1/tasks invalid targetGate -> 400', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'abc', actionType: 'invalid' } });
+  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'abc', targetGate: 'invalid' } });
   assert.strictEqual(res.statusCode, 400);
   const body = res.json();
   assert.strictEqual(body.error.code, 'VALIDATION_ERROR');
@@ -161,18 +299,931 @@ test('POST /v1/tasks invalid actionType -> 400', async () => {
 test('POST /v1/tasks creates task and returns 201', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'test-item-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Task Create Movie',
+      path: '/media/task-create-movie.mkv',
+      bitrate: 10_000_000,
+      equivalentBitrate: 10,
+      codec: 'h264',
+      targetBitrate: 4,
+      targetCodec: 'h265',
+    })],
+  });
   const res = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'test-item-' + crypto.randomUUID().slice(0, 8), actionType: 'transcode' },
+    payload: { itemId, targetGate: 'optimize' },
   });
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
   assert.ok(body.id, 'task id present');
   assert.strictEqual(body.status, 'created');
-  assert.strictEqual(body.actionType, 'transcode');
   assert.strictEqual(body.source, 'manual');
+  assert.strictEqual(body.taskTarget.object.itemId, itemId);
+  assert.strictEqual(body.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(body.taskTarget.gateObjective.kind, 'target_media_facts');
+  assert.strictEqual(body.taskBridge.kind, 'optimize');
+  assert.strictEqual(body.taskBridge.flowKind, 'transcode');
+  assert.strictEqual(body.flowPlan.direction, 'optimize.transcode');
+  assert.strictEqual(body.flowPlan.flowKind, 'transcode');
+  assert.strictEqual(body.admission.allowed, true);
+  assert.strictEqual(body.admission.targetGate, 'optimize');
+  assert.strictEqual(body.admission.reason, 'allowed');
+  assert.strictEqual(body.admission.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(body.admission.taskTarget.gateObjective.kind, 'target_media_facts');
+  assert.strictEqual(body.flowPlan.flowSelection.flowKind, 'transcode');
+  assert.strictEqual(body.flowPlan.flowSelection.currentFacts.codec, 'h264');
+  assert.strictEqual(body.flowPlan.flowSelection.targetFacts.targetCodec, 'h265');
+
+  const detail = await app.inject({ method: 'GET', url: `/v1/tasks/${body.id}?includeEvents=1` });
+  assert.strictEqual(detail.statusCode, 200);
+  assert.strictEqual(detail.json().taskTarget.targetGate, 'optimize');
+  assert.strictEqual(detail.json().taskTarget.gateObjective.kind, 'target_media_facts');
+  assert.strictEqual(detail.json().taskBridge.kind, 'optimize');
+  const plannedEvent = detail.json().events.find((event) => event.eventType === 'task.created');
+  assert.ok(plannedEvent);
+  assert.strictEqual(plannedEvent.payload.taskTarget.targetGate, 'optimize');
+
+  const list = await app.inject({ method: 'GET', url: '/v1/tasks' });
+  assert.strictEqual(list.statusCode, 200);
+  const listed = list.json().tasks.find((task) => task.id === body.id);
+  assert.ok(listed);
+  assert.strictEqual(listed.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(listed.taskTarget.gateObjective.kind, 'target_media_facts');
   await app.close();
+});
+
+test('POST /v1/tasks rejects frozen media and item detail exposes mediaFreeze', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'frozen-api-' + crypto.randomUUID().slice(0, 8);
+  const frozenUntil = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Frozen API Movie',
+      mediaFreeze: {
+        frozenUntil,
+        reason: 'post_optimize_external_settle',
+        sourceTaskId: 'task-freeze-source',
+        sourceTargetGate: 'optimize',
+        sourceFlowKind: 'transcode',
+      },
+    })],
+  });
+
+  const detail = await app.inject({ method: 'GET', url: `/v1/library/items/${encodeURIComponent(itemId)}` });
+  assert.strictEqual(detail.statusCode, 200);
+  assert.strictEqual(detail.json().mediaFreeze.frozen, true);
+  assert.strictEqual(detail.json().mediaFreeze.frozenUntil, frozenUntil);
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, targetGate: 'optimize' },
+  });
+  assert.strictEqual(res.statusCode, 409);
+  const body = res.json();
+  assert.strictEqual(body.admission.reason, 'media_frozen');
+  assert.strictEqual(body.admission.frozenUntil, frozenUntil);
+  assert.strictEqual(body.admission.sourceTargetGate, 'optimize');
+  assert.strictEqual(body.admission.sourceFlowKind, 'transcode');
+  assert.match(body.error.message, /媒体冻结中/);
+  await app.close();
+});
+
+test('POST /v1/tasks accepts optimize target intent and selects flow from objective', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'intent-upgrade-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Intent Upgrade Movie',
+      path: '/media/intent-upgrade.mkv',
+      optimizeObjective: {
+        kind: 'target_media_facts',
+        targetMediaFacts: {
+          minResolution: '4K',
+          targetBitrate: 20,
+          targetCodec: 'h265',
+        },
+      },
+    })],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, targetGate: 'optimize' },
+  });
+  assert.strictEqual(res.statusCode, 201);
+  const body = res.json();
+  assert.strictEqual(body.taskTarget.targetGate, 'optimize');
+  assert.strictEqual(body.taskTarget.gateObjective.kind, 'target_media_facts');
+  assert.strictEqual(body.taskBridge.kind, 'optimize');
+  assert.strictEqual(body.flowPlan.flowKind, 'upgrade');
+  assert.strictEqual(body.admission.allowed, true);
+  assert.strictEqual(body.admission.targetGate, 'optimize');
+  assert.strictEqual(body.flowPlan.flowSelection.reason, 'better_source_required');
+  await app.close();
+});
+
+test('POST /v1/tasks rejects delete as an optimize objective', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'intent-delete-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Intent Delete Movie',
+      path: '/media/intent-delete.mkv',
+      optimizeObjective: { kind: 'remove_media' },
+    })],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, targetGate: 'optimize' },
+  });
+  assert.strictEqual(res.statusCode, 409);
+  const body = res.json();
+  assert.strictEqual(body.error.code, 'TASK_ADMISSION_REJECTED');
+  assert.strictEqual(body.admission.reason, 'optimize_objective_not_ready');
+  assert.strictEqual(body.lifecycleProjection.optimizeObjectiveStatus, 'blocked_contract');
+  assert.strictEqual(body.lifecycleProjection.objectiveBlockedReason, 'objective_unknown');
+  await app.close();
+});
+
+test('POST /v1/tasks treats flow preference as non-authoritative intent metadata', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'intent-keep-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Intent Keep Movie',
+      path: '/media/intent-keep.mkv',
+    })],
+  });
+
+  const optimize = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, targetGate: 'optimize', flowPreference: 'upgrade' },
+  });
+  assert.strictEqual(optimize.statusCode, 201);
+  const optimizeBody = optimize.json();
+  assert.strictEqual(optimizeBody.taskTarget.targetGate, 'optimize');
+  assert.notStrictEqual(optimizeBody.flowPlan.flowKind, 'delete');
+
+  const mismatch = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, targetGate: 'archive', flowPreference: 'delete' },
+  });
+  assert.strictEqual(mismatch.statusCode, 409);
+  const mismatchBody = mismatch.json();
+  assert.strictEqual(mismatchBody.admission.reason, 'optimize_gate_missing');
+  assert.strictEqual(mismatchBody.admission.targetGate, 'archive');
+  await app.close();
+});
+
+test('TaskAdmission rejects optimize tasks when metadata is missing', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'metadata-missing-item';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [{
+      itemId,
+      source: 'emby',
+      name: 'Incomplete Movie',
+      type: 'movie',
+    }],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, targetGate: 'optimize' },
+  });
+  assert.strictEqual(res.statusCode, 409);
+  const body = res.json();
+  assert.strictEqual(body.error.code, 'TASK_ADMISSION_REJECTED');
+  assert.strictEqual(body.error.message, 'metadata_missing');
+  assert.strictEqual(body.admission.targetGate, 'optimize');
+  assert.strictEqual(body.admission.reason, 'metadata_missing');
+  assert.strictEqual(body.lifecycleProjection.optimizeObjectiveStatus, 'pending_metadata');
+  await app.close();
+});
+
+test('POST /v1/tasks allows optimize when previous flow failure evidence does not close the gate', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'failed-optimize-manual';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      source: 'emby',
+      name: 'Failed Optimize Manual',
+      audioCodecs: ['aac'],
+      optimizeGate: {
+        gate: 'optimize',
+        passed: false,
+        status: 'failed',
+        reason: 'bitrate_above_range',
+        flowKind: 'transcode',
+        failureReasons: ['bitrate_above_range'],
+        retryPolicy: { automaticRetry: false, manualRetryAllowed: true, reason: 'heavy_resource_gate_miss' },
+      },
+    })],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, targetGate: 'optimize' },
+  });
+  assert.strictEqual(res.statusCode, 201);
+  const body = res.json();
+  assert.strictEqual(body.taskTarget.targetGate, 'optimize');
+  assert.ok(body.taskTarget.attemptKey);
+  assert.strictEqual(body.admission.reason, 'allowed');
+  await app.close();
+  smartTaskEngine.stop();
+  require('../src/taskScheduler').stopScheduler();
+});
+
+test('TaskAdmission accepts standard metadata repair scrape', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  diagnosticLog.resetForTests();
+  const itemId = 'standard-scrape-repair';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Standard Scrape Repair',
+      source: 'emby',
+      tmdbId: '',
+      doubanId: '',
+      duration: undefined,
+      audioCodecs: [],
+      metadataComplete: false,
+      metadataStatus: 'incomplete',
+    })],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, targetGate: 'metadata' },
+  });
+  assert.strictEqual(res.statusCode, 201);
+  const body = res.json();
+  assert.strictEqual(body.taskTarget.targetGate, 'metadata');
+  assert.strictEqual(body.taskTarget.gateObjective.kind, 'metadata_complete');
+  assert.strictEqual(body.taskTarget.gateObjective.repairMode, 'emby_repair');
+  assert.strictEqual(body.taskBridge.kind, 'metadata');
+  assert.strictEqual(body.flowPlan.primaryResourceType, 'emby');
+  assert.ok(body.flowPlan.resourceTypes.includes('emby'));
+  const logs = diagnosticLog.list({ limit: 20 }).logs;
+  assert.ok(!logs.some((entry) => entry.operation === 'reject_task' && entry.payload.itemId === itemId));
+  await app.close();
+  smartTaskEngine.stop();
+  require('../src/taskScheduler').stopScheduler();
+});
+
+test('GET /v1/library exposes Kairox lifecycle projection for media rows', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'business-flow-row';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Business Flow Row',
+      source: 'emby',
+      equivalentBitrate: 10,
+      targetBitrate: 4,
+      targetCodec: 'h265',
+      targetMediaFacts: {
+        targetBitrate: 4,
+        targetCodec: 'h265',
+      },
+    }), metadataReadyMovie({
+      itemId: 'business-flow-keep',
+      name: 'Business Flow Keep',
+      source: 'emby',
+      codec: 'h264',
+      bitrate: 4_000_000,
+      equivalentBitrate: 4,
+      targetBitrate: 4,
+      targetCodec: 'h264',
+      targetMediaFacts: {
+        targetBitrate: 4,
+        targetCodec: 'h264',
+      },
+      optimizeObjective: {
+        kind: 'target_media_facts',
+        targetMediaFacts: {
+          targetBitrate: 4,
+          targetCodec: 'h264',
+        },
+      },
+      optimizeGate: {
+        gate: 'optimize',
+        passed: true,
+        status: 'passed',
+        reason: 'objective_satisfied',
+        flowKind: 'no_op',
+      },
+    })],
+  });
+
+  const res = await app.inject({ method: 'GET', url: '/v1/library?projection=manage&limit=20' });
+  assert.strictEqual(res.statusCode, 200);
+  const item = res.json().items.find((row) => row.itemId === itemId);
+  assert.ok(item, 'media row present');
+  assert.strictEqual(item.lifecycleStage, 'metadata_ready');
+  assert.strictEqual(item.metadataStatus, 'complete');
+  assert.strictEqual(item.lifecycleNextTask, 'optimize');
+  assert.strictEqual(item.optimizeFlowKind, 'transcode');
+  assert.strictEqual(item.optimizeGate.status, 'not_passed');
+  const keepItem = res.json().items.find((row) => row.itemId === 'business-flow-keep');
+  assert.ok(keepItem, 'keep media row present');
+  assert.strictEqual(keepItem.lifecycleStage, 'optimized');
+  assert.strictEqual(keepItem.lifecycleNextTask, 'archive');
+  assert.strictEqual(keepItem.optimizeGate.passed, true);
+  await app.close();
+});
+
+test('GET /v1/library exposes active task context without legacy operation blocker projection', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  const itemId = 'business-flow-active';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Business Flow Active',
+      optimizeObjective: {
+        kind: 'target_media_facts',
+        targetMediaFacts: { minResolution: '4K', targetBitrate: 20, targetCodec: 'h265' },
+      },
+    })],
+  });
+  const task = taskStore.createTask(kairoxTask('upgrade', {
+    itemId,
+    itemName: 'Business Flow Active',
+    status: 'queued',
+  }));
+
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.loadTasks = () => {
+    throw new Error('library business decision should use lightweight active summaries');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/library?projection=manage&limit=20' });
+    assert.strictEqual(res.statusCode, 200);
+    const item = res.json().items.find((row) => row.itemId === itemId);
+    assert.ok(item, 'media row present');
+    assert.strictEqual(item.lifecycleNextTask, 'optimize');
+    assert.strictEqual(item.optimizeFlowKind, 'upgrade');
+
+    const detail = await app.inject({ method: 'GET', url: `/v1/library/items/${itemId}` });
+    assert.strictEqual(detail.statusCode, 200);
+    assert.strictEqual(detail.json().optimizeFlowKind, 'upgrade');
+  } finally {
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
+});
+
+test('GET /v1/library keeps flow failure evidence separate from optimize gate achievement', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  const itemId = 'business-flow-failed';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Business Flow Failed',
+      optimizeGate: {
+        gate: 'optimize',
+        passed: false,
+        status: 'failed',
+        reason: 'encoder_failed_before_replace',
+        flowKind: 'transcode',
+        failureReasons: ['encoder_failed_before_replace'],
+      },
+    })],
+  });
+  const failed = taskStore.createTask(kairoxTask('transcode', {
+    itemId,
+    itemName: 'Business Flow Failed',
+    status: 'queued',
+  }));
+  taskStore.updateTask(failed.id, {
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    logs: [{ ts: '2026-06-30T00:00:00.000Z', level: 'error', msg: 'Encoder failed before replace' }],
+  });
+  taskStore.updateTask(failed.id, { status: 'failed_hard' });
+
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.loadTasks = () => {
+    throw new Error('library failure summary should use task event projection');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/library?projection=manage&limit=20' });
+    assert.strictEqual(res.statusCode, 200);
+    const item = res.json().items.find((row) => row.itemId === itemId);
+    assert.ok(item, 'media row present');
+    assert.strictEqual(item.optimizeGate.status, 'not_passed');
+    assert.strictEqual(item.optimizeGate.flowKind, 'transcode');
+    assert.ok(item.optimizeGate.failureReasons.includes('codec_mismatch'));
+
+    const detail = await app.inject({ method: 'GET', url: `/v1/library/items/${itemId}` });
+    assert.strictEqual(detail.statusCode, 200);
+    assert.strictEqual(detail.json().optimizeGate.status, 'not_passed');
+  } finally {
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
+});
+
+test('manual delete task is planned as delete gate after review confirmation', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'optimize-delete-item';
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId,
+      name: 'Delete Candidate',
+      archiveStatus: 'archived',
+      archiveDoneAt: new Date().toISOString(),
+      deleteCandidate: { candidateStatus: 'confirmed', decision: 'confirm_delete' },
+    })],
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/tasks',
+    payload: { itemId, targetGate: 'delete', preferredFlow: 'delete' },
+  });
+  assert.strictEqual(res.statusCode, 201);
+  assert.strictEqual(res.json().taskTarget.targetGate, 'delete');
+  assert.strictEqual(res.json().taskTarget.gateObjective.kind, 'delete_archived_media');
+  assert.strictEqual(res.json().taskBridge.kind, 'delete');
+  assert.strictEqual(res.json().flowPlan.direction, 'delete.execute');
+  assert.strictEqual(res.json().flowPlan.flowKind, 'delete');
+  await app.close();
+});
+
+test('GET task events and admin resource view expose v2.5 projections', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  runtimeResourceTracker.resetForTests();
+  diagnosticLog.resetForTests();
+  backgroundIoGuard.resetForTests();
+
+  const task = taskStore.createTask(kairoxTask('transcode', {
+    itemId: 'resource-item',
+    itemName: 'Resource Item',
+    source: 'manual',
+    status: 'queued',
+    primaryResourceType: 'local_transcode',
+    itemInfo: { subLibraryId: 'movie-lib', path: '/media/resource-item.mkv' },
+  }));
+  taskStore.updateTask(task.id, { status: 'executing', phase: 'transcode_executing' });
+  const failedTask = taskStore.createTask(kairoxTask('transcode', {
+    itemId: 'resource-failed',
+    itemName: 'Resource Failed',
+    source: 'manual',
+    status: 'queued',
+    primaryResourceType: 'local_transcode',
+    itemInfo: { subLibraryId: 'movie-lib', path: '/media/resource-failed.mkv' },
+  }));
+  taskStore.updateTask(failedTask.id, {
+    status: 'failed_hard',
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    retryCount: 1,
+    logs: [{ ts: '2026-06-30T00:00:00.000Z', level: 'error', msg: 'Encoder exited with code 1' }],
+  });
+  diagnosticLog.record({
+    category: 'flow',
+    scope: 'transcode.execute',
+    operation: 'encode',
+    component: 'transcodeFlow',
+    resourceType: 'local_transcode',
+    resourceKey: 'local:ffmpeg',
+    status: 'failed',
+    payload: {
+      taskId: failedTask.id,
+      itemId: failedTask.itemId,
+      error: 'encoder exited',
+    },
+  });
+
+  let res = await app.inject({ method: 'GET', url: `/v1/tasks/${task.id}/events` });
+  assert.strictEqual(res.statusCode, 200);
+  const events = res.json();
+  assert.ok(events.events.some((event) => event.eventType === 'task.created'));
+  assert.ok(events.events.some((event) => event.eventType === 'task.status_changed'));
+
+  runtimeResourceTracker.startEvent({
+    eventType: 'library.query',
+    component: 'test',
+    resourceType: 'service_api',
+    resourceKey: 'service:library.query',
+    resourceLabel: 'Library query',
+    payload: { route: '/v1/library' },
+  });
+  const guardHandle = backgroundIoGuard.tryStart({
+    operation: 'test.background.write',
+    component: 'test',
+    lockKey: 'library_background_io',
+    resourceKey: 'test:background-write',
+  });
+
+  res = await app.inject({ method: 'GET', url: '/v1/admin/resources?detail=full' });
+  assert.strictEqual(res.statusCode, 200);
+  const resources = res.json();
+  assert.strictEqual(resources.summary.totalTasks, 1);
+  assert.strictEqual(resources.summary.totalEvents, 1);
+  assert.strictEqual(resources.summary.runningEvents, 1);
+  assert.strictEqual(resources.summary.byResourceType.unknown, 1);
+  assert.strictEqual(resources.summary.byResourceType.service_api, 1);
+  const transcodeBucket = resources.resources.find((bucket) => bucket.resourceKey === 'unknown:transcode');
+  assert.ok(transcodeBucket, 'transcode task bucket exists');
+  assert.strictEqual(transcodeBucket.tasks[0].taskId, task.id);
+  assert.strictEqual(transcodeBucket.tasks[0].resourceState, 'running');
+  const queryBucket = resources.resources.find((bucket) => bucket.resourceKey === 'service:library.query');
+  assert.ok(queryBucket, 'library query bucket exists');
+  assert.strictEqual(queryBucket.events[0].eventType, 'library.query');
+  assert.strictEqual(queryBucket.events[0].eventStatus, 'running');
+  assert.ok(resources.diagnostics, 'diagnostics present');
+  assert.ok(resources.diagnostics.logs.some((log) => log.scope === 'resourceProjection.buildResourceView'));
+  assert.ok(resources.diagnostics.metrics.storage.some((metric) => metric.store === 'library'));
+  assert.ok(resources.diagnostics.metrics.storage.some((metric) => metric.store === 'tasks'));
+  assert.ok(resources.diagnostics.backgroundIo, 'background I/O diagnostics present');
+  assert.strictEqual(resources.diagnostics.backgroundIo.summary.activeCount, 1);
+  assert.strictEqual(resources.diagnostics.backgroundIo.active[0].operation, 'test.background.write');
+  const failedEvent = resources.diagnostics.failedEvents.find((event) => event.taskId === failedTask.id);
+  assert.ok(failedEvent, 'failed task event appears in resource diagnostics');
+  assert.strictEqual(failedEvent.task.id, failedTask.id);
+  assert.strictEqual(failedEvent.task.status, 'failed_hard');
+  assert.strictEqual(failedEvent.recovery.state, 'retry_available');
+  assert.strictEqual(failedEvent.recovery.resumePoint, 'transcode_executing');
+  assert.strictEqual(failedEvent.controlState.actions.retry.enabled, true);
+  assert.strictEqual(failedEvent.controlState.actions.retry.effect, 'queue_failed_task_from_resume_point');
+  assert.strictEqual(failedEvent.resourceContext.resourceKey, 'unknown:transcode');
+  assert.strictEqual(failedEvent.diagnosticSummary.scope, 'transcode.execute');
+  assert.strictEqual(failedEvent.diagnosticSummary.error, 'encoder exited');
+  assert.strictEqual(failedEvent.failureSummary.message, 'Encoder exited with code 1');
+  assert.strictEqual(failedEvent.failureSummary.level, 'error');
+  assert.strictEqual(failedEvent.failureSummary.source, 'task_log');
+  guardHandle.finish('done');
+
+  await app.close();
+});
+
+test('DELETE /v1/admin/nodes/:id explains active worker job conflicts from task summaries', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+
+  const node = nodeStore.addNode({
+    name: 'GPU Node',
+    address: '127.0.0.1:19000',
+    apiKey: 'node-key',
+    capabilities: { devices: [] },
+  });
+  const task = taskStore.createTask(kairoxTask('transcode', {
+    itemId: 'node-active-item',
+    itemName: 'Node Active Item',
+    source: 'manual',
+    status: 'queued',
+    primaryResourceType: 'local_transcode',
+    itemInfo: { path: '/media/node-active-item.mkv' },
+  }));
+  taskStore.updateTask(task.id, {
+    status: 'executing',
+    phase: 'transcode_executing',
+    nodeId: node.id,
+  });
+
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.loadTasks = () => {
+    throw new Error('DELETE node conflict must not load full task history');
+  };
+  try {
+    const res = await app.inject({ method: 'DELETE', url: `/v1/admin/nodes/${node.id}` });
+    assert.strictEqual(res.statusCode, 409);
+    const body = res.json();
+    assert.strictEqual(body.error.code, 'NODE_HAS_ACTIVE_JOBS');
+    assert.strictEqual(body.error.message, 'node_has_active_jobs');
+    assert.strictEqual(body.node.id, node.id);
+    assert.strictEqual(body.node.name, 'GPU Node');
+    assert.strictEqual(body.resourceContext.resourceType, 'worker_node');
+    assert.strictEqual(body.resourceContext.resourceKey, `node:${node.id}`);
+    assert.strictEqual(body.activeJobCount, 1);
+    assert.strictEqual(body.activeTasks.length, 1);
+    assert.strictEqual(body.activeTasks[0].id, task.id);
+    assert.strictEqual(body.activeTasks[0].nodeId, node.id);
+    assert.strictEqual(body.activeTasks[0].flowPlan.flowKind, 'transcode');
+    assert.strictEqual(body.activeTasks[0].controlState.state, 'running');
+    assert.strictEqual(body.forceDelete.available, true);
+    assert.strictEqual(body.forceDelete.effect, 'mark_active_tasks_failed_hard_then_delete_node');
+
+    const force = await app.inject({ method: 'DELETE', url: `/v1/admin/nodes/${node.id}?force=true` });
+    assert.strictEqual(force.statusCode, 200);
+    assert.strictEqual(force.json().ok, true);
+    assert.strictEqual(force.json().node.id, node.id);
+    assert.strictEqual(force.json().resourceContext.resourceKey, `node:${node.id}`);
+    assert.strictEqual(force.json().forceDelete.applied, true);
+    assert.strictEqual(force.json().forceDelete.effect, 'marked_active_tasks_failed_hard_then_deleted_node');
+    assert.deepStrictEqual(force.json().forceDelete.affectedTaskIds, [task.id]);
+    assert.strictEqual(nodeStore.getNode(node.id), null);
+    assert.strictEqual(taskStore.getTask(task.id).status, 'failed_hard');
+  } finally {
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
+});
+
+test('task event journal records retry, interruption, and failure semantics', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+
+  const task = taskStore.createTask({
+    itemId: 'event-failure-item',
+    itemName: 'Event Failure Item',
+    SelectedFlow: 'transcode',
+    source: 'manual',
+    status: 'queued',
+    itemInfo: { itemId: 'event-failure-item', name: 'Event Failure Item' },
+  });
+  taskStore.updateTask(task.id, { status: 'executing' });
+  taskStore.updateTask(task.id, { status: 'interrupted' });
+  taskStore.updateTask(task.id, { status: 'queued', retryCount: 1 });
+  taskStore.updateTask(task.id, { status: 'failed_hard' });
+
+  const eventTypes = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 50 }).events.map((event) => event.eventType);
+  assert.ok(eventTypes.includes('task.interrupted'));
+  assert.ok(eventTypes.includes('task.retry_recorded'));
+  assert.ok(eventTypes.includes('task.failed'));
+  await app.close();
+});
+
+test('GET /v1/library records a runtime library.query event for resource attribution', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  runtimeResourceTracker.resetForTests();
+  diagnosticLog.resetForTests();
+
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({ itemId: 'runtime-library-query' })],
+  });
+
+  let res = await app.inject({ method: 'GET', url: '/v1/library?limit=1' });
+  assert.strictEqual(res.statusCode, 200);
+
+  res = await app.inject({ method: 'GET', url: '/v1/admin/resources?detail=full' });
+  assert.strictEqual(res.statusCode, 200);
+  const view = res.json();
+  assert.strictEqual(view.summary.totalEvents, 1);
+  const bucket = view.resources.find((entry) => entry.resourceKey === 'service:library.query');
+  assert.ok(bucket, 'library query resource bucket exists');
+  assert.strictEqual(bucket.events[0].eventType, 'library.query');
+  assert.strictEqual(bucket.events[0].eventStatus, 'done');
+  assert.strictEqual(bucket.events[0].payload.itemCount, 1);
+  assert.strictEqual(bucket.events[0].payload.total, 1);
+  assert.ok(view.diagnostics.logs.some((log) => log.scope === 'libraryStore.queryItems'), 'library store query diagnostic exists');
+  const libraryMetric = view.diagnostics.metrics.storage.find((metric) => metric.store === 'library');
+  assert.ok(libraryMetric, 'library storage metric exists');
+  assert.ok(libraryMetric.files.some((file) => file.name === 'library.db-wal'), 'library WAL metric exists');
+
+  await app.close();
+});
+
+test('GET /v1/library list routes record safe route and service diagnostics', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    embyServers: {
+      main: { baseUrl: 'http://emby.local:8096', apiKey: 'library-route-secret-key' },
+    },
+    moviepilot: { apiKey: 'moviepilot-route-secret-key' },
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  diagnosticLog.resetForTests();
+
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [
+      metadataReadyMovie({
+        itemId: 'diag-library-1',
+        subLibraryId: 'diag-library',
+        name: 'Diagnostic Search Match',
+      }),
+      metadataReadyMovie({
+        itemId: 'diag-library-2',
+        subLibraryId: 'diag-library',
+        name: 'Other Movie',
+      }),
+    ],
+  });
+
+  const list = await app.inject({
+    method: 'GET',
+    url: '/v1/library?subLibraryId=diag-library&search=Diagnostic&pageSize=1&page=1',
+  });
+  assert.strictEqual(list.statusCode, 200);
+  const manage = await app.inject({
+    method: 'GET',
+    url: '/v1/library/queries/manage?subLibraryId=diag-library&search=Diagnostic&pageSize=1&page=1',
+  });
+  assert.strictEqual(manage.statusCode, 200);
+
+  const logs = diagnosticLog.list({ limit: 50 }).logs;
+  const listRoute = logs.find((log) => log.scope === 'route./v1/library');
+  const manageRoute = logs.find((log) => log.scope === 'route./v1/library/queries/manage');
+  const serviceLog = logs.find((log) => log.scope === 'mediaLibraryService.getLibrary');
+  assert.ok(listRoute, 'library route diagnostic exists');
+  assert.ok(manageRoute, 'manage route diagnostic exists');
+  assert.ok(serviceLog, 'media library service diagnostic exists');
+  assert.strictEqual(listRoute.payload.filter.subLibraryId, 'diag-library');
+  assert.strictEqual(listRoute.payload.filter.hasSearch, true);
+  assert.strictEqual(listRoute.payload.filter.search, undefined);
+  assert.strictEqual(listRoute.payload.page.pageSize, 1);
+  assert.strictEqual(typeof listRoute.durationMs, 'number');
+  assert.strictEqual(listRoute.payload.rowCount, 1);
+  assert.strictEqual(listRoute.payload.total, 1);
+  assert.ok(serviceLog.payload.stages && typeof serviceLog.payload.stages.queryItemsMs === 'number');
+
+  const serializedLogs = JSON.stringify(logs);
+  assert.ok(!serializedLogs.includes('library-route-secret-key'));
+  assert.ok(!serializedLogs.includes('moviepilot-route-secret-key'));
+  assert.ok(!serializedLogs.includes('Diagnostic Search Match'));
+
+  await app.close();
+});
+
+test('admin task/resource/dashboard routes record lightweight diagnostics without full task payloads', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    moviepilot: { apiKey: 'admin-route-secret-key' },
+    automaticTaskTargets: ['metadata'], optimizeAllowedOperations: [],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  diagnosticLog.resetForTests();
+
+  taskStore.createTask({
+    itemId: 'diag-admin-task',
+    itemName: 'secret-search-text Admin Task',
+    SelectedFlow: 'scrape',
+    status: 'failed_hard',
+    itemInfo: {
+      name: 'secret-search-text Admin Task',
+      subLibraryId: 'diag-admin',
+      path: '/private/path/should-not-leak.mkv',
+      adultMetadata: {
+        unknownFaces: [{ sampleImageBase64: Buffer.alloc(1024, 7).toString('base64') }],
+      },
+    },
+    logs: [{ ts: new Date().toISOString(), level: 'error', msg: 'private error detail should not leak into diagnostics' }],
+  });
+
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.loadTasks = () => {
+    throw new Error('route diagnostics must not require full task payloads');
+  };
+  try {
+    const tasks = await app.inject({ method: 'GET', url: '/v1/admin/tasks?page=1&pageSize=1&q=secret-search-text' });
+    assert.strictEqual(tasks.statusCode, 200);
+    const dashboard = await app.inject({ method: 'GET', url: '/v1/admin/dashboard/health' });
+    assert.strictEqual(dashboard.statusCode, 200);
+    const resources = await app.inject({ method: 'GET', url: '/v1/admin/resources?detail=full' });
+    assert.strictEqual(resources.statusCode, 200);
+  } finally {
+    taskStore.loadTasks = originalLoadTasks;
+  }
+
+  const logs = diagnosticLog.list({ limit: 80 }).logs;
+  const scopes = new Set(logs.map((log) => log.scope));
+  assert.ok(scopes.has('route./v1/admin/tasks'));
+  assert.ok(scopes.has('route./v1/admin/dashboard/health'));
+  assert.ok(scopes.has('route./v1/admin/resources'));
+  assert.ok(scopes.has('taskStore.queryTaskSummaries'));
+  assert.ok(scopes.has('taskStore.queryRecentFailureEvents'));
+  const taskRoute = logs.find((log) => log.scope === 'route./v1/admin/tasks');
+  assert.strictEqual(taskRoute.payload.filter.hasSearch, true);
+  assert.strictEqual(taskRoute.payload.filter.q, undefined);
+  assert.strictEqual(taskRoute.payload.projection.includeFullPayload, false);
+  assert.strictEqual(taskRoute.payload.rowCount, 1);
+
+  const serializedLogs = JSON.stringify(logs);
+  assert.ok(!serializedLogs.includes('admin-route-secret-key'));
+  assert.ok(!serializedLogs.includes('secret-search-text'));
+  assert.ok(!serializedLogs.includes('/private/path/should-not-leak.mkv'));
+  assert.ok(!serializedLogs.includes('private error detail should not leak into diagnostics'));
+  assert.ok(!serializedLogs.includes('sampleImageBase64'));
+
+  await app.close();
+});
+
+test('GET /v1/admin/resources defaults to summary and only loads heavy diagnostics for full detail', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+
+  const originalDiagnosticList = diagnosticLog.list;
+  const originalRecentFailures = taskStore.queryRecentFailureEvents;
+  const originalBackgroundIo = backgroundIoGuard.getState;
+  const originalLibraryMetrics = libraryStore.getStorageMetrics;
+  const originalTaskMetrics = taskStore.getStorageMetrics;
+  const calls = {
+    diagnosticList: 0,
+    recentFailures: 0,
+    backgroundIo: 0,
+    libraryMetrics: 0,
+    taskMetrics: 0,
+  };
+  diagnosticLog.list = (...args) => {
+    calls.diagnosticList += 1;
+    return originalDiagnosticList(...args);
+  };
+  taskStore.queryRecentFailureEvents = (...args) => {
+    calls.recentFailures += 1;
+    return originalRecentFailures(...args);
+  };
+  backgroundIoGuard.getState = (...args) => {
+    calls.backgroundIo += 1;
+    return originalBackgroundIo(...args);
+  };
+  libraryStore.getStorageMetrics = (...args) => {
+    calls.libraryMetrics += 1;
+    return originalLibraryMetrics(...args);
+  };
+  taskStore.getStorageMetrics = (...args) => {
+    calls.taskMetrics += 1;
+    return originalTaskMetrics(...args);
+  };
+
+  try {
+    const summary = await app.inject({ method: 'GET', url: '/v1/admin/resources' });
+    assert.strictEqual(summary.statusCode, 200);
+    assert.strictEqual(summary.json().detail, 'summary');
+    assert.deepStrictEqual(summary.json().diagnostics.logs, []);
+    assert.deepStrictEqual(summary.json().diagnostics.failedEvents, []);
+    assert.strictEqual(summary.json().diagnostics.backgroundIo, undefined);
+    assert.strictEqual(summary.json().diagnostics.metrics, undefined);
+    assert.deepStrictEqual(calls, {
+      diagnosticList: 0,
+      recentFailures: 0,
+      backgroundIo: 0,
+      libraryMetrics: 0,
+      taskMetrics: 0,
+    });
+
+    const full = await app.inject({ method: 'GET', url: '/v1/admin/resources?detail=full' });
+    assert.strictEqual(full.statusCode, 200);
+    assert.strictEqual(full.json().detail, 'full');
+    assert.ok(calls.diagnosticList > 0);
+    assert.ok(calls.recentFailures > 0);
+    assert.ok(calls.backgroundIo > 0);
+    assert.ok(calls.libraryMetrics > 0);
+    assert.ok(calls.taskMetrics > 0);
+  } finally {
+    diagnosticLog.list = originalDiagnosticList;
+    taskStore.queryRecentFailureEvents = originalRecentFailures;
+    backgroundIoGuard.getState = originalBackgroundIo;
+    libraryStore.getStorageMetrics = originalLibraryMetrics;
+    taskStore.getStorageMetrics = originalTaskMetrics;
+    await app.close();
+  }
 });
 
 test('POST /v1/tasks follows sub-library automation mode for initial status', async () => {
@@ -191,15 +1242,15 @@ test('POST /v1/tasks follows sub-library automation mode for initial status', as
   mediaLibraryService.saveLibrary({
     cachedAt: new Date().toISOString(),
     items: [
-      { itemId: 'auto-lib-item', name: 'Auto Item', type: 'movie', subLibraryId: 'auto-lib' },
-      { itemId: 'manual-lib-item', name: 'Manual Item', type: 'movie', subLibraryId: 'manual-lib' },
+      metadataReadyMovie({ itemId: 'auto-lib-item', name: 'Auto Item', subLibraryId: 'auto-lib' }),
+      metadataReadyMovie({ itemId: 'manual-lib-item', name: 'Manual Item', subLibraryId: 'manual-lib' }),
     ],
   });
 
   const autoRes = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'auto-lib-item', actionType: 'transcode' },
+    payload: { itemId: 'auto-lib-item', targetGate: 'optimize', preferredFlow: 'transcode' },
   });
   assert.strictEqual(autoRes.statusCode, 201);
   assert.strictEqual(autoRes.json().status, 'created');
@@ -207,7 +1258,7 @@ test('POST /v1/tasks follows sub-library automation mode for initial status', as
   const manualRes = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'manual-lib-item', actionType: 'transcode' },
+    payload: { itemId: 'manual-lib-item', targetGate: 'optimize', preferredFlow: 'transcode' },
   });
   assert.strictEqual(manualRes.statusCode, 201);
   assert.strictEqual(manualRes.json().status, 'pending_manual');
@@ -219,19 +1270,36 @@ test('POST /v1/tasks manual admission does not load full task history', async ()
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   require('../src/taskScheduler').stopScheduler();
   const originalGetTasks = taskStore.getTasks;
+  const originalLoadTasks = taskStore.loadTasks;
+  const unrelated = taskStore.createTask({
+    itemId: 'manual-fast-path-other',
+    itemName: 'Other Active Item',
+    SelectedFlow: 'transcode',
+    source: 'manual',
+    status: 'queued',
+  });
   taskStore.getTasks = () => {
     throw new Error('full history should not be loaded for manual admission');
   };
+  taskStore.loadTasks = () => {
+    throw new Error('full active task list should not be loaded for manual admission');
+  };
   try {
+    mediaLibraryService.saveLibrary({
+      cachedAt: new Date().toISOString(),
+      items: [metadataReadyMovie({ itemId: 'manual-fast-path' })],
+    });
     const res = await app.inject({
       method: 'POST',
       url: '/v1/tasks',
-      payload: { itemId: 'manual-fast-path', actionType: 'transcode' },
+      payload: { itemId: 'manual-fast-path', targetGate: 'optimize', preferredFlow: 'transcode' },
     });
     assert.strictEqual(res.statusCode, 201);
     assert.ok(res.json().id);
+    assert.notStrictEqual(res.json().id, unrelated.id);
   } finally {
     taskStore.getTasks = originalGetTasks;
+    taskStore.loadTasks = originalLoadTasks;
     await app.close();
   }
 });
@@ -239,8 +1307,8 @@ test('POST /v1/tasks manual admission does not load full task history', async ()
 test('GET /v1/tasks lists created tasks', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i1', actionType: 'delete' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i2', actionType: 'transcode' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i1', targetGate: 'metadata', preferredFlow: 'scrape' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i2', targetGate: 'metadata', preferredFlow: 'scrape' } });
   const res = await app.inject({ method: 'GET', url: '/v1/tasks' });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
@@ -252,26 +1320,40 @@ test('GET /v1/tasks lists created tasks', async () => {
 test('GET /v1/tasks defaults to active tasks and includeHistory returns completed history', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const done = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-done', actionType: 'delete' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-active', actionType: 'transcode' } });
+  const done = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-done', targetGate: 'metadata', preferredFlow: 'scrape' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-active', targetGate: 'metadata', preferredFlow: 'scrape' } });
   taskStore.updateTask(done.json().id, { status: 'done' });
 
-  const res = await app.inject({ method: 'GET', url: '/v1/tasks' });
-  assert.strictEqual(res.statusCode, 200);
-  const body = res.json();
-  assert.deepStrictEqual(body.tasks.map((t) => t.itemId), ['i-active']);
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.loadTasks = () => {
+    throw new Error('active task list should use lightweight summaries');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/tasks' });
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.json();
+    assert.deepStrictEqual(body.tasks.map((t) => t.itemId), ['i-active']);
+    assert.strictEqual(body.tasks[0].controlState.state, 'ready_to_start');
+    assert.strictEqual(body.tasks[0].logs, undefined);
 
-  const historyRes = await app.inject({ method: 'GET', url: '/v1/tasks?includeHistory=1' });
-  assert.strictEqual(historyRes.statusCode, 200);
-  const historyIds = historyRes.json().tasks.map((t) => t.itemId).sort();
-  assert.deepStrictEqual(historyIds, ['i-active', 'i-done']);
-  await app.close();
+    const activeByOperation = await app.inject({ method: 'GET', url: '/v1/tasks?selectedFlow=scrape&activeOnly=1' });
+    assert.strictEqual(activeByOperation.statusCode, 200);
+    assert.deepStrictEqual(activeByOperation.json().tasks.map((t) => t.itemId), ['i-active']);
+
+    const historyRes = await app.inject({ method: 'GET', url: '/v1/tasks?includeHistory=1' });
+    assert.strictEqual(historyRes.statusCode, 200);
+    const historyIds = historyRes.json().tasks.map((t) => t.itemId).sort();
+    assert.deepStrictEqual(historyIds, ['i-active', 'i-done']);
+  } finally {
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
 });
 
 test('GET /v1/tasks/:id returns task detail', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-detail', actionType: 'delete' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-detail', targetGate: 'metadata', preferredFlow: 'scrape' } });
   const { id } = create.json();
   const res = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
   assert.strictEqual(res.statusCode, 200);
@@ -286,12 +1368,13 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const taskStore = require('../src/taskStore');
-  const task = taskStore.createTask({
+  const task = taskStore.createTask(kairoxTask('scrape', {
     itemId: 'scrape-report-item',
     itemName: 'SORA-107',
-    actionType: 'scrape',
     status: 'done',
     itemInfo: {
+      source: 'adult_folder',
+      subLibraryId: 'adult-report-lib',
       name: 'SORA-107 Some Title',
       path: '/adult_media/JAV/SORA-107 Some Title/SORA-107.mp4',
       adultMetadata: {
@@ -320,13 +1403,12 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
         }],
       },
     },
-    logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Scrape metadata saved; strategy recalculated' }],
-  });
+    logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Scrape metadata saved; optimize targets recalculated' }],
+  }));
 
   const res = await app.inject({ method: 'GET', url: `/v1/tasks/${task.id}/report` });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
-  assert.strictEqual(body.actionType, 'scrape');
   assert.strictEqual(body.scrape.adultId, 'SORA-107');
   assert.strictEqual(body.scrape.source, 'javbus');
   assert.strictEqual(body.scrape.organized, true);
@@ -346,7 +1428,7 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
 test('DELETE /v1/tasks/:id removes task', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-del', actionType: 'delete' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-del', targetGate: 'metadata', preferredFlow: 'scrape' } });
   const { id } = create.json();
   const res = await app.inject({ method: 'DELETE', url: `/v1/tasks/${id}` });
   assert.strictEqual(res.statusCode, 200);
@@ -386,8 +1468,16 @@ test('delete task removes an adult folder media directory and library item', asy
   fs.writeFileSync(filePath, 'delete-me');
   const adultLibraryService = require('../src/adultLibraryService');
   const item = await adultLibraryService.upsertFileItem(subLib, filePath);
+  mediaLibraryService.updateLibraryItems([metadataReadyAdultItem(item, {
+    name: item.name || 'MVSD-175 Delete Me',
+    path: filePath,
+    size: Buffer.byteLength('delete-me'),
+    archiveStatus: 'archived',
+    archiveDoneAt: new Date().toISOString(),
+    deleteCandidate: { candidateStatus: 'confirmed', decision: 'confirm_delete' },
+  })]);
 
-  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, actionType: 'delete' } });
+  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, targetGate: 'delete', preferredFlow: 'delete' } });
   assert.strictEqual(createTask.statusCode, 201);
 
   const taskStore = require('../src/taskStore');
@@ -403,6 +1493,12 @@ test('delete task removes an adult folder media directory and library item', asy
   assert.strictEqual(lib.json().total, 0, 'delete task should remove the library cache item');
   const done = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
   assert.strictEqual(done.json().status, 'done');
+  assert.strictEqual(done.json().flowPlan.direction, 'delete.execute');
+  assert.strictEqual(done.json().deleteGate.passed, true);
+  assert.strictEqual(done.json().deleteGate.flowKind, 'delete');
+  assert.strictEqual(done.json().deleteGate.reason, 'delete_target_removed');
+  assert.strictEqual(done.json().verifyResult.deletedAt, done.json().deleteGate.observed.deletedAt);
+  assert.strictEqual(done.json().optimizeGate, undefined);
   const report = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}/report` });
   assert.strictEqual(report.statusCode, 200);
   assert.strictEqual(report.json().bytesFreed, Buffer.byteLength('delete-me'));
@@ -440,6 +1536,14 @@ test('delete task removes an adult scraped movie folder when the marker matches'
   fs.writeFileSync(nfoPath, '<movie><title>Some Title</title><id>MVSD-175</id></movie>');
   const adultLibraryService = require('../src/adultLibraryService');
   const item = await adultLibraryService.upsertFileItem(subLib, filePath);
+  mediaLibraryService.updateLibraryItems([metadataReadyAdultItem(item, {
+    name: item.name || 'MVSD-175 Some Title',
+    path: filePath,
+    size: fs.statSync(filePath).size,
+    archiveStatus: 'archived',
+    archiveDoneAt: new Date().toISOString(),
+    deleteCandidate: { candidateStatus: 'confirmed', decision: 'confirm_delete' },
+  })]);
   fs.writeFileSync(path.join(movieDir, '.shelfdeck.json'), JSON.stringify({
     itemId: item.itemId,
     subLibraryId: subLib.uuid,
@@ -450,7 +1554,7 @@ test('delete task removes an adult scraped movie folder when the marker matches'
     .map((name) => fs.statSync(path.join(movieDir, name)).size)
     .reduce((sum, size) => sum + size, 0);
 
-  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, actionType: 'delete' } });
+  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, targetGate: 'delete', preferredFlow: 'delete' } });
   assert.strictEqual(createTask.statusCode, 201);
 
   const taskStore = require('../src/taskStore');
@@ -467,6 +1571,10 @@ test('delete task removes an adult scraped movie folder when the marker matches'
   assert.strictEqual(lib.json().total, 0, 'delete task should remove the library cache item');
   const report = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}/report` });
   assert.strictEqual(report.statusCode, 200);
+  const done = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
+  assert.strictEqual(done.json().deleteGate.passed, true);
+  assert.strictEqual(done.json().deleteStatus, 'deleted');
+  assert.strictEqual(done.json().optimizeGate, undefined);
   assert.strictEqual(report.json().bytesFreed, expectedBytesFreed);
   assert.strictEqual(report.json().delete.targetKind, 'directory');
   assert.strictEqual(report.json().delete.targetPath, movieDir);
@@ -511,10 +1619,24 @@ test('delete task refuses adult folder media paths outside watchRoot', async () 
     name: 'Unsafe Delete',
     path: outsideFile,
     size: Buffer.byteLength('must-stay'),
+    duration: 1200,
+    bitrate: 3_000_000,
+    resolution: '1920x1080',
+    codec: 'h264',
+    scraped: true,
+    archiveStatus: 'archived',
+    archiveDoneAt: new Date().toISOString(),
+    deleteCandidate: { candidateStatus: 'confirmed', decision: 'confirm_delete' },
+    adultMetadata: {
+      region: 'japanese_jav',
+      scrapeStatus: 'done',
+      adultId: 'MVSD-175',
+      title: 'Unsafe Delete',
+    },
   }];
   mediaLibraryService.saveLibrary(lib);
 
-  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'delete' } });
+  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, targetGate: 'delete', preferredFlow: 'delete' } });
   assert.strictEqual(createTask.statusCode, 201);
 
   const taskStore = require('../src/taskStore');
@@ -536,13 +1658,22 @@ test('delete task refuses adult folder media paths outside watchRoot', async () 
 test('POST /v1/tasks/:id/actions/pause returns paused status', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-pause', actionType: 'transcode' } });
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-pause' })] });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-pause', targetGate: 'optimize', preferredFlow: 'transcode' } });
   const { id } = create.json();
   const res = await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/pause` });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
   assert.strictEqual(body.id, id);
   assert.strictEqual(body.status, 'paused');
+  assert.strictEqual(body.controlState.state, 'paused');
+  assert.strictEqual(body.controlState.primaryAction, 'execute');
+  assert.strictEqual(body.controlState.actions.execute.enabled, true);
+  assert.strictEqual(body.controlState.actions.execute.effect, 'resume_from_pause');
+  assert.strictEqual(body.controlState.recovery.state, 'resume_available');
+  const events = await app.inject({ method: 'GET', url: `/v1/tasks/${id}/events` });
+  assert.ok(events.json().events.some((event) => event.eventType === 'task.pause_requested'));
+  assert.ok(events.json().events.some((event) => event.eventType === 'task.paused'));
   await app.close();
 });
 
@@ -557,7 +1688,8 @@ test('POST /v1/tasks/:id/actions/pause non-existent task -> 404', async () => {
 test('POST /v1/tasks/:id/actions/execute resumes paused task to queued', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-resume', actionType: 'transcode' } });
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-resume' })] });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-resume', targetGate: 'optimize', preferredFlow: 'transcode' } });
   const { id } = create.json();
   // Pause first
   await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/pause` });
@@ -567,9 +1699,17 @@ test('POST /v1/tasks/:id/actions/execute resumes paused task to queued', async (
   const body = res.json();
   assert.strictEqual(body.id, id);
   assert.strictEqual(body.status, 'queued');
+  assert.strictEqual(body.controlState.state, 'queued');
+  assert.strictEqual(body.controlState.actions.execute.enabled, false);
+  assert.strictEqual(body.controlState.actions.execute.reason, 'already_active');
+  assert.strictEqual(body.controlState.actions.pause.enabled, true);
   // Verify persisted
   const get = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
   assert.strictEqual(get.json().status, 'queued');
+  assert.strictEqual(get.json().controlState.state, 'queued');
+  const events = await app.inject({ method: 'GET', url: `/v1/tasks/${id}/events` });
+  assert.ok(events.json().events.some((event) => event.eventType === 'task.execute_requested'));
+  assert.ok(events.json().events.some((event) => event.eventType === 'task.resumed'));
   await app.close();
 });
 
@@ -581,10 +1721,568 @@ test('POST /v1/tasks/:id/actions/execute non-existent task -> 404', async () => 
   await app.close();
 });
 
+test('transcode resume at verify does not re-encode partial output', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const configStore = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const transcodeService = require('../src/services/transcodeService');
+
+  const partialPath = path.join(dir, 'movie.etp.partial.mkv');
+  const sourcePath = path.join(dir, 'movie.mkv');
+  fs.writeFileSync(sourcePath, Buffer.alloc(2048));
+  fs.writeFileSync(partialPath, Buffer.alloc(1024));
+
+  configStore.patchConfig({
+    transcodeTempRoot: dir,
+    approvalPolicy: { 'transcode.beforeReplace': 'auto' },
+  });
+
+  const task = taskStore.createTask({
+    itemId: 'resume-transcode-verify',
+    itemName: 'Resume Transcode Verify',
+    SelectedFlow: 'transcode',
+    source: 'manual',
+    status: 'executing',
+    resumePoint: 'transcode_verify',
+    itemInfo: {
+      itemId: 'resume-transcode-verify',
+      name: 'Resume Transcode Verify',
+      sourcePath,
+      partialPath,
+      tempDir: dir,
+      durationSec: 10,
+      originalSizeBytes: 2048,
+      targetBitrate: 4,
+    },
+  });
+
+  const originalStartEncode = transcodeService.startEncode;
+  const originalProbeSummary = transcodeService.probeSummary;
+  const originalExtractPreviewClip = transcodeService.extractPreviewClip;
+  const originalReplaceWithRetries = transcodeService.replaceWithRetries;
+  let encodeCalls = 0;
+  let probeCalls = 0;
+  let replaceCalls = 0;
+  transcodeService.startEncode = async () => {
+    encodeCalls += 1;
+    throw new Error('resume should not encode again');
+  };
+  transcodeService.probeSummary = async () => {
+    probeCalls += 1;
+    return {
+      durationSec: 10,
+      width: 1920,
+      height: 1080,
+      videoCodec: 'hevc',
+      audioCodec: 'aac',
+    };
+  };
+  transcodeService.extractPreviewClip = async () => ({
+    method: 'stub',
+    duration: 5,
+    startSec: 0,
+    previewPath: path.join(dir, 'preview.mp4'),
+  });
+  transcodeService.replaceWithRetries = async () => {
+    replaceCalls += 1;
+    return { resultSizeBytes: 1024 };
+  };
+  transcodeFlow.setScheduler({
+    reportStatus: (id, status, progress) => {
+      const updates = { status, progress: progress ?? undefined };
+      if (status === 'done') {
+        updates.resumePoint = null;
+      }
+      taskStore.updateTask(id, updates);
+    },
+    pauseForConfirm: () => { throw new Error('replace confirmation should be auto-passed'); },
+  });
+
+  try {
+    await transcodeFlow.driveTask(task.id);
+  } finally {
+    transcodeService.startEncode = originalStartEncode;
+    transcodeService.probeSummary = originalProbeSummary;
+    transcodeService.extractPreviewClip = originalExtractPreviewClip;
+    transcodeService.replaceWithRetries = originalReplaceWithRetries;
+    await app.close();
+  }
+
+  const after = taskStore.getTask(task.id);
+  assert.strictEqual(encodeCalls, 0);
+  assert.strictEqual(probeCalls, 1);
+  assert.strictEqual(replaceCalls, 1);
+  assert.strictEqual(after.status, 'done');
+  assert.strictEqual(after.phase, 'done');
+  assert.strictEqual(after.resumePoint, null);
+  assert.strictEqual(after.verifyResult.videoCodec, 'hevc');
+});
+
+test('transcode verify retries with next rate-control strategy when output bitrate is below objective range', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const configStore = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const transcodeService = require('../src/services/transcodeService');
+
+  const sourcePath = path.join(dir, 'rate-source.mkv');
+  const partialPath = path.join(dir, 'rate-output.etp.partial.mkv');
+  fs.writeFileSync(sourcePath, Buffer.alloc(5_000_000));
+  fs.writeFileSync(partialPath, Buffer.alloc(625_000)); // 500 kbps over 10s, below 0.975 Mbps.
+
+  configStore.patchConfig({
+    transcodeTempRoot: dir,
+    approvalPolicy: { 'transcode.beforeReplace': 'auto' },
+    transcodeEncodingDevices: [
+      { stableKey: 'qsv:0', inPool: true, maxSlots: 1, priority: 10 },
+      { stableKey: 'cpu:libx265', inPool: true, maxSlots: 1, priority: 20 },
+    ],
+    transcodeCpuParticipationStrategy: 'normal',
+  });
+
+  const gateObjective = {
+    kind: 'target_media_facts',
+    targetMediaFacts: {
+      targetCodec: 'h265',
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+      },
+    },
+  };
+  const task = taskStore.createTask({
+    itemId: 'rate-control-retry-below',
+    itemName: 'Rate Control Retry Below',
+    source: 'manual',
+    status: 'executing',
+    resumePoint: 'transcode_verify',
+    taskTarget: {
+      object: { type: 'media_item', itemId: 'rate-control-retry-below' },
+      targetGate: 'optimize',
+      gateObjective,
+    },
+    itemInfo: {
+      itemId: 'rate-control-retry-below',
+      name: 'Rate Control Retry Below',
+      sourcePath,
+      partialPath,
+      tempDir: dir,
+      durationSec: 10,
+      originalSizeBytes: 5_000_000,
+      targetMbps: 1.5,
+      targetCodec: 'h265',
+      bucket: '1080p',
+    },
+  });
+
+  const originalStartEncode = transcodeService.startEncode;
+  const originalProbeSummary = transcodeService.probeSummary;
+  const originalExtractPreviewClip = transcodeService.extractPreviewClip;
+  const originalReplaceWithRetries = transcodeService.replaceWithRetries;
+  const strategies = [];
+  let probeCalls = 0;
+  let replaceCalls = 0;
+  transcodeService.startEncode = async (_onProgress, params) => {
+    strategies.push(params.rateControlStrategy);
+    assert.strictEqual(params.rateControlStrategy, 'cpu_two_pass_abr');
+    fs.writeFileSync(params.partialPath, Buffer.alloc(1_875_000)); // 1.5 Mbps over 10s.
+    return { ok: true, encoderUsed: 'cpu', resolvedDeviceId: 'cpu:libx265', rateControlStrategy: params.rateControlStrategy };
+  };
+  transcodeService.probeSummary = async () => {
+    probeCalls += 1;
+    return {
+      durationSec: 10,
+      width: 1920,
+      height: 1080,
+      videoCodec: 'hevc',
+      audioCodec: 'aac',
+    };
+  };
+  transcodeService.extractPreviewClip = async () => ({
+    method: 'stub',
+    duration: 5,
+    startSec: 0,
+    previewPath: path.join(dir, 'preview.mp4'),
+  });
+  transcodeService.replaceWithRetries = async () => {
+    replaceCalls += 1;
+    return { resultSizeBytes: 1_875_000 };
+  };
+  transcodeFlow.setScheduler({
+    reportStatus: (id, status, progress) => {
+      const updates = { status, progress: progress ?? undefined };
+      if (status === 'done') updates.resumePoint = null;
+      taskStore.updateTask(id, updates);
+    },
+    pauseForConfirm: () => { throw new Error('replace confirmation should be auto-passed'); },
+  });
+
+  try {
+    await transcodeFlow.driveTask(task.id);
+  } finally {
+    transcodeService.startEncode = originalStartEncode;
+    transcodeService.probeSummary = originalProbeSummary;
+    transcodeService.extractPreviewClip = originalExtractPreviewClip;
+    transcodeService.replaceWithRetries = originalReplaceWithRetries;
+    await app.close();
+  }
+
+  const after = taskStore.getTask(task.id);
+  assert.deepStrictEqual(strategies, ['cpu_two_pass_abr']);
+  assert.strictEqual(probeCalls, 2);
+  assert.strictEqual(replaceCalls, 1);
+  assert.strictEqual(after.status, 'done');
+  assert.strictEqual(after.verifyResult.bitrate, 1500);
+  assert.deepStrictEqual(
+    after.itemInfo.transcodeRateControl.attempts.map((row) => [row.strategy, row.status, row.reason || '']),
+    [
+      ['qsv_vbr', 'produced_but_not_in_range', 'bitrate_below_range'],
+      ['cpu_two_pass_abr', 'verified', ''],
+    ],
+  );
+});
+
+test('transcode QSV capability failure disables QSV attempts and continues with CPU ladder', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const configStore = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const transcodeService = require('../src/services/transcodeService');
+
+  const sourcePath = path.join(dir, 'cap-source.mkv');
+  const partialPath = path.join(dir, 'cap-output.etp.partial.mkv');
+  fs.writeFileSync(sourcePath, Buffer.alloc(5_000_000));
+
+  configStore.patchConfig({
+    transcodeTempRoot: dir,
+    approvalPolicy: { 'transcode.beforeReplace': 'auto' },
+    transcodeEncodingDevices: [
+      { stableKey: 'qsv:0', inPool: true, maxSlots: 1, priority: 10 },
+      { stableKey: 'cpu:libx265', inPool: true, maxSlots: 1, priority: 20 },
+    ],
+    transcodeCpuParticipationStrategy: 'normal',
+  });
+
+  const gateObjective = {
+    kind: 'target_media_facts',
+    targetMediaFacts: {
+      targetCodec: 'h265',
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+      },
+    },
+  };
+  const task = taskStore.createTask({
+    itemId: 'rate-control-capability',
+    itemName: 'Rate Control Capability',
+    source: 'manual',
+    status: 'executing',
+    resumePoint: 'transcode_executing',
+    taskTarget: {
+      object: { type: 'media_item', itemId: 'rate-control-capability' },
+      targetGate: 'optimize',
+      gateObjective,
+    },
+    itemInfo: {
+      itemId: 'rate-control-capability',
+      name: 'Rate Control Capability',
+      sourcePath,
+      partialPath,
+      tempDir: dir,
+      durationSec: 10,
+      originalSizeBytes: 5_000_000,
+      targetMbps: 1.5,
+      targetCodec: 'h265',
+      bucket: '1080p',
+    },
+  });
+
+  const originalStartEncode = transcodeService.startEncode;
+  const originalProbeSummary = transcodeService.probeSummary;
+  const originalExtractPreviewClip = transcodeService.extractPreviewClip;
+  const originalReplaceWithRetries = transcodeService.replaceWithRetries;
+  const strategies = [];
+  transcodeService.startEncode = async (_onProgress, params) => {
+    strategies.push(params.rateControlStrategy);
+    if (params.rateControlStrategy === 'qsv_vbr') {
+      throw new Error('qsv init failed');
+    }
+    if (params.rateControlStrategy === 'cpu_two_pass_abr') {
+      throw new Error('cpu two-pass failed');
+    }
+    assert.strictEqual(params.rateControlStrategy, 'cpu_strict_fallback');
+    fs.writeFileSync(params.partialPath, Buffer.alloc(1_875_000));
+    return { ok: true, encoderUsed: 'cpu', resolvedDeviceId: 'cpu:libx265', rateControlStrategy: params.rateControlStrategy };
+  };
+  transcodeService.probeSummary = async () => ({
+    durationSec: 10,
+    width: 1920,
+    height: 1080,
+    videoCodec: 'hevc',
+    audioCodec: 'aac',
+  });
+  transcodeService.extractPreviewClip = async () => ({
+    method: 'stub',
+    duration: 5,
+    startSec: 0,
+    previewPath: path.join(dir, 'preview.mp4'),
+  });
+  transcodeService.replaceWithRetries = async () => ({ resultSizeBytes: 1_875_000 });
+  transcodeFlow.setScheduler({
+    reportStatus: (id, status, progress) => {
+      const updates = { status, progress: progress ?? undefined };
+      if (status === 'done') updates.resumePoint = null;
+      taskStore.updateTask(id, updates);
+    },
+    pauseForConfirm: () => { throw new Error('replace confirmation should be auto-passed'); },
+  });
+
+  try {
+    await transcodeFlow.driveTask(task.id);
+  } finally {
+    transcodeService.startEncode = originalStartEncode;
+    transcodeService.probeSummary = originalProbeSummary;
+    transcodeService.extractPreviewClip = originalExtractPreviewClip;
+    transcodeService.replaceWithRetries = originalReplaceWithRetries;
+    await app.close();
+  }
+
+  const after = taskStore.getTask(task.id);
+  assert.deepStrictEqual(strategies, ['qsv_vbr', 'cpu_two_pass_abr', 'cpu_strict_fallback']);
+  assert.strictEqual(after.status, 'done');
+  assert.deepStrictEqual(after.itemInfo.transcodeRateControl.disabledEncoders, ['qsv']);
+  assert.ok(!strategies.includes('qsv_cbr'), 'QSV CBR should be skipped after QSV capability failure');
+});
+
+test('transcode verify fails hard only after rate-control ladder is exhausted', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const configStore = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const transcodeService = require('../src/services/transcodeService');
+
+  const sourcePath = path.join(dir, 'exhaust-source.mkv');
+  const partialPath = path.join(dir, 'exhaust-output.etp.partial.mkv');
+  fs.writeFileSync(sourcePath, Buffer.alloc(5_000_000));
+  fs.writeFileSync(partialPath, Buffer.alloc(625_000));
+
+  configStore.patchConfig({
+    transcodeTempRoot: dir,
+    approvalPolicy: { 'transcode.beforeReplace': 'auto' },
+    transcodeEncodingDevices: [
+      { stableKey: 'qsv:0', inPool: true, maxSlots: 1, priority: 10 },
+      { stableKey: 'cpu:libx265', inPool: true, maxSlots: 1, priority: 20 },
+    ],
+    transcodeCpuParticipationStrategy: 'normal',
+  });
+
+  const gateObjective = {
+    kind: 'target_media_facts',
+    targetMediaFacts: {
+      targetCodec: 'h265',
+      targetBitrateProfileByBucket: {
+        '1080p': { minMbps: 0.975, targetMbps: 1.5, maxMbps: 2.025 },
+      },
+    },
+  };
+  const task = taskStore.createTask({
+    itemId: 'rate-control-exhausted',
+    itemName: 'Rate Control Exhausted',
+    source: 'manual',
+    status: 'executing',
+    resumePoint: 'transcode_verify',
+    taskTarget: {
+      object: { type: 'media_item', itemId: 'rate-control-exhausted' },
+      targetGate: 'optimize',
+      gateObjective,
+    },
+    itemInfo: {
+      itemId: 'rate-control-exhausted',
+      name: 'Rate Control Exhausted',
+      sourcePath,
+      partialPath,
+      tempDir: dir,
+      durationSec: 10,
+      originalSizeBytes: 5_000_000,
+      targetMbps: 1.5,
+      targetCodec: 'h265',
+      bucket: '1080p',
+      transcodeRateControl: {
+        currentAttemptIndex: 3,
+        attempts: [
+          { index: 1, strategy: 'qsv_vbr', status: 'produced_but_not_in_range' },
+          { index: 2, strategy: 'cpu_two_pass_abr', status: 'produced_but_not_in_range' },
+          { index: 3, strategy: 'qsv_cbr', status: 'produced_but_not_in_range' },
+        ],
+        disabledEncoders: [],
+      },
+    },
+  });
+
+  const originalStartEncode = transcodeService.startEncode;
+  const originalProbeSummary = transcodeService.probeSummary;
+  const originalExtractPreviewClip = transcodeService.extractPreviewClip;
+  transcodeService.startEncode = async () => { throw new Error('ladder exhausted should not encode again'); };
+  transcodeService.probeSummary = async () => ({
+    durationSec: 10,
+    width: 1920,
+    height: 1080,
+    videoCodec: 'hevc',
+    audioCodec: 'aac',
+  });
+  transcodeService.extractPreviewClip = async () => ({
+    method: 'stub',
+    duration: 5,
+    startSec: 0,
+    previewPath: path.join(dir, 'preview.mp4'),
+  });
+  transcodeFlow.setScheduler({
+    reportStatus: (id, status, progress) => {
+      const updates = { status, progress: progress ?? undefined };
+      taskStore.updateTask(id, updates);
+    },
+    pauseForConfirm: () => { throw new Error('failed verify should not request confirmation'); },
+  });
+
+  try {
+    await transcodeFlow.driveTask(task.id);
+  } finally {
+    transcodeService.startEncode = originalStartEncode;
+    transcodeService.probeSummary = originalProbeSummary;
+    transcodeService.extractPreviewClip = originalExtractPreviewClip;
+    await app.close();
+  }
+
+  const after = taskStore.getTask(task.id);
+  assert.strictEqual(after.status, 'failed_hard');
+  assert.strictEqual(after.phase, 'failed_hard');
+  assert.strictEqual(after.failureContext.message, 'unable_to_hit_bitrate_profile_after_retries');
+  assert.strictEqual(after.itemInfo.transcodeRateControl.attempts.at(-1).strategy, 'cpu_strict_fallback');
+  assert.strictEqual(after.itemInfo.transcodeRateControl.attempts.at(-1).reason, 'bitrate_below_range');
+});
+
+test('transcode encode failure persists recovery context and resume point', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const configStore = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const transcodeService = require('../src/services/transcodeService');
+
+  const sourcePath = path.join(dir, 'encode-fail.mkv');
+  const partialPath = path.join(dir, 'encode-fail.etp.partial.mkv');
+  fs.writeFileSync(sourcePath, Buffer.alloc(2048));
+
+  configStore.patchConfig({
+    transcodeTempRoot: dir,
+    approvalPolicy: { 'transcode.beforeReplace': 'auto' },
+  });
+
+  const task = taskStore.createTask({
+    itemId: 'encode-failure-context',
+    itemName: 'Encode Failure Context',
+    SelectedFlow: 'transcode',
+    source: 'manual',
+    status: 'executing',
+    resumePoint: 'transcode_executing',
+    itemInfo: {
+      itemId: 'encode-failure-context',
+      name: 'Encode Failure Context',
+      sourcePath,
+      partialPath,
+      tempDir: dir,
+      durationSec: 10,
+      targetBitrate: 4,
+      targetCodec: 'h265',
+      objectiveHash: 'failureobjective1',
+    },
+  });
+
+  const originalStartEncode = transcodeService.startEncode;
+  transcodeService.startEncode = async () => {
+    throw new Error('encoder exploded for recovery context');
+  };
+  transcodeFlow.setScheduler({
+    reportStatus: (id, status, progress) => {
+      const updates = { status, progress: progress ?? undefined };
+      taskStore.updateTask(id, updates);
+    },
+    pauseForConfirm: () => { throw new Error('encode failure should not request confirmation'); },
+  });
+
+  try {
+    await transcodeFlow.driveTask(task.id);
+  } finally {
+    transcodeService.startEncode = originalStartEncode;
+    await app.close();
+  }
+
+  const after = taskStore.getTask(task.id);
+  assert.strictEqual(after.status, 'failed_hard');
+  assert.strictEqual(after.phase, 'failed_hard');
+  assert.strictEqual(after.resumePoint, 'transcode_executing');
+  assert.strictEqual(after.failureContext.phase, 'transcode_executing');
+  assert.strictEqual(after.failureContext.recoveryClass, 'encode_retry');
+  assert.strictEqual(after.failureContext.userAction, 'inspect_encoder_failure');
+  assert.strictEqual(after.failureContext.objectiveHash, 'failureobjective1');
+
+  const events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 20 }).events;
+  const failed = events.find((event) => event.eventType === 'task.failed');
+  assert.ok(failed, 'task.failed event is recorded');
+  assert.strictEqual(failed.payload.failureSummary.recoveryClass, 'encode_retry');
+  assert.strictEqual(failed.payload.failureSummary.resumePoint, 'transcode_executing');
+  assert.strictEqual(failed.payload.failureSummary.userAction, 'inspect_encoder_failure');
+});
+
+test('task action endpoints reject transitions disabled by control policy', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const queued = taskStore.createTask({
+    itemId: 'control-reject-queued',
+    SelectedFlow: 'transcode',
+    status: 'queued',
+  });
+  const execute = await app.inject({ method: 'POST', url: `/v1/tasks/${queued.id}/actions/execute` });
+  assert.strictEqual(execute.statusCode, 409);
+  assert.strictEqual(execute.json().error.code, 'TASK_ACTION_REJECTED');
+  assert.strictEqual(execute.json().error.message, 'already_active');
+  assert.strictEqual(execute.json().actionName, 'execute');
+  assert.strictEqual(execute.json().action.enabled, false);
+  assert.strictEqual(execute.json().action.reason, 'already_active');
+  assert.strictEqual(execute.json().controlState.state, 'queued');
+  assert.strictEqual(execute.json().controlState.actions.pause.enabled, true);
+  assert.strictEqual(execute.json().task.id, queued.id);
+  assert.strictEqual(taskStore.getTask(queued.id).status, 'queued');
+
+  const waiting = taskStore.createTask({
+    itemId: 'control-reject-confirm',
+    SelectedFlow: 'upgrade',
+    status: 'queued',
+  });
+  taskStore.updateTask(waiting.id, {
+    status: 'awaiting_user_confirm',
+    resumePoint: 'upgrade_executing',
+    approval: { gateId: 'upgrade.candidateSelect', message: 'Choose candidate' },
+  });
+  const pause = await app.inject({ method: 'POST', url: `/v1/tasks/${waiting.id}/actions/pause` });
+  assert.strictEqual(pause.statusCode, 409);
+  assert.strictEqual(pause.json().error.code, 'TASK_ACTION_REJECTED');
+  assert.strictEqual(pause.json().error.message, 'confirmation_required');
+  assert.strictEqual(pause.json().actionName, 'pause');
+  assert.strictEqual(pause.json().action.reason, 'confirmation_required');
+  assert.strictEqual(pause.json().controlState.state, 'awaiting_confirmation');
+  assert.strictEqual(pause.json().controlState.confirmation.gateId, 'upgrade.candidateSelect');
+  assert.strictEqual(pause.json().recovery.nextAction, 'confirm');
+  assert.strictEqual(taskStore.getTask(waiting.id).status, 'awaiting_user_confirm');
+
+  await app.close();
+});
+
 test('DELETE /v1/tasks/:id cancels then removes executing task', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-cancel-del', actionType: 'transcode' } });
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-cancel-del' })] });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-cancel-del', targetGate: 'optimize', preferredFlow: 'transcode' } });
   const { id } = create.json();
   // Manually set task to executing via taskStore
   const taskStore = require('../src/taskStore');
@@ -596,6 +2294,9 @@ test('DELETE /v1/tasks/:id cancels then removes executing task', async () => {
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.json().ok, true);
   assert.strictEqual(fs.existsSync(partialPath), false, 'executing task cancel should clean partial file');
+  const events = taskStore.queryTaskEvents({ taskId: id }, { pageSize: 50 }).events;
+  assert.ok(events.some((event) => event.eventType === 'task.cancel_requested'));
+  assert.ok(events.some((event) => event.eventType === 'task.deleted'));
   // Verify gone
   const get = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
   assert.strictEqual(get.statusCode, 404);
@@ -605,7 +2306,8 @@ test('DELETE /v1/tasks/:id cancels then removes executing task', async () => {
 test('DELETE /v1/tasks/:id removes queued task without running flow cancel', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-remove-queued', actionType: 'transcode' } });
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-remove-queued' })] });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-remove-queued', targetGate: 'optimize', preferredFlow: 'transcode' } });
   const { id } = create.json();
   const taskStore = require('../src/taskStore');
   const partialPath = path.join(dir, 'queued.etp.partial.mkv');
@@ -616,6 +2318,9 @@ test('DELETE /v1/tasks/:id removes queued task without running flow cancel', asy
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.json().ok, true);
   assert.strictEqual(fs.existsSync(partialPath), true, 'queued task removal should not run transcode cancel cleanup');
+  const events = taskStore.queryTaskEvents({ taskId: id }, { pageSize: 50 }).events;
+  assert.ok(events.some((event) => event.eventType === 'task.cancel_requested'));
+  assert.ok(events.some((event) => event.eventType === 'task.deleted'));
   fs.rmSync(partialPath, { force: true });
 
   const get = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
@@ -635,7 +2340,8 @@ test('pause on executing transcode task deletes partial file', async () => {
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   require('../src/taskScheduler').stopScheduler();
 
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-partial', actionType: 'transcode' } });
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId: 'i-partial' })] });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-partial', targetGate: 'optimize', preferredFlow: 'transcode' } });
   const { id } = create.json();
 
   // Set up executing state with a partial file
@@ -668,18 +2374,501 @@ test('pause on executing transcode task deletes partial file', async () => {
   await app.close();
 });
 
+test('GET /v1/admin/tasks exposes task control semantics for confirmation and recovery', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const waiting = taskStore.createTask(kairoxTask('upgrade', {
+    itemId: 'control-confirm',
+    itemName: 'Control Confirm',
+    status: 'queued',
+  }));
+  const waitingApproval = {
+    gateId: 'upgrade.candidateSelect',
+    message: 'Choose replacement source',
+    options: [{ label: 'Candidate A' }],
+  };
+  taskStore.updateTask(waiting.id, {
+    status: 'awaiting_user_confirm',
+    phase: 'upgrade_candidate_select',
+    resumePoint: 'upgrade_executing',
+    approval: waitingApproval,
+  });
+  taskStore.appendTaskEvent(taskStore.getTask(waiting.id), 'approval.requested', {
+      gateId: 'upgrade.candidateSelect',
+      message: 'Choose replacement source',
+  });
+  const failed = taskStore.createTask(kairoxTask('transcode', {
+    itemId: 'control-failed',
+    itemName: 'Control Failed',
+    status: 'queued',
+  }));
+  const failedRuntime = taskStore.updateTask(failed.id, {
+    status: 'failed_hard',
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    retryCount: 2,
+  });
+  taskStore.appendTaskEvent(failedRuntime, 'task.failed', { message: 'Encoder failed' });
+
+  const list = await app.inject({ method: 'GET', url: '/v1/admin/tasks?statuses=awaiting_user_confirm,failed_hard&page=1&pageSize=10' });
+  assert.strictEqual(list.statusCode, 200);
+  const waitingRow = list.json().tasks.find((task) => task.id === waiting.id);
+  assert.ok(waitingRow, 'waiting task appears in list');
+  assert.strictEqual(waitingRow.controlState.state, 'awaiting_confirmation');
+  assert.strictEqual(waitingRow.controlState.requiresUserAction, true);
+  assert.strictEqual(waitingRow.controlState.actions.confirm.enabled, true);
+  assert.strictEqual(waitingRow.controlState.actions.execute.reason, 'confirmation_required');
+
+  const detail = await app.inject({ method: 'GET', url: `/v1/admin/tasks/${waiting.id}?includeEvents=1` });
+  assert.strictEqual(detail.statusCode, 200);
+  assert.strictEqual(detail.json().controlState.confirmation.gateId, 'upgrade.candidateSelect');
+  assert.strictEqual(detail.json().controlState.recovery.state, 'waiting_for_user_confirmation');
+  assert.ok(detail.json().events.some((event) => event.eventType === 'approval.requested'));
+
+  const failedDetail = await app.inject({ method: 'GET', url: `/v1/admin/tasks/${failed.id}?includeEvents=1` });
+  assert.strictEqual(failedDetail.statusCode, 200);
+  assert.strictEqual(failedDetail.json().controlState.state, 'terminal');
+  assert.strictEqual(failedDetail.json().controlState.primaryAction, 'retry');
+  assert.strictEqual(failedDetail.json().controlState.actions.retry.enabled, true);
+  assert.strictEqual(failedDetail.json().controlState.actions.retry.effect, 'queue_failed_task_from_resume_point');
+  assert.strictEqual(failedDetail.json().controlState.actions.retry.endpoint, `/v1/tasks/${failed.id}/actions/retry`);
+  assert.strictEqual(failedDetail.json().controlState.recovery.state, 'retry_available');
+  assert.strictEqual(failedDetail.json().controlState.recovery.nextAction, 'retry');
+  assert.ok(failedDetail.json().events.some((event) => event.eventType === 'task.failed'));
+  await app.close();
+});
+
+test('GET /v1/admin/confirmations exposes a lightweight confirmation queue', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const waitingUpgrade = taskStore.createTask(kairoxTask('upgrade', {
+    itemId: 'confirm-upgrade',
+    itemName: 'Confirm Upgrade',
+    status: 'queued',
+    priority: 8,
+  }));
+  taskStore.updateTask(waitingUpgrade.id, {
+    status: 'awaiting_user_confirm',
+    phase: 'upgrade_candidate_select',
+    resumePoint: 'upgrade_executing',
+    approval: {
+      gateId: 'upgrade.candidateSelect',
+      message: 'Choose replacement source',
+      options: [{ label: 'Candidate A', value: 'a' }],
+    },
+  });
+  const waitingDelete = taskStore.createTask(kairoxTask('delete', {
+    itemId: 'confirm-delete',
+    itemName: 'Confirm Delete',
+    status: 'queued',
+  }));
+  taskStore.updateTask(waitingDelete.id, {
+    status: 'awaiting_user_confirm',
+    phase: 'delete_precheck',
+    resumePoint: 'delete_executing',
+    approval: {
+      gateId: 'delete.beforeExecute',
+      message: 'Delete this media?',
+      options: ['approve', 'reject'],
+    },
+  });
+  taskStore.createTask(kairoxTask('transcode', {
+    itemId: 'confirm-queued',
+    itemName: 'Confirm Queued',
+    status: 'queued',
+  }));
+
+  const originalGetTasks = taskStore.getTasks;
+  const originalLoadTasks = taskStore.loadTasks;
+  taskStore.getTasks = () => {
+    throw new Error('confirmation queue should use lightweight summaries');
+  };
+  taskStore.loadTasks = () => {
+    throw new Error('confirmation queue should not load full task history');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?page=1&pageSize=20' });
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.json();
+    assert.strictEqual(body.total, 2);
+    assert.strictEqual(body.summary.total, 2);
+    assert.strictEqual(body.summary.byGate['upgrade.candidateSelect'], 1);
+    assert.strictEqual(body.summary.byGate['delete.beforeExecute'], 1);
+    assert.strictEqual(body.summary.byBridgeKind.optimize, 1);
+    assert.strictEqual(body.summary.byBridgeKind.delete, 1);
+    const upgrade = body.confirmations.find((item) => item.taskId === waitingUpgrade.id);
+    assert.ok(upgrade, 'upgrade confirmation appears');
+    assert.strictEqual(upgrade.confirmation.required, true);
+    assert.strictEqual(upgrade.confirmation.gateId, 'upgrade.candidateSelect');
+    assert.strictEqual(upgrade.confirmation.message, 'Choose replacement source');
+    assert.strictEqual(upgrade.confirmation.resumePoint, 'upgrade_executing');
+    assert.strictEqual(upgrade.confirmation.whyRequired, 'flow_gate_requires_user_decision');
+    assert.strictEqual(upgrade.confirmAction.enabled, true);
+    assert.strictEqual(upgrade.confirmAction.effect, 'store_confirmation_and_queue_task');
+    assert.strictEqual(upgrade.recovery.nextAction, 'confirm');
+    assert.strictEqual(upgrade.taskBridge.kind, 'optimize');
+    assert.strictEqual(upgrade.flowPlan.flowKind, 'upgrade');
+    const deletion = body.confirmations.find((item) => item.taskId === waitingDelete.id);
+    assert.ok(deletion, 'delete confirmation appears');
+    assert.strictEqual(deletion.taskBridge.kind, 'delete');
+    assert.strictEqual(deletion.flowPlan.flowKind, 'delete');
+    assert.ok(!body.confirmations.some((item) => item.itemId === 'confirm-queued'));
+
+    const optimizeOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?targetGate=optimize&page=1&pageSize=20' });
+    assert.strictEqual(optimizeOnly.statusCode, 200);
+    assert.deepStrictEqual(new Set(optimizeOnly.json().confirmations.map((item) => item.taskId)), new Set([waitingUpgrade.id]));
+    const deleteOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?targetGate=delete&page=1&pageSize=20' });
+    assert.strictEqual(deleteOnly.statusCode, 200);
+    assert.deepStrictEqual(new Set(deleteOnly.json().confirmations.map((item) => item.taskId)), new Set([waitingDelete.id]));
+  } finally {
+    taskStore.getTasks = originalGetTasks;
+    taskStore.loadTasks = originalLoadTasks;
+    await app.close();
+  }
+});
+
+test('GET /v1/admin/confirmations includes adult review items without loading full library payloads', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [
+      {
+        itemId: 'adult-ambiguous-review',
+        subLibraryId: 'adult-lib',
+        source: 'adult_folder',
+        sourceId: 'ZZZZZ-001',
+        name: 'ZZZZZ-001 Low Confidence',
+        type: 'movie',
+        path: path.join(dir, 'adult', 'ambiguous.mp4'),
+        scraped: false,
+        adultMetadata: {
+          region: 'japanese_jav',
+          adultId: 'ZZZZZ-001',
+          title: 'ZZZZZ-001 Low Confidence',
+          scrapeStatus: 'ambiguous',
+          idConfidence: 'low',
+        },
+      },
+      {
+        itemId: 'adult-needs-review',
+        subLibraryId: 'adult-lib',
+        source: 'adult_folder',
+        sourceId: 'WEST-001',
+        name: 'WEST-001 Needs Review',
+        type: 'movie',
+        path: path.join(dir, 'adult', 'western.mp4'),
+        scraped: false,
+        adultMetadata: {
+          region: 'western_adult',
+          adultId: 'WEST-001',
+          title: 'WEST-001 Needs Review',
+          scrapeStatus: 'needs_review',
+          reviewStatus: 'needs_review',
+          protagonist: { name: 'Unknown Performer' },
+          scrapeError: 'No confirmed protagonist',
+        },
+      },
+      {
+        itemId: 'adult-done-review',
+        subLibraryId: 'adult-lib',
+        source: 'adult_folder',
+        sourceId: 'DONE-001',
+        name: 'DONE-001 Done',
+        type: 'movie',
+        path: path.join(dir, 'adult', 'done.mp4'),
+        scraped: true,
+        adultMetadata: {
+          region: 'japanese_jav',
+          adultId: 'DONE-001',
+          scrapeStatus: 'done',
+        },
+      },
+    ],
+  });
+  const waitingUpgrade = taskStore.createTask({
+    itemId: 'confirm-plus-review',
+    itemName: 'Confirm Plus Review',
+    SelectedFlow: 'upgrade',
+    status: 'queued',
+  });
+  taskStore.updateTask(waitingUpgrade.id, {
+    status: 'awaiting_user_confirm',
+    resumePoint: 'upgrade_executing',
+    approval: { gateId: 'upgrade.candidateSelect', message: 'Choose replacement source' },
+  });
+
+  const originalLoadLibrary = libraryStore.loadLibrary;
+  const originalQueryItems = libraryStore.queryItems;
+  libraryStore.loadLibrary = () => {
+    throw new Error('confirmation review queue should not load full library');
+  };
+  libraryStore.queryItems = () => {
+    throw new Error('confirmation review queue should use adult review summaries');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?page=1&pageSize=20' });
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.json();
+    assert.strictEqual(body.total, 3);
+    assert.strictEqual(body.taskTotal, 1);
+    assert.strictEqual(body.reviewTotal, 2);
+    assert.strictEqual(body.confirmations.length, 1);
+    assert.strictEqual(body.reviews.length, 2);
+    assert.strictEqual(body.items.length, 3);
+    assert.strictEqual(body.summary.taskConfirmations.byGate['upgrade.candidateSelect'], 1);
+    assert.strictEqual(body.summary.adultReviews.byScrapeStatus.ambiguous, 1);
+    assert.strictEqual(body.summary.adultReviews.byReviewStatus.needs_review, 1);
+    assert.strictEqual(body.summary.adultReviews.byRegion.western_adult, 1);
+    const ambiguous = body.reviews.find((item) => item.itemId === 'adult-ambiguous-review');
+    assert.ok(ambiguous, 'ambiguous adult review appears');
+    assert.strictEqual(ambiguous.kind, 'adult_review');
+    assert.strictEqual(ambiguous.confirmation.required, true);
+    assert.strictEqual(ambiguous.confirmation.whyRequired, 'adult_identity_ambiguous');
+    assert.strictEqual(ambiguous.taskBridge.kind, 'metadata');
+    assert.strictEqual(ambiguous.flowPlan.flowKind, 'scrape');
+    assert.strictEqual(ambiguous.confirmAction.enabled, false);
+    assert.strictEqual(ambiguous.recovery.nextAction, 'review');
+    assert.ok(!body.items.some((item) => item.itemId === 'adult-done-review'));
+
+    const reviewOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?kind=adult_review&q=WEST&page=1&pageSize=20' });
+    assert.strictEqual(reviewOnly.statusCode, 200);
+    assert.deepStrictEqual(reviewOnly.json().reviews.map((item) => item.itemId), ['adult-needs-review']);
+    assert.deepStrictEqual(reviewOnly.json().confirmations, []);
+
+    const archiveOnly = await app.inject({ method: 'GET', url: '/v1/admin/confirmations?targetGate=archive&page=1&pageSize=20' });
+    assert.strictEqual(archiveOnly.statusCode, 200);
+    assert.strictEqual(archiveOnly.json().reviewTotal, 0);
+    assert.strictEqual(archiveOnly.json().taskTotal, 0);
+  } finally {
+    libraryStore.loadLibrary = originalLoadLibrary;
+    libraryStore.queryItems = originalQueryItems;
+    await app.close();
+  }
+});
+
+test('GET /v1/admin/tasks attention queues are derived from task control actions', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const waiting = taskStore.createTask(kairoxTask('upgrade', {
+    itemId: 'attention-confirm',
+    itemName: 'Attention Confirm',
+    status: 'awaiting_user_confirm',
+  }));
+  taskStore.updateTask(waiting.id, {
+    approval: { gateId: 'upgrade.candidateSelect', mode: 'confirm', message: 'Choose replacement source' },
+  });
+  const failed = taskStore.createTask(kairoxTask('transcode', {
+    itemId: 'attention-failed',
+    itemName: 'Attention Failed',
+    status: 'failed_hard',
+  }));
+  taskStore.updateTask(failed.id, {
+    resumePoint: 'transcode_executing',
+    retryCount: 1,
+  });
+  const paused = taskStore.createTask(kairoxTask('transcode', {
+    itemId: 'attention-paused',
+    itemName: 'Attention Paused',
+    status: 'paused',
+  }));
+  taskStore.updateTask(paused.id, {
+    resumePoint: 'transcode_executing',
+  });
+  const manual = taskStore.createTask(kairoxTask('scrape', {
+    itemId: 'attention-manual',
+    itemName: 'Attention Manual',
+    status: 'pending_manual',
+  }));
+  const active = taskStore.createTask(kairoxTask('scrape', {
+    itemId: 'attention-active',
+    itemName: 'Attention Active',
+    status: 'queued',
+  }));
+  const exhausted = taskStore.createTask(kairoxTask('upgrade', {
+    itemId: 'attention-exhausted',
+    itemName: 'Attention Exhausted',
+    status: 'failed_hard',
+  }));
+  taskStore.updateTask(exhausted.id, {
+    resumePoint: 'upgrade_executing',
+    retryCount: 3,
+  });
+
+  const needsAction = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=needs_action&page=1&pageSize=20' });
+  assert.strictEqual(needsAction.statusCode, 200);
+  const needsActionBody = needsAction.json();
+  const needsActionIds = new Set(needsActionBody.tasks.map((task) => task.id));
+  assert.strictEqual(needsActionBody.attention, 'needs_action');
+  assert.strictEqual(needsActionBody.summary.total, 4);
+  assert.ok(needsActionIds.has(waiting.id));
+  assert.ok(needsActionIds.has(failed.id));
+  assert.ok(needsActionIds.has(paused.id));
+  assert.ok(needsActionIds.has(manual.id));
+  assert.ok(!needsActionIds.has(active.id), 'queued active task is not a user attention task');
+  assert.ok(!needsActionIds.has(exhausted.id), 'retry-exhausted failure is not actionable');
+  assert.strictEqual(needsActionBody.summary.attention.needs_action.count, 4);
+  assert.strictEqual(needsActionBody.summary.attention.confirmation.count, 1);
+  assert.strictEqual(needsActionBody.summary.attention.recovery.count, 2);
+  assert.strictEqual(needsActionBody.summary.attention.manual_start.count, 1);
+
+  const plainList = await app.inject({ method: 'GET', url: '/v1/admin/tasks?page=1&pageSize=20' });
+  assert.strictEqual(plainList.statusCode, 200);
+  const plainBody = plainList.json();
+  assert.strictEqual(plainBody.summary.attention.needs_action.count, 4);
+  assert.strictEqual(plainBody.summary.attention.recovery.count, 2);
+  const exhaustedRow = plainBody.tasks.find((task) => task.id === exhausted.id);
+  assert.ok(exhaustedRow, 'retry-exhausted task appears in ordinary list');
+  assert.strictEqual(exhaustedRow.retryCount, 3);
+  assert.strictEqual(exhaustedRow.controlState.actions.retry.enabled, false);
+  assert.strictEqual(exhaustedRow.controlState.actions.retry.reason, 'retry_limit_reached');
+
+  const originalGetTasks = taskStore.getTasks;
+  const originalQueryTaskSummaries = taskStore.queryTaskSummaries;
+  taskStore.getTasks = () => {
+    throw new Error('admin task list should use lightweight task summaries');
+  };
+  taskStore.queryTaskSummaries = (filter, options = {}) => {
+    if (options.includeAll) {
+      throw new Error('admin task list attention summary should use dedicated SQL audit facts');
+    }
+    return originalQueryTaskSummaries(filter, options);
+  };
+  try {
+    const lightPlain = await app.inject({ method: 'GET', url: '/v1/admin/tasks?page=1&pageSize=1' });
+    assert.strictEqual(lightPlain.statusCode, 200);
+    const noAttentionSummary = await app.inject({ method: 'GET', url: '/v1/admin/tasks?page=1&pageSize=1&includeAttentionSummary=0' });
+    assert.strictEqual(noAttentionSummary.statusCode, 200);
+    assert.strictEqual(noAttentionSummary.json().summary.attention, undefined);
+    const lightAttention = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=needs_action&page=1&pageSize=1' });
+    assert.strictEqual(lightAttention.statusCode, 200);
+  } finally {
+    taskStore.getTasks = originalGetTasks;
+    taskStore.queryTaskSummaries = originalQueryTaskSummaries;
+  }
+
+  const recovery = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=recovery&page=1&pageSize=20' });
+  assert.strictEqual(recovery.statusCode, 200);
+  const recoveryIds = new Set(recovery.json().tasks.map((task) => task.id));
+  assert.deepStrictEqual(recoveryIds, new Set([failed.id, paused.id]));
+
+  const manualStart = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=manual_start&page=1&pageSize=20' });
+  assert.strictEqual(manualStart.statusCode, 200);
+  assert.deepStrictEqual(new Set(manualStart.json().tasks.map((task) => task.id)), new Set([manual.id]));
+
+  const invalid = await app.inject({ method: 'GET', url: '/v1/admin/tasks?attention=unknown' });
+  assert.strictEqual(invalid.statusCode, 400);
+  assert.strictEqual(invalid.json().error.code, 'VALIDATION_ERROR');
+  await app.close();
+});
+
+test('POST /v1/tasks/:id/actions/retry queues failed task with recovery event', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const failed = taskStore.createTask(kairoxTask('transcode', {
+    itemId: 'retry-failed',
+    itemName: 'Retry Failed',
+    status: 'queued',
+  }));
+  taskStore.updateTask(failed.id, {
+    status: 'failed_hard',
+    phase: 'failed_hard',
+    resumePoint: 'transcode_executing',
+    retryCount: 1,
+    progress: 72,
+  });
+
+  const res = await app.inject({ method: 'POST', url: `/v1/tasks/${failed.id}/actions/retry` });
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.status, 'queued');
+  assert.strictEqual(body.controlState.state, 'queued');
+  assert.strictEqual(body.controlState.actions.retry.enabled, false);
+  assert.strictEqual(body.controlState.actions.pause.enabled, true);
+
+  const stored = taskStore.getTask(failed.id);
+  assert.strictEqual(stored.status, 'queued');
+  assert.strictEqual(stored.retryCount, 2);
+  assert.strictEqual(stored.resumePoint, 'transcode_executing');
+  assert.strictEqual(stored.phase, null);
+  assert.strictEqual(stored.progress, 0);
+  assert.strictEqual(stored.manualExecuteRequested, true);
+
+  const events = taskStore.queryTaskEvents({ taskId: failed.id }, { pageSize: 50 }).events;
+  assert.ok(events.some((event) => event.eventType === 'task.retry_requested'));
+  assert.ok(events.some((event) => event.eventType === 'task.retry_recorded'));
+  await app.close();
+});
+
+test('POST /v1/tasks/:id/actions/retry rejects retry limit and active task conflict', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const exhausted = taskStore.createTask(kairoxTask('upgrade', {
+    itemId: 'retry-exhausted',
+    status: 'queued',
+  }));
+  taskStore.updateTask(exhausted.id, {
+    status: 'failed_hard',
+    resumePoint: 'upgrade_executing',
+    retryCount: 3,
+  });
+  const exhaustedView = await app.inject({ method: 'GET', url: `/v1/tasks/${exhausted.id}` });
+  assert.strictEqual(exhaustedView.statusCode, 200);
+  assert.strictEqual(exhaustedView.json().controlState.actions.retry.enabled, false);
+  assert.strictEqual(exhaustedView.json().controlState.actions.retry.reason, 'retry_limit_reached');
+  assert.strictEqual(exhaustedView.json().controlState.recoveryContract.flowKey, 'upgrade');
+  assert.strictEqual(exhaustedView.json().controlState.recoveryContract.currentResumePoint, 'upgrade_executing');
+  assert.ok(exhaustedView.json().controlState.recoveryContract.resumePoints.some((point) => point.resumePoint === 'upgrade_executing'));
+
+  const retryLimit = await app.inject({ method: 'POST', url: `/v1/tasks/${exhausted.id}/actions/retry` });
+  assert.strictEqual(retryLimit.statusCode, 409);
+  assert.strictEqual(retryLimit.json().error.code, 'TASK_RECOVERY_REJECTED');
+  assert.strictEqual(retryLimit.json().error.message, 'retry_limit_reached');
+  assert.strictEqual(retryLimit.json().actionName, 'retry');
+  assert.strictEqual(retryLimit.json().action.enabled, false);
+  assert.strictEqual(retryLimit.json().action.reason, 'retry_limit_reached');
+  assert.strictEqual(retryLimit.json().controlState.actions.retry.effect, 'manual_recovery_retry_limit_reached');
+  assert.strictEqual(retryLimit.json().recovery.state, 'flow_specific_recovery_required');
+  assert.strictEqual(retryLimit.json().recoveryPlan.reason, 'retry_limit_reached');
+
+  const failed = taskStore.createTask(kairoxTask('transcode', {
+    itemId: 'retry-conflict',
+    status: 'queued',
+  }));
+  taskStore.updateTask(failed.id, {
+    status: 'failed_hard',
+    resumePoint: 'transcode_executing',
+  });
+  const blocker = taskStore.createTask(kairoxTask('transcode', {
+    itemId: 'retry-conflict',
+    status: 'queued',
+  }));
+  const conflict = await app.inject({ method: 'POST', url: `/v1/tasks/${failed.id}/actions/retry` });
+  assert.strictEqual(conflict.statusCode, 409);
+  assert.strictEqual(conflict.json().error.code, 'TASK_RECOVERY_REJECTED');
+  assert.strictEqual(conflict.json().error.message, 'active_task_conflict');
+  assert.strictEqual(conflict.json().actionName, 'retry');
+  assert.strictEqual(conflict.json().action.enabled, true);
+  assert.strictEqual(conflict.json().controlState.actions.retry.enabled, true);
+  assert.strictEqual(conflict.json().recoveryPlan.reason, 'active_task_conflict');
+  assert.strictEqual(conflict.json().activeTask.id, blocker.id);
+  assert.strictEqual(conflict.json().activeTask.controlState.state, 'queued');
+  await app.close();
+});
+
 // ── Admin tasks ────────────────────────────────────────────────────────────────
 
 test('GET /v1/admin/tasks returns list with summary', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const taskStore = require('../src/taskStore');
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a1', actionType: 'delete' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a2', actionType: 'transcode' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a1', targetGate: 'metadata', preferredFlow: 'scrape' } });
+  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a2', targetGate: 'metadata', preferredFlow: 'scrape' } });
   taskStore.createTask({
     itemId: 'a3',
-    actionType: 'scrape',
-    status: 'done',
+    SelectedFlow: 'scrape',
+    status: 'queued',
     itemInfo: {
       name: 'Heavy adult scrape',
       adultMetadata: {
@@ -700,16 +2889,361 @@ test('GET /v1/admin/tasks returns list with summary', async () => {
   assert.ok(body.summary, 'summary present');
   assert.strictEqual(body.summary.total, 3);
   assert.strictEqual(body.summary.byStatus.created, 2);
-  assert.strictEqual(body.summary.byStatus.done, 1);
+  assert.strictEqual(body.summary.byStatus.queued, 1);
   assert.ok(body.tasks.every((t) => t.logs === undefined), 'list payload omits logs');
   assert.ok(body.tasks.every((t) => t.report === undefined), 'list payload omits reports');
   const manualSummaries = body.tasks.filter((t) => t.itemId === 'a1' || t.itemId === 'a2');
   assert.ok(manualSummaries.every((t) => t.source === 'manual'), 'list payload includes task source');
-  const scrapeSummary = body.tasks.find((t) => t.actionType === 'scrape');
+  const scrapeSummary = body.tasks.find((t) => t.itemId === 'a3');
   if (scrapeSummary) {
     assert.strictEqual(scrapeSummary.itemInfo.adultMetadata.faceClusters, undefined, 'list payload omits heavy face clusters');
   }
   await app.close();
+});
+
+test('GET /v1/admin/tasks/lifecycle-audit groups task lifecycles by library type', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    subLibraries: [
+      { uuid: 'movie-audit', name: 'Movies', source: 'emby', mediaType: 'movie', enabled: true },
+      { uuid: 'adult-audit', name: 'JAV', source: 'folder', mediaType: 'adult', adultRegion: 'japanese_jav', enabled: true },
+    ],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const taskStore = require('../src/taskStore');
+  taskStore.createTask(kairoxTask('transcode', {
+    itemId: 'movie-transcode',
+    itemName: 'Movie Transcode',
+    status: 'queued',
+    source: 'auto',
+    itemInfo: { name: 'Movie Transcode', subLibraryId: 'movie-audit' },
+  }));
+  taskStore.createTask(kairoxTask('scrape', {
+    itemId: 'movie-repair-scrape',
+    itemName: 'Movie Repair Scrape',
+    status: 'queued',
+    source: 'manual',
+    itemInfo: { name: 'Movie Repair Scrape', subLibraryId: 'movie-audit', source: 'emby', metadataKind: 'emby' },
+  }));
+  taskStore.createTask(kairoxTask('scrape', {
+    itemId: 'movie-wrong-scrape',
+    itemName: 'Movie Wrong Scrape',
+    status: 'queued',
+    source: 'manual',
+    itemInfo: { name: 'Movie Wrong Scrape', subLibraryId: 'movie-audit' },
+  }));
+  taskStore.createTask(kairoxTask('scrape', {
+    itemId: 'movie-legacy-scrape',
+    itemName: 'Movie Legacy Scrape',
+    status: 'failed_hard',
+    source: 'manual',
+    itemInfo: { name: 'Movie Legacy Scrape', subLibraryId: 'movie-audit' },
+  }));
+  taskStore.createTask(kairoxTask('scrape', {
+    itemId: 'adult-scrape',
+    itemName: 'Adult Scrape',
+    status: 'awaiting_user_confirm',
+    source: 'manual',
+    itemInfo: {
+      name: 'Adult Scrape',
+      subLibraryId: 'adult-audit',
+      adultMetadata: { adultId: 'MVSD-175', scrapeStatus: 'needs_review', region: 'japanese_jav' },
+    },
+  }));
+  taskStore.createTask(kairoxTask('upgrade', {
+    itemId: 'unknown-task',
+    itemName: 'Unknown Library',
+    status: 'failed_hard',
+    source: 'manual',
+    itemInfo: { name: 'Unknown Library', subLibraryId: 'missing-lib' },
+  }));
+
+  const originalGetTasks = taskStore.getTasks;
+  const originalLoadTasks = taskStore.loadTasks;
+  const originalQueryTaskSummaries = taskStore.queryTaskSummaries;
+  taskStore.getTasks = () => {
+    throw new Error('lifecycle audit should use lightweight task summaries');
+  };
+  taskStore.loadTasks = () => {
+    throw new Error('lifecycle audit should not load full task payloads');
+  };
+  taskStore.queryTaskSummaries = () => {
+    throw new Error('lifecycle audit should use dedicated SQL audit facts');
+  };
+  try {
+    const res = await app.inject({ method: 'GET', url: '/v1/admin/tasks/lifecycle-audit?sampleLimit=10' });
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.json();
+    assert.strictEqual(body.total, 6);
+    assert.strictEqual(body.summary.byLifecycleStage.queued, 3);
+    assert.strictEqual(body.summary.byLifecycleStage.user_gate, 1);
+    assert.strictEqual(body.summary.byLifecycleStage.terminal_failure, 2);
+    assert.strictEqual(body.byLibraryType.movie.total, 4);
+    assert.strictEqual(body.byLibraryType.movie.byFlowKind.scrape, 3);
+    assert.strictEqual(body.byLibraryType.adult.total, 1);
+    assert.strictEqual(body.byLibraryType.movie.bySource.auto, 1);
+    assert.strictEqual(body.signals.byCode.standard_media_scrape_task, undefined);
+    assert.strictEqual(body.signals.byCode.standard_media_scrape_wrong_resource, 2);
+    assert.strictEqual(body.signals.byCode.legacy_standard_media_scrape_task, 1);
+    assert.strictEqual(body.signals.byCode.unknown_sub_library, 1);
+    assert.ok(body.signals.items.some((item) => item.taskId && item.code === 'standard_media_scrape_wrong_resource'));
+    assert.ok(body.signals.items.some((item) => item.taskId && item.code === 'legacy_standard_media_scrape_task'));
+    const movieBucket = body.bySubLibrary.find((bucket) => bucket.subLibraryId === 'movie-audit');
+    assert.ok(movieBucket);
+    assert.strictEqual(movieBucket.name, 'Movies');
+    assert.strictEqual(movieBucket.byBridgeKind.optimize, 1);
+    assert.strictEqual(movieBucket.byBridgeKind.metadata, 3);
+
+    const adultOnly = await app.inject({ method: 'GET', url: '/v1/admin/tasks/lifecycle-audit?mediaType=adult' });
+    assert.strictEqual(adultOnly.statusCode, 200);
+    assert.strictEqual(adultOnly.json().total, 1);
+    assert.strictEqual(adultOnly.json().byLibraryType.adult.total, 1);
+    assert.strictEqual(adultOnly.json().signals.byCode.standard_media_scrape_task, undefined);
+    assert.strictEqual(adultOnly.json().signals.byCode.standard_media_scrape_wrong_resource, undefined);
+  } finally {
+    taskStore.getTasks = originalGetTasks;
+    taskStore.loadTasks = originalLoadTasks;
+    taskStore.queryTaskSummaries = originalQueryTaskSummaries;
+    await app.close();
+  }
+});
+
+test('GET /v1/admin/dashboard/health returns media and task health aggregates', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    automaticTaskTargets: ['ingest', 'metadata'], optimizeAllowedOperations: [],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const closed = metadataReadyMovie({
+    itemId: 'dashboard-closed',
+    name: 'Closed',
+    subLibraryId: 'dashboard-lib',
+    action: undefined,
+    codec: 'h264',
+    equivalentBitrate: 4,
+    targetBitrate: 4,
+    targetCodec: 'h264',
+    targetMediaFacts: {
+      targetBitrate: 4,
+      targetCodec: 'h264',
+    },
+    optimizeObjective: {
+      kind: 'target_media_facts',
+      targetMediaFacts: {
+        targetBitrate: 4,
+        targetCodec: 'h264',
+      },
+    },
+    metadataComplete: true,
+    optimizeGate: {
+      passed: true,
+      operation: 'no_op',
+      reason: 'objective_already_satisfied',
+    },
+    archiveStatus: 'archived_like',
+    archiveDoneAt: new Date().toISOString(),
+  });
+  const missing = metadataReadyMovie({
+    itemId: 'dashboard-missing',
+    name: 'Missing Metadata',
+    subLibraryId: 'dashboard-lib',
+    action: undefined,
+    metadataComplete: false,
+    metadataStatus: 'missing',
+    metadataMissingReasons: ['tmdb_id_missing'],
+  });
+  const pending = metadataReadyMovie({
+    itemId: 'dashboard-pending',
+    name: 'Pending Optimize',
+    subLibraryId: 'dashboard-lib',
+    action: undefined,
+    equivalentBitrate: 10,
+    targetBitrate: 4,
+    targetCodec: 'h265',
+    targetMediaFacts: {
+      targetBitrate: 4,
+      targetCodec: 'h265',
+    },
+    metadataComplete: true,
+    optimizationStatus: 'none',
+  });
+  libraryStore.saveLibrary({ version: 1, cachedAt: new Date().toISOString(), items: [closed, missing, pending] });
+  const waiting = taskStore.createTask({
+    itemId: 'dashboard-pending',
+    itemName: 'Pending Optimize',
+    SelectedFlow: 'transcode',
+    status: 'awaiting_user_confirm',
+    itemInfo: { name: 'Pending Optimize', subLibraryId: '' },
+  });
+  taskStore.createTask({
+    itemId: 'dashboard-failed',
+    itemName: 'Failed Bridge',
+    SelectedFlow: 'upgrade',
+    status: 'failed_hard',
+    itemInfo: { name: 'Failed Bridge', subLibraryId: '' },
+  });
+  const manual = taskStore.createTask({
+    itemId: 'dashboard-manual',
+    itemName: 'Manual Start',
+    SelectedFlow: 'scrape',
+    status: 'pending_manual',
+    itemInfo: { name: 'Manual Start', subLibraryId: '' },
+  });
+  taskStore.createTask({
+    itemId: 'dashboard-queued',
+    itemName: 'Queued Active',
+    SelectedFlow: 'scrape',
+    status: 'queued',
+    itemInfo: { name: 'Queued Active', subLibraryId: '' },
+  });
+  taskStore.appendTaskEvent(waiting, 'task.awaiting_confirmation', { bridgeKind: 'optimize' });
+  activityLog.addActivity('health', 'Emby 服务器连接已恢复', { ok: true });
+
+  const originalGetTasks = taskStore.getTasks;
+  const originalQueryTaskEvents = taskStore.queryTaskEvents;
+  const originalSmartTaskHealth = smartTaskEngine.getHealth;
+  const originalHealthResult = healthCheck.getLastResult;
+  taskStore.getTasks = () => {
+    throw new Error('dashboard health should use lightweight task summaries');
+  };
+  taskStore.queryTaskEvents = () => {
+    throw new Error('dashboard health should use recent task event projection');
+  };
+  smartTaskEngine.getHealth = () => ({
+    status: 'green',
+    enabled: true,
+    enabledTaskTargets: ['metadata', 'optimize'],
+    allowedOptimizeFlows: ['transcode'],
+    lastRunAt: '2026-06-30T00:00:00.000Z',
+    lastScanSummary: {
+      status: 'done',
+      startedAt: '2026-06-30T00:00:00.000Z',
+      finishedAt: '2026-06-30T00:00:01.000Z',
+      enabledTaskTargets: ['metadata', 'optimize'],
+      allowedOptimizeFlows: ['transcode'],
+      libraryItems: 9,
+      candidateCount: 4,
+      evaluatedCandidates: 3,
+      enqueued: 1,
+      candidatesByTargetGate: { metadata: 2, optimize: 2 },
+      candidatesBySelectedFlow: { scrape: 2, transcode: 2 },
+      enqueuedByTargetGate: { optimize: 1 },
+      enqueuedBySelectedFlow: { transcode: 1 },
+      admissionRejected: 1,
+      admissionRejectedByReason: { recent_task_cooldown: 1 },
+      skippedByQueueCap: 1,
+      skippedByQueueCapByTargetGate: { metadata: 1 },
+      skippedByQueueCapBySelectedFlow: { scrape: 1 },
+      skippedByResourcePressure: 2,
+      skippedByResourcePressureByResource: { 'local:ffmpeg': 2 },
+      skippedByResourcePressureBySelectedFlow: { transcode: 2 },
+      activeBacklog: 3,
+      activeBacklogByTargetGate: { optimize: 2, metadata: 1 },
+      activeBacklogByResource: {
+        'local:ffmpeg': {
+          resourceType: 'local_transcode',
+          resourceKey: 'local:ffmpeg',
+          configuredSlots: 1,
+          running: 1,
+          waiting: 1,
+          blocked: 0,
+          total: 2,
+        },
+      },
+      supplyPolicy: 'pressure_aware',
+      maxPerRunReached: true,
+      payload: { shouldNotLeak: true },
+    },
+  });
+  healthCheck.getLastResult = () => ({
+    status: 'green',
+    timestamp: '2026-06-30T00:00:00.000Z',
+    checks: {
+      scheduler: { status: 'green', runningTasks: 0 },
+      smartTask: { status: 'green', enabled: true },
+      mediaLib: { status: 'green', totalSubLibraries: 1, enabledCount: 1 },
+      strategy: { status: 'green' },
+      transcode: { status: 'green', ffmpegOk: true },
+      emby: { status: 'green' },
+      douban: { status: 'green' },
+      upgrade: { status: 'green' },
+    },
+  });
+  let res;
+  try {
+    res = await app.inject({ method: 'GET', url: '/v1/admin/dashboard/health' });
+  } finally {
+    taskStore.getTasks = originalGetTasks;
+    taskStore.queryTaskEvents = originalQueryTaskEvents;
+    smartTaskEngine.getHealth = originalSmartTaskHealth;
+    healthCheck.getLastResult = originalHealthResult;
+    await app.close();
+  }
+  assert.strictEqual(res.statusCode, 200);
+  const body = res.json();
+  assert.strictEqual(body.status, 'green');
+  assert.strictEqual(body.serviceAvailability.status, 'green');
+  assert.strictEqual(body.externalIntegrations.status, 'green');
+  assert.strictEqual(body.businessStatus.status, 'red');
+  assert.strictEqual(body.media.totalItems, 3);
+  assert.strictEqual(body.media.closedItems, 1);
+  assert.strictEqual(body.media.openItems, 2);
+  assert.strictEqual(body.media.metadataIncompleteItems, 1);
+  assert.strictEqual(body.media.pendingOptimizationItems, 1);
+  assert.strictEqual(body.media.byRecommendedTargetGate.metadata, 1);
+  assert.strictEqual(body.media.byRecommendedTargetGate.optimize, 1);
+  assert.strictEqual(body.media.pendingBridges.metadata, 1);
+  assert.strictEqual(body.media.pendingBridges.optimize, 1);
+  assert.deepStrictEqual(body.media.topMetadataMissingReasons[0], { reason: 'tmdb_id_missing', count: 1 });
+  const subLibraryStats = body.media.bySubLibrary.find((entry) => entry.subLibraryId === 'dashboard-lib');
+  assert.ok(subLibraryStats);
+  assert.strictEqual(subLibraryStats.totalItems, 3);
+  assert.strictEqual(subLibraryStats.byLifecycleStage.archived, 1);
+  assert.strictEqual(subLibraryStats.byLifecycleStage.ingested, 1);
+  assert.strictEqual(subLibraryStats.byLifecycleStage.metadata_ready, 1);
+  assert.strictEqual(body.tasks.awaitingConfirmationTasks, 1);
+  assert.strictEqual(body.tasks.failedTasks, 1);
+  assert.strictEqual(body.tasks.activeTasks, 3);
+  assert.strictEqual(body.tasks.attention.needs_action.count, 2);
+  assert.strictEqual(body.tasks.attention.confirmation.count, 1);
+  assert.strictEqual(body.tasks.attention.manual_start.count, 1);
+  assert.strictEqual(body.tasks.attention.recovery.count, 0);
+  assert.strictEqual(body.tasks.primaryAttention.key, 'needs_action');
+  assert.strictEqual(body.tasks.primaryAttention.count, 2);
+  assert.strictEqual(body.tasks.byStatus.pending_manual, 1);
+  assert.deepStrictEqual(body.automation.enabledTaskTargets, ['ingest', 'metadata']);
+  assert.deepStrictEqual(body.automation.allowedOptimizeFlowKinds, []);
+  assert.strictEqual(body.automation.smartTask.status, 'green');
+  assert.strictEqual(body.automation.smartTask.enabled, true);
+  assert.strictEqual(body.automation.smartTask.lastRunAt, '2026-06-30T00:00:00.000Z');
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.candidateCount, 4);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.enqueued, 1);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.admissionRejectedByReason.recent_task_cooldown, 1);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.candidatesByTargetGate.optimize, 2);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.enqueuedByTargetGate.optimize, 1);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.skippedByQueueCapByTargetGate.metadata, 1);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.skippedByResourcePressureByResource['local:ffmpeg'], 2);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.activeBacklogByTargetGate.optimize, 2);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.activeBacklogByResource['local:ffmpeg'].running, 1);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.supplyPolicy, 'pressure_aware');
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.maxPerRunReached, true);
+  assert.strictEqual(body.automation.smartTask.lastScanSummary.payload, undefined);
+  assert.ok(manual.id, 'manual task fixture created');
+  assert.ok(body.businessStatus.signals.some((signal) => signal.code === 'open_lifecycle'));
+  assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'failed_tasks'));
+  assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'smart_task_admission_rejected'));
+  assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'smart_task_queue_cap'));
+  assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'smart_task_resource_pressure'));
+  assert.ok(body.diagnostics.signals.some((signal) => signal.code === 'smart_task_max_per_run'));
+  assert.ok(body.diagnostics.storage.some((metric) => metric.store === 'library'));
+  assert.ok(body.diagnostics.storage.some((metric) => metric.store === 'tasks'));
+  assert.ok(body.events.recent.length > 0, 'dashboard health includes event projection');
+  assert.ok(body.events.bySource.task_event > 0);
+  assert.ok(body.events.recent.some((entry) => entry.source === 'health' && entry.sourceLabel === '健康'));
+  const waitingEvent = body.events.recent.find((entry) => entry.kind === 'task_event' && entry.taskId === waiting.id);
+  assert.ok(waitingEvent, 'task event projection includes recent task event');
+  assert.strictEqual(waitingEvent.detail, undefined);
+  assert.strictEqual(waitingEvent.payload, undefined);
 });
 
 test('GET /v1/admin/tasks/:id omits heavy adult face payloads', async () => {
@@ -719,7 +3253,7 @@ test('GET /v1/admin/tasks/:id omits heavy adult face payloads', async () => {
   const task = taskStore.createTask({
     itemId: 'heavy-detail',
     itemName: 'Heavy Detail',
-    actionType: 'scrape',
+    SelectedFlow: 'scrape',
     status: 'failed_hard',
     itemInfo: {
       name: 'Heavy Detail',
@@ -751,7 +3285,7 @@ test('GET /v1/tasks/:id omits heavy adult face payloads', async () => {
   const task = taskStore.createTask({
     itemId: 'heavy-public-detail',
     itemName: 'Heavy Public Detail',
-    actionType: 'scrape',
+    SelectedFlow: 'scrape',
     status: 'failed_hard',
     itemInfo: {
       name: 'Heavy Public Detail',
@@ -780,9 +3314,9 @@ test('GET /v1/admin/tasks filters by multiple statuses', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const taskStore = require('../src/taskStore');
-  taskStore.createTask({ itemId: 'active-1', actionType: 'transcode', status: 'queued' });
-  taskStore.createTask({ itemId: 'active-2', actionType: 'scrape', status: 'executing' });
-  taskStore.createTask({ itemId: 'done-1', actionType: 'delete', status: 'done' });
+  taskStore.createTask({ itemId: 'active-1', SelectedFlow: 'transcode', status: 'queued' });
+  taskStore.createTask({ itemId: 'active-2', SelectedFlow: 'scrape', status: 'executing' });
+  taskStore.createTask({ itemId: 'done-1', SelectedFlow: 'delete', status: 'done' });
 
   const res = await app.inject({ method: 'GET', url: '/v1/admin/tasks?statuses=queued,executing&page=1&pageSize=10' });
   assert.strictEqual(res.statusCode, 200);
@@ -792,6 +3326,70 @@ test('GET /v1/admin/tasks filters by multiple statuses', async () => {
   assert.strictEqual(body.summary.byStatus.queued, 1);
   assert.strictEqual(body.summary.byStatus.executing, 1);
   assert.strictEqual(body.summary.byStatus.done, undefined);
+  await app.close();
+});
+
+test('GET /v1/admin/tasks filters by target gate and selected flow', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const taskStore = require('../src/taskStore');
+  taskStore.createTask(kairoxTask('transcode', { itemId: 'optimize-transcode', status: 'queued' }));
+  taskStore.createTask(kairoxTask('scrape', { itemId: 'metadata-scrape', status: 'queued' }));
+  taskStore.createTask(kairoxTask('delete', { itemId: 'delete-gate', status: 'queued' }));
+  taskStore.createTask({
+    itemId: 'legacy-archive-delete',
+    SelectedFlow: 'delete',
+    status: 'queued',
+    taskBridge: {
+      kind: 'archive',
+      from: 'optimized_item',
+      to: 'archived_item',
+      reason: 'legacy archive delete',
+    },
+    flowPlan: {
+      version: 'v2.7',
+      bridgeKind: 'archive',
+      direction: 'archive.delete',
+      SelectedFlow: 'delete',
+      executor: 'deleteFlowExecutor',
+      primaryResourceType: 'filesystem',
+      SelectedFlow: 'delete',
+      resourceTypes: ['filesystem'],
+      steps: [{ phase: 'precheck', eventType: 'archive.delete.precheck', resourceType: 'filesystem' }],
+    },
+  });
+
+  const byBridge = await app.inject({ method: 'GET', url: '/v1/admin/tasks?targetGate=optimize&page=1&pageSize=10' });
+  assert.strictEqual(byBridge.statusCode, 200);
+  const bridgeBody = byBridge.json();
+  assert.strictEqual(bridgeBody.summary.total, 1);
+  assert.deepStrictEqual(new Set(bridgeBody.tasks.map((t) => t.itemId)), new Set(['optimize-transcode']));
+  assert.ok(bridgeBody.tasks.every((t) => t.taskBridge.kind === 'optimize'));
+
+  const deleteBridge = await app.inject({ method: 'GET', url: '/v1/admin/tasks?targetGate=delete&page=1&pageSize=10' });
+  assert.strictEqual(deleteBridge.statusCode, 200);
+  const deleteBody = deleteBridge.json();
+  assert.deepStrictEqual(new Set(deleteBody.tasks.map((t) => t.itemId)), new Set(['delete-gate']));
+  assert.ok(deleteBody.tasks.every((t) => t.taskBridge.kind === 'delete'));
+
+  const archiveBridge = await app.inject({ method: 'GET', url: '/v1/admin/tasks?targetGate=archive&page=1&pageSize=10' });
+  assert.strictEqual(archiveBridge.statusCode, 200);
+  assert.ok(archiveBridge.json().tasks.some((t) => t.itemId === 'legacy-archive-delete'));
+
+  const byOperation = await app.inject({ method: 'GET', url: '/v1/admin/tasks?flowKind=scrape&page=1&pageSize=10' });
+  assert.strictEqual(byOperation.statusCode, 200);
+  const operationBody = byOperation.json();
+  assert.strictEqual(operationBody.summary.total, 1);
+  assert.strictEqual(operationBody.tasks[0].itemId, 'metadata-scrape');
+  assert.strictEqual(operationBody.tasks[0].flowPlan.flowKind, 'scrape');
+
+  const activeByBridge = await app.inject({ method: 'GET', url: '/v1/tasks?targetGate=optimize&activeOnly=1' });
+  assert.strictEqual(activeByBridge.statusCode, 200);
+  assert.deepStrictEqual(new Set(activeByBridge.json().tasks.map((t) => t.itemId)), new Set(['optimize-transcode']));
+
+  const activeByOperation = await app.inject({ method: 'GET', url: '/v1/tasks?flowKind=transcode&activeOnly=1' });
+  assert.strictEqual(activeByOperation.statusCode, 200);
+  assert.deepStrictEqual(activeByOperation.json().tasks.map((t) => t.itemId), ['optimize-transcode']);
   await app.close();
 });
 
@@ -907,6 +3505,93 @@ test('PATCH /v1/admin/sublibraries cannot reintroduce adult private scheduling f
   await app.close();
 });
 
+test('PATCH /v1/admin/sublibraries rejects metadataGate that does not cover strategy inputs', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    embyServers: { emby: { baseUrl: 'http://emby.local', apiKey: 'token', userId: 'user' } },
+    subLibraries: [{
+      uuid: 'movie-lib',
+      name: 'Movies',
+      source: 'emby',
+      mediaType: 'movie',
+      embyServerId: 'emby',
+      sectionId: '1',
+      ruleTemplateId: 'rating_strategy',
+    }],
+    ruleTemplates: [{
+      id: 'rating_strategy',
+      rules: [{
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
+        targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
+      }],
+    }],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const res = await app.inject({
+    method: 'PATCH',
+    url: '/v1/admin/sublibraries/movie-lib',
+    payload: {
+      metadataGate: {
+        all: ['identity.itemId', 'identity.name', 'media.path'],
+      },
+    },
+  });
+  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(res.json().error.code, 'METADATA_GATE_CONTRACT_BROKEN');
+  assert.match(res.json().error.message, /media\.duration/);
+  assert.doesNotMatch(res.json().error.message, /decision\.rating/);
+  await app.close();
+});
+
+test('PATCH /v1/config rejects metadataGate contract violations globally', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+
+  const res = await app.inject({
+    method: 'PATCH',
+    url: '/v1/config',
+    payload: {
+      subLibraries: [{
+        uuid: 'broken-global-movie-lib',
+        name: 'Broken Global Movies',
+        source: 'emby',
+        mediaType: 'movie',
+        ruleTemplateId: 'rating_strategy',
+        metadataGate: { all: ['identity.itemId', 'identity.name', 'media.path'] },
+      }],
+      ruleTemplates: [{
+        id: 'rating_strategy',
+        rules: [{
+          priority: 1,
+          groupsConnector: 'and',
+          groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
+          targetMediaFacts: {
+            targetBitrateProfileByBucket: {
+              '1080p': { minMbps: 2.6, targetMbps: 4, maxMbps: 5.4 },
+            },
+            targetCodec: 'h265',
+          },
+        }],
+      }],
+    },
+  });
+
+  assert.strictEqual(res.statusCode, 400);
+  const body = res.json();
+  assert.strictEqual(body.error.code, 'METADATA_GATE_CONTRACT_BROKEN');
+  assert.match(body.error.message, /media\.duration/);
+  assert.doesNotMatch(body.error.message, /decision\.rating/);
+  assert.strictEqual(body.error.details.violations[0].subLibraryId, 'broken-global-movie-lib');
+
+  const cfg = await app.inject({ method: 'GET', url: '/v1/config' });
+  assert.strictEqual(cfg.statusCode, 200);
+  assert.ok(!cfg.json().subLibraries.some((sl) => sl.uuid === 'broken-global-movie-lib'));
+  await app.close();
+});
+
 test('POST /v1/admin/sublibraries/:uuid/actions/scan is removed and has no side effects', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const watchRoot = path.join(dir, 'jav');
@@ -937,7 +3622,7 @@ test('POST /v1/admin/sublibraries/:uuid/actions/scan is removed and has no side 
   assert.strictEqual(lib.statusCode, 200);
   assert.strictEqual(lib.json().total, 0, 'removed scan should not upsert items');
 
-  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?targetGate=ingest' });
   assert.strictEqual(ingestTasks.statusCode, 200);
   assert.strictEqual(ingestTasks.json().tasks.length, 0, 'removed scan should not create ingest tasks');
   await app.close();
@@ -1023,13 +3708,17 @@ test('western adult ingest uses path identity before scrape', async () => {
   const subLib = create.json();
   fs.writeFileSync(path.join(watchRoot, 'Loft.Scene.01.mp4'), 'fake-video');
   const adultLibraryService = require('../src/adultLibraryService');
-  const task = adultLibraryService.enqueueIngestTask(subLib, path.join(watchRoot, 'Loft.Scene.01.mp4'), { source: 'manual', force: true });
+  const smartTaskEngine = require('../src/smartTaskEngine');
+  const intent = adultLibraryService.buildIngestTaskIntent(subLib, path.join(watchRoot, 'Loft.Scene.01.mp4'), { source: 'manual', force: true });
+  const created = smartTaskEngine.createTargetGateTask(intent);
+  const task = created.task;
   assert.ok(task, 'explicit ingest action creates an ingest task');
+  assert.strictEqual(task.taskTarget.targetGate, 'ingest');
 
   const beforeIngest = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(beforeIngest.json().total, 0, 'ingest should not upsert western items before it runs');
 
-  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?targetGate=ingest' });
   const taskStore = require('../src/taskStore');
   const ingestFlow = require('../src/ingestFlowExecutor');
   ingestFlow.setScheduler({
@@ -1040,18 +3729,26 @@ test('western adult ingest uses path identity before scrape', async () => {
 
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   const item = lib.json().items[0];
-  assert.strictEqual(item.adultMetadata.region, 'western_adult');
-  // 番号 is now self-assigned metadata (UNK-NNN placeholder) at ingest, not ''.
-  assert.ok(/^UNK-\d+$/.test(item.adultMetadata.adultId), 'western adult gets an UNK placeholder 番号 at ingest');
-  assert.strictEqual(item.adultMetadata.scrapeStatus, 'pending');
+  assert.strictEqual(item.source, 'adult_folder');
+  assert.strictEqual(item.sourceExists, true);
+  assert.strictEqual(item.factsFreshness.sourceFacts.status, 'fresh');
+  assert.strictEqual(item.factsFreshness.mediaFacts.status, 'stale');
+  assert.strictEqual(item.factsFreshness.metadataFacts.status, 'stale');
+  assert.strictEqual(item.lifecycleNextTask, 'metadata');
+  assert.strictEqual(item.adultMetadata && item.adultMetadata.adultId, undefined, 'adultId is metadata and is not written by ingest');
+  assert.strictEqual(item.codec || '', '', 'media codec is not written by ingest');
   assert.ok(item.assetKey.includes(':adult:'), 'western adult uses itemId-based identity (番号 is metadata, not the key)');
 
-  const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape&includeHistory=1' });
+  const tasks = await app.inject({ method: 'GET', url: '/v1/tasks?targetGate=metadata&includeHistory=1' });
   assert.strictEqual(
-    tasks.json().tasks.some((t) => t.itemId === item.itemId && t.actionType === 'scrape'),
+    tasks.json().tasks.some((t) => t.itemId === item.itemId && t.taskTarget && t.taskTarget.targetGate === 'metadata'),
     false,
-    'ingest ends at 已入库 and must not create a scrape task',
+    'ingest ends at 已入库 and must not create a metadata task',
   );
+
+  const prepared = await adultLibraryService.prepareAdultMetadataForScrape(subLib, mediaLibraryService.getLibraryItem(item.itemId));
+  assert.ok(/^UNK-\d+$/.test(prepared.adultMetadata.adultId), 'western adult gets an UNK placeholder from metadata preparation, not ingest');
+  assert.strictEqual(prepared.adultMetadata.scrapeStatus, 'pending');
   await app.close();
 });
 
@@ -1060,11 +3757,11 @@ test('adult directory discovery is inventory only and ingest does not create scr
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
-    smartTaskEnabledActions: ['ingest', 'scrape'],
+    automaticTaskTargets: ['ingest', 'metadata'], optimizeAllowedOperations: [],
     adultLibrary: { settleSeconds: 0 },
     taskAdmission: {
-      cooldownHoursByAction: { ingest: 0, scrape: 0 },
-      maxQueuedByAction: { ingest: 10, scrape: 10 },
+      cooldownHoursByTargetGate: { ingest: 0, metadata: 0 },
+      maxQueuedByTargetGate: { ingest: 10, metadata: 10 },
     },
   }, null, 2));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
@@ -1088,13 +3785,19 @@ test('adult directory discovery is inventory only and ingest does not create scr
 
   const candidates = adultLibraryService.listIngestCandidates();
   assert.strictEqual(candidates.length, 1, 'folder discovery exposes a single ingest candidate');
-  assert.strictEqual(candidates[0].itemInfo.actionType, undefined, 'candidate discovery does not pre-create a task shape');
+  assert.strictEqual(candidates[0].itemInfo.SelectedFlow, undefined, 'candidate discovery does not pre-create a task shape');
   assert.strictEqual(candidates[0].itemInfo.subLibraryId, subLib.uuid);
 
-  const ingestTask = adultLibraryService.enqueueIngestTask(subLib, path.join(watchRoot, 'MVSD-175.mp4'), { source: 'auto' });
+  const smartTaskEngine = require('../src/smartTaskEngine');
+  const ingestIntent = adultLibraryService.buildIngestTaskIntent(subLib, path.join(watchRoot, 'MVSD-175.mp4'), { source: 'auto' });
+  const ingestCreated = smartTaskEngine.createTargetGateTask(ingestIntent);
+  const ingestTask = ingestCreated.task;
   assert.ok(ingestTask, 'auto ingest can still be admitted through TaskAdmission when ingest is enabled');
+  assert.strictEqual(ingestTask.taskTarget.targetGate, 'ingest');
+  assert.strictEqual(ingestTask.flowPlan.direction, 'ingest.commit');
+  assert.strictEqual(ingestTask.flowPlan.flowKind, 'ingest');
 
-  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?targetGate=ingest' });
   const taskStore = require('../src/taskStore');
   const ingestFlow = require('../src/ingestFlowExecutor');
   ingestFlow.setScheduler({
@@ -1103,9 +3806,9 @@ test('adult directory discovery is inventory only and ingest does not create scr
   });
   await ingestFlow.driveTask(ingestTasks.json().tasks[0].id);
 
-  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape&includeHistory=1' });
+  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?targetGate=metadata&includeHistory=1' });
   assert.strictEqual(scrapeTasks.statusCode, 200);
-  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'ingest must not create scrape even when scrape is globally enabled');
+  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'ingest must not create metadata even when metadata automation is globally enabled');
 
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   const item = lib.json().items[0];
@@ -1119,11 +3822,11 @@ test('sub-library directory scan endpoint is removed and discovery creates no ta
   const watchRoot = path.join(dir, 'jav');
   fs.mkdirSync(watchRoot, { recursive: true });
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
-    smartTaskEnabledActions: [],
+    automaticTaskTargets: [], optimizeAllowedOperations: [],
     adultLibrary: { settleSeconds: 0 },
     taskAdmission: {
-      cooldownHoursByAction: { ingest: 0, scrape: 0 },
-      maxQueuedByAction: { ingest: 10, scrape: 10 },
+      cooldownHoursByTargetGate: { ingest: 0, metadata: 0 },
+      maxQueuedByTargetGate: { ingest: 10, metadata: 10 },
     },
   }, null, 2));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
@@ -1147,10 +3850,10 @@ test('sub-library directory scan endpoint is removed and discovery creates no ta
 
   const candidates = adultLibraryService.listIngestCandidates();
   assert.strictEqual(candidates.length, 1, 'candidate discovery is inventory only and does not create tasks');
-  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?targetGate=ingest' });
   assert.strictEqual(ingestTasks.json().tasks.length, 0, 'candidate discovery never creates ingest tasks');
-  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
-  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'candidate discovery never creates scrape tasks');
+  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?targetGate=metadata' });
+  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'candidate discovery never creates metadata tasks');
 
   const manualScan = await app.inject({ method: 'POST', url: `/v1/admin/sublibraries/${subLib.uuid}/actions/scan` });
   assert.strictEqual(manualScan.statusCode, 410);
@@ -1169,8 +3872,8 @@ test('adult directory discovery does not avalanche item or task creation', async
     adultLibrary: { settleSeconds: 0 },
     taskAdmission: {
       defaultCooldownHours: 48,
-      cooldownHoursByAction: { ingest: 6, scrape: 6 },
-      maxQueuedByAction: { ingest: 5, scrape: 2 },
+      cooldownHoursByTargetGate: { ingest: 6, metadata: 6 },
+      maxQueuedByTargetGate: { ingest: 5, metadata: 2 },
     },
   }, null, 2));
 
@@ -1200,10 +3903,10 @@ test('adult directory discovery does not avalanche item or task creation', async
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(lib.json().total, 0, 'candidate discovery should not write library items directly');
 
-  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=ingest' });
+  const ingestTasks = await app.inject({ method: 'GET', url: '/v1/tasks?targetGate=ingest' });
   assert.strictEqual(ingestTasks.json().tasks.length, 0, 'candidate discovery should not create ingest tasks');
-  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
-  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'candidate discovery should not create scrape tasks');
+  const scrapeTasks = await app.inject({ method: 'GET', url: '/v1/tasks?targetGate=metadata' });
+  assert.strictEqual(scrapeTasks.json().tasks.length, 0, 'candidate discovery should not create metadata tasks');
   await app.close();
 });
 
@@ -1646,7 +4349,12 @@ test('queued scrape task respects sub-library autoExecute=false after restart', 
 
   const task = taskStore.createTask({
     itemId: 'manual-scrape-item',
-    actionType: 'scrape',
+    taskTarget: {
+      object: { type: 'media_item', itemId: 'manual-scrape-item' },
+      targetGate: 'metadata',
+      gateObjective: {},
+      source: 'manual',
+    },
     status: 'queued',
     itemInfo: { subLibraryId: 'adult-western-manual', name: 'Queued Scrape' },
   });
@@ -1683,12 +4391,17 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
   // Simulate a prior failed scrape: the original scrape task failed_hard and
   // the library item was marked failed. A real scrape failure does both.
   const taskStore = require('../src/taskStore');
-  let origTask = taskStore.getTasks({ itemId }).find((t) => t.actionType === 'scrape');
+  let origTask = taskStore.getTasks({ itemId }).find((t) => t.taskTarget && t.taskTarget.targetGate === 'metadata');
   if (!origTask) {
     origTask = taskStore.createTask({
       itemId,
       itemName: item.name,
-      actionType: 'scrape',
+      taskTarget: {
+        object: { type: 'media_item', itemId },
+        targetGate: 'metadata',
+        gateObjective: {},
+        source: 'manual',
+      },
       status: 'failed_hard',
       itemInfo: adultLibraryService.itemInfoFromItem(item),
     });
@@ -1699,6 +4412,19 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
   const rescrape = await app.inject({ method: 'POST', url: `/v1/admin/adult/items/${itemId}/actions/rescrape` });
   assert.strictEqual(rescrape.statusCode, 201);
   assert.ok(rescrape.json().taskId, 'rescrape returns a task id');
+  assert.strictEqual(rescrape.json().task.id, rescrape.json().taskId);
+  assert.strictEqual(rescrape.json().taskBridge.kind, 'metadata');
+  assert.strictEqual(rescrape.json().task.taskTarget.targetGate, 'metadata');
+  assert.strictEqual(rescrape.json().flowPlan.flowKind, 'scrape');
+  assert.strictEqual(rescrape.json().requestedIntent.targetGate, 'metadata');
+  assert.strictEqual(rescrape.json().requestedIntent.intentMode, 'adult_rescrape');
+  assert.strictEqual(rescrape.json().controlState.state, 'ready_to_start');
+  assert.strictEqual(rescrape.json().controlState.actions.pause.enabled, true);
+
+  const taskDetail = await app.inject({ method: 'GET', url: `/v1/tasks/${rescrape.json().taskId}` });
+  assert.strictEqual(taskDetail.statusCode, 200);
+  assert.strictEqual(taskDetail.json().requestedIntent.intentMode, 'adult_rescrape');
+  assert.strictEqual(taskDetail.json().taskBridge.kind, 'metadata');
 
   // resetScrapeStatus cleared the failure marker.
   const lib2 = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
@@ -1707,6 +4433,16 @@ test('POST /v1/admin/adult/items/:itemId/actions/rescrape re-enqueues a failed s
   // A second rescrape while a task is active → 409.
   const dup = await app.inject({ method: 'POST', url: `/v1/admin/adult/items/${itemId}/actions/rescrape` });
   assert.strictEqual(dup.statusCode, 409);
+  assert.strictEqual(dup.json().error.code, 'TASK_CONFLICT');
+  assert.strictEqual(dup.json().error.message, 'active_task_exists');
+  assert.strictEqual(dup.json().admission.targetGate, 'metadata');
+  assert.strictEqual(dup.json().admission.reason, 'active_task_exists');
+  assert.strictEqual(dup.json().admission.targetGate, 'metadata');
+  assert.strictEqual(dup.json().admission.activeTaskId, rescrape.json().taskId);
+  assert.strictEqual(dup.json().activeTask.id, rescrape.json().taskId);
+  assert.strictEqual(dup.json().activeTask.taskBridge.kind, 'metadata');
+  assert.strictEqual(dup.json().activeTask.flowPlan.flowKind, 'scrape');
+  assert.strictEqual(dup.json().activeTask.controlState.state, 'ready_to_start');
   await app.close();
 });
 
@@ -1751,7 +4487,13 @@ test('scrape failure marks item failed_hard and item scrapeStatus=failed', async
 
   const item = await adultLibraryService.upsertFileItem(sl, path.join(watchRoot, 'MVSD-175.mp4'));
   const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    itemId: item.itemId, itemName: item.name,
+    taskTarget: {
+      object: { type: 'media_item', itemId: item.itemId },
+      targetGate: 'metadata',
+      gateObjective: {},
+      source: 'manual',
+    },
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
   });
@@ -1768,6 +4510,350 @@ test('scrape failure marks item failed_hard and item scrapeStatus=failed', async
 
   // Cleanup mock so other tests get the real module back.
   delete require.cache[scraperPath];
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('scrape source-missing failure invalidates upstream ingest gate', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const watchRoot = path.join(dir, 'jav');
+  fs.mkdirSync(watchRoot, { recursive: true });
+  const mediaPath = path.join(watchRoot, 'MVSD-176.mp4');
+  fs.writeFileSync(mediaPath, 'fake-video');
+
+  const scraperPath = require.resolve('../src/services/japaneseJavScraper');
+  delete require.cache[scraperPath];
+  require.cache[scraperPath] = {
+    exports: {
+      scrapeJapaneseJav: async () => ({
+        source: 'stub',
+        adultId: 'MVSD-176',
+        title: 'MVSD-176 Some Title',
+        originalTitle: 'Some Title',
+        posterUrl: 'https://example.test/poster.jpg',
+        fanartUrl: 'https://example.test/poster.jpg',
+      }),
+      fetchBinary: async () => { throw new Error('no net'); },
+      abort: () => false,
+      normalizeAdultId: (v) => v,
+    },
+  };
+
+  const previousControlDir = process.env.CONTROL_PLANE_DATA_DIR;
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+  const configStore = require('../src/configStore');
+  const adultLibraryService = require('../src/adultLibraryService');
+  const taskStore = require('../src/taskStore');
+  const taskScheduler = require('../src/taskScheduler');
+  const lifecycleProjection = require('../src/lifecycleProjection');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  try {
+    const cfg = configStore.loadConfig();
+    const sl = {
+      uuid: crypto.randomUUID(), name: 'JAV', source: 'folder', mediaType: 'adult',
+      adultRegion: 'japanese_jav', scraperType: 'shelfdeck_japanese_jav',
+      watchRoot, scrapeEnabled: true, enabled: true, scheduleMode: 'full_auto',
+      autoCreate: true, autoExecute: true, ruleTemplateId: 'adult_jav_default',
+      videoExtensions: cfg.adultLibrary.videoExtensions,
+    };
+    configStore.patchConfig({ subLibraries: [sl] });
+
+    const item = await adultLibraryService.upsertFileItem(sl, mediaPath);
+    fs.unlinkSync(mediaPath);
+    const task = taskStore.createTask({
+      itemId: item.itemId, itemName: item.name,
+      taskTarget: {
+        object: { type: 'media_item', itemId: item.itemId },
+        targetGate: 'metadata',
+        gateObjective: {},
+        source: 'manual',
+      },
+      status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
+      resumePoint: 'scrape_executing',
+    });
+
+    const reported = [];
+    scrapeFlow.setScheduler({
+      reportStatus: (id, status, prog) => {
+        reported.push({ id, status, prog });
+        taskStore.updateTask(id, { status, progress: prog });
+      },
+      reportGateInvalidation: taskScheduler.reportGateInvalidation,
+    });
+    await scrapeFlow.driveTask(task.id);
+
+    assert.ok(reported.some((r) => r.status === 'failed_hard'), 'scheduler received failed_hard');
+    const afterTask = taskStore.getTask(task.id);
+    assert.strictEqual(afterTask.upstreamGateInvalidation.invalidatedGate, 'ingest');
+    assert.strictEqual(afterTask.upstreamGateInvalidation.reason, 'source_missing');
+    const afterItem = require('../src/mediaLibraryService').getLibraryItem(item.itemId);
+    assert.strictEqual(afterItem.ingestGateFailure.reason, 'source_missing');
+    assert.strictEqual(afterItem.adultMetadata.scrapeStatus, 'pending');
+    const lifecycle = lifecycleProjection.resolveLifecycle(afterItem);
+    assert.strictEqual(lifecycle.lifecycleStage, 'source_discovered');
+    assert.strictEqual(lifecycle.lifecycleNextTask, 'ingest');
+    assert.strictEqual(lifecycle.ingestGate.status, 'invalidated');
+  } finally {
+    delete require.cache[scraperPath];
+    delete require.cache[executorPath];
+    if (previousControlDir === undefined) delete process.env.CONTROL_PLANE_DATA_DIR;
+    else process.env.CONTROL_PLANE_DATA_DIR = previousControlDir;
+  }
+});
+
+test('standard scrape fails current task when metadataGate remains unmet after repair', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const configStore = require('../src/configStore');
+  const taskStore = require('../src/taskStore');
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const subLibraryId = 'standard-movie-lib';
+  configStore.patchConfig({
+    subLibraries: [{
+      uuid: subLibraryId,
+      name: 'Movies',
+      source: 'emby',
+      mediaType: 'movie',
+      enabled: true,
+      embyServerId: 'test-emby',
+      ruleTemplateId: 'rating_strategy',
+      metadataGate: {
+        all: [
+          'identity.itemId',
+          'identity.name',
+          'identity.providerId',
+          'media.path',
+          'media.duration',
+          'media.bitrate',
+          'media.resolution',
+          'media.codec',
+          'decision.rating',
+        ],
+      },
+    }],
+    ruleTemplates: [{
+      id: 'rating_strategy',
+      rules: [{
+        priority: 1,
+        groupsConnector: 'and',
+        groups: [{ connector: 'or', conditions: [['userRating', '=', 4], ['doubanRating', '=', 4]] }],
+        targetMediaFacts: { targetBitrate: 4, targetCodec: 'h265' },
+      }],
+    }],
+  });
+
+  mediaLibraryService.upsertItems(subLibraryId, [{
+    itemId: 'emby-missing-provider',
+    sourceId: 'emby-missing-provider',
+    name: 'Missing Provider Movie',
+    type: 'movie',
+    path: '/media/missing-provider.mkv',
+    size: 1024 * 1024,
+    duration: 3600,
+    bitrate: 4_000_000,
+    resolution: '1920x1080',
+    codec: 'h264',
+    watched: true,
+    userRating: 4,
+  }], { fullSync: true });
+  const item = mediaLibraryService.getLibrary().items.find((it) => it.subLibraryId === subLibraryId);
+  const originalComplete = mediaLibraryService.completeEmbyItemMetadata;
+  mediaLibraryService.completeEmbyItemMetadata = async () => mediaLibraryService.getLibraryItem(item.itemId);
+
+  const task = taskStore.createTask({
+    itemId: item.itemId,
+    itemName: item.name,
+    SelectedFlow: 'scrape',
+    status: 'executing',
+    itemInfo: { ...item },
+    resumePoint: 'scrape_executing',
+  });
+
+  scrapeFlow.setScheduler({ reportStatus: (tid, status, progress) => { taskStore.updateTask(tid, { status, progress }); } });
+  try {
+    await scrapeFlow.driveTask(task.id);
+  } finally {
+    mediaLibraryService.completeEmbyItemMetadata = originalComplete;
+  }
+
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'failed_hard');
+  assert.strictEqual(afterTask.phase, 'failed_hard');
+  assert.strictEqual(afterTask.resumePoint, 'scrape_executing');
+  assert.strictEqual(afterTask.scrapeVerification.ok, false);
+  assert.ok(afterTask.scrapeVerification.metadataMissingReasons.includes('identity.providerId'));
+  assert.ok(afterTask.metadataGateFailure.metadataMissingReasons.includes('identity.providerId'));
+  assert.ok(afterTask.logs.some((l) => l.level === 'error' && l.msg.includes('Metadata repair incomplete')));
+
+  const events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 50, orderDir: 'asc' }).events;
+  const gateEvent = events.find((e) => e.eventType === 'scrape.metadata_gate_failed');
+  assert.ok(gateEvent, 'metadata gate failure event recorded');
+  assert.ok(gateEvent.payload.metadataMissingReasons.includes('identity.providerId'));
+  const failedEvent = events.find((e) => e.eventType === 'task.failed');
+  assert.ok(failedEvent, 'task failed event recorded');
+  assert.ok(failedEvent.payload.failureSummary.message.includes('Metadata repair incomplete'));
+
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('scrape completion verification blocks done when exit gate fails', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const configStore = require('../src/configStore');
+  const taskStore = require('../src/taskStore');
+  const libraryStore = require('../src/libraryStore');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const subLibraryId = 'adult-review-lib';
+  configStore.patchConfig({
+    subLibraries: [{
+      uuid: subLibraryId,
+      name: 'Adult Review',
+      source: 'folder',
+      mediaType: 'adult',
+      adultRegion: 'japanese_jav',
+      enabled: true,
+      scrapeEnabled: true,
+      watchRoot: dir,
+      japaneseJav: { writeNfo: true },
+    }],
+  });
+  libraryStore.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [{
+      itemId: 'adult-incomplete-exit',
+      subLibraryId,
+      name: 'MVSD-175 Incomplete',
+      source: 'adult_folder',
+      mediaType: 'adult',
+      path: path.join(dir, 'missing.mp4'),
+      scraped: true,
+      adultMetadata: {
+        region: 'japanese_jav',
+        scrapeStatus: 'done',
+        adultId: 'MVSD-175',
+        title: 'MVSD-175 Incomplete',
+      },
+    }],
+  });
+  const task = taskStore.createTask(kairoxTask('scrape', {
+    itemId: 'adult-incomplete-exit',
+    itemName: 'MVSD-175 Incomplete',
+    status: 'executing',
+    itemInfo: { subLibraryId, source: 'adult_folder' },
+    resumePoint: 'scrape_review',
+  }));
+
+  scrapeFlow.setScheduler({ reportStatus: (tid, status, progress) => { taskStore.updateTask(tid, { status, progress }); } });
+  await scrapeFlow.driveTask(task.id);
+
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'failed_hard');
+  assert.strictEqual(afterTask.phase, 'failed_hard');
+  assert.strictEqual(afterTask.resumePoint, 'scrape_executing');
+  assert.strictEqual(afterTask.scrapeVerification.ok, false);
+  assert.ok(afterTask.scrapeVerification.failures.some((f) => f.code === 'media.exists'));
+  assert.ok(afterTask.logs.some((l) => l.level === 'error' && l.msg.includes('Scrape completion verification failed')));
+
+  delete require.cache[executorPath];
+  delete process.env.CONTROL_PLANE_DATA_DIR;
+});
+
+test('scrape completion verification exception blocks done', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  process.env.CONTROL_PLANE_DATA_DIR = dir;
+
+  const configStore = require('../src/configStore');
+  const taskStore = require('../src/taskStore');
+  const libraryStore = require('../src/libraryStore');
+  const scrapeVerification = require('../src/scrapeVerification');
+  const executorPath = require.resolve('../src/scrapeFlowExecutor');
+  delete require.cache[executorPath];
+  const scrapeFlow = require('../src/scrapeFlowExecutor');
+
+  const originalVerify = scrapeVerification.verifyScrapedItem;
+  scrapeVerification.verifyScrapedItem = () => {
+    throw new Error('verification service exploded');
+  };
+
+  const subLibraryId = 'standard-verification-exception-lib';
+  configStore.patchConfig({
+    subLibraries: [{
+      uuid: subLibraryId,
+      name: 'Verification Exception',
+      source: 'emby',
+      mediaType: 'movie',
+      enabled: true,
+      metadataGate: {
+        all: [
+          'identity.itemId',
+          'identity.name',
+          'identity.providerId',
+          'media.path',
+          'media.duration',
+          'media.bitrate',
+          'media.resolution',
+          'media.codec',
+          'media.audioCodecs',
+          'decision.rating',
+        ],
+      },
+    }],
+  });
+  libraryStore.saveLibrary({
+    version: 1,
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId: 'standard-verification-exception',
+      subLibraryId,
+      name: 'Verification Exception Movie',
+      source: 'emby',
+      sourceId: 'emby-verification-exception',
+      tmdbId: '99901',
+      providerIds: { Tmdb: '99901' },
+    })],
+  });
+  const task = taskStore.createTask(kairoxTask('scrape', {
+    itemId: 'standard-verification-exception',
+    itemName: 'Verification Exception Movie',
+    status: 'executing',
+    itemInfo: { subLibraryId, source: 'emby' },
+    resumePoint: 'scrape_review',
+  }));
+
+  scrapeFlow.setScheduler({ reportStatus: (tid, status, progress) => { taskStore.updateTask(tid, { status, progress }); } });
+  try {
+    await scrapeFlow.driveTask(task.id);
+  } finally {
+    scrapeVerification.verifyScrapedItem = originalVerify;
+  }
+
+  const afterTask = taskStore.getTask(task.id);
+  assert.strictEqual(afterTask.status, 'failed_hard');
+  assert.strictEqual(afterTask.phase, 'failed_hard');
+  assert.strictEqual(afterTask.resumePoint, 'scrape_executing');
+  assert.strictEqual(afterTask.scrapeVerification.ok, false);
+  assert.ok(afterTask.scrapeVerification.failures.some((f) => f.code === 'verification.exception'));
+  assert.ok(afterTask.logs.some((l) => l.level === 'error' && l.msg.includes('Scrape completion verification failed')));
+
+  const events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 50, orderDir: 'asc' }).events;
+  const gateEvent = events.find((e) => e.eventType === 'scrape.metadata_gate_failed');
+  assert.ok(gateEvent, 'metadata gate failure event recorded');
+  assert.ok(gateEvent.payload.failureCodes.includes('verification.exception'));
+
   delete require.cache[executorPath];
   delete process.env.CONTROL_PLANE_DATA_DIR;
 });
@@ -1815,11 +4901,11 @@ test('scrape fails when poster download fails', async () => {
   };
   configStore.patchConfig({ subLibraries: [sl] });
   const item = await adultLibraryService.upsertFileItem(sl, path.join(movieDir, 'MVSD-175.mp4'));
-  const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+  const task = taskStore.createTask(kairoxTask('scrape', {
+    itemId: item.itemId, itemName: item.name,
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
-  });
+  }));
 
   scrapeFlow.setScheduler({ reportStatus: (tid, status) => { taskStore.updateTask(tid, { status }); } });
   await scrapeFlow.driveTask(task.id);
@@ -1884,11 +4970,11 @@ test('successful JAV scrape creates one movie folder and keeps original naming c
   };
   configStore.patchConfig({ subLibraries: [sl] });
   const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
-  const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+  const task = taskStore.createTask(kairoxTask('scrape', {
+    itemId: item.itemId, itemName: item.name,
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
-  });
+  }));
 
   scrapeFlow.setScheduler({ reportStatus: (tid, status) => { taskStore.updateTask(tid, { status }); } });
   await scrapeFlow.driveTask(task.id);
@@ -1980,6 +5066,7 @@ test('western adult curation without protagonist fails without writing success a
   const adultLibraryService = require('../src/adultLibraryService');
   const taskStore = require('../src/taskStore');
   const mediaLibraryService = require('../src/mediaLibraryService');
+  const adultColdArtifactStore = require('../src/adultColdArtifactStore');
   const executorPath = require.resolve('../src/scrapeFlowExecutor');
   delete require.cache[executorPath];
   const scrapeFlow = require('../src/scrapeFlowExecutor');
@@ -2006,7 +5093,7 @@ test('western adult curation without protagonist fails without writing success a
   const sl = configStore.loadConfig().subLibraries[0];
   const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
   const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    itemId: item.itemId, itemName: item.name, SelectedFlow: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
   });
@@ -2021,7 +5108,8 @@ test('western adult curation without protagonist fails without writing success a
   assert.strictEqual(afterItem.scraped, false);
   assert.strictEqual(afterItem.path, sourceFile);
   assert.strictEqual(afterItem.adultMetadata.scrapeStatus, 'failed');
-  assert.strictEqual(afterItem.adultMetadata.unknownFaces.length, 1);
+  assert.strictEqual(afterItem.adultMetadata.unknownFaces, undefined);
+  assert.strictEqual(adultColdArtifactStore.loadArtifacts(item.itemId).artifacts.unknownFaces.length, 1);
   assert.strictEqual(fs.existsSync(path.join(movieDir, 'movie.nfo')), false);
   assert.strictEqual(fs.existsSync(path.join(movieDir, '.shelfdeck.json')), false);
   assert.strictEqual(fs.existsSync(path.join(movieDir, 'poster.jpg')), false);
@@ -2108,7 +5196,7 @@ test('successful western adult curation writes nfo and marks item scraped', asyn
   const sl = configStore.loadConfig().subLibraries[0];
   const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
   const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    itemId: item.itemId, itemName: item.name, SelectedFlow: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
   });
@@ -2198,7 +5286,7 @@ test('western adult curation creates one movie folder and leaves sibling videos 
   await adultLibraryService.upsertFileItem(sl, siblingFile);
   const item = await adultLibraryService.upsertFileItem(sl, sourceFile);
   const task = taskStore.createTask({
-    itemId: item.itemId, itemName: item.name, actionType: 'scrape',
+    itemId: item.itemId, itemName: item.name, SelectedFlow: 'scrape',
     status: 'executing', itemInfo: adultLibraryService.itemInfoFromItem(item),
     resumePoint: 'scrape_executing',
   });
@@ -2429,7 +5517,7 @@ test('manual scrape of low-confidence (unknown prefix) item enters queue and att
   assert.strictEqual(item.adultMetadata.scrapeStatus, 'ambiguous');
   assert.strictEqual(item.adultMetadata.idConfidence, 'low');
 
-  let tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  let tasks = await app.inject({ method: 'GET', url: '/v1/tasks?selectedFlow=scrape' });
   assert.strictEqual(
     tasks.json().tasks.some((t) => t.itemId === item.itemId),
     false,
@@ -2444,7 +5532,7 @@ test('manual scrape of low-confidence (unknown prefix) item enters queue and att
 
   // Ambiguous items can still enter the task flow through explicit user intent;
   // the scrape executor attempts the detected ID instead of failing before it contacts a scraper.
-  tasks = await app.inject({ method: 'GET', url: '/v1/tasks?actionType=scrape' });
+  tasks = await app.inject({ method: 'GET', url: '/v1/tasks?selectedFlow=scrape' });
   const task = tasks.json().tasks.find((t) => t.itemId === item.itemId);
   assert.ok(task, 'manual scrape task exists for ambiguous item');
 
@@ -2562,6 +5650,52 @@ test('GET /v1/library returns library items', async () => {
   await app.close();
 });
 
+test('GET /v1/library default summary skips heavy task projections while manage keeps lifecycle explanation', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/taskScheduler').stopScheduler();
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId: 'library-light-projection',
+      name: 'Library Light Projection',
+    })],
+  });
+
+  const originalOptimizationRows = taskStore.queryOptimizationTaskIndexRows;
+  const originalFailureRows = taskStore.queryLatestFailureEventsByItemIds;
+  const calls = { optimization: 0, failures: 0 };
+  taskStore.queryOptimizationTaskIndexRows = (...args) => {
+    calls.optimization += 1;
+    return originalOptimizationRows(...args);
+  };
+  taskStore.queryLatestFailureEventsByItemIds = (...args) => {
+    calls.failures += 1;
+    return originalFailureRows(...args);
+  };
+
+  try {
+    const summary = await app.inject({ method: 'GET', url: '/v1/library?limit=20' });
+    assert.strictEqual(summary.statusCode, 200);
+    const summaryItem = summary.json().items.find((row) => row.itemId === 'library-light-projection');
+    assert.ok(summaryItem);
+    assert.strictEqual(summaryItem.businessFlowDecision, undefined);
+    assert.deepStrictEqual(calls, { optimization: 0, failures: 0 });
+
+    const manage = await app.inject({ method: 'GET', url: '/v1/library?projection=manage&limit=20' });
+    assert.strictEqual(manage.statusCode, 200);
+    const manageItem = manage.json().items.find((row) => row.itemId === 'library-light-projection');
+    assert.strictEqual(manageItem.lifecycleNextTask, 'optimize');
+    assert.ok(manageItem.optimizeGate, 'manage projection keeps lifecycle gate explanation fields');
+    assert.ok(calls.optimization > 0);
+    assert.strictEqual(calls.failures, 0);
+  } finally {
+    taskStore.queryOptimizationTaskIndexRows = originalOptimizationRows;
+    taskStore.queryLatestFailureEventsByItemIds = originalFailureRows;
+    await app.close();
+  }
+});
+
 test('GET /v1/library list endpoints omit heavy adult face payloads', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
@@ -2619,12 +5753,10 @@ test('GET /v1/library/queries/manage supports page and pageSize pagination', asy
     action: 'transcode',
     path: `/media/paged-${index + 1}.mkv`,
   }));
-  const cache = await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: { subLibraryId: 'sub-page', items },
+  require('../src/mediaLibraryService').saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items,
   });
-  assert.strictEqual(cache.statusCode, 200);
 
   const res = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?page=2&pageSize=2' });
   assert.strictEqual(res.statusCode, 200);
@@ -2636,14 +5768,131 @@ test('GET /v1/library/queries/manage supports page and pageSize pagination', asy
   await app.close();
 });
 
+test('commitEmbySourceCandidate creates source facts without direct refresh API', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    embyServers: { srv: { baseUrl: 'http://emby.test', apiKey: 'key', userId: 'user' } },
+    subLibraries: [{ uuid: 'emby-source-lib', name: 'Emby Source', source: 'emby', embyServerId: 'srv', sectionId: 'sec', enabled: true }],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const originalGetItemById = embyService.getItemById;
+  const originalGetSeasonEpisodes = embyService.getSeasonEpisodes;
+  embyService.getItemById = async () => ({
+      sourceId: 'emby-new',
+      name: 'New Source Movie',
+      type: 'movie',
+      path: '/media/new-source.mkv',
+      size: 123456,
+      isDiscLike: false,
+  });
+  embyService.getSeasonEpisodes = async () => [];
+  const result = await mediaLibraryService.commitEmbySourceCandidate({
+    itemId: 'ingest:emby-source-lib:emby-new',
+    subLibraryId: 'emby-source-lib',
+    source: 'emby',
+    sourceId: 'emby-new',
+    embyItemId: 'emby-new',
+    sourceObservationKind: 'new_source_observed',
+  });
+  embyService.getItemById = originalGetItemById;
+  embyService.getSeasonEpisodes = originalGetSeasonEpisodes;
+  const stored = mediaLibraryService.getLibraryItem(result.item.itemId);
+  assert.ok(stored, 'source item should be persisted');
+  assert.strictEqual(stored.sourceId, 'emby-new');
+  assert.strictEqual(stored.sourceExists, true);
+  assert.strictEqual(stored.factsFreshness.sourceFacts.status, 'fresh');
+  assert.strictEqual(stored.factsFreshness.mediaFacts.status, 'stale');
+  await app.close();
+});
+
+test('commitEmbySourceCandidate marks missing source without deleting item', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+    embyServers: { srv: { baseUrl: 'http://emby.test', apiKey: 'key', userId: 'user' } },
+    subLibraries: [{ uuid: 'emby-missing-lib', name: 'Emby Missing', source: 'emby', embyServerId: 'srv', sectionId: 'sec', enabled: true }],
+  }));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [metadataReadyMovie({
+      itemId: 'missing-source-item',
+      subLibraryId: 'emby-missing-lib',
+      sourceId: 'missing-source',
+      path: '/media/missing.mkv',
+    })],
+  });
+  const originalGetItemById = embyService.getItemById;
+  embyService.getItemById = async () => {
+    throw new Error('Emby request failed (404): Not Found');
+  };
+  const result = await mediaLibraryService.commitEmbySourceCandidate({
+    itemId: 'missing-source-item',
+    subLibraryId: 'emby-missing-lib',
+    source: 'emby',
+    sourceId: 'missing-source',
+    sourceObservationKind: 'source_missing',
+  });
+  embyService.getItemById = originalGetItemById;
+  const stored = mediaLibraryService.getLibraryItem('missing-source-item');
+  assert.ok(stored, 'missing source should not delete ShelfDeck item');
+  assert.strictEqual(result.created, false);
+  assert.strictEqual(stored.sourceExists, false);
+  assert.ok(stored.sourceMissingAt);
+  assert.strictEqual(stored.factsFreshness.sourceFacts.status, 'fresh');
+  await app.close();
+});
+
+test('GET /v1/library metadata filter accepts new metadata and legacy scrape query names', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
+  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  require('../src/mediaLibraryService').saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [
+      metadataReadyMovie({
+        itemId: 'metadata-filter-complete',
+        subLibraryId: 'metadata-filter',
+        name: 'Metadata Complete',
+        metadataComplete: true,
+        metadataStatus: 'complete',
+      }),
+      metadataReadyMovie({
+        itemId: 'metadata-filter-missing',
+        subLibraryId: 'metadata-filter',
+        name: 'Metadata Missing',
+        metadataComplete: false,
+        metadataStatus: 'missing',
+      }),
+      metadataReadyMovie({
+        itemId: 'metadata-filter-failed',
+        subLibraryId: 'metadata-filter',
+        name: 'Metadata Failed',
+        metadataComplete: false,
+        metadataStatus: 'failed',
+      }),
+    ],
+  });
+
+  const next = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=metadata-filter&metadata=pending' });
+  assert.strictEqual(next.statusCode, 200);
+  assert.deepStrictEqual(next.json().items.map((item) => item.itemId).sort(), ['metadata-filter-failed', 'metadata-filter-missing']);
+
+  const legacy = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=metadata-filter&scrape=done' });
+  assert.strictEqual(legacy.statusCode, 200);
+  assert.deepStrictEqual(legacy.json().items.map((item) => item.itemId), ['metadata-filter-complete']);
+
+  const failed = await app.inject({ method: 'GET', url: '/v1/library?subLibraryId=metadata-filter&metadata=failed' });
+  assert.strictEqual(failed.statusCode, 200);
+  assert.deepStrictEqual(failed.json().items.map((item) => item.itemId), ['metadata-filter-failed']);
+
+  await app.close();
+});
+
 test('GET /v1/library/queries/manage task filter stays on SQL pagination path', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const items = Array.from({ length: 3 }, (_, index) => ({
-    itemId: `task-filter-item-${index + 1}`,
+    ...metadataReadyMovie({ itemId: `task-filter-item-${index + 1}` }),
     subLibraryId: 'sub-task-filter',
-    source: 'emby',
-    type: 'movie',
     name: `Task Filter Movie ${index + 1}`,
     action: 'transcode',
     path: `/media/task-filter-${index + 1}.mkv`,
@@ -2655,14 +5904,18 @@ test('GET /v1/library/queries/manage task filter stays on SQL pagination path', 
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'task-filter-item-2', actionType: 'transcode' },
+    payload: { itemId: 'task-filter-item-2', targetGate: 'optimize', preferredFlow: 'transcode' },
   });
   assert.strictEqual(create.statusCode, 201);
 
   const libraryStore = require('../src/libraryStore');
   const originalLoadLibrary = libraryStore.loadLibrary;
+  const originalLoadTasks = taskStore.loadTasks;
   libraryStore.loadLibrary = () => {
     throw new Error('task filter should not load full library');
+  };
+  taskStore.loadTasks = () => {
+    throw new Error('task filter should not load full task payloads');
   };
   try {
     const none = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sub-task-filter&task=none&page=1&pageSize=10' });
@@ -2674,6 +5927,7 @@ test('GET /v1/library/queries/manage task filter stays on SQL pagination path', 
     assert.deepStrictEqual(active.json().items.map((item) => item.itemId), ['task-filter-item-2']);
   } finally {
     libraryStore.loadLibrary = originalLoadLibrary;
+    taskStore.loadTasks = originalLoadTasks;
     await app.close();
   }
 });
@@ -2684,61 +5938,55 @@ test('strategyEngine rule evaluation scenarios', async () => {
   const { ruleMatches } = require('../src/strategyEngine');
 
   // New format: groupsConnector + per-group connector
-  // P10: no rating → keep
-  const p10 = { priority: 10, groupsConnector: 'and', groups: [{ connector: 'and', conditions: [['doubanRating','=',null],['userRating','=',null]] }], action: 'keep', reason: '无评分' };
+  // P10: no rating condition
+  const p10 = { priority: 10, groupsConnector: 'and', groups: [{ connector: 'and', conditions: [['doubanRating','=',null],['userRating','=',null]] }], reason: '无评分' };
   assert.ok(ruleMatches({ doubanRating: null, userRating: null }, p10));
   assert.ok(!ruleMatches({ doubanRating: 3, userRating: null }, p10));
 
-  // P9: 1-2★ → delete (OR rating group)
-  const p9 = { priority: 9, groupsConnector: 'and', groups: [{ connector: 'or', conditions: [['doubanRating','in',[1,2]],['userRating','in',[1,2]]] }], action: 'delete', reason: '低分' };
+  // P9: 1-2★ rating condition
+  const p9 = { priority: 9, groupsConnector: 'and', groups: [{ connector: 'or', conditions: [['doubanRating','in',[1,2]],['userRating','in',[1,2]]] }], reason: '低分' };
   assert.ok(ruleMatches({ doubanRating: 1, userRating: null }, p9));
   assert.ok(ruleMatches({ doubanRating: null, userRating: 1 }, p9));
   assert.ok(!ruleMatches({ doubanRating: 3, userRating: null }, p9));
 
-  // P6: 3-4★ + modern codec → keep (rating OR, codec AND)
-  const p6 = { priority: 6, groupsConnector: 'and', groups: [{ connector: 'or', conditions: [['doubanRating','in',[3,4]],['userRating','in',[3,4]]] }, { connector: 'and', conditions: [['codec','in',['h265','hevc','av1']]] }], action: 'keep', reason: '现代编码' };
+  // P6: 3-4★ + modern codec (rating OR, codec AND)
+  const p6 = { priority: 6, groupsConnector: 'and', groups: [{ connector: 'or', conditions: [['doubanRating','in',[3,4]],['userRating','in',[3,4]]] }, { connector: 'and', conditions: [['codec','in',['h265','hevc','av1']]] }], reason: '现代编码' };
   assert.ok(ruleMatches({ doubanRating: 3, codec: 'h265' }, p6));
   assert.ok(!ruleMatches({ doubanRating: 3, codec: 'h264' }, p6));
 
-  // P5: 3★ + 1080p + bitrate>4 → transcode (rating OR, bucket+bitrate AND)
-  const p5 = { priority: 5, groupsConnector: 'and', groups: [{ connector: 'or', conditions: [['doubanRating','=',3],['userRating','=',3]] }, { connector: 'and', conditions: [['bucket','=','1080p'],['equivalentBitrate','>',4]] }], action: 'transcode' };
+  // P5: 3★ + 1080p + bitrate>4 (rating OR, bucket+bitrate AND)
+  const p5 = { priority: 5, groupsConnector: 'and', groups: [{ connector: 'or', conditions: [['doubanRating','=',3],['userRating','=',3]] }, { connector: 'and', conditions: [['bucket','=','1080p'],['equivalentBitrate','>',4]] }] };
   assert.ok(ruleMatches({ doubanRating: 3, bucket: '1080p', equivalentBitrate: 8 }, p5));
   assert.ok(!ruleMatches({ doubanRating: 3, bucket: '4K', equivalentBitrate: 8 }, p5));
   assert.ok(!ruleMatches({ doubanRating: 3, bucket: '1080p', equivalentBitrate: 2 }, p5));
 
   // P1: catch-all (empty groups)
-  const p1 = { priority: 1, groupsConnector: 'and', groups: [], action: 'keep', reason: '策略未覆盖' };
+  const p1 = { priority: 1, groupsConnector: 'and', groups: [], reason: '策略未覆盖' };
   assert.ok(ruleMatches({ doubanRating: 5, bucket: '4K', equivalentBitrate: 10 }, p1));
 
   // groupsConnector='or': between-group OR
-  const ruleOr = { priority: 1, groupsConnector: 'or', groups: [{ connector: 'and', conditions: [['bucket','=','1080p'],['equivalentBitrate','>',5]] }, { connector: 'and', conditions: [['codec','in',['h265']]] }], action: 'transcode' };
+  const ruleOr = { priority: 1, groupsConnector: 'or', groups: [{ connector: 'and', conditions: [['bucket','=','1080p'],['equivalentBitrate','>',5]] }, { connector: 'and', conditions: [['codec','in',['h265']]] }] };
   assert.ok(ruleMatches({ bucket: '1080p', equivalentBitrate: 8 }, ruleOr));
   assert.ok(ruleMatches({ codec: 'h265' }, ruleOr));
   assert.ok(!ruleMatches({ bucket: '4K', equivalentBitrate: 8, codec: 'h264' }, ruleOr));
 });
 
-test('adult JAV default template requires scraped=true and transcodes non-HEVC or high bitrate', async () => {
+test('adult JAV default template defines a single baseline target', async () => {
   const { buildAdultJavDefaultTemplate } = require('../src/configStore');
   const { ruleMatches } = require('../src/strategyEngine');
   const tpl = buildAdultJavDefaultTemplate();
-  assert.strictEqual(tpl.tag.version, 2);
-  const nonHevc = tpl.rules.find((r) => r.reason.includes('非 HEVC'));
-  const transcode1080p = tpl.rules.find((r) => r.action === 'transcode' && r.reason.includes('1080p'));
-  const transcode4k = tpl.rules.find((r) => r.action === 'transcode' && r.reason.includes('4K'));
+  assert.strictEqual(tpl.tag.version, 6);
+  assert.strictEqual(tpl.rules.length, 1);
+  const baseline = tpl.rules[0];
 
-  assert.ok(nonHevc, 'non-HEVC transcode rule exists');
-  assert.ok(transcode1080p, '1080p transcode rule exists');
-  assert.ok(transcode4k, '4K transcode rule exists');
-  assert.strictEqual(nonHevc.actionParams.targetBitrate, 2.5);
-  assert.strictEqual(transcode1080p.actionParams.targetBitrate, 2.5);
-  assert.strictEqual(transcode4k.actionParams.targetBitrate, 6);
-
-  assert.ok(ruleMatches({ scraped: true, codec: 'h264', bucket: '1080p', equivalentBitrate: 1.8 }, nonHevc));
-  assert.ok(!ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 1.8 }, nonHevc));
-  assert.ok(ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 3 }, transcode1080p));
-  assert.ok(!ruleMatches({ scraped: true, codec: 'h265', bucket: '1080p', equivalentBitrate: 2.4 }, transcode1080p));
-  assert.ok(!ruleMatches({ scraped: false, codec: 'h264', bucket: '1080p', equivalentBitrate: 8 }, nonHevc));
-  assert.ok(!ruleMatches({ bucket: '1080p', equivalentBitrate: 8 }, transcode1080p));
+  assert.strictEqual(baseline.targetMediaFacts.qualityTier, 'adult_baseline');
+  assert.strictEqual(baseline.targetMediaFacts.targetBitrateProfileByBucket['1080p'].targetMbps, 2.5);
+  assert.strictEqual(baseline.targetMediaFacts.targetBitrateProfileByBucket['1080p'].minMbps, 1.625);
+  assert.strictEqual(baseline.targetMediaFacts.targetBitrateProfileByBucket['1080p'].maxMbps, 3.375);
+  assert.strictEqual(baseline.targetMediaFacts.targetBitrateProfileByBucket['4K'].targetMbps, 6);
+  assert.strictEqual(baseline.targetMediaFacts.targetCodec, 'h265');
+  assert.ok(ruleMatches({ scraped: true, codec: 'h264', bucket: '1080p', equivalentBitrate: 1.8 }, baseline));
+  assert.ok(ruleMatches({ scraped: false, codec: 'h265', bucket: '4K', equivalentBitrate: 8 }, baseline));
 });
 
 // ── 404 handling ──────────────────────────────────────────────────────────────
@@ -2761,19 +6009,34 @@ test('GET unknown /v1/ endpoint -> 404', async () => {
 
 // ── Upgrade Flow ──────────────────────────────────────────────────────────────
 
-test('POST /v1/tasks upgrade actionType -> 201', async () => {
+test('POST /v1/tasks optimize target with upgrade flow -> 201', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+  const itemId = 'upgrade-test-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({
+    itemId,
+    action: undefined,
+    optimizeObjective: {
+      kind: 'target_media_facts',
+      targetMediaFacts: {
+        minResolution: '4K',
+        targetBitrate: 20,
+        targetCodec: 'h265',
+      },
+    },
+  })] });
   const res = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'upgrade-test-' + crypto.randomUUID().slice(0, 8), actionType: 'upgrade' },
+    payload: { itemId, targetGate: 'optimize' },
   });
   assert.strictEqual(res.statusCode, 201);
   const body = res.json();
   assert.ok(body.id);
-  assert.strictEqual(body.actionType, 'upgrade');
   assert.strictEqual(body.status, 'created');
+  assert.strictEqual(body.taskBridge.kind, 'optimize');
+  assert.strictEqual(body.flowPlan.direction, 'optimize.upgrade');
+  assert.strictEqual(body.flowPlan.flowKind, 'upgrade');
   await app.close();
 });
 
@@ -2823,10 +6086,12 @@ test('PATCH /v1/tasks/:id confirm with confirmData stores selection', async () =
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
 
   // Create upgrade task
+  const itemId = 'upgrade-confirm-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId, action: 'upgrade' })] });
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'upgrade-confirm-' + crypto.randomUUID().slice(0, 8), actionType: 'upgrade' },
+    payload: { itemId, targetGate: 'optimize', preferredFlow: 'upgrade' },
   });
   const { id } = create.json();
 
@@ -2848,6 +6113,10 @@ test('PATCH /v1/tasks/:id confirm with confirmData stores selection', async () =
   assert.ok(task.confirmData);
   assert.strictEqual(task.confirmData.selectedIndex, 2);
   assert.strictEqual(task.status, 'queued');
+  const events = taskStore.queryTaskEvents({ taskId: id }, { pageSize: 50 }).events;
+  const confirmedEvent = events.find((event) => event.eventType === 'task.confirmed');
+  assert.ok(confirmedEvent);
+  assert.deepStrictEqual(confirmedEvent.payload.confirmDataKeys, ['selectedIndex']);
 
   await app.close();
 });
@@ -2856,10 +6125,12 @@ test('POST /v1/tasks/:id/actions/pause on upgrade task', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
 
+  const itemId = 'upgrade-pause-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId, action: 'upgrade' })] });
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'upgrade-pause-' + crypto.randomUUID().slice(0, 8), actionType: 'upgrade' },
+    payload: { itemId, targetGate: 'optimize', preferredFlow: 'upgrade' },
   });
   const { id } = create.json();
 
@@ -2874,10 +6145,12 @@ test('POST /v1/tasks/:id/actions/execute resumes paused upgrade task', async () 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
 
+  const itemId = 'upgrade-resume-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId, action: 'upgrade' })] });
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'upgrade-resume-' + crypto.randomUUID().slice(0, 8), actionType: 'upgrade' },
+    payload: { itemId, targetGate: 'optimize', preferredFlow: 'upgrade' },
   });
   const { id } = create.json();
   await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/pause` });
@@ -2897,10 +6170,12 @@ test('upgrade task with no MoviePilot config -> precheck fails to failed_hard', 
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   require('../src/taskScheduler').stopScheduler();
 
+  const itemId = 'upgrade-noconfig-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({ itemId, action: 'upgrade' })] });
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'upgrade-noconfig-' + crypto.randomUUID().slice(0, 8), actionType: 'upgrade' },
+    payload: { itemId, targetGate: 'optimize', preferredFlow: 'upgrade' },
   });
   const { id } = create.json();
 
@@ -2943,12 +6218,24 @@ test('upgrade task with MoviePilot config proceeds to planning', async () => {
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   require('../src/taskScheduler').stopScheduler();
 
+  const itemId = 'upgrade-precheck-' + crypto.randomUUID().slice(0, 8);
+  mediaLibraryService.saveLibrary({ cachedAt: new Date().toISOString(), items: [metadataReadyMovie({
+    itemId,
+    action: undefined,
+    optimizeObjective: {
+      kind: 'improve_source_quality',
+      selectedFlow: 'upgrade',
+      targetBitrate: 20,
+      targetCodec: 'h265',
+    },
+  })] });
   const create = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
     payload: {
-      itemId: 'upgrade-precheck-' + crypto.randomUUID().slice(0, 8),
-      actionType: 'upgrade',
+      itemId,
+      targetGate: 'optimize',
+      preferredFlow: 'upgrade',
     },
   });
   const { id } = create.json();

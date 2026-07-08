@@ -6,19 +6,18 @@ const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 const configStore = require('./configStore');
-const taskStore = require('./taskStore');
 const transcodeService = require('./services/transcodeService');
 const activityLog = require('./activityLog');
 const assetIdentity = require('./assetIdentity');
 const mediaLibraryService = require('./mediaLibraryService');
 const peopleStore = require('./peopleStore');
-const priorityEngine = require('./priorityEngine');
-const taskAdmission = require('./taskAdmission');
 const scrapeVerification = require('./scrapeVerification');
+const adultColdArtifactStore = require('./adultColdArtifactStore');
+const factsFreshnessService = require('./factsFreshnessService');
+const sourceReference = require('./sourceReference');
 
 const DEFAULT_EXTS = new Set(['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv']);
 const DEFAULT_ORGANIZED_FOLDER_NAME = 'scraped';
-const TERMINAL = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
 
 function loadLibrary() {
   return mediaLibraryService.loadLibrary();
@@ -550,12 +549,15 @@ function itemInfoFromItem(item) {
     duration: item.duration,
     type: item.type,
     isDiscLike: !!item.isDiscLike,
-    targetBitrate: item.targetBitrate,
     targetCodec: item.targetCodec,
     equivalentBitrate: item.equivalentBitrate,
     scraped: !!item.scraped,
     adultMetadata: item.adultMetadata,
   };
+}
+
+function persistHotAdultMetadata(itemId, adultMetadata) {
+  return adultColdArtifactStore.splitAndPersistAdultMetadata(itemId, adultMetadata).adultMetadata;
 }
 
 function isGenericWesternTitle(value) {
@@ -610,7 +612,7 @@ function repairInvalidWesternScrapeState(opts = {}) {
       ...item,
       name: genericTitle ? fallbackWesternItemName(item) : item.name,
       scraped: false,
-      adultMetadata: nextMeta,
+      adultMetadata: persistHotAdultMetadata(item.itemId, nextMeta),
       lastRefreshedAt: now,
     };
     changedItems.push(lib.items[i]);
@@ -627,7 +629,7 @@ function repairInvalidWesternScrapeState(opts = {}) {
   return { repaired };
 }
 
-async function upsertFileItem(subLib, filePath) {
+function buildAdultMetadataSeed(subLib, filePath, itemId) {
   const config = configStore.loadConfig();
   const nfo = parseNfo(findNfoForFile(filePath));
   // Pre-scraped NFO is authoritative → high confidence. Otherwise parse the
@@ -656,29 +658,7 @@ async function upsertFileItem(subLib, filePath) {
     adultId = detected.adultId;
     idConfidence = detected.confidence;
   }
-  const meta = await probeFile(filePath, config);
-  const lib = loadLibrary();
   const now = nowIso();
-  const normPath = normalizePathForCompare(filePath);
-
-  // Adult library identity: itemId (UUID) is the immutable surrogate primary key.
-  // assetKey is built from itemId, NEVER from the 番号 (adultId). The 番号 lives
-  // in adultMetadata.adultId as mutable metadata (scraped for JAV, self-assigned
-  // and actor-encoded for western). This keeps the same item stable across
-  // renumbering, renaming, and organize operations.
-  //
-  // Lookup order for upsert:
-  //   1. existing item by path fallback (file may have moved; identity follows
-  //      the file, not a derived key)
-  //   2. brand new item — assign itemId first, then derive assetKey from it
-  // For an existing item the assetKey is rewritten from its own itemId so legacy
-  // items (whose assetKey was derived from 番号) are migrated on first scan.
-  // (Western library is brand new; JAV library is remounted fresh in production,
-  //  so no cross-version migration script is needed.)
-  let idx = lib.items.findIndex((it) => it.subLibraryId === subLib.uuid && normalizePathForCompare(it.path) === normPath);
-  const itemId = idx >= 0 ? (lib.items[idx].itemId || crypto.randomUUID()) : crypto.randomUUID();
-  const assetKey = `${subLib.uuid}:adult:${String(itemId).toLowerCase()}`;
-  const sourceId = adultId || normPath;
 
   const displayName = (nfo && (nfo.title || nfo.originalTitle)) || adultId || path.basename(filePath, path.extname(filePath));
   const scrapeStatus = nfo ? 'done' : (westernAdult ? 'pending' : (idConfidence === 'low' ? 'ambiguous' : 'pending'));
@@ -707,40 +687,70 @@ async function upsertFileItem(subLib, filePath) {
   };
   if (westernAdult) {
     adultMetadata.reviewStatus = nfo ? 'approved' : 'pending';
-    adultMetadata.ai = {};
-    adultMetadata.faceClusters = [];
-    adultMetadata.unknownFaces = [];
+  }
+  return { adultMetadata, displayName, nfo };
+}
+
+function commitAdultFolderSourceReference(subLib, itemInfo = {}, opts = {}) {
+  const filePath = itemInfo.path || (itemInfo.locator && itemInfo.locator.path) || itemInfo.sourceRefId || '';
+  const now = opts.now || nowIso();
+  const lib = loadLibrary();
+  const normPath = normalizePathForCompare(filePath);
+  let idx = lib.items.findIndex((it) => it.itemId && itemInfo.itemId && it.itemId === itemInfo.itemId);
+  if (idx < 0) {
+    idx = lib.items.findIndex((it) => it.subLibraryId === subLib.uuid && normalizePathForCompare(it.path) === normPath);
+  }
+  if (!filePath || !fs.existsSync(filePath)) {
+    if (idx < 0) throw new Error(`Media file does not exist: ${filePath || ''}`);
+    const missing = {
+      ...lib.items[idx],
+      sourceExists: false,
+      sourceMissingAt: now,
+      sourceObservedAt: now,
+      lastRefreshedAt: now,
+    };
+    lib.items[idx] = missing;
+    updateLibraryItems([missing]);
+    factsFreshnessService.markFresh(missing.itemId, ['sourceFacts'], {
+      now,
+      updatedAt: now,
+      observedAt: now,
+      evidence: { source: 'adult_folder', observationKind: 'source_missing', path: filePath },
+    });
+    factsFreshnessService.markStale(missing.itemId, ['mediaFacts', 'metadataFacts'], {
+      now,
+      reason: 'source_missing',
+      refreshTargetGate: 'ingest',
+      evidence: { source: 'adult_folder', path: filePath },
+    });
+    return { item: missing, created: false, observationKind: 'source_missing' };
   }
 
+  const stat = fs.statSync(filePath);
+  const itemId = idx >= 0 ? (lib.items[idx].itemId || crypto.randomUUID()) : crypto.randomUUID();
+  const assetKey = `${subLib.uuid}:adult:${String(itemId).toLowerCase()}`;
+  const sourceId = normPath;
   const base = {
     subLibraryId: subLib.uuid,
-    name: displayName,
+    name: path.basename(filePath, path.extname(filePath)),
     path: filePath,
     source: 'adult_folder',
+    sourceRefId: sourceId,
     sourceId,
+    sourceExists: true,
+    sourceMissingAt: null,
+    sourceObservedAt: now,
+    mediaType: 'adult',
+    adultRegion: subLib.adultRegion || 'japanese_jav',
+    scraperType: subLib.scraperType || '',
     assetKey,
     assetRootPath: assetIdentity.inferAssetRootPath(filePath, false),
-    externalRefs: { adultFolder: { path: filePath, adultId, lastSeenAt: now } },
+    externalRefs: { adultFolder: { path: filePath, sourceRefId: sourceId, lastSeenAt: now } },
     type: 'movie',
-    bitrate: meta.bitrate || 0,
-    duration: meta.duration || 0,
-    resolution: meta.resolution || '',
-    size: meta.size || 0,
-    codec: meta.codec || '',
-    audioCodecs: meta.audioCodecs || [],
-    bucket: computeBucket(meta.resolution),
-    premiereDate: adultMetadata.premiered || null,
-    genres: adultMetadata.genres || [],
-    scraped: nfo ? true : false,
+    size: stat.size || 0,
     isDiscLike: false,
     watched: true,
-    doubanId: null,
-    doubanRating: null,
-    doubanRatingUpdatedAt: null,
-    userRating: null,
-    userRatingUpdatedAt: null,
     lastRefreshedAt: now,
-    adultMetadata,
   };
 
   let item;
@@ -748,25 +758,105 @@ async function upsertFileItem(subLib, filePath) {
     item = {
       ...lib.items[idx],
       ...base,
-      itemId, // preserve the canonical itemId (surrogate key)
-      action: lib.items[idx].action || 'keep',
-      reason: lib.items[idx].reason || '成人库新入库',
+      itemId,
+      scraped: lib.items[idx].scraped === true ? true : false,
+      adultMetadata: lib.items[idx].adultMetadata || {},
+      reason: lib.items[idx].reason || '成人库来源已入库',
     };
     lib.items[idx] = item;
   } else {
     item = {
       itemId,
       ...base,
-      action: 'keep',
-      reason: '成人库新入库',
+      bitrate: 0,
+      duration: 0,
+      resolution: '',
+      codec: '',
+      audioCodecs: [],
+      bucket: '',
+      premiereDate: null,
+      genres: [],
+      scraped: false,
+      adultMetadata: {},
+      doubanId: null,
+      doubanRating: null,
+      doubanRatingUpdatedAt: null,
+      userRating: null,
+      userRatingUpdatedAt: null,
+      reason: '成人库来源已入库',
     };
     lib.items.push(item);
   }
 
   lib.cachedAt = now;
   saveLibrary(lib);
+  factsFreshnessService.markFresh(item.itemId, ['sourceFacts'], {
+    now,
+    updatedAt: now,
+    observedAt: now,
+    evidence: { source: 'adult_folder', observationKind: idx >= 0 ? 'source_changed' : 'new_source_observed', path: filePath },
+  });
+  factsFreshnessService.markStale(item.itemId, ['mediaFacts', 'metadataFacts'], {
+    now,
+    reason: idx >= 0 ? 'source_changed' : 'source_ingested',
+    refreshTargetGate: 'metadata',
+    evidence: { source: 'adult_folder', path: filePath },
+  });
+  return { item, created: idx < 0, observationKind: idx >= 0 ? 'source_changed' : 'new_source_observed' };
+}
 
-  return item;
+async function prepareAdultMetadataForScrape(subLib, item, opts = {}) {
+  if (!item || !item.itemId) throw new Error('Adult library item is required');
+  const filePath = item.path;
+  if (!filePath || !fs.existsSync(filePath)) throw new Error(`Media file does not exist: ${filePath || ''}`);
+  const config = configStore.loadConfig();
+  const { adultMetadata, displayName } = buildAdultMetadataSeed(subLib, filePath, item.itemId);
+  const meta = await probeFile(filePath, config);
+  const lib = loadLibrary();
+  const idx = lib.items.findIndex((it) => it.itemId === item.itemId);
+  if (idx < 0) throw new Error('Library item not found');
+  const now = opts.now || nowIso();
+  const hotAdultMetadata = persistHotAdultMetadata(item.itemId, adultMetadata);
+
+  const base = {
+    name: displayName,
+    bitrate: meta.bitrate || 0,
+    duration: meta.duration || 0,
+    resolution: meta.resolution || '',
+    size: meta.size || 0,
+    codec: meta.codec || '',
+    audioCodecs: meta.audioCodecs || [],
+    bucket: computeBucket(meta.resolution),
+    premiereDate: hotAdultMetadata.premiered || null,
+    genres: adultMetadata.genres || [],
+    scraped: adultMetadata.scrapeStatus === 'done',
+    lastRefreshedAt: now,
+    metadataUpdatedAt: now,
+    adultMetadata: hotAdultMetadata,
+  };
+
+  const updated = {
+    ...lib.items[idx],
+    ...base,
+    reason: lib.items[idx].reason || '成人库元数据已刷新',
+  };
+  lib.items[idx] = updated;
+
+  lib.cachedAt = now;
+  saveLibrary(lib);
+  factsFreshnessService.markFresh(updated.itemId, ['mediaFacts', 'metadataFacts'], {
+    now,
+    updatedAt: now,
+    observedAt: now,
+    evidence: { source: 'adult_metadata_scrape', path: filePath },
+  });
+
+  return updated;
+}
+
+async function upsertFileItem(subLib, filePath) {
+  const committed = commitAdultFolderSourceReference(subLib, { path: filePath });
+  return prepareAdultMetadataForScrape(subLib, committed.item);
 }
 
 async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
@@ -902,6 +992,7 @@ async function applyScrapeResultToItem(subLib, item, metadata, opts = {}) {
       warnings: verification.warnings,
     },
   };
+  updated.adultMetadata = persistHotAdultMetadata(updated.itemId, updated.adultMetadata);
   lib.items[idx] = updated;
   updateLibraryItems([updated]);
   return updated;
@@ -1015,7 +1106,7 @@ async function applyWesternCurationResultToItem(subLib, item, curation, opts = {
     const updated = {
       ...existing,
       scraped: false,
-      adultMetadata,
+      adultMetadata: persistHotAdultMetadata(existing.itemId, adultMetadata),
       lastRefreshedAt: now,
     };
     lib.items[idx] = updated;
@@ -1156,6 +1247,7 @@ async function applyWesternCurationResultToItem(subLib, item, curation, opts = {
       warnings: verification.warnings,
     },
   };
+  updated.adultMetadata = persistHotAdultMetadata(updated.itemId, updated.adultMetadata);
   lib.items[idx] = updated;
   updateLibraryItems([updated]);
   return updated;
@@ -1170,21 +1262,17 @@ function markScrapeFailed(itemId, message) {
   const updated = {
     ...existing,
     scraped: false,
-    adultMetadata: {
+    adultMetadata: persistHotAdultMetadata(existing.itemId, {
       ...(existing.adultMetadata || {}),
       scrapeStatus: 'failed',
       scrapeError: String(message || ''),
       scrapeFailedAt: now,
-    },
+    }),
     lastRefreshedAt: now,
   };
   lib.items[idx] = updated;
   updateLibraryItems([updated]);
   return updated;
-}
-
-function activeTaskForItem(itemId) {
-  return taskStore.getTasks({ itemId }).find((t) => !TERMINAL.has(t.status));
 }
 
 function ingestTaskItemId(subLib, filePath) {
@@ -1213,17 +1301,27 @@ function fileSettled(filePath, config, nowMs = Date.now()) {
 
 function ingestItemInfo(subLib, filePath) {
   const name = path.basename(filePath, path.extname(filePath));
-  return {
+  const ref = sourceReference.normalizeSourceReference({
+    source: 'adult_folder',
+    sourceRefId: normalizePathForCompare(filePath),
+    subLibraryId: subLib.uuid,
+    sourceAdapterId: 'adult-folder-local',
+    locator: { path: filePath },
+  });
+  return sourceReference.applySourceReference({
     itemId: ingestTaskItemId(subLib, filePath),
     name,
     path: filePath,
     subLibraryId: subLib.uuid,
     source: 'adult_folder',
+    sourceRefId: ref.sourceRefId,
+    sourceAdapterId: ref.sourceAdapterId,
     mediaType: 'adult',
     adultRegion: subLib.adultRegion || 'japanese_jav',
     scraperType: subLib.scraperType || '',
     assetRootPath: assetIdentity.inferAssetRootPath(filePath, false),
-  };
+    locator: ref.locator,
+  }, ref);
 }
 
 function listIngestCandidates(config = configStore.loadConfig(), opts = {}) {
@@ -1261,54 +1359,27 @@ function listIngestCandidates(config = configStore.loadConfig(), opts = {}) {
   return candidates.sort((a, b) => String(a.filePath).localeCompare(String(b.filePath)));
 }
 
-function enqueueIngestTask(subLib, filePath, opts = {}) {
-  const cfg = configStore.loadConfig();
+function buildIngestTaskIntent(subLib, filePath, opts = {}) {
   const source = opts.source || (opts.force ? 'manual' : 'auto');
-  const userInitiated = source === 'manual';
   const itemInfo = ingestItemInfo(subLib, filePath);
   itemInfo.taskSource = source;
-  const schedule = configStore.resolveSubLibSchedule(itemInfo, cfg);
-  const taskSnapshot = Array.isArray(opts.taskSnapshot) ? opts.taskSnapshot : null;
-  const admission = taskAdmission.canCreateTask({
+  return {
     item: itemInfo,
     itemInfo,
-    actionType: 'ingest',
+    targetGate: 'ingest',
+    gateObjective: {},
     source,
-    config: cfg,
-    tasks: taskSnapshot || taskStore.getTasks(),
-  });
-  if (!admission.allowed) return null;
-  const priorityBreakdown = priorityEngine.explainPriority({
-    source: userInitiated ? 'manual' : 'auto',
-    actionType: 'ingest',
-    itemInfo,
-    config: cfg,
-  });
-  const taskData = {
-    itemId: itemInfo.itemId,
-    itemName: itemInfo.name,
-    actionType: 'ingest',
-    source,
-    status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
-    priority: priorityBreakdown.priority,
-    priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
-    priorityBreakdown,
-    itemInfo,
-    logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Ingest task created by user action' : 'Ingest task created by background admission' }],
+    requestedIntent: source === 'manual' ? {
+      targetGate: 'ingest',
+      intentMode: 'adult_ingest',
+      entryPoint: opts.entryPoint || 'adult_source_adapter',
+      filePath,
+    } : undefined,
   };
-  const task = opts.deferSave ? taskStore.buildTask(taskData) : taskStore.createTask(taskData);
-  if (taskSnapshot) taskSnapshot.push(task);
-  activityLog.addActivity('adult_library', `成人库「${subLib.name}」创建入库任务：${itemInfo.name}`, { taskId: task.id, itemId: itemInfo.itemId });
-  return task;
 }
 
-// Reset a previously-failed (or pending) item so a fresh scrape attempt can run.
-// Clears the stale scrapeError and flips scrapeStatus back to pending.
-function resetScrapeStatus(itemId, overrideAdultId = null) {
-  const lib = loadLibrary();
-  const idx = lib.items.findIndex((it) => it.itemId === itemId);
-  if (idx < 0) return null;
-  const existing = lib.items[idx];
+function buildResetScrapeItem(existing, overrideAdultId = null) {
+  if (!existing) return null;
   let adultIdPatch = {};
   if (overrideAdultId) {
     const japaneseJavScraper = require('./services/japaneseJavScraper');
@@ -1319,27 +1390,64 @@ function resetScrapeStatus(itemId, overrideAdultId = null) {
       idConfidence: 'high',
     };
   }
-  const updated = {
+  return {
     ...existing,
     scraped: false,
-    adultMetadata: {
+    metadataComplete: false,
+    metadataStatus: 'pending',
+    metadataMissingReasons: ['metadata.refresh_requested'],
+    metadataGate: {
+      ...((existing && existing.metadataGate) || {}),
+      passed: false,
+      status: 'pending_canonical_refresh',
+      reason: 'adult_rescrape_requested',
+      invalidatedAt: nowIso(),
+    },
+    adultMetadata: persistHotAdultMetadata(existing.itemId, {
       ...(existing.adultMetadata || {}),
       ...adultIdPatch,
       scrapeStatus: 'pending',
       scrapeError: '',
       scrapeFailedAt: null,
-    },
+    }),
     lastRefreshedAt: nowIso(),
   };
+}
+
+// Reset a previously-failed (or pending) item so a fresh metadata task can run.
+// Clears the stale scrapeError and flips scrapeStatus back to pending.
+function resetScrapeStatus(itemId, overrideAdultId = null) {
+  const lib = loadLibrary();
+  const idx = lib.items.findIndex((it) => it.itemId === itemId);
+  if (idx < 0) return null;
+  const updated = buildResetScrapeItem(lib.items[idx], overrideAdultId);
   lib.items[idx] = updated;
   updateLibraryItems([updated]);
   return updated;
 }
 
-// Manual rescrape entry point: reset failure state, then enqueue a fresh scrape
-// task (skipped if one is already active for the item). Returns the new task or
-// null if a task is already active / scheduling is off / item is missing.
-async function rescrapeItem(itemId, opts = {}) {
+function buildMetadataTaskIntent(item, subLib, opts = {}) {
+  const source = opts.source || (opts.force ? 'manual' : 'auto');
+  const itemInfo = itemInfoFromItem(item);
+  itemInfo.taskSource = source;
+  return {
+    item,
+    itemInfo,
+    targetGate: 'metadata',
+    gateObjective: {},
+    source,
+    requestedIntent: source === 'manual' ? {
+      targetGate: 'metadata',
+      intentMode: opts.intentMode || 'adult_rescrape',
+      entryPoint: opts.entryPoint || 'POST /v1/admin/adult/items/:itemId/actions/rescrape',
+    } : undefined,
+  };
+}
+
+// Manual rescrape intent: build the metadata reset view used for admission.
+// The API adapter commits resetScrapeStatus only after TaskAdmission accepts.
+// This function does not create, admit, or persist tasks.
+async function prepareRescrapeIntent(itemId, opts = {}) {
   const config = configStore.loadConfig();
   let item = null;
   for (const sl of config.subLibraries || []) {
@@ -1352,56 +1460,15 @@ async function rescrapeItem(itemId, opts = {}) {
   const { subLib, item: libItem } = item;
   if (!subLib.watchRoot) throw new Error('watchRoot is not configured');
   if (!libItem.path || !fs.existsSync(libItem.path)) throw new Error(`Media file does not exist: ${libItem.path || ''}`);
-  if (activeTaskForItem(itemId)) return null;
   // Optional user-provided 番号 override — lets the user correct a low-confidence
   // or wrong auto-detected ID before re-scraping.
   const overrideAdultId = typeof opts.overrideAdultId === 'string' ? opts.overrideAdultId.trim() : '';
-  resetScrapeStatus(itemId, overrideAdultId || null);
-  const fresh = loadLibrary().items.find((it) => it.itemId === itemId);
-  // Manual rescrape is an explicit user intent; autoExecute still decides
-  // queued vs pending_manual.
-  return enqueueScrapeTask(fresh || libItem, subLib, { force: true });
-}
-
-function enqueueScrapeTask(item, subLib, opts = {}) {
-  const cfg = configStore.loadConfig();
-  const schedule = configStore.resolveSubLibSchedule(item, cfg);
-  const source = opts.source || (opts.force ? 'manual' : 'auto');
-  const userInitiated = source === 'manual';
-  const itemInfo = itemInfoFromItem(item);
-  itemInfo.taskSource = source;
-  const taskSnapshot = Array.isArray(opts.taskSnapshot) ? opts.taskSnapshot : null;
-  const admission = taskAdmission.canCreateTask({
-    item,
-    itemInfo,
-    actionType: 'scrape',
-    source,
-    config: cfg,
-    tasks: taskSnapshot || taskStore.getTasks(),
+  const prepared = buildResetScrapeItem(libItem, overrideAdultId || null) || libItem;
+  return buildMetadataTaskIntent(prepared, subLib, {
+    source: 'manual',
+    intentMode: 'adult_rescrape',
+    entryPoint: 'POST /v1/admin/adult/items/:itemId/actions/rescrape',
   });
-  if (!admission.allowed) return null;
-  const priorityBreakdown = priorityEngine.explainPriority({
-    source: userInitiated ? 'manual' : 'auto',
-    actionType: 'scrape',
-    itemInfo,
-    config: cfg,
-  });
-  const taskData = {
-    itemId: item.itemId,
-    itemName: item.name,
-    actionType: 'scrape',
-    source,
-    status: userInitiated || schedule.autoExecute ? 'queued' : 'pending_manual',
-    priority: priorityBreakdown.priority,
-    priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
-    priorityBreakdown,
-    itemInfo,
-    logs: [{ ts: nowIso(), level: 'info', msg: userInitiated ? 'Scrape task created by user action' : 'Scrape task created by background admission' }],
-  };
-  const task = opts.deferSave ? taskStore.buildTask(taskData) : taskStore.createTask(taskData);
-  if (taskSnapshot) taskSnapshot.push(task);
-  activityLog.addActivity('adult_library', `成人库「${subLib.name}」创建刮削任务：${item.name}`, { taskId: task.id, itemId: item.itemId });
-  return task;
 }
 
 module.exports = {
@@ -1409,15 +1476,18 @@ module.exports = {
   isJapaneseJavSubLibrary,
   isWesternAdultSubLibrary,
   listIngestCandidates,
+  commitAdultFolderSourceReference,
   upsertFileItem,
-  enqueueIngestTask,
+  prepareAdultMetadataForScrape,
+  buildIngestTaskIntent,
+  buildMetadataTaskIntent,
   ingestTaskItemId,
   applyScrapeResultToItem,
   applyWesternCurationResultToItem,
   markScrapeFailed,
   repairInvalidWesternScrapeState,
   resetScrapeStatus,
-  rescrapeItem,
+  prepareRescrapeIntent,
   itemInfoFromItem,
   extractJavId,
   computeRightCoverCrop,

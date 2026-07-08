@@ -36,7 +36,9 @@ function collectTaskPathKeys(task, subLib) {
     info.originalSourcePath,
     info.replacementTargetPath,
     info.originalDiscPath,
+    info.deleteTargetPath,
     task && task.verifyResult && task.verifyResult.outputPath,
+    task && task.verifyResult && task.verifyResult.deletedPath,
     task && task.upgradePreview && task.upgradePreview.oldFile && task.upgradePreview.oldFile.path,
     task && task.upgradePreview && task.upgradePreview.newFile && task.upgradePreview.newFile.path,
   ];
@@ -51,15 +53,17 @@ function buildOptimizationIndex(tasks, config) {
 
   for (const task of tasks || []) {
     if (!task || task.status !== 'done') continue;
-    if (task.actionType !== 'transcode' && task.actionType !== 'upgrade') continue;
+    const flowKind = task.flowPlan && task.flowPlan.flowKind || '';
+    if (flowKind !== 'transcode' && flowKind !== 'upgrade') continue;
 
     const subLibraryId = task.itemInfo && task.itemInfo.subLibraryId;
     const subLib = subLibs.find((s) => s.uuid === subLibraryId) || {};
+    const status = flowKind === 'upgrade' ? 'upgraded' : 'transcoded';
     const entry = {
-      action: task.actionType,
-      status: task.actionType === 'upgrade' ? 'upgraded' : 'transcoded',
+      flowKind,
+      status,
       taskId: task.id,
-      doneAt: task.updatedAt || task.createdAt || null,
+      doneAt: task.optimizationDoneAt || task.updatedAt || task.createdAt || null,
       subLibraryId: subLibraryId || null,
     };
 
@@ -88,9 +92,9 @@ function statusFromMarker(item) {
   const upgradeAt = item && item.lastUpgradeDoneAt;
   if (!transcodeAt && !upgradeAt) return null;
   if (upgradeAt && (!transcodeAt || newer(upgradeAt, transcodeAt))) {
-    return { action: 'upgrade', status: 'upgraded', taskId: null, doneAt: upgradeAt, subLibraryId: item.subLibraryId || null };
+    return { flowKind: 'upgrade', status: 'upgraded', taskId: null, doneAt: upgradeAt, subLibraryId: item.subLibraryId || null };
   }
-  return { action: 'transcode', status: 'transcoded', taskId: null, doneAt: transcodeAt, subLibraryId: item.subLibraryId || null };
+  return { flowKind: 'transcode', status: 'transcoded', taskId: null, doneAt: transcodeAt, subLibraryId: item.subLibraryId || null };
 }
 
 function resolveOptimization(item, index, config) {
@@ -103,14 +107,14 @@ function resolveOptimization(item, index, config) {
 
   const candidates = [marker, byId, byPath].filter(Boolean);
   if (candidates.length === 0) {
-    return { optimizationStatus: 'none', optimizationAction: null, optimizationDoneAt: null, optimizationTaskId: null };
+    return { optimizationStatus: 'none', optimizeFlowKind: null, optimizationDoneAt: null, optimizationTaskId: null };
   }
 
   candidates.sort((a, b) => new Date(b.doneAt || 0).getTime() - new Date(a.doneAt || 0).getTime());
   const best = candidates[0];
   return {
     optimizationStatus: best.status,
-    optimizationAction: best.action,
+    optimizeFlowKind: best.flowKind,
     optimizationDoneAt: best.doneAt || null,
     optimizationTaskId: best.taskId || null,
   };

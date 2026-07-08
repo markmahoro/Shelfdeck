@@ -1,30 +1,72 @@
-# ShelfDeck v3 Agent Context
+# ShelfDeck v3 Document Index
 
-本文档目录不是 v3 架构设计书，不规定 v3 的具体技术实现。
+本文档目录是 ShelfDeck v3 / Kairox 的当前文档入口。新线程、新模型或长任务恢复时，先读本文件，再按任务读取最小相关文档。
 
-它只用于给后续执行 v3 service 优先重构升级的 agent 提供必要上下文，避免它不知道当前生产基线、NAS 部署方式、测试环境和项目边界。
+## Current Documents
 
-## 当前命名
+| 层级 | 文档 | 用途 |
+| --- | --- | --- |
+| Current status | `CURRENT_STATUS.md` | 当前项目状态、生产部署状态、已完成和未验收事项 |
+| Current plan | `CURRENT_PLAN.md` | 当前唯一执行计划；没有被这里引用的旧计划不能作为执行依据 |
+| Release goals | `RELEASE_GOALS.md` | Kairox Beta / Usable / Performance / GA 的目标语义和验收边界 |
+| Versioning | `VERSIONING.md` | 当前版本口径、镜像 tag、release tag 和 package version 管理规则 |
+| Architecture contract | `KAIROX_ARCHITECTURE.md` | Kairox 架构契约，定义业务语义和组件边界 |
+| Engineering guardrail | `KAIROX_ENGINEERING_PLAYBOOK.md` | Kairox 工程施工规范，改核心链路前必须读 |
+| Operations | `OPERATION_CONTEXT.md` | 生产环境、部署、安全边界和运行上下文 |
 
-- v2：当前生产环境正在运行的 ShelfDeck 版本。
-- v3：准备优先重构升级 service 与 service Admin Web 的新版本；desktop 与 worker 重构方案待定。
+## Stable References
 
-## 文档入口
-
-| 文件 | 用途 |
+| 文档 | 用途 |
 | --- | --- |
-| `OPERATION_CONTEXT.md` | v3 agent 需要知道的生产环境、NAS、部署、测试和安全边界 |
-| `BUSINESS_MODEL_NOTES.md` | v3 重构前已经确认过的业务概念共识，不规定技术实现 |
-| `DATA_MODEL_NOTES.md` | SQL 持久化层、内存运行层、projection 的原则性数据模型共识 |
-| `V2_BEHAVIOR_PRESERVATION.md` | v3 重构前必须盘点和保护的 v2 生产行为细节 |
-| `DISCOVERY_CHECKLIST.md` | v3 agent 开工前需要排摸的代码、数据、测试和部署清单 |
-| `GOAL_PROMPT.md` | 可用于开启 v3 长程任务的提示词 |
+| `BUSINESS_MODEL_NOTES.md` | 业务语义参考；冲突时以 Kairox contract 为准 |
+| `DATA_MODEL_NOTES.md` | 数据分层参考；冲突时以 Kairox contract 为准 |
+| `USER_INTERVENTION_AND_FULL_AUTO.md` | 用户介入与自动化策略参考 |
+| `ADULT_DATA_MODEL.md` | 成人库数据模型参考 |
+| `V2_BEHAVIOR_PRESERVATION.md` | v2 行为保护清单 |
+| `DISCOVERY_CHECKLIST.md` | 老阶段 discovery 清单，仅作参考 |
+| `PRODUCTION_SAFETY_BASELINE.md` | 生产安全基线记录 |
 
-## 重要原则
+## Acceptance Documents
 
-- v3 agent 必须先排摸代码库，再提出架构和实施方案。
-- 本目录不预设 v3 的具体组件拆法、数据模型或迁移实现。
-- `BUSINESS_MODEL_NOTES.md` 只约束业务语义，不约束技术形态。
-- `DATA_MODEL_NOTES.md` 只约束数据分层原则，不约束最终 schema。
-- `V2_BEHAVIOR_PRESERVATION.md` 用于防止重构时遗漏 v2 生产细节。
-- 当前生产部署和回滚信息以 `docs/v2/PRODUCTION_DEPLOYMENT.md`、`docs/v2/PRODUCTION_BASELINE.md` 为准。
+验收计划和运行报告放在 `acceptance/`：
+
+| 文档 | 状态 |
+| --- | --- |
+| `acceptance/KAIROX_FRONTEND_API_E2E_PLAN.md` | 当前生产 Frontend/API E2E 验收计划 |
+| `acceptance/KAIROX_FRONTEND_API_E2E.md` | 当前 E2E 运行报告；可能是未完成草稿 |
+
+## Archive
+
+归档文档放在 `archive/`，不能作为当前实现依据。
+
+| 目录 | 含义 |
+| --- | --- |
+| `archive/superseded/` | 已废弃或被当前计划取代的 roadmap / plan / audit |
+| `archive/completed/` | 已完成的阶段计划或 gap audit |
+| `archive/evidence/` | 历史验收报告、生产 audit 和运行证据 |
+| `archive/handoff/` | 历史交接文档和暂停记录 |
+
+## Conflict Rules
+
+1. 当前执行以 `CURRENT_PLAN.md` 为准。
+2. 当前事实以 `CURRENT_STATUS.md` 为准。
+3. 架构语义以 `KAIROX_ARCHITECTURE.md` 为准。
+4. 工程边界以 `KAIROX_ENGINEERING_PLAYBOOK.md` 为准。
+5. 大版本目标语义以 `RELEASE_GOALS.md` 为准。
+6. 技术版本口径以 `VERSIONING.md` 为准。
+7. `archive/` 下的文档只能用于考古、回滚、对照或理解历史，不得直接指导新实现。
+8. 如果旧文档和当前文档冲突，更新当前文档或把旧文档继续归档，不要复制旧判断进入新计划。
+
+## Documentation Rules
+
+- 同一时间只能有一份当前计划：`CURRENT_PLAN.md`。
+- Codex Plan Mode 中的 `<proposed_plan>` 是对话协作产物，不是仓库长期计划文档。
+- 计划确认进入执行后，只能更新现有入口：总体计划更新 `CURRENT_PLAN.md`，状态更新 `CURRENT_STATUS.md`，验收细节更新 `acceptance/` 下已有计划。
+- 不得因为 Plan Mode 生成新 active plan 文档，例如 `KAIROX_BETA_PLAN.md`、`KAIROX_E2E_PLAN_V2.md` 或其他并列当前计划。
+- 阶段计划完成后移动到 `archive/completed/`。
+- 被推翻、暂停或重排的计划移动到 `archive/superseded/`。
+- 验收报告和生产运行证据移动到 `archive/evidence/` 或 `acceptance/`。
+- Codex 生成的计划文档必须有明确状态：Current、Completed、Superseded 或 Evidence。
+- 新增计划前，先确认是否应更新 `CURRENT_PLAN.md`，不要再把多个 active plan 散落在根目录。
+- 新增部署或 release 前，先更新或核对 `VERSIONING.md` 和 `CURRENT_STATUS.md`，不要混用 product milestone、Docker image tag、Git release tag 和 package version。
+- 本 worktree 只推进到 `Kairox Beta`。`Kairox Usable`、`Kairox Performance`、`Kairox GA Candidate`、`Kairox GA` 必须新开 worktree。

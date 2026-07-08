@@ -13,6 +13,8 @@ const path = require('path');
 const { buildApp } = require('../src/app');
 const taskStore = require('../src/taskStore');
 const configStore = require('../src/configStore');
+const mediaLibraryService = require('../src/mediaLibraryService');
+const diagnosticLog = require('../src/diagnosticLog');
 
 function tmpDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-prio-'));
@@ -22,11 +24,94 @@ function tmpDir() {
   return dir;
 }
 
+function metadataReadyMovie(overrides = {}) {
+  const itemId = overrides.itemId || 'movie-' + Math.random().toString(16).slice(2, 10);
+  const now = new Date().toISOString();
+  return {
+    itemId,
+    source: 'emby',
+    sourceId: itemId,
+    name: 'Metadata Ready Movie',
+    type: 'movie',
+    path: `/media/${itemId}.mkv`,
+    size: 1024 * 1024 * 1024,
+    duration: 3600,
+    bitrate: 4_000_000,
+    resolution: '1920x1080',
+    codec: 'h264',
+    audioCodecs: ['aac'],
+    watched: true,
+    userRating: 4,
+    tmdbId: '10001',
+    metadataComplete: true,
+    metadataStatus: 'complete',
+    lastRefreshedAt: now,
+    metadataUpdatedAt: now,
+    optimizeObjectiveStatus: 'ready',
+    optimizeObjective: {
+      kind: 'target_media_facts',
+      targetMediaFacts: {
+        targetBitrate: 4,
+        targetCodec: 'h265',
+      },
+    },
+    ...overrides,
+  };
+}
+
+function targetGateForFlowKind(flowKind) {
+  if (flowKind === 'ingest') return 'ingest';
+  if (flowKind === 'scrape') return 'metadata';
+  if (flowKind === 'archive') return 'archive';
+  if (flowKind === 'delete') return 'delete';
+  return 'optimize';
+}
+
+function resourceForFlowKind(flowKind) {
+  if (flowKind === 'scrape') return 'scraper';
+  if (flowKind === 'upgrade') return 'moviepilot';
+  if (flowKind === 'delete') return 'filesystem';
+  if (flowKind === 'archive') return 'service_api';
+  return 'transcode';
+}
+
+function kairoxTask(flowKind, overrides = {}) {
+  const targetGate = overrides.targetGate || targetGateForFlowKind(flowKind);
+  const itemId = overrides.itemId || `${targetGate}-${Math.random().toString(16).slice(2, 8)}`;
+  const source = overrides.source || 'manual';
+  const primaryResourceType = overrides.primaryResourceType || resourceForFlowKind(flowKind);
+  const baseFlowPlan = {
+    version: 'test',
+    bridgeKind: targetGate,
+    direction: `${targetGate}.${flowKind}`,
+    flowKind,
+    executor: `${flowKind}FlowExecutor`,
+    primaryResourceType,
+    source,
+    resourceTypes: [primaryResourceType],
+    steps: [{ phase: `${flowKind}_executing`, eventType: `${targetGate}.${flowKind}.execute`, resourceType: primaryResourceType }],
+    plannedAt: new Date().toISOString(),
+  };
+  return {
+    ...overrides,
+    itemId,
+    source,
+    taskTarget: overrides.taskTarget || {
+      object: { type: 'media_item', itemId },
+      targetGate,
+      gateObjective: overrides.gateObjective || {},
+      source,
+    },
+    taskBridge: overrides.taskBridge || { kind: targetGate, flowKind, source },
+    flowPlan: { ...baseFlowPlan, ...(overrides.flowPlan || {}) },
+  };
+}
+
 test('PATCH /v1/admin/tasks/:id sets priority on a queued task', async () => {
   const dir = tmpDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   try {
-    const created = taskStore.createTask({ itemId: 'i1', actionType: 'transcode', status: 'queued', priority: 100 });
+    const created = taskStore.createTask(kairoxTask('transcode', { itemId: 'i1', status: 'queued', priority: 100 }));
     const res = await app.inject({
       method: 'PATCH', url: `/v1/admin/tasks/${created.id}`,
       payload: { priority: 5 },
@@ -34,6 +119,10 @@ test('PATCH /v1/admin/tasks/:id sets priority on a queued task', async () => {
     assert.strictEqual(res.statusCode, 200);
     const body = res.json();
     assert.strictEqual(body.priority, 5);
+    assert.strictEqual(body.priorityAdjustment.enabled, true);
+    assert.strictEqual(body.priorityAdjustment.effect, 'override_queue_priority');
+    assert.strictEqual(body.priorityAdjustment.requestedPriority, 5);
+    assert.strictEqual(body.controlState.state, 'queued');
     // Persisted
     const persisted = taskStore.getTask(created.id);
     assert.strictEqual(persisted.priority, 5);
@@ -49,11 +138,16 @@ test('PATCH /v1/admin/tasks/:id rejects negative / non-integer priority', async 
   const dir = tmpDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   try {
-    const created = taskStore.createTask({ itemId: 'i2', actionType: 'transcode', status: 'queued' });
+    const created = taskStore.createTask(kairoxTask('transcode', { itemId: 'i2', status: 'queued' }));
     const r1 = await app.inject({ method: 'PATCH', url: `/v1/admin/tasks/${created.id}`, payload: { priority: -1 } });
     assert.strictEqual(r1.statusCode, 400);
+    assert.strictEqual(r1.json().error.code, 'VALIDATION_ERROR');
+    assert.strictEqual(r1.json().validation.reason, 'non_negative_integer_required');
+    assert.strictEqual(r1.json().priorityAdjustment.requestedPriority, -1);
+    assert.strictEqual(r1.json().priorityAdjustment.enabled, true);
     const r2 = await app.inject({ method: 'PATCH', url: `/v1/admin/tasks/${created.id}`, payload: { priority: 1.5 } });
     assert.strictEqual(r2.statusCode, 400);
+    assert.strictEqual(r2.json().priorityAdjustment.requestedPriority, 1.5);
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
@@ -65,9 +159,16 @@ test('PATCH /v1/admin/tasks/:id refuses priority change on executing task (409)'
   const dir = tmpDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   try {
-    const created = taskStore.createTask({ itemId: 'i3', actionType: 'transcode', status: 'executing', priority: 100 });
+    const created = taskStore.createTask(kairoxTask('transcode', { itemId: 'i3', status: 'executing', priority: 100 }));
     const res = await app.inject({ method: 'PATCH', url: `/v1/admin/tasks/${created.id}`, payload: { priority: 1 } });
     assert.strictEqual(res.statusCode, 409);
+    assert.strictEqual(res.json().error.code, 'TASK_PRIORITY_REJECTED');
+    assert.strictEqual(res.json().error.message, 'status_not_priority_editable');
+    assert.strictEqual(res.json().task.id, created.id);
+    assert.strictEqual(res.json().controlState.state, 'running');
+    assert.strictEqual(res.json().priorityAdjustment.enabled, false);
+    assert.strictEqual(res.json().priorityAdjustment.requestedPriority, 1);
+    assert.ok(res.json().priorityAdjustment.editableStatuses.includes('queued'));
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
@@ -75,21 +176,36 @@ test('PATCH /v1/admin/tasks/:id refuses priority change on executing task (409)'
   }
 });
 
-test('POST /v1/tasks (manual) assigns additive priority from source, action, and library dimensions', async () => {
+test('POST /v1/tasks (manual) assigns Kairox task priority from source, target gate, and library dimensions', async () => {
   const dir = tmpDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   try {
     // Seed config with a non-default manual base to prove the path is wired.
     configStore.saveConfig({ ...configStore.getDefaultConfig(), executionMode: 'auto' });
+    mediaLibraryService.saveLibrary({
+      cachedAt: new Date().toISOString(),
+      items: [metadataReadyMovie({
+        itemId: 'manual-1',
+        action: undefined,
+        equivalentBitrate: 10,
+        targetBitrate: 4,
+        targetCodec: 'h265',
+        targetMediaFacts: {
+          targetBitrate: 4,
+          targetCodec: 'h265',
+        },
+      })],
+    });
     const res = await app.inject({
       method: 'POST', url: '/v1/tasks',
-      payload: { itemId: 'manual-1', actionType: 'transcode' },
+      payload: { itemId: 'manual-1', targetGate: 'optimize' },
     });
     assert.strictEqual(res.statusCode, 201);
     const body = res.json();
-    assert.strictEqual(body.priority, 230, 'manual transcode should add manual source + transcode action + default library weights');
-    assert.strictEqual(body.priorityModelVersion, 'additive-v3');
-    assert.deepStrictEqual(body.priorityBreakdown.dimensions.map((d) => d.value), [0, 130, 100]);
+    assert.strictEqual(body.priority, 210, 'manual optimize target should add manual source + optimize gate + library weights before flow planning');
+    assert.strictEqual(body.priorityModelVersion, 'kairox-task-creator-v1');
+    assert.deepStrictEqual(body.priorityBreakdown.dimensions.map((d) => d.key), ['source', 'targetGate', 'subLibrary']);
+    assert.deepStrictEqual(body.priorityBreakdown.dimensions.map((d) => d.value), [0, 110, 100]);
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
@@ -110,9 +226,9 @@ test('taskScheduler dispatch order is priority-ascending then FIFO', async () =>
 
   // Three queued transcode tasks with different priorities and createdAt order.
   // Lower priority should dispatch first regardless of creation order.
-  const tLow = taskStoreMod.createTask({ itemId: 'low', actionType: 'transcode', status: 'queued', priority: 5 });
-  const tHigh = taskStoreMod.createTask({ itemId: 'high', actionType: 'transcode', status: 'queued', priority: 200 });
-  const tMid = taskStoreMod.createTask({ itemId: 'mid', actionType: 'transcode', status: 'queued', priority: 50 });
+  const tLow = taskStoreMod.createTask(kairoxTask('transcode', { itemId: 'low', status: 'queued', priority: 5 }));
+  const tHigh = taskStoreMod.createTask(kairoxTask('transcode', { itemId: 'high', status: 'queued', priority: 200 }));
+  const tMid = taskStoreMod.createTask(kairoxTask('transcode', { itemId: 'mid', status: 'queued', priority: 50 }));
 
   // Capture dispatch order by stubbing the flow executors to record itemId.
   const dispatched = [];
@@ -144,7 +260,178 @@ test('taskScheduler dispatch order is priority-ascending then FIFO', async () =>
   }
 });
 
-test('taskScheduler reconciles queued automatic task priorities with the current additive model', async () => {
+test('taskScheduler clears resume state when a task reaches a closed status', () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+
+  try {
+    const doneTask = taskStoreMod.createTask(kairoxTask('delete', {
+      itemId: 'closed-done',
+      itemName: 'Closed Done',
+      status: 'executing',
+      phase: 'delete_executing',
+      resumePoint: 'delete_executing',
+    }));
+    taskStoreMod.updateTask(doneTask.id, {
+      approval: { gateId: 'delete.beforeExecute', message: 'Delete?', options: ['approve'] },
+    });
+    scheduler.reportStatus(doneTask.id, 'done', 100);
+    const afterDone = taskStoreMod.getTask(doneTask.id);
+    assert.strictEqual(afterDone.status, 'done');
+    assert.strictEqual(afterDone.resumePoint, null);
+    assert.strictEqual(afterDone.approval, null);
+
+    const failedTask = taskStoreMod.createTask(kairoxTask('scrape', {
+      itemId: 'closed-failed',
+      itemName: 'Closed Failed',
+      status: 'executing',
+      phase: 'scrape_executing',
+      resumePoint: 'scrape_executing',
+    }));
+    scheduler.reportStatus(failedTask.id, 'failed_hard', 0);
+    const afterFailed = taskStoreMod.getTask(failedTask.id);
+    assert.strictEqual(afterFailed.status, 'failed_hard');
+    assert.strictEqual(afterFailed.resumePoint, 'scrape_executing');
+  } finally {
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler records flow failure events and diagnostics when executor rejects', async () => {
+  tmpDir();
+  diagnosticLog.resetForTests();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.executionMode = 'auto';
+  cfg.transcodeConcurrency = 1;
+  configStoreMod.saveConfig(cfg);
+
+  const task = taskStoreMod.createTask(kairoxTask('transcode', {
+    itemId: 'flow-fail-item',
+    itemName: 'Flow Fail Item',
+    source: 'manual',
+    status: 'queued',
+    priority: 1,
+    itemInfo: { path: '/media/flow-fail-item.mkv', subLibraryId: 'sub-flow-fail' },
+  }));
+
+  const origDrive = transcodeFlow.driveTask;
+  transcodeFlow.driveTask = async () => {
+    throw new Error('encoder exploded in test');
+  };
+
+  try {
+    await scheduler.scheduleRound();
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const after = taskStoreMod.getTask(task.id);
+    assert.strictEqual(after.status, 'failed_hard');
+
+    const events = taskStoreMod.queryTaskEvents({ taskId: task.id }, { pageSize: 50 }).events;
+    const failed = events.find((event) => event.eventType === 'flow.failed');
+    assert.ok(failed, 'scheduler writes flow.failed event on executor rejection');
+    assert.strictEqual(failed.eventStatus, 'failed_hard');
+    assert.strictEqual(failed.resourceType, 'local_transcode');
+    assert.strictEqual(failed.payload.reason, 'flow_executor_rejected');
+    assert.strictEqual(failed.payload.errorMessage, 'encoder exploded in test');
+    assert.strictEqual(failed.payload.flowKind, 'transcode');
+    assert.strictEqual(failed.payload.effect, 'mark_failed_hard_after_flow_exception');
+
+    const logs = diagnosticLog.list({ limit: 50 }).logs
+      .filter((log) => log.scope === 'resourceRuntime.flowDispatch' && log.payload && log.payload.taskId === task.id);
+    assert.ok(logs.some((log) => log.status === 'failed' && log.operation === 'flow_executor_failed'));
+    assert.ok(logs.some((log) => log.payload.errorMessage === 'encoder exploded in test'));
+  } finally {
+    transcodeFlow.driveTask = origDrive;
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler capacity follows flowPlan resource contract', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  const configStoreMod = require('../src/configStore');
+  const transcodeFlow = require('../src/transcodeFlowExecutor');
+  const upgradeFlow = require('../src/upgradeFlowExecutor');
+
+  const cfg = configStoreMod.getDefaultConfig();
+  cfg.transcodeConcurrency = 2;
+  cfg.upgradeConcurrency = 99;
+  cfg.resourceCapacity = {
+    ...(cfg.resourceCapacity || {}),
+    moviepilot: 1,
+  };
+  configStoreMod.saveConfig(cfg);
+
+  const moviepilotPlan = {
+    version: 'test',
+    bridgeKind: 'optimize',
+    direction: 'optimize.custom',
+    flowKind: 'transcode',
+    executor: 'transcodeFlowExecutor',
+    primaryResourceType: 'moviepilot',
+    source: 'manual',
+    resourceTypes: ['moviepilot'],
+    steps: [{ phase: 'transcode_executing', eventType: 'optimize.transcode.execute', resourceType: 'moviepilot' }],
+    plannedAt: new Date().toISOString(),
+  };
+  const plannedTranscode = taskStoreMod.createTask(kairoxTask('transcode', {
+    itemId: 'planned-moviepilot-transcode',
+    itemName: 'Planned MoviePilot Transcode',
+    source: 'manual',
+    status: 'queued',
+    priority: 1,
+    flowPlan: moviepilotPlan,
+    taskBridge: { kind: 'optimize', flowKind: 'transcode', source: 'manual' },
+  }));
+  const upgrade = taskStoreMod.createTask(kairoxTask('upgrade', {
+    itemId: 'regular-upgrade',
+    itemName: 'Regular Upgrade',
+    source: 'manual',
+    status: 'queued',
+    priority: 2,
+  }));
+
+  const dispatched = [];
+  const origTranscodeDrive = transcodeFlow.driveTask;
+  const origUpgradeDrive = upgradeFlow.driveTask;
+  transcodeFlow.driveTask = async (taskId) => {
+    dispatched.push({ taskId, flowKind: 'transcode' });
+    scheduler.reportStatus(taskId, 'done', 100);
+  };
+  upgradeFlow.driveTask = async (taskId) => {
+    dispatched.push({ taskId, flowKind: 'upgrade' });
+    scheduler.reportStatus(taskId, 'done', 100);
+  };
+
+  try {
+    await scheduler.scheduleRound();
+    assert.deepStrictEqual(dispatched.map((entry) => entry.taskId), [plannedTranscode.id]);
+    assert.strictEqual(taskStoreMod.getTask(upgrade.id).status, 'queued');
+    const dispatchEvent = taskStoreMod
+      .queryTaskEvents({ taskId: plannedTranscode.id }, { pageSize: 20 })
+      .events.find((event) => event.eventType === 'flow.dispatched');
+    assert.ok(dispatchEvent);
+    assert.strictEqual(dispatchEvent.resourceType, 'moviepilot');
+    assert.strictEqual(dispatchEvent.payload.resourceKey, 'moviepilot');
+  } finally {
+    transcodeFlow.driveTask = origTranscodeDrive;
+    upgradeFlow.driveTask = origUpgradeDrive;
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler preserves Task Creator priority instead of recomputing business priority', async () => {
   tmpDir();
   const scheduler = require('../src/taskScheduler');
   const taskStoreMod = require('../src/taskStore');
@@ -159,35 +446,104 @@ test('taskScheduler reconciles queued automatic task priorities with the current
     priorityWeight: 100,
   }];
   configStoreMod.saveConfig(cfg);
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: Array.from({ length: 3 }, (_, i) => ({
+      itemId: `western-${i}`,
+      name: `Western ${i}`,
+      source: 'adult_folder',
+      mediaType: 'adult',
+      subLibraryId: 'adult-western',
+      scraped: false,
+      adultMetadata: { region: 'western_adult', scrapeStatus: 'pending' },
+    })),
+  });
 
-  const stale = taskStoreMod.createTask({
+  const stale = taskStoreMod.createTask(kairoxTask('scrape', {
     itemId: 'auto-stale-priority',
     itemName: 'Auto Stale Priority',
-    actionType: 'scrape',
     source: 'auto',
     status: 'pending_manual',
     priority: 80,
     itemInfo: { name: 'Auto Stale Priority', subLibraryId: 'adult-lib' },
-  });
-  const manualOverride = taskStoreMod.createTask({
+  }));
+  const manualOverride = taskStoreMod.createTask(kairoxTask('scrape', {
     itemId: 'auto-manual-override',
     itemName: 'Auto Manual Override',
-    actionType: 'scrape',
     source: 'auto',
     status: 'pending_manual',
     priority: 7,
     priorityManuallyAdjusted: true,
     itemInfo: { name: 'Auto Manual Override', subLibraryId: 'adult-lib' },
-  });
+  }));
 
   try {
     await scheduler.scheduleRound();
     const reconciled = taskStoreMod.getTask(stale.id);
     const preserved = taskStoreMod.getTask(manualOverride.id);
-    assert.strictEqual(reconciled.priority, 260);
-    assert.strictEqual(reconciled.priorityModelVersion, 'additive-v3');
-    assert.deepStrictEqual(reconciled.priorityBreakdown.dimensions.map((d) => d.value), [100, 80, 100, -20]);
+    assert.strictEqual(reconciled.priority, 80);
+    assert.strictEqual(reconciled.priorityModelVersion || '', '');
+    assert.strictEqual(reconciled.priorityBreakdown, undefined);
     assert.strictEqual(preserved.priority, 7);
+  } finally {
+    delete process.env.CONTROL_PLANE_DATA_DIR;
+    delete process.env.MEDIA_SERVICE_DATA_DIR;
+  }
+});
+
+test('taskScheduler restart recovery marks active runtime tasks with explanatory events', async () => {
+  tmpDir();
+  const scheduler = require('../src/taskScheduler');
+  const taskStoreMod = require('../src/taskStore');
+  diagnosticLog.resetForTests();
+
+  const executing = taskStoreMod.createTask(kairoxTask('transcode', {
+    itemId: 'restart-executing',
+    itemName: 'Restart Executing',
+    status: 'executing',
+  }));
+  taskStoreMod.updateTask(executing.id, {
+    phase: 'transcode_executing',
+    resumePoint: 'transcode_executing',
+    progress: 42,
+  });
+  const pausing = taskStoreMod.createTask(kairoxTask('upgrade', {
+    itemId: 'restart-pausing-requested',
+    itemName: 'Restart Pausing Requested',
+    status: 'queued',
+  }));
+  taskStoreMod.updateTask(pausing.id, {
+    phase: 'upgrade_executing',
+    resumePoint: 'upgrade_executing',
+    pausingRequested: true,
+  });
+
+  try {
+    scheduler.recoverInterruptedTasks();
+
+    const executingAfter = taskStoreMod.getTask(executing.id);
+    const pausingAfter = taskStoreMod.getTask(pausing.id);
+    assert.strictEqual(executingAfter.status, 'interrupted');
+    assert.strictEqual(pausingAfter.status, 'interrupted');
+
+    const executingEvents = taskStoreMod.queryTaskEvents({ taskId: executing.id }, { pageSize: 50 }).events;
+    const restartInterrupted = executingEvents.find((event) => event.eventType === 'task.restart_interrupted');
+    assert.ok(restartInterrupted, 'restart recovery writes an explanatory interruption event');
+    assert.strictEqual(restartInterrupted.payload.reason, 'service_restart_runtime_state_recovered');
+    assert.strictEqual(restartInterrupted.payload.fromStatus, 'executing');
+    assert.strictEqual(restartInterrupted.payload.fromPhase, 'transcode_executing');
+    assert.strictEqual(restartInterrupted.payload.fromResumePoint, 'transcode_executing');
+    assert.strictEqual(restartInterrupted.payload.effect, 'mark_interrupted_for_scheduler_recovery');
+
+    const pausingEvents = taskStoreMod.queryTaskEvents({ taskId: pausing.id }, { pageSize: 50 }).events;
+    const pausingRestart = pausingEvents.find((event) => event.eventType === 'task.restart_interrupted');
+    assert.ok(pausingRestart);
+    assert.strictEqual(pausingRestart.payload.pausingRequested, true);
+
+    const logs = diagnosticLog.list({ limit: 50 }).logs
+      .filter((log) => log.scope === 'scheduler.restartRecovery');
+    assert.ok(logs.some((log) => log.operation === 'mark_interrupted' && log.payload.taskId === executing.id));
+    assert.ok(logs.some((log) => log.operation === 'mark_interrupted' && log.payload.taskId === pausing.id));
   } finally {
     delete process.env.CONTROL_PLANE_DATA_DIR;
     delete process.env.MEDIA_SERVICE_DATA_DIR;
@@ -199,66 +555,62 @@ test('taskScheduler clears stale runtime state for queued tasks without losing m
   const scheduler = require('../src/taskScheduler');
   const taskStoreMod = require('../src/taskStore');
   const configStoreMod = require('../src/configStore');
+  diagnosticLog.resetForTests();
 
   const cfg = configStoreMod.getDefaultConfig();
   cfg.transcodeConcurrency = 1;
   configStoreMod.saveConfig(cfg);
 
-  taskStoreMod.createTask({
+  taskStoreMod.createTask(kairoxTask('transcode', {
     itemId: 'slot-blocker',
     itemName: 'Slot Blocker',
-    actionType: 'transcode',
     status: 'executing',
-  });
-  const staleQueued = taskStoreMod.createTask({
+  }));
+  const staleQueued = taskStoreMod.createTask(kairoxTask('transcode', {
     itemId: 'stale-queued',
     itemName: 'Stale Queued',
-    actionType: 'transcode',
     source: 'auto',
     status: 'queued',
     itemInfo: { name: 'Stale Queued' },
-  });
+  }));
   taskStoreMod.updateTask(staleQueued.id, {
     phase: 'transcode_executing',
     resumePoint: 'transcode_executing',
     progress: 50,
   });
-  const recovered = taskStoreMod.createTask({
+  const recovered = taskStoreMod.createTask(kairoxTask('transcode', {
     itemId: 'recovered-interrupted',
     itemName: 'Recovered Interrupted',
-    actionType: 'transcode',
     source: 'auto',
     status: 'interrupted',
     itemInfo: { name: 'Recovered Interrupted' },
-  });
+  }));
   taskStoreMod.updateTask(recovered.id, {
     phase: 'transcode_executing',
     resumePoint: 'transcode_executing',
     progress: 33,
   });
-  const manualResume = taskStoreMod.createTask({
+  const manualResume = taskStoreMod.createTask(kairoxTask('transcode', {
     itemId: 'manual-resume',
     itemName: 'Manual Resume',
-    actionType: 'transcode',
     source: 'manual',
     status: 'queued',
     manualExecuteRequested: true,
     itemInfo: { name: 'Manual Resume' },
-  });
+  }));
   taskStoreMod.updateTask(manualResume.id, {
     phase: 'transcode_executing',
     resumePoint: 'transcode_executing',
     progress: 66,
   });
-  const staleManualFlag = taskStoreMod.createTask({
+  const staleManualFlag = taskStoreMod.createTask(kairoxTask('transcode', {
     itemId: 'stale-manual-flag',
     itemName: 'Stale Manual Flag',
-    actionType: 'transcode',
     source: 'auto',
     status: 'queued',
     manualExecuteRequested: true,
     itemInfo: { name: 'Stale Manual Flag' },
-  });
+  }));
   taskStoreMod.updateTask(staleManualFlag.id, {
     phase: 'transcode_executing',
     resumePoint: null,
@@ -279,8 +631,23 @@ test('taskScheduler clears stale runtime state for queued tasks without losing m
 
     assert.strictEqual(recoveredAfter.status, 'queued');
     assert.strictEqual(recoveredAfter.phase, null);
-    assert.strictEqual(recoveredAfter.resumePoint, null);
+    assert.strictEqual(recoveredAfter.resumePoint, 'transcode_executing');
     assert.strictEqual(recoveredAfter.progress, 0);
+    assert.strictEqual(recoveredAfter.retryCount, 1);
+    assert.strictEqual(recoveredAfter.manualExecuteRequested, true);
+    const recoveredEvents = taskStoreMod.queryTaskEvents({ taskId: recovered.id }, { pageSize: 50 }).events;
+    const restartQueued = recoveredEvents.find((event) => event.eventType === 'task.restart_recovery_queued');
+    assert.ok(restartQueued, 'interrupted task recovery writes restart queue event');
+    assert.strictEqual(restartQueued.payload.reason, 'restart_recovery_auto_queue');
+    assert.strictEqual(restartQueued.payload.fromPhase, 'transcode_executing');
+    assert.strictEqual(restartQueued.payload.fromResumePoint, 'transcode_executing');
+    assert.strictEqual(restartQueued.payload.resumePoint, 'transcode_executing');
+    assert.strictEqual(restartQueued.payload.retryCount, 1);
+    assert.strictEqual(restartQueued.payload.effect, 'queue_interrupted_task_from_resume_point');
+    assert.ok(recoveredEvents.some((event) => event.eventType === 'task.retry_recorded'));
+    const recoveryLogs = diagnosticLog.list({ limit: 50 }).logs
+      .filter((log) => log.scope === 'scheduler.restartRecovery' && log.payload && log.payload.taskId === recovered.id);
+    assert.ok(recoveryLogs.some((log) => log.operation === 'recover_interrupted_task' && log.status === 'done'));
 
     assert.strictEqual(manualAfter.status, 'queued');
     assert.strictEqual(manualAfter.phase, 'transcode_executing');
@@ -318,12 +685,24 @@ test('taskScheduler caps service-local western adult AI scrape to one active tas
     automationMode: 'auto',
   }];
   configStoreMod.saveConfig(cfg);
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: Array.from({ length: 3 }, (_, i) => ({
+      itemId: `western-${i}`,
+      name: `Western ${i}`,
+      source: 'adult_folder',
+      mediaType: 'adult',
+      subLibraryId: 'adult-western',
+      scraped: false,
+      adultMetadata: { region: 'western_adult', scrapeStatus: 'pending' },
+    })),
+  });
 
   for (let i = 0; i < 3; i++) {
-    taskStoreMod.createTask({
+    taskStoreMod.createTask(kairoxTask('scrape', {
       itemId: `western-${i}`,
       itemName: `Western ${i}`,
-      actionType: 'scrape',
+      source: 'auto',
       status: 'queued',
       priority: 80,
       itemInfo: {
@@ -331,7 +710,7 @@ test('taskScheduler caps service-local western adult AI scrape to one active tas
         subLibraryId: 'adult-western',
         adultMetadata: { region: 'western_adult', scrapeStatus: 'pending' },
       },
-    });
+    }));
   }
 
   const dispatched = [];
@@ -370,10 +749,9 @@ test('taskScheduler skips stale automatic scrape tasks when the live item now re
   }];
   configStoreMod.saveConfig(cfg);
 
-  const task = taskStoreMod.createTask({
+  const task = taskStoreMod.createTask(kairoxTask('scrape', {
     itemId: 'western-failed-live',
     itemName: 'Western Failed Live',
-    actionType: 'scrape',
     source: 'auto',
     status: 'queued',
     priority: 280,
@@ -382,7 +760,7 @@ test('taskScheduler skips stale automatic scrape tasks when the live item now re
       subLibraryId: 'adult-western',
       adultMetadata: { region: 'western_adult', scrapeStatus: 'pending' },
     },
-  });
+  }));
 
   const dispatched = [];
   const origDrive = scrapeFlow.driveTask;
@@ -432,10 +810,9 @@ test('taskScheduler dispatches automatic western pending scrape tasks before ide
   }];
   configStoreMod.saveConfig(cfg);
 
-  const task = taskStoreMod.createTask({
+  const task = taskStoreMod.createTask(kairoxTask('scrape', {
     itemId: 'western-no-identity',
     itemName: 'UNK-999',
-    actionType: 'scrape',
     source: 'auto',
     status: 'queued',
     priority: 280,
@@ -444,7 +821,7 @@ test('taskScheduler dispatches automatic western pending scrape tasks before ide
       subLibraryId: 'adult-western',
       adultMetadata: { region: 'western_adult', scrapeStatus: 'pending' },
     },
-  });
+  }));
 
   const dispatched = [];
   const origDrive = scrapeFlow.driveTask;

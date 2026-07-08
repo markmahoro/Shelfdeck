@@ -4,12 +4,13 @@
  * MediaLibraryService (MEDIA_LIBRARY.md).
  *
  * Coordinator for the unified media library persistence table (data/library.db).
- * Manages subLibraries, independent refresh and douban sync timers per subLibrary.
+ * Manages subLibraries, independent ingest and douban sync timers per subLibrary.
  *
- * Principle: write first, recalculate action/reason only for affected items.
+ * Principle: write first, then refresh gate projections for affected items.
  */
 
 const crypto = require('crypto');
+const fs = require('fs');
 const path = require('path');
 
 const configStore = require('./configStore');
@@ -22,6 +23,17 @@ const activityLog = require('./activityLog');
 const optimizationStatus = require('./optimizationStatus');
 const metadataStatus = require('./metadataStatus');
 const assetIdentity = require('./assetIdentity');
+const lifecycleProjection = require('./lifecycleProjection');
+const userPerceptionManagement = require('./userPerceptionManagement');
+const factsFreshnessService = require('./factsFreshnessService');
+const runtimeResourceTracker = require('./runtimeResourceTracker');
+const backgroundIoGuard = require('./backgroundIoGuard');
+const diagnosticLog = require('./diagnosticLog');
+const sourceReference = require('./sourceReference');
+
+const BACKGROUND_IO_LOCK = 'library_background_io';
+const DEFAULT_STARTUP_REFRESH_STALE_MINUTES = 120;
+const DEFAULT_STARTUP_REFRESH_MAX_LIBRARIES = 1;
 
 function generateUuid() {
   return crypto.randomUUID();
@@ -33,6 +45,144 @@ function computeBucket(resolution) {
   const w = parseInt(parts[0], 10) || 0;
   const h = parseInt(parts[1], 10) || 0;
   return (w >= 3840 || h >= 2160) ? '4K' : '1080p';
+}
+
+function projectMediaFactsForItem(item) {
+  if (!item || typeof item !== 'object') return 0;
+  let changed = 0;
+
+  const bucket = computeBucket(item.resolution);
+  if (item.bucket !== bucket) {
+    item.bucket = bucket;
+    changed++;
+  }
+
+  const eqMbps = item.bitrate > 0 ? item.bitrate / 1_000_000 : undefined;
+  if (item.equivalentBitrate !== eqMbps) {
+    item.equivalentBitrate = eqMbps;
+    changed++;
+  }
+
+  return changed;
+}
+
+function manageableEmbyItems(incomingItems = []) {
+  const movies = [];
+  const series = [];
+  const seasons = [];
+  const episodes = [];
+
+  for (const incoming of incomingItems || []) {
+    const t = (incoming.type || '').toLowerCase();
+    switch (t) {
+      case 'movie': movies.push(incoming); break;
+      case 'series': series.push(incoming); break;
+      case 'season': seasons.push(incoming); break;
+      case 'episode': episodes.push(incoming); break;
+      default: break;
+    }
+  }
+
+  const epAgg = new Map();
+  for (const ep of episodes) {
+    const pid = ep.parentId;
+    if (!pid) continue;
+    let agg = epAgg.get(pid);
+    if (!agg) {
+      agg = { totalSize: 0, totalDuration: 0, maxH: 0, maxRes: '', codecTally: {}, audioSet: new Set(), allWatched: true };
+      epAgg.set(pid, agg);
+    }
+    agg.totalSize += ep.size || 0;
+    agg.totalDuration += ep.duration || 0;
+    const h = parseInt((ep.resolution || '').split('x')[1], 10) || 0;
+    if (h > agg.maxH) { agg.maxH = h; agg.maxRes = ep.resolution; }
+    const c = ep.codec || 'h264';
+    agg.codecTally[c] = (agg.codecTally[c] || 0) + 1;
+    for (const ac of (ep.audioCodecs || [])) agg.audioSet.add(ac);
+    if (!ep.watched) agg.allWatched = false;
+  }
+
+  for (const s of seasons) {
+    if (typeof s.indexNumber === 'number') s.seasonNumber = s.indexNumber;
+    const agg = epAgg.get(s.sourceId);
+    if (!agg) continue;
+    s.totalSize = agg.totalSize;
+    s.totalDuration = agg.totalDuration;
+    s.bitrate = agg.totalDuration > 0 ? Math.round((agg.totalSize * 8) / agg.totalDuration) : 0;
+    s.resolution = agg.maxRes || s.resolution;
+    s.size = agg.totalSize;
+    s.duration = agg.totalDuration;
+    let majorityCodec = s.codec || 'h264';
+    let maxTally = 0;
+    for (const [codec, n] of Object.entries(agg.codecTally)) {
+      if (n > maxTally) { maxTally = n; majorityCodec = codec; }
+    }
+    s.codec = majorityCodec;
+    s.audioCodecs = [...agg.audioSet];
+    s.watched = agg.allWatched;
+    s.episodeCount = episodes.filter((ep) => ep.parentId === s.sourceId).length;
+  }
+
+  return [...movies, ...seasons];
+}
+
+function embyObservationItemInfo(subLib, incoming, existing = null, observationKind = 'new_source_observed') {
+  const now = new Date().toISOString();
+  const sourceId = incoming && (incoming.sourceId || incoming.itemId) || existing && existing.sourceId || '';
+  const itemId = existing && existing.itemId
+    ? existing.itemId
+    : `ingest:${subLib.uuid}:${sourceId || crypto.createHash('sha1').update(String(incoming && incoming.path || now)).digest('hex')}`;
+  const assetKey = incoming
+    ? assetIdentity.computeAssetKey(incoming, subLib.uuid)
+    : existing && existing.assetKey;
+  const assetRootPath = incoming
+    ? assetIdentity.inferAssetRootPath(incoming.path, incoming.isDiscLike)
+    : existing && existing.assetRootPath;
+  const externalRefs = incoming
+    ? { emby: assetIdentity.makeExternalEmbyRef(incoming, subLib, now) }
+    : existing && existing.externalRefs;
+  const ref = sourceReference.normalizeSourceReference({
+    source: 'emby',
+    sourceRefId: sourceId,
+    subLibraryId: subLib.uuid,
+    sourceAdapterId: subLib.embyServerId || '',
+    observedAt: now,
+    locator: {
+      path: incoming && incoming.path || existing && existing.path || '',
+      parentRefId: incoming && (incoming.parentId || incoming.seriesId) || existing && (existing.parentId || existing.seriesId) || '',
+    },
+  });
+  return sourceReference.applySourceReference({
+    itemId,
+    name: incoming && incoming.name || existing && existing.name || sourceId || itemId,
+    subLibraryId: subLib.uuid,
+    source: 'emby',
+    sourceRefId: ref.sourceRefId,
+    sourceAdapterId: ref.sourceAdapterId,
+    sourceId,
+    embyItemId: sourceId,
+    path: incoming && incoming.path || existing && existing.path || '',
+    type: incoming && incoming.type || existing && existing.type || 'movie',
+    assetKey,
+    assetRootPath,
+    externalRefs,
+    sourceExists: observationKind !== 'source_missing',
+    sourceObservationKind: observationKind,
+    sourceObservedAt: now,
+    locator: ref.locator,
+  }, ref);
+}
+
+function sourceFactsChanged(existing = {}, incoming = {}, subLibraryId = '') {
+  const incomingSourceId = incoming.sourceId || incoming.itemId || '';
+  const incomingAssetKey = assetIdentity.computeAssetKey(incoming, subLibraryId);
+  const incomingAssetRootPath = assetIdentity.inferAssetRootPath(incoming.path, incoming.isDiscLike);
+  return String(existing.sourceId || '') !== String(incomingSourceId || '')
+    || String(existing.path || '') !== String(incoming.path || '')
+    || Number(existing.size || 0) !== Number(incoming.size || 0)
+    || String(existing.assetKey || '') !== String(incomingAssetKey || '')
+    || String(existing.assetRootPath || '') !== String(incomingAssetRootPath || '')
+    || existing.sourceExists === false;
 }
 
 function normalizeVideoCodec(raw) {
@@ -88,6 +238,52 @@ async function enrichDiscMetadata(incomingItems, subLib, config) {
   return { probed, filled };
 }
 
+async function enrichFileMetadata(incomingItems, subLib, config) {
+  let probed = 0;
+  let filled = 0;
+  for (const item of incomingItems) {
+    if (!item || item.isDiscLike || !item.path) continue;
+    const needsProbe = !(item.bitrate > 0)
+      || !(item.duration > 0)
+      || !(item.size > 0)
+      || !item.resolution
+      || !item.codec
+      || !Array.isArray(item.audioCodecs)
+      || item.audioCodecs.length === 0;
+    if (!needsProbe) continue;
+
+    const sourcePath = resolveMappedSourcePath(item.path, subLib);
+    try {
+      const summary = await transcodeService.probeSummary(config, sourcePath, {
+        timeoutMs: Number(config.metadataRepairProbeTimeoutMs) > 0 ? Number(config.metadataRepairProbeTimeoutMs) : 30000,
+      });
+      let stat = null;
+      try { stat = await fs.promises.stat(sourcePath); } catch (_) {}
+      probed++;
+      let changed = false;
+      if (!(item.duration > 0) && summary.durationSec > 0) { item.duration = Math.round(summary.durationSec); changed = true; }
+      if (!item.resolution && summary.width > 0 && summary.height > 0) { item.resolution = `${summary.width}x${summary.height}`; changed = true; }
+      if ((!item.codec || item.codec === 'h264') && summary.videoCodec) { item.codec = normalizeVideoCodec(summary.videoCodec); changed = true; }
+      if ((!Array.isArray(item.audioCodecs) || item.audioCodecs.length === 0) && summary.audioCodec) {
+        item.audioCodecs = [String(summary.audioCodec).toLowerCase()];
+        changed = true;
+      }
+      if (!(item.size > 0) && stat && stat.size > 0) { item.size = stat.size; changed = true; }
+      if (!(item.bitrate > 0) && item.size > 0 && item.duration > 0) {
+        item.bitrate = Math.round((item.size * 8) / item.duration);
+        changed = true;
+      }
+      if (changed) filled++;
+    } catch (e) {
+      console.warn('[mediaLibrary] file metadata probe skipped:', item.name || item.itemId, e.message);
+    }
+  }
+  if (probed > 0) {
+    console.log('[mediaLibrary] file metadata probe complete', { probed, filled, subLibraryId: subLib && subLib.uuid });
+  }
+  return { probed, filled };
+}
+
 // ── Library file persistence ────────────────────────────────────────────────
 
 function loadLibrary() {
@@ -100,6 +296,52 @@ function saveLibrary(lib) {
 
 function updateLibraryItems(items) {
   return libraryStore.updateItems(items);
+}
+
+function selectStartupIngestSubLibraries(subLibs = [], config = {}, nowMs = Date.now()) {
+  const staleMinutes = Number(config.mediaLibraryStartupRefreshStaleMinutes) > 0
+    ? Number(config.mediaLibraryStartupRefreshStaleMinutes)
+    : DEFAULT_STARTUP_REFRESH_STALE_MINUTES;
+  const staleMs = staleMinutes * 60 * 1000;
+  const rawMax = Number(config.mediaLibraryStartupRefreshMaxLibraries);
+  const maxLibraries = Number.isFinite(rawMax) && rawMax >= 0
+    ? Math.floor(rawMax)
+    : DEFAULT_STARTUP_REFRESH_MAX_LIBRARIES;
+
+  const stale = (subLibs || []).filter((sl) => {
+    if (!sl || sl.enabled === false || sl.source === 'folder') return false;
+    const refreshedAt = sl.lastRefreshedAt ? new Date(sl.lastRefreshedAt).getTime() : 0;
+    return !refreshedAt || (nowMs - refreshedAt) >= staleMs;
+  });
+
+  stale.sort((a, b) => {
+    const at = a.lastRefreshedAt ? new Date(a.lastRefreshedAt).getTime() : 0;
+    const bt = b.lastRefreshedAt ? new Date(b.lastRefreshedAt).getTime() : 0;
+    return at - bt;
+  });
+
+  if (maxLibraries === 0) return stale;
+  return stale.slice(0, maxLibraries);
+}
+
+function runBackgroundLibraryOperation(input, fn) {
+  try {
+    return Promise.resolve(backgroundIoGuard.runExclusive({
+      component: 'mediaLibraryService',
+      lockKey: BACKGROUND_IO_LOCK,
+      resourceType: 'background_io',
+      source: 'background',
+      ...input,
+    }, fn, {
+      onSkipped: (result) => {
+        const active = result && result.activeOperation;
+        console.log(`[mediaLibrary] background operation skipped: ${input.operation} (busy: ${active && active.operation || 'unknown'})`);
+        return null;
+      },
+    }));
+  } catch (err) {
+    return Promise.reject(err);
+  }
 }
 
 // ── Item operations ─────────────────────────────────────────────────────────
@@ -115,6 +357,7 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
   const cfg = configStore.loadConfig();
   const subLib = (cfg.subLibraries || []).find((s) => s.uuid === subLibraryId) || null;
   let upserted = 0;
+  const touchedItemIds = new Set();
 
   // Safety: if Emby returns empty data during a full sync, don't purge everything
   if (incomingItems.length === 0) {
@@ -228,6 +471,13 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         genres: incoming.genres || existing.genres,
         isDiscLike: incoming.isDiscLike != null ? incoming.isDiscLike : existing.isDiscLike,
         watched: incoming.watched != null ? incoming.watched : existing.watched,
+        watchedSource: incoming.watched != null ? 'emby' : existing.watchedSource,
+        watchedUpdatedAt: incoming.watched != null && incoming.watched !== existing.watched ? now : existing.watchedUpdatedAt,
+        playCount: incoming.playCount != null ? incoming.playCount : existing.playCount,
+        playCountSource: incoming.playCount != null ? 'emby' : existing.playCountSource,
+        lastPlayedAt: incoming.lastPlayedAt != null ? incoming.lastPlayedAt : existing.lastPlayedAt,
+        favorite: incoming.favorite != null ? incoming.favorite : existing.favorite,
+        favoriteSource: incoming.favorite != null ? 'emby' : existing.favoriteSource,
         lastRefreshedAt: now,
         tmdbId: incoming.tmdbId !== undefined ? incoming.tmdbId : existing.tmdbId,
         providerIds: incoming.providerIds !== undefined ? incoming.providerIds : existing.providerIds,
@@ -236,7 +486,10 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         seasonNumber: incoming.seasonNumber !== undefined ? incoming.seasonNumber : existing.seasonNumber,
         episodeCount: incoming.episodeCount !== undefined ? incoming.episodeCount : existing.episodeCount,
       };
+      projectMediaFactsForItem(merged);
+      userPerceptionManagement.projectItem(merged, { now, source: 'emby' });
       lib.items[existingIdx] = merged;
+      touchedItemIds.add(merged.itemId);
       upserted++;
     } else {
       const itemId = generateUuid();
@@ -262,13 +515,19 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         genres: incoming.genres || [],
         isDiscLike: incoming.isDiscLike || false,
         watched: incoming.watched || false,
+        watchedSource: 'emby',
+        watchedUpdatedAt: now,
+        playCount: incoming.playCount == null ? null : incoming.playCount,
+        playCountSource: incoming.playCount == null ? undefined : 'emby',
+        lastPlayedAt: incoming.lastPlayedAt || null,
+        favorite: incoming.favorite == null ? null : incoming.favorite,
+        favoriteSource: incoming.favorite == null ? undefined : 'emby',
         doubanId: null,
         doubanRating: null,
         doubanRatingUpdatedAt: null,
         userRating: null,
         userRatingUpdatedAt: null,
         lastRefreshedAt: now,
-        action: 'keep',
         reason: '新入库',
         seriesName: incoming.seriesName || null,
         seriesId: incoming.seriesId || null,
@@ -277,7 +536,10 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
         tmdbId: incoming.tmdbId || null,
         providerIds: incoming.providerIds || {},
       };
+      projectMediaFactsForItem(newItem);
+      userPerceptionManagement.projectItem(newItem, { now, source: 'emby' });
       lib.items.push(newItem);
+      touchedItemIds.add(newItem.itemId);
       upserted++;
     }
   }
@@ -297,6 +559,14 @@ function upsertItems(subLibraryId, incomingItems, opts = {}) {
 
   lib.cachedAt = now;
   libraryStore.replaceSubLibraryItems(subLibraryId, lib.items, { cachedAt: now });
+  for (const itemId of touchedItemIds) {
+    factsFreshnessService.markFresh(itemId, ['sourceFacts', 'mediaFacts', 'metadataFacts'], {
+      now,
+      updatedAt: now,
+      observedAt: now,
+      evidence: { source: 'emby_ingest', subLibraryId },
+    });
+  }
 
   // Update subLibrary lastRefreshedAt
   if (subLib) {
@@ -318,6 +588,7 @@ function updateUserRating(itemId, userRating) {
 
   item.userRating = userRating;
   item.userRatingUpdatedAt = userRating === null ? null : new Date().toISOString();
+  userPerceptionManagement.projectItem(item, { now: item.userRatingUpdatedAt || new Date().toISOString(), source: 'local' });
 
   libraryStore.updateItems([item]);
   const message = userRating === null
@@ -327,63 +598,150 @@ function updateUserRating(itemId, userRating) {
   return item;
 }
 
-function getLibrary(filter = {}, opts = {}) {
-  const storeFilter = { ...(filter || {}) };
-  const metadataStatusFilter = storeFilter.metadataStatus;
-  const needsMetadataStatusFilter = metadataStatusFilter === 'done'
-    || metadataStatusFilter === 'pending'
-    || metadataStatusFilter === 'failed';
-  if (needsMetadataStatusFilter) delete storeFilter.metadataStatus;
-  if (storeFilter.activeTaskIds) {
-    const activeTaskIds = storeFilter.activeTaskIds instanceof Set ? storeFilter.activeTaskIds : new Set();
-    const ids = [...activeTaskIds].filter(Boolean);
-    if (storeFilter.taskState === 'active') storeFilter.itemIds = ids;
-    if (storeFilter.taskState === 'none') storeFilter.excludeItemIds = ids;
-    delete storeFilter.activeTaskIds;
-    delete storeFilter.taskState;
+function applyEmbyPerceptionFacts(itemId, embyItem = {}, opts = {}) {
+  const item = libraryStore.getItem(itemId);
+  if (!item) throw new Error('Item not found');
+  const now = opts.now || new Date().toISOString();
+  let changed = false;
+  if (embyItem.watched != null && item.watched !== embyItem.watched) {
+    item.watched = embyItem.watched;
+    item.watchedSource = 'emby';
+    item.watchedUpdatedAt = now;
+    changed = true;
   }
+  if (embyItem.playCount != null && item.playCount !== embyItem.playCount) {
+    item.playCount = embyItem.playCount;
+    item.playCountSource = 'emby';
+    changed = true;
+  }
+  if (embyItem.lastPlayedAt != null && item.lastPlayedAt !== embyItem.lastPlayedAt) {
+    item.lastPlayedAt = embyItem.lastPlayedAt;
+    changed = true;
+  }
+  if (embyItem.favorite != null && item.favorite !== embyItem.favorite) {
+    item.favorite = embyItem.favorite;
+    item.favoriteSource = 'emby';
+    changed = true;
+  }
+  if (changed) {
+    userPerceptionManagement.projectItem(item, { now, source: 'emby' });
+    libraryStore.updateItems([item]);
+  }
+  return item;
+}
 
-  const config = configStore.loadConfig();
-  const pageOpts = needsMetadataStatusFilter ? {} : opts;
-  const result = libraryStore.queryItems(storeFilter, pageOpts);
-  let items = result.items.map((item) => ({ ...item }));
-  items = metadataStatus.decorateItems(items, config);
-  if (needsMetadataStatusFilter) {
-    items = items.filter((item) => {
-      if (metadataStatusFilter === 'done') return item.metadataComplete;
-      if (metadataStatusFilter === 'pending') return !item.metadataComplete;
-      const meta = item.adultMetadata || {};
-      return String(meta.scrapeStatus || '').toLowerCase() === 'failed';
-    });
-  }
-  if (opts.includeOptimizationStatus) {
-    const taskStore = require('./taskStore');
-    const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
-      ? taskStore.queryOptimizationTaskIndexRows()
-      : taskStore.loadTasks();
-    items = optimizationStatus.decorateItems(items, optimizationTasks, config);
-  }
-  if (needsMetadataStatusFilter) {
-    const offset = Math.max(0, Number(opts.offset) || 0);
-    const hasLimit = Number.isInteger(opts.limit) && opts.limit > 0;
-    return {
-      ...result,
-      items: hasLimit ? items.slice(offset, offset + Number(opts.limit)) : items,
-      total: items.length,
-      offset,
-      limit: hasLimit ? Number(opts.limit) : null,
-    };
-  }
-  return { ...result, items };
+function getLibrary(filter = {}, opts = {}) {
+  const stageMs = {};
+  const measure = (stage, fn) => {
+    const started = Date.now();
+    try {
+      return fn();
+    } finally {
+      stageMs[stage] = Date.now() - started;
+    }
+  };
+
+  return diagnosticLog.track({
+    category: 'service',
+    scope: 'mediaLibraryService.getLibrary',
+    operation: 'get_library',
+    component: 'mediaLibraryService',
+    resourceType: 'sqlite',
+    resourceKey: 'library.db',
+    slowMs: 250,
+    payload: {
+      filter: {
+        source: filter.source || '',
+        type: filter.type || '',
+        subLibraryId: filter.subLibraryId || '',
+        hasSearch: !!filter.search,
+        hasActiveTaskFilter: !!filter.activeTaskIds,
+        taskState: filter.taskState || '',
+        lifecycle: filter.lifecycle || '',
+        metadataStatus: filter.metadataStatus || filter.scrapeStatus || '',
+      },
+      page: {
+        limit: opts.limit || null,
+        offset: opts.offset || 0,
+      },
+      projection: {
+        includeOptimizationStatus: !!opts.includeOptimizationStatus,
+        includeLifecycleStatus: !!opts.includeLifecycleStatus,
+        hasLifecycleFilter: !!filter.lifecycle,
+        hasOptimizationFilter: !!filter.optimizationStatus,
+      },
+    },
+    successPayload: (result) => ({
+      rowCount: result && Array.isArray(result.items) ? result.items.length : 0,
+      total: result && typeof result.total === 'number' ? result.total : undefined,
+      stages: stageMs,
+    }),
+  }, () => {
+    const storeFilter = { ...(filter || {}) };
+    if (storeFilter.activeTaskIds) {
+      const activeTaskIds = storeFilter.activeTaskIds instanceof Set ? storeFilter.activeTaskIds : new Set();
+      const ids = [...activeTaskIds].filter(Boolean);
+      if (storeFilter.taskState === 'active') storeFilter.itemIds = ids;
+      if (storeFilter.taskState === 'none') storeFilter.excludeItemIds = ids;
+      delete storeFilter.activeTaskIds;
+      delete storeFilter.taskState;
+    }
+
+    const config = measure('loadConfigMs', () => configStore.loadConfig());
+    const result = measure('queryItemsMs', () => libraryStore.queryItems(storeFilter, opts));
+    let items = result.items.map((item) => ({ ...item }));
+    items = measure('perceptionDecorateMs', () => userPerceptionManagement.decorateItems(items));
+    items = measure('metadataDecorateMs', () => metadataStatus.decorateItems(items, config));
+    items = measure('factsFreshnessDecorateMs', () => factsFreshnessService.decorateItems(items));
+    if (opts.includeOptimizationStatus || opts.includeLifecycleStatus || storeFilter.lifecycle || storeFilter.optimizationStatus) {
+      const taskStore = require('./taskStore');
+      const itemIds = items.map((item) => item.itemId).filter(Boolean);
+      const optimizationTasks = measure('queryOptimizationTasksMs', () => (typeof taskStore.queryOptimizationTaskIndexRows === 'function'
+        ? taskStore.queryOptimizationTaskIndexRows(itemIds && itemIds.length > 0 ? { itemIds } : {})
+        : taskStore.loadTasks()));
+      items = measure('optimizationDecorateMs', () => optimizationStatus.decorateItems(items, optimizationTasks, config));
+    }
+    items = measure('lifecycleDecorateMs', () => lifecycleProjection.decorateItems(items, config));
+    return { ...result, items };
+  });
 }
 
 function getLibraryItem(itemId) {
-  return libraryStore.getItem(itemId);
+  const item = libraryStore.getItem(itemId);
+  if (!item) return null;
+  const config = configStore.loadConfig();
+  let decorated = userPerceptionManagement.decorateItem(item);
+  decorated = metadataStatus.decorateItem(decorated, config);
+  decorated = factsFreshnessService.decorateItem(decorated);
+  const taskStore = require('./taskStore');
+  const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
+    ? taskStore.queryOptimizationTaskIndexRows({ itemIds: [item.itemId] })
+    : taskStore.loadTasks();
+  decorated = optimizationStatus.decorateItems([decorated], optimizationTasks, config)[0];
+  return lifecycleProjection.decorateItem(decorated, config);
 }
 
 function getSpaceStatLibrary() {
   const items = libraryStore.querySpaceStatItems();
   return { items, total: items.length, offset: 0, limit: null };
+}
+
+function getSmartTaskCandidateItems() {
+  return factsFreshnessService.decorateItems(libraryStore.querySmartTaskCandidateItems());
+}
+
+function getLifecycleSnapshots() {
+  const config = configStore.loadConfig();
+  let items = libraryStore.queryItems({}).items;
+  items = userPerceptionManagement.decorateItems(items);
+  items = metadataStatus.decorateItems(items, config);
+  items = factsFreshnessService.decorateItems(items);
+  const taskStore = require('./taskStore');
+  const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
+    ? taskStore.queryOptimizationTaskIndexRows({ itemIds: items.map((item) => item.itemId).filter(Boolean) })
+    : taskStore.loadTasks();
+  items = optimizationStatus.decorateItems(items, optimizationTasks, config);
+  return lifecycleProjection.toLifecycleSnapshots(items, config);
 }
 
 function getLibraryStatus() {
@@ -429,6 +787,7 @@ function addSubLibrary(spec) {
     japaneseJav: spec.japaneseJav || undefined,
     western: spec.western || undefined,
     ruleTemplateId: spec.ruleTemplateId || (mediaType === 'adult' ? (spec.adultRegion === 'western_adult' ? 'adult_western_default' : 'adult_jav_default') : mediaType === 'tv' ? 'tv_default' : 'default'),
+    metadataGate: spec.metadataGate || undefined,
     ...configStore.defaultSubLibSchedule(),
     automationMode: spec.automationMode || (spec.scheduleMode === 'full_manual' ? 'manual' : 'auto'),
     scheduleMode: spec.scheduleMode || (spec.automationMode === 'manual' ? 'full_manual' : 'full_auto'),
@@ -454,11 +813,6 @@ function addSubLibrary(spec) {
 
   // Start timers for this subLibrary
   startSubLibraryTimers(subLib);
-
-  // Kick off an immediate refresh; refreshSubLibrary runs derived updates once
-  // after the fetched data has been persisted.
-  refreshSubLibrary(subLib)
-    .catch((e) => console.error('[mediaLibrary] addSubLibrary refresh error:', e));
 
   return subLib;
 }
@@ -486,12 +840,12 @@ function updateSubLibrary(uuid, updates) {
   return subLibs[idx];
 }
 
-// ── Self-computed fields ──────────────────────────────────────────────────────
+// ── Media facts projection replay ────────────────────────────────────────────
 
-let selfComputeTimer = null;
-let startupRefreshTimer = null;
+let mediaFactsProjectionTimer = null;
+let startupIngestTimer = null;
 
-function recomputeAllSelfFields() {
+function replayMediaFactsProjection() {
   const lib = loadLibrary();
   if (!lib || !lib.items || lib.items.length === 0) return;
 
@@ -499,107 +853,406 @@ function recomputeAllSelfFields() {
   const changedItems = [];
 
   for (const item of lib.items) {
-    let itemChanged = false;
-
-    // bucket
-    const bucket = computeBucket(item.resolution);
-    if (item.bucket !== bucket) { item.bucket = bucket; changed++; itemChanged = true; }
-
-    // equivalentBitrate (Mbps)
-    const eqMbps = item.bitrate > 0 ? item.bitrate / 1_000_000 : undefined;
-    if (item.equivalentBitrate !== eqMbps) { item.equivalentBitrate = eqMbps; changed++; itemChanged = true; }
-
-    // targetBitrate and predictedSizeGb are now written by StrategyEngine
-    // based on rule template evaluation — no longer computed here.
-    if (itemChanged) changedItems.push(item);
+    const itemChanged = projectMediaFactsForItem(item);
+    changed += itemChanged;
+    if (itemChanged > 0) changedItems.push(item);
   }
 
   if (changed > 0) {
     libraryStore.updateItems(changedItems);
-    const msg = `Library 自算完成，${changed} 个字段已更新`;
+    const msg = `Media facts projection replay complete, ${changed} field(s) updated`;
     console.log(`[mediaLibrary] ${msg}`);
     activityLog.addActivity('media_library', msg, { changed });
   }
 }
 
-function startSelfComputeTimer(intervalMs = 600000, options = {}) {
-  stopSelfComputeTimer();
-  if (options.runImmediately !== false) {
-    recomputeAllSelfFields();
-  }
-  selfComputeTimer = setInterval(recomputeAllSelfFields, intervalMs);
-  selfComputeTimer.unref && selfComputeTimer.unref();
+function projectStoredMediaFactsForItem(itemId) {
+  const item = getLibraryItem(itemId);
+  if (!item) return { item: null, changed: 0 };
+  const changed = projectMediaFactsForItem(item);
+  if (changed > 0) libraryStore.updateItems([item]);
+  return { item, changed };
 }
 
-function stopSelfComputeTimer() {
-  if (selfComputeTimer) {
-    clearInterval(selfComputeTimer);
-    selfComputeTimer = null;
+function startMediaFactsProjectionReplayTimer(intervalMs = 600000, options = {}) {
+  stopMediaFactsProjectionReplayTimer();
+  if (options.runImmediately !== false) {
+    replayMediaFactsProjection();
+  }
+  mediaFactsProjectionTimer = setInterval(replayMediaFactsProjection, intervalMs);
+  mediaFactsProjectionTimer.unref && mediaFactsProjectionTimer.unref();
+}
+
+function stopMediaFactsProjectionReplayTimer() {
+  if (mediaFactsProjectionTimer) {
+    clearInterval(mediaFactsProjectionTimer);
+    mediaFactsProjectionTimer = null;
   }
 }
+
+const recomputeAllSelfFields = replayMediaFactsProjection;
 
 // ── SubLibrary timers ───────────────────────────────────────────────────────
 
-const subLibraryTimers = new Map(); // uuid → { refresh: Interval, douban: Interval }
+const subLibraryTimers = new Map(); // uuid → { ingest: Interval, douban: Interval }
+const doubanSyncInFlight = new Set();
 
 function stopSubLibraryTimers(uuid) {
   const timers = subLibraryTimers.get(uuid);
   if (timers) {
-    if (timers.refresh) clearInterval(timers.refresh);
+    if (timers.ingest) clearInterval(timers.ingest);
     if (timers.douban) clearInterval(timers.douban);
     subLibraryTimers.delete(uuid);
   }
 }
 
-function runPostRefreshUpdates() {
-  recomputeAllSelfFields();
-  try {
-    const strategyEngine = require('./strategyEngine');
-    strategyEngine.runOnce();
-  } catch (_) { /* strategyEngine not yet started — timer will pick it up */ }
+function doubanMatchForItem(item, byNormTitle, subjectIdByNormTitle) {
+  let stars = null;
+  let matchName = null;
+
+  if (item.type === 'movie') {
+    matchName = item.name;
+    stars = doubanMatchService.movieDoubanStars(item.name, 'Movie', byNormTitle);
+  } else if (item.type === 'season' && item.seriesName != null && item.seasonNumber != null) {
+    matchName = item.seriesName;
+    stars = doubanMatchService.seasonDoubanStars(item.seriesName, item.seasonNumber, byNormTitle);
+  }
+
+  if (stars == null) return null;
+  const subjectId = doubanMatchService
+    .embyTitleNormalizedKeys(matchName)
+    .map((key) => subjectIdByNormTitle.get(key))
+    .find(Boolean) || '';
+  return { stars, subjectId };
 }
 
-async function refreshSubLibrary(subLib, options = {}) {
-  const runDerivedUpdates = options.runDerivedUpdates !== false;
-  const name = subLib.name || subLib.uuid;
-  try {
-    if (subLib.source === 'folder') {
-      return;
-    }
-    const cfg = configStore.loadConfig();
-    const server = (cfg.embyServers || {})[subLib.embyServerId];
-    if (!server || !server.baseUrl) {
-      console.log('[mediaLibrary] skip refresh: no server config for', subLib.uuid);
-      return;
-    }
-    activityLog.addActivity('media_library', `正在刷新子库「${name}」…`);
-    const beforeCount = libraryStore.countBySubLibrary(subLib.uuid);
-    const items = await embyService.getLibraryItems(server, subLib.sectionId);
-    await enrichDiscMetadata(items, subLib, cfg);
-    const result = upsertItems(subLib.uuid, items, { fullSync: true });
-    const afterCount = libraryStore.countBySubLibrary(subLib.uuid);
-    const newItems = Math.max(0, afterCount - beforeCount + result.removed);
-    const msg = newItems > 0
-      ? `子库「${name}」刷新完成，${newItems} 个新媒体入库，${result.removed} 个已清理`
-      : `子库「${name}」刷新完成，无新增内容`;
-    activityLog.addActivity('media_library', msg, { subLibraryId: subLib.uuid, itemCount: items.length, newItems, removed: result.removed });
-    console.log('[mediaLibrary] refreshed', subLib.uuid, 'items:', items.length);
-
-    // Recompute self-fields (equivalentBitrate etc.) and re-run strategy engine
-    // so the dashboard reflects fresh recommendations immediately after refresh.
-    if (runDerivedUpdates) runPostRefreshUpdates();
-  } catch (e) {
-    activityLog.addActivity('media_library', `子库「${name}」刷新失败：${e.message}`);
-    console.error('[mediaLibrary] refresh error for', subLib.uuid, e.message);
+function applyDoubanEntriesToSubLibrary(subLib, entries, opts = {}) {
+  const list = Array.isArray(entries) ? entries : [];
+  if (!subLib || !subLib.uuid || list.length === 0) {
+    return { entries: list.length, libraryItems: 0, matched: 0, changed: 0 };
   }
+
+  const byNormTitle = doubanMatchService.buildDoubanStarsByNormalizedTitle(list);
+  const subjectIdByNormTitle = new Map();
+  for (const entry of list) {
+    for (const key of doubanMatchService.doubanTitleNormalizedKeys(entry.title)) {
+      if (!subjectIdByNormTitle.has(key) && entry.subjectId) {
+        subjectIdByNormTitle.set(key, entry.subjectId);
+      }
+    }
+  }
+
+  const items = libraryStore.queryItems({ subLibraryId: subLib.uuid }).items;
+  const changedItems = [];
+  let matchedCount = 0;
+  let changedCount = 0;
+  const now = opts.now || new Date().toISOString();
+
+  for (const item of items) {
+    const match = doubanMatchForItem(item, byNormTitle, subjectIdByNormTitle);
+    if (!match) continue;
+    matchedCount++;
+    let changed = false;
+    if (item.doubanRating !== match.stars) {
+      item.doubanRating = match.stars;
+      item.doubanRatingUpdatedAt = now;
+      changed = true;
+    }
+    if (!item.doubanId && match.subjectId) {
+      item.doubanId = match.subjectId;
+      changed = true;
+    }
+    if (changed) {
+      userPerceptionManagement.projectItem(item, { now, source: 'douban' });
+      changedCount++;
+      changedItems.push(item);
+    }
+  }
+
+  if (changedItems.length > 0) {
+    libraryStore.updateItems(changedItems);
+  }
+
+  return {
+    entries: list.length,
+    libraryItems: items.length,
+    matched: matchedCount,
+    changed: changedCount,
+  };
+}
+
+function applyCachedDoubanForSubLibrary(subLib) {
+  const entries = doubanService.loadCachedEntries();
+  const result = applyDoubanEntriesToSubLibrary(subLib, entries);
+  if (result.entries > 0 && result.changed > 0) {
+    activityLog.addActivity('douban', `子库「${subLib.name || subLib.uuid}」已应用本地豆瓣缓存，更新 ${result.changed} 个条目`, {
+      subLibraryId: subLib.uuid,
+      matched: result.matched,
+      changed: result.changed,
+      source: 'local_cache',
+    });
+  }
+  return result;
+}
+
+async function listSourceObservationCandidates(config = configStore.loadConfig(), options = {}) {
+  const requestedSubLibraryId = String(options.subLibraryId || '').trim();
+  const candidates = [];
+  const subLibs = (config.subLibraries || []).filter((sl) => (
+    sl
+    && sl.enabled !== false
+    && (sl.source || 'emby') !== 'folder'
+    && (!requestedSubLibraryId || sl.uuid === requestedSubLibraryId)
+  ));
+
+  for (const subLib of subLibs) {
+    const server = (config.embyServers || {})[subLib.embyServerId];
+    if (!server || !server.baseUrl) continue;
+    const inventory = await embyService.getLibraryItems(server, subLib.sectionId);
+    const manageable = manageableEmbyItems(inventory);
+    const existingItems = libraryStore.queryItems({ subLibraryId: subLib.uuid }).items
+      .filter((item) => (item.source || 'emby') === 'emby');
+    const matchedExisting = new Set();
+
+    for (const incoming of manageable) {
+      const existingIdx = assetIdentity.findExistingItemIndex(existingItems, incoming, subLib, subLib.uuid);
+      const existing = existingIdx >= 0 ? existingItems[existingIdx] : null;
+      const observationKind = existing ? 'source_changed' : 'new_source_observed';
+      if (existing) matchedExisting.add(existing.itemId);
+      if (existing && !sourceFactsChanged(existing, incoming, subLib.uuid)) continue;
+      const itemInfo = embyObservationItemInfo(subLib, incoming, existing, observationKind);
+      candidates.push({
+        targetGate: 'ingest',
+        itemInfo,
+        gateObjective: {
+          kind: 'source_observation',
+          observationKind,
+          source: 'emby',
+          subLibraryId: subLib.uuid,
+        },
+        timestamp: Date.now(),
+      });
+    }
+
+    for (const existing of existingItems) {
+      if (matchedExisting.has(existing.itemId)) continue;
+      if (existing.sourceExists === false) continue;
+      const itemInfo = embyObservationItemInfo(subLib, null, existing, 'source_missing');
+      candidates.push({
+        targetGate: 'ingest',
+        itemInfo,
+        gateObjective: {
+          kind: 'source_observation',
+          observationKind: 'source_missing',
+          source: 'emby',
+          subLibraryId: subLib.uuid,
+        },
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  return candidates;
+}
+
+async function observeEmbySourceReference(itemInfo = {}, opts = {}) {
+  const cfg = opts.config || configStore.loadConfig();
+  const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === itemInfo.subLibraryId);
+  if (!subLib) throw new Error('SubLibrary not found');
+  const server = (cfg.embyServers || {})[subLib.embyServerId];
+  if (!server || !server.baseUrl) throw new Error('Emby server not configured for this subLibrary');
+  const sourceId = itemInfo.sourceRefId || itemInfo.sourceId || itemInfo.embyItemId || '';
+  if (!sourceId) throw new Error('Emby source id is required');
+  const existing = itemInfo.itemId ? libraryStore.getItem(itemInfo.itemId) : null;
+  try {
+    const fetched = await embyService.getItemById(server, sourceId);
+    let observationItems = [fetched];
+    if (fetched && fetched.type === 'season' && typeof embyService.getSeasonEpisodes === 'function') {
+      const episodes = await embyService.getSeasonEpisodes(server, sourceId);
+      observationItems = [fetched, ...(Array.isArray(episodes) ? episodes : [])];
+    }
+    const manageable = manageableEmbyItems(observationItems);
+    const incoming = manageable.find((item) => String(item.sourceId || item.itemId || '') === String(sourceId))
+      || manageable[0]
+      || fetched;
+    const observationKind = existing
+      ? (sourceFactsChanged(existing, incoming, subLib.uuid) ? 'source_changed' : 'source_observed')
+      : 'new_source_observed';
+    return {
+      subLib,
+      sourceId,
+      incoming,
+      observationKind,
+      sourceExists: true,
+    };
+  } catch (e) {
+    if (String(e && e.message || '').includes('(404)')) {
+      return {
+        subLib,
+        sourceId,
+        incoming: null,
+        observationKind: 'source_missing',
+        sourceExists: false,
+      };
+    }
+    throw e;
+  }
+}
+
+async function commitEmbySourceCandidate(itemInfo = {}, opts = {}) {
+  const now = opts.now || new Date().toISOString();
+  const cfg = opts.config || configStore.loadConfig();
+  const observation = await observeEmbySourceReference(itemInfo, { config: cfg });
+  const subLib = observation.subLib;
+  const observationKind = observation.observationKind || String(itemInfo.sourceObservationKind || '').trim() || 'source_changed';
+  const sourceId = observation.sourceId || itemInfo.sourceRefId || itemInfo.sourceId || itemInfo.embyItemId || '';
+  let item = itemInfo.itemId && libraryStore.getItem(itemInfo.itemId);
+  const sourceObservation = observation.incoming;
+
+  if (observationKind === 'source_missing') {
+    if (!item) throw new Error('Source missing target item not found');
+    item.sourceExists = false;
+    item.sourceMissingAt = now;
+    item.sourceObservedAt = now;
+    item.lastRefreshedAt = now;
+    libraryStore.updateItems([item]);
+    factsFreshnessService.markFresh(item.itemId, ['sourceFacts'], {
+      now,
+      updatedAt: now,
+      observedAt: now,
+      evidence: { source: 'emby_inventory', observationKind, subLibraryId: subLib.uuid },
+    });
+    factsFreshnessService.markStale(item.itemId, ['mediaFacts', 'metadataFacts'], {
+      now,
+      reason: 'source_missing',
+      refreshTargetGate: 'ingest',
+      evidence: { source: 'emby_inventory', observationKind, subLibraryId: subLib.uuid },
+    });
+    return { item, created: false, observationKind };
+  }
+
+  if (!sourceObservation) throw new Error('Emby source observation is required');
+  const incomingAssetKey = assetIdentity.computeAssetKey(sourceObservation, subLib.uuid);
+  const incomingAssetRootPath = assetIdentity.inferAssetRootPath(sourceObservation.path, sourceObservation.isDiscLike);
+  const incomingExternalRefs = { emby: assetIdentity.makeExternalEmbyRef(sourceObservation, subLib, now) };
+
+  if (!item) {
+    item = {
+      itemId: generateUuid(),
+      subLibraryId: subLib.uuid,
+      name: sourceObservation.name || itemInfo.name || '',
+      path: sourceObservation.path || '',
+      source: 'emby',
+      sourceId,
+      assetKey: incomingAssetKey,
+      assetRootPath: incomingAssetRootPath,
+      externalRefs: incomingExternalRefs,
+      type: sourceObservation.type || itemInfo.type || 'movie',
+      bitrate: 0,
+      duration: 0,
+      resolution: '',
+      size: sourceObservation.size || 0,
+      codec: '',
+      audioCodecs: [],
+      bucket: '',
+      premiereDate: null,
+      genres: [],
+      isDiscLike: !!sourceObservation.isDiscLike,
+      watched: false,
+      playCount: null,
+      lastPlayedAt: null,
+      favorite: null,
+      doubanId: null,
+      doubanRating: null,
+      doubanRatingUpdatedAt: null,
+      userRating: null,
+      userRatingUpdatedAt: null,
+      lastRefreshedAt: now,
+      sourceExists: true,
+      sourceObservedAt: now,
+      reason: 'source observed',
+      seriesName: sourceObservation.seriesName || null,
+      seriesId: sourceObservation.seriesId || null,
+      seasonNumber: sourceObservation.seasonNumber || null,
+      episodeCount: sourceObservation.episodeCount || null,
+      tmdbId: sourceObservation.tmdbId || null,
+      providerIds: sourceObservation.providerIds || {},
+    };
+    const lib = loadLibrary();
+    lib.items = Array.isArray(lib.items) ? lib.items : [];
+    lib.items.push(item);
+    lib.cachedAt = now;
+    saveLibrary(lib);
+  } else {
+    item = {
+      ...item,
+      source: 'emby',
+      sourceId: sourceId || item.sourceId,
+      assetKey: incomingAssetKey || item.assetKey,
+      assetRootPath: incomingAssetRootPath || item.assetRootPath,
+      externalRefs: { ...(item.externalRefs || {}), ...incomingExternalRefs },
+      name: sourceObservation.name || item.name,
+      path: sourceObservation.path || item.path,
+      type: sourceObservation.type || item.type,
+      size: sourceObservation.size > 0 ? sourceObservation.size : item.size,
+      isDiscLike: sourceObservation.isDiscLike != null ? sourceObservation.isDiscLike : item.isDiscLike,
+      sourceExists: true,
+      sourceMissingAt: null,
+      sourceObservedAt: now,
+      lastRefreshedAt: now,
+    };
+    libraryStore.updateItems([item]);
+  }
+
+  factsFreshnessService.markFresh(item.itemId, ['sourceFacts'], {
+    now,
+    updatedAt: now,
+    observedAt: now,
+    evidence: { source: 'emby_inventory', observationKind, subLibraryId: subLib.uuid },
+  });
+  factsFreshnessService.markStale(item.itemId, ['mediaFacts', 'metadataFacts'], {
+    now,
+    reason: observationKind,
+    refreshTargetGate: 'metadata',
+    evidence: { source: 'emby_inventory', observationKind, subLibraryId: subLib.uuid },
+  });
+  return { item, created: observationKind === 'new_source_observed', observationKind };
 }
 
 async function syncDoubanForSubLibrary(subLib) {
   const name = subLib.name || subLib.uuid;
+  if (doubanSyncInFlight.has(subLib.uuid)) {
+    runtimeResourceTracker.recordInstant({
+      eventType: 'douban.sync',
+      eventStatus: 'skipped',
+      component: 'mediaLibraryService',
+      resourceType: 'douban',
+      resourceKey: `douban:${subLib.uuid}`,
+      resourceLabel: 'Douban sync',
+      subLibraryId: subLib.uuid,
+      payload: { reason: 'already_running', subLibraryName: name },
+    });
+    console.log('[mediaLibrary] douban sync skipped, already running for', subLib.uuid);
+    return;
+  }
+  doubanSyncInFlight.add(subLib.uuid);
+  const runtimeEvent = runtimeResourceTracker.startEvent({
+    eventType: 'douban.sync',
+    component: 'mediaLibraryService',
+    resourceType: 'douban',
+    resourceKey: `douban:${subLib.uuid}`,
+    resourceLabel: 'Douban sync',
+    subLibraryId: subLib.uuid,
+    payload: { subLibraryName: name },
+  });
+  let finalStatus = 'done';
+  const finalPayload = {};
   try {
     // Fetch douban ratings — credentials come from douban-session.json
     const session = doubanService.getSession();
     if (!session.userId) {
+      finalStatus = 'skipped';
+      finalPayload.reason = 'missing_user_id';
       activityLog.addActivity('douban', `子库「${name}」豆瓣同步跳过：未配置豆瓣用户 ID，请在豆瓣集成页面设置`);
       return;
     }
@@ -614,9 +1267,11 @@ async function syncDoubanForSubLibrary(subLib) {
         const count = payload.allEntries ? payload.allEntries.length : 0;
         if (count - lastLogged >= 100) {
           lastLogged = count;
+          runtimeEvent.update({ fetchedEntries: count });
           activityLog.addActivity('douban', `子库「${name}」豆瓣评分抓取中… 已抓取 ${count} 条`);
         }
         if (payload.done && !payload.cancelled) {
+          runtimeEvent.update({ fetchedEntries: count });
           activityLog.addActivity('douban', `子库「${name}」豆瓣评分抓取完成，共 ${count} 条`);
         }
       },
@@ -624,53 +1279,16 @@ async function syncDoubanForSubLibrary(subLib) {
 
     const { entries } = await doubanService.fetchRatings(progressSink, { existingEntries: cachedEntries });
     if (!entries || entries.length === 0) {
+      finalPayload.fetchedEntries = 0;
       activityLog.addActivity('douban', `子库「${name}」豆瓣评分同步完成，无豆瓣数据`);
       return;
     }
     doubanService.saveCachedEntries(entries);
-
-    const byNormTitle = doubanMatchService.buildDoubanStarsByNormalizedTitle(entries);
+    runtimeEvent.update({ fetchedEntries: entries.length });
 
     // Match against library items for this subLibrary
-    const lib = loadLibrary();
-    let matchedCount = 0;
-    let newRatingCount = 0;
-    const now = new Date().toISOString();
-
-    // Match movie by name, season by series+season key
-    for (const item of lib.items) {
-      if (item.subLibraryId !== subLib.uuid) continue;
-
-      let stars = null;
-      let matchName = null;
-
-      if (item.type === 'movie') {
-        matchName = item.name;
-        stars = doubanMatchService.movieDoubanStars(item.name, 'Movie', byNormTitle);
-      } else if (item.type === 'season' && item.seriesName != null && item.seasonNumber != null) {
-        matchName = item.seriesName;
-        stars = doubanMatchService.seasonDoubanStars(item.seriesName, item.seasonNumber, byNormTitle);
-      }
-      if (stars == null) continue;
-
-      matchedCount++;
-      if (item.doubanRating !== stars) {
-        item.doubanRating = stars;
-        item.doubanRatingUpdatedAt = now;
-        newRatingCount++;
-
-        const matchedEntry = entries.find((e) => {
-          const keys = doubanMatchService.doubanTitleNormalizedKeys(e.title);
-          const embyKeys = doubanMatchService.embyTitleNormalizedKeys(matchName);
-          return embyKeys.some((ek) => keys.includes(ek));
-        });
-        if (matchedEntry) item.doubanId = matchedEntry.subjectId;
-      }
-    }
-
-    if (newRatingCount > 0) {
-      saveLibrary(lib);
-    }
+    const applied = applyDoubanEntriesToSubLibrary(subLib, entries);
+    runtimeEvent.update({ libraryItems: applied.libraryItems });
 
     // Update subLibrary doubanSyncedAt
     const cfg = configStore.loadConfig();
@@ -681,12 +1299,23 @@ async function syncDoubanForSubLibrary(subLib) {
       configStore.patchConfig({ subLibraries: subLibs });
     }
 
-    const msg = `子库「${name}」豆瓣评分同步完成，${matchedCount} 个匹配，${newRatingCount} 个新评分`;
-    activityLog.addActivity('douban', msg, { subLibraryId: subLib.uuid, matched: matchedCount, newRatings: newRatingCount });
+    const msg = `子库「${name}」豆瓣评分同步完成，${applied.matched} 个匹配，${applied.changed} 个条目更新`;
+    Object.assign(finalPayload, {
+      fetchedEntries: entries.length,
+      libraryItems: applied.libraryItems,
+      matched: applied.matched,
+      changed: applied.changed,
+    });
+    activityLog.addActivity('douban', msg, { subLibraryId: subLib.uuid, matched: applied.matched, changed: applied.changed });
     console.log('[mediaLibrary] douban synced for', subLib.uuid);
   } catch (e) {
+    finalStatus = 'failed';
+    finalPayload.error = e.message;
     activityLog.addActivity('douban', `子库「${name}」豆瓣评分同步失败：${e.message}`);
     console.error('[mediaLibrary] douban sync error for', subLib.uuid, e.message);
+  } finally {
+    runtimeEvent.finish(finalStatus, finalPayload);
+    doubanSyncInFlight.delete(subLib.uuid);
   }
 }
 
@@ -704,20 +1333,48 @@ async function completeEmbyItemMetadata(itemId, opts = {}) {
   if (!embyItemId) throw new Error('Emby item id is missing');
 
   const fetched = await embyService.getItemById(server, embyItemId);
-  await enrichDiscMetadata([fetched], subLib, cfg);
-  upsertItems(subLib.uuid, [fetched], { fullSync: false });
+  let repairItems = [fetched];
+  let episodesFetched = 0;
+  let localProbe = false;
+  if (fetched && fetched.type === 'season' && typeof embyService.getSeasonEpisodes === 'function') {
+    const episodes = await embyService.getSeasonEpisodes(server, embyItemId);
+    episodesFetched = Array.isArray(episodes) ? episodes.length : 0;
+    repairItems = [fetched, ...(Array.isArray(episodes) ? episodes : [])];
+  } else {
+    await enrichDiscMetadata([fetched], subLib, cfg);
+    await enrichFileMetadata([fetched], subLib, cfg);
+    localProbe = true;
+  }
+  upsertItems(subLib.uuid, repairItems, { fullSync: false });
+  factsFreshnessService.markFresh(itemId, ['mediaFacts', 'metadataFacts'], {
+    now: new Date().toISOString(),
+    evidence: {
+      source: 'emby_metadata_refresh',
+      embyItemId,
+      episodesFetched,
+    },
+  });
 
+  let doubanCache = null;
   if (subLib.doubanEnabled) {
-    await syncDoubanForSubLibrary(subLib);
+    doubanCache = applyCachedDoubanForSubLibrary(subLib);
   }
 
-  recomputeAllSelfFields();
+  projectStoredMediaFactsForItem(itemId);
   try {
     const strategyEngine = require('./strategyEngine');
     strategyEngine.runOnce();
   } catch (_) {}
 
-  return getLibraryItem(itemId) || current;
+  const latest = getLibraryItem(itemId) || current;
+  latest.metadataRepairSummary = {
+    embyFetched: true,
+    episodesFetched,
+    localProbe,
+    doubanCache,
+    mediaFactsProjected: true,
+  };
+  return latest;
 }
 
 function startSubLibraryTimers(subLib) {
@@ -730,22 +1387,17 @@ function startSubLibraryTimers(subLib) {
 
   const timers = {};
 
-  // Emby refresh timer (1h)
-  timers.refresh = setInterval(() => {
-    const cfg = configStore.loadConfig();
-    const sl = (cfg.subLibraries || []).find((s) => s.uuid === uuid);
-    if (sl && sl.enabled !== false) {
-      refreshSubLibrary(sl).catch((e) => console.error('[mediaLibrary] timer refresh error:', e));
-    }
-  }, 3600000);
-
   // Douban sync timer (6h) — only if enabled
   if (subLib.doubanEnabled) {
     timers.douban = setInterval(() => {
       const cfg = configStore.loadConfig();
       const sl = (cfg.subLibraries || []).find((s) => s.uuid === uuid);
       if (sl && sl.doubanEnabled) {
-        syncDoubanForSubLibrary(sl).catch((e) => console.error('[mediaLibrary] timer douban error:', e));
+        runBackgroundLibraryOperation({
+          operation: 'douban.sync',
+          resourceKey: `douban:${uuid}`,
+          payload: { subLibraryId: uuid, subLibraryName: sl.name || uuid, trigger: 'timer' },
+        }, () => syncDoubanForSubLibrary(sl)).catch((e) => console.error('[mediaLibrary] timer douban error:', e));
       }
     }, 21600000);
   }
@@ -757,68 +1409,38 @@ function startAllSubLibraryTimers() {
   const cfg = configStore.loadConfig();
   const subLibs = (cfg.subLibraries || []).filter((sl) => sl.enabled !== false);
 
-  if (startupRefreshTimer) {
-    clearTimeout(startupRefreshTimer);
-    startupRefreshTimer = null;
+  if (startupIngestTimer) {
+    clearTimeout(startupIngestTimer);
+    startupIngestTimer = null;
   }
 
   for (const sl of subLibs) {
     startSubLibraryTimers(sl);
   }
 
-  const startSelfCompute = (options = {}) => {
-    startSelfComputeTimer(600000, {
-      runImmediately: options.runImmediately !== false && cfg.mediaLibrarySelfComputeOnStartup !== false,
-    });
-  };
-
-  if (cfg.mediaLibraryStartupRefreshOnStartup === false) {
-    console.log('[mediaLibrary] startup refresh disabled by config');
-    startSelfCompute();
-    return;
-  }
-
-  const delaySeconds = Math.max(0, Number(cfg.mediaLibraryStartupRefreshDelaySeconds) || 0);
-  console.log(`[mediaLibrary] startup refresh scheduled in ${delaySeconds}s`);
-  startupRefreshTimer = setTimeout(() => {
-    startupRefreshTimer = null;
+  const runMediaFactsMaintenance = (options = {}) => {
     const currentCfg = configStore.loadConfig();
-    if (currentCfg.mediaLibraryStartupRefreshOnStartup === false) {
-      console.log('[mediaLibrary] startup refresh skipped by config');
-      startSelfCompute();
+    if (currentCfg.mediaLibrarySelfComputeEnabled === false) {
+      console.log('[mediaLibrary] media facts projection maintenance disabled by config');
       return;
     }
+    if (options.runImmediately !== false && currentCfg.mediaLibrarySelfComputeOnStartup !== false) {
+      replayMediaFactsProjection();
+    }
+  };
 
-    // Refresh all subLibraries first, then start self-computation once data is in.
-    // Self-compute needs bitrate/duration from the freshly fetched items to derive
-    // equivalentBitrate — running it before refresh completes produces all-zeroes.
-    const refreshes = subLibs.map((sl) =>
-      refreshSubLibrary(sl, { runDerivedUpdates: false }).catch((e) => console.error('[mediaLibrary] startup refresh error:', e))
-    );
-    Promise.all(refreshes).then(() => {
-      runPostRefreshUpdates();
-      startSelfCompute({ runImmediately: false });
-    });
-  }, delaySeconds * 1000);
-  startupRefreshTimer.unref && startupRefreshTimer.unref();
+  runMediaFactsMaintenance();
 }
 
 function stopAllTimers() {
-  if (startupRefreshTimer) {
-    clearTimeout(startupRefreshTimer);
-    startupRefreshTimer = null;
+  if (startupIngestTimer) {
+    clearTimeout(startupIngestTimer);
+    startupIngestTimer = null;
   }
   for (const uuid of subLibraryTimers.keys()) {
     stopSubLibraryTimers(uuid);
   }
-  stopSelfComputeTimer();
-}
-
-async function triggerRefresh(subLibraryId) {
-  const cfg = configStore.loadConfig();
-  const sl = (cfg.subLibraries || []).find((s) => s.uuid === subLibraryId);
-  if (!sl) throw new Error('SubLibrary not found');
-  await refreshSubLibrary(sl);
+  stopMediaFactsProjectionReplayTimer();
 }
 
 async function triggerDoubanSync(subLibraryId) {
@@ -835,21 +1457,29 @@ module.exports = {
   getLibrary,
   getLibraryItem,
   getSpaceStatLibrary,
+  getSmartTaskCandidateItems,
+  getLifecycleSnapshots,
   upsertItems,
   updateUserRating,
+  applyEmbyPerceptionFacts,
   saveLibrary,
   updateLibraryItems,
   getLibraryStatus,
+  listSourceObservationCandidates,
+  commitEmbySourceCandidate,
 
   // SubLibrary CRUD
   addSubLibrary,
   deleteSubLibrary,
   updateSubLibrary,
 
-  // Self-computed fields
+  // Media facts projection
+  projectMediaFactsForItem,
+  projectStoredMediaFactsForItem,
+  replayMediaFactsProjection,
   recomputeAllSelfFields,
-  startSelfComputeTimer,
-  stopSelfComputeTimer,
+  startMediaFactsProjectionReplayTimer,
+  stopMediaFactsProjectionReplayTimer,
 
   // Timer management
   startAllSubLibraryTimers,
@@ -858,9 +1488,11 @@ module.exports = {
   stopSubLibraryTimers,
 
   // Manual triggers
-  triggerRefresh,
   triggerDoubanSync,
   completeEmbyItemMetadata,
+
+  _selectStartupRefreshSubLibrariesForTest: selectStartupIngestSubLibraries,
+  _selectStartupIngestSubLibrariesForTest: selectStartupIngestSubLibraries,
 
   getHealth,
 };
@@ -898,13 +1530,5 @@ function getHealth(config) {
     }
   }
 
-  if (staleSubLibraries.length === scheduledRefreshCount) {
-    return { status: 'red', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries };
-  }
-
-  if (staleSubLibraries.length > 0) {
-    return { status: 'yellow', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries };
-  }
-
-  return { status: 'green', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries: [] };
+  return { status: 'green', totalSubLibraries, enabledCount, scheduledRefreshCount, manualFolderCount, staleSubLibraries };
 }

@@ -2,6 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const metadataStatus = require('./metadataStatus');
+const { DEFAULT_RESOURCE_CAPACITY } = require('./resourceCapacity');
+const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 
 function resolveDataDir() {
   return (
@@ -20,13 +23,29 @@ function ensureDataDir() {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+class ConfigValidationError extends Error {
+  constructor(code, message, details = {}) {
+    super(message);
+    this.name = 'ConfigValidationError';
+    this.code = code;
+    this.details = details;
+  }
+}
+
 // Template version constants — bump when buildDefaultTemplate / buildTVDefaultTemplate logic changes
-const DEFAULT_TEMPLATE_VERSION = 5;
-const TV_DEFAULT_TEMPLATE_VERSION = 5;
-const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 3;
-const ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION = 2;
+const DEFAULT_TEMPLATE_VERSION = 8;
+const TV_DEFAULT_TEMPLATE_VERSION = 8;
+const ADULT_JAV_DEFAULT_TEMPLATE_VERSION = 6;
+const ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION = 5;
 
 // ── Default rule template builder ──────────────────────────────────────────────
+
+function profileByBucket(target1080p, target4k) {
+  return {
+    '1080p': bitrateObjectiveProfile.targetBitrateProfileFromTarget(target1080p, '1080p'),
+    '4K': bitrateObjectiveProfile.targetBitrateProfileFromTarget(target4k, '4K'),
+  };
+}
 
 function buildDefaultTemplate(policy) {
   const t1080 = (policy && policy.target1080p) || {};
@@ -38,128 +57,55 @@ function buildDefaultTemplate(policy) {
   function ratingGroupIn(vals) {
     return { connector: 'or', conditions: [['doubanRating', 'in', vals], ['userRating', 'in', vals]] };
   }
-  function condGroup(conds) {
-    return { connector: 'and', conditions: conds };
-  }
-
-  function transcodeRule(priority, rating, bucket, threshold, targetBitrate) {
+  function targetRule(priority, conditionGroups, targetMediaFacts, reason) {
     return {
       priority,
       groupsConnector: 'and',
-      groups: [
-        ratingGroup(rating),
-        condGroup([['bucket', '=', bucket], ['equivalentBitrate', '>', threshold]]),
-      ],
-      action: 'transcode',
-      actionParams: { targetBitrate, targetCodec: 'h265' },
-      reason: `${rating}★ ${bucket} 码率 ${threshold} Mbps 超标，建议压缩`,
+      groups: conditionGroups,
+      targetMediaFacts,
+      reason,
     };
   }
 
   const rules = [];
 
-  // P9: 1-2★ → delete
-  rules.push({
-    priority: 9,
-    groupsConnector: 'and',
-    groups: [ratingGroupIn([1, 2])],
-    action: 'delete',
-    actionParams: {},
-    reason: '低分删除',
-  });
+  rules.push(targetRule(5, [ratingGroup(5)], {
+    qualityTier: 'premium',
+    minResolution: '4K',
+    targetBitrateProfileByBucket: profileByBucket(t1080[5] || 12, t4k[5] || 25),
+    targetCodec: 'h265',
+    preferredAudioCodecs: ['DTS', 'TrueHD', 'Atmos'],
+    maxSizeGB: 38,
+  }, '5★ Premium 归档前目标'));
 
-  // P8: 5★ + 4K H.265 high-bitrate + high-quality audio → keep (already optimal)
-  rules.push({
-    priority: 8,
-    groupsConnector: 'and',
-    groups: [
-      ratingGroup(5),
-      condGroup([
-        ['bucket', '=', '4K'],
-        ['codec', 'in', ['h265', 'hevc']],
-        ['equivalentBitrate', '>=', 20],
-        ['audioCodecs', 'overlap', ['dts', 'truehd', 'atmos']],
-      ]),
-    ],
-    action: 'keep',
-    actionParams: {},
-    reason: '5★ 已是4K H.265 高码率 + 高品质音轨，无需洗版',
-  });
+  rules.push(targetRule(4, [ratingGroup(4)], {
+    qualityTier: 'high',
+    targetBitrateProfileByBucket: profileByBucket(t1080[4] || 7, t4k[4] || 16),
+    targetCodec: 'h265',
+  }, '4★ High 归档前目标'));
 
-  // P7: 5★ → upgrade
-  rules.push({
-    priority: 7,
-    groupsConnector: 'and',
-    groups: [ratingGroup(5)],
-    action: 'upgrade',
-    actionParams: {
-      targetBitrate: 25,
-      targetCodec: 'h265',
-      maxSizeGB: 38,
-      seedPreferences: {
-        resolutionPreference: ['4K'],
-        codecPreference: ['h265', 'dv'],
-        audioPreference: ['DTS', 'TrueHD', 'Atmos'],
-        preferCNSub: true,
-      },
-    },
-    reason: '5★ 洗版至4K高码率优质音轨',
-  });
+  rules.push(targetRule(3, [ratingGroup(3)], {
+    qualityTier: 'standard',
+    targetBitrateProfileByBucket: profileByBucket(t1080[3] || 4, t4k[3] || 10),
+    targetCodec: 'h265',
+  }, '3★ Standard 归档前目标'));
 
-  // P8: 5★ disc-like sources are protected from both transcode and upgrade.
-  rules.push({
-    priority: 8,
-    groupsConnector: 'and',
-    groups: [
-      ratingGroup(5),
-      condGroup([['isDiscLike', '=', true]]),
-    ],
-    action: 'keep',
-    actionParams: {},
-    reason: '5★ 原盘保留，不压缩',
-  });
+  rules.push(targetRule(1, [ratingGroupIn([1, 2])], {
+    qualityTier: 'baseline',
+    targetBitrateProfileByBucket: profileByBucket(t1080[2] || 2, t4k[2] || 5),
+    targetCodec: 'h265',
+  }, '1-2★ Baseline 归档前目标'));
 
-  // P5: 3-4★ + modern codec + bitrate already within target → keep (already optimal)
-  function modernKeepRule(priority, rating, bucket, threshold) {
-    return {
-      priority,
-      groupsConnector: 'and',
-      groups: [
-        ratingGroup(rating),
-        condGroup([['bucket', '=', bucket], ['codec', 'in', ['h265', 'hevc', 'av1']], ['equivalentBitrate', '<=', threshold]]),
-      ],
-      action: 'keep',
-      actionParams: {},
-      reason: `${rating}★ ${bucket} 现代编码且码率≤${threshold}M，已达标`,
-    };
-  }
-  if (t1080[3]) rules.push(modernKeepRule(5, 3, '1080p', t1080[3]));
-  if (t4k[3]) rules.push(modernKeepRule(5, 3, '4K', t4k[3]));
-  if (t1080[4]) rules.push(modernKeepRule(5, 4, '1080p', t1080[4]));
-  if (t4k[4]) rules.push(modernKeepRule(5, 4, '4K', t4k[4]));
-
-  // P4: 3★ needs transcode (unless already optimal)
-  if (t1080[3]) rules.push(transcodeRule(4, 3, '1080p', t1080[3], t1080[3]));
-  if (t4k[3]) rules.push(transcodeRule(4, 3, '4K', t4k[3], t4k[3]));
-
-  // P3: 4★ needs transcode (unless already optimal)
-  if (t1080[4]) rules.push(transcodeRule(3, 4, '1080p', t1080[4], t1080[4]));
-  if (t4k[4]) rules.push(transcodeRule(3, 4, '4K', t4k[4], t4k[4]));
-
-  // P1: catch-all → keep
-  rules.push({
-    priority: 1,
-    groupsConnector: 'and',
-    groups: [],
-    action: 'keep',
-    actionParams: {},
-    reason: '策略未覆盖',
-  });
+  rules.push(targetRule(0, [], {
+    qualityTier: 'baseline',
+    targetBitrateProfileByBucket: profileByBucket(t1080[3] || 4, t4k[3] || 10),
+    targetCodec: 'h265',
+  }, 'Baseline 归档前目标'));
 
   return {
     id: 'default',
     name: '默认策略（电影）',
-    description: '依据用户喜好智能生成策略',
+    description: '依据用户感知映射归档前目标',
     rules,
     tag: { type: 'default', version: DEFAULT_TEMPLATE_VERSION },
   };
@@ -175,128 +121,55 @@ function buildTVDefaultTemplate(policy) {
   function ratingGroupIn(vals) {
     return { connector: 'or', conditions: [['doubanRating', 'in', vals], ['userRating', 'in', vals]] };
   }
-  function condGroup(conds) {
-    return { connector: 'and', conditions: conds };
-  }
-
-  function transcodeRule(priority, rating, bucket, threshold, targetBitrate) {
+  function targetRule(priority, conditionGroups, targetMediaFacts, reason) {
     return {
       priority,
       groupsConnector: 'and',
-      groups: [
-        ratingGroup(rating),
-        condGroup([['bucket', '=', bucket], ['equivalentBitrate', '>', threshold]]),
-      ],
-      action: 'transcode',
-      actionParams: { targetBitrate, targetCodec: 'h265' },
-      reason: `${rating}★ ${bucket} 码率 ${threshold} Mbps 超标，建议压缩`,
+      groups: conditionGroups,
+      targetMediaFacts,
+      reason,
     };
   }
 
   const rules = [];
 
-  // P9: 1-2★ → delete
-  rules.push({
-    priority: 9,
-    groupsConnector: 'and',
-    groups: [ratingGroupIn([1, 2])],
-    action: 'delete',
-    actionParams: {},
-    reason: '低分删除',
-  });
+  rules.push(targetRule(5, [ratingGroup(5)], {
+    qualityTier: 'premium',
+    minResolution: '4K',
+    targetBitrateProfileByBucket: profileByBucket(t1080[5] || 8, t4k[5] || 18),
+    targetCodec: 'h265',
+    preferredAudioCodecs: ['DTS', 'TrueHD', 'Atmos'],
+    maxSizeGB: 50,
+  }, '5★ Premium 归档前目标'));
 
-  // P8: 5★ + 4K H.265 high-bitrate + high-quality audio → keep (already optimal)
-  rules.push({
-    priority: 8,
-    groupsConnector: 'and',
-    groups: [
-      ratingGroup(5),
-      condGroup([
-        ['bucket', '=', '4K'],
-        ['codec', 'in', ['h265', 'hevc']],
-        ['equivalentBitrate', '>=', 15],
-        ['audioCodecs', 'overlap', ['dts', 'truehd', 'atmos']],
-      ]),
-    ],
-    action: 'keep',
-    actionParams: {},
-    reason: '5★ 已是4K H.265 高码率 + 高品质音轨，无需洗版',
-  });
+  rules.push(targetRule(4, [ratingGroup(4)], {
+    qualityTier: 'high',
+    targetBitrateProfileByBucket: profileByBucket(t1080[4] || 5, t4k[4] || 12),
+    targetCodec: 'h265',
+  }, '4★ High 归档前目标'));
 
-  // P7: 5★ → upgrade (TV: lower bitrate target, season packs average lower Mbps)
-  rules.push({
-    priority: 7,
-    groupsConnector: 'and',
-    groups: [ratingGroup(5)],
-    action: 'upgrade',
-    actionParams: {
-      targetBitrate: 15,
-      targetCodec: 'h265',
-      maxSizeGB: 50,
-      seedPreferences: {
-        resolutionPreference: ['4K'],
-        codecPreference: ['h265', 'dv'],
-        audioPreference: ['DTS', 'TrueHD', 'Atmos'],
-        preferCNSub: true,
-      },
-    },
-    reason: '5★ 洗版至4K高码率优质音轨',
-  });
+  rules.push(targetRule(3, [ratingGroup(3)], {
+    qualityTier: 'standard',
+    targetBitrateProfileByBucket: profileByBucket(t1080[3] || 3, t4k[3] || 7),
+    targetCodec: 'h265',
+  }, '3★ Standard 归档前目标'));
 
-  // P8: 5★ disc-like sources are protected from both transcode and upgrade.
-  rules.push({
-    priority: 8,
-    groupsConnector: 'and',
-    groups: [
-      ratingGroup(5),
-      condGroup([['isDiscLike', '=', true]]),
-    ],
-    action: 'keep',
-    actionParams: {},
-    reason: '5★ 原盘保留，不压缩',
-  });
+  rules.push(targetRule(1, [ratingGroupIn([1, 2])], {
+    qualityTier: 'baseline',
+    targetBitrateProfileByBucket: profileByBucket(t1080[2] || 1.5, t4k[2] || 3),
+    targetCodec: 'h265',
+  }, '1-2★ Baseline 归档前目标'));
 
-  // P5: 3-4★ + modern codec + bitrate already within target → keep (already optimal)
-  function modernKeepRule(priority, rating, bucket, threshold) {
-    return {
-      priority,
-      groupsConnector: 'and',
-      groups: [
-        ratingGroup(rating),
-        condGroup([['bucket', '=', bucket], ['codec', 'in', ['h265', 'hevc', 'av1']], ['equivalentBitrate', '<=', threshold]]),
-      ],
-      action: 'keep',
-      actionParams: {},
-      reason: `${rating}★ ${bucket} 现代编码且码率≤${threshold}M，已达标`,
-    };
-  }
-  if (t1080[3]) rules.push(modernKeepRule(5, 3, '1080p', t1080[3]));
-  if (t4k[3]) rules.push(modernKeepRule(5, 3, '4K', t4k[3]));
-  if (t1080[4]) rules.push(modernKeepRule(5, 4, '1080p', t1080[4]));
-  if (t4k[4]) rules.push(modernKeepRule(5, 4, '4K', t4k[4]));
-
-  // P4: 3★ needs transcode (unless already optimal)
-  if (t1080[3]) rules.push(transcodeRule(4, 3, '1080p', t1080[3], t1080[3]));
-  if (t4k[3]) rules.push(transcodeRule(4, 3, '4K', t4k[3], t4k[3]));
-
-  // P3: 4★ needs transcode (unless already optimal)
-  if (t1080[4]) rules.push(transcodeRule(3, 4, '1080p', t1080[4], t1080[4]));
-  if (t4k[4]) rules.push(transcodeRule(3, 4, '4K', t4k[4], t4k[4]));
-
-  // P1: catch-all → keep
-  rules.push({
-    priority: 1,
-    groupsConnector: 'and',
-    groups: [],
-    action: 'keep',
-    actionParams: {},
-    reason: '策略未覆盖',
-  });
+  rules.push(targetRule(0, [], {
+    qualityTier: 'baseline',
+    targetBitrateProfileByBucket: profileByBucket(t1080[3] || 3, t4k[3] || 7),
+    targetCodec: 'h265',
+  }, 'Baseline 归档前目标'));
 
   return {
     id: 'tv_default',
     name: '默认策略（剧集）',
-    description: '剧集类码率阈值整体低于电影一档',
+    description: '剧集类归档前目标整体低于电影一档',
     rules,
     tag: { type: 'default', version: TV_DEFAULT_TEMPLATE_VERSION },
   };
@@ -307,46 +180,21 @@ function buildAdultJavDefaultTemplate(policy) {
   const target1080p = p.target1080p || 2.5;
   const target4k = p.target4k || 6;
 
-  function condGroup(conds) {
-    return { connector: 'and', conditions: conds };
-  }
-
   return {
     id: 'adult_jav_default',
     name: '默认策略（JAV）',
-    description: '成人 JAV 文件夹库默认压缩策略，不依赖豆瓣评分或观看状态',
+    description: '成人 JAV 文件夹库默认归档前目标，不依赖豆瓣评分或观看状态',
     rules: [
-      {
-        priority: 10,
-        groupsConnector: 'and',
-        groups: [condGroup([['codec', 'not in', ['h265', 'hevc']]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
-        reason: `JAV 非 HEVC 编码，转为 H.265（目标 ${target1080p} Mbps）`,
-      },
-      {
-        priority: 9,
-        groupsConnector: 'and',
-        groups: [condGroup([['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
-        reason: `JAV 4K 码率 ${target4k} Mbps 超标，建议压缩`,
-      },
-      {
-        priority: 8,
-        groupsConnector: 'and',
-        groups: [condGroup([['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
-        reason: `JAV 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,
-      },
       {
         priority: 1,
         groupsConnector: 'and',
         groups: [],
-        action: 'keep',
-        actionParams: {},
-        reason: '成人库策略未触发转码',
+        targetMediaFacts: {
+          qualityTier: 'adult_baseline',
+          targetBitrateProfileByBucket: profileByBucket(target1080p, target4k),
+          targetCodec: 'h265',
+        },
+        reason: 'Adult Baseline 归档前目标',
       },
     ],
     tag: { type: 'default', version: ADULT_JAV_DEFAULT_TEMPLATE_VERSION },
@@ -358,49 +206,52 @@ function buildAdultWesternDefaultTemplate(policy) {
   const target1080p = p.target1080p || 2.5;
   const target4k = p.target4k || 6;
 
-  function condGroup(conds) {
-    return { connector: 'and', conditions: conds };
-  }
-
   return {
     id: 'adult_western_default',
     name: '默认策略（欧美成人）',
-    description: '欧美成人文件夹库默认压缩策略，等待 AI 整理完成后再进入转码判断',
+    description: '欧美成人文件夹库默认归档前目标，等待 AI 整理完成后再计算',
     rules: [
-      {
-        priority: 10,
-        groupsConnector: 'and',
-        groups: [condGroup([['codec', 'not in', ['h265', 'hevc']]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
-        reason: `欧美成人非 HEVC 编码，转为 H.265（目标 ${target1080p} Mbps）`,
-      },
-      {
-        priority: 9,
-        groupsConnector: 'and',
-        groups: [condGroup([['bucket', '=', '4K'], ['equivalentBitrate', '>', target4k]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target4k, targetCodec: 'h265' },
-        reason: `欧美成人 4K 码率 ${target4k} Mbps 超标，建议压缩`,
-      },
-      {
-        priority: 8,
-        groupsConnector: 'and',
-        groups: [condGroup([['bucket', '=', '1080p'], ['equivalentBitrate', '>', target1080p]])],
-        action: 'transcode',
-        actionParams: { targetBitrate: target1080p, targetCodec: 'h265' },
-        reason: `欧美成人 1080p 码率 ${target1080p} Mbps 超标，建议压缩`,
-      },
       {
         priority: 1,
         groupsConnector: 'and',
         groups: [],
-        action: 'keep',
-        actionParams: {},
-        reason: '成人库策略未触发转码',
+        targetMediaFacts: {
+          qualityTier: 'adult_baseline',
+          targetBitrateProfileByBucket: profileByBucket(target1080p, target4k),
+          targetCodec: 'h265',
+        },
+        reason: 'Adult Baseline 归档前目标',
       },
     ],
     tag: { type: 'default', version: ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION },
+  };
+}
+
+function targetFactsForRule(rule = {}) {
+  const facts = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object'
+    ? { ...rule.targetMediaFacts }
+    : { qualityTier: 'standard', targetCodec: 'h265', targetBitrateProfileByBucket: profileByBucket(4, 10) };
+  if (!facts.targetBitrateProfileByBucket) {
+    facts.targetBitrateProfileByBucket = profileByBucket(4, 10);
+  }
+  delete facts.targetBitrateByBucket;
+  delete facts.targetBitrate;
+  return facts;
+}
+
+function normalizeRuleTemplateRule(rule = {}) {
+  const targetMediaFacts = targetFactsForRule(rule);
+  const { action, actionParams, ...rest } = rule;
+  return {
+    ...rest,
+    targetMediaFacts,
+  };
+}
+
+function normalizeRuleTemplate(template = {}) {
+  return {
+    ...template,
+    rules: (template.rules || []).map(normalizeRuleTemplateRule),
   };
 }
 
@@ -477,23 +328,36 @@ function getDefaultConfig() {
     transcodeConcurrency: 1,
     upgradeConcurrency: 1,
     scrapeConcurrency: 1,
+    resourceCapacity: { ...DEFAULT_RESOURCE_CAPACITY },
     wallRatingAutoEnqueue: false,
 
     // SmartTaskEngine
     smartTaskPollIntervalMinutes: 10,
     smartTaskMaxPerRun: 10,
     smartTaskMaxQueueSize: 50,
-    smartTaskEnabledActions: [],
+    smartTaskDeferWhenActiveBacklog: false,
+    smartTaskResourceQueueMultiplier: 5,
+    smartTaskMaxQueuedByResource: {},
+    automaticTaskTargets: [],
+    optimizeAllowedFlowKinds: [],
+    upgradeCanary: {
+      maxActiveTasks: 1,
+      requireMoviePilotConfig: true,
+      allowDiscLike: false,
+    },
     smartTaskLookbackDays: 30,
     smartTaskInitialDelaySeconds: 60,
 
     // Startup maintenance
     mediaLibraryStartupRefreshOnStartup: true,
     mediaLibraryStartupRefreshDelaySeconds: 30,
+    mediaLibraryStartupRefreshStaleMinutes: 120,
+    mediaLibraryStartupRefreshMaxLibraries: 1,
     mediaLibrarySelfComputeOnStartup: true,
+    mediaLibrarySelfComputeEnabled: true,
 
     // Task queue priority (PriorityEngine). Lower number = runs first.
-    // Final score = source weight + action weight + subLibrary weight + business
+    // Final score = source weight + target gate weight + selected-flow hint + subLibrary weight + business
     // signal + queue age + retry penalty + rule deltas.
     // Per-subLibrary weight lives on subLibrary.priorityWeight (default 100).
     // Advanced overlay rules below are AND-matched, applied in order, and may
@@ -501,12 +365,16 @@ function getDefaultConfig() {
     taskPriority: {
       manualTaskPriority: 0,     // manual tasks (POST /v1/tasks) always high priority
       autoTaskPriorityBase: 100, // base for smartTaskEngine-created tasks
-      actionTypeWeights: {
+      targetGateWeights: {
         ingest: 60,
-        scrape: 80,
+        archive: 70,
         delete: 90,
-        upgrade: 110,
-        transcode: 130,
+        metadata: 80,
+        optimize: 110,
+      },
+      optimizeOperationHints: {
+        upgrade: 0,
+        transcode: 20,
       },
       businessSignalWeights: {
         adultWorkflowBonus: 20,
@@ -517,7 +385,7 @@ function getDefaultConfig() {
       maxQueueAgeBonus: 40,
       retryPenalty: 20,
       maxRetryPenalty: 80,
-      rules: { ingest: [], transcode: [], upgrade: [], delete: [], scrape: [] },
+      rulesByTargetGate: { ingest: [], metadata: [], optimize: [], archive: [], delete: [] },
     },
 
     approvalPolicy: {
@@ -535,20 +403,39 @@ function getDefaultConfig() {
     taskAdmission: {
       defaultCooldownHours: 48,
       defaultMaxQueued: 50,
-      maxQueuedByAction: {
+      maxQueuedByTargetGate: {
         ingest: 50,
-        scrape: 20,
+        metadata: 20,
+        optimize: 50,
+        archive: 50,
         delete: 50,
-        transcode: 50,
-        upgrade: 50,
       },
-      cooldownHoursByAction: {
+      cooldownHoursByTargetGate: {
         ingest: 6,
-        scrape: 6,
+        metadata: 6,
+        optimize: 48,
+        archive: 0,
         delete: 48,
-        transcode: 48,
-        upgrade: 48,
       },
+      automaticAttemptLimitsByTargetGate: {
+        ingest: 3,
+        metadata: 3,
+        optimize: 1,
+        archive: 1,
+        delete: 1,
+      },
+      mediaFreezeHoursByCompletedTargetGate: {
+        ingest: 0,
+        metadata: 0,
+        optimize: 24,
+        archive: 0,
+        delete: 0,
+      },
+    },
+
+    deleteGatePolicy: {
+      enabled: false,
+      rules: [],
     },
 
     // StrategyEngine
@@ -780,47 +667,7 @@ function migrateFromV3(raw) {
   return raw;
 }
 
-function extractPolicyFromTemplate(template) {
-  if (!template || !template.rules) return null;
-  const target1080p = {};
-  const target4k = {};
-
-  for (const rule of template.rules) {
-    if (rule.action !== 'transcode' && rule.action !== 'upgrade') continue;
-    const groups = rule.groups || [];
-    if (groups.length < 2) continue;
-
-    const g0 = Array.isArray(groups[0]) ? groups[0] : (groups[0].conditions || []);
-    const g1 = Array.isArray(groups[1]) ? groups[1] : (groups[1].conditions || []);
-
-    const ratingCond = g0.find((c) => c[0] === 'doubanRating' || c[0] === 'userRating');
-    if (!ratingCond) continue;
-    const rating = ratingCond[2];
-
-    const bucketCond = g1.find((c) => c[0] === 'bucket');
-    if (!bucketCond) continue;
-    const bucket = bucketCond[2];
-
-    const tgt = rule.actionParams && rule.actionParams.targetBitrate;
-    if (typeof tgt !== 'number') continue;
-
-    if (bucket === '1080p') target1080p[String(rating)] = tgt;
-    else if (bucket === '4K') target4k[String(rating)] = tgt;
-  }
-
-  const hasData = Object.keys(target1080p).length > 0 || Object.keys(target4k).length > 0;
-  if (!hasData) return null;
-
-  return { target1080p, target4k };
-}
-
 function migrateDefaultTemplates(raw) {
-  const templates = raw.ruleTemplates || [];
-  if (templates.length === 0) {
-    raw.ruleTemplates = getDefaultConfig().ruleTemplates;
-    return { raw, migrated: true };
-  }
-
   const MOVIE_DEFAULTS = {
     target1080p: { '2': 2, '3': 4, '4': 7, '5': 12 },
     target4k: { '2': 5, '3': 10, '4': 16, '5': 25 },
@@ -829,62 +676,25 @@ function migrateDefaultTemplates(raw) {
     target1080p: { '2': 1.5, '3': 3, '4': 5, '5': 8 },
     target4k: { '2': 3, '3': 7, '4': 12, '5': 18 },
   };
-
-  let migrated = false;
-
-  raw.ruleTemplates = templates.map((tpl) => {
-    if (!tpl.tag) {
-      if (tpl.id === 'default') {
-        const policy = extractPolicyFromTemplate(tpl) || MOVIE_DEFAULTS;
-        migrated = true;
-        return buildDefaultTemplate(policy);
-      }
-      if (tpl.id === 'tv_default') {
-        const policy = extractPolicyFromTemplate(tpl) || TV_DEFAULTS;
-        migrated = true;
-        return buildTVDefaultTemplate(policy);
-      }
-      migrated = true;
-      return { ...tpl, tag: { type: 'user' } };
-    }
-
-    if (tpl.tag.type === 'default') {
-      const expected = tpl.id === 'default' ? DEFAULT_TEMPLATE_VERSION
-        : tpl.id === 'tv_default' ? TV_DEFAULT_TEMPLATE_VERSION
-        : tpl.id === 'adult_jav_default' ? ADULT_JAV_DEFAULT_TEMPLATE_VERSION
-          : tpl.id === 'adult_western_default' ? ADULT_WESTERN_DEFAULT_TEMPLATE_VERSION : null;
-      if (expected != null && tpl.tag.version !== expected) {
-        const policy = extractPolicyFromTemplate(tpl) || {};
-        migrated = true;
-        if (tpl.id === 'default') return buildDefaultTemplate(policy);
-        if (tpl.id === 'tv_default') return buildTVDefaultTemplate(policy);
-        if (tpl.id === 'adult_jav_default') return buildAdultJavDefaultTemplate();
-        if (tpl.id === 'adult_western_default') return buildAdultWesternDefaultTemplate();
-      }
-    }
-
-    return tpl;
-  });
-
-  const ids = new Set((raw.ruleTemplates || []).map((tpl) => tpl.id));
-  if (!ids.has('default')) {
-    raw.ruleTemplates.push(buildDefaultTemplate(MOVIE_DEFAULTS));
-    migrated = true;
+  const desired = [
+    buildDefaultTemplate(MOVIE_DEFAULTS),
+    buildTVDefaultTemplate(TV_DEFAULTS),
+    buildAdultJavDefaultTemplate(),
+    buildAdultWesternDefaultTemplate(),
+  ];
+  const defaultIds = new Set(desired.map((tpl) => tpl.id));
+  const preservedUserTemplates = [];
+  for (const tpl of raw.ruleTemplates || []) {
+    if (!tpl || defaultIds.has(tpl.id) || (tpl.tag && tpl.tag.type === 'default')) continue;
+    preservedUserTemplates.push(normalizeRuleTemplate({
+      ...tpl,
+      tag: tpl.tag || { type: 'user' },
+    }));
   }
-  if (!ids.has('tv_default')) {
-    raw.ruleTemplates.push(buildTVDefaultTemplate(TV_DEFAULTS));
-    migrated = true;
-  }
-  if (!ids.has('adult_jav_default')) {
-    raw.ruleTemplates.push(buildAdultJavDefaultTemplate());
-    migrated = true;
-  }
-  if (!ids.has('adult_western_default')) {
-    raw.ruleTemplates.push(buildAdultWesternDefaultTemplate());
-    migrated = true;
-  }
-
-  return { raw, migrated };
+  const before = JSON.stringify(raw.ruleTemplates || []);
+  const next = [...desired, ...preservedUserTemplates];
+  raw.ruleTemplates = next;
+  return { raw, migrated: before !== JSON.stringify(next) };
 }
 
 function normalizeAdultLibraryConfig(raw) {
@@ -1014,36 +824,201 @@ function normalizeTranscodeEncodingDevices(raw) {
   };
 }
 
+const AUTOMATIC_TASK_TARGETS = new Set(['ingest', 'metadata', 'optimize', 'archive', 'delete']);
+const OPTIMIZE_ALLOWED_FLOW_KINDS = new Set(['transcode', 'upgrade']);
+
+function normalizeStringList(values, allowed) {
+  const result = [];
+  const seen = new Set();
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized || !allowed.has(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
+function splitLegacySmartTaskActions(actions = []) {
+  const taskTargets = new Set();
+  const optimizeFlowKinds = new Set();
+  for (const action of Array.isArray(actions) ? actions : []) {
+    const normalized = String(action || '').trim().toLowerCase();
+    if (!normalized) continue;
+    if (normalized === 'ingest') taskTargets.add('ingest');
+    else if (normalized === 'scrape' || normalized === 'metadata') taskTargets.add('metadata');
+    else if (normalized === 'archive') taskTargets.add('archive');
+    else if (normalized === 'delete') taskTargets.add('delete');
+    else if (normalized === 'optimize') {
+      taskTargets.add('optimize');
+      for (const flowKind of OPTIMIZE_ALLOWED_FLOW_KINDS) optimizeFlowKinds.add(flowKind);
+    } else if (OPTIMIZE_ALLOWED_FLOW_KINDS.has(normalized)) {
+      taskTargets.add('optimize');
+      optimizeFlowKinds.add(normalized);
+    }
+  }
+  return {
+    automaticTaskTargets: Array.from(taskTargets),
+    optimizeAllowedFlowKinds: Array.from(optimizeFlowKinds),
+  };
+}
+
+function normalizeLifecycleAutomationConfig(raw) {
+  const current = raw || {};
+  const actions = Array.isArray(current.smartTaskEnabledActions)
+    ? current.smartTaskEnabledActions.map((action) => String(action || '').trim()).filter(Boolean)
+    : [];
+  const migrations = current.migrations && typeof current.migrations === 'object'
+    ? current.migrations
+    : {};
+  let migrated = false;
+
+  let automaticTaskTargets = normalizeStringList(current.automaticTaskTargets, AUTOMATIC_TASK_TARGETS);
+  let optimizeAllowedFlowKinds = normalizeStringList(current.optimizeAllowedFlowKinds, OPTIMIZE_ALLOWED_FLOW_KINDS);
+  const hasNewAutomationFields = Array.isArray(current.automaticTaskTargets)
+    || Array.isArray(current.optimizeAllowedFlowKinds);
+
+  if (!hasNewAutomationFields) {
+    const legacy = splitLegacySmartTaskActions(actions);
+    automaticTaskTargets = legacy.automaticTaskTargets;
+    optimizeAllowedFlowKinds = legacy.optimizeAllowedFlowKinds;
+    if (actions.length > 0) migrated = true;
+  }
+
+  if (actions.map((action) => String(action || '').trim().toLowerCase()).includes('delete')
+    && !automaticTaskTargets.includes('delete')) {
+    automaticTaskTargets.push('delete');
+    migrated = true;
+  }
+
+  if (!hasNewAutomationFields && actions.length > 0 && !automaticTaskTargets.includes('archive') && actions.includes('archive')) {
+    automaticTaskTargets.push('archive');
+  }
+
+  if (!hasNewAutomationFields && actions.length > 0 && !actions.includes('archive') && migrations.v31ArchiveAutomation !== true) {
+    automaticTaskTargets = normalizeStringList([...automaticTaskTargets, 'archive'], AUTOMATIC_TASK_TARGETS);
+    migrated = true;
+  }
+
+  const nextMigrations = !hasNewAutomationFields && actions.length > 0 && migrations.v31ArchiveAutomation !== true
+    ? { ...migrations, v31ArchiveAutomation: true }
+    : migrations;
+
+  const next = {
+    ...current,
+    automaticTaskTargets,
+    optimizeAllowedFlowKinds,
+  };
+  delete next.smartTaskEnabledActions;
+  delete next.optimizeAllowedOperations;
+  if (Object.keys(nextMigrations).length > 0 || current.migrations !== undefined) {
+    next.migrations = nextMigrations;
+  }
+
+  if (Array.isArray(current.automaticTaskTargets)
+    && JSON.stringify(current.automaticTaskTargets) !== JSON.stringify(automaticTaskTargets)) migrated = true;
+  if (Array.isArray(current.optimizeAllowedFlowKinds)
+    && JSON.stringify(current.optimizeAllowedFlowKinds) !== JSON.stringify(optimizeAllowedFlowKinds)) migrated = true;
+  if (Object.prototype.hasOwnProperty.call(current, 'optimizeAllowedOperations')) migrated = true;
+  if (Object.prototype.hasOwnProperty.call(current, 'smartTaskEnabledActions')) migrated = true;
+
+  return { raw: next, migrated };
+}
+
+function normalizeMetadataGateConfig(raw) {
+  if (!raw || !Array.isArray(raw.subLibraries)) return { raw, migrated: false };
+  let migrated = false;
+  const subLibraries = raw.subLibraries.map((sl) => {
+    if (!sl || !Object.prototype.hasOwnProperty.call(sl, 'metadataGate')) return sl;
+    const sanitized = metadataStatus.sanitizeMetadataGate(sl.metadataGate);
+    const before = JSON.stringify(sl.metadataGate || null);
+    const after = JSON.stringify(sanitized || null);
+    if (before === after) return sl;
+    migrated = true;
+    const next = { ...sl };
+    if (sanitized) next.metadataGate = sanitized;
+    else delete next.metadataGate;
+    return next;
+  });
+  return { raw: { ...raw, subLibraries }, migrated };
+}
+
+function validateMetadataGateContracts(config = {}) {
+  const violations = [];
+  const subLibraries = Array.isArray(config.subLibraries) ? config.subLibraries : [];
+  for (const subLib of subLibraries) {
+    const result = metadataStatus.validateMetadataGateForSubLibrary(subLib, config);
+    if (result.ok) continue;
+    violations.push({
+      subLibraryId: subLib && subLib.uuid || '',
+      subLibraryName: subLib && subLib.name || '',
+      ruleTemplateId: subLib && subLib.ruleTemplateId || '',
+      missingRequirements: result.missingRequirements,
+      requiredInputs: result.requiredInputs,
+    });
+  }
+  if (violations.length > 0) {
+    const first = violations[0];
+    throw new ConfigValidationError(
+      'METADATA_GATE_CONTRACT_BROKEN',
+      `metadataGate does not cover optimize inputs: ${first.missingRequirements.join(', ')}`,
+      { violations },
+    );
+  }
+  return { ok: true, violations: [] };
+}
+
 // ── Load / Save ────────────────────────────────────────────────────────────────
 
 function mergeConfigWithDefaults(config) {
   const defaults = getDefaultConfig();
-  const raw = normalizeTranscodeEncodingDevices(config || {}).raw;
+  const transcodeNormalized = normalizeTranscodeEncodingDevices(config || {}).raw;
+  const lifecycleNormalized = normalizeLifecycleAutomationConfig(transcodeNormalized).raw;
+  const raw = normalizeMetadataGateConfig(lifecycleNormalized).raw;
   const merged = { ...defaults, ...raw };
+  merged.resourceCapacity = {
+    ...(defaults.resourceCapacity || {}),
+    ...legacyConcurrencyToResourceCapacity(raw || {}),
+    ...((raw && raw.resourceCapacity) || {}),
+  };
 
   merged.taskAdmission = {
     ...(defaults.taskAdmission || {}),
     ...(raw.taskAdmission || {}),
-    cooldownHoursByAction: {
-      ...((defaults.taskAdmission || {}).cooldownHoursByAction || {}),
-      ...(((raw.taskAdmission || {}).cooldownHoursByAction) || {}),
+    cooldownHoursByTargetGate: {
+      ...((defaults.taskAdmission || {}).cooldownHoursByTargetGate || {}),
+      ...legacyActionAdmissionToTargetGate(((raw.taskAdmission || {}).cooldownHoursByAction) || {}),
+      ...(((raw.taskAdmission || {}).cooldownHoursByTargetGate) || {}),
     },
-    maxQueuedByAction: {
-      ...((defaults.taskAdmission || {}).maxQueuedByAction || {}),
-      ...(((raw.taskAdmission || {}).maxQueuedByAction) || {}),
+    maxQueuedByTargetGate: {
+      ...((defaults.taskAdmission || {}).maxQueuedByTargetGate || {}),
+      ...legacyActionAdmissionToTargetGate(((raw.taskAdmission || {}).maxQueuedByAction) || {}),
+      ...(((raw.taskAdmission || {}).maxQueuedByTargetGate) || {}),
+    },
+    automaticAttemptLimitsByTargetGate: {
+      ...((defaults.taskAdmission || {}).automaticAttemptLimitsByTargetGate || {}),
+      ...(((raw.taskAdmission || {}).automaticAttemptLimitsByTargetGate) || {}),
+    },
+    mediaFreezeHoursByCompletedTargetGate: {
+      ...((defaults.taskAdmission || {}).mediaFreezeHoursByCompletedTargetGate || {}),
+      ...(((raw.taskAdmission || {}).mediaFreezeHoursByCompletedTargetGate) || {}),
     },
   };
 
   merged.taskPriority = {
     ...(defaults.taskPriority || {}),
     ...(raw.taskPriority || {}),
-    actionTypeWeights: {
-      ...((defaults.taskPriority || {}).actionTypeWeights || {}),
-      ...(((raw.taskPriority || {}).actionTypeWeights) || {}),
+    targetGateWeights: {
+      ...((defaults.taskPriority || {}).targetGateWeights || {}),
+      ...(((raw.taskPriority || {}).targetGateWeights) || {}),
     },
-    rules: {
-      ...((defaults.taskPriority || {}).rules || {}),
-      ...(((raw.taskPriority || {}).rules) || {}),
+    optimizeOperationHints: {
+      ...((defaults.taskPriority || {}).optimizeOperationHints || {}),
+      ...(((raw.taskPriority || {}).optimizeOperationHints) || {}),
+    },
+    rulesByTargetGate: {
+      ...((defaults.taskPriority || {}).rulesByTargetGate || {}),
+      ...(((raw.taskPriority || {}).rulesByTargetGate) || {}),
     },
   };
 
@@ -1052,7 +1027,47 @@ function mergeConfigWithDefaults(config) {
     ...(raw.approvalPolicy || {}),
   };
 
+  merged.upgradeCanary = {
+    ...(defaults.upgradeCanary || {}),
+    ...(raw.upgradeCanary || {}),
+  };
+
+  merged.deleteGatePolicy = {
+    ...(defaults.deleteGatePolicy || {}),
+    ...(raw.deleteGatePolicy || {}),
+    rules: Array.isArray(raw.deleteGatePolicy && raw.deleteGatePolicy.rules)
+      ? raw.deleteGatePolicy.rules
+      : ((defaults.deleteGatePolicy || {}).rules || []),
+  };
+
   return merged;
+}
+
+function legacyActionAdmissionToTargetGate(byAction = {}) {
+  const result = {};
+  if (typeof byAction.ingest === 'number') result.ingest = byAction.ingest;
+  if (typeof byAction.scrape === 'number') result.metadata = byAction.scrape;
+  if (typeof byAction.archive === 'number') result.archive = byAction.archive;
+  if (typeof byAction.delete === 'number') result.delete = byAction.delete;
+  const optimizeValues = ['transcode', 'upgrade']
+    .map((key) => Number(byAction[key]))
+    .filter(Number.isFinite);
+  if (optimizeValues.length > 0) result.optimize = Math.min(...optimizeValues);
+  return result;
+}
+
+function legacyConcurrencyToResourceCapacity(raw = {}) {
+  const result = {};
+  if (typeof raw.ingestConcurrency === 'number') result['filesystem:ingest'] = raw.ingestConcurrency;
+  if (typeof raw.deleteConcurrency === 'number') result['filesystem:mutation'] = raw.deleteConcurrency;
+  if (typeof raw.scrapeConcurrency === 'number') result['scraper:metadata'] = raw.scrapeConcurrency;
+  if (typeof raw.embyMetadataRepairConcurrency === 'number') result['emby:metadata'] = raw.embyMetadataRepairConcurrency;
+  if (typeof raw.transcodeConcurrency === 'number') {
+    result['local:ffmpeg'] = raw.transcodeConcurrency;
+    result['worker:*'] = raw.transcodeConcurrency;
+  }
+  if (typeof raw.upgradeConcurrency === 'number') result.moviepilot = raw.upgradeConcurrency;
+  return result;
 }
 
 function loadConfig() {
@@ -1066,21 +1081,21 @@ function loadConfig() {
       console.log('[configStore] detected v1 config, migrating to v2 format');
       fs.writeFileSync(cfgFile + '.v1.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = migrateFromV1(raw);
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     }
 
     if (detectV2Config(raw)) {
       console.log('[configStore] detected v2 config (mediaPolicy), migrating to v3 (ruleTemplates)');
       fs.writeFileSync(cfgFile + '.v2.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = migrateFromV2(raw);
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     }
 
     if (detectV3Config(raw)) {
       console.log('[configStore] detected v3 config, migrating subLibrary scheduling to v4');
       fs.writeFileSync(cfgFile + '.v3.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = migrateFromV3(raw);
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     }
 
     const tmplResult = migrateDefaultTemplates(raw);
@@ -1088,7 +1103,7 @@ function loadConfig() {
       console.log('[configStore] template migration applied (tag added or default template regenerated)');
       fs.writeFileSync(cfgFile + '.v6.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = tmplResult.raw;
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     }
 
     const adultResult = normalizeAdultLibraryConfig(raw);
@@ -1096,7 +1111,7 @@ function loadConfig() {
       console.log('[configStore] adult library scraper config migration applied');
       fs.writeFileSync(cfgFile + '.v7.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = adultResult.raw;
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     } else {
       raw = adultResult.raw;
     }
@@ -1106,9 +1121,29 @@ function loadConfig() {
       console.log('[configStore] transcode device config migration applied');
       fs.writeFileSync(cfgFile + '.v8.backup', JSON.stringify(raw, null, 2), 'utf8');
       raw = transcodeResult.raw;
-      saveConfig(raw);
+      saveConfig(raw, { skipMetadataGateValidation: true });
     } else {
       raw = transcodeResult.raw;
+    }
+
+    const lifecycleAutomationResult = normalizeLifecycleAutomationConfig(raw);
+    if (lifecycleAutomationResult.migrated) {
+      console.log('[configStore] lifecycle automation config migration applied');
+      fs.writeFileSync(cfgFile + '.v9.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = lifecycleAutomationResult.raw;
+      saveConfig(raw, { skipMetadataGateValidation: true });
+    } else {
+      raw = lifecycleAutomationResult.raw;
+    }
+
+    const metadataGateResult = normalizeMetadataGateConfig(raw);
+    if (metadataGateResult.migrated) {
+      console.log('[configStore] metadata gate config migration applied');
+      fs.writeFileSync(cfgFile + '.v10.backup', JSON.stringify(raw, null, 2), 'utf8');
+      raw = metadataGateResult.raw;
+      saveConfig(raw, { skipMetadataGateValidation: true });
+    } else {
+      raw = metadataGateResult.raw;
     }
 
     return mergeConfigWithDefaults(raw);
@@ -1118,9 +1153,10 @@ function loadConfig() {
   }
 }
 
-function saveConfig(config) {
+function saveConfig(config, options = {}) {
   ensureDataDir();
   const merged = mergeConfigWithDefaults(config);
+  if (options.skipMetadataGateValidation !== true) validateMetadataGateContracts(merged);
   fs.writeFileSync(configFilePath(), JSON.stringify(merged, null, 2), 'utf8');
   return merged;
 }
@@ -1131,4 +1167,18 @@ function patchConfig(updates) {
   return saveConfig(merged);
 }
 
-module.exports = { resolveDataDir, loadConfig, saveConfig, patchConfig, getDefaultConfig, buildDefaultTemplate, buildAdultJavDefaultTemplate, buildAdultWesternDefaultTemplate, defaultSubLibSchedule, resolveSubLibSchedule };
+module.exports = {
+  ConfigValidationError,
+  resolveDataDir,
+  loadConfig,
+  saveConfig,
+  patchConfig,
+  validateMetadataGateContracts,
+  getDefaultConfig,
+  buildDefaultTemplate,
+  buildAdultJavDefaultTemplate,
+  buildAdultWesternDefaultTemplate,
+  normalizeRuleTemplate,
+  defaultSubLibSchedule,
+  resolveSubLibSchedule,
+};

@@ -19,7 +19,8 @@ RUN apt-get update && apt-get install -y curl gnupg \
 
 # Intel Media Driver for QSV/VAAPI and Intel OpenCL runtime for OpenVINO GPU inference.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    intel-media-va-driver mesa-va-drivers intel-opencl-icd clinfo p7zip-full python3 python3-venv make g++ \
+    intel-media-va-driver mesa-va-drivers libvulkan1 mesa-vulkan-drivers vulkan-tools \
+    intel-opencl-icd clinfo p7zip-full python3 python3-venv make g++ \
     && rm -rf /var/lib/apt/lists/*
 
 COPY media-service/package.json media-service/package-lock.json ./
@@ -33,6 +34,9 @@ RUN python3 -m venv /opt/shelfdeck-face \
   && /opt/shelfdeck-face/bin/python -m pip install --no-cache-dir -r /app/face-service-requirements.txt
 
 COPY media-service/src/ ./src/
+COPY media-service/scripts/v3-data-migration.js ./scripts/v3-data-migration.js
+COPY media-service/scripts/kairox-beta-cutover.js ./scripts/kairox-beta-cutover.js
+COPY media-service/scripts/kairox-beta-production-e2e.js ./scripts/kairox-beta-production-e2e.js
 COPY media-service/scripts/all-in-one-supervisor.py /usr/local/bin/shelfdeck-all-in-one
 COPY --from=web-builder /build/dist/admin ./dist/admin/
 

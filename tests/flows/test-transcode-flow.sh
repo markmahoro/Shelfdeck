@@ -19,7 +19,7 @@ task_field() {
     | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log(j?.['${field}']??'')})"
 }
 
-# ── Find a transcode candidate ──────────────────────────────────────────
+# ── Find an optimize candidate whose selected flow is transcode ─────────
 
 lib=$(curl -fsS "${SV}/v1/library?subLibraryId=${SLIB}" 2>/dev/null)
 target_id=$(echo "$lib" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);const it=j.items.find(i=>i.name.includes('手卷烟'));console.log(it?it.itemId:'')})")

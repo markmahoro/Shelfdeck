@@ -8,16 +8,12 @@ const GROUP_1 = [
 const GROUP_2 = [
   { to: '/media', label: '媒体库' },
   { to: '/tasks', label: '任务中心' },
+  { to: '/delete-candidates', label: '处置队列' },
 ];
 
 const GROUP_3 = [
-  { to: '/rules', label: '策略模板' },
-  { to: '/system', label: '任务调度' },
-  { to: '/douban', label: '豆瓣评分抓取' },
-  { to: '/transcode', label: '转码压缩' },
-  { to: '/adult', label: '成人库' },
-  { to: '/nodes', label: '转码节点' },
-  { to: '/moviepilot', label: '洗版' },
+  { to: '/policies', label: '管理策略' },
+  { to: '/advanced', label: '高级' },
 ];
 
 export default function Sidebar() {

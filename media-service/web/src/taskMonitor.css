@@ -1,0 +1,316 @@
+.kairoxTaskPage {
+  padding: 20px;
+  color: #1f2937;
+}
+
+.kairoxTaskHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.kairoxTaskHeader h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+
+.kairoxTaskHeader p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.kairoxTaskHeader button,
+.kairoxTaskFilters button,
+.kairoxTaskActions button,
+.kairoxTaskPager button,
+.kairoxConfirmationBox button {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2937;
+  padding: 7px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.kairoxTaskActions button:first-child,
+.kairoxConfirmationBox button {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #fff;
+}
+
+.kairoxTaskActions button.danger {
+  border-color: #b91c1c;
+  background: #b91c1c;
+  color: #fff;
+}
+
+.kairoxTaskHeader button:hover,
+.kairoxTaskFilters button:hover,
+.kairoxTaskActions button:hover,
+.kairoxTaskPager button:hover,
+.kairoxConfirmationBox button:hover {
+  filter: brightness(.98);
+}
+
+.kairoxAttentionBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.kairoxAttentionBar button {
+  border: 1px solid #dbe4ee;
+  border-radius: 999px;
+  background: #fff;
+  color: #334155;
+  padding: 7px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.kairoxAttentionBar button.active {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.kairoxAttentionBar span {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  opacity: .72;
+}
+
+.kairoxTaskFilters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.kairoxTaskFilters input,
+.kairoxTaskFilters select,
+.kairoxConfirmationBox select {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2937;
+  padding: 7px 9px;
+  font-size: 13px;
+}
+
+.kairoxTaskFilters input {
+  min-width: 220px;
+}
+
+.kairoxTaskTableWrap {
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.kairoxTaskTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.kairoxTaskTable th {
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+  color: #64748b;
+  text-align: left;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.kairoxTaskTable td {
+  padding: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+  line-height: 1.45;
+}
+
+.kairoxTaskTitle {
+  border: 0;
+  background: transparent;
+  color: #111827;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kairoxTaskTitle:hover {
+  color: #0f766e;
+}
+
+.kairoxTaskMuted {
+  color: #64748b;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.kairoxTaskGate {
+  display: inline-flex;
+  border: 1px solid #99f6e4;
+  border-radius: 999px;
+  background: #f0fdfa;
+  color: #0f766e;
+  padding: 3px 8px;
+  font-weight: 700;
+}
+
+.kairoxTaskProgress {
+  width: 92px;
+  height: 5px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.kairoxTaskProgress i {
+  display: block;
+  height: 100%;
+  background: #0f766e;
+}
+
+.kairoxTaskActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kairoxTaskActions.detail {
+  margin-top: 10px;
+}
+
+.kairoxTaskEmpty {
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+  padding: 32px;
+  text-align: center;
+}
+
+.kairoxTaskPager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.kairoxTaskPager button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.kairoxTaskDetail section {
+  border-bottom: 1px solid #eef2f7;
+  padding: 12px 0;
+}
+
+.kairoxTaskDetail section:first-child {
+  padding-top: 0;
+}
+
+.kairoxTaskDetail h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #111827;
+}
+
+.kairoxDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+}
+
+.kairoxDetailGrid div {
+  min-width: 0;
+}
+
+.kairoxDetailGrid dt {
+  color: #64748b;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.kairoxDetailGrid dd {
+  margin: 0;
+  color: #1f2937;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.kairoxConfirmationBox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 12px;
+}
+
+.kairoxConfirmationBox label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kairoxEventList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kairoxEventList div {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 140px;
+  gap: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-size: 12px;
+}
+
+.kairoxEventList span {
+  color: #64748b;
+}
+
+.kairoxEventList strong {
+  color: #1f2937;
+}
+
+.kairoxEventList em {
+  color: #64748b;
+  font-style: normal;
+}
+
+@media (max-width: 860px) {
+  .kairoxDetailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .kairoxEventList div {
+    grid-template-columns: 1fr;
+  }
+}

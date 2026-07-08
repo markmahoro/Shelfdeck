@@ -14,6 +14,7 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 const { buildApp } = require('../src/app');
+const diagnosticLog = require('../src/diagnosticLog');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,11 @@ function tempDir() { return fs.mkdtempSync(path.join(os.tmpdir(), 'ct-test-')); 
 function buildEmptyApp(apiKey) {
   const dir = tempDir();
   return buildApp({ logger: false, dataDir: dir, apiKey: apiKey || '' });
+}
+
+function seedLibraryCache(subLibraryId, items, opts = {}) {
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  return mediaLibraryService.upsertItems(subLibraryId, items, opts);
 }
 
 // ── Library: queries/manage ──────────────────────────────────────────────────────
@@ -47,13 +53,13 @@ test('GET /v1/library/queries/manage filters by source', async () => {
   await app.close();
 });
 
-test('GET /v1/library/queries/manage filters by action', async () => {
+test('GET /v1/library/queries/manage accepts lifecycle filter', async () => {
   const app = await buildEmptyApp();
-  const res = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?action=keep' });
+  const res = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?lifecycle=open' });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
   for (const item of body.items) {
-    assert.strictEqual(item.action, 'keep');
+    assert.strictEqual(item.lifecycleDone, false);
   }
   await app.close();
 });
@@ -70,7 +76,6 @@ test('GET /v1/library/queries/manage filters adult pending scrape items', async 
       name: 'Adult Pending Empty Status',
       source: 'adult_folder',
       type: 'movie',
-      action: 'keep',
       scraped: false,
       path: '/adult/pending.mp4',
       adultMetadata: { scrapeStatus: '' },
@@ -97,15 +102,7 @@ test('GET /v1/library/items/:itemId returns 404 for unknown item', async () => {
 test('GET /v1/library/items/:itemId returns item after cache write', async () => {
   const dir = tempDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  // Write an item via cache endpoint
-  await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: {
-      subLibraryId: 'sublib-test',
-      items: [{ sourceId: 'emby-item-x', name: 'Test Movie', type: 'Movie', path: '/m/test.mkv', bitrate: 10000000, duration: 3600, resolution: '1920x1080', size: 5000000000, premiereDate: '2025-01-01', genres: ['Action'], isDiscLike: false }],
-    },
-  });
+  seedLibraryCache('sublib-test', [{ sourceId: 'emby-item-x', name: 'Test Movie', type: 'Movie', path: '/m/test.mkv', bitrate: 10000000, duration: 3600, resolution: '1920x1080', size: 5000000000, premiereDate: '2025-01-01', genres: ['Action'], isDiscLike: false }]);
   // Now query it
   const items = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sublib-test' });
   const found = items.json().items.find((i) => i.sourceId === 'emby-item-x');
@@ -147,15 +144,7 @@ test('PATCH /v1/library/ratings userRating > 5 -> 400', async () => {
 test('PATCH /v1/library/ratings writes userRating and returns ok', async () => {
   const dir = tempDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  // First cache an item
-  await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: {
-      subLibraryId: 'sublib-rating',
-      items: [{ sourceId: 'emby-rate-1', name: 'Rating Test', type: 'Movie', path: '/m/r.mkv', bitrate: 15000000, duration: 5400, resolution: '1920x1080', size: 8000000000, premiereDate: '2024-06-01', genres: ['Drama'], isDiscLike: false }],
-    },
-  });
+  seedLibraryCache('sublib-rating', [{ sourceId: 'emby-rate-1', name: 'Rating Test', type: 'Movie', path: '/m/r.mkv', bitrate: 15000000, duration: 5400, resolution: '1920x1080', size: 8000000000, premiereDate: '2024-06-01', genres: ['Drama'], isDiscLike: false }]);
   // Find its itemId
   const items = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sublib-rating' });
   const found = items.json().items.find((i) => i.sourceId === 'emby-rate-1');
@@ -175,24 +164,51 @@ test('PATCH /v1/library/ratings writes userRating and returns ok', async () => {
   await app.close();
 });
 
-// ── Library: actions/refresh ─────────────────────────────────────────────────────
+// ── Library: removed run-scan actions ─────────────────────────────────────────────
 
-test('POST /v1/library/actions/refresh missing subLibraryId -> 400', async () => {
+test('POST /v1/library/actions/ingest returns 410 because user run-scan is removed', async () => {
   const app = await buildEmptyApp();
-  const res = await app.inject({ method: 'POST', url: '/v1/library/actions/refresh', payload: {} });
-  assert.strictEqual(res.statusCode, 400);
-  assert.strictEqual(res.json().error.code, 'VALIDATION_ERROR');
+  const res = await app.inject({ method: 'POST', url: '/v1/library/actions/ingest', payload: {} });
+  assert.strictEqual(res.statusCode, 410);
+  assert.strictEqual(res.json().error.code, 'KAIROX_RUN_SCAN_REMOVED');
   await app.close();
 });
 
-test('POST /v1/library/actions/refresh valid returns 202 Accepted', async () => {
-  // Refresh is async; the route returns 202 immediately.
-  // Unknown subLibraryId failure surfaces asynchronously (not in HTTP response).
-  const dir = tempDir();
-  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ subLibraries: [{ uuid: 'sublib-rf', name: 'R', embyServerId: 'srv', sectionId: 'sec', enabled: true }] }));
-  const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
+test('POST /v1/library/actions/ingest with subLibraryId still returns 410', async () => {
+  const app = await buildEmptyApp();
+  const res = await app.inject({ method: 'POST', url: '/v1/library/actions/ingest', payload: { subLibraryId: 'sublib-rf' } });
+  assert.strictEqual(res.statusCode, 410);
+  assert.strictEqual(res.json().error.code, 'KAIROX_RUN_SCAN_REMOVED');
+  await app.close();
+});
+
+test('POST /v1/library/actions/refresh returns 410 because user run-scan is removed', async () => {
+  const app = await buildEmptyApp();
+  const res = await app.inject({ method: 'POST', url: '/v1/library/actions/refresh', payload: {} });
+  assert.strictEqual(res.statusCode, 410);
+  assert.strictEqual(res.json().error.code, 'KAIROX_RUN_SCAN_REMOVED');
+  await app.close();
+});
+
+test('POST /v1/library/actions/refresh with subLibraryId still returns 410', async () => {
+  const app = await buildEmptyApp();
   const res = await app.inject({ method: 'POST', url: '/v1/library/actions/refresh', payload: { subLibraryId: 'sublib-rf' } });
-  assert.strictEqual(res.statusCode, 202);
+  assert.strictEqual(res.statusCode, 410);
+  assert.strictEqual(res.json().error.code, 'KAIROX_RUN_SCAN_REMOVED');
+  await app.close();
+});
+
+test('POST /v1/library/actions/recompute-optimize-targets keeps recompute-strategy as compatibility alias', async () => {
+  const app = await buildEmptyApp();
+  const current = await app.inject({ method: 'POST', url: '/v1/library/actions/recompute-optimize-targets' });
+  assert.strictEqual(current.statusCode, 200);
+  assert.strictEqual(current.json().ok, true);
+  assert.strictEqual(typeof current.json().changed, 'number');
+
+  const legacy = await app.inject({ method: 'POST', url: '/v1/library/actions/recompute-strategy' });
+  assert.strictEqual(legacy.statusCode, 200);
+  assert.strictEqual(legacy.json().ok, true);
+  assert.strictEqual(typeof legacy.json().changed, 'number');
   await app.close();
 });
 
@@ -210,7 +226,7 @@ test('GET /v1/library/status returns subLibraries array', async () => {
 
 // ── Library: cache ───────────────────────────────────────────────────────────────
 
-test('POST /v1/library/cache upserts items and returns counts', async () => {
+test('POST /v1/library/cache is disabled for Kairox runtime', async () => {
   const app = await buildEmptyApp();
   const payload = {
     subLibraryId: 'sublib-cache-1',
@@ -220,30 +236,20 @@ test('POST /v1/library/cache upserts items and returns counts', async () => {
     ],
   };
   const res = await app.inject({ method: 'POST', url: '/v1/library/cache', payload });
-  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.statusCode, 410);
   const body = res.json();
-  assert.strictEqual(body.ok, true);
-  assert.strictEqual(body.upserted, 2);
-  // Verify items appear in library
-  const lib = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sublib-cache-1' });
-  assert.strictEqual(lib.json().total, 2);
+  assert.strictEqual(body.ok, false);
+  assert.strictEqual(body.error.code, 'LEGACY_CACHE_WRITE_DISABLED');
   await app.close();
 });
 
 test('GET /v1/library supports server-side pagination and search', async () => {
   const app = await buildEmptyApp();
-  await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: {
-      subLibraryId: 'sublib-page',
-      items: [
-        { sourceId: 'src-1', name: 'Movie Alpha', type: 'Movie', path: '/m/a.mkv', bitrate: 10000000, duration: 3600, resolution: '1920x1080', size: 4000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
-        { sourceId: 'src-2', name: 'Movie Beta', type: 'Movie', path: '/m/b.mkv', bitrate: 12000000, duration: 7200, resolution: '1920x1080', size: 5000000000, premiereDate: '2025-02-01', genres: [], isDiscLike: false },
-        { sourceId: 'src-3', name: 'Movie Gamma', type: 'Movie', path: '/m/c.mkv', bitrate: 8000000, duration: 5400, resolution: '1920x1080', size: 3000000000, premiereDate: '2025-03-01', genres: [], isDiscLike: false },
-      ],
-    },
-  });
+  seedLibraryCache('sublib-page', [
+    { sourceId: 'src-1', name: 'Movie Alpha', type: 'Movie', path: '/m/a.mkv', bitrate: 10000000, duration: 3600, resolution: '1920x1080', size: 4000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
+    { sourceId: 'src-2', name: 'Movie Beta', type: 'Movie', path: '/m/b.mkv', bitrate: 12000000, duration: 7200, resolution: '1920x1080', size: 5000000000, premiereDate: '2025-02-01', genres: [], isDiscLike: false },
+    { sourceId: 'src-3', name: 'Movie Gamma', type: 'Movie', path: '/m/c.mkv', bitrate: 8000000, duration: 5400, resolution: '1920x1080', size: 3000000000, premiereDate: '2025-03-01', genres: [], isDiscLike: false },
+  ]);
 
   const res = await app.inject({ method: 'GET', url: '/v1/library?subLibraryId=sublib-page&search=Movie&limit=2&offset=1' });
   assert.strictEqual(res.statusCode, 200);
@@ -331,7 +337,7 @@ test('adultLibraryService ingest discovery reads through the shared media cache'
         watchRoot,
       }],
       adultLibrary: { settleSeconds: 0 },
-      smartTaskEnabledActions: ['ingest'],
+      automaticTaskTargets: ['ingest'], optimizeAllowedOperations: [],
     });
     assert.strictEqual(candidates.length, 0, 'already cached adult items are not rediscovered as ingest candidates');
   } finally {
@@ -346,7 +352,7 @@ test('libraryStore migrates library.json to SQLite and keeps the source JSON', a
     version: 1,
     cachedAt: '2026-06-28T00:00:00.000Z',
     items: [
-      { itemId: 'legacy-1', subLibraryId: 'legacy-lib', name: 'Legacy Alpha', source: 'emby', type: 'movie', action: 'keep' },
+      { itemId: 'legacy-1', subLibraryId: 'legacy-lib', name: 'Legacy Alpha', source: 'emby', type: 'movie' },
       { itemId: 'legacy-2', subLibraryId: 'legacy-lib', name: 'Legacy Beta', source: 'emby', type: 'movie', action: 'transcode' },
     ],
   };
@@ -376,7 +382,7 @@ test('libraryStore replaces one subLibrary without touching other libraries', as
     version: 1,
     cachedAt: '2026-06-28T00:00:00.000Z',
     items: [
-      { itemId: 'lib-a-1', subLibraryId: 'lib-a', name: 'Old A', source: 'emby', type: 'movie', action: 'keep' },
+      { itemId: 'lib-a-1', subLibraryId: 'lib-a', name: 'Old A', source: 'emby', type: 'movie' },
       { itemId: 'lib-b-1', subLibraryId: 'lib-b', name: 'Keep B', source: 'emby', type: 'movie', action: 'delete' },
     ],
   });
@@ -392,11 +398,12 @@ test('libraryStore replaces one subLibrary without touching other libraries', as
   await app.close();
 });
 
-test('libraryStore truncates WAL after bulk library writes', async () => {
+test('libraryStore records skipped WAL checkpoint when WAL is below threshold', async () => {
   const dir = tempDir();
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const mediaLibraryService = require('../src/mediaLibraryService');
   const libraryStore = require('../src/libraryStore');
+  diagnosticLog.resetForTests();
 
   mediaLibraryService.saveLibrary({
     version: 1,
@@ -412,12 +419,13 @@ test('libraryStore truncates WAL after bulk library writes', async () => {
     })),
   });
   libraryStore.replaceSubLibraryItems('bulk-lib', [
-    { itemId: 'bulk-new', subLibraryId: 'bulk-lib', name: 'Bulk New', source: 'emby', type: 'movie', action: 'keep' },
+    { itemId: 'bulk-new', subLibraryId: 'bulk-lib', name: 'Bulk New', source: 'emby', type: 'movie' },
   ], { cachedAt: '2026-06-28T01:00:00.000Z' });
 
-  const walPath = path.join(dir, 'library.db-wal');
-  const walSize = fs.existsSync(walPath) ? fs.statSync(walPath).size : 0;
-  assert.ok(walSize < 1024 * 1024, `library WAL should be truncated after bulk writes, got ${walSize}`);
+  const checkpointLogs = diagnosticLog.list({ limit: 20 }).logs
+    .filter((log) => log.scope === 'libraryStore.checkpointWal');
+  assert.ok(checkpointLogs.some((log) => log.status === 'skipped'), 'below-threshold WAL checkpoint skip is recorded');
+  assert.ok(checkpointLogs.some((log) => log.payload && log.payload.trigger === 'wal_below_threshold'));
   await app.close();
 });
 
@@ -431,8 +439,8 @@ test('libraryStore updateItems updates only existing rows', async () => {
     version: 1,
     cachedAt: '2026-06-28T00:00:00.000Z',
     items: [
-      { itemId: 'update-a', subLibraryId: 'lib-a', name: 'A', source: 'emby', type: 'movie', action: 'keep' },
-      { itemId: 'update-b', subLibraryId: 'lib-b', name: 'B', source: 'emby', type: 'movie', action: 'delete' },
+      { itemId: 'update-a', subLibraryId: 'lib-a', name: 'A', source: 'emby', type: 'movie' },
+      { itemId: 'update-b', subLibraryId: 'lib-b', name: 'B', source: 'emby', type: 'movie' },
     ],
   });
 
@@ -441,30 +449,24 @@ test('libraryStore updateItems updates only existing rows', async () => {
   const count = libraryStore.updateItems([changed, { itemId: 'missing-item', subLibraryId: 'lib-a', name: 'Missing' }]);
 
   assert.strictEqual(count, 1);
-  assert.strictEqual(mediaLibraryService.getLibraryItem('update-a').action, 'transcode');
-  assert.strictEqual(mediaLibraryService.getLibraryItem('update-b').action, 'delete');
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(mediaLibraryService.getLibraryItem('update-a'), 'action'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(mediaLibraryService.getLibraryItem('update-b'), 'action'), false);
   assert.strictEqual(mediaLibraryService.getLibrary().total, 2);
   await app.close();
 });
 
-test('POST /v1/library/cache removes stale items', async () => {
+test('library fixture helper removes stale items', async () => {
   const app = await buildEmptyApp();
   // First insert 2 items
-  await app.inject({
-    method: 'POST', url: '/v1/library/cache',
-    payload: { subLibraryId: 'sublib-rm', items: [
-      { sourceId: 'src-keep', name: 'Keep', type: 'Movie', path: '/m/k.mkv', bitrate: 10000000, duration: 3600, resolution: '1280x720', size: 2000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
-      { sourceId: 'src-rm', name: 'Remove', type: 'Movie', path: '/m/r.mkv', bitrate: 5000000, duration: 1800, resolution: '640x480', size: 1000000000, premiereDate: '2024-01-01', genres: [], isDiscLike: false },
-    ] },
-  });
+  seedLibraryCache('sublib-rm', [
+    { sourceId: 'src-keep', name: 'Keep', type: 'Movie', path: '/m/k.mkv', bitrate: 10000000, duration: 3600, resolution: '1280x720', size: 2000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
+    { sourceId: 'src-rm', name: 'Remove', type: 'Movie', path: '/m/r.mkv', bitrate: 5000000, duration: 1800, resolution: '640x480', size: 1000000000, premiereDate: '2024-01-01', genres: [], isDiscLike: false },
+  ], { fullSync: true });
   // Second batch drops src-rm
-  const res = await app.inject({
-    method: 'POST', url: '/v1/library/cache',
-    payload: { subLibraryId: 'sublib-rm', items: [
-      { sourceId: 'src-keep', name: 'Keep', type: 'Movie', path: '/m/k.mkv', bitrate: 10000000, duration: 3600, resolution: '1280x720', size: 2000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
-    ] },
-  });
-  assert.strictEqual(res.json().removed, 1);
+  const res = seedLibraryCache('sublib-rm', [
+    { sourceId: 'src-keep', name: 'Keep', type: 'Movie', path: '/m/k.mkv', bitrate: 10000000, duration: 3600, resolution: '1280x720', size: 2000000000, premiereDate: '2025-01-01', genres: [], isDiscLike: false },
+  ], { fullSync: true });
+  assert.strictEqual(res.removed, 1);
   const lib = await app.inject({ method: 'GET', url: '/v1/library/queries/manage?subLibraryId=sublib-rm' });
   assert.strictEqual(lib.json().total, 1);
   await app.close();
@@ -480,15 +482,28 @@ test('GET /v1/space-stats uses lightweight SQLite rows', async () => {
     version: 1,
     cachedAt: new Date().toISOString(),
     items: [
-      { itemId: 'space-delete', subLibraryId: 'space-lib', name: 'Delete Me', size: 1000, action: 'delete' },
-      { itemId: 'space-transcode', subLibraryId: 'space-lib', name: 'Shrink Me', size: 2000, bitrate: 10_000_000, equivalentBitrate: 10, targetBitrate: 5, action: 'transcode' },
-      { itemId: 'space-upgrade', subLibraryId: 'space-lib', name: 'Grow Me', size: 3000, bitrate: 5_000_000, equivalentBitrate: 5, targetBitrate: 8, action: 'upgrade' },
+      { itemId: 'space-delete', subLibraryId: 'space-lib', name: 'Delete Me', size: 1000 },
+      {
+        itemId: 'space-transcode',
+        subLibraryId: 'space-lib',
+        name: 'Shrink Me',
+        size: 2000,
+        bitrate: 10_000_000,
+        equivalentBitrate: 10,
+        targetMediaFacts: {
+          targetBitrateProfileByBucket: {
+            '1080p': { minMbps: 3.25, targetMbps: 5, maxMbps: 6.75 },
+          },
+          targetCodec: 'h265',
+        },
+      },
+      { itemId: 'space-upgrade', subLibraryId: 'space-lib', name: 'Grow Me', size: 3000, bitrate: 5_000_000, equivalentBitrate: 5, targetMediaFacts: { minResolution: '4K', targetCodec: 'h265' } },
     ],
   });
   taskStore.saveTasks([
-    { id: 'space-task-1', itemId: 'space-transcode', actionType: 'transcode', status: 'done', verifyResult: { bytesSaved: 400 }, itemInfo: { originalSizeBytes: 2000 } },
-    { id: 'space-task-2', itemId: 'space-upgrade', actionType: 'upgrade', status: 'done', upgradePreview: { oldFile: { size: 3000 }, newFile: { size: 5000 } } },
-    { id: 'space-task-3', itemId: 'ignored-scrape', actionType: 'scrape', status: 'done', logs: [{ msg: 'not needed for space stats' }] },
+    { id: 'space-task-1', itemId: 'space-transcode', flowPlan: { flowKind: 'transcode' }, status: 'done', verifyResult: { bytesSaved: 400 }, itemInfo: { originalSizeBytes: 2000 } },
+    { id: 'space-task-2', itemId: 'space-upgrade', flowPlan: { flowKind: 'upgrade' }, status: 'done', upgradePreview: { oldFile: { size: 3000 }, newFile: { size: 5000 } } },
+    { id: 'space-task-3', itemId: 'ignored-scrape', flowPlan: { flowKind: 'scrape' }, status: 'done', logs: [{ msg: 'not needed for space stats' }] },
   ]);
 
   const originalGetLibrary = mediaLibraryService.getLibrary;
@@ -501,10 +516,10 @@ test('GET /v1/space-stats uses lightweight SQLite rows', async () => {
     assert.strictEqual(res.statusCode, 200);
     const body = res.json();
     assert.strictEqual(body.currentTotalBytes, 6000);
-    assert.strictEqual(body.delete.expectedSavingsBytes, 1000);
+    assert.strictEqual(body.delete.expectedSavingsBytes, 0);
     assert.strictEqual(body.transcode.expectedSavingsBytes, 1000);
     assert.strictEqual(body.transcode.realizedSavingsBytes, 400);
-    assert.ok(Math.abs(body.upgrade.expectedIncreaseBytes - 1800) < 0.001);
+    assert.strictEqual(body.upgrade.expectedIncreaseBytes, 0);
     assert.strictEqual(body.upgrade.realizedIncreaseBytes, 2000);
     assert.strictEqual(body.subLibraries[0].itemCount, 3);
   } finally {
@@ -514,34 +529,25 @@ test('GET /v1/space-stats uses lightweight SQLite rows', async () => {
   }
 });
 
-test('POST /v1/library/cache keeps stable ShelfDeck itemId when Emby Id changes', async () => {
+test('library fixture helper keeps stable ShelfDeck itemId when Emby Id changes', async () => {
   const app = await buildEmptyApp();
   const subLibraryId = 'sublib-stable-id';
   const discPath = '/volume1/Media/Film/Fight Club (1999)/Fight Club (1999) - x264 2Audio';
   const mkvPath = `${discPath}.mkv`;
 
-  await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: {
-      subLibraryId,
-      items: [
-        {
-          sourceId: 'emby-old-id',
-          name: 'Fight Club',
-          type: 'Movie',
-          path: discPath,
-          bitrate: 14000000,
-          duration: 8348,
-          resolution: '1920x1080',
-          size: 15000000000,
-          premiereDate: '1999-10-15',
-          genres: [],
-          isDiscLike: true,
-        },
-      ],
-    },
-  });
+  seedLibraryCache(subLibraryId, [{
+    sourceId: 'emby-old-id',
+    name: 'Fight Club',
+    type: 'Movie',
+    path: discPath,
+    bitrate: 14000000,
+    duration: 8348,
+    resolution: '1920x1080',
+    size: 15000000000,
+    premiereDate: '1999-10-15',
+    genres: [],
+    isDiscLike: true,
+  }], { fullSync: true });
 
   const first = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLibraryId}` });
   const firstItem = first.json().items[0];
@@ -554,28 +560,19 @@ test('POST /v1/library/cache keeps stable ShelfDeck itemId when Emby Id changes'
   stored.lastTranscodeDoneAt = '2026-06-23T02:21:55.016Z';
   mediaLibraryService.saveLibrary(lib);
 
-  await app.inject({
-    method: 'POST',
-    url: '/v1/library/cache',
-    payload: {
-      subLibraryId,
-      items: [
-        {
-          sourceId: 'emby-new-id',
-          name: 'Fight Club',
-          type: 'Movie',
-          path: mkvPath,
-          bitrate: 8700000,
-          duration: 8348,
-          resolution: '1920x1080',
-          size: 9000000000,
-          premiereDate: '1999-10-15',
-          genres: [],
-          isDiscLike: false,
-        },
-      ],
-    },
-  });
+  seedLibraryCache(subLibraryId, [{
+    sourceId: 'emby-new-id',
+    name: 'Fight Club',
+    type: 'Movie',
+    path: mkvPath,
+    bitrate: 8700000,
+    duration: 8348,
+    resolution: '1920x1080',
+    size: 9000000000,
+    premiereDate: '1999-10-15',
+    genres: [],
+    isDiscLike: false,
+  }], { fullSync: true });
 
   const second = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLibraryId}` });
   const body = second.json();
@@ -646,12 +643,17 @@ test('GET /v1/integrations/douban/fetch/ratings missing subLibraryId -> 400', as
 test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
   // Per API.md §5.4: only awaiting_user_confirm tasks can be confirmed.
   const app = await buildEmptyApp();
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'confirm-wrong-status', actionType: 'transcode' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'confirm-wrong-status', targetGate: 'metadata' } });
   const { id } = create.json();
   // Task status is 'created' — confirm must return 409
   const res = await app.inject({ method: 'PATCH', url: `/v1/tasks/${id}`, payload: { confirmed: true } });
   assert.strictEqual(res.statusCode, 409);
-  assert.strictEqual(res.json().error.code, 'TASK_CONFLICT');
+  assert.strictEqual(res.json().error.code, 'TASK_ACTION_REJECTED');
+  assert.strictEqual(res.json().error.message, 'not_awaiting_confirmation');
+  assert.strictEqual(res.json().actionName, 'confirm');
+  assert.strictEqual(res.json().action.enabled, false);
+  assert.strictEqual(res.json().controlState.actions.confirm.reason, 'not_awaiting_confirmation');
+  assert.strictEqual(res.json().task.id, id);
   await app.close();
 });
 
@@ -660,10 +662,15 @@ test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
 test('POST /v1/tasks duplicate itemId (active task exists) -> 409', async () => {
   const app = await buildEmptyApp();
   const itemId = 'dup-item-' + crypto.randomUUID().slice(0, 8);
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'transcode' } });
-  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, actionType: 'delete' } });
+  const first = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, targetGate: 'metadata' } });
+  const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, targetGate: 'metadata' } });
   assert.strictEqual(res.statusCode, 409);
   assert.strictEqual(res.json().error.code, 'TASK_CONFLICT');
+  assert.strictEqual(res.json().admission.reason, 'active_task_exists');
+  assert.strictEqual(res.json().activeTask.id, first.json().id);
+  assert.strictEqual(res.json().activeTask.itemId, itemId);
+  assert.strictEqual(res.json().activeTask.taskBridge.kind, 'metadata');
+  assert.strictEqual(res.json().activeTask.flowPlan.flowKind, 'scrape');
   await app.close();
 });
 
@@ -674,7 +681,7 @@ test('POST /v1/tasks/:id/actions/execute pending_manual -> queued', async () => 
   // Write config with manual mode
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ executionMode: 'manual' }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'manual-exec', actionType: 'transcode' } });
+  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'manual-exec', targetGate: 'metadata' } });
   const { id } = create.json();
   assert.strictEqual(create.json().status, 'pending_manual');
   const res = await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/execute` });
@@ -702,12 +709,9 @@ test('GET /v1/library returns items with embyWebUrl when server configured', asy
   }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   // Insert item into this sublib
-  await app.inject({
-    method: 'POST', url: '/v1/library/cache',
-    payload: { subLibraryId: 'sublib-web', items: [
-      { sourceId: 'emby-web-1', name: 'Web Test', type: 'Movie', path: '/m/w.mkv', bitrate: 8000000, duration: 3600, resolution: '1920x1080', size: 3000000000, premiereDate: '2025-03-01', genres: [], isDiscLike: false },
-    ] },
-  });
+  seedLibraryCache('sublib-web', [
+    { sourceId: 'emby-web-1', name: 'Web Test', type: 'Movie', path: '/m/w.mkv', bitrate: 8000000, duration: 3600, resolution: '1920x1080', size: 3000000000, premiereDate: '2025-03-01', genres: [], isDiscLike: false },
+  ]);
   const res = await app.inject({ method: 'GET', url: '/v1/library?subLibraryId=sublib-web' });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();

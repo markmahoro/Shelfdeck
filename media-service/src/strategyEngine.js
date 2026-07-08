@@ -1,22 +1,29 @@
 'use strict';
 
 /**
- * StrategyEngine — rule-based strategy evaluation.
+ * StrategyEngine — legacy module for optimize target projection.
  *
  * Reads the media library store, evaluates each item against the subLibrary's rule
- * template, and writes action/reason/targetBitrate/targetCodec/predictedSizeGb.
+ * template, and writes archive-before target facts for lifecycle objective projection.
  *
  * Decoupled from all data-writing paths. Only reads library + config,
- * only writes strategy fields.
+ * only writes optimize target projection fields. It must not make flow/task decisions.
  */
 
 const activityLog = require('./activityLog');
 const metadataStatus = require('./metadataStatus');
+const lifecycleObjectiveResolver = require('./lifecycleObjectiveResolver');
+const runtimeResourceTracker = require('./runtimeResourceTracker');
+const backgroundIoGuard = require('./backgroundIoGuard');
+const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
+
+const BACKGROUND_IO_LOCK = 'library_background_io';
 
 let timer = null;
 let lastRunAt = null;
 let lastChanged = 0;
 let lastError = null;
+let disabledReason = '';
 
 // ── Condition evaluation ───────────────────────────────────────────────────────
 
@@ -79,65 +86,100 @@ function ruleMatches(item, rule) {
 // ── Result computation ─────────────────────────────────────────────────────────
 
 function applyRule(item, rule) {
-  item.action = rule.action;
+  const projection = deriveTargetProjection(item, rule);
   item.reason = rule.reason;
+  item.targetMediaFacts = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object'
+    ? { ...rule.targetMediaFacts }
+    : undefined;
+  delete item.targetBitrate;
 
-  const params = rule.actionParams || {};
+  const targetProjection = projection.targetProjection || {};
 
-  if (rule.action === 'transcode' || rule.action === 'upgrade') {
-    item.targetBitrate = params.targetBitrate;
-    item.targetCodec = params.targetCodec;
-  } else {
-    item.targetBitrate = undefined;
-    item.targetCodec = undefined;
-  }
+  item.targetCodec = targetProjection.targetCodec;
 
-  if (rule.action === 'upgrade') {
-    item.seedPreferences = params.seedPreferences || {};
-    item.maxSizeGB = params.maxSizeGB;
-  } else {
-    item.seedPreferences = undefined;
-    item.maxSizeGB = undefined;
-  }
+  item.seedPreferences = targetProjection.seedPreferences;
+  item.maxSizeGB = targetProjection.maxSizeGB;
 
   // predictedSizeGb
-  if ((rule.action === 'transcode' || rule.action === 'upgrade') && params.targetBitrate && item.duration) {
-    item.predictedSizeGb = (params.targetBitrate * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024);
-  } else if (rule.action === 'keep' && item.size) {
-    item.predictedSizeGb = item.size / (1024 * 1024 * 1024);
-  } else if (rule.action === 'delete') {
-    item.predictedSizeGb = undefined;
+  if (targetProjection.targetMbps && item.duration) {
+    item.predictedSizeGb = (targetProjection.targetMbps * 1_000_000 * item.duration) / (8 * 1024 * 1024 * 1024);
   } else {
     item.predictedSizeGb = undefined;
   }
 }
 
+function normalizeCodec(value) {
+  const raw = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (['h265', 'x265', 'hevc'].includes(raw)) return 'h265';
+  if (['h264', 'x264', 'avc', 'avc1'].includes(raw)) return 'h264';
+  return raw;
+}
+
+function deriveTargetProjection(item = {}, rule = {}) {
+  const target = rule.targetMediaFacts && typeof rule.targetMediaFacts === 'object' ? rule.targetMediaFacts : null;
+  if (!target) {
+    return { targetProjection: {} };
+  }
+  const profile = bitrateObjectiveProfile.resolveBitrateProfile({ targetMediaFacts: target, item });
+  return {
+    targetProjection: {
+      targetMbps: profile ? profile.targetMbps : undefined,
+      targetCodec: target.targetCodec || target.codec,
+      maxSizeGB: target.maxSizeGB,
+      seedPreferences: target.seedPreferences,
+    },
+  };
+}
+
 function clearOptimization(item, reason) {
+  const hadLegacyTargetBitrate = Object.prototype.hasOwnProperty.call(item, 'targetBitrate');
   const old = {
-    action: item.action,
     reason: item.reason,
-    targetBitrate: item.targetBitrate,
     targetCodec: item.targetCodec,
     seedPreferences: JSON.stringify(item.seedPreferences || null),
     maxSizeGB: item.maxSizeGB,
     predictedSizeGb: item.predictedSizeGb,
+    targetMediaFacts: JSON.stringify(item.targetMediaFacts || null),
   };
-  item.action = '';
   item.reason = reason || '';
-  item.targetBitrate = undefined;
+  delete item.targetBitrate;
   item.targetCodec = undefined;
   item.seedPreferences = undefined;
   item.maxSizeGB = undefined;
   item.predictedSizeGb = undefined;
+  item.targetMediaFacts = undefined;
   return (
-    item.action !== old.action ||
     item.reason !== old.reason ||
-    item.targetBitrate !== old.targetBitrate ||
+    hadLegacyTargetBitrate ||
     item.targetCodec !== old.targetCodec ||
     JSON.stringify(item.seedPreferences || null) !== old.seedPreferences ||
     item.maxSizeGB !== old.maxSizeGB ||
-    item.predictedSizeGb !== old.predictedSizeGb
+    item.predictedSizeGb !== old.predictedSizeGb ||
+    JSON.stringify(item.targetMediaFacts || null) !== old.targetMediaFacts
   );
+}
+
+function projectLifecycleObjective(item, config = {}) {
+  const before = JSON.stringify({
+    optimizeObjectiveStatus: item.optimizeObjectiveStatus || null,
+    optimizeObjective: item.optimizeObjective || null,
+    objectiveHash: item.objectiveHash || null,
+    objectiveVersion: item.objectiveVersion || null,
+    objectiveDerivedFrom: item.objectiveDerivedFrom || null,
+    objectiveBlockedReason: item.objectiveBlockedReason || null,
+    objectiveMissingPerceptionFacts: item.objectiveMissingPerceptionFacts || null,
+  });
+  lifecycleObjectiveResolver.applyOptimizeObjectiveProjection(item, { config, ignoreExistingProjection: true });
+  const after = JSON.stringify({
+    optimizeObjectiveStatus: item.optimizeObjectiveStatus || null,
+    optimizeObjective: item.optimizeObjective || null,
+    objectiveHash: item.objectiveHash || null,
+    objectiveVersion: item.objectiveVersion || null,
+    objectiveDerivedFrom: item.objectiveDerivedFrom || null,
+    objectiveBlockedReason: item.objectiveBlockedReason || null,
+    objectiveMissingPerceptionFacts: item.objectiveMissingPerceptionFacts || null,
+  });
+  return before !== after;
 }
 
 // ── Engine ─────────────────────────────────────────────────────────────────────
@@ -154,11 +196,13 @@ function evaluateItem(item, templates, subLibs, config = {}) {
   item.metadataKind = meta.metadataKind;
 
   if (!meta.metadataComplete) {
-    return clearOptimization(item, `元数据缺失：${meta.metadataMissingReasons.join(', ')}`);
+    const changed = clearOptimization(item, `元数据缺失：${meta.metadataMissingReasons.join(', ')}`);
+    return projectLifecycleObjective(item, config) || changed;
   }
 
   if (!template || !template.rules || template.rules.length === 0) {
-    return clearOptimization(item, '无策略模板');
+    const changed = clearOptimization(item, '无策略模板');
+    return projectLifecycleObjective(item, config) || changed;
   }
 
   // Sort rules by priority ascending (P1 → P10), evaluate, last match wins
@@ -172,92 +216,123 @@ function evaluateItem(item, templates, subLibs, config = {}) {
   }
 
   if (!matched) {
-    return clearOptimization(item, '策略未覆盖');
+    const changed = clearOptimization(item, '策略未覆盖');
+    return projectLifecycleObjective(item, config) || changed;
   }
 
-  const oldAction = item.action;
   const oldReason = item.reason;
-  const oldTargetBitrate = item.targetBitrate;
+  const hadLegacyTargetBitrate = Object.prototype.hasOwnProperty.call(item, 'targetBitrate');
   const oldTargetCodec = item.targetCodec;
   const oldSeedPreferences = JSON.stringify(item.seedPreferences || null);
   const oldMaxSizeGB = item.maxSizeGB;
   const oldPredictedSizeGb = item.predictedSizeGb;
+  const oldTargetMediaFacts = JSON.stringify(item.targetMediaFacts || null);
 
   applyRule(item, matched);
 
-  return (
-    item.action !== oldAction ||
+  const changed = (
     item.reason !== oldReason ||
-    item.targetBitrate !== oldTargetBitrate ||
+    hadLegacyTargetBitrate ||
     item.targetCodec !== oldTargetCodec ||
     JSON.stringify(item.seedPreferences || null) !== oldSeedPreferences ||
     item.maxSizeGB !== oldMaxSizeGB ||
-    item.predictedSizeGb !== oldPredictedSizeGb
+    item.predictedSizeGb !== oldPredictedSizeGb ||
+    JSON.stringify(item.targetMediaFacts || null) !== oldTargetMediaFacts
   );
+  return projectLifecycleObjective(item, config) || changed;
 }
 
 let _configStore = null;
 let _mediaLibraryService = null;
 
-function runOnce() {
-  const lib = _mediaLibraryService.getLibrary();
-  if (!lib || !lib.items) return { changed: 0 };
+function runOnce(options = {}) {
+  if (options.background === true) {
+    return backgroundIoGuard.runExclusive({
+      operation: 'optimize.target_projection.run',
+      component: 'strategyEngine',
+      lockKey: BACKGROUND_IO_LOCK,
+      resourceType: 'background_io',
+      resourceKey: 'optimize-targets:run',
+      source: 'background',
+      payload: { trigger: options.trigger || 'timer' },
+    }, () => runOnce({ ...options, background: false }), {
+      onSkipped: () => ({ skipped: true, reason: 'background_io_busy' }),
+    });
+  }
 
-  const cfg = _configStore.loadConfig();
-  const templates = cfg.ruleTemplates || [];
-  const subLibs = cfg.subLibraries || [];
-  let changed = 0;
-  const changedItems = [];
+  return runtimeResourceTracker.trackEvent({
+    eventType: 'optimize.target_projection.run',
+    component: 'strategyEngine',
+    resourceType: 'service_cpu',
+    resourceKey: 'service:optimize-targets',
+    resourceLabel: 'Optimize target projection',
+    successPayload: (result) => result,
+  }, () => {
+    const lib = _mediaLibraryService.getLibrary();
+    if (!lib || !lib.items) return { changed: 0, itemCount: 0 };
 
-  for (const item of lib.items) {
-    if (item.type === 'series') {
-      // Series items are rating anchors only — never produce tasks
-      if (item.action !== 'keep' || item.reason !== '系列条目(非媒体文件)') {
-        item.action = 'keep';
-        item.reason = '系列条目(非媒体文件)';
-        item.targetBitrate = undefined;
-        item.targetCodec = undefined;
-        item.seedPreferences = undefined;
-        item.predictedSizeGb = undefined;
+    const cfg = _configStore.loadConfig();
+    const templates = cfg.ruleTemplates || [];
+    const subLibs = cfg.subLibraries || [];
+    let changed = 0;
+    const changedItems = [];
+
+    for (const item of lib.items) {
+      if (item.type === 'series') {
+        // Series items are rating anchors only — never produce tasks
+        if (item.reason !== '系列条目(非媒体文件)') {
+          item.reason = '系列条目(非媒体文件)';
+          delete item.targetBitrate;
+          item.targetCodec = undefined;
+          item.seedPreferences = undefined;
+          item.predictedSizeGb = undefined;
+          changed++;
+          changedItems.push(item);
+        }
+        continue;
+      }
+      if (evaluateItem(item, templates, subLibs, cfg)) {
         changed++;
         changedItems.push(item);
       }
-      continue;
     }
-    if (evaluateItem(item, templates, subLibs, cfg)) {
-      changed++;
-      changedItems.push(item);
+
+    lastChanged = changed;
+    lastRunAt = Date.now();
+
+    if (changed > 0) {
+      if (typeof _mediaLibraryService.updateLibraryItems === 'function') {
+        _mediaLibraryService.updateLibraryItems(changedItems);
+      } else {
+        _mediaLibraryService.saveLibrary(lib);
+      }
+      const msg = `优化目标计算完成，${changed} 个条目的归档前目标已更新`;
+      console.log(`[strategyEngine] ${msg}`);
+      activityLog.addActivity('optimize_target_projection', msg, { changed });
     }
-  }
 
-  lastChanged = changed;
-  lastRunAt = Date.now();
-
-  if (changed > 0) {
-    if (typeof _mediaLibraryService.updateLibraryItems === 'function') {
-      _mediaLibraryService.updateLibraryItems(changedItems);
-    } else {
-      _mediaLibraryService.saveLibrary(lib);
-    }
-    const msg = `策略重新计算完成，${changed} 个条目的推荐操作已更新`;
-    console.log(`[strategyEngine] ${msg}`);
-    activityLog.addActivity('strategy_engine', msg, { changed });
-  }
-
-  lastError = null;
-  return { changed };
+    lastError = null;
+    return { changed, itemCount: lib.items.length };
+  });
 }
 
 function start(configStore, mediaLibraryService) {
   _configStore = configStore;
   _mediaLibraryService = mediaLibraryService;
+  disabledReason = '';
 
   const cfg = configStore.loadConfig();
-  const intervalMs = (cfg.strategyPollIntervalMinutes || 30) * 60 * 1000;
+  const pollMinutes = Number(cfg.strategyPollIntervalMinutes);
+  if (Number.isFinite(pollMinutes) && pollMinutes <= 0) {
+    disabledReason = 'poll_interval_disabled';
+    console.log('[strategyEngine] disabled: strategyPollIntervalMinutes <= 0');
+    return;
+  }
+  const intervalMs = (pollMinutes || 30) * 60 * 1000;
 
-  runOnce();
+  runOnce({ background: true, trigger: 'startup' });
 
-  timer = setInterval(runOnce, intervalMs);
+  timer = setInterval(() => runOnce({ background: true, trigger: 'timer' }), intervalMs);
   timer.unref && timer.unref();
 }
 
@@ -269,6 +344,9 @@ function stop() {
 }
 
 function getHealth() {
+  if (disabledReason) {
+    return { status: 'green', disabled: true, disabledReason, lastRunAt, lastChanged };
+  }
   if (!timer) {
     return { status: 'red', lastRunAt: null, lastChanged: null };
   }

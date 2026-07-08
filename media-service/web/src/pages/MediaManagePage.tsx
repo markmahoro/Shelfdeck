@@ -1,18 +1,18 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
-import { libraryApi, taskApi, ApiConflictError, adult as adultApi, systemConfig } from '../api/client';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ApiConflictError, libraryApi, taskApi } from '../api/client';
 import type { SubLibraryInfo } from '../api/client';
-import { MediaLibraryManageRow } from '../components/MediaLibraryManageRow';
 import type { MediaTask } from '../types';
-import type { ManagedMediaItem, MediaAction, MediaRating } from '../models/media';
+import type { KairoxMediaProjection, KairoxTargetGate } from '../kairox';
+import {
+  isKairoxActiveTask,
+  mediaDisplayFacts,
+  targetGateLabel,
+  taskItemId,
+  toKairoxMediaProjection,
+  freshnessLabel,
+} from '../kairox';
 import '../mediaManage.css';
 
-const ACTION_LABELS: Record<string, string> = {
-  delete: '删除',
-  transcode: '转码压缩',
-  upgrade: '洗版',
-  scrape: '刮削',
-  ingest: '入库',
-};
 const MEDIA_MANAGE_SUB_LIBRARY_KEY = 'media_manage_sub_library_id';
 const MEDIA_MANAGE_PAGE_SIZE_KEY = 'media_manage_page_size';
 const DEFAULT_MEDIA_MANAGE_PAGE_SIZE = 50;
@@ -20,109 +20,67 @@ const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
 export default function MediaManagePage() {
   const [subLibraries, setSubLibraries] = useState<SubLibraryInfo[]>([]);
-  const [subLibraryId, setSubLibraryId] = useState<string>('');
-  const [items, setItems] = useState<ManagedMediaItem[]>([]);
+  const [subLibraryId, setSubLibraryId] = useState('');
+  const [rawItems, setRawItems] = useState<unknown[]>([]);
+  const [tasks, setTasks] = useState<MediaTask[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
-  const [tasks, setTasks] = useState<MediaTask[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [creatingTaskIds, setCreatingTaskIds] = useState<Set<string>>(() => new Set());
-  const [searchQuery, setSearchQuery] = useState('');
-  const [actionFilter, setActionFilter] = useState<string>('all');
-  const [resolutionFilter, setResolutionFilter] = useState<string>('all');
-  const [codecFilter, setCodecFilter] = useState<string>('all');
-  const [watchedFilter, setWatchedFilter] = useState<string>('all');
-  const [bluRayFilter, setBluRayFilter] = useState<string>('all');
-  const [doubanFilter, setDoubanFilter] = useState<string>('all');
-  const [localRatingFilter, setLocalRatingFilter] = useState<string>('all');
-  const [taskFilter, setTaskFilter] = useState<string>('all');
-  const [scrapeFilter, setScrapeFilter] = useState<string>('all');
-  const [pageSize, setPageSize] = useState<number>(() => {
+  const [pageSize, setPageSize] = useState(() => {
     const saved = Number(localStorage.getItem(MEDIA_MANAGE_PAGE_SIZE_KEY));
     return PAGE_SIZE_OPTIONS.includes(saved) ? saved : DEFAULT_MEDIA_MANAGE_PAGE_SIZE;
   });
-  const [, setActiveSubLibName] = useState<string>('全部');
-  const [strategyMsg, setStrategyMsg] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [metadataFilter, setMetadataFilter] = useState('all');
+  const [lifecycleFilter, setLifecycleFilter] = useState('all');
+  const [ratingFilter, setRatingFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [smartTaskActions, setSmartTaskActions] = useState<string[] | null>(null);
+  const [creatingTaskIds, setCreatingTaskIds] = useState<Set<string>>(() => new Set());
+  const [detailItem, setDetailItem] = useState<KairoxMediaProjection | null>(null);
 
-  // Fetch subLibrary list
   useEffect(() => {
-    libraryApi.getStatus().then((s) => {
-      const enabled = s.subLibraries.filter((sl) => sl.enabled);
-      setSubLibraries(enabled);
-      setSubLibraryId((current) => {
-        if (current) return current;
-        const saved = localStorage.getItem(MEDIA_MANAGE_SUB_LIBRARY_KEY);
-        if (saved !== null && (saved === '' || enabled.some((sl) => sl.uuid === saved))) return saved;
-        return '';
-      });
-    }).catch(() => {});
-    systemConfig.get().then((cfg) => {
-      setSmartTaskActions(Array.isArray(cfg.smartTaskEnabledActions) ? cfg.smartTaskEnabledActions : []);
-    }).catch(() => {});
+    libraryApi.getStatus()
+      .then((status) => {
+        const enabled = status.subLibraries.filter((sl) => sl.enabled);
+        setSubLibraries(enabled);
+        setSubLibraryId((current) => {
+          if (current && enabled.some((sl) => sl.uuid === current)) return current;
+          const saved = localStorage.getItem(MEDIA_MANAGE_SUB_LIBRARY_KEY);
+          if (saved !== null && (saved === '' || enabled.some((sl) => sl.uuid === saved))) return saved;
+          return '';
+        });
+      })
+      .catch(() => {});
   }, []);
 
-  const selectedSubLibrary = useMemo(
-    () => subLibraries.find((sl) => sl.uuid === subLibraryId) || null,
-    [subLibraries, subLibraryId],
-  );
-  const showAdultFields = !subLibraryId || selectedSubLibrary?.mediaType === 'adult';
-  const showStandardFields = !subLibraryId || selectedSubLibrary?.mediaType !== 'adult';
-  const mediaGridClass = showAdultFields && showStandardFields
-    ? 'mediaManageGridMixed'
-    : showAdultFields
-      ? 'mediaManageGridAdult'
-      : 'mediaManageGridStandard';
-
   useEffect(() => {
-    if (!showAdultFields && scrapeFilter !== 'all') setScrapeFilter('all');
-    if (!showStandardFields) {
-      if (watchedFilter !== 'all') setWatchedFilter('all');
-      if (bluRayFilter !== 'all') setBluRayFilter('all');
-      if (doubanFilter !== 'all') setDoubanFilter('all');
-      if (actionFilter === 'upgrade') setActionFilter('all');
-    }
-  }, [showAdultFields, showStandardFields, scrapeFilter, watchedFilter, bluRayFilter, doubanFilter, actionFilter]);
-
-  useEffect(() => {
+    localStorage.setItem(MEDIA_MANAGE_SUB_LIBRARY_KEY, subLibraryId);
     setPage(0);
-    setSelectedIds(new Set());
-  }, [subLibraryId, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter, pageSize]);
+  }, [subLibraryId, searchQuery, metadataFilter, lifecycleFilter, ratingFilter, pageSize]);
 
   useEffect(() => {
-    setSelectedIds(new Set());
-  }, [page]);
+    localStorage.setItem(MEDIA_MANAGE_PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
 
-  // Fetch library data when subLibraryId changes
   useEffect(() => {
     let active = true;
     setLoading(true);
-    libraryApi
-      .getCache({
-        subLibraryId: subLibraryId || undefined,
-        limit: pageSize,
-        offset: page * pageSize,
-        search: searchQuery.trim() || undefined,
-        action: actionFilter,
-        resolution: resolutionFilter,
-        codec: codecFilter,
-        watched: showStandardFields ? watchedFilter : 'all',
-        bluRay: showStandardFields ? bluRayFilter : 'all',
-        douban: showStandardFields ? doubanFilter : 'all',
-        userRating: localRatingFilter,
-        task: taskFilter,
-        scrape: showAdultFields ? scrapeFilter : 'all',
-      })
+    setError(null);
+    libraryApi.getCache({
+      subLibraryId: subLibraryId || undefined,
+      limit: pageSize,
+      offset: page * pageSize,
+      projection: 'manage',
+      search: searchQuery.trim() || undefined,
+      metadata: metadataFilter,
+      lifecycle: lifecycleFilter,
+      userRating: ratingFilter,
+    })
       .then((data) => {
         if (!active) return;
-        const rows = (data.items as unknown[])
-          .map(coerceManagedItem)
-          .filter((x): x is ManagedMediaItem => x != null);
-        setItems(rows);
+        setRawItems(Array.isArray(data.items) ? data.items : []);
         setTotal(data.total || 0);
         setLoading(false);
       })
@@ -132,63 +90,52 @@ export default function MediaManagePage() {
         setLoading(false);
       });
     return () => { active = false; };
-  }, [subLibraryId, page, pageSize, refreshKey, searchQuery, actionFilter, resolutionFilter, codecFilter, watchedFilter, bluRayFilter, doubanFilter, localRatingFilter, taskFilter, scrapeFilter, showAdultFields]);
+  }, [subLibraryId, page, pageSize, searchQuery, metadataFilter, lifecycleFilter, ratingFilter, refreshKey]);
 
-  // Poll tasks
   useEffect(() => {
-    const poll = () => {
-      taskApi.getTasks({ activeOnly: true }).then(setTasks).catch(() => {});
-    };
+    const poll = () => taskApi.getTasks({ activeOnly: true }).then(setTasks).catch(() => {});
     poll();
-    const id = setInterval(poll, 3000);
-    return () => clearInterval(id);
+    const id = window.setInterval(poll, 3000);
+    return () => window.clearInterval(id);
   }, []);
 
-  const autoEntryNotice = useMemo(() => {
-    const disabledCounts: Record<string, number> = {};
-    if (!smartTaskActions) return null;
-    for (const it of items) {
-      const action = it.recommendedAction || 'keep';
-      if (action === 'keep') continue;
-      if (!smartTaskActions.includes(action)) {
-        disabledCounts[action] = (disabledCounts[action] || 0) + 1;
-      }
+  const activeTaskByItemId = useMemo(() => {
+    const map = new Map<string, MediaTask>();
+    for (const task of tasks) {
+      const itemId = taskItemId(task);
+      if (itemId && isKairoxActiveTask(task)) map.set(itemId, task);
     }
-    const parts = Object.entries(disabledCounts)
-      .filter(([, count]) => count > 0)
-      .map(([action, count]) => `${ACTION_LABELS[action] || action} ${count} 条`);
-    if (parts.length === 0) return null;
-    return `当前列表有 ${parts.join('、')}推荐策略未启用后台自动入队。这些条目只会显示建议，不会自动出现在任务中心；可以手动点击每行的策略按钮，或到「任务调度」启用对应任务类型。`;
-  }, [items, smartTaskActions]);
+    return map;
+  }, [tasks]);
 
-  const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
+  const projections = useMemo(() => rawItems
+    .map((raw) => {
+      const itemId = raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? String((raw as Record<string, unknown>).id || (raw as Record<string, unknown>).itemId || '')
+        : '';
+      return toKairoxMediaProjection(raw, activeTaskByItemId.get(itemId) || null);
+    })
+    .filter((item): item is KairoxMediaProjection => item != null), [activeTaskByItemId, rawItems]);
+
   const rangeStart = total === 0 ? 0 : page * pageSize + 1;
-  const rangeEnd = Math.min(total, page * pageSize + items.length);
+  const rangeEnd = Math.min(total, page * pageSize + projections.length);
+  const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
 
-  const upsertActiveTask = useCallback((task: MediaTask) => {
-    setTasks((prev) => {
-      const next = prev.filter((t) => t.id !== task.id);
-      return [task, ...next];
-    });
-  }, []);
-
-  const enqueueManagedAction = useCallback(async (item: ManagedMediaItem, action: MediaAction): Promise<MediaTask | null> => {
-    if (item.isBluRayDisc && action === 'upgrade') return null;
+  const createTargetGateTask = useCallback(async (item: KairoxMediaProjection, targetGate: KairoxTargetGate) => {
     setCreatingTaskIds((prev) => new Set(prev).add(item.id));
     try {
-      const task = await taskApi.createByIntent({ itemId: item.id, actionType: action });
-      upsertActiveTask(task);
+      const task = await taskApi.createByIntent({
+        itemId: item.id,
+        targetGate,
+        gateObjective: item.nextAction?.gateObjective || (targetGate === 'optimize' ? item.objective || undefined : undefined),
+      });
+      setTasks((prev) => [task, ...prev.filter((t) => t.id !== task.id)]);
+      setNotice(`已创建「${targetGateLabel(targetGate)}」任务：${item.title}`);
       setError(null);
-      const statusHint = task.status === 'pending_manual'
-        ? '当前状态为待手动启动，可在任务中心点击“启动”。'
-        : '已进入任务调度，可在任务中心查看进度。';
-      setNotice(`已创建「${ACTION_LABELS[action] || action}」任务：${item.name}。${statusHint}`);
-      return task;
+      setRefreshKey((v) => v + 1);
     } catch (e) {
       setNotice(null);
-      if (e instanceof ApiConflictError) setError(e.message);
-      else setError(`创建任务失败：${(e as Error).message}`);
-      return null;
+      setError(e instanceof ApiConflictError ? formatTaskConflict(e) : `创建任务失败：${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setCreatingTaskIds((prev) => {
         const next = new Set(prev);
@@ -196,403 +143,328 @@ export default function MediaManagePage() {
         return next;
       });
     }
-  }, [upsertActiveTask]);
-
-  const runBatchSelection = useCallback(async () => {
-    const selected = items.filter((it) => selectedIds.has(it.id));
-    let skipped = 0;
-    let created = 0;
-    let failed = 0;
-    for (const it of selected) {
-      const action = it.recommendedAction ?? 'keep';
-      if (action === 'keep') {
-        skipped += 1;
-        continue;
-      }
-      const task = await enqueueManagedAction(it, action);
-      if (task) created += 1;
-      else failed += 1;
-    }
-    setNotice(`批量创建完成：成功 ${created} 条，跳过 ${skipped} 条，失败 ${failed} 条。`);
-    if (created > 0) setSelectedIds(new Set());
-  }, [enqueueManagedAction, items, selectedIds]);
-
-  const rescrapeAdultItem = useCallback(async (item: ManagedMediaItem) => {
-    try {
-      await adultApi.rescrapeItem(item.id);
-      setRefreshKey((k) => k + 1);
-    } catch (e) {
-      setError(`重新刮削失败：${(e as Error).message}`);
-    }
   }, []);
 
-  const toggleSelectedItem = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const updateRating = useCallback(async (item: KairoxMediaProjection, value: number | null) => {
+    await libraryApi.patchRatings(item.id, value);
+    setRefreshKey((v) => v + 1);
   }, []);
 
-  const handleWatchChange = useCallback(async (it: ManagedMediaItem, watched: boolean) => {
-    setItems((prev) =>
-      prev.map((x) => (x.id === it.id ? { ...x, watched } : x)),
-    );
-    try {
-      if (watched) {
-        await libraryApi.markPlayed(it.id, subLibraryId);
-      } else {
-        await libraryApi.markUnplayed(it.id, subLibraryId);
-      }
-    } catch (e) {
-      setItems((prev) =>
-        prev.map((x) => (x.id === it.id ? { ...x, watched: !watched } : x)),
-      );
-      setError(`标记失败：${(e as Error).message}`);
-    }
-  }, [subLibraryId]);
-
-  const handleRatingChange = useCallback(async (it: ManagedMediaItem, rating: MediaRating | null) => {
-    await libraryApi.patchRatings(it.id, rating);
-    setItems((prev) =>
-      prev.map((x) => (x.id === it.id ? { ...x, rating } : x)),
-    );
+  const updateWatched = useCallback(async (item: KairoxMediaProjection, watched: boolean) => {
+    if (watched) await libraryApi.markPlayed(item.id, item.subLibraryId || undefined);
+    else await libraryApi.markUnplayed(item.id, item.subLibraryId || undefined);
+    setRefreshKey((v) => v + 1);
   }, []);
-
-  if (loading) return <div className="page"><p>加载媒体库数据...</p></div>;
 
   return (
-    <div className="page">
-      <div className="pageSidebar">
-        {/* SubLibrary selector */}
+    <div className="page kairoxMediaPage">
+      <aside className="pageSidebar">
         <div className="sidebarMuted">媒体库</div>
-        <select
-          value={subLibraryId}
-          onChange={(e) => {
-            const id = e.target.value;
-            setSubLibraryId(id);
-            localStorage.setItem(MEDIA_MANAGE_SUB_LIBRARY_KEY, id);
-            setActiveSubLibName(id ? subLibraries.find(sl => sl.uuid === id)?.name || '' : '全部');
-            setSelectedIds(new Set());
-          }}
-        >
-          <option value="">全部（{subLibraries.length} 个库）</option>
-        {subLibraries.map((sl) => (
+        <select value={subLibraryId} onChange={(e) => setSubLibraryId(e.target.value)}>
+          <option value="">全部媒体库</option>
+          {subLibraries.map((sl) => (
             <option key={sl.uuid} value={sl.uuid}>{sl.name}</option>
           ))}
         </select>
 
-        <div className="sidebarMuted" style={{ marginTop: 16 }}>筛选</div>
+        <div className="sidebarMuted">搜索</div>
         <div className="sidebarSearchWrap">
           <input
             className="sidebarSearch"
-            placeholder="搜索名称..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="标题、文件名、条目 ID"
           />
           {searchQuery && (
-            <button
-              className="sidebarSearchClear"
-              type="button"
-              onClick={() => setSearchQuery('')}
-              aria-label="清除搜索"
-            >
-              ×
-            </button>
+            <button className="sidebarSearchClear" onClick={() => setSearchQuery('')} aria-label="清空搜索">×</button>
           )}
         </div>
-        <div className="filterRow">
-          <span className="filterLabel">建议策略</span>
-          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="transcode">转码压缩</option>
-            {showStandardFields && <option value="upgrade">洗版</option>}
-            <option value="keep">无建议策略</option>
-            <option value="delete">删除</option>
-          </select>
-        </div>
-        <div className="filterRow">
-          <span className="filterLabel">分辨率</span>
-          <select value={resolutionFilter} onChange={(e) => setResolutionFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="1080p">1080p</option>
-            <option value="4K">4K</option>
-          </select>
-        </div>
-        <div className="filterRow">
-          <span className="filterLabel">编码</span>
-          <select value={codecFilter} onChange={(e) => setCodecFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="h264">H.264</option>
-            <option value="h265">H.265</option>
-            <option value="av1">AV1</option>
-          </select>
-        </div>
-        {showStandardFields && (
-          <>
-            <div className="filterRow">
-              <span className="filterLabel">标记已看</span>
-              <select value={watchedFilter} onChange={(e) => setWatchedFilter(e.target.value)}>
-                <option value="all">全部</option>
-                <option value="watched">已观看</option>
-                <option value="unwatched">未观看</option>
-              </select>
-            </div>
-            <div className="filterRow">
-              <span className="filterLabel">原盘</span>
-              <select value={bluRayFilter} onChange={(e) => setBluRayFilter(e.target.value)}>
-                <option value="all">全部</option>
-                <option value="disc">原盘</option>
-                <option value="not_disc">非原盘</option>
-              </select>
-            </div>
-            <div className="filterRow">
-              <span className="filterLabel">豆瓣评分</span>
-              <select value={doubanFilter} onChange={(e) => setDoubanFilter(e.target.value)}>
-                <option value="all">全部</option>
-                <option value="5">5 星</option>
-                <option value="4">4 星</option>
-                <option value="3">3 星</option>
-                <option value="2">2 星</option>
-                <option value="1">1 星</option>
-                <option value="none">未抓取</option>
-              </select>
-            </div>
-          </>
-        )}
-        <div className="filterRow">
-          <span className="filterLabel">本地评分</span>
-          <select value={localRatingFilter} onChange={(e) => setLocalRatingFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="5">5 星</option>
-            <option value="4">4 星</option>
-            <option value="3">3 星</option>
-            <option value="2">2 星</option>
-            <option value="1">1 星</option>
-            <option value="none">未标注</option>
-          </select>
-        </div>
-        <div className="filterRow">
-          <span className="filterLabel">任务</span>
-          <select value={taskFilter} onChange={(e) => setTaskFilter(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="active">进行中</option>
-            <option value="none">无任务</option>
-          </select>
-        </div>
-        {showAdultFields && (
-          <div className="filterRow">
-            <span className="filterLabel">刮削</span>
-            <select value={scrapeFilter} onChange={(e) => setScrapeFilter(e.target.value)}>
-              <option value="all">全部</option>
-              <option value="done">已刮削</option>
-              <option value="pending">待刮削</option>
-              <option value="failed">刮削失败</option>
-            </select>
-          </div>
-        )}
 
-        <button
-          className="sidebarFilterReset"
-          type="button"
-          onClick={() => {
-            setSearchQuery('');
-            setActionFilter('all');
-            setResolutionFilter('all');
-            setCodecFilter('all');
-            if (showStandardFields) {
-              setWatchedFilter('all');
-              setBluRayFilter('all');
-              setDoubanFilter('all');
-            }
-            setLocalRatingFilter('all');
-            setTaskFilter('all');
-            if (showAdultFields) setScrapeFilter('all');
-          }}
-        >
-          清除筛选
-        </button>
+        <FilterSelect label="元数据" value={metadataFilter} onChange={setMetadataFilter} options={[
+          ['all', '全部'],
+          ['complete', '完整'],
+          ['missing', '缺失'],
+        ]} />
+        <FilterSelect label="阶段" value={lifecycleFilter} onChange={setLifecycleFilter} options={[
+          ['all', '全部'],
+          ['metadata', '元数据'],
+          ['optimize', '优化'],
+          ['archive', '归档'],
+          ['delete', '处置'],
+        ]} />
+        <FilterSelect label="评分" value={ratingFilter} onChange={setRatingFilter} options={[
+          ['all', '全部'],
+          ['missing', '未评分'],
+          ['1', '1★'],
+          ['2', '2★'],
+          ['3', '3★'],
+          ['4', '4★'],
+          ['5', '5★'],
+        ]} />
+        <button className="sidebarFilterReset" onClick={() => {
+          setSearchQuery('');
+          setMetadataFilter('all');
+          setLifecycleFilter('all');
+          setRatingFilter('all');
+        }}>重置筛选</button>
+      </aside>
 
-        <button
-          type="button"
-          style={{ background: '#f0f0f0', border: '1px solid #d0d0d0', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 13, marginTop: 12 }}
-          onClick={async () => {
-            setStrategyMsg('重算中...');
-            try {
-              const res = await libraryApi.recomputeStrategy();
-              setStrategyMsg(`策略重算完成：${res.changed} 条变更`);
-              setRefreshKey(k => k + 1);
-            } catch (e: any) {
-              setStrategyMsg(`重算失败：${e.message}`);
-            }
-          }}
-        >
-          刷新媒体库管理策略
-        </button>
-        {strategyMsg && <span style={{ fontSize: 12, color: '#666', marginLeft: 8 }}>{strategyMsg}</span>}
-
-        <div className="sidebarMuted" style={{ marginTop: 16 }}>批量操作</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-          <button type="button" onClick={() => setSelectedIds(new Set(items.map((it) => it.id)))}>
-            全选
-          </button>
-          <button
-            type="button"
-            disabled={selectedIds.size === 0}
-            onClick={() => setSelectedIds(new Set())}
-          >
-            取消全选
-          </button>
-        </div>
-        <button
-          type="button"
-          className="batchRunBtn"
-          disabled={selectedIds.size === 0 || creatingTaskIds.size > 0}
-          onClick={runBatchSelection}
-        >
-          {creatingTaskIds.size > 0 ? '创建任务中...' : '批量创建任务'}
-        </button>
-        <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
-          已选 {selectedIds.size} / {items.length} 条
-        </p>
-      </div>
-      <div className="pageMain">
+      <main className="pageMain">
         <div className="pageMainInner">
-          {error && <p className="error">{error}</p>}
+          <div className="kairoxMediaHeader">
+            <div>
+              <h1>媒体库</h1>
+              <p>查看媒体的当前事实、用户感知、生命周期位置和下一步目标。</p>
+            </div>
+            <button onClick={() => setRefreshKey((v) => v + 1)}>刷新</button>
+          </div>
+
           {notice && <div className="mediaNotice mediaNoticeSuccess">{notice}</div>}
-          {autoEntryNotice && <div className="mediaNotice">{autoEntryNotice}</div>}
+          {error && <div className="mediaNotice">{error}</div>}
+
           <div className="mediaPager">
-            <span>第 {page + 1} / {maxPage + 1} 页，显示 {rangeStart}-{rangeEnd}，共 {total} 条</span>
+            <span>显示 {rangeStart}-{rangeEnd} / {total}</span>
             <div className="mediaPagerControls">
               <label>
                 每页
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    const next = Number(e.target.value);
-                    if (PAGE_SIZE_OPTIONS.includes(next)) {
-                      setPageSize(next);
-                      localStorage.setItem(MEDIA_MANAGE_PAGE_SIZE_KEY, String(next));
-                    }
-                  }}
-                >
+                <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
                   {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
                 </select>
               </label>
-              <button type="button" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>上一页</button>
-              <button type="button" disabled={page >= maxPage} onClick={() => setPage((p) => Math.min(maxPage, p + 1))}>下一页</button>
+              <button disabled={page <= 0} onClick={() => setPage((v) => Math.max(0, v - 1))}>上一页</button>
+              <button disabled={page >= maxPage} onClick={() => setPage((v) => Math.min(maxPage, v + 1))}>下一页</button>
             </div>
           </div>
-          {items.length === 0 ? (
-            <p>暂未获取到媒体库数据。请先在管理端配置媒体库。</p>
+
+          {loading ? (
+            <div className="kairoxMediaEmpty">正在读取媒体事实...</div>
+          ) : projections.length === 0 ? (
+            <div className="kairoxMediaEmpty">当前筛选下没有媒体。</div>
           ) : (
-            <div>
-              <div className={`mediaManageGrid ${mediaGridClass} mediaManageHead`}>
-                <div className="mediaManageTitleCell">名称</div>
-                {showAdultFields && <div>刮削</div>}
-                {showStandardFields && <div>剧名</div>}
-                {showStandardFields && <div>季</div>}
-                <div>体积</div>
-                <div>分辨率</div>
-                <div>编码</div>
-                <div>当前码率</div>
-                <div>目标码率</div>
-                <div>预测体积</div>
-                <div>媒体优化</div>
-                {showStandardFields && <div>原盘</div>}
-                {showStandardFields && <div>豆瓣评分</div>}
-                <div>本地评分</div>
-                {showStandardFields && <div>标记已看</div>}
-                <div>建议策略</div>
-                <div>任务</div>
-              </div>
-              {items.map((item) => {
-                const rowTask = tasks.find(
-                  (t) => t.itemId === item.id && !['done', 'failed_hard'].includes(t.status),
-                );
-                return (
-                  <MediaLibraryManageRow
-                    key={item.id}
-                    item={item}
-                    isSelected={selectedIds.has(item.id)}
-                    isHighlighted={false}
-                    rowTask={rowTask}
-                    isCreatingTask={creatingTaskIds.has(item.id)}
-                    showAdultFields={showAdultFields}
-                    showStandardFields={showStandardFields}
-                    gridClassName={mediaGridClass}
-                    onToggleSelect={toggleSelectedItem}
-                    onWatchChange={handleWatchChange}
-                    onRatingChange={handleRatingChange}
-                    onEnqueue={enqueueManagedAction}
-                    onRescrape={rescrapeAdultItem}
-                  />
-                );
-              })}
+            <div className="kairoxMediaList">
+              {projections.map((item) => (
+                <MediaProjectionRow
+                  key={item.id}
+                  item={item}
+                  creating={creatingTaskIds.has(item.id)}
+                  onCreateTask={createTargetGateTask}
+                  onOpenDetail={setDetailItem}
+                  onRating={updateRating}
+                  onWatched={updateWatched}
+                />
+              ))}
             </div>
           )}
         </div>
-      </div>
+      </main>
+
+      {detailItem && <MediaDetailDrawer item={detailItem} onClose={() => setDetailItem(null)} />}
     </div>
   );
 }
 
-function coerceManagedItem(x: unknown): ManagedMediaItem | null {
-  if (!x || typeof x !== 'object') return null;
-  const o = x as Record<string, unknown>;
-  const itemType = typeof o.type === 'string' ? o.type : '';
+function MediaProjectionRow({
+  item,
+  creating,
+  onCreateTask,
+  onOpenDetail,
+  onRating,
+  onWatched,
+}: {
+  item: KairoxMediaProjection;
+  creating: boolean;
+  onCreateTask: (item: KairoxMediaProjection, targetGate: KairoxTargetGate) => void;
+  onOpenDetail: (item: KairoxMediaProjection) => void;
+  onRating: (item: KairoxMediaProjection, value: number | null) => void;
+  onWatched: (item: KairoxMediaProjection, watched: boolean) => void;
+}) {
+  const nextGate = item.nextAction?.targetGate || item.lifecycle.nextTargetGate || null;
+  const canCreateTask = item.nextAction?.kind === 'create_task' && nextGate;
+  return (
+    <article className="kairoxMediaRow">
+      <div className="kairoxMediaTitleCell">
+        <button className="kairoxLinkButton" onClick={() => onOpenDetail(item)}>{item.title}</button>
+        <div className="hint">{item.sourceFacts.sectionName as string || item.subLibraryId || '未知媒体库'} · {item.id}</div>
+      </div>
 
-  // Skip series items (transparent containers, no media)
-  if (itemType === 'series') return null;
+      <div className="kairoxFactStrip">
+        {mediaDisplayFacts(item).map((fact) => (
+          <span key={fact.label}><strong>{fact.label}</strong>{fact.value}</span>
+        ))}
+      </div>
 
-  const id = typeof o.itemId === 'string' ? o.itemId : typeof o.itemId === 'number' ? String(o.itemId) : '';
-  const rawName = typeof o.name === 'string' ? o.name.trim() : '';
-  const sectionId = typeof o.subLibraryId === 'string' ? o.subLibraryId : '';
-  if (!id || !sectionId) return null;
+      <div className="kairoxLifecycleCell">
+        <span className="kairoxGateBadge">{targetGateLabel(item.lifecycle.nextTargetGate) || '无'}</span>
+        {item.mediaFreeze.frozen && <span className="kairoxGateBadge">冻结中</span>}
+        <span>{item.lifecycle.reason || item.lifecycle.stage || '当前无待推进目标'}</span>
+      </div>
 
-  const seriesName = typeof o.seriesName === 'string' ? o.seriesName : undefined;
-  const seasonNumber = typeof o.seasonNumber === 'number' ? o.seasonNumber : undefined;
-  // For seasons, use seriesName S{seasonNum} as display name; fall back to raw name
-  const name = (itemType === 'season' && seriesName && seasonNumber != null)
-    ? `${seriesName} S${String(seasonNumber).padStart(2, '0')}`
-    : (rawName || id);
+      <div className="kairoxObjectiveCell">
+        {item.objective ? (
+          <code>{compactJson(item.objective)}</code>
+        ) : (
+          <span className="hint">未计算优化目标</span>
+        )}
+      </div>
 
-  const resRaw = typeof o.resolution === 'string' ? o.resolution : '';
-  const resHeight = parseInt(resRaw.split('x')[1], 10) || 0;
-  const resolution = resHeight >= 2160 ? '4K' : '1080p';
+      <div className="kairoxPerceptionCell">
+        <select
+          value={typeof item.userPerceptionFacts.rating === 'number' ? String(item.userPerceptionFacts.rating) : ''}
+          onChange={(e) => onRating(item, e.target.value ? Number(e.target.value) : null)}
+        >
+          <option value="">未评分</option>
+          {[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value}★</option>)}
+        </select>
+        <label>
+          <input
+            type="checkbox"
+            checked={item.userPerceptionFacts.watched === true}
+            onChange={(e) => onWatched(item, e.target.checked)}
+          />
+          已看
+        </label>
+      </div>
 
-  const sizeBytes = typeof o.size === 'number' ? o.size : 0;
-  const sizeGb = sizeBytes > 0 ? sizeBytes / (1024 * 1024 * 1024) : 1;
+      <div className="kairoxActionCell">
+        {item.activeTask ? (
+          <button onClick={() => onOpenDetail(item)}>查看任务</button>
+        ) : canCreateTask ? (
+          <button disabled={creating} onClick={() => onCreateTask(item, nextGate)}>
+            {creating ? '创建中...' : item.nextAction?.label}
+          </button>
+        ) : item.nextAction?.kind === 'review_delete_candidate' ? (
+          <button onClick={() => onOpenDetail(item)}>查看处置</button>
+        ) : item.nextAction?.kind === 'wait_media_freeze' ? (
+          <span className="hint">冻结至 {formatTimestamp(item.mediaFreeze.frozenUntil)}</span>
+        ) : (
+          <span className="hint">{item.nextAction?.label || '无需处理'}</span>
+        )}
+      </div>
+    </article>
+  );
+}
 
-  const durationSec = typeof o.duration === 'number' && o.duration > 0 ? o.duration : 3600;
+function MediaDetailDrawer({ item, onClose }: { item: KairoxMediaProjection; onClose: () => void }) {
+  return (
+    <div className="kairoxDrawerBackdrop" role="presentation" onClick={onClose}>
+      <aside className="kairoxDrawer" role="dialog" aria-modal="true" aria-label="媒体详情" onClick={(e) => e.stopPropagation()}>
+        <div className="kairoxDrawerHeader">
+          <div>
+            <h2>{item.title}</h2>
+            <p>{item.id}</p>
+          </div>
+          <button onClick={onClose}>关闭</button>
+        </div>
+        <FactSection title="来源事实" facts={item.sourceFacts} />
+        <FactSection title="媒体事实" facts={item.mediaFacts} />
+        <FactSection title="元数据事实" facts={item.metadataFacts} />
+        <FreshnessSection factsFreshness={item.factsFreshness} />
+        <FactSection title="用户感知" facts={item.userPerceptionFacts} />
+        <FactSection title="Gate facts" facts={item.gateFacts} />
+        <FactSection title="媒体冻结" facts={item.mediaFreeze as unknown as Record<string, unknown>} />
+        <FactSection title="媒体优化目标" facts={item.objective || {}} empty="暂无目标" />
+        {item.activeTask && <FactSection title="进行中的任务" facts={item.activeTask as unknown as Record<string, unknown>} />}
+      </aside>
+    </div>
+  );
+}
 
-  return {
-    id,
-    name,
-    sectionId,
-    source: typeof o.source === 'string' ? o.source : undefined,
-    itemType: itemType === 'movie' ? 'Movie' : itemType === 'season' ? 'Season' : undefined,
-    seriesName,
-    seasonNumber,
-    resolution,
-    codec: (typeof o.codec === 'string' && ['h264', 'h265', 'av1'].includes(o.codec)) ? (o.codec as 'h264' | 'h265' | 'av1') : 'h265',
-    durationSec,
-    sizeGb,
-    isBluRayDisc: Boolean(o.isDiscLike),
-    rating: typeof o.userRating === 'number' ? (o.userRating as MediaRating) : null,
-    doubanStars: typeof o.doubanRating === 'number' ? (o.doubanRating as MediaRating) : null,
-    watched: Boolean(o.watched),
-    reason: typeof o.reason === 'string' ? o.reason : undefined,
-    recommendedAction: typeof o.action === 'string' ? (o.action as MediaAction) : undefined,
-    equivalentBitrate: typeof o.equivalentBitrate === 'number' ? o.equivalentBitrate : undefined,
-    targetBitrate: typeof o.targetBitrate === 'number' ? o.targetBitrate : undefined,
-    predictedSizeGb: typeof o.predictedSizeGb === 'number' ? o.predictedSizeGb : undefined,
-    optimizationStatus: o.optimizationStatus === 'transcoded' || o.optimizationStatus === 'upgraded' ? o.optimizationStatus : 'none',
-    optimizationAction: o.optimizationAction === 'transcode' || o.optimizationAction === 'upgrade' ? o.optimizationAction : null,
-    optimizationDoneAt: typeof o.optimizationDoneAt === 'string' ? o.optimizationDoneAt : null,
-    optimizationTaskId: typeof o.optimizationTaskId === 'string' ? o.optimizationTaskId : null,
-    scraped: Boolean(o.scraped),
-    adultMetadata: o.adultMetadata && typeof o.adultMetadata === 'object' ? (o.adultMetadata as Record<string, unknown>) : undefined,
-  };
+function FreshnessSection({ factsFreshness }: { factsFreshness: KairoxMediaProjection['factsFreshness'] }) {
+  const rows = [
+    ['来源事实', factsFreshness.sourceFacts],
+    ['媒体事实', factsFreshness.mediaFacts],
+    ['元数据事实', factsFreshness.metadataFacts],
+    ['用户感知', factsFreshness.userPerceptionFacts],
+    ['Gate facts', factsFreshness.gateFacts],
+  ] as const;
+  return (
+    <section className="kairoxFactSection">
+      <h3>事实新鲜度</h3>
+      <dl>
+        {rows.map(([label, entry]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>
+              {freshnessLabel(entry)}
+              {entry?.staleReason ? ` · ${entry.staleReason}` : ''}
+              {entry?.observedAt ? ` · 观察于 ${entry.observedAt}` : ''}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function FactSection({ title, facts, empty = '暂无事实' }: { title: string; facts: Record<string, unknown>; empty?: string }) {
+  const entries = Object.entries(facts).filter(([, value]) => value !== undefined && value !== null && value !== '');
+  return (
+    <section className="kairoxFactSection">
+      <h3>{title}</h3>
+      {entries.length === 0 ? (
+        <p className="hint">{empty}</p>
+      ) : (
+        <dl>
+          {entries.map(([key, value]) => (
+            <div key={key}>
+              <dt>{key}</dt>
+              <dd>{formatValue(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </section>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<[string, string]>;
+}) {
+  return (
+    <div className="filterRow">
+      <span className="filterLabel">{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map(([optionValue, optionLabel]) => (
+          <option key={optionValue} value={optionValue}>{optionLabel}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function formatTaskConflict(error: ApiConflictError): string {
+  const details = error.details || {};
+  const admission = (details.admission && typeof details.admission === 'object' ? details.admission : {}) as Record<string, unknown>;
+  if (admission.reason === 'media_frozen') {
+    return `媒体冻结中，等待外部系统完成后处理。冻结至 ${formatTimestamp(String(admission.frozenUntil || ''))}`;
+  }
+  return error.message;
+}
+
+function formatTimestamp(value?: string): string {
+  if (!value) return '稍后';
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return value;
+  return new Date(parsed).toLocaleString();
+}
+
+function compactJson(value: Record<string, unknown>): string {
+  const entries = Object.entries(value).slice(0, 3);
+  if (entries.length === 0) return '{}';
+  return entries.map(([key, val]) => `${key}: ${formatValue(val)}`).join(', ');
+}
+
+function formatValue(value: unknown): string {
+  if (Array.isArray(value)) return value.map(formatValue).join(', ');
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  return value == null ? '-' : String(value);
 }

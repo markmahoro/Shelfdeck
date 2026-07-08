@@ -8,9 +8,11 @@ import type {
   DevicePool,
   TaskListResponse,
   MediaTask,
+  ResourceView,
   HealthStatus,
   DoubanSession,
   SpaceStats,
+  DashboardHealthSummary,
   RuleTemplate,
   ApprovalPolicyConfig,
 } from '../types';
@@ -104,6 +106,7 @@ export const subLibraries = {
     source?: string;
     doubanEnabled?: boolean;
     ruleTemplateId?: string;
+    metadataGate?: SubLibrary['metadataGate'];
     upgradeSmartSelect?: SubLibrary['upgradeSmartSelect'];
     pathMapFrom?: string;
     pathMapTo?: string;
@@ -203,7 +206,7 @@ export const adult = {
   deletePerson: (personId: string) =>
     del<{ ok: boolean; personId: string }>(`/v1/admin/adult/people/${encodeURIComponent(personId)}`),
   rescrapeItem: (itemId: string, adultId?: string) =>
-    post<{ ok: boolean; taskId: string }>(
+    post<{ ok: boolean; taskId: string; task?: MediaTask; taskBridge?: MediaTask['taskBridge']; flowPlan?: MediaTask['flowPlan']; requestedIntent?: MediaTask['requestedIntent']; controlState?: MediaTask['controlState'] }>(
       `/v1/admin/adult/items/${encodeURIComponent(itemId)}/actions/rescrape`,
       adultId ? { adultId } : undefined,
     ),
@@ -271,19 +274,21 @@ export const upgrade = {
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
 export const tasks = {
-  list: (params?: { status?: string; statuses?: string[]; actionType?: string; q?: string; page?: number; pageSize?: number }) => {
+  list: (params?: { status?: string; statuses?: string[]; attention?: string; targetGate?: string; q?: string; page?: number; pageSize?: number; includeAttentionSummary?: boolean }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.statuses?.length) qs.set('statuses', params.statuses.join(','));
-    if (params?.actionType) qs.set('actionType', params.actionType);
+    if (params?.attention) qs.set('attention', params.attention);
+    if (params?.targetGate) qs.set('targetGate', params.targetGate);
     if (params?.q) qs.set('q', params.q);
     if (params?.page) qs.set('page', String(params.page));
     if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
+    if (params?.includeAttentionSummary === false) qs.set('includeAttentionSummary', '0');
     const q = qs.toString();
     return get<TaskListResponse>(`/v1/admin/tasks${q ? `?${q}` : ''}`);
   },
 
-  get: (id: string) => get<MediaTask>(`/v1/admin/tasks/${id}`),
+  get: (id: string) => get<MediaTask>(`/v1/admin/tasks/${id}?includeEvents=1`),
 
   // Update global queue priority (lower = runs first). Only allowed on queued/created/
   // pending_manual/interrupted/paused tasks; the server returns 409 otherwise.
@@ -297,17 +302,30 @@ export const tasks = {
 
   execute: (id: string) => post<{ id: string; status: string }>(`/v1/tasks/${id}/actions/execute`),
 
+  retry: (id: string) => post<{ id: string; status: string }>(`/v1/tasks/${id}/actions/retry`),
+
   confirm: (id: string, confirmData?: Record<string, unknown>) =>
     patch<{ id: string; status: string }>(`/v1/tasks/${id}`, { confirmed: true, ...(confirmData ? { confirmData } : {}) }),
 
   report: (id: string) => get<TaskReport>(`/v1/tasks/${id}/report`),
 };
 
+// ── Resources ────────────────────────────────────────────────────────────────
+
+export const resources = {
+  get: (params?: { detail?: 'summary' | 'full' }) => {
+    const qs = new URLSearchParams();
+    if (params?.detail) qs.set('detail', params.detail);
+    const q = qs.toString();
+    return get<ResourceView>(`/v1/admin/resources${q ? `?${q}` : ''}`);
+  },
+};
+
 export interface TaskReport {
   taskId: string;
   itemId?: string;
   itemName: string;
-  actionType: string;
+  flowKind?: string;
   elapsedSec: number | null;
   encoder: string | null;
   original?: {
@@ -403,33 +421,51 @@ export interface SystemConfig {
   transcodeConcurrency: number;
   upgradeConcurrency: number;
   scrapeConcurrency: number;
+  resourceCapacity?: Record<string, number>;
   wallRatingAutoEnqueue: boolean;
   smartTaskMaxPerRun: number;
-  smartTaskEnabledActions: string[];
+  automaticTaskTargets?: string[];
+  optimizeAllowedFlowKinds?: string[];
   smartTaskPollIntervalMinutes: number;
   smartTaskLookbackDays: number;
   smartTaskMaxQueueSize: number;
+  smartTaskDeferWhenActiveBacklog?: boolean;
+  smartTaskResourceQueueMultiplier?: number;
+  smartTaskMaxQueuedByResource?: Record<string, number>;
   strategyPollIntervalMinutes: number;
   smartSelectMode?: 'auto' | 'manual' | 'per_library';
   // Queue priority policy (PriorityEngine). Lower number = runs first.
   taskPriority?: {
     manualTaskPriority: number;
     autoTaskPriorityBase: number;
-    actionTypeWeights?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
-    rules: {
-      ingest: PriorityRule[];
-      scrape: PriorityRule[];
-      delete: PriorityRule[];
-      transcode: PriorityRule[];
-      upgrade: PriorityRule[];
-    };
+    targetGateWeights?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
+    optimizeOperationHints?: Partial<Record<'transcode' | 'upgrade', number>>;
+    rulesByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', PriorityRule[]>>;
   };
   approvalPolicy?: ApprovalPolicyConfig;
   taskAdmission?: {
     defaultCooldownHours?: number;
     defaultMaxQueued?: number;
-    cooldownHoursByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
-    maxQueuedByAction?: Partial<Record<'ingest' | 'scrape' | 'delete' | 'upgrade' | 'transcode', number>>;
+    cooldownHoursByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
+    maxQueuedByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
+    automaticAttemptLimitsByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
+    mediaFreezeHoursByCompletedTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
+  };
+  deleteGatePolicy?: {
+    enabled?: boolean;
+    rules?: Array<{
+      id?: string;
+      name?: string;
+      enabled?: boolean;
+      archivedForDays?: number;
+      minArchivedDays?: number;
+      ratingLte?: number;
+      maxRating?: number;
+      ratingGte?: number;
+      minRating?: number;
+      subLibraryId?: string;
+      mediaType?: string;
+    }>;
   };
 }
 
@@ -451,6 +487,43 @@ export const systemConfig = {
 
   patch: (body: Partial<SystemConfig>) =>
     patch<SystemConfig>('/v1/config', body),
+};
+
+// ── Delete Candidates ────────────────────────────────────────────────────────
+
+export interface DeleteCandidate {
+  itemId: string;
+  itemName: string;
+  subLibraryId: string;
+  candidateStatus: 'pending_review' | 'confirmed' | 'kept_archived' | 'snoozed' | 'suppressed' | 'deleted';
+  eligibilityReason: string;
+  matchedRule?: {
+    ruleId: string;
+    ruleName: string;
+    archivedForDays: number;
+    rating: number | null;
+    archivedAt: string;
+  } | null;
+  archivedAt: string;
+  eligibleAt: string;
+  decision?: string;
+  decisionAt?: string;
+  snoozedUntil?: string;
+  taskId?: string;
+  updatedAt?: string;
+}
+
+export const deleteCandidates = {
+  list: (includeDecided = false) =>
+    get<{ candidates: DeleteCandidate[]; total: number }>(`/v1/admin/delete-candidates${includeDecided ? '?includeDecided=1' : ''}`),
+  confirmDelete: (itemId: string) =>
+    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/confirm-delete`, {}),
+  keepArchived: (itemId: string) =>
+    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/keep-archived`, {}),
+  snooze: (itemId: string, days = 30) =>
+    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/snooze`, { days }),
+  suppress: (itemId: string) =>
+    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/suppress`, {}),
 };
 
 // ── Activity Log ─────────────────────────────────────────────────────────────────
@@ -483,6 +556,10 @@ export const douban = {
 
 export const spaceStats = {
   get: () => get<SpaceStats>('/v1/space-stats'),
+};
+
+export const dashboardHealth = {
+  get: () => get<DashboardHealthSummary>('/v1/admin/dashboard/health'),
 };
 
 // ── Nodes ──────────────────────────────────────────────────────────────────────
@@ -541,6 +618,7 @@ export class ApiConflictError extends Error {
   constructor(
     public readonly code: string,
     message: string,
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'ApiConflictError';
@@ -569,7 +647,6 @@ export const libraryApi = {
     limit?: number;
     offset?: number;
     search?: string;
-    action?: string;
     resolution?: string;
     codec?: string;
     watched?: string;
@@ -577,13 +654,17 @@ export const libraryApi = {
     douban?: string;
     userRating?: string;
     task?: string;
+    metadata?: string;
     scrape?: string;
+    lifecycle?: string;
+    projection?: 'summary' | 'manage' | 'full' | 'compat';
   }) => {
     const q = new URLSearchParams();
     if (options?.subLibraryId) q.set('subLibraryId', options.subLibraryId);
     if (options?.limit) q.set('limit', String(options.limit));
     if (options?.offset) q.set('offset', String(options.offset));
-    for (const key of ['search', 'action', 'resolution', 'codec', 'watched', 'bluRay', 'douban', 'userRating', 'task', 'scrape'] as const) {
+    if (options?.projection) q.set('projection', options.projection);
+    for (const key of ['search', 'resolution', 'codec', 'watched', 'bluRay', 'douban', 'userRating', 'task', 'metadata', 'scrape', 'lifecycle'] as const) {
       const value = options?.[key];
       if (value && value !== 'all') q.set(key, value);
     }
@@ -600,6 +681,9 @@ export const libraryApi = {
   patchRatings: (itemId: string, userRating: number | null) =>
     patch<{ ok: boolean }>('/v1/library/ratings', { itemId, userRating }),
 
+  recomputeOptimizeTargets: () =>
+    post<{ ok: boolean; changed: number }>('/v1/library/actions/recompute-optimize-targets'),
+
   recomputeStrategy: () =>
     post<{ ok: boolean; changed: number }>('/v1/library/actions/recompute-strategy'),
 };
@@ -611,14 +695,14 @@ export const taskApi = {
     return Array.isArray(data) ? data : data.tasks ?? [];
   },
 
-  createByIntent: async (body: { itemId: string; actionType: string }): Promise<MediaTask> => {
+  createByIntent: async (body: { itemId: string; targetGate?: string; gateObjective?: Record<string, unknown>; flowPreference?: Record<string, unknown> }): Promise<MediaTask> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const key = apiKey();
     if (key) headers['x-api-key'] = key;
     const r = await fetch('/v1/tasks', { method: 'POST', headers, body: JSON.stringify(body) });
     if (r.status === 409) {
       const b = await r.json().catch(() => ({}));
-      throw new ApiConflictError(b.code || 'CONFLICT', b.error?.message || b.message || 'Conflict');
+      throw new ApiConflictError(b.error?.code || b.code || 'CONFLICT', b.error?.message || b.message || 'Conflict', b);
     }
     if (!r.ok) {
       const b = await r.json().catch(() => ({}));

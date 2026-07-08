@@ -36,6 +36,13 @@ export interface MediaPolicy {
   target4k: Record<string, number>;
 }
 
+export type MetadataGateNode = string | { all?: MetadataGateNode[]; any?: MetadataGateNode[] };
+
+export interface MetadataGateConfig {
+  all?: MetadataGateNode[];
+  any?: MetadataGateNode[];
+}
+
 export interface SubLibrary {
   uuid: string;
   name: string;
@@ -48,6 +55,7 @@ export interface SubLibrary {
   doubanSyncedAt: string | null;
   mediaPolicy?: MediaPolicy;
   ruleTemplateId?: string;
+  metadataGate?: MetadataGateConfig | null;
   upgradeSmartSelect: UpgradeSmartSelect;
   automationMode?: 'auto' | 'manual';
   approvalPolicy?: ApprovalPolicyConfig;
@@ -85,10 +93,13 @@ export interface Rule {
   priority: number;
   groupsConnector: 'and' | 'or';
   groups: RuleGroup[];
-  action: 'keep' | 'delete' | 'transcode' | 'upgrade';
-  actionParams: {
+  targetMediaFacts?: {
+    qualityTier?: string;
+    minResolution?: string;
     targetBitrate?: number;
+    targetBitrateByBucket?: Record<string, number>;
     targetCodec?: string;
+    preferredAudioCodecs?: string[];
     maxSizeGB?: number;
     seedPreferences?: {
       codecPreference?: string[];
@@ -97,6 +108,7 @@ export interface Rule {
       sitePreference?: string[];
       preferCNSub?: boolean;
     };
+    [key: string]: unknown;
   };
   reason: string;
 }
@@ -175,7 +187,7 @@ export type TaskStatus =
   | 'awaiting_user_confirm' | 'pausing' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
-export type ActionType = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape';
+export type TaskFlowKind = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape' | 'archive' | 'no_op' | 'blocked' | string;
 
 export type ApprovalMode = 'auto' | 'confirm' | 'forceConfirm';
 export type ApprovalPolicyConfig = Record<string, ApprovalMode>;
@@ -194,6 +206,48 @@ export interface TaskLogEntry {
   ts: string;
   level: 'info' | 'warn' | 'error';
   msg: string;
+}
+
+export interface TaskControlAction {
+  enabled: boolean;
+  reason: string;
+  effect: string;
+  label?: string;
+  endpoint?: string;
+  method?: string;
+  destructive?: boolean;
+  resumePoint?: string;
+  retryCount?: number;
+  maxRetryCount?: number;
+  [key: string]: unknown;
+}
+
+export interface TaskControlState {
+  state: string;
+  requiresUserAction: boolean;
+  phase: string;
+  resumePoint: string;
+  retryCount: number;
+  primaryAction: string;
+  actions: Record<'execute' | 'pause' | 'confirm' | 'cancel' | 'retry', TaskControlAction>;
+  confirmation: {
+    required: boolean;
+    gateId: string;
+    message: string;
+    options: unknown[];
+    resumePoint: string;
+    effect: string;
+  };
+  recovery: {
+    state: string;
+    reason: string;
+    resumePoint: string;
+    nextAction: string;
+    effect?: string;
+    retryCount?: number;
+    maxRetryCount?: number;
+  };
+  latestEvent?: TaskEvent | null;
 }
 
 export interface TaskItemInfo {
@@ -302,16 +356,123 @@ export interface SpaceStats {
   subLibraries: SpaceStatsSubLibrary[];
 }
 
+export interface DashboardCountSignal {
+  level: 'green' | 'yellow' | 'red';
+  code: string;
+  label: string;
+  count: number;
+  detail?: string;
+}
+
+export interface DashboardEventEntry {
+  id: string;
+  kind: 'activity' | 'task_event';
+  source: string;
+  sourceLabel: string;
+  ts: string;
+  severity: 'neutral' | 'green' | 'yellow' | 'red';
+  message: string;
+  detail?: Record<string, unknown>;
+  taskId?: string;
+  itemId?: string;
+  flowKind?: string;
+  eventType?: string;
+  eventStatus?: string;
+  resourceType?: string;
+  resourceKey?: string;
+  resourceLabel?: string;
+  bridgeKind?: string;
+}
+
+export interface DashboardStatusGroup {
+  status: 'green' | 'yellow' | 'red';
+  generatedAt?: string | null;
+  checks: {
+    key: string;
+    label: string;
+    status: 'green' | 'yellow' | 'red';
+    message?: string;
+  }[];
+}
+
+export interface DashboardHealthSummary {
+  status: 'green' | 'yellow' | 'red';
+  generatedAt: string;
+  serviceAvailability?: DashboardStatusGroup;
+  externalIntegrations?: DashboardStatusGroup;
+  businessStatus?: {
+    status: 'green' | 'yellow' | 'red';
+    signals: DashboardCountSignal[];
+  };
+  media: {
+    totalItems: number;
+    closedItems: number;
+    openItems: number;
+    metadataIncompleteItems: number;
+    pendingOptimizationItems: number;
+    archiveReadyItems: number;
+    archiveLikeItems: number;
+    byLifecycleStage: Record<string, number>;
+    byMetadataStatus: Record<string, number>;
+    byRecommendedTargetGate: Record<string, number>;
+    bySource: Record<string, number>;
+    pendingBridges: Record<string, number>;
+    topMetadataMissingReasons: { reason: string; count: number }[];
+    bySubLibrary: {
+      subLibraryId: string;
+      totalItems: number;
+      closedItems: number;
+      openItems: number;
+      metadataIncompleteItems: number;
+      pendingOptimizationItems: number;
+      byLifecycleStage?: Record<string, number>;
+    }[];
+  };
+  tasks: {
+    totalTasks: number;
+    activeTasks: number;
+    awaitingConfirmationTasks: number;
+    failedTasks: number;
+    doneTasks: number;
+    byStatus: Record<string, number>;
+    activeByBridgeKind: Record<string, number>;
+    activeByFlowKind?: Record<string, number>;
+    activeBySource: Record<string, number>;
+    failedByFlowKind?: Record<string, number>;
+    recentFailureEvents: unknown[];
+    attention?: Record<string, TaskAttentionQueue>;
+    primaryAttention?: TaskAttentionQueue | null;
+  };
+  automation: {
+    enabledTaskTargets: string[];
+    allowedOptimizeFlows: string[];
+  };
+  events?: {
+    latestAt: string | null;
+    bySource: Record<string, number>;
+    recent: DashboardEventEntry[];
+  };
+  diagnostics: {
+    signals: DashboardCountSignal[];
+    storage?: StorageMetric[];
+  };
+}
+
 export interface MediaTask {
   id: string;
   itemId: string;
   itemName?: string;
-  actionType: ActionType;
+  flowKind?: TaskFlowKind;
+  taskTarget?: TaskTarget;
+  taskBridge?: TaskBridge;
+  flowPlan?: FlowPlan;
+  requestedIntent?: RequestedIntent;
   source?: 'manual' | 'auto' | string;
   status: TaskStatus;
   progress: number;
   phase: string;
   resumePoint: string | null;
+  retryCount?: number;
   approval?: TaskApproval | null;
   // Queue priority (lower = runs first globally). Absent on legacy tasks
   // (treated as 100 by the scheduler).
@@ -337,6 +498,134 @@ export interface MediaTask {
   verifyResult?: VerifyResult;
   upgradePreview?: UpgradePreview;
   confirmData?: Record<string, unknown>;
+  events?: TaskEvent[];
+  controlState?: TaskControlState;
+}
+
+export interface RequestedIntent {
+  targetGate?: string;
+  flowPreference?: Record<string, unknown>;
+  intentMode?: string;
+  [key: string]: unknown;
+}
+
+export interface TaskTarget {
+  object?: {
+    type?: string;
+    itemId?: string;
+    subLibraryId?: string;
+    [key: string]: unknown;
+  };
+  targetGate?: string;
+  gateObjective?: GateObjective;
+  source?: string;
+  flowKind?: string;
+  [key: string]: unknown;
+}
+
+export interface GateObjective {
+  kind?: string;
+  description?: string;
+  source?: string;
+  reason?: string;
+  acceptableFlows?: string[];
+  destructive?: boolean;
+  targetBitrate?: number | string;
+  targetCodec?: string;
+  equivalentBitrate?: number | string;
+  maxSizeGB?: number | string;
+  seedPreferences?: Record<string, unknown>;
+  metadataKind?: string;
+  repairMode?: string;
+  [key: string]: unknown;
+}
+
+export interface TaskBridge {
+  kind: 'metadata' | 'optimize' | 'archive' | string;
+  from?: string;
+  to?: string;
+  reason?: string;
+  flowKind?: string;
+  source?: string;
+  itemId?: string;
+  subLibraryId?: string;
+}
+
+export interface FlowStep {
+  phase?: string;
+  eventType?: string;
+  resourceType?: string;
+}
+
+export interface FlowPlan {
+  version?: string;
+  bridgeKind?: string;
+  direction?: string;
+  flowKind?: string;
+  executor?: string;
+  primaryResourceType?: string;
+  source?: string;
+  resourceTypes?: string[];
+  steps?: FlowStep[];
+  plannedAt?: string;
+}
+
+export interface TaskEvent {
+  id: string;
+  taskId: string;
+  itemId?: string;
+  flowKind?: string;
+  eventType: string;
+  eventStatus: string;
+  phase?: string | null;
+  resumePoint?: string | null;
+  resourceType?: string | null;
+  resourceKey?: string;
+  resourceLabel?: string;
+  bridgeKind?: string;
+  flowDirection?: string;
+  createdAt: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface ResourceFailureEvent extends TaskEvent {
+  task?: {
+    id: string;
+    itemId: string;
+    itemName?: string;
+    flowKind?: string;
+    status: string;
+    phase?: string;
+    resumePoint?: string;
+    retryCount?: number;
+    bridgeKind?: string;
+    flowDirection?: string;
+  } | null;
+  resourceContext?: {
+    resourceType: string;
+    resourceKey: string;
+    resourceLabel: string;
+  };
+  recovery?: TaskControlState['recovery'];
+  controlState?: TaskControlState | null;
+  diagnosticSummary?: {
+    logId: string;
+    scope: string;
+    operation: string;
+    component: string;
+    status: string;
+    resourceType: string;
+    resourceKey: string;
+    endedAt: string;
+    error?: unknown;
+  } | null;
+}
+
+export interface TaskAttentionQueue {
+  key: string;
+  label: string;
+  hint: string;
+  count: number;
 }
 
 export interface TaskListResponse {
@@ -344,10 +633,187 @@ export interface TaskListResponse {
   summary: {
     total: number;
     byStatus: Record<string, number>;
+    attention?: Record<string, TaskAttentionQueue>;
   };
   page: number;
   pageSize: number;
   total: number;
+  attention?: string;
+}
+
+// ── Resource View ────────────────────────────────────────────────────────────
+
+export type ResourceTaskState = 'running' | 'waiting' | 'blocked';
+export type RuntimeEventState = 'running' | 'recent' | 'failed';
+
+export interface ResourceTask {
+  taskId: string;
+  itemId: string;
+  itemName?: string;
+  flowKind?: TaskFlowKind;
+  taskTarget?: TaskTarget | null;
+  source?: 'manual' | 'auto' | string;
+  status: TaskStatus;
+  phase?: string;
+  resumePoint?: string | null;
+  priority?: number;
+  progress?: number;
+  createdAt: string;
+  updatedAt: string;
+  nodeId?: string | null;
+  bridgeKind?: string;
+  flowDirection?: string;
+  currentEventType?: string;
+  currentEventPhase?: string;
+  resourceState: ResourceTaskState;
+  resourceType: string;
+  resourceKey: string;
+  resourceLabel: string;
+}
+
+export interface RuntimeResourceEvent {
+  eventId: string;
+  eventType: string;
+  eventStatus: string;
+  component: string;
+  resourceType: string;
+  resourceKey: string;
+  resourceLabel: string;
+  taskId?: string;
+  itemId?: string;
+  itemName?: string;
+  subLibraryId?: string;
+  source?: string;
+  startedAt: string;
+  endedAt?: string | null;
+  durationMs?: number | null;
+  eventState: RuntimeEventState;
+  payload?: Record<string, unknown>;
+}
+
+export interface ResourceBucket {
+  resourceType: string;
+  resourceKey: string;
+  resourceLabel: string;
+  configuredSlots: number;
+  running: number;
+  waiting: number;
+  blocked: number;
+  tasks: ResourceTask[];
+  events?: RuntimeResourceEvent[];
+  eventRunning?: number;
+  eventRecent?: number;
+  eventFailed?: number;
+  deviceSlotUsage?: Record<string, unknown>;
+}
+
+export interface DiagnosticLogEntry {
+  id: string;
+  logId: string;
+  kind: 'diagnostic_log';
+  category: string;
+  scope: string;
+  operation: string;
+  component: string;
+  resourceType: string;
+  resourceKey: string;
+  status: 'done' | 'slow' | 'failed' | string;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  payload?: Record<string, unknown>;
+}
+
+export interface StorageMetricFile {
+  name: string;
+  path: string;
+  exists: boolean;
+  sizeBytes: number;
+  mtime?: string | null;
+}
+
+export interface StorageMetric {
+  kind: 'metric';
+  category: 'storage' | string;
+  store: string;
+  resourceType: string;
+  resourceKey: string;
+  generatedAt: string;
+  dbSizeBytes: number;
+  walSizeBytes: number;
+  totalSizeBytes: number;
+  files: StorageMetricFile[];
+}
+
+export interface BackgroundIoOperation {
+  operationId: string;
+  operation: string;
+  component: string;
+  lockKey: string;
+  resourceType: string;
+  resourceKey: string;
+  source: string;
+  status: string;
+  startedAt: string;
+  endedAt?: string | null;
+  durationMs: number;
+  payload?: Record<string, unknown>;
+}
+
+export interface BackgroundIoState {
+  kind: 'metric';
+  category: 'background_io';
+  generatedAt: string;
+  active: BackgroundIoOperation[];
+  recent: BackgroundIoOperation[];
+  summary: {
+    activeCount: number;
+    runningHeavyIo: boolean;
+    skippedCount: number;
+    completedCount: number;
+    failedCount: number;
+  };
+}
+
+export interface ResourceView {
+  detail?: 'summary' | 'full' | string;
+  summary: {
+    totalTasks: number;
+    totalEvents?: number;
+    runningEvents?: number;
+    recentEvents?: number;
+    byResourceType: Record<string, number>;
+    byState: Record<ResourceTaskState, number>;
+    byEventStatus?: Record<string, number>;
+    generatedAt: string;
+  };
+  resources: ResourceBucket[];
+  diagnostics?: {
+    logs: DiagnosticLogEntry[];
+    dependencies?: Array<Record<string, unknown>>;
+    failedEvents?: ResourceFailureEvent[];
+    bottlenecks?: Array<{
+      resourceType: string;
+      resourceKey: string;
+      resourceLabel: string;
+      configuredSlots: number;
+      running: number;
+      waiting: number;
+      blocked: number;
+    }>;
+    summary: {
+      totalLogs: number;
+      slowLogs: number;
+      failedLogs: number;
+      byStatus: Record<string, number>;
+      byCategory: Record<string, number>;
+      generatedAt: string;
+    };
+    metrics?: {
+      storage?: StorageMetric[];
+    };
+    backgroundIo?: BackgroundIoState;
+  };
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 'use strict';
 
+const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
+
 /**
  * SpaceStats — computes library space metrics.
  *
@@ -18,25 +20,50 @@ function fmtBytes(bytes) {
   return bytes + ' B';
 }
 
+function targetMbpsFromObjective(item = {}) {
+  const objective = item.optimizeObjective && typeof item.optimizeObjective === 'object'
+    ? item.optimizeObjective
+    : {};
+  const targetFacts = objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
+    ? objective.targetMediaFacts
+    : (item.targetMediaFacts && typeof item.targetMediaFacts === 'object' ? item.targetMediaFacts : {});
+  const profile = bitrateObjectiveProfile.resolveBitrateProfile({ targetMediaFacts: targetFacts, item });
+  return profile ? profile.targetMbps : 0;
+}
+
+function normalizeFlowKind(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function optimizeFlowKindForItem(item = {}) {
+  const gate = item.optimizeGate || item.optimizationGate || {};
+  return normalizeFlowKind(gate.flowKind || gate.appliedFlowKind || gate.operation);
+}
+
+function flowKindForTask(task = {}) {
+  return normalizeFlowKind(
+    task.flowPlan && task.flowPlan.flowKind
+    || task.taskBridge && task.taskBridge.flowKind
+    || task.flowKind
+    || '',
+  );
+}
+
 function estimatedDelta(item) {
-  const action = item.action || 'keep';
+  const flowKind = optimizeFlowKindForItem(item);
   const size = typeof item.size === 'number' ? item.size : 0;
-  if (size <= 0) return { action, delta: 0 };
+  if (size <= 0) return { flowKind, delta: 0 };
 
-  if (action === 'delete') {
-    return { action, delta: size };
-  }
-
-  if (action === 'transcode' || action === 'upgrade') {
+  const target = targetMbpsFromObjective(item);
+  if (target > 0) {
     const currentMbps = item.equivalentBitrate ?? (typeof item.bitrate === 'number' ? item.bitrate / 1_000_000 : 0);
-    const target = item.targetBitrate;
-    if (target != null && currentMbps > 0) {
+    if (currentMbps > target) {
       const delta = size * (1 - target / currentMbps);
-      return { action, delta };
+      return { flowKind: flowKind || 'transcode', delta };
     }
   }
 
-  return { action, delta: 0 };
+  return { flowKind, delta: 0 };
 }
 
 function computeSpaceStats(library, tasks, config) {
@@ -79,16 +106,13 @@ function computeSpaceStats(library, tasks, config) {
       curBytes += sz;
 
       const est = estimatedDelta(item);
-      if (est.action === 'transcode') {
+      if (est.flowKind === 'transcode') {
         if (est.delta > 0) tcSavings += est.delta;
         else upDelta += est.delta; // negative delta = size increase
         tcCount++;
-      } else if (est.action === 'upgrade') {
+      } else if (est.flowKind === 'upgrade') {
         upDelta += est.delta;
         upCount++;
-      } else if (est.action === 'delete') {
-        delSavings += est.delta;
-        delCount++;
       }
     }
 
@@ -119,35 +143,36 @@ function computeSpaceStats(library, tasks, config) {
 
   for (const task of taskList) {
     if (task.status !== 'done') continue;
+    const flowKind = flowKindForTask(task);
 
     let bytesSaved = null;
     // Prefer explicitly stored bytesSaved
     if (task.verifyResult && typeof task.verifyResult.bytesSaved === 'number') {
       bytesSaved = task.verifyResult.bytesSaved;
-    } else if (task.actionType === 'transcode' && task.itemInfo && task.verifyResult) {
+    } else if (flowKind === 'transcode' && task.itemInfo && task.verifyResult) {
       if (typeof task.itemInfo.originalSizeBytes === 'number' && typeof task.verifyResult.sizeBytes === 'number') {
         bytesSaved = task.itemInfo.originalSizeBytes - task.verifyResult.sizeBytes;
       }
-    } else if (task.actionType === 'upgrade' && task.upgradePreview) {
+    } else if (flowKind === 'upgrade' && task.upgradePreview) {
       const oldSize = task.upgradePreview.oldFile && task.upgradePreview.oldFile.size;
       const newSize = task.upgradePreview.newFile && task.upgradePreview.newFile.size;
       if (typeof oldSize === 'number' && typeof newSize === 'number') {
         bytesSaved = oldSize - newSize;
       }
-    } else if (task.actionType === 'delete' && task.itemInfo) {
+    } else if (flowKind === 'delete' && task.itemInfo) {
       if (typeof task.itemInfo.originalSizeBytes === 'number') {
         bytesSaved = task.itemInfo.originalSizeBytes;
       }
     }
 
     if (bytesSaved != null) {
-      if (task.actionType === 'transcode') {
+      if (flowKind === 'transcode') {
         transcodeRealizedSavings += bytesSaved;
-      } else if (task.actionType === 'upgrade') {
+      } else if (flowKind === 'upgrade') {
         // bytesSaved negative → file got bigger → realizedIncrease positive
         if (bytesSaved < 0) upgradeRealizedIncrease += Math.abs(bytesSaved);
         else transcodeRealizedSavings += bytesSaved; // rare: upgrade actually saved space
-      } else if (task.actionType === 'delete') {
+      } else if (flowKind === 'delete') {
         deleteRealizedSavings += bytesSaved;
       }
     }
@@ -161,6 +186,7 @@ function computeSpaceStats(library, tasks, config) {
   }
   for (const task of taskList) {
     if (task.status !== 'done') continue;
+    const flowKind = flowKindForTask(task);
     const sid = itemSubLibMap[task.itemId];
     if (!sid) continue;
     const detail = subLibraryDetails.find((d) => d.uuid === sid);
@@ -169,30 +195,30 @@ function computeSpaceStats(library, tasks, config) {
     let bytesSaved = null;
     if (task.verifyResult && typeof task.verifyResult.bytesSaved === 'number') {
       bytesSaved = task.verifyResult.bytesSaved;
-    } else if (task.actionType === 'transcode' && task.itemInfo && task.verifyResult) {
+    } else if (flowKind === 'transcode' && task.itemInfo && task.verifyResult) {
       if (typeof task.itemInfo.originalSizeBytes === 'number' && typeof task.verifyResult.sizeBytes === 'number') {
         bytesSaved = task.itemInfo.originalSizeBytes - task.verifyResult.sizeBytes;
       }
-    } else if (task.actionType === 'upgrade' && task.upgradePreview) {
+    } else if (flowKind === 'upgrade' && task.upgradePreview) {
       const oldSize = task.upgradePreview.oldFile && task.upgradePreview.oldFile.size;
       const newSize = task.upgradePreview.newFile && task.upgradePreview.newFile.size;
       if (typeof oldSize === 'number' && typeof newSize === 'number') {
         bytesSaved = oldSize - newSize;
       }
-    } else if (task.actionType === 'delete' && task.itemInfo) {
+    } else if (flowKind === 'delete' && task.itemInfo) {
       if (typeof task.itemInfo.originalSizeBytes === 'number') {
         bytesSaved = task.itemInfo.originalSizeBytes;
       }
     }
 
     if (bytesSaved != null) {
-      if (task.actionType === 'transcode') {
+      if (flowKind === 'transcode') {
         detail.transcode.realizedSavingsBytes = (detail.transcode.realizedSavingsBytes || 0) + bytesSaved;
-      } else if (task.actionType === 'upgrade') {
+      } else if (flowKind === 'upgrade') {
         if (bytesSaved < 0) {
           detail.upgrade.realizedIncreaseBytes = (detail.upgrade.realizedIncreaseBytes || 0) + Math.abs(bytesSaved);
         }
-      } else if (task.actionType === 'delete') {
+      } else if (flowKind === 'delete') {
         detail.delete.realizedSavingsBytes = (detail.delete.realizedSavingsBytes || 0) + bytesSaved;
       }
     }

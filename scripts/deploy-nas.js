@@ -75,6 +75,30 @@ function activeFfmpegCheckCmd() {
   ].join(' ');
 }
 
+function v3MigrationDryRunCmd(targetImage) {
+  return [
+    'docker run --rm',
+    `-v ${shellQuote(`${DATA_DIR}:/app/data:ro`)}`,
+    shellQuote(targetImage),
+    'node',
+    'scripts/v3-data-migration.js',
+    '--data-dir=/app/data',
+  ].join(' ');
+}
+
+function kairoxBetaCutoverCmd(targetImage, mode) {
+  const rw = mode === 'apply';
+  return [
+    'docker run --rm',
+    `-v ${shellQuote(`${DATA_DIR}:/app/data:${rw ? 'rw' : 'ro'}`)}`,
+    shellQuote(targetImage),
+    'node',
+    'scripts/kairox-beta-cutover.js',
+    '--data-dir=/app/data',
+    ...(rw ? ['--apply', '--confirm-kairox-beta-cutover'] : []),
+  ].join(' ');
+}
+
 function updateComposeImageCmd(targetImage) {
   const compose = shellQuote(COMPOSE_FILE);
   const backup = shellQuote(`${COMPOSE_FILE}.pre-image-${STAMP}.bak`);
@@ -89,7 +113,7 @@ function updateComposeImageCmd(targetImage) {
 
 function waitForHealthCmd() {
   return [
-    'for i in $(seq 1 12); do',
+    'for i in $(seq 1 36); do',
     'body=$(curl -fsS http://127.0.0.1:18080/v1/health) || { sleep 5; continue; };',
     'echo "$body";',
     'if ! printf "%s" "$body" | grep -q \'"status":"red"\'; then exit 0; fi;',
@@ -100,12 +124,14 @@ function waitForHealthCmd() {
 }
 
 function parseArgs(argv) {
-  const parsed = { tarball: '', apply: false, expectedSha256: '' };
+  const parsed = { tarball: '', apply: false, expectedSha256: '', kairoxBetaCutover: false };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--apply') {
       parsed.apply = true;
+    } else if (arg === '--kairox-beta-cutover') {
+      parsed.kairoxBetaCutover = true;
     } else if (arg === '--sha256') {
       parsed.expectedSha256 = argv[i + 1] || '';
       i += 1;
@@ -126,9 +152,9 @@ function parseArgs(argv) {
 }
 
 async function main() {
-  const { tarball, apply, expectedSha256 } = parseArgs(process.argv.slice(2));
+  const { tarball, apply, expectedSha256, kairoxBetaCutover } = parseArgs(process.argv.slice(2));
   if (!tarball) {
-    console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--apply]');
+    console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--kairox-beta-cutover] [--apply]');
     process.exit(2);
   }
 
@@ -143,8 +169,14 @@ async function main() {
     ['Show active ffmpeg processes', activeFfmpegCheckCmd()],
     ['Pre-flight data sizes', dataSizesCmd()],
     ['Load image', `docker load -i ${shellQuote(tarball)}`],
+    ['V3 data migration dry run', v3MigrationDryRunCmd(targetImage)],
+    ...(kairoxBetaCutover ? [['Kairox Beta cutover plan', kairoxBetaCutoverCmd(targetImage, 'plan')]] : []),
     ['Update compose image', updateComposeImageCmd(targetImage)],
     ['Snapshot data files', dataSnapshotCmd()],
+    ...(kairoxBetaCutover ? [
+      ['Stop current container for Kairox Beta cutover', 'docker stop shelfdeck'],
+      ['Apply Kairox Beta cutover', kairoxBetaCutoverCmd(targetImage, 'apply')],
+    ] : []),
     ['Recreate through compose', `cd ${shellQuote(COMPOSE_DIR)} && docker compose up -d --force-recreate`],
     ['Wait for boot', 'sleep 8'],
     ['Verify health', waitForHealthCmd()],
@@ -160,6 +192,7 @@ async function main() {
   console.log(`tarball : ${tarball}`);
   console.log(`image   : ${targetImage}`);
   if (expectedSha256) console.log(`sha256 : ${expectedSha256.toLowerCase()}`);
+  if (kairoxBetaCutover) console.log('cutover: Kairox Beta');
   console.log(`data dir: ${DATA_DIR}`);
   console.log('mount   : /vol02/1000-0-24018892 -> /adult_media');
 

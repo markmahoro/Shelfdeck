@@ -11,6 +11,7 @@ const fastifyStatic = require('@fastify/static');
 
 const configStore = require('./configStore');
 const taskStore = require('./taskStore');
+const libraryStore = require('./libraryStore');
 const taskScheduler = require('./taskScheduler');
 const healthCheck = require('./healthCheck');
 const mediaLibraryService = require('./mediaLibraryService');
@@ -20,19 +21,27 @@ const transcodeService = require('./services/transcodeService');
 const moviepilotService = require('./services/moviepilotService');
 const strategyEngine = require('./strategyEngine');
 const smartTaskEngine = require('./smartTaskEngine');
-const priorityEngine = require('./priorityEngine');
-const taskAdmission = require('./taskAdmission');
+const automationPolicy = require('./automationPolicy');
 const activityLog = require('./activityLog');
 const spaceStats = require('./spaceStats');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
 const assetIdentity = require('./assetIdentity');
 const adultLibraryService = require('./adultLibraryService');
+const adultColdArtifactStore = require('./adultColdArtifactStore');
 const peopleStore = require('./peopleStore');
 const adultActorImageSearchService = require('./services/adultActorImageSearchService');
 const westernAdultLocalAiService = require('./services/westernAdultLocalAiService');
 const scrapeVerification = require('./scrapeVerification');
 const metadataStatus = require('./metadataStatus');
+const resourceProjection = require('./resourceProjection');
+const runtimeResourceTracker = require('./runtimeResourceTracker');
+const resourceRuntime = require('./resourceRuntime');
+const diagnosticLog = require('./diagnosticLog');
+const backgroundIoGuard = require('./backgroundIoGuard');
+const taskControlPolicy = require('./taskControlPolicy');
+const deleteCandidateService = require('./deleteCandidateService');
+const lifecycleProjection = require('./lifecycleProjection');
 
 let serverReady = false;
 
@@ -86,6 +95,25 @@ function removePlaybackEntry(itemId) {
 
 function apiError(reply, status, code, message) {
   return reply.code(status).send({ error: { code, message } });
+}
+
+function validateSubLibraryMetadataGateInput(reply, subLibCandidate, config) {
+  const result = metadataStatus.validateMetadataGateForSubLibrary(subLibCandidate, config);
+  if (result.ok) return null;
+  return apiError(
+    reply,
+    400,
+    'METADATA_GATE_CONTRACT_BROKEN',
+    `metadataGate does not cover optimize inputs: ${result.missingRequirements.join(', ')}`,
+  );
+}
+
+function defaultRuleTemplateIdForSubLibrary(input = {}) {
+  if (input.ruleTemplateId) return input.ruleTemplateId;
+  if (input.mediaType === 'adult') {
+    return input.adultRegion === 'western_adult' ? 'adult_western_default' : 'adult_jav_default';
+  }
+  return input.mediaType === 'tv' ? 'tv_default' : 'default';
 }
 
 function detectImageContentType(buffer) {
@@ -154,6 +182,22 @@ function maskAdultLibrarySecrets(adultLibrary = {}) {
 
 function maskSensitive(config) {
   const masked = { ...config };
+  delete masked.smartTaskEnabledActions;
+  delete masked.optimizeAllowedOperations;
+  if (masked.taskAdmission && typeof masked.taskAdmission === 'object') {
+    masked.taskAdmission = { ...masked.taskAdmission };
+    delete masked.taskAdmission.maxQueuedByAction;
+    delete masked.taskAdmission.cooldownHoursByAction;
+  }
+  if (masked.taskPriority && typeof masked.taskPriority === 'object') {
+    masked.taskPriority = { ...masked.taskPriority };
+    delete masked.taskPriority.operationKindWeights;
+    delete masked.taskPriority.actionTypeWeights;
+    if (masked.taskPriority.optimizeOperationHints && typeof masked.taskPriority.optimizeOperationHints === 'object') {
+      masked.taskPriority.optimizeOperationHints = { ...masked.taskPriority.optimizeOperationHints };
+      delete masked.taskPriority.optimizeOperationHints.delete;
+    }
+  }
   if (masked.apiKey) masked.apiKey = MASKED_SECRET;
   if (masked.douban && masked.douban.cookieHeader) {
     masked.douban = { ...masked.douban, cookieHeader: MASKED_SECRET };
@@ -215,12 +259,17 @@ function taskListSummary(task) {
     id: task.id,
     itemId: task.itemId,
     itemName: task.itemName,
-    actionType: task.actionType,
+    taskTarget: task.taskTarget,
+    taskBridge: task.taskBridge,
+    flowPlan: task.flowPlan,
+    flowKind: flowKindForTask(task),
     source: task.source,
     status: task.status,
     progress: task.progress,
     phase: task.phase,
     resumePoint: task.resumePoint,
+    retryCount: Number(task.retryCount || 0) || 0,
+    nodeId: task.nodeId,
     approval: task.approval,
     priority: task.priority,
     createdAt: task.createdAt,
@@ -230,6 +279,606 @@ function taskListSummary(task) {
     confirmData: task.confirmData,
     metadataStatus: task.itemInfo && task.itemInfo.metadataStatus,
     metadataMissingReasons: task.itemInfo && task.itemInfo.metadataMissingReasons,
+    controlState: taskControlPolicy.buildTaskControlState(task),
+  };
+}
+
+function publicNodeSummary(node) {
+  if (!node) return null;
+  return {
+    id: node.id,
+    name: node.name,
+    address: node.address,
+    status: node.status,
+  };
+}
+
+function nodeResourceContext(node) {
+  return {
+    resourceType: 'worker_node',
+    resourceKey: `node:${node.id}`,
+    resourceLabel: node.name || node.address || node.id,
+    nodeId: node.id,
+  };
+}
+
+function activeNodeTaskSummaries(nodeId) {
+  return taskStore.queryTaskSummaries({ nodeId, statuses: ['executing'] }, {
+    includeHistory: false,
+    includeAll: true,
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  }).tasks.map(taskListSummary);
+}
+
+const TASK_ATTENTION_QUEUES = {
+  needs_action: {
+    key: 'needs_action',
+    label: '需要处理',
+    hint: '等待确认、可恢复、可重试和待手动启动',
+  },
+  confirmation: {
+    key: 'confirmation',
+    label: '等待确认',
+    hint: '需要用户确认后继续',
+  },
+  recovery: {
+    key: 'recovery',
+    label: '可恢复/重试',
+    hint: '暂停、中断或失败后可继续处理',
+  },
+  manual_start: {
+    key: 'manual_start',
+    label: '待手动启动',
+    hint: '需要用户手动开始后进入调度队列',
+  },
+};
+
+function taskAttentionKeys(task) {
+  const controlState = taskControlPolicy.buildTaskControlState(task);
+  const primaryAction = controlState.primaryAction || '';
+  const executeEffect = controlState.actions
+    && controlState.actions.execute
+    && controlState.actions.execute.effect;
+  const keys = new Set();
+
+  if (primaryAction === 'confirm') keys.add('confirmation');
+  if (primaryAction === 'retry') keys.add('recovery');
+  if (primaryAction === 'execute') {
+    if (executeEffect === 'queue_for_scheduler_dispatch') keys.add('manual_start');
+    if (
+      executeEffect === 'resume_from_pause'
+      || executeEffect === 'resume_after_interruption'
+      || executeEffect === 'clear_pause_request'
+    ) {
+      keys.add('recovery');
+    }
+  }
+  if (keys.size > 0) keys.add('needs_action');
+  return keys;
+}
+
+function taskMatchesAttention(task, attentionKey) {
+  if (!TASK_ATTENTION_QUEUES[attentionKey]) return false;
+  return taskAttentionKeys(task).has(attentionKey);
+}
+
+function buildAttentionSummary(tasks) {
+  const summary = {};
+  for (const [key, def] of Object.entries(TASK_ATTENTION_QUEUES)) {
+    summary[key] = { ...def, count: 0 };
+  }
+  for (const task of tasks || []) {
+    for (const key of taskAttentionKeys(task)) {
+      if (summary[key]) summary[key].count += 1;
+    }
+  }
+  return summary;
+}
+
+const TASK_ATTENTION_CANDIDATE_STATUSES = [
+  'awaiting_user_confirm',
+  'created',
+  'pending_manual',
+  'interrupted',
+  'paused',
+  'pausing',
+  'failed_hard',
+  'failed_soft',
+];
+
+function attentionFactsFilter(filter = {}) {
+  const out = { ...(filter || {}) };
+  const candidateSet = new Set(TASK_ATTENTION_CANDIDATE_STATUSES);
+  const requested = [];
+  if (out.status) requested.push(String(out.status));
+  if (Array.isArray(out.statuses)) {
+    for (const status of out.statuses) requested.push(String(status || '').trim());
+  }
+  const filtered = requested.length > 0
+    ? requested.filter((status) => candidateSet.has(status))
+    : TASK_ATTENTION_CANDIDATE_STATUSES;
+  delete out.status;
+  out.statuses = [...new Set(filtered)].filter(Boolean);
+  return out;
+}
+
+function queryAttentionTasks(filter = {}) {
+  const attentionFilter = attentionFactsFilter(filter);
+  if (!Array.isArray(attentionFilter.statuses) || attentionFilter.statuses.length === 0) return [];
+  return taskStore.queryTaskLifecycleAuditFacts(attentionFilter, {
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  });
+}
+
+function flowKindForTask(task = {}) {
+  return String(task.flowPlan && task.flowPlan.flowKind || '');
+}
+
+function compactTaskRouteFilter(filter = {}) {
+  return {
+    status: filter.status || '',
+    statuses: Array.isArray(filter.statuses) ? filter.statuses.length : undefined,
+    targetGate: filter.bridgeKind || '',
+    hasSearch: !!filter.q,
+  };
+}
+
+function applyTaskTargetQuery(filter, query = {}) {
+  if (query.targetGate) filter.bridgeKind = query.targetGate;
+  if (query.flowKind) filter.flowKind = query.flowKind;
+  return filter;
+}
+
+function primaryAttentionQueue(attentionSummary = {}) {
+  const order = ['needs_action', 'confirmation', 'recovery', 'manual_start'];
+  for (const key of order) {
+    const queue = attentionSummary[key];
+    if (queue && Number(queue.count || 0) > 0) return queue;
+  }
+  return null;
+}
+
+function buildStatusSummary(tasks) {
+  const byStatus = {};
+  for (const task of tasks || []) {
+    const status = task && task.status || 'unknown';
+    byStatus[status] = (byStatus[status] || 0) + 1;
+  }
+  return byStatus;
+}
+
+const TASK_LIFECYCLE_STAGE_DEFS = {
+  intake: {
+    key: 'intake',
+    label: 'Created or waiting for manual start',
+    statuses: ['created', 'pending_manual'],
+  },
+  queued: {
+    key: 'queued',
+    label: 'Queued for scheduler dispatch',
+    statuses: ['queued'],
+  },
+  running: {
+    key: 'running',
+    label: 'Executing flow events',
+    statuses: ['executing', 'pausing_requested'],
+  },
+  user_gate: {
+    key: 'user_gate',
+    label: 'Waiting for user confirmation',
+    statuses: ['awaiting_user_confirm'],
+  },
+  recovery_hold: {
+    key: 'recovery_hold',
+    label: 'Paused or interrupted and needs recovery',
+    statuses: ['paused', 'interrupted'],
+  },
+  terminal_success: {
+    key: 'terminal_success',
+    label: 'Finished or skipped',
+    statuses: ['done', 'skipped'],
+  },
+  terminal_failure: {
+    key: 'terminal_failure',
+    label: 'Failed or cancelled',
+    statuses: ['failed_hard', 'cancelled'],
+  },
+};
+
+function taskLifecycleStage(status) {
+  const s = String(status || '').trim();
+  for (const def of Object.values(TASK_LIFECYCLE_STAGE_DEFS)) {
+    if (def.statuses.includes(s)) return def.key;
+  }
+  return 'unknown';
+}
+
+function inc(map, key, by = 1) {
+  const k = String(key || 'unknown') || 'unknown';
+  map[k] = (map[k] || 0) + by;
+}
+
+function makeLifecycleBucket(key, base = {}) {
+  return {
+    key,
+    ...base,
+    total: 0,
+    byStatus: {},
+    byLifecycleStage: {},
+    byBridgeKind: {},
+    byFlowKind: {},
+    bySource: {},
+    active: 0,
+    terminal: 0,
+    failed: 0,
+    awaitingUser: 0,
+  };
+}
+
+function addTaskToLifecycleBucket(bucket, task, stage) {
+  const status = task.status || 'unknown';
+  const bridgeKind = task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || 'unknown';
+  const flowKind = flowKindForTask(task) || 'unknown';
+  bucket.total += 1;
+  inc(bucket.byStatus, status);
+  inc(bucket.byLifecycleStage, stage);
+  inc(bucket.byBridgeKind, bridgeKind);
+  inc(bucket.byFlowKind, flowKind);
+  inc(bucket.bySource, task.source || 'unknown');
+  if (!['done', 'skipped', 'failed_hard', 'cancelled'].includes(status)) bucket.active += 1;
+  else bucket.terminal += 1;
+  if (status === 'failed_hard' || status === 'cancelled') bucket.failed += 1;
+  if (status === 'awaiting_user_confirm') bucket.awaitingUser += 1;
+}
+
+function taskSubLibraryId(task) {
+  return task && task.itemInfo && task.itemInfo.subLibraryId
+    || task && task.taskBridge && task.taskBridge.subLibraryId
+    || '';
+}
+
+function taskLibraryContext(task, subLibrariesById) {
+  const subLibraryId = taskSubLibraryId(task);
+  const subLibrary = subLibraryId ? subLibrariesById.get(subLibraryId) : null;
+  const itemInfo = task && task.itemInfo || {};
+  const inferredAdult = itemInfo.adultMetadata || task && task.source === 'adult_folder';
+  const inferredTv = itemInfo.type === 'season' || itemInfo.type === 'episode';
+  const mediaType = subLibrary && subLibrary.mediaType
+    || (inferredAdult ? 'adult' : inferredTv ? 'tv' : 'unknown');
+  const source = subLibrary && subLibrary.source || (inferredAdult ? 'folder' : 'unknown');
+  return {
+    subLibraryId: subLibraryId || '',
+    subLibraryName: subLibrary && subLibrary.name || (subLibraryId ? '(missing sub-library)' : '(no sub-library)'),
+    librarySource: source,
+    mediaType,
+    adultRegion: subLibrary && subLibrary.adultRegion || itemInfo.adultMetadata && itemInfo.adultMetadata.region || '',
+    found: !!subLibrary,
+  };
+}
+
+function addLifecycleSignal(signals, signal, sampleLimit) {
+  const code = signal.code || 'unknown';
+  const severity = signal.severity || 'info';
+  inc(signals.byCode, code);
+  inc(signals.bySeverity, severity);
+  signals.total += 1;
+  if (signals.items.length < sampleLimit) signals.items.push(signal);
+}
+
+function taskLifecycleSignals(task, context, controlState) {
+  const signals = [];
+  const status = task.status || '';
+  const bridgeKind = task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '';
+  const flowKind = flowKindForTask(task);
+  const primaryResourceType = task.flowPlan && task.flowPlan.primaryResourceType || '';
+  const resourceTypes = Array.isArray(task.flowPlan && task.flowPlan.resourceTypes) ? task.flowPlan.resourceTypes : [];
+  const confirmationRequired = controlState && controlState.confirmation && controlState.confirmation.required;
+
+  if (!context.subLibraryId) {
+    signals.push({ severity: 'warn', code: 'missing_sub_library_context', message: 'Task has no subLibraryId in its lightweight facts.' });
+  } else if (!context.found) {
+    signals.push({ severity: 'warn', code: 'unknown_sub_library', message: 'Task references a sub-library that is not present in config.' });
+  }
+  if (!bridgeKind || !flowKind) {
+    signals.push({ severity: 'warn', code: 'missing_bridge_or_flow_kind', message: 'Task cannot be explained by target gate / flow facts.' });
+  }
+  if (!primaryResourceType) {
+    signals.push({ severity: 'warn', code: 'missing_primary_resource', message: 'Task has no primary resource type for lifecycle/resource diagnosis.' });
+  }
+  if (context.mediaType !== 'adult' && flowKind === 'scrape') {
+    const isEmbyRepair = primaryResourceType === 'emby' || resourceTypes.includes('emby');
+    if (!isEmbyRepair) {
+      const terminal = ['done', 'skipped', 'failed_hard', 'cancelled'].includes(status);
+      signals.push({
+        severity: terminal ? 'warn' : 'error',
+        code: terminal ? 'legacy_standard_media_scrape_task' : 'standard_media_scrape_wrong_resource',
+        message: terminal
+          ? 'Standard media scrape task predates the Emby metadata repair resource model.'
+          : 'Active standard media scrape must use the Emby metadata repair resource.',
+        expectedResourceType: 'emby',
+        actualResourceType: primaryResourceType || '',
+      });
+    }
+  }
+  if (context.mediaType === 'adult' && bridgeKind === 'metadata' && !['ingest', 'scrape'].includes(flowKind)) {
+    signals.push({ severity: 'warn', code: 'adult_metadata_unexpected_flow', message: 'Adult metadata bridge should use ingest or scrape flow.' });
+  }
+  if (status === 'awaiting_user_confirm' && !confirmationRequired) {
+    signals.push({ severity: 'error', code: 'awaiting_without_confirmation_gate', message: 'Task status is awaiting confirmation but controlState has no active confirmation gate.' });
+  }
+  if (status === 'executing' && !task.phase) {
+    signals.push({ severity: 'warn', code: 'executing_without_phase', message: 'Executing task has no current phase.' });
+  }
+  if (status === 'failed_hard' && !(controlState && controlState.recovery && controlState.recovery.reason)) {
+    signals.push({ severity: 'warn', code: 'failed_without_recovery_reason', message: 'Failed task does not expose a recovery reason.' });
+  }
+  return signals;
+}
+
+function buildTaskLifecycleAudit(tasks, config, opts = {}) {
+  const sampleLimit = Math.min(50, Math.max(1, Number(opts.sampleLimit) || 12));
+  const subLibrariesById = new Map((config.subLibraries || []).map((sl) => [sl.uuid, sl]));
+  const byLibraryType = {};
+  const bySubLibraryMap = new Map();
+  const byLifecycleStage = {};
+  const summary = makeLifecycleBucket('all', {});
+  const signals = { total: 0, bySeverity: {}, byCode: {}, items: [] };
+
+  for (const task of tasks || []) {
+    const context = taskLibraryContext(task, subLibrariesById);
+    const stage = taskLifecycleStage(task.status);
+    const stageDef = TASK_LIFECYCLE_STAGE_DEFS[stage] || { key: stage, label: 'Unknown lifecycle stage', statuses: [] };
+    const controlState = taskControlPolicy.buildTaskControlState(task);
+
+    if (!byLifecycleStage[stage]) {
+      byLifecycleStage[stage] = { key: stage, label: stageDef.label, statuses: stageDef.statuses || [], count: 0 };
+    }
+    byLifecycleStage[stage].count += 1;
+
+    if (!byLibraryType[context.mediaType]) {
+      byLibraryType[context.mediaType] = makeLifecycleBucket(context.mediaType, {
+        mediaType: context.mediaType,
+      });
+    }
+    const subKey = context.subLibraryId || '(none)';
+    if (!bySubLibraryMap.has(subKey)) {
+      bySubLibraryMap.set(subKey, makeLifecycleBucket(subKey, {
+        subLibraryId: context.subLibraryId,
+        name: context.subLibraryName,
+        mediaType: context.mediaType,
+        source: context.librarySource,
+        adultRegion: context.adultRegion,
+        found: context.found,
+      }));
+    }
+
+    addTaskToLifecycleBucket(summary, task, stage);
+    addTaskToLifecycleBucket(byLibraryType[context.mediaType], task, stage);
+    addTaskToLifecycleBucket(bySubLibraryMap.get(subKey), task, stage);
+
+    for (const signal of taskLifecycleSignals(task, context, controlState)) {
+      addLifecycleSignal(signals, {
+        ...signal,
+        taskId: task.id,
+        itemId: task.itemId,
+        itemName: task.itemName || task.itemInfo && task.itemInfo.name || '',
+        status: task.status || '',
+        lifecycleStage: stage,
+        bridgeKind: task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '',
+        flowKind: flowKindForTask(task),
+        primaryResourceType: task.flowPlan && task.flowPlan.primaryResourceType || '',
+        source: task.source || '',
+        subLibraryId: context.subLibraryId,
+        subLibraryName: context.subLibraryName,
+        mediaType: context.mediaType,
+      }, sampleLimit);
+    }
+  }
+
+  return {
+    total: summary.total,
+    summary,
+    byLifecycleStage,
+    byLibraryType,
+    bySubLibrary: [...bySubLibraryMap.values()].sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total;
+      return String(a.name || a.key).localeCompare(String(b.name || b.key));
+    }),
+    signals,
+  };
+}
+
+function sortTasksForAdminList(tasks) {
+  return [...(tasks || [])].sort((a, b) => {
+    const bTime = Date.parse(b.updatedAt || b.createdAt || '') || 0;
+    const aTime = Date.parse(a.updatedAt || a.createdAt || '') || 0;
+    if (bTime !== aTime) return bTime - aTime;
+    return String(b.id || '').localeCompare(String(a.id || ''));
+  });
+}
+
+function paginateTasks(tasks, page, pageSize) {
+  const start = (page - 1) * pageSize;
+  return tasks.slice(start, start + pageSize);
+}
+
+function summarizeConfirmationQueue(tasks = []) {
+  const byGate = {};
+  const byBridgeKind = {};
+  const byFlowKind = {};
+  for (const task of tasks || []) {
+    const control = taskControlPolicy.buildTaskControlState(task);
+    const gate = control.confirmation && control.confirmation.gateId || 'unknown';
+    const bridge = task.taskBridge && task.taskBridge.kind || 'unknown';
+    const flowKind = flowKindForTask(task) || 'unknown';
+    byGate[gate] = (byGate[gate] || 0) + 1;
+    byBridgeKind[bridge] = (byBridgeKind[bridge] || 0) + 1;
+    byFlowKind[flowKind] = (byFlowKind[flowKind] || 0) + 1;
+  }
+  return {
+    total: tasks.length,
+    byGate,
+    byBridgeKind,
+    byFlowKind,
+  };
+}
+
+function summarizeAdultReviewQueue(items = []) {
+  const byReviewStatus = {};
+  const byScrapeStatus = {};
+  const byRegion = {};
+  for (const item of items || []) {
+    const reviewStatus = item.reviewStatus || item.scrapeStatus || 'unknown';
+    const scrapeStatus = item.scrapeStatus || 'unknown';
+    const region = item.adultRegion || 'unknown';
+    byReviewStatus[reviewStatus] = (byReviewStatus[reviewStatus] || 0) + 1;
+    byScrapeStatus[scrapeStatus] = (byScrapeStatus[scrapeStatus] || 0) + 1;
+    byRegion[region] = (byRegion[region] || 0) + 1;
+  }
+  return {
+    total: items.length,
+    byReviewStatus,
+    byScrapeStatus,
+    byRegion,
+  };
+}
+
+function adultReviewReason(item) {
+  const reviewStatus = item && item.reviewStatus || '';
+  const scrapeStatus = item && item.scrapeStatus || '';
+  const idConfidence = item && item.idConfidence || '';
+  if (scrapeStatus === 'ambiguous' || idConfidence === 'low') return 'adult_identity_ambiguous';
+  if (reviewStatus === 'needs_review' || scrapeStatus === 'needs_review') return 'adult_scrape_result_needs_review';
+  return 'adult_item_requires_user_review';
+}
+
+function adultReviewQueueItem(item) {
+  const reason = adultReviewReason(item);
+  const message = reason === 'adult_identity_ambiguous'
+    ? 'Adult item identity is ambiguous and requires user confirmation.'
+    : 'Adult scrape result requires user review before it can be treated as complete.';
+  return {
+    id: `adult-review:${item.itemId}`,
+    kind: 'adult_review',
+    itemId: item.itemId,
+    itemName: item.name || item.adultTitle || item.adultId || '',
+    source: item.source || 'adult_folder',
+    subLibraryId: item.subLibraryId || '',
+    status: item.reviewStatus || item.scrapeStatus || 'needs_review',
+    updatedAt: item.updatedAt || '',
+    taskBridge: {
+      kind: 'metadata',
+      from: 'ingested',
+      to: 'metadata_ready',
+      reason,
+      flowKind: 'scrape',
+      source: item.source || 'adult_folder',
+      itemId: item.itemId,
+      subLibraryId: item.subLibraryId || '',
+    },
+    flowPlan: {
+      version: 'v3',
+      bridgeKind: 'metadata',
+      direction: 'metadata.scrape',
+      flowKind: 'scrape',
+      executor: 'scrapeFlowExecutor',
+      primaryResourceType: item.adultRegion === 'western_adult' ? 'local_ai' : 'scraper',
+      source: item.source || 'adult_folder',
+      resourceTypes: item.adultRegion === 'western_adult'
+        ? ['local_ai', 'filesystem']
+        : ['scraper', 'filesystem'],
+      steps: [],
+      plannedAt: item.updatedAt || '',
+    },
+    itemInfo: {
+      name: item.name || item.adultTitle || item.adultId || '',
+      title: item.adultTitle || '',
+      type: item.type || '',
+      source: item.source || 'adult_folder',
+      path: item.path || '',
+      subLibraryId: item.subLibraryId || '',
+      metadataStatus: item.metadataStatus || '',
+      metadataComplete: !!item.metadataComplete,
+      metadataKind: item.metadataKind || 'adult',
+      metadataMissingReasons: Array.isArray(item.metadataMissingReasons) ? item.metadataMissingReasons : [],
+      adultMetadata: {
+        adultId: item.adultId || '',
+        scrapeStatus: item.scrapeStatus || '',
+        reviewStatus: item.reviewStatus || '',
+        region: item.adultRegion || '',
+        idConfidence: item.idConfidence || '',
+        title: item.adultTitle || '',
+        originalTitle: item.adultOriginalTitle || '',
+        protagonist: item.protagonist,
+        scrapeError: item.scrapeError || '',
+        scrapeFailedAt: item.scrapeFailedAt || '',
+      },
+    },
+    confirmation: {
+      required: true,
+      gateId: reason,
+      message,
+      options: reason === 'adult_identity_ambiguous'
+        ? ['correct_identity', 'rescrape_after_fix']
+        : ['approve_result', 'rescrape'],
+      resumePoint: 'adult_review',
+      effect: 'user_must_review_adult_metadata_before_metadata_ready',
+      whyRequired: reason,
+    },
+    confirmAction: {
+      enabled: false,
+      reason: 'adult_review_requires_dedicated_metadata_review',
+      label: 'review',
+      endpoint: `/v1/admin/adult/items/${encodeURIComponent(item.itemId)}`,
+      method: 'GET',
+      effect: 'open_adult_item_review',
+    },
+    recovery: {
+      state: 'user_review_required',
+      reason,
+      resumePoint: 'adult_review',
+      nextAction: 'review',
+    },
+  };
+}
+
+function confirmationQueueItem(task) {
+  const controlState = taskControlPolicy.buildTaskControlState(task);
+  const confirmation = controlState.confirmation || {};
+  return {
+    kind: 'task_confirmation',
+    id: task.id,
+    taskId: task.id,
+    itemId: task.itemId,
+    itemName: task.itemName || '',
+    flowKind: flowKindForTask(task),
+    taskBridge: task.taskBridge,
+    flowPlan: task.flowPlan,
+    source: task.source || '',
+    status: task.status,
+    phase: task.phase || '',
+    resumePoint: task.resumePoint || '',
+    retryCount: Number(task.retryCount || 0) || 0,
+    priority: task.priority,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    itemInfo: taskListItemInfo(task.itemInfo),
+    confirmation: {
+      required: !!confirmation.required,
+      gateId: confirmation.gateId || '',
+      message: confirmation.message || '',
+      options: Array.isArray(confirmation.options) ? confirmation.options : [],
+      resumePoint: confirmation.resumePoint || '',
+      effect: confirmation.effect || '',
+      whyRequired: confirmation.gateId || confirmation.message
+        ? 'flow_gate_requires_user_decision'
+        : 'task_is_waiting_for_user_confirmation',
+    },
+    confirmAction: controlState.actions && controlState.actions.confirm,
+    recovery: controlState.recovery,
+    controlState,
   };
 }
 
@@ -299,7 +948,414 @@ function libraryListItemView(item) {
   };
 }
 
-function taskDetailView(task) {
+function decorateLibraryItemsForUi(items, config) {
+  return lifecycleProjection.decorateItems(items, config).map(libraryListItemView);
+}
+
+function projectLibraryItemsForUi(items, config, projection = {}) {
+  if (projection.includeBusinessFlow) return decorateLibraryItemsForUi(items, config);
+  return (items || []).map(libraryListItemView);
+}
+
+function compactSmartTaskScanSummary(summary) {
+  if (!summary || typeof summary !== 'object') return null;
+  return {
+    status: summary.status || '',
+    startedAt: summary.startedAt || null,
+    finishedAt: summary.finishedAt || null,
+    enabledTaskTargets: Array.isArray(summary.enabledTaskTargets) ? summary.enabledTaskTargets : [],
+    allowedOptimizeFlowKinds: Array.isArray(summary.allowedOptimizeFlowKinds) ? summary.allowedOptimizeFlowKinds : [],
+    libraryItems: Number(summary.libraryItems || 0) || 0,
+    candidateCount: Number(summary.candidateCount || 0) || 0,
+    evaluatedCandidates: Number(summary.evaluatedCandidates || 0) || 0,
+    enqueued: Number(summary.enqueued || 0) || 0,
+    candidatesByTargetGate: summary.candidatesByTargetGate || {},
+    enqueuedByTargetGate: summary.enqueuedByTargetGate || {},
+    admissionRejected: Number(summary.admissionRejected || 0) || 0,
+    admissionRejectedByReason: summary.admissionRejectedByReason || {},
+    skippedByQueueCap: Number(summary.skippedByQueueCap || 0) || 0,
+    skippedByQueueCapByTargetGate: summary.skippedByQueueCapByTargetGate || {},
+    skippedByResourcePressure: Number(summary.skippedByResourcePressure || 0) || 0,
+    skippedByResourcePressureByResource: summary.skippedByResourcePressureByResource || {},
+    deferredByActiveBacklog: !!summary.deferredByActiveBacklog,
+    activeBacklog: Number(summary.activeBacklog || 0) || 0,
+    activeBacklogByTargetGate: summary.activeBacklogByTargetGate || {},
+    activeBacklogByResource: summary.activeBacklogByResource || {},
+    maxPerRunReached: !!summary.maxPerRunReached,
+    supplyPolicy: summary.supplyPolicy || '',
+    reason: summary.reason || '',
+    error: summary.error || '',
+  };
+}
+
+function buildDashboardAutomation(config) {
+  const health = smartTaskEngine.getHealth ? (smartTaskEngine.getHealth() || {}) : {};
+  return {
+    enabledTaskTargets: automationPolicy.resolveAutomaticTaskTargets(config),
+    allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(config),
+    smartTask: {
+      status: health.status || '',
+      enabled: !!health.enabled,
+      enabledTaskTargets: Array.isArray(health.enabledTaskTargets) ? health.enabledTaskTargets : [],
+      allowedOptimizeFlowKinds: Array.isArray(health.allowedOptimizeFlowKinds) ? health.allowedOptimizeFlowKinds : [],
+      disabledReason: health.disabledReason || '',
+      message: health.message || '',
+      lastRunAt: health.lastRunAt || null,
+      lastError: health.lastError || '',
+      lastScanSummary: compactSmartTaskScanSummary(health.lastScanSummary),
+    },
+  };
+}
+
+const DASHBOARD_HEALTH_LABELS = {
+  api: 'Service API',
+  scheduler: 'Task Scheduler',
+  smartTask: 'Task Creator',
+  mediaLib: 'Library Store',
+  strategy: 'Optimize Targets',
+  transcode: 'Transcode Runtime',
+  emby: 'Emby',
+  douban: 'Douban',
+  upgrade: 'MoviePilot',
+};
+
+function aggregateDashboardStatus(items) {
+  const statuses = (items || []).map((item) => item && item.status).filter(Boolean);
+  if (statuses.includes('red')) return 'red';
+  if (statuses.includes('yellow')) return 'yellow';
+  return 'green';
+}
+
+function dashboardHealthCheckItem(key, item = {}) {
+  return {
+    key,
+    label: DASHBOARD_HEALTH_LABELS[key] || key,
+    status: item.status || 'green',
+    message: item.message || '',
+  };
+}
+
+function buildDashboardServiceProjection(health) {
+  const checks = health && health.checks && typeof health.checks === 'object' ? health.checks : {};
+  const serviceKeys = ['scheduler', 'smartTask', 'mediaLib', 'strategy', 'transcode'];
+  const externalKeys = ['emby', 'douban', 'upgrade'];
+  const serviceChecks = [
+    dashboardHealthCheckItem('api', { status: 'green', message: 'Admin API is responding' }),
+    ...serviceKeys
+      .filter((key) => checks[key])
+      .map((key) => dashboardHealthCheckItem(key, checks[key])),
+  ];
+  const externalChecks = externalKeys
+    .filter((key) => checks[key])
+    .map((key) => dashboardHealthCheckItem(key, checks[key]));
+  const serviceAvailability = {
+    status: aggregateDashboardStatus(serviceChecks),
+    checks: serviceChecks,
+    generatedAt: health && health.timestamp ? health.timestamp : null,
+  };
+  const externalIntegrations = {
+    status: aggregateDashboardStatus(externalChecks),
+    checks: externalChecks,
+    generatedAt: health && health.timestamp ? health.timestamp : null,
+  };
+  return {
+    status: aggregateDashboardStatus([serviceAvailability, externalIntegrations]),
+    serviceAvailability,
+    externalIntegrations,
+  };
+}
+
+function adultSubLibraryIds(config = {}) {
+  return (Array.isArray(config.subLibraries) ? config.subLibraries : [])
+    .filter((sl) => sl && (sl.mediaType === 'adult' || sl.adultRegion))
+    .map((sl) => String(sl.uuid || '').trim())
+    .filter(Boolean);
+}
+
+function buildDashboardHealthSignals(mediaStats, taskStats, config, automation = {}) {
+  const signals = [];
+  const push = (level, code, label, count, detail = '') => {
+    if (!count) return;
+    signals.push({ level, code, label, count, detail });
+  };
+
+  push('red', 'failed_tasks', '失败任务', taskStats.failedTasks, '先到任务中心查看实现路径和 event 历史');
+  push('yellow', 'awaiting_confirmation', '等待确认', taskStats.awaitingConfirmationTasks, '需要人工确认后才能继续');
+  push('yellow', 'metadata_incomplete', '元数据未完成', mediaStats.metadataIncompleteItems, '会阻断转码、洗版、删除等优化入口');
+  push('yellow', 'pending_optimization', '等待优化', mediaStats.pendingOptimizationItems, '推荐动作仍未闭环');
+  push('yellow', 'open_lifecycle', '未闭环媒体', mediaStats.openItems, '仍有业务桥需要推进');
+
+  const automaticTaskTargets = automationPolicy.resolveAutomaticTaskTargets(config);
+  if (automaticTaskTargets.length === 0) {
+    signals.push({
+      level: 'yellow',
+      code: 'auto_targets_disabled',
+      label: '后台自动推进未启用',
+      count: 1,
+      detail: 'SmartTask 只能生成被全局 allow-list 放行的任务',
+    });
+  }
+
+  const scan = automation.smartTask && automation.smartTask.lastScanSummary;
+  if (scan && scan.status === 'failed') {
+    push('red', 'smart_task_scan_failed', '自动入队扫描失败', 1, scan.error || '查看 Resource diagnostics');
+  }
+  if (scan && scan.admissionRejected > 0) {
+    push('yellow', 'smart_task_admission_rejected', '自动入队被策略拒绝', scan.admissionRejected, '查看 admission rejected reason 分布');
+  }
+  if (scan && scan.skippedByQueueCap > 0) {
+    push('yellow', 'smart_task_queue_cap', '自动入队队列已满', scan.skippedByQueueCap, '等待现有任务推进或调整队列上限');
+  }
+  if (scan && scan.skippedByResourcePressure > 0) {
+    push('yellow', 'smart_task_resource_pressure', '自动入队资源压力受限', scan.skippedByResourcePressure, '查看 resource pressure 分布或调整资源供给上限');
+  }
+  if (scan && scan.deferredByActiveBacklog) {
+    push('yellow', 'smart_task_active_backlog', '自动入队等待现有队列', scan.activeBacklog || 1, '已有任务在推进，下一轮扫描会重新评估');
+  }
+  if (scan && scan.maxPerRunReached) {
+    push('yellow', 'smart_task_max_per_run', '自动入队达到单轮上限', 1, '下一轮扫描会继续处理剩余候选');
+  }
+
+  return signals.slice(0, 10);
+}
+
+function dashboardBusinessStatus(signals) {
+  if ((signals || []).some((signal) => signal.level === 'red')) return 'red';
+  if ((signals || []).some((signal) => signal.level === 'yellow')) return 'yellow';
+  return 'green';
+}
+
+const DASHBOARD_ACTION_LABELS = {
+  ingest: '入库',
+  scrape: '刮削',
+  transcode: '转码压缩',
+  upgrade: '洗版',
+  delete: '删除',
+};
+
+const DASHBOARD_TASK_EVENT_LABELS = {
+  'task.created': '任务创建',
+  'flow.planned': '路径规划',
+  'flow.dispatched': '开始执行',
+  'flow.failed': '执行失败',
+  'scrape.metadata_gate_failed': '元数据完整性未满足',
+  'task.confirmed': '用户确认',
+  'task.execute_requested': '请求执行',
+  'task.pause_requested': '请求暂停',
+  'task.cancel_requested': '请求取消',
+  'task.status_changed': '状态变化',
+  'task.manual_execute_requested': '手动启动',
+  'task.paused': '已暂停',
+  'task.resumed': '已恢复',
+  'task.awaiting_confirmation': '等待确认',
+  'task.failed': '任务失败',
+  'task.retry_requested': '请求重试',
+  'task.retry_recorded': '重试入队',
+  'task.restart_interrupted': '重启中断',
+  'task.restart_recovery_queued': '恢复入队',
+  'task.restart_recovery_failed': '恢复失败',
+  'task.deleted': '任务删除',
+};
+
+function dashboardEventSeverityFromTaskEvent(event) {
+  const status = event && event.eventStatus ? String(event.eventStatus) : '';
+  const type = event && event.eventType ? String(event.eventType) : '';
+  if (status === 'failed_hard' || status === 'failed_soft' || type.includes('failed')) return 'red';
+  if (status === 'interrupted' || type.includes('interrupted')) return 'yellow';
+  if (status === 'awaiting_user_confirm' || type.includes('confirmation')) return 'yellow';
+  if (status === 'done' || type.includes('recovery_queued') || type.includes('retry')) return 'green';
+  return 'neutral';
+}
+
+function dashboardActivitySeverity(entry) {
+  const source = entry && entry.source ? String(entry.source) : '';
+  const message = entry && entry.message ? String(entry.message) : '';
+  if (/失败|异常|error|failed/i.test(message)) return 'red';
+  if (/等待|跳过|未启用|warning|warn/i.test(message)) return 'yellow';
+  if (source === 'health' && /恢复/.test(message)) return 'green';
+  return 'neutral';
+}
+
+function dashboardActivitySourceLabel(source) {
+  switch (source) {
+    case 'media_library': return '媒体库';
+    case 'adult_library': return '成人库';
+    case 'douban': return '豆瓣';
+    case 'strategy_engine':
+    case 'optimize_target_projection':
+      return '优化目标';
+    case 'smart_task_engine': return '自动入队';
+    case 'task': return '任务';
+    case 'health': return '健康';
+    case 'user_action': return '用户';
+    default: return source || '系统';
+  }
+}
+
+function dashboardTaskEventMessage(event) {
+  const label = DASHBOARD_TASK_EVENT_LABELS[event.eventType] || event.eventType || '任务事件';
+  const action = DASHBOARD_ACTION_LABELS[event.flowKind] || event.flowKind || '任务';
+  const resource = event.resourceLabel || event.resourceType || '';
+  if (resource) return `${label}：${action} · ${resource}`;
+  return `${label}：${action}`;
+}
+
+function countDashboardEventSources(events) {
+  const bySource = {};
+  for (const event of events || []) {
+    const key = event.source || 'system';
+    bySource[key] = (bySource[key] || 0) + 1;
+  }
+  return bySource;
+}
+
+function buildDashboardEvents(limit = 15) {
+  const eventLimit = Math.min(50, Math.max(1, Number.parseInt(limit, 10) || 15));
+  const activityEvents = activityLog.getRecent(eventLimit).map((entry, index) => ({
+    id: `activity:${entry.ts || index}:${entry.source || 'system'}`,
+    kind: 'activity',
+    source: entry.source || 'system',
+    sourceLabel: dashboardActivitySourceLabel(entry.source || 'system'),
+    ts: entry.ts,
+    severity: dashboardActivitySeverity(entry),
+    message: entry.message || '',
+    detail: entry.detail && typeof entry.detail === 'object' ? entry.detail : undefined,
+  }));
+  const taskEvents = (typeof taskStore.queryRecentTaskEvents === 'function'
+    ? taskStore.queryRecentTaskEvents({ pageSize: eventLimit })
+    : taskStore.queryTaskEvents({}, { pageSize: eventLimit, orderDir: 'desc' }).events
+  ).map((event) => ({
+    id: `task_event:${event.id}`,
+    kind: 'task_event',
+    source: 'task_event',
+    sourceLabel: '任务事件',
+    ts: event.createdAt,
+    severity: dashboardEventSeverityFromTaskEvent(event),
+    message: dashboardTaskEventMessage(event),
+    taskId: event.taskId || '',
+    itemId: event.itemId || '',
+    flowKind: event.flowKind || '',
+    eventType: event.eventType || '',
+    eventStatus: event.eventStatus || '',
+    resourceType: event.resourceType || '',
+    resourceKey: event.resourceKey || '',
+    resourceLabel: event.resourceLabel || '',
+    bridgeKind: event.bridgeKind || '',
+    flowKind: event.flowKind || '',
+  }));
+  const recent = [...activityEvents, ...taskEvents]
+    .filter((event) => event.ts && event.message)
+    .sort((a, b) => {
+      const bTime = Date.parse(b.ts || '') || 0;
+      const aTime = Date.parse(a.ts || '') || 0;
+      if (bTime !== aTime) return bTime - aTime;
+      return String(b.id).localeCompare(String(a.id));
+    })
+    .slice(0, eventLimit);
+  return {
+    latestAt: recent[0] ? recent[0].ts : null,
+    bySource: countDashboardEventSources(recent),
+    recent,
+  };
+}
+
+function isTaskIntentValidationReason(reason) {
+  return [
+    'missing_task_intent',
+    'invalid_gate',
+    'invalid_bridge_kind',
+    'invalid_target_gate',
+    'missing_item_id',
+    'delete_is_not_optimize',
+  ].includes(reason);
+}
+
+function compactAdmissionOptimizeGate(gate) {
+  if (!gate || typeof gate !== 'object') return undefined;
+  const result = {
+    gate: gate.gate || 'optimize',
+    status: gate.status || '',
+    reason: gate.reason || '',
+    operation: gate.operation || '',
+    target: gate.target,
+    observed: gate.observed,
+    failureReasons: gate.failureReasons,
+    evidenceLevel: gate.evidenceLevel || '',
+  };
+  Object.keys(result).forEach((key) => {
+    if (result[key] === undefined || result[key] === null || result[key] === '') delete result[key];
+    if (Array.isArray(result[key]) && result[key].length === 0) delete result[key];
+  });
+  return result;
+}
+
+function compactAdmissionReject(admission = {}) {
+  const result = {
+    targetGate: admission.targetGate || admission.bridgeKind || '',
+    reason: admission.reason || '',
+    supportedEntry: admission.supportedEntry || '',
+    supportedFlows: admission.supportedFlows || admission.supportedOperations,
+    metadataMissingReasons: admission.metadataMissingReasons,
+    activeTaskId: admission.activeTaskId || '',
+    activeTaskTargetGate: admission.activeTaskBridge || '',
+    optimizeGate: compactAdmissionOptimizeGate(admission.optimizeGate),
+    failureHandling: admission.failureHandling,
+    mediaFreeze: admission.mediaFreeze,
+    frozenUntil: admission.frozenUntil,
+    freezeReason: admission.freezeReason,
+    sourceTaskId: admission.sourceTaskId,
+    sourceTargetGate: admission.sourceTargetGate,
+    sourceFlowKind: admission.sourceFlowKind,
+  };
+  Object.keys(result).forEach((key) => {
+    if (result[key] === undefined || result[key] === null || result[key] === '') delete result[key];
+    if (Array.isArray(result[key]) && result[key].length === 0) delete result[key];
+  });
+  return result;
+}
+
+function taskAdmissionRejectMessage(admission = {}) {
+  if (admission.reason === 'media_frozen') {
+    return `媒体冻结中，等待外部系统完成后处理。冻结至 ${admission.frozenUntil || '稍后'}`;
+  }
+  return admission.reason || 'task_admission_rejected';
+}
+
+function compactAdmissionAccept(admission = {}) {
+  const result = {
+    allowed: true,
+    targetGate: admission.targetGate || admission.bridgeKind || '',
+    reason: admission.reason || 'allowed',
+    intentMode: admission.intentMode || '',
+    requestedIntent: admission.requestedIntent,
+    taskTarget: admission.taskTarget,
+  };
+  Object.keys(result).forEach((key) => {
+    if (result[key] === undefined || result[key] === null || result[key] === '') delete result[key];
+    if (Array.isArray(result[key]) && result[key].length === 0) delete result[key];
+  });
+  return result;
+}
+
+function taskAdmissionRejectPayload(code, message, admission, item, itemInfo, config, tasks, extra = {}) {
+  const subject = item
+    ? { ...item, ...(itemInfo || {}) }
+    : (itemInfo || null);
+  return {
+    error: { code, message },
+    admission: compactAdmissionReject(admission),
+    lifecycleProjection: subject ? lifecycleProjection.resolveLifecycle(subject, config) : null,
+    ...extra,
+  };
+}
+
+function latestTaskEvent(taskId) {
+  if (!taskId) return null;
+  const result = taskStore.queryTaskEvents({ taskId }, { pageSize: 1, orderDir: 'desc' });
+  return result.events && result.events[0] ? result.events[0] : null;
+}
+
+function taskDetailView(task, opts = {}) {
   if (!task || typeof task !== 'object') return task;
   const itemInfo = task.itemInfo && typeof task.itemInfo === 'object'
     ? {
@@ -310,7 +1366,255 @@ function taskDetailView(task) {
       }),
     }
     : task.itemInfo;
-  return { ...task, itemInfo };
+  const latestEvent = opts.latestEvent === undefined ? latestTaskEvent(task.id) : opts.latestEvent;
+  return {
+    ...task,
+    itemInfo,
+    controlState: taskControlPolicy.buildTaskControlState(task, { latestEvent }),
+  };
+}
+
+function taskActionResponse(task) {
+  const fresh = task && task.id ? (taskStore.getTask(task.id) || task) : task;
+  return {
+    id: fresh.id,
+    status: fresh.status,
+    updatedAt: fresh.updatedAt,
+    controlState: taskControlPolicy.buildTaskControlState(fresh, { latestEvent: latestTaskEvent(fresh.id) }),
+  };
+}
+
+function taskActionReject(reply, task, actionName, code, message, extra = {}) {
+  const fresh = task && task.id ? (taskStore.getTask(task.id) || task) : task;
+  const latestEvent = fresh && fresh.id ? latestTaskEvent(fresh.id) : null;
+  const controlState = fresh ? taskControlPolicy.buildTaskControlState(fresh, { latestEvent }) : null;
+  const action = controlState && controlState.actions ? controlState.actions[actionName] : null;
+  return reply.code(409).send({
+    error: { code, message },
+    task: fresh ? taskListSummary(fresh) : null,
+    actionName,
+    action: action || null,
+    controlState,
+    recovery: controlState ? controlState.recovery : null,
+    ...extra,
+  });
+}
+
+function activeTaskConflictFor(itemId, excludeTaskId) {
+  if (!itemId) return null;
+  return taskStore.queryTaskSummaries({ itemId }, {
+    includeHistory: false,
+    includeAll: true,
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  }).tasks.find((t) => t.id !== excludeTaskId) || null;
+}
+
+function activeTaskAdmissionSummary(itemId, activeTaskId) {
+  if (!itemId) return null;
+  const activeTasks = taskStore.queryTaskSummaries({ itemId }, {
+    includeHistory: false,
+    includeAll: true,
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  }).tasks;
+  const active = activeTaskId
+    ? activeTasks.find((t) => t.id === activeTaskId)
+    : activeTasks[0];
+  return active ? taskListSummary(active) : null;
+}
+
+function activeTaskSummariesForItem(itemId) {
+  if (!itemId) return [];
+  return activeTaskSummariesForItems([itemId]);
+}
+
+function activeTaskSummariesForItems(itemIds) {
+  const ids = [...new Set((itemIds || []).map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+  if (ids.length === 0) return [];
+  return taskStore.queryTaskSummaries({ itemIds: ids }, {
+    includeHistory: false,
+    includeAll: true,
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  }).tasks;
+}
+
+function activeTaskItemIds() {
+  return new Set(taskStore.queryTaskSummaries({}, {
+    includeHistory: false,
+    includeAll: true,
+    orderBy: 'updatedAt',
+    orderDir: 'desc',
+  }).tasks.map((task) => task.itemId).filter(Boolean));
+}
+
+const PRIORITY_EDITABLE_STATUSES = ['created', 'pending_manual', 'queued', 'interrupted', 'paused'];
+
+function priorityAdjustmentState(task, requestedPriority) {
+  const status = task && task.status || '';
+  const editable = PRIORITY_EDITABLE_STATUSES.includes(status);
+  return {
+    enabled: editable,
+    reason: editable ? 'available' : 'status_not_priority_editable',
+    effect: editable ? 'override_queue_priority' : 'priority_locked_after_dispatch_or_terminal_state',
+    requestedPriority: requestedPriority === undefined ? null : requestedPriority,
+    currentPriority: task && typeof task.priority === 'number' ? task.priority : 100,
+    editableStatuses: PRIORITY_EDITABLE_STATUSES,
+  };
+}
+
+function priorityAdjustmentReject(reply, task, statusCode, code, message, requestedPriority, extra = {}) {
+  const fresh = task && task.id ? (taskStore.getTask(task.id) || task) : task;
+  const latestEvent = fresh && fresh.id ? latestTaskEvent(fresh.id) : null;
+  const controlState = fresh ? taskControlPolicy.buildTaskControlState(fresh, { latestEvent }) : null;
+  return reply.code(statusCode).send({
+    error: { code, message },
+    task: fresh ? taskListSummary(fresh) : null,
+    controlState,
+    priorityAdjustment: priorityAdjustmentState(fresh, requestedPriority),
+    ...extra,
+  });
+}
+
+function getTaskActionOrReject(reply, task, actionName) {
+  const action = taskControlPolicy.getTaskAction(task, actionName);
+  if (!action.enabled) {
+    taskActionReject(reply, task, actionName, 'TASK_ACTION_REJECTED', action.reason || 'action_not_available');
+    return null;
+  }
+  return action;
+}
+
+function appendTaskControlEvent(task, actionName, action, payload = {}) {
+  if (!task || !task.id || !actionName) return null;
+  return taskStore.appendTaskEvent(task, `task.${actionName}_requested`, {
+    requestedBy: 'user',
+    actionName,
+    actionEffect: action && action.effect || '',
+    fromStatus: task.status || '',
+    resumePoint: task.resumePoint || '',
+    ...payload,
+  });
+}
+
+function diagnosticMatchesFailureEvent(log, event, task) {
+  if (!log || !event) return false;
+  const payload = log.payload && typeof log.payload === 'object' ? log.payload : {};
+  if (payload.taskId && payload.taskId === event.taskId) return true;
+  if (payload.itemId && payload.itemId === event.itemId) return true;
+  if (task && payload.taskId && payload.taskId === task.id) return true;
+  if (task && payload.itemId && payload.itemId === task.itemId) return true;
+  if (log.resourceKey && event.resourceKey && log.resourceKey === event.resourceKey) return true;
+  if (log.resourceType && event.resourceType && log.resourceType === event.resourceType && log.status === 'failed') return true;
+  return false;
+}
+
+function compactFailureDiagnostic(log) {
+  if (!log) return null;
+  const payload = log.payload && typeof log.payload === 'object' ? log.payload : {};
+  return {
+    logId: log.logId || log.id || '',
+    scope: log.scope || '',
+    operation: log.operation || '',
+    component: log.component || '',
+    status: log.status || '',
+    resourceType: log.resourceType || '',
+    resourceKey: log.resourceKey || '',
+    endedAt: log.endedAt || '',
+    error: payload.error || payload.reason || '',
+  };
+}
+
+function latestTaskErrorSummary(task) {
+  const logs = Array.isArray(task && task.logs) ? task.logs : [];
+  const latestError = [...logs].reverse().find((entry) => {
+    const level = String(entry && entry.level || '').toLowerCase();
+    return level === 'error' || level === 'fatal';
+  });
+  if (!latestError) return null;
+  return {
+    message: String(latestError.msg || latestError.message || ''),
+    level: String(latestError.level || ''),
+    ts: String(latestError.ts || latestError.at || ''),
+    source: 'task_log',
+  };
+}
+
+function compactFailureSummary(event, diagnostic, task) {
+  const payload = event && event.payload && typeof event.payload === 'object' ? event.payload : {};
+  const embedded = payload.failureSummary && typeof payload.failureSummary === 'object'
+    ? payload.failureSummary
+    : null;
+  const taskLogSummary = latestTaskErrorSummary(task);
+  const diagnosticPayload = diagnostic && diagnostic.payload && typeof diagnostic.payload === 'object'
+    ? diagnostic.payload
+    : {};
+  const message = (embedded && embedded.message)
+    || (taskLogSummary && taskLogSummary.message)
+    || payload.errorMessage
+    || payload.message
+    || payload.error
+    || payload.reason
+    || diagnosticPayload.error
+    || diagnosticPayload.reason
+    || '';
+  const level = (embedded && embedded.level) || (message ? 'error' : '');
+  const ts = (embedded && embedded.ts) || (taskLogSummary && taskLogSummary.ts) || (event && event.createdAt) || (diagnostic && diagnostic.endedAt) || '';
+  const source = (embedded && embedded.source)
+    || (taskLogSummary && taskLogSummary.source)
+    || (payload.errorMessage ? 'flow_event' : '')
+    || (payload.message || payload.error || payload.reason ? 'event_payload' : '')
+    || (diagnostic ? 'diagnostic_log' : '');
+  return {
+    message: String(message || ''),
+    level: String(level || ''),
+    ts: String(ts || ''),
+    source: String(source || ''),
+    errorName: payload.errorName || '',
+  };
+}
+
+function enrichFailureEvent(event, config, diagnosticRows = []) {
+  const task = event && event.taskId ? taskStore.getTask(event.taskId) : null;
+  const latestEvent = event || null;
+  const controlState = task ? taskControlPolicy.buildTaskControlState(task, { latestEvent }) : null;
+  const taskResource = task ? resourceProjection.resourceForTask(task, config) : null;
+  const diagnostic = diagnosticRows.find((log) => diagnosticMatchesFailureEvent(log, event, task));
+  const recovery = controlState && controlState.recovery ? controlState.recovery : {
+    state: 'task_not_found',
+    reason: 'task_record_missing',
+    resumePoint: event && event.resumePoint || '',
+    nextAction: 'inspect_event',
+  };
+  return {
+    ...event,
+    task: task ? {
+      id: task.id,
+      itemId: task.itemId,
+      itemName: task.itemName || '',
+      status: task.status,
+      phase: task.phase || '',
+      resumePoint: task.resumePoint || '',
+      retryCount: Number(task.retryCount || 0) || 0,
+      bridgeKind: task.taskBridge && task.taskBridge.kind || '',
+      flowDirection: task.flowPlan && task.flowPlan.direction || '',
+      flowKind: flowKindForTask(task),
+    } : null,
+    resourceContext: {
+      resourceType: event.resourceType || (taskResource && taskResource.resourceType) || '',
+      resourceKey: event.resourceKey || (taskResource && taskResource.resourceKey) || '',
+      resourceLabel: event.resourceLabel || (taskResource && taskResource.resourceLabel) || '',
+    },
+    recovery,
+    controlState,
+    diagnosticSummary: compactFailureDiagnostic(diagnostic),
+    failureSummary: compactFailureSummary(event, diagnostic, task),
+  };
+}
+
+function enrichFailureEvents(events, config, diagnosticRows = []) {
+  return (events || []).map((event) => enrichFailureEvent(event, config, diagnosticRows));
 }
 
 function markScrapeVerificationSource(verification, source) {
@@ -400,12 +1704,10 @@ function registerRoutes(app) {
   // ── Tasks ───────────────────────────────────────────────────────────────
 
   app.post('/v1/tasks', async (req, reply) => {
-    const { itemId, actionType } = req.body || {};
-    if (!itemId || !actionType) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId and actionType are required');
-    }
-    if (!['delete', 'transcode', 'upgrade', 'scrape'].includes(actionType)) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'Invalid actionType');
+    const body = req.body || {};
+    const { itemId } = body;
+    if (!itemId) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
     }
 
     const cfg = configStore.loadConfig();
@@ -424,6 +1726,10 @@ function registerRoutes(app) {
       assetRootPath: libItem.assetRootPath,
       externalRefs: libItem.externalRefs,
       resolution: libItem.resolution,
+      codec: libItem.codec,
+      videoCodec: libItem.videoCodec,
+      originalVideoCodec: libItem.originalVideoCodec,
+      audioCodecs: libItem.audioCodecs,
       bitrate: libItem.bitrate,
       size: libItem.size,
       duration: libItem.duration,
@@ -441,80 +1747,216 @@ function registerRoutes(app) {
       seedPreferences: libItem.seedPreferences,
       maxSizeGB: libItem.maxSizeGB,
       equivalentBitrate: libItem.equivalentBitrate,
+      optimizeObjectiveStatus: libItem.optimizeObjectiveStatus,
+      optimizeObjective: libItem.optimizeObjective,
+      objectiveHash: libItem.objectiveHash,
+      objectiveVersion: libItem.objectiveVersion,
       scraped: !!libItem.scraped,
       adultMetadata: libItem.adultMetadata,
+      factsFreshness: libItem.factsFreshness,
       ...(meta || {}),
     } : null;
 
     const admissionItemInfo = itemInfo || { itemId };
-    const admission = taskAdmission.canCreateTask({
-      item: libItem,
-      itemInfo: admissionItemInfo,
-      actionType,
-      source: 'manual',
-      config: cfg,
-      tasks: taskStore.loadTasks({ includeHistory: false }),
-    });
-    if (!admission.allowed) {
-      if (admission.reason === 'active_task_exists') {
-        return apiError(reply, 409, 'TASK_CONFLICT', `Item ${itemId} already has an active task (${admission.activeTaskId})`);
-      }
-      return apiError(reply, 409, 'TASK_ADMISSION_REJECTED', admission.reason);
-    }
-
+    const activeAdmissionTasks = activeTaskSummariesForItem(itemId);
     const schedule = itemInfo && itemInfo.subLibraryId
       ? configStore.resolveSubLibSchedule(itemInfo, cfg)
       : { autoExecute: cfg.executionMode === 'auto' };
     const status = schedule.autoExecute ? 'created' : 'pending_manual';
-    const priorityBreakdown = priorityEngine.explainPriority({
-      source: 'manual',
-      actionType,
-      itemInfo,
-      config: cfg,
-    });
-
-    const task = taskStore.createTask({
-      itemId,
-      itemName: libItem ? libItem.name : undefined,
-      actionType,
+    const created = smartTaskEngine.createTargetGateTask({
+      item: libItem,
+      itemInfo: admissionItemInfo,
+      targetGate: body.targetGate,
+      gateObjective: body.gateObjective,
+      flowPreference: body.flowPreference,
+      requestedIntent: body.intent,
       source: 'manual',
       status,
-      priority: priorityBreakdown.priority,
-      priorityModelVersion: priorityEngine.PRIORITY_MODEL_VERSION,
-      priorityBreakdown,
-      itemInfo,
-      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user action' }],
+      config: cfg,
+      tasks: activeAdmissionTasks,
+      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user intent' }],
     });
+    const admission = created.admission;
+    if (!admission.allowed) {
+      diagnosticLog.record({
+        category: 'admission',
+        scope: 'taskAdmission.manual',
+        operation: 'reject_task',
+        component: 'taskAdmission',
+        resourceType: 'task',
+        resourceKey: `task:${admission.targetGate || body.targetGate || 'unknown'}`,
+        status: 'rejected',
+        payload: {
+          itemId,
+          targetGate: body.targetGate || (body.intent && body.intent.targetGate) || '',
+          flowPreference: body.flowPreference || (body.intent && body.intent.flowPreference) || null,
+          source: 'manual',
+          reason: admission.reason,
+          supportedEntry: admission.supportedEntry,
+          supportedFlows: admission.supportedFlows || admission.supportedOperations,
+          metadataMissingReasons: admission.metadataMissingReasons,
+        },
+      });
+      if (isTaskIntentValidationReason(admission.reason)) {
+        return reply.code(400).send(taskAdmissionRejectPayload(
+          'VALIDATION_ERROR',
+          admission.reason,
+          admission,
+          libItem,
+          admissionItemInfo,
+          cfg,
+          activeAdmissionTasks,
+        ));
+      }
+      if (admission.reason === 'active_task_exists') {
+        return reply.code(409).send(taskAdmissionRejectPayload(
+          'TASK_CONFLICT',
+          `Item ${itemId} already has an active task (${admission.activeTaskId})`,
+          admission,
+          libItem,
+          admissionItemInfo,
+          cfg,
+          activeAdmissionTasks,
+          {
+            activeTask: activeTaskAdmissionSummary(itemId, admission.activeTaskId),
+          },
+        ));
+      }
+      return reply.code(409).send(taskAdmissionRejectPayload(
+        'TASK_ADMISSION_REJECTED',
+        taskAdmissionRejectMessage(admission),
+        admission,
+        libItem,
+        admissionItemInfo,
+        cfg,
+        activeAdmissionTasks,
+      ));
+    }
 
-    return reply.code(201).send(task);
+    const task = created.task;
+
+    const response = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
+    response.admission = compactAdmissionAccept(admission);
+    return reply.code(201).send(response);
+  });
+
+  app.get('/v1/admin/delete-candidates', async (req) => {
+    return deleteCandidateService.listCandidates({
+      includeDecided: req.query.includeDecided === '1' || req.query.includeDecided === 'true',
+    });
+  });
+
+  app.post('/v1/admin/delete-candidates/:itemId/actions/keep-archived', async (req, reply) => {
+    const candidate = deleteCandidateService.keepArchived(req.params.itemId);
+    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
+    return { candidate };
+  });
+
+  app.post('/v1/admin/delete-candidates/:itemId/actions/snooze', async (req, reply) => {
+    const candidate = deleteCandidateService.snooze(req.params.itemId, req.body || {});
+    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
+    return { candidate };
+  });
+
+  app.post('/v1/admin/delete-candidates/:itemId/actions/suppress', async (req, reply) => {
+    const candidate = deleteCandidateService.suppress(req.params.itemId);
+    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
+    return { candidate };
+  });
+
+  app.post('/v1/admin/delete-candidates/:itemId/actions/confirm-delete', async (req, reply) => {
+    const itemId = req.params.itemId;
+    const candidate = deleteCandidateService.confirmDelete(itemId);
+    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
+
+    const cfg = configStore.loadConfig();
+    const libItem = mediaLibraryService.getLibraryItem(itemId);
+    if (!libItem) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
+    const activeAdmissionTasks = activeTaskSummariesForItem(itemId);
+    const itemWithCandidate = { ...libItem, deleteCandidate: candidate };
+    const created = smartTaskEngine.createTargetGateTask({
+      item: itemWithCandidate,
+      itemInfo: itemWithCandidate,
+      targetGate: 'delete',
+      gateObjective: {
+        kind: 'delete_archived_media',
+        eligibilityReason: candidate.eligibilityReason || '',
+        matchedRule: candidate.matchedRule || null,
+      },
+      requestedIntent: {
+        targetGate: 'delete',
+        entryPoint: 'delete_candidate_confirm',
+      },
+      config: cfg,
+      tasks: activeAdmissionTasks,
+      logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Delete task created from delete candidate confirmation' }],
+    });
+    const admission = created.admission;
+    if (!admission.allowed) {
+      return reply.code(409).send(taskAdmissionRejectPayload(
+        admission.reason === 'active_task_exists' ? 'TASK_CONFLICT' : 'TASK_ADMISSION_REJECTED',
+        taskAdmissionRejectMessage(admission),
+        admission,
+        libItem,
+        libItem,
+        cfg,
+        activeAdmissionTasks,
+      ));
+    }
+
+    const task = created.task;
+    const updatedCandidate = deleteCandidateService.attachTask(itemId, task.id) || candidate;
+    const response = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
+    response.candidate = updatedCandidate;
+    response.admission = compactAdmissionAccept(admission);
+    return reply.code(201).send(response);
   });
 
   app.get('/v1/tasks', async (req) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
-    if (req.query.actionType) filter.actionType = req.query.actionType;
+    applyTaskTargetQuery(filter, req.query);
     const includeHistory = req.query.includeHistory === '1' || req.query.includeHistory === 'true';
     const activeOnly = !includeHistory || req.query.activeOnly === '1' || req.query.activeOnly === 'true';
-    const tasks = activeOnly
-      ? taskStore.loadTasks({ includeHistory: false }).filter((t) => {
-        if (filter.status && t.status !== filter.status) return false;
-        if (filter.actionType && t.actionType !== filter.actionType) return false;
-        return true;
-      })
-      : taskStore.getTasks(filter);
-    return { tasks };
+    if (activeOnly) {
+      const tasks = taskStore.queryTaskSummaries(filter, {
+        includeHistory: false,
+        includeAll: true,
+        orderBy: 'updatedAt',
+        orderDir: 'desc',
+      }).tasks;
+      return { tasks: tasks.map(taskListSummary) };
+    }
+    const tasks = taskStore.getTasks(filter);
+    return { tasks: tasks.map((task) => ({ ...task, controlState: taskControlPolicy.buildTaskControlState(task) })) };
+  });
+
+  app.get('/v1/tasks/:id/events', async (req, reply) => {
+    const task = taskStore.getTask(req.params.id);
+    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 50));
+    return taskStore.queryTaskEvents({ taskId: task.id }, { page, pageSize, orderDir: 'asc' });
   });
 
   app.get('/v1/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    return taskDetailView(task);
+    const detail = taskDetailView(task);
+    if (req.query.includeEvents === '1' || req.query.includeEvents === 'true') {
+      detail.events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 200 }).events;
+      detail.controlState = taskControlPolicy.buildTaskControlState(task, {
+        latestEvent: detail.events && detail.events.length ? detail.events[detail.events.length - 1] : null,
+      });
+    }
+    return detail;
   });
 
   app.get('/v1/tasks/:id/report', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    if (task.status !== 'done' && !(task.status === 'failed_hard' && task.actionType === 'scrape')) {
+    const flowKind = flowKindForTask(task);
+    if (task.status !== 'done' && !(task.status === 'failed_hard' && flowKind === 'scrape')) {
       return apiError(reply, 400, 'BAD_REQUEST', 'Task not completed yet');
     }
 
@@ -535,12 +1977,12 @@ function registerRoutes(app) {
       itemName: (info.type === 'season' && info.seriesName && info.seasonNumber != null
         ? `${info.seriesName} 第${info.seasonNumber}季`
         : (task.itemName || task.itemId)),
-      actionType: task.actionType,
+      flowKind,
       elapsedSec,
       encoder,
     };
 
-    if (task.actionType === 'transcode') {
+    if (flowKind === 'transcode') {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,
         videoCodec: info.originalVideoCodec || info.codec || '?',
@@ -557,13 +1999,13 @@ function registerRoutes(app) {
         height: vr.height,
       };
       report.bytesSaved = vr.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
-    } else if (task.actionType === 'delete') {
+    } else if (flowKind === 'delete') {
       report.bytesFreed = vr.bytesSaved || info.size || info.originalSizeBytes || 0;
       report.delete = {
         targetPath: vr.deletedPath || info.deleteTargetPath || info.path || '',
         targetKind: vr.deletedKind || info.deleteTargetKind || (info.embyItemId ? 'emby_item' : ''),
       };
-    } else if (task.actionType === 'upgrade') {
+    } else if (flowKind === 'upgrade') {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,
         videoCodec: info.originalVideoCodec || info.codec || '?',
@@ -585,7 +2027,7 @@ function registerRoutes(app) {
         report.bytesSaved = up.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
         report.tmdbVerified = up.tmdbVerified;
       }
-    } else if (task.actionType === 'scrape') {
+    } else if (flowKind === 'scrape') {
       const cfg = configStore.loadConfig();
       const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
       const scrapeInfo = liveItem || { ...info, itemId: task.itemId };
@@ -608,7 +2050,8 @@ function registerRoutes(app) {
           : markScrapeVerificationSource(currentVerification, 'current_library_state');
         return report;
       }
-      const meta = scrapeInfo.adultMetadata || {};
+      const scrapeInfoWithCold = adultColdArtifactStore.mergeColdArtifacts(scrapeInfo);
+      const meta = scrapeInfoWithCold.adultMetadata || {};
       const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === scrapeInfo.subLibraryId) || null;
       report.scrape = {
         adultId: meta.adultId || scrapeInfo.sourceId || '',
@@ -701,64 +2144,129 @@ function registerRoutes(app) {
 
     const { confirmed, confirmData } = req.body || {};
     if (!confirmed) return apiError(reply, 400, 'VALIDATION_ERROR', 'confirmed must be true');
-    if (task.status !== 'awaiting_user_confirm') {
-      return apiError(reply, 409, 'TASK_CONFLICT', 'Task is not awaiting confirmation');
-    }
+    const action = getTaskActionOrReject(reply, task, 'confirm');
+    if (!action) return;
 
     // Store user selection data (e.g. selectedIndex for upgrade flow)
     if (confirmData) {
       taskStore.updateTask(task.id, { confirmData });
     }
 
-    // Call Flow.confirmReceived
-    const flow = getFlow(task.actionType);
-    if (flow) flow.confirmReceived(task.id);
+    resourceRuntime.confirmTask(task);
 
     // Re-queue for scheduler, mark as just-confirmed to bypass awaiting guard
     taskScheduler.markConfirmed(task.id);
     const updated = taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
-    return { id: updated.id, status: updated.status, updatedAt: updated.updatedAt };
+    if (updated) {
+      taskStore.appendTaskEvent(updated, 'task.confirmed', {
+        requestedBy: 'user',
+        actionName: 'confirm',
+        actionEffect: action.effect || '',
+        fromStatus: task.status || '',
+        toStatus: updated.status || '',
+        gateId: task.approval && task.approval.gateId || '',
+        resumePoint: task.resumePoint || '',
+        confirmDataKeys: confirmData && typeof confirmData === 'object' ? Object.keys(confirmData) : [],
+      });
+    }
+    return taskActionResponse(updated);
   });
 
   app.post('/v1/tasks/:id/actions/execute', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const action = getTaskActionOrReject(reply, task, 'execute');
+    if (!action) return;
 
-    if (task.status === 'pending_manual' || task.status === 'interrupted' || task.status === 'created') {
+    if (action.effect === 'queue_for_scheduler_dispatch' || action.effect === 'resume_after_interruption' || action.effect === 'resume_from_pause') {
+      appendTaskControlEvent(task, 'execute', action);
       taskScheduler.markConfirmed(task.id);
-      taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
-      return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
+      const updated = taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
+      return taskActionResponse(updated);
     }
-    if (task.status === 'paused') {
-      taskScheduler.markConfirmed(task.id);
-      taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
-      return { id: task.id, status: 'queued', updatedAt: new Date().toISOString() };
-    }
-    if (task.status === 'pausing') {
+    if (action.effect === 'clear_pause_request') {
       // Clear pause request — hash acquisition loop will fall back to normal polling
-      taskStore.updateTask(task.id, { pausingRequested: false, status: 'executing' });
-      return { id: task.id, status: 'executing', updatedAt: new Date().toISOString() };
+      appendTaskControlEvent(task, 'execute', action);
+      const updated = taskStore.updateTask(task.id, { pausingRequested: false, status: 'executing' });
+      return taskActionResponse(updated);
     }
-    return { id: task.id, status: task.status, updatedAt: task.updatedAt };
+    return taskActionReject(reply, task, 'execute', 'TASK_ACTION_REJECTED', action.reason || 'unsupported_execute_transition');
+  });
+
+  app.post('/v1/tasks/:id/actions/retry', async (req, reply) => {
+    const task = taskStore.getTask(req.params.id);
+    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+
+    const plan = taskControlPolicy.buildTaskRecoveryPlan(task);
+    if (!plan.available || plan.action !== 'retry') {
+      return taskActionReject(reply, task, 'retry', 'TASK_RECOVERY_REJECTED', plan.reason || 'recovery_not_available', {
+        recoveryPlan: plan,
+      });
+    }
+
+    const activeConflict = activeTaskConflictFor(task.itemId, task.id);
+    if (activeConflict) {
+      return taskActionReject(reply, task, 'retry', 'TASK_RECOVERY_REJECTED', 'active_task_conflict', {
+        recoveryPlan: { ...plan, available: false, reason: 'active_task_conflict' },
+        activeTask: taskListSummary(activeConflict),
+      });
+    }
+
+    taskScheduler.markConfirmed(task.id);
+    const updates = {
+      status: 'queued',
+      manualExecuteRequested: true,
+      retryCount: Number(task.retryCount || 0) + 1,
+      phase: null,
+      progress: 0,
+    };
+    if (plan.resumePoint && plan.resumePoint !== task.resumePoint) updates.resumePoint = plan.resumePoint;
+    const updated = taskStore.updateTask(task.id, updates);
+    taskStore.deleteProgress(task.id);
+    if (updated) {
+      taskStore.appendTaskEvent(updated, 'task.retry_requested', {
+        fromStatus: task.status,
+        toStatus: updated.status,
+        retryCount: updated.retryCount || 0,
+        recovery: {
+          reason: plan.reason,
+          effect: plan.effect,
+          resumePoint: plan.resumePoint || '',
+        },
+      });
+    }
+    return taskActionResponse(updated || taskStore.getTask(task.id) || task);
   });
 
   app.post('/v1/tasks/:id/actions/pause', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const action = getTaskActionOrReject(reply, task, 'pause');
+    if (!action) return;
 
-    const flow = getFlow(task.actionType);
-    if (flow) await flow.pause(task.id);
+    if (action.effect === 'move_waiting_task_to_paused') {
+      appendTaskControlEvent(task, 'pause', action);
+      const updated = taskStore.updateTask(task.id, { status: 'paused' });
+      return taskActionResponse(updated);
+    }
+    if (action.effect === 'request_runtime_pause_and_cleanup_partial_work') {
+      appendTaskControlEvent(task, 'pause', action);
+      await resourceRuntime.pauseTask(task);
+      return taskActionResponse(taskStore.getTask(task.id) || { ...task, status: 'paused' });
+    }
 
-    return { id: task.id, status: 'paused', updatedAt: new Date().toISOString() };
+    return taskActionReject(reply, task, 'pause', 'TASK_ACTION_REJECTED', action.reason || 'unsupported_pause_transition');
   });
 
   app.delete('/v1/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const action = getTaskActionOrReject(reply, task, 'cancel');
+    if (!action) return;
 
-    const flow = getFlow(task.actionType);
-    if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
+    if (taskNeedsFlowCancel(task)) await resourceRuntime.cancelTask(task);
 
+    appendTaskControlEvent(task, 'cancel', action);
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
   });
@@ -769,7 +2277,6 @@ function registerRoutes(app) {
     const filter = {};
     if (query.source) filter.source = query.source;
     if (query.type) filter.type = query.type;
-    if (query.action) filter.action = query.action;
     if (query.subLibraryId) filter.subLibraryId = query.subLibraryId;
     if (query.search) filter.search = query.search;
     if (query.resolution) filter.resolution = query.resolution;
@@ -784,9 +2291,15 @@ function registerRoutes(app) {
     else if (query.userRating) filter.userRating = Number(query.userRating);
     if (query.task === 'active' || query.task === 'none') {
       filter.taskState = query.task;
-      filter.activeTaskIds = new Set(taskStore.loadTasks({ includeHistory: false }).map((t) => t.itemId));
+      filter.activeTaskIds = activeTaskItemIds();
     }
-    if (query.scrape === 'done' || query.scrape === 'pending' || query.scrape === 'failed') filter.metadataStatus = query.scrape;
+    const metadataQuery = query.metadata || query.metadataStatus || query.scrape;
+    if (metadataQuery) {
+      const metadataStatus = String(metadataQuery).toLowerCase();
+      const allowedMetadataFilters = new Set(['done', 'pending', 'failed', 'complete', 'missing', 'ambiguous', 'needs_review']);
+      if (allowedMetadataFilters.has(metadataStatus)) filter.metadataStatus = metadataStatus;
+    }
+    if (query.lifecycle) filter.lifecycle = query.lifecycle;
     const rawPageSize = Number(query.pageSize);
     const rawPage = Number(query.page);
     const rawLimit = Number(query.limit);
@@ -800,36 +2313,139 @@ function registerRoutes(app) {
     return { filter, page: { limit, offset } };
   }
 
+  function compactLibraryRouteFilter(filter = {}) {
+    return {
+      source: filter.source || '',
+      type: filter.type || '',
+      subLibraryId: filter.subLibraryId || '',
+      resolution: filter.resolution || '',
+      codec: filter.codec || '',
+      watched: filter.watched === undefined ? undefined : !!filter.watched,
+      isBluRayDisc: filter.isBluRayDisc === undefined ? undefined : !!filter.isBluRayDisc,
+      hasSearch: !!filter.search,
+      hasDoubanStarsFilter: filter.doubanStars !== undefined,
+      hasUserRatingFilter: filter.userRating !== undefined,
+      taskState: filter.taskState || '',
+      activeTaskItemCount: filter.activeTaskIds instanceof Set ? filter.activeTaskIds.size : undefined,
+      metadataStatus: filter.metadataStatus || '',
+      lifecycle: filter.lifecycle || '',
+    };
+  }
+
+  function truthyQueryFlag(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+  }
+
+  function falseQueryFlag(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off';
+  }
+
+  function libraryProjectionFromQuery(query = {}, fallback = 'summary') {
+    const raw = String(query.projection || fallback || 'summary').trim().toLowerCase();
+    const projection = ['manage', 'full', 'compat'].includes(raw) ? raw : 'summary';
+    const heavy = projection === 'manage' || projection === 'full' || projection === 'compat';
+    return {
+      projection,
+      includeOptimizationStatus: heavy || truthyQueryFlag(query.includeOptimizationStatus),
+      includeBusinessFlow: heavy || truthyQueryFlag(query.includeBusinessFlow),
+    };
+  }
+
+  function libraryRouteDiagnostic(route, filter, page, projection, fn) {
+    return diagnosticLog.track({
+      category: 'api',
+      scope: `route.${route}`,
+      operation: 'http_get',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: route,
+      slowMs: 250,
+      payload: {
+        route,
+        filter: compactLibraryRouteFilter(filter),
+        page: {
+          limit: page.limit || null,
+          offset: page.offset || 0,
+          pageSize: page.limit || null,
+        },
+        projection: {
+          name: projection.projection,
+          includeOptimizationStatus: !!projection.includeOptimizationStatus,
+          includeBusinessFlow: !!projection.includeBusinessFlow,
+          compactAdultMetadata: true,
+        },
+      },
+      successPayload: (result) => ({
+        rowCount: result && Array.isArray(result.items) ? result.items.length : 0,
+        total: result && typeof result.total === 'number' ? result.total : undefined,
+      }),
+    }, fn);
+  }
+
   app.get('/v1/library', async (req) => {
     const { filter, page } = parseLibraryQuery(req.query);
-    const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
-    // Attach embyWebUrl for desktop play button
-    const cfg = configStore.loadConfig();
-    const servers = cfg.embyServers || {};
-    const subLibs = cfg.subLibraries || [];
-    for (const item of result.items) {
-      const sl = subLibs.find((s) => s.uuid === item.subLibraryId);
-      if (sl && servers[sl.embyServerId] && servers[sl.embyServerId].baseUrl) {
-        const embyItemId = assetIdentity.getEmbyItemId(item);
-        if (embyItemId) {
-          item.embyWebUrl = `${String(servers[sl.embyServerId].baseUrl).replace(/\/+$/, '')}/web/index.html#!/item?id=${embyItemId}`;
+    const projection = libraryProjectionFromQuery(req.query, 'summary');
+    return libraryRouteDiagnostic('/v1/library', filter, page, projection, () => runtimeResourceTracker.trackEvent({
+      eventType: 'library.query',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: 'service:library.query',
+      resourceLabel: 'Library query',
+      subLibraryId: filter.subLibraryId || '',
+      payload: { route: '/v1/library', filter, page },
+      successPayload: (result) => ({
+        itemCount: result && Array.isArray(result.items) ? result.items.length : 0,
+        total: result && typeof result.total === 'number' ? result.total : undefined,
+      }),
+    }, () => {
+      const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: projection.includeOptimizationStatus, ...page });
+      // Attach embyWebUrl for desktop play button
+      const cfg = configStore.loadConfig();
+      const servers = cfg.embyServers || {};
+      const subLibs = cfg.subLibraries || [];
+      for (const item of result.items) {
+        const sl = subLibs.find((s) => s.uuid === item.subLibraryId);
+        if (sl && servers[sl.embyServerId] && servers[sl.embyServerId].baseUrl) {
+          const embyItemId = assetIdentity.getEmbyItemId(item);
+          if (embyItemId) {
+            item.embyWebUrl = `${String(servers[sl.embyServerId].baseUrl).replace(/\/+$/, '')}/web/index.html#!/item?id=${embyItemId}`;
+          }
         }
       }
-    }
-    result.items = result.items.map(libraryListItemView);
-    return result;
+      result.items = projectLibraryItemsForUi(result.items, cfg, projection);
+      return result;
+    }));
   });
 
   app.get('/v1/library/queries/manage', async (req) => {
     const { filter, page } = parseLibraryQuery(req.query);
-    const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: true, ...page });
-    return { ...result, items: result.items.map(libraryListItemView) };
+    const projection = libraryProjectionFromQuery(req.query, 'manage');
+    return libraryRouteDiagnostic('/v1/library/queries/manage', filter, page, projection, () => runtimeResourceTracker.trackEvent({
+      eventType: 'library.query',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: 'service:library.query',
+      resourceLabel: 'Library query',
+      subLibraryId: filter.subLibraryId || '',
+      payload: { route: '/v1/library/queries/manage', filter, page },
+      successPayload: (result) => ({
+        itemCount: result && Array.isArray(result.items) ? result.items.length : 0,
+        total: result && typeof result.total === 'number' ? result.total : undefined,
+      }),
+    }, () => {
+      const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: projection.includeOptimizationStatus, ...page });
+      const cfg = configStore.loadConfig();
+      return { ...result, items: projectLibraryItemsForUi(result.items, cfg, projection) };
+    }));
   });
 
   app.get('/v1/library/items/:itemId', async (req, reply) => {
     const item = mediaLibraryService.getLibraryItem(req.params.itemId);
     if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Item not found');
-    return libraryListItemView(metadataStatus.decorateItem(item, configStore.loadConfig()));
+    const cfg = configStore.loadConfig();
+    return libraryListItemView(lifecycleProjection.decorateItem(item, cfg));
   });
 
   app.patch('/v1/library/ratings', async (req, reply) => {
@@ -848,33 +2464,49 @@ function registerRoutes(app) {
     }
   });
 
+  app.post('/v1/library/actions/ingest', async (req, reply) => {
+    return apiError(
+      reply,
+      410,
+      'KAIROX_RUN_SCAN_REMOVED',
+      'Kairox no longer exposes user-triggered library scan. Create a targetGate task for a specific media item instead.',
+    );
+  });
+
   app.post('/v1/library/actions/refresh', async (req, reply) => {
-    const { subLibraryId } = req.body || {};
-    if (!subLibraryId) return apiError(reply, 400, 'VALIDATION_ERROR', 'subLibraryId is required');
-    try {
-      mediaLibraryService.triggerRefresh(subLibraryId);
-      return reply.code(202).send({ ok: true, message: 'Refresh triggered' });
-    } catch (e) {
-      return apiError(reply, 404, 'NOT_FOUND', e.message);
-    }
+    return apiError(
+      reply,
+      410,
+      'KAIROX_RUN_SCAN_REMOVED',
+      'Kairox no longer exposes user-triggered library refresh. Create a targetGate task for a specific media item instead.',
+    );
+  });
+
+  function recomputeOptimizeTargets() {
+    const result = strategyEngine.runOnce();
+    return { ok: true, changed: result.changed };
+  }
+
+  app.post('/v1/library/actions/recompute-optimize-targets', async () => {
+    return recomputeOptimizeTargets();
   });
 
   app.post('/v1/library/actions/recompute-strategy', async () => {
-    const result = strategyEngine.runOnce();
-    return { ok: true, changed: result.changed };
+    return recomputeOptimizeTargets();
   });
 
   app.get('/v1/library/status', async () => {
     return mediaLibraryService.getLibraryStatus();
   });
 
-  app.post('/v1/library/cache', async (req) => {
-    const { subLibraryId, items } = req.body || {};
-    if (!subLibraryId || !Array.isArray(items)) {
-      return { ok: true, upserted: 0, removed: 0 };
-    }
-    const result = mediaLibraryService.upsertItems(subLibraryId, items, { fullSync: true });
-    return { ok: true, ...result };
+  app.post('/v1/library/cache', async (req, reply) => {
+    return reply.code(410).send({
+      ok: false,
+      error: {
+        code: 'LEGACY_CACHE_WRITE_DISABLED',
+        message: 'Direct library cache writes are disabled. Use Kairox ingest/metadata target-gate tasks.',
+      },
+    });
   });
 
   // ── Library: mark played / unplayed ─────────────────────────────────────
@@ -892,7 +2524,7 @@ function registerRoutes(app) {
 
       // Fetch single item from Emby to get updated watched status
       const fetchedItem = await embyService.getItem(resolved.serverConfig, embyItemId);
-      mediaLibraryService.upsertItems(resolved.subLib.uuid, [fetchedItem]);
+      mediaLibraryService.applyEmbyPerceptionFacts(itemId, fetchedItem);
 
       activityLog.addActivity('user_action', `「${fetchedItem.name || itemId}」已标记为已看`);
       return { ok: true };
@@ -914,7 +2546,7 @@ function registerRoutes(app) {
 
       // Fetch single item from Emby to get updated watched status
       const fetchedItem = await embyService.getItem(resolved.serverConfig, embyItemId);
-      mediaLibraryService.upsertItems(resolved.subLib.uuid, [fetchedItem]);
+      mediaLibraryService.applyEmbyPerceptionFacts(itemId, fetchedItem);
 
       return { ok: true };
     } catch (e) {
@@ -979,10 +2611,23 @@ function registerRoutes(app) {
     return maskSensitive(configStore.loadConfig());
   });
 
-  app.patch('/v1/config', async (req) => {
+  app.patch('/v1/config', async (req, reply) => {
     const patch = req.body && typeof req.body === 'object' ? req.body : {};
-    const updated = configStore.patchConfig(patch);
-    return maskSensitive(updated);
+    try {
+      const updated = configStore.patchConfig(patch);
+      return maskSensitive(updated);
+    } catch (err) {
+      if (err && err.code === 'METADATA_GATE_CONTRACT_BROKEN') {
+        return reply.code(400).send({
+          error: {
+            code: err.code,
+            message: err.message,
+            details: err.details || {},
+          },
+        });
+      }
+      throw err;
+    }
   });
 
   // ── Activity Log ────────────────────────────────────────────────────────
@@ -1156,7 +2801,7 @@ function registerRoutes(app) {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
-      automationMode, approvalPolicy,
+      automationMode, approvalPolicy, metadataGate,
     } = req.body || {};
     if (!name) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name is required');
@@ -1172,11 +2817,16 @@ function registerRoutes(app) {
     if (!isFolderAdult && !(cfg.embyServers || {})[embyServerId]) {
       return apiError(reply, 404, 'NOT_FOUND', 'Emby server not found');
     }
+    const gateError = validateSubLibraryMetadataGateInput(reply, {
+      ruleTemplateId: defaultRuleTemplateIdForSubLibrary({ ruleTemplateId, mediaType, adultRegion }),
+      metadataGate,
+    }, cfg);
+    if (gateError) return gateError;
     const subLib = mediaLibraryService.addSubLibrary({
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
-      automationMode, approvalPolicy,
+      automationMode, approvalPolicy, metadataGate,
     });
     return reply.code(201).send(subLib);
   });
@@ -1188,6 +2838,11 @@ function registerRoutes(app) {
   });
 
   app.patch('/v1/admin/sublibraries/:uuid', async (req, reply) => {
+    const cfg = configStore.loadConfig();
+    const current = (cfg.subLibraries || []).find((s) => s.uuid === req.params.uuid);
+    if (!current) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
+    const gateError = validateSubLibraryMetadataGateInput(reply, { ...current, ...(req.body || {}) }, cfg);
+    if (gateError) return gateError;
     const updated = mediaLibraryService.updateSubLibrary(req.params.uuid, req.body || {});
     if (!updated) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
     return updated;
@@ -1205,12 +2860,59 @@ function registerRoutes(app) {
   app.post('/v1/admin/adult/items/:itemId/actions/rescrape', async (req, reply) => {
     try {
       const overrideAdultId = typeof req.body === 'object' && req.body ? req.body.adultId : undefined;
-      const task = await adultLibraryService.rescrapeItem(
+      const intent = await adultLibraryService.prepareRescrapeIntent(
         req.params.itemId,
         typeof overrideAdultId === 'string' ? { overrideAdultId } : {},
       );
-      if (!task) return apiError(reply, 409, 'CONFLICT', 'An active scrape task already exists for this item');
-      return reply.code(201).send({ ok: true, taskId: task.id });
+      const config = configStore.loadConfig();
+      const activeAdmissionTasks = activeTaskSummariesForItem(req.params.itemId);
+      const created = smartTaskEngine.createTargetGateTask({
+        ...intent,
+        source: 'manual',
+        config,
+        tasks: activeAdmissionTasks,
+        logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Metadata task created by adult rescrape user intent' }],
+      });
+      if (!created.allowed) {
+        const item = mediaLibraryService.getLibraryItem(req.params.itemId);
+        const activeTask = activeTaskAdmissionSummary(req.params.itemId);
+        const rejectionAdmission = {
+          ...created.admission,
+          activeTaskId: created.admission.activeTaskId || (created.admission.activeTask && created.admission.activeTask.id),
+          activeTaskBridge: created.admission.activeTaskBridge || (created.admission.activeTask && created.admission.activeTask.targetGate),
+        };
+        return reply.code(409).send(taskAdmissionRejectPayload(
+          rejectionAdmission.reason === 'active_task_exists' ? 'TASK_CONFLICT' : 'TASK_ADMISSION_REJECTED',
+          taskAdmissionRejectMessage(rejectionAdmission),
+          rejectionAdmission,
+          item,
+          item ? adultLibraryService.itemInfoFromItem(item) : { itemId: req.params.itemId },
+          config,
+          activeAdmissionTasks,
+          { activeTask },
+        ));
+      }
+      const committed = adultLibraryService.resetScrapeStatus(
+        req.params.itemId,
+        typeof overrideAdultId === 'string' ? overrideAdultId : null,
+      );
+      const task = created.task;
+      if (committed) {
+        const itemInfo = adultLibraryService.itemInfoFromItem(committed);
+        taskStore.updateTask(task.id, { itemInfo });
+        task.itemInfo = itemInfo;
+      }
+      activityLog.addActivity('adult_library', `成人库创建元数据任务：${task.itemName || task.itemId}`, { taskId: task.id, itemId: task.itemId });
+      const taskView = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
+      return reply.code(201).send({
+        ok: true,
+        taskId: task.id,
+        task: taskView,
+        taskBridge: taskView.taskBridge,
+        flowPlan: taskView.flowPlan,
+        requestedIntent: taskView.requestedIntent,
+        controlState: taskView.controlState,
+      });
     } catch (e) {
       const code = /not found|does not exist|watchRoot/i.test(e.message) ? 'NOT_FOUND' : 'RESCRAPE_FAILED';
       const status = code === 'NOT_FOUND' ? 404 : 500;
@@ -1341,11 +3043,13 @@ function registerRoutes(app) {
       if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
       // Face clusters (post-clustering) are the primary source; fall back to the
       // legacy unknownFaces list for older items.
-      const clusters = (item.adultMetadata && Array.isArray(item.adultMetadata.faceClusters))
-        ? item.adultMetadata.faceClusters
+      const itemWithCold = adultColdArtifactStore.mergeColdArtifacts(item);
+      const metadata = itemWithCold.adultMetadata || {};
+      const clusters = Array.isArray(metadata.faceClusters)
+        ? metadata.faceClusters
         : [];
-      const unknowns = (item.adultMetadata && Array.isArray(item.adultMetadata.unknownFaces))
-        ? item.adultMetadata.unknownFaces
+      const unknowns = Array.isArray(metadata.unknownFaces)
+        ? metadata.unknownFaces
         : [];
       const pool = clusters.length ? clusters : unknowns;
       const face = body.clusterId
@@ -1377,9 +3081,11 @@ function registerRoutes(app) {
     try {
       const item = mediaLibraryService.getLibraryItem(String(req.params.itemId));
       if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
-      const clusters = (item.adultMetadata && Array.isArray(item.adultMetadata.faceClusters))
-        ? item.adultMetadata.faceClusters
-        : (item.adultMetadata && item.adultMetadata.unknownFaces) || [];
+      const itemWithCold = adultColdArtifactStore.mergeColdArtifacts(item);
+      const metadata = itemWithCold.adultMetadata || {};
+      const clusters = Array.isArray(metadata.faceClusters)
+        ? metadata.faceClusters
+        : metadata.unknownFaces || [];
       const face = clusters.find((f) => String(f.clusterId || f.faceId || '') === String(req.params.clusterId));
       if (!face) return apiError(reply, 404, 'NOT_FOUND', 'Face cluster not found');
       const emb = (face.embedding || []).map(Number).filter((x) => Number.isFinite(x));
@@ -1442,7 +3148,7 @@ function registerRoutes(app) {
     if (list.find((t) => t.id === id)) {
       return apiError(reply, 409, 'CONFLICT', 'Template id already exists');
     }
-    const tpl = { id, name, description: description || '', rules: rules || [], tag: { type: 'user' } };
+    const tpl = configStore.normalizeRuleTemplate({ id, name, description: description || '', rules: rules || [], tag: { type: 'user' } });
     cfg.ruleTemplates = [...list, tpl];
     configStore.saveConfig(cfg);
     return reply.code(201).send(tpl);
@@ -1460,12 +3166,12 @@ function registerRoutes(app) {
     }
 
     const { name, description, rules } = req.body || {};
-    list[idx] = {
+    list[idx] = configStore.normalizeRuleTemplate({
       ...existing,
       ...(name !== undefined ? { name } : {}),
       ...(description !== undefined ? { description } : {}),
       ...(rules !== undefined ? { rules } : {}),
-    };
+    });
     cfg.ruleTemplates = list;
     configStore.saveConfig(cfg);
     return list[idx];
@@ -1628,7 +3334,11 @@ function registerRoutes(app) {
 
   app.get('/v1/admin/nodes', async () => {
     const nodes = nodeStore.loadNodes();
-    const tasks = taskStore.loadTasks({ includeHistory: false });
+    const tasks = taskStore.queryTaskSummaries({ statuses: ['executing'] }, {
+      includeHistory: false,
+      pageSize: 1000,
+      maxPageSize: 1000,
+    }).tasks;
     const nodeList = nodes.map((n) => {
       const activeJobCount = tasks.filter((t) => t.nodeId === n.id && t.status === 'executing').length;
       return { ...n, apiKey: '********', activeJobCount };
@@ -1639,7 +3349,11 @@ function registerRoutes(app) {
   app.get('/v1/admin/nodes/:id', async (req) => {
     const node = nodeStore.getNode(req.params.id);
     if (!node) return { error: { code: 'NOT_FOUND', message: 'Node not found' } };
-    const tasks = taskStore.loadTasks({ includeHistory: false });
+    const tasks = taskStore.queryTaskSummaries({ statuses: ['executing'] }, {
+      includeHistory: false,
+      pageSize: 1000,
+      maxPageSize: 1000,
+    }).tasks;
     const activeJobCount = tasks.filter((t) => t.nodeId === node.id && t.status === 'executing').length;
     return { ...node, apiKey: '********', activeJobCount };
   });
@@ -1682,29 +3396,43 @@ function registerRoutes(app) {
     if (!node) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Node not found' } });
 
     const force = req.query && req.query.force === 'true';
-    const activeCount = nodeStore.getNodeActiveJobCount(req.params.id, taskStore);
+    const activeTasks = activeNodeTaskSummaries(req.params.id);
+    const activeCount = activeTasks.length;
 
     if (activeCount > 0 && !force) {
       return reply.code(409).send({
-        error: { code: 'NODE_HAS_ACTIVE_JOBS', message: `Node has ${activeCount} active job(s). Use ?force=true to force delete.` },
+        error: { code: 'NODE_HAS_ACTIVE_JOBS', message: 'node_has_active_jobs' },
+        node: publicNodeSummary(node),
+        resourceContext: nodeResourceContext(node),
         activeJobCount: activeCount,
+        activeTasks,
+        forceDelete: {
+          available: true,
+          query: 'force=true',
+          effect: 'mark_active_tasks_failed_hard_then_delete_node',
+        },
       });
     }
 
     if (force && activeCount > 0) {
       // Cancel all active tasks on this node
-      const tasks = taskStore.loadTasks({ includeHistory: false });
-      for (const t of tasks) {
-        if (t.nodeId === node.id && t.status === 'executing') {
-          const flow = getFlow(t.actionType);
-          if (flow) { try { await flow.cancel(t.id); } catch (_) {} }
-          taskStore.updateTask(t.id, { status: 'failed_hard', logs: [{ ts: new Date().toISOString(), level: 'error', msg: `Node ${node.name} deleted by admin` }] });
-        }
+      for (const t of activeTasks) {
+        try { await resourceRuntime.cancelTask(t); } catch (_) {}
+        taskStore.updateTask(t.id, { status: 'failed_hard', logs: [{ ts: new Date().toISOString(), level: 'error', msg: `Node ${node.name} deleted by admin` }] });
       }
     }
 
     nodeStore.deleteNode(req.params.id);
-    return { ok: true };
+    return {
+      ok: true,
+      node: publicNodeSummary(node),
+      resourceContext: nodeResourceContext(node),
+      forceDelete: force ? {
+        applied: activeCount > 0,
+        effect: activeCount > 0 ? 'marked_active_tasks_failed_hard_then_deleted_node' : 'deleted_node_without_active_tasks',
+        affectedTaskIds: activeTasks.map((task) => task.id),
+      } : undefined,
+    };
   });
 
   app.patch('/v1/admin/nodes/:id', async (req, reply) => {
@@ -1819,7 +3547,88 @@ function registerRoutes(app) {
 
   // ── Admin: Tasks ────────────────────────────────────────────────────────
 
-  app.get('/v1/admin/tasks', async (req) => {
+  app.get('/v1/admin/confirmations', async (req, reply) => {
+    const kind = String(req.query.kind || 'all');
+    if (!['all', 'task', 'adult_review'].includes(kind)) {
+      reply.code(400);
+      return { error: { code: 'VALIDATION_ERROR', message: 'invalid kind' } };
+    }
+    const filter = { statuses: ['awaiting_user_confirm'] };
+    applyTaskTargetQuery(filter, req.query);
+    if (req.query.q) filter.q = req.query.q;
+    const reviewFilter = {};
+    if (req.query.subLibraryId) reviewFilter.subLibraryId = req.query.subLibraryId;
+    if (req.query.reviewStatus) {
+      reviewFilter.reviewStatuses = String(req.query.reviewStatus)
+        .split(',')
+        .map((status) => status.trim())
+        .filter(Boolean);
+    }
+    if (req.query.q) reviewFilter.q = req.query.q;
+    const includeTasks = kind !== 'adult_review';
+    const includeReviews = kind !== 'task'
+      && (!req.query.targetGate || req.query.targetGate === 'metadata');
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
+    const taskResult = !includeTasks
+      ? { tasks: [], page, pageSize, total: 0 }
+      : taskStore.queryTaskSummaries(filter, {
+      page,
+      pageSize,
+      orderBy: 'updatedAt',
+      orderDir: 'desc',
+    });
+    const summaryTasks = !includeTasks
+      ? []
+      : taskStore.queryTaskSummaries(filter, {
+      includeAll: true,
+      orderBy: 'updatedAt',
+      orderDir: 'desc',
+    }).tasks;
+    const reviewResult = !includeReviews
+      ? { items: [], page, pageSize, total: 0 }
+      : libraryStore.queryAdultReviewSummaries(reviewFilter, {
+        page,
+        pageSize,
+        orderBy: 'updatedAt',
+        orderDir: 'desc',
+      });
+    const summaryReviewItems = !includeReviews
+      ? []
+      : libraryStore.queryAdultReviewSummaries(reviewFilter, {
+        includeAll: true,
+        orderBy: 'updatedAt',
+        orderDir: 'desc',
+      }).items;
+    const taskConfirmations = taskResult.tasks.map(confirmationQueueItem);
+    const adultReviews = reviewResult.items.map(adultReviewQueueItem);
+    const items = [...taskConfirmations, ...adultReviews].sort((a, b) => {
+      const bTime = Date.parse(b.updatedAt || '') || 0;
+      const aTime = Date.parse(a.updatedAt || '') || 0;
+      if (bTime !== aTime) return bTime - aTime;
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
+    const taskSummary = summarizeConfirmationQueue(summaryTasks);
+    const adultReviewSummary = summarizeAdultReviewQueue(summaryReviewItems);
+    return {
+      items,
+      confirmations: taskConfirmations,
+      reviews: adultReviews,
+      summary: {
+        ...taskSummary,
+        total: taskSummary.total + adultReviewSummary.total,
+        taskConfirmations: taskSummary,
+        adultReviews: adultReviewSummary,
+      },
+      page,
+      pageSize,
+      total: taskSummary.total + adultReviewSummary.total,
+      taskTotal: taskResult.total,
+      reviewTotal: reviewResult.total,
+    };
+  });
+
+  app.get('/v1/admin/tasks', async (req, reply) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (req.query.statuses) {
@@ -1828,24 +3637,311 @@ function registerRoutes(app) {
         .map((s) => s.trim())
         .filter(Boolean);
     }
-    if (req.query.actionType) filter.actionType = req.query.actionType;
+    applyTaskTargetQuery(filter, req.query);
     if (req.query.q) filter.q = req.query.q;
+    const attention = req.query.attention ? String(req.query.attention).trim() : '';
+    if (attention && !TASK_ATTENTION_QUEUES[attention]) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', `unknown attention queue: ${attention}`);
+    }
+    const includeAttentionSummary = !falseQueryFlag(req.query.includeAttentionSummary || req.query.includeAttention);
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
-    const result = taskStore.queryTaskSummaries(filter, { page, pageSize, orderBy: 'updatedAt', orderDir: 'desc' });
+    return diagnosticLog.track({
+      category: 'api',
+      scope: 'route./v1/admin/tasks',
+      operation: 'http_get',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: '/v1/admin/tasks',
+      slowMs: 250,
+      payload: {
+        route: '/v1/admin/tasks',
+        filter: compactTaskRouteFilter(filter),
+        page,
+        pageSize,
+        attention: attention || '',
+        projection: {
+          includeTaskSummaries: !attention,
+          includeAttentionSummary: attention ? true : includeAttentionSummary,
+          includeFullPayload: false,
+        },
+      },
+      successPayload: (result) => ({
+        rowCount: result && Array.isArray(result.tasks) ? result.tasks.length : 0,
+        total: result && typeof result.total === 'number' ? result.total : undefined,
+        attention: result && result.attention || '',
+      }),
+    }, () => {
+      if (attention) {
+        const baseTasks = sortTasksForAdminList(queryAttentionTasks(filter));
+        const filteredTasks = baseTasks.filter((task) => taskMatchesAttention(task, attention));
+        return {
+          tasks: paginateTasks(filteredTasks, page, pageSize).map(taskListSummary),
+          summary: {
+            total: filteredTasks.length,
+            byStatus: buildStatusSummary(filteredTasks),
+            attention: buildAttentionSummary(baseTasks),
+          },
+          page,
+          pageSize,
+          total: filteredTasks.length,
+          attention,
+        };
+      }
+      const result = taskStore.queryTaskSummaries(filter, { page, pageSize, orderBy: 'updatedAt', orderDir: 'desc' });
+      const summaryBaseTasks = includeAttentionSummary ? queryAttentionTasks(filter) : [];
+      return {
+        tasks: result.tasks.map(taskListSummary),
+        summary: {
+          total: result.total,
+          byStatus: result.byStatus,
+          ...(includeAttentionSummary ? { attention: buildAttentionSummary(summaryBaseTasks) } : {}),
+        },
+        page: result.page,
+        pageSize: result.pageSize,
+        total: result.total,
+      };
+    });
+  });
+
+  app.get('/v1/admin/tasks/lifecycle-audit', async (req) => {
+    const filter = {};
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.statuses) {
+      filter.statuses = String(req.query.statuses)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    applyTaskTargetQuery(filter, req.query);
+    if (req.query.q) filter.q = req.query.q;
+    const config = configStore.loadConfig();
+    const allTasks = taskStore.queryTaskLifecycleAuditFacts(filter, {
+      orderBy: 'updatedAt',
+      orderDir: 'desc',
+    });
+    const subLibraryId = req.query.subLibraryId ? String(req.query.subLibraryId).trim() : '';
+    const mediaType = req.query.mediaType ? String(req.query.mediaType).trim() : '';
+    const subLibrariesById = new Map((config.subLibraries || []).map((sl) => [sl.uuid, sl]));
+    const filteredTasks = allTasks.filter((task) => {
+      const context = taskLibraryContext(task, subLibrariesById);
+      if (subLibraryId && context.subLibraryId !== subLibraryId) return false;
+      if (mediaType && context.mediaType !== mediaType) return false;
+      return true;
+    });
+    const audit = buildTaskLifecycleAudit(filteredTasks, config, {
+      sampleLimit: req.query.sampleLimit,
+    });
     return {
-      tasks: result.tasks.map(taskListSummary),
-      summary: { total: result.total, byStatus: result.byStatus },
-      page: result.page,
-      pageSize: result.pageSize,
-      total: result.total,
+      generatedAt: new Date().toISOString(),
+      filters: {
+        status: filter.status || '',
+        statuses: filter.statuses || undefined,
+        targetGate: filter.bridgeKind || '',
+        subLibraryId,
+        mediaType,
+        q: filter.q || '',
+      },
+      ...audit,
     };
+  });
+
+  app.get('/v1/admin/dashboard/health', async () => {
+    return diagnosticLog.track({
+      category: 'api',
+      scope: 'route./v1/admin/dashboard/health',
+      operation: 'http_get',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: '/v1/admin/dashboard/health',
+      slowMs: 250,
+      payload: {
+        route: '/v1/admin/dashboard/health',
+        projection: {
+          includeMediaStats: true,
+          includeTaskStats: true,
+          includeAttentionSummary: true,
+          includeDashboardEvents: true,
+        },
+      },
+      successPayload: (result) => ({
+        status: result && result.status || '',
+        mediaTotal: result && result.media ? result.media.totalItems : undefined,
+        taskTotal: result && result.tasks ? result.tasks.totalTasks : undefined,
+        activeTasks: result && result.tasks ? result.tasks.activeTasks : undefined,
+        eventCount: result && result.events && Array.isArray(result.events.recent) ? result.events.recent.length : undefined,
+        signalCount: result && result.diagnostics && Array.isArray(result.diagnostics.signals) ? result.diagnostics.signals.length : undefined,
+      }),
+    }, () => {
+      const config = configStore.loadConfig();
+      const media = typeof libraryStore.queryDashboardMediaStats === 'function'
+        ? libraryStore.queryDashboardMediaStats()
+        : {};
+      const tasks = typeof taskStore.queryDashboardTaskStats === 'function'
+        ? taskStore.queryDashboardTaskStats()
+        : {};
+      const taskSummaryFacts = queryAttentionTasks({});
+      const attention = buildAttentionSummary(taskSummaryFacts);
+      const automation = buildDashboardAutomation(config);
+      const signals = buildDashboardHealthSignals(media, tasks, config, automation);
+      const serviceProjection = buildDashboardServiceProjection(healthCheck.getLastResult());
+      return {
+        status: serviceProjection.status,
+        generatedAt: new Date().toISOString(),
+        serviceAvailability: serviceProjection.serviceAvailability,
+        externalIntegrations: serviceProjection.externalIntegrations,
+        businessStatus: {
+          status: dashboardBusinessStatus(signals),
+          signals,
+        },
+        media,
+        tasks: {
+          ...tasks,
+          attention,
+          primaryAttention: primaryAttentionQueue(attention),
+        },
+        automation,
+        events: buildDashboardEvents(15),
+        diagnostics: {
+          signals,
+          storage: [
+            libraryStore.getStorageMetrics(),
+            taskStore.getStorageMetrics(),
+          ],
+        },
+      };
+    });
+  });
+
+  app.get('/v1/admin/tasks/:id/events', async (req, reply) => {
+    const task = taskStore.getTask(req.params.id);
+    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 50));
+    return taskStore.queryTaskEvents({ taskId: task.id }, { page, pageSize, orderDir: 'asc' });
+  });
+
+  app.get('/v1/admin/resources', async (req) => {
+    const detail = String(req.query.detail || '').trim().toLowerCase();
+    const includeFullDetail = detail === 'full'
+      || truthyQueryFlag(req.query.full)
+      || truthyQueryFlag(req.query.includeDiagnostics)
+      || truthyQueryFlag(req.query.includeFailureEvents)
+      || truthyQueryFlag(req.query.includeStorageMetrics)
+      || truthyQueryFlag(req.query.includeBackgroundIo);
+    const projectionName = includeFullDetail ? 'full' : 'summary';
+    return diagnosticLog.track({
+      category: 'api',
+      scope: 'route./v1/admin/resources',
+      operation: 'http_get',
+      component: 'admin-web-api',
+      resourceType: 'service_api',
+      resourceKey: '/v1/admin/resources',
+      slowMs: 250,
+      payload: {
+        route: '/v1/admin/resources',
+        projection: {
+          detail: projectionName,
+          includeRuntimeEvents: true,
+          includeSchedulerTasks: true,
+          includeDiagnosticLogs: includeFullDetail,
+          includeFailureEvents: includeFullDetail,
+          includeStorageMetrics: includeFullDetail,
+          includeBackgroundIo: includeFullDetail,
+        },
+      },
+      successPayload: (result) => ({
+        resourceCount: result && Array.isArray(result.resources) ? result.resources.length : 0,
+        totalTasks: result && result.summary ? result.summary.totalTasks : undefined,
+        totalEvents: result && result.summary ? result.summary.totalEvents : undefined,
+        failedEvents: result && result.diagnostics && Array.isArray(result.diagnostics.failedEvents) ? result.diagnostics.failedEvents.length : undefined,
+        dependencyCount: result && result.diagnostics && Array.isArray(result.diagnostics.dependencies) ? result.diagnostics.dependencies.length : undefined,
+        bottleneckCount: result && result.diagnostics && Array.isArray(result.diagnostics.bottlenecks) ? result.diagnostics.bottlenecks.length : undefined,
+      }),
+    }, () => {
+      const config = configStore.loadConfig();
+      const runtimeEvents = runtimeResourceTracker.listEvents({ recentLimit: includeFullDetail ? 100 : 40 }).events;
+      const tasks = typeof taskStore.querySchedulerTasks === 'function'
+        ? taskStore.querySchedulerTasks()
+        : taskStore.loadTasks({ includeHistory: false });
+      const view = resourceProjection.buildResourceView(tasks, config, {
+        slotUsage: transcodeService.getDeviceSlotUsage(),
+        runtimeEvents,
+      });
+      const diagnostics = includeFullDetail
+        ? diagnosticLog.list({ limit: 120 })
+        : { logs: [], summary: null };
+      const health = healthCheck.getLastResult();
+      const dependencies = health && health.checks && typeof health.checks === 'object'
+        ? Object.entries(health.checks).map(([key, value]) => ({ key, ...(value || {}) }))
+        : [];
+      const bottlenecks = (view.resources || [])
+        .filter((bucket) => (bucket.waiting > 0 || bucket.blocked > 0) && bucket.configuredSlots > 0 && bucket.running >= bucket.configuredSlots)
+        .map((bucket) => ({
+          resourceType: bucket.resourceType,
+          resourceKey: bucket.resourceKey,
+          resourceLabel: bucket.resourceLabel,
+          configuredSlots: bucket.configuredSlots,
+          running: bucket.running,
+          waiting: bucket.waiting,
+          blocked: bucket.blocked,
+        }));
+      const diagnosticSummary = includeFullDetail
+        ? diagnostics.summary
+        : {
+          totalLogs: 0,
+          slowLogs: 0,
+          failedLogs: 0,
+          byStatus: {},
+          byCategory: {},
+          generatedAt: new Date().toISOString(),
+        };
+      const payloadSummary = includeFullDetail
+        ? libraryStore.getLibraryPayloadHealthSummary({
+          includeBuckets: true,
+          includeFieldBreakdown: true,
+          includeAdultCache: true,
+          adultSubLibraryIds: adultSubLibraryIds(config),
+        })
+        : null;
+
+      return {
+        ...view,
+        detail: projectionName,
+        diagnostics: {
+          logs: includeFullDetail ? diagnostics.logs : [],
+          summary: diagnosticSummary,
+          dependencies,
+          failedEvents: includeFullDetail
+            ? enrichFailureEvents(taskStore.queryRecentFailureEvents({ pageSize: 20 }), config, diagnostics.logs)
+            : [],
+          bottlenecks,
+          ...(includeFullDetail ? { backgroundIo: backgroundIoGuard.getState({ recentLimit: 40 }) } : {}),
+          ...(payloadSummary ? { payloadSummary } : {}),
+          ...(includeFullDetail ? {
+            metrics: {
+              storage: [
+                libraryStore.getStorageMetrics(),
+                taskStore.getStorageMetrics(),
+              ],
+            },
+          } : {}),
+        },
+      };
+    });
   });
 
   app.get('/v1/admin/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    return taskDetailView(task);
+    const detail = taskDetailView(task);
+    if (req.query.includeEvents === '1' || req.query.includeEvents === 'true') {
+      detail.events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 200 }).events;
+      detail.controlState = taskControlPolicy.buildTaskControlState(task, {
+        latestEvent: detail.events && detail.events.length ? detail.events[detail.events.length - 1] : null,
+      });
+    }
+    return detail;
   });
 
   app.patch('/v1/admin/tasks/:id', async (req, reply) => {
@@ -1859,14 +3955,18 @@ function registerRoutes(app) {
     if (body.priority !== undefined) {
       const priority = Number(body.priority);
       if (!Number.isFinite(priority) || priority < 0 || !Number.isInteger(priority)) {
-        return apiError(reply, 400, 'VALIDATION_ERROR', 'priority must be a non-negative integer');
+        return priorityAdjustmentReject(reply, task, 400, 'VALIDATION_ERROR', 'priority must be a non-negative integer', body.priority, {
+          validation: { field: 'priority', reason: 'non_negative_integer_required' },
+        });
       }
-      const editable = ['created', 'pending_manual', 'queued', 'interrupted', 'paused'];
-      if (!editable.includes(task.status)) {
-        return apiError(reply, 409, 'TASK_CONFLICT', `Cannot set priority on task in status "${task.status}"`);
+      const adjustment = priorityAdjustmentState(task, priority);
+      if (!adjustment.enabled) {
+        return priorityAdjustmentReject(reply, task, 409, 'TASK_PRIORITY_REJECTED', adjustment.reason, priority);
       }
       const updated = taskStore.updateTask(task.id, { priority, priorityManuallyAdjusted: true });
-      return updated;
+      const response = taskDetailView(updated);
+      response.priorityAdjustment = priorityAdjustmentState(updated, priority);
+      return response;
     }
 
     return apiError(reply, 400, 'VALIDATION_ERROR', 'No supported fields to update');
@@ -1875,10 +3975,12 @@ function registerRoutes(app) {
   app.delete('/v1/admin/tasks/:id', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const action = getTaskActionOrReject(reply, task, 'cancel');
+    if (!action) return;
 
-    const flow = getFlow(task.actionType);
-    if (flow && taskNeedsFlowCancel(task)) await flow.cancel(task.id);
+    if (taskNeedsFlowCancel(task)) await resourceRuntime.cancelTask(task);
 
+    appendTaskControlEvent(task, 'cancel', action, { endpoint: 'admin' });
     taskStore.deleteTask(task.id);
     return { ok: true, id: task.id };
   });
@@ -1900,19 +4002,6 @@ function registerRoutes(app) {
     }
     return result;
   });
-}
-
-// ── Flow helper ─────────────────────────────────────────────────────────────
-
-function getFlow(actionType) {
-  switch (actionType) {
-    case 'ingest': return require('./ingestFlowExecutor');
-    case 'delete': return require('./deleteFlowExecutor');
-    case 'transcode': return require('./transcodeFlowExecutor');
-    case 'upgrade': return require('./upgradeFlowExecutor');
-    case 'scrape': return require('./scrapeFlowExecutor');
-    default: return null;
-  }
 }
 
 // ── Build App ───────────────────────────────────────────────────────────────
@@ -1979,6 +4068,9 @@ async function buildApp(opts = {}) {
     mediaLibraryService.stopAllTimers();
     strategyEngine.stop();
     smartTaskEngine.stop();
+    runtimeResourceTracker.resetForTests();
+    diagnosticLog.resetForTests();
+    backgroundIoGuard.resetForTests();
   });
 
   // Clean up orphan ffmpeg processes and temp dirs from previous run

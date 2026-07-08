@@ -1,15 +1,11 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import DashboardPage from './pages/DashboardPage';
-import TranscodeConfigPage from './pages/TranscodeConfigPage';
-import DoubanConfigPage from './pages/DoubanConfigPage';
 import TaskMonitorPage from './pages/TaskMonitorPage';
-import SystemConfigPage from './pages/SystemConfigPage';
-import MoviePilotConfigPage from './pages/MoviePilotConfigPage';
 import MediaManagePage from './pages/MediaManagePage';
-import RuleTemplatesPage from './pages/RuleTemplatesPage';
-import NodesPage from './pages/NodesPage';
-import AdultConfigPage from './pages/AdultConfigPage';
+import DeleteCandidatesPage from './pages/DeleteCandidatesPage';
+import PoliciesPage from './pages/PoliciesPage';
+import AdvancedPage from './pages/AdvancedPage';
 
 export default function App() {
   return (
@@ -17,14 +13,18 @@ export default function App() {
       <Route element={<Layout />}>
         <Route index element={<DashboardPage />} />
         <Route path="media" element={<MediaManagePage />} />
-        <Route path="nodes" element={<NodesPage />} />
         <Route path="tasks" element={<TaskMonitorPage />} />
-        <Route path="rules" element={<RuleTemplatesPage />} />
-        <Route path="system" element={<SystemConfigPage />} />
-        <Route path="douban" element={<DoubanConfigPage />} />
-        <Route path="transcode" element={<TranscodeConfigPage />} />
-        <Route path="adult" element={<AdultConfigPage />} />
-        <Route path="moviepilot" element={<MoviePilotConfigPage />} />
+        <Route path="delete-candidates" element={<DeleteCandidatesPage />} />
+        <Route path="policies" element={<PoliciesPage />} />
+        <Route path="advanced" element={<AdvancedPage />} />
+        <Route path="rules" element={<Navigate to="/policies?tab=objectives" replace />} />
+        <Route path="system" element={<Navigate to="/policies?tab=automation" replace />} />
+        <Route path="douban" element={<Navigate to="/policies?tab=perception" replace />} />
+        <Route path="adult" element={<Navigate to="/policies?tab=library" replace />} />
+        <Route path="moviepilot" element={<Navigate to="/policies?tab=automation" replace />} />
+        <Route path="transcode" element={<Navigate to="/advanced?tab=resources" replace />} />
+        <Route path="nodes" element={<Navigate to="/advanced?tab=resources" replace />} />
+        <Route path="capacity" element={<Navigate to="/advanced?tab=resources" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -46,6 +46,60 @@ function setPhase(taskId, phase) {
   taskStore.updateTask(taskId, { phase });
 }
 
+function buildDeleteGate(task, observed = {}) {
+  const doneAt = observed.doneAt || new Date().toISOString();
+  return {
+    gate: 'delete',
+    passed: true,
+    status: 'passed',
+    reason: 'delete_target_removed',
+    flowKind: 'delete',
+    target: {
+      flowKind: 'delete',
+      itemId: task && task.itemId || '',
+      path: observed.targetPath || '',
+      targetKind: observed.targetKind || '',
+    },
+    observed: {
+      removed: true,
+      deletedAt: doneAt,
+      path: observed.targetPath || '',
+      targetKind: observed.targetKind || '',
+      bytesSaved: observed.bytesSaved || 0,
+      embyItemId: observed.embyItemId || '',
+    },
+    failureReasons: [],
+    evidenceLevel: 'objective',
+    retryPolicy: {
+      automaticRetry: false,
+      manualRetryAllowed: false,
+      reason: '',
+    },
+    userAction: '',
+  };
+}
+
+function markTaskDeleted(taskId, task, observed = {}) {
+  const doneAt = observed.doneAt || new Date().toISOString();
+  const deleteGate = buildDeleteGate(task, { ...observed, doneAt });
+  const verifyResult = {
+    ...(task && task.verifyResult || {}),
+    bytesSaved: observed.bytesSaved || (task && task.verifyResult && task.verifyResult.bytesSaved) || 0,
+    deletedPath: observed.targetPath || (task && task.verifyResult && task.verifyResult.deletedPath) || '',
+    deletedKind: observed.targetKind || (task && task.verifyResult && task.verifyResult.deletedKind) || '',
+    deletedAt: doneAt,
+  };
+  if (observed.embyItemId) verifyResult.embyItemId = observed.embyItemId;
+  taskStore.updateTask(taskId, {
+    verifyResult,
+    deleteGate,
+    deletionGate: deleteGate,
+    deleteStatus: 'deleted',
+    deleteDoneAt: doneAt,
+  });
+  return deleteGate;
+}
+
 function getEmbyItemId(task) {
   return (task.itemInfo && task.itemInfo.embyItemId) ||
     assetIdentity.getEmbyItemId(task.itemInfo || {}) ||
@@ -220,11 +274,16 @@ async function driveTask(taskId) {
 }
 
 async function runAdultFolderPrecheck(taskId, task, target) {
-  setPhase(taskId, 'precheck');
+  setPhase(taskId, 'delete_precheck');
   appendLog(taskId, 'info', 'Local folder delete precheck started');
 
   if (!target.exists) {
     appendLog(taskId, 'info', 'Local media target already missing — removing library cache item');
+    markTaskDeleted(taskId, task, {
+      targetPath: target.targetPath,
+      targetKind: target.targetKind,
+      bytesSaved: target.sizeBytes,
+    });
     removeLibraryItem(task.itemId);
     scheduler.reportStatus(taskId, 'done', 100);
     setPhase(taskId, 'done');
@@ -277,21 +336,19 @@ async function runAdultFolderPrecheck(taskId, task, target) {
 }
 
 async function runAdultFolderExecuting(taskId, task, target) {
-  setPhase(taskId, 'executing');
+  setPhase(taskId, 'delete_executing');
   scheduler.reportStatus(taskId, 'executing');
   appendLog(taskId, 'info', `Deleting local ${target.targetKind}: ${target.targetPath}`);
 
   try {
     fs.rmSync(target.targetPath, { recursive: true, force: true });
     if (fs.existsSync(target.targetPath)) throw new Error('target still exists after delete');
-    removeLibraryItem(task.itemId);
-    taskStore.updateTask(taskId, {
-      verifyResult: {
-        bytesSaved: target.sizeBytes,
-        deletedPath: target.targetPath,
-        deletedKind: target.targetKind,
-      },
+    markTaskDeleted(taskId, task, {
+      targetPath: target.targetPath,
+      targetKind: target.targetKind,
+      bytesSaved: target.sizeBytes,
     });
+    removeLibraryItem(task.itemId);
     appendLog(taskId, 'info', 'Local media delete completed successfully');
     scheduler.reportStatus(taskId, 'done', 100);
     setPhase(taskId, 'done');
@@ -303,7 +360,7 @@ async function runAdultFolderExecuting(taskId, task, target) {
 }
 
 async function runPrecheck(taskId, task, serverConfig) {
-  setPhase(taskId, 'precheck');
+  setPhase(taskId, 'delete_precheck');
   appendLog(taskId, 'info', 'Delete precheck started');
 
   try {
@@ -311,6 +368,12 @@ async function runPrecheck(taskId, task, serverConfig) {
     const deleteInfo = await embyService.getItemDeleteInfo(serverConfig, embyItemId);
     if (!deleteInfo) {
       appendLog(taskId, 'info', 'Item not found in Emby — treating as already deleted');
+      markTaskDeleted(taskId, task, {
+        targetPath: task.itemInfo && task.itemInfo.path || '',
+        targetKind: 'emby_item',
+        bytesSaved: task.itemInfo && (task.itemInfo.size || task.itemInfo.originalSizeBytes) || 0,
+        embyItemId,
+      });
       scheduler.reportStatus(taskId, 'done', 100);
       setPhase(taskId, 'done');
       return;
@@ -319,6 +382,12 @@ async function runPrecheck(taskId, task, serverConfig) {
     const exists = await embyService.libraryItemExists(serverConfig, embyItemId);
     if (!exists) {
       appendLog(taskId, 'info', 'Item no longer exists in Emby');
+      markTaskDeleted(taskId, task, {
+        targetPath: task.itemInfo && task.itemInfo.path || '',
+        targetKind: 'emby_item',
+        bytesSaved: task.itemInfo && (task.itemInfo.size || task.itemInfo.originalSizeBytes) || 0,
+        embyItemId,
+      });
       scheduler.reportStatus(taskId, 'done', 100);
       setPhase(taskId, 'done');
       return;
@@ -369,7 +438,7 @@ async function runPrecheck(taskId, task, serverConfig) {
 }
 
 async function runExecuting(taskId, task, serverConfig) {
-  setPhase(taskId, 'executing');
+  setPhase(taskId, 'delete_executing');
   scheduler.reportStatus(taskId, 'executing');
   appendLog(taskId, 'info', 'Executing delete');
 
@@ -394,7 +463,7 @@ async function runExecuting(taskId, task, serverConfig) {
 }
 
 async function runVerify(taskId, task, serverConfig) {
-  setPhase(taskId, 'verify');
+  setPhase(taskId, 'delete_verify');
   appendLog(taskId, 'info', 'Verifying deletion');
 
   try {
@@ -412,6 +481,12 @@ async function runVerify(taskId, task, serverConfig) {
   }
 
   appendLog(taskId, 'info', 'Delete completed successfully');
+  markTaskDeleted(taskId, task, {
+    targetPath: task.itemInfo && task.itemInfo.path || '',
+    targetKind: 'emby_item',
+    bytesSaved: task.itemInfo && (task.itemInfo.size || task.itemInfo.originalSizeBytes) || 0,
+    embyItemId: getEmbyItemId(task),
+  });
   scheduler.reportStatus(taskId, 'done', 100);
   setPhase(taskId, 'done');
 }

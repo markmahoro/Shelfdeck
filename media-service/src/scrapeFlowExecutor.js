@@ -10,6 +10,7 @@ const westernAdultAiService = require('./services/westernAdultAiService');
 const approvalPolicy = require('./approvalPolicy');
 const scrapeVerification = require('./scrapeVerification');
 const metadataStatus = require('./metadataStatus');
+const factsFreshnessService = require('./factsFreshnessService');
 
 let scheduler = null;
 function setScheduler(s) { scheduler = s; }
@@ -22,8 +23,147 @@ function setPhase(taskId, phase) {
   taskStore.updateTask(taskId, { phase });
 }
 
+function failureCodes(verification) {
+  return (verification && Array.isArray(verification.failures) ? verification.failures : [])
+    .map((failure) => failure && failure.code)
+    .filter(Boolean);
+}
+
+function recordScrapeGateFailure(taskId, opts = {}) {
+  const verification = opts.verification || null;
+  const codes = failureCodes(verification);
+  const message = opts.message || (codes.length
+    ? `Scrape metadata gate failed: ${codes.join(', ')}`
+    : 'Scrape metadata gate failed');
+  const updates = {
+    resumePoint: opts.resumePoint || 'scrape_executing',
+  };
+  if (opts.itemInfo !== undefined) updates.itemInfo = opts.itemInfo;
+  if (verification) {
+    updates.scrapeVerification = {
+      ...verification,
+      source: opts.source || verification.source || 'completion_snapshot',
+    };
+  }
+  updates.metadataGateFailure = {
+    gate: 'metadataGate',
+    checkedAt: (verification && verification.checkedAt) || new Date().toISOString(),
+    metadataStatus: verification && verification.metadataStatus,
+    metadataMissingReasons: verification && verification.metadataMissingReasons || codes,
+    failureCodes: codes,
+    recovery: 'retry_current_scrape_after_fixing_upstream_facts_or_gate_config',
+    userAction: 'inspect_gate_missing_reasons',
+  };
+  taskStore.updateTask(taskId, updates);
+  appendLog(taskId, 'error', message);
+  const latestTask = taskStore.getTask(taskId);
+  taskStore.appendTaskEvent(latestTask, 'scrape.metadata_gate_failed', {
+    message,
+    gate: 'metadataGate',
+    metadataStatus: updates.metadataGateFailure.metadataStatus,
+    metadataMissingReasons: updates.metadataGateFailure.metadataMissingReasons,
+    failureCodes: codes,
+    verification: updates.scrapeVerification || null,
+    recovery: updates.metadataGateFailure.recovery,
+    userAction: updates.metadataGateFailure.userAction,
+  });
+  setPhase(taskId, 'failed_hard');
+  scheduler.reportStatus(taskId, 'failed_hard', 0);
+}
+
 function getSubLibrary(config, subLibraryId) {
   return (config.subLibraries || []).find((sl) => sl.uuid === subLibraryId) || null;
+}
+
+function metadataVerification(meta, source = 'completion_snapshot') {
+  const missingReasons = Array.isArray(meta && meta.metadataMissingReasons)
+    ? meta.metadataMissingReasons
+    : [];
+  return {
+    ok: missingReasons.length === 0,
+    checkedAt: new Date().toISOString(),
+    checks: Object.fromEntries(missingReasons.map((reason) => [reason, false])),
+    failures: missingReasons.map((reason) => ({ code: reason, message: `Metadata missing: ${reason}` })),
+    warnings: [],
+    metadataStatus: meta && meta.metadataStatus,
+    metadataMissingReasons: missingReasons,
+    source,
+  };
+}
+
+function cleanToken(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function taskGateObjective(task = {}) {
+  return task.taskTarget && task.taskTarget.gateObjective && typeof task.taskTarget.gateObjective === 'object'
+    ? task.taskTarget.gateObjective
+    : {};
+}
+
+function isRefreshObjective(task = {}, item = {}) {
+  const objective = taskGateObjective(task);
+  const kind = cleanToken(objective.kind);
+  if (['metadata_refresh', 'media_facts_refresh', 'refresh_metadata', 'refresh_media_facts'].includes(kind)) return true;
+  if (objective.forceRefresh === true || objective.refresh === true || Array.isArray(objective.refreshFacts)) return true;
+  const projection = item && item.factsFreshness
+    ? item.factsFreshness
+    : factsFreshnessService.projectForItem(item || {});
+  return factsFreshnessService.isBlockingStale(projection, 'mediaFacts')
+    || factsFreshnessService.isBlockingStale(projection, 'metadataFacts');
+}
+
+function isMediaSourceMissingError(err) {
+  const message = String(err && err.message || err || '');
+  return message.startsWith('Media file does not exist:');
+}
+
+function reportIngestInvalidation(taskId, task, err, phase) {
+  if (!isMediaSourceMissingError(err)) return false;
+  const message = String(err && err.message || err || '');
+  const itemInfo = task && task.itemInfo || {};
+  if (scheduler && typeof scheduler.reportGateInvalidation === 'function') {
+    scheduler.reportGateInvalidation(taskId, {
+      invalidatedGate: 'ingest',
+      reason: 'source_missing',
+      message,
+      evidence: {
+        path: itemInfo.path || '',
+        phase: phase || '',
+      },
+      recovery: 'rerun_ingest_source_sync',
+      userAction: 'rerun_ingest_source_sync',
+    });
+  } else {
+    taskStore.updateTask(taskId, {
+      upstreamGateInvalidation: {
+        gate: 'ingest',
+        invalidatedGate: 'ingest',
+        reason: 'source_missing',
+        message,
+        evidence: {
+          path: itemInfo.path || '',
+          phase: phase || '',
+        },
+        sourceTaskId: taskId,
+        sourceFlowKind: task && task.flowPlan && task.flowPlan.flowKind || 'scrape',
+        sourceTargetGate: 'metadata',
+        invalidatedAt: new Date().toISOString(),
+        recovery: 'rerun_ingest_source_sync',
+        userAction: 'rerun_ingest_source_sync',
+        stored: false,
+        storeReason: 'scheduler_report_gate_invalidation_unavailable',
+      },
+    });
+  }
+  taskStore.appendTaskEvent(taskStore.getTask(taskId) || task, 'scrape.upstream_gate_invalidated', {
+    invalidatedGate: 'ingest',
+    reason: 'source_missing',
+    message,
+    phase: phase || '',
+    recovery: 'rerun_ingest_source_sync',
+  });
+  return true;
 }
 
 async function driveTask(taskId) {
@@ -62,6 +202,11 @@ async function runPrecheck(taskId, task) {
     await runExecuting(taskId, taskStore.getTask(taskId));
   } catch (e) {
     appendLog(taskId, 'error', e.message);
+    if (reportIngestInvalidation(taskId, task, e, 'scrape_precheck')) {
+      setPhase(taskId, 'failed_hard');
+      scheduler.reportStatus(taskId, 'failed_hard', 0);
+      return;
+    }
     adultLibraryService.markScrapeFailed(task.itemId, e.message);
     scheduler.reportStatus(taskId, 'failed_hard', 0);
   }
@@ -85,8 +230,14 @@ async function runExecuting(taskId, task) {
     // to library.json by resetScrapeStatus but never propagated into task.itemInfo.
     // Read the live library item so the override takes effect here.
     const mediaLibraryService = require('./mediaLibraryService');
-    const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
+    let liveItem = mediaLibraryService.getLibraryItem(task.itemId);
     if (!liveItem) throw new Error('Library item not found');
+    liveItem = await adultLibraryService.prepareAdultMetadataForScrape(subLib, liveItem);
+    const preparedMeta = metadataStatus.resolveMetadataStatus(liveItem, config);
+    if (preparedMeta.metadataComplete && !isRefreshObjective(task, liveItem)) {
+      await afterScrapeApplied(taskId, task, config, liveItem, 'Adult metadata already complete; scrape skipped');
+      return;
+    }
     const region = subLib.adultRegion || 'japanese_jav';
     if (region === 'western_adult') {
       await runWesternExecuting(taskId, task, config, subLib, liveItem);
@@ -114,6 +265,11 @@ async function runExecuting(taskId, task) {
     await applyJavScrapeResult(taskId, task, config, subLib, liveItem, scrapeResult);
   } catch (e) {
     appendLog(taskId, 'error', e.message);
+    if (reportIngestInvalidation(taskId, task, e, 'scrape_executing')) {
+      setPhase(taskId, 'failed_hard');
+      scheduler.reportStatus(taskId, 'failed_hard', 0);
+      return;
+    }
     adultLibraryService.markScrapeFailed(task.itemId, e.message);
     setPhase(taskId, 'failed_hard');
     scheduler.reportStatus(taskId, 'failed_hard', 0);
@@ -123,10 +279,37 @@ async function runExecuting(taskId, task) {
 async function runEmbyExecuting(taskId, task, config, subLib) {
   setPhase(taskId, 'scrape_executing');
   scheduler.reportStatus(taskId, 'executing', 20);
-  appendLog(taskId, 'info', 'Starting Emby metadata completion');
   try {
     const mediaLibraryService = require('./mediaLibraryService');
+    const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
+    if (liveItem) {
+      const liveMeta = metadataStatus.resolveMetadataStatus(liveItem, config);
+      if (liveMeta.metadataComplete && !isRefreshObjective(task, liveItem)) {
+        const updatedInfo = {
+          ...(task.itemInfo || {}),
+          ...buildUpdatedItemInfo(liveItem),
+        };
+        taskStore.updateTask(taskId, {
+          itemInfo: updatedInfo,
+          scrapeVerification: metadataVerification(liveMeta, 'live_item_precheck'),
+          resumePoint: null,
+          approval: null,
+        });
+        appendLog(taskId, 'info', 'Standard metadata already complete; repair skipped');
+        setPhase(taskId, 'done');
+        scheduler.reportStatus(taskId, 'done', 100);
+        return;
+      }
+    }
+
+    appendLog(taskId, 'info', 'Starting standard metadata repair');
     const latestItem = await mediaLibraryService.completeEmbyItemMetadata(task.itemId, { config });
+    const repairSummary = latestItem && latestItem.metadataRepairSummary || {};
+    appendLog(taskId, 'info', 'Fetched latest item facts from Emby');
+    if (repairSummary.doubanCache) {
+      appendLog(taskId, 'info', `Applied local Douban cache: ${repairSummary.doubanCache.matched || 0} matched, ${repairSummary.doubanCache.changed || 0} changed`);
+    }
+    appendLog(taskId, 'info', 'Recomputed ShelfDeck media facts and optimize targets');
     scheduler.reportStatus(taskId, 'executing', 85);
     const meta = metadataStatus.resolveMetadataStatus(latestItem, config);
     if (!meta.metadataComplete) {
@@ -134,28 +317,18 @@ async function runEmbyExecuting(taskId, task, config, subLib) {
         ...(task.itemInfo || {}),
         ...buildUpdatedItemInfo(latestItem),
       };
-      taskStore.updateTask(taskId, {
+      const verification = metadataVerification(meta, 'completion_snapshot');
+      recordScrapeGateFailure(taskId, {
         itemInfo: updatedInfo,
-        scrapeVerification: {
-          ok: false,
-          checkedAt: new Date().toISOString(),
-          checks: Object.fromEntries(meta.metadataMissingReasons.map((reason) => [reason, false])),
-          failures: meta.metadataMissingReasons.map((reason) => ({ code: reason, message: `Metadata missing: ${reason}` })),
-          warnings: [],
-          metadataStatus: meta.metadataStatus,
-          metadataMissingReasons: meta.metadataMissingReasons,
-          source: 'completion_snapshot',
-        },
+        verification,
+        message: `Metadata repair incomplete: ${meta.metadataMissingReasons.join(', ')}`,
       });
-      appendLog(taskId, 'warn', `Emby metadata remains incomplete: ${meta.metadataMissingReasons.join(', ')}`);
-      setPhase(taskId, 'failed_hard');
-      scheduler.reportStatus(taskId, 'failed_hard', 0);
       return;
     }
     appendLog(taskId, meta.metadataComplete ? 'info' : 'warn', meta.metadataComplete
-      ? 'Emby metadata completion verified'
-      : `Emby metadata remains incomplete: ${meta.metadataMissingReasons.join(', ')}`);
-    await afterScrapeApplied(taskId, task, config, latestItem, 'Emby metadata completion finished; strategy recalculated');
+      ? 'Standard metadata repair verified'
+      : `Metadata repair incomplete: ${meta.metadataMissingReasons.join(', ')}`);
+    await afterScrapeApplied(taskId, task, config, latestItem, 'Standard metadata repair finished; optimize targets recalculated');
   } catch (e) {
     appendLog(taskId, 'error', e.message);
     setPhase(taskId, 'failed_hard');
@@ -182,6 +355,11 @@ async function runWriteMetadata(taskId, task) {
     await applyJavScrapeResult(taskId, task, config, subLib, liveItem, task.itemInfo && task.itemInfo.pendingScrapeResult);
   } catch (e) {
     appendLog(taskId, 'error', e.message);
+    if (reportIngestInvalidation(taskId, task, e, 'scrape_write_metadata')) {
+      setPhase(taskId, 'failed_hard');
+      scheduler.reportStatus(taskId, 'failed_hard', 0);
+      return;
+    }
     adultLibraryService.markScrapeFailed(task.itemId, e.message);
     setPhase(taskId, 'failed_hard');
     scheduler.reportStatus(taskId, 'failed_hard', 0);
@@ -226,7 +404,7 @@ async function applyJavScrapeResult(taskId, task, config, subLib, liveItem, scra
     taskId,
     onLog: (level, msg) => appendLog(taskId, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
   });
-  await afterScrapeApplied(taskId, task, config, latestItem, 'Scrape metadata saved; strategy recalculated');
+  await afterScrapeApplied(taskId, task, config, latestItem, 'Scrape metadata saved; optimize targets recalculated');
 }
 
 async function runWesternExecuting(taskId, task, config, subLib, liveItem) {
@@ -275,13 +453,22 @@ async function applyWesternCuration(taskId, task, config, subLib, liveItem, cura
     return;
   }
 
-  await afterScrapeApplied(taskId, task, config, latestItem, 'Western adult AI metadata saved; strategy recalculated');
+  await afterScrapeApplied(taskId, task, config, latestItem, 'Western adult AI metadata saved; optimize targets recalculated');
 }
 
 async function afterScrapeApplied(taskId, task, config, latestItem, logMessage) {
   const mediaLibraryService = require('./mediaLibraryService');
   const strategyEngine = require('./strategyEngine');
-  try { mediaLibraryService.recomputeAllSelfFields(); } catch (_) {}
+  try { mediaLibraryService.projectStoredMediaFactsForItem(task.itemId); } catch (_) {}
+  try {
+    factsFreshnessService.markFresh(task.itemId, ['mediaFacts', 'metadataFacts'], {
+      evidence: {
+        source: 'metadata_flow',
+        taskId,
+        flowKind: task && task.flowPlan && task.flowPlan.flowKind || 'scrape',
+      },
+    });
+  } catch (_) {}
   try { strategyEngine.runOnce(); } catch (_) {}
 
   const itemAfterStrategy = mediaLibraryService.getLibraryItem(task.itemId) || latestItem;
@@ -336,6 +523,7 @@ function buildUpdatedItemInfo(item) {
     externalRefs: item.externalRefs,
     resolution: item.resolution,
     bitrate: item.bitrate,
+    audioCodecs: item.audioCodecs,
     size: item.size,
     duration: item.duration,
     type: item.type,
@@ -347,7 +535,6 @@ function buildUpdatedItemInfo(item) {
     providerIds: item.providerIds,
     seriesName: item.seriesName,
     seasonNumber: item.seasonNumber,
-    targetBitrate: item.targetBitrate,
     targetCodec: item.targetCodec,
     seedPreferences: item.seedPreferences,
     maxSizeGB: item.maxSizeGB,
@@ -357,17 +544,30 @@ function buildUpdatedItemInfo(item) {
 }
 
 async function finishScrape(taskId) {
+  const verification = captureCompletionVerification(taskId);
+  if (verification && verification.ok === false) {
+    const codes = failureCodes(verification);
+    recordScrapeGateFailure(taskId, {
+      verification: {
+        ...verification,
+        source: 'completion_snapshot',
+      },
+      message: codes.length
+        ? `Scrape completion verification failed: ${codes.join(', ')}`
+        : 'Scrape completion verification failed',
+    });
+    return;
+  }
   taskStore.updateTask(taskId, { resumePoint: null, approval: null });
   setPhase(taskId, 'done');
   scheduler.reportStatus(taskId, 'done', 100);
-  captureCompletionVerification(taskId);
 }
 
 function captureCompletionVerification(taskId) {
   try {
     const mediaLibraryService = require('./mediaLibraryService');
     const task = taskStore.getTask(taskId);
-    if (!task || task.actionType !== 'scrape') return;
+    if (!task || !task.flowPlan || task.flowPlan.flowKind !== 'scrape') return;
     const config = configStore.loadConfig();
     const item = mediaLibraryService.getLibraryItem(task.itemId);
     const subLib = item ? getSubLibrary(config, item.subLibraryId) : null;
@@ -382,8 +582,24 @@ function captureCompletionVerification(taskId) {
         source: 'completion_snapshot',
       },
     });
+    return verification;
   } catch (e) {
+    const verification = {
+      ok: false,
+      checkedAt: new Date().toISOString(),
+      checks: { 'verification.exception': false },
+      failures: [{
+        code: 'verification.exception',
+        message: `Scrape completion verification failed: ${e.message}`,
+      }],
+      warnings: [],
+      metadataStatus: 'unknown',
+      metadataMissingReasons: ['verification.exception'],
+      source: 'completion_snapshot',
+    };
+    taskStore.updateTask(taskId, { scrapeVerification: verification });
     appendLog(taskId, 'warn', `Scrape completion verification snapshot failed: ${e.message}`);
+    return verification;
   }
 }
 

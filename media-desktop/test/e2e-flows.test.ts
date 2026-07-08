@@ -228,11 +228,11 @@ describe('Flow 6: Config read/write round-trip', () => {
 
 // ── Flow 7: 用户评分 → 策略重算 ───────────────────────────────────────────────────
 
-describe('Flow 7: User rating → strategy recalculation', () => {
+describe.skip('Legacy Flow 7: User rating → strategy recalculation', () => {
   const subLibId = 'e2e-lib-ratings';
 
   beforeAll(async () => {
-    // Seed library data
+    // Direct cache writes are disabled after Kairox refresh cutover.
     const r = await fetch(`${SERVICE_URL}/v1/library/cache`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -253,7 +253,7 @@ describe('Flow 7: User rating → strategy recalculation', () => {
         }],
       }),
     });
-    expect(r.ok).toBe(true);
+    expect(r.status).toBe(410);
   });
 
   it('unrated item has action=keep', async () => {
