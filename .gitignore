@@ -40,6 +40,9 @@ worktrees/
 tests/env/docker-fn.env
 tests/TEST_ENV_CHECKLIST.md
 
+# E2E run state contains production response fragments; keep the committed report only.
+docs/v3/acceptance/.kairox_frontend_api_e2e_state.json
+
 # 排错工具凭据（不提交）
 tools/ssh-askpass.ps1
 
@@ -51,6 +54,7 @@ media-worker/data/
 media-worker/temp/
 .tmp/
 .tmp-deploy/
+/tmp/
 .codex/
 .deepseek/
 %SystemDrive%/

@@ -13,7 +13,7 @@ Last updated: 2026-07-08
 - Latest deployment time: `2026-07-08 13:18 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: deployed and health recovered to green.
-- Production E2E status: paused before restart; next run must re-slice the canary video and refresh Emby first.
+- Production E2E status: Stage 0-15 passed on `公共 国产剧库 / 81945 / 爱很美味 / Season 1`; awaiting user acceptance of `Kairox Beta`.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 - Automation model closure status: deployed; public run-scan APIs return `410 KAIROX_RUN_SCAN_REMOVED`.
 
@@ -80,8 +80,14 @@ Last updated: 2026-07-08
 - Current production E2E sample: `爱很美味`.
 - Test library: `公共 国产剧库`.
 - Current canary item: `81945 / 爱很美味 / Season 1`.
-- Before the next E2E restart, the sample must be cut again and Emby must be refreshed by the user.
-- The previous sample was shortened to about 10 seconds per episode and Emby was refreshed by the user.
+- Latest completed run:
+  - all stages `stage0` through `stage15` passed.
+  - the sample was re-cut to about 10 seconds per episode and re-encoded to high bitrate before the run.
+  - Emby was manually refreshed before ingest/scrape refresh validation.
+  - Stage 10 first validated that Media Freeze rejected immediate post-optimize refresh with `media_frozen`.
+  - after explicit user authorization, the canary freeze was cleared for testing, Emby was refreshed, and Stage 10 continued through ingest -> metadata -> optimize gate passed.
+  - Stage 13 confirmed delete through `delete.beforeExecute`; canary delete task completed and wrote delete gate facts while preserving archive history.
+- The canary item has been destructively used by the completed E2E run. A future destructive E2E needs a new or restored canary sample.
 - Previous production validation before SourceReference deployment:
   - manual library ingest scan returned `mode=kairox_scan`.
   - scan created `targetGate=ingest` task `b5840cad0adbad9d` for item `81945`.
@@ -96,7 +102,7 @@ Last updated: 2026-07-08
 
 | Goal | Status | Notes |
 | --- | --- | --- |
-| `Kairox Beta` | Candidate | Code is deployed, production E2E still pending |
+| `Kairox Beta` | E2E passed; awaiting user acceptance | Production Frontend/API business E2E Stage 0-15 passed on item `81945` |
 | `Kairox Usable` | Not started | Requires new worktree after Kairox Beta |
 | `Kairox Performance` | Not started | Requires new worktree after Kairox Beta |
 | `Kairox GA Candidate` | Not started | Requires new worktree after Kairox Beta |
@@ -104,12 +110,10 @@ Last updated: 2026-07-08
 
 ## Unresolved / Not Yet Proven
 
-- Production Frontend/API E2E is paused before restart on item `81945`.
-- Previous Stage 10 blocker:
-  - post-optimize refresh immediately created ingest/metadata tasks.
-  - Emby had not refreshed technical facts yet, so canonical facts still read old h264/high-bitrate values.
-  - decision implemented and deployed: add Media Freeze so task creation waits for external post-processing instead of allowing immediate cross-gate task creation.
-  - proof pending: re-slice the canary sample, refresh Emby, then restart production E2E.
+- Follow-up found during test-only freeze clearing:
+  - Media Freeze currently appears in both `media_items` hot columns and historical payload fields for the canary.
+  - Runtime behavior passed because normal finalization writes the active projection, but this duplicate storage is a data-model cleanup risk.
+  - Do not fix in this worktree unless it blocks Beta acceptance; put full payload cleanup in the future Performance/data-governance work.
 - Previous Stage 8 blocker status:
   - the previous `Emby source snapshot is required` blocker is fixed.
   - objective bitrate is already a three-number profile; `targetMbps` is the FFmpeg target, `minMbps/maxMbps` are gate bounds.
@@ -130,7 +134,7 @@ Last updated: 2026-07-08
   - transcode / upgrade write staged facts and fact refresh request.
   - Lifecycle projects `pending_canonical_refresh` back to ingest / metadata.
   - E2E Stage 7 now validates refresh tasks before archive.
-- Kairox business chain still needs production proof:
+- Kairox business chain has production proof for the canary:
   - frontend page visibility.
   - media projection correctness.
   - facts freshness / stale detection.
@@ -146,4 +150,5 @@ Last updated: 2026-07-08
 
 ## Worktree Notes
 
-- `acceptance/KAIROX_FRONTEND_API_E2E.md` is an E2E report artifact and may remain uncommitted until a completed run is available.
+- `acceptance/KAIROX_FRONTEND_API_E2E.md` is the committed evidence artifact for the completed production E2E run.
+- `acceptance/.kairox_frontend_api_e2e_state.json` is local run state and must not be committed.

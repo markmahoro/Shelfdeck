@@ -10,9 +10,9 @@ Reach `Kairox Beta` in this worktree.
 
 This worktree stops at `Kairox Beta`. Later goals require a new worktree.
 
-The previous production Kairox E2E run is stopped at post-optimize canonical refresh while `Media Freeze` is being added.
+The production Kairox Frontend/API E2E run has passed Stage 0-15 on the canary item.
 
-The current implementation task is `Media Freeze admission guard`.
+The current implementation task is complete; the next decision is whether to accept `Kairox Beta` for this worktree.
 
 Automation must now follow:
 
@@ -69,12 +69,12 @@ frontend pages are visible
    - transcode / upgrade write staged facts and evidence, not canonical media facts.
    - Lifecycle projects `pending_canonical_refresh` back to ingest / metadata.
    - E2E Stage 7 validates canonical refresh before archive.
-5. Implement Media Freeze before restarting production E2E:
+5. Media Freeze is complete and deployed:
    - `media_items` stores freeze state in hot columns, not `payload_json` only.
    - optimize done writes a 24h media freeze by default.
    - TaskAdmission rejects automatic and manual tasks for frozen media with `media_frozen`.
    - media list/detail projection and E2E Stage 10 expose freeze evidence.
-6. After Media Freeze is tested and deployed, restart E2E one stage at a time on item `81945`.
+6. Production E2E has passed one stage at a time on item `81945`.
 
 ## Active E2E Plan
 
@@ -107,29 +107,10 @@ docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
 
 ## Next Recommended Action
 
-Complete and deploy Media Freeze, then restart production E2E on the current canary:
-
-```powershell
-cd media-service
-node scripts/kairox-frontend-api-e2e.js `
-  --base-url=http://192.168.12.230:18080 `
-  --frontend-url=http://192.168.12.230:18080 `
-  --mode=destructive `
-  --allow-production `
-  --confirm-destructive-e2e `
-  --library-name="公共 国产剧库" `
-  --canary-item-id=81945 `
-  --stage=stage0 `
-  --out=../docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md `
-  --state=../docs/v3/acceptance/.kairox_frontend_api_e2e_state.json
-```
-
-The current canary item already has fresh source/media/metadata facts after production validation:
+Review the completed E2E report:
 
 ```text
-81945 / 爱很美味 / Season 1
-duration=200
-size=20493967
-bitrate=819759
-lifecycleNextTask=optimize
+docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
 ```
+
+If accepted, close this worktree as `Kairox Beta` and start any next release goal in a new worktree.
