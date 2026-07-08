@@ -25,6 +25,7 @@
 | `V2_BEHAVIOR_PRESERVATION.md` | v2 行为保护清单 |
 | `DISCOVERY_CHECKLIST.md` | 老阶段 discovery 清单，仅作参考 |
 | `PRODUCTION_SAFETY_BASELINE.md` | 生产安全基线记录 |
+| `KAIROX_GOVERNANCE_DISCUSSION_NOTES.md` | Kairox Beta 后关于 Onboarding / In-Library Lifecycle / Offboarding / Global Resource Management 的下一阶段讨论纪要；不是当前已实施 contract |
 
 ## Acceptance Documents
 
