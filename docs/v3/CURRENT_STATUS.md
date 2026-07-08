@@ -12,7 +12,7 @@ Last updated: 2026-07-08
 - Latest deployed image SHA256: `cc8917014320b0141f014d176829a442d09a768ac75cfb1fa6d508f5cf75c7d4`
 - Latest deployment time: `2026-07-08 13:18 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
-- Deployment status: deployed and health recovered to green.
+- Deployment status: Kairox Beta was accepted, then production was intentionally taken down for cleanup on 2026-07-08. The `shelfdeck` container and compose network are removed; data, compose file, final image, and final tarball are retained for restart.
 - Production E2E status: Stage 0-15 passed on `公共 国产剧库 / 81945 / 爱很美味 / Season 1`; user accepted `Kairox Beta` as achieved for this worktree.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 - Automation model closure status: deployed; public run-scan APIs return `410 KAIROX_RUN_SCAN_REMOVED`.
@@ -162,3 +162,8 @@ Last updated: 2026-07-08
 
 - `acceptance/KAIROX_FRONTEND_API_E2E.md` is the committed evidence artifact for the completed production E2E run.
 - `acceptance/.kairox_frontend_api_e2e_state.json` is local run state and must not be committed.
+- Production cleanup after Beta acceptance:
+  - NAS `shelfdeck` container was stopped and removed with `docker compose down`.
+  - Old uploaded image tarballs and old `markmahoro/shelfdeck` Docker images were removed.
+  - Production data backups were reduced to the latest `20260708051702` backup set plus current live data.
+  - Local `dist-image` was reduced to the final Kairox Beta tarball and marker; local temp folders were cleared.
