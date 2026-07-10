@@ -29,6 +29,7 @@ function getDb() {
       source_revision TEXT NOT NULL DEFAULT '',
       source_context_json TEXT NOT NULL DEFAULT '{}',
       policy_revision TEXT NOT NULL DEFAULT '',
+      maintenance_policy_json TEXT NOT NULL DEFAULT '{}',
       incident_code TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -52,6 +53,7 @@ function rowToAdmission(row) {
     sourceRevision: row.source_revision,
     sourceAccessDescriptor: parse(row.source_context_json),
     policyRevision: row.policy_revision,
+    maintenancePolicy: parse(row.maintenance_policy_json),
     incidentCode: row.incident_code,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -72,6 +74,16 @@ function getAdmissions(itemIds = []) {
   }, {});
 }
 
+function listActiveAdmissions(options = {}) {
+  const limit = Math.max(1, Math.min(1000, Number(options.limit) || 100));
+  const afterItemId = String(options.afterItemId || '');
+  return getDb().prepare(`
+    SELECT * FROM kairox_admissions
+    WHERE status='active' AND item_id>?
+    ORDER BY item_id ASC LIMIT ?
+  `).all(afterItemId, limit).map(rowToAdmission);
+}
+
 function upsertAdmission(input = {}) {
   const itemId = String(input.itemId || '');
   const generation = Math.max(0, Number.parseInt(input.admissionGeneration, 10) || 0);
@@ -89,18 +101,20 @@ function upsertAdmission(input = {}) {
     source_revision: String(input.sourceRevision || ''),
     source_context_json: JSON.stringify(input.sourceAccessDescriptor || {}),
     policy_revision: String(input.policyRevision || ''),
+    maintenance_policy_json: JSON.stringify(input.maintenancePolicy || {}),
     incident_code: String(input.incidentCode || ''),
     created_at: existing && existing.createdAt || now,
     updated_at: now,
   };
   getDb().prepare(`
     INSERT INTO kairox_admissions
-      (item_id,generation,status,source_revision,source_context_json,policy_revision,incident_code,created_at,updated_at)
+      (item_id,generation,status,source_revision,source_context_json,policy_revision,maintenance_policy_json,incident_code,created_at,updated_at)
     VALUES
-      (@item_id,@generation,@status,@source_revision,@source_context_json,@policy_revision,@incident_code,@created_at,@updated_at)
+      (@item_id,@generation,@status,@source_revision,@source_context_json,@policy_revision,@maintenance_policy_json,@incident_code,@created_at,@updated_at)
     ON CONFLICT(item_id) DO UPDATE SET
       generation=excluded.generation,status=excluded.status,source_revision=excluded.source_revision,
       source_context_json=excluded.source_context_json,policy_revision=excluded.policy_revision,
+      maintenance_policy_json=excluded.maintenance_policy_json,
       incident_code=excluded.incident_code,updated_at=excluded.updated_at
   `).run(row);
   return getAdmission(itemId);
@@ -111,4 +125,4 @@ function resetForTests() {
   dbCache.clear();
 }
 
-module.exports = { getAdmission, getAdmissions, upsertAdmission, resetForTests };
+module.exports = { getAdmission, getAdmissions, listActiveAdmissions, upsertAdmission, resetForTests };

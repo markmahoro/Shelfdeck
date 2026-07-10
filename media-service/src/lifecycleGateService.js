@@ -97,6 +97,24 @@ function evaluateIngestGate(item = {}) {
   };
 }
 
+function evaluateBasedataGate(item = {}) {
+  const freshness = item.factsFreshness && item.factsFreshness.basedataFacts || {};
+  const sourceRevision = String(item.basedataSourceRevision || '');
+  const admissionSourceRevision = String(item.admissionSourceRevision || item.currentSourceRevision || sourceRevision);
+  const current = !!sourceRevision && sourceRevision === admissionSourceRevision;
+  const fresh = !['stale', 'invalidated', 'blocked', 'refreshing', 'unknown'].includes(normalize(freshness.status));
+  const passed = item.basedataComplete === true && current && fresh;
+  return {
+    gate: 'basedata',
+    passed,
+    status: passed ? 'passed' : fresh ? 'missing' : normalize(freshness.status) || 'missing',
+    reason: passed ? 'basedata_gate_met' : !current ? 'basedata_source_revision_stale' : 'basedata_missing_or_stale',
+    missingReasons: passed ? [] : [!current ? 'basedata.sourceRevision' : 'basedata.facts'],
+    freshness,
+    userAction: passed ? '' : 'observe_basedata',
+  };
+}
+
 function explicitOptimizeGate(item = {}) {
   const gate = item.optimizeGate || item.optimizationGate;
   return gate && typeof gate === 'object' ? gate : null;
@@ -496,6 +514,7 @@ function evaluateDeleteGate(item = {}) {
 }
 
 module.exports = {
+  evaluateBasedataGate,
   evaluateIngestGate,
   evaluateOptimizeGate,
   evaluateArchiveGate,

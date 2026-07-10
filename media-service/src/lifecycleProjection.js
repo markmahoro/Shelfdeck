@@ -31,41 +31,36 @@ function resolveLifecycle(item, config = {}) {
     ? item.factsFreshness
     : factsFreshnessService.projectForItem(item || {});
   const itemWithFreshness = { ...(item || {}), factsFreshness };
-  const ingestGate = lifecycleGateService.evaluateIngestGate(itemWithFreshness);
+  const basedataGate = lifecycleGateService.evaluateBasedataGate(itemWithFreshness);
   const objectiveProjection = lifecycleObjectiveResolver.projectOptimizeObjective(itemWithFreshness, { config });
   const pendingOptimizeGate = pendingCanonicalOptimizeGate(item || {}, factsFreshness);
 
-  if (!ingestGate.passed) {
+  if (!basedataGate.passed) {
     return {
-      lifecycleStage: 'source_discovered',
+      lifecycleStage: 'admitted',
       lifecycleDone: false,
-      archiveStatus: 'not_ready',
-      lifecycleNextTask: 'ingest',
-      lifecycleReason: ingestGate.reason,
+      lifecycleNextTask: 'basedata',
+      lifecycleReason: basedataGate.reason,
       optimizeFlowKind: null,
       ...objectiveProjection,
       factsFreshness,
-      ingestGate,
+      basedataGate,
       optimizeGate: pendingOptimizeGate,
-      archiveGate: null,
     };
   }
 
-  const metadataFresh = factsFreshnessService.isFresh(factsFreshness, 'mediaFacts')
-    && factsFreshnessService.isFresh(factsFreshness, 'metadataFacts');
-  const staleMetadataFacts = factsFreshnessService.isBlockingStale(factsFreshness, 'mediaFacts')
-    || factsFreshnessService.isBlockingStale(factsFreshness, 'metadataFacts');
+  const metadataFresh = factsFreshnessService.isFresh(factsFreshness, 'metadataFacts');
+  const staleMetadataFacts = factsFreshnessService.isBlockingStale(factsFreshness, 'metadataFacts');
   if (!metadataComplete || !metadataFresh) {
     return {
-      lifecycleStage: 'ingested',
+      lifecycleStage: 'basedata_ready',
       lifecycleDone: false,
-      archiveStatus: 'not_ready',
       lifecycleNextTask: 'metadata',
       lifecycleReason: staleMetadataFacts ? 'metadata_facts_stale' : 'metadata_missing',
       optimizeFlowKind: null,
       ...objectiveProjection,
       factsFreshness,
-      ingestGate,
+      basedataGate,
       metadataGate: {
         gate: 'metadata',
         passed: false,
@@ -73,137 +68,83 @@ function resolveLifecycle(item, config = {}) {
         reason: staleMetadataFacts ? 'metadata_facts_stale' : 'metadata_missing',
         missingReasons: metadataComplete ? [] : (item && item.metadataMissingReasons || []),
         freshness: {
-          mediaFacts: factsFreshness.mediaFacts,
           metadataFacts: factsFreshness.metadataFacts,
         },
         userAction: staleMetadataFacts ? 'refresh_media_or_metadata_facts' : 'repair_metadata',
       },
       optimizeGate: pendingOptimizeGate,
-      archiveGate: null,
     };
   }
 
-  const hasGateClosureFacts = !!(
-    item && (item.optimizeGate || item.optimizationGate || item.archiveStatus || item.archiveDoneAt)
-  );
+  const metadataGate = {
+    gate: 'metadata',
+    passed: true,
+    status: 'passed',
+    reason: 'metadata_gate_met',
+    missingReasons: [],
+    freshness: { metadataFacts: factsFreshness.metadataFacts },
+    userAction: '',
+  };
+
+  const hasGateClosureFacts = !!(item && (item.optimizeGate || item.optimizationGate));
   if (!hasGateClosureFacts && objectiveProjection.optimizeObjectiveStatus !== 'ready') {
     return {
       lifecycleStage: 'metadata_ready',
       lifecycleDone: false,
-      archiveStatus: 'not_ready',
       lifecycleNextTask: null,
       lifecycleReason: objectiveLifecycleReason(objectiveProjection, reason ? 'strategy_pending' : 'strategy_missing'),
       optimizeFlowKind: null,
       ...objectiveProjection,
       factsFreshness,
-      ingestGate,
+      basedataGate,
+      metadataGate,
       optimizeGate: null,
-      archiveGate: null,
     };
   }
 
   const itemWithObjectiveProjection = { ...(item || {}), ...objectiveProjection };
-  const terminalDeleteGate = lifecycleGateService.evaluateDeleteGate(item || {});
-  if (terminalDeleteGate.passed) {
-    const archiveGate = lifecycleGateService.evaluateArchiveGate(item || {});
-    const optimizeGate = lifecycleGateService.evaluateOptimizeGate(itemWithObjectiveProjection);
-    return {
-      lifecycleStage: 'deleted',
-      lifecycleDone: true,
-      archiveStatus: archiveGate.passed ? 'archived_like' : (item.archiveStatus || 'not_ready'),
-      deleteStatus: 'deleted',
-      lifecycleNextTask: null,
-      lifecycleReason: terminalDeleteGate.reason,
-      optimizeFlowKind: optimizeGate.flowKind || null,
-      ...objectiveProjection,
-      factsFreshness,
-      ingestGate,
-      optimizeGate,
-      archiveGate,
-      deleteGate: terminalDeleteGate,
-    };
-  }
-
   const optimizeGate = lifecycleGateService.evaluateOptimizeGate(itemWithObjectiveProjection);
   if (optimizeGate.passed) {
-    const archiveGate = lifecycleGateService.evaluateArchiveGate(item || {});
-    if (!archiveGate.passed) {
-      return {
-        lifecycleStage: 'optimized',
-        lifecycleDone: false,
-        archiveStatus: 'not_ready',
-        lifecycleNextTask: 'archive',
-        lifecycleReason: archiveGate.reason,
-        optimizeFlowKind: optimizeGate.flowKind || null,
-        ...objectiveProjection,
-        factsFreshness,
-        ingestGate,
-        optimizeGate,
-        archiveGate,
-      };
-    }
-    const deleteGate = lifecycleGateService.evaluateDeleteGate(item || {});
-    if (deleteGate.passed) {
-      return {
-        lifecycleStage: 'deleted',
-        lifecycleDone: true,
-        archiveStatus: 'archived_like',
-        deleteStatus: 'deleted',
-        lifecycleNextTask: null,
-        lifecycleReason: deleteGate.reason,
-        optimizeFlowKind: optimizeGate.flowKind || null,
-        ...objectiveProjection,
-        factsFreshness,
-        ingestGate,
-        optimizeGate,
-        archiveGate,
-        deleteGate,
-      };
-    }
     return {
-      lifecycleStage: 'archived',
+      lifecycleStage: 'maintenance_complete',
       lifecycleDone: true,
-      archiveStatus: 'archived_like',
-      deleteStatus: 'not_deleted',
       lifecycleNextTask: null,
       lifecycleReason: optimizeGate.reason,
       optimizeFlowKind: optimizeGate.flowKind || null,
       ...objectiveProjection,
       factsFreshness,
-      ingestGate,
+      basedataGate,
+      metadataGate,
       optimizeGate,
-      archiveGate,
-      deleteGate,
     };
   }
 
   return {
     lifecycleStage: 'metadata_ready',
     lifecycleDone: false,
-    archiveStatus: 'not_ready',
     lifecycleNextTask: 'optimize',
     lifecycleReason: optimizeGate.reason === 'objective_not_satisfied' ? 'objective_not_satisfied' : 'optimization_pending',
     optimizeFlowKind: optimizeGate.flowKind || null,
     ...objectiveProjection,
     factsFreshness,
-    ingestGate,
+    basedataGate,
+    metadataGate,
     optimizeGate,
-    archiveGate: null,
   };
 }
 
 function metadataRefreshObjective(projection = {}) {
   return {
     kind: 'metadata_refresh',
-    refreshFacts: ['mediaFacts', 'metadataFacts'],
+    refreshFacts: ['metadataFacts'],
     reason: projection.lifecycleReason || 'facts_stale',
   };
 }
 
-function ingestRefreshObjective(projection = {}) {
+function basedataRefreshObjective(projection = {}) {
   return {
-    kind: 'source_ingested',
-    reason: projection.lifecycleReason || 'source_facts_stale',
+    kind: 'basedata_current',
+    reason: projection.lifecycleReason || 'basedata_missing_or_stale',
   };
 }
 
@@ -212,12 +153,10 @@ function gateObjectiveForProjection(projection = {}) {
   if (targetGate === 'optimize') return projection.optimizeObjective || {};
   if (targetGate === 'metadata') {
     const freshness = projection.factsFreshness || {};
-    const stale = factsFreshnessService.isBlockingStale(freshness, 'mediaFacts')
-      || factsFreshnessService.isBlockingStale(freshness, 'metadataFacts');
+    const stale = factsFreshnessService.isBlockingStale(freshness, 'metadataFacts');
     return stale ? metadataRefreshObjective(projection) : {};
   }
-  if (targetGate === 'ingest') return ingestRefreshObjective(projection);
-  if (targetGate === 'archive') return { kind: 'archive_item' };
+  if (targetGate === 'basedata') return basedataRefreshObjective(projection);
   return {};
 }
 
@@ -226,8 +165,7 @@ function blockedReasonForProjection(projection = {}) {
   if (targetGate !== 'metadata') return '';
   const adultMeta = projection.adultMetadata && typeof projection.adultMetadata === 'object' ? projection.adultMetadata : {};
   const scrapeStatus = String(adultMeta.scrapeStatus || '').trim().toLowerCase();
-  const metadataFactsStale = factsFreshnessService.isBlockingStale(projection.factsFreshness || {}, 'mediaFacts')
-    || factsFreshnessService.isBlockingStale(projection.factsFreshness || {}, 'metadataFacts');
+  const metadataFactsStale = factsFreshnessService.isBlockingStale(projection.factsFreshness || {}, 'metadataFacts');
   if (!metadataFactsStale && (projection.scraped === true || scrapeStatus === 'done')) return 'metadata_already_scraped';
   if (['failed', 'ambiguous', 'needs_review'].includes(scrapeStatus)) return `metadata_${scrapeStatus}`;
   return '';
@@ -240,7 +178,7 @@ function toLifecycleSnapshot(item, config = {}) {
   return {
     itemId: projection.itemId || '',
     object: {
-      type: nextTargetGate === 'ingest' ? 'source_candidate' : 'media_item',
+      type: 'media_item',
       itemId: projection.itemId || '',
     },
     item: projection,
@@ -250,7 +188,6 @@ function toLifecycleSnapshot(item, config = {}) {
     lifecycleReason: projection.lifecycleReason || '',
     factsFreshness: projection.factsFreshness || {},
     optimizeObjectiveStatus: projection.optimizeObjectiveStatus || '',
-    deleteEligibility: projection.deleteEligibility || null,
     blockedReason,
     timestamp: projection.updatedAt ? new Date(projection.updatedAt).getTime() : 0,
   };
@@ -261,9 +198,19 @@ function toLifecycleSnapshots(items, config = {}) {
 }
 
 function decorateItem(item, config = {}) {
+  const lifecycle = resolveLifecycle(item, config);
+  const pendingCanonicalRefresh = !!(lifecycle.optimizeGate && lifecycle.optimizeGate.status === 'pending_canonical_refresh');
+  const admissionCurrent = item.admissionCurrent !== false;
+  const unresolvedSourceIncident = !!item.unresolvedSourceIncident;
+  const maintenanceComplete = lifecycle.lifecycleDone === true
+    && admissionCurrent
+    && !pendingCanonicalRefresh
+    && !unresolvedSourceIncident;
   return {
     ...item,
-    ...resolveLifecycle(item, config),
+    ...lifecycle,
+    maintenanceComplete,
+    maintenanceState: maintenanceComplete ? 'complete' : 'maintaining',
   };
 }
 
@@ -276,8 +223,7 @@ function matchesFilter(item, filter) {
   if (!value) return true;
   if (value === 'done' || value === 'closed') return !!item.lifecycleDone;
   if (value === 'open' || value === 'pending') return !item.lifecycleDone;
-  if (value === 'archive_ready') return item.archiveStatus === 'archived_like';
-  return item.lifecycleStage === value || item.archiveStatus === value || item.lifecycleNextTask === value;
+  return item.lifecycleStage === value || item.lifecycleNextTask === value;
 }
 
 module.exports = {
@@ -285,10 +231,8 @@ module.exports = {
   decorateItems,
   matchesFilter,
   resolveLifecycle,
-  evaluateIngestGate: lifecycleGateService.evaluateIngestGate,
+  evaluateBasedataGate: lifecycleGateService.evaluateBasedataGate,
   evaluateOptimizeGate: lifecycleGateService.evaluateOptimizeGate,
-  evaluateArchiveGate: lifecycleGateService.evaluateArchiveGate,
-  evaluateDeleteGate: lifecycleGateService.evaluateDeleteGate,
   toLifecycleSnapshot,
   toLifecycleSnapshots,
 };

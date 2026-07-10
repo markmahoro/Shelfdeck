@@ -108,11 +108,11 @@ function resourceForTask(task, config = {}) {
     };
   }
   if (plannedResourceType === 'filesystem') {
-    const suffix = flowKind === 'ingest' ? 'ingest' : 'mutation';
+    const suffix = flowKind === 'basedata' ? 'probe' : 'mutation';
     return {
       resourceType: 'filesystem',
       resourceKey: `filesystem:${suffix}`,
-      resourceLabel: suffix === 'ingest' ? 'Filesystem ingest' : 'Filesystem mutation',
+      resourceLabel: suffix === 'probe' ? 'Filesystem Basedata probe' : 'Filesystem mutation',
     };
   }
   if (plannedResourceType === 'scraper') {

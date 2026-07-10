@@ -4,21 +4,17 @@ const taskStore = require('./taskStore');
 const flowPlanner = require('./flowPlanner');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const diagnosticLog = require('./diagnosticLog');
-const ingestFlow = require('./ingestFlowExecutor');
+const basedataFlow = require('./basedataFlowExecutor');
 const scrapeFlow = require('./scrapeFlowExecutor');
 const transcodeFlow = require('./transcodeFlowExecutor');
 const upgradeFlow = require('./upgradeFlowExecutor');
-const archiveFlow = require('./archiveFlowExecutor');
-const deleteFlow = require('./deleteFlowExecutor');
 const kairoxAdmissionFence = require('./kairoxAdmissionFence');
 
 const FLOW_EXECUTORS = {
-  ingest: ingestFlow,
+  basedata: basedataFlow,
   scrape: scrapeFlow,
   transcode: transcodeFlow,
   upgrade: upgradeFlow,
-  archive: archiveFlow,
-  delete: deleteFlow,
 };
 
 let callbacks = {

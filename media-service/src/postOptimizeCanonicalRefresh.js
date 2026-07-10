@@ -3,7 +3,7 @@
 const factsFreshnessService = require('./factsFreshnessService');
 
 const POST_OPTIMIZE_REFRESH_REASON = 'post_optimize_replace';
-const REFRESH_FACT_GROUPS = ['sourceFacts', 'mediaFacts', 'metadataFacts'];
+const REFRESH_FACT_GROUPS = ['basedataFacts'];
 
 function gateObjectiveForTask(task = {}) {
   return task.taskTarget && task.taskTarget.gateObjective && typeof task.taskTarget.gateObjective === 'object'
@@ -129,18 +129,11 @@ function recordPostOptimizeReplacement(libItem, task = {}, doneAt = '', flowKind
     objectiveHash: libItem.optimizeGate.target && libItem.optimizeGate.target.objectiveHash || '',
     stagedFacts: libItem.optimizeGate.stagedFacts || {},
   };
-  factsFreshnessService.markStale(libItem.itemId, ['sourceFacts'], {
+  factsFreshnessService.markStale(libItem.itemId, ['basedataFacts'], {
     now: doneAt,
     reason: POST_OPTIMIZE_REFRESH_REASON,
     source: flowKind,
-    refreshTargetGate: 'ingest',
-    evidence,
-  });
-  factsFreshnessService.markStale(libItem.itemId, ['mediaFacts', 'metadataFacts'], {
-    now: doneAt,
-    reason: POST_OPTIMIZE_REFRESH_REASON,
-    source: flowKind,
-    refreshTargetGate: 'metadata',
+    refreshTargetGate: 'basedata',
     evidence,
   });
   return libItem;

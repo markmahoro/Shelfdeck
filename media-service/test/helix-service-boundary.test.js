@@ -78,3 +78,13 @@ test('public Helix path exposes only clean maintenance targets and no legacy dis
   assert.doesNotMatch(appSource, /\/v1\/library\/cache/);
   assert.doesNotMatch(appSource, /recompute-strategy/);
 });
+
+test('Kairox Runtime and Basedata executor write only Kairox-owned facts', () => {
+  const runtime = source('kairoxRuntime.js');
+  const basedata = source('basedataFlowExecutor.js');
+  assert.match(runtime, /require\('\.\/kairoxStore'\)/);
+  assert.match(basedata, /kairoxStore\.publishBasedata/);
+  assert.doesNotMatch(runtime, /require\('\.\/libraryStore'\)/);
+  assert.doesNotMatch(basedata, /require\('\.\/libraryStore'\)/);
+  assert.doesNotMatch(basedata, /libraryStore\./);
+});

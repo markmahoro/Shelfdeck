@@ -33,10 +33,10 @@ test('revoked or stale admission generation is fenced before commit', () => {
   assert.throws(() => fence.assertTask(task, 'upgrade_replace'), (error) => error.code === 'KAIROX_ADMISSION_FENCED');
 });
 
-test('legacy tasks without a Helix admission remain readable and recoverable', () => {
-  assert.deepStrictEqual(fence.checkTask({ itemId: 'legacy-task' }, 'resource_dispatch'), {
-    allowed: true,
-    legacy: true,
+test('tasks without a Helix admission are fenced in the clean runtime', () => {
+  assert.deepStrictEqual(fence.checkTask({ itemId: 'unadmitted-task' }, 'resource_dispatch'), {
+    allowed: false,
+    reason: 'admission_missing_from_task',
     checkpoint: 'resource_dispatch',
   });
 });

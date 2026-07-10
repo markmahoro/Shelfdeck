@@ -5,20 +5,20 @@ const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 const FLOW_PLAN_VERSION = 'v2.7';
 
 const FLOW_DEFINITIONS = {
-  ingest: {
+  basedata: {
     bridge: {
-      kind: 'ingest',
-      from: 'file_candidate',
-      to: 'ingested_item',
-      reason: 'Turn an observed source candidate into a managed media item.',
+      kind: 'basedata',
+      from: 'admitted_source',
+      to: 'observed_media',
+      reason: 'Observe operational media facts from the current SourceBinding.',
     },
-    direction: 'ingest.commit',
-    flowKind: 'ingest',
-    executor: 'ingestFlowExecutor',
+    direction: 'basedata.observe',
+    flowKind: 'basedata',
+    executor: 'basedataFlowExecutor',
     primaryResourceType: 'filesystem',
     steps: [
-      { phase: 'ingest_precheck', eventType: 'ingest.precheck', resourceType: 'filesystem' },
-      { phase: 'ingest_commit', eventType: 'ingest.commit', resourceType: 'filesystem' },
+      { phase: 'basedata_observe', eventType: 'basedata.observe', resourceType: 'filesystem' },
+      { phase: 'basedata_publish', eventType: 'basedata.publish', resourceType: 'service_api' },
     ],
   },
   scrape: {
@@ -74,39 +74,6 @@ const FLOW_DEFINITIONS = {
       { phase: 'upgrade_executing', eventType: 'optimize.upgrade.download', resourceType: 'moviepilot' },
       { phase: 'upgrade_pre_replace_verify', eventType: 'optimize.upgrade.verify_source', resourceType: 'filesystem' },
       { phase: 'upgrade_replace', eventType: 'optimize.upgrade.replace', resourceType: 'filesystem' },
-    ],
-  },
-  delete: {
-    bridge: {
-      kind: 'delete',
-      from: 'archived_item',
-      to: 'deleted_item',
-      reason: 'Remove an archived media item through the delete gate review flow.',
-    },
-    direction: 'delete.execute',
-    flowKind: 'delete',
-    executor: 'deleteFlowExecutor',
-    primaryResourceType: 'filesystem',
-    steps: [
-      { phase: 'delete_precheck', eventType: 'delete.precheck', resourceType: 'filesystem' },
-      { phase: 'delete_executing', eventType: 'delete.execute', resourceType: 'filesystem' },
-      { phase: 'delete_verify', eventType: 'delete.verify', resourceType: 'filesystem' },
-    ],
-  },
-  archive: {
-    bridge: {
-      kind: 'archive',
-      from: 'optimized_item',
-      to: 'archived_item',
-      reason: 'Finalize a media item lifecycle after the optimize gate is satisfied.',
-    },
-    direction: 'archive.finalize',
-    flowKind: 'archive',
-    executor: 'archiveFlowExecutor',
-    primaryResourceType: 'service_api',
-    steps: [
-      { phase: 'archive_precheck', eventType: 'archive.finalize.precheck', resourceType: 'service_api' },
-      { phase: 'archive_finalize', eventType: 'archive.finalize.write', resourceType: 'service_api' },
     ],
   },
 };
@@ -267,8 +234,8 @@ function selectOptimizeFlow(input = {}) {
     return flowSelectionResult({
       flowKind: 'blocked',
       allowed: false,
-      reason: 'delete_is_not_optimize',
-      blockedReason: 'delete_gate_required',
+      reason: 'invalid_maintenance_objective',
+      blockedReason: 'objective_outside_kairox_maintenance',
       objectiveHash,
       currentFacts,
       targetFacts,
@@ -487,10 +454,8 @@ function targetGateForInput(input = {}) {
 }
 
 function deterministicFlowKindForGate(targetGate) {
-  if (targetGate === 'ingest') return 'ingest';
+  if (targetGate === 'basedata') return 'basedata';
   if (targetGate === 'metadata') return 'scrape';
-  if (targetGate === 'archive') return 'archive';
-  if (targetGate === 'delete') return 'delete';
   return '';
 }
 
@@ -517,6 +482,13 @@ function planFlow(input = {}) {
   }
   flowKind = flowKind || 'blocked';
   const definition = clone(FLOW_DEFINITIONS[flowKind] || defaultDefinition(flowKind));
+  if (flowKind === 'basedata' && itemInfo.source === 'emby') {
+    definition.primaryResourceType = 'emby';
+    definition.steps = [
+      { phase: 'basedata_observe', eventType: 'basedata.emby.observe', resourceType: 'emby' },
+      { phase: 'basedata_publish', eventType: 'basedata.publish', resourceType: 'service_api' },
+    ];
+  }
   if (isStandardMetadataRepair(flowKind, itemInfo)) {
     definition.primaryResourceType = 'emby';
     definition.steps = [

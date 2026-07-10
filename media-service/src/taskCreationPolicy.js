@@ -93,6 +93,7 @@ function buildAttemptKey({ item = {}, itemInfo = {}, itemId = '', targetGate = '
   return hashObject({
     itemId,
     targetGate,
+    basedataFactsUpdatedAt: factVersion(freshness.basedataFacts),
     gateObjective: gateObjective || {},
     sourceFactsUpdatedAt: factVersion(freshness.sourceFacts),
     mediaFactsUpdatedAt: factVersion(freshness.mediaFacts),
@@ -144,25 +145,6 @@ function queuedCountForTargetGate(tasks, targetGate) {
   )).length;
 }
 
-function isArchived(item = {}) {
-  return item.archiveStatus === 'archived_like'
-    || !!item.archiveDoneAt
-    || !!(item.archiveGate && item.archiveGate.passed);
-}
-
-function deleteReviewConfirmed(item = {}) {
-  const candidate = item.deleteCandidate || {};
-  return candidate.candidateStatus === 'confirmed'
-    || candidate.decision === 'confirm_delete'
-    || item.deleteReviewConfirmed === true;
-}
-
-function destructivePreAuthorized(input = {}) {
-  return input.destructivePreAuthorized === true
-    || input.preAuthorized === true
-    || (input.intent && input.intent.destructivePreAuthorized === true);
-}
-
 function objectiveKind(objective = {}) {
   return cleanToken(objective && objective.kind);
 }
@@ -180,14 +162,12 @@ function isMetadataRefreshObjective(objective = {}) {
 
 function metadataFactsFresh(item = {}) {
   const projection = item.factsFreshness || factsFreshnessService.projectForItem(item);
-  return factsFreshnessService.isFresh(projection, 'mediaFacts')
-    && factsFreshnessService.isFresh(projection, 'metadataFacts');
+  return factsFreshnessService.isFresh(projection, 'metadataFacts');
 }
 
 function metadataFactsStale(item = {}) {
   const projection = item.factsFreshness || factsFreshnessService.projectForItem(item);
-  return factsFreshnessService.isBlockingStale(projection, 'mediaFacts')
-    || factsFreshnessService.isBlockingStale(projection, 'metadataFacts');
+  return factsFreshnessService.isBlockingStale(projection, 'metadataFacts');
 }
 
 function buildTaskTarget({ item = {}, itemInfo = {}, targetGate = '', gateObjective = {}, source = '' } = {}) {
@@ -195,22 +175,18 @@ function buildTaskTarget({ item = {}, itemInfo = {}, targetGate = '', gateObject
   const itemId = info.itemId || item.itemId || '';
   const objective = gateObjective && typeof gateObjective === 'object' ? gateObjective : {};
   let resolvedObjective = objective;
-  if (targetGate === 'delete' && !objective.kind) {
-    resolvedObjective = { kind: 'delete_archived_media', ...objective };
+  if (targetGate === 'basedata' && !objective.kind) {
+    resolvedObjective = { kind: 'basedata_current', ...objective };
   } else if (targetGate === 'metadata' && !objective.kind) {
     resolvedObjective = {
       kind: 'metadata_complete',
       repairMode: info.source === 'emby' || info.metadataKind === 'emby' ? 'emby_repair' : 'scrape',
       ...objective,
     };
-  } else if (targetGate === 'archive' && !objective.kind) {
-    resolvedObjective = { kind: 'archive_item', ...objective };
-  } else if (targetGate === 'ingest' && !objective.kind) {
-    resolvedObjective = { kind: 'source_ingested', ...objective };
   }
   return {
     object: {
-      type: targetGate === 'ingest' ? 'source_candidate' : 'media_item',
+      type: 'media_item',
       itemId,
     },
     targetGate,
@@ -252,12 +228,20 @@ function canCreateTargetTask(input = {}) {
     || (input.taskTarget && input.taskTarget.gateObjective)
     || (targetGate === 'optimize' && (item.optimizeObjective || itemInfo.optimizeObjective))
     || {};
-  const resolvedGateObjective = targetGate === 'delete' && !(gateObjective && gateObjective.kind)
-    ? { kind: 'delete_archived_media', ...(gateObjective && typeof gateObjective === 'object' ? gateObjective : {}) }
-    : gateObjective;
+  const resolvedGateObjective = gateObjective;
 
   if (!itemId) return blocked(targetGate, 'missing_item_id');
   if (!automationPolicy.TASK_TARGETS.has(targetGate)) return blocked(targetGate, 'invalid_target_gate');
+
+  if (targetGate === 'basedata') {
+    const freshness = item.factsFreshness || itemInfo.factsFreshness || {};
+    const basedataFresh = factsFreshnessService.isFresh(freshness, 'basedataFacts');
+    const sourceRevision = String(item.basedataSourceRevision || itemInfo.basedataSourceRevision || '');
+    const admissionRevision = String(input.helixAdmission && input.helixAdmission.sourceRevision || item.admissionSourceRevision || itemInfo.admissionSourceRevision || '');
+    if (item.basedataComplete === true && basedataFresh && sourceRevision && sourceRevision === admissionRevision) {
+      return blocked(targetGate, 'basedata_already_current');
+    }
+  }
 
   const freeze = mediaFreeze.project(itemInfo && Object.keys(itemInfo).length ? { ...item, ...itemInfo } : item);
   if (freeze.frozen) {
@@ -273,10 +257,6 @@ function canCreateTargetTask(input = {}) {
 
   const active = activeTaskForItemTarget(tasks, itemId, targetGate);
   if (active) return blocked(targetGate, 'active_task_exists', { activeTask: { id: active.id, status: active.status, targetGate } });
-
-  if (automatic && !automationPolicy.automaticTargetEnabled(config, targetGate)) {
-    return blocked(targetGate, 'target_gate_not_enabled');
-  }
 
   if (automatic) {
     const cooldown = targetCooldownMs(config, targetGate);
@@ -300,7 +280,7 @@ function canCreateTargetTask(input = {}) {
   if (targetGate === 'optimize') {
     const kind = objectiveKind(resolvedGateObjective);
     if (kind === 'remove_media' || kind === 'delete' || kind === 'delete_archived_media') {
-      return blocked(targetGate, 'delete_is_not_optimize');
+      return blocked(targetGate, 'invalid_maintenance_objective');
     }
     if (item.metadataComplete !== true) return blocked(targetGate, 'metadata_missing');
     if (!metadataFactsFresh(item)) return blocked(targetGate, 'metadata_facts_stale');
@@ -310,18 +290,6 @@ function canCreateTargetTask(input = {}) {
     const optimizeGate = item.optimizeGate || item.optimizationGate || {};
     if (automatic && optimizeGate.passed === true) {
       return blocked(targetGate, 'optimize_gate_already_passed', { optimizeGate });
-    }
-  }
-  if (targetGate === 'archive') {
-    const optimizeGate = item.optimizeGate || item.optimizationGate || {};
-    if (!optimizeGate.passed) return blocked(targetGate, 'optimize_gate_missing', { optimizeGate });
-    const archiveGate = item.archiveGate || {};
-    if (archiveGate.passed || item.archiveStatus === 'archived_like') return blocked(targetGate, 'archive_already_closed', { archiveGate });
-  }
-  if (targetGate === 'delete') {
-    if (!isArchived(item)) return blocked(targetGate, 'delete_requires_archived_item');
-    if (!deleteReviewConfirmed(item) && !destructivePreAuthorized(input)) {
-      return blocked(targetGate, 'delete_review_required');
     }
   }
 

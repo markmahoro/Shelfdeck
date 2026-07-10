@@ -61,6 +61,14 @@ Slice 12 clean-config/startup checkpoint:
 - Public task creation accepts only `basedata|metadata|optimize` and returns `400 KAIROX_INVALID_TARGET_GATE` otherwise. Legacy scan/cache/recompute and delete-candidate routes were removed rather than retained as 410 responses.
 - Focused clean-runtime/config/API tests pass. A full `npm test` audit currently passes 255 of 387 tests and fails 132. Most failures are old compatibility expectations or fixtures for SmartTask allow-lists, old scheduling fields, ingest/archive/delete lifecycle and `media_items`; the remainder identify Kairox fact-store/runtime cutover still required. Slice 12 remains active and no full-suite claim is made.
 
+Slice 12 Kairox-owned fact checkpoint:
+
+- `KairoxRuntime` no longer imports `libraryStore`; admission creates only a `kairox_media` skeleton and batch projections read Kairox-owned fact bundles.
+- Basedata execution publishes revisioned facts through `kairoxStore.publishBasedata` in `tasks.db`; it no longer writes `media_items` or the legacy freshness table.
+- Flow Planner and Resource Runtime registries now contain only Basedata/Scrape/Transcode/Upgrade implementation flows for the three maintenance targets. Ingest/Delete/Archive executors are not registered.
+- Lifecycle now owns the final `maintenanceComplete|maintenanceState` derivation. Kairox Service projection consumes that result instead of independently reconstructing the completion formula.
+- Missing task admission is fenced rather than accepted as legacy work. Focused Kairox ownership/fencing/flow/static tests pass 20 tests.
+
 Slice 1 evidence:
 
 - Active-contract drift search found no current document still defining `Helix = Nexora + Kairox`.

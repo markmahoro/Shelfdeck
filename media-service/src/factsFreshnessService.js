@@ -1,9 +1,10 @@
 'use strict';
 
-const FACT_GROUPS = ['sourceFacts', 'mediaFacts', 'metadataFacts', 'userPerceptionFacts', 'gateFacts'];
+const FACT_GROUPS = ['basedataFacts', 'metadataFacts', 'userPerceptionFacts', 'gateFacts', 'sourceFacts', 'mediaFacts'];
 const STATUSES = new Set(['fresh', 'stale', 'unknown', 'needs_check', 'refreshing', 'blocked', 'invalidated']);
 
 const OWNER_GATE_BY_GROUP = {
+  basedataFacts: 'basedata',
   sourceFacts: 'ingest',
   mediaFacts: 'metadata',
   metadataFacts: 'metadata',
@@ -12,6 +13,7 @@ const OWNER_GATE_BY_GROUP = {
 };
 
 const REFRESH_TARGET_BY_GROUP = {
+  basedataFacts: 'basedata',
   sourceFacts: 'ingest',
   mediaFacts: 'metadata',
   metadataFacts: 'metadata',
@@ -41,6 +43,8 @@ function normalizeStatus(value) {
 
 function defaultUpdatedAt(item = {}, factGroup = '') {
   switch (factGroup) {
+    case 'basedataFacts':
+      return clean(item.basedataUpdatedAt || item.updatedAt);
     case 'sourceFacts':
     case 'mediaFacts':
       return clean(item.lastRefreshedAt || item.metadataUpdatedAt || item.updatedAt);

@@ -297,6 +297,61 @@ function getBundle(itemId) {
   };
 }
 
+function getBundles(itemIds = []) {
+  const ids = [...new Set(itemIds.map((value) => String(value || '').trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const placeholders = ids.map(() => '?').join(',');
+  const db = getDb();
+  const mediaRows = db.prepare(`SELECT * FROM kairox_media WHERE item_id IN (${placeholders})`).all(...ids);
+  const byId = mediaRows.reduce((out, row) => {
+    out[row.item_id] = {
+      itemId: row.item_id,
+      basedata: null,
+      metadata: null,
+      optimize: null,
+      objective: null,
+      refreshRequests: [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+    return out;
+  }, {});
+  const attachFacts = (table, key, kind) => {
+    for (const row of db.prepare(`SELECT * FROM ${table} WHERE item_id IN (${placeholders})`).all(...ids)) {
+      if (byId[row.item_id]) byId[row.item_id][key] = factRow(row, kind);
+    }
+  };
+  attachFacts('kairox_basedata_facts', 'basedata', 'basedata');
+  attachFacts('kairox_metadata_facts', 'metadata', 'metadata');
+  attachFacts('kairox_optimize_facts', 'optimize', 'optimize');
+  for (const row of db.prepare(`SELECT * FROM kairox_objectives WHERE item_id IN (${placeholders})`).all(...ids)) {
+    if (!byId[row.item_id]) continue;
+    byId[row.item_id].objective = {
+      itemId: row.item_id,
+      policyRevision: row.policy_revision,
+      objectiveRevision: row.objective_revision,
+      status: row.status,
+      objective: parse(row.objective_json, {}),
+      updatedAt: row.updated_at,
+    };
+  }
+  for (const row of db.prepare(`SELECT * FROM kairox_refresh_requests WHERE item_id IN (${placeholders}) ORDER BY item_id,fact_group`).all(...ids)) {
+    if (!byId[row.item_id]) continue;
+    byId[row.item_id].refreshRequests.push({
+      itemId: row.item_id,
+      factGroup: row.fact_group,
+      sourceRevision: row.source_revision,
+      status: row.status,
+      reason: row.reason,
+      causedByTaskId: row.caused_by_task_id,
+      evidence: parse(row.evidence_json, {}),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
+  }
+  return byId;
+}
+
 function resetForTests() {
   for (const db of dbCache.values()) db.close();
   dbCache.clear();
@@ -307,6 +362,7 @@ module.exports = {
   ensureMedia,
   getBasedata,
   getBundle,
+  getBundles,
   markBasedataStale,
   publishBasedata,
   publishMetadata,
