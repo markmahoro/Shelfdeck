@@ -45,7 +45,7 @@ HTTP adapters
 | --- | --- | --- |
 | LibraryMembership | Libra | `active \| closed`；回答 ShelfDeck 是否负责该媒体 |
 | desired management state | Libra | `managed \| closed`；表达用户/策略 intent |
-| Helix phase | Libra | `onboarding \| maintenance \| offboarding \| closed` |
+| Helix phase | Libra | `onboarding \| maintenance \| offboarding \| closed`；表示管理阶段，不表示维护完成度 |
 | quarantine / admission generation | Libra | source incident 隔离和 Kairox fencing |
 | source identity / SourceBinding | Nexora | source reality、validity、observation evidence |
 | onboarding / rebind / offboarding execution | Nexora | 能力与证据；不关闭 LibraryMembership |
@@ -68,6 +68,8 @@ admissionGeneration: monotonic integer
 
 quarantine 是 phase 之上的覆盖状态。source missing 不关闭 Membership，也不自动进入 offboarding。
 
+`phase=maintenance` 表示媒体已经进入长期在库管理阶段。Kairox task 完成、失败或目标重新计算都不得使 Libra 离开或重新进入该 phase；只有明确 offboarding intent 才会使它转入 `offboarding`。
+
 Libra Reconciler 使用 durable、幂等 operation 协调两个 Service。跨 `library.db` / `tasks.db` 不假设原子事务；每一步通过 idempotency key、revision、generation 和 retry/backoff 收敛。
 
 ## 5. Nexora Contract
@@ -85,6 +87,15 @@ Nexora 不创建 Kairox task，不判断 maintenance complete，不修改 Librar
 
 Kairox 只运营 Libra 已 admission 的 active media。Kairox 保留既有 Lifecycle、Task Creator、Flow Planner、Task Scheduler、Resource Runtime 和 Task / Flow / Event 纪律。
 
+Kairox 对外只暴露两种维护完成度：
+
+```text
+maintenanceState: maintaining | complete
+maintenanceComplete = maintenanceState == complete
+```
+
+单个 metadata/optimize task 的 `done` 只更新对应 gate facts。metadata task 完成后，如果 optimize 等必要条件尚未满足，`maintenanceState` 仍为 `maintaining`。目标 revision、facts freshness 或 incident 变化可以使 `complete` 重新派生为 `maintaining`，但不会改变 Libra `phase=maintenance`。
+
 ```text
 maintenanceComplete
   = admission current
@@ -96,6 +107,13 @@ maintenanceComplete
 ```
 
 `archive` 在 Helix Beta 中保留为 Kairox compatibility / optional finalization，不是 Helix phase，也不是 maintenanceComplete 的必要条件。
+
+## 6.1 Projection Composition
+
+- Libra Store 只持久化 Libra-owned facts，以及 durable operation 已消费的 source/maintenance revision。
+- Libra 不持久化 Nexora SourceProjection 或 Kairox MaintenanceProjection 作为 canonical facts，也不以它们的快照提供查询结果。
+- `LibraService.getLibraryProjection(s)` 使用 Nexora/Kairox batch projection 实时组合统一只读视图；GET 不写 Store。
+- Reconciler 的启动恢复和周期扫描只推进 admission、quarantine、recovery、offboarding 等 Libra-owned coordination。Kairox task terminal 本身不触发 Libra phase 迁移。
 
 Kairox `targetGate=ingest/delete` 不能创建新的 Helix 主路径任务。它们只允许 historical read、rollback support、migration input 和 negative test。
 
@@ -134,7 +152,7 @@ Helix Beta 禁止自动物理删除。
 Helix Beta 必须同时通过：
 
 - architecture boundary audit。
-- onboarding → maintenance → maintenanceComplete 业务闭环。
+- Libra `onboarding → maintenance`，以及 Kairox 在 maintenance phase 内 `maintaining ↔ complete` 的业务闭环。
 - source missing / recovery / rebind / running-task fencing。
 - offboarding 和三种 cleanup mode。
 - restart / retry / idempotency evidence。

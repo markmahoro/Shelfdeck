@@ -55,6 +55,17 @@ test('Nexora runtime owns source writes and no longer writes legacy Membership',
   assert.doesNotMatch(source('adultLibraryService.js'), /recordAdultFolderSourceObservation/);
 });
 
+test('Libra composes live capability projections without persisting capability snapshots', () => {
+  const runtime = source('libraRuntime.js');
+  const reconciler = source('libraReconciler.js');
+  assert.match(runtime, /nexoraService\.getSourceProjections\(ids\)/);
+  assert.match(runtime, /kairoxService\.getMaintenanceProjections\(ids\)/);
+  assert.doesNotMatch(runtime, /sourceProjection\s*:/);
+  assert.doesNotMatch(runtime, /maintenanceProjection\s*:/);
+  assert.doesNotMatch(reconciler, /sourceProjection\s*:/);
+  assert.doesNotMatch(reconciler, /maintenanceProjection\s*:/);
+});
+
 test('public Helix path quarantines Kairox ingest/delete creation', () => {
   const appSource = source('app.js');
   assert.match(appSource, /HELIX_LEGACY_TARGET_REMOVED/);

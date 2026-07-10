@@ -26,6 +26,11 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     assert.strictEqual(createdLibrary.statusCode, 201);
     const subLib = createdLibrary.json();
 
+    const adminHealth = await app.inject({ method: 'GET', url: '/v1/admin/health' });
+    assert.strictEqual(adminHealth.statusCode, 200);
+    assert.ok(adminHealth.json().checks.nexoraObservation);
+    assert.ok(adminHealth.json().checks.libraReconciler);
+
     function createItem(name) {
       const filePath = path.join(root, `${name}.mp4`);
       fs.writeFileSync(filePath, name);

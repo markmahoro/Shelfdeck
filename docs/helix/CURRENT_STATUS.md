@@ -69,7 +69,7 @@ Slice 7 evidence:
 
 Slice 8 evidence:
 
-- `npm test` passed all 367 Service tests.
+- `npm test` passed all 370 Service tests after the maintenance-state ownership correction.
 - `npm run build:web` passed the Admin Web TypeScript/Vite production build.
 - Static audit confirms only `libraCompositionRoot.js` imports both Nexora and Kairox capability Facades.
 - Sublibrary removal is now gated by a Libra batch `retain_source` operation; direct removal with active Membership returns `409 LIBRA_SUBLIBRARY_OFFBOARDING_REQUIRED`.
@@ -77,6 +77,13 @@ Slice 8 evidence:
 - Nexora observation can be woken after a runtime source configuration change.
 - `helix-data-preflight.js` performs a read-only production schema/count plan before startup migration.
 - Production read-only diagnostics on 2026-07-10 confirmed the `shelfdeck` container is absent while compose and runtime data remain present.
+
+Production canary correction:
+
+- `公共_国产剧` retain-source offboarding, re-add, 44 current Emby source observations, admission and restart recovery passed without Emby/media mutation.
+- One non-destructive Kairox metadata task completed and exposed an architecture ambiguity: Libra was serving a persisted Kairox projection snapshot.
+- Contract correction accepted: Libra phase remains `maintenance`; Kairox owns `maintenanceState=maintaining|complete`; unified reads compose current capability projections without persisting them in Libra.
+- Beta remains in progress until this correction is tested and redeployed. No optimize/delete task is authorized for the canary.
 
 ## Preserved Experimental Evidence
 

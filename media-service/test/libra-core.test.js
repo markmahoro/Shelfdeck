@@ -22,11 +22,17 @@ test.after(() => {
   }
 });
 
-function fakes(sourceByItem = {}) {
+function fakes(sourceByItem = {}, maintenanceByItem = {}) {
   return {
     nexoraService: {
       getSourceProjection(itemId) {
         return sourceByItem[itemId] || { itemId, sourceRevision: '', readiness: 'unresolved' };
+      },
+      getSourceProjections(itemIds) {
+        return itemIds.reduce((out, itemId) => {
+          out[itemId] = this.getSourceProjection(itemId);
+          return out;
+        }, {});
       },
       ensureOnboarding(command) {
         return sourceByItem[command.itemId] || { itemId: command.itemId, sourceRevision: 's1', readiness: 'ready' };
@@ -39,7 +45,15 @@ function fakes(sourceByItem = {}) {
       },
     },
     kairoxService: {
-      getMaintenanceProjection(itemId) { return { itemId, maintenanceRevision: 'm1', maintenanceComplete: false }; },
+      getMaintenanceProjection(itemId) {
+        return maintenanceByItem[itemId] || { itemId, maintenanceRevision: 'm1', maintenanceState: 'maintaining', maintenanceComplete: false };
+      },
+      getMaintenanceProjections(itemIds) {
+        return itemIds.reduce((out, itemId) => {
+          out[itemId] = this.getMaintenanceProjection(itemId);
+          return out;
+        }, {});
+      },
       reconcileMaintenance(command) { return { itemId: command.itemId, maintenanceRevision: `m:${command.admissionGeneration}`, maintenanceComplete: false }; },
       suspendMaintenance(command) { return { admission: { itemId: command.itemId, status: 'suspended', admissionGeneration: command.admissionGeneration } }; },
       requestMaintenance(command) { return { accepted: true, command }; },
@@ -84,6 +98,33 @@ test('Libra reconcile advances ready source to maintenance and quarantines a lat
   assert.strictEqual(projection.quarantineStatus, 'source_incident');
   assert.strictEqual(projection.admissionGeneration, 2);
   assert.strictEqual(projection.membershipStatus, 'active');
+});
+
+test('Libra phase stays maintenance while reads compose the latest Kairox maintenance state', () => {
+  const source = {
+    'item-live-projection': { itemId: 'item-live-projection', sourceRevision: 's1', readiness: 'ready' },
+  };
+  const maintenance = {
+    'item-live-projection': {
+      itemId: 'item-live-projection', maintenanceRevision: 'm1', maintenanceState: 'maintaining',
+      metadataPassed: false, maintenanceComplete: false,
+    },
+  };
+  const { nexoraService, kairoxService } = fakes(source, maintenance);
+  const runtime = createLibraRuntime({ nexoraService, kairoxService });
+  runtime.acceptSource({ itemId: 'item-live-projection', idempotencyKey: 'onboard-live-projection', sourceReference: {} });
+  let projection = runtime.getLibraryProjection('item-live-projection');
+  assert.strictEqual(projection.phase, 'maintenance');
+  assert.strictEqual(projection.maintenance.metadataPassed, false);
+
+  maintenance['item-live-projection'] = {
+    ...maintenance['item-live-projection'], maintenanceRevision: 'm2', metadataPassed: true,
+  };
+  projection = runtime.getLibraryProjection('item-live-projection');
+  assert.strictEqual(projection.phase, 'maintenance');
+  assert.strictEqual(projection.maintenance.metadataPassed, true);
+  assert.strictEqual(projection.maintenance.maintenanceState, 'maintaining');
+  assert.deepStrictEqual(libraStore.getLibraryItem('item-live-projection').maintenanceProjection, {});
 });
 
 test('Libra offboarding requires explicit physical-delete authorization', async () => {

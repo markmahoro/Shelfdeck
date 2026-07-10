@@ -11,7 +11,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
   store.migrateLegacyFacts();
   const reconciler = createLibraReconciler({ store, nexoraService, kairoxService });
 
-  function libraryProjection(item) {
+  function libraryProjection(item, sourceProjection = {}, maintenanceProjection = {}) {
     if (!item) return null;
     return {
       itemId: item.itemId,
@@ -21,20 +21,38 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
       quarantine: { status: item.quarantineStatus, reason: item.quarantineReason },
       blockedReason: item.blockedReason,
       admissionGeneration: item.admissionGeneration,
-      source: item.sourceProjection || {},
-      maintenance: item.maintenanceProjection || {},
+      source: sourceProjection || {},
+      maintenance: maintenanceProjection || {},
+      coordination: {
+        consumedSourceRevision: item.sourceRevision || '',
+        consumedMaintenanceRevision: item.maintenanceRevision || '',
+      },
       currentOperation: store.getCurrentOperationForItem(item.itemId),
       updatedAt: item.updatedAt,
     };
   }
 
   function getLibraryProjection(itemId) {
-    return libraryProjection(store.getLibraryItem(itemId));
+    const item = store.getLibraryItem(itemId);
+    if (!item) return null;
+    return libraryProjection(
+      item,
+      nexoraService.getSourceProjection(itemId),
+      kairoxService.getMaintenanceProjection(itemId),
+    );
   }
 
   function getLibraryProjections(itemIds = []) {
-    return store.getLibraryItems(itemIds).reduce((out, item) => {
-      out[item.itemId] = libraryProjection(item);
+    const items = store.getLibraryItems(itemIds);
+    const ids = items.map((item) => item.itemId);
+    const sourceProjections = nexoraService.getSourceProjections(ids);
+    const maintenanceProjections = kairoxService.getMaintenanceProjections(ids);
+    return items.reduce((out, item) => {
+      out[item.itemId] = libraryProjection(
+        item,
+        sourceProjections[item.itemId] || {},
+        maintenanceProjections[item.itemId] || {},
+      );
       return out;
     }, {});
   }
@@ -72,7 +90,6 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
       });
       store.upsertLibraryItem({
         itemId,
-        sourceProjection,
         sourceRevision: sourceProjection.sourceRevision || '',
         blockedReason: sourceProjection.readiness === 'ready' ? '' : `source_${sourceProjection.readiness || 'unresolved'}`,
       });
@@ -155,7 +172,6 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
         quarantineStatus: 'none',
         quarantineReason: '',
         blockedReason: '',
-        sourceProjection: cleanup.sourceProjection || item.sourceProjection,
         sourceRevision: cleanup.sourceProjection && cleanup.sourceProjection.sourceRevision || item.sourceRevision,
       });
       store.appendEvent({ itemId: item.itemId, operationId: created.operation.operationId, eventType: 'libra.offboarding_completed', generation, payload: { cleanupMode } });
@@ -163,7 +179,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
         status: 'done', step: 'completed', errorCode: '', errorMessage: '',
         result: { cleanup, interruptedTasks: suspended && suspended.interruptedTasks || [] },
       });
-      return { operation, projection: libraryProjection(closed) };
+      return { operation, projection: getLibraryProjection(closed.itemId) };
     } catch (error) {
       store.updateOperation(created.operation.operationId, {
         status: 'retrying',

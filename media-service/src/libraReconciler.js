@@ -14,6 +14,15 @@ function safeCall(fn, fallback) {
 function createLibraReconciler({ store, nexoraService, kairoxService }) {
   if (!store || !nexoraService || !kairoxService) throw new TypeError('Libra Reconciler dependencies are required');
 
+  function persistIfChanged(item, patch) {
+    const updates = Object.entries(patch || {}).reduce((out, [key, value]) => {
+      if (key !== 'itemId' && value !== undefined && item[key] !== value) out[key] = value;
+      return out;
+    }, {});
+    if (Object.keys(updates).length === 0) return { item, changed: false };
+    return { item: store.upsertLibraryItem({ itemId: item.itemId, ...updates }), changed: true };
+  }
+
   function reconcileItem(itemId) {
     let item = store.getLibraryItem(itemId);
     if (!item) return null;
@@ -21,13 +30,20 @@ function createLibraReconciler({ store, nexoraService, kairoxService }) {
 
     const source = safeCall(() => nexoraService.getSourceProjection(itemId), { itemId, readiness: 'unresolved', sourceRevision: '' });
     const maintenance = safeCall(() => kairoxService.getMaintenanceProjection(itemId), { itemId, availability: 'not_implemented' });
+    return reconcileResolved(item, source, maintenance);
+  }
+
+  function reconcileResolved(currentItem, source, maintenance) {
+    let item = currentItem;
+    if (!item || item.membershipStatus === 'closed') return item;
+    const itemId = item.itemId;
     const patch = {
       itemId,
-      sourceProjection: source,
       sourceRevision: source.sourceRevision || item.sourceRevision,
-      maintenanceProjection: maintenance,
-      maintenanceRevision: maintenance.maintenanceRevision || item.maintenanceRevision,
     };
+    if (item.phase === 'maintenance' || source.readiness === 'ready') {
+      patch.maintenanceRevision = maintenance.maintenanceRevision || item.maintenanceRevision;
+    }
 
     if (item.desiredState === 'closed') {
       if (item.phase !== 'offboarding') {
@@ -51,7 +67,9 @@ function createLibraReconciler({ store, nexoraService, kairoxService }) {
       patch.blockedReason = source.readiness === 'unresolved' ? 'migration_source_unresolved' : `source_${source.readiness}`;
     }
 
-    item = store.upsertLibraryItem(patch);
+    let persisted = persistIfChanged(item, patch);
+    item = persisted.item;
+    let changed = persisted.changed;
     if (item.quarantineStatus === 'source_incident') {
       safeCall(() => kairoxService.suspendMaintenance({
         itemId,
@@ -64,34 +82,59 @@ function createLibraReconciler({ store, nexoraService, kairoxService }) {
         sourceRevision: source.sourceRevision || '',
       }), source);
       if (diagnosis && diagnosis.sourceRevision) {
-        item = store.upsertLibraryItem({ itemId, sourceProjection: diagnosis, sourceRevision: diagnosis.sourceRevision });
+        persisted = persistIfChanged(item, { sourceRevision: diagnosis.sourceRevision });
+        item = persisted.item;
+        changed = changed || persisted.changed;
       }
     }
     if (item.phase === 'maintenance' && item.quarantineStatus === 'none' && source.readiness === 'ready') {
-      const maintenanceResult = safeCall(() => kairoxService.reconcileMaintenance({
-        itemId,
-        admissionGeneration: item.admissionGeneration,
-        sourceRevision: source.sourceRevision || '',
-        sourceAccessDescriptor: source.sourceAccessDescriptor || {},
-        policyRevision: '',
-      }), maintenance);
-      item = store.upsertLibraryItem({
-        itemId,
-        maintenanceProjection: maintenanceResult,
+      const admission = maintenance && maintenance.admission;
+      const admissionAlreadyCurrent = maintenance && maintenance.admissionCurrent
+        && Number(admission && admission.admissionGeneration) === item.admissionGeneration
+        && String(admission && admission.sourceRevision || '') === String(source.sourceRevision || '')
+        && !(maintenance && maintenance.unresolvedSourceIncident);
+      const maintenanceResult = admissionAlreadyCurrent
+        ? maintenance
+        : safeCall(() => kairoxService.reconcileMaintenance({
+          itemId,
+          admissionGeneration: item.admissionGeneration,
+          sourceRevision: source.sourceRevision || '',
+          sourceAccessDescriptor: source.sourceAccessDescriptor || {},
+          policyRevision: '',
+        }), maintenance);
+      persisted = persistIfChanged(item, {
         maintenanceRevision: maintenanceResult.maintenanceRevision || item.maintenanceRevision,
       });
+      item = persisted.item;
+      changed = changed || persisted.changed;
     }
-    store.appendEvent({
-      itemId,
-      eventType: 'libra.item_reconciled',
-      generation: item.admissionGeneration,
-      payload: { phase: item.phase, sourceReadiness: source.readiness, quarantineStatus: item.quarantineStatus },
-    });
+    if (changed) {
+      store.appendEvent({
+        itemId,
+        eventType: 'libra.item_reconciled',
+        generation: item.admissionGeneration,
+        payload: { phase: item.phase, sourceReadiness: source.readiness, quarantineStatus: item.quarantineStatus },
+      });
+    }
     return item;
   }
 
   function reconcileBatch(itemIds = null) {
-    return store.getLibraryItems(itemIds).map((item) => reconcileItem(item.itemId));
+    const items = store.getLibraryItems(itemIds);
+    const ids = items.map((item) => item.itemId);
+    const sources = safeCall(() => nexoraService.getSourceProjections(ids), {});
+    const maintenanceIds = items
+      .filter((item) => item.membershipStatus !== 'closed'
+        && (item.phase === 'maintenance' || (sources[item.itemId] && sources[item.itemId].readiness === 'ready')))
+      .map((item) => item.itemId);
+    const maintenance = maintenanceIds.length > 0
+      ? safeCall(() => kairoxService.getMaintenanceProjections(maintenanceIds), {})
+      : {};
+    return items.map((item) => reconcileResolved(
+      item,
+      sources[item.itemId] || { itemId: item.itemId, readiness: 'unresolved', sourceRevision: '' },
+      maintenance[item.itemId] || { itemId: item.itemId, availability: 'not_implemented' },
+    ));
   }
 
   return Object.freeze({ reconcileItem, reconcileBatch });

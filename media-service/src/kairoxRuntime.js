@@ -44,6 +44,7 @@ function buildMaintenanceProjection(item, admission, projection, activeTasks = [
     pendingCanonicalRefresh,
     unresolvedSourceIncident,
     maintenanceComplete,
+    maintenanceState: maintenanceComplete ? 'complete' : 'maintaining',
     nextTargetGate: projection && ['metadata', 'optimize', 'archive'].includes(projection.lifecycleNextTask)
       ? projection.lifecycleNextTask
       : null,

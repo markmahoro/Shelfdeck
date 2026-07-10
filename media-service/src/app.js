@@ -38,6 +38,7 @@ const resourceProjection = require('./resourceProjection');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const resourceRuntime = require('./resourceRuntime');
 const { getHelixServices } = require('./libraCompositionRoot');
+const libraReconcileEngine = require('./libraReconcileEngine');
 const nexoraObservationEngine = require('./nexoraObservationEngine');
 const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
@@ -4112,12 +4113,15 @@ function registerRoutes(app) {
 
   app.get('/v1/admin/health', async () => {
     const result = healthCheck.getLastResult();
-    if (!result) {
-      // Run fresh check
-      const fresh = await healthCheck.runAllChecks();
-      return fresh;
-    }
-    return result;
+    const base = result || await healthCheck.runAllChecks();
+    return {
+      ...base,
+      checks: {
+        ...(base.checks || {}),
+        nexoraObservation: nexoraObservationEngine.getHealth(),
+        libraReconciler: libraReconcileEngine.getHealth(),
+      },
+    };
   });
 }
 
@@ -4185,6 +4189,7 @@ async function buildApp(opts = {}) {
     mediaLibraryService.stopAllTimers();
     strategyEngine.stop();
     smartTaskEngine.stop();
+    libraReconcileEngine.stop();
     nexoraObservationEngine.stop();
     runtimeResourceTracker.resetForTests();
     diagnosticLog.resetForTests();
@@ -4209,6 +4214,7 @@ async function buildApp(opts = {}) {
   taskScheduler.startScheduler();
   strategyEngine.start(configStore, mediaLibraryService);
   nexoraObservationEngine.start(configStore, mediaLibraryService, adultLibraryService);
+  libraReconcileEngine.start(getHelixServices().libraService, configStore);
   smartTaskEngine.start(configStore, mediaLibraryService, taskStore, {
     ingestCandidateProvider: async () => [],
     helixAdmissionProvider(item, targetGate) {

@@ -26,6 +26,7 @@ test('maintenanceComplete requires admission, fresh metadata, current optimize o
   assert.strictEqual(result.metadataPassed, true);
   assert.strictEqual(result.optimizePassed, true);
   assert.strictEqual(result.maintenanceComplete, true);
+  assert.strictEqual(result.maintenanceState, 'complete');
 });
 
 test('archive is not required for maintenanceComplete', () => {
@@ -41,6 +42,7 @@ test('archive is not required for maintenanceComplete', () => {
     archiveGate: { passed: false, status: 'not_archived' },
   });
   assert.strictEqual(result.maintenanceComplete, true);
+  assert.strictEqual(result.maintenanceState, 'complete');
 });
 
 test('source incident and pending canonical refresh block maintenanceComplete', () => {
@@ -51,4 +53,5 @@ test('source incident and pending canonical refresh block maintenanceComplete', 
   const baseProjection = { optimizeGate: { passed: true, status: 'passed' }, optimizeObjectiveStatus: 'ready' };
   assert.strictEqual(buildMaintenanceProjection(baseItem, { status: 'active', incidentCode: 'source_missing' }, baseProjection).maintenanceComplete, false);
   assert.strictEqual(buildMaintenanceProjection(baseItem, { status: 'active' }, { ...baseProjection, optimizeGate: { passed: true, status: 'pending_canonical_refresh' } }).maintenanceComplete, false);
+  assert.strictEqual(buildMaintenanceProjection(baseItem, { status: 'active' }, { optimizeGate: { passed: false } }).maintenanceState, 'maintaining');
 });

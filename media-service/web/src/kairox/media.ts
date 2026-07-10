@@ -133,6 +133,7 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
 export function mediaDisplayFacts(projection: KairoxMediaProjection): Array<{ label: string; value: string }> {
   const helix = asRecord(projection.helix);
   const quarantine = asRecord(helix.quarantine);
+  const maintenance = asRecord(helix.maintenance);
   return [
     { label: '来源', value: stringValue(projection.sourceFacts.source) || stringValue(projection.sourceFacts.sectionName) || '-' },
     { label: '规格', value: [projection.mediaFacts.resolution, projection.mediaFacts.codec].filter(Boolean).join(' / ') || '-' },
@@ -144,6 +145,11 @@ export function mediaDisplayFacts(projection: KairoxMediaProjection): Array<{ la
       label: 'Helix',
       value: [stringValue(helix.phase), stringValue(quarantine.status) && stringValue(quarantine.status) !== 'none' ? stringValue(quarantine.status) : '']
         .filter(Boolean).join(' / ') || '-',
+    },
+    {
+      label: '维护',
+      value: stringValue(maintenance.maintenanceState)
+        || (maintenance.maintenanceComplete === true ? 'complete' : 'maintaining'),
     },
   ];
 }

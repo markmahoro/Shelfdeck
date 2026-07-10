@@ -19,7 +19,7 @@ getLibraryProjection(itemId)
 getLibraryProjections(itemIds)
 ```
 
-Libra owns LibraryMembership, phase, quarantine, admission generation and durable reconcile operations. It delegates capability work and never writes Nexora or Kairox facts.
+Libra owns LibraryMembership, phase, quarantine, admission generation and durable reconcile operations. It delegates capability work and never writes Nexora or Kairox facts. `getLibraryProjection(s)` batch-reads current Nexora/Kairox projections and composes them with Libra facts without persisting those capability projections.
 
 ## Nexora Service
 
@@ -45,13 +45,15 @@ getMaintenanceProjections(itemIds)
 
 Admission minimally contains `itemId`, `admissionGeneration`, `sourceRevision`, `sourceAccessDescriptor` and `policyRevision`. Kairox tasks retain the admission generation and validate it before canonical or destructive commits.
 
+MaintenanceProjection contains `maintenanceState: maintaining|complete` and the compatibility boolean `maintenanceComplete`. Metadata/optimize gate facts explain the derived state; they are not Libra phase values.
+
 ## Errors And Idempotency
 
 - Domain methods return structured results or throw errors carrying stable `code` values.
 - Repeating an accepted command with the same idempotency key returns the same operation/result.
 - Reusing an idempotency key with a different payload is rejected.
 - Stale generation/revision commands are rejected and cannot overwrite current projections.
-- In-process wake-up signals are advisory. Durable facts and periodic Libra reconcile are the recovery mechanism.
+- Reconcile wake-ups are advisory and only accelerate Libra-owned coordination. Startup recovery and periodic Libra reconcile are the durable fallback; task completion does not require a Libra state update merely to refresh a Kairox projection.
 
 ## Public API Adapters
 
