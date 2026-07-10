@@ -795,11 +795,9 @@ function addSubLibrary(spec) {
     western: spec.western || undefined,
     ruleTemplateId: spec.ruleTemplateId || (mediaType === 'adult' ? (spec.adultRegion === 'western_adult' ? 'adult_western_default' : 'adult_jav_default') : mediaType === 'tv' ? 'tv_default' : 'default'),
     metadataGate: spec.metadataGate || undefined,
-    ...configStore.defaultSubLibSchedule(),
-    automationMode: spec.automationMode || (spec.scheduleMode === 'full_manual' ? 'manual' : 'auto'),
-    scheduleMode: spec.scheduleMode || (spec.automationMode === 'manual' ? 'full_manual' : 'full_auto'),
-    autoCreate: true,
-    autoExecute: spec.autoExecute !== undefined ? spec.autoExecute : spec.automationMode !== 'manual',
+    ...configStore.defaultSubLibraryAutomation(),
+    libraryAutomationMode: spec.libraryAutomationMode || 'manual',
+    maintenanceAutomationMode: spec.maintenanceAutomationMode || 'manual',
     approvalPolicy: spec.approvalPolicy || {},
     autoReplaceTranscode: spec.autoReplaceTranscode || false,
     autoReplaceUpgrade: spec.autoReplaceUpgrade || false,
@@ -817,9 +815,6 @@ function addSubLibrary(spec) {
   };
   cfg.subLibraries = [...(cfg.subLibraries || []), subLib];
   configStore.saveConfig(cfg);
-
-  // Start timers for this subLibrary
-  startSubLibraryTimers(subLib);
 
   return subLib;
 }

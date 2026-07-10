@@ -696,21 +696,6 @@ async function scheduleRound() {
     // Skip waiting_media_source (flow parks, retry handled by flow timer)
     if (task.status === 'waiting_media_source') continue;
 
-    if (flowKindForTask(task) === 'scrape' && task.status === 'queued' && !task.manualExecuteRequested && !justConfirmedIds.has(task.id)) {
-      const subLibSchedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
-      if (!subLibSchedule.autoExecute) {
-        taskStore.updateTask(task.id, { status: 'pending_manual' });
-        task.status = 'pending_manual';
-        continue;
-      }
-    }
-
-    // subLibrary automation check: skip if this library does not auto-execute.
-    if (task.status === 'pending_manual' || task.status === 'created') {
-      const subLibSchedule = configStore.resolveSubLibSchedule(task.itemInfo || {}, config);
-      if (!subLibSchedule.autoExecute) continue;
-    }
-
     // itemId lock: only one flow per itemId
     if (usedItemIds.has(task.itemId) && task.status !== 'executing') continue;
 

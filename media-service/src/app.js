@@ -19,8 +19,6 @@ const embyService = require('./services/embyService');
 const doubanService = require('./services/doubanService');
 const transcodeService = require('./services/transcodeService');
 const moviepilotService = require('./services/moviepilotService');
-const strategyEngine = require('./strategyEngine');
-const smartTaskEngine = require('./smartTaskEngine');
 const automationPolicy = require('./automationPolicy');
 const activityLog = require('./activityLog');
 const spaceStats = require('./spaceStats');
@@ -39,11 +37,9 @@ const runtimeResourceTracker = require('./runtimeResourceTracker');
 const resourceRuntime = require('./resourceRuntime');
 const { getHelixServices } = require('./libraCompositionRoot');
 const libraReconcileEngine = require('./libraReconcileEngine');
-const nexoraObservationEngine = require('./nexoraObservationEngine');
 const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const taskControlPolicy = require('./taskControlPolicy');
-const deleteCandidateService = require('./deleteCandidateService');
 const lifecycleProjection = require('./lifecycleProjection');
 
 let serverReady = false;
@@ -98,6 +94,21 @@ function removePlaybackEntry(itemId) {
 
 function apiError(reply, status, code, message) {
   return reply.code(status).send({ error: { code, message } });
+}
+
+function validateAutomationModePatch(reply, input = {}) {
+  const legacy = ['automationMode', 'scheduleMode', 'autoCreate', 'autoExecute']
+    .filter((field) => Object.prototype.hasOwnProperty.call(input, field));
+  if (legacy.length > 0) {
+    return apiError(reply, 400, 'HELIX_CLEAN_INIT_REQUIRED', `Legacy automation fields are not accepted: ${legacy.join(', ')}`);
+  }
+  if (input.libraryAutomationMode !== undefined && !['auto', 'manual'].includes(input.libraryAutomationMode)) {
+    return apiError(reply, 400, 'VALIDATION_ERROR', 'libraryAutomationMode must be auto or manual');
+  }
+  if (input.maintenanceAutomationMode !== undefined && !['auto', 'manual'].includes(input.maintenanceAutomationMode)) {
+    return apiError(reply, 400, 'VALIDATION_ERROR', 'maintenanceAutomationMode must be auto or manual');
+  }
+  return null;
 }
 
 function validateSubLibraryMetadataGateInput(reply, subLibCandidate, config) {
@@ -185,22 +196,6 @@ function maskAdultLibrarySecrets(adultLibrary = {}) {
 
 function maskSensitive(config) {
   const masked = { ...config };
-  delete masked.smartTaskEnabledActions;
-  delete masked.optimizeAllowedOperations;
-  if (masked.taskAdmission && typeof masked.taskAdmission === 'object') {
-    masked.taskAdmission = { ...masked.taskAdmission };
-    delete masked.taskAdmission.maxQueuedByAction;
-    delete masked.taskAdmission.cooldownHoursByAction;
-  }
-  if (masked.taskPriority && typeof masked.taskPriority === 'object') {
-    masked.taskPriority = { ...masked.taskPriority };
-    delete masked.taskPriority.operationKindWeights;
-    delete masked.taskPriority.actionTypeWeights;
-    if (masked.taskPriority.optimizeOperationHints && typeof masked.taskPriority.optimizeOperationHints === 'object') {
-      masked.taskPriority.optimizeOperationHints = { ...masked.taskPriority.optimizeOperationHints };
-      delete masked.taskPriority.optimizeOperationHints.delete;
-    }
-  }
   if (masked.apiKey) masked.apiKey = MASKED_SECRET;
   if (masked.douban && masked.douban.cookieHeader) {
     masked.douban = { ...masked.douban, cookieHeader: MASKED_SECRET };
@@ -960,52 +955,19 @@ function projectLibraryItemsForUi(items, config, projection = {}) {
   return (items || []).map(libraryListItemView);
 }
 
-function compactSmartTaskScanSummary(summary) {
-  if (!summary || typeof summary !== 'object') return null;
-  return {
-    status: summary.status || '',
-    startedAt: summary.startedAt || null,
-    finishedAt: summary.finishedAt || null,
-    enabledTaskTargets: Array.isArray(summary.enabledTaskTargets) ? summary.enabledTaskTargets : [],
-    allowedOptimizeFlowKinds: Array.isArray(summary.allowedOptimizeFlowKinds) ? summary.allowedOptimizeFlowKinds : [],
-    libraryItems: Number(summary.libraryItems || 0) || 0,
-    candidateCount: Number(summary.candidateCount || 0) || 0,
-    evaluatedCandidates: Number(summary.evaluatedCandidates || 0) || 0,
-    enqueued: Number(summary.enqueued || 0) || 0,
-    candidatesByTargetGate: summary.candidatesByTargetGate || {},
-    enqueuedByTargetGate: summary.enqueuedByTargetGate || {},
-    admissionRejected: Number(summary.admissionRejected || 0) || 0,
-    admissionRejectedByReason: summary.admissionRejectedByReason || {},
-    skippedByQueueCap: Number(summary.skippedByQueueCap || 0) || 0,
-    skippedByQueueCapByTargetGate: summary.skippedByQueueCapByTargetGate || {},
-    skippedByResourcePressure: Number(summary.skippedByResourcePressure || 0) || 0,
-    skippedByResourcePressureByResource: summary.skippedByResourcePressureByResource || {},
-    deferredByActiveBacklog: !!summary.deferredByActiveBacklog,
-    activeBacklog: Number(summary.activeBacklog || 0) || 0,
-    activeBacklogByTargetGate: summary.activeBacklogByTargetGate || {},
-    activeBacklogByResource: summary.activeBacklogByResource || {},
-    maxPerRunReached: !!summary.maxPerRunReached,
-    supplyPolicy: summary.supplyPolicy || '',
-    reason: summary.reason || '',
-    error: summary.error || '',
-  };
-}
-
 function buildDashboardAutomation(config) {
-  const health = smartTaskEngine.getHealth ? (smartTaskEngine.getHealth() || {}) : {};
+  const subLibraries = Array.isArray(config.subLibraries) ? config.subLibraries : [];
   return {
-    enabledTaskTargets: automationPolicy.resolveAutomaticTaskTargets(config),
     allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(config),
-    smartTask: {
-      status: health.status || '',
-      enabled: !!health.enabled,
-      enabledTaskTargets: Array.isArray(health.enabledTaskTargets) ? health.enabledTaskTargets : [],
-      allowedOptimizeFlowKinds: Array.isArray(health.allowedOptimizeFlowKinds) ? health.allowedOptimizeFlowKinds : [],
-      disabledReason: health.disabledReason || '',
-      message: health.message || '',
-      lastRunAt: health.lastRunAt || null,
-      lastError: health.lastError || '',
-      lastScanSummary: compactSmartTaskScanSummary(health.lastScanSummary),
+    libraryAutomation: {
+      autoLibraries: subLibraries.filter((item) => item.libraryAutomationMode === 'auto').length,
+      manualLibraries: subLibraries.filter((item) => item.libraryAutomationMode !== 'auto').length,
+      status: libraReconcileEngine.getHealth().status || 'starting',
+    },
+    maintenanceAutomation: {
+      autoLibraries: subLibraries.filter((item) => item.maintenanceAutomationMode === 'auto').length,
+      manualLibraries: subLibraries.filter((item) => item.maintenanceAutomationMode !== 'auto').length,
+      status: 'not_started',
     },
   };
 }
@@ -1013,9 +975,7 @@ function buildDashboardAutomation(config) {
 const DASHBOARD_HEALTH_LABELS = {
   api: 'Service API',
   scheduler: 'Task Scheduler',
-  smartTask: 'Task Creator',
-  mediaLib: 'Library Store',
-  strategy: 'Optimize Targets',
+  libraReconciler: 'Libra Reconciler',
   transcode: 'Transcode Runtime',
   emby: 'Emby',
   douban: 'Douban',
@@ -1040,7 +1000,7 @@ function dashboardHealthCheckItem(key, item = {}) {
 
 function buildDashboardServiceProjection(health) {
   const checks = health && health.checks && typeof health.checks === 'object' ? health.checks : {};
-  const serviceKeys = ['scheduler', 'smartTask', 'mediaLib', 'strategy', 'transcode'];
+  const serviceKeys = ['scheduler', 'libraReconciler', 'transcode'];
   const externalKeys = ['emby', 'douban', 'upgrade'];
   const serviceChecks = [
     dashboardHealthCheckItem('api', { status: 'green', message: 'Admin API is responding' }),
@@ -1087,37 +1047,6 @@ function buildDashboardHealthSignals(mediaStats, taskStats, config, automation =
   push('yellow', 'metadata_incomplete', '元数据未完成', mediaStats.metadataIncompleteItems, '会阻断转码、洗版、删除等优化入口');
   push('yellow', 'pending_optimization', '等待优化', mediaStats.pendingOptimizationItems, '推荐动作仍未闭环');
   push('yellow', 'open_lifecycle', '未闭环媒体', mediaStats.openItems, '仍有业务桥需要推进');
-
-  const automaticTaskTargets = automationPolicy.resolveAutomaticTaskTargets(config);
-  if (automaticTaskTargets.length === 0) {
-    signals.push({
-      level: 'yellow',
-      code: 'auto_targets_disabled',
-      label: '后台自动推进未启用',
-      count: 1,
-      detail: 'SmartTask 只能生成被全局 allow-list 放行的任务',
-    });
-  }
-
-  const scan = automation.smartTask && automation.smartTask.lastScanSummary;
-  if (scan && scan.status === 'failed') {
-    push('red', 'smart_task_scan_failed', '自动入队扫描失败', 1, scan.error || '查看 Resource diagnostics');
-  }
-  if (scan && scan.admissionRejected > 0) {
-    push('yellow', 'smart_task_admission_rejected', '自动入队被策略拒绝', scan.admissionRejected, '查看 admission rejected reason 分布');
-  }
-  if (scan && scan.skippedByQueueCap > 0) {
-    push('yellow', 'smart_task_queue_cap', '自动入队队列已满', scan.skippedByQueueCap, '等待现有任务推进或调整队列上限');
-  }
-  if (scan && scan.skippedByResourcePressure > 0) {
-    push('yellow', 'smart_task_resource_pressure', '自动入队资源压力受限', scan.skippedByResourcePressure, '查看 resource pressure 分布或调整资源供给上限');
-  }
-  if (scan && scan.deferredByActiveBacklog) {
-    push('yellow', 'smart_task_active_backlog', '自动入队等待现有队列', scan.activeBacklog || 1, '已有任务在推进，下一轮扫描会重新评估');
-  }
-  if (scan && scan.maxPerRunReached) {
-    push('yellow', 'smart_task_max_per_run', '自动入队达到单轮上限', 1, '下一轮扫描会继续处理剩余候选');
-  }
 
   return signals.slice(0, 10);
 }
@@ -1755,11 +1684,8 @@ function registerRoutes(app) {
     if (!itemId) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
     }
-    if (body.targetGate === 'ingest' || body.targetGate === 'delete') {
-      return apiError(reply, 410, 'HELIX_LEGACY_TARGET_REMOVED', `${body.targetGate} is not a Kairox maintenance target under Helix`);
-    }
-    if (!['metadata', 'optimize', 'archive'].includes(String(body.targetGate || ''))) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'targetGate must be metadata, optimize, or archive');
+    if (!['basedata', 'metadata', 'optimize'].includes(String(body.targetGate || ''))) {
+      return apiError(reply, 400, 'KAIROX_INVALID_TARGET_GATE', 'targetGate must be basedata, metadata, or optimize');
     }
 
     const cfg = configStore.loadConfig();
@@ -1811,10 +1737,7 @@ function registerRoutes(app) {
 
     const admissionItemInfo = itemInfo || { itemId };
     const activeAdmissionTasks = activeTaskSummariesForItem(itemId);
-    const schedule = itemInfo && itemInfo.subLibraryId
-      ? configStore.resolveSubLibSchedule(itemInfo, cfg)
-      : { autoExecute: cfg.executionMode === 'auto' };
-    const status = schedule.autoExecute ? 'created' : 'pending_manual';
+    const status = 'queued';
     let created;
     try {
       ensureManualItemOnboarded(libItem, cfg);
@@ -1932,51 +1855,6 @@ function registerRoutes(app) {
     } catch (error) {
       const statusCode = error.code === 'LIBRA_ITEM_NOT_FOUND' ? 404 : 409;
       return apiError(reply, statusCode, error.code || 'HELIX_OFFBOARDING_FAILED', error.message);
-    }
-  });
-
-  app.get('/v1/admin/delete-candidates', async (req) => {
-    return deleteCandidateService.listCandidates({
-      includeDecided: req.query.includeDecided === '1' || req.query.includeDecided === 'true',
-    });
-  });
-
-  app.post('/v1/admin/delete-candidates/:itemId/actions/keep-archived', async (req, reply) => {
-    const candidate = deleteCandidateService.keepArchived(req.params.itemId);
-    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
-    return { candidate };
-  });
-
-  app.post('/v1/admin/delete-candidates/:itemId/actions/snooze', async (req, reply) => {
-    const candidate = deleteCandidateService.snooze(req.params.itemId, req.body || {});
-    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
-    return { candidate };
-  });
-
-  app.post('/v1/admin/delete-candidates/:itemId/actions/suppress', async (req, reply) => {
-    const candidate = deleteCandidateService.suppress(req.params.itemId);
-    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
-    return { candidate };
-  });
-
-  app.post('/v1/admin/delete-candidates/:itemId/actions/confirm-delete', async (req, reply) => {
-    const itemId = req.params.itemId;
-    const candidate = deleteCandidateService.confirmDelete(itemId);
-    if (!candidate) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
-
-    const libItem = mediaLibraryService.getLibraryItem(itemId);
-    if (!libItem) return apiError(reply, 404, 'NOT_FOUND', 'Delete candidate item not found');
-    try {
-      const result = await getHelixServices().libraService.requestOffboarding({
-        itemId,
-        idempotencyKey: `delete-candidate:${itemId}:${candidate.decisionAt || candidate.updatedAt || 'confirmed'}`,
-        cleanupMode: 'delete_source',
-        reason: candidate.eligibilityReason || 'delete_candidate_confirmed',
-        destructiveAuthorization: true,
-      });
-      return reply.code(202).send({ candidate, operation: result.operation, helix: result.projection });
-    } catch (error) {
-      return apiError(reply, 409, error.code || 'HELIX_OFFBOARDING_FAILED', error.message);
     }
   });
 
@@ -2534,49 +2412,8 @@ function registerRoutes(app) {
     }
   });
 
-  app.post('/v1/library/actions/ingest', async (req, reply) => {
-    return apiError(
-      reply,
-      410,
-      'KAIROX_RUN_SCAN_REMOVED',
-      'Kairox no longer exposes user-triggered library scan. Create a targetGate task for a specific media item instead.',
-    );
-  });
-
-  app.post('/v1/library/actions/refresh', async (req, reply) => {
-    return apiError(
-      reply,
-      410,
-      'KAIROX_RUN_SCAN_REMOVED',
-      'Kairox no longer exposes user-triggered library refresh. Create a targetGate task for a specific media item instead.',
-    );
-  });
-
-  function recomputeOptimizeTargets() {
-    const result = strategyEngine.runOnce();
-    return { ok: true, changed: result.changed };
-  }
-
-  app.post('/v1/library/actions/recompute-optimize-targets', async () => {
-    return recomputeOptimizeTargets();
-  });
-
-  app.post('/v1/library/actions/recompute-strategy', async () => {
-    return recomputeOptimizeTargets();
-  });
-
   app.get('/v1/library/status', async () => {
     return mediaLibraryService.getLibraryStatus();
-  });
-
-  app.post('/v1/library/cache', async (req, reply) => {
-    return reply.code(410).send({
-      ok: false,
-      error: {
-        code: 'LEGACY_CACHE_WRITE_DISABLED',
-        message: 'Direct library cache writes are disabled. Use Kairox ingest/metadata target-gate tasks.',
-      },
-    });
   });
 
   // ── Library: mark played / unplayed ─────────────────────────────────────
@@ -2867,11 +2704,13 @@ function registerRoutes(app) {
   });
 
   app.post('/v1/admin/sublibraries', async (req, reply) => {
+    const automationError = validateAutomationModePatch(reply, req.body || {});
+    if (automationError) return automationError;
     const {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
-      automationMode, approvalPolicy, metadataGate,
+      libraryAutomationMode, maintenanceAutomationMode, approvalPolicy, metadataGate,
     } = req.body || {};
     if (!name) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'name is required');
@@ -2882,6 +2721,12 @@ function registerRoutes(app) {
     }
     if (isFolderAdult && !watchRoot) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'watchRoot is required for adult folder libraries');
+    }
+    if (libraryAutomationMode !== undefined && !['auto', 'manual'].includes(libraryAutomationMode)) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'libraryAutomationMode must be auto or manual');
+    }
+    if (maintenanceAutomationMode !== undefined && !['auto', 'manual'].includes(maintenanceAutomationMode)) {
+      return apiError(reply, 400, 'VALIDATION_ERROR', 'maintenanceAutomationMode must be auto or manual');
     }
     const cfg = configStore.loadConfig();
     if (!isFolderAdult && !(cfg.embyServers || {})[embyServerId]) {
@@ -2896,9 +2741,8 @@ function registerRoutes(app) {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
-      automationMode, approvalPolicy, metadataGate,
+      libraryAutomationMode, maintenanceAutomationMode, approvalPolicy, metadataGate,
     });
-    nexoraObservationEngine.wake();
     return reply.code(201).send(subLib);
   });
 
@@ -2950,6 +2794,8 @@ function registerRoutes(app) {
   });
 
   app.patch('/v1/admin/sublibraries/:uuid', async (req, reply) => {
+    const automationError = validateAutomationModePatch(reply, req.body || {});
+    if (automationError) return automationError;
     const cfg = configStore.loadConfig();
     const current = (cfg.subLibraries || []).find((s) => s.uuid === req.params.uuid);
     if (!current) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
@@ -2957,15 +2803,7 @@ function registerRoutes(app) {
     if (gateError) return gateError;
     const updated = mediaLibraryService.updateSubLibrary(req.params.uuid, req.body || {});
     if (!updated) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
-    nexoraObservationEngine.wake();
     return updated;
-  });
-
-  app.post('/v1/admin/sublibraries/:uuid/actions/scan', async (req, reply) => {
-    const cfg = configStore.loadConfig();
-    const subLib = (cfg.subLibraries || []).find((s) => s.uuid === req.params.uuid);
-    if (!subLib) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
-    return apiError(reply, 410, 'SUBLIBRARY_SCAN_REMOVED', 'Sub-library directory scan has been removed; background work must enter through the unified task admission model.');
   });
 
   // Manual rescrape of a single adult folder item (resets prior failure state).
@@ -4118,7 +3956,6 @@ function registerRoutes(app) {
       ...base,
       checks: {
         ...(base.checks || {}),
-        nexoraObservation: nexoraObservationEngine.getHealth(),
         libraReconciler: libraReconcileEngine.getHealth(),
       },
     };
@@ -4187,10 +4024,7 @@ async function buildApp(opts = {}) {
     taskScheduler.stopScheduler();
     healthCheck.stopHealthCheckTimer();
     mediaLibraryService.stopAllTimers();
-    strategyEngine.stop();
-    smartTaskEngine.stop();
     libraReconcileEngine.stop();
-    nexoraObservationEngine.stop();
     runtimeResourceTracker.resetForTests();
     diagnosticLog.resetForTests();
     backgroundIoGuard.resetForTests();
@@ -4202,45 +4036,13 @@ async function buildApp(opts = {}) {
   if (startupCfg.transcodeTempRoot && startupCfg.transcodeCleanupOrphansOnStartup !== false) {
     await transcodeService.cleanupOrphans(startupCfg);
   }
-  try {
-    adultLibraryService.repairInvalidWesternScrapeState();
-  } catch (e) {
-    console.warn('[adultLibrary] invalid western scrape repair skipped:', e.message);
-  }
-
-  // Start health check timer and subLibrary timers
+  // Clean Helix runtime starts only durable task dispatch and Libra recovery.
+  // Library and maintenance automation runners are wired in their dedicated
+  // slices; legacy media refresh/strategy/observation/SmartTask clocks must not
+  // recreate mixed media_items state after clean initialization.
   healthCheck.startHealthCheckTimer();
-  mediaLibraryService.startAllSubLibraryTimers();
   taskScheduler.startScheduler();
-  strategyEngine.start(configStore, mediaLibraryService);
-  nexoraObservationEngine.start(configStore, mediaLibraryService, adultLibraryService);
   libraReconcileEngine.start(getHelixServices().libraService, configStore);
-  smartTaskEngine.start(configStore, mediaLibraryService, taskStore, {
-    ingestCandidateProvider: async () => [],
-    helixAdmissionProvider(item, targetGate) {
-      if (targetGate === 'ingest' || targetGate === 'delete') {
-        return { allowed: false, reason: 'helix_legacy_target_quarantined' };
-      }
-      const projection = item && item.itemId
-        ? getHelixServices().libraService.getLibraryProjection(item.itemId)
-        : null;
-      if (!projection
-        || projection.membership.status !== 'active'
-        || projection.phase !== 'maintenance'
-        || projection.quarantine.status !== 'none') {
-        return { allowed: false, reason: 'helix_admission_required' };
-      }
-      return {
-        allowed: true,
-        admission: {
-          itemId: item.itemId,
-          admissionGeneration: projection.admissionGeneration,
-          sourceRevision: projection.source && projection.source.sourceRevision || '',
-          sourceAccessDescriptor: projection.source && projection.source.sourceAccessDescriptor || {},
-        },
-      };
-    },
-  });
 
   const errorHandler = (err, req, reply) => {
     req.log.error(err);

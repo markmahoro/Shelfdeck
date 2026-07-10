@@ -1,6 +1,7 @@
 'use strict';
 
 const { buildApp } = require('./app');
+const { assertRuntimeReady } = require('./helixRuntimePreflight');
 let startTray = null;
 if (process.platform === 'win32') {
   try {
@@ -15,6 +16,7 @@ if (process.platform === 'win32') {
 const PORT = Number(process.env.MEDIA_SERVICE_PORT || process.env.CONTROL_PLANE_PORT || 18080);
 
 async function main() {
+  assertRuntimeReady();
   const app = await buildApp();
 
   const shutdown = async (signal) => {

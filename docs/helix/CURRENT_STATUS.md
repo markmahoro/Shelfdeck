@@ -53,6 +53,14 @@ Slice 12 focused evidence:
 - Dry-run tests prove no file mutation; apply tests prove explicit confirmation, backup, secret/config narrowing and preservation of an unlisted media fixture.
 - Owned-schema audit proves `media_items` and `nexora_memberships` are absent when only current Libra/Nexora/Kairox Stores initialize.
 
+Slice 12 clean-config/startup checkpoint:
+
+- `configStore` now requires `helixSchemaVersion`, rejects old automation/schedule/SmartTask fields with `HELIX_CLEAN_INIT_REQUIRED`, and never migrates or silently defaults an invalid persisted config.
+- Per-library configuration now has only `libraryAutomationMode` and `maintenanceAutomationMode`; manual task intent is queued independently of either automatic mode.
+- The production Service entrypoint runs clean-state/config preflight before building the app. Legacy media refresh, strategy, Nexora observation and SmartTask clocks are no longer started, so an explicitly initialized empty runtime does not recreate `media_items` during startup.
+- Public task creation accepts only `basedata|metadata|optimize` and returns `400 KAIROX_INVALID_TARGET_GATE` otherwise. Legacy scan/cache/recompute and delete-candidate routes were removed rather than retained as 410 responses.
+- Focused clean-runtime/config/API tests pass. A full `npm test` audit currently passes 255 of 387 tests and fails 132. Most failures are old compatibility expectations or fixtures for SmartTask allow-lists, old scheduling fields, ingest/archive/delete lifecycle and `media_items`; the remainder identify Kairox fact-store/runtime cutover still required. Slice 12 remains active and no full-suite claim is made.
+
 Slice 1 evidence:
 
 - Active-contract drift search found no current document still defining `Helix = Nexora + Kairox`.

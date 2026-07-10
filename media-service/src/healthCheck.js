@@ -81,9 +81,7 @@ async function runAllChecks() {
     : { status: 'red', runningTasks: 0 };
 
   // Lazy-require to avoid circular deps on startup
-  const smartTaskEngine = require('./smartTaskEngine');
-  const strategyEngine = require('./strategyEngine');
-  const mediaLibraryService = require('./mediaLibraryService');
+  const libraReconcileEngine = require('./libraReconcileEngine');
   const doubanService = require('./services/doubanService');
   const moviepilotService = require('./services/moviepilotService');
   const transcodeService = require('./services/transcodeService');
@@ -97,10 +95,8 @@ async function runAllChecks() {
 
   const checks = {
     scheduler:   scheduler,
-    smartTask:   smartTaskEngine.getHealth(),
-    mediaLib:    mediaLibraryService.getHealth(cfg),
+    libraReconciler: libraReconcileEngine.getHealth(),
     douban,
-    strategy:    strategyEngine.getHealth(),
     emby,
     upgrade,
     transcode,

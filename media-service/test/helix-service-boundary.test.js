@@ -66,12 +66,15 @@ test('Libra composes live capability projections without persisting capability s
   assert.doesNotMatch(reconciler, /maintenanceProjection\s*:/);
 });
 
-test('public Helix path quarantines Kairox ingest/delete creation', () => {
+test('public Helix path exposes only clean maintenance targets and no legacy disposal routes', () => {
   const appSource = source('app.js');
-  assert.match(appSource, /HELIX_LEGACY_TARGET_REMOVED/);
-  assert.match(appSource, /ingestCandidateProvider:\s*async \(\) => \[\]/);
-  assert.doesNotMatch(
-    appSource.slice(appSource.indexOf("app.post('/v1/admin/delete-candidates/:itemId/actions/confirm-delete'"), appSource.indexOf("app.get('/v1/tasks'")),
-    /createTargetGateTask/,
-  );
+  assert.match(appSource, /KAIROX_INVALID_TARGET_GATE/);
+  assert.match(appSource, /\['basedata', 'metadata', 'optimize'\]/);
+  assert.doesNotMatch(appSource, /HELIX_LEGACY_TARGET_REMOVED/);
+  assert.doesNotMatch(appSource, /\/v1\/admin\/delete-candidates/);
+  assert.doesNotMatch(appSource, /\/actions\/scan/);
+  assert.doesNotMatch(appSource, /\/v1\/library\/actions\/ingest/);
+  assert.doesNotMatch(appSource, /\/v1\/library\/actions\/refresh/);
+  assert.doesNotMatch(appSource, /\/v1\/library\/cache/);
+  assert.doesNotMatch(appSource, /recompute-strategy/);
 });

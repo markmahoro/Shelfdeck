@@ -1,6 +1,6 @@
 'use strict';
 
-const TASK_TARGETS = new Set(['ingest', 'metadata', 'optimize', 'archive', 'delete']);
+const TASK_TARGETS = new Set(['basedata', 'metadata', 'optimize']);
 const OPTIMIZE_FLOW_KINDS = new Set(['transcode', 'upgrade']);
 
 function cleanToken(value) {
@@ -20,30 +20,38 @@ function normalizeList(values, allowed) {
   return result;
 }
 
-function resolveAutomaticTaskTargets(config = {}) {
-  return normalizeList(config.automaticTaskTargets, TASK_TARGETS);
-}
-
 function resolveOptimizeAllowedFlowKinds(config = {}) {
-  return normalizeList(config.optimizeAllowedFlowKinds, OPTIMIZE_FLOW_KINDS);
+  return normalizeList(
+    config.optimizeFlowPolicy && config.optimizeFlowPolicy.allowedFlowKinds,
+    OPTIMIZE_FLOW_KINDS,
+  );
 }
 
-function automaticTargetEnabled(config = {}, targetGate = '') {
-  return resolveAutomaticTaskTargets(config).includes(cleanToken(targetGate));
+function decideAutomaticTrigger(input = {}) {
+  const targetGate = cleanToken(input.targetGate);
+  if (!TASK_TARGETS.has(targetGate)) {
+    return { allowed: false, targetGate, reason: 'invalid_target_gate' };
+  }
+  if (input.maintenanceAutomationMode !== 'auto') {
+    return { allowed: false, targetGate, reason: 'maintenance_automation_manual' };
+  }
+  if (input.lifecycleBlockedReason) {
+    return { allowed: false, targetGate, reason: 'lifecycle_blocked', blocker: String(input.lifecycleBlockedReason) };
+  }
+  return { allowed: true, targetGate, reason: 'automatic_trigger_allowed' };
 }
 
-function automationSnapshot(config = {}) {
+function automationSnapshot(input = {}) {
   return {
-    enabledTaskTargets: resolveAutomaticTaskTargets(config),
-    allowedOptimizeFlowKinds: resolveOptimizeAllowedFlowKinds(config),
+    maintenanceAutomationMode: input.maintenanceAutomationMode === 'auto' ? 'auto' : 'manual',
+    allowedOptimizeFlowKinds: resolveOptimizeAllowedFlowKinds(input.config || input),
   };
 }
 
 module.exports = {
   TASK_TARGETS,
   OPTIMIZE_FLOW_KINDS,
-  resolveAutomaticTaskTargets,
-  resolveOptimizeAllowedFlowKinds,
-  automaticTargetEnabled,
   automationSnapshot,
+  decideAutomaticTrigger,
+  resolveOptimizeAllowedFlowKinds,
 };
