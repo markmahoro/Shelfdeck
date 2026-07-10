@@ -49,7 +49,7 @@ HTTP adapters
 | quarantine / admission generation | Libra | source incident 隔离和 Kairox fencing |
 | source identity / SourceBinding | Nexora | source reality、validity、observation evidence |
 | onboarding / rebind / offboarding execution | Nexora | 能力与证据；不关闭 LibraryMembership |
-| basedata / maintenance objective / facts / gates | Kairox | basedata、metadata、optimize 和兼容 archive |
+| basedata / maintenance objective / facts / gates | Kairox | basedata、metadata、optimize；Helix runtime 不包含 archive gate |
 | disposal recommendation | Kairox | 只提供 offboarding 建议和证据；不创建 delete task |
 | Task / Flow / Event | Kairox | 在库维护执行与资源证据 |
 
@@ -89,7 +89,18 @@ Kairox Maintenance Automation (inner loop)
 
 Nexora 可以有 adapter debounce、cursor、retry 和执行 worker，但不能成为第三个业务自动化控制器。Libra 不逐 gate 指挥 Kairox，也不因 task terminal 改变 `phase=maintenance`。Kairox 不改变 Membership、Libra phase 或 SourceBinding。
 
-Library-level `automationMode` 和 desired management intent 由 Libra 拥有。Libra admission 向 Kairox携带当前 `sourceRevision`、`policyRevision` 和 maintenance policy snapshot；Kairox自行执行允许范围内的 gate automation。
+每个 Library 保存两个相互独立的自动化策略：
+
+```text
+libraryAutomationMode: auto | manual
+maintenanceAutomationMode: auto | manual
+```
+
+- `libraryAutomationMode` 由 Libra 拥有，决定外层是否周期 observe、onboard 和协调 source lifecycle。
+- `maintenanceAutomationMode` 作为 admission policy 由 Libra 传给 Kairox，Kairox Automation Policy 决定是否自动触发下一 maintenance target。
+- Admin Web 的“全自动”只是一次性写入 `auto/auto`，不得同时授予 replace、move、overwrite 或 delete authorization。
+
+Libra admission 向 Kairox 携带当前 `sourceRevision`、`policyRevision` 和 maintenance policy snapshot；Libra 不逐 gate 指挥 Kairox。
 
 ## 5. Nexora Contract
 
@@ -140,18 +151,48 @@ maintenanceComplete
   + no unresolved source incident
 ```
 
-`archive` 在 Helix Beta 中保留为 Kairox compatibility / optional finalization，不是 Helix phase，也不是 maintenanceComplete 的必要条件。
+Helix clean runtime 不包含 `archive` target、gate、配置或 automation 分支。处置建议使用 `disposalRecommendation`，处置执行只走 Libra Offboarding。
 
 Optimize flow 修改媒体资产后，相关 Basedata 必须变 stale，并通过新的 `targetGate=basedata` 重新观察。只有实际受影响的 fact group 才失效；例如同路径 transcode 通常不应使海报、剧情和演员 metadata 一并 stale。
 
-## 6.1 Projection Composition
+### 6.1 Kairox Automation And Runtime Components
+
+Kairox 内层自动化必须复用并收束既有物理组件，不新增一个与 Lifecycle、SmartTaskEngine 或 Task Scheduler 平行的重型 automation engine。
+
+```text
+Automation Runner (timer / wake-up / admission scan)
+  -> Lifecycle evaluates canonical facts and objective
+  -> Automation Policy decides whether automatic triggering is allowed
+  -> Task Creator / TaskAdmission creates one durable target-gate task
+  -> Task Scheduler selects an existing runnable task
+  -> Flow Planner selects the implementation flow
+  -> Resource Runtime requests global permits and executes events
+```
+
+| Component | Owns | Must not own |
+| --- | --- | --- |
+| Lifecycle | `nextTargetGate`、gate achievement、`maintenanceState`、`maintenanceComplete` | automation mode、task creation、flow selection、queue order、resource capacity |
+| Automation Policy | 根据 `maintenanceAutomationMode` 和触发上下文产生 `triggerDecision` | 重新计算 gate、选择 flow、创建/执行 task、授予 runtime approval |
+| Automation Runner | timer、terminal wake-up、bounded admission scan；依次调用 Lifecycle、Policy、Task Creator | gate 规则、resource counter、task dispatch、flow execution |
+| Task Creator / TaskAdmission | durable task 创建、duplicate、attempt budget、cooldown、generation 和安全准入 | gate achievement、flow selection、task dispatch |
+| Task Scheduler | 从已存在的 task 中选择 runnable task；priority/FIFO、item lock、restart recovery、状态推进并交给 Runtime | 创建 task、扫描 Lifecycle、读取 automation mode、选择 flow、计算资源容量 |
+| Flow Planner | 根据 task/objective/facts 唯一选择 `flowPlan` | 自动化许可、队列调度、资源发放 |
+| Resource Runtime | event 编排、执行/recovery、在每个受争用 event 前向 Governor 申请 permit | gate、automation policy、全局容量配置 |
+
+现有 `automationPolicy.js` 是 Kairox Automation Policy 的物理起点。现有 `smartTaskEngine.js` 应收窄/改名为薄 Automation Runner，而不是与新 engine 并存。`taskScheduler.js` 保留 task queue 调度，不再读取旧 `autoExecute` 或维护任何 Emby、filesystem、FFmpeg、worker 容量计数。
+
+Automation Policy 与 TaskAdmission 回答不同问题：前者回答“系统是否应自动发起当前 next target”，后者回答“这一次 task attempt 是否可以创建”。手动 intent 可以绕过 `maintenanceAutomationMode=manual`，但不能绕过 duplicate、generation、freshness、approval 或 destructive safety。
+
+Task terminal 只唤醒 Kairox Automation Runner 重新读取 Lifecycle projection。它不直接推进下一个 gate，也不通知 Libra 改变 `phase=maintenance`。
+
+### 6.2 Projection Composition
 
 - Libra Store 只持久化 Libra-owned facts，以及 durable operation 已消费的 source/maintenance revision。
 - Libra 不持久化 Nexora SourceProjection 或 Kairox MaintenanceProjection 作为 canonical facts，也不以它们的快照提供查询结果。
 - `LibraService.getLibraryProjection(s)` 使用 Nexora/Kairox batch projection 实时组合统一只读视图；GET 不写 Store。
 - Reconciler 的启动恢复和周期扫描只推进 admission、quarantine、recovery、offboarding 等 Libra-owned coordination。Kairox task terminal 本身不触发 Libra phase 迁移。
 
-Kairox `targetGate=ingest/delete` 不能创建新的 Helix 主路径任务。新路径使用 `targetGate=basedata`；legacy ingest/delete 只允许 historical read、rollback support、migration input 和 negative test。
+Kairox clean runtime 只接受 `targetGate=basedata|metadata|optimize`。`ingest|delete|archive` 不存在于新配置、API、automation、Task Creator、Flow Planner 或 executor registry；检测到旧 runtime schema/config 时必须停止并返回 `HELIX_CLEAN_INIT_REQUIRED`，不得双读或自动迁移。
 
 ## 7. Shared Resource Governance
 
@@ -161,8 +202,11 @@ Resource Management 是 Helix 共享工程基础设施，不是第四个业务�
 - Nexora source observation、Libra reconcile 和 Kairox Resource Runtime 都必须通过共享 Governor 获取受争用资源的 permit。
 - control-plane work 必须保留最低容量，不能被 FFmpeg 或全库扫描饿死。
 - source observation 和 Libra reconcile 必须 cursor/batch 化，并有 per-run item/time budget。
-- Kairox Task Creator 消费 resource pressure，停止无界供给；Task Scheduler/Resource Runtime 执行 per-resource capacity 和 item lock。
+- Kairox Automation Runner / Task Creator 消费 pressure 和 bounded-queue projection，停止无界供给；Task Scheduler 只执行 item lock 和 runnable ordering。
+- 只有共享 Governor 判断全局 resource capacity。Kairox Resource Runtime 在每个受争用 event 开始前申请 permit，并在完成、失败、暂停或取消时通过 `finally` 释放。
 - 资源不足表达为 waiting/backpressure，不得直接改变业务事实或伪装成 gate failure。
+
+Governor 是由 Helix composition root 创建并注入的进程级单例，位于 Libra、Nexora、Kairox 三个业务组件之外。permit 不持久化；重启后由 durable Libra work 或 Kairox task 重新申请。每个 resource queue 必须有界，并支持 FIFO + aging；control work 使用保留容量，不能被 optimize 饿死。
 
 典型 resource key 包括 `emby:<serverId>:api`、`filesystem:<volume>:scan`、`filesystem:<volume>:probe`、`filesystem:<volume>:mutation`、`db:library:write`、`db:tasks:write`、`local:ffmpeg` 和 `worker:<workerId>`。
 
@@ -204,7 +248,7 @@ Kairox optimize 内部的 staged artifact cleanup 或 verified replace event 不
 
 ## 10. Approval And Authorization
 
-- Kairox `automationPolicy` 决定是否允许自动创建/执行 maintenance target task。
+- Kairox `automationPolicy` 决定是否允许自动创建 maintenance target task；它不决定已经存在的 task 如何调度或执行。
 - Kairox `approvalPolicy` / runtime confirmation 决定某次 Flow 到达 replace、move、overwrite 等风险 checkpoint 时是否需要暂停。
 - `destructiveAuthorization` 是 Risk Authorization 的一种，不等于 runtime approval。
 - `delete_source` authorization 属于 Libra Offboarding；Nexora只执行已经验证的 scoped authorization。
@@ -214,7 +258,7 @@ Kairox optimize 内部的 staged artifact cleanup 或 verified replace event 不
 Helix Beta 必须同时通过：
 
 - architecture boundary audit。
-- 新建一个 `automationMode=auto` 的库能够自动完成 Nexora observation/SourceBinding、Libra onboarding/admission，以及 Kairox `basedata → metadata → optimize → required refresh → maintenanceComplete`。
+- 新建一个 `libraryAutomationMode=auto`、`maintenanceAutomationMode=auto` 的库能够自动完成 Nexora observation/SourceBinding、Libra onboarding/admission，以及 Kairox `basedata → metadata → optimize → required refresh → maintenanceComplete`。
 - source missing / recovery / rebind / running-task fencing。
 - offboarding 和三种 cleanup mode。
 - restart / retry / idempotency evidence。

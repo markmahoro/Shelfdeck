@@ -72,20 +72,17 @@ Audit 必须检查：
 - `targetGate=delete` 是否仍决定出库。
 - `source_missing` 是否仍由 Kairox lifecycle 直接解释。
 - Kairox 是否修改 Membership / SourceBinding。
-- Nexora 是否修改 Kairox metadata / optimize / archive lifecycle。
+- Nexora 是否修改 Kairox basedata / metadata / optimize lifecycle。
 - Resource evidence 是否被错误解释为 Nexora facts。
 
-## 5. Compatibility Rules
+## 5. Clean-Cut Rules
 
-兼容层只允许用于：
+Helix clean runtime 不包含 migration、dual read 或 compatibility adapter。旧概念只允许出现于：
 
-- historical read。
-- one-time migration。
-- rollback support。
-- explicit adapter with deletion condition。
+- historical documents。
 - negative tests。
 
-兼容层不得决定新的 Membership、SourceBinding validity 或 Kairox eligibility。
+发现旧 schema/config 时必须返回 `HELIX_CLEAN_INIT_REQUIRED`。初始化工具必须显式 dry-run/apply、先备份，只清理 ShelfDeck-owned state，且不得写 Emby 或媒体目录。
 
 ## 6. Completion Report Format
 

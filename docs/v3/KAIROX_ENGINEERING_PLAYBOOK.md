@@ -2,6 +2,8 @@
 
 Status: completed engineering legacy. Use this playbook to understand and maintain the existing Kairox runtime. Do not treat it as the future Nexora architecture contract.
 
+> Helix supersession: current Helix work follows `docs/helix/ARCHITECTURE.md`. This playbook remains authoritative for inherited Task/Flow/Event and component-discipline principles, but not for legacy ingest/delete/archive targets, SmartTask configuration, Task Scheduler resource counters or Resource Runtime capacity ownership.
+
 本文是 Kairox 工程施工规范。它不替代 `KAIROX_ARCHITECTURE.md`，而是把每次改代码前必须遵守的工程术语、分层边界和审计方法固定下来，避免实现过程中被 Mirex 旧模型带跑偏。
 
 开工顺序固定为：

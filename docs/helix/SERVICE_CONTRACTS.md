@@ -47,9 +47,22 @@ Admission minimally contains `itemId`, `admissionGeneration`, `sourceRevision`, 
 
 `reconcileMaintenance(admission)` must create or update the minimal Kairox maintenance identity when the item has no Kairox facts yet. Nexora adapters must not pre-populate Kairox canonical Basedata as a prerequisite for admission.
 
-MaintenanceProjection contains `maintenanceState: maintaining|complete`, the compatibility boolean `maintenanceComplete`, basedata/metadata/optimize gate facts and an optional `disposalRecommendation`. They are not Libra phase values. `disposalRecommendation` cannot create a delete task or close Membership.
+MaintenanceProjection contains `maintenanceState: maintaining|complete`, the public boolean `maintenanceComplete`, basedata/metadata/optimize gate facts and an optional `disposalRecommendation`. They are not Libra phase values. `disposalRecommendation` cannot create a delete task or close Membership.
 
-Kairox Maintenance Automation owns automatic `basedata|metadata|optimize` progression for currently admitted media. Libra provides admission and policy; it does not create each next-gate task. `archive` remains an optional compatibility target.
+Kairox Maintenance Automation owns automatic `basedata|metadata|optimize` progression for currently admitted media. Libra provides admission and policy; it does not create each next-gate task. Helix runtime has no `ingest|delete|archive` maintenance target.
+
+The internal component contract is:
+
+```text
+Lifecycle -> nextTargetGate / maintenanceComplete
+Automation Policy -> automatic triggerDecision
+Automation Runner -> bounded scan/wake and Task Creator call
+Task Scheduler -> runnable ordering/item lock/recovery of existing tasks
+Flow Planner -> flowPlan
+Resource Runtime -> event execution through shared Governor permits
+```
+
+`TaskScheduler` never creates a task, interprets a gate, reads the library automation modes, chooses a flow, or calculates resource capacity. `ResourceGovernor` is shared Helix infrastructure and is not nested under Kairox.
 
 ## Errors And Idempotency
 
@@ -66,8 +79,11 @@ Kairox Maintenance Automation owns automatic `basedata|metadata|optimize` progre
 - `POST /v1/admin/library/items/:itemId/actions/offboard` maps to `LibraService.requestOffboarding` and accepts `retain_source|detach_source|delete_source`.
 - `POST /v1/admin/sublibraries/:uuid/actions/offboard` maps to `LibraService.requestOffboardingBatch`, requires an idempotency key and only accepts `retain_source`.
 - `DELETE /v1/admin/sublibraries/:uuid` is rejected while any contained Libra Membership is not `closed`.
-- `POST /v1/tasks` maps only `basedata|metadata|optimize|archive` to `LibraService.requestMaintenance`; `ingest|delete` return `410 HELIX_LEGACY_TARGET_REMOVED`.
+- `POST/PATCH /v1/admin/sublibraries` accepts `libraryAutomationMode` and `maintenanceAutomationMode`.
+- `POST /v1/admin/sublibraries/:uuid/actions/observe` creates durable Libra observation work.
+- `POST /v1/tasks` maps only `basedata|metadata|optimize` to `LibraService.requestMaintenance`; every other target returns `400 KAIROX_INVALID_TARGET_GATE`.
+- Helix clean runtime does not expose legacy scan, delete-candidate or archive APIs.
 
 ## Shared Resource Governor
 
-Libra/Nexora work runners and Kairox Resource Runtime request permits from a shared infrastructure Governor. Domain Services keep their own work semantics and queues; the Governor exposes capacity/lease/backpressure projections only and never writes domain facts.
+Libra/Nexora work runners and Kairox Resource Runtime request permits from one process-wide Governor created by the Helix composition root. Domain Services keep their own durable work semantics and queues; the Governor exposes capacity/lease/backpressure projections only and never writes domain facts. Task Scheduler does not maintain a second set of resource counters.

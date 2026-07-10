@@ -101,7 +101,7 @@ Revision increases whenever eligibility-relevant source truth changes. Batch pro
 
 Nexora owns its Store API and source adapters. Other modules must not write `nexora_source_bindings` or `nexora_source_observations` directly. The former experimental `nexora_memberships` table is migration input only and has no runtime ownership role.
 
-## 7. Legacy Quarantine
+## 7. Clean Runtime Boundary
 
 The following cannot define Nexora or Helix runtime behavior:
 
@@ -111,4 +111,4 @@ The following cannot define Nexora or Helix runtime behavior:
 - deletion as an implicit Membership close.
 - `media_items` as the sole owner of source truth and global management state.
 
-Legacy data may be used for backfill, historical read, rollback support and negative tests only.
+Helix Beta does not backfill, migrate or dual-read these legacy models. Startup detects old runtime schema/config and returns `HELIX_CLEAN_INIT_REQUIRED`; the separately invoked initialization tool backs up and clears ShelfDeck-owned state without writing Emby or media directories. Historical documents and negative tests may mention the old names, but no compatibility adapter participates in runtime behavior.
