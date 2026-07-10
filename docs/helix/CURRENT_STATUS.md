@@ -26,9 +26,17 @@ Slices 5 and 6 are complete. Kairox owns admission snapshots, maintenance projec
 
 Slice 7 is complete. Public maintenance intents now enter Libra/Kairox, onboarding/offboarding Admin actions exist, library views carry Helix projections, the disposal UI distinguishes retain/detach/delete, Nexora owns physical cleanup, and public Kairox ingest/delete creation returns 410.
 
-Slices 8 and 9 are complete for the Service scope. The user selected the NAS production `公共_国产剧` library as a controlled, non-destructive canary instead of a disposable Docker business simulation. `media-desktop` is explicitly deferred to a later completeness refactor and is not part of this thread.
+Slices 8 and 9 are complete as Service-boundary and controlled-canary evidence. The user selected the NAS production `公共_国产剧` library as a controlled, non-destructive canary instead of a disposable Docker business simulation. `media-desktop` is explicitly deferred to a later completeness refactor and is not part of this thread.
 
-Helix Beta is achieved for the `media-service` scope on 2026-07-10. This means the architecture boundary, complete Library Management loop, restart recovery, non-destructive production canary and automated failure/destructive-path evidence have passed. It does not mean the deferred desktop client is Helix-complete.
+Helix Beta is **in progress**. The previous achieved statement was withdrawn after the completion standard was clarified: a newly created `automationMode=auto` library must automatically complete Nexora observation/SourceBinding, Libra onboarding/admission and Kairox basedata/metadata/optimize/required-refresh progression to `maintenanceComplete` under bounded shared resources.
+
+Accepted 2026-07-10 rebaseline decisions:
+
+- Automation has two business control loops: Libra Library Automation outside and Kairox Maintenance Automation inside. Nexora is bounded capability work called by the outer loop, not a third business controller.
+- Kairox keeps a first-class `basedata` gate replacing ambiguous legacy `ingest`: SourceBinding remains Nexora truth; Kairox Basedata is the mechanical/technical observation used by maintenance.
+- Resource Management remains infrastructure rather than a top-level business domain, but a shared Helix Resource Governor must control permits/backpressure across Nexora, Libra and Kairox.
+- Kairox approval policy remains distinct from automation policy. Destructive authorization is one type of risk authorization, not a synonym for runtime approval.
+- Delete is not a Kairox lifecycle gate. Kairox may publish a disposal recommendation; physical delete is Libra Offboarding `delete_source`, executed by Nexora after authorization and Kairox quiescence.
 
 Slice 1 evidence:
 
@@ -101,6 +109,15 @@ Production build record:
 - Health: green, including Nexora observation and Libra Reconciler runtime status
 - Production E2E: passed within the explicitly authorized non-destructive scope
 
+## Current Runtime Gaps Against Rebaselined Beta
+
+- Nexora observation, Libra reconcile and Kairox SmartTask currently run as three independent timers rather than two explicit business automation loops.
+- Nexora observation can scan and commit a whole library without cursor/time budget or a shared resource permit; Libra periodic reconcile can also perform a full Membership scan.
+- Current adapters publish Kairox-consumed source facts during onboarding, so there is no independent Basedata Gate on the Helix path.
+- Post-optimize canonical refresh can project legacy `nextTargetGate=ingest`, while the Helix admission provider rejects all new ingest tasks. This can prevent full-auto convergence after a mutating optimize flow.
+- Current `maintenanceComplete` does not yet require current Basedata.
+- Kairox has useful queue caps, resource capacities, item locks and pressure projections, but shared permits/leases do not yet govern Nexora/Libra workloads.
+
 ## Preserved Experimental Evidence
 
 - Existing Nexora fact-model work remains useful input and is not treated as an accepted runtime boundary by itself.
@@ -109,6 +126,7 @@ Production build record:
 ## Open Risks
 
 - Legacy Kairox ingest/delete executors remain only for historical/rollback tests; public and automatic Helix paths cannot create them.
+- The current deployed image is safe evidence but does not meet the rebaselined full-auto Beta completion standard.
 - Existing experimental Nexora Membership migration remains compatibility code and must not regain runtime ownership.
 - Production `detach_source`, authorized `delete_source`, source missing/recovery/rebind and stale-generation fencing were intentionally not exercised against real media. Automated tests cover them; a future production destructive test still requires a separately named episode and explicit authorization.
 - The production canary permits ShelfDeck fact/task/config mutations only. Emby Library, Emby metadata and media files remain read-only.

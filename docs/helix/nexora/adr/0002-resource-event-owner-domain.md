@@ -1,6 +1,6 @@
 # ADR 0002: Resource Management Is Engineering Discipline
 
-Status: accepted for Helix / Nexora design.
+Status: amended by the accepted Helix Beta automation rebaseline on 2026-07-10.
 
 Date: 2026-07-08
 
@@ -27,3 +27,9 @@ Rules:
 - Existing Kairox resource runtime remains Kairox-owned unless a concrete shared-resource conflict requires extraction.
 - Destructive source cleanup still needs authorization, idempotency, and evidence.
 - Source observation frequency and debounce are Nexora design concerns.
+
+## 2026-07-10 Amendment
+
+The full-auto Beta definition proves the concrete shared conflict anticipated above: whole-library Nexora observation and Libra reconciliation can run while Kairox metadata/optimize tasks consume Emby API, filesystem I/O, CPU/worker capacity and SQLite writes.
+
+Resource Management remains an engineering discipline rather than a top-level business domain. However, shared capacity/permit/lease/backpressure logic must now be extracted into a Helix Resource Governor used by both automation layers. Nexora and Kairox retain their business work semantics; resource evidence still cannot change domain facts.

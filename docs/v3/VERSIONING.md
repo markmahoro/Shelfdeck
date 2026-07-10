@@ -11,7 +11,7 @@ Last updated: 2026-07-10
 | 项 | 当前值 | 说明 |
 | --- | --- | --- |
 | Product line | `Helix = Libra + Nexora + Kairox` | 当前模块化单体架构；Kairox 是 Helix 内的 maintenance capability |
-| Current release goal | `Helix Beta (media-service) achieved` | `media-desktop` 完整性重构不在本次 Beta 范围 |
+| Current release goal | `Helix Beta (media-service) in progress` | 需要通过新建全自动库到 maintenanceComplete 的 E2E；`media-desktop` 不在本次范围 |
 | Latest deployed image | `markmahoro/shelfdeck:helix-maintenance-state-20260710-1af2afee` | 当前生产运行镜像 |
 | Latest deployed commit | `1af2afee` | 当前生产代码来源 |
 | Latest deployed image SHA256 | `dd728cd6d725b9cf25c6a4c640632468e5cc543d160a9bb8a87bfe25f28819bb` | 本地构建 tar 与 NAS 上传校验 hash |
@@ -43,7 +43,7 @@ Kairox Beta
 
 `Kairox Beta` is achieved. `Kairox Usable` / `Kairox Performance` / `Kairox GA Candidate` / `Kairox GA` are cancelled.
 
-`Helix Beta` is achieved for the `media-service` scope. Future Helix goals remain undefined until separately discussed and accepted.
+`Helix Beta` is in progress for the `media-service` scope. The deployed image is production canary evidence, not an accepted Beta release point.
 
 不推荐：
 
@@ -123,7 +123,7 @@ Development commit
 当前项目处于：
 
 ```text
-Helix Beta accepted for media-service; controlled production runtime is active
+Helix Beta in progress for media-service; controlled production runtime is active
 ```
 
 尚未进入：

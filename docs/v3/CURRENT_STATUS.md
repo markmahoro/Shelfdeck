@@ -4,7 +4,7 @@ Last updated: 2026-07-10
 
 ## Production
 
-- Current release goal: `Helix Beta (media-service) achieved`
+- Current release goal: `Helix Beta (media-service) in progress`
 - Kairox status: `Kairox Beta achieved`; Kairox release line is closed
 - Current architecture: `Helix = Libra + Nexora + Kairox`; authoritative current status is `docs/helix/CURRENT_STATUS.md`
 - Production URL: `http://192.168.12.230:18080`
@@ -14,7 +14,7 @@ Last updated: 2026-07-10
 - Latest deployment time: `2026-07-10 15:13 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
 - Deployment status: Helix Service image is running and health is green. Nexora observation and Libra Reconciler are healthy.
-- Production E2E status: controlled non-destructive canary passed on `公共_国产剧`; retain-source offboarding, re-add, onboarding/admission, restart recovery and one read-only metadata maintenance task completed without modifying Emby or media files.
+- Production E2E status: controlled non-destructive canary passed on `公共_国产剧`; it is retained as Service-boundary evidence but does not prove the rebaselined full-auto Beta chain.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 - Automation model closure status: deployed; public run-scan APIs return `410 KAIROX_RUN_SCAN_REMOVED`.
 
@@ -23,7 +23,8 @@ Last updated: 2026-07-10
 - The current architecture is Helix, a modular monolith with Libra coordinating Nexora and Kairox Services. `docs/helix/ARCHITECTURE.md` is authoritative.
 - Libra owns LibraryMembership, phase, quarantine and admission generation; Nexora owns source truth; Kairox owns maintenance gates, Task/Flow/Event and `maintenanceState`.
 - `phase=maintenance` is a long-lived Libra management phase. Kairox independently derives `maintenanceState=maintaining|complete`; task completion never moves the Libra phase.
-- `media-desktop` Helix completeness is intentionally deferred and is not part of the accepted Service Beta.
+- `media-desktop` Helix completeness is intentionally deferred and is not part of the current Service Beta scope.
+- Helix Beta acceptance now requires a newly created full-auto library to advance through Libra/Nexora onboarding and Kairox basedata/metadata/optimize/required refresh to `maintenanceComplete` under shared resource backpressure. The prior achieved statement is withdrawn.
 - Kairox is closed as a transitional architecture phase after `Kairox Beta`.
 - `Kairox Usable`, `Kairox Performance`, `Kairox GA Candidate`, and `Kairox GA` are cancelled and must not be used as future roadmap or implementation scope.
 - Nexora now operates as Helix's Source Management capability; it is not the top-level LibraryMembership owner.
@@ -115,7 +116,7 @@ Last updated: 2026-07-10
 | `Kairox Performance` | Cancelled | Superseded by Nexora architecture reset |
 | `Kairox GA Candidate` | Cancelled | Superseded by Nexora architecture reset |
 | `Kairox GA` | Cancelled | Superseded by Nexora architecture reset |
-| `Nexora` | Named, not started | Architecture design has not started; no release goals yet |
+| `Helix Beta` | In progress | Current goal is the full-auto Service chain defined in `docs/helix/CURRENT_PLAN.md` |
 
 ## Unresolved / Not Yet Proven
 

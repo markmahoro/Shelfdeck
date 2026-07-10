@@ -1,6 +1,6 @@
 # ADR 0001: Helix Splits Nexora And Kairox
 
-Status: accepted for Helix / Nexora design.
+Status: historical and superseded at the top-level by `docs/helix/ARCHITECTURE.md`.
 
 Date: 2026-07-08
 
@@ -17,7 +17,7 @@ The missing architecture line is source-side reality: whether ShelfDeck manages 
 Use Helix as the top-level architecture name:
 
 ```text
-Helix Architecture = Nexora + Kairox
+Historical definition: Helix Architecture = Nexora + Kairox
 ```
 
 Nexora is Source Management:
@@ -36,7 +36,7 @@ metadata / optimize / archive / task / flow / event
 ## Consequences
 
 - Nexora no longer contains Kairox.
-- Onboarding and Offboarding are not top-level domains; they are Nexora actions over Membership and SourceBinding.
+- This ADR's Nexora Membership ownership was superseded: Libra now owns LibraryMembership and Offboarding coordination; Nexora provides source binding and cleanup capability.
 - Resource Management is not a top-level Helix business domain.
 - Kairox eligibility is derived from Nexora facts.
 - Kairox cannot create/close Membership or change SourceBinding validity.

@@ -43,9 +43,13 @@ getMaintenanceProjection(itemId)
 getMaintenanceProjections(itemIds)
 ```
 
-Admission minimally contains `itemId`, `admissionGeneration`, `sourceRevision`, `sourceAccessDescriptor` and `policyRevision`. Kairox tasks retain the admission generation and validate it before canonical or destructive commits.
+Admission minimally contains `itemId`, `admissionGeneration`, `sourceRevision`, `sourceAccessDescriptor`, `policyRevision` and the maintenance policy snapshot. Kairox tasks retain the admission generation and validate it before canonical or destructive commits.
 
-MaintenanceProjection contains `maintenanceState: maintaining|complete` and the compatibility boolean `maintenanceComplete`. Metadata/optimize gate facts explain the derived state; they are not Libra phase values.
+`reconcileMaintenance(admission)` must create or update the minimal Kairox maintenance identity when the item has no Kairox facts yet. Nexora adapters must not pre-populate Kairox canonical Basedata as a prerequisite for admission.
+
+MaintenanceProjection contains `maintenanceState: maintaining|complete`, the compatibility boolean `maintenanceComplete`, basedata/metadata/optimize gate facts and an optional `disposalRecommendation`. They are not Libra phase values. `disposalRecommendation` cannot create a delete task or close Membership.
+
+Kairox Maintenance Automation owns automatic `basedata|metadata|optimize` progression for currently admitted media. Libra provides admission and policy; it does not create each next-gate task. `archive` remains an optional compatibility target.
 
 ## Errors And Idempotency
 
@@ -62,4 +66,8 @@ MaintenanceProjection contains `maintenanceState: maintaining|complete` and the 
 - `POST /v1/admin/library/items/:itemId/actions/offboard` maps to `LibraService.requestOffboarding` and accepts `retain_source|detach_source|delete_source`.
 - `POST /v1/admin/sublibraries/:uuid/actions/offboard` maps to `LibraService.requestOffboardingBatch`, requires an idempotency key and only accepts `retain_source`.
 - `DELETE /v1/admin/sublibraries/:uuid` is rejected while any contained Libra Membership is not `closed`.
-- `POST /v1/tasks` maps only `metadata|optimize|archive` to `LibraService.requestMaintenance`; `ingest|delete` return `410 HELIX_LEGACY_TARGET_REMOVED`.
+- `POST /v1/tasks` maps only `basedata|metadata|optimize|archive` to `LibraService.requestMaintenance`; `ingest|delete` return `410 HELIX_LEGACY_TARGET_REMOVED`.
+
+## Shared Resource Governor
+
+Libra/Nexora work runners and Kairox Resource Runtime request permits from a shared infrastructure Governor. Domain Services keep their own work semantics and queues; the Governor exposes capacity/lease/backpressure projections only and never writes domain facts.
