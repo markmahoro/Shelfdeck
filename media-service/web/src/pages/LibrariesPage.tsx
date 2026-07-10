@@ -7,6 +7,7 @@ import { Button, Dialog, EmptyState, Field, Loading, Page, PageHeader, Status, T
 
 const priorityValue = { high: 50, normal: 100, low: 150 } as const;
 function priorityClass(value?: number) { return (value || 100) <= 50 ? 'high' : (value || 100) >= 150 ? 'low' : 'normal'; }
+function adultTemplateId(region: string) { return region === 'western_adult' ? 'adult_western_default' : 'adult_jav_default'; }
 
 export default function LibrariesPage() {
   const qc = useQueryClient();
@@ -45,13 +46,13 @@ export default function LibrariesPage() {
     <Dialog open={createOpen} title="新建媒体库" onClose={() => setCreateOpen(false)} actions={<><Button onClick={() => setCreateOpen(false)}>取消</Button><Button variant="primary" disabled={!draft.name || create.isPending || (draft.source === 'emby' ? !draft.sectionId : !draft.watchRoot)} onClick={() => create.mutate()}>{create.isPending ? '创建中' : '创建媒体库'}</Button></>}>
       <div className="form-grid">
         <Field label="名称"><input className="input" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></Field>
-        <Field label="来源"><select className="select" value={draft.source} onChange={(e) => setDraft({ ...draft, source: e.target.value, mediaType: e.target.value === 'folder' ? 'adult' : draft.mediaType })}><option value="emby">Emby 媒体库</option><option value="folder">文件夹</option></select></Field>
+        <Field label="来源"><select className="select" value={draft.source} onChange={(e) => { const source = e.target.value; setDraft({ ...draft, source, mediaType: source === 'folder' ? 'adult' : draft.mediaType, ruleTemplateId: source === 'folder' ? adultTemplateId(draft.adultRegion) : draft.ruleTemplateId }); }}><option value="emby">Emby 媒体库</option><option value="folder">文件夹</option></select></Field>
         {draft.source === 'emby' ? <>
           <Field label="Emby Server"><select className="select" value={draft.embyServerId} onChange={(e) => setDraft({ ...draft, embyServerId: e.target.value, sectionId: '' })}><option value="">请选择</option>{serverOptions.map((server) => <option key={server.uuid} value={server.uuid}>{server.serverName}</option>)}</select></Field>
           <Field label="Emby Library"><select className="select" value={draft.sectionId} onChange={(e) => setDraft({ ...draft, sectionId: e.target.value })}><option value="">请选择</option>{(folders.data?.folders || []).map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></Field>
         </> : <Field label="媒体目录"><input className="input" value={draft.watchRoot} onChange={(e) => setDraft({ ...draft, watchRoot: e.target.value })} placeholder="/media/adult" /></Field>}
         <Field label="媒体类型"><select className="select" value={draft.mediaType} onChange={(e) => setDraft({ ...draft, mediaType: e.target.value })} disabled={draft.source === 'folder'}><option value="movie">电影</option><option value="tv">剧集</option><option value="adult">成人</option></select></Field>
-        {draft.source === 'folder' && <Field label="成人类型"><select className="select" value={draft.adultRegion} onChange={(e) => setDraft({ ...draft, adultRegion: e.target.value })}><option value="japanese_jav">JAV</option><option value="western_adult">欧美成人</option></select></Field>}
+        {draft.source === 'folder' && <Field label="成人类型"><select className="select" value={draft.adultRegion} onChange={(e) => { const adultRegion = e.target.value; setDraft({ ...draft, adultRegion, ruleTemplateId: adultTemplateId(adultRegion) }); }}><option value="japanese_jav">JAV</option><option value="western_adult">欧美成人</option></select></Field>}
         <Field label="维护策略"><select className="select" value={draft.ruleTemplateId} onChange={(e) => setDraft({ ...draft, ruleTemplateId: e.target.value })}>{(templates.data?.ruleTemplates || []).map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></Field>
         <Field label="媒体库自动管理"><select className="select" value={draft.libraryAutomationMode} onChange={(e) => setDraft({ ...draft, libraryAutomationMode: e.target.value })}><option value="auto">自动</option><option value="manual">手动</option></select></Field>
         <Field label="媒体自动维护"><select className="select" value={draft.maintenanceAutomationMode} onChange={(e) => setDraft({ ...draft, maintenanceAutomationMode: e.target.value })}><option value="auto">自动</option><option value="manual">手动</option></select></Field>
