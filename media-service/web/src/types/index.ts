@@ -57,14 +57,9 @@ export interface SubLibrary {
   ruleTemplateId?: string;
   metadataGate?: MetadataGateConfig | null;
   upgradeSmartSelect: UpgradeSmartSelect;
-  automationMode?: 'auto' | 'manual';
+  libraryAutomationMode: 'auto' | 'manual';
+  maintenanceAutomationMode: 'auto' | 'manual';
   approvalPolicy?: ApprovalPolicyConfig;
-  scheduleMode?: 'full_auto' | 'custom' | 'full_manual';
-  autoCreate?: boolean;
-  autoExecute?: boolean;
-  autoReplaceTranscode?: boolean;
-  autoReplaceUpgrade?: boolean;
-  smartSelectEnabled?: boolean;
   // Queue priority weight (lower = this library's tasks run first). Default 100.
   priorityWeight?: number;
   pathMapFrom?: string;
@@ -187,7 +182,7 @@ export type TaskStatus =
   | 'awaiting_user_confirm' | 'pausing' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
-export type TaskFlowKind = 'ingest' | 'delete' | 'transcode' | 'upgrade' | 'scrape' | 'archive' | 'no_op' | 'blocked' | string;
+export type TaskFlowKind = 'basedata' | 'transcode' | 'upgrade' | 'scrape' | 'no_op' | 'blocked' | string;
 
 export type ApprovalMode = 'auto' | 'confirm' | 'forceConfirm';
 export type ApprovalPolicyConfig = Record<string, ApprovalMode>;
@@ -340,9 +335,7 @@ export interface SpaceStatsSubLibrary {
   itemCount: number;
   currentBytes: number;
   expectedBytes: number;
-  transcode: SpaceStatsGroup;
-  upgrade: SpaceStatsUpgradeGroup;
-  delete: SpaceStatsGroup;
+  optimize: SpaceStatsGroup;
 }
 
 export interface SpaceStats {
@@ -350,9 +343,7 @@ export interface SpaceStats {
   expectedTotalBytes: number;
   reclaimableBytes: number;
   realizedReclaimedBytes: number;
-  transcode: SpaceStatsGroup;
-  upgrade: SpaceStatsUpgradeGroup;
-  delete: SpaceStatsGroup;
+  optimize: SpaceStatsGroup;
   subLibraries: SpaceStatsSubLibrary[];
 }
 
@@ -406,12 +397,12 @@ export interface DashboardHealthSummary {
   };
   media: {
     totalItems: number;
+    maintenanceCompleteItems?: number;
+    offboardingCandidateItems?: number;
     closedItems: number;
     openItems: number;
     metadataIncompleteItems: number;
     pendingOptimizationItems: number;
-    archiveReadyItems: number;
-    archiveLikeItems: number;
     byLifecycleStage: Record<string, number>;
     byMetadataStatus: Record<string, number>;
     byRecommendedTargetGate: Record<string, number>;
@@ -541,7 +532,7 @@ export interface GateObjective {
 }
 
 export interface TaskBridge {
-  kind: 'metadata' | 'optimize' | 'archive' | string;
+  kind: 'basedata' | 'metadata' | 'optimize' | string;
   from?: string;
   to?: string;
   reason?: string;
@@ -745,36 +736,6 @@ export interface StorageMetric {
   files: StorageMetricFile[];
 }
 
-export interface BackgroundIoOperation {
-  operationId: string;
-  operation: string;
-  component: string;
-  lockKey: string;
-  resourceType: string;
-  resourceKey: string;
-  source: string;
-  status: string;
-  startedAt: string;
-  endedAt?: string | null;
-  durationMs: number;
-  payload?: Record<string, unknown>;
-}
-
-export interface BackgroundIoState {
-  kind: 'metric';
-  category: 'background_io';
-  generatedAt: string;
-  active: BackgroundIoOperation[];
-  recent: BackgroundIoOperation[];
-  summary: {
-    activeCount: number;
-    runningHeavyIo: boolean;
-    skippedCount: number;
-    completedCount: number;
-    failedCount: number;
-  };
-}
-
 export interface ResourceView {
   detail?: 'summary' | 'full' | string;
   summary: {
@@ -788,6 +749,10 @@ export interface ResourceView {
     generatedAt: string;
   };
   resources: ResourceBucket[];
+  governor?: {
+    generatedAt: string;
+    resources: Array<{ resourceKey: string; capacity: number; active: number; waiting: number }>;
+  };
   diagnostics?: {
     logs: DiagnosticLogEntry[];
     dependencies?: Array<Record<string, unknown>>;
@@ -812,7 +777,6 @@ export interface ResourceView {
     metrics?: {
       storage?: StorageMetric[];
     };
-    backgroundIo?: BackgroundIoState;
   };
 }
 

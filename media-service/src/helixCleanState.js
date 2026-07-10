@@ -42,6 +42,9 @@ const LEGACY_CONFIG_FIELDS = Object.freeze([
   'smartTaskPollIntervalMinutes',
   'smartTaskMaxPerRun',
   'smartTaskMaxQueueSize',
+  'strategyPollIntervalMinutes',
+  'transcodeReplaceConfirmRequired',
+  'upgradeReplaceConfirmRequired',
 ]);
 
 const LEGACY_LIBRARY_TABLES = Object.freeze([
@@ -91,6 +94,32 @@ function sqliteTables(filePath) {
   }
 }
 
+function inspectTaskDatabase(filePath) {
+  if (!fs.existsSync(filePath)) return { schemaMissing: [], legacyTargetRows: 0, legacyFlowRows: 0 };
+  let db;
+  try {
+    db = new Database(filePath, { readonly: true, fileMustExist: true });
+    const hasTasks = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tasks'").get();
+    if (!hasTasks) return { schemaMissing: [], legacyTargetRows: 0, legacyFlowRows: 0 };
+    const columns = new Set(db.prepare('PRAGMA table_info(tasks)').all().map((row) => row.name));
+    const required = ['item_id', 'status', 'payload_json', 'target_gate', 'flow_kind', 'gate_objective_json'];
+    const schemaMissing = required.filter((column) => !columns.has(column));
+    if (schemaMissing.length > 0) return { schemaMissing, legacyTargetRows: 0, legacyFlowRows: 0 };
+    const legacyTargetRows = db.prepare(`
+      SELECT COUNT(*) AS count FROM tasks
+      WHERE target_gate<>'' AND target_gate NOT IN ('basedata','metadata','optimize')
+    `).get().count || 0;
+    const legacyFlowRows = db.prepare(`
+      SELECT COUNT(*) AS count FROM tasks WHERE flow_kind IN ('ingest','archive','delete')
+    `).get().count || 0;
+    return { schemaMissing, legacyTargetRows, legacyFlowRows };
+  } catch (_) {
+    return { schemaMissing: ['unreadable'], legacyTargetRows: 0, legacyFlowRows: 0 };
+  } finally {
+    if (db) db.close();
+  }
+}
+
 function existingResetEntries(dataDir) {
   return RESET_ENTRIES.filter((entry) => fs.existsSync(resolveInside(dataDir, entry)));
 }
@@ -116,6 +145,10 @@ function inspectState(options = {}) {
   const libraryTables = sqliteTables(path.join(dataDir, 'library.db'));
   const tasksTables = sqliteTables(path.join(dataDir, 'tasks.db'));
   const legacyTables = libraryTables.filter((table) => LEGACY_LIBRARY_TABLES.includes(table));
+  const taskInspection = inspectTaskDatabase(path.join(dataDir, 'tasks.db'));
+  if (taskInspection.schemaMissing.length > 0) legacyTables.push('tasks.schema');
+  if (taskInspection.legacyTargetRows > 0) legacyTables.push('tasks.legacy_targets');
+  if (taskInspection.legacyFlowRows > 0) legacyTables.push('tasks.legacy_flows');
   const marker = readJson(markerPath, null);
 
   return {
@@ -127,6 +160,7 @@ function inspectState(options = {}) {
     legacyTables,
     libraryTables,
     tasksTables,
+    taskInspection,
     requiresCleanInit: !marker
       || marker.schemaVersion !== HELIX_SCHEMA_VERSION
       || legacyConfigFields.size > 0
@@ -139,7 +173,7 @@ function preservedConfig(raw = {}) {
   return {
     helixSchemaVersion: HELIX_SCHEMA_VERSION,
     apiKey: cleanString(raw.apiKey),
-    transcodeTempRoot: cleanString(raw.transcodeTempRoot),
+    transcodeTempRoot: cleanString(raw.transcodeTempRoot) || (process.platform === 'linux' ? '/transcode' : ''),
     upgradeStagingLocalPath: cleanString(raw.upgradeStagingLocalPath),
     ffmpegPath: cleanString(raw.ffmpegPath) || 'ffmpeg',
     ffprobePath: cleanString(raw.ffprobePath) || 'ffprobe',

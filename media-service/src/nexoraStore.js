@@ -73,6 +73,14 @@ function parse(value, fallback = {}) {
   try { return value ? JSON.parse(value) : fallback; } catch (_) { return fallback; }
 }
 
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value == null ? null : value);
+}
+
 function bindingRow(row) {
   if (!row) return null;
   return {
@@ -91,6 +99,15 @@ function bindingRow(row) {
 
 function getSourceBinding(mediaItemId, sourceId) {
   return bindingRow(getDb().prepare('SELECT * FROM nexora_source_bindings WHERE media_item_id=? AND source_id=?').get(String(mediaItemId || ''), String(sourceId || '')));
+}
+
+function findSourceBindingBySourceId(sourceId) {
+  return bindingRow(getDb().prepare(`
+    SELECT * FROM nexora_source_bindings
+    WHERE source_id=?
+    ORDER BY CASE validity WHEN 'valid' THEN 0 ELSE 1 END, updated_at DESC
+    LIMIT 1
+  `).get(String(sourceId || '')));
 }
 
 function upsertSourceBinding(input = {}) {
@@ -184,11 +201,21 @@ function getSourceState(mediaItemId) {
 
 function bumpSourceState(input = {}) {
   const current = getSourceState(input.mediaItemId);
+  const nextDescriptor = input.sourceAccessDescriptor || {};
+  const nextReadiness = String(input.readiness || 'unresolved');
+  if (current
+    && current.readiness === nextReadiness
+    && stableJson(current.sourceAccessDescriptor) === stableJson(nextDescriptor)) {
+    getDb().prepare(`
+      UPDATE nexora_source_state SET latest_observation_id=?,updated_at=? WHERE media_item_id=?
+    `).run(String(input.latestObservationId || current.latestObservationId || ''), String(input.updatedAt || new Date().toISOString()), String(input.mediaItemId || ''));
+    return getSourceState(input.mediaItemId);
+  }
   const row = {
     media_item_id: String(input.mediaItemId || ''),
     revision: (current && current.sourceRevision || 0) + 1,
-    readiness: String(input.readiness || 'unresolved'),
-    access_descriptor_json: JSON.stringify(input.sourceAccessDescriptor || {}),
+    readiness: nextReadiness,
+    access_descriptor_json: JSON.stringify(nextDescriptor),
     latest_observation_id: String(input.latestObservationId || ''),
     updated_at: String(input.updatedAt || new Date().toISOString()),
   };
@@ -221,6 +248,7 @@ function resetForTests() {
 module.exports = {
   upsertSourceBinding,
   getSourceBinding,
+  findSourceBindingBySourceId,
   getSourceBindingsForItem,
   getSourceBindingsForItems,
   insertSourceObservation,

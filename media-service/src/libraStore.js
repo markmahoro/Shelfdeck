@@ -68,6 +68,7 @@ function ensureSchema(db) {
 
     CREATE TABLE IF NOT EXISTS libra_library_work (
       work_id TEXT PRIMARY KEY,
+      idempotency_key TEXT NOT NULL UNIQUE,
       work_kind TEXT NOT NULL,
       sub_library_id TEXT NOT NULL DEFAULT '',
       item_id TEXT NOT NULL DEFAULT '',
@@ -219,6 +220,15 @@ function getLibraryItems(itemIds = null) {
   return getDb().prepare(`SELECT * FROM libra_library_items WHERE item_id IN (${placeholders})`).all(...ids).map(libraryRow);
 }
 
+function getLibraryItemsPage(options = {}) {
+  const afterItemId = String(options.afterItemId || '');
+  const limit = Math.max(1, Math.min(500, Number(options.limit) || 100));
+  return getDb().prepare(`
+    SELECT * FROM libra_library_items
+    WHERE item_id>? ORDER BY item_id ASC LIMIT ?
+  `).all(afterItemId, limit).map(libraryRow);
+}
+
 function operationRow(row) {
   if (!row) return null;
   return {
@@ -319,6 +329,109 @@ function getCurrentOperationForItem(itemId) {
   `).get(String(itemId || '')));
 }
 
+function workRow(row) {
+  if (!row) return null;
+  return {
+    workId: row.work_id,
+    idempotencyKey: row.idempotency_key,
+    workKind: row.work_kind,
+    subLibraryId: row.sub_library_id,
+    itemId: row.item_id,
+    status: row.status,
+    cursor: jsonParse(row.cursor_json, {}),
+    payload: jsonParse(row.payload_json, {}),
+    attemptCount: Number(row.attempt_count) || 0,
+    retryAt: row.retry_at,
+    errorCode: row.error_code,
+    errorMessage: row.error_message,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function createOrGetLibraryWork(input = {}) {
+  const idempotencyKey = String(input.idempotencyKey || '').trim();
+  if (!idempotencyKey) throw Object.assign(new Error('idempotencyKey is required'), { code: 'LIBRA_IDEMPOTENCY_KEY_REQUIRED' });
+  const existing = workRow(getDb().prepare('SELECT * FROM libra_library_work WHERE idempotency_key=?').get(idempotencyKey));
+  const payload = input.payload || {};
+  if (existing) {
+    if (payloadHash(existing.payload) !== payloadHash(payload)) {
+      throw Object.assign(new Error('Idempotency key was already used with a different work payload'), { code: 'LIBRA_IDEMPOTENCY_CONFLICT' });
+    }
+    return { work: existing, created: false };
+  }
+  const now = new Date().toISOString();
+  const row = {
+    work_id: String(input.workId || crypto.randomUUID()),
+    idempotency_key: idempotencyKey,
+    work_kind: String(input.workKind || ''),
+    sub_library_id: String(input.subLibraryId || ''),
+    item_id: String(input.itemId || ''),
+    status: String(input.status || 'pending'),
+    cursor_json: JSON.stringify(input.cursor || {}),
+    payload_json: JSON.stringify(payload),
+    attempt_count: 0,
+    retry_at: '',
+    error_code: '',
+    error_message: '',
+    created_at: now,
+    updated_at: now,
+  };
+  getDb().prepare(`
+    INSERT INTO libra_library_work
+      (work_id,idempotency_key,work_kind,sub_library_id,item_id,status,cursor_json,payload_json,
+       attempt_count,retry_at,error_code,error_message,created_at,updated_at)
+    VALUES
+      (@work_id,@idempotency_key,@work_kind,@sub_library_id,@item_id,@status,@cursor_json,@payload_json,
+       @attempt_count,@retry_at,@error_code,@error_message,@created_at,@updated_at)
+  `).run(row);
+  return { work: getLibraryWork(row.work_id), created: true };
+}
+
+function getLibraryWork(workId) {
+  return workRow(getDb().prepare('SELECT * FROM libra_library_work WHERE work_id=?').get(String(workId || '')));
+}
+
+function updateLibraryWork(workId, updates = {}) {
+  const current = getLibraryWork(workId);
+  if (!current) return null;
+  getDb().prepare(`
+    UPDATE libra_library_work SET
+      status=@status,cursor_json=@cursor_json,payload_json=@payload_json,
+      attempt_count=@attempt_count,retry_at=@retry_at,error_code=@error_code,
+      error_message=@error_message,updated_at=@updated_at
+    WHERE work_id=@work_id
+  `).run({
+    work_id: current.workId,
+    status: String(updates.status == null ? current.status : updates.status),
+    cursor_json: JSON.stringify(updates.cursor == null ? current.cursor : updates.cursor),
+    payload_json: JSON.stringify(updates.payload == null ? current.payload : updates.payload),
+    attempt_count: updates.incrementAttempt ? current.attemptCount + 1 : current.attemptCount,
+    retry_at: String(updates.retryAt == null ? current.retryAt : updates.retryAt),
+    error_code: String(updates.errorCode == null ? current.errorCode : updates.errorCode),
+    error_message: String(updates.errorMessage == null ? current.errorMessage : updates.errorMessage),
+    updated_at: new Date().toISOString(),
+  });
+  return getLibraryWork(current.workId);
+}
+
+function listRunnableLibraryWork(now = new Date().toISOString(), limit = 10) {
+  return getDb().prepare(`
+    SELECT * FROM libra_library_work
+    WHERE status IN ('pending','running') OR (status='retrying' AND (retry_at='' OR retry_at<=?))
+    ORDER BY created_at ASC LIMIT ?
+  `).all(now, Math.max(1, Math.min(100, Number(limit) || 10))).map(workRow);
+}
+
+function listLibraryWork(filter = {}) {
+  const clauses = [];
+  const params = {};
+  if (filter.subLibraryId) { clauses.push('sub_library_id=@subLibraryId'); params.subLibraryId = String(filter.subLibraryId); }
+  if (filter.status) { clauses.push('status=@status'); params.status = String(filter.status); }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  return getDb().prepare(`SELECT * FROM libra_library_work ${where} ORDER BY updated_at DESC`).all(params).map(workRow);
+}
+
 function getCurrentOperationsForItems(itemIds = []) {
   const ids = [...new Set(itemIds.map((itemId) => String(itemId || '').trim()).filter(Boolean))];
   if (ids.length === 0) return {};
@@ -368,12 +481,18 @@ module.exports = {
   ensureSchema,
   getLibraryItem,
   getLibraryItems,
+  getLibraryItemsPage,
   upsertLibraryItem,
   createOrGetOperation,
   getOperation,
   getOperationByIdempotencyKey,
   getCurrentOperationForItem,
   getCurrentOperationsForItems,
+  createOrGetLibraryWork,
+  getLibraryWork,
+  updateLibraryWork,
+  listRunnableLibraryWork,
+  listLibraryWork,
   updateOperation,
   listRecoverableOperations,
   appendEvent,

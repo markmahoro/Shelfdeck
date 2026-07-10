@@ -3,7 +3,7 @@ interface HealthCheckItem {
   message?: string;
   // scheduler
   runningTasks?: number;
-  // smartTask
+  // Helix Automation
   enabled?: boolean;
   enabledTaskTargets?: string[];
   allowedOptimizeFlows?: string[];
@@ -46,8 +46,9 @@ const LABELS: Record<string, string> = {
 
 const CHECK_LABELS: Record<string, string> = {
   scheduler:  '任务调度器',
-  smartTask:  '后台自动入队',
-  mediaLib:   '媒体库入库同步',
+  libraryAutomation: 'Library Automation',
+  maintenanceAutomation: 'Maintenance Automation',
+  mediaLib:   '媒体库观察',
   douban:     '豆瓣评分抓取',
   strategy:   '优化目标计算',
   emby:       'Emby 连接',
@@ -61,9 +62,9 @@ function describe(key: string, item: HealthCheckItem): string {
   switch (key) {
     case 'scheduler':
       return item.runningTasks ? `${item.runningTasks} 个任务运行中` : '无运行中任务';
-    case 'smartTask':
+    case 'libraryAutomation':
+    case 'maintenanceAutomation':
       if (item.enabled === false) {
-        if (item.disabledReason === 'no_enabled_task_targets') return '未启用自动入队';
         return '已停用';
       }
       if (!item.lastRunAt) return '等待首次运行';

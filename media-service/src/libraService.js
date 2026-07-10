@@ -27,6 +27,38 @@ function createLibraService(dependencies = {}) {
       if (typeof implementation.requestMaintenance === 'function') return implementation.requestMaintenance(command);
       throw notImplemented('LibraService.requestMaintenance');
     },
+    updateUserPerception(command) {
+      if (typeof implementation.updateUserPerception === 'function') return implementation.updateUserPerception(command);
+      throw notImplemented('LibraService.updateUserPerception');
+    },
+    createSubLibrary(command) {
+      if (typeof implementation.createSubLibrary === 'function') return implementation.createSubLibrary(command);
+      throw notImplemented('LibraService.createSubLibrary');
+    },
+    updateSubLibrary(subLibraryId, updates) {
+      if (typeof implementation.updateSubLibrary === 'function') return implementation.updateSubLibrary(subLibraryId, updates);
+      throw notImplemented('LibraService.updateSubLibrary');
+    },
+    deleteSubLibrary(subLibraryId) {
+      if (typeof implementation.deleteSubLibrary === 'function') return implementation.deleteSubLibrary(subLibraryId);
+      throw notImplemented('LibraService.deleteSubLibrary');
+    },
+    requestLibraryObservation(command) {
+      if (typeof implementation.requestLibraryObservation === 'function') return implementation.requestLibraryObservation(command);
+      throw notImplemented('LibraService.requestLibraryObservation');
+    },
+    requestReconcileSweep(command) {
+      if (typeof implementation.requestReconcileSweep === 'function') return implementation.requestReconcileSweep(command);
+      throw notImplemented('LibraService.requestReconcileSweep');
+    },
+    runLibraryWork(workId, options) {
+      if (typeof implementation.runLibraryWork === 'function') return implementation.runLibraryWork(workId, options);
+      throw notImplemented('LibraService.runLibraryWork');
+    },
+    getAutomationProjection() {
+      if (typeof implementation.getAutomationProjection === 'function') return implementation.getAutomationProjection();
+      throw notImplemented('LibraService.getAutomationProjection');
+    },
     requestOffboarding(command) {
       if (typeof implementation.requestOffboarding === 'function') return implementation.requestOffboarding(command);
       throw notImplemented('LibraService.requestOffboarding');

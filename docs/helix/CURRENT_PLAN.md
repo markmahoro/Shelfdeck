@@ -2,11 +2,13 @@
 
 Last updated: 2026-07-10
 
+Status: implementation complete; production clean cutover requires separate authorization.
+
 ## Objective
 
 Deliver the first Helix Beta as a resource-bounded, fully automatic Library Management loop under the accepted modular-monolith architecture.
 
-## Active Slices
+## Delivery Slices
 
 1. Helix contract and active-plan consolidation. **Completed 2026-07-10.**
 2. Service Facades, composition root and static boundary tests. **Completed 2026-07-10.**
@@ -29,6 +31,8 @@ The implementation now proceeds in the following order. Each slice must finish c
 
 ### Slice 12 — Clean Initialization And Owned Data Model
 
+**Completed 2026-07-10.**
+
 - Create clean Libra Membership/work, Nexora Binding/observation and Kairox admission/media/basedata/metadata/task facts.
 - Remove `media_items` mixed ownership and all runtime/config/API branches for `ingest|delete|archive`, SmartTask legacy configuration and old schedule fields.
 - Detect old schema/config as `HELIX_CLEAN_INIT_REQUIRED`; provide dry-run/apply initialization with backup. No migration or dual read.
@@ -36,12 +40,16 @@ The implementation now proceeds in the following order. Each slice must finish c
 
 ### Slice 13 — Libra Library Automation
 
+**Completed 2026-07-10.**
+
 - Introduce durable `observe_library` work with Emby cursor pagination, default page size 100 and per-run item/time budget.
 - Replace the independent Nexora observation timer and Libra reconcile timer with one outer Library Automation loop.
 - Implement `libraryAutomationMode=auto|manual`; manual observation is an explicit durable Admin action.
 - Onboarding creates Libra Membership, calls Nexora binding, then issues Kairox admission carrying generation/source/policy revisions.
 
 ### Slice 14 — Kairox Maintenance Components And Basedata
+
+**Completed 2026-07-10.**
 
 - Refactor existing `smartTaskEngine.js` into a thin Automation Runner; do not introduce a parallel heavy `kairoxAutomationEngine`.
 - Refactor `automationPolicy.js` around `maintenanceAutomationMode` and an explicit trigger decision; remove per-gate `automaticTaskTargets`.
@@ -51,12 +59,16 @@ The implementation now proceeds in the following order. Each slice must finish c
 
 ### Slice 15 — Shared Helix Resource Governor
 
+**Completed 2026-07-10.**
+
 - Create one Governor in the Helix composition root and inject it into Libra/Nexora work runners and Kairox Resource Runtime.
 - Move all capacity decisions out of Task Scheduler, SmartTask/Runner, `backgroundIoGuard` and duplicate counters.
 - Add bounded queues, FIFO + aging, reserved control capacity, diagnostics and `finally` permit release.
 - Resource Runtime requests permits per event; resource waiting is not a gate failure. Durable work/task state, not permits, provides restart recovery.
 
 ### Slice 16 — Automation API And Admin Web
+
+**Completed 2026-07-10.**
 
 - Persist and expose `libraryAutomationMode` and `maintenanceAutomationMode`; the full-auto preset writes `auto/auto` only.
 - Add explicit observe action and two-level automation/resource projections.
@@ -65,6 +77,8 @@ The implementation now proceeds in the following order. Each slice must finish c
 - `media-desktop` remains outside this slice and this Beta thread.
 
 ### Slice 17 — Audit And Beta Acceptance
+
+**Completed 2026-07-10.** Service、Admin Web、Windows host、Linux production image、disposable full-auto/restart E2E 和 disposable real transcode/replace E2E 已通过。生产 clean initialization/canary 仍是独立授权动作，不属于本计划的自动执行权限。
 
 - Static audit physical dependencies, fact writers, removed targets/config and the single global capacity owner.
 - Run Service tests, Admin Web build, Windows/Linux/Docker validation and disposable full-auto E2E.

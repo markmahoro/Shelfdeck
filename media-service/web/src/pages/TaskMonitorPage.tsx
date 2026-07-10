@@ -40,7 +40,6 @@ const STATUS_COLORS: Record<string, string> = {
   waiting_media_source: '#64748b',
   cancelled: '#64748b',
   skipped: '#64748b',
-  deleted: '#64748b',
   created: '#64748b',
   pending_manual: '#64748b',
 };

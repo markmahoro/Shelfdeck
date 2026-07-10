@@ -17,11 +17,9 @@ export interface KairoxTaskView extends KairoxTaskProjection {
 }
 
 export const TARGET_GATE_LABELS: Record<KairoxTargetGate, string> = {
-  ingest: '入库',
+  basedata: '基础数据',
   metadata: '元数据',
   optimize: '优化',
-  archive: '归档',
-  delete: '删除执行',
 };
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -38,18 +36,15 @@ export const STATUS_LABELS: Record<string, string> = {
   failed_hard: '失败',
   cancelled: '已取消',
   skipped: '已跳过',
-  deleted: '已移除',
 };
 
 export const TARGET_GATE_OPTIONS: Array<{ value: KairoxTargetGate; label: string }> = [
-  { value: 'ingest', label: TARGET_GATE_LABELS.ingest },
+  { value: 'basedata', label: TARGET_GATE_LABELS.basedata },
   { value: 'metadata', label: TARGET_GATE_LABELS.metadata },
   { value: 'optimize', label: TARGET_GATE_LABELS.optimize },
-  { value: 'archive', label: TARGET_GATE_LABELS.archive },
-  { value: 'delete', label: TARGET_GATE_LABELS.delete },
 ];
 
-export const TERMINAL_TASK_STATUSES = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
+export const TERMINAL_TASK_STATUSES = new Set(['done', 'failed_hard', 'cancelled', 'skipped']);
 
 export function toKairoxTaskView(task: MediaTask): KairoxTaskView {
   const base = toKairoxTaskProjection(task);

@@ -78,6 +78,9 @@ function adultMetadataFacts(result = {}, item = {}, adultId = '') {
     country: result.country || '',
     needsReview: !!result.needsReview,
     ai: result.ai || {},
+    faceClusters: Array.isArray(result.faceClusters) ? result.faceClusters : [],
+    unknownFaces: Array.isArray(result.unknownFaces) ? result.unknownFaces : [],
+    actorConfidence: result.actorConfidence || {},
   });
 }
 

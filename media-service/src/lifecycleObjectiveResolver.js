@@ -78,9 +78,9 @@ function sanitizeObjective(objective = {}) {
   if (cleanToken(sanitized.kind) === 'remove_media') {
     return cleanObject({
       kind: 'unknown',
-      description: 'Legacy remove_media objective is not a valid optimize objective.',
+      description: 'remove_media is not a valid Kairox maintenance objective.',
       ...commonObjective({
-        source: 'legacy_remove_media_rejected',
+        source: 'invalid_remove_media_rejected',
         reason: sanitized.reason || '',
       }),
     });
@@ -171,7 +171,7 @@ function resolveOptimizeObjective(item = {}, options = {}) {
   if (item.targetMediaFacts && typeof item.targetMediaFacts === 'object') {
     return cleanObject({
       kind: 'target_media_facts',
-      description: 'Media should satisfy the configured archive-before target facts.',
+      description: 'Media should satisfy the configured maintenance target facts.',
       targetMediaFacts: item.targetMediaFacts,
       qualityTier: item.targetMediaFacts.qualityTier,
       targetCodec: item.targetCodec || item.targetMediaFacts.targetCodec,

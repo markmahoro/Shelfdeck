@@ -81,7 +81,8 @@ async function runAllChecks() {
     : { status: 'red', runningTasks: 0 };
 
   // Lazy-require to avoid circular deps on startup
-  const libraReconcileEngine = require('./libraReconcileEngine');
+  const libraAutomationEngine = require('./libraAutomationEngine');
+  const kairoxAutomationRunner = require('./kairoxAutomationRunner');
   const doubanService = require('./services/doubanService');
   const moviepilotService = require('./services/moviepilotService');
   const transcodeService = require('./services/transcodeService');
@@ -95,7 +96,8 @@ async function runAllChecks() {
 
   const checks = {
     scheduler:   scheduler,
-    libraReconciler: libraReconcileEngine.getHealth(),
+    libraryAutomation: libraAutomationEngine.getHealth(),
+    maintenanceAutomation: kairoxAutomationRunner.getHealth(),
     douban,
     emby,
     upgrade,

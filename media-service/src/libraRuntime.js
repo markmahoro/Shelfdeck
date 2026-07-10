@@ -2,12 +2,14 @@
 
 const crypto = require('crypto');
 const libraStore = require('./libraStore');
+const configStore = require('./configStore');
+const defaultResourceGovernor = require('./resourceGovernor');
 const { HelixError } = require('./helixError');
 const { createLibraReconciler } = require('./libraReconciler');
 
 const CLEANUP_MODES = new Set(['retain_source', 'detach_source', 'delete_source']);
 
-function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }) {
+function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, configs = configStore, resourceGovernor = defaultResourceGovernor }) {
   const reconciler = createLibraReconciler({ store, nexoraService, kairoxService });
 
   function libraryProjection(item, sourceProjection = {}, maintenanceProjection = {}, currentOperation = undefined) {
@@ -85,6 +87,9 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
       size: basedata.size || 0,
       duration: basedata.duration || 0,
       metadataComplete: !!maintenance.metadataPassed,
+      userRating: (maintenance.userPerceptionFacts && maintenance.userPerceptionFacts.userRating) ?? null,
+      watched: !!(maintenance.userPerceptionFacts && maintenance.userPerceptionFacts.watched),
+      playCount: maintenance.userPerceptionFacts && maintenance.userPerceptionFacts.playCount || 0,
       maintenanceState: maintenance.maintenanceState || 'maintaining',
       maintenanceComplete: !!maintenance.maintenanceComplete,
       helix: projection,
@@ -118,13 +123,18 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
     const subLibraryId = command.sourceReference && command.sourceReference.subLib && command.sourceReference.subLib.uuid
       || command.sourceReference && command.sourceReference.subLibraryId
       || '';
-    const item = store.upsertLibraryItem({
+    const existingItem = store.getLibraryItem(itemId);
+    const item = store.upsertLibraryItem(existingItem && existingItem.membershipStatus !== 'closed' ? {
+      itemId,
+      subLibraryId: subLibraryId || existingItem.subLibraryId,
+    } : {
       itemId,
       subLibraryId,
       membershipStatus: 'active',
       desiredState: 'managed',
       phase: 'onboarding',
       blockedReason: '',
+      admissionGeneration: existingItem ? existingItem.admissionGeneration + 1 : 0,
     });
     const created = store.createOrGetOperation({
       itemId,
@@ -182,6 +192,188 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
       });
     }
     return kairoxService.requestMaintenance({ ...command, libraryGeneration: item.admissionGeneration });
+  }
+
+  function updateUserPerception(command = {}) {
+    const item = store.getLibraryItem(command.itemId);
+    if (!item) throw new HelixError('LIBRA_ITEM_NOT_FOUND', 'Library item not found');
+    if (item.membershipStatus !== 'active' || item.phase !== 'maintenance' || item.quarantineStatus !== 'none') {
+      throw new HelixError('LIBRA_MAINTENANCE_NOT_ADMITTED', 'Library item is not admitted for in-library operations');
+    }
+    return kairoxService.updateUserPerception({
+      itemId: item.itemId,
+      facts: command.facts || {},
+      evidence: command.evidence || {},
+      observedAt: command.observedAt,
+      libraryGeneration: item.admissionGeneration,
+    });
+  }
+
+  function createSubLibrary(spec = {}) {
+    const config = configs.loadConfig();
+    const mediaType = spec.mediaType || 'movie';
+    const isAdult = mediaType === 'adult';
+    const subLibrary = {
+      uuid: String(spec.uuid || crypto.randomUUID()),
+      name: spec.name || 'New Library',
+      embyServerId: spec.embyServerId || '',
+      sectionId: spec.sectionId || '',
+      source: spec.source || 'emby',
+      doubanEnabled: spec.doubanEnabled === true,
+      enabled: true,
+      mediaType,
+      adultRegion: spec.adultRegion || (isAdult ? 'japanese_jav' : undefined),
+      scraperType: spec.scraperType || (isAdult ? (spec.adultRegion === 'western_adult' ? 'western_builtin' : 'shelfdeck_japanese_jav') : undefined),
+      watchRoot: spec.watchRoot || '',
+      japaneseJav: spec.japaneseJav || undefined,
+      western: spec.western || undefined,
+      ruleTemplateId: spec.ruleTemplateId || (isAdult ? (spec.adultRegion === 'western_adult' ? 'adult_western_default' : 'adult_jav_default') : mediaType === 'tv' ? 'tv_default' : 'default'),
+      metadataGate: spec.metadataGate || undefined,
+      libraryAutomationMode: spec.libraryAutomationMode || 'manual',
+      maintenanceAutomationMode: spec.maintenanceAutomationMode || 'manual',
+      approvalPolicy: spec.approvalPolicy || {},
+      upgradeSmartSelect: spec.upgradeSmartSelect || { enabled: false, codecPreference: [], resolutionPreference: [], audioPreference: [], sitePreference: [], preferCNSub: false },
+      pathMapFrom: spec.pathMapFrom || '',
+      pathMapTo: spec.pathMapTo || '',
+    };
+    config.subLibraries = [...(config.subLibraries || []), subLibrary];
+    configs.saveConfig(config);
+    let observationWork = null;
+    if (subLibrary.libraryAutomationMode === 'auto') {
+      observationWork = requestLibraryObservation({
+        subLibraryId: subLibrary.uuid,
+        idempotencyKey: `observe-library:${subLibrary.uuid}:initial`,
+        requestedBy: 'library_created',
+      });
+    }
+    return { subLibrary, observationWork };
+  }
+
+  function updateSubLibrary(subLibraryId, updates = {}) {
+    const config = configs.loadConfig();
+    const index = (config.subLibraries || []).findIndex((entry) => entry.uuid === subLibraryId);
+    if (index < 0) return null;
+    const forbidden = ['uuid', 'automationMode', 'scheduleMode', 'autoCreate', 'autoExecute'];
+    const patch = Object.entries(updates).reduce((out, [key, value]) => {
+      if (!forbidden.includes(key)) out[key] = value;
+      return out;
+    }, {});
+    config.subLibraries[index] = { ...config.subLibraries[index], ...patch };
+    configs.saveConfig(config);
+    return config.subLibraries[index];
+  }
+
+  function deleteSubLibrary(subLibraryId) {
+    const config = configs.loadConfig();
+    const before = (config.subLibraries || []).length;
+    config.subLibraries = (config.subLibraries || []).filter((entry) => entry.uuid !== subLibraryId);
+    if (config.subLibraries.length === before) return false;
+    configs.saveConfig(config);
+    return true;
+  }
+
+  function requestLibraryObservation(command = {}) {
+    const config = configs.loadConfig();
+    const subLibrary = (config.subLibraries || []).find((entry) => entry.uuid === command.subLibraryId);
+    if (!subLibrary) throw new HelixError('LIBRA_LIBRARY_NOT_FOUND', 'SubLibrary not found');
+    return store.createOrGetLibraryWork({
+      workKind: 'observe_library',
+      subLibraryId: subLibrary.uuid,
+      idempotencyKey: command.idempotencyKey,
+      payload: { requestedBy: command.requestedBy || 'admin', libraryRevision: subLibrary.updatedAt || '' },
+      cursor: {},
+    }).work;
+  }
+
+  function requestReconcileSweep(command = {}) {
+    return store.createOrGetLibraryWork({
+      workKind: 'reconcile_library',
+      idempotencyKey: command.idempotencyKey,
+      payload: { requestedBy: command.requestedBy || 'automation' },
+      cursor: { afterItemId: '' },
+    }).work;
+  }
+
+  async function runLibraryWork(workId, options = {}) {
+    const work = store.getLibraryWork(workId);
+    if (!work) throw new HelixError('LIBRA_WORK_NOT_FOUND', 'Library work not found');
+    if (work.status === 'done') return work;
+    if (work.workKind === 'reconcile_library') {
+      store.updateLibraryWork(work.workId, { status: 'running', incrementAttempt: true, errorCode: '', errorMessage: '' });
+      try {
+        const items = store.getLibraryItemsPage({ afterItemId: work.cursor.afterItemId || '', limit: Math.max(1, Math.min(100, Number(options.limit) || 100)) });
+        reconciler.reconcileBatch(items.map((item) => item.itemId));
+        const done = items.length === 0 || items.length < Math.max(1, Math.min(100, Number(options.limit) || 100));
+        return store.updateLibraryWork(work.workId, {
+          status: done ? 'done' : 'pending',
+          cursor: { afterItemId: items.length > 0 ? items[items.length - 1].itemId : work.cursor.afterItemId || '' },
+          retryAt: '', errorCode: '', errorMessage: '',
+        });
+      } catch (error) {
+        store.updateLibraryWork(work.workId, {
+          status: 'retrying', retryAt: new Date(Date.now() + 30000).toISOString(),
+          errorCode: error.code || 'LIBRA_RECONCILE_FAILED', errorMessage: error.message,
+        });
+        throw error;
+      }
+    }
+    if (work.workKind !== 'observe_library') throw new HelixError('LIBRA_WORK_KIND_UNSUPPORTED', `Unsupported Library work: ${work.workKind}`);
+    const config = configs.loadConfig();
+    const subLibrary = (config.subLibraries || []).find((entry) => entry.uuid === work.subLibraryId);
+    if (!subLibrary) throw new HelixError('LIBRA_LIBRARY_NOT_FOUND', 'SubLibrary not found');
+    const serverConfig = subLibrary.source === 'emby' ? (config.embyServers || {})[subLibrary.embyServerId] : null;
+    const limit = Math.max(1, Math.min(100, Number(options.limit) || 100));
+    const deadlineMs = Date.now() + Math.max(100, Math.min(5000, Number(options.timeBudgetMs) || 5000));
+    store.updateLibraryWork(work.workId, { status: 'running', incrementAttempt: true, errorCode: '', errorMessage: '' });
+    try {
+      const resourceKey = subLibrary.source === 'emby'
+        ? `emby:${subLibrary.embyServerId || 'default'}:api`
+        : `filesystem:${subLibrary.uuid}:probe`;
+      const page = await resourceGovernor.runWithPermit({
+        owner: 'libra', workId: work.workId, resourceKey, priority: 5,
+      }, () => nexoraService.observeLibraryPage({
+        sourceDefinition: subLibrary,
+        serverConfig,
+        cursor: work.cursor,
+        limit,
+        deadlineMs,
+      }));
+      for (const observation of page.observations || []) {
+        const sourceReference = observation.sourceReference || {};
+        const existingItemId = nexoraService.resolveBoundItemId(sourceReference);
+        const itemId = existingItemId || crypto.randomUUID();
+        const sourceIdentity = JSON.stringify(sourceReference.source === 'emby'
+          ? [sourceReference.subLib && sourceReference.subLib.embyServerId, sourceReference.subLib && sourceReference.subLib.sectionId, sourceReference.sourceRefId]
+          : [sourceReference.subLib && sourceReference.subLib.uuid, sourceReference.path]);
+        const identityHash = crypto.createHash('sha1').update(sourceIdentity).digest('hex');
+        acceptSource({
+          itemId,
+          sourceReference,
+          idempotencyKey: `observe-source:${work.workId}:${identityHash}`,
+          requestedBy: 'libra_automation',
+        });
+      }
+      return store.updateLibraryWork(work.workId, {
+        status: page.done ? 'done' : 'pending',
+        cursor: page.cursor || work.cursor,
+        retryAt: '',
+        errorCode: '',
+        errorMessage: '',
+      });
+    } catch (error) {
+      store.updateLibraryWork(work.workId, {
+        status: 'retrying',
+        retryAt: new Date(Date.now() + 30000).toISOString(),
+        errorCode: error.code || 'LIBRA_OBSERVATION_FAILED',
+        errorMessage: error.message,
+      });
+      throw error;
+    }
+  }
+
+  function getAutomationProjection() {
+    const runnableWorks = store.listRunnableLibraryWork();
+    return { works: store.listLibraryWork(), runnableWorks, runnable: runnableWorks.length };
   }
 
   async function requestOffboarding(command = {}) {
@@ -300,6 +492,14 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
   return Object.freeze({
     acceptSource,
     requestMaintenance,
+    updateUserPerception,
+    createSubLibrary,
+    updateSubLibrary,
+    deleteSubLibrary,
+    requestLibraryObservation,
+    requestReconcileSweep,
+    runLibraryWork,
+    getAutomationProjection,
     requestOffboarding,
     requestOffboardingBatch,
     reconcileItem: reconciler.reconcileItem,

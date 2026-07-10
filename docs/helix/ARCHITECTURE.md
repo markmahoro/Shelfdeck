@@ -179,7 +179,9 @@ Automation Runner (timer / wake-up / admission scan)
 | Flow Planner | 根据 task/objective/facts 唯一选择 `flowPlan` | 自动化许可、队列调度、资源发放 |
 | Resource Runtime | event 编排、执行/recovery、在每个受争用 event 前向 Governor 申请 permit | gate、automation policy、全局容量配置 |
 
-现有 `automationPolicy.js` 是 Kairox Automation Policy 的物理起点。现有 `smartTaskEngine.js` 应收窄/改名为薄 Automation Runner，而不是与新 engine 并存。`taskScheduler.js` 保留 task queue 调度，不再读取旧 `autoExecute` 或维护任何 Emby、filesystem、FFmpeg、worker 容量计数。
+`automationPolicy.js` 是 Kairox Automation Policy；`kairoxAutomationRunner.js` 是唯一薄 Runner。旧 SmartTask 组件已经移除，不存在平行 automation engine。`taskScheduler.js` 只保留 task queue 调度，不读取 automation mode，也不维护 Emby、filesystem、FFmpeg 或 worker 容量计数。
+
+同一 Flow 需要多个受争用资源时，Beta Runtime 在首个 event 前按稳定 resource-key 顺序预取该 Flow 的 permit 集，并在 Flow 完成、失败、暂停或取消时反序释放。该保守 lease 模式会牺牲少量并行度，但保证每个 event 执行时已持有对应 permit，并避免不同 Flow 以不同顺序申请造成死锁；它不改变 event 的 Task/Flow/Event 事实边界。
 
 Automation Policy 与 TaskAdmission 回答不同问题：前者回答“系统是否应自动发起当前 next target”，后者回答“这一次 task attempt 是否可以创建”。手动 intent 可以绕过 `maintenanceAutomationMode=manual`，但不能绕过 duplicate、generation、freshness、approval 或 destructive safety。
 
@@ -204,6 +206,7 @@ Resource Management 是 Helix 共享工程基础设施，不是第四个业务�
 - source observation 和 Libra reconcile 必须 cursor/batch 化，并有 per-run item/time budget。
 - Kairox Automation Runner / Task Creator 消费 pressure 和 bounded-queue projection，停止无界供给；Task Scheduler 只执行 item lock 和 runnable ordering。
 - 只有共享 Governor 判断全局 resource capacity。Kairox Resource Runtime 在每个受争用 event 开始前申请 permit，并在完成、失败、暂停或取消时通过 `finally` 释放。
+- automatic task 的 terminal failure 或“执行成功但未达到 objective”必须形成可解释的 Automation blocker；同一 admission generation、target 和 objective 不得周期性重复创建 task。新 generation、objective revision 或显式 manual intent 才能解除该自动重试栅栏。
 - 资源不足表达为 waiting/backpressure，不得直接改变业务事实或伪装成 gate failure。
 
 Governor 是由 Helix composition root 创建并注入的进程级单例，位于 Libra、Nexora、Kairox 三个业务组件之外。permit 不持久化；重启后由 durable Libra work 或 Kairox task 重新申请。每个 resource queue 必须有界，并支持 FIFO + aging；control work 使用保留容量，不能被 optimize 饿死。

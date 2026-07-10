@@ -1,6 +1,6 @@
 import type { TaskControlState } from '../types';
 
-export type KairoxTargetGate = 'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete';
+export type KairoxTargetGate = 'basedata' | 'metadata' | 'optimize';
 
 export interface KairoxTaskProjection {
   id: string;
@@ -31,8 +31,7 @@ export interface FactsFreshnessEntry {
 }
 
 export interface FactsFreshnessProjection {
-  sourceFacts?: FactsFreshnessEntry;
-  mediaFacts?: FactsFreshnessEntry;
+  basedataFacts?: FactsFreshnessEntry;
   metadataFacts?: FactsFreshnessEntry;
   userPerceptionFacts?: FactsFreshnessEntry;
   gateFacts?: FactsFreshnessEntry;
@@ -51,8 +50,8 @@ export interface KairoxMediaProjection {
   id: string;
   title: string;
   subLibraryId: string;
-  sourceFacts: Record<string, unknown>;
-  mediaFacts: Record<string, unknown>;
+  sourceProjection: Record<string, unknown>;
+  basedataFacts: Record<string, unknown>;
   metadataFacts: Record<string, unknown>;
   userPerceptionFacts: Record<string, unknown>;
   gateFacts: Record<string, unknown>;
@@ -67,9 +66,8 @@ export interface KairoxMediaProjection {
   };
   objective?: Record<string, unknown> | null;
   activeTask?: KairoxTaskProjection | null;
-  deleteCandidate?: Record<string, unknown> | null;
   nextAction?: {
-    kind: 'none' | 'set_perception' | 'create_task' | 'view_task' | 'review_delete_candidate' | 'wait_media_freeze';
+    kind: 'none' | 'set_perception' | 'create_task' | 'view_task' | 'wait_media_freeze';
     targetGate?: KairoxTargetGate;
     gateObjective?: Record<string, unknown>;
     label: string;
@@ -86,8 +84,8 @@ export interface KairoxDashboardProjection {
     totalItems: number;
     metadataReadyItems: number;
     optimizedItems: number;
-    archivedItems: number;
-    deleteCandidateItems: number;
+    maintenanceCompleteItems: number;
+    offboardingCandidateItems: number;
   };
   optimization: {
     reclaimableBytes: number;
@@ -102,5 +100,5 @@ export interface KairoxPolicyProjection {
   perception: Record<string, unknown>;
   optimizationObjectives: Record<string, unknown>;
   automation: Record<string, unknown>;
-  disposal: Record<string, unknown>;
+  offboarding: Record<string, unknown>;
 }

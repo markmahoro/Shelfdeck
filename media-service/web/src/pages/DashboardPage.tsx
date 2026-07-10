@@ -70,9 +70,8 @@ export default function DashboardPage() {
       <section style={gridStyle}>
         <OutcomeCard label="媒体总数" value={projection.outcomes.totalItems} hint="ShelfDeck 当前管理的媒体条目" />
         <OutcomeCard label="元数据就绪" value={projection.outcomes.metadataReadyItems} hint="可进入优化目标判断的条目" />
-        <OutcomeCard label="已优化" value={projection.outcomes.optimizedItems} hint="已满足优化目标或可归档的条目" />
-        <OutcomeCard label="已归档" value={projection.outcomes.archivedItems} hint="当前处于已归档语义的条目" />
-        <OutcomeCard label="待处置" value={projection.outcomes.deleteCandidateItems} hint="归档后进入处置评估的条目" to="/delete-candidates" />
+        <OutcomeCard label="维护完成" value={projection.outcomes.maintenanceCompleteItems} hint="Basedata、Metadata 与 Optimize 均满足当前目标" />
+        <OutcomeCard label="退出建议" value={projection.outcomes.offboardingCandidateItems} hint="由 Kairox 建议、Libra 负责协调" to="/offboarding" />
         <OutcomeCard label="已节省空间" value={fmtBytes(projection.optimization.realizedReclaimedBytes)} hint={`潜在可回收 ${fmtBytes(projection.optimization.reclaimableBytes)}`} />
       </section>
 

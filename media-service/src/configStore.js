@@ -3,7 +3,6 @@
 const fs = require('fs');
 const path = require('path');
 const metadataStatus = require('./metadataStatus');
-const { DEFAULT_RESOURCE_CAPACITY } = require('./resourceCapacity');
 const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 const { HELIX_SCHEMA_VERSION } = require('./helixCleanState');
 
@@ -291,9 +290,21 @@ function getDefaultConfig() {
   return {
     helixSchemaVersion: HELIX_SCHEMA_VERSION,
 
-    // Shared capacity moves to Helix Resource Governor in Slice 15. This
-    // projection remains capacity-shaped and contains no business target gates.
-    resourceCapacity: { ...DEFAULT_RESOURCE_CAPACITY },
+    resourceGovernor: {
+      capacities: {
+        'control:libra': 1,
+        'control:kairox': 1,
+        'db:library:write': 1,
+        'db:tasks:write': 1,
+        'local:ffmpeg': 1,
+        'emby:*:api': 1,
+        'filesystem:*': 1,
+        'worker:*': 1,
+        'service:task': 1,
+      },
+      defaultQueueLimit: 100,
+      agingMs: 60000,
+    },
     libraryAutomation: {
       pollIntervalSeconds: 60,
       pageSize: 100,
@@ -380,14 +391,9 @@ function getDefaultConfig() {
       },
     },
 
-    // StrategyEngine
-    strategyPollIntervalMinutes: 30,
-
     // Transcode
     transcodeTempRoot: process.platform === 'linux' ? '/transcode' : '',
     transcodeCleanupOrphansOnStartup: true,
-    transcodeReplaceConfirmRequired: false,
-    upgradeReplaceConfirmRequired: false,
     ffmpegPath: 'ffmpeg',
     ffprobePath: 'ffprobe',
     transcodeEncodingDevices: [],
@@ -578,9 +584,13 @@ function mergeConfigWithDefaults(config) {
   const transcodeNormalized = normalizeTranscodeEncodingDevices(config || {}).raw;
   const raw = normalizeMetadataGateConfig(transcodeNormalized).raw;
   const merged = { ...defaults, ...raw };
-  merged.resourceCapacity = {
-    ...(defaults.resourceCapacity || {}),
-    ...((raw && raw.resourceCapacity) || {}),
+  merged.resourceGovernor = {
+    ...(defaults.resourceGovernor || {}),
+    ...((raw && raw.resourceGovernor) || {}),
+    capacities: {
+      ...((defaults.resourceGovernor && defaults.resourceGovernor.capacities) || {}),
+      ...((raw && raw.resourceGovernor && raw.resourceGovernor.capacities) || {}),
+    },
   };
 
   merged.libraryAutomation = {
@@ -670,6 +680,11 @@ const LEGACY_CONFIG_FIELDS = new Set([
   'scrapeConcurrency',
   'transcodeConcurrency',
   'upgradeConcurrency',
+  'resourceCapacity',
+  'backgroundIoGuard',
+  'strategyPollIntervalMinutes',
+  'transcodeReplaceConfirmRequired',
+  'upgradeReplaceConfirmRequired',
 ]);
 
 const HELIX_TARGET_GATES = new Set(['basedata', 'metadata', 'optimize']);

@@ -154,13 +154,7 @@ function filterAndSelect(candidates, itemInfo, config) {
   const scored = scorePool(pool);
 
   // ── Bitrate validation ─────────────────────────────────────────────
-  let durationSec = itemInfo && itemInfo.duration;
-  if (!(typeof durationSec === 'number' && durationSec > 0) && itemInfo && itemInfo.itemId) {
-    try {
-      const lib = require('./mediaLibraryService').getLibraryItem(itemInfo.itemId);
-      if (lib && typeof lib.duration === 'number') durationSec = lib.duration;
-    } catch (_) {}
-  }
+  const durationSec = itemInfo && itemInfo.duration;
 
   const target = itemInfo && itemInfo.targetBitrate;
   if (typeof durationSec === 'number' && durationSec > 0 && target != null) {

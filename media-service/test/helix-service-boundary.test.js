@@ -51,8 +51,8 @@ test('Nexora runtime owns source writes and no longer writes legacy Membership',
   assert.match(source('nexoraService.js'), /require\(['"]\.\/nexoraStore['"]\)/);
   assert.doesNotMatch(source('nexoraService.js'), /require\(['"]\.\/libraryStore['"]\)/);
   assert.doesNotMatch(source('nexoraService.js'), /upsertNexoraMembership/);
-  assert.doesNotMatch(source('mediaLibraryService.js'), /recordEmbySourceObservation/);
-  assert.doesNotMatch(source('adultLibraryService.js'), /recordAdultFolderSourceObservation/);
+  assert.strictEqual(fs.existsSync(path.join(srcRoot, 'mediaLibraryService.js')), false);
+  assert.strictEqual(fs.existsSync(path.join(srcRoot, 'adultLibraryService.js')), false);
 });
 
 test('Libra composes live capability projections without persisting capability snapshots', () => {

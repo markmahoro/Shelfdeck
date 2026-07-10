@@ -115,6 +115,8 @@ export const subLibraries = {
     scraperType?: string;
     watchRoot?: string;
     japaneseJav?: Record<string, unknown>;
+    libraryAutomationMode?: 'auto' | 'manual';
+    maintenanceAutomationMode?: 'auto' | 'manual';
   }) => post<SubLibrary>('/v1/admin/sublibraries', body),
 
   update: (uuid: string, body: Partial<SubLibrary>) =>
@@ -352,10 +354,6 @@ export interface TaskReport {
   };
   bytesSaved?: number;
   bytesFreed?: number;
-  delete?: {
-    targetPath?: string;
-    targetKind?: string;
-  };
   tmdbVerified?: boolean;
   scrape?: {
     adultId?: string;
@@ -421,58 +419,21 @@ export const publicHealth = {
 // ── System Config ─────────────────────────────────────────────────────────────
 
 export interface SystemConfig {
-  executionMode: 'auto' | 'manual';
-  ingestConcurrency: number;
-  deleteConcurrency: number;
-  transcodeConcurrency: number;
-  upgradeConcurrency: number;
-  scrapeConcurrency: number;
-  resourceCapacity?: Record<string, number>;
-  wallRatingAutoEnqueue: boolean;
-  smartTaskMaxPerRun: number;
-  automaticTaskTargets?: string[];
+  resourceGovernor?: {
+    capacities?: Record<string, number>;
+    queueLimits?: Record<string, number>;
+    defaultQueueLimit?: number;
+    agingMs?: number;
+  };
   optimizeAllowedFlowKinds?: string[];
-  smartTaskPollIntervalMinutes: number;
-  smartTaskLookbackDays: number;
-  smartTaskMaxQueueSize: number;
-  smartTaskDeferWhenActiveBacklog?: boolean;
-  smartTaskResourceQueueMultiplier?: number;
-  smartTaskMaxQueuedByResource?: Record<string, number>;
-  strategyPollIntervalMinutes: number;
-  smartSelectMode?: 'auto' | 'manual' | 'per_library';
-  // Queue priority policy (PriorityEngine). Lower number = runs first.
   taskPriority?: {
     manualTaskPriority: number;
     autoTaskPriorityBase: number;
-    targetGateWeights?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
+    targetGateWeights?: Partial<Record<'basedata' | 'metadata' | 'optimize', number>>;
     optimizeOperationHints?: Partial<Record<'transcode' | 'upgrade', number>>;
-    rulesByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', PriorityRule[]>>;
+    rulesByTargetGate?: Partial<Record<'basedata' | 'metadata' | 'optimize', PriorityRule[]>>;
   };
   approvalPolicy?: ApprovalPolicyConfig;
-  taskAdmission?: {
-    defaultCooldownHours?: number;
-    defaultMaxQueued?: number;
-    cooldownHoursByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
-    maxQueuedByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
-    automaticAttemptLimitsByTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
-    mediaFreezeHoursByCompletedTargetGate?: Partial<Record<'ingest' | 'metadata' | 'optimize' | 'archive' | 'delete', number>>;
-  };
-  deleteGatePolicy?: {
-    enabled?: boolean;
-    rules?: Array<{
-      id?: string;
-      name?: string;
-      enabled?: boolean;
-      archivedForDays?: number;
-      minArchivedDays?: number;
-      ratingLte?: number;
-      maxRating?: number;
-      ratingGte?: number;
-      minRating?: number;
-      subLibraryId?: string;
-      mediaType?: string;
-    }>;
-  };
 }
 
 // Advanced overlay rule. match is AND-combined; adjust contributes a delta.
@@ -495,41 +456,19 @@ export const systemConfig = {
     patch<SystemConfig>('/v1/config', body),
 };
 
-// ── Delete Candidates ────────────────────────────────────────────────────────
+// ── Offboarding Candidates ───────────────────────────────────────────────────
 
-export interface DeleteCandidate {
+export interface OffboardingCandidate {
   itemId: string;
   itemName: string;
   subLibraryId: string;
-  candidateStatus: 'pending_review' | 'confirmed' | 'kept_archived' | 'snoozed' | 'suppressed' | 'deleted';
-  eligibilityReason: string;
-  matchedRule?: {
-    ruleId: string;
-    ruleName: string;
-    archivedForDays: number;
-    rating: number | null;
-    archivedAt: string;
-  } | null;
-  archivedAt: string;
-  eligibleAt: string;
-  decision?: string;
-  decisionAt?: string;
-  snoozedUntil?: string;
-  taskId?: string;
-  updatedAt?: string;
+  membership: string;
+  phase: string;
+  recommendation: { reason?: string; cleanupMode?: HelixCleanupMode; [key: string]: unknown };
 }
 
-export const deleteCandidates = {
-  list: (includeDecided = false) =>
-    get<{ candidates: DeleteCandidate[]; total: number }>(`/v1/admin/delete-candidates${includeDecided ? '?includeDecided=1' : ''}`),
-  confirmDelete: (itemId: string) =>
-    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/confirm-delete`, {}),
-  keepArchived: (itemId: string) =>
-    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/keep-archived`, {}),
-  snooze: (itemId: string, days = 30) =>
-    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/snooze`, { days }),
-  suppress: (itemId: string) =>
-    post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/suppress`, {}),
+export const offboardingCandidates = {
+  list: () => get<{ candidates: OffboardingCandidate[]; total: number }>('/v1/admin/offboarding-candidates'),
 };
 
 export type HelixCleanupMode = 'retain_source' | 'detach_source' | 'delete_source';

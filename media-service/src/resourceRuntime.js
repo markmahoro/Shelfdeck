@@ -9,6 +9,9 @@ const scrapeFlow = require('./scrapeFlowExecutor');
 const transcodeFlow = require('./transcodeFlowExecutor');
 const upgradeFlow = require('./upgradeFlowExecutor');
 const kairoxAdmissionFence = require('./kairoxAdmissionFence');
+const resourceGovernor = require('./resourceGovernor');
+const resourceProjection = require('./resourceProjection');
+const configStore = require('./configStore');
 
 const FLOW_EXECUTORS = {
   basedata: basedataFlow,
@@ -147,7 +150,7 @@ function dispatchTask(inputTask, options = {}) {
 
   const resource = options.resource || {};
   const flowStep = flowPlanner.currentFlowStep(task);
-  taskStore.appendTaskEvent(taskStore.getTask(task.id) || task, 'flow.dispatched', {
+  taskStore.appendTaskEvent(taskStore.getTask(task.id) || task, 'flow.waiting_for_resource', {
     flowEventType: flowStep.eventType,
     flowEventPhase: flowStep.phase,
     resourceType: resource.resourceType,
@@ -158,36 +161,67 @@ function dispatchTask(inputTask, options = {}) {
     flowKind: task.flowPlan && task.flowPlan.flowKind,
   }, { resourceType: resource.resourceType });
 
-  const runtimeEvent = runtimeResourceTracker.startEvent({
-    eventType: 'task.dispatch',
-    component: 'resourceRuntime',
-    resourceType: resource.resourceType,
-    resourceKey: resource.resourceKey,
-    resourceLabel: resource.resourceLabel,
-    taskId: task.id,
-    itemId: task.itemId,
-    itemName: task.itemName,
-    source: task.source,
-    payload: {
+  if (typeof callbacks.reportStatus === 'function') callbacks.reportStatus(task.id, 'waiting_for_resource');
+  const resources = resourceProjection.resourcesForTask(task, configStore.loadConfig());
+  const acquireFlowPermits = async () => {
+    const permits = [];
+    try {
+      for (const required of resources.length > 0 ? resources : [{ resourceKey: resource.resourceKey || 'service:task' }]) {
+        permits.push(await resourceGovernor.acquire({
+          owner: 'kairox', workId: task.id, resourceKey: required.resourceKey, priority: task.priority,
+        }));
+      }
+      return permits;
+    } catch (error) {
+      for (const permit of permits.reverse()) permit.release();
+      throw error;
+    }
+  };
+  acquireFlowPermits().then(async (permits) => {
+    const current = taskStore.getTask(task.id) || task;
+    const currentFence = kairoxAdmissionFence.checkTask(current, 'resource_permit_acquired');
+    if (!currentFence.allowed) {
+      for (const permit of permits.reverse()) permit.release();
+      if (typeof callbacks.reportStatus === 'function') callbacks.reportStatus(task.id, 'interrupted');
+      return;
+    }
+    if (typeof callbacks.reportStatus === 'function') callbacks.reportStatus(task.id, 'executing', current.progress || 0);
+    taskStore.appendTaskEvent(current, 'flow.dispatched', {
+      flowEventType: flowStep.eventType,
+      flowEventPhase: flowStep.phase,
+      resourceType: resource.resourceType,
+      resourceKey: resource.resourceKey,
+      resourceLabel: resource.resourceLabel,
+      permitIds: permits.map((permit) => permit.permitId),
       targetGate: task.taskTarget && task.taskTarget.targetGate,
       flowDirection: task.flowPlan && task.flowPlan.direction,
       flowKind,
-      phase: task.phase,
-      priority: task.priority,
-      status: 'executing',
-    },
+    }, { resourceType: resource.resourceType });
+    const runtimeEvent = runtimeResourceTracker.startEvent({
+      eventType: 'task.dispatch', component: 'resourceRuntime', resourceType: resource.resourceType,
+      resourceKey: resource.resourceKey, resourceLabel: resource.resourceLabel, taskId: task.id,
+      itemId: task.itemId, itemName: task.itemName, source: task.source,
+      payload: { targetGate: task.taskTarget && task.taskTarget.targetGate, flowDirection: task.flowPlan && task.flowPlan.direction, flowKind, phase: task.phase, priority: task.priority, status: 'executing', permitIds: permits.map((permit) => permit.permitId) },
+    });
+    try {
+      await executor.driveTask(task.id);
+      runtimeEvent.finish('done');
+    } catch (err) {
+      runtimeEvent.finish('failed', { error: err && err.message ? err.message : String(err) });
+      console.error(`[resourceRuntime] driveTask error for ${task.id}:`, err);
+      if (typeof callbacks.reportStatus === 'function') callbacks.reportStatus(task.id, 'failed_hard');
+      recordFlowFailure(task, resource, flowStep, err);
+    } finally {
+      for (const permit of permits.reverse()) permit.release();
+    }
+  }).catch((error) => {
+    taskStore.updateTask(task.id, {
+      resourceBlocker: { status: 'waiting_for_resource', resourceKey: resource.resourceKey, code: error.code || 'RESOURCE_WAIT_FAILED', message: error.message },
+    });
+    if (typeof callbacks.reportStatus === 'function') callbacks.reportStatus(task.id, 'queued');
   });
 
-  executor.driveTask(task.id).then(() => {
-    runtimeEvent.finish('done');
-  }).catch((err) => {
-    runtimeEvent.finish('failed', { error: err && err.message ? err.message : String(err) });
-    console.error(`[resourceRuntime] driveTask error for ${task.id}:`, err);
-    if (typeof callbacks.reportStatus === 'function') callbacks.reportStatus(task.id, 'failed_hard');
-    recordFlowFailure(task, resource, flowStep, err);
-  });
-
-  return { dispatched: true, task, flowKind, flowStep };
+  return { dispatched: true, waitingForResource: true, task, flowKind, flowStep };
 }
 
 function taskFlowKind(task = {}) {

@@ -8,7 +8,7 @@ const GROUP_1 = [
 const GROUP_2 = [
   { to: '/media', label: '媒体库' },
   { to: '/tasks', label: '任务中心' },
-  { to: '/delete-candidates', label: '处置队列' },
+  { to: '/offboarding', label: '退出管理建议' },
 ];
 
 const GROUP_3 = [

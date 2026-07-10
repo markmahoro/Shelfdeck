@@ -3,7 +3,7 @@
 /**
  * ActivityLog — in-memory ring buffer for engine lifecycle events.
  *
- * Written by StrategyEngine and SmartTaskEngine so desktop/admin-web
+ * Written by Helix Automation components so Admin Web
  * can surface natural-language status messages to the user.
  */
 

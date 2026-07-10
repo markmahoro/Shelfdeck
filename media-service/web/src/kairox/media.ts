@@ -15,11 +15,9 @@ const ACTIVE_TASK_STATUSES = new Set([
 ]);
 
 const TARGET_GATE_LABEL: Record<KairoxTargetGate, string> = {
-  ingest: '创建入库任务',
+  basedata: '采集基础数据',
   metadata: '创建元数据任务',
   optimize: '优化到目标',
-  archive: '创建归档任务',
-  delete: '查看处置建议',
 };
 
 export function isKairoxActiveTask(task: MediaTask): boolean {
@@ -58,7 +56,7 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
     id,
     title,
     subLibraryId,
-    sourceFacts: compactRecord({
+    sourceProjection: compactRecord({
       itemId: id,
       source: item.source,
       subLibraryId,
@@ -71,7 +69,7 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
       seriesName: item.seriesName,
       seasonNumber: item.seasonNumber,
     }),
-    mediaFacts: compactRecord({
+    basedataFacts: compactRecord({
       resolution: item.resolution,
       codec: item.codec,
       durationSec: item.durationSec,
@@ -106,9 +104,6 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
       lifecycleNextTask: item.lifecycleNextTask,
       lifecycleReason: item.lifecycleReason,
       metadataStatus: item.metadataStatus,
-      archiveStatus: item.archiveStatus,
-      archiveReason: item.archiveReason,
-      archiveDoneAt: item.archiveDoneAt,
       optimizationStatus: item.optimizationStatus,
       optimizationDoneAt: item.optimizationDoneAt,
       objectiveHash: item.objectiveHash,
@@ -125,7 +120,6 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
     },
     objective,
     activeTask: projectedTask,
-    deleteCandidate: asOptionalRecord(item.deleteCandidate),
     nextAction,
   };
 }
@@ -135,9 +129,9 @@ export function mediaDisplayFacts(projection: KairoxMediaProjection): Array<{ la
   const quarantine = asRecord(helix.quarantine);
   const maintenance = asRecord(helix.maintenance);
   return [
-    { label: '来源', value: stringValue(projection.sourceFacts.source) || stringValue(projection.sourceFacts.sectionName) || '-' },
-    { label: '规格', value: [projection.mediaFacts.resolution, projection.mediaFacts.codec].filter(Boolean).join(' / ') || '-' },
-    { label: '大小', value: formatSize(projection.mediaFacts.sizeGb) },
+    { label: '来源', value: stringValue(projection.sourceProjection.source) || stringValue(projection.sourceProjection.sectionName) || '-' },
+    { label: '规格', value: [projection.basedataFacts.resolution, projection.basedataFacts.codec].filter(Boolean).join(' / ') || '-' },
+    { label: '大小', value: formatSize(projection.basedataFacts.sizeGb) },
     { label: '感知', value: formatPerception(projection.userPerceptionFacts) },
     { label: '元数据', value: stringValue(projection.metadataFacts.metadataStatus) || (projection.metadataFacts.metadataComplete === true ? 'complete' : '-') },
     { label: '事实', value: freshnessSummary(projection.factsFreshness) },
@@ -157,11 +151,9 @@ export function mediaDisplayFacts(projection: KairoxMediaProjection): Array<{ la
 export function targetGateLabel(value?: KairoxTargetGate | null): string {
   if (!value) return '无';
   return {
-    ingest: '入库',
+    basedata: '基础数据',
     metadata: '元数据',
     optimize: '优化',
-    archive: '归档',
-    delete: '处置',
   }[value];
 }
 
@@ -180,8 +172,7 @@ function buildObjective(item: Record<string, unknown>): Record<string, unknown> 
 function buildFactsFreshness(item: Record<string, unknown>): FactsFreshnessProjection {
   const raw = asRecord(item.factsFreshness);
   return {
-    sourceFacts: normalizeFreshnessEntry(asRecord(raw.sourceFacts)),
-    mediaFacts: normalizeFreshnessEntry(asRecord(raw.mediaFacts)),
+    basedataFacts: normalizeFreshnessEntry(asRecord(raw.basedataFacts)),
     metadataFacts: normalizeFreshnessEntry(asRecord(raw.metadataFacts)),
     userPerceptionFacts: normalizeFreshnessEntry(asRecord(raw.userPerceptionFacts)),
     gateFacts: normalizeFreshnessEntry(asRecord(raw.gateFacts)),
@@ -226,7 +217,6 @@ function buildNextAction(
   if (projectedTask) return { kind: 'view_task', label: '查看进行中的任务', targetGate: projectedTask.targetGate };
   if (mediaFreeze.frozen) return { kind: 'wait_media_freeze', label: '媒体冻结中' };
   if (!nextTargetGate) return { kind: 'none', label: '无需处理' };
-  if (nextTargetGate === 'delete') return { kind: 'review_delete_candidate', targetGate: nextTargetGate, label: TARGET_GATE_LABEL[nextTargetGate] };
   if (nextTargetGate === 'metadata' && hasBlockingMetadataFreshness(factsFreshness)) {
     return {
       kind: 'create_task',
@@ -234,7 +224,7 @@ function buildNextAction(
       label: '刷新媒体事实',
       gateObjective: {
         kind: 'metadata_refresh',
-        refreshFacts: ['mediaFacts', 'metadataFacts'],
+        refreshFacts: ['basedataFacts', 'metadataFacts'],
         reason: 'user_requested_refresh',
       },
     };
@@ -248,13 +238,13 @@ function buildNextAction(
 }
 
 function hasBlockingMetadataFreshness(factsFreshness: FactsFreshnessProjection): boolean {
-  return [factsFreshness.mediaFacts, factsFreshness.metadataFacts].some((entry) => (
+  return [factsFreshness.basedataFacts, factsFreshness.metadataFacts].some((entry) => (
     entry && ['stale', 'invalidated', 'blocked', 'refreshing'].includes(String(entry.status || '').toLowerCase())
   ));
 }
 
 function freshnessSummary(factsFreshness: FactsFreshnessProjection): string {
-  const media = freshnessLabel(factsFreshness.mediaFacts);
+  const media = freshnessLabel(factsFreshness.basedataFacts);
   const metadata = freshnessLabel(factsFreshness.metadataFacts);
   if (media === metadata) return media;
   return `媒体${media} / 元数据${metadata}`;
@@ -272,7 +262,6 @@ export function freshnessLabel(entry?: FactsFreshnessEntry): string {
 
 function currentGate(item: Record<string, unknown>, nextTargetGate: KairoxTargetGate | null): string | undefined {
   if (nextTargetGate) return nextTargetGate;
-  if (item.archiveStatus === 'archived' || item.lifecycleStage === 'archived') return 'archive';
   if (item.optimizationStatus && item.optimizationStatus !== 'none') return 'optimize';
   if (item.metadataComplete === true || item.metadataStatus === 'complete') return 'metadata';
   return stringValue(item.lifecycleStage);

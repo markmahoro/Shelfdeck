@@ -4,6 +4,8 @@ const assert = require('assert');
 const test = require('node:test');
 
 const { buildMaintenanceProjection, bundleToLifecycleItem, createKairoxRuntime } = require('../src/kairoxRuntime');
+const kairoxObjectivePolicy = require('../src/kairoxObjectivePolicy');
+const lifecycleProjection = require('../src/lifecycleProjection');
 
 test('maintenance projection consumes Lifecycle completion without recomputing it', () => {
   const admission = { itemId: 'maintenance-1', status: 'active', admissionGeneration: 3, incidentCode: '' };
@@ -73,4 +75,40 @@ test('Kairox admission creates only an owned skeleton and returns Basedata as ne
   assert.strictEqual(result.nextTargetGate, 'basedata');
   assert.strictEqual(result.maintenanceComplete, false);
   assert.ok(bundles.has('maintenance-3'));
+});
+
+test('Kairox objective policy lets Lifecycle close a no-op optimize objective without StrategyEngine', () => {
+  const config = {
+    subLibraries: [{ uuid: 'library', ruleTemplateId: 'default' }],
+    ruleTemplates: [{ id: 'default', rules: [{ priority: 0, groups: [], reason: 'baseline', targetMediaFacts: { targetCodec: 'h265' } }] }],
+  };
+  const item = kairoxObjectivePolicy.applyObjectivePolicy({
+    itemId: 'objective-item', subLibraryId: 'library',
+    basedataComplete: true, basedataSourceRevision: 'source-1', admissionSourceRevision: 'source-1',
+    metadataComplete: true, codec: 'h265', videoCodec: 'h265', admissionCurrent: true,
+    factsFreshness: {
+      basedataFacts: { status: 'fresh' },
+      metadataFacts: { status: 'fresh' },
+    },
+  }, config);
+  const projection = lifecycleProjection.decorateItem(item, config);
+  assert.strictEqual(projection.optimizeObjectiveStatus, 'ready');
+  assert.strictEqual(projection.optimizeGate.reason, 'objective_already_satisfied');
+  assert.strictEqual(projection.maintenanceComplete, true);
+});
+
+test('automatic terminal failure blocks only the matching generation and target', () => {
+  const projection = {
+    lifecycleNextTask: 'optimize', objectiveHash: 'objective-1', optimizeObjectiveStatus: 'ready',
+    maintenanceComplete: false, maintenanceState: 'maintaining',
+  };
+  const admission = { itemId: 'failure-item', admissionGeneration: 3, status: 'active' };
+  const failure = {
+    taskId: 'failed-task', targetGate: 'optimize', admissionGeneration: 3,
+    objectiveHash: 'objective-1', updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const blocked = buildMaintenanceProjection({ itemId: 'failure-item' }, admission, projection, [], failure);
+  assert.strictEqual(blocked.automationBlocker.code, 'previous_automatic_task_failed');
+  const recovered = buildMaintenanceProjection({ itemId: 'failure-item' }, { ...admission, admissionGeneration: 4 }, projection, [], failure);
+  assert.strictEqual(recovered.automationBlocker, null);
 });

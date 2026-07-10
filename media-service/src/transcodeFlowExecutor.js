@@ -830,8 +830,8 @@ async function runVerify(taskId, task, config) {
       try { fs.unlinkSync(partialPath); } catch (_) {}
       const tempDir = task.itemInfo && task.itemInfo.tempDir;
       if (tempDir) transcodeService.cleanupTaskWorkdir(tempDir);
-      scheduler.reportStatus(taskId, 'done', 100);
-      setPhase(taskId, 'done');
+      scheduler.reportStatus(taskId, 'failed_soft', 100);
+      setPhase(taskId, 'not_beneficial');
       return;
     }
 

@@ -9,7 +9,6 @@ const test = require('node:test');
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-libra-'));
 process.env.CONTROL_PLANE_DATA_DIR = dataDir;
 
-const libraryStore = require('../src/libraryStore');
 const libraStore = require('../src/libraStore');
 const { createLibraRuntime } = require('../src/libraRuntime');
 
@@ -17,9 +16,7 @@ test.after(() => {
   libraStore.resetForTests();
   try {
     fs.rmSync(dataDir, { recursive: true, force: true });
-  } catch {
-    // libraryStore may retain a Windows SQLite handle until process exit.
-  }
+  } catch {}
 });
 
 function fakes(sourceByItem = {}, maintenanceByItem = {}) {
@@ -62,7 +59,7 @@ function fakes(sourceByItem = {}, maintenanceByItem = {}) {
 }
 
 test('Libra does not migrate legacy media_items into clean Membership facts', () => {
-  libraryStore.saveLibrary({ items: [{ itemId: 'legacy-1', name: 'Legacy', source: 'emby', sourceExists: true }] });
+  assert.strictEqual(fs.existsSync(path.join(__dirname, '..', 'src', 'libraryStore.js')), false);
   const { nexoraService, kairoxService } = fakes();
   const runtime = createLibraRuntime({ nexoraService, kairoxService });
   const projection = runtime.getLibraryProjection('legacy-1');

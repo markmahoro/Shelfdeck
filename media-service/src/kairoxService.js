@@ -16,6 +16,10 @@ function createKairoxService(dependencies = {}) {
       }
       throw notImplemented('KairoxService.reconcileMaintenance');
     },
+    reconcileObjectives(itemIds) {
+      if (typeof implementation.reconcileObjectives === 'function') return implementation.reconcileObjectives(itemIds);
+      throw notImplemented('KairoxService.reconcileObjectives');
+    },
     suspendMaintenance(command) {
       if (typeof implementation.suspendMaintenance === 'function') {
         return implementation.suspendMaintenance(command);
@@ -27,6 +31,10 @@ function createKairoxService(dependencies = {}) {
         return implementation.requestMaintenance(command);
       }
       throw notImplemented('KairoxService.requestMaintenance');
+    },
+    updateUserPerception(command) {
+      if (typeof implementation.updateUserPerception === 'function') return implementation.updateUserPerception(command);
+      throw notImplemented('KairoxService.updateUserPerception');
     },
     getMaintenanceProjection(itemId) {
       if (typeof implementation.getMaintenanceProjection === 'function') {

@@ -14,17 +14,15 @@ function config({ manualTaskPriority, autoTaskPriorityBase, rulesByTargetGate, s
       manualTaskPriority: manualTaskPriority ?? 0,
       autoTaskPriorityBase: autoTaskPriorityBase ?? 100,
       targetGateWeights: {
-        ingest: 60,
+        basedata: 60,
         metadata: 80,
         optimize: 110,
-        archive: 70,
-        delete: 90,
       },
       optimizeOperationHints: {
         transcode: 20,
         upgrade: 0,
       },
-      rulesByTargetGate: rulesByTargetGate || { ingest: [], metadata: [], optimize: [], archive: [], delete: [] },
+      rulesByTargetGate: rulesByTargetGate || { basedata: [], metadata: [], optimize: [] },
     },
     subLibraries: subLibraries || [],
   };
@@ -64,7 +62,7 @@ test('auto tasks add source and default library dimensions', () => {
 
 test('targetGateWeights order target gates without treating flows as task targets', () => {
   const c = config();
-  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('ingest', 'ingest'), itemInfo: {}, config: c }), 260);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('basedata', 'basedata'), itemInfo: {}, config: c }), 260);
   assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('metadata', 'scrape'), itemInfo: { scraped: true, adultMetadata: { scrapeStatus: 'done' } }, config: c }), 280);
   assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c }), 330);
   assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'upgrade'), itemInfo: {}, config: c }), 310);
@@ -87,11 +85,9 @@ test('library weight is added as an independent dimension', () => {
 test('rulesByTargetGate applies by lifecycle target gate', () => {
   const c = config({
     rulesByTargetGate: {
-      ingest: [],
+      basedata: [],
       metadata: [],
       optimize: [{ match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 25 } }],
-      archive: [],
-      delete: [],
     },
   });
 
@@ -106,15 +102,13 @@ test('rulesByTargetGate applies by lifecycle target gate', () => {
 test('multiple target-gate rules apply in order', () => {
   const c = config({
     rulesByTargetGate: {
-      ingest: [],
+      basedata: [],
       metadata: [],
       optimize: [
         { match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 50 } },
         { match: { type: 'season' }, adjust: { op: 'add', value: 20 } },
         { match: { isDolbyVision: true }, adjust: { op: 'subtract', value: 10 } },
       ],
-      archive: [],
-      delete: [],
     },
   });
   const p = pe.computePriority({
@@ -130,11 +124,9 @@ test('explainPriority returns the Kairox additive breakdown', () => {
   const c = config({
     subLibraries: [{ uuid: 'film', priorityWeight: 10 }],
     rulesByTargetGate: {
-      ingest: [],
+      basedata: [],
       metadata: [],
       optimize: [{ match: { subLibraryId: 'film' }, adjust: { op: 'subtract', value: 25 } }],
-      archive: [],
-      delete: [],
     },
   });
 
@@ -151,16 +143,10 @@ test('explainPriority returns the Kairox additive breakdown', () => {
   assert.deepStrictEqual(explained.dimensions.map((d) => d.value), [100, 110, 20, 10, -25]);
 });
 
-test('adult workflow business signal keeps ingest and metadata ahead of transcode', () => {
+test('metadata business signal keeps enrichment ahead of transcode', () => {
   const c = config();
   c.taskPriority.businessSignalWeights = { adultWorkflowBonus: 20, maxTranscodeSavingBonus: 30 };
 
-  const ingest = pe.explainPriority({
-    source: 'auto',
-    ...taskContext('ingest', 'ingest'),
-    itemInfo: { source: 'adult_folder', mediaType: 'adult' },
-    config: c,
-  });
   const scrape = pe.explainPriority({
     source: 'auto',
     ...taskContext('metadata', 'scrape'),
@@ -174,10 +160,8 @@ test('adult workflow business signal keeps ingest and metadata ahead of transcod
     config: c,
   });
 
-  assert.strictEqual(ingest.priority, 240);
   assert.strictEqual(scrape.priority, 260);
   assert.strictEqual(transcode.priority, 315);
-  assert.ok(ingest.priority < scrape.priority);
   assert.ok(scrape.priority < transcode.priority);
 });
 
@@ -210,11 +194,9 @@ test('queue age and retry are additive dynamic dimensions', () => {
 test('match is AND-combined; undefined fields do not constrain', () => {
   const c = config({
     rulesByTargetGate: {
-      ingest: [],
+      basedata: [],
       metadata: [],
       optimize: [{ match: { subLibraryId: 'film', type: 'movie' }, adjust: { op: 'subtract', value: 30 } }],
-      archive: [],
-      delete: [],
     },
   });
   assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film', type: 'movie' }, config: c }), 300);
@@ -224,11 +206,9 @@ test('match is AND-combined; undefined fields do not constrain', () => {
 test('resolution match uses prefix semantics', () => {
   const c = config({
     rulesByTargetGate: {
-      ingest: [],
+      basedata: [],
       metadata: [],
       optimize: [{ match: { resolution: '3840' }, adjust: { op: 'add', value: 40 } }],
-      archive: [],
-      delete: [],
     },
   });
   assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { resolution: '3840x2160' }, config: c }), 370);
@@ -238,11 +218,9 @@ test('resolution match uses prefix semantics', () => {
 test('result is clamped to >= 0 and rounded', () => {
   const c = config({
     rulesByTargetGate: {
-      ingest: [],
+      basedata: [],
       metadata: [],
       optimize: [{ match: {}, adjust: { op: 'subtract', value: 500 } }],
-      archive: [],
-      delete: [],
     },
   });
   const p = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c });

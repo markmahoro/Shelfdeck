@@ -47,19 +47,19 @@ Use the smallest relevant set:
 - Only the Libra composition root may depend on both Nexora Service and Kairox Service. Nexora and Kairox must not call each other or write each other's stores.
 - Helix documents live under `docs/helix/`; Nexora domain documents live under `docs/helix/nexora/`. Do not add new Nexora active plans, architecture contracts, acceptance plans, or implementation status under `docs/v3/`.
 - Nexora development uses three stages: Design, Implementation, Audit. Audit includes static audit, automated tests, and E2E / production-like evidence.
-- Nexora Implementation builds the Source Management domain and Kairox eligibility bridge through focused slices: Nexora Fact Model, Source Observation And Binding Validity, Kairox Eligibility Bridge, Legacy Ingest/Delete Quarantine, and Nexora Audit And Hardening.
-- E2E-discovered Nexora contract gaps must return to Design before code is patched.
+- Nexora's earlier focused slices are historical evidence; current cross-domain work follows the sole Helix plan/status.
+- E2E-discovered architecture contract gaps must return to Design and be confirmed before code changes; implementation defects inside an accepted contract may be fixed directly with tests.
 - v3.x roadmap names, Kairox milestone names, Docker image tags, Git release tags, and package versions are different concepts. Use `docs/v3/VERSIONING.md` as the source of truth.
 - `docs/v2/ARCH_OVERVIEW.md` is a current implementation map, not an architecture contract. It must not override the relevant current architecture contract once Nexora exists.
-- Mirex is the legacy compatibility model before Kairox. Recognize, migrate, and preserve it only for compatibility; do not extend it for new behavior.
+- Mirex is historical context before Kairox. Helix clean runtime has no Mirex migration, dual read, or compatibility path.
 - Kairox task semantics are inherited engineering legacy, not proof that Nexora must use lifecycle-first boundaries for Membership or SourceBinding.
-- Legacy `actionType`, operation-kind fields, and top-level selected-flow fields are Mirex remnants. They may only appear in historical docs, negative tests, or one-time cutover/migration inputs, not in new runtime task identity.
+- Legacy `actionType`, operation-kind fields, and top-level selected-flow fields are Mirex remnants. They may only appear in historical docs or negative tests, not in clean runtime task identity.
 - Task / Flow / Event boundaries are hard:
   - Task: one attempt to move one object across one target gate.
   - Flow: implementation path selected by Flow Planner and stored as `flowPlan.flowKind`.
   - Event: durable execution step inside that flow, usually tied to resource usage.
 - All automatic task creation must use unified TaskAdmission / Task Creator semantics. There must be no adult-library-only or background-only auto-enqueue path.
-- `automaticTaskTargets` is the global allow-list for automatic target-gate tasks. Manual user actions may bypass the automatic allow-list as explicit intent, but not safety checks such as duplicate active-task prevention.
+- Each Library has exactly `libraryAutomationMode` and `maintenanceAutomationMode`. Kairox automatic maintenance follows Lifecycle's current `basedata|metadata|optimize` next gate; there is no per-gate automatic allow-list. Manual intent cannot bypass generation, duplicate, freshness, approval, or destructive safety.
 
 ## Production Safety
 

@@ -4,174 +4,60 @@ Last updated: 2026-07-10
 
 ## State
 
-- `Helix = Libra + Nexora + Kairox` is accepted.
-- The permanent physical shape is a modular monolith inside `media-service`.
-- LibraryMembership belongs to Libra.
-- Nexora owns source truth and onboarding/offboarding capability.
-- Kairox owns in-library maintenance and maintenanceComplete.
-- Archive is removed from the Helix clean runtime; it is neither a gate, target, configuration nor completion condition.
-- Physical delete belongs to Nexora execution under Libra authorization; automatic physical delete is prohibited.
+Helix Beta 的 `media-service` 与 Admin Web 实施范围已完成：
 
-## Implementation
+```text
+Helix = Libra + Nexora + Kairox
 
-Slice 1 is complete. The accepted contract, sole Helix plan/status, Service contracts and project memory now agree on Libra ownership and modular-monolith boundaries.
+Libra Library Automation
+  -> Nexora observation / SourceBinding
+  -> Membership / Kairox admission
 
-Slice 2 is complete. In-process Libra/Nexora/Kairox Facades, a single composition root and static dependency tests now exist. The Facades are not yet wired into public runtime behavior.
+Kairox Maintenance Automation
+  -> basedata -> metadata -> optimize -> required basedata refresh
+  -> maintenanceComplete
+```
 
-Slice 3 is complete. Libra now has an owned SQLite Store, LibraryMembership/phase/quarantine/admission facts, idempotent reconcile operations, event evidence, legacy membership migration input, projections and a deterministic Reconciler.
+物理形态保持模块化单体。`media-desktop` 不在本次范围。生产 clean initialization 与新的 production canary 尚未执行，必须由用户单独授权。
 
-Slice 4 is complete. Emby and adult-folder observations now enter through Libra onboarding, Nexora owns source writes through its Store, SourceProjection carries a monotonic revision, and Nexora no longer writes global Membership.
+## Implemented Boundaries
 
-Slices 5 and 6 are complete. Kairox owns admission snapshots, maintenance projection and maintenanceComplete. Libra source incidents suspend Kairox admission, interrupt active work and fence stale generations at dispatch and mutation checkpoints.
+- Libra 唯一拥有 LibraryMembership、Helix phase、quarantine、admission generation、durable library work 和跨域协调。
+- Nexora 唯一拥有 source identity、SourceBinding、observation evidence、diagnose/rebind/offboarding cleanup。相同 source reality 的重复 observation 不增加 canonical source revision。
+- Kairox 唯一拥有 admission skeleton、Basedata/Metadata/User Perception/Optimize objective/facts、Task/Flow/Event 与 `maintenanceComplete`。
+- `kairoxAutomationRunner` 是唯一内层薄 Runner；Lifecycle 决定 next gate，Automation Policy 决定自动触发，Task Creator 创建 task，Scheduler 只排序/恢复/派发。
+- `ingest|archive|delete` maintenance target、旧 SmartTask/Strategy/Observation clocks、混合 `media_items` Store、旧 schedule/config 与 delete-candidate runtime 已从 clean path 删除。
+- Delete 只存在于 Libra Offboarding 的 `cleanupMode=delete_source`，必须显式 destructive authorization；Kairox 只可投影 `disposalRecommendation`。
+- Shared Resource Governor 是唯一 capacity owner，具有 bounded queue、aging、control capacity、multi-resource flow permit 与 diagnostics；resource wait 不写 gate failure。
+- Automatic terminal failure 和无收益 transcode 投影为 blocker；同一 generation/target/objective 不会形成 retry storm。
 
-Slice 7 is complete. Public maintenance intents now enter Libra/Kairox, onboarding/offboarding Admin actions exist, library views carry Helix projections, the disposal UI distinguishes retain/detach/delete, Nexora owns physical cleanup, and public Kairox ingest/delete creation returns 410.
+## Public Runtime
 
-Slices 8 and 9 are complete as Service-boundary and controlled-canary evidence. The user selected the NAS production `公共_国产剧` library as a controlled, non-destructive canary instead of a disposable Docker business simulation. `media-desktop` is explicitly deferred to a later completeness refactor and is not part of this thread.
+- Library 配置只保存 `libraryAutomationMode` 与 `maintenanceAutomationMode`；“全自动”只写 `auto/auto`，不改变 approval/authorization。
+- `POST /v1/admin/sublibraries/:uuid/actions/observe` 创建 durable observation work。
+- `GET /v1/admin/automation` 返回两层 engine、work/cursor 与 Governor pressure。
+- `POST /v1/tasks` 只接受 `basedata|metadata|optimize`。
+- `GET /v1/admin/offboarding-candidates` 读取 Kairox recommendation；三个 cleanup mode 全部进入 Libra。
+- Admin Web 已移除 Archive/legacy automation UI，展示两层自动化、Helix phase/maintenance 与 Governor。
 
-Helix Beta is **in progress**. The previous achieved statement was withdrawn after the completion standard was clarified: a newly created `libraryAutomationMode=auto`, `maintenanceAutomationMode=auto` library must automatically complete Nexora observation/SourceBinding, Libra onboarding/admission and Kairox basedata/metadata/optimize/required-refresh progression to `maintenanceComplete` under bounded shared resources.
+## Acceptance Evidence
 
-Accepted 2026-07-10 rebaseline decisions:
+- Windows host Service suite：`npm test`，113 项测试全部通过。
+- Admin Web：TypeScript + Vite production build passed。
+- Production dependencies：升级 Fastify/Static/Undici 及受影响 transitive dependencies 后，`npm audit --omit=dev` 为 0 vulnerabilities。
+- Static audit：Nexora/Kairox 无互相依赖；只有 Libra composition root 同时组合两个 Service；Scheduler 不读 Library facts 或 capacity；clean executor registry 只有 Basedata/Scrape/Transcode/Upgrade。
+- Disposable host E2E：新建 `auto/auto` Emby stub library，经 restart 后自动到 `maintenanceComplete`，task 只有 Basedata 与 Metadata。
+- Linux production image：依赖升级后重新构建 `shelfdeck:helix-beta-local` 成功；一次性 clean runtime 中 Admin Web HTTP 200、Libra/Kairox Automation 均为 green，重启后 durable work 正常恢复；测试容器和 volume 已删除。
+- Disposable Docker read-only chain：Basedata/Metadata/no-op Optimize 自动完成，容器重启后 task 数不增加。
+- Disposable Docker real mutation chain：测试生成的 H.264 文件经显式 `transcode.beforeReplace` 确认后替换为 HEVC；task 顺序为 `basedata,metadata,optimize,basedata`，全部 `done`，最终 `maintenanceComplete=true`；容器重启后仍保持 4 个 task，无重复 replace。
+- Docker E2E 使用独立 container/network/named volumes，完成后已全部删除；未连接 NAS、未挂载生产媒体。
 
-- Automation has two business control loops: Libra Library Automation outside and Kairox Maintenance Automation inside. Nexora is bounded capability work called by the outer loop, not a third business controller.
-- Kairox keeps a first-class `basedata` gate replacing ambiguous legacy `ingest`: SourceBinding remains Nexora truth; Kairox Basedata is the mechanical/technical observation used by maintenance.
-- Resource Management remains infrastructure rather than a top-level business domain, but a shared Helix Resource Governor must control permits/backpressure across Nexora, Libra and Kairox.
-- Kairox approval policy remains distinct from automation policy. Destructive authorization is one type of risk authorization, not a synonym for runtime approval.
-- Delete is not a Kairox lifecycle gate. Kairox may publish a disposal recommendation; physical delete is Libra Offboarding `delete_source`, executed by Nexora after authorization and Kairox quiescence.
-- Kairox Lifecycle is the sole owner of `nextTargetGate`, gate achievement and `maintenanceComplete`.
-- Existing `automationPolicy.js` is the physical Kairox automatic-trigger policy. Existing SmartTaskEngine must become a thin bounded Automation Runner rather than coexist with a new heavy engine.
-- Task Scheduler only selects and recovers already-created tasks, enforces item lock/order and dispatches to Resource Runtime. It does not create tasks, interpret gates, read automation modes, choose flows or calculate resource capacity.
-- Helix Resource Governor is one process-wide infrastructure singleton outside Libra/Nexora/Kairox. It is the only capacity owner; Kairox Resource Runtime requests its permits per event.
-- The clean cut has no runtime/config/API compatibility for `ingest|delete|archive`, old SmartTask fields or old schedule fields. Old state requires explicit clean initialization rather than migration or dual read.
+## Earlier Production Evidence
 
-The first attempt at the rebaselined runtime was paused before commit/deploy when the physical Kairox component boundary was challenged. Partial local Basedata/Governor/automation files are implementation work-in-progress, not accepted evidence. In particular, a newly introduced heavy `kairoxAutomationEngine.js` must not survive as a parallel business component; implementation resumes from the reinforced contract and revised Slice 12 order.
+重基线之前，生产 `公共_国产剧` 曾完成 non-destructive retain-source/re-add、onboarding/admission/restart 和单个 read-only Metadata canary。该证据证明旧阶段的 Service 边界，但不替代本次 clean runtime 的 production cutover；本次实现没有修改生产 Emby Library、Emby metadata 或媒体文件。
 
-Slice 12 is active. Its first clean-runtime foundation is implemented locally: a default dry-run clean-init tool now inventories an explicit ShelfDeck-state allow-list, requires a fixed confirmation before apply, backs up before reset, preserves only the Service API key and deployment path/mount settings, and never enumerates media roots. Libra no longer migrates `media_items`/`nexora_memberships` or persists capability projection snapshots. Clean owned schemas now create Libra Membership/work and Nexora source tables in `library.db`, plus Kairox media/basedata/metadata/optimize/objective/admission facts in `tasks.db`, without creating the mixed `media_items` table. Startup enforcement and removal of remaining legacy config/API/runtime paths are still pending; no clean-init apply was run against local or production data.
+## Open Risks / Deferred Work
 
-Slice 12 focused evidence:
-
-- `node --test test/helix-clean-state.test.js test/helix-owned-schema.test.js test/libra-core.test.js` passed 11 tests.
-- Dry-run tests prove no file mutation; apply tests prove explicit confirmation, backup, secret/config narrowing and preservation of an unlisted media fixture.
-- Owned-schema audit proves `media_items` and `nexora_memberships` are absent when only current Libra/Nexora/Kairox Stores initialize.
-
-Slice 12 clean-config/startup checkpoint:
-
-- `configStore` now requires `helixSchemaVersion`, rejects old automation/schedule/SmartTask fields with `HELIX_CLEAN_INIT_REQUIRED`, and never migrates or silently defaults an invalid persisted config.
-- Per-library configuration now has only `libraryAutomationMode` and `maintenanceAutomationMode`; manual task intent is queued independently of either automatic mode.
-- The production Service entrypoint runs clean-state/config preflight before building the app. Legacy media refresh, strategy, Nexora observation and SmartTask clocks are no longer started, so an explicitly initialized empty runtime does not recreate `media_items` during startup.
-- Public task creation accepts only `basedata|metadata|optimize` and returns `400 KAIROX_INVALID_TARGET_GATE` otherwise. Legacy scan/cache/recompute and delete-candidate routes were removed rather than retained as 410 responses.
-- Focused clean-runtime/config/API tests pass. A full `npm test` audit currently passes 255 of 387 tests and fails 132. Most failures are old compatibility expectations or fixtures for SmartTask allow-lists, old scheduling fields, ingest/archive/delete lifecycle and `media_items`; the remainder identify Kairox fact-store/runtime cutover still required. Slice 12 remains active and no full-suite claim is made.
-
-Slice 12 Kairox-owned fact checkpoint:
-
-- `KairoxRuntime` no longer imports `libraryStore`; admission creates only a `kairox_media` skeleton and batch projections read Kairox-owned fact bundles.
-- Basedata execution publishes revisioned facts through `kairoxStore.publishBasedata` in `tasks.db`; it no longer writes `media_items` or the legacy freshness table.
-- Flow Planner and Resource Runtime registries now contain only Basedata/Scrape/Transcode/Upgrade implementation flows for the three maintenance targets. Ingest/Delete/Archive executors are not registered.
-- Lifecycle now owns the final `maintenanceComplete|maintenanceState` derivation. Kairox Service projection consumes that result instead of independently reconstructing the completion formula.
-- Missing task admission is fenced rather than accepted as legacy work. Focused Kairox ownership/fencing/flow/static tests pass 20 tests.
-
-Slice 12 clean canonical-path checkpoint:
-
-- `/v1/library`、manage query、item detail、manual maintenance intent、sublibrary offboarding 和 space stats 已改为组合 Libra Membership、Nexora source projection 与 Kairox maintenance projection，不再从 `media_items` 读取主链路事实。Libra 的批量 projection 也会一次读取当前 operation，避免列表产生逐项 operation query。
-- Manual maintenance 不再用旧缓存隐式 onboarding；只有已经处于 active maintenance admission 的 Libra Membership 才能创建 `basedata|metadata|optimize` task。
-- Task Scheduler 不再读取或写入 Library domain facts，也不再根据 live media cache 判定 scrape 是否 stale。它只负责 durable task 的恢复、排序、item lock 与 dispatch；资源容量迁移到 Governor 仍属于 Slice 15。
-- Metadata executor 现在从 Kairox admission 的 SourceBinding snapshot 调用 Emby/folder adapter，先保存 durable `scrape_publish` 恢复点，再以 task identity 幂等发布 Kairox metadata facts。它不再刷新 `media_items`、调用 StrategyEngine 或写 legacy freshness。
-- Optimize replace 成功后先保存 durable `mediaMutation=committed`，随后由 executor 发布 Kairox optimize facts 并只令 Basedata stale。发布失败从 `transcode_publish|upgrade_publish` 恢复，不会再次执行媒体替换；同一 task 重试不会重复增加 fact revision。
-- Gate invalidation 只接受 `basedata|metadata|optimize`，写 Kairox freshness 与 durable refresh request；canonical publication 会完成相应 request。旧 `ingest|delete|archive` recovery contract 已从当前 flow recovery map 移除。
-- Clean-runtime focused suite 通过 27 项测试，包括 clean API onboarding/manual Basedata intent/offboarding、批量 projection、fact ownership、Metadata/Optimize publication 幂等、post-replace Basedata refresh 和静态依赖审计。
-- 最新全量审计共 396 项，232 通过、164 失败。失败主要来自仍构造 `media_items`、SmartTask、旧 schedule/allow-list、`ingest|delete|archive`、sidecar scrape 和兼容 API 的历史测试；仍有 adult Admin action、rating/playback 与 dashboard 等公开路径依赖旧模型，需要在 Slice 12/16 继续删除或改写。当前不宣称全量测试通过，Slice 12 仍为 active。
-
-Slice 1 evidence:
-
-- Active-contract drift search found no current document still defining `Helix = Nexora + Kairox`.
-- `node --test test/kairox-rebaseline-audit.test.js` passed (4 tests).
-
-Slice 2 evidence:
-
-- `node --test test/helix-service-boundary.test.js test/nexora-core.test.js` passed (8 tests).
-- Static audit proves only `libraCompositionRoot.js` imports both Helix capability Facades.
-
-Slice 3 evidence:
-
-- `node --test test/libra-core.test.js test/helix-service-boundary.test.js test/nexora-core.test.js` passed (12 tests).
-- Migration leaves current media active but in onboarding with `migration_source_unresolved`; it does not silently grant maintenance admission.
-- Idempotency-key payload reuse is rejected and explicit delete authorization is enforced before an offboarding operation is accepted.
-
-Slice 4 evidence:
-
-- `npm test` passed all 357 service tests.
-- Emby and adult-folder present → missing → recovered projections increment source revision and preserve stable binding identity.
-- Static tests forbid mixed legacy services from directly calling Nexora observation writers.
-
-Slice 5 evidence:
-
-- `maintenanceComplete` requires current admission, fresh metadata, a current passed optimize objective, no canonical refresh and no incident; archive is not required.
-- The app automatic-task path rejects missing Libra admission and quarantines ingest/delete targets.
-
-Slice 6 evidence:
-
-- `npm test` passed all 363 service tests.
-- Admission fence tests cover current, suspended and stale generations.
-- Resource dispatch plus transcode/upgrade replace, scrape metadata write, archive finalize and legacy delete mutation checkpoints validate the task generation.
-
-Slice 7 evidence:
-
-- Helix Admin API test covers active projection, retain source, detach source, explicit delete authorization, physical folder deletion, closed membership and manual maintenance rejection after close.
-- `node --test test/helix-api.test.js test/api-inject.test.js` passed all 132 tests after legacy API tests were rebaselined.
-- Admin Web TypeScript/Vite build passed with Helix media facts and three offboarding actions.
-
-Slice 8 evidence:
-
-- `npm test` passed all 370 Service tests after the maintenance-state ownership correction.
-- `npm run build:web` passed the Admin Web TypeScript/Vite production build.
-- Static audit confirms only `libraCompositionRoot.js` imports both Nexora and Kairox capability Facades.
-- Sublibrary removal is now gated by a Libra batch `retain_source` operation; direct removal with active Membership returns `409 LIBRA_SUBLIBRARY_OFFBOARDING_REQUIRED`.
-- The sublibrary batch API forbids `detach_source` and `delete_source`; tests prove retained source files are unchanged.
-- Nexora observation can be woken after a runtime source configuration change.
-- `helix-data-preflight.js` performs a read-only production schema/count plan before startup migration.
-- Production read-only diagnostics on 2026-07-10 confirmed the `shelfdeck` container is absent while compose and runtime data remain present.
-
-Production deployment and canary:
-
-- `公共_国产剧` retain-source offboarding, re-add, 44 current Emby source observations, admission and restart recovery passed without Emby/media mutation.
-- The old ShelfDeck configuration contained 46 cached items; the re-added source observed the current Emby inventory of 44 manageable seasons. This was treated as source reality, not silently backfilled from stale ShelfDeck cache.
-- All 46 old Memberships completed `retain_source` offboarding and all 44 current observations reached active Membership, source ready, `phase=maintenance` and current Kairox admission.
-- Restart recovery preserved all 44 admissions and did not create automatic tasks while the library remained in `manual` / `full_manual` mode with all auto-execution and auto-replace switches disabled.
-- One non-destructive Kairox metadata task `8c23743ec5ef903c` completed for item `26e1170d-8540-43e8-87cf-8b531e6da09c`, using admission generation 1. It only read Emby/media state and updated ShelfDeck facts.
-- The task exposed and then verified the maintenance ownership correction: Libra remained `phase=maintenance`; the live Kairox projection became `metadataPassed=true`, `optimizePassed=true`, `maintenanceState=complete` and `maintenanceComplete=true` without another media operation.
-- Libra startup/periodic reconcile was green after deployment and reconciled 2620 Memberships; GET projection remained side-effect free.
-- No optimize/delete task was run. Emby Library configuration, Emby metadata and media files were not modified.
-
-Production build record:
-
-- Production URL: `http://192.168.12.230:18080`
-- Image: `markmahoro/shelfdeck:helix-maintenance-state-20260710-1af2afee`
-- Source commit: `1af2afee Clarify Helix maintenance state ownership`
-- Image tar SHA256: `dd728cd6d725b9cf25c6a4c640632468e5cc543d160a9bb8a87bfe25f28819bb`
-- Deployment time: `2026-07-10 15:13 Asia/Shanghai`
-- Health: green, including Nexora observation and Libra Reconciler runtime status
-- Production E2E: passed within the explicitly authorized non-destructive scope
-
-## Current Runtime Gaps Against Rebaselined Beta
-
-- Nexora observation, Libra reconcile and Kairox SmartTask currently run as three independent timers rather than two explicit business automation loops.
-- Nexora observation can scan and commit a whole library without cursor/time budget or a shared resource permit; Libra periodic reconcile can also perform a full Membership scan.
-- Current adapters publish Kairox-consumed source facts during onboarding, so there is no independent Basedata Gate on the Helix path.
-- Post-optimize canonical refresh can project legacy `nextTargetGate=ingest`, while the Helix admission provider rejects all new ingest tasks. This can prevent full-auto convergence after a mutating optimize flow.
-- Current `maintenanceComplete` does not yet require current Basedata.
-- Kairox has useful queue caps, resource capacities, item locks and pressure projections, but shared permits/leases do not yet govern Nexora/Libra workloads.
-- Current Task Scheduler still reads legacy execution-mode configuration and maintains resource counters. Both responsibilities must move out: automatic-trigger policy belongs to Kairox Automation Policy, while all capacity belongs to the shared Governor.
-- Current Automation Policy is still a target allow-list and SmartTaskEngine still mixes scan, policy and resource pressure. They have not yet been refactored to the accepted Policy/Runner boundary.
-
-## Preserved Experimental Evidence
-
-- Existing Nexora fact-model work remains useful input and is not treated as an accepted runtime boundary by itself.
-- The focused Nexora/Kairox audit tests passed before Helix implementation started.
-
-## Open Risks
-
-- Legacy Kairox ingest/delete executors remain only for historical/rollback tests; public and automatic Helix paths cannot create them.
-- The current deployed image is safe evidence but does not meet the rebaselined full-auto Beta completion standard.
-- Existing experimental Nexora Membership migration and legacy schema/config readers must be removed from the clean runtime; production cutover requires a separately confirmed clean initialization.
-- Production `detach_source`, authorized `delete_source`, source missing/recovery/rebind and stale-generation fencing were intentionally not exercised against real media. Automated tests cover them; a future production destructive test still requires a separately named episode and explicit authorization.
-- The production canary permits ShelfDeck fact/task/config mutations only. Emby Library, Emby metadata and media files remain read-only.
-- `media-desktop` still speaks legacy task intent and is intentionally outside this thread.
+- 生产当前数据与 clean runtime 不兼容；上线必须先单独确认 dry-run、backup、clean initialization 和 canary，不允许自动迁移或 dual read。
+- 真实生产 source incident、detach/delete 与 media replace 仍未获具体剧集授权；只在 disposable/automated tests 中验证。
+- `media-desktop` 仍需后续完整性重构。

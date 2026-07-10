@@ -2,7 +2,7 @@
 
 const diagnosticLog = require('./diagnosticLog');
 const flowPlanner = require('./flowPlanner');
-const resourceCapacity = require('./resourceCapacity');
+const resourceGovernor = require('./resourceGovernor');
 
 const ACTIVE_STATUSES = new Set(['executing', 'pausing']);
 const BLOCKED_STATUSES = new Set(['awaiting_user_confirm', 'paused']);
@@ -13,42 +13,6 @@ function resourceStateForStatus(status) {
   if (ACTIVE_STATUSES.has(status)) return 'running';
   if (BLOCKED_STATUSES.has(status)) return 'blocked';
   return 'waiting';
-}
-
-function concurrencyLimitForFlowKind(flowKind, config = {}) {
-  switch (flowKind) {
-    case 'ingest': return config.ingestConcurrency || 1;
-    case 'delete': return config.deleteConcurrency || 1;
-    case 'transcode': return config.transcodeConcurrency || 1;
-    case 'upgrade': return config.upgradeConcurrency || 1;
-    case 'scrape': return config.scrapeConcurrency || 1;
-    default: return 1;
-  }
-}
-
-function concurrencyLimitForResource(taskResource, config = {}) {
-  const legacyFallback = (() => {
-  switch (taskResource && taskResource.resourceType) {
-    case 'local_transcode':
-    case 'worker_transcode':
-      return config.transcodeConcurrency || 1;
-    case 'moviepilot':
-      return config.upgradeConcurrency || 1;
-    case 'emby':
-      return config.embyMetadataRepairConcurrency || config.scrapeConcurrency || 1;
-    case 'scraper':
-      return config.scrapeConcurrency || 1;
-    case 'local_ai':
-      return config.localWesternAiConcurrency || config.westernAiConcurrency || 1;
-    case 'filesystem':
-      if (taskResource.resourceKey === 'filesystem:ingest') return config.ingestConcurrency || 1;
-      if (taskResource.resourceKey === 'filesystem:mutation') return config.deleteConcurrency || 1;
-      return 1;
-    default:
-      return concurrencyLimitForFlowKind(taskResource && taskResource.flowKind, config);
-  }
-  })();
-  return resourceCapacity.capacityForResource(taskResource, config, legacyFallback);
 }
 
 function subLibraryForTask(task, config = {}) {
@@ -76,9 +40,8 @@ function isWesternAiScrape(task, config = {}) {
   return String(western.computeMode || 'local').toLowerCase() !== 'worker';
 }
 
-function resourceForTask(task, config = {}) {
+function resourceForPlannedType(task, plannedResourceType, config = {}) {
   const flowKind = flowKindForTask(task);
-  const plannedResourceType = flowPlanner.currentResourceType(task || {});
   if (plannedResourceType === 'transcode') {
     if (task.nodeId) {
       return {
@@ -101,17 +64,21 @@ function resourceForTask(task, config = {}) {
     };
   }
   if (plannedResourceType === 'emby') {
+    const descriptor = task.helixAdmission && task.helixAdmission.sourceAccessDescriptor || {};
+    const serverId = descriptor.identityPayload && descriptor.identityPayload.serverId || 'default';
     return {
       resourceType: 'emby',
-      resourceKey: 'emby:metadata',
+      resourceKey: `emby:${serverId}:api`,
       resourceLabel: 'Emby metadata repair',
     };
   }
   if (plannedResourceType === 'filesystem') {
     const suffix = flowKind === 'basedata' ? 'probe' : 'mutation';
+    const descriptor = task.helixAdmission && task.helixAdmission.sourceAccessDescriptor || {};
+    const scope = descriptor.subLibraryId || 'default';
     return {
       resourceType: 'filesystem',
-      resourceKey: `filesystem:${suffix}`,
+      resourceKey: `filesystem:${scope}:${suffix}`,
       resourceLabel: suffix === 'probe' ? 'Filesystem Basedata probe' : 'Filesystem mutation',
     };
   }
@@ -141,6 +108,22 @@ function resourceForTask(task, config = {}) {
     resourceKey: `unknown:${flowKind || 'task'}`,
     resourceLabel: 'Unknown resource',
   };
+}
+
+function resourceForTask(task, config = {}) {
+  return resourceForPlannedType(task, flowPlanner.currentResourceType(task || {}), config);
+}
+
+function resourcesForTask(task, config = {}) {
+  const types = task && task.flowPlan && Array.isArray(task.flowPlan.resourceTypes)
+    ? task.flowPlan.resourceTypes
+    : [flowPlanner.currentResourceType(task || {})];
+  const byKey = new Map();
+  for (const type of types) {
+    const resource = resourceForPlannedType(task, type, config);
+    if (resource.resourceType !== 'unknown') byKey.set(resource.resourceKey, resource);
+  }
+  return [...byKey.values()].sort((a, b) => a.resourceKey.localeCompare(b.resourceKey));
 }
 
 function compactTaskTarget(taskTarget) {
@@ -190,7 +173,7 @@ function makeResourceBucket(taskResource, config) {
     resourceType: taskResource.resourceType,
     resourceKey: taskResource.resourceKey,
     resourceLabel: taskResource.resourceLabel,
-    configuredSlots: concurrencyLimitForResource(taskResource, config),
+    configuredSlots: resourceGovernor.capacityFor(taskResource.resourceKey),
     running: 0,
     waiting: 0,
     blocked: 0,
@@ -308,6 +291,7 @@ module.exports = {
   buildResourceView,
   compactRuntimeEvent,
   resourceForTask,
+  resourcesForTask,
   eventStateForStatus,
   resourceStateForStatus,
 };

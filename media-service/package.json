@@ -12,20 +12,19 @@
     "test": "node --test test/*.test.js",
     "build:web": "cd web && npm run build",
     "helix:clean-init": "node scripts/helix-clean-init.js",
-    "migrate:v3": "node scripts/v3-data-migration.js",
     "dist:win": "node scripts/package-win.js"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
-    "@fastify/static": "^8.0.0",
+    "@fastify/static": "^9.3.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
     "better-sqlite3": "^12.11.1",
     "cheerio": "^1.0.0",
     "chokidar": "^4.0.3",
-    "fastify": "^5.2.1",
+    "fastify": "^5.10.0",
     "ffmpeg-static": "^5.2.0",
     "sharp": "^0.35.2",
-    "undici": "^6.21.3"
+    "undici": "^6.27.0"
   },
   "optionalDependencies": {
     "systray2": "^2.1.4"

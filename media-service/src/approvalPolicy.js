@@ -3,7 +3,6 @@
 const MODES = new Set(['auto', 'confirm', 'forceConfirm']);
 
 const DEFAULT_APPROVAL_POLICY = Object.freeze({
-  'delete.beforeExecute': 'confirm',
   'transcode.dolbyVisionTonemap': 'auto',
   'transcode.beforeReplace': 'confirm',
   'upgrade.candidateSelect': 'confirm',
@@ -62,7 +61,6 @@ function makeApproval(gateId, opts = {}) {
 
 function titleForGate(gateId) {
   switch (gateId) {
-    case 'delete.beforeExecute': return 'Confirm delete';
     case 'transcode.dolbyVisionTonemap': return 'Confirm Dolby Vision tonemap';
     case 'transcode.beforeReplace': return 'Confirm transcode replacement';
     case 'upgrade.candidateSelect': return 'Select replacement source';

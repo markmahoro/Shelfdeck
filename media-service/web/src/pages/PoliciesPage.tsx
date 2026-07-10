@@ -2,19 +2,17 @@ import { useMemo, type CSSProperties } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AdultConfigPage from './AdultConfigPage';
 import DoubanConfigPage from './DoubanConfigPage';
-import DisposalPolicyPage from './DisposalPolicyPage';
 import MoviePilotConfigPage from './MoviePilotConfigPage';
 import RuleTemplatesPage from './RuleTemplatesPage';
 import SystemConfigPage from './SystemConfigPage';
 
-type PolicyTab = 'library' | 'perception' | 'objectives' | 'automation' | 'disposal';
+type PolicyTab = 'library' | 'perception' | 'objectives' | 'automation';
 
 const TABS: Array<{ key: PolicyTab; label: string }> = [
   { key: 'library', label: '媒体库配置' },
   { key: 'perception', label: '用户感知' },
   { key: 'objectives', label: '媒体优化目标' },
   { key: 'automation', label: '自动化策略' },
-  { key: 'disposal', label: '处置策略' },
 ];
 
 export default function PoliciesPage() {
@@ -33,7 +31,7 @@ export default function PoliciesPage() {
       <header style={headerStyle}>
         <div>
           <h1 style={titleStyle}>管理策略</h1>
-          <p style={subtitleStyle}>配置媒体库、用户感知、媒体优化目标、自动化和归档后处置。</p>
+          <p style={subtitleStyle}>配置媒体库、用户感知、媒体优化目标与两层自动化。</p>
         </div>
       </header>
       <div style={tabsStyle}>
@@ -58,7 +56,6 @@ export default function PoliciesPage() {
             <MoviePilotConfigPage />
           </>
         )}
-        {activeTab === 'disposal' && <DisposalPolicyPage />}
       </section>
     </div>
   );

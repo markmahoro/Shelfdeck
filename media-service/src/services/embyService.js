@@ -133,6 +133,34 @@ async function getMediaFolders(serverConfig) {
 const ITEM_FIELDS =
   'BasicSyncInfo,RunTimeTicks,ImageTags,Type,MediaType,Path,VideoType,IsoType,SeriesName,SeriesId,ParentIndexNumber,IndexNumber,ParentId,ProviderIds,MediaSources,UserData';
 
+async function getLibraryItemsPage(serverConfig, sectionId, options = {}) {
+  const userId = String(serverConfig.userId || '').trim();
+  if (!userId) throw new Error('Emby userId not configured');
+  const startIndex = Math.max(0, Number(options.startIndex) || 0);
+  const limit = Math.max(1, Math.min(500, Number(options.limit) || 100));
+  const uid = encodeURIComponent(userId);
+  const data = await embyFetchJson(serverConfig, `Users/${uid}/Items`, {}, {
+    ParentId: sectionId,
+    Recursive: 'true',
+    IncludeItemTypes: 'Movie,Series,Season,Episode',
+    Fields: ITEM_FIELDS,
+    SortBy: 'SortName',
+    SortOrder: 'Ascending',
+    Limit: String(limit),
+    StartIndex: String(startIndex),
+  });
+  const rawItems = data && Array.isArray(data.Items) ? data.Items : [];
+  const total = Number(data && data.TotalRecordCount) || 0;
+  const nextIndex = startIndex + rawItems.length;
+  return {
+    items: rawItems.map(extractItemFields),
+    startIndex,
+    nextIndex,
+    total,
+    done: rawItems.length === 0 || nextIndex >= total,
+  };
+}
+
 async function getLibraryItems(serverConfig, sectionId) {
   const userId = String(serverConfig.userId || '').trim();
   if (!userId) throw new Error('Emby userId not configured');
@@ -570,6 +598,7 @@ module.exports = {
   getUsers,
   getMediaFolders,
   getLibraryItems,
+  getLibraryItemsPage,
   getItemById,
   getSeasonEpisodes,
   libraryItemExists,

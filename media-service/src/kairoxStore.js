@@ -63,6 +63,16 @@ function ensureSchema(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_kairox_metadata_status ON kairox_metadata_facts(status, updated_at);
 
+    CREATE TABLE IF NOT EXISTS kairox_user_perception_facts (
+      item_id TEXT PRIMARY KEY,
+      fact_revision INTEGER NOT NULL DEFAULT 0,
+      facts_json TEXT NOT NULL DEFAULT '{}',
+      evidence_json TEXT NOT NULL DEFAULT '{}',
+      observed_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(item_id) REFERENCES kairox_media(item_id)
+    );
+
     CREATE TABLE IF NOT EXISTS kairox_optimize_facts (
       item_id TEXT PRIMARY KEY,
       objective_revision TEXT NOT NULL DEFAULT '',
@@ -101,6 +111,14 @@ function ensureSchema(db) {
       FOREIGN KEY(item_id) REFERENCES kairox_media(item_id)
     );
     CREATE INDEX IF NOT EXISTS idx_kairox_refresh_status ON kairox_refresh_requests(status, updated_at);
+
+    CREATE TABLE IF NOT EXISTS kairox_automation_state (
+      engine_id TEXT PRIMARY KEY,
+      cursor_json TEXT NOT NULL DEFAULT '{}',
+      last_run_at TEXT NOT NULL DEFAULT '',
+      last_error TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -265,6 +283,30 @@ function completeRefresh(itemId, factGroup, updatedAt) {
   return getRefreshRequest(itemId, factGroup);
 }
 
+function getAutomationState(engineId = 'maintenance') {
+  const row = getDb().prepare('SELECT * FROM kairox_automation_state WHERE engine_id=?').get(String(engineId));
+  return row ? {
+    engineId: row.engine_id,
+    cursor: parse(row.cursor_json, {}),
+    lastRunAt: row.last_run_at,
+    lastError: row.last_error,
+    updatedAt: row.updated_at,
+  } : { engineId: String(engineId), cursor: {}, lastRunAt: '', lastError: '', updatedAt: '' };
+}
+
+function updateAutomationState(engineId = 'maintenance', updates = {}) {
+  const current = getAutomationState(engineId);
+  const now = nowIso(updates.updatedAt);
+  getDb().prepare(`
+    INSERT INTO kairox_automation_state(engine_id,cursor_json,last_run_at,last_error,updated_at)
+    VALUES (?,?,?,?,?)
+    ON CONFLICT(engine_id) DO UPDATE SET
+      cursor_json=excluded.cursor_json,last_run_at=excluded.last_run_at,
+      last_error=excluded.last_error,updated_at=excluded.updated_at
+  `).run(String(engineId), JSON.stringify(updates.cursor == null ? current.cursor : updates.cursor), String(updates.lastRunAt == null ? current.lastRunAt : updates.lastRunAt), String(updates.lastError == null ? current.lastError : updates.lastError), now);
+  return getAutomationState(engineId);
+}
+
 function publishMetadata(input = {}) {
   const media = ensureMedia(input);
   const existing = getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(media.itemId);
@@ -295,6 +337,43 @@ function publishMetadata(input = {}) {
   `).run(row);
   completeRefresh(media.itemId, 'metadata', row.updated_at);
   return factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(media.itemId), 'metadata');
+}
+
+function getUserPerception(itemId) {
+  const row = getDb().prepare('SELECT * FROM kairox_user_perception_facts WHERE item_id=?').get(String(itemId || ''));
+  return row ? {
+    itemId: row.item_id,
+    kind: 'userPerception',
+    factRevision: Number(row.fact_revision) || 0,
+    facts: parse(row.facts_json, {}),
+    evidence: parse(row.evidence_json, {}),
+    observedAt: row.observed_at || '',
+    updatedAt: row.updated_at || '',
+  } : null;
+}
+
+function updateUserPerception(input = {}) {
+  const media = ensureMedia(input);
+  const existing = getUserPerception(media.itemId);
+  const now = nowIso(input.updatedAt);
+  const row = {
+    item_id: media.itemId,
+    fact_revision: (existing && existing.factRevision || 0) + 1,
+    facts_json: JSON.stringify({ ...(existing && existing.facts || {}), ...(input.facts || {}) }),
+    evidence_json: JSON.stringify(input.evidence || {}),
+    observed_at: nowIso(input.observedAt || now),
+    updated_at: now,
+  };
+  getDb().prepare(`
+    INSERT INTO kairox_user_perception_facts
+      (item_id,fact_revision,facts_json,evidence_json,observed_at,updated_at)
+    VALUES
+      (@item_id,@fact_revision,@facts_json,@evidence_json,@observed_at,@updated_at)
+    ON CONFLICT(item_id) DO UPDATE SET
+      fact_revision=excluded.fact_revision,facts_json=excluded.facts_json,
+      evidence_json=excluded.evidence_json,observed_at=excluded.observed_at,updated_at=excluded.updated_at
+  `).run(row);
+  return getUserPerception(media.itemId);
 }
 
 function upsertObjective(input = {}) {
@@ -381,6 +460,7 @@ function getBundle(itemId) {
     itemId: id,
     basedata: getBasedata(id),
     metadata: factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(id), 'metadata'),
+    userPerception: getUserPerception(id),
     optimize: factRow(getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE item_id=?').get(id), 'optimize'),
     objective: getObjective(id),
     refreshRequests: refresh,
@@ -400,6 +480,7 @@ function getBundles(itemIds = []) {
       itemId: row.item_id,
       basedata: null,
       metadata: null,
+      userPerception: null,
       optimize: null,
       objective: null,
       refreshRequests: [],
@@ -416,6 +497,18 @@ function getBundles(itemIds = []) {
   attachFacts('kairox_basedata_facts', 'basedata', 'basedata');
   attachFacts('kairox_metadata_facts', 'metadata', 'metadata');
   attachFacts('kairox_optimize_facts', 'optimize', 'optimize');
+  for (const row of db.prepare(`SELECT * FROM kairox_user_perception_facts WHERE item_id IN (${placeholders})`).all(...ids)) {
+    if (!byId[row.item_id]) continue;
+    byId[row.item_id].userPerception = {
+      itemId: row.item_id,
+      kind: 'userPerception',
+      factRevision: Number(row.fact_revision) || 0,
+      facts: parse(row.facts_json, {}),
+      evidence: parse(row.evidence_json, {}),
+      observedAt: row.observed_at || '',
+      updatedAt: row.updated_at || '',
+    };
+  }
   for (const row of db.prepare(`SELECT * FROM kairox_objectives WHERE item_id IN (${placeholders})`).all(...ids)) {
     if (!byId[row.item_id]) continue;
     byId[row.item_id].objective = {
@@ -455,6 +548,7 @@ module.exports = {
   getBasedata,
   getMetadata,
   getOptimize,
+  getUserPerception,
   getBundle,
   getBundles,
   markBasedataStale,
@@ -463,8 +557,11 @@ module.exports = {
   requestRefresh,
   getRefreshRequest,
   completeRefresh,
+  getAutomationState,
+  updateAutomationState,
   publishBasedata,
   publishMetadata,
+  updateUserPerception,
   publishOptimize,
   upsertObjective,
   resetForTests,

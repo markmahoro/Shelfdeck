@@ -136,10 +136,8 @@ function buildTaskContext({ itemInfo, task, taskTarget, flowKind }) {
 
 function targetForFlowKind(flowKind) {
   const flow = normalizeFlowKind(flowKind);
-  if (flow === 'ingest') return 'ingest';
+  if (flow === 'basedata') return 'basedata';
   if (flow === 'scrape' || flow === 'metadata') return 'metadata';
-  if (flow === 'archive') return 'archive';
-  if (flow === 'delete') return 'delete';
   if (flow === 'transcode' || flow === 'upgrade') return 'optimize';
   return flow || '';
 }
@@ -150,18 +148,14 @@ function normalizeFlowKind(flowKind) {
 
 function deterministicFlowKindForGate(targetGate) {
   const gate = String(targetGate || '').trim().toLowerCase();
-  if (gate === 'ingest') return 'ingest';
+  if (gate === 'basedata') return 'basedata';
   if (gate === 'metadata') return 'scrape';
-  if (gate === 'archive') return 'archive';
-  if (gate === 'delete') return 'delete';
   return '';
 }
 
 function defaultTargetGateWeight(targetGate) {
-  if (targetGate === 'ingest') return 60;
+  if (targetGate === 'basedata') return 60;
   if (targetGate === 'metadata') return 80;
-  if (targetGate === 'archive') return 70;
-  if (targetGate === 'delete') return 90;
   if (targetGate === 'optimize') return 110;
   return 0;
 }
@@ -189,13 +183,6 @@ function computeBusinessSignalDelta(flowKind, itemInfo, cfg) {
   const maxTranscodeSavingBonus = numberOr(weights.maxTranscodeSavingBonus, 30);
   const info = itemInfo || {};
   const meta = info.adultMetadata || {};
-
-  if (flowKind === 'ingest') {
-    if (info.source === 'adult_folder' || info.mediaType === 'adult' || meta.region) {
-      return -adultWorkflowBonus;
-    }
-    return 0;
-  }
 
   if (flowKind === 'scrape') {
     const scrapeStatus = String(meta.scrapeStatus || '').toLowerCase();

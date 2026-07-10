@@ -187,10 +187,9 @@ export default function MediaManagePage() {
         ]} />
         <FilterSelect label="阶段" value={lifecycleFilter} onChange={setLifecycleFilter} options={[
           ['all', '全部'],
+          ['basedata', '基础数据'],
           ['metadata', '元数据'],
           ['optimize', '优化'],
-          ['archive', '归档'],
-          ['delete', '处置'],
         ]} />
         <FilterSelect label="评分" value={ratingFilter} onChange={setRatingFilter} options={[
           ['all', '全部'],
@@ -284,7 +283,7 @@ function MediaProjectionRow({
     <article className="kairoxMediaRow">
       <div className="kairoxMediaTitleCell">
         <button className="kairoxLinkButton" onClick={() => onOpenDetail(item)}>{item.title}</button>
-        <div className="hint">{item.sourceFacts.sectionName as string || item.subLibraryId || '未知媒体库'} · {item.id}</div>
+        <div className="hint">{item.sourceProjection.sectionName as string || item.subLibraryId || '未知媒体库'} · {item.id}</div>
       </div>
 
       <div className="kairoxFactStrip">
@@ -332,8 +331,6 @@ function MediaProjectionRow({
           <button disabled={creating} onClick={() => onCreateTask(item, nextGate)}>
             {creating ? '创建中...' : item.nextAction?.label}
           </button>
-        ) : item.nextAction?.kind === 'review_delete_candidate' ? (
-          <button onClick={() => onOpenDetail(item)}>查看处置</button>
         ) : item.nextAction?.kind === 'wait_media_freeze' ? (
           <span className="hint">冻结至 {formatTimestamp(item.mediaFreeze.frozenUntil)}</span>
         ) : (
@@ -355,8 +352,8 @@ function MediaDetailDrawer({ item, onClose }: { item: KairoxMediaProjection; onC
           </div>
           <button onClick={onClose}>关闭</button>
         </div>
-        <FactSection title="来源事实" facts={item.sourceFacts} />
-        <FactSection title="媒体事实" facts={item.mediaFacts} />
+        <FactSection title="Source projection" facts={item.sourceProjection} />
+        <FactSection title="基础数据" facts={item.basedataFacts} />
         <FactSection title="元数据事实" facts={item.metadataFacts} />
         <FreshnessSection factsFreshness={item.factsFreshness} />
         <FactSection title="用户感知" facts={item.userPerceptionFacts} />
@@ -371,8 +368,7 @@ function MediaDetailDrawer({ item, onClose }: { item: KairoxMediaProjection; onC
 
 function FreshnessSection({ factsFreshness }: { factsFreshness: KairoxMediaProjection['factsFreshness'] }) {
   const rows = [
-    ['来源事实', factsFreshness.sourceFacts],
-    ['媒体事实', factsFreshness.mediaFacts],
+    ['基础数据', factsFreshness.basedataFacts],
     ['元数据事实', factsFreshness.metadataFacts],
     ['用户感知', factsFreshness.userPerceptionFacts],
     ['Gate facts', factsFreshness.gateFacts],

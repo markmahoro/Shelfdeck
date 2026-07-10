@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const Database = require('better-sqlite3');
 
 const cleanState = require('../src/helixCleanState');
 const { assertRuntimeReady } = require('../src/helixRuntimePreflight');
@@ -47,5 +48,22 @@ test('runtime preflight rejects a clean marker paired with legacy config', () =>
   assert.throws(
     () => assertRuntimeReady({ dataDir }),
     (error) => error.code === 'HELIX_CLEAN_INIT_REQUIRED',
+  );
+});
+
+test('runtime preflight rejects a clean marker paired with a legacy task schema', () => {
+  const dataDir = tempDir();
+  cleanState.applyCleanInit({
+    dataDir,
+    confirmation: cleanState.APPLY_CONFIRMATION,
+  });
+  const db = new Database(path.join(dataDir, 'tasks.db'));
+  db.exec('CREATE TABLE tasks (id TEXT PRIMARY KEY, payload_json TEXT NOT NULL)');
+  db.close();
+
+  assert.throws(
+    () => assertRuntimeReady({ dataDir }),
+    (error) => error.code === 'HELIX_CLEAN_INIT_REQUIRED'
+      && error.details.legacyTables.includes('tasks.schema'),
   );
 });

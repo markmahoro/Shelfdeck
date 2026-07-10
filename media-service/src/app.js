@@ -11,10 +11,8 @@ const fastifyStatic = require('@fastify/static');
 
 const configStore = require('./configStore');
 const taskStore = require('./taskStore');
-const libraryStore = require('./libraryStore');
 const taskScheduler = require('./taskScheduler');
 const healthCheck = require('./healthCheck');
-const mediaLibraryService = require('./mediaLibraryService');
 const embyService = require('./services/embyService');
 const doubanService = require('./services/doubanService');
 const transcodeService = require('./services/transcodeService');
@@ -24,9 +22,6 @@ const activityLog = require('./activityLog');
 const spaceStats = require('./spaceStats');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
-const assetIdentity = require('./assetIdentity');
-const adultLibraryService = require('./adultLibraryService');
-const adultColdArtifactStore = require('./adultColdArtifactStore');
 const peopleStore = require('./peopleStore');
 const adultActorImageSearchService = require('./services/adultActorImageSearchService');
 const westernAdultLocalAiService = require('./services/westernAdultLocalAiService');
@@ -35,59 +30,14 @@ const resourceProjection = require('./resourceProjection');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
 const resourceRuntime = require('./resourceRuntime');
 const { getHelixServices } = require('./libraCompositionRoot');
-const libraReconcileEngine = require('./libraReconcileEngine');
+const libraAutomationEngine = require('./libraAutomationEngine');
+const resourceGovernor = require('./resourceGovernor');
+const kairoxAutomationRunner = require('./kairoxAutomationRunner');
 const diagnosticLog = require('./diagnosticLog');
-const backgroundIoGuard = require('./backgroundIoGuard');
 const taskControlPolicy = require('./taskControlPolicy');
 const lifecycleProjection = require('./lifecycleProjection');
 
 let serverReady = false;
-
-// ── Playback log ─────────────────────────────────────────────────────────────
-
-function playbackLogPath() {
-  return path.join(configStore.resolveDataDir(), 'playback-log.json');
-}
-
-function loadPlaybackLog() {
-  try {
-    const p = playbackLogPath();
-    if (fs.existsSync(p)) {
-      const raw = fs.readFileSync(p, 'utf8');
-      return JSON.parse(raw);
-    }
-  } catch (_) {}
-  return [];
-}
-
-function savePlaybackLog(logs) {
-  fs.writeFileSync(playbackLogPath(), JSON.stringify(logs, null, 2));
-}
-
-function addPlaybackEntry(entry) {
-  const logs = loadPlaybackLog();
-  const idx = logs.findIndex((e) => e.itemId === entry.itemId);
-  if (idx >= 0) {
-    // Aggregate: update timestamp, increment play count
-    const existing = logs[idx];
-    logs.splice(idx, 1);
-    logs.unshift({
-      ...existing,
-      ...entry,
-      playedAt: new Date().toISOString(),
-      playCount: (existing.playCount || 1) + 1,
-    });
-  } else {
-    logs.unshift({ ...entry, playedAt: new Date().toISOString(), playCount: 1 });
-  }
-  savePlaybackLog(logs);
-}
-
-function removePlaybackEntry(itemId) {
-  const logs = loadPlaybackLog();
-  const filtered = logs.filter((e) => e.itemId !== itemId);
-  savePlaybackLog(filtered);
-}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -587,20 +537,17 @@ function taskLifecycleSignals(task, context, controlState) {
   if (context.mediaType !== 'adult' && flowKind === 'scrape') {
     const isEmbyRepair = primaryResourceType === 'emby' || resourceTypes.includes('emby');
     if (!isEmbyRepair) {
-      const terminal = ['done', 'skipped', 'failed_hard', 'cancelled'].includes(status);
       signals.push({
-        severity: terminal ? 'warn' : 'error',
-        code: terminal ? 'legacy_standard_media_scrape_task' : 'standard_media_scrape_wrong_resource',
-        message: terminal
-          ? 'Standard media scrape task predates the Emby metadata repair resource model.'
-          : 'Active standard media scrape must use the Emby metadata repair resource.',
+        severity: 'error',
+        code: 'standard_media_scrape_wrong_resource',
+        message: 'Standard media scrape must use the Emby metadata repair resource.',
         expectedResourceType: 'emby',
         actualResourceType: primaryResourceType || '',
       });
     }
   }
-  if (context.mediaType === 'adult' && bridgeKind === 'metadata' && !['ingest', 'scrape'].includes(flowKind)) {
-    signals.push({ severity: 'warn', code: 'adult_metadata_unexpected_flow', message: 'Adult metadata bridge should use ingest or scrape flow.' });
+  if (context.mediaType === 'adult' && bridgeKind === 'metadata' && flowKind !== 'scrape') {
+    signals.push({ severity: 'warn', code: 'adult_metadata_unexpected_flow', message: 'Adult Metadata must use the scrape flow.' });
   }
   if (status === 'awaiting_user_confirm' && !confirmationRequired) {
     signals.push({ severity: 'error', code: 'awaiting_without_confirmation_gate', message: 'Task status is awaiting confirmation but controlState has no active confirmation gate.' });
@@ -767,7 +714,7 @@ function adultReviewQueueItem(item) {
     updatedAt: item.updatedAt || '',
     taskBridge: {
       kind: 'metadata',
-      from: 'ingested',
+      from: 'basedata_ready',
       to: 'metadata_ready',
       reason,
       flowKind: 'scrape',
@@ -940,12 +887,12 @@ function buildDashboardAutomation(config) {
     libraryAutomation: {
       autoLibraries: subLibraries.filter((item) => item.libraryAutomationMode === 'auto').length,
       manualLibraries: subLibraries.filter((item) => item.libraryAutomationMode !== 'auto').length,
-      status: libraReconcileEngine.getHealth().status || 'starting',
+      status: libraAutomationEngine.getHealth().status || 'starting',
     },
     maintenanceAutomation: {
       autoLibraries: subLibraries.filter((item) => item.maintenanceAutomationMode === 'auto').length,
       manualLibraries: subLibraries.filter((item) => item.maintenanceAutomationMode !== 'auto').length,
-      status: 'not_started',
+      status: kairoxAutomationRunner.getHealth().status || 'starting',
     },
   };
 }
@@ -953,7 +900,7 @@ function buildDashboardAutomation(config) {
 const DASHBOARD_HEALTH_LABELS = {
   api: 'Service API',
   scheduler: 'Task Scheduler',
-  libraReconciler: 'Libra Reconciler',
+  libraryAutomation: 'Library Automation',
   transcode: 'Transcode Runtime',
   emby: 'Emby',
   douban: 'Douban',
@@ -978,7 +925,7 @@ function dashboardHealthCheckItem(key, item = {}) {
 
 function buildDashboardServiceProjection(health) {
   const checks = health && health.checks && typeof health.checks === 'object' ? health.checks : {};
-  const serviceKeys = ['scheduler', 'libraReconciler', 'transcode'];
+  const serviceKeys = ['scheduler', 'libraryAutomation', 'transcode'];
   const externalKeys = ['emby', 'douban', 'upgrade'];
   const serviceChecks = [
     dashboardHealthCheckItem('api', { status: 'green', message: 'Admin API is responding' }),
@@ -1006,13 +953,6 @@ function buildDashboardServiceProjection(health) {
   };
 }
 
-function adultSubLibraryIds(config = {}) {
-  return (Array.isArray(config.subLibraries) ? config.subLibraries : [])
-    .filter((sl) => sl && (sl.mediaType === 'adult' || sl.adultRegion))
-    .map((sl) => String(sl.uuid || '').trim())
-    .filter(Boolean);
-}
-
 function buildDashboardHealthSignals(mediaStats, taskStats, config, automation = {}) {
   const signals = [];
   const push = (level, code, label, count, detail = '') => {
@@ -1022,11 +962,27 @@ function buildDashboardHealthSignals(mediaStats, taskStats, config, automation =
 
   push('red', 'failed_tasks', '失败任务', taskStats.failedTasks, '先到任务中心查看实现路径和 event 历史');
   push('yellow', 'awaiting_confirmation', '等待确认', taskStats.awaitingConfirmationTasks, '需要人工确认后才能继续');
-  push('yellow', 'metadata_incomplete', '元数据未完成', mediaStats.metadataIncompleteItems, '会阻断转码、洗版、删除等优化入口');
+  push('yellow', 'metadata_incomplete', '元数据未完成', mediaStats.metadataIncompleteItems, '会阻断当前维护目标');
   push('yellow', 'pending_optimization', '等待优化', mediaStats.pendingOptimizationItems, '推荐动作仍未闭环');
   push('yellow', 'open_lifecycle', '未闭环媒体', mediaStats.openItems, '仍有业务桥需要推进');
 
   return signals.slice(0, 10);
+}
+
+function queryDashboardMediaStatsFromHelix() {
+  const items = getHelixServices().libraService.queryLibraryProjections({}).items;
+  return {
+    totalItems: items.length,
+    activeItems: items.filter((item) => item.helix.membership.status === 'active').length,
+    closedItems: items.filter((item) => item.helix.membership.status === 'closed').length,
+    quarantinedItems: items.filter((item) => item.helix.quarantine.status !== 'none').length,
+    metadataIncompleteItems: items.filter((item) => !item.metadataComplete).length,
+    pendingOptimizationItems: items.filter((item) => item.helix.maintenance.nextTargetGate === 'optimize').length,
+    openItems: items.filter((item) => !item.maintenanceComplete && item.helix.membership.status === 'active').length,
+    maintenanceCompleteItems: items.filter((item) => item.maintenanceComplete).length,
+    offboardingCandidateItems: items.filter((item) => item.helix.maintenance.disposalRecommendation).length,
+    totalBytes: items.reduce((sum, item) => sum + (Number(item.size) || 0), 0),
+  };
 }
 
 function dashboardBusinessStatus(signals) {
@@ -1036,11 +992,10 @@ function dashboardBusinessStatus(signals) {
 }
 
 const DASHBOARD_ACTION_LABELS = {
-  ingest: '入库',
+  basedata: '基础信息',
   scrape: '刮削',
   transcode: '转码压缩',
   upgrade: '洗版',
-  delete: '删除',
 };
 
 const DASHBOARD_TASK_EVENT_LABELS = {
@@ -1574,13 +1529,17 @@ function resolveEmbyConfigForLibrary(subLibraryId) {
 }
 
 function resolveEmbyConfigForItem(itemId, subLibraryId) {
-  const libItem = mediaLibraryService.getLibraryItem(itemId);
-  const resolvedSubLibraryId = subLibraryId || (libItem && libItem.subLibraryId) || '';
+  const library = getHelixServices().libraService.queryLibraryProjections({ itemId }, { limit: 1 });
+  const libItem = library.items[0] || null;
+  const descriptor = libItem && libItem.helix && libItem.helix.source && libItem.helix.source.sourceAccessDescriptor || {};
+  const identity = descriptor.identityPayload || {};
+  const resolvedSubLibraryId = subLibraryId || (libItem && libItem.subLibraryId) || descriptor.subLibraryId || '';
   if (resolvedSubLibraryId) {
     const resolved = resolveEmbyConfigForLibrary(resolvedSubLibraryId);
     if (!resolved.error) {
       resolved.libItem = libItem || null;
-      resolved.embyItemId = libItem ? assetIdentity.getEmbyItemId(libItem) : itemId;
+      resolved.embyItemId = identity.embyItemId || descriptor.locator && descriptor.locator.sourceRefId || '';
+      if (!resolved.embyItemId) return { error: { code: 'NOT_FOUND', message: 'Emby SourceBinding is unavailable for this item' } };
     }
     return resolved;
   }
@@ -2181,7 +2140,7 @@ function registerRoutes(app) {
       for (const item of result.items) {
         const sl = subLibs.find((s) => s.uuid === item.subLibraryId);
         if (sl && servers[sl.embyServerId] && servers[sl.embyServerId].baseUrl) {
-          const embyItemId = assetIdentity.getEmbyItemId(item);
+          const embyItemId = item.embyItemId;
           if (embyItemId) {
             item.embyWebUrl = `${String(servers[sl.embyServerId].baseUrl).replace(/\/+$/, '')}/web/index.html#!/item?id=${embyItemId}`;
           }
@@ -2226,15 +2185,32 @@ function registerRoutes(app) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'userRating must be 1-5');
     }
     try {
-      mediaLibraryService.updateUserRating(itemId, userRating);
+      getHelixServices().libraService.updateUserPerception({
+        itemId,
+        facts: { userRating },
+        evidence: { source: 'user_rating_api' },
+      });
       return { ok: true };
     } catch (e) {
-      return apiError(reply, 404, 'NOT_FOUND', e.message);
+      const statusCode = e.code === 'LIBRA_ITEM_NOT_FOUND' ? 404 : 409;
+      return apiError(reply, statusCode, e.code || 'USER_PERCEPTION_REJECTED', e.message);
     }
   });
 
   app.get('/v1/library/status', async () => {
-    return mediaLibraryService.getLibraryStatus();
+    const cfg = configStore.loadConfig();
+    return {
+      subLibraries: (cfg.subLibraries || []).map((subLibrary) => ({
+        uuid: subLibrary.uuid,
+        name: subLibrary.name,
+        enabled: subLibrary.enabled !== false,
+        source: subLibrary.source || 'emby',
+        mediaType: subLibrary.mediaType || 'movie',
+        libraryAutomationMode: subLibrary.libraryAutomationMode,
+        maintenanceAutomationMode: subLibrary.maintenanceAutomationMode,
+      })),
+      libraAutomation: libraAutomationEngine.getHealth(),
+    };
   });
 
   // ── Library: mark played / unplayed ─────────────────────────────────────
@@ -2252,7 +2228,16 @@ function registerRoutes(app) {
 
       // Fetch single item from Emby to get updated watched status
       const fetchedItem = await embyService.getItem(resolved.serverConfig, embyItemId);
-      mediaLibraryService.applyEmbyPerceptionFacts(itemId, fetchedItem);
+      getHelixServices().libraService.updateUserPerception({
+        itemId,
+        facts: {
+          watched: !!fetchedItem.watched,
+          playCount: fetchedItem.playCount,
+          lastPlayedAt: fetchedItem.lastPlayedAt,
+          favorite: fetchedItem.favorite,
+        },
+        evidence: { source: 'emby_user_data', embyItemId },
+      });
 
       activityLog.addActivity('user_action', `「${fetchedItem.name || itemId}」已标记为已看`);
       return { ok: true };
@@ -2274,7 +2259,16 @@ function registerRoutes(app) {
 
       // Fetch single item from Emby to get updated watched status
       const fetchedItem = await embyService.getItem(resolved.serverConfig, embyItemId);
-      mediaLibraryService.applyEmbyPerceptionFacts(itemId, fetchedItem);
+      getHelixServices().libraService.updateUserPerception({
+        itemId,
+        facts: {
+          watched: !!fetchedItem.watched,
+          playCount: fetchedItem.playCount,
+          lastPlayedAt: fetchedItem.lastPlayedAt,
+          favorite: fetchedItem.favorite,
+        },
+        evidence: { source: 'emby_user_data', embyItemId },
+      });
 
       return { ok: true };
     } catch (e) {
@@ -2285,36 +2279,53 @@ function registerRoutes(app) {
   // ── Local playback log ──────────────────────────────────────────────────
 
   app.get('/v1/library/playback-log', async (req) => {
-    const logs = loadPlaybackLog();
     const filterSubLib = (req.query && req.query.subLibraryId) || '';
-    const filtered = filterSubLib ? logs.filter((e) => e.subLibraryId === filterSubLib) : logs;
-    return filtered;
+    const result = getHelixServices().libraService.queryLibraryProjections(filterSubLib ? { subLibraryId: filterSubLib } : {});
+    return result.items.filter((item) => item.watched).sort((a, b) => String(b.helix.maintenance.userPerceptionFacts.lastPlayedAt || '').localeCompare(String(a.helix.maintenance.userPerceptionFacts.lastPlayedAt || '')));
   });
 
-  app.post('/v1/library/playback-log/record', async (req) => {
-    const { itemId, subLibraryId, itemName, type, posterUrl, path, embyWebUrl, sectionName } = req.body || {};
+  app.get('/v1/admin/automation', async () => ({
+    libraryAutomation: libraAutomationEngine.getHealth(),
+    maintenanceAutomation: kairoxAutomationRunner.getHealth(),
+    resources: resourceGovernor.snapshot(),
+  }));
+
+  app.get('/v1/admin/offboarding-candidates', async () => {
+    const items = getHelixServices().libraService.queryLibraryProjections({}).items;
+    const candidates = items
+      .filter((item) => item.helix && item.helix.maintenance && item.helix.maintenance.disposalRecommendation)
+      .map((item) => ({
+        itemId: item.itemId,
+        itemName: item.name || item.title || item.itemId,
+        subLibraryId: item.subLibraryId || '',
+        membership: item.helix.membership,
+        phase: item.helix.phase,
+        recommendation: item.helix.maintenance.disposalRecommendation,
+      }));
+    return { candidates, total: candidates.length };
+  });
+
+  app.post('/v1/library/playback-log/record', async (req, reply) => {
+    const { itemId, subLibraryId } = req.body || {};
     if (!itemId || !subLibraryId) {
       return { ok: false, error: 'itemId and subLibraryId are required' };
     }
-    addPlaybackEntry({
-      itemId,
-      subLibraryId,
-      itemName: itemName || '',
-      type: type || 'movie',
-      posterUrl: posterUrl || '',
-      path: path || '',
-      embyWebUrl: embyWebUrl || '',
-      sectionName: sectionName || '',
-    });
-    return { ok: true };
+    try {
+      getHelixServices().libraService.updateUserPerception({
+        itemId,
+        facts: { watched: true, lastPlayedAt: new Date().toISOString() },
+        evidence: { source: 'playback_log_api' },
+      });
+      return { ok: true };
+    } catch (error) {
+      return apiError(reply, error.code === 'LIBRA_ITEM_NOT_FOUND' ? 404 : 409, error.code || 'USER_PERCEPTION_REJECTED', error.message);
+    }
   });
 
-  // v1 backward compat — redirect queries/played to playback-log
   app.post('/v1/library/queries/played', async (req) => {
-    const logs = loadPlaybackLog();
     const filterSubLib = (req.body && req.body.subLibraryId) || '';
-    const filtered = filterSubLib ? logs.filter((e) => e.subLibraryId === filterSubLib) : logs;
-    return filtered;
+    const result = getHelixServices().libraService.queryLibraryProjections(filterSubLib ? { subLibraryId: filterSubLib } : {});
+    return result.items.filter((item) => item.watched);
   });
 
   app.post('/v1/library/queries/unplayed', async (req, reply) => {
@@ -2377,18 +2388,6 @@ function registerRoutes(app) {
   });
 
   // ── Douban Integration ──────────────────────────────────────────────────
-
-  app.get('/v1/integrations/douban/fetch/ratings', async (req, reply) => {
-    const subLibraryId = req.query.subLibraryId;
-    if (!subLibraryId) return apiError(reply, 400, 'VALIDATION_ERROR', 'subLibraryId is required');
-    try {
-      mediaLibraryService.triggerDoubanSync(subLibraryId);
-      return reply.code(202).send({ ok: true, message: 'Douban sync triggered' });
-    } catch (e) {
-      if (e.message.includes('not found')) return apiError(reply, 404, 'NOT_FOUND', e.message);
-      return apiError(reply, 502, 'DOUBAN_UNREACHABLE', e.message);
-    }
-  });
 
   app.get('/v1/integrations/douban/session', async () => {
     return doubanService.getSession();
@@ -2556,13 +2555,30 @@ function registerRoutes(app) {
       metadataGate,
     }, cfg);
     if (gateError) return gateError;
-    const subLib = mediaLibraryService.addSubLibrary({
+    const created = getHelixServices().libraService.createSubLibrary({
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
       libraryAutomationMode, maintenanceAutomationMode, approvalPolicy, metadataGate,
     });
-    return reply.code(201).send(subLib);
+    if (created.observationWork) libraAutomationEngine.wake();
+    return reply.code(201).send({ ...created.subLibrary, observationWork: created.observationWork });
+  });
+
+  app.post('/v1/admin/sublibraries/:uuid/actions/observe', async (req, reply) => {
+    const body = req.body || {};
+    if (!body.idempotencyKey) return apiError(reply, 400, 'VALIDATION_ERROR', 'idempotencyKey is required');
+    try {
+      const work = getHelixServices().libraService.requestLibraryObservation({
+        subLibraryId: req.params.uuid,
+        idempotencyKey: body.idempotencyKey,
+        requestedBy: 'admin_api',
+      });
+      libraAutomationEngine.wake();
+      return reply.code(202).send({ workId: work.workId, work });
+    } catch (error) {
+      return apiError(reply, error.code === 'LIBRA_LIBRARY_NOT_FOUND' ? 404 : 409, error.code || 'LIBRA_OBSERVATION_REJECTED', error.message);
+    }
   });
 
   app.post('/v1/admin/sublibraries/:uuid/actions/offboard', async (req, reply) => {
@@ -2606,7 +2622,7 @@ function registerRoutes(app) {
         notClosedCount: notClosed.length,
       });
     }
-    const ok = mediaLibraryService.deleteSubLibrary(req.params.uuid);
+    const ok = getHelixServices().libraService.deleteSubLibrary(req.params.uuid);
     if (!ok) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
     return { ok: true, uuid: req.params.uuid };
   });
@@ -2619,7 +2635,7 @@ function registerRoutes(app) {
     if (!current) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
     const gateError = validateSubLibraryMetadataGateInput(reply, { ...current, ...(req.body || {}) }, cfg);
     if (gateError) return gateError;
-    const updated = mediaLibraryService.updateSubLibrary(req.params.uuid, req.body || {});
+    const updated = getHelixServices().libraService.updateSubLibrary(req.params.uuid, req.body || {});
     if (!updated) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
     return updated;
   });
@@ -2629,26 +2645,35 @@ function registerRoutes(app) {
   app.post('/v1/admin/adult/items/:itemId/actions/rescrape', async (req, reply) => {
     try {
       const overrideAdultId = typeof req.body === 'object' && req.body ? req.body.adultId : undefined;
-      const intent = await adultLibraryService.prepareRescrapeIntent(
-        req.params.itemId,
-        typeof overrideAdultId === 'string' ? { overrideAdultId } : {},
-      );
+      const result = getHelixServices().libraService.queryLibraryProjections({ itemId: req.params.itemId }, { limit: 1 });
+      const item = result.items[0];
+      if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
+      const maintenance = item.helix.maintenance || {};
+      const descriptor = item.helix.source && item.helix.source.sourceAccessDescriptor || {};
+      const itemInfo = {
+        ...item,
+        ...(maintenance.basedataFacts || {}),
+        ...(maintenance.metadataFacts || {}),
+        sourceAccessDescriptor: descriptor,
+        adultMetadata: {
+          ...(maintenance.metadataFacts || {}),
+          ...(typeof overrideAdultId === 'string' && overrideAdultId.trim() ? { adultId: overrideAdultId.trim() } : {}),
+        },
+      };
       const config = configStore.loadConfig();
       const activeAdmissionTasks = activeTaskSummariesForItem(req.params.itemId);
       const created = getHelixServices().libraService.requestMaintenance({
         itemId: req.params.itemId,
-        itemInfo: intent.itemInfo || intent.item,
-        targetGate: intent.targetGate,
-        gateObjective: intent.gateObjective,
-        flowPreference: intent.flowPreference,
-        intent: intent.requestedIntent || intent.intent,
+        itemInfo,
+        targetGate: 'metadata',
+        gateObjective: { kind: 'metadata_refresh', forceRefresh: true, reason: 'adult_rescrape' },
+        intent: { mode: 'adult_rescrape' },
         source: 'manual',
         config,
         tasks: activeAdmissionTasks,
         logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Metadata task created by adult rescrape user intent through Libra' }],
       });
       if (!created.allowed) {
-        const item = mediaLibraryService.getLibraryItem(req.params.itemId);
         const activeTask = activeTaskAdmissionSummary(req.params.itemId);
         const rejectionAdmission = {
           ...created.admission,
@@ -2660,22 +2685,13 @@ function registerRoutes(app) {
           taskAdmissionRejectMessage(rejectionAdmission),
           rejectionAdmission,
           item,
-          item ? adultLibraryService.itemInfoFromItem(item) : { itemId: req.params.itemId },
+          itemInfo,
           config,
           activeAdmissionTasks,
           { activeTask },
         ));
       }
-      const committed = adultLibraryService.resetScrapeStatus(
-        req.params.itemId,
-        typeof overrideAdultId === 'string' ? overrideAdultId : null,
-      );
       const task = created.task;
-      if (committed) {
-        const itemInfo = adultLibraryService.itemInfoFromItem(committed);
-        taskStore.updateTask(task.id, { itemInfo });
-        task.itemInfo = itemInfo;
-      }
       activityLog.addActivity('adult_library', `成人库创建元数据任务：${task.itemName || task.itemId}`, { taskId: task.id, itemId: task.itemId });
       const taskView = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
       return reply.code(201).send({
@@ -2813,12 +2829,9 @@ function registerRoutes(app) {
     try {
       const body = req.body || {};
       if (!body.itemId) return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
-      const item = mediaLibraryService.getLibraryItem(String(body.itemId));
-      if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
-      // Face clusters (post-clustering) are the primary source; fall back to the
-      // legacy unknownFaces list for older items.
-      const itemWithCold = adultColdArtifactStore.mergeColdArtifacts(item);
-      const metadata = itemWithCold.adultMetadata || {};
+      const projection = getHelixServices().libraService.getLibraryProjection(String(body.itemId));
+      if (!projection) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
+      const metadata = projection.maintenance && projection.maintenance.metadataFacts || {};
       const clusters = Array.isArray(metadata.faceClusters)
         ? metadata.faceClusters
         : [];
@@ -2832,14 +2845,14 @@ function registerRoutes(app) {
       if (!face) return apiError(reply, 404, 'NOT_FOUND', 'Face cluster not found');
       const referenceFace = peopleStore.normalizeReferenceFace({
         ...face,
-        sourceItemId: item.itemId,
-        sourceAssetId: item.assetKey || '',
+        sourceItemId: projection.itemId,
+        sourceAssetId: projection.source && projection.source.sourceAccessDescriptor && projection.source.sourceAccessDescriptor.sourceId || '',
       });
       const person = peopleStore.createPerson({
         name: body.name,
         aliases: body.aliases,
         adultRegion: body.adultRegion || 'western_adult',
-        referenceAssetIds: [item.itemId],
+        referenceAssetIds: [projection.itemId],
         referenceFaces: [referenceFace],
       });
       return reply.code(201).send(person);
@@ -2853,10 +2866,9 @@ function registerRoutes(app) {
   // from protagonist selection. Remediation of past items is via rescrape.
   app.post('/v1/admin/adult/items/:itemId/faces/:clusterId/dismiss', async (req, reply) => {
     try {
-      const item = mediaLibraryService.getLibraryItem(String(req.params.itemId));
-      if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
-      const itemWithCold = adultColdArtifactStore.mergeColdArtifacts(item);
-      const metadata = itemWithCold.adultMetadata || {};
+      const projection = getHelixServices().libraService.getLibraryProjection(String(req.params.itemId));
+      if (!projection) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
+      const metadata = projection.maintenance && projection.maintenance.metadataFacts || {};
       const clusters = Array.isArray(metadata.faceClusters)
         ? metadata.faceClusters
         : metadata.unknownFaces || [];
@@ -2868,13 +2880,13 @@ function registerRoutes(app) {
         name: `_dismissed_${face.clusterId || face.faceId || Date.now()}`,
         adultRegion: 'western_adult',
         dismissed: true,
-        referenceAssetIds: [item.itemId],
+        referenceAssetIds: [projection.itemId],
         referenceFaces: [{
           faceId: face.clusterId || face.faceId || '',
           embedding: emb,
           sampleImageBase64: face.sampleImageBase64 || '',
-          sourceItemId: item.itemId,
-          sourceAssetId: item.assetKey || '',
+          sourceItemId: projection.itemId,
+          sourceAssetId: projection.source && projection.source.sourceAccessDescriptor && projection.source.sourceAccessDescriptor.sourceId || '',
         }],
       });
       return reply.code(201).send({ ok: true, personId: person.personId, dismissed: true });
@@ -3323,25 +3335,14 @@ function registerRoutes(app) {
 
   app.get('/v1/admin/confirmations', async (req, reply) => {
     const kind = String(req.query.kind || 'all');
-    if (!['all', 'task', 'adult_review'].includes(kind)) {
+    if (!['all', 'task'].includes(kind)) {
       reply.code(400);
       return { error: { code: 'VALIDATION_ERROR', message: 'invalid kind' } };
     }
     const filter = { statuses: ['awaiting_user_confirm'] };
     applyTaskTargetQuery(filter, req.query);
     if (req.query.q) filter.q = req.query.q;
-    const reviewFilter = {};
-    if (req.query.subLibraryId) reviewFilter.subLibraryId = req.query.subLibraryId;
-    if (req.query.reviewStatus) {
-      reviewFilter.reviewStatuses = String(req.query.reviewStatus)
-        .split(',')
-        .map((status) => status.trim())
-        .filter(Boolean);
-    }
-    if (req.query.q) reviewFilter.q = req.query.q;
-    const includeTasks = kind !== 'adult_review';
-    const includeReviews = kind !== 'task'
-      && (!req.query.targetGate || req.query.targetGate === 'metadata');
+    const includeTasks = true;
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
     const taskResult = !includeTasks
@@ -3359,31 +3360,16 @@ function registerRoutes(app) {
       orderBy: 'updatedAt',
       orderDir: 'desc',
     }).tasks;
-    const reviewResult = !includeReviews
-      ? { items: [], page, pageSize, total: 0 }
-      : libraryStore.queryAdultReviewSummaries(reviewFilter, {
-        page,
-        pageSize,
-        orderBy: 'updatedAt',
-        orderDir: 'desc',
-      });
-    const summaryReviewItems = !includeReviews
-      ? []
-      : libraryStore.queryAdultReviewSummaries(reviewFilter, {
-        includeAll: true,
-        orderBy: 'updatedAt',
-        orderDir: 'desc',
-      }).items;
     const taskConfirmations = taskResult.tasks.map(confirmationQueueItem);
-    const adultReviews = reviewResult.items.map(adultReviewQueueItem);
-    const items = [...taskConfirmations, ...adultReviews].sort((a, b) => {
+    const adultReviews = [];
+    const items = [...taskConfirmations].sort((a, b) => {
       const bTime = Date.parse(b.updatedAt || '') || 0;
       const aTime = Date.parse(a.updatedAt || '') || 0;
       if (bTime !== aTime) return bTime - aTime;
       return String(a.id || '').localeCompare(String(b.id || ''));
     });
     const taskSummary = summarizeConfirmationQueue(summaryTasks);
-    const adultReviewSummary = summarizeAdultReviewQueue(summaryReviewItems);
+    const adultReviewSummary = summarizeAdultReviewQueue([]);
     return {
       items,
       confirmations: taskConfirmations,
@@ -3398,7 +3384,7 @@ function registerRoutes(app) {
       pageSize,
       total: taskSummary.total + adultReviewSummary.total,
       taskTotal: taskResult.total,
-      reviewTotal: reviewResult.total,
+      reviewTotal: 0,
     };
   });
 
@@ -3548,9 +3534,7 @@ function registerRoutes(app) {
       }),
     }, () => {
       const config = configStore.loadConfig();
-      const media = typeof libraryStore.queryDashboardMediaStats === 'function'
-        ? libraryStore.queryDashboardMediaStats()
-        : {};
+      const media = queryDashboardMediaStatsFromHelix();
       const tasks = typeof taskStore.queryDashboardTaskStats === 'function'
         ? taskStore.queryDashboardTaskStats()
         : {};
@@ -3579,7 +3563,6 @@ function registerRoutes(app) {
         diagnostics: {
           signals,
           storage: [
-            libraryStore.getStorageMetrics(),
             taskStore.getStorageMetrics(),
           ],
         },
@@ -3670,17 +3653,9 @@ function registerRoutes(app) {
           byCategory: {},
           generatedAt: new Date().toISOString(),
         };
-      const payloadSummary = includeFullDetail
-        ? libraryStore.getLibraryPayloadHealthSummary({
-          includeBuckets: true,
-          includeFieldBreakdown: true,
-          includeAdultCache: true,
-          adultSubLibraryIds: adultSubLibraryIds(config),
-        })
-        : null;
-
       return {
         ...view,
+        governor: resourceGovernor.snapshot(),
         detail: projectionName,
         diagnostics: {
           logs: includeFullDetail ? diagnostics.logs : [],
@@ -3690,12 +3665,9 @@ function registerRoutes(app) {
             ? enrichFailureEvents(taskStore.queryRecentFailureEvents({ pageSize: 20 }), config, diagnostics.logs)
             : [],
           bottlenecks,
-          ...(includeFullDetail ? { backgroundIo: backgroundIoGuard.getState({ recentLimit: 40 }) } : {}),
-          ...(payloadSummary ? { payloadSummary } : {}),
           ...(includeFullDetail ? {
             metrics: {
               storage: [
-                libraryStore.getStorageMetrics(),
                 taskStore.getStorageMetrics(),
               ],
             },
@@ -3769,14 +3741,7 @@ function registerRoutes(app) {
 
   app.get('/v1/admin/health', async () => {
     const result = healthCheck.getLastResult();
-    const base = result || await healthCheck.runAllChecks();
-    return {
-      ...base,
-      checks: {
-        ...(base.checks || {}),
-        libraReconciler: libraReconcileEngine.getHealth(),
-      },
-    };
+    return result || healthCheck.runAllChecks();
   });
 }
 
@@ -3841,26 +3806,27 @@ async function buildApp(opts = {}) {
   app.addHook('onClose', async () => {
     taskScheduler.stopScheduler();
     healthCheck.stopHealthCheckTimer();
-    mediaLibraryService.stopAllTimers();
-    libraReconcileEngine.stop();
+    libraAutomationEngine.stop();
+    kairoxAutomationRunner.stop();
+    resourceGovernor.resetForTests();
     runtimeResourceTracker.resetForTests();
     diagnosticLog.resetForTests();
-    backgroundIoGuard.resetForTests();
   });
 
   // Clean up orphan ffmpeg processes and temp dirs from previous run
   // Must run BEFORE scheduler starts dispatching tasks
   const startupCfg = configStore.loadConfig();
+  resourceGovernor.configure(() => configStore.loadConfig());
   if (startupCfg.transcodeTempRoot && startupCfg.transcodeCleanupOrphansOnStartup !== false) {
     await transcodeService.cleanupOrphans(startupCfg);
   }
   // Clean Helix runtime starts only durable task dispatch and Libra recovery.
   // Library and maintenance automation runners are wired in their dedicated
-  // slices; legacy media refresh/strategy/observation/SmartTask clocks must not
-  // recreate mixed media_items state after clean initialization.
-  healthCheck.startHealthCheckTimer();
+  // Automation clocks must not recreate mixed media_items state after clean initialization.
   taskScheduler.startScheduler();
-  libraReconcileEngine.start(getHelixServices().libraService, configStore);
+  libraAutomationEngine.start(getHelixServices().libraService, configStore);
+  kairoxAutomationRunner.start(getHelixServices().kairoxService);
+  healthCheck.startHealthCheckTimer();
 
   const errorHandler = (err, req, reply) => {
     req.log.error(err);

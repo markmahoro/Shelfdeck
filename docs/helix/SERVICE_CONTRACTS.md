@@ -10,6 +10,9 @@ Helix Services are in-process JavaScript modules. Commands are JSON-shaped value
 
 ```text
 acceptSource(command)
+createSubLibrary(command)
+updateSubLibrary(command)
+requestLibraryObservation(command)
 requestMaintenance(command)
 requestOffboarding(command)
 requestOffboardingBatch(command)
@@ -27,6 +30,7 @@ Libra owns LibraryMembership, phase, quarantine, admission generation and durabl
 ensureOnboarding(command)
 diagnoseSource(command)
 ensureOffboarding(command)
+observeLibraryPage(command)
 getSourceProjection(itemId)
 getSourceProjections(itemIds)
 ```
@@ -37,8 +41,10 @@ SourceProjection minimally contains `sourceRevision`, readiness, active bindings
 
 ```text
 reconcileMaintenance(admission)
+reconcileObjectives(itemIds)
 suspendMaintenance(command)
 requestMaintenance(command)
+updateUserPerception(command)
 getMaintenanceProjection(itemId)
 getMaintenanceProjections(itemIds)
 ```
@@ -63,6 +69,8 @@ Resource Runtime -> event execution through shared Governor permits
 ```
 
 `TaskScheduler` never creates a task, interprets a gate, reads the library automation modes, chooses a flow, or calculates resource capacity. `ResourceGovernor` is shared Helix infrastructure and is not nested under Kairox.
+
+`reconcileObjectives` 只由 Kairox Automation Runner 调用，用于持久化当前 policy/objective revision，并对 no-op objective 发布验证事实。GET projection 不借此产生副作用。匹配当前 admission generation、target 和 objective 的 automatic terminal failure 会投影为 `automationBlocker`，Runner 不得形成 retry storm。
 
 ## Errors And Idempotency
 

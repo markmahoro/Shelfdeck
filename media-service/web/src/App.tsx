@@ -3,7 +3,7 @@ import Layout from './components/Layout';
 import DashboardPage from './pages/DashboardPage';
 import TaskMonitorPage from './pages/TaskMonitorPage';
 import MediaManagePage from './pages/MediaManagePage';
-import DeleteCandidatesPage from './pages/DeleteCandidatesPage';
+import OffboardingCandidatesPage from './pages/OffboardingCandidatesPage';
 import PoliciesPage from './pages/PoliciesPage';
 import AdvancedPage from './pages/AdvancedPage';
 
@@ -14,7 +14,7 @@ export default function App() {
         <Route index element={<DashboardPage />} />
         <Route path="media" element={<MediaManagePage />} />
         <Route path="tasks" element={<TaskMonitorPage />} />
-        <Route path="delete-candidates" element={<DeleteCandidatesPage />} />
+        <Route path="offboarding" element={<OffboardingCandidatesPage />} />
         <Route path="policies" element={<PoliciesPage />} />
         <Route path="advanced" element={<AdvancedPage />} />
         <Route path="rules" element={<Navigate to="/policies?tab=objectives" replace />} />

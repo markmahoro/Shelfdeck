@@ -6,6 +6,7 @@ const path = require('path');
 
 const assetIdentity = require('./assetIdentity');
 const nexoraStore = require('./nexoraStore');
+const embyService = require('./services/embyService');
 
 function stableJson(value) {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
@@ -150,7 +151,7 @@ function writeBindingObservation(input = {}) {
     sourceAccessDescriptor: activeBindings.length > 0 ? {
       bindingId: updated.bindingId,
       sourceId,
-      sourceRevisionHint: observation.observationId,
+      sourceRevisionHint: sourceId,
       sourceType: input.identityKind === 'emby_item' ? 'emby' : input.identityKind === 'adult_file' ? 'adult_folder' : input.identityKind,
       identityKind: input.identityKind || '',
       identityPayload: input.identityPayload || {},
@@ -349,6 +350,107 @@ function getSourceProjections(mediaItemIds = []) {
   }, {});
 }
 
+function identityForSourceReference(sourceReference = {}) {
+  const source = String(sourceReference.source || sourceReference.adapter || '').toLowerCase();
+  if (source === 'emby') {
+    return embyIdentity({
+      subLib: sourceReference.subLib,
+      sourceRefId: sourceReference.sourceRefId || sourceReference.embyItemId,
+    });
+  }
+  if (source === 'folder' || source === 'adult_folder') {
+    return adultFolderIdentity({
+      subLib: sourceReference.subLib,
+      filePath: sourceReference.filePath || sourceReference.path,
+    });
+  }
+  return null;
+}
+
+function resolveBoundItemId(sourceReference = {}) {
+  const identity = identityForSourceReference(sourceReference);
+  if (!identity) return '';
+  const binding = nexoraStore.findSourceBindingBySourceId(identity.sourceId);
+  return binding && binding.mediaItemId || '';
+}
+
+function folderObservationPage(sourceDefinition = {}, cursor = {}, limit = 100, deadlineMs = Date.now() + 5000) {
+  const rootPath = String(sourceDefinition.watchRoot || '').trim();
+  if (!rootPath || !fs.existsSync(rootPath)) {
+    throw Object.assign(new Error('Folder library watchRoot is unavailable'), { code: 'NEXORA_SOURCE_ROOT_UNAVAILABLE' });
+  }
+  const frames = Array.isArray(cursor.frames) && cursor.frames.length > 0
+    ? cursor.frames.map((frame) => ({ dir: String(frame.dir || ''), offset: Math.max(0, Number(frame.offset) || 0) }))
+    : [{ dir: '', offset: 0 }];
+  const extensions = new Set(['.mkv', '.mp4', '.avi', '.ts', '.m2ts', '.mov', '.wmv']);
+  const files = [];
+  while (frames.length > 0 && files.length < limit && Date.now() < deadlineMs) {
+    const frame = frames[frames.length - 1];
+    const absoluteDir = path.join(rootPath, frame.dir);
+    const entries = fs.readdirSync(absoluteDir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
+    if (frame.offset >= entries.length) {
+      frames.pop();
+      continue;
+    }
+    const entry = entries[frame.offset];
+    frame.offset += 1;
+    const relative = path.join(frame.dir, entry.name);
+    if (entry.isDirectory()) {
+      frames.push({ dir: relative, offset: 0 });
+    } else if (entry.isFile() && extensions.has(path.extname(entry.name).toLowerCase())) {
+      files.push(path.join(rootPath, relative));
+    }
+  }
+  return { files, cursor: { frames }, done: frames.length === 0 };
+}
+
+async function observeLibraryPage(command = {}) {
+  const sourceDefinition = command.sourceDefinition || {};
+  const source = String(sourceDefinition.source || 'emby').toLowerCase();
+  const limit = Math.max(1, Math.min(100, Number(command.limit) || 100));
+  if (source === 'emby') {
+    const page = await embyService.getLibraryItemsPage(command.serverConfig || {}, sourceDefinition.sectionId, {
+      startIndex: command.cursor && command.cursor.startIndex || 0,
+      limit,
+    });
+    return {
+      observations: page.items.map((item) => ({
+        sourceReference: {
+          source: 'emby',
+          subLib: {
+            uuid: sourceDefinition.uuid,
+            embyServerId: sourceDefinition.embyServerId,
+            sectionId: sourceDefinition.sectionId,
+          },
+          sourceRefId: item.itemId,
+          item,
+          observationKind: 'source_observed',
+        },
+      })),
+      cursor: { startIndex: page.nextIndex },
+      done: page.done,
+      total: page.total,
+    };
+  }
+  if (source === 'folder') {
+    const page = folderObservationPage(sourceDefinition, command.cursor, limit, command.deadlineMs);
+    return {
+      observations: page.files.map((filePath) => ({
+        sourceReference: {
+          source: 'adult_folder',
+          subLib: { uuid: sourceDefinition.uuid, watchRoot: sourceDefinition.watchRoot },
+          path: filePath,
+          observationKind: 'source_observed',
+        },
+      })),
+      cursor: page.cursor,
+      done: page.done,
+      total: null,
+    };
+  }
+  throw Object.assign(new Error(`Unsupported library source: ${source}`), { code: 'NEXORA_SOURCE_ADAPTER_UNSUPPORTED' });
+}
+
 function ensureOnboarding(command = {}) {
   const sourceReference = command.sourceReference || {};
   const source = String(sourceReference.source || sourceReference.adapter || '').toLowerCase();
@@ -488,4 +590,6 @@ module.exports = {
   ensureOffboarding,
   getSourceProjection,
   getSourceProjections,
+  resolveBoundItemId,
+  observeLibraryPage,
 };

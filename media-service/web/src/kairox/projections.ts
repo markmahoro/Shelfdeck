@@ -1,7 +1,7 @@
 import type { MediaTask } from '../types';
 import type { KairoxTargetGate, KairoxTaskProjection } from './types';
 
-const TARGET_GATES = new Set(['ingest', 'metadata', 'optimize', 'archive', 'delete']);
+const TARGET_GATES = new Set(['basedata', 'metadata', 'optimize']);
 
 export function normalizeTargetGate(value: unknown): KairoxTargetGate | null {
   return typeof value === 'string' && TARGET_GATES.has(value)

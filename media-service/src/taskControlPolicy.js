@@ -2,7 +2,7 @@
 
 const flowRecoveryContract = require('./flowRecoveryContract');
 
-const TERMINAL_STATUSES = new Set(['done', 'failed_hard', 'failed_soft', 'cancelled', 'skipped', 'deleted']);
+const TERMINAL_STATUSES = new Set(['done', 'failed_hard', 'failed_soft', 'cancelled', 'skipped']);
 const ACTIVE_CANCEL_STATUSES = new Set([
   'created',
   'pending_manual',

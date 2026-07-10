@@ -18,12 +18,11 @@ const activityLog = require('./activityLog');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
 const resourceProjection = require('./resourceProjection');
-const resourceCapacity = require('./resourceCapacity');
 const flowRecoveryContract = require('./flowRecoveryContract');
 const resourceRuntime = require('./resourceRuntime');
 const diagnosticLog = require('./diagnosticLog');
-const backgroundIoGuard = require('./backgroundIoGuard');
 const gateInvalidationService = require('./gateInvalidationService');
+const kairoxSignalBus = require('./kairoxSignalBus');
 
 let schedulerInterval = null;
 let nodeHealthInterval = null;
@@ -33,19 +32,10 @@ let schedulerBusy = false;
 // Concurrency protection
 const runningTasks = new Set(); // taskId Set — prevents re-entry within same polling round
 const justConfirmedIds = new Set(); // tasks confirmed by user this round — bypass awaiting guard
-const CLOSED_STATUSES = new Set(['done', 'skipped', 'cancelled', 'deleted']);
+const CLOSED_STATUSES = new Set(['done', 'failed_hard', 'failed_soft', 'skipped', 'cancelled']);
 
 function flowKindForTask(task = {}) {
   return String(task.flowPlan && task.flowPlan.flowKind || '');
-}
-
-function getConcurrencyLimit(flowKind, limits) {
-  switch (flowKind) {
-    case 'transcode': return limits.transcodeConcurrency || 1;
-    case 'upgrade': return limits.upgradeConcurrency || 1;
-    case 'scrape': return limits.scrapeConcurrency || 1;
-    default: return 1;
-  }
 }
 
 function clearQueuedRuntimeState(task) {
@@ -106,13 +96,22 @@ function reportStatus(taskId, status, progress) {
       activityLog.addActivity('task', `任务「${name}」${actionLabel}完成 ✓`, { taskId, flowKind: flowKindForTask(oldTask) });
 
     }
-    if (status === 'failed_hard') {
+    if (status === 'failed_hard' || status === 'failed_soft') {
       activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, flowKind: flowKindForTask(oldTask) });
     }
   }
 
-  if (status === 'done' || status === 'failed_hard' || status === 'interrupted' || status === 'paused') {
+  if (status === 'done' || status === 'failed_hard' || status === 'failed_soft' || status === 'interrupted' || status === 'paused' || status === 'queued') {
     runningTasks.delete(taskId);
+  }
+  if (oldTask && (status === 'done' || status === 'failed_hard' || status === 'failed_soft' || status === 'interrupted')) {
+    kairoxSignalBus.publish({
+      kind: oldTask.sourceIncident ? 'source_incident' : 'task_terminal',
+      itemId: oldTask.itemId,
+      taskId,
+      status,
+      sourceIncident: oldTask.sourceIncident || null,
+    });
   }
 }
 
@@ -177,7 +176,7 @@ function recoverInterruptedTasks() {
   const tasks = typeof taskStore.querySchedulerTasks === 'function'
     ? taskStore.querySchedulerTasks()
     : taskStore.loadTasks({ includeHistory: false });
-  const interruptible = ['precheck', 'executing', 'verify', 'basedata_observe', 'transcode_executing', 'transcode_replace', 'transcode_publish', 'upgrade_executing', 'upgrade_replace', 'upgrade_publish', 'scrape_precheck', 'scrape_executing', 'scrape_publish', 'planning', 'pre_replace_verify', 'pausing'];
+  const interruptible = ['waiting_for_resource', 'precheck', 'executing', 'verify', 'basedata_observe', 'transcode_executing', 'transcode_replace', 'transcode_publish', 'upgrade_executing', 'upgrade_replace', 'upgrade_publish', 'scrape_precheck', 'scrape_executing', 'scrape_publish', 'planning', 'pre_replace_verify', 'pausing'];
   for (const t of tasks) {
     if (t.status === 'done' || t.status === 'failed_hard') continue;
     // awaiting_user_confirm is a stable state — user hasn't decided yet, preserve it
@@ -221,63 +220,8 @@ function recoverInterruptedTasks() {
   }
 }
 
-function resourceConcurrencyLimit(resource, task, limits = {}) {
-  const resourceType = resource && resource.resourceType;
-  const resourceKey = resource && resource.resourceKey;
-  const legacyFallback = (() => {
-    switch (resourceType) {
-    case 'local_transcode':
-    case 'worker_transcode':
-      return limits.transcodeConcurrency || 1;
-    case 'moviepilot':
-      return limits.upgradeConcurrency || 1;
-    case 'emby':
-      return limits.embyMetadataRepairConcurrency || limits.scrapeConcurrency || 1;
-    case 'scraper':
-      return limits.scrapeConcurrency || 1;
-    case 'local_ai':
-      return getLocalWesternAiScrapeLimit(limits);
-    case 'filesystem':
-      return 1;
-    default:
-      return getConcurrencyLimit(task && flowKindForTask(task), limits);
-    }
-  })();
-  return resourceCapacity.capacityForResource(resource, limits, legacyFallback);
-}
-
-function resourceCountKey(resource) {
-  return resource && resource.resourceKey ? resource.resourceKey : 'unknown:task';
-}
-
-function incrementResourceCount(counts, resource, by = 1) {
-  const key = resourceCountKey(resource);
-  counts[key] = (counts[key] || 0) + by;
-  return counts[key];
-}
-
 function isActiveStatus(status) {
-  return status === 'executing' || status === 'pausing' || status === 'awaiting_user_confirm';
-}
-
-function isLocalWesternAiScrapeTask(task, config) {
-  if (!task || flowKindForTask(task) !== 'scrape') return false;
-  const itemInfo = task.itemInfo || {};
-  const adultMetadata = itemInfo.adultMetadata || {};
-  const subLib = (config.subLibraries || []).find((s) => s.uuid === itemInfo.subLibraryId) || {};
-  const region = adultMetadata.region || subLib.adultRegion || '';
-  if (region !== 'western_adult') return false;
-  const western = {
-    ...(((config.adultLibrary || {}).western) || {}),
-    ...((subLib && subLib.western) || {}),
-  };
-  return String(western.computeMode || 'local').toLowerCase() !== 'worker';
-}
-
-function getLocalWesternAiScrapeLimit(config) {
-  const raw = (((config.adultLibrary || {}).western) || {}).localConcurrency;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 1) : 1;
+  return status === 'waiting_for_resource' || status === 'executing' || status === 'pausing' || status === 'awaiting_user_confirm';
 }
 
 // ── Node health monitoring ────────────────────────────────────────────────────
@@ -335,27 +279,6 @@ function startScheduler() {
 
   schedulerInterval = setInterval(async () => {
     if (schedulerBusy) return;
-    const backgroundIo = backgroundIoGuard.getState({ recentLimit: 0 });
-    if (backgroundIo.summary.runningHeavyIo) {
-      diagnosticLog.record({
-        category: 'scheduler',
-        scope: 'scheduler.tick',
-        operation: 'schedule_round',
-        component: 'taskScheduler',
-        resourceType: 'scheduler',
-        resourceKey: 'taskScheduler',
-        status: 'skipped',
-        payload: {
-          reason: 'background_io_busy',
-          activeBackgroundOperations: backgroundIo.active.map((op) => ({
-            operation: op.operation,
-            resourceKey: op.resourceKey,
-            durationMs: op.durationMs,
-          })),
-        },
-      });
-      return;
-    }
     schedulerBusy = true;
     try {
       await diagnosticLog.track({
@@ -403,20 +326,13 @@ async function scheduleRound() {
 
   // Count active work by resource bucket. flowKind remains the executor/API
   // compatibility field; scheduling capacity follows flow/resource semantics.
-  const activeResourceCount = {};
   let activeTaskCount = 0;
-  const localWesternAiScrapeLimit = getLocalWesternAiScrapeLimit(config);
-  let activeLocalWesternAiScrapes = 0;
   const usedItemIds = new Set();
 
   for (const t of tasks) {
     if (isActiveStatus(t.status)) {
-      incrementResourceCount(activeResourceCount, resourceProjection.resourceForTask(t, config));
       activeTaskCount++;
       usedItemIds.add(t.itemId);
-      if (t.status !== 'awaiting_user_confirm' && isLocalWesternAiScrapeTask(t, config)) {
-        activeLocalWesternAiScrapes++;
-      }
     }
   }
 
@@ -561,25 +477,10 @@ async function scheduleRound() {
     if (task.status === 'queued') {
       clearQueuedRuntimeState(task);
 
-      // Resource slot check — just-confirmed tasks bypass (they already held a slot).
       const resource = resourceProjection.resourceForTask(task, config);
-      const resourceKey = resourceCountKey(resource);
-      const limit = resourceConcurrencyLimit(resource, task, config);
-      if ((activeResourceCount[resourceKey] || 0) >= limit && !justConfirmedIds.has(task.id)) continue;
-      if (
-        isLocalWesternAiScrapeTask(task, config) &&
-        activeLocalWesternAiScrapes >= localWesternAiScrapeLimit &&
-        !justConfirmedIds.has(task.id)
-      ) {
-        continue;
-      }
 
       runningTasks.add(task.id);
-      incrementResourceCount(activeResourceCount, resource);
-      if (isLocalWesternAiScrapeTask(task, config)) activeLocalWesternAiScrapes++;
       usedItemIds.add(task.itemId);
-      reportStatus(task.id, 'executing', task.progress || 0);
-      task.status = 'executing';
       const dispatch = resourceRuntime.dispatchTask(task, { resource });
       if (!dispatch.dispatched) {
         console.warn(`[scheduler] resource runtime could not dispatch task ${task.id}: ${dispatch.reason}`);

@@ -4,6 +4,7 @@ const nexoraService = require('./nexoraService');
 const { createKairoxService } = require('./kairoxService');
 const { createLibraService } = require('./libraService');
 const { createLibraRuntime } = require('./libraRuntime');
+const configStore = require('./configStore');
 
 let singleton = null;
 
@@ -14,6 +15,7 @@ function createHelixServices(overrides = {}) {
     nexoraService: resolvedNexora,
     kairoxService: resolvedKairox,
     store: overrides.libraStore,
+    configs: overrides.configStore || configStore,
   });
   const libraService = createLibraService({
     nexoraService: resolvedNexora,

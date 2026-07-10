@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const diagnosticLog = require('./diagnosticLog');
 const flowPlanner = require('./flowPlanner');
-const v3Model = require('./v3Model');
+const taskFactsModel = require('./taskFactsModel');
 
 function resolveDataDir() {
   return (
@@ -16,16 +16,8 @@ function resolveDataDir() {
   );
 }
 
-function tasksJsonFilePath() {
-  return path.join(resolveDataDir(), 'tasks.json');
-}
-
 function tasksDbFilePath() {
   return path.join(resolveDataDir(), 'tasks.db');
-}
-
-function migrationMarkerPath() {
-  return path.join(resolveDataDir(), 'tasks.json.migrated');
 }
 
 function ensureDataDir() {
@@ -33,7 +25,7 @@ function ensureDataDir() {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-const TERMINAL_STATUSES = new Set(['done', 'failed_hard', 'cancelled', 'skipped', 'deleted']);
+const TERMINAL_STATUSES = new Set(['done', 'failed_hard', 'failed_soft', 'cancelled', 'skipped']);
 const dbCache = new Map();
 const DEFAULT_WAL_CHECKPOINT_MIN_BYTES = 32 * 1024 * 1024;
 
@@ -65,256 +57,47 @@ function getDb() {
   db.pragma('busy_timeout = 5000');
   db.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
-      id TEXT PRIMARY KEY,
-      item_id TEXT NOT NULL DEFAULT '',
-      item_name TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL DEFAULT '',
-      priority INTEGER NOT NULL DEFAULT 100,
-      created_at TEXT NOT NULL DEFAULT '',
-      updated_at TEXT NOT NULL DEFAULT '',
-      payload_json TEXT NOT NULL
+      id TEXT PRIMARY KEY, item_id TEXT NOT NULL DEFAULT '', item_name TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT '', priority INTEGER NOT NULL DEFAULT 100,
+      created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '', payload_json TEXT NOT NULL,
+      verify_bytes_saved REAL, verify_size_bytes REAL, original_size_bytes REAL,
+      upgrade_old_size REAL, upgrade_new_size REAL, source TEXT NOT NULL DEFAULT '', progress REAL,
+      phase TEXT, resume_point TEXT, manual_execute_requested INTEGER NOT NULL DEFAULT 0,
+      priority_manually_adjusted INTEGER NOT NULL DEFAULT 0, priority_model_version TEXT NOT NULL DEFAULT '',
+      retry_count INTEGER NOT NULL DEFAULT 0, pausing_requested INTEGER NOT NULL DEFAULT 0,
+      node_id TEXT NOT NULL DEFAULT '', sub_library_id TEXT NOT NULL DEFAULT '', item_path TEXT NOT NULL DEFAULT '',
+      bridge_kind TEXT NOT NULL DEFAULT '', bridge_from TEXT NOT NULL DEFAULT '', bridge_to TEXT NOT NULL DEFAULT '',
+      bridge_reason TEXT NOT NULL DEFAULT '', flow_version TEXT NOT NULL DEFAULT '', flow_direction TEXT NOT NULL DEFAULT '',
+      flow_kind TEXT NOT NULL DEFAULT '', flow_executor TEXT NOT NULL DEFAULT '', primary_resource_type TEXT NOT NULL DEFAULT '',
+      resource_types_json TEXT NOT NULL DEFAULT '[]', flow_steps_json TEXT NOT NULL DEFAULT '[]',
+      target_gate TEXT NOT NULL DEFAULT '', gate_objective_kind TEXT NOT NULL DEFAULT '', gate_objective_json TEXT NOT NULL DEFAULT '{}'
     );
-    CREATE TABLE IF NOT EXISTS task_store_meta (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS task_events (
+      id TEXT PRIMARY KEY, task_id TEXT NOT NULL DEFAULT '', item_id TEXT NOT NULL DEFAULT '',
+      event_type TEXT NOT NULL DEFAULT '', event_status TEXT NOT NULL DEFAULT '', phase TEXT, resume_point TEXT,
+      resource_type TEXT, resource_key TEXT NOT NULL DEFAULT '', resource_label TEXT NOT NULL DEFAULT '',
+      bridge_kind TEXT NOT NULL DEFAULT '', flow_direction TEXT NOT NULL DEFAULT '', flow_kind TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT '', payload_json TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_item_id ON tasks(item_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_updated_at ON tasks(updated_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_status_updated_at ON tasks(status, updated_at);
-  `);
-  ensureSpaceStatColumns(db);
-  ensureV3TaskColumns(db);
-  ensureTaskEventTable(db);
-  dbCache.set(dbPath, db);
-  migrateJsonTasksIfNeeded(db);
-  backfillSpaceStatColumns(db);
-  backfillV3TaskColumns(db);
-  backfillV31TaskTargetColumns(db);
-  backfillV3TaskEventColumns(db);
-  checkpointWal(db, 'startup');
-  return db;
-}
-
-function ensureSpaceStatColumns(db) {
-  const existing = new Set(db.prepare('PRAGMA table_info(tasks)').all().map((row) => row.name));
-  const columns = {
-    verify_bytes_saved: 'REAL',
-    verify_size_bytes: 'REAL',
-    original_size_bytes: 'REAL',
-    upgrade_old_size: 'REAL',
-    upgrade_new_size: 'REAL',
-  };
-  for (const [name, type] of Object.entries(columns)) {
-    if (!existing.has(name)) db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`);
-  }
-}
-
-function ensureV3TaskColumns(db) {
-  const existing = new Set(db.prepare('PRAGMA table_info(tasks)').all().map((row) => row.name));
-  const columns = {
-    source: 'TEXT NOT NULL DEFAULT \'\'',
-    progress: 'REAL',
-    phase: 'TEXT',
-    resume_point: 'TEXT',
-    manual_execute_requested: 'INTEGER NOT NULL DEFAULT 0',
-    priority_manually_adjusted: 'INTEGER NOT NULL DEFAULT 0',
-    priority_model_version: 'TEXT NOT NULL DEFAULT \'\'',
-    retry_count: 'INTEGER NOT NULL DEFAULT 0',
-    pausing_requested: 'INTEGER NOT NULL DEFAULT 0',
-    node_id: 'TEXT NOT NULL DEFAULT \'\'',
-    sub_library_id: 'TEXT NOT NULL DEFAULT \'\'',
-    item_path: 'TEXT NOT NULL DEFAULT \'\'',
-    bridge_kind: 'TEXT NOT NULL DEFAULT \'\'',
-    bridge_from: 'TEXT NOT NULL DEFAULT \'\'',
-    bridge_to: 'TEXT NOT NULL DEFAULT \'\'',
-    bridge_reason: 'TEXT NOT NULL DEFAULT \'\'',
-    flow_version: 'TEXT NOT NULL DEFAULT \'\'',
-    flow_direction: 'TEXT NOT NULL DEFAULT \'\'',
-    flow_kind: 'TEXT NOT NULL DEFAULT \'\'',
-    flow_executor: 'TEXT NOT NULL DEFAULT \'\'',
-    primary_resource_type: 'TEXT NOT NULL DEFAULT \'\'',
-    resource_types_json: 'TEXT NOT NULL DEFAULT \'[]\'',
-    flow_steps_json: 'TEXT NOT NULL DEFAULT \'[]\'',
-    target_gate: 'TEXT NOT NULL DEFAULT \'\'',
-    gate_objective_kind: 'TEXT NOT NULL DEFAULT \'\'',
-    gate_objective_json: 'TEXT NOT NULL DEFAULT \'{}\'',
-  };
-  for (const [name, type] of Object.entries(columns)) {
-    if (!existing.has(name)) db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`);
-  }
-  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_tasks_bridge_status_priority ON tasks(bridge_kind, status, priority, created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_flow_resource_status ON tasks(primary_resource_type, status, priority, created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_flow_kind_status_priority ON tasks(flow_kind, status, priority, created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_sub_library_status ON tasks(sub_library_id, status, updated_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_target_gate_status ON tasks(target_gate, status, priority, created_at);
-  `);
-}
-
-function ensureTaskEventTable(db) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS task_events (
-      id TEXT PRIMARY KEY,
-      task_id TEXT NOT NULL DEFAULT '',
-      item_id TEXT NOT NULL DEFAULT '',
-      event_type TEXT NOT NULL DEFAULT '',
-      event_status TEXT NOT NULL DEFAULT '',
-      phase TEXT,
-      resume_point TEXT,
-      resource_type TEXT,
-      resource_key TEXT NOT NULL DEFAULT '',
-      resource_label TEXT NOT NULL DEFAULT '',
-      bridge_kind TEXT NOT NULL DEFAULT '',
-      flow_direction TEXT NOT NULL DEFAULT '',
-      flow_kind TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT '',
-      payload_json TEXT NOT NULL
-    );
     CREATE INDEX IF NOT EXISTS idx_task_events_task_created ON task_events(task_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_type_created ON task_events(event_type, created_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_status_created ON task_events(event_status, created_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_item_created ON task_events(item_id, created_at);
-  `);
-  const existing = new Set(db.prepare('PRAGMA table_info(task_events)').all().map((row) => row.name));
-  const columns = {
-    resource_key: 'TEXT NOT NULL DEFAULT \'\'',
-    resource_label: 'TEXT NOT NULL DEFAULT \'\'',
-    bridge_kind: 'TEXT NOT NULL DEFAULT \'\'',
-    flow_direction: 'TEXT NOT NULL DEFAULT \'\'',
-    flow_kind: 'TEXT NOT NULL DEFAULT \'\'',
-  };
-  for (const [name, type] of Object.entries(columns)) {
-    if (!existing.has(name)) db.exec(`ALTER TABLE task_events ADD COLUMN ${name} ${type}`);
-  }
-  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_task_events_resource_created ON task_events(resource_type, resource_key, created_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_bridge_created ON task_events(bridge_kind, created_at);
   `);
-}
-
-function backfillSpaceStatColumns(db) {
-  const version = db.prepare('SELECT value FROM task_store_meta WHERE key = ?').get('space_stat_columns_backfilled');
-  if (version && version.value === '1') return;
-  db.prepare(`
-    UPDATE tasks
-    SET
-      verify_bytes_saved = json_extract(payload_json, '$.verifyResult.bytesSaved'),
-      verify_size_bytes = json_extract(payload_json, '$.verifyResult.sizeBytes'),
-      original_size_bytes = json_extract(payload_json, '$.itemInfo.originalSizeBytes'),
-      upgrade_old_size = json_extract(payload_json, '$.upgradePreview.oldFile.size'),
-      upgrade_new_size = json_extract(payload_json, '$.upgradePreview.newFile.size')
-    WHERE status = 'done'
-      AND flow_kind IN ('transcode', 'upgrade', 'delete')
-  `).run();
-  db.prepare(`
-    INSERT INTO task_store_meta (key, value)
-    VALUES ('space_stat_columns_backfilled', '1')
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `).run();
-}
-
-function backfillV3TaskColumns(db) {
-  const version = db.prepare('SELECT value FROM task_store_meta WHERE key = ?').get('v3_task_columns_backfilled');
-  if (version && version.value === '1') return;
-  const rows = db.prepare('SELECT id, payload_json FROM tasks').all();
-  const update = db.prepare(`
-    UPDATE tasks SET
-      source = @source,
-      progress = @progress,
-      phase = @phase,
-      resume_point = @resume_point,
-      manual_execute_requested = @manual_execute_requested,
-      priority_manually_adjusted = @priority_manually_adjusted,
-      priority_model_version = @priority_model_version,
-      retry_count = @retry_count,
-      pausing_requested = @pausing_requested,
-      node_id = @node_id,
-      sub_library_id = @sub_library_id,
-      item_path = @item_path,
-      bridge_kind = @bridge_kind,
-      bridge_from = @bridge_from,
-      bridge_to = @bridge_to,
-      bridge_reason = @bridge_reason,
-      flow_version = @flow_version,
-      flow_direction = @flow_direction,
-      flow_kind = @flow_kind,
-      flow_executor = @flow_executor,
-      primary_resource_type = @primary_resource_type,
-      resource_types_json = @resource_types_json,
-      flow_steps_json = @flow_steps_json,
-      target_gate = @target_gate,
-      gate_objective_kind = @gate_objective_kind,
-      gate_objective_json = @gate_objective_json
-    WHERE id = @id
-  `);
-  const tx = db.transaction((items) => {
-    for (const row of items) {
-      const task = normalizeTask(jsonParse(row.payload_json, {}));
-      update.run({ id: row.id, ...v3Model.taskFacts(task) });
-    }
-  });
-  tx(rows);
-  db.prepare(`
-    INSERT INTO task_store_meta (key, value)
-    VALUES ('v3_task_columns_backfilled', '1')
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `).run();
-}
-
-function backfillV31TaskTargetColumns(db) {
-  const version = db.prepare('SELECT value FROM task_store_meta WHERE key = ?').get('v31_task_target_columns_backfilled');
-  if (version && version.value === '1') return;
-  const rows = db.prepare('SELECT id, payload_json FROM tasks').all();
-  const update = db.prepare(`
-    UPDATE tasks SET
-      target_gate = @target_gate,
-      gate_objective_kind = @gate_objective_kind,
-      gate_objective_json = @gate_objective_json
-    WHERE id = @id
-  `);
-  const tx = db.transaction((items) => {
-    for (const row of items) {
-      const task = normalizeTask(jsonParse(row.payload_json, {}));
-      update.run({ id: row.id, ...v3Model.taskFacts(task) });
-    }
-  });
-  tx(rows);
-  db.prepare(`
-    INSERT INTO task_store_meta (key, value)
-    VALUES ('v31_task_target_columns_backfilled', '1')
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `).run();
-}
-
-function backfillV3TaskEventColumns(db) {
-  const version = db.prepare('SELECT value FROM task_store_meta WHERE key = ?').get('v3_task_event_columns_backfilled');
-  if (version && version.value === '1') return;
-  const rows = db.prepare('SELECT id, flow_kind, payload_json FROM task_events').all();
-  const update = db.prepare(`
-    UPDATE task_events SET
-      bridge_kind = @bridge_kind,
-      flow_direction = @flow_direction,
-      flow_kind = @flow_kind,
-      resource_key = @resource_key,
-      resource_label = @resource_label
-    WHERE id = @id
-  `);
-  const tx = db.transaction((items) => {
-    for (const row of items) {
-      const payload = jsonParse(row.payload_json, {});
-      update.run({
-        id: row.id,
-        ...v3Model.taskEventFacts({ flowKind: row.flow_kind, payload }),
-      });
-    }
-  });
-  tx(rows);
-  db.prepare(`
-    INSERT INTO task_store_meta (key, value)
-    VALUES ('v3_task_event_columns_backfilled', '1')
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `).run();
+  dbCache.set(dbPath, db);
+  checkpointWal(db, 'startup');
+  return db;
 }
 
 function walCheckpointMinBytes() {
@@ -426,60 +209,6 @@ function getStorageMetrics() {
   });
 }
 
-function readLegacyJsonTasks(filePath) {
-  if (!fs.existsSync(filePath)) return [];
-  const raw = fs.readFileSync(filePath, 'utf8');
-  if (!raw || !raw.trim()) return [];
-  const parsed = JSON.parse(raw);
-  return Array.isArray(parsed) ? parsed : [];
-}
-
-function migrateJsonTasksIfNeeded(db) {
-  const jsonPath = tasksJsonFilePath();
-  const marker = migrationMarkerPath();
-  if (!fs.existsSync(jsonPath) || fs.existsSync(marker)) return;
-
-  const existing = db.prepare('SELECT COUNT(*) AS count FROM tasks').get().count || 0;
-  if (existing > 0) {
-    fs.writeFileSync(marker, JSON.stringify({
-      migratedAt: new Date().toISOString(),
-      skipped: true,
-      reason: 'tasks.db already contains rows',
-    }, null, 2), 'utf8');
-    return;
-  }
-
-  try {
-    const tasks = readLegacyJsonTasks(jsonPath);
-    const insert = db.prepare(`
-      INSERT OR IGNORE INTO tasks
-        (id, item_id, item_name, status, priority, created_at, updated_at, payload_json)
-      VALUES
-        (@id, @item_id, @item_name, @status, @priority, @created_at, @updated_at, @payload_json)
-    `);
-    const tx = db.transaction((rows) => {
-      for (const task of rows) insert.run(taskToRow(normalizeTask(task)));
-    });
-    tx(tasks);
-    checkpointWal(db, 'migration', { force: true });
-    fs.writeFileSync(marker, JSON.stringify({
-      migratedAt: new Date().toISOString(),
-      source: path.basename(jsonPath),
-      target: path.basename(tasksDbFilePath()),
-      count: tasks.length,
-    }, null, 2), 'utf8');
-    console.log(`[taskStore] migrated ${tasks.length} task(s) from tasks.json to tasks.db`);
-  } catch (err) {
-    console.error('[taskStore] failed to migrate tasks.json:', err.message);
-    try {
-      const bak = `${jsonPath}.bak.${Date.now()}`;
-      fs.copyFileSync(jsonPath, bak);
-      console.error('[taskStore] migration source backed up to', bak);
-    } catch (_) {}
-    throw err;
-  }
-}
-
 function normalizeTask(task) {
   const now = new Date().toISOString();
   const t = task && typeof task === 'object' ? { ...task } : {};
@@ -527,25 +256,7 @@ function normalizeTask(task) {
   return t;
 }
 
-function isLegacyArchiveDeletePlan(task = {}) {
-  const flowKind = String(task.flowPlan && task.flowPlan.flowKind || '');
-  const bridgeKind = String(
-    task.taskBridge && task.taskBridge.kind
-    || task.flowPlan && task.flowPlan.bridgeKind
-    || task.bridgeKind
-    || task.bridge_kind
-    || '',
-  );
-  const flowDirection = String(
-    task.flowPlan && task.flowPlan.direction
-    || task.flowDirection
-    || task.flow_direction
-    || '',
-  );
-  return flowKind === 'delete' && (bridgeKind === 'archive' || flowDirection === 'archive.delete');
-}
-
-function projectLegacyDeleteTask(task) {
+function projectTask(task) {
   return task;
 }
 
@@ -559,7 +270,7 @@ function appendBridgeKindFilter(clauses, params, column, bridgeKind) {
 function taskToRow(task) {
   const t = normalizeTask(task);
   const space = taskSpaceStatColumns(t);
-  const facts = v3Model.taskFacts(t);
+  const facts = taskFactsModel.taskFacts(t);
   return {
     id: t.id,
     item_id: t.itemId,
@@ -624,7 +335,7 @@ function buildTaskEvent(task, eventType, payload = {}, opts = {}) {
 }
 
 function taskEventToRow(event) {
-  const facts = v3Model.taskEventFacts(event);
+  const facts = taskFactsModel.taskEventFacts(event);
   return {
     id: event.id,
     task_id: event.taskId,
@@ -902,7 +613,7 @@ function rowToTask(row) {
   delete task.flowKind;
   delete task.selectedFlow;
   task.progress = progressCache.get(task.id) ?? task.progress ?? 0;
-  return projectLegacyDeleteTask(task);
+  return projectTask(task);
 }
 
 const upsertSql = `
@@ -1614,7 +1325,7 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
           plannedAt: row.created_at || '',
         }
         : planned.flowPlan;
-      return projectLegacyDeleteTask({
+      return projectTask({
         id: row.id,
         itemId: row.item_id || '',
         itemName: row.item_name || '',
@@ -1789,7 +1500,7 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
           plannedAt: row.created_at || '',
         }
         : planned.flowPlan;
-      return projectLegacyDeleteTask({
+      return projectTask({
         id: row.id,
         itemId: row.item_id || '',
         itemName: row.item_name || '',
@@ -1930,7 +1641,7 @@ function querySchedulerTasks() {
           plannedAt: row.created_at || '',
         }
         : planned.flowPlan;
-      return projectLegacyDeleteTask({
+      return projectTask({
         id: row.id,
         itemId: row.item_id || '',
         itemName: row.item_name || '',
@@ -2069,7 +1780,7 @@ function querySpaceStatTaskRows() {
       upgrade_new_size
     FROM tasks
     WHERE status = 'done'
-      AND flow_kind IN ('transcode', 'upgrade', 'delete')
+      AND flow_kind IN ('transcode', 'upgrade')
   `).all();
 
   return rows.map((row) => {
@@ -2153,6 +1864,39 @@ function getCachedStatus(taskId) {
   return statusCache.get(taskId) || null;
 }
 
+function queryLatestAutomaticFailures(itemIds = []) {
+  const ids = [...new Set(itemIds.map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const rows = getDb().prepare(`
+    SELECT id,item_id,status,target_gate,updated_at,
+      json_extract(payload_json, '$.helixAdmission.admissionGeneration') AS admission_generation,
+      json_extract(payload_json, '$.flowPlan.flowSelection.objectiveHash') AS objective_hash
+    FROM tasks
+    WHERE source='auto' AND status IN ('failed_hard','failed_soft')
+      AND item_id IN (${ids.map(() => '?').join(',')})
+    ORDER BY updated_at DESC,id DESC
+  `).all(...ids);
+  return rows.reduce((out, row) => {
+    if (!out[row.item_id]) out[row.item_id] = {
+      taskId: row.id,
+      itemId: row.item_id,
+      status: row.status,
+      targetGate: row.target_gate,
+      admissionGeneration: Number(row.admission_generation) || 0,
+      objectiveHash: row.objective_hash || '',
+      updatedAt: row.updated_at,
+    };
+    return out;
+  }, {});
+}
+
+function resetForTests() {
+  for (const db of dbCache.values()) db.close();
+  dbCache.clear();
+  progressCache.clear();
+  statusCache.clear();
+}
+
 module.exports = {
   buildTask,
   createTask,
@@ -2176,9 +1920,11 @@ module.exports = {
   queryOptimizationTaskIndexRows,
   queryTaskAdmissionRows,
   querySpaceStatTaskRows,
+  queryLatestAutomaticFailures,
   getStorageMetrics,
   setProgress,
   getProgress,
   deleteProgress,
   getCachedStatus,
+  resetForTests,
 };

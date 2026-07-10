@@ -29,7 +29,7 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
 
     const adminHealth = await app.inject({ method: 'GET', url: '/v1/admin/health' });
     assert.strictEqual(adminHealth.statusCode, 200);
-    assert.ok(adminHealth.json().checks.libraReconciler);
+    assert.ok(adminHealth.json().checks.libraryAutomation);
 
     async function createItem(name) {
       const filePath = path.join(root, `${name}.mp4`);
@@ -59,6 +59,12 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     assert.strictEqual(detail.json().helix.membership.status, 'active');
     assert.strictEqual(detail.json().helix.phase, 'maintenance');
     assert.strictEqual(detail.json().helix.source.readiness, 'ready');
+
+    const candidates = await app.inject({ method: 'GET', url: '/v1/admin/offboarding-candidates' });
+    assert.strictEqual(candidates.statusCode, 200);
+    assert.deepStrictEqual(candidates.json(), { candidates: [], total: 0 });
+    const removedCandidateRoute = await app.inject({ method: 'GET', url: '/v1/admin/delete-candidates' });
+    assert.strictEqual(removedCandidateRoute.statusCode, 404);
 
     const basedataTask = await app.inject({
       method: 'POST', url: '/v1/tasks', payload: { itemId: retained.item.itemId, targetGate: 'basedata' },

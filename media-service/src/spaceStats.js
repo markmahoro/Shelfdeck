@@ -2,253 +2,68 @@
 
 const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 
-/**
- * SpaceStats — computes library space metrics.
- *
- * Three layers:
- *   1. Current: SUM(item.size) per sub-library
- *   2. Expected: what the total would be after all strategy recommendations
- *   3. Realized: cumulative bytesSaved from completed tasks
- */
-
 function fmtBytes(bytes) {
-  if (bytes == null || bytes === 0) return '0 B';
+  if (!bytes) return '0 B';
   const abs = Math.abs(bytes);
-  if (abs >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-  if (abs >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  if (abs >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return bytes + ' B';
-}
-
-function targetMbpsFromObjective(item = {}) {
-  const objective = item.optimizeObjective && typeof item.optimizeObjective === 'object'
-    ? item.optimizeObjective
-    : {};
-  const targetFacts = objective.targetMediaFacts && typeof objective.targetMediaFacts === 'object'
-    ? objective.targetMediaFacts
-    : (item.targetMediaFacts && typeof item.targetMediaFacts === 'object' ? item.targetMediaFacts : {});
-  const profile = bitrateObjectiveProfile.resolveBitrateProfile({ targetMediaFacts: targetFacts, item });
-  return profile ? profile.targetMbps : 0;
-}
-
-function normalizeFlowKind(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function optimizeFlowKindForItem(item = {}) {
-  const gate = item.optimizeGate || item.optimizationGate || {};
-  return normalizeFlowKind(gate.flowKind || gate.appliedFlowKind || gate.operation);
+  if (abs >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+  if (abs >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  if (abs >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
 }
 
 function flowKindForTask(task = {}) {
-  return normalizeFlowKind(
-    task.flowPlan && task.flowPlan.flowKind
-    || task.taskBridge && task.taskBridge.flowKind
-    || task.flowKind
-    || '',
-  );
+  return String(task.flowPlan && task.flowPlan.flowKind || '').toLowerCase();
 }
 
-function estimatedDelta(item) {
-  const flowKind = optimizeFlowKindForItem(item);
-  const size = typeof item.size === 'number' ? item.size : 0;
-  if (size <= 0) return { flowKind, delta: 0 };
-
-  const target = targetMbpsFromObjective(item);
-  if (target > 0) {
-    const currentMbps = item.equivalentBitrate ?? (typeof item.bitrate === 'number' ? item.bitrate / 1_000_000 : 0);
-    if (currentMbps > target) {
-      const delta = size * (1 - target / currentMbps);
-      return { flowKind: flowKind || 'transcode', delta };
-    }
-  }
-
-  return { flowKind, delta: 0 };
+function estimate(item = {}) {
+  const objective = item.helix && item.helix.maintenance && item.helix.maintenance.optimizeObjective || item.optimizeObjective || {};
+  const facts = objective.targetMediaFacts || {};
+  const profile = bitrateObjectiveProfile.resolveBitrateProfile({ targetMediaFacts: facts, item });
+  const size = Number(item.size) || 0;
+  const currentMbps = Number(item.bitrate) > 100000 ? Number(item.bitrate) / 1000000 : Number(item.bitrate) || 0;
+  if (!profile || !size || !currentMbps || currentMbps <= profile.targetMbps) return 0;
+  return Math.max(0, size * (1 - profile.targetMbps / currentMbps));
 }
 
-function computeSpaceStats(library, tasks, config) {
-  const items = library && library.items ? library.items : [];
-  const taskList = tasks || [];
-
-  // ── Group items by subLibrary ──────────────────────────────────────────
-  const subLibMap = {};
+function computeSpaceStats(library = {}, tasks = [], config = {}) {
+  const items = library.items || [];
+  const grouped = new Map();
   for (const item of items) {
-    const sid = item.subLibraryId || '__unknown__';
-    if (!subLibMap[sid]) subLibMap[sid] = [];
-    subLibMap[sid].push(item);
+    const key = item.subLibraryId || '__unknown__';
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(item);
   }
-
-  // ── Per-subLibrary stats ──────────────────────────────────────────────
-  const subLibraryDetails = [];
   let currentTotalBytes = 0;
-  let transcodeEstimatedSavings = 0;
-  let transcodeItemCount = 0;
-  let upgradeEstimatedDelta = 0;
-  let upgradeItemCount = 0;
-  let deleteEstimatedSavings = 0;
-  let deleteItemCount = 0;
-
-  for (const [sid, sidItems] of Object.entries(subLibMap)) {
-    const firstItem = sidItems[0];
-    const subLibCfg = (config.subLibraries || []).find((s) => s.uuid === sid);
-    const name = (subLibCfg && subLibCfg.name) || sid;
-
-    let curBytes = 0;
-    let tcSavings = 0;
-    let tcCount = 0;
-    let upDelta = 0;
-    let upCount = 0;
-    let delSavings = 0;
-    let delCount = 0;
-
-    for (const item of sidItems) {
-      const sz = typeof item.size === 'number' ? item.size : 0;
-      curBytes += sz;
-
-      const est = estimatedDelta(item);
-      if (est.flowKind === 'transcode') {
-        if (est.delta > 0) tcSavings += est.delta;
-        else upDelta += est.delta; // negative delta = size increase
-        tcCount++;
-      } else if (est.flowKind === 'upgrade') {
-        upDelta += est.delta;
-        upCount++;
-      }
-    }
-
-    subLibraryDetails.push({
-      uuid: sid,
-      name,
-      itemCount: sidItems.length,
-      currentBytes: curBytes,
-      expectedBytes: curBytes - tcSavings - delSavings + Math.abs(Math.min(0, upDelta)),
-      transcode: { expectedSavingsBytes: tcSavings, realizedSavingsBytes: 0, itemCount: tcCount },
-      upgrade: { expectedIncreaseBytes: Math.max(0, -upDelta), realizedIncreaseBytes: 0, itemCount: upCount },
-      delete: { expectedSavingsBytes: delSavings, realizedSavingsBytes: 0, itemCount: delCount },
-    });
-
-    currentTotalBytes += curBytes;
-    transcodeEstimatedSavings += tcSavings;
-    transcodeItemCount += tcCount;
-    upgradeEstimatedDelta += upDelta;
-    upgradeItemCount += upCount;
-    deleteEstimatedSavings += delSavings;
-    deleteItemCount += delCount;
-  }
-
-  // ── Realized savings from done tasks ───────────────────────────────────
-  let transcodeRealizedSavings = 0;
-  let upgradeRealizedIncrease = 0;
-  let deleteRealizedSavings = 0;
-
-  for (const task of taskList) {
-    if (task.status !== 'done') continue;
-    const flowKind = flowKindForTask(task);
-
-    let bytesSaved = null;
-    // Prefer explicitly stored bytesSaved
-    if (task.verifyResult && typeof task.verifyResult.bytesSaved === 'number') {
-      bytesSaved = task.verifyResult.bytesSaved;
-    } else if (flowKind === 'transcode' && task.itemInfo && task.verifyResult) {
-      if (typeof task.itemInfo.originalSizeBytes === 'number' && typeof task.verifyResult.sizeBytes === 'number') {
-        bytesSaved = task.itemInfo.originalSizeBytes - task.verifyResult.sizeBytes;
-      }
-    } else if (flowKind === 'upgrade' && task.upgradePreview) {
-      const oldSize = task.upgradePreview.oldFile && task.upgradePreview.oldFile.size;
-      const newSize = task.upgradePreview.newFile && task.upgradePreview.newFile.size;
-      if (typeof oldSize === 'number' && typeof newSize === 'number') {
-        bytesSaved = oldSize - newSize;
-      }
-    } else if (flowKind === 'delete' && task.itemInfo) {
-      if (typeof task.itemInfo.originalSizeBytes === 'number') {
-        bytesSaved = task.itemInfo.originalSizeBytes;
-      }
-    }
-
-    if (bytesSaved != null) {
-      if (flowKind === 'transcode') {
-        transcodeRealizedSavings += bytesSaved;
-      } else if (flowKind === 'upgrade') {
-        // bytesSaved negative → file got bigger → realizedIncrease positive
-        if (bytesSaved < 0) upgradeRealizedIncrease += Math.abs(bytesSaved);
-        else transcodeRealizedSavings += bytesSaved; // rare: upgrade actually saved space
-      } else if (flowKind === 'delete') {
-        deleteRealizedSavings += bytesSaved;
-      }
+  let expectedSavingsBytes = 0;
+  const subLibraries = [...grouped.entries()].map(([uuid, rows]) => {
+    const currentBytes = rows.reduce((sum, item) => sum + (Number(item.size) || 0), 0);
+    const savings = rows.reduce((sum, item) => sum + estimate(item), 0);
+    currentTotalBytes += currentBytes;
+    expectedSavingsBytes += savings;
+    const definition = (config.subLibraries || []).find((entry) => entry.uuid === uuid);
+    return {
+      uuid,
+      name: definition && definition.name || uuid,
+      itemCount: rows.length,
+      currentBytes,
+      expectedBytes: currentBytes - savings,
+      optimize: { expectedSavingsBytes: savings, realizedSavingsBytes: 0, itemCount: rows.filter((item) => estimate(item) > 0).length },
+    };
+  });
+  let realizedSavingsBytes = 0;
+  for (const task of tasks || []) {
+    if (task.status !== 'done' || !['transcode', 'upgrade'].includes(flowKindForTask(task))) continue;
+    if (task.verifyResult && Number.isFinite(Number(task.verifyResult.bytesSaved))) {
+      realizedSavingsBytes += Math.max(0, Number(task.verifyResult.bytesSaved));
     }
   }
-
-  // ── Merge realized into subLibrary details ────────────────────────────
-  // Match done tasks to subLibraries by itemId lookup in library
-  const itemSubLibMap = {};
-  for (const item of items) {
-    itemSubLibMap[item.itemId] = item.subLibraryId;
-  }
-  for (const task of taskList) {
-    if (task.status !== 'done') continue;
-    const flowKind = flowKindForTask(task);
-    const sid = itemSubLibMap[task.itemId];
-    if (!sid) continue;
-    const detail = subLibraryDetails.find((d) => d.uuid === sid);
-    if (!detail) continue;
-
-    let bytesSaved = null;
-    if (task.verifyResult && typeof task.verifyResult.bytesSaved === 'number') {
-      bytesSaved = task.verifyResult.bytesSaved;
-    } else if (flowKind === 'transcode' && task.itemInfo && task.verifyResult) {
-      if (typeof task.itemInfo.originalSizeBytes === 'number' && typeof task.verifyResult.sizeBytes === 'number') {
-        bytesSaved = task.itemInfo.originalSizeBytes - task.verifyResult.sizeBytes;
-      }
-    } else if (flowKind === 'upgrade' && task.upgradePreview) {
-      const oldSize = task.upgradePreview.oldFile && task.upgradePreview.oldFile.size;
-      const newSize = task.upgradePreview.newFile && task.upgradePreview.newFile.size;
-      if (typeof oldSize === 'number' && typeof newSize === 'number') {
-        bytesSaved = oldSize - newSize;
-      }
-    } else if (flowKind === 'delete' && task.itemInfo) {
-      if (typeof task.itemInfo.originalSizeBytes === 'number') {
-        bytesSaved = task.itemInfo.originalSizeBytes;
-      }
-    }
-
-    if (bytesSaved != null) {
-      if (flowKind === 'transcode') {
-        detail.transcode.realizedSavingsBytes = (detail.transcode.realizedSavingsBytes || 0) + bytesSaved;
-      } else if (flowKind === 'upgrade') {
-        if (bytesSaved < 0) {
-          detail.upgrade.realizedIncreaseBytes = (detail.upgrade.realizedIncreaseBytes || 0) + Math.abs(bytesSaved);
-        }
-      } else if (flowKind === 'delete') {
-        detail.delete.realizedSavingsBytes = (detail.delete.realizedSavingsBytes || 0) + bytesSaved;
-      }
-    }
-  }
-
-  const upgradeExpectedIncrease = Math.max(0, -upgradeEstimatedDelta);
-  const reclaimableBytes = transcodeEstimatedSavings + deleteEstimatedSavings;
-  const realizedReclaimedBytes = transcodeRealizedSavings + deleteRealizedSavings;
-
   return {
     currentTotalBytes,
-    expectedTotalBytes: currentTotalBytes - transcodeEstimatedSavings - deleteEstimatedSavings + upgradeExpectedIncrease,
-    reclaimableBytes,
-    realizedReclaimedBytes,
-    transcode: {
-      expectedSavingsBytes: transcodeEstimatedSavings,
-      realizedSavingsBytes: transcodeRealizedSavings,
-      itemCount: transcodeItemCount,
-    },
-    upgrade: {
-      expectedIncreaseBytes: upgradeExpectedIncrease,
-      realizedIncreaseBytes: upgradeRealizedIncrease,
-      itemCount: upgradeItemCount,
-    },
-    delete: {
-      expectedSavingsBytes: deleteEstimatedSavings,
-      realizedSavingsBytes: deleteRealizedSavings,
-      itemCount: deleteItemCount,
-    },
-    subLibraries: subLibraryDetails,
+    expectedTotalBytes: currentTotalBytes - expectedSavingsBytes,
+    reclaimableBytes: expectedSavingsBytes,
+    realizedReclaimedBytes: realizedSavingsBytes,
+    optimize: { expectedSavingsBytes, realizedSavingsBytes },
+    subLibraries,
   };
 }
 

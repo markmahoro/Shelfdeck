@@ -5,7 +5,7 @@ const automationPolicy = require('./automationPolicy');
 const factsFreshnessService = require('./factsFreshnessService');
 const mediaFreeze = require('./mediaFreeze');
 
-const TERMINAL = new Set(['done', 'failed_hard', 'failed_soft', 'cancelled', 'skipped', 'deleted']);
+const TERMINAL = new Set(['done', 'failed_hard', 'failed_soft', 'cancelled', 'skipped']);
 const ATTEMPT_FAILURE_STATUSES = new Set(['failed_hard', 'failed_soft', 'interrupted']);
 
 function cleanToken(value) {
@@ -152,9 +152,7 @@ function objectiveKind(objective = {}) {
 function isMetadataRefreshObjective(objective = {}) {
   const kind = objectiveKind(objective);
   return kind === 'metadata_refresh'
-    || kind === 'media_facts_refresh'
     || kind === 'refresh_metadata'
-    || kind === 'refresh_media_facts'
     || objective.forceRefresh === true
     || objective.refresh === true
     || Array.isArray(objective.refreshFacts);
@@ -278,10 +276,6 @@ function canCreateTargetTask(input = {}) {
     }
   }
   if (targetGate === 'optimize') {
-    const kind = objectiveKind(resolvedGateObjective);
-    if (kind === 'remove_media' || kind === 'delete' || kind === 'delete_archived_media') {
-      return blocked(targetGate, 'invalid_maintenance_objective');
-    }
     if (item.metadataComplete !== true) return blocked(targetGate, 'metadata_missing');
     if (!metadataFactsFresh(item)) return blocked(targetGate, 'metadata_facts_stale');
     if (item.optimizeObjectiveStatus && item.optimizeObjectiveStatus !== 'ready') {
