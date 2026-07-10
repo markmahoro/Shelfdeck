@@ -135,10 +135,6 @@ export interface UpgradeSmartSelect {
 
 export interface TranscodeConfig {
   transcodeTempRoot: string;
-  transcodeCleanupOrphansOnStartup?: boolean;
-  transcodeReplaceConfirmRequired: boolean;
-  ffmpegPath: string;
-  ffprobePath: string;
   transcodeEncodingDevices: DevicePoolEntry[];
   transcodeCpuParticipationStrategy: 'normal' | 'backup_only';
 }
@@ -152,6 +148,8 @@ export interface EncodeDevice {
 
 export interface DevicePoolEntry {
   stableKey: string;
+  label?: string;
+  backend?: string;
   inPool: boolean;
   priority: number;
   maxSlots: number;
@@ -465,9 +463,10 @@ export interface MediaTask {
   resumePoint: string | null;
   retryCount?: number;
   approval?: TaskApproval | null;
-  // Queue priority (lower = runs first globally). Absent on legacy tasks
-  // (treated as 100 by the scheduler).
+  // Task-local priority inside the same MediaItem priority class.
   priority?: number;
+  maintenanceRun?: { runId: string; itemId: string; status: string; initiatedBy: string } | null;
+  maintenancePrioritySnapshot?: { class: 'normal' | 'expedited'; revision: number; reason?: string; runId?: string };
   priorityModelVersion?: string;
   priorityBreakdown?: {
     modelVersion?: string;
@@ -828,21 +827,4 @@ export interface NodeInfo {
   consecutiveFailures: number;
   lastSeenAt: string;
   createdAt: string;
-}
-
-// ── Upgrade (MoviePilot) ──────────────────────────────────────────────────────
-
-export interface MoviePilotConfig {
-  baseUrl: string;
-  apiKey: string;
-  savePath: string;
-  stagingPath: string;
-}
-
-export interface UpgradeConfig {
-  moviepilot: MoviePilotConfig;
-  upgradeStagingLocalPath: string;
-  upgradeRetryInterval: number;
-  upgradeMaxRetries: number;
-  upgradeReplaceConfirmRequired: boolean;
 }

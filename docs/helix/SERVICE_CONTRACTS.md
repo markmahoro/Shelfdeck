@@ -14,6 +14,9 @@ createSubLibrary(command)
 updateSubLibrary(command)
 requestLibraryObservation(command)
 requestMaintenance(command)
+requestMaintenanceRun(command)
+setMaintenancePriority(command)
+clearMaintenancePriority(command)
 requestOffboarding(command)
 requestOffboardingBatch(command)
 reconcileItem(itemId)
@@ -44,6 +47,10 @@ reconcileMaintenance(admission)
 reconcileObjectives(itemIds)
 suspendMaintenance(command)
 requestMaintenance(command)
+startMaintenanceRun(command)
+setMaintenancePriority(command)
+clearMaintenancePriority(command)
+reconcileMaintenanceRun(command)
 updateUserPerception(command)
 getMaintenanceProjection(itemId)
 getMaintenanceProjections(itemIds)
@@ -56,6 +63,17 @@ Admission minimally contains `itemId`, `admissionGeneration`, `sourceRevision`, 
 MaintenanceProjection contains `maintenanceState: maintaining|complete`, the public boolean `maintenanceComplete`, basedata/metadata/optimize gate facts and an optional `disposalRecommendation`. They are not Libra phase values. `disposalRecommendation` cannot create a delete task or close Membership.
 
 Kairox Maintenance Automation owns automatic `basedata|metadata|optimize` progression for currently admitted media. Libra provides admission and policy; it does not create each next-gate task. Helix runtime has no `ingest|delete|archive` maintenance target.
+
+`requestMaintenance` is an internal Runner -> Task Creator capability and requires the
+Lifecycle-selected target. HTTP adapters and users cannot call it. Public user intent is
+`requestMaintenanceRun` plus MediaItem-level priority commands; none accepts targetGate,
+flowKind or executor.
+
+`maintenanceAutomationMode=auto|manual` is mutually exclusive. Auto mode rejects user
+start intent; manual mode never auto-creates a Run. Once a Run exists, task terminal wakes
+the same Run until `maintenanceComplete` without another user action.
+
+Kairox 还提供统一 Person Catalog：Person canonical identity、aliases、provider identities、reference artifacts、五级 preference 和 item-person relations。普通与成人演员不建立两套 Store；偏好变化发布中性 Kairox signal，关联媒体 objective 由 Kairox 自身重新计算。
 
 The internal component contract is:
 
@@ -89,8 +107,12 @@ Resource Runtime -> event execution through shared Governor permits
 - `DELETE /v1/admin/sublibraries/:uuid` is rejected while any contained Libra Membership is not `closed`.
 - `POST/PATCH /v1/admin/sublibraries` accepts `libraryAutomationMode` and `maintenanceAutomationMode`.
 - `POST /v1/admin/sublibraries/:uuid/actions/observe` creates durable Libra observation work.
-- `POST /v1/tasks` maps only `basedata|metadata|optimize` to `LibraService.requestMaintenance`; every other target returns `400 KAIROX_INVALID_TARGET_GATE`.
-- Helix clean runtime does not expose legacy scan, delete-candidate or archive APIs.
+- `POST /v1/admin/library/items/:itemId/actions/start-maintenance` creates a neutral Run only for manual Libraries.
+- `POST /v1/admin/library/items/:itemId/actions/prioritize-maintenance` and `cancel-maintenance-priority` change MediaItem Priority only.
+- Public APIs do not create target-gate tasks, adjust Task priority, or expose execute/retry/pause controls. Approval remains an explicit Task action.
+- Helix clean runtime does not expose legacy scan, offboarding-candidate, delete-candidate or archive APIs；用户清理建议统一为 `GET /v1/admin/cleanup-recommendations`。
+- Admin 人物接口统一位于 `/v1/admin/people`；旧 `/v1/admin/adult/people` 不保留兼容入口。
+- Admin 配置只通过 resources/security/maintenance policy 与各 Integration 的 scoped API 读写；通用 `/v1/config` 不属于 clean contract。
 
 ## Shared Resource Governor
 

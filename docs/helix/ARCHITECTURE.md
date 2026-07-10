@@ -153,9 +153,19 @@ maintenanceComplete
 
 Helix clean runtime 不包含 `archive` target、gate、配置或 automation 分支。处置建议使用 `disposalRecommendation`，处置执行只走 Libra Offboarding。
 
+### 6.1 Person Catalog And Preference
+
+Kairox Metadata 同时拥有统一 Person Catalog 与媒体—演员关系。普通 Emby、JAV 与欧美成人来源使用同一 `personId` 空间；Libra 与 Nexora 不写人物事实。
+
+- 强 Provider identity 或既有 `personId` 可以自动合并；名称、别名和人脸相似只产生人工确认候选。
+- 演员偏好属于 Kairox User Perception，采用 `-2..2` 五级值：回避、不喜欢、普通、喜欢、非常喜欢。
+- Metadata 发布派生 `actorPersonIds`、`actorPreferenceMax` 与 `actorPreferenceMin`。偏好 revision 变化只使关联媒体重新计算 objective。
+- 演员偏好只作为 Policy 条件，不直接指定 Upgrade/Transcode Flow，也不隐式改变维护目标。
+- Reference image/face 是 cold artifact，不进入媒体热 projection。
+
 Optimize flow 修改媒体资产后，相关 Basedata 必须变 stale，并通过新的 `targetGate=basedata` 重新观察。只有实际受影响的 fact group 才失效；例如同路径 transcode 通常不应使海报、剧情和演员 metadata 一并 stale。
 
-### 6.1 Kairox Automation And Runtime Components
+### 6.2 Kairox Automation And Runtime Components
 
 Kairox 内层自动化必须复用并收束既有物理组件，不新增一个与 Lifecycle、SmartTaskEngine 或 Task Scheduler 平行的重型 automation engine。
 
@@ -187,7 +197,46 @@ Automation Policy 与 TaskAdmission 回答不同问题：前者回答“系统�
 
 Task terminal 只唤醒 Kairox Automation Runner 重新读取 Lifecycle projection。它不直接推进下一个 gate，也不通知 Libra 改变 `phase=maintenance`。
 
-### 6.2 Projection Composition
+### 6.3 Maintenance Run And MediaItem Priority
+
+Kairox 使用唯一的 durable `MaintenanceRun` 表达“一次从当前事实收敛到
+`maintenanceComplete` 的维护过程”。`maintenanceAutomationMode=auto|manual`
+是互斥的 Library 策略，只决定谁建立 Run：auto 由 Kairox 建立，manual 只由
+用户的 neutral start intent 建立。Run 建立后，两种模式使用完全相同的
+Lifecycle、Task Creator、Scheduler 和 Resource Runtime，不允许用户逐 gate
+推进。
+
+```text
+MaintenanceRun
+  -> Lifecycle evaluates nextTargetGate
+  -> Automation Runner supplies the candidate
+  -> Task Creator creates one target-gate task
+  -> task terminal wakes the same Run
+  -> maintenanceComplete closes the Run
+```
+
+`maintenancePriorityClass=normal|expedited` 是 Kairox MediaItem 的 canonical
+用户意图，不是 Task fact。它绑定当前 Run；Run complete、cancelled 或
+offboarding 时恢复 normal，不继承到后续 Run。设置 Priority 只改变排序并唤醒
+Runner，不能建立 Run、指定 gate、绕过 TaskAdmission、approval、generation
+fencing 或抢占已执行工作。
+
+只有拥有排队责任的组件消费 Priority：
+
+- Automation Runner：MediaItem Priority -> Library Priority -> Run age -> stable item order。
+- Task Scheduler：MediaItem Priority snapshot -> task-local priority -> recovery -> FIFO。
+- Resource Governor：control-plane -> expedited maintenance -> normal maintenance -> same-class aging/FIFO。
+
+Task Creator 只把当前 MediaItem Priority revision 作为可恢复、可审计的快照写入
+Task。`priorityEngine.js` 只计算同一 MediaItem priority class 内部的 task-local
+priority；它不是中央调度器。Lifecycle、Flow Planner 和 Approval 不读取 Priority，
+因为加急不能改变“做什么”或安全条件。
+
+Movie、Episode 和成人文件是 playable maintenance subject。Series/Season 仅是
+Libra 管理和批量 intent 的 scope，不创建 Kairox maintenance task；Libra 将
+Series/Season intent 扩展为成员 Episode 的独立 Run/Priority。
+
+### 6.4 Projection Composition
 
 - Libra Store 只持久化 Libra-owned facts，以及 durable operation 已消费的 source/maintenance revision。
 - Libra 不持久化 Nexora SourceProjection 或 Kairox MaintenanceProjection 作为 canonical facts，也不以它们的快照提供查询结果。
@@ -257,6 +306,16 @@ Kairox optimize 内部的 staged artifact cleanup 或 verified replace event 不
 - `delete_source` authorization 属于 Libra Offboarding；Nexora只执行已经验证的 scoped authorization。
 
 ## 11. Beta Completion
+
+### 11.1 Admin User Surface
+
+Admin Web 的用户信息架构固定为：概览、媒体库、媒体、演员、任务中心、清理建议、管理策略、系统设置。普通页面不暴露 Libra/Nexora/Kairox、revision、generation、permit 或 blocker 等内部术语；原始事实只能进入默认折叠的诊断区。
+
+- 概览只表达系统是否可用及维护成果；resource wait、自动重试与等待确认不是系统故障。
+- 任务中心只展示运行中、等待确认、已完成；可恢复失败不形成普通用户失败墙。
+- 清理建议使用“不再由 ShelfDeck 管理 / 解除来源关联 / 删除媒体文件”，分别映射三个 cleanup mode。
+- 系统设置只保存用户决策；FFmpeg/FFprobe、control/DB capacity、扫描周期、队列 aging 等部署或内部默认值不进入普通配置。
+- Admin Web 通过 scoped API 访问资源、安全、维护策略与各 Integration；不存在通用 raw config API。
 
 Helix Beta 必须同时通过：
 

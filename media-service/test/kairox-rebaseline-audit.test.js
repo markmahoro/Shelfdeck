@@ -60,14 +60,14 @@ test('Helix clean Kairox audit exposes only Basedata, Metadata and Optimize targ
 
 test('Kairox objective template audit records v3.7 target schema', () => {
   const configStoreSource = readRepoFile('media-service/src/configStore.js');
-  const ruleTemplatesPage = readRepoFile('media-service/web/src/pages/RuleTemplatesPage.tsx');
+  const policiesPage = readRepoFile('media-service/web/src/pages/PoliciesPage.tsx');
 
   assert.match(configStoreSource, /targetMediaFacts/);
   assert.match(configStoreSource, /qualityTier: 'premium'/);
   assert.match(configStoreSource, /qualityTier: 'baseline'/);
   assert.doesNotMatch(configStoreSource, /action: 'delete'/);
-  assert.doesNotMatch(ruleTemplatesPage, /动作:/);
-  assert.doesNotMatch(ruleTemplatesPage, /ACTION_LABELS/);
-  assert.match(ruleTemplatesPage, /归档前目标/);
-  assert.match(ruleTemplatesPage, /TARGET_TIER_LABELS/);
+  assert.doesNotMatch(policiesPage, /动作:/);
+  assert.doesNotMatch(policiesPage, /ACTION_LABELS/);
+  assert.match(policiesPage, /维护目标/);
+  assert.match(policiesPage, /actorPreferenceMax/);
 });

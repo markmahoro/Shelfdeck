@@ -38,6 +38,7 @@ test('Kairox Automation Runner creates only Lifecycle next-gate tasks for auto m
     itemId: 'auto-item', admissionGeneration: 1, status: 'active', sourceRevision: 'source-1',
     sourceAccessDescriptor: { sourceType: 'emby', subLibraryId: 'auto-maintenance', identityPayload: { serverId: 'server', embyItemId: 'emby-1' } },
   });
+  kairoxStore.ensureMedia({ itemId: 'auto-item', mediaKind: 'movie', playable: true });
   const created = [];
   const service = {
     reconcileObjectives(itemIds) {
@@ -45,7 +46,14 @@ test('Kairox Automation Runner creates only Lifecycle next-gate tasks for auto m
     },
     requestMaintenance(command) {
       created.push(command);
+      const run = kairoxStore.getMaintenanceRun(command.itemId);
+      if (run) kairoxStore.updateMaintenanceRun(run.runId, { status: 'task_active', currentTaskId: 'task-1' });
       return { allowed: true, task: { id: 'task-1' } };
+    },
+    reconcileMaintenanceRun({ itemId }) {
+      let run = kairoxStore.getMaintenanceRun(itemId);
+      if (!run) run = kairoxStore.createMaintenanceRun({ itemId, admissionGeneration: 1, initiatedBy: 'system' }).run;
+      return { run };
     },
   };
   governor.configure({ resourceGovernor: { capacities: { 'control:kairox': 1 } } });
@@ -53,7 +61,7 @@ test('Kairox Automation Runner creates only Lifecycle next-gate tasks for auto m
   const result = await runner.runOnce({ limit: 100 });
   assert.strictEqual(result.created, 1);
   assert.strictEqual(created[0].targetGate, 'basedata');
-  assert.strictEqual(created[0].source, 'auto');
+  assert.ok(created[0].runId);
   assert.strictEqual(kairoxStore.getAutomationState('maintenance').lastError, '');
 });
 
@@ -63,6 +71,8 @@ test('Kairox Automation Runner does not retry-storm a failed automatic target', 
     itemId: 'blocked-item', admissionGeneration: 1, status: 'active', sourceRevision: 'source-1',
     sourceAccessDescriptor: { sourceType: 'emby', subLibraryId: 'auto-maintenance' },
   });
+  kairoxStore.ensureMedia({ itemId: 'blocked-item', mediaKind: 'movie', playable: true });
+  kairoxStore.createMaintenanceRun({ itemId: 'blocked-item', admissionGeneration: 1, initiatedBy: 'system' });
   let requested = 0;
   const service = {
     reconcileObjectives(itemIds) {
@@ -72,6 +82,7 @@ test('Kairox Automation Runner does not retry-storm a failed automatic target', 
       } : { itemId, maintenanceComplete: true, activeTasks: [] }]));
     },
     requestMaintenance() { requested += 1; return { allowed: true, task: { id: 'unexpected' } }; },
+    reconcileMaintenanceRun({ itemId }) { return { run: kairoxStore.getMaintenanceRun(itemId) }; },
   };
   runner.start(service, { immediate: false, intervalMs: 60000 });
   const result = await runner.runOnce({ limit: 100 });

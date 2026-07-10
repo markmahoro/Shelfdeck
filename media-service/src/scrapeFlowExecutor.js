@@ -37,7 +37,7 @@ function cleanObject(input = {}) {
   }, {});
 }
 
-function embyMetadataFacts(item = {}, episodes = []) {
+function embyMetadataFacts(item = {}, episodes = [], serverId = '') {
   return cleanObject({
     title: item.name || '',
     name: item.name || '',
@@ -51,15 +51,24 @@ function embyMetadataFacts(item = {}, episodes = []) {
     seasonNumber: item.parentIndexNumber,
     episodeNumber: item.indexNumber,
     episodeCount: episodes.length,
+    people: (item.people || []).map((person) => ({
+      name: person.name,
+      role: 'actor',
+      providerIds: person.providerIds || {},
+      sourcePersonKey: person.embyPersonId ? `emby:${serverId}:person:${person.embyPersonId}` : '',
+      source: 'emby',
+      contentKinds: ['general'],
+    })),
   });
 }
 
-function adultMetadataFacts(result = {}, item = {}, adultId = '') {
+function adultMetadataFacts(result = {}, item = {}, adultId = '', adultRegion = '') {
   return cleanObject({
     title: result.title || result.generatedTitle || adultId || path.basename(item.path || '', path.extname(item.path || '')),
     name: result.title || result.generatedTitle || adultId || '',
     type: 'movie',
     adultId: result.adultId || adultId,
+    adultRegion,
     originalTitle: result.originalTitle || '',
     plot: result.plot || result.overview || result.generatedDescription || '',
     actors: result.actors || [],
@@ -81,6 +90,7 @@ function adultMetadataFacts(result = {}, item = {}, adultId = '') {
     faceClusters: Array.isArray(result.faceClusters) ? result.faceClusters : [],
     unknownFaces: Array.isArray(result.unknownFaces) ? result.unknownFaces : [],
     actorConfidence: result.actorConfidence || {},
+    protagonist: result.protagonist || null,
   });
 }
 
@@ -103,7 +113,7 @@ async function observeEmbyMetadata(task, config, subLibrary) {
   const item = await embyService.getItemById(server, embyItemId);
   const episodes = item && item.type === 'season' ? await embyService.getSeasonEpisodes(server, embyItemId) : [];
   return {
-    facts: embyMetadataFacts(item, episodes || []),
+    facts: embyMetadataFacts(item, episodes || [], serverId),
     evidence: { adapter: 'emby', embyItemId, serverId, episodeCount: (episodes || []).length },
   };
 }
@@ -127,7 +137,7 @@ async function observeFolderMetadata(task, config, subLibrary) {
       onLog: (level, msg) => appendLog(task.id, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
     });
     return {
-      facts: adultMetadataFacts(result, item, result.adultId || ''),
+      facts: adultMetadataFacts(result, item, result.adultId || '', region),
       evidence: { adapter: 'western_adult_ai', region },
     };
   }
@@ -142,7 +152,7 @@ async function observeFolderMetadata(task, config, subLibrary) {
     onLog: (level, msg) => appendLog(task.id, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
   });
   return {
-    facts: adultMetadataFacts(result, item, adultId),
+    facts: adultMetadataFacts(result, item, adultId, region),
     evidence: { adapter: 'japanese_jav', region, adultId },
   };
 }

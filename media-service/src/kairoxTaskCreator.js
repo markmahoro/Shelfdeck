@@ -47,6 +47,8 @@ function createTargetGateTask(input = {}) {
     requestedIntent: admission.requestedIntent || input.requestedIntent || input.intent,
     allowedOptimizeFlowKinds: input.allowedOptimizeFlowKinds,
     helixAdmission: input.helixAdmission || null,
+    maintenanceRun: input.maintenanceRun || null,
+    maintenancePrioritySnapshot: input.maintenancePrioritySnapshot || { class: 'normal', revision: 0, reason: '', runId: '' },
     itemInfo,
     logs: input.logs || [{
       ts: new Date().toISOString(),

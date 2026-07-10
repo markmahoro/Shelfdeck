@@ -32,6 +32,26 @@ function createKairoxService(dependencies = {}) {
       }
       throw notImplemented('KairoxService.requestMaintenance');
     },
+    startMaintenanceRun(command) {
+      if (typeof implementation.startMaintenanceRun === 'function') return implementation.startMaintenanceRun(command);
+      throw notImplemented('KairoxService.startMaintenanceRun');
+    },
+    setMaintenancePriority(command) {
+      if (typeof implementation.setMaintenancePriority === 'function') return implementation.setMaintenancePriority(command);
+      throw notImplemented('KairoxService.setMaintenancePriority');
+    },
+    clearMaintenancePriority(command) {
+      if (typeof implementation.clearMaintenancePriority === 'function') return implementation.clearMaintenancePriority(command);
+      throw notImplemented('KairoxService.clearMaintenancePriority');
+    },
+    reconcileMaintenanceRun(command) {
+      if (typeof implementation.reconcileMaintenanceRun === 'function') return implementation.reconcileMaintenanceRun(command);
+      throw notImplemented('KairoxService.reconcileMaintenanceRun');
+    },
+    requestMetadataRefresh(command) {
+      if (typeof implementation.requestMetadataRefresh === 'function') return implementation.requestMetadataRefresh(command);
+      throw notImplemented('KairoxService.requestMetadataRefresh');
+    },
     updateUserPerception(command) {
       if (typeof implementation.updateUserPerception === 'function') return implementation.updateUserPerception(command);
       throw notImplemented('KairoxService.updateUserPerception');

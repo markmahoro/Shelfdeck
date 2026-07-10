@@ -27,18 +27,14 @@ function resolveOptimizeAllowedFlowKinds(config = {}) {
   );
 }
 
-function decideAutomaticTrigger(input = {}) {
+function decideRunProgress(input = {}) {
   const targetGate = cleanToken(input.targetGate);
-  if (!TASK_TARGETS.has(targetGate)) {
-    return { allowed: false, targetGate, reason: 'invalid_target_gate' };
-  }
-  if (input.maintenanceAutomationMode !== 'auto') {
-    return { allowed: false, targetGate, reason: 'maintenance_automation_manual' };
-  }
+  if (!TASK_TARGETS.has(targetGate)) return { allowed: false, targetGate, reason: 'invalid_target_gate' };
+  if (input.runStatus !== 'ready') return { allowed: false, targetGate, reason: 'maintenance_run_not_ready' };
   if (input.lifecycleBlockedReason) {
     return { allowed: false, targetGate, reason: 'lifecycle_blocked', blocker: String(input.lifecycleBlockedReason) };
   }
-  return { allowed: true, targetGate, reason: 'automatic_trigger_allowed' };
+  return { allowed: true, targetGate, reason: 'maintenance_run_progress_allowed' };
 }
 
 function automationSnapshot(input = {}) {
@@ -52,6 +48,6 @@ module.exports = {
   TASK_TARGETS,
   OPTIMIZE_FLOW_KINDS,
   automationSnapshot,
-  decideAutomaticTrigger,
+  decideRunProgress,
   resolveOptimizeAllowedFlowKinds,
 };

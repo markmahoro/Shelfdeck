@@ -34,6 +34,19 @@ const runningTasks = new Set(); // taskId Set — prevents re-entry within same 
 const justConfirmedIds = new Set(); // tasks confirmed by user this round — bypass awaiting guard
 const CLOSED_STATUSES = new Set(['done', 'failed_hard', 'failed_soft', 'skipped', 'cancelled']);
 
+function compareDispatchOrder(a, b, recoveredIds = new Set()) {
+  const aItemPriority = a.maintenancePrioritySnapshot && a.maintenancePrioritySnapshot.class === 'expedited' ? 0 : 1;
+  const bItemPriority = b.maintenancePrioritySnapshot && b.maintenancePrioritySnapshot.class === 'expedited' ? 0 : 1;
+  if (aItemPriority !== bItemPriority) return aItemPriority - bItemPriority;
+  const pa = typeof a.priority === 'number' ? a.priority : 100;
+  const pb = typeof b.priority === 'number' ? b.priority : 100;
+  if (pa !== pb) return pa - pb;
+  const aRec = recoveredIds.has(a.id) ? 0 : 1;
+  const bRec = recoveredIds.has(b.id) ? 0 : 1;
+  if (aRec !== bRec) return aRec - bRec;
+  return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+}
+
 function flowKindForTask(task = {}) {
   return String(task.flowPlan && task.flowPlan.flowKind || '');
 }
@@ -437,15 +450,7 @@ async function scheduleRound() {
   // Lower priority value = runs first. Recovered (interrupted) tasks get a
   // secondary tiebreak so a resume isn't starved by a flood of equal-priority
   // new tasks; FIFO (createdAt) is the final stable tiebreak.
-  const dispatchOrder = [...tasks].sort((a, b) => {
-    const pa = typeof a.priority === 'number' ? a.priority : 100;
-    const pb = typeof b.priority === 'number' ? b.priority : 100;
-    if (pa !== pb) return pa - pb;
-    const aRec = recoveredIds.has(a.id) ? 0 : 1;
-    const bRec = recoveredIds.has(b.id) ? 0 : 1;
-    if (aRec !== bRec) return aRec - bRec;
-    return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
-  });
+  const dispatchOrder = [...tasks].sort((a, b) => compareDispatchOrder(a, b, recoveredIds));
 
   for (const task of dispatchOrder) {
     // Skip terminal states
@@ -509,6 +514,7 @@ module.exports = {
   isRunning,
   scheduleRound,
   recoverInterruptedTasks,
+  _compareDispatchOrder: compareDispatchOrder,
   getHealth() {
     return {
       status: schedulerRunning ? 'green' : 'red',

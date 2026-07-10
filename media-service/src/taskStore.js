@@ -63,7 +63,7 @@ function getDb() {
       verify_bytes_saved REAL, verify_size_bytes REAL, original_size_bytes REAL,
       upgrade_old_size REAL, upgrade_new_size REAL, source TEXT NOT NULL DEFAULT '', progress REAL,
       phase TEXT, resume_point TEXT, manual_execute_requested INTEGER NOT NULL DEFAULT 0,
-      priority_manually_adjusted INTEGER NOT NULL DEFAULT 0, priority_model_version TEXT NOT NULL DEFAULT '',
+      priority_model_version TEXT NOT NULL DEFAULT '',
       retry_count INTEGER NOT NULL DEFAULT 0, pausing_requested INTEGER NOT NULL DEFAULT 0,
       node_id TEXT NOT NULL DEFAULT '', sub_library_id TEXT NOT NULL DEFAULT '', item_path TEXT NOT NULL DEFAULT '',
       bridge_kind TEXT NOT NULL DEFAULT '', bridge_from TEXT NOT NULL DEFAULT '', bridge_to TEXT NOT NULL DEFAULT '',
@@ -225,6 +225,15 @@ function normalizeTask(task) {
   t.updatedAt = String(t.updatedAt || t.createdAt || now);
   t.logs = Array.isArray(t.logs) ? t.logs : [];
   t.itemInfo = t.itemInfo === undefined ? null : t.itemInfo;
+  t.maintenanceRun = t.maintenanceRun && typeof t.maintenanceRun === 'object' ? t.maintenanceRun : null;
+  t.maintenancePrioritySnapshot = t.maintenancePrioritySnapshot && typeof t.maintenancePrioritySnapshot === 'object'
+    ? {
+      class: t.maintenancePrioritySnapshot.class === 'expedited' ? 'expedited' : 'normal',
+      revision: Number(t.maintenancePrioritySnapshot.revision) || 0,
+      reason: String(t.maintenancePrioritySnapshot.reason || ''),
+      runId: String(t.maintenancePrioritySnapshot.runId || ''),
+    }
+    : { class: 'normal', revision: 0, reason: '', runId: '' };
   t.manualExecuteRequested = !!t.manualExecuteRequested;
   const itemInfo = t.itemInfo && typeof t.itemInfo === 'object' ? t.itemInfo : {};
   t.taskTarget = t.taskTarget && typeof t.taskTarget === 'object'
@@ -499,7 +508,13 @@ function taskUpdateEvents(current, updated, updates = {}) {
     events.push(buildTaskEvent(updated, 'task.priority_changed', {
       fromPriority: current.priority,
       toPriority: updated.priority,
-      manuallyAdjusted: !!updates.priorityManuallyAdjusted,
+    }));
+  }
+  if (updates.maintenancePrioritySnapshot
+    && JSON.stringify(current.maintenancePrioritySnapshot || {}) !== JSON.stringify(updated.maintenancePrioritySnapshot || {})) {
+    events.push(buildTaskEvent(updated, 'task.media_priority_changed', {
+      from: current.maintenancePrioritySnapshot || { class: 'normal', revision: 0 },
+      to: updated.maintenancePrioritySnapshot || { class: 'normal', revision: 0 },
     }));
   }
   if (updates.manualExecuteRequested === true && !current.manualExecuteRequested) {
@@ -567,7 +582,6 @@ function rowToTask(row) {
   task.phase = row.phase === undefined ? task.phase : row.phase;
   task.resumePoint = row.resume_point === undefined ? task.resumePoint : row.resume_point;
   task.manualExecuteRequested = row.manual_execute_requested === undefined ? task.manualExecuteRequested : !!row.manual_execute_requested;
-  task.priorityManuallyAdjusted = row.priority_manually_adjusted === undefined ? task.priorityManuallyAdjusted : !!row.priority_manually_adjusted;
   task.priorityModelVersion = row.priority_model_version || task.priorityModelVersion;
   task.retryCount = typeof row.retry_count === 'number' ? row.retry_count : (task.retryCount || 0);
   task.pausingRequested = row.pausing_requested === undefined ? task.pausingRequested : !!row.pausing_requested;
@@ -620,7 +634,7 @@ const upsertSql = `
   INSERT INTO tasks
     (id, item_id, item_name, status, priority, created_at, updated_at, payload_json,
      verify_bytes_saved, verify_size_bytes, original_size_bytes, upgrade_old_size, upgrade_new_size,
-     source, progress, phase, resume_point, manual_execute_requested, priority_manually_adjusted,
+     source, progress, phase, resume_point, manual_execute_requested,
      priority_model_version, retry_count, pausing_requested, node_id, sub_library_id, item_path,
      bridge_kind, bridge_from, bridge_to, bridge_reason, flow_version, flow_direction, flow_kind,
      flow_executor, primary_resource_type, resource_types_json, flow_steps_json,
@@ -628,7 +642,7 @@ const upsertSql = `
   VALUES
     (@id, @item_id, @item_name, @status, @priority, @created_at, @updated_at, @payload_json,
      @verify_bytes_saved, @verify_size_bytes, @original_size_bytes, @upgrade_old_size, @upgrade_new_size,
-     @source, @progress, @phase, @resume_point, @manual_execute_requested, @priority_manually_adjusted,
+     @source, @progress, @phase, @resume_point, @manual_execute_requested,
      @priority_model_version, @retry_count, @pausing_requested, @node_id, @sub_library_id, @item_path,
      @bridge_kind, @bridge_from, @bridge_to, @bridge_reason, @flow_version, @flow_direction, @flow_kind,
      @flow_executor, @primary_resource_type, @resource_types_json, @flow_steps_json,
@@ -651,7 +665,6 @@ const upsertSql = `
     phase = excluded.phase,
     resume_point = excluded.resume_point,
     manual_execute_requested = excluded.manual_execute_requested,
-    priority_manually_adjusted = excluded.priority_manually_adjusted,
     priority_model_version = excluded.priority_model_version,
     retry_count = excluded.retry_count,
     pausing_requested = excluded.pausing_requested,
@@ -692,7 +705,6 @@ function buildTask(taskData, now = new Date().toISOString()) {
     logs: Array.isArray(taskData.logs) ? taskData.logs : [],
     itemInfo: taskData.itemInfo || null,
     manualExecuteRequested: !!taskData.manualExecuteRequested,
-    priorityManuallyAdjusted: !!taskData.priorityManuallyAdjusted,
     priorityModelVersion: taskData.priorityModelVersion,
     priorityBreakdown: taskData.priorityBreakdown,
     taskBridge: taskData.taskBridge,
@@ -700,6 +712,8 @@ function buildTask(taskData, now = new Date().toISOString()) {
     taskTarget: taskData.taskTarget,
     requestedIntent: taskData.requestedIntent,
     helixAdmission: taskData.helixAdmission || null,
+    maintenanceRun: taskData.maintenanceRun || null,
+    maintenancePrioritySnapshot: taskData.maintenancePrioritySnapshot || { class: 'normal', revision: 0, reason: '', runId: '' },
   });
 }
 
@@ -727,6 +741,8 @@ function createTask(taskData) {
       source: task.source,
       priority: task.priority,
       priorityModelVersion: task.priorityModelVersion,
+      maintenanceRun: task.maintenanceRun,
+      maintenancePrioritySnapshot: task.maintenancePrioritySnapshot,
       requestedIntent: task.requestedIntent,
       taskBridge: task.taskBridge,
       flowPlan: task.flowPlan,
@@ -1199,6 +1215,8 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
       resume_point,
       ${activeColumn('node_id')} AS node_id,
       ${activeJson('$.approval')} AS approval_json,
+      ${activeJson('$.maintenanceRun')} AS maintenance_run_json,
+      ${activeJson('$.maintenancePrioritySnapshot')} AS maintenance_priority_snapshot_json,
       ${activeJson('$.verifyResult.sizeBytes')} AS verify_size_bytes,
       ${activeJson('$.verifyResult.bitrate')} AS verify_bitrate,
       ${activeJson('$.verifyResult.videoCodec')} AS verify_video_codec,
@@ -1339,6 +1357,8 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
         retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
         nodeId: row.node_id || undefined,
         approval: jsonExtractObject(row.approval_json, undefined),
+        maintenanceRun: jsonExtractObject(row.maintenance_run_json, null),
+        maintenancePrioritySnapshot: jsonExtractObject(row.maintenance_priority_snapshot_json, { class: 'normal', revision: 0, reason: '', runId: '' }),
         taskTarget: row.target_gate
           ? {
             object: {
@@ -1566,7 +1586,6 @@ function querySchedulerTasks() {
         phase,
         resume_point,
         manual_execute_requested,
-        priority_manually_adjusted,
         priority_model_version,
         retry_count,
         pausing_requested,
@@ -1656,7 +1675,6 @@ function querySchedulerTasks() {
         phase: row.phase,
         resumePoint: row.resume_point,
         manualExecuteRequested: !!row.manual_execute_requested,
-        priorityManuallyAdjusted: !!row.priority_manually_adjusted,
         priorityModelVersion: row.priority_model_version,
         priorityBreakdown: jsonExtractObject(row.priority_breakdown_json, undefined),
         helixAdmission: jsonExtractObject(row.helix_admission_json, null),

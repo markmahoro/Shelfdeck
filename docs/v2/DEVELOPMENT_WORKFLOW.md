@@ -69,7 +69,7 @@ cd media-service
 npm test
 ```
 
-涉及真实媒体文件探测、普通 Emby metadata repair、adult ingest/scrape 的本机复现，应优先使用这个 profile。只有重大版本验收、真实 NAS 行为验证、Admin Web 生产浏览器验收，或用户明确要求时，才部署 NAS 生产。
+涉及真实媒体文件探测、普通 Emby metadata repair、adult observation/scrape 的本机复现，应优先使用这个 profile。只有重大版本验收、真实 NAS 行为验证、Admin Web 生产浏览器验收，或用户明确要求时，才部署 NAS 生产。
 
 本机测试环境不是生产环境的完全等价替身，以下内容必须在 NAS 生产环境或 Linux/Docker 等价环境上验证：
 
@@ -98,12 +98,10 @@ npm test
 | `adultRegion=western_adult` | 欧美成人库，默认由 service-local 做抽帧、人脸匹配和封面生成 |
 | Nexora observation | 把单个文件候选转换为 SourceBinding 和 onboarding evidence，不创建 Kairox ingest task |
 | `targetGate=metadata` | Kairox metadata 维护任务；Flow Planner 可选择 `scrape` flow |
-| `automationMode=auto/manual` | 子库任务创建后的执行方式；`auto` 自动进入队列，`manual` 创建为待手动启动；审批节点由 `approvalPolicy` 单独控制 |
+| `libraryAutomationMode=auto/manual` | 是否周期观察 Source；manual 只响应显式 observe intent |
+| `maintenanceAutomationMode=auto/manual` | auto 自动建立 Maintenance Run；manual 由用户一次启动 Run，Run 内都连续推进 |
 | `approvalPolicy` | 任务内部关键节点审批策略，支持 `auto`、`confirm`、`forceConfirm` |
-| `mediaLibraryStartupRefreshOnStartup` | 普通媒体库启动后是否自动刷新 |
-| `mediaLibraryStartupRefreshDelaySeconds` | 普通媒体库启动刷新延迟，避免服务刚监听端口就被全量刷新压住 |
-| `smartTaskInitialDelaySeconds` | `SmartTaskEngine` 首次自动入队扫描延迟 |
-| `adultLibrary.probeTimeoutMs` | 成人库 `ingest` 单文件 FFprobe 超时，坏文件不应阻塞 API |
+| `adultLibrary.probeTimeoutMs` | folder observation 单文件 FFprobe 超时，坏文件不应阻塞 SourceBinding 观察 |
 
 欧美成人库约定：
 
@@ -113,14 +111,14 @@ npm test
 - Docker service 是 all-in-one 容器，内部启动 Node service 和 face-service；容器外只暴露 `18080`。
 - 人脸模型目录默认是 `/app/data/face-models`，挂载数据卷后容器重启不会重新下载模型。
 - 匹配不到 protagonist 时等同于 JAV 识别不到番号：任务失败，item 保持 `scraped=false`，不会自动进入转码策略。
-- 成人库不得新增独立调度规则。新建、重试、冷却、队列上限、去重、优先级都必须走统一任务模型。
+- 成人库不得新增独立调度规则。Metadata refresh 只提交中性 intent；Run、TaskAdmission、MediaItem Priority 和 Governor 与普通媒体共用。
 - 物理删除属于 Libra 授权的 Nexora `delete_source` offboarding，不再创建 Kairox delete task。必须显式 destructive authorization，且目标必须仍在 `watchRoot` 内，不能是 `watchRoot` 或 `scraped/` 根目录。
 
 ## Task Store
 
-媒体库主存储是 `media-service/data/library.db` SQLite。`library.json` 是旧版运行时文件，启动时会一次性迁移到 SQLite；迁移不会删除原 JSON。媒体库页面、成人库 item 写回、scrape 状态和评分更新都应通过 `libraryStore` / `mediaLibraryService` 的统一边界访问，不要重新引入直接读写 `library.json` 的路径。
+Libra 主存储是 `media-service/data/library.db` SQLite，Kairox Run/Task/Facts 主存储是 `media-service/data/tasks.db` SQLite。Helix clean runtime 不迁移 `library.json`、`tasks.json` 或 mixed `media_items`；旧 schema/config 必须先执行显式 clean initialization。
 
-任务中心主存储是 `media-service/data/tasks.db` SQLite。`tasks.json` 是旧版运行时文件，启动时会一次性迁移到 SQLite；迁移不会删除原 JSON。不要通过删除任务数据库来“清队列”，否则会丢失完成和失败历史。需要控制雪崩时应使用 `smartTaskEnabledActions`、`TaskAdmission` 队列上限、冷却和启动延迟；子库 `automationMode` 只控制创建后的自动执行。
+不要通过删除数据库“清队列”。供给由 Maintenance Run 决定，用户只能在允许的模式下开始 Run 或设置 MediaItem Priority；Task Scheduler 只派发既有 Task，Resource Governor 是唯一 capacity owner。
 
 ## 平台规则
 

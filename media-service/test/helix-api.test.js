@@ -31,6 +31,28 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     assert.strictEqual(adminHealth.statusCode, 200);
     assert.ok(adminHealth.json().checks.libraryAutomation);
 
+    const rawConfig = await app.inject({ method: 'GET', url: '/v1/config' });
+    assert.strictEqual(rawConfig.statusCode, 404);
+    const resources = await app.inject({ method: 'GET', url: '/v1/admin/settings/resources' });
+    assert.strictEqual(resources.statusCode, 200);
+    assert.strictEqual(resources.json().ffmpegPath, undefined);
+    assert.deepStrictEqual(Object.keys(resources.json().resourceLimits).sort(), ['embyApiPerServer', 'filesystemPerVolume', 'localFfmpeg', 'workerPerNode']);
+    const maintenancePolicy = await app.inject({ method: 'GET', url: '/v1/admin/policies/maintenance' });
+    assert.strictEqual(maintenancePolicy.statusCode, 200);
+
+    const createdPerson = await app.inject({ method: 'POST', url: '/v1/admin/people', payload: { name: 'Contract Actor', preference: 1, contentKinds: ['general'] } });
+    assert.strictEqual(createdPerson.statusCode, 201);
+    assert.strictEqual(createdPerson.json().preference, 1);
+    const personList = await app.inject({ method: 'GET', url: '/v1/admin/people?contentKind=general' });
+    assert.strictEqual(personList.statusCode, 200);
+    assert.strictEqual(personList.json().total, 1);
+    const updatedPerson = await app.inject({ method: 'PATCH', url: `/v1/admin/people/${createdPerson.json().personId}`, payload: { preference: -2 } });
+    assert.strictEqual(updatedPerson.statusCode, 200);
+    assert.strictEqual(updatedPerson.json().preference, -2);
+    assert.strictEqual(updatedPerson.json().preferenceRevision, 2);
+    const removedPeopleRoute = await app.inject({ method: 'GET', url: '/v1/admin/adult/people' });
+    assert.strictEqual(removedPeopleRoute.statusCode, 404);
+
     async function createItem(name) {
       const filePath = path.join(root, `${name}.mp4`);
       fs.writeFileSync(filePath, name);
@@ -60,18 +82,35 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     assert.strictEqual(detail.json().helix.phase, 'maintenance');
     assert.strictEqual(detail.json().helix.source.readiness, 'ready');
 
-    const candidates = await app.inject({ method: 'GET', url: '/v1/admin/offboarding-candidates' });
+    const candidates = await app.inject({ method: 'GET', url: '/v1/admin/cleanup-recommendations' });
     assert.strictEqual(candidates.statusCode, 200);
     assert.deepStrictEqual(candidates.json(), { candidates: [], total: 0 });
+    const removedOffboardingRoute = await app.inject({ method: 'GET', url: '/v1/admin/offboarding-candidates' });
+    assert.strictEqual(removedOffboardingRoute.statusCode, 404);
     const removedCandidateRoute = await app.inject({ method: 'GET', url: '/v1/admin/delete-candidates' });
     assert.strictEqual(removedCandidateRoute.statusCode, 404);
 
-    const basedataTask = await app.inject({
+    const removedTaskCreation = await app.inject({
       method: 'POST', url: '/v1/tasks', payload: { itemId: retained.item.itemId, targetGate: 'basedata' },
     });
-    assert.strictEqual(basedataTask.statusCode, 201);
-    assert.strictEqual(basedataTask.json().taskTarget.targetGate, 'basedata');
-    assert.strictEqual(basedataTask.json().itemInfo.helix.membership.status, 'active');
+    assert.strictEqual(removedTaskCreation.statusCode, 404);
+    const startedMaintenance = await app.inject({
+      method: 'POST', url: `/v1/admin/library/items/${retained.item.itemId}/actions/start-maintenance`,
+      payload: { idempotencyKey: 'start-retained' },
+    });
+    assert.strictEqual(startedMaintenance.statusCode, 202);
+    assert.strictEqual(startedMaintenance.json().results[0].run.initiatedBy, 'user');
+    const prioritized = await app.inject({
+      method: 'POST', url: `/v1/admin/library/items/${retained.item.itemId}/actions/prioritize-maintenance`,
+      payload: { idempotencyKey: 'prioritize-retained' },
+    });
+    assert.strictEqual(prioritized.statusCode, 202);
+    assert.strictEqual(prioritized.json().results[0].media.maintenancePriorityClass, 'expedited');
+    const cancelledPriority = await app.inject({
+      method: 'POST', url: `/v1/admin/library/items/${retained.item.itemId}/actions/cancel-maintenance-priority`,
+      payload: { idempotencyKey: 'cancel-priority-retained' },
+    });
+    assert.strictEqual(cancelledPriority.statusCode, 202);
 
     const retainResult = await app.inject({
       method: 'POST',
@@ -112,7 +151,7 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     assert.strictEqual(fs.existsSync(deleted.filePath), false);
 
     const manualAfterClose = await app.inject({
-      method: 'POST', url: '/v1/tasks', payload: { itemId: retained.item.itemId, targetGate: 'metadata' },
+      method: 'POST', url: `/v1/admin/library/items/${retained.item.itemId}/actions/start-maintenance`, payload: { idempotencyKey: 'start-closed' },
     });
     assert.strictEqual(manualAfterClose.statusCode, 409);
     assert.strictEqual(manualAfterClose.json().error.code, 'LIBRA_MAINTENANCE_NOT_ADMITTED');
@@ -120,8 +159,7 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     const legacyDelete = await app.inject({
       method: 'POST', url: '/v1/tasks', payload: { itemId: retained.item.itemId, targetGate: 'delete' },
     });
-    assert.strictEqual(legacyDelete.statusCode, 400);
-    assert.strictEqual(legacyDelete.json().error.code, 'KAIROX_INVALID_TARGET_GATE');
+    assert.strictEqual(legacyDelete.statusCode, 404);
 
     const bulkOne = await createItem('HELIX-SUBLIB-ONE');
     const bulkTwo = await createItem('HELIX-SUBLIB-TWO');

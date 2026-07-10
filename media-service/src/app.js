@@ -22,7 +22,8 @@ const activityLog = require('./activityLog');
 const spaceStats = require('./spaceStats');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
-const peopleStore = require('./peopleStore');
+const peopleStore = require('./personCatalogStore');
+const kairoxSignalBus = require('./kairoxSignalBus');
 const adultActorImageSearchService = require('./services/adultActorImageSearchService');
 const westernAdultLocalAiService = require('./services/westernAdultLocalAiService');
 const metadataStatus = require('./metadataStatus');
@@ -219,6 +220,8 @@ function taskListSummary(task) {
     nodeId: task.nodeId,
     approval: task.approval,
     priority: task.priority,
+    maintenanceRun: task.maintenanceRun || null,
+    maintenancePrioritySnapshot: task.maintenancePrioritySnapshot || { class: 'normal', revision: 0 },
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     itemInfo: taskListItemInfo(task.itemInfo),
@@ -226,7 +229,6 @@ function taskListSummary(task) {
     confirmData: task.confirmData,
     metadataStatus: task.itemInfo && task.itemInfo.metadataStatus,
     metadataMissingReasons: task.itemInfo && task.itemInfo.metadataMissingReasons,
-    controlState: taskControlPolicy.buildTaskControlState(task),
   };
 }
 
@@ -961,6 +963,7 @@ function buildDashboardHealthSignals(mediaStats, taskStats, config, automation =
   };
 
   push('red', 'failed_tasks', '失败任务', taskStats.failedTasks, '先到任务中心查看实现路径和 event 历史');
+  push('red', 'blocked_maintenance_runs', '维护运行故障', mediaStats.blockedRunItems, '请在高级日志中查看最终失败证据');
   push('yellow', 'awaiting_confirmation', '等待确认', taskStats.awaitingConfirmationTasks, '需要人工确认后才能继续');
   push('yellow', 'metadata_incomplete', '元数据未完成', mediaStats.metadataIncompleteItems, '会阻断当前维护目标');
   push('yellow', 'pending_optimization', '等待优化', mediaStats.pendingOptimizationItems, '推荐动作仍未闭环');
@@ -980,6 +983,7 @@ function queryDashboardMediaStatsFromHelix() {
     pendingOptimizationItems: items.filter((item) => item.helix.maintenance.nextTargetGate === 'optimize').length,
     openItems: items.filter((item) => !item.maintenanceComplete && item.helix.membership.status === 'active').length,
     maintenanceCompleteItems: items.filter((item) => item.maintenanceComplete).length,
+    blockedRunItems: items.filter((item) => item.helix.maintenance.run && item.helix.maintenance.run.status === 'blocked').length,
     offboardingCandidateItems: items.filter((item) => item.helix.maintenance.disposalRecommendation).length,
     totalBytes: items.reduce((sum, item) => sum + (Number(item.size) || 0), 0),
   };
@@ -1235,7 +1239,7 @@ function taskDetailView(task, opts = {}) {
   return {
     ...task,
     itemInfo,
-    controlState: taskControlPolicy.buildTaskControlState(task, { latestEvent }),
+    latestEvent,
   };
 }
 
@@ -1312,34 +1316,6 @@ function activeTaskItemIds() {
     orderBy: 'updatedAt',
     orderDir: 'desc',
   }).tasks.map((task) => task.itemId).filter(Boolean));
-}
-
-const PRIORITY_EDITABLE_STATUSES = ['created', 'pending_manual', 'queued', 'interrupted', 'paused'];
-
-function priorityAdjustmentState(task, requestedPriority) {
-  const status = task && task.status || '';
-  const editable = PRIORITY_EDITABLE_STATUSES.includes(status);
-  return {
-    enabled: editable,
-    reason: editable ? 'available' : 'status_not_priority_editable',
-    effect: editable ? 'override_queue_priority' : 'priority_locked_after_dispatch_or_terminal_state',
-    requestedPriority: requestedPriority === undefined ? null : requestedPriority,
-    currentPriority: task && typeof task.priority === 'number' ? task.priority : 100,
-    editableStatuses: PRIORITY_EDITABLE_STATUSES,
-  };
-}
-
-function priorityAdjustmentReject(reply, task, statusCode, code, message, requestedPriority, extra = {}) {
-  const fresh = task && task.id ? (taskStore.getTask(task.id) || task) : task;
-  const latestEvent = fresh && fresh.id ? latestTaskEvent(fresh.id) : null;
-  const controlState = fresh ? taskControlPolicy.buildTaskControlState(fresh, { latestEvent }) : null;
-  return reply.code(statusCode).send({
-    error: { code, message },
-    task: fresh ? taskListSummary(fresh) : null,
-    controlState,
-    priorityAdjustment: priorityAdjustmentState(fresh, requestedPriority),
-    ...extra,
-  });
 }
 
 function getTaskActionOrReject(reply, task, actionName) {
@@ -1557,120 +1533,6 @@ function registerRoutes(app) {
 
   // ── Tasks ───────────────────────────────────────────────────────────────
 
-  app.post('/v1/tasks', async (req, reply) => {
-    const body = req.body || {};
-    const { itemId } = body;
-    if (!itemId) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
-    }
-    if (!['basedata', 'metadata', 'optimize'].includes(String(body.targetGate || ''))) {
-      return apiError(reply, 400, 'KAIROX_INVALID_TARGET_GATE', 'targetGate must be basedata, metadata, or optimize');
-    }
-
-    const cfg = configStore.loadConfig();
-
-    const libraryResult = getHelixServices().libraService.queryLibraryProjections({ itemId }, { limit: 1 });
-    const libItem = libraryResult.items[0] || null;
-    if (!libItem) return apiError(reply, 404, 'LIBRA_ITEM_NOT_FOUND', 'Library item not found');
-    const sourceDescriptor = libItem.helix && libItem.helix.source && libItem.helix.source.sourceAccessDescriptor || {};
-    const identity = sourceDescriptor.identityPayload || {};
-    const basedataFacts = libItem.helix && libItem.helix.maintenance && libItem.helix.maintenance.basedataFacts || {};
-    const metadataFacts = libItem.helix && libItem.helix.maintenance && libItem.helix.maintenance.metadataFacts || {};
-    const admissionItemInfo = {
-      ...libItem,
-      ...basedataFacts,
-      ...metadataFacts,
-      itemId,
-      source: sourceDescriptor.sourceType || libItem.source || '',
-      subLibraryId: libItem.subLibraryId || sourceDescriptor.subLibraryId || '',
-      embyItemId: identity.embyItemId || libItem.embyItemId || '',
-      sourceAccessDescriptor: sourceDescriptor,
-    };
-    const activeAdmissionTasks = activeTaskSummariesForItem(itemId);
-    const status = 'queued';
-    let created;
-    try {
-      created = getHelixServices().libraService.requestMaintenance({
-        itemId,
-        itemInfo: admissionItemInfo,
-        targetGate: body.targetGate,
-        gateObjective: body.gateObjective,
-        flowPreference: body.flowPreference,
-        intent: body.intent,
-        source: 'manual',
-        status,
-        config: cfg,
-        tasks: activeAdmissionTasks,
-        logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by user intent through Libra' }],
-      });
-    } catch (error) {
-      const statusCode = error.code === 'LIBRA_ITEM_NOT_FOUND' || error.code === 'KAIROX_ITEM_NOT_FOUND' ? 404 : 409;
-      return apiError(reply, statusCode, error.code || 'LIBRA_MAINTENANCE_REJECTED', error.message);
-    }
-    const admission = created.admission;
-    if (!admission.allowed) {
-      diagnosticLog.record({
-        category: 'admission',
-        scope: 'taskAdmission.manual',
-        operation: 'reject_task',
-        component: 'taskAdmission',
-        resourceType: 'task',
-        resourceKey: `task:${admission.targetGate || body.targetGate || 'unknown'}`,
-        status: 'rejected',
-        payload: {
-          itemId,
-          targetGate: body.targetGate || (body.intent && body.intent.targetGate) || '',
-          flowPreference: body.flowPreference || (body.intent && body.intent.flowPreference) || null,
-          source: 'manual',
-          reason: admission.reason,
-          supportedEntry: admission.supportedEntry,
-          supportedFlows: admission.supportedFlows || admission.supportedOperations,
-          metadataMissingReasons: admission.metadataMissingReasons,
-        },
-      });
-      if (isTaskIntentValidationReason(admission.reason)) {
-        return reply.code(400).send(taskAdmissionRejectPayload(
-          'VALIDATION_ERROR',
-          admission.reason,
-          admission,
-          libItem,
-          admissionItemInfo,
-          cfg,
-          activeAdmissionTasks,
-        ));
-      }
-      if (admission.reason === 'active_task_exists') {
-        return reply.code(409).send(taskAdmissionRejectPayload(
-          'TASK_CONFLICT',
-          `Item ${itemId} already has an active task (${admission.activeTaskId})`,
-          admission,
-          libItem,
-          admissionItemInfo,
-          cfg,
-          activeAdmissionTasks,
-          {
-            activeTask: activeTaskAdmissionSummary(itemId, admission.activeTaskId),
-          },
-        ));
-      }
-      return reply.code(409).send(taskAdmissionRejectPayload(
-        'TASK_ADMISSION_REJECTED',
-        taskAdmissionRejectMessage(admission),
-        admission,
-        libItem,
-        admissionItemInfo,
-        cfg,
-        activeAdmissionTasks,
-      ));
-    }
-
-    const task = created.task;
-
-    const response = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
-    response.admission = compactAdmissionAccept(admission);
-    return reply.code(201).send(response);
-  });
-
   app.post('/v1/admin/library/actions/onboard', async (req, reply) => {
     const body = req.body || {};
     if (!body.idempotencyKey || !body.sourceReference) {
@@ -1688,6 +1550,40 @@ function registerRoutes(app) {
       return apiError(reply, error.code === 'LIBRA_IDEMPOTENCY_CONFLICT' ? 409 : 400, error.code || 'HELIX_ONBOARDING_FAILED', error.message);
     }
   });
+
+  async function maintenanceIntentRoute(req, reply, method, acceptedStatus = 202) {
+    const body = req.body || {};
+    if (!body.idempotencyKey) return apiError(reply, 400, 'VALIDATION_ERROR', 'idempotencyKey is required');
+    if (['targetGate', 'gateObjective', 'flowKind', 'executor'].some((field) => body[field] !== undefined)) {
+      return apiError(reply, 400, 'KAIROX_MAINTENANCE_INTENT_INVALID', 'Maintenance intent does not accept Gate or Flow fields');
+    }
+    try {
+      const result = await Promise.resolve(getHelixServices().libraService[method]({
+        itemId: req.params.itemId,
+        idempotencyKey: body.idempotencyKey,
+        reason: body.reason || '',
+      }));
+      kairoxAutomationRunner.wake({ itemId: req.params.itemId, kind: method });
+      libraAutomationEngine.wake();
+      return reply.code(acceptedStatus).send(result);
+    } catch (error) {
+      const statusCode = error.code === 'LIBRA_ITEM_NOT_FOUND' ? 404
+        : error.code === 'KAIROX_MAINTENANCE_INTENT_INVALID' || error.code === 'LIBRA_IDEMPOTENCY_KEY_REQUIRED' ? 400 : 409;
+      return apiError(reply, statusCode, error.code || 'KAIROX_MAINTENANCE_INTENT_REJECTED', error.message);
+    }
+  }
+
+  app.post('/v1/admin/library/items/:itemId/actions/start-maintenance', async (req, reply) => (
+    maintenanceIntentRoute(req, reply, 'requestMaintenanceRun')
+  ));
+
+  app.post('/v1/admin/library/items/:itemId/actions/prioritize-maintenance', async (req, reply) => (
+    maintenanceIntentRoute(req, reply, 'setMaintenancePriority')
+  ));
+
+  app.post('/v1/admin/library/items/:itemId/actions/cancel-maintenance-priority', async (req, reply) => (
+    maintenanceIntentRoute(req, reply, 'clearMaintenancePriority')
+  ));
 
   app.post('/v1/admin/library/items/:itemId/actions/offboard', async (req, reply) => {
     const body = req.body || {};
@@ -1740,9 +1636,6 @@ function registerRoutes(app) {
     const detail = taskDetailView(task);
     if (req.query.includeEvents === '1' || req.query.includeEvents === 'true') {
       detail.events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 200 }).events;
-      detail.controlState = taskControlPolicy.buildTaskControlState(task, {
-        latestEvent: detail.events && detail.events.length ? detail.events[detail.events.length - 1] : null,
-      });
     }
     return detail;
   });
@@ -1870,12 +1763,11 @@ function registerRoutes(app) {
     return reply.send(fs.createReadStream(filePath));
   });
 
-  app.patch('/v1/tasks/:id', async (req, reply) => {
+  app.post('/v1/tasks/:id/actions/confirm', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
 
-    const { confirmed, confirmData } = req.body || {};
-    if (!confirmed) return apiError(reply, 400, 'VALIDATION_ERROR', 'confirmed must be true');
+    const { confirmData } = req.body || {};
     const action = getTaskActionOrReject(reply, task, 'confirm');
     if (!action) return;
 
@@ -1902,105 +1794,6 @@ function registerRoutes(app) {
       });
     }
     return taskActionResponse(updated);
-  });
-
-  app.post('/v1/tasks/:id/actions/execute', async (req, reply) => {
-    const task = taskStore.getTask(req.params.id);
-    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    const action = getTaskActionOrReject(reply, task, 'execute');
-    if (!action) return;
-
-    if (action.effect === 'queue_for_scheduler_dispatch' || action.effect === 'resume_after_interruption' || action.effect === 'resume_from_pause') {
-      appendTaskControlEvent(task, 'execute', action);
-      taskScheduler.markConfirmed(task.id);
-      const updated = taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
-      return taskActionResponse(updated);
-    }
-    if (action.effect === 'clear_pause_request') {
-      // Clear pause request — hash acquisition loop will fall back to normal polling
-      appendTaskControlEvent(task, 'execute', action);
-      const updated = taskStore.updateTask(task.id, { pausingRequested: false, status: 'executing' });
-      return taskActionResponse(updated);
-    }
-    return taskActionReject(reply, task, 'execute', 'TASK_ACTION_REJECTED', action.reason || 'unsupported_execute_transition');
-  });
-
-  app.post('/v1/tasks/:id/actions/retry', async (req, reply) => {
-    const task = taskStore.getTask(req.params.id);
-    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-
-    const plan = taskControlPolicy.buildTaskRecoveryPlan(task);
-    if (!plan.available || plan.action !== 'retry') {
-      return taskActionReject(reply, task, 'retry', 'TASK_RECOVERY_REJECTED', plan.reason || 'recovery_not_available', {
-        recoveryPlan: plan,
-      });
-    }
-
-    const activeConflict = activeTaskConflictFor(task.itemId, task.id);
-    if (activeConflict) {
-      return taskActionReject(reply, task, 'retry', 'TASK_RECOVERY_REJECTED', 'active_task_conflict', {
-        recoveryPlan: { ...plan, available: false, reason: 'active_task_conflict' },
-        activeTask: taskListSummary(activeConflict),
-      });
-    }
-
-    taskScheduler.markConfirmed(task.id);
-    const updates = {
-      status: 'queued',
-      manualExecuteRequested: true,
-      retryCount: Number(task.retryCount || 0) + 1,
-      phase: null,
-      progress: 0,
-    };
-    if (plan.resumePoint && plan.resumePoint !== task.resumePoint) updates.resumePoint = plan.resumePoint;
-    const updated = taskStore.updateTask(task.id, updates);
-    taskStore.deleteProgress(task.id);
-    if (updated) {
-      taskStore.appendTaskEvent(updated, 'task.retry_requested', {
-        fromStatus: task.status,
-        toStatus: updated.status,
-        retryCount: updated.retryCount || 0,
-        recovery: {
-          reason: plan.reason,
-          effect: plan.effect,
-          resumePoint: plan.resumePoint || '',
-        },
-      });
-    }
-    return taskActionResponse(updated || taskStore.getTask(task.id) || task);
-  });
-
-  app.post('/v1/tasks/:id/actions/pause', async (req, reply) => {
-    const task = taskStore.getTask(req.params.id);
-    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    const action = getTaskActionOrReject(reply, task, 'pause');
-    if (!action) return;
-
-    if (action.effect === 'move_waiting_task_to_paused') {
-      appendTaskControlEvent(task, 'pause', action);
-      const updated = taskStore.updateTask(task.id, { status: 'paused' });
-      return taskActionResponse(updated);
-    }
-    if (action.effect === 'request_runtime_pause_and_cleanup_partial_work') {
-      appendTaskControlEvent(task, 'pause', action);
-      await resourceRuntime.pauseTask(task);
-      return taskActionResponse(taskStore.getTask(task.id) || { ...task, status: 'paused' });
-    }
-
-    return taskActionReject(reply, task, 'pause', 'TASK_ACTION_REJECTED', action.reason || 'unsupported_pause_transition');
-  });
-
-  app.delete('/v1/tasks/:id', async (req, reply) => {
-    const task = taskStore.getTask(req.params.id);
-    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    const action = getTaskActionOrReject(reply, task, 'cancel');
-    if (!action) return;
-
-    if (taskNeedsFlowCancel(task)) await resourceRuntime.cancelTask(task);
-
-    appendTaskControlEvent(task, 'cancel', action);
-    taskStore.deleteTask(task.id);
-    return { ok: true, id: task.id };
   });
 
   // ── Library ─────────────────────────────────────────────────────────────
@@ -2290,7 +2083,7 @@ function registerRoutes(app) {
     resources: resourceGovernor.snapshot(),
   }));
 
-  app.get('/v1/admin/offboarding-candidates', async () => {
+  app.get('/v1/admin/cleanup-recommendations', async () => {
     const items = getHelixServices().libraService.queryLibraryProjections({}).items;
     const candidates = items
       .filter((item) => item.helix && item.helix.maintenance && item.helix.maintenance.disposalRecommendation)
@@ -2344,29 +2137,80 @@ function registerRoutes(app) {
     }
   });
 
-  // ── Config ──────────────────────────────────────────────────────────────
+  // ── Scoped Admin Settings ───────────────────────────────────────────────
 
-  app.get('/v1/config', async () => {
-    return maskSensitive(configStore.loadConfig());
+  app.get('/v1/admin/settings/resources', async () => {
+    const cfg = configStore.loadConfig();
+    return {
+      resourceLimits: cfg.resourceLimits,
+      workspace: {
+        transcodeTempRoot: cfg.transcodeTempRoot || '',
+        upgradeStagingLocalPath: cfg.upgradeStagingLocalPath || '',
+      },
+      compute: {
+        transcodeEncodingDevices: cfg.transcodeEncodingDevices || [],
+        transcodeCpuParticipationStrategy: cfg.transcodeCpuParticipationStrategy || 'normal',
+      },
+      internal: resourceGovernor.snapshot(),
+    };
   });
 
-  app.patch('/v1/config', async (req, reply) => {
-    const patch = req.body && typeof req.body === 'object' ? req.body : {};
-    try {
-      const updated = configStore.patchConfig(patch);
-      return maskSensitive(updated);
-    } catch (err) {
-      if (err && err.code === 'METADATA_GATE_CONTRACT_BROKEN') {
-        return reply.code(400).send({
-          error: {
-            code: err.code,
-            message: err.message,
-            details: err.details || {},
-          },
-        });
+  app.patch('/v1/admin/settings/resources', async (req, reply) => {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const current = configStore.loadConfig();
+    const limits = { ...(current.resourceLimits || {}), ...((body.resourceLimits && typeof body.resourceLimits === 'object') ? body.resourceLimits : {}) };
+    for (const [key, value] of Object.entries(limits)) {
+      if (!['embyApiPerServer', 'filesystemPerVolume', 'localFfmpeg', 'workerPerNode'].includes(key)
+        || !Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > 64) {
+        return apiError(reply, 400, 'RESOURCE_LIMIT_INVALID', `Invalid resource limit: ${key}`);
       }
-      throw err;
+      limits[key] = Number(value);
     }
+    const patch = { resourceLimits: limits };
+    if (body.workspace && typeof body.workspace === 'object') {
+      if (body.workspace.transcodeTempRoot !== undefined) patch.transcodeTempRoot = String(body.workspace.transcodeTempRoot || '').trim();
+      if (body.workspace.upgradeStagingLocalPath !== undefined) patch.upgradeStagingLocalPath = String(body.workspace.upgradeStagingLocalPath || '').trim();
+    }
+    if (body.compute && typeof body.compute === 'object') {
+      if (body.compute.transcodeEncodingDevices !== undefined) patch.transcodeEncodingDevices = body.compute.transcodeEncodingDevices;
+      if (body.compute.transcodeCpuParticipationStrategy !== undefined) patch.transcodeCpuParticipationStrategy = body.compute.transcodeCpuParticipationStrategy;
+    }
+    const updated = configStore.patchConfig(patch);
+    return {
+      resourceLimits: updated.resourceLimits,
+      workspace: { transcodeTempRoot: updated.transcodeTempRoot || '', upgradeStagingLocalPath: updated.upgradeStagingLocalPath || '' },
+      compute: { transcodeEncodingDevices: updated.transcodeEncodingDevices || [], transcodeCpuParticipationStrategy: updated.transcodeCpuParticipationStrategy || 'normal' },
+      internal: resourceGovernor.snapshot(),
+    };
+  });
+
+  app.get('/v1/admin/settings/security', async () => {
+    const cfg = configStore.loadConfig();
+    return { apiKeyConfigured: !!cfg.apiKey, apiKey: cfg.apiKey ? MASKED_SECRET : '', environmentManaged: !!(process.env.MEDIA_SERVICE_API_KEY || process.env.CONTROL_PLANE_API_KEY) };
+  });
+
+  app.patch('/v1/admin/settings/security', async (req, reply) => {
+    if (process.env.MEDIA_SERVICE_API_KEY || process.env.CONTROL_PLANE_API_KEY) {
+      return apiError(reply, 409, 'SECURITY_ENVIRONMENT_MANAGED', 'API key is managed by the deployment environment');
+    }
+    const apiKey = String(req.body && req.body.apiKey || '').trim();
+    if (apiKey && apiKey.length < 16) return apiError(reply, 400, 'SECURITY_API_KEY_TOO_SHORT', 'API key must contain at least 16 characters');
+    configStore.patchConfig({ apiKey });
+    return { apiKeyConfigured: !!apiKey, apiKey: apiKey ? MASKED_SECRET : '', environmentManaged: false, restartRequired: true };
+  });
+
+  app.get('/v1/admin/policies/maintenance', async () => {
+    const cfg = configStore.loadConfig();
+    return { optimizeFlowPolicy: cfg.optimizeFlowPolicy, approvalPolicy: cfg.approvalPolicy };
+  });
+
+  app.patch('/v1/admin/policies/maintenance', async (req) => {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const patch = {};
+    if (body.optimizeFlowPolicy !== undefined) patch.optimizeFlowPolicy = body.optimizeFlowPolicy;
+    if (body.approvalPolicy !== undefined) patch.approvalPolicy = body.approvalPolicy;
+    const updated = configStore.patchConfig(patch);
+    return { optimizeFlowPolicy: updated.optimizeFlowPolicy, approvalPolicy: updated.approvalPolicy };
   });
 
   // ── Activity Log ────────────────────────────────────────────────────────
@@ -2484,27 +2328,6 @@ function registerRoutes(app) {
     } catch (e) {
       return apiError(reply, 502, 'EMBY_UNREACHABLE', e.message);
     }
-  });
-
-  // Deprecated emby config endpoints (compatibility)
-  app.get('/v1/admin/emby/config', async () => {
-    const cfg = configStore.loadConfig();
-    const first = Object.entries(cfg.embyServers || {})[0];
-    return first ? { baseUrl: first[1].baseUrl, apiKey: '********', userId: first[1].userId } : { baseUrl: '', apiKey: '', userId: '' };
-  });
-
-  app.patch('/v1/admin/emby/config', async (req) => {
-    const cfg = configStore.loadConfig();
-    const servers = cfg.embyServers || {};
-    const firstKey = Object.keys(servers)[0];
-    if (firstKey) {
-      servers[firstKey] = { ...servers[firstKey], ...req.body };
-    } else {
-      const uuid = crypto.randomUUID();
-      servers[uuid] = { serverName: '', baseUrl: '', apiKey: '', userId: '', embyUserPassword: '', ...req.body };
-    }
-    configStore.patchConfig({ embyServers: servers });
-    return { ok: true };
   });
 
   // ── Admin: SubLibraries ─────────────────────────────────────────────────
@@ -2644,82 +2467,63 @@ function registerRoutes(app) {
   // Optional body { adultId } overrides the detected 番号 (useful for ambiguous items).
   app.post('/v1/admin/adult/items/:itemId/actions/rescrape', async (req, reply) => {
     try {
-      const overrideAdultId = typeof req.body === 'object' && req.body ? req.body.adultId : undefined;
-      const result = getHelixServices().libraService.queryLibraryProjections({ itemId: req.params.itemId }, { limit: 1 });
-      const item = result.items[0];
-      if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
-      const maintenance = item.helix.maintenance || {};
-      const descriptor = item.helix.source && item.helix.source.sourceAccessDescriptor || {};
-      const itemInfo = {
-        ...item,
-        ...(maintenance.basedataFacts || {}),
-        ...(maintenance.metadataFacts || {}),
-        sourceAccessDescriptor: descriptor,
-        adultMetadata: {
-          ...(maintenance.metadataFacts || {}),
-          ...(typeof overrideAdultId === 'string' && overrideAdultId.trim() ? { adultId: overrideAdultId.trim() } : {}),
-        },
-      };
-      const config = configStore.loadConfig();
-      const activeAdmissionTasks = activeTaskSummariesForItem(req.params.itemId);
-      const created = getHelixServices().libraService.requestMaintenance({
+      const body = req.body || {};
+      if (!body.idempotencyKey) return apiError(reply, 400, 'VALIDATION_ERROR', 'idempotencyKey is required');
+      const result = getHelixServices().libraService.requestMetadataRefresh({
         itemId: req.params.itemId,
-        itemInfo,
-        targetGate: 'metadata',
-        gateObjective: { kind: 'metadata_refresh', forceRefresh: true, reason: 'adult_rescrape' },
-        intent: { mode: 'adult_rescrape' },
-        source: 'manual',
-        config,
-        tasks: activeAdmissionTasks,
-        logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Metadata task created by adult rescrape user intent through Libra' }],
+        idempotencyKey: body.idempotencyKey,
+        adultId: typeof body.adultId === 'string' ? body.adultId.trim() : '',
+        reason: 'adult_rescrape',
       });
-      if (!created.allowed) {
-        const activeTask = activeTaskAdmissionSummary(req.params.itemId);
-        const rejectionAdmission = {
-          ...created.admission,
-          activeTaskId: created.admission.activeTaskId || (created.admission.activeTask && created.admission.activeTask.id),
-          activeTaskBridge: created.admission.activeTaskBridge || (created.admission.activeTask && created.admission.activeTask.targetGate),
-        };
-        return reply.code(409).send(taskAdmissionRejectPayload(
-          rejectionAdmission.reason === 'active_task_exists' ? 'TASK_CONFLICT' : 'TASK_ADMISSION_REJECTED',
-          taskAdmissionRejectMessage(rejectionAdmission),
-          rejectionAdmission,
-          item,
-          itemInfo,
-          config,
-          activeAdmissionTasks,
-          { activeTask },
-        ));
-      }
-      const task = created.task;
-      activityLog.addActivity('adult_library', `成人库创建元数据任务：${task.itemName || task.itemId}`, { taskId: task.id, itemId: task.itemId });
-      const taskView = taskDetailView(task, { latestEvent: latestTaskEvent(task.id) });
-      return reply.code(201).send({
-        ok: true,
-        taskId: task.id,
-        task: taskView,
-        taskBridge: taskView.taskBridge,
-        flowPlan: taskView.flowPlan,
-        requestedIntent: taskView.requestedIntent,
-        controlState: taskView.controlState,
-      });
+      kairoxAutomationRunner.wake({ itemId: req.params.itemId, kind: 'metadata_refresh_requested' });
+      activityLog.addActivity('adult_library', '成人媒体已请求重新获取元数据', { itemId: req.params.itemId });
+      return reply.code(202).send({ ok: true, ...result });
     } catch (e) {
-      const code = /not found|does not exist|watchRoot/i.test(e.message) ? 'NOT_FOUND' : 'RESCRAPE_FAILED';
-      const status = code === 'NOT_FOUND' ? 404 : 500;
-      return apiError(reply, status, code, e.message);
+      const status = e.code === 'LIBRA_ITEM_NOT_FOUND' ? 404 : 409;
+      return apiError(reply, status, e.code || 'RESCRAPE_FAILED', e.message);
     }
   });
 
-  app.get('/v1/admin/adult/people', async (req) => {
+  app.get('/v1/admin/people', async (req) => {
     const includeReferenceFaces = req.query.includeReferenceFaces === '1' || req.query.includeReferenceFaces === 'true';
     return peopleStore.listPeople({
-      adultRegion: req.query.adultRegion || 'western_adult',
-      summary: !includeReferenceFaces,
+      search: req.query.search || req.query.q,
+      contentKind: req.query.contentKind,
+      preference: req.query.preference,
+      limit: req.query.limit,
+      offset: req.query.offset,
+      includeArtifacts: includeReferenceFaces,
     });
   });
 
-  app.get('/v1/admin/adult/people/:personId/reference-image', async (req, reply) => {
+  app.get('/v1/admin/people/merge-candidates', async () => ({ candidates: peopleStore.getMergeCandidates() }));
+
+  app.post('/v1/admin/people/actions/merge', async (req, reply) => {
+    try {
+      const result = peopleStore.mergePeople(req.body || {});
+      for (const itemId of result.affectedItemIds) kairoxSignalBus.publish({ kind: 'person_preference_changed', itemId });
+      return result;
+    } catch (error) {
+      return apiError(reply, 400, error.code || 'KAIROX_PERSON_MERGE_INVALID', error.message);
+    }
+  });
+
+  app.get('/v1/admin/people/:personId', async (req, reply) => {
+    const person = peopleStore.getPerson(req.params.personId, { includeArtifacts: true });
+    if (!person) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
+    return person;
+  });
+
+  app.get('/v1/admin/people/:personId/media', async (req, reply) => {
     const person = peopleStore.getPerson(req.params.personId);
+    if (!person) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
+    const itemIds = peopleStore.getRelatedItemIds(req.params.personId);
+    const projections = getHelixServices().libraService.getLibraryProjections(itemIds);
+    return { personId: person.personId, items: itemIds.map((itemId) => projections[itemId]).filter(Boolean) };
+  });
+
+  app.get('/v1/admin/people/:personId/reference-image', async (req, reply) => {
+    const person = peopleStore.getPerson(req.params.personId, { includeArtifacts: true });
     if (!person) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
     const face = (person.referenceFaces || []).find((f) => f && f.sampleImageBase64);
     if (!face) return apiError(reply, 404, 'NOT_FOUND', 'Reference image not found');
@@ -2736,7 +2540,7 @@ function registerRoutes(app) {
     }
   });
 
-  app.get('/v1/admin/adult/people/search-images', async (req, reply) => {
+  app.get('/v1/admin/people/search-images', async (req, reply) => {
     try {
       const config = configStore.loadConfig();
       const result = await adultActorImageSearchService.searchActorImages({
@@ -2750,7 +2554,7 @@ function registerRoutes(app) {
     }
   });
 
-  app.post('/v1/admin/adult/people', async (req, reply) => {
+  app.post('/v1/admin/people', async (req, reply) => {
     try {
       const person = peopleStore.createPerson(req.body || {});
       return reply.code(201).send(person);
@@ -2759,7 +2563,7 @@ function registerRoutes(app) {
     }
   });
 
-  app.post('/v1/admin/adult/people/from-image', async (req, reply) => {
+  app.post('/v1/admin/people/from-image', async (req, reply) => {
     try {
       const body = req.body || {};
       const name = String(body.name || '').trim();
@@ -2792,16 +2596,13 @@ function registerRoutes(app) {
 
       let person;
       if (body.personId) {
-        const current = peopleStore.loadPeople().people.find((p) => p.personId === body.personId);
+        const current = peopleStore.getPerson(body.personId, { includeArtifacts: true });
         if (!current) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
-        person = peopleStore.updatePerson(body.personId, {
+        peopleStore.updatePerson(body.personId, {
           name,
           aliases: body.aliases !== undefined ? body.aliases : current.aliases,
-          referenceAssetIds: body.imageUrl ? [String(body.imageUrl)] : current.referenceAssetIds,
-          referenceFaces: body.replaceReference === false
-            ? [...(current.referenceFaces || []), referenceFace]
-            : [referenceFace],
         });
+        person = peopleStore.addReferenceFace(body.personId, referenceFace);
       } else {
         person = peopleStore.createPerson({
           name,
@@ -2825,7 +2626,7 @@ function registerRoutes(app) {
     }
   });
 
-  app.post('/v1/admin/adult/people/from-face', async (req, reply) => {
+  app.post('/v1/admin/people/from-face', async (req, reply) => {
     try {
       const body = req.body || {};
       if (!body.itemId) return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
@@ -2895,16 +2696,30 @@ function registerRoutes(app) {
     }
   });
 
-  app.patch('/v1/admin/adult/people/:personId', async (req, reply) => {
+  app.patch('/v1/admin/people/:personId', async (req, reply) => {
+    const before = peopleStore.getPerson(req.params.personId);
     const person = peopleStore.updatePerson(req.params.personId, req.body || {});
     if (!person) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
+    if (before && before.preference !== person.preference) {
+      for (const itemId of peopleStore.getRelatedItemIds(person.personId)) kairoxSignalBus.publish({ kind: 'person_preference_changed', itemId });
+    }
     return person;
   });
 
-  app.delete('/v1/admin/adult/people/:personId', async (req, reply) => {
-    const ok = peopleStore.deletePerson(req.params.personId);
-    if (!ok) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
-    return { ok: true, personId: req.params.personId };
+  app.delete('/v1/admin/people/:personId/reference-faces/:artifactId', async (req, reply) => {
+    const ok = peopleStore.deleteReferenceFace(req.params.personId, req.params.artifactId);
+    if (!ok) return apiError(reply, 404, 'NOT_FOUND', 'Reference face not found');
+    return { ok: true, artifactId: req.params.artifactId };
+  });
+
+  app.delete('/v1/admin/people/:personId', async (req, reply) => {
+    try {
+      const ok = peopleStore.deletePerson(req.params.personId);
+      if (!ok) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
+      return { ok: true, personId: req.params.personId };
+    } catch (error) {
+      return apiError(reply, 409, error.code || 'KAIROX_PERSON_IN_USE', error.message);
+    }
   });
 
   // ── Admin: Rule Templates ────────────────────────────────────────────────
@@ -3027,33 +2842,6 @@ function registerRoutes(app) {
   });
 
   // ── Admin: Transcode ────────────────────────────────────────────────────
-
-  app.get('/v1/admin/transcode/config', async () => {
-    const cfg = configStore.loadConfig();
-    return {
-      transcodeTempRoot: cfg.transcodeTempRoot || '',
-      transcodeCleanupOrphansOnStartup: cfg.transcodeCleanupOrphansOnStartup !== false,
-      transcodeReplaceConfirmRequired: cfg.transcodeReplaceConfirmRequired || false,
-      ffmpegPath: cfg.ffmpegPath || 'ffmpeg',
-      ffprobePath: cfg.ffprobePath || 'ffprobe',
-      transcodeEncodingDevices: cfg.transcodeEncodingDevices || [],
-      transcodeCpuParticipationStrategy: cfg.transcodeCpuParticipationStrategy || 'normal',
-    };
-  });
-
-  app.patch('/v1/admin/transcode/config', async (req) => {
-    const allowed = [
-      'transcodeTempRoot', 'transcodeReplaceConfirmRequired',
-      'transcodeCleanupOrphansOnStartup',
-      'ffmpegPath', 'ffprobePath', 'transcodeEncodingDevices',
-      'transcodeCpuParticipationStrategy',
-    ];
-    const patch = {};
-    for (const key of allowed) {
-      if (req.body && req.body[key] !== undefined) patch[key] = req.body[key];
-    }
-    return maskSensitive(configStore.patchConfig(patch));
-  });
 
   app.get('/v1/admin/transcode/probe-devices', async () => {
     const cfg = configStore.loadConfig();
@@ -3287,14 +3075,11 @@ function registerRoutes(app) {
     return {
       moviepilot: { ...mp, apiKey: mp.apiKey ? '********' : '' },
       upgradeStagingLocalPath: cfg.upgradeStagingLocalPath || '',
-      upgradeReplaceConfirmRequired: cfg.upgradeReplaceConfirmRequired || false,
-      upgradeRetryInterval: cfg.upgradeRetryInterval ?? 3600000,
-      upgradeMaxRetries: cfg.upgradeMaxRetries ?? 3,
     };
   });
 
   app.patch('/v1/admin/upgrade/config', async (req) => {
-    const allowed = ['moviepilot', 'upgradeStagingLocalPath', 'upgradeReplaceConfirmRequired', 'upgradeRetryInterval', 'upgradeMaxRetries'];
+    const allowed = ['moviepilot', 'upgradeStagingLocalPath'];
     const patch = {};
     for (const key of allowed) {
       if (req.body && req.body[key] !== undefined) patch[key] = req.body[key];
@@ -3544,7 +3329,7 @@ function registerRoutes(app) {
       const signals = buildDashboardHealthSignals(media, tasks, config, automation);
       const serviceProjection = buildDashboardServiceProjection(healthCheck.getLastResult());
       return {
-        status: serviceProjection.status,
+        status: serviceProjection.status === 'red' || signals.some((signal) => signal.level === 'red') ? 'red' : serviceProjection.status,
         generatedAt: new Date().toISOString(),
         serviceAvailability: serviceProjection.serviceAvailability,
         externalIntegrations: serviceProjection.externalIntegrations,
@@ -3690,47 +3475,6 @@ function registerRoutes(app) {
     return detail;
   });
 
-  app.patch('/v1/admin/tasks/:id', async (req, reply) => {
-    const task = taskStore.getTask(req.params.id);
-    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-
-    const body = req.body || {};
-
-    // Priority adjustment (lower = runs first). Only meaningful before dispatch,
-    // so reject once the task is actively executing or in a terminal state.
-    if (body.priority !== undefined) {
-      const priority = Number(body.priority);
-      if (!Number.isFinite(priority) || priority < 0 || !Number.isInteger(priority)) {
-        return priorityAdjustmentReject(reply, task, 400, 'VALIDATION_ERROR', 'priority must be a non-negative integer', body.priority, {
-          validation: { field: 'priority', reason: 'non_negative_integer_required' },
-        });
-      }
-      const adjustment = priorityAdjustmentState(task, priority);
-      if (!adjustment.enabled) {
-        return priorityAdjustmentReject(reply, task, 409, 'TASK_PRIORITY_REJECTED', adjustment.reason, priority);
-      }
-      const updated = taskStore.updateTask(task.id, { priority, priorityManuallyAdjusted: true });
-      const response = taskDetailView(updated);
-      response.priorityAdjustment = priorityAdjustmentState(updated, priority);
-      return response;
-    }
-
-    return apiError(reply, 400, 'VALIDATION_ERROR', 'No supported fields to update');
-  });
-
-  app.delete('/v1/admin/tasks/:id', async (req, reply) => {
-    const task = taskStore.getTask(req.params.id);
-    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    const action = getTaskActionOrReject(reply, task, 'cancel');
-    if (!action) return;
-
-    if (taskNeedsFlowCancel(task)) await resourceRuntime.cancelTask(task);
-
-    appendTaskControlEvent(task, 'cancel', action, { endpoint: 'admin' });
-    taskStore.deleteTask(task.id);
-    return { ok: true, id: task.id };
-  });
-
   // ── Admin: System Info ────────────────────────────────────────────────────
 
   app.get('/v1/admin/system/info', async () => {
@@ -3817,7 +3561,7 @@ async function buildApp(opts = {}) {
   // Must run BEFORE scheduler starts dispatching tasks
   const startupCfg = configStore.loadConfig();
   resourceGovernor.configure(() => configStore.loadConfig());
-  if (startupCfg.transcodeTempRoot && startupCfg.transcodeCleanupOrphansOnStartup !== false) {
+  if (startupCfg.transcodeTempRoot) {
     await transcodeService.cleanupOrphans(startupCfg);
   }
   // Clean Helix runtime starts only durable task dispatch and Libra recovery.

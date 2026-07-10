@@ -8,11 +8,10 @@ const test = require('node:test');
 const assert = require('node:assert');
 const pe = require('../src/priorityEngine');
 
-function config({ manualTaskPriority, autoTaskPriorityBase, rulesByTargetGate, subLibraries } = {}) {
+function config({ basePriority, rulesByTargetGate, subLibraries } = {}) {
   return {
     taskPriority: {
-      manualTaskPriority: manualTaskPriority ?? 0,
-      autoTaskPriorityBase: autoTaskPriorityBase ?? 100,
+      basePriority: basePriority ?? 100,
       targetGateWeights: {
         basedata: 60,
         metadata: 80,
@@ -39,22 +38,22 @@ function taskContext(targetGateValue, flowKind = '') {
   };
 }
 
-test('manual tasks add source, target gate, flow kind, and library dimensions when planned flow is known', () => {
+test('Run origin does not change task-local gate and library priority', () => {
   const c = config();
   const explained = pe.explainPriority({ source: 'manual', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c });
-  assert.strictEqual(explained.priority, 230);
-  assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['source', 'targetGate', 'flowKind', 'subLibrary']);
+  assert.strictEqual(explained.priority, 330);
+  assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['base', 'targetGate', 'flowKind', 'subLibrary']);
 });
 
 test('optimize target-gate tasks do not need a flow kind at creation time', () => {
   const c = config();
   const explained = pe.explainPriority({ source: 'manual', taskTarget: targetGate('optimize'), itemInfo: {}, config: c });
-  assert.strictEqual(explained.priority, 210);
+  assert.strictEqual(explained.priority, 310);
   assert.strictEqual(explained.flowKind, '');
-  assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['source', 'targetGate', 'subLibrary']);
+  assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['base', 'targetGate', 'subLibrary']);
 });
 
-test('auto tasks add source and default library dimensions', () => {
+test('tasks add the common base and default library dimensions', () => {
   const c = config();
   assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c }), 330);
   assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('metadata', 'scrape'), itemInfo: { scraped: true, adultMetadata: { scrapeStatus: 'done' } }, config: c }), 280);
@@ -79,7 +78,7 @@ test('library weight is added as an independent dimension', () => {
   assert.ok(filmAuto < seriesAuto);
 
   const filmManual = pe.computePriority({ source: 'manual', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film' }, config: c });
-  assert.strictEqual(filmManual, 140);
+  assert.strictEqual(filmManual, 240);
 });
 
 test('rulesByTargetGate applies by lifecycle target gate', () => {
@@ -137,8 +136,8 @@ test('explainPriority returns the Kairox additive breakdown', () => {
     config: c,
   });
 
-  assert.strictEqual(explained.modelVersion, 'kairox-task-creator-v1');
-  assert.strictEqual(explained.formula, 'source + targetGate + flowKind + subLibrary + businessSignal + queueAge + retry + matchedRules');
+  assert.strictEqual(explained.modelVersion, 'kairox-task-creator-v2');
+  assert.strictEqual(explained.formula, 'base + targetGate + flowKind + subLibrary + businessSignal + queueAge + retry + matchedRules');
   assert.strictEqual(explained.priority, 215);
   assert.deepStrictEqual(explained.dimensions.map((d) => d.value), [100, 110, 20, 10, -25]);
 });
@@ -184,7 +183,7 @@ test('queue age and retry are additive dynamic dimensions', () => {
       config: c,
     });
     assert.strictEqual(explained.priority, 362);
-    assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['source', 'targetGate', 'flowKind', 'subLibrary', 'queueAge', 'retry']);
+    assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['base', 'targetGate', 'flowKind', 'subLibrary', 'queueAge', 'retry']);
     assert.deepStrictEqual(explained.dimensions.map((d) => d.value), [100, 110, 20, 100, -8, 40]);
   } finally {
     Date.now = realNow;
@@ -229,7 +228,7 @@ test('result is clamped to >= 0 and rounded', () => {
 
 test('missing taskPriority config falls back to target gate defaults', () => {
   const c = { subLibraries: [] };
-  assert.strictEqual(pe.computePriority({ source: 'manual', taskTarget: targetGate('optimize'), itemInfo: {}, config: c }), 210);
+  assert.strictEqual(pe.computePriority({ source: 'manual', taskTarget: targetGate('optimize'), itemInfo: {}, config: c }), 310);
   assert.strictEqual(pe.computePriority({ source: 'auto', taskTarget: targetGate('optimize'), itemInfo: {}, config: c }), 310);
 });
 

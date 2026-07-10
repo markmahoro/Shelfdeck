@@ -22,17 +22,13 @@ bash tests/runner.sh all tests/env/docker-fn.env
 
 私有凭据在 `tests/TEST_ENV_CHECKLIST.md`，不提交。
 
-## Flow 脚本
+## Helix 验证入口
 
-| Flow | Script | 依赖 |
-| --- | --- | --- |
-| health-check | `tests/flows/test-health-check.sh` | 无 |
-| task-crud | `tests/flows/test-task-crud.sh` | 无 |
-| config-roundtrip | `tests/flows/test-config-roundtrip.sh` | 无 |
-| delete-flow | `tests/flows/test-delete-flow.sh` | 真实媒体 |
-| transcode-flow | `tests/flows/test-transcode-flow.sh` | FFmpeg/GPU/真实媒体 |
-| upgrade-flow | `tests/flows/test-upgrade-flow.sh` | MoviePilot/Emby/真实媒体 |
-| media-library-flow | `tests/flows/test-media-library-flow.sh` | Emby/Douban |
+- `media-service/test/helix-full-auto-e2e.test.js`：disposable auto/auto onboarding 到 `maintenanceComplete`。
+- `media-service/test/maintenance-run-priority.test.js`：Maintenance Run、MediaItem Priority、Runner/Scheduler ordering。
+- `media-service/test/helix-resource-governor.test.js`：capacity、bounded queue、control liveness 与 expedited waiter。
+- `media-service/web/e2e/admin-shell.spec.ts`：八个产品页面、四个 viewport 与 Axe。
+- `tests/runner.sh health-check` 只保留为部署 smoke；旧 task-crud/config-roundtrip/delete target flow 不属于 Helix clean runtime 验收。
 
 报告测试结果时说明实际运行的命令和覆盖范围。
 
@@ -40,10 +36,12 @@ bash tests/runner.sh all tests/env/docker-fn.env
 
 任务调度改动必须覆盖：
 
-- `TaskAdmission`：自动/手动来源、`smartTaskEnabledActions` 全局自动入队 allow-list、active task 去重、失败冷却、按 `actionType` 的自动队列上限、已成功转码不重复自动转码；子库 `automationMode` 只决定已创建任务是自动进入队列还是待手动启动。
-- `PriorityEngine`：任务类型权重、子库权重、业务信号、等待时间、重试惩罚、规则加减分叠加、`priorityBreakdown` 解释、手动任务基准和用户手动 priority 调整；规则不能通过绝对赋值覆盖多维度总分。
+- `Maintenance Run`：auto/manual 启动互斥、每个 playable MediaItem 最多一个 open Run、跨 Gate 自动推进、incident/restart/offboarding/terminal failure 恢复。
+- `MediaItem Priority`：canonical `normal|expedited`、revision、Run 完成自动清除；Runner、Scheduler、Governor 各自严格 expedited-first，同档再使用局部优先级、aging 与 FIFO。
+- `TaskAdmission / Task Creator`：只接收 Lifecycle 选出的 `basedata|metadata|optimize`；active task 去重、generation fencing、自动失败阻断与 approval safety。
+- `PriorityEngine`：只计算同一 MediaItem priority class 内的 task-local priority；Run 来源不得形成手工任务加权，用户不得调整 Task priority。
 - `approvalPolicy`：全局/子库/任务级覆盖，以及 `forceConfirm` 不可降级。
 - `TaskStore`：旧 `tasks.json` 迁移到 SQLite 后必须保留历史；调度热路径只能读取 active task；任务中心分页和 summary 不能丢失完成/失败记录。
-- 成人库 `ingest`：目录级 scan/watch 不再创建任务；单 item `ingest` 完成后才允许后续 `scrape` 按统一 admission 入队。
-- 启动保护：普通媒体库启动刷新、字段自算和 `SmartTaskEngine` 首扫必须可延迟/可关闭，且 `stop()` 能取消尚未触发的启动定时器。
+- 成人库：Nexora folder observation 建立 SourceBinding，Libra admission 后才允许 Kairox Metadata Run；不得创建 ingest Task。
+- 启动恢复：Libra durable work、Kairox Run/Task 和 source fencing 必须从持久化事实恢复；Governor permit 不持久化。
 - 前端：`npm run build:web` 验证任务调度页、任务中心和审批字段类型。

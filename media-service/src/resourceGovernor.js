@@ -37,9 +37,14 @@ function currentConfig() {
 
 function capacityMap() {
   const config = currentConfig();
+  const limits = config.resourceLimits || {};
   return {
     ...DEFAULT_CAPACITIES,
     ...((config.resourceGovernor && config.resourceGovernor.capacities) || {}),
+    'local:ffmpeg': positiveInteger(limits.localFfmpeg, 1),
+    'emby:*:api': positiveInteger(limits.embyApiPerServer, 1),
+    'filesystem:*': positiveInteger(limits.filesystemPerVolume, 1),
+    'worker:*': positiveInteger(limits.workerPerNode, 1),
   };
 }
 
@@ -79,6 +84,11 @@ function effectivePriority(waiter, now = Date.now()) {
   return waiter.priority - Math.floor(Math.max(0, now - waiter.enqueuedAtMs) / agingMs);
 }
 
+function trafficRank(waiter) {
+  if (waiter.trafficClass === 'control') return 0;
+  return waiter.maintenancePriorityClass === 'expedited' ? 1 : 2;
+}
+
 function makePermit(waiter) {
   const permit = {
     permitId: crypto.randomUUID(),
@@ -104,7 +114,8 @@ function drain() {
   if (waiters.length === 0) return;
   const now = Date.now();
   waiters.sort((a, b) => (
-    effectivePriority(a, now) - effectivePriority(b, now)
+    trafficRank(a) - trafficRank(b)
+    || effectivePriority(a, now) - effectivePriority(b, now)
     || a.enqueuedAtMs - b.enqueuedAtMs
   ));
   for (const waiter of waiters) {
@@ -143,6 +154,8 @@ function acquire(input = {}) {
       resourceKey,
       units,
       priority: Number.isFinite(Number(input.priority)) ? Number(input.priority) : 50,
+      trafficClass: input.trafficClass === 'maintenance' ? 'maintenance' : 'control',
+      maintenancePriorityClass: input.maintenancePriorityClass === 'expedited' ? 'expedited' : 'normal',
       enqueuedAtMs: Date.now(),
       resolve,
       reject,
@@ -150,6 +163,22 @@ function acquire(input = {}) {
     });
     drain();
   });
+}
+
+function reprioritizeWork(input = {}) {
+  const owner = clean(input.owner);
+  const workId = clean(input.workId);
+  let changed = 0;
+  for (const waiter of waiters) {
+    if (waiter.settled) continue;
+    if (owner && waiter.owner !== owner) continue;
+    if (workId && waiter.workId !== workId) continue;
+    waiter.maintenancePriorityClass = input.maintenancePriorityClass === 'expedited' ? 'expedited' : 'normal';
+    if (Number.isFinite(Number(input.priority))) waiter.priority = Number(input.priority);
+    changed += 1;
+  }
+  if (changed > 0) drain();
+  return changed;
 }
 
 async function runWithPermit(input, work) {
@@ -183,6 +212,15 @@ function snapshot() {
       units: permit.units,
       acquiredAt: permit.acquiredAt,
     })),
+    waitingWork: waiters.filter((waiter) => !waiter.settled).map((waiter) => ({
+      owner: waiter.owner,
+      workId: waiter.workId,
+      resourceKey: waiter.resourceKey,
+      trafficClass: waiter.trafficClass,
+      maintenancePriorityClass: waiter.maintenancePriorityClass,
+      priority: waiter.priority,
+      enqueuedAt: new Date(waiter.enqueuedAtMs).toISOString(),
+    })),
   };
 }
 
@@ -203,6 +241,7 @@ module.exports = {
   capacityFor,
   configure,
   runWithPermit,
+  reprioritizeWork,
   snapshot,
   resetForTests,
 };

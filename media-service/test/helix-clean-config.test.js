@@ -43,6 +43,11 @@ test('clean config persists independent library and maintenance automation modes
     maintenanceAutomationMode: 'manual',
     approvalPolicy: {},
   });
+  const persisted = JSON.parse(fs.readFileSync(path.join(dataDir, 'config.json'), 'utf8'));
+  assert.deepStrictEqual(persisted.resourceLimits, config.resourceLimits);
+  for (const internalField of ['resourceGovernor', 'taskPriority', 'taskAdmission', 'libraryAutomation', 'maintenanceAutomation', 'nodePollIntervalMs', 'transcodeCleanupOrphansOnStartup', 'ffmpegPath', 'ffprobePath']) {
+    assert.strictEqual(persisted[internalField], undefined, `${internalField} must not be serialized`);
+  }
 });
 
 test('legacy configuration is rejected instead of migrated or defaulted', () => {

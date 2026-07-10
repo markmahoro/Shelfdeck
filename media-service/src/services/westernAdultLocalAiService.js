@@ -8,7 +8,7 @@ const { spawn } = require('child_process');
 const { Worker } = require('worker_threads');
 
 const transcodeService = require('./transcodeService');
-const peopleStore = require('../peopleStore');
+const peopleStore = require('../personCatalogStore');
 
 let sharpModule;
 const INTERNAL_FACE_EMBEDDINGS_URL = 'http://127.0.0.1:19110/v1/face/embeddings';
@@ -325,7 +325,7 @@ async function analyzeVideo({ taskId, config, subLib, item, western, onLog }) {
     blacklistThreshold: Number(western.blacklistThreshold) || 0.5,
   });
   const clusters = clusterFaces(rawFaces, Number(western.faceClusterThreshold) || 0.5);
-  const people = peopleStore.listPeople({ adultRegion: 'western_adult' }).people;
+  const people = peopleStore.listPeople({ adultRegion: 'western_adult', includeArtifacts: true, limit: 200 }).people;
   const match = matchPeople(people, clusters, Number(western.faceSimilarityThreshold) || 0.25);
   const clustersWithMatch = clusters.map((c) => {
     const fc = match.faceClusters.find((x) => x.clusterId === c.clusterId);

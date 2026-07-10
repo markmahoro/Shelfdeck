@@ -11,7 +11,7 @@ function safeCall(fn, fallback) {
   }
 }
 
-function createLibraReconciler({ store, nexoraService, kairoxService }) {
+function createLibraReconciler({ store, nexoraService, kairoxService, configStore }) {
   if (!store || !nexoraService || !kairoxService) throw new TypeError('Libra Reconciler dependencies are required');
 
   function persistIfChanged(item, patch) {
@@ -89,9 +89,23 @@ function createLibraReconciler({ store, nexoraService, kairoxService }) {
     }
     if (item.phase === 'maintenance' && item.quarantineStatus === 'none' && source.readiness === 'ready') {
       const admission = maintenance && maintenance.admission;
+      const subject = {
+        mediaKind: item.mediaKind || '',
+        playable: item.playable !== false,
+        parentItemId: item.parentItemId || '',
+        seriesItemId: item.seriesItemId || '',
+      };
+      const currentSubject = maintenance && maintenance.maintenanceSubject || {};
+      const config = configStore && configStore.loadConfig ? configStore.loadConfig() : { subLibraries: [] };
+      const subLibrary = (config.subLibraries || []).find((entry) => entry.uuid === item.subLibraryId) || {};
+      const subjectCurrent = currentSubject.mediaKind === subject.mediaKind
+        && currentSubject.playable === subject.playable
+        && currentSubject.parentItemId === subject.parentItemId
+        && currentSubject.seriesItemId === subject.seriesItemId;
       const admissionAlreadyCurrent = maintenance && maintenance.admissionCurrent
         && Number(admission && admission.admissionGeneration) === item.admissionGeneration
         && String(admission && admission.sourceRevision || '') === String(source.sourceRevision || '')
+        && subjectCurrent
         && !(maintenance && maintenance.unresolvedSourceIncident);
       const maintenanceResult = admissionAlreadyCurrent
         ? maintenance
@@ -100,7 +114,12 @@ function createLibraReconciler({ store, nexoraService, kairoxService }) {
           admissionGeneration: item.admissionGeneration,
           sourceRevision: source.sourceRevision || '',
           sourceAccessDescriptor: source.sourceAccessDescriptor || {},
-          policyRevision: '',
+          policyRevision: String(subLibrary.updatedAt || ''),
+          maintenancePolicy: {
+            maintenanceAutomationMode: subLibrary.maintenanceAutomationMode || 'manual',
+            libraryPriority: Number(subLibrary.priorityWeight) || 100,
+          },
+          maintenanceSubject: subject,
         }), maintenance);
       persisted = persistIfChanged(item, {
         maintenanceRevision: maintenanceResult.maintenanceRevision || item.maintenanceRevision,

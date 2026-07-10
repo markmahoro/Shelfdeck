@@ -3,7 +3,6 @@ import type {
   MediaFolder,
   EmbyTestResult,
   SubLibrary,
-  TranscodeConfig,
   EncodeDevice,
   DevicePool,
   TaskListResponse,
@@ -15,16 +14,16 @@ import type {
   DashboardHealthSummary,
   RuleTemplate,
   ApprovalPolicyConfig,
-} from '../types';
+} from "../types";
 
 function apiKey(): string {
-  return localStorage.getItem('admin_api_key') || '';
+  return localStorage.getItem("admin_api_key") || "";
 }
 
 async function get<T>(path: string): Promise<T> {
   const headers: Record<string, string> = {};
   const key = apiKey();
-  if (key) headers['x-api-key'] = key;
+  if (key) headers["x-api-key"] = key;
   const res = await fetch(path, { headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -33,12 +32,25 @@ async function get<T>(path: string): Promise<T> {
   return res.json();
 }
 
+async function getText(path: string): Promise<string> {
+  const headers: Record<string, string> = {};
+  const key = apiKey();
+  if (key) headers["x-api-key"] = key;
+  const res = await fetch(path, { headers });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
+}
+
 async function post<T>(path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (body !== undefined) headers["Content-Type"] = "application/json";
   const key = apiKey();
-  if (key) headers['x-api-key'] = key;
-  const res = await fetch(path, { method: 'POST', headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+  if (key) headers["x-api-key"] = key;
+  const res = await fetch(path, {
+    method: "POST",
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error?.message || `HTTP ${res.status}`);
@@ -47,10 +59,16 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 }
 
 async function patch<T>(path: string, body: unknown): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   const key = apiKey();
-  if (key) headers['x-api-key'] = key;
-  const res = await fetch(path, { method: 'PATCH', headers, body: JSON.stringify(body) });
+  if (key) headers["x-api-key"] = key;
+  const res = await fetch(path, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(body),
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error?.message || `HTTP ${res.status}`);
@@ -61,8 +79,8 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
 async function del<T>(path: string): Promise<T> {
   const headers: Record<string, string> = {};
   const key = apiKey();
-  if (key) headers['x-api-key'] = key;
-  const res = await fetch(path, { method: 'DELETE', headers });
+  if (key) headers["x-api-key"] = key;
+  const res = await fetch(path, { method: "DELETE", headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error?.message || `HTTP ${res.status}`);
@@ -71,10 +89,16 @@ async function del<T>(path: string): Promise<T> {
 }
 
 async function put<T>(path: string, body: unknown): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   const key = apiKey();
-  if (key) headers['x-api-key'] = key;
-  const res = await fetch(path, { method: 'PUT', headers, body: JSON.stringify(body) });
+  if (key) headers["x-api-key"] = key;
+  const res = await fetch(path, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(body),
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error?.message || `HTTP ${res.status}`);
@@ -85,19 +109,26 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 // ── Emby ─────────────────────────────────────────────────────────────────────
 
 export const emby = {
-  getServers: () => get<{ servers: EmbyServer[] }>('/v1/admin/emby/servers'),
+  getServers: () => get<{ servers: EmbyServer[] }>("/v1/admin/emby/servers"),
 
-  testConnection: (body: { baseUrl: string; apiKey?: string; username?: string; password?: string; userId?: string }) =>
-    post<EmbyTestResult>('/v1/admin/emby/test', body),
+  testConnection: (body: {
+    baseUrl: string;
+    apiKey?: string;
+    username?: string;
+    password?: string;
+    userId?: string;
+  }) => post<EmbyTestResult>("/v1/admin/emby/test", body),
 
   getMediaFolders: (embyServerId: string) =>
-    get<{ folders: MediaFolder[] }>(`/v1/admin/emby/media-folders?embyServerId=${encodeURIComponent(embyServerId)}`),
+    get<{ folders: MediaFolder[] }>(
+      `/v1/admin/emby/media-folders?embyServerId=${encodeURIComponent(embyServerId)}`,
+    ),
 };
 
 // ── SubLibraries ─────────────────────────────────────────────────────────────
 
 export const subLibraries = {
-  list: () => get<{ subLibraries: SubLibrary[] }>('/v1/admin/sublibraries'),
+  list: () => get<{ subLibraries: SubLibrary[] }>("/v1/admin/sublibraries"),
 
   create: (body: {
     name: string;
@@ -106,8 +137,8 @@ export const subLibraries = {
     source?: string;
     doubanEnabled?: boolean;
     ruleTemplateId?: string;
-    metadataGate?: SubLibrary['metadataGate'];
-    upgradeSmartSelect?: SubLibrary['upgradeSmartSelect'];
+    metadataGate?: SubLibrary["metadataGate"];
+    upgradeSmartSelect?: SubLibrary["upgradeSmartSelect"];
     pathMapFrom?: string;
     pathMapTo?: string;
     mediaType?: string;
@@ -115,9 +146,9 @@ export const subLibraries = {
     scraperType?: string;
     watchRoot?: string;
     japaneseJav?: Record<string, unknown>;
-    libraryAutomationMode?: 'auto' | 'manual';
-    maintenanceAutomationMode?: 'auto' | 'manual';
-  }) => post<SubLibrary>('/v1/admin/sublibraries', body),
+    libraryAutomationMode?: "auto" | "manual";
+    maintenanceAutomationMode?: "auto" | "manual";
+  }) => post<SubLibrary>("/v1/admin/sublibraries", body),
 
   update: (uuid: string, body: Partial<SubLibrary>) =>
     patch<SubLibrary>(`/v1/admin/sublibraries/${uuid}`, body),
@@ -126,11 +157,20 @@ export const subLibraries = {
     del<{ ok: boolean; uuid: string }>(`/v1/admin/sublibraries/${uuid}`),
 
   offboard: (uuid: string, body: { idempotencyKey: string; reason?: string }) =>
-    post<{ ok: boolean; uuid: string; cleanupMode: 'retain_source'; result: Record<string, unknown> }>(
-      `/v1/admin/sublibraries/${uuid}/actions/offboard`,
-      { ...body, cleanupMode: 'retain_source' },
-    ),
+    post<{
+      ok: boolean;
+      uuid: string;
+      cleanupMode: "retain_source";
+      result: Record<string, unknown>;
+    }>(`/v1/admin/sublibraries/${uuid}/actions/offboard`, {
+      ...body,
+      cleanupMode: "retain_source",
+    }),
 
+  observe: (uuid: string) =>
+    post<{ workId: string }>(`/v1/admin/sublibraries/${uuid}/actions/observe`, {
+      idempotencyKey: `admin-observe:${uuid}:${Date.now()}`,
+    }),
 };
 
 // ── Adult Libraries ─────────────────────────────────────────────────────────
@@ -142,113 +182,63 @@ export interface AdultLibraryConfig {
   western?: Record<string, unknown>;
 }
 
-export interface AdultPerson {
-  personId: string;
-  name: string;
-  aliases?: string[];
-  canonicalCode?: string;
-  adultRegion?: string;
-  referenceFaceCount?: number;
-  referenceFaces?: Array<{
-    faceId?: string;
-    sampleImageBase64?: string;
-    confidence?: number;
-  }>;
-  dismissed?: boolean;
-}
-
-export interface AdultImageCandidate {
-  source: string;
-  sourceId: string;
-  title: string;
-  pageUrl: string;
-  imageUrl: string;
-  originalUrl?: string;
-  width?: number;
-  height?: number;
-  license?: string;
-  rankScore?: number;
-  qualityReasons?: string[];
-}
-
-export interface AdultImageSearchError {
-  source: string;
-  message: string;
-}
-
-export interface AdultImageSearchResult {
-  query: string;
-  candidates: AdultImageCandidate[];
-  errors?: AdultImageSearchError[];
-  proxyUsed?: boolean;
-  message?: string;
-  sources?: Record<string, unknown>;
-  diagnostics?: Record<string, unknown>;
-}
-
 export const adult = {
-  getConfig: () => get<AdultLibraryConfig>('/v1/admin/adult/config'),
+  getConfig: () => get<AdultLibraryConfig>("/v1/admin/adult/config"),
   patchConfig: (body: Partial<AdultLibraryConfig>) =>
-    patch<AdultLibraryConfig>('/v1/admin/adult/config', body),
-  listPeople: () =>
-    get<{ people: AdultPerson[] }>('/v1/admin/adult/people?adultRegion=western_adult'),
-  referenceImageUrl: (personId: string, options?: { thumbnail?: boolean }) =>
-    `/v1/admin/adult/people/${encodeURIComponent(personId)}/reference-image${options?.thumbnail ? '?thumbnail=1' : ''}`,
-  searchPersonImages: (name: string) =>
-    get<AdultImageSearchResult>(
-      `/v1/admin/adult/people/search-images?name=${encodeURIComponent(name)}`,
-    ),
-  createPersonFromImage: (body: {
-    name: string;
-    aliases?: string[];
-    imageUrl?: string;
-    imageBase64?: string;
-    personId?: string;
-    replaceReference?: boolean;
-  }) =>
-    post<AdultPerson & { referenceFaceQuality?: Record<string, unknown> }>('/v1/admin/adult/people/from-image', body),
-  createPersonFromFace: (body: { itemId: string; clusterId?: string; name: string; aliases?: string[] }) =>
-    post<AdultPerson>('/v1/admin/adult/people/from-face', body),
-  updatePerson: (personId: string, body: Partial<AdultPerson>) =>
-    patch<AdultPerson>(`/v1/admin/adult/people/${encodeURIComponent(personId)}`, body),
-  deletePerson: (personId: string) =>
-    del<{ ok: boolean; personId: string }>(`/v1/admin/adult/people/${encodeURIComponent(personId)}`),
+    patch<AdultLibraryConfig>("/v1/admin/adult/config", body),
   rescrapeItem: (itemId: string, adultId?: string) =>
-    post<{ ok: boolean; taskId: string; task?: MediaTask; taskBridge?: MediaTask['taskBridge']; flowPlan?: MediaTask['flowPlan']; requestedIntent?: MediaTask['requestedIntent']; controlState?: MediaTask['controlState'] }>(
-      `/v1/admin/adult/items/${encodeURIComponent(itemId)}/actions/rescrape`,
-      adultId ? { adultId } : undefined,
-    ),
+    post<{
+      ok: boolean;
+      affected: number;
+      projection?: Record<string, unknown>;
+    }>(`/v1/admin/adult/items/${encodeURIComponent(itemId)}/actions/rescrape`, {
+      idempotencyKey: `adult-rescrape:${itemId}:${Date.now()}`,
+      ...(adultId ? { adultId } : {}),
+    }),
 };
 
 // ── Rule Templates ────────────────────────────────────────────────────────────
 
 export const ruleTemplates = {
-  list: () => get<{ ruleTemplates: RuleTemplate[] }>('/v1/admin/rule-templates'),
+  list: () =>
+    get<{ ruleTemplates: RuleTemplate[] }>("/v1/admin/rule-templates"),
 
-  get: (id: string) => get<RuleTemplate>(`/v1/admin/rule-templates/${encodeURIComponent(id)}`),
+  get: (id: string) =>
+    get<RuleTemplate>(`/v1/admin/rule-templates/${encodeURIComponent(id)}`),
 
-  create: (body: { id: string; name: string; description?: string; rules?: RuleTemplate['rules'] }) =>
-    post<RuleTemplate>('/v1/admin/rule-templates', body),
+  create: (body: {
+    id: string;
+    name: string;
+    description?: string;
+    rules?: RuleTemplate["rules"];
+  }) => post<RuleTemplate>("/v1/admin/rule-templates", body),
 
-  update: (id: string, body: { name?: string; description?: string; rules?: RuleTemplate['rules'] }) =>
-    put<RuleTemplate>(`/v1/admin/rule-templates/${encodeURIComponent(id)}`, body),
+  update: (
+    id: string,
+    body: {
+      name?: string;
+      description?: string;
+      rules?: RuleTemplate["rules"];
+    },
+  ) =>
+    put<RuleTemplate>(
+      `/v1/admin/rule-templates/${encodeURIComponent(id)}`,
+      body,
+    ),
 
   remove: (id: string) =>
-    del<{ ok: boolean; id: string }>(`/v1/admin/rule-templates/${encodeURIComponent(id)}`),
+    del<{ ok: boolean; id: string }>(
+      `/v1/admin/rule-templates/${encodeURIComponent(id)}`,
+    ),
 };
 
 // ── Transcode ────────────────────────────────────────────────────────────────
 
 export const transcode = {
-  getConfig: () => get<TranscodeConfig>('/v1/admin/transcode/config'),
-
-  patchConfig: (body: Partial<TranscodeConfig>) =>
-    patch<TranscodeConfig>('/v1/admin/transcode/config', body),
-
   probeDevices: () =>
-    get<{ devices: EncodeDevice[] }>('/v1/admin/transcode/probe-devices'),
+    get<{ devices: EncodeDevice[] }>("/v1/admin/transcode/probe-devices"),
 
-  getDevicePool: () => get<DevicePool>('/v1/admin/transcode/device-pool'),
+  getDevicePool: () => get<DevicePool>("/v1/admin/transcode/device-pool"),
 };
 
 // ── Upgrade (MoviePilot) ─────────────────────────────────────────────────────
@@ -256,9 +246,6 @@ export const transcode = {
 export interface UpgradeConfig {
   moviepilot: { baseUrl: string; apiKey: string; savePath: string };
   upgradeStagingLocalPath: string;
-  upgradeReplaceConfirmRequired?: boolean;
-  upgradeRetryInterval?: number;
-  upgradeMaxRetries?: number;
 }
 
 export interface MpDirectory {
@@ -271,49 +258,48 @@ export interface MpDirectory {
 }
 
 export const upgrade = {
-  getConfig: () => get<UpgradeConfig>('/v1/admin/upgrade/config'),
+  getConfig: () => get<UpgradeConfig>("/v1/admin/upgrade/config"),
 
   patchConfig: (body: Partial<UpgradeConfig>) =>
-    patch<UpgradeConfig>('/v1/admin/upgrade/config', body),
+    patch<UpgradeConfig>("/v1/admin/upgrade/config", body),
 
-  getDirectories: () => get<MpDirectory[]>('/v1/admin/upgrade/directories'),
+  getDirectories: () => get<MpDirectory[]>("/v1/admin/upgrade/directories"),
 };
 
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
 export const tasks = {
-  list: (params?: { status?: string; statuses?: string[]; attention?: string; targetGate?: string; q?: string; page?: number; pageSize?: number; includeAttentionSummary?: boolean }) => {
+  list: (params?: {
+    status?: string;
+    statuses?: string[];
+    attention?: string;
+    targetGate?: string;
+    q?: string;
+    page?: number;
+    pageSize?: number;
+    includeAttentionSummary?: boolean;
+  }) => {
     const qs = new URLSearchParams();
-    if (params?.status) qs.set('status', params.status);
-    if (params?.statuses?.length) qs.set('statuses', params.statuses.join(','));
-    if (params?.attention) qs.set('attention', params.attention);
-    if (params?.targetGate) qs.set('targetGate', params.targetGate);
-    if (params?.q) qs.set('q', params.q);
-    if (params?.page) qs.set('page', String(params.page));
-    if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
-    if (params?.includeAttentionSummary === false) qs.set('includeAttentionSummary', '0');
+    if (params?.status) qs.set("status", params.status);
+    if (params?.statuses?.length) qs.set("statuses", params.statuses.join(","));
+    if (params?.attention) qs.set("attention", params.attention);
+    if (params?.targetGate) qs.set("targetGate", params.targetGate);
+    if (params?.q) qs.set("q", params.q);
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+    if (params?.includeAttentionSummary === false)
+      qs.set("includeAttentionSummary", "0");
     const q = qs.toString();
-    return get<TaskListResponse>(`/v1/admin/tasks${q ? `?${q}` : ''}`);
+    return get<TaskListResponse>(`/v1/admin/tasks${q ? `?${q}` : ""}`);
   },
 
   get: (id: string) => get<MediaTask>(`/v1/admin/tasks/${id}?includeEvents=1`),
 
-  // Update global queue priority (lower = runs first). Only allowed on queued/created/
-  // pending_manual/interrupted/paused tasks; the server returns 409 otherwise.
-  updatePriority: (id: string, priority: number) =>
-    patch<MediaTask>(`/v1/admin/tasks/${id}`, { priority }),
-
-  remove: (id: string) =>
-    del<{ ok: boolean; id: string }>(`/v1/admin/tasks/${id}`),
-
-  pause: (id: string) => post<{ id: string; status: string }>(`/v1/tasks/${id}/actions/pause`),
-
-  execute: (id: string) => post<{ id: string; status: string }>(`/v1/tasks/${id}/actions/execute`),
-
-  retry: (id: string) => post<{ id: string; status: string }>(`/v1/tasks/${id}/actions/retry`),
-
   confirm: (id: string, confirmData?: Record<string, unknown>) =>
-    patch<{ id: string; status: string }>(`/v1/tasks/${id}`, { confirmed: true, ...(confirmData ? { confirmData } : {}) }),
+    post<{ id: string; status: string }>(
+      `/v1/tasks/${id}/actions/confirm`,
+      confirmData ? { confirmData } : {},
+    ),
 
   report: (id: string) => get<TaskReport>(`/v1/tasks/${id}/report`),
 };
@@ -321,11 +307,11 @@ export const tasks = {
 // ── Resources ────────────────────────────────────────────────────────────────
 
 export const resources = {
-  get: (params?: { detail?: 'summary' | 'full' }) => {
+  get: (params?: { detail?: "summary" | "full" }) => {
     const qs = new URLSearchParams();
-    if (params?.detail) qs.set('detail', params.detail);
+    if (params?.detail) qs.set("detail", params.detail);
     const q = qs.toString();
-    return get<ResourceView>(`/v1/admin/resources${q ? `?${q}` : ''}`);
+    return get<ResourceView>(`/v1/admin/resources${q ? `?${q}` : ""}`);
   },
 };
 
@@ -379,7 +365,7 @@ export interface TaskReport {
   scrapeVerification?: {
     ok: boolean;
     checkedAt?: string;
-    source?: 'completion_snapshot' | 'current_filesystem' | string;
+    source?: "completion_snapshot" | "current_filesystem" | string;
     checks?: Record<string, boolean>;
     failures?: Array<{ code?: string; message?: string } | string>;
     warnings?: Array<{ code?: string; message?: string } | string>;
@@ -387,7 +373,7 @@ export interface TaskReport {
   currentScrapeVerification?: {
     ok: boolean;
     checkedAt?: string;
-    source?: 'current_filesystem' | string;
+    source?: "current_filesystem" | string;
     checks?: Record<string, boolean>;
     failures?: Array<{ code?: string; message?: string } | string>;
     warnings?: Array<{ code?: string; message?: string } | string>;
@@ -397,7 +383,7 @@ export interface TaskReport {
 // ── Health ────────────────────────────────────────────────────────────────────
 
 export const health = {
-  check: () => get<HealthStatus>('/v1/admin/health'),
+  check: () => get<HealthStatus>("/v1/admin/health"),
 };
 
 // ── System Info ──────────────────────────────────────────────────────────────
@@ -407,33 +393,40 @@ export interface SystemInfo {
 }
 
 export const system = {
-  getInfo: () => get<SystemInfo>('/v1/admin/system/info'),
+  getInfo: () => get<SystemInfo>("/v1/admin/system/info"),
 };
 
 // ── Public health ─────────────────────────────────────────────────────────────
 
 export const publicHealth = {
-  check: () => get<{ status: 'green' | 'yellow' | 'red'; timestamp: string }>('/v1/health'),
+  check: () =>
+    get<{ status: "green" | "yellow" | "red"; timestamp: string }>(
+      "/v1/health",
+    ),
 };
 
 // ── System Config ─────────────────────────────────────────────────────────────
 
-export interface SystemConfig {
-  resourceGovernor?: {
-    capacities?: Record<string, number>;
-    queueLimits?: Record<string, number>;
-    defaultQueueLimit?: number;
-    agingMs?: number;
+export interface ResourceSettings {
+  resourceLimits: {
+    embyApiPerServer: number;
+    filesystemPerVolume: number;
+    localFfmpeg: number;
+    workerPerNode: number;
   };
-  optimizeAllowedFlowKinds?: string[];
-  taskPriority?: {
-    manualTaskPriority: number;
-    autoTaskPriorityBase: number;
-    targetGateWeights?: Partial<Record<'basedata' | 'metadata' | 'optimize', number>>;
-    optimizeOperationHints?: Partial<Record<'transcode' | 'upgrade', number>>;
-    rulesByTargetGate?: Partial<Record<'basedata' | 'metadata' | 'optimize', PriorityRule[]>>;
+  workspace: { transcodeTempRoot: string; upgradeStagingLocalPath: string };
+  compute: {
+    transcodeEncodingDevices: EncodeDevice[];
+    transcodeCpuParticipationStrategy: string;
   };
-  approvalPolicy?: ApprovalPolicyConfig;
+  internal: {
+    resources: Array<{
+      resourceKey: string;
+      capacity: number;
+      active: number;
+      waiting: number;
+    }>;
+  };
 }
 
 // Advanced overlay rule. match is AND-combined; adjust contributes a delta.
@@ -444,44 +437,197 @@ export interface PriorityRule {
     isDiscLike?: boolean;
     isDolbyVision?: boolean;
     resolution?: string;
-    retryCount?: number | { gte?: number; lte?: number; gt?: number; lt?: number };
+    retryCount?:
+      number | { gte?: number; lte?: number; gt?: number; lt?: number };
   };
-  adjust: { op: 'subtract' | 'add'; value: number };
+  adjust: { op: "subtract" | "add"; value: number };
 }
 
-export const systemConfig = {
-  get: () => get<SystemConfig>('/v1/config'),
-
-  patch: (body: Partial<SystemConfig>) =>
-    patch<SystemConfig>('/v1/config', body),
+export const adminSettings = {
+  getResources: () => get<ResourceSettings>("/v1/admin/settings/resources"),
+  patchResources: (body: Partial<ResourceSettings>) =>
+    patch<ResourceSettings>("/v1/admin/settings/resources", body),
+  getSecurity: () =>
+    get<{
+      apiKeyConfigured: boolean;
+      apiKey: string;
+      environmentManaged: boolean;
+    }>("/v1/admin/settings/security"),
+  patchSecurity: (body: { apiKey: string }) =>
+    patch<{ apiKeyConfigured: boolean; restartRequired: boolean }>(
+      "/v1/admin/settings/security",
+      body,
+    ),
+  getMaintenancePolicy: () =>
+    get<{
+      optimizeFlowPolicy: { allowedFlowKinds: string[] };
+      approvalPolicy: ApprovalPolicyConfig;
+    }>("/v1/admin/policies/maintenance"),
+  patchMaintenancePolicy: (body: {
+    optimizeFlowPolicy?: { allowedFlowKinds: string[] };
+    approvalPolicy?: ApprovalPolicyConfig;
+  }) => patch("/v1/admin/policies/maintenance", body),
+  getLog: (lines = 300) => getText(`/v1/admin/log?lines=${lines}`),
+};
+export const automation = {
+  get: () =>
+    get<{
+      libraryAutomation: { works?: Array<Record<string, unknown>> };
+      maintenanceAutomation: Record<string, unknown>;
+      resources: Record<string, unknown>;
+    }>("/v1/admin/automation"),
 };
 
-// ── Offboarding Candidates ───────────────────────────────────────────────────
+// ── Cleanup Recommendations ──────────────────────────────────────────────────
 
-export interface OffboardingCandidate {
+export interface CleanupRecommendation {
   itemId: string;
   itemName: string;
   subLibraryId: string;
   membership: string;
   phase: string;
-  recommendation: { reason?: string; cleanupMode?: HelixCleanupMode; [key: string]: unknown };
+  recommendation: {
+    reason?: string;
+    cleanupMode?: HelixCleanupMode;
+    [key: string]: unknown;
+  };
 }
 
-export const offboardingCandidates = {
-  list: () => get<{ candidates: OffboardingCandidate[]; total: number }>('/v1/admin/offboarding-candidates'),
+export const cleanupRecommendations = {
+  list: () =>
+    get<{ candidates: CleanupRecommendation[]; total: number }>(
+      "/v1/admin/cleanup-recommendations",
+    ),
 };
 
-export type HelixCleanupMode = 'retain_source' | 'detach_source' | 'delete_source';
+export interface PersonSummary {
+  personId: string;
+  name: string;
+  aliases: string[];
+  providerIds: Record<string, string>;
+  contentKinds: string[];
+  preference: -2 | -1 | 0 | 1 | 2;
+  preferenceRevision: number;
+  referenceFaceCount: number;
+  relatedMediaCount: number;
+  referenceFaces?: Array<{ artifactId: string; faceId: string }>;
+}
+
+export const people = {
+  list: (
+    params: {
+      search?: string;
+      contentKind?: string;
+      preference?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") query.set(key, String(value));
+    });
+    return get<{ people: PersonSummary[]; total: number }>(
+      `/v1/admin/people${query.size ? `?${query}` : ""}`,
+    );
+  },
+  get: (personId: string) =>
+    get<PersonSummary>(`/v1/admin/people/${encodeURIComponent(personId)}`),
+  create: (body: {
+    name: string;
+    aliases?: string[];
+    preference?: number;
+    contentKinds?: string[];
+  }) => post<PersonSummary>("/v1/admin/people", body),
+  update: (
+    personId: string,
+    body: Partial<Pick<PersonSummary, "name" | "aliases" | "preference">>,
+  ) =>
+    patch<PersonSummary>(
+      `/v1/admin/people/${encodeURIComponent(personId)}`,
+      body,
+    ),
+  relatedMedia: (personId: string) =>
+    get<{ items: unknown[] }>(
+      `/v1/admin/people/${encodeURIComponent(personId)}/media`,
+    ),
+  mergeCandidates: () =>
+    get<{
+      candidates: Array<{
+        candidateId: string;
+        left: PersonSummary;
+        right: PersonSummary;
+        reason: string;
+      }>;
+    }>("/v1/admin/people/merge-candidates"),
+  merge: (body: {
+    targetPersonId: string;
+    sourcePersonId: string;
+    preference?: number;
+  }) => post("/v1/admin/people/actions/merge", body),
+  addReferenceImage: (body: {
+    personId?: string;
+    name: string;
+    aliases?: string[];
+    imageBase64?: string;
+    imageUrl?: string;
+    replaceReference?: boolean;
+  }) => post<PersonSummary>("/v1/admin/people/from-image", body),
+  deleteReferenceFace: (personId: string, artifactId: string) =>
+    del<{ ok: boolean; artifactId: string }>(
+      `/v1/admin/people/${encodeURIComponent(personId)}/reference-faces/${encodeURIComponent(artifactId)}`,
+    ),
+  searchImages: (name: string) =>
+    get<{ candidates: Array<{ url: string; thumbnailUrl?: string }> }>(
+      `/v1/admin/people/search-images?name=${encodeURIComponent(name)}`,
+    ),
+  referenceImageUrl: (personId: string, thumbnail = true) =>
+    `/v1/admin/people/${encodeURIComponent(personId)}/reference-image${thumbnail ? "?thumbnail=1" : ""}`,
+};
+
+export type HelixCleanupMode =
+  "retain_source" | "detach_source" | "delete_source";
 
 export const helixLibrary = {
-  onboard: (body: { itemId?: string; idempotencyKey: string; sourceReference: Record<string, unknown> }) =>
-    post('/v1/admin/library/actions/onboard', body),
-  offboard: (itemId: string, body: {
+  onboard: (body: {
+    itemId?: string;
     idempotencyKey: string;
-    cleanupMode: HelixCleanupMode;
-    reason?: string;
-    destructiveAuthorization?: boolean;
-  }) => post(`/v1/admin/library/items/${encodeURIComponent(itemId)}/actions/offboard`, body),
+    sourceReference: Record<string, unknown>;
+  }) => post("/v1/admin/library/actions/onboard", body),
+  offboard: (
+    itemId: string,
+    body: {
+      idempotencyKey: string;
+      cleanupMode: HelixCleanupMode;
+      reason?: string;
+      destructiveAuthorization?: boolean;
+    },
+  ) =>
+    post(
+      `/v1/admin/library/items/${encodeURIComponent(itemId)}/actions/offboard`,
+      body,
+    ),
+  startMaintenance: (itemId: string) =>
+    post(
+      `/v1/admin/library/items/${encodeURIComponent(itemId)}/actions/start-maintenance`,
+      {
+        idempotencyKey: `start-maintenance:${itemId}:${Date.now()}`,
+      },
+    ),
+  prioritizeMaintenance: (itemId: string) =>
+    post(
+      `/v1/admin/library/items/${encodeURIComponent(itemId)}/actions/prioritize-maintenance`,
+      {
+        idempotencyKey: `prioritize-maintenance:${itemId}:${Date.now()}`,
+      },
+    ),
+  cancelMaintenancePriority: (itemId: string) =>
+    post(
+      `/v1/admin/library/items/${encodeURIComponent(itemId)}/actions/cancel-maintenance-priority`,
+      {
+        idempotencyKey: `cancel-maintenance-priority:${itemId}:${Date.now()}`,
+      },
+    ),
 };
 
 // ── Activity Log ─────────────────────────────────────────────────────────────────
@@ -501,23 +647,25 @@ export const activityLog = {
 // ── Douban ─────────────────────────────────────────────────────────────────────
 
 export const douban = {
-  getSession: () => get<DoubanSession>('/v1/integrations/douban/session'),
+  getSession: () => get<DoubanSession>("/v1/integrations/douban/session"),
 
   saveSession: (body: DoubanSession) =>
-    put<DoubanSession>('/v1/integrations/douban/session', body),
+    put<DoubanSession>("/v1/integrations/douban/session", body),
 
   fetchRatings: (subLibraryId: string) =>
-    get<{ ok: boolean; message: string }>(`/v1/integrations/douban/fetch/ratings?subLibraryId=${encodeURIComponent(subLibraryId)}`),
+    get<{ ok: boolean; message: string }>(
+      `/v1/integrations/douban/fetch/ratings?subLibraryId=${encodeURIComponent(subLibraryId)}`,
+    ),
 };
 
 // ── Space Stats ──────────────────────────────────────────────────────────────
 
 export const spaceStats = {
-  get: () => get<SpaceStats>('/v1/space-stats'),
+  get: () => get<SpaceStats>("/v1/space-stats"),
 };
 
 export const dashboardHealth = {
-  get: () => get<DashboardHealthSummary>('/v1/admin/dashboard/health'),
+  get: () => get<DashboardHealthSummary>("/v1/admin/dashboard/health"),
 };
 
 // ── Nodes ──────────────────────────────────────────────────────────────────────
@@ -527,8 +675,15 @@ export interface NodeInfo {
   name: string;
   address: string;
   apiKey: string;
-  status: 'online' | 'offline';
-  capabilities: { devices: { stableKey: string; label: string; backend: string; gpuIndex: number }[] };
+  status: "online" | "offline";
+  capabilities: {
+    devices: {
+      stableKey: string;
+      label: string;
+      backend: string;
+      gpuIndex: number;
+    }[];
+  };
   activeJobCount: number;
   consecutiveFailures: number;
   lastSeenAt: string;
@@ -536,24 +691,56 @@ export interface NodeInfo {
 }
 
 export const nodes = {
-  list: () => get<{ nodes: NodeInfo[] }>('/v1/admin/nodes'),
+  list: () => get<{ nodes: NodeInfo[] }>("/v1/admin/nodes"),
 
-  get: (id: string) => get<NodeInfo>(`/v1/admin/nodes/${encodeURIComponent(id)}`),
+  get: (id: string) =>
+    get<NodeInfo>(`/v1/admin/nodes/${encodeURIComponent(id)}`),
 
   create: (body: { name: string; address: string; apiKey: string }) =>
-    post<NodeInfo>('/v1/admin/nodes', body),
+    post<NodeInfo>("/v1/admin/nodes", body),
 
   remove: (id: string, force?: boolean) =>
-    del<{ ok: boolean }>(`/v1/admin/nodes/${encodeURIComponent(id)}${force ? '?force=true' : ''}`),
+    del<{ ok: boolean }>(
+      `/v1/admin/nodes/${encodeURIComponent(id)}${force ? "?force=true" : ""}`,
+    ),
 
   update: (id: string, body: { name?: string; apiKey?: string }) =>
     patch<NodeInfo>(`/v1/admin/nodes/${encodeURIComponent(id)}`, body),
 
   probe: (id: string) =>
-    post<{ ok: boolean; capabilities: { devices: { stableKey: string; label: string; backend: string; gpuIndex: number }[] } }>(`/v1/admin/nodes/${encodeURIComponent(id)}/actions/probe`),
+    post<{
+      ok: boolean;
+      capabilities: {
+        devices: {
+          stableKey: string;
+          label: string;
+          backend: string;
+          gpuIndex: number;
+        }[];
+      };
+    }>(`/v1/admin/nodes/${encodeURIComponent(id)}/actions/probe`),
 
-  patchDevice: (nodeId: string, stableKey: string, inPool: boolean, extra?: { priority?: number; maxSlots?: number }) =>
-    patch<{ ok: boolean; capabilities: { devices: { stableKey: string; inPool: boolean; priority?: number; maxSlots?: number }[] } }>(`/v1/admin/nodes/${encodeURIComponent(nodeId)}/devices`, { stableKey, inPool, ...(extra || {}) }),
+  patchDevice: (
+    nodeId: string,
+    stableKey: string,
+    inPool: boolean,
+    extra?: { priority?: number; maxSlots?: number },
+  ) =>
+    patch<{
+      ok: boolean;
+      capabilities: {
+        devices: {
+          stableKey: string;
+          inPool: boolean;
+          priority?: number;
+          maxSlots?: number;
+        }[];
+      };
+    }>(`/v1/admin/nodes/${encodeURIComponent(nodeId)}/devices`, {
+      stableKey,
+      inPool,
+      ...(extra || {}),
+    }),
 };
 
 // ── MoviePilot ────────────────────────────────────────────────────────────────
@@ -567,7 +754,7 @@ export interface MpSite {
 }
 
 export const moviepilot = {
-  getSites: () => get<MpSite[]>('/v1/admin/moviepilot/sites'),
+  getSites: () => get<MpSite[]>("/v1/admin/moviepilot/sites"),
 };
 
 // ── ApiConflictError ──────────────────────────────────────────────────────────
@@ -579,7 +766,7 @@ export class ApiConflictError extends Error {
     public readonly details?: Record<string, unknown>,
   ) {
     super(message);
-    this.name = 'ApiConflictError';
+    this.name = "ApiConflictError";
   }
 }
 
@@ -598,7 +785,7 @@ export interface SubLibraryInfo {
 
 export const libraryApi = {
   getStatus: () =>
-    get<{ subLibraries: SubLibraryInfo[] }>('/v1/library/status'),
+    get<{ subLibraries: SubLibraryInfo[] }>("/v1/library/status"),
 
   getCache: (options?: {
     subLibraryId?: string;
@@ -615,57 +802,55 @@ export const libraryApi = {
     metadata?: string;
     scrape?: string;
     lifecycle?: string;
-    projection?: 'summary' | 'manage' | 'full' | 'compat';
+    projection?: "summary" | "manage" | "full" | "compat";
   }) => {
     const q = new URLSearchParams();
-    if (options?.subLibraryId) q.set('subLibraryId', options.subLibraryId);
-    if (options?.limit) q.set('limit', String(options.limit));
-    if (options?.offset) q.set('offset', String(options.offset));
-    if (options?.projection) q.set('projection', options.projection);
-    for (const key of ['search', 'resolution', 'codec', 'watched', 'bluRay', 'douban', 'userRating', 'task', 'metadata', 'scrape', 'lifecycle'] as const) {
+    if (options?.subLibraryId) q.set("subLibraryId", options.subLibraryId);
+    if (options?.limit) q.set("limit", String(options.limit));
+    if (options?.offset) q.set("offset", String(options.offset));
+    if (options?.projection) q.set("projection", options.projection);
+    for (const key of [
+      "search",
+      "resolution",
+      "codec",
+      "watched",
+      "bluRay",
+      "douban",
+      "userRating",
+      "task",
+      "metadata",
+      "scrape",
+      "lifecycle",
+    ] as const) {
       const value = options?.[key];
-      if (value && value !== 'all') q.set(key, value);
+      if (value && value !== "all") q.set(key, value);
     }
-    const params = q.toString() ? `?${q.toString()}` : '';
+    const params = q.toString() ? `?${q.toString()}` : "";
     return get<{ items: unknown[]; total: number }>(`/v1/library${params}`);
   },
 
   markPlayed: (itemId: string, subLibraryId?: string) =>
-    post<{ ok: boolean }>('/v1/library/actions/mark-played', { itemId, subLibraryId: subLibraryId || undefined }),
+    post<{ ok: boolean }>("/v1/library/actions/mark-played", {
+      itemId,
+      subLibraryId: subLibraryId || undefined,
+    }),
 
   markUnplayed: (itemId: string, subLibraryId?: string) =>
-    post<{ ok: boolean }>('/v1/library/actions/mark-unplayed', { itemId, subLibraryId: subLibraryId || undefined }),
+    post<{ ok: boolean }>("/v1/library/actions/mark-unplayed", {
+      itemId,
+      subLibraryId: subLibraryId || undefined,
+    }),
 
   patchRatings: (itemId: string, userRating: number | null) =>
-    patch<{ ok: boolean }>('/v1/library/ratings', { itemId, userRating }),
+    patch<{ ok: boolean }>("/v1/library/ratings", { itemId, userRating }),
 
   recomputeOptimizeTargets: () =>
-    post<{ ok: boolean; changed: number }>('/v1/library/actions/recompute-optimize-targets'),
+    post<{ ok: boolean; changed: number }>(
+      "/v1/library/actions/recompute-optimize-targets",
+    ),
 
   recomputeStrategy: () =>
-    post<{ ok: boolean; changed: number }>('/v1/library/actions/recompute-strategy'),
-};
-
-export const taskApi = {
-  getTasks: async (options?: { activeOnly?: boolean }) => {
-    const params = options?.activeOnly ? '?activeOnly=1' : '';
-    const data = await get<{ tasks: MediaTask[] } | MediaTask[]>(`/v1/tasks${params}`);
-    return Array.isArray(data) ? data : data.tasks ?? [];
-  },
-
-  createByIntent: async (body: { itemId: string; targetGate?: string; gateObjective?: Record<string, unknown>; flowPreference?: Record<string, unknown> }): Promise<MediaTask> => {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const key = apiKey();
-    if (key) headers['x-api-key'] = key;
-    const r = await fetch('/v1/tasks', { method: 'POST', headers, body: JSON.stringify(body) });
-    if (r.status === 409) {
-      const b = await r.json().catch(() => ({}));
-      throw new ApiConflictError(b.error?.code || b.code || 'CONFLICT', b.error?.message || b.message || 'Conflict', b);
-    }
-    if (!r.ok) {
-      const b = await r.json().catch(() => ({}));
-      throw new Error(b.error?.message || `HTTP ${r.status}`);
-    }
-    return r.json();
-  },
+    post<{ ok: boolean; changed: number }>(
+      "/v1/library/actions/recompute-strategy",
+    ),
 };

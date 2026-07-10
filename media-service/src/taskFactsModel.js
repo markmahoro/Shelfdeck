@@ -31,7 +31,6 @@ function taskFacts(task = {}) {
     phase: task.phase == null ? null : text(task.phase),
     resume_point: task.resumePoint == null ? null : text(task.resumePoint),
     manual_execute_requested: integer(task.manualExecuteRequested),
-    priority_manually_adjusted: integer(task.priorityManuallyAdjusted),
     priority_model_version: text(task.priorityModelVersion),
     retry_count: Number.isInteger(task.retryCount) ? task.retryCount : Number(task.retryCount || 0) || 0,
     pausing_requested: integer(task.pausingRequested),

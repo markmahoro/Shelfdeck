@@ -26,8 +26,7 @@ test('clean startup does not recreate mixed media_items state', async () => {
     url: '/v1/tasks',
     payload: { itemId: 'item-1', targetGate: 'archive' },
   });
-  assert.strictEqual(invalidTarget.statusCode, 400);
-  assert.strictEqual(invalidTarget.json().error.code, 'KAIROX_INVALID_TARGET_GATE');
+  assert.strictEqual(invalidTarget.statusCode, 404);
 
   const removedCandidates = await app.inject({ method: 'GET', url: '/v1/admin/delete-candidates' });
   assert.strictEqual(removedCandidates.statusCode, 404);

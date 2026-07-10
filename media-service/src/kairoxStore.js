@@ -3,8 +3,11 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const personCatalogStore = require('./personCatalogStore');
 
 const FACT_STATUS = new Set(['missing', 'fresh', 'stale', 'blocked']);
+const RUN_STATUSES = new Set(['ready', 'task_active', 'suspended', 'blocked', 'complete', 'cancelled']);
+const PRIORITY_CLASSES = new Set(['normal', 'expedited']);
 
 function resolveDataDir() {
   return process.env.CONTROL_PLANE_DATA_DIR
@@ -32,9 +35,39 @@ function ensureSchema(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS kairox_media (
       item_id TEXT PRIMARY KEY,
+      media_kind TEXT NOT NULL DEFAULT '',
+      playable INTEGER NOT NULL DEFAULT 1,
+      parent_item_id TEXT NOT NULL DEFAULT '',
+      series_item_id TEXT NOT NULL DEFAULT '',
+      maintenance_priority_class TEXT NOT NULL DEFAULT 'normal',
+      priority_revision INTEGER NOT NULL DEFAULT 0,
+      priority_reason TEXT NOT NULL DEFAULT '',
+      priority_run_id TEXT NOT NULL DEFAULT '',
+      priority_set_at TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS kairox_maintenance_runs (
+      run_id TEXT PRIMARY KEY,
+      item_id TEXT NOT NULL,
+      admission_generation INTEGER NOT NULL DEFAULT 0,
+      initiated_by TEXT NOT NULL DEFAULT 'system',
+      status TEXT NOT NULL DEFAULT 'ready',
+      current_task_id TEXT NOT NULL DEFAULT '',
+      library_priority INTEGER NOT NULL DEFAULT 100,
+      requested_at TEXT NOT NULL,
+      completed_at TEXT NOT NULL DEFAULT '',
+      blocked_reason TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(item_id) REFERENCES kairox_media(item_id)
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_kairox_run_one_open
+      ON kairox_maintenance_runs(item_id)
+      WHERE status NOT IN ('complete','cancelled');
+    CREATE INDEX IF NOT EXISTS idx_kairox_runs_supply
+      ON kairox_maintenance_runs(status,library_priority,requested_at,item_id);
 
     CREATE TABLE IF NOT EXISTS kairox_basedata_facts (
       item_id TEXT PRIMARY KEY,
@@ -139,11 +172,160 @@ function ensureMedia(input = {}) {
   const itemId = String(input.itemId || '').trim();
   if (!itemId) throw Object.assign(new Error('itemId is required'), { code: 'KAIROX_ITEM_ID_REQUIRED' });
   const now = nowIso(input.updatedAt);
+  const existing = getDb().prepare('SELECT * FROM kairox_media WHERE item_id=?').get(itemId);
+  const row = {
+    item_id: itemId,
+    media_kind: String(input.mediaKind !== undefined ? input.mediaKind : existing && existing.media_kind || ''),
+    playable: input.playable === undefined ? (existing ? existing.playable : 1) : (input.playable === false ? 0 : 1),
+    parent_item_id: String(input.parentItemId !== undefined ? input.parentItemId : existing && existing.parent_item_id || ''),
+    series_item_id: String(input.seriesItemId !== undefined ? input.seriesItemId : existing && existing.series_item_id || ''),
+    maintenance_priority_class: String(existing && existing.maintenance_priority_class || 'normal'),
+    priority_revision: Number(existing && existing.priority_revision) || 0,
+    priority_reason: String(existing && existing.priority_reason || ''),
+    priority_run_id: String(existing && existing.priority_run_id || ''),
+    priority_set_at: String(existing && existing.priority_set_at || ''),
+    created_at: existing && existing.created_at || nowIso(input.createdAt || now),
+    updated_at: now,
+  };
   getDb().prepare(`
-    INSERT INTO kairox_media(item_id,created_at,updated_at) VALUES (?,?,?)
-    ON CONFLICT(item_id) DO UPDATE SET updated_at=excluded.updated_at
-  `).run(itemId, nowIso(input.createdAt || now), now);
-  return { itemId, createdAt: nowIso(input.createdAt || now), updatedAt: now };
+    INSERT INTO kairox_media
+      (item_id,media_kind,playable,parent_item_id,series_item_id,maintenance_priority_class,
+       priority_revision,priority_reason,priority_run_id,priority_set_at,created_at,updated_at)
+    VALUES
+      (@item_id,@media_kind,@playable,@parent_item_id,@series_item_id,@maintenance_priority_class,
+       @priority_revision,@priority_reason,@priority_run_id,@priority_set_at,@created_at,@updated_at)
+    ON CONFLICT(item_id) DO UPDATE SET
+      media_kind=excluded.media_kind,playable=excluded.playable,parent_item_id=excluded.parent_item_id,
+      series_item_id=excluded.series_item_id,updated_at=excluded.updated_at
+  `).run(row);
+  return mediaRow(getDb().prepare('SELECT * FROM kairox_media WHERE item_id=?').get(itemId));
+}
+
+function mediaRow(row) {
+  if (!row) return null;
+  return {
+    itemId: row.item_id,
+    mediaKind: row.media_kind || '',
+    playable: row.playable !== 0,
+    parentItemId: row.parent_item_id || '',
+    seriesItemId: row.series_item_id || '',
+    maintenancePriorityClass: PRIORITY_CLASSES.has(row.maintenance_priority_class) ? row.maintenance_priority_class : 'normal',
+    priorityRevision: Number(row.priority_revision) || 0,
+    priorityReason: row.priority_reason || '',
+    priorityRunId: row.priority_run_id || '',
+    prioritySetAt: row.priority_set_at || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
+
+function getMedia(itemId) {
+  return mediaRow(getDb().prepare('SELECT * FROM kairox_media WHERE item_id=?').get(String(itemId || '')));
+}
+
+function runRow(row) {
+  if (!row) return null;
+  return {
+    runId: row.run_id,
+    itemId: row.item_id,
+    admissionGeneration: Number(row.admission_generation) || 0,
+    initiatedBy: row.initiated_by || 'system',
+    status: RUN_STATUSES.has(row.status) ? row.status : 'blocked',
+    currentTaskId: row.current_task_id || '',
+    libraryPriority: Number(row.library_priority) || 100,
+    requestedAt: row.requested_at || '',
+    completedAt: row.completed_at || '',
+    blockedReason: row.blocked_reason || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
+
+function getMaintenanceRun(itemId) {
+  return runRow(getDb().prepare(`
+    SELECT * FROM kairox_maintenance_runs
+    WHERE item_id=? AND status NOT IN ('complete','cancelled')
+    ORDER BY created_at DESC LIMIT 1
+  `).get(String(itemId || '')));
+}
+
+function getMaintenanceRunById(runId) {
+  return runRow(getDb().prepare('SELECT * FROM kairox_maintenance_runs WHERE run_id=?').get(String(runId || '')));
+}
+
+function createMaintenanceRun(input = {}) {
+  const media = ensureMedia(input);
+  const existing = getMaintenanceRun(media.itemId);
+  if (existing) return { created: false, run: existing };
+  const now = nowIso(input.requestedAt);
+  const runId = String(input.runId || require('crypto').randomUUID());
+  getDb().prepare(`
+    INSERT INTO kairox_maintenance_runs
+      (run_id,item_id,admission_generation,initiated_by,status,current_task_id,library_priority,
+       requested_at,completed_at,blocked_reason,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+  `).run(
+    runId, media.itemId, Math.max(0, Number(input.admissionGeneration) || 0),
+    String(input.initiatedBy || 'system'), 'ready', '', Number(input.libraryPriority) || 100,
+    now, '', '', now, now,
+  );
+  return { created: true, run: getMaintenanceRunById(runId) };
+}
+
+function updateMaintenanceRun(runId, updates = {}) {
+  const current = getMaintenanceRunById(runId);
+  if (!current) return null;
+  const statusValue = updates.status === undefined ? current.status : String(updates.status);
+  if (!RUN_STATUSES.has(statusValue)) throw Object.assign(new Error('Invalid maintenance run status'), { code: 'KAIROX_INVALID_RUN_STATUS' });
+  const now = nowIso(updates.updatedAt);
+  getDb().prepare(`
+    UPDATE kairox_maintenance_runs SET
+      status=?,current_task_id=?,library_priority=?,completed_at=?,blocked_reason=?,updated_at=?
+    WHERE run_id=?
+  `).run(
+    statusValue,
+    updates.currentTaskId === undefined ? current.currentTaskId : String(updates.currentTaskId || ''),
+    updates.libraryPriority === undefined ? current.libraryPriority : Number(updates.libraryPriority) || 100,
+    updates.completedAt === undefined ? current.completedAt : String(updates.completedAt || ''),
+    updates.blockedReason === undefined ? current.blockedReason : String(updates.blockedReason || ''),
+    now,
+    current.runId,
+  );
+  return getMaintenanceRunById(current.runId);
+}
+
+function listMaintenanceRuns(options = {}) {
+  const limit = Math.max(1, Math.min(1000, Number(options.limit) || 100));
+  const statuses = Array.isArray(options.statuses) && options.statuses.length ? options.statuses : ['ready'];
+  const valid = statuses.filter((value) => RUN_STATUSES.has(value));
+  if (valid.length === 0) return [];
+  const placeholders = valid.map(() => '?').join(',');
+  return getDb().prepare(`
+    SELECT r.* FROM kairox_maintenance_runs r
+    JOIN kairox_media m ON m.item_id=r.item_id
+    JOIN kairox_admissions a ON a.item_id=r.item_id AND a.status='active' AND a.generation=r.admission_generation
+    WHERE r.status IN (${placeholders})
+    ORDER BY CASE m.maintenance_priority_class WHEN 'expedited' THEN 0 ELSE 1 END ASC,
+             r.library_priority ASC,r.requested_at ASC,r.item_id ASC
+    LIMIT ?
+  `).all(...valid, limit).map(runRow);
+}
+
+function setMaintenancePriority(input = {}) {
+  const itemId = String(input.itemId || '').trim();
+  const priorityClass = String(input.priorityClass || 'normal');
+  if (!PRIORITY_CLASSES.has(priorityClass)) throw Object.assign(new Error('Invalid maintenance priority class'), { code: 'KAIROX_INVALID_PRIORITY_CLASS' });
+  const media = getMedia(itemId);
+  if (!media) throw Object.assign(new Error('Kairox maintenance item not found'), { code: 'KAIROX_ITEM_NOT_FOUND' });
+  const runId = priorityClass === 'expedited' ? String(input.runId || media.priorityRunId || '') : '';
+  const reason = priorityClass === 'expedited' ? String(input.reason || '') : '';
+  if (media.maintenancePriorityClass === priorityClass && media.priorityRunId === runId && media.priorityReason === reason) return media;
+  const now = nowIso(input.updatedAt);
+  getDb().prepare(`
+    UPDATE kairox_media SET maintenance_priority_class=?,priority_revision=priority_revision+1,
+      priority_reason=?,priority_run_id=?,priority_set_at=?,updated_at=? WHERE item_id=?
+  `).run(priorityClass, reason, runId, priorityClass === 'expedited' ? now : '', now, itemId);
+  return getMedia(itemId);
 }
 
 function factRow(row, kind) {
@@ -336,6 +518,24 @@ function publishMetadata(input = {}) {
       stale_reason=excluded.stale_reason,updated_at=excluded.updated_at
   `).run(row);
   completeRefresh(media.itemId, 'metadata', row.updated_at);
+  const metadataFacts = input.facts || {};
+  const observedPeople = Array.isArray(metadataFacts.people) ? [...metadataFacts.people] : [];
+  if (metadataFacts.protagonist && metadataFacts.protagonist.name) {
+    observedPeople.push({
+      personId: metadataFacts.protagonist.personId,
+      name: metadataFacts.protagonist.name,
+      role: 'actor',
+      source: 'western_adult_recognition',
+      confidence: metadataFacts.protagonist.confidence,
+      contentKinds: ['adult'],
+    });
+  }
+  for (const actor of Array.isArray(metadataFacts.actors) ? metadataFacts.actors : []) {
+    const observation = actor && typeof actor === 'object' ? actor : { name: actor };
+    if (metadataFacts.protagonist && String(observation.name || '').trim().toLowerCase() === String(metadataFacts.protagonist.name || '').trim().toLowerCase()) continue;
+    observedPeople.push({ ...observation, role: 'actor', source: observation.source || (metadataFacts.adultRegion ? 'adult_scraper' : 'metadata'), contentKinds: observation.contentKinds || [metadataFacts.adultRegion ? 'adult' : 'general'] });
+  }
+  personCatalogStore.observeItemPeople({ itemId: media.itemId, people: observedPeople, metadataRevision: String(row.fact_revision) });
   return factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(media.itemId), 'metadata');
 }
 
@@ -458,6 +658,7 @@ function getBundle(itemId) {
   }));
   return {
     itemId: id,
+    media: mediaRow(media),
     basedata: getBasedata(id),
     metadata: factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(id), 'metadata'),
     userPerception: getUserPerception(id),
@@ -478,6 +679,7 @@ function getBundles(itemIds = []) {
   const byId = mediaRows.reduce((out, row) => {
     out[row.item_id] = {
       itemId: row.item_id,
+      media: mediaRow(row),
       basedata: null,
       metadata: null,
       userPerception: null,
@@ -540,11 +742,19 @@ function getBundles(itemIds = []) {
 function resetForTests() {
   for (const db of dbCache.values()) db.close();
   dbCache.clear();
+  personCatalogStore.resetForTests();
 }
 
 module.exports = {
   ensureSchema,
   ensureMedia,
+  getMedia,
+  createMaintenanceRun,
+  getMaintenanceRun,
+  getMaintenanceRunById,
+  updateMaintenanceRun,
+  listMaintenanceRuns,
+  setMaintenancePriority,
   getBasedata,
   getMetadata,
   getOptimize,

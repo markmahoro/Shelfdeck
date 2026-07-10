@@ -27,6 +27,22 @@ function createLibraService(dependencies = {}) {
       if (typeof implementation.requestMaintenance === 'function') return implementation.requestMaintenance(command);
       throw notImplemented('LibraService.requestMaintenance');
     },
+    requestMaintenanceRun(command) {
+      if (typeof implementation.requestMaintenanceRun === 'function') return implementation.requestMaintenanceRun(command);
+      throw notImplemented('LibraService.requestMaintenanceRun');
+    },
+    setMaintenancePriority(command) {
+      if (typeof implementation.setMaintenancePriority === 'function') return implementation.setMaintenancePriority(command);
+      throw notImplemented('LibraService.setMaintenancePriority');
+    },
+    clearMaintenancePriority(command) {
+      if (typeof implementation.clearMaintenancePriority === 'function') return implementation.clearMaintenancePriority(command);
+      throw notImplemented('LibraService.clearMaintenancePriority');
+    },
+    requestMetadataRefresh(command) {
+      if (typeof implementation.requestMetadataRefresh === 'function') return implementation.requestMetadataRefresh(command);
+      throw notImplemented('LibraService.requestMetadataRefresh');
+    },
     updateUserPerception(command) {
       if (typeof implementation.updateUserPerception === 'function') return implementation.updateUserPerception(command);
       throw notImplemented('LibraService.updateUserPerception');

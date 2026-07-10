@@ -163,7 +163,7 @@ test('Libra library query composes Membership, Nexora and Kairox facts without m
   runtime.acceptSource({
     itemId: 'query-item',
     idempotencyKey: 'query-onboarding',
-    sourceReference: { source: 'emby', subLib: { uuid: 'library-query' } },
+    sourceReference: { source: 'emby', subLib: { uuid: 'library-query' }, item: { type: 'movie' } },
   });
   const result = runtime.queryLibraryProjections({ subLibraryId: 'library-query', search: 'query title' }, { limit: 10 });
   assert.strictEqual(result.total, 1);
@@ -172,4 +172,76 @@ test('Libra library query composes Membership, Nexora and Kairox facts without m
   assert.strictEqual(result.items[0].name, 'Query Title');
   assert.strictEqual(result.items[0].codec, 'h265');
   assert.strictEqual(result.items[0].maintenanceComplete, true);
+});
+
+test('Series maintenance scopes expand to playable Episodes and absorb Episodes observed while active', async () => {
+  const subLibraryId = 'series-scope-library';
+  const sourceByItem = {};
+  const maintenanceByItem = {};
+  const startedItems = [];
+  const prioritizedItems = [];
+  const services = fakes(sourceByItem, maintenanceByItem);
+  services.nexoraService.observeLibraryPage = async () => ({ observations: [], cursor: {}, done: true });
+  services.nexoraService.resolveBoundItemId = () => '';
+  services.kairoxService.startMaintenanceRun = (command) => {
+    startedItems.push(command.itemId);
+    return { run: { itemId: command.itemId, status: 'ready' } };
+  };
+  services.kairoxService.setMaintenancePriority = (command) => {
+    prioritizedItems.push(command.itemId);
+    return { media: { itemId: command.itemId, maintenancePriorityClass: 'expedited' } };
+  };
+
+  const runtime = createLibraRuntime({
+    ...services,
+    configs: {
+      loadConfig: () => ({
+        embyServers: {},
+        subLibraries: [{
+          uuid: subLibraryId,
+          source: 'emby',
+          libraryAutomationMode: 'auto',
+          maintenanceAutomationMode: 'manual',
+          priorityWeight: 100,
+          ruleTemplateId: 'default',
+        }],
+      }),
+    },
+    resourceGovernor: { runWithPermit: (_request, work) => work() },
+  });
+
+  const put = (itemId, input) => {
+    sourceByItem[itemId] = { itemId, sourceRevision: 'scope-source-1', readiness: 'ready' };
+    maintenanceByItem[itemId] = { itemId, maintenanceRevision: 'scope-maintenance-1', maintenanceState: 'maintaining', maintenanceComplete: false };
+    return libraStore.upsertLibraryItem({
+      itemId,
+      subLibraryId,
+      membershipStatus: 'active',
+      desiredState: 'managed',
+      phase: 'maintenance',
+      quarantineStatus: 'none',
+      admissionGeneration: 1,
+      sourceRevision: 'scope-source-1',
+      ...input,
+    });
+  };
+
+  put('scope-series', { sourceRefId: 'series-ref', mediaKind: 'series', playable: false });
+  put('scope-episode-1', { sourceRefId: 'episode-ref-1', seriesSourceRefId: 'series-ref', mediaKind: 'episode', playable: true });
+  put('scope-episode-2', { sourceRefId: 'episode-ref-2', seriesSourceRefId: 'series-ref', mediaKind: 'episode', playable: true });
+
+  const started = runtime.requestMaintenanceRun({ itemId: 'scope-series', idempotencyKey: 'scope-start' });
+  const prioritized = runtime.setMaintenancePriority({ itemId: 'scope-series', idempotencyKey: 'scope-priority', reason: 'series_expedited' });
+  assert.strictEqual(started.affected, 2);
+  assert.strictEqual(prioritized.affected, 2);
+  assert.deepStrictEqual(startedItems.sort(), ['scope-episode-1', 'scope-episode-2']);
+  assert.deepStrictEqual(prioritizedItems.sort(), ['scope-episode-1', 'scope-episode-2']);
+
+  put('scope-episode-3', { sourceRefId: 'episode-ref-3', seriesSourceRefId: 'series-ref', mediaKind: 'episode', playable: true });
+  await runtime.runLibraryWork(started.scope.observationWorkId);
+
+  assert.strictEqual(startedItems.filter((itemId) => itemId === 'scope-episode-3').length, 1);
+  assert.strictEqual(prioritizedItems.filter((itemId) => itemId === 'scope-episode-3').length, 1);
+  assert.deepStrictEqual(libraStore.listMaintenanceScopeMembers(started.scope.scopeId).sort(), ['scope-episode-1', 'scope-episode-2', 'scope-episode-3']);
+  assert.deepStrictEqual(libraStore.listMaintenanceScopeMembers(prioritized.scope.scopeId).sort(), ['scope-episode-1', 'scope-episode-2', 'scope-episode-3']);
 });

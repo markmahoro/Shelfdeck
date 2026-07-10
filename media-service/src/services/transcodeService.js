@@ -140,8 +140,6 @@ function getBundledFfprobePath() {
 }
 
 function resolveFfmpegBin(config) {
-  const p = config && String(config.ffmpegPath || '').trim();
-  if (p && fs.existsSync(p)) return p;
   const env = String(process.env.FFMPEG_PATH || '').trim();
   if (env && fs.existsSync(env)) return env;
   const bundled = getBundledFfmpegPath();
@@ -149,8 +147,6 @@ function resolveFfmpegBin(config) {
 }
 
 function resolveFfprobeBin(config) {
-  const p = config && String(config.ffprobePath || '').trim();
-  if (p && fs.existsSync(p)) return p;
   const env = String(process.env.FFPROBE_PATH || '').trim();
   if (env && fs.existsSync(env)) return env;
   const bundled = getBundledFfprobePath();

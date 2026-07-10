@@ -305,26 +305,15 @@ function getDefaultConfig() {
       defaultQueueLimit: 100,
       agingMs: 60000,
     },
-    libraryAutomation: {
-      pollIntervalSeconds: 60,
-      pageSize: 100,
-      maxItemsPerRun: 100,
-      maxRunMs: 5000,
-    },
-    maintenanceAutomation: {
-      pollIntervalSeconds: 60,
-      maxItemsPerRun: 100,
-      maxQueueSize: 50,
+    resourceLimits: {
+      embyApiPerServer: 1,
+      filesystemPerVolume: 1,
+      localFfmpeg: 1,
+      workerPerNode: 1,
     },
     optimizeFlowPolicy: {
       allowedFlowKinds: ['transcode', 'upgrade'],
     },
-    upgradeCanary: {
-      maxActiveTasks: 1,
-      requireMoviePilotConfig: true,
-      allowDiscLike: false,
-    },
-
     // Task queue priority (PriorityEngine). Lower number = runs first.
     // Final score = source weight + target gate weight + selected-flow hint + subLibrary weight + business
     // signal + queue age + retry penalty + rule deltas.
@@ -332,8 +321,7 @@ function getDefaultConfig() {
     // Advanced overlay rules below are AND-matched, applied in order, and may
     // only add/subtract from the running score. They must not override it.
     taskPriority: {
-      manualTaskPriority: 0,     // manual tasks (POST /v1/tasks) always high priority
-      autoTaskPriorityBase: 100,
+      basePriority: 100,
       targetGateWeights: {
         basedata: 60,
         metadata: 80,
@@ -394,13 +382,10 @@ function getDefaultConfig() {
     // Transcode
     transcodeTempRoot: process.platform === 'linux' ? '/transcode' : '',
     transcodeCleanupOrphansOnStartup: true,
-    ffmpegPath: 'ffmpeg',
-    ffprobePath: 'ffprobe',
     transcodeEncodingDevices: [],
     transcodeCpuParticipationStrategy: 'normal',
 
     // Transcode nodes
-    nodeEnabled: true,
     nodePollIntervalMs: 2000,
     nodeHealthCheckIntervalMs: 30000,
 
@@ -412,8 +397,6 @@ function getDefaultConfig() {
     },
     upgradeStagingLocalPath: process.platform === 'linux' ? '/upgrade' : '',
     upgradeScrapingSettleSeconds: 1800,
-    upgradeRetryInterval: 3600000,
-    upgradeMaxRetries: 3,
 
     // Adult folder libraries
     adultLibrary: {
@@ -593,14 +576,9 @@ function mergeConfigWithDefaults(config) {
     },
   };
 
-  merged.libraryAutomation = {
-    ...(defaults.libraryAutomation || {}),
-    ...(raw.libraryAutomation || {}),
-  };
-
-  merged.maintenanceAutomation = {
-    ...(defaults.maintenanceAutomation || {}),
-    ...(raw.maintenanceAutomation || {}),
+  merged.resourceLimits = {
+    ...(defaults.resourceLimits || {}),
+    ...(raw.resourceLimits || {}),
   };
 
   merged.optimizeFlowPolicy = {
@@ -656,12 +634,32 @@ function mergeConfigWithDefaults(config) {
     ...(raw.approvalPolicy || {}),
   };
 
-  merged.upgradeCanary = {
-    ...(defaults.upgradeCanary || {}),
-    ...(raw.upgradeCanary || {}),
-  };
-
   return merged;
+}
+
+const USER_CONFIG_FIELDS = Object.freeze([
+  'helixSchemaVersion',
+  'apiKey',
+  'resourceLimits',
+  'optimizeFlowPolicy',
+  'approvalPolicy',
+  'transcodeTempRoot',
+  'transcodeEncodingDevices',
+  'transcodeCpuParticipationStrategy',
+  'moviepilot',
+  'upgradeStagingLocalPath',
+  'adultLibrary',
+  'embyServers',
+  'subLibraries',
+  'ruleTemplates',
+  'douban',
+]);
+
+function canonicalUserConfig(config = {}) {
+  return USER_CONFIG_FIELDS.reduce((out, key) => {
+    if (config[key] !== undefined) out[key] = config[key];
+    return out;
+  }, {});
 }
 
 const LEGACY_CONFIG_FIELDS = new Set([
@@ -681,6 +679,19 @@ const LEGACY_CONFIG_FIELDS = new Set([
   'transcodeConcurrency',
   'upgradeConcurrency',
   'resourceCapacity',
+  'resourceGovernor',
+  'libraryAutomation',
+  'maintenanceAutomation',
+  'taskPriority',
+  'taskAdmission',
+  'upgradeCanary',
+  'upgradeRetryInterval',
+  'upgradeMaxRetries',
+  'upgradeScrapingSettleSeconds',
+  'nodeEnabled',
+  'nodePollIntervalMs',
+  'nodeHealthCheckIntervalMs',
+  'transcodeCleanupOrphansOnStartup',
   'backgroundIoGuard',
   'strategyPollIntervalMinutes',
   'transcodeReplaceConfirmRequired',
@@ -761,10 +772,11 @@ function loadConfig() {
 
 function saveConfig(config, options = {}) {
   ensureDataDir();
-  assertCleanConfig(config);
-  const merged = mergeConfigWithDefaults(config);
+  const canonical = canonicalUserConfig(config);
+  assertCleanConfig(canonical);
+  const merged = mergeConfigWithDefaults(canonical);
   if (options.skipMetadataGateValidation !== true) validateMetadataGateContracts(merged);
-  fs.writeFileSync(configFilePath(), JSON.stringify(merged, null, 2), 'utf8');
+  fs.writeFileSync(configFilePath(), JSON.stringify(canonicalUserConfig(merged), null, 2), 'utf8');
   return merged;
 }
 
@@ -789,4 +801,5 @@ module.exports = {
   normalizeRuleTemplate,
   defaultSubLibraryAutomation,
   resolveSubLibraryAutomation,
+  canonicalUserConfig,
 };

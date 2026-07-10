@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const nodeService = require('../nodeService');
-const peopleStore = require('../peopleStore');
+const peopleStore = require('../personCatalogStore');
 const westernAdultLocalAiService = require('./westernAdultLocalAiService');
 
 const controllers = new Map();
@@ -120,7 +120,7 @@ async function analyzeVideo({ taskId, config, subLib, item, onLog }) {
       jobId: taskId,
       assetId,
       itemName: item.name || path.basename(item.path, path.extname(item.path)),
-      people: peopleStore.listPeople({ adultRegion: 'western_adult' }).people,
+      people: peopleStore.listPeople({ adultRegion: 'western_adult', includeArtifacts: true, limit: 200 }).people,
       options: {
         frameSampleCount: western.frameSampleCount,
         frameWidth: western.frameWidth,

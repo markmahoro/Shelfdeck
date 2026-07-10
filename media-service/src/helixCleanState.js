@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-const HELIX_SCHEMA_VERSION = 'helix-beta-clean-v1';
+const HELIX_SCHEMA_VERSION = 'helix-beta-maintenance-run-v2';
 const APPLY_CONFIRMATION = 'INITIALIZE_HELIX_CLEAN_STATE';
 const MARKER_FILE = 'helix-state.json';
 
@@ -26,6 +26,7 @@ const RESET_ENTRIES = Object.freeze([
   'douban-session.json',
   'nodes.json',
   'people.json',
+  'person-artifacts',
   'playback-log.json',
   'shelfdeck.log',
   'adult-artifacts',
@@ -45,6 +46,18 @@ const LEGACY_CONFIG_FIELDS = Object.freeze([
   'strategyPollIntervalMinutes',
   'transcodeReplaceConfirmRequired',
   'upgradeReplaceConfirmRequired',
+  'resourceGovernor',
+  'libraryAutomation',
+  'maintenanceAutomation',
+  'taskPriority',
+  'taskAdmission',
+  'upgradeCanary',
+  'upgradeRetryInterval',
+  'upgradeMaxRetries',
+  'nodeEnabled',
+  'nodePollIntervalMs',
+  'nodeHealthCheckIntervalMs',
+  'transcodeCleanupOrphansOnStartup',
 ]);
 
 const LEGACY_LIBRARY_TABLES = Object.freeze([
@@ -175,8 +188,12 @@ function preservedConfig(raw = {}) {
     apiKey: cleanString(raw.apiKey),
     transcodeTempRoot: cleanString(raw.transcodeTempRoot) || (process.platform === 'linux' ? '/transcode' : ''),
     upgradeStagingLocalPath: cleanString(raw.upgradeStagingLocalPath),
-    ffmpegPath: cleanString(raw.ffmpegPath) || 'ffmpeg',
-    ffprobePath: cleanString(raw.ffprobePath) || 'ffprobe',
+    resourceLimits: {
+      embyApiPerServer: 1,
+      filesystemPerVolume: 1,
+      localFfmpeg: 1,
+      workerPerNode: 1,
+    },
     moviepilot: { savePath: moviepilotSavePath },
     embyServers: {},
     subLibraries: [],

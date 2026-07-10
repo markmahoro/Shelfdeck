@@ -23,10 +23,10 @@ test('Helix service facades expose the accepted in-process contracts', () => {
   for (const name of ['ensureOnboarding', 'diagnoseSource', 'ensureOffboarding', 'getSourceProjection', 'getSourceProjections']) {
     assert.strictEqual(typeof nexora[name], 'function', `missing NexoraService.${name}`);
   }
-  for (const name of ['reconcileMaintenance', 'suspendMaintenance', 'requestMaintenance', 'getMaintenanceProjection', 'getMaintenanceProjections']) {
+  for (const name of ['reconcileMaintenance', 'suspendMaintenance', 'requestMaintenance', 'startMaintenanceRun', 'setMaintenancePriority', 'clearMaintenancePriority', 'reconcileMaintenanceRun', 'requestMetadataRefresh', 'getMaintenanceProjection', 'getMaintenanceProjections']) {
     assert.strictEqual(typeof kairox[name], 'function', `missing KairoxService.${name}`);
   }
-  for (const name of ['acceptSource', 'requestMaintenance', 'requestOffboarding', 'requestOffboardingBatch', 'reconcileItem', 'reconcileBatch', 'getLibraryProjection', 'getLibraryProjections', 'queryLibraryProjections']) {
+  for (const name of ['acceptSource', 'requestMaintenance', 'requestMaintenanceRun', 'setMaintenancePriority', 'clearMaintenancePriority', 'requestMetadataRefresh', 'requestOffboarding', 'requestOffboardingBatch', 'reconcileItem', 'reconcileBatch', 'getLibraryProjection', 'getLibraryProjections', 'queryLibraryProjections']) {
     assert.strictEqual(typeof libra[name], 'function', `missing LibraService.${name}`);
   }
 });
@@ -69,8 +69,11 @@ test('Libra composes live capability projections without persisting capability s
 
 test('public Helix path exposes only clean maintenance targets and no legacy disposal routes', () => {
   const appSource = source('app.js');
-  assert.match(appSource, /KAIROX_INVALID_TARGET_GATE/);
-  assert.match(appSource, /\['basedata', 'metadata', 'optimize'\]/);
+  assert.doesNotMatch(appSource, /app\.post\('\/v1\/tasks'/);
+  assert.match(appSource, /actions\/start-maintenance/);
+  assert.match(appSource, /actions\/prioritize-maintenance/);
+  assert.doesNotMatch(appSource, /actions\/execute|actions\/retry|actions\/pause/);
+  assert.doesNotMatch(appSource, /priorityManuallyAdjusted/);
   assert.doesNotMatch(appSource, /HELIX_LEGACY_TARGET_REMOVED/);
   assert.doesNotMatch(appSource, /\/v1\/admin\/delete-candidates/);
   assert.doesNotMatch(appSource, /\/actions\/scan/);

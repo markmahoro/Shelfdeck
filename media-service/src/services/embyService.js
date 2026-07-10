@@ -131,7 +131,7 @@ async function getMediaFolders(serverConfig) {
 }
 
 const ITEM_FIELDS =
-  'BasicSyncInfo,RunTimeTicks,ImageTags,Type,MediaType,Path,VideoType,IsoType,SeriesName,SeriesId,ParentIndexNumber,IndexNumber,ParentId,ProviderIds,MediaSources,UserData';
+  'BasicSyncInfo,RunTimeTicks,ImageTags,Type,MediaType,Path,VideoType,IsoType,SeriesName,SeriesId,ParentIndexNumber,IndexNumber,ParentId,ProviderIds,People,Genres,MediaSources,UserData';
 
 async function getLibraryItemsPage(serverConfig, sectionId, options = {}) {
   const userId = String(serverConfig.userId || '').trim();
@@ -381,6 +381,15 @@ function extractItemFields(item) {
     parentId: item.ParentId || null,
     providerIds: item.ProviderIds || {},
     tmdbId: (item.ProviderIds && item.ProviderIds.Tmdb) || null,
+    people: (Array.isArray(item.People) ? item.People : [])
+      .filter((person) => String(person.Type || '').toLowerCase() === 'actor')
+      .map((person) => ({
+        name: person.Name || '',
+        role: 'actor',
+        embyPersonId: person.Id || '',
+        providerIds: person.ProviderIds || {},
+      }))
+      .filter((person) => person.name),
   };
 }
 

@@ -1,8 +1,8 @@
 # Helix Current Plan
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
-Status: implementation complete; production clean cutover requires separate authorization.
+Status: Helix Beta Service 与 Admin Web product refactor 已完成；production clean cutover requires separate authorization.
 
 ## Objective
 
@@ -84,6 +84,24 @@ The implementation now proceeds in the following order. Each slice must finish c
 - Run Service tests, Admin Web build, Windows/Linux/Docker validation and disposable full-auto E2E.
 - Prove restart/cursor recovery, resource saturation, control-plane liveness, source incident/fencing, approval blocking and post-optimize Basedata refresh.
 - Production clean initialization and canary remain a separately confirmed action. Any media mutation still requires a specifically named episode and explicit authorization.
+
+## Admin Web Product Rebaseline
+
+18. 固化八个用户页面、统一 Person Catalog、五级演员偏好与 clean configuration contract。**Completed 2026-07-10.**
+19. 实现 Kairox Person Catalog、普通/成人演员 observation、身份合并和演员偏好策略联动。**Completed 2026-07-10.**
+20. 删除 raw/legacy config API，将部署项、内部常量和用户配置分离。**Completed 2026-07-10.**
+21. 建立可发布的 Admin visual system、响应式 App Shell 与统一交互组件。**Completed 2026-07-10.**
+22. 重做概览、媒体库、媒体、演员、任务中心、清理建议、管理策略和系统设置。**Completed 2026-07-10.**
+23. 完成 Service/Web/Browser/Docker E2E、视觉与可访问性审计，并更新 Beta 状态报告。**Completed 2026-07-10.**
+
+## Maintenance Run Rebaseline
+
+24. 固化互斥的 auto/manual Run 启动策略、durable Maintenance Run 与 MediaItem Priority。**Completed 2026-07-11.**
+25. 让 Runner、Scheduler、Governor 分别消费 MediaItem Priority，移除用户指定 Gate、Task priority 和逐 Task 控制入口。**Completed 2026-07-11.**
+26. 持久化 Library hierarchy，Series/Season intent 扩展到 playable Episode。**Completed 2026-07-11.**
+27. 更新 Admin Web 并完成 Service/Web/Docker 验证；可定位的实现/测试缺陷自行修复，涉及合同变化时停止对齐。**Completed 2026-07-11.**
+
+Production deployment remains paused pending explicit user acceptance and a separately confirmed production cutover.
 
 ## Non-Goals
 

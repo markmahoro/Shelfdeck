@@ -12,6 +12,7 @@ let intervalTimer = null;
 let unsubscribe = null;
 let running = false;
 let wakePending = false;
+const targetedItemIds = new Set();
 let kairoxService = null;
 let health = { status: 'disabled', lastRunAt: '', lastError: '', scanned: 0, created: 0, cursor: '' };
 
@@ -25,48 +26,56 @@ async function runOnce(options = {}) {
   const limit = Math.max(1, Math.min(100, Number(options.limit) || 100));
   const state = kairoxStore.getAutomationState('maintenance');
   const afterItemId = String(state.cursor.afterItemId || '');
+  const requestedItemIds = [...targetedItemIds].slice(0, limit);
+  requestedItemIds.forEach((itemId) => targetedItemIds.delete(itemId));
   try {
     return await resourceGovernor.runWithPermit({
       owner: 'kairox', workId: 'maintenance-automation', resourceKey: 'control:kairox', priority: 5,
     }, () => resourceGovernor.runWithPermit({
       owner: 'kairox', workId: 'maintenance-automation', resourceKey: 'db:tasks:write', priority: 5,
     }, async () => {
-      const admissions = kairoxAdmissionStore.listActiveAdmissions({ afterItemId, limit });
+      const admissions = requestedItemIds.length
+        ? Object.values(kairoxAdmissionStore.getAdmissions(requestedItemIds)).filter((admission) => admission && admission.status === 'active')
+        : kairoxAdmissionStore.listActiveAdmissions({ afterItemId, limit });
       const ids = admissions.map((admission) => admission.itemId);
-      const projections = kairoxService.reconcileObjectives(ids);
       const config = configStore.loadConfig();
-      let created = 0;
+      kairoxService.reconcileObjectives(ids);
       for (const admission of admissions) {
-        const projection = projections[admission.itemId] || {};
+        kairoxService.reconcileMaintenanceRun({ itemId: admission.itemId, config });
+      }
+      const readyRuns = kairoxStore.listMaintenanceRuns({ statuses: ['ready'], limit });
+      const runIds = readyRuns.map((run) => run.itemId);
+      const runAdmissions = kairoxAdmissionStore.getAdmissions(runIds);
+      const projections = kairoxService.reconcileObjectives(runIds);
+      let created = 0;
+      for (const run of readyRuns) {
+        const admission = runAdmissions[run.itemId];
+        if (!admission || admission.status !== 'active') continue;
+        const projection = projections[run.itemId] || {};
         if (projection.maintenanceComplete || !projection.nextTargetGate) continue;
         if (projection.automationBlocker) continue;
         if ((projection.activeTasks || []).length > 0) continue;
-        const descriptor = admission.sourceAccessDescriptor || {};
-        const subLibrary = (config.subLibraries || []).find((entry) => entry.uuid === descriptor.subLibraryId);
-        const decision = automationPolicy.decideAutomaticTrigger({
+        const decision = automationPolicy.decideRunProgress({
           targetGate: projection.nextTargetGate,
-          maintenanceAutomationMode: subLibrary && subLibrary.maintenanceAutomationMode || 'manual',
+          runStatus: run.status,
           lifecycleBlockedReason: projection.blockedReason || '',
         });
         if (!decision.allowed) continue;
         const result = kairoxService.requestMaintenance({
           itemId: admission.itemId,
           libraryGeneration: admission.admissionGeneration,
+          runId: run.runId,
           targetGate: projection.nextTargetGate,
           gateObjective: projection.nextGateObjective || {},
-          source: 'auto',
-          status: 'queued',
           config,
           tasks: projection.activeTasks || [],
           logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by Kairox Maintenance Automation' }],
         });
         if (result && result.allowed !== false && result.task) created += 1;
       }
-      const cursor = admissions.length < limit ? '' : admissions[admissions.length - 1].itemId;
-      kairoxStore.updateAutomationState('maintenance', {
-        cursor: { afterItemId: cursor }, lastRunAt: new Date().toISOString(), lastError: '',
-      });
-      health = { status: 'green', lastRunAt: new Date().toISOString(), lastError: '', scanned: admissions.length, created, cursor };
+      const cursor = requestedItemIds.length ? afterItemId : (admissions.length < limit ? '' : admissions[admissions.length - 1].itemId);
+      kairoxStore.updateAutomationState('maintenance', { cursor: { afterItemId: cursor }, lastRunAt: new Date().toISOString(), lastError: '' });
+      health = { status: 'green', lastRunAt: new Date().toISOString(), lastError: '', scanned: admissions.length, suppliedRuns: readyRuns.length, created, cursor };
       return health;
     }));
   } catch (error) {
@@ -88,7 +97,12 @@ function schedule(delayMs = 25) {
   timer.unref && timer.unref();
 }
 
-function wake() { wakePending = true; schedule(0); }
+function wake(signal = {}) {
+  const ids = Array.isArray(signal.itemIds) ? signal.itemIds : signal.itemId ? [signal.itemId] : [];
+  ids.map(String).filter(Boolean).forEach((itemId) => targetedItemIds.add(itemId));
+  wakePending = true;
+  schedule(0);
+}
 
 function start(service, options = {}) {
   stop();
@@ -109,6 +123,7 @@ function stop() {
   unsubscribe = null;
   running = false;
   wakePending = false;
+  targetedItemIds.clear();
   kairoxService = null;
 }
 

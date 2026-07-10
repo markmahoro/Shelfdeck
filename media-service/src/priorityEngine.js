@@ -1,18 +1,20 @@
 'use strict';
 
 const PRIORITY_MODEL_VERSION = 'additive-v3';
-const TASK_PRIORITY_MODEL_VERSION = 'kairox-task-creator-v1';
+const TASK_PRIORITY_MODEL_VERSION = 'kairox-task-creator-v2';
 
 /**
- * PriorityEngine — computes a task's initial `priority` value.
+ * PriorityEngine — computes a task-local initial `priority` value.
  *
- * Lower number = higher priority (runs first in the global task queue).
+ * Lower number = earlier inside the same MediaItem maintenance priority class.
+ * Runner, Scheduler, and Resource Governor own their local ordering decisions;
+ * this module does not own MediaItem Priority or global dispatch order.
  *
  * Formula:
- *   priority = sum(source, targetGate, flowKind, subLibrary, businessSignal, queueAge, retry, matchedRules)
+ *   priority = sum(base, targetGate, flowKind, subLibrary, businessSignal, queueAge, retry, matchedRules)
  *
  * Evaluation order:
- *   1. Add source, target gate, optional flow kind, library, business signal, queue age, and retry dimensions.
+ *   1. Add the common base, target gate, optional flow kind, library, business signal, queue age, and retry dimensions.
  *   2. Advanced overlay rules (config.taskPriority.rulesByTargetGate[targetGate], ordered):
  *      each matching rule contributes a delta (subtract=add priority, add=defer).
  *   3. clamp to >= 0.
@@ -24,7 +26,7 @@ const TASK_PRIORITY_MODEL_VERSION = 'kairox-task-creator-v1';
 
 /**
  * @param {object} params
- * @param {'manual'|'auto'} params.source       task origin
+ * @param {'manual'|'auto'} [params.source]     diagnostic origin only; it never changes queue priority
  * @param {string} [params.flowKind]            planned flow kind for gate-local execution, when known
  * @param {object} [params.itemInfo]            task.itemInfo (subLibraryId, type, ...)
  * @param {object} [params.task]                optional queued task context (createdAt, retryCount)
@@ -37,8 +39,7 @@ function computePriority({ source, taskTarget, flowKind, itemInfo, config, task 
 
 function explainTaskPriority({ source, taskTarget, flowKind, itemInfo, config, task }) {
   const cfg = config && config.taskPriority || {};
-  const manualBase = typeof cfg.manualTaskPriority === 'number' ? cfg.manualTaskPriority : 0;
-  const autoBase = typeof cfg.autoTaskPriorityBase === 'number' ? cfg.autoTaskPriorityBase : 100;
+  const basePriority = typeof cfg.basePriority === 'number' ? cfg.basePriority : 100;
   const context = buildTaskContext({ itemInfo, task, taskTarget, flowKind });
 
   const targetGateWeights = cfg.targetGateWeights || {};
@@ -54,13 +55,12 @@ function explainTaskPriority({ source, taskTarget, flowKind, itemInfo, config, t
       : 0)
     : 0;
 
-  const sourceWeight = source === 'manual' ? manualBase : autoBase;
   const libraryWeight = resolveLibraryWeight(context, config);
   const businessSignalWeight = computeBusinessSignalDelta(plannedFlowKind || targetGate, context, cfg);
   const queueAgeWeight = computeQueueAgeDelta(context, cfg);
   const retryWeight = computeRetryDelta(context, cfg);
   const dimensions = [
-    { key: 'source', label: source === 'manual' ? '手动来源' : '自动来源', value: sourceWeight },
+    { key: 'base', label: '任务基线', value: basePriority, source: source || '' },
     { key: 'targetGate', label: '目标 Gate', targetGate, value: targetGateWeight },
   ];
   if (flowKindWeight !== 0) {
@@ -98,7 +98,7 @@ function explainTaskPriority({ source, taskTarget, flowKind, itemInfo, config, t
   return {
     modelVersion: TASK_PRIORITY_MODEL_VERSION,
     lowerIsEarlier: true,
-    formula: 'source + targetGate + flowKind + subLibrary + businessSignal + queueAge + retry + matchedRules',
+    formula: 'base + targetGate + flowKind + subLibrary + businessSignal + queueAge + retry + matchedRules',
     targetGate,
     flowKind: plannedFlowKind,
     dimensions,

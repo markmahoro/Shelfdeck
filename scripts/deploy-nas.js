@@ -7,6 +7,7 @@
  *   node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-v1.1.0.tar
  *   node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-v1.1.0.tar --apply
  *   node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-v1.1.0.tar --sha256 <hash> --apply
+ *   node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-v1.1.0.tar --sha256 <hash> --helix-clean-init --apply
  *
  * The script is dry-run by default. With --apply it:
  *   1. Prints currently active ffmpeg processes for awareness.
@@ -25,6 +26,7 @@ const COMPOSE_FILE = `${COMPOSE_DIR}/docker-compose.yml`;
 const DATA_DIR = '/vol1/1000/docker/shelfdeck/data';
 const STAMP = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
 const IMAGE_NAME = 'markmahoro/shelfdeck';
+const HELIX_BACKUP_DIR = `${DATA_DIR}/backups/helix-production-cutover-${STAMP}`;
 
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
@@ -47,9 +49,20 @@ function dataSnapshotCmd() {
   const files = ['config.json', 'library.json', 'library.db', 'library.db-wal', 'library.db-shm', 'tasks.json', 'tasks.db', 'tasks.db-wal', 'tasks.db-shm'];
   return files.map((file) => {
     const src = `${DATA_DIR}/${file}`;
-    const dst = `${src}.pre-image-adult-${STAMP}.bak`;
-    return `[ -f ${shellQuote(src)} ] && cp -p ${shellQuote(src)} ${shellQuote(dst)} && echo backed-up:${file}`;
+    const dst = `${src}.pre-helix-${STAMP}.bak`;
+    return `if [ -f ${shellQuote(src)} ]; then cp -p ${shellQuote(src)} ${shellQuote(dst)} && echo backed-up:${file}; fi`;
   }).join(' ; ');
+}
+
+function verifyConfigSnapshotCmd() {
+  const source = `${DATA_DIR}/config.json`;
+  const snapshot = `${source}.pre-helix-${STAMP}.bak`;
+  return `test -s ${shellQuote(source)} && test -s ${shellQuote(snapshot)} && wc -c ${shellQuote(source)} ${shellQuote(snapshot)}`;
+}
+
+function verifyHelixBackupCmd() {
+  const configBackup = `${HELIX_BACKUP_DIR}/config.json`;
+  return `test -s ${shellQuote(configBackup)} && wc -c ${shellQuote(configBackup)}`;
 }
 
 function dataSizesCmd() {
@@ -76,17 +89,6 @@ function activeFfmpegCheckCmd() {
   ].join(' ');
 }
 
-function v3MigrationDryRunCmd(targetImage) {
-  return [
-    'docker run --rm',
-    `-v ${shellQuote(`${DATA_DIR}:/app/data:ro`)}`,
-    shellQuote(targetImage),
-    'node',
-    'scripts/v3-data-migration.js',
-    '--data-dir=/app/data',
-  ].join(' ');
-}
-
 function helixDataPreflightCmd(targetImage) {
   return [
     'docker run --rm',
@@ -98,16 +100,18 @@ function helixDataPreflightCmd(targetImage) {
   ].join(' ');
 }
 
-function kairoxBetaCutoverCmd(targetImage, mode) {
-  const rw = mode === 'apply';
+function helixCleanInitCmd(targetImage, mode) {
+  const apply = mode === 'apply';
   return [
     'docker run --rm',
-    `-v ${shellQuote(`${DATA_DIR}:/app/data:${rw ? 'rw' : 'ro'}`)}`,
+    `-v ${shellQuote(`${DATA_DIR}:/app/data:${apply ? 'rw' : 'ro'}`)}`,
     shellQuote(targetImage),
     'node',
-    'scripts/kairox-beta-cutover.js',
+    'scripts/helix-clean-init.js',
     '--data-dir=/app/data',
-    ...(rw ? ['--apply', '--confirm-kairox-beta-cutover'] : []),
+    '--backup-dir',
+    shellQuote(`/app/data/backups/helix-production-cutover-${STAMP}`),
+    ...(apply ? ['--apply', '--confirm', 'INITIALIZE_HELIX_CLEAN_STATE'] : []),
   ].join(' ');
 }
 
@@ -123,27 +127,38 @@ function updateComposeImageCmd(targetImage) {
   ].join(' && ');
 }
 
-function waitForHealthCmd() {
+function waitForHealthCmd(allowRed = false) {
   return [
     'for i in $(seq 1 36); do',
     'body=$(curl -fsS http://127.0.0.1:18080/v1/health) || { sleep 5; continue; };',
     'echo "$body";',
-    'if ! printf "%s" "$body" | grep -q \'"status":"red"\'; then exit 0; fi;',
+    allowRed ? 'exit 0;' : 'if ! printf "%s" "$body" | grep -q \'"status":"red"\'; then exit 0; fi;',
     'sleep 5;',
     'done;',
     'exit 1',
   ].join(' ');
 }
 
+function verifyHelixCleanRuntimeCmd() {
+  const script = [
+    "const fs=require('fs')",
+    "const state=require('/app/src/helixCleanState').assertCleanState({dataDir:'/app/data'})",
+    "const config=JSON.parse(fs.readFileSync('/app/data/config.json','utf8'))",
+    "if((config.subLibraries||[]).length!==0)process.exit(2)",
+    "console.log(JSON.stringify({schemaVersion:state.schemaVersion,subLibraries:0}))",
+  ].join(';');
+  return `docker exec shelfdeck node -e ${shellQuote(script)}`;
+}
+
 function parseArgs(argv) {
-  const parsed = { tarball: '', apply: false, expectedSha256: '', kairoxBetaCutover: false };
+  const parsed = { tarball: '', apply: false, expectedSha256: '', helixCleanInit: false };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--apply') {
       parsed.apply = true;
-    } else if (arg === '--kairox-beta-cutover') {
-      parsed.kairoxBetaCutover = true;
+    } else if (arg === '--helix-clean-init') {
+      parsed.helixCleanInit = true;
     } else if (arg === '--sha256') {
       parsed.expectedSha256 = argv[i + 1] || '';
       i += 1;
@@ -164,9 +179,9 @@ function parseArgs(argv) {
 }
 
 async function main() {
-  const { tarball, apply, expectedSha256, kairoxBetaCutover } = parseArgs(process.argv.slice(2));
+  const { tarball, apply, expectedSha256, helixCleanInit } = parseArgs(process.argv.slice(2));
   if (!tarball) {
-    console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--kairox-beta-cutover] [--apply]');
+    console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--helix-clean-init] [--apply]');
     process.exit(2);
   }
 
@@ -181,18 +196,20 @@ async function main() {
     ['Show active ffmpeg processes', activeFfmpegCheckCmd()],
     ['Pre-flight data sizes', dataSizesCmd()],
     ['Load image', `docker load -i ${shellQuote(tarball)}`],
-    ['V3 data migration dry run', v3MigrationDryRunCmd(targetImage)],
-    ['Helix data preflight', helixDataPreflightCmd(targetImage)],
-    ...(kairoxBetaCutover ? [['Kairox Beta cutover plan', kairoxBetaCutoverCmd(targetImage, 'plan')]] : []),
-    ['Update compose image', updateComposeImageCmd(targetImage)],
+    [helixCleanInit ? 'Helix clean initialization plan' : 'Helix data preflight', helixCleanInit ? helixCleanInitCmd(targetImage, 'plan') : helixDataPreflightCmd(targetImage)],
+    ...(helixCleanInit ? [['Stop current container for Helix clean initialization', 'docker stop shelfdeck']] : []),
     ['Snapshot data files', dataSnapshotCmd()],
-    ...(kairoxBetaCutover ? [
-      ['Stop current container for Kairox Beta cutover', 'docker stop shelfdeck'],
-      ['Apply Kairox Beta cutover', kairoxBetaCutoverCmd(targetImage, 'apply')],
+    ...(helixCleanInit ? [
+      ['Verify original production config snapshot', verifyConfigSnapshotCmd()],
+      ['Apply Helix clean initialization', helixCleanInitCmd(targetImage, 'apply')],
+      ['Verify Helix clean initialization config backup', verifyHelixBackupCmd()],
     ] : []),
+    ['Update compose image', updateComposeImageCmd(targetImage)],
     ['Recreate through compose', `cd ${shellQuote(COMPOSE_DIR)} && docker compose up -d --force-recreate`],
     ['Wait for boot', 'sleep 8'],
-    ['Verify health', waitForHealthCmd()],
+    ['Verify health', waitForHealthCmd(helixCleanInit)],
+    ...(helixCleanInit ? [['Verify Helix clean runtime', verifyHelixCleanRuntimeCmd()]] : []),
+    ['Verify Admin Web', 'curl -fsS http://127.0.0.1:18080/admin/ | grep -q \'<div id="root"></div>\''],
     ['Verify adult mount', 'docker exec shelfdeck sh -lc "test -d /adult_media/JAV && ls /adult_media/JAV | head -5"'],
     ['Verify code comes from image', 'docker inspect shelfdeck --format "{{json .Mounts}}" | grep -v "shelfdeck-releases"'],
     ['Verify running image tag', `docker inspect shelfdeck --format "{{.Config.Image}}" | grep -Fx ${shellQuote(targetImage)}`],
@@ -205,7 +222,7 @@ async function main() {
   console.log(`tarball : ${tarball}`);
   console.log(`image   : ${targetImage}`);
   if (expectedSha256) console.log(`sha256 : ${expectedSha256.toLowerCase()}`);
-  if (kairoxBetaCutover) console.log('cutover: Kairox Beta');
+  if (helixCleanInit) console.log(`cutover: Helix clean initialization (${HELIX_BACKUP_DIR})`);
   console.log(`data dir: ${DATA_DIR}`);
   console.log('mount   : /vol02/1000-0-24018892 -> /adult_media');
 

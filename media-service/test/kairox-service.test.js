@@ -48,9 +48,11 @@ test('Kairox admission creates only an owned skeleton and returns Basedata as ne
   const admissions = new Map();
   const runtime = createKairoxRuntime({
     kairoxStore: {
-      ensureMedia({ itemId }) { bundles.set(itemId, { itemId, basedata: null, metadata: null, optimize: null, objective: null, refreshRequests: [] }); },
+      ensureMedia({ itemId, mediaKind = '', playable = true }) { bundles.set(itemId, { itemId, media: { itemId, mediaKind, playable, maintenancePriorityClass: 'normal', priorityRevision: 0 }, basedata: null, metadata: null, optimize: null, objective: null, refreshRequests: [] }); },
       getBundle(itemId) { return bundles.get(itemId) || null; },
       getBundles(itemIds) { return Object.fromEntries(itemIds.filter((id) => bundles.has(id)).map((id) => [id, bundles.get(id)])); },
+      getMedia(itemId) { return bundles.get(itemId) && bundles.get(itemId).media || null; },
+      getMaintenanceRun() { return null; },
     },
     admissionStore: {
       getAdmission(itemId) { return admissions.get(itemId) || null; },

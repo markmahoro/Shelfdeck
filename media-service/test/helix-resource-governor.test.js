@@ -60,3 +60,20 @@ test('Libra control work remains live while Optimize holds FFmpeg capacity', asy
   ffmpeg.release();
   (await second).release();
 });
+
+test('Resource Governor strictly prioritizes expedited maintenance and supports waiter reprioritization', async () => {
+  governor.configure({ resourceGovernor: { capacities: { 'local:ffmpeg': 1 }, agingMs: 1 } });
+  const active = await governor.acquire({ owner: 'kairox', workId: 'active', resourceKey: 'local:ffmpeg', trafficClass: 'maintenance' });
+  const order = [];
+  const firstNormal = governor.acquire({ owner: 'kairox', workId: 'normal-a', resourceKey: 'local:ffmpeg', trafficClass: 'maintenance', maintenancePriorityClass: 'normal', priority: 0 })
+    .then((permit) => { order.push('normal-a'); return permit; });
+  const secondNormal = governor.acquire({ owner: 'kairox', workId: 'normal-b', resourceKey: 'local:ffmpeg', trafficClass: 'maintenance', maintenancePriorityClass: 'normal', priority: 999 })
+    .then((permit) => { order.push('normal-b'); return permit; });
+  assert.strictEqual(governor.reprioritizeWork({ owner: 'kairox', workId: 'normal-b', maintenancePriorityClass: 'expedited' }), 1);
+  active.release();
+  const expeditedPermit = await secondNormal;
+  assert.deepStrictEqual(order, ['normal-b']);
+  expeditedPermit.release();
+  const normalPermit = await firstNormal;
+  normalPermit.release();
+});

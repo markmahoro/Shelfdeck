@@ -169,6 +169,8 @@ function dispatchTask(inputTask, options = {}) {
       for (const required of resources.length > 0 ? resources : [{ resourceKey: resource.resourceKey || 'service:task' }]) {
         permits.push(await resourceGovernor.acquire({
           owner: 'kairox', workId: task.id, resourceKey: required.resourceKey, priority: task.priority,
+          trafficClass: 'maintenance',
+          maintenancePriorityClass: task.maintenancePrioritySnapshot && task.maintenancePrioritySnapshot.class || 'normal',
         }));
       }
       return permits;

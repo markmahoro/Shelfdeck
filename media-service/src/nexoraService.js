@@ -157,6 +157,7 @@ function writeBindingObservation(input = {}) {
       identityPayload: input.identityPayload || {},
       subLibraryId: input.evidence && input.evidence.subLibraryId || '',
       locator: input.locator || {},
+      observedStructure: input.observedStructure || {},
     } : {},
     latestObservationId: observation.observationId,
     updatedAt: now,
@@ -228,6 +229,13 @@ function recordEmbySourceObservation(input = {}) {
     identityKind: identity.identityKind,
     identityPayload: identity.identityPayload,
     locator: input.locator || item.locator || { path: item.path || '' },
+    observedStructure: {
+      mediaKind: item.type || '',
+      playable: ['movie', 'episode'].includes(String(item.type || '').toLowerCase()),
+      parentSourceRefId: item.parentId || '',
+      seriesSourceRefId: item.seriesId || '',
+      displayName: item.name || '',
+    },
     evidence: {
       source: 'emby_inventory',
       observationKind: input.observationKind || (valid ? 'source_observed' : 'source_missing'),
@@ -272,6 +280,7 @@ function recordAdultFolderSourceObservation(input = {}) {
     identityKind: identity.identityKind,
     identityPayload: identity.identityPayload,
     locator: input.locator || item.locator || { path: filePath },
+    observedStructure: { mediaKind: 'adult_file', playable: true, parentSourceRefId: '', seriesSourceRefId: '', displayName: path.basename(filePath) },
     evidence: {
       source: 'adult_folder',
       observationKind: input.observationKind || (valid ? 'source_observed' : 'source_missing'),

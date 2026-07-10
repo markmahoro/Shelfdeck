@@ -12,6 +12,9 @@ const PERCEPTION_CONDITION_FIELDS = new Set([
   'lastPlayedAt',
   'favorite',
   'manualTier',
+  'actorPersonIds',
+  'actorPreferenceMax',
+  'actorPreferenceMin',
 ]);
 
 function cleanToken(value) {
@@ -134,6 +137,9 @@ function hasPerceptionFact(item = {}, field) {
   if (field === 'lastPlayedAt') return hasValue(facts.lastPlayedAt) || hasValue(item.lastPlayedAt);
   if (field === 'favorite') return typeof facts.favorite === 'boolean' || typeof item.favorite === 'boolean';
   if (field === 'manualTier') return hasValue(facts.manualTier) || hasValue(item.manualTier);
+  if (field === 'actorPersonIds') return Array.isArray(item.actorPersonIds);
+  if (field === 'actorPreferenceMax') return hasValue(item.actorPreferenceMax) && Number.isFinite(Number(item.actorPreferenceMax));
+  if (field === 'actorPreferenceMin') return hasValue(item.actorPreferenceMin) && Number.isFinite(Number(item.actorPreferenceMin));
   return hasValue(item[field]);
 }
 
@@ -144,6 +150,9 @@ function objectiveDerivedFrom(item = {}, config = {}) {
     metadataUpdatedAt: item.metadataUpdatedAt,
     perceptionVersion: item.perceptionVersion || (item.userPerceptionFacts || {}).perceptionVersion,
     perceptionUpdatedAt: item.perceptionUpdatedAt || (item.userPerceptionFacts || {}).perceptionUpdatedAt,
+    actorPreferenceMax: item.actorPreferenceMax,
+    actorPreferenceMin: item.actorPreferenceMin,
+    actorPersonIds: item.actorPersonIds,
     subLibraryId: item.subLibraryId || (subLibrary && subLibrary.uuid),
     ruleTemplateId: templateId,
     reason: item.reason,
