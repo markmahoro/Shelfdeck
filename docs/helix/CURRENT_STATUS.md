@@ -26,7 +26,9 @@ Slices 5 and 6 are complete. Kairox owns admission snapshots, maintenance projec
 
 Slice 7 is complete. Public maintenance intents now enter Libra/Kairox, onboarding/offboarding Admin actions exist, library views carry Helix projections, the disposal UI distinguishes retain/detach/delete, Nexora owns physical cleanup, and public Kairox ingest/delete creation returns 410.
 
-Slice 8 is complete for the Service scope. Slice 9 is active: the user selected the NAS production `public_国产剧` library as a controlled, non-destructive canary instead of a disposable Docker business simulation. `media-desktop` is explicitly deferred to a later completeness refactor and is not part of this thread.
+Slices 8 and 9 are complete for the Service scope. The user selected the NAS production `公共_国产剧` library as a controlled, non-destructive canary instead of a disposable Docker business simulation. `media-desktop` is explicitly deferred to a later completeness refactor and is not part of this thread.
+
+Helix Beta is achieved for the `media-service` scope on 2026-07-10. This means the architecture boundary, complete Library Management loop, restart recovery, non-destructive production canary and automated failure/destructive-path evidence have passed. It does not mean the deferred desktop client is Helix-complete.
 
 Slice 1 evidence:
 
@@ -78,12 +80,26 @@ Slice 8 evidence:
 - `helix-data-preflight.js` performs a read-only production schema/count plan before startup migration.
 - Production read-only diagnostics on 2026-07-10 confirmed the `shelfdeck` container is absent while compose and runtime data remain present.
 
-Production canary correction:
+Production deployment and canary:
 
 - `公共_国产剧` retain-source offboarding, re-add, 44 current Emby source observations, admission and restart recovery passed without Emby/media mutation.
-- One non-destructive Kairox metadata task completed and exposed an architecture ambiguity: Libra was serving a persisted Kairox projection snapshot.
-- Contract correction accepted: Libra phase remains `maintenance`; Kairox owns `maintenanceState=maintaining|complete`; unified reads compose current capability projections without persisting them in Libra.
-- Beta remains in progress until this correction is tested and redeployed. No optimize/delete task is authorized for the canary.
+- The old ShelfDeck configuration contained 46 cached items; the re-added source observed the current Emby inventory of 44 manageable seasons. This was treated as source reality, not silently backfilled from stale ShelfDeck cache.
+- All 46 old Memberships completed `retain_source` offboarding and all 44 current observations reached active Membership, source ready, `phase=maintenance` and current Kairox admission.
+- Restart recovery preserved all 44 admissions and did not create automatic tasks while the library remained in `manual` / `full_manual` mode with all auto-execution and auto-replace switches disabled.
+- One non-destructive Kairox metadata task `8c23743ec5ef903c` completed for item `26e1170d-8540-43e8-87cf-8b531e6da09c`, using admission generation 1. It only read Emby/media state and updated ShelfDeck facts.
+- The task exposed and then verified the maintenance ownership correction: Libra remained `phase=maintenance`; the live Kairox projection became `metadataPassed=true`, `optimizePassed=true`, `maintenanceState=complete` and `maintenanceComplete=true` without another media operation.
+- Libra startup/periodic reconcile was green after deployment and reconciled 2620 Memberships; GET projection remained side-effect free.
+- No optimize/delete task was run. Emby Library configuration, Emby metadata and media files were not modified.
+
+Production build record:
+
+- Production URL: `http://192.168.12.230:18080`
+- Image: `markmahoro/shelfdeck:helix-maintenance-state-20260710-1af2afee`
+- Source commit: `1af2afee Clarify Helix maintenance state ownership`
+- Image tar SHA256: `dd728cd6d725b9cf25c6a4c640632468e5cc543d160a9bb8a87bfe25f28819bb`
+- Deployment time: `2026-07-10 15:13 Asia/Shanghai`
+- Health: green, including Nexora observation and Libra Reconciler runtime status
+- Production E2E: passed within the explicitly authorized non-destructive scope
 
 ## Preserved Experimental Evidence
 
@@ -93,7 +109,7 @@ Production canary correction:
 ## Open Risks
 
 - Legacy Kairox ingest/delete executors remain only for historical/rollback tests; public and automatic Helix paths cannot create them.
-- Existing experimental Nexora Membership must be migrated and retired as a runtime owner.
-- Production Helix table creation/backfill and real Emby onboarding have not yet run; Beta remains unaccepted until the controlled canary passes.
-- The production canary permits ShelfDeck fact/task/config mutations only. Emby Library, Emby metadata and media files are read-only.
+- Existing experimental Nexora Membership migration remains compatibility code and must not regain runtime ownership.
+- Production `detach_source`, authorized `delete_source`, source missing/recovery/rebind and stale-generation fencing were intentionally not exercised against real media. Automated tests cover them; a future production destructive test still requires a separately named episode and explicit authorization.
+- The production canary permits ShelfDeck fact/task/config mutations only. Emby Library, Emby metadata and media files remain read-only.
 - `media-desktop` still speaks legacy task intent and is intentionally outside this thread.

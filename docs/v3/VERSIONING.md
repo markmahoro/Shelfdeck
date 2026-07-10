@@ -1,22 +1,22 @@
 # ShelfDeck Versioning
 
-本文档定义 ShelfDeck v3 / Kairox closure 阶段的技术版本管理口径。它解决的是“生产镜像、Git tag、package version 混在一起”的问题。
+本文档定义 ShelfDeck 的技术版本管理口径。它解决的是“架构阶段、生产镜像、Git tag、package version 混在一起”的问题。
 
-大版本目标语义见 `RELEASE_GOALS.md`。Kairox release line 已关闭；Nexora release goals 尚未定义。
+Kairox release line 已关闭。当前架构和 Beta 状态以 `docs/helix/` 为准。
 
 ## Current Version State
 
-Last updated: 2026-07-08
+Last updated: 2026-07-10
 
 | 项 | 当前值 | 说明 |
 | --- | --- | --- |
-| Product line | `v3 / Kairox closed; Nexora next` | Kairox 已完成历史阶段；Nexora 是下一代架构名 |
-| Current release goal | none | `Kairox Beta` 已完成；后续 Kairox goals 已取消；Nexora goals 尚未定义 |
-| Latest deployed image | `markmahoro/shelfdeck:kairox-media-freeze-20260708-46c40d62` | 当前生产运行镜像 |
-| Latest deployed commit | `46c40d62` | 当前生产代码来源 |
-| Latest deployed image SHA256 | `cc8917014320b0141f014d176829a442d09a768ac75cfb1fa6d508f5cf75c7d4` | 本地构建 tar 与 NAS 上传校验 hash |
-| Latest Git release tag | `v2.0.0` | 历史 release tag，不代表当前 v3/Kairox 生产镜像 |
-| package versions | `1.0.0` | 当前不作为 v3/Kairox 阶段版本来源 |
+| Product line | `Helix = Libra + Nexora + Kairox` | 当前模块化单体架构；Kairox 是 Helix 内的 maintenance capability |
+| Current release goal | `Helix Beta (media-service) achieved` | `media-desktop` 完整性重构不在本次 Beta 范围 |
+| Latest deployed image | `markmahoro/shelfdeck:helix-maintenance-state-20260710-1af2afee` | 当前生产运行镜像 |
+| Latest deployed commit | `1af2afee` | 当前生产代码来源 |
+| Latest deployed image SHA256 | `dd728cd6d725b9cf25c6a4c640632468e5cc543d160a9bb8a87bfe25f28819bb` | 本地构建 tar 与 NAS 上传校验 hash |
+| Latest Git release tag | `v2.0.0` | 历史 release tag，不代表当前 Helix 生产镜像 |
+| package versions | `1.0.0` | 当前不作为 Helix 阶段版本来源 |
 
 ## Version Layers
 
@@ -24,7 +24,7 @@ ShelfDeck 版本分四层，不能互相替代。
 
 | 层级 | 用途 | 示例 | 管理规则 |
 | --- | --- | --- | --- |
-| Release goal | 描述当前业务/架构阶段 | `Kairox Beta`、future Nexora goals | 定义在 `RELEASE_GOALS.md`，不是可部署版本号 |
+| Release goal | 描述当前业务/架构阶段 | `Kairox Beta`、`Helix Beta` | 当前 Helix 目标定义在 `docs/helix/`，不是可部署版本号 |
 | Deployable build | 标识一个生产可部署镜像 | `markmahoro/shelfdeck:kairox-freshness-20260707-263ef161` | 每次部署必须记录 image tag、commit、sha256 |
 | Git release tag | 标识正式发布点 | `v3.0.0-beta.1`、`v3.0.0` | 只有 E2E / release 验收通过后才打 tag |
 | Package version | npm / desktop package 元数据 | `1.0.0` | 不再用它表达 v3 阶段；公开发行前再统一 bump |
@@ -43,7 +43,7 @@ Kairox Beta
 
 `Kairox Beta` is achieved. `Kairox Usable` / `Kairox Performance` / `Kairox GA Candidate` / `Kairox GA` are cancelled.
 
-Nexora release goals are intentionally undefined until the Nexora architecture contract is accepted.
+`Helix Beta` is achieved for the `media-service` scope. Future Helix goals remain undefined until separately discussed and accepted.
 
 不推荐：
 
@@ -123,13 +123,13 @@ Development commit
 当前项目处于：
 
 ```text
-Kairox Beta accepted; production Kairox runtime intentionally taken down for cleanup
+Helix Beta accepted for media-service; controlled production runtime is active
 ```
 
 尚未进入：
 
 ```text
-Nexora architecture contract
+media-desktop Helix completeness refactor
 ```
 
 ## Required Records For Deployment

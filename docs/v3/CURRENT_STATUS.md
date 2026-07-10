@@ -1,28 +1,32 @@
 # ShelfDeck v3 Current Status
 
-Last updated: 2026-07-08
+Last updated: 2026-07-10
 
 ## Production
 
-- Current release goal: none after Kairox closure
+- Current release goal: `Helix Beta (media-service) achieved`
 - Kairox status: `Kairox Beta achieved`; Kairox release line is closed
-- Next architecture name: `Nexora`; not yet an active implementation plan
+- Current architecture: `Helix = Libra + Nexora + Kairox`; authoritative current status is `docs/helix/CURRENT_STATUS.md`
 - Production URL: `http://192.168.12.230:18080`
-- Latest deployed image: `markmahoro/shelfdeck:kairox-media-freeze-20260708-46c40d62`
-- Latest deployed commit: `46c40d62 Add media freeze admission guard`
-- Latest deployed image SHA256: `cc8917014320b0141f014d176829a442d09a768ac75cfb1fa6d508f5cf75c7d4`
-- Latest deployment time: `2026-07-08 13:18 Asia/Shanghai`
+- Latest deployed image: `markmahoro/shelfdeck:helix-maintenance-state-20260710-1af2afee`
+- Latest deployed commit: `1af2afee Clarify Helix maintenance state ownership`
+- Latest deployed image SHA256: `dd728cd6d725b9cf25c6a4c640632468e5cc543d160a9bb8a87bfe25f28819bb`
+- Latest deployment time: `2026-07-10 15:13 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
-- Deployment status: Kairox Beta was accepted, then production was intentionally taken down for cleanup on 2026-07-08. The `shelfdeck` container and compose network are removed; data, compose file, final image, and final tarball are retained for restart.
-- Production E2E status: Stage 0-15 passed on `公共 国产剧库 / 81945 / 爱很美味 / Season 1`; user accepted `Kairox Beta` as achieved for this worktree.
+- Deployment status: Helix Service image is running and health is green. Nexora observation and Libra Reconciler are healthy.
+- Production E2E status: controlled non-destructive canary passed on `公共_国产剧`; retain-source offboarding, re-add, onboarding/admission, restart recovery and one read-only metadata maintenance task completed without modifying Emby or media files.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 - Automation model closure status: deployed; public run-scan APIs return `410 KAIROX_RUN_SCAN_REMOVED`.
 
 ## Current Architecture State
 
+- The current architecture is Helix, a modular monolith with Libra coordinating Nexora and Kairox Services. `docs/helix/ARCHITECTURE.md` is authoritative.
+- Libra owns LibraryMembership, phase, quarantine and admission generation; Nexora owns source truth; Kairox owns maintenance gates, Task/Flow/Event and `maintenanceState`.
+- `phase=maintenance` is a long-lived Libra management phase. Kairox independently derives `maintenanceState=maintaining|complete`; task completion never moves the Libra phase.
+- `media-desktop` Helix completeness is intentionally deferred and is not part of the accepted Service Beta.
 - Kairox is closed as a transitional architecture phase after `Kairox Beta`.
 - `Kairox Usable`, `Kairox Performance`, `Kairox GA Candidate`, and `Kairox GA` are cancelled and must not be used as future roadmap or implementation scope.
-- Nexora is the next-generation ShelfDeck business architecture name. Its contract has not been written yet.
+- Nexora now operates as Helix's Source Management capability; it is not the top-level LibraryMembership owner.
 - Kairox backend runtime cutover is functionally implemented enough for production E2E:
   - task identity is `object + targetGate + gateObjective`.
   - Flow Planner owns flow selection.

@@ -16,7 +16,13 @@ Deliver the first Helix Beta as a clean, runnable Library Management loop under 
 6. SourceIncident, generation fencing and recovery. **Completed 2026-07-10.**
 7. Offboarding, legacy ingest/delete quarantine, API and UI. **Completed 2026-07-10.**
 8. Full Service audit, automated tests, Admin Web build and production migration preflight. **Completed 2026-07-10.**
-9. Controlled production canary on `public_国产剧`: retain-source offboarding, re-add, onboarding/admission projection and restart recovery. **Active.**
+9. Controlled production canary on `公共_国产剧`: retain-source offboarding, re-add, onboarding/admission projection, restart recovery and one read-only metadata maintenance task. **Completed 2026-07-10.**
+
+## Completion
+
+Helix Beta is achieved for the `media-service` scope on 2026-07-10. The accepted runtime is image `markmahoro/shelfdeck:helix-maintenance-state-20260710-1af2afee`, built from commit `1af2afee`.
+
+This completion does not include `media-desktop`. It also does not claim a destructive production test: `detach_source`, authorized `delete_source`, source incident recovery/rebind and stale-generation fencing are covered by automated Service tests; the production canary intentionally remained non-destructive under the user's safety boundary.
 
 Each slice includes implementation, tests, static audit, status update and an honest record of remaining risks. Do not skip directly to a later slice.
 
