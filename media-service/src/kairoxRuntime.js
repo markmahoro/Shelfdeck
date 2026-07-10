@@ -41,6 +41,11 @@ function buildMaintenanceProjection(item, admission, projection, activeTasks = [
     nextTargetGate: projection && ['basedata', 'metadata', 'optimize'].includes(projection.lifecycleNextTask)
       ? projection.lifecycleNextTask
       : null,
+    basedataFacts: item && item.basedataFacts || {},
+    metadataFacts: item && item.metadataFacts || {},
+    optimizeGate,
+    basedataGate: projection && projection.basedataGate || null,
+    metadataGate: projection && projection.metadataGate || null,
     activeTasks,
   };
 }

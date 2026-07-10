@@ -26,7 +26,7 @@ test('Helix service facades expose the accepted in-process contracts', () => {
   for (const name of ['reconcileMaintenance', 'suspendMaintenance', 'requestMaintenance', 'getMaintenanceProjection', 'getMaintenanceProjections']) {
     assert.strictEqual(typeof kairox[name], 'function', `missing KairoxService.${name}`);
   }
-  for (const name of ['acceptSource', 'requestMaintenance', 'requestOffboarding', 'requestOffboardingBatch', 'reconcileItem', 'reconcileBatch', 'getLibraryProjection', 'getLibraryProjections']) {
+  for (const name of ['acceptSource', 'requestMaintenance', 'requestOffboarding', 'requestOffboardingBatch', 'reconcileItem', 'reconcileBatch', 'getLibraryProjection', 'getLibraryProjections', 'queryLibraryProjections']) {
     assert.strictEqual(typeof libra[name], 'function', `missing LibraService.${name}`);
   }
 });
@@ -60,6 +60,7 @@ test('Libra composes live capability projections without persisting capability s
   const reconciler = source('libraReconciler.js');
   assert.match(runtime, /nexoraService\.getSourceProjections\(ids\)/);
   assert.match(runtime, /kairoxService\.getMaintenanceProjections\(ids\)/);
+  assert.match(runtime, /store\.getCurrentOperationsForItems\(ids\)/);
   assert.doesNotMatch(runtime, /sourceProjection\s*:/);
   assert.doesNotMatch(runtime, /maintenanceProjection\s*:/);
   assert.doesNotMatch(reconciler, /sourceProjection\s*:/);
@@ -87,4 +88,39 @@ test('Kairox Runtime and Basedata executor write only Kairox-owned facts', () =>
   assert.doesNotMatch(runtime, /require\('\.\/libraryStore'\)/);
   assert.doesNotMatch(basedata, /require\('\.\/libraryStore'\)/);
   assert.doesNotMatch(basedata, /libraryStore\./);
+});
+
+test('Task Scheduler dispatches task snapshots without reading or writing Library domain facts', () => {
+  const scheduler = source('taskScheduler.js');
+  assert.doesNotMatch(scheduler, /require\(['"]\.\/mediaLibraryService['"]\)/);
+  assert.doesNotMatch(scheduler, /require\(['"]\.\/libraryStore['"]\)/);
+  assert.doesNotMatch(scheduler, /getLibraryItem|loadLibrary|saveLibrary/);
+});
+
+test('gate invalidation writes Kairox freshness and never mutates Library domain facts', () => {
+  const invalidation = source('gateInvalidationService.js');
+  assert.match(invalidation, /require\(['"]\.\/kairoxStore['"]\)/);
+  assert.doesNotMatch(invalidation, /mediaLibraryService|libraryStore/);
+  assert.doesNotMatch(invalidation, /ingest|archive|delete/);
+});
+
+test('optimize executors publish Kairox facts after a durable mutation boundary', () => {
+  for (const file of ['transcodeFlowExecutor.js', 'upgradeFlowExecutor.js']) {
+    const executor = source(file);
+    assert.match(executor, /mediaMutation:\s*\{ status: 'committed'/);
+    assert.match(executor, /recordPostOptimizeReplacement/);
+  }
+  const recovery = source('flowRecoveryContract.js');
+  assert.match(recovery, /transcode_publish/);
+  assert.match(recovery, /upgrade_publish/);
+  assert.doesNotMatch(recovery, /\bingest\b|\barchive\b|\bdelete\b/);
+});
+
+test('Metadata executor publishes Kairox facts without reading or writing mixed Library facts', () => {
+  const executor = source('scrapeFlowExecutor.js');
+  assert.match(executor, /kairoxStore\.publishMetadata/);
+  assert.match(executor, /pendingMetadataPublication/);
+  assert.match(executor, /scrape_publish/);
+  assert.doesNotMatch(executor, /mediaLibraryService|adultLibraryService|libraryStore|factsFreshnessService|strategyEngine/);
+  assert.doesNotMatch(executor, /recordGateInvalidation|invalidatedGate:\s*'ingest'/);
 });

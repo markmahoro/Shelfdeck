@@ -3,42 +3,6 @@
 const MAX_MANUAL_RECOVERY_RETRIES = 3;
 
 const FLOW_RECOVERY_CONTRACTS = {
-  ingest: {
-    flowKey: 'ingest',
-    defaultResumePoint: 'ingest_precheck',
-    resumePoints: {
-      ingest_precheck: {
-        label: 'Ingest precheck',
-        retryStrategy: 'restart_step',
-        idempotency: 'read_only_precheck',
-        userAction: 'inspect_file_and_sub_library',
-      },
-      ingest_commit: {
-        label: 'Commit media item',
-        retryStrategy: 'resume_step',
-        idempotency: 'upsert_item_by_asset_identity',
-        userAction: 'inspect_file_path_if_missing',
-      },
-    },
-  },
-  archive: {
-    flowKey: 'archive',
-    defaultResumePoint: 'archive_precheck',
-    resumePoints: {
-      archive_precheck: {
-        label: 'Archive precheck',
-        retryStrategy: 'restart_step',
-        idempotency: 'read_only_gate_check',
-        userAction: 'inspect_optimize_or_archive_blocker',
-      },
-      archive_finalize: {
-        label: 'Finalize archive',
-        retryStrategy: 'resume_step',
-        idempotency: 'upsert_archive_closure_facts',
-        userAction: 'inspect_lifecycle_closure',
-      },
-    },
-  },
   scrape: {
     flowKey: 'scrape',
     defaultResumePoint: 'scrape_precheck',
@@ -55,17 +19,11 @@ const FLOW_RECOVERY_CONTRACTS = {
         idempotency: 'flow_specific_external_fetch',
         userAction: 'inspect_gate_missing_reasons',
       },
-      scrape_write_metadata: {
-        label: 'Write metadata facts',
+      scrape_publish: {
+        label: 'Publish metadata facts',
         retryStrategy: 'resume_step',
-        idempotency: 'upsert_metadata_facts',
-        userAction: 'inspect_partial_metadata_outputs',
-      },
-      scrape_review: {
-        label: 'Review scrape result',
-        retryStrategy: 'user_gated',
-        idempotency: 'no_external_mutation_until_confirmed',
-        userAction: 'confirm_or_correct_metadata',
+        idempotency: 'publish_by_task_identity',
+        userAction: 'inspect_kairox_fact_store',
       },
     },
   },
@@ -96,6 +54,12 @@ const FLOW_RECOVERY_CONTRACTS = {
         retryStrategy: 'resume_step',
         idempotency: 'verify_before_mutation',
         userAction: 'confirm_or_inspect_replace_target',
+      },
+      transcode_publish: {
+        label: 'Publish optimize result',
+        retryStrategy: 'resume_step',
+        idempotency: 'publish_by_task_identity',
+        userAction: 'inspect_kairox_fact_store',
       },
     },
   },
@@ -133,29 +97,11 @@ const FLOW_RECOVERY_CONTRACTS = {
         idempotency: 'verify_before_mutation',
         userAction: 'confirm_or_inspect_replace_target',
       },
-    },
-  },
-  delete: {
-    flowKey: 'delete',
-    defaultResumePoint: 'delete_precheck',
-    resumePoints: {
-      delete_precheck: {
-        label: 'Delete precheck',
-        retryStrategy: 'restart_step',
-        idempotency: 'read_only_precheck',
-        userAction: 'inspect_path_safety',
-      },
-      delete_executing: {
-        label: 'Execute delete',
-        retryStrategy: 'user_gated',
-        idempotency: 'delete_is_irreversible_but_missing_target_is_success',
-        userAction: 'confirm_delete_or_inspect_target',
-      },
-      delete_verify: {
-        label: 'Verify delete result',
+      upgrade_publish: {
+        label: 'Publish optimize result',
         retryStrategy: 'resume_step',
-        idempotency: 'read_only_missing_target_check',
-        userAction: 'inspect_delete_verify_failure',
+        idempotency: 'publish_by_task_identity',
+        userAction: 'inspect_kairox_fact_store',
       },
     },
   },

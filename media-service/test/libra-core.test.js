@@ -136,3 +136,43 @@ test('Libra offboarding requires explicit physical-delete authorization', async 
   assert.strictEqual(accepted.projection.phase, 'closed');
   assert.strictEqual(accepted.projection.membership.status, 'closed');
 });
+
+test('Libra library query composes Membership, Nexora and Kairox facts without media_items', () => {
+  const sources = {
+    'query-item': {
+      itemId: 'query-item',
+      sourceRevision: 'source-query',
+      readiness: 'ready',
+      sourceAccessDescriptor: {
+        sourceType: 'emby',
+        subLibraryId: 'library-query',
+        identityPayload: { embyItemId: 'emby-query' },
+      },
+    },
+  };
+  const maintenance = {
+    'query-item': {
+      itemId: 'query-item',
+      maintenanceRevision: 'maintenance-query',
+      maintenanceState: 'complete',
+      maintenanceComplete: true,
+      metadataPassed: true,
+      basedataFacts: { path: '/media/query.mkv', codec: 'h265', resolution: '1920x1080' },
+      metadataFacts: { title: 'Query Title', type: 'movie' },
+    },
+  };
+  const { nexoraService, kairoxService } = fakes(sources, maintenance);
+  const runtime = createLibraRuntime({ nexoraService, kairoxService });
+  runtime.acceptSource({
+    itemId: 'query-item',
+    idempotencyKey: 'query-onboarding',
+    sourceReference: { source: 'emby', subLib: { uuid: 'library-query' } },
+  });
+  const result = runtime.queryLibraryProjections({ subLibraryId: 'library-query', search: 'query title' }, { limit: 10 });
+  assert.strictEqual(result.total, 1);
+  assert.strictEqual(result.items[0].itemId, 'query-item');
+  assert.strictEqual(result.items[0].subLibraryId, 'library-query');
+  assert.strictEqual(result.items[0].name, 'Query Title');
+  assert.strictEqual(result.items[0].codec, 'h265');
+  assert.strictEqual(result.items[0].maintenanceComplete, true);
+});

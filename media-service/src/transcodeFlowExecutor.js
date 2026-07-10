@@ -14,6 +14,7 @@ const transcodeService = require('./services/transcodeService');
 const nodeStore = require('./nodeStore');
 const approvalPolicy = require('./approvalPolicy');
 const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
+const postOptimizeCanonicalRefresh = require('./postOptimizeCanonicalRefresh');
 
 // Tracks tasks intentionally aborted by pause/cancel so catch blocks
 // in async flow phases don't overwrite the status with failed_hard.
@@ -367,7 +368,46 @@ async function driveTask(taskId) {
     await runVerify(taskId, task, config);
   } else if (rp === 'transcode_replace') {
     await runReplace(taskId, task, config);
+  } else if (rp === 'transcode_publish') {
+    await publishCommittedReplacement(taskId, task);
   }
+}
+
+async function publishCommittedReplacement(taskId, task) {
+  const latest = taskStore.getTask(taskId) || task;
+  if (!latest.mediaMutation || latest.mediaMutation.status !== 'committed') {
+    appendLog(taskId, 'error', 'Cannot publish optimize facts before media mutation is committed');
+    scheduler.reportStatus(taskId, 'failed_hard');
+    setPhase(taskId, 'failed_hard');
+    return false;
+  }
+  try {
+    postOptimizeCanonicalRefresh.recordPostOptimizeReplacement(
+      latest,
+      latest.mediaMutation.committedAt,
+      'transcode',
+    );
+    appendLog(taskId, 'info', 'Optimize result published; Basedata refresh requested');
+    taskStore.updateTask(taskId, { resumePoint: null });
+    scheduler.reportStatus(taskId, 'done', 100);
+    setPhase(taskId, 'done');
+    return true;
+  } catch (error) {
+    appendLog(taskId, 'error', `Optimize publication interrupted: ${error.message}`);
+    taskStore.updateTask(taskId, { phase: 'transcode_publish', resumePoint: 'transcode_publish' });
+    scheduler.reportStatus(taskId, 'interrupted');
+    return false;
+  }
+}
+
+async function commitAndPublishReplacement(taskId, task) {
+  const committedAt = new Date().toISOString();
+  const latest = taskStore.updateTask(taskId, {
+    phase: 'transcode_publish',
+    resumePoint: 'transcode_publish',
+    mediaMutation: { status: 'committed', kind: 'replace', flowKind: 'transcode', committedAt },
+  }) || task;
+  return publishCommittedReplacement(taskId, latest);
 }
 
 async function runPrecheck(taskId, task, config) {
@@ -934,8 +974,7 @@ async function runReplace(taskId, task, config) {
         appendLog(taskId, 'info', `Replaced: ${require('path').basename(source)}`);
       }
       appendLog(taskId, 'info', `All ${pairs.length} episodes replaced`);
-      scheduler.reportStatus(taskId, 'done', 100);
-      setPhase(taskId, 'done');
+      await commitAndPublishReplacement(taskId, taskStore.getTask(taskId) || task);
       const tempDir = info.tempDir;
       if (tempDir) transcodeService.cleanupTaskWorkdir(tempDir);
     } catch (e) {
@@ -972,8 +1011,7 @@ async function runReplace(taskId, task, config) {
       originalDiscPath: info.originalDiscPath,
     });
     appendLog(taskId, 'info', 'Replace complete');
-    scheduler.reportStatus(taskId, 'done', 100);
-    setPhase(taskId, 'done');
+    await commitAndPublishReplacement(taskId, taskStore.getTask(taskId) || task);
     const tempDir = info.tempDir;
     if (tempDir) transcodeService.cleanupTaskWorkdir(tempDir);
   } catch (e) {

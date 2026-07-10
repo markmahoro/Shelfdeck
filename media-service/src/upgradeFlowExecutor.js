@@ -15,6 +15,7 @@ const moviepilotService = require('./services/moviepilotService');
 const smartSeedSelect = require('./smartSeedSelect');
 const approvalPolicy = require('./approvalPolicy');
 const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
+const postOptimizeCanonicalRefresh = require('./postOptimizeCanonicalRefresh');
 
 let scheduler = null;
 function setScheduler(s) { scheduler = s; }
@@ -384,7 +385,46 @@ async function driveTask(taskId) {
     await runPreReplaceVerify(taskId, task);
   } else if (rp === 'upgrade_replace') {
     await runReplace(taskId, task, configStore.loadConfig());
+  } else if (rp === 'upgrade_publish') {
+    await publishCommittedReplacement(taskId, task);
   }
+}
+
+async function publishCommittedReplacement(taskId, task) {
+  const latest = taskStore.getTask(taskId) || task;
+  if (!latest.mediaMutation || latest.mediaMutation.status !== 'committed') {
+    appendLog(taskId, 'error', 'Cannot publish optimize facts before media mutation is committed');
+    scheduler.reportStatus(taskId, 'failed_hard');
+    setPhase(taskId, 'failed_hard');
+    return false;
+  }
+  try {
+    postOptimizeCanonicalRefresh.recordPostOptimizeReplacement(
+      latest,
+      latest.mediaMutation.committedAt,
+      'upgrade',
+    );
+    appendLog(taskId, 'info', 'Optimize result published; Basedata refresh requested');
+    taskStore.updateTask(taskId, { resumePoint: null });
+    scheduler.reportStatus(taskId, 'done', 100);
+    setPhase(taskId, 'done');
+    return true;
+  } catch (error) {
+    appendLog(taskId, 'error', `Optimize publication interrupted: ${error.message}`);
+    taskStore.updateTask(taskId, { phase: 'upgrade_publish', resumePoint: 'upgrade_publish' });
+    scheduler.reportStatus(taskId, 'interrupted');
+    return false;
+  }
+}
+
+async function commitAndPublishReplacement(taskId, task) {
+  const committedAt = new Date().toISOString();
+  const latest = taskStore.updateTask(taskId, {
+    phase: 'upgrade_publish',
+    resumePoint: 'upgrade_publish',
+    mediaMutation: { status: 'committed', kind: 'replace', flowKind: 'upgrade', committedAt },
+  }) || task;
+  return publishCommittedReplacement(taskId, latest);
 }
 
 // ── Phase: precheck ───────────────────────────────────────────────────────────
@@ -1149,8 +1189,7 @@ async function runReplace(taskId, task, config) {
       try { fs.rmSync(prevDir, { recursive: true, force: true }); } catch {}
     }
 
-    scheduler.reportStatus(taskId, 'done', 100);
-    setPhase(taskId, 'done');
+    await commitAndPublishReplacement(taskId, taskStore.getTask(taskId) || task);
   } catch (e) {
     if (isAborted(taskId)) return;
     appendLog(taskId, 'error', `Replace failed: ${e.message}`);

@@ -10,10 +10,11 @@ const CLEANUP_MODES = new Set(['retain_source', 'detach_source', 'delete_source'
 function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }) {
   const reconciler = createLibraReconciler({ store, nexoraService, kairoxService });
 
-  function libraryProjection(item, sourceProjection = {}, maintenanceProjection = {}) {
+  function libraryProjection(item, sourceProjection = {}, maintenanceProjection = {}, currentOperation = undefined) {
     if (!item) return null;
     return {
       itemId: item.itemId,
+      subLibraryId: item.subLibraryId || '',
       membership: { status: item.membershipStatus, active: item.membershipStatus === 'active' },
       desiredState: item.desiredState,
       phase: item.phase,
@@ -26,7 +27,9 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
         consumedSourceRevision: item.sourceRevision || '',
         consumedMaintenanceRevision: item.maintenanceRevision || '',
       },
-      currentOperation: store.getCurrentOperationForItem(item.itemId),
+      currentOperation: currentOperation === undefined
+        ? store.getCurrentOperationForItem(item.itemId)
+        : currentOperation,
       updatedAt: item.updatedAt,
     };
   }
@@ -46,21 +49,78 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
     const ids = items.map((item) => item.itemId);
     const sourceProjections = nexoraService.getSourceProjections(ids);
     const maintenanceProjections = kairoxService.getMaintenanceProjections(ids);
+    const currentOperations = store.getCurrentOperationsForItems(ids);
     return items.reduce((out, item) => {
       out[item.itemId] = libraryProjection(
         item,
         sourceProjections[item.itemId] || {},
         maintenanceProjections[item.itemId] || {},
+        currentOperations[item.itemId] || null,
       );
       return out;
     }, {});
   }
 
+  function libraryListView(projection) {
+    const source = projection.source || {};
+    const maintenance = projection.maintenance || {};
+    const basedata = maintenance.basedataFacts || {};
+    const metadata = maintenance.metadataFacts || {};
+    const descriptor = source.sourceAccessDescriptor || {};
+    const identity = descriptor.identityPayload || {};
+    const locator = descriptor.locator || {};
+    return {
+      itemId: projection.itemId,
+      subLibraryId: projection.subLibraryId || descriptor.subLibraryId || '',
+      name: metadata.title || metadata.name || identity.name || '',
+      title: metadata.title || metadata.name || '',
+      type: metadata.type || identity.type || '',
+      source: descriptor.sourceType || identity.source || '',
+      sourceId: descriptor.sourceId || '',
+      embyItemId: identity.embyItemId || locator.sourceRefId || '',
+      path: basedata.path || locator.path || '',
+      resolution: basedata.resolution || '',
+      codec: basedata.codec || basedata.videoCodec || '',
+      bitrate: basedata.bitrate || 0,
+      size: basedata.size || 0,
+      duration: basedata.duration || 0,
+      metadataComplete: !!maintenance.metadataPassed,
+      maintenanceState: maintenance.maintenanceState || 'maintaining',
+      maintenanceComplete: !!maintenance.maintenanceComplete,
+      helix: projection,
+      updatedAt: projection.updatedAt,
+    };
+  }
+
+  function queryLibraryProjections(filter = {}, options = {}) {
+    const membershipItems = store.getLibraryItems();
+    const projections = getLibraryProjections(membershipItems.map((item) => item.itemId));
+    const search = String(filter.search || '').trim().toLowerCase();
+    const items = membershipItems
+      .map((item) => projections[item.itemId])
+      .filter(Boolean)
+      .map(libraryListView)
+      .filter((item) => !filter.itemId || item.itemId === filter.itemId)
+      .filter((item) => !filter.subLibraryId || item.subLibraryId === filter.subLibraryId)
+      .filter((item) => !filter.source || item.source === filter.source)
+      .filter((item) => !filter.type || item.type === filter.type)
+      .filter((item) => !filter.lifecycle || item.helix.phase === filter.lifecycle || (filter.lifecycle === 'open' && item.helix.phase !== 'closed'))
+      .filter((item) => !filter.metadataStatus || (['done', 'complete'].includes(filter.metadataStatus) ? item.metadataComplete : !item.metadataComplete))
+      .filter((item) => !search || [item.name, item.title, item.path, item.embyItemId].some((value) => String(value || '').toLowerCase().includes(search)));
+    const offset = Math.max(0, Number(options.offset) || 0);
+    const limit = Number(options.limit) > 0 ? Math.min(500, Number(options.limit)) : items.length;
+    return { items: items.slice(offset, offset + limit), total: items.length };
+  }
+
   function acceptSource(command = {}) {
     const itemId = String(command.itemId || crypto.randomUUID());
     const payload = { sourceReference: command.sourceReference || {}, requestedBy: command.requestedBy || 'system' };
+    const subLibraryId = command.sourceReference && command.sourceReference.subLib && command.sourceReference.subLib.uuid
+      || command.sourceReference && command.sourceReference.subLibraryId
+      || '';
     const item = store.upsertLibraryItem({
       itemId,
+      subLibraryId,
       membershipStatus: 'active',
       desiredState: 'managed',
       phase: 'onboarding',
@@ -246,6 +306,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }
     reconcileBatch: reconciler.reconcileBatch,
     getLibraryProjection,
     getLibraryProjections,
+    queryLibraryProjections,
   });
 }
 

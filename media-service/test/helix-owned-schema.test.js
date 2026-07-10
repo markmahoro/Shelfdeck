@@ -14,6 +14,10 @@ const libraStore = require('../src/libraStore');
 const nexoraStore = require('../src/nexoraStore');
 const kairoxAdmissionStore = require('../src/kairoxAdmissionStore');
 const kairoxStore = require('../src/kairoxStore');
+const gateInvalidationService = require('../src/gateInvalidationService');
+const postOptimizeCanonicalRefresh = require('../src/postOptimizeCanonicalRefresh');
+const scrapeFlowExecutor = require('../src/scrapeFlowExecutor');
+const adultSourceIdentity = require('../src/adultSourceIdentity');
 
 test.after(() => {
   libraStore.resetForTests();
@@ -62,4 +66,77 @@ test('Kairox fact rows are revisioned independently by fact group', () => {
   assert.strictEqual(bundle.metadata.status, 'fresh');
   assert.strictEqual(bundle.optimize.objectiveRevision, 'objective-1');
   assert.strictEqual(bundle.objective.policyRevision, 'policy-1');
+});
+
+test('Kairox gate invalidation is durable and canonical publication completes its refresh request', () => {
+  kairoxStore.publishBasedata({ itemId: 'refresh-item', sourceRevision: 'source-1', facts: { codec: 'h264' } });
+  const invalidation = gateInvalidationService.recordGateInvalidation({
+    itemId: 'refresh-item',
+    invalidatedGate: 'basedata',
+    reason: 'post_optimize_replace',
+    taskId: 'optimize-task',
+  });
+  assert.strictEqual(invalidation.stored, true);
+  let bundle = kairoxStore.getBundle('refresh-item');
+  assert.strictEqual(bundle.basedata.status, 'stale');
+  assert.strictEqual(bundle.refreshRequests[0].status, 'pending');
+  assert.strictEqual(bundle.refreshRequests[0].causedByTaskId, 'optimize-task');
+
+  kairoxStore.publishBasedata({ itemId: 'refresh-item', sourceRevision: 'source-1', facts: { codec: 'h265' } });
+  bundle = kairoxStore.getBundle('refresh-item');
+  assert.strictEqual(bundle.basedata.status, 'fresh');
+  assert.strictEqual(bundle.refreshRequests[0].status, 'completed');
+});
+
+test('post-optimize replacement publishes once by task identity and requests only Basedata refresh', () => {
+  const itemId = 'post-optimize-item';
+  kairoxStore.publishBasedata({ itemId, sourceRevision: 'source-1', facts: { codec: 'h264' } });
+  const task = {
+    id: 'optimize-task-once',
+    itemId,
+    helixAdmission: { sourceRevision: 'source-1' },
+    taskTarget: { gateObjective: { objectiveHash: 'objective-1' } },
+    verifyResult: { objectiveHash: 'objective-1', videoCodec: 'h265', width: 1920, height: 1080 },
+  };
+  postOptimizeCanonicalRefresh.recordPostOptimizeReplacement(task, '2026-07-10T00:00:00.000Z', 'transcode');
+  const first = kairoxStore.getBundle(itemId);
+  assert.strictEqual(first.optimize.status, 'fresh');
+  assert.strictEqual(first.optimize.factRevision, 1);
+  assert.strictEqual(first.basedata.status, 'stale');
+  assert.deepStrictEqual(first.refreshRequests.filter((request) => request.status === 'pending').map((request) => request.factGroup), ['basedata']);
+
+  postOptimizeCanonicalRefresh.recordPostOptimizeReplacement(task, '2026-07-10T00:00:00.000Z', 'transcode');
+  assert.strictEqual(kairoxStore.getBundle(itemId).optimize.factRevision, 1);
+});
+
+test('Kairox metadata publication is idempotent by terminal task identity', () => {
+  const input = {
+    itemId: 'metadata-idempotent-item',
+    facts: { title: 'Canonical Title', type: 'movie' },
+    evidence: { taskId: 'metadata-task-once', adapter: 'emby' },
+  };
+  const first = kairoxStore.publishMetadata(input);
+  const second = kairoxStore.publishMetadata(input);
+  assert.strictEqual(first.factRevision, 1);
+  assert.strictEqual(second.factRevision, 1);
+  assert.strictEqual(kairoxStore.getBundle(input.itemId).metadata.facts.title, 'Canonical Title');
+});
+
+test('Metadata adapters separate descriptive facts from Basedata technical facts', () => {
+  const facts = scrapeFlowExecutor.embyMetadataFacts({
+    name: 'Example Movie',
+    type: 'movie',
+    providerIds: { Tmdb: '42' },
+    tmdbId: '42',
+    path: '/media/example.mkv',
+    codec: 'h265',
+    bitrate: 8000,
+  });
+  assert.strictEqual(facts.title, 'Example Movie');
+  assert.strictEqual(facts.tmdbId, '42');
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(facts, 'path'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(facts, 'codec'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(facts, 'bitrate'), false);
+  assert.strictEqual(adultSourceIdentity.extractAdultId('folder/ABP-123/movie.mp4'), 'ABP-123');
+  assert.strictEqual(adultSourceIdentity.extractAdultId('movie-part-01.mkv'), '');
 });

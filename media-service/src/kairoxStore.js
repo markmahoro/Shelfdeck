@@ -147,7 +147,12 @@ function factRow(row, kind) {
 
 function publishBasedata(input = {}) {
   const media = ensureMedia(input);
-  const existing = getDb().prepare('SELECT fact_revision FROM kairox_basedata_facts WHERE item_id=?').get(media.itemId);
+  const existing = getDb().prepare('SELECT * FROM kairox_basedata_facts WHERE item_id=?').get(media.itemId);
+  const evidenceTaskId = input.evidence && String(input.evidence.taskId || '');
+  if (evidenceTaskId && String(parse(existing && existing.evidence_json, {}).taskId || '') === evidenceTaskId) {
+    completeRefresh(media.itemId, 'basedata', input.updatedAt);
+    return getBasedata(media.itemId);
+  }
   const row = {
     item_id: media.itemId,
     source_revision: String(input.sourceRevision || ''),
@@ -169,6 +174,7 @@ function publishBasedata(input = {}) {
       facts_json=excluded.facts_json,evidence_json=excluded.evidence_json,observed_at=excluded.observed_at,
       stale_reason=excluded.stale_reason,updated_at=excluded.updated_at
   `).run(row);
+  completeRefresh(media.itemId, 'basedata', row.updated_at);
   return getBasedata(media.itemId);
 }
 
@@ -176,18 +182,97 @@ function getBasedata(itemId) {
   return factRow(getDb().prepare('SELECT * FROM kairox_basedata_facts WHERE item_id=?').get(String(itemId || '')), 'basedata');
 }
 
-function markBasedataStale(input = {}) {
+function getMetadata(itemId) {
+  return factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(String(itemId || '')), 'metadata');
+}
+
+function getOptimize(itemId) {
+  return factRow(getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE item_id=?').get(String(itemId || '')), 'optimize');
+}
+
+function markFactStale(table, getter, input = {}) {
   const itemId = String(input.itemId || '').trim();
-  const existing = getBasedata(itemId);
+  const existing = getter(itemId);
   if (!existing) return null;
-  getDb().prepare(`UPDATE kairox_basedata_facts SET status='stale',stale_reason=?,updated_at=? WHERE item_id=?`)
+  getDb().prepare(`UPDATE ${table} SET status='stale',stale_reason=?,updated_at=? WHERE item_id=?`)
     .run(String(input.reason || 'canonical_refresh_required'), nowIso(input.updatedAt), itemId);
-  return getBasedata(itemId);
+  return getter(itemId);
+}
+
+function markBasedataStale(input = {}) {
+  return markFactStale('kairox_basedata_facts', getBasedata, input);
+}
+
+function markMetadataStale(input = {}) {
+  return markFactStale('kairox_metadata_facts', getMetadata, input);
+}
+
+function markOptimizeStale(input = {}) {
+  return markFactStale('kairox_optimize_facts', getOptimize, input);
+}
+
+function requestRefresh(input = {}) {
+  const media = ensureMedia(input);
+  const factGroup = String(input.factGroup || '').trim();
+  if (!['basedata', 'metadata', 'optimize'].includes(factGroup)) {
+    throw Object.assign(new Error('factGroup must be basedata, metadata, or optimize'), { code: 'KAIROX_INVALID_FACT_GROUP' });
+  }
+  const now = nowIso(input.updatedAt);
+  const row = {
+    item_id: media.itemId,
+    fact_group: factGroup,
+    source_revision: String(input.sourceRevision || ''),
+    status: 'pending',
+    reason: String(input.reason || 'canonical_refresh_required'),
+    caused_by_task_id: String(input.causedByTaskId || ''),
+    evidence_json: JSON.stringify(input.evidence || {}),
+    created_at: nowIso(input.createdAt || now),
+    updated_at: now,
+  };
+  getDb().prepare(`
+    INSERT INTO kairox_refresh_requests
+      (item_id,fact_group,source_revision,status,reason,caused_by_task_id,evidence_json,created_at,updated_at)
+    VALUES
+      (@item_id,@fact_group,@source_revision,@status,@reason,@caused_by_task_id,@evidence_json,@created_at,@updated_at)
+    ON CONFLICT(item_id,fact_group) DO UPDATE SET
+      source_revision=excluded.source_revision,status='pending',reason=excluded.reason,
+      caused_by_task_id=excluded.caused_by_task_id,evidence_json=excluded.evidence_json,updated_at=excluded.updated_at
+  `).run(row);
+  return getRefreshRequest(media.itemId, factGroup);
+}
+
+function getRefreshRequest(itemId, factGroup) {
+  const row = getDb().prepare('SELECT * FROM kairox_refresh_requests WHERE item_id=? AND fact_group=?')
+    .get(String(itemId || ''), String(factGroup || ''));
+  return row ? {
+    itemId: row.item_id,
+    factGroup: row.fact_group,
+    sourceRevision: row.source_revision,
+    status: row.status,
+    reason: row.reason,
+    causedByTaskId: row.caused_by_task_id,
+    evidence: parse(row.evidence_json, {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  } : null;
+}
+
+function completeRefresh(itemId, factGroup, updatedAt) {
+  getDb().prepare(`
+    UPDATE kairox_refresh_requests SET status='completed',updated_at=?
+    WHERE item_id=? AND fact_group=? AND status='pending'
+  `).run(nowIso(updatedAt), String(itemId || ''), String(factGroup || ''));
+  return getRefreshRequest(itemId, factGroup);
 }
 
 function publishMetadata(input = {}) {
   const media = ensureMedia(input);
-  const existing = getDb().prepare('SELECT fact_revision FROM kairox_metadata_facts WHERE item_id=?').get(media.itemId);
+  const existing = getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(media.itemId);
+  const evidenceTaskId = input.evidence && String(input.evidence.taskId || '');
+  if (evidenceTaskId && String(parse(existing && existing.evidence_json, {}).taskId || '') === evidenceTaskId) {
+    completeRefresh(media.itemId, 'metadata', input.updatedAt);
+    return getMetadata(media.itemId);
+  }
   const row = {
     item_id: media.itemId,
     fact_revision: (Number(existing && existing.fact_revision) || 0) + 1,
@@ -208,6 +293,7 @@ function publishMetadata(input = {}) {
       evidence_json=excluded.evidence_json,observed_at=excluded.observed_at,
       stale_reason=excluded.stale_reason,updated_at=excluded.updated_at
   `).run(row);
+  completeRefresh(media.itemId, 'metadata', row.updated_at);
   return factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(media.itemId), 'metadata');
 }
 
@@ -245,7 +331,12 @@ function getObjective(itemId) {
 
 function publishOptimize(input = {}) {
   const media = ensureMedia(input);
-  const existing = getDb().prepare('SELECT fact_revision FROM kairox_optimize_facts WHERE item_id=?').get(media.itemId);
+  const existing = getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE item_id=?').get(media.itemId);
+  const evidenceTaskId = input.evidence && String(input.evidence.taskId || '');
+  if (evidenceTaskId && String(parse(existing && existing.evidence_json, {}).taskId || '') === evidenceTaskId) {
+    completeRefresh(media.itemId, 'optimize', input.updatedAt);
+    return getOptimize(media.itemId);
+  }
   const row = {
     item_id: media.itemId,
     objective_revision: String(input.objectiveRevision || ''),
@@ -267,6 +358,7 @@ function publishOptimize(input = {}) {
       facts_json=excluded.facts_json,evidence_json=excluded.evidence_json,verified_at=excluded.verified_at,
       stale_reason=excluded.stale_reason,updated_at=excluded.updated_at
   `).run(row);
+  completeRefresh(media.itemId, 'optimize', row.updated_at);
   return factRow(getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE item_id=?').get(media.itemId), 'optimize');
 }
 
@@ -361,9 +453,16 @@ module.exports = {
   ensureSchema,
   ensureMedia,
   getBasedata,
+  getMetadata,
+  getOptimize,
   getBundle,
   getBundles,
   markBasedataStale,
+  markMetadataStale,
+  markOptimizeStale,
+  requestRefresh,
+  getRefreshRequest,
+  completeRefresh,
   publishBasedata,
   publishMetadata,
   publishOptimize,

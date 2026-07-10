@@ -69,6 +69,17 @@ Slice 12 Kairox-owned fact checkpoint:
 - Lifecycle now owns the final `maintenanceComplete|maintenanceState` derivation. Kairox Service projection consumes that result instead of independently reconstructing the completion formula.
 - Missing task admission is fenced rather than accepted as legacy work. Focused Kairox ownership/fencing/flow/static tests pass 20 tests.
 
+Slice 12 clean canonical-path checkpoint:
+
+- `/v1/library`、manage query、item detail、manual maintenance intent、sublibrary offboarding 和 space stats 已改为组合 Libra Membership、Nexora source projection 与 Kairox maintenance projection，不再从 `media_items` 读取主链路事实。Libra 的批量 projection 也会一次读取当前 operation，避免列表产生逐项 operation query。
+- Manual maintenance 不再用旧缓存隐式 onboarding；只有已经处于 active maintenance admission 的 Libra Membership 才能创建 `basedata|metadata|optimize` task。
+- Task Scheduler 不再读取或写入 Library domain facts，也不再根据 live media cache 判定 scrape 是否 stale。它只负责 durable task 的恢复、排序、item lock 与 dispatch；资源容量迁移到 Governor 仍属于 Slice 15。
+- Metadata executor 现在从 Kairox admission 的 SourceBinding snapshot 调用 Emby/folder adapter，先保存 durable `scrape_publish` 恢复点，再以 task identity 幂等发布 Kairox metadata facts。它不再刷新 `media_items`、调用 StrategyEngine 或写 legacy freshness。
+- Optimize replace 成功后先保存 durable `mediaMutation=committed`，随后由 executor 发布 Kairox optimize facts 并只令 Basedata stale。发布失败从 `transcode_publish|upgrade_publish` 恢复，不会再次执行媒体替换；同一 task 重试不会重复增加 fact revision。
+- Gate invalidation 只接受 `basedata|metadata|optimize`，写 Kairox freshness 与 durable refresh request；canonical publication 会完成相应 request。旧 `ingest|delete|archive` recovery contract 已从当前 flow recovery map 移除。
+- Clean-runtime focused suite 通过 27 项测试，包括 clean API onboarding/manual Basedata intent/offboarding、批量 projection、fact ownership、Metadata/Optimize publication 幂等、post-replace Basedata refresh 和静态依赖审计。
+- 最新全量审计共 396 项，232 通过、164 失败。失败主要来自仍构造 `media_items`、SmartTask、旧 schedule/allow-list、`ingest|delete|archive`、sidecar scrape 和兼容 API 的历史测试；仍有 adult Admin action、rating/playback 与 dashboard 等公开路径依赖旧模型，需要在 Slice 12/16 继续删除或改写。当前不宣称全量测试通过，Slice 12 仍为 active。
+
 Slice 1 evidence:
 
 - Active-contract drift search found no current document still defining `Helix = Nexora + Kairox`.

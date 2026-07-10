@@ -1,6 +1,8 @@
 'use strict';
 
-const GATES = new Set(['ingest', 'metadata', 'optimize', 'archive']);
+const kairoxStore = require('./kairoxStore');
+
+const GATES = new Set(['basedata', 'metadata', 'optimize']);
 
 function normalizeGate(gate) {
   const normalized = String(gate || '').trim().toLowerCase();
@@ -9,7 +11,11 @@ function normalizeGate(gate) {
 
 function buildInvalidation(input = {}) {
   const invalidatedGate = normalizeGate(input.invalidatedGate || input.gate);
-  if (!invalidatedGate) throw new Error('Invalid gate invalidation target');
+  if (!invalidatedGate) {
+    const error = new Error('Invalid Kairox gate invalidation target');
+    error.code = 'KAIROX_INVALID_TARGET_GATE';
+    throw error;
+  }
   const now = input.invalidatedAt || new Date().toISOString();
   return {
     gate: invalidatedGate,
@@ -26,66 +32,26 @@ function buildInvalidation(input = {}) {
   };
 }
 
-function applyInvalidationToItem(item, invalidation) {
-  const gate = invalidation.invalidatedGate;
-  const gateInvalidations = {
-    ...(item.gateInvalidations || {}),
-    [gate]: invalidation,
-  };
-  const updated = {
-    ...item,
-    gateInvalidations,
-    lastGateInvalidatedAt: invalidation.invalidatedAt,
-  };
-
-  if (gate === 'ingest') {
-    updated.ingestStatus = 'invalidated';
-    updated.ingestGateFailure = invalidation;
-    updated.sourceAvailable = false;
-  } else if (gate === 'metadata') {
-    updated.metadataComplete = false;
-    updated.metadataStatus = 'missing';
-    updated.metadataGateFailure = invalidation;
-  } else if (gate === 'optimize') {
-    updated.optimizeGate = {
-      ...(item.optimizeGate || {}),
-      gate: 'optimize',
-      passed: false,
-      status: 'invalidated',
-      reason: invalidation.reason,
-      invalidation,
-    };
-    updated.optimizationGate = updated.optimizeGate;
-  } else if (gate === 'archive') {
-    updated.archiveGate = {
-      ...(item.archiveGate || {}),
-      gate: 'archive',
-      passed: false,
-      status: 'invalidated',
-      reason: invalidation.reason,
-      invalidation,
-    };
-  }
-
-  return updated;
-}
-
 function recordGateInvalidation(input = {}) {
   const invalidation = buildInvalidation(input);
-  const itemId = input.itemId || '';
+  const itemId = String(input.itemId || '').trim();
   if (!itemId) return { ...invalidation, stored: false, storeReason: 'missing_item_id' };
 
-  const mediaLibraryService = require('./mediaLibraryService');
-  const item = mediaLibraryService.getLibraryItem(itemId);
-  if (!item) return { ...invalidation, stored: false, storeReason: 'library_item_missing' };
-
-  const updated = applyInvalidationToItem(item, invalidation);
-  mediaLibraryService.updateLibraryItems([updated]);
+  const markStale = {
+    basedata: kairoxStore.markBasedataStale,
+    metadata: kairoxStore.markMetadataStale,
+    optimize: kairoxStore.markOptimizeStale,
+  }[invalidation.invalidatedGate];
+  markStale({ itemId, reason: invalidation.reason, updatedAt: invalidation.invalidatedAt });
+  kairoxStore.requestRefresh({
+    itemId,
+    factGroup: invalidation.invalidatedGate,
+    reason: invalidation.reason,
+    causedByTaskId: invalidation.sourceTaskId,
+    evidence: invalidation.evidence,
+    updatedAt: invalidation.invalidatedAt,
+  });
   return { ...invalidation, stored: true };
 }
 
-module.exports = {
-  buildInvalidation,
-  applyInvalidationToItem,
-  recordGateInvalidation,
-};
+module.exports = { buildInvalidation, recordGateInvalidation };

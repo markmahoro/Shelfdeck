@@ -1,6 +1,6 @@
 'use strict';
 
-const factsFreshnessService = require('./factsFreshnessService');
+const kairoxStore = require('./kairoxStore');
 
 const POST_OPTIMIZE_REFRESH_REASON = 'post_optimize_replace';
 const REFRESH_FACT_GROUPS = ['basedataFacts'];
@@ -109,34 +109,37 @@ function buildPendingOptimizeGate(task = {}, doneAt = '', flowKind = '') {
   };
 }
 
-function recordPostOptimizeReplacement(libItem, task = {}, doneAt = '', flowKind = '') {
-  if (!libItem || !libItem.itemId || !['transcode', 'upgrade'].includes(flowKind)) return libItem;
-
-  const prefix = flowKind === 'transcode' ? 'Transcode' : 'Upgrade';
-  libItem[`last${prefix}DoneAt`] = doneAt;
-  libItem.optimizationStatus = 'pending_canonical_refresh';
-  libItem.optimizeFlowKind = flowKind;
-  libItem.optimizationDoneAt = doneAt;
-  libItem.optimizationTaskId = task.id;
-  libItem.optimizationResult = buildOptimizationResult(task, flowKind);
-  libItem.optimizeGate = buildPendingOptimizeGate(task, doneAt, flowKind);
-  libItem.optimizationGate = libItem.optimizeGate;
-
+function recordPostOptimizeReplacement(task = {}, doneAt = '', flowKind = '', store = kairoxStore) {
+  if (!task.itemId || !['transcode', 'upgrade'].includes(flowKind)) return null;
+  const completedAt = doneAt || new Date().toISOString();
+  const optimizeGate = buildPendingOptimizeGate(task, completedAt, flowKind);
+  const optimizationResult = buildOptimizationResult(task, flowKind);
   const evidence = {
     source: 'post_optimize_flow',
     taskId: task.id || '',
     flowKind,
-    objectiveHash: libItem.optimizeGate.target && libItem.optimizeGate.target.objectiveHash || '',
-    stagedFacts: libItem.optimizeGate.stagedFacts || {},
+    objectiveHash: optimizeGate.target && optimizeGate.target.objectiveHash || '',
+    stagedFacts: optimizeGate.stagedFacts || {},
   };
-  factsFreshnessService.markStale(libItem.itemId, ['basedataFacts'], {
-    now: doneAt,
-    reason: POST_OPTIMIZE_REFRESH_REASON,
-    source: flowKind,
-    refreshTargetGate: 'basedata',
+  const optimize = store.publishOptimize({
+    itemId: task.itemId,
+    objectiveRevision: evidence.objectiveHash,
+    facts: { passed: true, flowKind, optimizationResult },
     evidence,
+    verifiedAt: completedAt,
+    updatedAt: completedAt,
   });
-  return libItem;
+  store.markBasedataStale({ itemId: task.itemId, reason: POST_OPTIMIZE_REFRESH_REASON, updatedAt: completedAt });
+  const refreshRequest = store.requestRefresh({
+    itemId: task.itemId,
+    factGroup: 'basedata',
+    sourceRevision: task.helixAdmission && task.helixAdmission.sourceRevision || '',
+    reason: POST_OPTIMIZE_REFRESH_REASON,
+    causedByTaskId: task.id || '',
+    evidence,
+    updatedAt: completedAt,
+  });
+  return { optimize, optimizeGate, refreshRequest };
 }
 
 module.exports = {

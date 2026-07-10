@@ -49,6 +49,7 @@ function ensureSchema(db) {
     );
     CREATE TABLE IF NOT EXISTS libra_library_items (
       item_id TEXT PRIMARY KEY,
+      sub_library_id TEXT NOT NULL DEFAULT '',
       membership_status TEXT NOT NULL DEFAULT 'active',
       desired_state TEXT NOT NULL DEFAULT 'managed',
       phase TEXT NOT NULL DEFAULT 'onboarding',
@@ -62,6 +63,7 @@ function ensureSchema(db) {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_libra_items_phase ON libra_library_items(phase, membership_status);
+    CREATE INDEX IF NOT EXISTS idx_libra_items_library ON libra_library_items(sub_library_id, membership_status, updated_at);
     CREATE INDEX IF NOT EXISTS idx_libra_items_quarantine ON libra_library_items(quarantine_status, phase);
 
     CREATE TABLE IF NOT EXISTS libra_library_work (
@@ -139,6 +141,7 @@ function libraryRow(row) {
   if (!row) return null;
   return {
     itemId: row.item_id,
+    subLibraryId: row.sub_library_id || '',
     membershipStatus: row.membership_status,
     desiredState: row.desired_state,
     phase: row.phase,
@@ -167,6 +170,7 @@ function normalizeLibraryItem(input, existing = null) {
   }
   return {
     item_id: itemId,
+    sub_library_id: String(merged.subLibraryId || ''),
     membership_status: membershipStatus,
     desired_state: desiredState,
     phase,
@@ -189,13 +193,13 @@ function upsertLibraryItem(input) {
   const row = normalizeLibraryItem(input, getLibraryItem(input && input.itemId));
   getDb().prepare(`
     INSERT INTO libra_library_items (
-      item_id, membership_status, desired_state, phase, quarantine_status, quarantine_reason,
+      item_id, sub_library_id, membership_status, desired_state, phase, quarantine_status, quarantine_reason,
       blocked_reason, admission_generation, source_revision, maintenance_revision, created_at, updated_at
     ) VALUES (
-      @item_id, @membership_status, @desired_state, @phase, @quarantine_status, @quarantine_reason,
+      @item_id, @sub_library_id, @membership_status, @desired_state, @phase, @quarantine_status, @quarantine_reason,
       @blocked_reason, @admission_generation, @source_revision, @maintenance_revision, @created_at, @updated_at
     ) ON CONFLICT(item_id) DO UPDATE SET
-      membership_status=excluded.membership_status, desired_state=excluded.desired_state,
+      sub_library_id=excluded.sub_library_id, membership_status=excluded.membership_status, desired_state=excluded.desired_state,
       phase=excluded.phase, quarantine_status=excluded.quarantine_status,
       quarantine_reason=excluded.quarantine_reason, blocked_reason=excluded.blocked_reason,
       admission_generation=excluded.admission_generation, source_revision=excluded.source_revision,
@@ -315,6 +319,21 @@ function getCurrentOperationForItem(itemId) {
   `).get(String(itemId || '')));
 }
 
+function getCurrentOperationsForItems(itemIds = []) {
+  const ids = [...new Set(itemIds.map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const placeholders = ids.map(() => '?').join(',');
+  return getDb().prepare(`
+    SELECT * FROM libra_reconcile_operations
+    WHERE item_id IN (${placeholders})
+      AND status IN ('pending','running','retrying','failed')
+    ORDER BY updated_at DESC
+  `).all(...ids).reduce((out, row) => {
+    if (!out[row.item_id]) out[row.item_id] = operationRow(row);
+    return out;
+  }, {});
+}
+
 function listRecoverableOperations(now = new Date().toISOString()) {
   return getDb().prepare(`
     SELECT * FROM libra_reconcile_operations
@@ -354,6 +373,7 @@ module.exports = {
   getOperation,
   getOperationByIdempotencyKey,
   getCurrentOperationForItem,
+  getCurrentOperationsForItems,
   updateOperation,
   listRecoverableOperations,
   appendEvent,

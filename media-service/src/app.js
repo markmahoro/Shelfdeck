@@ -30,7 +30,6 @@ const adultColdArtifactStore = require('./adultColdArtifactStore');
 const peopleStore = require('./peopleStore');
 const adultActorImageSearchService = require('./services/adultActorImageSearchService');
 const westernAdultLocalAiService = require('./services/westernAdultLocalAiService');
-const scrapeVerification = require('./scrapeVerification');
 const metadataStatus = require('./metadataStatus');
 const resourceProjection = require('./resourceProjection');
 const runtimeResourceTracker = require('./runtimeResourceTracker');
@@ -934,27 +933,6 @@ function compactAdultMetadataForUi(metadata, opts = {}) {
   return compact;
 }
 
-function libraryListItemView(item) {
-  if (!item || typeof item !== 'object') return item;
-  if (!item.adultMetadata || typeof item.adultMetadata !== 'object') return item;
-  return {
-    ...item,
-    adultMetadata: compactAdultMetadataForUi(item.adultMetadata, {
-      includeFaces: false,
-      includeSampleImage: false,
-    }),
-  };
-}
-
-function decorateLibraryItemsForUi(items, config) {
-  return lifecycleProjection.decorateItems(items, config).map(libraryListItemView);
-}
-
-function projectLibraryItemsForUi(items, config, projection = {}) {
-  if (projection.includeBusinessFlow) return decorateLibraryItemsForUi(items, config);
-  return (items || []).map(libraryListItemView);
-}
-
 function buildDashboardAutomation(config) {
   const subLibraries = Array.isArray(config.subLibraries) ? config.subLibraries : [];
   return {
@@ -1549,21 +1527,6 @@ function enrichFailureEvents(events, config, diagnosticRows = []) {
   return (events || []).map((event) => enrichFailureEvent(event, config, diagnosticRows));
 }
 
-function markScrapeVerificationSource(verification, source) {
-  if (!verification || typeof verification !== 'object') return verification;
-  return {
-    ...verification,
-    source,
-  };
-}
-
-function addScrapeReportWarning(verification, warning) {
-  if (!verification || typeof verification !== 'object' || !warning) return verification;
-  const warnings = Array.isArray(verification.warnings) ? verification.warnings.slice() : [];
-  warnings.push(warning);
-  return { ...verification, warnings };
-}
-
 async function fetchImageAsBase64(url) {
   const u = String(url || '').trim();
   if (!/^https?:\/\//i.test(u)) throw new Error('imageUrl must be http(s)');
@@ -1624,49 +1587,6 @@ function resolveEmbyConfigForItem(itemId, subLibraryId) {
   return { error: { code: 'NOT_FOUND', message: 'Cannot determine subLibrary for this item' } };
 }
 
-function attachHelixProjections(items = []) {
-  const list = Array.isArray(items) ? items : [];
-  const projections = getHelixServices().libraService.getLibraryProjections(
-    list.map((item) => item && item.itemId).filter(Boolean),
-  );
-  return list.map((item) => item && item.itemId
-    ? { ...item, helix: projections[item.itemId] || null }
-    : item);
-}
-
-function ensureManualItemOnboarded(libItem, config = {}) {
-  if (!libItem || !libItem.itemId) return null;
-  const libra = getHelixServices().libraService;
-  const current = libra.getLibraryProjection(libItem.itemId);
-  if (current && current.phase === 'maintenance' && current.quarantine.status === 'none') return current;
-  if (current && (current.membership.status === 'closed' || current.quarantine.status !== 'none')) return current;
-  const subLib = (config.subLibraries || []).find((entry) => entry.uuid === libItem.subLibraryId) || {};
-  const isFolder = libItem.source === 'adult_folder' || subLib.source === 'folder';
-  const sourceReference = isFolder
-    ? {
-      source: 'adult_folder',
-      subLib: { uuid: subLib.uuid || libItem.subLibraryId || '', watchRoot: subLib.watchRoot || path.dirname(libItem.path || '') },
-      path: libItem.path || libItem.sourceRefId || libItem.sourceId || '',
-      sourceExists: libItem.sourceExists !== false,
-      observationKind: 'observed_present',
-      item: libItem,
-    }
-    : {
-      source: 'emby',
-      subLib: { uuid: subLib.uuid || libItem.subLibraryId || '', embyServerId: subLib.embyServerId || 'emby', sectionId: subLib.sectionId || '' },
-      sourceRefId: assetIdentity.getEmbyItemId(libItem) || libItem.sourceRefId || libItem.sourceId || libItem.itemId,
-      sourceExists: libItem.sourceExists !== false,
-      observationKind: 'observed_present',
-      item: libItem,
-    };
-  return libra.acceptSource({
-    itemId: libItem.itemId,
-    idempotencyKey: `manual-onboarding:${libItem.itemId}:${libItem.sourceObservedAt || libItem.updatedAt || 'current'}`,
-    sourceReference,
-    requestedBy: 'manual_maintenance_intent',
-  }).projection;
-}
-
 // ── Route Registration ──────────────────────────────────────────────────────
 
 function registerRoutes(app) {
@@ -1690,57 +1610,27 @@ function registerRoutes(app) {
 
     const cfg = configStore.loadConfig();
 
-    // Populate itemInfo from media library
-    const libItem = mediaLibraryService.getLibraryItem(itemId);
-    const meta = libItem ? metadataStatus.resolveMetadataStatus(libItem, cfg) : null;
-    const itemInfo = libItem ? {
-      name: libItem.name,
-      itemId: libItem.itemId,
-      source: libItem.source,
-      embyItemId: assetIdentity.getEmbyItemId(libItem),
-      path: libItem.path,
-      subLibraryId: libItem.subLibraryId,
-      assetKey: libItem.assetKey,
-      assetRootPath: libItem.assetRootPath,
-      externalRefs: libItem.externalRefs,
-      resolution: libItem.resolution,
-      codec: libItem.codec,
-      videoCodec: libItem.videoCodec,
-      originalVideoCodec: libItem.originalVideoCodec,
-      audioCodecs: libItem.audioCodecs,
-      bitrate: libItem.bitrate,
-      size: libItem.size,
-      duration: libItem.duration,
-      type: libItem.type,
-      isDiscLike: !!libItem.isDiscLike,
-      doubanRating: libItem.doubanRating,
-      userRating: libItem.userRating,
-      watched: libItem.watched,
-      tmdbId: libItem.tmdbId,
-      providerIds: libItem.providerIds,
-      seriesName: libItem.seriesName,
-      seasonNumber: libItem.seasonNumber,
-      targetBitrate: libItem.targetBitrate,
-      targetCodec: libItem.targetCodec,
-      seedPreferences: libItem.seedPreferences,
-      maxSizeGB: libItem.maxSizeGB,
-      equivalentBitrate: libItem.equivalentBitrate,
-      optimizeObjectiveStatus: libItem.optimizeObjectiveStatus,
-      optimizeObjective: libItem.optimizeObjective,
-      objectiveHash: libItem.objectiveHash,
-      objectiveVersion: libItem.objectiveVersion,
-      scraped: !!libItem.scraped,
-      adultMetadata: libItem.adultMetadata,
-      factsFreshness: libItem.factsFreshness,
-      ...(meta || {}),
-    } : null;
-
-    const admissionItemInfo = itemInfo || { itemId };
+    const libraryResult = getHelixServices().libraService.queryLibraryProjections({ itemId }, { limit: 1 });
+    const libItem = libraryResult.items[0] || null;
+    if (!libItem) return apiError(reply, 404, 'LIBRA_ITEM_NOT_FOUND', 'Library item not found');
+    const sourceDescriptor = libItem.helix && libItem.helix.source && libItem.helix.source.sourceAccessDescriptor || {};
+    const identity = sourceDescriptor.identityPayload || {};
+    const basedataFacts = libItem.helix && libItem.helix.maintenance && libItem.helix.maintenance.basedataFacts || {};
+    const metadataFacts = libItem.helix && libItem.helix.maintenance && libItem.helix.maintenance.metadataFacts || {};
+    const admissionItemInfo = {
+      ...libItem,
+      ...basedataFacts,
+      ...metadataFacts,
+      itemId,
+      source: sourceDescriptor.sourceType || libItem.source || '',
+      subLibraryId: libItem.subLibraryId || sourceDescriptor.subLibraryId || '',
+      embyItemId: identity.embyItemId || libItem.embyItemId || '',
+      sourceAccessDescriptor: sourceDescriptor,
+    };
     const activeAdmissionTasks = activeTaskSummariesForItem(itemId);
     const status = 'queued';
     let created;
     try {
-      ensureManualItemOnboarded(libItem, cfg);
       created = getHelixServices().libraService.requestMaintenance({
         itemId,
         itemInfo: admissionItemInfo,
@@ -1945,12 +1835,6 @@ function registerRoutes(app) {
         height: vr.height,
       };
       report.bytesSaved = vr.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
-    } else if (flowKind === 'delete') {
-      report.bytesFreed = vr.bytesSaved || info.size || info.originalSizeBytes || 0;
-      report.delete = {
-        targetPath: vr.deletedPath || info.deleteTargetPath || info.path || '',
-        targetKind: vr.deletedKind || info.deleteTargetKind || (info.embyItemId ? 'emby_item' : ''),
-      };
     } else if (flowKind === 'upgrade') {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,
@@ -1974,75 +1858,18 @@ function registerRoutes(app) {
         report.tmdbVerified = up.tmdbVerified;
       }
     } else if (flowKind === 'scrape') {
-      const cfg = configStore.loadConfig();
-      const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
-      const scrapeInfo = liveItem || { ...info, itemId: task.itemId };
-      const currentVerification = scrapeVerification.verifyScrapedItem(scrapeInfo, {
-        config: cfg,
-        subLib: (cfg.subLibraries || []).find((sl) => sl.uuid === scrapeInfo.subLibraryId) || null,
-        scrapeTaskId: task.id,
-      });
-      if (scrapeInfo.source !== 'adult_folder') {
-        report.metadata = {
-          itemId: scrapeInfo.itemId || task.itemId,
-          name: scrapeInfo.name || task.itemName || '',
-          source: scrapeInfo.source || '',
-          mediaPath: scrapeInfo.path || '',
-          metadataStatus: currentVerification.metadataStatus || (info && info.metadataStatus) || '',
-          metadataMissingReasons: currentVerification.metadataMissingReasons || (info && info.metadataMissingReasons) || [],
-        };
-        report.scrapeVerification = task.scrapeVerification && typeof task.scrapeVerification === 'object'
-          ? markScrapeVerificationSource(task.scrapeVerification, 'completion_snapshot')
-          : markScrapeVerificationSource(currentVerification, 'current_library_state');
-        return report;
-      }
-      const scrapeInfoWithCold = adultColdArtifactStore.mergeColdArtifacts(scrapeInfo);
-      const meta = scrapeInfoWithCold.adultMetadata || {};
-      const subLib = (cfg.subLibraries || []).find((sl) => sl.uuid === scrapeInfo.subLibraryId) || null;
-      report.scrape = {
-        adultId: meta.adultId || scrapeInfo.sourceId || '',
-        title: meta.title || scrapeInfo.name || task.itemName || '',
-        source: meta.source || '',
-        sourceUrl: meta.sourceUrl || '',
-        scrapeStatus: meta.scrapeStatus || '',
-        posterPath: meta.posterPath || '',
-        fanartPath: meta.fanartPath || '',
-        nfoPath: meta.nfoPath || '',
-        fileNfoPath: meta.fileNfoPath || '',
-        markerPath: meta.markerPath || '',
-        organized: !!meta.organized,
-        originalFolder: meta.originalFolder || '',
-        mediaPath: scrapeInfo.path || '',
-        actors: meta.actors || [],
-        protagonist: meta.protagonist || null,
-        faceClusters: Array.isArray(meta.faceClusters)
-          ? meta.faceClusters.map((face) => compactFaceForUi(face, { includeSampleImage: true }))
-          : [],
-        unknownFaces: Array.isArray(meta.unknownFaces)
-          ? meta.unknownFaces.map((face) => compactFaceForUi(face, { includeSampleImage: true }))
-          : [],
-        actorConfidence: meta.actorConfidence || {},
+      const projection = getHelixServices().libraService.getLibraryProjection(task.itemId);
+      const maintenance = projection && projection.maintenance || {};
+      const metadataFacts = maintenance.metadataFacts || {};
+      report.metadata = {
+        itemId: task.itemId,
+        name: metadataFacts.title || metadataFacts.name || task.itemName || '',
+        source: projection && projection.source && projection.source.sourceAccessDescriptor && projection.source.sourceAccessDescriptor.sourceType || '',
+        mediaPath: maintenance.basedataFacts && maintenance.basedataFacts.path || '',
+        metadataStatus: maintenance.metadataPassed ? 'complete' : 'missing',
+        metadataMissingReasons: maintenance.metadataGate && maintenance.metadataGate.missingReasons || [],
       };
-      report.assets = {
-        poster: !!meta.posterPath,
-        fanart: !!meta.fanartPath,
-        nfo: !!meta.nfoPath,
-        marker: !!meta.markerPath,
-      };
-      if (task.scrapeVerification && typeof task.scrapeVerification === 'object') {
-        report.scrapeVerification = markScrapeVerificationSource(task.scrapeVerification, 'completion_snapshot');
-        if (currentVerification.ok !== task.scrapeVerification.ok || (currentVerification.failures || []).length > 0) {
-          report.currentScrapeVerification = markScrapeVerificationSource(currentVerification, 'current_filesystem');
-        }
-      } else {
-        report.scrapeVerification = markScrapeVerificationSource(currentVerification, 'current_filesystem');
-        if (task.status === 'done') {
-          report.scrapeVerification = addScrapeReportWarning(report.scrapeVerification, {
-            code: 'snapshot.missing',
-            message: '这条历史刮削执行结束时尚未保存验收快照；此处展示的是当前文件系统复核结果，不代表当时的文件状态。',
-          });
-        }
-      }
+      report.metadataFacts = metadataFacts;
     }
 
     return report;
@@ -2346,7 +2173,7 @@ function registerRoutes(app) {
         total: result && typeof result.total === 'number' ? result.total : undefined,
       }),
     }, () => {
-      const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: projection.includeOptimizationStatus, ...page });
+      const result = getHelixServices().libraService.queryLibraryProjections(filter, page);
       // Attach embyWebUrl for desktop play button
       const cfg = configStore.loadConfig();
       const servers = cfg.embyServers || {};
@@ -2360,7 +2187,6 @@ function registerRoutes(app) {
           }
         }
       }
-      result.items = attachHelixProjections(projectLibraryItemsForUi(result.items, cfg, projection));
       return result;
     }));
   });
@@ -2381,19 +2207,14 @@ function registerRoutes(app) {
         total: result && typeof result.total === 'number' ? result.total : undefined,
       }),
     }, () => {
-      const result = mediaLibraryService.getLibrary(filter, { includeOptimizationStatus: projection.includeOptimizationStatus, ...page });
-      const cfg = configStore.loadConfig();
-      return { ...result, items: attachHelixProjections(projectLibraryItemsForUi(result.items, cfg, projection)) };
+      return getHelixServices().libraService.queryLibraryProjections(filter, page);
     }));
   });
 
   app.get('/v1/library/items/:itemId', async (req, reply) => {
-    const item = mediaLibraryService.getLibraryItem(req.params.itemId);
-    if (!item) return apiError(reply, 404, 'NOT_FOUND', 'Item not found');
-    const cfg = configStore.loadConfig();
-    const view = libraryListItemView(lifecycleProjection.decorateItem(item, cfg));
-    view.helix = getHelixServices().libraService.getLibraryProjection(item.itemId);
-    return view;
+    const result = getHelixServices().libraService.queryLibraryProjections({ itemId: req.params.itemId }, { limit: 1 });
+    if (!result.items[0]) return apiError(reply, 404, 'NOT_FOUND', 'Item not found');
+    return result.items[0];
   });
 
   app.patch('/v1/library/ratings', async (req, reply) => {
@@ -2547,9 +2368,7 @@ function registerRoutes(app) {
   // ── Space Stats ───────────────────────────────────────────────────────────
 
   app.get('/v1/space-stats', async () => {
-    const library = typeof mediaLibraryService.getSpaceStatLibrary === 'function'
-      ? mediaLibraryService.getSpaceStatLibrary()
-      : mediaLibraryService.getLibrary();
+    const library = getHelixServices().libraService.queryLibraryProjections({});
     const tasks = typeof taskStore.querySpaceStatTaskRows === 'function'
       ? taskStore.querySpaceStatTaskRows()
       : taskStore.loadTasks();
@@ -2755,7 +2574,7 @@ function registerRoutes(app) {
     if (body.cleanupMode && body.cleanupMode !== 'retain_source') {
       return apiError(reply, 409, 'LIBRA_SUBLIBRARY_RETAIN_SOURCE_REQUIRED', 'Sub-library removal only supports retain_source');
     }
-    const library = mediaLibraryService.getLibrary({ subLibraryId: req.params.uuid });
+    const library = getHelixServices().libraService.queryLibraryProjections({ subLibraryId: req.params.uuid });
     const result = await getHelixServices().libraService.requestOffboardingBatch({
       itemIds: library.items.map((item) => item.itemId),
       cleanupMode: 'retain_source',
@@ -2775,9 +2594,8 @@ function registerRoutes(app) {
     const cfg = configStore.loadConfig();
     const subLib = (cfg.subLibraries || []).find((entry) => entry.uuid === req.params.uuid);
     if (!subLib) return apiError(reply, 404, 'NOT_FOUND', 'SubLibrary not found');
-    const library = mediaLibraryService.getLibrary({ subLibraryId: req.params.uuid });
-    const projections = getHelixServices().libraService.getLibraryProjections(library.items.map((item) => item.itemId));
-    const notClosed = library.items.filter((item) => !projections[item.itemId] || projections[item.itemId].membership.status !== 'closed');
+    const library = getHelixServices().libraService.queryLibraryProjections({ subLibraryId: req.params.uuid });
+    const notClosed = library.items.filter((item) => !item.helix || item.helix.membership.status !== 'closed');
     if (notClosed.length > 0) {
       return reply.code(409).send({
         error: {

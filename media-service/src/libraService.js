@@ -54,6 +54,12 @@ function createLibraService(dependencies = {}) {
         return out;
       }, {});
     },
+    queryLibraryProjections(filter, options) {
+      if (typeof implementation.queryLibraryProjections === 'function') {
+        return implementation.queryLibraryProjections(filter, options);
+      }
+      throw notImplemented('LibraService.queryLibraryProjections');
+    },
   });
 }
 

@@ -7,12 +7,13 @@ const path = require('path');
 const test = require('node:test');
 
 const { buildApp } = require('../src/app');
-const adultLibraryService = require('../src/adultLibraryService');
+const cleanState = require('../src/helixCleanState');
 
 test('Helix Admin API projects Libra state and executes retain/detach/delete offboarding modes', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-helix-api-'));
   const root = path.join(dir, 'adult');
   fs.mkdirSync(root, { recursive: true });
+  cleanState.applyCleanInit({ dataDir: dir, confirmation: cleanState.APPLY_CONFIRMATION });
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   try {
     const createdLibrary = await app.inject({
@@ -28,22 +29,43 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
 
     const adminHealth = await app.inject({ method: 'GET', url: '/v1/admin/health' });
     assert.strictEqual(adminHealth.statusCode, 200);
-    assert.ok(adminHealth.json().checks.nexoraObservation);
     assert.ok(adminHealth.json().checks.libraReconciler);
 
-    function createItem(name) {
+    async function createItem(name) {
       const filePath = path.join(root, `${name}.mp4`);
       fs.writeFileSync(filePath, name);
-      const result = adultLibraryService.commitAdultFolderSourceReference(subLib, { path: filePath });
-      return { item: result.item, filePath };
+      const itemId = `item-${name.toLowerCase()}`;
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/admin/library/actions/onboard',
+        payload: {
+          itemId,
+          idempotencyKey: `onboard-${name}`,
+          sourceReference: {
+            source: 'adult_folder',
+            subLib: { uuid: subLib.uuid, watchRoot: root },
+            path: filePath,
+          },
+        },
+      });
+      assert.strictEqual(response.statusCode, 202);
+      assert.strictEqual(response.json().projection.phase, 'maintenance');
+      return { item: { itemId }, filePath };
     }
 
-    const retained = createItem('HELIX-RETAIN');
+    const retained = await createItem('HELIX-RETAIN');
     const detail = await app.inject({ method: 'GET', url: `/v1/library/items/${retained.item.itemId}` });
     assert.strictEqual(detail.statusCode, 200);
     assert.strictEqual(detail.json().helix.membership.status, 'active');
     assert.strictEqual(detail.json().helix.phase, 'maintenance');
     assert.strictEqual(detail.json().helix.source.readiness, 'ready');
+
+    const basedataTask = await app.inject({
+      method: 'POST', url: '/v1/tasks', payload: { itemId: retained.item.itemId, targetGate: 'basedata' },
+    });
+    assert.strictEqual(basedataTask.statusCode, 201);
+    assert.strictEqual(basedataTask.json().taskTarget.targetGate, 'basedata');
+    assert.strictEqual(basedataTask.json().itemInfo.helix.membership.status, 'active');
 
     const retainResult = await app.inject({
       method: 'POST',
@@ -54,7 +76,7 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     assert.strictEqual(retainResult.json().projection.membership.status, 'closed');
     assert.strictEqual(fs.existsSync(retained.filePath), true);
 
-    const detached = createItem('HELIX-DETACH');
+    const detached = await createItem('HELIX-DETACH');
     const detachResult = await app.inject({
       method: 'POST',
       url: `/v1/admin/library/items/${detached.item.itemId}/actions/offboard`,
@@ -64,7 +86,7 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     assert.strictEqual(detachResult.json().projection.source.readiness, 'detached');
     assert.strictEqual(fs.existsSync(detached.filePath), true);
 
-    const deleted = createItem('HELIX-DELETE');
+    const deleted = await createItem('HELIX-DELETE');
     const denied = await app.inject({
       method: 'POST',
       url: `/v1/admin/library/items/${deleted.item.itemId}/actions/offboard`,
@@ -92,11 +114,11 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     const legacyDelete = await app.inject({
       method: 'POST', url: '/v1/tasks', payload: { itemId: retained.item.itemId, targetGate: 'delete' },
     });
-    assert.strictEqual(legacyDelete.statusCode, 410);
-    assert.strictEqual(legacyDelete.json().error.code, 'HELIX_LEGACY_TARGET_REMOVED');
+    assert.strictEqual(legacyDelete.statusCode, 400);
+    assert.strictEqual(legacyDelete.json().error.code, 'KAIROX_INVALID_TARGET_GATE');
 
-    const bulkOne = createItem('HELIX-SUBLIB-ONE');
-    const bulkTwo = createItem('HELIX-SUBLIB-TWO');
+    const bulkOne = await createItem('HELIX-SUBLIB-ONE');
+    const bulkTwo = await createItem('HELIX-SUBLIB-TWO');
     const unsafeRemove = await app.inject({ method: 'DELETE', url: `/v1/admin/sublibraries/${subLib.uuid}` });
     assert.strictEqual(unsafeRemove.statusCode, 409);
     assert.strictEqual(unsafeRemove.json().error.code, 'LIBRA_SUBLIBRARY_OFFBOARDING_REQUIRED');

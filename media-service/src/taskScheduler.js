@@ -13,7 +13,6 @@
 
 const taskStore = require('./taskStore');
 const configStore = require('./configStore');
-const mediaLibraryService = require('./mediaLibraryService');
 const healthCheck = require('./healthCheck');
 const activityLog = require('./activityLog');
 const nodeStore = require('./nodeStore');
@@ -25,8 +24,6 @@ const resourceRuntime = require('./resourceRuntime');
 const diagnosticLog = require('./diagnosticLog');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const gateInvalidationService = require('./gateInvalidationService');
-const postOptimizeCanonicalRefresh = require('./postOptimizeCanonicalRefresh');
-const mediaFreeze = require('./mediaFreeze');
 
 let schedulerInterval = null;
 let nodeHealthInterval = null;
@@ -44,96 +41,10 @@ function flowKindForTask(task = {}) {
 
 function getConcurrencyLimit(flowKind, limits) {
   switch (flowKind) {
-    case 'ingest': return limits.ingestConcurrency || 1;
-    case 'archive': return limits.archiveConcurrency || 1;
-    case 'delete': return limits.deleteConcurrency || 1;
     case 'transcode': return limits.transcodeConcurrency || 1;
     case 'upgrade': return limits.upgradeConcurrency || 1;
     case 'scrape': return limits.scrapeConcurrency || 1;
     default: return 1;
-  }
-}
-
-function buildDeleteGateForItem(task, doneAt) {
-  const verify = task && task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
-  const info = task && task.itemInfo && typeof task.itemInfo === 'object' ? task.itemInfo : {};
-  return task && (task.deleteGate || task.deletionGate) || {
-    gate: 'delete',
-    passed: true,
-    status: 'passed',
-    reason: 'delete_target_removed',
-    flowKind: 'delete',
-    target: {
-      flowKind: 'delete',
-      itemId: task && task.itemId || '',
-      path: verify.deletedPath || info.deleteTargetPath || info.path || '',
-      targetKind: verify.deletedKind || info.deleteTargetKind || (info.embyItemId ? 'emby_item' : ''),
-    },
-    observed: {
-      removed: true,
-      deletedAt: doneAt,
-      path: verify.deletedPath || info.deleteTargetPath || info.path || '',
-      targetKind: verify.deletedKind || info.deleteTargetKind || (info.embyItemId ? 'emby_item' : ''),
-      bytesSaved: verify.bytesSaved || info.size || info.originalSizeBytes || 0,
-      embyItemId: verify.embyItemId || info.embyItemId || '',
-    },
-    failureReasons: [],
-    evidenceLevel: 'objective',
-    retryPolicy: {
-      automaticRetry: false,
-      manualRetryAllowed: false,
-      reason: '',
-    },
-    userAction: '',
-  };
-}
-
-function applyDoneTaskFactsToLibraryItem(libItem, task, doneAt, config = {}) {
-  const flowKind = flowKindForTask(task);
-  libItem.lastTaskDoneAt = doneAt;
-  mediaFreeze.applyCompletedTaskFreeze(libItem, task, doneAt, config);
-  if (flowKind === 'transcode') {
-    postOptimizeCanonicalRefresh.recordPostOptimizeReplacement(libItem, task, doneAt, 'transcode');
-  }
-  if (flowKind === 'upgrade') {
-    postOptimizeCanonicalRefresh.recordPostOptimizeReplacement(libItem, task, doneAt, 'upgrade');
-  }
-  if (flowKind === 'delete') {
-    const gate = buildDeleteGateForItem(task, doneAt);
-    libItem.deleted = true;
-    libItem.removed = true;
-    libItem.deletedAt = doneAt;
-    libItem.removedAt = doneAt;
-    libItem.deleteGate = gate;
-    libItem.deletionGate = gate;
-    libItem.deleteStatus = 'deleted';
-    libItem.deleteTaskId = task.id;
-    libItem.deleteDoneAt = doneAt;
-    libItem.deleteCandidate = {
-      ...(libItem.deleteCandidate || {}),
-      candidateStatus: 'deleted',
-      decision: 'confirm_delete',
-      decisionAt: (libItem.deleteCandidate && libItem.deleteCandidate.decisionAt) || doneAt,
-      deletedAt: doneAt,
-      taskId: task.id,
-    };
-  }
-  if (flowKind === 'archive') {
-    libItem.archiveStatus = 'archived_like';
-    libItem.archiveReason = 'archive_finalize_done';
-    libItem.archiveDoneAt = doneAt;
-    libItem.archiveTaskId = task.id;
-    libItem.lifecycleDone = true;
-    libItem.lifecycleNextTask = null;
-    libItem.archiveGate = task.archiveGate || {
-      gate: 'archive',
-      passed: true,
-      status: 'passed',
-      reason: 'archive_gate_met',
-      missingReasons: [],
-      blockers: [],
-      finalizedAt: doneAt,
-    };
   }
 }
 
@@ -184,10 +95,8 @@ function reportStatus(taskId, status, progress) {
     const name = oldTask.itemName || oldTask.itemId;
     const actionLabel = flowKindForTask(oldTask) === 'transcode' ? '码率压缩'
       : flowKindForTask(oldTask) === 'upgrade' ? '洗版'
-      : flowKindForTask(oldTask) === 'delete' ? '删除'
-      : flowKindForTask(oldTask) === 'ingest' ? '入库'
-      : flowKindForTask(oldTask) === 'archive' ? '归档'
       : flowKindForTask(oldTask) === 'scrape' ? '刮削'
+      : flowKindForTask(oldTask) === 'basedata' ? '基础信息维护'
       : flowKindForTask(oldTask);
 
     if (status === 'executing' && oldTask.status !== 'executing') {
@@ -199,18 +108,6 @@ function reportStatus(taskId, status, progress) {
     }
     if (status === 'failed_hard') {
       activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, flowKind: flowKindForTask(oldTask) });
-    }
-
-    // Keep media item task timestamps and terminal gate facts in sync with task closure.
-    if ((status === 'done' || status === 'failed_hard') && oldTask.itemId) {
-      const lib = mediaLibraryService.loadLibrary();
-      const libItem = lib && lib.items && lib.items.find((it) => it.itemId === oldTask.itemId);
-      if (libItem) {
-        const doneAt = new Date().toISOString();
-        if (status === 'done') applyDoneTaskFactsToLibraryItem(libItem, oldTask, doneAt, configStore.loadConfig());
-        else libItem.lastTaskDoneAt = doneAt;
-        mediaLibraryService.saveLibrary(lib);
-      }
     }
   }
 
@@ -280,7 +177,7 @@ function recoverInterruptedTasks() {
   const tasks = typeof taskStore.querySchedulerTasks === 'function'
     ? taskStore.querySchedulerTasks()
     : taskStore.loadTasks({ includeHistory: false });
-  const interruptible = ['precheck', 'executing', 'verify', 'ingest_precheck', 'ingest_commit', 'archive_precheck', 'archive_finalize', 'transcode_executing', 'transcode_replace', 'upgrade_executing', 'upgrade_replace', 'scrape_precheck', 'scrape_executing', 'scrape_write_metadata', 'scrape_review', 'planning', 'pre_replace_verify', 'pausing'];
+  const interruptible = ['precheck', 'executing', 'verify', 'basedata_observe', 'transcode_executing', 'transcode_replace', 'transcode_publish', 'upgrade_executing', 'upgrade_replace', 'upgrade_publish', 'scrape_precheck', 'scrape_executing', 'scrape_publish', 'planning', 'pre_replace_verify', 'pausing'];
   for (const t of tasks) {
     if (t.status === 'done' || t.status === 'failed_hard') continue;
     // awaiting_user_confirm is a stable state — user hasn't decided yet, preserve it
@@ -341,8 +238,6 @@ function resourceConcurrencyLimit(resource, task, limits = {}) {
     case 'local_ai':
       return getLocalWesternAiScrapeLimit(limits);
     case 'filesystem':
-      if (resourceKey === 'filesystem:ingest') return limits.ingestConcurrency || 1;
-      if (resourceKey === 'filesystem:mutation') return limits.deleteConcurrency || 1;
       return 1;
     default:
       return getConcurrencyLimit(task && flowKindForTask(task), limits);
@@ -377,52 +272,6 @@ function isLocalWesternAiScrapeTask(task, config) {
     ...((subLib && subLib.western) || {}),
   };
   return String(western.computeMode || 'local').toLowerCase() !== 'worker';
-}
-
-function staleAutoScrapeReason(task) {
-  if (!task || flowKindForTask(task) !== 'scrape') return '';
-  if (task.source !== 'auto') return '';
-  if (task.manualExecuteRequested || justConfirmedIds.has(task.id)) return '';
-  const liveItem = mediaLibraryService.getLibraryItem(task.itemId);
-  if (!liveItem) return 'library_item_missing';
-  if (liveItem.scraped === true) return 'already_scraped';
-  const meta = liveItem.adultMetadata || {};
-  const status = String(meta.scrapeStatus || '').toLowerCase();
-  if (status === 'failed' || status === 'ambiguous' || status === 'needs_review' || status === 'done') {
-    return `scrape_status_${status}`;
-  }
-  return '';
-}
-
-function skipStaleAutoScrapeTask(task, reason) {
-  const logs = Array.isArray(task.logs) ? task.logs.slice() : [];
-  logs.push({
-    ts: new Date().toISOString(),
-    level: 'info',
-    msg: `Automatic scrape skipped: ${reason}`,
-  });
-  const updated = taskStore.updateTask(task.id, {
-    status: 'skipped',
-    phase: 'skipped',
-    skippedReason: reason,
-    logs,
-  });
-  if (updated) {
-    task.status = updated.status;
-    task.phase = updated.phase;
-    task.skippedReason = updated.skippedReason;
-    task.logs = updated.logs;
-  } else {
-    task.status = 'skipped';
-    task.phase = 'skipped';
-    task.skippedReason = reason;
-    task.logs = logs;
-  }
-  activityLog.addActivity('task', `自动刮削任务「${task.itemName || task.itemId}」已跳过：${reason}`, {
-    taskId: task.id,
-    flowKind: flowKindForTask(task),
-    reason,
-  });
 }
 
 function getLocalWesternAiScrapeLimit(config) {
@@ -711,12 +560,6 @@ async function scheduleRound() {
 
     if (task.status === 'queued') {
       clearQueuedRuntimeState(task);
-
-      const staleScrapeReason = staleAutoScrapeReason(task);
-      if (staleScrapeReason) {
-        skipStaleAutoScrapeTask(task, staleScrapeReason);
-        continue;
-      }
 
       // Resource slot check — just-confirmed tasks bypass (they already held a slot).
       const resource = resourceProjection.resourceForTask(task, config);
