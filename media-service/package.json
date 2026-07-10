@@ -11,6 +11,7 @@
     "dev": "node --watch src/server.js",
     "test": "node --test test/*.test.js",
     "build:web": "cd web && npm run build",
+    "helix:clean-init": "node scripts/helix-clean-init.js",
     "migrate:v3": "node scripts/v3-data-migration.js",
     "dist:win": "node scripts/package-win.js"
   },

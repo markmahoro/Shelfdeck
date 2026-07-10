@@ -45,6 +45,14 @@ Accepted 2026-07-10 rebaseline decisions:
 
 The first attempt at the rebaselined runtime was paused before commit/deploy when the physical Kairox component boundary was challenged. Partial local Basedata/Governor/automation files are implementation work-in-progress, not accepted evidence. In particular, a newly introduced heavy `kairoxAutomationEngine.js` must not survive as a parallel business component; implementation resumes from the reinforced contract and revised Slice 12 order.
 
+Slice 12 is active. Its first clean-runtime foundation is implemented locally: a default dry-run clean-init tool now inventories an explicit ShelfDeck-state allow-list, requires a fixed confirmation before apply, backs up before reset, preserves only the Service API key and deployment path/mount settings, and never enumerates media roots. Libra no longer migrates `media_items`/`nexora_memberships` or persists capability projection snapshots. Clean owned schemas now create Libra Membership/work and Nexora source tables in `library.db`, plus Kairox media/basedata/metadata/optimize/objective/admission facts in `tasks.db`, without creating the mixed `media_items` table. Startup enforcement and removal of remaining legacy config/API/runtime paths are still pending; no clean-init apply was run against local or production data.
+
+Slice 12 focused evidence:
+
+- `node --test test/helix-clean-state.test.js test/helix-owned-schema.test.js test/libra-core.test.js` passed 11 tests.
+- Dry-run tests prove no file mutation; apply tests prove explicit confirmation, backup, secret/config narrowing and preservation of an unlisted media fixture.
+- Owned-schema audit proves `media_items` and `nexora_memberships` are absent when only current Libra/Nexora/Kairox Stores initialize.
+
 Slice 1 evidence:
 
 - Active-contract drift search found no current document still defining `Helix = Nexora + Kairox`.

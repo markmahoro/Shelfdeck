@@ -61,15 +61,12 @@ function fakes(sourceByItem = {}, maintenanceByItem = {}) {
   };
 }
 
-test('Libra migrates existing media items as active onboarding without silent admission', () => {
+test('Libra does not migrate legacy media_items into clean Membership facts', () => {
   libraryStore.saveLibrary({ items: [{ itemId: 'legacy-1', name: 'Legacy', source: 'emby', sourceExists: true }] });
   const { nexoraService, kairoxService } = fakes();
   const runtime = createLibraRuntime({ nexoraService, kairoxService });
   const projection = runtime.getLibraryProjection('legacy-1');
-  assert.strictEqual(projection.membership.status, 'active');
-  assert.strictEqual(projection.phase, 'onboarding');
-  assert.strictEqual(projection.blockedReason, 'migration_source_unresolved');
-  assert.strictEqual(projection.admissionGeneration, 0);
+  assert.strictEqual(projection, null);
 });
 
 test('Libra onboarding commands are idempotent and reject payload reuse', () => {
@@ -124,7 +121,7 @@ test('Libra phase stays maintenance while reads compose the latest Kairox mainte
   assert.strictEqual(projection.phase, 'maintenance');
   assert.strictEqual(projection.maintenance.metadataPassed, true);
   assert.strictEqual(projection.maintenance.maintenanceState, 'maintaining');
-  assert.deepStrictEqual(libraStore.getLibraryItem('item-live-projection').maintenanceProjection, {});
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(libraStore.getLibraryItem('item-live-projection'), 'maintenanceProjection'), false);
 });
 
 test('Libra offboarding requires explicit physical-delete authorization', async () => {

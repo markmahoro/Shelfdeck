@@ -58,13 +58,29 @@ function ensureSchema(db) {
       admission_generation INTEGER NOT NULL DEFAULT 0,
       source_revision TEXT NOT NULL DEFAULT '',
       maintenance_revision TEXT NOT NULL DEFAULT '',
-      source_projection_json TEXT NOT NULL DEFAULT '{}',
-      maintenance_projection_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_libra_items_phase ON libra_library_items(phase, membership_status);
     CREATE INDEX IF NOT EXISTS idx_libra_items_quarantine ON libra_library_items(quarantine_status, phase);
+
+    CREATE TABLE IF NOT EXISTS libra_library_work (
+      work_id TEXT PRIMARY KEY,
+      work_kind TEXT NOT NULL,
+      sub_library_id TEXT NOT NULL DEFAULT '',
+      item_id TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      cursor_json TEXT NOT NULL DEFAULT '{}',
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      retry_at TEXT NOT NULL DEFAULT '',
+      error_code TEXT NOT NULL DEFAULT '',
+      error_message TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_libra_work_status ON libra_library_work(status, retry_at, created_at);
+    CREATE INDEX IF NOT EXISTS idx_libra_work_library ON libra_library_work(sub_library_id, status, updated_at);
 
     CREATE TABLE IF NOT EXISTS libra_reconcile_operations (
       operation_id TEXT PRIMARY KEY,
@@ -132,8 +148,6 @@ function libraryRow(row) {
     admissionGeneration: Number(row.admission_generation) || 0,
     sourceRevision: row.source_revision || '',
     maintenanceRevision: row.maintenance_revision || '',
-    sourceProjection: jsonParse(row.source_projection_json, {}),
-    maintenanceProjection: jsonParse(row.maintenance_projection_json, {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -162,8 +176,6 @@ function normalizeLibraryItem(input, existing = null) {
     admission_generation: Math.max(0, Number.parseInt(merged.admissionGeneration, 10) || 0),
     source_revision: String(merged.sourceRevision || ''),
     maintenance_revision: String(merged.maintenanceRevision || ''),
-    source_projection_json: JSON.stringify(merged.sourceProjection || {}),
-    maintenance_projection_json: JSON.stringify(merged.maintenanceProjection || {}),
     created_at: String(merged.createdAt || now),
     updated_at: now,
   };
@@ -178,20 +190,16 @@ function upsertLibraryItem(input) {
   getDb().prepare(`
     INSERT INTO libra_library_items (
       item_id, membership_status, desired_state, phase, quarantine_status, quarantine_reason,
-      blocked_reason, admission_generation, source_revision, maintenance_revision,
-      source_projection_json, maintenance_projection_json, created_at, updated_at
+      blocked_reason, admission_generation, source_revision, maintenance_revision, created_at, updated_at
     ) VALUES (
       @item_id, @membership_status, @desired_state, @phase, @quarantine_status, @quarantine_reason,
-      @blocked_reason, @admission_generation, @source_revision, @maintenance_revision,
-      @source_projection_json, @maintenance_projection_json, @created_at, @updated_at
+      @blocked_reason, @admission_generation, @source_revision, @maintenance_revision, @created_at, @updated_at
     ) ON CONFLICT(item_id) DO UPDATE SET
       membership_status=excluded.membership_status, desired_state=excluded.desired_state,
       phase=excluded.phase, quarantine_status=excluded.quarantine_status,
       quarantine_reason=excluded.quarantine_reason, blocked_reason=excluded.blocked_reason,
       admission_generation=excluded.admission_generation, source_revision=excluded.source_revision,
       maintenance_revision=excluded.maintenance_revision,
-      source_projection_json=excluded.source_projection_json,
-      maintenance_projection_json=excluded.maintenance_projection_json,
       updated_at=excluded.updated_at
   `).run(row);
   return getLibraryItem(row.item_id);
@@ -332,47 +340,6 @@ function appendEvent(input = {}) {
   return { eventId: row.event_id, itemId: row.item_id, operationId: row.operation_id, eventType: row.event_type, generation: row.generation, payload: input.payload || {}, createdAt: row.created_at };
 }
 
-function tableExists(db, name) {
-  return !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
-}
-
-function migrateLegacyFacts() {
-  const db = getDb();
-  const marker = db.prepare('SELECT value FROM libra_meta WHERE key=?').get('libra_fact_model_v1');
-  if (marker && marker.value === '1') return { migrated: false, reason: 'already_migrated' };
-  if (!tableExists(db, 'media_items')) return { migrated: false, reason: 'media_items_missing' };
-  const hasLegacyMembership = tableExists(db, 'nexora_memberships');
-  const memberships = hasLegacyMembership
-    ? new Map(db.prepare('SELECT media_item_id,status FROM nexora_memberships').all().map((row) => [row.media_item_id, row.status]))
-    : new Map();
-  const items = db.prepare('SELECT item_id,updated_at FROM media_items').all();
-  const insert = db.prepare(`
-    INSERT OR IGNORE INTO libra_library_items (
-      item_id,membership_status,desired_state,phase,quarantine_status,quarantine_reason,
-      blocked_reason,admission_generation,source_revision,maintenance_revision,
-      source_projection_json,maintenance_projection_json,created_at,updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-  `);
-  const tx = db.transaction(() => {
-    for (const item of items) {
-      const closed = memberships.get(item.item_id) === 'closed';
-      const now = item.updated_at || new Date().toISOString();
-      insert.run(
-        item.item_id,
-        closed ? 'closed' : 'active',
-        closed ? 'closed' : 'managed',
-        closed ? 'closed' : 'onboarding',
-        'none', '',
-        closed ? '' : 'migration_source_unresolved',
-        0, '', '', '{}', '{}', now, now,
-      );
-    }
-    db.prepare('INSERT OR REPLACE INTO libra_meta(key,value) VALUES (?,?)').run('libra_fact_model_v1', '1');
-  });
-  tx();
-  return { migrated: true, itemCount: items.length };
-}
-
 function resetForTests() {
   for (const db of dbCache.values()) db.close();
   dbCache.clear();
@@ -390,7 +357,6 @@ module.exports = {
   updateOperation,
   listRecoverableOperations,
   appendEvent,
-  migrateLegacyFacts,
   payloadHash,
   resetForTests,
 };

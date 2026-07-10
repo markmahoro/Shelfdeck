@@ -8,7 +8,6 @@ const { createLibraReconciler } = require('./libraReconciler');
 const CLEANUP_MODES = new Set(['retain_source', 'detach_source', 'delete_source']);
 
 function createLibraRuntime({ nexoraService, kairoxService, store = libraStore }) {
-  store.migrateLegacyFacts();
   const reconciler = createLibraReconciler({ store, nexoraService, kairoxService });
 
   function libraryProjection(item, sourceProjection = {}, maintenanceProjection = {}) {
