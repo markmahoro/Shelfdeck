@@ -82,9 +82,9 @@ npm test
 
 因此本机 profile 用于快速定位业务逻辑、SQL/projection、API、前端状态和大数据规模下的代码路径；涉及设备、容器、NAS I/O 或最终用户视角时，再进入生产环境验证。
 
-## 成人库 / Ingest + Scrape Task 开发
+## 成人库 / Nexora Observation + Metadata Maintenance 开发
 
-日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。成人库模块不再拥有自己的目录监听、定时扫描或整目录手动扫描入队逻辑；目录级 scan 只能用于只读核对，不创建 `ingest` 或 `scrape` 任务。`ingest` 是单 item 任务，完成单文件探测、NFO 预解析和媒体项写入后，未刮削 item 再按统一 `TaskAdmission` / `PriorityEngine` 判断是否创建 `actionType=scrape` 任务。具体执行由 `TaskScheduler` 按 `ingestConcurrency` / `scrapeConcurrency` 统一分配槽位。
+日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。Source discovery 由 Nexora observation adapter 完成，进入 Libra onboarding 后才能获得 Kairox admission；Helix 不创建 `targetGate=ingest` 任务。Metadata maintenance 仍通过 Kairox `targetGate=metadata`、Flow Planner 和统一 TaskAdmission 执行。
 
 真实刮削可以配置代理服务器；默认不配置时使用直连。普通 service API 测试不依赖真实网络刮削；可以用临时目录或 `E:\my_project\emby_third_party\jav_test` 做单 item 入库和端到端验证。
 
@@ -96,8 +96,8 @@ npm test
 | `mediaType=adult` | 成人库大类 |
 | `adultRegion=japanese_jav` | 日本 JAV，使用 ShelfDeck 内置 scraper |
 | `adultRegion=western_adult` | 欧美成人库，默认由 service-local 做抽帧、人脸匹配和封面生成 |
-| `actionType=ingest` | 入库任务，把单个文件候选转换为媒体项和技术探测结果 |
-| `actionType=scrape` | 刮削任务，完成后只更新 metadata 和 `scraped=true`；是否转码由策略和 `SmartTaskEngine` 决定 |
+| Nexora observation | 把单个文件候选转换为 SourceBinding 和 onboarding evidence，不创建 Kairox ingest task |
+| `targetGate=metadata` | Kairox metadata 维护任务；Flow Planner 可选择 `scrape` flow |
 | `automationMode=auto/manual` | 子库任务创建后的执行方式；`auto` 自动进入队列，`manual` 创建为待手动启动；审批节点由 `approvalPolicy` 单独控制 |
 | `approvalPolicy` | 任务内部关键节点审批策略，支持 `auto`、`confirm`、`forceConfirm` |
 | `mediaLibraryStartupRefreshOnStartup` | 普通媒体库启动后是否自动刷新 |
@@ -114,7 +114,7 @@ npm test
 - 人脸模型目录默认是 `/app/data/face-models`，挂载数据卷后容器重启不会重新下载模型。
 - 匹配不到 protagonist 时等同于 JAV 识别不到番号：任务失败，item 保持 `scraped=false`，不会自动进入转码策略。
 - 成人库不得新增独立调度规则。新建、重试、冷却、队列上限、去重、优先级都必须走统一任务模型。
-- 成人库 `delete` 任务按媒体目录删除：如果媒体文件位于 `watchRoot` 下的独立子目录，删除目标是整个子目录；如果文件直接位于 `watchRoot` 根下，才退回删除单文件。删除目标必须仍在 `watchRoot` 内，且不能是 `watchRoot` 或 `scraped/` 根目录。
+- 物理删除属于 Libra 授权的 Nexora `delete_source` offboarding，不再创建 Kairox delete task。必须显式 destructive authorization，且目标必须仍在 `watchRoot` 内，不能是 `watchRoot` 或 `scraped/` 根目录。
 
 ## Task Store
 

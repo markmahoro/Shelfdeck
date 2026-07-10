@@ -133,6 +133,7 @@ function startHealthCheckTimer(intervalMs = 30000) {
       lastResult = await runAllChecks();
     } catch (_) {}
   }, intervalMs);
+  checkTimer.unref && checkTimer.unref();
 }
 
 function stopHealthCheckTimer() {

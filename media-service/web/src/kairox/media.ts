@@ -51,6 +51,7 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
   const projectedTask = activeTask ? toKairoxTaskProjection(activeTask) : null;
   const factsFreshness = buildFactsFreshness(item);
   const mediaFreeze = buildMediaFreeze(item);
+  const helix = asOptionalRecord(item.helix);
   const nextAction = buildNextAction(projectedTask, nextTargetGate, objective, factsFreshness, mediaFreeze);
 
   return {
@@ -113,6 +114,7 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
       objectiveHash: item.objectiveHash,
       objectiveVersion: item.objectiveVersion,
     }),
+    helix,
     factsFreshness,
     mediaFreeze,
     lifecycle: {
@@ -129,6 +131,8 @@ export function toKairoxMediaProjection(raw: unknown, activeTask?: MediaTask | n
 }
 
 export function mediaDisplayFacts(projection: KairoxMediaProjection): Array<{ label: string; value: string }> {
+  const helix = asRecord(projection.helix);
+  const quarantine = asRecord(helix.quarantine);
   return [
     { label: '来源', value: stringValue(projection.sourceFacts.source) || stringValue(projection.sourceFacts.sectionName) || '-' },
     { label: '规格', value: [projection.mediaFacts.resolution, projection.mediaFacts.codec].filter(Boolean).join(' / ') || '-' },
@@ -136,6 +140,11 @@ export function mediaDisplayFacts(projection: KairoxMediaProjection): Array<{ la
     { label: '感知', value: formatPerception(projection.userPerceptionFacts) },
     { label: '元数据', value: stringValue(projection.metadataFacts.metadataStatus) || (projection.metadataFacts.metadataComplete === true ? 'complete' : '-') },
     { label: '事实', value: freshnessSummary(projection.factsFreshness) },
+    {
+      label: 'Helix',
+      value: [stringValue(helix.phase), stringValue(quarantine.status) && stringValue(quarantine.status) !== 'none' ? stringValue(quarantine.status) : '']
+        .filter(Boolean).join(' / ') || '-',
+    },
   ];
 }
 

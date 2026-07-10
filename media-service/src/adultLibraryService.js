@@ -15,6 +15,11 @@ const scrapeVerification = require('./scrapeVerification');
 const adultColdArtifactStore = require('./adultColdArtifactStore');
 const factsFreshnessService = require('./factsFreshnessService');
 const sourceReference = require('./sourceReference');
+const { getHelixServices } = require('./libraCompositionRoot');
+
+function helixServices() {
+  return getHelixServices();
+}
 
 const DEFAULT_EXTS = new Set(['.3gp', '.avi', '.f4v', '.flv', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.rm', '.rmvb', '.ts', '.vob', '.webm', '.wmv']);
 const DEFAULT_ORGANIZED_FOLDER_NAME = 'scraped';
@@ -700,6 +705,7 @@ function commitAdultFolderSourceReference(subLib, itemInfo = {}, opts = {}) {
   if (idx < 0) {
     idx = lib.items.findIndex((it) => it.subLibraryId === subLib.uuid && normalizePathForCompare(it.path) === normPath);
   }
+  const existingBefore = idx >= 0 ? lib.items[idx] : null;
   if (!filePath || !fs.existsSync(filePath)) {
     if (idx < 0) throw new Error(`Media file does not exist: ${filePath || ''}`);
     const missing = {
@@ -722,6 +728,21 @@ function commitAdultFolderSourceReference(subLib, itemInfo = {}, opts = {}) {
       reason: 'source_missing',
       refreshTargetGate: 'ingest',
       evidence: { source: 'adult_folder', path: filePath },
+    });
+    helixServices().libraService.acceptSource({
+      itemId: missing.itemId,
+      idempotencyKey: `adult_folder:${missing.itemId}:source_missing:${now}`,
+      sourceReference: {
+        source: 'adult_folder',
+        subLib: { uuid: subLib.uuid, watchRoot: subLib.watchRoot },
+        path: filePath,
+        sourceExists: false,
+        observationKind: 'source_missing',
+        observedAt: now,
+        previousSourceRefId: existingBefore && (existingBefore.sourceRefId || existingBefore.sourceId || existingBefore.path),
+        previousPath: existingBefore && existingBefore.path,
+        item: missing,
+      },
     });
     return { item: missing, created: false, observationKind: 'source_missing' };
   }
@@ -802,7 +823,23 @@ function commitAdultFolderSourceReference(subLib, itemInfo = {}, opts = {}) {
     refreshTargetGate: 'metadata',
     evidence: { source: 'adult_folder', path: filePath },
   });
-  return { item, created: idx < 0, observationKind: idx >= 0 ? 'source_changed' : 'new_source_observed' };
+  const observationKind = idx >= 0 ? 'source_changed' : 'new_source_observed';
+  helixServices().libraService.acceptSource({
+    itemId: item.itemId,
+    idempotencyKey: `adult_folder:${item.itemId}:${observationKind}:${now}`,
+    sourceReference: {
+      source: 'adult_folder',
+      subLib: { uuid: subLib.uuid, watchRoot: subLib.watchRoot },
+      path: filePath,
+      sourceExists: true,
+      observationKind,
+      observedAt: now,
+      previousSourceRefId: existingBefore && (existingBefore.sourceRefId || existingBefore.sourceId || existingBefore.path),
+      previousPath: existingBefore && existingBefore.path,
+      item,
+    },
+  });
+  return { item, created: idx < 0, observationKind };
 }
 
 async function prepareAdultMetadataForScrape(subLib, item, opts = {}) {

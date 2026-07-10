@@ -337,6 +337,9 @@ async function runEmbyExecuting(taskId, task, config, subLib) {
 }
 
 async function runWriteMetadata(taskId, task) {
+  if (scheduler && typeof scheduler.assertHelixAdmission === 'function') {
+    scheduler.assertHelixAdmission(taskId, 'scrape_write_metadata');
+  }
   setPhase(taskId, 'scrape_executing');
   scheduler.reportStatus(taskId, 'executing', 80);
 

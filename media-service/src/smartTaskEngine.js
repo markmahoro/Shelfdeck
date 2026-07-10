@@ -32,6 +32,7 @@ let configReader = null;
 let mediaLibraryReader = null;
 let taskStoreReader = null;
 let candidateProvider = null;
+let helixAdmissionProvider = null;
 let lastEnabledTaskTargets = [];
 let lastAllowedOptimizeFlows = [];
 let lastScanSummary = null;
@@ -248,6 +249,7 @@ function createTargetGateTask(input = {}) {
     flowPreference: input.flowPreference || null,
     requestedIntent: admission.requestedIntent || input.requestedIntent || input.intent,
     allowedOptimizeFlowKinds: input.allowedOptimizeFlowKinds,
+    helixAdmission: input.helixAdmission || null,
     itemInfo,
     logs: input.logs || [{
       ts: new Date().toISOString(),
@@ -445,9 +447,20 @@ async function runScan(input = {}) {
       }
 
       const admittedTasks = [];
+      const admissionResolver = input.helixAdmissionProvider || helixAdmissionProvider;
       for (const candidate of candidates) {
         const { item, itemInfo, targetGate, gateObjective } = candidate;
         scanSummary.evaluatedCandidates += 1;
+
+        let helixAdmission = null;
+        if (typeof admissionResolver === 'function') {
+          helixAdmission = admissionResolver(item, targetGate, candidate) || null;
+          if (!helixAdmission || helixAdmission.allowed === false) {
+            scanSummary.admissionRejected += 1;
+            incrementCounter(scanSummary.admissionRejectedByReason, helixAdmission && helixAdmission.reason || 'helix_admission_required');
+            continue;
+          }
+        }
 
         const subLibSchedule2 = typeof configStore.resolveSubLibSchedule === 'function'
           ? configStore.resolveSubLibSchedule(item, cfg2)
@@ -490,6 +503,7 @@ async function runScan(input = {}) {
             priorityBreakdown,
             taskTarget: admission.taskTarget,
             allowedOptimizeFlowKinds: candidate.allowedOptimizeFlowKinds,
+            helixAdmission: helixAdmission && (helixAdmission.admission || helixAdmission),
             itemInfo,
             logs: [{
               ts: new Date().toISOString(),
@@ -632,6 +646,9 @@ function start(configStore, mediaLibraryService, taskStore, opts = {}) {
         : [];
       return [...adultCandidates, ...(Array.isArray(embyCandidates) ? embyCandidates : [])];
     };
+  helixAdmissionProvider = typeof opts.helixAdmissionProvider === 'function'
+    ? opts.helixAdmissionProvider
+    : null;
   const cfg = configStore.loadConfig();
   const initialAutomation = automationSnapshot(cfg);
   lastEnabledTaskTargets = initialAutomation.enabledTaskTargets;

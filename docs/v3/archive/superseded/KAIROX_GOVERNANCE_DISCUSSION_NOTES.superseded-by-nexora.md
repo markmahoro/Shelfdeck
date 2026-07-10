@@ -1,8 +1,8 @@
 # Kairox Governance Architecture Discussion Notes
 
-Status: discussion notes for next worktree.
+Status: superseded historical discussion notes. The `Kairox Governance` name is retired. Future architecture work uses `Nexora`.
 
-本文记录 Kairox Beta 收束后关于下一阶段架构升级的讨论共识。它不是当前已实现架构，也不是 active implementation plan。下一线程可以把本文作为输入，继续设计 `Kairox Governance`。
+本文记录 Kairox Beta 收束后关于下一阶段架构升级的历史讨论。它不是当前已实现架构，也不是 active implementation plan。后续只能把本文作为 Nexora 设计的历史输入，不能沿用 `Kairox Governance` 命名或路线。
 
 ## 背景
 
@@ -367,4 +367,3 @@ Kairox Governance Architecture
 - Offboarding 的最小可用能力：unmanage / retire / purge 的区别。
 - Resource Runtime 如何分阶段升级为 Global Resource Management。
 - 当前 Beta 代码中 ingest/delete 相关实现，在下一阶段是迁移、保留、还是退役。
-

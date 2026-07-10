@@ -10,6 +10,7 @@ const transcodeFlow = require('./transcodeFlowExecutor');
 const upgradeFlow = require('./upgradeFlowExecutor');
 const archiveFlow = require('./archiveFlowExecutor');
 const deleteFlow = require('./deleteFlowExecutor');
+const kairoxAdmissionFence = require('./kairoxAdmissionFence');
 
 const FLOW_EXECUTORS = {
   ingest: ingestFlow,
@@ -44,6 +45,10 @@ function setSchedulerCallbacks(input = {}) {
     pauseForConfirm: callbacks.pauseForConfirm,
     reportStatus: callbacks.reportStatus,
     reportGateInvalidation: callbacks.reportGateInvalidation,
+    assertHelixAdmission(taskId, checkpoint) {
+      const task = taskStore.getTask(taskId);
+      return kairoxAdmissionFence.assertTask(task || { id: taskId }, checkpoint);
+    },
   };
   Object.values(FLOW_EXECUTORS).forEach((executor) => {
     if (executor && typeof executor.setScheduler === 'function') {
@@ -125,6 +130,18 @@ function recordFlowFailure(task, resource, flowStep, err) {
 }
 
 function dispatchTask(inputTask, options = {}) {
+  const fence = kairoxAdmissionFence.checkTask(inputTask, 'resource_dispatch');
+  if (!fence.allowed) {
+    const updated = taskStore.updateTask(inputTask.id, {
+      status: 'interrupted',
+      phase: 'helix_fenced',
+      resumePoint: inputTask.resumePoint || inputTask.phase || null,
+      helixFence: fence,
+      logs: [{ ts: new Date().toISOString(), level: 'warning', msg: `Task fenced: ${fence.reason}` }],
+    });
+    taskStore.appendTaskEvent(updated || inputTask, 'task.helix_fenced', fence, { resourceType: 'scheduler' });
+    return { dispatched: false, reason: 'helix_admission_fenced', fence, task: updated || inputTask };
+  }
   const task = ensureFlowPlan(inputTask);
   const flowKind = flowKindForTask(task);
   const executor = executorForFlowKind(flowKind);

@@ -906,6 +906,9 @@ async function runVerify(taskId, task, config) {
 }
 
 async function runReplace(taskId, task, config) {
+  if (scheduler && typeof scheduler.assertHelixAdmission === 'function') {
+    scheduler.assertHelixAdmission(taskId, 'transcode_replace');
+  }
   setPhaseResumePoint(taskId, 'transcode_replace', 'transcode_replace');
   appendLog(taskId, 'info', 'Replacing original file');
 

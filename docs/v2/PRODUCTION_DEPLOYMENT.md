@@ -33,6 +33,14 @@ docker run --rm -v /vol1/1000/docker/shelfdeck/data:/app/data:ro markmahoro/shel
 node media-service/scripts/v3-data-migration.js --data-dir=/vol1/1000/docker/shelfdeck/data --apply
 ```
 
+Helix 镜像还必须在部署脚本中执行只读 preflight：
+
+```bash
+docker run --rm -v /vol1/1000/docker/shelfdeck/data:/app/data:ro markmahoro/shelfdeck:<tag> node scripts/helix-data-preflight.js --data-dir=/app/data
+```
+
+该步骤只检查 `library.db` / `tasks.db` 的表与聚合行数，并报告启动时的 Libra/Nexora/Kairox backfill 计划；不支持 `--apply`。
+
 `--apply` 会先备份 `library.json` / `library.db` / `tasks.json` / `tasks.db`，再触发兼容导入、DDL 和 v3 facts backfill。不要直接手工修改生产 SQLite。
 
 1. 在本机从仓库根目录构建生产镜像 tarball：

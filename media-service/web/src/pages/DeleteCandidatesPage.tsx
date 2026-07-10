@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { deleteCandidates } from '../api/client';
+import { deleteCandidates, helixLibrary } from '../api/client';
+import type { HelixCleanupMode } from '../api/client';
 import Alert from '../components/Alert';
 import LoadingSpinner from '../components/LoadingSpinner';
 import {
@@ -24,7 +25,7 @@ export default function DeleteCandidatesPage() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ['delete-candidates'] });
   const confirmMut = useMutation({
     mutationFn: deleteCandidates.confirmDelete,
-    onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '已创建删除执行任务，可在任务中心继续确认和跟踪。' }); },
+    onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '已由 Libra 完成退出管理与显式 source 删除。' }); },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
   const keepMut = useMutation({
@@ -42,6 +43,21 @@ export default function DeleteCandidatesPage() {
     onSuccess: () => { invalidate(); setAlert({ type: 'success', msg: '已设为不再建议。' }); },
     onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
   });
+  const offboardMut = useMutation({
+    mutationFn: async ({ itemId, cleanupMode }: { itemId: string; cleanupMode: Exclude<HelixCleanupMode, 'delete_source'> }) => {
+      await helixLibrary.offboard(itemId, {
+        idempotencyKey: crypto.randomUUID(),
+        cleanupMode,
+        reason: 'delete_candidate_library_offboarding',
+      });
+      await deleteCandidates.suppress(itemId);
+    },
+    onSuccess: (_, input) => {
+      invalidate();
+      setAlert({ type: 'success', msg: input.cleanupMode === 'retain_source' ? '已退出 ShelfDeck 管理，source 保持不变。' : '已解绑 source 并退出 ShelfDeck 管理。' });
+    },
+    onError: (e: Error) => setAlert({ type: 'error', msg: e.message }),
+  });
 
   const views = useMemo(() => (q.data?.candidates || []).map(toKairoxDeleteCandidateView), [q.data?.candidates]);
   const counts = useMemo(() => views.reduce<Record<string, number>>((acc, view) => {
@@ -49,10 +65,10 @@ export default function DeleteCandidatesPage() {
     return acc;
   }, {}), [views]);
   const visible = views.filter((view) => view.status === tab);
-  const busy = confirmMut.isPending || keepMut.isPending || snoozeMut.isPending || suppressMut.isPending;
+  const busy = confirmMut.isPending || keepMut.isPending || snoozeMut.isPending || suppressMut.isPending || offboardMut.isPending;
 
   function confirmDelete(view: KairoxDeleteCandidateView) {
-    const ok = confirm(`确认将「${view.title}」送入删除执行任务？\n\n这一步不会绕过 TaskAdmission，也不会把删除作为 optimize；实际文件删除仍由 targetGate=delete 任务执行。`);
+    const ok = confirm(`确认将「${view.title}」退出 ShelfDeck 管理并删除 source？\n\nLibra 会先撤销 Kairox admission、等待维护停止，再由 Nexora 执行显式 source 删除。`);
     if (ok) confirmMut.mutate(view.itemId);
   }
 
@@ -61,7 +77,7 @@ export default function DeleteCandidatesPage() {
       <div className="kairoxDeleteHeader">
         <div>
           <h1>处置队列</h1>
-          <p>这里处理已归档媒体的删除建议。未确认前不会创建 destructive delete 任务。</p>
+          <p>这里处理已归档媒体的处置建议。删除确认会进入 Libra offboarding，不再创建 Kairox delete task。</p>
         </div>
         <button onClick={() => invalidate()}>刷新</button>
       </div>
@@ -90,12 +106,14 @@ export default function DeleteCandidatesPage() {
                   <span>可处置时间：{view.eligibleAt}</span>
                   <span>命中规则：{view.rule}</span>
                   <span>评分：{view.rating}</span>
-                  {view.taskId && <span>删除任务：{view.taskId}</span>}
+                  {view.taskId && <span>历史删除任务：{view.taskId}</span>}
                 </div>
                 <div className="kairoxDeleteReason">{view.reason}</div>
               </div>
               <div className="kairoxDeleteActions">
-                {canConfirmDelete(view) && <button className="danger" disabled={busy} onClick={() => confirmDelete(view)}>确认删除</button>}
+                {canReview(view) && <button disabled={busy} onClick={() => offboardMut.mutate({ itemId: view.itemId, cleanupMode: 'retain_source' })}>仅退出管理</button>}
+                {canReview(view) && <button disabled={busy} onClick={() => offboardMut.mutate({ itemId: view.itemId, cleanupMode: 'detach_source' })}>解绑并退出</button>}
+                {canConfirmDelete(view) && <button className="danger" disabled={busy} onClick={() => confirmDelete(view)}>退出并删除 source</button>}
                 {canReview(view) && <button disabled={busy} onClick={() => keepMut.mutate(view.itemId)}>继续已归档</button>}
                 {canReview(view) && <button disabled={busy} onClick={() => snoozeMut.mutate(view.itemId)}>延后 30 天</button>}
                 {canReview(view) && <button disabled={busy} onClick={() => suppressMut.mutate(view.itemId)}>不再建议</button>}

@@ -24,10 +24,11 @@ Use the smallest relevant set:
 
 | Situation | Read first |
 | --- | --- |
-| Current v3 status or next task | `docs/v3/README.md`, then `docs/v3/CURRENT_STATUS.md` and `docs/v3/CURRENT_PLAN.md` |
-| Kairox release goal meaning, whether a version is done, or worktree scope | `docs/v3/RELEASE_GOALS.md`, then `docs/v3/CURRENT_STATUS.md` |
+| Helix / Libra / Nexora architecture/process/current work | `docs/helix/README.md`, then `docs/helix/ARCHITECTURE.md`, `docs/helix/SERVICE_CONTRACTS.md`, `docs/helix/CURRENT_STATUS.md`, and `docs/helix/CURRENT_PLAN.md` |
+| Current v3/Kairox legacy status or next task | `docs/v3/README.md`, then `docs/v3/CURRENT_STATUS.md` and `docs/v3/CURRENT_PLAN.md` |
+| Kairox closure / release history, whether a version is done, or worktree scope | `docs/v3/RELEASE_GOALS.md`, then `docs/v3/CURRENT_STATUS.md` |
 | Version naming, release tag, image tag, package version, or deployment identity | `docs/v3/VERSIONING.md`, then `docs/v3/CURRENT_STATUS.md` |
-| Architecture, scheduler, task admission, automation, flow, resource runtime, module boundary | `docs/v3/KAIROX_ARCHITECTURE.md`, then `docs/v3/KAIROX_ENGINEERING_PLAYBOOK.md`; use `docs/v2/ARCH_OVERVIEW.md` only as current implementation map |
+| Existing Kairox runtime architecture, scheduler, task admission, automation, flow, resource runtime, module boundary | `docs/v3/KAIROX_ARCHITECTURE.md`, then `docs/v3/KAIROX_ENGINEERING_PLAYBOOK.md`; use `docs/v2/ARCH_OVERVIEW.md` only as current implementation map |
 | v3 docs conflict or historical context | `docs/v3/README.md` |
 | Runtime bug/debugging | `tests/TEST_ENV_CHECKLIST.md`, then `docs/v2/DEBUG_WORKFLOW.md` |
 | Production deploy/release/upgrade | `docs/v2/PRODUCTION_DEPLOYMENT.md` |
@@ -38,13 +39,20 @@ Use the smallest relevant set:
 
 ## Architecture Memory
 
-- Kairox is the named architecture contract for v3.1 evolution.
-- Kairox release goals are user-value milestones, not engineering slices. Use `docs/v3/RELEASE_GOALS.md` to decide what "Kairox Beta", "Kairox Usable", "Kairox Performance", "Kairox GA Candidate", and "Kairox GA" mean.
-- This worktree is scoped to `Kairox Beta` only. Do not start `Kairox Usable`, `Kairox Performance`, `Kairox GA Candidate`, or `Kairox GA` implementation here; those require a new worktree after Beta is accepted.
+- Kairox is a completed transitional architecture phase. `Kairox Beta` is achieved and is the only accepted Kairox release goal.
+- `Kairox Usable`, `Kairox Performance`, `Kairox GA Candidate`, and `Kairox GA` are cancelled. Do not use them as future worktree scope, release goals, Docker milestone names, or implementation plans.
+- The current architecture line is `Helix = Libra + Nexora + Kairox`. Libra is the Library Management / orchestration layer; Nexora is the Source Management capability; Kairox remains the In-Library Operation capability.
+- Helix is permanently a modular monolith inside `media-service`. Service boundaries are in-process JavaScript Facades and Store ownership boundaries, not internal microservices.
+- Libra owns LibraryMembership, Helix phase, quarantine, admission generation, and cross-domain reconciliation. Nexora owns source identity, SourceBinding, observation, and onboarding/offboarding execution. Kairox owns maintenance objectives, Task/Flow/Event, and maintenance projections.
+- Only the Libra composition root may depend on both Nexora Service and Kairox Service. Nexora and Kairox must not call each other or write each other's stores.
+- Helix documents live under `docs/helix/`; Nexora domain documents live under `docs/helix/nexora/`. Do not add new Nexora active plans, architecture contracts, acceptance plans, or implementation status under `docs/v3/`.
+- Nexora development uses three stages: Design, Implementation, Audit. Audit includes static audit, automated tests, and E2E / production-like evidence.
+- Nexora Implementation builds the Source Management domain and Kairox eligibility bridge through focused slices: Nexora Fact Model, Source Observation And Binding Validity, Kairox Eligibility Bridge, Legacy Ingest/Delete Quarantine, and Nexora Audit And Hardening.
+- E2E-discovered Nexora contract gaps must return to Design before code is patched.
 - v3.x roadmap names, Kairox milestone names, Docker image tags, Git release tags, and package versions are different concepts. Use `docs/v3/VERSIONING.md` as the source of truth.
-- `docs/v2/ARCH_OVERVIEW.md` is a current implementation map, not an architecture contract. It must not override Kairox.
+- `docs/v2/ARCH_OVERVIEW.md` is a current implementation map, not an architecture contract. It must not override the relevant current architecture contract once Nexora exists.
 - Mirex is the legacy compatibility model before Kairox. Recognize, migrate, and preserve it only for compatibility; do not extend it for new behavior.
-- Kairox task semantics are `object + targetGate + gateObjective`.
+- Kairox task semantics are inherited engineering legacy, not proof that Nexora must use lifecycle-first boundaries for Membership or SourceBinding.
 - Legacy `actionType`, operation-kind fields, and top-level selected-flow fields are Mirex remnants. They may only appear in historical docs, negative tests, or one-time cutover/migration inputs, not in new runtime task identity.
 - Task / Flow / Event boundaries are hard:
   - Task: one attempt to move one object across one target gate.
@@ -103,7 +111,8 @@ Do not run `npm run dev` as a long-running blocking command from Codex. Tell the
 - Read the code before changing it. Prefer existing patterns and helpers.
 - No workarounds or silent fallbacks when debugging; find the precise root cause.
 - When changing API, config, scheduler, task admission, flow behavior, resource behavior, or architecture contracts, update relevant tests and docs.
-- v3 planning documents must not multiply. Keep the active plan in `docs/v3/CURRENT_PLAN.md`, active status in `docs/v3/CURRENT_STATUS.md`, and move completed/superseded/evidence documents under `docs/v3/archive/`.
+- v3/Kairox planning documents must not multiply. Keep the active Kairox legacy plan in `docs/v3/CURRENT_PLAN.md`, active status in `docs/v3/CURRENT_STATUS.md`, and move completed/superseded/evidence documents under `docs/v3/archive/`.
+- Helix planning documents must not multiply. Keep the active Helix plan in `docs/helix/CURRENT_PLAN.md`, active status in `docs/helix/CURRENT_STATUS.md`, and move superseded Nexora-specific plans/evidence under `docs/helix/nexora/archive/` or `docs/helix/nexora/acceptance/`.
 - Codex Plan Mode does not create new active plan documents. A confirmed plan updates `docs/v3/CURRENT_PLAN.md`; acceptance details update an existing file under `docs/v3/acceptance/`; do not create parallel active plan files.
 - Do not invent or reuse version names during implementation. For production deployments record the Docker image tag, git commit, SHA256, and E2E status in `docs/v3/CURRENT_STATUS.md`; reserve Git release tags for accepted releases.
 - Verify impact across service Windows, service Docker, and desktop Windows according to `docs/v2/DEVELOPMENT_WORKFLOW.md`.

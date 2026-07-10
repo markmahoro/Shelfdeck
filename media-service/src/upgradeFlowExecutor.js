@@ -1057,6 +1057,9 @@ async function runPreReplaceVerify(taskId, task) {
 // Mirror of transcodeFlowExecutor.runReplace
 
 async function runReplace(taskId, task, config) {
+  if (scheduler && typeof scheduler.assertHelixAdmission === 'function') {
+    scheduler.assertHelixAdmission(taskId, 'upgrade_replace');
+  }
   setPhase(taskId, 'upgrade_replace');
   appendLog(taskId, 'info', 'Replacing old media folder');
 

@@ -77,6 +77,9 @@ async function runPrecheck(taskId) {
 }
 
 async function runFinalize(taskId) {
+  if (scheduler && typeof scheduler.assertHelixAdmission === 'function') {
+    scheduler.assertHelixAdmission(taskId, 'archive_finalize');
+  }
   setPhase(taskId, 'archive_finalize');
   scheduler.reportStatus(taskId, 'executing', 60);
 

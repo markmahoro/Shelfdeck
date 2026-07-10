@@ -34,6 +34,8 @@ ShelfDeck 是媒体库管家：基于 Emby 媒体数据、观看状态、用户�
 
 ## 3. 组件边界
 
+Helix Beta 的业务组件在同一个 `media-service` 进程内运行：Libra 是唯一 Library Management / Reconciler；Nexora Service 拥有 source truth 和 onboarding/offboarding；Kairox Service 拥有 metadata/optimize maintenance、Task/Flow/Event 和 maintenanceComplete。只有 Libra composition root 可以同时引用 Nexora 与 Kairox，两个 capability Service 不直接调用或写对方 Store。
+
 系统逻辑上分为主控侧和计算侧：
 
 | 组件 | 职责 | 状态所有权 |
@@ -191,6 +193,9 @@ Dolby Vision 转码属于转码能力层，而不是任务管理绕行策略。`
 | 模块 | 文件 | 职责 |
 | --- | --- | --- |
 | HTTP API | `src/app.js` | `/v1/*` 和 `/v1/admin/*` 路由 |
+| Libra Service | `src/libraService.js`、`src/libraRuntime.js`、`src/libraReconciler.js` | LibraryMembership、Helix phase、quarantine、admission generation、offboarding 和跨域幂等协调 |
+| Nexora Service | `src/nexoraService.js`、`src/nexoraStore.js`、`src/nexoraObservationEngine.js` | SourceBinding、source revision、observation、onboarding / diagnose / cleanup |
+| Kairox Service | `src/kairoxService.js`、`src/kairoxRuntime.js`、`src/kairoxAdmissionStore.js` | Maintenance admission、maintenanceComplete 和既有 Kairox runtime facade |
 | Server | `src/server.js` | 启动、关闭、可选 tray |
 | Config | `src/configStore.js` | `data/config.json` 读写、默认值、平台路径 |
 | Library store | `src/libraryStore.js` | `data/library.db` SQLite 读写；启动时从旧 `library.json` 一次性迁移 |
@@ -276,7 +281,8 @@ API 细节以 `src/app.js` 和现有 tests 为准。新增或变更 API 时必�
 - `GET/PATCH /v1/admin/adult/config` 管理成人库全局默认配置、日本 JAV scraper 默认项和欧美成人配置；face-service 不作为用户配置项暴露。
 - `GET/POST/PATCH/DELETE /v1/admin/adult/people` 管理 service-owned People 人物库。
 - `POST /v1/admin/adult/people/from-face` 从某个 item 的 unknown face cluster 创建 People reference face。
-- `/v1/tasks` 手动创建使用 `targetGate=ingest|metadata|optimize|archive|delete`，可带 `gateObjective` 和 `preferredFlow/selectedFlow`。`metadata` gate 可偏好 `scrape` flow，`optimize` gate 可偏好 `transcode|upgrade` flow，`delete` gate 只允许 `delete` flow。没有明确 flow 时，后端只能根据当前 lifecycle objective 和 Flow Planner 选择；不能把 flow 名称当 task target。
+- `/v1/tasks` 在 Helix 主路径只接受 Kairox maintenance target：`metadata|optimize|archive`。`ingest|delete` 返回 `410 HELIX_LEGACY_TARGET_REMOVED`；onboarding/offboarding 分别进入 Libra Admin action。没有明确 flow 时，后端只能根据当前 maintenance objective 和 Flow Planner 选择；不能把 flow 名称当 task target。
+- `POST /v1/admin/library/actions/onboard` 接受幂等 source onboarding intent。`POST /v1/admin/library/items/:itemId/actions/offboard` 接受 `retain_source|detach_source|delete_source`，其中 `delete_source` 必须显式 destructive authorization。
 - `POST /v1/admin/adult/items/:itemId/actions/rescrape` 是成人条目的显式 metadata target 入口。它通过 Task Creator/Admission 创建当前兼容的 `scrape` flow task，任务记录 `requestedIntent.intentMode=adult_rescrape`，响应保留 `taskId` 兼容字段，并返回 `task`、`taskBridge`、`flowPlan`、`requestedIntent` 和 `controlState`，让前端能解释“用户要求重刮”实际落到哪个 flow。若同 item 已有 active scrape task，返回 `409 TASK_CONFLICT`、`admission.reason=active_task_exists`、当前 `businessFlowDecision` 和轻量 `activeTask` 摘要，避免重复入口只给裸 conflict。
 - `/v1/tasks`、`/v1/tasks/:id`、`/v1/admin/tasks`、`/v1/admin/tasks/:id` 的 task response 包含 `controlState`。前端应优先使用该字段展示任务控制按钮、确认点和恢复建议，而不是只按 status 或 executor flow 自行推断。
 - `GET /v1/admin/tasks` 支持 `attention=needs_action|confirmation|recovery|manual_start`，并在 `summary.attention` 返回同一组处理队列计数。该投影由 `controlState.primaryAction` 和 action effect 推导：等待确认进入 `confirmation`，可 retry 或 resume 的任务进入 `recovery`，需要手动开始的任务进入 `manual_start`，三者合并为 `needs_action`。运行中的 queued/executing 任务、已达 retry 上限的失败任务、终态历史记录不能仅因为 status 相似就进入处理队列。列表和 attention summary 必须使用 `queryTaskSummaries` 这类轻量 current-facts projection，不能读取完整 task payload、logs、report 或 adult face clusters。

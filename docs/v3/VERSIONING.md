@@ -1,8 +1,8 @@
 # ShelfDeck Versioning
 
-本文档定义 ShelfDeck v3 / Kairox 阶段的技术版本管理口径。它解决的是“生产镜像、Git tag、package version 混在一起”的问题。
+本文档定义 ShelfDeck v3 / Kairox closure 阶段的技术版本管理口径。它解决的是“生产镜像、Git tag、package version 混在一起”的问题。
 
-大版本目标语义见 `RELEASE_GOALS.md`。如果讨论“达到 Kairox Beta / Usable / GA 是什么意思”，以 `RELEASE_GOALS.md` 为准。
+大版本目标语义见 `RELEASE_GOALS.md`。Kairox release line 已关闭；Nexora release goals 尚未定义。
 
 ## Current Version State
 
@@ -10,8 +10,8 @@ Last updated: 2026-07-08
 
 | 项 | 当前值 | 说明 |
 | --- | --- | --- |
-| Product line | `v3 / Kairox` | 当前产品和架构演进线 |
-| Current release goal | `Kairox Beta Candidate` | 当前大版本目标，见 `RELEASE_GOALS.md` 和 `CURRENT_PLAN.md` |
+| Product line | `v3 / Kairox closed; Nexora next` | Kairox 已完成历史阶段；Nexora 是下一代架构名 |
+| Current release goal | none | `Kairox Beta` 已完成；后续 Kairox goals 已取消；Nexora goals 尚未定义 |
 | Latest deployed image | `markmahoro/shelfdeck:kairox-media-freeze-20260708-46c40d62` | 当前生产运行镜像 |
 | Latest deployed commit | `46c40d62` | 当前生产代码来源 |
 | Latest deployed image SHA256 | `cc8917014320b0141f014d176829a442d09a768ac75cfb1fa6d508f5cf75c7d4` | 本地构建 tar 与 NAS 上传校验 hash |
@@ -24,7 +24,7 @@ ShelfDeck 版本分四层，不能互相替代。
 
 | 层级 | 用途 | 示例 | 管理规则 |
 | --- | --- | --- | --- |
-| Release goal | 描述当前业务/架构阶段 | `Kairox Beta`、`Kairox Usable`、`Kairox GA` | 定义在 `RELEASE_GOALS.md`，不是可部署版本号 |
+| Release goal | 描述当前业务/架构阶段 | `Kairox Beta`、future Nexora goals | 定义在 `RELEASE_GOALS.md`，不是可部署版本号 |
 | Deployable build | 标识一个生产可部署镜像 | `markmahoro/shelfdeck:kairox-freshness-20260707-263ef161` | 每次部署必须记录 image tag、commit、sha256 |
 | Git release tag | 标识正式发布点 | `v3.0.0-beta.1`、`v3.0.0` | 只有 E2E / release 验收通过后才打 tag |
 | Package version | npm / desktop package 元数据 | `1.0.0` | 不再用它表达 v3 阶段；公开发行前再统一 bump |
@@ -35,15 +35,15 @@ ShelfDeck 版本分四层，不能互相替代。
 
 Release goal 用自然语言命名，不伪装成语义化版本。
 
-推荐：
+Kairox release goals:
 
 ```text
 Kairox Beta
-Kairox Usable
-Kairox Performance
-Kairox GA Candidate
-Kairox GA
 ```
+
+`Kairox Beta` is achieved. `Kairox Usable` / `Kairox Performance` / `Kairox GA Candidate` / `Kairox GA` are cancelled.
+
+Nexora release goals are intentionally undefined until the Nexora architecture contract is accepted.
 
 不推荐：
 
@@ -68,7 +68,7 @@ v3.11
 ```text
 kairox-freshness-20260707-263ef161
 kairox-e2e-fix-20260708-a1b2c3d4
-kairox-ga-candidate-20260715-9f8e7d6c
+nexora-architecture-20260715-9f8e7d6c
 ```
 
 规则：
@@ -123,13 +123,13 @@ Development commit
 当前项目处于：
 
 ```text
-Production deployed build
+Kairox Beta accepted; production Kairox runtime intentionally taken down for cleanup
 ```
 
 尚未进入：
 
 ```text
-E2E accepted build
+Nexora architecture contract
 ```
 
 ## Required Records For Deployment

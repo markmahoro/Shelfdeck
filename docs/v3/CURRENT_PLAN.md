@@ -4,117 +4,79 @@ Last updated: 2026-07-08
 
 ## Current Objective
 
-Close `Kairox Beta` in this worktree.
+Close and archive the Kairox phase.
 
-`Kairox Beta` means proving the Kairox business chain works in production with a real test sample. It does not mean UI GA or scheduler performance optimization.
+`Kairox Beta` has been accepted as achieved. The production Frontend/API E2E run passed Stage 0-15 on the canary item, and the Kairox Beta production runtime was intentionally taken down and cleaned up after acceptance.
 
-This worktree stops at `Kairox Beta`. Later goals require a new worktree.
+There is no active Kairox implementation plan after this closure.
 
-The production Kairox Frontend/API E2E run has passed Stage 0-15 on the canary item and `Kairox Beta` is accepted as achieved.
+## Kairox Closure
 
-The current implementation task is complete. The remaining work in this worktree is documentation closure, commit, and merge to `main`.
+Kairox is now a completed transitional architecture phase. It remains useful as engineering legacy and implementation evidence, especially for:
 
-Automation must now follow:
+- `object + targetGate + gateObjective` task identity.
+- Flow Planner separation from task identity.
+- canonical facts / staged facts / event evidence separation.
+- TaskAdmission discipline.
+- Resource Runtime as the prototype for resource-event execution.
+
+Kairox no longer defines ShelfDeck's future full business architecture.
+
+The previously planned post-Beta Kairox goals are cancelled:
+
+- `Kairox Usable`
+- `Kairox Performance`
+- `Kairox GA Candidate`
+- `Kairox GA`
+
+These names must not be used as future worktree scope, release goal, roadmap title, Docker image milestone, or product acceptance target.
+
+## Nexora Handoff
+
+The next architecture is named `Nexora`.
+
+Nexora is not yet an active implementation plan. Before implementation starts, it must define its own architecture contract, release goals, status, and acceptance boundary.
+
+Nexora design should start from a clean business architecture boundary instead of extending Kairox lifecycle-first assumptions:
 
 ```text
-information change layer: write facts / freshness / policy / evidence only
-periodic scan layer: the only background automatic task creation mechanism
-queue scheduling layer: schedule already-created tasks only
+Onboarding
+In-Library Lifecycle
+Offboarding
+Global Resource Management
 ```
 
-User-visible run scan / refresh library is removed from the product model. Users can only intervene on a concrete media item, concrete task, or concrete delete candidate.
+Kairox documents may be used as historical input, but they must not override Nexora once the Nexora contract is written.
 
-Media Freeze must now follow:
+## Active Evidence
 
-```text
-task terminal done
--> task finalizer writes mediaFreeze when configured for completed targetGate
--> Lifecycle can still project nextTargetGate
--> TaskAdmission rejects any new task while mediaFreeze is active
--> periodic scan or manual intent can create tasks only after freeze expires
-```
-
-This prevents post-optimize ingest/metadata refresh from reading external technical facts before Emby or the filesystem has stabilized. It is not a chained task and does not change gate achievement semantics.
-
-The E2E goal is to prove:
-
-```text
-frontend pages are visible
--> API projections are Kairox-correct
--> facts freshness works
--> lifecycle computes the next target gate
--> task creator creates targetGate tasks
--> Flow Planner selects the flow
--> Resource Runtime executes it
--> gate facts advance
--> archive and delete review remain separated from optimize
-```
-
-## Current Execution Order
-
-1. Do not implement additional runtime changes in this worktree.
-2. Automation model closure is complete and deployed:
-   - `POST /v1/library/actions/refresh` and `/ingest` are removed from product runtime.
-   - SmartTaskEngine automatic creation only comes from the internal periodic timer.
-   - SmartTaskEngine consumes LifecycleSnapshot, not lightweight media rows.
-   - delete confirm / adult rescrape / media-detail manual task creation use unified Task Creator + TaskAdmission.
-   - frontend automation configuration separates automatic creation, periodic scan, creation protection, queue priority, and flow execution confirmation.
-3. Refresh cutover implementation is complete and deployed:
-   - `refresh` is not a targetGate, flowKind, task type, or user-triggered scan.
-   - Emby inventory discovery produces source observations.
-   - LifecycleSnapshot / Task Creator turn observations into target-gate tasks during periodic scan.
-   - TaskAdmission remains the only creation gate.
-   - Resource Runtime and executors publish facts through the owning gate.
-4. Post-optimize canonical refresh implementation is complete and deployed:
-   - transcode / upgrade write staged facts and evidence, not canonical media facts.
-   - Lifecycle projects `pending_canonical_refresh` back to ingest / metadata.
-   - E2E Stage 7 validates canonical refresh before archive.
-5. Media Freeze is complete and deployed:
-   - `media_items` stores freeze state in hot columns, not `payload_json` only.
-   - optimize done writes a 24h media freeze by default.
-   - TaskAdmission rejects automatic and manual tasks for frozen media with `media_frozen`.
-   - media list/detail projection and E2E Stage 10 expose freeze evidence.
-6. Production E2E has passed one stage at a time on item `81945`.
-7. Production automation audit is recorded as follow-up evidence:
-   - `source_missing` ingest loop is a next-stage onboarding/automation governance issue.
-   - `optimizeAllowedFlowKinds=[]` and archive automatic target configuration are production configuration/follow-up issues.
-   - These findings do not block `Kairox Beta` acceptance.
-
-## Active E2E Plan
-
-The active detailed E2E plan is:
+Kairox Beta evidence remains in:
 
 ```text
 docs/v3/acceptance/KAIROX_FRONTEND_API_E2E_PLAN.md
-```
-
-The active report artifact is:
-
-```text
 docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
+docs/v3/acceptance/KAIROX_PRODUCTION_AUTOMATION_AUDIT.md
 ```
 
-## Explicit Non-Goals Right Now
+The production automation audit is follow-up evidence, not a Kairox Beta blocker. Its findings should be reinterpreted during Nexora design, especially the `source_missing` ingest loop and the `delete` / source-destruction boundary.
 
-- Do not start Kairox Performance work before production E2E proves the business chain.
-- Do not start Frontend GA polish before production E2E proves the business chain.
-- Do not start Kairox Usable, Kairox Performance, Kairox GA Candidate, or Kairox GA work in this worktree.
-- Do not create another roadmap or competing active plan.
-- Do not use archived Codex plans as implementation guidance.
-- Do not use old v3.x roadmap names as current version identity.
-- Do not treat package version `1.0.0` or Docker `latest` as production version identity.
-- Do not run destructive production actions outside the selected E2E canary scope.
-- Do not add a `refresh` target gate, flow kind, or task type.
-- Do not restore batch refresh as a direct canonical facts writer.
-- Do not expose user-triggered run scan, refresh library, or scan sub-library as a product capability.
-- Do not treat approval/confirmation as automation authorization; approval belongs to task flow execution.
+## Explicit Non-Goals
+
+- Do not implement new runtime changes as part of Kairox closure.
+- Do not start `Kairox Usable`, `Kairox Performance`, `Kairox GA Candidate`, or `Kairox GA`.
+- Do not create a `Kairox Governance` architecture or release goal.
+- Do not create another active v3 plan document.
+- Do not use archived Kairox or v3.x roadmap documents as implementation guidance.
+- Do not carry Kairox's lifecycle-first `ingest/delete` boundary into Nexora without explicit redesign.
 
 ## Next Recommended Action
 
-Finish worktree closure:
+Start Nexora architecture design in discussion first.
 
-```text
-1. Commit the closure documentation and production automation audit.
-2. Merge this worktree branch to main.
-3. Start any next release goal in a new worktree.
-```
+When Nexora boundaries are accepted, update the existing current documents instead of creating parallel active plans:
+
+- `docs/v3/CURRENT_PLAN.md`
+- `docs/v3/CURRENT_STATUS.md`
+- `docs/v3/RELEASE_GOALS.md`
+- `docs/v3/VERSIONING.md`
+- architecture contract / ADR documents as needed

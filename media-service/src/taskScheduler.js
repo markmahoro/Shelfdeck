@@ -526,12 +526,14 @@ function startScheduler() {
       schedulerBusy = false;
     }
   }, 5000);
+  schedulerInterval.unref && schedulerInterval.unref();
 
   // Start node health monitoring
   const nodeIntervalMs = configStore.loadConfig().nodeHealthCheckIntervalMs || 30000;
   nodeHealthInterval = setInterval(() => {
     checkNodeHealth().catch((err) => console.error('[scheduler] node health error:', err));
   }, nodeIntervalMs);
+  nodeHealthInterval.unref && nodeHealthInterval.unref();
   // Run immediately on startup
   checkNodeHealth().catch((err) => console.error('[scheduler] initial node health check error:', err));
 }

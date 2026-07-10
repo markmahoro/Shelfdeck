@@ -454,10 +454,10 @@ test('POST /v1/tasks rejects delete as an optimize objective', async () => {
     url: '/v1/tasks',
     payload: { itemId, targetGate: 'optimize' },
   });
-  assert.strictEqual(res.statusCode, 409);
+  assert.strictEqual(res.statusCode, 400);
   const body = res.json();
-  assert.strictEqual(body.error.code, 'TASK_ADMISSION_REJECTED');
-  assert.strictEqual(body.admission.reason, 'optimize_objective_not_ready');
+  assert.strictEqual(body.error.code, 'VALIDATION_ERROR');
+  assert.strictEqual(body.admission.reason, 'delete_is_not_optimize');
   assert.strictEqual(body.lifecycleProjection.optimizeObjectiveStatus, 'blocked_contract');
   assert.strictEqual(body.lifecycleProjection.objectiveBlockedReason, 'objective_unknown');
   await app.close();
@@ -766,7 +766,7 @@ test('GET /v1/library keeps flow failure evidence separate from optimize gate ac
   }
 });
 
-test('manual delete task is planned as delete gate after review confirmation', async () => {
+test('manual Kairox delete task creation is removed under Helix', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const itemId = 'optimize-delete-item';
@@ -786,12 +786,8 @@ test('manual delete task is planned as delete gate after review confirmation', a
     url: '/v1/tasks',
     payload: { itemId, targetGate: 'delete', preferredFlow: 'delete' },
   });
-  assert.strictEqual(res.statusCode, 201);
-  assert.strictEqual(res.json().taskTarget.targetGate, 'delete');
-  assert.strictEqual(res.json().taskTarget.gateObjective.kind, 'delete_archived_media');
-  assert.strictEqual(res.json().taskBridge.kind, 'delete');
-  assert.strictEqual(res.json().flowPlan.direction, 'delete.execute');
-  assert.strictEqual(res.json().flowPlan.flowKind, 'delete');
+  assert.strictEqual(res.statusCode, 410);
+  assert.strictEqual(res.json().error.code, 'HELIX_LEGACY_TARGET_REMOVED');
   await app.close();
 });
 
@@ -1307,8 +1303,8 @@ test('POST /v1/tasks manual admission does not load full task history', async ()
 test('GET /v1/tasks lists created tasks', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i1', targetGate: 'metadata', preferredFlow: 'scrape' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i2', targetGate: 'metadata', preferredFlow: 'scrape' } });
+  taskStore.createTask(kairoxTask('scrape', { itemId: 'i1', status: 'created' }));
+  taskStore.createTask(kairoxTask('scrape', { itemId: 'i2', status: 'created' }));
   const res = await app.inject({ method: 'GET', url: '/v1/tasks' });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
@@ -1320,9 +1316,9 @@ test('GET /v1/tasks lists created tasks', async () => {
 test('GET /v1/tasks defaults to active tasks and includeHistory returns completed history', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const done = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-done', targetGate: 'metadata', preferredFlow: 'scrape' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-active', targetGate: 'metadata', preferredFlow: 'scrape' } });
-  taskStore.updateTask(done.json().id, { status: 'done' });
+  const done = taskStore.createTask(kairoxTask('scrape', { itemId: 'i-done', status: 'created' }));
+  taskStore.createTask(kairoxTask('scrape', { itemId: 'i-active', status: 'created' }));
+  taskStore.updateTask(done.id, { status: 'done' });
 
   const originalLoadTasks = taskStore.loadTasks;
   taskStore.loadTasks = () => {
@@ -1353,8 +1349,8 @@ test('GET /v1/tasks defaults to active tasks and includeHistory returns complete
 test('GET /v1/tasks/:id returns task detail', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-detail', targetGate: 'metadata', preferredFlow: 'scrape' } });
-  const { id } = create.json();
+  const create = taskStore.createTask(kairoxTask('scrape', { itemId: 'i-detail', status: 'created' }));
+  const { id } = create;
   const res = await app.inject({ method: 'GET', url: `/v1/tasks/${id}` });
   assert.strictEqual(res.statusCode, 200);
   const task = res.json();
@@ -1428,8 +1424,8 @@ test('GET /v1/tasks/:id/report returns scrape details', async () => {
 test('DELETE /v1/tasks/:id removes task', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'i-del', targetGate: 'metadata', preferredFlow: 'scrape' } });
-  const { id } = create.json();
+  const create = taskStore.createTask(kairoxTask('scrape', { itemId: 'i-del', status: 'created' }));
+  const { id } = create;
   const res = await app.inject({ method: 'DELETE', url: `/v1/tasks/${id}` });
   assert.strictEqual(res.statusCode, 200);
   const body = res.json();
@@ -1477,29 +1473,32 @@ test('delete task removes an adult folder media directory and library item', asy
     deleteCandidate: { candidateStatus: 'confirmed', decision: 'confirm_delete' },
   })]);
 
-  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, targetGate: 'delete', preferredFlow: 'delete' } });
-  assert.strictEqual(createTask.statusCode, 201);
-
   const taskStore = require('../src/taskStore');
+  const legacyTask = taskStore.createTask(kairoxTask('delete', {
+    itemId: item.itemId,
+    status: 'created',
+    itemInfo: mediaLibraryService.getLibraryItem(item.itemId),
+    gateObjective: { kind: 'delete_archived_media' },
+  }));
   const deleteFlow = require('../src/deleteFlowExecutor');
   deleteFlow.setScheduler({
     reportStatus: (id, status, progress) => taskStore.updateTask(id, { status, progress: progress ?? undefined }),
     pauseForConfirm: () => { throw new Error('delete should not pause when approval is auto'); },
   });
-  await deleteFlow.driveTask(createTask.json().id);
+  await deleteFlow.driveTask(legacyTask.id);
 
   assert.strictEqual(fs.existsSync(movieDir), false, 'delete task should remove the whole media folder');
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(lib.json().total, 0, 'delete task should remove the library cache item');
-  const done = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
+  const done = await app.inject({ method: 'GET', url: `/v1/tasks/${legacyTask.id}` });
   assert.strictEqual(done.json().status, 'done');
-  assert.strictEqual(done.json().flowPlan.direction, 'delete.execute');
+  assert.strictEqual(done.json().flowPlan.direction, 'delete.delete');
   assert.strictEqual(done.json().deleteGate.passed, true);
   assert.strictEqual(done.json().deleteGate.flowKind, 'delete');
   assert.strictEqual(done.json().deleteGate.reason, 'delete_target_removed');
   assert.strictEqual(done.json().verifyResult.deletedAt, done.json().deleteGate.observed.deletedAt);
   assert.strictEqual(done.json().optimizeGate, undefined);
-  const report = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}/report` });
+  const report = await app.inject({ method: 'GET', url: `/v1/tasks/${legacyTask.id}/report` });
   assert.strictEqual(report.statusCode, 200);
   assert.strictEqual(report.json().bytesFreed, Buffer.byteLength('delete-me'));
   assert.strictEqual(report.json().delete.targetKind, 'directory');
@@ -1554,24 +1553,27 @@ test('delete task removes an adult scraped movie folder when the marker matches'
     .map((name) => fs.statSync(path.join(movieDir, name)).size)
     .reduce((sum, size) => sum + size, 0);
 
-  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: item.itemId, targetGate: 'delete', preferredFlow: 'delete' } });
-  assert.strictEqual(createTask.statusCode, 201);
-
   const taskStore = require('../src/taskStore');
+  const legacyTask = taskStore.createTask(kairoxTask('delete', {
+    itemId: item.itemId,
+    status: 'created',
+    itemInfo: mediaLibraryService.getLibraryItem(item.itemId),
+    gateObjective: { kind: 'delete_archived_media' },
+  }));
   const deleteFlow = require('../src/deleteFlowExecutor');
   deleteFlow.setScheduler({
     reportStatus: (id, status, progress) => taskStore.updateTask(id, { status, progress: progress ?? undefined }),
     pauseForConfirm: () => { throw new Error('delete should not pause when approval is auto'); },
   });
-  await deleteFlow.driveTask(createTask.json().id);
+  await deleteFlow.driveTask(legacyTask.id);
 
   assert.strictEqual(fs.existsSync(movieDir), false, 'delete task should remove the whole scraped movie folder');
   assert.strictEqual(fs.existsSync(path.join(watchRoot, 'scraped')), true, 'delete task must not remove the scraped root');
   const lib = await app.inject({ method: 'GET', url: `/v1/library?subLibraryId=${subLib.uuid}` });
   assert.strictEqual(lib.json().total, 0, 'delete task should remove the library cache item');
-  const report = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}/report` });
+  const report = await app.inject({ method: 'GET', url: `/v1/tasks/${legacyTask.id}/report` });
   assert.strictEqual(report.statusCode, 200);
-  const done = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
+  const done = await app.inject({ method: 'GET', url: `/v1/tasks/${legacyTask.id}` });
   assert.strictEqual(done.json().deleteGate.passed, true);
   assert.strictEqual(done.json().deleteStatus, 'deleted');
   assert.strictEqual(done.json().optimizeGate, undefined);
@@ -1636,19 +1638,22 @@ test('delete task refuses adult folder media paths outside watchRoot', async () 
   }];
   mediaLibraryService.saveLibrary(lib);
 
-  const createTask = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, targetGate: 'delete', preferredFlow: 'delete' } });
-  assert.strictEqual(createTask.statusCode, 201);
-
   const taskStore = require('../src/taskStore');
+  const legacyTask = taskStore.createTask(kairoxTask('delete', {
+    itemId,
+    status: 'created',
+    itemInfo: mediaLibraryService.getLibraryItem(itemId),
+    gateObjective: { kind: 'delete_archived_media' },
+  }));
   const deleteFlow = require('../src/deleteFlowExecutor');
   deleteFlow.setScheduler({
     reportStatus: (id, status, progress) => taskStore.updateTask(id, { status, progress: progress ?? undefined }),
     pauseForConfirm: () => { throw new Error('unsafe delete should fail before confirmation'); },
   });
-  await deleteFlow.driveTask(createTask.json().id);
+  await deleteFlow.driveTask(legacyTask.id);
 
   assert.strictEqual(fs.existsSync(outsideFile), true, 'delete task must not remove files outside watchRoot');
-  const failed = await app.inject({ method: 'GET', url: `/v1/tasks/${createTask.json().id}` });
+  const failed = await app.inject({ method: 'GET', url: `/v1/tasks/${legacyTask.id}` });
   assert.strictEqual(failed.json().status, 'failed_hard');
   await app.close();
 });
@@ -2863,8 +2868,8 @@ test('GET /v1/admin/tasks returns list with summary', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-test-'));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
   const taskStore = require('../src/taskStore');
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a1', targetGate: 'metadata', preferredFlow: 'scrape' } });
-  await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'a2', targetGate: 'metadata', preferredFlow: 'scrape' } });
+  taskStore.createTask(kairoxTask('scrape', { itemId: 'a1', status: 'created', source: 'manual' }));
+  taskStore.createTask(kairoxTask('scrape', { itemId: 'a2', status: 'created', source: 'manual' }));
   taskStore.createTask({
     itemId: 'a3',
     SelectedFlow: 'scrape',

@@ -123,6 +123,12 @@ export const subLibraries = {
   remove: (uuid: string) =>
     del<{ ok: boolean; uuid: string }>(`/v1/admin/sublibraries/${uuid}`),
 
+  offboard: (uuid: string, body: { idempotencyKey: string; reason?: string }) =>
+    post<{ ok: boolean; uuid: string; cleanupMode: 'retain_source'; result: Record<string, unknown> }>(
+      `/v1/admin/sublibraries/${uuid}/actions/offboard`,
+      { ...body, cleanupMode: 'retain_source' },
+    ),
+
 };
 
 // ── Adult Libraries ─────────────────────────────────────────────────────────
@@ -524,6 +530,19 @@ export const deleteCandidates = {
     post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/snooze`, { days }),
   suppress: (itemId: string) =>
     post(`/v1/admin/delete-candidates/${encodeURIComponent(itemId)}/actions/suppress`, {}),
+};
+
+export type HelixCleanupMode = 'retain_source' | 'detach_source' | 'delete_source';
+
+export const helixLibrary = {
+  onboard: (body: { itemId?: string; idempotencyKey: string; sourceReference: Record<string, unknown> }) =>
+    post('/v1/admin/library/actions/onboard', body),
+  offboard: (itemId: string, body: {
+    idempotencyKey: string;
+    cleanupMode: HelixCleanupMode;
+    reason?: string;
+    destructiveAuthorization?: boolean;
+  }) => post(`/v1/admin/library/items/${encodeURIComponent(itemId)}/actions/offboard`, body),
 };
 
 // ── Activity Log ─────────────────────────────────────────────────────────────────

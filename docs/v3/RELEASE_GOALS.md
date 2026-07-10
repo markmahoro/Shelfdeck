@@ -1,36 +1,32 @@
-# ShelfDeck Kairox Release Goals
+# ShelfDeck Release Goals
 
-本文档定义 ShelfDeck Kairox 阶段的“大版本目标语义”。它回答的是：
+Last updated: 2026-07-08
 
-```text
-我们说已经达到某个 XX 版，到底是什么意思？
-```
+本文档记录 Kairox 阶段的 release goal closure，并为后续 Nexora release goal 留出重新定义空间。
 
-它不定义 Docker tag、Git tag 或 package version。技术版本记录见 `VERSIONING.md`。
+## Current Rule
 
-## Version Goal Rules
+Kairox release line is closed.
 
-- 大版本按用户价值和业务能力命名，不按工程层级命名。
-- 每个大版本必须有清晰的目标、必须具备、不要求、验收方式和达成后下一步。
-- 一个大版本未验收通过时，不能宣称已达到。
-- 后续版本不能反向补前一个版本的核心验收。
-- 当前 worktree 只推进到 `Kairox Beta`。`Kairox Usable`、`Kairox Performance`、`Kairox GA Candidate`、`Kairox GA` 必须新开 worktree。
+`Kairox Beta` is the only accepted Kairox release goal. The previously planned post-Beta Kairox goals are cancelled and must not be used as active roadmap or implementation scope.
 
-## Version Goals
+Nexora will define its own release goals after its architecture boundary is accepted.
 
-| 大版本 | 一句话目标 | 当前状态 |
+## Kairox Closure State
+
+| Goal | Status | Meaning |
 | --- | --- | --- |
-| `Kairox Beta` | 证明 Kairox 业务主链路在生产真实样本中跑通；用户不一定好用，但系统语义必须正确 | Achieved，生产 E2E 已通过 |
-| `Kairox Usable` | 普通用户可以通过前端完成核心媒体管理流程，不需要理解内部架构 | Not started，新 worktree |
-| `Kairox Performance` | 在真实库规模下，系统能持续自动跑，控制面稳定，资源利用率可接受 | Not started，新 worktree |
-| `Kairox GA Candidate` | 功能、体验、性能、恢复、安全处置都达到发布前候选状态 | Not started，新 worktree |
-| `Kairox GA` | 正式用户可用版，后续进入常规迭代 | Not started，新 worktree |
+| `Kairox Beta` | Achieved | Transitional Kairox architecture proved the in-library management chain on a production sample |
+| `Kairox Usable` | Cancelled | Superseded by Nexora architecture reset |
+| `Kairox Performance` | Cancelled | Superseded by Nexora architecture reset |
+| `Kairox GA Candidate` | Cancelled | Superseded by Nexora architecture reset |
+| `Kairox GA` | Cancelled | Superseded by Nexora architecture reset |
 
 ## Kairox Beta
 
 ### Goal
 
-证明 ShelfDeck 已经按 Kairox 架构跑通核心业务链路：
+Kairox Beta proved the Kairox business chain in production:
 
 ```text
 media facts + user perception
@@ -43,151 +39,69 @@ media facts + user perception
 -> delete review
 ```
 
-### Must Have
+### Acceptance Result
 
-- 生产环境部署 Kairox Runtime Cutover 后的代码。
-- 使用生产指定测试库和真实样本完成 E2E：
-  - 测试库：`公共 国产剧库`
-  - 测试样本：`漫长的季节`
-- facts freshness 生效：
-  - 文件变化后旧 media / metadata facts 不被继续当成最新事实。
-  - stale canonical facts 能驱动 metadata refresh。
-- metadata / user perception / lifecycle objective 边界正确：
-  - metadata gate 不等待 perception。
-  - perception 变化触发 objective revision，不直接创建 task。
-  - Lifecycle 负责计算 next target gate。
-- task 语义正确：
-  - task identity 是 `object + targetGate + gateObjective`。
-  - optimize task 不是 transcode candidate。
-  - delete task 是 `targetGate=delete`，不经过 optimize。
-- Flow Planner 语义正确：
-  - Flow Planner 决定 no-op / transcode / upgrade / blocked。
-  - 前端和 Task Creator 不把 flow 当任务身份。
-- Resource Runtime / executor 链路跑通：
-  - 能执行或推进 flow。
-  - 能产生 event evidence / staged facts / gate facts。
-- archive 和 delete review 语义正确：
-  - archive 不是永久终点。
-  - delete candidate 需要 review。
-  - 未确认前不执行 destructive delete。
-- 前端只需 Beta 级可见：
-  - Dashboard / Media / Task Center / Delete Review / Policies / Advanced 可打开。
-  - 用户能看到关键 facts、lifecycle、objective、task、delete candidate 状态。
+Accepted on 2026-07-08.
 
-### Not Required
-
-- 不要求普通用户完整顺滑地完成所有操作。
-- 不要求 UI 文案完全统一。
-- 不要求信息架构达到 GA 水平。
-- 不要求调度资源吃满。
-- 不要求生产库全量自动跑完。
-- 不要求 package version bump。
-- 不要求 Git release tag。
-
-### Acceptance
-
-- 执行 `docs/v3/acceptance/KAIROX_FRONTEND_API_E2E_PLAN.md`。
-- 生产 E2E 必须 stage by stage 执行。
-- 每个 stage 必须记录 pass/fail、证据和下一步。
-- 如果 stage 失败，停在该 stage 定位根因，不跳 stage。
-- 验收报告写入 `docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md`。
-
-### Done Means
-
-当生产 E2E 完整通过后，才可以说：
+Production Frontend/API E2E Stage 0-15 passed on the canary item:
 
 ```text
-Kairox Beta achieved.
+公共 国产剧库 / 81945 / 爱很美味 / Season 1
 ```
 
-### After Done
+The accepted evidence is recorded in:
 
-本 worktree 到 `Kairox Beta` 为止。下一阶段必须新开 worktree，并从以下目标中选择一个：
+```text
+docs/v3/acceptance/KAIROX_FRONTEND_API_E2E.md
+```
+
+### Historical Value
+
+Kairox leaves durable engineering assets:
+
+- task identity as `object + targetGate + gateObjective`.
+- Flow Planner owning implementation path selection.
+- TaskAdmission as the unified creation gate.
+- Resource Runtime as the first resource-event execution layer.
+- canonical facts, staged facts, event evidence, and fact freshness separation.
+- delete review separated from optimize flow.
+
+### Known Limitation
+
+Kairox Beta proved the In-Library Lifecycle chain. It did not settle ShelfDeck's full business architecture.
+
+The final production automation audit found that Onboarding and Offboarding were not modeled clearly enough:
+
+- `source_missing` items could repeatedly consume automatic `targetGate=ingest` creation capacity.
+- `delete` mixed source destruction and leaving ShelfDeck management.
+- Resource Runtime remained lifecycle-first instead of global.
+
+These limitations are not Kairox Beta blockers. They are architecture inputs for Nexora.
+
+## Cancelled Kairox Goals
+
+The following sections are intentionally not retained as future requirements:
 
 - `Kairox Usable`
 - `Kairox Performance`
 - `Kairox GA Candidate`
+- `Kairox GA`
 
-## Kairox Usable
+Do not quote old archived descriptions of these goals as current acceptance criteria.
 
-### Goal
+If similar user-value stages are needed later, define them under Nexora with new names, new scope, and new acceptance criteria.
 
-普通用户可以通过前端完成核心媒体管理流程，不需要理解 Kairox 内部架构。
+## Nexora Placeholder
 
-### Must Have
+Nexora is the next-generation ShelfDeck business architecture.
 
-- 普通用户能看懂 Dashboard 的系统健康和媒体库管理成果。
-- 媒体库页面能解释每个媒体的 facts、目标、生命周期状态和下一步。
-- 任务中心能解释正在做什么、哪里需要用户介入、失败后怎么恢复。
-- 处置队列能让用户处理删除建议。
-- 管理策略能让用户配置媒体库、用户感知、媒体优化目标、自动化和处置策略。
+Nexora release goals are not defined yet. They should be created only after the Nexora architecture contract has settled the business domains:
 
-### Not Required
+```text
+Onboarding
+In-Library Lifecycle
+Offboarding
+Global Resource Management
+```
 
-- 不要求调度资源达到最佳利用率。
-- 不要求所有高级诊断都适合普通用户。
-
-### Acceptance
-
-- 用户视角完整前端 E2E。
-- 不要求用户理解 `targetGate`、Flow Planner、Resource Runtime 等内部术语。
-
-## Kairox Performance
-
-### Goal
-
-在真实库规模下，系统能持续自动跑，控制面稳定，资源利用率可接受。
-
-### Must Have
-
-- Dashboard / Media / Task Center / Policies 在后台任务运行时仍秒级可用。
-- Scheduler supply policy 不因单个 heavy flow 或 awaiting confirmation 阻塞所有自动任务。
-- 无同 item + targetGate 重复 active task。
-- 无自动任务绕过 TaskAdmission。
-- 有生产压测报告和推荐配置。
-
-### Not Required
-
-- 不扩展新业务能力。
-- 不改变 Kairox 语义。
-
-### Acceptance
-
-- 真实库规模压力测试。
-- API latency、queue growth、DB/WAL growth、duplicate task、failure storm 均有记录和结论。
-
-## Kairox GA Candidate
-
-### Goal
-
-功能、体验、性能、恢复、安全处置都达到发布前候选状态。
-
-### Must Have
-
-- `Kairox Beta` 已达成。
-- `Kairox Usable` 已达成。
-- `Kairox Performance` 已达成。
-- 恢复、重试、取消、确认、删除安全边界均通过验收。
-
-### Acceptance
-
-- 发布前完整验收清单。
-- 用户视角、生产控制面、后台自动化、失败恢复和 destructive safety 均通过。
-
-## Kairox GA
-
-### Goal
-
-正式用户可用版。
-
-### Must Have
-
-- GA Candidate 验收通过。
-- 用户确认可发布。
-- 发布记录、回滚说明、已知问题和后续计划完整。
-
-### Acceptance
-
-- 用户批准。
-- Git release tag 可创建。
-- 后续进入常规迭代。
+Until then, the project has no active post-Kairox release goal.

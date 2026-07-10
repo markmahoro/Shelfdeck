@@ -11,7 +11,7 @@ function readRepoFile(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
 
-test('Kairox rebaseline docs define User Perception and active roadmap', () => {
+test('Kairox rebaseline docs preserve User Perception and closure boundary', () => {
   const architecture = readRepoFile('docs/v3/KAIROX_ARCHITECTURE.md');
   const currentPlan = readRepoFile('docs/v3/CURRENT_PLAN.md');
   const releaseGoals = readRepoFile('docs/v3/RELEASE_GOALS.md');
@@ -22,7 +22,9 @@ test('Kairox rebaseline docs define User Perception and active roadmap', () => {
   assert.match(architecture, /metadata gate 不覆盖 user perception facts/);
   assert.match(architecture, /metadata gate passed` 不等于 `optimize objective ready/);
   assert.match(currentPlan, /Kairox Beta/);
-  assert.match(currentPlan, /Media Freeze admission guard/);
+  assert.match(currentPlan, /completed transitional architecture phase/);
+  assert.match(currentPlan, /There is no active Kairox implementation plan/);
+  assert.doesNotMatch(currentPlan, /## Kairox Usable/);
   assert.match(architecture, /Media Freeze/);
   assert.match(releaseGoals, /Kairox Beta/);
   assert.match(playbook, /User Perception Management/);

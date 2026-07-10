@@ -4,8 +4,9 @@ Last updated: 2026-07-08
 
 ## Production
 
-- Current release goal: `Kairox Beta achieved`
-- Worktree scope: this worktree stops at `Kairox Beta`; later goals require a new worktree.
+- Current release goal: none after Kairox closure
+- Kairox status: `Kairox Beta achieved`; Kairox release line is closed
+- Next architecture name: `Nexora`; not yet an active implementation plan
 - Production URL: `http://192.168.12.230:18080`
 - Latest deployed image: `markmahoro/shelfdeck:kairox-media-freeze-20260708-46c40d62`
 - Latest deployed commit: `46c40d62 Add media freeze admission guard`
@@ -19,6 +20,9 @@ Last updated: 2026-07-08
 
 ## Current Architecture State
 
+- Kairox is closed as a transitional architecture phase after `Kairox Beta`.
+- `Kairox Usable`, `Kairox Performance`, `Kairox GA Candidate`, and `Kairox GA` are cancelled and must not be used as future roadmap or implementation scope.
+- Nexora is the next-generation ShelfDeck business architecture name. Its contract has not been written yet.
 - Kairox backend runtime cutover is functionally implemented enough for production E2E:
   - task identity is `object + targetGate + gateObjective`.
   - Flow Planner owns flow selection.
@@ -102,11 +106,12 @@ Last updated: 2026-07-08
 
 | Goal | Status | Notes |
 | --- | --- | --- |
-| `Kairox Beta` | Achieved | Production Frontend/API business E2E Stage 0-15 passed on item `81945`; this worktree is ready to merge to `main` |
-| `Kairox Usable` | Not started | Requires new worktree after Kairox Beta |
-| `Kairox Performance` | Not started | Requires new worktree after Kairox Beta |
-| `Kairox GA Candidate` | Not started | Requires new worktree after Kairox Beta |
-| `Kairox GA` | Not started | Requires new worktree after Kairox Beta |
+| `Kairox Beta` | Achieved | Production Frontend/API business E2E Stage 0-15 passed on item `81945` |
+| `Kairox Usable` | Cancelled | Superseded by Nexora architecture reset |
+| `Kairox Performance` | Cancelled | Superseded by Nexora architecture reset |
+| `Kairox GA Candidate` | Cancelled | Superseded by Nexora architecture reset |
+| `Kairox GA` | Cancelled | Superseded by Nexora architecture reset |
+| `Nexora` | Named, not started | Architecture design has not started; no release goals yet |
 
 ## Unresolved / Not Yet Proven
 
@@ -156,7 +161,9 @@ Last updated: 2026-07-08
   - optimize / archive / delete review gate progression.
 - Scheduler pressure optimization is not part of this completed Beta worktree.
 - Full UI GA is not part of this completed Beta worktree.
-- This worktree is closed at `Kairox Beta` and must not start `Kairox Usable`, `Kairox Performance`, `Kairox Governance`, or `Kairox GA` implementation.
+- This worktree is closed at `Kairox Beta`.
+- Do not start `Kairox Usable`, `Kairox Performance`, `Kairox Governance`, `Kairox GA Candidate`, or `Kairox GA`; those names are cancelled.
+- Do not start Nexora implementation until Nexora architecture design is discussed and accepted.
 
 ## Worktree Notes
 

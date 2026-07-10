@@ -56,6 +56,7 @@ export interface KairoxMediaProjection {
   metadataFacts: Record<string, unknown>;
   userPerceptionFacts: Record<string, unknown>;
   gateFacts: Record<string, unknown>;
+  helix?: Record<string, unknown> | null;
   factsFreshness: FactsFreshnessProjection;
   mediaFreeze: MediaFreezeProjection;
   lifecycle: {

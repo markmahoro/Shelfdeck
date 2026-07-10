@@ -1,5 +1,7 @@
 # Kairox Architecture
 
+Status: completed architecture legacy. `Kairox Beta` is achieved; the Kairox release line is closed. This document describes the accepted Kairox runtime contract and historical engineering inheritance. It does not define the future Nexora architecture.
+
 Kairox 架构是 ShelfDeck v3.1 演进阶段的命名架构契约。
 
 它的作用不是重新发明一套实现方案，而是把 v3.1 推进中已经确认的架构方向固定成可引用、可检查、可追责的边界。后续讨论和实现可以直接使用“符合 Kairox”或“违反 Kairox”来判断方向，避免把已经收敛的结论重新打散。

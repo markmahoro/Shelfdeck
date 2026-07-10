@@ -30,6 +30,11 @@ const runtimeResourceTracker = require('./runtimeResourceTracker');
 const backgroundIoGuard = require('./backgroundIoGuard');
 const diagnosticLog = require('./diagnosticLog');
 const sourceReference = require('./sourceReference');
+const { getHelixServices } = require('./libraCompositionRoot');
+
+function helixServices() {
+  return getHelixServices();
+}
 
 const BACKGROUND_IO_LOCK = 'library_background_io';
 const DEFAULT_STARTUP_REFRESH_STALE_MINUTES = 120;
@@ -693,6 +698,7 @@ function getLibrary(filter = {}, opts = {}) {
     items = measure('perceptionDecorateMs', () => userPerceptionManagement.decorateItems(items));
     items = measure('metadataDecorateMs', () => metadataStatus.decorateItems(items, config));
     items = measure('factsFreshnessDecorateMs', () => factsFreshnessService.decorateItems(items));
+    items = measure('nexoraDecorateMs', () => helixServices().nexoraService.decorateItems(items));
     if (opts.includeOptimizationStatus || opts.includeLifecycleStatus || storeFilter.lifecycle || storeFilter.optimizationStatus) {
       const taskStore = require('./taskStore');
       const itemIds = items.map((item) => item.itemId).filter(Boolean);
@@ -713,6 +719,7 @@ function getLibraryItem(itemId) {
   let decorated = userPerceptionManagement.decorateItem(item);
   decorated = metadataStatus.decorateItem(decorated, config);
   decorated = factsFreshnessService.decorateItem(decorated);
+  decorated = helixServices().nexoraService.decorateItem(decorated);
   const taskStore = require('./taskStore');
   const optimizationTasks = typeof taskStore.queryOptimizationTaskIndexRows === 'function'
     ? taskStore.queryOptimizationTaskIndexRows({ itemIds: [item.itemId] })
@@ -1107,6 +1114,7 @@ async function commitEmbySourceCandidate(itemInfo = {}, opts = {}) {
   const observationKind = observation.observationKind || String(itemInfo.sourceObservationKind || '').trim() || 'source_changed';
   const sourceId = observation.sourceId || itemInfo.sourceRefId || itemInfo.sourceId || itemInfo.embyItemId || '';
   let item = itemInfo.itemId && libraryStore.getItem(itemInfo.itemId);
+  const previousSourceRefId = item && (item.sourceRefId || item.sourceId || item.embyItemId) || '';
   const sourceObservation = observation.incoming;
 
   if (observationKind === 'source_missing') {
@@ -1127,6 +1135,20 @@ async function commitEmbySourceCandidate(itemInfo = {}, opts = {}) {
       reason: 'source_missing',
       refreshTargetGate: 'ingest',
       evidence: { source: 'emby_inventory', observationKind, subLibraryId: subLib.uuid },
+    });
+    helixServices().libraService.acceptSource({
+      itemId: item.itemId,
+      idempotencyKey: `emby:${item.itemId}:${observationKind}:${now}`,
+      sourceReference: {
+        source: 'emby',
+        subLib: { uuid: subLib.uuid, embyServerId: subLib.embyServerId, sectionId: subLib.sectionId },
+        sourceRefId: sourceId,
+        sourceExists: false,
+        observationKind,
+        observedAt: now,
+        locator: item.locator || { path: item.path || '' },
+        item,
+      },
     });
     return { item, created: false, observationKind };
   }
@@ -1215,6 +1237,24 @@ async function commitEmbySourceCandidate(itemInfo = {}, opts = {}) {
     reason: observationKind,
     refreshTargetGate: 'metadata',
     evidence: { source: 'emby_inventory', observationKind, subLibraryId: subLib.uuid },
+  });
+  helixServices().libraService.acceptSource({
+    itemId: item.itemId,
+    idempotencyKey: `emby:${item.itemId}:${observationKind}:${now}`,
+    sourceReference: {
+      source: 'emby',
+      subLib: { uuid: subLib.uuid, embyServerId: subLib.embyServerId, sectionId: subLib.sectionId },
+      sourceRefId: sourceId,
+      previousSourceRefId,
+      sourceExists: true,
+      observationKind,
+      observedAt: now,
+      locator: item.locator || {
+        path: item.path || '',
+        parentRefId: sourceObservation && (sourceObservation.parentId || sourceObservation.seriesId) || '',
+      },
+      item,
+    },
   });
   return { item, created: observationKind === 'new_source_observed', observationKind };
 }

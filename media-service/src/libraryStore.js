@@ -98,6 +98,7 @@ function getDb() {
   ensureSpaceStatColumns(db);
   ensureV3MediaItemColumns(db);
   ensureMediaFactFreshnessTable(db);
+  ensureNexoraFactTables(db);
   dbCache.set(dbPath, db);
   migrateJsonLibraryIfNeeded(db);
   backfillSpaceStatColumns(db);
@@ -240,6 +241,55 @@ function ensureMediaFactFreshnessTable(db) {
     CREATE INDEX IF NOT EXISTS idx_media_fact_freshness_item_group ON media_fact_freshness(item_id, fact_group);
     CREATE INDEX IF NOT EXISTS idx_media_fact_freshness_refresh ON media_fact_freshness(refresh_target_gate, status);
     CREATE INDEX IF NOT EXISTS idx_media_fact_freshness_observed ON media_fact_freshness(fact_group, observed_at);
+  `);
+}
+
+function ensureNexoraFactTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS nexora_memberships (
+      media_item_id TEXT PRIMARY KEY,
+      status TEXT NOT NULL DEFAULT 'active',
+      opened_at TEXT NOT NULL DEFAULT '',
+      closed_at TEXT NOT NULL DEFAULT '',
+      close_reason TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_nexora_memberships_status ON nexora_memberships(status);
+
+    CREATE TABLE IF NOT EXISTS nexora_source_bindings (
+      binding_id TEXT PRIMARY KEY,
+      media_item_id TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      validity TEXT NOT NULL DEFAULT 'invalid',
+      reason TEXT NOT NULL DEFAULT '',
+      evidence_ref TEXT NOT NULL DEFAULT '',
+      observed_at TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT '',
+      UNIQUE(media_item_id, source_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_nexora_source_bindings_item ON nexora_source_bindings(media_item_id);
+    CREATE INDEX IF NOT EXISTS idx_nexora_source_bindings_source ON nexora_source_bindings(source_id);
+    CREATE INDEX IF NOT EXISTS idx_nexora_source_bindings_validity ON nexora_source_bindings(validity);
+
+    CREATE TABLE IF NOT EXISTS nexora_source_observations (
+      observation_id TEXT PRIMARY KEY,
+      binding_id TEXT NOT NULL DEFAULT '',
+      media_item_id TEXT NOT NULL DEFAULT '',
+      source_id TEXT NOT NULL DEFAULT '',
+      result TEXT NOT NULL DEFAULT '',
+      reason TEXT NOT NULL DEFAULT '',
+      identity_kind TEXT NOT NULL DEFAULT '',
+      identity_payload_json TEXT NOT NULL DEFAULT '{}',
+      locator_json TEXT NOT NULL DEFAULT '{}',
+      evidence_json TEXT NOT NULL DEFAULT '{}',
+      observed_at TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_nexora_source_observations_binding ON nexora_source_observations(binding_id);
+    CREATE INDEX IF NOT EXISTS idx_nexora_source_observations_item ON nexora_source_observations(media_item_id, observed_at);
+    CREATE INDEX IF NOT EXISTS idx_nexora_source_observations_source ON nexora_source_observations(source_id, observed_at);
   `);
 }
 
@@ -1527,6 +1577,260 @@ function deleteFactFreshnessForItem(itemId) {
   return getDb().prepare('DELETE FROM media_fact_freshness WHERE item_id = ?').run(String(itemId || '')).changes || 0;
 }
 
+function normalizeNexoraMembership(input = {}) {
+  const now = String(input.updatedAt || input.updated_at || input.now || new Date().toISOString());
+  const mediaItemId = String(input.mediaItemId || input.media_item_id || '').trim();
+  const status = String(input.status || 'active').trim() === 'closed' ? 'closed' : 'active';
+  return {
+    media_item_id: mediaItemId,
+    status,
+    opened_at: String(input.openedAt || input.opened_at || (status === 'active' ? now : '') || '').trim(),
+    closed_at: String(input.closedAt || input.closed_at || '').trim(),
+    close_reason: String(input.closeReason || input.close_reason || '').trim(),
+    created_at: String(input.createdAt || input.created_at || now).trim(),
+    updated_at: now,
+  };
+}
+
+function membershipRowToEntry(row) {
+  if (!row) return null;
+  return {
+    mediaItemId: row.media_item_id || '',
+    status: row.status || 'active',
+    active: (row.status || 'active') === 'active',
+    openedAt: row.opened_at || '',
+    closedAt: row.closed_at || '',
+    closeReason: row.close_reason || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
+
+function upsertNexoraMembership(entry = {}) {
+  const row = normalizeNexoraMembership(entry);
+  if (!row.media_item_id) throw new Error('mediaItemId is required');
+  getDb().prepare(`
+    INSERT INTO nexora_memberships
+      (media_item_id, status, opened_at, closed_at, close_reason, created_at, updated_at)
+    VALUES
+      (@media_item_id, @status, @opened_at, @closed_at, @close_reason, @created_at, @updated_at)
+    ON CONFLICT(media_item_id) DO UPDATE SET
+      status = excluded.status,
+      opened_at = CASE
+        WHEN nexora_memberships.opened_at != '' THEN nexora_memberships.opened_at
+        ELSE excluded.opened_at
+      END,
+      closed_at = excluded.closed_at,
+      close_reason = excluded.close_reason,
+      updated_at = excluded.updated_at
+  `).run(row);
+  return getNexoraMembership(row.media_item_id);
+}
+
+function getNexoraMembership(mediaItemId) {
+  const row = getDb().prepare(`
+    SELECT * FROM nexora_memberships
+    WHERE media_item_id = ?
+  `).get(String(mediaItemId || ''));
+  return membershipRowToEntry(row);
+}
+
+function normalizeNexoraSourceBinding(input = {}) {
+  const now = String(input.updatedAt || input.updated_at || input.now || new Date().toISOString());
+  const validity = String(input.validity || '').trim() === 'valid' ? 'valid' : 'invalid';
+  return {
+    binding_id: String(input.bindingId || input.binding_id || crypto.randomUUID()).trim(),
+    media_item_id: String(input.mediaItemId || input.media_item_id || '').trim(),
+    source_id: String(input.sourceId || input.source_id || '').trim(),
+    validity,
+    reason: String(input.reason || '').trim(),
+    evidence_ref: String(input.evidenceRef || input.evidence_ref || '').trim(),
+    observed_at: String(input.observedAt || input.observed_at || now).trim(),
+    created_at: String(input.createdAt || input.created_at || now).trim(),
+    updated_at: now,
+  };
+}
+
+function sourceBindingRowToEntry(row) {
+  if (!row) return null;
+  return {
+    bindingId: row.binding_id || '',
+    mediaItemId: row.media_item_id || '',
+    sourceId: row.source_id || '',
+    validity: row.validity || 'invalid',
+    valid: row.validity === 'valid',
+    reason: row.reason || '',
+    evidenceRef: row.evidence_ref || '',
+    observedAt: row.observed_at || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
+
+function upsertNexoraSourceBinding(entry = {}) {
+  const row = normalizeNexoraSourceBinding(entry);
+  if (!row.media_item_id || !row.source_id) throw new Error('mediaItemId and sourceId are required');
+  const existing = getDb().prepare(`
+    SELECT binding_id, created_at FROM nexora_source_bindings
+    WHERE media_item_id = ? AND source_id = ?
+  `).get(row.media_item_id, row.source_id);
+  if (existing && existing.binding_id) {
+    row.binding_id = existing.binding_id;
+    row.created_at = existing.created_at || row.created_at;
+  }
+  getDb().prepare(`
+    INSERT INTO nexora_source_bindings
+      (binding_id, media_item_id, source_id, validity, reason, evidence_ref, observed_at, created_at, updated_at)
+    VALUES
+      (@binding_id, @media_item_id, @source_id, @validity, @reason, @evidence_ref, @observed_at, @created_at, @updated_at)
+    ON CONFLICT(media_item_id, source_id) DO UPDATE SET
+      validity = excluded.validity,
+      reason = excluded.reason,
+      evidence_ref = excluded.evidence_ref,
+      observed_at = excluded.observed_at,
+      updated_at = excluded.updated_at
+  `).run(row);
+  return getNexoraSourceBinding(row.media_item_id, row.source_id);
+}
+
+function getNexoraSourceBinding(mediaItemId, sourceId) {
+  const row = getDb().prepare(`
+    SELECT * FROM nexora_source_bindings
+    WHERE media_item_id = ? AND source_id = ?
+  `).get(String(mediaItemId || ''), String(sourceId || ''));
+  return sourceBindingRowToEntry(row);
+}
+
+function getNexoraSourceBindingsForItem(mediaItemId) {
+  return getDb().prepare(`
+    SELECT * FROM nexora_source_bindings
+    WHERE media_item_id = ?
+    ORDER BY updated_at DESC, source_id ASC
+  `).all(String(mediaItemId || '')).map(sourceBindingRowToEntry).filter(Boolean);
+}
+
+function getNexoraSourceBindingsForItems(mediaItemIds = []) {
+  const ids = [...new Set((mediaItemIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const params = {};
+  const placeholders = ids.map((id, index) => {
+    params[`itemId${index}`] = id;
+    return `@itemId${index}`;
+  }).join(', ');
+  const rows = getDb().prepare(`
+    SELECT * FROM nexora_source_bindings
+    WHERE media_item_id IN (${placeholders})
+    ORDER BY media_item_id ASC, updated_at DESC, source_id ASC
+  `).all(params);
+  const result = {};
+  for (const row of rows) {
+    const binding = sourceBindingRowToEntry(row);
+    if (!binding || !binding.mediaItemId) continue;
+    if (!result[binding.mediaItemId]) result[binding.mediaItemId] = [];
+    result[binding.mediaItemId].push(binding);
+  }
+  return result;
+}
+
+function getNexoraMembershipsForItems(mediaItemIds = []) {
+  const ids = [...new Set((mediaItemIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const params = {};
+  const placeholders = ids.map((id, index) => {
+    params[`itemId${index}`] = id;
+    return `@itemId${index}`;
+  }).join(', ');
+  const rows = getDb().prepare(`
+    SELECT * FROM nexora_memberships
+    WHERE media_item_id IN (${placeholders})
+    ORDER BY media_item_id ASC
+  `).all(params);
+  const result = {};
+  for (const row of rows) {
+    const membership = membershipRowToEntry(row);
+    if (membership && membership.mediaItemId) result[membership.mediaItemId] = membership;
+  }
+  return result;
+}
+
+function normalizeNexoraSourceObservation(input = {}) {
+  const now = String(input.createdAt || input.created_at || input.now || new Date().toISOString());
+  return {
+    observation_id: String(input.observationId || input.observation_id || crypto.randomUUID()).trim(),
+    binding_id: String(input.bindingId || input.binding_id || '').trim(),
+    media_item_id: String(input.mediaItemId || input.media_item_id || '').trim(),
+    source_id: String(input.sourceId || input.source_id || '').trim(),
+    result: String(input.result || '').trim(),
+    reason: String(input.reason || '').trim(),
+    identity_kind: String(input.identityKind || input.identity_kind || '').trim(),
+    identity_payload_json: jsonStringify(input.identityPayload || jsonParse(input.identity_payload_json, {})),
+    locator_json: jsonStringify(input.locator || jsonParse(input.locator_json, {})),
+    evidence_json: jsonStringify(input.evidence || jsonParse(input.evidence_json, {})),
+    observed_at: String(input.observedAt || input.observed_at || now).trim(),
+    created_at: now,
+  };
+}
+
+function sourceObservationRowToEntry(row) {
+  if (!row) return null;
+  return {
+    observationId: row.observation_id || '',
+    bindingId: row.binding_id || '',
+    mediaItemId: row.media_item_id || '',
+    sourceId: row.source_id || '',
+    result: row.result || '',
+    reason: row.reason || '',
+    identityKind: row.identity_kind || '',
+    identityPayload: jsonParse(row.identity_payload_json, {}),
+    locator: jsonParse(row.locator_json, {}),
+    evidence: jsonParse(row.evidence_json, {}),
+    observedAt: row.observed_at || '',
+    createdAt: row.created_at || '',
+  };
+}
+
+function insertNexoraSourceObservation(entry = {}) {
+  const row = normalizeNexoraSourceObservation(entry);
+  if (!row.source_id || !row.result) throw new Error('sourceId and result are required');
+  getDb().prepare(`
+    INSERT INTO nexora_source_observations
+      (observation_id, binding_id, media_item_id, source_id, result, reason, identity_kind,
+       identity_payload_json, locator_json, evidence_json, observed_at, created_at)
+    VALUES
+      (@observation_id, @binding_id, @media_item_id, @source_id, @result, @reason, @identity_kind,
+       @identity_payload_json, @locator_json, @evidence_json, @observed_at, @created_at)
+  `).run(row);
+  return sourceObservationRowToEntry(getDb().prepare(`
+    SELECT * FROM nexora_source_observations
+    WHERE observation_id = ?
+  `).get(row.observation_id));
+}
+
+function queryNexoraSourceObservations(filter = {}, opts = {}) {
+  const clauses = [];
+  const params = {};
+  if (filter.mediaItemId) {
+    clauses.push('media_item_id = @mediaItemId');
+    params.mediaItemId = String(filter.mediaItemId);
+  }
+  if (filter.bindingId) {
+    clauses.push('binding_id = @bindingId');
+    params.bindingId = String(filter.bindingId);
+  }
+  if (filter.sourceId) {
+    clauses.push('source_id = @sourceId');
+    params.sourceId = String(filter.sourceId);
+  }
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  const limit = Math.min(1000, Math.max(1, Number.parseInt(opts.limit, 10) || 100));
+  return getDb().prepare(`
+    SELECT * FROM nexora_source_observations
+    ${where}
+    ORDER BY observed_at DESC, created_at DESC
+    LIMIT @limit
+  `).all({ ...params, limit }).map(sourceObservationRowToEntry).filter(Boolean);
+}
+
 function countMap(rows, keyField = 'key') {
   const out = {};
   for (const row of rows || []) {
@@ -1696,6 +2000,15 @@ module.exports = {
   getFactFreshnessForItems,
   queryFactFreshness,
   deleteFactFreshnessForItem,
+  upsertNexoraMembership,
+  getNexoraMembership,
+  getNexoraMembershipsForItems,
+  upsertNexoraSourceBinding,
+  getNexoraSourceBinding,
+  getNexoraSourceBindingsForItem,
+  getNexoraSourceBindingsForItems,
+  insertNexoraSourceObservation,
+  queryNexoraSourceObservations,
   queryDashboardMediaStats,
   countBySubLibrary,
   getHealth,

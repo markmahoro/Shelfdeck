@@ -70,6 +70,7 @@ function imageFromTarball(tarball) {
 
 function activeFfmpegCheckCmd() {
   return [
+    'if ! docker inspect shelfdeck >/dev/null 2>&1; then echo "shelfdeck container is not running; no ffmpeg process to inspect"; exit 0; fi;',
     'docker exec shelfdeck sh -lc',
     shellQuote('ps -eo pid,stat,comm,args | awk \'NR>1 && $3=="ffmpeg" && $2 !~ /^Z/ {print}\' || true'),
   ].join(' ');
@@ -82,6 +83,17 @@ function v3MigrationDryRunCmd(targetImage) {
     shellQuote(targetImage),
     'node',
     'scripts/v3-data-migration.js',
+    '--data-dir=/app/data',
+  ].join(' ');
+}
+
+function helixDataPreflightCmd(targetImage) {
+  return [
+    'docker run --rm',
+    `-v ${shellQuote(`${DATA_DIR}:/app/data:ro`)}`,
+    shellQuote(targetImage),
+    'node',
+    'scripts/helix-data-preflight.js',
     '--data-dir=/app/data',
   ].join(' ');
 }
@@ -170,6 +182,7 @@ async function main() {
     ['Pre-flight data sizes', dataSizesCmd()],
     ['Load image', `docker load -i ${shellQuote(tarball)}`],
     ['V3 data migration dry run', v3MigrationDryRunCmd(targetImage)],
+    ['Helix data preflight', helixDataPreflightCmd(targetImage)],
     ...(kairoxBetaCutover ? [['Kairox Beta cutover plan', kairoxBetaCutoverCmd(targetImage, 'plan')]] : []),
     ['Update compose image', updateComposeImageCmd(targetImage)],
     ['Snapshot data files', dataSnapshotCmd()],

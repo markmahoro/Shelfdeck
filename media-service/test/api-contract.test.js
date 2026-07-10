@@ -15,6 +15,7 @@ const os = require('os');
 const crypto = require('crypto');
 const { buildApp } = require('../src/app');
 const diagnosticLog = require('../src/diagnosticLog');
+const taskStore = require('../src/taskStore');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,32 @@ function buildEmptyApp(apiKey) {
 function seedLibraryCache(subLibraryId, items, opts = {}) {
   const mediaLibraryService = require('../src/mediaLibraryService');
   return mediaLibraryService.upsertItems(subLibraryId, items, opts);
+}
+
+function createMetadataTask(itemId, status = 'created') {
+  return taskStore.createTask({
+    itemId,
+    source: 'manual',
+    status,
+    taskTarget: {
+      object: { type: 'media_item', itemId },
+      targetGate: 'metadata',
+      gateObjective: { kind: 'metadata_refresh' },
+      source: 'manual',
+    },
+    itemInfo: { itemId, name: itemId, source: 'emby' },
+  });
+}
+
+function seedManualSourceItem(itemId) {
+  const mediaLibraryService = require('../src/mediaLibraryService');
+  mediaLibraryService.saveLibrary({
+    cachedAt: new Date().toISOString(),
+    items: [{
+      itemId, source: 'emby', sourceId: itemId, sourceExists: true,
+      name: itemId, type: 'movie', path: `/media/${itemId}.mkv`, metadataComplete: false,
+    }],
+  });
 }
 
 // ── Library: queries/manage ──────────────────────────────────────────────────────
@@ -643,8 +670,7 @@ test('GET /v1/integrations/douban/fetch/ratings missing subLibraryId -> 400', as
 test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
   // Per API.md §5.4: only awaiting_user_confirm tasks can be confirmed.
   const app = await buildEmptyApp();
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'confirm-wrong-status', targetGate: 'metadata' } });
-  const { id } = create.json();
+  const { id } = createMetadataTask('confirm-wrong-status');
   // Task status is 'created' — confirm must return 409
   const res = await app.inject({ method: 'PATCH', url: `/v1/tasks/${id}`, payload: { confirmed: true } });
   assert.strictEqual(res.statusCode, 409);
@@ -662,6 +688,7 @@ test('PATCH /v1/tasks/:id confirm on non-awaiting status -> 409', async () => {
 test('POST /v1/tasks duplicate itemId (active task exists) -> 409', async () => {
   const app = await buildEmptyApp();
   const itemId = 'dup-item-' + crypto.randomUUID().slice(0, 8);
+  seedManualSourceItem(itemId);
   const first = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, targetGate: 'metadata' } });
   const res = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId, targetGate: 'metadata' } });
   assert.strictEqual(res.statusCode, 409);
@@ -681,9 +708,8 @@ test('POST /v1/tasks/:id/actions/execute pending_manual -> queued', async () => 
   // Write config with manual mode
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ executionMode: 'manual' }));
   const app = await buildApp({ logger: false, dataDir: dir, apiKey: '' });
-  const create = await app.inject({ method: 'POST', url: '/v1/tasks', payload: { itemId: 'manual-exec', targetGate: 'metadata' } });
-  const { id } = create.json();
-  assert.strictEqual(create.json().status, 'pending_manual');
+  const { id, status } = createMetadataTask('manual-exec', 'pending_manual');
+  assert.strictEqual(status, 'pending_manual');
   const res = await app.inject({ method: 'POST', url: `/v1/tasks/${id}/actions/execute` });
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.json().status, 'queued');

@@ -988,6 +988,7 @@ function buildTask(taskData, now = new Date().toISOString()) {
     flowPlan: taskData.flowPlan,
     taskTarget: taskData.taskTarget,
     requestedIntent: taskData.requestedIntent,
+    helixAdmission: taskData.helixAdmission || null,
   });
 }
 
@@ -1875,7 +1876,8 @@ function querySchedulerTasks() {
         target_gate,
         gate_objective_json,
         json_extract(payload_json, '$.priorityBreakdown') AS priority_breakdown_json,
-        json_extract(payload_json, '$.itemInfo') AS item_info_json
+        json_extract(payload_json, '$.itemInfo') AS item_info_json,
+        json_extract(payload_json, '$.helixAdmission') AS helix_admission_json
       FROM tasks
       WHERE status NOT IN (${terminalSql})
       ORDER BY priority ASC, created_at ASC, id ASC
@@ -1946,6 +1948,7 @@ function querySchedulerTasks() {
         priorityManuallyAdjusted: !!row.priority_manually_adjusted,
         priorityModelVersion: row.priority_model_version,
         priorityBreakdown: jsonExtractObject(row.priority_breakdown_json, undefined),
+        helixAdmission: jsonExtractObject(row.helix_admission_json, null),
         retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
         pausingRequested: !!row.pausing_requested,
         nodeId: row.node_id || undefined,

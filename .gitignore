@@ -29,6 +29,12 @@ scratch/
 archive/
 .claude/
 
+# v3 architecture archive is committed project history, not local scratch.
+!docs/v3/archive/
+!docs/v3/archive/**
+!docs/nexora/archive/
+!docs/nexora/archive/**
+
 # 第三方克隆工具目录（内含独立 .git），勿纳入本仓库
 douban-to-imdb/
 

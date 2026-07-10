@@ -336,6 +336,9 @@ async function runAdultFolderPrecheck(taskId, task, target) {
 }
 
 async function runAdultFolderExecuting(taskId, task, target) {
+  if (scheduler && typeof scheduler.assertHelixAdmission === 'function') {
+    scheduler.assertHelixAdmission(taskId, 'legacy_delete_execute');
+  }
   setPhase(taskId, 'delete_executing');
   scheduler.reportStatus(taskId, 'executing');
   appendLog(taskId, 'info', `Deleting local ${target.targetKind}: ${target.targetPath}`);
@@ -438,6 +441,9 @@ async function runPrecheck(taskId, task, serverConfig) {
 }
 
 async function runExecuting(taskId, task, serverConfig) {
+  if (scheduler && typeof scheduler.assertHelixAdmission === 'function') {
+    scheduler.assertHelixAdmission(taskId, 'legacy_delete_execute');
+  }
   setPhase(taskId, 'delete_executing');
   scheduler.reportStatus(taskId, 'executing');
   appendLog(taskId, 'info', 'Executing delete');
