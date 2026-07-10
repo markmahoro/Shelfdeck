@@ -1,6 +1,6 @@
 # PRODUCTION_DEPLOYMENT - 生产部署固定入口
 
-本文是 ShelfDeck 当前唯一生产部署入口。当前生产部署方式固定为：本机 build image -> 导出 tar -> `upload-nas-image.js` 上传并校验 -> `deploy-nas.js` dry run -> `deploy-nas.js --apply`。Codex 处理任何“上线、部署、升级 NAS、发布 Docker、生产环境”相关任务时，必须先读本文，再读 `scripts/build-image.sh`、`scripts/upload-nas-image.js` 和 `scripts/deploy-nas.js`。
+本文是 ShelfDeck 当前唯一生产部署入口。当前生产部署方式固定为：本机 build image -> 导出 tar -> `upload-nas-image.js` 上传并校验 -> `deploy-nas.js` dry run -> `deploy-nas.js --apply`。Codex 处理任何“上线、部署、升级 NAS、发布 Docker、生产环境”相关任务时，必须先读本文，再读 `scripts/build-image.js`、`scripts/upload-nas-image.js` 和 `scripts/deploy-nas.js`。
 
 ## 当前生产环境
 
@@ -31,11 +31,13 @@ docker run --rm -v /vol1/1000/docker/shelfdeck/data:/app/data:ro markmahoro/shel
 
 1. 在本机从仓库根目录构建生产镜像 tarball：
 
-```bash
-bash scripts/build-image.sh <tag>
+```powershell
+node scripts/build-image.js <tag>
 ```
 
 输出文件为 `dist-image/shelfdeck-<tag>.tar`。
+
+`scripts/build-image.sh` 仅为 Linux/Git Bash 兼容包装，内部调用同一个 Node 实现；Windows 不需要 WSL 或 Git Bash。
 
 2. 计算本地 tarball 的 SHA-256，用于上传后校验：
 

@@ -66,7 +66,7 @@ Use the smallest relevant set:
 - NAS ShelfDeck Docker at `192.168.12.230:18080` is production.
 - Do not delete, park, reset, migrate, or directly edit production data unless the user explicitly asks for that production action.
 - A direct user request to deploy, release, publish, or upgrade NAS production authorizes the standard deploy flow, including `deploy-nas.js --apply` after dry run and checksum validation pass.
-- Production deploy must use `scripts/build-image.sh`, `scripts/upload-nas-image.js`, and `scripts/deploy-nas.js`; SSH config must go through `tools/nas-ssh-config.js`.
+- Production deploy must use `scripts/build-image.js` (with `scripts/build-image.sh` only as its compatibility wrapper), `scripts/upload-nas-image.js`, and `scripts/deploy-nas.js`; SSH config must go through `tools/nas-ssh-config.js`.
 - Use local `127.0.0.1:18080`, temporary data dirs, or disposable workers for destructive testing and environment resets.
 - Local `media-service/data/*.json` / local runtime data is test-only and may be cleared for local resets.
 
