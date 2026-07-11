@@ -27,19 +27,19 @@ const TASK_PRIORITY_MODEL_VERSION = 'kairox-task-creator-v2';
 /**
  * @param {object} params
  * @param {'manual'|'auto'} [params.source]     diagnostic origin only; it never changes queue priority
- * @param {object} [params.itemInfo]            task.itemInfo (subLibraryId, type, ...)
+ * @param {object} [params.subjectInfo]            task.subjectInfo (subLibraryId, type, ...)
  * @param {object} [params.task]                optional queued task context (createdAt, retryCount)
  * @param {object} params.config                full config (taskPriority + subLibraries)
  * @returns {number}                            priority value (lower = first)
  */
-function computePriority({ source, taskTarget, itemInfo, config, task }) {
-  return explainPriority({ source, taskTarget, itemInfo, config, task }).priority;
+function computePriority({ source, taskTarget, subjectInfo, config, task }) {
+  return explainPriority({ source, taskTarget, subjectInfo, config, task }).priority;
 }
 
-function explainTaskPriority({ source, taskTarget, itemInfo, config, task }) {
+function explainTaskPriority({ source, taskTarget, subjectInfo, config, task }) {
   const cfg = config && config.taskPriority || {};
   const basePriority = typeof cfg.basePriority === 'number' ? cfg.basePriority : 100;
-  const context = buildTaskContext({ itemInfo, task, taskTarget });
+  const context = buildTaskContext({ subjectInfo, task, taskTarget });
 
   const targetGateWeights = cfg.targetGateWeights || {};
   const targetGate = context.targetGate;
@@ -94,12 +94,12 @@ function explainTaskPriority({ source, taskTarget, itemInfo, config, task }) {
   };
 }
 
-function explainPriority({ source, taskTarget, itemInfo, config, task }) {
-  return explainTaskPriority({ source, taskTarget, itemInfo, config, task });
+function explainPriority({ source, taskTarget, subjectInfo, config, task }) {
+  return explainTaskPriority({ source, taskTarget, subjectInfo, config, task });
 }
 
-function buildContext(itemInfo, task) {
-  const info = itemInfo && typeof itemInfo === 'object' ? itemInfo : {};
+function buildContext(subjectInfo, task) {
+  const info = subjectInfo && typeof subjectInfo === 'object' ? subjectInfo : {};
   const t = task && typeof task === 'object' ? task : {};
   return {
     ...info,
@@ -108,8 +108,8 @@ function buildContext(itemInfo, task) {
   };
 }
 
-function buildTaskContext({ itemInfo, task, taskTarget }) {
-  const context = buildContext(itemInfo, task);
+function buildTaskContext({ subjectInfo, task, taskTarget }) {
+  const context = buildContext(subjectInfo, task);
   const target = taskTarget && typeof taskTarget === 'object' ? taskTarget : {};
   return {
     ...context,
@@ -132,8 +132,8 @@ function taskPriorityRules(cfg, targetGate) {
   return [];
 }
 
-function resolveLibraryWeight(itemInfo, config) {
-  const subLibId = itemInfo && itemInfo.subLibraryId;
+function resolveLibraryWeight(subjectInfo, config) {
+  const subLibId = subjectInfo && subjectInfo.subLibraryId;
   if (!subLibId) return 100;
   const subLib = (config && config.subLibraries || []).find((s) => s && s.uuid === subLibId);
   if (subLib && typeof subLib.priorityWeight === 'number') {
@@ -142,11 +142,11 @@ function resolveLibraryWeight(itemInfo, config) {
   return 100;
 }
 
-function computeBusinessSignalDelta(targetGate, itemInfo, cfg) {
+function computeBusinessSignalDelta(targetGate, subjectInfo, cfg) {
   const weights = cfg.businessSignalWeights || {};
   const adultWorkflowBonus = numberOr(weights.adultWorkflowBonus, 20);
   const maxTranscodeSavingBonus = numberOr(weights.maxTranscodeSavingBonus, 30);
-  const info = itemInfo || {};
+  const info = subjectInfo || {};
   const meta = info.adultMetadata || {};
 
   if (targetGate === 'metadata') {
@@ -180,8 +180,8 @@ function normalizeBitrateMbps(value) {
   return n > 100000 ? n / 1000000 : n;
 }
 
-function computeQueueAgeDelta(itemInfo, cfg) {
-  const createdMs = Date.parse(itemInfo && itemInfo.createdAt || '');
+function computeQueueAgeDelta(subjectInfo, cfg) {
+  const createdMs = Date.parse(subjectInfo && subjectInfo.createdAt || '');
   if (!Number.isFinite(createdMs)) return 0;
   const ageMs = Date.now() - createdMs;
   if (ageMs <= 0) return 0;
@@ -192,8 +192,8 @@ function computeQueueAgeDelta(itemInfo, cfg) {
   return -Math.min(maxBonus, steps * bonusPerStep);
 }
 
-function computeRetryDelta(itemInfo, cfg) {
-  const retryCount = Math.max(0, Number.parseInt(itemInfo && itemInfo.retryCount, 10) || 0);
+function computeRetryDelta(subjectInfo, cfg) {
+  const retryCount = Math.max(0, Number.parseInt(subjectInfo && subjectInfo.retryCount, 10) || 0);
   if (retryCount <= 0) return 0;
   const penalty = Math.max(0, numberOr(cfg.retryPenalty, 20));
   const maxPenalty = Math.max(0, numberOr(cfg.maxRetryPenalty, 80));
@@ -209,9 +209,9 @@ function numberOr(value, fallback) {
  * Undefined/null conditions are skipped (do not constrain). This keeps the
  * function total even as new fields are added.
  */
-function matchConditions(match, itemInfo) {
+function matchConditions(match, subjectInfo) {
   if (!match || typeof match !== 'object') return true; // no conditions = always match
-  const info = itemInfo || {};
+  const info = subjectInfo || {};
 
   if (match.subLibraryId !== undefined && info.subLibraryId !== match.subLibraryId) return false;
   if (match.type !== undefined && info.type !== match.type) return false;

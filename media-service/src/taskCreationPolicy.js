@@ -20,10 +20,10 @@ function taskTargetGate(task = {}) {
   );
 }
 
-function activeTaskForItemTarget(tasks, itemId, targetGate) {
+function activeTaskForItemTarget(tasks, subjectId, targetGate) {
   return (tasks || []).find((task) => (
     task
-    && task.itemId === itemId
+    && task.subjectId === subjectId
     && !TERMINAL.has(task.status)
     && taskTargetGate(task) === targetGate
   ));
@@ -38,11 +38,11 @@ function targetCooldownMs(config = {}, targetGate = '') {
   return Math.max(0, hours) * 3600 * 1000;
 }
 
-function lastTerminalTaskAt(tasks, itemId, targetGate) {
-  if (!itemId) return null;
+function lastTerminalTaskAt(tasks, subjectId, targetGate) {
+  if (!subjectId) return null;
   let latest = null;
   for (const task of tasks || []) {
-    if (!task || task.itemId !== itemId || taskTargetGate(task) !== targetGate) continue;
+    if (!task || task.subjectId !== subjectId || taskTargetGate(task) !== targetGate) continue;
     if (!TERMINAL.has(task.status)) continue;
     const at = task.updatedAt || task.createdAt;
     if (!at) continue;
@@ -86,10 +86,10 @@ function perceptionVersion(item = {}, freshness = {}) {
   );
 }
 
-function buildAttemptKey({ item = {}, itemInfo = {}, itemId = '', targetGate = '', gateObjective = {} } = {}) {
-  const freshness = item.factsFreshness || itemInfo.factsFreshness || factsFreshnessService.projectForItem(item);
+function buildAttemptKey({ item = {}, subjectInfo = {}, subjectId = '', targetGate = '', gateObjective = {} } = {}) {
+  const freshness = item.factsFreshness || subjectInfo.factsFreshness || factsFreshnessService.projectForItem(item);
   return hashObject({
-    itemId,
+    subjectId,
     targetGate,
     basedataFactsUpdatedAt: factVersion(freshness.basedataFacts),
     gateObjective: gateObjective || {},
@@ -116,11 +116,11 @@ function automaticAttemptLimit(config = {}, targetGate = '') {
   return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-function failedAttemptCount(tasks, itemId, targetGate, attemptKey) {
+function failedAttemptCount(tasks, subjectId, targetGate, attemptKey) {
   if (!attemptKey) return 0;
   return (tasks || []).filter((task) => (
     task
-    && task.itemId === itemId
+    && task.subjectId === subjectId
     && taskTargetGate(task) === targetGate
     && ATTEMPT_FAILURE_STATUSES.has(task.status)
     && taskAttemptKey(task) === attemptKey
@@ -166,9 +166,9 @@ function metadataFactsStale(item = {}) {
   return factsFreshnessService.isBlockingStale(projection, 'metadataFacts');
 }
 
-function buildTaskTarget({ item = {}, itemInfo = {}, targetGate = '', gateObjective = {}, source = '' } = {}) {
-  const info = itemInfo && Object.keys(itemInfo).length ? itemInfo : item;
-  const itemId = info.itemId || item.itemId || '';
+function buildTaskTarget({ item = {}, subjectInfo = {}, targetGate = '', gateObjective = {}, source = '' } = {}) {
+  const info = subjectInfo && Object.keys(subjectInfo).length ? subjectInfo : item;
+  const subjectId = info.subjectId || item.subjectId || '';
   const objective = gateObjective && typeof gateObjective === 'object' ? gateObjective : {};
   let resolvedObjective = objective;
   if (targetGate === 'basedata' && !objective.kind) {
@@ -183,7 +183,7 @@ function buildTaskTarget({ item = {}, itemInfo = {}, targetGate = '', gateObject
   return {
     object: {
       type: 'media_item',
-      itemId,
+      subjectId,
     },
     targetGate,
     gateObjective: resolvedObjective,
@@ -212,8 +212,8 @@ function allow(targetGate, taskTarget, extra = {}) {
 
 function canCreateTargetTask(input = {}) {
   const item = input.item || {};
-  const itemInfo = input.itemInfo || item;
-  const itemId = input.itemId || item.itemId || itemInfo.itemId || '';
+  const subjectInfo = input.subjectInfo || item;
+  const subjectId = input.subjectId || item.subjectId || subjectInfo.subjectId || '';
   const targetGate = cleanToken(input.targetGate || (input.taskTarget && input.taskTarget.targetGate));
   const source = input.source || '';
   const automatic = source === 'auto';
@@ -222,24 +222,24 @@ function canCreateTargetTask(input = {}) {
   const gateObjective = input.gateObjective
     || input.optimizeObjective
     || (input.taskTarget && input.taskTarget.gateObjective)
-    || (targetGate === 'optimize' && (item.optimizeObjective || itemInfo.optimizeObjective))
+    || (targetGate === 'optimize' && (item.optimizeObjective || subjectInfo.optimizeObjective))
     || {};
   const resolvedGateObjective = gateObjective;
 
-  if (!itemId) return blocked(targetGate, 'missing_item_id');
+  if (!subjectId) return blocked(targetGate, 'missing_subject_id');
   if (!automationPolicy.TASK_TARGETS.has(targetGate)) return blocked(targetGate, 'invalid_target_gate');
 
   if (targetGate === 'basedata') {
-    const freshness = item.factsFreshness || itemInfo.factsFreshness || {};
+    const freshness = item.factsFreshness || subjectInfo.factsFreshness || {};
     const basedataFresh = factsFreshnessService.isFresh(freshness, 'basedataFacts');
-    const sourceRevision = String(item.basedataSourceRevision || itemInfo.basedataSourceRevision || '');
-    const admissionRevision = String(input.helixAdmission && input.helixAdmission.sourceRevision || item.admissionSourceRevision || itemInfo.admissionSourceRevision || '');
+    const sourceRevision = String(item.basedataSourceRevision || subjectInfo.basedataSourceRevision || '');
+    const admissionRevision = String(input.helixAdmission && input.helixAdmission.sourceRevision || item.admissionSourceRevision || subjectInfo.admissionSourceRevision || '');
     if (item.basedataComplete === true && basedataFresh && sourceRevision && sourceRevision === admissionRevision) {
       return blocked(targetGate, 'basedata_already_current');
     }
   }
 
-  const freeze = mediaFreeze.project(itemInfo && Object.keys(itemInfo).length ? { ...item, ...itemInfo } : item);
+  const freeze = mediaFreeze.project(subjectInfo && Object.keys(subjectInfo).length ? { ...item, ...subjectInfo } : item);
   if (freeze.frozen) {
     return blocked(targetGate, 'media_frozen', {
       mediaFreeze: freeze,
@@ -251,12 +251,12 @@ function canCreateTargetTask(input = {}) {
     });
   }
 
-  const active = activeTaskForItemTarget(tasks, itemId, targetGate);
+  const active = activeTaskForItemTarget(tasks, subjectId, targetGate);
   if (active) return blocked(targetGate, 'active_task_exists', { activeTask: { id: active.id, status: active.status, targetGate } });
 
   if (automatic) {
     const cooldown = targetCooldownMs(config, targetGate);
-    const lastDoneAt = item.lastTaskDoneAt || lastTerminalTaskAt(tasks, itemId, targetGate);
+    const lastDoneAt = item.lastTaskDoneAt || lastTerminalTaskAt(tasks, subjectId, targetGate);
     if (cooldown > 0 && lastDoneAt && Date.now() - new Date(lastDoneAt).getTime() < cooldown) {
       return blocked(targetGate, 'recent_task_cooldown', { cooldownMs: cooldown, lastDoneAt });
     }
@@ -287,14 +287,14 @@ function canCreateTargetTask(input = {}) {
 
   const attemptKey = buildAttemptKey({
     item,
-    itemInfo,
-    itemId,
+    subjectInfo,
+    subjectId,
     targetGate,
     gateObjective: resolvedGateObjective,
   });
   if (automatic) {
     const limit = automaticAttemptLimit(config, targetGate);
-    const failedAttempts = failedAttemptCount(tasks, itemId, targetGate, attemptKey);
+    const failedAttempts = failedAttemptCount(tasks, subjectId, targetGate, attemptKey);
     if (limit !== null && failedAttempts >= limit) {
       return blocked(targetGate, 'automatic_attempt_limit_reached', {
         attemptKey,
@@ -306,13 +306,13 @@ function canCreateTargetTask(input = {}) {
 
   const taskTarget = input.taskTarget && typeof input.taskTarget === 'object'
     ? {
-      object: input.taskTarget.object || buildTaskTarget({ item, itemInfo, targetGate, gateObjective, source }).object,
+      object: input.taskTarget.object || buildTaskTarget({ item, subjectInfo, targetGate, gateObjective, source }).object,
       targetGate,
       gateObjective: resolvedGateObjective,
       source,
       attemptKey: input.taskTarget.attemptKey || attemptKey,
     }
-    : buildTaskTarget({ item, itemInfo, targetGate, gateObjective: resolvedGateObjective, source });
+    : buildTaskTarget({ item, subjectInfo, targetGate, gateObjective: resolvedGateObjective, source });
   taskTarget.attemptKey = taskTarget.attemptKey || attemptKey;
 
   return allow(targetGate, taskTarget);

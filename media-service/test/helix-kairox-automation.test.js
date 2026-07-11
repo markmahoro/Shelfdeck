@@ -37,27 +37,27 @@ test('Kairox Automation Runner creates only Lifecycle next-gate tasks for auto m
   }];
   configStore.saveConfig(config);
   admissionStore.upsertAdmission({
-    itemId: 'auto-item', admissionGeneration: 1, status: 'active', sourceRevision: 'source-1',
+    subjectId: 'auto-item', admissionGeneration: 1, status: 'active', sourceRevision: 'source-1',
     sourceAccessDescriptor: { sourceType: 'emby', subLibraryId: 'auto-maintenance', identityPayload: { serverId: 'server', embyItemId: 'emby-1' } },
   });
-  kairoxStore.ensureMedia({ itemId: 'auto-item', mediaKind: 'movie', playable: true });
+  kairoxStore.ensureSubject({ subjectId: 'auto-item', mediaKind: 'movie', playable: true });
   const created = [];
   const reconciledRuns = [];
   const service = {
-    reconcileObjectives(itemIds) {
-      return Object.fromEntries(itemIds.map((itemId) => [itemId, { itemId, nextTargetGate: 'basedata', nextGateObjective: { kind: 'basedata_current' }, activeTasks: [], maintenanceComplete: false }]));
+    reconcileObjectives(subjectIds) {
+      return Object.fromEntries(subjectIds.map((subjectId) => [subjectId, { subjectId, nextTargetGate: 'basedata', nextGateObjective: { kind: 'basedata_current' }, activeTasks: [], maintenanceComplete: false }]));
     },
     requestMaintenance(command) {
       created.push(command);
-      const run = kairoxStore.getMaintenanceRun(command.itemId);
+      const run = kairoxStore.getMaintenanceRun(command.subjectId);
       if (run) kairoxStore.updateMaintenanceRun(run.runId, { status: 'task_active', currentTaskId: 'task-1' });
       return { allowed: true, task: { id: 'task-1' } };
     },
     reconcileMaintenanceRun(command) {
       reconciledRuns.push(command);
-      const { itemId } = command;
-      let run = kairoxStore.getMaintenanceRun(itemId);
-      if (!run) run = kairoxStore.createMaintenanceRun({ itemId, admissionGeneration: 1, initiatedBy: 'system' }).run;
+      const { subjectId } = command;
+      let run = kairoxStore.getMaintenanceRun(subjectId);
+      if (!run) run = kairoxStore.createMaintenanceRun({ subjectId, admissionGeneration: 1, initiatedBy: 'system' }).run;
       return { run };
     },
   };
@@ -67,29 +67,29 @@ test('Kairox Automation Runner creates only Lifecycle next-gate tasks for auto m
   assert.strictEqual(result.created, 1);
   assert.strictEqual(created[0].targetGate, 'basedata');
   assert.ok(created[0].runId);
-  assert.strictEqual(created[0].maintenanceProjection.itemId, 'auto-item');
-  assert.strictEqual(reconciledRuns[0].maintenanceProjection.itemId, 'auto-item');
+  assert.strictEqual(created[0].maintenanceProjection.subjectId, 'auto-item');
+  assert.strictEqual(reconciledRuns[0].maintenanceProjection.subjectId, 'auto-item');
   assert.strictEqual(kairoxStore.getAutomationState('maintenance').lastError, '');
 });
 
 test('Kairox Automation Runner does not retry-storm a failed automatic target', async () => {
   runner.stop();
   admissionStore.upsertAdmission({
-    itemId: 'blocked-item', admissionGeneration: 1, status: 'active', sourceRevision: 'source-1',
+    subjectId: 'blocked-item', admissionGeneration: 1, status: 'active', sourceRevision: 'source-1',
     sourceAccessDescriptor: { sourceType: 'emby', subLibraryId: 'auto-maintenance' },
   });
-  kairoxStore.ensureMedia({ itemId: 'blocked-item', mediaKind: 'movie', playable: true });
-  kairoxStore.createMaintenanceRun({ itemId: 'blocked-item', admissionGeneration: 1, initiatedBy: 'system' });
+  kairoxStore.ensureSubject({ subjectId: 'blocked-item', mediaKind: 'movie', playable: true });
+  kairoxStore.createMaintenanceRun({ subjectId: 'blocked-item', admissionGeneration: 1, initiatedBy: 'system' });
   let requested = 0;
   const service = {
-    reconcileObjectives(itemIds) {
-      return Object.fromEntries(itemIds.map((itemId) => [itemId, itemId === 'blocked-item' ? {
-        itemId, nextTargetGate: 'optimize', activeTasks: [], maintenanceComplete: false,
+    reconcileObjectives(subjectIds) {
+      return Object.fromEntries(subjectIds.map((subjectId) => [subjectId, subjectId === 'blocked-item' ? {
+        subjectId, nextTargetGate: 'optimize', activeTasks: [], maintenanceComplete: false,
         automationBlocker: { code: 'previous_automatic_task_failed', taskId: 'failed-task' },
-      } : { itemId, maintenanceComplete: true, activeTasks: [] }]));
+      } : { subjectId, maintenanceComplete: true, activeTasks: [] }]));
     },
     requestMaintenance() { requested += 1; return { allowed: true, task: { id: 'unexpected' } }; },
-    reconcileMaintenanceRun({ itemId }) { return { run: kairoxStore.getMaintenanceRun(itemId) }; },
+    reconcileMaintenanceRun({ subjectId }) { return { run: kairoxStore.getMaintenanceRun(subjectId) }; },
   };
   runner.start(service, { immediate: false, intervalMs: 60000 });
   const result = await runner.runOnce({ limit: 100 });
@@ -99,8 +99,8 @@ test('Kairox Automation Runner does not retry-storm a failed automatic target', 
 
 test('automatic failure lookup is fenced by admission generation and target gate', () => {
   const created = taskStore.createTask({
-    itemId: 'failure-lookup-item', source: 'auto', status: 'failed_soft',
-    taskTarget: { object: { type: 'media_item', itemId: 'failure-lookup-item' }, targetGate: 'optimize', gateObjective: {} },
+    subjectId: 'failure-lookup-item', source: 'auto', status: 'failed_soft',
+    taskTarget: { object: { type: 'media_item', subjectId: 'failure-lookup-item' }, targetGate: 'optimize', gateObjective: {} },
     helixAdmission: { admissionGeneration: 1 },
     objectiveRevisionSnapshot: 'objective-1',
   });
@@ -117,26 +117,26 @@ test('Kairox Runner stops offering ready Runs after the authoritative Gate budge
   const basedataLimit = Number(config.taskAdmission && config.taskAdmission.maxQueuedByTargetGate && config.taskAdmission.maxQueuedByTargetGate.basedata) || 50;
   for (let index = 0; index < basedataLimit - 1; index += 1) {
     taskStore.createTask({
-      itemId: `budget-existing-${index}`, status: 'queued', source: 'auto',
-      taskTarget: { object: { type: 'media_item', itemId: `budget-existing-${index}` }, targetGate: 'basedata' },
+      subjectId: `budget-existing-${index}`, status: 'queued', source: 'auto',
+      taskTarget: { object: { type: 'media_item', subjectId: `budget-existing-${index}` }, targetGate: 'basedata' },
     });
   }
-  for (const itemId of ['budget-a', 'budget-b']) {
-    admissionStore.upsertAdmission({ itemId, admissionGeneration: 1, status: 'active', sourceRevision: 'source-1' });
-    kairoxStore.ensureMedia({ itemId, mediaKind: 'movie', playable: true });
-    kairoxStore.createMaintenanceRun({ itemId, admissionGeneration: 1, initiatedBy: 'system' });
+  for (const subjectId of ['budget-a', 'budget-b']) {
+    admissionStore.upsertAdmission({ subjectId, admissionGeneration: 1, status: 'active', sourceRevision: 'source-1' });
+    kairoxStore.ensureSubject({ subjectId, mediaKind: 'movie', playable: true });
+    kairoxStore.createMaintenanceRun({ subjectId, admissionGeneration: 1, initiatedBy: 'system' });
   }
   let requested = 0;
   const service = {
-    reconcileObjectives(itemIds) {
-      return Object.fromEntries(itemIds.map((itemId) => [itemId, {
-        itemId, nextTargetGate: 'basedata', nextGateObjective: {}, activeTasks: [], maintenanceComplete: false,
+    reconcileObjectives(subjectIds) {
+      return Object.fromEntries(subjectIds.map((subjectId) => [subjectId, {
+        subjectId, nextTargetGate: 'basedata', nextGateObjective: {}, activeTasks: [], maintenanceComplete: false,
       }]));
     },
-    reconcileMaintenanceRun({ itemId }) { return { run: kairoxStore.getMaintenanceRun(itemId) }; },
+    reconcileMaintenanceRun({ subjectId }) { return { run: kairoxStore.getMaintenanceRun(subjectId) }; },
     requestMaintenance(command) {
       requested += 1;
-      taskStore.createTask({ itemId: command.itemId, status: 'queued', source: 'auto', taskTarget: { targetGate: 'basedata' } });
+      taskStore.createTask({ subjectId: command.subjectId, status: 'queued', source: 'auto', taskTarget: { targetGate: 'basedata' } });
       return { allowed: true, task: { id: `task-${requested}` } };
     },
   };
@@ -151,44 +151,44 @@ test('a saturated Gate cannot monopolize the bounded Runner supply window', asyn
   const optimizeLimit = Number(config.taskAdmission && config.taskAdmission.maxQueuedByTargetGate && config.taskAdmission.maxQueuedByTargetGate.optimize) || 50;
   for (let index = 0; index < optimizeLimit; index += 1) {
     taskStore.createTask({
-      itemId: `saturated-task-${index}`, status: 'queued', source: 'auto',
-      taskTarget: { object: { type: 'media_item', itemId: `saturated-task-${index}` }, targetGate: 'optimize' },
+      subjectId: `saturated-task-${index}`, status: 'queued', source: 'auto',
+      taskTarget: { object: { type: 'media_item', subjectId: `saturated-task-${index}` }, targetGate: 'optimize' },
     });
   }
   for (let index = 0; index < 100; index += 1) {
-    const itemId = `z-old-optimize-${String(index).padStart(3, '0')}`;
-    admissionStore.upsertAdmission({ itemId, admissionGeneration: 1, status: 'active', sourceRevision: 'source-1' });
-    kairoxStore.ensureMedia({ itemId, mediaKind: 'movie', playable: true });
+    const subjectId = `z-old-optimize-${String(index).padStart(3, '0')}`;
+    admissionStore.upsertAdmission({ subjectId, admissionGeneration: 1, status: 'active', sourceRevision: 'source-1' });
+    kairoxStore.ensureSubject({ subjectId, mediaKind: 'movie', playable: true });
     kairoxStore.createMaintenanceRun({
-      itemId, admissionGeneration: 1, initiatedBy: 'system', requestedAt: '2026-01-01T00:00:00.000Z',
+      subjectId, admissionGeneration: 1, initiatedBy: 'system', requestedAt: '2026-01-01T00:00:00.000Z',
     });
   }
-  admissionStore.upsertAdmission({ itemId: '000-metadata-ready', admissionGeneration: 1, status: 'active', sourceRevision: 'source-1' });
-  kairoxStore.ensureMedia({ itemId: '000-metadata-ready', mediaKind: 'movie', playable: true });
+  admissionStore.upsertAdmission({ subjectId: '000-metadata-ready', admissionGeneration: 1, status: 'active', sourceRevision: 'source-1' });
+  kairoxStore.ensureSubject({ subjectId: '000-metadata-ready', mediaKind: 'movie', playable: true });
   kairoxStore.createMaintenanceRun({
-    itemId: '000-metadata-ready', admissionGeneration: 1, initiatedBy: 'user', requestedAt: '2026-07-11T00:00:00.000Z',
+    subjectId: '000-metadata-ready', admissionGeneration: 1, initiatedBy: 'user', requestedAt: '2026-07-11T00:00:00.000Z',
   });
 
   const requested = [];
   const service = {
-    reconcileObjectives(itemIds) {
-      return Object.fromEntries(itemIds.map((itemId) => [itemId, {
-        itemId,
-        nextTargetGate: itemId === '000-metadata-ready' ? 'metadata' : 'optimize',
+    reconcileObjectives(subjectIds) {
+      return Object.fromEntries(subjectIds.map((subjectId) => [subjectId, {
+        subjectId,
+        nextTargetGate: subjectId === '000-metadata-ready' ? 'metadata' : 'optimize',
         nextGateObjective: {},
         activeTasks: [],
         maintenanceComplete: false,
       }]));
     },
-    reconcileMaintenanceRun({ itemId }) { return { run: kairoxStore.getMaintenanceRun(itemId) }; },
+    reconcileMaintenanceRun({ subjectId }) { return { run: kairoxStore.getMaintenanceRun(subjectId) }; },
     requestMaintenance(command) {
       requested.push(command);
-      return { allowed: true, task: { id: `created-${command.itemId}` } };
+      return { allowed: true, task: { id: `created-${command.subjectId}` } };
     },
   };
   runner.start(service, { immediate: false, intervalMs: 60000 });
   await runner.runOnce({ limit: 100 });
 
-  assert.deepStrictEqual(requested.map((command) => command.itemId), ['000-metadata-ready']);
+  assert.deepStrictEqual(requested.map((command) => command.subjectId), ['000-metadata-ready']);
   assert.strictEqual(requested[0].targetGate, 'metadata');
 });

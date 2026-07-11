@@ -25,8 +25,8 @@ export default function CleanupPage() {
   const [reason, setReason] = useState('');
   const [toast, setToast] = useState('');
   const submit = useMutation({
-    mutationFn: ({ item, mode }: { item: CleanupRecommendation; mode: HelixCleanupMode }) => helixLibrary.offboard(item.itemId, {
-      idempotencyKey: `cleanup:${item.itemId}:${mode}:${Date.now()}`,
+    mutationFn: ({ item, mode }: { item: CleanupRecommendation; mode: HelixCleanupMode }) => helixLibrary.offboard(item.subjectId, {
+      idempotencyKey: `cleanup:${item.subjectId}:${mode}:${Date.now()}`,
       cleanupMode: mode,
       reason: reason.trim() || 'cleanup_recommendation_accepted',
       destructiveAuthorization: mode === 'delete_source' ? authorized : undefined,
@@ -45,8 +45,8 @@ export default function CleanupPage() {
   return <Page>
     <PageHeader title="清理建议" meta={`${rows.length} 条建议`} />
     {rows.length === 0 ? <section className="panel"><EmptyState title="目前没有需要处理的媒体" /></section> : <section className="panel table-wrap">
-      <table className="table responsive"><thead><tr><th>媒体</th><th>建议原因</th><th>预计释放</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.itemId}>
-        <td data-label="媒体"><div className="table-main">{item.itemName}</div><div className="table-sub">{item.subLibraryId}</div></td>
+      <table className="table responsive"><thead><tr><th>媒体</th><th>建议原因</th><th>预计释放</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.subjectId}>
+        <td data-label="媒体"><div className="table-main">{item.subjectName}</div><div className="table-sub">{item.subLibraryId}</div></td>
         <td data-label="建议原因"><Status tone="attention">{String(item.recommendation.reason || '符合清理策略')}</Status></td>
         <td data-label="预计释放" className="numeric">{formatBytes(item.recommendation.estimatedBytes || item.recommendation.bytesFreed || item.recommendation.sizeBytes)}</td>
         <td data-label="操作"><div className="page-actions">{(['retain_source', 'detach_source', 'delete_source'] as HelixCleanupMode[]).map((mode) => <Button key={mode} variant={mode === 'delete_source' ? 'danger' : 'quiet'} onClick={() => { setSelection({ item, mode }); setAuthorized(false); setReason(''); }}>{actionLabel[mode]}</Button>)}</div></td>
@@ -54,7 +54,7 @@ export default function CleanupPage() {
     </section>}
     <Dialog open={!!selection} title={selection ? actionLabel[selection.mode] : ''} onClose={() => setSelection(null)} actions={<><Button onClick={() => setSelection(null)}>取消</Button><Button variant={selection?.mode === 'delete_source' ? 'danger' : 'primary'} disabled={!selection || submit.isPending || (selection.mode === 'delete_source' && !authorized)} onClick={() => selection && submit.mutate(selection)}>{submit.isPending ? '提交中' : '确认操作'}</Button></>}>
       {selection && <div className="stack">
-        <div><strong>{selection.item.itemName}</strong></div>
+        <div><strong>{selection.item.subjectName}</strong></div>
         <Field label="操作原因"><input className="input" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="可选" /></Field>
         {selection.mode === 'retain_source' && <Status tone="neutral">媒体文件和来源关联保持不变</Status>}
         {selection.mode === 'detach_source' && <Status tone="attention">媒体文件保留，ShelfDeck 将解除来源关联</Status>}

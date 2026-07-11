@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-const HELIX_SCHEMA_VERSION = 'helix-beta-event-workflow-v1';
+const HELIX_SCHEMA_VERSION = 'helix-beta-subject-asset-v1';
 const APPLY_CONFIRMATION = 'INITIALIZE_HELIX_CLEAN_STATE';
 const MARKER_FILE = 'helix-state.json';
 
@@ -115,7 +115,7 @@ function inspectTaskDatabase(filePath) {
     const hasTasks = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tasks'").get();
     if (!hasTasks) return { schemaMissing: [], legacyTargetRows: 0, legacyFlowRows: 0 };
     const columns = new Set(db.prepare('PRAGMA table_info(tasks)').all().map((row) => row.name));
-    const required = ['item_id', 'status', 'payload_json', 'target_gate', 'gate_objective_json'];
+    const required = ['subject_id', 'status', 'payload_json', 'target_gate', 'gate_objective_json'];
     const schemaMissing = required.filter((column) => !columns.has(column));
     const forbidden = ['resume_point', 'manual_execute_requested', 'bridge_kind', 'flow_kind', 'flow_executor', 'flow_steps_json'].filter((column) => columns.has(column));
     if (forbidden.length) schemaMissing.push(...forbidden.map((column) => `legacy_column:${column}`));

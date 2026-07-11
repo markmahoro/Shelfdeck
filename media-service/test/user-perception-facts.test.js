@@ -18,17 +18,17 @@ test.after(() => {
 
 test('identical user perception facts do not increase fact revision', () => {
   const first = kairoxStore.updateUserPerception({
-    itemId: 'perception-item',
+    subjectId: 'perception-item',
     facts: { doubanRating: 5, watched: true },
     evidence: { source: 'douban', snapshot: 'one' },
   });
   const unchanged = kairoxStore.updateUserPerception({
-    itemId: 'perception-item',
+    subjectId: 'perception-item',
     facts: { doubanRating: 5, watched: true },
     evidence: { source: 'douban', snapshot: 'two' },
   });
   const changed = kairoxStore.updateUserPerception({
-    itemId: 'perception-item',
+    subjectId: 'perception-item',
     facts: { doubanRating: 4, watched: true },
     evidence: { source: 'douban', snapshot: 'three' },
   });

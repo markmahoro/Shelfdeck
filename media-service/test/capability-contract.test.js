@@ -19,7 +19,7 @@ test('Planner rejects a nominally incompatible Capability connection', () => {
   registry.resetForTests();
   registry.register(definition('producer', {}, { type: 'StagedMediaAsset', version: 1 }));
   registry.register(definition('consumer', { metadata: { type: 'MetadataObservation', version: 1 } }, { type: 'FactPublication', version: 1 }));
-  const plan = graph.buildPlan({ taskId: 'typed-task', itemId: 'typed-item', targetGate: 'metadata' }, [
+  const plan = graph.buildPlan({ taskId: 'typed-task', subjectId: 'typed-item', targetGate: 'metadata' }, [
     { eventId: 'producer-event', capability: 'producer' },
     { eventId: 'consumer-event', capability: 'consumer', dependsOn: ['producer-event'], inputBindings: { metadata: { source: 'event', eventId: 'producer-event' } } },
   ], registry);
@@ -29,7 +29,7 @@ test('Planner rejects a nominally incompatible Capability connection', () => {
 test('persisted Graph rejects Capability contract version or signature drift', () => {
   registry.resetForTests();
   registry.register(definition('versioned', {}, { type: 'object', version: 1 }));
-  const plan = graph.buildPlan({ taskId: 'versioned-task', itemId: 'item', targetGate: 'metadata' }, [{ eventId: 'event', capability: 'versioned' }], registry);
+  const plan = graph.buildPlan({ taskId: 'versioned-task', subjectId: 'item', targetGate: 'metadata' }, [{ eventId: 'event', capability: 'versioned' }], registry);
   assert.throws(() => graph.validateGraph({ ...plan, nodes: [{ ...plan.nodes[0], capabilityContractVersion: 2 }] }, registry), { code: 'KAIROX_CAPABILITY_CONTRACT_VERSION_DRIFT' });
   assert.throws(() => graph.validateGraph({ ...plan, nodes: [{ ...plan.nodes[0], outputContractSnapshot: { type: 'array', version: 1 } }] }, registry), { code: 'KAIROX_CAPABILITY_CONTRACT_SIGNATURE_DRIFT' });
 });
@@ -88,7 +88,8 @@ test('atomic Capability executors cannot write Task/Event state or emit cross-do
 
 test('shared effects have one canonical Capability identity', () => {
   const names = catalog.list().map((entry) => entry.capability);
-  assert.strictEqual(names.filter((name) => name === 'media.replace').length, 1);
+  assert.strictEqual(names.filter((name) => name === 'media.file.replace').length, 1);
+  assert.strictEqual(names.filter((name) => name === 'series.season.replace').length, 1);
   assert.strictEqual(names.filter((name) => name === 'output.media.verify').length, 1);
   assert.strictEqual(names.filter((name) => name === 'output.preview.generate').length, 1);
   assert.strictEqual(names.filter((name) => name === 'metadata.image.acquire').length, 1);

@@ -26,7 +26,7 @@ test('clean fact freshness projects only Helix Kairox fact groups', () => {
 
 test('stale Basedata is repaired before Metadata and Optimize', () => {
   const projection = lifecycleProjection.decorateItem({
-    itemId: 'stale-basedata',
+    subjectId: 'stale-basedata',
     basedataComplete: true,
     metadataComplete: true,
     factsFreshness: {
@@ -40,7 +40,7 @@ test('stale Basedata is repaired before Metadata and Optimize', () => {
 
 test('fresh Basedata and stale Metadata select Metadata refresh', () => {
   const projection = lifecycleProjection.decorateItem({
-    itemId: 'stale-metadata',
+    subjectId: 'stale-metadata',
     ...completeBasedata,
     basedataComplete: true,
     basedataSourceRevision: '1',
@@ -57,7 +57,7 @@ test('fresh Basedata and stale Metadata select Metadata refresh', () => {
 
 test('fresh canonical facts and satisfied objective close maintenance without an archive gate', () => {
   const projection = lifecycleProjection.decorateItem({
-    itemId: 'complete',
+    subjectId: 'complete',
     ...completeBasedata,
     basedataComplete: true,
     basedataSourceRevision: '1',
@@ -81,7 +81,7 @@ test('fresh canonical facts and satisfied objective close maintenance without an
 
 test('fresh Basedata row with missing required technical facts blocks later gates without creating a next task', () => {
   const projection = lifecycleProjection.decorateItem({
-    itemId: 'incomplete-basedata', playable: true, path: '/media/disc.iso', codec: 'h264',
+    subjectId: 'incomplete-basedata', playable: true, path: '/media/disc.iso', codec: 'h264',
     basedataComplete: true, basedataSourceRevision: '1', admissionSourceRevision: '1',
     metadataComplete: true,
     factsFreshness: {

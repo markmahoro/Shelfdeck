@@ -24,7 +24,7 @@ function findNfoTmdbId(root) {
 function registerMediaAssetCapabilities(register) {
   register({ capability: 'media.identity.inspect', allowedTargetGates: ['optimize'], execute: async ({ task, input }) => {
     const stagedAsset = input.stagedAsset;
-    const expectedTmdbId = String(task.itemInfo && (task.itemInfo.tmdbId || task.itemInfo.providerIds && (task.itemInfo.providerIds.Tmdb || task.itemInfo.providerIds.tmdb)) || '');
+    const expectedTmdbId = String(task.subjectInfo && (task.subjectInfo.tmdbId || task.subjectInfo.providerIds && (task.subjectInfo.providerIds.Tmdb || task.subjectInfo.providerIds.tmdb)) || '');
     const actualTmdbId = findNfoTmdbId(stagedAsset.stagedRoot || stagedAsset.workDir || path.dirname(stagedAsset.path));
     const matched = !!expectedTmdbId && !!actualTmdbId && expectedTmdbId === actualTmdbId;
     return { result: { stagedAsset, expectedTmdbId, actualTmdbId, matched, reason: matched ? 'strong_identity_match' : !expectedTmdbId ? 'expected_identity_missing' : !actualTmdbId ? 'staged_identity_missing' : 'identity_mismatch' } };

@@ -61,7 +61,7 @@ function ensureSchema(db = getDb()) {
     CREATE INDEX IF NOT EXISTS idx_kairox_people_preference ON kairox_people(preference,updated_at);
 
     CREATE TABLE IF NOT EXISTS kairox_item_people (
-      item_id TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
       person_id TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'actor',
       source TEXT NOT NULL DEFAULT '',
@@ -69,10 +69,10 @@ function ensureSchema(db = getDb()) {
       metadata_revision TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY(item_id,person_id,role),
+      PRIMARY KEY(subject_id,person_id,role),
       FOREIGN KEY(person_id) REFERENCES kairox_people(person_id)
     );
-    CREATE INDEX IF NOT EXISTS idx_kairox_item_people_person ON kairox_item_people(person_id,item_id);
+    CREATE INDEX IF NOT EXISTS idx_kairox_item_people_person ON kairox_item_people(person_id,subject_id);
 
     CREATE TABLE IF NOT EXISTS kairox_person_merge_candidates (
       candidate_id TEXT PRIMARY KEY,
@@ -250,15 +250,15 @@ function normalizeObservation(value = {}) {
   };
 }
 
-function observeItemPeople(input = {}) {
-  const itemId = clean(input.itemId);
-  if (!itemId) throw Object.assign(new Error('itemId is required'), { code: 'KAIROX_PERSON_ITEM_REQUIRED' });
+function observeSubjectPeople(input = {}) {
+  const subjectId = clean(input.subjectId);
+  if (!subjectId) throw Object.assign(new Error('subjectId is required'), { code: 'KAIROX_PERSON_ITEM_REQUIRED' });
   const observations = (Array.isArray(input.people) ? input.people : []).map(normalizeObservation).filter((entry) => entry.name && entry.role === 'actor');
   const db = getDb();
-  const existingRelations = db.prepare(`SELECT ip.*,p.normalized_name FROM kairox_item_people ip JOIN kairox_people p ON p.person_id=ip.person_id WHERE ip.item_id=?`).all(itemId);
+  const existingRelations = db.prepare(`SELECT ip.*,p.normalized_name FROM kairox_item_people ip JOIN kairox_people p ON p.person_id=ip.person_id WHERE ip.subject_id=?`).all(subjectId);
   const resolved = [];
   const tx = db.transaction(() => {
-    db.prepare('DELETE FROM kairox_item_people WHERE item_id=?').run(itemId);
+    db.prepare('DELETE FROM kairox_item_people WHERE subject_id=?').run(subjectId);
     for (const observation of observations) {
       let row = observation.personId ? db.prepare('SELECT * FROM kairox_people WHERE person_id=?').get(observation.personId) : null;
       row = row || findByStrongIdentity(observation.providerIds, observation.sourceKeys);
@@ -275,21 +275,21 @@ function observeItemPeople(input = {}) {
         updateIdentity(row, observation);
       }
       const now = nowIso();
-      db.prepare(`INSERT INTO kairox_item_people(item_id,person_id,role,source,confidence,metadata_revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)`)
-        .run(itemId, row.person_id, observation.role, observation.source, observation.confidence, clean(input.metadataRevision), now, now);
+      db.prepare(`INSERT INTO kairox_item_people(subject_id,person_id,role,source,confidence,metadata_revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)`)
+        .run(subjectId, row.person_id, observation.role, observation.source, observation.confidence, clean(input.metadataRevision), now, now);
       resolved.push(row.person_id);
     }
   });
   tx();
-  return getItemPreferenceProjection(itemId);
+  return getSubjectPreferenceProjection(subjectId);
 }
 
-function getItemPreferenceProjection(itemId) {
+function getSubjectPreferenceProjection(subjectId) {
   const rows = getDb().prepare(`
     SELECT p.person_id,p.canonical_name,p.preference,ip.role
     FROM kairox_item_people ip JOIN kairox_people p ON p.person_id=ip.person_id
-    WHERE ip.item_id=? AND ip.role='actor' ORDER BY p.canonical_name
-  `).all(clean(itemId));
+    WHERE ip.subject_id=? AND ip.role='actor' ORDER BY p.canonical_name
+  `).all(clean(subjectId));
   const scores = rows.map((row) => Number(row.preference) || 0);
   return {
     actorPersonIds: rows.map((row) => row.person_id),
@@ -299,21 +299,21 @@ function getItemPreferenceProjection(itemId) {
   };
 }
 
-function getItemPreferenceProjections(itemIds = []) {
-  const ids = [...new Set((itemIds || []).map(clean).filter(Boolean))];
-  const projections = Object.fromEntries(ids.map((itemId) => [itemId, {
+function getSubjectPreferenceProjections(subjectIds = []) {
+  const ids = [...new Set((subjectIds || []).map(clean).filter(Boolean))];
+  const projections = Object.fromEntries(ids.map((subjectId) => [subjectId, {
     actorPersonIds: [], actorPeople: [], actorPreferenceMax: null, actorPreferenceMin: null,
   }]));
   if (ids.length === 0) return projections;
   const placeholders = ids.map(() => '?').join(',');
   const rows = getDb().prepare(`
-    SELECT ip.item_id,p.person_id,p.canonical_name,p.preference
+    SELECT ip.subject_id,p.person_id,p.canonical_name,p.preference
     FROM kairox_item_people ip JOIN kairox_people p ON p.person_id=ip.person_id
-    WHERE ip.item_id IN (${placeholders}) AND ip.role='actor'
-    ORDER BY ip.item_id,p.canonical_name
+    WHERE ip.subject_id IN (${placeholders}) AND ip.role='actor'
+    ORDER BY ip.subject_id,p.canonical_name
   `).all(...ids);
   for (const row of rows) {
-    const projection = projections[row.item_id];
+    const projection = projections[row.subject_id];
     if (!projection) continue;
     const score = Number(row.preference) || 0;
     projection.actorPersonIds.push(row.person_id);
@@ -349,7 +349,7 @@ function listPeople(options = {}) {
   const total = Number(db.prepare(`SELECT COUNT(*) AS count FROM kairox_people p ${where}`).get(params).count) || 0;
   const rows = db.prepare(`
     SELECT p.*,
-      COUNT(DISTINCT ip.item_id) AS related_media_count,
+      COUNT(DISTINCT ip.subject_id) AS related_media_count,
       (SELECT COUNT(*) FROM kairox_person_reference_artifacts a WHERE a.person_id=p.person_id) AS reference_face_count
     FROM kairox_people p
     LEFT JOIN kairox_item_people ip ON ip.person_id=p.person_id
@@ -376,8 +376,8 @@ function updatePerson(personId, updates = {}) {
   return getPerson(current.personId, { includeArtifacts: true });
 }
 
-function getRelatedItemIds(personId) {
-  return getDb().prepare('SELECT DISTINCT item_id FROM kairox_item_people WHERE person_id=? ORDER BY item_id').all(clean(personId)).map((row) => row.item_id);
+function getRelatedSubjectIds(personId) {
+  return getDb().prepare('SELECT DISTINCT subject_id FROM kairox_item_people WHERE person_id=? ORDER BY subject_id').all(clean(personId)).map((row) => row.subject_id);
 }
 
 function getMergeCandidates() {
@@ -405,8 +405,8 @@ function mergePeople(input = {}) {
     db.prepare(`UPDATE kairox_people SET aliases_json=?,provider_ids_json=?,source_keys_json=?,content_kinds_json=?,preference=?,preference_revision=preference_revision+1,updated_at=? WHERE person_id=?`)
       .run(JSON.stringify(merged.aliases), JSON.stringify(merged.providerIds), JSON.stringify(merged.sourceKeys), JSON.stringify(merged.contentKinds), finalPreference, nowIso(), target.personId);
     for (const relation of db.prepare('SELECT * FROM kairox_item_people WHERE person_id=?').all(source.personId)) {
-      db.prepare(`INSERT INTO kairox_item_people(item_id,person_id,role,source,confidence,metadata_revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(item_id,person_id,role) DO UPDATE SET confidence=MAX(confidence,excluded.confidence),updated_at=excluded.updated_at`)
-        .run(relation.item_id, target.personId, relation.role, relation.source, relation.confidence, relation.metadata_revision, relation.created_at, nowIso());
+      db.prepare(`INSERT INTO kairox_item_people(subject_id,person_id,role,source,confidence,metadata_revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(subject_id,person_id,role) DO UPDATE SET confidence=MAX(confidence,excluded.confidence),updated_at=excluded.updated_at`)
+        .run(relation.subject_id, target.personId, relation.role, relation.source, relation.confidence, relation.metadata_revision, relation.created_at, nowIso());
     }
     db.prepare('DELETE FROM kairox_item_people WHERE person_id=?').run(source.personId);
     db.prepare('UPDATE kairox_person_reference_artifacts SET person_id=? WHERE person_id=?').run(target.personId, source.personId);
@@ -414,7 +414,7 @@ function mergePeople(input = {}) {
     db.prepare('DELETE FROM kairox_people WHERE person_id=?').run(source.personId);
   });
   tx();
-  return { person: getPerson(target.personId, { includeArtifacts: true }), affectedItemIds: [...new Set([...getRelatedItemIds(target.personId)])] };
+  return { person: getPerson(target.personId, { includeArtifacts: true }), affectedItemIds: [...new Set([...getRelatedSubjectIds(target.personId)])] };
 }
 
 function normalizeReferenceFace(face = {}) {
@@ -484,10 +484,10 @@ module.exports = {
   listPeople,
   updatePerson,
   deletePerson,
-  observeItemPeople,
-  getItemPreferenceProjection,
-  getItemPreferenceProjections,
-  getRelatedItemIds,
+  observeSubjectPeople,
+  getSubjectPreferenceProjection,
+  getSubjectPreferenceProjections,
+  getRelatedSubjectIds,
   getMergeCandidates,
   mergePeople,
   normalizeReferenceFace,

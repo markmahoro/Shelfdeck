@@ -25,35 +25,38 @@ function createFixtures() {
   const sources = new Map();
   const bound = new Map();
   const admissions = new Map();
+  const staged = new Map();
   const pages = [
     { observations: [{ sourceReference: { source: 'emby', subLib: { uuid: 'auto-lib', embyServerId: 'server', sectionId: 'section' }, sourceRefId: 'emby-1', item: { type: 'Movie', name: '测试电影' } } }], cursor: { startIndex: 1 }, done: false, total: 2 },
     { observations: [{ sourceReference: { source: 'emby', subLib: { uuid: 'auto-lib', embyServerId: 'server', sectionId: 'section' }, sourceRefId: 'emby-2', item: { type: 'Movie', name: '测试电影' } } }], cursor: { startIndex: 2 }, done: true, total: 2 },
   ];
   const nexoraService = {
     observeLibraryPage: async ({ cursor }) => pages[cursor.startIndex || 0],
-    resolveBoundItemId(reference) { return bound.get(reference.sourceRefId) || ''; },
+    stageObservationPage({ workId, observations }) { staged.set(workId, [...(staged.get(workId) || []), ...observations]); },
+    finalizeObservationWork({ workId }) { return (staged.get(workId) || []).map((entry) => ({ sourceSubjectKey: `emby:server:${entry.sourceReference.sourceRefId}`, subjectKind: 'movie', displayName: entry.sourceReference.item.name, observations: [entry], assets: [{ assetId: `asset-${entry.sourceReference.sourceRefId}`, assetKind: 'movie', seasonKey: '', episodeKey: '', partKey: '', assetRevision: 1, canonicalLocator: { path: `Z:/${entry.sourceReference.sourceRefId}.mkv` } }] })); },
+    resolveBoundSubjectId(reference) { return bound.get(reference.sourceRefId) || ''; },
     ensureOnboarding(command) {
-      bound.set(command.sourceReference.sourceRefId, command.itemId);
-      const projection = { itemId: command.itemId, readiness: 'ready', sourceRevision: `source-${command.sourceReference.sourceRefId}`, sourceAccessDescriptor: { sourceType: 'emby', subLibraryId: 'auto-lib', identityPayload: { serverId: 'server', embyItemId: command.sourceReference.sourceRefId }, observedStructure: { mediaKind: 'movie', playable: true, displayName: '测试电影' } } };
-      sources.set(command.itemId, projection);
+      bound.set(command.sourceReference.sourceRefId, command.subjectId);
+      const projection = { subjectId: command.subjectId, readiness: 'ready', sourceRevision: `source-${command.sourceReference.sourceRefId}`, sourceAccessDescriptor: { sourceType: 'emby', subLibraryId: 'auto-lib', identityPayload: { serverId: 'server', embyItemId: command.sourceReference.sourceRefId }, observedStructure: { mediaKind: 'movie', playable: true, displayName: '测试电影' } } };
+      sources.set(command.subjectId, projection);
       return projection;
     },
-    diagnoseSource: ({ itemId }) => sources.get(itemId),
+    diagnoseSource: ({ subjectId }) => sources.get(subjectId),
     ensureOffboarding: () => ({}),
-    getSourceProjection: (itemId) => sources.get(itemId) || { itemId, readiness: 'unresolved' },
-    getSourceProjections: (itemIds) => Object.fromEntries(itemIds.map((itemId) => [itemId, sources.get(itemId) || { itemId, readiness: 'unresolved' }])),
+    getSourceProjection: (subjectId) => sources.get(subjectId) || { subjectId, readiness: 'unresolved' },
+    getSourceProjections: (subjectIds) => Object.fromEntries(subjectIds.map((subjectId) => [subjectId, sources.get(subjectId) || { subjectId, readiness: 'unresolved' }])),
   };
   const kairoxService = {
     reconcileMaintenance(command) {
-      const projection = { itemId: command.itemId, admissionCurrent: true, admission: { ...command, status: 'active' }, maintenanceRevision: `maintenance-${command.admissionGeneration}` };
-      admissions.set(command.itemId, projection);
+      const projection = { subjectId: command.subjectId, admissionCurrent: true, admission: { ...command, status: 'active' }, maintenanceRevision: `maintenance-${command.admissionGeneration}` };
+      admissions.set(command.subjectId, projection);
       return projection;
     },
     suspendMaintenance: () => ({}),
     requestMaintenance: () => ({}),
     updateUserPerception: () => ({}),
-    getMaintenanceProjection: (itemId) => admissions.get(itemId) || { itemId, admissionCurrent: false },
-    getMaintenanceProjections: (itemIds) => Object.fromEntries(itemIds.map((itemId) => [itemId, admissions.get(itemId) || { itemId, admissionCurrent: false }])),
+    getMaintenanceProjection: (subjectId) => admissions.get(subjectId) || { subjectId, admissionCurrent: false },
+    getMaintenanceProjections: (subjectIds) => Object.fromEntries(subjectIds.map((subjectId) => [subjectId, admissions.get(subjectId) || { subjectId, admissionCurrent: false }])),
   };
   return { configs, nexoraService, kairoxService };
 }
@@ -79,9 +82,9 @@ test('Libra auto library creates durable paged observation work and resumes its 
   const second = await runtime.runLibraryWork(created.observationWork.workId, { limit: 1 });
   assert.strictEqual(second.status, 'done');
   assert.deepStrictEqual(second.payload, created.observationWork.payload, 'idempotent request payload must remain immutable');
-  const items = libraStore.getLibraryItems();
-  assert.ok(items.every((item) => item.playable), JSON.stringify(items));
+  const items = libraStore.getLibrarySubjects();
   assert.strictEqual(items.length, 2);
+  assert.ok(items.every((item) => item.subjectKind === 'movie'));
   assert.ok(items.every((item) => item.phase === 'maintenance' && item.subLibraryId === 'auto-lib'));
 });
 
@@ -132,10 +135,10 @@ test('Douban user perception sync waits for observation and resumes from durable
   assert.strictEqual(deferred.status, 'retrying');
   await runtime.runLibraryWork(created.observationWork.workId, { limit: 1 });
   await runtime.runLibraryWork(created.observationWork.workId, { limit: 1 });
-  const items = libraStore.getLibraryItems();
-  fixtures.kairoxService.getMaintenanceProjections = (itemIds) => Object.fromEntries(itemIds.map((itemId) => [itemId, {
-    itemId,
-    maintenanceSubject: { mediaKind: 'movie', playable: true },
+  const items = libraStore.getLibrarySubjects();
+  fixtures.kairoxService.getMaintenanceProjections = (subjectIds) => Object.fromEntries(subjectIds.map((subjectId) => [subjectId, {
+    subjectId,
+    maintenanceSubject: { subjectKind: 'movie' },
     metadataFacts: { title: '测试电影' },
     userPerceptionFacts: {},
   }]));

@@ -34,17 +34,17 @@ function buildInvalidation(input = {}) {
 
 function recordGateInvalidation(input = {}) {
   const invalidation = buildInvalidation(input);
-  const itemId = String(input.itemId || '').trim();
-  if (!itemId) return { ...invalidation, stored: false, storeReason: 'missing_item_id' };
+  const subjectId = String(input.subjectId || '').trim();
+  if (!subjectId) return { ...invalidation, stored: false, storeReason: 'missing_subject_id' };
 
   const markStale = {
     basedata: kairoxStore.markBasedataStale,
     metadata: kairoxStore.markMetadataStale,
     optimize: kairoxStore.markOptimizeStale,
   }[invalidation.invalidatedGate];
-  markStale({ itemId, reason: invalidation.reason, updatedAt: invalidation.invalidatedAt });
+  markStale({ subjectId, reason: invalidation.reason, updatedAt: invalidation.invalidatedAt });
   kairoxStore.requestRefresh({
-    itemId,
+    subjectId,
     factGroup: invalidation.invalidatedGate,
     reason: invalidation.reason,
     causedByTaskId: invalidation.sourceTaskId,

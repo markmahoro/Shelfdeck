@@ -34,12 +34,9 @@ function getDb() {
 
 function ensureSchema(db) {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS kairox_media (
-      item_id TEXT PRIMARY KEY,
-      media_kind TEXT NOT NULL DEFAULT '',
-      playable INTEGER NOT NULL DEFAULT 1,
-      parent_item_id TEXT NOT NULL DEFAULT '',
-      series_item_id TEXT NOT NULL DEFAULT '',
+    CREATE TABLE IF NOT EXISTS kairox_subjects (
+      subject_id TEXT PRIMARY KEY,
+      subject_kind TEXT NOT NULL DEFAULT '',
       maintenance_priority_class TEXT NOT NULL DEFAULT 'normal',
       priority_revision INTEGER NOT NULL DEFAULT 0,
       priority_reason TEXT NOT NULL DEFAULT '',
@@ -51,7 +48,7 @@ function ensureSchema(db) {
 
     CREATE TABLE IF NOT EXISTS kairox_maintenance_runs (
       run_id TEXT PRIMARY KEY,
-      item_id TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
       admission_generation INTEGER NOT NULL DEFAULT 0,
       initiated_by TEXT NOT NULL DEFAULT 'system',
       status TEXT NOT NULL DEFAULT 'ready',
@@ -62,16 +59,16 @@ function ensureSchema(db) {
       blocked_reason TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      FOREIGN KEY(item_id) REFERENCES kairox_media(item_id)
+      FOREIGN KEY(subject_id) REFERENCES kairox_subjects(subject_id)
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_kairox_run_one_open
-      ON kairox_maintenance_runs(item_id)
+      ON kairox_maintenance_runs(subject_id)
       WHERE status NOT IN ('complete','cancelled');
     CREATE INDEX IF NOT EXISTS idx_kairox_runs_supply
-      ON kairox_maintenance_runs(status,library_priority,requested_at,item_id);
+      ON kairox_maintenance_runs(status,library_priority,requested_at,subject_id);
 
     CREATE TABLE IF NOT EXISTS kairox_basedata_facts (
-      item_id TEXT PRIMARY KEY,
+      subject_id TEXT PRIMARY KEY,
       source_revision TEXT NOT NULL DEFAULT '',
       fact_revision INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'missing',
@@ -80,12 +77,26 @@ function ensureSchema(db) {
       observed_at TEXT NOT NULL DEFAULT '',
       stale_reason TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL,
-      FOREIGN KEY(item_id) REFERENCES kairox_media(item_id)
+      FOREIGN KEY(subject_id) REFERENCES kairox_subjects(subject_id)
     );
     CREATE INDEX IF NOT EXISTS idx_kairox_basedata_status ON kairox_basedata_facts(status, updated_at);
+    CREATE TABLE IF NOT EXISTS kairox_asset_basedata_facts (
+      asset_id TEXT PRIMARY KEY,
+      subject_id TEXT NOT NULL,
+      source_revision TEXT NOT NULL DEFAULT '',
+      asset_revision INTEGER NOT NULL DEFAULT 0,
+      fact_revision INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'missing',
+      facts_json TEXT NOT NULL DEFAULT '{}',
+      evidence_json TEXT NOT NULL DEFAULT '{}',
+      observed_at TEXT NOT NULL DEFAULT '',
+      stale_reason TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_kairox_asset_basedata_subject ON kairox_asset_basedata_facts(subject_id,status,asset_id);
 
     CREATE TABLE IF NOT EXISTS kairox_metadata_facts (
-      item_id TEXT PRIMARY KEY,
+      subject_id TEXT PRIMARY KEY,
       fact_revision INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'missing',
       facts_json TEXT NOT NULL DEFAULT '{}',
@@ -93,22 +104,22 @@ function ensureSchema(db) {
       observed_at TEXT NOT NULL DEFAULT '',
       stale_reason TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL,
-      FOREIGN KEY(item_id) REFERENCES kairox_media(item_id)
+      FOREIGN KEY(subject_id) REFERENCES kairox_subjects(subject_id)
     );
     CREATE INDEX IF NOT EXISTS idx_kairox_metadata_status ON kairox_metadata_facts(status, updated_at);
 
     CREATE TABLE IF NOT EXISTS kairox_user_perception_facts (
-      item_id TEXT PRIMARY KEY,
+      subject_id TEXT PRIMARY KEY,
       fact_revision INTEGER NOT NULL DEFAULT 0,
       facts_json TEXT NOT NULL DEFAULT '{}',
       evidence_json TEXT NOT NULL DEFAULT '{}',
       observed_at TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL,
-      FOREIGN KEY(item_id) REFERENCES kairox_media(item_id)
+      FOREIGN KEY(subject_id) REFERENCES kairox_subjects(subject_id)
     );
 
     CREATE TABLE IF NOT EXISTS kairox_optimize_facts (
-      item_id TEXT PRIMARY KEY,
+      subject_id TEXT PRIMARY KEY,
       objective_revision TEXT NOT NULL DEFAULT '',
       fact_revision INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'missing',
@@ -117,22 +128,22 @@ function ensureSchema(db) {
       verified_at TEXT NOT NULL DEFAULT '',
       stale_reason TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL,
-      FOREIGN KEY(item_id) REFERENCES kairox_media(item_id)
+      FOREIGN KEY(subject_id) REFERENCES kairox_subjects(subject_id)
     );
     CREATE INDEX IF NOT EXISTS idx_kairox_optimize_status ON kairox_optimize_facts(status, updated_at);
 
     CREATE TABLE IF NOT EXISTS kairox_objectives (
-      item_id TEXT PRIMARY KEY,
+      subject_id TEXT PRIMARY KEY,
       policy_revision TEXT NOT NULL DEFAULT '',
       objective_revision TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'pending',
       objective_json TEXT NOT NULL DEFAULT '{}',
       updated_at TEXT NOT NULL,
-      FOREIGN KEY(item_id) REFERENCES kairox_media(item_id)
+      FOREIGN KEY(subject_id) REFERENCES kairox_subjects(subject_id)
     );
 
     CREATE TABLE IF NOT EXISTS kairox_refresh_requests (
-      item_id TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
       fact_group TEXT NOT NULL,
       source_revision TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'pending',
@@ -141,8 +152,8 @@ function ensureSchema(db) {
       evidence_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY(item_id, fact_group),
-      FOREIGN KEY(item_id) REFERENCES kairox_media(item_id)
+      PRIMARY KEY(subject_id, fact_group),
+      FOREIGN KEY(subject_id) REFERENCES kairox_subjects(subject_id)
     );
     CREATE INDEX IF NOT EXISTS idx_kairox_refresh_status ON kairox_refresh_requests(status, updated_at);
 
@@ -169,17 +180,14 @@ function nowIso(input) {
   return String(input || new Date().toISOString());
 }
 
-function ensureMedia(input = {}) {
-  const itemId = String(input.itemId || '').trim();
-  if (!itemId) throw Object.assign(new Error('itemId is required'), { code: 'KAIROX_ITEM_ID_REQUIRED' });
+function ensureSubject(input = {}) {
+  const subjectId = String(input.subjectId || '').trim();
+  if (!subjectId) throw Object.assign(new Error('subjectId is required'), { code: 'KAIROX_SUBJECT_ID_REQUIRED' });
   const now = nowIso(input.updatedAt);
-  const existing = getDb().prepare('SELECT * FROM kairox_media WHERE item_id=?').get(itemId);
+  const existing = getDb().prepare('SELECT * FROM kairox_subjects WHERE subject_id=?').get(subjectId);
   const row = {
-    item_id: itemId,
-    media_kind: String(input.mediaKind !== undefined ? input.mediaKind : existing && existing.media_kind || ''),
-    playable: input.playable === undefined ? (existing ? existing.playable : 1) : (input.playable === false ? 0 : 1),
-    parent_item_id: String(input.parentItemId !== undefined ? input.parentItemId : existing && existing.parent_item_id || ''),
-    series_item_id: String(input.seriesItemId !== undefined ? input.seriesItemId : existing && existing.series_item_id || ''),
+    subject_id: subjectId,
+    subject_kind: String(input.subjectKind !== undefined ? input.subjectKind : existing && existing.subject_kind || ''),
     maintenance_priority_class: String(existing && existing.maintenance_priority_class || 'normal'),
     priority_revision: Number(existing && existing.priority_revision) || 0,
     priority_reason: String(existing && existing.priority_reason || ''),
@@ -189,27 +197,23 @@ function ensureMedia(input = {}) {
     updated_at: now,
   };
   getDb().prepare(`
-    INSERT INTO kairox_media
-      (item_id,media_kind,playable,parent_item_id,series_item_id,maintenance_priority_class,
+    INSERT INTO kairox_subjects
+      (subject_id,subject_kind,maintenance_priority_class,
        priority_revision,priority_reason,priority_run_id,priority_set_at,created_at,updated_at)
     VALUES
-      (@item_id,@media_kind,@playable,@parent_item_id,@series_item_id,@maintenance_priority_class,
+      (@subject_id,@subject_kind,@maintenance_priority_class,
        @priority_revision,@priority_reason,@priority_run_id,@priority_set_at,@created_at,@updated_at)
-    ON CONFLICT(item_id) DO UPDATE SET
-      media_kind=excluded.media_kind,playable=excluded.playable,parent_item_id=excluded.parent_item_id,
-      series_item_id=excluded.series_item_id,updated_at=excluded.updated_at
+    ON CONFLICT(subject_id) DO UPDATE SET
+      subject_kind=excluded.subject_kind,updated_at=excluded.updated_at
   `).run(row);
-  return mediaRow(getDb().prepare('SELECT * FROM kairox_media WHERE item_id=?').get(itemId));
+  return subjectRow(getDb().prepare('SELECT * FROM kairox_subjects WHERE subject_id=?').get(subjectId));
 }
 
-function mediaRow(row) {
+function subjectRow(row) {
   if (!row) return null;
   return {
-    itemId: row.item_id,
-    mediaKind: row.media_kind || '',
-    playable: row.playable !== 0,
-    parentItemId: row.parent_item_id || '',
-    seriesItemId: row.series_item_id || '',
+    subjectId: row.subject_id,
+    subjectKind: row.subject_kind || '',
     maintenancePriorityClass: PRIORITY_CLASSES.has(row.maintenance_priority_class) ? row.maintenance_priority_class : 'normal',
     priorityRevision: Number(row.priority_revision) || 0,
     priorityReason: row.priority_reason || '',
@@ -220,15 +224,15 @@ function mediaRow(row) {
   };
 }
 
-function getMedia(itemId) {
-  return mediaRow(getDb().prepare('SELECT * FROM kairox_media WHERE item_id=?').get(String(itemId || '')));
+function getSubject(subjectId) {
+  return subjectRow(getDb().prepare('SELECT * FROM kairox_subjects WHERE subject_id=?').get(String(subjectId || '')));
 }
 
 function runRow(row) {
   if (!row) return null;
   return {
     runId: row.run_id,
-    itemId: row.item_id,
+    subjectId: row.subject_id,
     admissionGeneration: Number(row.admission_generation) || 0,
     initiatedBy: row.initiated_by || 'system',
     status: RUN_STATUSES.has(row.status) ? row.status : 'blocked',
@@ -242,25 +246,25 @@ function runRow(row) {
   };
 }
 
-function getMaintenanceRun(itemId) {
+function getMaintenanceRun(subjectId) {
   return runRow(getDb().prepare(`
     SELECT * FROM kairox_maintenance_runs
-    WHERE item_id=? AND status NOT IN ('complete','cancelled')
+    WHERE subject_id=? AND status NOT IN ('complete','cancelled')
     ORDER BY created_at DESC LIMIT 1
-  `).get(String(itemId || '')));
+  `).get(String(subjectId || '')));
 }
 
-function getMaintenanceRuns(itemIds = []) {
-  const ids = [...new Set((itemIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
+function getMaintenanceRuns(subjectIds = []) {
+  const ids = [...new Set((subjectIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
   if (ids.length === 0) return {};
   const placeholders = ids.map(() => '?').join(',');
   const rows = getDb().prepare(`
     SELECT * FROM kairox_maintenance_runs
-    WHERE item_id IN (${placeholders}) AND status NOT IN ('complete','cancelled')
-    ORDER BY item_id ASC,created_at DESC
+    WHERE subject_id IN (${placeholders}) AND status NOT IN ('complete','cancelled')
+    ORDER BY subject_id ASC,created_at DESC
   `).all(...ids);
   return rows.reduce((out, row) => {
-    if (!out[row.item_id]) out[row.item_id] = runRow(row);
+    if (!out[row.subject_id]) out[row.subject_id] = runRow(row);
     return out;
   }, {});
 }
@@ -270,18 +274,18 @@ function getMaintenanceRunById(runId) {
 }
 
 function createMaintenanceRun(input = {}) {
-  const media = ensureMedia(input);
-  const existing = getMaintenanceRun(media.itemId);
+  const media = ensureSubject(input);
+  const existing = getMaintenanceRun(media.subjectId);
   if (existing) return { created: false, run: existing };
   const now = nowIso(input.requestedAt);
   const runId = String(input.runId || require('crypto').randomUUID());
   getDb().prepare(`
     INSERT INTO kairox_maintenance_runs
-      (run_id,item_id,admission_generation,initiated_by,status,current_task_id,library_priority,
+      (run_id,subject_id,admission_generation,initiated_by,status,current_task_id,library_priority,
        requested_at,completed_at,blocked_reason,created_at,updated_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
-    runId, media.itemId, Math.max(0, Number(input.admissionGeneration) || 0),
+    runId, media.subjectId, Math.max(0, Number(input.admissionGeneration) || 0),
     String(input.initiatedBy || 'system'), 'ready', '', Number(input.libraryPriority) || 100,
     now, '', '', now, now,
   );
@@ -315,44 +319,44 @@ function listMaintenanceRuns(options = {}) {
   const statuses = Array.isArray(options.statuses) && options.statuses.length ? options.statuses : ['ready'];
   const valid = statuses.filter((value) => RUN_STATUSES.has(value));
   if (valid.length === 0) return [];
-  const itemIds = [...new Set((options.itemIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
-  if (Array.isArray(options.itemIds) && itemIds.length === 0) return [];
+  const subjectIds = [...new Set((options.subjectIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
+  if (Array.isArray(options.subjectIds) && subjectIds.length === 0) return [];
   const statusPlaceholders = valid.map(() => '?').join(',');
-  const itemClause = itemIds.length > 0
-    ? ` AND r.item_id IN (${itemIds.map(() => '?').join(',')})`
+  const itemClause = subjectIds.length > 0
+    ? ` AND r.subject_id IN (${subjectIds.map(() => '?').join(',')})`
     : '';
   return getDb().prepare(`
     SELECT r.* FROM kairox_maintenance_runs r
-    JOIN kairox_media m ON m.item_id=r.item_id
-    JOIN kairox_admissions a ON a.item_id=r.item_id AND a.status='active' AND a.generation=r.admission_generation
+    JOIN kairox_subjects m ON m.subject_id=r.subject_id
+    JOIN kairox_admissions a ON a.subject_id=r.subject_id AND a.status='active' AND a.generation=r.admission_generation
     WHERE r.status IN (${statusPlaceholders})${itemClause}
     ORDER BY CASE m.maintenance_priority_class WHEN 'expedited' THEN 0 ELSE 1 END ASC,
-             r.library_priority ASC,r.requested_at ASC,r.item_id ASC
+             r.library_priority ASC,r.requested_at ASC,r.subject_id ASC
     LIMIT ?
-  `).all(...valid, ...itemIds, limit).map(runRow);
+  `).all(...valid, ...subjectIds, limit).map(runRow);
 }
 
 function setMaintenancePriority(input = {}) {
-  const itemId = String(input.itemId || '').trim();
+  const subjectId = String(input.subjectId || '').trim();
   const priorityClass = String(input.priorityClass || 'normal');
   if (!PRIORITY_CLASSES.has(priorityClass)) throw Object.assign(new Error('Invalid maintenance priority class'), { code: 'KAIROX_INVALID_PRIORITY_CLASS' });
-  const media = getMedia(itemId);
+  const media = getSubject(subjectId);
   if (!media) throw Object.assign(new Error('Kairox maintenance item not found'), { code: 'KAIROX_ITEM_NOT_FOUND' });
   const runId = priorityClass === 'expedited' ? String(input.runId || media.priorityRunId || '') : '';
   const reason = priorityClass === 'expedited' ? String(input.reason || '') : '';
   if (media.maintenancePriorityClass === priorityClass && media.priorityRunId === runId && media.priorityReason === reason) return media;
   const now = nowIso(input.updatedAt);
   getDb().prepare(`
-    UPDATE kairox_media SET maintenance_priority_class=?,priority_revision=priority_revision+1,
-      priority_reason=?,priority_run_id=?,priority_set_at=?,updated_at=? WHERE item_id=?
-  `).run(priorityClass, reason, runId, priorityClass === 'expedited' ? now : '', now, itemId);
-  return getMedia(itemId);
+    UPDATE kairox_subjects SET maintenance_priority_class=?,priority_revision=priority_revision+1,
+      priority_reason=?,priority_run_id=?,priority_set_at=?,updated_at=? WHERE subject_id=?
+  `).run(priorityClass, reason, runId, priorityClass === 'expedited' ? now : '', now, subjectId);
+  return getSubject(subjectId);
 }
 
 function factRow(row, kind) {
   if (!row) return null;
   return {
-    itemId: row.item_id,
+    subjectId: row.subject_id,
     kind,
     sourceRevision: row.source_revision || '',
     objectiveRevision: row.objective_revision || '',
@@ -367,15 +371,15 @@ function factRow(row, kind) {
 }
 
 function publishBasedata(input = {}) {
-  const media = ensureMedia(input);
-  const existing = getDb().prepare('SELECT * FROM kairox_basedata_facts WHERE item_id=?').get(media.itemId);
+  const media = ensureSubject(input);
+  const existing = getDb().prepare('SELECT * FROM kairox_basedata_facts WHERE subject_id=?').get(media.subjectId);
   const evidenceTaskId = input.evidence && String(input.evidence.taskId || '');
   if (evidenceTaskId && String(parse(existing && existing.evidence_json, {}).taskId || '') === evidenceTaskId) {
-    completeRefresh(media.itemId, 'basedata', input.updatedAt);
-    return getBasedata(media.itemId);
+    completeRefresh(media.subjectId, 'basedata', input.updatedAt);
+    return getBasedata(media.subjectId);
   }
   const row = {
-    item_id: media.itemId,
+    subject_id: media.subjectId,
     source_revision: String(input.sourceRevision || ''),
     fact_revision: (Number(existing && existing.fact_revision) || 0) + 1,
     status: status(input.status, 'fresh'),
@@ -387,37 +391,67 @@ function publishBasedata(input = {}) {
   };
   getDb().prepare(`
     INSERT INTO kairox_basedata_facts
-      (item_id,source_revision,fact_revision,status,facts_json,evidence_json,observed_at,stale_reason,updated_at)
+      (subject_id,source_revision,fact_revision,status,facts_json,evidence_json,observed_at,stale_reason,updated_at)
     VALUES
-      (@item_id,@source_revision,@fact_revision,@status,@facts_json,@evidence_json,@observed_at,@stale_reason,@updated_at)
-    ON CONFLICT(item_id) DO UPDATE SET
+      (@subject_id,@source_revision,@fact_revision,@status,@facts_json,@evidence_json,@observed_at,@stale_reason,@updated_at)
+    ON CONFLICT(subject_id) DO UPDATE SET
       source_revision=excluded.source_revision,fact_revision=excluded.fact_revision,status=excluded.status,
       facts_json=excluded.facts_json,evidence_json=excluded.evidence_json,observed_at=excluded.observed_at,
       stale_reason=excluded.stale_reason,updated_at=excluded.updated_at
   `).run(row);
-  completeRefresh(media.itemId, 'basedata', row.updated_at);
-  return getBasedata(media.itemId);
+  completeRefresh(media.subjectId, 'basedata', row.updated_at);
+  return getBasedata(media.subjectId);
 }
 
-function getBasedata(itemId) {
-  return factRow(getDb().prepare('SELECT * FROM kairox_basedata_facts WHERE item_id=?').get(String(itemId || '')), 'basedata');
+function getBasedata(subjectId) {
+  return factRow(getDb().prepare('SELECT * FROM kairox_basedata_facts WHERE subject_id=?').get(String(subjectId || '')), 'basedata');
 }
 
-function getMetadata(itemId) {
-  return factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(String(itemId || '')), 'metadata');
+function upsertAssetBasedata(input = {}) {
+  const assetId = String(input.assetId || '').trim();
+  const subjectId = String(input.subjectId || '').trim();
+  if (!assetId || !subjectId) throw Object.assign(new Error('assetId and subjectId are required'), { code: 'KAIROX_ASSET_FACT_ID_REQUIRED' });
+  const existing = getDb().prepare('SELECT * FROM kairox_asset_basedata_facts WHERE asset_id=?').get(assetId);
+  const now = nowIso(input.updatedAt);
+  getDb().prepare(`INSERT INTO kairox_asset_basedata_facts
+    (asset_id,subject_id,source_revision,asset_revision,fact_revision,status,facts_json,evidence_json,observed_at,stale_reason,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(asset_id) DO UPDATE SET
+      subject_id=excluded.subject_id,source_revision=excluded.source_revision,asset_revision=excluded.asset_revision,
+      fact_revision=excluded.fact_revision,status=excluded.status,facts_json=excluded.facts_json,
+      evidence_json=excluded.evidence_json,observed_at=excluded.observed_at,stale_reason=excluded.stale_reason,updated_at=excluded.updated_at`)
+    .run(assetId, subjectId, String(input.sourceRevision || ''), Number(input.assetRevision) || 0,
+      Number(existing && existing.fact_revision || 0) + 1, status(input.status, 'fresh'), JSON.stringify(input.facts || {}),
+      JSON.stringify(input.evidence || {}), String(input.observedAt || now), String(input.staleReason || ''), now);
+  return getAssetBasedata(assetId);
 }
 
-function getOptimize(itemId) {
-  return factRow(getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE item_id=?').get(String(itemId || '')), 'optimize');
+function getAssetBasedata(assetId) {
+  const row = getDb().prepare('SELECT * FROM kairox_asset_basedata_facts WHERE asset_id=?').get(String(assetId || ''));
+  if (!row) return null;
+  return { assetId: row.asset_id, subjectId: row.subject_id, sourceRevision: row.source_revision, assetRevision: Number(row.asset_revision) || 0,
+    factRevision: Number(row.fact_revision) || 0, status: row.status, facts: parse(row.facts_json, {}), evidence: parse(row.evidence_json, {}),
+    observedAt: row.observed_at, staleReason: row.stale_reason, updatedAt: row.updated_at };
+}
+
+function getAssetBasedataForSubject(subjectId) {
+  return getDb().prepare('SELECT asset_id FROM kairox_asset_basedata_facts WHERE subject_id=? ORDER BY asset_id').all(String(subjectId || '')).map((row) => getAssetBasedata(row.asset_id));
+}
+
+function getMetadata(subjectId) {
+  return factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE subject_id=?').get(String(subjectId || '')), 'metadata');
+}
+
+function getOptimize(subjectId) {
+  return factRow(getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE subject_id=?').get(String(subjectId || '')), 'optimize');
 }
 
 function markFactStale(table, getter, input = {}) {
-  const itemId = String(input.itemId || '').trim();
-  const existing = getter(itemId);
+  const subjectId = String(input.subjectId || '').trim();
+  const existing = getter(subjectId);
   if (!existing) return null;
-  getDb().prepare(`UPDATE ${table} SET status='stale',stale_reason=?,updated_at=? WHERE item_id=?`)
-    .run(String(input.reason || 'canonical_refresh_required'), nowIso(input.updatedAt), itemId);
-  return getter(itemId);
+  getDb().prepare(`UPDATE ${table} SET status='stale',stale_reason=?,updated_at=? WHERE subject_id=?`)
+    .run(String(input.reason || 'canonical_refresh_required'), nowIso(input.updatedAt), subjectId);
+  return getter(subjectId);
 }
 
 function markBasedataStale(input = {}) {
@@ -433,14 +467,14 @@ function markOptimizeStale(input = {}) {
 }
 
 function requestRefresh(input = {}) {
-  const media = ensureMedia(input);
+  const media = ensureSubject(input);
   const factGroup = String(input.factGroup || '').trim();
   if (!['basedata', 'metadata', 'optimize'].includes(factGroup)) {
     throw Object.assign(new Error('factGroup must be basedata, metadata, or optimize'), { code: 'KAIROX_INVALID_FACT_GROUP' });
   }
   const now = nowIso(input.updatedAt);
   const row = {
-    item_id: media.itemId,
+    subject_id: media.subjectId,
     fact_group: factGroup,
     source_revision: String(input.sourceRevision || ''),
     status: 'pending',
@@ -452,21 +486,21 @@ function requestRefresh(input = {}) {
   };
   getDb().prepare(`
     INSERT INTO kairox_refresh_requests
-      (item_id,fact_group,source_revision,status,reason,caused_by_task_id,evidence_json,created_at,updated_at)
+      (subject_id,fact_group,source_revision,status,reason,caused_by_task_id,evidence_json,created_at,updated_at)
     VALUES
-      (@item_id,@fact_group,@source_revision,@status,@reason,@caused_by_task_id,@evidence_json,@created_at,@updated_at)
-    ON CONFLICT(item_id,fact_group) DO UPDATE SET
+      (@subject_id,@fact_group,@source_revision,@status,@reason,@caused_by_task_id,@evidence_json,@created_at,@updated_at)
+    ON CONFLICT(subject_id,fact_group) DO UPDATE SET
       source_revision=excluded.source_revision,status='pending',reason=excluded.reason,
       caused_by_task_id=excluded.caused_by_task_id,evidence_json=excluded.evidence_json,updated_at=excluded.updated_at
   `).run(row);
-  return getRefreshRequest(media.itemId, factGroup);
+  return getRefreshRequest(media.subjectId, factGroup);
 }
 
-function getRefreshRequest(itemId, factGroup) {
-  const row = getDb().prepare('SELECT * FROM kairox_refresh_requests WHERE item_id=? AND fact_group=?')
-    .get(String(itemId || ''), String(factGroup || ''));
+function getRefreshRequest(subjectId, factGroup) {
+  const row = getDb().prepare('SELECT * FROM kairox_refresh_requests WHERE subject_id=? AND fact_group=?')
+    .get(String(subjectId || ''), String(factGroup || ''));
   return row ? {
-    itemId: row.item_id,
+    subjectId: row.subject_id,
     factGroup: row.fact_group,
     sourceRevision: row.source_revision,
     status: row.status,
@@ -478,12 +512,12 @@ function getRefreshRequest(itemId, factGroup) {
   } : null;
 }
 
-function completeRefresh(itemId, factGroup, updatedAt) {
+function completeRefresh(subjectId, factGroup, updatedAt) {
   getDb().prepare(`
     UPDATE kairox_refresh_requests SET status='completed',updated_at=?
-    WHERE item_id=? AND fact_group=? AND status='pending'
-  `).run(nowIso(updatedAt), String(itemId || ''), String(factGroup || ''));
-  return getRefreshRequest(itemId, factGroup);
+    WHERE subject_id=? AND fact_group=? AND status='pending'
+  `).run(nowIso(updatedAt), String(subjectId || ''), String(factGroup || ''));
+  return getRefreshRequest(subjectId, factGroup);
 }
 
 function getAutomationState(engineId = 'maintenance') {
@@ -511,15 +545,15 @@ function updateAutomationState(engineId = 'maintenance', updates = {}) {
 }
 
 function publishMetadata(input = {}) {
-  const media = ensureMedia(input);
-  const existing = getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(media.itemId);
+  const media = ensureSubject(input);
+  const existing = getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE subject_id=?').get(media.subjectId);
   const evidenceTaskId = input.evidence && String(input.evidence.taskId || '');
   if (evidenceTaskId && String(parse(existing && existing.evidence_json, {}).taskId || '') === evidenceTaskId) {
-    completeRefresh(media.itemId, 'metadata', input.updatedAt);
-    return getMetadata(media.itemId);
+    completeRefresh(media.subjectId, 'metadata', input.updatedAt);
+    return getMetadata(media.subjectId);
   }
   const row = {
-    item_id: media.itemId,
+    subject_id: media.subjectId,
     fact_revision: (Number(existing && existing.fact_revision) || 0) + 1,
     status: status(input.status, 'fresh'),
     facts_json: JSON.stringify(input.facts || {}),
@@ -530,15 +564,15 @@ function publishMetadata(input = {}) {
   };
   getDb().prepare(`
     INSERT INTO kairox_metadata_facts
-      (item_id,fact_revision,status,facts_json,evidence_json,observed_at,stale_reason,updated_at)
+      (subject_id,fact_revision,status,facts_json,evidence_json,observed_at,stale_reason,updated_at)
     VALUES
-      (@item_id,@fact_revision,@status,@facts_json,@evidence_json,@observed_at,@stale_reason,@updated_at)
-    ON CONFLICT(item_id) DO UPDATE SET
+      (@subject_id,@fact_revision,@status,@facts_json,@evidence_json,@observed_at,@stale_reason,@updated_at)
+    ON CONFLICT(subject_id) DO UPDATE SET
       fact_revision=excluded.fact_revision,status=excluded.status,facts_json=excluded.facts_json,
       evidence_json=excluded.evidence_json,observed_at=excluded.observed_at,
       stale_reason=excluded.stale_reason,updated_at=excluded.updated_at
   `).run(row);
-  completeRefresh(media.itemId, 'metadata', row.updated_at);
+  completeRefresh(media.subjectId, 'metadata', row.updated_at);
   const metadataFacts = input.facts || {};
   const observedPeople = Array.isArray(metadataFacts.people) ? [...metadataFacts.people] : [];
   if (metadataFacts.protagonist && metadataFacts.protagonist.name) {
@@ -556,14 +590,14 @@ function publishMetadata(input = {}) {
     if (metadataFacts.protagonist && String(observation.name || '').trim().toLowerCase() === String(metadataFacts.protagonist.name || '').trim().toLowerCase()) continue;
     observedPeople.push({ ...observation, role: 'actor', source: observation.source || (metadataFacts.adultRegion ? 'adult_scraper' : 'metadata'), contentKinds: observation.contentKinds || [metadataFacts.adultRegion ? 'adult' : 'general'] });
   }
-  personCatalogStore.observeItemPeople({ itemId: media.itemId, people: observedPeople, metadataRevision: String(row.fact_revision) });
-  return factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(media.itemId), 'metadata');
+  personCatalogStore.observeSubjectPeople({ subjectId: media.subjectId, people: observedPeople, metadataRevision: String(row.fact_revision) });
+  return factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE subject_id=?').get(media.subjectId), 'metadata');
 }
 
-function getUserPerception(itemId) {
-  const row = getDb().prepare('SELECT * FROM kairox_user_perception_facts WHERE item_id=?').get(String(itemId || ''));
+function getUserPerception(subjectId) {
+  const row = getDb().prepare('SELECT * FROM kairox_user_perception_facts WHERE subject_id=?').get(String(subjectId || ''));
   return row ? {
-    itemId: row.item_id,
+    subjectId: row.subject_id,
     kind: 'userPerception',
     factRevision: Number(row.fact_revision) || 0,
     facts: parse(row.facts_json, {}),
@@ -574,13 +608,13 @@ function getUserPerception(itemId) {
 }
 
 function updateUserPerception(input = {}) {
-  const media = ensureMedia(input);
-  const existing = getUserPerception(media.itemId);
+  const media = ensureSubject(input);
+  const existing = getUserPerception(media.subjectId);
   const nextFacts = { ...(existing && existing.facts || {}), ...(input.facts || {}) };
   if (existing && isDeepStrictEqual(existing.facts || {}, nextFacts)) return existing;
   const now = nowIso(input.updatedAt);
   const row = {
-    item_id: media.itemId,
+    subject_id: media.subjectId,
     fact_revision: (existing && existing.factRevision || 0) + 1,
     facts_json: JSON.stringify(nextFacts),
     evidence_json: JSON.stringify(input.evidence || {}),
@@ -589,20 +623,20 @@ function updateUserPerception(input = {}) {
   };
   getDb().prepare(`
     INSERT INTO kairox_user_perception_facts
-      (item_id,fact_revision,facts_json,evidence_json,observed_at,updated_at)
+      (subject_id,fact_revision,facts_json,evidence_json,observed_at,updated_at)
     VALUES
-      (@item_id,@fact_revision,@facts_json,@evidence_json,@observed_at,@updated_at)
-    ON CONFLICT(item_id) DO UPDATE SET
+      (@subject_id,@fact_revision,@facts_json,@evidence_json,@observed_at,@updated_at)
+    ON CONFLICT(subject_id) DO UPDATE SET
       fact_revision=excluded.fact_revision,facts_json=excluded.facts_json,
       evidence_json=excluded.evidence_json,observed_at=excluded.observed_at,updated_at=excluded.updated_at
   `).run(row);
-  return getUserPerception(media.itemId);
+  return getUserPerception(media.subjectId);
 }
 
 function upsertObjective(input = {}) {
-  const media = ensureMedia(input);
+  const media = ensureSubject(input);
   const row = {
-    item_id: media.itemId,
+    subject_id: media.subjectId,
     policy_revision: String(input.policyRevision || ''),
     objective_revision: String(input.objectiveRevision || ''),
     status: String(input.status || 'pending'),
@@ -610,19 +644,19 @@ function upsertObjective(input = {}) {
     updated_at: nowIso(input.updatedAt),
   };
   getDb().prepare(`
-    INSERT INTO kairox_objectives(item_id,policy_revision,objective_revision,status,objective_json,updated_at)
-    VALUES (@item_id,@policy_revision,@objective_revision,@status,@objective_json,@updated_at)
-    ON CONFLICT(item_id) DO UPDATE SET
+    INSERT INTO kairox_objectives(subject_id,policy_revision,objective_revision,status,objective_json,updated_at)
+    VALUES (@subject_id,@policy_revision,@objective_revision,@status,@objective_json,@updated_at)
+    ON CONFLICT(subject_id) DO UPDATE SET
       policy_revision=excluded.policy_revision,objective_revision=excluded.objective_revision,
       status=excluded.status,objective_json=excluded.objective_json,updated_at=excluded.updated_at
   `).run(row);
-  return getObjective(media.itemId);
+  return getObjective(media.subjectId);
 }
 
-function getObjective(itemId) {
-  const row = getDb().prepare('SELECT * FROM kairox_objectives WHERE item_id=?').get(String(itemId || ''));
+function getObjective(subjectId) {
+  const row = getDb().prepare('SELECT * FROM kairox_objectives WHERE subject_id=?').get(String(subjectId || ''));
   return row ? {
-    itemId: row.item_id,
+    subjectId: row.subject_id,
     policyRevision: row.policy_revision,
     objectiveRevision: row.objective_revision,
     status: row.status,
@@ -632,15 +666,15 @@ function getObjective(itemId) {
 }
 
 function publishOptimize(input = {}) {
-  const media = ensureMedia(input);
-  const existing = getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE item_id=?').get(media.itemId);
+  const media = ensureSubject(input);
+  const existing = getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE subject_id=?').get(media.subjectId);
   const evidenceTaskId = input.evidence && String(input.evidence.taskId || '');
   if (evidenceTaskId && String(parse(existing && existing.evidence_json, {}).taskId || '') === evidenceTaskId) {
-    completeRefresh(media.itemId, 'optimize', input.updatedAt);
-    return getOptimize(media.itemId);
+    completeRefresh(media.subjectId, 'optimize', input.updatedAt);
+    return getOptimize(media.subjectId);
   }
   const row = {
-    item_id: media.itemId,
+    subject_id: media.subjectId,
     objective_revision: String(input.objectiveRevision || ''),
     fact_revision: (Number(existing && existing.fact_revision) || 0) + 1,
     status: status(input.status, 'fresh'),
@@ -652,24 +686,24 @@ function publishOptimize(input = {}) {
   };
   getDb().prepare(`
     INSERT INTO kairox_optimize_facts
-      (item_id,objective_revision,fact_revision,status,facts_json,evidence_json,verified_at,stale_reason,updated_at)
+      (subject_id,objective_revision,fact_revision,status,facts_json,evidence_json,verified_at,stale_reason,updated_at)
     VALUES
-      (@item_id,@objective_revision,@fact_revision,@status,@facts_json,@evidence_json,@verified_at,@stale_reason,@updated_at)
-    ON CONFLICT(item_id) DO UPDATE SET
+      (@subject_id,@objective_revision,@fact_revision,@status,@facts_json,@evidence_json,@verified_at,@stale_reason,@updated_at)
+    ON CONFLICT(subject_id) DO UPDATE SET
       objective_revision=excluded.objective_revision,fact_revision=excluded.fact_revision,status=excluded.status,
       facts_json=excluded.facts_json,evidence_json=excluded.evidence_json,verified_at=excluded.verified_at,
       stale_reason=excluded.stale_reason,updated_at=excluded.updated_at
   `).run(row);
-  completeRefresh(media.itemId, 'optimize', row.updated_at);
-  return factRow(getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE item_id=?').get(media.itemId), 'optimize');
+  completeRefresh(media.subjectId, 'optimize', row.updated_at);
+  return factRow(getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE subject_id=?').get(media.subjectId), 'optimize');
 }
 
-function getBundle(itemId) {
-  const id = String(itemId || '').trim();
-  const media = getDb().prepare('SELECT * FROM kairox_media WHERE item_id=?').get(id);
+function getBundle(subjectId) {
+  const id = String(subjectId || '').trim();
+  const media = getDb().prepare('SELECT * FROM kairox_subjects WHERE subject_id=?').get(id);
   if (!media) return null;
-  const refresh = getDb().prepare('SELECT * FROM kairox_refresh_requests WHERE item_id=? ORDER BY fact_group').all(id).map((row) => ({
-    itemId: row.item_id,
+  const refresh = getDb().prepare('SELECT * FROM kairox_refresh_requests WHERE subject_id=? ORDER BY fact_group').all(id).map((row) => ({
+    subjectId: row.subject_id,
     factGroup: row.fact_group,
     sourceRevision: row.source_revision,
     status: row.status,
@@ -680,12 +714,12 @@ function getBundle(itemId) {
     updatedAt: row.updated_at,
   }));
   return {
-    itemId: id,
-    media: mediaRow(media),
+    subjectId: id,
+    media: subjectRow(media),
     basedata: getBasedata(id),
-    metadata: factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE item_id=?').get(id), 'metadata'),
+    metadata: factRow(getDb().prepare('SELECT * FROM kairox_metadata_facts WHERE subject_id=?').get(id), 'metadata'),
     userPerception: getUserPerception(id),
-    optimize: factRow(getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE item_id=?').get(id), 'optimize'),
+    optimize: factRow(getDb().prepare('SELECT * FROM kairox_optimize_facts WHERE subject_id=?').get(id), 'optimize'),
     objective: getObjective(id),
     refreshRequests: refresh,
     createdAt: media.created_at,
@@ -693,16 +727,16 @@ function getBundle(itemId) {
   };
 }
 
-function getBundles(itemIds = []) {
-  const ids = [...new Set(itemIds.map((value) => String(value || '').trim()).filter(Boolean))];
+function getBundles(subjectIds = []) {
+  const ids = [...new Set(subjectIds.map((value) => String(value || '').trim()).filter(Boolean))];
   if (ids.length === 0) return {};
   const placeholders = ids.map(() => '?').join(',');
   const db = getDb();
-  const mediaRows = db.prepare(`SELECT * FROM kairox_media WHERE item_id IN (${placeholders})`).all(...ids);
+  const mediaRows = db.prepare(`SELECT * FROM kairox_subjects WHERE subject_id IN (${placeholders})`).all(...ids);
   const byId = mediaRows.reduce((out, row) => {
-    out[row.item_id] = {
-      itemId: row.item_id,
-      media: mediaRow(row),
+    out[row.subject_id] = {
+      subjectId: row.subject_id,
+      media: subjectRow(row),
       basedata: null,
       metadata: null,
       userPerception: null,
@@ -715,17 +749,17 @@ function getBundles(itemIds = []) {
     return out;
   }, {});
   const attachFacts = (table, key, kind) => {
-    for (const row of db.prepare(`SELECT * FROM ${table} WHERE item_id IN (${placeholders})`).all(...ids)) {
-      if (byId[row.item_id]) byId[row.item_id][key] = factRow(row, kind);
+    for (const row of db.prepare(`SELECT * FROM ${table} WHERE subject_id IN (${placeholders})`).all(...ids)) {
+      if (byId[row.subject_id]) byId[row.subject_id][key] = factRow(row, kind);
     }
   };
   attachFacts('kairox_basedata_facts', 'basedata', 'basedata');
   attachFacts('kairox_metadata_facts', 'metadata', 'metadata');
   attachFacts('kairox_optimize_facts', 'optimize', 'optimize');
-  for (const row of db.prepare(`SELECT * FROM kairox_user_perception_facts WHERE item_id IN (${placeholders})`).all(...ids)) {
-    if (!byId[row.item_id]) continue;
-    byId[row.item_id].userPerception = {
-      itemId: row.item_id,
+  for (const row of db.prepare(`SELECT * FROM kairox_user_perception_facts WHERE subject_id IN (${placeholders})`).all(...ids)) {
+    if (!byId[row.subject_id]) continue;
+    byId[row.subject_id].userPerception = {
+      subjectId: row.subject_id,
       kind: 'userPerception',
       factRevision: Number(row.fact_revision) || 0,
       facts: parse(row.facts_json, {}),
@@ -734,10 +768,10 @@ function getBundles(itemIds = []) {
       updatedAt: row.updated_at || '',
     };
   }
-  for (const row of db.prepare(`SELECT * FROM kairox_objectives WHERE item_id IN (${placeholders})`).all(...ids)) {
-    if (!byId[row.item_id]) continue;
-    byId[row.item_id].objective = {
-      itemId: row.item_id,
+  for (const row of db.prepare(`SELECT * FROM kairox_objectives WHERE subject_id IN (${placeholders})`).all(...ids)) {
+    if (!byId[row.subject_id]) continue;
+    byId[row.subject_id].objective = {
+      subjectId: row.subject_id,
       policyRevision: row.policy_revision,
       objectiveRevision: row.objective_revision,
       status: row.status,
@@ -745,10 +779,10 @@ function getBundles(itemIds = []) {
       updatedAt: row.updated_at,
     };
   }
-  for (const row of db.prepare(`SELECT * FROM kairox_refresh_requests WHERE item_id IN (${placeholders}) ORDER BY item_id,fact_group`).all(...ids)) {
-    if (!byId[row.item_id]) continue;
-    byId[row.item_id].refreshRequests.push({
-      itemId: row.item_id,
+  for (const row of db.prepare(`SELECT * FROM kairox_refresh_requests WHERE subject_id IN (${placeholders}) ORDER BY subject_id,fact_group`).all(...ids)) {
+    if (!byId[row.subject_id]) continue;
+    byId[row.subject_id].refreshRequests.push({
+      subjectId: row.subject_id,
       factGroup: row.fact_group,
       sourceRevision: row.source_revision,
       status: row.status,
@@ -769,13 +803,13 @@ function resetForTests() {
 }
 
 function listMetadataArtifactReferences() {
-  return getDb().prepare("SELECT item_id,evidence_json FROM kairox_metadata_facts WHERE status='fresh'").all().map((row) => ({ itemId: row.item_id, artifactRevision: String(parse(row.evidence_json, {}).artifactRevision || '') })).filter((entry) => entry.artifactRevision);
+  return getDb().prepare("SELECT subject_id,evidence_json FROM kairox_metadata_facts WHERE status='fresh'").all().map((row) => ({ subjectId: row.subject_id, artifactRevision: String(parse(row.evidence_json, {}).artifactRevision || '') })).filter((entry) => entry.artifactRevision);
 }
 
 module.exports = {
   ensureSchema,
-  ensureMedia,
-  getMedia,
+  ensureSubject,
+  getSubject,
   createMaintenanceRun,
   getMaintenanceRun,
   getMaintenanceRuns,
@@ -784,6 +818,9 @@ module.exports = {
   listMaintenanceRuns,
   setMaintenancePriority,
   getBasedata,
+  upsertAssetBasedata,
+  getAssetBasedata,
+  getAssetBasedataForSubject,
   getMetadata,
   getOptimize,
   getUserPerception,

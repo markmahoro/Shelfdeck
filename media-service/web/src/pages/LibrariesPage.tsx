@@ -13,11 +13,11 @@ function defaultTemplateId(mediaType: string, adultRegion: string) {
   return mediaType === 'tv' ? 'tv_default' : 'default';
 }
 
-const adultCapabilities = { metadata: ['metadata.sidecar.render', 'metadata.image.acquire'], optimize: ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] };
+const adultCapabilities = { metadata: ['metadata.sidecar.render', 'metadata.image.acquire'], optimize: ['media.transcode', 'media.file.replace', 'source.organize', 'metadata.artifacts.materialize'] };
 const adultCapabilityParameters = { 'metadata.image.acquire': { kinds: ['poster', 'fanart'] } };
-const generalCapabilities = { metadata: [] as string[], optimize: ['media.transcode', 'container.remux', 'source.upgrade.request', 'media.replace'] };
+const generalCapabilities = { metadata: ['metadata.sidecar.render', 'series.metadata.sidecar.render'], optimize: ['media.transcode', 'container.remux', 'source.upgrade.request', 'media.file.replace', 'series.season.replace'] };
 const allOptimizeCapabilities = [...new Set([...generalCapabilities.optimize, ...adultCapabilities.optimize])];
-const capabilityLabels: Record<string, string> = { 'metadata.sidecar.render': 'NFO资料', 'metadata.image.acquire': '图片资料', 'media.transcode': '转码', 'container.remux': '重新封装', 'source.upgrade.request': '来源升级', 'media.replace': '文件替换', 'source.organize': '文件整理', 'metadata.artifacts.materialize': '资料写入媒体目录' };
+const capabilityLabels: Record<string, string> = { 'metadata.sidecar.render': 'NFO资料', 'series.metadata.sidecar.render': '剧集资料', 'metadata.image.acquire': '图片资料', 'media.transcode': '转码', 'container.remux': '重新封装', 'source.upgrade.request': '来源升级', 'media.file.replace': '文件替换', 'series.season.replace': '整季替换', 'source.organize': '文件整理', 'metadata.artifacts.materialize': '资料写入媒体目录' };
 const initialLibraryDraft = { name: '', source: 'emby', embyServerId: '', sectionId: '', watchRoot: '', mediaType: 'movie', adultRegion: 'japanese_jav', ruleTemplateId: 'default', libraryAutomationMode: 'manual', maintenanceAutomationMode: 'manual', doubanEnabled: false, allowedCapabilities: generalCapabilities, capabilityParameters: {} as Record<string, { kinds: string[] }> };
 
 function MetadataCapabilityControls({ allowed, parameters, onAllowed, onParameters }: { allowed: string[]; parameters: Record<string, { kinds?: string[] }>; onAllowed: (value: string[]) => void; onParameters: (value: Record<string, { kinds?: string[] }>) => void }) {
@@ -29,7 +29,7 @@ function MetadataCapabilityControls({ allowed, parameters, onAllowed, onParamete
     onParameters({ ...parameters, 'metadata.image.acquire': { kinds: nextKinds } });
   };
   return <div className="page-actions">
-    <label><input type="checkbox" checked={allowed.includes('metadata.sidecar.render')} onChange={(event) => toggle('metadata.sidecar.render', event.target.checked)} />NFO资料</label>
+    <label><input type="checkbox" checked={allowed.includes('metadata.sidecar.render') || allowed.includes('series.metadata.sidecar.render')} onChange={(event) => onAllowed(event.target.checked ? [...new Set([...allowed, 'metadata.sidecar.render', 'series.metadata.sidecar.render'])] : allowed.filter((entry) => !['metadata.sidecar.render', 'series.metadata.sidecar.render'].includes(entry)))} />NFO资料</label>
     <label><input type="checkbox" checked={kinds.includes('poster')} onChange={(event) => toggleKind('poster', event.target.checked)} />海报</label>
     <label><input type="checkbox" checked={kinds.includes('fanart')} onChange={(event) => toggleKind('fanart', event.target.checked)} />背景图</label>
   </div>;

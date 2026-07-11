@@ -15,6 +15,43 @@ Layer 1: Libra — Library Management / orchestration / reconciler
 Layer 2: Nexora Service + Kairox Service
 ```
 
+## Subject / Asset Canonical Identity
+
+Helix 的媒体业务聚合根是 `Subject`，不是 Emby/Folder observation item：
+
+```text
+Subject
+├─ Movie
+├─ Series
+└─ Adult Title
+
+Series Subject
+├─ Season Scope（subjectId + seasonKey）
+└─ Episode Asset（assetId）
+```
+
+- `subjectId` 由 Libra 生成，唯一标识 Membership、Admission、Maintenance Run、Priority、Gate 和 `maintenanceComplete`。
+- `assetId` 由 Nexora 生成，唯一标识 Subject 内实际可观察或操作的媒体资产。
+- `itemId`、`libraryItemId`、`mediaItemId` 从 clean runtime、Schema、Service 和 API 中删除，不建立别名或兼容映射。
+- Series 跨所有 Season 只有一个 Subject。Season 只是 Planner 的 mutation scope，Episode 只能成为 Event asset scope，不得拥有独立 Run、Task 或用户维护操作。
+- Libra 不复制 Asset；Nexora 唯一拥有 Source Manifest 和 Asset hierarchy；Kairox 只持有当前 Admission 的 immutable Asset snapshot/reference 和维护 Facts。
+- 本阶段不建立理论 Episode Catalog，不判断缺集。Series Gate 只基于当前 finalized Source Manifest 的 active Assets。
+
+Subject / Asset 的事实方向固定为：
+
+```text
+Nexora finalized Source Manifest
+→ Libra Subject Membership + admissionGeneration
+→ Kairox Subject Admission + Asset snapshot
+→ Subject Gate Task
+→ Asset/Season scoped atomic Events
+→ Subject-level canonical facts
+```
+
+部分 Asset 在完整 observation 后消失时，Nexora 自动接受新 Manifest、保留 removed audit 并增加 revision；Manifest 变为空时视为 `source_missing`，Libra 保持 active Membership 并 quarantine。任何 Manifest revision 变化都必须 fence 旧 Kairox Graph。
+
+每个 Series 每个 Gate 同时最多一个 Task。一个 Task 的 immutable Graph 可以包含多个 Asset/Season Event，但 Runtime 每次最多释放四个 ready Event；Governor 仍是唯一全局容量 owner。
+
 - `Libra` 唯一拥有 ShelfDeck 的 Library Management 责任、LibraryMembership、业务阶段和跨域协调。
 - `Nexora` 拥有 source identity、SourceBinding、source observation，以及 onboarding / rebind / offboarding 执行能力。
 - `Kairox` 拥有在库维护目标、canonical maintenance facts、Task / Flow / Event 和 maintenance projection。
@@ -129,7 +166,7 @@ basedata -> metadata -> optimize
 
 SourceBinding 回答“去哪里访问 source”，由 Nexora 拥有；Basedata 回答“当前 source 中实际是什么媒体资产”，由 Kairox 拥有。Kairox 只保存 admission 对应的 source context/reference，不成为 SourceBinding canonical owner。
 
-Kairox 接受首次 admission 时必须能够按 `itemId` 建立最小 maintenance identity/skeleton；不得要求 Nexora adapter 预先写入 Kairox canonical facts。Basedata task 是首次发布 Kairox operational facts 的入口。
+Kairox 接受首次 admission 时必须能够按 `subjectId` 建立最小 maintenance identity/skeleton，并保存 Nexora Asset Manifest 快照；不得要求 Nexora adapter 预先写入 Kairox canonical facts。Basedata task 是首次发布 Kairox operational facts 的入口。
 
 Kairox 对外只暴露两种维护完成度：
 
@@ -279,8 +316,8 @@ Task(object + targetGate + gateObjective)
 - Capability 不是匿名 Executor 注册项，而是版本化的内部 API。Canonical Capability Catalog 必须为每项能力定义 nominal input/output type、contract version、effect kind、resource class、approval action 和 fencing requirement。Executor 只接收 Runtime 已解析并校验的 input ports，不得读取整条 Event 列表或依赖 Event ID 后缀。
 - Nominal type 同时具有 canonical structural schema；Runtime 必须校验必需字段。每个 Event Intent 持久化 contract version、input/output signature 和 effect kind snapshot；同名 Capability 的版本或签名漂移必须使旧 Graph 明确失效，不能交给新 Executor 猜测执行。
 - Workflow Planner 必须为每条边声明 output-to-input binding；Graph 持久化前执行 nominal type/version 检查。缺少 binding、未知 port、未声明 dependency 或类型不兼容都必须拒绝规划，不能在 Runtime 猜测输入。
-- Capability 以业务效果命名，不以旧 Flow 命名。Transcode、Upgrade、Remux 等只负责产生同一 `StagedMediaAsset`；它们共同复用 `output.media.verify -> media.replace`，不得各自复制 verify/replace。相同副作用只能有一个 canonical Capability。
-- Runtime 是 approval、Permit、retry/restart、commit marker 和 post-effect 的 owner。`media.replace`、`source.organize` 等 commit-once Executor 只返回效果证据；Basedata invalidation、SourceMutationResult 持久化和 neutral signal 由 Runtime/Kairox Service 在 durable commit marker 之后统一处理。
+- Capability 以业务效果命名，不以旧 Flow 命名。Movie/Adult 的单文件提交统一复用 `media.file.replace`；Series Season package 的事务性整季提交使用语义不同的 `series.season.replace`，不得以同名包装器混淆两种原子效果。
+- Runtime 是 approval、Permit、retry/restart、commit marker 和 post-effect 的 owner。`media.file.replace`、`series.season.replace`、`source.organize` 等 commit-once Executor 只返回效果证据；Basedata invalidation、SourceMutationResult 持久化和 neutral signal 由 Runtime/Kairox Service 在 durable commit marker 之后统一处理。
 - 长运行效果通过统一 Capability `cancel()` contract 接受 Runtime 的 pause/cancel；Executor 只能中止自己的当前效果，Event/Task 状态仍由 Runtime 写入。失败与取消后的内部 workspace compensation 也由 Runtime 按 durable evidence 和 containment 统一执行。
 - Library 只配置允许的副作用 Capability。观察、校验和 canonical fact publish 等必要能力不可关闭；允许 Capability 不等于授予 approval 或 destructive authorization。
 - 当前系统 Planner 与未来高级画布必须使用同一 Workflow Graph contract；Beta 不提供用户画布或 Graph 写 API。

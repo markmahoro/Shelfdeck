@@ -22,37 +22,37 @@ test.after(() => {
 function fakes(sourceByItem = {}, maintenanceByItem = {}) {
   return {
     nexoraService: {
-      getSourceProjection(itemId) {
-        return sourceByItem[itemId] || { itemId, sourceRevision: '', readiness: 'unresolved' };
+      getSourceProjection(subjectId) {
+        return sourceByItem[subjectId] || { subjectId, sourceRevision: '', readiness: 'unresolved' };
       },
-      getSourceProjections(itemIds) {
-        return itemIds.reduce((out, itemId) => {
-          out[itemId] = this.getSourceProjection(itemId);
+      getSourceProjections(subjectIds) {
+        return subjectIds.reduce((out, subjectId) => {
+          out[subjectId] = this.getSourceProjection(subjectId);
           return out;
         }, {});
       },
       ensureOnboarding(command) {
-        return sourceByItem[command.itemId] || { itemId: command.itemId, sourceRevision: 's1', readiness: 'ready' };
+        return sourceByItem[command.subjectId] || { subjectId: command.subjectId, sourceRevision: 's1', readiness: 'ready' };
       },
       diagnoseSource(command) {
-        return sourceByItem[command.itemId] || { itemId: command.itemId, sourceRevision: command.sourceRevision || '', readiness: 'unresolved' };
+        return sourceByItem[command.subjectId] || { subjectId: command.subjectId, sourceRevision: command.sourceRevision || '', readiness: 'unresolved' };
       },
       ensureOffboarding(command) {
-        return { itemId: command.itemId, cleanupMode: command.cleanupMode, completed: true, sourceProjection: sourceByItem[command.itemId] || {} };
+        return { subjectId: command.subjectId, cleanupMode: command.cleanupMode, completed: true, sourceProjection: sourceByItem[command.subjectId] || {} };
       },
     },
     kairoxService: {
-      getMaintenanceProjection(itemId) {
-        return maintenanceByItem[itemId] || { itemId, maintenanceRevision: 'm1', maintenanceState: 'maintaining', maintenanceComplete: false };
+      getMaintenanceProjection(subjectId) {
+        return maintenanceByItem[subjectId] || { subjectId, maintenanceRevision: 'm1', maintenanceState: 'maintaining', maintenanceComplete: false };
       },
-      getMaintenanceProjections(itemIds) {
-        return itemIds.reduce((out, itemId) => {
-          out[itemId] = this.getMaintenanceProjection(itemId);
+      getMaintenanceProjections(subjectIds) {
+        return subjectIds.reduce((out, subjectId) => {
+          out[subjectId] = this.getMaintenanceProjection(subjectId);
           return out;
         }, {});
       },
-      reconcileMaintenance(command) { return { itemId: command.itemId, maintenanceRevision: `m:${command.admissionGeneration}`, maintenanceComplete: false }; },
-      suspendMaintenance(command) { return { admission: { itemId: command.itemId, status: 'suspended', admissionGeneration: command.admissionGeneration } }; },
+      reconcileMaintenance(command) { return { subjectId: command.subjectId, maintenanceRevision: `m:${command.admissionGeneration}`, maintenanceComplete: false }; },
+      suspendMaintenance(command) { return { admission: { subjectId: command.subjectId, status: 'suspended', admissionGeneration: command.admissionGeneration } }; },
       requestMaintenance(command) { return { accepted: true, command }; },
     },
   };
@@ -69,7 +69,7 @@ test('Libra does not migrate legacy media_items into clean Membership facts', ()
 test('Libra onboarding commands are idempotent and reject payload reuse', () => {
   const { nexoraService, kairoxService } = fakes();
   const runtime = createLibraRuntime({ nexoraService, kairoxService });
-  const command = { itemId: 'item-idempotent', idempotencyKey: 'onboard-1', sourceReference: { source: 'emby', sourceRefId: 'a' } };
+  const command = { subjectId: 'item-idempotent', idempotencyKey: 'onboard-1', sourceReference: { source: 'emby', sourceRefId: 'a' } };
   const first = runtime.acceptSource(command);
   const second = runtime.acceptSource(command);
   assert.strictEqual(first.operation.operationId, second.operation.operationId);
@@ -78,15 +78,15 @@ test('Libra onboarding commands are idempotent and reject payload reuse', () => 
 
 test('Libra reconcile advances ready source to maintenance and quarantines a later incident', () => {
   const state = {
-    'item-reconcile': { itemId: 'item-reconcile', sourceRevision: 's1', readiness: 'ready', activeBindings: [{ bindingId: 'b1' }] },
+    'item-reconcile': { subjectId: 'item-reconcile', sourceRevision: 's1', readiness: 'ready', activeBindings: [{ bindingId: 'b1' }] },
   };
   const { nexoraService, kairoxService } = fakes(state);
   const runtime = createLibraRuntime({ nexoraService, kairoxService });
-  runtime.acceptSource({ itemId: 'item-reconcile', idempotencyKey: 'onboard-reconcile', sourceReference: {} });
+  runtime.acceptSource({ subjectId: 'item-reconcile', idempotencyKey: 'onboard-reconcile', sourceReference: {} });
   let projection = runtime.reconcileItem('item-reconcile');
   assert.strictEqual(projection.phase, 'maintenance');
   assert.strictEqual(projection.admissionGeneration, 1);
-  state['item-reconcile'] = { itemId: 'item-reconcile', sourceRevision: 's2', readiness: 'missing', latestObservation: { reason: 'source_missing' } };
+  state['item-reconcile'] = { subjectId: 'item-reconcile', sourceRevision: 's2', readiness: 'missing', latestObservation: { reason: 'source_missing' } };
   projection = runtime.reconcileItem('item-reconcile');
   assert.strictEqual(projection.phase, 'maintenance');
   assert.strictEqual(projection.quarantineStatus, 'source_incident');
@@ -96,17 +96,17 @@ test('Libra reconcile advances ready source to maintenance and quarantines a lat
 
 test('Libra phase stays maintenance while reads compose the latest Kairox maintenance state', () => {
   const source = {
-    'item-live-projection': { itemId: 'item-live-projection', sourceRevision: 's1', readiness: 'ready' },
+    'item-live-projection': { subjectId: 'item-live-projection', sourceRevision: 's1', readiness: 'ready' },
   };
   const maintenance = {
     'item-live-projection': {
-      itemId: 'item-live-projection', maintenanceRevision: 'm1', maintenanceState: 'maintaining',
+      subjectId: 'item-live-projection', maintenanceRevision: 'm1', maintenanceState: 'maintaining',
       metadataPassed: false, maintenanceComplete: false,
     },
   };
   const { nexoraService, kairoxService } = fakes(source, maintenance);
   const runtime = createLibraRuntime({ nexoraService, kairoxService });
-  runtime.acceptSource({ itemId: 'item-live-projection', idempotencyKey: 'onboard-live-projection', sourceReference: {} });
+  runtime.acceptSource({ subjectId: 'item-live-projection', idempotencyKey: 'onboard-live-projection', sourceReference: {} });
   let projection = runtime.getLibraryProjection('item-live-projection');
   assert.strictEqual(projection.phase, 'maintenance');
   assert.strictEqual(projection.maintenance.metadataPassed, false);
@@ -118,18 +118,18 @@ test('Libra phase stays maintenance while reads compose the latest Kairox mainte
   assert.strictEqual(projection.phase, 'maintenance');
   assert.strictEqual(projection.maintenance.metadataPassed, true);
   assert.strictEqual(projection.maintenance.maintenanceState, 'maintaining');
-  assert.strictEqual(Object.prototype.hasOwnProperty.call(libraStore.getLibraryItem('item-live-projection'), 'maintenanceProjection'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(libraStore.getLibrarySubject('item-live-projection'), 'maintenanceProjection'), false);
 });
 
 test('Libra offboarding requires explicit physical-delete authorization', async () => {
   const { nexoraService, kairoxService } = fakes({
-    'item-offboard': { itemId: 'item-offboard', sourceRevision: 's1', readiness: 'ready' },
+    'item-offboard': { subjectId: 'item-offboard', sourceRevision: 's1', readiness: 'ready' },
   });
   const runtime = createLibraRuntime({ nexoraService, kairoxService });
-  runtime.acceptSource({ itemId: 'item-offboard', idempotencyKey: 'onboard-offboard', sourceReference: {} });
+  runtime.acceptSource({ subjectId: 'item-offboard', idempotencyKey: 'onboard-offboard', sourceReference: {} });
   runtime.reconcileItem('item-offboard');
-  await assert.rejects(() => runtime.requestOffboarding({ itemId: 'item-offboard', idempotencyKey: 'offboard-denied', cleanupMode: 'delete_source' }), (error) => error.code === 'LIBRA_DESTRUCTIVE_AUTHORIZATION_REQUIRED');
-  const accepted = await runtime.requestOffboarding({ itemId: 'item-offboard', idempotencyKey: 'offboard-ok', cleanupMode: 'delete_source', destructiveAuthorization: true });
+  await assert.rejects(() => runtime.requestOffboarding({ subjectId: 'item-offboard', idempotencyKey: 'offboard-denied', cleanupMode: 'delete_source' }), (error) => error.code === 'LIBRA_DESTRUCTIVE_AUTHORIZATION_REQUIRED');
+  const accepted = await runtime.requestOffboarding({ subjectId: 'item-offboard', idempotencyKey: 'offboard-ok', cleanupMode: 'delete_source', destructiveAuthorization: true });
   assert.strictEqual(accepted.projection.phase, 'closed');
   assert.strictEqual(accepted.projection.membership.status, 'closed');
 });
@@ -137,7 +137,7 @@ test('Libra offboarding requires explicit physical-delete authorization', async 
 test('Libra library query composes Membership, Nexora and Kairox facts without media_items', () => {
   const sources = {
     'query-item': {
-      itemId: 'query-item',
+      subjectId: 'query-item',
       sourceRevision: 'source-query',
       readiness: 'ready',
       sourceAccessDescriptor: {
@@ -149,7 +149,7 @@ test('Libra library query composes Membership, Nexora and Kairox facts without m
   };
   const maintenance = {
     'query-item': {
-      itemId: 'query-item',
+      subjectId: 'query-item',
       maintenanceRevision: 'maintenance-query',
       maintenanceState: 'complete',
       maintenanceComplete: true,
@@ -161,35 +161,33 @@ test('Libra library query composes Membership, Nexora and Kairox facts without m
   const { nexoraService, kairoxService } = fakes(sources, maintenance);
   const runtime = createLibraRuntime({ nexoraService, kairoxService });
   runtime.acceptSource({
-    itemId: 'query-item',
+    subjectId: 'query-item',
     idempotencyKey: 'query-onboarding',
     sourceReference: { source: 'emby', subLib: { uuid: 'library-query' }, item: { type: 'movie' } },
   });
   const result = runtime.queryLibraryProjections({ subLibraryId: 'library-query', search: 'query title' }, { limit: 10 });
   assert.strictEqual(result.total, 1);
-  assert.strictEqual(result.items[0].itemId, 'query-item');
+  assert.strictEqual(result.items[0].subjectId, 'query-item');
   assert.strictEqual(result.items[0].subLibraryId, 'library-query');
   assert.strictEqual(result.items[0].name, 'Query Title');
   assert.strictEqual(result.items[0].codec, 'h265');
   assert.strictEqual(result.items[0].maintenanceComplete, true);
 });
 
-test('Series maintenance scopes expand to playable Episodes and absorb Episodes observed while active', async () => {
+test('Series is one maintenance Subject and never expands user intent into Episode Runs', () => {
   const subLibraryId = 'series-scope-library';
   const sourceByItem = {};
   const maintenanceByItem = {};
-  const startedItems = [];
-  const prioritizedItems = [];
+  const startedSubjects = [];
+  const prioritizedSubjects = [];
   const services = fakes(sourceByItem, maintenanceByItem);
-  services.nexoraService.observeLibraryPage = async () => ({ observations: [], cursor: {}, done: true });
-  services.nexoraService.resolveBoundItemId = () => '';
   services.kairoxService.startMaintenanceRun = (command) => {
-    startedItems.push(command.itemId);
-    return { run: { itemId: command.itemId, status: 'ready' } };
+    startedSubjects.push(command.subjectId);
+    return { run: { subjectId: command.subjectId, status: 'ready' } };
   };
   services.kairoxService.setMaintenancePriority = (command) => {
-    prioritizedItems.push(command.itemId);
-    return { media: { itemId: command.itemId, maintenancePriorityClass: 'expedited' } };
+    prioritizedSubjects.push(command.subjectId);
+    return { media: { subjectId: command.subjectId, maintenancePriorityClass: 'expedited' } };
   };
 
   const runtime = createLibraRuntime({
@@ -210,11 +208,11 @@ test('Series maintenance scopes expand to playable Episodes and absorb Episodes 
     resourceGovernor: { runWithPermit: (_request, work) => work() },
   });
 
-  const put = (itemId, input) => {
-    sourceByItem[itemId] = { itemId, sourceRevision: 'scope-source-1', readiness: 'ready' };
-    maintenanceByItem[itemId] = { itemId, maintenanceRevision: 'scope-maintenance-1', maintenanceState: 'maintaining', maintenanceComplete: false };
-    return libraStore.upsertLibraryItem({
-      itemId,
+  const put = (subjectId) => {
+    sourceByItem[subjectId] = { subjectId, sourceRevision: 'scope-source-1', readiness: 'ready' };
+    maintenanceByItem[subjectId] = { subjectId, maintenanceRevision: 'scope-maintenance-1', maintenanceState: 'maintaining', maintenanceComplete: false };
+    return libraStore.upsertLibrarySubject({
+      subjectId,
       subLibraryId,
       membershipStatus: 'active',
       desiredState: 'managed',
@@ -222,26 +220,18 @@ test('Series maintenance scopes expand to playable Episodes and absorb Episodes 
       quarantineStatus: 'none',
       admissionGeneration: 1,
       sourceRevision: 'scope-source-1',
-      ...input,
+      sourceSubjectKey: 'emby:server:series-ref',
+      subjectKind: 'series',
+      displayName: 'Scope Series',
     });
   };
 
-  put('scope-series', { sourceRefId: 'series-ref', mediaKind: 'series', playable: false });
-  put('scope-episode-1', { sourceRefId: 'episode-ref-1', seriesSourceRefId: 'series-ref', mediaKind: 'episode', playable: true });
-  put('scope-episode-2', { sourceRefId: 'episode-ref-2', seriesSourceRefId: 'series-ref', mediaKind: 'episode', playable: true });
+  put('scope-series');
 
-  const started = runtime.requestMaintenanceRun({ itemId: 'scope-series', idempotencyKey: 'scope-start' });
-  const prioritized = runtime.setMaintenancePriority({ itemId: 'scope-series', idempotencyKey: 'scope-priority', reason: 'series_expedited' });
-  assert.strictEqual(started.affected, 2);
-  assert.strictEqual(prioritized.affected, 2);
-  assert.deepStrictEqual(startedItems.sort(), ['scope-episode-1', 'scope-episode-2']);
-  assert.deepStrictEqual(prioritizedItems.sort(), ['scope-episode-1', 'scope-episode-2']);
-
-  put('scope-episode-3', { sourceRefId: 'episode-ref-3', seriesSourceRefId: 'series-ref', mediaKind: 'episode', playable: true });
-  await runtime.runLibraryWork(started.scope.observationWorkId);
-
-  assert.strictEqual(startedItems.filter((itemId) => itemId === 'scope-episode-3').length, 1);
-  assert.strictEqual(prioritizedItems.filter((itemId) => itemId === 'scope-episode-3').length, 1);
-  assert.deepStrictEqual(libraStore.listMaintenanceScopeMembers(started.scope.scopeId).sort(), ['scope-episode-1', 'scope-episode-2', 'scope-episode-3']);
-  assert.deepStrictEqual(libraStore.listMaintenanceScopeMembers(prioritized.scope.scopeId).sort(), ['scope-episode-1', 'scope-episode-2', 'scope-episode-3']);
+  const started = runtime.requestMaintenanceRun({ subjectId: 'scope-series', idempotencyKey: 'scope-start' });
+  const prioritized = runtime.setMaintenancePriority({ subjectId: 'scope-series', idempotencyKey: 'scope-priority', reason: 'series_expedited' });
+  assert.strictEqual(started.affected, 1);
+  assert.strictEqual(prioritized.affected, 1);
+  assert.deepStrictEqual(startedSubjects, ['scope-series']);
+  assert.deepStrictEqual(prioritizedSubjects, ['scope-series']);
 });

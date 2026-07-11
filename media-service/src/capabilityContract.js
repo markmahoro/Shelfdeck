@@ -2,7 +2,7 @@
 
 const PRIMITIVES = new Set(['string', 'number', 'boolean', 'object', 'array']);
 const TYPE_SCHEMAS = Object.freeze({
-  None: shape({}),
+  None: shape({}), AssetSnapshot: shape({ assetId: 'string', assetKind: 'string', canonicalLocator: 'object' }),
   SourceObservation: shape({ facts: 'object' }), LayoutObservation: shape({ layout: 'object' }),
   VerifiedBasedata: shape({ facts: 'object', valid: 'boolean' }), BasedataPublication: shape({ basedataRevision: 'number' }),
   MetadataPublication: shape({ metadataRevision: 'number' }), MediaIdentity: shape({ descriptor: 'object' }),

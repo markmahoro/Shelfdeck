@@ -32,7 +32,7 @@ async function runOnce(options = {}) {
   const state = kairoxStore.getAutomationState('maintenance');
   const afterItemId = String(state.cursor.afterItemId || '');
   const requestedItemIds = [...targetedItemIds].slice(0, limit);
-  requestedItemIds.forEach((itemId) => targetedItemIds.delete(itemId));
+  requestedItemIds.forEach((subjectId) => targetedItemIds.delete(subjectId));
   try {
     return await resourceGovernor.runWithPermit({
       owner: 'kairox', workId: 'maintenance-automation', resourceKey: 'control:kairox', priority: 5,
@@ -50,7 +50,7 @@ async function runOnce(options = {}) {
       const admissions = requestedItemIds.length
         ? Object.values(kairoxAdmissionStore.getAdmissions(requestedItemIds)).filter((admission) => admission && admission.status === 'active')
         : kairoxAdmissionStore.listActiveAdmissions({ afterItemId, limit });
-      const ids = admissions.map((admission) => admission.itemId);
+      const ids = admissions.map((admission) => admission.subjectId);
       const config = configStore.loadConfig();
       const invariantHealth = automationInvariantMonitor.evaluate(config);
       markPhase('load_and_invariants');
@@ -64,9 +64,9 @@ async function runOnce(options = {}) {
       markPhase('reconcile_objectives');
       for (const admission of admissions) {
         kairoxService.reconcileMaintenanceRun({
-          itemId: admission.itemId,
+          subjectId: admission.subjectId,
           config,
-          maintenanceProjection: admissionProjections[admission.itemId],
+          maintenanceProjection: admissionProjections[admission.subjectId],
           includeProjection: false,
         });
         await yieldToEventLoop();
@@ -75,8 +75,8 @@ async function runOnce(options = {}) {
       // Supply only from the same bounded admission batch reconciled above.
       // Reading the global first N ready Runs lets a saturated Gate monopolize
       // the window and starve other Gates (or a targeted manual Run).
-      const readyRuns = kairoxStore.listMaintenanceRuns({ statuses: ['ready'], itemIds: ids, limit });
-      const runIds = readyRuns.map((run) => run.itemId);
+      const readyRuns = kairoxStore.listMaintenanceRuns({ statuses: ['ready'], subjectIds: ids, limit });
+      const runIds = readyRuns.map((run) => run.subjectId);
       const runAdmissions = kairoxAdmissionStore.getAdmissions(runIds);
       const projections = kairoxService.reconcileObjectives(runIds);
       markPhase('project_ready_runs');
@@ -84,9 +84,9 @@ async function runOnce(options = {}) {
       const supplyRemaining = { ...(invariantHealth.remainingByTargetGate || {}) };
       for (const run of readyRuns) {
         await yieldToEventLoop();
-        const admission = runAdmissions[run.itemId];
+        const admission = runAdmissions[run.subjectId];
         if (!admission || admission.status !== 'active') continue;
-        const projection = projections[run.itemId] || {};
+        const projection = projections[run.subjectId] || {};
         if (projection.maintenanceComplete || !projection.nextTargetGate) continue;
         if (projection.automationBlocker) continue;
         if ((projection.activeTasks || []).length > 0) continue;
@@ -98,7 +98,7 @@ async function runOnce(options = {}) {
         if (!decision.allowed) continue;
         if (supplyRemaining[projection.nextTargetGate] === 0) continue;
         const result = kairoxService.requestMaintenance({
-          itemId: admission.itemId,
+          subjectId: admission.subjectId,
           libraryGeneration: admission.admissionGeneration,
           runId: run.runId,
           targetGate: projection.nextTargetGate,
@@ -115,7 +115,7 @@ async function runOnce(options = {}) {
         }
       }
       markPhase('supply_tasks');
-      const cursor = requestedItemIds.length ? afterItemId : (admissions.length < limit ? '' : admissions[admissions.length - 1].itemId);
+      const cursor = requestedItemIds.length ? afterItemId : (admissions.length < limit ? '' : admissions[admissions.length - 1].subjectId);
       kairoxStore.updateAutomationState('maintenance', { cursor: { afterItemId: cursor }, lastRunAt: new Date().toISOString(), lastError: '' });
       health = {
         status: 'green', lastRunAt: new Date().toISOString(), lastError: '', scanned: admissions.length,
@@ -143,8 +143,8 @@ function schedule(delayMs = 25) {
 }
 
 function wake(signal = {}) {
-  const ids = Array.isArray(signal.itemIds) ? signal.itemIds : signal.itemId ? [signal.itemId] : [];
-  ids.map(String).filter(Boolean).forEach((itemId) => targetedItemIds.add(itemId));
+  const ids = Array.isArray(signal.subjectIds) ? signal.subjectIds : signal.subjectId ? [signal.subjectId] : [];
+  ids.map(String).filter(Boolean).forEach((subjectId) => targetedItemIds.add(subjectId));
   wakePending = true;
   schedule(0);
 }

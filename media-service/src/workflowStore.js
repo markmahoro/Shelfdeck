@@ -24,12 +24,12 @@ function db() {
   connection.pragma('busy_timeout = 5000');
   connection.exec(`
     CREATE TABLE IF NOT EXISTS workflow_plans (
-      plan_id TEXT PRIMARY KEY, task_id TEXT NOT NULL UNIQUE, item_id TEXT NOT NULL,
+      plan_id TEXT PRIMARY KEY, task_id TEXT NOT NULL UNIQUE, subject_id TEXT NOT NULL,
       target_gate TEXT NOT NULL, classification TEXT NOT NULL, schema_version TEXT NOT NULL,
       planner_version TEXT NOT NULL, plan_json TEXT NOT NULL, created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS workflow_events (
-      event_id TEXT PRIMARY KEY, plan_id TEXT NOT NULL, task_id TEXT NOT NULL, item_id TEXT NOT NULL,
+      event_id TEXT PRIMARY KEY, plan_id TEXT NOT NULL, task_id TEXT NOT NULL, subject_id TEXT NOT NULL,
       capability TEXT NOT NULL, ordinal INTEGER NOT NULL, status TEXT NOT NULL,
       attempt INTEGER NOT NULL DEFAULT 0, ready_at TEXT, resource_wait_started_at TEXT,
       approval_wait_started_at TEXT, started_at TEXT, finished_at TEXT, retry_at TEXT,
@@ -43,7 +43,7 @@ function db() {
       payload_json TEXT NOT NULL, created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS source_mutation_results (
-      mutation_id TEXT PRIMARY KEY, item_id TEXT NOT NULL, task_id TEXT NOT NULL, event_id TEXT NOT NULL,
+      mutation_id TEXT PRIMARY KEY, subject_id TEXT NOT NULL, task_id TEXT NOT NULL, event_id TEXT NOT NULL,
       mutation_kind TEXT NOT NULL, status TEXT NOT NULL, result_json TEXT NOT NULL,
       created_at TEXT NOT NULL, consumed_at TEXT
     );
@@ -60,7 +60,7 @@ function db() {
 function rowEvent(row) {
   if (!row) return null;
   return {
-    eventId: row.event_id, planId: row.plan_id, taskId: row.task_id, itemId: row.item_id,
+    eventId: row.event_id, planId: row.plan_id, taskId: row.task_id, subjectId: row.subject_id,
     capability: row.capability, ordinal: row.ordinal, status: row.status, attempt: row.attempt,
     readyAt: row.ready_at, resourceWaitStartedAt: row.resource_wait_started_at,
     approvalWaitStartedAt: row.approval_wait_started_at, startedAt: row.started_at,
@@ -77,12 +77,12 @@ function createPlan(plan, registry) {
   const connection = db();
   const transaction = connection.transaction(() => {
     connection.prepare(`INSERT INTO workflow_plans
-      (plan_id,task_id,item_id,target_gate,classification,schema_version,planner_version,plan_json,created_at)
-      VALUES (?,?,?,?,?,?,?,?,?)`).run(plan.planId, plan.taskId, plan.itemId, plan.targetGate, plan.classification, plan.schemaVersion, plan.plannerVersion, stringify(plan), now);
+      (plan_id,task_id,subject_id,target_gate,classification,schema_version,planner_version,plan_json,created_at)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(plan.planId, plan.taskId, plan.subjectId, plan.targetGate, plan.classification, plan.schemaVersion, plan.plannerVersion, stringify(plan), now);
     const insert = connection.prepare(`INSERT INTO workflow_events
-      (event_id,plan_id,task_id,item_id,capability,ordinal,status,intent_json,updated_at)
+      (event_id,plan_id,task_id,subject_id,capability,ordinal,status,intent_json,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?)`);
-    plan.nodes.forEach((node, ordinal) => insert.run(node.eventId, plan.planId, plan.taskId, plan.itemId, node.capability, ordinal, 'pending', stringify(node), now));
+    plan.nodes.forEach((node, ordinal) => insert.run(node.eventId, plan.planId, plan.taskId, plan.subjectId, node.capability, ordinal, 'pending', stringify(node), now));
   });
   transaction();
   return plan;
@@ -133,7 +133,7 @@ function invariantSnapshot() {
   return { duplicateCommits, deadlockedTasks, stuckEvents };
 }
 function activeMetadataArtifactReferences() {
-  return db().prepare(`SELECT DISTINCT e.item_id AS itemId,
+  return db().prepare(`SELECT DISTINCT e.subject_id AS subjectId,
       COALESCE(NULLIF(json_extract(p.plan_json,'$.objectiveRevision'),''),e.task_id) AS artifactRevision
     FROM workflow_events e JOIN workflow_plans p ON p.plan_id=e.plan_id
     WHERE e.capability IN ('metadata.sidecar.render','metadata.image.acquire','metadata.artifacts.materialize')
@@ -181,8 +181,8 @@ function recoverInterruptedEvents() {
 function recordMutation(input = {}) {
   const mutationId = input.mutationId || crypto.randomUUID();
   db().prepare(`INSERT OR IGNORE INTO source_mutation_results
-    (mutation_id,item_id,task_id,event_id,mutation_kind,status,result_json,created_at)
-    VALUES (?,?,?,?,?,'pending',?,?)`).run(mutationId, input.itemId || '', input.taskId || '', input.eventId || '', input.mutationKind || '', stringify(input), input.committedAt || new Date().toISOString());
+    (mutation_id,subject_id,task_id,event_id,mutation_kind,status,result_json,created_at)
+    VALUES (?,?,?,?,?,'pending',?,?)`).run(mutationId, input.subjectId || '', input.taskId || '', input.eventId || '', input.mutationKind || '', stringify(input), input.committedAt || new Date().toISOString());
   return mutationId;
 }
 function listPendingMutations(limit = 100) { return db().prepare("SELECT * FROM source_mutation_results WHERE status='pending' ORDER BY created_at LIMIT ?").all(Math.max(1, Number(limit) || 100)).map((row) => ({ ...parse(row.result_json, {}), mutationId: row.mutation_id })); }

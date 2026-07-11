@@ -1,5 +1,7 @@
 'use strict';
 
+const path = require('path');
+
 const taskStore = require('./taskStore');
 const workflowStore = require('./workflowStore');
 const workflowGraph = require('./workflowGraph');
@@ -21,7 +23,7 @@ const SUCCESS = new Set(['succeeded', 'skipped']);
 function eventContext(task, events, config) {
   return {
     task,
-    facts: task.itemInfo || {},
+    facts: task.subjectInfo || {},
     policy: config,
     events: Object.fromEntries(events.map((event) => [event.eventId, { status: event.status, result: event.result, evidence: event.evidence }])),
   };
@@ -36,7 +38,13 @@ function resourceKeyFor(event, task) {
   if (request.resourceType === 'moviepilot') return 'service:moviepilot';
   if (request.resourceType === 'ai') return 'local:ai';
   if (request.resourceType === 'worker') return `worker:${request.workerId || 'western-ai'}`;
-  if (request.resourceType === 'filesystem') return `filesystem:${descriptor.locator && descriptor.locator.path || task.itemPath || task.itemId}:mutation`;
+  if (request.resourceType === 'filesystem') {
+    const assetId = event.intent.assetScope && event.intent.assetScope.assetId;
+    const asset = assetId && task.helixAdmission && (task.helixAdmission.assets || []).find((entry) => entry.assetId === assetId);
+    const target = asset && asset.canonicalLocator && asset.canonicalLocator.path || descriptor.locator && descriptor.locator.path || task.itemPath || '';
+    const root = path.parse(target).root || String(target).split(/[\\/]/).filter(Boolean)[0] || task.subjectId;
+    return `filesystem:${root}:mutation`;
+  }
   return 'service:task';
 }
 function scheduleDispatch(task, eventId, delayMs) {
@@ -55,7 +63,7 @@ function ensurePlan(task, config) {
 }
 
 function planPrerequisitesCurrent(plan, task, config) {
-  const libraryId = task.itemInfo && task.itemInfo.subLibraryId || task.helixAdmission && task.helixAdmission.sourceAccessDescriptor && task.helixAdmission.sourceAccessDescriptor.subLibraryId || '';
+  const libraryId = task.subjectInfo && task.subjectInfo.subLibraryId || task.helixAdmission && task.helixAdmission.sourceAccessDescriptor && task.helixAdmission.sourceAccessDescriptor.subLibraryId || '';
   const library = (config.subLibraries || []).find((entry) => entry.uuid === libraryId) || {};
   const current = {
     objectiveRevision: String(task.objectiveRevisionSnapshot || ''),
@@ -71,7 +79,7 @@ function invalidatePlan(task, plan) {
     if (!workflowStore.TERMINAL.has(event.status)) workflowStore.transition(event.eventId, 'cancelled', { finishedAt: new Date().toISOString(), failure: { code: 'WORKFLOW_PLAN_INVALIDATED' } });
   }
   const updated = taskStore.updateTask(task.id, { status: 'plan_invalidated', phase: 'workflow_plan_invalidated', progress: 0 });
-  kairoxSignalBus.publish({ kind: 'task_terminal', itemId: task.itemId, taskId: task.id, status: 'plan_invalidated', planId: plan.planId });
+  kairoxSignalBus.publish({ kind: 'task_terminal', subjectId: task.subjectId, taskId: task.id, status: 'plan_invalidated', planId: plan.planId });
   return updated;
 }
 
@@ -92,7 +100,7 @@ function approvalSatisfied(event, task, config, events) {
   if (!requirement || !requirement.gateId) return true;
   if (!approvalRequirementApplies(event, events)) return true;
   if (approvalConditionMatches(requirement.forceWhenInput, event, events) && !(event.result && event.result.approved === true)) return false;
-  const mode = approvalPolicy.resolveGate(requirement.gateId, { task, itemInfo: task.itemInfo, config });
+  const mode = approvalPolicy.resolveGate(requirement.gateId, { task, subjectInfo: task.subjectInfo, config });
   if (mode === 'auto') return true;
   return !!(event.result && event.result.approved === true);
 }
@@ -102,7 +110,7 @@ function approvalProjection(event, task, config, events) {
   const search = events.find((entry) => entry.eventId.endsWith(':upgrade-search'));
   return approvalPolicy.makeApproval(requirement.gateId, {
     task,
-    itemInfo: task.itemInfo,
+    subjectInfo: task.subjectInfo,
     config,
     message: requirement.gateId === 'upgrade.candidateSelect' ? '请选择用于来源升级的候选。' : '此操作需要确认。',
     options: ['approve'],
@@ -116,7 +124,7 @@ function immutableInputSnapshot(event, task, events) {
     bindings: event.intent.inputBindings || {},
     task: {
       taskId: task.id,
-      itemId: task.itemId,
+      subjectId: task.subjectId,
       targetGate: task.taskTarget && task.taskTarget.targetGate || task.targetGate || '',
       objectiveRevision: task.objectiveRevisionSnapshot || '',
       sourceRevision: task.helixAdmission && task.helixAdmission.sourceRevision || '',
@@ -135,6 +143,7 @@ function resolveCapabilityInput(event, capability, events) {
     let value;
     if (binding && binding.source === 'event') value = byId.get(binding.eventId)?.result;
     else if (binding && binding.source === 'events') value = (binding.eventIds || []).map((eventId) => byId.get(eventId)?.result);
+    else if (binding && binding.source === 'snapshot') value = binding.value;
     capabilityContract.assertRuntimeValue(port, value, `${capability.capability}.${portName}`);
     if (value !== undefined) input[portName] = value;
   }
@@ -172,7 +181,7 @@ function aggregateTask(task, events, config = configStore.loadConfig()) {
   }
   else if (events.every((event) => SUCCESS.has(event.status))) updated = taskStore.updateTask(task.id, { status: 'done', phase: 'workflow_complete', progress: 100 });
   if (updated) {
-    if (task.status !== updated.status) kairoxSignalBus.publish({ kind: 'task_terminal', itemId: task.itemId, taskId: task.id, status: updated.status });
+    if (task.status !== updated.status) kairoxSignalBus.publish({ kind: 'task_terminal', subjectId: task.subjectId, taskId: task.id, status: updated.status });
     return updated;
   }
   if (events.some((event) => event.status === 'waiting_for_approval')) return taskStore.updateTask(task.id, { status: 'awaiting_user_confirm', phase: 'event_waiting_for_approval' });
@@ -311,7 +320,7 @@ async function driveTask(taskId) {
   while (true) {
     task = taskStore.getTask(taskId) || task;
     events = unlock(task, plan, config);
-    const ready = events.filter((event) => event.status === 'ready' && (!event.retryAt || Date.parse(event.retryAt) <= Date.now()));
+    const ready = events.filter((event) => event.status === 'ready' && (!event.retryAt || Date.parse(event.retryAt) <= Date.now())).slice(0, 4);
     if (ready.length === 0) break;
     await Promise.all(ready.map((event) => executeEvent(task, event, config)));
   }

@@ -27,9 +27,9 @@ async function observeEmbyMetadata(task, config, subLibrary) {
   return { facts: embyMetadataFacts(item, episodes, serverId), evidence: { adapter: 'emby', embyItemId, serverId, episodeCount: episodes.length } };
 }
 async function observeFolderMetadata(task, config, subLibrary, resolvedIdentity = {}) {
-  const filePath = descriptorForTask(task).locator?.path || task.itemInfo?.path || '';
+  const filePath = descriptorForTask(task).locator?.path || task.subjectInfo?.path || '';
   if (!filePath || !fs.existsSync(filePath)) throw Object.assign(new Error(`Media file does not exist: ${filePath}`), { code: 'KAIROX_SOURCE_INCIDENT' });
-  const item = { ...(task.itemInfo || {}), itemId: task.itemId, path: filePath };
+  const item = { ...(task.subjectInfo || {}), subjectId: task.subjectId, path: filePath };
   const region = subLibrary.adultRegion || 'japanese_jav';
   if (region === 'western_adult') throw Object.assign(new Error('Western adult metadata must use the atomic analysis Capability graph'), { code: 'WESTERN_ATOMIC_WORKFLOW_REQUIRED' });
   const adultId = resolvedIdentity.adultId || item.adultMetadata?.adultId || adultSourceIdentity.extractAdultId(path.basename(filePath)) || adultSourceIdentity.extractAdultId(filePath);

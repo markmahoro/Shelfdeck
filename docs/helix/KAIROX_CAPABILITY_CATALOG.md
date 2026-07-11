@@ -2,13 +2,13 @@
 
 状态：Canonical Catalog v1  
 代码事实源：`media-service/src/capabilityCatalog.js`  
-当前数量：50 项业务 Capability；另有 1 项 Runtime 阻断原语 `workflow.blocked`。
+当前数量：62 项业务 Capability；另有 1 项 Runtime 阻断原语 `workflow.blocked`。
 
-## 为什么有 50 项
+## 为什么有 62 项
 
 Kairox 不再把“一个用户功能”实现为一个复杂 Executor，而是把观察、解析、外部请求、验证、选择、文件提交和 Facts 发布拆成可独立调度与恢复的效果。因此能力数量增加，但每项只有一个职责，Transcode 与 Upgrade 也能共享验证、替换、清理等能力。
 
-50 项并非 50 个进程、服务或线程，而是进程内注册的内部接口。Flow Planner 将它们组成不可变 Workflow Graph，Event Runtime 逐 Event 调度。
+62 项并非 62 个进程、服务或线程，而是进程内注册的内部接口。Flow Planner 将它们组成不可变 Workflow Graph，Event Runtime 逐 Event 调度。
 
 ## 统一合同与性能口径
 
@@ -28,23 +28,28 @@ Runtime 按 Capability 与 `resourceKey` 统一采集：`count`、`failed`，以
 
 | Capability | 功能 | 输入 | 输出 | 效果 / 资源 | 性能指标 |
 | --- | --- | --- | --- | --- | --- |
-| `emby.item.observe` | 只读观察 Emby Item 技术基础数据 | 无 | `SourceObservation` | pure / Emby | API 延迟、失败率、同 revision 重复请求数 |
-| `filesystem.media.probe` | stat/FFprobe 文件或目录媒体 | 无 | `SourceObservation` | pure / filesystem | Probe 时间、Volume 等待、吞吐 |
-| `filesystem.layout.observe` | 观察当前目录和文件布局 | 无 | `LayoutObservation` | pure / filesystem | 扫描时间、文件数、Volume 等待 |
+| `emby.item.observe` | 只读观察一个 admitted Asset 的 Emby 技术基础数据 | `asset: AssetSnapshot` | `SourceObservation` | pure / Emby | API 延迟、失败率、同 revision 重复请求数 |
+| `filesystem.media.probe` | stat/FFprobe 一个 admitted Asset | `asset: AssetSnapshot` | `SourceObservation` | pure / filesystem | Probe 时间、Volume 等待、吞吐 |
+| `filesystem.layout.observe` | 观察一个 admitted Asset 的目录和文件布局 | `asset: AssetSnapshot` | `LayoutObservation` | pure / filesystem | 扫描时间、文件数、Volume 等待 |
 | `basedata.verify` | 验证基础事实满足 Gate 要求 | `observation: SourceObservation`；`layout?: LayoutObservation` | `VerifiedBasedata` | pure / CPU | 执行时间、验证失败率 |
 | `basedata.publish` | 发布 Basedata canonical fact | `basedata: VerifiedBasedata` | `BasedataPublication` | commit_once / SQLite | DB 写延迟、revision 冲突、重复 commit |
+| `basedata.subject.publish` | 所有当前 Asset fresh 后发布 Subject 聚合 Basedata | `assets: BasedataPublication[]` | `BasedataPublication` | commit_once / SQLite | Asset 数、汇合时间、不完整率 |
 
-## 通用 Metadata 与 Artifact（7 项）
+## 通用 Metadata 与 Artifact（11 项）
 
 | Capability | 功能 | 输入 | 输出 | 效果 / 资源 | 性能指标 |
 | --- | --- | --- | --- | --- | --- |
 | `media.identity.resolve` | 从 Admission 与现有事实解析媒体身份 | 无 | `MediaIdentity` | pure / CPU | 解析时间、无法解析率 |
+| `series.identity.resolve` | 解析 Series 级稳定身份 | 无 | `MediaIdentity` | pure / CPU | 解析时间、身份完整率 |
 | `metadata.provider.fetch` | 从配置的 Provider 获取描述性事实 | `identity: MediaIdentity` | `MetadataObservation` | pure / Emby、scraper | Provider 延迟、限流、命中率、失败率 |
+| `series.metadata.provider.fetch` | 获取 Series/tvshow 描述性事实 | `identity: MediaIdentity` | `MetadataObservation` | pure / Emby、scraper | Provider 延迟、剧级命中率 |
 | `person.relations.resolve` | 解析演员关系并更新 Person Catalog | `metadata: MetadataObservation` | `ResolvedMetadata` | commit_once / SQLite | 匹配时间、候选数、DB 写延迟 |
 | `metadata.sidecar.render` | 在 Artifact Workspace 渲染 NFO | `metadata: ResolvedMetadata` | `MetadataArtifact` | staged_write / filesystem | 渲染时间、产物字节数、写延迟 |
+| `series.metadata.sidecar.render` | 在 Artifact Workspace 渲染 tvshow.nfo | `metadata: ResolvedMetadata` | `MetadataArtifact` | staged_write / filesystem | 渲染时间、产物字节数、写延迟 |
 | `metadata.image.acquire` | 获取 poster 或 fanart，类型由参数指定 | `metadata: ResolvedMetadata` | `MetadataArtifact` | staged_write / filesystem | 下载延迟、图片大小、失败率 |
 | `metadata.artifacts.verify` | 校验 Artifact manifest 与 checksum | `artifacts: MetadataArtifact[]` | `ArtifactManifest` | pure / filesystem、CPU | 校验时间、总字节数、损坏率 |
 | `metadata.publish` | 发布 Metadata Facts 与 Artifact 引用 | `metadata: ResolvedMetadata`；`artifacts?: ArtifactManifest` | `MetadataPublication` | commit_once / SQLite | DB 写延迟、revision 冲突、重复 commit |
+| `series.metadata.publish` | 发布 Series Metadata 与 tvshow Artifact 引用 | `metadata: ResolvedMetadata`；`artifacts?: ArtifactManifest` | `MetadataPublication` | commit_once / SQLite | DB 写延迟、revision 冲突、重复 commit |
 
 ## 欧美成人本机识别（6 项）
 
@@ -83,7 +88,7 @@ Runtime 按 Capability 与 `resourceKey` 统一采集：`count`、`failed`，以
 | `workspace.cleanup` | 按 Evidence 清理本 Event 的内部工作区 | `replacement: MediaReplacementEvidence` | `CleanupEvidence` | commit_once / filesystem | 清理时间、回收字节、残留数 |
 | `optimization.outcome.select` | 汇合 Replace/Discard 分支为唯一结果 | `outcomes: MediaReplacementEvidence[]` | `MediaReplacementEvidence` | pure / CPU | 分支数、选择时间、非法多结果数 |
 
-## Upgrade / MoviePilot（9 项）
+## Upgrade / MoviePilot（13 项）
 
 | Capability | 功能 | 输入 | 输出 | 效果 / 资源 | 性能指标 |
 | --- | --- | --- | --- | --- | --- |
@@ -96,35 +101,42 @@ Runtime 按 Capability 与 `resourceKey` 统一采集：`count`、`failed`，以
 | `source.upgrade.output.resolve` | 从转移结果定位暂存媒体 | `transfer: TransferObservation` | `StagedMediaAsset` | pure / filesystem | 路径解析时间、候选文件数、失败率 |
 | `source.upgrade.output.settle` | 单次确认输出文件已停止变化 | `stagedAsset: StagedMediaAsset` | `StagedMediaAsset` | pure / filesystem | 检查时间、未稳定率、大小变化 |
 | `media.identity.inspect` | 对升级输出做强身份一致性检查 | `stagedAsset: StagedMediaAsset` | `IdentityInspection` | pure / filesystem | 检查时间、匹配率、冲突率 |
+| `series.upgrade.identity.resolve` | 解析 Series + Season 升级身份 | `integration: IntegrationEvidence` | `UpgradeIdentity` | pure / MoviePilot | TMDB/Season 完整率 |
+| `source.season-upgrade.search` | 搜索严格匹配指定 Season 的 package | `identity: UpgradeIdentity` | `UpgradeCandidates` | pure / MoviePilot | 精确候选数、零候选率 |
+| `source.season-upgrade.output.resolve` | 定位完整 Season 暂存目录 | `transfer: TransferObservation` | `StagedMediaAsset` | pure / filesystem | 解析时间、目录可见等待 |
+| `series.season-package.verify` | 验证强身份与当前 Episode key superset | `stagedAsset: StagedMediaAsset` | `VerifiedMediaAsset` | pure / filesystem | 文件数、缺集拒绝、身份歧义率 |
 
-## 共享提交、布局与发布（7 项）
+## 共享提交、布局与发布（10 项）
 
 | Capability | 功能 | 输入 | 输出 | 效果 / 资源 | 性能指标 |
 | --- | --- | --- | --- | --- | --- |
 | `media.identity.accept` | 对身份冲突执行条件审批后的接受 | `inspection: IdentityInspection` | `StagedMediaAsset` | pure / approval | 审批等待、冲突接受率 |
 | `optimization.objective.verify` | 验证无需重资产处理时 Objective 已满足 | 无 | `ObjectiveVerification` | pure / CPU | 验证时间、通过率 |
-| `media.replace` | Transcode/Upgrade 共用的回滚安全文件或目录替换 | `verifiedAsset: VerifiedMediaAsset` | `MediaReplacementEvidence` | commit_once / filesystem | 替换时间、字节数、跨卷情况、回滚、审批等待 |
+| `media.file.replace` | Movie/Adult Transcode/Upgrade 共用的回滚安全单文件替换 | `verifiedAsset: VerifiedMediaAsset` | `MediaReplacementEvidence` | commit_once / filesystem | 替换时间、字节数、回滚、审批等待 |
+| `series.season.replace` | 事务性整季替换并发布 SourceMutationResult | `verifiedSeasonPackage: VerifiedMediaAsset` | `SourceMutationEffect` | commit_once / filesystem | 文件数、字节数、回滚、审批等待 |
 | `source.organize` | 整理媒体布局并发布 SourceMutationResult | 无 | `SourceMutationEffect` | commit_once / filesystem | 移动字节数、耗时、跨卷复制率、失败回滚率 |
 | `metadata.artifacts.materialize` | 原子写入已验证的 NFO/图片到最终目录 | 无 | `ArtifactMaterialization` | commit_once / filesystem | 文件数、字节数、fsync/rename 延迟、失败率 |
 | `filesystem.layout.verify` | 验证整理和 Artifact 落盘后的布局 | `materialization?: ArtifactMaterialization` | `LayoutVerification` | pure / filesystem | stat 数、验证时间、布局失败率 |
+| `series.assets.layout.verify` | 汇合并验证 Series 当前 Asset 路径 | `outcomes: MediaReplacementEvidence[]` | `LayoutVerification` | pure / filesystem | Asset 数、缺失率、Volume 等待 |
 | `optimization.result.publish` | 发布 Optimize canonical fact | `layout: LayoutVerification`；`replacement?: MediaReplacementEvidence` | `OptimizePublication` | commit_once / SQLite | DB 写延迟、fencing 冲突、重复 commit |
+| `series.optimization.result.publish` | 汇合 Episode outcome 后发布 Series Optimize fact | `layout: LayoutVerification`；`replacements: MediaReplacementEvidence[]` | `OptimizePublication` | commit_once / SQLite | 汇合数、DB 写延迟、重复 commit |
 
 ## 数量核对
 
 | 分类 | 数量 |
 | --- | ---: |
-| Basedata | 5 |
-| 通用 Metadata 与 Artifact | 7 |
+| Basedata | 6 |
+| 通用 Metadata 与 Artifact | 11 |
 | 欧美成人本机识别 | 6 |
 | 欧美成人远端 Worker | 5 |
 | Transcode 与输出决策 | 11 |
-| Upgrade / MoviePilot | 9 |
-| 共享提交、布局与发布 | 7 |
-| **合计** | **50** |
+| Upgrade / MoviePilot | 13 |
+| 共享提交、布局与发布 | 10 |
+| **合计** | **62** |
 
 ## 非业务 Runtime 原语
 
-`workflow.blocked` 是第 51 个 Catalog 条目，但不是媒体处理能力。Planner 在 Objective 无可用 Capability、Library policy 禁止能力或 Runtime 缺少实现时，用它持久化稳定阻断原因。它只应统计阻断计数和原因分布，不应产生资源等待或长执行时间。
+`workflow.blocked` 是第 63 个 Catalog 条目，但不是媒体处理能力。Planner 在 Objective 无可用 Capability、Library policy 禁止能力或 Runtime 缺少实现时，用它持久化稳定阻断原因。它只应统计阻断计数和原因分布，不应产生资源等待或长执行时间。
 
 ## 性能基线如何固化
 

@@ -19,7 +19,7 @@ function writeJson(filePath, value) {
 
 function createLegacyLibraryDb(dataDir) {
   const db = new Database(path.join(dataDir, 'library.db'));
-  db.exec('CREATE TABLE media_items (item_id TEXT PRIMARY KEY); CREATE TABLE nexora_memberships (media_item_id TEXT PRIMARY KEY);');
+  db.exec('CREATE TABLE media_items (subject_id TEXT PRIMARY KEY); CREATE TABLE nexora_memberships (subject_id TEXT PRIMARY KEY);');
   db.close();
 }
 

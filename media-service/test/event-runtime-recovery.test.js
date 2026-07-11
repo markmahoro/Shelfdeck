@@ -25,8 +25,8 @@ function testCapability(capability, execute, options = {}) {
 test.after(() => { taskStore.resetForTests(); workflowStore.resetForTests(); admissionStore.resetForTests(); fs.rmSync(dataDir, { recursive: true, force: true }); });
 
 function task(id) {
-  admissionStore.upsertAdmission({ itemId: `item-${id}`, admissionGeneration: 1, status: 'active', sourceRevision: 's1', sourceAccessDescriptor: { locator: { path: __filename } } });
-  return taskStore.createTask({ id, itemId: `item-${id}`, status: 'queued', source: 'manual', helixAdmission: admissionStore.getAdmission(`item-${id}`), sourceAccessMappingRevision: 'identity', taskTarget: { targetGate: 'basedata', gateObjective: {} }, itemInfo: { itemId: `item-${id}` } });
+  admissionStore.upsertAdmission({ subjectId: `item-${id}`, admissionGeneration: 1, status: 'active', sourceRevision: 's1', sourceAccessDescriptor: { locator: { path: __filename } } });
+  return taskStore.createTask({ id, subjectId: `item-${id}`, status: 'queued', source: 'manual', helixAdmission: admissionStore.getAdmission(`item-${id}`), sourceAccessMappingRevision: 'identity', taskTarget: { targetGate: 'basedata', gateObjective: {} }, subjectInfo: { subjectId: `item-${id}` } });
 }
 
 test('Event retry resumes the same atomic capability without creating a Task attempt', async () => {
@@ -34,7 +34,7 @@ test('Event retry resumes the same atomic capability without creating a Task att
   let attempts = 0;
   if (!registry.has('test.retry')) registry.register(testCapability('test.retry', async () => { attempts += 1; if (attempts === 1) throw Object.assign(new Error('retry me'), { code: 'TEST_RETRY' }); return { ok: true }; }));
   const value = task('retry-task');
-  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'retry-event', capability: 'test.retry', retryPolicy: { maxAttempts: 2 } }], registry);
+  const plan = workflowGraph.buildPlan({ taskId: value.id, subjectId: value.subjectId, targetGate: 'basedata' }, [{ eventId: 'retry-event', capability: 'test.retry', retryPolicy: { maxAttempts: 2 } }], registry);
   workflowStore.createPlan(plan, registry);
   await eventRuntime.driveTask(value.id);
   await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -48,7 +48,7 @@ test('Event retry resumes the same atomic capability without creating a Task att
 test('startup recovery discards in-memory execution and requeues the durable Event and Task once', () => {
   const value = task('restart-task');
   if (!registry.has('test.restart')) registry.register(testCapability('test.restart', async () => ({ ok: true })));
-  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'restart-event', capability: 'test.restart' }], registry);
+  const plan = workflowGraph.buildPlan({ taskId: value.id, subjectId: value.subjectId, targetGate: 'basedata' }, [{ eventId: 'restart-event', capability: 'test.restart' }], registry);
   workflowStore.createPlan(plan, registry);
   workflowStore.transition('restart-event', 'executing', { startedAt: new Date().toISOString(), attempt: 1 });
   taskStore.updateTask(value.id, { status: 'executing' });
@@ -61,7 +61,7 @@ test('startup recovery discards in-memory execution and requeues the durable Eve
 test('a persisted graph is invalidated when its objective revision no longer matches the Task snapshot', async () => {
   const value = task('invalidated-task');
   if (!registry.has('test.invalidate')) registry.register(testCapability('test.invalidate', async () => ({ ok: true })));
-  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata', objectiveRevision: 'objective-old' }, [{ eventId: 'invalidated-event', capability: 'test.invalidate' }], registry);
+  const plan = workflowGraph.buildPlan({ taskId: value.id, subjectId: value.subjectId, targetGate: 'basedata', objectiveRevision: 'objective-old' }, [{ eventId: 'invalidated-event', capability: 'test.invalidate' }], registry);
   workflowStore.createPlan(plan, registry);
   taskStore.updateTask(value.id, { objectiveRevisionSnapshot: 'objective-new' });
   const result = await eventRuntime.driveTask(value.id);
@@ -73,7 +73,7 @@ test('a persisted graph is invalidated when its objective revision no longer mat
 test('approval is a durable Event prerequisite and confirmation resumes the same Event', async () => {
   const value = taskStore.updateTask(task('approval-task').id, { taskTarget: { targetGate: 'optimize', gateObjective: {} } });
   if (!registry.has('test.approval')) registry.register(testCapability('test.approval', async () => ({ result: { committed: true }, commitMarker: 'approval-test-commit' }), { allowedTargetGates: ['optimize'], effectKind: 'commit_once', approvalContract: { actions: ['transcode.beforeReplace'] } }));
-  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'optimize' }, [{ eventId: 'approval-event', capability: 'test.approval', approvalRequirement: { gateId: 'transcode.beforeReplace' } }], registry);
+  const plan = workflowGraph.buildPlan({ taskId: value.id, subjectId: value.subjectId, targetGate: 'optimize' }, [{ eventId: 'approval-event', capability: 'test.approval', approvalRequirement: { gateId: 'transcode.beforeReplace' } }], registry);
   workflowStore.createPlan(plan, registry);
   await eventRuntime.driveTask(value.id);
   assert.strictEqual(workflowStore.getEvent('approval-event').status, 'waiting_for_approval');
@@ -113,13 +113,13 @@ test('Runtime invokes the Capability cancellation contract for an executing atom
 test('Runtime-provided commit fencing rejects a generation change during Capability execution', async () => {
   let committed = false;
   if (!registry.has('test.commit-fence')) registry.register(testCapability('test.commit-fence', async ({ task: currentTask, assertFence }) => {
-    admissionStore.upsertAdmission({ ...admissionStore.getAdmission(currentTask.itemId), admissionGeneration: 2, status: 'active' });
+    admissionStore.upsertAdmission({ ...admissionStore.getAdmission(currentTask.subjectId), admissionGeneration: 2, status: 'active' });
     assertFence('before_test_commit');
     committed = true;
     return { result: { committed: true }, commitMarker: 'must-not-commit' };
   }, { effectKind: 'commit_once', allowedTargetGates: ['basedata'] }));
   const value = task('commit-fence-task');
-  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'commit-fence-event', capability: 'test.commit-fence' }], registry);
+  const plan = workflowGraph.buildPlan({ taskId: value.id, subjectId: value.subjectId, targetGate: 'basedata' }, [{ eventId: 'commit-fence-event', capability: 'test.commit-fence' }], registry);
   workflowStore.createPlan(plan, registry);
   await eventRuntime.driveTask(value.id);
   assert.strictEqual(committed, false);
@@ -135,12 +135,12 @@ test('a Helix suspension cancels an executing Event and late output cannot resur
     cancel: () => { cancelled = true; },
   }));
   const value = task('suspend-running-task');
-  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'suspend-running-event', capability: 'test.suspend-running' }], registry);
+  const plan = workflowGraph.buildPlan({ taskId: value.id, subjectId: value.subjectId, targetGate: 'basedata' }, [{ eventId: 'suspend-running-event', capability: 'test.suspend-running' }], registry);
   workflowStore.createPlan(plan, registry);
   const running = eventRuntime.driveTask(value.id);
   const deadline = Date.now() + 1000;
   while (workflowStore.getEvent('suspend-running-event').status !== 'executing' && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 5));
-  admissionStore.upsertAdmission({ ...admissionStore.getAdmission(value.itemId), admissionGeneration: 2, status: 'suspended' });
+  admissionStore.upsertAdmission({ ...admissionStore.getAdmission(value.subjectId), admissionGeneration: 2, status: 'suspended' });
   resourceRuntime.fenceTask(value, 'source_incident');
   assert.strictEqual(cancelled, true);
   assert.strictEqual(workflowStore.getEvent('suspend-running-event').status, 'cancelled');

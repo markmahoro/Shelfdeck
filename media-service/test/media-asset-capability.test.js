@@ -19,7 +19,7 @@ test('generic media identity inspection reads strong TMDB evidence from staged N
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('generic media.replace supports folder scope with rollback-safe commit and idempotent recovery', async () => {
+test('generic media.file.replace supports file scope with rollback-safe commit and idempotent recovery', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-folder-replace-'));
   const target = path.join(root, 'target'); const staged = path.join(root, 'staged');
   try {
@@ -34,7 +34,7 @@ test('generic media.replace supports folder scope with rollback-safe commit and 
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('transcode output disposition preserves a larger original without entering media.replace', async () => {
+test('transcode output disposition preserves a larger original without entering media.file.replace', async () => {
   builtIns.registerBuiltIns();
   const capability = registry.get('output.media.disposition');
   const discarded = await capability.execute({ input: { verifiedAsset: { sizeBytes: 200, originalSizeBytes: 100, stagedAsset: { replacementScope: 'file' } } } });

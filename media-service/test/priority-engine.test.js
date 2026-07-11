@@ -36,14 +36,14 @@ function taskContext(targetGateValue, flowKind = '') {
 
 test('Run origin does not change task-local gate and library priority', () => {
   const c = config();
-  const explained = pe.explainPriority({ source: 'manual', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c });
+  const explained = pe.explainPriority({ source: 'manual', ...taskContext('optimize', 'transcode'), subjectInfo: {}, config: c });
   assert.strictEqual(explained.priority, 310);
   assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['base', 'targetGate', 'subLibrary']);
 });
 
 test('optimize target-gate tasks do not need a flow kind at creation time', () => {
   const c = config();
-  const explained = pe.explainPriority({ source: 'manual', taskTarget: targetGate('optimize'), itemInfo: {}, config: c });
+  const explained = pe.explainPriority({ source: 'manual', taskTarget: targetGate('optimize'), subjectInfo: {}, config: c });
   assert.strictEqual(explained.priority, 310);
   assert.strictEqual(explained.flowKind, undefined);
   assert.deepStrictEqual(explained.dimensions.map((d) => d.key), ['base', 'targetGate', 'subLibrary']);
@@ -51,29 +51,29 @@ test('optimize target-gate tasks do not need a flow kind at creation time', () =
 
 test('tasks add the common base and default library dimensions', () => {
   const c = config();
-  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c }), 310);
-  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('metadata', 'scrape'), itemInfo: { scraped: true, adultMetadata: { scrapeStatus: 'done' } }, config: c }), 280);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), subjectInfo: {}, config: c }), 310);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('metadata', 'scrape'), subjectInfo: { scraped: true, adultMetadata: { scrapeStatus: 'done' } }, config: c }), 280);
 });
 
 test('targetGateWeights order target gates without treating flows as task targets', () => {
   const c = config();
-  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('basedata', 'basedata'), itemInfo: {}, config: c }), 260);
-  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('metadata', 'scrape'), itemInfo: { scraped: true, adultMetadata: { scrapeStatus: 'done' } }, config: c }), 280);
-  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c }), 310);
-  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'upgrade'), itemInfo: {}, config: c }), 310);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('basedata', 'basedata'), subjectInfo: {}, config: c }), 260);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('metadata', 'scrape'), subjectInfo: { scraped: true, adultMetadata: { scrapeStatus: 'done' } }, config: c }), 280);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), subjectInfo: {}, config: c }), 310);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'upgrade'), subjectInfo: {}, config: c }), 310);
 });
 
 test('library weight is added as an independent dimension', () => {
   const subLibraries = [{ uuid: 'film', priorityWeight: 10 }, { uuid: 'series', priorityWeight: 50 }];
   const c = config({ subLibraries });
 
-  const filmAuto = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film' }, config: c });
-  const seriesAuto = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'series' }, config: c });
+  const filmAuto = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), subjectInfo: { subLibraryId: 'film' }, config: c });
+  const seriesAuto = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), subjectInfo: { subLibraryId: 'series' }, config: c });
   assert.strictEqual(filmAuto, 220);
   assert.strictEqual(seriesAuto, 260);
   assert.ok(filmAuto < seriesAuto);
 
-  const filmManual = pe.computePriority({ source: 'manual', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film' }, config: c });
+  const filmManual = pe.computePriority({ source: 'manual', ...taskContext('optimize', 'transcode'), subjectInfo: { subLibraryId: 'film' }, config: c });
   assert.strictEqual(filmManual, 220);
 });
 
@@ -86,9 +86,9 @@ test('rulesByTargetGate applies by lifecycle target gate', () => {
     },
   });
 
-  const transcode = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film' }, config: c });
-  const upgrade = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'upgrade'), itemInfo: { subLibraryId: 'film' }, config: c });
-  const scrape = pe.computePriority({ source: 'auto', ...taskContext('metadata', 'scrape'), itemInfo: { subLibraryId: 'film', scraped: true, adultMetadata: { scrapeStatus: 'done' } }, config: c });
+  const transcode = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), subjectInfo: { subLibraryId: 'film' }, config: c });
+  const upgrade = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'upgrade'), subjectInfo: { subLibraryId: 'film' }, config: c });
+  const scrape = pe.computePriority({ source: 'auto', ...taskContext('metadata', 'scrape'), subjectInfo: { subLibraryId: 'film', scraped: true, adultMetadata: { scrapeStatus: 'done' } }, config: c });
   assert.strictEqual(transcode, 285);
   assert.strictEqual(upgrade, 285);
   assert.strictEqual(scrape, 280);
@@ -109,7 +109,7 @@ test('multiple target-gate rules apply in order', () => {
   const p = pe.computePriority({
     source: 'auto',
     ...taskContext('optimize', 'transcode'),
-    itemInfo: { subLibraryId: 'film', type: 'season', isDolbyVision: false },
+    subjectInfo: { subLibraryId: 'film', type: 'season', isDolbyVision: false },
     config: c,
   });
   assert.strictEqual(p, 280);
@@ -128,7 +128,7 @@ test('explainPriority returns the Kairox additive breakdown', () => {
   const explained = pe.explainPriority({
     source: 'auto',
     ...taskContext('optimize', 'transcode'),
-    itemInfo: { subLibraryId: 'film' },
+    subjectInfo: { subLibraryId: 'film' },
     config: c,
   });
 
@@ -145,13 +145,13 @@ test('metadata business signal keeps enrichment ahead of transcode', () => {
   const scrape = pe.explainPriority({
     source: 'auto',
     ...taskContext('metadata', 'scrape'),
-    itemInfo: { scraped: false, adultMetadata: { scrapeStatus: 'pending' } },
+    subjectInfo: { scraped: false, adultMetadata: { scrapeStatus: 'pending' } },
     config: c,
   });
   const transcode = pe.explainPriority({
     source: 'auto',
     ...taskContext('optimize', 'transcode'),
-    itemInfo: { equivalentBitrate: 12000, targetBitrate: 8000 },
+    subjectInfo: { equivalentBitrate: 12000, targetBitrate: 8000 },
     config: c,
   });
 
@@ -174,7 +174,7 @@ test('queue age and retry are additive dynamic dimensions', () => {
     const explained = pe.explainPriority({
       source: 'auto',
       ...taskContext('optimize', 'transcode'),
-      itemInfo: {},
+      subjectInfo: {},
       task: { createdAt: '2026-06-29T07:30:00.000Z', retryCount: 2 },
       config: c,
     });
@@ -194,8 +194,8 @@ test('match is AND-combined; undefined fields do not constrain', () => {
       optimize: [{ match: { subLibraryId: 'film', type: 'movie' }, adjust: { op: 'subtract', value: 30 } }],
     },
   });
-  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film', type: 'movie' }, config: c }), 280);
-  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { subLibraryId: 'film', type: 'season' }, config: c }), 310);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), subjectInfo: { subLibraryId: 'film', type: 'movie' }, config: c }), 280);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), subjectInfo: { subLibraryId: 'film', type: 'season' }, config: c }), 310);
 });
 
 test('resolution match uses prefix semantics', () => {
@@ -206,8 +206,8 @@ test('resolution match uses prefix semantics', () => {
       optimize: [{ match: { resolution: '3840' }, adjust: { op: 'add', value: 40 } }],
     },
   });
-  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { resolution: '3840x2160' }, config: c }), 350);
-  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: { resolution: '1920x1080' }, config: c }), 310);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), subjectInfo: { resolution: '3840x2160' }, config: c }), 350);
+  assert.strictEqual(pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), subjectInfo: { resolution: '1920x1080' }, config: c }), 310);
 });
 
 test('result is clamped to >= 0 and rounded', () => {
@@ -218,14 +218,14 @@ test('result is clamped to >= 0 and rounded', () => {
       optimize: [{ match: {}, adjust: { op: 'subtract', value: 500 } }],
     },
   });
-  const p = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), itemInfo: {}, config: c });
+  const p = pe.computePriority({ source: 'auto', ...taskContext('optimize', 'transcode'), subjectInfo: {}, config: c });
   assert.strictEqual(p, 0);
 });
 
 test('missing taskPriority config falls back to target gate defaults', () => {
   const c = { subLibraries: [] };
-  assert.strictEqual(pe.computePriority({ source: 'manual', taskTarget: targetGate('optimize'), itemInfo: {}, config: c }), 310);
-  assert.strictEqual(pe.computePriority({ source: 'auto', taskTarget: targetGate('optimize'), itemInfo: {}, config: c }), 310);
+  assert.strictEqual(pe.computePriority({ source: 'manual', taskTarget: targetGate('optimize'), subjectInfo: {}, config: c }), 310);
+  assert.strictEqual(pe.computePriority({ source: 'auto', taskTarget: targetGate('optimize'), subjectInfo: {}, config: c }), 310);
 });
 
 test('_applyAdjust handles subtract / add and ignores invalid or legacy set', () => {

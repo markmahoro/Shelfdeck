@@ -17,7 +17,7 @@ function westernConfig(task, config) {
 
 function sourcePath(task) {
   const descriptor = task.helixAdmission && task.helixAdmission.sourceAccessDescriptor || {};
-  return sourceAccessResolver.resolve(descriptor.locator && descriptor.locator.path || task.itemInfo && task.itemInfo.path || '', { mustExist: true }).accessPath;
+  return sourceAccessResolver.resolve(descriptor.locator && descriptor.locator.path || task.subjectInfo && task.subjectInfo.path || '', { mustExist: true }).accessPath;
 }
 
 function workerNode(western) {
@@ -87,9 +87,9 @@ function registerWesternAdultCapabilities(register) {
   } });
 
   register({ capability: 'compute.asset.register', allowedTargetGates: ['metadata'], execute: async ({ task, event, config, assertFence }) => {
-    const western = westernConfig(task, config); const file = sourcePath(task); const stat = fs.statSync(file); const assetId = String(task.itemId || event.eventId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120);
+    const western = westernConfig(task, config); const file = sourcePath(task); const stat = fs.statSync(file); const assetId = String(task.subjectId || event.eventId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120);
     assertFence('before_worker_asset_register');
-    await nodeService.createAsset(workerNode(western), { assetId, assetKey: task.itemId, sourceFileName: path.basename(file), sourceFileSize: stat.size, fingerprint: { size: stat.size, mtimeMs: stat.mtimeMs } });
+    await nodeService.createAsset(workerNode(western), { assetId, assetKey: task.subjectId, sourceFileName: path.basename(file), sourceFileSize: stat.size, fingerprint: { size: stat.size, mtimeMs: stat.mtimeMs } });
     return { result: { assetId, sourcePath: file, size: stat.size }, commitMarker: `worker-asset:${assetId}` };
   } });
   register({ capability: 'compute.asset.upload', allowedTargetGates: ['metadata'], cancel: ({ event }) => workerUploads.get(event.eventId)?.abort(), execute: async ({ task, event, config, input }) => {
@@ -98,7 +98,7 @@ function registerWesternAdultCapabilities(register) {
     finally { workerUploads.delete(event.eventId); }
   } });
   register({ capability: 'adult.analysis.request', allowedTargetGates: ['metadata'], execute: async ({ task, event, config, input, assertFence }) => {
-    const western = westernConfig(task, config); assertFence('before_worker_analysis_request'); const job = await nodeService.createAiJob(workerNode(western), { jobId: event.eventId, assetId: input.asset.assetId, itemName: task.itemInfo && task.itemInfo.name || path.basename(input.asset.sourcePath), people: peopleStore.listPeople({ adultRegion: 'western_adult', includeArtifacts: true, limit: 200 }).people, options: { frameSampleCount: western.frameSampleCount, frameWidth: western.frameWidth, faceRecognitionEnabled: western.faceRecognitionEnabled !== false, vlmEnabled: western.vlmEnabled !== false, blacklist: peopleStore.listDismissedEmbeddings({ adultRegion: 'western_adult' }), blacklistThreshold: Number(western.blacklistThreshold) || 0.5, faceSimilarityThreshold: Number(western.faceSimilarityThreshold) || 0.25 } });
+    const western = westernConfig(task, config); assertFence('before_worker_analysis_request'); const job = await nodeService.createAiJob(workerNode(western), { jobId: event.eventId, assetId: input.asset.assetId, subjectName: task.subjectInfo && task.subjectInfo.name || path.basename(input.asset.sourcePath), people: peopleStore.listPeople({ adultRegion: 'western_adult', includeArtifacts: true, limit: 200 }).people, options: { frameSampleCount: western.frameSampleCount, frameWidth: western.frameWidth, faceRecognitionEnabled: western.faceRecognitionEnabled !== false, vlmEnabled: western.vlmEnabled !== false, blacklist: peopleStore.listDismissedEmbeddings({ adultRegion: 'western_adult' }), blacklistThreshold: Number(western.blacklistThreshold) || 0.5, faceSimilarityThreshold: Number(western.faceSimilarityThreshold) || 0.25 } });
     return { result: { jobId: job.jobId || event.eventId, assetId: input.asset.assetId }, commitMarker: `worker-ai-job:${job.jobId || event.eventId}` };
   } });
   register({ capability: 'adult.analysis.observe', allowedTargetGates: ['metadata'], execute: async ({ task, config, input }) => {

@@ -30,7 +30,7 @@ function validateLocation(config, root) {
 }
 
 function safeSegment(value) { return String(value || '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 180) || 'unknown'; }
-function revisionDir(config, itemId, revision) { return path.join(resolveRoot(config), 'items', safeSegment(itemId), safeSegment(revision)); }
+function revisionDir(config, subjectId, revision) { return path.join(resolveRoot(config), 'items', safeSegment(subjectId), safeSegment(revision)); }
 function checksum(buffer) { return crypto.createHash('sha256').update(buffer).digest('hex'); }
 
 function atomicWrite(file, content) {
@@ -44,11 +44,11 @@ function atomicWrite(file, content) {
 }
 
 function writeArtifact(config, input = {}) {
-  const dir = revisionDir(config, input.itemId, input.metadataRevision);
+  const dir = revisionDir(config, input.subjectId, input.metadataRevision);
   const name = safeSegment(input.name);
   const record = atomicWrite(path.join(dir, name), input.content);
   const manifestPath = path.join(dir, 'manifest.json');
-  let manifest = { itemId: input.itemId, metadataRevision: input.metadataRevision, artifacts: {}, updatedAt: new Date().toISOString() };
+  let manifest = { subjectId: input.subjectId, metadataRevision: input.metadataRevision, artifacts: {}, updatedAt: new Date().toISOString() };
   try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); } catch (_) {}
   manifest.artifacts[name] = { ...record, source: input.source || '', eventId: input.eventId || '' };
   manifest.updatedAt = new Date().toISOString();
@@ -56,16 +56,16 @@ function writeArtifact(config, input = {}) {
   return manifest.artifacts[name];
 }
 
-function readManifest(config, itemId, revision) {
-  const file = path.join(revisionDir(config, itemId, revision), 'manifest.json');
+function readManifest(config, subjectId, revision) {
+  const file = path.join(revisionDir(config, subjectId, revision), 'manifest.json');
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { return null; }
 }
 
-function verifyManifest(config, itemId, revision) {
-  const manifest = readManifest(config, itemId, revision);
+function verifyManifest(config, subjectId, revision) {
+  const manifest = readManifest(config, subjectId, revision);
   if (!manifest) return { valid: false, reason: 'manifest_missing', artifacts: {} };
   for (const [name, artifact] of Object.entries(manifest.artifacts || {})) {
-    const file = path.join(revisionDir(config, itemId, revision), safeSegment(name));
+    const file = path.join(revisionDir(config, subjectId, revision), safeSegment(name));
     if (!fs.existsSync(file) || checksum(fs.readFileSync(file)) !== artifact.sha256) return { valid: false, reason: 'artifact_checksum_mismatch', artifact: name, artifacts: manifest.artifacts };
   }
   return { valid: true, artifacts: manifest.artifacts, manifest };
@@ -88,18 +88,18 @@ function probeWorkspace(config = {}) {
 }
 function cleanupUnreferenced(config = {}, references = [], nowMs = Date.now()) {
   const root = path.join(resolveRoot(config), 'items');
-  const protectedKeys = new Set((references || []).map((entry) => `${safeSegment(entry.itemId)}\0${safeSegment(entry.artifactRevision || entry.taskId)}`));
+  const protectedKeys = new Set((references || []).map((entry) => `${safeSegment(entry.subjectId)}\0${safeSegment(entry.artifactRevision || entry.taskId)}`));
   const retentionMs = 7 * 24 * 60 * 60 * 1000;
   let removedRevisions = 0;
   let removedBytes = 0;
   if (!fs.existsSync(root)) return { removedRevisions, removedBytes };
-  for (const itemName of fs.readdirSync(root)) {
-    const itemDir = path.join(root, itemName);
+  for (const subjectName of fs.readdirSync(root)) {
+    const itemDir = path.join(root, subjectName);
     if (!fs.statSync(itemDir).isDirectory()) continue;
     for (const revision of fs.readdirSync(itemDir)) {
       const dir = path.join(itemDir, revision);
       const stat = fs.statSync(dir);
-      if (!stat.isDirectory() || protectedKeys.has(`${itemName}\0${revision}`) || nowMs - stat.mtimeMs < retentionMs) continue;
+      if (!stat.isDirectory() || protectedKeys.has(`${subjectName}\0${revision}`) || nowMs - stat.mtimeMs < retentionMs) continue;
       const size = fs.readdirSync(dir).reduce((sum, name) => { try { return sum + fs.statSync(path.join(dir, name)).size; } catch (_) { return sum; } }, 0);
       fs.rmSync(dir, { recursive: true, force: true });
       removedRevisions += 1; removedBytes += size;

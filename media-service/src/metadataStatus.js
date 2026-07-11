@@ -2,7 +2,7 @@
 
 const DEFAULT_EMBY_GATE = {
   all: [
-    'identity.itemId',
+    'identity.subjectId',
     'identity.externalId',
     'identity.name',
     'identity.seriesName',
@@ -97,7 +97,7 @@ function isSeason(item) {
 }
 
 const FIELD_CHECKS = {
-  'identity.itemId': (item) => hasText(item && item.itemId),
+  'identity.subjectId': (item) => hasText(item && item.subjectId),
   'identity.externalId': (item) => hasExternalIdentity(item),
   'identity.name': (item) => hasText(item && item.name),
   'identity.seriesName': (item) => !isSeason(item) || hasText(item && item.seriesName),

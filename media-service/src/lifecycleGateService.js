@@ -15,6 +15,11 @@ function normalizeCodec(value) {
 function basedataRequiredFactsMissing(item = {}) {
   if (item.playable === false) return [];
   const facts = item.basedataFacts && typeof item.basedataFacts === 'object' ? item.basedataFacts : item;
+  if (String(item.subjectKind || facts.subjectKind || '').toLowerCase() === 'series') {
+    const assets = Array.isArray(facts.assets) ? facts.assets : [];
+    if (!assets.length) return ['basedata.assets'];
+    return assets.flatMap((asset) => basedataRequiredFactsMissing({ ...(asset.facts || {}), subjectKind: 'episode' }).map((reason) => `${asset.assetId || 'asset'}:${reason}`));
+  }
   const missing = [];
   if (!clean(facts.path || item.path)) missing.push('basedata.path');
   if (numberOrNull(facts.size || item.size) == null) missing.push('basedata.size');
@@ -55,7 +60,7 @@ function evaluateOptimizeGate(item = {}) {
   if (pendingRefresh) return { gate: 'optimize', passed: false, status: 'pending_canonical_refresh', reason: 'canonical_facts_stale_after_optimize', failureReasons: ['canonical_facts_stale'], evidenceLevel: 'staged' };
   const objective = projectedOptimizeObjective(item);
   if (!objective || item.optimizeObjectiveStatus === 'pending_metadata') return { gate: 'optimize', passed: false, status: 'pending', reason: 'objective_not_ready', failureReasons: ['objective_not_ready'], evidenceLevel: 'none' };
-  const selection = optimizeGapAnalyzer.analyze({ itemInfo: item, optimizeObjective: objective, optimizeObjectiveStatus: item.optimizeObjectiveStatus, objectiveHash: item.objectiveHash });
+  const selection = optimizeGapAnalyzer.analyze({ subjectInfo: item, optimizeObjective: objective, optimizeObjectiveStatus: item.optimizeObjectiveStatus, objectiveHash: item.objectiveHash });
   if (selection.satisfied) return { gate: 'optimize', passed: true, status: 'passed', reason: selection.reason, target: selection.targetFacts, observed: selection.currentFacts, failureReasons: [], evidenceLevel: 'objective' };
   if (selection.status === 'blocked') return { gate: 'optimize', passed: false, status: 'blocked', reason: selection.reason || 'objective_not_plannable', target: selection.targetFacts, observed: selection.currentFacts, failureReasons: (selection.gap || []).map((gap) => gap.reason), evidenceLevel: 'objective' };
   return { gate: 'optimize', passed: false, status: 'not_passed', reason: 'objective_not_satisfied', target: selection.targetFacts, observed: selection.currentFacts, objectiveGap: selection.gap || [], failureReasons: [...new Set(['objective_not_satisfied', ...(selection.gap || []).map((gap) => gap.reason)])], evidenceLevel: 'objective' };

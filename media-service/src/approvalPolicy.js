@@ -16,8 +16,8 @@ function normalizeMode(mode, fallback = 'confirm') {
   return MODES.has(mode) ? mode : fallback;
 }
 
-function getSubLibrary(itemInfo, config) {
-  const subLibraryId = itemInfo && itemInfo.subLibraryId;
+function getSubLibrary(subjectInfo, config) {
+  const subLibraryId = subjectInfo && subjectInfo.subLibraryId;
   if (!subLibraryId) return null;
   return ((config && config.subLibraries) || []).find((sl) => sl && sl.uuid === subLibraryId) || null;
 }
@@ -27,8 +27,8 @@ function policyValue(policy, gateId) {
   return policy[gateId];
 }
 
-function resolveGate(gateId, { itemInfo = null, task = null, config = null } = {}) {
-  const subLib = getSubLibrary(itemInfo || (task && task.itemInfo), config);
+function resolveGate(gateId, { subjectInfo = null, task = null, config = null } = {}) {
+  const subLib = getSubLibrary(subjectInfo || (task && task.subjectInfo), config);
   const globalMode = policyValue(config && config.approvalPolicy, gateId);
   const subLibMode = policyValue(subLib && subLib.approvalPolicy, gateId);
   const taskMode = policyValue(task && task.approvalPolicy, gateId);

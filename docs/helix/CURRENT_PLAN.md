@@ -50,6 +50,15 @@ Before item 6 resumes, complete the following blocking Kairox execution-kernel r
 47. Produce a closure report with changed files, the final conservation matrix, deliberately removed behaviors and residual risks. A new real-source E2E plan requires separate user confirmation; it does not resume automatically. **Completed 2026-07-11 in `CURRENT_STATUS.md` and `CAPABILITY_CONSERVATION.md`; E2E remains stopped.**
 48. Execute behavior-level FlowPlan parity acceptance across Basedata, all Metadata variants, Transcode, Movie Upgrade, composite objectives, Organize/rebind and Runtime fault semantics. Every business Capability must be reachable from a representative Planner scenario. **In progress 2026-07-11: all tested paths pass, but legacy Season Upgrade has no safe Helix series-scope equivalent and remains an architecture blocker. Evidence: `acceptance/FLOWPLAN_BUSINESS_PARITY.md`.**
 
+## Subject / Asset Clean Cut
+
+49. Replace Episode-level `itemId` aggregation with Libra-owned `subjectId` and Nexora-owned `assetId`; Series spans all Seasons and is the sole Membership, Admission, Run, Priority, Gate and Task subject. **Completed 2026-07-11.**
+50. Build durable Nexora observation sessions and finalized Subject Source Manifests; partial asset removal is accepted with audit, empty Manifest becomes source-missing quarantine. **Completed 2026-07-11.**
+51. Split Movie/Adult/Series business Capabilities while retaining genuinely shared Asset effects; implement Series Basedata/Metadata/Optimize aggregation and one-Season-per-Task Upgrade mutation. **Completed 2026-07-11.**
+52. Add immutable snapshot bindings, typed Event assetScope, per-Task ready-window=4 and volume-level filesystem resource keys. **Completed 2026-07-11.**
+53. Remove all item APIs/projections and switch Admin Web to Subject list plus read-only Season/Episode Asset details. **Completed 2026-07-11.**
+54. Prove clean schema, Service/Admin tests, disposable multi-Episode Transcode and rollback-safe Season Upgrade; real-source E2E and production remain stopped. **Completed 2026-07-11.**
+
 The Workflow Graph is immutable once persisted. Event output may select declared conditional branches but cannot mutate or extend the graph. Facts requiring a different plan cause a later Gate Task to be planned through Lifecycle and Automation Runner.
 
 Recovery implementation may fix local defects without per-defect checkpoints when the accepted contract is unchanged. Any newly discovered contract conflict returns to architecture discussion before implementation. No workaround, silent fallback, queue clearing, task hiding or production mutation is allowed.

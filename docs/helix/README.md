@@ -16,7 +16,7 @@ Helix 是 ShelfDeck `media-service` 内部的两层模块化单体架构：Libra
 | `SERVICE_CONTRACTS.md` | Libra / Nexora / Kairox internal Service contracts |
 | `CURRENT_PLAN.md` | Sole active Helix Beta implementation plan |
 | `CURRENT_STATUS.md` | Current implementation facts and evidence |
-| `KAIROX_CAPABILITY_CATALOG.md` | 50 atomic Kairox Capabilities, contracts and performance metrics |
+| `KAIROX_CAPABILITY_CATALOG.md` | 62 business atomic Kairox Capabilities plus one Runtime primitive |
 | `acceptance/FLOWPLAN_BUSINESS_PARITY.md` | FlowPlan business-parity evidence and the unresolved Season Upgrade blocker |
 | `nexora/ARCHITECTURE.md` | Nexora domain details, subordinate to Helix fact ownership |
 | `../v3/KAIROX_ARCHITECTURE.md` | Completed Kairox inheritance contract |

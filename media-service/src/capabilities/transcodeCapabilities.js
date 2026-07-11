@@ -11,18 +11,21 @@ function targetFacts(task = {}) {
   const objective = task.taskTarget && task.taskTarget.gateObjective || {};
   return objective.targetMediaFacts || objective;
 }
-function sourcePathFor(task) {
-  const canonical = task.itemInfo && (task.itemInfo.path || task.itemInfo.sourcePath)
+function sourcePathFor(task, event = {}) {
+  const assetId = event.intent && event.intent.assetScope && event.intent.assetScope.assetId;
+  const asset = assetId && task.helixAdmission && (task.helixAdmission.assets || []).find((entry) => entry.assetId === assetId);
+  const canonical = asset && asset.canonicalLocator && asset.canonicalLocator.path
+    || task.subjectInfo && (task.subjectInfo.path || task.subjectInfo.sourcePath)
     || task.helixAdmission && task.helixAdmission.sourceAccessDescriptor && task.helixAdmission.sourceAccessDescriptor.locator && task.helixAdmission.sourceAccessDescriptor.locator.path;
   return sourceAccessResolver.resolve(canonical, { mustExist: true }).accessPath;
 }
 function profileFor(task, info) {
-  return bitrateObjectiveProfile.resolveBitrateProfile({ objective: { targetMediaFacts: targetFacts(task) }, item: { ...(task.itemInfo || {}), ...info } });
+  return bitrateObjectiveProfile.resolveBitrateProfile({ objective: { targetMediaFacts: targetFacts(task) }, item: { ...(task.subjectInfo || {}), ...info } });
 }
 
 function registerTranscodeCapabilities(register) {
   register({ capability: 'container.remux', allowedTargetGates: ['optimize'], cancel: ({ event }) => transcodeService.abortTask(event.eventId), execute: async ({ task, event, config }) => {
-    const sourcePath = sourcePathFor(task);
+    const sourcePath = sourcePathFor(task, event);
     const workDir = path.join(config.transcodeTempRoot, `event-${event.eventId.replace(/[^A-Za-z0-9_-]/g, '_')}`);
     fs.mkdirSync(workDir, { recursive: true });
     const remux = await transcodeService.remuxDiscToMkv({ config, taskId: event.eventId, sourcePath, outputPath: path.join(workDir, 'disc-remux.mkv'), workDir, onProgress: () => {} });
@@ -31,7 +34,7 @@ function registerTranscodeCapabilities(register) {
 
   register({ capability: 'media.transcode.precheck', allowedTargetGates: ['optimize'], execute: async ({ task, event, config, input }) => {
     const sourceAsset = input.sourceAsset || null;
-    const sourcePath = sourceAsset ? sourceAsset.path : sourcePathFor(task);
+    const sourcePath = sourceAsset ? sourceAsset.path : sourcePathFor(task, event);
     const observation = await transcodeService.precheck(config, sourcePath);
     const bitrateProfile = profileFor(task, { originalWidth: observation.originalWidth, originalHeight: observation.originalHeight });
     if (!bitrateProfile) throw Object.assign(new Error('Optimize objective has no bitrate profile'), { code: 'KAIROX_TRANSCODE_PROFILE_MISSING' });

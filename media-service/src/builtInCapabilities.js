@@ -8,6 +8,7 @@ const { registerWesternAdultCapabilities } = require('./capabilities/westernAdul
 const { registerTranscodeCapabilities } = require('./capabilities/transcodeCapabilities');
 const { registerMediaAssetCapabilities } = require('./capabilities/mediaAssetCapabilities');
 const { registerUpgradeCapabilities } = require('./capabilities/upgradeCapabilities');
+const { registerSeriesUpgradeCapabilities } = require('./capabilities/seriesUpgradeCapabilities');
 const { registerMaintenanceCapabilities } = require('./capabilities/maintenanceCapabilities');
 
 let registered = false;
@@ -22,6 +23,7 @@ function registerBuiltIns() {
   registerTranscodeCapabilities(register);
   registerMediaAssetCapabilities(register);
   registerUpgradeCapabilities(register);
+  registerSeriesUpgradeCapabilities(register);
   registerMaintenanceCapabilities(register);
   return registry;
 }

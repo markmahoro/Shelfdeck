@@ -87,22 +87,22 @@ function createLibraService(dependencies = {}) {
       if (typeof implementation.requestOffboardingBatch === 'function') return implementation.requestOffboardingBatch(command);
       throw notImplemented('LibraService.requestOffboardingBatch');
     },
-    reconcileItem(itemId) {
-      if (typeof implementation.reconcileItem === 'function') return implementation.reconcileItem(itemId);
+    reconcileItem(subjectId) {
+      if (typeof implementation.reconcileItem === 'function') return implementation.reconcileItem(subjectId);
       throw notImplemented('LibraService.reconcileItem');
     },
-    reconcileBatch(itemIds) {
-      if (typeof implementation.reconcileBatch === 'function') return implementation.reconcileBatch(itemIds);
+    reconcileBatch(subjectIds) {
+      if (typeof implementation.reconcileBatch === 'function') return implementation.reconcileBatch(subjectIds);
       throw notImplemented('LibraService.reconcileBatch');
     },
-    getLibraryProjection(itemId) {
-      if (typeof implementation.getLibraryProjection === 'function') return implementation.getLibraryProjection(itemId);
+    getLibraryProjection(subjectId) {
+      if (typeof implementation.getLibraryProjection === 'function') return implementation.getLibraryProjection(subjectId);
       throw notImplemented('LibraService.getLibraryProjection');
     },
-    getLibraryProjections(itemIds) {
-      if (typeof implementation.getLibraryProjections === 'function') return implementation.getLibraryProjections(itemIds);
-      return (itemIds || []).reduce((out, itemId) => {
-        out[itemId] = this.getLibraryProjection(itemId);
+    getLibraryProjections(subjectIds) {
+      if (typeof implementation.getLibraryProjections === 'function') return implementation.getLibraryProjections(subjectIds);
+      return (subjectIds || []).reduce((out, subjectId) => {
+        out[subjectId] = this.getLibraryProjection(subjectId);
         return out;
       }, {});
     },

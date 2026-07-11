@@ -105,14 +105,13 @@ function bindingEvidenceRef(observationId) {
 
 function writeBindingObservation(input = {}) {
   const now = input.now || new Date().toISOString();
-  const mediaItemId = String(input.mediaItemId || '').trim();
+  const subjectId = String(input.subjectId || '').trim();
   const sourceId = String(input.sourceId || '').trim();
-  const previousBinding = mediaItemId && sourceId
-    ? nexoraStore.getSourceBinding(mediaItemId, sourceId)
+  const previousBinding = subjectId && sourceId
+    ? nexoraStore.getSourceBinding(subjectId)
     : null;
   const binding = nexoraStore.upsertSourceBinding({
-    bindingId: input.bindingId,
-    mediaItemId,
+    subjectId,
     sourceId,
     validity: input.validity,
     reason: input.reason,
@@ -120,8 +119,7 @@ function writeBindingObservation(input = {}) {
     updatedAt: now,
   });
   const observation = nexoraStore.insertSourceObservation({
-    bindingId: binding.bindingId,
-    mediaItemId,
+    subjectId,
     sourceId,
     result: input.result,
     reason: input.reason,
@@ -133,8 +131,7 @@ function writeBindingObservation(input = {}) {
     createdAt: now,
   });
   const updated = nexoraStore.upsertSourceBinding({
-    bindingId: binding.bindingId,
-    mediaItemId,
+    subjectId,
     sourceId,
     validity: input.validity,
     reason: input.reason,
@@ -143,13 +140,14 @@ function writeBindingObservation(input = {}) {
     updatedAt: now,
     createdAt: binding.createdAt,
   });
-  const bindings = nexoraStore.getSourceBindingsForItem(mediaItemId);
+  const bindings = nexoraStore.getSourceBindingsForSubject(subjectId);
   const activeBindings = bindings.filter((entry) => entry.validity === 'valid');
+  const currentState = nexoraStore.getSourceState(subjectId);
   const state = nexoraStore.bumpSourceState({
-    mediaItemId,
+    subjectId,
     readiness: activeBindings.length > 0 ? 'ready' : 'missing',
     sourceAccessDescriptor: activeBindings.length > 0 ? {
-      bindingId: updated.bindingId,
+      ...(currentState && currentState.sourceAccessDescriptor || {}),
       sourceId,
       sourceRevisionHint: sourceId,
       sourceType: input.identityKind === 'emby_item' ? 'emby' : input.identityKind === 'adult_file' ? 'adult_folder' : input.identityKind,
@@ -178,7 +176,7 @@ function recordPreviousBindingInvalid(input = {}) {
   if (identity.sourceId === nextIdentity.sourceId) return null;
   return writeBindingObservation({
     now: input.now,
-    mediaItemId: input.mediaItemId,
+    subjectId: input.subjectId,
     sourceId: identity.sourceId,
     validity: 'invalid',
     reason: input.reason || 'identity_mismatch',
@@ -198,12 +196,12 @@ function recordPreviousBindingInvalid(input = {}) {
 function recordEmbySourceObservation(input = {}) {
   const now = input.now || new Date().toISOString();
   const item = input.item || {};
-  const mediaItemId = String(input.mediaItemId || item.itemId || '').trim();
+  const subjectId = String(input.subjectId || item.subjectId || '').trim();
   const sourceRefId = String(input.sourceRefId || item.sourceRefId || item.sourceId || item.embyItemId || '').trim();
-  if (!mediaItemId || !sourceRefId) return null;
+  if (!subjectId || !sourceRefId) return null;
   recordPreviousBindingInvalid({
     adapter: 'emby',
-    mediaItemId,
+    subjectId,
     subLib: input.subLib,
     previousSourceRefId: input.previousSourceRefId,
     nextSourceRefId: sourceRefId,
@@ -214,14 +212,14 @@ function recordEmbySourceObservation(input = {}) {
   });
 
   const identity = embyIdentity({ subLib: input.subLib, sourceRefId });
-  const previousBinding = nexoraStore.getSourceBinding(mediaItemId, identity.sourceId);
+  const previousBinding = nexoraStore.getSourceBinding(subjectId, identity.sourceId);
   const valid = input.sourceExists !== false && input.observationKind !== 'source_missing';
   const reason = valid
     ? reasonForValidObservation(input.observationKind, previousBinding)
     : 'source_missing';
   return writeBindingObservation({
     now,
-    mediaItemId,
+    subjectId,
     sourceId: identity.sourceId,
     validity: valid ? 'valid' : 'invalid',
     reason,
@@ -248,12 +246,12 @@ function recordEmbySourceObservation(input = {}) {
 function recordAdultFolderSourceObservation(input = {}) {
   const now = input.now || new Date().toISOString();
   const item = input.item || {};
-  const mediaItemId = String(input.mediaItemId || item.itemId || '').trim();
+  const subjectId = String(input.subjectId || item.subjectId || '').trim();
   const filePath = String(input.filePath || item.path || item.sourceRefId || item.sourceId || '').trim();
-  if (!mediaItemId || !filePath) return null;
+  if (!subjectId || !filePath) return null;
   recordPreviousBindingInvalid({
     adapter: 'adult_folder',
-    mediaItemId,
+    subjectId,
     subLib: input.subLib,
     previousSourceRefId: input.previousSourceRefId,
     previousPath: input.previousPath,
@@ -265,14 +263,14 @@ function recordAdultFolderSourceObservation(input = {}) {
   });
 
   const identity = adultFolderIdentity({ subLib: input.subLib, filePath });
-  const previousBinding = nexoraStore.getSourceBinding(mediaItemId, identity.sourceId);
+  const previousBinding = nexoraStore.getSourceBinding(subjectId, identity.sourceId);
   const valid = input.sourceExists !== false && input.observationKind !== 'source_missing';
   const reason = valid
     ? reasonForValidObservation(input.observationKind, previousBinding)
     : 'source_missing';
   return writeBindingObservation({
     now,
-    mediaItemId,
+    subjectId,
     sourceId: identity.sourceId,
     validity: valid ? 'valid' : 'invalid',
     reason,
@@ -290,38 +288,38 @@ function recordAdultFolderSourceObservation(input = {}) {
   });
 }
 
-function factsForItemId(mediaItemId) {
-  const sourceBindings = nexoraStore.getSourceBindingsForItem(mediaItemId);
+function factsForItemId(subjectId) {
+  const sourceBindings = nexoraStore.getSourceBindingsForSubject(subjectId);
   const validSourceBindingCount = sourceBindings.filter((binding) => binding.validity === 'valid').length;
   return {
     sourceBindings,
     validSourceBindingCount,
-    sourceProjection: getSourceProjection(mediaItemId),
+    sourceProjection: getSourceProjection(subjectId),
   };
 }
 
 function decorateItem(item) {
-  if (!item || !item.itemId) return item;
+  if (!item || !item.subjectId) return item;
   return {
     ...item,
-    nexora: getSourceProjection(item.itemId),
+    nexora: getSourceProjection(item.subjectId),
   };
 }
 
 function decorateItems(items = []) {
   const list = Array.isArray(items) ? items : [];
-  const itemIds = list.map((item) => item && item.itemId).filter(Boolean);
-  const projections = getSourceProjections(itemIds);
+  const subjectIds = list.map((item) => item && item.subjectId).filter(Boolean);
+  const projections = getSourceProjections(subjectIds);
   return list.map((item) => {
-    if (!item || !item.itemId) return item;
+    if (!item || !item.subjectId) return item;
     return {
       ...item,
-      nexora: projections[item.itemId],
+      nexora: projections[item.subjectId],
     };
   });
 }
 
-function sourceProjectionForFacts(mediaItemId, sourceBindings = [], state = null) {
+function sourceProjectionForFacts(subjectId, sourceBindings = [], state = null) {
   const bindings = Array.isArray(sourceBindings) ? sourceBindings : [];
   const activeBindings = bindings.filter((binding) => binding.validity === 'valid');
   const latest = bindings.reduce((selected, binding) => {
@@ -331,30 +329,36 @@ function sourceProjectionForFacts(mediaItemId, sourceBindings = [], state = null
       : selected;
   }, null);
   return {
-    itemId: String(mediaItemId || ''),
+    subjectId: String(subjectId || ''),
     sourceRevision: state && state.sourceRevision || 0,
     readiness: state && state.readiness || (activeBindings.length > 0 ? 'ready' : (bindings.length > 0 ? 'missing' : 'unresolved')),
     activeBindings,
     sourceBindings: bindings,
     sourceAccessDescriptor: state && state.sourceAccessDescriptor || {},
     latestObservation: latest ? {
-      bindingId: latest.bindingId || '',
+      sourceId: latest.sourceId || '',
       reason: latest.reason || '',
       observedAt: latest.observedAt || '',
     } : null,
   };
 }
 
-function getSourceProjection(mediaItemId) {
-  return sourceProjectionForFacts(mediaItemId, nexoraStore.getSourceBindingsForItem(mediaItemId), nexoraStore.getSourceState(mediaItemId));
+function getSourceProjection(subjectId) {
+  return {
+    ...sourceProjectionForFacts(subjectId, nexoraStore.getSourceBindingsForSubject(subjectId), nexoraStore.getSourceState(subjectId)),
+    assets: nexoraStore.listSourceAssets(subjectId),
+  };
 }
 
-function getSourceProjections(mediaItemIds = []) {
-  const ids = [...new Set((mediaItemIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
-  const bindingsByItem = nexoraStore.getSourceBindingsForItems(ids);
+function getSourceProjections(subjectIds = []) {
+  const ids = [...new Set((subjectIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
+  const bindingsByItem = nexoraStore.getSourceBindingsForSubjects(ids);
   const statesByItem = nexoraStore.getSourceStates(ids);
-  return ids.reduce((out, itemId) => {
-    out[itemId] = sourceProjectionForFacts(itemId, bindingsByItem[itemId] || [], statesByItem[itemId] || null);
+  return ids.reduce((out, subjectId) => {
+    out[subjectId] = {
+      ...sourceProjectionForFacts(subjectId, bindingsByItem[subjectId] || [], statesByItem[subjectId] || null),
+      assets: nexoraStore.listSourceAssets(subjectId),
+    };
     return out;
   }, {});
 }
@@ -376,11 +380,11 @@ function identityForSourceReference(sourceReference = {}) {
   return null;
 }
 
-function resolveBoundItemId(sourceReference = {}) {
+function resolveBoundSubjectId(sourceReference = {}) {
   const identity = identityForSourceReference(sourceReference);
   if (!identity) return '';
   const binding = nexoraStore.findSourceBindingBySourceId(identity.sourceId);
-  return binding && binding.mediaItemId || '';
+  return binding && binding.subjectId || '';
 }
 
 async function folderObservationPage(sourceDefinition = {}, cursor = {}, limit = 100, deadlineMs = Date.now() + 5000) {
@@ -427,24 +431,44 @@ async function observeLibraryPage(command = {}) {
   const source = String(sourceDefinition.source || 'emby').toLowerCase();
   const limit = Math.max(1, Math.min(100, Number(command.limit) || 100));
   if (source === 'emby') {
-    const page = await embyService.getLibraryItemsPage(command.serverConfig || {}, sourceDefinition.sectionId, {
+    const page = await embyService.getLibrarySubjectsPage(command.serverConfig || {}, sourceDefinition.sectionId, {
       startIndex: command.cursor && command.cursor.startIndex || 0,
       limit,
     });
     return {
-      observations: page.items.map((item) => ({
-        sourceReference: {
+      observations: page.items.map((item) => {
+        const subjectKind = ['series', 'season', 'episode'].includes(item.type) ? 'series' : 'movie';
+        const sourceSubjectId = subjectKind === 'series' ? String(item.seriesId || (item.type === 'series' ? item.subjectId : '')) : String(item.subjectId);
+        if (!sourceSubjectId) throw Object.assign(new Error('Emby hierarchy item has no Series identity'), { code: 'NEXORA_SERIES_IDENTITY_MISSING' });
+        return {
+          sourceSubjectKey: `emby:${sourceDefinition.embyServerId}:${sourceSubjectId}`,
+          sourceAssetKey: ['movie', 'episode'].includes(item.type) ? `emby:${sourceDefinition.embyServerId}:${item.subjectId}` : `container:${item.subjectId}`,
+          subjectKind,
+          displayName: item.seriesName || item.name || '',
+          asset: ['movie', 'episode'].includes(item.type) ? {
+            assetKind: item.type,
+            seasonKey: item.type === 'episode' ? String(item.parentIndexNumber == null ? '' : item.parentIndexNumber) : '',
+            episodeKey: item.type === 'episode' ? String(item.indexNumber == null ? '' : item.indexNumber) : '',
+            partKey: '',
+            sourceIdentity: { adapter: 'emby', serverId: sourceDefinition.embyServerId, embyItemId: item.subjectId },
+            providerIdentity: item.providerIds || {},
+            sourceReference: { embyItemId: item.subjectId },
+            canonicalLocator: { path: item.path || '', sourceRefId: item.subjectId, serverId: sourceDefinition.embyServerId, sectionId: sourceDefinition.sectionId },
+            evidence: { item },
+          } : null,
+          sourceReference: {
           source: 'emby',
           subLib: {
             uuid: sourceDefinition.uuid,
             embyServerId: sourceDefinition.embyServerId,
             sectionId: sourceDefinition.sectionId,
           },
-          sourceRefId: item.itemId,
+          sourceRefId: sourceSubjectId,
           item,
           observationKind: 'source_observed',
-        },
-      })),
+          },
+        };
+      }),
       cursor: { startIndex: page.nextIndex },
       done: page.done,
       total: page.total,
@@ -454,6 +478,16 @@ async function observeLibraryPage(command = {}) {
     const page = await folderObservationPage(sourceDefinition, command.cursor, limit, command.deadlineMs);
     return {
       observations: page.files.map((filePath) => ({
+        sourceSubjectKey: `folder:${sourceDefinition.uuid}:${normalizeRelativePath(sourceDefinition.watchRoot, filePath)}`,
+        sourceAssetKey: `folder:${sourceDefinition.uuid}:${normalizeRelativePath(sourceDefinition.watchRoot, filePath)}`,
+        subjectKind: 'adult_title',
+        displayName: path.basename(filePath),
+        asset: {
+          assetKind: 'adult_file', seasonKey: '', episodeKey: '', partKey: '',
+          sourceIdentity: { adapter: 'folder', rootId: sourceDefinition.uuid, relativePath: normalizeRelativePath(sourceDefinition.watchRoot, filePath) },
+          providerIdentity: {}, sourceReference: { path: filePath },
+          canonicalLocator: { path: filePath, rootPath: sourceDefinition.watchRoot }, evidence: {},
+        },
         sourceReference: {
           source: 'adult_folder',
           subLib: { uuid: sourceDefinition.uuid, watchRoot: sourceDefinition.watchRoot },
@@ -469,14 +503,37 @@ async function observeLibraryPage(command = {}) {
   throw Object.assign(new Error(`Unsupported library source: ${source}`), { code: 'NEXORA_SOURCE_ADAPTER_UNSUPPORTED' });
 }
 
+function stageObservationPage(command = {}) {
+  nexoraStore.beginObservationSession({ workId: command.workId, subLibraryId: command.subLibraryId, cursor: command.cursor || {} });
+  nexoraStore.stageObservationSessionAssets(command.workId, command.observations || [], command.cursor || {});
+  return nexoraStore.getObservationSession(command.workId);
+}
+
+function finalizeObservationWork(command = {}) {
+  const session = nexoraStore.getObservationSession(command.workId);
+  if (!session) throw Object.assign(new Error('Observation session not found'), { code: 'NEXORA_OBSERVATION_SESSION_NOT_FOUND' });
+  const grouped = new Map();
+  for (const observation of nexoraStore.listObservationSessionAssets(command.workId)) {
+    const key = String(observation.sourceSubjectKey || '');
+    if (!key) continue;
+    if (!grouped.has(key)) grouped.set(key, { sourceSubjectKey: key, subjectKind: observation.subjectKind, displayName: observation.displayName || '', observations: [], assets: [] });
+    const manifest = grouped.get(key);
+    manifest.observations.push(observation);
+    if (observation.asset) manifest.assets.push(observation.asset);
+    if (!manifest.displayName && observation.displayName) manifest.displayName = observation.displayName;
+  }
+  if (session.status !== 'finalized') nexoraStore.finalizeObservationSession(command.workId);
+  return [...grouped.values()].sort((a, b) => a.sourceSubjectKey.localeCompare(b.sourceSubjectKey));
+}
+
 function ensureOnboarding(command = {}) {
   const sourceReference = command.sourceReference || {};
   const source = String(sourceReference.source || sourceReference.adapter || '').toLowerCase();
   const common = {
-    mediaItemId: command.itemId,
-    item: { ...(sourceReference.item || {}), itemId: command.itemId },
+    subjectId: command.subjectId,
+    item: { ...(sourceReference.item || {}), subjectId: command.subjectId },
     subLib: sourceReference.subLib || {},
-    sourceExists: sourceReference.sourceExists !== false,
+    sourceExists: sourceReference.sourceExists !== false && (!Array.isArray(sourceReference.assets) || sourceReference.assets.length > 0),
     observationKind: sourceReference.observationKind || 'new_source_observed',
     now: sourceReference.observedAt || command.observedAt || new Date().toISOString(),
     previousSourceRefId: sourceReference.previousSourceRefId,
@@ -506,24 +563,55 @@ function ensureOnboarding(command = {}) {
     error.code = 'NEXORA_SOURCE_ADAPTER_UNSUPPORTED';
     throw error;
   }
-  return getSourceProjection(command.itemId);
+  const assets = Array.isArray(sourceReference.assets) ? sourceReference.assets : [];
+  const observedAssetIds = assets.map((asset) => nexoraStore.upsertSourceAsset({ ...asset, subjectId: command.subjectId, observedAt: common.now }).assetId);
+  nexoraStore.markUnobservedAssetsRemoved(command.subjectId, observedAssetIds, common.now);
+  if (sourceReference.assets) {
+    const state = nexoraStore.getSourceState(command.subjectId);
+    nexoraStore.bumpSourceState({
+      subjectId: command.subjectId,
+      readiness: assets.length > 0 ? 'ready' : 'missing',
+      sourceAccessDescriptor: assets.length > 0 ? {
+        ...(state && state.sourceAccessDescriptor || {}),
+        subjectKind: sourceReference.subjectKind || '',
+        sourceSubjectKey: sourceReference.sourceSubjectKey || '',
+        assetCount: assets.length,
+      } : {},
+      updatedAt: common.now,
+    });
+  }
+  return getSourceProjection(command.subjectId);
 }
 
 function diagnoseSource(command = {}) {
-  return getSourceProjection(command.itemId);
+  return getSourceProjection(command.subjectId);
 }
 
 function rebindSourceMutation(command = {}) {
   const mutation = command.mutation || {};
+  if (mutation.mutationKind === 'season_replace') {
+    const seasonKey = mutation.newSourceEvidence && mutation.newSourceEvidence.seasonKey || '';
+    nexoraStore.recordAssetMutation(command.subjectId, seasonKey, mutation);
+    const projection = getSourceProjection(command.subjectId);
+    nexoraStore.bumpSourceState({
+      subjectId: command.subjectId,
+      readiness: projection.assets.length > 0 ? 'ready' : 'missing',
+      sourceAccessDescriptor: { ...(projection.sourceAccessDescriptor || {}), assetCount: projection.assets.length },
+      forceRevision: true,
+      latestObservationId: projection.latestObservation && projection.latestObservation.observationId || '',
+      updatedAt: mutation.committedAt || new Date().toISOString(),
+    });
+    return getSourceProjection(command.subjectId);
+  }
   const nextPath = mutation.newSourceEvidence && mutation.newSourceEvidence.path || '';
   const previousPath = mutation.oldSourceEvidence && mutation.oldSourceEvidence.path || '';
-  if (!command.itemId || !nextPath) {
-    const error = new Error('Source mutation rebind requires itemId and new path');
+  if (!command.subjectId || !nextPath) {
+    const error = new Error('Source mutation rebind requires subjectId and new path');
     error.code = 'NEXORA_SOURCE_MUTATION_INVALID';
     throw error;
   }
   const configStore = require('./configStore');
-  const projection = getSourceProjection(command.itemId);
+  const projection = getSourceProjection(command.subjectId);
   const subLibraryId = projection.sourceAccessDescriptor && projection.sourceAccessDescriptor.subLibraryId || '';
   const subLib = (configStore.loadConfig().subLibraries || []).find((entry) => entry.uuid === subLibraryId);
   if (!subLib) {
@@ -532,7 +620,7 @@ function rebindSourceMutation(command = {}) {
     throw error;
   }
   recordAdultFolderSourceObservation({
-    mediaItemId: command.itemId,
+    subjectId: command.subjectId,
     subLib,
     filePath: nextPath,
     previousSourceRefId: previousPath,
@@ -541,7 +629,7 @@ function rebindSourceMutation(command = {}) {
     observationKind: 'source_changed',
     locator: { path: nextPath, rootPath: subLib.watchRoot || '' },
   });
-  return getSourceProjection(command.itemId);
+  return getSourceProjection(command.subjectId);
 }
 
 function ensurePathInsideRoot(rootPath, targetPath) {
@@ -555,13 +643,12 @@ function ensurePathInsideRoot(rootPath, targetPath) {
   return target;
 }
 
-function invalidateBindings(itemId, reason, readiness) {
-  const projection = getSourceProjection(itemId);
+function invalidateBindings(subjectId, reason, readiness) {
+  const projection = getSourceProjection(subjectId);
   for (const binding of projection.activeBindings || []) {
     writeBindingObservation({
-      mediaItemId: itemId,
+      subjectId: subjectId,
       sourceId: binding.sourceId,
-      bindingId: binding.bindingId,
       validity: 'invalid',
       reason,
       result: readiness,
@@ -572,7 +659,7 @@ function invalidateBindings(itemId, reason, readiness) {
     });
   }
   return nexoraStore.bumpSourceState({
-    mediaItemId: itemId,
+    subjectId: subjectId,
     readiness,
     sourceAccessDescriptor: {},
     updatedAt: new Date().toISOString(),
@@ -581,9 +668,9 @@ function invalidateBindings(itemId, reason, readiness) {
 
 async function ensureOffboarding(command = {}) {
   const cleanupMode = String(command.cleanupMode || 'retain_source');
-  const projection = getSourceProjection(command.itemId);
+  const projection = getSourceProjection(command.subjectId);
   if (cleanupMode === 'retain_source') {
-    return { itemId: command.itemId, cleanupMode, completed: true, sourceProjection: projection, evidence: { sourceMutated: false } };
+    return { subjectId: command.subjectId, cleanupMode, completed: true, sourceProjection: projection, evidence: { sourceMutated: false } };
   }
   if (cleanupMode === 'delete_source' && command.destructiveAuthorization !== true) {
     const error = new Error('Physical delete requires explicit destructive authorization');
@@ -611,12 +698,12 @@ async function ensureOffboarding(command = {}) {
       error.code = 'NEXORA_DELETE_DESCRIPTOR_UNSUPPORTED';
       throw error;
     }
-    invalidateBindings(command.itemId, 'source_destroyed', 'destroyed');
-    return { itemId: command.itemId, cleanupMode, completed: true, sourceProjection: getSourceProjection(command.itemId), evidence: { sourceMutated: true, deleted: true } };
+    invalidateBindings(command.subjectId, 'source_destroyed', 'destroyed');
+    return { subjectId: command.subjectId, cleanupMode, completed: true, sourceProjection: getSourceProjection(command.subjectId), evidence: { sourceMutated: true, deleted: true } };
   }
   if (cleanupMode === 'detach_source') {
-    invalidateBindings(command.itemId, 'detached_by_offboarding', 'detached');
-    return { itemId: command.itemId, cleanupMode, completed: true, sourceProjection: getSourceProjection(command.itemId), evidence: { sourceMutated: true, deleted: false } };
+    invalidateBindings(command.subjectId, 'detached_by_offboarding', 'detached');
+    return { subjectId: command.subjectId, cleanupMode, completed: true, sourceProjection: getSourceProjection(command.subjectId), evidence: { sourceMutated: true, deleted: false } };
   }
   const error = new Error(`Unsupported cleanup mode: ${cleanupMode}`);
   error.code = 'NEXORA_CLEANUP_MODE_UNSUPPORTED';
@@ -640,6 +727,8 @@ module.exports = {
   ensureOffboarding,
   getSourceProjection,
   getSourceProjections,
-  resolveBoundItemId,
+  resolveBoundSubjectId,
   observeLibraryPage,
+  stageObservationPage,
+  finalizeObservationWork,
 };

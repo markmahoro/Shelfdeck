@@ -14,7 +14,7 @@ Status: completed closure evidence on 2026-07-11; subordinate to `ARCHITECTURE.m
 - 写 Task status、推进 Gate 或选择后续 Capability；
 - 隐藏 approval、resource wait、retry/recovery 或 commit 边界。
 
-Capability 采用 nominal、versioned internal API。Planner 必须声明并校验每个 output-to-input binding；Executor 只接收已解析 input ports。相同效果必须合并：所有 staged media producer 均输出 `StagedMediaAsset`，并复用唯一的 `output.media.verify` 和 `media.replace`。
+Capability 采用 nominal、versioned internal API。Planner 必须声明并校验每个 output-to-input binding；Executor 只接收已解析 input ports。相同效果必须合并：Movie/Adult staged media producer 复用 `output.media.verify` 和 `media.file.replace`；整季目录事务属于不同原子效果 `series.season.replace`。
 
 ## Domain Owner Audit
 
@@ -24,7 +24,8 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | basedata/metadata/optimize observation and mutation for admitted media | Kairox | 可以作为 Kairox Capability |
 | Membership、admission generation、mutation coordination | Libra | Runtime 只发 durable neutral result/signal |
 | `source.organize` | Kairox Optimize | 只提交在库布局 mutation；不得直接 rebind 或写 SourceBinding |
-| `media.replace` | Kairox Optimize | 通用 staged asset commit；不得直接写 Nexora facts |
+| `media.file.replace` | Kairox Optimize | 通用单文件 staged asset commit；不得直接写 Nexora facts |
+| `series.season.replace` | Kairox Optimize | 整季 package 事务提交并发布 SourceMutationResult |
 
 ## Basedata
 
@@ -64,8 +65,8 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | Output probe, duration/codec/resolution/bitrate verification | `output.media.verify` | mapped |
 | Oversized output discard | `output.media.disposition -> staged.asset.discard` | mapped; original source retained and no-benefit outcome published |
 | Preview generation for replace approval | shared `output.preview.generate` | mapped |
-| Replace approval | `media.replace` Event approval prerequisite | mapped |
-| Atomic replacement and retry | `media.replace` | mapped, parity audit pending |
+| Replace approval | `media.file.replace` / `series.season.replace` Event approval prerequisite | mapped |
+| Atomic replacement and retry | 按单文件与整季事务分别映射 | mapped |
 | Transient/workspace cleanup | `workspace.cleanup` + Runtime `workflowCompensation` | mapped for success/failure/cancel with workspace containment |
 | Basedata invalidation and Optimize result publication | Runtime post-commit + `optimization.result.publish` | mapped |
 
@@ -84,7 +85,8 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | Resolve staged output | `source.upgrade.output.resolve` | mapped |
 | Verify TMDB/source identity | `media.identity.inspect -> media.identity.accept` conditional approval | mapped for playable Movie; Series/Season are Libra scopes and do not create Kairox Tasks |
 | Verify technical Optimize objective | shared `output.media.verify` | mapped for codec/resolution/bitrate; additional source-quality dimensions remain objective-specific work |
-| Atomic folder/file replace and rollback | shared `media.replace` consuming `replacementScope=file|folder` | mapped |
+| Atomic file replace and rollback | shared `media.file.replace` | mapped |
+| Transactional Season replace and rollback | `series.season.replace` with Episode-key superset verification | mapped |
 | Cleanup staging/backup | folder replace cleanup + shared `workspace.cleanup` | mapped for success path; failure retention cleanup remains gap |
 | Basedata invalidation and Optimize result publication | Runtime post-commit + publish Event | mapped |
 

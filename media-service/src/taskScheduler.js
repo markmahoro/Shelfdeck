@@ -78,7 +78,7 @@ function reportStatus(taskId, status, progress) {
 
   // Activity log events for task lifecycle
   if (oldTask) {
-    const name = oldTask.itemName || oldTask.itemId;
+    const name = oldTask.subjectName || oldTask.subjectId;
     const targetGate = targetGateForTask(oldTask);
     const actionLabel = targetGate === 'basedata' ? '基础信息维护'
       : targetGate === 'metadata' ? '资料维护'
@@ -102,7 +102,7 @@ function reportStatus(taskId, status, progress) {
   if (oldTask && (status === 'done' || status === 'failed_hard' || status === 'failed_soft' || status === 'interrupted')) {
     kairoxSignalBus.publish({
       kind: oldTask.sourceIncident ? 'source_incident' : 'task_terminal',
-      itemId: oldTask.itemId,
+      subjectId: oldTask.subjectId,
       taskId,
       status,
       sourceIncident: oldTask.sourceIncident || null,
@@ -241,7 +241,7 @@ async function scheduleRound() {
   for (const t of tasks) {
     if (isActiveStatus(t.status)) {
       activeTaskCount++;
-      usedItemIds.add(t.itemId);
+      usedItemIds.add(t.subjectId);
     }
   }
 
@@ -270,8 +270,8 @@ async function scheduleRound() {
     // Skip waiting_media_source (flow parks, retry handled by flow timer)
     if (task.status === 'waiting_media_source') continue;
 
-    // itemId lock: only one flow per itemId
-    if (usedItemIds.has(task.itemId) && task.status !== 'executing') continue;
+    // subjectId lock: only one flow per subjectId
+    if (usedItemIds.has(task.subjectId) && task.status !== 'executing') continue;
 
     // Transition created/pending_manual → queued (always allowed — pure status change)
     if (task.status === 'created' || task.status === 'pending_manual') {
@@ -286,7 +286,7 @@ async function scheduleRound() {
       clearQueuedRuntimeState(task);
 
       runningTasks.add(task.id);
-      usedItemIds.add(task.itemId);
+      usedItemIds.add(task.subjectId);
       const dispatch = resourceRuntime.dispatchTask(task);
       if (!dispatch.dispatched) {
         console.warn(`[scheduler] resource runtime could not dispatch task ${task.id}: ${dispatch.reason}`);

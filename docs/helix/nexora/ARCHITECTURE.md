@@ -17,9 +17,10 @@ Nexora is an in-process Service called only by Libra. It does not contain Kairox
 Nexora owns:
 
 ```text
-SourceBinding(mediaItemId, sourceId, valid | invalid)
+SourceBinding(subjectId, sourceId, valid | invalid)
 SourceObservation(sourceId, result, reason, evidence, observedAt)
-SourceProjection(mediaItemId, sourceRevision, readiness, bindings, accessDescriptor)
+SourceAsset(assetId, subjectId, seasonKey?, episodeKey?, source identity, locator, revision)
+SourceProjection(subjectId, sourceRevision, readiness, bindings, assets, accessDescriptor)
 ```
 
 `sourceId` is adapter-scoped stable identity:
@@ -55,7 +56,7 @@ recovered
 rebound
 ```
 
-`bindingId` is the row identity. `(mediaItemId, sourceId)` is unique. Observation evidence is append-only; the binding holds the latest validity and evidence pointer.
+`subjectId` is the Binding row identity and `sourceId` is unique. No redundant `bindingId` exists. Observation evidence is append-only.
 
 ## 4. Service Actions
 
@@ -87,12 +88,13 @@ Nexora reports completion to Libra. Libra alone closes LibraryMembership.
 SourceProjection minimally contains:
 
 ```text
-itemId
+subjectId
 sourceRevision
 readiness: ready | missing | blocked | detached | destroyed | unresolved
 activeBindings
 sourceAccessDescriptor?
 latestObservation
+assets[]
 ```
 
 Revision increases whenever eligibility-relevant source truth changes. Batch projection is required for library lists.

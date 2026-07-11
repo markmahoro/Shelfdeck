@@ -16,8 +16,8 @@ function createKairoxService(dependencies = {}) {
       }
       throw notImplemented('KairoxService.reconcileMaintenance');
     },
-    reconcileObjectives(itemIds) {
-      if (typeof implementation.reconcileObjectives === 'function') return implementation.reconcileObjectives(itemIds);
+    reconcileObjectives(subjectIds) {
+      if (typeof implementation.reconcileObjectives === 'function') return implementation.reconcileObjectives(subjectIds);
       throw notImplemented('KairoxService.reconcileObjectives');
     },
     suspendMaintenance(command) {
@@ -56,26 +56,26 @@ function createKairoxService(dependencies = {}) {
       if (typeof implementation.updateUserPerception === 'function') return implementation.updateUserPerception(command);
       throw notImplemented('KairoxService.updateUserPerception');
     },
-    getMaintenanceProjection(itemId) {
+    getMaintenanceProjection(subjectId) {
       if (typeof implementation.getMaintenanceProjection === 'function') {
-        return implementation.getMaintenanceProjection(itemId);
+        return implementation.getMaintenanceProjection(subjectId);
       }
       throw notImplemented('KairoxService.getMaintenanceProjection');
     },
-    getMaintenanceProjections(itemIds) {
+    getMaintenanceProjections(subjectIds) {
       if (typeof implementation.getMaintenanceProjections === 'function') {
-        return implementation.getMaintenanceProjections(itemIds);
+        return implementation.getMaintenanceProjections(subjectIds);
       }
-      return (itemIds || []).reduce((out, itemId) => {
-        out[itemId] = this.getMaintenanceProjection(itemId);
+      return (subjectIds || []).reduce((out, subjectId) => {
+        out[subjectId] = this.getMaintenanceProjection(subjectId);
         return out;
       }, {});
     },
-    getMaintenanceSummaryProjections(itemIds) {
+    getMaintenanceSummaryProjections(subjectIds) {
       if (typeof implementation.getMaintenanceSummaryProjections === 'function') {
-        return implementation.getMaintenanceSummaryProjections(itemIds);
+        return implementation.getMaintenanceSummaryProjections(subjectIds);
       }
-      return this.getMaintenanceProjections(itemIds);
+      return this.getMaintenanceProjections(subjectIds);
     },
     getPendingSourceMutations(limit) {
       if (typeof implementation.getPendingSourceMutations === 'function') return implementation.getPendingSourceMutations(limit);

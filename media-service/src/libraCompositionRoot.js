@@ -29,7 +29,7 @@ function createHelixServices(overrides = {}) {
   if (!overrides.disableSignalSubscription) {
     if (unsubscribeKairox) unsubscribeKairox();
     unsubscribeKairox = kairoxSignalBus.subscribe((signal) => {
-      if (signal.kind === 'source_mutation' && signal.itemId) libraService.reconcileItem(signal.itemId);
+      if (signal.kind === 'source_mutation' && signal.subjectId) libraService.reconcileItem(signal.subjectId);
     });
   }
   return Object.freeze({

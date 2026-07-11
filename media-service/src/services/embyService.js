@@ -5,11 +5,11 @@
  * v2: All functions accept serverConfig (from embyServers["<uuid>"]) for multi-server support.
  *
  * Core interface (EMBY_ADAPTER.md §2):
- *   getLibraryItems(serverConfig, sectionId)
- *   getItemById(serverConfig, itemId)
- *   libraryItemExists(serverConfig, itemId)
- *   deleteLibraryItem(serverConfig, itemId)
- *   getItemDeleteInfo(serverConfig, itemId)
+ *   getLibrarySubjects(serverConfig, sectionId)
+ *   getItemById(serverConfig, subjectId)
+ *   libraryItemExists(serverConfig, subjectId)
+ *   deleteLibraryItem(serverConfig, subjectId)
+ *   getItemDeleteInfo(serverConfig, subjectId)
  *   testConnection(serverConfig)
  *   getUsers(serverConfig)
  *   getMediaFolders(serverConfig)
@@ -136,7 +136,7 @@ async function getMediaFolders(serverConfig) {
 const ITEM_FIELDS =
   'BasicSyncInfo,RunTimeTicks,ImageTags,Type,MediaType,Path,VideoType,IsoType,SeriesName,SeriesId,ParentIndexNumber,IndexNumber,ParentId,ProviderIds,People,Genres,MediaSources,UserData';
 
-async function getLibraryItemsPage(serverConfig, sectionId, options = {}) {
+async function getLibrarySubjectsPage(serverConfig, sectionId, options = {}) {
   const userId = String(serverConfig.userId || '').trim();
   if (!userId) throw new Error('Emby userId not configured');
   const startIndex = Math.max(0, Number(options.startIndex) || 0);
@@ -164,7 +164,7 @@ async function getLibraryItemsPage(serverConfig, sectionId, options = {}) {
   };
 }
 
-async function getLibraryItems(serverConfig, sectionId) {
+async function getLibrarySubjects(serverConfig, sectionId) {
   const userId = String(serverConfig.userId || '').trim();
   if (!userId) throw new Error('Emby userId not configured');
   const uid = encodeURIComponent(userId);
@@ -198,9 +198,9 @@ async function getLibraryItems(serverConfig, sectionId) {
   return allItems;
 }
 
-async function getItemById(serverConfig, itemId) {
+async function getItemById(serverConfig, subjectId) {
   const uid = encodeURIComponent((serverConfig.userId || '').trim());
-  const iid = encodeURIComponent(itemId);
+  const iid = encodeURIComponent(subjectId);
   const data = await embyFetchJson(serverConfig, `Users/${uid}/Items/${iid}`, {});
   return extractItemFields(data);
 }
@@ -222,9 +222,9 @@ async function getSeasonEpisodes(serverConfig, seasonId) {
   return items.map((item) => extractItemFields(item));
 }
 
-async function libraryItemExists(serverConfig, itemId) {
+async function libraryItemExists(serverConfig, subjectId) {
   const uid = encodeURIComponent((serverConfig.userId || '').trim());
-  const iid = encodeURIComponent(itemId);
+  const iid = encodeURIComponent(subjectId);
   const url = buildUrl(serverConfig, `Users/${uid}/Items/${iid}`, {});
   const res = await fetch(url, {
     method: 'GET',
@@ -241,9 +241,9 @@ async function libraryItemExists(serverConfig, itemId) {
   return true;
 }
 
-async function getItemDeleteInfo(serverConfig, itemId) {
+async function getItemDeleteInfo(serverConfig, subjectId) {
   const userId = String(serverConfig.userId || '').trim();
-  const iid = encodeURIComponent(itemId);
+  const iid = encodeURIComponent(subjectId);
   try {
     return await embyFetchJson(serverConfig, `Items/${iid}/DeleteInfo`, {}, userId ? { UserId: userId } : {});
   } catch (e) {
@@ -252,12 +252,12 @@ async function getItemDeleteInfo(serverConfig, itemId) {
   }
 }
 
-async function deleteLibraryItem(serverConfig, itemId) {
+async function deleteLibraryItem(serverConfig, subjectId) {
   const userId = String(serverConfig.userId || '').trim();
   if (!userId) throw new Error('Emby userId not configured');
-  const iid = encodeURIComponent(itemId);
+  const iid = encodeURIComponent(subjectId);
   await embyFetchOk(serverConfig, `Items/${iid}`, { method: 'DELETE' }, { UserId: userId });
-  log('deleteLibraryItem', { itemId, userId });
+  log('deleteLibraryItem', { subjectId, userId });
 }
 
 // ── Field extraction ──────────────────────────────────────────────────────────
@@ -311,7 +311,7 @@ function extractItemFields(item) {
   }
 
   return {
-    itemId: item.Id,
+    subjectId: item.Id,
     name: item.Name || item.Id,
     path: item.Path || src.Path || '',
     type: (() => { const m = { Movie: 'movie', Series: 'series', Season: 'season', Episode: 'episode' }; return m[item.Type] || 'other'; })(),
@@ -424,27 +424,27 @@ function isDirectorySync(p) {
 
 // ── Played / Unplayed ──────────────────────────────────────────────────────
 
-async function markPlayed(serverConfig, itemId) {
+async function markPlayed(serverConfig, subjectId) {
   const userId = String(serverConfig.userId || '').trim();
   if (!userId) throw new Error('Emby userId not configured');
   const uid = encodeURIComponent(userId);
-  const iid = encodeURIComponent(itemId);
+  const iid = encodeURIComponent(subjectId);
   await embyFetchOk(serverConfig, `Users/${uid}/PlayedItems/${iid}`, { method: 'POST' });
 }
 
-async function markUnplayed(serverConfig, itemId) {
+async function markUnplayed(serverConfig, subjectId) {
   const userId = String(serverConfig.userId || '').trim();
   if (!userId) throw new Error('Emby userId not configured');
   const uid = encodeURIComponent(userId);
-  const iid = encodeURIComponent(itemId);
+  const iid = encodeURIComponent(subjectId);
   await embyFetchOk(serverConfig, `Users/${uid}/PlayedItems/${iid}`, { method: 'DELETE' });
 }
 
-async function getItem(serverConfig, itemId) {
+async function getItem(serverConfig, subjectId) {
   const userId = String(serverConfig.userId || '').trim();
   if (!userId) throw new Error('Emby userId not configured');
   const uid = encodeURIComponent(userId);
-  const iid = encodeURIComponent(itemId);
+  const iid = encodeURIComponent(subjectId);
   const data = await embyFetchJson(serverConfig, `Users/${uid}/Items/${iid}`, {}, { Fields: ITEM_FIELDS });
   return extractItemFields(data);
 }
@@ -533,7 +533,7 @@ async function getUnplayedItems(serverConfig, sectionId) {
     const extracted = extractItemFields(item);
     const sizeGb = extracted.size > 0 ? extracted.size / (1024 * 1024 * 1024) : 0;
     return {
-      id: extracted.itemId,
+      id: extracted.subjectId,
       name: extracted.name,
       sectionId,
       posterTag: (item.ImageTags && item.ImageTags.Primary) || '',
@@ -550,8 +550,8 @@ async function getUnplayedItems(serverConfig, sectionId) {
       isBluRayDisc: extracted.isDiscLike,
       embyPlayed: false,
       path: extracted.path,
-      posterUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/Items/${extracted.itemId}/Images/Primary`,
-      embyWebUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/web/index.html#!/item?id=${extracted.itemId}`,
+      posterUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/Items/${extracted.subjectId}/Images/Primary`,
+      embyWebUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/web/index.html#!/item?id=${extracted.subjectId}`,
     };
   });
 }
@@ -561,8 +561,8 @@ module.exports = {
   testConnection,
   getUsers,
   getMediaFolders,
-  getLibraryItems,
-  getLibraryItemsPage,
+  getLibrarySubjects,
+  getLibrarySubjectsPage,
   getItemById,
   getSeasonEpisodes,
   libraryItemExists,

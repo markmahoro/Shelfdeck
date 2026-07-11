@@ -94,24 +94,24 @@ function candidateHasCNSub(candidate) {
 
 /**
  * @param {Array} candidates  raw searchCandidates from MoviePilot
- * @param {Object} itemInfo   task.itemInfo (must have resolution, doubanRating/userRating, duration)
+ * @param {Object} subjectInfo   task.subjectInfo (must have resolution, doubanRating/userRating, duration)
  * @param {Object} config     full config object
  * @returns {number|null}     selected candidate index, or null if none passes
  */
-function getSmartConfig(itemInfo, config) {
-  const subLibId = itemInfo && itemInfo.subLibraryId;
+function getSmartConfig(subjectInfo, config) {
+  const subLibId = subjectInfo && subjectInfo.subLibraryId;
   const subLib = subLibId && (config.subLibraries || []).find((s) => s.uuid === subLibId);
   return (subLib && subLib.upgradeSmartSelect) || null;
 }
 
-function filterAndSelect(candidates, itemInfo, config) {
+function filterAndSelect(candidates, subjectInfo, config) {
   const approvalPolicy = require('./approvalPolicy');
-  if (approvalPolicy.resolveGate('upgrade.candidateSelect', { itemInfo, config }) !== 'auto') return null;
+  if (approvalPolicy.resolveGate('upgrade.candidateSelect', { subjectInfo, config }) !== 'auto') return null;
 
-  const seedPrefs = itemInfo && itemInfo.seedPreferences;
+  const seedPrefs = subjectInfo && subjectInfo.seedPreferences;
   const smartCfg = (seedPrefs && Object.keys(seedPrefs).length > 0)
     ? seedPrefs
-    : getSmartConfig(itemInfo, config);
+    : getSmartConfig(subjectInfo, config);
 
   if (!smartCfg) return null;
 
@@ -122,7 +122,7 @@ function filterAndSelect(candidates, itemInfo, config) {
     (smartCfg.sitePreference && smartCfg.sitePreference.length > 0) ||
     smartCfg.preferCNSub ||
     (typeof smartCfg.maxSizeGB === 'number' && smartCfg.maxSizeGB > 0) ||
-    (itemInfo && typeof itemInfo.maxSizeGB === 'number' && itemInfo.maxSizeGB > 0);
+    (subjectInfo && typeof subjectInfo.maxSizeGB === 'number' && subjectInfo.maxSizeGB > 0);
 
   if (!hasAnyPreference) return null;
 
@@ -136,9 +136,9 @@ function filterAndSelect(candidates, itemInfo, config) {
     if (!candidateMatchesSite(c, smartCfg.sitePreference)) continue;
     if (smartCfg.preferCNSub && !candidateHasCNSub(c)) continue;
 
-    // Size cap — prefer itemInfo.maxSizeGB (from rule), fall back to smartCfg
-    const sizeCap = (itemInfo && typeof itemInfo.maxSizeGB === 'number')
-      ? itemInfo.maxSizeGB
+    // Size cap — prefer subjectInfo.maxSizeGB (from rule), fall back to smartCfg
+    const sizeCap = (subjectInfo && typeof subjectInfo.maxSizeGB === 'number')
+      ? subjectInfo.maxSizeGB
       : (typeof smartCfg.maxSizeGB === 'number' ? smartCfg.maxSizeGB : null);
 
     if (sizeCap) {
@@ -154,9 +154,9 @@ function filterAndSelect(candidates, itemInfo, config) {
   const scored = scorePool(pool);
 
   // ── Bitrate validation ─────────────────────────────────────────────
-  const durationSec = itemInfo && itemInfo.duration;
+  const durationSec = subjectInfo && subjectInfo.duration;
 
-  const target = itemInfo && itemInfo.targetBitrate;
+  const target = subjectInfo && subjectInfo.targetBitrate;
   if (typeof durationSec === 'number' && durationSec > 0 && target != null) {
     for (const entry of scored) {
       const size = entry.candidate.torrent_info && entry.candidate.torrent_info.size;
@@ -197,14 +197,14 @@ function scorePool(pool) {
 /**
  * Returns the full ranked pool with scores, for download-failure retry.
  */
-function getRankedPool(candidates, itemInfo, config) {
+function getRankedPool(candidates, subjectInfo, config) {
   const approvalPolicy = require('./approvalPolicy');
-  if (approvalPolicy.resolveGate('upgrade.candidateSelect', { itemInfo, config }) !== 'auto') return [];
+  if (approvalPolicy.resolveGate('upgrade.candidateSelect', { subjectInfo, config }) !== 'auto') return [];
 
-  const seedPrefs = itemInfo && itemInfo.seedPreferences;
+  const seedPrefs = subjectInfo && subjectInfo.seedPreferences;
   const smartCfg = (seedPrefs && Object.keys(seedPrefs).length > 0)
     ? seedPrefs
-    : getSmartConfig(itemInfo, config);
+    : getSmartConfig(subjectInfo, config);
 
   if (!smartCfg) return [];
 
@@ -215,7 +215,7 @@ function getRankedPool(candidates, itemInfo, config) {
     (smartCfg.sitePreference && smartCfg.sitePreference.length > 0) ||
     smartCfg.preferCNSub ||
     (typeof smartCfg.maxSizeGB === 'number' && smartCfg.maxSizeGB > 0) ||
-    (itemInfo && typeof itemInfo.maxSizeGB === 'number' && itemInfo.maxSizeGB > 0);
+    (subjectInfo && typeof subjectInfo.maxSizeGB === 'number' && subjectInfo.maxSizeGB > 0);
 
   if (!hasAnyPreference) return [];
 
@@ -228,8 +228,8 @@ function getRankedPool(candidates, itemInfo, config) {
     if (!candidateMatchesSite(c, smartCfg.sitePreference)) continue;
     if (smartCfg.preferCNSub && !candidateHasCNSub(c)) continue;
 
-    const sizeCap = (itemInfo && typeof itemInfo.maxSizeGB === 'number')
-      ? itemInfo.maxSizeGB
+    const sizeCap = (subjectInfo && typeof subjectInfo.maxSizeGB === 'number')
+      ? subjectInfo.maxSizeGB
       : (typeof smartCfg.maxSizeGB === 'number' ? smartCfg.maxSizeGB : null);
 
     if (sizeCap) {

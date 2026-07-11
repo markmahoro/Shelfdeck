@@ -268,8 +268,8 @@ function defaultSubLibraryAutomation() {
   };
 }
 
-function resolveSubLibraryAutomation(itemInfo, config) {
-  const subLibId = itemInfo && itemInfo.subLibraryId;
+function resolveSubLibraryAutomation(subjectInfo, config) {
+  const subLibId = subjectInfo && subjectInfo.subLibraryId;
   const subLib = subLibId && (config.subLibraries || []).find((s) => s.uuid === subLibId);
   const defaults = defaultSubLibraryAutomation();
   return {
@@ -590,7 +590,7 @@ function mergeConfigWithDefaults(config) {
         : library.mediaType === 'adult' ? ['metadata.sidecar.render', 'metadata.image.acquire'] : [],
       optimize: Array.isArray(library.allowedCapabilities && library.allowedCapabilities.optimize)
         ? library.allowedCapabilities.optimize
-        : library.mediaType === 'adult' ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'container.remux', 'source.upgrade.request', 'media.replace'],
+        : library.mediaType === 'adult' ? ['media.transcode', 'media.file.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'container.remux', 'source.upgrade.request', 'media.file.replace', 'series.season.replace'],
     },
     capabilityParameters: library.capabilityParameters || (library.mediaType === 'adult' ? { 'metadata.image.acquire': { kinds: ['poster', 'fanart'] } } : {}),
     capabilityPolicyRevision: String(library.capabilityPolicyRevision || '1'),

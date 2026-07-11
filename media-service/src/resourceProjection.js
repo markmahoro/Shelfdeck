@@ -112,8 +112,8 @@ function compactTask(task, config) {
   const plan = workflowStore.getPlanForTask(task.id);
   return {
     taskId: task.id,
-    itemId: task.itemId,
-    itemName: task.itemName,
+    subjectId: task.subjectId,
+    subjectName: task.subjectName,
     taskTarget: compactTaskTarget(task.taskTarget),
     workflowClassification: plan && plan.classification || '',
     currentEventType: step.eventType,
@@ -167,8 +167,8 @@ function compactRuntimeEvent(event) {
     resourceKey,
     resourceLabel: event.resourceLabel || resourceKey,
     taskId: event.taskId || '',
-    itemId: event.itemId || '',
-    itemName: event.itemName || '',
+    subjectId: event.subjectId || '',
+    subjectName: event.subjectName || '',
     subLibraryId: event.subLibraryId || '',
     source: event.source || '',
     startedAt: event.startedAt,

@@ -11,13 +11,13 @@ function result(status, reason, input, gap = []) {
     plannable: status === 'gap',
     reason,
     objectiveHash: input.objectiveHash || '',
-    currentFacts: input.currentMediaFacts || input.itemInfo || {},
+    currentFacts: input.currentMediaFacts || input.subjectInfo || {},
     targetFacts: input.optimizeObjective?.targetMediaFacts || input.optimizeObjective || {},
     gap,
   };
 }
 function analyze(input = {}) {
-  const item = input.currentMediaFacts || input.itemInfo || {};
+  const item = input.currentMediaFacts || input.subjectInfo || {};
   const objective = input.optimizeObjective || item.optimizeObjective || {};
   if (input.optimizeObjectiveStatus && input.optimizeObjectiveStatus !== 'ready') return result('blocked', input.optimizeObjectiveStatus, input);
   if (objective.kind === 'keep_current') return result('satisfied', 'objective_already_satisfied', input);

@@ -8,17 +8,17 @@ const sourceAccessResolver = require('./sourceAccessResolver');
 
 function createTargetGateTask(input = {}) {
   const config = input.config || configStore.loadConfig();
-  const item = input.item || input.itemInfo || {};
-  const itemInfo = input.itemInfo || item;
+  const item = input.item || input.subjectInfo || {};
+  const subjectInfo = input.subjectInfo || item;
   const targetGate = String(input.targetGate || input.taskTarget && input.taskTarget.targetGate || '');
   const source = input.source || 'manual';
   return taskStore.admitAndCreateTask({
-    itemId: itemInfo.itemId || item.itemId,
+    subjectId: subjectInfo.subjectId || item.subjectId,
     targetGate,
   }, (tasks) => {
     const admissionInput = {
       item,
-      itemInfo,
+      subjectInfo,
       targetGate,
       gateObjective: input.gateObjective,
       flowPreference: input.flowPreference,
@@ -35,12 +35,12 @@ function createTargetGateTask(input = {}) {
     const priorityBreakdown = priorityEngine.explainTaskPriority({
       source,
       taskTarget: admission.taskTarget,
-      itemInfo,
+      subjectInfo,
       config,
     });
     const taskData = {
-      itemId: itemInfo.itemId || item.itemId,
-      itemName: itemInfo.name || item.name || itemInfo.itemId || item.itemId,
+      subjectId: subjectInfo.subjectId || item.subjectId,
+      subjectName: subjectInfo.name || item.name || subjectInfo.subjectId || item.subjectId,
       source,
       status: input.status || (source === 'auto' ? 'queued' : 'created'),
       priority: priorityBreakdown.priority,
@@ -48,13 +48,13 @@ function createTargetGateTask(input = {}) {
       priorityBreakdown,
       taskTarget: admission.taskTarget,
       requestedIntent: admission.requestedIntent || input.requestedIntent || input.intent,
-      objectiveRevisionSnapshot: String(itemInfo.objectiveHash || item.objectiveHash || itemInfo.objectiveVersion || item.objectiveVersion || ''),
-      capabilityPolicyRevision: String(((config.subLibraries || []).find((entry) => entry.uuid === itemInfo.subLibraryId) || {}).capabilityPolicyRevision || '1'),
+      objectiveRevisionSnapshot: String(subjectInfo.objectiveHash || item.objectiveHash || subjectInfo.objectiveVersion || item.objectiveVersion || ''),
+      capabilityPolicyRevision: String(((config.subLibraries || []).find((entry) => entry.uuid === subjectInfo.subLibraryId) || {}).capabilityPolicyRevision || '1'),
       helixAdmission: input.helixAdmission || null,
       maintenanceRun: input.maintenanceRun || null,
       maintenancePrioritySnapshot: input.maintenancePrioritySnapshot || { class: 'normal', revision: 0, reason: '', runId: '' },
       sourceAccessMappingRevision: sourceAccessResolver.getRevision(),
-      itemInfo,
+      subjectInfo,
       logs: input.logs || [{
         ts: new Date().toISOString(),
         source: source === 'auto' ? 'kairox_automation' : 'manual_task_creator',

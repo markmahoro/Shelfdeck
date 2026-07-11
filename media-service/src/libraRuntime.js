@@ -14,10 +14,10 @@ const CLEANUP_MODES = new Set(['retain_source', 'detach_source', 'delete_source'
 function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, configs = configStore, resourceGovernor = defaultResourceGovernor, doubanService = defaultDoubanService }) {
   const reconciler = createLibraReconciler({ store, nexoraService, kairoxService, configStore: configs });
 
-  function libraryProjection(item, sourceProjection = {}, maintenanceProjection = {}, currentOperation = undefined, maintenanceScopes = undefined) {
+  function libraryProjection(item, sourceProjection = {}, maintenanceProjection = {}, currentOperation = undefined) {
     if (!item) return null;
     return {
-      itemId: item.itemId,
+      subjectId: item.subjectId,
       subLibraryId: item.subLibraryId || '',
       membership: { status: item.membershipStatus, active: item.membershipStatus === 'active' },
       desiredState: item.desiredState,
@@ -31,50 +31,36 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
         consumedSourceRevision: item.sourceRevision || '',
         consumedMaintenanceRevision: item.maintenanceRevision || '',
       },
-      hierarchy: {
-        mediaKind: item.mediaKind || '',
-        playable: item.playable !== false,
-        parentItemId: item.parentItemId || '',
-        seriesItemId: item.seriesItemId || '',
-      },
-      maintenanceScopes: maintenanceScopes === undefined
-        ? store.listActiveMaintenanceScopes(item.subLibraryId).filter((scope) => scope.rootItemId === item.itemId)
-        : maintenanceScopes,
+      subject: { kind: item.subjectKind || '', sourceSubjectKey: item.sourceSubjectKey || '', displayName: item.displayName || '' },
       currentOperation: currentOperation === undefined
-        ? store.getCurrentOperationForItem(item.itemId)
+        ? store.getCurrentOperationForSubject(item.subjectId)
         : currentOperation,
       updatedAt: item.updatedAt,
     };
   }
 
-  function getLibraryProjection(itemId) {
-    const item = store.getLibraryItem(itemId);
+  function getLibraryProjection(subjectId) {
+    const item = store.getLibrarySubject(subjectId);
     if (!item) return null;
     return libraryProjection(
       item,
-      nexoraService.getSourceProjection(itemId),
-      kairoxService.getMaintenanceProjection(itemId),
+      nexoraService.getSourceProjection(subjectId),
+      kairoxService.getMaintenanceProjection(subjectId),
     );
   }
 
-  function getLibraryProjections(itemIds = []) {
-    const items = store.getLibraryItems(itemIds);
-    const ids = items.map((item) => item.itemId);
+  function getLibraryProjections(subjectIds = []) {
+    const items = store.getLibrarySubjects(subjectIds);
+    const ids = items.map((item) => item.subjectId);
     const sourceProjections = nexoraService.getSourceProjections(ids);
     const maintenanceProjections = kairoxService.getMaintenanceProjections(ids);
-    const currentOperations = store.getCurrentOperationsForItems(ids);
-    const scopesByRoot = store.listActiveMaintenanceScopes().reduce((out, scope) => {
-      if (!out[scope.rootItemId]) out[scope.rootItemId] = [];
-      out[scope.rootItemId].push(scope);
-      return out;
-    }, {});
+    const currentOperations = store.getCurrentOperationsForSubjects(ids);
     return items.reduce((out, item) => {
-      out[item.itemId] = libraryProjection(
+      out[item.subjectId] = libraryProjection(
         item,
-        sourceProjections[item.itemId] || {},
-        maintenanceProjections[item.itemId] || {},
-        currentOperations[item.itemId] || null,
-        scopesByRoot[item.itemId] || [],
+        sourceProjections[item.subjectId] || {},
+        maintenanceProjections[item.subjectId] || {},
+        currentOperations[item.subjectId] || null,
       );
       return out;
     }, {});
@@ -88,13 +74,13 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     const descriptor = source.sourceAccessDescriptor || {};
     const identity = descriptor.identityPayload || {};
     const locator = descriptor.locator || {};
-    const structure = descriptor.observedStructure || projection.hierarchy || {};
+    const structure = descriptor.observedStructure || projection.subject || {};
     return {
-      itemId: projection.itemId,
+      subjectId: projection.subjectId,
       subLibraryId: projection.subLibraryId || descriptor.subLibraryId || '',
-      name: metadata.title || metadata.name || structure.displayName || identity.name || '',
+      name: metadata.title || metadata.name || projection.subject.displayName || structure.displayName || identity.name || '',
       title: metadata.title || metadata.name || '',
-      type: metadata.type || structure.mediaKind || identity.type || '',
+      type: metadata.type || projection.subject.kind || structure.mediaKind || identity.type || '',
       source: descriptor.sourceType || identity.source || '',
       sourceId: descriptor.sourceId || '',
       embyItemId: identity.embyItemId || locator.sourceRefId || '',
@@ -116,34 +102,15 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
   }
 
   function queryLibraryProjections(filter = {}, options = {}) {
-    const membershipItems = store.getLibraryItems();
-    const projections = getLibraryProjections(membershipItems.map((item) => item.itemId));
+    const membershipItems = store.getLibrarySubjects();
+    const projections = getLibraryProjections(membershipItems.map((item) => item.subjectId));
     const search = String(filter.search || '').trim().toLowerCase();
     const views = membershipItems
-      .map((item) => projections[item.itemId])
+      .map((item) => projections[item.subjectId])
       .filter(Boolean)
       .map(libraryListView);
-    for (const view of views) {
-      if (view.helix.hierarchy.playable !== false) continue;
-      const members = views.filter((candidate) => candidate.helix.hierarchy.playable !== false
-        && (view.type === 'series' ? candidate.helix.hierarchy.seriesItemId === view.itemId : candidate.helix.hierarchy.parentItemId === view.itemId));
-      const activeScopes = view.helix.maintenanceScopes || [];
-      view.maintenanceComplete = members.length > 0 && members.every((member) => member.maintenanceComplete);
-      view.helix.maintenance = {
-        ...view.helix.maintenance,
-        maintenanceComplete: view.maintenanceComplete,
-        maintenanceState: view.maintenanceComplete ? 'complete' : 'maintaining',
-        aggregateMemberCount: members.length,
-        aggregateCompleteCount: members.filter((member) => member.maintenanceComplete).length,
-        run: activeScopes.some((scope) => scope.action === 'start') ? { status: 'active_scope' } : null,
-        priority: {
-          class: activeScopes.some((scope) => scope.action === 'priority') || members.some((member) => member.helix.maintenance.priority && member.helix.maintenance.priority.class === 'expedited') ? 'expedited' : 'normal',
-          revision: 0,
-        },
-      };
-    }
     const items = views
-      .filter((item) => !filter.itemId || item.itemId === filter.itemId)
+      .filter((item) => !filter.subjectId || item.subjectId === filter.subjectId)
       .filter((item) => !filter.subLibraryId || item.subLibraryId === filter.subLibraryId)
       .filter((item) => !filter.source || item.source === filter.source)
       .filter((item) => !filter.type || item.type === filter.type)
@@ -157,13 +124,13 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
 
   async function getLibraryMaintenanceSummaries(options = {}) {
     const batchSize = Math.max(1, Math.min(100, Number(options.batchSize) || 100));
-    const items = store.getLibraryItems().filter((item) => (
-      item.membershipStatus === 'active' && item.playable !== false
+    const items = store.getLibrarySubjects().filter((item) => (
+      item.membershipStatus === 'active'
     ));
     const summaries = {};
     for (let offset = 0; offset < items.length; offset += batchSize) {
       const batch = items.slice(offset, offset + batchSize);
-      const ids = batch.map((item) => item.itemId);
+      const ids = batch.map((item) => item.subjectId);
       const projections = typeof kairoxService.getMaintenanceSummaryProjections === 'function'
         ? kairoxService.getMaintenanceSummaryProjections(ids)
         : kairoxService.getMaintenanceProjections(ids);
@@ -177,7 +144,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
           };
         }
         const summary = summaries[subLibraryId];
-        const maintenance = projections[item.itemId] || {};
+        const maintenance = projections[item.subjectId] || {};
         summary.total += 1;
         if (maintenance.basedataPassed) summary.basedataPassed += 1;
         if (maintenance.metadataPassed) summary.metadataPassed += 1;
@@ -194,26 +161,24 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
   }
 
   function acceptSource(command = {}) {
-    const itemId = String(command.itemId || crypto.randomUUID());
+    const subjectId = String(command.subjectId || crypto.randomUUID());
     const payload = { sourceReference: command.sourceReference || {}, requestedBy: command.requestedBy || 'system' };
     const subLibraryId = command.sourceReference && command.sourceReference.subLib && command.sourceReference.subLib.uuid
       || command.sourceReference && command.sourceReference.subLibraryId
       || '';
-    const existingItem = store.getLibraryItem(itemId);
+    const existingItem = store.getLibrarySubject(subjectId);
     const observed = command.sourceReference && command.sourceReference.item || {};
     const structure = {
-      sourceRefId: String(command.sourceReference && (command.sourceReference.sourceRefId || command.sourceReference.embyItemId || command.sourceReference.path) || ''),
-      mediaKind: String(observed.type || (command.sourceReference && ['adult_folder', 'folder'].includes(command.sourceReference.source) ? 'adult_file' : '')),
-      playable: observed.type ? ['movie', 'episode'].includes(String(observed.type).toLowerCase()) : !!(command.sourceReference && ['adult_folder', 'folder'].includes(command.sourceReference.source)),
-      parentSourceRefId: String(observed.parentId || ''),
-      seriesSourceRefId: String(observed.seriesId || ''),
+      sourceSubjectKey: String(command.sourceReference && command.sourceReference.sourceSubjectKey || subjectId),
+      subjectKind: String(command.sourceReference && command.sourceReference.subjectKind || (observed.type === 'movie' ? 'movie' : 'adult_title')),
+      displayName: String(command.sourceReference && command.sourceReference.displayName || observed.name || ''),
     };
-    const item = store.upsertLibraryItem(existingItem && existingItem.membershipStatus !== 'closed' ? {
-      itemId,
+    const item = store.upsertLibrarySubject(existingItem && existingItem.membershipStatus !== 'closed' ? {
+      subjectId,
       subLibraryId: subLibraryId || existingItem.subLibraryId,
       ...structure,
     } : {
-      itemId,
+      subjectId,
       subLibraryId,
       ...structure,
       membershipStatus: 'active',
@@ -223,33 +188,32 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
       admissionGeneration: existingItem ? existingItem.admissionGeneration + 1 : 0,
     });
     const created = store.createOrGetOperation({
-      itemId,
+      subjectId,
       operationKind: 'onboarding',
       idempotencyKey: command.idempotencyKey,
       libraryGeneration: item.admissionGeneration,
       payload,
     });
     if (!created.created && created.operation.status === 'done') {
-      return { operation: created.operation, projection: command.includeProjection === false ? null : getLibraryProjection(itemId) };
+      return { operation: created.operation, projection: command.includeProjection === false ? null : getLibraryProjection(subjectId) };
     }
     if (created.created) {
-      store.appendEvent({ itemId, operationId: created.operation.operationId, eventType: 'libra.onboarding_requested', payload });
+      store.appendEvent({ subjectId, operationId: created.operation.operationId, eventType: 'libra.onboarding_requested', payload });
     }
     store.updateOperation(created.operation.operationId, { status: 'running', step: 'nexora_onboarding', incrementAttempt: true });
     try {
       const sourceProjection = nexoraService.ensureOnboarding({
-        itemId,
+        subjectId,
         sourceReference: command.sourceReference || {},
         libraryGeneration: item.admissionGeneration,
         idempotencyKey: command.idempotencyKey,
       });
-      store.upsertLibraryItem({
-        itemId,
+      store.upsertLibrarySubject({
+        subjectId,
         sourceRevision: sourceProjection.sourceRevision || '',
         blockedReason: sourceProjection.readiness === 'ready' ? '' : `source_${sourceProjection.readiness || 'unresolved'}`,
       });
-      if (subLibraryId && command.deferHierarchyResolution !== true) store.resolveLibraryHierarchy(subLibraryId);
-      const reconciled = reconciler.reconcileItem(itemId);
+      const reconciled = reconciler.reconcileItem(subjectId);
       const operation = store.updateOperation(created.operation.operationId, {
         status: 'done',
         step: 'completed',
@@ -257,7 +221,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
         errorMessage: '',
         result: { sourceRevision: sourceProjection.sourceRevision || 0, phase: reconciled.phase },
       });
-      return { operation, projection: command.includeProjection === false ? null : getLibraryProjection(itemId) };
+      return { operation, projection: command.includeProjection === false ? null : getLibraryProjection(subjectId) };
     } catch (error) {
       store.updateOperation(created.operation.operationId, {
         status: 'retrying',
@@ -271,11 +235,11 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
   }
 
   function requestMaintenance(command = {}) {
-    const item = store.getLibraryItem(command.itemId);
+    const item = store.getLibrarySubject(command.subjectId);
     if (!item) throw new HelixError('LIBRA_ITEM_NOT_FOUND', 'Library item not found');
     if (item.membershipStatus !== 'active' || item.phase !== 'maintenance' || item.quarantineStatus !== 'none') {
       throw new HelixError('LIBRA_MAINTENANCE_NOT_ADMITTED', 'Library item is not admitted for maintenance', {
-        itemId: item.itemId, phase: item.phase, quarantineStatus: item.quarantineStatus,
+        subjectId: item.subjectId, phase: item.phase, quarantineStatus: item.quarantineStatus,
       });
     }
     return kairoxService.requestMaintenance({ ...command, libraryGeneration: item.admissionGeneration });
@@ -285,7 +249,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     const forbidden = ['targetGate', 'gateObjective', 'flowKind', 'executor'].filter((field) => command[field] !== undefined);
     if (forbidden.length > 0) throw new HelixError('KAIROX_MAINTENANCE_INTENT_INVALID', `${expectedAction} does not accept Gate or Flow fields`);
     if (!command.idempotencyKey) throw new HelixError('LIBRA_IDEMPOTENCY_KEY_REQUIRED', 'idempotencyKey is required');
-    const item = store.getLibraryItem(command.itemId);
+    const item = store.getLibrarySubject(command.subjectId);
     if (!item) throw new HelixError('LIBRA_ITEM_NOT_FOUND', 'Library item not found');
     if (item.membershipStatus !== 'active' || item.phase !== 'maintenance' || item.quarantineStatus !== 'none') {
       throw new HelixError('LIBRA_MAINTENANCE_NOT_ADMITTED', 'Library item is not admitted for maintenance');
@@ -296,32 +260,21 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     return { item, config, subLibrary };
   }
 
-  function scopeItems(item) {
-    store.resolveLibraryHierarchy(item.subLibraryId);
-    return store.getMaintenanceScopeMembers(item.itemId);
-  }
-
-  function incompleteScopeItems(item) {
-    const members = scopeItems(item);
-    const projections = kairoxService.getMaintenanceProjections(members.map((member) => member.itemId));
-    return members.filter((member) => !(projections[member.itemId] && projections[member.itemId].maintenanceComplete));
-  }
-
   function runIdempotentMaintenanceIntent(item, command, operationKind, payload, work) {
     const claimed = store.createOrGetOperation({
-      itemId: item.itemId,
+      subjectId: item.subjectId,
       operationKind,
       idempotencyKey: command.idempotencyKey,
       libraryGeneration: item.admissionGeneration,
       payload,
     });
     if (!claimed.created && claimed.operation.status === 'done') {
-      return { replayed: true, operation: claimed.operation, projection: getLibraryProjection(item.itemId), ...claimed.operation.result };
+      return { replayed: true, operation: claimed.operation, projection: getLibraryProjection(item.subjectId), ...claimed.operation.result };
     }
     store.updateOperation(claimed.operation.operationId, { status: 'running', step: 'kairox_intent', incrementAttempt: true });
     try {
       const result = work();
-      const summary = { affected: Number(result && result.affected) || 1, scopeId: result && result.scope && result.scope.scopeId || '' };
+      const summary = { affected: Number(result && result.affected) || 1 };
       const operation = store.updateOperation(claimed.operation.operationId, { status: 'done', step: 'completed', errorCode: '', errorMessage: '', result: summary });
       return { ...result, operation };
     } catch (error) {
@@ -330,92 +283,54 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     }
   }
 
-  function createGroupScope(command, item, action, priorityClass) {
-    const observation = requestLibraryObservation({
-      subLibraryId: item.subLibraryId,
-      idempotencyKey: `${command.idempotencyKey}:observe`,
-      requestedBy: `maintenance_scope:${action}`,
-    });
-    const created = store.createOrGetMaintenanceScope({
-      idempotencyKey: command.idempotencyKey,
-      rootItemId: item.itemId,
-      subLibraryId: item.subLibraryId,
-      action,
-      priorityClass,
-      observationWorkId: observation.workId,
-    });
-    return created.scope;
-  }
-
   function requestMaintenanceRun(command = {}) {
     const { item, config, subLibrary } = assertMaintenanceIntent(command, 'start-maintenance');
     if (subLibrary.maintenanceAutomationMode !== 'manual') {
       throw new HelixError('KAIROX_MANUAL_START_NOT_ALLOWED', 'Automatic maintenance libraries do not accept manual start');
     }
     return runIdempotentMaintenanceIntent(item, command, 'maintenance_run_start', { action: 'start' }, () => {
-      const members = incompleteScopeItems(item);
-      if (members.length === 0) throw new HelixError('KAIROX_MAINTENANCE_SUBJECT_NOT_PLAYABLE', 'No playable media found for maintenance');
-      const scope = item.playable ? null : createGroupScope(command, item, 'start', 'normal');
-      const results = members.map((member) => {
-        if (scope) store.addMaintenanceScopeMember(scope.scopeId, member.itemId);
-        return kairoxService.startMaintenanceRun({ itemId: member.itemId, libraryGeneration: member.admissionGeneration, config, idempotencyKey: `${command.idempotencyKey}:${member.itemId}` });
-      });
-      return { itemId: item.itemId, scope, affected: results.length, results };
+      const result = kairoxService.startMaintenanceRun({ subjectId: item.subjectId, libraryGeneration: item.admissionGeneration, config, idempotencyKey: command.idempotencyKey });
+      return { subjectId: item.subjectId, affected: 1, result };
     });
   }
 
   function setMaintenancePriority(command = {}) {
     const { item, config } = assertMaintenanceIntent(command, 'prioritize-maintenance');
     return runIdempotentMaintenanceIntent(item, command, 'maintenance_priority_set', { action: 'priority', reason: command.reason || '' }, () => {
-      const members = incompleteScopeItems(item);
-      if (members.length === 0) throw new HelixError('KAIROX_MAINTENANCE_SUBJECT_NOT_PLAYABLE', 'No playable media found for prioritization');
-      const scope = item.playable ? null : createGroupScope(command, item, 'priority', 'expedited');
-      const results = members.map((member) => {
-        if (scope) store.addMaintenanceScopeMember(scope.scopeId, member.itemId);
-        return kairoxService.setMaintenancePriority({ itemId: member.itemId, reason: command.reason || 'user_expedited', config });
-      });
-      return { itemId: item.itemId, scope, affected: results.length, results };
+      const result = kairoxService.setMaintenancePriority({ subjectId: item.subjectId, reason: command.reason || 'user_expedited', config });
+      return { subjectId: item.subjectId, affected: 1, result };
     });
   }
 
   function clearMaintenancePriority(command = {}) {
     const { item } = assertMaintenanceIntent(command, 'cancel-maintenance-priority');
     return runIdempotentMaintenanceIntent(item, command, 'maintenance_priority_clear', { action: 'cancel_priority', reason: command.reason || '' }, () => {
-      const members = scopeItems(item);
-      const scopedIds = store.listActiveMaintenanceScopes(item.subLibraryId)
-        .filter((scope) => scope.rootItemId === item.itemId && scope.action === 'priority')
-        .flatMap((scope) => {
-          store.updateMaintenanceScope(scope.scopeId, { status: 'cancelled', completedAt: new Date().toISOString() });
-          return store.listMaintenanceScopeMembers(scope.scopeId);
-        });
-      const ids = [...new Set([...members.map((member) => member.itemId), ...scopedIds])];
-      const results = ids.map((memberId) => kairoxService.clearMaintenancePriority({ itemId: memberId, reason: command.reason || 'user_cancelled_priority' }));
-      return { itemId: item.itemId, affected: results.length, results };
+      const result = kairoxService.clearMaintenancePriority({ subjectId: item.subjectId, reason: command.reason || 'user_cancelled_priority' });
+      return { subjectId: item.subjectId, affected: 1, result };
     });
   }
 
   function requestMetadataRefresh(command = {}) {
     const { item, config } = assertMaintenanceIntent(command, 'metadata-refresh');
-    if (!item.playable) throw new HelixError('KAIROX_MAINTENANCE_SUBJECT_NOT_PLAYABLE', 'Metadata refresh requires playable media');
     return runIdempotentMaintenanceIntent(item, command, 'metadata_refresh', { adultId: command.adultId || '', reason: command.reason || '' }, () => {
       const result = kairoxService.requestMetadataRefresh({
-        itemId: item.itemId,
+        subjectId: item.subjectId,
         adultId: command.adultId || '',
         reason: command.reason || 'user_metadata_refresh',
         config,
       });
-      return { itemId: item.itemId, affected: 1, result };
+      return { subjectId: item.subjectId, affected: 1, result };
     });
   }
 
   function updateUserPerception(command = {}) {
-    const item = store.getLibraryItem(command.itemId);
+    const item = store.getLibrarySubject(command.subjectId);
     if (!item) throw new HelixError('LIBRA_ITEM_NOT_FOUND', 'Library item not found');
     if (item.membershipStatus !== 'active' || item.phase !== 'maintenance' || item.quarantineStatus !== 'none') {
       throw new HelixError('LIBRA_MAINTENANCE_NOT_ADMITTED', 'Library item is not admitted for in-library operations');
     }
     return kairoxService.updateUserPerception({
-      itemId: item.itemId,
+      subjectId: item.subjectId,
       facts: command.facts || {},
       evidence: command.evidence || {},
       observedAt: command.observedAt,
@@ -448,7 +363,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
       approvalPolicy: spec.approvalPolicy || {},
       allowedCapabilities: spec.allowedCapabilities || {
         metadata: isAdult ? ['metadata.sidecar.render', 'metadata.image.acquire'] : [],
-        optimize: isAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'container.remux', 'source.upgrade.request', 'media.replace'],
+        optimize: isAdult ? ['media.transcode', 'media.file.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'container.remux', 'source.upgrade.request', 'media.file.replace', 'series.season.replace'],
       },
       capabilityParameters: spec.capabilityParameters || (isAdult ? { 'metadata.image.acquire': { kinds: ['poster', 'fanart'] } } : {}),
       capabilityPolicyRevision: String(spec.capabilityPolicyRevision || '1'),
@@ -563,7 +478,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     const basedata = maintenance.basedataFacts || {};
     const directId = String(metadata.doubanId || basedata.doubanId || '').trim();
     if (directId && bySubject.has(directId)) return bySubject.get(directId);
-    const mediaKind = String(maintenance.maintenanceSubject && maintenance.maintenanceSubject.mediaKind || metadata.type || basedata.type || '').toLowerCase();
+    const mediaKind = String(maintenance.maintenanceSubject && maintenance.maintenanceSubject.subjectKind || metadata.type || basedata.type || '').toLowerCase();
     const name = metadata.title || metadata.name || basedata.title || basedata.name || '';
     if (mediaKind === 'movie') {
       const stars = doubanMatchService.movieDoubanStars(name, 'Movie', byTitle);
@@ -628,17 +543,17 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
       const byTitle = doubanMatchService.buildDoubanStarsByNormalizedTitle(entries);
       const bySubject = new Map(entries.map((entry) => [String(entry.subjectId || ''), entry]).filter(([id]) => id));
       const limit = Math.max(1, Math.min(100, Number(options.limit) || 100));
-      const items = store.getLibraryItemsPage({ subLibraryId: work.subLibraryId, afterItemId: work.cursor.afterItemId || '', limit });
-      const projections = kairoxService.getMaintenanceProjections(items.map((item) => item.itemId));
+      const items = store.getLibrarySubjectsPage({ subLibraryId: work.subLibraryId, afterItemId: work.cursor.afterItemId || '', limit });
+      const projections = kairoxService.getMaintenanceProjections(items.map((item) => item.subjectId));
       let matched = Number(work.cursor.matched || 0);
       let unchanged = Number(work.cursor.unchanged || 0);
       for (const item of items) {
-        if (!item.playable || item.membershipStatus !== 'active') continue;
-        const rating = matchDoubanRating(projections[item.itemId] || {}, byTitle, bySubject);
+        if (item.membershipStatus !== 'active') continue;
+        const rating = matchDoubanRating(projections[item.subjectId] || {}, byTitle, bySubject);
         if (!rating) continue;
-        const previousFacts = projections[item.itemId] && projections[item.itemId].userPerceptionFacts || {};
+        const previousFacts = projections[item.subjectId] && projections[item.subjectId].userPerceptionFacts || {};
         const updated = kairoxService.updateUserPerception({
-          itemId: item.itemId,
+          subjectId: item.subjectId,
           facts: { doubanRating: Number(rating.stars), watched: true },
           evidence: { source: 'douban_collect', subjectId: rating.subjectId || '', syncWorkId: work.workId },
           observedAt: new Date().toISOString(),
@@ -651,7 +566,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
         status: done ? 'done' : 'pending',
         cursor: {
           phase: 'apply', entries,
-          afterItemId: items.length ? items[items.length - 1].itemId : work.cursor.afterItemId || '',
+          afterItemId: items.length ? items[items.length - 1].subjectId : work.cursor.afterItemId || '',
           matched, unchanged,
           completedAt: done ? new Date().toISOString() : '',
         },
@@ -677,13 +592,12 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     if (work.workKind === 'reconcile_library') {
       store.updateLibraryWork(work.workId, { status: 'running', incrementAttempt: true, errorCode: '', errorMessage: '' });
       try {
-        const items = store.getLibraryItemsPage({ afterItemId: work.cursor.afterItemId || '', limit: Math.max(1, Math.min(100, Number(options.limit) || 100)) });
-        reconciler.reconcileBatch(items.map((item) => item.itemId));
-        reconcileMaintenanceScopes();
+        const items = store.getLibrarySubjectsPage({ afterItemId: work.cursor.afterItemId || '', limit: Math.max(1, Math.min(100, Number(options.limit) || 100)) });
+        reconciler.reconcileBatch(items.map((item) => item.subjectId));
         const done = items.length === 0 || items.length < Math.max(1, Math.min(100, Number(options.limit) || 100));
         return store.updateLibraryWork(work.workId, {
           status: done ? 'done' : 'pending',
-          cursor: { afterItemId: items.length > 0 ? items[items.length - 1].itemId : work.cursor.afterItemId || '' },
+          cursor: { afterItemId: items.length > 0 ? items[items.length - 1].subjectId : work.cursor.afterItemId || '' },
           retryAt: '', errorCode: '', errorMessage: '',
         });
       } catch (error) {
@@ -715,44 +629,59 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
         limit,
         deadlineMs,
       }));
-      const observedItemIds = [];
-      for (const observation of page.observations || []) {
-        const sourceReference = observation.sourceReference || {};
-        const existingItemId = nexoraService.resolveBoundItemId(sourceReference);
-        const itemId = existingItemId || crypto.randomUUID();
-        const sourceIdentity = JSON.stringify(sourceReference.source === 'emby'
-          ? [sourceReference.subLib && sourceReference.subLib.embyServerId, sourceReference.subLib && sourceReference.subLib.sectionId, sourceReference.sourceRefId]
-          : [sourceReference.subLib && sourceReference.subLib.uuid, sourceReference.path]);
-        const identityHash = crypto.createHash('sha1').update(sourceIdentity).digest('hex');
-        acceptSource({
-          itemId,
-          sourceReference,
-          idempotencyKey: `observe-source:${work.workId}:${identityHash}`,
-          requestedBy: 'libra_automation',
-          deferHierarchyResolution: true,
-          includeProjection: false,
-        });
-        observedItemIds.push(itemId);
-      }
-      const hierarchyChanges = store.resolveLibraryHierarchy(subLibrary.uuid, { changedOnly: true });
-      const affectedItemIds = [...new Set([...observedItemIds, ...hierarchyChanges.map((item) => item.itemId)])];
-      reconciler.reconcileBatch(affectedItemIds);
-      for (const scope of store.listActiveMaintenanceScopes(subLibrary.uuid)) {
-        const root = store.getLibraryItem(scope.rootItemId);
-        if (!root) continue;
-        for (const member of store.getMaintenanceScopeMembers(root.itemId)) {
-          if (store.listMaintenanceScopeMembers(scope.scopeId).includes(member.itemId)) continue;
-          store.addMaintenanceScopeMember(scope.scopeId, member.itemId);
-          if (scope.action === 'start') {
-            const projection = kairoxService.getMaintenanceProjection(member.itemId);
-            if (projection && projection.maintenanceComplete) continue;
-            kairoxService.startMaintenanceRun({ itemId: member.itemId, libraryGeneration: member.admissionGeneration, config, idempotencyKey: `${scope.idempotencyKey}:${member.itemId}` });
-          } else if (scope.action === 'priority') {
-            const projection = kairoxService.getMaintenanceProjection(member.itemId);
-            if (projection && projection.maintenanceComplete) continue;
-            kairoxService.setMaintenancePriority({ itemId: member.itemId, reason: 'series_scope_expedited', config });
-          }
+      nexoraService.stageObservationPage({
+        workId: work.workId,
+        subLibraryId: subLibrary.uuid,
+        observations: page.observations || [],
+        cursor: page.cursor || work.cursor,
+      });
+      const observedSubjectIds = [];
+      if (page.done) {
+        const manifests = nexoraService.finalizeObservationWork({ workId: work.workId });
+        for (const manifest of manifests) {
+          const existing = store.findLibrarySubjectBySourceKey(subLibrary.uuid, manifest.sourceSubjectKey);
+          const subjectId = existing && existing.subjectId || crypto.randomUUID();
+          const first = manifest.observations[0] && manifest.observations[0].sourceReference || {};
+          acceptSource({
+            subjectId,
+            sourceReference: {
+              ...first,
+              sourceSubjectKey: manifest.sourceSubjectKey,
+              subjectKind: manifest.subjectKind,
+              displayName: manifest.displayName,
+              assets: manifest.assets,
+            },
+            idempotencyKey: `observe-subject:${work.workId}:${crypto.createHash('sha1').update(manifest.sourceSubjectKey).digest('hex')}`,
+            requestedBy: 'libra_automation',
+            includeProjection: false,
+          });
+          observedSubjectIds.push(subjectId);
         }
+        const observedKeys = new Set(manifests.map((manifest) => manifest.sourceSubjectKey));
+        for (const missing of store.getLibrarySubjects().filter((subject) => subject.subLibraryId === subLibrary.uuid && subject.membershipStatus === 'active' && !observedKeys.has(subject.sourceSubjectKey))) {
+          const current = nexoraService.getSourceProjection(missing.subjectId);
+          const descriptor = current.sourceAccessDescriptor || {};
+          acceptSource({
+            subjectId: missing.subjectId,
+            sourceReference: {
+              source: subLibrary.source === 'emby' ? 'emby' : 'adult_folder',
+              subLib: subLibrary,
+              sourceRefId: descriptor.locator && descriptor.locator.sourceRefId || '',
+              path: descriptor.locator && descriptor.locator.path || '',
+              sourceSubjectKey: missing.sourceSubjectKey,
+              subjectKind: missing.subjectKind,
+              displayName: missing.displayName,
+              sourceExists: false,
+              assets: [],
+              observationKind: 'source_missing',
+            },
+            idempotencyKey: `observe-missing-subject:${work.workId}:${missing.subjectId}`,
+            requestedBy: 'libra_automation',
+            includeProjection: false,
+          });
+          observedSubjectIds.push(missing.subjectId);
+        }
+        reconciler.reconcileBatch(observedSubjectIds);
       }
       const updatedWork = store.updateLibraryWork(work.workId, {
         status: page.done ? 'done' : 'pending',
@@ -761,7 +690,6 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
         errorCode: '',
         errorMessage: '',
       });
-      reconcileMaintenanceScopes();
       return updatedWork;
     } catch (error) {
       store.updateLibraryWork(work.workId, {
@@ -776,25 +704,11 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
 
   function getAutomationProjection() {
     const runnableWorks = store.listRunnableLibraryWork(new Date().toISOString(), 100);
-    return { works: store.listLibraryWork(), runnableWorks, runnable: runnableWorks.length, maintenanceScopes: store.listActiveMaintenanceScopes() };
-  }
-
-  function reconcileMaintenanceScopes() {
-    const completed = [];
-    for (const scope of store.listActiveMaintenanceScopes()) {
-      const observation = scope.observationWorkId ? store.getLibraryWork(scope.observationWorkId) : null;
-      if (scope.observationWorkId && (!observation || observation.status !== 'done')) continue;
-      const memberIds = store.listMaintenanceScopeMembers(scope.scopeId);
-      if (memberIds.length === 0) continue;
-      const projections = kairoxService.getMaintenanceProjections(memberIds);
-      if (!memberIds.every((itemId) => projections[itemId] && projections[itemId].maintenanceComplete)) continue;
-      completed.push(store.updateMaintenanceScope(scope.scopeId, { status: 'complete', completedAt: new Date().toISOString() }));
-    }
-    return completed;
+    return { works: store.listLibraryWork(), runnableWorks, runnable: runnableWorks.length };
   }
 
   async function requestOffboarding(command = {}) {
-    const item = store.getLibraryItem(command.itemId);
+    const item = store.getLibrarySubject(command.subjectId);
     if (!item) throw new HelixError('LIBRA_ITEM_NOT_FOUND', 'Library item not found');
     const cleanupMode = String(command.cleanupMode || 'retain_source');
     if (!CLEANUP_MODES.has(cleanupMode)) throw new HelixError('LIBRA_INVALID_CLEANUP_MODE', 'Invalid cleanup mode');
@@ -804,36 +718,36 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     const generation = item.admissionGeneration + 1;
     const payload = { cleanupMode, reason: command.reason || '', destructiveAuthorization: command.destructiveAuthorization === true };
     const created = store.createOrGetOperation({
-      itemId: item.itemId,
+      subjectId: item.subjectId,
       operationKind: 'offboarding',
       idempotencyKey: command.idempotencyKey,
       libraryGeneration: generation,
       payload,
     });
     if (!created.created && created.operation.status === 'done') {
-      return { operation: created.operation, projection: getLibraryProjection(item.itemId) };
+      return { operation: created.operation, projection: getLibraryProjection(item.subjectId) };
     }
     if (created.created) {
-      store.upsertLibraryItem({ itemId: item.itemId, desiredState: 'closed', phase: 'offboarding', admissionGeneration: generation });
-      store.appendEvent({ itemId: item.itemId, operationId: created.operation.operationId, eventType: 'libra.offboarding_requested', generation, payload });
+      store.upsertLibrarySubject({ subjectId: item.subjectId, desiredState: 'closed', phase: 'offboarding', admissionGeneration: generation });
+      store.appendEvent({ subjectId: item.subjectId, operationId: created.operation.operationId, eventType: 'libra.offboarding_requested', generation, payload });
     }
     store.updateOperation(created.operation.operationId, { status: 'running', step: 'kairox_suspend', incrementAttempt: true });
     try {
       const suspended = await Promise.resolve(kairoxService.suspendMaintenance({
-        itemId: item.itemId,
+        subjectId: item.subjectId,
         admissionGeneration: generation,
         reason: 'offboarding',
       }));
       store.updateOperation(created.operation.operationId, { status: 'running', step: 'nexora_cleanup' });
       const cleanup = await Promise.resolve(nexoraService.ensureOffboarding({
-        itemId: item.itemId,
+        subjectId: item.subjectId,
         cleanupMode,
         destructiveAuthorization: command.destructiveAuthorization === true,
         libraryGeneration: generation,
         idempotencyKey: command.idempotencyKey,
       }));
-      const closed = store.upsertLibraryItem({
-        itemId: item.itemId,
+      const closed = store.upsertLibrarySubject({
+        subjectId: item.subjectId,
         membershipStatus: 'closed',
         desiredState: 'closed',
         phase: 'closed',
@@ -842,12 +756,12 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
         blockedReason: '',
         sourceRevision: cleanup.sourceProjection && cleanup.sourceProjection.sourceRevision || item.sourceRevision,
       });
-      store.appendEvent({ itemId: item.itemId, operationId: created.operation.operationId, eventType: 'libra.offboarding_completed', generation, payload: { cleanupMode } });
+      store.appendEvent({ subjectId: item.subjectId, operationId: created.operation.operationId, eventType: 'libra.offboarding_completed', generation, payload: { cleanupMode } });
       const operation = store.updateOperation(created.operation.operationId, {
         status: 'done', step: 'completed', errorCode: '', errorMessage: '',
         result: { cleanup, interruptedTasks: suspended && suspended.interruptedTasks || [] },
       });
-      return { operation, projection: getLibraryProjection(closed.itemId) };
+      return { operation, projection: getLibraryProjection(closed.subjectId) };
     } catch (error) {
       store.updateOperation(created.operation.operationId, {
         status: 'retrying',
@@ -860,7 +774,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
   }
 
   async function requestOffboardingBatch(command = {}) {
-    const itemIds = [...new Set((command.itemIds || []).map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+    const subjectIds = [...new Set((command.subjectIds || []).map((subjectId) => String(subjectId || '').trim()).filter(Boolean))];
     const idempotencyKey = String(command.idempotencyKey || '').trim();
     if (!idempotencyKey) throw new HelixError('LIBRA_IDEMPOTENCY_KEY_REQUIRED', 'idempotencyKey is required');
     const cleanupMode = String(command.cleanupMode || 'retain_source');
@@ -870,33 +784,33 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     const results = [];
     const failures = [];
     let alreadyClosed = 0;
-    for (const itemId of itemIds) {
-      const projection = getLibraryProjection(itemId);
+    for (const subjectId of subjectIds) {
+      const projection = getLibraryProjection(subjectId);
       if (projection && projection.membership.status === 'closed') {
         alreadyClosed += 1;
-        results.push({ itemId, status: 'already_closed', phase: projection.phase });
+        results.push({ subjectId, status: 'already_closed', phase: projection.phase });
         continue;
       }
       try {
         const result = await requestOffboarding({
-          itemId,
+          subjectId,
           cleanupMode,
           reason: command.reason || 'sub_library_removed',
           destructiveAuthorization: false,
-          idempotencyKey: `${idempotencyKey}:${itemId}`,
+          idempotencyKey: `${idempotencyKey}:${subjectId}`,
         });
         results.push({
-          itemId,
+          subjectId,
           status: 'closed',
           operationId: result.operation && result.operation.operationId || '',
           phase: result.projection && result.projection.phase || '',
         });
       } catch (error) {
-        failures.push({ itemId, code: error.code || 'LIBRA_OFFBOARDING_FAILED', message: error.message });
+        failures.push({ subjectId, code: error.code || 'LIBRA_OFFBOARDING_FAILED', message: error.message });
       }
     }
     return {
-      requested: itemIds.length,
+      requested: subjectIds.length,
       closed: results.filter((entry) => entry.status === 'closed').length,
       alreadyClosed,
       failed: failures.length,

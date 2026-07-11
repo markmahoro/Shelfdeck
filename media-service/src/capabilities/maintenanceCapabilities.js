@@ -11,7 +11,7 @@ const optimizeGapAnalyzer = require('../optimizeGapAnalyzer');
 const mediaReplacementService = require('../mediaReplacementService');
 
 function sourcePathFor(task) {
-  const canonical = task.itemInfo && (task.itemInfo.path || task.itemInfo.sourcePath) || task.helixAdmission && task.helixAdmission.sourceAccessDescriptor && task.helixAdmission.sourceAccessDescriptor.locator && task.helixAdmission.sourceAccessDescriptor.locator.path;
+  const canonical = task.subjectInfo && (task.subjectInfo.path || task.subjectInfo.sourcePath) || task.helixAdmission && task.helixAdmission.sourceAccessDescriptor && task.helixAdmission.sourceAccessDescriptor.locator && task.helixAdmission.sourceAccessDescriptor.locator.path;
   return sourceAccessResolver.resolve(canonical, { mustExist: true }).accessPath;
 }
 function normalizeCodec(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '').replace('hevc', 'h265').replace('avc', 'h264'); }
@@ -20,9 +20,9 @@ function resolutionPixels(value) { const text = String(value || '').toLowerCase(
 function registerMaintenanceCapabilities(register) {
   register({ capability: 'optimization.objective.verify', allowedTargetGates: ['optimize'], execute: async ({ task, event }) => {
     const analysis = optimizeGapAnalyzer.analyze({
-      itemInfo: task.itemInfo || {},
-      optimizeObjective: task.taskTarget && task.taskTarget.gateObjective || task.itemInfo && task.itemInfo.optimizeObjective,
-      optimizeObjectiveStatus: task.itemInfo && task.itemInfo.optimizeObjectiveStatus,
+      subjectInfo: task.subjectInfo || {},
+      optimizeObjective: task.taskTarget && task.taskTarget.gateObjective || task.subjectInfo && task.subjectInfo.optimizeObjective,
+      optimizeObjectiveStatus: task.subjectInfo && task.subjectInfo.optimizeObjectiveStatus,
       objectiveHash: task.objectiveRevisionSnapshot || '',
     });
     if (!analysis.satisfied) throw Object.assign(new Error(`Optimize objective is not satisfied: ${analysis.reason}`), { code: 'OPTIMIZE_OBJECTIVE_NOT_SATISFIED', details: analysis });
@@ -38,14 +38,14 @@ function registerMaintenanceCapabilities(register) {
     const objectiveScope = context.parameters.objectiveScope || 'full';
     if (objectiveScope === 'full' && target.targetCodec && normalizeCodec(summary.videoCodec) !== normalizeCodec(target.targetCodec)) throw Object.assign(new Error(`Output codec ${summary.videoCodec} does not satisfy ${target.targetCodec}`), { code: 'OPTIMIZE_CODEC_MISMATCH' });
     if (target.minResolution && summary.width * summary.height < resolutionPixels(target.minResolution)) throw Object.assign(new Error(`Output resolution ${summary.width}x${summary.height} is below ${target.minResolution}`), { code: 'OPTIMIZE_RESOLUTION_MISMATCH' });
-    const profile = staged.bitrateProfile || bitrateObjectiveProfile.resolveBitrateProfile({ objective: { targetMediaFacts: target }, item: { ...context.task.itemInfo, width: summary.width, height: summary.height } });
+    const profile = staged.bitrateProfile || bitrateObjectiveProfile.resolveBitrateProfile({ objective: { targetMediaFacts: target }, item: { ...context.task.subjectInfo, width: summary.width, height: summary.height } });
     const bitrateComparison = profile ? bitrateObjectiveProfile.compareBitrateToProfile(bitrateKbps / 1000, profile) : { status: 'no_profile' };
     const bitrateSatisfied = objectiveScope === 'upgrade_stage'
       ? bitrateComparison.status !== 'below'
       : ['within', 'no_profile'].includes(bitrateComparison.status);
     return { result: { stagedAsset: staged, valid: true, objectiveSatisfied: bitrateSatisfied, objectiveScope, bitrateComparison, outputPath, sizeBytes, bitrateKbps, summary, sourcePath: staged.sourcePath, originalSizeBytes: staged.originalSizeBytes, workDir: staged.workDir } };
   } });
-  register({ capability: 'media.replace', allowedTargetGates: ['optimize'], execute: async (context) => {
+  register({ capability: 'media.file.replace', allowedTargetGates: ['optimize'], execute: async (context) => {
     sourceAccessResolver.assertTaskRevision(context.task); const verified = context.input.verifiedAsset;
     if (!verified.valid || !verified.outputPath || !verified.sourcePath) throw Object.assign(new Error('Verified optimize output is unavailable'), { code: 'OPTIMIZE_REPLACE_INPUT_MISSING' });
     context.assertFence('before_media_replace');
@@ -54,29 +54,40 @@ function registerMaintenanceCapabilities(register) {
   } });
   register({ capability: 'source.organize', allowedTargetGates: ['optimize'], execute: async (context) => {
     sourceAccessResolver.assertTaskRevision(context.task); const sourcePath = sourcePathFor(context.task); const descriptor = context.task.helixAdmission && context.task.helixAdmission.sourceAccessDescriptor || {};
-    const library = (context.config.subLibraries || []).find((entry) => entry.uuid === descriptor.subLibraryId) || {}; const facts = context.task.itemInfo && context.task.itemInfo.metadataFacts || context.task.itemInfo || {};
+    const library = (context.config.subLibraries || []).find((entry) => entry.uuid === descriptor.subLibraryId) || {}; const facts = context.task.subjectInfo && context.task.subjectInfo.metadataFacts || context.task.subjectInfo || {};
     const identity = String(facts.adultId || facts.title || path.basename(sourcePath, path.extname(sourcePath))).replace(/[<>:"/\\|?*]/g, '_').trim();
     const destinationDir = path.join(library.watchRoot || path.dirname(sourcePath), library.organizedFolderName || context.config.adultLibrary && context.config.adultLibrary.organizedFolderName || 'scraped', identity); fs.mkdirSync(destinationDir, { recursive: true });
     const destination = path.join(destinationDir, path.basename(sourcePath));
     context.assertFence('before_source_organize');
     if (path.resolve(destination) !== path.resolve(sourcePath)) { const sourceExists = fs.existsSync(sourcePath); const destinationExists = fs.existsSync(destination); if (sourceExists && destinationExists) throw Object.assign(new Error('Organize destination already exists while source is still present'), { code: 'SOURCE_ORGANIZE_DESTINATION_CONFLICT' }); if (sourceExists) fs.renameSync(sourcePath, destination); else if (!destinationExists) throw Object.assign(new Error('Neither organize source nor committed destination exists'), { code: 'SOURCE_ORGANIZE_RECOVERY_UNRESOLVED' }); }
-    const mutation = { mutationId: `mutation:${context.event.eventId}`, itemId: context.task.itemId, taskId: context.task.id, eventId: context.event.eventId, mutationKind: 'organize', oldSourceEvidence: { path: sourcePath }, newSourceEvidence: { path: destination }, admissionGeneration: context.task.helixAdmission && context.task.helixAdmission.admissionGeneration || 0, sourceRevision: context.task.helixAdmission && context.task.helixAdmission.sourceRevision || '', mappingRevision: sourceAccessResolver.getRevision(), committedAt: new Date().toISOString() };
+    const mutation = { mutationId: `mutation:${context.event.eventId}`, subjectId: context.task.subjectId, taskId: context.task.id, eventId: context.event.eventId, mutationKind: 'organize', oldSourceEvidence: { path: sourcePath }, newSourceEvidence: { path: destination }, admissionGeneration: context.task.helixAdmission && context.task.helixAdmission.admissionGeneration || 0, sourceRevision: context.task.helixAdmission && context.task.helixAdmission.sourceRevision || '', mappingRevision: sourceAccessResolver.getRevision(), committedAt: new Date().toISOString() };
     return { result: { destination, sourceMutationResult: mutation }, commitMarker: mutation.mutationId };
   } });
   register({ capability: 'metadata.artifacts.materialize', allowedTargetGates: ['optimize'], execute: async (context) => {
-    sourceAccessResolver.assertTaskRevision(context.task); const revision = String(context.task.itemInfo && context.task.itemInfo.metadataArtifactRevision || context.task.objectiveRevisionSnapshot || context.task.id);
-    const verified = artifacts.verifyManifest(context.config, context.task.itemId, revision); if (!verified.valid) throw Object.assign(new Error(`Metadata artifact manifest is invalid: ${verified.reason}`), { code: 'METADATA_ARTIFACT_MANIFEST_INVALID' });
+    sourceAccessResolver.assertTaskRevision(context.task); const revision = String(context.task.subjectInfo && context.task.subjectInfo.metadataArtifactRevision || context.task.objectiveRevisionSnapshot || context.task.id);
+    const verified = artifacts.verifyManifest(context.config, context.task.subjectId, revision); if (!verified.valid) throw Object.assign(new Error(`Metadata artifact manifest is invalid: ${verified.reason}`), { code: 'METADATA_ARTIFACT_MANIFEST_INVALID' });
     context.assertFence('before_metadata_artifacts_materialize');
     const targetDir = path.dirname(sourcePathFor(context.task)); const written = [];
-    for (const [name, artifact] of Object.entries(verified.manifest.artifacts || {})) { const source = path.join(artifacts.revisionDir(context.config, context.task.itemId, revision), name); const record = artifacts.atomicWrite(path.join(targetDir, name), fs.readFileSync(source)); if (record.sha256 !== artifact.sha256) throw Object.assign(new Error(`Materialized artifact checksum mismatch: ${name}`), { code: 'METADATA_ARTIFACT_MATERIALIZE_VERIFY_FAILED' }); written.push(record); }
-    return { result: { targetDir, written, metadataRevision: revision }, commitMarker: `materialize:${context.task.itemId}:${revision}` };
+    for (const [name, artifact] of Object.entries(verified.manifest.artifacts || {})) { const source = path.join(artifacts.revisionDir(context.config, context.task.subjectId, revision), name); const record = artifacts.atomicWrite(path.join(targetDir, name), fs.readFileSync(source)); if (record.sha256 !== artifact.sha256) throw Object.assign(new Error(`Materialized artifact checksum mismatch: ${name}`), { code: 'METADATA_ARTIFACT_MATERIALIZE_VERIFY_FAILED' }); written.push(record); }
+    return { result: { targetDir, written, metadataRevision: revision }, commitMarker: `materialize:${context.task.subjectId}:${revision}` };
   } });
   register({ capability: 'filesystem.layout.verify', allowedTargetGates: ['optimize'], execute: async (context) => { const sourcePath = sourcePathFor(context.task); return { result: { valid: fs.existsSync(sourcePath), path: sourcePath, materialized: context.input.materialization && context.input.materialization.written || [] } }; } });
+  register({ capability: 'series.assets.layout.verify', allowedTargetGates: ['optimize'], execute: async (context) => {
+    const assets = context.task.helixAdmission && context.task.helixAdmission.assets || [];
+    const missing = assets.filter((asset) => !asset.canonicalLocator || !fs.existsSync(sourceAccessResolver.resolve(asset.canonicalLocator.path, { mustExist: false }).accessPath)).map((asset) => asset.assetId);
+    return { result: { valid: missing.length === 0, assetCount: assets.length, missing, outcomes: context.input.outcomes } };
+  } });
   register({ capability: 'optimization.result.publish', allowedTargetGates: ['optimize'], execute: async ({ task, event, input, assertFence }) => {
     if (!input.layout || input.layout.valid !== true) throw Object.assign(new Error('Optimize layout verification did not pass'), { code: 'OPTIMIZE_LAYOUT_NOT_VERIFIED' });
     assertFence('before_optimize_publish');
-    kairoxStore.publishOptimize({ itemId: task.itemId, objectiveRevision: task.objectiveRevisionSnapshot || '', facts: { passed: true, metadataArtifactsMaterialized: !!(input.layout.materialized && input.layout.materialized.length), replacement: input.replacement || null }, evidence: { taskId: task.id, eventId: event.eventId }, observedAt: new Date().toISOString() });
+    kairoxStore.publishOptimize({ subjectId: task.subjectId, objectiveRevision: task.objectiveRevisionSnapshot || '', facts: { passed: true, metadataArtifactsMaterialized: !!(input.layout.materialized && input.layout.materialized.length), replacement: input.replacement || null }, evidence: { taskId: task.id, eventId: event.eventId }, observedAt: new Date().toISOString() });
     return { result: { passed: true, objectiveRevision: task.objectiveRevisionSnapshot || '' }, evidence: { taskId: task.id, eventId: event.eventId }, commitMarker: `optimize:${task.objectiveRevisionSnapshot || task.id}` };
+  } });
+  register({ capability: 'series.optimization.result.publish', allowedTargetGates: ['optimize'], execute: async ({ task, event, input, assertFence }) => {
+    if (!input.layout || input.layout.valid !== true) throw Object.assign(new Error('Series Asset layout verification did not pass'), { code: 'SERIES_OPTIMIZE_LAYOUT_NOT_VERIFIED' });
+    assertFence('before_series_optimize_publish');
+    kairoxStore.publishOptimize({ subjectId: task.subjectId, objectiveRevision: task.objectiveRevisionSnapshot || '', facts: { passed: true, assetOutcomes: input.replacements }, evidence: { taskId: task.id, eventId: event.eventId }, observedAt: new Date().toISOString() });
+    return { result: { passed: true, objectiveRevision: task.objectiveRevisionSnapshot || '' }, commitMarker: `series-optimize:${task.objectiveRevisionSnapshot || task.id}` };
   } });
 }
 

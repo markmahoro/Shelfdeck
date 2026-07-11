@@ -6,9 +6,9 @@ const capabilityRegistry = require('./capabilityRegistry');
 const transcodeDevicePlan = require('./transcodeDevicePlan');
 
 const REQUIRED = Object.freeze({
-  basedata: new Set(['emby.item.observe', 'filesystem.media.probe', 'filesystem.layout.observe', 'basedata.verify', 'basedata.publish']),
-  metadata: new Set(['media.identity.resolve', 'metadata.provider.fetch', 'media.frames.extract', 'person.faces.embed', 'person.faces.cluster', 'person.faces.match', 'metadata.poster.compose', 'adult.metadata.compose', 'compute.asset.register', 'compute.asset.upload', 'adult.analysis.request', 'adult.analysis.observe', 'adult.metadata.normalize', 'person.relations.resolve', 'metadata.sidecar.render', 'metadata.image.acquire', 'metadata.artifacts.verify', 'metadata.publish']),
-  optimize: new Set(['integration.moviepilot.check', 'media.upgrade.identity.resolve', 'source.upgrade.search', 'source.upgrade.request', 'source.upgrade.observe-download', 'source.upgrade.observe-transfer', 'source.upgrade.output.resolve', 'source.upgrade.output.settle', 'media.identity.inspect', 'media.identity.accept', 'media.transcode.precheck', 'transcode.tonemap.accept', 'media.transcode', 'container.remux', 'optimization.objective.verify', 'output.media.verify', 'output.media.select', 'output.media.disposition', 'output.preview.generate', 'source.organize', 'metadata.artifacts.materialize', 'filesystem.layout.verify', 'media.replace', 'staged.asset.discard', 'workspace.cleanup', 'optimization.outcome.select', 'optimization.result.publish']),
+  basedata: new Set(['emby.item.observe', 'filesystem.media.probe', 'filesystem.layout.observe', 'basedata.verify', 'basedata.publish', 'basedata.subject.publish']),
+  metadata: new Set(['media.identity.resolve', 'series.identity.resolve', 'metadata.provider.fetch', 'series.metadata.provider.fetch', 'media.frames.extract', 'person.faces.embed', 'person.faces.cluster', 'person.faces.match', 'metadata.poster.compose', 'adult.metadata.compose', 'compute.asset.register', 'compute.asset.upload', 'adult.analysis.request', 'adult.analysis.observe', 'adult.metadata.normalize', 'person.relations.resolve', 'metadata.sidecar.render', 'series.metadata.sidecar.render', 'metadata.image.acquire', 'metadata.artifacts.verify', 'metadata.publish', 'series.metadata.publish']),
+  optimize: new Set(['integration.moviepilot.check', 'media.upgrade.identity.resolve', 'source.upgrade.search', 'source.upgrade.request', 'source.upgrade.observe-download', 'source.upgrade.observe-transfer', 'source.upgrade.output.resolve', 'source.upgrade.output.settle', 'series.upgrade.identity.resolve', 'source.season-upgrade.search', 'source.season-upgrade.output.resolve', 'series.season-package.verify', 'media.identity.inspect', 'media.identity.accept', 'media.transcode.precheck', 'transcode.tonemap.accept', 'media.transcode', 'container.remux', 'optimization.objective.verify', 'output.media.verify', 'output.media.select', 'output.media.disposition', 'output.preview.generate', 'source.organize', 'metadata.artifacts.materialize', 'filesystem.layout.verify', 'series.assets.layout.verify', 'media.file.replace', 'series.season.replace', 'staged.asset.discard', 'workspace.cleanup', 'optimization.outcome.select', 'optimization.result.publish', 'series.optimization.result.publish']),
 });
 
 function text(value) { return String(value == null ? '' : value).trim(); }
@@ -17,7 +17,7 @@ function from(eventId) { return { source: 'event', eventId }; }
 function fromMany(eventIds) { return { source: 'events', eventIds }; }
 
 function subLibraryFor(task, config) {
-  const id = text(task.itemInfo && task.itemInfo.subLibraryId || task.helixAdmission && task.helixAdmission.sourceAccessDescriptor && task.helixAdmission.sourceAccessDescriptor.subLibraryId);
+  const id = text(task.subjectInfo && task.subjectInfo.subLibraryId || task.helixAdmission && task.helixAdmission.sourceAccessDescriptor && task.helixAdmission.sourceAccessDescriptor.subLibraryId);
   return (config.subLibraries || []).find((entry) => entry.uuid === id) || {};
 }
 
@@ -44,22 +44,51 @@ function requireAvailable(capabilities, rejected) {
   return missing.length === 0;
 }
 
+function firstSeriesSeasonGap(task, target = {}) {
+  if (task.taskTarget && task.taskTarget.gateObjective && task.taskTarget.gateObjective.seasonKey != null) return String(task.taskTarget.gateObjective.seasonKey);
+  const factsByAsset = new Map((((task.subjectInfo || {}).basedataFacts || {}).assets || []).map((entry) => [entry.assetId, entry.facts || {}]));
+  const seasons = [...new Set((task.helixAdmission && task.helixAdmission.assets || []).map((asset) => String(asset.seasonKey || '')).filter(Boolean))]
+    .sort((a, b) => Number(a) - Number(b) || a.localeCompare(b));
+  const normalizeCodec = (value) => String(value || '').toLowerCase().replace('hevc', 'h265').replace('avc', 'h264');
+  const pixels = (value) => { const match = String(value || '').match(/(\d+)\D+(\d+)/); return match ? Number(match[1]) * Number(match[2]) : String(value || '').includes('2160') ? 3840 * 2160 : String(value || '').includes('1080') ? 1920 * 1080 : 0; };
+  return seasons.find((seasonKey) => (task.helixAdmission.assets || []).filter((asset) => String(asset.seasonKey) === seasonKey).some((asset) => {
+    const facts = factsByAsset.get(asset.assetId) || {};
+    return target.targetCodec && normalizeCodec(facts.codec || facts.videoCodec) !== normalizeCodec(target.targetCodec)
+      || target.minResolution && pixels(facts.resolution) < pixels(target.minResolution);
+  })) || seasons[0] || '';
+}
+
 function basedataNodes(task) {
   const descriptor = task.helixAdmission && task.helixAdmission.sourceAccessDescriptor || {};
-  const observe = descriptor.sourceType === 'emby' ? 'emby.item.observe' : 'filesystem.media.probe';
-  return [
-    event(task.id, 'observe', observe, [], { resourceRequest: { resourceType: descriptor.sourceType === 'emby' ? 'emby' : 'filesystem' } }),
-    event(task.id, 'layout', 'filesystem.layout.observe', [`${task.id}:observe`], { when: descriptor.sourceType === 'emby' ? false : true, resourceRequest: { resourceType: 'filesystem' } }),
-    event(task.id, 'verify', 'basedata.verify', [`${task.id}:observe`, `${task.id}:layout`], { inputBindings: { observation: from(`${task.id}:observe`), layout: from(`${task.id}:layout`) } }),
-    event(task.id, 'publish', 'basedata.publish', [`${task.id}:verify`], { inputBindings: { basedata: from(`${task.id}:verify`) }, outputContract: { basedataRevision: 'number' } }),
-  ];
+  const assets = task.helixAdmission && task.helixAdmission.assets || [];
+  if (!assets.length) return [event(task.id, 'blocked', 'workflow.blocked', [], { parameters: { reason: 'subject_manifest_empty' } })];
+  const nodes = [];
+  const publishes = [];
+  for (const asset of assets) {
+    const suffix = asset.assetId.replace(/[^A-Za-z0-9_-]/g, '_');
+    const observeId = `${task.id}:asset-${suffix}-observe`;
+    const layoutId = `${task.id}:asset-${suffix}-layout`;
+    const verifyId = `${task.id}:asset-${suffix}-verify`;
+    const publishId = `${task.id}:asset-${suffix}-publish`;
+    const snapshot = { source: 'snapshot', value: asset };
+    const observe = descriptor.sourceType === 'emby' ? 'emby.item.observe' : 'filesystem.media.probe';
+    nodes.push(event(task.id, `asset-${suffix}-observe`, observe, [], { inputBindings: { asset: snapshot }, assetScope: { assetId: asset.assetId, seasonKey: asset.seasonKey || '', episodeKey: asset.episodeKey || '' }, resourceRequest: { resourceType: descriptor.sourceType === 'emby' ? 'emby' : 'filesystem' } }));
+    nodes.push(event(task.id, `asset-${suffix}-layout`, 'filesystem.layout.observe', [observeId], { inputBindings: { asset: snapshot }, when: descriptor.sourceType === 'emby' ? false : true, assetScope: { assetId: asset.assetId, seasonKey: asset.seasonKey || '', episodeKey: asset.episodeKey || '' }, resourceRequest: { resourceType: 'filesystem' } }));
+    nodes.push(event(task.id, `asset-${suffix}-verify`, 'basedata.verify', [observeId, layoutId], { inputBindings: { observation: from(observeId), layout: from(layoutId) }, assetScope: { assetId: asset.assetId, seasonKey: asset.seasonKey || '', episodeKey: asset.episodeKey || '' } }));
+    nodes.push(event(task.id, `asset-${suffix}-publish`, 'basedata.publish', [verifyId], { inputBindings: { basedata: from(verifyId) }, assetScope: { assetId: asset.assetId, seasonKey: asset.seasonKey || '', episodeKey: asset.episodeKey || '' }, outputContract: { basedataRevision: 'number' } }));
+    publishes.push(publishId);
+  }
+  nodes.push(event(task.id, 'subject-publish', 'basedata.subject.publish', publishes, { inputBindings: { assets: fromMany(publishes) }, outputContract: { basedataRevision: 'number' } }));
+  return nodes;
 }
 
 function metadataNodes(task, config) {
   const descriptor = task.helixAdmission && task.helixAdmission.sourceAccessDescriptor || {};
   const library = subLibraryFor(task, config);
   const allowed = allowedSideEffects(task, config, 'metadata');
-  const nodes = [event(task.id, 'identity', 'media.identity.resolve')];
+  const isSeries = String(task.subjectInfo && (task.subjectInfo.subjectKind || task.subjectInfo.type) || '').toLowerCase() === 'series';
+  const identityCapability = isSeries ? 'series.identity.resolve' : 'media.identity.resolve';
+  const nodes = [event(task.id, 'identity', identityCapability)];
   let metadataEventId;
   if (library.adultRegion === 'western_adult') {
     const western = { ...((config.adultLibrary || {}).western || {}), ...(library.western || {}) };
@@ -79,13 +108,13 @@ function metadataNodes(task, config) {
     }
     metadataEventId = `${task.id}:adult-metadata`;
   } else {
-    nodes.push(event(task.id, 'metadata-fetch', 'metadata.provider.fetch', [`${task.id}:identity`], { inputBindings: { identity: from(`${task.id}:identity`) }, resourceRequest: { resourceType: descriptor.sourceType === 'emby' ? 'emby' : 'scraper' } }));
+    nodes.push(event(task.id, 'metadata-fetch', isSeries ? 'series.metadata.provider.fetch' : 'metadata.provider.fetch', [`${task.id}:identity`], { inputBindings: { identity: from(`${task.id}:identity`) }, resourceRequest: { resourceType: descriptor.sourceType === 'emby' ? 'emby' : 'scraper' } }));
     metadataEventId = `${task.id}:metadata-fetch`;
   }
   nodes.push(event(task.id, 'people', 'person.relations.resolve', [metadataEventId], { inputBindings: { metadata: from(metadataEventId) } }));
   let tail = `${task.id}:people`;
   const artifactCapabilities = [
-    ['nfo', 'metadata.sidecar.render', null],
+    ['nfo', isSeries ? 'series.metadata.sidecar.render' : 'metadata.sidecar.render', null],
     ['poster', 'metadata.image.acquire', 'poster'],
     ['fanart', 'metadata.image.acquire', 'fanart'],
   ];
@@ -104,16 +133,16 @@ function metadataNodes(task, config) {
   }
   const publishBindings = { metadata: from(`${task.id}:people`) };
   if (artifactNodes.length) publishBindings.artifacts = from(`${task.id}:artifacts-verify`);
-  nodes.push(event(task.id, 'metadata-publish', 'metadata.publish', [...new Set([`${task.id}:people`, tail])], { inputBindings: publishBindings }));
+  nodes.push(event(task.id, 'metadata-publish', isSeries ? 'series.metadata.publish' : 'metadata.publish', [...new Set([`${task.id}:people`, tail])], { inputBindings: publishBindings }));
   return { nodes, explanation: { selectedCapabilities: nodes.map((node) => node.capability), rejected: [] }, classification: descriptor.sourceType === 'emby' ? 'metadata_observation' : 'metadata_enrichment', library };
 }
 
 function optimizeNodes(task, config) {
-  const item = task.itemInfo || {};
+  const item = task.subjectInfo || {};
   const allowed = allowedSideEffects(task, config, 'optimize');
   const rejected = [];
   const selection = optimizeGapAnalyzer.analyze({
-    itemInfo: item,
+    subjectInfo: item,
     optimizeObjective: task.taskTarget && task.taskTarget.gateObjective || item.optimizeObjective,
     optimizeObjectiveStatus: item.optimizeObjectiveStatus,
     objectiveHash: task.objectiveRevisionSnapshot || item.objectiveHash,
@@ -134,7 +163,7 @@ function optimizeNodes(task, config) {
     const cleanupId = `${task.id}:${prefix}-cleanup`;
     add(`${prefix}-disposition`, 'output.media.disposition', { dependsOn: [verifiedId], inputBindings: { verifiedAsset: from(verifiedId) } });
     add(`${prefix}-preview`, 'output.preview.generate', { inputBindings: { verifiedAsset: from(dispositionId) }, resourceRequest: { resourceType: 'transcode' } });
-    add(`${prefix}-replace`, 'media.replace', { inputBindings: { verifiedAsset: from(previewId) }, runWhen: { port: 'verifiedAsset', path: 'action', equals: 'replace' }, resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: approvalGate } });
+    add(`${prefix}-replace`, 'media.file.replace', { inputBindings: { verifiedAsset: from(previewId) }, runWhen: { port: 'verifiedAsset', path: 'action', equals: 'replace' }, resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: approvalGate } });
     add(`${prefix}-discard`, 'staged.asset.discard', { dependsOn: [dispositionId], inputBindings: { verifiedAsset: from(dispositionId) }, runWhen: { port: 'verifiedAsset', path: 'action', equals: 'discard' }, resourceRequest: { resourceType: 'filesystem' } });
     add(`${prefix}-cleanup`, 'workspace.cleanup', { dependsOn: [replaceId], inputBindings: { replacement: from(replaceId) }, runWhen: { port: 'replacement' }, resourceRequest: { resourceType: 'filesystem' } });
     add(`${prefix}-outcome`, 'optimization.outcome.select', { dependsOn: [replaceId, discardId, cleanupId], inputBindings: { outcomes: fromMany([replaceId, discardId]) } });
@@ -145,11 +174,68 @@ function optimizeNodes(task, config) {
   if (needsSubtitle) rejected.push({ capability: 'subtitle.download', reason: 'objective_capability_not_implemented' });
   const strategies = new Set((selection.gap || []).map((gap) => gap.requiredStrategy));
   const hasUpgradeAndTranscode = strategies.has('upgrade') && strategies.has('transcode');
-  const mediaKind = text(item.mediaKind || item.type || 'movie').toLowerCase();
-  if (strategies.has('upgrade') && ['episode', 'season', 'series'].includes(mediaKind)) {
-    rejected.push({ capability: 'source.upgrade.request', reason: 'series_scope_upgrade_architecture_unresolved' });
+  const mediaKind = text(item.subjectKind || item.mediaKind || item.type || 'movie').toLowerCase();
+  if (strategies.has('upgrade') && mediaKind === 'series' && requireAllowed(allowed, 'source.upgrade.request', rejected) && requireAllowed(allowed, 'series.season.replace', rejected)) {
+    const seasonKey = firstSeriesSeasonGap(task, target);
+    if (!seasonKey) return { nodes: [event(task.id, 'blocked', 'workflow.blocked', [], { parameters: { reason: 'series_season_scope_missing' } })], classification: 'blocked', explanation: { objectiveGap: selection.gap || [], selectedCapabilities: [], rejected: [{ capability: 'series.upgrade.identity.resolve', reason: 'series_season_scope_missing' }] } };
+    add('moviepilot-check', 'integration.moviepilot.check', { resourceRequest: { resourceType: 'moviepilot' } });
+    add('series-upgrade-identity', 'series.upgrade.identity.resolve', { inputBindings: { integration: from(`${task.id}:moviepilot-check`) }, parameters: { seasonKey }, resourceRequest: { resourceType: 'moviepilot' } });
+    add('season-upgrade-search', 'source.season-upgrade.search', { inputBindings: { identity: from(`${task.id}:series-upgrade-identity`) }, resourceRequest: { resourceType: 'moviepilot' } });
+    add('season-upgrade-request', 'source.upgrade.request', { inputBindings: { candidates: from(`${task.id}:season-upgrade-search`) }, resourceRequest: { resourceType: 'moviepilot' }, approvalRequirement: { gateId: 'upgrade.candidateSelect', forceWhenInput: { port: 'candidates', path: 'forceConfirmation', equals: true } } });
+    add('season-upgrade-download-observe', 'source.upgrade.observe-download', { inputBindings: { request: from(`${task.id}:season-upgrade-request`) }, resourceRequest: { resourceType: 'moviepilot' }, retryPolicy: { maxAttempts: 2160 } });
+    add('season-upgrade-transfer', 'source.upgrade.observe-transfer', { inputBindings: { request: from(`${task.id}:season-upgrade-request`), download: from(`${task.id}:season-upgrade-download-observe`) }, dependsOn: [`${task.id}:season-upgrade-request`, `${task.id}:season-upgrade-download-observe`], resourceRequest: { resourceType: 'moviepilot' }, retryPolicy: { maxAttempts: 2160 } });
+    add('season-upgrade-output', 'source.season-upgrade.output.resolve', { inputBindings: { transfer: from(`${task.id}:season-upgrade-transfer`) }, parameters: { seasonKey }, resourceRequest: { resourceType: 'filesystem' }, retryPolicy: { maxAttempts: 120 } });
+    add('season-package-verify', 'series.season-package.verify', { inputBindings: { stagedAsset: from(`${task.id}:season-upgrade-output`) }, parameters: { seasonKey }, resourceRequest: { resourceType: 'filesystem' } });
+    add('season-replace', 'series.season.replace', { inputBindings: { verifiedSeasonPackage: from(`${task.id}:season-package-verify`) }, resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: 'upgrade.beforeReplace', forceWhenInput: { port: 'verifiedSeasonPackage', path: 'strongIdentity', equals: false } } });
+    return { nodes, classification: 'series_season_upgrade', explanation: { objectiveGap: selection.gap || [], selectedCapabilities: nodes.map((node) => node.capability), rejected } };
   }
-  if (strategies.has('upgrade') && !rejected.some((entry) => entry.reason === 'series_scope_upgrade_architecture_unresolved') && requireAllowed(allowed, 'source.upgrade.request', rejected)) {
+  if (strategies.has('transcode') && mediaKind === 'series') {
+    if (!requireAllowed(allowed, 'media.transcode', rejected) || !requireAllowed(allowed, 'media.file.replace', rejected)) {
+      return { nodes: [event(task.id, 'blocked', 'workflow.blocked', [], { parameters: { reason: 'required_capability_not_allowed', rejected } })], classification: 'blocked', explanation: { objectiveGap: selection.gap || [], selectedCapabilities: [], rejected } };
+    }
+    const assets = task.helixAdmission && task.helixAdmission.assets || [];
+    const rateAttempts = transcodeDevicePlan.buildRateControlPlan(transcodeDevicePlan.buildDeviceSlots(config));
+    const outcomes = [];
+    for (const asset of assets) {
+      const suffix = asset.assetId.replace(/[^A-Za-z0-9_-]/g, '_');
+      const scope = { assetId: asset.assetId, seasonKey: asset.seasonKey || '', episodeKey: asset.episodeKey || '' };
+      const precheckId = `${task.id}:asset-${suffix}-transcode-precheck`;
+      const tonemapId = `${task.id}:asset-${suffix}-tonemap`;
+      nodes.push(event(task.id, `asset-${suffix}-transcode-precheck`, 'media.transcode.precheck', [], { assetScope: scope, resourceRequest: { resourceType: 'transcode' } }));
+      nodes.push(event(task.id, `asset-${suffix}-tonemap`, 'transcode.tonemap.accept', [precheckId], { assetScope: scope, inputBindings: { precheck: from(precheckId) }, approvalRequirement: { gateId: 'transcode.dolbyVisionTonemap', whenInput: { port: 'precheck', path: 'isDolbyVision', equals: true } } }));
+      const verifyIds = [];
+      let previousVerifyId = '';
+      rateAttempts.forEach((attempt, index) => {
+        const encodeId = `${task.id}:asset-${suffix}-transcode-${index + 1}`;
+        const verifyId = `${task.id}:asset-${suffix}-verify-${index + 1}`;
+        nodes.push(event(task.id, `asset-${suffix}-transcode-${index + 1}`, 'media.transcode', [tonemapId, ...(previousVerifyId ? [previousVerifyId] : [])], { assetScope: scope, inputBindings: { precheck: from(tonemapId), ...(previousVerifyId ? { previousAttempt: from(previousVerifyId) } : {}) }, ...(previousVerifyId ? { runWhen: { port: 'previousAttempt', path: 'objectiveSatisfied', equals: false } } : {}), parameters: { strategy: attempt.strategy, encoderKind: attempt.encoderKind }, resourceRequest: { resourceType: 'transcode' } }));
+        nodes.push(event(task.id, `asset-${suffix}-verify-${index + 1}`, 'output.media.verify', [encodeId], { assetScope: scope, inputBindings: { stagedAsset: from(encodeId) }, runWhen: { port: 'stagedAsset' }, resourceRequest: { resourceType: 'filesystem' } }));
+        verifyIds.push(verifyId); previousVerifyId = verifyId;
+      });
+      const selectId = `${task.id}:asset-${suffix}-select`;
+      const dispositionId = `${task.id}:asset-${suffix}-disposition`;
+      const previewId = `${task.id}:asset-${suffix}-preview`;
+      const replaceId = `${task.id}:asset-${suffix}-replace`;
+      const discardId = `${task.id}:asset-${suffix}-discard`;
+      const cleanupId = `${task.id}:asset-${suffix}-cleanup`;
+      const outcomeId = `${task.id}:asset-${suffix}-outcome`;
+      nodes.push(event(task.id, `asset-${suffix}-select`, 'output.media.select', verifyIds, { assetScope: scope, inputBindings: { attempts: fromMany(verifyIds) } }));
+      nodes.push(event(task.id, `asset-${suffix}-disposition`, 'output.media.disposition', [selectId], { assetScope: scope, inputBindings: { verifiedAsset: from(selectId) } }));
+      nodes.push(event(task.id, `asset-${suffix}-preview`, 'output.preview.generate', [dispositionId], { assetScope: scope, inputBindings: { verifiedAsset: from(dispositionId) }, resourceRequest: { resourceType: 'transcode' } }));
+      nodes.push(event(task.id, `asset-${suffix}-replace`, 'media.file.replace', [previewId], { assetScope: scope, inputBindings: { verifiedAsset: from(previewId) }, runWhen: { port: 'verifiedAsset', path: 'action', equals: 'replace' }, resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: 'transcode.beforeReplace' } }));
+      nodes.push(event(task.id, `asset-${suffix}-discard`, 'staged.asset.discard', [dispositionId], { assetScope: scope, inputBindings: { verifiedAsset: from(dispositionId) }, runWhen: { port: 'verifiedAsset', path: 'action', equals: 'discard' }, resourceRequest: { resourceType: 'filesystem' } }));
+      nodes.push(event(task.id, `asset-${suffix}-cleanup`, 'workspace.cleanup', [replaceId], { assetScope: scope, inputBindings: { replacement: from(replaceId) }, runWhen: { port: 'replacement' }, resourceRequest: { resourceType: 'filesystem' } }));
+      nodes.push(event(task.id, `asset-${suffix}-outcome`, 'optimization.outcome.select', [replaceId, discardId, cleanupId], { assetScope: scope, inputBindings: { outcomes: fromMany([replaceId, discardId]) } }));
+      outcomes.push(outcomeId);
+    }
+    if (!assets.length || !rateAttempts.length) rejected.push({ capability: 'media.transcode', reason: !assets.length ? 'subject_manifest_empty' : 'transcode_attempt_plan_empty' });
+    if (rejected.length) return { nodes: [event(task.id, 'blocked', 'workflow.blocked', [], { parameters: { reason: 'required_capability_not_allowed', rejected } })], classification: 'blocked', explanation: { objectiveGap: selection.gap || [], selectedCapabilities: [], rejected } };
+    const layoutId = `${task.id}:series-layout-verify`;
+    nodes.push(event(task.id, 'series-layout-verify', 'series.assets.layout.verify', outcomes, { inputBindings: { outcomes: fromMany(outcomes) }, resourceRequest: { resourceType: 'filesystem' } }));
+    nodes.push(event(task.id, 'series-optimize-publish', 'series.optimization.result.publish', [layoutId, ...outcomes], { inputBindings: { layout: from(layoutId), replacements: fromMany(outcomes) } }));
+    return { nodes, classification: 'series_transcode', explanation: { objectiveGap: selection.gap || [], selectedCapabilities: nodes.map((node) => node.capability), rejected } };
+  }
+  if (strategies.has('upgrade') && mediaKind !== 'series' && requireAllowed(allowed, 'source.upgrade.request', rejected)) {
     add('moviepilot-check', 'integration.moviepilot.check', { resourceRequest: { resourceType: 'moviepilot' } });
     add('upgrade-identity-resolve', 'media.upgrade.identity.resolve', { inputBindings: { integration: from(`${task.id}:moviepilot-check`) }, resourceRequest: { resourceType: 'moviepilot' } });
     add('upgrade-search', 'source.upgrade.search', { inputBindings: { identity: from(`${task.id}:upgrade-identity-resolve`) }, resourceRequest: { resourceType: 'moviepilot' } });
@@ -166,7 +252,7 @@ function optimizeNodes(task, config) {
       resourceRequest: { resourceType: 'filesystem' },
     });
     add('upgrade-media-select', 'output.media.select', { inputBindings: { attempts: fromMany([`${task.id}:upgrade-media-verify`]) } });
-    if (requireAllowed(allowed, 'media.replace', rejected)) {
+    if (requireAllowed(allowed, 'media.file.replace', rejected)) {
       addMutationOutcome('upgrade', `${task.id}:upgrade-media-select`, 'upgrade.beforeReplace');
     }
   }
@@ -204,7 +290,7 @@ function optimizeNodes(task, config) {
     });
     if (!verifyIds.length) rejected.push({ capability: 'media.transcode', reason: 'transcode_attempt_plan_empty' });
     else add('transcode-media-select', 'output.media.select', { dependsOn: verifyIds, inputBindings: { attempts: fromMany(verifyIds) } });
-    if (requireAllowed(allowed, 'media.replace', rejected)) {
+    if (requireAllowed(allowed, 'media.file.replace', rejected)) {
       addMutationOutcome('transcode', `${task.id}:transcode-media-select`, 'transcode.beforeReplace');
     }
   }

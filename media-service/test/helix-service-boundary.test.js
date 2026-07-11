@@ -16,7 +16,7 @@ test('Helix service facades expose the accepted in-process contracts', () => {
   const { createKairoxService } = require('../src/kairoxService');
   const { createLibraService } = require('../src/libraService');
   const kairox = createKairoxService({ implementation: {
-    getMaintenanceProjection: (itemId) => ({ itemId }),
+    getMaintenanceProjection: (subjectId) => ({ subjectId }),
   } });
   const libra = createLibraService({ nexoraService: nexora, kairoxService: kairox });
 
@@ -67,37 +67,38 @@ test('Kairox objective reconciliation uses Kairox Store batch facts without per-
   const runtime = source('kairoxRuntime.js');
   const objectiveBody = runtime.match(/function reconcileObjectives[\s\S]*?\n  function suspendMaintenance/)[0];
   assert.match(objectiveBody, /facts\.getBundles\(ids\)/);
-  assert.doesNotMatch(objectiveBody, /facts\.getBundle\(itemId\)/);
+  assert.doesNotMatch(objectiveBody, /facts\.getBundle\(subjectId\)/);
 });
 
 test('Kairox batch projection reads Maintenance Runs in one Store query', () => {
   const runtime = source('kairoxRuntime.js');
   const projectionsBody = runtime.match(/function getMaintenanceProjections[\s\S]*?\n  function reconcileMaintenance/)[0];
   assert.match(projectionsBody, /facts\.getMaintenanceRuns\(ids\)/);
-  assert.doesNotMatch(projectionsBody, /facts\.getMaintenanceRun\(itemId\)/);
+  assert.doesNotMatch(projectionsBody, /facts\.getMaintenanceRun\(subjectId\)/);
 });
 
 test('Task Creator scopes authoritative TaskAdmission reads inside the Task Store transaction', () => {
   const creator = source('kairoxTaskCreator.js');
   const store = source('taskStore.js');
-  assert.match(creator, /admitAndCreateTask\(\{[\s\S]*?itemId:[\s\S]*?targetGate/);
+  assert.match(creator, /admitAndCreateTask\(\{[\s\S]*?subjectId:[\s\S]*?targetGate/);
   assert.match(store, /function queryTaskAdmissionRowsInner\(db = getDb\(\), scope = \{\}\)/);
   assert.match(store, /WHERE status NOT IN/);
-  assert.match(store, /WHERE item_id=\? AND target_gate=\? AND status IN/);
+  assert.match(store, /WHERE subject_id=\? AND target_gate=\? AND status IN/);
 });
 
-test('Libra observation bounds hierarchy and reconcile work to the current page', () => {
+test('Libra stages bounded pages and reconciles only finalized Subject Manifests', () => {
   const runtime = source('libraRuntime.js');
-  assert.match(runtime, /deferHierarchyResolution: true/);
-  assert.match(runtime, /resolveLibraryHierarchy\(subLibrary\.uuid, \{ changedOnly: true \}\)/);
-  assert.match(runtime, /reconciler\.reconcileBatch\(affectedItemIds\)/);
-  assert.doesNotMatch(runtime, /reconciler\.reconcileBatch\(hierarchy\.map/);
+  assert.match(runtime, /nexoraService\.stageObservationPage/);
+  assert.match(runtime, /if \(page\.done\)/);
+  assert.match(runtime, /nexoraService\.finalizeObservationWork/);
+  assert.match(runtime, /reconciler\.reconcileBatch\(observedSubjectIds\)/);
 });
 
-test('Libra owns playable-only Library maintenance aggregation and yields between batches', () => {
+test('Libra aggregates one row per active maintenance Subject and yields between batches', () => {
   const runtime = source('libraRuntime.js');
   const summaryBody = runtime.match(/async function getLibraryMaintenanceSummaries[\s\S]*?\n  function acceptSource/)[0];
-  assert.match(summaryBody, /item\.membershipStatus === 'active' && item\.playable !== false/);
+  assert.match(summaryBody, /item\.membershipStatus === 'active'/);
+  assert.doesNotMatch(summaryBody, /item\.playable/);
   assert.match(summaryBody, /kairoxService\.getMaintenanceProjections/);
   assert.match(summaryBody, /setImmediate/);
 });
@@ -105,8 +106,8 @@ test('Libra owns playable-only Library maintenance aggregation and yields betwee
 test('Kairox batch projection batch-reads Person preference facts', () => {
   const runtime = source('kairoxRuntime.js');
   const projectionsBody = runtime.match(/function getMaintenanceProjections[\s\S]*?\n  function reconcileMaintenance/)[0];
-  assert.match(projectionsBody, /personCatalogStore\.getItemPreferenceProjections\(ids\)/);
-  assert.match(projectionsBody, /peopleMap\[itemId\]/);
+  assert.match(projectionsBody, /personCatalogStore\.getSubjectPreferenceProjections\(ids\)/);
+  assert.match(projectionsBody, /peopleMap\[subjectId\]/);
 });
 
 test('Kairox summary projection owns Gate results without querying Task or Run facts', () => {
@@ -130,7 +131,7 @@ test('Libra composes live capability projections without persisting capability s
   const reconciler = source('libraReconciler.js');
   assert.match(runtime, /nexoraService\.getSourceProjections\(ids\)/);
   assert.match(runtime, /kairoxService\.getMaintenanceProjections\(ids\)/);
-  assert.match(runtime, /store\.getCurrentOperationsForItems\(ids\)/);
+  assert.match(runtime, /store\.getCurrentOperationsForSubjects\(ids\)/);
   assert.doesNotMatch(runtime, /sourceProjection\s*:/);
   assert.doesNotMatch(runtime, /maintenanceProjection\s*:/);
   assert.doesNotMatch(reconciler, /sourceProjection\s*:/);
@@ -167,7 +168,7 @@ test('Task Scheduler dispatches task snapshots without reading or writing Librar
   const scheduler = source('taskScheduler.js');
   assert.doesNotMatch(scheduler, /require\(['"]\.\/mediaLibraryService['"]\)/);
   assert.doesNotMatch(scheduler, /require\(['"]\.\/libraryStore['"]\)/);
-  assert.doesNotMatch(scheduler, /getLibraryItem|loadLibrary|saveLibrary/);
+  assert.doesNotMatch(scheduler, /getLibrarySubject|loadLibrary|saveLibrary/);
 });
 
 test('gate invalidation writes Kairox freshness and never mutates Library domain facts', () => {
@@ -181,7 +182,8 @@ test('optimize mutation is owned by atomic capabilities and durable Workflow Eve
   const capabilities = source('capabilities/maintenanceCapabilities.js');
   const runtime = source('eventRuntime.js');
   const postEffects = source('capabilityPostEffects.js');
-  assert.match(capabilities, /capability: 'media\.replace'/);
+  assert.match(capabilities, /capability: 'media\.file\.replace'/);
+  assert.match(source('capabilities/seriesUpgradeCapabilities.js'), /capability: 'series\.season\.replace'/);
   assert.doesNotMatch(capabilities, /recordGateInvalidation|markBasedataStale|recordMutation|kairoxSignalBus/);
   assert.match(postEffects, /markBasedataStale/);
   assert.match(postEffects, /recordMutation/);

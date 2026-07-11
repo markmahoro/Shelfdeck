@@ -11,7 +11,7 @@ function taskAdmission(task = {}) {
 function checkTask(task = {}, checkpoint = '') {
   const expected = taskAdmission(task);
   if (!expected) return { allowed: false, reason: 'admission_missing_from_task', checkpoint };
-  const current = admissionStore.getAdmission(task.itemId);
+  const current = admissionStore.getAdmission(task.subjectId);
   const expectedGeneration = Number(expected.admissionGeneration) || 0;
   if (!current) return { allowed: false, reason: 'admission_missing', expectedGeneration, checkpoint };
   if (current.status !== 'active') {

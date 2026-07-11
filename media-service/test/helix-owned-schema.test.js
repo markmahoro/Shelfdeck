@@ -29,10 +29,10 @@ test.after(() => {
 });
 
 test('clean owned schemas do not create the mixed media_items or Nexora Membership tables', () => {
-  libraStore.getLibraryItems();
+  libraStore.getLibrarySubjects();
   nexoraStore.getSourceState('schema-item');
   kairoxAdmissionStore.getAdmission('schema-item');
-  kairoxStore.ensureMedia({ itemId: 'schema-item' });
+  kairoxStore.ensureSubject({ subjectId: 'schema-item' });
   workflowStore.listEvents('schema-task');
 
   const libraryDb = new Database(path.join(dataDir, 'library.db'), { readonly: true });
@@ -45,10 +45,10 @@ test('clean owned schemas do not create the mixed media_items or Nexora Membersh
 
   assert.strictEqual(libraryTables.includes('media_items'), false);
   assert.strictEqual(libraryTables.includes('nexora_memberships'), false);
-  assert.ok(libraryTables.includes('libra_library_items'));
+  assert.ok(libraryTables.includes('libra_subjects'));
   assert.ok(libraryTables.includes('libra_library_work'));
-  assert.ok(libraryTables.includes('nexora_source_bindings'));
-  assert.ok(taskTables.includes('kairox_media'));
+  assert.ok(libraryTables.includes('nexora_subject_bindings'));
+  assert.ok(taskTables.includes('kairox_subjects'));
   assert.ok(taskTables.includes('kairox_basedata_facts'));
   assert.ok(taskTables.includes('kairox_metadata_facts'));
   assert.ok(taskTables.includes('kairox_optimize_facts'));
@@ -61,11 +61,11 @@ test('clean owned schemas do not create the mixed media_items or Nexora Membersh
 });
 
 test('Kairox fact rows are revisioned independently by fact group', () => {
-  kairoxStore.publishBasedata({ itemId: 'fact-item', sourceRevision: 'source-1', facts: { codec: 'h264' } });
-  kairoxStore.publishMetadata({ itemId: 'fact-item', facts: { title: 'Title' } });
-  kairoxStore.upsertObjective({ itemId: 'fact-item', policyRevision: 'policy-1', objectiveRevision: 'objective-1', status: 'ready', objective: { targetCodec: 'h265' } });
-  kairoxStore.publishOptimize({ itemId: 'fact-item', objectiveRevision: 'objective-1', facts: { passed: true } });
-  kairoxStore.markBasedataStale({ itemId: 'fact-item', reason: 'post_optimize_activation' });
+  kairoxStore.publishBasedata({ subjectId: 'fact-item', sourceRevision: 'source-1', facts: { codec: 'h264' } });
+  kairoxStore.publishMetadata({ subjectId: 'fact-item', facts: { title: 'Title' } });
+  kairoxStore.upsertObjective({ subjectId: 'fact-item', policyRevision: 'policy-1', objectiveRevision: 'objective-1', status: 'ready', objective: { targetCodec: 'h265' } });
+  kairoxStore.publishOptimize({ subjectId: 'fact-item', objectiveRevision: 'objective-1', facts: { passed: true } });
+  kairoxStore.markBasedataStale({ subjectId: 'fact-item', reason: 'post_optimize_activation' });
 
   const bundle = kairoxStore.getBundle('fact-item');
   assert.strictEqual(bundle.basedata.sourceRevision, 'source-1');
@@ -77,9 +77,9 @@ test('Kairox fact rows are revisioned independently by fact group', () => {
 });
 
 test('Kairox gate invalidation is durable and canonical publication completes its refresh request', () => {
-  kairoxStore.publishBasedata({ itemId: 'refresh-item', sourceRevision: 'source-1', facts: { codec: 'h264' } });
+  kairoxStore.publishBasedata({ subjectId: 'refresh-item', sourceRevision: 'source-1', facts: { codec: 'h264' } });
   const invalidation = gateInvalidationService.recordGateInvalidation({
-    itemId: 'refresh-item',
+    subjectId: 'refresh-item',
     invalidatedGate: 'basedata',
     reason: 'post_optimize_replace',
     taskId: 'optimize-task',
@@ -90,7 +90,7 @@ test('Kairox gate invalidation is durable and canonical publication completes it
   assert.strictEqual(bundle.refreshRequests[0].status, 'pending');
   assert.strictEqual(bundle.refreshRequests[0].causedByTaskId, 'optimize-task');
 
-  kairoxStore.publishBasedata({ itemId: 'refresh-item', sourceRevision: 'source-1', facts: { codec: 'h265' } });
+  kairoxStore.publishBasedata({ subjectId: 'refresh-item', sourceRevision: 'source-1', facts: { codec: 'h265' } });
   bundle = kairoxStore.getBundle('refresh-item');
   assert.strictEqual(bundle.basedata.status, 'fresh');
   assert.strictEqual(bundle.refreshRequests[0].status, 'completed');
@@ -98,7 +98,7 @@ test('Kairox gate invalidation is durable and canonical publication completes it
 
 test('Kairox metadata publication is idempotent by terminal task identity', () => {
   const input = {
-    itemId: 'metadata-idempotent-item',
+    subjectId: 'metadata-idempotent-item',
     facts: { title: 'Canonical Title', type: 'movie' },
     evidence: { taskId: 'metadata-task-once', adapter: 'emby' },
   };
@@ -106,7 +106,7 @@ test('Kairox metadata publication is idempotent by terminal task identity', () =
   const second = kairoxStore.publishMetadata(input);
   assert.strictEqual(first.factRevision, 1);
   assert.strictEqual(second.factRevision, 1);
-  assert.strictEqual(kairoxStore.getBundle(input.itemId).metadata.facts.title, 'Canonical Title');
+  assert.strictEqual(kairoxStore.getBundle(input.subjectId).metadata.facts.title, 'Canonical Title');
 });
 
 test('Metadata adapters separate descriptive facts from Basedata technical facts', () => {

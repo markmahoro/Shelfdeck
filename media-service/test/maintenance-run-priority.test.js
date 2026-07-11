@@ -26,9 +26,9 @@ config.subLibraries = [
 configStore.saveConfig(config);
 const runtime = createKairoxRuntime();
 
-function admit(itemId, subLibraryId) {
+function admit(subjectId, subLibraryId) {
   return runtime.reconcileMaintenance({
-    itemId,
+    subjectId,
     admissionGeneration: 1,
     sourceRevision: 'source-1',
     sourceAccessDescriptor: { subLibraryId, sourceType: 'emby' },
@@ -47,26 +47,26 @@ test.after(() => {
 test('auto and manual modes are mutually exclusive Run start policies', () => {
   admit('auto-item', 'auto-library');
   admit('manual-item', 'manual-library');
-  const automatic = runtime.reconcileMaintenanceRun({ itemId: 'auto-item', config });
-  const manual = runtime.reconcileMaintenanceRun({ itemId: 'manual-item', config });
+  const automatic = runtime.reconcileMaintenanceRun({ subjectId: 'auto-item', config });
+  const manual = runtime.reconcileMaintenanceRun({ subjectId: 'manual-item', config });
   assert.strictEqual(automatic.run.initiatedBy, 'system');
   assert.strictEqual(manual.run, null);
   assert.throws(
-    () => runtime.startMaintenanceRun({ itemId: 'auto-item', config }),
+    () => runtime.startMaintenanceRun({ subjectId: 'auto-item', config }),
     (error) => error.code === 'KAIROX_MANUAL_START_NOT_ALLOWED',
   );
-  const started = runtime.startMaintenanceRun({ itemId: 'manual-item', config });
+  const started = runtime.startMaintenanceRun({ subjectId: 'manual-item', config });
   assert.strictEqual(started.run.initiatedBy, 'user');
   assert.strictEqual(started.run.status, 'ready');
 });
 
 test('MediaItem priority is durable and is snapshotted into a Lifecycle-selected task', () => {
-  const prioritized = runtime.setMaintenancePriority({ itemId: 'manual-item', config, reason: 'test_expedite' });
+  const prioritized = runtime.setMaintenancePriority({ subjectId: 'manual-item', config, reason: 'test_expedite' });
   assert.strictEqual(prioritized.media.maintenancePriorityClass, 'expedited');
   assert.ok(prioritized.media.priorityRevision > 0);
   const projection = runtime.getMaintenanceProjection('manual-item');
   const created = runtime.requestMaintenance({
-    itemId: 'manual-item',
+    subjectId: 'manual-item',
     runId: projection.run.runId,
     libraryGeneration: 1,
     targetGate: projection.nextTargetGate,
@@ -81,11 +81,11 @@ test('MediaItem priority is durable and is snapshotted into a Lifecycle-selected
 test('Runner supply and Scheduler dispatch use strict MediaItem priority first', () => {
   admit('normal-ready', 'auto-library');
   admit('expedited-ready', 'auto-library');
-  runtime.reconcileMaintenanceRun({ itemId: 'normal-ready', config });
-  runtime.setMaintenancePriority({ itemId: 'expedited-ready', config, reason: 'test_expedite' });
-  runtime.reconcileMaintenanceRun({ itemId: 'expedited-ready', config });
+  runtime.reconcileMaintenanceRun({ subjectId: 'normal-ready', config });
+  runtime.setMaintenancePriority({ subjectId: 'expedited-ready', config, reason: 'test_expedite' });
+  runtime.reconcileMaintenanceRun({ subjectId: 'expedited-ready', config });
   const ready = kairoxStore.listMaintenanceRuns({ statuses: ['ready'], limit: 20 });
-  assert.strictEqual(ready[0].itemId, 'expedited-ready');
+  assert.strictEqual(ready[0].subjectId, 'expedited-ready');
 
   const normal = { id: 'normal-task', priority: 0, createdAt: '2026-01-01T00:00:00.000Z', maintenancePrioritySnapshot: { class: 'normal' } };
   const expedited = { id: 'expedited-task', priority: 999, createdAt: '2026-01-02T00:00:00.000Z', maintenancePrioritySnapshot: { class: 'expedited' } };

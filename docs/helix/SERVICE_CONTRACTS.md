@@ -19,14 +19,14 @@ setMaintenancePriority(command)
 clearMaintenancePriority(command)
 requestOffboarding(command)
 requestOffboardingBatch(command)
-reconcileItem(itemId)
-reconcileBatch(itemIds?)
-getLibraryProjection(itemId)
-getLibraryProjections(itemIds)
+reconcileItem(subjectId)
+reconcileBatch(subjectIds?)
+getLibraryProjection(subjectId)
+getLibraryProjections(subjectIds)
 getLibraryMaintenanceSummaries(options)
 ```
 
-Libra owns LibraryMembership, phase, quarantine, admission generation and durable reconcile operations. It delegates capability work and never writes Nexora or Kairox facts. `getLibraryProjection(s)` batch-reads current Nexora/Kairox projections and composes them with Libra facts without persisting those capability projections. `getLibraryMaintenanceSummaries` only aggregates active playable Membership, reads Kairox through batch projections and yields between bounded batches; Series/Season containers never enter Gate denominators.
+Libra owns Subject LibraryMembership, phase, quarantine, admission generation and durable reconcile operations. Series across all Seasons is one Subject; Season and Episode are not Membership or maintenance subjects.
 
 ## Nexora Service
 
@@ -35,17 +35,19 @@ ensureOnboarding(command)
 diagnoseSource(command)
 ensureOffboarding(command)
 observeLibraryPage(command)
-getSourceProjection(itemId)
-getSourceProjections(itemIds)
+stageObservationPage(command)
+finalizeObservationWork(command)
+getSourceProjection(subjectId)
+getSourceProjections(subjectIds)
 ```
 
-SourceProjection minimally contains `sourceRevision`, readiness, active bindings, source access descriptor and current diagnosis/offboarding evidence. Nexora does not expose its Store.
+SourceProjection additionally contains the finalized Asset Manifest. `assetId` is Nexora-owned and stable across locator changes when strong provider or Season/Episode identity matches.
 
 ## Kairox Service
 
 ```text
 reconcileMaintenance(admission)
-reconcileObjectives(itemIds)
+reconcileObjectives(subjectIds)
 suspendMaintenance(command)
 requestMaintenance(command)
 startMaintenanceRun(command)
@@ -53,12 +55,12 @@ setMaintenancePriority(command)
 clearMaintenancePriority(command)
 reconcileMaintenanceRun(command)
 updateUserPerception(command)
-getMaintenanceProjection(itemId)
-getMaintenanceProjections(itemIds)
-getMaintenanceSummaryProjections(itemIds)
+getMaintenanceProjection(subjectId)
+getMaintenanceProjections(subjectIds)
+getMaintenanceSummaryProjections(subjectIds)
 ```
 
-Admission minimally contains `itemId`, `admissionGeneration`, `sourceRevision`, `sourceAccessDescriptor`, `policyRevision` and the maintenance policy snapshot. Kairox tasks retain the admission generation and validate it before canonical or destructive commits.
+Admission minimally contains `subjectId`, `subjectKind`, the immutable Asset Manifest snapshot, `admissionGeneration`, `sourceRevision`, `sourceAccessDescriptor`, `policyRevision` and policy snapshot. One Subject has at most one open Run and one Task per Gate. Episode is only an Event `assetScope`.
 
 `reconcileMaintenance(admission)` must create or update the minimal Kairox maintenance identity when the item has no Kairox facts yet. Nexora adapters must not pre-populate Kairox canonical Basedata as a prerequisite for admission.
 
@@ -80,7 +82,7 @@ explicit user confirmation before implementation.
 
 `requestMaintenance` is an internal Runner -> Task Creator capability and requires the
 Lifecycle-selected target. HTTP adapters and users cannot call it. Public user intent is
-`requestMaintenanceRun` plus MediaItem-level priority commands; none accepts targetGate,
+`requestMaintenanceRun` plus Subject-level priority commands; none accepts targetGate,
 flowKind or executor.
 
 `maintenanceAutomationMode=auto|manual` is mutually exclusive. Auto mode rejects user
@@ -114,15 +116,16 @@ Resource Runtime -> event execution through shared Governor permits
 
 ## Public API Adapters
 
-- `GET /v1/library`, manage queries and item detail expose a `helix` projection.
+- `GET /v1/library` and `GET /v1/library/subjects/:subjectId` expose Subject projections.
+- `GET /v1/admin/library/subjects/:subjectId/assets` exposes Season/Asset detail without maintenance actions.
 - `POST /v1/admin/library/actions/onboard` maps to `LibraService.acceptSource`.
-- `POST /v1/admin/library/items/:itemId/actions/offboard` maps to `LibraService.requestOffboarding` and accepts `retain_source|detach_source|delete_source`.
+- `POST /v1/admin/library/subjects/:subjectId/actions/offboard` maps to `LibraService.requestOffboarding` and accepts `retain_source|detach_source|delete_source`.
 - `POST /v1/admin/sublibraries/:uuid/actions/offboard` maps to `LibraService.requestOffboardingBatch`, requires an idempotency key and only accepts `retain_source`.
 - `DELETE /v1/admin/sublibraries/:uuid` is rejected while any contained Libra Membership is not `closed`.
 - `POST/PATCH /v1/admin/sublibraries` accepts `libraryAutomationMode` and `maintenanceAutomationMode`.
 - `POST /v1/admin/sublibraries/:uuid/actions/observe` creates durable Libra observation work.
-- `POST /v1/admin/library/items/:itemId/actions/start-maintenance` creates a neutral Run only for manual Libraries.
-- `POST /v1/admin/library/items/:itemId/actions/prioritize-maintenance` and `cancel-maintenance-priority` change MediaItem Priority only.
+- `POST /v1/admin/library/subjects/:subjectId/actions/start-maintenance` creates a neutral Run only for manual Libraries.
+- `POST /v1/admin/library/subjects/:subjectId/actions/prioritize-maintenance` and `cancel-maintenance-priority` change Subject Priority only.
 - Public APIs do not create target-gate tasks, adjust Task priority, or expose execute/retry/pause controls. Approval remains an explicit Task action.
 - Helix clean runtime does not expose legacy scan, offboarding-candidate, delete-candidate or archive APIs；用户清理建议统一为 `GET /v1/admin/cleanup-recommendations`。
 - Admin 人物接口统一位于 `/v1/admin/people`；旧 `/v1/admin/adult/people` 不保留兼容入口。

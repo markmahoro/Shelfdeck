@@ -47,16 +47,12 @@ function ensureSchema(db) {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS libra_library_items (
-      item_id TEXT PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS libra_subjects (
+      subject_id TEXT PRIMARY KEY,
       sub_library_id TEXT NOT NULL DEFAULT '',
-      source_ref_id TEXT NOT NULL DEFAULT '',
-      media_kind TEXT NOT NULL DEFAULT '',
-      playable INTEGER NOT NULL DEFAULT 1,
-      parent_source_ref_id TEXT NOT NULL DEFAULT '',
-      series_source_ref_id TEXT NOT NULL DEFAULT '',
-      parent_item_id TEXT NOT NULL DEFAULT '',
-      series_item_id TEXT NOT NULL DEFAULT '',
+      source_subject_key TEXT NOT NULL,
+      subject_kind TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT '',
       membership_status TEXT NOT NULL DEFAULT 'active',
       desired_state TEXT NOT NULL DEFAULT 'managed',
       phase TEXT NOT NULL DEFAULT 'onboarding',
@@ -69,40 +65,17 @@ function ensureSchema(db) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_libra_items_phase ON libra_library_items(phase, membership_status);
-    CREATE INDEX IF NOT EXISTS idx_libra_items_library ON libra_library_items(sub_library_id, membership_status, updated_at);
-    CREATE INDEX IF NOT EXISTS idx_libra_items_quarantine ON libra_library_items(quarantine_status, phase);
-    CREATE INDEX IF NOT EXISTS idx_libra_items_source_ref ON libra_library_items(sub_library_id, source_ref_id);
-    CREATE INDEX IF NOT EXISTS idx_libra_items_series ON libra_library_items(sub_library_id, series_item_id, media_kind);
-
-    CREATE TABLE IF NOT EXISTS libra_maintenance_scopes (
-      scope_id TEXT PRIMARY KEY,
-      idempotency_key TEXT NOT NULL UNIQUE,
-      root_item_id TEXT NOT NULL,
-      sub_library_id TEXT NOT NULL DEFAULT '',
-      action TEXT NOT NULL,
-      priority_class TEXT NOT NULL DEFAULT 'normal',
-      status TEXT NOT NULL DEFAULT 'active',
-      observation_work_id TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      completed_at TEXT NOT NULL DEFAULT ''
-    );
-    CREATE INDEX IF NOT EXISTS idx_libra_scope_active ON libra_maintenance_scopes(status,sub_library_id,root_item_id);
-
-    CREATE TABLE IF NOT EXISTS libra_maintenance_scope_members (
-      scope_id TEXT NOT NULL,
-      item_id TEXT NOT NULL,
-      added_at TEXT NOT NULL,
-      PRIMARY KEY(scope_id,item_id)
-    );
+    CREATE INDEX IF NOT EXISTS idx_libra_items_phase ON libra_subjects(phase, membership_status);
+    CREATE INDEX IF NOT EXISTS idx_libra_items_library ON libra_subjects(sub_library_id, membership_status, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_libra_items_quarantine ON libra_subjects(quarantine_status, phase);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_libra_subject_source_key ON libra_subjects(sub_library_id,source_subject_key);
 
     CREATE TABLE IF NOT EXISTS libra_library_work (
       work_id TEXT PRIMARY KEY,
       idempotency_key TEXT NOT NULL UNIQUE,
       work_kind TEXT NOT NULL,
       sub_library_id TEXT NOT NULL DEFAULT '',
-      item_id TEXT NOT NULL DEFAULT '',
+      subject_id TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'pending',
       cursor_json TEXT NOT NULL DEFAULT '{}',
       payload_json TEXT NOT NULL DEFAULT '{}',
@@ -118,7 +91,7 @@ function ensureSchema(db) {
 
     CREATE TABLE IF NOT EXISTS libra_reconcile_operations (
       operation_id TEXT PRIMARY KEY,
-      item_id TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
       operation_kind TEXT NOT NULL,
       idempotency_key TEXT NOT NULL UNIQUE,
       payload_hash TEXT NOT NULL,
@@ -134,19 +107,19 @@ function ensureSchema(db) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_libra_operations_item ON libra_reconcile_operations(item_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_libra_operations_item ON libra_reconcile_operations(subject_id, updated_at);
     CREATE INDEX IF NOT EXISTS idx_libra_operations_status ON libra_reconcile_operations(status, retry_at);
 
     CREATE TABLE IF NOT EXISTS libra_events (
       event_id TEXT PRIMARY KEY,
-      item_id TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
       operation_id TEXT NOT NULL DEFAULT '',
       event_type TEXT NOT NULL,
       generation INTEGER NOT NULL DEFAULT 0,
       payload_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_libra_events_item ON libra_events(item_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_libra_events_item ON libra_events(subject_id, created_at);
   `);
 }
 
@@ -172,15 +145,11 @@ function payloadHash(payload) {
 function libraryRow(row) {
   if (!row) return null;
   return {
-    itemId: row.item_id,
+    subjectId: row.subject_id,
     subLibraryId: row.sub_library_id || '',
-    sourceRefId: row.source_ref_id || '',
-    mediaKind: row.media_kind || '',
-    playable: row.playable !== 0,
-    parentSourceRefId: row.parent_source_ref_id || '',
-    seriesSourceRefId: row.series_source_ref_id || '',
-    parentItemId: row.parent_item_id || '',
-    seriesItemId: row.series_item_id || '',
+    sourceSubjectKey: row.source_subject_key || '',
+    subjectKind: row.subject_kind || '',
+    displayName: row.display_name || '',
     membershipStatus: row.membership_status,
     desiredState: row.desired_state,
     phase: row.phase,
@@ -195,11 +164,11 @@ function libraryRow(row) {
   };
 }
 
-function normalizeLibraryItem(input, existing = null) {
+function normalizeLibrarySubject(input, existing = null) {
   const now = String(input.updatedAt || new Date().toISOString());
   const merged = { ...(existing || {}), ...(input || {}) };
-  const itemId = String(merged.itemId || '').trim();
-  if (!itemId) throw Object.assign(new Error('itemId is required'), { code: 'LIBRA_ITEM_ID_REQUIRED' });
+  const subjectId = String(merged.subjectId || '').trim();
+  if (!subjectId) throw Object.assign(new Error('subjectId is required'), { code: 'LIBRA_SUBJECT_ID_REQUIRED' });
   const membershipStatus = MEMBERSHIP.has(merged.membershipStatus) ? merged.membershipStatus : 'active';
   const desiredState = DESIRED_STATE.has(merged.desiredState) ? merged.desiredState : 'managed';
   const phase = PHASE.has(merged.phase) ? merged.phase : 'onboarding';
@@ -208,15 +177,11 @@ function normalizeLibraryItem(input, existing = null) {
     throw Object.assign(new Error('Closed membership requires closed phase'), { code: 'LIBRA_INVALID_STATE' });
   }
   return {
-    item_id: itemId,
+    subject_id: subjectId,
     sub_library_id: String(merged.subLibraryId || ''),
-    source_ref_id: String(merged.sourceRefId || ''),
-    media_kind: String(merged.mediaKind || ''),
-    playable: merged.playable === false ? 0 : 1,
-    parent_source_ref_id: String(merged.parentSourceRefId || ''),
-    series_source_ref_id: String(merged.seriesSourceRefId || ''),
-    parent_item_id: String(merged.parentItemId || ''),
-    series_item_id: String(merged.seriesItemId || ''),
+    source_subject_key: String(merged.sourceSubjectKey || ''),
+    subject_kind: String(merged.subjectKind || ''),
+    display_name: String(merged.displayName || ''),
     membership_status: membershipStatus,
     desired_state: desiredState,
     phase,
@@ -231,152 +196,63 @@ function normalizeLibraryItem(input, existing = null) {
   };
 }
 
-function getLibraryItem(itemId) {
-  return libraryRow(getDb().prepare('SELECT * FROM libra_library_items WHERE item_id = ?').get(String(itemId || '')));
+function getLibrarySubject(subjectId) {
+  return libraryRow(getDb().prepare('SELECT * FROM libra_subjects WHERE subject_id = ?').get(String(subjectId || '')));
 }
 
-function upsertLibraryItem(input) {
-  const row = normalizeLibraryItem(input, getLibraryItem(input && input.itemId));
+function upsertLibrarySubject(input) {
+  const row = normalizeLibrarySubject(input, getLibrarySubject(input && input.subjectId));
   getDb().prepare(`
-    INSERT INTO libra_library_items (
-      item_id, sub_library_id, source_ref_id, media_kind, playable, parent_source_ref_id, series_source_ref_id,
-      parent_item_id, series_item_id, membership_status, desired_state, phase, quarantine_status, quarantine_reason,
+    INSERT INTO libra_subjects (
+      subject_id, sub_library_id, source_subject_key, subject_kind, display_name,
+      membership_status, desired_state, phase, quarantine_status, quarantine_reason,
       blocked_reason, admission_generation, source_revision, maintenance_revision, created_at, updated_at
     ) VALUES (
-      @item_id, @sub_library_id, @source_ref_id, @media_kind, @playable, @parent_source_ref_id, @series_source_ref_id,
-      @parent_item_id, @series_item_id, @membership_status, @desired_state, @phase, @quarantine_status, @quarantine_reason,
+      @subject_id, @sub_library_id, @source_subject_key, @subject_kind, @display_name,
+      @membership_status, @desired_state, @phase, @quarantine_status, @quarantine_reason,
       @blocked_reason, @admission_generation, @source_revision, @maintenance_revision, @created_at, @updated_at
-    ) ON CONFLICT(item_id) DO UPDATE SET
-      sub_library_id=excluded.sub_library_id, source_ref_id=excluded.source_ref_id, media_kind=excluded.media_kind,
-      playable=excluded.playable, parent_source_ref_id=excluded.parent_source_ref_id,
-      series_source_ref_id=excluded.series_source_ref_id, parent_item_id=excluded.parent_item_id,
-      series_item_id=excluded.series_item_id, membership_status=excluded.membership_status, desired_state=excluded.desired_state,
+    ) ON CONFLICT(subject_id) DO UPDATE SET
+      sub_library_id=excluded.sub_library_id, source_subject_key=excluded.source_subject_key,
+      subject_kind=excluded.subject_kind,display_name=excluded.display_name,
+      membership_status=excluded.membership_status, desired_state=excluded.desired_state,
       phase=excluded.phase, quarantine_status=excluded.quarantine_status,
       quarantine_reason=excluded.quarantine_reason, blocked_reason=excluded.blocked_reason,
       admission_generation=excluded.admission_generation, source_revision=excluded.source_revision,
       maintenance_revision=excluded.maintenance_revision,
       updated_at=excluded.updated_at
   `).run(row);
-  return getLibraryItem(row.item_id);
+  return getLibrarySubject(row.subject_id);
 }
 
-function getLibraryItems(itemIds = null) {
-  if (!Array.isArray(itemIds)) {
-    return getDb().prepare('SELECT * FROM libra_library_items ORDER BY updated_at DESC').all().map(libraryRow);
+function getLibrarySubjects(subjectIds = null) {
+  if (!Array.isArray(subjectIds)) {
+    return getDb().prepare('SELECT * FROM libra_subjects ORDER BY updated_at DESC').all().map(libraryRow);
   }
-  const ids = [...new Set(itemIds.map((id) => String(id || '').trim()).filter(Boolean))];
+  const ids = [...new Set(subjectIds.map((id) => String(id || '').trim()).filter(Boolean))];
   if (ids.length === 0) return [];
   const placeholders = ids.map(() => '?').join(',');
-  return getDb().prepare(`SELECT * FROM libra_library_items WHERE item_id IN (${placeholders})`).all(...ids).map(libraryRow);
+  return getDb().prepare(`SELECT * FROM libra_subjects WHERE subject_id IN (${placeholders})`).all(...ids).map(libraryRow);
 }
 
-function getLibraryItemsPage(options = {}) {
+function getLibrarySubjectsPage(options = {}) {
   const afterItemId = String(options.afterItemId || '');
   const subLibraryId = String(options.subLibraryId || '');
   const limit = Math.max(1, Math.min(500, Number(options.limit) || 100));
   return getDb().prepare(`
-    SELECT * FROM libra_library_items
-    WHERE item_id>? AND (?='' OR sub_library_id=?) ORDER BY item_id ASC LIMIT ?
+    SELECT * FROM libra_subjects
+    WHERE subject_id>? AND (?='' OR sub_library_id=?) ORDER BY subject_id ASC LIMIT ?
   `).all(afterItemId, subLibraryId, subLibraryId, limit).map(libraryRow);
 }
 
-function resolveLibraryHierarchy(subLibraryId, options = {}) {
-  const id = String(subLibraryId || '');
-  const items = getDb().prepare('SELECT * FROM libra_library_items WHERE sub_library_id=?').all(id).map(libraryRow);
-  const bySourceRef = new Map(items.filter((item) => item.sourceRefId).map((item) => [item.sourceRefId, item.itemId]));
-  const update = getDb().prepare('UPDATE libra_library_items SET parent_item_id=?,series_item_id=?,updated_at=? WHERE item_id=?');
-  const changedItemIds = new Set();
-  const now = new Date().toISOString();
-  const transaction = getDb().transaction(() => {
-    for (const item of items) {
-      const parentItemId = bySourceRef.get(item.parentSourceRefId) || '';
-      const seriesItemId = bySourceRef.get(item.seriesSourceRefId) || (item.mediaKind === 'series' ? item.itemId : '');
-      if (item.parentItemId !== parentItemId || item.seriesItemId !== seriesItemId) {
-        update.run(parentItemId, seriesItemId, now, item.itemId);
-        changedItemIds.add(item.itemId);
-      }
-    }
-  });
-  transaction();
-  const resolved = getDb().prepare('SELECT * FROM libra_library_items WHERE sub_library_id=?').all(id).map(libraryRow);
-  return options.changedOnly === true ? resolved.filter((item) => changedItemIds.has(item.itemId)) : resolved;
-}
-
-function getMaintenanceScopeMembers(rootItemId) {
-  const root = getLibraryItem(rootItemId);
-  if (!root) return [];
-  if (root.playable) return [root];
-  if (root.mediaKind === 'series') {
-    return getDb().prepare(`SELECT * FROM libra_library_items WHERE sub_library_id=? AND series_item_id=? AND playable=1 AND membership_status='active' ORDER BY item_id`).all(root.subLibraryId, root.itemId).map(libraryRow);
-  }
-  if (root.mediaKind === 'season') {
-    return getDb().prepare(`SELECT * FROM libra_library_items WHERE sub_library_id=? AND parent_item_id=? AND playable=1 AND membership_status='active' ORDER BY item_id`).all(root.subLibraryId, root.itemId).map(libraryRow);
-  }
-  return [];
-}
-
-function scopeRow(row) {
-  if (!row) return null;
-  return {
-    scopeId: row.scope_id,
-    idempotencyKey: row.idempotency_key,
-    rootItemId: row.root_item_id,
-    subLibraryId: row.sub_library_id,
-    action: row.action,
-    priorityClass: row.priority_class,
-    status: row.status,
-    observationWorkId: row.observation_work_id,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    completedAt: row.completed_at,
-  };
-}
-
-function createOrGetMaintenanceScope(input = {}) {
-  const existing = getDb().prepare('SELECT * FROM libra_maintenance_scopes WHERE idempotency_key=?').get(String(input.idempotencyKey || ''));
-  if (existing) return { created: false, scope: scopeRow(existing) };
-  const now = new Date().toISOString();
-  const row = {
-    scope_id: String(input.scopeId || crypto.randomUUID()), idempotency_key: String(input.idempotencyKey || ''),
-    root_item_id: String(input.rootItemId || ''), sub_library_id: String(input.subLibraryId || ''),
-    action: String(input.action || ''), priority_class: input.priorityClass === 'expedited' ? 'expedited' : 'normal',
-    status: 'active', observation_work_id: String(input.observationWorkId || ''), created_at: now, updated_at: now, completed_at: '',
-  };
-  getDb().prepare(`INSERT INTO libra_maintenance_scopes
-    (scope_id,idempotency_key,root_item_id,sub_library_id,action,priority_class,status,observation_work_id,created_at,updated_at,completed_at)
-    VALUES (@scope_id,@idempotency_key,@root_item_id,@sub_library_id,@action,@priority_class,@status,@observation_work_id,@created_at,@updated_at,@completed_at)`).run(row);
-  return { created: true, scope: scopeRow(getDb().prepare('SELECT * FROM libra_maintenance_scopes WHERE scope_id=?').get(row.scope_id)) };
-}
-
-function addMaintenanceScopeMember(scopeId, itemId) {
-  getDb().prepare('INSERT OR IGNORE INTO libra_maintenance_scope_members(scope_id,item_id,added_at) VALUES (?,?,?)').run(String(scopeId), String(itemId), new Date().toISOString());
-}
-
-function listMaintenanceScopeMembers(scopeId) {
-  return getDb().prepare('SELECT item_id FROM libra_maintenance_scope_members WHERE scope_id=? ORDER BY item_id').all(String(scopeId)).map((row) => row.item_id);
-}
-
-function listActiveMaintenanceScopes(subLibraryId = '') {
-  return getDb().prepare(`SELECT * FROM libra_maintenance_scopes WHERE status='active' AND (?='' OR sub_library_id=?) ORDER BY created_at`).all(String(subLibraryId), String(subLibraryId)).map(scopeRow);
-}
-
-function updateMaintenanceScope(scopeId, updates = {}) {
-  const current = scopeRow(getDb().prepare('SELECT * FROM libra_maintenance_scopes WHERE scope_id=?').get(String(scopeId)));
-  if (!current) return null;
-  const status = updates.status || current.status;
-  const now = new Date().toISOString();
-  getDb().prepare('UPDATE libra_maintenance_scopes SET status=?,observation_work_id=?,updated_at=?,completed_at=? WHERE scope_id=?').run(
-    status, updates.observationWorkId === undefined ? current.observationWorkId : String(updates.observationWorkId || ''), now,
-    updates.completedAt === undefined ? current.completedAt : String(updates.completedAt || ''), current.scopeId,
-  );
-  return scopeRow(getDb().prepare('SELECT * FROM libra_maintenance_scopes WHERE scope_id=?').get(current.scopeId));
+function findLibrarySubjectBySourceKey(subLibraryId, sourceSubjectKey) {
+  return libraryRow(getDb().prepare('SELECT * FROM libra_subjects WHERE sub_library_id=? AND source_subject_key=?').get(String(subLibraryId || ''), String(sourceSubjectKey || '')));
 }
 
 function operationRow(row) {
   if (!row) return null;
   return {
     operationId: row.operation_id,
-    itemId: row.item_id,
+    subjectId: row.subject_id,
     operationKind: row.operation_kind,
     idempotencyKey: row.idempotency_key,
     payloadHash: row.payload_hash,
@@ -418,7 +294,7 @@ function createOrGetOperation(input = {}) {
   const now = new Date().toISOString();
   const row = {
     operation_id: String(input.operationId || crypto.randomUUID()),
-    item_id: String(input.itemId || ''),
+    subject_id: String(input.subjectId || ''),
     operation_kind: String(input.operationKind || ''),
     idempotency_key: idempotencyKey,
     payload_hash: hash,
@@ -431,10 +307,10 @@ function createOrGetOperation(input = {}) {
   };
   getDb().prepare(`
     INSERT INTO libra_reconcile_operations (
-      operation_id,item_id,operation_kind,idempotency_key,payload_hash,payload_json,
+      operation_id,subject_id,operation_kind,idempotency_key,payload_hash,payload_json,
       library_generation,status,step,created_at,updated_at
     ) VALUES (
-      @operation_id,@item_id,@operation_kind,@idempotency_key,@payload_hash,@payload_json,
+      @operation_id,@subject_id,@operation_kind,@idempotency_key,@payload_hash,@payload_json,
       @library_generation,@status,@step,@created_at,@updated_at
     )
   `).run(row);
@@ -464,12 +340,12 @@ function updateOperation(operationId, updates = {}) {
   return getOperation(current.operationId);
 }
 
-function getCurrentOperationForItem(itemId) {
+function getCurrentOperationForSubject(subjectId) {
   return operationRow(getDb().prepare(`
     SELECT * FROM libra_reconcile_operations
-    WHERE item_id = ? AND status IN ('pending','running','retrying','failed')
+    WHERE subject_id = ? AND status IN ('pending','running','retrying','failed')
     ORDER BY updated_at DESC LIMIT 1
-  `).get(String(itemId || '')));
+  `).get(String(subjectId || '')));
 }
 
 function workRow(row) {
@@ -479,7 +355,7 @@ function workRow(row) {
     idempotencyKey: row.idempotency_key,
     workKind: row.work_kind,
     subLibraryId: row.sub_library_id,
-    itemId: row.item_id,
+    subjectId: row.subject_id,
     status: row.status,
     cursor: jsonParse(row.cursor_json, {}),
     payload: jsonParse(row.payload_json, {}),
@@ -509,7 +385,7 @@ function createOrGetLibraryWork(input = {}) {
     idempotency_key: idempotencyKey,
     work_kind: String(input.workKind || ''),
     sub_library_id: String(input.subLibraryId || ''),
-    item_id: String(input.itemId || ''),
+    subject_id: String(input.subjectId || ''),
     status: String(input.status || 'pending'),
     cursor_json: JSON.stringify(input.cursor || {}),
     payload_json: JSON.stringify(payload),
@@ -522,10 +398,10 @@ function createOrGetLibraryWork(input = {}) {
   };
   getDb().prepare(`
     INSERT INTO libra_library_work
-      (work_id,idempotency_key,work_kind,sub_library_id,item_id,status,cursor_json,payload_json,
+      (work_id,idempotency_key,work_kind,sub_library_id,subject_id,status,cursor_json,payload_json,
        attempt_count,retry_at,error_code,error_message,created_at,updated_at)
     VALUES
-      (@work_id,@idempotency_key,@work_kind,@sub_library_id,@item_id,@status,@cursor_json,@payload_json,
+      (@work_id,@idempotency_key,@work_kind,@sub_library_id,@subject_id,@status,@cursor_json,@payload_json,
        @attempt_count,@retry_at,@error_code,@error_message,@created_at,@updated_at)
   `).run(row);
   return { work: getLibraryWork(row.work_id), created: true };
@@ -575,17 +451,17 @@ function listLibraryWork(filter = {}) {
   return getDb().prepare(`SELECT * FROM libra_library_work ${where} ORDER BY updated_at DESC`).all(params).map(workRow);
 }
 
-function getCurrentOperationsForItems(itemIds = []) {
-  const ids = [...new Set(itemIds.map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+function getCurrentOperationsForSubjects(subjectIds = []) {
+  const ids = [...new Set(subjectIds.map((subjectId) => String(subjectId || '').trim()).filter(Boolean))];
   if (ids.length === 0) return {};
   const placeholders = ids.map(() => '?').join(',');
   return getDb().prepare(`
     SELECT * FROM libra_reconcile_operations
-    WHERE item_id IN (${placeholders})
+    WHERE subject_id IN (${placeholders})
       AND status IN ('pending','running','retrying','failed')
     ORDER BY updated_at DESC
   `).all(...ids).reduce((out, row) => {
-    if (!out[row.item_id]) out[row.item_id] = operationRow(row);
+    if (!out[row.subject_id]) out[row.subject_id] = operationRow(row);
     return out;
   }, {});
 }
@@ -601,7 +477,7 @@ function listRecoverableOperations(now = new Date().toISOString()) {
 function appendEvent(input = {}) {
   const row = {
     event_id: String(input.eventId || crypto.randomUUID()),
-    item_id: String(input.itemId || ''),
+    subject_id: String(input.subjectId || ''),
     operation_id: String(input.operationId || ''),
     event_type: String(input.eventType || ''),
     generation: Math.max(0, Number.parseInt(input.generation, 10) || 0),
@@ -609,10 +485,10 @@ function appendEvent(input = {}) {
     created_at: String(input.createdAt || new Date().toISOString()),
   };
   getDb().prepare(`
-    INSERT INTO libra_events (event_id,item_id,operation_id,event_type,generation,payload_json,created_at)
-    VALUES (@event_id,@item_id,@operation_id,@event_type,@generation,@payload_json,@created_at)
+    INSERT INTO libra_events (event_id,subject_id,operation_id,event_type,generation,payload_json,created_at)
+    VALUES (@event_id,@subject_id,@operation_id,@event_type,@generation,@payload_json,@created_at)
   `).run(row);
-  return { eventId: row.event_id, itemId: row.item_id, operationId: row.operation_id, eventType: row.event_type, generation: row.generation, payload: input.payload || {}, createdAt: row.created_at };
+  return { eventId: row.event_id, subjectId: row.subject_id, operationId: row.operation_id, eventType: row.event_type, generation: row.generation, payload: input.payload || {}, createdAt: row.created_at };
 }
 
 function resetForTests() {
@@ -622,22 +498,16 @@ function resetForTests() {
 
 module.exports = {
   ensureSchema,
-  getLibraryItem,
-  getLibraryItems,
-  getLibraryItemsPage,
-  resolveLibraryHierarchy,
-  getMaintenanceScopeMembers,
-  createOrGetMaintenanceScope,
-  addMaintenanceScopeMember,
-  listMaintenanceScopeMembers,
-  listActiveMaintenanceScopes,
-  updateMaintenanceScope,
-  upsertLibraryItem,
+  getLibrarySubject,
+  getLibrarySubjects,
+  getLibrarySubjectsPage,
+  findLibrarySubjectBySourceKey,
+  upsertLibrarySubject,
   createOrGetOperation,
   getOperation,
   getOperationByIdempotencyKey,
-  getCurrentOperationForItem,
-  getCurrentOperationsForItems,
+  getCurrentOperationForSubject,
+  getCurrentOperationsForSubjects,
   createOrGetLibraryWork,
   getLibraryWork,
   updateLibraryWork,

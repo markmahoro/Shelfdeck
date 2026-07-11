@@ -366,7 +366,7 @@ export interface DashboardEventEntry {
   message: string;
   detail?: Record<string, unknown>;
   taskId?: string;
-  itemId?: string;
+  subjectId?: string;
   eventType?: string;
   eventStatus?: string;
   resourceType?: string;
@@ -450,8 +450,8 @@ export interface DashboardHealthSummary {
 
 export interface MediaTask {
   id: string;
-  itemId: string;
-  itemName?: string;
+  subjectId: string;
+  subjectName?: string;
   taskTarget?: TaskTarget;
   workflowSummary?: { planId: string; schemaVersion: string; classification: string; targetGate: string; eventCount: number } | null;
   currentEvent?: { eventId: string; capability: string; status: string; resourceKey?: string } | null;
@@ -465,7 +465,7 @@ export interface MediaTask {
   approval?: TaskApproval | null;
   // Task-local priority inside the same MediaItem priority class.
   priority?: number;
-  maintenanceRun?: { runId: string; itemId: string; status: string; initiatedBy: string } | null;
+  maintenanceRun?: { runId: string; subjectId: string; status: string; initiatedBy: string } | null;
   maintenancePrioritySnapshot?: { class: 'normal' | 'expedited'; revision: number; reason?: string; runId?: string };
   priorityModelVersion?: string;
   priorityBreakdown?: {
@@ -484,7 +484,7 @@ export interface MediaTask {
   createdAt: string;
   updatedAt: string;
   logs?: TaskLogEntry[];
-  itemInfo?: TaskItemInfo;
+  subjectInfo?: TaskItemInfo;
   verifyResult?: VerifyResult;
   upgradePreview?: UpgradePreview;
   confirmData?: Record<string, unknown>;
@@ -502,7 +502,7 @@ export interface RequestedIntent {
 export interface TaskTarget {
   object?: {
     type?: string;
-    itemId?: string;
+    subjectId?: string;
     subLibraryId?: string;
     [key: string]: unknown;
   };
@@ -532,7 +532,7 @@ export interface GateObjective {
 export interface TaskEvent {
   id: string;
   taskId: string;
-  itemId?: string;
+  subjectId?: string;
   eventType: string;
   eventStatus: string;
   phase?: string | null;
@@ -546,8 +546,8 @@ export interface TaskEvent {
 export interface ResourceFailureEvent extends TaskEvent {
   task?: {
     id: string;
-    itemId: string;
-    itemName?: string;
+    subjectId: string;
+    subjectName?: string;
     status: string;
     phase?: string;
     retryCount?: number;
@@ -599,8 +599,8 @@ export type RuntimeEventState = 'running' | 'recent' | 'failed';
 
 export interface ResourceTask {
   taskId: string;
-  itemId: string;
-  itemName?: string;
+  subjectId: string;
+  subjectName?: string;
   taskTarget?: TaskTarget | null;
   source?: 'manual' | 'auto' | string;
   status: TaskStatus;
@@ -628,8 +628,8 @@ export interface RuntimeResourceEvent {
   resourceKey: string;
   resourceLabel: string;
   taskId?: string;
-  itemId?: string;
-  itemName?: string;
+  subjectId?: string;
+  subjectName?: string;
   subLibraryId?: string;
   source?: string;
   startedAt: string;

@@ -207,13 +207,13 @@ export const adult = {
   getConfig: () => get<AdultLibraryConfig>("/v1/admin/adult/config"),
   patchConfig: (body: Partial<AdultLibraryConfig>) =>
     patch<AdultLibraryConfig>("/v1/admin/adult/config", body),
-  rescrapeItem: (itemId: string, adultId?: string) =>
+  rescrapeItem: (subjectId: string, adultId?: string) =>
     post<{
       ok: boolean;
       affected: number;
       projection?: Record<string, unknown>;
-    }>(`/v1/admin/adult/items/${encodeURIComponent(itemId)}/actions/rescrape`, {
-      idempotencyKey: `adult-rescrape:${itemId}:${Date.now()}`,
+    }>(`/v1/admin/adult/subjects/${encodeURIComponent(subjectId)}/actions/rescrape`, {
+      idempotencyKey: `adult-rescrape:${subjectId}:${Date.now()}`,
       ...(adultId ? { adultId } : {}),
     }),
 };
@@ -338,8 +338,8 @@ export const resources = {
 
 export interface TaskReport {
   taskId: string;
-  itemId?: string;
-  itemName: string;
+  subjectId?: string;
+  subjectName: string;
   workflowClassification?: string;
   capabilities?: string[];
   elapsedSec: number | null;
@@ -502,8 +502,8 @@ export const automation = {
 // ── Cleanup Recommendations ──────────────────────────────────────────────────
 
 export interface CleanupRecommendation {
-  itemId: string;
-  itemName: string;
+  subjectId: string;
+  subjectName: string;
   subLibraryId: string;
   membership: string;
   phase: string;
@@ -610,13 +610,14 @@ export type HelixCleanupMode =
   "retain_source" | "detach_source" | "delete_source";
 
 export const helixLibrary = {
+  getAssets: (subjectId: string) => get<{ subjectId: string; assets: Array<Record<string, any>> }>(`/v1/admin/library/subjects/${encodeURIComponent(subjectId)}/assets`),
   onboard: (body: {
-    itemId?: string;
+    subjectId?: string;
     idempotencyKey: string;
     sourceReference: Record<string, unknown>;
   }) => post("/v1/admin/library/actions/onboard", body),
   offboard: (
-    itemId: string,
+    subjectId: string,
     body: {
       idempotencyKey: string;
       cleanupMode: HelixCleanupMode;
@@ -625,28 +626,28 @@ export const helixLibrary = {
     },
   ) =>
     post(
-      `/v1/admin/library/items/${encodeURIComponent(itemId)}/actions/offboard`,
+      `/v1/admin/library/subjects/${encodeURIComponent(subjectId)}/actions/offboard`,
       body,
     ),
-  startMaintenance: (itemId: string) =>
+  startMaintenance: (subjectId: string) =>
     post(
-      `/v1/admin/library/items/${encodeURIComponent(itemId)}/actions/start-maintenance`,
+      `/v1/admin/library/subjects/${encodeURIComponent(subjectId)}/actions/start-maintenance`,
       {
-        idempotencyKey: `start-maintenance:${itemId}:${Date.now()}`,
+        idempotencyKey: `start-maintenance:${subjectId}:${Date.now()}`,
       },
     ),
-  prioritizeMaintenance: (itemId: string) =>
+  prioritizeMaintenance: (subjectId: string) =>
     post(
-      `/v1/admin/library/items/${encodeURIComponent(itemId)}/actions/prioritize-maintenance`,
+      `/v1/admin/library/subjects/${encodeURIComponent(subjectId)}/actions/prioritize-maintenance`,
       {
-        idempotencyKey: `prioritize-maintenance:${itemId}:${Date.now()}`,
+        idempotencyKey: `prioritize-maintenance:${subjectId}:${Date.now()}`,
       },
     ),
-  cancelMaintenancePriority: (itemId: string) =>
+  cancelMaintenancePriority: (subjectId: string) =>
     post(
-      `/v1/admin/library/items/${encodeURIComponent(itemId)}/actions/cancel-maintenance-priority`,
+      `/v1/admin/library/subjects/${encodeURIComponent(subjectId)}/actions/cancel-maintenance-priority`,
       {
-        idempotencyKey: `cancel-maintenance-priority:${itemId}:${Date.now()}`,
+        idempotencyKey: `cancel-maintenance-priority:${subjectId}:${Date.now()}`,
       },
     ),
 };
@@ -847,8 +848,8 @@ export const libraryApi = {
     return get<{ items: unknown[]; total: number }>(`/v1/library${params}`);
   },
 
-  patchPerception: (itemId: string, userRating: number | null) =>
-    patch<{ ok: boolean }>(`/v1/admin/library/items/${encodeURIComponent(itemId)}/perception`, { userRating }),
+  patchPerception: (subjectId: string, userRating: number | null) =>
+    patch<{ ok: boolean }>(`/v1/admin/library/subjects/${encodeURIComponent(subjectId)}/perception`, { userRating }),
 
   recomputeOptimizeTargets: () =>
     post<{ ok: boolean; changed: number }>(

@@ -72,11 +72,10 @@ Helix 当前约束则是：Series/Season 只作为 Libra scope，Episode 才是 
 
 - Service：`221/221` 通过。
 - Admin Web：TypeScript + Vite production build 通过。
-- `flowplan-business-parity.test.js`：50 项业务 Capability 全部可由代表性 Planner 场景到达；Season Upgrade blocker 单独断言。
+- 本报告记录的是 Subject/Asset clean cut 之前的 50 项基线；当前 62 项 Catalog、Series Season Upgrade 与 multi-Episode Transcode 证据以 `CURRENT_STATUS.md` 为准。
 - 静态审计：Capability 不引用 Libra/Nexora，不写 Task/Event，不发跨域 signal，不调用另一 Capability，不包含旧复杂 Executor 路由或内部进度轮询。
 - Runtime：重试不消耗 Task attempt、重启恢复、durable approval、conditional approval、Permit、cancel、late-output rejection、commit fencing 均有行为测试。
 
 ## 结论
 
 Movie、单文件、Episode Transcode、Metadata、成人识别、Organize 与 Artifact 链路已通过业务复刻验收。由于 Season Upgrade 是原系统有效能力且当前 Helix 尚无等价安全模型，本次总验收仍为 **未通过**。在该架构决策确认前，不恢复真实四库 E2E 或生产运行。
-

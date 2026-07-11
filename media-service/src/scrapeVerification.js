@@ -62,7 +62,7 @@ function verifyScrapedItem(item, opts = {}) {
     failures: [],
     warnings: [],
   };
-  if (!item || !item.itemId) {
+  if (!item || !item.subjectId) {
     addFailure(result, 'item.present', 'Library item is missing');
     return result;
   }
@@ -118,8 +118,8 @@ function verifyScrapedItem(item, opts = {}) {
     const marker = readMarker(markerPath, opts);
     if (markerPath && existsFile(markerPath, opts) && marker) {
       markOk(result, 'marker.exists');
-      if (String(marker.itemId || '') === String(item.itemId)) markOk(result, 'marker.itemId');
-      else addFailure(result, 'marker.itemId', 'Marker itemId does not match library itemId');
+      if (String(marker.subjectId || '') === String(item.subjectId)) markOk(result, 'marker.subjectId');
+      else addFailure(result, 'marker.subjectId', 'Marker subjectId does not match library subjectId');
       if (!item.subLibraryId || String(marker.subLibraryId || '') === String(item.subLibraryId)) markOk(result, 'marker.subLibraryId');
       else addFailure(result, 'marker.subLibraryId', 'Marker subLibraryId does not match library item');
       if (!marker.mediaPath || !item.path || path.resolve(marker.mediaPath) === path.resolve(item.path)) markOk(result, 'marker.mediaPath');
@@ -146,7 +146,7 @@ function verifyMetadataCompleteItem(item, opts = {}) {
     failures: [],
     warnings: [],
   };
-  if (!item || !item.itemId) {
+  if (!item || !item.subjectId) {
     addFailure(result, 'item.present', 'Library item is missing');
     return result;
   }

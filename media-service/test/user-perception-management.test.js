@@ -7,7 +7,7 @@ const userPerceptionManagement = require('../src/userPerceptionManagement');
 
 test('user perception prefers local rating over Douban private rating', () => {
   const item = userPerceptionManagement.projectItem({
-    itemId: 'movie-1',
+    subjectId: 'movie-1',
     userRating: 4,
     userRatingUpdatedAt: '2026-07-01T10:00:00.000Z',
     doubanRating: 5,
@@ -26,7 +26,7 @@ test('user perception prefers local rating over Douban private rating', () => {
 
 test('user perception uses Douban private rating when no local rating exists', () => {
   const item = userPerceptionManagement.projectItem({
-    itemId: 'movie-2',
+    subjectId: 'movie-2',
     doubanRating: 3,
     doubanRatingUpdatedAt: '2026-07-01T09:00:00.000Z',
     watched: false,
@@ -40,7 +40,7 @@ test('user perception uses Douban private rating when no local rating exists', (
 
 test('user perception bumps version only when normalized facts change', () => {
   const item = userPerceptionManagement.projectItem({
-    itemId: 'movie-3',
+    subjectId: 'movie-3',
     userRating: 3,
     watched: true,
   }, { now: '2026-07-01T11:00:00.000Z' });

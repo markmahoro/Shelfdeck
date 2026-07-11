@@ -37,15 +37,15 @@ function normalizeSourceReference(input = {}, defaults = {}) {
   };
 }
 
-function applySourceReference(itemInfo = {}, ref = {}) {
+function applySourceReference(subjectInfo = {}, ref = {}) {
   const next = {
-    ...itemInfo,
-    source: ref.source || itemInfo.source,
-    sourceRefId: ref.sourceRefId || itemInfo.sourceRefId,
-    subLibraryId: ref.subLibraryId || itemInfo.subLibraryId,
-    sourceAdapterId: ref.sourceAdapterId || itemInfo.sourceAdapterId,
-    sourceObservedAt: ref.observedAt || itemInfo.sourceObservedAt,
-    locator: ref.locator || itemInfo.locator,
+    ...subjectInfo,
+    source: ref.source || subjectInfo.source,
+    sourceRefId: ref.sourceRefId || subjectInfo.sourceRefId,
+    subLibraryId: ref.subLibraryId || subjectInfo.subLibraryId,
+    sourceAdapterId: ref.sourceAdapterId || subjectInfo.sourceAdapterId,
+    sourceObservedAt: ref.observedAt || subjectInfo.sourceObservedAt,
+    locator: ref.locator || subjectInfo.locator,
   };
   if (ref.source === 'emby') {
     next.sourceId = next.sourceId || ref.sourceRefId;

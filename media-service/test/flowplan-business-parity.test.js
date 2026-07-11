@@ -14,18 +14,18 @@ const transcodeService = require('../src/services/transcodeService');
 
 builtIns.registerBuiltIns();
 
-const METADATA_EFFECTS = ['metadata.sidecar.render', 'metadata.image.acquire'];
-const OPTIMIZE_EFFECTS = ['source.upgrade.request', 'media.transcode', 'container.remux', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'];
+const METADATA_EFFECTS = ['metadata.sidecar.render', 'series.metadata.sidecar.render', 'metadata.image.acquire'];
+const OPTIMIZE_EFFECTS = ['source.upgrade.request', 'media.transcode', 'container.remux', 'media.file.replace', 'series.season.replace', 'source.organize', 'metadata.artifacts.materialize'];
 
 function fixture(id, gate, item = {}, library = {}, descriptor = {}) {
   const uuid = library.uuid || 'library';
   return {
     task: {
-      id, itemId: `${id}-item`, targetGate: gate,
+      id, subjectId: `${id}-item`, targetGate: gate,
       taskTarget: { targetGate: gate, gateObjective: item.objective || {} },
       objectiveRevisionSnapshot: `${id}-objective`, capabilityPolicyRevision: '1',
-      itemInfo: { subLibraryId: uuid, ...item },
-      helixAdmission: { admissionGeneration: 1, sourceRevision: 'source-1', sourceAccessDescriptor: { sourceType: 'folder', subLibraryId: uuid, ...descriptor } },
+      subjectInfo: { subLibraryId: uuid, ...item },
+      helixAdmission: { admissionGeneration: 1, sourceRevision: 'source-1', assets: [{ assetId: `${id}-asset`, assetKind: item.subjectKind === 'series' ? 'episode' : 'movie', seasonKey: item.subjectKind === 'series' ? '1' : '', episodeKey: item.subjectKind === 'series' ? '1' : '', assetRevision: 1, canonicalLocator: { path: 'Z:/media.mkv' } }], sourceAccessDescriptor: { sourceType: 'folder', subLibraryId: uuid, ...descriptor } },
     },
     config: {
       subLibraries: [{ uuid, allowedCapabilities: { metadata: METADATA_EFFECTS, optimize: OPTIMIZE_EFFECTS }, ...library }],
@@ -49,12 +49,15 @@ test('representative FlowPlans make every business Capability reachable from the
     fixture('basedata-emby', 'basedata', {}, {}, { sourceType: 'emby' }),
     fixture('basedata-folder', 'basedata'),
     fixture('metadata-emby', 'metadata', {}, {}, { sourceType: 'emby' }),
+    fixture('metadata-series', 'metadata', { subjectKind: 'series', type: 'series' }, {}, { sourceType: 'emby' }),
     fixture('metadata-jav', 'metadata', {}, { mediaType: 'adult', adultRegion: 'japanese_jav', capabilityParameters: { 'metadata.image.acquire': { kinds: ['poster', 'fanart'] } } }),
     fixture('metadata-western-local', 'metadata', {}, { mediaType: 'adult', adultRegion: 'western_adult', western: { computeMode: 'local' } }),
     fixture('metadata-western-worker', 'metadata', {}, { mediaType: 'adult', adultRegion: 'western_adult', western: { computeMode: 'worker' } }),
     fixture('transcode', 'optimize', { codec: 'h264', bitrate: 30, resolution: '1080p', objective: { targetMediaFacts: { targetCodec: 'h265' } } }),
+    fixture('series-transcode', 'optimize', { subjectKind: 'series', type: 'series', codec: 'h264', bitrate: 30, resolution: '1080p', objective: { targetMediaFacts: { targetCodec: 'h265' } } }),
     fixture('disc', 'optimize', { codec: 'h264', bitrate: 30, resolution: '1080p', isDiscLike: true, objective: { targetMediaFacts: { targetCodec: 'h265' } } }),
     fixture('upgrade', 'optimize', { codec: 'h265', resolution: '720p', objective: { targetMediaFacts: { minResolution: '2160p' } } }),
+    fixture('series-upgrade', 'optimize', { subjectKind: 'series', type: 'series', objective: { seasonKey: '1', targetMediaFacts: { minResolution: '2160p' } }, resolution: '720p' }),
     fixture('organize', 'optimize', { layoutFacts: { compliant: false }, objective: { targetMediaFacts: { storageLayout: 'organized' } } }),
     fixture('materialize', 'optimize', { metadataArtifactsReady: true, metadataArtifactsMaterialized: false, objective: { targetMediaFacts: { metadataArtifacts: 'materialized' } } }),
     fixture('noop', 'optimize', { codec: 'h265', resolution: '1080p', objective: { kind: 'keep_current' } }),
@@ -67,8 +70,8 @@ test('representative FlowPlans make every business Capability reachable from the
 test('Basedata reproduces Emby and Folder observation without container Tasks or cross-gate chaining', () => {
   const emby = plan(fixture('be', 'basedata', {}, {}, { sourceType: 'emby' }));
   const folder = plan(fixture('bf', 'basedata'));
-  assert.deepStrictEqual(capabilities(emby), ['emby.item.observe', 'filesystem.layout.observe', 'basedata.verify', 'basedata.publish']);
-  assert.deepStrictEqual(capabilities(folder), ['filesystem.media.probe', 'filesystem.layout.observe', 'basedata.verify', 'basedata.publish']);
+  assert.deepStrictEqual(capabilities(emby), ['emby.item.observe', 'filesystem.layout.observe', 'basedata.verify', 'basedata.publish', 'basedata.subject.publish']);
+  assert.deepStrictEqual(capabilities(folder), ['filesystem.media.probe', 'filesystem.layout.observe', 'basedata.verify', 'basedata.publish', 'basedata.subject.publish']);
   assert.strictEqual(node(emby, 'filesystem.layout.observe').when, false);
   for (const value of [emby, folder]) assert.ok(value.nodes.every((entry) => registry.get(entry.capability).allowedTargetGates.includes('basedata')));
 });
@@ -96,9 +99,9 @@ test('Transcode predeclares retry attempts, conditional approvals, disposition a
   const names = capabilities(value);
   assert.ok(names.indexOf('media.transcode.precheck') < names.indexOf('media.transcode'));
   assert.ok(names.indexOf('output.media.select') > names.lastIndexOf('output.media.verify'));
-  for (const required of ['transcode.tonemap.accept', 'output.media.disposition', 'output.preview.generate', 'media.replace', 'staged.asset.discard', 'workspace.cleanup', 'optimization.outcome.select', 'filesystem.layout.verify', 'optimization.result.publish']) assert.ok(names.includes(required), required);
+  for (const required of ['transcode.tonemap.accept', 'output.media.disposition', 'output.preview.generate', 'media.file.replace', 'staged.asset.discard', 'workspace.cleanup', 'optimization.outcome.select', 'filesystem.layout.verify', 'optimization.result.publish']) assert.ok(names.includes(required), required);
   assert.deepStrictEqual(node(value, 'transcode.tonemap.accept').approvalRequirement.whenInput, { port: 'precheck', path: 'isDolbyVision', equals: true });
-  assert.strictEqual(node(value, 'media.replace').approvalRequirement.gateId, 'transcode.beforeReplace');
+  assert.strictEqual(node(value, 'media.file.replace').approvalRequirement.gateId, 'transcode.beforeReplace');
   assert.ok(value.nodes.filter((entry) => entry.capability === 'media.transcode').length >= 2);
 });
 
@@ -109,13 +112,14 @@ test('Upgrade reproduces selection, durable observations, identity verification 
   assert.strictEqual(node(value, 'source.upgrade.observe-download').retryPolicy.maxAttempts, 2160);
   assert.strictEqual(node(value, 'source.upgrade.observe-transfer').retryPolicy.maxAttempts, 2160);
   assert.strictEqual(node(value, 'media.identity.accept').approvalRequirement.whenInput.equals, false);
-  assert.ok(capabilities(value).includes('media.replace'));
+  assert.ok(capabilities(value).includes('media.file.replace'));
 });
 
-test('Episode Upgrade is explicitly blocked until the Helix series-scope mutation owner is resolved', () => {
-  const value = plan(fixture('episode-upgrade', 'optimize', { type: 'episode', codec: 'h265', resolution: '720p', objective: { targetMediaFacts: { minResolution: '2160p' } } }));
-  assert.deepStrictEqual(capabilities(value), ['workflow.blocked']);
-  assert.deepStrictEqual(value.explanation.rejected, [{ capability: 'source.upgrade.request', reason: 'series_scope_upgrade_architecture_unresolved' }]);
+test('Series Upgrade plans one Season package transaction instead of Episode Tasks', () => {
+  const value = plan(fixture('series-upgrade-contract', 'optimize', { subjectKind: 'series', type: 'series', resolution: '720p', objective: { seasonKey: '1', targetMediaFacts: { minResolution: '2160p' } } }));
+  assert.strictEqual(value.classification, 'series_season_upgrade');
+  assert.ok(capabilities(value).includes('series.season-package.verify'));
+  assert.strictEqual(capabilities(value).at(-1), 'series.season.replace');
 });
 
 test('a composite upgrade plus transcode objective validates only the upgrade-owned gap before transcode', () => {
@@ -140,7 +144,7 @@ test('organize terminates its Graph and materialization resumes only after Libra
 test('Objective verification rejects a stale or incorrectly planned no-op', async () => {
   const capability = registry.get('optimization.objective.verify');
   await assert.rejects(() => capability.execute({
-    task: { id: 'bad', objectiveRevisionSnapshot: '1', itemInfo: { codec: 'h264' }, taskTarget: { gateObjective: { targetMediaFacts: { targetCodec: 'h265' } } } },
+    task: { id: 'bad', objectiveRevisionSnapshot: '1', subjectInfo: { codec: 'h264' }, taskTarget: { gateObjective: { targetMediaFacts: { targetCodec: 'h265' } } } },
     event: { eventId: 'bad:verify' }, input: {}, parameters: {}, config: {},
   }), { code: 'OPTIMIZE_OBJECTIVE_NOT_SATISFIED' });
 });
@@ -154,7 +158,7 @@ test('upgrade-stage media verification ignores a codec gap owned by the followin
   try {
     const capability = registry.get('output.media.verify');
     const result = await capability.execute({
-      task: { itemInfo: { codec: 'h264', resolution: '720p' }, taskTarget: { gateObjective: { targetMediaFacts: { minResolution: '2160p', targetCodec: 'h265' } } } },
+      task: { subjectInfo: { codec: 'h264', resolution: '720p' }, taskTarget: { gateObjective: { targetMediaFacts: { minResolution: '2160p', targetCodec: 'h265' } } } },
       event: { eventId: 'verify' }, config: {}, parameters: { objectiveScope: 'upgrade_stage' },
       input: { stagedAsset: { assetId: 'asset', sourcePath: output, workDir: temp, replacementScope: 'file', producingEventId: 'producer', path: output, originalSizeBytes: 2048 } },
     });

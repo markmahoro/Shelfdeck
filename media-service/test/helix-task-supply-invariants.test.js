@@ -22,10 +22,10 @@ test.after(() => {
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
-function create(itemId, config, extra = {}) {
+function create(subjectId, config, extra = {}) {
   return taskCreator.createTargetGateTask({
-    item: { itemId, factsFreshness: {}, basedataComplete: false },
-    itemInfo: { itemId },
+    item: { subjectId, factsFreshness: {}, basedataComplete: false },
+    subjectInfo: { subjectId },
     targetGate: 'basedata',
     gateObjective: { kind: 'basedata_current' },
     source: 'auto',
@@ -60,13 +60,13 @@ test('Resource Governor returns the same waiter for the same work and resource',
 test('Task Creator creates only a target-gate Task and never asks Flow Planner to preselect a Flow', () => {
   const result = taskCreator.createTargetGateTask({
     item: {
-      itemId: 'blocked-flow', codec: 'h264', bitrate: 0, metadataComplete: true,
+      subjectId: 'blocked-flow', codec: 'h264', bitrate: 0, metadataComplete: true,
       factsFreshness: { basedataFacts: { status: 'fresh' }, metadataFacts: { status: 'fresh' } },
       optimizeObjectiveStatus: 'ready',
       optimizeObjective: { kind: 'target_media_facts', targetMediaFacts: { targetCodec: 'vp9', targetBitrate: 4 } },
     },
-    itemInfo: {
-      itemId: 'blocked-flow', codec: 'h264', bitrate: 0, metadataComplete: true,
+    subjectInfo: {
+      subjectId: 'blocked-flow', codec: 'h264', bitrate: 0, metadataComplete: true,
       factsFreshness: { basedataFacts: { status: 'fresh' }, metadataFacts: { status: 'fresh' } },
       optimizeObjectiveStatus: 'ready',
       optimizeObjective: { kind: 'target_media_facts', targetMediaFacts: { targetCodec: 'vp9', targetBitrate: 4 } },
@@ -87,11 +87,11 @@ test('Task Creator creates only a target-gate Task and never asks Flow Planner t
 
 test('Task Store durably preserves the source access mapping revision fence', () => {
   const task = taskStore.createTask({
-    itemId: 'mapping-revision-task',
-    itemName: 'Mapping revision',
+    subjectId: 'mapping-revision-task',
+    subjectName: 'Mapping revision',
     source: 'auto',
     status: 'queued',
-    taskTarget: { object: { type: 'media_item', itemId: 'mapping-revision-task' }, targetGate: 'basedata', gateObjective: {} },
+    taskTarget: { object: { type: 'media_item', subjectId: 'mapping-revision-task' }, targetGate: 'basedata', gateObjective: {} },
     sourceAccessMappingRevision: 'mapping-revision-42',
   });
   assert.strictEqual(task.sourceAccessMappingRevision, 'mapping-revision-42');

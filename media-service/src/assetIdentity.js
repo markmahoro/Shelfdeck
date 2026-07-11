@@ -76,13 +76,13 @@ function getEmbyItemId(item) {
     item &&
     item.externalRefs &&
     item.externalRefs.emby &&
-    item.externalRefs.emby.itemId
+    item.externalRefs.emby.subjectId
   ) || (item && item.source === 'emby' ? item.sourceId : '') || '';
 }
 
 function ensureIdentityFields(item, subLib, now) {
   const subLibraryId = item.subLibraryId || (subLib && subLib.uuid) || '';
-  const embyId = getEmbyItemId(item) || item.sourceId || item.itemId || '';
+  const embyId = getEmbyItemId(item) || item.sourceId || item.subjectId || '';
   const assetKey = item.assetKey || computeAssetKey(item, subLibraryId);
   const assetRootPath = item.assetRootPath || inferAssetRootPath(item.path, item.isDiscLike);
   const externalRefs = { ...(item.externalRefs || {}) };
@@ -90,7 +90,7 @@ function ensureIdentityFields(item, subLib, now) {
     externalRefs.emby = {
       ...(externalRefs.emby || {}),
       serverId: (subLib && subLib.embyServerId) || (externalRefs.emby && externalRefs.emby.serverId) || '',
-      itemId: embyId,
+      subjectId: embyId,
       sourceId: embyId,
       lastSeenAt: (externalRefs.emby && externalRefs.emby.lastSeenAt) || now || null,
     };
@@ -99,7 +99,7 @@ function ensureIdentityFields(item, subLib, now) {
 }
 
 function findExistingItemIndex(items, incoming, subLib, subLibraryId) {
-  const embyId = incoming.sourceId || incoming.itemId || '';
+  const embyId = incoming.sourceId || incoming.subjectId || '';
   if (embyId) {
     const idx = items.findIndex((it) =>
       it.subLibraryId === subLibraryId &&
@@ -133,10 +133,10 @@ function findExistingItemIndex(items, incoming, subLib, subLibraryId) {
 }
 
 function makeExternalEmbyRef(incoming, subLib, now) {
-  const embyId = incoming.sourceId || incoming.itemId || '';
+  const embyId = incoming.sourceId || incoming.subjectId || '';
   return {
     serverId: (subLib && subLib.embyServerId) || '',
-    itemId: embyId,
+    subjectId: embyId,
     sourceId: embyId,
     lastSeenAt: now,
   };

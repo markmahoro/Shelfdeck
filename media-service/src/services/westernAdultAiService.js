@@ -101,11 +101,11 @@ async function analyzeVideo({ taskId, config, subLib, item, onLog }) {
   try {
     const node = { address, apiKey: western.apiKey || '' };
     const stat = fs.statSync(item.path);
-    const assetId = String(item.itemId || taskId || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+    const assetId = String(item.subjectId || taskId || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
     onLog && onLog('info', `Uploading source asset to AI worker (${Math.round(stat.size / 1024 / 1024)} MB)`);
     await nodeService.createAsset(node, {
       assetId,
-      assetKey: item.assetKey || item.itemId,
+      assetKey: item.assetKey || item.subjectId,
       sourceFileName: path.basename(item.path),
       sourceFileSize: stat.size,
       fingerprint: { size: stat.size, mtimeMs: stat.mtimeMs },
@@ -119,7 +119,7 @@ async function analyzeVideo({ taskId, config, subLib, item, onLog }) {
     const aiJob = await nodeService.createAiJob(node, {
       jobId: taskId,
       assetId,
-      itemName: item.name || path.basename(item.path, path.extname(item.path)),
+      subjectName: item.name || path.basename(item.path, path.extname(item.path)),
       people: peopleStore.listPeople({ adultRegion: 'western_adult', includeArtifacts: true, limit: 200 }).people,
       options: {
         frameSampleCount: western.frameSampleCount,

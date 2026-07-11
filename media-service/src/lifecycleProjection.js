@@ -171,13 +171,13 @@ function toLifecycleSnapshot(item, config = {}) {
   const blockedReason = blockedReasonForProjection(projection);
   const nextTargetGate = blockedReason ? null : (projection.lifecycleNextTask || null);
   return {
-    itemId: projection.itemId || '',
+    subjectId: projection.subjectId || '',
     object: {
       type: 'media_item',
-      itemId: projection.itemId || '',
+      subjectId: projection.subjectId || '',
     },
     item: projection,
-    itemInfo: projection,
+    subjectInfo: projection,
     nextTargetGate,
     gateObjective: nextTargetGate ? gateObjectiveForProjection({ ...projection, lifecycleNextTask: nextTargetGate }) : {},
     lifecycleReason: projection.lifecycleReason || '',

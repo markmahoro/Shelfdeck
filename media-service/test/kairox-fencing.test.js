@@ -18,23 +18,23 @@ test.after(() => {
 });
 
 test('current Kairox admission generation passes every commit checkpoint', () => {
-  admissionStore.upsertAdmission({ itemId: 'fence-current', admissionGeneration: 2, status: 'active' });
+  admissionStore.upsertAdmission({ subjectId: 'fence-current', admissionGeneration: 2, status: 'active' });
   const result = fence.checkTask({
-    itemId: 'fence-current',
+    subjectId: 'fence-current',
     helixAdmission: { admissionGeneration: 2 },
   }, 'transcode_replace');
   assert.strictEqual(result.allowed, true);
 });
 
 test('revoked or stale admission generation is fenced before commit', () => {
-  admissionStore.upsertAdmission({ itemId: 'fence-stale', admissionGeneration: 3, status: 'suspended', incidentCode: 'source_missing' });
-  const task = { itemId: 'fence-stale', helixAdmission: { admissionGeneration: 2 } };
+  admissionStore.upsertAdmission({ subjectId: 'fence-stale', admissionGeneration: 3, status: 'suspended', incidentCode: 'source_missing' });
+  const task = { subjectId: 'fence-stale', helixAdmission: { admissionGeneration: 2 } };
   assert.strictEqual(fence.checkTask(task, 'upgrade_replace').allowed, false);
   assert.throws(() => fence.assertTask(task, 'upgrade_replace'), (error) => error.code === 'KAIROX_ADMISSION_FENCED');
 });
 
 test('tasks without a Helix admission are fenced in the clean runtime', () => {
-  assert.deepStrictEqual(fence.checkTask({ itemId: 'unadmitted-task' }, 'resource_dispatch'), {
+  assert.deepStrictEqual(fence.checkTask({ subjectId: 'unadmitted-task' }, 'resource_dispatch'), {
     allowed: false,
     reason: 'admission_missing_from_task',
     checkpoint: 'resource_dispatch',

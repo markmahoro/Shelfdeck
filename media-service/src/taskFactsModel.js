@@ -5,9 +5,9 @@ function text(value) { return value == null ? '' : String(value); }
 function integer(value) { return value ? 1 : 0; }
 
 function taskFacts(task = {}) {
-  const itemInfo = task.itemInfo && typeof task.itemInfo === 'object' ? task.itemInfo : {};
+  const subjectInfo = task.subjectInfo && typeof task.subjectInfo === 'object' ? task.subjectInfo : {};
   const taskTarget = task.taskTarget && typeof task.taskTarget === 'object' ? task.taskTarget : {
-    object: { type: 'media_item', itemId: task.itemId || '', subLibraryId: itemInfo.subLibraryId || '' },
+    object: { type: 'media_item', subjectId: task.subjectId || '', subLibraryId: subjectInfo.subLibraryId || '' },
     targetGate: task.targetGate || '',
     gateObjective: task.gateObjective && typeof task.gateObjective === 'object' ? task.gateObjective : {},
     source: task.source || '',
@@ -21,8 +21,8 @@ function taskFacts(task = {}) {
     retry_count: Number.isInteger(task.retryCount) ? task.retryCount : Number(task.retryCount || 0) || 0,
     pausing_requested: integer(task.pausingRequested),
     node_id: text(task.nodeId),
-    sub_library_id: text(itemInfo.subLibraryId),
-    item_path: text(itemInfo.path || itemInfo.sourcePath),
+    sub_library_id: text(subjectInfo.subLibraryId),
+    item_path: text(subjectInfo.path || subjectInfo.sourcePath),
     target_gate: text(taskTarget.targetGate),
     gate_objective_kind: text(objective.kind),
     gate_objective_json: json(objective),

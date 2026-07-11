@@ -40,8 +40,8 @@ export default function TasksPage() {
       ? `同步${libraryNames.get(work.subLibraryId) ? `「${libraryNames.get(work.subLibraryId)}」` : ''}用户偏好`
       : '协调媒体状态';
   const rows: Row[] = [...works.map((work) => ({ ...work, rowKind: 'library', title: workTitle(work), subtitle: libraryNames.get(work.subLibraryId) || '' })), ...maintenance.map((task) => {
-    const candidate = task.itemName || task.itemInfo?.name || '';
-    return { ...task, rowKind: 'maintenance', title: candidate && !internalIdentifier(candidate) ? candidate : '媒体维护', subtitle: libraryNames.get(task.itemInfo?.subLibraryId) || '' };
+    const candidate = task.subjectName || task.subjectInfo?.name || '';
+    return { ...task, rowKind: 'maintenance', title: candidate && !internalIdentifier(candidate) ? candidate : '媒体维护', subtitle: libraryNames.get(task.subjectInfo?.subLibraryId) || '' };
   })];
   const taskTotal = Number((taskQuery.data as any)?.total || 0);
   const totalPages = Math.max(1, Math.ceil(taskTotal / 20));

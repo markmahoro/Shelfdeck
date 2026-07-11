@@ -18,29 +18,29 @@ test.after(() => {
 });
 
 test('stable provider identities merge automatically while names only create candidates', () => {
-  const first = people.observeItemPeople({
-    itemId: 'media-1', metadataRevision: '1',
+  const first = people.observeSubjectPeople({
+    subjectId: 'media-1', metadataRevision: '1',
     people: [{ name: 'Actor One', role: 'actor', providerIds: { 'emby:server-a': 'person-10' }, contentKinds: ['general'] }],
   });
-  const second = people.observeItemPeople({
-    itemId: 'media-2', metadataRevision: '2',
+  const second = people.observeSubjectPeople({
+    subjectId: 'media-2', metadataRevision: '2',
     people: [{ name: 'Actor 1', role: 'actor', providerIds: { 'emby:server-a': 'person-10' }, contentKinds: ['general'] }],
   });
   assert.deepStrictEqual(second.actorPersonIds, first.actorPersonIds);
 
-  people.observeItemPeople({ itemId: 'media-3', people: [{ name: 'Actor One', role: 'actor', sourceKeys: ['another-provider'] }] });
+  people.observeSubjectPeople({ subjectId: 'media-3', people: [{ name: 'Actor One', role: 'actor', sourceKeys: ['another-provider'] }] });
   const catalog = people.listPeople({ limit: 20 });
   assert.strictEqual(catalog.total, 2);
   assert.strictEqual(people.getMergeCandidates().length, 1);
 });
 
 test('preference revisions and item projections use the five-level model', () => {
-  const personId = people.getItemPreferenceProjection('media-1').actorPersonIds[0];
+  const personId = people.getSubjectPreferenceProjection('media-1').actorPersonIds[0];
   const before = people.getPerson(personId);
   const updated = people.updatePerson(personId, { preference: 2 });
   assert.strictEqual(updated.preference, 2);
   assert.strictEqual(updated.preferenceRevision, before.preferenceRevision + 1);
-  assert.deepStrictEqual(people.getItemPreferenceProjection('media-1'), {
+  assert.deepStrictEqual(people.getSubjectPreferenceProjection('media-1'), {
     actorPersonIds: [personId], actorPeople: [{ personId, name: updated.name, preference: 2 }], actorPreferenceMax: 2, actorPreferenceMin: 2,
   });
   assert.throws(() => people.updatePerson(personId, { preference: 3 }), /between -2 and 2/);
@@ -72,15 +72,15 @@ test('Person Catalog applies search, classification and pagination in the Store 
 });
 
 test('actor rules are explicit policy inputs and no actor rule keeps the objective unchanged', () => {
-  const actorId = people.getItemPreferenceProjection('media-1').actorPersonIds[0];
+  const actorId = people.getSubjectPreferenceProjection('media-1').actorPersonIds[0];
   const actorRule = { priority: 10, groupsConnector: 'and', groups: [{ connector: 'and', conditions: [['actorPersonIds', 'overlap', [actorId]], ['actorPreferenceMax', '>=', -1]] }], targetMediaFacts: { qualityTier: 'premium', targetCodec: 'h265' }, reason: 'actor preference' };
   const baseline = { priority: 0, groups: [], targetMediaFacts: { qualityTier: 'standard', targetCodec: 'h265' }, reason: 'baseline' };
   const config = { subLibraries: [{ uuid: 'library', ruleTemplateId: 'with-actor' }], ruleTemplates: [{ id: 'with-actor', rules: [baseline, actorRule] }] };
-  const selected = objectivePolicy.applyObjectivePolicy({ itemId: 'media-1', subLibraryId: 'library', actorPersonIds: [actorId], actorPreferenceMax: -1, actorPreferenceMin: -1 }, config);
+  const selected = objectivePolicy.applyObjectivePolicy({ subjectId: 'media-1', subLibraryId: 'library', actorPersonIds: [actorId], actorPreferenceMax: -1, actorPreferenceMin: -1 }, config);
   assert.strictEqual(selected.targetMediaFacts.qualityTier, 'premium');
 
   const noActorConfig = { subLibraries: [{ uuid: 'library', ruleTemplateId: 'plain' }], ruleTemplates: [{ id: 'plain', rules: [baseline] }] };
-  const common = { itemId: 'media-1', subLibraryId: 'library', metadataComplete: true, targetMediaFacts: baseline.targetMediaFacts };
+  const common = { subjectId: 'media-1', subLibraryId: 'library', metadataComplete: true, targetMediaFacts: baseline.targetMediaFacts };
   const before = objectiveResolver.projectOptimizeObjective({ ...common, actorPreferenceMax: 0, actorPreferenceMin: 0 }, { config: noActorConfig });
   const after = objectiveResolver.projectOptimizeObjective({ ...common, actorPreferenceMax: 2, actorPreferenceMin: 2 }, { config: noActorConfig });
   assert.strictEqual(after.objectiveHash, before.objectiveHash);

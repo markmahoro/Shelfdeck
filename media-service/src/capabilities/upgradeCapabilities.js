@@ -7,7 +7,7 @@ const sourceAccessResolver = require('../sourceAccessResolver');
 const smartSeedSelect = require('../smartSeedSelect');
 
 function sourcePathFor(task) {
-  const canonical = task.itemInfo && (task.itemInfo.path || task.itemInfo.sourcePath)
+  const canonical = task.subjectInfo && (task.subjectInfo.path || task.subjectInfo.sourcePath)
     || task.helixAdmission && task.helixAdmission.sourceAccessDescriptor
       && task.helixAdmission.sourceAccessDescriptor.locator
       && task.helixAdmission.sourceAccessDescriptor.locator.path;
@@ -59,9 +59,9 @@ function registerUpgradeCapabilities(register) {
 
   register({ capability: 'media.upgrade.identity.resolve', allowedTargetGates: ['optimize'], execute: async ({ task, config, input }) => {
     if (!input.integration.available) throw Object.assign(new Error('MoviePilot integration is unavailable'), { code: 'MOVIEPILOT_UNAVAILABLE' });
-    const title = task.itemInfo && (task.itemInfo.name || task.itemInfo.title) || '';
+    const title = task.subjectInfo && (task.subjectInfo.name || task.subjectInfo.title) || '';
     if (!title) throw Object.assign(new Error('Upgrade identity title is missing'), { code: 'UPGRADE_TITLE_MISSING' });
-    let tmdbId = String(task.itemInfo && task.itemInfo.tmdbId || ''); let originalTitle = '';
+    let tmdbId = String(task.subjectInfo && task.subjectInfo.tmdbId || ''); let originalTitle = '';
     if (!tmdbId) {
       const first = await moviepilotService.searchMediaByTitle(config.moviepilot || {}, title);
       const rows = Array.isArray(first) ? first : [];
@@ -74,9 +74,9 @@ function registerUpgradeCapabilities(register) {
       tmdbId = String(hit && hit.tmdb_id || '');
       originalTitle = String(hit && (hit.original_title || hit.title) || originalTitle);
     }
-    const pathValue = task.itemInfo && task.itemInfo.path || '';
-    const year = String(task.itemInfo && task.itemInfo.year || (pathValue.match(/\((\d{4})\)/) || [])[1] || '');
-    return { result: { title, originalTitle, tmdbId, year, mediaKind: task.itemInfo && task.itemInfo.type || 'movie' } };
+    const pathValue = task.subjectInfo && task.subjectInfo.path || '';
+    const year = String(task.subjectInfo && task.subjectInfo.year || (pathValue.match(/\((\d{4})\)/) || [])[1] || '');
+    return { result: { title, originalTitle, tmdbId, year, mediaKind: task.subjectInfo && task.subjectInfo.type || 'movie' } };
   } });
 
   register({
@@ -102,7 +102,7 @@ function registerUpgradeCapabilities(register) {
         torrentInfo: entry.torrent_info || entry,
       }));
       if (!candidates.length) throw Object.assign(new Error('MoviePilot returned no upgrade candidate'), { code: 'UPGRADE_CANDIDATE_NOT_FOUND' });
-      const recommendedIndex = smartSeedSelect.filterAndSelect(sourceRows, task.itemInfo || {}, config);
+      const recommendedIndex = smartSeedSelect.filterAndSelect(sourceRows, task.subjectInfo || {}, config);
       const forceConfirmation = !sourceRows.some((entry) => entry && entry.meta_info != null) || recommendedIndex == null;
       return { result: { candidates, rawCandidates: sourceRows, identity, recommendedIndex, forceConfirmation } };
     },

@@ -56,12 +56,12 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     async function createItem(name) {
       const filePath = path.join(root, `${name}.mp4`);
       fs.writeFileSync(filePath, name);
-      const itemId = `item-${name.toLowerCase()}`;
+      const subjectId = `item-${name.toLowerCase()}`;
       const response = await app.inject({
         method: 'POST',
         url: '/v1/admin/library/actions/onboard',
         payload: {
-          itemId,
+          subjectId,
           idempotencyKey: `onboard-${name}`,
           sourceReference: {
             source: 'adult_folder',
@@ -72,11 +72,11 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
       });
       assert.strictEqual(response.statusCode, 202);
       assert.strictEqual(response.json().projection.phase, 'maintenance');
-      return { item: { itemId }, filePath };
+      return { item: { subjectId }, filePath };
     }
 
     const retained = await createItem('HELIX-RETAIN');
-    const detail = await app.inject({ method: 'GET', url: `/v1/library/items/${retained.item.itemId}` });
+    const detail = await app.inject({ method: 'GET', url: `/v1/library/subjects/${retained.item.subjectId}` });
     assert.strictEqual(detail.statusCode, 200);
     assert.strictEqual(detail.json().helix.membership.status, 'active');
     assert.strictEqual(detail.json().helix.phase, 'maintenance');
@@ -91,30 +91,30 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     assert.strictEqual(removedCandidateRoute.statusCode, 404);
 
     const removedTaskCreation = await app.inject({
-      method: 'POST', url: '/v1/tasks', payload: { itemId: retained.item.itemId, targetGate: 'basedata' },
+      method: 'POST', url: '/v1/tasks', payload: { subjectId: retained.item.subjectId, targetGate: 'basedata' },
     });
     assert.strictEqual(removedTaskCreation.statusCode, 404);
     const startedMaintenance = await app.inject({
-      method: 'POST', url: `/v1/admin/library/items/${retained.item.itemId}/actions/start-maintenance`,
+      method: 'POST', url: `/v1/admin/library/subjects/${retained.item.subjectId}/actions/start-maintenance`,
       payload: { idempotencyKey: 'start-retained' },
     });
     assert.strictEqual(startedMaintenance.statusCode, 202);
-    assert.strictEqual(startedMaintenance.json().results[0].run.initiatedBy, 'user');
+    assert.strictEqual(startedMaintenance.json().result.run.initiatedBy, 'user');
     const prioritized = await app.inject({
-      method: 'POST', url: `/v1/admin/library/items/${retained.item.itemId}/actions/prioritize-maintenance`,
+      method: 'POST', url: `/v1/admin/library/subjects/${retained.item.subjectId}/actions/prioritize-maintenance`,
       payload: { idempotencyKey: 'prioritize-retained' },
     });
     assert.strictEqual(prioritized.statusCode, 202);
-    assert.strictEqual(prioritized.json().results[0].media.maintenancePriorityClass, 'expedited');
+    assert.strictEqual(prioritized.json().result.media.maintenancePriorityClass, 'expedited');
     const cancelledPriority = await app.inject({
-      method: 'POST', url: `/v1/admin/library/items/${retained.item.itemId}/actions/cancel-maintenance-priority`,
+      method: 'POST', url: `/v1/admin/library/subjects/${retained.item.subjectId}/actions/cancel-maintenance-priority`,
       payload: { idempotencyKey: 'cancel-priority-retained' },
     });
     assert.strictEqual(cancelledPriority.statusCode, 202);
 
     const retainResult = await app.inject({
       method: 'POST',
-      url: `/v1/admin/library/items/${retained.item.itemId}/actions/offboard`,
+      url: `/v1/admin/library/subjects/${retained.item.subjectId}/actions/offboard`,
       payload: { idempotencyKey: 'retain-1', cleanupMode: 'retain_source' },
     });
     assert.strictEqual(retainResult.statusCode, 202);
@@ -124,7 +124,7 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     const detached = await createItem('HELIX-DETACH');
     const detachResult = await app.inject({
       method: 'POST',
-      url: `/v1/admin/library/items/${detached.item.itemId}/actions/offboard`,
+      url: `/v1/admin/library/subjects/${detached.item.subjectId}/actions/offboard`,
       payload: { idempotencyKey: 'detach-1', cleanupMode: 'detach_source' },
     });
     assert.strictEqual(detachResult.statusCode, 202);
@@ -134,7 +134,7 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     const deleted = await createItem('HELIX-DELETE');
     const denied = await app.inject({
       method: 'POST',
-      url: `/v1/admin/library/items/${deleted.item.itemId}/actions/offboard`,
+      url: `/v1/admin/library/subjects/${deleted.item.subjectId}/actions/offboard`,
       payload: { idempotencyKey: 'delete-denied', cleanupMode: 'delete_source' },
     });
     assert.strictEqual(denied.statusCode, 409);
@@ -143,7 +143,7 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
 
     const deleteResult = await app.inject({
       method: 'POST',
-      url: `/v1/admin/library/items/${deleted.item.itemId}/actions/offboard`,
+      url: `/v1/admin/library/subjects/${deleted.item.subjectId}/actions/offboard`,
       payload: { idempotencyKey: 'delete-1', cleanupMode: 'delete_source', destructiveAuthorization: true },
     });
     assert.strictEqual(deleteResult.statusCode, 202);
@@ -151,13 +151,13 @@ test('Helix Admin API projects Libra state and executes retain/detach/delete off
     assert.strictEqual(fs.existsSync(deleted.filePath), false);
 
     const manualAfterClose = await app.inject({
-      method: 'POST', url: `/v1/admin/library/items/${retained.item.itemId}/actions/start-maintenance`, payload: { idempotencyKey: 'start-closed' },
+      method: 'POST', url: `/v1/admin/library/subjects/${retained.item.subjectId}/actions/start-maintenance`, payload: { idempotencyKey: 'start-closed' },
     });
     assert.strictEqual(manualAfterClose.statusCode, 409);
     assert.strictEqual(manualAfterClose.json().error.code, 'LIBRA_MAINTENANCE_NOT_ADMITTED');
 
     const legacyDelete = await app.inject({
-      method: 'POST', url: '/v1/tasks', payload: { itemId: retained.item.itemId, targetGate: 'delete' },
+      method: 'POST', url: '/v1/tasks', payload: { subjectId: retained.item.subjectId, targetGate: 'delete' },
     });
     assert.strictEqual(legacyDelete.statusCode, 404);
 

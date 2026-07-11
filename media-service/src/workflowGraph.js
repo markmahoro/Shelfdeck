@@ -142,6 +142,11 @@ function validateCapabilityBindings(node, nodesById, registry) {
       if (!port.optional) throw Object.assign(new Error(`Capability ${node.capability} is missing input binding ${portName}`), { code: 'KAIROX_CAPABILITY_BINDING_MISSING', capability: node.capability, port: portName });
       continue;
     }
+    if (binding.source === 'snapshot') {
+      if (port.many !== Array.isArray(binding.value)) throw Object.assign(new Error(`Capability ${node.capability} snapshot multiplicity is invalid for ${portName}`), { code: 'KAIROX_CAPABILITY_BINDING_INVALID', capability: node.capability, port: portName });
+      capabilityContract.assertRuntimeValue(port, binding.value, `${node.capability}.${portName}`);
+      continue;
+    }
     const eventIds = binding.source === 'events' ? binding.eventIds : binding.source === 'event' ? [binding.eventId] : [];
     if (!eventIds.length || (port.many ? binding.source !== 'events' : binding.source !== 'event')) {
       throw Object.assign(new Error(`Capability ${node.capability} has invalid binding for ${portName}`), { code: 'KAIROX_CAPABILITY_BINDING_INVALID', capability: node.capability, port: portName });
@@ -169,7 +174,7 @@ function buildPlan(input = {}, nodes = [], registry = null) {
     conditionVersion: CONDITION_VERSION,
     plannerVersion: input.plannerVersion || 'kairox-planner-v1',
     taskId: text(input.taskId || input.id),
-    itemId: text(input.itemId),
+    subjectId: text(input.subjectId),
     targetGate: text(input.targetGate || input.taskTarget && input.taskTarget.targetGate),
     objectiveRevision: text(input.objectiveRevision || input.objectiveRevisionSnapshot),
     sourceRevision: text(input.sourceRevision || input.helixAdmission && input.helixAdmission.sourceRevision),
@@ -185,6 +190,7 @@ function buildPlan(input = {}, nodes = [], registry = null) {
       capability: text(node.capability),
       inputBindings: node.inputBindings || {},
       parameters: node.parameters || {},
+      assetScope: node.assetScope || null,
       dependsOn: Array.isArray(node.dependsOn) ? [...node.dependsOn] : [],
       when: node.when == null ? true : node.when,
       runWhen: node.runWhen || null,

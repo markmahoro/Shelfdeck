@@ -16,29 +16,29 @@ function createLibraReconciler({ store, nexoraService, kairoxService, configStor
 
   function persistIfChanged(item, patch) {
     const updates = Object.entries(patch || {}).reduce((out, [key, value]) => {
-      if (key !== 'itemId' && value !== undefined && item[key] !== value) out[key] = value;
+      if (key !== 'subjectId' && value !== undefined && item[key] !== value) out[key] = value;
       return out;
     }, {});
     if (Object.keys(updates).length === 0) return { item, changed: false };
-    return { item: store.upsertLibraryItem({ itemId: item.itemId, ...updates }), changed: true };
+    return { item: store.upsertLibrarySubject({ subjectId: item.subjectId, ...updates }), changed: true };
   }
 
-  function reconcileItem(itemId) {
-    let item = store.getLibraryItem(itemId);
+  function reconcileItem(subjectId) {
+    let item = store.getLibrarySubject(subjectId);
     if (!item) return null;
     if (item.membershipStatus === 'closed') return item;
 
-    const source = safeCall(() => nexoraService.getSourceProjection(itemId), { itemId, readiness: 'unresolved', sourceRevision: '' });
-    const maintenance = safeCall(() => kairoxService.getMaintenanceProjection(itemId), { itemId, availability: 'not_implemented' });
+    const source = safeCall(() => nexoraService.getSourceProjection(subjectId), { subjectId, readiness: 'unresolved', sourceRevision: '' });
+    const maintenance = safeCall(() => kairoxService.getMaintenanceProjection(subjectId), { subjectId, availability: 'not_implemented' });
     return reconcileResolved(item, source, maintenance);
   }
 
   function reconcileResolved(currentItem, source, maintenance) {
     let item = currentItem;
     if (!item || item.membershipStatus === 'closed') return item;
-    const itemId = item.itemId;
+    const subjectId = item.subjectId;
     const patch = {
-      itemId,
+      subjectId,
       sourceRevision: source.sourceRevision || item.sourceRevision,
     };
     if (item.phase === 'maintenance' || source.readiness === 'ready') {
@@ -72,12 +72,12 @@ function createLibraReconciler({ store, nexoraService, kairoxService, configStor
     let changed = persisted.changed;
     if (item.quarantineStatus === 'source_incident') {
       safeCall(() => kairoxService.suspendMaintenance({
-        itemId,
+        subjectId,
         admissionGeneration: item.admissionGeneration,
         reason: item.quarantineReason || 'source_incident',
       }), null);
       const diagnosis = safeCall(() => nexoraService.diagnoseSource({
-        itemId,
+        subjectId,
         libraryGeneration: item.admissionGeneration,
         sourceRevision: source.sourceRevision || '',
       }), source);
@@ -90,18 +90,12 @@ function createLibraReconciler({ store, nexoraService, kairoxService, configStor
     if (item.phase === 'maintenance' && item.quarantineStatus === 'none' && source.readiness === 'ready') {
       const admission = maintenance && maintenance.admission;
       const subject = {
-        mediaKind: item.mediaKind || '',
-        playable: item.playable !== false,
-        parentItemId: item.parentItemId || '',
-        seriesItemId: item.seriesItemId || '',
+        subjectKind: item.subjectKind || '',
       };
       const currentSubject = maintenance && maintenance.maintenanceSubject || {};
       const config = configStore && configStore.loadConfig ? configStore.loadConfig() : { subLibraries: [] };
       const subLibrary = (config.subLibraries || []).find((entry) => entry.uuid === item.subLibraryId) || {};
-      const subjectCurrent = currentSubject.mediaKind === subject.mediaKind
-        && currentSubject.playable === subject.playable
-        && currentSubject.parentItemId === subject.parentItemId
-        && currentSubject.seriesItemId === subject.seriesItemId;
+      const subjectCurrent = currentSubject.subjectKind === subject.subjectKind;
       const admissionAlreadyCurrent = maintenance && maintenance.admissionCurrent
         && Number(admission && admission.admissionGeneration) === item.admissionGeneration
         && String(admission && admission.sourceRevision || '') === String(source.sourceRevision || '')
@@ -110,10 +104,11 @@ function createLibraReconciler({ store, nexoraService, kairoxService, configStor
       const maintenanceResult = admissionAlreadyCurrent
         ? maintenance
         : safeCall(() => kairoxService.reconcileMaintenance({
-          itemId,
+          subjectId,
           admissionGeneration: item.admissionGeneration,
           sourceRevision: source.sourceRevision || '',
           sourceAccessDescriptor: source.sourceAccessDescriptor || {},
+          assets: source.assets || [],
           policyRevision: String(subLibrary.updatedAt || ''),
           maintenancePolicy: {
             maintenanceAutomationMode: subLibrary.maintenanceAutomationMode || 'manual',
@@ -129,7 +124,7 @@ function createLibraReconciler({ store, nexoraService, kairoxService, configStor
     }
     if (changed) {
       store.appendEvent({
-        itemId,
+        subjectId,
         eventType: 'libra.item_reconciled',
         generation: item.admissionGeneration,
         payload: { phase: item.phase, sourceReadiness: source.readiness, quarantineStatus: item.quarantineStatus },
@@ -138,45 +133,45 @@ function createLibraReconciler({ store, nexoraService, kairoxService, configStor
     return item;
   }
 
-  function reconcileBatch(itemIds = null) {
+  function reconcileBatch(subjectIds = null) {
     const pendingMutations = typeof kairoxService.getPendingSourceMutations === 'function'
       ? safeCall(() => kairoxService.getPendingSourceMutations(100), [])
       : [];
     for (const mutation of pendingMutations || []) {
-      let mutationItem = store.getLibraryItem(mutation.itemId);
+      let mutationItem = store.getLibrarySubject(mutation.subjectId);
       if (!mutationItem || mutationItem.membershipStatus === 'closed') {
         if (typeof kairoxService.acknowledgeSourceMutation === 'function') safeCall(() => kairoxService.acknowledgeSourceMutation(mutation.mutationId), false);
         continue;
       }
-      mutationItem = store.upsertLibraryItem({
-        itemId: mutation.itemId,
+      mutationItem = store.upsertLibrarySubject({
+        subjectId: mutation.subjectId,
         admissionGeneration: mutationItem.admissionGeneration + 1,
         quarantineStatus: 'source_incident',
         quarantineReason: 'source_mutation_rebind',
       });
-      safeCall(() => kairoxService.suspendMaintenance({ itemId: mutation.itemId, admissionGeneration: mutationItem.admissionGeneration, reason: 'source_mutation_rebind' }), null);
+      safeCall(() => kairoxService.suspendMaintenance({ subjectId: mutation.subjectId, admissionGeneration: mutationItem.admissionGeneration, reason: 'source_mutation_rebind' }), null);
       const rebound = typeof nexoraService.rebindSourceMutation === 'function'
-        ? safeCall(() => nexoraService.rebindSourceMutation({ itemId: mutation.itemId, libraryGeneration: mutationItem.admissionGeneration, mutation }), null)
+        ? safeCall(() => nexoraService.rebindSourceMutation({ subjectId: mutation.subjectId, libraryGeneration: mutationItem.admissionGeneration, mutation }), null)
         : null;
       if (rebound && rebound.readiness === 'ready') {
-        store.upsertLibraryItem({ itemId: mutation.itemId, sourceRevision: rebound.sourceRevision || mutationItem.sourceRevision, quarantineStatus: 'none', quarantineReason: '' });
+        store.upsertLibrarySubject({ subjectId: mutation.subjectId, sourceRevision: rebound.sourceRevision || mutationItem.sourceRevision, quarantineStatus: 'none', quarantineReason: '' });
         if (typeof kairoxService.acknowledgeSourceMutation === 'function') safeCall(() => kairoxService.acknowledgeSourceMutation(mutation.mutationId), false);
       }
     }
-    const items = store.getLibraryItems(itemIds);
-    const ids = items.map((item) => item.itemId);
+    const items = store.getLibrarySubjects(subjectIds);
+    const ids = items.map((item) => item.subjectId);
     const sources = safeCall(() => nexoraService.getSourceProjections(ids), {});
     const maintenanceIds = items
       .filter((item) => item.membershipStatus !== 'closed'
-        && (item.phase === 'maintenance' || (sources[item.itemId] && sources[item.itemId].readiness === 'ready')))
-      .map((item) => item.itemId);
+        && (item.phase === 'maintenance' || (sources[item.subjectId] && sources[item.subjectId].readiness === 'ready')))
+      .map((item) => item.subjectId);
     const maintenance = maintenanceIds.length > 0
       ? safeCall(() => kairoxService.getMaintenanceProjections(maintenanceIds), {})
       : {};
     return items.map((item) => reconcileResolved(
       item,
-      sources[item.itemId] || { itemId: item.itemId, readiness: 'unresolved', sourceRevision: '' },
-      maintenance[item.itemId] || { itemId: item.itemId, availability: 'not_implemented' },
+      sources[item.subjectId] || { subjectId: item.subjectId, readiness: 'unresolved', sourceRevision: '' },
+      maintenance[item.subjectId] || { subjectId: item.subjectId, availability: 'not_implemented' },
     ));
   }
 

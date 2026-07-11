@@ -166,37 +166,37 @@ function maskSensitive(config) {
   return masked;
 }
 
-function taskListItemInfo(itemInfo = {}) {
-  if (!itemInfo || typeof itemInfo !== 'object') return undefined;
-  const adultMetadata = itemInfo.adultMetadata && typeof itemInfo.adultMetadata === 'object'
+function taskListItemInfo(subjectInfo = {}) {
+  if (!subjectInfo || typeof subjectInfo !== 'object') return undefined;
+  const adultMetadata = subjectInfo.adultMetadata && typeof subjectInfo.adultMetadata === 'object'
     ? {
-      adultId: itemInfo.adultMetadata.adultId,
-      scrapeStatus: itemInfo.adultMetadata.scrapeStatus,
-      region: itemInfo.adultMetadata.region,
-      protagonist: itemInfo.adultMetadata.protagonist,
+      adultId: subjectInfo.adultMetadata.adultId,
+      scrapeStatus: subjectInfo.adultMetadata.scrapeStatus,
+      region: subjectInfo.adultMetadata.region,
+      protagonist: subjectInfo.adultMetadata.protagonist,
     }
     : undefined;
   const compact = {
-    name: itemInfo.name,
-    title: itemInfo.title,
-    type: itemInfo.type,
-    seriesName: itemInfo.seriesName,
-    seasonNumber: itemInfo.seasonNumber,
-    source: itemInfo.source,
-    watched: itemInfo.watched,
-    metadataStatus: itemInfo.metadataStatus,
-    metadataComplete: itemInfo.metadataComplete,
-    metadataMissingReasons: itemInfo.metadataMissingReasons,
-    metadataKind: itemInfo.metadataKind,
-    path: itemInfo.path,
-    subLibraryId: itemInfo.subLibraryId,
+    name: subjectInfo.name,
+    title: subjectInfo.title,
+    type: subjectInfo.type,
+    seriesName: subjectInfo.seriesName,
+    seasonNumber: subjectInfo.seasonNumber,
+    source: subjectInfo.source,
+    watched: subjectInfo.watched,
+    metadataStatus: subjectInfo.metadataStatus,
+    metadataComplete: subjectInfo.metadataComplete,
+    metadataMissingReasons: subjectInfo.metadataMissingReasons,
+    metadataKind: subjectInfo.metadataKind,
+    path: subjectInfo.path,
+    subLibraryId: subjectInfo.subLibraryId,
     adultMetadata,
-    originalSizeBytes: itemInfo.originalSizeBytes,
-    originalBitrate: itemInfo.originalBitrate,
-    originalVideoCodec: itemInfo.originalVideoCodec,
-    originalAudioCodec: itemInfo.originalAudioCodec,
-    originalWidth: itemInfo.originalWidth,
-    originalHeight: itemInfo.originalHeight,
+    originalSizeBytes: subjectInfo.originalSizeBytes,
+    originalBitrate: subjectInfo.originalBitrate,
+    originalVideoCodec: subjectInfo.originalVideoCodec,
+    originalAudioCodec: subjectInfo.originalAudioCodec,
+    originalWidth: subjectInfo.originalWidth,
+    originalHeight: subjectInfo.originalHeight,
   };
   Object.keys(compact).forEach((key) => {
     if (compact[key] === undefined || compact[key] === null) delete compact[key];
@@ -210,8 +210,8 @@ function taskListSummary(task) {
   const currentEvent = workflowEvents.find((event) => !workflowStore.TERMINAL.has(event.status)) || null;
   return {
     id: task.id,
-    itemId: task.itemId,
-    itemName: task.itemName,
+    subjectId: task.subjectId,
+    subjectName: task.subjectName,
     taskTarget: task.taskTarget,
     workflowSummary: plan ? { planId: plan.planId, schemaVersion: plan.schemaVersion, classification: plan.classification, targetGate: plan.targetGate, eventCount: plan.nodes.length } : null,
     currentEvent: currentEvent ? { eventId: currentEvent.eventId, capability: currentEvent.capability, status: currentEvent.status, resourceKey: currentEvent.resourceKey } : null,
@@ -228,11 +228,11 @@ function taskListSummary(task) {
     maintenancePrioritySnapshot: task.maintenancePrioritySnapshot || { class: 'normal', revision: 0 },
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
-    itemInfo: taskListItemInfo(task.itemInfo),
+    subjectInfo: taskListItemInfo(task.subjectInfo),
     verifyResult: task.verifyResult,
     confirmData: task.confirmData,
-    metadataStatus: task.itemInfo && task.itemInfo.metadataStatus,
-    metadataMissingReasons: task.itemInfo && task.itemInfo.metadataMissingReasons,
+    metadataStatus: task.subjectInfo && task.subjectInfo.metadataStatus,
+    metadataMissingReasons: task.subjectInfo && task.subjectInfo.metadataMissingReasons,
   };
 }
 
@@ -487,16 +487,16 @@ function addTaskToLifecycleBucket(bucket, task, stage) {
 }
 
 function taskSubLibraryId(task) {
-  return task && task.itemInfo && task.itemInfo.subLibraryId
+  return task && task.subjectInfo && task.subjectInfo.subLibraryId
     || '';
 }
 
 function taskLibraryContext(task, subLibrariesById) {
   const subLibraryId = taskSubLibraryId(task);
   const subLibrary = subLibraryId ? subLibrariesById.get(subLibraryId) : null;
-  const itemInfo = task && task.itemInfo || {};
-  const inferredAdult = itemInfo.adultMetadata || task && task.source === 'adult_folder';
-  const inferredTv = itemInfo.type === 'season' || itemInfo.type === 'episode';
+  const subjectInfo = task && task.subjectInfo || {};
+  const inferredAdult = subjectInfo.adultMetadata || task && task.source === 'adult_folder';
+  const inferredTv = subjectInfo.type === 'season' || subjectInfo.type === 'episode';
   const mediaType = subLibrary && subLibrary.mediaType
     || (inferredAdult ? 'adult' : inferredTv ? 'tv' : 'unknown');
   const source = subLibrary && subLibrary.source || (inferredAdult ? 'folder' : 'unknown');
@@ -505,7 +505,7 @@ function taskLibraryContext(task, subLibrariesById) {
     subLibraryName: subLibrary && subLibrary.name || (subLibraryId ? '(missing sub-library)' : '(no sub-library)'),
     librarySource: source,
     mediaType,
-    adultRegion: subLibrary && subLibrary.adultRegion || itemInfo.adultMetadata && itemInfo.adultMetadata.region || '',
+    adultRegion: subLibrary && subLibrary.adultRegion || subjectInfo.adultMetadata && subjectInfo.adultMetadata.region || '',
     found: !!subLibrary,
   };
 }
@@ -594,8 +594,8 @@ function buildTaskLifecycleAudit(tasks, config, opts = {}) {
       addLifecycleSignal(signals, {
         ...signal,
         taskId: task.id,
-        itemId: task.itemId,
-        itemName: task.itemName || task.itemInfo && task.itemInfo.name || '',
+        subjectId: task.subjectId,
+        subjectName: task.subjectName || task.subjectInfo && task.subjectInfo.name || '',
         status: task.status || '',
         lifecycleStage: stage,
         targetGate: task.taskTarget && task.taskTarget.targetGate || task.targetGate || '',
@@ -691,16 +691,16 @@ function adultReviewQueueItem(item) {
     ? 'Adult item identity is ambiguous and requires user confirmation.'
     : 'Adult scrape result requires user review before it can be treated as complete.';
   return {
-    id: `adult-review:${item.itemId}`,
+    id: `adult-review:${item.subjectId}`,
     kind: 'adult_review',
-    itemId: item.itemId,
-    itemName: item.name || item.adultTitle || item.adultId || '',
+    subjectId: item.subjectId,
+    subjectName: item.name || item.adultTitle || item.adultId || '',
     source: item.source || 'adult_folder',
     subLibraryId: item.subLibraryId || '',
     status: item.reviewStatus || item.scrapeStatus || 'needs_review',
     updatedAt: item.updatedAt || '',
     workflowSummary: { targetGate: 'metadata', classification: 'adult_review', reason },
-    itemInfo: {
+    subjectInfo: {
       name: item.name || item.adultTitle || item.adultId || '',
       title: item.adultTitle || '',
       type: item.type || '',
@@ -738,7 +738,7 @@ function adultReviewQueueItem(item) {
       enabled: false,
       reason: 'adult_review_requires_dedicated_metadata_review',
       label: 'review',
-      endpoint: `/v1/admin/adult/items/${encodeURIComponent(item.itemId)}`,
+      endpoint: `/v1/admin/adult/subjects/${encodeURIComponent(item.subjectId)}`,
       method: 'GET',
       effect: 'open_adult_item_review',
     },
@@ -759,8 +759,8 @@ function confirmationQueueItem(task) {
     kind: 'task_confirmation',
     id: task.id,
     taskId: task.id,
-    itemId: task.itemId,
-    itemName: task.itemName || '',
+    subjectId: task.subjectId,
+    subjectName: task.subjectName || '',
     targetGate: task.taskTarget && task.taskTarget.targetGate || task.targetGate || '',
     workflowClassification: plan && plan.classification || '',
     currentEvent: waitingEvent ? { eventId: waitingEvent.eventId, capability: waitingEvent.capability, status: waitingEvent.status } : null,
@@ -771,7 +771,7 @@ function confirmationQueueItem(task) {
     priority: task.priority,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
-    itemInfo: taskListItemInfo(task.itemInfo),
+    subjectInfo: taskListItemInfo(task.subjectInfo),
     confirmation: {
       required: !!confirmation.required,
       gateId: confirmation.gateId || '',
@@ -1062,7 +1062,7 @@ function buildDashboardEvents(limit = 15) {
     severity: dashboardEventSeverityFromTaskEvent(event),
     message: dashboardTaskEventMessage(event),
     taskId: event.taskId || '',
-    itemId: event.itemId || '',
+    subjectId: event.subjectId || '',
     eventType: event.eventType || '',
     eventStatus: event.eventStatus || '',
     resourceType: event.resourceType || '',
@@ -1091,7 +1091,7 @@ function isTaskIntentValidationReason(reason) {
     'invalid_gate',
     'invalid_bridge_kind',
     'invalid_target_gate',
-    'missing_item_id',
+    'missing_subject_id',
     'delete_is_not_optimize',
   ].includes(reason);
 }
@@ -1163,10 +1163,10 @@ function compactAdmissionAccept(admission = {}) {
   return result;
 }
 
-function taskAdmissionRejectPayload(code, message, admission, item, itemInfo, config, tasks, extra = {}) {
+function taskAdmissionRejectPayload(code, message, admission, item, subjectInfo, config, tasks, extra = {}) {
   const subject = item
-    ? { ...item, ...(itemInfo || {}) }
-    : (itemInfo || null);
+    ? { ...item, ...(subjectInfo || {}) }
+    : (subjectInfo || null);
   return {
     error: { code, message },
     admission: compactAdmissionReject(admission),
@@ -1183,19 +1183,19 @@ function latestTaskEvent(taskId) {
 
 function taskDetailView(task, opts = {}) {
   if (!task || typeof task !== 'object') return task;
-  const itemInfo = task.itemInfo && typeof task.itemInfo === 'object'
+  const subjectInfo = task.subjectInfo && typeof task.subjectInfo === 'object'
     ? {
-      ...task.itemInfo,
-      adultMetadata: compactAdultMetadataForUi(task.itemInfo.adultMetadata, {
+      ...task.subjectInfo,
+      adultMetadata: compactAdultMetadataForUi(task.subjectInfo.adultMetadata, {
         includeFaces: false,
         includeSampleImage: false,
       }),
     }
-    : task.itemInfo;
+    : task.subjectInfo;
   const latestEvent = opts.latestEvent === undefined ? latestTaskEvent(task.id) : opts.latestEvent;
   return {
     ...task,
-    itemInfo,
+    subjectInfo,
     latestEvent,
   };
 }
@@ -1226,9 +1226,9 @@ function taskActionReject(reply, task, actionName, code, message, extra = {}) {
   });
 }
 
-function activeTaskConflictFor(itemId, excludeTaskId) {
-  if (!itemId) return null;
-  return taskStore.queryTaskSummaries({ itemId }, {
+function activeTaskConflictFor(subjectId, excludeTaskId) {
+  if (!subjectId) return null;
+  return taskStore.queryTaskSummaries({ subjectId }, {
     includeHistory: false,
     includeAll: true,
     orderBy: 'updatedAt',
@@ -1236,9 +1236,9 @@ function activeTaskConflictFor(itemId, excludeTaskId) {
   }).tasks.find((t) => t.id !== excludeTaskId) || null;
 }
 
-function activeTaskAdmissionSummary(itemId, activeTaskId) {
-  if (!itemId) return null;
-  const activeTasks = taskStore.queryTaskSummaries({ itemId }, {
+function activeTaskAdmissionSummary(subjectId, activeTaskId) {
+  if (!subjectId) return null;
+  const activeTasks = taskStore.queryTaskSummaries({ subjectId }, {
     includeHistory: false,
     includeAll: true,
     orderBy: 'updatedAt',
@@ -1250,15 +1250,15 @@ function activeTaskAdmissionSummary(itemId, activeTaskId) {
   return active ? taskListSummary(active) : null;
 }
 
-function activeTaskSummariesForItem(itemId) {
-  if (!itemId) return [];
-  return activeTaskSummariesForItems([itemId]);
+function activeTaskSummariesForItem(subjectId) {
+  if (!subjectId) return [];
+  return activeTaskSummariesForItems([subjectId]);
 }
 
-function activeTaskSummariesForItems(itemIds) {
-  const ids = [...new Set((itemIds || []).map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+function activeTaskSummariesForItems(subjectIds) {
+  const ids = [...new Set((subjectIds || []).map((subjectId) => String(subjectId || '').trim()).filter(Boolean))];
   if (ids.length === 0) return [];
-  return taskStore.queryTaskSummaries({ itemIds: ids }, {
+  return taskStore.queryTaskSummaries({ subjectIds: ids }, {
     includeHistory: false,
     includeAll: true,
     orderBy: 'updatedAt',
@@ -1272,7 +1272,7 @@ function activeTaskItemIds() {
     includeAll: true,
     orderBy: 'updatedAt',
     orderDir: 'desc',
-  }).tasks.map((task) => task.itemId).filter(Boolean));
+  }).tasks.map((task) => task.subjectId).filter(Boolean));
 }
 
 function getTaskActionOrReject(reply, task, actionName) {
@@ -1299,9 +1299,9 @@ function diagnosticMatchesFailureEvent(log, event, task) {
   if (!log || !event) return false;
   const payload = log.payload && typeof log.payload === 'object' ? log.payload : {};
   if (payload.taskId && payload.taskId === event.taskId) return true;
-  if (payload.itemId && payload.itemId === event.itemId) return true;
+  if (payload.subjectId && payload.subjectId === event.subjectId) return true;
   if (task && payload.taskId && payload.taskId === task.id) return true;
-  if (task && payload.itemId && payload.itemId === task.itemId) return true;
+  if (task && payload.subjectId && payload.subjectId === task.subjectId) return true;
   if (log.resourceKey && event.resourceKey && log.resourceKey === event.resourceKey) return true;
   if (log.resourceType && event.resourceType && log.resourceType === event.resourceType && log.status === 'failed') return true;
   return false;
@@ -1387,8 +1387,8 @@ function enrichFailureEvent(event, config, diagnosticRows = []) {
     ...event,
     task: task ? {
       id: task.id,
-      itemId: task.itemId,
-      itemName: task.itemName || '',
+      subjectId: task.subjectId,
+      subjectName: task.subjectName || '',
       status: task.status,
       phase: task.phase || '',
       retryCount: Number(task.retryCount || 0) || 0,
@@ -1457,8 +1457,8 @@ function resolveEmbyConfigForLibrary(subLibraryId) {
   return { subLib, serverConfig };
 }
 
-function resolveEmbyConfigForItem(itemId, subLibraryId) {
-  const library = getHelixServices().libraService.queryLibraryProjections({ itemId }, { limit: 1 });
+function resolveEmbyConfigForItem(subjectId, subLibraryId) {
+  const library = getHelixServices().libraService.queryLibraryProjections({ subjectId }, { limit: 1 });
   const libItem = library.items[0] || null;
   const descriptor = libItem && libItem.helix && libItem.helix.source && libItem.helix.source.sourceAccessDescriptor || {};
   const identity = descriptor.identityPayload || {};
@@ -1493,7 +1493,7 @@ function registerRoutes(app) {
     }
     try {
       const result = await Promise.resolve(getHelixServices().libraService.acceptSource({
-        itemId: body.itemId,
+        subjectId: body.subjectId,
         idempotencyKey: body.idempotencyKey,
         sourceReference: body.sourceReference,
         requestedBy: 'admin_api',
@@ -1512,11 +1512,11 @@ function registerRoutes(app) {
     }
     try {
       const result = await Promise.resolve(getHelixServices().libraService[method]({
-        itemId: req.params.itemId,
+        subjectId: req.params.subjectId,
         idempotencyKey: body.idempotencyKey,
         reason: body.reason || '',
       }));
-      kairoxAutomationRunner.wake({ itemId: req.params.itemId, kind: method });
+      kairoxAutomationRunner.wake({ subjectId: req.params.subjectId, kind: method });
       libraAutomationEngine.wake();
       return reply.code(acceptedStatus).send(result);
     } catch (error) {
@@ -1526,24 +1526,24 @@ function registerRoutes(app) {
     }
   }
 
-  app.post('/v1/admin/library/items/:itemId/actions/start-maintenance', async (req, reply) => (
+  app.post('/v1/admin/library/subjects/:subjectId/actions/start-maintenance', async (req, reply) => (
     maintenanceIntentRoute(req, reply, 'requestMaintenanceRun')
   ));
 
-  app.post('/v1/admin/library/items/:itemId/actions/prioritize-maintenance', async (req, reply) => (
+  app.post('/v1/admin/library/subjects/:subjectId/actions/prioritize-maintenance', async (req, reply) => (
     maintenanceIntentRoute(req, reply, 'setMaintenancePriority')
   ));
 
-  app.post('/v1/admin/library/items/:itemId/actions/cancel-maintenance-priority', async (req, reply) => (
+  app.post('/v1/admin/library/subjects/:subjectId/actions/cancel-maintenance-priority', async (req, reply) => (
     maintenanceIntentRoute(req, reply, 'clearMaintenancePriority')
   ));
 
-  app.post('/v1/admin/library/items/:itemId/actions/offboard', async (req, reply) => {
+  app.post('/v1/admin/library/subjects/:subjectId/actions/offboard', async (req, reply) => {
     const body = req.body || {};
     if (!body.idempotencyKey) return apiError(reply, 400, 'VALIDATION_ERROR', 'idempotencyKey is required');
     try {
       const result = await getHelixServices().libraService.requestOffboarding({
-        itemId: req.params.itemId,
+        subjectId: req.params.subjectId,
         idempotencyKey: body.idempotencyKey,
         cleanupMode: body.cleanupMode || 'retain_source',
         reason: body.reason || '',
@@ -1602,7 +1602,7 @@ function registerRoutes(app) {
       return apiError(reply, 400, 'BAD_REQUEST', 'Task not completed yet');
     }
 
-    const info = task.itemInfo || {};
+    const info = task.subjectInfo || {};
     const vr = task.verifyResult || {};
     const logs = task.logs || [];
     const firstTs = logs.length > 0 ? new Date(logs[0].ts) : null;
@@ -1615,10 +1615,10 @@ function registerRoutes(app) {
 
     const report = {
       taskId: task.id,
-      itemId: task.itemId,
-      itemName: (info.type === 'season' && info.seriesName && info.seasonNumber != null
+      subjectId: task.subjectId,
+      subjectName: (info.type === 'season' && info.seriesName && info.seasonNumber != null
         ? `${info.seriesName} 第${info.seasonNumber}季`
-        : (task.itemName || task.itemId)),
+        : (task.subjectName || task.subjectId)),
       workflowClassification: plan && plan.classification || '',
       capabilities,
       elapsedSec,
@@ -1665,12 +1665,12 @@ function registerRoutes(app) {
         report.tmdbVerified = up.tmdbVerified;
       }
     } else if (task.taskTarget && task.taskTarget.targetGate === 'metadata') {
-      const projection = getHelixServices().libraService.getLibraryProjection(task.itemId);
+      const projection = getHelixServices().libraService.getLibraryProjection(task.subjectId);
       const maintenance = projection && projection.maintenance || {};
       const metadataFacts = maintenance.metadataFacts || {};
       report.metadata = {
-        itemId: task.itemId,
-        name: metadataFacts.title || metadataFacts.name || task.itemName || '',
+        subjectId: task.subjectId,
+        name: metadataFacts.title || metadataFacts.name || task.subjectName || '',
         source: projection && projection.source && projection.source.sourceAccessDescriptor && projection.source.sourceAccessDescriptor.sourceType || '',
         mediaPath: maintenance.basedataFacts && maintenance.basedataFacts.path || '',
         metadataStatus: maintenance.metadataPassed ? 'complete' : 'missing',
@@ -1914,13 +1914,13 @@ function registerRoutes(app) {
     }));
   });
 
-  app.get('/v1/library/items/:itemId', async (req, reply) => {
-    const result = getHelixServices().libraService.queryLibraryProjections({ itemId: req.params.itemId }, { limit: 1 });
+  app.get('/v1/library/subjects/:subjectId', async (req, reply) => {
+    const result = getHelixServices().libraService.queryLibraryProjections({ subjectId: req.params.subjectId }, { limit: 1 });
     if (!result.items[0]) return apiError(reply, 404, 'NOT_FOUND', 'Item not found');
     return result.items[0];
   });
 
-  app.patch('/v1/admin/library/items/:itemId/perception', async (req, reply) => {
+  app.patch('/v1/admin/library/subjects/:subjectId/perception', async (req, reply) => {
     const { userRating } = req.body || {};
     if (typeof userRating !== 'number' && userRating !== null) return apiError(reply, 400, 'VALIDATION_ERROR', 'userRating is required');
     if (userRating !== null && (userRating < 1 || userRating > 5)) {
@@ -1928,7 +1928,7 @@ function registerRoutes(app) {
     }
     try {
       const perception = getHelixServices().libraService.updateUserPerception({
-        itemId: req.params.itemId,
+        subjectId: req.params.subjectId,
         facts: { userRating },
         evidence: { source: 'admin_user_rating' },
       });
@@ -1937,6 +1937,12 @@ function registerRoutes(app) {
       const statusCode = e.code === 'LIBRA_ITEM_NOT_FOUND' ? 404 : 409;
       return apiError(reply, statusCode, e.code || 'USER_PERCEPTION_REJECTED', e.message);
     }
+  });
+
+  app.get('/v1/admin/library/subjects/:subjectId/assets', async (req, reply) => {
+    const projection = getHelixServices().libraService.getLibraryProjection(req.params.subjectId);
+    if (!projection) return apiError(reply, 404, 'NOT_FOUND', 'Subject not found');
+    return { subjectId: req.params.subjectId, assets: projection.source && projection.source.assets || [] };
   });
 
   app.get('/v1/admin/tasks/:taskId/workflow', async (req, reply) => {
@@ -1980,8 +1986,8 @@ function registerRoutes(app) {
     const candidates = items
       .filter((item) => item.helix && item.helix.maintenance && item.helix.maintenance.disposalRecommendation)
       .map((item) => ({
-        itemId: item.itemId,
-        itemName: item.name || item.title || item.itemId,
+        subjectId: item.subjectId,
+        subjectName: item.name || item.title || item.subjectId,
         subLibraryId: item.subLibraryId || '',
         membership: item.helix.membership,
         phase: item.helix.phase,
@@ -2323,7 +2329,7 @@ function registerRoutes(app) {
       adultRegion, scraperType, watchRoot, japaneseJav, western,
       allowedCapabilities: allowedCapabilities && typeof allowedCapabilities === 'object' ? allowedCapabilities : {
         metadata: isFolderAdult ? ['metadata.sidecar.render', 'metadata.image.acquire'] : [],
-        optimize: isFolderAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'container.remux', 'source.upgrade.request', 'media.replace'],
+        optimize: isFolderAdult ? ['media.transcode', 'media.file.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'container.remux', 'source.upgrade.request', 'media.file.replace', 'series.season.replace'],
       },
       capabilityParameters: capabilityParameters && typeof capabilityParameters === 'object' ? capabilityParameters : isFolderAdult ? { 'metadata.image.acquire': { kinds: ['poster', 'fanart'] } } : {},
       capabilityPolicyRevision: '1',
@@ -2376,7 +2382,7 @@ function registerRoutes(app) {
     }
     const library = getHelixServices().libraService.queryLibraryProjections({ subLibraryId: req.params.uuid });
     const result = await getHelixServices().libraService.requestOffboardingBatch({
-      itemIds: library.items.map((item) => item.itemId),
+      subjectIds: library.items.map((item) => item.subjectId),
       cleanupMode: 'retain_source',
       reason: body.reason || 'sub_library_removed',
       idempotencyKey: body.idempotencyKey,
@@ -2426,18 +2432,18 @@ function registerRoutes(app) {
 
   // Manual rescrape of a single adult folder item (resets prior failure state).
   // Optional body { adultId } overrides the detected 番号 (useful for ambiguous items).
-  app.post('/v1/admin/adult/items/:itemId/actions/rescrape', async (req, reply) => {
+  app.post('/v1/admin/adult/subjects/:subjectId/actions/rescrape', async (req, reply) => {
     try {
       const body = req.body || {};
       if (!body.idempotencyKey) return apiError(reply, 400, 'VALIDATION_ERROR', 'idempotencyKey is required');
       const result = getHelixServices().libraService.requestMetadataRefresh({
-        itemId: req.params.itemId,
+        subjectId: req.params.subjectId,
         idempotencyKey: body.idempotencyKey,
         adultId: typeof body.adultId === 'string' ? body.adultId.trim() : '',
         reason: 'adult_rescrape',
       });
-      kairoxAutomationRunner.wake({ itemId: req.params.itemId, kind: 'metadata_refresh_requested' });
-      activityLog.addActivity('adult_library', '成人媒体已请求重新获取元数据', { itemId: req.params.itemId });
+      kairoxAutomationRunner.wake({ subjectId: req.params.subjectId, kind: 'metadata_refresh_requested' });
+      activityLog.addActivity('adult_library', '成人媒体已请求重新获取元数据', { subjectId: req.params.subjectId });
       return reply.code(202).send({ ok: true, ...result });
     } catch (e) {
       const status = e.code === 'LIBRA_ITEM_NOT_FOUND' ? 404 : 409;
@@ -2462,7 +2468,7 @@ function registerRoutes(app) {
   app.post('/v1/admin/people/actions/merge', async (req, reply) => {
     try {
       const result = peopleStore.mergePeople(req.body || {});
-      for (const itemId of result.affectedItemIds) kairoxSignalBus.publish({ kind: 'person_preference_changed', itemId });
+      for (const subjectId of result.affectedItemIds) kairoxSignalBus.publish({ kind: 'person_preference_changed', subjectId });
       return result;
     } catch (error) {
       return apiError(reply, 400, error.code || 'KAIROX_PERSON_MERGE_INVALID', error.message);
@@ -2478,9 +2484,9 @@ function registerRoutes(app) {
   app.get('/v1/admin/people/:personId/media', async (req, reply) => {
     const person = peopleStore.getPerson(req.params.personId);
     if (!person) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
-    const itemIds = peopleStore.getRelatedItemIds(req.params.personId);
-    const projections = getHelixServices().libraService.getLibraryProjections(itemIds);
-    return { personId: person.personId, items: itemIds.map((itemId) => projections[itemId]).filter(Boolean) };
+    const subjectIds = peopleStore.getRelatedSubjectIds(req.params.personId);
+    const projections = getHelixServices().libraService.getLibraryProjections(subjectIds);
+    return { personId: person.personId, items: subjectIds.map((subjectId) => projections[subjectId]).filter(Boolean) };
   });
 
   app.get('/v1/admin/people/:personId/reference-image', async (req, reply) => {
@@ -2590,8 +2596,8 @@ function registerRoutes(app) {
   app.post('/v1/admin/people/from-face', async (req, reply) => {
     try {
       const body = req.body || {};
-      if (!body.itemId) return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
-      const projection = getHelixServices().libraService.getLibraryProjection(String(body.itemId));
+      if (!body.subjectId) return apiError(reply, 400, 'VALIDATION_ERROR', 'subjectId is required');
+      const projection = getHelixServices().libraService.getLibraryProjection(String(body.subjectId));
       if (!projection) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
       const metadata = projection.maintenance && projection.maintenance.metadataFacts || {};
       const clusters = Array.isArray(metadata.faceClusters)
@@ -2607,14 +2613,14 @@ function registerRoutes(app) {
       if (!face) return apiError(reply, 404, 'NOT_FOUND', 'Face cluster not found');
       const referenceFace = peopleStore.normalizeReferenceFace({
         ...face,
-        sourceItemId: projection.itemId,
+        sourceItemId: projection.subjectId,
         sourceAssetId: projection.source && projection.source.sourceAccessDescriptor && projection.source.sourceAccessDescriptor.sourceId || '',
       });
       const person = peopleStore.createPerson({
         name: body.name,
         aliases: body.aliases,
         adultRegion: body.adultRegion || 'western_adult',
-        referenceAssetIds: [projection.itemId],
+        referenceAssetIds: [projection.subjectId],
         referenceFaces: [referenceFace],
       });
       return reply.code(201).send(person);
@@ -2626,9 +2632,9 @@ function registerRoutes(app) {
   // Dismiss a face cluster: record its embedding on a dismissed person so future
   // scrapes drop it (blacklist). This is how male/supporting faces are excluded
   // from protagonist selection. Remediation of past items is via rescrape.
-  app.post('/v1/admin/adult/items/:itemId/faces/:clusterId/dismiss', async (req, reply) => {
+  app.post('/v1/admin/adult/subjects/:subjectId/faces/:clusterId/dismiss', async (req, reply) => {
     try {
-      const projection = getHelixServices().libraService.getLibraryProjection(String(req.params.itemId));
+      const projection = getHelixServices().libraService.getLibraryProjection(String(req.params.subjectId));
       if (!projection) return apiError(reply, 404, 'NOT_FOUND', 'Library item not found');
       const metadata = projection.maintenance && projection.maintenance.metadataFacts || {};
       const clusters = Array.isArray(metadata.faceClusters)
@@ -2642,12 +2648,12 @@ function registerRoutes(app) {
         name: `_dismissed_${face.clusterId || face.faceId || Date.now()}`,
         adultRegion: 'western_adult',
         dismissed: true,
-        referenceAssetIds: [projection.itemId],
+        referenceAssetIds: [projection.subjectId],
         referenceFaces: [{
           faceId: face.clusterId || face.faceId || '',
           embedding: emb,
           sampleImageBase64: face.sampleImageBase64 || '',
-          sourceItemId: projection.itemId,
+          sourceItemId: projection.subjectId,
           sourceAssetId: projection.source && projection.source.sourceAccessDescriptor && projection.source.sourceAccessDescriptor.sourceId || '',
         }],
       });
@@ -2662,7 +2668,7 @@ function registerRoutes(app) {
     const person = peopleStore.updatePerson(req.params.personId, req.body || {});
     if (!person) return apiError(reply, 404, 'NOT_FOUND', 'Person not found');
     if (before && before.preference !== person.preference) {
-      for (const itemId of peopleStore.getRelatedItemIds(person.personId)) kairoxSignalBus.publish({ kind: 'person_preference_changed', itemId });
+      for (const subjectId of peopleStore.getRelatedSubjectIds(person.personId)) kairoxSignalBus.publish({ kind: 'person_preference_changed', subjectId });
     }
     return person;
   });

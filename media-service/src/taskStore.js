@@ -56,7 +56,7 @@ function getDb() {
   db.pragma('busy_timeout = 5000');
   db.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
-      id TEXT PRIMARY KEY, item_id TEXT NOT NULL DEFAULT '', item_name TEXT NOT NULL DEFAULT '',
+      id TEXT PRIMARY KEY, subject_id TEXT NOT NULL DEFAULT '', subject_name TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT '', priority INTEGER NOT NULL DEFAULT 100,
       created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '', payload_json TEXT NOT NULL,
       verify_bytes_saved REAL, verify_size_bytes REAL, original_size_bytes REAL,
@@ -68,22 +68,22 @@ function getDb() {
       target_gate TEXT NOT NULL DEFAULT '', gate_objective_kind TEXT NOT NULL DEFAULT '', gate_objective_json TEXT NOT NULL DEFAULT '{}'
     );
     CREATE TABLE IF NOT EXISTS task_events (
-      id TEXT PRIMARY KEY, task_id TEXT NOT NULL DEFAULT '', item_id TEXT NOT NULL DEFAULT '',
+      id TEXT PRIMARY KEY, task_id TEXT NOT NULL DEFAULT '', subject_id TEXT NOT NULL DEFAULT '',
       event_type TEXT NOT NULL DEFAULT '', event_status TEXT NOT NULL DEFAULT '', phase TEXT,
       resource_type TEXT, resource_key TEXT NOT NULL DEFAULT '', resource_label TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT '', payload_json TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-    CREATE INDEX IF NOT EXISTS idx_tasks_item_id ON tasks(item_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_subject_id ON tasks(subject_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_updated_at ON tasks(updated_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_status_updated_at ON tasks(status, updated_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_sub_library_status ON tasks(sub_library_id, status, updated_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_target_gate_status ON tasks(target_gate, status, priority, created_at);
-    CREATE INDEX IF NOT EXISTS idx_tasks_item_target_status ON tasks(item_id, target_gate, status, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_item_target_status ON tasks(subject_id, target_gate, status, updated_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_task_created ON task_events(task_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_type_created ON task_events(event_type, created_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_status_created ON task_events(event_status, created_at);
-    CREATE INDEX IF NOT EXISTS idx_task_events_item_created ON task_events(item_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_task_events_item_created ON task_events(subject_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_resource_created ON task_events(resource_type, resource_key, created_at);
   `);
   dbCache.set(dbPath, db);
@@ -206,9 +206,9 @@ function normalizeTask(task) {
   const legacyFields = ['taskBridge', 'flowPlan', 'resumePoint', 'manualExecuteRequested', 'flowKind', 'selectedFlow'].filter((field) => Object.prototype.hasOwnProperty.call(t, field));
   if (legacyFields.length) throw Object.assign(new Error(`Legacy Task execution fields are not accepted: ${legacyFields.join(', ')}`), { code: 'KAIROX_LEGACY_TASK_SHAPE_REJECTED', fields: legacyFields });
   t.id = String(t.id || generateId());
-  t.itemId = String(t.itemId || '');
-  t.itemName = String(t.itemName || (t.itemInfo && t.itemInfo.name) || '');
-  t.source = String(t.source || (t.itemInfo && t.itemInfo.taskSource) || '');
+  t.subjectId = String(t.subjectId || '');
+  t.subjectName = String(t.subjectName || (t.subjectInfo && t.subjectInfo.name) || '');
+  t.source = String(t.source || (t.subjectInfo && t.subjectInfo.taskSource) || '');
   t.status = String(t.status || 'created');
   t.progress = typeof t.progress === 'number' ? t.progress : 0;
   t.phase = t.phase === undefined ? null : t.phase;
@@ -216,7 +216,7 @@ function normalizeTask(task) {
   t.createdAt = String(t.createdAt || now);
   t.updatedAt = String(t.updatedAt || t.createdAt || now);
   t.logs = Array.isArray(t.logs) ? t.logs : [];
-  t.itemInfo = t.itemInfo === undefined ? null : t.itemInfo;
+  t.subjectInfo = t.subjectInfo === undefined ? null : t.subjectInfo;
   t.maintenanceRun = t.maintenanceRun && typeof t.maintenanceRun === 'object' ? t.maintenanceRun : null;
   t.maintenancePrioritySnapshot = t.maintenancePrioritySnapshot && typeof t.maintenancePrioritySnapshot === 'object'
     ? {
@@ -226,14 +226,14 @@ function normalizeTask(task) {
       runId: String(t.maintenancePrioritySnapshot.runId || ''),
     }
     : { class: 'normal', revision: 0, reason: '', runId: '' };
-  const itemInfo = t.itemInfo && typeof t.itemInfo === 'object' ? t.itemInfo : {};
+  const subjectInfo = t.subjectInfo && typeof t.subjectInfo === 'object' ? t.subjectInfo : {};
   t.taskTarget = t.taskTarget && typeof t.taskTarget === 'object'
     ? t.taskTarget
     : {
       object: {
         type: 'media_item',
-        itemId: t.itemId,
-        subLibraryId: itemInfo.subLibraryId || '',
+        subjectId: t.subjectId,
+        subLibraryId: subjectInfo.subLibraryId || '',
       },
       targetGate: String(t.targetGate || ''),
       gateObjective: t.gateObjective && typeof t.gateObjective === 'object' ? t.gateObjective : {},
@@ -252,8 +252,8 @@ function taskToRow(task) {
   const facts = taskFactsModel.taskFacts(t);
   return {
     id: t.id,
-    item_id: t.itemId,
-    item_name: t.itemName || (t.itemInfo && t.itemInfo.name) || '',
+    subject_id: t.subjectId,
+    subject_name: t.subjectName || (t.subjectInfo && t.subjectInfo.name) || '',
     status: t.status,
     priority: typeof t.priority === 'number' ? t.priority : 100,
     created_at: t.createdAt,
@@ -271,7 +271,7 @@ function finiteNumberOrNull(value) {
 
 function taskSpaceStatColumns(task) {
   const verify = task && task.verifyResult && typeof task.verifyResult === 'object' ? task.verifyResult : {};
-  const info = task && task.itemInfo && typeof task.itemInfo === 'object' ? task.itemInfo : {};
+  const info = task && task.subjectInfo && typeof task.subjectInfo === 'object' ? task.subjectInfo : {};
   const preview = task && task.upgradePreview && typeof task.upgradePreview === 'object' ? task.upgradePreview : {};
   return {
     verify_bytes_saved: finiteNumberOrNull(verify.bytesSaved),
@@ -287,7 +287,7 @@ function eventPayloadFor(task, payload = {}) {
   return {
     ...base,
     taskId: task && task.id,
-    itemId: task && task.itemId,
+    subjectId: task && task.subjectId,
     status: task && task.status,
     phase: task && task.phase,
   };
@@ -299,7 +299,7 @@ function buildTaskEvent(task, eventType, payload = {}, opts = {}) {
   return {
     id: opts.id || generateId(),
     taskId: String(opts.taskId || t.id || ''),
-    itemId: String(opts.itemId || t.itemId || ''),
+    subjectId: String(opts.subjectId || t.subjectId || ''),
     eventType: String(eventType || opts.eventType || ''),
     eventStatus: String(opts.eventStatus || t.status || ''),
     phase: opts.phase !== undefined ? opts.phase : (t.phase === undefined ? null : t.phase),
@@ -314,7 +314,7 @@ function taskEventToRow(event) {
   return {
     id: event.id,
     task_id: event.taskId,
-    item_id: event.itemId,
+    subject_id: event.subjectId,
     event_type: event.eventType,
     event_status: event.eventStatus,
     phase: event.phase,
@@ -331,7 +331,7 @@ function rowToTaskEvent(row) {
   const event = {
     id: row.id,
     taskId: row.task_id || '',
-    itemId: row.item_id || '',
+    subjectId: row.subject_id || '',
     eventType: row.event_type || '',
     eventStatus: row.event_status || '',
     phase: row.phase,
@@ -346,10 +346,10 @@ function rowToTaskEvent(row) {
 
 const insertTaskEventSql = `
         INSERT INTO task_events
-          (id, task_id, item_id, event_type, event_status, phase, resource_type,
+          (id, task_id, subject_id, event_type, event_status, phase, resource_type,
            resource_key, resource_label, created_at, payload_json)
         VALUES
-          (@id, @task_id, @item_id, @event_type, @event_status, @phase, @resource_type,
+          (@id, @task_id, @subject_id, @event_type, @event_status, @phase, @resource_type,
            @resource_key, @resource_label, @created_at, @payload_json)
       `;
 
@@ -519,8 +519,8 @@ function rowToTask(row) {
   if (!row) return null;
   const task = normalizeTask(jsonParse(row.payload_json, {}));
   task.id = row.id;
-  task.itemId = row.item_id || task.itemId || '';
-  task.itemName = row.item_name || task.itemName || '';
+  task.subjectId = row.subject_id || task.subjectId || '';
+  task.subjectName = row.subject_name || task.subjectName || '';
   task.status = row.status || task.status || '';
   task.priority = typeof row.priority === 'number' ? row.priority : task.priority;
   task.createdAt = row.created_at || task.createdAt;
@@ -535,8 +535,8 @@ function rowToTask(row) {
     task.taskTarget = {
       object: {
         type: 'media_item',
-        itemId: task.itemId,
-        subLibraryId: row.sub_library_id || (task.itemInfo && task.itemInfo.subLibraryId) || '',
+        subjectId: task.subjectId,
+        subLibraryId: row.sub_library_id || (task.subjectInfo && task.subjectInfo.subLibraryId) || '',
       },
       targetGate: row.target_gate || '',
       gateObjective: jsonParse(row.gate_objective_json, null) || {},
@@ -549,20 +549,20 @@ function rowToTask(row) {
 
 const upsertSql = `
   INSERT INTO tasks
-    (id, item_id, item_name, status, priority, created_at, updated_at, payload_json,
+    (id, subject_id, subject_name, status, priority, created_at, updated_at, payload_json,
      verify_bytes_saved, verify_size_bytes, original_size_bytes, upgrade_old_size, upgrade_new_size,
      source, progress, phase,
      priority_model_version, retry_count, pausing_requested, node_id, sub_library_id, item_path,
      target_gate, gate_objective_kind, gate_objective_json)
   VALUES
-    (@id, @item_id, @item_name, @status, @priority, @created_at, @updated_at, @payload_json,
+    (@id, @subject_id, @subject_name, @status, @priority, @created_at, @updated_at, @payload_json,
      @verify_bytes_saved, @verify_size_bytes, @original_size_bytes, @upgrade_old_size, @upgrade_new_size,
      @source, @progress, @phase,
      @priority_model_version, @retry_count, @pausing_requested, @node_id, @sub_library_id, @item_path,
      @target_gate, @gate_objective_kind, @gate_objective_json)
   ON CONFLICT(id) DO UPDATE SET
-    item_id = excluded.item_id,
-    item_name = excluded.item_name,
+    subject_id = excluded.subject_id,
+    subject_name = excluded.subject_name,
     status = excluded.status,
     priority = excluded.priority,
     created_at = excluded.created_at,
@@ -590,11 +590,11 @@ const upsertSql = `
 function buildTask(taskData, now = new Date().toISOString()) {
   return normalizeTask({
     id: generateId(),
-    itemId: taskData.itemId || '',
-    itemName: taskData.itemName || (taskData.itemInfo && taskData.itemInfo.name) || '',
+    subjectId: taskData.subjectId || '',
+    subjectName: taskData.subjectName || (taskData.subjectInfo && taskData.subjectInfo.name) || '',
     targetGate: taskData.targetGate,
     gateObjective: taskData.gateObjective,
-    source: taskData.source || (taskData.itemInfo && taskData.itemInfo.taskSource) || '',
+    source: taskData.source || (taskData.subjectInfo && taskData.subjectInfo.taskSource) || '',
     status: taskData.status || 'created',
     progress: typeof taskData.progress === 'number' ? taskData.progress : 0,
     phase: taskData.phase === undefined ? null : taskData.phase,
@@ -602,7 +602,7 @@ function buildTask(taskData, now = new Date().toISOString()) {
     createdAt: now,
     updatedAt: now,
     logs: Array.isArray(taskData.logs) ? taskData.logs : [],
-    itemInfo: taskData.itemInfo || null,
+    subjectInfo: taskData.subjectInfo || null,
     priorityModelVersion: taskData.priorityModelVersion,
     priorityBreakdown: taskData.priorityBreakdown,
     taskTarget: taskData.taskTarget,
@@ -625,7 +625,7 @@ function createTask(taskData) {
     resourceKey: 'tasks.db',
     slowMs: 150,
     payload: {
-      itemId: taskData && taskData.itemId,
+      subjectId: taskData && taskData.subjectId,
       targetGate: taskData && (taskData.targetGate || taskData.taskTarget && taskData.taskTarget.targetGate),
       source: taskData && taskData.source,
       before: getStorageMetrics(),
@@ -735,15 +735,15 @@ function buildWhere(filter = {}, options = {}) {
     clauses.push('target_gate = @targetGate');
     params.targetGate = String(filter.targetGate || filter.bridgeKind);
   }
-  if (filter.itemId) {
-    clauses.push('item_id = @itemId');
-    params.itemId = String(filter.itemId);
+  if (filter.subjectId) {
+    clauses.push('subject_id = @subjectId');
+    params.subjectId = String(filter.subjectId);
   }
-  if (Array.isArray(filter.itemIds) && filter.itemIds.length > 0) {
-    const itemIds = filter.itemIds.map((itemId) => String(itemId || '').trim()).filter(Boolean);
-    if (itemIds.length > 0) {
-      clauses.push(`item_id IN (${itemIds.map((_, i) => `@itemIdIn${i}`).join(', ')})`);
-      itemIds.forEach((itemId, i) => { params[`itemIdIn${i}`] = itemId; });
+  if (Array.isArray(filter.subjectIds) && filter.subjectIds.length > 0) {
+    const subjectIds = filter.subjectIds.map((subjectId) => String(subjectId || '').trim()).filter(Boolean);
+    if (subjectIds.length > 0) {
+      clauses.push(`subject_id IN (${subjectIds.map((_, i) => `@itemIdIn${i}`).join(', ')})`);
+      subjectIds.forEach((subjectId, i) => { params[`itemIdIn${i}`] = subjectId; });
     }
   }
   if (filter.nodeId) {
@@ -751,7 +751,7 @@ function buildWhere(filter = {}, options = {}) {
     params.nodeId = String(filter.nodeId);
   }
   if (filter.q) {
-    clauses.push('(LOWER(item_name) LIKE @q OR LOWER(item_id) LIKE @q)');
+    clauses.push('(LOWER(subject_name) LIKE @q OR LOWER(subject_id) LIKE @q)');
     params.q = `%${String(filter.q).toLowerCase()}%`;
   }
 
@@ -811,9 +811,9 @@ function queryTaskEvents(filter = {}, options = {}) {
     clauses.push('task_id = @taskId');
     params.taskId = String(filter.taskId);
   }
-  if (filter.itemId) {
-    clauses.push('item_id = @itemId');
-    params.itemId = String(filter.itemId);
+  if (filter.subjectId) {
+    clauses.push('subject_id = @subjectId');
+    params.subjectId = String(filter.subjectId);
   }
   if (filter.eventType) {
     clauses.push('event_type = @eventType');
@@ -881,19 +881,19 @@ function queryRecentFailureEvents(options = {}) {
   }, () => queryRecentFailureEventsInner(options));
 }
 
-function queryLatestFailureEventsByItemIdsInner(itemIds = [], options = {}) {
-  const ids = [...new Set((itemIds || []).map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+function queryLatestFailureEventsByItemIdsInner(subjectIds = [], options = {}) {
+  const ids = [...new Set((subjectIds || []).map((subjectId) => String(subjectId || '').trim()).filter(Boolean))];
   if (ids.length === 0) return {};
   const maxRows = Math.min(1000, Math.max(ids.length * 4, Number.parseInt(options.maxRows, 10) || ids.length * 4));
   const params = { limit: maxRows };
-  const itemSql = ids.map((itemId, i) => {
-    params[`itemId${i}`] = itemId;
-    return `@itemId${i}`;
+  const itemSql = ids.map((subjectId, i) => {
+    params[`subjectId${i}`] = subjectId;
+    return `@subjectId${i}`;
   }).join(', ');
   const rows = getDb().prepare(`
     SELECT *
     FROM task_events
-    WHERE item_id IN (${itemSql})
+    WHERE subject_id IN (${itemSql})
       AND (
         event_status IN ('failed_hard', 'failed_soft', 'interrupted')
         OR event_type IN ('task.failed', 'flow.failed', 'task.interrupted')
@@ -910,13 +910,13 @@ function queryLatestFailureEventsByItemIdsInner(itemIds = [], options = {}) {
   const byItem = {};
   for (const row of rows) {
     const event = rowToTaskEvent(row);
-    if (!event.itemId || byItem[event.itemId]) continue;
-    byItem[event.itemId] = event;
+    if (!event.subjectId || byItem[event.subjectId]) continue;
+    byItem[event.subjectId] = event;
   }
   return byItem;
 }
 
-function queryLatestFailureEventsByItemIds(itemIds = [], options = {}) {
+function queryLatestFailureEventsByItemIds(subjectIds = [], options = {}) {
   return diagnosticLog.track({
     category: 'store',
     scope: 'taskStore.queryLatestFailureEventsByItemIds',
@@ -926,20 +926,20 @@ function queryLatestFailureEventsByItemIds(itemIds = [], options = {}) {
     resourceKey: 'tasks.db',
     slowMs: 150,
     payload: {
-      itemIds: Array.isArray(itemIds) ? itemIds.length : 0,
+      subjectIds: Array.isArray(subjectIds) ? subjectIds.length : 0,
       maxRows: options.maxRows || undefined,
     },
     successPayload: (byItem) => ({
       rowCount: byItem && typeof byItem === 'object' ? Object.keys(byItem).length : 0,
     }),
-  }, () => queryLatestFailureEventsByItemIdsInner(itemIds, options));
+  }, () => queryLatestFailureEventsByItemIdsInner(subjectIds, options));
 }
 
 function queryRecentTaskEvents(options = {}) {
   const pageSize = Math.min(100, Math.max(1, Number.parseInt(options.pageSize, 10) || 20));
   const rows = getDb().prepare(`
     SELECT
-      id, task_id, item_id, event_type, event_status, phase,
+      id, task_id, subject_id, event_type, event_status, phase,
       resource_type, resource_key, resource_label, created_at, NULL AS payload_json
     FROM task_events
     ORDER BY created_at DESC, id DESC
@@ -1058,8 +1058,8 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
   const rows = db.prepare(`
     SELECT
       id,
-      item_id,
-      item_name,
+      subject_id,
+      subject_name,
       status,
       priority,
       created_at,
@@ -1083,23 +1083,23 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
       ${activeJson('$.verifyResult.previewPath')} AS verify_preview_path,
       ${activeJson('$.verifyResult.outputPath')} AS verify_output_path,
       ${activeJson('$.verifyResult.bytesSaved')} AS verify_bytes_saved,
-      ${itemJson('$.itemInfo.name')} AS info_name,
-      ${itemJson('$.itemInfo.title')} AS info_title,
-      ${itemJson('$.itemInfo.type')} AS info_type,
-      ${itemJson('$.itemInfo.seriesName')} AS info_series_name,
-      ${itemJson('$.itemInfo.seasonNumber')} AS info_season_number,
-      ${itemJson('$.itemInfo.path')} AS info_path,
-      ${itemJson('$.itemInfo.subLibraryId')} AS info_sub_library_id,
-      ${itemJson('$.itemInfo.originalSizeBytes')} AS info_original_size_bytes,
-      ${itemJson('$.itemInfo.originalBitrate')} AS info_original_bitrate,
-      ${itemJson('$.itemInfo.originalVideoCodec')} AS info_original_video_codec,
-      ${itemJson('$.itemInfo.originalAudioCodec')} AS info_original_audio_codec,
-      ${itemJson('$.itemInfo.originalWidth')} AS info_original_width,
-      ${itemJson('$.itemInfo.originalHeight')} AS info_original_height,
-      ${itemJson('$.itemInfo.adultMetadata.adultId')} AS adult_id,
-      ${itemJson('$.itemInfo.adultMetadata.scrapeStatus')} AS adult_scrape_status,
-      ${itemJson('$.itemInfo.adultMetadata.region')} AS adult_region,
-      ${itemJson('$.itemInfo.adultMetadata.protagonist')} AS adult_protagonist_json
+      ${itemJson('$.subjectInfo.name')} AS info_name,
+      ${itemJson('$.subjectInfo.title')} AS info_title,
+      ${itemJson('$.subjectInfo.type')} AS info_type,
+      ${itemJson('$.subjectInfo.seriesName')} AS info_series_name,
+      ${itemJson('$.subjectInfo.seasonNumber')} AS info_season_number,
+      ${itemJson('$.subjectInfo.path')} AS info_path,
+      ${itemJson('$.subjectInfo.subLibraryId')} AS info_sub_library_id,
+      ${itemJson('$.subjectInfo.originalSizeBytes')} AS info_original_size_bytes,
+      ${itemJson('$.subjectInfo.originalBitrate')} AS info_original_bitrate,
+      ${itemJson('$.subjectInfo.originalVideoCodec')} AS info_original_video_codec,
+      ${itemJson('$.subjectInfo.originalAudioCodec')} AS info_original_audio_codec,
+      ${itemJson('$.subjectInfo.originalWidth')} AS info_original_width,
+      ${itemJson('$.subjectInfo.originalHeight')} AS info_original_height,
+      ${itemJson('$.subjectInfo.adultMetadata.adultId')} AS adult_id,
+      ${itemJson('$.subjectInfo.adultMetadata.scrapeStatus')} AS adult_scrape_status,
+      ${itemJson('$.subjectInfo.adultMetadata.region')} AS adult_region,
+      ${itemJson('$.subjectInfo.adultMetadata.protagonist')} AS adult_protagonist_json
     FROM tasks ${where}
     ORDER BY ${orderBy} ${orderDir}, id ${orderDir}
     ${includeAll ? '' : 'LIMIT @limit OFFSET @offset'}
@@ -1122,7 +1122,7 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
           protagonist: jsonExtractObject(row.adult_protagonist_json, undefined),
         }
         : undefined;
-      const itemInfo = {
+      const subjectInfo = {
         name: row.info_name || undefined,
         title: row.info_title || undefined,
         type: row.info_type || undefined,
@@ -1138,8 +1138,8 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
         originalWidth: row.info_original_width,
         originalHeight: row.info_original_height,
       };
-      Object.keys(itemInfo).forEach((key) => {
-        if (itemInfo[key] === undefined || itemInfo[key] === null) delete itemInfo[key];
+      Object.keys(subjectInfo).forEach((key) => {
+        if (subjectInfo[key] === undefined || subjectInfo[key] === null) delete subjectInfo[key];
       });
       const verifyResult = {
         sizeBytes: row.verify_size_bytes,
@@ -1157,8 +1157,8 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
       });
       return projectTask({
         id: row.id,
-        itemId: row.item_id || '',
-        itemName: row.item_name || '',
+        subjectId: row.subject_id || '',
+        subjectName: row.subject_name || '',
         source: row.source || '',
         status: row.status || '',
         progress: progressCache.get(row.id) ?? (typeof row.progress === 'number' ? row.progress : 0),
@@ -1172,7 +1172,7 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
           ? {
             object: {
               type: 'media_item',
-              itemId: row.item_id || '',
+              subjectId: row.subject_id || '',
               subLibraryId: row.info_sub_library_id || '',
             },
             targetGate: row.target_gate || '',
@@ -1183,7 +1183,7 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
         priority: typeof row.priority === 'number' ? row.priority : 100,
         createdAt: row.created_at || '',
         updatedAt: row.updated_at || '',
-        itemInfo: Object.keys(itemInfo).length > 0 ? itemInfo : undefined,
+        subjectInfo: Object.keys(subjectInfo).length > 0 ? subjectInfo : undefined,
         verifyResult: Object.keys(verifyResult).length > 0 ? verifyResult : undefined,
       });
     }),
@@ -1205,8 +1205,8 @@ function queryTaskSummaries(filter = {}, options = {}) {
     slowMs: 150,
     payload: {
       filter: {
-        hasItemId: !!filter.itemId,
-        itemIds: Array.isArray(filter.itemIds) ? filter.itemIds.length : undefined,
+        hasItemId: !!filter.subjectId,
+        subjectIds: Array.isArray(filter.subjectIds) ? filter.subjectIds.length : undefined,
         status: filter.status || '',
         statuses: Array.isArray(filter.statuses) ? filter.statuses.length : undefined,
         targetGate: filter.targetGate || filter.bridgeKind || '',
@@ -1250,8 +1250,8 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
     const rows = db.prepare(`
       SELECT
         id,
-        item_id,
-        item_name,
+        subject_id,
+        subject_name,
         status,
         priority,
         created_at,
@@ -1268,13 +1268,13 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
     `).all(params);
 
     return rows.map((row) => {
-      const itemInfo = row.sub_library_id
+      const subjectInfo = row.sub_library_id
         ? { subLibraryId: row.sub_library_id }
         : undefined;
       return projectTask({
         id: row.id,
-        itemId: row.item_id || '',
-        itemName: row.item_name || '',
+        subjectId: row.subject_id || '',
+        subjectName: row.subject_name || '',
         status: row.status || '',
         source: row.source || '',
         phase: row.phase || '',
@@ -1287,7 +1287,7 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
           ? {
             object: {
               type: 'media_item',
-              itemId: row.item_id || '',
+              subjectId: row.subject_id || '',
               subLibraryId: row.sub_library_id || '',
             },
             targetGate: row.target_gate || '',
@@ -1295,7 +1295,7 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
             source: row.source || '',
           }
           : undefined,
-        itemInfo,
+        subjectInfo,
       });
     });
   });
@@ -1323,8 +1323,8 @@ function querySchedulerTasks() {
     const rows = db.prepare(`
       SELECT
         id,
-        item_id,
-        item_name,
+        subject_id,
+        subject_name,
         status,
         priority,
         created_at,
@@ -1341,7 +1341,7 @@ function querySchedulerTasks() {
         target_gate,
         gate_objective_json,
         json_extract(payload_json, '$.priorityBreakdown') AS priority_breakdown_json,
-        json_extract(payload_json, '$.itemInfo') AS item_info_json,
+        json_extract(payload_json, '$.subjectInfo') AS item_info_json,
         json_extract(payload_json, '$.helixAdmission') AS helix_admission_json,
         json_extract(payload_json, '$.maintenanceRun') AS maintenance_run_json,
         json_extract(payload_json, '$.maintenancePrioritySnapshot') AS maintenance_priority_snapshot_json,
@@ -1352,11 +1352,11 @@ function querySchedulerTasks() {
     `).all(params);
 
     return rows.map((row) => {
-      const itemInfo = jsonExtractObject(row.item_info_json, null);
+      const subjectInfo = jsonExtractObject(row.item_info_json, null);
       return projectTask({
         id: row.id,
-        itemId: row.item_id || '',
-        itemName: row.item_name || '',
+        subjectId: row.subject_id || '',
+        subjectName: row.subject_name || '',
         status: row.status || '',
         priority: typeof row.priority === 'number' ? row.priority : 100,
         createdAt: row.created_at || '',
@@ -1377,15 +1377,15 @@ function querySchedulerTasks() {
           ? {
             object: {
               type: 'media_item',
-              itemId: row.item_id || '',
-              subLibraryId: row.sub_library_id || (itemInfo && itemInfo.subLibraryId) || '',
+              subjectId: row.subject_id || '',
+              subLibraryId: row.sub_library_id || (subjectInfo && subjectInfo.subLibraryId) || '',
             },
             targetGate: row.target_gate || '',
             gateObjective: jsonParse(row.gate_objective_json, {}),
             source: row.source || '',
           }
           : undefined,
-        itemInfo,
+        subjectInfo,
       });
     });
   });
@@ -1394,27 +1394,27 @@ function querySchedulerTasks() {
 function queryOptimizationTaskIndexRows(filter = {}) {
   const params = {};
   let itemFilter = '';
-  if (Array.isArray(filter.itemIds) && filter.itemIds.length > 0) {
-    const ids = [...new Set(filter.itemIds.map((id) => String(id || '')).filter(Boolean))];
+  if (Array.isArray(filter.subjectIds) && filter.subjectIds.length > 0) {
+    const ids = [...new Set(filter.subjectIds.map((id) => String(id || '')).filter(Boolean))];
     if (ids.length > 0) {
-      itemFilter = `AND t.item_id IN (${ids.map((_, i) => `@itemId${i}`).join(', ')})`;
-      ids.forEach((id, i) => { params[`itemId${i}`] = id; });
+      itemFilter = `AND t.subject_id IN (${ids.map((_, i) => `@subjectId${i}`).join(', ')})`;
+      ids.forEach((id, i) => { params[`subjectId${i}`] = id; });
     }
   }
 
   const rows = getDb().prepare(`
     SELECT
       t.id AS id,
-      t.item_id AS item_id,
+      t.subject_id AS subject_id,
       COALESCE(p.classification,'') AS classification,
       t.created_at AS created_at,
       t.updated_at AS updated_at,
-      json_extract(payload_json, '$.itemInfo.subLibraryId') AS sub_library_id,
-      json_extract(payload_json, '$.itemInfo.path') AS item_path,
-      json_extract(payload_json, '$.itemInfo.sourcePath') AS source_path,
-      json_extract(payload_json, '$.itemInfo.originalSourcePath') AS original_source_path,
-      json_extract(payload_json, '$.itemInfo.replacementTargetPath') AS replacement_target_path,
-      json_extract(payload_json, '$.itemInfo.originalDiscPath') AS original_disc_path,
+      json_extract(payload_json, '$.subjectInfo.subLibraryId') AS sub_library_id,
+      json_extract(payload_json, '$.subjectInfo.path') AS item_path,
+      json_extract(payload_json, '$.subjectInfo.sourcePath') AS source_path,
+      json_extract(payload_json, '$.subjectInfo.originalSourcePath') AS original_source_path,
+      json_extract(payload_json, '$.subjectInfo.replacementTargetPath') AS replacement_target_path,
+      json_extract(payload_json, '$.subjectInfo.originalDiscPath') AS original_disc_path,
       json_extract(payload_json, '$.verifyResult.outputPath') AS output_path,
       json_extract(payload_json, '$.upgradePreview.oldFile.path') AS old_file_path,
       json_extract(payload_json, '$.upgradePreview.newFile.path') AS new_file_path
@@ -1426,12 +1426,12 @@ function queryOptimizationTaskIndexRows(filter = {}) {
 
   return rows.map((row) => ({
     id: row.id,
-    itemId: row.item_id,
+    subjectId: row.subject_id,
     classification: row.classification,
     status: 'done',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    itemInfo: {
+    subjectInfo: {
       subLibraryId: row.sub_library_id || '',
       path: row.item_path || '',
       sourcePath: row.source_path || '',
@@ -1450,25 +1450,25 @@ function queryOptimizationTaskIndexRows(filter = {}) {
 }
 
 function queryTaskAdmissionRowsInner(db = getDb(), scope = {}) {
-  const itemId = String(scope.itemId || '').trim();
+  const subjectId = String(scope.subjectId || '').trim();
   const targetGate = String(scope.targetGate || '').trim();
-  if (itemId && targetGate) {
+  if (subjectId && targetGate) {
     const policyTerminal = [...TERMINAL_STATUSES];
     const terminalParams = policyTerminal.map(() => '?').join(',');
     const rows = db.prepare(`
-      SELECT id,item_id,target_gate,status,source,created_at,updated_at,
+      SELECT id,subject_id,target_gate,status,source,created_at,updated_at,
              json_extract(payload_json, '$.taskTarget.attemptKey') AS attempt_key
       FROM tasks
       WHERE status NOT IN (${terminalParams})
       UNION ALL
-      SELECT id,item_id,target_gate,status,source,created_at,updated_at,
+      SELECT id,subject_id,target_gate,status,source,created_at,updated_at,
              json_extract(payload_json, '$.taskTarget.attemptKey') AS attempt_key
       FROM tasks
-      WHERE item_id=? AND target_gate=? AND status IN (${terminalParams})
-    `).all(...policyTerminal, itemId, targetGate, ...policyTerminal);
+      WHERE subject_id=? AND target_gate=? AND status IN (${terminalParams})
+    `).all(...policyTerminal, subjectId, targetGate, ...policyTerminal);
     return rows.map((row) => ({
       id: row.id,
-      itemId: row.item_id || '',
+      subjectId: row.subject_id || '',
       status: row.status || '',
       source: row.source || '',
       createdAt: row.created_at || '',
@@ -1477,7 +1477,7 @@ function queryTaskAdmissionRowsInner(db = getDb(), scope = {}) {
     }));
   }
   const rows = db.prepare(`
-    SELECT id, item_id, target_gate, status, source, created_at, updated_at, payload_json
+    SELECT id, subject_id, target_gate, status, source, created_at, updated_at, payload_json
     FROM tasks
     ORDER BY updated_at DESC, id DESC
   `).all();
@@ -1489,7 +1489,7 @@ function queryTaskAdmissionRowsInner(db = getDb(), scope = {}) {
       : { targetGate: row.target_gate || '' };
     return {
       id: row.id,
-      itemId: row.item_id || '',
+      subjectId: row.subject_id || '',
       status: row.status || '',
       source: row.source || payload.source || '',
       createdAt: row.created_at || '',
@@ -1546,7 +1546,7 @@ function querySpaceStatTaskRows() {
   const rows = getDb().prepare(`
     SELECT
       t.id AS id,
-      t.item_id AS item_id,
+      t.subject_id AS subject_id,
       COALESCE(p.classification,'') AS classification,
       t.verify_bytes_saved,
       t.verify_size_bytes,
@@ -1561,14 +1561,14 @@ function querySpaceStatTaskRows() {
   return rows.map((row) => {
     const task = {
       id: row.id,
-      itemId: row.item_id,
+      subjectId: row.subject_id,
       classification: row.classification,
       status: 'done',
-      itemInfo: {},
+      subjectInfo: {},
       verifyResult: {},
       upgradePreview: null,
     };
-    if (row.original_size_bytes != null) task.itemInfo.originalSizeBytes = Number(row.original_size_bytes);
+    if (row.original_size_bytes != null) task.subjectInfo.originalSizeBytes = Number(row.original_size_bytes);
     if (row.verify_bytes_saved != null) task.verifyResult.bytesSaved = Number(row.verify_bytes_saved);
     if (row.verify_size_bytes != null) task.verifyResult.sizeBytes = Number(row.verify_size_bytes);
     if (row.upgrade_old_size != null || row.upgrade_new_size != null) {
@@ -1577,7 +1577,7 @@ function querySpaceStatTaskRows() {
         newFile: row.upgrade_new_size == null ? null : { size: Number(row.upgrade_new_size) },
       };
     }
-    if (Object.keys(task.itemInfo).length === 0) delete task.itemInfo;
+    if (Object.keys(task.subjectInfo).length === 0) delete task.subjectInfo;
     if (Object.keys(task.verifyResult).length === 0) delete task.verifyResult;
     return task;
   });
@@ -1639,22 +1639,22 @@ function getCachedStatus(taskId) {
   return statusCache.get(taskId) || null;
 }
 
-function queryLatestAutomaticFailures(itemIds = []) {
-  const ids = [...new Set(itemIds.map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+function queryLatestAutomaticFailures(subjectIds = []) {
+  const ids = [...new Set(subjectIds.map((subjectId) => String(subjectId || '').trim()).filter(Boolean))];
   if (ids.length === 0) return {};
   const rows = getDb().prepare(`
-    SELECT id,item_id,status,target_gate,updated_at,
+    SELECT id,subject_id,status,target_gate,updated_at,
       json_extract(payload_json, '$.helixAdmission.admissionGeneration') AS admission_generation,
       json_extract(payload_json, '$.objectiveRevisionSnapshot') AS objective_hash
     FROM tasks
     WHERE source='auto' AND status IN ('failed_hard','failed_soft')
-      AND item_id IN (${ids.map(() => '?').join(',')})
+      AND subject_id IN (${ids.map(() => '?').join(',')})
     ORDER BY updated_at DESC,id DESC
   `).all(...ids);
   return rows.reduce((out, row) => {
-    if (!out[row.item_id]) out[row.item_id] = {
+    if (!out[row.subject_id]) out[row.subject_id] = {
       taskId: row.id,
-      itemId: row.item_id,
+      subjectId: row.subject_id,
       status: row.status,
       targetGate: row.target_gate,
       admissionGeneration: Number(row.admission_generation) || 0,

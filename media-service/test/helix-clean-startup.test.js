@@ -24,7 +24,7 @@ test('clean startup does not recreate mixed media_items state', async () => {
   const invalidTarget = await app.inject({
     method: 'POST',
     url: '/v1/tasks',
-    payload: { itemId: 'item-1', targetGate: 'archive' },
+    payload: { subjectId: 'item-1', targetGate: 'archive' },
   });
   assert.strictEqual(invalidTarget.statusCode, 404);
 

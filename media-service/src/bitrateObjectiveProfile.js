@@ -75,7 +75,7 @@ function targetFactsFromObjective(objective = {}) {
 
 function resolveBitrateProfile(input = {}) {
   const target = targetFactsFromObjective(input.targetMediaFacts || input.objective || input);
-  const item = input.item || input.itemInfo || {};
+  const item = input.item || input.subjectInfo || {};
   const bucket = normalizeBucket(input.bucket || bucketFromMediaFacts(item));
 
   const profileByBucket = target.targetBitrateProfileByBucket;

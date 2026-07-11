@@ -12,6 +12,20 @@ Production disabled
 Recovery implementation in progress
 ```
 
+### Subject / Asset Rebaseline
+
+- 已确认 Series（跨所有 Season）是唯一维护主体；Episode 只是 Source Asset 和 Event操作对象。
+- clean runtime 主键切换为 Libra `subjectId` 与 Nexora `assetId`，旧 `itemId` 不保留兼容层。
+- 2026-07-11 Series Subject / Asset clean cut 已完成：Series 跨全部 Seasons 是唯一 Membership、Admission、Run、Priority、Gate 与 Task 主体；Season 为内部 scope，Episode 仅为 Asset/Event target。
+- Nexora observation page 先进入 durable session，完整扫描后才形成 Subject Manifest。部分 Episode 移除写入 removal evidence；完整扫描中 Subject 归零则投影 source missing 并由 Libra quarantine。
+- Kairox Admission 持久化不可变 Asset snapshot；一个 Series Basedata/Optimize Task 在 Workflow 内按 `assetScope` fan-out，ready window 固定为 4，filesystem permit 按 Volume key 治理。
+- Series Metadata 使用独立 identity/provider/tvshow NFO/publish Capability；Movie/Adult 单文件提交统一使用 `media.file.replace`，Series Season package 使用 `series.season.replace`。
+- Season Upgrade 按尚未满足 Objective 的最小 `seasonKey` 选择，一次 Task 只替换一季；package 必须覆盖当前全部 managed Episode keys，显式 Season/TMDB 冲突硬拒绝，弱身份进入 approval。
+- 验证证据：Service 229/229、Admin Web production build、真实本机 FFmpeg disposable 双 Episode 在同一 Series Optimize Task 中完成两条独立 Transcode/replace Event 链并单次 Subject join、Season transaction 注入 commit failure 后原目录与 sidecar 均恢复。
+- 本次没有恢复四库真实来源 E2E、Docker 构建或生产部署；生产 ShelfDeck 保持停止。
+- 本期不实现理论集数目录或缺集策略；完整恢复 Season 级 MoviePilot Upgrade，采用当前 Episode集合超集验证后的事务性整季替换。
+- 实现与自动验收进行中；真实四库E2E和生产继续停止。
+
 此前的 Service 主链路与 Admin Web 实现提供了后续修复基础：
 
 ```text
@@ -30,7 +44,7 @@ Kairox Maintenance Automation
 
 ### 2026-07-11 FlowPlan Business Parity Audit
 
-- 行为级验收取代原先仅检查名称映射的弱证据；50 项业务 Capability 均可由代表性系统 Planner 场景到达。
+- 行为级验收取代原先仅检查名称映射的弱证据；当前 62 项业务 Capability 均可由代表性系统 Planner 场景到达。
 - Service `221/221` 与 Admin Web production build 通过。
 - 验收修复了复合 Upgrade→Transcode 验证范围和依赖、虚假 no-op verify、未类型化 blocked reason、临提交 fencing、source suspension late output、长耗时成人能力取消以及按策略性能分组。
 - 唯一未关闭项是旧 Season 级 MoviePilot Upgrade：Helix 当前只有 Libra Series scope 与 Kairox Episode subject，不能安全地把整季目录替换展开为多个 Episode Task。该路径现稳定阻断为 `series_scope_upgrade_architecture_unresolved`。
@@ -138,8 +152,8 @@ Windows、Admin Web、Playwright 与 Linux Docker 验证。生产部署继续暂
 - 2026-07-11 Capability API 第一阶段完成：Canonical Catalog 定义 nominal/versioned input/output、effect、resource、approval 和 fencing contract；Planner 对每条 binding 做类型检查；Runtime 只向 Executor 提供已解析 ports。Transcode/Upgrade 统一输出 `StagedMediaAsset` 并复用 verify/replace，poster/fanart 合并为参数化 `metadata.image.acquire` 且保留分别允许的产品配置。
 - Upgrade 已拆分 request/download-observe/transfer-observe/output-resolve，Executor 内不再轮询。欧美成人 local 与 Worker Metadata 链路已分别拆为抽帧、embedding、cluster、match、poster、compose，以及 asset register/upload、job request/observe、normalize Event；generic provider adapter 已禁止回退到旧 `analyzeVideo()` 复杂调用。
 - SourceMutationResult、neutral signal 和 Basedata invalidation 已从文件 Executor 移入 Runtime post-effect；commit marker 在 post-effect 前持久化，重启只恢复 post-effect，不重复文件 commit。当前剩余主要 blocker 是 Transcode precheck/DV/rate-control/preview/disposition/cleanup、Upgrade identity/preview/folder rollback、Remux 和 subtitle capability 决策。
-- Transcode 已进一步拆为 `media.transcode.precheck -> transcode.tonemap.accept -> media.transcode -> output.media.verify -> output.preview.generate -> media.replace -> workspace.cleanup`；Dolby Vision approval 由 Runtime 根据 typed precheck evidence 条件触发。Upgrade 使用相同 preview/verify/replace/cleanup，并新增强 TMDB identity inspect/conditional accept。
-- 唯一 `media.replace` 现在消费通用 `VerifiedMediaAsset`，按 `replacementScope=file|folder` 执行文件或 rollback-safe 目录提交；不存在 Transcode/Upgrade 各自的 replace Executor。Service 全量 188/188 通过。尚未关闭的 Transcode blocker 是 verify-driven rate-control retry、oversized-output disposition、disc Remux 与 failure/cancel cleanup。
+- Transcode 已拆为 `media.transcode.precheck -> transcode.tonemap.accept -> media.transcode -> output.media.verify -> output.preview.generate -> media.file.replace -> workspace.cleanup`；Dolby Vision approval 由 Runtime 根据 typed precheck evidence 条件触发。Movie Upgrade 复用相同的单文件 verify/replace effect。
+- `media.file.replace` 只消费单媒体 `VerifiedMediaAsset`；语义不同的整季事务由 `series.season.replace` 独立拥有。不存在 Transcode/Upgrade 各自复制的单文件 replace Executor。
 - Transcode rate-control 已改为 Planner 预声明的 encode/verify Event 序列；QSV VBR/CBR、NVENC、AMF 与 CPU attempts 分别计时，只有前一 verify 未达标才运行下一项，`output.media.select` 选择首个满足 Objective 的 `VerifiedMediaAsset`。oversized output 进入显式 discard 分支，Disc source 先经过共享 `container.remux`。
 - Runtime 统一执行 failure/cancel workspace compensation，并通过 Capability `cancel()` 合同中止正在运行的 FFmpeg 或 MoviePilot download；Task/Event 状态仍只由 Runtime 写入。Upgrade 已补齐 MoviePilot check、TMDB resolution、英文 fallback、SmartSelect、force-confirm、transfer settle observation。
 - `test/legacy-flow-parity.test.js` 已建立旧 Basedata/Scrape/Transcode/Upgrade phase 到新 Capability 的可执行映射，并验证 Basedata/Metadata/Optimize Graph 的 typed binding。当前文档矩阵不再有 `gap/partial` 行，但仍需完成最终静态审计、全量测试/build 与 closure 报告，不能据此恢复 E2E。
