@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const capabilityContract = require('./capabilityContract');
 
 const SCHEMA_VERSION = 'kairox-workflow-v1';
 const CONDITION_VERSION = 'kairox-condition-v1';
@@ -60,6 +61,7 @@ function validateGraph(plan, registry) {
     throw error;
   }
   const ids = new Set();
+  const nodesById = new Map();
   for (const node of plan.nodes) {
     if (!text(node.eventId) || ids.has(node.eventId)) {
       const error = new Error(`Workflow event id is missing or duplicated: ${node.eventId || ''}`);
@@ -67,6 +69,7 @@ function validateGraph(plan, registry) {
       throw error;
     }
     ids.add(node.eventId);
+    nodesById.set(node.eventId, node);
     if (!text(node.capability) || registry && !registry.has(node.capability)) {
       const error = new Error(`Workflow capability is not registered: ${node.capability || ''}`);
       error.code = 'KAIROX_WORKFLOW_CAPABILITY_UNKNOWN';
@@ -78,6 +81,17 @@ function validateGraph(plan, registry) {
       error.code = 'KAIROX_CAPABILITY_GATE_VIOLATION';
       throw error;
     }
+    if (definition) {
+      capabilityContract.assertParameters(definition.parameterContract, node.parameters || {}, node.capability);
+      const resourceType = node.resourceRequest && node.resourceRequest.resourceType;
+      if (resourceType && !definition.resourceContract.types.includes(resourceType)) {
+        throw Object.assign(new Error(`Capability ${node.capability} cannot request resource ${resourceType}`), { code: 'KAIROX_CAPABILITY_RESOURCE_CONTRACT_VIOLATION' });
+      }
+      const approvalAction = node.approvalRequirement && node.approvalRequirement.gateId;
+      if (approvalAction && !definition.approvalContract.actions.includes(approvalAction)) {
+        throw Object.assign(new Error(`Capability ${node.capability} cannot request approval ${approvalAction}`), { code: 'KAIROX_CAPABILITY_APPROVAL_CONTRACT_VIOLATION' });
+      }
+    }
     if (node.when != null) evaluateCondition(node.when, { task: {}, facts: {}, policy: {}, events: {} });
   }
   for (const node of plan.nodes) {
@@ -88,6 +102,7 @@ function validateGraph(plan, registry) {
         throw error;
       }
     }
+    if (registry) validateCapabilityBindings(node, nodesById, registry);
   }
   const visiting = new Set();
   const visited = new Set();
@@ -106,6 +121,35 @@ function validateGraph(plan, registry) {
   }
   for (const id of ids) visit(id);
   return plan;
+}
+
+function validateCapabilityBindings(node, nodesById, registry) {
+  const definition = registry.get(node.capability);
+  const bindings = node.inputBindings || {};
+  for (const [portName, port] of Object.entries(definition.inputContract || {})) {
+    const binding = bindings[portName];
+    if (!binding) {
+      if (!port.optional) throw Object.assign(new Error(`Capability ${node.capability} is missing input binding ${portName}`), { code: 'KAIROX_CAPABILITY_BINDING_MISSING', capability: node.capability, port: portName });
+      continue;
+    }
+    const eventIds = binding.source === 'events' ? binding.eventIds : binding.source === 'event' ? [binding.eventId] : [];
+    if (!eventIds.length || (port.many ? binding.source !== 'events' : binding.source !== 'event')) {
+      throw Object.assign(new Error(`Capability ${node.capability} has invalid binding for ${portName}`), { code: 'KAIROX_CAPABILITY_BINDING_INVALID', capability: node.capability, port: portName });
+    }
+    if (eventIds.some((eventId) => !(node.dependsOn || []).includes(eventId))) {
+      throw Object.assign(new Error(`Capability ${node.capability} input ${portName} is not a declared dependency`), { code: 'KAIROX_CAPABILITY_BINDING_NOT_DEPENDENCY', capability: node.capability, port: portName });
+    }
+    for (const eventId of eventIds) {
+      const producerNode = nodesById.get(eventId);
+      const producer = producerNode && registry.get(producerNode.capability);
+      if (!producer || !capabilityContract.compatible(port, producer.outputContract)) {
+        throw Object.assign(new Error(`Capability contract mismatch: ${eventId} -> ${node.eventId}.${portName}`), { code: 'KAIROX_CAPABILITY_CONTRACT_MISMATCH', producer: eventId, consumer: node.eventId, port: portName });
+      }
+    }
+  }
+  for (const portName of Object.keys(bindings)) {
+    if (!definition.inputContract[portName]) throw Object.assign(new Error(`Capability ${node.capability} received unknown input port ${portName}`), { code: 'KAIROX_CAPABILITY_BINDING_UNKNOWN', capability: node.capability, port: portName });
+  }
 }
 
 function buildPlan(input = {}, nodes = []) {
@@ -128,6 +172,7 @@ function buildPlan(input = {}, nodes = []) {
       eventId: text(node.eventId) || `${text(input.taskId || input.id)}:${index + 1}`,
       capability: text(node.capability),
       inputBindings: node.inputBindings || {},
+      parameters: node.parameters || {},
       dependsOn: Array.isArray(node.dependsOn) ? [...node.dependsOn] : [],
       when: node.when == null ? true : node.when,
       resourceRequest: node.resourceRequest || null,
@@ -140,4 +185,4 @@ function buildPlan(input = {}, nodes = []) {
   };
 }
 
-module.exports = { SCHEMA_VERSION, CONDITION_VERSION, buildPlan, validateGraph, evaluateCondition, readPath };
+module.exports = { SCHEMA_VERSION, CONDITION_VERSION, buildPlan, validateGraph, validateCapabilityBindings, evaluateCondition, readPath };

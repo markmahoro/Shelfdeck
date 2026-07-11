@@ -10,6 +10,8 @@ const configStore = require('./configStore');
 const approvalPolicy = require('./approvalPolicy');
 const kairoxAdmissionFence = require('./kairoxAdmissionFence');
 const kairoxSignalBus = require('./kairoxSignalBus');
+const capabilityContract = require('./capabilityContract');
+const capabilityPostEffects = require('./capabilityPostEffects');
 
 const dispatching = new Map();
 const retryTimers = new Map();
@@ -108,6 +110,20 @@ function immutableInputSnapshot(event, task, events) {
   };
 }
 
+function resolveCapabilityInput(event, capability, events) {
+  const byId = new Map(events.map((entry) => [entry.eventId, entry]));
+  const input = {};
+  for (const [portName, port] of Object.entries(capability.inputContract || {})) {
+    const binding = event.intent.inputBindings && event.intent.inputBindings[portName];
+    let value;
+    if (binding && binding.source === 'event') value = byId.get(binding.eventId)?.result;
+    else if (binding && binding.source === 'events') value = (binding.eventIds || []).map((eventId) => byId.get(eventId)?.result);
+    capabilityContract.assertRuntimeValue(port, value, `${capability.capability}.${portName}`);
+    if (value !== undefined) input[portName] = value;
+  }
+  return Object.freeze(input);
+}
+
 function validateOutputContract(contract = {}, result = {}) {
   for (const [field, expected] of Object.entries(contract || {})) {
     const value = result && result[field];
@@ -193,13 +209,27 @@ async function executeEvent(task, event, config) {
     const currentFence = kairoxAdmissionFence.checkTask(currentTask, `event.${event.capability}.before_execute`);
     if (!currentFence.allowed) throw Object.assign(new Error('Event admission fence changed'), { code: 'HELIX_ADMISSION_FENCED', fence: currentFence });
     const allEvents = workflowStore.listEvents(task.id);
-    const current = workflowStore.transition(event.eventId, 'executing', { attempt: event.attempt + 1, startedAt: new Date().toISOString(), executorVersion: capability.executorVersion, fencing: currentFence, input: event.input || immutableInputSnapshot(event, currentTask, allEvents) });
-    const execution = capability.execute({ task: currentTask, event: current, config, events: allEvents, outputs: Object.fromEntries(allEvents.map((entry) => [entry.eventId, entry.result])) });
+    const durableCurrent = workflowStore.getEvent(event.eventId) || event;
+    if (durableCurrent.commitMarker && durableCurrent.result && capability.effectKind === 'commit_once') {
+      const postEffect = capabilityPostEffects.apply({ capability, task: currentTask, event: durableCurrent, output: durableCurrent.result });
+      workflowStore.transition(event.eventId, 'succeeded', { finishedAt: new Date().toISOString(), evidence: { ...(durableCurrent.evidence || {}), postEffect } });
+      return;
+    }
+    const input = resolveCapabilityInput(event, capability, allEvents);
+    const current = workflowStore.transition(event.eventId, 'executing', { attempt: event.attempt + 1, startedAt: new Date().toISOString(), executorVersion: capability.executorVersion, fencing: currentFence, input: event.input || { ...immutableInputSnapshot(event, currentTask, allEvents), resolved: input } });
+    const parameters = Object.freeze({ ...(event.intent.parameters || {}) });
+    capabilityContract.assertParameters(capability.parameterContract, parameters, capability.capability);
+    const execution = capability.execute({ task: currentTask, event: current, config, input, parameters });
     const timeoutMs = Number(event.intent.timeoutPolicy && event.intent.timeoutPolicy.timeoutMs) || 0;
     const result = timeoutMs > 0 ? await Promise.race([execution, new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('Capability Event timed out'), { code: 'KAIROX_EVENT_TIMEOUT' })), timeoutMs))]) : await execution;
     const output = result && result.result !== undefined ? result.result : result || {};
+    capabilityContract.assertOutput(capability.outputContract, output, capability.capability);
     validateOutputContract(event.intent.outputContract, output);
-    workflowStore.transition(event.eventId, 'succeeded', { finishedAt: new Date().toISOString(), result: output, evidence: result && result.evidence || null, commitMarker: result && result.commitMarker || null });
+    const commitMarker = result && result.commitMarker || null;
+    const baseEvidence = result && result.evidence || null;
+    if (commitMarker) workflowStore.transition(event.eventId, 'executing', { result: output, evidence: baseEvidence, commitMarker });
+    const postEffect = capabilityPostEffects.apply({ capability, task: currentTask, event: workflowStore.getEvent(event.eventId) || current, output });
+    workflowStore.transition(event.eventId, 'succeeded', { finishedAt: new Date().toISOString(), result: output, evidence: postEffect ? { ...(baseEvidence || {}), postEffect } : baseEvidence, commitMarker });
   } catch (error) {
     const latest = workflowStore.getEvent(event.eventId) || event;
     const maxAttempts = Math.max(1, Number(event.intent.retryPolicy && event.intent.retryPolicy.maxAttempts) || 1);
@@ -252,4 +282,4 @@ function recoverStartup() {
   return taskIds.length;
 }
 
-module.exports = { dispatchTask, driveTask, hasPendingDispatch, recoverStartup, resourceKeyFor, unlock, aggregateTask, planPrerequisitesCurrent, validateOutputContract };
+module.exports = { dispatchTask, driveTask, hasPendingDispatch, recoverStartup, resourceKeyFor, unlock, aggregateTask, planPrerequisitesCurrent, validateOutputContract, resolveCapabilityInput };

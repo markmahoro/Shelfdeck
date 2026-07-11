@@ -447,9 +447,10 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
       maintenanceAutomationMode: spec.maintenanceAutomationMode || 'manual',
       approvalPolicy: spec.approvalPolicy || {},
       allowedCapabilities: spec.allowedCapabilities || {
-        metadata: isAdult ? ['metadata.sidecar.render', 'metadata.poster.acquire', 'metadata.fanart.acquire'] : [],
-        optimize: isAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'source.upgrade.download', 'media.replace'],
+        metadata: isAdult ? ['metadata.sidecar.render', 'metadata.image.acquire'] : [],
+        optimize: isAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'source.upgrade.request', 'media.replace'],
       },
+      capabilityParameters: spec.capabilityParameters || (isAdult ? { 'metadata.image.acquire': { kinds: ['poster', 'fanart'] } } : {}),
       capabilityPolicyRevision: String(spec.capabilityPolicyRevision || '1'),
       updatedAt: new Date().toISOString(),
       upgradeSmartSelect: spec.upgradeSmartSelect || { enabled: false, codecPreference: [], resolutionPreference: [], audioPreference: [], sitePreference: [], preferCNSub: false },
@@ -484,8 +485,10 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
       if (!forbidden.includes(key)) out[key] = value;
       return out;
     }, {});
-    const capabilityChanged = updates.allowedCapabilities !== undefined
-      && JSON.stringify(updates.allowedCapabilities) !== JSON.stringify(config.subLibraries[index].allowedCapabilities);
+    const capabilityChanged = (updates.allowedCapabilities !== undefined
+      && JSON.stringify(updates.allowedCapabilities) !== JSON.stringify(config.subLibraries[index].allowedCapabilities))
+      || (updates.capabilityParameters !== undefined
+      && JSON.stringify(updates.capabilityParameters) !== JSON.stringify(config.subLibraries[index].capabilityParameters));
     const next = { ...config.subLibraries[index], ...patch };
     if (capabilityChanged) next.capabilityPolicyRevision = String((Number(config.subLibraries[index].capabilityPolicyRevision) || 0) + 1);
     next.updatedAt = new Date().toISOString();

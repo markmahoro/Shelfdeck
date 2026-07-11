@@ -587,11 +587,12 @@ function mergeConfigWithDefaults(config) {
     allowedCapabilities: {
       metadata: Array.isArray(library.allowedCapabilities && library.allowedCapabilities.metadata)
         ? library.allowedCapabilities.metadata
-        : library.mediaType === 'adult' ? ['metadata.sidecar.render', 'metadata.poster.acquire', 'metadata.fanart.acquire'] : [],
+        : library.mediaType === 'adult' ? ['metadata.sidecar.render', 'metadata.image.acquire'] : [],
       optimize: Array.isArray(library.allowedCapabilities && library.allowedCapabilities.optimize)
         ? library.allowedCapabilities.optimize
-        : library.mediaType === 'adult' ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'source.upgrade.download', 'media.replace'],
+        : library.mediaType === 'adult' ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'source.upgrade.request', 'media.replace'],
     },
+    capabilityParameters: library.capabilityParameters || (library.mediaType === 'adult' ? { 'metadata.image.acquire': { kinds: ['poster', 'fanart'] } } : {}),
     capabilityPolicyRevision: String(library.capabilityPolicyRevision || '1'),
   }));
 

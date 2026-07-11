@@ -180,8 +180,11 @@ test('gate invalidation writes Kairox freshness and never mutates Library domain
 test('optimize mutation is owned by atomic capabilities and durable Workflow Events', () => {
   const capabilities = source('builtInCapabilities.js');
   const runtime = source('eventRuntime.js');
+  const postEffects = source('capabilityPostEffects.js');
   assert.match(capabilities, /capability: 'media\.replace'/);
-  assert.match(capabilities, /recordGateInvalidation/);
+  assert.doesNotMatch(capabilities, /recordGateInvalidation|markBasedataStale|recordMutation|kairoxSignalBus/);
+  assert.match(postEffects, /markBasedataStale/);
+  assert.match(postEffects, /recordMutation/);
   assert.match(runtime, /workflowStore\.transition/);
   assert.doesNotMatch(runtime, /executorForFlowKind/);
 });

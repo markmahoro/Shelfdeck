@@ -134,7 +134,7 @@ function activeMetadataArtifactReferences() {
   return db().prepare(`SELECT DISTINCT e.item_id AS itemId,
       COALESCE(NULLIF(json_extract(p.plan_json,'$.objectiveRevision'),''),e.task_id) AS artifactRevision
     FROM workflow_events e JOIN workflow_plans p ON p.plan_id=e.plan_id
-    WHERE e.capability IN ('metadata.sidecar.render','metadata.poster.acquire','metadata.fanart.acquire','metadata.artifacts.materialize')
+    WHERE e.capability IN ('metadata.sidecar.render','metadata.image.acquire','metadata.artifacts.materialize')
       AND e.status NOT IN ('succeeded','skipped','failed','cancelled')`).all();
 }
 function getEvent(eventId) { return rowEvent(db().prepare('SELECT * FROM workflow_events WHERE event_id=?').get(String(eventId || ''))); }

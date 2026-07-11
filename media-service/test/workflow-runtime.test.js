@@ -10,27 +10,36 @@ const workflowGraph = require('../src/workflowGraph');
 const workflowStore = require('../src/workflowStore');
 const capabilityRegistry = require('../src/capabilityRegistry');
 const workflowPlanner = require('../src/workflowPlanner');
+const capabilityCatalog = require('../src/capabilityCatalog');
+
+function registerPlannerInventory() {
+  capabilityRegistry.resetForTests();
+  for (const capability of [...workflowPlanner.REQUIRED.optimize, 'workflow.blocked']) {
+    const catalog = capabilityCatalog.get(capability);
+    if (catalog) capabilityRegistry.register(capabilityCatalog.apply({ capability, execute: async () => ({}) }));
+  }
+}
+
+function testCapability(capability) {
+  return { capability, contractVersion: 1, inputContract: {}, outputContract: { type: 'object', version: 1 }, execute: async () => ({}) };
+}
 
 test('Optimize planning composes capabilities from objective gaps without a flow-kind route', () => {
-  capabilityRegistry.resetForTests();
-  for (const capability of workflowPlanner.REQUIRED.optimize) capabilityRegistry.register({ capability, execute: async () => ({}) });
-  capabilityRegistry.register({ capability: 'workflow.blocked', execute: async () => ({}) });
+  registerPlannerInventory();
   const task = {
     id: 'objective-task', itemId: 'objective-item', targetGate: 'optimize', objectiveRevisionSnapshot: 'objective-1',
     taskTarget: { targetGate: 'optimize', gateObjective: { targetMediaFacts: { minResolution: '1080p', targetCodec: 'h265' } } },
     itemInfo: { subLibraryId: 'library-1', resolution: '720p', codec: 'h264', bitrate: 20 },
   };
-  const plan = workflowPlanner.planTask(task, { subLibraries: [{ uuid: 'library-1', allowedCapabilities: { optimize: ['source.upgrade.download', 'media.transcode', 'media.replace'] } }] });
+  const plan = workflowPlanner.planTask(task, { subLibraries: [{ uuid: 'library-1', allowedCapabilities: { optimize: ['source.upgrade.request', 'media.transcode', 'media.replace'] } }] });
   const capabilities = plan.nodes.map((node) => node.capability);
-  assert.deepStrictEqual(capabilities.slice(0, 6), ['source.upgrade.search', 'source.upgrade.download', 'output.media.verify', 'media.replace', 'media.transcode', 'output.media.verify']);
+  assert.deepStrictEqual(capabilities.slice(0, 8), ['source.upgrade.search', 'source.upgrade.request', 'source.upgrade.observe-download', 'source.upgrade.observe-transfer', 'source.upgrade.output.resolve', 'output.media.verify', 'media.replace', 'media.transcode']);
   assert.strictEqual(plan.classification, 'composite_maintenance');
   assert.strictEqual(Object.prototype.hasOwnProperty.call(plan, 'flowKind'), false);
 });
 
 test('source organization ends the current graph before materialization and publication', () => {
-  capabilityRegistry.resetForTests();
-  for (const capability of workflowPlanner.REQUIRED.optimize) capabilityRegistry.register({ capability, execute: async () => ({}) });
-  capabilityRegistry.register({ capability: 'workflow.blocked', execute: async () => ({}) });
+  registerPlannerInventory();
   const plan = workflowPlanner.planTask({
     id: 'organize-task', itemId: 'organize-item', targetGate: 'optimize',
     taskTarget: { targetGate: 'optimize', gateObjective: { targetMediaFacts: { storageLayout: 'organized', metadataArtifacts: 'materialized' } } },
@@ -42,7 +51,7 @@ test('source organization ends the current graph before materialization and publ
 
 test('workflow graph validates branches and rejects cycles and arbitrary condition paths', () => {
   capabilityRegistry.resetForTests();
-  for (const capability of ['a', 'b', 'c']) capabilityRegistry.register({ capability, execute: async () => ({}) });
+  for (const capability of ['a', 'b', 'c']) capabilityRegistry.register(testCapability(capability));
   const plan = workflowGraph.buildPlan({ taskId: 't1', itemId: 'i1', targetGate: 'optimize' }, [
     { eventId: 'a', capability: 'a' },
     { eventId: 'b', capability: 'b', dependsOn: ['a'], when: { op: 'eq', path: 'events.a.result.ok', value: true } },
@@ -61,6 +70,8 @@ test('workflow store persists immutable plan and first-class event transitions w
   process.env.MEDIA_SERVICE_DATA_DIR = dir;
   workflowStore.resetForTests();
   try {
+    capabilityRegistry.resetForTests();
+    capabilityRegistry.register(testCapability('a'));
     const plan = workflowGraph.buildPlan({ taskId: 'task-store', itemId: 'item-store', targetGate: 'basedata' }, [{ eventId: 'observe', capability: 'a' }]);
     workflowStore.createPlan(plan, capabilityRegistry);
     assert.deepStrictEqual(workflowStore.getPlanForTask('task-store'), plan);

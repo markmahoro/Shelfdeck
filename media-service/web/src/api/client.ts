@@ -163,6 +163,7 @@ export const subLibraries = {
     libraryAutomationMode?: "auto" | "manual";
     maintenanceAutomationMode?: "auto" | "manual";
     allowedCapabilities?: SubLibrary["allowedCapabilities"];
+    capabilityParameters?: SubLibrary["capabilityParameters"];
   }) => post<SubLibrary>("/v1/admin/sublibraries", body),
 
   update: (uuid: string, body: Partial<SubLibrary>) =>

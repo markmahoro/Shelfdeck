@@ -68,6 +68,7 @@ export interface SubLibrary {
   watchRoot?: string;
   japaneseJav?: Record<string, unknown>;
   allowedCapabilities?: { metadata: string[]; optimize: string[] };
+  capabilityParameters?: Record<string, { kinds?: string[] }>;
   capabilityPolicyRevision?: string;
   maintenanceSummary?: {
     total: number;

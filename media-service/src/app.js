@@ -1642,7 +1642,7 @@ function registerRoutes(app) {
         height: vr.height,
       };
       report.bytesSaved = vr.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
-    } else if (capabilities.includes('source.upgrade.download')) {
+    } else if (capabilities.includes('source.upgrade.request')) {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,
         videoCodec: info.originalVideoCodec || info.codec || '?',
@@ -2289,7 +2289,7 @@ function registerRoutes(app) {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
-      allowedCapabilities,
+      allowedCapabilities, capabilityParameters,
       libraryAutomationMode, maintenanceAutomationMode, approvalPolicy, metadataGate,
     } = req.body || {};
     if (!name) {
@@ -2322,9 +2322,10 @@ function registerRoutes(app) {
       upgradeSmartSelect, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
       allowedCapabilities: allowedCapabilities && typeof allowedCapabilities === 'object' ? allowedCapabilities : {
-        metadata: isFolderAdult ? ['metadata.sidecar.render', 'metadata.poster.acquire', 'metadata.fanart.acquire'] : [],
-        optimize: isFolderAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'source.upgrade.download', 'media.replace'],
+        metadata: isFolderAdult ? ['metadata.sidecar.render', 'metadata.image.acquire'] : [],
+        optimize: isFolderAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'source.upgrade.request', 'media.replace'],
       },
+      capabilityParameters: capabilityParameters && typeof capabilityParameters === 'object' ? capabilityParameters : isFolderAdult ? { 'metadata.image.acquire': { kinds: ['poster', 'fanart'] } } : {},
       capabilityPolicyRevision: '1',
       libraryAutomationMode, maintenanceAutomationMode, approvalPolicy, metadataGate,
     });

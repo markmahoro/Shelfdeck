@@ -33,7 +33,7 @@ function buildOptimizationProjection(projection = {}, activeTasks = []) {
     directionReason = projection.metadataGate.reason || 'metadata_blocked';
   } else if (gate && gate.status === 'blocked') {
     optimizationDirection = 'blocked';
-  } else if (plannedCapabilities.includes('source.upgrade.download')) {
+  } else if (plannedCapabilities.includes('source.upgrade.request')) {
     optimizationDirection = 'upgrade';
   } else if (plannedCapabilities.includes('media.transcode')) {
     optimizationDirection = 'transcode';

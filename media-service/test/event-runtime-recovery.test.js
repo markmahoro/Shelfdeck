@@ -18,6 +18,10 @@ const builtIns = require('../src/builtInCapabilities');
 const eventRuntime = require('../src/eventRuntime');
 const resourceRuntime = require('../src/resourceRuntime');
 
+function testCapability(capability, execute, options = {}) {
+  return { capability, contractVersion: 1, inputContract: {}, outputContract: { type: 'object', version: 1 }, execute, ...options };
+}
+
 test.after(() => { taskStore.resetForTests(); workflowStore.resetForTests(); admissionStore.resetForTests(); fs.rmSync(dataDir, { recursive: true, force: true }); });
 
 function task(id) {
@@ -28,7 +32,7 @@ function task(id) {
 test('Event retry resumes the same atomic capability without creating a Task attempt', async () => {
   builtIns.registerBuiltIns();
   let attempts = 0;
-  if (!registry.has('test.retry')) registry.register({ capability: 'test.retry', execute: async () => { attempts += 1; if (attempts === 1) throw Object.assign(new Error('retry me'), { code: 'TEST_RETRY' }); return { ok: true }; } });
+  if (!registry.has('test.retry')) registry.register(testCapability('test.retry', async () => { attempts += 1; if (attempts === 1) throw Object.assign(new Error('retry me'), { code: 'TEST_RETRY' }); return { ok: true }; }));
   const value = task('retry-task');
   const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'retry-event', capability: 'test.retry', retryPolicy: { maxAttempts: 2 } }]);
   workflowStore.createPlan(plan, registry);
@@ -43,7 +47,7 @@ test('Event retry resumes the same atomic capability without creating a Task att
 
 test('startup recovery discards in-memory execution and requeues the durable Event and Task once', () => {
   const value = task('restart-task');
-  if (!registry.has('test.restart')) registry.register({ capability: 'test.restart', execute: async () => ({ ok: true }) });
+  if (!registry.has('test.restart')) registry.register(testCapability('test.restart', async () => ({ ok: true })));
   const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'restart-event', capability: 'test.restart' }]);
   workflowStore.createPlan(plan, registry);
   workflowStore.transition('restart-event', 'executing', { startedAt: new Date().toISOString(), attempt: 1 });
@@ -56,7 +60,7 @@ test('startup recovery discards in-memory execution and requeues the durable Eve
 
 test('a persisted graph is invalidated when its objective revision no longer matches the Task snapshot', async () => {
   const value = task('invalidated-task');
-  if (!registry.has('test.invalidate')) registry.register({ capability: 'test.invalidate', execute: async () => ({ ok: true }) });
+  if (!registry.has('test.invalidate')) registry.register(testCapability('test.invalidate', async () => ({ ok: true })));
   const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata', objectiveRevision: 'objective-old' }, [{ eventId: 'invalidated-event', capability: 'test.invalidate' }]);
   workflowStore.createPlan(plan, registry);
   taskStore.updateTask(value.id, { objectiveRevisionSnapshot: 'objective-new' });
@@ -68,7 +72,7 @@ test('a persisted graph is invalidated when its objective revision no longer mat
 
 test('approval is a durable Event prerequisite and confirmation resumes the same Event', async () => {
   const value = taskStore.updateTask(task('approval-task').id, { taskTarget: { targetGate: 'optimize', gateObjective: {} } });
-  if (!registry.has('test.approval')) registry.register({ capability: 'test.approval', allowedTargetGates: ['optimize'], execute: async () => ({ result: { committed: true }, commitMarker: 'approval-test-commit' }) });
+  if (!registry.has('test.approval')) registry.register(testCapability('test.approval', async () => ({ result: { committed: true }, commitMarker: 'approval-test-commit' }), { allowedTargetGates: ['optimize'], effectKind: 'commit_once', approvalContract: { actions: ['transcode.beforeReplace'] } }));
   const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'optimize' }, [{ eventId: 'approval-event', capability: 'test.approval', approvalRequirement: { gateId: 'transcode.beforeReplace' } }]);
   workflowStore.createPlan(plan, registry);
   await eventRuntime.driveTask(value.id);

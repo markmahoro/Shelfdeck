@@ -124,7 +124,9 @@ Windows、Admin Web、Playwright 与 Linux Docker 验证。生产部署继续暂
 
 ## Open Risks / Deferred Work
 
-- Kairox Capability/Event Runtime 主路径和 disposable real Transcode 已实现，但尚未完成真实 MoviePilot Upgrade、成人 organize/materialize/rebind、资源饱和、完整 restart/fault matrix 和30分钟soak验收；四库 E2E 仍保持暂停。
+- 2026-07-11 用户终止当前四库 E2E；localhost `18181` Service 已停止，现场数据仅保留为诊断证据。不得继续创建 Library、推进真实 maintenance 或执行真实媒体 mutation。生产 ShelfDeck 仍停止。
+- 重新审计撤回“原子 Capability 重构已完成”的结论：Event Runtime 主骨架和旧 `flowKind` 路由删除已经完成，但 `source.upgrade.download` 仍在单个 Executor 内包含提交、轮询、transfer 查询和输出定位；Planner 还声明了未注册的 subtitle/remux capability；Organize/SourceMutation 后处理边界仍需收束。因此当前状态是 **atomic runtime closure in progress**，不能宣称非换皮验收通过。
+- 当前首要验收不是 E01-E40，而是 capability-conservation：旧 Basedata/Scrape/Transcode/Upgrade 的所有有效能力、安全检查、审批、恢复和证据必须逐项映射；任何未映射能力均为 release blocker。
 - Metadata Artifact Workspace 已有引用保留期清理；容量耗尽、符号链接/挂载差异和长时间清理故障验收仍未完成。成人 NFO/poster/fanart 已禁止直接写入未整理媒体根目录。
 - 需要 Emby username/password re-authentication，之后才能从 Admin Web 重建两个真实 Emby Library。
 - 需要建立本机 face-service dependencies/models，之后才能重试欧美成人 Metadata。

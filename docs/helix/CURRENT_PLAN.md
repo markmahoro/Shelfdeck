@@ -34,7 +34,20 @@ Before item 6 resumes, complete the following blocking Kairox execution-kernel r
 34. Add the user-visible `workspaces.metadataArtifacts` setting under Media Access And Workspaces, defaulting to `<dataDir>/workspaces/metadata-artifacts`. It is durable workspace, not disposable temp: validate create/write/atomic-rename/delete, reject overlap or escape, protect referenced revisions and clean only unreferenced revisions after retention. **Implementation and safety validation completed 2026-07-11; retention cleanup remains acceptance work.**
 35. Persist neutral Kairox `SourceMutationResult` for organize/replace. Libra durably consumes it, increments admission generation, suspends the old admission, coordinates Nexora re-observe/rebind and reissues admission; Kairox then obtains a new Basedata Task through Lifecycle/Runner facts, never by Task chaining. **Completed 2026-07-11 for path-changing organize; same-path replace correctly stays inside Kairox and only invalidates Basedata.**
 36. Add Event-level diagnostics for queue, resource, approval, execution and retry duration, aggregated by capability, resource key, Provider, Volume, Worker and device. Operational Health must detect graph deadlock, unchanged-state writes, duplicate commit, permit leak and control-plane starvation. **Event timing API completed 2026-07-11; invariant/soak acceptance remains in item 37.**
-37. Complete contract/unit/integration/Admin tests, clean-initialize the local ShelfDeck runtime, then restart E01-E40 and the normal/constrained soak acceptance from E01. Pre-rebaseline Task/Facts are not acceptance evidence. **Pending.**
+37. Complete contract/unit/integration/Admin tests, clean-initialize the local ShelfDeck runtime, then restart E01-E40 and the normal/constrained soak acceptance from E01. Pre-rebaseline Task/Facts are not acceptance evidence. **Cancelled on 2026-07-11. E01-E40 must not resume until the capability-conservation audit and atomic-runtime closure below are complete and explicitly accepted.**
+
+## Capability Conservation And Atomic Runtime Closure
+
+38. Stop the localhost E2E service and preserve its data only as diagnostic evidence. Do not create more real libraries, advance real maintenance, or perform authorized destructive samples while this closure is active. **Completed 2026-07-11.**
+39. Build a capability-conservation matrix from the last pre-cutover Basedata/Scrape/Transcode/Upgrade executors. Every observation, provider operation, verification, approval, retry/recovery rule, mutation, publish step and safety fence must map to exactly one new Capability, Event Runtime responsibility, Planner rule or deliberately removed product behavior. An unmapped row is a release blocker.
+40. Enforce the atomic Capability rule: one named business effect, one durable Event result and one resource-wait interval. A Capability may call a protocol/library implementation for that single effect, but may not poll across business phases, append graph nodes, dispatch another Capability, write Task state or hide approval/recovery state.
+41. Split Upgrade into request, progress observation, transfer observation, output resolution, identity/objective verification, replace and publish Events. Long-running external progress is represented as durable observation Events with retryAt, not an in-Executor polling loop.
+42. Complete or explicitly remove every Planner-advertised capability. Subtitle and container-remux nodes cannot remain schema-only names. Planner, Registry, Library policy and Admin projection must use the same capability inventory.
+43. Re-audit Metadata and adult behavior for parity: JAV identity, western-adult identity/person matching, provider evidence, NFO/poster/fanart artifacts, Person relations and publish must remain present without reintroducing a complex scrape executor.
+44. Re-audit Transcode parity: precheck, device/rate-control attempt selection, encode, output verification, approval, replace fencing, cleanup and canonical publication must remain independently observable where they are distinct business effects. Device-specific FFmpeg command construction may remain internal to the encode Capability.
+45. Re-audit Organize and SourceMutation boundaries. File organization is one commit-once effect; SourceMutationResult persistence and neutral signal delivery must be durable Runtime/Kairox-service post-processing, not hidden flow advancement inside the file executor.
+46. Add static and behavioral tests that fail on internal phase polling, Capability-to-Capability calls, Task mutation from executors, registry/planner inventory drift, missing parity rows, duplicate commits and non-diagnostic long Events. Only after all rows and tests pass may the atomic runtime be reported complete.
+47. Produce a closure report with changed files, the final conservation matrix, deliberately removed behaviors and residual risks. A new real-source E2E plan requires separate user confirmation; it does not resume automatically.
 
 The Workflow Graph is immutable once persisted. Event output may select declared conditional branches but cannot mutate or extend the graph. Facts requiring a different plan cause a later Gate Task to be planned through Lifecycle and Automation Runner.
 
@@ -146,7 +159,7 @@ Production deployment remains paused pending explicit user acceptance and a sepa
 34. 建立 Metadata Artifact Workspace、revision/checksum/manifest、atomic rename、路径重叠/逃逸拒绝和引用保留清理。**Completed 2026-07-11.**
 35. 文件布局归属 Optimize；`source.organize` 结束当前 Graph，SourceMutationResult 只由 Libra → Nexora rebind 后重新 admission。**Completed 2026-07-11.**
 36. Library 使用分 Gate `allowedCapabilities`；Admin Task/Resource projection 使用 Workflow classification、Capability 和 Event，不暴露旧 Flow 模型。**Completed 2026-07-11.**
-37. Clean initialize 本机状态，从 E01 重新执行四库真实来源、正常/受限性能、restart/fault 和 soak 验收。**Pending.**
+37. Clean initialize 本机状态，从 E01 重新执行四库真实来源、正常/受限性能、restart/fault 和 soak 验收。**Cancelled 2026-07-11；当前只执行 Capability Conservation And Atomic Runtime Closure，不自动恢复 E2E。**
 
 ## Non-Goals
 

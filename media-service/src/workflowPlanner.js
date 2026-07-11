@@ -6,12 +6,14 @@ const capabilityRegistry = require('./capabilityRegistry');
 
 const REQUIRED = Object.freeze({
   basedata: new Set(['emby.item.observe', 'filesystem.media.probe', 'filesystem.layout.observe', 'basedata.verify', 'basedata.publish']),
-  metadata: new Set(['media.identity.resolve', 'metadata.provider.fetch', 'person.relations.resolve', 'metadata.sidecar.render', 'metadata.poster.acquire', 'metadata.fanart.acquire', 'metadata.artifacts.verify', 'metadata.publish']),
-  optimize: new Set(['subtitle.search', 'subtitle.download', 'subtitle.verify', 'source.upgrade.search', 'source.upgrade.download', 'media.transcode', 'container.remux', 'output.media.verify', 'source.organize', 'metadata.artifacts.materialize', 'filesystem.layout.verify', 'media.replace', 'optimization.result.publish']),
+  metadata: new Set(['media.identity.resolve', 'metadata.provider.fetch', 'person.relations.resolve', 'metadata.sidecar.render', 'metadata.image.acquire', 'metadata.artifacts.verify', 'metadata.publish']),
+  optimize: new Set(['subtitle.search', 'subtitle.download', 'subtitle.verify', 'source.upgrade.search', 'source.upgrade.request', 'source.upgrade.observe-download', 'source.upgrade.observe-transfer', 'source.upgrade.output.resolve', 'media.transcode', 'container.remux', 'optimization.objective.verify', 'output.media.verify', 'source.organize', 'metadata.artifacts.materialize', 'filesystem.layout.verify', 'media.replace', 'optimization.result.publish']),
 });
 
 function text(value) { return String(value == null ? '' : value).trim(); }
 function event(taskId, suffix, capability, dependsOn = [], extra = {}) { return { eventId: `${taskId}:${suffix}`, capability, dependsOn, ...extra }; }
+function from(eventId) { return { source: 'event', eventId }; }
+function fromMany(eventIds) { return { source: 'events', eventIds }; }
 
 function subLibraryFor(task, config) {
   const id = text(task.itemInfo && task.itemInfo.subLibraryId || task.helixAdmission && task.helixAdmission.sourceAccessDescriptor && task.helixAdmission.sourceAccessDescriptor.subLibraryId);
@@ -47,8 +49,8 @@ function basedataNodes(task) {
   return [
     event(task.id, 'observe', observe, [], { resourceRequest: { resourceType: descriptor.sourceType === 'emby' ? 'emby' : 'filesystem' } }),
     event(task.id, 'layout', 'filesystem.layout.observe', [`${task.id}:observe`], { when: descriptor.sourceType === 'emby' ? false : true, resourceRequest: { resourceType: 'filesystem' } }),
-    event(task.id, 'verify', 'basedata.verify', [`${task.id}:observe`, `${task.id}:layout`]),
-    event(task.id, 'publish', 'basedata.publish', [`${task.id}:verify`], { outputContract: { basedataRevision: 'number' } }),
+    event(task.id, 'verify', 'basedata.verify', [`${task.id}:observe`, `${task.id}:layout`], { inputBindings: { observation: from(`${task.id}:observe`), layout: from(`${task.id}:layout`) } }),
+    event(task.id, 'publish', 'basedata.publish', [`${task.id}:verify`], { inputBindings: { basedata: from(`${task.id}:verify`) }, outputContract: { basedataRevision: 'number' } }),
   ];
 }
 
@@ -57,26 +59,30 @@ function metadataNodes(task, config) {
   const library = subLibraryFor(task, config);
   const allowed = allowedSideEffects(task, config, 'metadata');
   const nodes = [event(task.id, 'identity', 'media.identity.resolve')];
-  nodes.push(event(task.id, 'metadata-fetch', 'metadata.provider.fetch', [`${task.id}:identity`], { resourceRequest: { resourceType: descriptor.sourceType === 'emby' ? 'emby' : 'scraper' } }));
-  nodes.push(event(task.id, 'people', 'person.relations.resolve', [`${task.id}:metadata-fetch`]));
+  nodes.push(event(task.id, 'metadata-fetch', 'metadata.provider.fetch', [`${task.id}:identity`], { inputBindings: { identity: from(`${task.id}:identity`) }, resourceRequest: { resourceType: descriptor.sourceType === 'emby' ? 'emby' : 'scraper' } }));
+  nodes.push(event(task.id, 'people', 'person.relations.resolve', [`${task.id}:metadata-fetch`], { inputBindings: { metadata: from(`${task.id}:metadata-fetch`) } }));
   let tail = `${task.id}:people`;
   const artifactCapabilities = [
-    ['nfo', 'metadata.sidecar.render'],
-    ['poster', 'metadata.poster.acquire'],
-    ['fanart', 'metadata.fanart.acquire'],
+    ['nfo', 'metadata.sidecar.render', null],
+    ['poster', 'metadata.image.acquire', 'poster'],
+    ['fanart', 'metadata.image.acquire', 'fanart'],
   ];
   const artifactNodes = [];
-  for (const [suffix, capability] of artifactCapabilities) {
+  const imageKinds = new Set(library.capabilityParameters && library.capabilityParameters['metadata.image.acquire'] && library.capabilityParameters['metadata.image.acquire'].kinds || ['poster', 'fanart']);
+  for (const [suffix, capability, kind] of artifactCapabilities) {
     if (!allowed.has(capability)) continue;
+    if (kind && !imageKinds.has(kind)) continue;
     const id = `${task.id}:${suffix}`;
-    nodes.push(event(task.id, suffix, capability, [tail], { resourceRequest: { resourceType: 'filesystem' } }));
+    nodes.push(event(task.id, suffix, capability, [tail], { inputBindings: { metadata: from(tail) }, ...(kind ? { parameters: { kind } } : {}), resourceRequest: { resourceType: 'filesystem' } }));
     artifactNodes.push(id);
   }
   if (artifactNodes.length) {
-    nodes.push(event(task.id, 'artifacts-verify', 'metadata.artifacts.verify', artifactNodes));
+    nodes.push(event(task.id, 'artifacts-verify', 'metadata.artifacts.verify', artifactNodes, { inputBindings: { artifacts: fromMany(artifactNodes) } }));
     tail = `${task.id}:artifacts-verify`;
   }
-  nodes.push(event(task.id, 'metadata-publish', 'metadata.publish', [tail]));
+  const publishBindings = { metadata: from(`${task.id}:people`) };
+  if (artifactNodes.length) publishBindings.artifacts = from(`${task.id}:artifacts-verify`);
+  nodes.push(event(task.id, 'metadata-publish', 'metadata.publish', [...new Set([`${task.id}:people`, tail])], { inputBindings: publishBindings }));
   return { nodes, explanation: { selectedCapabilities: nodes.map((node) => node.capability), rejected: [] }, classification: descriptor.sourceType === 'emby' ? 'metadata_observation' : 'metadata_enrichment', library };
 }
 
@@ -110,16 +116,19 @@ function optimizeNodes(task, config) {
     }
   }
   const strategies = new Set((selection.gap || []).map((gap) => gap.requiredStrategy));
-  if (strategies.has('upgrade') && requireAllowed(allowed, 'source.upgrade.download', rejected)) {
+  if (strategies.has('upgrade') && requireAllowed(allowed, 'source.upgrade.request', rejected)) {
     add('upgrade-search', 'source.upgrade.search', { resourceRequest: { resourceType: 'moviepilot' } });
-    add('upgrade-download', 'source.upgrade.download', { resourceRequest: { resourceType: 'moviepilot' }, approvalRequirement: { gateId: 'upgrade.candidateSelect' } });
-    add('upgrade-media-verify', 'output.media.verify', { resourceRequest: { resourceType: 'filesystem' } });
-    if (requireAllowed(allowed, 'media.replace', rejected)) add('upgrade-replace', 'media.replace', { resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: 'upgrade.beforeReplace' } });
+    add('upgrade-request', 'source.upgrade.request', { inputBindings: { candidates: from(`${task.id}:upgrade-search`) }, resourceRequest: { resourceType: 'moviepilot' }, approvalRequirement: { gateId: 'upgrade.candidateSelect' } });
+    add('upgrade-download-observe', 'source.upgrade.observe-download', { inputBindings: { request: from(`${task.id}:upgrade-request`) }, resourceRequest: { resourceType: 'moviepilot' }, retryPolicy: { maxAttempts: 2160 } });
+    add('upgrade-transfer', 'source.upgrade.observe-transfer', { inputBindings: { request: from(`${task.id}:upgrade-request`), download: from(`${task.id}:upgrade-download-observe`) }, dependsOn: [`${task.id}:upgrade-request`, `${task.id}:upgrade-download-observe`], resourceRequest: { resourceType: 'moviepilot' }, retryPolicy: { maxAttempts: 2160 } });
+    add('upgrade-output', 'source.upgrade.output.resolve', { inputBindings: { transfer: from(`${task.id}:upgrade-transfer`) }, resourceRequest: { resourceType: 'filesystem' }, retryPolicy: { maxAttempts: 120 } });
+    add('upgrade-media-verify', 'output.media.verify', { inputBindings: { stagedAsset: from(`${task.id}:upgrade-output`) }, resourceRequest: { resourceType: 'filesystem' } });
+    if (requireAllowed(allowed, 'media.replace', rejected)) add('upgrade-replace', 'media.replace', { inputBindings: { verifiedAsset: from(`${task.id}:upgrade-media-verify`) }, resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: 'upgrade.beforeReplace' } });
   }
   if (strategies.has('transcode') && requireAllowed(allowed, 'media.transcode', rejected)) {
     add('transcode', 'media.transcode', { resourceRequest: { resourceType: 'transcode' } });
-    add('transcode-media-verify', 'output.media.verify', { resourceRequest: { resourceType: 'filesystem' } });
-    if (requireAllowed(allowed, 'media.replace', rejected)) add('transcode-replace', 'media.replace', { resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: 'transcode.beforeReplace' } });
+    add('transcode-media-verify', 'output.media.verify', { inputBindings: { stagedAsset: from(`${task.id}:transcode`) }, resourceRequest: { resourceType: 'filesystem' } });
+    if (requireAllowed(allowed, 'media.replace', rejected)) add('transcode-replace', 'media.replace', { inputBindings: { verifiedAsset: from(`${task.id}:transcode-media-verify`) }, resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: 'transcode.beforeReplace' } });
   }
   const layout = item.layoutFacts || item.basedataFacts && item.basedataFacts.layout || {};
   const requiresOrganize = target.storageLayout === 'organized' && layout.compliant !== true;
@@ -141,13 +150,15 @@ function optimizeNodes(task, config) {
   if (rejected.length > 0) {
     return { nodes: [event(task.id, 'blocked', 'workflow.blocked', [], { inputBindings: { reason: 'required_capability_not_allowed', rejected } })], classification: 'blocked', explanation: { objectiveGap: selection.gap || [], selectedCapabilities: [], rejected } };
   }
-  if (nodes.length === 0) add('verify-objective', 'output.media.verify');
-  add('layout-verify', 'filesystem.layout.verify', { resourceRequest: { resourceType: 'filesystem' } });
-  add('optimize-publish', 'optimization.result.publish');
+  if (nodes.length === 0) add('verify-objective', 'optimization.objective.verify');
+  const materializeId = nodes.find((node) => node.capability === 'metadata.artifacts.materialize')?.eventId;
+  add('layout-verify', 'filesystem.layout.verify', { inputBindings: materializeId ? { materialization: from(materializeId) } : {}, resourceRequest: { resourceType: 'filesystem' } });
+  const replacementId = [...nodes].reverse().find((node) => node.capability === 'media.replace')?.eventId;
+  add('optimize-publish', 'optimization.result.publish', { inputBindings: { layout: from(`${task.id}:layout-verify`), ...(replacementId ? { replacement: from(replacementId) } : {}) }, dependsOn: [...new Set([`${task.id}:layout-verify`, ...(replacementId ? [replacementId] : [])])] });
   const selected = nodes.map((node) => node.capability);
-  const classification = selected.includes('source.upgrade.download') && selected.includes('media.transcode')
+  const classification = selected.includes('source.upgrade.request') && selected.includes('media.transcode')
     ? 'composite_maintenance'
-    : selected.includes('source.upgrade.download') ? 'source_upgrade'
+    : selected.includes('source.upgrade.request') ? 'source_upgrade'
       : selected.includes('media.transcode') ? 'transcode'
         : selected.includes('source.organize') ? 'source_organization' : 'objective_verification';
   return { nodes, classification, explanation: { objectiveGap: selection.gap || [], selectedCapabilities: selected, rejected } };
