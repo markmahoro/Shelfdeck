@@ -19,7 +19,6 @@ const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
 const resourceRuntime = require('./resourceRuntime');
 const diagnosticLog = require('./diagnosticLog');
-const gateInvalidationService = require('./gateInvalidationService');
 const kairoxSignalBus = require('./kairoxSignalBus');
 
 let schedulerInterval = null;
@@ -29,7 +28,6 @@ let schedulerBusy = false;
 
 // Concurrency protection
 const runningTasks = new Set(); // taskId Set — prevents re-entry within same polling round
-const justConfirmedIds = new Set(); // tasks confirmed by user this round — bypass awaiting guard
 const CLOSED_STATUSES = new Set(['done', 'failed_hard', 'failed_soft', 'skipped', 'cancelled']);
 
 function compareDispatchOrder(a, b, recoveredIds = new Set()) {
@@ -45,35 +43,23 @@ function compareDispatchOrder(a, b, recoveredIds = new Set()) {
   return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
 }
 
-function flowKindForTask(task = {}) {
-  return String(task.flowPlan && task.flowPlan.flowKind || '');
+function targetGateForTask(task = {}) {
+  return String(task.taskTarget && task.taskTarget.targetGate || task.targetGate || '');
 }
 
 function clearQueuedRuntimeState(task) {
-  if (task.manualExecuteRequested && task.resumePoint) return task;
   const updates = {};
   if (task.phase !== null && task.phase !== undefined) updates.phase = null;
-  if (task.resumePoint !== null && task.resumePoint !== undefined) updates.resumePoint = null;
   if (task.progress !== 0 && task.progress !== undefined) updates.progress = 0;
   if (!Object.keys(updates).length) return task;
 
   const updated = taskStore.updateTask(task.id, updates);
   if (updated) {
     task.phase = updated.phase;
-    task.resumePoint = updated.resumePoint;
     task.progress = updated.progress;
   }
   taskStore.deleteProgress(task.id);
   return updated || task;
-}
-
-// ── Exposed to Flow Executors ───────────────────────────────────────────────
-
-function pauseForConfirm(taskId, resumePoint, approval) {
-  const updates = { status: 'awaiting_user_confirm', resumePoint };
-  if (approval && typeof approval === 'object') updates.approval = approval;
-  taskStore.updateTask(taskId, updates);
-  runningTasks.delete(taskId);
 }
 
 function reportStatus(taskId, status, progress) {
@@ -86,7 +72,6 @@ function reportStatus(taskId, status, progress) {
   const oldTask = taskStore.getTask(taskId);
   const updates = { status };
   if (CLOSED_STATUSES.has(status)) {
-    updates.resumePoint = null;
     updates.approval = null;
   }
   taskStore.updateTask(taskId, updates);
@@ -94,21 +79,20 @@ function reportStatus(taskId, status, progress) {
   // Activity log events for task lifecycle
   if (oldTask) {
     const name = oldTask.itemName || oldTask.itemId;
-    const actionLabel = flowKindForTask(oldTask) === 'transcode' ? '码率压缩'
-      : flowKindForTask(oldTask) === 'upgrade' ? '洗版'
-      : flowKindForTask(oldTask) === 'scrape' ? '刮削'
-      : flowKindForTask(oldTask) === 'basedata' ? '基础信息维护'
-      : flowKindForTask(oldTask);
+    const targetGate = targetGateForTask(oldTask);
+    const actionLabel = targetGate === 'basedata' ? '基础信息维护'
+      : targetGate === 'metadata' ? '资料维护'
+        : targetGate === 'optimize' ? '优化维护' : '维护';
 
     if (status === 'executing' && oldTask.status !== 'executing') {
-      activityLog.addActivity('task', `任务「${name}」开始${actionLabel}…`, { taskId, flowKind: flowKindForTask(oldTask) });
+      activityLog.addActivity('task', `任务「${name}」开始${actionLabel}…`, { taskId, targetGate });
     }
     if (status === 'done') {
-      activityLog.addActivity('task', `任务「${name}」${actionLabel}完成 ✓`, { taskId, flowKind: flowKindForTask(oldTask) });
+      activityLog.addActivity('task', `任务「${name}」${actionLabel}完成 ✓`, { taskId, targetGate });
 
     }
     if (status === 'failed_hard' || status === 'failed_soft') {
-      activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, flowKind: flowKindForTask(oldTask) });
+      activityLog.addActivity('task', `任务「${name}」${actionLabel}失败`, { taskId, targetGate });
     }
   }
 
@@ -124,66 +108,6 @@ function reportStatus(taskId, status, progress) {
       sourceIncident: oldTask.sourceIncident || null,
     });
   }
-}
-
-function reportResourceDeferred(taskId, blocker) {
-  taskStore.updateTask(taskId, { status: 'waiting_for_resource', resourceBlocker: blocker });
-  runningTasks.delete(taskId);
-}
-
-function reportGateInvalidation(taskId, signal = {}) {
-  const task = taskStore.getTask(taskId);
-  const itemId = signal.itemId || (task && task.itemId) || '';
-  const invalidation = gateInvalidationService.recordGateInvalidation({
-    ...signal,
-    taskId,
-    itemId,
-    sourceFlowKind: signal.sourceFlowKind || (task && flowKindForTask(task)) || '',
-    sourceTargetGate: signal.sourceTargetGate
-      || (task && task.taskTarget && task.taskTarget.targetGate)
-      || (task && task.taskBridge && task.taskBridge.kind)
-      || '',
-  });
-  const gate = invalidation.invalidatedGate;
-  const taskInvalidations = {
-    ...((task && task.gateInvalidations) || {}),
-    [gate]: invalidation,
-  };
-  const updated = taskStore.updateTask(taskId, {
-    upstreamGateInvalidation: invalidation,
-    gateInvalidations: taskInvalidations,
-  });
-  taskStore.appendTaskEvent(updated || task || { id: taskId, itemId }, 'gate.invalidated', {
-    invalidatedGate: gate,
-    reason: invalidation.reason,
-    message: invalidation.message,
-    evidence: invalidation.evidence,
-    sourceFlowKind: invalidation.sourceFlowKind,
-    sourceTargetGate: invalidation.sourceTargetGate,
-    recovery: invalidation.recovery,
-    stored: invalidation.stored,
-    storeReason: invalidation.storeReason,
-  });
-  diagnosticLog.record({
-    category: 'scheduler',
-    scope: 'scheduler.gateInvalidation',
-    operation: 'report_gate_invalidation',
-    component: 'taskScheduler',
-    resourceType: 'scheduler',
-    resourceKey: 'taskScheduler',
-    status: invalidation.stored ? 'done' : 'warning',
-    payload: {
-      taskId,
-      itemId,
-      invalidatedGate: gate,
-      reason: invalidation.reason,
-      sourceFlowKind: invalidation.sourceFlowKind,
-      sourceTargetGate: invalidation.sourceTargetGate,
-      stored: invalidation.stored,
-      storeReason: invalidation.storeReason,
-    },
-  });
-  return invalidation;
 }
 
 // ── Scheduling ──────────────────────────────────────────────────────────────
@@ -248,7 +172,7 @@ function startScheduler() {
 
   recoverInterruptedTasks();
 
-  resourceRuntime.setSchedulerCallbacks({ pauseForConfirm, reportStatus, reportGateInvalidation, reportResourceDeferred });
+  resourceRuntime.initialize();
 
   healthCheck.setSchedulerState({ running: true, runningTasks: 0 });
 
@@ -310,8 +234,7 @@ async function scheduleRound() {
     }
   }
 
-  // Count active work by resource bucket. flowKind remains the executor/API
-  // compatibility field; scheduling capacity follows flow/resource semantics.
+  // Count active work. Scheduling capacity is owned by the Governor.
   let activeTaskCount = 0;
   const usedItemIds = new Set();
 
@@ -352,11 +275,10 @@ async function scheduleRound() {
 
     // Transition created/pending_manual → queued (always allowed — pure status change)
     if (task.status === 'created' || task.status === 'pending_manual') {
-      taskStore.updateTask(task.id, { status: 'queued', phase: null, resumePoint: null, progress: 0 });
+      taskStore.updateTask(task.id, { status: 'queued', phase: null, progress: 0 });
       taskStore.deleteProgress(task.id);
       task.status = 'queued';
       task.phase = null;
-      task.resumePoint = null;
       task.progress = 0;
     }
 
@@ -372,11 +294,6 @@ async function scheduleRound() {
       }
     }
   }
-  justConfirmedIds.clear();
-}
-
-function markConfirmed(taskId) {
-  justConfirmedIds.add(taskId);
 }
 
 function isRunning() {
@@ -386,10 +303,7 @@ function isRunning() {
 module.exports = {
   startScheduler,
   stopScheduler,
-  pauseForConfirm,
   reportStatus,
-  reportGateInvalidation,
-  markConfirmed,
   isRunning,
   scheduleRound,
   recoverInterruptedTasks,

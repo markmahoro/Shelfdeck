@@ -15,7 +15,6 @@ const nexoraStore = require('../src/nexoraStore');
 const kairoxAdmissionStore = require('../src/kairoxAdmissionStore');
 const kairoxStore = require('../src/kairoxStore');
 const gateInvalidationService = require('../src/gateInvalidationService');
-const postOptimizeCanonicalRefresh = require('../src/postOptimizeCanonicalRefresh');
 const scrapeFlowExecutor = require('../src/metadataProviderAdapter');
 const adultSourceIdentity = require('../src/adultSourceIdentity');
 const workflowStore = require('../src/workflowStore');
@@ -40,6 +39,7 @@ test('clean owned schemas do not create the mixed media_items or Nexora Membersh
   const taskDb = new Database(path.join(dataDir, 'tasks.db'), { readonly: true });
   const libraryTables = libraryDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((row) => row.name);
   const taskTables = taskDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((row) => row.name);
+  const taskColumns = taskDb.prepare('PRAGMA table_info(tasks)').all().map((row) => row.name);
   libraryDb.close();
   taskDb.close();
 
@@ -55,6 +55,9 @@ test('clean owned schemas do not create the mixed media_items or Nexora Membersh
   assert.ok(taskTables.includes('kairox_admissions'));
   assert.ok(taskTables.includes('workflow_plans'));
   assert.ok(taskTables.includes('workflow_events'));
+  for (const legacyColumn of ['resume_point', 'manual_execute_requested', 'bridge_kind', 'flow_kind', 'flow_executor', 'flow_steps_json']) {
+    assert.strictEqual(taskColumns.includes(legacyColumn), false, `legacy Task column must be absent: ${legacyColumn}`);
+  }
 });
 
 test('Kairox fact rows are revisioned independently by fact group', () => {
@@ -91,27 +94,6 @@ test('Kairox gate invalidation is durable and canonical publication completes it
   bundle = kairoxStore.getBundle('refresh-item');
   assert.strictEqual(bundle.basedata.status, 'fresh');
   assert.strictEqual(bundle.refreshRequests[0].status, 'completed');
-});
-
-test('post-optimize replacement publishes once by task identity and requests only Basedata refresh', () => {
-  const itemId = 'post-optimize-item';
-  kairoxStore.publishBasedata({ itemId, sourceRevision: 'source-1', facts: { codec: 'h264' } });
-  const task = {
-    id: 'optimize-task-once',
-    itemId,
-    helixAdmission: { sourceRevision: 'source-1' },
-    taskTarget: { gateObjective: { objectiveHash: 'objective-1' } },
-    verifyResult: { objectiveHash: 'objective-1', videoCodec: 'h265', width: 1920, height: 1080 },
-  };
-  postOptimizeCanonicalRefresh.recordPostOptimizeReplacement(task, '2026-07-10T00:00:00.000Z', 'transcode');
-  const first = kairoxStore.getBundle(itemId);
-  assert.strictEqual(first.optimize.status, 'fresh');
-  assert.strictEqual(first.optimize.factRevision, 1);
-  assert.strictEqual(first.basedata.status, 'stale');
-  assert.deepStrictEqual(first.refreshRequests.filter((request) => request.status === 'pending').map((request) => request.factGroup), ['basedata']);
-
-  postOptimizeCanonicalRefresh.recordPostOptimizeReplacement(task, '2026-07-10T00:00:00.000Z', 'transcode');
-  assert.strictEqual(kairoxStore.getBundle(itemId).optimize.factRevision, 1);
 });
 
 test('Kairox metadata publication is idempotent by terminal task identity', () => {

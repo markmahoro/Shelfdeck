@@ -9,6 +9,7 @@ const resourceGovernor = require('./resourceGovernor');
 const configStore = require('./configStore');
 const approvalPolicy = require('./approvalPolicy');
 const kairoxAdmissionFence = require('./kairoxAdmissionFence');
+const kairoxSignalBus = require('./kairoxSignalBus');
 
 const dispatching = new Map();
 const retryTimers = new Map();
@@ -48,6 +49,27 @@ function ensurePlan(task, config) {
   return workflowStore.createPlan(plan, capabilityRegistry);
 }
 
+function planPrerequisitesCurrent(plan, task, config) {
+  const libraryId = task.itemInfo && task.itemInfo.subLibraryId || task.helixAdmission && task.helixAdmission.sourceAccessDescriptor && task.helixAdmission.sourceAccessDescriptor.subLibraryId || '';
+  const library = (config.subLibraries || []).find((entry) => entry.uuid === libraryId) || {};
+  const current = {
+    objectiveRevision: String(task.objectiveRevisionSnapshot || ''),
+    sourceRevision: String(task.helixAdmission && task.helixAdmission.sourceRevision || ''),
+    policyRevision: String(task.helixAdmission && task.helixAdmission.policyRevision || ''),
+    capabilityPolicyRevision: String(task.capabilityPolicyRevision || library.capabilityPolicyRevision || ''),
+  };
+  return Object.entries(current).every(([key, value]) => !plan[key] || !value || String(plan[key]) === value);
+}
+
+function invalidatePlan(task, plan) {
+  for (const event of workflowStore.listEvents(task.id)) {
+    if (!workflowStore.TERMINAL.has(event.status)) workflowStore.transition(event.eventId, 'cancelled', { finishedAt: new Date().toISOString(), failure: { code: 'WORKFLOW_PLAN_INVALIDATED' } });
+  }
+  const updated = taskStore.updateTask(task.id, { status: 'plan_invalidated', phase: 'workflow_plan_invalidated', progress: 0 });
+  kairoxSignalBus.publish({ kind: 'task_terminal', itemId: task.itemId, taskId: task.id, status: 'plan_invalidated', planId: plan.planId });
+  return updated;
+}
+
 function approvalSatisfied(event, task, config) {
   const requirement = event.intent.approvalRequirement;
   if (!requirement || !requirement.gateId) return true;
@@ -69,9 +91,42 @@ function approvalProjection(event, task, config, events) {
   });
 }
 
+function immutableInputSnapshot(event, task, events) {
+  const dependencies = new Set(event.intent.dependsOn || []);
+  return {
+    bindings: event.intent.inputBindings || {},
+    task: {
+      taskId: task.id,
+      itemId: task.itemId,
+      targetGate: task.taskTarget && task.taskTarget.targetGate || task.targetGate || '',
+      objectiveRevision: task.objectiveRevisionSnapshot || '',
+      sourceRevision: task.helixAdmission && task.helixAdmission.sourceRevision || '',
+      admissionGeneration: task.helixAdmission && task.helixAdmission.admissionGeneration || 0,
+      mappingRevision: task.sourceAccessMappingRevision || '',
+    },
+    dependencies: Object.fromEntries(events.filter((entry) => dependencies.has(entry.eventId)).map((entry) => [entry.eventId, { status: entry.status, result: entry.result, evidence: entry.evidence }])),
+  };
+}
+
+function validateOutputContract(contract = {}, result = {}) {
+  for (const [field, expected] of Object.entries(contract || {})) {
+    const value = result && result[field];
+    const valid = expected === 'array' ? Array.isArray(value)
+      : expected === 'number' ? Number.isFinite(Number(value))
+        : expected === 'string' ? typeof value === 'string' && value.length > 0
+          : expected === 'boolean' ? typeof value === 'boolean' : value !== undefined;
+    if (!valid) throw Object.assign(new Error(`Capability output does not satisfy ${field}:${expected}`), { code: 'KAIROX_EVENT_OUTPUT_CONTRACT_VIOLATION', field, expected });
+  }
+}
+
 function aggregateTask(task, events) {
-  if (events.some((event) => event.status === 'failed')) return taskStore.updateTask(task.id, { status: 'failed_hard', phase: 'workflow_failed', progress: 0 });
-  if (events.every((event) => SUCCESS.has(event.status))) return taskStore.updateTask(task.id, { status: 'done', phase: 'workflow_complete', progress: 100, resumePoint: null });
+  let updated;
+  if (events.some((event) => event.status === 'failed')) updated = taskStore.updateTask(task.id, { status: 'failed_hard', phase: 'workflow_failed', progress: 0 });
+  else if (events.every((event) => SUCCESS.has(event.status))) updated = taskStore.updateTask(task.id, { status: 'done', phase: 'workflow_complete', progress: 100 });
+  if (updated) {
+    if (task.status !== updated.status) kairoxSignalBus.publish({ kind: 'task_terminal', itemId: task.itemId, taskId: task.id, status: updated.status });
+    return updated;
+  }
   if (events.some((event) => event.status === 'waiting_for_approval')) return taskStore.updateTask(task.id, { status: 'awaiting_user_confirm', phase: 'event_waiting_for_approval' });
   if (events.some((event) => event.status === 'waiting_for_resource')) return taskStore.updateTask(task.id, { status: 'waiting_for_resource', phase: 'event_waiting_for_resource' });
   if (events.some((event) => event.status === 'ready' && event.retryAt && Date.parse(event.retryAt) > Date.now())) return taskStore.updateTask(task.id, { status: 'waiting_for_resource', phase: 'event_resource_deferred' });
@@ -106,6 +161,10 @@ function unlock(task, plan, config) {
 async function executeEvent(task, event, config) {
   const capability = capabilityRegistry.get(event.capability);
   if (!capability) throw Object.assign(new Error(`Capability executor is missing: ${event.capability}`), { code: 'KAIROX_CAPABILITY_MISSING' });
+  const targetGate = task.taskTarget && task.taskTarget.targetGate || task.targetGate || '';
+  if (capability.allowedTargetGates.length > 0 && !capability.allowedTargetGates.includes(targetGate)) {
+    throw Object.assign(new Error(`Capability ${event.capability} is not allowed for ${targetGate}`), { code: 'KAIROX_CAPABILITY_GATE_VIOLATION' });
+  }
   if (!approvalSatisfied(event, task, config)) {
     workflowStore.transition(event.eventId, 'waiting_for_approval', { approvalWaitStartedAt: event.approvalWaitStartedAt || new Date().toISOString() });
     taskStore.updateTask(task.id, { approval: approvalProjection(event, task, config, workflowStore.listEvents(task.id)) });
@@ -133,12 +192,14 @@ async function executeEvent(task, event, config) {
     const currentTask = taskStore.getTask(task.id) || task;
     const currentFence = kairoxAdmissionFence.checkTask(currentTask, `event.${event.capability}.before_execute`);
     if (!currentFence.allowed) throw Object.assign(new Error('Event admission fence changed'), { code: 'HELIX_ADMISSION_FENCED', fence: currentFence });
-    const current = workflowStore.transition(event.eventId, 'executing', { attempt: event.attempt + 1, startedAt: new Date().toISOString(), executorVersion: capability.executorVersion, fencing: currentFence });
     const allEvents = workflowStore.listEvents(task.id);
+    const current = workflowStore.transition(event.eventId, 'executing', { attempt: event.attempt + 1, startedAt: new Date().toISOString(), executorVersion: capability.executorVersion, fencing: currentFence, input: event.input || immutableInputSnapshot(event, currentTask, allEvents) });
     const execution = capability.execute({ task: currentTask, event: current, config, events: allEvents, outputs: Object.fromEntries(allEvents.map((entry) => [entry.eventId, entry.result])) });
     const timeoutMs = Number(event.intent.timeoutPolicy && event.intent.timeoutPolicy.timeoutMs) || 0;
     const result = timeoutMs > 0 ? await Promise.race([execution, new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('Capability Event timed out'), { code: 'KAIROX_EVENT_TIMEOUT' })), timeoutMs))]) : await execution;
-    workflowStore.transition(event.eventId, 'succeeded', { finishedAt: new Date().toISOString(), result: result && result.result !== undefined ? result.result : result || {}, evidence: result && result.evidence || null, commitMarker: result && result.commitMarker || null });
+    const output = result && result.result !== undefined ? result.result : result || {};
+    validateOutputContract(event.intent.outputContract, output);
+    workflowStore.transition(event.eventId, 'succeeded', { finishedAt: new Date().toISOString(), result: output, evidence: result && result.evidence || null, commitMarker: result && result.commitMarker || null });
   } catch (error) {
     const latest = workflowStore.getEvent(event.eventId) || event;
     const maxAttempts = Math.max(1, Number(event.intent.retryPolicy && event.intent.retryPolicy.maxAttempts) || 1);
@@ -161,6 +222,10 @@ async function driveTask(taskId) {
   if (!task) return { dispatched: false, reason: 'task_not_found' };
   const config = configStore.loadConfig();
   const plan = ensurePlan(task, config);
+  if (!planPrerequisitesCurrent(plan, task, config)) {
+    invalidatePlan(task, plan);
+    return { dispatched: false, reason: 'workflow_plan_invalidated', plan };
+  }
   let events;
   while (true) {
     task = taskStore.getTask(taskId) || task;
@@ -187,4 +252,4 @@ function recoverStartup() {
   return taskIds.length;
 }
 
-module.exports = { dispatchTask, driveTask, hasPendingDispatch, recoverStartup, resourceKeyFor, unlock, aggregateTask };
+module.exports = { dispatchTask, driveTask, hasPendingDispatch, recoverStartup, resourceKeyFor, unlock, aggregateTask, planPrerequisitesCurrent, validateOutputContract };

@@ -272,7 +272,7 @@ Task(object + targetGate + gateObjective)
 ```
 
 - Workflow Graph 是 DAG，节点是 Event intent，边表达依赖；受限声明式 `when` 支持分支与汇合，禁止任意 JavaScript。Graph 持久化后不可改写或动态扩图。
-- `flowKind` 只可作为历史读取、分类或诊断标签，不得参与 Executor 路由、Library 配置或 Task identity。
+- clean runtime 不再持久化 Task `flowKind`、复杂 Executor、旧 Flow steps、Bridge 或 `resumePoint`。Workflow Graph 的 `classification` 仅由 Planner 在 Graph 生成后派生用于展示，不参与 Task 创建、优先级、Executor 路由或 Library 配置。
 - Event 是独立 durable fact，拥有 `pending|ready|waiting_for_resource|waiting_for_approval|executing|succeeded|skipped|failed|cancelled` 状态、输入输出、attempt、时间、资源、fencing、evidence 和 commit marker。
 - Event Runtime 只为当前 Event 申请 Governor permit；禁止为整条 Flow 预取资源。Task 状态由 Graph 汇总，Capability Executor 不得写 Task 状态。
 - Capability Executor 只完成一个原子效果，不创建 Task、不选择或追加 Capability、不调用另一个 Executor、不推进 Gate。
@@ -288,7 +288,7 @@ workspaces.metadataArtifacts
 
 该 Workspace 是用户可配置的持久化空间，不是 Transcode temp。它必须按 item/revision 隔离、保存 checksum/manifest、拒绝与媒体根目录及其他 Workspace 重叠，并保护 active/approval/materialize/recovery 引用的 revision。
 
-`source.organize` 改变 path/source identity 时，Kairox 只能持久化中性 `SourceMutationResult`。Libra durable 消费、递增一次 admission generation、暂停旧 admission、调用 Nexora rebind，并在新 SourceBinding revision 后重新 admission；新的 Basedata Task 仍由 Lifecycle/Runner 独立产生。相同路径的 Transcode Replace 只使 Kairox Basedata stale，不制造不必要的 Nexora rebind。
+`source.organize` 改变 path/source identity 时，Kairox 只能持久化中性 `SourceMutationResult`，并立即结束当前不可变 Graph。Libra durable 消费、递增一次 admission generation、暂停旧 admission、调用 Nexora rebind，并在新 SourceBinding revision 后重新 admission；新的 Basedata Task 仍由 Lifecycle/Runner 独立产生。旧 admission 不得继续 materialize、verify 或 publish。相同路径的 Transcode Replace 只使 Kairox Basedata stale，不制造不必要的 Nexora rebind。
 
 ## 7. Shared Resource Governance
 

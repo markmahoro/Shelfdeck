@@ -6,8 +6,10 @@ const { createLibraService } = require('./libraService');
 const { createLibraRuntime } = require('./libraRuntime');
 const configStore = require('./configStore');
 const doubanService = require('./services/doubanService');
+const kairoxSignalBus = require('./kairoxSignalBus');
 
 let singleton = null;
+let unsubscribeKairox = null;
 
 function createHelixServices(overrides = {}) {
   const resolvedNexora = overrides.nexoraService || nexoraService;
@@ -24,6 +26,12 @@ function createHelixServices(overrides = {}) {
     kairoxService: resolvedKairox,
     implementation: libraImplementation,
   });
+  if (!overrides.disableSignalSubscription) {
+    if (unsubscribeKairox) unsubscribeKairox();
+    unsubscribeKairox = kairoxSignalBus.subscribe((signal) => {
+      if (signal.kind === 'source_mutation' && signal.itemId) libraService.reconcileItem(signal.itemId);
+    });
+  }
   return Object.freeze({
     libraService,
     nexoraService: resolvedNexora,
@@ -37,6 +45,8 @@ function getHelixServices() {
 }
 
 function resetForTests() {
+  if (unsubscribeKairox) unsubscribeKairox();
+  unsubscribeKairox = null;
   singleton = null;
 }
 

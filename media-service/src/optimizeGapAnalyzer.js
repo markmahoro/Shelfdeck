@@ -4,12 +4,23 @@ const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 
 function codec(value) { const raw = String(value || '').toLowerCase().replace(/[^a-z0-9]/g, ''); return ['h265', 'x265', 'hevc'].includes(raw) ? 'h265' : ['h264', 'x264', 'avc', 'avc1'].includes(raw) ? 'h264' : raw; }
 function resolutionRank(value, item = {}) { const text = String(value || item.resolution || '').toLowerCase(); const width = Number(item.width || item.originalWidth || 0); const height = Number(item.height || item.originalHeight || 0); if (text.includes('4k') || text.includes('2160') || width >= 3000 || height >= 2000) return 4; if (text.includes('1080')) return 3; if (text.includes('720')) return 2; return 0; }
-function result(flowKind, reason, input, gap = []) { return { flowKind, allowed: !['blocked'].includes(flowKind), reason, objectiveHash: input.objectiveHash || '', currentFacts: input.currentMediaFacts || input.itemInfo || {}, targetFacts: input.optimizeObjective?.targetMediaFacts || input.optimizeObjective || {}, gap }; }
+function result(status, reason, input, gap = []) {
+  return {
+    status,
+    satisfied: status === 'satisfied',
+    plannable: status === 'gap',
+    reason,
+    objectiveHash: input.objectiveHash || '',
+    currentFacts: input.currentMediaFacts || input.itemInfo || {},
+    targetFacts: input.optimizeObjective?.targetMediaFacts || input.optimizeObjective || {},
+    gap,
+  };
+}
 function analyze(input = {}) {
   const item = input.currentMediaFacts || input.itemInfo || {};
   const objective = input.optimizeObjective || item.optimizeObjective || {};
   if (input.optimizeObjectiveStatus && input.optimizeObjectiveStatus !== 'ready') return result('blocked', input.optimizeObjectiveStatus, input);
-  if (objective.kind === 'keep_current') return result('no_op', 'objective_already_satisfied', input);
+  if (objective.kind === 'keep_current') return result('satisfied', 'objective_already_satisfied', input);
   const target = objective.targetMediaFacts || objective;
   const profile = bitrateObjectiveProfile.resolveBitrateProfile({ objective, item });
   const gap = [];
@@ -24,10 +35,8 @@ function analyze(input = {}) {
   if (target.storageLayout === 'organized' && item.layoutFacts && item.layoutFacts.compliant !== true) gap.push({ field: 'storageLayout', requiredStrategy: 'organize', reason: 'storage_layout_not_compliant' });
   if (target.metadataArtifacts === 'materialized' && item.metadataArtifactsReady && item.metadataArtifactsMaterialized !== true) gap.push({ field: 'metadataArtifacts', requiredStrategy: 'materialize', reason: 'metadata_artifacts_not_materialized' });
   if (gap.some((entry) => entry.requiredStrategy === 'blocked')) return result('blocked', 'unsupported_objective', input, gap);
-  if (gap.some((entry) => entry.requiredStrategy === 'upgrade')) return result('upgrade', 'better_source_required', input, gap);
-  if (gap.some((entry) => entry.requiredStrategy === 'transcode')) return result('transcode', 'local_transform_required', input, gap);
-  if (gap.length > 0) return result('composite', 'asset_maintenance_required', input, gap);
-  return result('no_op', 'objective_already_satisfied', input, gap);
+  if (gap.length > 0) return result('gap', 'objective_not_satisfied', input, gap);
+  return result('satisfied', 'objective_already_satisfied', input, gap);
 }
 
 module.exports = { analyze };

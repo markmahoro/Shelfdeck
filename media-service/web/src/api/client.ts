@@ -339,7 +339,8 @@ export interface TaskReport {
   taskId: string;
   itemId?: string;
   itemName: string;
-  flowKind?: string;
+  workflowClassification?: string;
+  capabilities?: string[];
   elapsedSec: number | null;
   encoder: string | null;
   original?: {

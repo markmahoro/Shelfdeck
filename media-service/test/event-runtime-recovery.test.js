@@ -16,6 +16,7 @@ const registry = require('../src/capabilityRegistry');
 const admissionStore = require('../src/kairoxAdmissionStore');
 const builtIns = require('../src/builtInCapabilities');
 const eventRuntime = require('../src/eventRuntime');
+const resourceRuntime = require('../src/resourceRuntime');
 
 test.after(() => { taskStore.resetForTests(); workflowStore.resetForTests(); admissionStore.resetForTests(); fs.rmSync(dataDir, { recursive: true, force: true }); });
 
@@ -51,4 +52,31 @@ test('startup recovery discards in-memory execution and requeues the durable Eve
   assert.strictEqual(workflowStore.getEvent('restart-event').status, 'ready');
   assert.strictEqual(taskStore.getTask(value.id).status, 'queued');
   assert.strictEqual(eventRuntime.recoverStartup(), 0);
+});
+
+test('a persisted graph is invalidated when its objective revision no longer matches the Task snapshot', async () => {
+  const value = task('invalidated-task');
+  if (!registry.has('test.invalidate')) registry.register({ capability: 'test.invalidate', execute: async () => ({ ok: true }) });
+  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata', objectiveRevision: 'objective-old' }, [{ eventId: 'invalidated-event', capability: 'test.invalidate' }]);
+  workflowStore.createPlan(plan, registry);
+  taskStore.updateTask(value.id, { objectiveRevisionSnapshot: 'objective-new' });
+  const result = await eventRuntime.driveTask(value.id);
+  assert.strictEqual(result.reason, 'workflow_plan_invalidated');
+  assert.strictEqual(taskStore.getTask(value.id).status, 'plan_invalidated');
+  assert.strictEqual(workflowStore.getEvent('invalidated-event').status, 'cancelled');
+});
+
+test('approval is a durable Event prerequisite and confirmation resumes the same Event', async () => {
+  const value = taskStore.updateTask(task('approval-task').id, { taskTarget: { targetGate: 'optimize', gateObjective: {} } });
+  if (!registry.has('test.approval')) registry.register({ capability: 'test.approval', allowedTargetGates: ['optimize'], execute: async () => ({ result: { committed: true }, commitMarker: 'approval-test-commit' }) });
+  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'optimize' }, [{ eventId: 'approval-event', capability: 'test.approval', approvalRequirement: { gateId: 'transcode.beforeReplace' } }]);
+  workflowStore.createPlan(plan, registry);
+  await eventRuntime.driveTask(value.id);
+  assert.strictEqual(workflowStore.getEvent('approval-event').status, 'waiting_for_approval');
+  assert.strictEqual(taskStore.getTask(value.id).status, 'awaiting_user_confirm');
+  assert.strictEqual(resourceRuntime.confirmTask(taskStore.getTask(value.id)), true);
+  const deadline = Date.now() + 2000;
+  while (taskStore.getTask(value.id).status !== 'done' && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.strictEqual(workflowStore.getEvent('approval-event').status, 'succeeded');
+  assert.strictEqual(workflowStore.getEvent('approval-event').attempt, 1);
 });

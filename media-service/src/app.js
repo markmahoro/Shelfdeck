@@ -213,15 +213,13 @@ function taskListSummary(task) {
     itemId: task.itemId,
     itemName: task.itemName,
     taskTarget: task.taskTarget,
-    taskBridge: task.taskBridge,
-    flowPlanSummary: plan ? { planId: plan.planId, schemaVersion: plan.schemaVersion, classification: plan.classification, targetGate: plan.targetGate, eventCount: plan.nodes.length } : null,
+    workflowSummary: plan ? { planId: plan.planId, schemaVersion: plan.schemaVersion, classification: plan.classification, targetGate: plan.targetGate, eventCount: plan.nodes.length } : null,
     currentEvent: currentEvent ? { eventId: currentEvent.eventId, capability: currentEvent.capability, status: currentEvent.status, resourceKey: currentEvent.resourceKey } : null,
     eventProgress: plan ? { completed: workflowEvents.filter((event) => ['succeeded', 'skipped'].includes(event.status)).length, total: workflowEvents.length } : null,
     source: task.source,
     status: task.status,
     progress: task.progress,
     phase: task.phase,
-    resumePoint: task.resumePoint,
     retryCount: Number(task.retryCount || 0) || 0,
     nodeId: task.nodeId,
     approval: task.approval,
@@ -367,22 +365,22 @@ function queryAttentionTasks(filter = {}) {
   });
 }
 
-function flowKindForTask(task = {}) {
-  return String(task.flowPlan && task.flowPlan.flowKind || '');
+function workflowClassificationForTask(task = {}) {
+  const plan = task.id ? workflowStore.getPlanForTask(task.id) : null;
+  return String(plan && plan.classification || '');
 }
 
 function compactTaskRouteFilter(filter = {}) {
   return {
     status: filter.status || '',
     statuses: Array.isArray(filter.statuses) ? filter.statuses.length : undefined,
-    targetGate: filter.bridgeKind || '',
+    targetGate: filter.targetGate || '',
     hasSearch: !!filter.q,
   };
 }
 
 function applyTaskTargetQuery(filter, query = {}) {
-  if (query.targetGate) filter.bridgeKind = query.targetGate;
-  if (query.flowKind) filter.flowKind = query.flowKind;
+  if (query.targetGate) filter.targetGate = query.targetGate;
   return filter;
 }
 
@@ -462,8 +460,8 @@ function makeLifecycleBucket(key, base = {}) {
     total: 0,
     byStatus: {},
     byLifecycleStage: {},
-    byBridgeKind: {},
-    byFlowKind: {},
+    byTargetGate: {},
+    byWorkflowClassification: {},
     bySource: {},
     active: 0,
     terminal: 0,
@@ -474,13 +472,13 @@ function makeLifecycleBucket(key, base = {}) {
 
 function addTaskToLifecycleBucket(bucket, task, stage) {
   const status = task.status || 'unknown';
-  const bridgeKind = task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || 'unknown';
-  const flowKind = flowKindForTask(task) || 'unknown';
+  const targetGate = task.taskTarget && task.taskTarget.targetGate || task.targetGate || 'unknown';
+  const classification = workflowClassificationForTask(task) || 'unplanned';
   bucket.total += 1;
   inc(bucket.byStatus, status);
   inc(bucket.byLifecycleStage, stage);
-  inc(bucket.byBridgeKind, bridgeKind);
-  inc(bucket.byFlowKind, flowKind);
+  inc(bucket.byTargetGate, targetGate);
+  inc(bucket.byWorkflowClassification, classification);
   inc(bucket.bySource, task.source || 'unknown');
   if (!['done', 'skipped', 'failed_hard', 'cancelled'].includes(status)) bucket.active += 1;
   else bucket.terminal += 1;
@@ -490,7 +488,6 @@ function addTaskToLifecycleBucket(bucket, task, stage) {
 
 function taskSubLibraryId(task) {
   return task && task.itemInfo && task.itemInfo.subLibraryId
-    || task && task.taskBridge && task.taskBridge.subLibraryId
     || '';
 }
 
@@ -525,10 +522,8 @@ function addLifecycleSignal(signals, signal, sampleLimit) {
 function taskLifecycleSignals(task, context, controlState) {
   const signals = [];
   const status = task.status || '';
-  const bridgeKind = task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '';
-  const flowKind = flowKindForTask(task);
-  const primaryResourceType = task.flowPlan && task.flowPlan.primaryResourceType || '';
-  const resourceTypes = Array.isArray(task.flowPlan && task.flowPlan.resourceTypes) ? task.flowPlan.resourceTypes : [];
+  const targetGate = task.taskTarget && task.taskTarget.targetGate || task.targetGate || '';
+  const workflowEvents = workflowStore.listEvents(task.id);
   const confirmationRequired = controlState && controlState.confirmation && controlState.confirmation.required;
 
   if (!context.subLibraryId) {
@@ -536,26 +531,11 @@ function taskLifecycleSignals(task, context, controlState) {
   } else if (!context.found) {
     signals.push({ severity: 'warn', code: 'unknown_sub_library', message: 'Task references a sub-library that is not present in config.' });
   }
-  if (!bridgeKind || !flowKind) {
-    signals.push({ severity: 'warn', code: 'missing_bridge_or_flow_kind', message: 'Task cannot be explained by target gate / flow facts.' });
+  if (!targetGate) {
+    signals.push({ severity: 'warn', code: 'missing_target_gate', message: 'Task has no Lifecycle target gate.' });
   }
-  if (!primaryResourceType) {
-    signals.push({ severity: 'warn', code: 'missing_primary_resource', message: 'Task has no primary resource type for lifecycle/resource diagnosis.' });
-  }
-  if (context.mediaType !== 'adult' && flowKind === 'scrape') {
-    const isEmbyRepair = primaryResourceType === 'emby' || resourceTypes.includes('emby');
-    if (!isEmbyRepair) {
-      signals.push({
-        severity: 'error',
-        code: 'standard_media_scrape_wrong_resource',
-        message: 'Standard media scrape must use the Emby metadata repair resource.',
-        expectedResourceType: 'emby',
-        actualResourceType: primaryResourceType || '',
-      });
-    }
-  }
-  if (context.mediaType === 'adult' && bridgeKind === 'metadata' && flowKind !== 'scrape') {
-    signals.push({ severity: 'warn', code: 'adult_metadata_unexpected_flow', message: 'Adult Metadata must use the scrape flow.' });
+  if (task.status === 'executing' && workflowEvents.length === 0) {
+    signals.push({ severity: 'error', code: 'executing_without_workflow', message: 'Executing Task has no durable Workflow Graph.' });
   }
   if (status === 'awaiting_user_confirm' && !confirmationRequired) {
     signals.push({ severity: 'error', code: 'awaiting_without_confirmation_gate', message: 'Task status is awaiting confirmation but controlState has no active confirmation gate.' });
@@ -618,9 +598,8 @@ function buildTaskLifecycleAudit(tasks, config, opts = {}) {
         itemName: task.itemName || task.itemInfo && task.itemInfo.name || '',
         status: task.status || '',
         lifecycleStage: stage,
-        bridgeKind: task.taskBridge && task.taskBridge.kind || task.flowPlan && task.flowPlan.bridgeKind || '',
-        flowKind: flowKindForTask(task),
-        primaryResourceType: task.flowPlan && task.flowPlan.primaryResourceType || '',
+        targetGate: task.taskTarget && task.taskTarget.targetGate || task.targetGate || '',
+        workflowClassification: workflowClassificationForTask(task),
         source: task.source || '',
         subLibraryId: context.subLibraryId,
         subLibraryName: context.subLibraryName,
@@ -658,22 +637,22 @@ function paginateTasks(tasks, page, pageSize) {
 
 function summarizeConfirmationQueue(tasks = []) {
   const byGate = {};
-  const byBridgeKind = {};
-  const byFlowKind = {};
+  const byTargetGate = {};
+  const byWorkflowClassification = {};
   for (const task of tasks || []) {
     const control = taskControlPolicy.buildTaskControlState(task);
     const gate = control.confirmation && control.confirmation.gateId || 'unknown';
-    const bridge = task.taskBridge && task.taskBridge.kind || 'unknown';
-    const flowKind = flowKindForTask(task) || 'unknown';
+    const targetGate = task.taskTarget && task.taskTarget.targetGate || task.targetGate || 'unknown';
+    const classification = workflowClassificationForTask(task) || 'unplanned';
     byGate[gate] = (byGate[gate] || 0) + 1;
-    byBridgeKind[bridge] = (byBridgeKind[bridge] || 0) + 1;
-    byFlowKind[flowKind] = (byFlowKind[flowKind] || 0) + 1;
+    byTargetGate[targetGate] = (byTargetGate[targetGate] || 0) + 1;
+    byWorkflowClassification[classification] = (byWorkflowClassification[classification] || 0) + 1;
   }
   return {
     total: tasks.length,
     byGate,
-    byBridgeKind,
-    byFlowKind,
+    byTargetGate,
+    byWorkflowClassification,
   };
 }
 
@@ -752,7 +731,6 @@ function adultReviewQueueItem(item) {
       options: reason === 'adult_identity_ambiguous'
         ? ['correct_identity', 'rescrape_after_fix']
         : ['approve_result', 'rescrape'],
-      resumePoint: 'adult_review',
       effect: 'user_must_review_adult_metadata_before_metadata_ready',
       whyRequired: reason,
     },
@@ -767,7 +745,6 @@ function adultReviewQueueItem(item) {
     recovery: {
       state: 'user_review_required',
       reason,
-      resumePoint: 'adult_review',
       nextAction: 'review',
     },
   };
@@ -776,19 +753,20 @@ function adultReviewQueueItem(item) {
 function confirmationQueueItem(task) {
   const controlState = taskControlPolicy.buildTaskControlState(task);
   const confirmation = controlState.confirmation || {};
+  const plan = workflowStore.getPlanForTask(task.id);
+  const waitingEvent = workflowStore.listEvents(task.id).find((event) => event.status === 'waiting_for_approval') || null;
   return {
     kind: 'task_confirmation',
     id: task.id,
     taskId: task.id,
     itemId: task.itemId,
     itemName: task.itemName || '',
-    flowKind: flowKindForTask(task),
-    taskBridge: task.taskBridge,
-    flowPlan: task.flowPlan,
+    targetGate: task.taskTarget && task.taskTarget.targetGate || task.targetGate || '',
+    workflowClassification: plan && plan.classification || '',
+    currentEvent: waitingEvent ? { eventId: waitingEvent.eventId, capability: waitingEvent.capability, status: waitingEvent.status } : null,
     source: task.source || '',
     status: task.status,
     phase: task.phase || '',
-    resumePoint: task.resumePoint || '',
     retryCount: Number(task.retryCount || 0) || 0,
     priority: task.priority,
     createdAt: task.createdAt,
@@ -799,7 +777,6 @@ function confirmationQueueItem(task) {
       gateId: confirmation.gateId || '',
       message: confirmation.message || '',
       options: Array.isArray(confirmation.options) ? confirmation.options : [],
-      resumePoint: confirmation.resumePoint || '',
       effect: confirmation.effect || '',
       whyRequired: confirmation.gateId || confirmation.message
         ? 'flow_gate_requires_user_decision'
@@ -1045,7 +1022,8 @@ function dashboardActivitySourceLabel(source) {
 
 function dashboardTaskEventMessage(event) {
   const label = DASHBOARD_TASK_EVENT_LABELS[event.eventType] || event.eventType || '任务事件';
-  const action = DASHBOARD_ACTION_LABELS[event.flowKind] || event.flowKind || '任务';
+  const targetGate = event.payload && event.payload.taskTarget && event.payload.taskTarget.targetGate || '';
+  const action = DASHBOARD_ACTION_LABELS[targetGate] || targetGate || '任务';
   const resource = event.resourceLabel || event.resourceType || '';
   if (resource) return `${label}：${action} · ${resource}`;
   return `${label}：${action}`;
@@ -1085,14 +1063,11 @@ function buildDashboardEvents(limit = 15) {
     message: dashboardTaskEventMessage(event),
     taskId: event.taskId || '',
     itemId: event.itemId || '',
-    flowKind: event.flowKind || '',
     eventType: event.eventType || '',
     eventStatus: event.eventStatus || '',
     resourceType: event.resourceType || '',
     resourceKey: event.resourceKey || '',
     resourceLabel: event.resourceLabel || '',
-    bridgeKind: event.bridgeKind || '',
-    flowKind: event.flowKind || '',
   }));
   const recent = [...activityEvents, ...taskEvents]
     .filter((event) => event.ts && event.message)
@@ -1142,7 +1117,7 @@ function compactAdmissionOptimizeGate(gate) {
 
 function compactAdmissionReject(admission = {}) {
   const result = {
-    targetGate: admission.targetGate || admission.bridgeKind || '',
+    targetGate: admission.targetGate || '',
     reason: admission.reason || '',
     supportedEntry: admission.supportedEntry || '',
     supportedFlows: admission.supportedFlows || admission.supportedOperations,
@@ -1175,7 +1150,7 @@ function taskAdmissionRejectMessage(admission = {}) {
 function compactAdmissionAccept(admission = {}) {
   const result = {
     allowed: true,
-    targetGate: admission.targetGate || admission.bridgeKind || '',
+    targetGate: admission.targetGate || '',
     reason: admission.reason || 'allowed',
     intentMode: admission.intentMode || '',
     requestedIntent: admission.requestedIntent,
@@ -1316,7 +1291,6 @@ function appendTaskControlEvent(task, actionName, action, payload = {}) {
     actionName,
     actionEffect: action && action.effect || '',
     fromStatus: task.status || '',
-    resumePoint: task.resumePoint || '',
     ...payload,
   });
 }
@@ -1407,7 +1381,6 @@ function enrichFailureEvent(event, config, diagnosticRows = []) {
   const recovery = controlState && controlState.recovery ? controlState.recovery : {
     state: 'task_not_found',
     reason: 'task_record_missing',
-    resumePoint: event && event.resumePoint || '',
     nextAction: 'inspect_event',
   };
   return {
@@ -1418,11 +1391,9 @@ function enrichFailureEvent(event, config, diagnosticRows = []) {
       itemName: task.itemName || '',
       status: task.status,
       phase: task.phase || '',
-      resumePoint: task.resumePoint || '',
       retryCount: Number(task.retryCount || 0) || 0,
-      bridgeKind: task.taskBridge && task.taskBridge.kind || '',
-      flowDirection: task.flowPlan && task.flowPlan.direction || '',
-      flowKind: flowKindForTask(task),
+      targetGate: task.taskTarget && task.taskTarget.targetGate || task.targetGate || '',
+      workflowClassification: workflowStore.getPlanForTask(task.id)?.classification || '',
     } : null,
     resourceContext: {
       resourceType: event.resourceType || (taskResource && taskResource.resourceType) || '',
@@ -1625,8 +1596,9 @@ function registerRoutes(app) {
   app.get('/v1/tasks/:id/report', async (req, reply) => {
     const task = taskStore.getTask(req.params.id);
     if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
-    const flowKind = flowKindForTask(task);
-    if (task.status !== 'done' && !(task.status === 'failed_hard' && flowKind === 'scrape')) {
+    const plan = workflowStore.getPlanForTask(task.id);
+    const capabilities = plan ? plan.nodes.map((node) => node.capability) : [];
+    if (task.status !== 'done' && task.status !== 'failed_hard') {
       return apiError(reply, 400, 'BAD_REQUEST', 'Task not completed yet');
     }
 
@@ -1647,12 +1619,13 @@ function registerRoutes(app) {
       itemName: (info.type === 'season' && info.seriesName && info.seasonNumber != null
         ? `${info.seriesName} 第${info.seasonNumber}季`
         : (task.itemName || task.itemId)),
-      flowKind,
+      workflowClassification: plan && plan.classification || '',
+      capabilities,
       elapsedSec,
       encoder,
     };
 
-    if (flowKind === 'transcode') {
+    if (capabilities.includes('media.transcode')) {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,
         videoCodec: info.originalVideoCodec || info.codec || '?',
@@ -1669,7 +1642,7 @@ function registerRoutes(app) {
         height: vr.height,
       };
       report.bytesSaved = vr.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
-    } else if (flowKind === 'upgrade') {
+    } else if (capabilities.includes('source.upgrade.download')) {
       report.original = {
         sizeBytes: info.originalSizeBytes || info.size,
         videoCodec: info.originalVideoCodec || info.codec || '?',
@@ -1691,7 +1664,7 @@ function registerRoutes(app) {
         report.bytesSaved = up.bytesSaved || ((report.original.sizeBytes || 0) - (report.output.sizeBytes || 0));
         report.tmdbVerified = up.tmdbVerified;
       }
-    } else if (flowKind === 'scrape') {
+    } else if (task.taskTarget && task.taskTarget.targetGate === 'metadata') {
       const projection = getHelixServices().libraService.getLibraryProjection(task.itemId);
       const maintenance = projection && projection.maintenance || {};
       const metadataFacts = maintenance.metadataFacts || {};
@@ -1758,11 +1731,8 @@ function registerRoutes(app) {
       taskStore.updateTask(task.id, { confirmData });
     }
 
-    resourceRuntime.confirmTask(task);
-
-    // Re-queue for scheduler, mark as just-confirmed to bypass awaiting guard
-    taskScheduler.markConfirmed(task.id);
-    const updated = taskStore.updateTask(task.id, { status: 'queued', manualExecuteRequested: true });
+    resourceRuntime.confirmTask(taskStore.getTask(task.id) || task);
+    const updated = taskStore.getTask(task.id);
     if (updated) {
       taskStore.appendTaskEvent(updated, 'task.confirmed', {
         requestedBy: 'user',
@@ -1771,7 +1741,6 @@ function registerRoutes(app) {
         fromStatus: task.status || '',
         toStatus: updated.status || '',
         gateId: task.approval && task.approval.gateId || '',
-        resumePoint: task.resumePoint || '',
         confirmDataKeys: confirmData && typeof confirmData === 'object' ? Object.keys(confirmData) : [],
       });
     }
@@ -3292,7 +3261,7 @@ function registerRoutes(app) {
       filters: {
         status: filter.status || '',
         statuses: filter.statuses || undefined,
-        targetGate: filter.bridgeKind || '',
+        targetGate: filter.targetGate || '',
         subLibraryId,
         mediaType,
         q: filter.q || '',
@@ -3604,7 +3573,7 @@ async function buildApp(opts = {}) {
     const kairoxStore = require('./kairoxStore');
     artifactWorkspace.cleanupUnreferenced(startupCfg, [
       ...kairoxStore.listMetadataArtifactReferences(),
-      ...workflowStore.activeMetadataArtifactReferences().map((entry) => ({ itemId: entry.itemId, artifactRevision: entry.taskId })),
+      ...workflowStore.activeMetadataArtifactReferences(),
     ]);
   } catch (error) {
     diagnosticLog.record({ category: 'storage', scope: 'metadataArtifactWorkspace.cleanup', operation: 'cleanup_unreferenced_artifacts', component: 'metadataArtifactWorkspace', status: 'failed', payload: { error: error.message } });

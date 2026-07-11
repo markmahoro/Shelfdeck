@@ -7,10 +7,7 @@ const builtInCapabilities = require('./builtInCapabilities');
 
 builtInCapabilities.registerBuiltIns();
 
-let callbacks = {};
-
-function setSchedulerCallbacks(input = {}) {
-  callbacks = { ...input };
+function initialize() {
   eventRuntime.recoverStartup();
 }
 
@@ -51,4 +48,4 @@ async function cancelTask(task = {}) {
   return true;
 }
 
-module.exports = { setSchedulerCallbacks, dispatchTask, confirmTask, pauseTask, cancelTask, hasPendingDispatch };
+module.exports = { initialize, dispatchTask, confirmTask, pauseTask, cancelTask, hasPendingDispatch };

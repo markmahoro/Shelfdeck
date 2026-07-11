@@ -115,15 +115,19 @@ function inspectTaskDatabase(filePath) {
     const hasTasks = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tasks'").get();
     if (!hasTasks) return { schemaMissing: [], legacyTargetRows: 0, legacyFlowRows: 0 };
     const columns = new Set(db.prepare('PRAGMA table_info(tasks)').all().map((row) => row.name));
-    const required = ['item_id', 'status', 'payload_json', 'target_gate', 'flow_kind', 'gate_objective_json'];
+    const required = ['item_id', 'status', 'payload_json', 'target_gate', 'gate_objective_json'];
     const schemaMissing = required.filter((column) => !columns.has(column));
+    const forbidden = ['resume_point', 'manual_execute_requested', 'bridge_kind', 'flow_kind', 'flow_executor', 'flow_steps_json'].filter((column) => columns.has(column));
+    if (forbidden.length) schemaMissing.push(...forbidden.map((column) => `legacy_column:${column}`));
     if (schemaMissing.length > 0) return { schemaMissing, legacyTargetRows: 0, legacyFlowRows: 0 };
     const legacyTargetRows = db.prepare(`
       SELECT COUNT(*) AS count FROM tasks
       WHERE target_gate<>'' AND target_gate NOT IN ('basedata','metadata','optimize')
     `).get().count || 0;
     const legacyFlowRows = db.prepare(`
-      SELECT COUNT(*) AS count FROM tasks WHERE flow_kind IN ('ingest','archive','delete')
+      SELECT COUNT(*) AS count FROM tasks
+      WHERE target_gate IN ('ingest','archive','delete')
+         OR json_extract(payload_json,'$.flowKind') IN ('ingest','archive','delete')
     `).get().count || 0;
     return { schemaMissing, legacyTargetRows, legacyFlowRows };
   } catch (_) {

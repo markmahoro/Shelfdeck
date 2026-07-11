@@ -53,7 +53,9 @@ Kairox Maintenance Automation
 - 文件布局合规归属 Optimize Objective。Metadata 生成的 NFO、poster、fanart 先写入持久化 Metadata Artifact Workspace；Optimize 再按计划执行 organize/materialize/layout verify。该工作区必须可由用户配置，默认位于 `<dataDir>/workspaces/metadata-artifacts`，不能被当作可随时清理的 Transcode temp。
 - organize/replace 的路径或 source identity 变化由 Kairox 持久化中性 `SourceMutationResult`；Libra durable 消费并协调 Nexora rebind，随后 Kairox 基于新 admission/source revision 独立产生 Basedata Task，禁止 Gate Task 链式创建。
 - 2026-07-11 已完成执行内核 clean cut：旧 `flowPlanner.js` 与 Basedata/Scrape/Transcode/Upgrade 四个复杂 Flow Executor 已物理删除；Resource Runtime 不再按 `flowKind` 路由，Workflow Graph、Event Store、Event Runtime 与 Capability Registry 成为唯一执行主路径。
-- 新内核的 Service 全量测试为 171/171；auto/auto Emby disposable 链路已通过独立 Basedata/Metadata Workflow Event 收敛到 `maintenanceComplete`，Admin Web production build 通过。
+- 新内核已完成第二轮 clean cut：TaskStore 物理删除 Bridge、`flowKind`、复杂 Executor/steps 和 `resumePoint` 列；Scheduler 不再恢复 Flow phase，Event Runtime 是唯一恢复 owner。Optimize Planner 直接按 Objective gap 组合 Capability，classification 只在 Graph 生成后派生。
+- `source.organize` 现在是当前 Graph 的终点；SourceMutationResult 被 Libra 消费并经 Nexora rebind、新 admission 和独立 Basedata Task 后，才允许后续 materialize/verify/publish。
+- Event Runtime 已补齐 plan revision invalidation、immutable input snapshot、output contract、Capability/Gate 校验和 durable approval resume。Service 全量测试与 Admin Web production build通过；准确测试计数以最近一次验收命令输出为准。
 - Metadata Artifact Workspace 已实现 revision/checksum/manifest、Windows atomic flush/rename 探测和路径重叠拒绝；SourceMutationResult 的 Libra→Nexora rebind 单 generation 协调测试通过。
 - 欧美成人本机分析在 internal face-embedding Integration 未启动时正确 terminal failure；重试该场景前必须先建立本机 face service/model runtime。
 - Emby clean re-authentication 仍缺账号密码。备份按安全合同只保存 username/userId/access token，不允许把旧 token 直接写入新配置作为绕过。
@@ -122,8 +124,8 @@ Windows、Admin Web、Playwright 与 Linux Docker 验证。生产部署继续暂
 
 ## Open Risks / Deferred Work
 
-- Kairox Capability/Event Runtime 主路径已实现，但尚未完成真实 Transcode、MoviePilot Upgrade、成人 organize/materialize/rebind、restart/approval 和30分钟soak验收；四库 E2E 仍保持暂停。
-- Metadata Artifact Workspace 的引用保留期清理与容量耗尽故障验收仍未完成；成人 NFO/poster/fanart 已禁止直接写入未整理媒体根目录。
+- Kairox Capability/Event Runtime 主路径和 disposable real Transcode 已实现，但尚未完成真实 MoviePilot Upgrade、成人 organize/materialize/rebind、资源饱和、完整 restart/fault matrix 和30分钟soak验收；四库 E2E 仍保持暂停。
+- Metadata Artifact Workspace 已有引用保留期清理；容量耗尽、符号链接/挂载差异和长时间清理故障验收仍未完成。成人 NFO/poster/fanart 已禁止直接写入未整理媒体根目录。
 - 需要 Emby username/password re-authentication，之后才能从 Admin Web 重建两个真实 Emby Library。
 - 需要建立本机 face-service dependencies/models，之后才能重试欧美成人 Metadata。
 - normal/constrained performance profile、restart/fault matrix 与 active/idle soak 仍需在最终四库 runtime 完成。

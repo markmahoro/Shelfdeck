@@ -15,33 +15,7 @@ function resourceStateForStatus(status) {
   return 'waiting';
 }
 
-function subLibraryForTask(task, config = {}) {
-  const subLibraryId = task && task.itemInfo && task.itemInfo.subLibraryId;
-  return ((config.subLibraries || []).find((s) => s.uuid === subLibraryId)) || {};
-}
-
-function flowKindForTask(task = {}) {
-  return String(task.flowPlan && task.flowPlan.flowKind
-    || task.taskBridge && task.taskBridge.flowKind
-    || '').trim().toLowerCase();
-}
-
-function isWesternAiScrape(task, config = {}) {
-  if (!task || flowKindForTask(task) !== 'scrape') return false;
-  const itemInfo = task.itemInfo || {};
-  const meta = itemInfo.adultMetadata || {};
-  const subLib = subLibraryForTask(task, config);
-  const region = meta.region || subLib.adultRegion || '';
-  if (region !== 'western_adult') return false;
-  const western = {
-    ...(((config.adultLibrary || {}).western) || {}),
-    ...((subLib && subLib.western) || {}),
-  };
-  return String(western.computeMode || 'local').toLowerCase() !== 'worker';
-}
-
 function resourceForPlannedType(task, plannedResourceType, config = {}) {
-  const flowKind = flowKindForTask(task);
   if (plannedResourceType === 'transcode') {
     if (task.nodeId) {
       return {
@@ -73,23 +47,15 @@ function resourceForPlannedType(task, plannedResourceType, config = {}) {
     };
   }
   if (plannedResourceType === 'filesystem') {
-    const suffix = flowKind === 'basedata' ? 'probe' : 'mutation';
     const descriptor = task.helixAdmission && task.helixAdmission.sourceAccessDescriptor || {};
     const scope = descriptor.subLibraryId || 'default';
     return {
       resourceType: 'filesystem',
-      resourceKey: `filesystem:${scope}:${suffix}`,
-      resourceLabel: suffix === 'probe' ? 'Filesystem Basedata probe' : 'Filesystem mutation',
+      resourceKey: `filesystem:${scope}`,
+      resourceLabel: 'Filesystem',
     };
   }
   if (plannedResourceType === 'scraper') {
-    if (isWesternAiScrape(task, config)) {
-      return {
-        resourceType: 'local_ai',
-        resourceKey: 'local:western-ai',
-        resourceLabel: 'Local western AI',
-      };
-    }
     return {
       resourceType: 'scraper',
       resourceKey: 'scraper:metadata',
@@ -105,7 +71,7 @@ function resourceForPlannedType(task, plannedResourceType, config = {}) {
   }
   return {
     resourceType: 'unknown',
-    resourceKey: `unknown:${flowKind || 'task'}`,
+    resourceKey: 'unknown:task',
     resourceLabel: 'Unknown resource',
   };
 }
@@ -116,9 +82,8 @@ function resourceForTask(task, config = {}) {
 }
 
 function resourcesForTask(task, config = {}) {
-  const types = task && task.flowPlan && Array.isArray(task.flowPlan.resourceTypes)
-    ? task.flowPlan.resourceTypes
-    : [resourceForTask(task, config).resourceType];
+  const types = workflowStore.listEvents(task && task.id || '').map((event) => event.intent && event.intent.resourceRequest && event.intent.resourceRequest.resourceType).filter(Boolean);
+  if (types.length === 0) types.push(resourceForTask(task, config).resourceType);
   const byKey = new Map();
   for (const type of types) {
     const resource = resourceForPlannedType(task, type, config);
@@ -136,7 +101,6 @@ function compactTaskTarget(taskTarget) {
       ? { ...taskTarget.gateObjective }
       : null,
     source: taskTarget.source || '',
-    flowKind: taskTarget.flowKind || '',
   };
 }
 
@@ -145,21 +109,18 @@ function compactTask(task, config) {
   const current = workflowStore.listEvents(task && task.id || '').find((event) => !workflowStore.TERMINAL.has(event.status));
   const step = current ? { eventType: current.capability, phase: current.status } : { eventType: '', phase: '' };
   const resourceState = resourceStateForStatus(task.status);
-  const flowKind = flowKindForTask(task);
+  const plan = workflowStore.getPlanForTask(task.id);
   return {
     taskId: task.id,
     itemId: task.itemId,
     itemName: task.itemName,
     taskTarget: compactTaskTarget(task.taskTarget),
-    bridgeKind: task.taskBridge && task.taskBridge.kind,
-    flowDirection: task.flowPlan && task.flowPlan.direction,
-    flowKind,
+    workflowClassification: plan && plan.classification || '',
     currentEventType: step.eventType,
     currentEventPhase: step.phase,
     source: task.source,
     status: task.status,
     phase: task.phase,
-    resumePoint: task.resumePoint,
     priority: task.priority,
     progress: task.progress,
     createdAt: task.createdAt,

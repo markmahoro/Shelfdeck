@@ -11,9 +11,21 @@ function resolveRoot(config = {}) {
 }
 function comparable(value) { const resolved = path.resolve(String(value || '')); return process.platform === 'win32' ? resolved.toLowerCase() : resolved; }
 function overlaps(left, right) { const a = comparable(left); const b = comparable(right); return a === b || a.startsWith(`${b}${path.sep}`) || b.startsWith(`${a}${path.sep}`); }
+function resolvedPhysicalPath(value) {
+  const original = String(value || '');
+  if (original.split(/[\\/]+/).includes('..')) throw Object.assign(new Error('Metadata artifact workspace cannot contain parent traversal'), { code: 'METADATA_ARTIFACT_WORKSPACE_ESCAPE' });
+  let cursor = path.resolve(original);
+  const suffix = [];
+  while (!fs.existsSync(cursor)) { const parent = path.dirname(cursor); if (parent === cursor) break; suffix.unshift(path.basename(cursor)); cursor = parent; }
+  const physical = fs.existsSync(cursor) ? fs.realpathSync.native(cursor) : cursor;
+  return path.join(physical, ...suffix);
+}
 function validateLocation(config, root) {
+  const configured = config.workspaces && config.workspaces.metadataArtifacts;
+  if (configured && String(configured).split(/[\\/]+/).includes('..')) throw Object.assign(new Error('Metadata artifact workspace cannot contain parent traversal'), { code: 'METADATA_ARTIFACT_WORKSPACE_ESCAPE' });
+  const physicalRoot = resolvedPhysicalPath(root);
   const conflicts = [config.transcodeTempRoot, config.upgradeStagingLocalPath, ...(config.subLibraries || []).map((entry) => entry.watchRoot)].filter(Boolean);
-  const conflict = conflicts.find((entry) => overlaps(root, entry));
+  const conflict = conflicts.find((entry) => overlaps(physicalRoot, resolvedPhysicalPath(entry)));
   if (conflict) throw Object.assign(new Error(`Metadata artifact workspace overlaps another managed path: ${conflict}`), { code: 'METADATA_ARTIFACT_WORKSPACE_OVERLAP' });
 }
 

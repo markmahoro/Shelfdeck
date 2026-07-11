@@ -28,3 +28,11 @@ test('metadata workspace rejects overlap with media and other workspaces', () =>
     assert.throws(() => workspace.probeWorkspace({ workspaces: { metadataArtifacts: root }, transcodeTempRoot: root, subLibraries: [] }), { code: 'METADATA_ARTIFACT_WORKSPACE_OVERLAP' });
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('metadata workspace rejects parent traversal before resolving the configured path', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-artifacts-escape-'));
+  try {
+    const configured = `${root}${path.sep}child${path.sep}..${path.sep}escaped`;
+    assert.throws(() => workspace.probeWorkspace({ workspaces: { metadataArtifacts: configured } }), { code: 'METADATA_ARTIFACT_WORKSPACE_ESCAPE' });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

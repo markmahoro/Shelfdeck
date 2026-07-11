@@ -188,7 +188,6 @@ export type TaskStatus =
   | 'awaiting_user_confirm' | 'pausing' | 'paused' | 'interrupted'
   | 'done' | 'failed_hard';
 
-export type TaskFlowKind = 'basedata' | 'transcode' | 'upgrade' | 'scrape' | 'no_op' | 'blocked' | string;
 
 export type ApprovalMode = 'auto' | 'confirm' | 'forceConfirm';
 export type ApprovalPolicyConfig = Record<string, ApprovalMode>;
@@ -217,7 +216,6 @@ export interface TaskControlAction {
   endpoint?: string;
   method?: string;
   destructive?: boolean;
-  resumePoint?: string;
   retryCount?: number;
   maxRetryCount?: number;
   [key: string]: unknown;
@@ -227,22 +225,18 @@ export interface TaskControlState {
   state: string;
   requiresUserAction: boolean;
   phase: string;
-  resumePoint: string;
-  retryCount: number;
   primaryAction: string;
-  actions: Record<'execute' | 'pause' | 'confirm' | 'cancel' | 'retry', TaskControlAction>;
+  actions: { confirm: TaskControlAction };
   confirmation: {
     required: boolean;
     gateId: string;
     message: string;
     options: unknown[];
-    resumePoint: string;
     effect: string;
   };
   recovery: {
     state: string;
     reason: string;
-    resumePoint: string;
     nextAction: string;
     effect?: string;
     retryCount?: number;
@@ -372,13 +366,11 @@ export interface DashboardEventEntry {
   detail?: Record<string, unknown>;
   taskId?: string;
   itemId?: string;
-  flowKind?: string;
   eventType?: string;
   eventStatus?: string;
   resourceType?: string;
   resourceKey?: string;
   resourceLabel?: string;
-  bridgeKind?: string;
 }
 
 export interface DashboardStatusGroup {
@@ -459,16 +451,15 @@ export interface MediaTask {
   id: string;
   itemId: string;
   itemName?: string;
-  flowKind?: TaskFlowKind;
   taskTarget?: TaskTarget;
-  taskBridge?: TaskBridge;
-  flowPlan?: FlowPlan;
+  workflowSummary?: { planId: string; schemaVersion: string; classification: string; targetGate: string; eventCount: number } | null;
+  currentEvent?: { eventId: string; capability: string; status: string; resourceKey?: string } | null;
+  eventProgress?: { completed: number; total: number } | null;
   requestedIntent?: RequestedIntent;
   source?: 'manual' | 'auto' | string;
   status: TaskStatus;
   progress: number;
   phase: string;
-  resumePoint: string | null;
   retryCount?: number;
   approval?: TaskApproval | null;
   // Task-local priority inside the same MediaItem priority class.
@@ -517,7 +508,6 @@ export interface TaskTarget {
   targetGate?: string;
   gateObjective?: GateObjective;
   source?: string;
-  flowKind?: string;
   [key: string]: unknown;
 }
 
@@ -538,50 +528,16 @@ export interface GateObjective {
   [key: string]: unknown;
 }
 
-export interface TaskBridge {
-  kind: 'basedata' | 'metadata' | 'optimize' | string;
-  from?: string;
-  to?: string;
-  reason?: string;
-  flowKind?: string;
-  source?: string;
-  itemId?: string;
-  subLibraryId?: string;
-}
-
-export interface FlowStep {
-  phase?: string;
-  eventType?: string;
-  resourceType?: string;
-}
-
-export interface FlowPlan {
-  version?: string;
-  bridgeKind?: string;
-  direction?: string;
-  flowKind?: string;
-  executor?: string;
-  primaryResourceType?: string;
-  source?: string;
-  resourceTypes?: string[];
-  steps?: FlowStep[];
-  plannedAt?: string;
-}
-
 export interface TaskEvent {
   id: string;
   taskId: string;
   itemId?: string;
-  flowKind?: string;
   eventType: string;
   eventStatus: string;
   phase?: string | null;
-  resumePoint?: string | null;
   resourceType?: string | null;
   resourceKey?: string;
   resourceLabel?: string;
-  bridgeKind?: string;
-  flowDirection?: string;
   createdAt: string;
   payload?: Record<string, unknown>;
 }
@@ -591,13 +547,9 @@ export interface ResourceFailureEvent extends TaskEvent {
     id: string;
     itemId: string;
     itemName?: string;
-    flowKind?: string;
     status: string;
     phase?: string;
-    resumePoint?: string;
     retryCount?: number;
-    bridgeKind?: string;
-    flowDirection?: string;
   } | null;
   resourceContext?: {
     resourceType: string;
@@ -648,19 +600,16 @@ export interface ResourceTask {
   taskId: string;
   itemId: string;
   itemName?: string;
-  flowKind?: TaskFlowKind;
   taskTarget?: TaskTarget | null;
   source?: 'manual' | 'auto' | string;
   status: TaskStatus;
   phase?: string;
-  resumePoint?: string | null;
   priority?: number;
   progress?: number;
   createdAt: string;
   updatedAt: string;
   nodeId?: string | null;
-  bridgeKind?: string;
-  flowDirection?: string;
+  workflowClassification?: string;
   currentEventType?: string;
   currentEventPhase?: string;
   resourceState: ResourceTaskState;

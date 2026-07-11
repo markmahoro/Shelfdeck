@@ -50,7 +50,7 @@ export default function TasksPage() {
     <Tabs value={tab} onChange={(value) => { setTab(value); setPage(1); }} items={[{ key: 'running', label: '运行中' }, { key: 'confirmation', label: '等待确认' }, { key: 'completed', label: '已完成' }]} />
     {rows.length === 0 ? <section className="panel"><EmptyState title={tab === 'confirmation' ? '没有需要确认的任务' : tab === 'completed' ? '暂无完成记录' : '当前没有运行任务'} /></section> : <section className="panel table-wrap"><table className="table responsive"><thead><tr><th>工作</th><th>类型</th><th>状态</th><th>更新时间</th><th></th></tr></thead><tbody>{rows.map((row) => {
       const status = taskStates[String(row.status)] || { label: row.status || '运行中', tone: 'neutral' as const };
-      const targetGate = row.taskTarget?.targetGate || row.targetGate || row.flowPlan?.bridgeKind || '';
+      const targetGate = row.taskTarget?.targetGate || row.targetGate || '';
       return <tr key={row.id || row.workId}>
         <td data-label="工作"><div className="table-main">{row.title}</div>{row.subtitle && <div className="table-sub">{row.subtitle}</div>}</td>
         <td data-label="类型">{row.rowKind === 'library' ? '媒体库管理' : gate(targetGate)}</td>

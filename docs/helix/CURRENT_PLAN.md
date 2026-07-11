@@ -135,6 +135,19 @@ The implementation now proceeds in the following order. Each slice must finish c
 
 Production deployment remains paused pending explicit user acceptance and a separately confirmed production cutover.
 
+## Atomic Capability / Event Workflow Rebaseline
+
+28. 固化 Lifecycle、Task Creator、Scheduler、Planner、Event Runtime、Capability Executor 和 Governor 的单一职责。**Completed 2026-07-11.**
+29. 建立不可变 Workflow Graph、受限条件表达式、DAG 校验和 plan prerequisite invalidation。**Completed 2026-07-11.**
+30. 建立独立 durable Event Store、逐 Event Permit、审批、重试、重启恢复、输入快照、输出合同和性能统计。**Completed 2026-07-11.**
+31. Basedata、Metadata、Optimize 全部切换为 Objective gap → Capability Graph；Task priority 不再读取尚未生成的执行分类。**Completed 2026-07-11.**
+32. 删除旧 Flow Planner、四个复杂 Flow Executor、FlowRecovery 和 Scheduler resumePoint 主路径。**Completed 2026-07-11.**
+33. TaskStore clean schema 删除 Bridge、flowKind、Executor、Flow steps、resumePoint 等物理列；clean preflight 拒绝旧列。**Completed 2026-07-11.**
+34. 建立 Metadata Artifact Workspace、revision/checksum/manifest、atomic rename、路径重叠/逃逸拒绝和引用保留清理。**Completed 2026-07-11.**
+35. 文件布局归属 Optimize；`source.organize` 结束当前 Graph，SourceMutationResult 只由 Libra → Nexora rebind 后重新 admission。**Completed 2026-07-11.**
+36. Library 使用分 Gate `allowedCapabilities`；Admin Task/Resource projection 使用 Workflow classification、Capability 和 Event，不暴露旧 Flow 模型。**Completed 2026-07-11.**
+37. Clean initialize 本机状态，从 E01 重新执行四库真实来源、正常/受限性能、restart/fault 和 soak 验收。**Pending.**
+
 ## Non-Goals
 
 - No internal microservices, HTTP/RPC or message broker.

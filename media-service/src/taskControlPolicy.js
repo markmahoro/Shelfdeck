@@ -7,7 +7,6 @@ function compactEvent(event) {
     eventType: event.eventType,
     eventStatus: event.eventStatus,
     phase: event.phase || '',
-    resumePoint: event.resumePoint || '',
     resourceType: event.resourceType || '',
     resourceKey: event.resourceKey || '',
     createdAt: event.createdAt || '',
@@ -46,7 +45,6 @@ function buildTaskControlState(task, options = {}) {
     state: stateForTask(task),
     requiresUserAction: confirm.enabled,
     phase: task && task.phase || '',
-    resumePoint: task && task.resumePoint || '',
     primaryAction: confirm.enabled ? 'confirm' : '',
     actions: { confirm },
     confirmation: {
@@ -54,7 +52,6 @@ function buildTaskControlState(task, options = {}) {
       gateId: confirm.gateId || '',
       message: task && task.approval && task.approval.message || '',
       options: Array.isArray(task && task.approval && task.approval.options) ? task.approval.options : [],
-      resumePoint: task && task.resumePoint || '',
     },
     recovery: failed
       ? { state: 'system_diagnostics_required', reason: task.status, nextAction: 'inspect_logs' }

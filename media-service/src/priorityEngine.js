@@ -11,7 +11,7 @@ const TASK_PRIORITY_MODEL_VERSION = 'kairox-task-creator-v2';
  * this module does not own MediaItem Priority or global dispatch order.
  *
  * Formula:
- *   priority = sum(base, targetGate, flowKind, subLibrary, businessSignal, queueAge, retry, matchedRules)
+ *   priority = sum(base, targetGate, subLibrary, businessSignal, queueAge, retry, matchedRules)
  *
  * Evaluation order:
  *   1. Add the common base, target gate, optional flow kind, library, business signal, queue age, and retry dimensions.
@@ -27,48 +27,36 @@ const TASK_PRIORITY_MODEL_VERSION = 'kairox-task-creator-v2';
 /**
  * @param {object} params
  * @param {'manual'|'auto'} [params.source]     diagnostic origin only; it never changes queue priority
- * @param {string} [params.flowKind]            planned flow kind for gate-local execution, when known
  * @param {object} [params.itemInfo]            task.itemInfo (subLibraryId, type, ...)
  * @param {object} [params.task]                optional queued task context (createdAt, retryCount)
  * @param {object} params.config                full config (taskPriority + subLibraries)
  * @returns {number}                            priority value (lower = first)
  */
-function computePriority({ source, taskTarget, flowKind, itemInfo, config, task }) {
-  return explainPriority({ source, taskTarget, flowKind, itemInfo, config, task }).priority;
+function computePriority({ source, taskTarget, itemInfo, config, task }) {
+  return explainPriority({ source, taskTarget, itemInfo, config, task }).priority;
 }
 
-function explainTaskPriority({ source, taskTarget, flowKind, itemInfo, config, task }) {
+function explainTaskPriority({ source, taskTarget, itemInfo, config, task }) {
   const cfg = config && config.taskPriority || {};
   const basePriority = typeof cfg.basePriority === 'number' ? cfg.basePriority : 100;
-  const context = buildTaskContext({ itemInfo, task, taskTarget, flowKind });
+  const context = buildTaskContext({ itemInfo, task, taskTarget });
 
   const targetGateWeights = cfg.targetGateWeights || {};
-  const targetGate = context.targetGate || targetForFlowKind(context.flowKind);
-  const plannedFlowKind = context.flowKind;
+  const targetGate = context.targetGate;
   const targetGateWeight = typeof targetGateWeights[targetGate] === 'number'
     ? targetGateWeights[targetGate]
     : defaultTargetGateWeight(targetGate);
-  const optimizeOperationHints = cfg.optimizeOperationHints || {};
-  const flowKindWeight = targetGate === 'optimize'
-    ? (typeof optimizeOperationHints[plannedFlowKind] === 'number'
-      ? optimizeOperationHints[plannedFlowKind]
-      : 0)
-    : 0;
-
   const libraryWeight = resolveLibraryWeight(context, config);
-  const businessSignalWeight = computeBusinessSignalDelta(plannedFlowKind || targetGate, context, cfg);
+  const businessSignalWeight = computeBusinessSignalDelta(targetGate, context, cfg);
   const queueAgeWeight = computeQueueAgeDelta(context, cfg);
   const retryWeight = computeRetryDelta(context, cfg);
   const dimensions = [
     { key: 'base', label: '任务基线', value: basePriority, source: source || '' },
     { key: 'targetGate', label: '目标 Gate', targetGate, value: targetGateWeight },
   ];
-  if (flowKindWeight !== 0) {
-    dimensions.push({ key: 'flowKind', label: 'Flow Kind', flowKind: plannedFlowKind, value: flowKindWeight });
-  }
   dimensions.push({ key: 'subLibrary', label: '子库权重', subLibraryId: context.subLibraryId || '', value: libraryWeight });
   if (businessSignalWeight !== 0) {
-    dimensions.push({ key: 'businessSignal', label: '业务信号', targetGate, flowKind: plannedFlowKind, value: businessSignalWeight });
+    dimensions.push({ key: 'businessSignal', label: '业务信号', targetGate, value: businessSignalWeight });
   }
   if (queueAgeWeight !== 0) {
     dimensions.push({ key: 'queueAge', label: '等待时间', createdAt: context.createdAt || '', value: queueAgeWeight });
@@ -77,7 +65,7 @@ function explainTaskPriority({ source, taskTarget, flowKind, itemInfo, config, t
     dimensions.push({ key: 'retry', label: '重试惩罚', retryCount: context.retryCount || 0, value: retryWeight });
   }
 
-  for (const [index, rule] of taskPriorityRules(cfg, targetGate, plannedFlowKind).entries()) {
+  for (const [index, rule] of taskPriorityRules(cfg, targetGate).entries()) {
     if (!rule || typeof rule !== 'object') continue;
     if (matchConditions(rule.match, context)) {
       const delta = computeAdjustDelta(rule.adjust);
@@ -98,17 +86,16 @@ function explainTaskPriority({ source, taskTarget, flowKind, itemInfo, config, t
   return {
     modelVersion: TASK_PRIORITY_MODEL_VERSION,
     lowerIsEarlier: true,
-    formula: 'base + targetGate + flowKind + subLibrary + businessSignal + queueAge + retry + matchedRules',
+    formula: 'base + targetGate + subLibrary + businessSignal + queueAge + retry + matchedRules',
     targetGate,
-    flowKind: plannedFlowKind,
     dimensions,
     raw,
     priority: Math.max(0, Math.round(raw)),
   };
 }
 
-function explainPriority({ source, taskTarget, flowKind, itemInfo, config, task }) {
-  return explainTaskPriority({ source, taskTarget, flowKind, itemInfo, config, task });
+function explainPriority({ source, taskTarget, itemInfo, config, task }) {
+  return explainTaskPriority({ source, taskTarget, itemInfo, config, task });
 }
 
 function buildContext(itemInfo, task) {
@@ -121,36 +108,14 @@ function buildContext(itemInfo, task) {
   };
 }
 
-function buildTaskContext({ itemInfo, task, taskTarget, flowKind }) {
+function buildTaskContext({ itemInfo, task, taskTarget }) {
   const context = buildContext(itemInfo, task);
   const target = taskTarget && typeof taskTarget === 'object' ? taskTarget : {};
-  const plan = task && task.flowPlan && typeof task.flowPlan === 'object' ? task.flowPlan : {};
-  const inferredFlowKind = flowKind || target.flowKind || plan.flowKind || context.flowKind || deterministicFlowKindForGate(target.targetGate || context.targetGate);
   return {
     ...context,
-    targetGate: target.targetGate || context.targetGate || targetForFlowKind(inferredFlowKind),
+    targetGate: target.targetGate || context.targetGate || '',
     gateObjective: target.gateObjective || context.gateObjective || {},
-    flowKind: normalizeFlowKind(inferredFlowKind),
   };
-}
-
-function targetForFlowKind(flowKind) {
-  const flow = normalizeFlowKind(flowKind);
-  if (flow === 'basedata') return 'basedata';
-  if (flow === 'scrape' || flow === 'metadata') return 'metadata';
-  if (flow === 'transcode' || flow === 'upgrade') return 'optimize';
-  return flow || '';
-}
-
-function normalizeFlowKind(flowKind) {
-  return String(flowKind || '').trim().toLowerCase();
-}
-
-function deterministicFlowKindForGate(targetGate) {
-  const gate = String(targetGate || '').trim().toLowerCase();
-  if (gate === 'basedata') return 'basedata';
-  if (gate === 'metadata') return 'scrape';
-  return '';
 }
 
 function defaultTargetGateWeight(targetGate) {
@@ -160,7 +125,7 @@ function defaultTargetGateWeight(targetGate) {
   return 0;
 }
 
-function taskPriorityRules(cfg, targetGate, flowKind) {
+function taskPriorityRules(cfg, targetGate) {
   if (cfg.rulesByTargetGate && Array.isArray(cfg.rulesByTargetGate[targetGate])) {
     return cfg.rulesByTargetGate[targetGate];
   }
@@ -177,14 +142,14 @@ function resolveLibraryWeight(itemInfo, config) {
   return 100;
 }
 
-function computeBusinessSignalDelta(flowKind, itemInfo, cfg) {
+function computeBusinessSignalDelta(targetGate, itemInfo, cfg) {
   const weights = cfg.businessSignalWeights || {};
   const adultWorkflowBonus = numberOr(weights.adultWorkflowBonus, 20);
   const maxTranscodeSavingBonus = numberOr(weights.maxTranscodeSavingBonus, 30);
   const info = itemInfo || {};
   const meta = info.adultMetadata || {};
 
-  if (flowKind === 'scrape') {
+  if (targetGate === 'metadata') {
     const scrapeStatus = String(meta.scrapeStatus || '').toLowerCase();
     if (info.scraped === false || scrapeStatus === '' || scrapeStatus === 'pending') {
       return -adultWorkflowBonus;
@@ -192,7 +157,7 @@ function computeBusinessSignalDelta(flowKind, itemInfo, cfg) {
     return 0;
   }
 
-  if (flowKind === 'transcode') {
+  if (targetGate === 'optimize') {
     const bitrate = normalizeBitrateMbps(info.equivalentBitrate || info.bitrate || 0);
     const target = normalizeBitrateMbps(info.targetBitrate || 0);
     const size = Number(info.size || info.originalSizeBytes || 0);
@@ -251,7 +216,6 @@ function matchConditions(match, itemInfo) {
   if (match.subLibraryId !== undefined && info.subLibraryId !== match.subLibraryId) return false;
   if (match.type !== undefined && info.type !== match.type) return false;
   if (match.targetGate !== undefined && info.targetGate !== match.targetGate) return false;
-  if (match.flowKind !== undefined && info.flowKind !== match.flowKind) return false;
   if (match.isDiscLike !== undefined && !!info.isDiscLike !== !!match.isDiscLike) return false;
   if (match.isDolbyVision !== undefined && !!info.isDolbyVision !== !!match.isDolbyVision) return false;
 

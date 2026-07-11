@@ -72,6 +72,12 @@ function validateGraph(plan, registry) {
       error.code = 'KAIROX_WORKFLOW_CAPABILITY_UNKNOWN';
       throw error;
     }
+    const definition = registry && registry.get(node.capability);
+    if (definition && definition.allowedTargetGates.length > 0 && !definition.allowedTargetGates.includes(plan.targetGate)) {
+      const error = new Error(`Workflow capability ${node.capability} is not allowed for ${plan.targetGate}`);
+      error.code = 'KAIROX_CAPABILITY_GATE_VIOLATION';
+      throw error;
+    }
     if (node.when != null) evaluateCondition(node.when, { task: {}, facts: {}, policy: {}, events: {} });
   }
   for (const node of plan.nodes) {

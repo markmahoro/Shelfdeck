@@ -316,7 +316,7 @@ function getDefaultConfig() {
       workerPerNode: 1,
     },
     // Task queue priority (PriorityEngine). Lower number = runs first.
-    // Final score = source weight + target gate weight + selected-flow hint + subLibrary weight + business
+    // Final score = target gate weight + subLibrary weight + business
     // signal + queue age + retry penalty + rule deltas.
     // Per-subLibrary weight lives on subLibrary.priorityWeight (default 100).
     // Advanced overlay rules below are AND-matched, applied in order, and may
@@ -327,10 +327,6 @@ function getDefaultConfig() {
         basedata: 60,
         metadata: 80,
         optimize: 110,
-      },
-      optimizeOperationHints: {
-        upgrade: 0,
-        transcode: 20,
       },
       businessSignalWeights: {
         adultWorkflowBonus: 20,
@@ -631,10 +627,6 @@ function mergeConfigWithDefaults(config) {
     targetGateWeights: {
       ...((defaults.taskPriority || {}).targetGateWeights || {}),
       ...(((raw.taskPriority || {}).targetGateWeights) || {}),
-    },
-    optimizeOperationHints: {
-      ...((defaults.taskPriority || {}).optimizeOperationHints || {}),
-      ...(((raw.taskPriority || {}).optimizeOperationHints) || {}),
     },
     rulesByTargetGate: {
       ...((defaults.taskPriority || {}).rulesByTargetGate || {}),

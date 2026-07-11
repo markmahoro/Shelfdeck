@@ -10,14 +10,8 @@ function taskTargetGate(task = {}) {
   return cleanToken(
     task.taskTarget && task.taskTarget.targetGate
     || task.targetGate
-    || task.taskBridge && task.taskBridge.kind
-    || task.flowPlan && task.flowPlan.bridgeKind
     || '',
   );
-}
-
-function flowKindForTask(task = {}) {
-  return cleanToken(task.flowPlan && task.flowPlan.flowKind || task.flowKind || '');
 }
 
 function freezeReasonForTargetGate(targetGate) {
@@ -41,7 +35,6 @@ function rawFreeze(item = {}) {
     reason: String(embedded.reason || item.mediaFreezeReason || ''),
     sourceTaskId: String(embedded.sourceTaskId || item.mediaFreezeSourceTaskId || ''),
     sourceTargetGate: String(embedded.sourceTargetGate || item.mediaFreezeSourceTargetGate || ''),
-    sourceFlowKind: String(embedded.sourceFlowKind || item.mediaFreezeSourceFlowKind || ''),
   };
 }
 
@@ -56,7 +49,6 @@ function project(item = {}, opts = {}) {
     reason: raw.reason,
     sourceTaskId: raw.sourceTaskId,
     sourceTargetGate: raw.sourceTargetGate,
-    sourceFlowKind: raw.sourceFlowKind,
   };
 }
 
@@ -65,7 +57,6 @@ function clear(item = {}) {
   item.mediaFreezeReason = '';
   item.mediaFreezeSourceTaskId = '';
   item.mediaFreezeSourceTargetGate = '';
-  item.mediaFreezeSourceFlowKind = '';
   item.mediaFreeze = project(item);
   return item.mediaFreeze;
 }
@@ -82,7 +73,6 @@ function applyCompletedTaskFreeze(item = {}, task = {}, doneAt, config = {}) {
   item.mediaFreezeReason = freezeReasonForTargetGate(targetGate);
   item.mediaFreezeSourceTaskId = String(task.id || '');
   item.mediaFreezeSourceTargetGate = targetGate;
-  item.mediaFreezeSourceFlowKind = flowKindForTask(task);
   item.mediaFreeze = project(item);
   return item.mediaFreeze;
 }
@@ -90,7 +80,6 @@ function applyCompletedTaskFreeze(item = {}, task = {}, doneAt, config = {}) {
 module.exports = {
   DEFAULT_FREEZE_REASON,
   taskTargetGate,
-  flowKindForTask,
   freezeHoursForCompletedTargetGate,
   project,
   clear,

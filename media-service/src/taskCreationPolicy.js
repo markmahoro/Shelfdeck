@@ -5,7 +5,7 @@ const automationPolicy = require('./automationPolicy');
 const factsFreshnessService = require('./factsFreshnessService');
 const mediaFreeze = require('./mediaFreeze');
 
-const TERMINAL = new Set(['done', 'failed_hard', 'failed_soft', 'cancelled', 'skipped']);
+const TERMINAL = new Set(['done', 'failed_hard', 'failed_soft', 'cancelled', 'skipped', 'plan_invalidated']);
 const ATTEMPT_FAILURE_STATUSES = new Set(['failed_hard', 'failed_soft', 'interrupted']);
 
 function cleanToken(value) {
@@ -16,8 +16,6 @@ function taskTargetGate(task = {}) {
   return cleanToken(
     task.taskTarget && task.taskTarget.targetGate
     || task.targetGate
-    || task.taskBridge && task.taskBridge.kind
-    || task.flowPlan && task.flowPlan.bridgeKind
     || '',
   );
 }

@@ -14,11 +14,17 @@ const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 const workflowStore = require('./workflowStore');
 const gateInvalidationService = require('./gateInvalidationService');
 const moviepilotService = require('./services/moviepilotService');
+const kairoxSignalBus = require('./kairoxSignalBus');
 
 let registered = false;
 function output(context, suffix) {
   const entry = context.events.find((event) => event.eventId.endsWith(`:${suffix}`));
   return entry && entry.result || {};
+}
+function dependencyOutput(context, predicate = () => true) {
+  const dependencies = new Set(context.event && context.event.intent && context.event.intent.dependsOn || []);
+  const entries = context.events.filter((event) => dependencies.has(event.eventId) && predicate(event));
+  return entries.length ? entries[entries.length - 1].result || {} : {};
 }
 function metadataRevision(context) { return String(context.task.objectiveRevisionSnapshot || context.task.id); }
 function xml(value) { return String(value == null ? '' : value).replace(/[<>&'\"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[char])); }
@@ -201,7 +207,7 @@ function registerBuiltIns() {
   } });
   register({ capability: 'media.replace', allowedTargetGates: ['optimize'], sideEffect: true, idempotency: 'commit_once', defaultResourceRequest: { resourceType: 'filesystem' }, execute: async (context) => {
     sourceAccessResolver.assertTaskRevision(context.task);
-    const verified = output(context, 'media-verify');
+    const verified = dependencyOutput(context, (event) => event.capability === 'output.media.verify');
     if (!verified.valid || !verified.outputPath || !verified.sourcePath) throw Object.assign(new Error('Verified optimize output is unavailable'), { code: 'OPTIMIZE_REPLACE_INPUT_MISSING' });
     const result = await transcodeService.replaceWithRetries({ config: context.config, targetPath: verified.sourcePath, partialPath: verified.outputPath });
     gateInvalidationService.recordGateInvalidation({ itemId: context.task.itemId, invalidatedGate: 'basedata', reason: 'post_optimize_replace', taskId: context.task.id });
@@ -209,7 +215,9 @@ function registerBuiltIns() {
   } });
   register({ capability: 'source.organize', allowedTargetGates: ['optimize'], sideEffect: true, idempotency: 'commit_once', defaultResourceRequest: { resourceType: 'filesystem' }, execute: async (context) => {
     sourceAccessResolver.assertTaskRevision(context.task);
-    const sourcePath = sourcePathFor(context.task);
+    const canonical = context.task.itemInfo && (context.task.itemInfo.path || context.task.itemInfo.sourcePath)
+      || context.task.helixAdmission && context.task.helixAdmission.sourceAccessDescriptor && context.task.helixAdmission.sourceAccessDescriptor.locator && context.task.helixAdmission.sourceAccessDescriptor.locator.path;
+    const sourcePath = sourceAccessResolver.resolve(canonical).accessPath;
     const descriptor = context.task.helixAdmission && context.task.helixAdmission.sourceAccessDescriptor || {};
     const library = (context.config.subLibraries || []).find((entry) => entry.uuid === descriptor.subLibraryId) || {};
     const facts = context.task.itemInfo && context.task.itemInfo.metadataFacts || context.task.itemInfo || {};
@@ -217,16 +225,25 @@ function registerBuiltIns() {
     const destinationDir = path.join(library.watchRoot || path.dirname(sourcePath), library.organizedFolderName || context.config.adultLibrary && context.config.adultLibrary.organizedFolderName || 'scraped', identity);
     fs.mkdirSync(destinationDir, { recursive: true });
     const destination = path.join(destinationDir, path.basename(sourcePath));
-    if (path.resolve(destination) !== path.resolve(sourcePath)) fs.renameSync(sourcePath, destination);
+    if (path.resolve(destination) !== path.resolve(sourcePath)) {
+      const sourceExists = fs.existsSync(sourcePath);
+      const destinationExists = fs.existsSync(destination);
+      if (sourceExists && destinationExists) throw Object.assign(new Error('Organize destination already exists while source is still present'), { code: 'SOURCE_ORGANIZE_DESTINATION_CONFLICT' });
+      if (sourceExists) fs.renameSync(sourcePath, destination);
+      else if (!destinationExists) throw Object.assign(new Error('Neither organize source nor committed destination exists'), { code: 'SOURCE_ORGANIZE_RECOVERY_UNRESOLVED' });
+    }
     const mutation = { mutationId: `mutation:${context.event.eventId}`, itemId: context.task.itemId, taskId: context.task.id, eventId: context.event.eventId, mutationKind: 'organize', oldSourceEvidence: { path: sourcePath }, newSourceEvidence: { path: destination }, admissionGeneration: context.task.helixAdmission && context.task.helixAdmission.admissionGeneration || 0, sourceRevision: context.task.helixAdmission && context.task.helixAdmission.sourceRevision || '', mappingRevision: sourceAccessResolver.getRevision(), committedAt: new Date().toISOString() };
     workflowStore.recordMutation(mutation);
     kairoxStore.markBasedataStale({ itemId: context.task.itemId, reason: 'source_mutation_pending_rebind' });
+    kairoxSignalBus.publish({ kind: 'source_mutation', itemId: context.task.itemId, mutationId: mutation.mutationId });
     return { result: { destination, sourceMutationResult: mutation }, commitMarker: mutation.mutationId };
   } });
   register({ capability: 'metadata.artifacts.materialize', allowedTargetGates: ['optimize'], sideEffect: true, idempotency: 'commit_once', defaultResourceRequest: { resourceType: 'filesystem' }, execute: async (context) => {
+    sourceAccessResolver.assertTaskRevision(context.task);
     const revision = String(context.task.itemInfo && context.task.itemInfo.metadataArtifactRevision || context.task.objectiveRevisionSnapshot || context.task.id);
-    const manifest = artifacts.readManifest(context.config, context.task.itemId, revision);
-    if (!manifest) throw Object.assign(new Error('Metadata artifact manifest is missing'), { code: 'METADATA_ARTIFACT_MANIFEST_MISSING' });
+    const verifiedManifest = artifacts.verifyManifest(context.config, context.task.itemId, revision);
+    if (!verifiedManifest.valid) throw Object.assign(new Error(`Metadata artifact manifest is invalid: ${verifiedManifest.reason}`), { code: 'METADATA_ARTIFACT_MANIFEST_INVALID' });
+    const manifest = verifiedManifest.manifest;
     const organized = output(context, 'organize');
     const sourcePath = organized.destination || sourcePathFor(context.task);
     const targetDir = path.dirname(sourcePath);

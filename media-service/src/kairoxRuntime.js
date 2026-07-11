@@ -20,8 +20,9 @@ const MAINTENANCE_TARGETS = new Set(['basedata', 'metadata', 'optimize']);
 
 function buildOptimizationProjection(projection = {}, activeTasks = []) {
   const gate = projection.optimizeGate || null;
-  const optimizeTask = (activeTasks || []).find((task) => String(task.taskTarget || task.taskBridge && task.taskBridge.kind || '') === 'optimize') || null;
-  const plannedFlowKind = String(optimizeTask && optimizeTask.flowPlan && optimizeTask.flowPlan.flowKind || gate && gate.flowKind || '');
+  const optimizeTask = (activeTasks || []).find((task) => String(task.taskTarget && task.taskTarget.targetGate || task.targetGate || '') === 'optimize') || null;
+  const plan = optimizeTask ? workflowStore.getPlanForTask(optimizeTask.id) : null;
+  const plannedCapabilities = plan ? plan.nodes.map((node) => node.capability) : [];
   let optimizationDirection = 'undetermined';
   let directionReason = gate && gate.reason || projection.lifecycleReason || 'objective_not_ready';
   if (projection.basedataGate && projection.basedataGate.status === 'blocked') {
@@ -32,9 +33,11 @@ function buildOptimizationProjection(projection = {}, activeTasks = []) {
     directionReason = projection.metadataGate.reason || 'metadata_blocked';
   } else if (gate && gate.status === 'blocked') {
     optimizationDirection = 'blocked';
-  } else if (plannedFlowKind === 'transcode' || plannedFlowKind === 'upgrade') {
-    optimizationDirection = plannedFlowKind;
-  } else if (gate && gate.passed || plannedFlowKind === 'no_op') {
+  } else if (plannedCapabilities.includes('source.upgrade.download')) {
+    optimizationDirection = 'upgrade';
+  } else if (plannedCapabilities.includes('media.transcode')) {
+    optimizationDirection = 'transcode';
+  } else if (gate && gate.passed) {
     optimizationDirection = 'none';
     directionReason = gate && gate.reason || 'objective_already_satisfied';
   } else if (projection.optimizeObjectiveStatus === 'blocked') {
@@ -43,7 +46,8 @@ function buildOptimizationProjection(projection = {}, activeTasks = []) {
   const target = gate && gate.target || projection.optimizeObjective && projection.optimizeObjective.targetMediaFacts || {};
   return {
     optimizationDirection,
-    plannedFlowKind: plannedFlowKind || null,
+    plannedWorkflowClassification: plan && plan.classification || null,
+    plannedCapabilities,
     directionReason,
     maintenanceTargetSummary: {
       qualityTier: target.qualityTier || '',
@@ -223,7 +227,7 @@ function createKairoxRuntime(dependencies = {}) {
 
   function propagatePriority(media) {
     const snapshot = prioritySnapshot(media);
-    const terminal = new Set(['done', 'failed_hard', 'failed_soft', 'skipped', 'cancelled', 'interrupted']);
+    const terminal = new Set(['done', 'failed_hard', 'failed_soft', 'skipped', 'cancelled', 'interrupted', 'plan_invalidated']);
     const active = tasks.getTasks({ itemId: media.itemId }).filter((task) => !terminal.has(task.status));
     for (const task of active) tasks.updateTask(task.id, { maintenancePrioritySnapshot: snapshot });
     if (typeof governor.reprioritizeWork === 'function') {
@@ -350,26 +354,6 @@ function createKairoxRuntime(dependencies = {}) {
           objective,
         });
       }
-      if (desired.optimizeObjectiveStatus === 'ready' && objectiveRevision) {
-        const gate = lifecycleGateService.evaluateOptimizeGate({
-          ...item,
-          optimizeObjective: objective,
-          optimizeObjectiveStatus: 'ready',
-          objectiveHash: objectiveRevision,
-          objectiveVersion: objectiveRevision,
-        });
-        const optimize = bundle.optimize;
-        if (gate.passed && gate.flowKind === 'no_op'
-          && (!optimize || optimize.status !== 'fresh' || optimize.objectiveRevision !== objectiveRevision)) {
-          facts.publishOptimize({
-            itemId,
-            objectiveRevision,
-            status: 'fresh',
-            facts: { passed: true, flowKind: 'no_op', reason: gate.reason },
-            evidence: { source: 'kairox_objective_reconciler' },
-          });
-        }
-      }
     }
     return getMaintenanceProjections(ids);
   }
@@ -384,7 +368,7 @@ function createKairoxRuntime(dependencies = {}) {
       status: 'suspended',
       incidentCode: command.reason || 'source_incident',
     });
-    const active = tasks.getTasks({ itemId: command.itemId }).filter((task) => !['done', 'failed_hard', 'failed_soft', 'skipped', 'cancelled', 'interrupted'].includes(task.status));
+    const active = tasks.getTasks({ itemId: command.itemId }).filter((task) => !['done', 'failed_hard', 'failed_soft', 'skipped', 'cancelled', 'interrupted', 'plan_invalidated'].includes(task.status));
     for (const task of active) {
       tasks.updateTask(task.id, {
         status: 'interrupted',

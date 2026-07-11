@@ -11,10 +11,6 @@ function fmtBytes(bytes) {
   return `${bytes} B`;
 }
 
-function flowKindForTask(task = {}) {
-  return String(task.flowPlan && task.flowPlan.flowKind || '').toLowerCase();
-}
-
 function estimate(item = {}) {
   const objective = item.helix && item.helix.maintenance && item.helix.maintenance.optimizeObjective || item.optimizeObjective || {};
   const facts = objective.targetMediaFacts || {};
@@ -52,7 +48,7 @@ function computeSpaceStats(library = {}, tasks = [], config = {}) {
   });
   let realizedSavingsBytes = 0;
   for (const task of tasks || []) {
-    if (task.status !== 'done' || !['transcode', 'upgrade'].includes(flowKindForTask(task))) continue;
+    if (task.status !== 'done' || !['transcode', 'source_upgrade', 'composite_maintenance'].includes(String(task.classification || ''))) continue;
     if (task.verifyResult && Number.isFinite(Number(task.verifyResult.bytesSaved))) {
       realizedSavingsBytes += Math.max(0, Number(task.verifyResult.bytesSaved));
     }

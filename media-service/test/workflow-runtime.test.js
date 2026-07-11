@@ -9,6 +9,36 @@ const path = require('path');
 const workflowGraph = require('../src/workflowGraph');
 const workflowStore = require('../src/workflowStore');
 const capabilityRegistry = require('../src/capabilityRegistry');
+const workflowPlanner = require('../src/workflowPlanner');
+
+test('Optimize planning composes capabilities from objective gaps without a flow-kind route', () => {
+  capabilityRegistry.resetForTests();
+  for (const capability of workflowPlanner.REQUIRED.optimize) capabilityRegistry.register({ capability, execute: async () => ({}) });
+  capabilityRegistry.register({ capability: 'workflow.blocked', execute: async () => ({}) });
+  const task = {
+    id: 'objective-task', itemId: 'objective-item', targetGate: 'optimize', objectiveRevisionSnapshot: 'objective-1',
+    taskTarget: { targetGate: 'optimize', gateObjective: { targetMediaFacts: { minResolution: '1080p', targetCodec: 'h265' } } },
+    itemInfo: { subLibraryId: 'library-1', resolution: '720p', codec: 'h264', bitrate: 20 },
+  };
+  const plan = workflowPlanner.planTask(task, { subLibraries: [{ uuid: 'library-1', allowedCapabilities: { optimize: ['source.upgrade.download', 'media.transcode', 'media.replace'] } }] });
+  const capabilities = plan.nodes.map((node) => node.capability);
+  assert.deepStrictEqual(capabilities.slice(0, 6), ['source.upgrade.search', 'source.upgrade.download', 'output.media.verify', 'media.replace', 'media.transcode', 'output.media.verify']);
+  assert.strictEqual(plan.classification, 'composite_maintenance');
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(plan, 'flowKind'), false);
+});
+
+test('source organization ends the current graph before materialization and publication', () => {
+  capabilityRegistry.resetForTests();
+  for (const capability of workflowPlanner.REQUIRED.optimize) capabilityRegistry.register({ capability, execute: async () => ({}) });
+  capabilityRegistry.register({ capability: 'workflow.blocked', execute: async () => ({}) });
+  const plan = workflowPlanner.planTask({
+    id: 'organize-task', itemId: 'organize-item', targetGate: 'optimize',
+    taskTarget: { targetGate: 'optimize', gateObjective: { targetMediaFacts: { storageLayout: 'organized', metadataArtifacts: 'materialized' } } },
+    itemInfo: { subLibraryId: 'adult', layoutFacts: { compliant: false }, metadataArtifactsReady: true, metadataArtifactsMaterialized: false },
+  }, { subLibraries: [{ uuid: 'adult', allowedCapabilities: { optimize: ['source.organize', 'metadata.artifacts.materialize'] } }] });
+  assert.deepStrictEqual(plan.nodes.map((node) => node.capability), ['source.organize']);
+  assert.strictEqual(plan.classification, 'source_mutation');
+});
 
 test('workflow graph validates branches and rejects cycles and arbitrary condition paths', () => {
   capabilityRegistry.resetForTests();
