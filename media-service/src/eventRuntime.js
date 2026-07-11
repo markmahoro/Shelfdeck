@@ -74,9 +74,19 @@ function invalidatePlan(task, plan) {
   return updated;
 }
 
-function approvalSatisfied(event, task, config) {
+function approvalRequirementApplies(event, events) {
+  const condition = event.intent.approvalRequirement && event.intent.approvalRequirement.whenInput;
+  if (!condition) return true;
+  const binding = event.intent.inputBindings && event.intent.inputBindings[condition.port];
+  const source = binding && events.find((entry) => entry.eventId === binding.eventId);
+  const actual = String(condition.path || '').split('.').filter(Boolean).reduce((value, part) => value == null ? undefined : value[part], source && source.result);
+  return Object.prototype.hasOwnProperty.call(condition, 'equals') ? actual === condition.equals : !!actual;
+}
+
+function approvalSatisfied(event, task, config, events) {
   const requirement = event.intent.approvalRequirement;
   if (!requirement || !requirement.gateId) return true;
+  if (!approvalRequirementApplies(event, events)) return true;
   const mode = approvalPolicy.resolveGate(requirement.gateId, { task, itemInfo: task.itemInfo, config });
   if (mode === 'auto') return true;
   return !!(event.result && event.result.approved === true);
@@ -183,7 +193,8 @@ async function executeEvent(task, event, config) {
   if (capability.allowedTargetGates.length > 0 && !capability.allowedTargetGates.includes(targetGate)) {
     throw Object.assign(new Error(`Capability ${event.capability} is not allowed for ${targetGate}`), { code: 'KAIROX_CAPABILITY_GATE_VIOLATION' });
   }
-  if (!approvalSatisfied(event, task, config)) {
+  const prerequisiteEvents = workflowStore.listEvents(task.id);
+  if (!approvalSatisfied(event, task, config, prerequisiteEvents)) {
     workflowStore.transition(event.eventId, 'waiting_for_approval', { approvalWaitStartedAt: event.approvalWaitStartedAt || new Date().toISOString() });
     taskStore.updateTask(task.id, { approval: approvalProjection(event, task, config, workflowStore.listEvents(task.id)) });
     return;
@@ -284,4 +295,4 @@ function recoverStartup() {
   return taskIds.length;
 }
 
-module.exports = { dispatchTask, driveTask, hasPendingDispatch, recoverStartup, resourceKeyFor, unlock, aggregateTask, planPrerequisitesCurrent, validateOutputContract, resolveCapabilityInput };
+module.exports = { dispatchTask, driveTask, hasPendingDispatch, recoverStartup, resourceKeyFor, unlock, aggregateTask, planPrerequisitesCurrent, validateOutputContract, resolveCapabilityInput, approvalRequirementApplies };

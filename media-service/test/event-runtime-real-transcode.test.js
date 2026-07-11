@@ -41,7 +41,7 @@ test('real transcode is executed as atomic Workflow Events and invalidates Based
     const finalTask = taskStore.getTask(task.id);
     const events = workflowStore.listEvents(task.id);
     assert.strictEqual(finalTask.status, 'done', JSON.stringify(events));
-    assert.deepStrictEqual(events.map((event) => event.capability), ['media.transcode', 'output.media.verify', 'media.replace', 'filesystem.layout.verify', 'optimization.result.publish']);
+    assert.deepStrictEqual(events.map((event) => event.capability), ['media.transcode.precheck', 'transcode.tonemap.accept', 'media.transcode', 'output.media.verify', 'output.preview.generate', 'media.replace', 'workspace.cleanup', 'filesystem.layout.verify', 'optimization.result.publish']);
     assert.ok(events.every((event) => event.status === 'succeeded'));
     assert.strictEqual((await transcodeService.probeSummary(config, input)).videoCodec, 'hevc');
     assert.strictEqual(kairoxStore.getBundle('item-1').basedata.status, 'stale');

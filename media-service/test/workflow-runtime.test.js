@@ -39,7 +39,7 @@ test('Optimize planning composes capabilities from objective gaps without a flow
   };
   const plan = workflowPlanner.planTask(task, { subLibraries: [{ uuid: 'library-1', allowedCapabilities: { optimize: ['source.upgrade.request', 'media.transcode', 'media.replace'] } }] });
   const capabilities = plan.nodes.map((node) => node.capability);
-  assert.deepStrictEqual(capabilities.slice(0, 8), ['source.upgrade.search', 'source.upgrade.request', 'source.upgrade.observe-download', 'source.upgrade.observe-transfer', 'source.upgrade.output.resolve', 'output.media.verify', 'media.replace', 'media.transcode']);
+  assert.deepStrictEqual(capabilities.slice(0, 8), ['source.upgrade.search', 'source.upgrade.request', 'source.upgrade.observe-download', 'source.upgrade.observe-transfer', 'source.upgrade.output.resolve', 'media.identity.inspect', 'media.identity.accept', 'output.media.verify']);
   assert.strictEqual(plan.classification, 'composite_maintenance');
   assert.strictEqual(Object.prototype.hasOwnProperty.call(plan, 'flowKind'), false);
 });

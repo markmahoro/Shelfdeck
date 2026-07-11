@@ -124,7 +124,7 @@ function registerUpgradeCapabilities(register) {
       const outputPath = localRoot && fs.existsSync(localRoot) ? findMediaFile(localRoot) : '';
       if (!outputPath) throw retryable('MoviePilot transfer output cannot be resolved in upgrade staging', 'UPGRADE_STAGING_OUTPUT_PENDING', { remotePath });
       const sourcePath = sourcePathFor(context.task);
-      return { result: { assetId: `staged:${context.event.eventId}`, path: outputPath, outputPath, sourcePath, originalSizeBytes: fs.statSync(sourcePath).size, workDir: path.dirname(outputPath), transfer, producingEventId: context.event.eventId } };
+      return { result: { assetId: `staged:${context.event.eventId}`, path: outputPath, outputPath, sourcePath, originalSizeBytes: fs.statSync(sourcePath).size, workDir: path.dirname(outputPath), stagedRoot: localRoot, targetFolder: path.dirname(sourcePath), replacementScope: 'folder', transfer, producingEventId: context.event.eventId } };
     },
   });
 }

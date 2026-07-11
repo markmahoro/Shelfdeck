@@ -84,3 +84,9 @@ test('approval is a durable Event prerequisite and confirmation resumes the same
   assert.strictEqual(workflowStore.getEvent('approval-event').status, 'succeeded');
   assert.strictEqual(workflowStore.getEvent('approval-event').attempt, 1);
 });
+
+test('conditional approval is required only when its typed dependency evidence matches', () => {
+  const event = { intent: { inputBindings: { precheck: { source: 'event', eventId: 'precheck-event' } }, approvalRequirement: { gateId: 'transcode.dolbyVisionTonemap', whenInput: { port: 'precheck', path: 'isDolbyVision', equals: true } } } };
+  assert.strictEqual(eventRuntime.approvalRequirementApplies(event, [{ eventId: 'precheck-event', result: { isDolbyVision: false } }]), false);
+  assert.strictEqual(eventRuntime.approvalRequirementApplies(event, [{ eventId: 'precheck-event', result: { isDolbyVision: true } }]), true);
+});

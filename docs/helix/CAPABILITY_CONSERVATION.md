@@ -56,17 +56,17 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 
 | Legacy behavior | New owner / capability | Status |
 | --- | --- | --- |
-| Source/disc/season precheck | dedicated precheck/probe/remux Events where applicable | gap: current `media.transcode` hides precheck and disc/season parity is missing |
-| Device and rate-control attempt plan | encode implementation policy, snapshotted in Event result | partial: device selection exists; full retry ladder parity not proven |
-| Dolby Vision detection and approval | precheck evidence + Event approval prerequisite | gap: current Graph has no DV-specific approval boundary |
+| Source precheck | `media.transcode.precheck` | mapped for playable files; disc Remux remains below |
+| Device and rate-control attempt plan | precheck evidence consumed by encode Event | partial: plan is snapshotted; verify-driven retry ladder remains gap |
+| Dolby Vision detection and approval | `media.transcode.precheck -> transcode.tonemap.accept` conditional approval | mapped |
 | FFmpeg encode | `media.transcode` | mapped for single playable file |
 | Episode batch progress | Episode is the playable Kairox subject; one Event per Episode Task | deliberately replaced by Helix hierarchy model |
 | Output probe, duration/codec/resolution/bitrate verification | `output.media.verify` | partial: preview, size regression and complete objective checks are missing |
 | Oversized output discard | explicit output disposition capability | gap |
-| Preview generation for replace approval | preview artifact capability | gap |
+| Preview generation for replace approval | shared `output.preview.generate` | mapped |
 | Replace approval | `media.replace` Event approval prerequisite | mapped |
 | Atomic replacement and retry | `media.replace` | mapped, parity audit pending |
-| Partial/workspace cleanup | explicit cleanup Event/retention policy | gap |
+| Partial/workspace cleanup | `workspace.cleanup` | mapped after successful replacement; failure/cancel retention cleanup remains gap |
 | Basedata invalidation and Optimize result publication | Runtime post-commit + `optimization.result.publish` | partial: invalidation is currently hidden inside replace executor |
 
 ## Upgrade
@@ -81,10 +81,10 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | Observe download progress | durable `source.upgrade.observe-download` retry Event | mapped; no Executor polling loop |
 | Observe MoviePilot transfer/scrape | durable `source.upgrade.observe-transfer` retry Event | mapped; explicit settle evidence still pending |
 | Resolve staged output | `source.upgrade.output.resolve` | mapped |
-| Verify TMDB/season/source identity | identity verification Event | gap |
-| Verify technical Optimize objective | `output.media.verify` | partial |
-| Atomic folder/file replace and rollback | dedicated commit-once replace Capability | partial: current replace is file-oriented and does not preserve old folder parity |
-| Cleanup staging/backup | explicit cleanup/retention Event | gap |
+| Verify TMDB/source identity | `media.identity.inspect -> media.identity.accept` conditional approval | mapped for playable Movie; Series/Season are Libra scopes and do not create Kairox Tasks |
+| Verify technical Optimize objective | shared `output.media.verify` | mapped for codec/resolution/bitrate; additional source-quality dimensions remain objective-specific work |
+| Atomic folder/file replace and rollback | shared `media.replace` consuming `replacementScope=file|folder` | mapped |
+| Cleanup staging/backup | folder replace cleanup + shared `workspace.cleanup` | mapped for success path; failure retention cleanup remains gap |
 | Basedata invalidation and Optimize result publication | Runtime post-commit + publish Event | partial |
 
 ## Layout, Artifacts And Source Mutation

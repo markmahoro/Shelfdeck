@@ -14,6 +14,9 @@ const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 const { registerUpgradeCapabilities } = require('./capabilities/upgradeCapabilities');
 const capabilityCatalog = require('./capabilityCatalog');
 const { registerWesternAdultCapabilities } = require('./capabilities/westernAdultCapabilities');
+const { registerTranscodeCapabilities } = require('./capabilities/transcodeCapabilities');
+const { registerMediaAssetCapabilities } = require('./capabilities/mediaAssetCapabilities');
+const mediaReplacementService = require('./mediaReplacementService');
 
 let registered = false;
 function metadataRevision(context) { return String(context.task.objectiveRevisionSnapshot || context.task.id); }
@@ -21,18 +24,18 @@ function xml(value) { return String(value == null ? '' : value).replace(/[<>&'\"
 function nfoFor(facts = {}) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<movie>\n  <title>${xml(facts.title || facts.name)}</title>\n  <originaltitle>${xml(facts.originalTitle)}</originaltitle>\n  <plot>${xml(facts.plot)}</plot>\n  <id>${xml(facts.adultId || facts.tmdbId)}</id>\n</movie>\n`;
 }
-function taskTargetFacts(task = {}) {
-  const objective = task.taskTarget && task.taskTarget.gateObjective || {};
-  return objective.targetMediaFacts || objective;
-}
-function transcodeProfile(task = {}, info = {}) {
-  const facts = taskTargetFacts(task);
-  return bitrateObjectiveProfile.resolveBitrateProfile({ objective: { targetMediaFacts: facts }, item: info });
-}
 function sourcePathFor(task) {
   const canonical = task.itemInfo && (task.itemInfo.path || task.itemInfo.sourcePath)
     || task.helixAdmission && task.helixAdmission.sourceAccessDescriptor && task.helixAdmission.sourceAccessDescriptor.locator && task.helixAdmission.sourceAccessDescriptor.locator.path;
   return sourceAccessResolver.resolve(canonical, { mustExist: true }).accessPath;
+}
+function normalizeCodec(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '').replace('hevc', 'h265').replace('avc', 'h264'); }
+function resolutionPixels(value) {
+  const text = String(value || '').toLowerCase();
+  if (text.includes('2160') || text.includes('4k')) return 3840 * 2160;
+  if (text.includes('1080')) return 1920 * 1080;
+  if (text.includes('720')) return 1280 * 720;
+  const match = text.match(/(\d{3,5})\s*[x×]\s*(\d{3,5})/); return match ? Number(match[1]) * Number(match[2]) : 0;
 }
 async function download(url) {
   const response = await fetch(url);
@@ -107,23 +110,8 @@ function registerBuiltIns() {
     const published = kairoxStore.publishMetadata({ itemId: context.task.itemId, facts: resolved.facts, evidence: { taskId: context.task.id, eventId: context.event.eventId, ...(artifactRevision ? { artifactRevision } : {}) }, observedAt: new Date().toISOString() });
     return { result: { metadataRevision: published.factRevision, artifactRevision }, commitMarker: `metadata:${published.factRevision}` };
   } });
-  register({ capability: 'media.transcode', allowedTargetGates: ['optimize'], sideEffect: true, idempotency: 'staged_write', defaultResourceRequest: { resourceType: 'transcode' }, execute: async (context) => {
-    const task = context.task;
-    const sourcePath = sourcePathFor(task);
-    const precheck = await transcodeService.precheck(context.config, sourcePath);
-    const profile = transcodeProfile(task, { ...task.itemInfo, originalWidth: precheck.originalWidth, originalHeight: precheck.originalHeight });
-    if (!profile) throw Object.assign(new Error('Optimize objective has no bitrate profile'), { code: 'KAIROX_TRANSCODE_PROFILE_MISSING' });
-    const tempRoot = context.config.transcodeTempRoot;
-    if (!tempRoot) throw Object.assign(new Error('Transcode workspace is not configured'), { code: 'TRANSCODE_WORKSPACE_MISSING' });
-    const workDir = path.join(tempRoot, `event-${context.event.eventId.replace(/[^A-Za-z0-9_-]/g, '_')}`);
-    fs.mkdirSync(workDir, { recursive: true });
-    const extension = path.extname(sourcePath) || '.mkv';
-    const outputPath = path.join(workDir, `output${extension}`);
-    const orderedDeviceSlots = (context.config.transcodeEncodingDevices || []).filter((device) => device.inPool !== false).sort((a, b) => Number(a.priority || 100) - Number(b.priority || 100)).map((device) => ({ deviceId: device.stableKey, maxSlots: device.maxSlots || 1, cpuBackupOnly: device.stableKey.startsWith('cpu:') && context.config.transcodeCpuParticipationStrategy === 'backup_only' }));
-    if (orderedDeviceSlots.length === 0) throw Object.assign(new Error('No encode devices in pool'), { code: 'TRANSCODE_DEVICE_POOL_EMPTY' });
-    await transcodeService.startEncode(() => {}, { config: context.config, taskId: context.event.eventId, sourcePath, partialPath: outputPath, orderedDeviceSlots, durationSec: precheck.durationSec || 3600, targetBitrate: profile.targetMbps, bitrateProfile: profile, allowGpuCpuFallback: false, onLog: () => {} });
-    return { result: { assetId: `staged:${context.event.eventId}`, path: outputPath, outputPath, sourcePath, workDir, originalSizeBytes: fs.statSync(sourcePath).size, bitrateProfile: profile, targetCodec: taskTargetFacts(task).targetCodec || 'h265', producingEventId: context.event.eventId } };
-  } });
+  registerTranscodeCapabilities(register);
+  registerMediaAssetCapabilities(register);
   registerUpgradeCapabilities(register);
   register({ capability: 'optimization.objective.verify', allowedTargetGates: ['optimize'], execute: async ({ task, event }) => ({ result: { objectiveSatisfied: true, objectiveRevision: task.objectiveRevisionSnapshot || '', evidence: { eventId: event.eventId } } }) });
   register({ capability: 'output.media.verify', allowedTargetGates: ['optimize'], execute: async (context) => {
@@ -134,7 +122,10 @@ function registerBuiltIns() {
     if (!(summary.durationSec > 0)) throw Object.assign(new Error('Optimize output duration is zero'), { code: 'OPTIMIZE_OUTPUT_INVALID' });
     const sizeBytes = fs.statSync(outputPath).size;
     const bitrateKbps = Math.round((sizeBytes * 8) / summary.durationSec / 1000);
-    const profile = staged.bitrateProfile;
+    const target = context.task.taskTarget && context.task.taskTarget.gateObjective && (context.task.taskTarget.gateObjective.targetMediaFacts || context.task.taskTarget.gateObjective) || {};
+    if (target.targetCodec && normalizeCodec(summary.videoCodec) !== normalizeCodec(target.targetCodec)) throw Object.assign(new Error(`Output codec ${summary.videoCodec} does not satisfy ${target.targetCodec}`), { code: 'OPTIMIZE_CODEC_MISMATCH' });
+    if (target.minResolution && summary.width * summary.height < resolutionPixels(target.minResolution)) throw Object.assign(new Error(`Output resolution ${summary.width}x${summary.height} is below ${target.minResolution}`), { code: 'OPTIMIZE_RESOLUTION_MISMATCH' });
+    const profile = staged.bitrateProfile || bitrateObjectiveProfile.resolveBitrateProfile({ objective: { targetMediaFacts: target }, item: { ...context.task.itemInfo, width: summary.width, height: summary.height } });
     if (profile) {
       const comparison = bitrateObjectiveProfile.compareBitrateToProfile(bitrateKbps / 1000, profile);
       if (!['within', 'no_profile'].includes(comparison.status)) throw Object.assign(new Error(`Output bitrate is ${comparison.status}`), { code: `OPTIMIZE_${comparison.status.toUpperCase()}` });
@@ -145,8 +136,8 @@ function registerBuiltIns() {
     sourceAccessResolver.assertTaskRevision(context.task);
     const verified = context.input.verifiedAsset;
     if (!verified.valid || !verified.outputPath || !verified.sourcePath) throw Object.assign(new Error('Verified optimize output is unavailable'), { code: 'OPTIMIZE_REPLACE_INPUT_MISSING' });
-    const result = await transcodeService.replaceWithRetries({ config: context.config, targetPath: verified.sourcePath, partialPath: verified.outputPath });
-    return { result: { ...result, targetPath: verified.sourcePath, stagedAsset: verified.stagedAsset, pathChanged: false }, commitMarker: `replace:${context.event.eventId}` };
+    const result = await mediaReplacementService.replaceVerifiedAsset({ config: context.config, verifiedAsset: verified, operationId: context.event.eventId });
+    return { result: { ...result, targetPath: verified.sourcePath, stagedAsset: verified.stagedAsset, previewWorkDir: verified.previewWorkDir || '', pathChanged: false }, commitMarker: `replace:${context.event.eventId}` };
   } });
   register({ capability: 'source.organize', allowedTargetGates: ['optimize'], sideEffect: true, idempotency: 'commit_once', defaultResourceRequest: { resourceType: 'filesystem' }, execute: async (context) => {
     sourceAccessResolver.assertTaskRevision(context.task);
