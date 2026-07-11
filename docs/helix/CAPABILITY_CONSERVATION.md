@@ -1,5 +1,8 @@
 # Kairox Capability Conservation Matrix
 
+> 2026-07-12 scope notice: 本文是现有Kairox能力守恒盘点，不决定新的顶层Fact Owner。
+> Person Registry归People Management；Pre-deck Media-Cast Relation归Kairox；Post-deck修正归Aftercare。
+
 Status: completed closure evidence on 2026-07-11; subordinate to `ARCHITECTURE.md` and `CURRENT_PLAN.md`.
 
 本文用于证明复杂 Flow Executor 原子化时没有静默丢失有效能力。每一行必须具有明确的新 owner、可执行 Capability/Event 或明确的产品删除决定；`gap` 行阻止 atomic runtime closure。

@@ -1,443 +1,272 @@
-# Helix Architecture
+# ShelfDeck / Helix Architecture
 
-Status: accepted Helix Beta architecture contract.
+Status: accepted business-domain contract; implementation design paused.
 
-Last updated: 2026-07-10
+Last updated: 2026-07-12
 
-本文定义 ShelfDeck 的 Helix Architecture。Helix 是模块化单体中的两层业务架构，不是微服务拆分计划。
+本文记录 ShelfDeck 在 Helix Beta 复盘后确认的顶层业务边界。旧的
+`Helix = Libra + Nexora + Kairox` 只描述 Pre-deck 上架维护组织，不再代表整个
+ShelfDeck。任何旧文档中与本文冲突的 Membership、长期 maintenance、Policy、Person
+或 offboarding 归属均以本文为准。
 
-## 1. Definition
+## 1. ShelfDeck owns the Deck
 
-```text
-Helix = Libra + Nexora + Kairox
-
-Layer 1: Libra — Library Management / orchestration / reconciler
-Layer 2: Nexora Service + Kairox Service
-```
-
-## Subject / Asset Canonical Identity
-
-Helix 的媒体业务聚合根是 `Subject`，不是 Emby/Folder observation item：
+ShelfDeck 是用户媒体收藏的最终 owner。Emby Library、Folder、NAS 路径只是 Source、
+Metadata 或呈现方式，不是“用户拥有哪些媒体”的最终事实。
 
 ```text
-Subject
-├─ Movie
-├─ Series
-└─ Adult Title
-
-Series Subject
-├─ Season Scope（subjectId + seasonKey）
-└─ Episode Asset（assetId）
+active deckId exists  = 用户拥有该媒体
+active deckId absent  = 用户不拥有该媒体
 ```
 
-- `subjectId` 由 Libra 生成，唯一标识 Membership、Admission、Maintenance Run、Priority、Gate 和 `maintenanceComplete`。
-- `assetId` 由 Nexora 生成，唯一标识 Subject 内实际可观察或操作的媒体资产。
-- `itemId`、`libraryItemId`、`mediaItemId` 从 clean runtime、Schema、Service 和 API 中删除，不建立别名或兼容映射。
-- Series 跨所有 Season 只有一个 Subject。Season 只是 Planner 的 mutation scope，Episode 只能成为 Event asset scope，不得拥有独立 Run、Task 或用户维护操作。
-- Libra 不复制 Asset；Nexora 唯一拥有 Source Manifest 和 Asset hierarchy；Kairox 只持有当前 Admission 的 immutable Asset snapshot/reference 和维护 Facts。
-- 本阶段不建立理论 Episode Catalog，不判断缺集。Series Gate 只基于当前 finalized Source Manifest 的 active Assets。
+`deckId` 是逻辑收藏身份，不等于文件、目录、Emby item、SourceBinding、`subjectId` 或
+单台 NAS。一项收藏可以有多个 Inventory Representation，并分布在多个存储位置。
 
-Subject / Asset 的事实方向固定为：
+## 2. Business departments
 
 ```text
-Nexora finalized Source Manifest
-→ Libra Subject Membership + admissionGeneration
-→ Kairox Subject Admission + Asset snapshot
-→ Subject Gate Task
-→ Asset/Season scoped atomic Events
-→ Subject-level canonical facts
+ShelfDeck
+├─ Libra — Pre-deck 上架维护部
+│  ├─ Nexora — Triage 与 Source preparation
+│  └─ Kairox — Pre-deck media maintenance
+├─ Deck — 收藏与库存维护部
+│  ├─ Deck Acceptance
+│  ├─ Deck Health
+│  ├─ Inventory Management
+│  └─ Off-deck Management
+├─ Aftercare — Post-deck 售后维护部
+│  ├─ Case Coordinator
+│  ├─ Inventory Recovery
+│  └─ Media Remediation
+├─ User Perception — 用户感知记录与解析
+└─ People Management — Person Registry 与演员库管理
 ```
 
-部分 Asset 在完整 observation 后消失时，Nexora 自动接受新 Manifest、保留 removed audit 并增加 revision；Manifest 变为空时视为 `source_missing`，Libra 保持 active Membership 并 quarantine。任何 Manifest revision 变化都必须 fence 旧 Kairox Graph。
+这些部门平级。Libra 不拥有 Deck，Deck 也不指挥 Libra。Nexora、Kairox仍然只属于
+Libra。Aftercare 不调用 Nexora/Kairox；跨部门只交换明确交付物或只读 projection。
 
-每个 Series 每个 Gate 同时最多一个 Task。一个 Task 的 immutable Graph 可以包含多个 Asset/Season Event，但 Runtime 每次最多释放四个 ready Event；Governor 仍是唯一全局容量 owner。
-
-- `Libra` 唯一拥有 ShelfDeck 的 Library Management 责任、LibraryMembership、业务阶段和跨域协调。
-- `Nexora` 拥有 source identity、SourceBinding、source observation，以及 onboarding / rebind / offboarding 执行能力。
-- `Kairox` 拥有在库维护目标、canonical maintenance facts、Task / Flow / Event 和 maintenance projection。
-
-Helix 的长期物理形态是一个 `media-service` 进程。Service 化表示内部 JavaScript Facade、Store ownership 和依赖方向，不表示内部 HTTP、独立容器、独立部署或消息中间件。
-
-## 2. Dependency Contract
+## 3. Lifecycle
 
 ```text
-HTTP adapters
-  -> Libra Service
-      -> Nexora Service
-      -> Kairox Service
+Source discovery
+→ onboarding / triage
+→ Maintenance Scope
+→ Kairox maintenanceComplete attestation
+→ OnDeckPackage
+→ Deck acceptance
+→ active deckId
+→ Deck Health / Aftercare
+→ Off-deck
 ```
 
-只有 Libra composition root 可以同时依赖 Nexora Service 和 Kairox Service。
+- Onboarding、Triage 和 Kairox Maintenance 全部属于 Pre-deck。
+- `maintenanceComplete` 只证明 Kairox 对当前验收清单 revision 的可投影要求已满足。
+- `maintenanceComplete` 不等于 On-deck，不证明用户已经拥有媒体。
+- Deck 独立验收并创建 `deckId` 后，媒体才进入收藏。
+- Pre-deck 取消不属于 Off-deck；Off-deck 只处理 active deckId。
 
-禁止：
+## 4. Libra, Nexora and Kairox
 
-- Nexora 调用 Kairox 或写 Kairox Store。
-- Kairox 调用 Nexora 或写 Nexora Store。
-- HTTP adapter 直接写 Membership、SourceBinding、maintenance gate 或 task facts。
-- Libra 读取域内表后自行解释 source 或 maintenance 细节。
+Libra owns:
 
-## 3. Fact Ownership
+- Maintenance Scope、Pre-deck operation、重试与协调状态。
+- Nexora/Kairox交付顺序和 OnDeckPackage 组装。
+- 来自 Deck Acceptance Policy 的 immutable checklist snapshot 传递。
 
-| Fact | Canonical owner | Notes |
-| --- | --- | --- |
-| LibraryMembership | Libra | `active \| closed`；回答 ShelfDeck 是否负责该媒体 |
-| desired management state | Libra | `managed \| closed`；表达用户/策略 intent |
-| Helix phase | Libra | `onboarding \| maintenance \| offboarding \| closed`；表示管理阶段，不表示维护完成度 |
-| quarantine / admission generation | Libra | source incident 隔离和 Kairox fencing |
-| source identity / SourceBinding | Nexora | source reality、validity、observation evidence |
-| onboarding / rebind / offboarding execution | Nexora | 能力与证据；不关闭 LibraryMembership |
-| basedata / maintenance objective / facts / gates | Kairox | basedata、metadata、optimize；Helix runtime 不包含 archive gate |
-| disposal recommendation | Kairox | 只提供 offboarding 建议和证据；不创建 delete task |
-| Task / Flow / Event | Kairox | 在库维护执行与资源证据 |
+Nexora owns:
 
-现有 Nexora `Membership` 语义由 Libra `LibraryMembership` 取代。Nexora 不再回答“ShelfDeck 是否管理该媒体”。
+- Source observation、source identity、SourceBinding 与 Source topology。
+- Admission 前 Triage：回答“是什么、是谁、从哪里来”。
+- re-observe/rebind及预检准确性建设。
 
-## 4. Libra State Contract
+Kairox owns:
 
-Libra 保存：
+- Pre-deck Subject maintenance、Basedata/Metadata/Optimize Facts。
+- Lifecycle、Objective Gap、Task、FlowPlan、Event Runtime和`maintenanceComplete`证明。
+- Pre-deck Media-Cast Relation的判断与发布。
+
+Kairox发现预检错误时只发布`TriageMismatch`；Libra要求Nexora重新预检。Kairox不能
+写SourceBinding或Triage事实。
+
+## 5. Triage and media structure
 
 ```text
-membershipStatus: active | closed
-desiredState: managed | closed
-phase: onboarding | maintenance | offboarding | closed
-quarantineStatus: none | source_incident
-admissionGeneration: monotonic integer
+mediaType: single | group
+contentProfile: movie | series | jav | western_adult
 ```
 
-quarantine 是 phase 之上的覆盖状态。source missing 不关闭 Membership，也不自动进入 offboarding。
+- `mediaType`描述执行结构；`contentProfile`描述内容处理Profile。
+- Series只作为Libra分组；Kairox剧集维护主体为Season，`subjectId`对应Season。
+- Episode是Season下的Playable Asset，不建立独立Run、Priority或Task。
+- Beta保持“未知不能入库”，但采用召回率优先：字段和边界完整的provisional
+  classification可以进入；不要求Provider/VLM证明准确率。
+- 本期不建设理论Episode Catalog和缺集策略。
 
-`phase=maintenance` 表示媒体已经进入长期在库管理阶段。Kairox task 完成、失败或目标重新计算都不得使 Libra 离开或重新进入该 phase；只有明确 offboarding intent 才会使它转入 `offboarding`。
+详细Triage/Season合同见`TRIAGE_SUBJECT_AND_POLICY.md`；其中Policy和长期Owner描述若
+与本文冲突，以本文为准。
 
-Libra Reconciler 使用 durable、幂等 operation 协调两个 Service。跨 `library.db` / `tasks.db` 不假设原子事务；每一步通过 idempotency key、revision、generation 和 retry/backoff 收敛。
+## 6. Deck
 
-### 4.1 Two-Level Automation
+Deck owns:
 
-Helix 自动化只有两个业务控制循环：
+- Deck Library、Deck Entry与`deckId`。
+- Inventory Representation、位置、副本和当前已验收媒体描述。
+- Deck Acceptance Policy / Template。
+- On-deck验收、Deck Health、重复与冗余治理、存储分布。
+- Off-deck Management。
+
+用户“添加媒体库”是一个统一产品动作，内部创建：
 
 ```text
-Libra Library Automation (outer loop)
-  -> calls Nexora for source observation/binding
-  -> owns Membership, onboarding, admission, quarantine and offboarding
-
-Kairox Maintenance Automation (inner loop)
-  -> consumes current admission and maintenance policy
-  -> advances basedata -> metadata -> optimize -> maintenanceComplete
+Deck Library + Nexora Source Scope + Libra Intake Route
 ```
 
-Nexora 可以有 adapter debounce、cursor、retry 和执行 worker，但不能成为第三个业务自动化控制器。Libra 不逐 gate 指挥 Kairox，也不因 task terminal 改变 `phase=maintenance`。Kairox 不改变 Membership、Libra phase 或 SourceBinding。
+Deck Health是Top-down验证：从`deckId`出发，证明全部Inventory Unit真实存在且健康。
+Nexora Observation是Bottom-up发现：从Source出发发现新媒体或Binding变化。两者可能
+使用相似I/O，但业务目标、Store与Planner不同；Deck不得调用Nexora完成健康检查。
 
-每个 Library 保存两个相互独立的自动化策略：
+## 7. Deck Acceptance Policy and Kairox Lifecycle
+
+Library Maintenance Policy正式归Deck，并改称Deck Acceptance Policy。现有Rule Template
+应演进为其模板载体。
 
 ```text
-libraryAutomationMode: auto | manual
-maintenanceAutomationMode: auto | manual
+Deck Acceptance Policy revision
+→ Libra freezes checklist snapshot for a Maintenance Scope
+→ Kairox Lifecycle projects Kairox-applicable requirements into Objectives
+→ Objective Gap → FlowPlan → Events → Facts
+→ maintenanceComplete attestation
+→ Deck independently validates OnDeckPackage
 ```
 
-- `libraryAutomationMode` 由 Libra 拥有，决定外层是否周期 observe、onboard 和协调 source lifecycle。
-- `maintenanceAutomationMode` 作为 admission policy 由 Libra 传给 Kairox，Kairox Automation Policy 决定是否自动触发下一 maintenance target。
-- Admin Web 的“全自动”只是一次性写入 `auto/auto`，不得同时授予 replace、move、overwrite 或 delete authorization。
+Policy可同时包含Kairox可处理要求（Metadata、codec、bitrate、字幕、布局）和Deck本地
+要求（存在性、唯一性、副本与存储分布）。Lifecycle是确定性Evaluator，不拥有Policy，
+不得根据contentProfile、资源压力、Provider可用性或Automation偷偷追加目标。
 
-Libra admission 向 Kairox 携带当前 `sourceRevision`、`policyRevision` 和 maintenance policy snapshot；Libra 不逐 gate 指挥 Kairox。
+## 8. Aftercare
 
-## 5. Nexora Contract
-
-Nexora 负责：
-
-- Emby、adult folder 和 future source adapter observation。
-- stable source identity 和 SourceBinding validity。
-- onboarding、diagnose、rebind、detach 和显式授权的 physical cleanup。
-- source projection revision 和 evidence。
-
-Nexora 不创建 Kairox task，不判断 maintenance complete，不修改 LibraryMembership。
-
-## 6. Kairox Contract
-
-Kairox 只运营 Libra 已 admission 的 active media。Kairox 保留既有 Lifecycle、Task Creator、Flow Planner、Task Scheduler、Resource Runtime 和 Task / Flow / Event 纪律。
-
-Kairox maintenance gate 顺序是：
+Post-deck优化和修复属于Aftercare，不返回Libra/Kairox：
 
 ```text
-basedata -> metadata -> optimize
+Deck Health / user intent
+→ Aftercare Case
+→ independent diagnosis and repair workflow
+→ Repair Package
+→ Deck revalidation
 ```
 
-- `basedata`：基于当前 SourceBinding 建立 Kairox 运营所需的机械可观察基础事实，例如 fingerprint、size、mtime、duration、container、codec、bitrate、resolution 和 stream facts。
-- `metadata`：内容理解和用户浏览所需的描述性/丰富化事实，例如正式标题、剧情、演员、海报、fanart、内容外部 ID 和 scrape evidence。
-- `optimize`：根据当前 objective 使媒体技术事实达到维护目标。
+Inventory Recovery处理文件缺失、位置、副本和存储恢复；Media Remediation处理
+Metadata、编码、质量和媒体关系修复。Repair Planner可借鉴Kairox Flow Planner的技术
+结构，但两者是不同业务组件。只有Company Capability和纯Runtime基础设施可共享。
 
-SourceBinding 回答“去哪里访问 source”，由 Nexora 拥有；Basedata 回答“当前 source 中实际是什么媒体资产”，由 Kairox 拥有。Kairox 只保存 admission 对应的 source context/reference，不成为 SourceBinding canonical owner。
+## 9. Off-deck
 
-Kairox 接受首次 admission 时必须能够按 `subjectId` 建立最小 maintenance identity/skeleton，并保存 Nexora Asset Manifest 快照；不得要求 Nexora adapter 预先写入 Kairox canonical facts。Basedata task 是首次发布 Kairox operational facts 的入口。
+Off-deck Management是Deck内独立子部门，拥有物理`offDeckPolicyEngine`及自己的Policy、
+Plan、Events、验证和Receipt。
 
-Kairox 对外只暴露两种维护完成度：
+用户语义固定为：
 
 ```text
-maintenanceState: maintaining | complete
-maintenanceComplete = maintenanceState == complete
+退出收藏 = 销毁该Deck Entry拥有的全部媒体表示并退役deckId
 ```
 
-单个 basedata/metadata/optimize task 的 `done` 只更新对应 gate facts。目标 revision、facts freshness 或 incident 变化可以使 `complete` 重新派生为 `maintaining`，但不会改变 Libra `phase=maintenance`。
+不再提供“停止管理但保留媒体”、detach或retain模式。任一存储位置不可访问或销毁结果
+不可验证时不得提交Off-deck。只删除冗余副本而保留deckId属于Inventory Management。
+
+Off-deck Policy可使用收藏时长、播放/保护状态、User Perception和人物策略，但不得绕过
+破坏性授权及逐Deck Entry验证。
+
+## 10. User Perception
+
+User Perception是一级部门；不引入全局`contentId`。业务主键是不可变`perceptionId`，
+每条记录表达一项感知事实。`subjectId`、`deckId`、Provider ID和名称只作为依赖证据和
+查询上下文。
+
+- Perception可自行从Douban/Emby/手工输入获取记录。
+- 原始记录不可变；去重、冲突与优先级在查询时解析。
+- 查询只返回`found`或`not_found`，匹配规则系统内置且支持batch。
+- Pull-only：不通知、不打断消费者正在执行的流程；消费者决策时查询并冻结结果。
+- Kairox Lifecycle可在解析Objective时读取当前Perception projection。
+
+## 11. People Management and cast ownership
+
+People Management本期业务目标是自动、半自动或手工建立可靠Person Registry，而不是
+演员作品补齐。它拥有：
+
+- Person、姓名、别名、Provider Identity、头像和Reference Face。
+- 人物特征、匿名人脸聚类、注册候选、人工注册、自动注册与人物合并。
+- 从Deck已验收演员关系派生的人物—媒体反向索引与统计。
+
+它不拥有Media-Cast Relation。Canonical边界为：
 
 ```text
-maintenanceComplete
-  = admission current
-  + basedata gate passed and fresh for current sourceRevision
-  + metadata gate passed and fresh
-  + optimize gate passed and fresh
-  + objective revision current
-  + no pending canonical refresh
-  + no unresolved source incident
+系统认识哪些演员                         → People Management
+Pre-deck媒体由哪些演员出演               → Kairox
+On-deck当前已验收演员描述                → Deck
+Post-deck演员关系修正                    → Aftercare，Deck重新验收
+某演员在Deck有多少部媒体等反向查询投影   → People Management
 ```
 
-Helix clean runtime 不包含 `archive` target、gate、配置或 automation 分支。处置建议使用 `disposalRecommendation`，处置执行只走 Libra Offboarding。
+Person注册不自动证明其出演任何媒体。Kairox可以使用Provider信息、番号、抽帧、人脸
+匹配、People Registry Reference Face和用户确认闭合关系。JAV与欧美成人只是证据不同，
+Owner相同。
 
-### 6.1 Person Catalog And Preference
-
-Kairox Metadata 同时拥有统一 Person Catalog 与媒体—演员关系。普通 Emby、JAV 与欧美成人来源使用同一 `personId` 空间；Libra 与 Nexora 不写人物事实。
-
-- 强 Provider identity 或既有 `personId` 可以自动合并；名称、别名和人脸相似只产生人工确认候选。
-- 演员偏好属于 Kairox User Perception，采用 `-2..2` 五级值：回避、不喜欢、普通、喜欢、非常喜欢。
-- Metadata 发布派生 `actorPersonIds`、`actorPreferenceMax` 与 `actorPreferenceMin`。偏好 revision 变化只使关联媒体重新计算 objective。
-- 演员偏好只作为 Policy 条件，不直接指定 Upgrade/Transcode Flow，也不隐式改变维护目标。
-- Reference image/face 是 cold artifact，不进入媒体热 projection。
-
-Optimize flow 修改媒体资产后，相关 Basedata 必须变 stale，并通过新的 `targetGate=basedata` 重新观察。只有实际受影响的 fact group 才失效；例如同路径 transcode 通常不应使海报、剧情和演员 metadata 一并 stale。
-
-### 6.2 Kairox Automation And Runtime Components
-
-Kairox 内层自动化必须复用并收束既有物理组件，不新增一个与 Lifecycle、SmartTaskEngine 或 Task Scheduler 平行的重型 automation engine。
+家庭自拍视频中，People Management可以聚合匿名人脸并让用户统一命名，建立Person；
+Kairox随后逐媒体抽帧比对，独立确认出演关系。对应能力语义必须分开：
 
 ```text
-Automation Runner (timer / wake-up / admission scan)
-  -> Lifecycle evaluates canonical facts and objective
-  -> Automation Policy decides whether automatic triggering is allowed
-  -> Task Creator / TaskAdmission creates one durable target-gate task
-  -> Task Scheduler selects an existing runnable task
-  -> Flow Planner selects the implementation flow
-  -> Resource Runtime requests global permits and executes events
+People: face clustering for person registration
+Kairox/Aftercare: face matching for media cast relation
 ```
 
-| Component | Owns | Must not own |
-| --- | --- | --- |
-| Lifecycle | `nextTargetGate`、gate achievement、`maintenanceState`、`maintenanceComplete` | automation mode、task creation、flow selection、queue order、resource capacity |
-| Automation Policy | 根据 `maintenanceAutomationMode` 和触发上下文产生 `triggerDecision` | 重新计算 gate、选择 flow、创建/执行 task、授予 runtime approval |
-| Automation Runner | timer、terminal wake-up、bounded admission scan；依次调用 Lifecycle、Policy、Task Creator | gate 规则、resource counter、task dispatch、flow execution |
-| Task Creator / TaskAdmission | durable task 创建、duplicate、attempt budget、cooldown、generation 和安全准入 | gate achievement、flow selection、task dispatch |
-| Task Scheduler | 从已存在的 task 中选择 runnable task；priority/FIFO、item lock、restart recovery、状态推进并交给 Runtime | 创建 task、扫描 Lifecycle、读取 automation mode、选择 flow、计算资源容量 |
-| Flow Planner | 根据 task/objective/facts 唯一选择 `flowPlan` | 自动化许可、队列调度、资源发放 |
-| Resource Runtime | event 编排、执行/recovery、在每个受争用 event 前向 Governor 申请 permit | gate、automation policy、全局容量配置 |
+未来可增加演员作品目录、收藏覆盖率、缺失、新作追踪、保护或Off-deck候选；本期不做。
 
-修复动作不获得额外架构授权。无论修复的是 bug、性能、恢复、测试还是生产故障，
-实现都必须留在当前事实 owner 与物理组件边界内；测试通过、临时可运行或避免失败
-都不能成为跨界理由。若根因看似只能通过移动职责解决，必须停止实现、回到 Design
-合同并获得用户明确确认后才能改变边界。
+## 12. Capability scopes
 
-特别地，Task Creator 只能创建 `object + targetGate + gateObjective` Task，并保存
-admission、generation、priority、objective/policy/source revision 等准入快照。它不得调用 Flow
-Planner、不得在创建时写入 `flowPlan`、也不得因为某个具体 Flow 不可规划而拒绝
-target-gate Task。Task 被 Scheduler 选中后，Resource Runtime 才调用独立 Flow Planner；
-Flow Planner 的结果由 Task Store 持久化，随后 Runtime 执行或按明确的 blocked contract
-终止本次 attempt。
+Capability分为Company和Department两级。Scope创建后不可变：
 
-`automationPolicy.js` 是 Kairox Automation Policy；`kairoxAutomationRunner.js` 是唯一薄 Runner。旧 SmartTask 组件已经移除，不存在平行 automation engine。`taskScheduler.js` 只保留 task queue 调度，不读取 automation mode，也不维护 Emby、filesystem、FFmpeg 或 worker 容量计数。
+- Company Capability必须领域中立，不读写部门Store、不发布部门Canonical Fact。
+- Department Capability只服务所属部门业务。
+- 不设计promotion、wrapper、alias、inheritance或兼容层。
+- 需要公司级能力时创建新的明确Capability，迁移调用者后删除旧能力。
+- 允许代码重复；禁止为复用牺牲输入输出边界。
 
-同一 Flow 需要多个受争用资源时，Beta Runtime 在首个 event 前按稳定 resource-key 顺序预取该 Flow 的 permit 集，并在 Flow 完成、失败、暂停或取消时反序释放。该保守 lease 模式会牺牲少量并行度，但保证每个 event 执行时已持有对应 permit，并避免不同 Flow 以不同顺序申请造成死锁；它不改变 event 的 Task/Flow/Event 事实边界。
+Capability数量本身不是性能问题；隐式I/O、过大Payload、资源声明不清和职责过宽才是。
+Event Runtime、DAG、Governor和类型校验属于基础设施，不是业务Capability。
 
-Automation Policy 与 TaskAdmission 回答不同问题：前者回答“系统是否应自动发起当前 next target”，后者回答“这一次 task attempt 是否可以创建”。手动 intent 可以绕过 `maintenanceAutomationMode=manual`，但不能绕过 duplicate、generation、freshness、approval 或 destructive safety。
+## 13. Physical form and dependency rule
 
-Task terminal 只唤醒 Kairox Automation Runner 重新读取 Lifecycle projection。它不直接推进下一个 gate，也不通知 Libra 改变 `phase=maintenance`。
+当前仍采用`media-service`内的模块化单体，不增加内部HTTP、独立进程、独立部署或消息
+中间件。Service Facade、Store owner、typed handoff和composition root构成物理边界。
 
-### 6.3 Maintenance Run And MediaItem Priority
+跨部门不得直接写对方Store或伪造对方Canonical Fact。低层Adapter请求可以合并并形成
+不可变Evidence；事实边界不应造成对相同外部页面的重复抓取。
 
-Kairox 使用唯一的 durable `MaintenanceRun` 表达“一次从当前事实收敛到
-`maintenanceComplete` 的维护过程”。`maintenanceAutomationMode=auto|manual`
-是互斥的 Library 策略，只决定谁建立 Run：auto 由 Kairox 建立，manual 只由
-用户的 neutral start intent 建立。Run 建立后，两种模式使用完全相同的
-Lifecycle、Task Creator、Scheduler 和 Resource Runtime，不允许用户逐 gate
-推进。
+## 14. Superseded assumptions
 
-```text
-MaintenanceRun
-  -> Lifecycle evaluates nextTargetGate
-  -> Automation Runner supplies the candidate
-  -> Task Creator creates one target-gate task
-  -> task terminal wakes the same Run
-  -> maintenanceComplete closes the Run
-```
+以下旧结论正式失效：
 
-`maintenancePriorityClass=normal|expedited` 是 Kairox MediaItem 的 canonical
-用户意图，不是 Task fact。它绑定当前 Run；Run complete、cancelled 或
-offboarding 时恢复 normal，不继承到后续 Run。设置 Priority 只改变排序并唤醒
-Runner，不能建立 Run、指定 gate、绕过 TaskAdmission、approval、generation
-fencing 或抢占已执行工作。
+- Emby Library或Libra Membership是最终收藏事实。
+- Onboarding后进入永久maintenance；`maintenanceComplete`等于拥有媒体。
+- Deck是Libra的一部分。
+- Library Maintenance Policy归Libra或Kairox。
+- Post-deck优化交回Kairox。
+- Aftercare调用Nexora/Kairox。
+- Offboarding包含retain/detach。
+- People Management拥有Media-Cast Relation或接管Kairox Metadata流程。
+- Person注册自动意味着出演关系成立。
 
-只有拥有排队责任的组件消费 Priority：
+## 15. Design freeze and open questions
 
-- Automation Runner：MediaItem Priority -> Library Priority -> Run age -> stable item order。
-- Task Scheduler：MediaItem Priority snapshot -> task-local priority -> recovery -> FIFO。
-- Resource Governor：control-plane -> expedited maintenance -> normal maintenance -> same-class aging/FIFO。
+实现和真实来源E2E保持暂停。下列问题必须继续Design并经用户确认后才能编码：
 
-Task Creator 只把当前 MediaItem Priority revision 作为可恢复、可审计的快照写入
-Task。`priorityEngine.js` 只计算同一 MediaItem priority class 内部的 task-local
-priority；它不是中央调度器。Lifecycle、Flow Planner 和 Approval 不读取 Priority，
-因为加急不能改变“做什么”或安全条件。
-
-Movie、Episode 和成人文件是 playable maintenance subject。Series/Season 仅是
-Libra 管理和批量 intent 的 scope，不创建 Kairox maintenance task；Libra 将
-Series/Season intent 扩展为成员 Episode 的独立 Run/Priority。
-
-### 6.4 Projection Composition
-
-- Libra Store 只持久化 Libra-owned facts，以及 durable operation 已消费的 source/maintenance revision。
-- Libra 不持久化 Nexora SourceProjection 或 Kairox MaintenanceProjection 作为 canonical facts，也不以它们的快照提供查询结果。
-- `LibraService.getLibraryProjection(s)` 使用 Nexora/Kairox batch projection 实时组合统一只读视图；GET 不写 Store。
-- Reconciler 的启动恢复和周期扫描只推进 admission、quarantine、recovery、offboarding 等 Libra-owned coordination。Kairox task terminal 本身不触发 Libra phase 迁移。
-
-Kairox clean runtime 只接受 `targetGate=basedata|metadata|optimize`。`ingest|delete|archive` 不存在于新配置、API、automation、Task Creator、Flow Planner 或 executor registry；检测到旧 runtime schema/config 时必须停止并返回 `HELIX_CLEAN_INIT_REQUIRED`，不得双读或自动迁移。
-
-### 6.5 Capability And Event Workflow Runtime
-
-Helix Beta 不允许以 `flowKind -> complex executor` 作为 Kairox 执行内核。Basedata、Metadata、Optimize Task 在 Scheduler 选中后统一进入 Flow Planner；Planner 根据 Gate Objective、canonical facts、Library capability policy、runtime capability 和 safety facts 生成不可变、版本化的 Workflow Graph。
-
-```text
-Task(object + targetGate + gateObjective)
-  -> Flow Planner
-  -> immutable Workflow Graph
-  -> durable Event Runtime
-  -> atomic Capability Executor
-  -> evidence / staged facts / SourceMutationResult
-  -> Lifecycle evaluates the Gate again
-```
-
-- Workflow Graph 是 DAG，节点是 Event intent，边表达依赖；受限声明式 `when` 支持分支与汇合，禁止任意 JavaScript。Graph 持久化后不可改写或动态扩图。
-- clean runtime 不再持久化 Task `flowKind`、复杂 Executor、旧 Flow steps、Bridge 或 `resumePoint`。Workflow Graph 的 `classification` 仅由 Planner 在 Graph 生成后派生用于展示，不参与 Task 创建、优先级、Executor 路由或 Library 配置。
-- Event 是独立 durable fact，拥有 `pending|ready|waiting_for_resource|waiting_for_approval|executing|succeeded|skipped|failed|cancelled` 状态、输入输出、attempt、时间、资源、fencing、evidence 和 commit marker。
-- Event Runtime 只为当前 Event 申请 Governor permit；禁止为整条 Flow 预取资源。Task 状态由 Graph 汇总，Capability Executor 不得写 Task 状态。
-- Capability Executor 只完成一个原子效果，不创建 Task、不选择或追加 Capability、不调用另一个 Executor、不推进 Gate。
-- Capability 不是匿名 Executor 注册项，而是版本化的内部 API。Canonical Capability Catalog 必须为每项能力定义 nominal input/output type、contract version、effect kind、resource class、approval action 和 fencing requirement。Executor 只接收 Runtime 已解析并校验的 input ports，不得读取整条 Event 列表或依赖 Event ID 后缀。
-- Nominal type 同时具有 canonical structural schema；Runtime 必须校验必需字段。每个 Event Intent 持久化 contract version、input/output signature 和 effect kind snapshot；同名 Capability 的版本或签名漂移必须使旧 Graph 明确失效，不能交给新 Executor 猜测执行。
-- Workflow Planner 必须为每条边声明 output-to-input binding；Graph 持久化前执行 nominal type/version 检查。缺少 binding、未知 port、未声明 dependency 或类型不兼容都必须拒绝规划，不能在 Runtime 猜测输入。
-- Capability 以业务效果命名，不以旧 Flow 命名。Movie/Adult 的单文件提交统一复用 `media.file.replace`；Series Season package 的事务性整季提交使用语义不同的 `series.season.replace`，不得以同名包装器混淆两种原子效果。
-- Runtime 是 approval、Permit、retry/restart、commit marker 和 post-effect 的 owner。`media.file.replace`、`series.season.replace`、`source.organize` 等 commit-once Executor 只返回效果证据；Basedata invalidation、SourceMutationResult 持久化和 neutral signal 由 Runtime/Kairox Service 在 durable commit marker 之后统一处理。
-- 长运行效果通过统一 Capability `cancel()` contract 接受 Runtime 的 pause/cancel；Executor 只能中止自己的当前效果，Event/Task 状态仍由 Runtime 写入。失败与取消后的内部 workspace compensation 也由 Runtime 按 durable evidence 和 containment 统一执行。
-- Library 只配置允许的副作用 Capability。观察、校验和 canonical fact publish 等必要能力不可关闭；允许 Capability 不等于授予 approval 或 destructive authorization。
-- 当前系统 Planner 与未来高级画布必须使用同一 Workflow Graph contract；Beta 不提供用户画布或 Graph 写 API。
-
-文件布局合规是 Optimize Objective，不属于 Metadata Gate。Metadata 生成的 NFO、poster、fanart 先写入持久化 Metadata Artifact Workspace；只有 Optimize 的 `source.organize` / `metadata.artifacts.materialize` / `filesystem.layout.verify` 将其原子写入最终媒体目录。
-
-```text
-workspaces.metadataArtifacts
-  default: <dataDir>/workspaces/metadata-artifacts
-```
-
-该 Workspace 是用户可配置的持久化空间，不是 Transcode temp。它必须按 item/revision 隔离、保存 checksum/manifest、拒绝与媒体根目录及其他 Workspace 重叠，并保护 active/approval/materialize/recovery 引用的 revision。
-
-`source.organize` 改变 path/source identity 时，Kairox 只能持久化中性 `SourceMutationResult`，并立即结束当前不可变 Graph。Libra durable 消费、递增一次 admission generation、暂停旧 admission、调用 Nexora rebind，并在新 SourceBinding revision 后重新 admission；新的 Basedata Task 仍由 Lifecycle/Runner 独立产生。旧 admission 不得继续 materialize、verify 或 publish。相同路径的 Transcode Replace 只使 Kairox Basedata stale，不制造不必要的 Nexora rebind。
-
-## 7. Shared Resource Governance
-
-Resource Management 是 Helix 共享工程基础设施，不是第四个业务域。共享 `Helix Resource Governor` 只管理 capacity、permit/lease、queue pressure、fairness、backpressure 和 diagnostics；它不拥有 Membership、SourceBinding、gate、objective 或 maintenanceComplete。
-
-- Libra/Nexora 和 Kairox 保留各自的业务 work queue 与事实 owner。
-- Nexora source observation、Libra reconcile 和 Kairox Resource Runtime 都必须通过共享 Governor 获取受争用资源的 permit。
-- control-plane work 必须保留最低容量，不能被 FFmpeg 或全库扫描饿死。
-- source observation 和 Libra reconcile 必须 cursor/batch 化，并有 per-run item/time budget。
-- Kairox Automation Runner / Task Creator 消费 pressure 和 bounded-queue projection，停止无界供给；Task Scheduler 只执行 item lock 和 runnable ordering。
-- 只有共享 Governor 判断全局 resource capacity。Kairox Resource Runtime 在每个受争用 event 开始前申请 permit，并在完成、失败、暂停或取消时通过 `finally` 释放。
-- automatic task 的 terminal failure 或“执行成功但未达到 objective”必须形成可解释的 Automation blocker；同一 admission generation、target 和 objective 不得周期性重复创建 task。新 generation、objective revision 或显式 manual intent 才能解除该自动重试栅栏。
-- 资源不足表达为 waiting/backpressure，不得直接改变业务事实或伪装成 gate failure。
-
-Governor 是由 Helix composition root 创建并注入的进程级单例，位于 Libra、Nexora、Kairox 三个业务组件之外。permit 不持久化；重启后由 durable Libra work 或 Kairox task 重新申请。每个 resource queue 必须有界，并支持 FIFO + aging；control work 使用保留容量，不能被 optimize 饿死。
-
-典型 resource key 包括 `emby:<serverId>:api`、`filesystem:<volume>:scan`、`filesystem:<volume>:probe`、`filesystem:<volume>:mutation`、`db:library:write`、`db:tasks:write`、`local:ffmpeg` 和 `worker:<workerId>`。
-
-### 7.1 Supply, Waiting And Operational Invariants
-
-Task supply capacity and runtime resource capacity are separate contracts:
-
-- TaskAdmission is the sole owner of global active/queued Gate caps. It must query authoritative TaskStore facts inside the admission operation; callers cannot supply a narrowed task list.
-- Automation Runner consumes remaining Gate supply and cannot create beyond it. Governor pressure may stop supply but Governor does not create or admit Tasks.
-- `waiting_for_resource` is a stable Task state. A Task may own at most one live Governor waiter. Queue-full backpressure persists a retry deadline and cannot oscillate the Task through `queued` on every Scheduler tick.
-- Task events record fact transitions. Repeated observation of an unchanged state cannot append another status/waiting event.
-- Restart discards permits and waiters, then performs one durable recovery transition. It cannot repeatedly recover the same waiting fact.
-
-Operational Health must evaluate invariants, not only process exceptions. Gate cap violation, repeated unchanged transitions, abnormal Event/DB growth, permit leaks or control-plane starvation are system faults. An internal circuit breaker may stop new maintenance supply while keeping diagnostics and control work live; it cannot cancel work, clear facts or report false completion.
-
-### 7.2 Source Access Paths
-
-Nexora canonical source paths remain source identity evidence. Environment-specific filesystem access is resolved by one deployment-owned Source Access Resolver:
-
-```text
-canonical source path + deployment mapping revision
-  -> runtime access path
-```
-
-Mappings are not user Library configuration and are not exposed through Admin APIs. Kairox stores the mapping revision on destructive Tasks and revalidates canonical path, access path, containment and revision before probe, staged activation, replace or destructive commit. Missing, ambiguous or escaping mappings fail explicitly and never fall back to a guessed path.
-
-## 8. Source Incident And Fencing
-
-Kairox 发现 source 不可用时只产生 SourceIncident。Libra：
-
-1. 递增 admission generation。
-2. 设置 quarantine。
-3. 要求 Kairox suspend。
-4. 要求 Nexora diagnose。
-5. recovered / rebound 后发放新的 generation；confirmed missing 保持 active Membership 等待 intent。
-
-Kairox task 在开始、激活 staged facts、替换文件和破坏性提交前必须校验 admission generation。旧 generation 不能发布 canonical result。
-
-## 9. Offboarding And Delete
-
-```text
-Libra enters offboarding
--> revoke Kairox admission
--> wait for Kairox quiescent
--> Nexora performs cleanup
--> Libra closes Membership
-```
-
-cleanup mode：
-
-- `retain_source`: 退出管理，不修改 source。
-- `detach_source`: binding invalid，不删除文件。
-- `delete_source`: 显式 destructive authorization 后删除并保存证据。
-
-Helix Beta 禁止自动物理删除。
-
-Delete 不再是 Kairox lifecycle gate。删除当前 source 且不再管理必然改变 SourceBinding 和 Membership，因此只能作为 Libra Offboarding 的 `cleanupMode=delete_source`：Libra验证 intent/authorization、撤销 Kairox admission 并等待 quiescent，Nexora执行物理删除和保存 evidence，最后 Libra关闭 Membership。
-
-Kairox 可以根据在库事实提供 `disposalRecommendation`，但不能创建 delete task，也不能直接发起 offboarding。Libra外层自动化可以读取该 projection 并结合 policy/user intent 决定是否创建 offboarding operation；Beta 中不得自动授权 `delete_source`。
-
-Kairox optimize 内部的 staged artifact cleanup 或 verified replace event 不是 Offboarding：只要完成后媒体仍受 ShelfDeck 管理，它仍属于 Kairox maintenance，并受 Kairox approval policy 约束。若 replace 改变 path/source identity，Kairox只能产生中性 SourceMutationResult，由 Libra协调 Nexora re-observe/rebind。
-
-## 10. Approval And Authorization
-
-- Kairox `automationPolicy` 决定是否允许自动创建 maintenance target task；它不决定已经存在的 task 如何调度或执行。
-- Kairox `approvalPolicy` / runtime confirmation 决定某次 Flow 到达 replace、move、overwrite 等风险 checkpoint 时是否需要暂停。
-- `destructiveAuthorization` 是 Risk Authorization 的一种，不等于 runtime approval。
-- `delete_source` authorization 属于 Libra Offboarding；Nexora只执行已经验证的 scoped authorization。
-
-## 11. Beta Completion
-
-### 11.1 Admin User Surface
-
-Admin Web 的用户信息架构固定为：概览、媒体库、媒体、演员、任务中心、清理建议、管理策略、系统设置。普通页面不暴露 Libra/Nexora/Kairox、revision、generation、permit 或 blocker 等内部术语；原始事实只能进入默认折叠的诊断区。
-
-- 概览只表达系统是否可用及维护成果；resource wait、自动重试与等待确认不是系统故障。
-- 任务中心只展示运行中、等待确认、已完成；可恢复失败不形成普通用户失败墙。
-- 清理建议使用“不再由 ShelfDeck 管理 / 解除来源关联 / 删除媒体文件”，分别映射三个 cleanup mode。
-- 系统设置只保存用户决策；FFmpeg/FFprobe、control/DB capacity、扫描周期、队列 aging 等部署或内部默认值不进入普通配置。
-- Admin Web 通过 scoped API 访问资源、安全、维护策略与各 Integration；不存在通用 raw config API。
-
-Helix Beta 必须同时通过：
-
-- architecture boundary audit。
-- 新建一个 `libraryAutomationMode=auto`、`maintenanceAutomationMode=auto` 的库能够自动完成 Nexora observation/SourceBinding、Libra onboarding/admission，以及 Kairox `basedata → metadata → optimize → required refresh → maintenanceComplete`。
-- source missing / recovery / rebind / running-task fencing。
-- offboarding 和三种 cleanup mode。
-- restart / retry / idempotency evidence。
-- 全库 onboarding 与 Kairox heavy maintenance 并行时，Resource Governor 能证明 capacity、backpressure、control-plane liveness 和 bounded queue。
-- Service Windows tests、Linux Docker production image、Admin Web build，以及用户批准的 controlled production canary。
-
-`media-desktop` 的 Helix completeness 已被明确延后到独立重构，不作为本线程 Beta 判定条件。生产 canary 只允许 `retain_source` 与 ShelfDeck 内部事实变更；Emby Library、Emby metadata 和媒体文件不得修改，除非用户另行指定破坏性测试剧集并授权。
-
-此前 manual/full-manual 的非破坏性 production canary 只证明 Service 边界、onboarding/admission、恢复和单个 metadata task；它不证明上述全自动闭环。文件拆分或接口存在只是必要条件，不能单独证明 Beta 完成。
+1. `OnDeckPackage`精确Schema、幂等性和验收失败返回协议。
+2. Pre-deck SourceBinding到Deck Inventory Representation的交接。
+3. `deckId`唯一性、Movie/Season/Series及多版本模型。
+4. Deck Acceptance Policy Schema及Policy变更后的Deck/Aftercare路由。
+5. Deck Health检查集合、频率、Emby表示和故障等级。
+6. Aftercare Case、Repair Plan、Repair Package、lease与恢复协议。
+7. Person Observation/Candidate/Reference Face模型及自动注册门槛。
+8. Media-Cast Relation的On-deck交付与Person merge后的引用处理。
+9. Off-deck自动化授权和不可访问Inventory的长期状态。
+10. 新顶层架构的正式名称，以及“Helix”是否仅保留为Libra内部架构名。

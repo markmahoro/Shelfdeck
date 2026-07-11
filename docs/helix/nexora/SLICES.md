@@ -1,5 +1,8 @@
 # Nexora Work Threads
 
+> 2026-07-12 superseded scope: 本文仅作旧Nexora实施切片记录。Nexora现在只属于Libra
+> Pre-deck组织，整个ShelfDeck的当前业务结构以`../ARCHITECTURE.md`为准。
+
 Status: paused historical execution plan.
 
 Last updated: 2026-07-09
