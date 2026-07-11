@@ -73,6 +73,10 @@ function assertParameters(contract = {}, parameters = {}, capability = '') {
     const value = parameters[name];
     if (value == null && spec.required !== false) throw Object.assign(new Error(`Capability ${capability} requires parameter ${name}`), { code: 'KAIROX_CAPABILITY_PARAMETER_MISSING' });
     if (value != null && spec.type === 'enum' && !(spec.values || []).includes(value)) throw Object.assign(new Error(`Capability ${capability} parameter ${name} is invalid`), { code: 'KAIROX_CAPABILITY_PARAMETER_INVALID' });
+    if (value != null && spec.type === 'string' && typeof value !== 'string') throw Object.assign(new Error(`Capability ${capability} parameter ${name} must be a string`), { code: 'KAIROX_CAPABILITY_PARAMETER_INVALID' });
+    if (value != null && spec.type === 'array' && !Array.isArray(value)) throw Object.assign(new Error(`Capability ${capability} parameter ${name} must be an array`), { code: 'KAIROX_CAPABILITY_PARAMETER_INVALID' });
+    if (value != null && spec.type === 'boolean' && typeof value !== 'boolean') throw Object.assign(new Error(`Capability ${capability} parameter ${name} must be a boolean`), { code: 'KAIROX_CAPABILITY_PARAMETER_INVALID' });
+    if (value != null && spec.type === 'number' && !Number.isFinite(Number(value))) throw Object.assign(new Error(`Capability ${capability} parameter ${name} must be a number`), { code: 'KAIROX_CAPABILITY_PARAMETER_INVALID' });
   }
   for (const name of Object.keys(parameters || {})) if (!contract[name]) throw Object.assign(new Error(`Capability ${capability} received unknown parameter ${name}`), { code: 'KAIROX_CAPABILITY_PARAMETER_UNKNOWN' });
 }

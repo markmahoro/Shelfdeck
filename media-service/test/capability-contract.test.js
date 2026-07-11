@@ -94,3 +94,27 @@ test('shared effects have one canonical Capability identity', () => {
   assert.strictEqual(names.filter((name) => name === 'metadata.image.acquire').length, 1);
   assert.ok(!names.some((name) => /^(transcode|upgrade)\.(replace|verify|preview)$/.test(name)));
 });
+
+test('every admission-fenced commit Capability checks the Runtime fence immediately before its effect', () => {
+  const files = fs.readdirSync(path.join(__dirname, '..', 'src', 'capabilities')).filter((name) => name.endsWith('.js'));
+  const source = files.map((name) => fs.readFileSync(path.join(__dirname, '..', 'src', 'capabilities', name), 'utf8')).join('\n');
+  const fenced = catalog.list().filter((entry) => entry.effectKind === 'commit_once' && entry.fencingContract.admission).map((entry) => entry.capability);
+  assert.deepStrictEqual(catalog.list().filter((entry) => entry.effectKind === 'commit_once' && !entry.fencingContract.admission).map((entry) => entry.capability).sort(), ['staged.asset.discard', 'workspace.cleanup']);
+  for (const capability of fenced) {
+    const marker = `capability: '${capability}'`;
+    const capabilityAt = source.indexOf(marker);
+    assert.notStrictEqual(capabilityAt, -1, capability);
+    const blockStart = source.lastIndexOf('register(', capabilityAt);
+    const blockEnd = source.indexOf('\n  register(', capabilityAt + marker.length);
+    const block = source.slice(blockStart, blockEnd === -1 ? source.length : blockEnd);
+    assert.match(block, /assertFence\s*\(/, `${capability} must invoke the Runtime fence`);
+  }
+});
+
+test('long-running local and Worker effects expose the common cancellation contract', () => {
+  registry.resetForTests();
+  builtIns.registerBuiltIns();
+  for (const capability of ['media.frames.extract', 'person.faces.embed', 'compute.asset.upload', 'container.remux', 'media.transcode', 'source.upgrade.request', 'source.upgrade.observe-download']) {
+    assert.strictEqual(registry.inventory().find((entry) => entry.capability === capability).cancellable, true, capability);
+  }
+});

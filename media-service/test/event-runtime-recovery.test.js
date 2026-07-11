@@ -109,3 +109,43 @@ test('Runtime invokes the Capability cancellation contract for an executing atom
   await eventRuntime.cancelExecutingEvent({ eventId: 'cancellable-event', capability: 'test.cancellable' }, 'paused');
   assert.strictEqual(cancelled, 'cancellable-event:paused');
 });
+
+test('Runtime-provided commit fencing rejects a generation change during Capability execution', async () => {
+  let committed = false;
+  if (!registry.has('test.commit-fence')) registry.register(testCapability('test.commit-fence', async ({ task: currentTask, assertFence }) => {
+    admissionStore.upsertAdmission({ ...admissionStore.getAdmission(currentTask.itemId), admissionGeneration: 2, status: 'active' });
+    assertFence('before_test_commit');
+    committed = true;
+    return { result: { committed: true }, commitMarker: 'must-not-commit' };
+  }, { effectKind: 'commit_once', allowedTargetGates: ['basedata'] }));
+  const value = task('commit-fence-task');
+  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'commit-fence-event', capability: 'test.commit-fence' }], registry);
+  workflowStore.createPlan(plan, registry);
+  await eventRuntime.driveTask(value.id);
+  assert.strictEqual(committed, false);
+  assert.strictEqual(workflowStore.getEvent('commit-fence-event').status, 'failed');
+  assert.strictEqual(workflowStore.getEvent('commit-fence-event').failure.code, 'KAIROX_ADMISSION_FENCED');
+});
+
+test('a Helix suspension cancels an executing Event and late output cannot resurrect it', async () => {
+  let release;
+  let cancelled = false;
+  if (!registry.has('test.suspend-running')) registry.register(testCapability('test.suspend-running', () => new Promise((resolve) => { release = () => resolve({ result: { late: true } }); }), {
+    allowedTargetGates: ['basedata'],
+    cancel: () => { cancelled = true; },
+  }));
+  const value = task('suspend-running-task');
+  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'suspend-running-event', capability: 'test.suspend-running' }], registry);
+  workflowStore.createPlan(plan, registry);
+  const running = eventRuntime.driveTask(value.id);
+  const deadline = Date.now() + 1000;
+  while (workflowStore.getEvent('suspend-running-event').status !== 'executing' && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 5));
+  admissionStore.upsertAdmission({ ...admissionStore.getAdmission(value.itemId), admissionGeneration: 2, status: 'suspended' });
+  resourceRuntime.fenceTask(value, 'source_incident');
+  assert.strictEqual(cancelled, true);
+  assert.strictEqual(workflowStore.getEvent('suspend-running-event').status, 'cancelled');
+  release();
+  await running;
+  assert.strictEqual(workflowStore.getEvent('suspend-running-event').status, 'cancelled');
+  assert.strictEqual(workflowStore.getEvent('suspend-running-event').result, null);
+});

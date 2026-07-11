@@ -33,6 +33,7 @@ function registerMetadataCapabilities(register) {
     const matched = (facts.matchedPeople || []).map((person) => ({ personId: person.personId || '', name: person.name || '', role: 'actor', source: person.matchMode || 'face_embedding', confidence: person.confidence || 0, contentKinds: ['adult'] }));
     const matchedNames = new Set(matched.map((person) => person.name));
     const people = [...(facts.people || []), ...matched, ...(facts.actors || []).filter((actor) => !matchedNames.has(typeof actor === 'string' ? actor : actor.name)).map((actor) => typeof actor === 'string' ? { name: actor, role: 'actor', contentKinds: ['adult'] } : actor)];
+    context.assertFence('before_person_relations_publish');
     const projection = personCatalogStore.observeItemPeople({ itemId: context.task.itemId, people, metadataRevision: metadataRevision(context) });
     return { result: { facts: { ...facts, ...projection }, people, projection } };
   } });
@@ -48,6 +49,7 @@ function registerMetadataCapabilities(register) {
   register({ capability: 'metadata.publish', allowedTargetGates: ['metadata'], execute: async (context) => {
     const resolved = context.input.metadata; const artifactVerification = context.input.artifacts || {}; metadata.assertMetadataFacts(resolved.facts);
     const artifactRevision = artifactVerification.valid ? metadataRevision(context) : '';
+    context.assertFence('before_metadata_publish');
     const published = kairoxStore.publishMetadata({ itemId: context.task.itemId, facts: resolved.facts, evidence: { taskId: context.task.id, eventId: context.event.eventId, ...(artifactRevision ? { artifactRevision } : {}) }, observedAt: new Date().toISOString() });
     return { result: { metadataRevision: published.factRevision, artifactRevision }, commitMarker: `metadata:${published.factRevision}` };
   } });

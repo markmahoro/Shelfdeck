@@ -55,4 +55,16 @@ async function cancelTask(task = {}) {
   return true;
 }
 
-module.exports = { initialize, dispatchTask, confirmTask, pauseTask, cancelTask, hasPendingDispatch };
+function fenceTask(task = {}, reason = 'helix_fenced') {
+  const cancellations = [];
+  for (const event of workflowStore.listEvents(task.id)) {
+    if (event.status === 'executing') {
+      const cancellation = Promise.resolve(eventRuntime.cancelExecutingEvent(event, reason)).catch(() => {});
+      cancellations.push(cancellation);
+    }
+    if (!workflowStore.TERMINAL.has(event.status)) workflowStore.transition(event.eventId, 'cancelled', { finishedAt: new Date().toISOString(), failure: { code: 'HELIX_ADMISSION_FENCED', reason } });
+  }
+  return { taskId: task.id, cancellationCount: cancellations.length, cancellations };
+}
+
+module.exports = { initialize, dispatchTask, confirmTask, pauseTask, cancelTask, fenceTask, hasPendingDispatch };

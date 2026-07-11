@@ -19,7 +19,7 @@ const TYPES = Object.freeze({
 });
 
 const CATALOG = Object.freeze({
-  'workflow.blocked': def({}, TYPES.NONE),
+  'workflow.blocked': def({}, TYPES.NONE, 'pure', { parameters: { reason: { type: 'string' }, rejected: { type: 'array', required: false } } }),
   'emby.item.observe': def({}, TYPES.SOURCE_OBSERVATION, 'pure', resource('emby')),
   'filesystem.media.probe': def({}, TYPES.SOURCE_OBSERVATION, 'pure', resource('filesystem')),
   'filesystem.layout.observe': def({}, TYPES.LAYOUT_OBSERVATION, 'pure', resource('filesystem')),
@@ -59,12 +59,15 @@ const CATALOG = Object.freeze({
   'media.identity.inspect': def({ stagedAsset: port(TYPES.STAGED_MEDIA_ASSET) }, TYPES.IDENTITY_INSPECTION, 'pure', resource('filesystem')),
   'media.identity.accept': def({ inspection: port(TYPES.IDENTITY_INSPECTION) }, TYPES.STAGED_MEDIA_ASSET, 'pure', { approvalActions: ['upgrade.identityMismatch'] }),
   'optimization.objective.verify': def({}, TYPES.OBJECTIVE_VERIFICATION),
-  'output.media.verify': def({ stagedAsset: port(TYPES.STAGED_MEDIA_ASSET) }, TYPES.VERIFIED_MEDIA_ASSET, 'pure', resource('filesystem')),
+  'output.media.verify': def({ stagedAsset: port(TYPES.STAGED_MEDIA_ASSET) }, TYPES.VERIFIED_MEDIA_ASSET, 'pure', {
+    ...resource('filesystem'),
+    parameters: { objectiveScope: { type: 'enum', values: ['full', 'upgrade_stage'], required: false } },
+  }),
   'output.media.select': def({ attempts: port(TYPES.VERIFIED_MEDIA_ASSET, { many: true }) }, TYPES.VERIFIED_MEDIA_ASSET),
   'output.media.disposition': def({ verifiedAsset: port(TYPES.VERIFIED_MEDIA_ASSET) }, TYPES.VERIFIED_MEDIA_ASSET),
   'media.replace': def({ verifiedAsset: port(TYPES.VERIFIED_MEDIA_ASSET) }, TYPES.REPLACEMENT_EVIDENCE, 'commit_once', { ...resource('filesystem'), approvalActions: ['upgrade.beforeReplace', 'transcode.beforeReplace'] }),
-  'staged.asset.discard': def({ verifiedAsset: port(TYPES.VERIFIED_MEDIA_ASSET) }, TYPES.REPLACEMENT_EVIDENCE, 'commit_once', resource('filesystem')),
-  'workspace.cleanup': def({ replacement: port(TYPES.REPLACEMENT_EVIDENCE) }, TYPES.CLEANUP_EVIDENCE, 'commit_once', resource('filesystem')),
+  'staged.asset.discard': def({ verifiedAsset: port(TYPES.VERIFIED_MEDIA_ASSET) }, TYPES.REPLACEMENT_EVIDENCE, 'commit_once', { ...resource('filesystem'), admissionFence: false }),
+  'workspace.cleanup': def({ replacement: port(TYPES.REPLACEMENT_EVIDENCE) }, TYPES.CLEANUP_EVIDENCE, 'commit_once', { ...resource('filesystem'), admissionFence: false }),
   'optimization.outcome.select': def({ outcomes: port(TYPES.REPLACEMENT_EVIDENCE, { many: true }) }, TYPES.REPLACEMENT_EVIDENCE),
   'source.organize': def({}, TYPES.SOURCE_MUTATION, 'commit_once', { ...resource('filesystem'), approvalActions: ['source.beforeOrganize'] }),
   'metadata.artifacts.materialize': def({}, TYPES.ARTIFACT_MATERIALIZATION, 'commit_once', resource('filesystem')),

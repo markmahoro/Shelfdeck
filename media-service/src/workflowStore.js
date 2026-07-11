@@ -108,14 +108,16 @@ function performanceSnapshot() {
   const groups = new Map();
   const duration = (from, to) => from && to ? Math.max(0, Date.parse(to) - Date.parse(from)) : null;
   for (const event of rows) {
-    const key = `${event.capability}\0${event.resourceKey}`;
-    if (!groups.has(key)) groups.set(key, { capability: event.capability, resourceKey: event.resourceKey, count: 0, failed: 0, queue: [], resource: [], approval: [], execution: [] });
+    const parameters = event.intent && event.intent.parameters || {};
+    const parameterKey = Object.keys(parameters).sort().map((name) => `${name}=${parameters[name]}`).join(',');
+    const key = `${event.capability}\0${event.resourceKey}\0${parameterKey}`;
+    if (!groups.has(key)) groups.set(key, { capability: event.capability, resourceKey: event.resourceKey, parameters, count: 0, failed: 0, queue: [], resource: [], approval: [], execution: [] });
     const group = groups.get(key); group.count += 1; if (event.status === 'failed') group.failed += 1;
     for (const [name, value] of [['queue', duration(event.readyAt, event.startedAt)], ['resource', duration(event.resourceWaitStartedAt, event.startedAt)], ['approval', duration(event.approvalWaitStartedAt, event.startedAt)], ['execution', duration(event.startedAt, event.finishedAt)]]) if (value != null) group[name].push(value);
   }
   const percentile = (values, p) => { if (!values.length) return 0; const sorted = [...values].sort((a, b) => a - b); return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * p) - 1)]; };
   const stats = (values) => ({ p50: percentile(values, .5), p95: percentile(values, .95), p99: percentile(values, .99) });
-  return [...groups.values()].map((group) => ({ capability: group.capability, resourceKey: group.resourceKey, count: group.count, failed: group.failed, queueWaitMs: stats(group.queue), resourceWaitMs: stats(group.resource), approvalWaitMs: stats(group.approval), executionMs: stats(group.execution) }));
+  return [...groups.values()].map((group) => ({ capability: group.capability, resourceKey: group.resourceKey, parameters: group.parameters, count: group.count, failed: group.failed, queueWaitMs: stats(group.queue), resourceWaitMs: stats(group.resource), approvalWaitMs: stats(group.approval), executionMs: stats(group.execution) }));
 }
 function invariantSnapshot() {
   const connection = db();

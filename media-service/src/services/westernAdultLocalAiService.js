@@ -12,6 +12,8 @@ const peopleStore = require('../personCatalogStore');
 
 let sharpModule;
 const INTERNAL_FACE_EMBEDDINGS_URL = 'http://127.0.0.1:19110/v1/face/embeddings';
+const runningProcesses = new Map();
+const runningWorkers = new Map();
 
 function safeId(value) {
   return String(value || crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
@@ -33,15 +35,16 @@ function loadSharp() {
   return sharpModule;
 }
 
-function runCmd(bin, args, opts = {}) {
+function runCmd(bin, args, opts = {}, taskId = '') {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { windowsHide: true, ...opts });
+    if (taskId) runningProcesses.set(String(taskId), child);
     let out = '';
     let err = '';
     child.stdout.on('data', (d) => { out += d.toString(); });
     child.stderr.on('data', (d) => { err += d.toString(); });
     child.on('error', reject);
-    child.on('close', (code) => resolve({ code: code ?? 0, out, err }));
+    child.on('close', (code) => { if (taskId && runningProcesses.get(String(taskId)) === child) runningProcesses.delete(String(taskId)); resolve({ code: code ?? 0, out, err }); });
   });
 }
 
@@ -49,8 +52,8 @@ function yieldToEventLoop() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-async function ffprobeDuration(config, sourcePath) {
-  const r = await runCmd(transcodeService.resolveFfprobeBin(config), ['-v', 'quiet', '-print_format', 'json', '-show_format', sourcePath]);
+async function ffprobeDuration(config, sourcePath, taskId) {
+  const r = await runCmd(transcodeService.resolveFfprobeBin(config), ['-v', 'quiet', '-print_format', 'json', '-show_format', sourcePath], {}, taskId);
   if (r.code !== 0) return 0;
   try {
     const j = JSON.parse(r.out || '{}');
@@ -64,7 +67,7 @@ async function extractFrames({ config, western, sourcePath, taskId }) {
   const root = path.join(configStoreDataRoot(), 'western-ai-frames', safeId(taskId));
   await fsp.rm(root, { recursive: true, force: true }).catch(() => {});
   await fsp.mkdir(root, { recursive: true });
-  const duration = await ffprobeDuration(config, sourcePath);
+  const duration = await ffprobeDuration(config, sourcePath, taskId);
   const count = Math.max(1, Math.min(Number(western.frameSampleCount) || 36, 80));
   const width = Math.max(224, Math.min(Number(western.frameWidth) || 640, 1920));
   const timestamps = [];
@@ -85,7 +88,7 @@ async function extractFrames({ config, western, sourcePath, taskId }) {
       '-frames:v', '1',
       '-vf', `scale='min(${width},iw)':-2`,
       out,
-    ]);
+    ], {}, taskId);
     if (r.code === 0 && fs.existsSync(out) && fs.statSync(out).size > 0) frames.push(out);
   }
   return frames;
@@ -144,10 +147,13 @@ async function callFaceEmbeddingModel(western, images, options = {}) {
         faceApiKey: process.env.FACE_API_KEY || '',
       },
     });
+    const taskId = String(options.taskId || '');
+    if (taskId) runningWorkers.set(taskId, worker);
     const finish = (err, faces) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (taskId && runningWorkers.get(taskId) === worker) runningWorkers.delete(taskId);
       if (err) reject(err); else resolve(faces);
     };
     const timer = setTimeout(() => {
@@ -163,6 +169,15 @@ async function callFaceEmbeddingModel(western, images, options = {}) {
       if (!settled && code !== 0) finish(new Error(`Face embedding worker exited with code ${code}`));
     });
   });
+}
+
+function abort(taskId) {
+  const key = String(taskId || '');
+  const child = runningProcesses.get(key);
+  if (child) { try { child.kill('SIGKILL'); } catch (_) {} runningProcesses.delete(key); }
+  const worker = runningWorkers.get(key);
+  if (worker) { worker.terminate().catch(() => {}); runningWorkers.delete(key); }
+  return !!(child || worker);
 }
 
 function clusterFaces(faces, clusterThreshold = 0.5) {
@@ -407,6 +422,7 @@ module.exports = {
   analyzeVideo,
   createReferenceFace,
   extractFrames,
+  abort,
   callFaceEmbeddingModel,
   clusterFaces,
   matchPeople,

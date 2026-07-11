@@ -125,6 +125,7 @@ function registerUpgradeCapabilities(register) {
       const candidate = search.candidates && search.candidates[selectedIndex];
       if (!candidate) throw Object.assign(new Error('Upgrade candidate selection is invalid'), { code: 'UPGRADE_CANDIDATE_SELECTION_INVALID' });
       const mp = context.config.moviepilot || {};
+      context.assertFence('before_moviepilot_download_request');
       const added = await moviepilotService.addDownload(mp, { torrentInfo: candidate.torrentInfo, savePath: mp.savePath || undefined });
       if (!added || added.success === false) throw Object.assign(new Error(added && added.message || 'MoviePilot rejected the download'), { code: 'UPGRADE_DOWNLOAD_REJECTED' });
       const downloadId = added.data && added.data.download_id || '';

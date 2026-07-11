@@ -15,6 +15,7 @@ const automationPolicy = require('./automationPolicy');
 const personCatalogStore = require('./personCatalogStore');
 const defaultResourceGovernor = require('./resourceGovernor');
 const workflowStore = require('./workflowStore');
+const resourceRuntime = require('./resourceRuntime');
 
 const MAINTENANCE_TARGETS = new Set(['basedata', 'metadata', 'optimize']);
 
@@ -370,6 +371,7 @@ function createKairoxRuntime(dependencies = {}) {
     });
     const active = tasks.getTasks({ itemId: command.itemId }).filter((task) => !['done', 'failed_hard', 'failed_soft', 'skipped', 'cancelled', 'interrupted', 'plan_invalidated'].includes(task.status));
     for (const task of active) {
+      resourceRuntime.fenceTask(task, command.reason || 'source_incident');
       tasks.updateTask(task.id, {
         status: 'interrupted',
         phase: 'helix_fenced',

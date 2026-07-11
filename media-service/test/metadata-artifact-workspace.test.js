@@ -48,7 +48,9 @@ test('materialize Capability consumes the current admitted source after organize
     const config = { workspaces: { metadataArtifacts: artifactRoot }, subLibraries: [{ uuid: 'library', watchRoot: mediaRoot }] };
     workspace.writeArtifact(config, { itemId: 'item-1', metadataRevision: 'rev-1', name: 'metadata.nfo', content: '<movie/>', eventId: 'render' });
     builtIns.registerBuiltIns();
-    const result = await registry.get('metadata.artifacts.materialize').execute({ config, event: { eventId: 'materialize' }, task: { id: 'task-1', itemId: 'item-1', objectiveRevisionSnapshot: 'rev-1', sourceAccessMappingRevision: sourceAccessResolver.getRevision(), itemInfo: { path: mediaPath, metadataArtifactRevision: 'rev-1' }, helixAdmission: { sourceAccessDescriptor: { locator: { path: mediaPath } } } } });
+    let fenceCheckpoint = '';
+    const result = await registry.get('metadata.artifacts.materialize').execute({ config, event: { eventId: 'materialize' }, assertFence: (checkpoint) => { fenceCheckpoint = checkpoint; }, task: { id: 'task-1', itemId: 'item-1', objectiveRevisionSnapshot: 'rev-1', sourceAccessMappingRevision: sourceAccessResolver.getRevision(), itemInfo: { path: mediaPath, metadataArtifactRevision: 'rev-1' }, helixAdmission: { sourceAccessDescriptor: { locator: { path: mediaPath } } } } });
+    assert.strictEqual(fenceCheckpoint, 'before_metadata_artifacts_materialize');
     assert.strictEqual(result.result.written.length, 1);
     assert.strictEqual(fs.readFileSync(path.join(mediaRoot, 'metadata.nfo'), 'utf8'), '<movie/>');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }

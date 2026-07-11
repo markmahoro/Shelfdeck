@@ -28,6 +28,14 @@ Kairox Maintenance Automation
 
 物理形态保持模块化单体。`media-desktop` 不在本次范围。当前不得以文件、接口、组件单测、小样本 E2E 或 Docker 启动成功宣称 Beta 完成；必须先通过真实四库、完整产品闭环、资源不变量和性能门禁。
 
+### 2026-07-11 FlowPlan Business Parity Audit
+
+- 行为级验收取代原先仅检查名称映射的弱证据；50 项业务 Capability 均可由代表性系统 Planner 场景到达。
+- Service `221/221` 与 Admin Web production build 通过。
+- 验收修复了复合 Upgrade→Transcode 验证范围和依赖、虚假 no-op verify、未类型化 blocked reason、临提交 fencing、source suspension late output、长耗时成人能力取消以及按策略性能分组。
+- 唯一未关闭项是旧 Season 级 MoviePilot Upgrade：Helix 当前只有 Libra Series scope 与 Kairox Episode subject，不能安全地把整季目录替换展开为多个 Episode Task。该路径现稳定阻断为 `series_scope_upgrade_architecture_unresolved`。
+- 总验收结论仍是 **未通过（1 个架构 blocker）**。详见 `acceptance/FLOWPLAN_BUSINESS_PARITY.md`；本机四库 E2E 与生产继续停止。
+
 ### 2026-07-11 Production Failure Evidence
 
 - 生产真实规模首次同时形成数百个 Maintenance Run/Task 后，Task supply cap 未按全局 Gate 生效。

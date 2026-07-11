@@ -219,7 +219,9 @@ async function executeEvent(task, event, config) {
     taskStore.updateTask(task.id, { approval: approvalProjection(event, task, config, workflowStore.listEvents(task.id)) });
     return;
   }
-  const fence = kairoxAdmissionFence.checkTask(task, `event.${event.capability}.before_resource`);
+  const fence = capability.fencingContract.admission
+    ? kairoxAdmissionFence.checkTask(task, `event.${event.capability}.before_resource`)
+    : { allowed: true, checkpoint: `event.${event.capability}.before_resource` };
   if (!fence.allowed) {
     workflowStore.transition(event.eventId, 'failed', { finishedAt: new Date().toISOString(), failure: { code: 'HELIX_ADMISSION_FENCED', fence } });
     return;
@@ -239,7 +241,9 @@ async function executeEvent(task, event, config) {
   }
   try {
     const currentTask = taskStore.getTask(task.id) || task;
-    const currentFence = kairoxAdmissionFence.checkTask(currentTask, `event.${event.capability}.before_execute`);
+    const currentFence = capability.fencingContract.admission
+      ? kairoxAdmissionFence.checkTask(currentTask, `event.${event.capability}.before_execute`)
+      : { allowed: true, checkpoint: `event.${event.capability}.before_execute` };
     if (!currentFence.allowed) throw Object.assign(new Error('Event admission fence changed'), { code: 'HELIX_ADMISSION_FENCED', fence: currentFence });
     const allEvents = workflowStore.listEvents(task.id);
     const durableCurrent = workflowStore.getEvent(event.eventId) || event;
@@ -252,9 +256,17 @@ async function executeEvent(task, event, config) {
     const current = workflowStore.transition(event.eventId, 'executing', { attempt: event.attempt + 1, startedAt: new Date().toISOString(), executorVersion: capability.executorVersion, fencing: currentFence, input: event.input || { ...immutableInputSnapshot(event, currentTask, allEvents), resolved: input } });
     const parameters = Object.freeze({ ...(event.intent.parameters || {}) });
     capabilityContract.assertParameters(capability.parameterContract, parameters, capability.capability);
-    const execution = capability.execute({ task: currentTask, event: current, config, input, parameters });
+    const assertFence = (checkpoint = 'commit') => capability.fencingContract.admission
+      ? kairoxAdmissionFence.assertTask(taskStore.getTask(task.id) || currentTask, `event.${event.capability}.${checkpoint}`)
+      : { allowed: true, checkpoint };
+    const execution = capability.execute({ task: currentTask, event: current, config, input, parameters, assertFence });
     const timeoutMs = Number(event.intent.timeoutPolicy && event.intent.timeoutPolicy.timeoutMs) || 0;
     const result = timeoutMs > 0 ? await Promise.race([execution, new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('Capability Event timed out'), { code: 'KAIROX_EVENT_TIMEOUT' })), timeoutMs))]) : await execution;
+    // A source incident/offboarding fence may cancel the durable Event while
+    // its protocol call is unwinding. Never resurrect that Event or publish
+    // its output after cancellation.
+    const afterExecution = workflowStore.getEvent(event.eventId);
+    if (afterExecution && ['pending', 'cancelled'].includes(afterExecution.status)) return;
     const output = result && result.result !== undefined ? result.result : result || {};
     capabilityContract.assertOutput(capability.outputContract, output, capability.capability);
     validateOutputContract(event.intent.outputContract, output);

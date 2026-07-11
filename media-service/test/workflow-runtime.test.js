@@ -143,3 +143,32 @@ test('workflow store persists immutable plan and first-class event transitions w
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('event performance keeps parameterized encode strategies diagnostically separate', () => {
+  const old = process.env.MEDIA_SERVICE_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-workflow-performance-'));
+  process.env.MEDIA_SERVICE_DATA_DIR = dir;
+  workflowStore.resetForTests();
+  try {
+    capabilityRegistry.resetForTests();
+    capabilityRegistry.register({
+      ...testCapability('encode'),
+      parameterContract: { strategy: { type: 'enum', values: ['qsv_vbr', 'cpu_two_pass_abr'] } },
+    });
+    const plan = workflowGraph.buildPlan({ taskId: 'performance-task', itemId: 'performance-item', targetGate: 'optimize' }, [
+      { eventId: 'qsv', capability: 'encode', parameters: { strategy: 'qsv_vbr' } },
+      { eventId: 'cpu', capability: 'encode', parameters: { strategy: 'cpu_two_pass_abr' } },
+    ], capabilityRegistry);
+    workflowStore.createPlan(plan, capabilityRegistry);
+    const startedAt = new Date(Date.now() - 25).toISOString();
+    const finishedAt = new Date().toISOString();
+    for (const eventId of ['qsv', 'cpu']) workflowStore.transition(eventId, 'succeeded', { resourceKey: 'local:ffmpeg', startedAt, finishedAt, result: {} });
+    const groups = workflowStore.performanceSnapshot().filter((entry) => entry.capability === 'encode');
+    assert.strictEqual(groups.length, 2);
+    assert.deepStrictEqual(new Set(groups.map((entry) => entry.parameters.strategy)), new Set(['qsv_vbr', 'cpu_two_pass_abr']));
+  } finally {
+    workflowStore.resetForTests();
+    if (old === undefined) delete process.env.MEDIA_SERVICE_DATA_DIR; else process.env.MEDIA_SERVICE_DATA_DIR = old;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

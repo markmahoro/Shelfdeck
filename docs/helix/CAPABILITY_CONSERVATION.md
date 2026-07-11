@@ -47,7 +47,7 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | Western adult Worker analysis | `compute.asset.register -> compute.asset.upload -> adult.analysis.request -> adult.analysis.observe -> adult.metadata.normalize` | mapped; observe performs one status read per Event attempt |
 | Person canonical resolution and item relations | `person.relations.resolve` | mapped; writes Kairox Person Catalog relations |
 | NFO rendering | `metadata.sidecar.render` to Artifact Workspace | mapped |
-| Poster/fanart acquisition | `metadata.poster.acquire` / `metadata.fanart.acquire` | mapped |
+| Poster/fanart acquisition | parameterized `metadata.image.acquire(kind=poster|fanart)` | mapped; one shared image acquisition effect without losing separate Library toggles |
 | Artifact checksum/manifest verification | `metadata.artifacts.verify` | mapped |
 | Metadata canonical publication | `metadata.publish` | mapped |
 | Organize after scrape | Optimize `source.organize`; never Metadata | deliberately moved by accepted architecture |
@@ -74,7 +74,8 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | Legacy behavior | New owner / capability | Status |
 | --- | --- | --- |
 | MoviePilot connectivity precheck | `integration.moviepilot.check` | mapped |
-| Media identity/TMDB resolution | `media.upgrade.identity.resolve` | mapped for playable Movie; container hierarchy is a Libra scope |
+| Movie identity/TMDB resolution | `media.upgrade.identity.resolve` | mapped for playable Movie |
+| Season exact TMDB/season search and folder replacement | unresolved Helix series-scope mutation contract | **acceptance blocker**; unsafe per-Episode Upgrade is explicitly blocked, not silently treated as parity |
 | Torrent search and candidate ranking | `source.upgrade.search` with deterministic SmartSelect evidence | mapped |
 | Candidate user approval | download-request Event approval prerequisite | mapped |
 | Submit MoviePilot download | `source.upgrade.request` | mapped |

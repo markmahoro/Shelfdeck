@@ -169,7 +169,7 @@ async function createAsset(node, params) {
   return body;
 }
 
-async function uploadAssetSource(node, assetId, sourcePath, onProgress) {
+async function uploadAssetSource(node, assetId, sourcePath, onProgress, options = {}) {
   const fullUrl = nodeUrl(node, `/api/v1/assets/${encodeURIComponent(assetId)}/source`);
   const parsed = new URL(fullUrl);
   const stat = fs.statSync(sourcePath);
@@ -223,6 +223,14 @@ async function uploadAssetSource(node, assetId, sourcePath, onProgress) {
         callback(null, chunk);
       },
     });
+    const abort = () => {
+      const error = Object.assign(new Error('Asset upload aborted'), { code: 'WORKER_ASSET_UPLOAD_ABORTED' });
+      readStream.destroy(error); progressStream.destroy(error); req.destroy(error); done(error);
+    };
+    if (options.signal) {
+      if (options.signal.aborted) abort();
+      else options.signal.addEventListener('abort', abort, { once: true });
+    }
     pipeline(readStream, progressStream, req).then(
       () => {},
       (err) => {

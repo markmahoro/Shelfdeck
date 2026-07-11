@@ -15,7 +15,7 @@ function register(definition) { if (!registry.has(definition.capability)) regist
 function registerBuiltIns() {
   if (registered && registry.list().length) return registry;
   registered = true;
-  register({ capability: 'workflow.blocked', allowedTargetGates: ['basedata', 'metadata', 'optimize'], execute: async ({ event }) => { throw Object.assign(new Error(event.intent.inputBindings && event.intent.inputBindings.reason || 'Workflow planning blocked'), { code: 'KAIROX_WORKFLOW_BLOCKED', details: event.intent.inputBindings || {} }); } });
+  register({ capability: 'workflow.blocked', allowedTargetGates: ['basedata', 'metadata', 'optimize'], execute: async ({ parameters }) => { throw Object.assign(new Error(parameters.reason || 'Workflow planning blocked'), { code: 'KAIROX_WORKFLOW_BLOCKED', details: { rejected: parameters.rejected || [] } }); } });
   registerBasedataCapabilities(register);
   registerMetadataCapabilities(register);
   registerWesternAdultCapabilities(register);

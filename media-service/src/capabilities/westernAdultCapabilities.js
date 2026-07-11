@@ -7,6 +7,7 @@ const peopleStore = require('../personCatalogStore');
 const sourceAccessResolver = require('../sourceAccessResolver');
 const localAi = require('../services/westernAdultLocalAiService');
 const westernAdultAiService = require('../services/westernAdultAiService');
+const workerUploads = new Map();
 
 function westernConfig(task, config) {
   const descriptor = task.helixAdmission && task.helixAdmission.sourceAccessDescriptor || {};
@@ -28,18 +29,19 @@ function workerNode(western) {
 function retryable(message, code, details = {}) { return Object.assign(new Error(message), { code, retryable: true, details }); }
 
 function registerWesternAdultCapabilities(register) {
-  register({ capability: 'media.frames.extract', allowedTargetGates: ['metadata'], execute: async ({ task, event, config }) => {
+  register({ capability: 'media.frames.extract', allowedTargetGates: ['metadata'], cancel: ({ event }) => localAi.abort(event.eventId), execute: async ({ task, event, config }) => {
     const western = westernConfig(task, config);
     const frames = await localAi.extractFrames({ config, western, sourcePath: sourcePath(task), taskId: event.eventId });
     if (!frames.length) throw Object.assign(new Error('No frames extracted from source asset'), { code: 'WESTERN_FRAME_EXTRACTION_EMPTY' });
     return { result: { frames, sourcePath: sourcePath(task), frameCount: frames.length } };
   } });
 
-  register({ capability: 'person.faces.embed', allowedTargetGates: ['metadata'], execute: async ({ task, config, input }) => {
+  register({ capability: 'person.faces.embed', allowedTargetGates: ['metadata'], cancel: ({ event }) => localAi.abort(event.eventId), execute: async ({ task, event, config, input }) => {
     const western = westernConfig(task, config);
     const faces = western.faceRecognitionEnabled === false ? [] : await localAi.callFaceEmbeddingModel(western, input.frames.frames, {
       blacklist: peopleStore.listDismissedEmbeddings({ adultRegion: 'western_adult' }),
       blacklistThreshold: Number(western.blacklistThreshold) || 0.5,
+      taskId: event.eventId,
     });
     return { result: { faces, frames: input.frames.frames } };
   } });
@@ -84,16 +86,19 @@ function registerWesternAdultCapabilities(register) {
     }, {}), evidence: { adapter: 'western_adult_local' } } };
   } });
 
-  register({ capability: 'compute.asset.register', allowedTargetGates: ['metadata'], execute: async ({ task, event, config }) => {
+  register({ capability: 'compute.asset.register', allowedTargetGates: ['metadata'], execute: async ({ task, event, config, assertFence }) => {
     const western = westernConfig(task, config); const file = sourcePath(task); const stat = fs.statSync(file); const assetId = String(task.itemId || event.eventId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120);
+    assertFence('before_worker_asset_register');
     await nodeService.createAsset(workerNode(western), { assetId, assetKey: task.itemId, sourceFileName: path.basename(file), sourceFileSize: stat.size, fingerprint: { size: stat.size, mtimeMs: stat.mtimeMs } });
     return { result: { assetId, sourcePath: file, size: stat.size }, commitMarker: `worker-asset:${assetId}` };
   } });
-  register({ capability: 'compute.asset.upload', allowedTargetGates: ['metadata'], execute: async ({ task, config, input }) => {
-    const western = westernConfig(task, config); await nodeService.uploadAssetSource(workerNode(western), input.asset.assetId, input.asset.sourcePath, () => {}); return { result: { ...input.asset, uploaded: true } };
+  register({ capability: 'compute.asset.upload', allowedTargetGates: ['metadata'], cancel: ({ event }) => workerUploads.get(event.eventId)?.abort(), execute: async ({ task, event, config, input }) => {
+    const western = westernConfig(task, config); const controller = new AbortController(); workerUploads.set(event.eventId, controller);
+    try { await nodeService.uploadAssetSource(workerNode(western), input.asset.assetId, input.asset.sourcePath, () => {}, { signal: controller.signal }); return { result: { ...input.asset, uploaded: true } }; }
+    finally { workerUploads.delete(event.eventId); }
   } });
-  register({ capability: 'adult.analysis.request', allowedTargetGates: ['metadata'], execute: async ({ task, event, config, input }) => {
-    const western = westernConfig(task, config); const job = await nodeService.createAiJob(workerNode(western), { jobId: event.eventId, assetId: input.asset.assetId, itemName: task.itemInfo && task.itemInfo.name || path.basename(input.asset.sourcePath), people: peopleStore.listPeople({ adultRegion: 'western_adult', includeArtifacts: true, limit: 200 }).people, options: { frameSampleCount: western.frameSampleCount, frameWidth: western.frameWidth, faceRecognitionEnabled: western.faceRecognitionEnabled !== false, vlmEnabled: western.vlmEnabled !== false, blacklist: peopleStore.listDismissedEmbeddings({ adultRegion: 'western_adult' }), blacklistThreshold: Number(western.blacklistThreshold) || 0.5, faceSimilarityThreshold: Number(western.faceSimilarityThreshold) || 0.25 } });
+  register({ capability: 'adult.analysis.request', allowedTargetGates: ['metadata'], execute: async ({ task, event, config, input, assertFence }) => {
+    const western = westernConfig(task, config); assertFence('before_worker_analysis_request'); const job = await nodeService.createAiJob(workerNode(western), { jobId: event.eventId, assetId: input.asset.assetId, itemName: task.itemInfo && task.itemInfo.name || path.basename(input.asset.sourcePath), people: peopleStore.listPeople({ adultRegion: 'western_adult', includeArtifacts: true, limit: 200 }).people, options: { frameSampleCount: western.frameSampleCount, frameWidth: western.frameWidth, faceRecognitionEnabled: western.faceRecognitionEnabled !== false, vlmEnabled: western.vlmEnabled !== false, blacklist: peopleStore.listDismissedEmbeddings({ adultRegion: 'western_adult' }), blacklistThreshold: Number(western.blacklistThreshold) || 0.5, faceSimilarityThreshold: Number(western.faceSimilarityThreshold) || 0.25 } });
     return { result: { jobId: job.jobId || event.eventId, assetId: input.asset.assetId }, commitMarker: `worker-ai-job:${job.jobId || event.eventId}` };
   } });
   register({ capability: 'adult.analysis.observe', allowedTargetGates: ['metadata'], execute: async ({ task, config, input }) => {

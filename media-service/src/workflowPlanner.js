@@ -144,7 +144,12 @@ function optimizeNodes(task, config) {
   const needsSubtitle = !!(target.requireChineseSubtitles || target.subtitleLanguage === 'zh');
   if (needsSubtitle) rejected.push({ capability: 'subtitle.download', reason: 'objective_capability_not_implemented' });
   const strategies = new Set((selection.gap || []).map((gap) => gap.requiredStrategy));
-  if (strategies.has('upgrade') && requireAllowed(allowed, 'source.upgrade.request', rejected)) {
+  const hasUpgradeAndTranscode = strategies.has('upgrade') && strategies.has('transcode');
+  const mediaKind = text(item.mediaKind || item.type || 'movie').toLowerCase();
+  if (strategies.has('upgrade') && ['episode', 'season', 'series'].includes(mediaKind)) {
+    rejected.push({ capability: 'source.upgrade.request', reason: 'series_scope_upgrade_architecture_unresolved' });
+  }
+  if (strategies.has('upgrade') && !rejected.some((entry) => entry.reason === 'series_scope_upgrade_architecture_unresolved') && requireAllowed(allowed, 'source.upgrade.request', rejected)) {
     add('moviepilot-check', 'integration.moviepilot.check', { resourceRequest: { resourceType: 'moviepilot' } });
     add('upgrade-identity-resolve', 'media.upgrade.identity.resolve', { inputBindings: { integration: from(`${task.id}:moviepilot-check`) }, resourceRequest: { resourceType: 'moviepilot' } });
     add('upgrade-search', 'source.upgrade.search', { inputBindings: { identity: from(`${task.id}:upgrade-identity-resolve`) }, resourceRequest: { resourceType: 'moviepilot' } });
@@ -155,14 +160,22 @@ function optimizeNodes(task, config) {
     add('upgrade-output-settle', 'source.upgrade.output.settle', { inputBindings: { stagedAsset: from(`${task.id}:upgrade-output`) }, resourceRequest: { resourceType: 'filesystem' }, retryPolicy: { maxAttempts: 2160 } });
     add('upgrade-identity-inspect', 'media.identity.inspect', { inputBindings: { stagedAsset: from(`${task.id}:upgrade-output-settle`) }, resourceRequest: { resourceType: 'filesystem' } });
     add('upgrade-identity-accept', 'media.identity.accept', { inputBindings: { inspection: from(`${task.id}:upgrade-identity-inspect`) }, approvalRequirement: { gateId: 'upgrade.identityMismatch', whenInput: { port: 'inspection', path: 'matched', equals: false } } });
-    add('upgrade-media-verify', 'output.media.verify', { inputBindings: { stagedAsset: from(`${task.id}:upgrade-identity-accept`) }, resourceRequest: { resourceType: 'filesystem' } });
+    add('upgrade-media-verify', 'output.media.verify', {
+      inputBindings: { stagedAsset: from(`${task.id}:upgrade-identity-accept`) },
+      ...(hasUpgradeAndTranscode ? { parameters: { objectiveScope: 'upgrade_stage' } } : {}),
+      resourceRequest: { resourceType: 'filesystem' },
+    });
     add('upgrade-media-select', 'output.media.select', { inputBindings: { attempts: fromMany([`${task.id}:upgrade-media-verify`]) } });
     if (requireAllowed(allowed, 'media.replace', rejected)) {
       addMutationOutcome('upgrade', `${task.id}:upgrade-media-select`, 'upgrade.beforeReplace');
     }
   }
   if (strategies.has('transcode') && requireAllowed(allowed, 'media.transcode', rejected)) {
-    let precheckDependencies = [];
+    // A composite objective may require Upgrade to commit before Transcode
+    // observes the resulting media. Preserve the preceding mutation outcome
+    // as an explicit dependency instead of accidentally creating two parallel
+    // source mutations from the same Task snapshot.
+    let precheckDependencies = tail ? [tail] : [];
     let precheckBindings = {};
     if (item.isDiscLike) {
       if (requireAllowed(allowed, 'container.remux', rejected)) {
@@ -200,7 +213,7 @@ function optimizeNodes(task, config) {
   if (requiresOrganize && requireAllowed(allowed, 'source.organize', rejected)) add('organize', 'source.organize', { resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: 'source.beforeOrganize' } });
   if (rejected.length > 0) {
     return {
-      nodes: [event(task.id, 'blocked', 'workflow.blocked', [], { inputBindings: { reason: 'required_capability_not_allowed', rejected } })],
+      nodes: [event(task.id, 'blocked', 'workflow.blocked', [], { parameters: { reason: 'required_capability_not_allowed', rejected } })],
       classification: 'blocked',
       explanation: { objectiveGap: selection.gap || [], selectedCapabilities: [], rejected },
     };
@@ -213,7 +226,7 @@ function optimizeNodes(task, config) {
   }
   if (target.metadataArtifacts === 'materialized' && item.metadataArtifactsReady && !item.metadataArtifactsMaterialized && requireAllowed(allowed, 'metadata.artifacts.materialize', rejected)) add('materialize', 'metadata.artifacts.materialize', { resourceRequest: { resourceType: 'filesystem' } });
   if (rejected.length > 0) {
-    return { nodes: [event(task.id, 'blocked', 'workflow.blocked', [], { inputBindings: { reason: 'required_capability_not_allowed', rejected } })], classification: 'blocked', explanation: { objectiveGap: selection.gap || [], selectedCapabilities: [], rejected } };
+    return { nodes: [event(task.id, 'blocked', 'workflow.blocked', [], { parameters: { reason: 'required_capability_not_allowed', rejected } })], classification: 'blocked', explanation: { objectiveGap: selection.gap || [], selectedCapabilities: [], rejected } };
   }
   if (nodes.length === 0) add('verify-objective', 'optimization.objective.verify');
   const materializeId = nodes.find((node) => node.capability === 'metadata.artifacts.materialize')?.eventId;
