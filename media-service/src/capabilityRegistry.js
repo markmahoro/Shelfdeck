@@ -17,6 +17,7 @@ function register(definition) {
     allowedTargetGates: Object.freeze([...(definition.allowedTargetGates || [])]),
     defaultResourceRequest: definition.defaultResourceRequest || null,
     execute: definition.execute,
+    cancel: typeof definition.cancel === 'function' ? definition.cancel : null,
   });
   entries.set(capability, normalized);
   return normalized;
@@ -25,7 +26,7 @@ function register(definition) {
 function get(capability) { return entries.get(String(capability || '')) || null; }
 function has(capability) { return entries.has(String(capability || '')); }
 function list() { return [...entries.values()]; }
-function inventory() { return list().map(({ execute, ...definition }) => definition); }
+function inventory() { return list().map(({ execute, cancel, ...definition }) => ({ ...definition, cancellable: !!cancel })); }
 function resetForTests() { entries.clear(); }
 
 module.exports = { register, get, has, list, inventory, resetForTests };

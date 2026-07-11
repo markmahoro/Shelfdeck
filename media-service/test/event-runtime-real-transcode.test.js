@@ -17,7 +17,7 @@ test('real transcode is executed as atomic Workflow Events and invalidates Based
   const transcodeService = require('../src/services/transcodeService');
   const ffmpeg = transcodeService.resolveFfmpegBin({});
   const input = path.join(mediaDir, 'sample.mkv');
-  const generated = spawnSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=24', '-f', 'lavfi', '-i', 'sine=frequency=1000', '-t', '2', '-c:v', 'libx264', '-c:a', 'aac', '-y', input], { windowsHide: true });
+  const generated = spawnSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=24', '-f', 'lavfi', '-i', 'sine=frequency=1000', '-t', '3', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '0', '-c:a', 'aac', '-y', input], { windowsHide: true });
   if (generated.status !== 0 || !fs.existsSync(input)) { t.skip('Local FFmpeg cannot generate the disposable fixture'); return; }
   const configStore = require('../src/configStore');
   const taskStore = require('../src/taskStore');
@@ -41,8 +41,10 @@ test('real transcode is executed as atomic Workflow Events and invalidates Based
     const finalTask = taskStore.getTask(task.id);
     const events = workflowStore.listEvents(task.id);
     assert.strictEqual(finalTask.status, 'done', JSON.stringify(events));
-    assert.deepStrictEqual(events.map((event) => event.capability), ['media.transcode.precheck', 'transcode.tonemap.accept', 'media.transcode', 'output.media.verify', 'output.preview.generate', 'media.replace', 'workspace.cleanup', 'filesystem.layout.verify', 'optimization.result.publish']);
-    assert.ok(events.every((event) => event.status === 'succeeded'));
+    assert.deepStrictEqual(events.map((event) => event.capability), ['media.transcode.precheck', 'transcode.tonemap.accept', 'media.transcode', 'output.media.verify', 'media.transcode', 'output.media.verify', 'output.media.select', 'output.media.disposition', 'output.preview.generate', 'media.replace', 'staged.asset.discard', 'workspace.cleanup', 'optimization.outcome.select', 'filesystem.layout.verify', 'optimization.result.publish']);
+    assert.ok(events.every((event) => ['succeeded', 'skipped'].includes(event.status)));
+    assert.strictEqual(events.find((event) => event.capability === 'staged.asset.discard').status, 'skipped');
+    assert.deepStrictEqual(events.filter((event) => event.capability === 'media.transcode').map((event) => event.status), ['succeeded', 'skipped']);
     assert.strictEqual((await transcodeService.probeSummary(config, input)).videoCodec, 'hevc');
     assert.strictEqual(kairoxStore.getBundle('item-1').basedata.status, 'stale');
   } finally {

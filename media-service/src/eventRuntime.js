@@ -12,6 +12,7 @@ const kairoxAdmissionFence = require('./kairoxAdmissionFence');
 const kairoxSignalBus = require('./kairoxSignalBus');
 const capabilityContract = require('./capabilityContract');
 const capabilityPostEffects = require('./capabilityPostEffects');
+const workflowCompensation = require('./workflowCompensation');
 
 const dispatching = new Map();
 const retryTimers = new Map();
@@ -74,19 +75,23 @@ function invalidatePlan(task, plan) {
   return updated;
 }
 
-function approvalRequirementApplies(event, events) {
-  const condition = event.intent.approvalRequirement && event.intent.approvalRequirement.whenInput;
-  if (!condition) return true;
+function approvalConditionMatches(condition, event, events) {
+  if (!condition) return false;
   const binding = event.intent.inputBindings && event.intent.inputBindings[condition.port];
   const source = binding && events.find((entry) => entry.eventId === binding.eventId);
   const actual = String(condition.path || '').split('.').filter(Boolean).reduce((value, part) => value == null ? undefined : value[part], source && source.result);
   return Object.prototype.hasOwnProperty.call(condition, 'equals') ? actual === condition.equals : !!actual;
+}
+function approvalRequirementApplies(event, events) {
+  const condition = event.intent.approvalRequirement && event.intent.approvalRequirement.whenInput;
+  return condition ? approvalConditionMatches(condition, event, events) : true;
 }
 
 function approvalSatisfied(event, task, config, events) {
   const requirement = event.intent.approvalRequirement;
   if (!requirement || !requirement.gateId) return true;
   if (!approvalRequirementApplies(event, events)) return true;
+  if (approvalConditionMatches(requirement.forceWhenInput, event, events) && !(event.result && event.result.approved === true)) return false;
   const mode = approvalPolicy.resolveGate(requirement.gateId, { task, itemInfo: task.itemInfo, config });
   if (mode === 'auto') return true;
   return !!(event.result && event.result.approved === true);
@@ -136,6 +141,17 @@ function resolveCapabilityInput(event, capability, events) {
   return Object.freeze(input);
 }
 
+function inputConditionApplies(intent, events) {
+  const condition = intent.runWhen;
+  if (!condition) return true;
+  const binding = intent.inputBindings && intent.inputBindings[condition.port];
+  const source = binding && binding.source === 'event' ? events.find((entry) => entry.eventId === binding.eventId) : null;
+  const actual = String(condition.path || '').split('.').filter(Boolean).reduce((value, part) => value == null ? undefined : value[part], source && source.result);
+  if (Object.prototype.hasOwnProperty.call(condition, 'equals')) return actual === condition.equals;
+  if (Object.prototype.hasOwnProperty.call(condition, 'notEquals')) return actual !== condition.notEquals;
+  return !!actual;
+}
+
 function validateOutputContract(contract = {}, result = {}) {
   for (const [field, expected] of Object.entries(contract || {})) {
     const value = result && result[field];
@@ -147,9 +163,13 @@ function validateOutputContract(contract = {}, result = {}) {
   }
 }
 
-function aggregateTask(task, events) {
+function aggregateTask(task, events, config = configStore.loadConfig()) {
   let updated;
-  if (events.some((event) => event.status === 'failed')) updated = taskStore.updateTask(task.id, { status: 'failed_hard', phase: 'workflow_failed', progress: 0 });
+  if (events.some((event) => event.status === 'failed')) {
+    const compensation = workflowCompensation.cleanupTask(task.id, config, 'failed');
+    if (compensation.removed.length) taskStore.appendTaskEvent(task, 'workflow.compensated', compensation);
+    updated = taskStore.updateTask(task.id, { status: 'failed_hard', phase: 'workflow_failed', progress: 0 });
+  }
   else if (events.every((event) => SUCCESS.has(event.status))) updated = taskStore.updateTask(task.id, { status: 'done', phase: 'workflow_complete', progress: 100 });
   if (updated) {
     if (task.status !== updated.status) kairoxSignalBus.publish({ kind: 'task_terminal', itemId: task.itemId, taskId: task.id, status: updated.status });
@@ -178,7 +198,7 @@ function unlock(task, plan, config) {
         continue;
       }
       if (!dependencies.every((entry) => SUCCESS.has(entry.status))) continue;
-      if (!workflowGraph.evaluateCondition(node.when, context)) workflowStore.transition(node.eventId, 'skipped', { finishedAt: new Date().toISOString() });
+      if (!inputConditionApplies(node, events) || !workflowGraph.evaluateCondition(node.when, context)) workflowStore.transition(node.eventId, 'skipped', { finishedAt: new Date().toISOString() });
       else workflowStore.transition(node.eventId, 'ready', { readyAt: new Date().toISOString() });
       changed = true;
     }
@@ -245,6 +265,7 @@ async function executeEvent(task, event, config) {
     workflowStore.transition(event.eventId, 'succeeded', { finishedAt: new Date().toISOString(), result: output, evidence: postEffect ? { ...(baseEvidence || {}), postEffect } : baseEvidence, commitMarker });
   } catch (error) {
     const latest = workflowStore.getEvent(event.eventId) || event;
+    if (['pending', 'cancelled'].includes(latest.status)) return;
     const maxAttempts = Math.max(1, Number(event.intent.retryPolicy && event.intent.retryPolicy.maxAttempts) || 1);
     if (latest.attempt < maxAttempts && !(latest.commitMarker && capability.idempotency === 'commit_once')) {
       const delayMs = Math.min(60000, 1000 * (2 ** Math.max(0, latest.attempt - 1)));
@@ -258,6 +279,11 @@ async function executeEvent(task, event, config) {
   } finally {
     permit.release();
   }
+}
+
+async function cancelExecutingEvent(event, reason = 'cancelled') {
+  const capability = capabilityRegistry.get(event.capability);
+  if (capability && capability.cancel) await capability.cancel({ event, reason, config: configStore.loadConfig() });
 }
 
 async function driveTask(taskId) {
@@ -277,7 +303,7 @@ async function driveTask(taskId) {
     if (ready.length === 0) break;
     await Promise.all(ready.map((event) => executeEvent(task, event, config)));
   }
-  aggregateTask(taskStore.getTask(taskId) || task, events);
+  aggregateTask(taskStore.getTask(taskId) || task, events, config);
   return { dispatched: true, plan, events };
 }
 
@@ -295,4 +321,4 @@ function recoverStartup() {
   return taskIds.length;
 }
 
-module.exports = { dispatchTask, driveTask, hasPendingDispatch, recoverStartup, resourceKeyFor, unlock, aggregateTask, planPrerequisitesCurrent, validateOutputContract, resolveCapabilityInput, approvalRequirementApplies };
+module.exports = { dispatchTask, driveTask, hasPendingDispatch, recoverStartup, resourceKeyFor, unlock, aggregateTask, planPrerequisitesCurrent, validateOutputContract, resolveCapabilityInput, approvalRequirementApplies, approvalConditionMatches, inputConditionApplies, cancelExecutingEvent };

@@ -448,7 +448,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
       approvalPolicy: spec.approvalPolicy || {},
       allowedCapabilities: spec.allowedCapabilities || {
         metadata: isAdult ? ['metadata.sidecar.render', 'metadata.image.acquire'] : [],
-        optimize: isAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'source.upgrade.request', 'media.replace'],
+        optimize: isAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'container.remux', 'source.upgrade.request', 'media.replace'],
       },
       capabilityParameters: spec.capabilityParameters || (isAdult ? { 'metadata.image.acquire': { kinds: ['poster', 'fanart'] } } : {}),
       capabilityPolicyRevision: String(spec.capabilityPolicyRevision || '1'),

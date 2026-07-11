@@ -1,6 +1,43 @@
 'use strict';
 
 const PRIMITIVES = new Set(['string', 'number', 'boolean', 'object', 'array']);
+const TYPE_SCHEMAS = Object.freeze({
+  None: shape({}),
+  SourceObservation: shape({ facts: 'object' }), LayoutObservation: shape({ layout: 'object' }),
+  VerifiedBasedata: shape({ facts: 'object', valid: 'boolean' }), BasedataPublication: shape({ basedataRevision: 'number' }),
+  MetadataPublication: shape({ metadataRevision: 'number' }), MediaIdentity: shape({ descriptor: 'object' }),
+  MetadataObservation: shape({ facts: 'object' }), ResolvedMetadata: shape({ facts: 'object', people: 'array' }),
+  MetadataArtifact: shape({}, { artifact: 'object', skipped: 'boolean' }, [['artifact'], ['skipped']]), ArtifactManifest: shape({ valid: 'boolean' }),
+  StagedMediaAsset: shape({ assetId: 'string', sourcePath: 'string', workDir: 'string', replacementScope: 'string', producingEventId: 'string' }),
+  VerifiedMediaAsset: shape({ stagedAsset: 'object', objectiveSatisfied: 'boolean' }),
+  MediaReplacementEvidence: shape({ stagedAsset: 'object', targetPath: 'string' }), SourceMutationEffect: shape({ sourceMutationResult: 'object' }),
+  ArtifactMaterialization: shape({ written: 'array' }), LayoutVerification: shape({ valid: 'boolean' }),
+  UpgradeCandidates: shape({ candidates: 'array' }), UpgradeRequest: shape({ downloadId: 'string' }), DownloadObservation: shape({ completed: 'boolean' }),
+  TransferObservation: shape({ transfer: 'object' }), OptimizePublication: shape({ passed: 'boolean' }), ObjectiveVerification: shape({ objectiveSatisfied: 'boolean' }),
+  FrameSet: shape({ frames: 'array', frameCount: 'number' }), FaceEmbeddingSet: shape({ faces: 'array', frames: 'array' }),
+  FaceClusterSet: shape({ clusters: 'array', frames: 'array' }), PersonMatchSet: shape({ match: 'object', clusters: 'array', frames: 'array' }),
+  WesternPresentation: shape({ actorName: 'string', sceneTitle: 'string', matched: 'object' }), ComputeAsset: shape({ assetId: 'string', sourcePath: 'string' }),
+  UploadedComputeAsset: shape({ assetId: 'string', sourcePath: 'string', uploaded: 'boolean' }), AdultAnalysisJob: shape({ jobId: 'string', assetId: 'string' }),
+  AdultAnalysisResult: shape({ jobId: 'string', result: 'object' }), TranscodePrecheck: shape({ sourcePath: 'string', deviceSlots: 'array', rateControlPlan: 'array', workDir: 'string' }),
+  CleanupEvidence: shape({ cleaned: 'boolean' }), IdentityInspection: shape({ stagedAsset: 'object', matched: 'boolean', reason: 'string' }),
+  IntegrationEvidence: shape({ available: 'boolean' }), UpgradeIdentity: shape({ title: 'string', tmdbId: 'string', mediaKind: 'string' }),
+});
+
+function shape(required, optional = {}, anyOf = []) { return Object.freeze({ required: Object.freeze(required), optional: Object.freeze(optional), anyOf: Object.freeze(anyOf.map((group) => Object.freeze(group))) }); }
+function valueMatches(expected, value) {
+  if (expected === 'array') return Array.isArray(value);
+  if (expected === 'object') return !!value && typeof value === 'object' && !Array.isArray(value);
+  if (expected === 'number') return Number.isFinite(Number(value));
+  return typeof value === expected;
+}
+function assertNamedShape(type, value, label) {
+  const schema = TYPE_SCHEMAS[type];
+  if (!schema) throw new TypeError(`Unknown nominal capability type: ${type}`);
+  if (!valueMatches('object', value)) throw Object.assign(new Error(`${label} must be ${type}`), { code: 'KAIROX_CAPABILITY_STRUCTURAL_TYPE_VIOLATION', type, label });
+  for (const [field, expected] of Object.entries(schema.required)) if (!valueMatches(expected, value[field])) throw Object.assign(new Error(`${label}.${field} must be ${expected}`), { code: 'KAIROX_CAPABILITY_STRUCTURAL_TYPE_VIOLATION', type, field, label });
+  for (const [field, expected] of Object.entries(schema.optional)) if (value[field] != null && !valueMatches(expected, value[field])) throw Object.assign(new Error(`${label}.${field} must be ${expected}`), { code: 'KAIROX_CAPABILITY_STRUCTURAL_TYPE_VIOLATION', type, field, label });
+  if (schema.anyOf.length && !schema.anyOf.some((group) => group.every((field) => value[field] != null))) throw Object.assign(new Error(`${label} does not satisfy any structural variant of ${type}`), { code: 'KAIROX_CAPABILITY_STRUCTURAL_TYPE_VIOLATION', type, label });
+}
 
 function contract(type, version = 1, options = {}) {
   const value = String(type || '').trim();
@@ -58,12 +95,13 @@ function assertRuntimeValue(spec, value, label) {
           : typeof entry === spec.type;
       if (!valid) throw Object.assign(new Error(`Capability input type violation: ${label}:${spec.type}`), { code: 'KAIROX_CAPABILITY_INPUT_TYPE_VIOLATION', input: label });
     }
-  }
+  } else for (const entry of spec.many ? value : [value]) if (entry != null) assertNamedShape(spec.type, entry, label);
 }
 
 function assertOutput(spec, value, capability) {
   if (value == null) throw Object.assign(new Error(`Capability ${capability} did not return ${spec.type}@${spec.version}`), { code: 'KAIROX_CAPABILITY_OUTPUT_MISSING' });
   if (PRIMITIVES.has(spec.type)) assertRuntimeValue(spec, value, 'output');
+  else assertNamedShape(spec.type, value, `${capability}.output`);
 }
 
-module.exports = { contract, normalizeDefinition, compatible, assertRuntimeValue, assertOutput, assertParameters };
+module.exports = { TYPE_SCHEMAS, contract, normalizeDefinition, compatible, assertRuntimeValue, assertOutput, assertParameters, assertNamedShape };

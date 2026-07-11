@@ -4,6 +4,8 @@ const taskStore = require('./taskStore');
 const workflowStore = require('./workflowStore');
 const eventRuntime = require('./eventRuntime');
 const builtInCapabilities = require('./builtInCapabilities');
+const workflowCompensation = require('./workflowCompensation');
+const configStore = require('./configStore');
 
 builtInCapabilities.registerBuiltIns();
 
@@ -34,7 +36,9 @@ function confirmTask(task = {}) {
 
 async function pauseTask(task = {}) {
   for (const event of workflowStore.listEvents(task.id)) {
+    if (event.status === 'executing') await eventRuntime.cancelExecutingEvent(event, 'paused');
     if (['ready', 'waiting_for_resource'].includes(event.status)) workflowStore.transition(event.eventId, 'pending', {});
+    else if (event.status === 'executing') workflowStore.transition(event.eventId, 'pending', { failure: { code: 'EVENT_PAUSED', retryable: true } });
   }
   taskStore.updateTask(task.id, { status: 'paused', phase: 'workflow_paused' });
   return true;
@@ -42,9 +46,12 @@ async function pauseTask(task = {}) {
 
 async function cancelTask(task = {}) {
   for (const event of workflowStore.listEvents(task.id)) {
+    if (event.status === 'executing') await eventRuntime.cancelExecutingEvent(event, 'cancelled');
     if (!workflowStore.TERMINAL.has(event.status)) workflowStore.transition(event.eventId, 'cancelled', { finishedAt: new Date().toISOString(), failure: { code: 'TASK_CANCELLED' } });
   }
   taskStore.updateTask(task.id, { status: 'cancelled', phase: 'workflow_cancelled' });
+  const compensation = workflowCompensation.cleanupTask(task.id, configStore.loadConfig(), 'cancelled');
+  if (compensation.removed.length) taskStore.appendTaskEvent(task, 'workflow.compensated', compensation);
   return true;
 }
 

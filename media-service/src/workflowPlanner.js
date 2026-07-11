@@ -3,11 +3,12 @@
 const optimizeGapAnalyzer = require('./optimizeGapAnalyzer');
 const workflowGraph = require('./workflowGraph');
 const capabilityRegistry = require('./capabilityRegistry');
+const transcodeDevicePlan = require('./transcodeDevicePlan');
 
 const REQUIRED = Object.freeze({
   basedata: new Set(['emby.item.observe', 'filesystem.media.probe', 'filesystem.layout.observe', 'basedata.verify', 'basedata.publish']),
   metadata: new Set(['media.identity.resolve', 'metadata.provider.fetch', 'media.frames.extract', 'person.faces.embed', 'person.faces.cluster', 'person.faces.match', 'metadata.poster.compose', 'adult.metadata.compose', 'compute.asset.register', 'compute.asset.upload', 'adult.analysis.request', 'adult.analysis.observe', 'adult.metadata.normalize', 'person.relations.resolve', 'metadata.sidecar.render', 'metadata.image.acquire', 'metadata.artifacts.verify', 'metadata.publish']),
-  optimize: new Set(['subtitle.search', 'subtitle.download', 'subtitle.verify', 'source.upgrade.search', 'source.upgrade.request', 'source.upgrade.observe-download', 'source.upgrade.observe-transfer', 'source.upgrade.output.resolve', 'media.identity.inspect', 'media.identity.accept', 'media.transcode.precheck', 'transcode.tonemap.accept', 'media.transcode', 'container.remux', 'optimization.objective.verify', 'output.media.verify', 'output.preview.generate', 'source.organize', 'metadata.artifacts.materialize', 'filesystem.layout.verify', 'media.replace', 'workspace.cleanup', 'optimization.result.publish']),
+  optimize: new Set(['integration.moviepilot.check', 'media.upgrade.identity.resolve', 'source.upgrade.search', 'source.upgrade.request', 'source.upgrade.observe-download', 'source.upgrade.observe-transfer', 'source.upgrade.output.resolve', 'source.upgrade.output.settle', 'media.identity.inspect', 'media.identity.accept', 'media.transcode.precheck', 'transcode.tonemap.accept', 'media.transcode', 'container.remux', 'optimization.objective.verify', 'output.media.verify', 'output.media.select', 'output.media.disposition', 'output.preview.generate', 'source.organize', 'metadata.artifacts.materialize', 'filesystem.layout.verify', 'media.replace', 'staged.asset.discard', 'workspace.cleanup', 'optimization.outcome.select', 'optimization.result.publish']),
 });
 
 function text(value) { return String(value == null ? '' : value).trim(); }
@@ -125,42 +126,73 @@ function optimizeNodes(task, config) {
     nodes.push(node);
     tail = node.eventId;
   };
+  const addMutationOutcome = (prefix, verifiedId, approvalGate) => {
+    const dispositionId = `${task.id}:${prefix}-disposition`;
+    const previewId = `${task.id}:${prefix}-preview`;
+    const replaceId = `${task.id}:${prefix}-replace`;
+    const discardId = `${task.id}:${prefix}-discard`;
+    const cleanupId = `${task.id}:${prefix}-cleanup`;
+    add(`${prefix}-disposition`, 'output.media.disposition', { dependsOn: [verifiedId], inputBindings: { verifiedAsset: from(verifiedId) } });
+    add(`${prefix}-preview`, 'output.preview.generate', { inputBindings: { verifiedAsset: from(dispositionId) }, resourceRequest: { resourceType: 'transcode' } });
+    add(`${prefix}-replace`, 'media.replace', { inputBindings: { verifiedAsset: from(previewId) }, runWhen: { port: 'verifiedAsset', path: 'action', equals: 'replace' }, resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: approvalGate } });
+    add(`${prefix}-discard`, 'staged.asset.discard', { dependsOn: [dispositionId], inputBindings: { verifiedAsset: from(dispositionId) }, runWhen: { port: 'verifiedAsset', path: 'action', equals: 'discard' }, resourceRequest: { resourceType: 'filesystem' } });
+    add(`${prefix}-cleanup`, 'workspace.cleanup', { dependsOn: [replaceId], inputBindings: { replacement: from(replaceId) }, runWhen: { port: 'replacement' }, resourceRequest: { resourceType: 'filesystem' } });
+    add(`${prefix}-outcome`, 'optimization.outcome.select', { dependsOn: [replaceId, discardId, cleanupId], inputBindings: { outcomes: fromMany([replaceId, discardId]) } });
+  };
   const objective = task.taskTarget && task.taskTarget.gateObjective || {};
   const target = objective.targetMediaFacts || objective;
   const needsSubtitle = !!(target.requireChineseSubtitles || target.subtitleLanguage === 'zh');
-  if (needsSubtitle) {
-    const subtitleCapabilities = ['subtitle.search', 'subtitle.download', 'subtitle.verify'];
-    if (requireAllowed(allowed, 'subtitle.download', rejected) && requireAvailable(subtitleCapabilities, rejected)) {
-      add('subtitle-search', 'subtitle.search', { resourceRequest: { resourceType: 'service_api' } });
-      add('subtitle-download', 'subtitle.download', { resourceRequest: { resourceType: 'service_api' } });
-      add('subtitle-verify', 'subtitle.verify');
-    }
-  }
+  if (needsSubtitle) rejected.push({ capability: 'subtitle.download', reason: 'objective_capability_not_implemented' });
   const strategies = new Set((selection.gap || []).map((gap) => gap.requiredStrategy));
   if (strategies.has('upgrade') && requireAllowed(allowed, 'source.upgrade.request', rejected)) {
-    add('upgrade-search', 'source.upgrade.search', { resourceRequest: { resourceType: 'moviepilot' } });
-    add('upgrade-request', 'source.upgrade.request', { inputBindings: { candidates: from(`${task.id}:upgrade-search`) }, resourceRequest: { resourceType: 'moviepilot' }, approvalRequirement: { gateId: 'upgrade.candidateSelect' } });
+    add('moviepilot-check', 'integration.moviepilot.check', { resourceRequest: { resourceType: 'moviepilot' } });
+    add('upgrade-identity-resolve', 'media.upgrade.identity.resolve', { inputBindings: { integration: from(`${task.id}:moviepilot-check`) }, resourceRequest: { resourceType: 'moviepilot' } });
+    add('upgrade-search', 'source.upgrade.search', { inputBindings: { identity: from(`${task.id}:upgrade-identity-resolve`) }, resourceRequest: { resourceType: 'moviepilot' } });
+    add('upgrade-request', 'source.upgrade.request', { inputBindings: { candidates: from(`${task.id}:upgrade-search`) }, resourceRequest: { resourceType: 'moviepilot' }, approvalRequirement: { gateId: 'upgrade.candidateSelect', forceWhenInput: { port: 'candidates', path: 'forceConfirmation', equals: true } } });
     add('upgrade-download-observe', 'source.upgrade.observe-download', { inputBindings: { request: from(`${task.id}:upgrade-request`) }, resourceRequest: { resourceType: 'moviepilot' }, retryPolicy: { maxAttempts: 2160 } });
     add('upgrade-transfer', 'source.upgrade.observe-transfer', { inputBindings: { request: from(`${task.id}:upgrade-request`), download: from(`${task.id}:upgrade-download-observe`) }, dependsOn: [`${task.id}:upgrade-request`, `${task.id}:upgrade-download-observe`], resourceRequest: { resourceType: 'moviepilot' }, retryPolicy: { maxAttempts: 2160 } });
     add('upgrade-output', 'source.upgrade.output.resolve', { inputBindings: { transfer: from(`${task.id}:upgrade-transfer`) }, resourceRequest: { resourceType: 'filesystem' }, retryPolicy: { maxAttempts: 120 } });
-    add('upgrade-identity-inspect', 'media.identity.inspect', { inputBindings: { stagedAsset: from(`${task.id}:upgrade-output`) }, resourceRequest: { resourceType: 'filesystem' } });
+    add('upgrade-output-settle', 'source.upgrade.output.settle', { inputBindings: { stagedAsset: from(`${task.id}:upgrade-output`) }, resourceRequest: { resourceType: 'filesystem' }, retryPolicy: { maxAttempts: 2160 } });
+    add('upgrade-identity-inspect', 'media.identity.inspect', { inputBindings: { stagedAsset: from(`${task.id}:upgrade-output-settle`) }, resourceRequest: { resourceType: 'filesystem' } });
     add('upgrade-identity-accept', 'media.identity.accept', { inputBindings: { inspection: from(`${task.id}:upgrade-identity-inspect`) }, approvalRequirement: { gateId: 'upgrade.identityMismatch', whenInput: { port: 'inspection', path: 'matched', equals: false } } });
     add('upgrade-media-verify', 'output.media.verify', { inputBindings: { stagedAsset: from(`${task.id}:upgrade-identity-accept`) }, resourceRequest: { resourceType: 'filesystem' } });
-    add('upgrade-preview', 'output.preview.generate', { inputBindings: { verifiedAsset: from(`${task.id}:upgrade-media-verify`) }, resourceRequest: { resourceType: 'transcode' } });
+    add('upgrade-media-select', 'output.media.select', { inputBindings: { attempts: fromMany([`${task.id}:upgrade-media-verify`]) } });
     if (requireAllowed(allowed, 'media.replace', rejected)) {
-      add('upgrade-replace', 'media.replace', { inputBindings: { verifiedAsset: from(`${task.id}:upgrade-preview`) }, resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: 'upgrade.beforeReplace' } });
-      add('upgrade-cleanup', 'workspace.cleanup', { inputBindings: { replacement: from(`${task.id}:upgrade-replace`) }, resourceRequest: { resourceType: 'filesystem' } });
+      addMutationOutcome('upgrade', `${task.id}:upgrade-media-select`, 'upgrade.beforeReplace');
     }
   }
   if (strategies.has('transcode') && requireAllowed(allowed, 'media.transcode', rejected)) {
-    add('transcode-precheck', 'media.transcode.precheck', { resourceRequest: { resourceType: 'transcode' } });
+    let precheckDependencies = [];
+    let precheckBindings = {};
+    if (item.isDiscLike) {
+      if (requireAllowed(allowed, 'container.remux', rejected)) {
+        add('disc-remux', 'container.remux', { resourceRequest: { resourceType: 'transcode' } });
+        precheckDependencies = [`${task.id}:disc-remux`];
+        precheckBindings = { sourceAsset: from(`${task.id}:disc-remux`) };
+      }
+    }
+    add('transcode-precheck', 'media.transcode.precheck', { dependsOn: precheckDependencies, inputBindings: precheckBindings, resourceRequest: { resourceType: 'transcode' } });
     add('transcode-tonemap-accept', 'transcode.tonemap.accept', { inputBindings: { precheck: from(`${task.id}:transcode-precheck`) }, approvalRequirement: { gateId: 'transcode.dolbyVisionTonemap', whenInput: { port: 'precheck', path: 'isDolbyVision', equals: true } } });
-    add('transcode', 'media.transcode', { inputBindings: { precheck: from(`${task.id}:transcode-tonemap-accept`) }, resourceRequest: { resourceType: 'transcode' } });
-    add('transcode-media-verify', 'output.media.verify', { inputBindings: { stagedAsset: from(`${task.id}:transcode`) }, resourceRequest: { resourceType: 'filesystem' } });
-    add('transcode-preview', 'output.preview.generate', { inputBindings: { verifiedAsset: from(`${task.id}:transcode-media-verify`) }, resourceRequest: { resourceType: 'transcode' } });
+    const rateAttempts = transcodeDevicePlan.buildRateControlPlan(transcodeDevicePlan.buildDeviceSlots(config));
+    const verifyIds = [];
+    let previousVerifyId = '';
+    rateAttempts.forEach((attempt, index) => {
+      const encodeId = `${task.id}:transcode-attempt-${index + 1}`;
+      const verifyId = `${task.id}:transcode-verify-${index + 1}`;
+      const dependencies = [`${task.id}:transcode-tonemap-accept`, ...(previousVerifyId ? [previousVerifyId] : [])];
+      add(`transcode-attempt-${index + 1}`, 'media.transcode', {
+        dependsOn: dependencies,
+        inputBindings: { precheck: from(`${task.id}:transcode-tonemap-accept`), ...(previousVerifyId ? { previousAttempt: from(previousVerifyId) } : {}) },
+        ...(previousVerifyId ? { runWhen: { port: 'previousAttempt', path: 'objectiveSatisfied', equals: false } } : {}),
+        parameters: { strategy: attempt.strategy, encoderKind: attempt.encoderKind }, resourceRequest: { resourceType: 'transcode' },
+      });
+      add(`transcode-verify-${index + 1}`, 'output.media.verify', { dependsOn: [encodeId], inputBindings: { stagedAsset: from(encodeId) }, runWhen: { port: 'stagedAsset' }, resourceRequest: { resourceType: 'filesystem' } });
+      verifyIds.push(verifyId); previousVerifyId = verifyId;
+    });
+    if (!verifyIds.length) rejected.push({ capability: 'media.transcode', reason: 'transcode_attempt_plan_empty' });
+    else add('transcode-media-select', 'output.media.select', { dependsOn: verifyIds, inputBindings: { attempts: fromMany(verifyIds) } });
     if (requireAllowed(allowed, 'media.replace', rejected)) {
-      add('transcode-replace', 'media.replace', { inputBindings: { verifiedAsset: from(`${task.id}:transcode-preview`) }, resourceRequest: { resourceType: 'filesystem' }, approvalRequirement: { gateId: 'transcode.beforeReplace' } });
-      add('transcode-cleanup', 'workspace.cleanup', { inputBindings: { replacement: from(`${task.id}:transcode-replace`) }, resourceRequest: { resourceType: 'filesystem' } });
+      addMutationOutcome('transcode', `${task.id}:transcode-media-select`, 'transcode.beforeReplace');
     }
   }
   const layout = item.layoutFacts || item.basedataFacts && item.basedataFacts.layout || {};
@@ -186,7 +218,7 @@ function optimizeNodes(task, config) {
   if (nodes.length === 0) add('verify-objective', 'optimization.objective.verify');
   const materializeId = nodes.find((node) => node.capability === 'metadata.artifacts.materialize')?.eventId;
   add('layout-verify', 'filesystem.layout.verify', { inputBindings: materializeId ? { materialization: from(materializeId) } : {}, resourceRequest: { resourceType: 'filesystem' } });
-  const replacementId = [...nodes].reverse().find((node) => node.capability === 'media.replace')?.eventId;
+  const replacementId = [...nodes].reverse().find((node) => node.capability === 'optimization.outcome.select')?.eventId;
   add('optimize-publish', 'optimization.result.publish', { inputBindings: { layout: from(`${task.id}:layout-verify`), ...(replacementId ? { replacement: from(replacementId) } : {}) }, dependsOn: [...new Set([`${task.id}:layout-verify`, ...(replacementId ? [replacementId] : [])])] });
   const selected = nodes.map((node) => node.capability);
   const classification = selected.includes('source.upgrade.request') && selected.includes('media.transcode')
@@ -210,7 +242,7 @@ function planTask(task, config = {}) {
     classification: planned.classification,
     capabilityPolicyRevision: task.capabilityPolicyRevision || subLibraryFor(task, config).capabilityPolicyRevision || '',
     explanation: planned.explanation,
-  }, planned.nodes);
+  }, planned.nodes, capabilityRegistry);
 }
 
 module.exports = { REQUIRED, planTask, basedataNodes, metadataNodes, optimizeNodes };

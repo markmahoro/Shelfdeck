@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const moviepilotService = require('../services/moviepilotService');
 const sourceAccessResolver = require('../sourceAccessResolver');
+const smartSeedSelect = require('../smartSeedSelect');
 
 function sourcePathFor(task) {
   const canonical = task.itemInfo && (task.itemInfo.path || task.itemInfo.sourcePath)
@@ -38,20 +39,62 @@ function findMediaFile(root) {
 function retryable(message, code, details = {}) {
   return Object.assign(new Error(message), { code, retryable: true, details });
 }
+function newestMtime(root) {
+  let newest = 0;
+  const visit = (entry, depth) => {
+    const stat = fs.statSync(entry); newest = Math.max(newest, stat.mtimeMs || 0);
+    if (stat.isDirectory() && depth < 4) for (const name of fs.readdirSync(entry)) visit(path.join(entry, name), depth + 1);
+  };
+  visit(root, 0); return newest;
+}
 
 function registerUpgradeCapabilities(register) {
+  register({ capability: 'integration.moviepilot.check', allowedTargetGates: ['optimize'], execute: async ({ config }) => {
+    const mp = config.moviepilot || {};
+    if (!mp.baseUrl || !mp.apiKey) throw Object.assign(new Error('MoviePilot is not configured'), { code: 'MOVIEPILOT_NOT_CONFIGURED' });
+    const health = await moviepilotService.checkConnection(mp);
+    if (!health || health.ok === false || health.success === false) throw Object.assign(new Error(health && health.message || 'MoviePilot connection check failed'), { code: 'MOVIEPILOT_UNAVAILABLE' });
+    return { result: { available: true, baseUrl: mp.baseUrl } };
+  } });
+
+  register({ capability: 'media.upgrade.identity.resolve', allowedTargetGates: ['optimize'], execute: async ({ task, config, input }) => {
+    if (!input.integration.available) throw Object.assign(new Error('MoviePilot integration is unavailable'), { code: 'MOVIEPILOT_UNAVAILABLE' });
+    const title = task.itemInfo && (task.itemInfo.name || task.itemInfo.title) || '';
+    if (!title) throw Object.assign(new Error('Upgrade identity title is missing'), { code: 'UPGRADE_TITLE_MISSING' });
+    let tmdbId = String(task.itemInfo && task.itemInfo.tmdbId || ''); let originalTitle = '';
+    if (!tmdbId) {
+      const first = await moviepilotService.searchMediaByTitle(config.moviepilot || {}, title);
+      const rows = Array.isArray(first) ? first : [];
+      let hit = rows.find((entry) => entry.tmdb_id);
+      originalTitle = String(rows[0] && rows[0].original_title || '');
+      if (!hit && originalTitle) {
+        const fallback = await moviepilotService.searchMediaByTitle(config.moviepilot || {}, originalTitle);
+        hit = (Array.isArray(fallback) ? fallback : []).find((entry) => entry.tmdb_id);
+      }
+      tmdbId = String(hit && hit.tmdb_id || '');
+      originalTitle = String(hit && (hit.original_title || hit.title) || originalTitle);
+    }
+    const pathValue = task.itemInfo && task.itemInfo.path || '';
+    const year = String(task.itemInfo && task.itemInfo.year || (pathValue.match(/\((\d{4})\)/) || [])[1] || '');
+    return { result: { title, originalTitle, tmdbId, year, mediaKind: task.itemInfo && task.itemInfo.type || 'movie' } };
+  } });
+
   register({
     capability: 'source.upgrade.search',
     allowedTargetGates: ['optimize'],
     defaultResourceRequest: { resourceType: 'moviepilot' },
-    execute: async ({ task, config }) => {
+    execute: async ({ task, config, input }) => {
       const mp = config.moviepilot || {};
-      if (!mp.baseUrl || !mp.apiKey) throw Object.assign(new Error('MoviePilot is not configured'), { code: 'MOVIEPILOT_NOT_CONFIGURED' });
-      const title = task.itemInfo && (task.itemInfo.name || task.itemInfo.title) || '';
-      if (!title) throw Object.assign(new Error('Upgrade search title is missing'), { code: 'UPGRADE_TITLE_MISSING' });
-      const response = await moviepilotService.searchTorrents(mp, title);
+      const identity = input.identity;
+      const keyword = [identity.title, identity.year].filter(Boolean).join(' ');
+      let response = await moviepilotService.searchTorrents(mp, keyword);
       const raw = Array.isArray(response) ? response : response && response.data || [];
-      const candidates = raw.map((entry, index) => ({
+      let sourceRows = raw;
+      if (!sourceRows.length && identity.originalTitle) {
+        response = await moviepilotService.searchTorrents(mp, [identity.originalTitle, identity.year].filter(Boolean).join(' '));
+        sourceRows = Array.isArray(response) ? response : response && response.data || [];
+      }
+      const candidates = sourceRows.map((entry, index) => ({
         index,
         title: entry.torrent_info && entry.torrent_info.title || entry.title || '',
         site: entry.torrent_info && entry.torrent_info.site_name || '',
@@ -59,7 +102,9 @@ function registerUpgradeCapabilities(register) {
         torrentInfo: entry.torrent_info || entry,
       }));
       if (!candidates.length) throw Object.assign(new Error('MoviePilot returned no upgrade candidate'), { code: 'UPGRADE_CANDIDATE_NOT_FOUND' });
-      return { result: { candidates } };
+      const recommendedIndex = smartSeedSelect.filterAndSelect(sourceRows, task.itemInfo || {}, config);
+      const forceConfirmation = !sourceRows.some((entry) => entry && entry.meta_info != null) || recommendedIndex == null;
+      return { result: { candidates, rawCandidates: sourceRows, identity, recommendedIndex, forceConfirmation } };
     },
   });
 
@@ -69,9 +114,14 @@ function registerUpgradeCapabilities(register) {
     sideEffect: true,
     idempotency: 'commit_once',
     defaultResourceRequest: { resourceType: 'moviepilot' },
+    cancel: async ({ event, config }) => {
+      const downloadId = event.result && event.result.downloadId;
+      if (downloadId) await moviepilotService.deleteDownload(config.moviepilot || {}, downloadId);
+    },
     execute: async (context) => {
       const search = context.input.candidates;
-      const selectedIndex = Number(context.event.result && context.event.result.confirmData && context.event.result.confirmData.selectedIndex || 0);
+      const confirmed = context.event.result && context.event.result.confirmData && context.event.result.confirmData.selectedIndex;
+      const selectedIndex = Number(confirmed == null ? search.recommendedIndex : confirmed);
       const candidate = search.candidates && search.candidates[selectedIndex];
       if (!candidate) throw Object.assign(new Error('Upgrade candidate selection is invalid'), { code: 'UPGRADE_CANDIDATE_SELECTION_INVALID' });
       const mp = context.config.moviepilot || {};
@@ -90,6 +140,10 @@ function registerUpgradeCapabilities(register) {
     capability: 'source.upgrade.observe-download',
     allowedTargetGates: ['optimize'],
     defaultResourceRequest: { resourceType: 'moviepilot' },
+    cancel: async ({ event, config }) => {
+      const downloadId = event.input && event.input.resolved && event.input.resolved.request && event.input.resolved.request.downloadId;
+      if (downloadId) await moviepilotService.deleteDownload(config.moviepilot || {}, downloadId);
+    },
     execute: async (context) => {
       const request = context.input.request;
       const active = await moviepilotService.listDownloads(context.config.moviepilot || {});
@@ -127,6 +181,13 @@ function registerUpgradeCapabilities(register) {
       return { result: { assetId: `staged:${context.event.eventId}`, path: outputPath, outputPath, sourcePath, originalSizeBytes: fs.statSync(sourcePath).size, workDir: path.dirname(outputPath), stagedRoot: localRoot, targetFolder: path.dirname(sourcePath), replacementScope: 'folder', transfer, producingEventId: context.event.eventId } };
     },
   });
+  register({ capability: 'source.upgrade.output.settle', allowedTargetGates: ['optimize'], execute: async ({ config, input }) => {
+    const stagedAsset = input.stagedAsset;
+    const settleMs = Math.max(0, Number(config.upgradeScrapingSettleSeconds) || 30) * 1000;
+    const ageMs = Date.now() - newestMtime(stagedAsset.stagedRoot || stagedAsset.workDir);
+    if (ageMs < settleMs) throw retryable('MoviePilot staged output is still settling', 'UPGRADE_STAGING_STILL_CHANGING', { ageMs, settleMs });
+    return { result: { ...stagedAsset, settledAt: new Date().toISOString(), settleEvidence: { ageMs, settleMs } } };
+  } });
 }
 
-module.exports = { registerUpgradeCapabilities, mapTransferPath, findMediaFile };
+module.exports = { registerUpgradeCapabilities, mapTransferPath, findMediaFile, newestMtime };

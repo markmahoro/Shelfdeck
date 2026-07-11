@@ -277,9 +277,11 @@ Task(object + targetGate + gateObjective)
 - Event Runtime 只为当前 Event 申请 Governor permit；禁止为整条 Flow 预取资源。Task 状态由 Graph 汇总，Capability Executor 不得写 Task 状态。
 - Capability Executor 只完成一个原子效果，不创建 Task、不选择或追加 Capability、不调用另一个 Executor、不推进 Gate。
 - Capability 不是匿名 Executor 注册项，而是版本化的内部 API。Canonical Capability Catalog 必须为每项能力定义 nominal input/output type、contract version、effect kind、resource class、approval action 和 fencing requirement。Executor 只接收 Runtime 已解析并校验的 input ports，不得读取整条 Event 列表或依赖 Event ID 后缀。
+- Nominal type 同时具有 canonical structural schema；Runtime 必须校验必需字段。每个 Event Intent 持久化 contract version、input/output signature 和 effect kind snapshot；同名 Capability 的版本或签名漂移必须使旧 Graph 明确失效，不能交给新 Executor 猜测执行。
 - Workflow Planner 必须为每条边声明 output-to-input binding；Graph 持久化前执行 nominal type/version 检查。缺少 binding、未知 port、未声明 dependency 或类型不兼容都必须拒绝规划，不能在 Runtime 猜测输入。
 - Capability 以业务效果命名，不以旧 Flow 命名。Transcode、Upgrade、Remux 等只负责产生同一 `StagedMediaAsset`；它们共同复用 `output.media.verify -> media.replace`，不得各自复制 verify/replace。相同副作用只能有一个 canonical Capability。
 - Runtime 是 approval、Permit、retry/restart、commit marker 和 post-effect 的 owner。`media.replace`、`source.organize` 等 commit-once Executor 只返回效果证据；Basedata invalidation、SourceMutationResult 持久化和 neutral signal 由 Runtime/Kairox Service 在 durable commit marker 之后统一处理。
+- 长运行效果通过统一 Capability `cancel()` contract 接受 Runtime 的 pause/cancel；Executor 只能中止自己的当前效果，Event/Task 状态仍由 Runtime 写入。失败与取消后的内部 workspace compensation 也由 Runtime 按 durable evidence 和 containment 统一执行。
 - Library 只配置允许的副作用 Capability。观察、校验和 canonical fact publish 等必要能力不可关闭；允许 Capability 不等于授予 approval 或 destructive authorization。
 - 当前系统 Planner 与未来高级画布必须使用同一 Workflow Graph contract；Beta 不提供用户画布或 Graph 写 API。
 

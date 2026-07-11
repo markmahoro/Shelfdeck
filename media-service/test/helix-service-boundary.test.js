@@ -155,7 +155,7 @@ test('public Helix path exposes only clean maintenance targets and no legacy dis
 
 test('Kairox Runtime and Basedata capability write only Kairox-owned facts', () => {
   const runtime = source('kairoxRuntime.js');
-  const basedata = source('builtInCapabilities.js');
+  const basedata = source('capabilities/basedataCapabilities.js');
   assert.match(runtime, /require\('\.\/kairoxStore'\)/);
   assert.match(basedata, /kairoxStore\.publishBasedata/);
   assert.doesNotMatch(runtime, /require\('\.\/libraryStore'\)/);
@@ -178,7 +178,7 @@ test('gate invalidation writes Kairox freshness and never mutates Library domain
 });
 
 test('optimize mutation is owned by atomic capabilities and durable Workflow Events', () => {
-  const capabilities = source('builtInCapabilities.js');
+  const capabilities = source('capabilities/maintenanceCapabilities.js');
   const runtime = source('eventRuntime.js');
   const postEffects = source('capabilityPostEffects.js');
   assert.match(capabilities, /capability: 'media\.replace'/);
@@ -190,7 +190,7 @@ test('optimize mutation is owned by atomic capabilities and durable Workflow Eve
 });
 
 test('Metadata capability publishes Kairox facts without mixed Library facts', () => {
-  const capabilities = source('builtInCapabilities.js');
+  const capabilities = source('capabilities/metadataCapabilities.js');
   assert.match(capabilities, /capability: 'metadata\.publish'/);
   assert.match(capabilities, /kairoxStore\.publishMetadata/);
   assert.doesNotMatch(capabilities, /mediaLibraryService|adultLibraryService|libraryStore|factsFreshnessService|strategyEngine/);

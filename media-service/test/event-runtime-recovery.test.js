@@ -34,7 +34,7 @@ test('Event retry resumes the same atomic capability without creating a Task att
   let attempts = 0;
   if (!registry.has('test.retry')) registry.register(testCapability('test.retry', async () => { attempts += 1; if (attempts === 1) throw Object.assign(new Error('retry me'), { code: 'TEST_RETRY' }); return { ok: true }; }));
   const value = task('retry-task');
-  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'retry-event', capability: 'test.retry', retryPolicy: { maxAttempts: 2 } }]);
+  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'retry-event', capability: 'test.retry', retryPolicy: { maxAttempts: 2 } }], registry);
   workflowStore.createPlan(plan, registry);
   await eventRuntime.driveTask(value.id);
   await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -48,7 +48,7 @@ test('Event retry resumes the same atomic capability without creating a Task att
 test('startup recovery discards in-memory execution and requeues the durable Event and Task once', () => {
   const value = task('restart-task');
   if (!registry.has('test.restart')) registry.register(testCapability('test.restart', async () => ({ ok: true })));
-  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'restart-event', capability: 'test.restart' }]);
+  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata' }, [{ eventId: 'restart-event', capability: 'test.restart' }], registry);
   workflowStore.createPlan(plan, registry);
   workflowStore.transition('restart-event', 'executing', { startedAt: new Date().toISOString(), attempt: 1 });
   taskStore.updateTask(value.id, { status: 'executing' });
@@ -61,7 +61,7 @@ test('startup recovery discards in-memory execution and requeues the durable Eve
 test('a persisted graph is invalidated when its objective revision no longer matches the Task snapshot', async () => {
   const value = task('invalidated-task');
   if (!registry.has('test.invalidate')) registry.register(testCapability('test.invalidate', async () => ({ ok: true })));
-  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata', objectiveRevision: 'objective-old' }, [{ eventId: 'invalidated-event', capability: 'test.invalidate' }]);
+  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'basedata', objectiveRevision: 'objective-old' }, [{ eventId: 'invalidated-event', capability: 'test.invalidate' }], registry);
   workflowStore.createPlan(plan, registry);
   taskStore.updateTask(value.id, { objectiveRevisionSnapshot: 'objective-new' });
   const result = await eventRuntime.driveTask(value.id);
@@ -73,7 +73,7 @@ test('a persisted graph is invalidated when its objective revision no longer mat
 test('approval is a durable Event prerequisite and confirmation resumes the same Event', async () => {
   const value = taskStore.updateTask(task('approval-task').id, { taskTarget: { targetGate: 'optimize', gateObjective: {} } });
   if (!registry.has('test.approval')) registry.register(testCapability('test.approval', async () => ({ result: { committed: true }, commitMarker: 'approval-test-commit' }), { allowedTargetGates: ['optimize'], effectKind: 'commit_once', approvalContract: { actions: ['transcode.beforeReplace'] } }));
-  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'optimize' }, [{ eventId: 'approval-event', capability: 'test.approval', approvalRequirement: { gateId: 'transcode.beforeReplace' } }]);
+  const plan = workflowGraph.buildPlan({ taskId: value.id, itemId: value.itemId, targetGate: 'optimize' }, [{ eventId: 'approval-event', capability: 'test.approval', approvalRequirement: { gateId: 'transcode.beforeReplace' } }], registry);
   workflowStore.createPlan(plan, registry);
   await eventRuntime.driveTask(value.id);
   assert.strictEqual(workflowStore.getEvent('approval-event').status, 'waiting_for_approval');
@@ -89,4 +89,23 @@ test('conditional approval is required only when its typed dependency evidence m
   const event = { intent: { inputBindings: { precheck: { source: 'event', eventId: 'precheck-event' } }, approvalRequirement: { gateId: 'transcode.dolbyVisionTonemap', whenInput: { port: 'precheck', path: 'isDolbyVision', equals: true } } } };
   assert.strictEqual(eventRuntime.approvalRequirementApplies(event, [{ eventId: 'precheck-event', result: { isDolbyVision: false } }]), false);
   assert.strictEqual(eventRuntime.approvalRequirementApplies(event, [{ eventId: 'precheck-event', result: { isDolbyVision: true } }]), true);
+});
+
+test('forceWhenInput cannot be bypassed by an auto approval policy', () => {
+  const event = { result: null, intent: { inputBindings: { candidates: { source: 'event', eventId: 'search' } }, approvalRequirement: { gateId: 'upgrade.candidateSelect', forceWhenInput: { port: 'candidates', path: 'forceConfirmation', equals: true } } } };
+  const events = [{ eventId: 'search', result: { forceConfirmation: true } }];
+  assert.strictEqual(eventRuntime.approvalConditionMatches(event.intent.approvalRequirement.forceWhenInput, event, events), true);
+});
+
+test('typed runWhen selects an Event branch from dependency output without invoking the Executor', () => {
+  const intent = { inputBindings: { verifiedAsset: { source: 'event', eventId: 'disposition' } }, runWhen: { port: 'verifiedAsset', path: 'action', equals: 'replace' } };
+  assert.strictEqual(eventRuntime.inputConditionApplies(intent, [{ eventId: 'disposition', result: { action: 'discard' } }]), false);
+  assert.strictEqual(eventRuntime.inputConditionApplies(intent, [{ eventId: 'disposition', result: { action: 'replace' } }]), true);
+});
+
+test('Runtime invokes the Capability cancellation contract for an executing atomic effect', async () => {
+  let cancelled = '';
+  if (!registry.has('test.cancellable')) registry.register(testCapability('test.cancellable', async () => ({ ok: true }), { cancel: ({ event, reason }) => { cancelled = `${event.eventId}:${reason}`; } }));
+  await eventRuntime.cancelExecutingEvent({ eventId: 'cancellable-event', capability: 'test.cancellable' }, 'paused');
+  assert.strictEqual(cancelled, 'cancellable-event:paused');
 });

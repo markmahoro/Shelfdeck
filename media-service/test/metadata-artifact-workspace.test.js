@@ -6,6 +6,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const workspace = require('../src/metadataArtifactWorkspace');
+const builtIns = require('../src/builtInCapabilities');
+const registry = require('../src/capabilityRegistry');
+const sourceAccessResolver = require('../src/sourceAccessResolver');
 
 test('metadata artifacts are revision isolated, checksummed and atomically probed', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-artifacts-'));
@@ -34,5 +37,19 @@ test('metadata workspace rejects parent traversal before resolving the configure
   try {
     const configured = `${root}${path.sep}child${path.sep}..${path.sep}escaped`;
     assert.throws(() => workspace.probeWorkspace({ workspaces: { metadataArtifacts: configured } }), { code: 'METADATA_ARTIFACT_WORKSPACE_ESCAPE' });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('materialize Capability consumes the current admitted source after organize/rebind without implicit Event lookup', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-artifact-materialize-'));
+  try {
+    const artifactRoot = path.join(root, 'artifacts'); const mediaRoot = path.join(root, 'media'); fs.mkdirSync(mediaRoot);
+    const mediaPath = path.join(mediaRoot, 'movie.mkv'); fs.writeFileSync(mediaPath, 'media');
+    const config = { workspaces: { metadataArtifacts: artifactRoot }, subLibraries: [{ uuid: 'library', watchRoot: mediaRoot }] };
+    workspace.writeArtifact(config, { itemId: 'item-1', metadataRevision: 'rev-1', name: 'metadata.nfo', content: '<movie/>', eventId: 'render' });
+    builtIns.registerBuiltIns();
+    const result = await registry.get('metadata.artifacts.materialize').execute({ config, event: { eventId: 'materialize' }, task: { id: 'task-1', itemId: 'item-1', objectiveRevisionSnapshot: 'rev-1', sourceAccessMappingRevision: sourceAccessResolver.getRevision(), itemInfo: { path: mediaPath, metadataArtifactRevision: 'rev-1' }, helixAdmission: { sourceAccessDescriptor: { locator: { path: mediaPath } } } } });
+    assert.strictEqual(result.result.written.length, 1);
+    assert.strictEqual(fs.readFileSync(path.join(mediaRoot, 'metadata.nfo'), 'utf8'), '<movie/>');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });

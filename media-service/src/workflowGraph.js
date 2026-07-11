@@ -76,6 +76,12 @@ function validateGraph(plan, registry) {
       throw error;
     }
     const definition = registry && registry.get(node.capability);
+    if (definition && Number(node.capabilityContractVersion) !== Number(definition.contractVersion)) {
+      throw Object.assign(new Error(`Workflow capability contract version drift: ${node.capability}`), { code: 'KAIROX_CAPABILITY_CONTRACT_VERSION_DRIFT' });
+    }
+    if (definition && (JSON.stringify(node.inputContractSnapshot || {}) !== JSON.stringify(definition.inputContract || {}) || JSON.stringify(node.outputContractSnapshot || {}) !== JSON.stringify(definition.outputContract || {}))) {
+      throw Object.assign(new Error(`Workflow capability signature drift: ${node.capability}`), { code: 'KAIROX_CAPABILITY_CONTRACT_SIGNATURE_DRIFT' });
+    }
     if (definition && definition.allowedTargetGates.length > 0 && !definition.allowedTargetGates.includes(plan.targetGate)) {
       const error = new Error(`Workflow capability ${node.capability} is not allowed for ${plan.targetGate}`);
       error.code = 'KAIROX_CAPABILITY_GATE_VIOLATION';
@@ -83,6 +89,10 @@ function validateGraph(plan, registry) {
     }
     if (definition) {
       capabilityContract.assertParameters(definition.parameterContract, node.parameters || {}, node.capability);
+      if (node.runWhen) {
+        const port = node.runWhen.port;
+        if (!definition.inputContract[port] || !(node.inputBindings || {})[port]) throw Object.assign(new Error(`Capability ${node.capability} runWhen references an unbound port`), { code: 'KAIROX_CAPABILITY_RUN_CONDITION_INVALID' });
+      }
       const resourceType = node.resourceRequest && node.resourceRequest.resourceType;
       if (resourceType && !definition.resourceContract.types.includes(resourceType)) {
         throw Object.assign(new Error(`Capability ${node.capability} cannot request resource ${resourceType}`), { code: 'KAIROX_CAPABILITY_RESOURCE_CONTRACT_VIOLATION' });
@@ -152,7 +162,7 @@ function validateCapabilityBindings(node, nodesById, registry) {
   }
 }
 
-function buildPlan(input = {}, nodes = []) {
+function buildPlan(input = {}, nodes = [], registry = null) {
   return {
     planId: input.planId || crypto.randomUUID(),
     schemaVersion: SCHEMA_VERSION,
@@ -168,20 +178,27 @@ function buildPlan(input = {}, nodes = []) {
     classification: text(input.classification || input.targetGate),
     plannedAt: input.plannedAt || new Date().toISOString(),
     explanation: input.explanation || {},
-    nodes: nodes.map((node, index) => ({
+    nodes: nodes.map((node, index) => {
+      const definition = registry && registry.get(node.capability);
+      return ({
       eventId: text(node.eventId) || `${text(input.taskId || input.id)}:${index + 1}`,
       capability: text(node.capability),
       inputBindings: node.inputBindings || {},
       parameters: node.parameters || {},
       dependsOn: Array.isArray(node.dependsOn) ? [...node.dependsOn] : [],
       when: node.when == null ? true : node.when,
+      runWhen: node.runWhen || null,
       resourceRequest: node.resourceRequest || null,
       approvalRequirement: node.approvalRequirement || null,
       retryPolicy: node.retryPolicy || { maxAttempts: 1 },
       timeoutPolicy: node.timeoutPolicy || null,
       fencingPolicy: node.fencingPolicy || null,
       outputContract: node.outputContract || {},
-    })),
+      capabilityContractVersion: definition && definition.contractVersion || 0,
+      inputContractSnapshot: definition && definition.inputContract || {},
+      outputContractSnapshot: definition && definition.outputContract || {},
+      effectKindSnapshot: definition && definition.effectKind || '',
+    }); }),
   };
 }
 

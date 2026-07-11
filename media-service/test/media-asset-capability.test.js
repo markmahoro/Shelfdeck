@@ -7,6 +7,8 @@ const os = require('os');
 const path = require('path');
 const replacement = require('../src/mediaReplacementService');
 const { findNfoTmdbId } = require('../src/capabilities/mediaAssetCapabilities');
+const builtIns = require('../src/builtInCapabilities');
+const registry = require('../src/capabilityRegistry');
 
 test('generic media identity inspection reads strong TMDB evidence from staged NFO', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-identity-'));
@@ -30,4 +32,14 @@ test('generic media.replace supports folder scope with rollback-safe commit and 
     const recovered = await replacement.replaceFolder({ stagedFolder: staged, targetFolder: target, operationId: 'event-1' });
     assert.strictEqual(recovered.recoveredCommitted, true);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('transcode output disposition preserves a larger original without entering media.replace', async () => {
+  builtIns.registerBuiltIns();
+  const capability = registry.get('output.media.disposition');
+  const discarded = await capability.execute({ input: { verifiedAsset: { sizeBytes: 200, originalSizeBytes: 100, stagedAsset: { replacementScope: 'file' } } } });
+  assert.strictEqual(discarded.result.action, 'discard');
+  assert.strictEqual(discarded.result.acceptedAsNoBenefit, true);
+  const upgrade = await capability.execute({ input: { verifiedAsset: { sizeBytes: 200, originalSizeBytes: 100, stagedAsset: { replacementScope: 'folder' } } } });
+  assert.strictEqual(upgrade.result.action, 'replace');
 });

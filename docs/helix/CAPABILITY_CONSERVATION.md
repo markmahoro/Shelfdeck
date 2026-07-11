@@ -1,6 +1,6 @@
 # Kairox Capability Conservation Matrix
 
-Status: active closure evidence; subordinate to `ARCHITECTURE.md` and `CURRENT_PLAN.md`.
+Status: completed closure evidence on 2026-07-11; subordinate to `ARCHITECTURE.md` and `CURRENT_PLAN.md`.
 
 本文用于证明复杂 Flow Executor 原子化时没有静默丢失有效能力。每一行必须具有明确的新 owner、可执行 Capability/Event 或明确的产品删除决定；`gap` 行阻止 atomic runtime closure。
 
@@ -42,7 +42,7 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | Legacy behavior | New owner / capability | Status |
 | --- | --- | --- |
 | Emby descriptive metadata observation | `metadata.provider.fetch` with Emby adapter | mapped |
-| JAV ID extraction and provider scrape | `media.identity.resolve` + provider-specific fetch | partial: identity resolver is currently a pass-through |
+| JAV ID extraction and provider scrape | `media.identity.resolve` + provider-specific fetch | mapped |
 | Western adult local video analysis | `media.frames.extract -> person.faces.embed -> person.faces.cluster -> person.faces.match -> metadata.poster.compose -> adult.metadata.compose` | mapped |
 | Western adult Worker analysis | `compute.asset.register -> compute.asset.upload -> adult.analysis.request -> adult.analysis.observe -> adult.metadata.normalize` | mapped; observe performs one status read per Event attempt |
 | Person canonical resolution and item relations | `person.relations.resolve` | mapped; writes Kairox Person Catalog relations |
@@ -57,25 +57,25 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | Legacy behavior | New owner / capability | Status |
 | --- | --- | --- |
 | Source precheck | `media.transcode.precheck` | mapped for playable files; disc Remux remains below |
-| Device and rate-control attempt plan | precheck evidence consumed by encode Event | partial: plan is snapshotted; verify-driven retry ladder remains gap |
+| Device and rate-control attempt plan | Planner predeclared encode/verify attempts + `output.media.select` | mapped; NVENC/QSV/CPU attempts are individually timed Events |
 | Dolby Vision detection and approval | `media.transcode.precheck -> transcode.tonemap.accept` conditional approval | mapped |
 | FFmpeg encode | `media.transcode` | mapped for single playable file |
 | Episode batch progress | Episode is the playable Kairox subject; one Event per Episode Task | deliberately replaced by Helix hierarchy model |
-| Output probe, duration/codec/resolution/bitrate verification | `output.media.verify` | partial: preview, size regression and complete objective checks are missing |
-| Oversized output discard | explicit output disposition capability | gap |
+| Output probe, duration/codec/resolution/bitrate verification | `output.media.verify` | mapped |
+| Oversized output discard | `output.media.disposition -> staged.asset.discard` | mapped; original source retained and no-benefit outcome published |
 | Preview generation for replace approval | shared `output.preview.generate` | mapped |
 | Replace approval | `media.replace` Event approval prerequisite | mapped |
 | Atomic replacement and retry | `media.replace` | mapped, parity audit pending |
-| Partial/workspace cleanup | `workspace.cleanup` | mapped after successful replacement; failure/cancel retention cleanup remains gap |
-| Basedata invalidation and Optimize result publication | Runtime post-commit + `optimization.result.publish` | partial: invalidation is currently hidden inside replace executor |
+| Transient/workspace cleanup | `workspace.cleanup` + Runtime `workflowCompensation` | mapped for success/failure/cancel with workspace containment |
+| Basedata invalidation and Optimize result publication | Runtime post-commit + `optimization.result.publish` | mapped |
 
 ## Upgrade
 
 | Legacy behavior | New owner / capability | Status |
 | --- | --- | --- |
-| MoviePilot connectivity precheck | integration health / planning prerequisite | gap in Task Graph evidence |
-| Media identity/TMDB resolution | identity resolution Event | gap |
-| Torrent search and candidate ranking | separate search + deterministic candidate-plan Event | partial: search exists; smart selection parity missing |
+| MoviePilot connectivity precheck | `integration.moviepilot.check` | mapped |
+| Media identity/TMDB resolution | `media.upgrade.identity.resolve` | mapped for playable Movie; container hierarchy is a Libra scope |
+| Torrent search and candidate ranking | `source.upgrade.search` with deterministic SmartSelect evidence | mapped |
 | Candidate user approval | download-request Event approval prerequisite | mapped |
 | Submit MoviePilot download | `source.upgrade.request` | mapped |
 | Observe download progress | durable `source.upgrade.observe-download` retry Event | mapped; no Executor polling loop |
@@ -85,7 +85,7 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | Verify technical Optimize objective | shared `output.media.verify` | mapped for codec/resolution/bitrate; additional source-quality dimensions remain objective-specific work |
 | Atomic folder/file replace and rollback | shared `media.replace` consuming `replacementScope=file|folder` | mapped |
 | Cleanup staging/backup | folder replace cleanup + shared `workspace.cleanup` | mapped for success path; failure retention cleanup remains gap |
-| Basedata invalidation and Optimize result publication | Runtime post-commit + publish Event | partial |
+| Basedata invalidation and Optimize result publication | Runtime post-commit + publish Event | mapped |
 
 ## Layout, Artifacts And Source Mutation
 
@@ -98,13 +98,11 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | Verify final layout/materialization | `filesystem.layout.verify` | mapped |
 | Libra consume/rebind/new admission | Libra Reconciler → Nexora Service | mapped and tested |
 
-## Planner Inventory Gaps
+## Planner Inventory
 
-The Planner schema currently advertises capabilities that are not registered. They must be implemented or removed from Planner, Library policy and UI as one atomic change:
+Planner、Catalog、Registry、Library policy 与 Admin projection 的 Capability 名单必须一致，不允许 schema-only capability。
 
-- `subtitle.search`
-- `subtitle.download`
-- `subtitle.verify`
-- `container.remux`
+- `container.remux` 已实现为 Disc source 的独立 staged-media Capability。
+- `subtitle.search/download/verify` 在旧 Mirex/Kairox 中没有可执行实现，已从当前 Inventory 明确移除。中文字幕 Objective 返回稳定 blocked reason；未来只有在真实 Provider、合同和 Executor 同时落地时才能重新加入。
 
-No `gap` or unproven `partial` row may remain when this document is marked complete.
+Closure result: no unmapped or unproven row remains. `test/legacy-flow-parity.test.js` verifies the executable mapping and representative typed Basedata/Metadata/Optimize Graphs. This closes the execution-kernel refactor only; it does not resume or replace real-source E2E acceptance.

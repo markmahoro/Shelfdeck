@@ -2323,7 +2323,7 @@ function registerRoutes(app) {
       adultRegion, scraperType, watchRoot, japaneseJav, western,
       allowedCapabilities: allowedCapabilities && typeof allowedCapabilities === 'object' ? allowedCapabilities : {
         metadata: isFolderAdult ? ['metadata.sidecar.render', 'metadata.image.acquire'] : [],
-        optimize: isFolderAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'source.upgrade.request', 'media.replace'],
+        optimize: isFolderAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'container.remux', 'source.upgrade.request', 'media.replace'],
       },
       capabilityParameters: capabilityParameters && typeof capabilityParameters === 'object' ? capabilityParameters : isFolderAdult ? { 'metadata.image.acquire': { kinds: ['poster', 'fanart'] } } : {},
       capabilityPolicyRevision: '1',

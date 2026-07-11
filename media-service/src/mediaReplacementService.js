@@ -39,7 +39,7 @@ async function replaceFolder({ stagedFolder, targetFolder, operationId }) {
 async function replaceVerifiedAsset({ config, verifiedAsset, operationId }) {
   const staged = verifiedAsset.stagedAsset || {};
   if (staged.replacementScope === 'folder') return replaceFolder({ stagedFolder: staged.stagedRoot, targetFolder: staged.targetFolder || path.dirname(verifiedAsset.sourcePath), operationId });
-  return transcodeService.replaceWithRetries({ config, targetPath: verifiedAsset.sourcePath, partialPath: verifiedAsset.outputPath });
+  return transcodeService.replaceWithRetries({ config, targetPath: verifiedAsset.sourcePath, partialPath: verifiedAsset.outputPath, ...(staged.replacementScope === 'disc' ? { originalDiscPath: staged.originalDiscPath } : {}) });
 }
 
 module.exports = { replaceVerifiedAsset, replaceFolder, copyDirectory };

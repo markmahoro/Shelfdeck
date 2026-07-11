@@ -37,9 +37,9 @@ test('Optimize planning composes capabilities from objective gaps without a flow
     taskTarget: { targetGate: 'optimize', gateObjective: { targetMediaFacts: { minResolution: '1080p', targetCodec: 'h265' } } },
     itemInfo: { subLibraryId: 'library-1', resolution: '720p', codec: 'h264', bitrate: 20 },
   };
-  const plan = workflowPlanner.planTask(task, { subLibraries: [{ uuid: 'library-1', allowedCapabilities: { optimize: ['source.upgrade.request', 'media.transcode', 'media.replace'] } }] });
+  const plan = workflowPlanner.planTask(task, { transcodeEncodingDevices: [{ stableKey: 'cpu:libx265', inPool: true, priority: 1 }], subLibraries: [{ uuid: 'library-1', allowedCapabilities: { optimize: ['source.upgrade.request', 'media.transcode', 'media.replace'] } }] });
   const capabilities = plan.nodes.map((node) => node.capability);
-  assert.deepStrictEqual(capabilities.slice(0, 8), ['source.upgrade.search', 'source.upgrade.request', 'source.upgrade.observe-download', 'source.upgrade.observe-transfer', 'source.upgrade.output.resolve', 'media.identity.inspect', 'media.identity.accept', 'output.media.verify']);
+  assert.deepStrictEqual(capabilities.slice(0, 8), ['integration.moviepilot.check', 'media.upgrade.identity.resolve', 'source.upgrade.search', 'source.upgrade.request', 'source.upgrade.observe-download', 'source.upgrade.observe-transfer', 'source.upgrade.output.resolve', 'source.upgrade.output.settle']);
   assert.strictEqual(plan.classification, 'composite_maintenance');
   assert.strictEqual(Object.prototype.hasOwnProperty.call(plan, 'flowKind'), false);
 });
@@ -53,6 +53,43 @@ test('source organization ends the current graph before materialization and publ
   }, { subLibraries: [{ uuid: 'adult', allowedCapabilities: { optimize: ['source.organize', 'metadata.artifacts.materialize'] } }] });
   assert.deepStrictEqual(plan.nodes.map((node) => node.capability), ['source.organize']);
   assert.strictEqual(plan.classification, 'source_mutation');
+});
+
+test('Transcode FlowPlan predeclares typed rate-control attempts and verify-driven fallthrough', () => {
+  registerPlannerInventory();
+  const plan = workflowPlanner.planTask({
+    id: 'rate-task', itemId: 'rate-item', targetGate: 'optimize',
+    taskTarget: { targetGate: 'optimize', gateObjective: { targetMediaFacts: { targetCodec: 'h265', targetBitrateProfileByBucket: { '1080p': { minMbps: 2, targetMbps: 3, maxMbps: 4 } } } } },
+    itemInfo: { subLibraryId: 'rate-library', codec: 'h264', bitrate: 10, resolution: '1920x1080' },
+  }, {
+    transcodeCpuParticipationStrategy: 'backup_only',
+    transcodeEncodingDevices: [{ stableKey: 'qsv:0', inPool: true, priority: 1 }, { stableKey: 'cpu:libx265', inPool: true, priority: 2 }],
+    subLibraries: [{ uuid: 'rate-library', allowedCapabilities: { optimize: ['media.transcode', 'media.replace'] } }],
+  });
+  const attempts = plan.nodes.filter((node) => node.capability === 'media.transcode');
+  assert.deepStrictEqual(attempts.map((node) => node.parameters.strategy), ['qsv_vbr', 'qsv_cbr', 'cpu_two_pass_abr', 'cpu_strict_fallback']);
+  assert.strictEqual(attempts[0].runWhen, null);
+  assert.deepStrictEqual(attempts[1].runWhen, { port: 'previousAttempt', path: 'objectiveSatisfied', equals: false });
+  assert.strictEqual(plan.nodes.filter((node) => node.capability === 'output.media.verify').length, 4);
+  assert.strictEqual(workflowGraph.validateGraph(plan, capabilityRegistry), plan);
+});
+
+test('disc-like Transcode composes the shared container.remux before typed precheck', () => {
+  registerPlannerInventory();
+  const plan = workflowPlanner.planTask({ id: 'disc-task', itemId: 'disc-item', targetGate: 'optimize', taskTarget: { targetGate: 'optimize', gateObjective: { targetMediaFacts: { targetCodec: 'h265' } } }, itemInfo: { subLibraryId: 'disc-library', isDiscLike: true, codec: 'mpeg2video', bitrate: 20 } }, {
+    transcodeEncodingDevices: [{ stableKey: 'cpu:libx265', inPool: true }],
+    subLibraries: [{ uuid: 'disc-library', allowedCapabilities: { optimize: ['container.remux', 'media.transcode', 'media.replace'] } }],
+  });
+  assert.deepStrictEqual(plan.nodes.slice(0, 3).map((node) => node.capability), ['container.remux', 'media.transcode.precheck', 'transcode.tonemap.accept']);
+  assert.deepStrictEqual(plan.nodes[1].inputBindings.sourceAsset, { source: 'event', eventId: 'disc-task:disc-remux' });
+  assert.strictEqual(workflowGraph.validateGraph(plan, capabilityRegistry), plan);
+});
+
+test('an unimplemented subtitle objective is explicitly blocked instead of advertising schema-only capabilities', () => {
+  registerPlannerInventory();
+  const plan = workflowPlanner.planTask({ id: 'subtitle-task', itemId: 'subtitle-item', targetGate: 'optimize', taskTarget: { targetGate: 'optimize', gateObjective: { targetMediaFacts: { requireChineseSubtitles: true } } }, itemInfo: { subLibraryId: 'subtitle-library' } }, { subLibraries: [{ uuid: 'subtitle-library', allowedCapabilities: { optimize: [] } }] });
+  assert.deepStrictEqual(plan.nodes.map((node) => node.capability), ['workflow.blocked']);
+  assert.deepStrictEqual(plan.explanation.rejected, [{ capability: 'subtitle.download', reason: 'objective_capability_not_implemented' }]);
 });
 
 test('western adult metadata uses atomic local and worker graphs instead of a complex provider executor', () => {
@@ -74,7 +111,7 @@ test('workflow graph validates branches and rejects cycles and arbitrary conditi
     { eventId: 'a', capability: 'a' },
     { eventId: 'b', capability: 'b', dependsOn: ['a'], when: { op: 'eq', path: 'events.a.result.ok', value: true } },
     { eventId: 'c', capability: 'c', dependsOn: ['a', 'b'] },
-  ]);
+  ], capabilityRegistry);
   assert.strictEqual(workflowGraph.validateGraph(plan, capabilityRegistry), plan);
   assert.strictEqual(workflowGraph.evaluateCondition({ op: 'and', conditions: [{ op: 'exists', path: 'facts.codec' }, { op: 'eq', path: 'facts.codec', value: 'h265' }] }, { facts: { codec: 'h265' } }), true);
   assert.throws(() => workflowGraph.evaluateCondition({ op: 'eq', path: 'process.env.SECRET', value: 'x' }, {}), { code: 'KAIROX_CONDITION_PATH_INVALID' });
@@ -90,7 +127,7 @@ test('workflow store persists immutable plan and first-class event transitions w
   try {
     capabilityRegistry.resetForTests();
     capabilityRegistry.register(testCapability('a'));
-    const plan = workflowGraph.buildPlan({ taskId: 'task-store', itemId: 'item-store', targetGate: 'basedata' }, [{ eventId: 'observe', capability: 'a' }]);
+    const plan = workflowGraph.buildPlan({ taskId: 'task-store', itemId: 'item-store', targetGate: 'basedata' }, [{ eventId: 'observe', capability: 'a' }], capabilityRegistry);
     workflowStore.createPlan(plan, capabilityRegistry);
     assert.deepStrictEqual(workflowStore.getPlanForTask('task-store'), plan);
     assert.strictEqual(workflowStore.listEvents('task-store')[0].status, 'pending');
