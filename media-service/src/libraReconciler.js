@@ -139,6 +139,30 @@ function createLibraReconciler({ store, nexoraService, kairoxService, configStor
   }
 
   function reconcileBatch(itemIds = null) {
+    const pendingMutations = typeof kairoxService.getPendingSourceMutations === 'function'
+      ? safeCall(() => kairoxService.getPendingSourceMutations(100), [])
+      : [];
+    for (const mutation of pendingMutations || []) {
+      let mutationItem = store.getLibraryItem(mutation.itemId);
+      if (!mutationItem || mutationItem.membershipStatus === 'closed') {
+        if (typeof kairoxService.acknowledgeSourceMutation === 'function') safeCall(() => kairoxService.acknowledgeSourceMutation(mutation.mutationId), false);
+        continue;
+      }
+      mutationItem = store.upsertLibraryItem({
+        itemId: mutation.itemId,
+        admissionGeneration: mutationItem.admissionGeneration + 1,
+        quarantineStatus: 'source_incident',
+        quarantineReason: 'source_mutation_rebind',
+      });
+      safeCall(() => kairoxService.suspendMaintenance({ itemId: mutation.itemId, admissionGeneration: mutationItem.admissionGeneration, reason: 'source_mutation_rebind' }), null);
+      const rebound = typeof nexoraService.rebindSourceMutation === 'function'
+        ? safeCall(() => nexoraService.rebindSourceMutation({ itemId: mutation.itemId, libraryGeneration: mutationItem.admissionGeneration, mutation }), null)
+        : null;
+      if (rebound && rebound.readiness === 'ready') {
+        store.upsertLibraryItem({ itemId: mutation.itemId, sourceRevision: rebound.sourceRevision || mutationItem.sourceRevision, quarantineStatus: 'none', quarantineReason: '' });
+        if (typeof kairoxService.acknowledgeSourceMutation === 'function') safeCall(() => kairoxService.acknowledgeSourceMutation(mutation.mutationId), false);
+      }
+    }
     const items = store.getLibraryItems(itemIds);
     const ids = items.map((item) => item.itemId);
     const sources = safeCall(() => nexoraService.getSourceProjections(ids), {});

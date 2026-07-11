@@ -51,6 +51,7 @@ function db() {
     CREATE INDEX IF NOT EXISTS idx_workflow_events_status_retry ON workflow_events(status,retry_at,updated_at);
     CREATE INDEX IF NOT EXISTS idx_workflow_audit_event_created ON workflow_event_audit(event_id,created_at);
     CREATE INDEX IF NOT EXISTS idx_source_mutations_status_created ON source_mutation_results(status,created_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_workflow_commit_once ON workflow_events(commit_marker) WHERE commit_marker IS NOT NULL AND commit_marker<>'';
   `);
   dbCache.set(file, connection);
   return connection;
@@ -93,6 +94,47 @@ function getPlanForTask(taskId) {
 }
 
 function listEvents(taskId) { return db().prepare('SELECT * FROM workflow_events WHERE task_id=? ORDER BY ordinal').all(String(taskId || '')).map(rowEvent); }
+function queryEvents(filter = {}, options = {}) {
+  const clauses = [];
+  const params = {};
+  if (filter.taskId) { clauses.push('task_id=@taskId'); params.taskId = String(filter.taskId); }
+  if (filter.capability) { clauses.push('capability=@capability'); params.capability = String(filter.capability); }
+  if (filter.status) { clauses.push('status=@status'); params.status = String(filter.status); }
+  const limit = Math.min(1000, Math.max(1, Number(options.limit) || 100));
+  return db().prepare(`SELECT * FROM workflow_events ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY updated_at DESC LIMIT ${limit}`).all(params).map(rowEvent);
+}
+function performanceSnapshot() {
+  const rows = db().prepare('SELECT * FROM workflow_events WHERE finished_at IS NOT NULL OR status IN (\'failed\',\'cancelled\')').all().map(rowEvent);
+  const groups = new Map();
+  const duration = (from, to) => from && to ? Math.max(0, Date.parse(to) - Date.parse(from)) : null;
+  for (const event of rows) {
+    const key = `${event.capability}\0${event.resourceKey}`;
+    if (!groups.has(key)) groups.set(key, { capability: event.capability, resourceKey: event.resourceKey, count: 0, failed: 0, queue: [], resource: [], approval: [], execution: [] });
+    const group = groups.get(key); group.count += 1; if (event.status === 'failed') group.failed += 1;
+    for (const [name, value] of [['queue', duration(event.readyAt, event.startedAt)], ['resource', duration(event.resourceWaitStartedAt, event.startedAt)], ['approval', duration(event.approvalWaitStartedAt, event.startedAt)], ['execution', duration(event.startedAt, event.finishedAt)]]) if (value != null) group[name].push(value);
+  }
+  const percentile = (values, p) => { if (!values.length) return 0; const sorted = [...values].sort((a, b) => a - b); return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * p) - 1)]; };
+  const stats = (values) => ({ p50: percentile(values, .5), p95: percentile(values, .95), p99: percentile(values, .99) });
+  return [...groups.values()].map((group) => ({ capability: group.capability, resourceKey: group.resourceKey, count: group.count, failed: group.failed, queueWaitMs: stats(group.queue), resourceWaitMs: stats(group.resource), approvalWaitMs: stats(group.approval), executionMs: stats(group.execution) }));
+}
+function invariantSnapshot() {
+  const connection = db();
+  const duplicateCommits = connection.prepare(`SELECT commit_marker AS commitMarker,COUNT(*) AS count
+    FROM workflow_events WHERE commit_marker IS NOT NULL AND commit_marker<>''
+    GROUP BY commit_marker HAVING COUNT(*)>1`).all();
+  const deadlockedTasks = connection.prepare(`SELECT task_id AS taskId,COUNT(*) AS pendingCount
+    FROM workflow_events GROUP BY task_id
+    HAVING SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END)>0
+      AND SUM(CASE WHEN status IN ('ready','waiting_for_resource','waiting_for_approval','executing') THEN 1 ELSE 0 END)=0`).all();
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const stuckEvents = connection.prepare("SELECT event_id AS eventId,task_id AS taskId,capability,started_at AS startedAt FROM workflow_events WHERE status='executing' AND started_at<?").all(cutoff);
+  return { duplicateCommits, deadlockedTasks, stuckEvents };
+}
+function activeMetadataArtifactReferences() {
+  return db().prepare(`SELECT DISTINCT task_id AS taskId,item_id AS itemId FROM workflow_events
+    WHERE capability IN ('metadata.sidecar.render','metadata.poster.acquire','metadata.fanart.acquire','metadata.artifacts.materialize')
+      AND status NOT IN ('succeeded','skipped','failed','cancelled')`).all();
+}
 function getEvent(eventId) { return rowEvent(db().prepare('SELECT * FROM workflow_events WHERE event_id=?').get(String(eventId || ''))); }
 
 function transition(eventId, status, patch = {}) {
@@ -129,7 +171,7 @@ function transition(eventId, status, patch = {}) {
 function recoverInterruptedEvents() {
   const rows = db().prepare("SELECT event_id,status FROM workflow_events WHERE status IN ('executing','waiting_for_resource')").all();
   for (const row of rows) transition(row.event_id, 'ready', { resourceKey: '', resourceWaitStartedAt: null, failure: row.status === 'executing' ? { code: 'PROCESS_RESTARTED', retryable: true } : null });
-  return rows.length;
+  return [...new Set(rows.map((row) => getEvent(row.event_id).taskId))];
 }
 
 function recordMutation(input = {}) {
@@ -144,4 +186,4 @@ function markMutationConsumed(mutationId) { return db().prepare("UPDATE source_m
 
 function resetForTests() { for (const connection of dbCache.values()) connection.close(); dbCache.clear(); }
 
-module.exports = { TERMINAL, createPlan, getPlanForTask, listEvents, getEvent, transition, recoverInterruptedEvents, recordMutation, listPendingMutations, markMutationConsumed, resetForTests };
+module.exports = { TERMINAL, createPlan, getPlanForTask, listEvents, queryEvents, performanceSnapshot, invariantSnapshot, activeMetadataArtifactReferences, getEvent, transition, recoverInterruptedEvents, recordMutation, listPendingMutations, markMutationConsumed, resetForTests };

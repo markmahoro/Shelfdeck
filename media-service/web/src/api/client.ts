@@ -162,6 +162,7 @@ export const subLibraries = {
     japaneseJav?: Record<string, unknown>;
     libraryAutomationMode?: "auto" | "manual";
     maintenanceAutomationMode?: "auto" | "manual";
+    allowedCapabilities?: SubLibrary["allowedCapabilities"];
   }) => post<SubLibrary>("/v1/admin/sublibraries", body),
 
   update: (uuid: string, body: Partial<SubLibrary>) =>
@@ -433,7 +434,8 @@ export interface ResourceSettings {
     localFfmpeg: number;
     workerPerNode: number;
   };
-  workspace: { transcodeTempRoot: string; upgradeStagingLocalPath: string };
+  workspace: { transcodeTempRoot: string; upgradeStagingLocalPath: string; metadataArtifacts: string };
+  metadataArtifacts?: { configuredPath: string; resolvedPath: string; writable: boolean; atomicRenameSupported: boolean; availableBytes: number | null; validationError: string | null };
   compute: {
     transcodeEncodingDevices: DevicePoolEntry[];
     transcodeCpuParticipationStrategy: string;
@@ -479,11 +481,9 @@ export const adminSettings = {
     ),
   getMaintenancePolicy: () =>
     get<{
-      optimizeFlowPolicy: { allowedFlowKinds: string[] };
       approvalPolicy: ApprovalPolicyConfig;
     }>("/v1/admin/policies/maintenance"),
   patchMaintenancePolicy: (body: {
-    optimizeFlowPolicy?: { allowedFlowKinds: string[] };
     approvalPolicy?: ApprovalPolicyConfig;
   }) => patch("/v1/admin/policies/maintenance", body),
   getLog: (lines = 300) => getText(`/v1/admin/log?lines=${lines}`),

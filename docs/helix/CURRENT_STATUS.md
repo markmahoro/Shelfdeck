@@ -52,6 +52,9 @@ Kairox Maintenance Automation
 - 已确认的 clean rebaseline 是：Basedata/Metadata/Optimize 全部由真正的 Flow Planner 生成不可变 Workflow Graph；复杂 Executor 原子化为 Capability Executor；Event Runtime 逐 Event 调度、申请 Permit、恢复并记录性能。Library 只配置允许的副作用 Capability，`flowKind` 不再参与 Executor 路由。
 - 文件布局合规归属 Optimize Objective。Metadata 生成的 NFO、poster、fanart 先写入持久化 Metadata Artifact Workspace；Optimize 再按计划执行 organize/materialize/layout verify。该工作区必须可由用户配置，默认位于 `<dataDir>/workspaces/metadata-artifacts`，不能被当作可随时清理的 Transcode temp。
 - organize/replace 的路径或 source identity 变化由 Kairox 持久化中性 `SourceMutationResult`；Libra durable 消费并协调 Nexora rebind，随后 Kairox 基于新 admission/source revision 独立产生 Basedata Task，禁止 Gate Task 链式创建。
+- 2026-07-11 已完成执行内核 clean cut：旧 `flowPlanner.js` 与 Basedata/Scrape/Transcode/Upgrade 四个复杂 Flow Executor 已物理删除；Resource Runtime 不再按 `flowKind` 路由，Workflow Graph、Event Store、Event Runtime 与 Capability Registry 成为唯一执行主路径。
+- 新内核的 Service 全量测试为 171/171；auto/auto Emby disposable 链路已通过独立 Basedata/Metadata Workflow Event 收敛到 `maintenanceComplete`，Admin Web production build 通过。
+- Metadata Artifact Workspace 已实现 revision/checksum/manifest、Windows atomic flush/rename 探测和路径重叠拒绝；SourceMutationResult 的 Libra→Nexora rebind 单 generation 协调测试通过。
 - 欧美成人本机分析在 internal face-embedding Integration 未启动时正确 terminal failure；重试该场景前必须先建立本机 face service/model runtime。
 - Emby clean re-authentication 仍缺账号密码。备份按安全合同只保存 username/userId/access token，不允许把旧 token 直接写入新配置作为绕过。
 
@@ -119,8 +122,8 @@ Windows、Admin Web、Playwright 与 Linux Docker 验证。生产部署继续暂
 
 ## Open Risks / Deferred Work
 
-- Kairox Capability/Event Runtime rebaseline 尚未实现，是恢复真实四库 E2E 前的 Beta 阻断项；不得用新增 `flowKind`、复杂 Executor 分支或 `allowedFlowKinds` 作为过渡 workaround。
-- Metadata Artifact Workspace 的持久化、引用保护、容量故障、原子 materialize 和清理合同尚未落地；落地前成人 NFO/poster/fanart 不得直接写入未整理的媒体根目录。
+- Kairox Capability/Event Runtime 主路径已实现，但尚未完成真实 Transcode、MoviePilot Upgrade、成人 organize/materialize/rebind、restart/approval 和30分钟soak验收；四库 E2E 仍保持暂停。
+- Metadata Artifact Workspace 的引用保留期清理与容量耗尽故障验收仍未完成；成人 NFO/poster/fanart 已禁止直接写入未整理媒体根目录。
 - 需要 Emby username/password re-authentication，之后才能从 Admin Web 重建两个真实 Emby Library。
 - 需要建立本机 face-service dependencies/models，之后才能重试欧美成人 Metadata。
 - normal/constrained performance profile、restart/fault matrix 与 active/idle soak 仍需在最终四库 runtime 完成。

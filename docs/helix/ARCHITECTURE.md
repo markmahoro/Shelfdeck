@@ -257,6 +257,39 @@ Series/Season intent 扩展为成员 Episode 的独立 Run/Priority。
 
 Kairox clean runtime 只接受 `targetGate=basedata|metadata|optimize`。`ingest|delete|archive` 不存在于新配置、API、automation、Task Creator、Flow Planner 或 executor registry；检测到旧 runtime schema/config 时必须停止并返回 `HELIX_CLEAN_INIT_REQUIRED`，不得双读或自动迁移。
 
+### 6.5 Capability And Event Workflow Runtime
+
+Helix Beta 不允许以 `flowKind -> complex executor` 作为 Kairox 执行内核。Basedata、Metadata、Optimize Task 在 Scheduler 选中后统一进入 Flow Planner；Planner 根据 Gate Objective、canonical facts、Library capability policy、runtime capability 和 safety facts 生成不可变、版本化的 Workflow Graph。
+
+```text
+Task(object + targetGate + gateObjective)
+  -> Flow Planner
+  -> immutable Workflow Graph
+  -> durable Event Runtime
+  -> atomic Capability Executor
+  -> evidence / staged facts / SourceMutationResult
+  -> Lifecycle evaluates the Gate again
+```
+
+- Workflow Graph 是 DAG，节点是 Event intent，边表达依赖；受限声明式 `when` 支持分支与汇合，禁止任意 JavaScript。Graph 持久化后不可改写或动态扩图。
+- `flowKind` 只可作为历史读取、分类或诊断标签，不得参与 Executor 路由、Library 配置或 Task identity。
+- Event 是独立 durable fact，拥有 `pending|ready|waiting_for_resource|waiting_for_approval|executing|succeeded|skipped|failed|cancelled` 状态、输入输出、attempt、时间、资源、fencing、evidence 和 commit marker。
+- Event Runtime 只为当前 Event 申请 Governor permit；禁止为整条 Flow 预取资源。Task 状态由 Graph 汇总，Capability Executor 不得写 Task 状态。
+- Capability Executor 只完成一个原子效果，不创建 Task、不选择或追加 Capability、不调用另一个 Executor、不推进 Gate。
+- Library 只配置允许的副作用 Capability。观察、校验和 canonical fact publish 等必要能力不可关闭；允许 Capability 不等于授予 approval 或 destructive authorization。
+- 当前系统 Planner 与未来高级画布必须使用同一 Workflow Graph contract；Beta 不提供用户画布或 Graph 写 API。
+
+文件布局合规是 Optimize Objective，不属于 Metadata Gate。Metadata 生成的 NFO、poster、fanart 先写入持久化 Metadata Artifact Workspace；只有 Optimize 的 `source.organize` / `metadata.artifacts.materialize` / `filesystem.layout.verify` 将其原子写入最终媒体目录。
+
+```text
+workspaces.metadataArtifacts
+  default: <dataDir>/workspaces/metadata-artifacts
+```
+
+该 Workspace 是用户可配置的持久化空间，不是 Transcode temp。它必须按 item/revision 隔离、保存 checksum/manifest、拒绝与媒体根目录及其他 Workspace 重叠，并保护 active/approval/materialize/recovery 引用的 revision。
+
+`source.organize` 改变 path/source identity 时，Kairox 只能持久化中性 `SourceMutationResult`。Libra durable 消费、递增一次 admission generation、暂停旧 admission、调用 Nexora rebind，并在新 SourceBinding revision 后重新 admission；新的 Basedata Task 仍由 Lifecycle/Runner 独立产生。相同路径的 Transcode Replace 只使 Kairox Basedata stale，不制造不必要的 Nexora rebind。
+
 ## 7. Shared Resource Governance
 
 Resource Management 是 Helix 共享工程基础设施，不是第四个业务域。共享 `Helix Resource Governor` 只管理 capacity、permit/lease、queue pressure、fairness、backpressure 和 diagnostics；它不拥有 Membership、SourceBinding、gate、objective 或 maintenanceComplete。

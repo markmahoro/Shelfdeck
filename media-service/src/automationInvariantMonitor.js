@@ -1,6 +1,7 @@
 'use strict';
 
 const taskStore = require('./taskStore');
+const workflowStore = require('./workflowStore');
 
 const TARGETS = ['basedata', 'metadata', 'optimize'];
 let tripped = null;
@@ -14,6 +15,7 @@ function gateLimit(config = {}, targetGate = '') {
 
 function evaluate(config = {}) {
   const snapshot = taskStore.queryAutomationInvariantSnapshot({ windowMs: 60000 });
+  const workflow = workflowStore.invariantSnapshot();
   const violations = [];
   const remainingByTargetGate = {};
   for (const targetGate of TARGETS) {
@@ -29,10 +31,13 @@ function evaluate(config = {}) {
   if (snapshot.churnTasks.length > 0) {
     violations.push({ code: 'task_state_churn_detected', tasks: snapshot.churnTasks });
   }
+  if (workflow.duplicateCommits.length > 0) violations.push({ code: 'workflow_duplicate_commit', commits: workflow.duplicateCommits });
+  if (workflow.deadlockedTasks.length > 0) violations.push({ code: 'workflow_graph_deadlock', tasks: workflow.deadlockedTasks });
+  if (workflow.stuckEvents.length > 0) violations.push({ code: 'workflow_event_stuck', events: workflow.stuckEvents });
   if (violations.length > 0 && !tripped) {
     tripped = { trippedAt: new Date().toISOString(), violations, snapshot };
   }
-  return { ...getHealth(), currentSnapshot: snapshot, remainingByTargetGate };
+  return { ...getHealth(), currentSnapshot: { ...snapshot, workflow }, remainingByTargetGate };
 }
 
 function getHealth() {

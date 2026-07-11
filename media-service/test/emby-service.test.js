@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const test = require('node:test');
 
 const embyService = require('../src/services/embyService');
-const basedataFlowExecutor = require('../src/basedataFlowExecutor');
+const basedataFlowExecutor = require('../src/basedataObserver');
 
 test('Emby technical extraction uses item-level fields when nested stream dimensions are absent', () => {
   const item = embyService._internals.extractItemFields({

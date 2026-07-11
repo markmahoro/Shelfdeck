@@ -690,9 +690,6 @@ function buildTask(taskData, now = new Date().toISOString()) {
     priorityModelVersion: taskData.priorityModelVersion,
     priorityBreakdown: taskData.priorityBreakdown,
     taskTarget: taskData.taskTarget,
-    allowedOptimizeFlowKinds: Array.isArray(taskData.allowedOptimizeFlowKinds)
-      ? [...taskData.allowedOptimizeFlowKinds]
-      : undefined,
     objectiveRevisionSnapshot: String(taskData.objectiveRevisionSnapshot || ''),
     requestedIntent: taskData.requestedIntent,
     helixAdmission: taskData.helixAdmission || null,
@@ -1525,8 +1522,7 @@ function querySchedulerTasks() {
         json_extract(payload_json, '$.helixAdmission') AS helix_admission_json,
         json_extract(payload_json, '$.maintenanceRun') AS maintenance_run_json,
         json_extract(payload_json, '$.maintenancePrioritySnapshot') AS maintenance_priority_snapshot_json,
-        json_extract(payload_json, '$.sourceAccessMappingRevision') AS source_access_mapping_revision,
-        json_extract(payload_json, '$.allowedOptimizeFlowKinds') AS allowed_optimize_flow_kinds_json
+        json_extract(payload_json, '$.sourceAccessMappingRevision') AS source_access_mapping_revision
       FROM tasks
       WHERE status NOT IN (${terminalSql})
       ORDER BY priority ASC, created_at ASC, id ASC
@@ -1557,7 +1553,6 @@ function querySchedulerTasks() {
         maintenanceRun: jsonExtractObject(row.maintenance_run_json, null),
         maintenancePrioritySnapshot: jsonExtractObject(row.maintenance_priority_snapshot_json, { class: 'normal', revision: 0, reason: '', runId: '' }),
         sourceAccessMappingRevision: row.source_access_mapping_revision || 'identity',
-        allowedOptimizeFlowKinds: jsonExtractObject(row.allowed_optimize_flow_kinds_json, undefined),
         retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
         pausingRequested: !!row.pausing_requested,
         nodeId: row.node_id || undefined,

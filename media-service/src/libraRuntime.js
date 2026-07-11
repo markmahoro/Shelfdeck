@@ -446,6 +446,12 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
       libraryAutomationMode: spec.libraryAutomationMode || 'manual',
       maintenanceAutomationMode: spec.maintenanceAutomationMode || 'manual',
       approvalPolicy: spec.approvalPolicy || {},
+      allowedCapabilities: spec.allowedCapabilities || {
+        metadata: isAdult ? ['metadata.sidecar.render', 'metadata.poster.acquire', 'metadata.fanart.acquire'] : [],
+        optimize: isAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'source.upgrade.download', 'media.replace'],
+      },
+      capabilityPolicyRevision: String(spec.capabilityPolicyRevision || '1'),
+      updatedAt: new Date().toISOString(),
       upgradeSmartSelect: spec.upgradeSmartSelect || { enabled: false, codecPreference: [], resolutionPreference: [], audioPreference: [], sitePreference: [], preferCNSub: false },
     };
     config.subLibraries = [...(config.subLibraries || []), subLibrary];
@@ -478,7 +484,11 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
       if (!forbidden.includes(key)) out[key] = value;
       return out;
     }, {});
+    const capabilityChanged = updates.allowedCapabilities !== undefined
+      && JSON.stringify(updates.allowedCapabilities) !== JSON.stringify(config.subLibraries[index].allowedCapabilities);
     const next = { ...config.subLibraries[index], ...patch };
+    if (capabilityChanged) next.capabilityPolicyRevision = String((Number(config.subLibraries[index].capabilityPolicyRevision) || 0) + 1);
+    next.updatedAt = new Date().toISOString();
     if (next.mediaType !== 'adult') {
       delete next.adultRegion;
       delete next.scraperType;

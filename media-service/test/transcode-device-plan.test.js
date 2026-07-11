@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const transcodeFlowExecutor = require('../src/transcodeFlowExecutor');
+const transcodeFlowExecutor = require('../src/transcodeDevicePlan');
 const transcodeService = require('../src/services/transcodeService');
 
 test('Windows hardware inventory rejects AMF false positives on NVIDIA-only hosts', () => {
@@ -23,14 +23,14 @@ test('Windows hardware inventory permits matching AMD and Intel backends', () =>
 });
 
 test('rate-control plan follows configured NVENC priority before backup-only CPU', () => {
-  const slots = transcodeFlowExecutor._buildDeviceSlotsForTest({
+  const slots = transcodeFlowExecutor.buildDeviceSlots({
     transcodeCpuParticipationStrategy: 'backup_only',
     transcodeEncodingDevices: [
       { stableKey: 'cpu:libx265', inPool: true, priority: 900, maxSlots: 1 },
       { stableKey: 'nvenc:0', inPool: true, priority: 101, maxSlots: 1 },
     ],
   });
-  const plan = transcodeFlowExecutor._buildRateControlPlanForTest(slots);
+  const plan = transcodeFlowExecutor.buildRateControlPlan(slots);
 
   assert.deepStrictEqual(
     plan.map((attempt) => attempt.strategy),
@@ -39,7 +39,7 @@ test('rate-control plan follows configured NVENC priority before backup-only CPU
 });
 
 test('backup-only CPU stays after GPU even when its numeric priority is lower', () => {
-  const plan = transcodeFlowExecutor._buildRateControlPlanForTest([
+  const plan = transcodeFlowExecutor.buildRateControlPlan([
     { deviceId: 'cpu:libx265', backend: 'cpu', priority: 1, cpuBackupOnly: true },
     { deviceId: 'nvenc:0', backend: 'nvenc', priority: 100, cpuBackupOnly: false },
   ]);
@@ -51,7 +51,7 @@ test('backup-only CPU stays after GPU even when its numeric priority is lower', 
 });
 
 test('QSV retains its bitrate verification retry before CPU fallback', () => {
-  const plan = transcodeFlowExecutor._buildRateControlPlanForTest([
+  const plan = transcodeFlowExecutor.buildRateControlPlan([
     { deviceId: 'qsv:0', backend: 'qsv', priority: 100, cpuBackupOnly: false },
     { deviceId: 'cpu:libx265', backend: 'cpu', priority: 900, cpuBackupOnly: true },
   ]);
@@ -63,14 +63,14 @@ test('QSV retains its bitrate verification retry before CPU fallback', () => {
 });
 
 test('normal CPU participation respects explicit device priority', () => {
-  const slots = transcodeFlowExecutor._buildDeviceSlotsForTest({
+  const slots = transcodeFlowExecutor.buildDeviceSlots({
     transcodeCpuParticipationStrategy: 'normal',
     transcodeEncodingDevices: [
       { stableKey: 'cpu:libx265', inPool: true, priority: 50, maxSlots: 1 },
       { stableKey: 'nvenc:0', inPool: true, priority: 100, maxSlots: 1 },
     ],
   });
-  const plan = transcodeFlowExecutor._buildRateControlPlanForTest(slots);
+  const plan = transcodeFlowExecutor.buildRateControlPlan(slots);
 
   assert.deepStrictEqual(
     plan.map((attempt) => attempt.strategy),

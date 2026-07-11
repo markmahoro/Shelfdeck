@@ -193,6 +193,8 @@ function buildAdultJavDefaultTemplate(policy) {
           qualityTier: 'adult_baseline',
           targetBitrateProfileByBucket: profileByBucket(target1080p, target4k),
           targetCodec: 'h265',
+          storageLayout: 'organized',
+          metadataArtifacts: 'materialized',
         },
         reason: 'Adult Baseline 归档前目标',
       },
@@ -219,6 +221,8 @@ function buildAdultWesternDefaultTemplate(policy) {
           qualityTier: 'adult_baseline',
           targetBitrateProfileByBucket: profileByBucket(target1080p, target4k),
           targetCodec: 'h265',
+          storageLayout: 'organized',
+          metadataArtifacts: 'materialized',
         },
         reason: 'Adult Baseline 归档前目标',
       },
@@ -311,9 +315,6 @@ function getDefaultConfig() {
       localFfmpeg: 1,
       workerPerNode: 1,
     },
-    optimizeFlowPolicy: {
-      allowedFlowKinds: ['transcode', 'upgrade'],
-    },
     // Task queue priority (PriorityEngine). Lower number = runs first.
     // Final score = source weight + target gate weight + selected-flow hint + subLibrary weight + business
     // signal + queue age + retry penalty + rule deltas.
@@ -349,9 +350,8 @@ function getDefaultConfig() {
       'upgrade.candidateSelect': 'confirm',
       'upgrade.identityMismatch': 'forceConfirm',
       'upgrade.beforeReplace': 'confirm',
-      'scrape.beforeWriteMetadata': 'auto',
-      'scrape.beforeOrganize': 'auto',
-      'scrape.reviewResult': 'auto',
+      'source.beforeOrganize': 'confirm',
+      'metadata.reviewResult': 'auto',
     },
 
     taskAdmission: {
@@ -396,6 +396,9 @@ function getDefaultConfig() {
       savePath: '',
     },
     upgradeStagingLocalPath: process.platform === 'linux' ? '/upgrade' : '',
+    workspaces: {
+      metadataArtifacts: '',
+    },
     upgradeScrapingSettleSeconds: 1800,
 
     // Adult folder libraries
@@ -582,10 +585,19 @@ function mergeConfigWithDefaults(config) {
     ...(raw.resourceLimits || {}),
   };
 
-  merged.optimizeFlowPolicy = {
-    ...(defaults.optimizeFlowPolicy || {}),
-    ...(raw.optimizeFlowPolicy || {}),
-  };
+  merged.workspaces = { ...(defaults.workspaces || {}), ...(raw.workspaces || {}) };
+  merged.subLibraries = (raw.subLibraries || []).map((library) => ({
+    ...library,
+    allowedCapabilities: {
+      metadata: Array.isArray(library.allowedCapabilities && library.allowedCapabilities.metadata)
+        ? library.allowedCapabilities.metadata
+        : library.mediaType === 'adult' ? ['metadata.sidecar.render', 'metadata.poster.acquire', 'metadata.fanart.acquire'] : [],
+      optimize: Array.isArray(library.allowedCapabilities && library.allowedCapabilities.optimize)
+        ? library.allowedCapabilities.optimize
+        : library.mediaType === 'adult' ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'source.upgrade.download', 'media.replace'],
+    },
+    capabilityPolicyRevision: String(library.capabilityPolicyRevision || '1'),
+  }));
 
   merged.moviepilot = {
     ...(defaults.moviepilot || {}),
@@ -642,13 +654,13 @@ const USER_CONFIG_FIELDS = Object.freeze([
   'helixSchemaVersion',
   'apiKey',
   'resourceLimits',
-  'optimizeFlowPolicy',
   'approvalPolicy',
   'transcodeTempRoot',
   'transcodeEncodingDevices',
   'transcodeCpuParticipationStrategy',
   'moviepilot',
   'upgradeStagingLocalPath',
+  'workspaces',
   'adultLibrary',
   'embyServers',
   'subLibraries',
@@ -686,6 +698,7 @@ const LEGACY_CONFIG_FIELDS = new Set([
   'wallRatingAutoEnqueue',
   'automaticTaskTargets',
   'optimizeAllowedFlowKinds',
+  'optimizeFlowPolicy',
   'smartTaskEnabledActions',
   'deleteGatePolicy',
   'ingestConcurrency',

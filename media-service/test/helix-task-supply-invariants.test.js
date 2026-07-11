@@ -74,7 +74,6 @@ test('Task Creator creates only a target-gate Task and never asks Flow Planner t
     targetGate: 'optimize',
     source: 'auto',
     config: { taskAdmission: { defaultMaxQueued: 10, maxQueuedByTargetGate: { optimize: 10 }, cooldownHoursByTargetGate: {}, automaticAttemptLimitsByTargetGate: {} } },
-    allowedOptimizeFlowKinds: ['transcode', 'upgrade'],
     helixAdmission: { admissionGeneration: 1, sourceRevision: 'source-1' },
   });
   assert.strictEqual(result.allowed, true);
@@ -94,25 +93,25 @@ test('Task Store durably preserves the source access mapping revision fence', ()
     status: 'queued',
     taskTarget: { object: { type: 'media_item', itemId: 'mapping-revision-task' }, targetGate: 'basedata', gateObjective: {} },
     sourceAccessMappingRevision: 'mapping-revision-42',
-    allowedOptimizeFlowKinds: ['transcode'],
   });
   assert.strictEqual(task.sourceAccessMappingRevision, 'mapping-revision-42');
   const persisted = taskStore.getTask(task.id);
   assert.strictEqual(persisted.sourceAccessMappingRevision, 'mapping-revision-42');
-  assert.deepStrictEqual(persisted.allowedOptimizeFlowKinds, ['transcode']);
+  assert.strictEqual(persisted.allowedOptimizeFlowKinds, undefined);
   const scheduled = taskStore.querySchedulerTasks().find((row) => row.id === task.id);
   assert.strictEqual(scheduled.sourceAccessMappingRevision, 'mapping-revision-42');
-  assert.deepStrictEqual(scheduled.allowedOptimizeFlowKinds, ['transcode']);
+  assert.strictEqual(scheduled.allowedOptimizeFlowKinds, undefined);
   assert.strictEqual(scheduled.flowPlan, undefined);
 });
 
-test('Flow Planner is physically owned by Resource Runtime, not Creator, Store or Scheduler', () => {
+test('Workflow Planner is physically owned by Event Runtime, not Creator, Store or Scheduler', () => {
   const root = path.join(__dirname, '..', 'src');
   for (const file of ['kairoxTaskCreator.js', 'taskStore.js', 'taskFactsModel.js', 'taskScheduler.js']) {
     const source = fs.readFileSync(path.join(root, file), 'utf8');
     assert.doesNotMatch(source, /require\(['"]\.\/flowPlanner['"]\)|flowPlanner\.planFlow/);
   }
   const runtimeSource = fs.readFileSync(path.join(root, 'resourceRuntime.js'), 'utf8');
-  assert.match(runtimeSource, /require\(['"]\.\/flowPlanner['"]\)/);
-  assert.match(runtimeSource, /const task = ensureFlowPlan\(inputTask\)/);
+  const eventRuntimeSource = fs.readFileSync(path.join(root, 'eventRuntime.js'), 'utf8');
+  assert.match(eventRuntimeSource, /require\(['"]\.\/workflowPlanner['"]\)/);
+  assert.doesNotMatch(runtimeSource, /executorForFlowKind|ensureFlowPlan/);
 });

@@ -1,6 +1,6 @@
 'use strict';
 
-const flowPlanner = require('./flowPlanner');
+const optimizeGapAnalyzer = require('./optimizeGapAnalyzer');
 const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 
 function clean(value) {
@@ -243,12 +243,11 @@ function evaluateOptimizeGate(item = {}) {
   }
 
   if (projectedObjective && item.optimizeObjectiveStatus !== 'pending_metadata') {
-    const selection = flowPlanner.selectOptimizeFlow({
+    const selection = optimizeGapAnalyzer.analyze({
       itemInfo: item,
       optimizeObjective: projectedObjective,
       optimizeObjectiveStatus: item.optimizeObjectiveStatus,
       objectiveHash: item.objectiveHash,
-      allowedOptimizeFlowKinds: item.allowedOptimizeFlowKinds,
     });
     if (selection.flowKind === 'no_op') {
       return optimizeGateResult({
@@ -261,7 +260,7 @@ function evaluateOptimizeGate(item = {}) {
         evidenceLevel: 'objective',
       });
     }
-    if (selection.allowed && ['transcode', 'upgrade'].includes(selection.flowKind)) {
+    if (selection.allowed && selection.flowKind !== 'no_op') {
       flowKind = selection.flowKind;
       return optimizeGateResult({
         passed: false,

@@ -513,6 +513,37 @@ function diagnoseSource(command = {}) {
   return getSourceProjection(command.itemId);
 }
 
+function rebindSourceMutation(command = {}) {
+  const mutation = command.mutation || {};
+  const nextPath = mutation.newSourceEvidence && mutation.newSourceEvidence.path || '';
+  const previousPath = mutation.oldSourceEvidence && mutation.oldSourceEvidence.path || '';
+  if (!command.itemId || !nextPath) {
+    const error = new Error('Source mutation rebind requires itemId and new path');
+    error.code = 'NEXORA_SOURCE_MUTATION_INVALID';
+    throw error;
+  }
+  const configStore = require('./configStore');
+  const projection = getSourceProjection(command.itemId);
+  const subLibraryId = projection.sourceAccessDescriptor && projection.sourceAccessDescriptor.subLibraryId || '';
+  const subLib = (configStore.loadConfig().subLibraries || []).find((entry) => entry.uuid === subLibraryId);
+  if (!subLib) {
+    const error = new Error('Source mutation SubLibrary is missing');
+    error.code = 'NEXORA_SOURCE_MUTATION_LIBRARY_MISSING';
+    throw error;
+  }
+  recordAdultFolderSourceObservation({
+    mediaItemId: command.itemId,
+    subLib,
+    filePath: nextPath,
+    previousSourceRefId: previousPath,
+    previousPath,
+    sourceExists: fs.existsSync(nextPath),
+    observationKind: 'source_changed',
+    locator: { path: nextPath, rootPath: subLib.watchRoot || '' },
+  });
+  return getSourceProjection(command.itemId);
+}
+
 function ensurePathInsideRoot(rootPath, targetPath) {
   const root = path.resolve(String(rootPath || ''));
   const target = path.resolve(String(targetPath || ''));
@@ -605,6 +636,7 @@ module.exports = {
   decorateItems,
   ensureOnboarding,
   diagnoseSource,
+  rebindSourceMutation,
   ensureOffboarding,
   getSourceProjection,
   getSourceProjections,

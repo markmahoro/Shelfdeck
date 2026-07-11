@@ -5,10 +5,10 @@
  *
  * Scheduler ↔ ResourceRuntime bidirectional API:
  *   Scheduler → ResourceRuntime: resourceRuntime.dispatchTask(task)
- *   Executor → Scheduler callbacks: pauseForConfirm(taskId, resumePoint), reportStatus(taskId, status, progress?)
+ *   Event Runtime → Scheduler callbacks: reportStatus(taskId, status, progress?)
  *
- * status (Scheduler-managed) vs phase (Flow-managed):
- *   Scheduler reads/writes status only; Resource Runtime / Flow executors read/write phase.
+ * Scheduler orders durable Tasks. Event Runtime owns workflow recovery, approval,
+ * resource waiting, and Event execution state.
  */
 
 const taskStore = require('./taskStore');
@@ -17,7 +17,6 @@ const healthCheck = require('./healthCheck');
 const activityLog = require('./activityLog');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
-const flowRecoveryContract = require('./flowRecoveryContract');
 const resourceRuntime = require('./resourceRuntime');
 const diagnosticLog = require('./diagnosticLog');
 const gateInvalidationService = require('./gateInvalidationService');
@@ -190,84 +189,10 @@ function reportGateInvalidation(taskId, signal = {}) {
 // ── Scheduling ──────────────────────────────────────────────────────────────
 
 function recoverInterruptedTasks() {
-  const tasks = typeof taskStore.querySchedulerTasks === 'function'
-    ? taskStore.querySchedulerTasks()
-    : taskStore.loadTasks({ includeHistory: false });
-  const interruptible = ['precheck', 'executing', 'verify', 'basedata_observe', 'transcode_executing', 'transcode_replace', 'transcode_publish', 'upgrade_executing', 'upgrade_replace', 'upgrade_publish', 'scrape_precheck', 'scrape_executing', 'scrape_publish', 'planning', 'pre_replace_verify', 'pausing'];
-  for (const t of tasks) {
-    if (t.status === 'done' || t.status === 'failed_hard') continue;
-    // awaiting_user_confirm is a stable state — user hasn't decided yet, preserve it
-    if (t.status === 'awaiting_user_confirm') continue;
-    // Resource permits and waiters are intentionally in-memory only. A restart
-    // therefore restores a durable waiting task to the schedulable queue once;
-    // waiting is not an execution failure and must not consume retry budget.
-    if (t.status === 'waiting_for_resource') {
-      const updated = taskStore.updateTask(t.id, { status: 'queued', resourceBlocker: null });
-      const eventTask = updated || { ...t, status: 'queued' };
-      taskStore.appendTaskEvent(eventTask, 'task.restart_resource_wait_requeued', {
-        reason: 'service_restart_resource_waiter_discarded',
-        fromStatus: 'waiting_for_resource',
-        toStatus: 'queued',
-        retryCount: t.retryCount || 0,
-        effect: 'restore_schedulable_without_retry_penalty',
-      }, {
-        resourceType: 'scheduler',
-      });
-      diagnosticLog.record({
-        category: 'scheduler',
-        scope: 'scheduler.restartRecovery',
-        operation: 'restore_resource_wait',
-        component: 'taskScheduler',
-        resourceType: 'scheduler',
-        resourceKey: 'taskScheduler',
-        status: 'done',
-        payload: {
-          taskId: t.id,
-          itemId: t.itemId,
-          retryCount: t.retryCount || 0,
-          reason: 'service_restart_resource_waiter_discarded',
-        },
-      });
-      console.log('[scheduler] restored resource-waiting task', t.id);
-      continue;
-    }
-    if (interruptible.includes(t.status) || t.pausingRequested) {
-      const previousStatus = t.status;
-      const previousPhase = t.phase || '';
-      const previousResumePoint = t.resumePoint || '';
-      const updated = taskStore.updateTask(t.id, { status: 'interrupted' });
-      const eventTask = updated || { ...t, status: 'interrupted' };
-      taskStore.appendTaskEvent(eventTask, 'task.restart_interrupted', {
-        reason: 'service_restart_runtime_state_recovered',
-        fromStatus: previousStatus,
-        fromPhase: previousPhase,
-        fromResumePoint: previousResumePoint,
-        pausingRequested: !!t.pausingRequested,
-        effect: 'mark_interrupted_for_scheduler_recovery',
-      }, {
-        resourceType: 'scheduler',
-      });
-      diagnosticLog.record({
-        category: 'scheduler',
-        scope: 'scheduler.restartRecovery',
-        operation: 'mark_interrupted',
-        component: 'taskScheduler',
-        resourceType: 'scheduler',
-        resourceKey: 'taskScheduler',
-        status: 'done',
-        payload: {
-          taskId: t.id,
-          itemId: t.itemId,
-          flowKind: flowKindForTask(t),
-          fromStatus: previousStatus,
-          fromPhase: previousPhase,
-          fromResumePoint: previousResumePoint,
-          reason: 'service_restart_runtime_state_recovered',
-        },
-      });
-      console.log('[scheduler] recovered interrupted task', t.id);
-    }
-  }
+  // Event Runtime is the sole recovery owner. Initializing scheduler callbacks
+  // invokes recoverStartup(), which discards in-memory permits/waiters and
+  // restores durable executing Events without consuming Task retry budget.
+  return [];
 }
 
 function isActiveStatus(status) {
@@ -399,102 +324,9 @@ async function scheduleRound() {
 
   healthCheck.setSchedulerState({ running: true, runningTasks: activeTaskCount });
 
-  // ── Pass 1: recover interrupted tasks first without saving lightweight rows ─
   const recoveredIds = new Set();
-  for (const task of tasks) {
-    if (task.status === 'done' || task.status === 'failed_hard') continue;
-    if (task.status !== 'interrupted') continue;
-
-    const previousPhase = task.phase || '';
-    const previousResumePoint = task.resumePoint || '';
-    const recoveryPlan = flowRecoveryContract.buildRecoveryPlan(task);
-    const retryCount = (task.retryCount || 0) + 1;
-    if (retryCount > 3) {
-      const updated = taskStore.updateTask(task.id, { status: 'failed_hard', retryCount });
-      if (updated) {
-        task.status = updated.status;
-        task.retryCount = updated.retryCount;
-      }
-      taskStore.appendTaskEvent(updated || task, 'task.restart_recovery_failed', {
-        reason: 'restart_recovery_retry_limit_reached',
-        fromStatus: 'interrupted',
-        fromPhase: previousPhase,
-        fromResumePoint: previousResumePoint,
-        retryCount,
-        effect: 'mark_failed_hard_after_restart_recovery_limit',
-      }, {
-        resourceType: 'scheduler',
-      });
-      diagnosticLog.record({
-        category: 'scheduler',
-        scope: 'scheduler.restartRecovery',
-        operation: 'recover_interrupted_task',
-        component: 'taskScheduler',
-        resourceType: 'scheduler',
-        resourceKey: 'taskScheduler',
-        status: 'failed',
-        payload: {
-          taskId: task.id,
-          itemId: task.itemId,
-          flowKind: flowKindForTask(task),
-          retryCount,
-          reason: 'restart_recovery_retry_limit_reached',
-        },
-      });
-      console.log('[scheduler] task', task.id, 'failed after', retryCount - 1, 'retries');
-      continue;
-    }
-    const updated = taskStore.updateTask(task.id, {
-      status: 'queued',
-      retryCount,
-      phase: null,
-      resumePoint: recoveryPlan.resumePoint || null,
-      manualExecuteRequested: !!recoveryPlan.resumePoint,
-      progress: 0,
-    });
-    if (updated) {
-      task.status = updated.status;
-      task.retryCount = updated.retryCount;
-      task.phase = updated.phase;
-      task.resumePoint = updated.resumePoint;
-      task.manualExecuteRequested = updated.manualExecuteRequested;
-      task.progress = updated.progress;
-    }
-    taskStore.deleteProgress(task.id);
-    taskStore.appendTaskEvent(updated || task, 'task.restart_recovery_queued', {
-      reason: 'restart_recovery_auto_queue',
-      fromStatus: 'interrupted',
-      fromPhase: previousPhase,
-      fromResumePoint: previousResumePoint,
-      resumePoint: recoveryPlan.resumePoint || '',
-      retryCount,
-      effect: recoveryPlan.resumePoint ? 'queue_interrupted_task_from_resume_point' : 'queue_interrupted_task_from_flow_start',
-    }, {
-      resourceType: 'scheduler',
-    });
-    diagnosticLog.record({
-      category: 'scheduler',
-      scope: 'scheduler.restartRecovery',
-      operation: 'recover_interrupted_task',
-      component: 'taskScheduler',
-      resourceType: 'scheduler',
-      resourceKey: 'taskScheduler',
-      status: 'done',
-      payload: {
-        taskId: task.id,
-        itemId: task.itemId,
-        flowKind: flowKindForTask(task),
-        retryCount,
-        fromPhase: previousPhase,
-        fromResumePoint: previousResumePoint,
-        resumePoint: recoveryPlan.resumePoint || '',
-        reason: 'restart_recovery_auto_queue',
-      },
-    });
-    recoveredIds.add(task.id);
-  }
-
-  // ── Pass 2: dispatch queued tasks, ordered by queue priority ──────────
+  // Dispatch queued Tasks. Workflow recovery has already happened at the
+  // Event layer before this scheduling round.
   // Lower priority value = runs first. Recovered (interrupted) tasks get a
   // secondary tiebreak so a resume isn't starved by a flood of equal-priority
   // new tasks; FIFO (createdAt) is the final stable tiebreak.

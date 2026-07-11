@@ -16,12 +16,14 @@ const kairoxStore = require('../src/kairoxStore');
 const runner = require('../src/kairoxAutomationRunner');
 const governor = require('../src/resourceGovernor');
 const taskStore = require('../src/taskStore');
+const workflowStore = require('../src/workflowStore');
 
 test.after(() => {
   runner.stop();
   governor.resetForTests();
   admissionStore.resetForTests();
   kairoxStore.resetForTests();
+  workflowStore.resetForTests();
   taskStore.resetForTests();
   fs.rmSync(dataDir, { recursive: true, force: true });
 });

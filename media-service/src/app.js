@@ -38,6 +38,7 @@ const diagnosticLog = require('./diagnosticLog');
 const taskControlPolicy = require('./taskControlPolicy');
 const lifecycleProjection = require('./lifecycleProjection');
 const operationalMetrics = require('./operationalMetrics');
+const workflowStore = require('./workflowStore');
 
 let serverReady = false;
 
@@ -204,14 +205,18 @@ function taskListItemInfo(itemInfo = {}) {
 }
 
 function taskListSummary(task) {
+  const plan = workflowStore.getPlanForTask(task.id);
+  const workflowEvents = plan ? workflowStore.listEvents(task.id) : [];
+  const currentEvent = workflowEvents.find((event) => !workflowStore.TERMINAL.has(event.status)) || null;
   return {
     id: task.id,
     itemId: task.itemId,
     itemName: task.itemName,
     taskTarget: task.taskTarget,
     taskBridge: task.taskBridge,
-    flowPlan: task.flowPlan,
-    flowKind: flowKindForTask(task),
+    flowPlanSummary: plan ? { planId: plan.planId, schemaVersion: plan.schemaVersion, classification: plan.classification, targetGate: plan.targetGate, eventCount: plan.nodes.length } : null,
+    currentEvent: currentEvent ? { eventId: currentEvent.eventId, capability: currentEvent.capability, status: currentEvent.status, resourceKey: currentEvent.resourceKey } : null,
+    eventProgress: plan ? { completed: workflowEvents.filter((event) => ['succeeded', 'skipped'].includes(event.status)).length, total: workflowEvents.length } : null,
     source: task.source,
     status: task.status,
     progress: task.progress,
@@ -715,30 +720,7 @@ function adultReviewQueueItem(item) {
     subLibraryId: item.subLibraryId || '',
     status: item.reviewStatus || item.scrapeStatus || 'needs_review',
     updatedAt: item.updatedAt || '',
-    taskBridge: {
-      kind: 'metadata',
-      from: 'basedata_ready',
-      to: 'metadata_ready',
-      reason,
-      flowKind: 'scrape',
-      source: item.source || 'adult_folder',
-      itemId: item.itemId,
-      subLibraryId: item.subLibraryId || '',
-    },
-    flowPlan: {
-      version: 'v3',
-      bridgeKind: 'metadata',
-      direction: 'metadata.scrape',
-      flowKind: 'scrape',
-      executor: 'scrapeFlowExecutor',
-      primaryResourceType: item.adultRegion === 'western_adult' ? 'local_ai' : 'scraper',
-      source: item.source || 'adult_folder',
-      resourceTypes: item.adultRegion === 'western_adult'
-        ? ['local_ai', 'filesystem']
-        : ['scraper', 'filesystem'],
-      steps: [],
-      plannedAt: item.updatedAt || '',
-    },
+    workflowSummary: { targetGate: 'metadata', classification: 'adult_review', reason },
     itemInfo: {
       name: item.name || item.adultTitle || item.adultId || '',
       title: item.adultTitle || '',
@@ -886,7 +868,6 @@ function compactAdultMetadataForUi(metadata, opts = {}) {
 function buildDashboardAutomation(config) {
   const subLibraries = Array.isArray(config.subLibraries) ? config.subLibraries : [];
   return {
-    allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(config),
     libraryAutomation: {
       autoLibraries: subLibraries.filter((item) => item.libraryAutomationMode === 'auto').length,
       manualLibraries: subLibraries.filter((item) => item.libraryAutomationMode !== 'auto').length,
@@ -1989,6 +1970,20 @@ function registerRoutes(app) {
     }
   });
 
+  app.get('/v1/admin/tasks/:taskId/workflow', async (req, reply) => {
+    const task = taskStore.getTask(req.params.taskId);
+    if (!task) return apiError(reply, 404, 'NOT_FOUND', 'Task not found');
+    const plan = workflowStore.getPlanForTask(task.id);
+    if (!plan) return apiError(reply, 404, 'NOT_FOUND', 'Workflow not planned');
+    return { plan, events: workflowStore.listEvents(task.id) };
+  });
+
+  app.get('/v1/admin/diagnostics/events', async (req) => ({
+    events: workflowStore.queryEvents({ taskId: req.query.taskId, capability: req.query.capability, status: req.query.status }, { limit: req.query.limit }),
+  }));
+
+  app.get('/v1/admin/diagnostics/event-performance', async () => ({ groups: workflowStore.performanceSnapshot() }));
+
   app.get('/v1/library/status', async () => {
     const cfg = configStore.loadConfig();
     return {
@@ -2035,6 +2030,7 @@ function registerRoutes(app) {
       workspace: {
         transcodeTempRoot: cfg.transcodeTempRoot || '',
         upgradeStagingLocalPath: cfg.upgradeStagingLocalPath || '',
+        metadataArtifacts: cfg.workspaces && cfg.workspaces.metadataArtifacts || '',
       },
       compute: {
         transcodeEncodingDevices: cfg.transcodeEncodingDevices || [],
@@ -2059,6 +2055,13 @@ function registerRoutes(app) {
     if (body.workspace && typeof body.workspace === 'object') {
       if (body.workspace.transcodeTempRoot !== undefined) patch.transcodeTempRoot = String(body.workspace.transcodeTempRoot || '').trim();
       if (body.workspace.upgradeStagingLocalPath !== undefined) patch.upgradeStagingLocalPath = String(body.workspace.upgradeStagingLocalPath || '').trim();
+      if (body.workspace.metadataArtifacts !== undefined) {
+        const metadataArtifacts = String(body.workspace.metadataArtifacts || '').trim();
+        const nextConfig = { ...current, workspaces: { ...(current.workspaces || {}), metadataArtifacts } };
+        const probe = require('./metadataArtifactWorkspace').probeWorkspace(nextConfig);
+        patch.workspaces = { ...(current.workspaces || {}), metadataArtifacts };
+        patch.metadataArtifactsProbe = probe;
+      }
     }
     if (body.compute && typeof body.compute === 'object') {
       if (body.compute.transcodeEncodingDevices !== undefined) patch.transcodeEncodingDevices = body.compute.transcodeEncodingDevices;
@@ -2067,7 +2070,8 @@ function registerRoutes(app) {
     const updated = configStore.patchConfig(patch);
     return {
       resourceLimits: updated.resourceLimits,
-      workspace: { transcodeTempRoot: updated.transcodeTempRoot || '', upgradeStagingLocalPath: updated.upgradeStagingLocalPath || '' },
+      workspace: { transcodeTempRoot: updated.transcodeTempRoot || '', upgradeStagingLocalPath: updated.upgradeStagingLocalPath || '', metadataArtifacts: updated.workspaces && updated.workspaces.metadataArtifacts || '' },
+      metadataArtifacts: require('./metadataArtifactWorkspace').probeWorkspace(updated),
       compute: { transcodeEncodingDevices: updated.transcodeEncodingDevices || [], transcodeCpuParticipationStrategy: updated.transcodeCpuParticipationStrategy || 'normal' },
       internal: resourceGovernor.snapshot(),
     };
@@ -2090,16 +2094,15 @@ function registerRoutes(app) {
 
   app.get('/v1/admin/policies/maintenance', async () => {
     const cfg = configStore.loadConfig();
-    return { optimizeFlowPolicy: cfg.optimizeFlowPolicy, approvalPolicy: cfg.approvalPolicy };
+    return { approvalPolicy: cfg.approvalPolicy };
   });
 
   app.patch('/v1/admin/policies/maintenance', async (req) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const patch = {};
-    if (body.optimizeFlowPolicy !== undefined) patch.optimizeFlowPolicy = body.optimizeFlowPolicy;
     if (body.approvalPolicy !== undefined) patch.approvalPolicy = body.approvalPolicy;
     const updated = configStore.patchConfig(patch);
-    return { optimizeFlowPolicy: updated.optimizeFlowPolicy, approvalPolicy: updated.approvalPolicy };
+    return { approvalPolicy: updated.approvalPolicy };
   });
 
   // ── Activity Log ────────────────────────────────────────────────────────
@@ -2317,6 +2320,7 @@ function registerRoutes(app) {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
+      allowedCapabilities,
       libraryAutomationMode, maintenanceAutomationMode, approvalPolicy, metadataGate,
     } = req.body || {};
     if (!name) {
@@ -2348,6 +2352,11 @@ function registerRoutes(app) {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
       upgradeSmartSelect, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
+      allowedCapabilities: allowedCapabilities && typeof allowedCapabilities === 'object' ? allowedCapabilities : {
+        metadata: isFolderAdult ? ['metadata.sidecar.render', 'metadata.poster.acquire', 'metadata.fanart.acquire'] : [],
+        optimize: isFolderAdult ? ['media.transcode', 'media.replace', 'source.organize', 'metadata.artifacts.materialize'] : ['media.transcode', 'source.upgrade.download', 'media.replace'],
+      },
+      capabilityPolicyRevision: '1',
       libraryAutomationMode, maintenanceAutomationMode, approvalPolicy, metadataGate,
     });
     if (created.observationWork) libraAutomationEngine.wake();
@@ -3589,6 +3598,16 @@ async function buildApp(opts = {}) {
   resourceGovernor.configure(() => configStore.loadConfig());
   if (startupCfg.transcodeTempRoot) {
     await transcodeService.cleanupOrphans(startupCfg);
+  }
+  try {
+    const artifactWorkspace = require('./metadataArtifactWorkspace');
+    const kairoxStore = require('./kairoxStore');
+    artifactWorkspace.cleanupUnreferenced(startupCfg, [
+      ...kairoxStore.listMetadataArtifactReferences(),
+      ...workflowStore.activeMetadataArtifactReferences().map((entry) => ({ itemId: entry.itemId, artifactRevision: entry.taskId })),
+    ]);
+  } catch (error) {
+    diagnosticLog.record({ category: 'storage', scope: 'metadataArtifactWorkspace.cleanup', operation: 'cleanup_unreferenced_artifacts', component: 'metadataArtifactWorkspace', status: 'failed', payload: { error: error.message } });
   }
   // Clean Helix runtime starts only durable task dispatch and Libra recovery.
   // Library and maintenance automation runners are wired in their dedicated

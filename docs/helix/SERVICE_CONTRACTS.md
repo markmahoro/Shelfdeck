@@ -134,3 +134,9 @@ Resource Runtime -> event execution through shared Governor permits
 ## Shared Resource Governor
 
 Libra/Nexora work runners and Kairox Resource Runtime request permits from one process-wide Governor created by the Helix composition root. Domain Services keep their own durable work semantics and queues; the Governor exposes capacity/lease/backpressure projections only and never writes domain facts. Task Scheduler does not maintain a second set of resource counters.
+- `getPendingSourceMutations(limit)`：只读返回未被 Libra 消费的 durable `SourceMutationResult`。
+- `acknowledgeSourceMutation(mutationId)`：仅在 Libra 已完成 Nexora rebind 后确认消费。
+
+Kairox Runtime 内部使用 immutable Workflow Graph 和 durable Event Store。公开接口不允许创建 Event、提交 Graph、指定 Capability 或选择内部执行路径。
+
+Library 用户合同使用 `allowedCapabilities.metadata[]` 与 `allowedCapabilities.optimize[]`；`allowedFlowKinds`、Task `flowKind` 和复杂 Executor 名称不是公开配置。

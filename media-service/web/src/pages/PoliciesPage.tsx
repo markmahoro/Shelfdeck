@@ -17,7 +17,7 @@ const metadataFields = [['title', '标题'], ['overview', '剧情简介'], ['pos
 const approvalLabels: Record<string, string> = {
   'transcode.dolbyVisionTonemap': '杜比视界转换', 'transcode.beforeReplace': '转码后替换原文件',
   'upgrade.candidateSelect': '选择升级资源', 'upgrade.identityMismatch': '资源身份不一致', 'upgrade.beforeReplace': '升级后替换原文件',
-  'scrape.beforeWriteMetadata': '写入媒体信息', 'scrape.beforeOrganize': '整理媒体目录', 'scrape.reviewResult': '确认识别结果',
+  'source.beforeOrganize': '整理媒体目录', 'metadata.reviewResult': '确认识别结果',
 };
 const modeNames: Record<ApprovalMode, string> = { auto: '自动执行', confirm: '需要确认', forceConfirm: '始终确认' };
 

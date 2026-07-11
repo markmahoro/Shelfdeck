@@ -768,6 +768,10 @@ function resetForTests() {
   personCatalogStore.resetForTests();
 }
 
+function listMetadataArtifactReferences() {
+  return getDb().prepare("SELECT item_id,evidence_json FROM kairox_metadata_facts WHERE status='fresh'").all().map((row) => ({ itemId: row.item_id, artifactRevision: String(parse(row.evidence_json, {}).artifactRevision || '') })).filter((entry) => entry.artifactRevision);
+}
+
 module.exports = {
   ensureSchema,
   ensureMedia,
@@ -798,5 +802,6 @@ module.exports = {
   updateUserPerception,
   publishOptimize,
   upsertObjective,
+  listMetadataArtifactReferences,
   resetForTests,
 };

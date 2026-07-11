@@ -1,7 +1,5 @@
 'use strict';
 
-const flowRecoveryContract = require('./flowRecoveryContract');
-
 function compactEvent(event) {
   if (!event || typeof event !== 'object') return null;
   return {
@@ -41,10 +39,6 @@ function stateForTask(task) {
   return status;
 }
 
-function buildTaskRecoveryPlan(task) {
-  return flowRecoveryContract.buildRecoveryPlan(task);
-}
-
 function buildTaskControlState(task, options = {}) {
   const confirm = confirmAction(task);
   const failed = task && (task.status === 'failed_hard' || task.status === 'failed_soft');
@@ -65,7 +59,6 @@ function buildTaskControlState(task, options = {}) {
     recovery: failed
       ? { state: 'system_diagnostics_required', reason: task.status, nextAction: 'inspect_logs' }
       : { state: 'not_user_actionable', reason: task && task.status || 'unknown', nextAction: 'none' },
-    recoveryContract: flowRecoveryContract.buildContractProjection(task),
     latestEvent: compactEvent(options.latestEvent),
   };
 }
@@ -75,4 +68,4 @@ function getTaskAction(task, actionName) {
   return { enabled: false, reason: 'user_task_control_removed', effect: 'no_user_transition', label: actionName || 'unknown' };
 }
 
-module.exports = { buildTaskControlState, buildTaskRecoveryPlan, getTaskAction };
+module.exports = { buildTaskControlState, getTaskAction };

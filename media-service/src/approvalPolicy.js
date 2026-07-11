@@ -8,9 +8,8 @@ const DEFAULT_APPROVAL_POLICY = Object.freeze({
   'upgrade.candidateSelect': 'confirm',
   'upgrade.identityMismatch': 'forceConfirm',
   'upgrade.beforeReplace': 'confirm',
-  'scrape.beforeWriteMetadata': 'auto',
-  'scrape.beforeOrganize': 'auto',
-  'scrape.reviewResult': 'auto',
+  'source.beforeOrganize': 'confirm',
+  'metadata.reviewResult': 'auto',
 });
 
 function normalizeMode(mode, fallback = 'confirm') {
@@ -66,9 +65,8 @@ function titleForGate(gateId) {
     case 'upgrade.candidateSelect': return 'Select replacement source';
     case 'upgrade.identityMismatch': return 'Verify upgrade identity';
     case 'upgrade.beforeReplace': return 'Confirm upgrade replacement';
-    case 'scrape.beforeWriteMetadata': return 'Confirm metadata write';
-    case 'scrape.beforeOrganize': return 'Confirm folder organization';
-    case 'scrape.reviewResult': return 'Review scrape result';
+    case 'source.beforeOrganize': return 'Confirm folder organization';
+    case 'metadata.reviewResult': return 'Review metadata result';
     default: return 'Confirm task step';
   }
 }

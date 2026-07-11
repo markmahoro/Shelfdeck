@@ -77,6 +77,14 @@ function createKairoxService(dependencies = {}) {
       }
       return this.getMaintenanceProjections(itemIds);
     },
+    getPendingSourceMutations(limit) {
+      if (typeof implementation.getPendingSourceMutations === 'function') return implementation.getPendingSourceMutations(limit);
+      throw notImplemented('KairoxService.getPendingSourceMutations');
+    },
+    acknowledgeSourceMutation(mutationId) {
+      if (typeof implementation.acknowledgeSourceMutation === 'function') return implementation.acknowledgeSourceMutation(mutationId);
+      throw notImplemented('KairoxService.acknowledgeSourceMutation');
+    },
   });
 }
 

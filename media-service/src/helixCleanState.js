@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-const HELIX_SCHEMA_VERSION = 'helix-beta-maintenance-run-v2';
+const HELIX_SCHEMA_VERSION = 'helix-beta-event-workflow-v1';
 const APPLY_CONFIRMATION = 'INITIALIZE_HELIX_CLEAN_STATE';
 const MARKER_FILE = 'helix-state.json';
 

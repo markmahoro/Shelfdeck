@@ -1,7 +1,7 @@
 'use strict';
 
 const diagnosticLog = require('./diagnosticLog');
-const flowPlanner = require('./flowPlanner');
+const workflowStore = require('./workflowStore');
 const resourceGovernor = require('./resourceGovernor');
 
 const ACTIVE_STATUSES = new Set(['executing', 'pausing']);
@@ -111,13 +111,14 @@ function resourceForPlannedType(task, plannedResourceType, config = {}) {
 }
 
 function resourceForTask(task, config = {}) {
-  return resourceForPlannedType(task, flowPlanner.currentResourceType(task || {}), config);
+  const current = workflowStore.listEvents(task && task.id || '').find((event) => !workflowStore.TERMINAL.has(event.status));
+  return resourceForPlannedType(task, current && current.intent && current.intent.resourceRequest && current.intent.resourceRequest.resourceType || 'service_api', config);
 }
 
 function resourcesForTask(task, config = {}) {
   const types = task && task.flowPlan && Array.isArray(task.flowPlan.resourceTypes)
     ? task.flowPlan.resourceTypes
-    : [flowPlanner.currentResourceType(task || {})];
+    : [resourceForTask(task, config).resourceType];
   const byKey = new Map();
   for (const type of types) {
     const resource = resourceForPlannedType(task, type, config);
@@ -141,7 +142,8 @@ function compactTaskTarget(taskTarget) {
 
 function compactTask(task, config) {
   const resource = resourceForTask(task, config);
-  const step = flowPlanner.currentFlowStep(task || {});
+  const current = workflowStore.listEvents(task && task.id || '').find((event) => !workflowStore.TERMINAL.has(event.status));
+  const step = current ? { eventType: current.capability, phase: current.status } : { eventType: '', phase: '' };
   const resourceState = resourceStateForStatus(task.status);
   const flowKind = flowKindForTask(task);
   return {

@@ -14,6 +14,7 @@ const lifecycleGateService = require('./lifecycleGateService');
 const automationPolicy = require('./automationPolicy');
 const personCatalogStore = require('./personCatalogStore');
 const defaultResourceGovernor = require('./resourceGovernor');
+const workflowStore = require('./workflowStore');
 
 const MAINTENANCE_TARGETS = new Set(['basedata', 'metadata', 'optimize']);
 
@@ -161,6 +162,10 @@ function bundleToLifecycleItem(bundle, admission, peopleProjection = null) {
     basedataSourceRevision: basedata && basedata.sourceRevision || '',
     basedataUpdatedAt: basedata && basedata.updatedAt || '',
     metadataFacts: metadata && metadata.facts || {},
+    metadataArtifactRevision: metadata && metadata.evidence && metadata.evidence.artifactRevision || '',
+    metadataArtifactsReady: !!(metadata && metadata.evidence && metadata.evidence.artifactRevision),
+    metadataArtifactsMaterialized: !!(optimize && optimize.facts && optimize.facts.metadataArtifactsMaterialized),
+    layoutFacts: basedata && basedata.facts && basedata.facts.layout || {},
     userPerceptionFacts: userPerception && userPerception.facts || {},
     metadataComplete: !!(metadata && metadata.status === 'fresh'),
     metadataUpdatedAt: metadata && metadata.updatedAt || '',
@@ -242,7 +247,7 @@ function createKairoxRuntime(dependencies = {}) {
     const bundle = facts.getBundle(itemId);
     const item = bundleToLifecycleItem(bundle || { itemId }, admission);
     const cfg = configs.loadConfig();
-    const policyItem = { ...kairoxObjectivePolicy.applyObjectivePolicy(item, cfg), allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(cfg) };
+    const policyItem = kairoxObjectivePolicy.applyObjectivePolicy(item, cfg);
     const projection = lifecycle.decorateItem(policyItem, cfg);
     const failures = typeof tasks.queryLatestAutomaticFailures === 'function' ? tasks.queryLatestAutomaticFailures([itemId]) : {};
     return buildMaintenanceProjection(
@@ -263,7 +268,7 @@ function createKairoxRuntime(dependencies = {}) {
     return ids.reduce((out, itemId) => {
       const admission = admissionMap[itemId];
       const item = bundleToLifecycleItem(bundleMap[itemId] || { itemId }, admission, peopleMap[itemId]);
-      const policyItem = { ...kairoxObjectivePolicy.applyObjectivePolicy(item, cfg), allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(cfg) };
+      const policyItem = kairoxObjectivePolicy.applyObjectivePolicy(item, cfg);
       out[itemId] = buildMaintenanceProjection(
         item, admission, lifecycle.decorateItem(policyItem, cfg), taskMap[itemId] || [], failureMap[itemId] || null,
         runMap[itemId] || null, bundleMap[itemId] && bundleMap[itemId].media || null,
@@ -281,7 +286,7 @@ function createKairoxRuntime(dependencies = {}) {
     return ids.reduce((out, itemId) => {
       const admission = admissionMap[itemId];
       const item = bundleToLifecycleItem(bundleMap[itemId] || { itemId }, admission, peopleMap[itemId]);
-      const policyItem = { ...kairoxObjectivePolicy.applyObjectivePolicy(item, cfg), allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(cfg) };
+      const policyItem = kairoxObjectivePolicy.applyObjectivePolicy(item, cfg);
       const projection = buildMaintenanceProjection(
         item, admission, lifecycle.decorateItem(policyItem, cfg), [], null, null,
         bundleMap[itemId] && bundleMap[itemId].media || null,
@@ -563,7 +568,6 @@ function createKairoxRuntime(dependencies = {}) {
       source: 'auto',
       status: 'queued',
       config: command.config || configs.loadConfig(),
-      allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(command.config || configs.loadConfig()),
       tasks: command.tasks,
       logs: command.logs,
       helixAdmission: admission,
@@ -595,6 +599,14 @@ function createKairoxRuntime(dependencies = {}) {
     return updated;
   }
 
+  function getPendingSourceMutations(limit = 100) {
+    return workflowStore.listPendingMutations(limit);
+  }
+
+  function acknowledgeSourceMutation(mutationId) {
+    return workflowStore.markMutationConsumed(mutationId);
+  }
+
   return Object.freeze({
     reconcileMaintenance,
     reconcileObjectives,
@@ -609,6 +621,8 @@ function createKairoxRuntime(dependencies = {}) {
     getMaintenanceProjection,
     getMaintenanceProjections,
     getMaintenanceSummaryProjections,
+    getPendingSourceMutations,
+    acknowledgeSourceMutation,
   });
 }
 

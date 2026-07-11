@@ -16,14 +16,16 @@ const kairoxAdmissionStore = require('../src/kairoxAdmissionStore');
 const kairoxStore = require('../src/kairoxStore');
 const gateInvalidationService = require('../src/gateInvalidationService');
 const postOptimizeCanonicalRefresh = require('../src/postOptimizeCanonicalRefresh');
-const scrapeFlowExecutor = require('../src/scrapeFlowExecutor');
+const scrapeFlowExecutor = require('../src/metadataProviderAdapter');
 const adultSourceIdentity = require('../src/adultSourceIdentity');
+const workflowStore = require('../src/workflowStore');
 
 test.after(() => {
   libraStore.resetForTests();
   nexoraStore.resetForTests();
   kairoxAdmissionStore.resetForTests();
   kairoxStore.resetForTests();
+  workflowStore.resetForTests();
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
@@ -32,6 +34,7 @@ test('clean owned schemas do not create the mixed media_items or Nexora Membersh
   nexoraStore.getSourceState('schema-item');
   kairoxAdmissionStore.getAdmission('schema-item');
   kairoxStore.ensureMedia({ itemId: 'schema-item' });
+  workflowStore.listEvents('schema-task');
 
   const libraryDb = new Database(path.join(dataDir, 'library.db'), { readonly: true });
   const taskDb = new Database(path.join(dataDir, 'tasks.db'), { readonly: true });
@@ -50,6 +53,8 @@ test('clean owned schemas do not create the mixed media_items or Nexora Membersh
   assert.ok(taskTables.includes('kairox_metadata_facts'));
   assert.ok(taskTables.includes('kairox_optimize_facts'));
   assert.ok(taskTables.includes('kairox_admissions'));
+  assert.ok(taskTables.includes('workflow_plans'));
+  assert.ok(taskTables.includes('workflow_events'));
 });
 
 test('Kairox fact rows are revisioned independently by fact group', () => {

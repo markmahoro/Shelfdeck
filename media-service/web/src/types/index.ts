@@ -67,6 +67,8 @@ export interface SubLibrary {
   scraperType?: 'shelfdeck_japanese_jav' | 'western_builtin';
   watchRoot?: string;
   japaneseJav?: Record<string, unknown>;
+  allowedCapabilities?: { metadata: string[]; optimize: string[] };
+  capabilityPolicyRevision?: string;
   maintenanceSummary?: {
     total: number;
     basedataPassed: number;

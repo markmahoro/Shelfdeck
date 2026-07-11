@@ -44,18 +44,16 @@ test('Kairox metadata gate no longer derives required inputs from perception fie
 test('Helix clean Kairox audit exposes only Basedata, Metadata and Optimize targets', () => {
   const automationPolicy = readRepoFile('media-service/src/automationPolicy.js');
   const taskCreationPolicy = readRepoFile('media-service/src/taskCreationPolicy.js');
-  const flowPlanner = readRepoFile('media-service/src/flowPlanner.js');
+  const workflowPlanner = readRepoFile('media-service/src/workflowPlanner.js');
 
   assert.strictEqual(fs.existsSync(path.join(repoRoot, 'media-service/src/businessFlowPolicy.js')), false);
   assert.strictEqual(fs.existsSync(path.join(repoRoot, 'media-service/src/lifecycleTaskPlanner.js')), false);
   assert.match(automationPolicy, /TASK_TARGETS = new Set\(\['basedata', 'metadata', 'optimize'\]\)/);
-  assert.match(automationPolicy, /OPTIMIZE_FLOW_KINDS = new Set\(\['transcode', 'upgrade'\]\)/);
+  assert.doesNotMatch(automationPolicy, /OPTIMIZE_FLOW_KINDS|allowedFlowKinds/);
   assert.match(taskCreationPolicy, /targetGate === 'basedata'/);
   assert.doesNotMatch(automationPolicy, /OPTIMIZE_FLOW_KINDS = new Set\(\['transcode', 'upgrade', 'delete'\]\)/);
-  assert.doesNotMatch(flowPlanner, /direction: 'optimize\.delete'/);
-  assert.doesNotMatch(flowPlanner, /direction: 'delete\.execute'/);
-  assert.doesNotMatch(flowPlanner, /direction: 'archive\.finalize'/);
-  assert.match(flowPlanner, /direction: 'basedata\.observe'/);
+  assert.strictEqual(fs.existsSync(path.join(repoRoot, 'media-service/src/flowPlanner.js')), false);
+  assert.match(workflowPlanner, /allowedCapabilities/);
 });
 
 test('Kairox objective template audit records v3.7 target schema', () => {

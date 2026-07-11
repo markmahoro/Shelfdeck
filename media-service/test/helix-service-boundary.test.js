@@ -153,9 +153,9 @@ test('public Helix path exposes only clean maintenance targets and no legacy dis
   assert.doesNotMatch(appSource, /recompute-strategy/);
 });
 
-test('Kairox Runtime and Basedata executor write only Kairox-owned facts', () => {
+test('Kairox Runtime and Basedata capability write only Kairox-owned facts', () => {
   const runtime = source('kairoxRuntime.js');
-  const basedata = source('basedataFlowExecutor.js');
+  const basedata = source('builtInCapabilities.js');
   assert.match(runtime, /require\('\.\/kairoxStore'\)/);
   assert.match(basedata, /kairoxStore\.publishBasedata/);
   assert.doesNotMatch(runtime, /require\('\.\/libraryStore'\)/);
@@ -177,23 +177,18 @@ test('gate invalidation writes Kairox freshness and never mutates Library domain
   assert.doesNotMatch(invalidation, /ingest|archive|delete/);
 });
 
-test('optimize executors publish Kairox facts after a durable mutation boundary', () => {
-  for (const file of ['transcodeFlowExecutor.js', 'upgradeFlowExecutor.js']) {
-    const executor = source(file);
-    assert.match(executor, /mediaMutation:\s*\{ status: 'committed'/);
-    assert.match(executor, /recordPostOptimizeReplacement/);
-  }
-  const recovery = source('flowRecoveryContract.js');
-  assert.match(recovery, /transcode_publish/);
-  assert.match(recovery, /upgrade_publish/);
-  assert.doesNotMatch(recovery, /\bingest\b|\barchive\b|\bdelete\b/);
+test('optimize mutation is owned by atomic capabilities and durable Workflow Events', () => {
+  const capabilities = source('builtInCapabilities.js');
+  const runtime = source('eventRuntime.js');
+  assert.match(capabilities, /capability: 'media\.replace'/);
+  assert.match(capabilities, /recordGateInvalidation/);
+  assert.match(runtime, /workflowStore\.transition/);
+  assert.doesNotMatch(runtime, /executorForFlowKind/);
 });
 
-test('Metadata executor publishes Kairox facts without reading or writing mixed Library facts', () => {
-  const executor = source('scrapeFlowExecutor.js');
-  assert.match(executor, /kairoxStore\.publishMetadata/);
-  assert.match(executor, /pendingMetadataPublication/);
-  assert.match(executor, /scrape_publish/);
-  assert.doesNotMatch(executor, /mediaLibraryService|adultLibraryService|libraryStore|factsFreshnessService|strategyEngine/);
-  assert.doesNotMatch(executor, /recordGateInvalidation|invalidatedGate:\s*'ingest'/);
+test('Metadata capability publishes Kairox facts without mixed Library facts', () => {
+  const capabilities = source('builtInCapabilities.js');
+  assert.match(capabilities, /capability: 'metadata\.publish'/);
+  assert.match(capabilities, /kairoxStore\.publishMetadata/);
+  assert.doesNotMatch(capabilities, /mediaLibraryService|adultLibraryService|libraryStore|factsFreshnessService|strategyEngine/);
 });
