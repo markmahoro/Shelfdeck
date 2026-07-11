@@ -19,7 +19,7 @@ function setPhase(taskId, phase) {
 }
 
 function resolutionPixels(value) {
-  const [width, height] = String(value || '').split('x').map((part) => Number(part) || 0);
+  const [width = 0, height = 0] = String(value || '').split('x').map((part) => Number(part) || 0);
   return width * height;
 }
 

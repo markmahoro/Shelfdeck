@@ -17,7 +17,6 @@ const healthCheck = require('./healthCheck');
 const activityLog = require('./activityLog');
 const nodeStore = require('./nodeStore');
 const nodeService = require('./nodeService');
-const resourceProjection = require('./resourceProjection');
 const flowRecoveryContract = require('./flowRecoveryContract');
 const resourceRuntime = require('./resourceRuntime');
 const diagnosticLog = require('./diagnosticLog');
@@ -128,6 +127,11 @@ function reportStatus(taskId, status, progress) {
   }
 }
 
+function reportResourceDeferred(taskId, blocker) {
+  taskStore.updateTask(taskId, { status: 'waiting_for_resource', resourceBlocker: blocker });
+  runningTasks.delete(taskId);
+}
+
 function reportGateInvalidation(taskId, signal = {}) {
   const task = taskStore.getTask(taskId);
   const itemId = signal.itemId || (task && task.itemId) || '';
@@ -189,11 +193,44 @@ function recoverInterruptedTasks() {
   const tasks = typeof taskStore.querySchedulerTasks === 'function'
     ? taskStore.querySchedulerTasks()
     : taskStore.loadTasks({ includeHistory: false });
-  const interruptible = ['waiting_for_resource', 'precheck', 'executing', 'verify', 'basedata_observe', 'transcode_executing', 'transcode_replace', 'transcode_publish', 'upgrade_executing', 'upgrade_replace', 'upgrade_publish', 'scrape_precheck', 'scrape_executing', 'scrape_publish', 'planning', 'pre_replace_verify', 'pausing'];
+  const interruptible = ['precheck', 'executing', 'verify', 'basedata_observe', 'transcode_executing', 'transcode_replace', 'transcode_publish', 'upgrade_executing', 'upgrade_replace', 'upgrade_publish', 'scrape_precheck', 'scrape_executing', 'scrape_publish', 'planning', 'pre_replace_verify', 'pausing'];
   for (const t of tasks) {
     if (t.status === 'done' || t.status === 'failed_hard') continue;
     // awaiting_user_confirm is a stable state — user hasn't decided yet, preserve it
     if (t.status === 'awaiting_user_confirm') continue;
+    // Resource permits and waiters are intentionally in-memory only. A restart
+    // therefore restores a durable waiting task to the schedulable queue once;
+    // waiting is not an execution failure and must not consume retry budget.
+    if (t.status === 'waiting_for_resource') {
+      const updated = taskStore.updateTask(t.id, { status: 'queued', resourceBlocker: null });
+      const eventTask = updated || { ...t, status: 'queued' };
+      taskStore.appendTaskEvent(eventTask, 'task.restart_resource_wait_requeued', {
+        reason: 'service_restart_resource_waiter_discarded',
+        fromStatus: 'waiting_for_resource',
+        toStatus: 'queued',
+        retryCount: t.retryCount || 0,
+        effect: 'restore_schedulable_without_retry_penalty',
+      }, {
+        resourceType: 'scheduler',
+      });
+      diagnosticLog.record({
+        category: 'scheduler',
+        scope: 'scheduler.restartRecovery',
+        operation: 'restore_resource_wait',
+        component: 'taskScheduler',
+        resourceType: 'scheduler',
+        resourceKey: 'taskScheduler',
+        status: 'done',
+        payload: {
+          taskId: t.id,
+          itemId: t.itemId,
+          retryCount: t.retryCount || 0,
+          reason: 'service_restart_resource_waiter_discarded',
+        },
+      });
+      console.log('[scheduler] restored resource-waiting task', t.id);
+      continue;
+    }
     if (interruptible.includes(t.status) || t.pausingRequested) {
       const previousStatus = t.status;
       const previousPhase = t.phase || '';
@@ -286,7 +323,7 @@ function startScheduler() {
 
   recoverInterruptedTasks();
 
-  resourceRuntime.setSchedulerCallbacks({ pauseForConfirm, reportStatus, reportGateInvalidation });
+  resourceRuntime.setSchedulerCallbacks({ pauseForConfirm, reportStatus, reportGateInvalidation, reportResourceDeferred });
 
   healthCheck.setSchedulerState({ running: true, runningTasks: 0 });
 
@@ -332,10 +369,21 @@ function stopScheduler() {
 }
 
 async function scheduleRound() {
-  const config = configStore.loadConfig();
   const tasks = typeof taskStore.querySchedulerTasks === 'function'
     ? taskStore.querySchedulerTasks()
     : taskStore.loadTasks({ includeHistory: false });
+
+  const now = Date.now();
+  for (const task of tasks) {
+    if (task.status !== 'waiting_for_resource' || resourceRuntime.hasPendingDispatch(task.id)) continue;
+    const retryAt = Date.parse(task.resourceBlocker && task.resourceBlocker.retryAt || '');
+    if (!Number.isFinite(retryAt) || retryAt > now) continue;
+    const updated = taskStore.updateTask(task.id, { status: 'queued', resourceBlocker: null });
+    if (updated) {
+      task.status = updated.status;
+      task.resourceBlocker = null;
+    }
+  }
 
   // Count active work by resource bucket. flowKind remains the executor/API
   // compatibility field; scheduling capacity follows flow/resource semantics.
@@ -458,6 +506,7 @@ async function scheduleRound() {
 
     // Skip already-running (prevent re-entry)
     if (runningTasks.has(task.id)) continue;
+    if (resourceRuntime.hasPendingDispatch(task.id)) continue;
     // Skip paused / pausing (flow controls handle their own state transitions)
     if (task.status === 'paused') continue;
     if (task.status === 'pausing') continue;
@@ -482,11 +531,9 @@ async function scheduleRound() {
     if (task.status === 'queued') {
       clearQueuedRuntimeState(task);
 
-      const resource = resourceProjection.resourceForTask(task, config);
-
       runningTasks.add(task.id);
       usedItemIds.add(task.itemId);
-      const dispatch = resourceRuntime.dispatchTask(task, { resource });
+      const dispatch = resourceRuntime.dispatchTask(task);
       if (!dispatch.dispatched) {
         console.warn(`[scheduler] resource runtime could not dispatch task ${task.id}: ${dispatch.reason}`);
         reportStatus(task.id, 'failed_hard');

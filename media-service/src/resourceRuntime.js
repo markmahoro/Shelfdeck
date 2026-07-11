@@ -24,7 +24,10 @@ let callbacks = {
   pauseForConfirm: null,
   reportStatus: null,
   reportGateInvalidation: null,
+  reportResourceDeferred: null,
 };
+
+const pendingDispatches = new Map();
 
 function flowKindForTask(task = {}) {
   return String(task.flowPlan && task.flowPlan.flowKind || '');
@@ -39,6 +42,7 @@ function setSchedulerCallbacks(input = {}) {
     pauseForConfirm: input.pauseForConfirm,
     reportStatus: input.reportStatus,
     reportGateInvalidation: input.reportGateInvalidation,
+    reportResourceDeferred: input.reportResourceDeferred,
   };
   const executorCallbacks = {
     pauseForConfirm: callbacks.pauseForConfirm,
@@ -128,7 +132,10 @@ function recordFlowFailure(task, resource, flowStep, err) {
   });
 }
 
-function dispatchTask(inputTask, options = {}) {
+function dispatchTask(inputTask) {
+  if (pendingDispatches.has(inputTask.id)) {
+    return { dispatched: true, waitingForResource: true, reason: 'resource_waiter_exists', task: inputTask, flowKind: flowKindForTask(inputTask) };
+  }
   const fence = kairoxAdmissionFence.checkTask(inputTask, 'resource_dispatch');
   if (!fence.allowed) {
     const updated = taskStore.updateTask(inputTask.id, {
@@ -143,25 +150,61 @@ function dispatchTask(inputTask, options = {}) {
   }
   const task = ensureFlowPlan(inputTask);
   const flowKind = flowKindForTask(task);
+  if (flowKind === 'no_op') {
+    const updated = taskStore.updateTask(task.id, { phase: 'flow_no_op', resumePoint: null });
+    taskStore.appendTaskEvent(updated || task, 'flow.no_op', {
+      targetGate: task.taskTarget && task.taskTarget.targetGate,
+      flowPlan: task.flowPlan,
+    });
+    if (typeof callbacks.reportStatus === 'function') callbacks.reportStatus(task.id, 'done', 100);
+    else taskStore.updateTask(task.id, { status: 'done', progress: 100 });
+    return { dispatched: true, waitingForResource: false, reason: 'flow_no_op', task: taskStore.getTask(task.id) || task, flowKind };
+  }
+  if (flowKind === 'blocked') {
+    const blockedReason = String(task.flowPlan && task.flowPlan.flowSelection
+      && (task.flowPlan.flowSelection.blockedReason || task.flowPlan.flowSelection.reason)
+      || 'flow_plan_blocked');
+    const updated = taskStore.updateTask(task.id, {
+      phase: 'flow_plan_blocked',
+      resumePoint: null,
+      failureContext: {
+        message: `Flow Planner blocked this task: ${blockedReason}`,
+        source: 'flow_planner',
+        phase: 'flow_plan_blocked',
+        recoveryClass: 'non_retryable',
+        failedAt: new Date().toISOString(),
+      },
+    });
+    taskStore.appendTaskEvent(updated || task, 'flow.blocked', {
+      targetGate: task.taskTarget && task.taskTarget.targetGate,
+      blockedReason,
+      flowPlan: task.flowPlan,
+    });
+    if (typeof callbacks.reportStatus === 'function') callbacks.reportStatus(task.id, 'failed_hard', 0);
+    else taskStore.updateTask(task.id, { status: 'failed_hard', progress: 0 });
+    return { dispatched: false, waitingForResource: false, reason: 'flow_plan_blocked', task: taskStore.getTask(task.id) || task, flowKind };
+  }
   const executor = executorForFlowKind(flowKind);
   if (!executor) {
     return { dispatched: false, reason: 'flow_executor_missing', task };
   }
 
-  const resource = options.resource || {};
+  const resource = resourceProjection.resourceForTask(task, configStore.loadConfig());
   const flowStep = flowPlanner.currentFlowStep(task);
-  taskStore.appendTaskEvent(taskStore.getTask(task.id) || task, 'flow.waiting_for_resource', {
-    flowEventType: flowStep.eventType,
-    flowEventPhase: flowStep.phase,
-    resourceType: resource.resourceType,
-    resourceKey: resource.resourceKey,
-    resourceLabel: resource.resourceLabel,
-    targetGate: task.taskTarget && task.taskTarget.targetGate,
-    flowDirection: task.flowPlan && task.flowPlan.direction,
-    flowKind: task.flowPlan && task.flowPlan.flowKind,
-  }, { resourceType: resource.resourceType });
-
-  if (typeof callbacks.reportStatus === 'function') callbacks.reportStatus(task.id, 'waiting_for_resource');
+  const currentBeforeWait = taskStore.getTask(task.id) || task;
+  if (currentBeforeWait.status !== 'waiting_for_resource') {
+    taskStore.appendTaskEvent(currentBeforeWait, 'flow.waiting_for_resource', {
+      flowEventType: flowStep.eventType,
+      flowEventPhase: flowStep.phase,
+      resourceType: resource.resourceType,
+      resourceKey: resource.resourceKey,
+      resourceLabel: resource.resourceLabel,
+      targetGate: task.taskTarget && task.taskTarget.targetGate,
+      flowDirection: task.flowPlan && task.flowPlan.direction,
+      flowKind: task.flowPlan && task.flowPlan.flowKind,
+    }, { resourceType: resource.resourceType });
+    if (typeof callbacks.reportStatus === 'function') callbacks.reportStatus(task.id, 'waiting_for_resource');
+  }
   const resources = resourceProjection.resourcesForTask(task, configStore.loadConfig());
   const acquireFlowPermits = async () => {
     const permits = [];
@@ -179,7 +222,7 @@ function dispatchTask(inputTask, options = {}) {
       throw error;
     }
   };
-  acquireFlowPermits().then(async (permits) => {
+  const dispatchPromise = acquireFlowPermits().then(async (permits) => {
     const current = taskStore.getTask(task.id) || task;
     const currentFence = kairoxAdmissionFence.checkTask(current, 'resource_permit_acquired');
     if (!currentFence.allowed) {
@@ -217,17 +260,33 @@ function dispatchTask(inputTask, options = {}) {
       for (const permit of permits.reverse()) permit.release();
     }
   }).catch((error) => {
-    taskStore.updateTask(task.id, {
-      resourceBlocker: { status: 'waiting_for_resource', resourceKey: resource.resourceKey, code: error.code || 'RESOURCE_WAIT_FAILED', message: error.message },
-    });
-    if (typeof callbacks.reportStatus === 'function') callbacks.reportStatus(task.id, 'queued');
+    const current = taskStore.getTask(task.id) || task;
+    const attempts = Number(current.resourceBlocker && current.resourceBlocker.attempts || 0) + 1;
+    const retryDelayMs = Math.min(60000, 1000 * (2 ** Math.min(6, attempts - 1)));
+    const blocker = {
+      status: 'resource_deferred',
+      resourceKey: resource.resourceKey,
+      code: error.code || 'RESOURCE_WAIT_FAILED',
+      message: error.message,
+      attempts,
+      retryAt: new Date(Date.now() + retryDelayMs).toISOString(),
+    };
+    if (typeof callbacks.reportResourceDeferred === 'function') callbacks.reportResourceDeferred(task.id, blocker);
+    else taskStore.updateTask(task.id, { status: 'waiting_for_resource', resourceBlocker: blocker });
+  }).finally(() => {
+    pendingDispatches.delete(task.id);
   });
+  pendingDispatches.set(task.id, dispatchPromise);
 
   return { dispatched: true, waitingForResource: true, task, flowKind, flowStep };
 }
 
 function taskFlowKind(task = {}) {
   return flowKindForTask(task);
+}
+
+function hasPendingDispatch(taskId) {
+  return pendingDispatches.has(String(taskId || ''));
 }
 
 function confirmTask(task = {}) {
@@ -265,4 +324,5 @@ module.exports = {
   cancelTask,
   executorForFlowKind,
   flowKindForTask,
+  hasPendingDispatch,
 };

@@ -71,6 +71,12 @@ function createKairoxService(dependencies = {}) {
         return out;
       }, {});
     },
+    getMaintenanceSummaryProjections(itemIds) {
+      if (typeof implementation.getMaintenanceSummaryProjections === 'function') {
+        return implementation.getMaintenanceSummaryProjections(itemIds);
+      }
+      return this.getMaintenanceProjections(itemIds);
+    },
   });
 }
 

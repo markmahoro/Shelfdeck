@@ -472,6 +472,7 @@ function getDefaultConfig() {
     douban: {
       userId: '',
       cookieHeader: '',
+      interestsRssUrl: '',
     },
 
     // Service auth
@@ -662,6 +663,20 @@ function canonicalUserConfig(config = {}) {
   }, {});
 }
 
+function compactUserConfig(config = {}) {
+  const canonical = canonicalUserConfig(config);
+  const defaults = canonicalUserConfig(getDefaultConfig());
+  const compact = {
+    helixSchemaVersion: canonical.helixSchemaVersion || HELIX_SCHEMA_VERSION,
+    apiKey: String(canonical.apiKey || ''),
+  };
+  for (const key of USER_CONFIG_FIELDS) {
+    if (key === 'helixSchemaVersion' || key === 'apiKey' || canonical[key] === undefined) continue;
+    if (JSON.stringify(canonical[key]) !== JSON.stringify(defaults[key])) compact[key] = canonical[key];
+  }
+  return compact;
+}
+
 const LEGACY_CONFIG_FIELDS = new Set([
   'executionMode',
   'automationMode',
@@ -711,6 +726,11 @@ function collectLegacyConfigPaths(raw = {}) {
     for (const key of Object.keys(subLibrary || {})) {
       if (LEGACY_CONFIG_FIELDS.has(key) || key.startsWith('smartTask')) paths.push(`subLibraries[${index}].${key}`);
     }
+  }
+  for (const [serverId, server] of Object.entries(raw.embyServers || {})) {
+    if (Object.prototype.hasOwnProperty.call(server || {}, 'apiKey')) paths.push(`embyServers.${serverId}.apiKey`);
+    if (Object.prototype.hasOwnProperty.call(server || {}, 'embyUserPassword')) paths.push(`embyServers.${serverId}.embyUserPassword`);
+    if (!server.baseUrl || !server.accessToken || !server.userId) paths.push(`embyServers.${serverId}.connection`);
   }
   return paths;
 }
@@ -776,7 +796,7 @@ function saveConfig(config, options = {}) {
   assertCleanConfig(canonical);
   const merged = mergeConfigWithDefaults(canonical);
   if (options.skipMetadataGateValidation !== true) validateMetadataGateContracts(merged);
-  fs.writeFileSync(configFilePath(), JSON.stringify(canonicalUserConfig(merged), null, 2), 'utf8');
+  fs.writeFileSync(configFilePath(), JSON.stringify(compactUserConfig(merged), null, 2), 'utf8');
   return merged;
 }
 
@@ -794,6 +814,7 @@ module.exports = {
   patchConfig,
   validateMetadataGateContracts,
   assertCleanConfig,
+  compactUserConfig,
   getDefaultConfig,
   buildDefaultTemplate,
   buildAdultJavDefaultTemplate,

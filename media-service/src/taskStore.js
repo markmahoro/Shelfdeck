@@ -5,7 +5,6 @@ const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const diagnosticLog = require('./diagnosticLog');
-const flowPlanner = require('./flowPlanner');
 const taskFactsModel = require('./taskFactsModel');
 
 function resolveDataDir() {
@@ -88,6 +87,7 @@ function getDb() {
     CREATE INDEX IF NOT EXISTS idx_tasks_flow_kind_status_priority ON tasks(flow_kind, status, priority, created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_sub_library_status ON tasks(sub_library_id, status, updated_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_target_gate_status ON tasks(target_gate, status, priority, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_item_target_status ON tasks(item_id, target_gate, status, updated_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_task_created ON task_events(task_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_type_created ON task_events(event_type, created_at);
     CREATE INDEX IF NOT EXISTS idx_task_events_status_created ON task_events(event_status, created_at);
@@ -248,18 +248,8 @@ function normalizeTask(task) {
       gateObjective: t.gateObjective && typeof t.gateObjective === 'object' ? t.gateObjective : {},
       source: t.source,
     };
-  const planned = flowPlanner.planFlow({
-    targetGate: t.taskTarget.targetGate,
-    source: t.source,
-    itemId: t.itemId,
-    itemInfo: t.itemInfo,
-    taskTarget: t.taskTarget,
-    gateObjective: t.taskTarget && t.taskTarget.gateObjective,
-    allowedOptimizeFlowKinds: t.allowedOptimizeFlowKinds,
-    plannedAt: t.createdAt || now,
-  });
-  t.taskBridge = t.taskBridge && typeof t.taskBridge === 'object' ? t.taskBridge : planned.taskBridge;
-  t.flowPlan = t.flowPlan && typeof t.flowPlan === 'object' ? t.flowPlan : planned.flowPlan;
+  if (!t.taskBridge || typeof t.taskBridge !== 'object') delete t.taskBridge;
+  if (!t.flowPlan || typeof t.flowPlan !== 'object') delete t.flowPlan;
   delete t.flowKind;
   delete t.selectedFlow;
   return t;
@@ -517,6 +507,14 @@ function taskUpdateEvents(current, updated, updates = {}) {
       to: updated.maintenancePrioritySnapshot || { class: 'normal', revision: 0 },
     }));
   }
+  if (updates.flowPlan
+    && JSON.stringify(current.flowPlan || null) !== JSON.stringify(updated.flowPlan || null)) {
+    events.push(buildTaskEvent(updated, 'flow.planned', {
+      taskBridge: updated.taskBridge || null,
+      flowPlan: updated.flowPlan,
+      taskTarget: updated.taskTarget,
+    }));
+  }
   if (updates.manualExecuteRequested === true && !current.manualExecuteRequested) {
     events.push(buildTaskEvent(updated, 'task.manual_execute_requested', {}));
   }
@@ -587,30 +585,14 @@ function rowToTask(row) {
   task.pausingRequested = row.pausing_requested === undefined ? task.pausingRequested : !!row.pausing_requested;
   task.nodeId = row.node_id || task.nodeId;
   if (!task.taskBridge || typeof task.taskBridge !== 'object') {
-    task.taskBridge = {
-      kind: row.bridge_kind || '',
-      from: row.bridge_from || '',
-      to: row.bridge_to || '',
-      reason: row.bridge_reason || '',
-      flowKind: row.flow_kind || (task.flowPlan && task.flowPlan.flowKind) || '',
-      source: task.source,
-      itemId: task.itemId,
-      subLibraryId: row.sub_library_id || (task.itemInfo && task.itemInfo.subLibraryId) || '',
-    };
+    const persisted = persistedTaskBridge(row, task.itemInfo || {});
+    if (persisted) task.taskBridge = persisted;
+    else delete task.taskBridge;
   }
   if (!task.flowPlan || typeof task.flowPlan !== 'object') {
-    task.flowPlan = {
-      version: row.flow_version || '',
-      bridgeKind: row.bridge_kind || '',
-      direction: row.flow_direction || '',
-      flowKind: row.flow_kind || '',
-      executor: row.flow_executor || '',
-      primaryResourceType: row.primary_resource_type || '',
-      source: task.source,
-      resourceTypes: jsonParse(row.resource_types_json, []),
-      steps: jsonParse(row.flow_steps_json, []),
-      plannedAt: task.createdAt,
-    };
+    const persisted = persistedFlowPlan(row);
+    if (persisted) task.flowPlan = persisted;
+    else delete task.flowPlan;
   }
   if (!task.taskTarget || typeof task.taskTarget !== 'object') {
     task.taskTarget = {
@@ -707,11 +689,14 @@ function buildTask(taskData, now = new Date().toISOString()) {
     manualExecuteRequested: !!taskData.manualExecuteRequested,
     priorityModelVersion: taskData.priorityModelVersion,
     priorityBreakdown: taskData.priorityBreakdown,
-    taskBridge: taskData.taskBridge,
-    flowPlan: taskData.flowPlan,
     taskTarget: taskData.taskTarget,
+    allowedOptimizeFlowKinds: Array.isArray(taskData.allowedOptimizeFlowKinds)
+      ? [...taskData.allowedOptimizeFlowKinds]
+      : undefined,
+    objectiveRevisionSnapshot: String(taskData.objectiveRevisionSnapshot || ''),
     requestedIntent: taskData.requestedIntent,
     helixAdmission: taskData.helixAdmission || null,
+    sourceAccessMappingRevision: String(taskData.sourceAccessMappingRevision || 'identity'),
     maintenanceRun: taskData.maintenanceRun || null,
     maintenancePrioritySnapshot: taskData.maintenancePrioritySnapshot || { class: 'normal', revision: 0, reason: '', runId: '' },
   });
@@ -744,13 +729,6 @@ function createTask(taskData) {
       maintenanceRun: task.maintenanceRun,
       maintenancePrioritySnapshot: task.maintenancePrioritySnapshot,
       requestedIntent: task.requestedIntent,
-      taskBridge: task.taskBridge,
-      flowPlan: task.flowPlan,
-      taskTarget: task.taskTarget,
-    });
-    appendTaskEvent(task, 'flow.planned', {
-      taskBridge: task.taskBridge,
-      flowPlan: task.flowPlan,
       taskTarget: task.taskTarget,
     });
     return task;
@@ -791,13 +769,6 @@ function createTasks(taskItems) {
           priority: task.priority,
           priorityModelVersion: task.priorityModelVersion,
           requestedIntent: task.requestedIntent,
-          taskBridge: task.taskBridge,
-          flowPlan: task.flowPlan,
-          taskTarget: task.taskTarget,
-        }, { createdAt: task.createdAt })));
-        insertEvent.run(taskEventToRow(buildTaskEvent(task, 'flow.planned', {
-          taskBridge: task.taskBridge,
-          flowPlan: task.flowPlan,
           taskTarget: task.taskTarget,
         }, { createdAt: task.createdAt })));
       }
@@ -1168,6 +1139,36 @@ function jsonExtractObject(value, fallback = undefined) {
   return value;
 }
 
+function persistedTaskBridge(row = {}, itemInfo = {}) {
+  if (!row.bridge_kind) return undefined;
+  return {
+    kind: row.bridge_kind,
+    from: row.bridge_from || '',
+    to: row.bridge_to || '',
+    reason: row.bridge_reason || '',
+    flowKind: row.flow_kind || '',
+    source: row.source || '',
+    itemId: row.item_id || '',
+    subLibraryId: row.sub_library_id || row.info_sub_library_id || itemInfo.subLibraryId || '',
+  };
+}
+
+function persistedFlowPlan(row = {}) {
+  if (!row.flow_kind && !row.flow_direction) return undefined;
+  return {
+    version: row.flow_version || '',
+    bridgeKind: row.bridge_kind || '',
+    direction: row.flow_direction || '',
+    flowKind: row.flow_kind || '',
+    executor: row.flow_executor || '',
+    primaryResourceType: row.primary_resource_type || '',
+    source: row.source || '',
+    resourceTypes: jsonParse(row.resource_types_json, []),
+    steps: jsonParse(row.flow_steps_json, []),
+    plannedAt: row.created_at || '',
+  };
+}
+
 function queryTaskSummariesInner(filter = {}, options = {}) {
   const db = getDb();
   const { where, params } = buildWhere(filter, options);
@@ -1298,51 +1299,8 @@ function queryTaskSummariesInner(filter = {}, options = {}) {
       Object.keys(verifyResult).forEach((key) => {
         if (verifyResult[key] === undefined || verifyResult[key] === null) delete verifyResult[key];
       });
-      const planned = flowPlanner.planFlow({
-        targetGate: row.target_gate || '',
-        source: row.source || '',
-        itemId: row.item_id || '',
-        itemInfo,
-        taskTarget: row.target_gate
-          ? {
-            object: {
-              type: 'media_item',
-              itemId: row.item_id || '',
-              subLibraryId: row.info_sub_library_id || '',
-            },
-            targetGate: row.target_gate || '',
-            gateObjective: jsonParse(row.gate_objective_json, {}),
-            source: row.source || '',
-          }
-          : undefined,
-        plannedAt: row.created_at || '',
-      });
-      const taskBridge = row.bridge_kind
-        ? {
-          kind: row.bridge_kind,
-          from: row.bridge_from || '',
-          to: row.bridge_to || '',
-          reason: row.bridge_reason || '',
-          flowKind: row.flow_kind || '',
-          source: row.source || '',
-          itemId: row.item_id || '',
-          subLibraryId: row.info_sub_library_id || '',
-        }
-        : planned.taskBridge;
-      const flowPlan = row.flow_direction
-        ? {
-          version: row.flow_version || '',
-          bridgeKind: row.bridge_kind || '',
-          direction: row.flow_direction || '',
-          flowKind: row.flow_kind || '',
-          executor: row.flow_executor || '',
-          primaryResourceType: row.primary_resource_type || '',
-          source: row.source || '',
-          resourceTypes: jsonParse(row.resource_types_json, []),
-          steps: jsonParse(row.flow_steps_json, []),
-          plannedAt: row.created_at || '',
-        }
-        : planned.flowPlan;
+      const taskBridge = persistedTaskBridge(row, itemInfo);
+      const flowPlan = persistedFlowPlan(row);
       return projectTask({
         id: row.id,
         itemId: row.item_id || '',
@@ -1475,51 +1433,8 @@ function queryTaskLifecycleAuditFacts(filter = {}, options = {}) {
       const itemInfo = row.sub_library_id
         ? { subLibraryId: row.sub_library_id }
         : undefined;
-      const planned = flowPlanner.planFlow({
-        targetGate: row.target_gate || '',
-        source: row.source || '',
-        itemId: row.item_id || '',
-        itemInfo,
-        taskTarget: row.target_gate
-          ? {
-            object: {
-              type: 'media_item',
-              itemId: row.item_id || '',
-              subLibraryId: row.sub_library_id || '',
-            },
-            targetGate: row.target_gate || '',
-            gateObjective: jsonParse(row.gate_objective_json, {}),
-            source: row.source || '',
-          }
-          : undefined,
-        plannedAt: row.created_at || '',
-      });
-      const taskBridge = row.bridge_kind
-        ? {
-          kind: row.bridge_kind,
-          from: row.bridge_from || '',
-          to: row.bridge_to || '',
-          reason: row.bridge_reason || '',
-          flowKind: row.flow_kind || '',
-          source: row.source || '',
-          itemId: row.item_id || '',
-          subLibraryId: row.sub_library_id || '',
-        }
-        : planned.taskBridge;
-      const flowPlan = row.flow_direction
-        ? {
-          version: row.flow_version || '',
-          bridgeKind: row.bridge_kind || '',
-          direction: row.flow_direction || '',
-          flowKind: row.flow_kind || '',
-          executor: row.flow_executor || '',
-          primaryResourceType: row.primary_resource_type || '',
-          source: row.source || '',
-          resourceTypes: jsonParse(row.resource_types_json, []),
-          steps: jsonParse(row.flow_steps_json, []),
-          plannedAt: row.created_at || '',
-        }
-        : planned.flowPlan;
+      const taskBridge = persistedTaskBridge(row, itemInfo || {});
+      const flowPlan = persistedFlowPlan(row);
       return projectTask({
         id: row.id,
         itemId: row.item_id || '',
@@ -1607,7 +1522,11 @@ function querySchedulerTasks() {
         gate_objective_json,
         json_extract(payload_json, '$.priorityBreakdown') AS priority_breakdown_json,
         json_extract(payload_json, '$.itemInfo') AS item_info_json,
-        json_extract(payload_json, '$.helixAdmission') AS helix_admission_json
+        json_extract(payload_json, '$.helixAdmission') AS helix_admission_json,
+        json_extract(payload_json, '$.maintenanceRun') AS maintenance_run_json,
+        json_extract(payload_json, '$.maintenancePrioritySnapshot') AS maintenance_priority_snapshot_json,
+        json_extract(payload_json, '$.sourceAccessMappingRevision') AS source_access_mapping_revision,
+        json_extract(payload_json, '$.allowedOptimizeFlowKinds') AS allowed_optimize_flow_kinds_json
       FROM tasks
       WHERE status NOT IN (${terminalSql})
       ORDER BY priority ASC, created_at ASC, id ASC
@@ -1615,51 +1534,8 @@ function querySchedulerTasks() {
 
     return rows.map((row) => {
       const itemInfo = jsonExtractObject(row.item_info_json, null);
-      const planned = flowPlanner.planFlow({
-        targetGate: row.target_gate || '',
-        source: row.source || '',
-        itemId: row.item_id || '',
-        itemInfo,
-        taskTarget: row.target_gate
-          ? {
-            object: {
-              type: 'media_item',
-              itemId: row.item_id || '',
-              subLibraryId: row.sub_library_id || (itemInfo && itemInfo.subLibraryId) || '',
-            },
-            targetGate: row.target_gate || '',
-            gateObjective: jsonParse(row.gate_objective_json, {}),
-            source: row.source || '',
-          }
-          : undefined,
-        plannedAt: row.created_at || '',
-      });
-      const taskBridge = row.bridge_kind
-        ? {
-          kind: row.bridge_kind,
-          from: row.bridge_from || '',
-          to: row.bridge_to || '',
-          reason: row.bridge_reason || '',
-          flowKind: row.flow_kind || '',
-          source: row.source || '',
-          itemId: row.item_id || '',
-          subLibraryId: row.sub_library_id || (itemInfo && itemInfo.subLibraryId) || '',
-        }
-        : planned.taskBridge;
-      const flowPlan = row.flow_direction
-        ? {
-          version: row.flow_version || '',
-          bridgeKind: row.bridge_kind || '',
-          direction: row.flow_direction || '',
-          flowKind: row.flow_kind || '',
-          executor: row.flow_executor || '',
-          primaryResourceType: row.primary_resource_type || '',
-          source: row.source || '',
-          resourceTypes: jsonParse(row.resource_types_json, []),
-          steps: jsonParse(row.flow_steps_json, []),
-          plannedAt: row.created_at || '',
-        }
-        : planned.flowPlan;
+      const taskBridge = persistedTaskBridge(row, itemInfo || {});
+      const flowPlan = persistedFlowPlan(row);
       return projectTask({
         id: row.id,
         itemId: row.item_id || '',
@@ -1678,6 +1554,10 @@ function querySchedulerTasks() {
         priorityModelVersion: row.priority_model_version,
         priorityBreakdown: jsonExtractObject(row.priority_breakdown_json, undefined),
         helixAdmission: jsonExtractObject(row.helix_admission_json, null),
+        maintenanceRun: jsonExtractObject(row.maintenance_run_json, null),
+        maintenancePrioritySnapshot: jsonExtractObject(row.maintenance_priority_snapshot_json, { class: 'normal', revision: 0, reason: '', runId: '' }),
+        sourceAccessMappingRevision: row.source_access_mapping_revision || 'identity',
+        allowedOptimizeFlowKinds: jsonExtractObject(row.allowed_optimize_flow_kinds_json, undefined),
         retryCount: typeof row.retry_count === 'number' ? row.retry_count : 0,
         pausingRequested: !!row.pausing_requested,
         nodeId: row.node_id || undefined,
@@ -1757,6 +1637,59 @@ function queryOptimizationTaskIndexRows(filter = {}) {
   }));
 }
 
+function queryTaskAdmissionRowsInner(db = getDb(), scope = {}) {
+  const itemId = String(scope.itemId || '').trim();
+  const targetGate = String(scope.targetGate || '').trim();
+  if (itemId && targetGate) {
+    const policyTerminal = ['done', 'failed_hard', 'failed_soft', 'cancelled', 'skipped'];
+    const terminalParams = policyTerminal.map(() => '?').join(',');
+    const rows = db.prepare(`
+      SELECT id,item_id,target_gate,status,source,created_at,updated_at,
+             json_extract(payload_json, '$.taskTarget.attemptKey') AS attempt_key
+      FROM tasks
+      WHERE status NOT IN (${terminalParams})
+      UNION ALL
+      SELECT id,item_id,target_gate,status,source,created_at,updated_at,
+             json_extract(payload_json, '$.taskTarget.attemptKey') AS attempt_key
+      FROM tasks
+      WHERE item_id=? AND target_gate=? AND status IN (${terminalParams})
+    `).all(...policyTerminal, itemId, targetGate, ...policyTerminal);
+    return rows.map((row) => ({
+      id: row.id,
+      itemId: row.item_id || '',
+      status: row.status || '',
+      source: row.source || '',
+      createdAt: row.created_at || '',
+      updatedAt: row.updated_at || '',
+      taskTarget: { targetGate: row.target_gate || '', attemptKey: row.attempt_key || '' },
+    }));
+  }
+  const rows = db.prepare(`
+    SELECT id, item_id, target_gate, flow_kind, status, source, created_at, updated_at, payload_json
+    FROM tasks
+    ORDER BY updated_at DESC, id DESC
+  `).all();
+
+  return rows.map((row) => {
+    const payload = jsonParse(row.payload_json, {});
+    const taskTarget = payload.taskTarget && typeof payload.taskTarget === 'object'
+      ? payload.taskTarget
+      : { targetGate: row.target_gate || '' };
+    return {
+      id: row.id,
+      itemId: row.item_id || '',
+      flowKind: row.flow_kind || '',
+      status: row.status || '',
+      source: row.source || payload.source || '',
+      createdAt: row.created_at || '',
+      updatedAt: row.updated_at || '',
+      taskTarget,
+      helixAdmission: payload.helixAdmission || null,
+      flowPlan: payload.flowPlan || null,
+    };
+  });
+}
+
 function queryTaskAdmissionRows() {
   return diagnosticLog.track({
     category: 'store',
@@ -1768,21 +1701,35 @@ function queryTaskAdmissionRows() {
     slowMs: 150,
     successPayload: (rows) => ({ rowCount: Array.isArray(rows) ? rows.length : 0 }),
   }, () => {
-    const rows = getDb().prepare(`
-      SELECT id, item_id, flow_kind, status, created_at, updated_at
-      FROM tasks
-      ORDER BY updated_at DESC, id DESC
-    `).all();
-
-    return rows.map((row) => ({
-      id: row.id,
-      itemId: row.item_id || '',
-      flowKind: row.flow_kind || '',
-      status: row.status || '',
-      createdAt: row.created_at || '',
-      updatedAt: row.updated_at || '',
-    }));
+    return queryTaskAdmissionRowsInner(getDb());
   });
+}
+
+function admitAndCreateTask(scope, evaluate) {
+  if (typeof scope === 'function') {
+    evaluate = scope;
+    scope = {};
+  }
+  if (typeof evaluate !== 'function') throw new TypeError('Task admission evaluator is required');
+  const db = getDb();
+  const insertEvent = db.prepare(insertTaskEventSql);
+  const tx = db.transaction(() => {
+    const decision = evaluate(queryTaskAdmissionRowsInner(db, scope)) || { allowed: false };
+    if (decision.allowed === false || !decision.taskData) return decision;
+    const task = buildTask(decision.taskData);
+    db.prepare(upsertSql).run(taskToRow(task));
+    insertEvent.run(taskEventToRow(buildTaskEvent(task, 'task.created', {
+      source: task.source,
+      priority: task.priority,
+      priorityModelVersion: task.priorityModelVersion,
+      maintenanceRun: task.maintenanceRun,
+      maintenancePrioritySnapshot: task.maintenancePrioritySnapshot,
+      requestedIntent: task.requestedIntent,
+      taskTarget: task.taskTarget,
+    }, { createdAt: task.createdAt })));
+    return { ...decision, task };
+  });
+  return tx();
 }
 
 function querySpaceStatTaskRows() {
@@ -1888,7 +1835,7 @@ function queryLatestAutomaticFailures(itemIds = []) {
   const rows = getDb().prepare(`
     SELECT id,item_id,status,target_gate,updated_at,
       json_extract(payload_json, '$.helixAdmission.admissionGeneration') AS admission_generation,
-      json_extract(payload_json, '$.flowPlan.flowSelection.objectiveHash') AS objective_hash
+      json_extract(payload_json, '$.objectiveRevisionSnapshot') AS objective_hash
     FROM tasks
     WHERE source='auto' AND status IN ('failed_hard','failed_soft')
       AND item_id IN (${ids.map(() => '?').join(',')})
@@ -1906,6 +1853,35 @@ function queryLatestAutomaticFailures(itemIds = []) {
     };
     return out;
   }, {});
+}
+
+function queryAutomationInvariantSnapshot(options = {}) {
+  const db = getDb();
+  const since = new Date(Date.now() - Math.max(1000, Number(options.windowMs) || 60000)).toISOString();
+  const activeRows = db.prepare(`
+    SELECT target_gate AS targetGate, COUNT(*) AS count
+    FROM tasks
+    WHERE status NOT IN ('done','failed_hard','failed_soft','cancelled','skipped')
+    GROUP BY target_gate
+  `).all();
+  const eventCount = db.prepare('SELECT COUNT(*) AS count FROM task_events WHERE created_at >= ?').get(since).count || 0;
+  const churnRows = db.prepare(`
+    SELECT task_id AS taskId, COUNT(*) AS count
+    FROM task_events
+    WHERE created_at >= ?
+      AND event_type IN ('flow.waiting_for_resource','task.status_changed')
+    GROUP BY task_id
+    HAVING COUNT(*) > 10
+    ORDER BY count DESC
+    LIMIT 20
+  `).all(since);
+  return {
+    since,
+    activeByTargetGate: Object.fromEntries(activeRows.map((row) => [row.targetGate || 'unknown', Number(row.count) || 0])),
+    eventCount: Number(eventCount) || 0,
+    churnTasks: churnRows.map((row) => ({ taskId: row.taskId, count: Number(row.count) || 0 })),
+    storage: getStorageMetrics(),
+  };
 }
 
 function resetForTests() {
@@ -1937,8 +1913,10 @@ module.exports = {
   appendTaskEvent,
   queryOptimizationTaskIndexRows,
   queryTaskAdmissionRows,
+  admitAndCreateTask,
   querySpaceStatTaskRows,
   queryLatestAutomaticFailures,
+  queryAutomationInvariantSnapshot,
   getStorageMetrics,
   setProgress,
   getProgress,

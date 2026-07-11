@@ -44,6 +44,8 @@ test('preference revisions and item projections use the five-level model', () =>
     actorPersonIds: [personId], actorPeople: [{ personId, name: updated.name, preference: 2 }], actorPreferenceMax: 2, actorPreferenceMin: 2,
   });
   assert.throws(() => people.updatePerson(personId, { preference: 3 }), /between -2 and 2/);
+  const classified = people.updatePerson(personId, { contentKinds: ['general', 'adult'] });
+  assert.deepStrictEqual(classified.contentKinds, ['general', 'adult']);
 });
 
 test('confirmed merge preserves target identity and moves media relations', () => {
@@ -53,6 +55,20 @@ test('confirmed merge preserves target identity and moves media relations', () =
   assert.strictEqual(result.person.preference, -1);
   assert.ok(result.affectedItemIds.includes('media-3'));
   assert.strictEqual(people.getPerson(candidate.right.personId), null);
+});
+
+test('Person Catalog applies search, classification and pagination in the Store query', () => {
+  people.createPerson({ name: 'Catalog Alpha', aliases: ['Needle Alias'], contentKinds: ['adult'] });
+  people.createPerson({ name: 'Catalog Beta', contentKinds: ['general'] });
+  const page = people.listPeople({ limit: 1, offset: 1 });
+  assert.strictEqual(page.people.length, 1);
+  assert.ok(page.total >= 3);
+  const search = people.listPeople({ search: 'needle alias', limit: 10 });
+  assert.strictEqual(search.total, 1);
+  assert.strictEqual(search.people[0].name, 'Catalog Alpha');
+  const adult = people.listPeople({ contentKind: 'adult', limit: 10 });
+  assert.ok(adult.people.some((person) => person.name === 'Catalog Alpha'));
+  assert.ok(adult.people.every((person) => person.contentKinds.includes('adult')));
 });
 
 test('actor rules are explicit policy inputs and no actor rule keeps the objective unchanged', () => {

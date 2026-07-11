@@ -142,15 +142,25 @@ function acquire(input = {}) {
     error.code = 'RESOURCE_CAPACITY_EXCEEDED';
     return Promise.reject(error);
   }
+  const owner = clean(input.owner) || 'unknown';
+  const workId = clean(input.workId);
+  const existing = waiters.find((waiter) => (
+    !waiter.settled
+    && waiter.owner === owner
+    && waiter.workId === workId
+    && waiter.resourceKey === resourceKey
+  ));
+  if (existing) return existing.promise;
   if (waitingFor(resourceKey) >= queueLimitFor(resourceKey)) {
     const error = new Error(`Resource wait queue is full: ${resourceKey}`);
     error.code = 'RESOURCE_QUEUE_FULL';
     return Promise.reject(error);
   }
-  return new Promise((resolve, reject) => {
-    waiters.push({
-      owner: clean(input.owner) || 'unknown',
-      workId: clean(input.workId),
+  let waiter;
+  const promise = new Promise((resolve, reject) => {
+    waiter = {
+      owner,
+      workId,
       resourceKey,
       units,
       priority: Number.isFinite(Number(input.priority)) ? Number(input.priority) : 50,
@@ -160,9 +170,23 @@ function acquire(input = {}) {
       resolve,
       reject,
       settled: false,
-    });
+      promise: null,
+    };
+    waiters.push(waiter);
     drain();
   });
+  waiter.promise = promise;
+  return promise;
+}
+
+function hasWaitingWork(input = {}) {
+  const owner = clean(input.owner);
+  const workId = clean(input.workId);
+  return waiters.some((waiter) => (
+    !waiter.settled
+    && (!owner || waiter.owner === owner)
+    && (!workId || waiter.workId === workId)
+  ));
 }
 
 function reprioritizeWork(input = {}) {
@@ -242,6 +266,7 @@ module.exports = {
   configure,
   runWithPermit,
   reprioritizeWork,
+  hasWaitingWork,
   snapshot,
   resetForTests,
 };

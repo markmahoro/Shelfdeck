@@ -2,11 +2,43 @@
 
 Last updated: 2026-07-11
 
-Status: Helix Beta Service 与 Admin Web product refactor 已完成；production clean cutover requires separate authorization.
+Status: Helix Beta recovery implementation active; production disabled until local real-source acceptance and explicit user confirmation.
 
 ## Objective
 
-Deliver the first Helix Beta as a resource-bounded, fully automatic Library Management loop under the accepted modular-monolith architecture.
+Deliver the first Helix Beta as a resource-bounded, fully automatic Library Management loop whose complete product behavior is proven against the user's real local sources before production is rebuilt.
+
+## Active Recovery Plan
+
+The earlier completion statements below are historical delivery facts, not current Beta acceptance. Production evidence on 2026-07-11 invalidated the system-level readiness claim.
+
+1. Rebaseline Helix contracts and status around four hard invariants: authoritative global TaskAdmission, stable resource waiting, bounded Runner supply, and operational invariant health. **Completed 2026-07-11.**
+2. Repair Task Creator/Admission, Runner, Scheduler, Resource Runtime, Governor and Task/Event persistence; add a circuit breaker without hiding or clearing work. **Completed 2026-07-11; full Service suite 167/167.**
+3. Replace per-flow path mapping with an internal deployment-owned Source Access Resolver and destructive mapping fencing. **Completed 2026-07-11.**
+4. Complete Emby User selection, transcode device pool editing, Optimize direction projection and Admin configuration/runtime bidirectional audit. **In progress; local Emby re-authentication awaits the password that is intentionally absent from backups.**
+5. Restore durable Douban User Perception synchronization under the existing two-level automation model; complete Person and manual perception product paths. **Completed 2026-07-11.**
+6. Add contract, integration, UI and performance acceptance that exercises the real local sources: `Z:\Film`, `Z:\chn_series`, `Y:\JAV`, and `Y:\US`. **In progress.**
+7. Prove all E01-E40 product scenarios, normal/constrained profiles, restart/fault recovery, 30-minute active soak and 10-minute idle convergence.
+8. Publish per-case evidence and residual risk. Build or deploy production only after a separate user confirmation.
+
+Before item 6 resumes, complete the following blocking Kairox execution-kernel rebaseline. The local four-library E2E is paused because its current `flowKind -> complex executor` evidence cannot establish the accepted Task / Flow / Event contract.
+
+## Kairox Capability And Event Runtime Rebaseline
+
+28. Strengthen the architecture contract: every Basedata, Metadata and Optimize Task is planned after scheduling from its Gate Objective, canonical facts, Library capability policy, runtime capability and safety facts. `flowKind` becomes a classification/diagnostic label and must not route an executor. **Design confirmed 2026-07-11; implementation pending.**
+29. Replace the fixed step list and Task `resumePoint` execution state machine with an immutable, versioned durable Workflow Graph. Nodes are Event intents; dependencies and a restricted declarative condition language support sequence, branches and joins. The first product planner generates the graph; no user canvas is in Beta, but the model must not preclude a future canvas. **Pending.**
+30. Make Event a first-class durable runtime entity. Event Runtime owns readiness, dependency release, approval prerequisite, per-Event Governor permit, retry/restart recovery and Task graph aggregation. A Capability Executor performs exactly one planned effect and cannot create Tasks, choose/append capabilities, advance a Flow or write Task status directly. **Pending.**
+31. Atomize the existing Basedata, Scrape, Transcode and Upgrade executors into registered capabilities while preserving their validated low-level implementation and fencing. Remove the `flowKind -> complex executor.driveTask()` runtime path rather than operating dual tracks. **Pending.**
+32. Persist Library-allowed side-effect capabilities by Gate. Required read-only observation, verification and fact publication capabilities remain internal and cannot be disabled. Approval/authorization stays independent: allowing a capability never grants a replace, move or overwrite approval. **Pending.**
+33. Make file-layout compliance an Optimize Objective. Metadata owns descriptive facts and renders verified NFO/poster/fanart artifacts into a durable Metadata Artifact Workspace; it never writes those files into an unorganized source root. Optimize composes `source.organize`, `metadata.artifacts.materialize` and `filesystem.layout.verify` as required. **Pending.**
+34. Add the user-visible `workspaces.metadataArtifacts` setting under Media Access And Workspaces, defaulting to `<dataDir>/workspaces/metadata-artifacts`. It is durable workspace, not disposable temp: validate create/write/atomic-rename/delete, reject overlap or escape, protect referenced revisions and clean only unreferenced revisions after retention. **Pending.**
+35. Persist neutral Kairox `SourceMutationResult` for organize/replace. Libra durably consumes it, increments admission generation, suspends the old admission, coordinates Nexora re-observe/rebind and reissues admission; Kairox then obtains a new Basedata Task through Lifecycle/Runner facts, never by Task chaining. **Pending.**
+36. Add Event-level diagnostics for queue, resource, approval, execution and retry duration, aggregated by capability, resource key, Provider, Volume, Worker and device. Operational Health must detect graph deadlock, unchanged-state writes, duplicate commit, permit leak and control-plane starvation. **Pending.**
+37. Complete contract/unit/integration/Admin tests, clean-initialize the local ShelfDeck runtime, then restart E01-E40 and the normal/constrained soak acceptance from E01. Pre-rebaseline Task/Facts are not acceptance evidence. **Pending.**
+
+The Workflow Graph is immutable once persisted. Event output may select declared conditional branches but cannot mutate or extend the graph. Facts requiring a different plan cause a later Gate Task to be planned through Lifecycle and Automation Runner.
+
+Recovery implementation may fix local defects without per-defect checkpoints when the accepted contract is unchanged. Any newly discovered contract conflict returns to architecture discussion before implementation. No workaround, silent fallback, queue clearing, task hiding or production mutation is allowed.
 
 ## Delivery Slices
 

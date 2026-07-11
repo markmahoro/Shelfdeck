@@ -13,6 +13,14 @@ function defaultTemplateId(mediaType: string, adultRegion: string) {
   return mediaType === 'tv' ? 'tv_default' : 'default';
 }
 
+const initialLibraryDraft = { name: '', source: 'emby', embyServerId: '', sectionId: '', watchRoot: '', mediaType: 'movie', adultRegion: 'japanese_jav', ruleTemplateId: 'default', libraryAutomationMode: 'manual', maintenanceAutomationMode: 'manual', doubanEnabled: false };
+
+function directionSummary(library: SubLibrary) {
+  const counts = library.maintenanceSummary?.directionCounts;
+  if (!counts) return '尚无维护判断';
+  return `转码 ${counts.transcode || 0} · 洗版 ${counts.upgrade || 0} · 无需优化 ${counts.none || 0} · 待判断 ${counts.undetermined || 0}${counts.blocked ? ` · 受阻 ${counts.blocked}` : ''}`;
+}
+
 export default function LibrariesPage() {
   const qc = useQueryClient();
   const libraries = useQuery({ queryKey: ['libraries'], queryFn: subLibraries.list });
@@ -21,12 +29,25 @@ export default function LibrariesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<{ library: SubLibrary; action: 'stop' | 'delete' } | null>(null);
   const [toast, setToast] = useState('');
-  const [draft, setDraft] = useState({ name: '', source: 'emby', embyServerId: '', sectionId: '', watchRoot: '', mediaType: 'movie', adultRegion: 'japanese_jav', ruleTemplateId: 'default', libraryAutomationMode: 'manual', maintenanceAutomationMode: 'manual' });
+  const [draft, setDraft] = useState(initialLibraryDraft);
   const folders = useQuery({ queryKey: ['emby-folders', draft.embyServerId], queryFn: () => emby.getMediaFolders(draft.embyServerId), enabled: !!draft.embyServerId && draft.source === 'emby' });
   const refresh = () => qc.invalidateQueries({ queryKey: ['libraries'] });
-  const create = useMutation({ mutationFn: () => subLibraries.create({ ...draft, mediaType: draft.mediaType, libraryAutomationMode: draft.libraryAutomationMode as 'auto' | 'manual', maintenanceAutomationMode: draft.maintenanceAutomationMode as 'auto' | 'manual' }), onSuccess: () => { refresh(); setCreateOpen(false); setToast('媒体库已创建'); }, onError: (error) => setToast(error.message) });
+  const create = useMutation({ mutationFn: () => subLibraries.create({
+    name: draft.name,
+    source: draft.source,
+    embyServerId: draft.source === 'emby' ? draft.embyServerId : '',
+    sectionId: draft.source === 'emby' ? draft.sectionId : '',
+    watchRoot: draft.source === 'folder' ? draft.watchRoot : '',
+    mediaType: draft.source === 'folder' ? 'adult' : draft.mediaType,
+    ...(draft.source === 'folder' ? { adultRegion: draft.adultRegion, scraperType: draft.adultRegion === 'western_adult' ? 'western_builtin' : 'shelfdeck_japanese_jav' } : {}),
+    ruleTemplateId: draft.ruleTemplateId,
+    doubanEnabled: draft.source === 'emby' && draft.doubanEnabled,
+    libraryAutomationMode: draft.libraryAutomationMode as 'auto' | 'manual',
+    maintenanceAutomationMode: draft.maintenanceAutomationMode as 'auto' | 'manual',
+  }), onSuccess: () => { refresh(); setCreateOpen(false); setDraft({ ...initialLibraryDraft, embyServerId: defaultServer }); setToast('媒体库已创建'); }, onError: (error) => setToast(error.message) });
   const update = useMutation({ mutationFn: ({ library, patch }: { library: SubLibrary; patch: Partial<SubLibrary> }) => subLibraries.update(library.uuid, patch), onSuccess: refresh, onError: (error) => setToast(error.message) });
   const observe = useMutation({ mutationFn: (library: SubLibrary) => subLibraries.observe(library.uuid), onSuccess: () => setToast('已开始观察媒体库'), onError: (error) => setToast(error.message) });
+  const syncPerception = useMutation({ mutationFn: (library: SubLibrary) => subLibraries.syncUserPerception(library.uuid), onSuccess: () => setToast('已开始同步用户偏好'), onError: (error) => setToast(error.message) });
   const stop = useMutation({ mutationFn: (library: SubLibrary) => subLibraries.offboard(library.uuid, { idempotencyKey: `stop-library:${library.uuid}:${Date.now()}` }), onSuccess: () => { refresh(); setToast('媒体库已停止管理'); }, onError: (error) => setToast(error.message) });
   const remove = useMutation({ mutationFn: (library: SubLibrary) => subLibraries.remove(library.uuid), onSuccess: () => { refresh(); setToast('媒体库定义已删除'); }, onError: (error) => setToast(error.message) });
   const serverOptions = servers.data?.servers || [];
@@ -37,14 +58,15 @@ export default function LibrariesPage() {
   return <Page>
     <PageHeader title="媒体库" meta={`${rows.length} 个媒体库`} actions={<Button variant="primary" icon="plus" onClick={() => { setDraft((value) => ({ ...value, embyServerId: value.embyServerId || defaultServer })); setCreateOpen(true); }}>新建媒体库</Button>} />
     {rows.length === 0 ? <section className="panel"><EmptyState title="尚未创建媒体库" action={serverOptions.length ? <Button variant="primary" onClick={() => setCreateOpen(true)}>新建媒体库</Button> : <Link className="btn btn-primary" to="/settings?tab=connections">连接 Emby</Link>} /></section> : <section className="panel table-wrap">
-      <table className="table responsive"><thead><tr><th>媒体库</th><th>来源</th><th>自动管理</th><th>自动维护</th><th>维护策略</th><th>优先级</th><th>操作</th></tr></thead><tbody>{rows.map((library) => <tr key={library.uuid}>
-        <td data-label="媒体库"><div className="table-main">{library.name}</div><div className="table-sub">{library.mediaType || 'media'}</div></td>
+      <table className="table responsive"><thead><tr><th>媒体库</th><th>来源</th><th>自动管理</th><th>自动维护</th><th>维护策略</th><th>维护方向</th><th>优先级</th><th>操作</th></tr></thead><tbody>{rows.map((library) => <tr key={library.uuid}>
+        <td data-label="媒体库"><div className="table-main">{library.name}</div><div className="table-sub">{library.mediaType || 'media'} · 基础信息 {library.maintenanceSummary?.basedataPassed || 0}/{library.maintenanceSummary?.total || 0} · 元数据 {library.maintenanceSummary?.metadataPassed || 0}/{library.maintenanceSummary?.total || 0} · 优化 {library.maintenanceSummary?.optimizePassed || 0}/{library.maintenanceSummary?.total || 0}</div></td>
         <td data-label="来源"><Status tone={library.enabled === false ? 'neutral' : 'success'}>{library.source === 'folder' ? '文件夹' : 'Emby'}</Status></td>
         <td data-label="自动管理"><select className="select" value={library.libraryAutomationMode || 'manual'} onChange={(event) => update.mutate({ library, patch: { libraryAutomationMode: event.target.value as 'auto' | 'manual' } })}><option value="auto">自动</option><option value="manual">手动</option></select></td>
         <td data-label="自动维护"><select className="select" value={library.maintenanceAutomationMode || 'manual'} onChange={(event) => update.mutate({ library, patch: { maintenanceAutomationMode: event.target.value as 'auto' | 'manual' } })}><option value="auto">自动</option><option value="manual">手动</option></select></td>
         <td data-label="维护策略"><select className="select" value={library.ruleTemplateId || 'default'} onChange={(event) => update.mutate({ library, patch: { ruleTemplateId: event.target.value } })}>{(templates.data?.ruleTemplates || []).map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></td>
+        <td data-label="维护方向"><div className="table-sub">{directionSummary(library)}</div></td>
         <td data-label="优先级"><select className="select" value={priorityClass(library.priorityWeight)} onChange={(event) => update.mutate({ library, patch: { priorityWeight: priorityValue[event.target.value as keyof typeof priorityValue] } })}><option value="high">高</option><option value="normal">普通</option><option value="low">低</option></select></td>
-        <td data-label="操作"><div className="page-actions"><Button variant="quiet" icon="refresh" onClick={() => observe.mutate(library)}>立即观察</Button><Button variant="quiet" onClick={() => update.mutate({ library, patch: { libraryAutomationMode: 'auto', maintenanceAutomationMode: 'auto' } })}>全自动</Button><Button variant="quiet" onClick={() => setConfirmation({ library, action: 'stop' })}>停止管理</Button><Button variant="danger" onClick={() => setConfirmation({ library, action: 'delete' })}>删除</Button></div></td>
+        <td data-label="操作"><div className="page-actions"><Button variant="quiet" icon="refresh" onClick={() => observe.mutate(library)}>立即观察</Button>{library.doubanEnabled && <Button variant="quiet" onClick={() => syncPerception.mutate(library)}>同步用户偏好</Button>}<Button variant="quiet" onClick={() => update.mutate({ library, patch: { libraryAutomationMode: 'auto', maintenanceAutomationMode: 'auto' } })}>全自动</Button><Button variant="quiet" onClick={() => setConfirmation({ library, action: 'stop' })}>停止管理</Button><Button variant="danger" onClick={() => setConfirmation({ library, action: 'delete' })}>删除</Button></div></td>
       </tr>)}</tbody></table>
     </section>}
     <Dialog open={createOpen} title="新建媒体库" onClose={() => setCreateOpen(false)} actions={<><Button onClick={() => setCreateOpen(false)}>取消</Button><Button variant="primary" disabled={!draft.name || create.isPending || (draft.source === 'emby' ? !draft.sectionId : !draft.watchRoot)} onClick={() => create.mutate()}>{create.isPending ? '创建中' : '创建媒体库'}</Button></>}>
@@ -60,6 +82,7 @@ export default function LibrariesPage() {
         <Field label="维护策略"><select className="select" value={draft.ruleTemplateId} onChange={(e) => setDraft({ ...draft, ruleTemplateId: e.target.value })}>{(templates.data?.ruleTemplates || []).map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></Field>
         <Field label="媒体库自动管理"><select className="select" value={draft.libraryAutomationMode} onChange={(e) => setDraft({ ...draft, libraryAutomationMode: e.target.value })}><option value="auto">自动</option><option value="manual">手动</option></select></Field>
         <Field label="媒体自动维护"><select className="select" value={draft.maintenanceAutomationMode} onChange={(e) => setDraft({ ...draft, maintenanceAutomationMode: e.target.value })}><option value="auto">自动</option><option value="manual">手动</option></select></Field>
+        {draft.source === 'emby' && <Field label="同步豆瓣用户偏好"><label className="page-actions"><input type="checkbox" checked={draft.doubanEnabled} onChange={(event) => setDraft({ ...draft, doubanEnabled: event.target.checked })} />启用</label></Field>}
       </div>
     </Dialog>
     <Dialog open={!!confirmation} title={confirmation?.action === 'delete' ? '删除媒体库定义' : '停止管理媒体库'} onClose={() => setConfirmation(null)} actions={<><Button onClick={() => setConfirmation(null)}>取消</Button><Button variant={confirmation?.action === 'delete' ? 'danger' : 'primary'} onClick={() => { if (!confirmation) return; if (confirmation.action === 'delete') remove.mutate(confirmation.library); else stop.mutate(confirmation.library); setConfirmation(null); }}>确认</Button></>}>

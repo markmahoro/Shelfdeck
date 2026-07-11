@@ -189,6 +189,18 @@ Automation Runner (timer / wake-up / admission scan)
 | Flow Planner | 根据 task/objective/facts 唯一选择 `flowPlan` | 自动化许可、队列调度、资源发放 |
 | Resource Runtime | event 编排、执行/recovery、在每个受争用 event 前向 Governor 申请 permit | gate、automation policy、全局容量配置 |
 
+修复动作不获得额外架构授权。无论修复的是 bug、性能、恢复、测试还是生产故障，
+实现都必须留在当前事实 owner 与物理组件边界内；测试通过、临时可运行或避免失败
+都不能成为跨界理由。若根因看似只能通过移动职责解决，必须停止实现、回到 Design
+合同并获得用户明确确认后才能改变边界。
+
+特别地，Task Creator 只能创建 `object + targetGate + gateObjective` Task，并保存
+admission、generation、priority、objective/policy/source revision 等准入快照。它不得调用 Flow
+Planner、不得在创建时写入 `flowPlan`、也不得因为某个具体 Flow 不可规划而拒绝
+target-gate Task。Task 被 Scheduler 选中后，Resource Runtime 才调用独立 Flow Planner；
+Flow Planner 的结果由 Task Store 持久化，随后 Runtime 执行或按明确的 blocked contract
+终止本次 attempt。
+
 `automationPolicy.js` 是 Kairox Automation Policy；`kairoxAutomationRunner.js` 是唯一薄 Runner。旧 SmartTask 组件已经移除，不存在平行 automation engine。`taskScheduler.js` 只保留 task queue 调度，不读取 automation mode，也不维护 Emby、filesystem、FFmpeg 或 worker 容量计数。
 
 同一 Flow 需要多个受争用资源时，Beta Runtime 在首个 event 前按稳定 resource-key 顺序预取该 Flow 的 permit 集，并在 Flow 完成、失败、暂停或取消时反序释放。该保守 lease 模式会牺牲少量并行度，但保证每个 event 执行时已持有对应 permit，并避免不同 Flow 以不同顺序申请造成死锁；它不改变 event 的 Task/Flow/Event 事实边界。
@@ -261,6 +273,29 @@ Resource Management 是 Helix 共享工程基础设施，不是第四个业务�
 Governor 是由 Helix composition root 创建并注入的进程级单例，位于 Libra、Nexora、Kairox 三个业务组件之外。permit 不持久化；重启后由 durable Libra work 或 Kairox task 重新申请。每个 resource queue 必须有界，并支持 FIFO + aging；control work 使用保留容量，不能被 optimize 饿死。
 
 典型 resource key 包括 `emby:<serverId>:api`、`filesystem:<volume>:scan`、`filesystem:<volume>:probe`、`filesystem:<volume>:mutation`、`db:library:write`、`db:tasks:write`、`local:ffmpeg` 和 `worker:<workerId>`。
+
+### 7.1 Supply, Waiting And Operational Invariants
+
+Task supply capacity and runtime resource capacity are separate contracts:
+
+- TaskAdmission is the sole owner of global active/queued Gate caps. It must query authoritative TaskStore facts inside the admission operation; callers cannot supply a narrowed task list.
+- Automation Runner consumes remaining Gate supply and cannot create beyond it. Governor pressure may stop supply but Governor does not create or admit Tasks.
+- `waiting_for_resource` is a stable Task state. A Task may own at most one live Governor waiter. Queue-full backpressure persists a retry deadline and cannot oscillate the Task through `queued` on every Scheduler tick.
+- Task events record fact transitions. Repeated observation of an unchanged state cannot append another status/waiting event.
+- Restart discards permits and waiters, then performs one durable recovery transition. It cannot repeatedly recover the same waiting fact.
+
+Operational Health must evaluate invariants, not only process exceptions. Gate cap violation, repeated unchanged transitions, abnormal Event/DB growth, permit leaks or control-plane starvation are system faults. An internal circuit breaker may stop new maintenance supply while keeping diagnostics and control work live; it cannot cancel work, clear facts or report false completion.
+
+### 7.2 Source Access Paths
+
+Nexora canonical source paths remain source identity evidence. Environment-specific filesystem access is resolved by one deployment-owned Source Access Resolver:
+
+```text
+canonical source path + deployment mapping revision
+  -> runtime access path
+```
+
+Mappings are not user Library configuration and are not exposed through Admin APIs. Kairox stores the mapping revision on destructive Tasks and revalidates canonical path, access path, containment and revision before probe, staged activation, replace or destructive commit. Missing, ambiguous or escaping mappings fail explicitly and never fall back to a guessed path.
 
 ## 8. Source Incident And Fencing
 

@@ -63,7 +63,7 @@ test('auto/auto Emby library converges through Basedata and Metadata to maintena
   cleanState.applyCleanInit({ dataDir, confirmation: cleanState.APPLY_CONFIRMATION });
   const config = configStore.loadConfig();
   config.embyServers = {
-    stub: { serverName: 'Stub', baseUrl: `http://127.0.0.1:${address.port}`, apiKey: 'stub-key', userId: 'user' },
+    stub: { serverName: 'Stub', baseUrl: `http://127.0.0.1:${address.port}`, accessToken: 'stub-token', userId: 'user' },
   };
   configStore.saveConfig(config);
 
@@ -105,15 +105,30 @@ test('auto/auto Emby library converges through Basedata and Metadata to maintena
     assert.ok(item, `Libra did not onboard the Emby observation: ${automation.body}`);
     assert.strictEqual(item.helix.phase, 'maintenance');
     assert.strictEqual(item.helix.source.readiness, 'ready');
-    assert.strictEqual(item.helix.maintenance.basedataPassed, true);
-    assert.strictEqual(item.helix.maintenance.metadataPassed, true);
-    assert.strictEqual(item.helix.maintenance.optimizePassed, true);
-    assert.strictEqual(item.maintenanceComplete, true);
+    const maintenanceDiagnostic = JSON.stringify({
+      helix: item.helix,
+      maintenanceComplete: item.maintenanceComplete,
+      lifecycleStage: item.lifecycleStage,
+      lifecycleReason: item.lifecycleReason,
+    });
+    assert.strictEqual(item.helix.maintenance.basedataPassed, true, maintenanceDiagnostic);
+    assert.strictEqual(item.helix.maintenance.metadataPassed, true, maintenanceDiagnostic);
+    assert.strictEqual(item.helix.maintenance.optimizePassed, true, maintenanceDiagnostic);
+    assert.strictEqual(item.maintenanceComplete, true, maintenanceDiagnostic);
 
     const tasks = (await app.inject({ method: 'GET', url: '/v1/tasks?includeHistory=true' })).json().tasks;
     const targets = tasks.map((task) => task.taskTarget && task.taskTarget.targetGate).sort();
     assert.deepStrictEqual(targets, ['basedata', 'metadata']);
     assert.ok(tasks.every((task) => task.status === 'done'));
+    for (const task of tasks) {
+      const events = taskStore.queryTaskEvents({ taskId: task.id }, { pageSize: 50 }).events;
+      const createdIndex = events.findIndex((event) => event.eventType === 'task.created');
+      const plannedIndex = events.findIndex((event) => event.eventType === 'flow.planned');
+      assert.ok(createdIndex >= 0, `task.created missing for ${task.id}`);
+      assert.ok(plannedIndex > createdIndex, `Flow must be planned only after target-gate Task creation for ${task.id}`);
+      assert.strictEqual(events[createdIndex].payload.flowPlan, undefined);
+      assert.ok(events[plannedIndex].payload.flowPlan && events[plannedIndex].payload.flowPlan.flowKind);
+    }
   } finally {
     await app.close();
     await new Promise((resolve) => server.close(resolve));

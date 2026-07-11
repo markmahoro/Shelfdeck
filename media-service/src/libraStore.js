@@ -272,28 +272,34 @@ function getLibraryItems(itemIds = null) {
 
 function getLibraryItemsPage(options = {}) {
   const afterItemId = String(options.afterItemId || '');
+  const subLibraryId = String(options.subLibraryId || '');
   const limit = Math.max(1, Math.min(500, Number(options.limit) || 100));
   return getDb().prepare(`
     SELECT * FROM libra_library_items
-    WHERE item_id>? ORDER BY item_id ASC LIMIT ?
-  `).all(afterItemId, limit).map(libraryRow);
+    WHERE item_id>? AND (?='' OR sub_library_id=?) ORDER BY item_id ASC LIMIT ?
+  `).all(afterItemId, subLibraryId, subLibraryId, limit).map(libraryRow);
 }
 
-function resolveLibraryHierarchy(subLibraryId) {
+function resolveLibraryHierarchy(subLibraryId, options = {}) {
   const id = String(subLibraryId || '');
   const items = getDb().prepare('SELECT * FROM libra_library_items WHERE sub_library_id=?').all(id).map(libraryRow);
   const bySourceRef = new Map(items.filter((item) => item.sourceRefId).map((item) => [item.sourceRefId, item.itemId]));
   const update = getDb().prepare('UPDATE libra_library_items SET parent_item_id=?,series_item_id=?,updated_at=? WHERE item_id=?');
+  const changedItemIds = new Set();
   const now = new Date().toISOString();
   const transaction = getDb().transaction(() => {
     for (const item of items) {
       const parentItemId = bySourceRef.get(item.parentSourceRefId) || '';
       const seriesItemId = bySourceRef.get(item.seriesSourceRefId) || (item.mediaKind === 'series' ? item.itemId : '');
-      if (item.parentItemId !== parentItemId || item.seriesItemId !== seriesItemId) update.run(parentItemId, seriesItemId, now, item.itemId);
+      if (item.parentItemId !== parentItemId || item.seriesItemId !== seriesItemId) {
+        update.run(parentItemId, seriesItemId, now, item.itemId);
+        changedItemIds.add(item.itemId);
+      }
     }
   });
   transaction();
-  return getDb().prepare('SELECT * FROM libra_library_items WHERE sub_library_id=?').all(id).map(libraryRow);
+  const resolved = getDb().prepare('SELECT * FROM libra_library_items WHERE sub_library_id=?').all(id).map(libraryRow);
+  return options.changedOnly === true ? resolved.filter((item) => changedItemIds.has(item.itemId)) : resolved;
 }
 
 function getMaintenanceScopeMembers(rootItemId) {

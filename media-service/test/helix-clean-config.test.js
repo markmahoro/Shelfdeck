@@ -44,7 +44,8 @@ test('clean config persists independent library and maintenance automation modes
     approvalPolicy: {},
   });
   const persisted = JSON.parse(fs.readFileSync(path.join(dataDir, 'config.json'), 'utf8'));
-  assert.deepStrictEqual(persisted.resourceLimits, config.resourceLimits);
+  assert.strictEqual(persisted.resourceLimits, undefined);
+  assert.deepStrictEqual(loaded.resourceLimits, config.resourceLimits);
   for (const internalField of ['resourceGovernor', 'taskPriority', 'taskAdmission', 'libraryAutomation', 'maintenanceAutomation', 'nodePollIntervalMs', 'transcodeCleanupOrphansOnStartup', 'ffmpegPath', 'ffprobePath']) {
     assert.strictEqual(persisted[internalField], undefined, `${internalField} must not be serialized`);
   }
@@ -61,6 +62,27 @@ test('legacy configuration is rejected instead of migrated or defaulted', () => 
     (error) => error.code === 'HELIX_CLEAN_INIT_REQUIRED'
       && error.details.violations.includes('automaticTaskTargets'),
   );
+});
+
+test('legacy Emby API key and stored password are rejected by clean config validation', () => {
+  const config = configStore.getDefaultConfig();
+  config.embyServers = {
+    legacy: { baseUrl: 'http://emby', apiKey: 'legacy-key', embyUserPassword: 'secret', userId: 'user' },
+  };
+  assert.throws(
+    () => configStore.assertCleanConfig(config),
+    (error) => error.code === 'HELIX_CLEAN_INIT_REQUIRED'
+      && error.details.violations.includes('embyServers.legacy.apiKey')
+      && error.details.violations.includes('embyServers.legacy.embyUserPassword'),
+  );
+});
+
+test('config persistence omits unchanged runtime defaults', () => {
+  const compact = configStore.compactUserConfig(configStore.getDefaultConfig());
+  assert.deepStrictEqual(compact, {
+    helixSchemaVersion: configStore.getDefaultConfig().helixSchemaVersion,
+    apiKey: '',
+  });
 });
 
 test('missing two-level modes and legacy target keys are rejected', () => {

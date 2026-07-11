@@ -29,19 +29,34 @@ function normalizeCodec(value) {
   return raw;
 }
 
+function basedataRequiredFactsMissing(item = {}) {
+  if (item.playable === false) return [];
+  const facts = item.basedataFacts && typeof item.basedataFacts === 'object' ? item.basedataFacts : item;
+  const missing = [];
+  if (!clean(facts.path || item.path)) missing.push('basedata.path');
+  if (numberOrNull(facts.size || item.size) == null) missing.push('basedata.size');
+  if (numberOrNull(facts.duration || item.duration) == null) missing.push('basedata.duration');
+  if (numberOrNull(facts.bitrate || item.bitrate) == null) missing.push('basedata.bitrate');
+  if (!clean(facts.resolution || item.resolution)) missing.push('basedata.resolution');
+  if (!normalizeCodec(facts.codec || facts.videoCodec || item.codec || item.videoCodec)) missing.push('basedata.codec');
+  return missing;
+}
+
 function evaluateBasedataGate(item = {}) {
   const freshness = item.factsFreshness && item.factsFreshness.basedataFacts || {};
   const sourceRevision = String(item.basedataSourceRevision || '');
   const admissionSourceRevision = String(item.admissionSourceRevision || item.currentSourceRevision || sourceRevision);
   const current = !!sourceRevision && sourceRevision === admissionSourceRevision;
   const fresh = !['stale', 'invalidated', 'blocked', 'refreshing', 'unknown'].includes(normalize(freshness.status));
-  const passed = item.basedataComplete === true && current && fresh;
+  const requiredMissing = basedataRequiredFactsMissing(item);
+  const contractBlocked = item.basedataComplete === true && current && fresh && requiredMissing.length > 0;
+  const passed = item.basedataComplete === true && current && fresh && requiredMissing.length === 0;
   return {
     gate: 'basedata',
     passed,
-    status: passed ? 'passed' : fresh ? 'missing' : normalize(freshness.status) || 'missing',
-    reason: passed ? 'basedata_gate_met' : !current ? 'basedata_source_revision_stale' : 'basedata_missing_or_stale',
-    missingReasons: passed ? [] : [!current ? 'basedata.sourceRevision' : 'basedata.facts'],
+    status: passed ? 'passed' : contractBlocked ? 'blocked' : fresh ? 'missing' : normalize(freshness.status) || 'missing',
+    reason: passed ? 'basedata_gate_met' : contractBlocked ? 'basedata_required_facts_missing' : !current ? 'basedata_source_revision_stale' : 'basedata_missing_or_stale',
+    missingReasons: passed ? [] : contractBlocked ? requiredMissing : [!current ? 'basedata.sourceRevision' : 'basedata.facts'],
     freshness,
     userAction: passed ? '' : 'observe_basedata',
   };
@@ -340,4 +355,5 @@ function evaluateOptimizeGate(item = {}) {
 module.exports = {
   evaluateBasedataGate,
   evaluateOptimizeGate,
+  basedataRequiredFactsMissing,
 };

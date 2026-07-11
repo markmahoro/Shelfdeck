@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const { isDeepStrictEqual } = require('node:util');
 const personCatalogStore = require('./personCatalogStore');
 
 const FACT_STATUS = new Set(['missing', 'fresh', 'stale', 'blocked']);
@@ -249,6 +250,21 @@ function getMaintenanceRun(itemId) {
   `).get(String(itemId || '')));
 }
 
+function getMaintenanceRuns(itemIds = []) {
+  const ids = [...new Set((itemIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = getDb().prepare(`
+    SELECT * FROM kairox_maintenance_runs
+    WHERE item_id IN (${placeholders}) AND status NOT IN ('complete','cancelled')
+    ORDER BY item_id ASC,created_at DESC
+  `).all(...ids);
+  return rows.reduce((out, row) => {
+    if (!out[row.item_id]) out[row.item_id] = runRow(row);
+    return out;
+  }, {});
+}
+
 function getMaintenanceRunById(runId) {
   return runRow(getDb().prepare('SELECT * FROM kairox_maintenance_runs WHERE run_id=?').get(String(runId || '')));
 }
@@ -299,16 +315,21 @@ function listMaintenanceRuns(options = {}) {
   const statuses = Array.isArray(options.statuses) && options.statuses.length ? options.statuses : ['ready'];
   const valid = statuses.filter((value) => RUN_STATUSES.has(value));
   if (valid.length === 0) return [];
-  const placeholders = valid.map(() => '?').join(',');
+  const itemIds = [...new Set((options.itemIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
+  if (Array.isArray(options.itemIds) && itemIds.length === 0) return [];
+  const statusPlaceholders = valid.map(() => '?').join(',');
+  const itemClause = itemIds.length > 0
+    ? ` AND r.item_id IN (${itemIds.map(() => '?').join(',')})`
+    : '';
   return getDb().prepare(`
     SELECT r.* FROM kairox_maintenance_runs r
     JOIN kairox_media m ON m.item_id=r.item_id
     JOIN kairox_admissions a ON a.item_id=r.item_id AND a.status='active' AND a.generation=r.admission_generation
-    WHERE r.status IN (${placeholders})
+    WHERE r.status IN (${statusPlaceholders})${itemClause}
     ORDER BY CASE m.maintenance_priority_class WHEN 'expedited' THEN 0 ELSE 1 END ASC,
              r.library_priority ASC,r.requested_at ASC,r.item_id ASC
     LIMIT ?
-  `).all(...valid, limit).map(runRow);
+  `).all(...valid, ...itemIds, limit).map(runRow);
 }
 
 function setMaintenancePriority(input = {}) {
@@ -555,11 +576,13 @@ function getUserPerception(itemId) {
 function updateUserPerception(input = {}) {
   const media = ensureMedia(input);
   const existing = getUserPerception(media.itemId);
+  const nextFacts = { ...(existing && existing.facts || {}), ...(input.facts || {}) };
+  if (existing && isDeepStrictEqual(existing.facts || {}, nextFacts)) return existing;
   const now = nowIso(input.updatedAt);
   const row = {
     item_id: media.itemId,
     fact_revision: (existing && existing.factRevision || 0) + 1,
-    facts_json: JSON.stringify({ ...(existing && existing.facts || {}), ...(input.facts || {}) }),
+    facts_json: JSON.stringify(nextFacts),
     evidence_json: JSON.stringify(input.evidence || {}),
     observed_at: nowIso(input.observedAt || now),
     updated_at: now,
@@ -751,6 +774,7 @@ module.exports = {
   getMedia,
   createMaintenanceRun,
   getMaintenanceRun,
+  getMaintenanceRuns,
   getMaintenanceRunById,
   updateMaintenanceRun,
   listMaintenanceRuns,

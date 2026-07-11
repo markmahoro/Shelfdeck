@@ -9,6 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const sourceAccessResolver = require('./sourceAccessResolver');
 const taskStore = require('./taskStore');
 const configStore = require('./configStore');
 const moviepilotService = require('./services/moviepilotService');
@@ -39,19 +40,6 @@ function getMpConfig() {
   const mp = cfg.moviepilot || {};
   if (!mp.baseUrl || !mp.apiKey) return null;
   return { baseUrl: mp.baseUrl, apiKey: mp.apiKey, savePath: mp.savePath || '' };
-}
-
-function resolveEmbyPath(embyPath, task) {
-  const cfg = configStore.loadConfig();
-  const subLibId = task && task.itemInfo && task.itemInfo.subLibraryId;
-  const subLib = subLibId && (cfg.subLibraries || []).find((s) => s.uuid === subLibId);
-  const from = (subLib && subLib.pathMapFrom || '').trim();
-  const to = (subLib && subLib.pathMapTo || '').trim();
-  if (from && to && embyPath && embyPath.startsWith(from)) {
-    const relative = embyPath.slice(from.length).replace(/^\//, '');
-    return path.join(to, relative);
-  }
-  return embyPath;
 }
 
 // Map MoviePilot transfer dest path to ShelfDeck staging path.
@@ -1097,6 +1085,7 @@ async function runPreReplaceVerify(taskId, task) {
 // Mirror of transcodeFlowExecutor.runReplace
 
 async function runReplace(taskId, task, config) {
+  sourceAccessResolver.assertTaskRevision(taskStore.getTask(taskId) || task);
   if (scheduler && typeof scheduler.assertHelixAdmission === 'function') {
     scheduler.assertHelixAdmission(taskId, 'upgrade_replace');
   }
@@ -1112,7 +1101,7 @@ async function runReplace(taskId, task, config) {
     return;
   }
 
-  let targetFolder = resolveEmbyPath(rawEmbyPath, task);
+  let targetFolder = sourceAccessResolver.resolve(rawEmbyPath, { mustExist: true }).accessPath;
   try {
     const stat = fs.statSync(targetFolder);
     if (stat.isFile()) targetFolder = path.dirname(targetFolder);
@@ -1205,7 +1194,8 @@ async function runVerify(taskId, task) {
   appendLog(taskId, 'info', 'Verifying upgraded media');
 
   const rawEmbyPath = (task.itemInfo && task.itemInfo.path) || '';
-  const embyPath = resolveEmbyPath(rawEmbyPath, task);
+  sourceAccessResolver.assertTaskRevision(taskStore.getTask(taskId) || task);
+  const embyPath = sourceAccessResolver.resolve(rawEmbyPath).accessPath;
   let targetPath = embyPath;
   try {
     const stat = fs.statSync(targetPath);

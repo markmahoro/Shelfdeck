@@ -43,6 +43,35 @@ test('ordinary pages use product language and keep architecture facts in diagnos
   assert.doesNotMatch(client, /createByIntent|updatePriority|actions\/execute|actions\/retry|actions\/pause/);
 });
 
+test('Task Center hides internal identifiers and translates Library work states', () => {
+  const page = read('web/src/pages/TasksPage.tsx');
+  assert.doesNotMatch(page, /table-sub[^\n]+row\.(?:id|workId)/);
+  assert.match(page, /pending: \{ label: '排队中'/);
+  assert.match(page, /retrying: \{ label: '正在恢复'/);
+  assert.match(page, /pageSize: 20/);
+  assert.match(page, /internalIdentifier/);
+});
+
+test('Media page uses server-side search and bounded pagination', () => {
+  const media = read('web/src/pages/MediaPage.tsx');
+  assert.match(media, /const pageSize = 50/);
+  assert.match(media, /offset: \(page - 1\) \* pageSize/);
+  assert.match(media, /search: search \|\| undefined/);
+  assert.match(media, /上一页/);
+  assert.match(media, /下一页/);
+  assert.match(media, /queryFn: libraryApi\.getStatus/);
+  assert.doesNotMatch(media, /queryFn: subLibraries\.list/);
+});
+
+test('People page uses server-side search and bounded pagination', () => {
+  const people = read('web/src/pages/PeoplePage.tsx');
+  assert.match(people, /const pageSize = 50/);
+  assert.match(people, /offset: \(page - 1\) \* pageSize/);
+  assert.match(people, /search, contentKind: kind, preference/);
+  assert.match(people, /上一页/);
+  assert.match(people, /下一页/);
+});
+
 test('FFmpeg binaries are resolved from deployment, bundled runtime, then system command', () => {
   const transcode = read('src/services/transcodeService.js');
   assert.match(transcode, /process\.env\.FFMPEG_PATH/);

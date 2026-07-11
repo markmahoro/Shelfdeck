@@ -150,8 +150,13 @@ function artifactFace(row, includeImage = true) {
 
 function rowToPerson(row, options = {}) {
   if (!row) return null;
-  const relatedCount = getDb().prepare('SELECT COUNT(*) AS count FROM kairox_item_people WHERE person_id=?').get(row.person_id).count || 0;
-  const artifacts = artifactRows(row.person_id);
+  const relatedCount = row.related_media_count == null
+    ? getDb().prepare('SELECT COUNT(*) AS count FROM kairox_item_people WHERE person_id=?').get(row.person_id).count || 0
+    : Number(row.related_media_count) || 0;
+  const artifacts = options.includeArtifacts ? artifactRows(row.person_id) : [];
+  const referenceFaceCount = row.reference_face_count == null
+    ? getDb().prepare('SELECT COUNT(*) AS count FROM kairox_person_reference_artifacts WHERE person_id=?').get(row.person_id).count || 0
+    : Number(row.reference_face_count) || 0;
   return {
     personId: row.person_id,
     name: row.canonical_name,
@@ -163,7 +168,7 @@ function rowToPerson(row, options = {}) {
     preference: Number(row.preference) || 0,
     preferenceRevision: Number(row.preference_revision) || 0,
     dismissed: !!row.dismissed,
-    referenceFaceCount: artifacts.length,
+    referenceFaceCount,
     referenceFaces: options.includeArtifacts ? artifacts.map((entry) => artifactFace(entry, true)) : undefined,
     relatedMediaCount: Number(relatedCount) || 0,
     createdAt: row.created_at,
@@ -294,17 +299,66 @@ function getItemPreferenceProjection(itemId) {
   };
 }
 
+function getItemPreferenceProjections(itemIds = []) {
+  const ids = [...new Set((itemIds || []).map(clean).filter(Boolean))];
+  const projections = Object.fromEntries(ids.map((itemId) => [itemId, {
+    actorPersonIds: [], actorPeople: [], actorPreferenceMax: null, actorPreferenceMin: null,
+  }]));
+  if (ids.length === 0) return projections;
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = getDb().prepare(`
+    SELECT ip.item_id,p.person_id,p.canonical_name,p.preference
+    FROM kairox_item_people ip JOIN kairox_people p ON p.person_id=ip.person_id
+    WHERE ip.item_id IN (${placeholders}) AND ip.role='actor'
+    ORDER BY ip.item_id,p.canonical_name
+  `).all(...ids);
+  for (const row of rows) {
+    const projection = projections[row.item_id];
+    if (!projection) continue;
+    const score = Number(row.preference) || 0;
+    projection.actorPersonIds.push(row.person_id);
+    projection.actorPeople.push({ personId: row.person_id, name: row.canonical_name, preference: score });
+    projection.actorPreferenceMax = projection.actorPreferenceMax == null ? score : Math.max(projection.actorPreferenceMax, score);
+    projection.actorPreferenceMin = projection.actorPreferenceMin == null ? score : Math.min(projection.actorPreferenceMin, score);
+  }
+  return projections;
+}
+
 function listPeople(options = {}) {
-  const query = clean(options.search || options.q).toLowerCase();
+  const query = normalizedName(options.search || options.q);
   const kind = clean(options.contentKind || (options.adultRegion ? 'adult' : ''));
   const preferenceValue = options.preference === undefined || options.preference === '' ? null : preference(options.preference);
   const limit = Math.max(1, Math.min(200, Number(options.limit) || 50));
   const offset = Math.max(0, Number(options.offset) || 0);
-  let people = getDb().prepare('SELECT * FROM kairox_people ORDER BY canonical_name').all().map((row) => rowToPerson(row, { includeArtifacts: options.includeArtifacts === true }));
-  if (query) people = people.filter((person) => [person.name, ...(person.aliases || [])].some((value) => value.toLowerCase().includes(query)));
-  if (kind) people = people.filter((person) => (person.contentKinds || []).includes(kind));
-  if (preferenceValue != null) people = people.filter((person) => person.preference === preferenceValue);
-  return { total: people.length, people: people.slice(offset, offset + limit) };
+  const clauses = [];
+  const params = { limit, offset };
+  if (query) {
+    clauses.push("(p.normalized_name LIKE @search OR LOWER(p.aliases_json) LIKE @search)");
+    params.search = `%${query}%`;
+  }
+  if (kind) {
+    clauses.push("EXISTS (SELECT 1 FROM json_each(p.content_kinds_json) WHERE value=@content_kind)");
+    params.content_kind = kind;
+  }
+  if (preferenceValue != null) {
+    clauses.push('p.preference=@preference');
+    params.preference = preferenceValue;
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const db = getDb();
+  const total = Number(db.prepare(`SELECT COUNT(*) AS count FROM kairox_people p ${where}`).get(params).count) || 0;
+  const rows = db.prepare(`
+    SELECT p.*,
+      COUNT(DISTINCT ip.item_id) AS related_media_count,
+      (SELECT COUNT(*) FROM kairox_person_reference_artifacts a WHERE a.person_id=p.person_id) AS reference_face_count
+    FROM kairox_people p
+    LEFT JOIN kairox_item_people ip ON ip.person_id=p.person_id
+    ${where}
+    GROUP BY p.person_id
+    ORDER BY p.canonical_name
+    LIMIT @limit OFFSET @offset
+  `).all(params);
+  return { total, people: rows.map((row) => rowToPerson(row, { includeArtifacts: options.includeArtifacts === true })) };
 }
 
 function updatePerson(personId, updates = {}) {
@@ -313,11 +367,12 @@ function updatePerson(personId, updates = {}) {
   const name = updates.name === undefined ? current.name : clean(updates.name);
   if (!name) throw Object.assign(new Error('name is required'), { code: 'KAIROX_PERSON_NAME_REQUIRED' });
   const nextPreference = updates.preference === undefined ? current.preference : preference(updates.preference);
+  const nextContentKinds = updates.contentKinds === undefined ? current.contentKinds : uniqueStrings(updates.contentKinds);
   const changedPreference = nextPreference !== current.preference;
   getDb().prepare(`
-    UPDATE kairox_people SET canonical_name=?,normalized_name=?,aliases_json=?,preference=?,
+    UPDATE kairox_people SET canonical_name=?,normalized_name=?,aliases_json=?,content_kinds_json=?,preference=?,
       preference_revision=preference_revision+?,dismissed=?,updated_at=? WHERE person_id=?
-  `).run(name, normalizedName(name), JSON.stringify(updates.aliases === undefined ? current.aliases : uniqueStrings(updates.aliases)), nextPreference, changedPreference ? 1 : 0, updates.dismissed === undefined ? (current.dismissed ? 1 : 0) : (updates.dismissed ? 1 : 0), nowIso(), current.personId);
+  `).run(name, normalizedName(name), JSON.stringify(updates.aliases === undefined ? current.aliases : uniqueStrings(updates.aliases)), JSON.stringify(nextContentKinds), nextPreference, changedPreference ? 1 : 0, updates.dismissed === undefined ? (current.dismissed ? 1 : 0) : (updates.dismissed ? 1 : 0), nowIso(), current.personId);
   return getPerson(current.personId, { includeArtifacts: true });
 }
 
@@ -431,6 +486,7 @@ module.exports = {
   deletePerson,
   observeItemPeople,
   getItemPreferenceProjection,
+  getItemPreferenceProjections,
   getRelatedItemIds,
   getMergeCandidates,
   mergePeople,

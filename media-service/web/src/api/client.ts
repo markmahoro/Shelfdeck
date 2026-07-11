@@ -4,6 +4,7 @@ import type {
   EmbyTestResult,
   SubLibrary,
   EncodeDevice,
+  DevicePoolEntry,
   DevicePool,
   TaskListResponse,
   MediaTask,
@@ -113,11 +114,26 @@ export const emby = {
 
   testConnection: (body: {
     baseUrl: string;
-    apiKey?: string;
-    username?: string;
-    password?: string;
-    userId?: string;
-  }) => post<EmbyTestResult>("/v1/admin/emby/test", body),
+    username: string;
+    password: string;
+  }) => post<EmbyTestResult>("/v1/admin/emby/connections/test", body),
+
+  createServer: (body: {
+    baseUrl: string;
+    username: string;
+    password: string;
+    userId: string;
+  }) => post<EmbyServer>("/v1/admin/emby/servers", body),
+
+  updateServer: (serverId: string, body: Partial<{
+    baseUrl: string;
+    username: string;
+    password: string;
+    userId: string;
+  }>) => patch<EmbyServer>(`/v1/admin/emby/servers/${encodeURIComponent(serverId)}`, body),
+
+  removeServer: (serverId: string) =>
+    del<{ ok: boolean; serverId: string }>(`/v1/admin/emby/servers/${encodeURIComponent(serverId)}`),
 
   getMediaFolders: (embyServerId: string) =>
     get<{ folders: MediaFolder[] }>(
@@ -139,8 +155,6 @@ export const subLibraries = {
     ruleTemplateId?: string;
     metadataGate?: SubLibrary["metadataGate"];
     upgradeSmartSelect?: SubLibrary["upgradeSmartSelect"];
-    pathMapFrom?: string;
-    pathMapTo?: string;
     mediaType?: string;
     adultRegion?: string;
     scraperType?: string;
@@ -170,6 +184,11 @@ export const subLibraries = {
   observe: (uuid: string) =>
     post<{ workId: string }>(`/v1/admin/sublibraries/${uuid}/actions/observe`, {
       idempotencyKey: `admin-observe:${uuid}:${Date.now()}`,
+    }),
+
+  syncUserPerception: (uuid: string) =>
+    post<{ workId: string }>(`/v1/admin/sublibraries/${uuid}/actions/sync-user-perception`, {
+      idempotencyKey: `admin-sync-user-perception:${uuid}:${Date.now()}`,
     }),
 };
 
@@ -236,7 +255,7 @@ export const ruleTemplates = {
 
 export const transcode = {
   probeDevices: () =>
-    get<{ devices: EncodeDevice[] }>("/v1/admin/transcode/probe-devices"),
+    post<{ devices: EncodeDevice[] }>("/v1/admin/transcode/actions/probe-devices"),
 
   getDevicePool: () => get<DevicePool>("/v1/admin/transcode/device-pool"),
 };
@@ -416,7 +435,7 @@ export interface ResourceSettings {
   };
   workspace: { transcodeTempRoot: string; upgradeStagingLocalPath: string };
   compute: {
-    transcodeEncodingDevices: EncodeDevice[];
+    transcodeEncodingDevices: DevicePoolEntry[];
     transcodeCpuParticipationStrategy: string;
   };
   internal: {
@@ -541,7 +560,7 @@ export const people = {
   }) => post<PersonSummary>("/v1/admin/people", body),
   update: (
     personId: string,
-    body: Partial<Pick<PersonSummary, "name" | "aliases" | "preference">>,
+    body: Partial<Pick<PersonSummary, "name" | "aliases" | "preference" | "contentKinds">>,
   ) =>
     patch<PersonSummary>(
       `/v1/admin/people/${encodeURIComponent(personId)}`,
@@ -647,15 +666,10 @@ export const activityLog = {
 // ── Douban ─────────────────────────────────────────────────────────────────────
 
 export const douban = {
-  getSession: () => get<DoubanSession>("/v1/integrations/douban/session"),
+  getSession: () => get<DoubanSession>("/v1/admin/integrations/douban"),
 
   saveSession: (body: DoubanSession) =>
-    put<DoubanSession>("/v1/integrations/douban/session", body),
-
-  fetchRatings: (subLibraryId: string) =>
-    get<{ ok: boolean; message: string }>(
-      `/v1/integrations/douban/fetch/ratings?subLibraryId=${encodeURIComponent(subLibraryId)}`,
-    ),
+    put<DoubanSession>("/v1/admin/integrations/douban", body),
 };
 
 // ── Space Stats ──────────────────────────────────────────────────────────────
@@ -781,6 +795,8 @@ export interface SubLibraryInfo {
   adultRegion?: string | null;
   scraperType?: string | null;
   watchRoot?: string;
+  libraryAutomationMode?: "auto" | "manual";
+  maintenanceAutomationMode?: "auto" | "manual";
 }
 
 export const libraryApi = {
@@ -829,20 +845,8 @@ export const libraryApi = {
     return get<{ items: unknown[]; total: number }>(`/v1/library${params}`);
   },
 
-  markPlayed: (itemId: string, subLibraryId?: string) =>
-    post<{ ok: boolean }>("/v1/library/actions/mark-played", {
-      itemId,
-      subLibraryId: subLibraryId || undefined,
-    }),
-
-  markUnplayed: (itemId: string, subLibraryId?: string) =>
-    post<{ ok: boolean }>("/v1/library/actions/mark-unplayed", {
-      itemId,
-      subLibraryId: subLibraryId || undefined,
-    }),
-
-  patchRatings: (itemId: string, userRating: number | null) =>
-    patch<{ ok: boolean }>("/v1/library/ratings", { itemId, userRating }),
+  patchPerception: (itemId: string, userRating: number | null) =>
+    patch<{ ok: boolean }>(`/v1/admin/library/items/${encodeURIComponent(itemId)}/perception`, { userRating }),
 
   recomputeOptimizeTargets: () =>
     post<{ ok: boolean; changed: number }>(

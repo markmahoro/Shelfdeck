@@ -37,6 +37,7 @@ const kairoxAutomationRunner = require('./kairoxAutomationRunner');
 const diagnosticLog = require('./diagnosticLog');
 const taskControlPolicy = require('./taskControlPolicy');
 const lifecycleProjection = require('./lifecycleProjection');
+const operationalMetrics = require('./operationalMetrics');
 
 let serverReady = false;
 
@@ -157,7 +158,7 @@ function maskSensitive(config) {
   if (masked.embyServers) {
     const servers = {};
     for (const [k, v] of Object.entries(masked.embyServers)) {
-      servers[k] = { ...v, apiKey: MASKED_SECRET, embyUserPassword: v.embyUserPassword ? MASKED_SECRET : '' };
+      servers[k] = { ...v, accessToken: v.accessToken ? MASKED_SECRET : '' };
     }
     masked.embyServers = servers;
   }
@@ -1969,21 +1970,19 @@ function registerRoutes(app) {
     return result.items[0];
   });
 
-  app.patch('/v1/library/ratings', async (req, reply) => {
-    const { itemId, userRating } = req.body || {};
-    if (!itemId || (typeof userRating !== 'number' && userRating !== null)) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId and userRating are required');
-    }
+  app.patch('/v1/admin/library/items/:itemId/perception', async (req, reply) => {
+    const { userRating } = req.body || {};
+    if (typeof userRating !== 'number' && userRating !== null) return apiError(reply, 400, 'VALIDATION_ERROR', 'userRating is required');
     if (userRating !== null && (userRating < 1 || userRating > 5)) {
       return apiError(reply, 400, 'VALIDATION_ERROR', 'userRating must be 1-5');
     }
     try {
-      getHelixServices().libraService.updateUserPerception({
-        itemId,
+      const perception = getHelixServices().libraService.updateUserPerception({
+        itemId: req.params.itemId,
         facts: { userRating },
-        evidence: { source: 'user_rating_api' },
+        evidence: { source: 'admin_user_rating' },
       });
-      return { ok: true };
+      return { ok: true, perception };
     } catch (e) {
       const statusCode = e.code === 'LIBRA_ITEM_NOT_FOUND' ? 404 : 409;
       return apiError(reply, statusCode, e.code || 'USER_PERCEPTION_REJECTED', e.message);
@@ -2006,77 +2005,6 @@ function registerRoutes(app) {
     };
   });
 
-  // ── Library: mark played / unplayed ─────────────────────────────────────
-
-  app.post('/v1/library/actions/mark-played', async (req, reply) => {
-    const { itemId, subLibraryId } = req.body || {};
-    if (!itemId) return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
-
-    const resolved = resolveEmbyConfigForItem(itemId, subLibraryId || '');
-    if (resolved.error) return apiError(reply, 404, resolved.error.code, resolved.error.message);
-
-    try {
-      const embyItemId = resolved.embyItemId || itemId;
-      await embyService.markPlayed(resolved.serverConfig, embyItemId);
-
-      // Fetch single item from Emby to get updated watched status
-      const fetchedItem = await embyService.getItem(resolved.serverConfig, embyItemId);
-      getHelixServices().libraService.updateUserPerception({
-        itemId,
-        facts: {
-          watched: !!fetchedItem.watched,
-          playCount: fetchedItem.playCount,
-          lastPlayedAt: fetchedItem.lastPlayedAt,
-          favorite: fetchedItem.favorite,
-        },
-        evidence: { source: 'emby_user_data', embyItemId },
-      });
-
-      activityLog.addActivity('user_action', `「${fetchedItem.name || itemId}」已标记为已看`);
-      return { ok: true };
-    } catch (e) {
-      return apiError(reply, 502, 'EMBY_ERROR', e.message);
-    }
-  });
-
-  app.post('/v1/library/actions/mark-unplayed', async (req, reply) => {
-    const { itemId, subLibraryId } = req.body || {};
-    if (!itemId) return apiError(reply, 400, 'VALIDATION_ERROR', 'itemId is required');
-
-    const resolved = resolveEmbyConfigForItem(itemId, subLibraryId || '');
-    if (resolved.error) return apiError(reply, 404, resolved.error.code, resolved.error.message);
-
-    try {
-      const embyItemId = resolved.embyItemId || itemId;
-      await embyService.markUnplayed(resolved.serverConfig, embyItemId);
-
-      // Fetch single item from Emby to get updated watched status
-      const fetchedItem = await embyService.getItem(resolved.serverConfig, embyItemId);
-      getHelixServices().libraService.updateUserPerception({
-        itemId,
-        facts: {
-          watched: !!fetchedItem.watched,
-          playCount: fetchedItem.playCount,
-          lastPlayedAt: fetchedItem.lastPlayedAt,
-          favorite: fetchedItem.favorite,
-        },
-        evidence: { source: 'emby_user_data', embyItemId },
-      });
-
-      return { ok: true };
-    } catch (e) {
-      return apiError(reply, 502, 'EMBY_ERROR', e.message);
-    }
-  });
-
-  // ── Local playback log ──────────────────────────────────────────────────
-
-  app.get('/v1/library/playback-log', async (req) => {
-    const filterSubLib = (req.query && req.query.subLibraryId) || '';
-    const result = getHelixServices().libraService.queryLibraryProjections(filterSubLib ? { subLibraryId: filterSubLib } : {});
-    return result.items.filter((item) => item.watched).sort((a, b) => String(b.helix.maintenance.userPerceptionFacts.lastPlayedAt || '').localeCompare(String(a.helix.maintenance.userPerceptionFacts.lastPlayedAt || '')));
-  });
-
   app.get('/v1/admin/automation', async () => ({
     libraryAutomation: libraAutomationEngine.getHealth(),
     maintenanceAutomation: kairoxAutomationRunner.getHealth(),
@@ -2096,45 +2024,6 @@ function registerRoutes(app) {
         recommendation: item.helix.maintenance.disposalRecommendation,
       }));
     return { candidates, total: candidates.length };
-  });
-
-  app.post('/v1/library/playback-log/record', async (req, reply) => {
-    const { itemId, subLibraryId } = req.body || {};
-    if (!itemId || !subLibraryId) {
-      return { ok: false, error: 'itemId and subLibraryId are required' };
-    }
-    try {
-      getHelixServices().libraService.updateUserPerception({
-        itemId,
-        facts: { watched: true, lastPlayedAt: new Date().toISOString() },
-        evidence: { source: 'playback_log_api' },
-      });
-      return { ok: true };
-    } catch (error) {
-      return apiError(reply, error.code === 'LIBRA_ITEM_NOT_FOUND' ? 404 : 409, error.code || 'USER_PERCEPTION_REJECTED', error.message);
-    }
-  });
-
-  app.post('/v1/library/queries/played', async (req) => {
-    const filterSubLib = (req.body && req.body.subLibraryId) || '';
-    const result = getHelixServices().libraService.queryLibraryProjections(filterSubLib ? { subLibraryId: filterSubLib } : {});
-    return result.items.filter((item) => item.watched);
-  });
-
-  app.post('/v1/library/queries/unplayed', async (req, reply) => {
-    const { subLibraryId, sectionId } = req.body || {};
-    const resolved = resolveEmbyConfigForLibrary(subLibraryId || '');
-    if (resolved.error) return apiError(reply, 404, resolved.error.code, resolved.error.message);
-
-    try {
-      const items = await embyService.getUnplayedItems(
-        resolved.serverConfig,
-        sectionId || resolved.subLib.sectionId,
-      );
-      return items;
-    } catch (e) {
-      return apiError(reply, 502, 'EMBY_ERROR', e.message);
-    }
   });
 
   // ── Scoped Admin Settings ───────────────────────────────────────────────
@@ -2233,12 +2122,14 @@ function registerRoutes(app) {
 
   // ── Douban Integration ──────────────────────────────────────────────────
 
-  app.get('/v1/integrations/douban/session', async () => {
-    return doubanService.getSession();
+  app.get('/v1/admin/integrations/douban', async () => {
+    const session = doubanService.getSession(configStore.loadConfig());
+    return { ...session, cookieHeader: session.cookieHeader ? MASKED_SECRET : '' };
   });
 
-  app.put('/v1/integrations/douban/session', async (req) => {
-    return doubanService.saveSession(req.body || {});
+  app.put('/v1/admin/integrations/douban', async (req) => {
+    const session = doubanService.saveSession(req.body || {});
+    return { ...session, cookieHeader: session.cookieHeader ? MASKED_SECRET : '' };
   });
 
   // ── Admin: Emby ─────────────────────────────────────────────────────────
@@ -2250,58 +2141,120 @@ function registerRoutes(app) {
       uuid,
       serverName: s.serverName || '',
       baseUrl: s.baseUrl || '',
-      apiKey: '********',
+      username: s.username || '',
       userId: s.userId || '',
-      embyUserPassword: s.embyUserPassword ? '********' : '',
+      credentialConfigured: !!s.accessToken,
     }));
     return { servers: list };
   });
 
-  app.post('/v1/admin/emby/test', async (req, reply) => {
-    const { baseUrl, apiKey, userId, username, password } = req.body || {};
-    let effectiveApiKey = apiKey || '';
-    let resolvedUserId = userId || '';
+  async function resolveEmbyConnectionInput(input = {}, current = null) {
+    const baseUrl = String(input.baseUrl !== undefined ? input.baseUrl : current && current.baseUrl || '').trim().replace(/\/+$/, '');
+    const username = String(input.username !== undefined ? input.username : current && current.username || '').trim();
+    const password = String(input.password || '');
+    if (!baseUrl) throw Object.assign(new Error('baseUrl is required'), { code: 'VALIDATION_ERROR', statusCode: 400 });
+    if (!username || !password) throw Object.assign(new Error('username and password are required'), { code: 'VALIDATION_ERROR', statusCode: 400 });
 
-    // If username+password provided, authenticate and get access token + userId
-    if (!effectiveApiKey && username && password && baseUrl) {
-      try {
-        const auth = await embyService.authenticateByUsername(baseUrl, username, password);
-        effectiveApiKey = auth.token;
-        resolvedUserId = resolvedUserId || auth.userId;
-      } catch (e) {
-        return apiError(reply, 502, 'EMBY_AUTH_FAILED', e.message);
-      }
-    }
-
-    if (!baseUrl || !effectiveApiKey) {
-      return apiError(reply, 400, 'VALIDATION_ERROR', 'baseUrl and apiKey (or username+password) are required');
-    }
+    let accessToken = '';
+    let authenticatedUserId = '';
     try {
-      const serverInfo = await embyService.testConnection({ baseUrl, apiKey: effectiveApiKey, userId: resolvedUserId });
-      // Inline register
-      const cfg = configStore.loadConfig();
-      const servers = cfg.embyServers || {};
-      let embyServerId = Object.keys(servers).find((k) => servers[k].baseUrl === baseUrl);
-      if (!embyServerId) {
-        embyServerId = crypto.randomUUID();
-        servers[embyServerId] = {
-          serverName: serverInfo.serverName || baseUrl,
-          baseUrl,
-          apiKey: effectiveApiKey,
-          userId: resolvedUserId,
-          embyUserPassword: password || '',
-        };
-        configStore.patchConfig({ embyServers: servers });
-      } else {
-        if (effectiveApiKey) servers[embyServerId].apiKey = effectiveApiKey;
-        if (password) servers[embyServerId].embyUserPassword = password;
-        if (resolvedUserId) servers[embyServerId].userId = resolvedUserId;
-        configStore.patchConfig({ embyServers: servers });
-      }
-      return { ok: true, message: 'Emby connection successful', serverInfo, embyServerId, userId: resolvedUserId };
-    } catch (e) {
-      return apiError(reply, 502, 'EMBY_UNREACHABLE', e.message);
+      const auth = await embyService.authenticateByUsername(baseUrl, username, password);
+      accessToken = auth.token;
+      authenticatedUserId = auth.userId;
+    } catch (error) {
+      throw Object.assign(error, { code: 'EMBY_AUTH_FAILED', statusCode: 502 });
     }
+    const serverConfig = { baseUrl, accessToken, userId: authenticatedUserId };
+    try {
+      const [serverInfo, users] = await Promise.all([
+        embyService.testConnection(serverConfig),
+        embyService.getUsers(serverConfig),
+      ]);
+      return { baseUrl, accessToken, username, authenticatedUserId, serverInfo, users };
+    } catch (error) {
+      throw Object.assign(error, { code: error.code || 'EMBY_UNREACHABLE', statusCode: error.statusCode || 502 });
+    }
+  }
+
+  app.post('/v1/admin/emby/connections/test', async (req, reply) => {
+    try {
+      const result = await resolveEmbyConnectionInput(req.body || {});
+      return {
+        ok: true,
+        serverInfo: result.serverInfo,
+        users: result.users,
+        suggestedUserId: result.authenticatedUserId || '',
+      };
+    } catch (error) {
+      return apiError(reply, error.statusCode || 502, error.code || 'EMBY_UNREACHABLE', error.message);
+    }
+  });
+
+  app.post('/v1/admin/emby/servers', async (req, reply) => {
+    const selectedUserId = String(req.body && req.body.userId || '').trim();
+    if (!selectedUserId) return apiError(reply, 400, 'EMBY_USER_REQUIRED', 'Select an Emby user before saving the connection');
+    try {
+      const result = await resolveEmbyConnectionInput(req.body || {});
+      if (!result.users.some((user) => user.id === selectedUserId)) {
+        return apiError(reply, 400, 'EMBY_USER_INVALID', 'The selected Emby user is not available on this server');
+      }
+      const cfg = configStore.loadConfig();
+      const servers = { ...(cfg.embyServers || {}) };
+      if (Object.values(servers).some((server) => String(server.baseUrl || '').replace(/\/+$/, '') === result.baseUrl)) {
+        return apiError(reply, 409, 'EMBY_SERVER_ALREADY_EXISTS', 'This Emby server is already configured');
+      }
+      const uuid = crypto.randomUUID();
+      servers[uuid] = {
+        serverName: result.serverInfo.serverName || result.baseUrl,
+        baseUrl: result.baseUrl,
+        username: result.username,
+        accessToken: result.accessToken,
+        userId: selectedUserId,
+      };
+      configStore.patchConfig({ embyServers: servers });
+      return reply.code(201).send({ uuid, serverName: servers[uuid].serverName, baseUrl: result.baseUrl, userId: selectedUserId });
+    } catch (error) {
+      return apiError(reply, error.statusCode || 502, error.code || 'EMBY_UNREACHABLE', error.message);
+    }
+  });
+
+  app.patch('/v1/admin/emby/servers/:serverId', async (req, reply) => {
+    const cfg = configStore.loadConfig();
+    const servers = { ...(cfg.embyServers || {}) };
+    const current = servers[req.params.serverId];
+    if (!current) return apiError(reply, 404, 'NOT_FOUND', 'Emby server not found');
+    const selectedUserId = String(req.body && req.body.userId || current.userId || '').trim();
+    if (!selectedUserId) return apiError(reply, 400, 'EMBY_USER_REQUIRED', 'Select an Emby user before saving the connection');
+    try {
+      const result = await resolveEmbyConnectionInput(req.body || {}, current);
+      if (!result.users.some((user) => user.id === selectedUserId)) {
+        return apiError(reply, 400, 'EMBY_USER_INVALID', 'The selected Emby user is not available on this server');
+      }
+      servers[req.params.serverId] = {
+        ...current,
+        serverName: result.serverInfo.serverName || result.baseUrl,
+        baseUrl: result.baseUrl,
+        username: result.username,
+        accessToken: result.accessToken,
+        userId: selectedUserId,
+      };
+      configStore.patchConfig({ embyServers: servers });
+      return { uuid: req.params.serverId, serverName: servers[req.params.serverId].serverName, baseUrl: result.baseUrl, userId: selectedUserId };
+    } catch (error) {
+      return apiError(reply, error.statusCode || 502, error.code || 'EMBY_UNREACHABLE', error.message);
+    }
+  });
+
+  app.delete('/v1/admin/emby/servers/:serverId', async (req, reply) => {
+    const cfg = configStore.loadConfig();
+    const servers = { ...(cfg.embyServers || {}) };
+    if (!servers[req.params.serverId]) return apiError(reply, 404, 'NOT_FOUND', 'Emby server not found');
+    if ((cfg.subLibraries || []).some((library) => library.embyServerId === req.params.serverId)) {
+      return apiError(reply, 409, 'EMBY_SERVER_IN_USE', 'Remove or reconfigure media libraries that use this connection first');
+    }
+    delete servers[req.params.serverId];
+    configStore.patchConfig({ embyServers: servers });
+    return { ok: true, serverId: req.params.serverId };
   });
 
   app.get('/v1/admin/emby/users', async (req, reply) => {
@@ -2334,7 +2287,20 @@ function registerRoutes(app) {
 
   app.get('/v1/admin/sublibraries', async () => {
     const cfg = configStore.loadConfig();
-    return { subLibraries: cfg.subLibraries || [] };
+    const summaries = await getHelixServices().libraService.getLibraryMaintenanceSummaries();
+    return {
+      subLibraries: (cfg.subLibraries || []).map((library) => ({
+        ...library,
+        maintenanceSummary: summaries[library.uuid] || {
+          total: 0,
+          basedataPassed: 0,
+          metadataPassed: 0,
+          optimizePassed: 0,
+          maintenanceComplete: 0,
+          directionCounts: { none: 0, transcode: 0, upgrade: 0, undetermined: 0, blocked: 0 },
+        },
+      })),
+    };
   });
 
   app.get('/v1/admin/log', async (req, reply) => {
@@ -2349,7 +2315,7 @@ function registerRoutes(app) {
     if (automationError) return automationError;
     const {
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
-      upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
+      upgradeSmartSelect, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
       libraryAutomationMode, maintenanceAutomationMode, approvalPolicy, metadataGate,
     } = req.body || {};
@@ -2380,12 +2346,12 @@ function registerRoutes(app) {
     if (gateError) return gateError;
     const created = getHelixServices().libraService.createSubLibrary({
       name, embyServerId, sectionId, source, doubanEnabled, ruleTemplateId,
-      upgradeSmartSelect, pathMapFrom, pathMapTo, mediaType,
+      upgradeSmartSelect, mediaType,
       adultRegion, scraperType, watchRoot, japaneseJav, western,
       libraryAutomationMode, maintenanceAutomationMode, approvalPolicy, metadataGate,
     });
     if (created.observationWork) libraAutomationEngine.wake();
-    return reply.code(201).send({ ...created.subLibrary, observationWork: created.observationWork });
+    return reply.code(201).send({ ...created.subLibrary, observationWork: created.observationWork, userPerceptionSyncWork: created.userPerceptionSyncWork });
   });
 
   app.post('/v1/admin/sublibraries/:uuid/actions/observe', async (req, reply) => {
@@ -2401,6 +2367,22 @@ function registerRoutes(app) {
       return reply.code(202).send({ workId: work.workId, work });
     } catch (error) {
       return apiError(reply, error.code === 'LIBRA_LIBRARY_NOT_FOUND' ? 404 : 409, error.code || 'LIBRA_OBSERVATION_REJECTED', error.message);
+    }
+  });
+
+  app.post('/v1/admin/sublibraries/:uuid/actions/sync-user-perception', async (req, reply) => {
+    const body = req.body || {};
+    if (!body.idempotencyKey) return apiError(reply, 400, 'VALIDATION_ERROR', 'idempotencyKey is required');
+    try {
+      const work = getHelixServices().libraService.requestUserPerceptionSync({
+        subLibraryId: req.params.uuid,
+        idempotencyKey: body.idempotencyKey,
+        requestedBy: 'admin_api',
+      });
+      libraAutomationEngine.wake();
+      return reply.code(202).send({ workId: work.workId, work });
+    } catch (error) {
+      return apiError(reply, error.code === 'LIBRA_LIBRARY_NOT_FOUND' ? 404 : 409, error.code || 'DOUBAN_SYNC_REJECTED', error.message);
     }
   });
 
@@ -2843,7 +2825,7 @@ function registerRoutes(app) {
 
   // ── Admin: Transcode ────────────────────────────────────────────────────
 
-  app.get('/v1/admin/transcode/probe-devices', async () => {
+  app.post('/v1/admin/transcode/actions/probe-devices', async () => {
     const cfg = configStore.loadConfig();
     return transcodeService.probeEncodeDevices(cfg);
   });
@@ -2856,8 +2838,17 @@ function registerRoutes(app) {
     const localDevices = (cfg.transcodeEncodingDevices || []).map((dev) => {
       const inUse = slotUsage[dev.stableKey] || 0;
       const maxSlots = dev.maxSlots || 1;
+      const [backend = '', index = ''] = String(dev.stableKey || '').split(':');
+      const labels = {
+        cpu: 'CPU · libx265（软件）',
+        nvenc: `NVIDIA NVENC（CUDA ${index || '0'}）`,
+        qsv: 'Intel Quick Sync（QSV）',
+        amf: 'AMD AMF',
+      };
       return {
         ...dev,
+        label: labels[backend] || dev.stableKey,
+        backend,
         remote: false,
         status: inUse >= maxSlots ? 'busy' : inUse > 0 ? 'busy' : 'idle',
         activeSlots: inUse,
@@ -3079,12 +3070,22 @@ function registerRoutes(app) {
   });
 
   app.patch('/v1/admin/upgrade/config', async (req) => {
-    const allowed = ['moviepilot', 'upgradeStagingLocalPath'];
+    const current = configStore.loadConfig();
     const patch = {};
-    for (const key of allowed) {
-      if (req.body && req.body[key] !== undefined) patch[key] = req.body[key];
+    if (req.body && req.body.moviepilot !== undefined) {
+      const requested = req.body.moviepilot && typeof req.body.moviepilot === 'object' ? req.body.moviepilot : {};
+      patch.moviepilot = {
+        ...(current.moviepilot || {}),
+        ...requested,
+        apiKey: requested.apiKey === MASKED_SECRET ? current.moviepilot && current.moviepilot.apiKey || '' : String(requested.apiKey || ''),
+      };
     }
-    return maskSensitive(configStore.patchConfig(patch));
+    if (req.body && req.body.upgradeStagingLocalPath !== undefined) patch.upgradeStagingLocalPath = req.body.upgradeStagingLocalPath;
+    const updated = configStore.patchConfig(patch);
+    return {
+      moviepilot: { ...(updated.moviepilot || {}), apiKey: updated.moviepilot && updated.moviepilot.apiKey ? MASKED_SECRET : '' },
+      upgradeStagingLocalPath: updated.upgradeStagingLocalPath || '',
+    };
   });
 
   // ── Admin: MoviePilot Sites ───────────────────────────────────────────
@@ -3487,6 +3488,14 @@ function registerRoutes(app) {
     const result = healthCheck.getLastResult();
     return result || healthCheck.runAllChecks();
   });
+
+  app.get('/v1/admin/diagnostics/performance', async () => ({
+    ...operationalMetrics.snapshot(),
+    taskStore: typeof taskStore.queryAutomationInvariantSnapshot === 'function'
+      ? taskStore.queryAutomationInvariantSnapshot()
+      : null,
+    resources: resourceGovernor.snapshot(),
+  }));
 }
 
 // ── Build App ───────────────────────────────────────────────────────────────
@@ -3505,6 +3514,22 @@ async function buildApp(opts = {}) {
 
   const app = Fastify({ logger: opts.logger !== undefined ? opts.logger : true });
   await app.register(cors, { origin: true });
+
+  app.addHook('onRequest', (req, _reply, done) => {
+    req.shelfdeckRequestStartedAt = process.hrtime.bigint();
+    done();
+  });
+  app.addHook('onResponse', (req, reply, done) => {
+    if (req.url.startsWith('/v1/') && req.shelfdeckRequestStartedAt) {
+      operationalMetrics.recordHttp({
+        method: req.method,
+        route: req.routeOptions && req.routeOptions.url || req.url.split('?')[0],
+        statusCode: reply.statusCode,
+        durationMs: Number(process.hrtime.bigint() - req.shelfdeckRequestStartedAt) / 1e6,
+      });
+    }
+    done();
+  });
 
   // Serve built React admin app
   const distAdminPath = path.join(__dirname, '..', 'dist', 'admin');
@@ -3555,6 +3580,7 @@ async function buildApp(opts = {}) {
     resourceGovernor.resetForTests();
     runtimeResourceTracker.resetForTests();
     diagnosticLog.resetForTests();
+    operationalMetrics.resetForTests();
   });
 
   // Clean up orphan ffmpeg processes and temp dirs from previous run

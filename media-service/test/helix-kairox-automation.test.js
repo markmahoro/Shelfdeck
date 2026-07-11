@@ -40,6 +40,7 @@ test('Kairox Automation Runner creates only Lifecycle next-gate tasks for auto m
   });
   kairoxStore.ensureMedia({ itemId: 'auto-item', mediaKind: 'movie', playable: true });
   const created = [];
+  const reconciledRuns = [];
   const service = {
     reconcileObjectives(itemIds) {
       return Object.fromEntries(itemIds.map((itemId) => [itemId, { itemId, nextTargetGate: 'basedata', nextGateObjective: { kind: 'basedata_current' }, activeTasks: [], maintenanceComplete: false }]));
@@ -50,7 +51,9 @@ test('Kairox Automation Runner creates only Lifecycle next-gate tasks for auto m
       if (run) kairoxStore.updateMaintenanceRun(run.runId, { status: 'task_active', currentTaskId: 'task-1' });
       return { allowed: true, task: { id: 'task-1' } };
     },
-    reconcileMaintenanceRun({ itemId }) {
+    reconcileMaintenanceRun(command) {
+      reconciledRuns.push(command);
+      const { itemId } = command;
       let run = kairoxStore.getMaintenanceRun(itemId);
       if (!run) run = kairoxStore.createMaintenanceRun({ itemId, admissionGeneration: 1, initiatedBy: 'system' }).run;
       return { run };
@@ -62,6 +65,8 @@ test('Kairox Automation Runner creates only Lifecycle next-gate tasks for auto m
   assert.strictEqual(result.created, 1);
   assert.strictEqual(created[0].targetGate, 'basedata');
   assert.ok(created[0].runId);
+  assert.strictEqual(created[0].maintenanceProjection.itemId, 'auto-item');
+  assert.strictEqual(reconciledRuns[0].maintenanceProjection.itemId, 'auto-item');
   assert.strictEqual(kairoxStore.getAutomationState('maintenance').lastError, '');
 });
 
@@ -95,11 +100,93 @@ test('automatic failure lookup is fenced by admission generation and target gate
     itemId: 'failure-lookup-item', source: 'auto', status: 'failed_soft',
     taskTarget: { object: { type: 'media_item', itemId: 'failure-lookup-item' }, targetGate: 'optimize', gateObjective: {} },
     helixAdmission: { admissionGeneration: 1 },
-    flowPlan: { flowKind: 'transcode', flowSelection: { objectiveHash: 'objective-1' }, steps: [] },
+    objectiveRevisionSnapshot: 'objective-1',
   });
   const failure = taskStore.queryLatestAutomaticFailures(['failure-lookup-item'])['failure-lookup-item'];
   assert.strictEqual(failure.taskId, created.id);
   assert.strictEqual(failure.targetGate, 'optimize');
   assert.strictEqual(failure.admissionGeneration, 1);
   assert.strictEqual(failure.objectiveHash, 'objective-1');
+});
+
+test('Kairox Runner stops offering ready Runs after the authoritative Gate budget is exhausted', async () => {
+  runner.stop();
+  const config = configStore.loadConfig();
+  const basedataLimit = Number(config.taskAdmission && config.taskAdmission.maxQueuedByTargetGate && config.taskAdmission.maxQueuedByTargetGate.basedata) || 50;
+  for (let index = 0; index < basedataLimit - 1; index += 1) {
+    taskStore.createTask({
+      itemId: `budget-existing-${index}`, status: 'queued', source: 'auto',
+      taskTarget: { object: { type: 'media_item', itemId: `budget-existing-${index}` }, targetGate: 'basedata' },
+    });
+  }
+  for (const itemId of ['budget-a', 'budget-b']) {
+    admissionStore.upsertAdmission({ itemId, admissionGeneration: 1, status: 'active', sourceRevision: 'source-1' });
+    kairoxStore.ensureMedia({ itemId, mediaKind: 'movie', playable: true });
+    kairoxStore.createMaintenanceRun({ itemId, admissionGeneration: 1, initiatedBy: 'system' });
+  }
+  let requested = 0;
+  const service = {
+    reconcileObjectives(itemIds) {
+      return Object.fromEntries(itemIds.map((itemId) => [itemId, {
+        itemId, nextTargetGate: 'basedata', nextGateObjective: {}, activeTasks: [], maintenanceComplete: false,
+      }]));
+    },
+    reconcileMaintenanceRun({ itemId }) { return { run: kairoxStore.getMaintenanceRun(itemId) }; },
+    requestMaintenance(command) {
+      requested += 1;
+      taskStore.createTask({ itemId: command.itemId, status: 'queued', source: 'auto', taskTarget: { targetGate: 'basedata' } });
+      return { allowed: true, task: { id: `task-${requested}` } };
+    },
+  };
+  runner.start(service, { immediate: false, intervalMs: 60000 });
+  await runner.runOnce({ limit: 100 });
+  assert.strictEqual(requested, 1);
+});
+
+test('a saturated Gate cannot monopolize the bounded Runner supply window', async () => {
+  runner.stop();
+  const config = configStore.loadConfig();
+  const optimizeLimit = Number(config.taskAdmission && config.taskAdmission.maxQueuedByTargetGate && config.taskAdmission.maxQueuedByTargetGate.optimize) || 50;
+  for (let index = 0; index < optimizeLimit; index += 1) {
+    taskStore.createTask({
+      itemId: `saturated-task-${index}`, status: 'queued', source: 'auto',
+      taskTarget: { object: { type: 'media_item', itemId: `saturated-task-${index}` }, targetGate: 'optimize' },
+    });
+  }
+  for (let index = 0; index < 100; index += 1) {
+    const itemId = `z-old-optimize-${String(index).padStart(3, '0')}`;
+    admissionStore.upsertAdmission({ itemId, admissionGeneration: 1, status: 'active', sourceRevision: 'source-1' });
+    kairoxStore.ensureMedia({ itemId, mediaKind: 'movie', playable: true });
+    kairoxStore.createMaintenanceRun({
+      itemId, admissionGeneration: 1, initiatedBy: 'system', requestedAt: '2026-01-01T00:00:00.000Z',
+    });
+  }
+  admissionStore.upsertAdmission({ itemId: '000-metadata-ready', admissionGeneration: 1, status: 'active', sourceRevision: 'source-1' });
+  kairoxStore.ensureMedia({ itemId: '000-metadata-ready', mediaKind: 'movie', playable: true });
+  kairoxStore.createMaintenanceRun({
+    itemId: '000-metadata-ready', admissionGeneration: 1, initiatedBy: 'user', requestedAt: '2026-07-11T00:00:00.000Z',
+  });
+
+  const requested = [];
+  const service = {
+    reconcileObjectives(itemIds) {
+      return Object.fromEntries(itemIds.map((itemId) => [itemId, {
+        itemId,
+        nextTargetGate: itemId === '000-metadata-ready' ? 'metadata' : 'optimize',
+        nextGateObjective: {},
+        activeTasks: [],
+        maintenanceComplete: false,
+      }]));
+    },
+    reconcileMaintenanceRun({ itemId }) { return { run: kairoxStore.getMaintenanceRun(itemId) }; },
+    requestMaintenance(command) {
+      requested.push(command);
+      return { allowed: true, task: { id: `created-${command.itemId}` } };
+    },
+  };
+  runner.start(service, { immediate: false, intervalMs: 60000 });
+  await runner.runOnce({ limit: 100 });
+
+  assert.deepStrictEqual(requested.map((command) => command.itemId), ['000-metadata-ready']);
+  assert.strictEqual(requested[0].targetGate, 'metadata');
 });

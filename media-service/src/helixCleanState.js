@@ -182,21 +182,9 @@ function inspectState(options = {}) {
 }
 
 function preservedConfig(raw = {}) {
-  const moviepilotSavePath = cleanString(raw.moviepilot && raw.moviepilot.savePath);
   return {
     helixSchemaVersion: HELIX_SCHEMA_VERSION,
     apiKey: cleanString(raw.apiKey),
-    transcodeTempRoot: cleanString(raw.transcodeTempRoot) || (process.platform === 'linux' ? '/transcode' : ''),
-    upgradeStagingLocalPath: cleanString(raw.upgradeStagingLocalPath),
-    resourceLimits: {
-      embyApiPerServer: 1,
-      filesystemPerVolume: 1,
-      localFfmpeg: 1,
-      workerPerNode: 1,
-    },
-    moviepilot: { savePath: moviepilotSavePath },
-    embyServers: {},
-    subLibraries: [],
   };
 }
 

@@ -86,6 +86,7 @@ test('Kairox objective policy lets Lifecycle close a no-op optimize objective wi
   };
   const item = kairoxObjectivePolicy.applyObjectivePolicy({
     itemId: 'objective-item', subLibraryId: 'library',
+    path: '/media/objective.mkv', size: 1024, duration: 60, bitrate: 1000, resolution: '1920x1080', playable: true,
     basedataComplete: true, basedataSourceRevision: 'source-1', admissionSourceRevision: 'source-1',
     metadataComplete: true, codec: 'h265', videoCodec: 'h265', admissionCurrent: true,
     factsFreshness: {

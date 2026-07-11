@@ -6,10 +6,12 @@ const configStore = require('./configStore');
 const defaultResourceGovernor = require('./resourceGovernor');
 const { HelixError } = require('./helixError');
 const { createLibraReconciler } = require('./libraReconciler');
+const defaultDoubanService = require('./services/doubanService');
+const doubanMatchService = require('./doubanMatchService');
 
 const CLEANUP_MODES = new Set(['retain_source', 'detach_source', 'delete_source']);
 
-function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, configs = configStore, resourceGovernor = defaultResourceGovernor }) {
+function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, configs = configStore, resourceGovernor = defaultResourceGovernor, doubanService = defaultDoubanService }) {
   const reconciler = createLibraReconciler({ store, nexoraService, kairoxService, configStore: configs });
 
   function libraryProjection(item, sourceProjection = {}, maintenanceProjection = {}, currentOperation = undefined, maintenanceScopes = undefined) {
@@ -153,6 +155,44 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     return { items: items.slice(offset, offset + limit), total: items.length };
   }
 
+  async function getLibraryMaintenanceSummaries(options = {}) {
+    const batchSize = Math.max(1, Math.min(100, Number(options.batchSize) || 100));
+    const items = store.getLibraryItems().filter((item) => (
+      item.membershipStatus === 'active' && item.playable !== false
+    ));
+    const summaries = {};
+    for (let offset = 0; offset < items.length; offset += batchSize) {
+      const batch = items.slice(offset, offset + batchSize);
+      const ids = batch.map((item) => item.itemId);
+      const projections = typeof kairoxService.getMaintenanceSummaryProjections === 'function'
+        ? kairoxService.getMaintenanceSummaryProjections(ids)
+        : kairoxService.getMaintenanceProjections(ids);
+      for (const item of batch) {
+        const subLibraryId = item.subLibraryId || '';
+        if (!subLibraryId) continue;
+        if (!summaries[subLibraryId]) {
+          summaries[subLibraryId] = {
+            total: 0, basedataPassed: 0, metadataPassed: 0, optimizePassed: 0, maintenanceComplete: 0,
+            directionCounts: { none: 0, transcode: 0, upgrade: 0, undetermined: 0, blocked: 0 },
+          };
+        }
+        const summary = summaries[subLibraryId];
+        const maintenance = projections[item.itemId] || {};
+        summary.total += 1;
+        if (maintenance.basedataPassed) summary.basedataPassed += 1;
+        if (maintenance.metadataPassed) summary.metadataPassed += 1;
+        if (maintenance.optimizePassed) summary.optimizePassed += 1;
+        if (maintenance.maintenanceComplete) summary.maintenanceComplete += 1;
+        const direction = Object.prototype.hasOwnProperty.call(summary.directionCounts, maintenance.optimizationDirection)
+          ? maintenance.optimizationDirection
+          : 'undetermined';
+        summary.directionCounts[direction] += 1;
+      }
+      if (offset + batchSize < items.length) await new Promise((resolve) => setImmediate(resolve));
+    }
+    return summaries;
+  }
+
   function acceptSource(command = {}) {
     const itemId = String(command.itemId || crypto.randomUUID());
     const payload = { sourceReference: command.sourceReference || {}, requestedBy: command.requestedBy || 'system' };
@@ -190,7 +230,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
       payload,
     });
     if (!created.created && created.operation.status === 'done') {
-      return { operation: created.operation, projection: getLibraryProjection(itemId) };
+      return { operation: created.operation, projection: command.includeProjection === false ? null : getLibraryProjection(itemId) };
     }
     if (created.created) {
       store.appendEvent({ itemId, operationId: created.operation.operationId, eventType: 'libra.onboarding_requested', payload });
@@ -208,7 +248,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
         sourceRevision: sourceProjection.sourceRevision || '',
         blockedReason: sourceProjection.readiness === 'ready' ? '' : `source_${sourceProjection.readiness || 'unresolved'}`,
       });
-      if (subLibraryId) store.resolveLibraryHierarchy(subLibraryId);
+      if (subLibraryId && command.deferHierarchyResolution !== true) store.resolveLibraryHierarchy(subLibraryId);
       const reconciled = reconciler.reconcileItem(itemId);
       const operation = store.updateOperation(created.operation.operationId, {
         status: 'done',
@@ -217,7 +257,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
         errorMessage: '',
         result: { sourceRevision: sourceProjection.sourceRevision || 0, phase: reconciled.phase },
       });
-      return { operation, projection: getLibraryProjection(itemId) };
+      return { operation, projection: command.includeProjection === false ? null : getLibraryProjection(itemId) };
     } catch (error) {
       store.updateOperation(created.operation.operationId, {
         status: 'retrying',
@@ -396,31 +436,37 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
       doubanEnabled: spec.doubanEnabled === true,
       enabled: true,
       mediaType,
-      adultRegion: spec.adultRegion || (isAdult ? 'japanese_jav' : undefined),
-      scraperType: spec.scraperType || (isAdult ? (spec.adultRegion === 'western_adult' ? 'western_builtin' : 'shelfdeck_japanese_jav') : undefined),
-      watchRoot: spec.watchRoot || '',
-      japaneseJav: spec.japaneseJav || undefined,
-      western: spec.western || undefined,
+      adultRegion: isAdult ? (spec.adultRegion || 'japanese_jav') : undefined,
+      scraperType: isAdult ? (spec.scraperType || (spec.adultRegion === 'western_adult' ? 'western_builtin' : 'shelfdeck_japanese_jav')) : undefined,
+      watchRoot: isAdult ? spec.watchRoot || '' : '',
+      japaneseJav: isAdult && spec.adultRegion !== 'western_adult' ? spec.japaneseJav || undefined : undefined,
+      western: isAdult && spec.adultRegion === 'western_adult' ? spec.western || undefined : undefined,
       ruleTemplateId: spec.ruleTemplateId || (isAdult ? (spec.adultRegion === 'western_adult' ? 'adult_western_default' : 'adult_jav_default') : mediaType === 'tv' ? 'tv_default' : 'default'),
       metadataGate: spec.metadataGate || undefined,
       libraryAutomationMode: spec.libraryAutomationMode || 'manual',
       maintenanceAutomationMode: spec.maintenanceAutomationMode || 'manual',
       approvalPolicy: spec.approvalPolicy || {},
       upgradeSmartSelect: spec.upgradeSmartSelect || { enabled: false, codecPreference: [], resolutionPreference: [], audioPreference: [], sitePreference: [], preferCNSub: false },
-      pathMapFrom: spec.pathMapFrom || '',
-      pathMapTo: spec.pathMapTo || '',
     };
     config.subLibraries = [...(config.subLibraries || []), subLibrary];
     configs.saveConfig(config);
     let observationWork = null;
+    let userPerceptionSyncWork = null;
     if (subLibrary.libraryAutomationMode === 'auto') {
       observationWork = requestLibraryObservation({
         subLibraryId: subLibrary.uuid,
         idempotencyKey: `observe-library:${subLibrary.uuid}:initial`,
         requestedBy: 'library_created',
       });
+      if (subLibrary.doubanEnabled) {
+        userPerceptionSyncWork = requestUserPerceptionSync({
+          subLibraryId: subLibrary.uuid,
+          idempotencyKey: `sync-user-perception:${subLibrary.uuid}:initial`,
+          requestedBy: 'library_created',
+        });
+      }
     }
-    return { subLibrary, observationWork };
+    return { subLibrary, observationWork, userPerceptionSyncWork };
   }
 
   function updateSubLibrary(subLibraryId, updates = {}) {
@@ -432,7 +478,15 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
       if (!forbidden.includes(key)) out[key] = value;
       return out;
     }, {});
-    config.subLibraries[index] = { ...config.subLibraries[index], ...patch };
+    const next = { ...config.subLibraries[index], ...patch };
+    if (next.mediaType !== 'adult') {
+      delete next.adultRegion;
+      delete next.scraperType;
+      delete next.japaneseJav;
+      delete next.western;
+      next.watchRoot = '';
+    }
+    config.subLibraries[index] = next;
     configs.saveConfig(config);
     return config.subLibraries[index];
   }
@@ -450,6 +504,9 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     const config = configs.loadConfig();
     const subLibrary = (config.subLibraries || []).find((entry) => entry.uuid === command.subLibraryId);
     if (!subLibrary) throw new HelixError('LIBRA_LIBRARY_NOT_FOUND', 'SubLibrary not found');
+    const open = store.listLibraryWork({ subLibraryId: subLibrary.uuid })
+      .find((work) => work.workKind === 'observe_library' && !['done', 'cancelled'].includes(work.status));
+    if (open) return open;
     return store.createOrGetLibraryWork({
       workKind: 'observe_library',
       subLibraryId: subLibrary.uuid,
@@ -460,6 +517,9 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
   }
 
   function requestReconcileSweep(command = {}) {
+    const open = store.listLibraryWork()
+      .find((work) => work.workKind === 'reconcile_library' && !['done', 'cancelled'].includes(work.status));
+    if (open) return open;
     return store.createOrGetLibraryWork({
       workKind: 'reconcile_library',
       idempotencyKey: command.idempotencyKey,
@@ -468,10 +528,139 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     }).work;
   }
 
+  function requestUserPerceptionSync(command = {}) {
+    const config = configs.loadConfig();
+    const subLibrary = (config.subLibraries || []).find((entry) => entry.uuid === command.subLibraryId);
+    if (!subLibrary) throw new HelixError('LIBRA_LIBRARY_NOT_FOUND', 'SubLibrary not found');
+    if (!subLibrary.doubanEnabled) throw new HelixError('DOUBAN_SYNC_NOT_ENABLED', 'Douban sync is not enabled for this media library');
+    const open = store.listLibraryWork({ subLibraryId: subLibrary.uuid })
+      .find((work) => work.workKind === 'sync_user_perception' && !['done', 'cancelled'].includes(work.status));
+    if (open) return open;
+    return store.createOrGetLibraryWork({
+      workKind: 'sync_user_perception',
+      subLibraryId: subLibrary.uuid,
+      idempotencyKey: command.idempotencyKey,
+      payload: { requestedBy: command.requestedBy || 'admin' },
+      cursor: { phase: 'fetch', afterItemId: '', entries: [] },
+    }).work;
+  }
+
+  function matchDoubanRating(maintenance = {}, byTitle, bySubject) {
+    const metadata = maintenance.metadataFacts || {};
+    const basedata = maintenance.basedataFacts || {};
+    const directId = String(metadata.doubanId || basedata.doubanId || '').trim();
+    if (directId && bySubject.has(directId)) return bySubject.get(directId);
+    const mediaKind = String(maintenance.maintenanceSubject && maintenance.maintenanceSubject.mediaKind || metadata.type || basedata.type || '').toLowerCase();
+    const name = metadata.title || metadata.name || basedata.title || basedata.name || '';
+    if (mediaKind === 'movie') {
+      const stars = doubanMatchService.movieDoubanStars(name, 'Movie', byTitle);
+      return stars == null ? null : { stars, subjectId: '' };
+    }
+    const seriesName = metadata.seriesName || basedata.seriesName || name;
+    const seasonNumber = metadata.seasonNumber ?? basedata.seasonNumber;
+    const stars = seasonNumber == null
+      ? byTitle.get(doubanMatchService.seriesKey(seriesName))
+      : doubanMatchService.seasonDoubanStars(seriesName, seasonNumber, byTitle);
+    return stars == null ? null : { stars, subjectId: '' };
+  }
+
+  async function runUserPerceptionSync(work, options = {}) {
+    const config = configs.loadConfig();
+    const subLibrary = (config.subLibraries || []).find((entry) => entry.uuid === work.subLibraryId);
+    if (!subLibrary) throw new HelixError('LIBRA_LIBRARY_NOT_FOUND', 'SubLibrary not found');
+    const openObservation = store.listLibraryWork({ subLibraryId: work.subLibraryId })
+      .find((candidate) => candidate.workKind === 'observe_library' && !['done', 'cancelled'].includes(candidate.status));
+    if (openObservation) {
+      return store.updateLibraryWork(work.workId, {
+        status: 'retrying', retryAt: new Date(Date.now() + 5000).toISOString(),
+        errorCode: '', errorMessage: '',
+      });
+    }
+    const session = doubanService.getSession(config);
+    if (!session.userId) throw new HelixError('DOUBAN_SESSION_REQUIRED', 'Douban user ID is not configured');
+    store.updateLibraryWork(work.workId, { status: 'running', incrementAttempt: true, errorCode: '', errorMessage: '' });
+    try {
+      if ((work.cursor.phase || 'fetch') === 'fetch') {
+        const now = Date.now();
+        const nextRequestAt = Date.parse(work.cursor.nextRequestAt || '') || 0;
+        if (nextRequestAt > now) {
+          return store.updateLibraryWork(work.workId, {
+            status: 'retrying', retryAt: new Date(nextRequestAt).toISOString(),
+            errorCode: '', errorMessage: '',
+          });
+        }
+        const collectType = work.cursor.collectType === 'tv' ? 'tv' : 'movie';
+        const page = await resourceGovernor.runWithPermit({
+          owner: 'libra', workId: work.workId, resourceKey: `douban:${session.userId}:api`, priority: 5,
+        }, () => doubanService.fetchRatingsPage(session, { collectType, start: Number(work.cursor.start) || 0 }));
+        const entriesBySubject = new Map((Array.isArray(work.cursor.entries) ? work.cursor.entries : [])
+          .map((entry) => [String(entry && entry.subjectId || ''), entry]).filter(([subjectId]) => subjectId));
+        for (const entry of page.entries || []) entriesBySubject.set(String(entry.subjectId), entry);
+        const entries = [...entriesBySubject.values()];
+        if (page.typeDone && collectType === 'tv') {
+          return store.updateLibraryWork(work.workId, {
+            status: 'pending', retryAt: '', errorCode: '', errorMessage: '',
+            cursor: { phase: 'apply', afterItemId: '', entries, matched: 0, unchanged: 0, failureCount: 0 },
+          });
+        }
+        const nextType = page.typeDone ? 'tv' : collectType;
+        const nextStart = page.typeDone ? 0 : page.nextStart;
+        const resumeAt = new Date(Date.now() + 800).toISOString();
+        return store.updateLibraryWork(work.workId, {
+          status: 'retrying', retryAt: resumeAt, errorCode: '', errorMessage: '',
+          cursor: { phase: 'fetch', collectType: nextType, start: nextStart, entries, nextRequestAt: resumeAt, failureCount: 0 },
+        });
+      }
+      const entries = Array.isArray(work.cursor.entries) ? work.cursor.entries : [];
+      const byTitle = doubanMatchService.buildDoubanStarsByNormalizedTitle(entries);
+      const bySubject = new Map(entries.map((entry) => [String(entry.subjectId || ''), entry]).filter(([id]) => id));
+      const limit = Math.max(1, Math.min(100, Number(options.limit) || 100));
+      const items = store.getLibraryItemsPage({ subLibraryId: work.subLibraryId, afterItemId: work.cursor.afterItemId || '', limit });
+      const projections = kairoxService.getMaintenanceProjections(items.map((item) => item.itemId));
+      let matched = Number(work.cursor.matched || 0);
+      let unchanged = Number(work.cursor.unchanged || 0);
+      for (const item of items) {
+        if (!item.playable || item.membershipStatus !== 'active') continue;
+        const rating = matchDoubanRating(projections[item.itemId] || {}, byTitle, bySubject);
+        if (!rating) continue;
+        const previousFacts = projections[item.itemId] && projections[item.itemId].userPerceptionFacts || {};
+        const updated = kairoxService.updateUserPerception({
+          itemId: item.itemId,
+          facts: { doubanRating: Number(rating.stars), watched: true },
+          evidence: { source: 'douban_collect', subjectId: rating.subjectId || '', syncWorkId: work.workId },
+          observedAt: new Date().toISOString(),
+        });
+        matched += 1;
+        if (previousFacts.doubanRating === Number(rating.stars) && previousFacts.watched === true) unchanged += 1;
+      }
+      const done = items.length < limit;
+      return store.updateLibraryWork(work.workId, {
+        status: done ? 'done' : 'pending',
+        cursor: {
+          phase: 'apply', entries,
+          afterItemId: items.length ? items[items.length - 1].itemId : work.cursor.afterItemId || '',
+          matched, unchanged,
+          completedAt: done ? new Date().toISOString() : '',
+        },
+        retryAt: '', errorCode: '', errorMessage: '',
+      });
+    } catch (error) {
+      const failureCount = Number(work.cursor.failureCount || 0) + 1;
+      const delayMs = Math.min(60 * 60 * 1000, 30000 * (2 ** Math.min(6, failureCount - 1)));
+      store.updateLibraryWork(work.workId, {
+        status: 'retrying', retryAt: new Date(Date.now() + delayMs).toISOString(),
+        errorCode: error.code || 'DOUBAN_SYNC_FAILED', errorMessage: error.message,
+        cursor: { ...work.cursor, failureCount },
+      });
+      throw error;
+    }
+  }
+
   async function runLibraryWork(workId, options = {}) {
     const work = store.getLibraryWork(workId);
     if (!work) throw new HelixError('LIBRA_WORK_NOT_FOUND', 'Library work not found');
     if (work.status === 'done') return work;
+    if (work.workKind === 'sync_user_perception') return runUserPerceptionSync(work, options);
     if (work.workKind === 'reconcile_library') {
       store.updateLibraryWork(work.workId, { status: 'running', incrementAttempt: true, errorCode: '', errorMessage: '' });
       try {
@@ -513,6 +702,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
         limit,
         deadlineMs,
       }));
+      const observedItemIds = [];
       for (const observation of page.observations || []) {
         const sourceReference = observation.sourceReference || {};
         const existingItemId = nexoraService.resolveBoundItemId(sourceReference);
@@ -526,10 +716,14 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
           sourceReference,
           idempotencyKey: `observe-source:${work.workId}:${identityHash}`,
           requestedBy: 'libra_automation',
+          deferHierarchyResolution: true,
+          includeProjection: false,
         });
+        observedItemIds.push(itemId);
       }
-      const hierarchy = store.resolveLibraryHierarchy(subLibrary.uuid);
-      reconciler.reconcileBatch(hierarchy.map((item) => item.itemId));
+      const hierarchyChanges = store.resolveLibraryHierarchy(subLibrary.uuid, { changedOnly: true });
+      const affectedItemIds = [...new Set([...observedItemIds, ...hierarchyChanges.map((item) => item.itemId)])];
+      reconciler.reconcileBatch(affectedItemIds);
       for (const scope of store.listActiveMaintenanceScopes(subLibrary.uuid)) {
         const root = store.getLibraryItem(scope.rootItemId);
         if (!root) continue;
@@ -568,7 +762,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
   }
 
   function getAutomationProjection() {
-    const runnableWorks = store.listRunnableLibraryWork();
+    const runnableWorks = store.listRunnableLibraryWork(new Date().toISOString(), 100);
     return { works: store.listLibraryWork(), runnableWorks, runnable: runnableWorks.length, maintenanceScopes: store.listActiveMaintenanceScopes() };
   }
 
@@ -712,6 +906,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     deleteSubLibrary,
     requestLibraryObservation,
     requestReconcileSweep,
+    requestUserPerceptionSync,
     runLibraryWork,
     getAutomationProjection,
     requestOffboarding,
@@ -721,6 +916,7 @@ function createLibraRuntime({ nexoraService, kairoxService, store = libraStore, 
     getLibraryProjection,
     getLibraryProjections,
     queryLibraryProjections,
+    getLibraryMaintenanceSummaries,
   });
 }
 

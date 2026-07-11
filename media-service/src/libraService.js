@@ -67,6 +67,10 @@ function createLibraService(dependencies = {}) {
       if (typeof implementation.requestReconcileSweep === 'function') return implementation.requestReconcileSweep(command);
       throw notImplemented('LibraService.requestReconcileSweep');
     },
+    requestUserPerceptionSync(command) {
+      if (typeof implementation.requestUserPerceptionSync === 'function') return implementation.requestUserPerceptionSync(command);
+      throw notImplemented('LibraService.requestUserPerceptionSync');
+    },
     runLibraryWork(workId, options) {
       if (typeof implementation.runLibraryWork === 'function') return implementation.runLibraryWork(workId, options);
       throw notImplemented('LibraService.runLibraryWork');
@@ -107,6 +111,12 @@ function createLibraService(dependencies = {}) {
         return implementation.queryLibraryProjections(filter, options);
       }
       throw notImplemented('LibraService.queryLibraryProjections');
+    },
+    getLibraryMaintenanceSummaries(options) {
+      if (typeof implementation.getLibraryMaintenanceSummaries === 'function') {
+        return implementation.getLibraryMaintenanceSummaries(options);
+      }
+      throw notImplemented('LibraService.getLibraryMaintenanceSummaries');
     },
   });
 }

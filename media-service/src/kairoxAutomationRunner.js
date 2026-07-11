@@ -5,6 +5,7 @@ const configStore = require('./configStore');
 const kairoxAdmissionStore = require('./kairoxAdmissionStore');
 const kairoxStore = require('./kairoxStore');
 const resourceGovernor = require('./resourceGovernor');
+const automationInvariantMonitor = require('./automationInvariantMonitor');
 const signalBus = require('./kairoxSignalBus');
 
 let timer = null;
@@ -15,6 +16,10 @@ let wakePending = false;
 const targetedItemIds = new Set();
 let kairoxService = null;
 let health = { status: 'disabled', lastRunAt: '', lastError: '', scanned: 0, created: 0, cursor: '' };
+
+function yieldToEventLoop() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
 
 async function runOnce(options = {}) {
   if (running || !kairoxService) {
@@ -34,21 +39,51 @@ async function runOnce(options = {}) {
     }, () => resourceGovernor.runWithPermit({
       owner: 'kairox', workId: 'maintenance-automation', resourceKey: 'db:tasks:write', priority: 5,
     }, async () => {
+      const phaseStartedAt = Date.now();
+      const phaseDurationsMs = {};
+      let phaseAt = phaseStartedAt;
+      const markPhase = (name) => {
+        const now = Date.now();
+        phaseDurationsMs[name] = now - phaseAt;
+        phaseAt = now;
+      };
       const admissions = requestedItemIds.length
         ? Object.values(kairoxAdmissionStore.getAdmissions(requestedItemIds)).filter((admission) => admission && admission.status === 'active')
         : kairoxAdmissionStore.listActiveAdmissions({ afterItemId, limit });
       const ids = admissions.map((admission) => admission.itemId);
       const config = configStore.loadConfig();
-      kairoxService.reconcileObjectives(ids);
-      for (const admission of admissions) {
-        kairoxService.reconcileMaintenanceRun({ itemId: admission.itemId, config });
+      const invariantHealth = automationInvariantMonitor.evaluate(config);
+      markPhase('load_and_invariants');
+      if (invariantHealth.circuitOpen) {
+        const message = `Maintenance automation circuit open: ${invariantHealth.violations.map((entry) => entry.code).join(', ')}`;
+        kairoxStore.updateAutomationState('maintenance', { lastRunAt: new Date().toISOString(), lastError: message });
+        health = { status: 'red', lastRunAt: new Date().toISOString(), lastError: message, circuitOpen: true, scanned: admissions.length, created: 0, cursor: afterItemId };
+        return health;
       }
-      const readyRuns = kairoxStore.listMaintenanceRuns({ statuses: ['ready'], limit });
+      const admissionProjections = kairoxService.reconcileObjectives(ids);
+      markPhase('reconcile_objectives');
+      for (const admission of admissions) {
+        kairoxService.reconcileMaintenanceRun({
+          itemId: admission.itemId,
+          config,
+          maintenanceProjection: admissionProjections[admission.itemId],
+          includeProjection: false,
+        });
+        await yieldToEventLoop();
+      }
+      markPhase('reconcile_runs');
+      // Supply only from the same bounded admission batch reconciled above.
+      // Reading the global first N ready Runs lets a saturated Gate monopolize
+      // the window and starve other Gates (or a targeted manual Run).
+      const readyRuns = kairoxStore.listMaintenanceRuns({ statuses: ['ready'], itemIds: ids, limit });
       const runIds = readyRuns.map((run) => run.itemId);
       const runAdmissions = kairoxAdmissionStore.getAdmissions(runIds);
       const projections = kairoxService.reconcileObjectives(runIds);
+      markPhase('project_ready_runs');
       let created = 0;
+      const supplyRemaining = { ...(invariantHealth.remainingByTargetGate || {}) };
       for (const run of readyRuns) {
+        await yieldToEventLoop();
         const admission = runAdmissions[run.itemId];
         if (!admission || admission.status !== 'active') continue;
         const projection = projections[run.itemId] || {};
@@ -61,21 +96,31 @@ async function runOnce(options = {}) {
           lifecycleBlockedReason: projection.blockedReason || '',
         });
         if (!decision.allowed) continue;
+        if (supplyRemaining[projection.nextTargetGate] === 0) continue;
         const result = kairoxService.requestMaintenance({
           itemId: admission.itemId,
           libraryGeneration: admission.admissionGeneration,
           runId: run.runId,
           targetGate: projection.nextTargetGate,
           gateObjective: projection.nextGateObjective || {},
+          maintenanceProjection: projection,
           config,
-          tasks: projection.activeTasks || [],
           logs: [{ ts: new Date().toISOString(), level: 'info', msg: 'Task created by Kairox Maintenance Automation' }],
         });
-        if (result && result.allowed !== false && result.task) created += 1;
+        if (result && result.allowed !== false && result.task) {
+          created += 1;
+          if (Number.isFinite(supplyRemaining[projection.nextTargetGate])) {
+            supplyRemaining[projection.nextTargetGate] = Math.max(0, supplyRemaining[projection.nextTargetGate] - 1);
+          }
+        }
       }
+      markPhase('supply_tasks');
       const cursor = requestedItemIds.length ? afterItemId : (admissions.length < limit ? '' : admissions[admissions.length - 1].itemId);
       kairoxStore.updateAutomationState('maintenance', { cursor: { afterItemId: cursor }, lastRunAt: new Date().toISOString(), lastError: '' });
-      health = { status: 'green', lastRunAt: new Date().toISOString(), lastError: '', scanned: admissions.length, suppliedRuns: readyRuns.length, created, cursor };
+      health = {
+        status: 'green', lastRunAt: new Date().toISOString(), lastError: '', scanned: admissions.length,
+        suppliedRuns: readyRuns.length, created, cursor, durationMs: Date.now() - phaseStartedAt, phaseDurationsMs,
+      };
       return health;
     }));
   } catch (error) {
@@ -127,6 +172,6 @@ function stop() {
   kairoxService = null;
 }
 
-function getHealth() { return { ...health, running }; }
+function getHealth() { return { ...health, ...automationInvariantMonitor.getHealth(), running }; }
 
 module.exports = { start, stop, wake, runOnce, getHealth };

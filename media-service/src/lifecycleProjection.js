@@ -39,7 +39,7 @@ function resolveLifecycle(item, config = {}) {
     return {
       lifecycleStage: 'admitted',
       lifecycleDone: false,
-      lifecycleNextTask: 'basedata',
+      lifecycleNextTask: basedataGate.status === 'blocked' ? null : 'basedata',
       lifecycleReason: basedataGate.reason,
       optimizeFlowKind: null,
       ...objectiveProjection,
@@ -122,7 +122,7 @@ function resolveLifecycle(item, config = {}) {
   return {
     lifecycleStage: 'metadata_ready',
     lifecycleDone: false,
-    lifecycleNextTask: 'optimize',
+    lifecycleNextTask: optimizeGate.status === 'blocked' ? null : 'optimize',
     lifecycleReason: optimizeGate.reason === 'objective_not_satisfied' ? 'objective_not_satisfied' : 'optimization_pending',
     optimizeFlowKind: optimizeGate.flowKind || null,
     ...objectiveProjection,

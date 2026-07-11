@@ -26,10 +26,13 @@ function normalizeBaseUrl(baseUrl) {
   return String(baseUrl || '').trim().replace(/\/+$/, '');
 }
 
+function connectionToken(serverConfig) {
+  return String(serverConfig && serverConfig.accessToken || '').trim();
+}
+
 function buildUrl(serverConfig, relativePath, extraQuery = {}) {
   const base = normalizeBaseUrl(serverConfig.baseUrl);
   const u = new URL(relativePath.replace(/^\//, ''), `${base}/`);
-  u.searchParams.set('api_key', (serverConfig.apiKey || '').trim());
   for (const [k, v] of Object.entries(extraQuery)) {
     if (v !== undefined && v !== null && v !== '') u.searchParams.set(k, String(v));
   }
@@ -42,7 +45,7 @@ async function embyFetchJson(serverConfig, relativePath, options = {}, extraQuer
     ...options,
     headers: {
       Accept: 'application/json',
-      'X-Emby-Token': (serverConfig.apiKey || '').trim(),
+      'X-Emby-Token': connectionToken(serverConfig),
       ...options.headers,
     },
   });
@@ -65,7 +68,7 @@ async function embyFetchOk(serverConfig, relativePath, options = {}, extraQuery 
     ...options,
     headers: {
       Accept: 'application/json',
-      'X-Emby-Token': (serverConfig.apiKey || '').trim(),
+      'X-Emby-Token': connectionToken(serverConfig),
       ...options.headers,
     },
   });
@@ -87,7 +90,7 @@ async function testConnection(serverConfig) {
 
 /**
  * Authenticate with Emby using username+password (no API key needed).
- * Returns an access token that can be used as apiKey for all subsequent calls.
+ * Returns the session access token used for all subsequent calls.
  */
 async function authenticateByUsername(baseUrl, username, password) {
   const u = new URL('Users/AuthenticateByName', baseUrl.replace(/\/+$/, '') + '/');
@@ -227,7 +230,7 @@ async function libraryItemExists(serverConfig, itemId) {
     method: 'GET',
     headers: {
       Accept: 'application/json',
-      'X-Emby-Token': (serverConfig.apiKey || '').trim(),
+      'X-Emby-Token': connectionToken(serverConfig),
     },
   });
   if (res.status === 404) return false;
@@ -241,71 +244,20 @@ async function libraryItemExists(serverConfig, itemId) {
 async function getItemDeleteInfo(serverConfig, itemId) {
   const userId = String(serverConfig.userId || '').trim();
   const iid = encodeURIComponent(itemId);
-  const pw = String(serverConfig.embyUserPassword || '').trim();
-  let cfg = serverConfig;
-  let extraQuery = userId ? { UserId: userId } : {};
-  if (pw) {
-    try {
-      const accessToken = await authenticateEmbyUserAccessToken(serverConfig);
-      cfg = { ...serverConfig, apiKey: accessToken };
-      extraQuery = {};
-    } catch (e) {
-      log('getItemDeleteInfo user auth failed, trying api key fallback', e.message);
-    }
-  }
   try {
-    return await embyFetchJson(cfg, `Items/${iid}/DeleteInfo`, {}, extraQuery);
+    return await embyFetchJson(serverConfig, `Items/${iid}/DeleteInfo`, {}, userId ? { UserId: userId } : {});
   } catch (e) {
     log('getItemDeleteInfo optional fail', e.message);
     return null;
   }
 }
 
-async function authenticateEmbyUserAccessToken(serverConfig) {
-  const pw = String(serverConfig.embyUserPassword || '').trim();
-  const userId = String(serverConfig.userId || '').trim();
-  if (!pw || !userId) return null;
-  const list = await getUsers(serverConfig);
-  const row = list.find((u) => u.id === userId);
-  const username = row && typeof row.name === 'string' ? row.name.trim() : '';
-  if (!username) throw new Error('Cannot resolve username for user ' + userId);
-  const url = buildUrl(serverConfig, 'Users/AuthenticateByName', {});
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'X-Emby-Token': (serverConfig.apiKey || '').trim(),
-    },
-    body: JSON.stringify({ Username: username, Pw: pw }),
-  });
-  const text = await res.text().catch(() => '');
-  if (!res.ok) {
-    throw new Error(`Emby user auth failed (${res.status}): ${text.slice(0, 200) || res.statusText}`);
-  }
-  let data;
-  try { data = JSON.parse(text); } catch {
-    throw new Error('Emby auth response not JSON');
-  }
-  const tok = data.AccessToken || data.accessToken;
-  if (!tok || !String(tok).trim()) throw new Error('No AccessToken in auth response');
-  return String(tok).trim();
-}
-
 async function deleteLibraryItem(serverConfig, itemId) {
   const userId = String(serverConfig.userId || '').trim();
   if (!userId) throw new Error('Emby userId not configured');
   const iid = encodeURIComponent(itemId);
-  const pw = String(serverConfig.embyUserPassword || '').trim();
-  let cfg = serverConfig;
-  let extraQuery = { UserId: userId };
-  if (pw) {
-    const accessToken = await authenticateEmbyUserAccessToken(serverConfig);
-    cfg = { ...serverConfig, apiKey: accessToken };
-    extraQuery = {};
-  }
-  await embyFetchOk(cfg, `Items/${iid}`, { method: 'DELETE' }, extraQuery);
-  log('deleteLibraryItem', { itemId, userId, usedUserToken: !!pw });
+  await embyFetchOk(serverConfig, `Items/${iid}`, { method: 'DELETE' }, { UserId: userId });
+  log('deleteLibraryItem', { itemId, userId });
 }
 
 // ── Field extraction ──────────────────────────────────────────────────────────
@@ -315,31 +267,36 @@ function normalizeVideoCodec(raw) {
   if (c === 'hevc' || c.includes('h265') || c === 'h265') return 'h265';
   if (c === 'h264' || c === 'avc' || c.includes('h264')) return 'h264';
   if (c === 'av1') return 'av1';
-  return 'h264';
+  return c;
 }
 
 function extractItemFields(item) {
-  const ticks = typeof item.RunTimeTicks === 'number' ? item.RunTimeTicks : 0;
-  const duration = ticks > 0 ? Math.max(1, Math.round(ticks / 10_000_000)) : 0;
   const sources = Array.isArray(item.MediaSources) ? item.MediaSources : [];
   const src = sources[0] || {};
+  const ticks = typeof item.RunTimeTicks === 'number' && item.RunTimeTicks > 0
+    ? item.RunTimeTicks
+    : typeof src.RunTimeTicks === 'number' ? src.RunTimeTicks : 0;
+  const duration = ticks > 0 ? Math.max(1, Math.round(ticks / 10_000_000)) : 0;
 
-  let bitrate = src.Bitrate || 0;
-  let size = src.Size || 0;
-  let width = 0;
-  let height = 0;
-  let codec = 'h264';
+  const bitrate = Number(src.Bitrate || item.Bitrate) || 0;
+  const size = Number(src.Size || item.Size) || 0;
+  let width = Number(item.Width) || 0;
+  let height = Number(item.Height) || 0;
+  let codec = '';
 
   let audioCodecs = [];
-  if (src.MediaStreams) {
-    const video = src.MediaStreams.find((s) => s && s.Type === 'Video');
+  const mediaStreams = Array.isArray(src.MediaStreams) && src.MediaStreams.length > 0
+    ? src.MediaStreams
+    : Array.isArray(item.MediaStreams) ? item.MediaStreams : [];
+  if (mediaStreams.length > 0) {
+    const video = mediaStreams.find((s) => s && s.Type === 'Video');
     if (video) {
-      width = video.Width || 0;
-      height = video.Height || 0;
+      width = Number(video.Width) || width;
+      height = Number(video.Height) || height;
       codec = normalizeVideoCodec(video.Codec);
     }
     audioCodecs = [];
-    const audioStreams = src.MediaStreams.filter((s) => s && s.Type === 'Audio');
+    const audioStreams = mediaStreams.filter((s) => s && s.Type === 'Audio');
     for (const s of audioStreams) {
       const c = String(s.Codec || '').toLowerCase();
       if (c) audioCodecs.push(c);
@@ -353,18 +310,16 @@ function extractItemFields(item) {
     audioCodecs = [...new Set(audioCodecs)];
   }
 
-  const resolution = height >= 2000 || width >= 3800 ? `${width}x${height}` : `${width}x${height}`;
-
   return {
     itemId: item.Id,
     name: item.Name || item.Id,
     path: item.Path || src.Path || '',
     type: (() => { const m = { Movie: 'movie', Series: 'series', Season: 'season', Episode: 'episode' }; return m[item.Type] || 'other'; })(),
     sourceId: item.Id,
-    bitrate: typeof bitrate === 'number' ? bitrate : 0,
+    bitrate,
     duration,
     resolution: width && height ? `${width}x${height}` : '',
-    size: typeof size === 'number' ? size : 0,
+    size,
     premiereDate: item.PremiereDate || null,
     genres: Array.isArray(item.Genres) ? item.Genres : [],
     isDiscLike: inferIsDiscLike(item),
@@ -526,7 +481,7 @@ async function getPlayedItems(serverConfig, filters = {}) {
       item.Type === 'Episode' && item.ParentIndexNumber && item.IndexNumber
         ? `S${String(item.ParentIndexNumber).padStart(2, '0')}E${String(item.IndexNumber).padStart(2, '0')}`
         : undefined,
-    posterUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/Items/${item.Id}/Images/Primary?api_key=${(serverConfig.apiKey || '').trim()}`,
+    posterUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/Items/${item.Id}/Images/Primary`,
     embyWebUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/web/index.html#!/item?id=${item.Id}`,
     path: item.Path || '',
   }));
@@ -595,7 +550,7 @@ async function getUnplayedItems(serverConfig, sectionId) {
       isBluRayDisc: extracted.isDiscLike,
       embyPlayed: false,
       path: extracted.path,
-      posterUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/Items/${extracted.itemId}/Images/Primary?api_key=${(serverConfig.apiKey || '').trim()}`,
+      posterUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/Items/${extracted.itemId}/Images/Primary`,
       embyWebUrl: `${normalizeBaseUrl(serverConfig.baseUrl)}/web/index.html#!/item?id=${extracted.itemId}`,
     };
   });

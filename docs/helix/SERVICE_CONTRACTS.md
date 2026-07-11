@@ -23,9 +23,10 @@ reconcileItem(itemId)
 reconcileBatch(itemIds?)
 getLibraryProjection(itemId)
 getLibraryProjections(itemIds)
+getLibraryMaintenanceSummaries(options)
 ```
 
-Libra owns LibraryMembership, phase, quarantine, admission generation and durable reconcile operations. It delegates capability work and never writes Nexora or Kairox facts. `getLibraryProjection(s)` batch-reads current Nexora/Kairox projections and composes them with Libra facts without persisting those capability projections.
+Libra owns LibraryMembership, phase, quarantine, admission generation and durable reconcile operations. It delegates capability work and never writes Nexora or Kairox facts. `getLibraryProjection(s)` batch-reads current Nexora/Kairox projections and composes them with Libra facts without persisting those capability projections. `getLibraryMaintenanceSummaries` only aggregates active playable Membership, reads Kairox through batch projections and yields between bounded batches; Series/Season containers never enter Gate denominators.
 
 ## Nexora Service
 
@@ -54,6 +55,7 @@ reconcileMaintenanceRun(command)
 updateUserPerception(command)
 getMaintenanceProjection(itemId)
 getMaintenanceProjections(itemIds)
+getMaintenanceSummaryProjections(itemIds)
 ```
 
 Admission minimally contains `itemId`, `admissionGeneration`, `sourceRevision`, `sourceAccessDescriptor`, `policyRevision` and the maintenance policy snapshot. Kairox tasks retain the admission generation and validate it before canonical or destructive commits.
@@ -63,6 +65,18 @@ Admission minimally contains `itemId`, `admissionGeneration`, `sourceRevision`, 
 MaintenanceProjection contains `maintenanceState: maintaining|complete`, the public boolean `maintenanceComplete`, basedata/metadata/optimize gate facts and an optional `disposalRecommendation`. They are not Libra phase values. `disposalRecommendation` cannot create a delete task or close Membership.
 
 Kairox Maintenance Automation owns automatic `basedata|metadata|optimize` progression for currently admitted media. Libra provides admission and policy; it does not create each next-gate task. Helix runtime has no `ingest|delete|archive` maintenance target.
+
+Task Creator/Admission performs global duplicate and Gate-cap checks against TaskStore-owned facts in the same admission operation. `tasks`, `activeTasks` or other caller-supplied collections are not valid admission inputs.
+
+Task creation never produces or validates a `flowPlan`. The durable creation payload is limited to
+the target-gate task identity/objective plus admission, generation, MediaItem priority, source-access
+mapping, objective and policy revision snapshots. After Task Scheduler selects an existing task, Resource Runtime
+invokes the standalone Flow Planner and persists its output before executor routing. Neither Task Creator
+nor Task Store may synthesize a Flow Plan while creating or reading a task.
+
+Bug fixes and recovery fixes carry no implicit authority to change these owners. Any proposed fix that
+requires a component to decide or persist another component's owned fact must stop at Design and obtain
+explicit user confirmation before implementation.
 
 `requestMaintenance` is an internal Runner -> Task Creator capability and requires the
 Lifecycle-selected target. HTTP adapters and users cannot call it. Public user intent is
@@ -113,6 +127,9 @@ Resource Runtime -> event execution through shared Governor permits
 - Helix clean runtime does not expose legacy scan, offboarding-candidate, delete-candidate or archive APIs；用户清理建议统一为 `GET /v1/admin/cleanup-recommendations`。
 - Admin 人物接口统一位于 `/v1/admin/people`；旧 `/v1/admin/adult/people` 不保留兼容入口。
 - Admin 配置只通过 resources/security/maintenance policy 与各 Integration 的 scoped API 读写；通用 `/v1/config` 不属于 clean contract。
+- Emby connection testing is read-only and does not persist a server. Saving a server requires an explicit Emby User selection.
+- Douban synchronization is a durable Library work and imports facts through Kairox User Perception; it does not create a maintenance target directly.
+- Environment Source Access Mapping has no public API and is absent from Library inputs/projections.
 
 ## Shared Resource Governor
 

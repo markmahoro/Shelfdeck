@@ -4,7 +4,15 @@ Last updated: 2026-07-11
 
 ## State
 
-Helix Beta 的 Service 主链路与 Admin Web 产品级重构均已完成：
+Helix Beta **尚未达成**。生产运行已于 2026-07-11 停止，当前状态是：
+
+```text
+Beta not achieved
+Production disabled
+Recovery implementation in progress
+```
+
+此前的 Service 主链路与 Admin Web 实现提供了后续修复基础：
 
 ```text
 Helix = Libra + Nexora + Kairox
@@ -18,7 +26,34 @@ Kairox Maintenance Automation
   -> maintenanceComplete
 ```
 
-物理形态保持模块化单体。统一 Person Catalog、演员偏好策略、clean configuration contract 与八个 Admin 用户页面已经落地。`media-desktop` 不在本次范围。生产 clean initialization 与新的 production canary 尚未执行，必须由用户单独授权。
+物理形态保持模块化单体。`media-desktop` 不在本次范围。当前不得以文件、接口、组件单测、小样本 E2E 或 Docker 启动成功宣称 Beta 完成；必须先通过真实四库、完整产品闭环、资源不变量和性能门禁。
+
+### 2026-07-11 Production Failure Evidence
+
+- 生产真实规模首次同时形成数百个 Maintenance Run/Task 后，Task supply cap 未按全局 Gate 生效。
+- Scheduler、Resource Runtime 与 Governor 在 queue full 时形成 `queued <-> waiting_for_resource` 状态振荡和持续 Event 写入。
+- 停止时 `tasks.db` 已增长到约 369 MiB；该增长不是正常业务历史，而是控制协议缺陷。
+- Admin Web 的 Emby API Key 配置没有完成 User 选择，连接可显示成功但 Library observation 缺少 `userId`。
+- Browser E2E 只证明页面路由和 accessibility；单媒体 full-auto E2E 不能证明真实规模的 supply、backpressure、SQLite 或 UI responsiveness。
+
+因此，下面的既有 Acceptance Evidence 仅作为历史实现证据，不再构成当前 Beta acceptance。
+
+### 2026-07-11 Local Real-Source Recovery Evidence
+
+- Task Creator 已在 Task Store 内完成权威全局 Gate cap 准入；Runner 只从本轮 bounded admission batch 供给，Optimize 饱和不再饿死 Basedata/Metadata 或定向 manual Run。
+- `waiting_for_resource` 在重启后只恢复一次到 `queued`，不消耗执行 retry budget；真正 executing 的工作仍使用 Flow recovery contract。
+- Transcode rate-control plan 现在按用户配置的设备池和 priority 生成。NVENC 先于 backup-only CPU，不再硬编码为 QSV/CPU。
+- Windows 设备探测同时使用短编码和本机显卡 inventory。本机实际包含 RTX 4080 SUPER 与 AMD 集成显卡；Admin Web 明确只启用 CPU + NVENC，AMF 未进入设备池。
+- 上述修复后 Service 全量测试 167/167 通过，Admin Web production build 通过。
+- 本机已备份并重新 clean initialize。MoviePilot、Douban、成人 Provider、API Key、workspace 与资源池均由 Admin Web 配置；Folder onboarding 达到 JAV 676/676、欧美成人 707/707，没有直接写配置 API。
+- Person Catalog 的创建、别名、普通/成人分类和五级偏好已在 clean runtime 中通过 Admin Web 复验。
+- 成人真实 E2E 暴露合同缺口：Metadata 当前只发布 canonical facts，`writeNfo`、poster/fanart 与 `organizeAfterScrape` 没有运行时执行；随后通用 adult Optimize objective 会错误选择 MoviePilot Upgrade。新增或选择成人 mutation Flow 前必须先确认架构。
+- 该合同缺口已完成 Design 对齐，但尚未实现：当前 Task/Gate 边界已 Kairox 化，执行内核仍以 `flowKind -> complex Flow Executor` 路由，`task_events` 只是审计记录，Event 不是独立 durable 调度对象，Runtime 也仍按整条 Flow 预取资源。因此本机四库 E2E 暂停，现有 Flow 证据不得作为 Beta 验收。
+- 已确认的 clean rebaseline 是：Basedata/Metadata/Optimize 全部由真正的 Flow Planner 生成不可变 Workflow Graph；复杂 Executor 原子化为 Capability Executor；Event Runtime 逐 Event 调度、申请 Permit、恢复并记录性能。Library 只配置允许的副作用 Capability，`flowKind` 不再参与 Executor 路由。
+- 文件布局合规归属 Optimize Objective。Metadata 生成的 NFO、poster、fanart 先写入持久化 Metadata Artifact Workspace；Optimize 再按计划执行 organize/materialize/layout verify。该工作区必须可由用户配置，默认位于 `<dataDir>/workspaces/metadata-artifacts`，不能被当作可随时清理的 Transcode temp。
+- organize/replace 的路径或 source identity 变化由 Kairox 持久化中性 `SourceMutationResult`；Libra durable 消费并协调 Nexora rebind，随后 Kairox 基于新 admission/source revision 独立产生 Basedata Task，禁止 Gate Task 链式创建。
+- 欧美成人本机分析在 internal face-embedding Integration 未启动时正确 terminal failure；重试该场景前必须先建立本机 face service/model runtime。
+- Emby clean re-authentication 仍缺账号密码。备份按安全合同只保存 username/userId/access token，不允许把旧 token 直接写入新配置作为绕过。
 
 2026-07-11：Maintenance Run 与 MediaItem Priority rebaseline 已完成并通过
 Windows、Admin Web、Playwright 与 Linux Docker 验证。生产部署继续暂停，等待用户
@@ -50,7 +85,7 @@ Windows、Admin Web、Playwright 与 Linux Docker 验证。生产部署继续暂
 - 通用 `/v1/config`、旧 Adult People、旧 Offboarding/Delete Candidate 与 Transcode raw-config 入口均不存在；资源、安全和维护策略使用 scoped API。
 - Kairox Person Catalog 统一普通/成人演员，支持五级偏好、强身份自动归并、同名候选人工合并、reference face cold artifact 与关联媒体 objective 重算。
 
-## Acceptance Evidence
+## Historical Acceptance Evidence (Withdrawn As Beta Proof)
 
 - Windows host Service suite：`npm test`，126 项测试全部通过。
 - Admin Web：TypeScript + Vite production build passed；Vitest 3 项组件/产品语义测试通过。
@@ -84,6 +119,12 @@ Windows、Admin Web、Playwright 与 Linux Docker 验证。生产部署继续暂
 
 ## Open Risks / Deferred Work
 
+- Kairox Capability/Event Runtime rebaseline 尚未实现，是恢复真实四库 E2E 前的 Beta 阻断项；不得用新增 `flowKind`、复杂 Executor 分支或 `allowedFlowKinds` 作为过渡 workaround。
+- Metadata Artifact Workspace 的持久化、引用保护、容量故障、原子 materialize 和清理合同尚未落地；落地前成人 NFO/poster/fanart 不得直接写入未整理的媒体根目录。
+- 需要 Emby username/password re-authentication，之后才能从 Admin Web 重建两个真实 Emby Library。
+- 需要建立本机 face-service dependencies/models，之后才能重试欧美成人 Metadata。
+- normal/constrained performance profile、restart/fault matrix 与 active/idle soak 仍需在最终四库 runtime 完成。
+- 本机真实来源验收将在 `Z:\Film`、`Z:\chn_series`、`Y:\JAV`、`Y:\US` 上执行；生产在本机报告获用户确认前保持停止。
 - 生产当前数据与 clean runtime 不兼容；上线必须先单独确认 dry-run、backup、clean initialization 和 canary，不允许自动迁移或 dual read。
 - 真实生产 source incident、detach/delete 与 media replace 仍未获具体剧集授权；只在 disposable/automated tests 中验证。
 - `media-desktop` 仍需后续完整性重构。

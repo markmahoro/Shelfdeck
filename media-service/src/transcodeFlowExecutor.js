@@ -9,6 +9,7 @@
 
 const fs = require('fs');
 const taskStore = require('./taskStore');
+const sourceAccessResolver = require('./sourceAccessResolver');
 const configStore = require('./configStore');
 const transcodeService = require('./services/transcodeService');
 const nodeStore = require('./nodeStore');
@@ -121,26 +122,73 @@ function parseStableKey(stableKey) {
   return null;
 }
 
-const RATE_CONTROL_ATTEMPTS = [
-  { strategy: 'qsv_vbr', encoderKind: 'qsv', label: 'QSV VBR' },
-  { strategy: 'cpu_two_pass_abr', encoderKind: 'cpu', label: 'CPU two-pass ABR' },
-  { strategy: 'qsv_cbr', encoderKind: 'qsv', label: 'QSV CBR' },
-  { strategy: 'cpu_strict_fallback', encoderKind: 'cpu', label: 'CPU strict fallback' },
-];
+const RATE_CONTROL_PLAN_VERSION = 2;
 
-function rateControlState(info = {}) {
+function attemptsForBackend(backend) {
+  if (backend === 'nvenc') return [{ strategy: 'nvenc_vbr', encoderKind: 'nvenc', label: 'NVENC VBR' }];
+  if (backend === 'qsv') {
+    return [
+      { strategy: 'qsv_vbr', encoderKind: 'qsv', label: 'QSV VBR' },
+      { strategy: 'qsv_cbr', encoderKind: 'qsv', label: 'QSV CBR' },
+    ];
+  }
+  if (backend === 'amf') return [{ strategy: 'amf_vbr', encoderKind: 'amf', label: 'AMF VBR' }];
+  if (backend === 'cpu') {
+    return [
+      { strategy: 'cpu_two_pass_abr', encoderKind: 'cpu', label: 'CPU two-pass ABR' },
+      { strategy: 'cpu_strict_fallback', encoderKind: 'cpu', label: 'CPU strict fallback' },
+    ];
+  }
+  return [];
+}
+
+function buildRateControlPlan(allSlots) {
+  const slots = Array.isArray(allSlots) ? allSlots : [];
+  const primaryBackends = [];
+  const backupBackends = [];
+  const seen = new Set();
+  for (const slot of slots) {
+    const backend = slot && slot.backend;
+    if (!backend || seen.has(backend)) continue;
+    seen.add(backend);
+    if (backend === 'cpu' && slot.cpuBackupOnly) backupBackends.push(backend);
+    else primaryBackends.push(backend);
+  }
+  return [...primaryBackends, ...backupBackends].flatMap(attemptsForBackend);
+}
+
+function planSignature(plan) {
+  return (Array.isArray(plan) ? plan : []).map((attempt) => attempt.strategy).join('|');
+}
+
+function rateControlState(info = {}, currentPlan = null) {
   const existing = info.transcodeRateControl && typeof info.transcodeRateControl === 'object'
     ? info.transcodeRateControl
     : {};
+  const requestedPlan = Array.isArray(currentPlan) ? currentPlan : null;
+  const storedPlan = Array.isArray(existing.plan) ? existing.plan : [];
+  const plan = requestedPlan || storedPlan;
+  const signature = planSignature(plan);
+  const planChanged = requestedPlan && (
+    existing.planVersion !== RATE_CONTROL_PLAN_VERSION
+    || existing.planSignature !== signature
+  );
   return {
-    currentAttemptIndex: Number.isInteger(existing.currentAttemptIndex) ? existing.currentAttemptIndex : 0,
+    planVersion: RATE_CONTROL_PLAN_VERSION,
+    planSignature: signature,
+    plan,
+    currentAttemptIndex: planChanged
+      ? 0
+      : (Number.isInteger(existing.currentAttemptIndex) ? existing.currentAttemptIndex : 0),
     attempts: Array.isArray(existing.attempts) ? existing.attempts : [],
-    disabledEncoders: Array.isArray(existing.disabledEncoders) ? existing.disabledEncoders : [],
+    disabledEncoders: planChanged
+      ? []
+      : (Array.isArray(existing.disabledEncoders) ? existing.disabledEncoders : []),
   };
 }
 
-function attemptByIndex(index) {
-  return RATE_CONTROL_ATTEMPTS[index] || null;
+function attemptByIndex(state, index) {
+  return state && Array.isArray(state.plan) ? state.plan[index] || null : null;
 }
 
 function attemptSlots(allSlots, attempt) {
@@ -157,6 +205,9 @@ function persistRateControlState(taskId, info, state) {
     itemInfo: {
       ...info,
       transcodeRateControl: {
+        planVersion: state.planVersion,
+        planSignature: state.planSignature,
+        plan: state.plan,
         currentAttemptIndex: state.currentAttemptIndex,
         attempts: state.attempts,
         disabledEncoders: state.disabledEncoders,
@@ -168,11 +219,11 @@ function persistRateControlState(taskId, info, state) {
 function currentRateControlAttempt(taskId, task, config) {
   const info = task.itemInfo || {};
   const allSlots = buildDeviceSlots(config);
-  const state = rateControlState(info);
+  const state = rateControlState(info, buildRateControlPlan(allSlots));
   const disabled = new Set(state.disabledEncoders);
 
-  while (state.currentAttemptIndex < RATE_CONTROL_ATTEMPTS.length) {
-    const attempt = attemptByIndex(state.currentAttemptIndex);
+  while (state.currentAttemptIndex < state.plan.length) {
+    const attempt = attemptByIndex(state, state.currentAttemptIndex);
     if (!attempt || disabled.has(attempt.encoderKind)) {
       state.currentAttemptIndex += 1;
       continue;
@@ -202,7 +253,7 @@ function currentRateControlAttempt(taskId, task, config) {
 function recordRateControlAttempt(taskId, task, patch) {
   const info = task.itemInfo || {};
   const state = rateControlState(info);
-  const attempt = attemptByIndex(state.currentAttemptIndex);
+  const attempt = attemptByIndex(state, state.currentAttemptIndex);
   const row = {
     index: state.currentAttemptIndex + 1,
     strategy: attempt ? attempt.strategy : '',
@@ -230,7 +281,7 @@ function advanceRateControlAttempt(taskId, task) {
   const state = rateControlState(info);
   state.currentAttemptIndex += 1;
   persistRateControlState(taskId, info, state);
-  return state.currentAttemptIndex < RATE_CONTROL_ATTEMPTS.length;
+  return state.currentAttemptIndex < state.plan.length;
 }
 
 function cleanupPartialOutputs(info = {}) {
@@ -252,18 +303,6 @@ function unableToHitBitrateProfileError(lastErr) {
   e.code = 'unable_to_hit_bitrate_profile_after_retries';
   e.lastReason = lastErr && lastErr.code;
   return e;
-}
-
-function resolveSourcePath(sourcePath, task, config) {
-  const subLibId = task.itemInfo && task.itemInfo.subLibraryId;
-  const subLib = subLibId && (config.subLibraries || []).find((s) => s.uuid === subLibId);
-  const from = (subLib && subLib.pathMapFrom || '').trim();
-  const to = (subLib && subLib.pathMapTo || '').trim();
-  if (from && to && sourcePath.startsWith(from)) {
-    const relative = sourcePath.slice(from.length).replace(/^\//, '');
-    return require('path').join(to, relative);
-  }
-  return sourcePath;
 }
 
 function normalizeCodec(value) {
@@ -417,7 +456,8 @@ async function runPrecheck(taskId, task, config) {
   try {
     const rawPath = task.itemInfo && task.itemInfo.path;
     if (!rawPath) throw new Error('Source path not available');
-    const sourcePath = resolveSourcePath(rawPath, task, config);
+    sourceAccessResolver.assertTaskRevision(task);
+    const sourcePath = sourceAccessResolver.resolve(rawPath, { mustExist: true }).accessPath;
 
     const isSeason = (task.itemInfo && task.itemInfo.type) === 'season';
     const isDiscLike = !!(task.itemInfo && task.itemInfo.isDiscLike);
@@ -878,7 +918,8 @@ async function runVerify(taskId, task, config) {
         bitrateProfile: objectiveTarget.bitrateProfile || undefined,
         rateControlAttempt: {
           index: rcState.currentAttemptIndex + 1,
-          strategy: attemptByIndex(rcState.currentAttemptIndex) && attemptByIndex(rcState.currentAttemptIndex).strategy,
+          strategy: attemptByIndex(rcState, rcState.currentAttemptIndex)
+            && attemptByIndex(rcState, rcState.currentAttemptIndex).strategy,
         },
         rateControlAttempts: rcState.attempts,
         disabledEncoders: rcState.disabledEncoders,
@@ -946,6 +987,7 @@ async function runVerify(taskId, task, config) {
 }
 
 async function runReplace(taskId, task, config) {
+  sourceAccessResolver.assertTaskRevision(taskStore.getTask(taskId) || task);
   if (scheduler && typeof scheduler.assertHelixAdmission === 'function') {
     scheduler.assertHelixAdmission(taskId, 'transcode_replace');
   }
@@ -1078,4 +1120,12 @@ function confirmReceived(taskId) {
   // Called by confirm API after user confirms
 }
 
-module.exports = { driveTask, pause, cancel, confirmReceived, setScheduler };
+module.exports = {
+  driveTask,
+  pause,
+  cancel,
+  confirmReceived,
+  setScheduler,
+  _buildDeviceSlotsForTest: buildDeviceSlots,
+  _buildRateControlPlanForTest: buildRateControlPlan,
+};

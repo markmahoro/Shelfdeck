@@ -1,7 +1,5 @@
 'use strict';
 
-const flowPlanner = require('./flowPlanner');
-
 function json(value) { return JSON.stringify(value == null ? null : value); }
 function text(value) { return value == null ? '' : String(value); }
 function integer(value) { return value ? 1 : 0; }
@@ -14,16 +12,8 @@ function taskFacts(task = {}) {
     gateObjective: task.gateObjective && typeof task.gateObjective === 'object' ? task.gateObjective : {},
     source: task.source || '',
   };
-  const planned = flowPlanner.planFlow({
-    targetGate: taskTarget.targetGate,
-    taskTarget,
-    source: task.source,
-    itemId: task.itemId,
-    itemInfo,
-    plannedAt: task.createdAt,
-  });
-  const bridge = task.taskBridge && typeof task.taskBridge === 'object' ? task.taskBridge : planned.taskBridge;
-  const flow = task.flowPlan && typeof task.flowPlan === 'object' ? task.flowPlan : planned.flowPlan;
+  const bridge = task.taskBridge && typeof task.taskBridge === 'object' ? task.taskBridge : {};
+  const flow = task.flowPlan && typeof task.flowPlan === 'object' ? task.flowPlan : {};
   const objective = taskTarget.gateObjective && typeof taskTarget.gateObjective === 'object' ? taskTarget.gateObjective : {};
   return {
     source: text(task.source),

@@ -23,10 +23,10 @@ test('Helix service facades expose the accepted in-process contracts', () => {
   for (const name of ['ensureOnboarding', 'diagnoseSource', 'ensureOffboarding', 'getSourceProjection', 'getSourceProjections']) {
     assert.strictEqual(typeof nexora[name], 'function', `missing NexoraService.${name}`);
   }
-  for (const name of ['reconcileMaintenance', 'suspendMaintenance', 'requestMaintenance', 'startMaintenanceRun', 'setMaintenancePriority', 'clearMaintenancePriority', 'reconcileMaintenanceRun', 'requestMetadataRefresh', 'getMaintenanceProjection', 'getMaintenanceProjections']) {
+  for (const name of ['reconcileMaintenance', 'suspendMaintenance', 'requestMaintenance', 'startMaintenanceRun', 'setMaintenancePriority', 'clearMaintenancePriority', 'reconcileMaintenanceRun', 'requestMetadataRefresh', 'getMaintenanceProjection', 'getMaintenanceProjections', 'getMaintenanceSummaryProjections']) {
     assert.strictEqual(typeof kairox[name], 'function', `missing KairoxService.${name}`);
   }
-  for (const name of ['acceptSource', 'requestMaintenance', 'requestMaintenanceRun', 'setMaintenancePriority', 'clearMaintenancePriority', 'requestMetadataRefresh', 'requestOffboarding', 'requestOffboardingBatch', 'reconcileItem', 'reconcileBatch', 'getLibraryProjection', 'getLibraryProjections', 'queryLibraryProjections']) {
+  for (const name of ['acceptSource', 'requestMaintenance', 'requestMaintenanceRun', 'setMaintenancePriority', 'clearMaintenancePriority', 'requestMetadataRefresh', 'requestOffboarding', 'requestOffboardingBatch', 'reconcileItem', 'reconcileBatch', 'getLibraryProjection', 'getLibraryProjections', 'queryLibraryProjections', 'getLibraryMaintenanceSummaries']) {
     assert.strictEqual(typeof libra[name], 'function', `missing LibraService.${name}`);
   }
 });
@@ -45,6 +45,76 @@ test('Nexora and Kairox service facades do not depend on each other', () => {
   assert.doesNotMatch(source('nexoraService.js'), /require\(['"]\.\/kairoxService['"]\)/);
   assert.doesNotMatch(source('kairoxService.js'), /require\(['"]\.\/nexoraService['"]\)/);
   assert.doesNotMatch(source('libraService.js'), /require\(['"]\.\/(nexoraService|kairoxService)['"]\)/);
+});
+
+test('Nexora folder observation yields network filesystem reads and caches each directory per page', () => {
+  const nexora = source('nexoraService.js');
+  assert.match(nexora, /async function folderObservationPage/);
+  assert.match(nexora, /await fs\.promises\.readdir/);
+  assert.match(nexora, /entriesByDirectory\.get/);
+  assert.doesNotMatch(nexora, /function folderObservationPage[\s\S]*?fs\.readdirSync[\s\S]*?async function observeLibraryPage/);
+});
+
+test('operational event-loop metrics use the same rolling window as HTTP metrics', () => {
+  const metrics = source('operationalMetrics.js');
+  assert.match(metrics, /eventLoopSamples/);
+  assert.match(metrics, /setInterval\(sampleEventLoop, EVENT_LOOP_SAMPLE_MS\)/);
+  assert.match(metrics, /while \(eventLoopSamples\.length && eventLoopSamples\[0\]\.at < cutoff\)/);
+  assert.doesNotMatch(metrics, /p95Ms: Number\(eventLoop\.percentile/);
+});
+
+test('Kairox objective reconciliation uses Kairox Store batch facts without per-item bundle reloads', () => {
+  const runtime = source('kairoxRuntime.js');
+  const objectiveBody = runtime.match(/function reconcileObjectives[\s\S]*?\n  function suspendMaintenance/)[0];
+  assert.match(objectiveBody, /facts\.getBundles\(ids\)/);
+  assert.doesNotMatch(objectiveBody, /facts\.getBundle\(itemId\)/);
+});
+
+test('Kairox batch projection reads Maintenance Runs in one Store query', () => {
+  const runtime = source('kairoxRuntime.js');
+  const projectionsBody = runtime.match(/function getMaintenanceProjections[\s\S]*?\n  function reconcileMaintenance/)[0];
+  assert.match(projectionsBody, /facts\.getMaintenanceRuns\(ids\)/);
+  assert.doesNotMatch(projectionsBody, /facts\.getMaintenanceRun\(itemId\)/);
+});
+
+test('Task Creator scopes authoritative TaskAdmission reads inside the Task Store transaction', () => {
+  const creator = source('kairoxTaskCreator.js');
+  const store = source('taskStore.js');
+  assert.match(creator, /admitAndCreateTask\(\{[\s\S]*?itemId:[\s\S]*?targetGate/);
+  assert.match(store, /function queryTaskAdmissionRowsInner\(db = getDb\(\), scope = \{\}\)/);
+  assert.match(store, /WHERE status NOT IN/);
+  assert.match(store, /WHERE item_id=\? AND target_gate=\? AND status IN/);
+});
+
+test('Libra observation bounds hierarchy and reconcile work to the current page', () => {
+  const runtime = source('libraRuntime.js');
+  assert.match(runtime, /deferHierarchyResolution: true/);
+  assert.match(runtime, /resolveLibraryHierarchy\(subLibrary\.uuid, \{ changedOnly: true \}\)/);
+  assert.match(runtime, /reconciler\.reconcileBatch\(affectedItemIds\)/);
+  assert.doesNotMatch(runtime, /reconciler\.reconcileBatch\(hierarchy\.map/);
+});
+
+test('Libra owns playable-only Library maintenance aggregation and yields between batches', () => {
+  const runtime = source('libraRuntime.js');
+  const summaryBody = runtime.match(/async function getLibraryMaintenanceSummaries[\s\S]*?\n  function acceptSource/)[0];
+  assert.match(summaryBody, /item\.membershipStatus === 'active' && item\.playable !== false/);
+  assert.match(summaryBody, /kairoxService\.getMaintenanceProjections/);
+  assert.match(summaryBody, /setImmediate/);
+});
+
+test('Kairox batch projection batch-reads Person preference facts', () => {
+  const runtime = source('kairoxRuntime.js');
+  const projectionsBody = runtime.match(/function getMaintenanceProjections[\s\S]*?\n  function reconcileMaintenance/)[0];
+  assert.match(projectionsBody, /personCatalogStore\.getItemPreferenceProjections\(ids\)/);
+  assert.match(projectionsBody, /peopleMap\[itemId\]/);
+});
+
+test('Kairox summary projection owns Gate results without querying Task or Run facts', () => {
+  const runtime = source('kairoxRuntime.js');
+  const summaryBody = runtime.match(/function getMaintenanceSummaryProjections[\s\S]*?\n  function reconcileMaintenance/)[0];
+  assert.match(summaryBody, /lifecycle\.decorateItem/);
+  assert.match(summaryBody, /buildMaintenanceProjection/);
+  assert.doesNotMatch(summaryBody, /taskSummaries|queryLatestAutomaticFailures|getMaintenanceRuns/);
 });
 
 test('Nexora runtime owns source writes and no longer writes legacy Membership', () => {

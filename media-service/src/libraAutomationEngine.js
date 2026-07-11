@@ -15,6 +15,13 @@ function timeBucket(minutes) {
   return Math.floor(Date.now() / windowMs);
 }
 
+function workPriority(work = {}) {
+  if (work.workKind === 'observe_library') return 0;
+  if (work.workKind === 'reconcile_library') return 10;
+  if (work.workKind === 'sync_user_perception') return 20;
+  return 50;
+}
+
 function ensurePeriodicWork() {
   const config = configStore.loadConfig();
   const observationMinutes = Math.max(1, Number(config.libraObservationIntervalMinutes) || 15);
@@ -25,6 +32,13 @@ function ensurePeriodicWork() {
       idempotencyKey: `observe-library:${subLibrary.uuid}:${timeBucket(observationMinutes)}`,
       requestedBy: 'periodic_automation',
     });
+    if (subLibrary.doubanEnabled) {
+      libraService.requestUserPerceptionSync({
+        subLibraryId: subLibrary.uuid,
+        idempotencyKey: `sync-user-perception:${subLibrary.uuid}:${timeBucket(24 * 60)}`,
+        requestedBy: 'periodic_automation',
+      });
+    }
   }
   const reconcileMinutes = Math.max(1, Number(config.libraReconcileIntervalMinutes) || 5);
   libraService.requestReconcileSweep({
@@ -44,7 +58,9 @@ async function drain() {
     ensurePeriodicWork();
     const projection = libraService.getAutomationProjection();
     const work = (projection.runnableWorks || [])
-      .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))[0];
+      .sort((a, b) => workPriority(a) - workPriority(b)
+        || String(a.updatedAt).localeCompare(String(b.updatedAt))
+        || String(a.workId).localeCompare(String(b.workId)))[0];
     if (!work) {
       health = { ...health, status: 'green', lastRunAt: new Date().toISOString(), lastError: '', currentWorkId: '' };
       return;
@@ -110,4 +126,4 @@ function getHealth() {
   return { ...health, ...(libraService ? libraService.getAutomationProjection() : { works: [], runnable: 0 }) };
 }
 
-module.exports = { start, stop, wake, getHealth, _drainForTests: drain };
+module.exports = { start, stop, wake, getHealth, _drainForTests: drain, _workPriorityForTests: workPriority };

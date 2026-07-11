@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const configStore = require('../configStore');
 
 function dataRoot() {
   return (
@@ -22,30 +23,6 @@ const UA =
 
 let stopRequested = false;
 
-function sessionPath() {
-  const root = dataRoot();
-  try {
-    fs.mkdirSync(root, { recursive: true });
-  } catch {
-    /* ignore */
-  }
-  return path.join(root, 'douban-session.json');
-}
-
-function readSessionFile() {
-  try {
-    const raw = fs.readFileSync(sessionPath(), 'utf8');
-    const p = JSON.parse(raw);
-    return {
-      cookieHeader: typeof p.cookieHeader === 'string' ? p.cookieHeader : '',
-      userId: typeof p.userId === 'string' ? p.userId.trim() : '',
-      interestsRssUrl: typeof p.interestsRssUrl === 'string' ? p.interestsRssUrl.trim() : '',
-    };
-  } catch {
-    return { cookieHeader: '', userId: '', interestsRssUrl: '' };
-  }
-}
-
 /**
  * @param {string} urlOrEmpty
  */
@@ -61,7 +38,9 @@ function normalizeInterestsFeedBase(urlOrEmpty) {
 }
 
 function saveSession(payload) {
-  const cookieHeader = typeof payload.cookieHeader === 'string' ? payload.cookieHeader.trim() : '';
+  const current = getSession();
+  const requestedCookie = typeof payload.cookieHeader === 'string' ? payload.cookieHeader.trim() : '';
+  const cookieHeader = requestedCookie === '********' ? current.cookieHeader : requestedCookie;
   let userId = typeof payload.userId === 'string' ? payload.userId.trim() : '';
   let interestsRssUrl = typeof payload.interestsRssUrl === 'string' ? payload.interestsRssUrl.trim() : '';
 
@@ -78,16 +57,18 @@ function saveSession(payload) {
     throw new Error('请填写豆瓣用户 ID（电影「看过」页 people/ 与 /collect 之间的那一段）。');
   }
 
-  fs.writeFileSync(
-    sessionPath(),
-    JSON.stringify({ cookieHeader, userId, interestsRssUrl: interestsRssUrl || '' }, null, 0),
-    'utf8',
-  );
-  return { cookieHeader, userId, interestsRssUrl: interestsRssUrl || '' };
+  const session = { cookieHeader, userId, interestsRssUrl: interestsRssUrl || '' };
+  configStore.patchConfig({ douban: session });
+  return session;
 }
 
-function getSession() {
-  return readSessionFile();
+function getSession(config) {
+  const value = config && config.douban || configStore.loadConfig().douban || {};
+  return {
+    cookieHeader: typeof value.cookieHeader === 'string' ? value.cookieHeader : '',
+    userId: typeof value.userId === 'string' ? value.userId.trim() : '',
+    interestsRssUrl: typeof value.interestsRssUrl === 'string' ? value.interestsRssUrl.trim() : '',
+  };
 }
 
 function requestStop() {
@@ -188,7 +169,7 @@ function collectListUrl(userId, start, collectType) {
  */
 async function fetchRatings(progressSink, opts = {}) {
   stopRequested = false;
-  const session = readSessionFile();
+  const session = opts.session || getSession(opts.config);
   const userId = session.userId;
   if (!userId || !/^[a-zA-Z0-9_-]+$/.test(userId)) {
     throw new Error('无法抓取：请先在设置中保存有效的豆瓣用户 ID。');
@@ -281,6 +262,27 @@ async function fetchRatings(progressSink, opts = {}) {
   return { entries: allEntries, cancelled: stopRequested };
 }
 
+async function fetchRatingsPage(session, cursor = {}) {
+  const userId = String(session && session.userId || '').trim();
+  if (!userId || !/^[a-zA-Z0-9_-]+$/.test(userId)) {
+    throw new Error('无法抓取：请先在设置中保存有效的豆瓣用户 ID。');
+  }
+  const collectType = cursor.collectType === 'tv' ? 'tv' : 'movie';
+  const start = Math.max(0, Number(cursor.start) || 0);
+  if (start > MAX_COLLECT_START) return { collectType, start, entries: [], typeDone: true };
+  const headers = {};
+  if (session.cookieHeader) headers.Cookie = session.cookieHeader;
+  const html = await httpsGetText(collectListUrl(userId, start, collectType), headers);
+  const entries = parseCollectMovieGrid(html).map((entry) => ({ ...entry, collectType }));
+  return {
+    collectType,
+    start,
+    entries,
+    typeDone: entries.length < COLLECT_PAGE_STEP,
+    nextStart: start + COLLECT_PAGE_STEP,
+  };
+}
+
 // ── Entries cache (for incremental sync) ────────────────────────────────────
 
 function entriesCachePath() {
@@ -306,6 +308,7 @@ module.exports = {
   getSession,
   requestStop,
   fetchRatings,
+  fetchRatingsPage,
   loadCachedEntries,
   saveCachedEntries,
   getHealth,
@@ -319,7 +322,7 @@ async function getHealth(config) {
     return { status: 'green', hasSession: false, doubanEnabledSubLibCount: 0 };
   }
 
-  const session = getSession();
+  const session = getSession(config);
   const hasSession = !!(session && session.cookieHeader && session.userId);
 
   if (!hasSession) {

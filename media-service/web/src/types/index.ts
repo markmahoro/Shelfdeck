@@ -4,9 +4,9 @@ export interface EmbyServer {
   uuid: string;
   serverName: string;
   baseUrl: string;
-  apiKey: string;
+  username: string;
   userId: string;
-  embyUserPassword: string;
+  credentialConfigured: boolean;
 }
 
 export interface EmbyUser {
@@ -24,9 +24,9 @@ export type MediaType = 'movie' | 'tv' | 'adult';
 
 export interface EmbyTestResult {
   ok: boolean;
-  message?: string;
   serverInfo?: { serverName: string; version: string };
-  embyServerId?: string;
+  users: EmbyUser[];
+  suggestedUserId?: string;
 }
 
 // ── SubLibrary ────────────────────────────────────────────────────────────────
@@ -62,13 +62,19 @@ export interface SubLibrary {
   approvalPolicy?: ApprovalPolicyConfig;
   // Queue priority weight (lower = this library's tasks run first). Default 100.
   priorityWeight?: number;
-  pathMapFrom?: string;
-  pathMapTo?: string;
   mediaType?: string;
   adultRegion?: 'japanese_jav' | 'western_adult';
   scraperType?: 'shelfdeck_japanese_jav' | 'western_builtin';
   watchRoot?: string;
   japaneseJav?: Record<string, unknown>;
+  maintenanceSummary?: {
+    total: number;
+    basedataPassed: number;
+    metadataPassed: number;
+    optimizePassed: number;
+    maintenanceComplete: number;
+    directionCounts: Record<'none' | 'transcode' | 'upgrade' | 'undetermined' | 'blocked', number>;
+  };
 }
 
 // ── Rule Template ──────────────────────────────────────────────────────────────

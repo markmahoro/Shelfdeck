@@ -21,10 +21,6 @@ function stripRoot(rawPath, root) {
 
 function relativePathKey(rawPath, subLib) {
   if (!rawPath) return null;
-  const mappedFrom = stripRoot(rawPath, subLib && subLib.pathMapFrom);
-  if (mappedFrom != null) return mappedFrom;
-  const mappedTo = stripRoot(rawPath, subLib && subLib.pathMapTo);
-  if (mappedTo != null) return mappedTo;
   return normalizePath(rawPath);
 }
 

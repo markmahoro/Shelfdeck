@@ -17,6 +17,42 @@ const defaultResourceGovernor = require('./resourceGovernor');
 
 const MAINTENANCE_TARGETS = new Set(['basedata', 'metadata', 'optimize']);
 
+function buildOptimizationProjection(projection = {}, activeTasks = []) {
+  const gate = projection.optimizeGate || null;
+  const optimizeTask = (activeTasks || []).find((task) => String(task.taskTarget || task.taskBridge && task.taskBridge.kind || '') === 'optimize') || null;
+  const plannedFlowKind = String(optimizeTask && optimizeTask.flowPlan && optimizeTask.flowPlan.flowKind || gate && gate.flowKind || '');
+  let optimizationDirection = 'undetermined';
+  let directionReason = gate && gate.reason || projection.lifecycleReason || 'objective_not_ready';
+  if (projection.basedataGate && projection.basedataGate.status === 'blocked') {
+    optimizationDirection = 'blocked';
+    directionReason = projection.basedataGate.reason || 'basedata_required_facts_missing';
+  } else if (projection.metadataGate && projection.metadataGate.status === 'blocked') {
+    optimizationDirection = 'blocked';
+    directionReason = projection.metadataGate.reason || 'metadata_blocked';
+  } else if (gate && gate.status === 'blocked') {
+    optimizationDirection = 'blocked';
+  } else if (plannedFlowKind === 'transcode' || plannedFlowKind === 'upgrade') {
+    optimizationDirection = plannedFlowKind;
+  } else if (gate && gate.passed || plannedFlowKind === 'no_op') {
+    optimizationDirection = 'none';
+    directionReason = gate && gate.reason || 'objective_already_satisfied';
+  } else if (projection.optimizeObjectiveStatus === 'blocked') {
+    optimizationDirection = 'blocked';
+  }
+  const target = gate && gate.target || projection.optimizeObjective && projection.optimizeObjective.targetMediaFacts || {};
+  return {
+    optimizationDirection,
+    plannedFlowKind: plannedFlowKind || null,
+    directionReason,
+    maintenanceTargetSummary: {
+      qualityTier: target.qualityTier || '',
+      targetCodec: target.codec || target.targetCodec || '',
+      targetBitrateMbps: target.bitrateMbps || target.targetBitrate || null,
+      maxSizeGB: target.maxSizeGB || null,
+    },
+  };
+}
+
 function buildMaintenanceProjection(item, admission, projection, activeTasks = [], automaticFailure = null, run = null, media = null) {
   const basedataPassed = !!(projection && projection.basedataGate && projection.basedataGate.passed);
   const metadataPassed = !!(projection && projection.metadataGate && projection.metadataGate.passed);
@@ -34,6 +70,7 @@ function buildMaintenanceProjection(item, admission, projection, activeTasks = [
     && automaticFailure.targetGate === nextTargetGate
     && automaticFailure.admissionGeneration === (admission && admission.admissionGeneration || 0)
     && (nextTargetGate !== 'optimize' || !automaticFailure.objectiveHash || automaticFailure.objectiveHash === projection.objectiveHash));
+  const optimization = buildOptimizationProjection(projection || {}, activeTasks);
   return {
     itemId: item && item.itemId || admission && admission.itemId || '',
     maintenanceRevision: [
@@ -51,6 +88,7 @@ function buildMaintenanceProjection(item, admission, projection, activeTasks = [
     pendingCanonicalRefresh,
     unresolvedSourceIncident,
     maintenanceComplete,
+    ...optimization,
     maintenanceState: projection && projection.maintenanceState || 'maintaining',
     nextTargetGate,
     run,
@@ -87,7 +125,7 @@ function buildMaintenanceProjection(item, admission, projection, activeTasks = [
   };
 }
 
-function bundleToLifecycleItem(bundle, admission) {
+function bundleToLifecycleItem(bundle, admission, peopleProjection = null) {
   const basedata = bundle && bundle.basedata;
   const metadata = bundle && bundle.metadata;
   const optimize = bundle && bundle.optimize;
@@ -96,10 +134,15 @@ function bundleToLifecycleItem(bundle, admission) {
   const pendingRefresh = (bundle && bundle.refreshRequests || []).some((request) => request.status === 'pending');
   const metadataRefresh = (bundle && bundle.refreshRequests || []).find((request) => request.factGroup === 'metadata' && request.status === 'pending');
   const optimizePassed = !!(optimize && optimize.status === 'fresh' && (!optimize.facts || optimize.facts.passed !== false));
-  const people = personCatalogStore.getItemPreferenceProjection(bundle && bundle.itemId || admission && admission.itemId || '');
+  const people = peopleProjection || personCatalogStore.getItemPreferenceProjection(bundle && bundle.itemId || admission && admission.itemId || '');
   const media = bundle && bundle.media || {};
+  const observedStructure = admission && admission.sourceAccessDescriptor && admission.sourceAccessDescriptor.observedStructure || {};
   return {
     itemId: bundle && bundle.itemId || admission && admission.itemId || '',
+    name: basedata && basedata.facts && (basedata.facts.name || basedata.facts.title)
+      || metadata && metadata.facts && (metadata.facts.title || metadata.facts.name)
+      || observedStructure.displayName
+      || '',
     subLibraryId: admission && admission.sourceAccessDescriptor && admission.sourceAccessDescriptor.subLibraryId || '',
     mediaKind: media.mediaKind || '',
     type: media.mediaKind || '',
@@ -212,17 +255,45 @@ function createKairoxRuntime(dependencies = {}) {
     const ids = [...new Set(itemIds.map((id) => String(id || '').trim()).filter(Boolean))];
     const admissionMap = admissions.getAdmissions(ids);
     const bundleMap = facts.getBundles(ids);
+    const peopleMap = personCatalogStore.getItemPreferenceProjections(ids);
     const taskMap = taskSummaries(ids);
     const cfg = configs.loadConfig();
     const failureMap = typeof tasks.queryLatestAutomaticFailures === 'function' ? tasks.queryLatestAutomaticFailures(ids) : {};
+    const runMap = typeof facts.getMaintenanceRuns === 'function' ? facts.getMaintenanceRuns(ids) : {};
     return ids.reduce((out, itemId) => {
       const admission = admissionMap[itemId];
-      const item = bundleToLifecycleItem(bundleMap[itemId] || { itemId }, admission);
+      const item = bundleToLifecycleItem(bundleMap[itemId] || { itemId }, admission, peopleMap[itemId]);
       const policyItem = { ...kairoxObjectivePolicy.applyObjectivePolicy(item, cfg), allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(cfg) };
       out[itemId] = buildMaintenanceProjection(
         item, admission, lifecycle.decorateItem(policyItem, cfg), taskMap[itemId] || [], failureMap[itemId] || null,
-        facts.getMaintenanceRun(itemId), bundleMap[itemId] && bundleMap[itemId].media || null,
+        runMap[itemId] || null, bundleMap[itemId] && bundleMap[itemId].media || null,
       );
+      return out;
+    }, {});
+  }
+
+  function getMaintenanceSummaryProjections(itemIds = []) {
+    const ids = [...new Set(itemIds.map((id) => String(id || '').trim()).filter(Boolean))];
+    const admissionMap = admissions.getAdmissions(ids);
+    const bundleMap = facts.getBundles(ids);
+    const peopleMap = personCatalogStore.getItemPreferenceProjections(ids);
+    const cfg = configs.loadConfig();
+    return ids.reduce((out, itemId) => {
+      const admission = admissionMap[itemId];
+      const item = bundleToLifecycleItem(bundleMap[itemId] || { itemId }, admission, peopleMap[itemId]);
+      const policyItem = { ...kairoxObjectivePolicy.applyObjectivePolicy(item, cfg), allowedOptimizeFlowKinds: automationPolicy.resolveOptimizeAllowedFlowKinds(cfg) };
+      const projection = buildMaintenanceProjection(
+        item, admission, lifecycle.decorateItem(policyItem, cfg), [], null, null,
+        bundleMap[itemId] && bundleMap[itemId].media || null,
+      );
+      out[itemId] = {
+        itemId,
+        basedataPassed: projection.basedataPassed,
+        metadataPassed: projection.metadataPassed,
+        optimizePassed: projection.optimizePassed,
+        maintenanceComplete: projection.maintenanceComplete,
+        optimizationDirection: projection.optimizationDirection,
+      };
       return out;
     }, {});
   }
@@ -245,15 +316,18 @@ function createKairoxRuntime(dependencies = {}) {
   function reconcileObjectives(itemIds = []) {
     const cfg = configs.loadConfig();
     const ids = [...new Set(itemIds.map((itemId) => String(itemId || '').trim()).filter(Boolean))];
+    const admissionMap = admissions.getAdmissions(ids);
+    const bundleMap = facts.getBundles(ids);
+    const peopleMap = personCatalogStore.getItemPreferenceProjections(ids);
     for (const itemId of ids) {
-      const admission = admissions.getAdmission(itemId);
+      const admission = admissionMap[itemId];
       if (!admission || admission.status !== 'active') continue;
-      const bundle = facts.getBundle(itemId);
+      const bundle = bundleMap[itemId];
       if (!bundle) continue;
-      const item = kairoxObjectivePolicy.applyObjectivePolicy(bundleToLifecycleItem(bundle, admission), cfg);
+      const item = kairoxObjectivePolicy.applyObjectivePolicy(bundleToLifecycleItem(bundle, admission, peopleMap[itemId]), cfg);
       const desired = lifecycleObjectiveResolver.projectOptimizeObjective(item, { config: cfg, ignoreExistingProjection: true });
       const objectiveRevision = String(desired.objectiveHash || '');
-      const current = facts.getBundle(itemId).objective;
+      const current = bundle.objective;
       const objective = desired.optimizeObjective || {};
       const changed = !current
         || current.objectiveRevision !== objectiveRevision
@@ -279,7 +353,7 @@ function createKairoxRuntime(dependencies = {}) {
           objectiveHash: objectiveRevision,
           objectiveVersion: objectiveRevision,
         });
-        const optimize = facts.getBundle(itemId).optimize;
+        const optimize = bundle.optimize;
         if (gate.passed && gate.flowKind === 'no_op'
           && (!optimize || optimize.status !== 'fresh' || optimize.objectiveRevision !== objectiveRevision)) {
           facts.publishOptimize({
@@ -358,11 +432,17 @@ function createKairoxRuntime(dependencies = {}) {
   function reconcileMaintenanceRun(command = {}) {
     const admission = admissions.getAdmission(command.itemId);
     const media = facts.getMedia(command.itemId);
-    if (!admission || !media) return { run: null, projection: getMaintenanceProjection(command.itemId) };
+    if (!admission || !media) return {
+      run: null,
+      projection: command.includeProjection === false ? null : getMaintenanceProjection(command.itemId),
+    };
     const context = configContext(admission, command.config || configs.loadConfig());
     let run = facts.getMaintenanceRun(command.itemId);
     if (run && run.libraryPriority !== context.libraryPriority) run = facts.updateMaintenanceRun(run.runId, { libraryPriority: context.libraryPriority });
-    const projection = getMaintenanceProjection(command.itemId);
+    const suppliedProjection = command.maintenanceProjection;
+    const projection = suppliedProjection && suppliedProjection.itemId === command.itemId
+      ? suppliedProjection
+      : getMaintenanceProjection(command.itemId);
     if (run && run.admissionGeneration !== admission.admissionGeneration) {
       facts.updateMaintenanceRun(run.runId, { status: 'cancelled', currentTaskId: '', completedAt: new Date().toISOString(), blockedReason: 'admission_generation_changed' });
       if (media.maintenancePriorityClass === 'expedited') propagatePriority(facts.setMaintenancePriority({ itemId: command.itemId, priorityClass: 'normal' }));
@@ -371,7 +451,7 @@ function createKairoxRuntime(dependencies = {}) {
     if (run && projection.maintenanceComplete) {
       run = facts.updateMaintenanceRun(run.runId, { status: 'complete', currentTaskId: '', completedAt: new Date().toISOString(), blockedReason: '' });
       if (facts.getMedia(command.itemId).maintenancePriorityClass === 'expedited') propagatePriority(facts.setMaintenancePriority({ itemId: command.itemId, priorityClass: 'normal' }));
-      return { run, projection: getMaintenanceProjection(command.itemId) };
+      return { run, projection: command.includeProjection === false ? null : getMaintenanceProjection(command.itemId) };
     }
     if (!run) {
       if (context.maintenanceAutomationMode !== 'auto' || media.playable === false || projection.maintenanceComplete) return { run: null, projection };
@@ -395,7 +475,7 @@ function createKairoxRuntime(dependencies = {}) {
     } else if (!['blocked', 'cancelled', 'complete'].includes(run.status)) {
       run = facts.updateMaintenanceRun(run.runId, { status: 'ready', currentTaskId: '', blockedReason: '' });
     }
-    return { run, projection: getMaintenanceProjection(command.itemId) };
+    return { run, projection: command.includeProjection === false ? null : getMaintenanceProjection(command.itemId) };
   }
 
   function setMaintenancePriority(command = {}) {
@@ -467,7 +547,10 @@ function createKairoxRuntime(dependencies = {}) {
     const run = facts.getMaintenanceRun(command.itemId);
     if (!run || run.status !== 'ready') throw new HelixError('KAIROX_MAINTENANCE_RUN_NOT_READY', 'A ready Maintenance Run is required');
     if (!command.runId || command.runId !== run.runId) throw new HelixError('KAIROX_STALE_MAINTENANCE_RUN', 'Maintenance command must use the current Run');
-    const currentProjection = getMaintenanceProjection(command.itemId);
+    const suppliedProjection = command.maintenanceProjection;
+    const currentProjection = suppliedProjection && suppliedProjection.itemId === command.itemId
+      ? suppliedProjection
+      : getMaintenanceProjection(command.itemId);
     if (currentProjection.nextTargetGate !== targetGate) throw new HelixError('KAIROX_LIFECYCLE_TARGET_MISMATCH', 'Target gate must match the current Lifecycle projection');
     const item = bundleToLifecycleItem(bundle, admission);
     const created = taskCreator.createTargetGateTask({
@@ -498,12 +581,18 @@ function createKairoxRuntime(dependencies = {}) {
     if (!admission || admission.status !== 'active') {
       throw new HelixError('KAIROX_ADMISSION_REQUIRED', 'Active Libra maintenance admission is required');
     }
-    return facts.updateUserPerception({
+    const before = facts.getUserPerception(command.itemId);
+    const updated = facts.updateUserPerception({
       itemId: command.itemId,
       facts: command.facts || {},
       evidence: command.evidence || {},
       observedAt: command.observedAt,
     });
+    if (!before || updated.factRevision !== before.factRevision) {
+      reconcileObjectives([command.itemId]);
+      kairoxSignalBus.publish({ kind: 'user_perception_changed', itemId: command.itemId, factRevision: updated.factRevision });
+    }
+    return updated;
   }
 
   return Object.freeze({
@@ -519,6 +608,7 @@ function createKairoxRuntime(dependencies = {}) {
     updateUserPerception,
     getMaintenanceProjection,
     getMaintenanceProjections,
+    getMaintenanceSummaryProjections,
   });
 }
 

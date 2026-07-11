@@ -1453,9 +1453,41 @@ function fileHashSha256(fp) {
 
 const ENCODER_SELFTEST_LAVFI = 'color=c=black:s=256x256:r=1';
 
+let cachedWindowsVideoControllers;
+
+function windowsVideoControllers() {
+  if (process.platform !== 'win32') return [];
+  if (cachedWindowsVideoControllers !== undefined) return cachedWindowsVideoControllers;
+  try {
+    const output = execFileSync('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      "Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name }",
+    ], { encoding: 'utf8', timeout: 5000, windowsHide: true });
+    cachedWindowsVideoControllers = String(output || '').split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+  } catch (_) {
+    cachedWindowsVideoControllers = [];
+  }
+  return cachedWindowsVideoControllers;
+}
+
+function backendAllowedByHost(backend, options = {}) {
+  const platform = options.platform || process.platform;
+  if (platform !== 'win32') return true;
+  const controllers = Array.isArray(options.controllers) ? options.controllers : windowsVideoControllers();
+  if (backend === 'amf') return controllers.some((name) => /\bAMD\b|\bRadeon\b/i.test(name));
+  if (backend === 'qsv') return controllers.some((name) => /\bIntel\b|\bIris\b|\bUHD\b|\bArc\b/i.test(name));
+  return true;
+}
+
 async function encoderSelfTest(ff, encArgs, env) {
-  const r = await _runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', ENCODER_SELFTEST_LAVFI, '-frames:v', '1', ...encArgs, '-f', 'null', '-'], { env: env || process.env });
-  return r.code === 0;
+  try {
+    const r = await _runCmd(ff, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', ENCODER_SELFTEST_LAVFI, '-frames:v', '1', ...encArgs, '-f', 'null', '-'], { env: env || process.env, timeoutMs: 15000 });
+    return r.code === 0;
+  } catch (_) {
+    return false;
+  }
 }
 
 function resolveTonemapFilterGraph(dolbyVisionTonemap, explicitFilter) {
@@ -1668,10 +1700,10 @@ async function probeEncodeDevices(config) {
       devices.push({ stableKey: `nvenc:${i}`, label: `NVIDIA NVENC（CUDA ${i}）`, backend: 'nvenc', gpuIndex: i });
     }
   }
-  if (await encoderSelfTest(ff, ['-c:v', 'hevc_qsv'])) {
+  if (backendAllowedByHost('qsv') && await encoderSelfTest(ff, ['-c:v', 'hevc_qsv'])) {
     devices.push({ stableKey: 'qsv:0', label: 'Intel Quick Sync（QSV）', backend: 'qsv', gpuIndex: 0 });
   }
-  if (await encoderSelfTest(ff, ['-c:v', 'hevc_amf'])) {
+  if (backendAllowedByHost('amf') && await encoderSelfTest(ff, ['-c:v', 'hevc_amf'])) {
     devices.push({ stableKey: 'amf:0', label: 'AMD AMF', backend: 'amf', gpuIndex: 0 });
   }
   return { devices };
@@ -2523,6 +2555,8 @@ module.exports = {
   _buildEncodeArgsForTest: buildEncodeArgs,
   _buildTwoPassEncodeArgsForTest: buildTwoPassEncodeArgs,
   _parseFfmpegTimeMsForTest: parseFfmpegTimeMs,
+  _backendAllowedByHostForTest: backendAllowedByHost,
+  _resetWindowsVideoControllerCacheForTest() { cachedWindowsVideoControllers = undefined; },
   _resetDolbyVisionTonemapCacheForTest() { dvTonemapCapabilityCache = null; },
   _setRunCmdForTest(fn) {
     _runCmd = fn || runCmd;

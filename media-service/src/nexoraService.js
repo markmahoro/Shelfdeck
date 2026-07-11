@@ -383,9 +383,12 @@ function resolveBoundItemId(sourceReference = {}) {
   return binding && binding.mediaItemId || '';
 }
 
-function folderObservationPage(sourceDefinition = {}, cursor = {}, limit = 100, deadlineMs = Date.now() + 5000) {
+async function folderObservationPage(sourceDefinition = {}, cursor = {}, limit = 100, deadlineMs = Date.now() + 5000) {
   const rootPath = String(sourceDefinition.watchRoot || '').trim();
-  if (!rootPath || !fs.existsSync(rootPath)) {
+  try {
+    if (!rootPath) throw new Error('missing root');
+    await fs.promises.access(rootPath, fs.constants.R_OK);
+  } catch (_) {
     throw Object.assign(new Error('Folder library watchRoot is unavailable'), { code: 'NEXORA_SOURCE_ROOT_UNAVAILABLE' });
   }
   const frames = Array.isArray(cursor.frames) && cursor.frames.length > 0
@@ -393,10 +396,16 @@ function folderObservationPage(sourceDefinition = {}, cursor = {}, limit = 100, 
     : [{ dir: '', offset: 0 }];
   const extensions = new Set(['.mkv', '.mp4', '.avi', '.ts', '.m2ts', '.mov', '.wmv']);
   const files = [];
+  const entriesByDirectory = new Map();
   while (frames.length > 0 && files.length < limit && Date.now() < deadlineMs) {
     const frame = frames[frames.length - 1];
     const absoluteDir = path.join(rootPath, frame.dir);
-    const entries = fs.readdirSync(absoluteDir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
+    let entries = entriesByDirectory.get(absoluteDir);
+    if (!entries) {
+      entries = (await fs.promises.readdir(absoluteDir, { withFileTypes: true }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      entriesByDirectory.set(absoluteDir, entries);
+    }
     if (frame.offset >= entries.length) {
       frames.pop();
       continue;
@@ -442,7 +451,7 @@ async function observeLibraryPage(command = {}) {
     };
   }
   if (source === 'folder') {
-    const page = folderObservationPage(sourceDefinition, command.cursor, limit, command.deadlineMs);
+    const page = await folderObservationPage(sourceDefinition, command.cursor, limit, command.deadlineMs);
     return {
       observations: page.files.map((filePath) => ({
         sourceReference: {

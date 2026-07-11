@@ -64,7 +64,7 @@ test('clean init apply creates the default backup parent', () => {
   assert.strictEqual(fs.existsSync(path.join(result.backupDir, 'config.json')), true);
 });
 
-test('clean init apply backs up only ShelfDeck state and preserves deployment settings', () => {
+test('clean init apply backs up ShelfDeck state and preserves only deployment-managed config', () => {
   const dataDir = tempDir();
   const backupDir = path.join(dataDir, 'manual-backup');
   writeJson(path.join(dataDir, 'config.json'), {
@@ -74,7 +74,7 @@ test('clean init apply backs up only ShelfDeck state and preserves deployment se
     ffmpegPath: '/usr/bin/ffmpeg',
     ffprobePath: '/usr/bin/ffprobe',
     moviepilot: { baseUrl: 'http://private', apiKey: 'private', savePath: '/downloads' },
-    embyServers: { production: { baseUrl: 'http://emby', apiKey: 'emby-secret' } },
+    embyServers: { production: { baseUrl: 'http://emby', accessToken: 'emby-token' } },
     subLibraries: [{ uuid: 'legacy-library' }],
     smartTaskMaxPerRun: 10,
   });
@@ -99,14 +99,13 @@ test('clean init apply backs up only ShelfDeck state and preserves deployment se
   const config = JSON.parse(fs.readFileSync(path.join(dataDir, 'config.json'), 'utf8'));
   assert.strictEqual(config.helixSchemaVersion, cleanState.HELIX_SCHEMA_VERSION);
   assert.strictEqual(config.apiKey, 'service-secret');
-  assert.strictEqual(config.transcodeTempRoot, '/transcode');
-  assert.strictEqual(config.upgradeStagingLocalPath, '/upgrade');
-  assert.strictEqual(config.moviepilot.savePath, '/downloads');
-  assert.deepStrictEqual(config.embyServers, {});
-  assert.deepStrictEqual(config.subLibraries, []);
+  assert.strictEqual(config.transcodeTempRoot, undefined);
+  assert.strictEqual(config.upgradeStagingLocalPath, undefined);
+  assert.strictEqual(config.moviepilot, undefined);
+  assert.strictEqual(config.embyServers, undefined);
+  assert.strictEqual(config.subLibraries, undefined);
   assert.strictEqual(config.automaticTaskTargets, undefined);
   assert.strictEqual(config.smartTaskMaxPerRun, undefined);
-  assert.strictEqual(config.moviepilot.apiKey, undefined);
 
   const inspection = cleanState.inspectState({ dataDir });
   assert.strictEqual(inspection.cleanMarkerCurrent, true);

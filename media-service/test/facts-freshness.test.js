@@ -6,6 +6,11 @@ const test = require('node:test');
 const factsFreshness = require('../src/factsFreshnessService');
 const lifecycleProjection = require('../src/lifecycleProjection');
 
+const completeBasedata = {
+  path: '/media/item.mkv', size: 1024, duration: 60, bitrate: 1000,
+  resolution: '1920x1080', codec: 'h265', playable: true,
+};
+
 test('clean fact freshness projects only Helix Kairox fact groups', () => {
   const projected = factsFreshness.projectForItem({
     basedataComplete: true,
@@ -36,6 +41,7 @@ test('stale Basedata is repaired before Metadata and Optimize', () => {
 test('fresh Basedata and stale Metadata select Metadata refresh', () => {
   const projection = lifecycleProjection.decorateItem({
     itemId: 'stale-metadata',
+    ...completeBasedata,
     basedataComplete: true,
     basedataSourceRevision: '1',
     admissionSourceRevision: '1',
@@ -52,6 +58,7 @@ test('fresh Basedata and stale Metadata select Metadata refresh', () => {
 test('fresh canonical facts and satisfied objective close maintenance without an archive gate', () => {
   const projection = lifecycleProjection.decorateItem({
     itemId: 'complete',
+    ...completeBasedata,
     basedataComplete: true,
     basedataSourceRevision: '1',
     admissionSourceRevision: '1',
@@ -70,4 +77,20 @@ test('fresh canonical facts and satisfied objective close maintenance without an
   assert.strictEqual(projection.lifecycleNextTask, null);
   assert.strictEqual(projection.optimizeGate.passed, true);
   assert.strictEqual(projection.maintenanceComplete, true);
+});
+
+test('fresh Basedata row with missing required technical facts blocks later gates without creating a next task', () => {
+  const projection = lifecycleProjection.decorateItem({
+    itemId: 'incomplete-basedata', playable: true, path: '/media/disc.iso', codec: 'h264',
+    basedataComplete: true, basedataSourceRevision: '1', admissionSourceRevision: '1',
+    metadataComplete: true,
+    factsFreshness: {
+      basedataFacts: { status: 'fresh', updatedAt: '' },
+      metadataFacts: { status: 'fresh', updatedAt: '' },
+    },
+  }, {});
+  assert.strictEqual(projection.basedataGate.status, 'blocked');
+  assert.ok(projection.basedataGate.missingReasons.includes('basedata.bitrate'));
+  assert.strictEqual(projection.lifecycleNextTask, null);
+  assert.strictEqual(projection.metadataGate, undefined);
 });
