@@ -403,4 +403,16 @@ async function createReferenceFace({ western, imageBase64, referenceId }) {
   };
 }
 
-module.exports = { analyzeVideo, createReferenceFace, INTERNAL_FACE_EMBEDDINGS_URL };
+module.exports = {
+  analyzeVideo,
+  createReferenceFace,
+  extractFrames,
+  callFaceEmbeddingModel,
+  clusterFaces,
+  matchPeople,
+  referenceImageForPerson,
+  buildCompositePoster,
+  titleWordsFromFilename,
+  safeName,
+  INTERNAL_FACE_EMBEDDINGS_URL,
+};

@@ -6,7 +6,7 @@ const capabilityRegistry = require('./capabilityRegistry');
 
 const REQUIRED = Object.freeze({
   basedata: new Set(['emby.item.observe', 'filesystem.media.probe', 'filesystem.layout.observe', 'basedata.verify', 'basedata.publish']),
-  metadata: new Set(['media.identity.resolve', 'metadata.provider.fetch', 'person.relations.resolve', 'metadata.sidecar.render', 'metadata.image.acquire', 'metadata.artifacts.verify', 'metadata.publish']),
+  metadata: new Set(['media.identity.resolve', 'metadata.provider.fetch', 'media.frames.extract', 'person.faces.embed', 'person.faces.cluster', 'person.faces.match', 'metadata.poster.compose', 'adult.metadata.compose', 'compute.asset.register', 'compute.asset.upload', 'adult.analysis.request', 'adult.analysis.observe', 'adult.metadata.normalize', 'person.relations.resolve', 'metadata.sidecar.render', 'metadata.image.acquire', 'metadata.artifacts.verify', 'metadata.publish']),
   optimize: new Set(['subtitle.search', 'subtitle.download', 'subtitle.verify', 'source.upgrade.search', 'source.upgrade.request', 'source.upgrade.observe-download', 'source.upgrade.observe-transfer', 'source.upgrade.output.resolve', 'media.transcode', 'container.remux', 'optimization.objective.verify', 'output.media.verify', 'source.organize', 'metadata.artifacts.materialize', 'filesystem.layout.verify', 'media.replace', 'optimization.result.publish']),
 });
 
@@ -59,8 +59,29 @@ function metadataNodes(task, config) {
   const library = subLibraryFor(task, config);
   const allowed = allowedSideEffects(task, config, 'metadata');
   const nodes = [event(task.id, 'identity', 'media.identity.resolve')];
-  nodes.push(event(task.id, 'metadata-fetch', 'metadata.provider.fetch', [`${task.id}:identity`], { inputBindings: { identity: from(`${task.id}:identity`) }, resourceRequest: { resourceType: descriptor.sourceType === 'emby' ? 'emby' : 'scraper' } }));
-  nodes.push(event(task.id, 'people', 'person.relations.resolve', [`${task.id}:metadata-fetch`], { inputBindings: { metadata: from(`${task.id}:metadata-fetch`) } }));
+  let metadataEventId;
+  if (library.adultRegion === 'western_adult') {
+    const western = { ...((config.adultLibrary || {}).western || {}), ...(library.western || {}) };
+    if (String(western.computeMode || 'local').toLowerCase() === 'worker') {
+      nodes.push(event(task.id, 'compute-asset-register', 'compute.asset.register', [`${task.id}:identity`], { inputBindings: { identity: from(`${task.id}:identity`) }, resourceRequest: { resourceType: 'worker' } }));
+      nodes.push(event(task.id, 'compute-asset-upload', 'compute.asset.upload', [`${task.id}:compute-asset-register`], { inputBindings: { asset: from(`${task.id}:compute-asset-register`) }, resourceRequest: { resourceType: 'worker' } }));
+      nodes.push(event(task.id, 'adult-analysis-request', 'adult.analysis.request', [`${task.id}:compute-asset-upload`], { inputBindings: { asset: from(`${task.id}:compute-asset-upload`) }, resourceRequest: { resourceType: 'worker' } }));
+      nodes.push(event(task.id, 'adult-analysis-observe', 'adult.analysis.observe', [`${task.id}:adult-analysis-request`], { inputBindings: { job: from(`${task.id}:adult-analysis-request`) }, resourceRequest: { resourceType: 'worker' }, retryPolicy: { maxAttempts: 3600 } }));
+      nodes.push(event(task.id, 'adult-metadata', 'adult.metadata.normalize', [`${task.id}:adult-analysis-observe`], { inputBindings: { analysis: from(`${task.id}:adult-analysis-observe`) } }));
+    } else {
+      nodes.push(event(task.id, 'frames', 'media.frames.extract', [`${task.id}:identity`], { inputBindings: { identity: from(`${task.id}:identity`) }, resourceRequest: { resourceType: 'transcode' } }));
+      nodes.push(event(task.id, 'face-embeddings', 'person.faces.embed', [`${task.id}:frames`], { inputBindings: { frames: from(`${task.id}:frames`) }, resourceRequest: { resourceType: 'ai' } }));
+      nodes.push(event(task.id, 'face-clusters', 'person.faces.cluster', [`${task.id}:face-embeddings`], { inputBindings: { embeddings: from(`${task.id}:face-embeddings`) } }));
+      nodes.push(event(task.id, 'face-matches', 'person.faces.match', [`${task.id}:face-clusters`], { inputBindings: { clusters: from(`${task.id}:face-clusters`) } }));
+      nodes.push(event(task.id, 'poster-compose', 'metadata.poster.compose', [`${task.id}:face-matches`], { inputBindings: { people: from(`${task.id}:face-matches`) }, resourceRequest: { resourceType: 'filesystem' } }));
+      nodes.push(event(task.id, 'adult-metadata', 'adult.metadata.compose', [`${task.id}:poster-compose`], { inputBindings: { presentation: from(`${task.id}:poster-compose`) } }));
+    }
+    metadataEventId = `${task.id}:adult-metadata`;
+  } else {
+    nodes.push(event(task.id, 'metadata-fetch', 'metadata.provider.fetch', [`${task.id}:identity`], { inputBindings: { identity: from(`${task.id}:identity`) }, resourceRequest: { resourceType: descriptor.sourceType === 'emby' ? 'emby' : 'scraper' } }));
+    metadataEventId = `${task.id}:metadata-fetch`;
+  }
+  nodes.push(event(task.id, 'people', 'person.relations.resolve', [metadataEventId], { inputBindings: { metadata: from(metadataEventId) } }));
   let tail = `${task.id}:people`;
   const artifactCapabilities = [
     ['nfo', 'metadata.sidecar.render', null],

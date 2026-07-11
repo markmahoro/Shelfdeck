@@ -10,6 +10,9 @@ const TYPES = Object.freeze({
   UPGRADE_CANDIDATES: 'UpgradeCandidates', UPGRADE_REQUEST: 'UpgradeRequest', DOWNLOAD_OBSERVATION: 'DownloadObservation',
   TRANSFER_OBSERVATION: 'TransferObservation', OPTIMIZE_PUBLICATION: 'OptimizePublication',
   OBJECTIVE_VERIFICATION: 'ObjectiveVerification',
+  FRAME_SET: 'FrameSet', FACE_EMBEDDING_SET: 'FaceEmbeddingSet', FACE_CLUSTER_SET: 'FaceClusterSet', PERSON_MATCH_SET: 'PersonMatchSet',
+  WESTERN_PRESENTATION: 'WesternPresentation', COMPUTE_ASSET: 'ComputeAsset', UPLOADED_COMPUTE_ASSET: 'UploadedComputeAsset',
+  ADULT_ANALYSIS_JOB: 'AdultAnalysisJob', ADULT_ANALYSIS_RESULT: 'AdultAnalysisResult',
 });
 
 const CATALOG = Object.freeze({
@@ -21,6 +24,17 @@ const CATALOG = Object.freeze({
   'basedata.publish': def({ basedata: port(TYPES.VERIFIED_BASEDATA) }, TYPES.FACT_PUBLICATION, 'commit_once'),
   'media.identity.resolve': def({}, TYPES.MEDIA_IDENTITY),
   'metadata.provider.fetch': def({ identity: port(TYPES.MEDIA_IDENTITY) }, TYPES.METADATA_OBSERVATION, 'pure', resource('emby', 'scraper')),
+  'media.frames.extract': def({ identity: port(TYPES.MEDIA_IDENTITY) }, TYPES.FRAME_SET, 'staged_write', resource('transcode')),
+  'person.faces.embed': def({ frames: port(TYPES.FRAME_SET) }, TYPES.FACE_EMBEDDING_SET, 'pure', resource('ai')),
+  'person.faces.cluster': def({ embeddings: port(TYPES.FACE_EMBEDDING_SET) }, TYPES.FACE_CLUSTER_SET),
+  'person.faces.match': def({ clusters: port(TYPES.FACE_CLUSTER_SET) }, TYPES.PERSON_MATCH_SET),
+  'metadata.poster.compose': def({ people: port(TYPES.PERSON_MATCH_SET) }, TYPES.WESTERN_PRESENTATION, 'staged_write', resource('filesystem')),
+  'adult.metadata.compose': def({ presentation: port(TYPES.WESTERN_PRESENTATION) }, TYPES.METADATA_OBSERVATION),
+  'compute.asset.register': def({ identity: port(TYPES.MEDIA_IDENTITY) }, TYPES.COMPUTE_ASSET, 'commit_once', resource('worker')),
+  'compute.asset.upload': def({ asset: port(TYPES.COMPUTE_ASSET) }, TYPES.UPLOADED_COMPUTE_ASSET, 'staged_write', resource('worker')),
+  'adult.analysis.request': def({ asset: port(TYPES.UPLOADED_COMPUTE_ASSET) }, TYPES.ADULT_ANALYSIS_JOB, 'commit_once', resource('worker')),
+  'adult.analysis.observe': def({ job: port(TYPES.ADULT_ANALYSIS_JOB) }, TYPES.ADULT_ANALYSIS_RESULT, 'pure', resource('worker')),
+  'adult.metadata.normalize': def({ analysis: port(TYPES.ADULT_ANALYSIS_RESULT) }, TYPES.METADATA_OBSERVATION),
   'person.relations.resolve': def({ metadata: port(TYPES.METADATA_OBSERVATION) }, TYPES.RESOLVED_METADATA, 'commit_once'),
   'metadata.sidecar.render': def({ metadata: port(TYPES.RESOLVED_METADATA) }, TYPES.METADATA_ARTIFACT, 'staged_write', resource('filesystem')),
   'metadata.image.acquire': def({ metadata: port(TYPES.RESOLVED_METADATA) }, TYPES.METADATA_ARTIFACT, 'staged_write', { ...resource('filesystem'), parameters: { kind: { type: 'enum', values: ['poster', 'fanart'] } } }),

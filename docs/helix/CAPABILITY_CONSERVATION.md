@@ -43,8 +43,9 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | --- | --- | --- |
 | Emby descriptive metadata observation | `metadata.provider.fetch` with Emby adapter | mapped |
 | JAV ID extraction and provider scrape | `media.identity.resolve` + provider-specific fetch | partial: identity resolver is currently a pass-through |
-| Western adult video analysis | provider-specific analyze Event | gap: currently hidden inside generic `metadata.provider.fetch` |
-| Person canonical resolution and item relations | `person.relations.resolve` | gap: current executor returns observations but does not persist Person relations |
+| Western adult local video analysis | `media.frames.extract -> person.faces.embed -> person.faces.cluster -> person.faces.match -> metadata.poster.compose -> adult.metadata.compose` | mapped |
+| Western adult Worker analysis | `compute.asset.register -> compute.asset.upload -> adult.analysis.request -> adult.analysis.observe -> adult.metadata.normalize` | mapped; observe performs one status read per Event attempt |
+| Person canonical resolution and item relations | `person.relations.resolve` | mapped; writes Kairox Person Catalog relations |
 | NFO rendering | `metadata.sidecar.render` to Artifact Workspace | mapped |
 | Poster/fanart acquisition | `metadata.poster.acquire` / `metadata.fanart.acquire` | mapped |
 | Artifact checksum/manifest verification | `metadata.artifacts.verify` | mapped |
@@ -76,10 +77,10 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | Media identity/TMDB resolution | identity resolution Event | gap |
 | Torrent search and candidate ranking | separate search + deterministic candidate-plan Event | partial: search exists; smart selection parity missing |
 | Candidate user approval | download-request Event approval prerequisite | mapped |
-| Submit MoviePilot download | `source.upgrade.request` | gap: bundled into `source.upgrade.download` |
-| Observe download progress | durable `source.upgrade.observe-download` retry Event | gap: internal polling loop |
-| Observe MoviePilot transfer/scrape | durable transfer observation Event | gap: internal polling/settle behavior |
-| Resolve staged output | output resolution Event | gap: bundled into download executor |
+| Submit MoviePilot download | `source.upgrade.request` | mapped |
+| Observe download progress | durable `source.upgrade.observe-download` retry Event | mapped; no Executor polling loop |
+| Observe MoviePilot transfer/scrape | durable `source.upgrade.observe-transfer` retry Event | mapped; explicit settle evidence still pending |
+| Resolve staged output | `source.upgrade.output.resolve` | mapped |
 | Verify TMDB/season/source identity | identity verification Event | gap |
 | Verify technical Optimize objective | `output.media.verify` | partial |
 | Atomic folder/file replace and rollback | dedicated commit-once replace Capability | partial: current replace is file-oriented and does not preserve old folder parity |
@@ -91,8 +92,8 @@ Capability 采用 nominal、versioned internal API。Planner 必须声明并校�
 | Behavior | New owner / capability | Status |
 | --- | --- | --- |
 | Move media into organized layout | `source.organize` commit-once effect | mapped |
-| Persist `SourceMutationResult` | Kairox Runtime post-effect handler | gap: currently performed inside executor |
-| Emit neutral source-mutation signal | Kairox Service/Runtime after durable result | gap: currently performed inside executor |
+| Persist `SourceMutationResult` | Kairox Runtime post-effect handler | mapped |
+| Emit neutral source-mutation signal | Kairox Service/Runtime after durable result | mapped |
 | Materialize selected metadata revision | `metadata.artifacts.materialize` | mapped |
 | Verify final layout/materialization | `filesystem.layout.verify` | mapped |
 | Libra consume/rebind/new admission | Libra Reconciler → Nexora Service | mapped and tested |

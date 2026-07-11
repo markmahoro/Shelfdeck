@@ -49,3 +49,9 @@ test('Capability executors cannot inspect the Workflow Event list or dispatch an
     assert.doesNotMatch(source, /context\.events|\bevents\.find\(|\.execute\s*\(/, file);
   }
 });
+
+test('western adult provider adapter cannot hide the legacy multi-stage analyzeVideo flow', () => {
+  const adapter = fs.readFileSync(path.join(__dirname, '..', 'src', 'metadataProviderAdapter.js'), 'utf8');
+  assert.doesNotMatch(adapter, /analyzeVideo\s*\(/);
+  assert.match(adapter, /WESTERN_ATOMIC_WORKFLOW_REQUIRED/);
+});

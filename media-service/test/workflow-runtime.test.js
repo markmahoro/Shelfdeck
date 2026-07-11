@@ -19,6 +19,12 @@ function registerPlannerInventory() {
     if (catalog) capabilityRegistry.register(capabilityCatalog.apply({ capability, execute: async () => ({}) }));
   }
 }
+function registerMetadataInventory() {
+  capabilityRegistry.resetForTests();
+  for (const capability of [...workflowPlanner.REQUIRED.metadata, 'workflow.blocked']) {
+    if (capabilityCatalog.get(capability)) capabilityRegistry.register(capabilityCatalog.apply({ capability, execute: async () => ({}) }));
+  }
+}
 
 function testCapability(capability) {
   return { capability, contractVersion: 1, inputContract: {}, outputContract: { type: 'object', version: 1 }, execute: async () => ({}) };
@@ -47,6 +53,18 @@ test('source organization ends the current graph before materialization and publ
   }, { subLibraries: [{ uuid: 'adult', allowedCapabilities: { optimize: ['source.organize', 'metadata.artifacts.materialize'] } }] });
   assert.deepStrictEqual(plan.nodes.map((node) => node.capability), ['source.organize']);
   assert.strictEqual(plan.classification, 'source_mutation');
+});
+
+test('western adult metadata uses atomic local and worker graphs instead of a complex provider executor', () => {
+  registerMetadataInventory();
+  const base = { id: 'western-task', itemId: 'western-item', targetGate: 'metadata', taskTarget: { targetGate: 'metadata', gateObjective: {} }, itemInfo: { subLibraryId: 'western' }, helixAdmission: { sourceAccessDescriptor: { sourceType: 'folder', subLibraryId: 'western' } } };
+  const local = workflowPlanner.planTask(base, { subLibraries: [{ uuid: 'western', adultRegion: 'western_adult', western: { computeMode: 'local' }, allowedCapabilities: { metadata: [], optimize: [] } }] });
+  assert.deepStrictEqual(local.nodes.slice(1, 7).map((node) => node.capability), ['media.frames.extract', 'person.faces.embed', 'person.faces.cluster', 'person.faces.match', 'metadata.poster.compose', 'adult.metadata.compose']);
+  assert.ok(!local.nodes.some((node) => node.capability === 'metadata.provider.fetch'));
+  assert.strictEqual(workflowGraph.validateGraph(local, capabilityRegistry), local);
+  const worker = workflowPlanner.planTask({ ...base, id: 'western-worker-task' }, { subLibraries: [{ uuid: 'western', adultRegion: 'western_adult', western: { computeMode: 'worker' }, allowedCapabilities: { metadata: [], optimize: [] } }] });
+  assert.deepStrictEqual(worker.nodes.slice(1, 6).map((node) => node.capability), ['compute.asset.register', 'compute.asset.upload', 'adult.analysis.request', 'adult.analysis.observe', 'adult.metadata.normalize']);
+  assert.strictEqual(workflowGraph.validateGraph(worker, capabilityRegistry), worker);
 });
 
 test('workflow graph validates branches and rejects cycles and arbitrary condition paths', () => {

@@ -5,7 +5,6 @@ const path = require('path');
 const adultSourceIdentity = require('./adultSourceIdentity');
 const embyService = require('./services/embyService');
 const japaneseJavScraper = require('./services/japaneseJavScraper');
-const westernAdultAiService = require('./services/westernAdultAiService');
 
 function cleanObject(input = {}) { return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined && value !== null && value !== '')); }
 function descriptorForTask(task = {}) { return task.helixAdmission?.sourceAccessDescriptor || {}; }
@@ -32,10 +31,7 @@ async function observeFolderMetadata(task, config, subLibrary) {
   if (!filePath || !fs.existsSync(filePath)) throw Object.assign(new Error(`Media file does not exist: ${filePath}`), { code: 'KAIROX_SOURCE_INCIDENT' });
   const item = { ...(task.itemInfo || {}), itemId: task.itemId, path: filePath };
   const region = subLibrary.adultRegion || 'japanese_jav';
-  if (region === 'western_adult') {
-    const result = await westernAdultAiService.analyzeVideo({ taskId: task.id, config, subLib: subLibrary, item, onLog: () => {} });
-    return { facts: adultMetadataFacts(result, item, result.adultId || '', region), evidence: { adapter: 'western_adult_ai', region } };
-  }
+  if (region === 'western_adult') throw Object.assign(new Error('Western adult metadata must use the atomic analysis Capability graph'), { code: 'WESTERN_ATOMIC_WORKFLOW_REQUIRED' });
   const adultId = item.adultMetadata?.adultId || adultSourceIdentity.extractAdultId(path.basename(filePath)) || adultSourceIdentity.extractAdultId(filePath);
   if (!adultId) throw Object.assign(new Error('Adult ID could not be detected from SourceBinding path'), { code: 'KAIROX_METADATA_ID_UNRESOLVED' });
   const result = await japaneseJavScraper.scrapeJapaneseJav({ taskId: task.id, subLib: subLibrary, adultId, onLog: () => {} });

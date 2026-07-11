@@ -13,6 +13,7 @@ const sourceAccessResolver = require('./sourceAccessResolver');
 const bitrateObjectiveProfile = require('./bitrateObjectiveProfile');
 const { registerUpgradeCapabilities } = require('./capabilities/upgradeCapabilities');
 const capabilityCatalog = require('./capabilityCatalog');
+const { registerWesternAdultCapabilities } = require('./capabilities/westernAdultCapabilities');
 
 let registered = false;
 function metadataRevision(context) { return String(context.task.objectiveRevisionSnapshot || context.task.id); }
@@ -74,6 +75,7 @@ function registerBuiltIns() {
     metadata.assertMetadataFacts(value.facts);
     return { result: value };
   } });
+  registerWesternAdultCapabilities(register);
   register({ capability: 'person.relations.resolve', allowedTargetGates: ['metadata'], execute: async (context) => {
     const fetched = context.input.metadata;
     const facts = fetched.facts || {};
@@ -90,8 +92,10 @@ function registerBuiltIns() {
     const suffix = context.parameters.kind;
     const field = suffix === 'poster' ? 'posterUrl' : 'fanartUrl';
     const facts = context.input.metadata.facts || {};
-    if (!facts[field]) return { result: { skipped: true, reason: `${field}_missing` } };
-    const artifact = artifacts.writeArtifact(context.config, { itemId: context.task.itemId, metadataRevision: metadataRevision(context), name: `${suffix}.jpg`, content: await download(facts[field]), source: facts[field], eventId: context.event.eventId });
+    const embedded = suffix === 'poster' ? facts.posterImageBase64 : facts.galleryImages && facts.galleryImages[0] && facts.galleryImages[0].imageBase64;
+    if (!facts[field] && !embedded) return { result: { skipped: true, reason: `${field}_missing` } };
+    const content = embedded ? Buffer.from(embedded, 'base64') : await download(facts[field]);
+    const artifact = artifacts.writeArtifact(context.config, { itemId: context.task.itemId, metadataRevision: metadataRevision(context), name: `${suffix}.jpg`, content, source: embedded ? 'western_analysis' : facts[field], eventId: context.event.eventId });
     return { result: { artifact } };
   } });
   register({ capability: 'metadata.artifacts.verify', allowedTargetGates: ['metadata'], execute: async (context) => ({ result: { ...artifacts.verifyManifest(context.config, context.task.itemId, metadataRevision(context)), artifacts: context.input.artifacts } }) });

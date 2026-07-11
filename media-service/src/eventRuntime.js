@@ -33,6 +33,8 @@ function resourceKeyFor(event, task) {
   if (request.resourceType === 'transcode') return 'local:ffmpeg';
   if (request.resourceType === 'emby') return `emby:${descriptor.identityPayload && descriptor.identityPayload.serverId || 'default'}:api`;
   if (request.resourceType === 'moviepilot') return 'service:moviepilot';
+  if (request.resourceType === 'ai') return 'local:ai';
+  if (request.resourceType === 'worker') return `worker:${request.workerId || 'western-ai'}`;
   if (request.resourceType === 'filesystem') return `filesystem:${descriptor.locator && descriptor.locator.path || task.itemPath || task.itemId}:mutation`;
   return 'service:task';
 }
