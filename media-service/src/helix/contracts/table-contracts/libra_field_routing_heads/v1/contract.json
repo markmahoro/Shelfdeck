@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_field_routing_heads/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_field_routing_heads",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "field_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "current_routing_policy_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "current_policy_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "field_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_policy_revision"
+      ],
+      "currentPointerColumns": [
+        "current_routing_policy_id",
+        "current_policy_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "current_routing_policy_id",
+            "current_policy_revision"
+          ],
+          "targetTable": "libra_routing_policy_revisions",
+          "targetColumns": [
+            "routing_policy_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": [
+        "current pair显式FK到Policy revision"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Field ID是Procurement公开opaque ref、不建跨Domain FK",
+      "current pair显式FK到Policy revision",
+      "一片Field恰好至多一份current去向方案"
+    ],
+    "rawContract": {
+      "columns": "`field_id PK, current_routing_policy_id, current_policy_revision, updated_at_ms`",
+      "constraints": "Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7395,
+      "lineDigest": "798b380ce2cc0c6b9f83bdc869efb8494d784c4a7776e02bc3e1c35d81ec5d39"
+    },
+    "foreignKeys": []
+  }
+}

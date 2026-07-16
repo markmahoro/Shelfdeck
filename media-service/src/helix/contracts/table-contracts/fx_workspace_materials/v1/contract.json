@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_workspace_materials/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_workspace_materials",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "workspace_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "material_handle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "relative_path",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "digest_algorithm",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "digest_hex",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "reference_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "workspace_id",
+      "material_handle_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "workspace_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "workspace_id",
+        "relative_path"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "reference_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(workspace_id,material_handle_id)`",
+      "`UNIQUE(workspace_id,relative_path)`",
+      "路径必须通过containment validator"
+    ],
+    "rawContract": {
+      "columns": "`workspace_id FK, material_handle_id, relative_path, digest_algorithm, digest_hex, size_bytes, reference_revision, state`",
+      "constraints": "`PK(workspace_id,material_handle_id)`；`UNIQUE(workspace_id,relative_path)`；路径必须通过containment validator"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 7362,
+      "lineDigest": "d13e3e265429279e92199f77b6a72195b6e61e057d78a8623f040c6a54c0f401"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "workspace_id"
+        ],
+        "targetTable": "fx_workspace_registry",
+        "targetColumns": [
+          "workspace_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

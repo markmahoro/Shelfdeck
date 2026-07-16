@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_workspace_material_refs/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_workspace_material_refs",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "workspace_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "material_handle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "product_role",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "episode_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "reference_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "libra_run_id",
+      "material_handle_id",
+      "reference_revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "libra_run_id",
+      "workspace_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "reference_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(libra_run_id,material_handle_id,reference_revision)`",
+      "只引用`fx_workspace_materials`"
+    ],
+    "rawContract": {
+      "columns": "`libra_run_id FK, workspace_id FK, material_handle_id, product_role, episode_key, reference_revision`",
+      "constraints": "`PK(libra_run_id,material_handle_id,reference_revision)`；只引用`fx_workspace_materials`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7410,
+      "lineDigest": "c199a2611196a8c5a7b9f41d19fdc8093c7f94696f9102d294e44297cdb2263b"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "workspace_id"
+        ],
+        "targetTable": "fx_workspace_registry",
+        "targetColumns": [
+          "workspace_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

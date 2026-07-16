@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_aftercare_assessments/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_aftercare_assessments",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "assessment_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "inventory_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "standard_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "placement_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "decision_fact_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "care_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "assessment_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "result",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 10,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 11,
+        "name": "assessed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "assessment_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "shelf_entry_id",
+        "care_basis_digest",
+        "assessment_kind"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "result",
+        "assessed_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "inventory_revision",
+        "standard_revision",
+        "placement_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(shelf_entry_id,care_basis_digest,assessment_kind)`",
+      "`INDEX(result,assessed_at_ms)`",
+      "同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment"
+    ],
+    "rawContract": {
+      "columns": "`assessment_id PK, shelf_entry_id FK, inventory_revision, standard_revision, placement_revision, decision_fact_set_digest, care_basis_digest, assessment_kind, result, evidence_digest, assessed_at_ms`",
+      "constraints": "`UNIQUE(shelf_entry_id,care_basis_digest,assessment_kind)`；`INDEX(result,assessed_at_ms)`；同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7450,
+      "lineDigest": "dd5acb9f151e6c9596b56d003cbfe36bcbf4c464a6daec044a78747eef6703e7"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

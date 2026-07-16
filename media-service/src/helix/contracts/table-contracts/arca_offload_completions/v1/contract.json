@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_offload_completions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_offload_completions",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "offload_completion_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "on_deck_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "inventory_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "completion_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "offload_completion_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "on_deck_run_id",
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "on_deck_run_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "inventory_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable Outbox source"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(on_deck_run_id)`",
+      "immutable Outbox source"
+    ],
+    "rawContract": {
+      "columns": "`offload_completion_id PK, on_deck_run_id FK, shelf_entry_id FK, inventory_revision, package_id, completion_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(on_deck_run_id)`；immutable Outbox source"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7449,
+      "lineDigest": "a2d89572372aab45d8ef9f52b7386f3a46b333393352549fdcd3de1efbe66846"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "on_deck_run_id"
+        ],
+        "targetTable": "arca_ondeck_runs",
+        "targetColumns": [
+          "on_deck_run_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

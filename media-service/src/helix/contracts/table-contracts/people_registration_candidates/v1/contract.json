@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_registration_candidates/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_registration_candidates",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "registration_candidate_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "proposed_name",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "candidate_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "candidate_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "open",
+          "accepted",
+          "dismissed",
+          "superseded"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "terminal_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "registration_candidate_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "state",
+        "created_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [
+      "相同evidence digest至多一个open Candidate"
+    ],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "open",
+          "accepted",
+          "dismissed",
+          "superseded"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "candidate_json",
+        "schemaRefColumn": "candidate_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Candidate JSON上限`16 KiB`且大Reference只含handle",
+      "相同evidence digest至多一个open Candidate",
+      "`INDEX(state,created_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`registration_candidate_id PK, proposed_name, evidence_digest, candidate_schema_ref, candidate_json, state(open|accepted|dismissed|superseded), created_at_ms, terminal_at_ms`",
+      "constraints": "Candidate JSON上限`16 KiB`且大Reference只含handle；相同evidence digest至多一个open Candidate；`INDEX(state,created_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7496,
+      "lineDigest": "76480115734d7f5989b7f16b836099bf5162ca1a63f3c9d40458d6df54d298a6"
+    },
+    "foreignKeys": []
+  }
+}

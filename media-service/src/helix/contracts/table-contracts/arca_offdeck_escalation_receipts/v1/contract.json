@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_offdeck_escalation_receipts/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_offdeck_escalation_receipts",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "escalation_receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "selection_receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "scope_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "confirmed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "escalation_receipt_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "selection_receipt_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "selection_receipt_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(selection_receipt_id)`",
+      "只在high-volume时生成且必须来自独立第二次操作"
+    ],
+    "rawContract": {
+      "columns": "`escalation_receipt_id PK, selection_receipt_id FK, scope_set_digest, actor_id, confirmed_at_ms`",
+      "constraints": "`UNIQUE(selection_receipt_id)`；只在high-volume时生成且必须来自独立第二次操作"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7468,
+      "lineDigest": "63661ab1e465cec55b486f8361793d31c5f38bf14b10b4f541dd19f3fae16945"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "selection_receipt_id"
+        ],
+        "targetTable": "arca_offdeck_selection_receipts",
+        "targetColumns": [
+          "selection_receipt_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

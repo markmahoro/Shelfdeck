@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_placement_policy_revisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_placement_policy_revisions",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "shelf_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "policy_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "policy_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "policy_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "effective_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "shelf_id",
+      "revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "shelf_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": [
+        "Shelf current pointer显式FK"
+      ]
+    },
+    "jsonContracts": [
+      {
+        "column": "policy_json",
+        "schemaRefColumn": "policy_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Policy JSON上限`16 KiB`",
+      "`PK(shelf_id,revision)`",
+      "Shelf current pointer显式FK"
+    ],
+    "rawContract": {
+      "columns": "`shelf_id FK, revision, policy_schema_ref, policy_json, policy_digest, effective_at_ms`",
+      "constraints": "Policy JSON上限`16 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7428,
+      "lineDigest": "f1ff9fbfeb19ff8629a2ca30d5d792300614f66d81e5d042e1baf50cb5bfd75a"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "shelf_id"
+        ],
+        "targetTable": "arca_shelves",
+        "targetColumns": [
+          "shelf_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

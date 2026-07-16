@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_procurement_retry_intents/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_procurement_retry_intents",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "retry_intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "field_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "failed_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "failed_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "intent_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "open",
+          "consumed",
+          "stale"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 10,
+        "name": "consumed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "retry_intent_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "field_id",
+      "failed_run_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "field_id",
+        "idempotency_key"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [
+      "同一failed Run/Basis至多一个open Intent"
+    ],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "open",
+          "consumed",
+          "stale"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(field_id,idempotency_key)`",
+      "同一failed Run/Basis至多一个open Intent",
+      "消费时重验当前Field/Material eligibility，不修改旧Run"
+    ],
+    "rawContract": {
+      "columns": "`retry_intent_id PK, field_id FK, failed_run_id FK, failed_basis_digest, actor_id, idempotency_key, intent_digest, state(open|consumed|stale), created_at_ms, consumed_at_ms`",
+      "constraints": "`UNIQUE(field_id,idempotency_key)`；同一failed Run/Basis至多一个open Intent；消费时重验当前Field/Material eligibility，不修改旧Run"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7380,
+      "lineDigest": "26a07a47288fa898b664f56717126cd366290eb44cab41fbb618d250413158bc"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "field_id"
+        ],
+        "targetTable": "proc_material_fields",
+        "targetColumns": [
+          "field_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "failed_run_id"
+        ],
+        "targetTable": "proc_procurement_runs",
+        "targetColumns": [
+          "procurement_run_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

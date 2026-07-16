@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/perception_dedup_relations/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "perception_dedup_relations",
+    "owner": "perception",
+    "prefix": "perception_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "relation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "left_perception_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "right_perception_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "rule_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "relation",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "relation_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "left_perception_id",
+      "right_perception_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "rule_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "normalized pair unique",
+      "immutable"
+    ],
+    "rawContract": {
+      "columns": "`relation_id PK, left_perception_id FK, right_perception_id FK, rule_revision, relation, evidence_digest, committed_at_ms`",
+      "constraints": "normalized pair unique；immutable"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7486,
+      "lineDigest": "e4af620be8ff3e6c403a1f7068330a3acc875536d614ab0dab3d34b625b341e3"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "left_perception_id"
+        ],
+        "targetTable": "perception_records",
+        "targetColumns": [
+          "perception_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "right_perception_id"
+        ],
+        "targetTable": "perception_records",
+        "targetColumns": [
+          "perception_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

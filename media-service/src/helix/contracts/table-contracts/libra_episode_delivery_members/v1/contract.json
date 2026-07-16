@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_episode_delivery_members/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_episode_delivery_members",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "episode_delivery_manifest_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "episode_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "input_role",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "output_requirement_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "episode_delivery_manifest_id",
+      "episode_key",
+      "material_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "episode_delivery_manifest_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(episode_delivery_manifest_id,episode_key,material_key)`",
+      "跨non-terminal Run的Episode/Primary material重叠由scope/Control guard拒绝"
+    ],
+    "rawContract": {
+      "columns": "`episode_delivery_manifest_id FK, episode_key, material_key, input_role, output_requirement_digest, state`",
+      "constraints": "`PK(episode_delivery_manifest_id,episode_key,material_key)`；跨non-terminal Run的Episode/Primary material重叠由scope/Control guard拒绝"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7408,
+      "lineDigest": "cc0599da719024c6e856171ebc6849e128e8e96dd5461167354199ebfb1cedac"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "episode_delivery_manifest_id"
+        ],
+        "targetTable": "libra_episode_delivery_manifests",
+        "targetColumns": [
+          "episode_delivery_manifest_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

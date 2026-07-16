@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_reference_assets/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_reference_assets",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "reference_asset_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "artifact_handle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "artifact_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "reference_asset_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "person_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "person_id",
+        "artifact_digest"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(person_id,artifact_digest)`"
+    ],
+    "rawContract": {
+      "columns": "`reference_asset_id PK, person_id FK, artifact_handle_id, artifact_digest, state, created_at_ms`",
+      "constraints": "`UNIQUE(person_id,artifact_digest)`"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7494,
+      "lineDigest": "adefa3197b448b4313ae7cdefbffd1804093bedc8249b85abd6893ce60f19656"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "person_id"
+        ],
+        "targetTable": "people_persons",
+        "targetColumns": [
+          "person_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

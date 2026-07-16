@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_resource_defer/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_resource_defer",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "event_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "resource_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "queue_class",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "local_priority",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "enqueued_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "retry_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "event_id",
+      "resource_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "event_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "resource_key",
+        "state",
+        "queue_class",
+        "local_priority",
+        "enqueued_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(event_id,resource_key)`",
+      "一个Event/resource最多一个有效waiter",
+      "`INDEX(resource_key,state,queue_class,local_priority,enqueued_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`event_id FK, resource_key, queue_class, local_priority, enqueued_at_ms, retry_at_ms, state`",
+      "constraints": "`PK(event_id,resource_key)`；一个Event/resource最多一个有效waiter；`INDEX(resource_key,state,queue_class,local_priority,enqueued_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 7356,
+      "lineDigest": "474029052cb5c6a25572058f9d2d843e1eac1218c3ac45d521316ad38dadaec2"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "event_id"
+        ],
+        "targetTable": "fx_workflow_events",
+        "targetColumns": [
+          "event_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_offdeck_deletion_evidence/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_offdeck_deletion_evidence",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "destruction_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "effect_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "result",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "reality_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "completed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "destruction_scope_id",
+      "material_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "destruction_scope_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "append-only completion evidence"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(destruction_scope_id,material_key)`",
+      "append-only completion evidence"
+    ],
+    "rawContract": {
+      "columns": "`destruction_scope_id FK, material_key, effect_id, result, reality_digest, completed_at_ms`",
+      "constraints": "`PK(destruction_scope_id,material_key)`；append-only completion evidence"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7472,
+      "lineDigest": "80df836f66b917346071463131df10c28384e576064fc715c70637d03826e7bf"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "destruction_scope_id"
+        ],
+        "targetTable": "arca_offdeck_scopes",
+        "targetColumns": [
+          "destruction_scope_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

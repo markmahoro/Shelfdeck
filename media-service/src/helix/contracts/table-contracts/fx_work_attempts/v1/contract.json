@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_work_attempts/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_work_attempts",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "attempt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "work_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "started_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "finished_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "failure_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "attempt_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "work_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "work_id",
+        "ordinal"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [
+      "同一Work至多一个`ready|running|blocked` attempt的partial unique index"
+    ],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(work_id,ordinal)`",
+      "同一Work至多一个`ready|running|blocked` attempt的partial unique index"
+    ],
+    "rawContract": {
+      "columns": "`attempt_id PK, work_id FK, ordinal, basis_digest, state, started_at_ms, finished_at_ms, failure_code`",
+      "constraints": "`UNIQUE(work_id,ordinal)`；同一Work至多一个`ready|running|blocked` attempt的partial unique index"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 7343,
+      "lineDigest": "590c519812115490ed7e526e59b5648c8477ea21eb0921aa2725ee5418169617"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "work_id"
+        ],
+        "targetTable": "fx_supporting_works",
+        "targetColumns": [
+          "work_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

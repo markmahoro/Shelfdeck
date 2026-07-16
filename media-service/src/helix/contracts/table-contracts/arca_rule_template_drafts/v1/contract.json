@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_rule_template_drafts/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_rule_template_drafts",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "rule_template_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "draft_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "base_published_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "rules_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "rules_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "rules_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "rule_template_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "rule_template_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [
+      "一个Template最多一份current draft"
+    ],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "draft_revision",
+        "base_published_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "rules_json",
+        "schemaRefColumn": "rules_schema_ref",
+        "maxBytes": 65536,
+        "source": "8.5.9-non-hot-json",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "只允许user template",
+      "一个Template最多一份current draft",
+      "发布以expected draft revision/digest消费但保留审计Evidence"
+    ],
+    "rawContract": {
+      "columns": "`rule_template_id PK/FK, draft_revision, base_published_revision, rules_schema_ref, rules_json, rules_digest, updated_at_ms`",
+      "constraints": "只允许user template；一个Template最多一份current draft；发布以expected draft revision/digest消费但保留审计Evidence"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7426,
+      "lineDigest": "b27ad6918fa468908a559182fd6d6cce24143d3afa39a1f4c17b0f89bbd6155c"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "rule_template_id"
+        ],
+        "targetTable": "arca_rule_templates",
+        "targetColumns": [
+          "rule_template_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

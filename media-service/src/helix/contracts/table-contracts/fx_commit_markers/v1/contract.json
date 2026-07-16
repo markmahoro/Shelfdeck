@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_commit_markers/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_commit_markers",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "commit_marker",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "effect_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "owner_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "scope_type",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "commit_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "commit_marker"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "不能更新或删除"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": [
+        "不能更新或删除"
+      ]
+    },
+    "semanticRules": [
+      "`commit_marker`全局唯一",
+      "不能更新或删除"
+    ],
+    "rawContract": {
+      "columns": "`commit_marker PK, effect_id, owner_domain, scope_type, scope_id, commit_digest, committed_at_ms`",
+      "constraints": "`commit_marker`全局唯一；不能更新或删除"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 7352,
+      "lineDigest": "e81667fa0ae8b562f301f56b1d56a7841fd556e180794485e6def3a9cb327dd0"
+    },
+    "foreignKeys": []
+  }
+}

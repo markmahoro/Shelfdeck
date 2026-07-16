@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_acceptance_decisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_acceptance_decisions",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "acceptance_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "acceptance_attempt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "result",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "rejection_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "decided_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "acceptance_decision_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "acceptance_attempt_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "acceptance_attempt_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(acceptance_attempt_id)`",
+      "immutable"
+    ],
+    "rawContract": {
+      "columns": "`acceptance_decision_id PK, acceptance_attempt_id FK, result, rejection_schema_ref, decision_digest, decided_at_ms`",
+      "constraints": "`UNIQUE(acceptance_attempt_id)`；immutable"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7431,
+      "lineDigest": "ce028684e190a9b1555763d0c1260e443767d69182aab08e4b9912acdfc1ba36"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "acceptance_attempt_id"
+        ],
+        "targetTable": "arca_acceptance_attempts",
+        "targetColumns": [
+          "acceptance_attempt_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

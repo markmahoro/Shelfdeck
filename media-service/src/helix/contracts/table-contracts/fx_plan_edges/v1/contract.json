@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_plan_edges/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_plan_edges",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "plan_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "from_node_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "to_node_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "dependency_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "plan_id",
+      "from_node_id",
+      "to_node_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "plan_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(plan_id,from_node_id,to_node_id)`",
+      "两个node均FK到同一Plan",
+      "DAG validator digest与Plan同时提交"
+    ],
+    "rawContract": {
+      "columns": "`plan_id FK, from_node_id, to_node_id, dependency_kind`",
+      "constraints": "`PK(plan_id,from_node_id,to_node_id)`；两个node均FK到同一Plan；DAG validator digest与Plan同时提交"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 7346,
+      "lineDigest": "093dcd5f05c688d5aadd096c0f23bdbb9abb34770b6d744d648b5ece98f2efdc"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "plan_id"
+        ],
+        "targetTable": "fx_workflow_plans",
+        "targetColumns": [
+          "plan_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

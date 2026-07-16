@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_intake_decisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_intake_decisions",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "intake_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "offer_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "candidate_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "acceptance_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "candidate_continuity_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "matched_subject_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "episode_overlap_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "result",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "new_subject",
+          "season_extension",
+          "rejected"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 10,
+        "name": "target_subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 11,
+        "name": "rejection_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 12,
+        "name": "decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 13,
+        "name": "decided_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "intake_decision_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [
+      [
+        "offer_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [
+      "同一Candidate/Package digest只允许一个accepted Decision的partial unique index"
+    ],
+    "checkRules": [
+      {
+        "column": "result",
+        "enumValues": [
+          "new_subject",
+          "season_extension",
+          "rejected"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(offer_id)`",
+      "immutable",
+      "`season_extension`要求exactly one target且zero overlap",
+      "同一Candidate/Package digest只允许一个accepted Decision的partial unique index",
+      "Intake不升级为Business Process Root"
+    ],
+    "rawContract": {
+      "columns": "`intake_decision_id PK, offer_id, candidate_package_id, package_digest, acceptance_basis_digest, candidate_continuity_set_digest, matched_subject_set_digest, episode_overlap_digest, result(new_subject|season_extension|rejected), target_subject_id, rejection_schema_ref, decision_digest, decided_at_ms`",
+      "constraints": "`UNIQUE(offer_id)`；immutable；`season_extension`要求exactly one target且zero overlap；同一Candidate/Package digest只允许一个accepted Decision的partial unique index；Intake不升级为Business Process Root"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7387,
+      "lineDigest": "9d57abf0e9b04a534422ff150d15fd434db9461fffe0f42842013f7cacc31c1c"
+    },
+    "foreignKeys": []
+  }
+}

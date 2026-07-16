@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_offdeck_duplicate_group_members/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_offdeck_duplicate_group_members",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "duplicate_group_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "inventory_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "member_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "duplicate_group_id",
+      "shelf_entry_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "duplicate_group_id",
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "inventory_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(duplicate_group_id,shelf_entry_id)`"
+    ],
+    "rawContract": {
+      "columns": "`duplicate_group_id FK, shelf_entry_id FK, inventory_revision, member_digest`",
+      "constraints": "`PK(duplicate_group_id,shelf_entry_id)`"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7461,
+      "lineDigest": "ecc853bb09c6cec484bca73f98a35dd59f67b481466ce9bb51300fd99d5b5955"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "duplicate_group_id"
+        ],
+        "targetTable": "arca_offdeck_duplicate_groups",
+        "targetColumns": [
+          "duplicate_group_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

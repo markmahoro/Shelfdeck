@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_reference_faces/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_reference_faces",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "reference_face_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "reference_asset_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "embedding_handle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "model_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "reference_face_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "person_id",
+      "reference_asset_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "person_id",
+        "embedding_handle_id",
+        "model_ref"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(person_id,embedding_handle_id,model_ref)`"
+    ],
+    "rawContract": {
+      "columns": "`reference_face_id PK, person_id FK, reference_asset_id FK, embedding_handle_id, model_ref, state, created_at_ms`",
+      "constraints": "`UNIQUE(person_id,embedding_handle_id,model_ref)`"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7495,
+      "lineDigest": "e09857484a3ed5c80b50e1a60d2903238c88bbd54f25ac7942131bb671aec5bf"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "person_id"
+        ],
+        "targetTable": "people_persons",
+        "targetColumns": [
+          "person_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "reference_asset_id"
+        ],
+        "targetTable": "people_reference_assets",
+        "targetColumns": [
+          "reference_asset_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

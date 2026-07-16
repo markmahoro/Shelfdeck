@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_offdeck_cases/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_offdeck_cases",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "offdeck_case_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "authorization_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "origin_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "origin_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "terminal_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "offdeck_case_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "authorization_id",
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "authorization_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(authorization_id)`",
+      "只在Authorization事务中创建",
+      "Direct Intent不要求Candidate"
+    ],
+    "rawContract": {
+      "columns": "`offdeck_case_id PK, authorization_id FK, shelf_entry_id FK, origin_kind, origin_ref, state, created_at_ms, terminal_at_ms`",
+      "constraints": "`UNIQUE(authorization_id)`；只在Authorization事务中创建；Direct Intent不要求Candidate"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7471,
+      "lineDigest": "39431939efb319de4ee6902e53bddf22cf1b589501c695d34392663403c93f3d"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "authorization_id"
+        ],
+        "targetTable": "arca_offdeck_authorizations",
+        "targetColumns": [
+          "authorization_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

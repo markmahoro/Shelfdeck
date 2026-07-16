@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_subject_season_continuity_claims/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_subject_season_continuity_claims",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "claim_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "provider_season_identity",
+          "triage_grouping_lineage"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "claim_namespace",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "claim_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "claim_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "provenance_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "candidate",
+          "resolved_identity"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "provenance_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "accepted_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "subject_id",
+      "claim_kind",
+      "claim_namespace",
+      "claim_key",
+      "provenance_ref"
+    ],
+    "declaredForeignKeyColumns": [
+      "subject_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "claim_kind",
+        "claim_namespace",
+        "claim_key",
+        "subject_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "claim_kind",
+        "enumValues": [
+          "provider_season_identity",
+          "triage_grouping_lineage"
+        ]
+      },
+      {
+        "column": "provenance_kind",
+        "enumValues": [
+          "candidate",
+          "resolved_identity"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`",
+      "Handoff A复制Candidate claim",
+      "Resolved Product Identity发布exact provider-season anchor时同事务追加",
+      "`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique"
+    ],
+    "rawContract": {
+      "columns": "`subject_id FK, claim_kind(provider_season_identity|triage_grouping_lineage), claim_namespace, claim_key, claim_digest, provenance_kind(candidate|resolved_identity), provenance_ref, accepted_at_ms`",
+      "constraints": "`PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`；Handoff A复制Candidate claim；Resolved Product Identity发布exact provider-season anchor时同事务追加；`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7390,
+      "lineDigest": "a3041936a279fbd9f035a822a9619b9e4f60743565785d364cfdd263c5ce6f45"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

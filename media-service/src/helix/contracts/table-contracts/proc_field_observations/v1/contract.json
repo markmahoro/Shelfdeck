@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_field_observations/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_field_observations",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "observation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "field_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "access_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "cursor_in",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "cursor_out",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "page_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "observed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "completed",
+        "logicalType": "INTEGER_BOOLEAN",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "observation_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "field_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "field_id",
+        "access_revision",
+        "cursor_in",
+        "page_digest"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "field_id",
+        "completed",
+        "observed_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "access_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(field_id,access_revision,cursor_in,page_digest)`",
+      "`INDEX(field_id,completed,observed_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`observation_id PK, field_id FK, access_revision, cursor_in, cursor_out, page_digest, observed_at_ms, completed`",
+      "constraints": "`UNIQUE(field_id,access_revision,cursor_in,page_digest)`；`INDEX(field_id,completed,observed_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7377,
+      "lineDigest": "92391de60cbf7fe6e83cf0f564c01c05b734148ac969b9748a536978b45ab8cd"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "field_id"
+        ],
+        "targetTable": "proc_material_fields",
+        "targetColumns": [
+          "field_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

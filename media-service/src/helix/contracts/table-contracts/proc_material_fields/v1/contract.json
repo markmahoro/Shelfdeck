@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_material_fields/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_material_fields",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "field_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "extraction_policy_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "extraction_policy_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "current_access_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "field_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "status",
+        "field_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "extraction_policy_revision",
+        "current_access_revision"
+      ],
+      "currentPointerColumns": [
+        "current_access_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "field_id",
+            "current_access_revision"
+          ],
+          "targetTable": "proc_field_access_revisions",
+          "targetColumns": [
+            "field_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "active name可重复但`field_id`唯一",
+      "Policy/Access均显式FK",
+      "`INDEX(status,field_id)`"
+    ],
+    "rawContract": {
+      "columns": "`field_id PK, name, status, extraction_policy_id, extraction_policy_revision, current_access_revision, created_at_ms, updated_at_ms`",
+      "constraints": "active name可重复但`field_id`唯一；Policy/Access均显式FK；`INDEX(status,field_id)`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7374,
+      "lineDigest": "511f7cca152f682133b2a738ecf4aa24e3d0ac23192e5f427aa5e8042eed7128"
+    },
+    "foreignKeys": []
+  }
+}

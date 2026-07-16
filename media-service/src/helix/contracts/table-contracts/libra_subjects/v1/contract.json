@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_subjects/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_subjects",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "structure_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "current_identity_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "terminal_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "subject_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "status",
+        "subject_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_identity_revision"
+      ],
+      "currentPointerColumns": [
+        "current_identity_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "subject_id",
+            "current_identity_revision"
+          ],
+          "targetTable": "libra_product_identity_revisions",
+          "targetColumns": [
+            "subject_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": [
+        "identity pointer显式FK"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`status`至少区分`active|abandoned|completed`",
+      "`INDEX(status,subject_id)`",
+      "Subject不保存Arca Shelf Entry/Deck状态",
+      "identity pointer显式FK"
+    ],
+    "rawContract": {
+      "columns": "`subject_id PK, structure_kind, status, current_identity_revision, created_at_ms, updated_at_ms, terminal_at_ms`",
+      "constraints": "`status`至少区分`active|abandoned|completed`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态；identity pointer显式FK"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7389,
+      "lineDigest": "7ede0ac6d81766b22b462742a4780ad42789e46f72fef35713b87b9cf217ec55"
+    },
+    "foreignKeys": []
+  }
+}

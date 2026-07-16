@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_offdeck_authorization_batches/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_offdeck_authorization_batches",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "batch_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "review_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "selection_receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "escalation_receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "scope_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "authorized_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "batch_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "review_id",
+      "selection_receipt_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "review_id",
+        "scope_set_digest"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(review_id,scope_set_digest)`",
+      "high-volume时escalation receipt必填",
+      "Batch只是一份Envelope"
+    ],
+    "rawContract": {
+      "columns": "`batch_id PK, review_id FK, selection_receipt_id FK, escalation_receipt_id, scope_set_digest, actor_id, authorized_at_ms`",
+      "constraints": "`UNIQUE(review_id,scope_set_digest)`；high-volume时escalation receipt必填；Batch只是一份Envelope"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7469,
+      "lineDigest": "6f6a4f74e1e04cf563db3b897b459abc2d5c4cf59729dc0719c36067a4db059a"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "review_id"
+        ],
+        "targetTable": "arca_offdeck_reviews",
+        "targetColumns": [
+          "review_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "selection_receipt_id"
+        ],
+        "targetTable": "arca_offdeck_selection_receipts",
+        "targetColumns": [
+          "selection_receipt_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

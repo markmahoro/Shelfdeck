@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_acceptance_checks/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_acceptance_checks",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "acceptance_attempt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "check_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "check_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "result",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "completed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "acceptance_attempt_id",
+      "check_kind",
+      "check_revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "acceptance_attempt_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "rule": "`PK(acceptance_attempt_id,check_kind,check_revision)`"
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "check_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(acceptance_attempt_id,check_kind,check_revision)`"
+    ],
+    "rawContract": {
+      "columns": "`acceptance_attempt_id FK, check_kind, check_revision, result, evidence_digest, completed_at_ms`",
+      "constraints": "`PK(acceptance_attempt_id,check_kind,check_revision)`"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7430,
+      "lineDigest": "77d3920ed642da9e59d4fd9c91e1474be0429b26f5f775356b97d12915d5b36a"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "acceptance_attempt_id"
+        ],
+        "targetTable": "arca_acceptance_attempts",
+        "targetColumns": [
+          "acceptance_attempt_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

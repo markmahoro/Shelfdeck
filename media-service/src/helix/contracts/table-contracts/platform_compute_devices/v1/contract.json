@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/platform_compute_devices/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "platform_compute_devices",
+    "owner": "platform-settings",
+    "prefix": "platform_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "device_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "device_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "stable_device_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "current_probe_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "enabled",
+        "logicalType": "INTEGER_BOOLEAN",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "device_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [
+      [
+        "stable_device_key"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "enabled",
+        "state",
+        "device_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_probe_revision"
+      ],
+      "currentPointerColumns": [
+        "current_probe_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "device_id",
+            "current_probe_revision"
+          ],
+          "targetTable": "platform_compute_device_probes",
+          "targetColumns": [
+            "device_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(stable_device_key)`",
+      "只有已验证能力可enabled",
+      "`INDEX(enabled,state,device_id)`"
+    ],
+    "rawContract": {
+      "columns": "`device_id PK, device_kind, stable_device_key, current_probe_revision, enabled, state, updated_at_ms`",
+      "constraints": "`UNIQUE(stable_device_key)`；只有已验证能力可enabled；`INDEX(enabled,state,device_id)`"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7509,
+      "lineDigest": "e3087dc75ea69236f326216af8cc7f16e6e2351b4b24fd0c29e746882a19ba10"
+    },
+    "foreignKeys": []
+  }
+}

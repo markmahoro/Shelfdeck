@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/perception_records/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "perception_records",
+    "owner": "perception",
+    "prefix": "perception_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "perception_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "perception_source_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "source_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "source_record_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "source_record_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "source_record_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "rating",
+        "logicalType": "REAL",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "watched_state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "observed_title",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 10,
+        "name": "provenance_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 11,
+        "name": "observed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 12,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "perception_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "perception_source_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "perception_source_id",
+        "source_record_key",
+        "source_record_revision",
+        "source_record_digest"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "source_kind",
+        "source_record_key",
+        "committed_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "rule": "rating非空时`CHECK 1..5`"
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "source_record_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable",
+      "`UNIQUE(perception_source_id,source_record_key,source_record_revision,source_record_digest)`",
+      "rating非空时`CHECK 1..5`",
+      "`INDEX(source_kind,source_record_key,committed_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`perception_id PK, perception_source_id FK, source_kind, source_record_key, source_record_revision, source_record_digest, rating, watched_state, observed_title, provenance_digest, observed_at_ms, committed_at_ms`",
+      "constraints": "immutable；`UNIQUE(perception_source_id,source_record_key,source_record_revision,source_record_digest)`；rating非空时`CHECK 1..5`；`INDEX(source_kind,source_record_key,committed_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7484,
+      "lineDigest": "650b45a713d927dbd61fdd0fc9fe00a99f821b79742262b8c317dd3cfd163b6b"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "perception_source_id"
+        ],
+        "targetTable": "perception_sources",
+        "targetColumns": [
+          "perception_source_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

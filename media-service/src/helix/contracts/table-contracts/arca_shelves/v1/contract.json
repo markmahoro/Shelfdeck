@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_shelves/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_shelves",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "shelf_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "target_endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "target_root_location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "target_mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "target_mount_scope_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "status",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "current_standard_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "current_placement_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 11,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "shelf_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "status",
+        "shelf_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "target_mount_scope_revision",
+        "current_standard_revision",
+        "current_placement_revision"
+      ],
+      "currentPointerColumns": [
+        "current_standard_revision",
+        "current_placement_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "shelf_id",
+            "current_standard_revision"
+          ],
+          "targetTable": "arca_shelf_standard_revisions",
+          "targetColumns": [
+            "shelf_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        },
+        {
+          "sourceColumns": [
+            "shelf_id",
+            "current_placement_revision"
+          ],
+          "targetTable": "arca_placement_policy_revisions",
+          "targetColumns": [
+            "shelf_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "mount scope pair是Platform opaque technical ref",
+      "active Shelf name不作为identity",
+      "`INDEX(status,shelf_id)`",
+      "不得保存Libra Routing Priority"
+    ],
+    "rawContract": {
+      "columns": "`shelf_id PK, name, target_endpoint_id, target_root_location, target_mount_scope_id, target_mount_scope_revision, status, current_standard_revision, current_placement_revision, created_at_ms, updated_at_ms`",
+      "constraints": "mount scope pair是Platform opaque technical ref；active Shelf name不作为identity；`INDEX(status,shelf_id)`；不得保存Libra Routing Priority"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7423,
+      "lineDigest": "e1ea8e1c08ac95c8ea3cf2247c8415dc689f9990b9e6720bb3dcc4857e4777b7"
+    },
+    "foreignKeys": []
+  }
+}

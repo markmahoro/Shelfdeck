@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_decision_basis_revisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_decision_basis_revisions",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "decision_basis_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "routing_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "basis_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "query_result_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "status",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "decision_basis_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "subject_id",
+      "routing_decision_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "subject_id",
+        "basis_revision"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "subject_id",
+        "status",
+        "basis_revision"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "basis_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(subject_id,basis_revision)`",
+      "`INDEX(subject_id,status,basis_revision)`"
+    ],
+    "rawContract": {
+      "columns": "`decision_basis_id PK, subject_id FK, routing_decision_id FK, basis_revision, query_result_set_digest, status, committed_at_ms`",
+      "constraints": "`UNIQUE(subject_id,basis_revision)`；`INDEX(subject_id,status,basis_revision)`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7400,
+      "lineDigest": "f4664a89a72080ae59795550c6db9e170de6cf6740c0e4d1b3a209b87d823f1d"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "routing_decision_id"
+        ],
+        "targetTable": "libra_routing_decisions",
+        "targetColumns": [
+          "routing_decision_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

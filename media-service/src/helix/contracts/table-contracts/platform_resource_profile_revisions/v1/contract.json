@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/platform_resource_profile_revisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "platform_resource_profile_revisions",
+    "owner": "platform-settings",
+    "prefix": "platform_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "profile_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "profile_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "profile_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "profile_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "published_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "profile_id",
+      "revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "profile_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "profile_json",
+        "schemaRefColumn": "profile_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Profile JSON上限`16 KiB`",
+      "`PK(profile_id,revision)`",
+      "immutable"
+    ],
+    "rawContract": {
+      "columns": "`profile_id FK, revision, profile_schema_ref, profile_json, profile_digest, published_at_ms`",
+      "constraints": "Profile JSON上限`16 KiB`；`PK(profile_id,revision)`；immutable"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7506,
+      "lineDigest": "d9a1be68e01ece24c9a8fcb098e44fbf9e61dbb5dda1374d104dd82bce803272"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "profile_id"
+        ],
+        "targetTable": "platform_resource_profiles",
+        "targetColumns": [
+          "profile_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_product_package_materials/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_product_package_materials",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "on_deck_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "material_handle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "role",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "episode_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "digest_algorithm",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "digest_hex",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "on_deck_package_id",
+      "ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "on_deck_package_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "on_deck_package_id",
+        "material_key",
+        "role"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,role)`",
+      "Package publication为新Deliverable Identity原子取得Libra Control"
+    ],
+    "rawContract": {
+      "columns": "`on_deck_package_id FK, ordinal, material_handle_id, material_key, role, episode_key, digest_algorithm, digest_hex, size_bytes`",
+      "constraints": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,role)`；Package publication为新Deliverable Identity原子取得Libra Control"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7415,
+      "lineDigest": "74326c72bf9e4df85cf2b27b1bb7d45535630e05adcea857a29ce47f7febc8b7"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "on_deck_package_id"
+        ],
+        "targetTable": "libra_product_packages",
+        "targetColumns": [
+          "on_deck_package_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

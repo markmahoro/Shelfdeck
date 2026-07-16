@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_subject_abandon_receipts/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_subject_abandon_receipts",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "abandon_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "released_control_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "terminal_fact_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "commit_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "receipt_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "abandon_decision_id",
+      "subject_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "abandon_decision_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(abandon_decision_id)`",
+      "与Subject terminal和精确Primary Control release同一事务成立"
+    ],
+    "rawContract": {
+      "columns": "`receipt_id PK, abandon_decision_id FK, subject_id FK, released_control_set_digest, terminal_fact_digest, commit_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(abandon_decision_id)`；与Subject terminal和精确Primary Control release同一事务成立"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7392,
+      "lineDigest": "ae4b6b78f23821dabe8a903651002644bd555ba5aa5de2dfff90d214a0e9d185"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "abandon_decision_id"
+        ],
+        "targetTable": "libra_subject_abandon_decisions",
+        "targetColumns": [
+          "abandon_decision_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

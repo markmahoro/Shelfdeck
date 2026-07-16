@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_event_result_bindings/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_event_result_bindings",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "result_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "event_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "outcome_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "result_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "result_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "evidence_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "evidence_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 10,
+        "name": "effect_receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 11,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "result_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "event_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "event_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [
+      "terminal Event至多一个current result：`UNIQUE(event_id)`"
+    ],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "result_json",
+        "schemaRefColumn": "result_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "evidence_json",
+        "schemaRefColumn": "evidence_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "terminal Event至多一个current result：`UNIQUE(event_id)`",
+      "两个JSON各`64 KiB`，大Payload必须只含typed handle"
+    ],
+    "rawContract": {
+      "columns": "`result_id PK, event_id FK, outcome_kind, result_schema_ref, result_json, result_digest, evidence_schema_ref, evidence_json, evidence_digest, effect_receipt_id, committed_at_ms`",
+      "constraints": "terminal Event至多一个current result：`UNIQUE(event_id)`；两个JSON各`64 KiB`，大Payload必须只含typed handle"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 7350,
+      "lineDigest": "f538aed6832ab04ee36ab764ffeef0d1f8631bf15d08c1d962759a97ed3dfa3a"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "event_id"
+        ],
+        "targetTable": "fx_workflow_events",
+        "targetColumns": [
+          "event_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

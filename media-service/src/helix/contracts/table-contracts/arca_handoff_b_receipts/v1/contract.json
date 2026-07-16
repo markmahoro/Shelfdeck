@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_handoff_b_receipts/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_handoff_b_receipts",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "acceptance_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "custody_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "on_deck_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "arca_binding_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "control_revision_set_digest",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "receipt_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "acceptance_decision_id",
+      "custody_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "on_deck_package_id",
+        "package_digest"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(on_deck_package_id,package_digest)`",
+      "Accepted事务的durable receipt/outbox source"
+    ],
+    "rawContract": {
+      "columns": "`receipt_id PK, acceptance_decision_id FK, custody_id FK, on_deck_package_id, package_digest, arca_binding_set_digest, control_revision_set_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(on_deck_package_id,package_digest)`；Accepted事务的durable receipt/outbox source"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7433,
+      "lineDigest": "1bcb5bfcbb51ceebb465ecc19442b99fb2b3b391d66735bf36639496a3768ba7"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "acceptance_decision_id"
+        ],
+        "targetTable": "arca_acceptance_decisions",
+        "targetColumns": [
+          "acceptance_decision_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "custody_id"
+        ],
+        "targetTable": "arca_ondeck_custodies",
+        "targetColumns": [
+          "custody_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

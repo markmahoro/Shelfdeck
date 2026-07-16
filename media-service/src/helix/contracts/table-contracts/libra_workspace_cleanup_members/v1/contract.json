@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_workspace_cleanup_members/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_workspace_cleanup_members",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "cleanup_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "material_handle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "expected_control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "cleanup_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "deletion_effect_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "cleanup_receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "cleanup_scope_id",
+      "material_handle_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "cleanup_scope_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "state",
+        "updated_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "expected_control_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(cleanup_scope_id,material_handle_id)`",
+      "受Control成员只有Deletion Evidence后才能release",
+      "`INDEX(state,updated_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`cleanup_scope_id FK, material_handle_id, material_key, expected_control_revision, cleanup_kind, state, deletion_effect_id, cleanup_receipt_id, updated_at_ms`",
+      "constraints": "`PK(cleanup_scope_id,material_handle_id)`；受Control成员只有Deletion Evidence后才能release；`INDEX(state,updated_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7412,
+      "lineDigest": "d43685f77947411364476a07e0a702f3b5c0b59a68edf4a16b5f95b49ef28065"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "cleanup_scope_id"
+        ],
+        "targetTable": "libra_workspace_cleanup_scopes",
+        "targetColumns": [
+          "cleanup_scope_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_event_resource_timings/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_event_resource_timings",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "event_attempt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "resource_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "queue_class",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "enqueued_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "acquired_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "released_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "wait_duration_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "hold_duration_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "outcome",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "event_attempt_id",
+      "resource_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "event_attempt_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "resource_key",
+        "acquired_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(event_attempt_id,resource_key)`",
+      "只记录Evidence，不恢复内存Permit",
+      "`INDEX(resource_key,acquired_at_ms)`供p50/p95/p99"
+    ],
+    "rawContract": {
+      "columns": "`event_attempt_id FK, resource_key, queue_class, enqueued_at_ms, acquired_at_ms, released_at_ms, wait_duration_ms, hold_duration_ms, outcome`",
+      "constraints": "`PK(event_attempt_id,resource_key)`；只记录Evidence，不恢复内存Permit；`INDEX(resource_key,acquired_at_ms)`供p50/p95/p99"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 7357,
+      "lineDigest": "82c98c804d8d410fe0e79bd69b0001eb75f577e5dd392f00d7c204460c329464"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "event_attempt_id"
+        ],
+        "targetTable": "fx_event_attempts",
+        "targetColumns": [
+          "event_attempt_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

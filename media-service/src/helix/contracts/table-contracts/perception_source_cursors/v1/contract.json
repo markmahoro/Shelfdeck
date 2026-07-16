@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/perception_source_cursors/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "perception_source_cursors",
+    "owner": "perception",
+    "prefix": "perception_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "perception_source_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "cursor_value",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "observation_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "perception_source_id",
+      "revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "perception_source_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": [
+        "source current pointer显式引用，不覆盖历史"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(perception_source_id,revision)`",
+      "source current pointer显式引用，不覆盖历史"
+    ],
+    "rawContract": {
+      "columns": "`perception_source_id FK, revision, cursor_value, observation_digest, committed_at_ms`",
+      "constraints": "`PK(perception_source_id,revision)`；source current pointer显式引用，不覆盖历史"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7483,
+      "lineDigest": "455aafa9ae482823b356fda628b2fefeadfd8e620749cff769da848aac47a4fb"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "perception_source_id"
+        ],
+        "targetTable": "perception_sources",
+        "targetColumns": [
+          "perception_source_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

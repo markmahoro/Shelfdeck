@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_offdeck_scopes/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_offdeck_scopes",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "destruction_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "reservation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "inventory_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "draft",
+          "confirmed",
+          "authorized",
+          "stale",
+          "completed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "destruction_scope_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "reservation_id",
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "reservation_id",
+        "scope_digest"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "draft",
+          "confirmed",
+          "authorized",
+          "stale",
+          "completed"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "inventory_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "pre-authorization immutable Scope由Reservation拥有，不依赖Case"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(reservation_id,scope_digest)`",
+      "pre-authorization immutable Scope由Reservation拥有，不依赖Case"
+    ],
+    "rawContract": {
+      "columns": "`destruction_scope_id PK, reservation_id FK, shelf_entry_id FK, inventory_revision, scope_digest, state(draft|confirmed|authorized|stale|completed), created_at_ms`",
+      "constraints": "`UNIQUE(reservation_id,scope_digest)`；pre-authorization immutable Scope由Reservation拥有，不依赖Case"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7465,
+      "lineDigest": "33e0776f40c6d93014fb3291623746e94cc939bee6f75b325dbffdb5d3306d3a"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "reservation_id"
+        ],
+        "targetTable": "arca_offdeck_reservations",
+        "targetColumns": [
+          "reservation_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

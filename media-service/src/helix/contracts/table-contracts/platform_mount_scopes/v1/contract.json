@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/platform_mount_scopes/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "platform_mount_scopes",
+    "owner": "platform-settings",
+    "prefix": "platform_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "current_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "terminal_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "mount_scope_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "status",
+        "mount_scope_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_revision"
+      ],
+      "currentPointerColumns": [
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "mount_scope_id",
+            "current_revision"
+          ],
+          "targetTable": "platform_mount_scope_revisions",
+          "targetColumns": [
+            "mount_scope_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": [
+        "current revision显式FK"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "mount scope是Platform技术identity，不是Business Object",
+      "current revision显式FK",
+      "`INDEX(status,mount_scope_id)`"
+    ],
+    "rawContract": {
+      "columns": "`mount_scope_id PK, status, current_revision, created_at_ms, terminal_at_ms`",
+      "constraints": "mount scope是Platform技术identity，不是Business Object；current revision显式FK；`INDEX(status,mount_scope_id)`"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7500,
+      "lineDigest": "6162e30b94f589f833a32257144132c84e1a911f602e2bc460e04c391f5079e5"
+    },
+    "foreignKeys": []
+  }
+}

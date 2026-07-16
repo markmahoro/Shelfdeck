@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_candidate_packages/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_candidate_packages",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "candidate_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "procurement_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "package_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "structure_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "content_profile_hint",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "identity_claim_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "identity_claim_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "manifest_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 10,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 11,
+        "name": "published_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "candidate_package_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "procurement_run_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "procurement_run_id",
+        "package_revision"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "state",
+        "published_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "package_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "identity_claim_json",
+        "schemaRefColumn": "identity_claim_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "published内容immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Identity Claim JSON上限`16 KiB`",
+      "`UNIQUE(procurement_run_id,package_revision)`",
+      "published内容immutable",
+      "`INDEX(state,published_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`candidate_package_id PK, procurement_run_id FK, package_revision, structure_kind, content_profile_hint, identity_claim_schema_ref, identity_claim_json, manifest_digest, package_digest, state, published_at_ms`",
+      "constraints": "Identity Claim JSON上限`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`；published内容immutable；`INDEX(state,published_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7382,
+      "lineDigest": "302e6c4749531d3c07a8ee72ab20931158e0608b8d23c6879f8cc3ee4118c6d8"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "procurement_run_id"
+        ],
+        "targetTable": "proc_procurement_runs",
+        "targetColumns": [
+          "procurement_run_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

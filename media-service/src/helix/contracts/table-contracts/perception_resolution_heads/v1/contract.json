@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/perception_resolution_heads/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "perception_resolution_heads",
+    "owner": "perception",
+    "prefix": "perception_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "query_contract",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "query_input_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "current_resolution_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "current_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "query_contract",
+      "query_input_digest"
+    ],
+    "declaredForeignKeyColumns": [
+      "current_resolution_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_revision"
+      ],
+      "currentPointerColumns": [
+        "current_resolution_id",
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "current_resolution_id"
+          ],
+          "targetTable": "perception_resolution_revisions",
+          "targetColumns": [
+            "resolution_id"
+          ],
+          "consistencyColumns": [
+            "current_revision"
+          ],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(query_contract,query_input_digest)`",
+      "Resolution Facade只读head，不在热路径计算`MAX(revision)`"
+    ],
+    "rawContract": {
+      "columns": "`query_contract, query_input_digest, current_resolution_id FK, current_revision, updated_at_ms`",
+      "constraints": "`PK(query_contract,query_input_digest)`；Resolution Facade只读head，不在热路径计算`MAX(revision)`"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7488,
+      "lineDigest": "e0e04bc5e7ea7d3507b9193415762a191e0ae743b4a5a7fd2a3486542dd7b047"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "current_resolution_id"
+        ],
+        "targetTable": "perception_resolution_revisions",
+        "targetColumns": [
+          "resolution_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

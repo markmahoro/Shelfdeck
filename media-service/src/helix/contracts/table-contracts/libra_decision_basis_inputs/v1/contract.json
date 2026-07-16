@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_decision_basis_inputs/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_decision_basis_inputs",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "decision_basis_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "input_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "provider_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "query_contract",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "query_version",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "query_input_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "result_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "result_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 10,
+        "name": "expires_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "decision_basis_id",
+      "input_kind",
+      "provider_domain",
+      "query_contract",
+      "query_input_digest"
+    ],
+    "declaredForeignKeyColumns": [
+      "decision_basis_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "result_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(decision_basis_id,input_kind,provider_domain,query_contract,query_input_digest)`",
+      "每项Decision Fact独立可追溯"
+    ],
+    "rawContract": {
+      "columns": "`decision_basis_id FK, input_kind, provider_domain, query_contract, query_version, query_input_digest, result_kind, result_revision, result_digest, expires_at_ms`",
+      "constraints": "`PK(decision_basis_id,input_kind,provider_domain,query_contract,query_input_digest)`；每项Decision Fact独立可追溯"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7401,
+      "lineDigest": "fe9561c9816dbe88c838892571de994a75812dc9e28850df278b631fcfb45ca4"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "decision_basis_id"
+        ],
+        "targetTable": "libra_decision_basis_revisions",
+        "targetColumns": [
+          "decision_basis_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

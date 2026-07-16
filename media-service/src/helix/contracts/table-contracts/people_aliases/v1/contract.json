@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_aliases/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_aliases",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "alias_normalized",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "alias_display",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "provenance_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "person_id",
+      "revision",
+      "alias_normalized"
+    ],
+    "declaredForeignKeyColumns": [
+      "person_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "alias_normalized"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(person_id,revision,alias_normalized)`",
+      "`INDEX(alias_normalized)`"
+    ],
+    "rawContract": {
+      "columns": "`person_id FK, revision, alias_normalized, alias_display, provenance_digest`",
+      "constraints": "`PK(person_id,revision,alias_normalized)`；`INDEX(alias_normalized)`"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7491,
+      "lineDigest": "ebb1b8f5b6f77bb8a527ac0e28d8f58236424294bbf293160dfebfefcfb1deaf"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "person_id"
+        ],
+        "targetTable": "people_persons",
+        "targetColumns": [
+          "person_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

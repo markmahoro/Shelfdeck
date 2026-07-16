@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/platform_worker_devices/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "platform_worker_devices",
+    "owner": "platform-settings",
+    "prefix": "platform_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "worker_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "worker_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "device_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "capability_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "enabled",
+        "logicalType": "INTEGER_BOOLEAN",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "max_slots",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "worker_id",
+      "worker_revision",
+      "device_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "worker_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "worker_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(worker_id,worker_revision,device_key)`",
+      "只有probe确认的device可enabled"
+    ],
+    "rawContract": {
+      "columns": "`worker_id FK, worker_revision, device_key, capability_digest, enabled, max_slots`",
+      "constraints": "`PK(worker_id,worker_revision,device_key)`；只有probe确认的device可enabled"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7513,
+      "lineDigest": "bc0f5d106f86d806a95451a30ad664d4367fd2ef42c0cb6003514196417e2417"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "worker_id"
+        ],
+        "targetTable": "platform_workers",
+        "targetColumns": [
+          "worker_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

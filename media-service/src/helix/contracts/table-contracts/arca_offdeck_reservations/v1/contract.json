@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_offdeck_reservations/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_offdeck_reservations",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "reservation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "review_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "inventory_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "control_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "released",
+          "consumed",
+          "stale"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "released_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "reservation_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "review_id",
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "state",
+        "created_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [
+      "同一Shelf Entry至多一个active Off-deck Reservation"
+    ],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "released",
+          "consumed",
+          "stale"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "inventory_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "同一Shelf Entry至多一个active Off-deck Reservation",
+      "`INDEX(state,created_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`reservation_id PK, review_id FK, shelf_entry_id FK, inventory_revision, control_scope_digest, state(active|released|consumed|stale), created_at_ms, released_at_ms`",
+      "constraints": "同一Shelf Entry至多一个active Off-deck Reservation；`INDEX(state,created_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7464,
+      "lineDigest": "d9ec380f97236575796baeeb3e5ebdce5a3a60d11c825419eb07e7327a4b87c6"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "review_id"
+        ],
+        "targetTable": "arca_offdeck_reviews",
+        "targetColumns": [
+          "review_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_candidate_deliveries/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_candidate_deliveries",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "offer_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "candidate_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "acceptance_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "handoff_receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "offered_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "closed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "offer_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "candidate_package_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "candidate_package_id",
+        "package_digest",
+        "acceptance_basis_digest"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "state",
+        "offered_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [
+      "同一Candidate至多一个open Offer"
+    ],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`",
+      "同一Candidate至多一个open Offer",
+      "`INDEX(state,offered_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`offer_id PK, candidate_package_id FK, package_digest, acceptance_basis_digest, state, handoff_receipt_id, offered_at_ms, closed_at_ms`",
+      "constraints": "`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer；`INDEX(state,offered_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7386,
+      "lineDigest": "65b00c677b93c57ad5badfab5af8fbb175b5a2386841af7e0262f4ca45181140"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "candidate_package_id"
+        ],
+        "targetTable": "proc_candidate_packages",
+        "targetColumns": [
+          "candidate_package_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

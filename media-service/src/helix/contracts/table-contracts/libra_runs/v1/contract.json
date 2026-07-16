@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_runs/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_runs",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "acceptance_spec_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "initial_material_manifest_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "run_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "priority_class",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "terminal_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "libra_run_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "subject_id",
+      "acceptance_spec_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "state",
+        "priority_class",
+        "created_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [
+      "相同`subject+spec+scope`至多一个non-terminal Run"
+    ],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "相同`subject+spec+scope`至多一个non-terminal Run",
+      "允许Season不同Episode scope并行",
+      "Supporting Work通过`owner_domain+process_type+process_id`形成`0..N`反向关系",
+      "`INDEX(state,priority_class,created_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`libra_run_id PK, subject_id FK, acceptance_spec_id FK, initial_material_manifest_digest, run_scope_digest, state, priority_class, created_at_ms, terminal_at_ms`",
+      "constraints": "相同`subject+spec+scope`至多一个non-terminal Run；允许Season不同Episode scope并行；Supporting Work通过`owner_domain+process_type+process_id`形成`0..N`反向关系；`INDEX(state,priority_class,created_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7404,
+      "lineDigest": "f5720d6d659431f687c47c0f27378868a3154115acb856be36f36be13d851476"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "acceptance_spec_id"
+        ],
+        "targetTable": "libra_acceptance_specs",
+        "targetColumns": [
+          "acceptance_spec_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

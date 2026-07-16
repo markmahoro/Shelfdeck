@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_outbox_deliveries/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_outbox_deliveries",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "message_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "consumer_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "pending",
+          "delivered",
+          "acked"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "attempt_count",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "next_attempt_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "acked_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "message_id",
+      "consumer_domain"
+    ],
+    "declaredForeignKeyColumns": [
+      "message_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "state",
+        "next_attempt_at_ms",
+        "message_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "pending",
+          "delivered",
+          "acked"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(message_id,consumer_domain)`",
+      "publish事务冻结全部intended consumer",
+      "`INDEX(state,next_attempt_at_ms,message_id)`"
+    ],
+    "rawContract": {
+      "columns": "`message_id FK, consumer_domain, state(pending|delivered|acked), attempt_count, next_attempt_at_ms, acked_at_ms`",
+      "constraints": "`PK(message_id,consumer_domain)`；publish事务冻结全部intended consumer；`INDEX(state,next_attempt_at_ms,message_id)`"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 7354,
+      "lineDigest": "3c0f05667ac3ef0cac1ec5cfa7ae12eb440275bf8dc205e502314945ac622a25"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "message_id"
+        ],
+        "targetTable": "fx_outbox",
+        "targetColumns": [
+          "message_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

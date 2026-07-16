@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/perception_identity_anchors/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "perception_identity_anchors",
+    "owner": "perception",
+    "prefix": "perception_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "perception_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "anchor_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "anchor_value",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "confidence_class",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "perception_id",
+      "anchor_kind",
+      "anchor_value"
+    ],
+    "declaredForeignKeyColumns": [
+      "perception_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "anchor_kind",
+        "anchor_value"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(perception_id,anchor_kind,anchor_value)`",
+      "`INDEX(anchor_kind,anchor_value)`"
+    ],
+    "rawContract": {
+      "columns": "`perception_id FK, anchor_kind, anchor_value, confidence_class, evidence_digest`",
+      "constraints": "`PK(perception_id,anchor_kind,anchor_value)`；`INDEX(anchor_kind,anchor_value)`"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7485,
+      "lineDigest": "9dd08b94529e4e0e805e88b1947c20c812fab467d1711cb32c8ecce6ffb6baea"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "perception_id"
+        ],
+        "targetTable": "perception_records",
+        "targetColumns": [
+          "perception_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

@@ -5,7 +5,7 @@
   "kind": "owner-registry",
   "owner": "contracts",
   "status": "active",
-  "ssotRefs": ["2.2", "8.1.1", "8.1.2"],
+  "ssotRefs": ["2.2", "8.1.1", "8.1.2", "8.5.2", "8.5.8", "8.7.2"],
   "owners": [
     { "id": "application-composition", "class": "engineering" },
     { "id": "procurement", "class": "business-domain" },
@@ -14,6 +14,8 @@
     { "id": "perception", "class": "business-domain" },
     { "id": "people", "class": "business-domain" },
     { "id": "execution-foundation", "class": "engineering" },
+    { "id": "material-control-authority", "class": "engineering" },
+    { "id": "platform-settings", "class": "engineering" },
     { "id": "integration-boundary", "class": "engineering" },
     { "id": "read-model", "class": "engineering" },
     { "id": "contracts", "class": "engineering" }

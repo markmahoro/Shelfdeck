@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_artifact_references/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_artifact_references",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "artifact_handle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "consumer_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "consumer_scope_type",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "consumer_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "reference_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "reference_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "released_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "artifact_handle_id",
+      "consumer_domain",
+      "consumer_scope_type",
+      "consumer_scope_id",
+      "reference_kind",
+      "reference_revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "artifact_handle_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "reference_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": [
+        "GC只处理无active reference Artifact"
+      ]
+    },
+    "semanticRules": [
+      "`PK(artifact_handle_id,consumer_domain,consumer_scope_type,consumer_scope_id,reference_kind,reference_revision)`",
+      "GC只处理无active reference Artifact"
+    ],
+    "rawContract": {
+      "columns": "`artifact_handle_id FK, consumer_domain, consumer_scope_type, consumer_scope_id, reference_kind, reference_revision, state, created_at_ms, released_at_ms`",
+      "constraints": "`PK(artifact_handle_id,consumer_domain,consumer_scope_type,consumer_scope_id,reference_kind,reference_revision)`；GC只处理无active reference Artifact"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 7364,
+      "lineDigest": "78787f3ac7052b2b3d8024e78b21a426cf0b74cee321911424bf6067b995c01e"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "artifact_handle_id"
+        ],
+        "targetTable": "fx_artifact_registry",
+        "targetColumns": [
+          "artifact_handle_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

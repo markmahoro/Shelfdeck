@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/platform_resource_profiles/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "platform_resource_profiles",
+    "owner": "platform-settings",
+    "prefix": "platform_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "profile_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "profile_key",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "default",
+          "full"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "current_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "status",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "profile_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [
+      [
+        "profile_key"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "profile_key",
+        "enumValues": [
+          "default",
+          "full"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_revision"
+      ],
+      "currentPointerColumns": [
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "profile_id",
+            "current_revision"
+          ],
+          "targetTable": "platform_resource_profile_revisions",
+          "targetColumns": [
+            "profile_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": [
+        "current revision显式FK"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": [
+        "两个system Profile不可删除"
+      ]
+    },
+    "semanticRules": [
+      "`UNIQUE(profile_key)`",
+      "两个system Profile不可删除",
+      "current revision显式FK"
+    ],
+    "rawContract": {
+      "columns": "`profile_id PK, profile_key(default|full), name, current_revision, status, created_at_ms, updated_at_ms`",
+      "constraints": "`UNIQUE(profile_key)`；两个system Profile不可删除；current revision显式FK"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7505,
+      "lineDigest": "585280528c1f4fd1872be0c1f875b3c97439a4f27a38fcfb57a6f13e1fd69ebd"
+    },
+    "foreignKeys": []
+  }
+}

@@ -40,7 +40,7 @@ test('validates the complete P1 framework and produces a stable aggregate digest
   const first = validateManifestSet({ rootPath: actualRoot, repositoryRoot });
   const second = validateManifestSet({ rootPath: actualRoot, repositoryRoot });
   assert.equal(first.ok, true);
-  assert.equal(first.ownerCount, 10);
+  assert.equal(first.ownerCount, 12);
   assert.equal(first.packageCount, 42);
   assert.equal(first.manifests.find((item) => item.manifestId === 'helix.legacy-reuse-ledger').entryCount, 62);
   assert.match(first.aggregateDigest, /^[a-f0-9]{64}$/);
@@ -68,15 +68,9 @@ test('rejects duplicate entry IDs, unresolved owners, and illegal statuses', () 
 test('rejects invalid contract digests and package owners', () => {
   const fixture = createFixture();
   try {
-    const filePath = manifestPath(fixture, 'table-inventory.json');
-    mutateJson(filePath, (manifest) => {
-      manifest.entries = [{
-        id: 'table.fixture', version: 1, owner: 'libra', status: 'planned', ssotRefs: ['8.5.11'],
-        sourceLocator: { type: 'ssot', ref: '8.5.11' },
-        targetLocator: { path: 'domains/libra/persistence/schema.sql' },
-        contract: { table: 'libra_fixture' },
-        contractDigest: { algorithm: 'sha256', value: '0'.repeat(64) }
-      }];
+    const filePath = manifestPath(fixture, 'table-inventory/entries-001-013.json');
+    mutateJson(filePath, (shard) => {
+      shard.entries[0].contractDigest.value = '0'.repeat(64);
     });
     mutateJson(path.join(fixture.rootPath, 'domains', 'libra', 'public', 'package.boundary.json'), (marker) => {
       marker.owner = 'missing-owner';

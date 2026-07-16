@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_input_settlement_authorizations/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_input_settlement_authorizations",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "authorization_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "enabled",
+          "revoked"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "authorization_scope_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "authorization_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "effective_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "revoked_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "authorization_id",
+      "revision"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "enabled",
+          "revoked"
+        ]
+      },
+      {
+        "rule": "只授权为精确On-deck Scope派生Approval，不授权目录范围"
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(authorization_id,revision)`",
+      "immutable",
+      "只授权为精确On-deck Scope派生Approval，不授权目录范围"
+    ],
+    "rawContract": {
+      "columns": "`authorization_id, revision, state(enabled|revoked), authorization_scope_kind, actor_id, authorization_digest, effective_at_ms, revoked_at_ms`",
+      "constraints": "`PK(authorization_id,revision)`；immutable；只授权为精确On-deck Scope派生Approval，不授权目录范围"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7437,
+      "lineDigest": "f5152bf12357d5fcfaf6b833ce0d5a6ba8f6ea1775c5463be3fc9c1ae8176d57"
+    },
+    "foreignKeys": []
+  }
+}

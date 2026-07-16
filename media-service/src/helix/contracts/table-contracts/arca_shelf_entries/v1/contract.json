@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_shelf_entries/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_shelf_entries",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "shelf_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "structure_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "canonical_identity_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "canonical_identity_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "current_inventory_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "current_deck_fact_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 10,
+        "name": "terminal_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "shelf_entry_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "shelf_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "shelf_id",
+        "status",
+        "shelf_entry_id"
+      ]
+    ],
+    "partialUniqueRules": [
+      "Movie/JAV/Western可以重复，Season对active `(shelf_id,canonical_identity_key)`建立partial unique，保证后续Episode Run扩充同一Entry"
+    ],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "canonical_identity_revision",
+        "current_inventory_revision",
+        "current_deck_fact_revision"
+      ],
+      "currentPointerColumns": [
+        "canonical_identity_revision",
+        "current_inventory_revision",
+        "current_deck_fact_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "shelf_entry_id",
+            "canonical_identity_revision"
+          ],
+          "targetTable": "arca_canonical_identity_revisions",
+          "targetColumns": [
+            "shelf_entry_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        },
+        {
+          "sourceColumns": [
+            "shelf_entry_id",
+            "current_inventory_revision"
+          ],
+          "targetTable": "arca_inventory_representations",
+          "targetColumns": [
+            "shelf_entry_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        },
+        {
+          "sourceColumns": [
+            "shelf_entry_id",
+            "current_deck_fact_revision"
+          ],
+          "targetTable": "arca_deck_fact_revisions",
+          "targetColumns": [
+            "shelf_entry_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": [
+        "三个current pointer均显式FK"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "三个current pointer均显式FK",
+      "`INDEX(shelf_id,status,shelf_entry_id)`",
+      "Movie/JAV/Western可以重复，Season对active `(shelf_id,canonical_identity_key)`建立partial unique，保证后续Episode Run扩充同一Entry"
+    ],
+    "rawContract": {
+      "columns": "`shelf_entry_id PK, shelf_id FK, structure_kind, status, canonical_identity_revision, canonical_identity_key, current_inventory_revision, current_deck_fact_revision, created_at_ms, terminal_at_ms`",
+      "constraints": "三个current pointer均显式FK；`INDEX(shelf_id,status,shelf_entry_id)`；Movie/JAV/Western可以重复，Season对active `(shelf_id,canonical_identity_key)`建立partial unique，保证后续Episode Run扩充同一Entry"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7440,
+      "lineDigest": "27009726b5c03e4052c17ab37b7c0044faa459ca91d36a211842bb5c4b38eec3"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "shelf_id"
+        ],
+        "targetTable": "arca_shelves",
+        "targetColumns": [
+          "shelf_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_field_materials/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_field_materials",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "field_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "inode",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "content_hash_algorithm",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "content_hash",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "mtime_ns",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "ctime_ns",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 10,
+        "name": "hash_verified_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 11,
+        "name": "current_location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 12,
+        "name": "binding_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 13,
+        "name": "last_observation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 14,
+        "name": "eligibility_state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 15,
+        "name": "control_projection",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "field_id",
+      "material_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "field_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "field_id",
+        "eligibility_state",
+        "control_projection",
+        "material_key"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "binding_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(field_id,material_key)`",
+      "Identity components unique within Field",
+      "Hash缓存只在mount/inode/size/mtime/ctime全部一致时有效",
+      "`INDEX(field_id,eligibility_state,control_projection,material_key)`",
+      "projection只供候选筛选，最终取得必须CAS `fx_material_controls`"
+    ],
+    "rawContract": {
+      "columns": "`field_id FK, material_key, mount_scope_id, inode, content_hash_algorithm, content_hash, size_bytes, mtime_ns, ctime_ns, hash_verified_at_ms, current_location, binding_revision, last_observation_id, eligibility_state, control_projection`",
+      "constraints": "`PK(field_id,material_key)`；Identity components unique within Field；Hash缓存只在mount/inode/size/mtime/ctime全部一致时有效；`INDEX(field_id,eligibility_state,control_projection,material_key)`；projection只供候选筛选，最终取得必须CAS `fx_material_controls`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7378,
+      "lineDigest": "e229c6feefa773aeff9946721ddd2e8aa84124e91a683178fbbc5f49eedbba17"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "field_id"
+        ],
+        "targetTable": "proc_material_fields",
+        "targetColumns": [
+          "field_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

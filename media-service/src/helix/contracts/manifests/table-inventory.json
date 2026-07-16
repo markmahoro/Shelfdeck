@@ -4,8 +4,27 @@
   "manifestId": "helix.inventory.tables",
   "kind": "table-inventory",
   "owner": "contracts",
-  "status": "framework_only",
-  "ssotRefs": ["8.5.9", "8.5.10", "8.5.11", "8.5.12", "8.5.13"],
+  "status": "active",
+  "ssotRefs": [
+    "8.5.9",
+    "8.5.10",
+    "8.5.11",
+    "8.5.12",
+    "8.5.13"
+  ],
   "targetCount": 156,
-  "entries": []
+  "entryFiles": [
+    "table-inventory/entries-001-013.json",
+    "table-inventory/entries-014-026.json",
+    "table-inventory/entries-027-039.json",
+    "table-inventory/entries-040-052.json",
+    "table-inventory/entries-053-065.json",
+    "table-inventory/entries-066-078.json",
+    "table-inventory/entries-079-091.json",
+    "table-inventory/entries-092-104.json",
+    "table-inventory/entries-105-117.json",
+    "table-inventory/entries-118-130.json",
+    "table-inventory/entries-131-143.json",
+    "table-inventory/entries-144-156.json"
+  ]
 }

@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/perception_sources/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "perception_sources",
+    "owner": "perception",
+    "prefix": "perception_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "perception_source_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "source_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "integration_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "config_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "current_cursor_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "perception_source_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "status",
+        "source_kind",
+        "perception_source_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "config_revision",
+        "current_cursor_revision"
+      ],
+      "currentPointerColumns": [
+        "current_cursor_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "perception_source_id",
+            "current_cursor_revision"
+          ],
+          "targetTable": "perception_source_cursors",
+          "targetColumns": [
+            "perception_source_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "cursor pointer显式FK",
+      "`INDEX(status,source_kind,perception_source_id)`",
+      "Integration ID为opaque platform reference"
+    ],
+    "rawContract": {
+      "columns": "`perception_source_id PK, source_kind, integration_id, status, config_revision, current_cursor_revision, created_at_ms, updated_at_ms`",
+      "constraints": "cursor pointer显式FK；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7482,
+      "lineDigest": "554e682c5985382d4d99178a83cf9fe7ef89af1ff04b560469408d1ad8e33402"
+    },
+    "foreignKeys": []
+  }
+}

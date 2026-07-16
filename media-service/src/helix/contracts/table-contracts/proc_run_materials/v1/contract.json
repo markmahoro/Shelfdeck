@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_run_materials/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_run_materials",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "procurement_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "role",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "binding_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "selected_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "procurement_run_id",
+      "material_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "procurement_run_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [
+      "同一Primary Identity不能属于两个仍可交付的Run/Candidate，由partial unique约束"
+    ],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "binding_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(procurement_run_id,material_key)`",
+      "同一Primary Identity不能属于两个仍可交付的Run/Candidate，由partial unique约束"
+    ],
+    "rawContract": {
+      "columns": "`procurement_run_id FK, material_key, role, binding_revision, selected_at_ms`",
+      "constraints": "`PK(procurement_run_id,material_key)`；同一Primary Identity不能属于两个仍可交付的Run/Candidate，由partial unique约束"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7381,
+      "lineDigest": "d9efda9bcbc95c34e631da51aa508f45527c3d1fbcc23d897138201c876a2c2b"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "procurement_run_id"
+        ],
+        "targetTable": "proc_procurement_runs",
+        "targetColumns": [
+          "procurement_run_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

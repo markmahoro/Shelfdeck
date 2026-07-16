@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_offdeck_authorizations/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_offdeck_authorizations",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "authorization_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "destruction_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "batch_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 6,
+        "name": "authorized_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "authorization_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "destruction_scope_id",
+      "batch_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "destruction_scope_id",
+        "scope_digest"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(destruction_scope_id,scope_digest)`",
+      "授权后不可取消或改Scope"
+    ],
+    "rawContract": {
+      "columns": "`authorization_id PK, destruction_scope_id FK, scope_digest, actor_id, batch_id FK, authorized_at_ms, state`",
+      "constraints": "`UNIQUE(destruction_scope_id,scope_digest)`；授权后不可取消或改Scope"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7470,
+      "lineDigest": "db1e1f835efe4418958fd09657084cb2209614e665a8eb30a5b17da8f8dd27c8"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "destruction_scope_id"
+        ],
+        "targetTable": "arca_offdeck_scopes",
+        "targetColumns": [
+          "destruction_scope_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "batch_id"
+        ],
+        "targetTable": "arca_offdeck_authorization_batches",
+        "targetColumns": [
+          "batch_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

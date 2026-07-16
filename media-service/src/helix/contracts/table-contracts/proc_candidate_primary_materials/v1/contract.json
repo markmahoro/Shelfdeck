@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_candidate_primary_materials/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_candidate_primary_materials",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "candidate_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "role",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "episode_claim_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "binding_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "member_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "candidate_package_id",
+      "ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "candidate_package_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "candidate_package_id",
+        "material_key"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "binding_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(candidate_package_id,ordinal)`及`UNIQUE(candidate_package_id,material_key)`"
+    ],
+    "rawContract": {
+      "columns": "`candidate_package_id FK, ordinal, material_key, role, episode_claim_schema_ref, binding_revision, member_digest`",
+      "constraints": "`PK(candidate_package_id,ordinal)`及`UNIQUE(candidate_package_id,material_key)`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7384,
+      "lineDigest": "608984244a7eb050290e26ff5ae1519a0e6b28292a0f2b5462106e761182b389"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "candidate_package_id"
+        ],
+        "targetTable": "proc_candidate_packages",
+        "targetColumns": [
+          "candidate_package_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

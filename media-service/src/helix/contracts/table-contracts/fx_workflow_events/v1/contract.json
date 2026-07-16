@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_workflow_events/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_workflow_events",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "event_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "plan_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "node_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "work_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "attempt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "owner_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "capability_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "contract_version",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 9,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 10,
+        "name": "priority_class",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 11,
+        "name": "ready_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 12,
+        "name": "retry_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 13,
+        "name": "result_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 14,
+        "name": "current_progress_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "event_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "plan_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "plan_id",
+        "node_id"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "state",
+        "priority_class",
+        "COALESCE(retry_at_ms,ready_at_ms)",
+        "event_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_progress_revision"
+      ],
+      "currentPointerColumns": [
+        "current_progress_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "event_id",
+            "current_progress_revision"
+          ],
+          "targetTable": "fx_event_progress",
+          "targetColumns": [
+            "event_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": [
+        "current progress pointer显式FK"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(plan_id,node_id)`",
+      "`INDEX(state,priority_class,COALESCE(retry_at_ms,ready_at_ms),event_id)`",
+      "成功Event不可回退",
+      "current progress pointer显式FK"
+    ],
+    "rawContract": {
+      "columns": "`event_id PK, plan_id FK, node_id, work_id, attempt_id, owner_domain, capability_ref, contract_version, state, priority_class, ready_at_ms, retry_at_ms, result_id, current_progress_revision`",
+      "constraints": "`UNIQUE(plan_id,node_id)`；`INDEX(state,priority_class,COALESCE(retry_at_ms,ready_at_ms),event_id)`；成功Event不可回退；current progress pointer显式FK"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 7347,
+      "lineDigest": "83b0e6dfb2a6878be3e4df2e6aa3a3ec2f425950df361e9bf94338fdb9a55787"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "plan_id"
+        ],
+        "targetTable": "fx_workflow_plans",
+        "targetColumns": [
+          "plan_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

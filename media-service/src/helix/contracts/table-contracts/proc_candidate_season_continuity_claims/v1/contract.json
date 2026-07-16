@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_candidate_season_continuity_claims/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_candidate_season_continuity_claims",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "candidate_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "claim_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "provider_season_identity",
+          "triage_grouping_lineage"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "claim_namespace",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "claim_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "claim_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "candidate_package_id",
+      "claim_kind",
+      "claim_namespace",
+      "claim_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "candidate_package_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "claim_kind",
+        "enumValues": [
+          "provider_season_identity",
+          "triage_grouping_lineage"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(candidate_package_id,claim_kind,claim_namespace,claim_key)`",
+      "仅Series",
+      "不存在row是合法粗入库",
+      "title/year/path/folder禁止编码为claim key"
+    ],
+    "rawContract": {
+      "columns": "`candidate_package_id FK, claim_kind(provider_season_identity|triage_grouping_lineage), claim_namespace, claim_key, claim_digest, evidence_digest`",
+      "constraints": "`PK(candidate_package_id,claim_kind,claim_namespace,claim_key)`；仅Series；不存在row是合法粗入库；title/year/path/folder禁止编码为claim key"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7383,
+      "lineDigest": "3cbfd04483d393cd3c6358ec63f8e8818cb46394b8f94bc509ce3ea9b796f3fd"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "candidate_package_id"
+        ],
+        "targetTable": "proc_candidate_packages",
+        "targetColumns": [
+          "candidate_package_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

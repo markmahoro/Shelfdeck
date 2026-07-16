@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_provider_identities/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_provider_identities",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "provider",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "namespace",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "provider_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "provenance_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "person_id",
+      "revision",
+      "provider",
+      "namespace",
+      "provider_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "person_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [
+      "stable identity active unique"
+    ],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(person_id,revision,provider,namespace,provider_key)`",
+      "stable identity active unique"
+    ],
+    "rawContract": {
+      "columns": "`person_id FK, revision, provider, namespace, provider_key, provenance_digest`",
+      "constraints": "`PK(person_id,revision,provider,namespace,provider_key)`；stable identity active unique"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7492,
+      "lineDigest": "96dee2a40ef8da825ba7a83d3d11f9c8ed9205e26ce921e7ca2ea658c065b49f"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "person_id"
+        ],
+        "targetTable": "people_persons",
+        "targetColumns": [
+          "person_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

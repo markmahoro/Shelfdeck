@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_ondeck_settlement_approvals/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_ondeck_settlement_approvals",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "approval_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "on_deck_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "settlement_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "standing_authorization_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "standing_authorization_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "actor_or_policy_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "approved_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "approval_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "on_deck_run_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "on_deck_run_id",
+        "settlement_scope_digest"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "standing_authorization_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(on_deck_run_id,settlement_scope_digest)`",
+      "自动模式可由当前standing authorization派生，已签发Scope不可扩张"
+    ],
+    "rawContract": {
+      "columns": "`approval_id PK, on_deck_run_id FK, settlement_scope_digest, standing_authorization_id, standing_authorization_revision, actor_or_policy_ref, approved_at_ms, state`",
+      "constraints": "`UNIQUE(on_deck_run_id,settlement_scope_digest)`；自动模式可由当前standing authorization派生，已签发Scope不可扩张"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7439,
+      "lineDigest": "5cbc9ffd7ce5f4c44f861b79ff0c8a6cfa8a090d580f870401be0a08c386ea75"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "on_deck_run_id"
+        ],
+        "targetTable": "arca_ondeck_runs",
+        "targetColumns": [
+          "on_deck_run_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

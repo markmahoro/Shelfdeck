@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_deregistration_receipts/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_deregistration_receipts",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "deregistration_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "shelf_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "released_control_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "terminal_fact_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "receipt_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "deregistration_id",
+      "shelf_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "deregistration_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(deregistration_id)`",
+      "与Shelf administrative terminal commit同事务成立"
+    ],
+    "rawContract": {
+      "columns": "`receipt_id PK, deregistration_id FK, shelf_id FK, released_control_set_digest, terminal_fact_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(deregistration_id)`；与Shelf administrative terminal commit同事务成立"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7476,
+      "lineDigest": "ece31b95a4de939548e814885196b887f9a0f38c6507ec76e9eb2165896b7d33"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "deregistration_id"
+        ],
+        "targetTable": "arca_deregistrations",
+        "targetColumns": [
+          "deregistration_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "shelf_id"
+        ],
+        "targetTable": "arca_shelves",
+        "targetColumns": [
+          "shelf_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_routing_decisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_routing_decisions",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "routing_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "assessment_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "shelf_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "shelf_priority_snapshot",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "decision",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "decided_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "routing_decision_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "subject_id",
+      "assessment_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "shelf_id",
+        "decided_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable",
+      "同一assessment只有一个Decision",
+      "`INDEX(shelf_id,decided_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`routing_decision_id PK, subject_id FK, assessment_id FK, shelf_id, shelf_priority_snapshot, decision, decision_digest, decided_at_ms`",
+      "constraints": "immutable；同一assessment只有一个Decision；`INDEX(shelf_id,decided_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7399,
+      "lineDigest": "f02ff6cd336a6811852cefafa8a168373bf16529d23232209e15e8e88587ca0f"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "assessment_id"
+        ],
+        "targetTable": "libra_routing_assessments",
+        "targetColumns": [
+          "routing_assessment_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

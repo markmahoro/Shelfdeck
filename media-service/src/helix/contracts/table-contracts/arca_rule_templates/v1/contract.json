@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_rule_templates/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_rule_templates",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "rule_template_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "owner_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "system",
+          "user"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "archived"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "current_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "archived_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "rule_template_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "status",
+        "owner_kind",
+        "rule_template_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "owner_kind",
+        "enumValues": [
+          "system",
+          "user"
+        ]
+      },
+      {
+        "column": "status",
+        "enumValues": [
+          "active",
+          "archived"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_revision"
+      ],
+      "currentPointerColumns": [
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "rule_template_id",
+            "current_revision"
+          ],
+          "targetTable": "arca_rule_template_revisions",
+          "targetColumns": [
+            "rule_template_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": [
+        "current revision显式FK"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "system template不能archive或创建draft",
+      "current revision显式FK",
+      "`INDEX(status,owner_kind,rule_template_id)`"
+    ],
+    "rawContract": {
+      "columns": "`rule_template_id PK, name, owner_kind(system|user), status(active|archived), current_revision, created_at_ms, archived_at_ms`",
+      "constraints": "system template不能archive或创建draft；current revision显式FK；`INDEX(status,owner_kind,rule_template_id)`"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7424,
+      "lineDigest": "bd5c979d8217bbe4ac7c7562b1b9edf0fc2732ef5d8cccbc27f1d01f79fbe829"
+    },
+    "foreignKeys": []
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_rule_template_revisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_rule_template_revisions",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "rule_template_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "rules_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "rules_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "rules_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "published_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "rule_template_id",
+      "revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "rule_template_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "rules_json",
+        "schemaRefColumn": "rules_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "rules JSON上限`64 KiB`",
+      "`PK(rule_template_id,revision)`",
+      "immutable"
+    ],
+    "rawContract": {
+      "columns": "`rule_template_id FK, revision, rules_schema_ref, rules_json, rules_digest, published_at_ms`",
+      "constraints": "rules JSON上限`64 KiB`；`PK(rule_template_id,revision)`；immutable"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7425,
+      "lineDigest": "6e3e8f8aa33fe6418af146903da0d1e6e2d7f8fd094681a008803ad07f8ceb51"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "rule_template_id"
+        ],
+        "targetTable": "arca_rule_templates",
+        "targetColumns": [
+          "rule_template_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

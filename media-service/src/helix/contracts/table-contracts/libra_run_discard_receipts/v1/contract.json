@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_run_discard_receipts/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_run_discard_receipts",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "discard_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 4,
+        "name": "released_input_control_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "cleanup_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 6,
+        "name": "commit_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "receipt_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "discard_decision_id",
+      "libra_run_id",
+      "cleanup_scope_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "discard_decision_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(discard_decision_id)`",
+      "与Run terminal、原始Input Control release及Cleanup Scope同事务"
+    ],
+    "rawContract": {
+      "columns": "`receipt_id PK, discard_decision_id FK, libra_run_id FK, released_input_control_set_digest, cleanup_scope_id FK, commit_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(discard_decision_id)`；与Run terminal、原始Input Control release及Cleanup Scope同事务"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7406,
+      "lineDigest": "e045a137a4b7b50cd069301aacc54a4bd6adc94b0e61c7b38a17f0168c5d44dd"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "discard_decision_id"
+        ],
+        "targetTable": "libra_run_discard_decisions",
+        "targetColumns": [
+          "discard_decision_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      },
+      {
+        "columns": [
+          "cleanup_scope_id"
+        ],
+        "targetTable": "libra_workspace_cleanup_scopes",
+        "targetColumns": [
+          "cleanup_scope_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

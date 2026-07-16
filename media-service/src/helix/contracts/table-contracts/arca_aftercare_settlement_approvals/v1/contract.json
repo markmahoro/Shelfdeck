@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_aftercare_settlement_approvals/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_aftercare_settlement_approvals",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "approval_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "aftercare_case_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "settlement_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "service_catalog_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "shelf_standard_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "care_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "derived_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 8,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "approval_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "aftercare_case_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "aftercare_case_id",
+        "settlement_scope_digest"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "service_catalog_revision",
+        "shelf_standard_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(aftercare_case_id,settlement_scope_digest)`",
+      "只为`auto_repair`且确定性安全的精确替代Scope派生，不新增用户Authorization"
+    ],
+    "rawContract": {
+      "columns": "`approval_id PK, aftercare_case_id FK, settlement_scope_digest, service_catalog_revision, shelf_standard_revision, care_basis_digest, derived_at_ms, state`",
+      "constraints": "`UNIQUE(aftercare_case_id,settlement_scope_digest)`；只为`auto_repair`且确定性安全的精确替代Scope派生，不新增用户Authorization"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7454,
+      "lineDigest": "63f9a9b819ac2f8124994b0037d4976ead18d94ec13813c50a0733ba454ef2fa"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "aftercare_case_id"
+        ],
+        "targetTable": "arca_aftercare_cases",
+        "targetColumns": [
+          "aftercare_case_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

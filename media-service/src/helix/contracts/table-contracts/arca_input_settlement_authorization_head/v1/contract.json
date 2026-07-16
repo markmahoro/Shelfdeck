@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_input_settlement_authorization_head/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_input_settlement_authorization_head",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "singleton_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "current_authorization_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "current_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "singleton_key"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_revision"
+      ],
+      "currentPointerColumns": [
+        "current_authorization_id",
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "current_authorization_id",
+            "current_revision"
+          ],
+          "targetTable": "arca_input_settlement_authorizations",
+          "targetColumns": [
+            "authorization_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT"
+        }
+      ],
+      "pointerRules": [
+        "current pair显式FK"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": [
+        "启用/撤销均发布新revision，不物理删除历史"
+      ]
+    },
+    "semanticRules": [
+      "singleton key固定",
+      "current pair显式FK",
+      "启用/撤销均发布新revision，不物理删除历史"
+    ],
+    "rawContract": {
+      "columns": "`singleton_key PK, current_authorization_id, current_revision, updated_at_ms`",
+      "constraints": "singleton key固定；current pair显式FK；启用/撤销均发布新revision，不物理删除历史"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7438,
+      "lineDigest": "52ffab870401a903dde815fbf705331885689f51f7beb840024d9fb4f60f384b"
+    },
+    "foreignKeys": []
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_aftercare_case_basis_inputs/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_aftercare_case_basis_inputs",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "aftercare_case_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 2,
+        "name": "input_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 3,
+        "name": "owner_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "aggregate_type",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "aggregate_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "input_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "aftercare_case_id",
+      "input_kind",
+      "owner_domain",
+      "aggregate_type",
+      "aggregate_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "aftercare_case_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "Case创建后immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(aftercare_case_id,input_kind,owner_domain,aggregate_type,aggregate_id)`",
+      "关系化保存Standard/Placement/Identity/Inventory/Decision Fact/Package provenance",
+      "Case创建后immutable"
+    ],
+    "rawContract": {
+      "columns": "`aftercare_case_id FK, input_kind, owner_domain, aggregate_type, aggregate_id, revision, input_digest`",
+      "constraints": "`PK(aftercare_case_id,input_kind,owner_domain,aggregate_type,aggregate_id)`；关系化保存Standard/Placement/Identity/Inventory/Decision Fact/Package provenance；Case创建后immutable"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7453,
+      "lineDigest": "9a6e19b4a4dba41dc09a9e4e01a3e8e57e4dc24cd867cfeda812fc6fd56ae111"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "aftercare_case_id"
+        ],
+        "targetTable": "arca_aftercare_cases",
+        "targetColumns": [
+          "aftercare_case_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}

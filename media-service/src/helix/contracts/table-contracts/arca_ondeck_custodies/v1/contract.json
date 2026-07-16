@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_ondeck_custodies/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_ondeck_custodies",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "custody_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 2,
+        "name": "acceptance_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true
+      },
+      {
+        "ordinal": 3,
+        "name": "on_deck_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 4,
+        "name": "package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 5,
+        "name": "control_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      },
+      {
+        "ordinal": 7,
+        "name": "accepted_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false
+      }
+    ],
+    "primaryKey": [
+      "custody_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "acceptance_decision_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "on_deck_package_id",
+        "package_digest"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(on_deck_package_id,package_digest)`",
+      "只有Accepted Decision可建立"
+    ],
+    "rawContract": {
+      "columns": "`custody_id PK, acceptance_decision_id FK, on_deck_package_id, package_digest, control_scope_digest, state, accepted_at_ms`",
+      "constraints": "`UNIQUE(on_deck_package_id,package_digest)`；只有Accepted Decision可建立"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 7432,
+      "lineDigest": "c676837615735e34b1f5442a9252a84ca4c2faf8ad788419bce55378c635e1bb"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "acceptance_decision_id"
+        ],
+        "targetTable": "arca_acceptance_decisions",
+        "targetColumns": [
+          "acceptance_decision_id"
+        ],
+        "deletePolicy": "RESTRICT"
+      }
+    ]
+  }
+}
