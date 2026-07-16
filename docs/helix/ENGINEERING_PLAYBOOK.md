@@ -2,7 +2,7 @@
 
 Status: active non-Canonical engineering governance; Design-only until Implementation Gate is explicitly opened.
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 ## 1. Purpose and authority
 
@@ -68,6 +68,24 @@ Implementation Gate只有用户明确授权才能打开。当前Gate状态只以
 - destructive测试只允许用户授权的本地临时目录或disposable fixture；
 - 当前旧`helixCleanState`/preflight不得用于clean切换或生产；
 - 没有明确授权时，不启动E2E、不构建Docker、不部署、不接触真实媒体副作用。
+
+### 3.3 SSOT modification authority is excluded from implementation threads
+
+任何Local Implementation、测试修复、Phase推进、Exit Audit或用户对实施范围的授权，都**不授予实施线程修改
+`TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`的权限**。本工程的实施线程必须把以下规则作为不可绕过的Design-return gate：
+
+1. 发现SSOT内部矛盾、缺失合同、无法同时兑现的条款或实现所需的架构补充时，立即停止受影响Work Package；
+2. 实施线程只能提交Problem Report：精确冲突条款、可复验证据、影响范围、为什么现有合同无法唯一实现，以及有界修正建议；
+3. 实施线程禁止直接创建、编辑、修补、重排或“仅机械地”更新SSOT，也禁止先按猜测修改派生合同掩盖问题；
+4. SSOT评审与修改只能由用户协调的Architecture Agent完成；实施线程不得代替Architecture Agent作出或落盘架构决定；
+5. Architecture Agent的修正只有在用户确认并形成可识别commit/review record后，实施线程才可原样纳入活动Phase；
+6. 纳入后先验证SSOT内部一致性、commit/digest和bounded propagation，再更新source map、manifest、机器门禁、测试、
+   Current Plan/Status及实现；派生传播不得反向改写SSOT；
+7. 一次已批准修正只授权纳入该精确修正，不构成实施线程以后修改SSOT的持续授权。
+
+如果Architecture Agent修正仍有冲突或传播不完整，实施线程继续保持fail closed并再次上报，不以兼容层、豁免、旧结构、
+silent fallback或“测试先过”为理由自行选择架构。Phase Exit Audit必须能区分Architecture Agent提交的SSOT变更与实施线程
+的派生变更，并证明实施线程没有产生额外SSOT diff。
 
 ## 4. Workspace, branch and change isolation
 
