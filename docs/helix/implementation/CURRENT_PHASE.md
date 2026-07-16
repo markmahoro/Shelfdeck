@@ -2,7 +2,7 @@
 
 Current phase: `P3 — Persistence and Atomic Foundation`
 
-Status: in progress；P3-00–P3-06 complete；P3-07 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P3-00–P3-07 complete；P3-08 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -73,8 +73,8 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 | P3-04 | Commit Marker、Command Receipt and Audit foundation | complete | P3-03 |
 | P3-05 | Outbox、Delivery and Inbox atomic foundation | complete | P3-03–P3-04 |
 | P3-06 | Material Control CAS current/revision participant | complete | P3-03–P3-04 |
-| P3-07 | Typed Domain Commit Registry and participant coordinator | next | P3-03–P3-06 |
-| P3-08 | 18 canonical transaction crash-window fixtures | pending | P3-07 |
+| P3-07 | Typed Domain Commit Registry and participant coordinator | complete | P3-03–P3-06 |
+| P3-08 | 18 canonical transaction crash-window fixtures | next | P3-07 |
 | P3-09 | Cross-persistence verification harness | pending | P3-01–P3-08 |
 | P3-10 | P3 Phase Exit Audit and evidence freeze | pending | P3-00–P3-09 |
 
@@ -168,6 +168,13 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 - Resolve only manifest-declared Owner/fact schema handles；no generic SQL participant or Executor Repository access.
 - Coordinate Domain、Material Control and Foundation participants inside one Kernel Unit of Work.
 - Handoff participants cannot obtain or write upstream Store.
+- Done: commit `d7f27848` adds a deterministic typed Registry keyed by exact Owner、aggregate/fact type and nominal fact schema；
+  every entry must predeclare `domain_fact_commit` Effect Class and a Domain revision fence. Handle/payload digest、participant Owner and
+  bound Business Owner are fail-closed；the coordinator accepts no caller-supplied Repository、SQL or generic participant，and composes only
+  Registry-resolved Domain、optional Material Control、immutable Commit Marker and same-Owner Outbox inside one scoped Unit of Work.
+  Six fixture groups prove deterministic registration、atomic fact/marker/outbox replay、unknown schema/payload/Owner rejection、revision
+  rollback、marker conflict preemption and optional Control CAS all-or-nothing. Full gate and fresh detached-worktree gate PASS；all DBs were
+  disposable，SSOT/contract digests unchanged，no Runtime/API/UI/startup or upstream Store write path was introduced.
 
 ### P3-08 18 canonical transaction crash-window fixtures
 

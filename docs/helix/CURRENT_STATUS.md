@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline |
 | Current phase | P3 — Persistence and Atomic Foundation |
-| Current phase status | in progress；P3-00–P3-06 complete；P3-07 next |
+| Current phase status | in progress；P3-00–P3-07 complete；P3-08 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | P2 closure / P3 baseline `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p3` on `codex/helix-p3` |
-| Next action | P3-07 Typed Domain Commit Registry and participant coordinator |
+| Next action | P3-08 18 canonical transaction crash-window fixtures |
 
 ## 2. Accepted implementation conclusion
 
@@ -144,5 +144,9 @@ P3-04已在`14b0e89c`完成：同事务preflight保证same-key/same-digest稳定
 篡改反例在fresh detached worktree PASS，Delivery不持有Domain权限。
 P3-06已在`f3ec7a81`完成：canonical Physical Material Identity重算、expected revision/from-to scope/scope digest
 精确验证、单一current+append-only revision CAS，以及replace-control-set多Identity原子性均由5组fixture与startup tamper
-反例证明，fresh detached-worktree完整门禁PASS；Control未创建Binding或Domain事实。下一检查点是P3-07 typed Domain
-Commit Registry与participant coordinator。没有需要用户决定的业务问题。
+反例证明，fresh detached-worktree完整门禁PASS；Control未创建Binding或Domain事实。P3-07已在`d7f27848`完成：exact
+Owner/aggregate/fact/schema Registry强制预声明`domain_fact_commit` Effect Class和revision fence，payload digest与participant
+Owner/bound Owner均fail-closed；coordinator不接受调用方Repository、SQL或generic participant，只在同一scoped UoW组合Domain、
+可选Material Control、Commit Marker与同Owner Outbox。6组原子/replay/unknown schema/payload drift/wrong Owner/revision/marker
+conflict/Control CAS反例、完整门禁和fresh detached-worktree均PASS，SSOT与P2合同digest未改变。下一检查点是P3-08的18项
+canonical transaction crash-window fixtures。没有需要用户决定的业务问题。
