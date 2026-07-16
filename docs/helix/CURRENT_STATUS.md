@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0 complete; P1 Local Implementation Gate open; P1-00–P1-05 complete; P1-06 next; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0 complete; P1 Local Implementation Gate open; P1-00–P1-06 complete; P1-07 next; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-16
 
@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phase | P0 — implementation gap audit and disposition |
 | Current phase | P1 — Clean Skeleton and Architecture Guards |
-| Current phase status | in progress；P1-00–P1-05 complete |
+| Current phase status | in progress；P1-00–P1-06 complete |
 | Implementation Gate | open for `Local implementation only / P1` |
 | Current allowed work | P1本地代码、unit/contract/isolated architecture fixture、文档同步 |
 | Integration baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p1` on `codex/helix-p1` |
-| Next action | P1-06 Machine-readable manifest and reuse-ledger framework |
+| Next action | P1-07 Isolated architecture verification harness |
 
 ## 2. Accepted implementation conclusion
 
@@ -65,8 +65,8 @@ P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引
 | P1-03 Unique Composition Root shell | complete；fail-closed / zero import side effect |
 | P1-04 Import/dependency guard | complete；42 packages / 6 source files / 5 dependencies / 0 findings；9 positive/negative checks |
 | P1-05 Forbidden legacy semantics guard | complete；12 rule families / exact structured exemptions / 6 checks |
-| P1-06 Manifest/reuse-ledger framework | next |
-| P1-07 Architecture verification harness | pending |
+| P1-06 Manifest/reuse-ledger framework | complete；10 Owners / 42 packages / 62 baseline locators / stable digest |
+| P1-07 Architecture verification harness | next |
 | P1-08 Phase Exit Audit | pending |
 
 P1代码和隔离architecture fixture已经开始；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
@@ -104,7 +104,8 @@ P1代码和隔离architecture fixture已经开始；clean root仍未接入`serve
 
 ## 8. Next checkpoint
 
-P1-05已完成：12类历史语义规则扫描clean文件路径、代码、注释和字符串；只有规则manifest自身获得精确到
-file/rule/location/purpose的12项结构化豁免，通配、未知、路径逃逸和未解析豁免均fail closed。P1-04/P1-05累计
-15项architecture fixture通过，两个clean-root checker均为0 findings。下一检查点是P1-06建立versioned manifest、
-稳定digest和function-level reuse ledger框架，但不提前填充P2的112/96/156合同正文。
+P1-06已完成：manifest validator解析10个Owner、42个package和62/62个`4a16f0a9`历史registration locator；
+处置数固定为21 retain/recontract、24 merge、12 split、5 remove，全部仍为`pending_function_audit / not_authorized`，
+whole-executor reuse为false。112 Capability、96 Result family、156 table、114 route、18 canonical transaction与UI
+9 page+9 journey均明确为`framework_only / 0 implemented`。当前aggregate digest为
+`8e9440e980a46eb82de9c263ab083ea0154208fd9d9cc4275d7c18bf0b6abf6e`。下一检查点是P1-07提供单一隔离验证命令。
