@@ -13,7 +13,7 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards |
 | Current phase | P2 — Contract and Schema Baseline |
-| Current phase status | in progress；P2-00 baseline and standing authorization receipt |
+| Current phase status | in progress；P2-00 complete；P2-01 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | `c52e67fa2b49c605d0971f2150238ea37c50816a` |
@@ -75,8 +75,8 @@ P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 
 | Work Package | Status |
 | --- | --- |
-| P2-00 Standing authorization and isolated baseline | in progress |
-| P2-01 SSOT extraction oracle/source map | pending |
+| P2-00 Standing authorization and isolated baseline | complete；`c52e67fa` → `f1b5510d` |
+| P2-01 SSOT extraction oracle/source map | next |
 | P2-02 Shared nominal type/envelope registry | pending |
 | P2-03 112 Capability contract packages | pending |
 | P2-04 96 Result family closure | pending |
