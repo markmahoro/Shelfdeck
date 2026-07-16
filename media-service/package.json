@@ -13,6 +13,7 @@
     "test:helix-architecture": "node scripts/helix-architecture-verify.js",
     "test:helix-persistence": "node scripts/helix-p3-persistence-verify.js",
     "test:helix-persistence-exit": "node scripts/helix-p3-exit-audit.js --require-clean",
+    "test:helix-runtime": "node scripts/helix-p4-runtime-verify.js",
     "build:web": "cd web && npm run build",
     "helix:clean-init": "node scripts/helix-clean-init.js",
     "dist:win": "node scripts/package-win.js"
