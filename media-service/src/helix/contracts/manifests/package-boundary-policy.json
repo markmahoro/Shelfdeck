@@ -2,7 +2,15 @@
   "schemaVersion": 1,
   "defaultInternalDecision": "deny",
   "defaultExternalDecision": "deny",
-  "externalModuleRules": [],
+  "externalModuleRules": [
+    {
+      "source": "foundation.capability",
+      "allow": [
+        "ajv/dist/2020",
+        "ajv-formats"
+      ]
+    }
+  ],
   "externalDomainImport": "domains/{owner}/public/index.js",
   "domainOwners": [
     "procurement",
