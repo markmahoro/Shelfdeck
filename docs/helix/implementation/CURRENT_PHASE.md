@@ -2,7 +2,7 @@
 
 Current phase: `P3 — Persistence and Atomic Foundation`
 
-Status: in progress；P3-00–P3-08 complete；P3-09 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P3-00–P3-09 complete；P3-10 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -75,8 +75,8 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 | P3-06 | Material Control CAS current/revision participant | complete | P3-03–P3-04 |
 | P3-07 | Typed Domain Commit Registry and participant coordinator | complete | P3-03–P3-06 |
 | P3-08 | 18 canonical transaction crash-window fixtures | complete | P3-07 |
-| P3-09 | Cross-persistence verification harness | next | P3-01–P3-08 |
-| P3-10 | P3 Phase Exit Audit and evidence freeze | pending | P3-00–P3-09 |
+| P3-09 | Cross-persistence verification harness | complete | P3-01–P3-08 |
+| P3-10 | P3 Phase Exit Audit and evidence freeze | next | P3-00–P3-09 |
 
 ## 7. Work Package contracts
 
@@ -194,6 +194,12 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 - One local command validates DDL digest、156 tables、FK/check/index contracts、Owner write gates and 18 atomic fixtures.
 - Harness fails on legacy schema、compatibility object、unknown table/participant or DB path outside its temp root.
 - It must not start Service、bind port、read credentials or invoke E2E/Docker.
+- Done: commit `bb8a797d` adds the single `npm run test:helix-persistence` / `node scripts/helix-p3-persistence-verify.js`
+  gate with explicit `P3_LOCAL_CROSS_PERSISTENCE` scope. It runs the full clean architecture/contract/Owner/atomic fixture gate，then
+  independently rematerializes an exact 156-table、72-index、19-partial-unique catalog under an owned temporary root and reports the
+  signed DDL/P2 aggregates. Five focused fixture groups reject outside/equal/non-DB paths、unknown participant modules、legacy tables、
+  compatibility views and external-action entry points；child execution receives only `NODE_ENV/NODE_PATH`，not ambient credentials.
+  Focused gate、aggregate command and fresh detached-worktree command all PASS；temporary DB root is removed and prohibited actions are empty.
 
 ### P3-10 P3 Phase Exit Audit and evidence freeze
 

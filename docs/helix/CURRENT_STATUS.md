@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline |
 | Current phase | P3 — Persistence and Atomic Foundation |
-| Current phase status | in progress；P3-00–P3-08 complete；P3-09 next |
+| Current phase status | in progress；P3-00–P3-09 complete；P3-10 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | P2 closure / P3 baseline `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p3` on `codex/helix-p3` |
-| Next action | P3-09 Cross-persistence verification harness |
+| Next action | P3-10 P3 Phase Exit Audit and evidence freeze |
 
 ## 2. Accepted implementation conclusion
 
@@ -152,4 +152,7 @@ conflict/Control CAS反例、完整门禁和fresh detached-worktree均PASS，SSO
 完成：18项合同、56个声明写表、132个participant/COMMIT故障点、18个revision-fence反例、10个stale Control CAS反例和
 11个真实Outbox路径均使用disposable SQLite验证；COMMIT前任一点失败保持完整快照不变，COMMIT后进程丢失/reopen保持整套
 声明事实可见，Handoff上游prefix及其它forbidden write set不变。66/66专项测试、完整门禁和fresh detached-worktree均PASS，
-没有真实文件/Provider/网络/媒体副作用。下一检查点是P3-09 cross-persistence verification harness。没有需要用户决定的业务问题。
+没有真实文件/Provider/网络/媒体副作用。P3-09已在`bb8a797d`完成：唯一`P3_LOCAL_CROSS_PERSISTENCE`命令聚合完整
+架构/合同/Owner/atomic fixture门禁，并在owned temp root重物化156表、72 index、19 partial unique exact catalog；5组专项
+反例拒绝越界/非DB路径、unknown participant module、legacy table、compatibility view和外部动作入口，子进程不继承ambient
+credentials。专项、聚合命令和fresh detached-worktree均PASS。下一检查点是P3-10 Phase Exit Audit。没有需要用户决定的业务问题。
