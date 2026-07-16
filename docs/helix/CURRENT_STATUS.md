@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline |
 | Current phase | P3 — Persistence and Atomic Foundation |
-| Current phase status | in progress；P3-00–P3-03 complete；P3-04 next |
+| Current phase status | in progress；P3-00–P3-04 complete；P3-05 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | P2 closure / P3 baseline `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p3` on `codex/helix-p3` |
-| Next action | P3-04 Commit Marker、Command Receipt and Audit foundation |
+| Next action | P3-05 Outbox、Delivery and Inbox atomic foundation |
 
 ## 2. Accepted implementation conclusion
 
@@ -137,4 +137,6 @@ same-commit timestamp全部通过5组disposable SQLite正反例和fresh detached
 `data/`，所有临时数据库已删除。P3-03已在`e17e109e`完成：Repository statement只能从manifest登记的同Owner表/列生成，
 Unit of Work最多持有一个Business Domain并为Control/Foundation分别发放短生命周期context；7项正反例与静态guard拒绝跨域、
 raw SQL、未声明authority、immutable UPDATE、异步/嵌套/context逃逸，fresh detached-worktree与DDL重物化零diff PASS。
-下一检查点是P3-04 Commit Marker、Command Receipt和Audit foundation。没有需要用户决定的业务问题。
+P3-04已在`14b0e89c`完成：同事务preflight保证same-key/same-digest稳定replay且不执行Domain，different-digest
+稳定拒绝；首次执行按Owner Fact→Receipt/全局Marker/append-only Audit整体提交。6组崩溃/约束反例和fresh detached-worktree
+完整门禁PASS，不存在孤立Receipt。下一检查点是P3-05 Outbox、Delivery和Inbox atomic foundation。没有需要用户决定的业务问题。
