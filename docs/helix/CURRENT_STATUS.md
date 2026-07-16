@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards |
 | Current phase | P2 — Contract and Schema Baseline |
-| Current phase status | in progress；P2-00 complete；P2-01 next |
+| Current phase status | in progress；P2-00–P2-01 complete；P2-02 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | `c52e67fa2b49c605d0971f2150238ea37c50816a` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p2` on `codex/helix-p2` |
-| Next action | P2-01 SSOT extraction oracle and inventory source mapping |
+| Next action | P2-02 Shared nominal type and envelope registry |
 
 ## 2. Accepted implementation conclusion
 
@@ -76,8 +76,8 @@ P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 | Work Package | Status |
 | --- | --- |
 | P2-00 Standing authorization and isolated baseline | complete；`c52e67fa` → `f1b5510d` |
-| P2-01 SSOT extraction oracle/source map | next |
-| P2-02 Shared nominal type/envelope registry | pending |
+| P2-01 SSOT extraction oracle/source map | complete；112/96/156/18；17 shards；10 negative checks |
+| P2-02 Shared nominal type/envelope registry | next |
 | P2-03 112 Capability contract packages | pending |
 | P2-04 96 Result family closure | pending |
 | P2-05 156 table contract inventory | pending |
@@ -118,6 +118,7 @@ P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 
 ## 8. Next checkpoint
 
-Standing P2–P13 Local Implementation authorization已收到。P2从P1 closure commit `c52e67fa`建立独立worktree；
-下一检查点是把SSOT §8.5/§8.6的112 Capability、96 Result family、156 table和18 canonical transaction转换为
-可机械核验、带稳定locator/digest的contract source map。没有需要用户决定的业务问题。
+P2-01已把SSOT §8.5/§8.6机械冻结为112 Capability、96 Result family、156 table、18 canonical transaction和
+17个逐项source-map shard；source aggregate digest为`9d6f117d8987d69c5b3e118e17e2e4bda8e6325c45f6bf18750221bd84eeae38`。
+数量、duplicate、heading、Effect、line digest、document drift和shard路径负例均fail closed。下一检查点是P2-02建立
+§8.6.17–§8.6.18 shared nominal handle和envelope JSON Schema registry。没有需要用户决定的业务问题。

@@ -2,7 +2,7 @@
 
 Current phase: `P2 — Contract and Schema Baseline`
 
-Status: in progress；P2-00 complete；P2-01 next；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P2-00–P2-01 complete；P2-02 next；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -75,8 +75,8 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
 | P2-00 | Standing authorization and isolated baseline receipt | complete | P1 PASS |
-| P2-01 | SSOT extraction oracle and source map | next | P2-00 |
-| P2-02 | Shared nominal type and envelope registry | pending | P2-01 |
+| P2-01 | SSOT extraction oracle and source map | complete | P2-00 |
+| P2-02 | Shared nominal type and envelope registry | next | P2-01 |
 | P2-03 | 112 Capability immutable contract packages | pending | P2-01、P2-02 |
 | P2-04 | 96 Result family schema closure | pending | P2-02、P2-03 |
 | P2-05 | 156 relational table contract inventory | pending | P2-01 |
