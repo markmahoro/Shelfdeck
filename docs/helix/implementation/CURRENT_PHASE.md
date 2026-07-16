@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00–P4-12 complete；P4-13 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-13 complete；P4-14 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -80,8 +80,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | P4-10 | Retry、Timeout and declared Compensation | complete | P4-08–P4-09 |
 | P4-11 | Pressure Guard and persistent Circuit Breaker | complete | P4-05–P4-10 |
 | P4-12 | Startup recovery and Foundation readiness | complete | P4-09–P4-11 |
-| P4-13 | Cross-runtime crash/recovery verification harness | next | P4-01–P4-12 |
-| P4-14 | P4 Phase Exit Audit and evidence freeze | pending | P4-00–P4-13 |
+| P4-13 | Cross-runtime crash/recovery verification harness | complete | P4-01–P4-12 |
+| P4-14 | P4 Phase Exit Audit and evidence freeze | next | P4-00–P4-13 |
 
 ## 7. Work Package contracts
 
@@ -259,6 +259,13 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - One local command verifies all state machines、Owner/port guards、DAG、priority/backpressure、Permit、Fence、Progress and seven recoveries.
 - Inject crash before/after durable transitions and fake effect boundaries；reopen disposable DB and prove stable recovery/no duplicate effect.
 - Harness cannot start Service、bind ports、read credentials、invoke old Runtime/E2E/Docker or perform real effects.
+- Done: commit `daaa0970` adds the single `P4_LOCAL_CROSS_RUNTIME_RECOVERY` command. It first requires the full architecture gate and
+  explicit fixtures for state machines、Owner/ports、DAG/supply、backpressure/Permit、Fence/Progress and recovery，then runs 31 owned-
+  temp cross-process scenarios：one pure process loss plus six non-pure classes at five boundaries from before intent through after commit.
+  Every crash reopens SQLite、classifies twice for stability，recovers and replays again，ending with exactly one Effect、one Commit Marker
+  and one fake dispatch. The matrix uses the real seven-class Reconciler registry，including Material/Destructive forward recovery and
+  Workspace reality reuse；it has no generic recovery fallback. Three focused tests，50-file aggregate gate，P3 persistence aggregate and
+  fresh detached-worktree audit PASS with `prohibitedActionsRun=[]` and unchanged P2/DDL digests.
 
 ### P4-14 P4 Phase Exit Audit and evidence freeze
 
