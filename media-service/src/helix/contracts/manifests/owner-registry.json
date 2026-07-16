@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.owner-registry",
+  "kind": "owner-registry",
+  "owner": "contracts",
+  "status": "active",
+  "ssotRefs": ["2.2", "8.1.1", "8.1.2"],
+  "owners": [
+    { "id": "application-composition", "class": "engineering" },
+    { "id": "procurement", "class": "business-domain" },
+    { "id": "libra", "class": "business-domain" },
+    { "id": "arca", "class": "business-domain" },
+    { "id": "perception", "class": "business-domain" },
+    { "id": "people", "class": "business-domain" },
+    { "id": "execution-foundation", "class": "engineering" },
+    { "id": "integration-boundary", "class": "engineering" },
+    { "id": "read-model", "class": "engineering" },
+    { "id": "contracts", "class": "engineering" }
+  ]
+}

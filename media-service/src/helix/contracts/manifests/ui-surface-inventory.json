@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.inventory.ui-surfaces",
+  "kind": "ui-surface-inventory",
+  "owner": "contracts",
+  "status": "framework_only",
+  "ssotRefs": ["9.3", "9.4", "9.9.3"],
+  "targetCount": 18,
+  "targetSegments": { "pages": 9, "journeys": 9 },
+  "entries": []
+}

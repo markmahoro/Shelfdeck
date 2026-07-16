@@ -1,0 +1,438 @@
+{
+  "schemaVersion": 1,
+  "ledgerId": "helix.legacy-reuse-ledger",
+  "entries": [
+    {
+      "id": "legacy-capability.001",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "emby.item.observe",
+      "architectureDisposition": "split",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/basedataCapabilities.js",
+        "line": 9,
+        "token": "emby.item.observe"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "23191f4e11edbfae38d5239e4a1769c02d8ff5a435d8ffee22d2eb33be1a475e"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.002",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "filesystem.media.probe",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/basedataCapabilities.js",
+        "line": 10,
+        "token": "filesystem.media.probe"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "23191f4e11edbfae38d5239e4a1769c02d8ff5a435d8ffee22d2eb33be1a475e"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.003",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "filesystem.layout.observe",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/basedataCapabilities.js",
+        "line": 11,
+        "token": "filesystem.layout.observe"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "23191f4e11edbfae38d5239e4a1769c02d8ff5a435d8ffee22d2eb33be1a475e"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.004",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "basedata.verify",
+      "architectureDisposition": "split",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/basedataCapabilities.js",
+        "line": 19,
+        "token": "basedata.verify"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "23191f4e11edbfae38d5239e4a1769c02d8ff5a435d8ffee22d2eb33be1a475e"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.005",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "basedata.publish",
+      "architectureDisposition": "split",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/basedataCapabilities.js",
+        "line": 24,
+        "token": "basedata.publish"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "23191f4e11edbfae38d5239e4a1769c02d8ff5a435d8ffee22d2eb33be1a475e"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.006",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "basedata.subject.publish",
+      "architectureDisposition": "remove_legacy_semantics",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/basedataCapabilities.js",
+        "line": 30,
+        "token": "basedata.subject.publish"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "23191f4e11edbfae38d5239e4a1769c02d8ff5a435d8ffee22d2eb33be1a475e"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.007",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "media.identity.resolve",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/metadataCapabilities.js",
+        "line": 17,
+        "token": "media.identity.resolve"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "e94230ad079decc1a0a7a6a7500cae148b955edf935dc6c1ff5aa7a55f7dbca6"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.008",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "series.identity.resolve",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/metadataCapabilities.js",
+        "line": 25,
+        "token": "series.identity.resolve"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "e94230ad079decc1a0a7a6a7500cae148b955edf935dc6c1ff5aa7a55f7dbca6"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.009",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "metadata.provider.fetch",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/metadataCapabilities.js",
+        "line": 29,
+        "token": "metadata.provider.fetch"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "e94230ad079decc1a0a7a6a7500cae148b955edf935dc6c1ff5aa7a55f7dbca6"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.010",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "series.metadata.provider.fetch",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/metadataCapabilities.js",
+        "line": 36,
+        "token": "series.metadata.provider.fetch"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "e94230ad079decc1a0a7a6a7500cae148b955edf935dc6c1ff5aa7a55f7dbca6"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.011",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "media.frames.extract",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/westernAdultCapabilities.js",
+        "line": 32,
+        "token": "media.frames.extract"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "8bb462664c25150ea3d6915135ef2bac0942d44845f1746a6f7b94daf0dc4404"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.012",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "person.faces.embed",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/westernAdultCapabilities.js",
+        "line": 39,
+        "token": "person.faces.embed"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "8bb462664c25150ea3d6915135ef2bac0942d44845f1746a6f7b94daf0dc4404"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.013",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "person.faces.cluster",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/westernAdultCapabilities.js",
+        "line": 49,
+        "token": "person.faces.cluster"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "8bb462664c25150ea3d6915135ef2bac0942d44845f1746a6f7b94daf0dc4404"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.014",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "person.faces.match",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/westernAdultCapabilities.js",
+        "line": 54,
+        "token": "person.faces.match"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "8bb462664c25150ea3d6915135ef2bac0942d44845f1746a6f7b94daf0dc4404"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.015",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "metadata.poster.compose",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/westernAdultCapabilities.js",
+        "line": 65,
+        "token": "metadata.poster.compose"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "8bb462664c25150ea3d6915135ef2bac0942d44845f1746a6f7b94daf0dc4404"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.016",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "adult.metadata.compose",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/westernAdultCapabilities.js",
+        "line": 76,
+        "token": "adult.metadata.compose"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "8bb462664c25150ea3d6915135ef2bac0942d44845f1746a6f7b94daf0dc4404"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    }
+  ]
+}

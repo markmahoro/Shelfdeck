@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.inventory.canonical-transactions",
+  "kind": "transaction-inventory",
+  "owner": "contracts",
+  "status": "framework_only",
+  "ssotRefs": ["8.5.4", "10.10.1"],
+  "targetCount": 18,
+  "entries": []
+}

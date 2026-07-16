@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.inventory.tables",
+  "kind": "table-inventory",
+  "owner": "contracts",
+  "status": "framework_only",
+  "ssotRefs": ["8.5.9", "8.5.10", "8.5.11", "8.5.12", "8.5.13"],
+  "targetCount": 156,
+  "entries": []
+}

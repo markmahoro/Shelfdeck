@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.inventory.routes",
+  "kind": "route-inventory",
+  "owner": "contracts",
+  "status": "framework_only",
+  "ssotRefs": ["9.7", "9.9.7"],
+  "targetCount": 114,
+  "targetSegments": { "admin": 113, "publicHealth": 1 },
+  "entries": []
+}

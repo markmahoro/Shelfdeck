@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.legacy-reuse-ledger",
+  "kind": "legacy-reuse-ledger",
+  "owner": "contracts",
+  "status": "active",
+  "ssotRefs": ["8.8.3", "8.9.8"],
+  "targetCount": 62,
+  "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+  "dispositionTargets": {
+    "retain_recontract": 21,
+    "merge": 24,
+    "split": 12,
+    "remove_legacy_semantics": 5
+  },
+  "entryFiles": [
+    "legacy-reuse/entries-001-016.json",
+    "legacy-reuse/entries-017-032.json",
+    "legacy-reuse/entries-033-048.json",
+    "legacy-reuse/entries-049-062.json"
+  ],
+  "assessmentTemplates": {
+    "pending-unassessed-v1": {
+      "typedInput": { "status": "unassessed" },
+      "typedOutput": { "status": "unassessed" },
+      "effectClass": "unassessed",
+      "fence": "unassessed",
+      "resourceDemand": "unassessed",
+      "idempotency": "unassessed",
+      "crashWindow": "unassessed",
+      "testEvidence": { "status": "missing" },
+      "reuseAuthorization": "not_authorized"
+    }
+  }
+}

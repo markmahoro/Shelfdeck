@@ -1,0 +1,438 @@
+{
+  "schemaVersion": 1,
+  "ledgerId": "helix.legacy-reuse-ledger",
+  "entries": [
+    {
+      "id": "legacy-capability.033",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "output.media.verify",
+      "architectureDisposition": "split",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/maintenanceCapabilities.js",
+        "line": 31,
+        "token": "output.media.verify"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "65e6d8ebeaa747ba4c674bd617e0527471713a930bc712441aa60968b3400736"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.034",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "output.media.select",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/transcodeCapabilities.js",
+        "line": 72,
+        "token": "output.media.select"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "b8a5659103cea213e05aa43078190c50c35f5e225989f55f5ec050247523d051"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.035",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "output.media.disposition",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/transcodeCapabilities.js",
+        "line": 92,
+        "token": "output.media.disposition"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "b8a5659103cea213e05aa43078190c50c35f5e225989f55f5ec050247523d051"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.036",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "output.preview.generate",
+      "architectureDisposition": "remove_legacy_semantics",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/transcodeCapabilities.js",
+        "line": 79,
+        "token": "output.preview.generate"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "b8a5659103cea213e05aa43078190c50c35f5e225989f55f5ec050247523d051"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.037",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "staged.asset.discard",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/transcodeCapabilities.js",
+        "line": 99,
+        "token": "staged.asset.discard"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "b8a5659103cea213e05aa43078190c50c35f5e225989f55f5ec050247523d051"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.038",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "workspace.cleanup",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/transcodeCapabilities.js",
+        "line": 112,
+        "token": "workspace.cleanup"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "b8a5659103cea213e05aa43078190c50c35f5e225989f55f5ec050247523d051"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.039",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "optimization.outcome.select",
+      "architectureDisposition": "remove_legacy_semantics",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/transcodeCapabilities.js",
+        "line": 106,
+        "token": "optimization.outcome.select"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "b8a5659103cea213e05aa43078190c50c35f5e225989f55f5ec050247523d051"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.040",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "integration.moviepilot.check",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/upgradeCapabilities.js",
+        "line": 52,
+        "token": "integration.moviepilot.check"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "1af358ddeb29c5372b8758944d586d4c12d1db5806544f9548d62ebaa80188d9"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.041",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "media.upgrade.identity.resolve",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/upgradeCapabilities.js",
+        "line": 60,
+        "token": "media.upgrade.identity.resolve"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "1af358ddeb29c5372b8758944d586d4c12d1db5806544f9548d62ebaa80188d9"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.042",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "source.upgrade.search",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/upgradeCapabilities.js",
+        "line": 83,
+        "token": "source.upgrade.search"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "1af358ddeb29c5372b8758944d586d4c12d1db5806544f9548d62ebaa80188d9"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.043",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "source.upgrade.request",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/upgradeCapabilities.js",
+        "line": 112,
+        "token": "source.upgrade.request"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "1af358ddeb29c5372b8758944d586d4c12d1db5806544f9548d62ebaa80188d9"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.044",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "source.upgrade.observe-download",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/upgradeCapabilities.js",
+        "line": 141,
+        "token": "source.upgrade.observe-download"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "1af358ddeb29c5372b8758944d586d4c12d1db5806544f9548d62ebaa80188d9"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.045",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "source.upgrade.observe-transfer",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/upgradeCapabilities.js",
+        "line": 158,
+        "token": "source.upgrade.observe-transfer"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "1af358ddeb29c5372b8758944d586d4c12d1db5806544f9548d62ebaa80188d9"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.046",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "source.upgrade.output.resolve",
+      "architectureDisposition": "merge",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/upgradeCapabilities.js",
+        "line": 172,
+        "token": "source.upgrade.output.resolve"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "1af358ddeb29c5372b8758944d586d4c12d1db5806544f9548d62ebaa80188d9"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.047",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "source.upgrade.output.settle",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/upgradeCapabilities.js",
+        "line": 185,
+        "token": "source.upgrade.output.settle"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "1af358ddeb29c5372b8758944d586d4c12d1db5806544f9548d62ebaa80188d9"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    },
+    {
+      "id": "legacy-capability.048",
+      "version": 1,
+      "owner": "contracts",
+      "status": "pending_function_audit",
+      "ssotRefs": [
+        "8.8.3",
+        "8.9.8"
+      ],
+      "historicalCapabilityRef": "media.identity.inspect",
+      "architectureDisposition": "retain_recontract",
+      "sourceLocator": {
+        "baselineCommit": "4a16f0a94ef23fcf732843e9547bd7b724d9c19d",
+        "path": "media-service/src/capabilities/mediaAssetCapabilities.js",
+        "line": 25,
+        "token": "media.identity.inspect"
+      },
+      "sourceDigest": {
+        "algorithm": "sha256",
+        "value": "934025ebf28cda53366bcb9086a1442ed5f5241601fe2037467d3d2d23410641"
+      },
+      "targetLocator": {
+        "status": "unassigned"
+      },
+      "assessmentRef": "pending-unassessed-v1",
+      "wholeExecutorReuseAuthorized": false
+    }
+  ]
+}
