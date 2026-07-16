@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P4 — Execution and Recovery Foundation |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P4-00 next；P3 Exit Audit PASS |
-| Implementation baseline | audited P3 implementation `5f433d930ba3111c19b1589816b96c790d60e5f3`；exact phase-closure baseline recorded by P4-00 |
-| Phase branch/worktree | P4-00 will create isolated `codex/helix-p4` worktree |
+| Status | in progress；P4-00 complete；P4-01 next；P3 Exit Audit PASS |
+| Implementation baseline | exact P3 phase closure `4a59356f3a89f1af38f594763aaaa0465e203b99` |
+| Phase branch/worktree | `codex/helix-p4` / `E:\my_project\emby_third_party-helix-p4` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P4-00 P3 closure and isolated P4 baseline receipt |
+| Next action | P4-01 Foundation public ports and runtime nominal contracts |
 
 ## 4. Master roadmap
 

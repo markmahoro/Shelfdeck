@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00 complete；P4-01 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -36,7 +36,8 @@ P4的外部/文件/Provider/Worker效果全部由deterministic fake adapter与re
 | P3 audited implementation | `5f433d930ba3111c19b1589816b96c790d60e5f3` |
 | P3 Exit evidence | `evidence/P3_PHASE_EXIT_AUDIT_5F433D93.md` / digest `b7269dd7…` |
 | Integration branch | `codex/helix-clean` |
-| P4 phase branch/worktree | to be created by P4-00 from the exact P3 phase-closure commit |
+| P4 phase baseline | `4a59356f3a89f1af38f594763aaaa0465e203b99` |
+| P4 phase branch/worktree | `codex/helix-p4` / `E:\my_project\emby_third_party-helix-p4` |
 | Original workspace | `E:\my_project\emby_third_party` on `master`；dirty user work preserved |
 | Excluded | legacy Runtime/executors、product startup、API/UI、`media-desktop`、E2E、Docker/Canary、production、real effects |
 
@@ -66,8 +67,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
-| P4-00 | P3 closure and isolated P4 baseline receipt | next | P3 PASS |
-| P4-01 | Foundation public ports and runtime nominal contracts | pending | P4-00 |
+| P4-00 | P3 closure and isolated P4 baseline receipt | complete | P3 PASS |
+| P4-01 | Foundation public ports and runtime nominal contracts | next | P4-00 |
 | P4-02 | Exact Capability Registry and typed dispatcher gate | pending | P4-01；P2 Capability contracts |
 | P4-03 | Supporting Work admission and idempotent submission | pending | P4-01；P3 Persistence |
 | P4-04 | Immutable normalized Plan and DAG validator | pending | P4-02–P4-03 |
@@ -89,6 +90,11 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - Fast-forward the accepted P3 closure to `codex/helix-clean` and create an isolated P4 branch/worktree from that exact commit.
 - Re-run `P3_LOCAL_CROSS_PERSISTENCE` and P3 Exit Audit in fresh checkout；verify original dirty workspace remains unchanged.
 - Record exact closure baseline before Runtime code begins.
+- Done: `codex/helix-clean` was fast-forwarded and isolated `codex/helix-p4` / `E:\my_project\emby_third_party-helix-p4`
+  was created from exact P3 phase closure `4a59356f3a89f1af38f594763aaaa0465e203b99`. The P3 aggregate gate in the
+  new checkout restored 112/96/156/18、156 tables/72 indexes/19 partial unique、18 transactions/132 crash points and
+  `prohibitedActionsRun=[]`. Original `master` dirty files and all six existing `media-desktop` modifications remain unchanged；
+  P4 worktree was clean before this receipt and no Runtime code started early.
 
 ### P4-01 Foundation public ports and runtime nominal contracts
 

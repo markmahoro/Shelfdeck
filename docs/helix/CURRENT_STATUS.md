@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation |
 | Current phase | P4 — Execution and Recovery Foundation |
-| Current phase status | in progress；P4-00 next；P3 Exit Audit PASS |
+| Current phase status | in progress；P4-00 complete；P4-01 next；P3 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
-| Integration baseline | P3 audited implementation `5f433d930ba3111c19b1589816b96c790d60e5f3`；phase closure pending P4-00 receipt |
-| Phase worktree | P4-00 will create isolated `codex/helix-p4` worktree；P3 worktree retained until handoff complete |
-| Next action | P4-00 P3 closure and isolated P4 baseline receipt |
+| Integration baseline | exact P3 phase closure `4a59356f3a89f1af38f594763aaaa0465e203b99` |
+| Phase worktree | `E:\my_project\emby_third_party-helix-p4` on `codex/helix-p4` |
+| Next action | P4-01 Foundation public ports and runtime nominal contracts |
 
 ## 2. Accepted implementation conclusion
 
@@ -159,4 +159,7 @@ credentials。专项、聚合命令和fresh detached-worktree均PASS。P3 Exit A
 完成正式与fresh detached-worktree双重复审：111 changed files全部属于6类允许范围，findings=0，evidence digest
 `b7269dd77b5d7d41cbd45cb80834f79254b1b1a7410834d80bc3e697c08260e1`。P3已归档，完整Evidence见
 `implementation/evidence/P3_PHASE_EXIT_AUDIT_5F433D93.md`。下一检查点是P4-00精确闭合提交与隔离P4 baseline receipt。
-没有需要用户决定的业务问题。
+P4-00已从精确phase closure `4a59356f3a89f1af38f594763aaaa0465e203b99`创建`codex/helix-p4`隔离
+worktree；新检出的P3聚合门禁恢复112/96/156/18、156表/72 index/19 partial unique与18 transaction/132 crash points
+全部PASS，`prohibitedActionsRun=[]`。原`master` dirty清单及6个既有`media-desktop`修改保持不变。下一检查点是P4-01
+Foundation public ports and runtime nominal contracts。没有需要用户决定的业务问题。
