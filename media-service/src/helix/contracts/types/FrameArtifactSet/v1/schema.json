@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/FrameArtifactSet/v1",
+  "title": "FrameArtifactSet@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/ManifestEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/FrameArtifactSet/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "manifestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "manifestKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "membersDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "publishedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sourceMaterialDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "samplingPlanDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "frameArtifactHandles": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maxItems": 1024
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "manifestId",
+    "manifestKind",
+    "ownerDomain",
+    "memberCount",
+    "membersDigest",
+    "manifestDigest",
+    "publishedAtMs",
+    "sourceMaterialDigest",
+    "samplingPlanDigest",
+    "frameArtifactHandles"
+  ]
+}

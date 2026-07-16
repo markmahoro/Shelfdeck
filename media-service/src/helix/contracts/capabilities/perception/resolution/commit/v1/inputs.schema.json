@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "resolutionDraft": {
-      "$ref": "helix://contracts/domain-types/ResolutionDraft/v1",
+      "$ref": "helix://contracts/types/PerceptionResolutionDraft/v1",
       "x-helix-typeExpression": "Resolution draft"
     },
     "domainFactCommitHandle": {

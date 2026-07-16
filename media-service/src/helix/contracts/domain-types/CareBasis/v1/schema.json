@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/CareBasis/v1",
+  "title": "CareBasis@1",
+  "x-helix-ssotRefs": [
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/CareBasis/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "objectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "inventoryRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "standardRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "placementRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "decisionFactSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "assessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "objectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "schemaRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "digest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "objectKind": {
+            "const": "professional-assessment"
+          }
+        },
+        "required": [
+          "objectId",
+          "revision",
+          "schemaRef",
+          "digest",
+          "objectKind"
+        ]
+      },
+      "maxItems": 1024
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "objectId",
+    "revision",
+    "digest",
+    "shelfEntryId",
+    "inventoryRevision",
+    "standardRevision",
+    "placementRevision",
+    "decisionFactSetDigest",
+    "assessments"
+  ]
+}

@@ -18,11 +18,11 @@
   ],
   "$defs": {
     "candidatePackage": {
-      "$ref": "helix://contracts/domain-types/CandidatePackage/v1",
+      "$ref": "helix://contracts/types/CandidatePackage/v1",
       "x-helix-typeExpression": "CandidatePackage"
     },
     "primaryInputManifest": {
-      "$ref": "helix://contracts/domain-types/PrimaryInputManifest/v1",
+      "$ref": "helix://contracts/types/PrimaryInputManifest/v1",
       "x-helix-typeExpression": "PrimaryInputManifest"
     }
   }

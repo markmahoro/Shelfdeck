@@ -64,7 +64,23 @@ function validateCapabilityContracts(options) {
   }
   const expectedPackages = buildCapabilityPackages(extracted.capabilities);
   const packageResults = [];
-  const pendingTypeRefs = new Set();
+  const referencedTypeRefs = new Set();
+  const unresolvedTypeRefs = new Set();
+  const knownTypeRefs = new Set();
+  for (const registryName of ['shared-type-registry.json', 'result-type-registry.json', 'domain-input-type-registry.json']) {
+    const registryPath = path.join(contractsRoot, registryName);
+    const registry = fs.existsSync(registryPath) ? readJson(registryPath, findings) : null;
+    if (!registry || !Array.isArray(registry.entries)) {
+      findings.push(finding('MISSING_TYPE_REGISTRY', 'Capability graph requires every P2 type registry.', { file: normalizePath(registryPath) }));
+      continue;
+    }
+    for (const entry of registry.entries) {
+      if (!entry || typeof entry.schemaId !== 'string' || knownTypeRefs.has(entry.schemaId)) findings.push(finding(
+        'DUPLICATE_TYPE_SCHEMA_ID', 'Type schema IDs must be unique across all registries.', { schemaId: entry && entry.schemaId }
+      ));
+      else knownTypeRefs.add(entry.schemaId);
+    }
+  }
 
   const allFiles = fs.existsSync(capabilitiesRoot) ? discoverFiles(capabilitiesRoot) : [];
   for (const filePath of allFiles) {
@@ -121,7 +137,15 @@ function validateCapabilityContracts(options) {
         }));
       }
       for (const ref of collectRefs(value)) {
-        if (ref.startsWith('helix://contracts/domain-types/') || ref.startsWith('helix://contracts/types/')) pendingTypeRefs.add(ref);
+        if (ref.startsWith('helix://contracts/domain-types/') || ref.startsWith('helix://contracts/types/')) {
+          referencedTypeRefs.add(ref);
+          if (!knownTypeRefs.has(ref)) {
+            unresolvedTypeRefs.add(ref);
+            findings.push(finding('UNRESOLVED_CAPABILITY_TYPE_REF', 'Capability schema has an unresolved type $ref.', {
+              capabilityRef: expected.capabilityRef, file: fileName, ref
+            }));
+          }
+        }
       }
     }
     packageResults.push({
@@ -144,8 +168,9 @@ function validateCapabilityContracts(options) {
     ok: findings.length === 0,
     packageCount: packageResults.length,
     packageAggregateDigest: digestValue(packageResults),
-    pendingTypeRefCount: pendingTypeRefs.size,
-    pendingTypeRefs: [...pendingTypeRefs].sort(),
+    referencedTypeRefCount: referencedTypeRefs.size,
+    unresolvedTypeRefCount: unresolvedTypeRefs.size,
+    unresolvedTypeRefs: [...unresolvedTypeRefs].sort(),
     findings
   };
 }

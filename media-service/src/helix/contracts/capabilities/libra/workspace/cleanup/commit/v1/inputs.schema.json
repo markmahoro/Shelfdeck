@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "verifiedWorkspaceDeletionEvidence": {
-      "$ref": "helix://contracts/domain-types/VerifiedWorkspaceDeletionEvidence/v1",
+      "$ref": "helix://contracts/types/DeletionEvidence/v1",
       "x-helix-typeExpression": "Verified Workspace deletion evidence"
     },
     "responsibilityControlCommitHandle": {

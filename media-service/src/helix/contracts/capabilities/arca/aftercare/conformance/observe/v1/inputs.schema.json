@@ -30,7 +30,7 @@
       "x-helix-typeExpression": "Care Basis"
     },
     "inventoryMediaEvidence": {
-      "$ref": "helix://contracts/domain-types/InventoryMediaEvidence/v1",
+      "$ref": "helix://contracts/types/ProductMediaVerification/v1",
       "x-helix-typeExpression": "Inventory media evidence"
     },
     "standard": {

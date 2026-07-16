@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "acquisitionQuery": {
-      "$ref": "helix://contracts/domain-types/AcquisitionQuery/v1",
+      "$ref": "helix://contracts/types/AcquisitionQuery/v1",
       "x-helix-typeExpression": "AcquisitionQuery"
     },
     "integrationHandle": {

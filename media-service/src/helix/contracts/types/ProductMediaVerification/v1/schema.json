@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ProductMediaVerification/v1",
+  "title": "ProductMediaVerification@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/VerificationEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ProductMediaVerification/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "verificationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "verificationKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed",
+        "not_applicable"
+      ]
+    },
+    "reasonCodes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maxItems": 1024
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 1024
+    },
+    "verifiedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "workspaceMediaHandleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "mediaRequirementDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "probeEvidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "qualitySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recordKind": {
+          "const": "quality-summary"
+        },
+        "recordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "key",
+              "value"
+            ]
+          },
+          "maxItems": 256
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "recordKind",
+        "recordDigest",
+        "entries"
+      ]
+    },
+    "spaceSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recordKind": {
+          "const": "space-summary"
+        },
+        "recordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "key",
+              "value"
+            ]
+          },
+          "maxItems": 256
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "recordKind",
+        "recordDigest",
+        "entries"
+      ]
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "verificationId",
+    "verificationKind",
+    "basisDigest",
+    "result",
+    "reasonCodes",
+    "evidenceRefs",
+    "verifiedAtMs",
+    "workspaceMediaHandleId",
+    "mediaRequirementDigest",
+    "probeEvidenceDigest",
+    "qualitySummary",
+    "spaceSummary"
+  ]
+}

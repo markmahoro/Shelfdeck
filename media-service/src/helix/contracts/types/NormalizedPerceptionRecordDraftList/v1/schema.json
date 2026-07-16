@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/NormalizedPerceptionRecordDraftList/v1",
+  "title": "NormalizedPerceptionRecordDraftList@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/DraftEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/NormalizedPerceptionRecordDraftList/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "draftId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "draftKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "draftDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "producedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "draftId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "sourceKind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceRecordKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "watchedState": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedTitle": {
+            "type": "string",
+            "minLength": 1
+          },
+          "identityAnchors": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 128
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "draftId",
+          "sourceKind",
+          "sourceRecordKey",
+          "observedTitle",
+          "identityAnchors",
+          "provenanceDigest"
+        ]
+      },
+      "maxItems": 4096
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "draftId",
+    "draftKind",
+    "basisDigest",
+    "draftDigest",
+    "producedAtMs",
+    "records"
+  ]
+}

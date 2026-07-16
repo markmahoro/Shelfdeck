@@ -13,7 +13,7 @@
     "frameArtifactSet": {
       "schemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/inputs#/$defs/frameArtifactSet",
       "required": true,
-      "cardinality": "many"
+      "cardinality": "one"
     }
   },
   "parametersSchemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/parameters",

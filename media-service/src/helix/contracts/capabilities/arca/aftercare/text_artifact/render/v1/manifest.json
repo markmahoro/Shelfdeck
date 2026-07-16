@@ -8,7 +8,7 @@
     "acceptedProductFacts": {
       "schemaRef": "helix://contracts/capabilities/arca.aftercare.text_artifact.render/v1/inputs#/$defs/acceptedProductFacts",
       "required": true,
-      "cardinality": "many"
+      "cardinality": "one"
     },
     "artifactProfile": {
       "schemaRef": "helix://contracts/capabilities/arca.aftercare.text_artifact.render/v1/inputs#/$defs/artifactProfile",

@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "verifiedArtifact": {
-      "$ref": "helix://contracts/domain-types/VerifiedArtifact/v1",
+      "$ref": "helix://contracts/types/ArtifactHandle/v1",
       "x-helix-typeExpression": "Verified Artifact"
     },
     "inventoryTargetHandle": {

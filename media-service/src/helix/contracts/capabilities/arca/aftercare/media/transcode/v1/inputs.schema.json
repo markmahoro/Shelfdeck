@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "inventoryMaterialHandle": {
-      "$ref": "helix://contracts/domain-types/InventoryMaterialHandle/v1",
+      "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1",
       "x-helix-typeExpression": "Inventory Material handle"
     },
     "careRequirement": {

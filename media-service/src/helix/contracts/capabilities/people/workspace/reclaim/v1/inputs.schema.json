@@ -20,7 +20,7 @@
     "peopleWorkspaceHandleList": {
       "type": "array",
       "items": {
-        "$ref": "helix://contracts/domain-types/PeopleWorkspaceHandles/v1"
+        "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
       },
       "maxItems": 1024,
       "x-helix-typeExpression": "People Workspace handles"

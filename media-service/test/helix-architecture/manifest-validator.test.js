@@ -51,21 +51,11 @@ test('validates the complete P1 framework and produces a stable aggregate digest
 test('rejects duplicate entry IDs, unresolved owners, and illegal statuses', () => {
   const fixture = createFixture();
   try {
-    const filePath = manifestPath(fixture, 'result-family-inventory.json');
-    mutateJson(filePath, (manifest) => {
-      const contract = { capabilityRef: 'fixture@1' };
-      const base = {
-        id: 'result.fixture',
-        version: 1,
-        owner: 'missing-owner',
-        status: 'invented-status',
-        ssotRefs: ['7.7'],
-        sourceLocator: { type: 'ssot', ref: '7.7' },
-        targetLocator: { path: 'domains/libra/capabilities/fixture.js' },
-        contract,
-        contractDigest: { algorithm: 'sha256', value: canonicalDigest(contract) }
-      };
-      manifest.entries = [base, { ...base }];
+    const filePath = manifestPath(fixture, 'result-family-inventory/entries-001-024.json');
+    mutateJson(filePath, (shard) => {
+      shard.entries[0].owner = 'missing-owner';
+      shard.entries[0].status = 'invented-status';
+      shard.entries[1].id = shard.entries[0].id;
     });
     const result = validateManifestSet(fixture);
     assert.equal(result.ok, false);

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/MediaCastDraft/v1",
+  "title": "MediaCastDraft@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/DraftEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/MediaCastDraft/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "draftId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "draftKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "draftDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "producedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "metadataObservationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "personId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "confidenceClass": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "displayName",
+          "role",
+          "source",
+          "confidenceClass"
+        ]
+      },
+      "maxItems": 4096
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "draftId",
+    "draftKind",
+    "basisDigest",
+    "draftDigest",
+    "producedAtMs",
+    "subjectId",
+    "metadataObservationDigest",
+    "relations"
+  ]
+}

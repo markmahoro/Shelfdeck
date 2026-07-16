@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "recordDrafts": {
-      "$ref": "helix://contracts/domain-types/RecordDrafts/v1",
+      "$ref": "helix://contracts/types/NormalizedPerceptionRecordDraftList/v1",
       "x-helix-typeExpression": "Record drafts"
     },
     "domainFactCommitHandle": {

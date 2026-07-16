@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/IdentityMetadata/v1",
+  "title": "IdentityMetadata@1",
+  "x-helix-ssotRefs": [
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/IdentityMetadata/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "objectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "claimedTitle": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contentProfileHint": {
+      "type": "string",
+      "minLength": 1
+    },
+    "providerHints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "objectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "schemaRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "digest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "objectKind": {
+            "const": "provider-hint"
+          }
+        },
+        "required": [
+          "objectId",
+          "revision",
+          "schemaRef",
+          "digest",
+          "objectKind"
+        ]
+      },
+      "maxItems": 1024
+    },
+    "identityMetadataDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "objectId",
+    "revision",
+    "digest",
+    "claimedTitle",
+    "contentProfileHint",
+    "providerHints",
+    "identityMetadataDigest"
+  ]
+}

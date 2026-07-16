@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/OnDeckCommitReceipt/v1",
+  "title": "OnDeckCommitReceipt@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/ReceiptEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/OnDeckCommitReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scopeType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "effectReceiptRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "committedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "inventoryRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "deckFactRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "controlRevisionSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "receiptId",
+    "receiptKind",
+    "ownerDomain",
+    "scopeType",
+    "scopeId",
+    "scopeDigest",
+    "committedAtMs",
+    "shelfEntryId",
+    "inventoryRevision",
+    "deckFactRevision",
+    "controlRevisionSetDigest"
+  ]
+}

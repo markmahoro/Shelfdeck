@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "verifiedStagedManifest": {
-      "$ref": "helix://contracts/domain-types/VerifiedStagedManifest/v1",
+      "$ref": "helix://contracts/types/StagedInventoryVerification/v1",
       "x-helix-typeExpression": "Verified staged manifest"
     },
     "targetBindings": {

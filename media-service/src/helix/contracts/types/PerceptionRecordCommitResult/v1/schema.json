@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/PerceptionRecordCommitResult/v1",
+  "title": "PerceptionRecordCommitResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/ReceiptEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/PerceptionRecordCommitResult/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scopeType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "effectReceiptRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "committedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "perceptionIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 1024
+    },
+    "insertedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "duplicateCount": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "receiptId",
+    "receiptKind",
+    "ownerDomain",
+    "scopeType",
+    "scopeId",
+    "scopeDigest",
+    "committedAtMs",
+    "perceptionIds",
+    "insertedCount",
+    "duplicateCount"
+  ]
+}

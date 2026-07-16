@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "acquisitionObservation": {
-      "$ref": "helix://contracts/domain-types/AcquisitionObservation/v1",
+      "$ref": "helix://contracts/types/AcquisitionObservation/v1",
       "x-helix-typeExpression": "AcquisitionObservation"
     },
     "productStructure": {

@@ -18,11 +18,7 @@
   ],
   "$defs": {
     "professionalAssessmentsSharingOneCareBasis": {
-      "type": "array",
-      "items": {
-        "$ref": "helix://contracts/domain-types/ProfessionalAssessmentsSharingOneCareBasis/v1"
-      },
-      "maxItems": 1024,
+      "$ref": "helix://contracts/domain-types/ProfessionalAssessmentsSharingOneCareBasis/v1",
       "x-helix-typeExpression": "Professional assessments sharing one Care Basis"
     },
     "domainFactCommitHandle": {

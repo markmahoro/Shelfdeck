@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "productMetadataDraft": {
-      "$ref": "helix://contracts/domain-types/ProductMetadataDraft/v1",
+      "$ref": "helix://contracts/types/ProductMetadataDraft/v1",
       "x-helix-typeExpression": "ProductMetadataDraft"
     },
     "sidecarProfile": {

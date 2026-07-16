@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/VerifiedCareInventoryChange/v1",
+  "title": "VerifiedCareInventoryChange@1",
+  "x-helix-ssotRefs": [
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/VerifiedCareInventoryChange/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "objectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "aftercareCaseId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "verifications": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/types/CareProductVerification/v1"
+      },
+      "maxItems": 1024
+    },
+    "changeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "objectId",
+    "revision",
+    "digest",
+    "aftercareCaseId",
+    "verifications",
+    "changeDigest"
+  ]
+}

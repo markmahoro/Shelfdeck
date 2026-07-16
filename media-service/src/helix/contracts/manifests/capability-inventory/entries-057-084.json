@@ -20,14 +20,14 @@
       },
       "contract": {
         "packagePath": "capabilities/libra/external_material/package/verify/v1",
-        "packageDigest": "f52b68bd9179e72f16b0436b6f8c0277b9936e17d69d4ac0b2068b5e2e8ea29b",
+        "packageDigest": "78367d02ea61290455fdac7b45577d4a95aaa8df0d13eb816ad6e672305da7e9",
         "effectClass": "pure_observation",
         "inputSummary": "External handle + Episode Delivery Manifest + Identity Requirement",
         "outputFamily": "VerifiedExternalPackage"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "459fdbe990d2ff069a4e98f08c6193ab6071d847d043c6f2b4ccacb22e835beb"
+        "value": "8307f981335338e22e0467c7d38c522a032d95c0930d179e71ae4408cb531391"
       }
     },
     {
@@ -160,14 +160,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/acceptance/mandatory_media/verify/v1",
-        "packageDigest": "dc6f8d5c120ee59e9f88683fa6d570a8b4c96022343fa8c85dee76580d730151",
+        "packageDigest": "0f75fb4c2c71729f7f9094f2db49fb62917b8092741319a5ded4ed95eaf6b77b",
         "effectClass": "pure_observation",
         "inputSummary": "Product media evidence + Mandatory Requirement",
         "outputFamily": "AcceptanceCheck"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "2dcca3a40bc16eeaff163c549c396005b3a7bcbecddfb2674b576f7a3e725a4a"
+        "value": "9749c6c876d9a45841bd92632f61011497853effd1031d2e576f1689e7210876"
       }
     },
     {
@@ -328,14 +328,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/inventory/product/stage/v1",
-        "packageDigest": "a81308b9efab181e25d23c6e77c1ab12446123a1a7428348aa279c9015ce11c2",
+        "packageDigest": "443da9152ac392996663627f66956fdde573236ee112ad1de5a978d7827848a0",
         "effectClass": "material_commit",
         "inputSummary": "Product Material handles + TargetCommitSlotHandle",
         "outputFamily": "StagedInventoryManifest"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "843ae643890579651e70aabe4bad23dc943f672d2e2a830d600675806143e0de"
+        "value": "8756e6e8e4a301c4a52f2c430a01bfe866b50c666a541ac99850fd22dfda6ae2"
       }
     },
     {
@@ -356,14 +356,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/inventory/staged/verify/v1",
-        "packageDigest": "8ce3e0c3d502e42f6b9422f9cec23dfd0fe8309e0f5c8a0e818daf2a3f9daf8a",
+        "packageDigest": "66fe831b26c7716984d467bb31a3ecc7d1ab49e7a9aed2bdfdf5b09324c6e827",
         "effectClass": "pure_observation",
         "inputSummary": "Staged manifest + Final Inventory Decision",
         "outputFamily": "StagedInventoryVerification"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "39f171f55bd841e2349b131da2a3e1b326b1c4c79adaa39c9a8579d5fa08a0df"
+        "value": "5cc48251ac92de567556eda114af8134cac89e24f89f3eded14978637b85da3f"
       }
     },
     {
@@ -384,14 +384,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/inventory/placement/switch/v1",
-        "packageDigest": "d323813379fe22d62e9a75fdcffd9098ea3444dc7db044913ce8dde0d83725a2",
+        "packageDigest": "ff96307093db3d8ef666478733de10e9455820f9f7e42a535a6d15c2f4046a0f",
         "effectClass": "material_commit",
         "inputSummary": "Verified staged manifest + target bindings",
         "outputFamily": "PlacementSwitchReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "cff10b5c4905b61052ec3eedce211aa5230ab378e7fd0c4e485d09da7ab630a3"
+        "value": "f042d2993d576e26852d2201a9121ebeaad0be88970e0423c0681ea24f096a0d"
       }
     },
     {
@@ -440,14 +440,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/ondeck/input_settlement/delete/v1",
-        "packageDigest": "e067ec6fb9a2c56895dbc2b9ecd6028038a8da37c6d3422d540aacd0b8cb19d6",
+        "packageDigest": "95d734631e0363518dcadd69915dd8532d50a1855c890c556ab0b22178b681ba",
         "effectClass": "destructive_commit",
         "inputSummary": "Old Input handles + Input Settlement Approval",
         "outputFamily": "SettlementDeletionEvidence"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "fb488e5bdc1129f0bd9ac0f261c32cf2d9619cb5c53031fb86bf9a4b9e664253"
+        "value": "bd205c0f242f3b7927791748f85f079abe44a59a5481ba40ba703a29115cb866"
       }
     },
     {
@@ -496,14 +496,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/ondeck/commit/v1",
-        "packageDigest": "5a6c276415ff9aa771b105a7a02b95a34df17889ae7f9016fb1e1424ea41a86f",
+        "packageDigest": "bf6cac79186e86d6d4a9a414bcfe4a480b044a6cc8529bdc164537ec86d0ef4c",
         "effectClass": "responsibility_control_commit",
         "inputSummary": "Fulfillment result + ResponsibilityControlCommitHandle",
         "outputFamily": "OnDeckCommitResult"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "799051d328627d7751519f0b9d1b3564561ba1416ed06b7a7d7c03c162e03cec"
+        "value": "3c29ddb08dc73fee37f130061fcaa5fe0ee8acb7398403547e66caf9a0bb09cb"
       }
     },
     {
@@ -580,14 +580,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/conformance/observe/v1",
-        "packageDigest": "493db7d57a89c6e2baa157a60e404ec1bfe7b184145c484b1541d87e7d29104a",
+        "packageDigest": "ef52469d2b2d2469d5212bdc1250b269862894325767616324607071e2fb1a11",
         "effectClass": "pure_observation",
         "inputSummary": "Care Basis + Inventory media evidence + Standard + Placement",
         "outputFamily": "ConformanceAssessmentEvidence"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "292db6bc436845266535e0b67d931d7396a66efcd7268282720a1ed6188d743f"
+        "value": "f0d5802133595307056bf587fc9f6d027bb1deceafde23746ecd940337ca78ce"
       }
     },
     {
@@ -608,14 +608,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/assessment/commit/v1",
-        "packageDigest": "c71970e591a2402fcc81f968d265222f352985edc1cf674f2e796a82aae7899c",
+        "packageDigest": "155b4d802b646d4c2b8838f46da5ab0330f8938aaad57190e429a31c53258588",
         "effectClass": "domain_fact_commit",
         "inputSummary": "Professional assessments sharing one Care Basis + DomainFactCommitHandle",
         "outputFamily": "AssessmentRevision"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "5a161c62ad6f7f928034dba1e96cdd9bc0f3122dc2d64188d844acdd03074395"
+        "value": "104d9cc8ac58fe2531c7f92121dcb57f58898359b4693802d8b17cec1c46cad0"
       }
     },
     {
@@ -636,14 +636,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/text_artifact/render/v1",
-        "packageDigest": "2cdc66880cdde42e92927d54446eeecc07eea661550dd5b86ec17f55a12190bf",
+        "packageDigest": "0073817eade5e0a0431954ce3afa7cbf3bc7142b7455f81541f50189e928984e",
         "effectClass": "workspace_write",
         "inputSummary": "Accepted Product Facts + Artifact profile",
         "outputFamily": "ArtifactHandle"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "84d578621cbee96a535260e3bc192a3de5c731ecdad995c7c13989336ee26b92"
+        "value": "16632e4412889400b74a549eac7f6eb340ad8a6d3b410516a06bac251d88186b"
       }
     },
     {
@@ -692,14 +692,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/artifact/materialize/v1",
-        "packageDigest": "71577ad823076464a64f78bd56281064a14c2708f087914ebd22d18b66674561",
+        "packageDigest": "cb887398fc8420eca02e73c37f837e6027d45ed8bdd3c6f193c02ddadd17657b",
         "effectClass": "material_commit",
         "inputSummary": "Verified Artifact + Inventory target handle",
         "outputFamily": "MaterialEffectReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "1af182ac0d95eb1c5b2853e4d8b63132a641740de5de7223f5b7b647d4b93a6e"
+        "value": "ff7170b020c8b227b0dbc88b2b524387d3e8e78422024d596622c27d210e8c7f"
       }
     },
     {
@@ -720,14 +720,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/media/remux/v1",
-        "packageDigest": "3b0745e7cfd27c0981c6923f0b44d2104ee7ca0574c800441eb299b729a223f5",
+        "packageDigest": "c039375f53810fb42c22d48bcdb9a5d75db3aa1da2218e69faeac21b836b5140",
         "effectClass": "workspace_write",
         "inputSummary": "Inventory Material handle + Care Requirement",
         "outputFamily": "WorkspaceMediaHandle"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "396b3239c3a004a263670ca184c06cc1760f36e2524cf83ae861adaaf3f3e45d"
+        "value": "29cb757f11068a4616987d67432468bbaf2f453f379536631d4d08a8dadf03c3"
       }
     },
     {
@@ -748,14 +748,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/media/transcode/v1",
-        "packageDigest": "41d2730a0f619c1bbee5aac2a880c0de1848c38d0f1de6fb6fc2d459bd9cb481",
+        "packageDigest": "113186aaa1acd6ad4631c6b0820b5e62e8e9c7ff05a779b1c12cc3d0c0dda335",
         "effectClass": "workspace_write",
         "inputSummary": "Inventory Material handle + Care Requirement",
         "outputFamily": "WorkspaceMediaHandle"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "0295ae6791fa923d0037432a8042e7a0d289fb8849228f0ace7c5e0301369915"
+        "value": "c2856eab4f70e56300ac4f697e865ddcf9e3da7e1ef928d6bcde3166b656cc51"
       }
     },
     {
@@ -776,14 +776,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/media/verify/v1",
-        "packageDigest": "9ab5bfa7b4df8ba3ccb20eb189d77feae10be7889f7ca087ade94e80ac43675f",
+        "packageDigest": "74c5f68ce4d189467447eaeef076f9d0110e3fbf3423263cf6fa118301fc966d",
         "effectClass": "pure_observation",
         "inputSummary": "Workspace media evidence + Care Requirement",
         "outputFamily": "CareProductVerification"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "ea26535fa2e14ac0ab63c0e00fc47143b921ac60e3adae59764907c9390ec2b3"
+        "value": "686ab26b324e0d5f844a891edc39f5fc987232a221670e224cf8d513b580c094"
       }
     }
   ]

@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "resolvedProductIdentity": {
-      "$ref": "helix://contracts/domain-types/ResolvedProductIdentity/v1",
+      "$ref": "helix://contracts/types/ResolvedProductIdentity/v1",
       "x-helix-typeExpression": "ResolvedProductIdentity"
     },
     "integrationHandle": {

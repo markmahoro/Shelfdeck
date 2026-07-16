@@ -20,13 +20,13 @@
     "oldInputHandleList": {
       "type": "array",
       "items": {
-        "$ref": "helix://contracts/domain-types/OldInputHandles/v1"
+        "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
       },
       "maxItems": 1024,
       "x-helix-typeExpression": "Old Input handles"
     },
     "inputSettlementApproval": {
-      "$ref": "helix://contracts/domain-types/InputSettlementApproval/v1",
+      "$ref": "helix://contracts/types/ApprovalHandle/v1",
       "x-helix-typeExpression": "Input Settlement Approval"
     }
   }

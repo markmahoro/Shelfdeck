@@ -22,7 +22,7 @@
       "x-helix-typeExpression": "Identity Metadata"
     },
     "structureEvidence": {
-      "$ref": "helix://contracts/domain-types/StructureEvidence/v1",
+      "$ref": "helix://contracts/types/TriageStructureEvidence/v1",
       "x-helix-typeExpression": "Structure Evidence"
     }
   }

@@ -4,8 +4,19 @@
   "manifestId": "helix.inventory.result-families",
   "kind": "result-family-inventory",
   "owner": "contracts",
-  "status": "framework_only",
-  "ssotRefs": ["7.7", "8.2.1", "8.9.5"],
+  "status": "active",
+  "ssotRefs": [
+    "7.7",
+    "8.2.1",
+    "8.6.18",
+    "8.6.19",
+    "8.9.5"
+  ],
   "targetCount": 96,
-  "entries": []
+  "entryFiles": [
+    "result-family-inventory/entries-001-024.json",
+    "result-family-inventory/entries-025-048.json",
+    "result-family-inventory/entries-049-072.json",
+    "result-family-inventory/entries-073-096.json"
+  ]
 }

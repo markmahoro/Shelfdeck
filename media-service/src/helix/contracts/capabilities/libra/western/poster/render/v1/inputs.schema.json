@@ -18,15 +18,11 @@
   ],
   "$defs": {
     "personMatchEvidence": {
-      "$ref": "helix://contracts/domain-types/PersonMatchEvidence/v1",
+      "$ref": "helix://contracts/types/PersonMatchEvidence/v1",
       "x-helix-typeExpression": "PersonMatchEvidence"
     },
     "frameArtifactSet": {
-      "type": "array",
-      "items": {
-        "$ref": "helix://contracts/domain-types/FrameArtifactSet/v1"
-      },
-      "maxItems": 1024,
+      "$ref": "helix://contracts/types/FrameArtifactSet/v1",
       "x-helix-typeExpression": "FrameArtifactSet"
     }
   }

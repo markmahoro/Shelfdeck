@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ResolvedProductIdentity/v1",
+  "title": "ResolvedProductIdentity@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ResolvedProductIdentity/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evidenceKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producerRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "payloadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "structureKind": {
+      "type": "string",
+      "enum": [
+        "single",
+        "season"
+      ]
+    },
+    "contentProfile": {
+      "type": "string",
+      "enum": [
+        "movie",
+        "season",
+        "jav",
+        "western_adult"
+      ]
+    },
+    "identityKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "providerIdentities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "objectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "schemaRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "snapshotDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "objectKind": {
+            "const": "provider-identity"
+          }
+        },
+        "required": [
+          "objectId",
+          "revision",
+          "schemaRef",
+          "snapshotDigest",
+          "objectKind"
+        ]
+      },
+      "maxItems": 128
+    },
+    "displayIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recordKind": {
+          "const": "display-identity"
+        },
+        "recordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "key",
+              "value"
+            ]
+          },
+          "maxItems": 256
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "recordKind",
+        "recordDigest",
+        "entries"
+      ]
+    },
+    "identityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "evidenceId",
+    "evidenceKind",
+    "producerRef",
+    "basisDigest",
+    "payloadDigest",
+    "observedAtMs",
+    "subjectId",
+    "structureKind",
+    "contentProfile",
+    "identityKind",
+    "providerIdentities",
+    "displayIdentity",
+    "identityDigest"
+  ]
+}

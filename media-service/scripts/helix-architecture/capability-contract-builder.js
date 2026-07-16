@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { contracts: RESULT_TYPE_CONTRACTS } = require('./result-type-schema-builder');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const PARAMETER_NAMES = new Set(['cursor', 'pageBudget', 'phase', 'artifactKind', 'structureKind', 'contentProfile']);
@@ -11,6 +12,11 @@ const SHARED_TYPES = new Set([
   'WorkerAssetReceipt', 'WorkerUploadReceipt', 'FaceEmbeddingSetHandle', 'FaceClusterSetHandle', 'EvidenceEnvelope',
   'VerificationEnvelope', 'DomainFactEnvelope', 'ReceiptEnvelope', 'ManifestEnvelope', 'DraftEnvelope',
   'CapabilityExecutionContext', 'CapabilityOutcome'
+]);
+const RESULT_TYPES = new Set(Object.keys(RESULT_TYPE_CONTRACTS));
+const HANDLE_LIST_EXPRESSIONS = new Set([
+  'Material handles', 'Workspace handles', 'Aftercare Workspace handles', 'People Workspace handles', 'Old Input handles',
+  'Product Material handles', 'Superseded Inventory handles'
 ]);
 
 const text = (options = {}) => ({ type: 'string', minLength: 1, ...options });
@@ -84,20 +90,78 @@ function normalizedTypeName(value) {
     'target handle': 'TargetCommitSlotHandle',
     'Inventory target handle': 'TargetCommitSlotHandle',
     'External/user asset handle': 'ExternalMaterialHandle',
-    'Provider/person hint': 'ProviderPersonHint'
+    'Provider/person hint': 'ProviderPersonHint',
+    'PeopleCandidateDraft(registration|merge)': 'PeopleCandidateDraft',
+    'Candidates': 'AcquisitionCandidates',
+    'Fulfillment result': 'FulfillmentVerification',
+    'Record drafts': 'NormalizedPerceptionRecordDraftList',
+    'Resolution draft': 'PerceptionResolutionDraft',
+    'Stable evidence': 'StableExternalMaterialEvidence',
+    'Staged manifest': 'StagedInventoryManifest',
+    'Verified staged manifest': 'StagedInventoryVerification',
+    'Verified destruction': 'DestructionCompletionVerification',
+    'Verified release': 'ReleaseVerification',
+    'Input Settlement Approval': 'ApprovalHandle',
+    'Aftercare Settlement Approval': 'ApprovalHandle',
+    'Destructive Authorization': 'AuthorizationHandle',
+    'External handle': 'ExternalMaterialHandle',
+    'Verified Workspace deletion evidence': 'DeletionEvidence',
+    'Verified Artifact': 'ArtifactHandle',
+    'Verified reference asset': 'ArtifactHandle',
+    'Structure Evidence': 'TriageStructureEvidence',
+    'Inventory media evidence': 'ProductMediaVerification',
+    'Product media evidence': 'ProductMediaVerification',
+    'Workspace media evidence': 'ProductMediaVerification'
   };
   return aliases[direct] || pascal(direct);
 }
 
 function typeRef(name) {
   if (SHARED_TYPES.has(name)) return `helix://contracts/types/${name}/v1`;
+  if (RESULT_TYPES.has(name)) return `helix://contracts/types/${name}/v1`;
   if (name === 'MaterialHandle') return null;
   return `helix://contracts/domain-types/${name}/v1`;
 }
 
+function splitTopLevelUnion(expression) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < expression.length; index += 1) {
+    if (expression[index] === '(') depth += 1;
+    else if (expression[index] === ')') depth -= 1;
+    else if (expression[index] === '|' && depth === 0) {
+      parts.push(expression.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(expression.slice(start));
+  return parts;
+}
+
 function expressionSchema(expression) {
-  const isMany = /\[\]|handles|materials|Facts|Candidates|records|assessments|Evidence\[\]/i.test(expression);
-  const unionParts = expression.replace(/\[\]/g, '').split('|').map((value) => normalizedTypeName(value));
+  const exactHandle = {
+    'Inventory Material handle': 'PhysicalMaterialReadHandle',
+    'Primary handle': 'PhysicalMaterialReadHandle',
+    'Unreferenced Related handle': 'PhysicalMaterialReadHandle'
+  }[expression];
+  if (exactHandle) return { $ref: typeRef(exactHandle), 'x-helix-typeExpression': expression };
+  const exactHandleList = {
+    'Old Input handles': 'PhysicalMaterialReadHandle',
+    'Superseded Inventory handles': 'PhysicalMaterialReadHandle',
+    'Aftercare Workspace handles': 'WorkspaceMaterialHandle',
+    'People Workspace handles': 'WorkspaceMaterialHandle',
+    'Workspace handles': 'WorkspaceMaterialHandle'
+  }[expression];
+  if (exactHandleList) return { ...arrayOf({ $ref: typeRef(exactHandleList) }), 'x-helix-typeExpression': expression };
+  if (expression === 'Product Material handles') {
+    return {
+      ...arrayOf({ oneOf: ['PhysicalMaterialReadHandle', 'WorkspaceMaterialHandle'].map((name) => ({ $ref: typeRef(name) })) }),
+      'x-helix-typeExpression': expression
+    };
+  }
+  const isMany = /\[\]/.test(expression) || HANDLE_LIST_EXPRESSIONS.has(expression);
+  const unionParts = splitTopLevelUnion(expression.replace(/\[\]/g, '')).map((value) => normalizedTypeName(value));
   let itemSchema;
   if (unionParts.length > 1) itemSchema = { oneOf: unionParts.map((name) => ({ $ref: typeRef(name) })) };
   else if (unionParts[0] === 'MaterialHandle') {

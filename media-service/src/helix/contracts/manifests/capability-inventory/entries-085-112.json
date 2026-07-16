@@ -20,14 +20,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/input_settlement/delete/v1",
-        "packageDigest": "e8045b4ac3540838ec548d73fdf8209b2741fda328421fce1151850b8833e1a1",
+        "packageDigest": "2acf06884fd89ad812b662186ac33273ad3072caa2394c7c9f6c4db57d25077b",
         "effectClass": "destructive_commit",
         "inputSummary": "Superseded Inventory handles + Aftercare Settlement Approval",
         "outputFamily": "SettlementDeletionEvidence"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "5308a08e5b09deb3fbe2c3c9843b2788ffb3676f8b560401fa91b9a13ab009cc"
+        "value": "b5078aebbf6d114434e017a2633fb39df6a0c91409798d6606ab37ff039c27e2"
       }
     },
     {
@@ -104,14 +104,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/workspace/reclaim/v1",
-        "packageDigest": "9dfea9bf8bed9b7ed141dd082a0d40a8a537f6bc00c130892cb4c43822075fcf",
+        "packageDigest": "a1b07e7d19b9b1dccbb725e5c109c87f09bb4b81023996ee6e087316520dd2e8",
         "effectClass": "workspace_write",
         "inputSummary": "Aftercare Workspace handles + ReferenceEvidence",
         "outputFamily": "ReclamationReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "1fea3f332ebe4ec4ad5b89493902a9b3b9cad9598d6cb7b4129066fad4b032b9"
+        "value": "8aaa1237abfcd524c3057c8ae18f316603973847eba30baa349dd35108568688"
       }
     },
     {
@@ -160,14 +160,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/offdeck/duplicate_group/commit/v1",
-        "packageDigest": "70c92456f4ccda0e19b8f3474ebe5bc7917130339cb3100109f318e3c298fc52",
+        "packageDigest": "63e57ae140f9c9543907a03cf9a0940db5619b9716ac19cd6ecce770a87104f8",
         "effectClass": "domain_fact_commit",
         "inputSummary": "DuplicateGroupEvidenceList + DomainFactCommitHandle",
         "outputFamily": "DuplicateGroupRevisionList"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "06d42e722a1b649ffa0a9cb5c3e9fe3d769c1f6bede2a389610176e0be463124"
+        "value": "d5dc86a75f53be8d8e36d41be462b0edd45b2b55be64e65087eeb31b0d2c7d3d"
       }
     },
     {
@@ -244,14 +244,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/offdeck/primary_material/delete/v1",
-        "packageDigest": "048ac35de17da6fa3bb097c8a059138019c3118d1d9049bd99da950d9a0d3606",
+        "packageDigest": "3aabf829471d1642b58652fd01c4202fc174562eafca08d4913fd415507f2b81",
         "effectClass": "destructive_commit",
         "inputSummary": "Primary handle + Destructive Authorization",
         "outputFamily": "DeletionEvidence"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "2997f2f07075449f8a2a865d624c31b2bb7687e95995cb0e57a3640c54bc3d20"
+        "value": "0df6ad5d7e7f25d6bbd5bc89ac2115d7160a928aec1c273bd03b834b3b1f4519"
       }
     },
     {
@@ -300,14 +300,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/offdeck/unreferenced_related/delete/v1",
-        "packageDigest": "a4b304e236238be6d15f132db16e39865448073341464d13333e134b2d028739",
+        "packageDigest": "216a3f825818dd6cd6a92e9da01482ae4490b2b02c9c16b000b091ed83e5bd96",
         "effectClass": "destructive_commit",
         "inputSummary": "Unreferenced Related handle + Destructive Authorization",
         "outputFamily": "DeletionEvidence"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "d0f26bd391de6d04fd71f9c36e97717c0c06e8f196341694fae52f3345ccfef0"
+        "value": "9a3d1ffa8673a7abac481783ea2d12659c15acdb8064a8df893ba7f9153b4788"
       }
     },
     {
@@ -328,14 +328,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/offdeck/deletion/verify/v1",
-        "packageDigest": "b0a94db3f48d563e03266e2e9e1390d73e903623d5fa761f40a1679c377a685f",
+        "packageDigest": "837253ba61184b3d417001102e72ad4bf6ae22b4f318e39b4706ba1919f8c932",
         "effectClass": "pure_observation",
         "inputSummary": "Scope + Deletion Evidence[]",
         "outputFamily": "DestructionCompletionVerification"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "e75c3c110cf9c481f7f0461156fc2083a6d04a13be3933b34e5f3f92e0fc234f"
+        "value": "0f4131735d56e6da77cb65bff52ea5457b2d0bf728a914e8c3d0053d667c77a5"
       }
     },
     {
@@ -356,14 +356,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/offdeck/terminal/commit/v1",
-        "packageDigest": "46d73abf4b8508dc4d758cda30cf8a2a03ec170351941a5724300f569ca5f3c1",
+        "packageDigest": "1dc76d471fa0526c858f224e941ad6370ad0fadbd64545bf924503c31bbdf67f",
         "effectClass": "responsibility_control_commit",
         "inputSummary": "Verified destruction + ResponsibilityControlCommitHandle",
         "outputFamily": "OffdeckTerminalReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "7154e55dce75931b3407a1f61ce05f2988988116f56adb19dfc722ed00ff1d9e"
+        "value": "dc19b610733916d4e533011b3432d6aa61e28507ce0dedc2faea2420b0942223"
       }
     },
     {
@@ -412,14 +412,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/shelf_deregistration/commit/v1",
-        "packageDigest": "cd15f25839a60242058e7da8cd96dc2572af31d6ff579e8897323aaa18644eba",
+        "packageDigest": "3507826e3041da8c12fbe35cefa937772e9b2b3861d96ac909e3d491db113022",
         "effectClass": "responsibility_control_commit",
         "inputSummary": "Verified release + ResponsibilityControlCommitHandle",
         "outputFamily": "DeregistrationReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "ebbeb354868d4c14caca8b15cd37b76b22fc6dccbd136f8e96c080c985dc6e86"
+        "value": "40864ac3df8d698addd3ea6d3a7b246969fc4b1a9eb2405a88cbaab7345e28c2"
       }
     },
     {
@@ -496,14 +496,14 @@
       },
       "contract": {
         "packagePath": "capabilities/perception/record/commit/v1",
-        "packageDigest": "ab6ed6311763b30e0164b9d72988a067d1f4664971384ecc7585d2613acc4bfc",
+        "packageDigest": "a4a05eecbfd46861f4e2f54d8d4c4fb94d215ed0e5683afb55d291f366e8565a",
         "effectClass": "domain_fact_commit",
         "inputSummary": "Record drafts + DomainFactCommitHandle",
         "outputFamily": "PerceptionRecordCommitResult"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "0c65e177e38ae0ec3e044d5fa51de81282af82f6e7748bddff055f4c7641fb01"
+        "value": "364757ace391a90577e04379c152e36262d158e9e2b35239b78d5b6825cded21"
       }
     },
     {
@@ -524,14 +524,14 @@
       },
       "contract": {
         "packagePath": "capabilities/perception/dedup/resolve/v1",
-        "packageDigest": "823a726d18202d0dea3ed728e7e872fd9f42d2b259da783d7ea2a9f34a34cd5e",
+        "packageDigest": "79a3efacb63ed15898c48a4e344df8a3bb33e89e97bc70eafad9d007870187b8",
         "effectClass": "pure_observation",
         "inputSummary": "Immutable records + Resolution rule revision",
         "outputFamily": "PerceptionResolutionDraft"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "e7e036a64b73f446a5097033591f0ecb392488b4a6f20ad281101e4fdf6faf94"
+        "value": "5140e9cd484818c273356c05f6af7e81be9743747b0d20dc41af835549f6be0f"
       }
     },
     {
@@ -552,14 +552,14 @@
       },
       "contract": {
         "packagePath": "capabilities/perception/resolution/commit/v1",
-        "packageDigest": "a3380aab43c4beca3b884a14ecc5b3c2a558680bd38a748a6184d4ffa10a9e6f",
+        "packageDigest": "0e27bcec6d3e6ec56e03b5bb4000cf705b16bd8dd2574a4183775e35d49386eb",
         "effectClass": "domain_fact_commit",
         "inputSummary": "Resolution draft + DomainFactCommitHandle",
         "outputFamily": "PerceptionResolutionRevision"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "29fcf090f285a434050128688f258cebe8a02e895e4607d132c69bbd29bb3ff9"
+        "value": "e25ff632bedeab31544336f9a250efaeb227ab9a28923b17e706b67335567b65"
       }
     },
     {
@@ -636,14 +636,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/reference_fact/commit/v1",
-        "packageDigest": "7b3acdfb2cddd7805115ebddc4170ecbc8def0570ac86a994dd4210cc95aecd4",
+        "packageDigest": "ca7d5e238b79a25dde74caf3863c7e6ab98e6dc02a9f02e0517ad422f3f9af20",
         "effectClass": "domain_fact_commit",
         "inputSummary": "Verified reference asset + DomainFactCommitHandle",
         "outputFamily": "PersonReferenceRevision"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "fb1b23c257111356d9ef7eb040bff341a710eb1a93d63e6528a09daceabe08cb"
+        "value": "69cb75076ff8b31d64f2a112f17bcab1eb33a027319adac74021814cdde3c3fa"
       }
     },
     {
@@ -692,14 +692,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/candidate/commit/v1",
-        "packageDigest": "21d03218b3d2c4e016307257b22f907d6fe7b475a9771e8ec59a4b8bc42c073c",
+        "packageDigest": "94d97dcc95fe00e208112a740fd165bb0fb4e12339d89a5f54e1247eda49e229",
         "effectClass": "domain_fact_commit",
         "inputSummary": "PeopleCandidateDraft(registration|merge) + DomainFactCommitHandle",
         "outputFamily": "PeopleCandidateRevision"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "ea44efdce5725e5413874d756ea237ad1345fd767e0f88008779cb2522854a18"
+        "value": "342658595d2f5e6ef9b9f7431eeb010e378dd91b66bd5fd2de126b01e438b5b6"
       }
     },
     {
@@ -776,14 +776,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/workspace/reclaim/v1",
-        "packageDigest": "9872108e6b279364c590e5bf5e1710c08fc3fb8cb09b4561076420cb5c871ae7",
+        "packageDigest": "99e9ecf3dbd15fff47ec4cb079eb3351edf493479338f70221a23ac36d6ab3ad",
         "effectClass": "workspace_write",
         "inputSummary": "People Workspace handles + ReferenceEvidence",
         "outputFamily": "ReclamationReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "93fec2cf775b6de8f8a136fb8eff8718c4eda7ccc6a587ccdd4a64c7fc1b4aae"
+        "value": "bf09f5e3a6dfb673754a2c49c97232134eb839ca1fd84edd8e685507bfd5c09e"
       }
     }
   ]

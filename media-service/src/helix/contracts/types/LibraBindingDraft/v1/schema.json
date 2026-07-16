@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/LibraBindingDraft/v1",
+  "title": "LibraBindingDraft@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/DraftEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/LibraBindingDraft/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "draftId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "draftKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "draftDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "producedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "subjectPlaceholderRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "episodeKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "materialKey",
+          "role",
+          "episodeKey",
+          "endpointId",
+          "location",
+          "bindingRevision"
+        ]
+      },
+      "maxItems": 1024
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "draftId",
+    "draftKind",
+    "basisDigest",
+    "draftDigest",
+    "producedAtMs",
+    "subjectPlaceholderRef",
+    "bindings"
+  ]
+}

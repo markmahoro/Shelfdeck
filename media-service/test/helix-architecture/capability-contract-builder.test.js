@@ -73,3 +73,15 @@ test('non-pure capabilities require event and effect-scope fences', () => {
     }
   }
 });
+
+test('normalizes Catalog prose without inventing parenthetical or slash-split business types', () => {
+  const packages = buildCapabilityPackages(extracted.capabilities);
+  const people = packages.find((item) => item.capabilityRef === 'people.candidate.commit@1').files['inputs.schema.json'];
+  assert.equal(people.$defs.peopleCandidateDraftRegistrationOrMerge.$ref, 'helix://contracts/types/PeopleCandidateDraft/v1');
+  assert.equal(JSON.stringify(people).includes('/Merge/v1'), false);
+
+  const settlement = packages.find((item) => item.capabilityRef === 'arca.ondeck.input_settlement.delete@1').files['inputs.schema.json'];
+  assert.equal(settlement.$defs.oldInputHandleList.type, 'array');
+  assert.equal(settlement.$defs.oldInputHandleList.items.$ref, 'helix://contracts/types/PhysicalMaterialReadHandle/v1');
+  assert.equal(settlement.$defs.inputSettlementApproval.$ref, 'helix://contracts/types/ApprovalHandle/v1');
+});

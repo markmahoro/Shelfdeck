@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "mediaCastDraft": {
-      "$ref": "helix://contracts/domain-types/MediaCastDraft/v1",
+      "$ref": "helix://contracts/types/MediaCastDraft/v1",
       "x-helix-typeExpression": "MediaCastDraft"
     },
     "domainFactCommitHandle": {

@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "stagedManifest": {
-      "$ref": "helix://contracts/domain-types/StagedManifest/v1",
+      "$ref": "helix://contracts/types/StagedInventoryManifest/v1",
       "x-helix-typeExpression": "Staged manifest"
     },
     "finalInventoryDecision": {

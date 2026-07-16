@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "verifiedDestruction": {
-      "$ref": "helix://contracts/domain-types/VerifiedDestruction/v1",
+      "$ref": "helix://contracts/types/DestructionCompletionVerification/v1",
       "x-helix-typeExpression": "Verified destruction"
     },
     "responsibilityControlCommitHandle": {

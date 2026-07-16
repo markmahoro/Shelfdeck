@@ -18,14 +18,7 @@
   ],
   "$defs": {
     "peopleCandidateDraftRegistrationOrMerge": {
-      "oneOf": [
-        {
-          "$ref": "helix://contracts/domain-types/PeopleCandidateDraftRegistration/v1"
-        },
-        {
-          "$ref": "helix://contracts/domain-types/Merge/v1"
-        }
-      ],
+      "$ref": "helix://contracts/types/PeopleCandidateDraft/v1",
       "x-helix-typeExpression": "PeopleCandidateDraft(registration|merge)"
     },
     "domainFactCommitHandle": {

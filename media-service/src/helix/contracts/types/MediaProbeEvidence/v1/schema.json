@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/MediaProbeEvidence/v1",
+  "title": "MediaProbeEvidence@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/MediaProbeEvidence/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evidenceKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producerRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "payloadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sourceHandleDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "container": {
+      "type": "string",
+      "minLength": 1
+    },
+    "durationMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sizeBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "videoStreams": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "streamIndex": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "codec": {
+            "type": "string",
+            "minLength": 1
+          },
+          "codedWidth": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codedHeight": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sampleAspectRatio": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rotation": {
+            "type": "integer",
+            "minimum": -359,
+            "maximum": 359
+          },
+          "displayWidth": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "displayHeight": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "longEdge": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "shortEdge": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "streamIndex",
+          "codec",
+          "codedWidth",
+          "codedHeight",
+          "sampleAspectRatio",
+          "rotation",
+          "displayWidth",
+          "displayHeight",
+          "longEdge",
+          "shortEdge"
+        ]
+      },
+      "maxItems": 64
+    },
+    "audioStreams": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "streamIndex": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "codec": {
+            "type": "string",
+            "minLength": 1
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "streamIndex",
+          "codec"
+        ]
+      },
+      "maxItems": 128
+    },
+    "subtitleStreams": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "streamIndex": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "codec": {
+            "type": "string",
+            "minLength": 1
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "streamIndex",
+          "codec"
+        ]
+      },
+      "maxItems": 256
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "evidenceId",
+    "evidenceKind",
+    "producerRef",
+    "basisDigest",
+    "payloadDigest",
+    "observedAtMs",
+    "sourceHandleDigest",
+    "container",
+    "durationMs",
+    "sizeBytes",
+    "videoStreams",
+    "audioStreams",
+    "subtitleStreams"
+  ]
+}

@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "productMediaEvidence": {
-      "$ref": "helix://contracts/domain-types/ProductMediaEvidence/v1",
+      "$ref": "helix://contracts/types/ProductMediaVerification/v1",
       "x-helix-typeExpression": "Product media evidence"
     },
     "mandatoryRequirement": {

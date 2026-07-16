@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/AcquisitionObservation/v1",
+  "title": "AcquisitionObservation@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/AcquisitionObservation/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evidenceKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producerRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "payloadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "externalJobReceiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "download",
+        "transfer"
+      ]
+    },
+    "externalState": {
+      "type": "string",
+      "minLength": 1
+    },
+    "outputRefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 1024
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "evidenceId",
+    "evidenceKind",
+    "producerRef",
+    "basisDigest",
+    "payloadDigest",
+    "observedAtMs",
+    "externalJobReceiptId",
+    "phase",
+    "externalState",
+    "outputRefs"
+  ]
+}

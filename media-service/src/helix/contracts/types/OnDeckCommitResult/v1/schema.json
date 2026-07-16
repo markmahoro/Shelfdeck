@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/OnDeckCommitResult/v1",
+  "title": "OnDeckCommitResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/OnDeckCommitResult/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "onDeckCommitReceipt": {
+      "$ref": "helix://contracts/types/OnDeckCommitReceipt/v1"
+    },
+    "offloadCompletionFact": {
+      "$ref": "helix://contracts/types/OffloadCompletionFact/v1"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "onDeckCommitReceipt",
+    "offloadCompletionFact"
+  ]
+}

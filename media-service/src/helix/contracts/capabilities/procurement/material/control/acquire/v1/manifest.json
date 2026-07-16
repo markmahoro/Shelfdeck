@@ -8,7 +8,7 @@
     "selectedFieldMaterialSet": {
       "schemaRef": "helix://contracts/capabilities/procurement.material.control.acquire/v1/inputs#/$defs/selectedFieldMaterialSet",
       "required": true,
-      "cardinality": "many"
+      "cardinality": "one"
     },
     "responsibilityControlCommitHandle": {
       "schemaRef": "helix://contracts/capabilities/procurement.material.control.acquire/v1/inputs#/$defs/responsibilityControlCommitHandle",

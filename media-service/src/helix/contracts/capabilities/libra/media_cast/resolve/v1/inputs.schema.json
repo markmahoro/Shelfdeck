@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "metadataObservation": {
-      "$ref": "helix://contracts/domain-types/MetadataObservation/v1",
+      "$ref": "helix://contracts/types/MetadataObservation/v1",
       "x-helix-typeExpression": "MetadataObservation"
     },
     "personReferenceProjection": {

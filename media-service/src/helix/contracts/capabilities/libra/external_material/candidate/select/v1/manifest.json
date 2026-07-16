@@ -8,7 +8,7 @@
     "candidates": {
       "schemaRef": "helix://contracts/capabilities/libra.external_material.candidate.select/v1/inputs#/$defs/candidates",
       "required": true,
-      "cardinality": "many"
+      "cardinality": "one"
     },
     "selectionCriteria": {
       "schemaRef": "helix://contracts/capabilities/libra.external_material.candidate.select/v1/inputs#/$defs/selectionCriteria",

@@ -8,7 +8,7 @@
     "professionalAssessmentsSharingOneCareBasis": {
       "schemaRef": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/inputs#/$defs/professionalAssessmentsSharingOneCareBasis",
       "required": true,
-      "cardinality": "many"
+      "cardinality": "one"
     },
     "domainFactCommitHandle": {
       "schemaRef": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/inputs#/$defs/domainFactCommitHandle",

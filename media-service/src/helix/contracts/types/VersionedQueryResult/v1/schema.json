@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/VersionedQueryResult/v1",
+  "title": "VersionedQueryResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/VersionedQueryResult/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evidenceKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producerRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "payloadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "queryContract": {
+      "type": "string",
+      "minLength": 1
+    },
+    "queryVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inputDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resultKind": {
+      "type": "string",
+      "enum": [
+        "found",
+        "not_found"
+      ]
+    },
+    "resultRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resultDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expiresAtMs": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "evidenceId",
+    "evidenceKind",
+    "producerRef",
+    "basisDigest",
+    "payloadDigest",
+    "observedAtMs",
+    "queryContract",
+    "queryVersion",
+    "inputDigest",
+    "resultKind",
+    "resultRevision",
+    "resultDigest",
+    "expiresAtMs"
+  ]
+}

@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "fulfillmentResult": {
-      "$ref": "helix://contracts/domain-types/FulfillmentResult/v1",
+      "$ref": "helix://contracts/types/FulfillmentVerification/v1",
       "x-helix-typeExpression": "Fulfillment result"
     },
     "responsibilityControlCommitHandle": {

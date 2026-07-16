@@ -18,11 +18,11 @@
   ],
   "$defs": {
     "stableEvidence": {
-      "$ref": "helix://contracts/domain-types/StableEvidence/v1",
+      "$ref": "helix://contracts/types/StableExternalMaterialEvidence/v1",
       "x-helix-typeExpression": "Stable evidence"
     },
     "resolvedProductIdentity": {
-      "$ref": "helix://contracts/domain-types/ResolvedProductIdentity/v1",
+      "$ref": "helix://contracts/types/ResolvedProductIdentity/v1",
       "x-helix-typeExpression": "ResolvedProductIdentity"
     }
   }

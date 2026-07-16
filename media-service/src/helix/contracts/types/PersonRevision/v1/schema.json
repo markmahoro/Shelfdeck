@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/PersonRevision/v1",
+  "title": "PersonRevision@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/DomainFactEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/PersonRevision/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "factId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aggregateType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aggregateId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "factSchemaRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "factDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "commitMarker": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "committedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "personId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "canonicalName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aliasSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "providerIdentitySetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "mergeRecordRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "factId",
+    "ownerDomain",
+    "aggregateType",
+    "aggregateId",
+    "revision",
+    "factSchemaRef",
+    "factDigest",
+    "commitMarker",
+    "committedAtMs",
+    "personId",
+    "canonicalName",
+    "aliasSetDigest",
+    "providerIdentitySetDigest"
+  ]
+}

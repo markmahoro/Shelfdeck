@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ProductConformanceEvidence/v1",
+  "title": "ProductConformanceEvidence@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/VerificationEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ProductConformanceEvidence/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "verificationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "verificationKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed",
+        "not_applicable"
+      ]
+    },
+    "reasonCodes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maxItems": 1024
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 1024
+    },
+    "verifiedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "acceptanceSpecId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "productFactSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "unmetRequirementCodes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maxItems": 1024
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "verificationId",
+    "verificationKind",
+    "basisDigest",
+    "result",
+    "reasonCodes",
+    "evidenceRefs",
+    "verifiedAtMs",
+    "acceptanceSpecId",
+    "productFactSetDigest",
+    "unmetRequirementCodes"
+  ]
+}

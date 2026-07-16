@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/InventoryFeasibilityEvidence/v1",
+  "title": "InventoryFeasibilityEvidence@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/InventoryFeasibilityEvidence/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evidenceKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producerRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "payloadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "shelfId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "placementRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "targetEndpointId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "requiredBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "availableBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "finalInventoryDecisionDraftDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "evidenceId",
+    "evidenceKind",
+    "producerRef",
+    "basisDigest",
+    "payloadDigest",
+    "observedAtMs",
+    "shelfId",
+    "placementRevision",
+    "targetEndpointId",
+    "requiredBytes",
+    "availableBytes",
+    "finalInventoryDecisionDraftDigest"
+  ]
+}

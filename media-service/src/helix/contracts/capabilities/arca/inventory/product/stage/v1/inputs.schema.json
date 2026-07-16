@@ -20,7 +20,14 @@
     "productMaterialHandleList": {
       "type": "array",
       "items": {
-        "$ref": "helix://contracts/domain-types/ProductMaterialHandles/v1"
+        "oneOf": [
+          {
+            "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+          },
+          {
+            "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+          }
+        ]
       },
       "maxItems": 1024,
       "x-helix-typeExpression": "Product Material handles"

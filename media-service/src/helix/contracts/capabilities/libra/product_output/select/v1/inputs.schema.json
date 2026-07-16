@@ -16,7 +16,7 @@
     "productMediaVerificationList": {
       "type": "array",
       "items": {
-        "$ref": "helix://contracts/domain-types/ProductMediaVerification/v1"
+        "$ref": "helix://contracts/types/ProductMediaVerification/v1"
       },
       "maxItems": 1024,
       "x-helix-typeExpression": "ProductMediaVerification[]"

@@ -22,7 +22,7 @@
   ],
   "$defs": {
     "externalHandle": {
-      "$ref": "helix://contracts/domain-types/ExternalHandle/v1",
+      "$ref": "helix://contracts/types/ExternalMaterialHandle/v1",
       "x-helix-typeExpression": "External handle"
     },
     "episodeDeliveryManifest": {

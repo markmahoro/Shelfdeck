@@ -18,11 +18,11 @@
   ],
   "$defs": {
     "unreferencedRelatedHandle": {
-      "$ref": "helix://contracts/domain-types/UnreferencedRelatedHandle/v1",
+      "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1",
       "x-helix-typeExpression": "Unreferenced Related handle"
     },
     "destructiveAuthorization": {
-      "$ref": "helix://contracts/domain-types/DestructiveAuthorization/v1",
+      "$ref": "helix://contracts/types/AuthorizationHandle/v1",
       "x-helix-typeExpression": "Destructive Authorization"
     }
   }

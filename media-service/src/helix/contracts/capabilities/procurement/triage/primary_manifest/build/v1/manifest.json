@@ -8,7 +8,7 @@
     "selectedMaterialList": {
       "schemaRef": "helix://contracts/capabilities/procurement.triage.primary_manifest.build/v1/inputs#/$defs/selectedMaterialList",
       "required": true,
-      "cardinality": "many"
+      "cardinality": "one"
     },
     "roles": {
       "schemaRef": "helix://contracts/capabilities/procurement.triage.primary_manifest.build/v1/inputs#/$defs/roles",

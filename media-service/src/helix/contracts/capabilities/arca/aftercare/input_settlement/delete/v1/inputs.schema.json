@@ -20,13 +20,13 @@
     "supersededInventoryHandleList": {
       "type": "array",
       "items": {
-        "$ref": "helix://contracts/domain-types/SupersededInventoryHandles/v1"
+        "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
       },
       "maxItems": 1024,
       "x-helix-typeExpression": "Superseded Inventory handles"
     },
     "aftercareSettlementApproval": {
-      "$ref": "helix://contracts/domain-types/AftercareSettlementApproval/v1",
+      "$ref": "helix://contracts/types/ApprovalHandle/v1",
       "x-helix-typeExpression": "Aftercare Settlement Approval"
     }
   }

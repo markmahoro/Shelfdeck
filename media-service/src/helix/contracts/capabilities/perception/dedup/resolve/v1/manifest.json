@@ -8,7 +8,7 @@
     "immutableRecords": {
       "schemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/inputs#/$defs/immutableRecords",
       "required": true,
-      "cardinality": "many"
+      "cardinality": "one"
     },
     "resolutionRuleRevision": {
       "schemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/inputs#/$defs/resolutionRuleRevision",

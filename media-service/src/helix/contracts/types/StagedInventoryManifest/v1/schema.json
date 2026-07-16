@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/StagedInventoryManifest/v1",
+  "title": "StagedInventoryManifest@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/ManifestEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/StagedInventoryManifest/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "manifestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "manifestKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "membersDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "publishedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "targetCommitSlotId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "stagedMembers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "objectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "schemaRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "snapshotDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "objectKind": {
+            "const": "staged-inventory-member"
+          }
+        },
+        "required": [
+          "objectId",
+          "revision",
+          "schemaRef",
+          "snapshotDigest",
+          "objectKind"
+        ]
+      },
+      "maxItems": 4096
+    },
+    "sourceProductManifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "manifestId",
+    "manifestKind",
+    "ownerDomain",
+    "memberCount",
+    "membersDigest",
+    "manifestDigest",
+    "publishedAtMs",
+    "targetCommitSlotId",
+    "stagedMembers",
+    "sourceProductManifestDigest"
+  ]
+}

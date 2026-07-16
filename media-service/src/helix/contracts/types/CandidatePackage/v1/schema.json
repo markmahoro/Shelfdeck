@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/CandidatePackage/v1",
+  "title": "CandidatePackage@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/ManifestEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/CandidatePackage/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "manifestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "manifestKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "membersDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "publishedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "candidatePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "procurementRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "identityClaim": {
+      "$ref": "helix://contracts/types/IdentityClaim/v1"
+    },
+    "seasonContinuityClaims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "exact_provider_season",
+              "persistent_triage_grouping"
+            ]
+          },
+          "claimDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "subjectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "kind",
+          "claimDigest",
+          "subjectId"
+        ]
+      },
+      "maxItems": 64
+    },
+    "primaryInputManifestRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "relatedReferenceSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "manifestId",
+    "manifestKind",
+    "ownerDomain",
+    "memberCount",
+    "membersDigest",
+    "manifestDigest",
+    "publishedAtMs",
+    "candidatePackageId",
+    "procurementRunId",
+    "identityClaim",
+    "seasonContinuityClaims",
+    "primaryInputManifestRef",
+    "relatedReferenceSetDigest",
+    "packageDigest"
+  ]
+}

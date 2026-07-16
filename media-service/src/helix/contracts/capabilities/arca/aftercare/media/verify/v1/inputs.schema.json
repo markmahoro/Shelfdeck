@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "workspaceMediaEvidence": {
-      "$ref": "helix://contracts/domain-types/WorkspaceMediaEvidence/v1",
+      "$ref": "helix://contracts/types/ProductMediaVerification/v1",
       "x-helix-typeExpression": "Workspace media evidence"
     },
     "careRequirement": {

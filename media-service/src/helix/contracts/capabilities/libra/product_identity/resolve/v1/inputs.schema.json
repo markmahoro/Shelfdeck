@@ -22,7 +22,7 @@
   ],
   "$defs": {
     "identityClaim": {
-      "$ref": "helix://contracts/domain-types/IdentityClaim/v1",
+      "$ref": "helix://contracts/types/IdentityClaim/v1",
       "x-helix-typeExpression": "IdentityClaim"
     },
     "decisionEvidence": {

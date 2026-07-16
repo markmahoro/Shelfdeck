@@ -18,11 +18,7 @@
   ],
   "$defs": {
     "candidates": {
-      "type": "array",
-      "items": {
-        "$ref": "helix://contracts/domain-types/Candidates/v1"
-      },
-      "maxItems": 1024,
+      "$ref": "helix://contracts/types/AcquisitionCandidates/v1",
       "x-helix-typeExpression": "Candidates"
     },
     "selectionCriteria": {

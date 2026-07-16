@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "verifiedReferenceAsset": {
-      "$ref": "helix://contracts/domain-types/VerifiedReferenceAsset/v1",
+      "$ref": "helix://contracts/types/ArtifactHandle/v1",
       "x-helix-typeExpression": "Verified reference asset"
     },
     "domainFactCommitHandle": {

@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/BoundedLayoutScope/v1",
+  "title": "BoundedLayoutScope@1",
+  "x-helix-ssotRefs": [
+    "8.6.20"
+  ],
+  "x-helix-role": "bounded-contract",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/BoundedLayoutScope/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "scopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "rootHandleDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "maxDepth": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "maxMembers": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "typedParameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "parameter": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
+          },
+          "valueType": {
+            "type": "string",
+            "enum": [
+              "string",
+              "integer",
+              "number",
+              "boolean"
+            ]
+          },
+          "value": {
+            "type": [
+              "string",
+              "integer",
+              "number",
+              "boolean"
+            ]
+          },
+          "valueDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "parameter",
+          "valueType",
+          "value",
+          "valueDigest"
+        ]
+      },
+      "maxItems": 256
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "scopeId",
+    "revision",
+    "digest",
+    "rootHandleDigest",
+    "maxDepth",
+    "maxMembers",
+    "typedParameters"
+  ]
+}

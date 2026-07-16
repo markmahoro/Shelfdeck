@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/OnDeckProductPackage/v1",
+  "title": "OnDeckProductPackage@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/ManifestEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/OnDeckProductPackage/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "manifestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "manifestKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "membersDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "publishedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "onDeckPackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "shelfId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "acceptanceSpecId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "resolvedIdentityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productMaterialManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "objectKind": {
+          "const": "product-material-manifest"
+        }
+      },
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "snapshotDigest",
+        "objectKind"
+      ]
+    },
+    "metadataFactRefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 1024
+    },
+    "offloadContextManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "objectKind": {
+          "const": "offload-context-manifest"
+        }
+      },
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "snapshotDigest",
+        "objectKind"
+      ]
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "manifestId",
+    "manifestKind",
+    "ownerDomain",
+    "memberCount",
+    "membersDigest",
+    "manifestDigest",
+    "publishedAtMs",
+    "onDeckPackageId",
+    "libraRunId",
+    "subjectId",
+    "shelfId",
+    "acceptanceSpecId",
+    "resolvedIdentityDigest",
+    "productMaterialManifest",
+    "metadataFactRefs",
+    "offloadContextManifest",
+    "packageDigest"
+  ]
+}

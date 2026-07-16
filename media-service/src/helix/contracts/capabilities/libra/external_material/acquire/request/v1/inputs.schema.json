@@ -22,7 +22,7 @@
   ],
   "$defs": {
     "selectedCandidate": {
-      "$ref": "helix://contracts/domain-types/SelectedCandidate/v1",
+      "$ref": "helix://contracts/types/SelectedCandidate/v1",
       "x-helix-typeExpression": "SelectedCandidate"
     },
     "workspaceDeliveryContract": {

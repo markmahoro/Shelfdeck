@@ -24,7 +24,7 @@
     "deletionEvidenceList": {
       "type": "array",
       "items": {
-        "$ref": "helix://contracts/domain-types/DeletionEvidence/v1"
+        "$ref": "helix://contracts/types/DeletionEvidence/v1"
       },
       "maxItems": 1024,
       "x-helix-typeExpression": "Deletion Evidence[]"

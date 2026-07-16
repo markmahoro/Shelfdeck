@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ArtifactAcquisitionResult/v1",
+  "title": "ArtifactAcquisitionResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ArtifactAcquisitionResult/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "resultKind": {
+      "type": "string",
+      "enum": [
+        "acquired",
+        "not_available"
+      ]
+    },
+    "artifactHandle": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/types/ArtifactHandle/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reasonCode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evidence": {
+      "$ref": "helix://contracts/types/EvidenceEnvelope/v1"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "resultKind",
+    "evidence"
+  ]
+}

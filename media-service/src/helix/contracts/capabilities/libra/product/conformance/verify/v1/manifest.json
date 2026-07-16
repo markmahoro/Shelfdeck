@@ -8,7 +8,7 @@
     "productFacts": {
       "schemaRef": "helix://contracts/capabilities/libra.product.conformance.verify/v1/inputs#/$defs/productFacts",
       "required": true,
-      "cardinality": "many"
+      "cardinality": "one"
     },
     "acceptanceSpec": {
       "schemaRef": "helix://contracts/capabilities/libra.product.conformance.verify/v1/inputs#/$defs/acceptanceSpec",

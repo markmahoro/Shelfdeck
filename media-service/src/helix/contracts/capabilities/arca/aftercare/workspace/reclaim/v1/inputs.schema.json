@@ -20,7 +20,7 @@
     "aftercareWorkspaceHandleList": {
       "type": "array",
       "items": {
-        "$ref": "helix://contracts/domain-types/AftercareWorkspaceHandles/v1"
+        "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
       },
       "maxItems": 1024,
       "x-helix-typeExpression": "Aftercare Workspace handles"

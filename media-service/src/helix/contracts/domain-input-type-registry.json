@@ -1,0 +1,2048 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.domain-input-type-registry",
+  "kind": "domain-input-type-registry",
+  "owner": "contracts",
+  "status": "active",
+  "targetCount": 85,
+  "ssotRefs": [
+    "8.6.3",
+    "8.6.14",
+    "8.6.20"
+  ],
+  "entries": [
+    {
+      "id": "AcceptanceSpec",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/AcceptanceSpec/v1",
+      "relativePath": "domain-types/AcceptanceSpec/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "b1d2247b37f498d1660bb41ba7d88acc292c2d1c41ab4b07211bcf669ced867e"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product.conformance.verify@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 7649,
+            "lineDigest": "1d672bc56d8ca9562a03e2ab9c3826f08e3ad9916940ea95532538aa098a2739"
+          },
+          "typeExpression": "Acceptance Spec"
+        }
+      ]
+    },
+    {
+      "id": "AcceptedIntakePayload",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/AcceptedIntakePayload/v1",
+      "relativePath": "domain-types/AcceptedIntakePayload/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "7992820aefb426a473255bd37bd5a0fb9e41001f2628b51e9c49b1454dcef2fa"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.intake.accept.commit@1",
+          "source": {
+            "section": "8.6.5",
+            "line": 7612,
+            "lineDigest": "ca73c7e69eca2b6d5b3267f58eeb3c3038f2edcf16a87133583bb56a59c561a1"
+          },
+          "typeExpression": "Accepted intake payload"
+        }
+      ]
+    },
+    {
+      "id": "AcceptedPayload",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/AcceptedPayload/v1",
+      "relativePath": "domain-types/AcceptedPayload/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "cceae52126c46a1275645098f2f890ca8a5ca3ba0124879018b19fc1f159333b"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.accept.commit@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7696,
+            "lineDigest": "562a725ccfbc786fb39da48525654c6135ecd8dc07820d248fd4c23e62fa75f7"
+          },
+          "typeExpression": "Accepted payload"
+        }
+      ]
+    },
+    {
+      "id": "AcceptedProductFacts",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/AcceptedProductFacts/v1",
+      "relativePath": "domain-types/AcceptedProductFacts/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "af1ab12da708511df92a78368389dfb5b9c6435e1256ca5e5d9e8e9fdf17af27"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.text_artifact.render@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7726,
+            "lineDigest": "6fd2daa223392e9088cebcf0aebaf24bd0ccaf71f14102c7825130e8c698dfe4"
+          },
+          "typeExpression": "Accepted Product Facts"
+        }
+      ]
+    },
+    {
+      "id": "ActiveShelfEntryIdentityProjection",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ActiveShelfEntryIdentityProjection/v1",
+      "relativePath": "domain-types/ActiveShelfEntryIdentityProjection/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "9bf463b094e49c3fed098776453687a83ed095d6bebe6d7e34de0919008f75ee"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.offdeck.duplicate.detect@1",
+          "source": {
+            "section": "8.6.12",
+            "line": 7753,
+            "lineDigest": "33fe97fdb742d737d0e0a0d741431293676a7eea82de795636ea4f8a818d6131"
+          },
+          "typeExpression": "Active Shelf Entry identity projection"
+        }
+      ]
+    },
+    {
+      "id": "AnalysisSpec",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/AnalysisSpec/v1",
+      "relativePath": "domain-types/AnalysisSpec/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d81a023e831c47fa40f8be741a67c8d5175ef8e8c350c75ffc4162f54bb520f5"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.western.analysis.request@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 7627,
+            "lineDigest": "2b82e44cc0c4d1b0d1016829669c832eedfbd3af8bf8ad11189d4f678e73dca9"
+          },
+          "typeExpression": "AnalysisSpec"
+        }
+      ]
+    },
+    {
+      "id": "ArtifactProfile",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/ArtifactProfile/v1",
+      "relativePath": "domain-types/ArtifactProfile/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "a52300fe3b77823d8e9e5a60693e942b3dc509d3c79aea1534fd0f607e23bb44"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.text_artifact.render@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7726,
+            "lineDigest": "6fd2daa223392e9088cebcf0aebaf24bd0ccaf71f14102c7825130e8c698dfe4"
+          },
+          "typeExpression": "Artifact profile"
+        }
+      ]
+    },
+    {
+      "id": "ArtifactRequirement",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/ArtifactRequirement/v1",
+      "relativePath": "domain-types/ArtifactRequirement/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "1241ed00d7aeb487e5c70410f84a097a2c0aecbac2e4a7379ee7ef565f91ab41"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "shared.artifact.manifest.verify@1",
+          "source": {
+            "section": "8.6.3",
+            "line": 7577,
+            "lineDigest": "ac9a75f86797da9c187941deadc3781bee97cf9730a884c44292fa1b711db6c7"
+          },
+          "typeExpression": "ArtifactRequirement"
+        }
+      ]
+    },
+    {
+      "id": "BoundedLayoutScope",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/BoundedLayoutScope/v1",
+      "relativePath": "domain-types/BoundedLayoutScope/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "951e7e8be75edda80ed7912f7aa9ee1a718dea54e88dbe17ce477212d8da30fa"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "shared.material.layout.observe@1",
+          "source": {
+            "section": "8.6.3",
+            "line": 7575,
+            "lineDigest": "2c9ef79a156c8efbaf548d3118dd00d614b415350dc86aa40299b10a0b936f49"
+          },
+          "typeExpression": "BoundedLayoutScope"
+        }
+      ]
+    },
+    {
+      "id": "CandidateDraft",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/CandidateDraft/v1",
+      "relativePath": "domain-types/CandidateDraft/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "5be3e678769853723346e5d2b1e0598f723fec89413c3fcacc213fffb3d74465"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "procurement.candidate.publish@1",
+          "source": {
+            "section": "8.6.4",
+            "line": 7599,
+            "lineDigest": "b3027f80fc686599bc8a0e7930f8550091b5b1ea892ca6f222272deb152a11da"
+          },
+          "typeExpression": "CandidateDraft"
+        }
+      ]
+    },
+    {
+      "id": "CandidateMaterialLocationEvidence",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/CandidateMaterialLocationEvidence/v1",
+      "relativePath": "domain-types/CandidateMaterialLocationEvidence/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "5588e1d2973e956e0c54805525870329d1c13850eb13c5d784a57232c5e628aa"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.intake.binding.resolve@1",
+          "source": {
+            "section": "8.6.5",
+            "line": 7610,
+            "lineDigest": "9ed49b438179d81a0118b9ab99d22bdc701eccf1c59516e67ee23b7023a4b3b4"
+          },
+          "typeExpression": "Candidate material/location evidence"
+        }
+      ]
+    },
+    {
+      "id": "CandidateSnapshot",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/CandidateSnapshot/v1",
+      "relativePath": "domain-types/CandidateSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "9bb0baa753db00113bba0e4dfabed3be262c567931f2fc1db52ae7d98b265175"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.intake.material.verify@1",
+          "source": {
+            "section": "8.6.5",
+            "line": 7609,
+            "lineDigest": "00750b81f23ebc5d1cb55dd2444da4e49ec8f95b0d780a8456bd4d6c8f98d27c"
+          },
+          "typeExpression": "Candidate snapshot"
+        }
+      ]
+    },
+    {
+      "id": "CareBasis",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/CareBasis/v1",
+      "relativePath": "domain-types/CareBasis/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d1d2cd336fdcf96fcd5d6655735733e65344e76eae5ea6f9f2de2b4c7c699aa2"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.conformance.observe@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7724,
+            "lineDigest": "418d9652136aa90165fb8648faba7327012d40b25049086a9dee701cfa4f6c5e"
+          },
+          "typeExpression": "Care Basis"
+        },
+        {
+          "capabilityRef": "arca.aftercare.custody.observe@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7722,
+            "lineDigest": "db6a70b06391c9b8f35128f7bfa001ebf9a189caaecb353a5cdfd7d40166ed7b"
+          },
+          "typeExpression": "Care Basis"
+        },
+        {
+          "capabilityRef": "arca.aftercare.presentation.observe@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7723,
+            "lineDigest": "ef14d58689a9a1e3ad3b5658b3d3e59a100382e903323cc54cacd9374861f6cd"
+          },
+          "typeExpression": "Care Basis"
+        }
+      ]
+    },
+    {
+      "id": "CareRequirement",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/CareRequirement/v1",
+      "relativePath": "domain-types/CareRequirement/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "598ffbde2313525013f1942ca24f7ab0b36c95a751f58d9ff56a39b3b1d4f084"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.media.remux@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7729,
+            "lineDigest": "f27a3c9ff2412e8626a1b06124672d458059585a52c734207bd541379461f72d"
+          },
+          "typeExpression": "Care Requirement"
+        },
+        {
+          "capabilityRef": "arca.aftercare.media.transcode@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7730,
+            "lineDigest": "ded794686ed04fb831dfcd51ef6e541d53c0955145f7df68306728354ea9b308"
+          },
+          "typeExpression": "Care Requirement"
+        },
+        {
+          "capabilityRef": "arca.aftercare.media.verify@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7731,
+            "lineDigest": "dad3fc5fe91c3b6f3f82b8e52c750373787c61ff30abe0f055393fefc9dde34c"
+          },
+          "typeExpression": "Care Requirement"
+        }
+      ]
+    },
+    {
+      "id": "ClusterParameters",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/ClusterParameters/v1",
+      "relativePath": "domain-types/ClusterParameters/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c22827e8dd9a5a26426cf91384e24fc428eba864215005e10ce52870a0307224"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "shared.face.cluster.compute@1",
+          "source": {
+            "section": "8.6.3",
+            "line": 7580,
+            "lineDigest": "ab99299f3dabcdbda44a14805e1f391fb7abe03dd5b066789d7b5d62b01edc8e"
+          },
+          "typeExpression": "ClusterParameters"
+        }
+      ]
+    },
+    {
+      "id": "CurrentInventoryControl",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/CurrentInventoryControl/v1",
+      "relativePath": "domain-types/CurrentInventoryControl/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "52780efe856aee14fd8caff5416b8e6b61d634c15b02e32a0ffa4d5a13ce4027"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.offdeck.destruction_scope.verify@1",
+          "source": {
+            "section": "8.6.12",
+            "line": 7756,
+            "lineDigest": "5f1aba6f365de4e1b6b78c9151fd81b7c47c80410c917f93ac0493fbebb9507d"
+          },
+          "typeExpression": "current Inventory/Control"
+        },
+        {
+          "capabilityRef": "arca.shelf_deregistration.release_manifest.verify@1",
+          "source": {
+            "section": "8.6.12",
+            "line": 7762,
+            "lineDigest": "28fc5bb6077c6e4f46d115156a5891718f27888dbb1f6438b6d6e3e6369bd2f2"
+          },
+          "typeExpression": "current Inventory/Control"
+        }
+      ]
+    },
+    {
+      "id": "DecisionEvidence",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/DecisionEvidence/v1",
+      "relativePath": "domain-types/DecisionEvidence/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "658d278d7fd2deafdd9ead668cdefca4c266e962f30d87ac5e0e720aad8cb83d"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product_identity.resolve@1",
+          "source": {
+            "section": "8.6.5",
+            "line": 7614,
+            "lineDigest": "6dce1265b0101081f5902721342d86b96e19ad4165b69dd8ef7b9cf241da261f"
+          },
+          "typeExpression": "Decision Evidence"
+        }
+      ]
+    },
+    {
+      "id": "DecisionInputSet",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/DecisionInputSet/v1",
+      "relativePath": "domain-types/DecisionInputSet/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "34d16792c1ad563c95b4543ca50cba051623a3f41a745486e17131a05b53e37f"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.decision_basis.commit@1",
+          "source": {
+            "section": "8.6.5",
+            "line": 7616,
+            "lineDigest": "c2bee393c7c5ceb06c831e38901c577c13ddb5eb7838e2a8bf622737543c2af9"
+          },
+          "typeExpression": "DecisionInputSet"
+        }
+      ]
+    },
+    {
+      "id": "DestructionScope",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/DestructionScope/v1",
+      "relativePath": "domain-types/DestructionScope/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "fda6f2185083c1b049833881ca9f4839d3c3b7d05e0fc2520c8feb3eceed5a10"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.offdeck.destruction_scope.verify@1",
+          "source": {
+            "section": "8.6.12",
+            "line": 7756,
+            "lineDigest": "5f1aba6f365de4e1b6b78c9151fd81b7c47c80410c917f93ac0493fbebb9507d"
+          },
+          "typeExpression": "Destruction Scope"
+        }
+      ]
+    },
+    {
+      "id": "EncodeIntent",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/EncodeIntent/v1",
+      "relativePath": "domain-types/EncodeIntent/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "13431e278f8a4b0924bfab5ec9513a430225d54a0deeb170b98baca55b0b2fd2"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.media.transcode@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 7646,
+            "lineDigest": "0e3dadb1b3a43510bf89001548fe717332e6fac6db5a58d84d8367eb7754aa9c"
+          },
+          "typeExpression": "EncodeIntent"
+        },
+        {
+          "capabilityRef": "libra.transcode.input.verify@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 7644,
+            "lineDigest": "7e3dd0dd3ad7d4bbb44093fd6a68fddf7c8fe8d45defdc22c44da21b3399c066"
+          },
+          "typeExpression": "EncodeIntent"
+        }
+      ]
+    },
+    {
+      "id": "EpisodeDeliveryManifest",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/EpisodeDeliveryManifest/v1",
+      "relativePath": "domain-types/EpisodeDeliveryManifest/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "fe0b0a26d8f73ebb97a607000c7293818efe64729ad8c3bc4bbc295c9036176f"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.external_material.package.verify@1",
+          "source": {
+            "section": "8.6.8",
+            "line": 7679,
+            "lineDigest": "95a010cdc2541870aa59dcf1dedb23d607773e7a0d8bfaff3b57ad9e0296d615"
+          },
+          "typeExpression": "Episode Delivery Manifest"
+        }
+      ]
+    },
+    {
+      "id": "FaceModelRef",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/FaceModelRef/v1",
+      "relativePath": "domain-types/FaceModelRef/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "1e771710d2d02774d7e97ebc9de841150d4a263db2a30216c8773422fb39ce59"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "shared.face.embedding.compute@1",
+          "source": {
+            "section": "8.6.3",
+            "line": 7579,
+            "lineDigest": "303382e21b6ebf8ed4758e802fc0e190d1c36a4f73ce51f69707a659a04bbd3e"
+          },
+          "typeExpression": "FaceModelRef"
+        }
+      ]
+    },
+    {
+      "id": "FinalBindings",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/FinalBindings/v1",
+      "relativePath": "domain-types/FinalBindings/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "9f0ce193cdf7e44afaba0884e522f3b2df550d7e748fa2dd1d3cdf6aecd6f229"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.inventory.final_primary.verify@1",
+          "source": {
+            "section": "8.6.10",
+            "line": 7709,
+            "lineDigest": "046b1dcb2a47030e11538b422f3ffd0e7bb087f73ca47e5d4288bfef31d69363"
+          },
+          "typeExpression": "Final bindings"
+        }
+      ]
+    },
+    {
+      "id": "FinalInventoryDecision",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/FinalInventoryDecision/v1",
+      "relativePath": "domain-types/FinalInventoryDecision/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "e273173739a1a7452e39ef6c7be3ad69b8b2265d36b7038072f170f740c7314d"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.inventory.staged.verify@1",
+          "source": {
+            "section": "8.6.10",
+            "line": 7707,
+            "lineDigest": "843e35b1e399dd3d9497144b48d1ef93a0d99c9deddfffb682aa12e401ffffa3"
+          },
+          "typeExpression": "Final Inventory Decision"
+        },
+        {
+          "capabilityRef": "arca.inventory.target_slot.prepare@1",
+          "source": {
+            "section": "8.6.10",
+            "line": 7705,
+            "lineDigest": "207a053dd6f2debeb0cef4e02fa29d65077c37dfe54f674e265ba68aa63cc30f"
+          },
+          "typeExpression": "Final Inventory Decision"
+        },
+        {
+          "capabilityRef": "arca.ondeck.fulfillment.verify@1",
+          "source": {
+            "section": "8.6.10",
+            "line": 7711,
+            "lineDigest": "0fd32ca70f4341b73c50e6e249f0566cf972b467e0fa93e85f5be2948ad73cd4"
+          },
+          "typeExpression": "Final Inventory Decision"
+        }
+      ]
+    },
+    {
+      "id": "FinalReality",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/FinalReality/v1",
+      "relativePath": "domain-types/FinalReality/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "597dd62dbb416bea9f50d63511e5e72689a1bb5cca63cd4a433a4bd99c81cb15"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.ondeck.fulfillment.verify@1",
+          "source": {
+            "section": "8.6.10",
+            "line": 7711,
+            "lineDigest": "0fd32ca70f4341b73c50e6e249f0566cf972b467e0fa93e85f5be2948ad73cd4"
+          },
+          "typeExpression": "Final reality"
+        }
+      ]
+    },
+    {
+      "id": "HashProfile",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/HashProfile/v1",
+      "relativePath": "domain-types/HashProfile/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "cc038e597c504255edd22ec328d29460ba3fbf2426f49f02debe0326642b0497"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "shared.material.content_hash.compute@1",
+          "source": {
+            "section": "8.6.3",
+            "line": 7573,
+            "lineDigest": "a49116ffe106a16d2ab00e928642626f5d43442beaa0b312971bac83445319da"
+          },
+          "typeExpression": "HashProfile"
+        }
+      ]
+    },
+    {
+      "id": "IdentityMetadata",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/IdentityMetadata/v1",
+      "relativePath": "domain-types/IdentityMetadata/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c062a014363b50b4494ef42b5194c47452549142fb93fbdab8bac182495a3167"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "procurement.triage.identity_claim.resolve@1",
+          "source": {
+            "section": "8.6.4",
+            "line": 7597,
+            "lineDigest": "16507023239c854ccac8f3e3c80df0911008c0fafa5a8e044c9d2a8c37c473a7"
+          },
+          "typeExpression": "Identity Metadata"
+        }
+      ]
+    },
+    {
+      "id": "IdentityRequirement",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/IdentityRequirement/v1",
+      "relativePath": "domain-types/IdentityRequirement/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "fd2808690be8720b855eff58c4b97893c6daf6585186b03e8f55330f152c29ec"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.external_material.package.verify@1",
+          "source": {
+            "section": "8.6.8",
+            "line": 7679,
+            "lineDigest": "95a010cdc2541870aa59dcf1dedb23d607773e7a0d8bfaff3b57ad9e0296d615"
+          },
+          "typeExpression": "Identity Requirement"
+        }
+      ]
+    },
+    {
+      "id": "ImmutableRecords",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ImmutableRecords/v1",
+      "relativePath": "domain-types/ImmutableRecords/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "acb27578b799f101de80f0d186a58dca8ecdd0101f4304d6c2262cc9c4f9fddc"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "perception.dedup.resolve@1",
+          "source": {
+            "section": "8.6.13",
+            "line": 7776,
+            "lineDigest": "f6cb6ef1912321f296eec8fd5689f7e19034250abea626c493fdfdd1ec8808bb"
+          },
+          "typeExpression": "Immutable records"
+        }
+      ]
+    },
+    {
+      "id": "InventoryMetadataArtifactRefs",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/InventoryMetadataArtifactRefs/v1",
+      "relativePath": "domain-types/InventoryMetadataArtifactRefs/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "e5f77314e09bef2c8a0ce817f0ba66c5864da6deb41e52418a1f33816813b40f"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.presentation.observe@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7723,
+            "lineDigest": "ef14d58689a9a1e3ad3b5658b3d3e59a100382e903323cc54cacd9374861f6cd"
+          },
+          "typeExpression": "Inventory/Metadata/Artifact refs"
+        }
+      ]
+    },
+    {
+      "id": "InventoryRevision",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/InventoryRevision/v1",
+      "relativePath": "domain-types/InventoryRevision/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "dc9eda3a9844c7cce93f5776d94914d3ca7d13d3d336214b26924288cee1f2d7"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.custody.observe@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7722,
+            "lineDigest": "db6a70b06391c9b8f35128f7bfa001ebf9a189caaecb353a5cdfd7d40166ed7b"
+          },
+          "typeExpression": "Inventory revision"
+        }
+      ]
+    },
+    {
+      "id": "KnownBindings",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/KnownBindings/v1",
+      "relativePath": "domain-types/KnownBindings/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "262e8d39ce3e4d09d3a799d2dc9e76335e43da662d722f6b19cb5052bc197e6d"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.custody.observe@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7722,
+            "lineDigest": "db6a70b06391c9b8f35128f7bfa001ebf9a189caaecb353a5cdfd7d40166ed7b"
+          },
+          "typeExpression": "known bindings"
+        }
+      ]
+    },
+    {
+      "id": "LibraWorkspaceScope",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/LibraWorkspaceScope/v1",
+      "relativePath": "domain-types/LibraWorkspaceScope/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "323b6777d190b2c75e5e4c14946dbf73667073369325eda3b0e5ebb498b65fe3"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.workspace.material.import@1",
+          "source": {
+            "section": "8.6.8",
+            "line": 7680,
+            "lineDigest": "3f02559498e7251698b96b624649181aa5b1191c4e470b3de1d0251679e5db85"
+          },
+          "typeExpression": "Libra Workspace scope"
+        }
+      ]
+    },
+    {
+      "id": "MandatoryRequirement",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/MandatoryRequirement/v1",
+      "relativePath": "domain-types/MandatoryRequirement/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "1471ac5c38846236d7575791995780447fa8b7ef4976be74c269f586088641b4"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.mandatory_media.verify@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7692,
+            "lineDigest": "f550c747dddf2448dcc6d0f32dedf0271619dae3b77044987c2085456e0bf055"
+          },
+          "typeExpression": "Mandatory Requirement"
+        }
+      ]
+    },
+    {
+      "id": "ManifestContract",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/ManifestContract/v1",
+      "relativePath": "domain-types/ManifestContract/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "e51b863a14e61dd568a543d844d8d3deaff71f57927054827e7298dd04e3be30"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "shared.manifest.verify@1",
+          "source": {
+            "section": "8.6.3",
+            "line": 7576,
+            "lineDigest": "97c21353c211becce2a99b5af0bfe18cd75d0426615554a67e3c477f675cfef7"
+          },
+          "typeExpression": "ManifestContract"
+        }
+      ]
+    },
+    {
+      "id": "Manifests",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/Manifests/v1",
+      "relativePath": "domain-types/Manifests/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "ca4ef2212bf6215915e70a60cde0d7cc206d7930f475931a13769ef5ad43b3c2"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product_package.publish@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 7650,
+            "lineDigest": "7097afe7d6e29d4c0a9e91f2c5376d6c95f29e870460fa3ddf3f1ea27028b16a"
+          },
+          "typeExpression": "manifests"
+        }
+      ]
+    },
+    {
+      "id": "MaterialFieldContext",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/MaterialFieldContext/v1",
+      "relativePath": "domain-types/MaterialFieldContext/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "1182649d8f0f164ddefd4aad314a985fed18aac89da979d436a3eda42c06bdd1"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "procurement.triage.structure.inspect@1",
+          "source": {
+            "section": "8.6.4",
+            "line": 7596,
+            "lineDigest": "bd1c216fa886a6ad43f4c844096e85afd14f8432be3aceb66c035a2300a51e24"
+          },
+          "typeExpression": "MaterialFieldContext"
+        }
+      ]
+    },
+    {
+      "id": "MediaRequirement",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/MediaRequirement/v1",
+      "relativePath": "domain-types/MediaRequirement/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "5a63e80ddd02fe4646e559c9c2cd7b413c850276e44acb0436c71e764d9d1455"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product_media.verify@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 7647,
+            "lineDigest": "3582d4972fba747457c5b47843b8610f71a3d0bed71e8f61a14c145d17d1e1d1"
+          },
+          "typeExpression": "MediaRequirement"
+        }
+      ]
+    },
+    {
+      "id": "MetadataRequirement",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/MetadataRequirement/v1",
+      "relativePath": "domain-types/MetadataRequirement/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "61ab1367c036eb85954fb7090e771572389ee2184f18c065afa9d6923afd1fec"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.metadata.verify@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7691,
+            "lineDigest": "44843729ee69816916da2361d5b6583c8d4fadcd4c5e3d3c3a9a0fd8ed6d8e9f"
+          },
+          "typeExpression": "Metadata Requirement"
+        }
+      ]
+    },
+    {
+      "id": "OffLoadContext",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/OffLoadContext/v1",
+      "relativePath": "domain-types/OffLoadContext/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "35ad7ce1574602a373baaf568daea0963f1f1df8a7b9bc6b53556e9b0f410df0"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.inventory_feasibility.observe@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7694,
+            "lineDigest": "59e9bc8d69579a1ac34f04d67a15ad18c4545b324606a4e3356382e5d4a12d43"
+          },
+          "typeExpression": "Off-load Context"
+        }
+      ]
+    },
+    {
+      "id": "PackageIdentity",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/PackageIdentity/v1",
+      "relativePath": "domain-types/PackageIdentity/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c235bb2b48870af0bf8bae133b99e66aa264f4fcbe7f5d091e487ae5f2098fec"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.identity.verify@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7689,
+            "lineDigest": "e1692014887797cd5aa80890c62a849dc352f89fc6d123a576e7bb7b28db378b"
+          },
+          "typeExpression": "Package identity"
+        }
+      ]
+    },
+    {
+      "id": "PeopleWorkspace",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/PeopleWorkspace/v1",
+      "relativePath": "domain-types/PeopleWorkspace/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "e9f28ce604398029deebc973f7e3355e5a6b21e5c911430a7eb9cbd30401946a"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "people.reference_asset.import@1",
+          "source": {
+            "section": "8.6.14",
+            "line": 7786,
+            "lineDigest": "be70fa3c68c7af336e86e27c9059ce4f7589c26c543a8906f79d178e74a95d04"
+          },
+          "typeExpression": "People Workspace"
+        }
+      ]
+    },
+    {
+      "id": "PerceptionSource",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/PerceptionSource/v1",
+      "relativePath": "domain-types/PerceptionSource/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "f21302c22c0a919342221ac8a12d02600cc7d90e5b2d0dc402134131285de5e4"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "perception.source.acquire@1",
+          "source": {
+            "section": "8.6.13",
+            "line": 7773,
+            "lineDigest": "936aa5681db7e92d8ddcf5523c34096dfab8d4bf8ace295bdd914f5c2fca83b3"
+          },
+          "typeExpression": "Perception Source"
+        }
+      ]
+    },
+    {
+      "id": "PersonIdentitiesAliasesReferences",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/PersonIdentitiesAliasesReferences/v1",
+      "relativePath": "domain-types/PersonIdentitiesAliasesReferences/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "290fa879cfde2e777f762d126b266fe4389999e7f733807d4936e29f375d2dbf"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "people.merge_candidate.resolve@1",
+          "source": {
+            "section": "8.6.14",
+            "line": 7788,
+            "lineDigest": "59b0e76459fdc0180ce65bf066adc6c478f3c021b14a00db63f5f5f767fd24fa"
+          },
+          "typeExpression": "Person identities/aliases/references"
+        }
+      ]
+    },
+    {
+      "id": "PersonReferenceProjection",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/PersonReferenceProjection/v1",
+      "relativePath": "domain-types/PersonReferenceProjection/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "005d82a3ca0f3ad5151004a8fb0337ccad413bc754a501b19e78bd29751f547f"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.media_cast.resolve@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 7631,
+            "lineDigest": "f95414fd25dcd1f64c09fca09c023ed13c3941d1a5dc63c820930cd57e96cd3e"
+          },
+          "typeExpression": "PersonReferenceProjection"
+        },
+        {
+          "capabilityRef": "shared.face.reference.match@1",
+          "source": {
+            "section": "8.6.3",
+            "line": 7581,
+            "lineDigest": "1787818297541762f93641ae752ac862fd31ee0f8c30d4a2e05377942453ee71"
+          },
+          "typeExpression": "PersonReferenceProjection"
+        }
+      ]
+    },
+    {
+      "id": "Placement",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/Placement/v1",
+      "relativePath": "domain-types/Placement/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "fb302ed97783383ced19854c52d73fa0c7c26c0270252c54e42bf49d8f46a746"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.conformance.observe@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7724,
+            "lineDigest": "418d9652136aa90165fb8648faba7327012d40b25049086a9dee701cfa4f6c5e"
+          },
+          "typeExpression": "Placement"
+        }
+      ]
+    },
+    {
+      "id": "PlacementPolicy",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/PlacementPolicy/v1",
+      "relativePath": "domain-types/PlacementPolicy/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "a3afc9428777ad7ef348107e993c4e2a6ee402bc5030ed3d2fbb6083edc1c8eb"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.inventory_feasibility.observe@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7694,
+            "lineDigest": "59e9bc8d69579a1ac34f04d67a15ad18c4545b324606a4e3356382e5d4a12d43"
+          },
+          "typeExpression": "Placement Policy"
+        }
+      ]
+    },
+    {
+      "id": "PolicyResult",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/PolicyResult/v1",
+      "relativePath": "domain-types/PolicyResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "9a0c0f817c89b6d51028f02a1b51d830d0a48d3e3420e4a361df7447f696485b"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.offdeck.review_candidate.commit@1",
+          "source": {
+            "section": "8.6.12",
+            "line": 7755,
+            "lineDigest": "b8305dff13defc656f24822f21e1559c6374caa39f1d066bead227ec67fbaae6"
+          },
+          "typeExpression": "Policy result"
+        }
+      ]
+    },
+    {
+      "id": "PreferenceIntent",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/PreferenceIntent/v1",
+      "relativePath": "domain-types/PreferenceIntent/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c422062432acbb6e1ce8afa77a252b63a38b8acf90e8b5ed3d1ce45b00439d44"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "people.preference.commit@1",
+          "source": {
+            "section": "8.6.14",
+            "line": 7791,
+            "lineDigest": "4ae0cbd3463df67c1ae83084d30ae44a5dd54aa9fedd41c732561a07ffe2343b"
+          },
+          "typeExpression": "Preference intent"
+        }
+      ]
+    },
+    {
+      "id": "ProductFacts",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ProductFacts/v1",
+      "relativePath": "domain-types/ProductFacts/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "58218a8c98e5c2a7f576c44a29a10aba5f4c701dfa72e74f2ea4be7b10b6c457"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product.conformance.verify@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 7649,
+            "lineDigest": "1d672bc56d8ca9562a03e2ab9c3826f08e3ad9916940ea95532538aa098a2739"
+          },
+          "typeExpression": "Product Facts"
+        }
+      ]
+    },
+    {
+      "id": "ProductManifest",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ProductManifest/v1",
+      "relativePath": "domain-types/ProductManifest/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "065a38202b91dc5c3b77f711f6d78428b7091fe1d005a4d31bc4dd6b43b51d0a"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.space.verify@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7693,
+            "lineDigest": "40d5e97c13f59851e29f7b5f7580bd58be75cc031049119cbd947b4223beec8e"
+          },
+          "typeExpression": "Product Manifest"
+        },
+        {
+          "capabilityRef": "arca.acceptance.structure.verify@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7690,
+            "lineDigest": "073eb9aab7d8793b6da8af1cfb9431bf3a12e2d1221ae2b49762e7da5bd85e91"
+          },
+          "typeExpression": "Product Manifest"
+        },
+        {
+          "capabilityRef": "arca.inventory.final_primary.verify@1",
+          "source": {
+            "section": "8.6.10",
+            "line": 7709,
+            "lineDigest": "046b1dcb2a47030e11538b422f3ffd0e7bb087f73ca47e5d4288bfef31d69363"
+          },
+          "typeExpression": "Product Manifest"
+        }
+      ]
+    },
+    {
+      "id": "ProductMetadataArtifact",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ProductMetadataArtifact/v1",
+      "relativePath": "domain-types/ProductMetadataArtifact/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "8d662e0ea39e5f8a330a74218671fb90e52c4354aec9593f249c68ee81ca5978"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.metadata.verify@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7691,
+            "lineDigest": "44843729ee69816916da2361d5b6583c8d4fadcd4c5e3d3c3a9a0fd8ed6d8e9f"
+          },
+          "typeExpression": "Product Metadata/Artifact"
+        }
+      ]
+    },
+    {
+      "id": "ProductStructure",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ProductStructure/v1",
+      "relativePath": "domain-types/ProductStructure/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "01ec12df753f60199f65863be0b8ff290b2165efc8e24ebff8886ca8872c35c5"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.external_material.output.resolve@1",
+          "source": {
+            "section": "8.6.8",
+            "line": 7676,
+            "lineDigest": "b568207325c6a7693b7356777dcd72cffce8db202fc8887e864b4cbbcd2c370f"
+          },
+          "typeExpression": "ProductStructure"
+        },
+        {
+          "capabilityRef": "libra.external_material.query.prepare@1",
+          "source": {
+            "section": "8.6.8",
+            "line": 7671,
+            "lineDigest": "cc34464295093a27cf0134e1887e5d488ebb6d1488ab2d90fb686892e4fce131"
+          },
+          "typeExpression": "ProductStructure"
+        },
+        {
+          "capabilityRef": "libra.product_identity.resolve@1",
+          "source": {
+            "section": "8.6.5",
+            "line": 7614,
+            "lineDigest": "6dce1265b0101081f5902721342d86b96e19ad4165b69dd8ef7b9cf241da261f"
+          },
+          "typeExpression": "ProductStructure"
+        }
+      ]
+    },
+    {
+      "id": "ProfessionalAssessmentsSharingOneCareBasis",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ProfessionalAssessmentsSharingOneCareBasis/v1",
+      "relativePath": "domain-types/ProfessionalAssessmentsSharingOneCareBasis/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "44870b448ea37d69d0583c68e4b1124ce56b2c81db696911dfd8600a5eae715a"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.assessment.commit@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7725,
+            "lineDigest": "c42e638ea7f6d032304bb5ee32fbc102e3f1cc3f8fd42d63de59534b6c6fbc22"
+          },
+          "typeExpression": "Professional assessments sharing one Care Basis"
+        }
+      ]
+    },
+    {
+      "id": "ProviderPersonHint",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ProviderPersonHint/v1",
+      "relativePath": "domain-types/ProviderPersonHint/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "ff7e9ca8012944549c458d2a7ef2f865e28abffb462469907f1eab3a166c52fa"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "people.registration_evidence.observe@1",
+          "source": {
+            "section": "8.6.14",
+            "line": 7785,
+            "lineDigest": "31b7030e70a9d4e6cfb31f3f379d999f240df5d1a716e77015ae95156acb47b3"
+          },
+          "typeExpression": "Provider/person hint"
+        }
+      ]
+    },
+    {
+      "id": "ReassessedResult",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ReassessedResult/v1",
+      "relativePath": "domain-types/ReassessedResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "1ab46ec34fa731e472579b4311c04c2713323d8ce012cdfc76052780268aba4b"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.case.commit@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7734,
+            "lineDigest": "1e7370361ed619740cc94e80a3b7d79f2a2a177126498eba7cc46d238de884bb"
+          },
+          "typeExpression": "Reassessed result"
+        }
+      ]
+    },
+    {
+      "id": "ReferenceEvidence",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ReferenceEvidence/v1",
+      "relativePath": "domain-types/ReferenceEvidence/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "74a9a575b3db00e79ae653da49c3aedc91f323b7fbf02dff6e19465f528b38cd"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.workspace.reclaim@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7735,
+            "lineDigest": "3c4893964425cbf3fc4fc42b5fd975ddc72b436dcfc619ce9c2818a264e73c42"
+          },
+          "typeExpression": "ReferenceEvidence"
+        },
+        {
+          "capabilityRef": "libra.workspace.material.reclaim@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 7651,
+            "lineDigest": "cef92055ad512942b724f26178eb324deb2e6a954a151301ed1f8652e3a651cd"
+          },
+          "typeExpression": "ReferenceEvidence"
+        },
+        {
+          "capabilityRef": "people.workspace.reclaim@1",
+          "source": {
+            "section": "8.6.14",
+            "line": 7792,
+            "lineDigest": "beced2784c1e277b20c4d5547149519e4cba307751d901ee3df5f29d59061d8c"
+          },
+          "typeExpression": "ReferenceEvidence"
+        }
+      ]
+    },
+    {
+      "id": "RegistrationMergeDecision",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/RegistrationMergeDecision/v1",
+      "relativePath": "domain-types/RegistrationMergeDecision/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "239339d42499bf50e9e9e1e4a9c7d7e1092d82050137d184c34b818f93d73d4c"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "people.person.commit@1",
+          "source": {
+            "section": "8.6.14",
+            "line": 7790,
+            "lineDigest": "612c71847ea040722959cb64e1a1809681f9e406c156538986ad4b420d7df8e5"
+          },
+          "typeExpression": "Registration/merge decision"
+        }
+      ]
+    },
+    {
+      "id": "RelatedReference",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/RelatedReference/v1",
+      "relativePath": "domain-types/RelatedReference/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "de5dde72454945726e04273dd719cb3e9d890996abfc98c3e6bd0110757daf4d"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.offdeck.related_reference.release@1",
+          "source": {
+            "section": "8.6.12",
+            "line": 7758,
+            "lineDigest": "40a6ec979c4677dec5e91765de272e25ad86d1543d417eaefa1c9c13365d6bc6"
+          },
+          "typeExpression": "Related reference"
+        }
+      ]
+    },
+    {
+      "id": "ReleaseManifest",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ReleaseManifest/v1",
+      "relativePath": "domain-types/ReleaseManifest/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "9e9860186704475f946f033b5aba3a5ba42ce734e8bf84c16e415f7e55fe9285"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.shelf_deregistration.release_manifest.verify@1",
+          "source": {
+            "section": "8.6.12",
+            "line": 7762,
+            "lineDigest": "28fc5bb6077c6e4f46d115156a5891718f27888dbb1f6438b6d6e3e6369bd2f2"
+          },
+          "typeExpression": "Release Manifest"
+        }
+      ]
+    },
+    {
+      "id": "RemuxIntent",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/RemuxIntent/v1",
+      "relativePath": "domain-types/RemuxIntent/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "193cd8f6167230191b04c88bb34a07465721f9f306c6c23e238dd6dcf6d4c562"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.media.remux@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 7645,
+            "lineDigest": "a8a78da685d0a729a7d56d4f58a82391317e0fab5e90a164d84f493c93d68af2"
+          },
+          "typeExpression": "RemuxIntent"
+        }
+      ]
+    },
+    {
+      "id": "ResolutionRuleRevision",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ResolutionRuleRevision/v1",
+      "relativePath": "domain-types/ResolutionRuleRevision/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "dfcfb3d874258dd7c9deb6e0549d2fab35a3e2b376202bdc30c2b407a7187d07"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "perception.dedup.resolve@1",
+          "source": {
+            "section": "8.6.13",
+            "line": 7776,
+            "lineDigest": "f6cb6ef1912321f296eec8fd5689f7e19034250abea626c493fdfdd1ec8808bb"
+          },
+          "typeExpression": "Resolution rule revision"
+        }
+      ]
+    },
+    {
+      "id": "Roles",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/Roles/v1",
+      "relativePath": "domain-types/Roles/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "70b52dbf27ba3eb2869b1a95dee22bc2485157dd15a03814c905bcb934b23d80"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "procurement.triage.primary_manifest.build@1",
+          "source": {
+            "section": "8.6.4",
+            "line": 7598,
+            "lineDigest": "7495689ae3ed2033d74069c5bb450f1bdb2ce324afed7fabeea1b906ee38ba8b"
+          },
+          "typeExpression": "roles"
+        }
+      ]
+    },
+    {
+      "id": "SamplingPlan",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/SamplingPlan/v1",
+      "relativePath": "domain-types/SamplingPlan/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "37e9a05dbbb13e3c387afb9777f383aefceb73a62634b6e958609240f2ba851b"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.media.frames.extract@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 7626,
+            "lineDigest": "ef60c01a679d1da9ffa5ef53961cac2705102f561a826dc413d55bdfe32cece2"
+          },
+          "typeExpression": "SamplingPlan"
+        }
+      ]
+    },
+    {
+      "id": "Scope",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/Scope/v1",
+      "relativePath": "domain-types/Scope/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "2106ea1093f17c340bfb3d53e7c123a10c9d949ba08fe924a1d8a4313aa116db"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.offdeck.deletion.verify@1",
+          "source": {
+            "section": "8.6.12",
+            "line": 7760,
+            "lineDigest": "de79a37a739e145a8e12e793ebf68b5fe6c08bb496a7bf67d011f3cf727f0ac0"
+          },
+          "typeExpression": "Scope"
+        }
+      ]
+    },
+    {
+      "id": "SelectedFieldMaterialSet",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/SelectedFieldMaterialSet/v1",
+      "relativePath": "domain-types/SelectedFieldMaterialSet/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "7301b79d7afaadaa5e40f1e9cc5297aa163df8c5b480b3d021bcf2dd24aaf110"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "procurement.material.control.acquire@1",
+          "source": {
+            "section": "8.6.4",
+            "line": 7594,
+            "lineDigest": "95a7948fa00711b73ff02bbb1106415b813ef40471c335e0cbd8f3b7844cda19"
+          },
+          "typeExpression": "SelectedFieldMaterialSet"
+        }
+      ]
+    },
+    {
+      "id": "SelectedMaterials",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/SelectedMaterials/v1",
+      "relativePath": "domain-types/SelectedMaterials/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "bdeec0d6bd6ecbd49b4918a84e5ddcf60da0f3a2bfdc02a74e773486480318c1"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "procurement.triage.primary_manifest.build@1",
+          "source": {
+            "section": "8.6.4",
+            "line": 7598,
+            "lineDigest": "7495689ae3ed2033d74069c5bb450f1bdb2ce324afed7fabeea1b906ee38ba8b"
+          },
+          "typeExpression": "Selected materials"
+        }
+      ]
+    },
+    {
+      "id": "SelectionCriteria",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/SelectionCriteria/v1",
+      "relativePath": "domain-types/SelectionCriteria/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "9761fd522265ad442a1bffdb2ca0755863811c9ea43f7c0876c96874afdc2e7c"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.external_material.candidate.select@1",
+          "source": {
+            "section": "8.6.8",
+            "line": 7673,
+            "lineDigest": "1b4eeedfe203459b1b943a25b9eb1c7b287c47c5461795de00299cdafd1f104c"
+          },
+          "typeExpression": "SelectionCriteria"
+        }
+      ]
+    },
+    {
+      "id": "ShelfStandard",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/ShelfStandard/v1",
+      "relativePath": "domain-types/ShelfStandard/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "f4f7b74e7b59fd359fd6abea4aa529e5def8a879feecdbf6b71cf1d021894ce4"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.identity.verify@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7689,
+            "lineDigest": "e1692014887797cd5aa80890c62a849dc352f89fc6d123a576e7bb7b28db378b"
+          },
+          "typeExpression": "Shelf Standard"
+        },
+        {
+          "capabilityRef": "arca.ondeck.fulfillment.verify@1",
+          "source": {
+            "section": "8.6.10",
+            "line": 7711,
+            "lineDigest": "0fd32ca70f4341b73c50e6e249f0566cf972b467e0fa93e85f5be2948ad73cd4"
+          },
+          "typeExpression": "Shelf Standard"
+        }
+      ]
+    },
+    {
+      "id": "SidecarProfile",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/SidecarProfile/v1",
+      "relativePath": "domain-types/SidecarProfile/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "291551ea518c9226096437f8900905d929d8421e0ed8faf40e99d1d7ab38cc1b"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product_sidecar.render@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 7633,
+            "lineDigest": "15a7d89c84badd6020622e0397e8d63040e7a16843bb2c209ba2ffc7b1225ad8"
+          },
+          "typeExpression": "SidecarProfile"
+        }
+      ]
+    },
+    {
+      "id": "SourceObservation",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/SourceObservation/v1",
+      "relativePath": "domain-types/SourceObservation/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "443185cf3ae26ab66b1616003a3ca6278ed46fadae10198860be3fe6bedbc6cc"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "perception.record.normalize@1",
+          "source": {
+            "section": "8.6.13",
+            "line": 7774,
+            "lineDigest": "e9319c6e662a1d2188eb3fd0a4bc881d41b15868385e9e06599f7f78b15918f2"
+          },
+          "typeExpression": "Source observation"
+        }
+      ]
+    },
+    {
+      "id": "SpaceRequirement",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/SpaceRequirement/v1",
+      "relativePath": "domain-types/SpaceRequirement/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "b1c5a7d5ea7394af572c1d3a7fd293f31836a1a310145e446a7f7b33f188d953"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.space.verify@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7693,
+            "lineDigest": "40d5e97c13f59851e29f7b5f7580bd58be75cc031049119cbd947b4223beec8e"
+          },
+          "typeExpression": "Space Requirement"
+        }
+      ]
+    },
+    {
+      "id": "StableProviderIdentity",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/StableProviderIdentity/v1",
+      "relativePath": "domain-types/StableProviderIdentity/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "2855233d04d20deedfd94f27e61454d75f19df7db2c79db4d20c80a2bf5d7230"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.binary_artifact.acquire@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7727,
+            "lineDigest": "3849e59ec0117c8f4704e1fd561bc8c603978e137d7a393600b19477145d4478"
+          },
+          "typeExpression": "Stable Provider Identity"
+        }
+      ]
+    },
+    {
+      "id": "Standard",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/Standard/v1",
+      "relativePath": "domain-types/Standard/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "32dd887c9e4ade20736427209fbf50d221d6cf5ff6d84bd429995f8f81ee7d93"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.conformance.observe@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7724,
+            "lineDigest": "418d9652136aa90165fb8648faba7327012d40b25049086a9dee701cfa4f6c5e"
+          },
+          "typeExpression": "Standard"
+        },
+        {
+          "capabilityRef": "arca.aftercare.presentation.observe@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7723,
+            "lineDigest": "ef14d58689a9a1e3ad3b5658b3d3e59a100382e903323cc54cacd9374861f6cd"
+          },
+          "typeExpression": "Standard"
+        }
+      ]
+    },
+    {
+      "id": "Structure",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/Structure/v1",
+      "relativePath": "domain-types/Structure/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "ceed59b4db69f465af3a97a14f13e35ff9611297e3aed2d7fcc6d82e8786a3bd"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "procurement.triage.primary_manifest.build@1",
+          "source": {
+            "section": "8.6.4",
+            "line": 7598,
+            "lineDigest": "7495689ae3ed2033d74069c5bb450f1bdb2ce324afed7fabeea1b906ee38ba8b"
+          },
+          "typeExpression": "structure"
+        }
+      ]
+    },
+    {
+      "id": "StructureRequirement",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/StructureRequirement/v1",
+      "relativePath": "domain-types/StructureRequirement/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "dd8259235f3eafd2730ceee01a66bccd12c9bef2bb64e087920f6d922c7f6041"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.structure.verify@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7690,
+            "lineDigest": "073eb9aab7d8793b6da8af1cfb9431bf3a12e2d1221ae2b49762e7da5bd85e91"
+          },
+          "typeExpression": "Structure Requirement"
+        }
+      ]
+    },
+    {
+      "id": "StructuredRejection",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/StructuredRejection/v1",
+      "relativePath": "domain-types/StructuredRejection/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "053d1d30828cb5f7824c3ac19593d0ab70e9ea229d2e6502c8d0c6555d1b30e0"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.rejection.commit@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7695,
+            "lineDigest": "47da096b9e85f08685710e6f6204a3807303e9b3b4fa1a5455257342ff29da83"
+          },
+          "typeExpression": "StructuredRejection"
+        },
+        {
+          "capabilityRef": "libra.intake.rejection.commit@1",
+          "source": {
+            "section": "8.6.5",
+            "line": 7611,
+            "lineDigest": "702f6f1271f91bc545e19f434997449f257d016ed329b98087bcf8b27516cfd2"
+          },
+          "typeExpression": "StructuredRejection"
+        }
+      ]
+    },
+    {
+      "id": "TargetBindings",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/TargetBindings/v1",
+      "relativePath": "domain-types/TargetBindings/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "aba0dcf620c60658eb84fa50191bb21e9c1dc21225d3837bb76e0b0731ea81c2"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.inventory.placement.switch@1",
+          "source": {
+            "section": "8.6.10",
+            "line": 7708,
+            "lineDigest": "2995f4709dc5a11cbe6cda9a44f16727c2e5249e314b81983e270b512def1d4c"
+          },
+          "typeExpression": "target bindings"
+        }
+      ]
+    },
+    {
+      "id": "TargetEndpoint",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/TargetEndpoint/v1",
+      "relativePath": "domain-types/TargetEndpoint/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "8d619da09f418cbdc3bfbbf493a59f7dbec36d8eb669fe4f0c00bb291358a17a"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.acceptance.inventory_feasibility.observe@1",
+          "source": {
+            "section": "8.6.9",
+            "line": 7694,
+            "lineDigest": "59e9bc8d69579a1ac34f04d67a15ad18c4545b324606a4e3356382e5d4a12d43"
+          },
+          "typeExpression": "target Endpoint"
+        }
+      ]
+    },
+    {
+      "id": "TypedManifest",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/TypedManifest/v1",
+      "relativePath": "domain-types/TypedManifest/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "90d72a2dd2a21ecc8842122509a0fa11911778eafdf571eead88f2e9f1d50d6b"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "shared.manifest.verify@1",
+          "source": {
+            "section": "8.6.3",
+            "line": 7576,
+            "lineDigest": "97c21353c211becce2a99b5af0bfe18cd75d0426615554a67e3c477f675cfef7"
+          },
+          "typeExpression": "TypedManifest"
+        }
+      ]
+    },
+    {
+      "id": "VerifiedArtifactManifest",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/VerifiedArtifactManifest/v1",
+      "relativePath": "domain-types/VerifiedArtifactManifest/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "40ea22d42b5d690e68a6fdf32b38aefca99a55dcbce08919755b97c7b1c81d84"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product_metadata.commit@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 7635,
+            "lineDigest": "06245ff89a480cbdc9050739085acd3978824274b8d94fbbaf722adb71e3a502"
+          },
+          "typeExpression": "VerifiedArtifactManifest"
+        }
+      ]
+    },
+    {
+      "id": "VerifiedCareInventoryChange",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/VerifiedCareInventoryChange/v1",
+      "relativePath": "domain-types/VerifiedCareInventoryChange/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "437c5bf5edcfacb5b0849ed9db23ddb5590d1451dd8fc75788f6c7b17cab1f0c"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "arca.aftercare.inventory.commit@1",
+          "source": {
+            "section": "8.6.11",
+            "line": 7733,
+            "lineDigest": "ecfd4f6f21ec0471b7ba14511cd98fe93adebc50cfbaafa269451e60c5b7b05c"
+          },
+          "typeExpression": "Verified care inventory change"
+        }
+      ]
+    },
+    {
+      "id": "VerifiedProduct",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/VerifiedProduct/v1",
+      "relativePath": "domain-types/VerifiedProduct/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "1604e64697081ca0752bb2c52cb1ce8df9035990662de14d34dcb821c9dae014"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product_package.publish@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 7650,
+            "lineDigest": "7097afe7d6e29d4c0a9e91f2c5376d6c95f29e870460fa3ddf3f1ea27028b16a"
+          },
+          "typeExpression": "Verified product"
+        }
+      ]
+    },
+    {
+      "id": "WesternAnalysisVariant",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/WesternAnalysisVariant/v1",
+      "relativePath": "domain-types/WesternAnalysisVariant/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "5ddc975607efba693da7ba58cebc252ca21ea90f7fcaec275fb060ac8e3da949"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.western.metadata.normalize@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 7630,
+            "lineDigest": "87f1db07bb0699a6d907659194b9cc298b82105b0034e5240f56c8fff879c872"
+          },
+          "typeExpression": "WesternAnalysisVariant"
+        }
+      ]
+    },
+    {
+      "id": "WorkspaceDeliveryContract",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/WorkspaceDeliveryContract/v1",
+      "relativePath": "domain-types/WorkspaceDeliveryContract/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "4f6b419d78c50d5cf7be3fe62694a7c91d2b931bc5731bcefdcd7644039a3b32"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.external_material.acquire.request@1",
+          "source": {
+            "section": "8.6.8",
+            "line": 7674,
+            "lineDigest": "1fbaaf3302a2dd833ae99c0c9895bfdeb0fe051fffe5ad0a766e2a78828608cf"
+          },
+          "typeExpression": "WorkspaceDeliveryContract"
+        }
+      ]
+    }
+  ]
+}

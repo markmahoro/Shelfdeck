@@ -18,7 +18,7 @@
   ],
   "$defs": {
     "mediaProbeEvidence": {
-      "$ref": "helix://contracts/domain-types/MediaProbeEvidence/v1",
+      "$ref": "helix://contracts/types/MediaProbeEvidence/v1",
       "x-helix-typeExpression": "MediaProbeEvidence"
     },
     "mediaRequirement": {

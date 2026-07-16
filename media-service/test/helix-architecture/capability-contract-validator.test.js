@@ -39,7 +39,8 @@ test('validates 112 unique immutable Capability packages', () => {
   assert.equal(result.ok, true);
   assert.equal(result.packageCount, 112);
   assert.match(result.packageAggregateDigest, /^[a-f0-9]{64}$/);
-  assert.ok(result.pendingTypeRefCount > 0);
+  assert.ok(result.referencedTypeRefCount > 0);
+  assert.equal(result.unresolvedTypeRefCount, 0);
 });
 
 test('rejects missing files and Catalog-external packages', () => {
@@ -90,6 +91,21 @@ test('rejects settlement Authorization substituted for Approval', () => {
     });
     const result = validateCapabilityContracts({ repositoryRoot: value.repository, contractsRoot: value.contracts });
     assert.ok(codes(result).has('CAPABILITY_PACKAGE_CONTRACT_DRIFT'));
+  } finally {
+    fs.rmSync(value.root, { recursive: true, force: true });
+  }
+});
+
+test('rejects a Capability type ref that is absent from every P2 registry', () => {
+  const value = fixture();
+  try {
+    const schemaPath = path.join(value.contracts, 'capabilities/shared/material/filesystem_identity/observe/v1/inputs.schema.json');
+    mutateJson(schemaPath, (schema) => {
+      schema.$defs.physicalMaterialReadHandle.$ref = 'helix://contracts/types/LegacyMaterialPayload/v1';
+    });
+    const result = validateCapabilityContracts({ repositoryRoot: value.repository, contractsRoot: value.contracts });
+    assert.ok(codes(result).has('UNRESOLVED_CAPABILITY_TYPE_REF'));
+    assert.equal(result.unresolvedTypeRefCount, 1);
   } finally {
     fs.rmSync(value.root, { recursive: true, force: true });
   }

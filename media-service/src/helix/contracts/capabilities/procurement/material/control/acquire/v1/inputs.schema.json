@@ -18,11 +18,7 @@
   ],
   "$defs": {
     "selectedFieldMaterialSet": {
-      "type": "array",
-      "items": {
-        "$ref": "helix://contracts/domain-types/SelectedFieldMaterialSet/v1"
-      },
-      "maxItems": 1024,
+      "$ref": "helix://contracts/domain-types/SelectedFieldMaterialSet/v1",
       "x-helix-typeExpression": "SelectedFieldMaterialSet"
     },
     "responsibilityControlCommitHandle": {
