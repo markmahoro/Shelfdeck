@@ -2,7 +2,7 @@
 
 Current phase: `P5 — Platform and Integrations`
 
-Status: in progress；P5-00–P5-01 complete；P5-02 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P5-00–P5-02 complete；P5-03 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -63,8 +63,8 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 | --- | --- | --- | --- |
 | P5-00 | P4 closure and isolated P5 baseline receipt | complete | P4 PASS |
 | P5-01 | Platform and Integration public nominal ports | complete | P5-00；P2 contracts |
-| P5-02 | Secret Reference and least-authority credential resolver | next | P5-01；P3 Persistence |
-| P5-03 | Mount Scope and Workspace Root registries | pending | P5-01–P5-02 |
+| P5-02 | Secret Reference and least-authority credential resolver | complete | P5-01；P3 Persistence |
+| P5-03 | Mount Scope and Workspace Root registries | next | P5-01–P5-02 |
 | P5-04 | Physical Material Identity and binding-health primitives | pending | P5-03 |
 | P5-05 | Artifact Registry and controlled payload handles | pending | P5-03–P5-04 |
 | P5-06 | Typed External Provider protocol adapters | pending | P5-01–P5-02、P5-05 |
@@ -104,6 +104,10 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 - Persist only opaque Secret Reference metadata；secret values never enter DB、logs、Result、Artifact or test snapshots.
 - Resolve by exact integration/purpose/scope for one bounded invocation；unknown、wrong scope or stale revision fails closed.
 - Fixtures use synthetic in-memory secrets only and prove ambient environment credentials are not inherited.
+- Done: Platform-owned P3 Repository persists only exact opaque Secret Reference metadata. A one-shot lease broker requires exact
+  owner scope/kind/revision/purpose、caps TTL at 60 seconds、freezes a Fence digest、rejects replay/expiry/async retention and
+  wipes owned bytes after synchronous use. Wrong scope、stale revision、denied purpose、revoked state and error-redaction negative
+  fixtures PASS；full architecture and P3 persistence regression remain PASS. Evidence: `evidence/P5_02_SECRET_REFERENCE_AND_LEASE.md`.
 
 ### P5-03 Mount Scope and Workspace Root registries
 
