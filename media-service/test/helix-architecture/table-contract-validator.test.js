@@ -28,7 +28,7 @@ test('validates all 156 SSOT table contracts without executing DDL', () => {
   const result = validateTableContracts({ contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
   assert.equal(result.tableCount, 156);
-  assert.equal(result.foreignKeyCount, 148);
+  assert.equal(result.foreignKeyCount, 149);
   assert.equal(result.jsonColumnCount, 30);
 });
 

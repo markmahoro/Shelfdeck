@@ -61,6 +61,8 @@ test('emits JSON validity and byte limits, enum checks, RESTRICT foreign keys, a
   assert.ok((ddl.match(/ON DELETE RESTRICT/g) || []).length > 0);
   assert.match(ddl, /CHECK \("state" IN \('open', 'accepted', 'dismissed', 'superseded'\)\)/);
   assert.match(ddl, /"revision" INTEGER CHECK \("revision" >= 1\)/);
+  assert.match(ddl, /FOREIGN KEY \("compensation_for_event_id"\) REFERENCES "fx_workflow_events" \("event_id"\) ON DELETE RESTRICT/);
+  assert.match(ddl, /"compensation_for_event_id" IS NULL AND "compensation_contract_ref" IS NULL/);
   assert.equal(manifest.digestAlgorithm, 'sha256');
   const digestColumnCount = contracts.reduce((count, contract) => count + contract.columns
     .filter((column) => column.name.endsWith('_digest') || column.name === 'digest' || column.name.endsWith('digest_hex')).length, 0);

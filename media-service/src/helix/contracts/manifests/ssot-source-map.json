@@ -5,17 +5,32 @@
   "kind": "ssot-source-map",
   "owner": "contracts",
   "status": "active",
-  "ssotRefs": ["8.5.4", "8.5.10", "8.5.11", "8.5.12", "8.5.13", "8.6.3", "8.6.17", "8.6.18", "8.6.19"],
+  "ssotRefs": [
+    "8.5.4",
+    "8.5.10",
+    "8.5.11",
+    "8.5.12",
+    "8.5.13",
+    "8.6.3",
+    "8.6.17",
+    "8.6.18",
+    "8.6.19"
+  ],
   "sourcePath": "docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md",
-  "sourceDocumentDigest": "e8575c320a8ffaf75f2f32ffc1ae7fd99060b290cd1b383e8d35f88d17156def",
-  "counts": { "capabilities": 112, "resultFamilies": 96, "tables": 156, "transactions": 18 },
+  "sourceDocumentDigest": "962ff08531ce7f497d7939745784d469f576341d583fa8ba75d58e59b7554d2e",
+  "counts": {
+    "capabilities": 112,
+    "resultFamilies": 96,
+    "tables": 156,
+    "transactions": 18
+  },
   "categoryDigests": {
     "capabilities": "85699bd1c168a9fdd32a56c6fcfcfb98e84816818621f2ecaa64cc6de9fa4f05",
     "resultFamilies": "df96420f71d6355778575d84643a2ebb50f8f357525ac0f60315d32bb2acc1d4",
-    "tables": "2e94a285d7310239ab3922f69e5002fc8876f761faea41ce463312c8aed5ad00",
+    "tables": "eb62b0cac7abf54c67ccc0c5d8e099b82f45a5ef5f7d15043779d0c656672cd5",
     "transactions": "295fca4c6aa2d1a76e66f2464bd92c664f157f72f313642fe7e3083d6b199a1f"
   },
-  "aggregateDigest": "9d6f117d8987d69c5b3e118e17e2e4bda8e6325c45f6bf18750221bd84eeae38",
+  "aggregateDigest": "8b250ce46f852c65b0843ef9a6e58dcf12d33258c22f3895ed7b0e513e5ba934",
   "entryFiles": [
     "ssot-source-map/capabilities-001-056.json",
     "ssot-source-map/capabilities-057-112.json",

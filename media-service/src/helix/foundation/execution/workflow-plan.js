@@ -93,6 +93,14 @@ function validateNode(node, plan, registry, contractValidator) {
         !requiredText(node.compensationContractRef, 'compensationContractRef')))) {
     fail('P4_PLAN_COMPENSATION_PAIR_MISMATCH', 'Compensation target and contract must be declared together.');
   }
+  const terminalDependencies = node.dependsOn.filter((dependency) => dependency.satisfaction === 'terminal');
+  if (terminalDependencies.length > 0 && (!hasCompensationTarget || terminalDependencies.length !== 1 ||
+      terminalDependencies[0].eventId !== node.compensationForEventId)) {
+    fail('P4_PLAN_TERMINAL_DEPENDENCY_UNDECLARED', 'A terminal dependency requires one explicit matching compensation declaration.');
+  }
+  if (hasCompensationTarget && terminalDependencies.length !== 1) fail(
+    'P4_PLAN_COMPENSATION_DEPENDENCY_REQUIRED', 'Compensation must have one terminal dependency on its declared target.'
+  );
   return Object.freeze({ ...node, dependsOn: Object.freeze(node.dependsOn.map((dependency) => Object.freeze({ ...dependency }))) });
 }
 
@@ -167,14 +175,17 @@ function definitions(schemaManifest) {
     plans: createRepositoryDefinition({ repositoryId: 'plans', owner: 'execution-foundation', schemaManifest, statements: {
       find_attempt: { kind: 'select-one', tableId: 'fx_workflow_plans', columns: ['plan_id', 'graph_digest', 'state'], keyColumns: ['attempt_id'] },
       insert: { kind: 'insert', tableId: 'fx_workflow_plans', columns: [
-        'plan_id', 'attempt_id', 'planner_ref', 'planner_version', 'catalog_digest', 'basis_digest', 'graph_digest', 'state', 'created_at_ms'
+        'plan_id', 'attempt_id', 'planner_ref', 'planner_version', 'work_objective_type_ref', 'work_objective_version',
+        'catalog_digest', 'basis_digest', 'graph_digest', 'state', 'diagnostic_classification', 'created_at_ms'
       ] }
     } }),
     nodes: createRepositoryDefinition({ repositoryId: 'plan_nodes', owner: 'execution-foundation', schemaManifest, statements: {
       insert: { kind: 'insert', tableId: 'fx_plan_nodes', columns: [
         'plan_id', 'node_id', 'capability_ref', 'contract_version', 'input_binding_schema_ref', 'input_bindings_json',
         'parameter_schema_ref', 'parameters_json', 'when_schema_ref', 'when_json', 'effect_class', 'fence_schema_ref',
-        'fence_basis_json', 'resource_demand_schema_ref', 'resource_demand_json'
+        'fence_basis_json', 'resource_demand_schema_ref', 'resource_demand_json', 'approval_requirement_ref',
+        'authorization_requirement_ref', 'retry_policy_ref', 'timeout_policy_ref', 'output_contract_ref',
+        'compensation_for_event_id', 'compensation_contract_ref'
       ] }
     } }),
     edges: createRepositoryDefinition({ repositoryId: 'plan_edges', owner: 'execution-foundation', schemaManifest, statements: {
@@ -218,10 +229,21 @@ function createWorkflowPlanPublisher(options) {
             }
             context.repository('plans').invoke('insert', {
               plan_id: plan.planId, attempt_id: plan.workAttemptId, planner_ref: plan.plannerContractRef,
-              planner_version: plan.plannerVersion, catalog_digest: plan.capabilityCatalogDigest, basis_digest: plan.executionBasisDigest,
-              graph_digest: validated.graphDigest, state: plan.resolution, created_at_ms: context.commitTimeMs
+              planner_version: plan.plannerVersion, work_objective_type_ref: plan.workObjectiveTypeRef,
+              work_objective_version: plan.workObjectiveVersion, catalog_digest: plan.capabilityCatalogDigest,
+              basis_digest: plan.executionBasisDigest, graph_digest: validated.graphDigest, state: plan.resolution,
+              diagnostic_classification: plan.diagnosticClassification, created_at_ms: context.commitTimeMs
             });
             const byEvent = new Map(plan.nodes.map((node) => [node.eventId, node]));
+            for (const node of plan.nodes) {
+              const ready = node.dependsOn.length === 0;
+              context.repository('plan_events').invoke('insert', {
+                event_id: node.eventId, plan_id: plan.planId, node_id: node.nodeId, work_id: work.work_id,
+                attempt_id: attempt.attempt_id, owner_domain: plan.ownerDomain, capability_ref: node.capabilityRef,
+                contract_version: node.contractVersion, state: ready ? 'ready' : 'pending', priority_class: work.priority_class,
+                ready_at_ms: ready ? context.commitTimeMs : null, retry_at_ms: null, result_id: null, current_progress_revision: null
+              });
+            }
             for (const node of plan.nodes) {
               context.repository('plan_nodes').invoke('insert', {
                 plan_id: plan.planId, node_id: node.nodeId, capability_ref: node.capabilityRef, contract_version: node.contractVersion,
@@ -229,18 +251,15 @@ function createWorkflowPlanPublisher(options) {
                 parameter_schema_ref: node.parametersSchemaRef, parameters_json: canonicalJson(node.parameters),
                 when_schema_ref: node.whenSchemaRef, when_json: node.when === null ? null : canonicalJson(node.when),
                 effect_class: node.effectClass, fence_schema_ref: node.fenceSchemaRef, fence_basis_json: canonicalJson(node.fenceBasis),
-                resource_demand_schema_ref: node.resourceDemandSchemaRef, resource_demand_json: canonicalJson(node.resourceDemand)
+                resource_demand_schema_ref: node.resourceDemandSchemaRef, resource_demand_json: canonicalJson(node.resourceDemand),
+                approval_requirement_ref: node.approvalRequirementRef, authorization_requirement_ref: node.authorizationRequirementRef,
+                retry_policy_ref: node.retryPolicyRef, timeout_policy_ref: node.timeoutPolicyRef,
+                output_contract_ref: node.outputContractRef, compensation_for_event_id: node.compensationForEventId || null,
+                compensation_contract_ref: node.compensationContractRef || null
               });
               for (const dependency of node.dependsOn) context.repository('plan_edges').invoke('insert', {
                 plan_id: plan.planId, from_node_id: byEvent.get(dependency.eventId).nodeId,
                 to_node_id: node.nodeId, dependency_kind: dependency.satisfaction
-              });
-              const ready = node.dependsOn.length === 0;
-              context.repository('plan_events').invoke('insert', {
-                event_id: node.eventId, plan_id: plan.planId, node_id: node.nodeId, work_id: work.work_id,
-                attempt_id: attempt.attempt_id, owner_domain: plan.ownerDomain, capability_ref: node.capabilityRef,
-                contract_version: node.contractVersion, state: ready ? 'ready' : 'pending', priority_class: work.priority_class,
-                ready_at_ms: ready ? context.commitTimeMs : null, retry_at_ms: null, result_id: null, current_progress_revision: null
               });
             }
             return Object.freeze({ replayed: false, planId: plan.planId, graphDigest: validated.graphDigest, resolution: plan.resolution });

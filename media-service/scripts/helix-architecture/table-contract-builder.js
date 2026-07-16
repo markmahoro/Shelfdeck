@@ -77,6 +77,7 @@ const ENUM_OVERRIDES = Object.freeze({
 });
 const INTEGER_COLUMN_OVERRIDES = new Set([
   'fx_workflow_plans.planner_version',
+  'fx_workflow_plans.work_objective_version',
   'fx_plan_nodes.contract_version',
   'fx_workflow_events.contract_version',
   'fx_event_attempts.executor_version',
@@ -84,6 +85,7 @@ const INTEGER_COLUMN_OVERRIDES = new Set([
   'libra_decision_basis_inputs.query_version'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
+  'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
   'proc_procurement_retry_intents.failed_run_id': ['proc_procurement_runs', 'procurement_run_id'],
   'libra_subject_decision_heads.current_routing_decision_id': ['libra_routing_decisions', 'routing_decision_id'],
   'libra_subject_decision_heads.current_decision_basis_id': ['libra_decision_basis_revisions', 'decision_basis_id'],

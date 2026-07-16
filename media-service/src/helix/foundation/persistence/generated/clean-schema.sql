@@ -995,6 +995,13 @@ CREATE TABLE "fx_plan_nodes" (
   "fence_basis_json" TEXT,
   "resource_demand_schema_ref" TEXT,
   "resource_demand_json" TEXT,
+  "approval_requirement_ref" TEXT,
+  "authorization_requirement_ref" TEXT,
+  "retry_policy_ref" TEXT,
+  "timeout_policy_ref" TEXT,
+  "output_contract_ref" TEXT,
+  "compensation_for_event_id" TEXT,
+  "compensation_contract_ref" TEXT,
   PRIMARY KEY ("plan_id", "node_id"),
   CHECK (json_valid("input_bindings_json")),
   CHECK (length(CAST("input_bindings_json" AS BLOB)) <= 16384),
@@ -1006,7 +1013,9 @@ CREATE TABLE "fx_plan_nodes" (
   CHECK (length(CAST("fence_basis_json" AS BLOB)) <= 16384),
   CHECK (json_valid("resource_demand_json")),
   CHECK (length(CAST("resource_demand_json" AS BLOB)) <= 16384),
-  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT
+  CHECK (("compensation_for_event_id" IS NULL AND "compensation_contract_ref" IS NULL) OR ("compensation_for_event_id" IS NOT NULL AND "compensation_contract_ref" IS NOT NULL)),
+  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("compensation_for_event_id") REFERENCES "fx_workflow_events" ("event_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_fx_plan_nodes_hot_01" ON "fx_plan_nodes" ("capability_ref", "contract_version");
 
@@ -1079,10 +1088,13 @@ CREATE TABLE "fx_workflow_plans" (
   "attempt_id" TEXT,
   "planner_ref" TEXT,
   "planner_version" INTEGER,
+  "work_objective_type_ref" TEXT,
+  "work_objective_version" INTEGER,
   "catalog_digest" TEXT CHECK (length("catalog_digest") = 64 AND "catalog_digest" NOT GLOB '*[^0-9a-f]*'),
   "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "graph_digest" TEXT CHECK (length("graph_digest") = 64 AND "graph_digest" NOT GLOB '*[^0-9a-f]*'),
   "state" TEXT CHECK ("state" IN ('planned', 'no_effect_required', 'temporarily_unplannable', 'contract_unplannable')),
+  "diagnostic_classification" TEXT,
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   UNIQUE ("attempt_id"),
   FOREIGN KEY ("attempt_id") REFERENCES "fx_work_attempts" ("attempt_id") ON DELETE RESTRICT

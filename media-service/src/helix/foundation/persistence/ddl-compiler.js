@@ -50,6 +50,13 @@ const PARTIAL_UNIQUE = Object.freeze({
   proc_run_materials: [{ columns: ['material_key'], where: '"role" = \'primary\' AND "deliverable_guard" = 1' }]
 });
 
+const TABLE_CHECKS = Object.freeze({
+  fx_plan_nodes: [
+    '("compensation_for_event_id" IS NULL AND "compensation_contract_ref" IS NULL) OR ' +
+      '("compensation_for_event_id" IS NOT NULL AND "compensation_contract_ref" IS NOT NULL)'
+  ]
+});
+
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value && typeof value === 'object') return Object.keys(value).sort().reduce((result, key) => {
@@ -202,6 +209,7 @@ function compileTable(contract, allContracts) {
     definitions.push('CHECK (length(CAST(' + quoteIdentifier(json.column) + ' AS BLOB)) <= ' + json.maxBytes + ')');
     if (json.schemaRefColumn) requireColumns(contract, [json.schemaRefColumn], contract.tableId + ':json-schema-ref');
   }
+  for (const check of TABLE_CHECKS[contract.tableId] || []) definitions.push('CHECK (' + check + ')');
   for (const foreignKey of foreignKeysFor(contract)) {
     requireColumns(contract, foreignKey.columns, contract.tableId + ':foreign-key');
     const target = allContracts.get(foreignKey.targetTable);

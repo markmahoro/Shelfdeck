@@ -73,6 +73,22 @@ test('closes every PK, declared FK, JSON contract, and current revision pointer'
   }
 });
 
+test('freezes complete restart-recoverable Workflow Plan execution contracts', () => {
+  const byId = new Map(contracts.map((contract) => [contract.tableId, contract]));
+  const plan = byId.get('fx_workflow_plans');
+  const node = byId.get('fx_plan_nodes');
+  for (const column of ['work_objective_type_ref', 'work_objective_version', 'diagnostic_classification']) {
+    assert.ok(plan.columns.some((entry) => entry.name === column), column);
+  }
+  for (const column of ['approval_requirement_ref', 'authorization_requirement_ref', 'retry_policy_ref', 'timeout_policy_ref',
+    'output_contract_ref', 'compensation_for_event_id', 'compensation_contract_ref']) {
+    assert.ok(node.columns.some((entry) => entry.name === column), column);
+  }
+  assert.equal(plan.immutability.immutable, true);
+  assert.equal(node.immutability.immutable, true);
+  assert.deepEqual(node.foreignKeys.find((entry) => entry.columns.includes('compensation_for_event_id')).targetTable, 'fx_workflow_events');
+});
+
 test('forbids Foundation and Platform FK ownership inversion', () => {
   assert.equal(allowedForeignKey('execution-foundation', 'libra'), false);
   assert.equal(allowedForeignKey('platform-settings', 'arca'), false);

@@ -91,6 +91,12 @@ test('validator rejects cycle, missing/duplicate dependency, duplicate identity,
     { registry, contractValidator }), (error) => error.code === 'P4_PLAN_CAPABILITY_CONTRACT_MISMATCH');
   assert.throws(() => validateWorkflowPlan(plan({ nodes: [node('observe', { inputBindings: {} })] }),
     { registry, contractValidator }), (error) => error.code === 'TEST_SCHEMA_REJECTED');
+  assert.throws(() => validateWorkflowPlan(plan({ nodes: [node('observe'), node('commit', {
+    dependsOn: [{ eventId: 'event-observe', satisfaction: 'terminal' }]
+  })] }), { registry, contractValidator }), (error) => error.code === 'P4_PLAN_TERMINAL_DEPENDENCY_UNDECLARED');
+  assert.throws(() => validateWorkflowPlan(plan({ nodes: [node('observe'), node('commit', {
+    compensationForEventId: 'event-observe', compensationContractRef: 'helix://fixture/compensation'
+  })] }), { registry, contractValidator }), (error) => error.code === 'P4_PLAN_COMPENSATION_DEPENDENCY_REQUIRED');
 });
 
 test('non-planned Resolutions contain zero nodes and planned contains a non-empty DAG', () => {
@@ -144,12 +150,37 @@ test('publisher atomically normalizes Plan, Nodes, Edges and initial Events with
     assert.equal(first.replayed, false);
     assert.equal(publisher.publish(plan()).replayed, true);
     assert.equal(rows(databasePath, 'fx_workflow_plans').length, 1);
-    assert.equal(rows(databasePath, 'fx_plan_nodes').length, 2);
+    const persistedPlan = rows(databasePath, 'fx_workflow_plans')[0];
+    assert.equal(persistedPlan.work_objective_type_ref, 'helix://libra/work/Fixture/v1');
+    assert.equal(persistedPlan.work_objective_version, 1);
+    assert.equal(persistedPlan.diagnostic_classification, null);
+    const persistedNodes = rows(databasePath, 'fx_plan_nodes');
+    assert.equal(persistedNodes.length, 2);
+    assert.equal(persistedNodes[1].approval_requirement_ref, 'helix://fixture/approval');
+    assert.equal(persistedNodes[1].retry_policy_ref, 'helix://foundation/retry-policies/domain_fact_commit/v1');
+    assert.equal(persistedNodes[1].timeout_policy_ref, 'helix://foundation/timeout-policies/fixture/v1');
+    assert.equal(persistedNodes[1].output_contract_ref, 'helix://fixture/commit/result');
     assert.equal(rows(databasePath, 'fx_plan_edges').length, 1);
     const events = rows(databasePath, 'fx_workflow_events');
     assert.deepEqual(events.map((entry) => [entry.event_id, entry.state]), [['event-observe', 'ready'], ['event-commit', 'pending']]);
     assert.equal(events[0].ready_at_ms !== null, true);
     assert.equal(events[1].ready_at_ms, null);
+  });
+});
+
+test('publisher persists an explicit same-Plan compensation target and contract', () => {
+  fixture(({ publisher, databasePath }) => {
+    const base = plan();
+    const compensation = node('observe', {
+      nodeId: 'node-compensation', eventId: 'event-compensation',
+      dependsOn: [{ eventId: 'event-commit', satisfaction: 'terminal' }],
+      compensationForEventId: 'event-commit', compensationContractRef: 'helix://fixture/compensation/v1'
+    });
+    publisher.publish(plan({ nodes: [...base.nodes, compensation] }));
+    const persisted = rows(databasePath, 'fx_plan_nodes').find((entry) => entry.node_id === 'node-compensation');
+    assert.equal(persisted.compensation_for_event_id, 'event-commit');
+    assert.equal(persisted.compensation_contract_ref, 'helix://fixture/compensation/v1');
+    assert.equal(rows(databasePath, 'fx_plan_edges').find((entry) => entry.to_node_id === 'node-compensation').dependency_kind, 'terminal');
   });
 });
 

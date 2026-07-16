@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 156,
-  "tableContractAggregateDigest": "b44ee659e1554be8ea5f9998df8f79bbebb6fe10ef04f4aced6cbee792a674db",
-  "ddlDigest": "98e50feb79165844951ab5133f383eedc82848e83b0e4a2c4a58059121548b11",
+  "tableContractAggregateDigest": "7ad7a3051530a8801d90260cfef4fc3fb9cb1e0ac606f7662ff65c9e864300c9",
+  "ddlDigest": "29a8e6b6c857ab551b25197231ef6e37feb1e5ea4ee469f31d50ba181a4db7b5",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -1625,8 +1625,8 @@
       "tableId": "fx_plan_nodes",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_plan_nodes/v1",
-      "contractDigest": "4053b82968f94edc653024278fabae3ece790eb00d85276a1e2f3913f7721fa4",
-      "sqlDigest": "9eabf6a1e822464b1cea4a7aa61a77468906785b544bebf3f94b6659c4e5d41e",
+      "contractDigest": "bc547087058c34e125dd21ea410472fad12254f5d394141735e086b0ea17c3d3",
+      "sqlDigest": "63748fb035d7f6deab033bd463206100946f4d09ba5508b872f4c396a6526744",
       "columns": [
         "plan_id",
         "node_id",
@@ -1642,9 +1642,16 @@
         "fence_schema_ref",
         "fence_basis_json",
         "resource_demand_schema_ref",
-        "resource_demand_json"
+        "resource_demand_json",
+        "approval_requirement_ref",
+        "authorization_requirement_ref",
+        "retry_policy_ref",
+        "timeout_policy_ref",
+        "output_contract_ref",
+        "compensation_for_event_id",
+        "compensation_contract_ref"
       ],
-      "immutable": false,
+      "immutable": true,
       "supportColumns": [],
       "indexes": [
         {
@@ -1770,17 +1777,20 @@
       "tableId": "fx_workflow_plans",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_workflow_plans/v1",
-      "contractDigest": "c5e5cc2f22b7e64e7c74a2959b9e72ecf5af8b8304642ef46ee3194e051e62b8",
-      "sqlDigest": "4ba412e4d9cefcdd96472d6b4843b7ea7ea6ab916bdcec042836b9bd800e7dc5",
+      "contractDigest": "ea83b34fbe3c09a682275b609e363a640471dec0f1905c68b1bfbd9618d68fd4",
+      "sqlDigest": "3330e9c259fca9fe63c905005ab74311f57d1203c545440550f41edc873ea640",
       "columns": [
         "plan_id",
         "attempt_id",
         "planner_ref",
         "planner_version",
+        "work_objective_type_ref",
+        "work_objective_version",
         "catalog_digest",
         "basis_digest",
         "graph_digest",
         "state",
+        "diagnostic_classification",
         "created_at_ms"
       ],
       "immutable": true,
