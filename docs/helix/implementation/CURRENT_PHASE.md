@@ -2,7 +2,7 @@
 
 Current phase: `P3 — Persistence and Atomic Foundation`
 
-Status: in progress；P3-00 complete；P3-01 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P3-00–P3-01 complete；P3-02 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -67,8 +67,8 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
 | P3-00 | P2 closure and isolated P3 baseline receipt | complete | P2 PASS |
-| P3-01 | Deterministic 156-table clean DDL compiler | next | P3-00；P2 tables |
-| P3-02 | SQLite Kernel and clean schema generation gate | pending | P3-01 |
+| P3-01 | Deterministic 156-table clean DDL compiler | complete | P3-00；P2 tables |
+| P3-02 | SQLite Kernel and clean schema generation gate | next | P3-01 |
 | P3-03 | Owner-scoped Repository and Unit of Work boundaries | pending | P3-02 |
 | P3-04 | Commit Marker、Command Receipt and Audit foundation | pending | P3-03 |
 | P3-05 | Outbox、Delivery and Inbox atomic foundation | pending | P3-03–P3-04 |
@@ -94,6 +94,11 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 - Compile only P2 table contracts into deterministic SQLite DDL, checks, indexes and FK declarations.
 - Emit no legacy table/view/trigger and no migration from old Runtime facts.
 - Every table/index/check maps back to one P2 contract and digest; unsupported contract shapes fail closed.
+- Done: implementation commits `c5b0822e` + `faf9fe48` deterministically emit 156 clean tables and 72 indexes, including all 19 P2
+  partial-unique rules；three cross-table predicates use explicit technical guard columns with rule trace and no new Business Owner/fact.
+  DDL digest `66e0fc57887dd59ce73a7aa0dc52ac5da8ee052c6b6da3ea7e198e969c2d2752`；156/156 generated table traces
+  retain the exact P2 contract digest；7 positive/negative compiler checks（含Windows fresh-checkout行尾复现）和完整clean architecture gate PASS。No SQLite
+  connection、startup wiring、legacy schema、view、trigger or historical data path was introduced.
 
 ### P3-02 SQLite Kernel and clean schema generation gate
 

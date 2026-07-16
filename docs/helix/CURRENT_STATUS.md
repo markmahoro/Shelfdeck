@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline |
 | Current phase | P3 — Persistence and Atomic Foundation |
-| Current phase status | in progress；P3-00 complete；P3-01 next |
+| Current phase status | in progress；P3-00–P3-01 complete；P3-02 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | P2 closure / P3 baseline `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p3` on `codex/helix-p3` |
-| Next action | P3-01 deterministic 156-table clean DDL compiler |
+| Next action | P3-02 SQLite Kernel and clean schema generation gate |
 
 ## 2. Accepted implementation conclusion
 
@@ -127,4 +127,7 @@ P2未修改SSOT、未执行DDL/SQLite、未接startup、未触碰E2E/Docker/prod
 P3-00已完成：`codex/helix-clean`与隔离P3 worktree从精确闭合提交
 `e3b50f946956105b18ffcf0853c8c2a57ebb4db8`开始；fresh checkout P2 gate恢复112/96/156/18 PASS、191 refs / 0 unresolved，
 aggregate `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`。原dirty workspace与`media-desktop`
-保持不变。下一检查点是P3-01 deterministic 156-table DDL compiler；不连接SQLite、不接startup。没有需要用户决定的业务问题。
+保持不变。P3-01已在`c5b0822e` + `faf9fe48`完成：156/156 clean table traces保留精确P2 contract digest，生成72个index并覆盖19/19
+partial-unique规则；DDL digest为`66e0fc57887dd59ce73a7aa0dc52ac5da8ee052c6b6da3ea7e198e969c2d2752`，7项compiler
+正反例与完整clean architecture gate PASS。该WP未连接SQLite、未接startup、未生成旧schema/view/trigger。下一检查点是P3-02
+SQLite Kernel与clean schema generation gate。没有需要用户决定的业务问题。
