@@ -1221,3 +1221,25 @@ Negative-path复演确认：无claim、0命中、N命中、Episode overlap均建
 
 最终结论：`FINAL SSOT AUDIT PASS / ALL FINDINGS CLOSED / NO OPEN BUSINESS DECISION`。这只关闭架构审计，
 不授权代码实施、E2E、Docker或生产部署。
+
+## 15. Post-baseline bounded document corrections
+
+### 15.1 `PBF-01` — Platform physical package omission
+
+Status: `CLOSED / DOC_FIX APPLIED` — 2026-07-17
+
+实施差距审计发现Level 8存在一处机械矛盾：`8.1.2`的固定物理根目录清单没有列出`platform/`，但
+`8.3.8`、`8.5.2`、`8.5.13`、Level 8 Dictionary、Level 9 API与Level 10 Runtime合同已经共同要求Platform
+拥有revisioned technical aggregates、`platform_*` Repository、typed runtime ports和`PlatformAdminFacade`。
+
+全局复核证明这不是新的Business Domain、Owner或用户选择，而是物理目录清单与Composition Root描述漏项。
+有界修正如下：
+
+1. `8.1.1` Runtime总图补列Platform settings，并补齐Domain只能通过typed runtime ports读取Platform的依赖方向；
+2. `8.1.2`在`media-service/src/helix/`根目录补列与`domains/`、`foundation/`平级的`platform/`，并固定其
+   `public|model|application|persistence`内部边界与唯一public入口；
+3. `8.1.3`补齐Composition Root对Platform public package、Repository、typed ports和Admin Facade的装配责任；
+4. Level 8 Dictionary补齐`Platform Package`并修正`Helix Composition Root`定义。
+
+该修正不重新打开Level 0–10，不改变五个顶层Business Domain、Handoff、Fact Owner、Schema或公开API，
+也不授权实施跨越现有Implementation Gate。自动架构检查必须把`platform/`视为SSOT要求的合法且必需顶层包。

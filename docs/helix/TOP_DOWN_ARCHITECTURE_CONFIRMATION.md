@@ -6592,6 +6592,11 @@ media-service process
 │    ├─ Transaction / Outbox / Effect Reconcile
 │    └─ Diagnostics / Read-model Projection
 │
+├─ platform settings
+│    ├─ mount / integration / secret / workspace registries
+│    ├─ resource profile / operating policy / compute device
+│    └─ worker / admin credential aggregates
+│
 ├─ integrations
 │    ├─ filesystem / ffmpeg / worker
 │    └─ emby / tmdb / douban / moviepilot / adult providers
@@ -6601,9 +6606,10 @@ media-service process
      └─ controlled artifact and workspace roots
 ~~~
 
-业务域只依赖自己拥有的Domain contract、Foundation ports和明确注入的Integration ports。Foundation不依赖
-任一Domain实现；Composition Root负责把Domain-owned ports注册给Foundation，把Integration implementation
-注入Domain Capability，并构造面向Level 9的Application Facade集合。
+业务域只依赖自己拥有的Domain contract、Foundation ports、Platform typed runtime ports和明确注入的
+Integration ports。Foundation与Platform都不依赖任一Domain实现；Composition Root负责把Domain-owned ports
+注册给Foundation，把Platform runtime ports与Integration implementation注入合法消费者，并构造面向Level 9的
+Application Facade集合。
 
 #### 8.1.2 物理根目录固定
 
@@ -6625,6 +6631,7 @@ media-service/src/helix/
 │  ├─ persistence/
 │  ├─ effects/
 │  └─ diagnostics/
+├─ platform/
 ├─ integrations/
 ├─ projections/
 └─ contracts/
@@ -6645,12 +6652,17 @@ media-service/src/helix/
 `public/index.js`是一个Domain唯一允许被其他Domain或Composition Root导入的业务入口。任何跨包导入
 `model/`、`application/`、`planning/`、`capabilities/`或`persistence/`都属于静态架构违规。
 
+`platform/`不是Domain，内部固定为`public/`、`model/`、`application/`与`persistence/`；外部只能导入
+`platform/public/index.js`暴露的`PlatformAdminFacade`或typed runtime ports。Domain、Foundation、Integration
+和HTTP adapter不得导入Platform内部model、application或persistence，也不得取得整份Platform aggregate。
+
 #### 8.1.3 Composition Root是唯一全局装配点
 
 `composition/createHelixApplication.js`是唯一允许同时导入五个Domain public package、Foundation public
-package、Integration Adapter和Persistence Kernel的模块。它负责：
+package、Platform public package、Integration Adapter和Persistence Kernel的模块。它负责：
 
 - 创建数据库与文件空间基础设施；
+- 构造Platform Repository、typed runtime ports与`PlatformAdminFacade`；
 - 构造每个Domain Repository和Facade；
 - 注册Domain Planner、Capability Contract、Commit Participant和Query Provider；
 - 构造Workflow/Event Runtime、Control Plane和Domain automation runner；
@@ -8474,8 +8486,9 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
 
 | Term | Canonical definition | Source |
 | --- | --- | --- |
-| Helix Composition Root | 唯一装配五个Domain public package、Foundation、Integration和Persistence的物理模块 | 8.1.3 |
+| Helix Composition Root | 唯一装配五个Domain public package、Foundation、Platform、Integration和Persistence的物理模块 | 8.1.3 |
 | Domain Public Package | 一个Domain唯一允许跨包导入、只暴露Facade/Query/Handoff合同的模块边界 | 8.1.2 |
+| Platform Package | 与Domain、Foundation平级，拥有长期技术配置aggregate、typed runtime ports与PlatformAdminFacade，但不成为媒体Business Domain的物理包 | 8.1.2、8.3.8 |
 | Application Facade | Level 9 adapter可调用、把Intent交给唯一Domain Owner但不编排跨Domain业务的入口 | 8.1.4 |
 | SQLite Kernel | 唯一打开clean主数据库并提供scoped transaction primitive、不包含业务SQL的基础设施 | 8.5.1 |
 | Domain Repository | 只读写一个Canonical Owner表族、不能跨Domain暴露的持久化组件 | 8.5.1–8.5.2 |
