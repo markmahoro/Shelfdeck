@@ -159,16 +159,26 @@ function createResourceGovernor(options) {
     const request = validateRequest(rawRequest);
     const requestedAtMs = now();
     if (eventPermits.has(request.eventId)) fail('P4_RESOURCE_EVENT_ALREADY_PERMITTED', 'Event already owns an active Permit bundle.');
+    const currentMapper = mapper();
     const existingWaiter = waiters.get(request.eventId);
     if (existingWaiter) {
       const same = JSON.stringify(existingWaiter.request) === JSON.stringify(request);
       if (!same) fail('P4_RESOURCE_DUPLICATE_WAITER_CONFLICT', 'Event cannot register a second or changed Resource waiter.');
+      const firstGrantable = [...waiters.values()].sort((left, right) => compareWaiters(left, right, requestedAtMs))
+        .find((waiter) => canAcquire(waiter.request.resources, currentMapper));
+      if (firstGrantable && firstGrantable.request.eventId === request.eventId) {
+        waiters.delete(request.eventId);
+        return Object.freeze({ kind: 'permitted', permit: issue(request, currentMapper, requestedAtMs) });
+      }
       return Object.freeze({ kind: 'waiting', eventId: request.eventId, replayed: true });
     }
-    const currentMapper = mapper();
     const impossible = request.resources.find((resource) => resource.units > currentMapper.capacityFor(resource.resourceKey));
     if (impossible) return Object.freeze({ kind: 'unavailable', reasonCode: 'RESOURCE_MAP_UNSATISFIABLE', resourceKey: impossible.resourceKey });
-    if (canAcquire(request.resources, currentMapper)) return Object.freeze({ kind: 'permitted', permit: issue(request, currentMapper, requestedAtMs) });
+    const contendsWithWaiter = [...waiters.values()].some((waiter) => waiter.request.resources.some((held) =>
+      request.resources.some((resource) => resource.resourceKey === held.resourceKey)));
+    if (!contendsWithWaiter && canAcquire(request.resources, currentMapper)) {
+      return Object.freeze({ kind: 'permitted', permit: issue(request, currentMapper, requestedAtMs) });
+    }
     if (queueFull(request)) {
       const deferred = persistDeferred(request, requestedAtMs);
       return Object.freeze({ kind: 'deferred', reasonCode: 'RESOURCE_QUEUE_HARD_CAP', retryAtMs: deferred.retryAtMs, replayed: deferred.replayed });
@@ -184,18 +194,6 @@ function createResourceGovernor(options) {
     return classOrder || rightScore - leftScore || left.enqueuedAtMs - right.enqueuedAtMs || left.request.eventId.localeCompare(right.request.eventId);
   }
 
-  function drain() {
-    const atMs = now();
-    const currentMapper = mapper();
-    const grants = [];
-    const ordered = [...waiters.values()].sort((left, right) => compareWaiters(left, right, atMs));
-    for (const waiter of ordered) if (canAcquire(waiter.request.resources, currentMapper)) {
-      waiters.delete(waiter.request.eventId);
-      grants.push(Object.freeze({ eventId: waiter.request.eventId, permit: issue(waiter.request, currentMapper, atMs) }));
-    }
-    return Object.freeze(grants);
-  }
-
   function release(permit) {
     if (!permit || typeof permit !== 'object') fail('P4_RESOURCE_PERMIT_INVALID', 'Permit is required for release.');
     const current = permits.get(permit.permitId);
@@ -206,7 +204,7 @@ function createResourceGovernor(options) {
       if (remaining === 0) inUse.delete(resource.resourceKey); else inUse.set(resource.resourceKey, remaining);
     }
     permits.delete(current.permitId); eventPermits.delete(current.eventId);
-    return Object.freeze({ released: true, permitId: current.permitId, grants: drain() });
+    return Object.freeze({ released: true, permitId: current.permitId });
   }
 
   function updateWaiterPriority(request) {
@@ -236,7 +234,7 @@ function createResourceGovernor(options) {
       queueSoftExceeded: waiters.size >= queueLimits.globalSoft });
   }
 
-  return Object.freeze({ acquire, drain, release, snapshot, updateWaiterPriority, withPermit });
+  return Object.freeze({ acquire, release, snapshot, updateWaiterPriority, withPermit });
 }
 
 module.exports = Object.freeze({ BACKOFF_MS, DEFAULT_QUEUE_LIMITS, QUEUE_CLASSES, ResourceGovernorError, createResourceGovernor });

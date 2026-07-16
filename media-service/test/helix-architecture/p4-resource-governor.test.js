@@ -63,16 +63,15 @@ function fixture(run) {
   } catch (error) { cleanup(); throw error; }
 }
 
-test('multi-resource Permit is acquired atomically and release drains one stable waiter', () => {
+test('multi-resource Permit is acquired atomically and a later pull promotes one stable waiter', () => {
   fixture(({ governor, seedEvents }) => {
     seedEvents('holder', 'bundle');
     const holder = governor.acquire(request('holder', [['cpu_heavy']]));
     assert.equal(holder.kind, 'permitted');
     assert.equal(governor.acquire(request('bundle', [['cpu_heavy'], ['sqlite_write']])).kind, 'waiting');
     assert.deepEqual(governor.snapshot().inUse, [{ resourceKey: 'cpu_heavy', units: 1 }]);
-    const released = governor.release(holder.permit);
-    assert.equal(released.grants.length, 1);
-    assert.equal(released.grants[0].eventId, 'bundle');
+    governor.release(holder.permit);
+    assert.equal(governor.acquire(request('bundle', [['cpu_heavy'], ['sqlite_write']])).kind, 'permitted');
     assert.deepEqual(governor.snapshot().inUse, [{ resourceKey: 'cpu_heavy', units: 1 }, { resourceKey: 'sqlite_write', units: 1 }]);
   });
 });
@@ -96,8 +95,9 @@ test('waiter aging remains inside priority class and cannot cross safety lane', 
     governor.acquire(request('background', [['cpu_heavy']], { queueClass: 'background_observation', localPriority: 100 }));
     setNow(780000);
     governor.acquire(request('safety', [['cpu_heavy']], { queueClass: 'safety_liveness' }));
-    const released = governor.release(holder.permit);
-    assert.deepEqual(released.grants.map((grant) => grant.eventId), ['safety']);
+    governor.release(holder.permit);
+    assert.equal(governor.acquire(request('background', [['cpu_heavy']], { queueClass: 'background_observation', localPriority: 100 })).kind, 'waiting');
+    assert.equal(governor.acquire(request('safety', [['cpu_heavy']], { queueClass: 'safety_liveness' })).kind, 'permitted');
     assert.equal(governor.snapshot().waiterCount, 1);
   });
 });
