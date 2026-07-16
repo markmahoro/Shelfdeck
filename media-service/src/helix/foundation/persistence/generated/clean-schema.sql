@@ -1,0 +1,2132 @@
+-- Generated from the frozen Helix P2 table contracts. Do not edit.
+-- Clean generation only; no historical runtime objects are represented.
+
+CREATE TABLE "arca_acceptance_attempts" (
+  "acceptance_attempt_id" TEXT PRIMARY KEY,
+  "on_deck_package_id" TEXT,
+  "package_digest" TEXT,
+  "shelf_id" TEXT,
+  "standard_revision" INTEGER CHECK ("standard_revision" >= 0),
+  "placement_revision" INTEGER CHECK ("placement_revision" >= 0),
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "finished_at_ms" INTEGER CHECK ("finished_at_ms" >= 0),
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_acceptance_attempts_hot_01" ON "arca_acceptance_attempts" ("state", "created_at_ms");
+CREATE UNIQUE INDEX "uidx_arca_acceptance_attempts_partial_01" ON "arca_acceptance_attempts" ("package_digest", "standard_revision", "placement_revision") WHERE "finished_at_ms" IS NULL;
+
+CREATE TABLE "arca_acceptance_checks" (
+  "acceptance_attempt_id" TEXT,
+  "check_kind" TEXT,
+  "check_revision" INTEGER CHECK ("check_revision" >= 0),
+  "result" TEXT,
+  "evidence_digest" TEXT,
+  "completed_at_ms" INTEGER CHECK ("completed_at_ms" >= 0),
+  PRIMARY KEY ("acceptance_attempt_id", "check_kind", "check_revision"),
+  FOREIGN KEY ("acceptance_attempt_id") REFERENCES "arca_acceptance_attempts" ("acceptance_attempt_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_acceptance_decisions" (
+  "acceptance_decision_id" TEXT PRIMARY KEY,
+  "acceptance_attempt_id" TEXT,
+  "result" TEXT,
+  "rejection_schema_ref" TEXT,
+  "decision_digest" TEXT,
+  "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
+  UNIQUE ("acceptance_attempt_id"),
+  FOREIGN KEY ("acceptance_attempt_id") REFERENCES "arca_acceptance_attempts" ("acceptance_attempt_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_aftercare_assessments" (
+  "assessment_id" TEXT PRIMARY KEY,
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 0),
+  "standard_revision" INTEGER CHECK ("standard_revision" >= 0),
+  "placement_revision" INTEGER CHECK ("placement_revision" >= 0),
+  "decision_fact_set_digest" TEXT,
+  "care_basis_digest" TEXT,
+  "assessment_kind" TEXT,
+  "result" TEXT,
+  "evidence_digest" TEXT,
+  "assessed_at_ms" INTEGER CHECK ("assessed_at_ms" >= 0),
+  UNIQUE ("shelf_entry_id", "care_basis_digest", "assessment_kind"),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_aftercare_assessments_hot_01" ON "arca_aftercare_assessments" ("result", "assessed_at_ms");
+
+CREATE TABLE "arca_aftercare_case_basis_inputs" (
+  "aftercare_case_id" TEXT,
+  "input_kind" TEXT,
+  "owner_domain" TEXT,
+  "aggregate_type" TEXT,
+  "aggregate_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "input_digest" TEXT,
+  PRIMARY KEY ("aftercare_case_id", "input_kind", "owner_domain", "aggregate_type", "aggregate_id"),
+  FOREIGN KEY ("aftercare_case_id") REFERENCES "arca_aftercare_cases" ("aftercare_case_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_aftercare_cases" (
+  "aftercare_case_id" TEXT PRIMARY KEY,
+  "shelf_entry_id" TEXT,
+  "finding_set_digest" TEXT,
+  "care_basis_schema_ref" TEXT,
+  "care_basis_json" TEXT,
+  "care_basis_digest" TEXT,
+  "care_requirement_schema_ref" TEXT,
+  "care_requirement_json" TEXT,
+  "care_requirement_digest" TEXT,
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  CHECK (json_valid("care_basis_json")),
+  CHECK (length(CAST("care_basis_json" AS BLOB)) <= 65536),
+  CHECK (json_valid("care_requirement_json")),
+  CHECK (length(CAST("care_requirement_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_aftercare_cases_hot_01" ON "arca_aftercare_cases" ("state", "created_at_ms");
+CREATE UNIQUE INDEX "uidx_arca_aftercare_cases_partial_01" ON "arca_aftercare_cases" ("care_basis_digest", "finding_set_digest", "care_requirement_digest") WHERE "terminal_at_ms" IS NULL;
+
+CREATE TABLE "arca_aftercare_findings" (
+  "finding_id" TEXT PRIMARY KEY,
+  "assessment_id" TEXT,
+  "finding_kind" TEXT,
+  "severity" TEXT,
+  "repairability" TEXT,
+  "finding_digest" TEXT,
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  FOREIGN KEY ("assessment_id") REFERENCES "arca_aftercare_assessments" ("assessment_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_aftercare_findings_hot_01" ON "arca_aftercare_findings" ("state", "repairability", "severity", "created_at_ms");
+
+CREATE TABLE "arca_aftercare_inventory_commits" (
+  "inventory_commit_id" TEXT PRIMARY KEY,
+  "aftercare_case_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "previous_inventory_revision" INTEGER CHECK ("previous_inventory_revision" >= 0),
+  "new_inventory_revision" INTEGER CHECK ("new_inventory_revision" >= 0),
+  "control_change_digest" TEXT,
+  "commit_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("aftercare_case_id", "new_inventory_revision"),
+  FOREIGN KEY ("aftercare_case_id") REFERENCES "arca_aftercare_cases" ("aftercare_case_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_aftercare_settlement_approvals" (
+  "approval_id" TEXT PRIMARY KEY,
+  "aftercare_case_id" TEXT,
+  "settlement_scope_digest" TEXT,
+  "service_catalog_revision" INTEGER CHECK ("service_catalog_revision" >= 0),
+  "shelf_standard_revision" INTEGER CHECK ("shelf_standard_revision" >= 0),
+  "care_basis_digest" TEXT,
+  "derived_at_ms" INTEGER CHECK ("derived_at_ms" >= 0),
+  "state" TEXT,
+  UNIQUE ("aftercare_case_id", "settlement_scope_digest"),
+  FOREIGN KEY ("aftercare_case_id") REFERENCES "arca_aftercare_cases" ("aftercare_case_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_canonical_identity_revisions" (
+  "shelf_entry_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "structure_kind" TEXT,
+  "identity_kind" TEXT,
+  "provider" TEXT,
+  "provider_key" TEXT,
+  "identity_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("shelf_entry_id", "revision"),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_canonical_identity_revisions_hot_01" ON "arca_canonical_identity_revisions" ("provider", "provider_key", "structure_kind");
+
+CREATE TABLE "arca_deck_fact_revisions" (
+  "shelf_entry_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "state" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 0),
+  "standard_revision" INTEGER CHECK ("standard_revision" >= 0),
+  "fact_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("shelf_entry_id", "revision"),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_deregistration_receipts" (
+  "receipt_id" TEXT PRIMARY KEY,
+  "deregistration_id" TEXT,
+  "shelf_id" TEXT,
+  "released_control_set_digest" TEXT,
+  "terminal_fact_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("deregistration_id"),
+  FOREIGN KEY ("deregistration_id") REFERENCES "arca_deregistrations" ("deregistration_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_deregistration_releases" (
+  "deregistration_id" TEXT,
+  "material_key" TEXT,
+  "control_revision" INTEGER CHECK ("control_revision" >= 0),
+  "release_result" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("deregistration_id", "material_key"),
+  FOREIGN KEY ("deregistration_id") REFERENCES "arca_deregistrations" ("deregistration_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_deregistrations" (
+  "deregistration_id" TEXT PRIMARY KEY,
+  "shelf_id" TEXT,
+  "release_manifest_digest" TEXT,
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_final_inventory_decisions" (
+  "final_inventory_decision_id" TEXT PRIMARY KEY,
+  "on_deck_run_id" TEXT,
+  "shelf_id" TEXT,
+  "placement_revision" INTEGER CHECK ("placement_revision" >= 0),
+  "target_endpoint_id" TEXT,
+  "target_location" TEXT,
+  "product_manifest_digest" TEXT,
+  "offload_context_digest" TEXT,
+  "decision_schema_ref" TEXT,
+  "decision_json" TEXT,
+  "decision_digest" TEXT,
+  "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
+  UNIQUE ("on_deck_run_id"),
+  CHECK (json_valid("decision_json")),
+  CHECK (length(CAST("decision_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("on_deck_run_id") REFERENCES "arca_ondeck_runs" ("on_deck_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_handoff_b_receipts" (
+  "receipt_id" TEXT PRIMARY KEY,
+  "acceptance_decision_id" TEXT,
+  "custody_id" TEXT,
+  "on_deck_package_id" TEXT,
+  "package_digest" TEXT,
+  "arca_binding_set_digest" TEXT,
+  "control_revision_set_digest" INTEGER CHECK ("control_revision_set_digest" >= 0),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("on_deck_package_id", "package_digest"),
+  FOREIGN KEY ("acceptance_decision_id") REFERENCES "arca_acceptance_decisions" ("acceptance_decision_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("custody_id") REFERENCES "arca_ondeck_custodies" ("custody_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_input_settlement_authorization_head" (
+  "singleton_key" TEXT PRIMARY KEY,
+  "current_authorization_id" TEXT,
+  "current_revision" INTEGER CHECK ("current_revision" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("current_authorization_id", "current_revision") REFERENCES "arca_input_settlement_authorizations" ("authorization_id", "revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_input_settlement_authorizations" (
+  "authorization_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "state" TEXT CHECK ("state" IN ('enabled', 'revoked')),
+  "authorization_scope_kind" TEXT,
+  "actor_id" TEXT,
+  "authorization_digest" TEXT,
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  "revoked_at_ms" INTEGER CHECK ("revoked_at_ms" >= 0),
+  PRIMARY KEY ("authorization_id", "revision")
+);
+
+CREATE TABLE "arca_inventory_materials" (
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 0),
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "material_key" TEXT,
+  "role" TEXT,
+  "episode_key" TEXT,
+  "endpoint_id" TEXT,
+  "location" TEXT,
+  "binding_revision" INTEGER CHECK ("binding_revision" >= 0),
+  "digest_hex" TEXT,
+  "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
+  "active_guard" INTEGER NOT NULL DEFAULT 0 CHECK ("active_guard" IN (0, 1)),
+  PRIMARY KEY ("shelf_entry_id", "inventory_revision", "ordinal"),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX "uidx_arca_inventory_materials_partial_01" ON "arca_inventory_materials" ("material_key") WHERE "role" = 'primary' AND "active_guard" = 1;
+
+CREATE TABLE "arca_inventory_person_relations" (
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 0),
+  "person_id" TEXT,
+  "display_name" TEXT,
+  "role" TEXT,
+  "relation_source" TEXT,
+  "confidence_class" TEXT,
+  "relation_digest" TEXT,
+  PRIMARY KEY ("shelf_entry_id", "inventory_revision", "person_id", "role", "relation_digest"),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_inventory_person_relations_hot_01" ON "arca_inventory_person_relations" ("person_id", "role", "shelf_entry_id");
+
+CREATE TABLE "arca_inventory_product_facts" (
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 0),
+  "fact_kind" TEXT,
+  "fact_revision" INTEGER CHECK ("fact_revision" >= 0),
+  "fact_schema_ref" TEXT,
+  "fact_json" TEXT,
+  "fact_digest" TEXT,
+  "source_package_id" TEXT,
+  "provenance_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("shelf_entry_id", "inventory_revision", "fact_kind", "fact_revision"),
+  CHECK (json_valid("fact_json")),
+  CHECK (length(CAST("fact_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_inventory_related_references" (
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 0),
+  "reference_id" TEXT,
+  "primary_ordinal" INTEGER CHECK ("primary_ordinal" >= 0),
+  "role" TEXT,
+  "material_identity_hint" TEXT,
+  "endpoint_id" TEXT,
+  "location" TEXT,
+  "checksum_hex" TEXT,
+  PRIMARY KEY ("shelf_entry_id", "inventory_revision", "reference_id"),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_inventory_representations" (
+  "shelf_entry_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "representation_digest" TEXT,
+  "source_package_id" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("shelf_entry_id", "revision"),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_material_bindings" (
+  "owner_object_type" TEXT,
+  "owner_object_id" TEXT,
+  "material_key" TEXT,
+  "role" TEXT,
+  "episode_key" TEXT,
+  "endpoint_id" TEXT,
+  "location" TEXT,
+  "binding_revision" INTEGER CHECK ("binding_revision" >= 0),
+  "health_state" TEXT,
+  "evidence_digest" TEXT,
+  "current" INTEGER CHECK ("current" IN (0, 1)),
+  PRIMARY KEY ("owner_object_type", "owner_object_id", "material_key", "role", "binding_revision")
+);
+
+CREATE TABLE "arca_offdeck_authorization_batches" (
+  "batch_id" TEXT PRIMARY KEY,
+  "review_id" TEXT,
+  "selection_receipt_id" TEXT,
+  "escalation_receipt_id" TEXT,
+  "scope_set_digest" TEXT,
+  "actor_id" TEXT,
+  "authorized_at_ms" INTEGER CHECK ("authorized_at_ms" >= 0),
+  UNIQUE ("review_id", "scope_set_digest"),
+  FOREIGN KEY ("review_id") REFERENCES "arca_offdeck_reviews" ("review_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("selection_receipt_id") REFERENCES "arca_offdeck_selection_receipts" ("selection_receipt_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offdeck_authorizations" (
+  "authorization_id" TEXT PRIMARY KEY,
+  "destruction_scope_id" TEXT,
+  "scope_digest" TEXT,
+  "actor_id" TEXT,
+  "batch_id" TEXT,
+  "authorized_at_ms" INTEGER CHECK ("authorized_at_ms" >= 0),
+  "state" TEXT,
+  UNIQUE ("destruction_scope_id", "scope_digest"),
+  FOREIGN KEY ("destruction_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("batch_id") REFERENCES "arca_offdeck_authorization_batches" ("batch_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offdeck_cases" (
+  "offdeck_case_id" TEXT PRIMARY KEY,
+  "authorization_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "origin_kind" TEXT,
+  "origin_ref" TEXT,
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  UNIQUE ("authorization_id"),
+  FOREIGN KEY ("authorization_id") REFERENCES "arca_offdeck_authorizations" ("authorization_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offdeck_deletion_evidence" (
+  "destruction_scope_id" TEXT,
+  "material_key" TEXT,
+  "effect_id" TEXT,
+  "result" TEXT,
+  "reality_digest" TEXT,
+  "completed_at_ms" INTEGER CHECK ("completed_at_ms" >= 0),
+  PRIMARY KEY ("destruction_scope_id", "material_key"),
+  FOREIGN KEY ("destruction_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offdeck_duplicate_group_members" (
+  "duplicate_group_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 0),
+  "member_digest" TEXT,
+  PRIMARY KEY ("duplicate_group_id", "shelf_entry_id"),
+  FOREIGN KEY ("duplicate_group_id") REFERENCES "arca_offdeck_duplicate_groups" ("duplicate_group_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offdeck_duplicate_groups" (
+  "duplicate_group_id" TEXT PRIMARY KEY,
+  "canonical_identity_digest" TEXT,
+  "member_set_digest" TEXT,
+  "state" TEXT,
+  "detected_at_ms" INTEGER CHECK ("detected_at_ms" >= 0),
+  "superseded_at_ms" INTEGER CHECK ("superseded_at_ms" >= 0),
+  UNIQUE ("canonical_identity_digest", "member_set_digest")
+);
+
+CREATE TABLE "arca_offdeck_duplicate_whitelists" (
+  "whitelist_id" TEXT PRIMARY KEY,
+  "duplicate_group_id" TEXT,
+  "member_set_digest" TEXT,
+  "state" TEXT CHECK ("state" IN ('active', 'revoked', 'stale')),
+  "actor_id" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "revoked_at_ms" INTEGER CHECK ("revoked_at_ms" >= 0),
+  FOREIGN KEY ("duplicate_group_id") REFERENCES "arca_offdeck_duplicate_groups" ("duplicate_group_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offdeck_escalation_receipts" (
+  "escalation_receipt_id" TEXT PRIMARY KEY,
+  "selection_receipt_id" TEXT,
+  "scope_set_digest" TEXT,
+  "actor_id" TEXT,
+  "confirmed_at_ms" INTEGER CHECK ("confirmed_at_ms" >= 0),
+  UNIQUE ("selection_receipt_id"),
+  FOREIGN KEY ("selection_receipt_id") REFERENCES "arca_offdeck_selection_receipts" ("selection_receipt_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offdeck_policy_heads" (
+  "policy_id" TEXT PRIMARY KEY,
+  "current_revision" INTEGER CHECK ("current_revision" >= 0),
+  "status" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("policy_id", "current_revision") REFERENCES "arca_offdeck_policy_revisions" ("policy_id", "revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offdeck_policy_revisions" (
+  "policy_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "condition_group_schema_ref" TEXT,
+  "condition_group_json" TEXT,
+  "policy_digest" TEXT,
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  PRIMARY KEY ("policy_id", "revision"),
+  CHECK (json_valid("condition_group_json")),
+  CHECK (length(CAST("condition_group_json" AS BLOB)) <= 65536)
+);
+
+CREATE TABLE "arca_offdeck_reservations" (
+  "reservation_id" TEXT PRIMARY KEY,
+  "review_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 0),
+  "control_scope_digest" TEXT,
+  "state" TEXT CHECK ("state" IN ('active', 'released', 'consumed', 'stale')),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "released_at_ms" INTEGER CHECK ("released_at_ms" >= 0),
+  FOREIGN KEY ("review_id") REFERENCES "arca_offdeck_reviews" ("review_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_offdeck_reservations_hot_01" ON "arca_offdeck_reservations" ("state", "created_at_ms");
+CREATE UNIQUE INDEX "uidx_arca_offdeck_reservations_partial_01" ON "arca_offdeck_reservations" ("shelf_entry_id") WHERE "state" = 'active';
+
+CREATE TABLE "arca_offdeck_review_candidates" (
+  "candidate_id" TEXT PRIMARY KEY,
+  "shelf_entry_id" TEXT,
+  "policy_id" TEXT,
+  "policy_revision" INTEGER CHECK ("policy_revision" >= 0),
+  "reason_digest" TEXT,
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_offdeck_review_candidates_hot_01" ON "arca_offdeck_review_candidates" ("state", "created_at_ms");
+CREATE UNIQUE INDEX "uidx_arca_offdeck_review_candidates_partial_01" ON "arca_offdeck_review_candidates" ("shelf_entry_id", "policy_id", "policy_revision", "reason_digest") WHERE "state" = 'open';
+
+CREATE TABLE "arca_offdeck_reviews" (
+  "review_id" TEXT PRIMARY KEY,
+  "origin_kind" TEXT CHECK ("origin_kind" IN ('candidate', 'duplicate_group', 'direct_intent', 'batch')),
+  "origin_ref" TEXT,
+  "state" TEXT CHECK ("state" IN ('open', 'selection_confirmed', 'cancelled', 'authorized')),
+  "actor_id" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0)
+);
+CREATE INDEX "idx_arca_offdeck_reviews_hot_01" ON "arca_offdeck_reviews" ("state", "created_at_ms");
+
+CREATE TABLE "arca_offdeck_scope_materials" (
+  "destruction_scope_id" TEXT,
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "material_key" TEXT,
+  "material_role" TEXT,
+  "delete_condition" TEXT,
+  "binding_revision" INTEGER CHECK ("binding_revision" >= 0),
+  PRIMARY KEY ("destruction_scope_id", "ordinal"),
+  UNIQUE ("destruction_scope_id", "material_key", "material_role"),
+  FOREIGN KEY ("destruction_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offdeck_scopes" (
+  "destruction_scope_id" TEXT PRIMARY KEY,
+  "reservation_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 0),
+  "scope_digest" TEXT,
+  "state" TEXT CHECK ("state" IN ('draft', 'confirmed', 'authorized', 'stale', 'completed')),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("reservation_id", "scope_digest"),
+  FOREIGN KEY ("reservation_id") REFERENCES "arca_offdeck_reservations" ("reservation_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offdeck_selection_receipts" (
+  "selection_receipt_id" TEXT PRIMARY KEY,
+  "review_id" TEXT,
+  "scope_set_digest" TEXT,
+  "entry_count" INTEGER CHECK ("entry_count" >= 0),
+  "primary_count" INTEGER CHECK ("primary_count" >= 0),
+  "total_bytes" INTEGER CHECK ("total_bytes" >= 0),
+  "shelf_coverage_digest" TEXT,
+  "deck_coverage_ratio" REAL,
+  "high_volume" INTEGER CHECK ("high_volume" IN (0, 1)),
+  "actor_id" TEXT,
+  "confirmed_at_ms" INTEGER CHECK ("confirmed_at_ms" >= 0),
+  UNIQUE ("review_id", "scope_set_digest"),
+  FOREIGN KEY ("review_id") REFERENCES "arca_offdeck_reviews" ("review_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offdeck_suppressions" (
+  "suppression_id" TEXT PRIMARY KEY,
+  "shelf_entry_id" TEXT,
+  "candidate_kind" TEXT,
+  "reason" TEXT,
+  "state" TEXT CHECK ("state" IN ('active', 'revoked', 'expired')),
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  "expires_at_ms" INTEGER CHECK ("expires_at_ms" >= 0),
+  "revoked_at_ms" INTEGER CHECK ("revoked_at_ms" >= 0),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_offdeck_suppressions_hot_01" ON "arca_offdeck_suppressions" ("shelf_entry_id", "candidate_kind", "state", "expires_at_ms");
+
+CREATE TABLE "arca_offdeck_terminal_receipts" (
+  "receipt_id" TEXT PRIMARY KEY,
+  "offdeck_case_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "terminal_deck_fact_revision" INTEGER CHECK ("terminal_deck_fact_revision" >= 0),
+  "released_control_set_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("offdeck_case_id"),
+  FOREIGN KEY ("offdeck_case_id") REFERENCES "arca_offdeck_cases" ("offdeck_case_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offload_completions" (
+  "offload_completion_id" TEXT PRIMARY KEY,
+  "on_deck_run_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 0),
+  "package_id" TEXT,
+  "completion_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("on_deck_run_id"),
+  FOREIGN KEY ("on_deck_run_id") REFERENCES "arca_ondeck_runs" ("on_deck_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_ondeck_commit_receipts" (
+  "receipt_id" TEXT PRIMARY KEY,
+  "on_deck_run_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 0),
+  "deck_fact_revision" INTEGER CHECK ("deck_fact_revision" >= 0),
+  "control_revision_set_digest" INTEGER CHECK ("control_revision_set_digest" >= 0),
+  "commit_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("on_deck_run_id"),
+  FOREIGN KEY ("on_deck_run_id") REFERENCES "arca_ondeck_runs" ("on_deck_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_ondeck_custodies" (
+  "custody_id" TEXT PRIMARY KEY,
+  "acceptance_decision_id" TEXT,
+  "on_deck_package_id" TEXT,
+  "package_digest" TEXT,
+  "control_scope_digest" TEXT,
+  "state" TEXT,
+  "accepted_at_ms" INTEGER CHECK ("accepted_at_ms" >= 0),
+  UNIQUE ("on_deck_package_id", "package_digest"),
+  FOREIGN KEY ("acceptance_decision_id") REFERENCES "arca_acceptance_decisions" ("acceptance_decision_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_ondeck_runs" (
+  "on_deck_run_id" TEXT PRIMARY KEY,
+  "custody_id" TEXT,
+  "final_inventory_decision_digest" TEXT,
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  FOREIGN KEY ("custody_id") REFERENCES "arca_ondeck_custodies" ("custody_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_ondeck_runs_hot_01" ON "arca_ondeck_runs" ("state", "created_at_ms");
+
+CREATE TABLE "arca_ondeck_settlement_approvals" (
+  "approval_id" TEXT PRIMARY KEY,
+  "on_deck_run_id" TEXT,
+  "settlement_scope_digest" TEXT,
+  "standing_authorization_id" TEXT,
+  "standing_authorization_revision" INTEGER CHECK ("standing_authorization_revision" >= 0),
+  "actor_or_policy_ref" TEXT,
+  "approved_at_ms" INTEGER CHECK ("approved_at_ms" >= 0),
+  "state" TEXT,
+  UNIQUE ("on_deck_run_id", "settlement_scope_digest"),
+  FOREIGN KEY ("on_deck_run_id") REFERENCES "arca_ondeck_runs" ("on_deck_run_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_placement_policy_revisions" (
+  "shelf_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "policy_schema_ref" TEXT,
+  "policy_json" TEXT,
+  "policy_digest" TEXT,
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  PRIMARY KEY ("shelf_id", "revision"),
+  CHECK (json_valid("policy_json")),
+  CHECK (length(CAST("policy_json" AS BLOB)) <= 16384),
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_rule_template_drafts" (
+  "rule_template_id" TEXT PRIMARY KEY,
+  "draft_revision" INTEGER CHECK ("draft_revision" >= 0),
+  "base_published_revision" INTEGER CHECK ("base_published_revision" >= 0),
+  "rules_schema_ref" TEXT,
+  "rules_json" TEXT,
+  "rules_digest" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  CHECK (json_valid("rules_json")),
+  CHECK (length(CAST("rules_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("rule_template_id") REFERENCES "arca_rule_templates" ("rule_template_id") ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX "uidx_arca_rule_template_drafts_partial_01" ON "arca_rule_template_drafts" ("rule_template_id") WHERE 1 = 1;
+
+CREATE TABLE "arca_rule_template_revisions" (
+  "rule_template_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "rules_schema_ref" TEXT,
+  "rules_json" TEXT,
+  "rules_digest" TEXT,
+  "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
+  PRIMARY KEY ("rule_template_id", "revision"),
+  CHECK (json_valid("rules_json")),
+  CHECK (length(CAST("rules_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("rule_template_id") REFERENCES "arca_rule_templates" ("rule_template_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_rule_templates" (
+  "rule_template_id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "owner_kind" TEXT CHECK ("owner_kind" IN ('system', 'user')),
+  "status" TEXT CHECK ("status" IN ('active', 'archived')),
+  "current_revision" INTEGER CHECK ("current_revision" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "archived_at_ms" INTEGER CHECK ("archived_at_ms" >= 0),
+  FOREIGN KEY ("rule_template_id", "current_revision") REFERENCES "arca_rule_template_revisions" ("rule_template_id", "revision") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_rule_templates_hot_01" ON "arca_rule_templates" ("status", "owner_kind", "rule_template_id");
+
+CREATE TABLE "arca_shelf_entries" (
+  "shelf_entry_id" TEXT PRIMARY KEY,
+  "shelf_id" TEXT,
+  "structure_kind" TEXT,
+  "status" TEXT,
+  "canonical_identity_revision" INTEGER CHECK ("canonical_identity_revision" >= 0),
+  "canonical_identity_key" TEXT,
+  "current_inventory_revision" INTEGER CHECK ("current_inventory_revision" >= 0),
+  "current_deck_fact_revision" INTEGER CHECK ("current_deck_fact_revision" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id", "canonical_identity_revision") REFERENCES "arca_canonical_identity_revisions" ("shelf_entry_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id", "current_inventory_revision") REFERENCES "arca_inventory_representations" ("shelf_entry_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id", "current_deck_fact_revision") REFERENCES "arca_deck_fact_revisions" ("shelf_entry_id", "revision") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_shelf_entries_hot_01" ON "arca_shelf_entries" ("shelf_id", "status", "shelf_entry_id");
+CREATE UNIQUE INDEX "uidx_arca_shelf_entries_partial_01" ON "arca_shelf_entries" ("shelf_id", "canonical_identity_key") WHERE "status" = 'active' AND "structure_kind" = 'season';
+
+CREATE TABLE "arca_shelf_standard_revisions" (
+  "shelf_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "rule_template_id" TEXT,
+  "rule_template_revision" INTEGER CHECK ("rule_template_revision" >= 0),
+  "standard_schema_ref" TEXT,
+  "standard_json" TEXT,
+  "standard_digest" TEXT,
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  PRIMARY KEY ("shelf_id", "revision"),
+  CHECK (json_valid("standard_json")),
+  CHECK (length(CAST("standard_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_shelf_standard_revisions_hot_01" ON "arca_shelf_standard_revisions" ("rule_template_id", "rule_template_revision");
+
+CREATE TABLE "arca_shelves" (
+  "shelf_id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "target_endpoint_id" TEXT,
+  "target_root_location" TEXT,
+  "target_mount_scope_id" TEXT,
+  "target_mount_scope_revision" INTEGER CHECK ("target_mount_scope_revision" >= 0),
+  "status" TEXT,
+  "current_standard_revision" INTEGER CHECK ("current_standard_revision" >= 0),
+  "current_placement_revision" INTEGER CHECK ("current_placement_revision" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("shelf_id", "current_standard_revision") REFERENCES "arca_shelf_standard_revisions" ("shelf_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_id", "current_placement_revision") REFERENCES "arca_placement_policy_revisions" ("shelf_id", "revision") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_shelves_hot_01" ON "arca_shelves" ("status", "shelf_id");
+
+CREATE TABLE "fx_artifact_references" (
+  "artifact_handle_id" TEXT,
+  "consumer_domain" TEXT,
+  "consumer_scope_type" TEXT,
+  "consumer_scope_id" TEXT,
+  "reference_kind" TEXT,
+  "reference_revision" INTEGER CHECK ("reference_revision" >= 0),
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "released_at_ms" INTEGER CHECK ("released_at_ms" >= 0),
+  PRIMARY KEY ("artifact_handle_id", "consumer_domain", "consumer_scope_type", "consumer_scope_id", "reference_kind", "reference_revision"),
+  FOREIGN KEY ("artifact_handle_id") REFERENCES "fx_artifact_registry" ("artifact_handle_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "fx_artifact_registry" (
+  "artifact_handle_id" TEXT PRIMARY KEY,
+  "artifact_kind" TEXT,
+  "owner_domain" TEXT,
+  "owner_scope_type" TEXT,
+  "owner_scope_id" TEXT,
+  "storage_ref" TEXT,
+  "digest_algorithm" TEXT,
+  "digest_hex" TEXT,
+  "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
+  "media_type" TEXT,
+  "provenance_ref" TEXT,
+  "reference_revision" INTEGER CHECK ("reference_revision" >= 0),
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("owner_domain", "owner_scope_type", "owner_scope_id", "digest_algorithm", "digest_hex", "artifact_kind")
+);
+CREATE INDEX "idx_fx_artifact_registry_hot_01" ON "fx_artifact_registry" ("state", "created_at_ms");
+
+CREATE TABLE "fx_audit_records" (
+  "audit_id" TEXT PRIMARY KEY,
+  "owner_domain" TEXT,
+  "actor_type" TEXT,
+  "actor_id" TEXT,
+  "action" TEXT,
+  "scope_type" TEXT,
+  "scope_id" TEXT,
+  "work_id" TEXT,
+  "event_id" TEXT,
+  "evidence_digest" TEXT,
+  "occurred_at_ms" INTEGER CHECK ("occurred_at_ms" >= 0)
+);
+CREATE INDEX "idx_fx_audit_records_hot_01" ON "fx_audit_records" ("owner_domain", "scope_type", "scope_id", "occurred_at_ms");
+
+CREATE TABLE "fx_circuit_states" (
+  "circuit_key" TEXT PRIMARY KEY,
+  "state" TEXT,
+  "reason_code" TEXT,
+  "evidence_digest" TEXT,
+  "opened_at_ms" INTEGER CHECK ("opened_at_ms" >= 0),
+  "reviewed_at_ms" INTEGER CHECK ("reviewed_at_ms" >= 0)
+);
+CREATE INDEX "idx_fx_circuit_states_hot_01" ON "fx_circuit_states" ("state", "opened_at_ms");
+
+CREATE TABLE "fx_command_receipts" (
+  "command_receipt_id" TEXT PRIMARY KEY,
+  "owner_domain" TEXT,
+  "command_contract" TEXT,
+  "caller_scope" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT,
+  "target_type" TEXT,
+  "target_id" TEXT,
+  "result_schema_ref" TEXT,
+  "result_ref_json" TEXT,
+  "result_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("owner_domain", "command_contract", "caller_scope", "idempotency_key"),
+  CHECK (json_valid("result_ref_json")),
+  CHECK (length(CAST("result_ref_json" AS BLOB)) <= 16384)
+);
+
+CREATE TABLE "fx_commit_markers" (
+  "commit_marker" TEXT PRIMARY KEY,
+  "effect_id" TEXT,
+  "owner_domain" TEXT,
+  "scope_type" TEXT,
+  "scope_id" TEXT,
+  "commit_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0)
+);
+
+CREATE TABLE "fx_effect_journal" (
+  "effect_id" TEXT PRIMARY KEY,
+  "event_attempt_id" TEXT,
+  "effect_class" TEXT,
+  "idempotency_key" TEXT,
+  "intent_digest" TEXT,
+  "state" TEXT,
+  "external_receipt_ref" TEXT,
+  "output_digest" TEXT,
+  "verified_at_ms" INTEGER CHECK ("verified_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("effect_class", "idempotency_key"),
+  FOREIGN KEY ("event_attempt_id") REFERENCES "fx_event_attempts" ("event_attempt_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_fx_effect_journal_hot_01" ON "fx_effect_journal" ("state", "updated_at_ms", "effect_id");
+
+CREATE TABLE "fx_event_attempts" (
+  "event_attempt_id" TEXT PRIMARY KEY,
+  "event_id" TEXT,
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "executor_ref" TEXT,
+  "executor_version" TEXT,
+  "input_snapshot_schema_ref" TEXT,
+  "input_snapshot_digest" TEXT,
+  "fence_snapshot_digest" TEXT,
+  "state" TEXT,
+  "outcome_kind" TEXT,
+  "retry_after_ms" INTEGER CHECK ("retry_after_ms" >= 0),
+  "failure_class" TEXT,
+  "failure_code" TEXT,
+  "evidence_digest" TEXT,
+  "started_at_ms" INTEGER CHECK ("started_at_ms" >= 0),
+  "finished_at_ms" INTEGER CHECK ("finished_at_ms" >= 0),
+  UNIQUE ("event_id", "ordinal"),
+  FOREIGN KEY ("event_id") REFERENCES "fx_workflow_events" ("event_id") ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX "uidx_fx_event_attempts_partial_01" ON "fx_event_attempts" ("event_id") WHERE "state" = 'executing';
+
+CREATE TABLE "fx_event_progress" (
+  "event_id" TEXT,
+  "event_attempt_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "mode" TEXT,
+  "current_value" NUMERIC,
+  "total_value" NUMERIC,
+  "unit" TEXT,
+  "rate" REAL,
+  "eta_ms" INTEGER CHECK ("eta_ms" >= 0),
+  "source_sequence" TEXT,
+  "progress_bucket" TEXT,
+  "sampled_at_ms" INTEGER CHECK ("sampled_at_ms" >= 0),
+  PRIMARY KEY ("event_id", "revision"),
+  UNIQUE ("event_attempt_id", "source_sequence"),
+  FOREIGN KEY ("event_id") REFERENCES "fx_workflow_events" ("event_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("event_attempt_id") REFERENCES "fx_event_attempts" ("event_attempt_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "fx_event_resource_timings" (
+  "event_attempt_id" TEXT,
+  "resource_key" TEXT,
+  "queue_class" TEXT,
+  "enqueued_at_ms" INTEGER CHECK ("enqueued_at_ms" >= 0),
+  "acquired_at_ms" INTEGER CHECK ("acquired_at_ms" >= 0),
+  "released_at_ms" INTEGER CHECK ("released_at_ms" >= 0),
+  "wait_duration_ms" INTEGER CHECK ("wait_duration_ms" >= 0),
+  "hold_duration_ms" INTEGER CHECK ("hold_duration_ms" >= 0),
+  "outcome" TEXT,
+  PRIMARY KEY ("event_attempt_id", "resource_key"),
+  FOREIGN KEY ("event_attempt_id") REFERENCES "fx_event_attempts" ("event_attempt_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_fx_event_resource_timings_hot_01" ON "fx_event_resource_timings" ("resource_key", "acquired_at_ms");
+
+CREATE TABLE "fx_event_result_bindings" (
+  "result_id" TEXT PRIMARY KEY,
+  "event_id" TEXT,
+  "outcome_kind" TEXT,
+  "result_schema_ref" TEXT,
+  "result_json" TEXT,
+  "result_digest" TEXT,
+  "evidence_schema_ref" TEXT,
+  "evidence_json" TEXT,
+  "evidence_digest" TEXT,
+  "effect_receipt_id" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("event_id"),
+  CHECK (json_valid("result_json")),
+  CHECK (length(CAST("result_json" AS BLOB)) <= 65536),
+  CHECK (json_valid("evidence_json")),
+  CHECK (length(CAST("evidence_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("event_id") REFERENCES "fx_workflow_events" ("event_id") ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX "uidx_fx_event_result_bindings_partial_01" ON "fx_event_result_bindings" ("event_id") WHERE 1 = 1;
+
+CREATE TABLE "fx_inbox" (
+  "consumer_domain" TEXT,
+  "message_id" TEXT,
+  "dedup_key" TEXT,
+  "received_at_ms" INTEGER CHECK ("received_at_ms" >= 0),
+  "consumed_at_ms" INTEGER CHECK ("consumed_at_ms" >= 0),
+  "result_digest" TEXT,
+  PRIMARY KEY ("consumer_domain", "message_id"),
+  UNIQUE ("consumer_domain", "dedup_key")
+);
+
+CREATE TABLE "fx_material_control_revisions" (
+  "material_key" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "operation_kind" TEXT,
+  "from_owner_domain" TEXT,
+  "from_scope_type" TEXT,
+  "from_scope_id" TEXT,
+  "to_owner_domain" TEXT,
+  "to_scope_type" TEXT,
+  "to_scope_id" TEXT,
+  "basis_digest" TEXT,
+  "commit_marker" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("material_key", "revision"),
+  FOREIGN KEY ("material_key") REFERENCES "fx_material_controls" ("material_key") ON DELETE RESTRICT
+);
+
+CREATE TABLE "fx_material_controls" (
+  "material_key" TEXT PRIMARY KEY,
+  "mount_scope_id" TEXT,
+  "inode" TEXT,
+  "content_hash_algorithm" TEXT,
+  "content_hash" TEXT,
+  "owner_domain" TEXT,
+  "owner_scope_type" TEXT,
+  "owner_scope_id" TEXT,
+  "control_revision" INTEGER CHECK ("control_revision" >= 0),
+  "state" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("mount_scope_id", "inode", "content_hash_algorithm", "content_hash")
+);
+
+CREATE TABLE "fx_outbox" (
+  "message_id" TEXT PRIMARY KEY,
+  "producer_domain" TEXT,
+  "message_kind" TEXT,
+  "aggregate_type" TEXT,
+  "aggregate_id" TEXT,
+  "aggregate_revision" INTEGER CHECK ("aggregate_revision" >= 0),
+  "dedup_key" TEXT,
+  "consumer_set_digest" TEXT,
+  "intended_consumer_count" INTEGER CHECK ("intended_consumer_count" >= 0),
+  "payload_schema_ref" TEXT,
+  "payload_json" TEXT,
+  "payload_digest" TEXT,
+  "state" TEXT,
+  "available_at_ms" INTEGER CHECK ("available_at_ms" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "all_acked_at_ms" INTEGER CHECK ("all_acked_at_ms" >= 0),
+  UNIQUE ("producer_domain", "dedup_key"),
+  CHECK (json_valid("payload_json")),
+  CHECK (length(CAST("payload_json" AS BLOB)) <= 16384)
+);
+CREATE INDEX "idx_fx_outbox_hot_01" ON "fx_outbox" ("state", "available_at_ms", "message_id");
+
+CREATE TABLE "fx_outbox_deliveries" (
+  "message_id" TEXT,
+  "consumer_domain" TEXT,
+  "state" TEXT CHECK ("state" IN ('pending', 'delivered', 'acked')),
+  "attempt_count" INTEGER CHECK ("attempt_count" >= 0),
+  "next_attempt_at_ms" INTEGER CHECK ("next_attempt_at_ms" >= 0),
+  "acked_at_ms" INTEGER CHECK ("acked_at_ms" >= 0),
+  PRIMARY KEY ("message_id", "consumer_domain"),
+  FOREIGN KEY ("message_id") REFERENCES "fx_outbox" ("message_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_fx_outbox_deliveries_hot_01" ON "fx_outbox_deliveries" ("state", "next_attempt_at_ms", "message_id");
+
+CREATE TABLE "fx_plan_edges" (
+  "plan_id" TEXT,
+  "from_node_id" TEXT,
+  "to_node_id" TEXT,
+  "dependency_kind" TEXT,
+  PRIMARY KEY ("plan_id", "from_node_id", "to_node_id"),
+  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "fx_plan_nodes" (
+  "plan_id" TEXT,
+  "node_id" TEXT,
+  "capability_ref" TEXT,
+  "contract_version" TEXT,
+  "input_binding_schema_ref" TEXT,
+  "input_bindings_json" TEXT,
+  "parameter_schema_ref" TEXT,
+  "parameters_json" TEXT,
+  "when_schema_ref" TEXT,
+  "when_json" TEXT,
+  "effect_class" TEXT,
+  "fence_schema_ref" TEXT,
+  "fence_basis_json" TEXT,
+  "resource_demand_schema_ref" TEXT,
+  "resource_demand_json" TEXT,
+  PRIMARY KEY ("plan_id", "node_id"),
+  CHECK (json_valid("input_bindings_json")),
+  CHECK (length(CAST("input_bindings_json" AS BLOB)) <= 16384),
+  CHECK (json_valid("parameters_json")),
+  CHECK (length(CAST("parameters_json" AS BLOB)) <= 16384),
+  CHECK (json_valid("when_json")),
+  CHECK (length(CAST("when_json" AS BLOB)) <= 16384),
+  CHECK (json_valid("fence_basis_json")),
+  CHECK (length(CAST("fence_basis_json" AS BLOB)) <= 16384),
+  CHECK (json_valid("resource_demand_json")),
+  CHECK (length(CAST("resource_demand_json" AS BLOB)) <= 16384),
+  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_fx_plan_nodes_hot_01" ON "fx_plan_nodes" ("capability_ref", "contract_version");
+
+CREATE TABLE "fx_resource_defer" (
+  "event_id" TEXT,
+  "resource_key" TEXT,
+  "queue_class" TEXT,
+  "local_priority" TEXT,
+  "enqueued_at_ms" INTEGER CHECK ("enqueued_at_ms" >= 0),
+  "retry_at_ms" INTEGER CHECK ("retry_at_ms" >= 0),
+  "state" TEXT,
+  PRIMARY KEY ("event_id", "resource_key"),
+  FOREIGN KEY ("event_id") REFERENCES "fx_workflow_events" ("event_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_fx_resource_defer_hot_01" ON "fx_resource_defer" ("resource_key", "state", "queue_class", "local_priority", "enqueued_at_ms");
+
+CREATE TABLE "fx_supporting_works" (
+  "work_id" TEXT PRIMARY KEY,
+  "owner_domain" TEXT,
+  "process_type" TEXT,
+  "process_id" TEXT,
+  "work_kind" TEXT,
+  "basis_digest" TEXT,
+  "priority_class" TEXT,
+  "state" TEXT,
+  "idempotency_key" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("owner_domain", "idempotency_key")
+);
+CREATE INDEX "idx_fx_supporting_works_hot_01" ON "fx_supporting_works" ("owner_domain", "state", "priority_class", "created_at_ms", "work_id");
+
+CREATE TABLE "fx_work_attempts" (
+  "attempt_id" TEXT PRIMARY KEY,
+  "work_id" TEXT,
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "basis_digest" TEXT,
+  "state" TEXT,
+  "started_at_ms" INTEGER CHECK ("started_at_ms" >= 0),
+  "finished_at_ms" INTEGER CHECK ("finished_at_ms" >= 0),
+  "failure_code" TEXT,
+  UNIQUE ("work_id", "ordinal"),
+  FOREIGN KEY ("work_id") REFERENCES "fx_supporting_works" ("work_id") ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX "uidx_fx_work_attempts_partial_01" ON "fx_work_attempts" ("work_id") WHERE "state" IN ('ready', 'running', 'blocked');
+
+CREATE TABLE "fx_workflow_events" (
+  "event_id" TEXT PRIMARY KEY,
+  "plan_id" TEXT,
+  "node_id" TEXT,
+  "work_id" TEXT,
+  "attempt_id" TEXT,
+  "owner_domain" TEXT,
+  "capability_ref" TEXT,
+  "contract_version" TEXT,
+  "state" TEXT,
+  "priority_class" TEXT,
+  "ready_at_ms" INTEGER CHECK ("ready_at_ms" >= 0),
+  "retry_at_ms" INTEGER CHECK ("retry_at_ms" >= 0),
+  "result_id" TEXT,
+  "current_progress_revision" INTEGER CHECK ("current_progress_revision" >= 0),
+  UNIQUE ("plan_id", "node_id"),
+  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("event_id", "current_progress_revision") REFERENCES "fx_event_progress" ("event_id", "revision") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_fx_workflow_events_hot_01" ON "fx_workflow_events" ("state", "priority_class", COALESCE("retry_at_ms", "ready_at_ms"), "event_id");
+
+CREATE TABLE "fx_workflow_plans" (
+  "plan_id" TEXT PRIMARY KEY,
+  "attempt_id" TEXT,
+  "planner_ref" TEXT,
+  "planner_version" TEXT,
+  "catalog_digest" TEXT,
+  "basis_digest" TEXT,
+  "graph_digest" TEXT,
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("attempt_id"),
+  FOREIGN KEY ("attempt_id") REFERENCES "fx_work_attempts" ("attempt_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "fx_workspace_materials" (
+  "workspace_id" TEXT,
+  "material_handle_id" TEXT,
+  "relative_path" TEXT,
+  "digest_algorithm" TEXT,
+  "digest_hex" TEXT,
+  "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
+  "reference_revision" INTEGER CHECK ("reference_revision" >= 0),
+  "state" TEXT,
+  PRIMARY KEY ("workspace_id", "material_handle_id"),
+  UNIQUE ("workspace_id", "relative_path"),
+  FOREIGN KEY ("workspace_id") REFERENCES "fx_workspace_registry" ("workspace_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "fx_workspace_registry" (
+  "workspace_id" TEXT PRIMARY KEY,
+  "owner_domain" TEXT,
+  "process_type" TEXT,
+  "process_id" TEXT,
+  "root_handle_ref" TEXT,
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "reclaim_after_ms" INTEGER CHECK ("reclaim_after_ms" >= 0),
+  UNIQUE ("owner_domain", "process_type", "process_id", "workspace_id")
+);
+CREATE INDEX "idx_fx_workspace_registry_hot_01" ON "fx_workspace_registry" ("owner_domain", "state", "reclaim_after_ms");
+
+CREATE TABLE "libra_acceptance_specs" (
+  "acceptance_spec_id" TEXT PRIMARY KEY,
+  "subject_id" TEXT,
+  "shelf_id" TEXT,
+  "shelf_standard_revision" INTEGER CHECK ("shelf_standard_revision" >= 0),
+  "decision_basis_id" TEXT,
+  "spec_revision" INTEGER CHECK ("spec_revision" >= 0),
+  "spec_schema_ref" TEXT,
+  "spec_json" TEXT,
+  "spec_digest" TEXT,
+  "structure_kind" TEXT,
+  "content_profile" TEXT,
+  "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
+  UNIQUE ("subject_id", "spec_revision"),
+  CHECK (json_valid("spec_json")),
+  CHECK (length(CAST("spec_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("decision_basis_id") REFERENCES "libra_decision_basis_revisions" ("decision_basis_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_decision_basis_inputs" (
+  "decision_basis_id" TEXT,
+  "input_kind" TEXT,
+  "provider_domain" TEXT,
+  "query_contract" TEXT,
+  "query_version" TEXT,
+  "query_input_digest" TEXT,
+  "result_kind" TEXT,
+  "result_revision" INTEGER CHECK ("result_revision" >= 0),
+  "result_digest" TEXT,
+  "expires_at_ms" INTEGER CHECK ("expires_at_ms" >= 0),
+  PRIMARY KEY ("decision_basis_id", "input_kind", "provider_domain", "query_contract", "query_input_digest"),
+  FOREIGN KEY ("decision_basis_id") REFERENCES "libra_decision_basis_revisions" ("decision_basis_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_decision_basis_revisions" (
+  "decision_basis_id" TEXT PRIMARY KEY,
+  "subject_id" TEXT,
+  "routing_decision_id" TEXT,
+  "basis_revision" INTEGER CHECK ("basis_revision" >= 0),
+  "query_result_set_digest" TEXT,
+  "status" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("subject_id", "basis_revision"),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("routing_decision_id") REFERENCES "libra_routing_decisions" ("routing_decision_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_decision_basis_revisions_hot_01" ON "libra_decision_basis_revisions" ("subject_id", "status", "basis_revision");
+
+CREATE TABLE "libra_delivery_receipts" (
+  "receipt_id" TEXT PRIMARY KEY,
+  "on_deck_package_id" TEXT,
+  "package_digest" TEXT,
+  "arca_acceptance_decision_id" TEXT,
+  "result" TEXT,
+  "received_at_ms" INTEGER CHECK ("received_at_ms" >= 0),
+  UNIQUE ("on_deck_package_id", "package_digest"),
+  FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_delivery_receipts_hot_01" ON "libra_delivery_receipts" ("result", "received_at_ms");
+
+CREATE TABLE "libra_episode_delivery_manifests" (
+  "episode_delivery_manifest_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "manifest_revision" INTEGER CHECK ("manifest_revision" >= 0),
+  "member_count" INTEGER CHECK ("member_count" >= 0),
+  "members_digest" TEXT,
+  "manifest_digest" TEXT,
+  "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
+  UNIQUE ("libra_run_id", "manifest_revision"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_episode_delivery_members" (
+  "episode_delivery_manifest_id" TEXT,
+  "episode_key" TEXT,
+  "material_key" TEXT,
+  "input_role" TEXT,
+  "output_requirement_digest" TEXT,
+  "state" TEXT,
+  PRIMARY KEY ("episode_delivery_manifest_id", "episode_key", "material_key"),
+  FOREIGN KEY ("episode_delivery_manifest_id") REFERENCES "libra_episode_delivery_manifests" ("episode_delivery_manifest_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_field_routing_heads" (
+  "field_id" TEXT PRIMARY KEY,
+  "current_routing_policy_id" TEXT,
+  "current_policy_revision" INTEGER CHECK ("current_policy_revision" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("current_routing_policy_id", "current_policy_revision") REFERENCES "libra_routing_policy_revisions" ("routing_policy_id", "revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_handoff_a_receipts" (
+  "receipt_id" TEXT PRIMARY KEY,
+  "intake_decision_id" TEXT,
+  "offer_id" TEXT,
+  "candidate_package_id" TEXT,
+  "package_digest" TEXT,
+  "subject_id" TEXT,
+  "libra_binding_set_digest" TEXT,
+  "control_revision_set_digest" INTEGER CHECK ("control_revision_set_digest" >= 0),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("intake_decision_id"),
+  FOREIGN KEY ("intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_intake_decisions" (
+  "intake_decision_id" TEXT PRIMARY KEY,
+  "offer_id" TEXT,
+  "candidate_package_id" TEXT,
+  "package_digest" TEXT,
+  "acceptance_basis_digest" TEXT,
+  "candidate_continuity_set_digest" TEXT,
+  "matched_subject_set_digest" TEXT,
+  "episode_overlap_digest" TEXT,
+  "result" TEXT CHECK ("result" IN ('new_subject', 'season_extension', 'rejected')),
+  "target_subject_id" TEXT,
+  "rejection_schema_ref" TEXT,
+  "decision_digest" TEXT,
+  "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
+  UNIQUE ("offer_id")
+);
+CREATE UNIQUE INDEX "uidx_libra_intake_decisions_partial_01" ON "libra_intake_decisions" ("candidate_package_id", "package_digest") WHERE "result" IN ('new_subject', 'season_extension');
+
+CREATE TABLE "libra_material_bindings" (
+  "subject_id" TEXT,
+  "material_key" TEXT,
+  "role" TEXT,
+  "episode_key" TEXT,
+  "endpoint_id" TEXT,
+  "location" TEXT,
+  "binding_revision" INTEGER CHECK ("binding_revision" >= 0),
+  "health_state" TEXT,
+  "evidence_digest" TEXT,
+  "current" INTEGER CHECK ("current" IN (0, 1)),
+  PRIMARY KEY ("subject_id", "material_key", "binding_revision"),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_offload_context_materials" (
+  "on_deck_package_id" TEXT,
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "material_key" TEXT,
+  "context_role" TEXT,
+  "binding_revision" INTEGER CHECK ("binding_revision" >= 0),
+  "settlement_expectation" TEXT,
+  PRIMARY KEY ("on_deck_package_id", "ordinal"),
+  UNIQUE ("on_deck_package_id", "material_key", "context_role"),
+  FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_product_fact_revisions" (
+  "product_fact_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "fact_kind" TEXT,
+  "fact_revision" INTEGER CHECK ("fact_revision" >= 0),
+  "schema_ref" TEXT,
+  "fact_json" TEXT,
+  "fact_digest" TEXT,
+  "evidence_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("libra_run_id", "fact_kind", "fact_revision"),
+  CHECK (json_valid("fact_json")),
+  CHECK (length(CAST("fact_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_product_fact_revisions_hot_01" ON "libra_product_fact_revisions" ("libra_run_id", "fact_kind", "fact_revision");
+
+CREATE TABLE "libra_product_identity_revisions" (
+  "subject_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "structure_kind" TEXT,
+  "content_profile" TEXT,
+  "identity_kind" TEXT,
+  "provider_identity_set_digest" TEXT,
+  "display_identity" TEXT,
+  "identity_digest" TEXT,
+  "evidence_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("subject_id", "revision"),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_product_package_materials" (
+  "on_deck_package_id" TEXT,
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "material_handle_id" TEXT,
+  "material_key" TEXT,
+  "role" TEXT,
+  "episode_key" TEXT,
+  "digest_algorithm" TEXT,
+  "digest_hex" TEXT,
+  "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
+  PRIMARY KEY ("on_deck_package_id", "ordinal"),
+  UNIQUE ("on_deck_package_id", "material_key", "role"),
+  FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_product_packages" (
+  "on_deck_package_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "shelf_id" TEXT,
+  "acceptance_spec_id" TEXT,
+  "product_identity_digest" TEXT,
+  "product_manifest_digest" TEXT,
+  "offload_context_digest" TEXT,
+  "package_digest" TEXT,
+  "state" TEXT,
+  "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
+  UNIQUE ("libra_run_id", "package_digest"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_product_packages_hot_01" ON "libra_product_packages" ("shelf_id", "state", "published_at_ms");
+
+CREATE TABLE "libra_routing_assessments" (
+  "routing_assessment_id" TEXT PRIMARY KEY,
+  "subject_id" TEXT,
+  "basis_digest" TEXT,
+  "routing_policy_id" TEXT,
+  "routing_policy_revision" INTEGER CHECK ("routing_policy_revision" >= 0),
+  "evidence_digest" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("subject_id", "basis_digest", "routing_policy_id", "routing_policy_revision"),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_routing_decisions" (
+  "routing_decision_id" TEXT PRIMARY KEY,
+  "subject_id" TEXT,
+  "assessment_id" TEXT,
+  "shelf_id" TEXT,
+  "shelf_priority_snapshot" TEXT,
+  "decision" TEXT,
+  "decision_digest" TEXT,
+  "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("assessment_id") REFERENCES "libra_routing_assessments" ("routing_assessment_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_routing_decisions_hot_01" ON "libra_routing_decisions" ("shelf_id", "decided_at_ms");
+
+CREATE TABLE "libra_routing_policy_revisions" (
+  "routing_policy_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "field_id" TEXT,
+  "mode" TEXT CHECK ("mode" IN ('direct', 'sorting')),
+  "policy_schema_ref" TEXT,
+  "policy_json" TEXT,
+  "policy_digest" TEXT,
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  PRIMARY KEY ("routing_policy_id", "revision"),
+  CHECK (json_valid("policy_json")),
+  CHECK (length(CAST("policy_json" AS BLOB)) <= 65536)
+);
+CREATE INDEX "idx_libra_routing_policy_revisions_hot_01" ON "libra_routing_policy_revisions" ("field_id", "effective_at_ms");
+
+CREATE TABLE "libra_routing_policy_targets" (
+  "routing_policy_id" TEXT,
+  "policy_revision" INTEGER CHECK ("policy_revision" >= 0),
+  "shelf_id" TEXT,
+  "rank" INTEGER CHECK ("rank" >= 0),
+  "match_rule_schema_ref" TEXT,
+  "match_rule_json" TEXT,
+  "match_rule_digest" TEXT,
+  PRIMARY KEY ("routing_policy_id", "policy_revision", "shelf_id"),
+  UNIQUE ("routing_policy_id", "policy_revision", "rank"),
+  CHECK (json_valid("match_rule_json")),
+  CHECK (length(CAST("match_rule_json" AS BLOB)) <= 16384)
+);
+
+CREATE TABLE "libra_run_discard_decisions" (
+  "discard_decision_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "run_scope_digest" TEXT,
+  "input_control_scope_digest" TEXT,
+  "workspace_cleanup_scope_digest" TEXT,
+  "actor_id" TEXT,
+  "decision_digest" TEXT,
+  "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
+  UNIQUE ("libra_run_id"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_run_discard_receipts" (
+  "receipt_id" TEXT PRIMARY KEY,
+  "discard_decision_id" TEXT,
+  "libra_run_id" TEXT,
+  "released_input_control_set_digest" TEXT,
+  "cleanup_scope_id" TEXT,
+  "commit_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("discard_decision_id"),
+  FOREIGN KEY ("discard_decision_id") REFERENCES "libra_run_discard_decisions" ("discard_decision_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("cleanup_scope_id") REFERENCES "libra_workspace_cleanup_scopes" ("cleanup_scope_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_runs" (
+  "libra_run_id" TEXT PRIMARY KEY,
+  "subject_id" TEXT,
+  "acceptance_spec_id" TEXT,
+  "initial_material_manifest_digest" TEXT,
+  "run_scope_digest" TEXT,
+  "state" TEXT,
+  "priority_class" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_runs_hot_01" ON "libra_runs" ("state", "priority_class", "created_at_ms");
+CREATE UNIQUE INDEX "uidx_libra_runs_partial_01" ON "libra_runs" ("subject_id", "acceptance_spec_id", "run_scope_digest") WHERE "terminal_at_ms" IS NULL;
+
+CREATE TABLE "libra_subject_abandon_decisions" (
+  "abandon_decision_id" TEXT PRIMARY KEY,
+  "subject_id" TEXT,
+  "subject_scope_digest" TEXT,
+  "input_control_scope_digest" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "decision_digest" TEXT,
+  "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
+  UNIQUE ("subject_id"),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_subject_abandon_receipts" (
+  "receipt_id" TEXT PRIMARY KEY,
+  "abandon_decision_id" TEXT,
+  "subject_id" TEXT,
+  "released_control_set_digest" TEXT,
+  "terminal_fact_digest" TEXT,
+  "commit_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("abandon_decision_id"),
+  FOREIGN KEY ("abandon_decision_id") REFERENCES "libra_subject_abandon_decisions" ("abandon_decision_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_subject_decision_heads" (
+  "subject_id" TEXT PRIMARY KEY,
+  "current_routing_decision_id" TEXT,
+  "current_decision_basis_id" TEXT,
+  "current_acceptance_spec_id" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("current_routing_decision_id") REFERENCES "libra_routing_decisions" ("routing_decision_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("current_decision_basis_id") REFERENCES "libra_decision_basis_revisions" ("decision_basis_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("current_acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_subject_season_continuity_claims" (
+  "subject_id" TEXT,
+  "claim_kind" TEXT CHECK ("claim_kind" IN ('provider_season_identity', 'triage_grouping_lineage')),
+  "claim_namespace" TEXT,
+  "claim_key" TEXT,
+  "claim_digest" TEXT,
+  "provenance_kind" TEXT CHECK ("provenance_kind" IN ('candidate', 'resolved_identity')),
+  "provenance_ref" TEXT,
+  "accepted_at_ms" INTEGER CHECK ("accepted_at_ms" >= 0),
+  PRIMARY KEY ("subject_id", "claim_kind", "claim_namespace", "claim_key", "provenance_ref"),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_subject_season_continuity_claims_hot_01" ON "libra_subject_season_continuity_claims" ("claim_kind", "claim_namespace", "claim_key", "subject_id");
+
+CREATE TABLE "libra_subjects" (
+  "subject_id" TEXT PRIMARY KEY,
+  "structure_kind" TEXT,
+  "status" TEXT,
+  "current_identity_revision" INTEGER CHECK ("current_identity_revision" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  FOREIGN KEY ("subject_id", "current_identity_revision") REFERENCES "libra_product_identity_revisions" ("subject_id", "revision") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_subjects_hot_01" ON "libra_subjects" ("status", "subject_id");
+
+CREATE TABLE "libra_workspace_cleanup_members" (
+  "cleanup_scope_id" TEXT,
+  "material_handle_id" TEXT,
+  "material_key" TEXT,
+  "expected_control_revision" INTEGER CHECK ("expected_control_revision" >= 0),
+  "cleanup_kind" TEXT,
+  "state" TEXT,
+  "deletion_effect_id" TEXT,
+  "cleanup_receipt_id" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  PRIMARY KEY ("cleanup_scope_id", "material_handle_id"),
+  FOREIGN KEY ("cleanup_scope_id") REFERENCES "libra_workspace_cleanup_scopes" ("cleanup_scope_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_workspace_cleanup_members_hot_01" ON "libra_workspace_cleanup_members" ("state", "updated_at_ms");
+
+CREATE TABLE "libra_workspace_cleanup_scopes" (
+  "cleanup_scope_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "trigger_kind" TEXT CHECK ("trigger_kind" IN ('offload_completed', 'run_discarded')),
+  "trigger_ref" TEXT,
+  "trigger_digest" TEXT,
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "completed_at_ms" INTEGER CHECK ("completed_at_ms" >= 0),
+  UNIQUE ("trigger_kind", "trigger_ref", "trigger_digest"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_workspace_cleanup_scopes_hot_01" ON "libra_workspace_cleanup_scopes" ("state", "created_at_ms");
+
+CREATE TABLE "libra_workspace_material_refs" (
+  "libra_run_id" TEXT,
+  "workspace_id" TEXT,
+  "material_handle_id" TEXT,
+  "product_role" TEXT,
+  "episode_key" TEXT,
+  "reference_revision" INTEGER CHECK ("reference_revision" >= 0),
+  PRIMARY KEY ("libra_run_id", "material_handle_id", "reference_revision"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("workspace_id") REFERENCES "fx_workspace_registry" ("workspace_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_workspaces" (
+  "libra_run_id" TEXT,
+  "workspace_id" TEXT,
+  "workspace_revision" INTEGER CHECK ("workspace_revision" >= 0),
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  PRIMARY KEY ("libra_run_id", "workspace_revision"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("workspace_id") REFERENCES "fx_workspace_registry" ("workspace_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "people_aliases" (
+  "person_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "alias_normalized" TEXT,
+  "alias_display" TEXT,
+  "provenance_digest" TEXT,
+  PRIMARY KEY ("person_id", "revision", "alias_normalized"),
+  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_people_aliases_hot_01" ON "people_aliases" ("alias_normalized");
+
+CREATE TABLE "people_merge_candidates" (
+  "merge_candidate_id" TEXT PRIMARY KEY,
+  "left_person_id" TEXT,
+  "right_person_id" TEXT,
+  "evidence_digest" TEXT,
+  "state" TEXT CHECK ("state" IN ('open', 'accepted', 'dismissed', 'superseded')),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  FOREIGN KEY ("left_person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("right_person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX "uidx_people_merge_candidates_partial_01" ON "people_merge_candidates" (MIN("left_person_id", "right_person_id"), MAX("left_person_id", "right_person_id")) WHERE "state" = 'open';
+
+CREATE TABLE "people_merge_records" (
+  "merge_record_id" TEXT PRIMARY KEY,
+  "source_person_id" TEXT,
+  "target_person_id" TEXT,
+  "decision_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  FOREIGN KEY ("source_person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("target_person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "people_person_revisions" (
+  "person_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "canonical_name" TEXT,
+  "content_scope" TEXT,
+  "fact_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("person_id", "revision"),
+  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "people_persons" (
+  "person_id" TEXT PRIMARY KEY,
+  "status" TEXT,
+  "current_revision" INTEGER CHECK ("current_revision" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  FOREIGN KEY ("person_id", "current_revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_people_persons_hot_01" ON "people_persons" ("status", "person_id");
+
+CREATE TABLE "people_preference_revisions" (
+  "person_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "preference_level" NUMERIC,
+  "reason" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("person_id", "revision"),
+  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "people_provider_identities" (
+  "person_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "provider" TEXT,
+  "namespace" TEXT,
+  "provider_key" TEXT,
+  "provenance_digest" TEXT,
+  "active_guard" INTEGER NOT NULL DEFAULT 0 CHECK ("active_guard" IN (0, 1)),
+  PRIMARY KEY ("person_id", "revision", "provider", "namespace", "provider_key"),
+  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX "uidx_people_provider_identities_partial_01" ON "people_provider_identities" ("provider", "namespace", "provider_key") WHERE "active_guard" = 1;
+
+CREATE TABLE "people_reference_assets" (
+  "reference_asset_id" TEXT PRIMARY KEY,
+  "person_id" TEXT,
+  "artifact_handle_id" TEXT,
+  "artifact_digest" TEXT,
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("person_id", "artifact_digest"),
+  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "people_reference_faces" (
+  "reference_face_id" TEXT PRIMARY KEY,
+  "person_id" TEXT,
+  "reference_asset_id" TEXT,
+  "embedding_handle_id" TEXT,
+  "model_ref" TEXT,
+  "state" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("person_id", "embedding_handle_id", "model_ref"),
+  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("reference_asset_id") REFERENCES "people_reference_assets" ("reference_asset_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "people_registration_candidates" (
+  "registration_candidate_id" TEXT PRIMARY KEY,
+  "proposed_name" TEXT,
+  "evidence_digest" TEXT,
+  "candidate_schema_ref" TEXT,
+  "candidate_json" TEXT,
+  "state" TEXT CHECK ("state" IN ('open', 'accepted', 'dismissed', 'superseded')),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  CHECK (json_valid("candidate_json")),
+  CHECK (length(CAST("candidate_json" AS BLOB)) <= 16384)
+);
+CREATE INDEX "idx_people_registration_candidates_hot_01" ON "people_registration_candidates" ("state", "created_at_ms");
+CREATE UNIQUE INDEX "uidx_people_registration_candidates_partial_01" ON "people_registration_candidates" ("evidence_digest") WHERE "state" = 'open';
+
+CREATE TABLE "perception_dedup_relations" (
+  "relation_id" TEXT PRIMARY KEY,
+  "left_perception_id" TEXT,
+  "right_perception_id" TEXT,
+  "rule_revision" INTEGER CHECK ("rule_revision" >= 0),
+  "relation" TEXT,
+  "evidence_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  FOREIGN KEY ("left_perception_id") REFERENCES "perception_records" ("perception_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("right_perception_id") REFERENCES "perception_records" ("perception_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "perception_identity_anchors" (
+  "perception_id" TEXT,
+  "anchor_kind" TEXT,
+  "anchor_value" TEXT,
+  "confidence_class" TEXT,
+  "evidence_digest" TEXT,
+  PRIMARY KEY ("perception_id", "anchor_kind", "anchor_value"),
+  FOREIGN KEY ("perception_id") REFERENCES "perception_records" ("perception_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_perception_identity_anchors_hot_01" ON "perception_identity_anchors" ("anchor_kind", "anchor_value");
+
+CREATE TABLE "perception_records" (
+  "perception_id" TEXT PRIMARY KEY,
+  "perception_source_id" TEXT,
+  "source_kind" TEXT,
+  "source_record_key" TEXT,
+  "source_record_revision" INTEGER CHECK ("source_record_revision" >= 0),
+  "source_record_digest" TEXT,
+  "rating" REAL,
+  "watched_state" TEXT,
+  "observed_title" TEXT,
+  "provenance_digest" TEXT,
+  "observed_at_ms" INTEGER CHECK ("observed_at_ms" >= 0),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("perception_source_id", "source_record_key", "source_record_revision", "source_record_digest"),
+  FOREIGN KEY ("perception_source_id") REFERENCES "perception_sources" ("perception_source_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_perception_records_hot_01" ON "perception_records" ("source_kind", "source_record_key", "committed_at_ms");
+
+CREATE TABLE "perception_resolution_heads" (
+  "query_contract" TEXT,
+  "query_input_digest" TEXT,
+  "current_resolution_id" TEXT,
+  "current_revision" INTEGER CHECK ("current_revision" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  PRIMARY KEY ("query_contract", "query_input_digest"),
+  FOREIGN KEY ("current_resolution_id") REFERENCES "perception_resolution_revisions" ("resolution_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "perception_resolution_revisions" (
+  "resolution_id" TEXT PRIMARY KEY,
+  "query_contract" TEXT,
+  "query_input_digest" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "result_kind" TEXT,
+  "winning_perception_id" TEXT,
+  "result_digest" TEXT,
+  "resolved_at_ms" INTEGER CHECK ("resolved_at_ms" >= 0),
+  UNIQUE ("query_contract", "query_input_digest", "revision")
+);
+
+CREATE TABLE "perception_source_cursors" (
+  "perception_source_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "cursor_value" TEXT,
+  "observation_digest" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("perception_source_id", "revision"),
+  FOREIGN KEY ("perception_source_id") REFERENCES "perception_sources" ("perception_source_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "perception_sources" (
+  "perception_source_id" TEXT PRIMARY KEY,
+  "source_kind" TEXT,
+  "integration_id" TEXT,
+  "status" TEXT,
+  "config_revision" INTEGER CHECK ("config_revision" >= 0),
+  "current_cursor_revision" INTEGER CHECK ("current_cursor_revision" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("perception_source_id", "current_cursor_revision") REFERENCES "perception_source_cursors" ("perception_source_id", "revision") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_perception_sources_hot_01" ON "perception_sources" ("status", "source_kind", "perception_source_id");
+
+CREATE TABLE "platform_admin_credentials" (
+  "credential_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "secret_ref" TEXT,
+  "state" TEXT CHECK ("state" IN ('active', 'rotated', 'revoked')),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "last_used_at_ms" INTEGER CHECK ("last_used_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  PRIMARY KEY ("credential_id", "revision")
+);
+
+CREATE TABLE "platform_compute_device_probes" (
+  "device_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "capability_schema_ref" TEXT,
+  "capability_json" TEXT,
+  "capability_digest" TEXT,
+  "probe_result" TEXT,
+  "probed_at_ms" INTEGER CHECK ("probed_at_ms" >= 0),
+  PRIMARY KEY ("device_id", "revision"),
+  CHECK (json_valid("capability_json")),
+  CHECK (length(CAST("capability_json" AS BLOB)) <= 16384),
+  FOREIGN KEY ("device_id") REFERENCES "platform_compute_devices" ("device_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "platform_compute_devices" (
+  "device_id" TEXT PRIMARY KEY,
+  "device_kind" TEXT,
+  "stable_device_key" TEXT,
+  "current_probe_revision" INTEGER CHECK ("current_probe_revision" >= 0),
+  "enabled" INTEGER CHECK ("enabled" IN (0, 1)),
+  "state" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("stable_device_key"),
+  FOREIGN KEY ("device_id", "current_probe_revision") REFERENCES "platform_compute_device_probes" ("device_id", "revision") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_platform_compute_devices_hot_01" ON "platform_compute_devices" ("enabled", "state", "device_id");
+
+CREATE TABLE "platform_integrations" (
+  "integration_id" TEXT PRIMARY KEY,
+  "integration_type" TEXT,
+  "endpoint" TEXT,
+  "config_revision" INTEGER CHECK ("config_revision" >= 0),
+  "config_schema_ref" TEXT,
+  "config_json" TEXT,
+  "config_digest" TEXT,
+  "state" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("integration_type", "integration_id"),
+  CHECK (json_valid("config_json")),
+  CHECK (length(CAST("config_json" AS BLOB)) <= 16384)
+);
+
+CREATE TABLE "platform_mount_scope_revisions" (
+  "mount_scope_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "endpoint_id" TEXT,
+  "mount_boundary" TEXT,
+  "filesystem_type" TEXT,
+  "stable_mount_fingerprint" TEXT,
+  "inode_capability_digest" TEXT,
+  "probe_evidence_digest" TEXT,
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  PRIMARY KEY ("mount_scope_id", "revision"),
+  FOREIGN KEY ("mount_scope_id") REFERENCES "platform_mount_scopes" ("mount_scope_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "platform_mount_scopes" (
+  "mount_scope_id" TEXT PRIMARY KEY,
+  "status" TEXT,
+  "current_revision" INTEGER CHECK ("current_revision" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  FOREIGN KEY ("mount_scope_id", "current_revision") REFERENCES "platform_mount_scope_revisions" ("mount_scope_id", "revision") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_platform_mount_scopes_hot_01" ON "platform_mount_scopes" ("status", "mount_scope_id");
+
+CREATE TABLE "platform_resource_operating_policy" (
+  "singleton_key" TEXT PRIMARY KEY,
+  "current_revision" INTEGER CHECK ("current_revision" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("singleton_key", "current_revision") REFERENCES "platform_resource_operating_revisions" ("singleton_key", "revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "platform_resource_operating_revisions" (
+  "singleton_key" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "immediate_profile_key" TEXT,
+  "timezone" TEXT,
+  "schedule_schema_ref" TEXT,
+  "schedule_json" TEXT,
+  "schedule_digest" TEXT,
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  PRIMARY KEY ("singleton_key", "revision"),
+  CHECK (json_valid("schedule_json")),
+  CHECK (length(CAST("schedule_json" AS BLOB)) <= 16384)
+);
+
+CREATE TABLE "platform_resource_profile_revisions" (
+  "profile_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "profile_schema_ref" TEXT,
+  "profile_json" TEXT,
+  "profile_digest" TEXT,
+  "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
+  PRIMARY KEY ("profile_id", "revision"),
+  CHECK (json_valid("profile_json")),
+  CHECK (length(CAST("profile_json" AS BLOB)) <= 16384),
+  FOREIGN KEY ("profile_id") REFERENCES "platform_resource_profiles" ("profile_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "platform_resource_profiles" (
+  "profile_id" TEXT PRIMARY KEY,
+  "profile_key" TEXT CHECK ("profile_key" IN ('default', 'full')),
+  "name" TEXT,
+  "current_revision" INTEGER CHECK ("current_revision" >= 0),
+  "status" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("profile_key"),
+  FOREIGN KEY ("profile_id", "current_revision") REFERENCES "platform_resource_profile_revisions" ("profile_id", "revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "platform_schema_marker" (
+  "schema_name" TEXT PRIMARY KEY,
+  "generation" TEXT,
+  "schema_digest" TEXT,
+  "catalog_digest" TEXT,
+  "applied_at_ms" INTEGER CHECK ("applied_at_ms" >= 0)
+);
+
+CREATE TABLE "platform_secret_refs" (
+  "secret_ref" TEXT PRIMARY KEY,
+  "owner_scope_type" TEXT CHECK ("owner_scope_type" IN ('integration', 'worker', 'admin_credential')),
+  "owner_scope_id" TEXT,
+  "secret_kind" TEXT,
+  "encrypted_ref" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "state" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("owner_scope_type", "owner_scope_id", "secret_kind", "revision")
+);
+
+CREATE TABLE "platform_worker_devices" (
+  "worker_id" TEXT,
+  "worker_revision" INTEGER CHECK ("worker_revision" >= 0),
+  "device_key" TEXT,
+  "capability_digest" TEXT,
+  "enabled" INTEGER CHECK ("enabled" IN (0, 1)),
+  "max_slots" INTEGER CHECK ("max_slots" >= 0),
+  PRIMARY KEY ("worker_id", "worker_revision", "device_key"),
+  FOREIGN KEY ("worker_id") REFERENCES "platform_workers" ("worker_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "platform_worker_revisions" (
+  "worker_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "endpoint" TEXT,
+  "protocol_version" TEXT,
+  "config_schema_ref" TEXT,
+  "config_json" TEXT,
+  "config_digest" TEXT,
+  "secret_ref" TEXT,
+  "capability_digest" TEXT,
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  PRIMARY KEY ("worker_id", "revision"),
+  CHECK (json_valid("config_json")),
+  CHECK (length(CAST("config_json" AS BLOB)) <= 16384),
+  FOREIGN KEY ("worker_id") REFERENCES "platform_workers" ("worker_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "platform_workers" (
+  "worker_id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "status" TEXT,
+  "current_revision" INTEGER CHECK ("current_revision" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  FOREIGN KEY ("worker_id", "current_revision") REFERENCES "platform_worker_revisions" ("worker_id", "revision") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_platform_workers_hot_01" ON "platform_workers" ("status", "worker_id");
+
+CREATE TABLE "platform_workspace_roots" (
+  "root_id" TEXT PRIMARY KEY,
+  "owner_scope" TEXT,
+  "root_kind" TEXT,
+  "resolved_root" TEXT,
+  "config_revision" INTEGER CHECK ("config_revision" >= 0),
+  "capability_digest" TEXT,
+  "state" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0)
+);
+
+CREATE TABLE "proc_candidate_deliveries" (
+  "offer_id" TEXT PRIMARY KEY,
+  "candidate_package_id" TEXT,
+  "package_digest" TEXT,
+  "acceptance_basis_digest" TEXT,
+  "state" TEXT,
+  "handoff_receipt_id" TEXT,
+  "offered_at_ms" INTEGER CHECK ("offered_at_ms" >= 0),
+  "closed_at_ms" INTEGER CHECK ("closed_at_ms" >= 0),
+  UNIQUE ("candidate_package_id", "package_digest", "acceptance_basis_digest"),
+  FOREIGN KEY ("candidate_package_id") REFERENCES "proc_candidate_packages" ("candidate_package_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_proc_candidate_deliveries_hot_01" ON "proc_candidate_deliveries" ("state", "offered_at_ms");
+CREATE UNIQUE INDEX "uidx_proc_candidate_deliveries_partial_01" ON "proc_candidate_deliveries" ("candidate_package_id") WHERE "state" = 'open';
+
+CREATE TABLE "proc_candidate_packages" (
+  "candidate_package_id" TEXT PRIMARY KEY,
+  "procurement_run_id" TEXT,
+  "package_revision" INTEGER CHECK ("package_revision" >= 0),
+  "structure_kind" TEXT,
+  "content_profile_hint" TEXT,
+  "identity_claim_schema_ref" TEXT,
+  "identity_claim_json" TEXT,
+  "manifest_digest" TEXT,
+  "package_digest" TEXT,
+  "state" TEXT,
+  "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
+  UNIQUE ("procurement_run_id", "package_revision"),
+  CHECK (json_valid("identity_claim_json")),
+  CHECK (length(CAST("identity_claim_json" AS BLOB)) <= 16384),
+  FOREIGN KEY ("procurement_run_id") REFERENCES "proc_procurement_runs" ("procurement_run_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_proc_candidate_packages_hot_01" ON "proc_candidate_packages" ("state", "published_at_ms");
+
+CREATE TABLE "proc_candidate_primary_materials" (
+  "candidate_package_id" TEXT,
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "material_key" TEXT,
+  "role" TEXT,
+  "episode_claim_schema_ref" TEXT,
+  "binding_revision" INTEGER CHECK ("binding_revision" >= 0),
+  "member_digest" TEXT,
+  PRIMARY KEY ("candidate_package_id", "ordinal"),
+  UNIQUE ("candidate_package_id", "material_key"),
+  FOREIGN KEY ("candidate_package_id") REFERENCES "proc_candidate_packages" ("candidate_package_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "proc_candidate_related_references" (
+  "candidate_package_id" TEXT,
+  "reference_id" TEXT,
+  "primary_ordinal" INTEGER CHECK ("primary_ordinal" >= 0),
+  "role" TEXT,
+  "endpoint_id" TEXT,
+  "location" TEXT,
+  "checksum_algorithm" TEXT,
+  "checksum_hex" TEXT,
+  "evidence_digest" TEXT,
+  PRIMARY KEY ("candidate_package_id", "reference_id"),
+  FOREIGN KEY ("candidate_package_id") REFERENCES "proc_candidate_packages" ("candidate_package_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "proc_candidate_season_continuity_claims" (
+  "candidate_package_id" TEXT,
+  "claim_kind" TEXT CHECK ("claim_kind" IN ('provider_season_identity', 'triage_grouping_lineage')),
+  "claim_namespace" TEXT,
+  "claim_key" TEXT,
+  "claim_digest" TEXT,
+  "evidence_digest" TEXT,
+  PRIMARY KEY ("candidate_package_id", "claim_kind", "claim_namespace", "claim_key"),
+  FOREIGN KEY ("candidate_package_id") REFERENCES "proc_candidate_packages" ("candidate_package_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "proc_extraction_policy_revisions" (
+  "extraction_policy_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "policy_schema_ref" TEXT,
+  "policy_json" TEXT,
+  "policy_digest" TEXT,
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  PRIMARY KEY ("extraction_policy_id", "revision"),
+  CHECK (json_valid("policy_json")),
+  CHECK (length(CAST("policy_json" AS BLOB)) <= 16384)
+);
+
+CREATE TABLE "proc_field_access_revisions" (
+  "field_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 0),
+  "endpoint_id" TEXT,
+  "root_location" TEXT,
+  "mount_scope_id" TEXT,
+  "mount_scope_revision" INTEGER CHECK ("mount_scope_revision" >= 0),
+  "access_schema_ref" TEXT,
+  "access_digest" TEXT,
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  PRIMARY KEY ("field_id", "revision"),
+  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "proc_field_materials" (
+  "field_id" TEXT,
+  "material_key" TEXT,
+  "mount_scope_id" TEXT,
+  "inode" TEXT,
+  "content_hash_algorithm" TEXT,
+  "content_hash" TEXT,
+  "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
+  "mtime_ns" INTEGER CHECK ("mtime_ns" >= 0),
+  "ctime_ns" INTEGER CHECK ("ctime_ns" >= 0),
+  "hash_verified_at_ms" INTEGER CHECK ("hash_verified_at_ms" >= 0),
+  "current_location" TEXT,
+  "binding_revision" INTEGER CHECK ("binding_revision" >= 0),
+  "last_observation_id" TEXT,
+  "eligibility_state" TEXT,
+  "control_projection" TEXT,
+  PRIMARY KEY ("field_id", "material_key"),
+  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_proc_field_materials_hot_01" ON "proc_field_materials" ("field_id", "eligibility_state", "control_projection", "material_key");
+
+CREATE TABLE "proc_field_observations" (
+  "observation_id" TEXT PRIMARY KEY,
+  "field_id" TEXT,
+  "access_revision" INTEGER CHECK ("access_revision" >= 0),
+  "cursor_in" TEXT,
+  "cursor_out" TEXT,
+  "page_digest" TEXT,
+  "observed_at_ms" INTEGER CHECK ("observed_at_ms" >= 0),
+  "completed" INTEGER CHECK ("completed" IN (0, 1)),
+  UNIQUE ("field_id", "access_revision", "cursor_in", "page_digest"),
+  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_proc_field_observations_hot_01" ON "proc_field_observations" ("field_id", "completed", "observed_at_ms");
+
+CREATE TABLE "proc_material_fields" (
+  "field_id" TEXT PRIMARY KEY,
+  "name" TEXT,
+  "status" TEXT,
+  "extraction_policy_id" TEXT,
+  "extraction_policy_revision" INTEGER CHECK ("extraction_policy_revision" >= 0),
+  "current_access_revision" INTEGER CHECK ("current_access_revision" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("field_id", "current_access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_proc_material_fields_hot_01" ON "proc_material_fields" ("status", "field_id");
+
+CREATE TABLE "proc_procurement_retry_intents" (
+  "retry_intent_id" TEXT PRIMARY KEY,
+  "field_id" TEXT,
+  "failed_run_id" TEXT,
+  "failed_basis_digest" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "intent_digest" TEXT,
+  "state" TEXT CHECK ("state" IN ('open', 'consumed', 'stale')),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "consumed_at_ms" INTEGER CHECK ("consumed_at_ms" >= 0),
+  UNIQUE ("field_id", "idempotency_key"),
+  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("failed_run_id") REFERENCES "proc_procurement_runs" ("procurement_run_id") ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX "uidx_proc_procurement_retry_intents_partial_01" ON "proc_procurement_retry_intents" ("failed_run_id", "failed_basis_digest") WHERE "state" = 'open';
+
+CREATE TABLE "proc_procurement_runs" (
+  "procurement_run_id" TEXT PRIMARY KEY,
+  "field_id" TEXT,
+  "run_basis_digest" TEXT,
+  "retry_intent_id" TEXT,
+  "state" TEXT,
+  "priority_class" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "finished_at_ms" INTEGER CHECK ("finished_at_ms" >= 0),
+  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_proc_procurement_runs_hot_01" ON "proc_procurement_runs" ("state", "priority_class", "created_at_ms");
+CREATE UNIQUE INDEX "uidx_proc_procurement_runs_partial_01" ON "proc_procurement_runs" ("field_id", "run_basis_digest") WHERE "finished_at_ms" IS NULL;
+
+CREATE TABLE "proc_run_materials" (
+  "procurement_run_id" TEXT,
+  "material_key" TEXT,
+  "role" TEXT,
+  "binding_revision" INTEGER CHECK ("binding_revision" >= 0),
+  "selected_at_ms" INTEGER CHECK ("selected_at_ms" >= 0),
+  "deliverable_guard" INTEGER NOT NULL DEFAULT 0 CHECK ("deliverable_guard" IN (0, 1)),
+  PRIMARY KEY ("procurement_run_id", "material_key"),
+  FOREIGN KEY ("procurement_run_id") REFERENCES "proc_procurement_runs" ("procurement_run_id") ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX "uidx_proc_run_materials_partial_01" ON "proc_run_materials" ("material_key") WHERE "role" = 'primary' AND "deliverable_guard" = 1;
