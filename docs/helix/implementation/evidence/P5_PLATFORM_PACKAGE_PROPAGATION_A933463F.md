@@ -52,7 +52,13 @@ npm run test:helix-persistence
 → 18 canonical transactions / 132 crash points
 → DDL digest unchanged
 → prohibitedActionsRun: []
+
+npm run test:helix-runtime
+→ 7 Effect Classes / 31 cross-process crash scenarios
+→ prohibitedActionsRun: []
 ```
+
+以上三组聚合门禁均在commit `23876e61`的fresh detached worktree复现PASS，随后已删除临时审计worktree。
 
 反例明确证明：允许的调用方只能导入`platform.public`；直接导入`platform.application`、
 `platform.model`或`platform.persistence`会被package-boundary guard拒绝。

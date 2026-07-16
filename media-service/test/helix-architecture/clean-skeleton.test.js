@@ -56,7 +56,9 @@ test('each Domain exposes one frozen public package identity', () => {
 
 test('Platform is a required four-package technical owner with one frozen public entry', () => {
   const platform = require(path.join(helixRoot, 'platform', 'public'));
-  assert.deepEqual(platform, { PACKAGE_ID: 'platform.public' });
+  assert.equal(platform.PACKAGE_ID, 'platform.public');
+  assert.equal(typeof platform.IntegrationQueryPort, 'function');
+  assert.equal(typeof platform.MountScopeResolverPort, 'function');
   assert.equal(Object.isFrozen(platform), true);
   for (const layer of ['public', 'model', 'application', 'persistence']) {
     const descriptor = JSON.parse(fs.readFileSync(path.join(helixRoot, 'platform', layer, 'package.boundary.json'), 'utf8'));

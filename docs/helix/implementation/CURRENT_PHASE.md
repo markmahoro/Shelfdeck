@@ -2,7 +2,7 @@
 
 Current phase: `P5 — Platform and Integrations`
 
-Status: in progress；P5-00 complete；P5-01 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P5-00–P5-01 complete；P5-02 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -62,8 +62,8 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
 | P5-00 | P4 closure and isolated P5 baseline receipt | complete | P4 PASS |
-| P5-01 | Platform and Integration public nominal ports | next | P5-00；P2 contracts |
-| P5-02 | Secret Reference and least-authority credential resolver | pending | P5-01；P3 Persistence |
+| P5-01 | Platform and Integration public nominal ports | complete | P5-00；P2 contracts |
+| P5-02 | Secret Reference and least-authority credential resolver | next | P5-01；P3 Persistence |
 | P5-03 | Mount Scope and Workspace Root registries | pending | P5-01–P5-02 |
 | P5-04 | Physical Material Identity and binding-health primitives | pending | P5-03 |
 | P5-05 | Artifact Registry and controlled payload handles | pending | P5-03–P5-04 |
@@ -93,6 +93,11 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 - Publish only typed registry/query/resolve/execute ports；never expose credentials、raw SQLite、generic request or child-process handles.
 - Every port declares Owner、input/output schema、Effect Class、idempotency、Fence and payload bound.
 - Static guards reject Domain Fact writes、internal HTTP、global Store and legacy adapter imports.
+- Done: 17 immutable `@1` nominal contracts publish 10 Platform query/resolve ports and 7 typed Integration execute ports.
+  Every contract declares Owner、input/output schema refs、P4 Effect Class、idempotency、Fence and byte bounds. Exact-shape
+  factories reject added Repository/SQLite/Domain-write/HTTP/generic-request/process authority. Focused 19/19 and full
+  architecture gate PASS with 47 packages、52 fixture files、0 dependency/semantic findings and `prohibitedActionsRun=[]`.
+  Evidence: `evidence/P5_01_PUBLIC_NOMINAL_PORTS.md`.
 
 ### P5-02 Secret Reference and least-authority credential resolver
 

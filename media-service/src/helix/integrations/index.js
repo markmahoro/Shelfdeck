@@ -1,30 +1,30 @@
 'use strict';
 
-const contractCatalog = require('../../contracts/ports/p5-public-port-contracts.json');
+const contractCatalog = require('../contracts/ports/p5-public-port-contracts.json');
 const { packageId } = require('./package.boundary.json');
 
-class PlatformPublicPortError extends Error {
+class IntegrationPublicPortError extends Error {
   constructor(code, message, details = {}) {
     super(message);
-    this.name = 'PlatformPublicPortError';
+    this.name = 'IntegrationPublicPortError';
     this.code = code;
     this.details = details;
   }
 }
 
 const contracts = new Map(contractCatalog.contracts
-  .filter((contract) => contract.packageId === 'platform.public')
+  .filter((contract) => contract.packageId === 'integrations')
   .map((contract) => [contract.exportName, Object.freeze({ ...contract })]));
 
 function bind(exportName, implementation) {
   const contract = contracts.get(exportName);
-  if (!contract) throw new PlatformPublicPortError('P5_UNKNOWN_PLATFORM_PORT', 'Unknown Platform public port.', { exportName });
+  if (!contract) throw new IntegrationPublicPortError('P5_UNKNOWN_INTEGRATION_PORT', 'Unknown Integration public port.', { exportName });
   if (!implementation || typeof implementation !== 'object' || Array.isArray(implementation)) {
-    throw new PlatformPublicPortError('P5_PLATFORM_PORT_IMPLEMENTATION_REQUIRED', 'A typed implementation object is required.', { exportName });
+    throw new IntegrationPublicPortError('P5_INTEGRATION_PORT_IMPLEMENTATION_REQUIRED', 'A typed implementation object is required.', { exportName });
   }
   const provided = Object.keys(implementation).sort();
   if (provided.length !== 1 || provided[0] !== contract.method || typeof implementation[contract.method] !== 'function') {
-    throw new PlatformPublicPortError('P5_PLATFORM_PORT_SHAPE_MISMATCH', 'Implementation must match the nominal method exactly.', {
+    throw new IntegrationPublicPortError('P5_INTEGRATION_PORT_SHAPE_MISMATCH', 'Implementation must match the nominal method exactly.', {
       exportName, expected: [contract.method], provided
     });
   }
