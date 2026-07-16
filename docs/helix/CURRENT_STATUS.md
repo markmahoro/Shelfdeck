@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0 and P1 complete; P1 archived; P2 not authorized; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0 and P1 complete; P2 in progress under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-16
 
@@ -12,13 +12,13 @@ Last updated: 2026-07-16
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards |
-| Current phase | none；between-phase hold before P2 |
-| Current phase status | P1 Exit Audit PASS；P2 not authorized |
-| Implementation Gate | closed；P1 authorization consumed |
-| Current allowed work | review P1 Evidence and decide whether to authorize P2 planning/local implementation |
-| Integration baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
-| Phase worktree | `E:\my_project\emby_third_party-helix-p1` on `codex/helix-p1` |
-| Next action | user confirmation for P2 detailed packet and Local Implementation Gate |
+| Current phase | P2 — Contract and Schema Baseline |
+| Current phase status | in progress；P2-00 baseline and standing authorization receipt |
+| Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
+| Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
+| Integration baseline | `c52e67fa2b49c605d0971f2150238ea37c50816a` |
+| Phase worktree | `E:\my_project\emby_third_party-helix-p2` on `codex/helix-p2` |
+| Next action | P2-01 SSOT extraction oracle and inventory source mapping |
 
 ## 2. Accepted implementation conclusion
 
@@ -71,11 +71,25 @@ P1详细Work Package已归档到`implementation/archive/P1_CLEAN_SKELETON_AND_AR
 
 P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。P2 inventory仍是framework-only，不构成实现。
 
+### Active P2 work packages
+
+| Work Package | Status |
+| --- | --- |
+| P2-00 Standing authorization and isolated baseline | in progress |
+| P2-01 SSOT extraction oracle/source map | pending |
+| P2-02 Shared nominal type/envelope registry | pending |
+| P2-03 112 Capability contract packages | pending |
+| P2-04 96 Result family closure | pending |
+| P2-05 156 table contract inventory | pending |
+| P2-06 18 canonical transaction inventory | pending |
+| P2-07 Cross-inventory verification harness | pending |
+| P2-08 Phase Exit Audit | pending |
+
 ## 5. Engineering governance state
 
 - `CURRENT_PLAN.md`：精简Master Roadmap和授权边界；
 - `ENGINEERING_PLAYBOOK.md`：Ready/Done、Work Package、门禁、测试、Review、复用、Git和停线规则；
-- `implementation/CURRENT_PHASE.md`：当前between-phase Gate Hold；无活动详细执行包；
+- `implementation/CURRENT_PHASE.md`：唯一活动P2详细执行包；
 - `implementation/evidence/`：冻结审计与验收Evidence；
 - `implementation/archive/`：保存已冻结的P1执行包。
 
@@ -85,12 +99,12 @@ P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 
 - NAS ShelfDeck Docker `192.168.12.230:18080`保持生产边界，当前不接触；
 - 四库真实来源E2E保持停止；
-- P1本地实现已停止；不运行P2实现、E2E、Admin Web构建或Docker构建；
+- P2本地实现已开始；不运行E2E、Admin Web构建或Docker构建；
 - 不部署、不初始化生产数据、不执行真实媒体副作用；
 - 当前旧`helixCleanState`/preflight不得用于clean切换或生产；
 - `media-desktop`继续排除并保留用户未提交修改；
 - 用户`media-service/package.json`分析入口和未跟踪分析脚本保持不变；
-- 未来P2若获授权，仍须使用隔离worktree，不能直接使用当前dirty工作区。
+- P2使用独立worktree；P3–P13继续按Phase隔离，不能直接使用原dirty工作区。
 
 ## 7. Open risks and blockers
 
@@ -100,11 +114,10 @@ P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 | R0 | 原子复用携带错误Owner/Store/Material权限 | function-level ledger；0 whole-executor reuse |
 | R0 | 当前误导性clean-init造成数据破坏 | 封存；P13按Level 10完全重写 |
 | R1 | 后续为进度创建新旧混合路径 | Master dependency invariant和Phase Exit Audit |
-| active control | P2未授权且clean root不得接旧产品主路径 | Current Phase Gate Hold与Master dependency invariant |
+| active control | Standing授权仅限本地且clean root不得接旧产品主路径 | Current Phase Non-goals与Master dependency invariant |
 
 ## 8. Next checkpoint
 
-P1 Exit Audit已冻结在`implementation/evidence/P1_PHASE_EXIT_AUDIT_9a4d9b1f.md`，结果PASS。最终隔离验证
-`ok=true`，dependency/semantic/manifest findings均为0，aggregate digest为
-`8e9440e980a46eb82de9c263ab083ea0154208fd9d9cc4275d7c18bf0b6abf6e`。当前停止实施；下一检查点是用户是否授权
-形成唯一P2详细执行包并打开P2 Local Implementation Gate。
+Standing P2–P13 Local Implementation authorization已收到。P2从P1 closure commit `c52e67fa`建立独立worktree；
+下一检查点是把SSOT §8.5/§8.6的112 Capability、96 Result family、156 table和18 canonical transaction转换为
+可机械核验、带稳定locator/digest的contract source map。没有需要用户决定的业务问题。

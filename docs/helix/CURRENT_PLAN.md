@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; P0 and P1 complete; P2 not authorized; E2E, Docker, production, real-media side effects and `media-desktop` changes remain paused.
+Status: Levels 0–10 accepted; P0 and P1 complete; P2 in progress under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
 
 Last updated: 2026-07-16
 
@@ -42,13 +42,13 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 
 | Field | Current value |
 | --- | --- |
-| Phase | none；between-phase hold before P2 |
-| Detailed packet | none；`implementation/CURRENT_PHASE.md` is a gate hold only |
-| Status | P1 complete and archived；P2 not authorized |
-| Implementation baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
-| Phase branch/worktree | `codex/helix-p1` / `E:\my_project\emby_third_party-helix-p1` |
-| Allowed now | review P1 Evidence and decide P2 authorization |
-| Next action | user confirmation for one P2 detailed packet and P2 Local Implementation Gate |
+| Phase | P2 — Contract and Schema Baseline |
+| Detailed packet | `implementation/CURRENT_PHASE.md` |
+| Status | in progress；P2-00 baseline and authorization receipt |
+| Implementation baseline | `c52e67fa2b49c605d0971f2150238ea37c50816a` |
+| Phase branch/worktree | `codex/helix-p2` / `E:\my_project\emby_third_party-helix-p2` |
+| Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
+| Next action | P2-01 SSOT extraction oracle and inventory source mapping |
 
 ## 4. Master roadmap
 
@@ -110,14 +110,15 @@ P1 package/guards
 
 ## 7. Authorization boundaries
 
-第1层`Local implementation`的P1授权已经使用并关闭。P2及后续权限仍须逐层明确：
+用户已授予P2–P13第1层`Local implementation` standing authorization。每个Phase在SSOT traceability、机器反例和
+Exit Audit全部PASS后可以自动归档并进入下一Phase，不需要逐Phase等待：
 
 1. Local implementation：本地代码、单元/合同/隔离fixture；
 2. Real-source E2E：明确来源和副作用范围；
 3. Build/Canary：明确Artifact和环境；
 4. Production：明确发布/部署/升级动作。
 
-确认本文、Playbook或Current Phase不自动授权下一层。E2E、Docker、NAS、生产和真实媒体副作用保持暂停，
+Standing authorization不授权下一层。E2E、Docker/Canary、NAS、生产和真实媒体副作用保持暂停，
 `media-desktop`保持排除。
 
 ## 8. Business decision handling
@@ -125,4 +126,4 @@ P1 package/guards
 只有改变用户真实意图、可见业务结果、不可逆Authorization、Business Domain/Owner/Handoff或Object continuity的
 问题才提交用户。包结构、代码组织、测试工具、manifest格式、SQL实现和性能优化由工程内部在SSOT边界内决定。
 
-当前没有open business decision。当前下一授权决策是是否允许形成P2详细执行包并打开P2的`Local implementation only` Gate。
+当前没有open business decision。工程问题由Codex自主处理；只有真实业务决策或SSOT冲突才向用户提问。
