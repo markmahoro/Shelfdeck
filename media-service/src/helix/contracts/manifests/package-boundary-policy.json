@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "defaultInternalDecision": "deny",
+  "externalDomainImport": "domains/{owner}/public/index.js",
+  "domainOwners": [
+    "procurement",
+    "libra",
+    "arca",
+    "perception",
+    "people"
+  ],
+  "rules": [
+    {
+      "source": "composition",
+      "allow": [
+        "domains.*.public",
+        "foundation.*",
+        "integrations",
+        "projections",
+        "contracts",
+        "contracts.manifests"
+      ]
+    },
+    {
+      "source": "domains.*.public",
+      "allow": [
+        "domains.{owner}.application",
+        "domains.{owner}.model",
+        "contracts"
+      ]
+    },
+    {
+      "source": "domains.*.application",
+      "allow": [
+        "domains.{owner}.model",
+        "domains.{owner}.planning",
+        "domains.{owner}.persistence",
+        "domains.*.public",
+        "foundation.*",
+        "contracts"
+      ]
+    },
+    {
+      "source": "domains.*.model",
+      "allow": [
+        "contracts"
+      ]
+    },
+    {
+      "source": "domains.*.planning",
+      "allow": [
+        "domains.{owner}.model",
+        "foundation.capability",
+        "contracts"
+      ]
+    },
+    {
+      "source": "domains.*.capabilities",
+      "allow": [
+        "domains.{owner}.model",
+        "foundation.capability",
+        "contracts"
+      ]
+    },
+    {
+      "source": "domains.*.persistence",
+      "allow": [
+        "domains.{owner}.model",
+        "foundation.persistence",
+        "contracts"
+      ]
+    },
+    {
+      "source": "foundation.*",
+      "allow": [
+        "foundation.*",
+        "contracts"
+      ]
+    },
+    {
+      "source": "integrations",
+      "allow": [
+        "contracts"
+      ]
+    },
+    {
+      "source": "projections",
+      "allow": [
+        "domains.*.public",
+        "foundation.persistence",
+        "foundation.diagnostics",
+        "contracts"
+      ]
+    },
+    {
+      "source": "contracts",
+      "allow": [
+        "contracts",
+        "contracts.manifests"
+      ]
+    },
+    {
+      "source": "contracts.manifests",
+      "allow": []
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 Current phase: `P1 — Clean Skeleton and Architecture Guards`
 
-Status: in progress; P1-00/P1-01 complete; P1-02 next; Local Implementation Gate open for P1 only.
+Status: in progress; P1-00–P1-02 complete; P1-03 next; Local Implementation Gate open for P1 only.
 
 Last updated: 2026-07-16
 
@@ -143,8 +143,8 @@ Repository或未来Phase的占位Runtime。
 | --- | --- | --- | --- |
 | P1-00 | Isolated implementation workspace and baseline receipt | complete | P0 audit closed |
 | P1-01 | Clean physical package skeleton | complete | P1-00 |
-| P1-02 | Domain public/internal boundary contract | next | P1-01 |
-| P1-03 | Unique Composition Root shell | pending | P1-02 |
+| P1-02 | Domain public/internal boundary contract | complete | P1-01 |
+| P1-03 | Unique Composition Root shell | next | P1-02 |
 | P1-04 | Import and dependency architecture guard | pending | P1-01、P1-02 |
 | P1-05 | Forbidden legacy semantics guard | pending | P1-01 |
 | P1-06 | Machine-readable manifest and reuse-ledger framework | pending | P1-01、P1-02 |
@@ -314,5 +314,5 @@ P1关闭只允许进入P2 Contract and Schema Baseline，不自动授权E2E、Do
 
 ## 11. Current blockers and next action
 
-当前没有P1 entry blocker。下一步执行P1-02；任何需要P2能力、E2E、Docker、生产、真实媒体副作用或
+当前没有P1 entry blocker。下一步执行P1-03；任何需要P2能力、E2E、Docker、生产、真实媒体副作用或
 `media-desktop`修改的情况都必须停线并请求新授权。
