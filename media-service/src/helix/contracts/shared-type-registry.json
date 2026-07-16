@@ -1,0 +1,409 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.shared-type-registry",
+  "kind": "shared-type-registry",
+  "owner": "contracts",
+  "status": "active",
+  "ssotRefs": [
+    "8.6.17",
+    "8.6.18"
+  ],
+  "targetCount": 28,
+  "entries": [
+    {
+      "id": "PhysicalMaterialIdentity",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/PhysicalMaterialIdentity/v1",
+      "relativePath": "types/PhysicalMaterialIdentity/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d5012e641dd30e1ec8ac0f716eb9b3669b1f3d06156c239b557a3d63d307d626"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "PhysicalMaterialReadHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/PhysicalMaterialReadHandle/v1",
+      "relativePath": "types/PhysicalMaterialReadHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "e8674cfe9a19d8ebda31bbaafba89ae73a339e2d75f5240a976bfd1ed5172dc7"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "WorkspaceMaterialHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/WorkspaceMaterialHandle/v1",
+      "relativePath": "types/WorkspaceMaterialHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "77c01514cb795c9931aefa10ba7b57b238a6a1113c617471f0687ea99c14182f"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ArtifactHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/ArtifactHandle/v1",
+      "relativePath": "types/ArtifactHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "af7902fc76ac9307631b18df8b8143ca97e0d96d50677829e8c4d725baf2030a"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "FieldAccessHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/FieldAccessHandle/v1",
+      "relativePath": "types/FieldAccessHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "7ef84a65058ee5c4c069edea888fdb772b5029929296c69eb671ba885cc5a8f6"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "IntegrationHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/IntegrationHandle/v1",
+      "relativePath": "types/IntegrationHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "50d7cea4b9e6e121d9e785b83c2fc47cc3d58b0e91f0dc72be7168e931b8f716"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "WorkerHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/WorkerHandle/v1",
+      "relativePath": "types/WorkerHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "e655b0d0ff0c1e1c06b1c90d12f771fa7bfc0e68be2db677b0853a0ab21b0410"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "CanonicalQueryHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/CanonicalQueryHandle/v1",
+      "relativePath": "types/CanonicalQueryHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "e843a92263d7591dad86a2c8c76d80c65c909e17d7b3ac1d501e691b8bb7e04d"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "DomainFactCommitHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "relativePath": "types/DomainFactCommitHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "47ecfbba9adf4e3267d86e516a2f83112cbb5a1a5443b3c70f965dfa47296435"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ResponsibilityControlCommitHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
+      "relativePath": "types/ResponsibilityControlCommitHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "315662b2aa79800ec7c82c807e42468c2c11b574499a08a65f5e4be7428aface"
+      },
+      "ssotRefs": [
+        "8.6.18",
+        "4.3",
+        "7.5.1"
+      ]
+    },
+    {
+      "id": "ApprovalHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/ApprovalHandle/v1",
+      "relativePath": "types/ApprovalHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "5114dabf3f2b994b07abd4b8fa784d7c00d625a8bc791b8925cde04492a63836"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "AuthorizationHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/AuthorizationHandle/v1",
+      "relativePath": "types/AuthorizationHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d98bb43950dfbaed7210e5d73ea530414ca6d2738f98f8b19e88ed39a7be72e8"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ExternalJobReceipt",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/ExternalJobReceipt/v1",
+      "relativePath": "types/ExternalJobReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "7c195a04b1dd45d63defadbe294fb46b419f1c2590a990ecf5ee12ad53a0060c"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "EffectReceipt",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/EffectReceipt/v1",
+      "relativePath": "types/EffectReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "fc000938674f841c5df6de49a5da3f27f9c166cfdbbe0eaa5976d4f6a9a62978"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "TargetCommitSlotHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/TargetCommitSlotHandle/v1",
+      "relativePath": "types/TargetCommitSlotHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "796ebce1fd457a7481da3987f6237d8c4cb915036faf6eb0f26b3eb0a2a61ba2"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ExternalMaterialHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/ExternalMaterialHandle/v1",
+      "relativePath": "types/ExternalMaterialHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "5587bb35a23d7f0090d24b58c5cdfe1946fdef16a1c45c15dae14bac1bae2812"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "WorkerAssetReceipt",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/WorkerAssetReceipt/v1",
+      "relativePath": "types/WorkerAssetReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "02008e29e1287d90de81db51151d5b8ed5e08c211e054a4ee78a1de6a7c78d0e"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "WorkerUploadReceipt",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/WorkerUploadReceipt/v1",
+      "relativePath": "types/WorkerUploadReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "2e0b54f5b53c597b22748893415458f59b9b783e5c5e9299c398f9976c3955fa"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "FaceEmbeddingSetHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/FaceEmbeddingSetHandle/v1",
+      "relativePath": "types/FaceEmbeddingSetHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "3d5e0edafbbce588fb3bb1f63d9c687564b1904a248b1056f984c66f73db1b56"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "FaceClusterSetHandle",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/FaceClusterSetHandle/v1",
+      "relativePath": "types/FaceClusterSetHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c6327752019354aee4e25c120a24be6a07d97203c04f0dd43d2e13a96cc152ad"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "EvidenceEnvelope",
+      "version": 1,
+      "role": "common-envelope",
+      "schemaId": "helix://contracts/types/EvidenceEnvelope/v1",
+      "relativePath": "types/EvidenceEnvelope/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "64c383c8e6a2d0e3fe683951af869867e8261350d54146520ba040c840a50115"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "VerificationEnvelope",
+      "version": 1,
+      "role": "common-envelope",
+      "schemaId": "helix://contracts/types/VerificationEnvelope/v1",
+      "relativePath": "types/VerificationEnvelope/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "56c1b95db87e047e9ea86511a68fa060463dea0185734da3328fbd91ea540bf3"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "DomainFactEnvelope",
+      "version": 1,
+      "role": "common-envelope",
+      "schemaId": "helix://contracts/types/DomainFactEnvelope/v1",
+      "relativePath": "types/DomainFactEnvelope/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "190741bfb289f8baf0284aa57fe98dce39867cdaa321dd1ab1d5b94d2cf4722b"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ReceiptEnvelope",
+      "version": 1,
+      "role": "common-envelope",
+      "schemaId": "helix://contracts/types/ReceiptEnvelope/v1",
+      "relativePath": "types/ReceiptEnvelope/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "24bea2476ab31ad0f55ec434b4352a2fbc900c8b9b99fa1570c8ee408335e24f"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ManifestEnvelope",
+      "version": 1,
+      "role": "common-envelope",
+      "schemaId": "helix://contracts/types/ManifestEnvelope/v1",
+      "relativePath": "types/ManifestEnvelope/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "5a1d6eb28cde82e0ea91384e1a6bb803ab668c570a964c2b324ea3d3b1e71409"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "DraftEnvelope",
+      "version": 1,
+      "role": "common-envelope",
+      "schemaId": "helix://contracts/types/DraftEnvelope/v1",
+      "relativePath": "types/DraftEnvelope/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "74436999b71ccaaf0ce491bfef3b4d4e81cc4d2248b411a4fead6c828fd089dd"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "CapabilityExecutionContext",
+      "version": 1,
+      "role": "execution-context",
+      "schemaId": "helix://contracts/types/CapabilityExecutionContext/v1",
+      "relativePath": "types/CapabilityExecutionContext/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "e2037606ea6b73349baaddbdadf06bb07b8478177de744c774a99274474ac5f2"
+      },
+      "ssotRefs": [
+        "8.6.17"
+      ]
+    },
+    {
+      "id": "CapabilityOutcome",
+      "version": 1,
+      "role": "outcome-envelope",
+      "schemaId": "helix://contracts/types/CapabilityOutcome/v1",
+      "relativePath": "types/CapabilityOutcome/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c67ba4a0053c5202cec6c36e83961504745547ba09965c87e3532e43f959c155"
+      },
+      "ssotRefs": [
+        "8.6.17"
+      ]
+    }
+  ]
+}

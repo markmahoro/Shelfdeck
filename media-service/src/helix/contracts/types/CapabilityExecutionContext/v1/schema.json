@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/CapabilityExecutionContext/v1",
+  "title": "CapabilityExecutionContext@1",
+  "x-helix-ssotRefs": [
+    "8.6.17"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "executionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "workId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "workAttemptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "planId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "eventId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "eventAttemptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "capabilityRef": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_.-]+@1$"
+    },
+    "contractVersion": {
+      "const": 1
+    },
+    "executorVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "ownerScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "minLength": 1
+        },
+        "processType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "processId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "objectRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "objectType": {
+                "type": "string",
+                "minLength": 1
+              },
+              "objectId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "digest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "objectType",
+              "objectId",
+              "revision",
+              "digest"
+            ]
+          },
+          "maxItems": 1024
+        }
+      },
+      "required": [
+        "domain",
+        "processType",
+        "processId",
+        "objectRefs"
+      ]
+    },
+    "basisRefs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "basisType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "basisId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "digest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "basisType",
+          "basisId",
+          "revision",
+          "digest"
+        ]
+      },
+      "maxItems": 1024
+    },
+    "namedInputs": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,127}$"
+      },
+      "patternProperties": {
+        "^[A-Za-z][A-Za-z0-9_.-]{0,127}$": {
+          "x-helix-requires-bound-schema": true
+        }
+      },
+      "additionalProperties": false,
+      "description": "Values are validated by the bound Capability input schemas."
+    },
+    "parameters": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,127}$"
+      },
+      "patternProperties": {
+        "^[A-Za-z][A-Za-z0-9_.-]{0,127}$": {
+          "x-helix-requires-bound-schema": true
+        }
+      },
+      "additionalProperties": false,
+      "description": "Values are validated by the bound Capability parameters schema."
+    },
+    "fenceSnapshot": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,127}$"
+      },
+      "patternProperties": {
+        "^[A-Za-z][A-Za-z0-9_.-]{0,127}$": {
+          "x-helix-requires-bound-schema": true
+        }
+      },
+      "additionalProperties": false,
+      "description": "Fence slices are validated by the bound Capability fence schema."
+    },
+    "resourceLease": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "leaseId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resourceKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 1024
+        },
+        "issuedAtMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "leaseId",
+        "resourceKeys",
+        "issuedAtMs"
+      ]
+    },
+    "approvalHandle": {
+      "$ref": "helix://contracts/types/ApprovalHandle/v1"
+    },
+    "authorizationHandle": {
+      "$ref": "helix://contracts/types/AuthorizationHandle/v1"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "deadlineAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "traceContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "traceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "spanId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sampled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "traceId",
+        "spanId"
+      ]
+    }
+  },
+  "required": [
+    "executionId",
+    "workId",
+    "workAttemptId",
+    "planId",
+    "eventId",
+    "eventAttemptId",
+    "capabilityRef",
+    "contractVersion",
+    "executorVersion",
+    "ownerScope",
+    "basisRefs",
+    "namedInputs",
+    "parameters",
+    "fenceSnapshot",
+    "resourceLease",
+    "idempotencyKey",
+    "traceContext"
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/IntegrationHandle/v1",
+  "title": "IntegrationHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/IntegrationHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "handleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "integrationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "integrationType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "configRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "secretRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "allowedOperation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expiresAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "fenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "handleId",
+    "integrationId",
+    "integrationType",
+    "configRevision",
+    "secretRef",
+    "allowedOperation",
+    "expiresAtMs",
+    "fenceDigest"
+  ]
+}

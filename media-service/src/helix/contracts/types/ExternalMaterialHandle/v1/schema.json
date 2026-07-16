@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ExternalMaterialHandle/v1",
+  "title": "ExternalMaterialHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ExternalMaterialHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "handleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "integrationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "externalObjectRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "endpointId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "location": {
+      "type": "string",
+      "minLength": 1
+    },
+    "structureKind": {
+      "type": "string",
+      "enum": [
+        "single",
+        "season"
+      ]
+    },
+    "manifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observationRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "accessFenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "handleId",
+    "integrationId",
+    "externalObjectRef",
+    "endpointId",
+    "location",
+    "structureKind",
+    "manifestDigest",
+    "observationRevision",
+    "accessFenceDigest"
+  ]
+}

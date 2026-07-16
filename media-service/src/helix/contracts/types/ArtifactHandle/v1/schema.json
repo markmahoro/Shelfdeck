@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ArtifactHandle/v1",
+  "title": "ArtifactHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ArtifactHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "artifactHandleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "artifactKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scopeType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "scopeType",
+        "scopeId"
+      ]
+    },
+    "storageRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "digestAlgorithm": {
+      "const": "sha256"
+    },
+    "digestHex": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sizeBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "mediaType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provenanceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "objectType",
+        "objectId",
+        "revision",
+        "digest"
+      ]
+    },
+    "referenceRevision": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "artifactHandleId",
+    "artifactKind",
+    "ownerDomain",
+    "ownerScope",
+    "storageRef",
+    "digestAlgorithm",
+    "digestHex",
+    "sizeBytes",
+    "mediaType",
+    "provenanceRef",
+    "referenceRevision"
+  ]
+}

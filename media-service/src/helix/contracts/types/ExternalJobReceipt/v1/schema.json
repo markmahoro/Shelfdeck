@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ExternalJobReceipt/v1",
+  "title": "ExternalJobReceipt@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ExternalJobReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "integrationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "externalJobId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "operationKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "requestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "configRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "createdAtMs": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "receiptId",
+    "integrationId",
+    "externalJobId",
+    "operationKind",
+    "idempotencyKey",
+    "requestDigest",
+    "configRevision",
+    "createdAtMs"
+  ]
+}

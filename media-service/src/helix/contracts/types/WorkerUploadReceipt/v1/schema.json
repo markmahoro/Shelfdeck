@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/WorkerUploadReceipt/v1",
+  "title": "WorkerUploadReceipt@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/WorkerUploadReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "workerAssetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "workerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "uploadReceipt": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "uploadedDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sizeBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "completedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "workerAssetId",
+    "workerId",
+    "uploadReceipt",
+    "uploadedDigest",
+    "sizeBytes",
+    "completedAtMs"
+  ]
+}

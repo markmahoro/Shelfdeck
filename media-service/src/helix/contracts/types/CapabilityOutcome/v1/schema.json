@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/CapabilityOutcome/v1",
+  "title": "CapabilityOutcome@1",
+  "x-helix-ssotRefs": [
+    "8.6.17"
+  ],
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "succeeded"
+        },
+        "resultSchemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result": {
+          "x-helix-requires-bound-schema": true
+        },
+        "evidenceSchemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "x-helix-requires-bound-schema": true
+        },
+        "effectReceipt": {
+          "$ref": "helix://contracts/types/EffectReceipt/v1"
+        }
+      },
+      "required": [
+        "kind",
+        "resultSchemaRef",
+        "result",
+        "evidenceSchemaRef",
+        "evidence"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "deferred"
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "retryAfterMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "evidence": {
+          "x-helix-requires-bound-schema": true
+        },
+        "externalReceipt": {
+          "$ref": "helix://contracts/types/ExternalJobReceipt/v1"
+        }
+      },
+      "required": [
+        "kind",
+        "reasonCode",
+        "retryAfterMs",
+        "evidence"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "failed"
+        },
+        "failureClass": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "retryDirective": {
+          "type": "string",
+          "enum": [
+            "never",
+            "contract_policy"
+          ]
+        },
+        "evidence": {
+          "x-helix-requires-bound-schema": true
+        }
+      },
+      "required": [
+        "kind",
+        "failureClass",
+        "code",
+        "message",
+        "retryDirective",
+        "evidence"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "fence_rejected"
+        },
+        "fenceSlice": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,127}$"
+          },
+          "patternProperties": {
+            "^[A-Za-z][A-Za-z0-9_.-]{0,127}$": {
+              "x-helix-requires-bound-schema": true
+            }
+          },
+          "additionalProperties": false,
+          "description": "Rejected fence slice."
+        },
+        "expectedDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "actualDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidence": {
+          "x-helix-requires-bound-schema": true
+        }
+      },
+      "required": [
+        "kind",
+        "fenceSlice",
+        "expectedDigest",
+        "actualDigest",
+        "evidence"
+      ]
+    }
+  ]
+}

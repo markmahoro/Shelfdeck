@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/FaceClusterSetHandle/v1",
+  "title": "FaceClusterSetHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/FaceClusterSetHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "artifactHandleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "modelRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceEmbeddingDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "clusterCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "digestHex": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "artifactHandleId",
+    "modelRef",
+    "sourceEmbeddingDigest",
+    "clusterCount",
+    "digestHex"
+  ]
+}

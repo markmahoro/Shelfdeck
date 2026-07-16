@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/EvidenceEnvelope/v1",
+  "title": "EvidenceEnvelope@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evidenceKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producerRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "payloadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "evidenceId",
+    "evidenceKind",
+    "producerRef",
+    "basisDigest",
+    "payloadDigest",
+    "observedAtMs"
+  ]
+}

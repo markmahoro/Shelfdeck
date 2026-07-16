@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ManifestEnvelope/v1",
+  "title": "ManifestEnvelope@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "manifestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "manifestKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "membersDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "publishedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "manifestId",
+    "manifestKind",
+    "schemaVersion",
+    "ownerDomain",
+    "memberCount",
+    "membersDigest",
+    "manifestDigest",
+    "publishedAtMs"
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/AuthorizationHandle/v1",
+  "title": "AuthorizationHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/AuthorizationHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "authorizationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "authorizationKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "immutableScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "authorizationRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "batchId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "invalidatingFactDigests": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "maxItems": 1024
+    },
+    "authorizedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "authorizationId",
+    "authorizationKind",
+    "ownerDomain",
+    "immutableScopeDigest",
+    "authorizationRevision",
+    "actorId",
+    "invalidatingFactDigests",
+    "authorizedAtMs"
+  ]
+}

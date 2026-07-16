@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/DomainFactCommitHandle/v1",
+  "title": "DomainFactCommitHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/DomainFactCommitHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "handleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aggregateType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aggregateId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "factType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "factSchemaRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expectedRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "payloadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "commitIdempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "eventFenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "handleId",
+    "ownerDomain",
+    "aggregateType",
+    "aggregateId",
+    "factType",
+    "factSchemaRef",
+    "expectedRevision",
+    "payloadDigest",
+    "commitIdempotencyKey",
+    "eventFenceDigest"
+  ]
+}

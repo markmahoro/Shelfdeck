@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/TargetCommitSlotHandle/v1",
+  "title": "TargetCommitSlotHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/TargetCommitSlotHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "slotId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "onDeckRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "targetEndpointId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "targetDirectory": {
+      "type": "string",
+      "minLength": 1
+    },
+    "slotDirectory": {
+      "type": "string",
+      "minLength": 1
+    },
+    "finalInventoryDecisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "transactionRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "containmentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "slotId",
+    "onDeckRunId",
+    "targetEndpointId",
+    "targetDirectory",
+    "slotDirectory",
+    "finalInventoryDecisionDigest",
+    "transactionRevision",
+    "containmentDigest"
+  ]
+}

@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
+  "title": "ResponsibilityControlCommitHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18",
+    "4.3",
+    "7.5.1"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ResponsibilityControlCommitHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "handleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "operationKind": {
+      "type": "string",
+      "enum": [
+        "acquire",
+        "transfer",
+        "release",
+        "replace_control_set"
+      ]
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "processType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "processId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "basisRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "objectType",
+        "objectId",
+        "revision",
+        "digest"
+      ]
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "canonicalFactSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "bindingSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "controlScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expectedControlRevisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "materialKey",
+          "revision"
+        ]
+      },
+      "maxItems": 1024
+    },
+    "receiptContract": {
+      "type": "string",
+      "minLength": 1
+    },
+    "eventFenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "receivingDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "transferPoint": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "handleId",
+    "operationKind",
+    "ownerDomain",
+    "processType",
+    "processId",
+    "basisRef",
+    "basisDigest",
+    "canonicalFactSetDigest",
+    "bindingSetDigest",
+    "controlScopeDigest",
+    "expectedControlRevisions",
+    "receiptContract",
+    "eventFenceDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operationKind": {
+            "const": "transfer"
+          }
+        },
+        "required": [
+          "operationKind"
+        ]
+      },
+      "then": {
+        "required": [
+          "receivingDomain",
+          "transferPoint"
+        ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "receivingDomain"
+              ]
+            },
+            {
+              "required": [
+                "transferPoint"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/WorkspaceMaterialHandle/v1",
+  "title": "WorkspaceMaterialHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "handleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "processId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "digestAlgorithm": {
+      "const": "sha256"
+    },
+    "digestHex": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sizeBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "referenceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "accessScope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "handleId",
+    "workspaceId",
+    "ownerDomain",
+    "processId",
+    "relativePath",
+    "digestAlgorithm",
+    "digestHex",
+    "sizeBytes",
+    "referenceRevision",
+    "accessScope",
+    "fenceDigest"
+  ]
+}

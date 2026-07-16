@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/FaceEmbeddingSetHandle/v1",
+  "title": "FaceEmbeddingSetHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/FaceEmbeddingSetHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "artifactHandleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "modelRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceFrameSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "vectorCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "dimension": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "digestHex": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "artifactHandleId",
+    "modelRef",
+    "sourceFrameSetDigest",
+    "vectorCount",
+    "dimension",
+    "digestHex"
+  ]
+}

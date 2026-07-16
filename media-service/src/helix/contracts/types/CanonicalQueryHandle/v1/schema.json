@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/CanonicalQueryHandle/v1",
+  "title": "CanonicalQueryHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/CanonicalQueryHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "handleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "providerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "consumerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "queryContract": {
+      "type": "string",
+      "minLength": 1
+    },
+    "queryVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "inputDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "correlationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expiresAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "fenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "handleId",
+    "providerDomain",
+    "consumerDomain",
+    "queryContract",
+    "queryVersion",
+    "inputDigest",
+    "correlationId",
+    "expiresAtMs",
+    "fenceDigest"
+  ]
+}

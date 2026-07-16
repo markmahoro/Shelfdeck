@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/PhysicalMaterialReadHandle/v1",
+  "title": "PhysicalMaterialReadHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "handleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "identity": {
+      "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scopeType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "scopeType",
+        "scopeId"
+      ]
+    },
+    "bindingRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "endpointId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "location": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mountScopeRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedSizeBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expectedMtimeNs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expectedCtimeNs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "hashVerifiedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "readScope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expiresAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "fenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "handleId",
+    "identity",
+    "ownerDomain",
+    "ownerScope",
+    "bindingRevision",
+    "endpointId",
+    "location",
+    "mountScopeRevision",
+    "expectedSizeBytes",
+    "expectedMtimeNs",
+    "expectedCtimeNs",
+    "hashVerifiedAtMs",
+    "readScope",
+    "expiresAtMs",
+    "fenceDigest"
+  ]
+}
