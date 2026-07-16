@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0 complete; P1 Local Implementation Gate open; P1-00 complete; P1-01 next; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0 complete; P1 Local Implementation Gate open; P1-00/P1-01 complete; P1-02 next; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-16
 
@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phase | P0 — implementation gap audit and disposition |
 | Current phase | P1 — Clean Skeleton and Architecture Guards |
-| Current phase status | in progress；P1-00 complete |
+| Current phase status | in progress；P1-00/P1-01 complete |
 | Implementation Gate | open for `Local implementation only / P1` |
 | Current allowed work | P1本地代码、unit/contract/isolated architecture fixture、文档同步 |
 | Integration baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p1` on `codex/helix-p1` |
-| Next action | P1-01 Clean physical package skeleton |
+| Next action | P1-02 Domain public/internal boundary contract |
 
 ## 2. Accepted implementation conclusion
 
@@ -60,8 +60,8 @@ P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引
 | Work Package | Status |
 | --- | --- |
 | P1-00 Isolated workspace and baseline receipt | complete |
-| P1-01 Clean physical package skeleton | next |
-| P1-02 Domain public/internal boundary | pending |
+| P1-01 Clean physical package skeleton | complete；42 unique package markers |
+| P1-02 Domain public/internal boundary | next |
 | P1-03 Unique Composition Root shell | pending |
 | P1-04 Import/dependency guard | pending |
 | P1-05 Forbidden legacy semantics guard | pending |
@@ -104,5 +104,6 @@ P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引
 
 ## 8. Next checkpoint
 
-P1-00已完成。下一检查点是P1-01物理骨架完成并由目录manifest与无startup side effect检查证明。P1授权不包含
-E2E、Docker、生产、真实媒体副作用或`media-desktop`修改。
+P1-01已完成：`media-service/src/helix/`包含42个可解析、ID唯一、字段完整的`package.boundary.json`，覆盖固定
+root、Composition、五Domain六类子包、六个Foundation包、Integration、Projection、Contract和Manifest目录。
+下一检查点是P1-02 public/internal边界。P1授权不包含E2E、Docker、生产、真实媒体副作用或`media-desktop`修改。
