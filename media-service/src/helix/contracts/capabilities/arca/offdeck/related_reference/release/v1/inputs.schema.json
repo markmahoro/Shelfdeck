@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.related_reference.release/v1/inputs",
+  "title": "arca.offdeck.related_reference.release@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "relatedReference": {
+      "$ref": "#/$defs/relatedReference"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "relatedReference",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "relatedReference": {
+      "$ref": "helix://contracts/domain-types/RelatedReference/v1",
+      "x-helix-typeExpression": "Related reference"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

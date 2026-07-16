@@ -56,6 +56,28 @@ function git(repositoryRoot, args) {
   return run.stdout.trim();
 }
 
+function discoverFiles(rootPath) {
+  const files = [];
+  const pending = [rootPath];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const absolute = path.join(current, entry.name);
+      if (entry.isDirectory()) pending.push(absolute);
+      else if (entry.isFile()) files.push(absolute);
+    }
+  }
+  return files.sort();
+}
+
+function findUntrackedContractFiles(repositoryRoot, trackedPaths) {
+  const root = path.join(repositoryRoot, 'media-service', 'src', 'helix', 'contracts');
+  const tracked = new Set(trackedPaths.map(normalize));
+  return discoverFiles(root)
+    .map((absolute) => normalize(path.relative(repositoryRoot, absolute)))
+    .filter((relative) => !tracked.has(relative));
+}
+
 function auditP2Exit(options) {
   const repositoryRoot = path.resolve(options.repositoryRoot);
   const contractsRoot = path.join(repositoryRoot, 'media-service', 'src', 'helix', 'contracts');
@@ -83,6 +105,10 @@ function auditP2Exit(options) {
   const nonJsonCapabilityFile = capabilityFiles.find((file) => !file.endsWith('.json'));
   if (nonJsonCapabilityFile) findings.push({ code: 'P2_EXECUTOR_OR_RUNTIME_FILE_PRESENT', file: nonJsonCapabilityFile });
 
+  const trackedContractPaths = git(repositoryRoot, ['ls-files', '--', 'media-service/src/helix/contracts']).split(/\r?\n/).filter(Boolean);
+  const untrackedContractFiles = findUntrackedContractFiles(repositoryRoot, trackedContractPaths);
+  for (const file of untrackedContractFiles) findings.push({ code: 'P2_UNTRACKED_CONTRACT_ARTIFACT', file });
+
   const worktreeStatus = git(repositoryRoot, ['status', '--porcelain']);
   if (options.requireClean && worktreeStatus) findings.push({ code: 'P2_AUDIT_WORKTREE_NOT_CLEAN', status: worktreeStatus.split(/\r?\n/) });
 
@@ -91,6 +117,7 @@ function auditP2Exit(options) {
     auditedCommit: git(repositoryRoot, ['rev-parse', 'HEAD']),
     changedFileCount: changedFiles.length,
     changedPathClasses: classes,
+    trackedContractFileCount: trackedContractPaths.length,
     contractCounts: baseline.counts,
     contractAggregateDigest: baseline.aggregateDigest,
     prohibitedActionsRun: []
@@ -104,4 +131,4 @@ function auditP2Exit(options) {
   };
 }
 
-module.exports = Object.freeze({ P1_BASELINE, auditP2Exit, classifyChangedPath, prohibitedContentFindings });
+module.exports = Object.freeze({ P1_BASELINE, auditP2Exit, classifyChangedPath, findUntrackedContractFiles, prohibitedContentFindings });

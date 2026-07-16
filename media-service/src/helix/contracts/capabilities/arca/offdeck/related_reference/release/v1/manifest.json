@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.offdeck.related_reference.release@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "domain_fact_commit",
+  "inputPorts": {
+    "relatedReference": {
+      "schemaRef": "helix://contracts/capabilities/arca.offdeck.related_reference.release/v1/inputs#/$defs/relatedReference",
+      "required": true,
+      "cardinality": "one"
+    },
+    "domainFactCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/arca.offdeck.related_reference.release/v1/inputs#/$defs/domainFactCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.offdeck.related_reference.release/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.offdeck.related_reference.release/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.offdeck.related_reference.release/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.offdeck.related_reference.release/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.offdeck.related_reference.release/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.offdeck.related_reference.release/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.offdeck.related_reference.release/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.12",
+    "line": 7758,
+    "lineDigest": "40a6ec979c4677dec5e91765de272e25ad86d1543d417eaefa1c9c13365d6bc6"
+  }
+}
