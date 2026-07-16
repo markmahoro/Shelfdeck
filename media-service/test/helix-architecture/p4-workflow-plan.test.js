@@ -1,0 +1,182 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+const Database = require('better-sqlite3');
+const { createRepositoryDefinition } = require('../../src/helix/foundation/persistence/owner-repository');
+const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
+const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const { createWorkflowPlanPublisher, validateWorkflowPlan } = require('../../src/helix/foundation/execution/workflow-plan');
+
+const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
+const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
+const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
+
+const manifests = Object.freeze({
+  'libra.fixture.observe@1': Object.freeze({
+    capabilityRef: 'libra.fixture.observe@1', contractVersion: 1, ownerScope: 'libra', effectClass: 'pure_observation',
+    parametersSchemaRef: 'helix://fixture/observe/parameters', resultSchemaRef: 'helix://fixture/observe/result',
+    evidenceSchemaRef: 'helix://fixture/observe/evidence', fenceSchemaRef: 'helix://fixture/observe/fence',
+    resourceDemandSchemaRef: 'helix://fixture/observe/resource-demand', executorCompatibility: { minimumVersion: 1 }
+  }),
+  'libra.fixture.commit@1': Object.freeze({
+    capabilityRef: 'libra.fixture.commit@1', contractVersion: 1, ownerScope: 'libra', effectClass: 'domain_fact_commit',
+    parametersSchemaRef: 'helix://fixture/commit/parameters', resultSchemaRef: 'helix://fixture/commit/result',
+    evidenceSchemaRef: 'helix://fixture/commit/evidence', fenceSchemaRef: 'helix://fixture/commit/fence',
+    resourceDemandSchemaRef: 'helix://fixture/commit/resource-demand', approvalRequirementRef: 'helix://fixture/approval',
+    executorCompatibility: { minimumVersion: 1 }
+  })
+});
+
+const registry = Object.freeze({
+  resolve(capabilityRef, ownerDomain) {
+    const manifest = manifests[capabilityRef];
+    if (!manifest) throw Object.assign(new Error('missing capability'), { code: 'P4_CAPABILITY_NOT_REGISTERED' });
+    if (manifest.ownerScope !== ownerDomain) throw Object.assign(new Error('owner mismatch'), { code: 'P4_CAPABILITY_NOT_VISIBLE' });
+    return { manifest };
+  }
+});
+const contractValidator = Object.freeze({ validate(ref, value) {
+  if (ref.includes('/inputs') && (!value || typeof value.inputId !== 'string')) throw Object.assign(new Error('input rejected'), { code: 'TEST_SCHEMA_REJECTED' });
+  return value;
+} });
+
+function node(kind, overrides = {}) {
+  const manifest = kind === 'commit' ? manifests['libra.fixture.commit@1'] : manifests['libra.fixture.observe@1'];
+  return {
+    nodeId: 'node-' + kind, eventId: 'event-' + kind, capabilityRef: manifest.capabilityRef, contractVersion: 1,
+    inputBindingsSchemaRef: manifest.parametersSchemaRef.replace('/parameters', '/inputs'), inputBindings: { inputId: kind },
+    parametersSchemaRef: manifest.parametersSchemaRef, parameters: {}, dependsOn: [], whenSchemaRef: null, when: null,
+    effectClass: manifest.effectClass, resourceDemandSchemaRef: manifest.resourceDemandSchemaRef, resourceDemand: {},
+    approvalRequirementRef: manifest.approvalRequirementRef || null, authorizationRequirementRef: null,
+    fenceSchemaRef: manifest.fenceSchemaRef, fenceBasis: {},
+    retryPolicyRef: 'helix://foundation/retry-policies/' + manifest.effectClass + '/v1',
+    timeoutPolicyRef: 'helix://foundation/timeout-policies/fixture/v1', outputContractRef: manifest.resultSchemaRef,
+    ...overrides
+  };
+}
+
+function plan(overrides = {}) {
+  const observe = node('observe');
+  const commit = node('commit', { dependsOn: [{ eventId: observe.eventId, satisfaction: 'success' }] });
+  return {
+    schemaRef: 'helix://foundation/types/WorkflowPlanDefinition/v1', schemaVersion: 1, planId: 'plan-1',
+    workAttemptId: 'attempt-1', ownerDomain: 'libra', plannerContractRef: 'helix://libra/planners/Fixture/v1', plannerVersion: 1,
+    workObjectiveTypeRef: 'helix://libra/work/Fixture/v1', workObjectiveVersion: 1, executionBasisDigest: 'a'.repeat(64),
+    capabilityCatalogDigest: 'b'.repeat(64), resolution: 'planned', diagnosticClassification: null, nodes: [observe, commit], ...overrides
+  };
+}
+
+test('validator freezes a deterministic acyclic Plan with exact Capability contracts', () => {
+  const first = validateWorkflowPlan(plan(), { registry, contractValidator });
+  const second = validateWorkflowPlan(plan({ nodes: plan().nodes.map((entry) => ({ ...entry })) }), { registry, contractValidator });
+  assert.equal(first.graphDigest, second.graphDigest);
+  assert.match(first.graphDigest, /^[0-9a-f]{64}$/);
+  assert.equal(Object.isFrozen(first.plan.nodes), true);
+});
+
+test('validator rejects cycle, missing/duplicate dependency, duplicate identity, and contract drift', () => {
+  const base = plan();
+  const cyclic = base.nodes.map((entry) => ({ ...entry, dependsOn: entry.nodeId === 'node-observe'
+    ? [{ eventId: 'event-commit', satisfaction: 'success' }] : entry.dependsOn }));
+  assert.throws(() => validateWorkflowPlan(plan({ nodes: cyclic }), { registry, contractValidator }), (error) => error.code === 'P4_PLAN_DAG_CYCLE');
+  assert.throws(() => validateWorkflowPlan(plan({ nodes: [node('observe', { dependsOn: [{ eventId: 'missing', satisfaction: 'success' }] })] }),
+    { registry, contractValidator }), (error) => error.code === 'P4_PLAN_DEPENDENCY_INVALID');
+  assert.throws(() => validateWorkflowPlan(plan({ nodes: [node('observe'), node('commit', { eventId: 'event-observe' })] }),
+    { registry, contractValidator }), (error) => error.code === 'P4_PLAN_DUPLICATE_NODE_OR_EVENT');
+  assert.throws(() => validateWorkflowPlan(plan({ nodes: [node('observe', { effectClass: 'workspace_write' })] }),
+    { registry, contractValidator }), (error) => error.code === 'P4_PLAN_CAPABILITY_CONTRACT_MISMATCH');
+  assert.throws(() => validateWorkflowPlan(plan({ nodes: [node('observe', { inputBindings: {} })] }),
+    { registry, contractValidator }), (error) => error.code === 'TEST_SCHEMA_REJECTED');
+});
+
+test('non-planned Resolutions contain zero nodes and planned contains a non-empty DAG', () => {
+  for (const resolution of ['no_effect_required', 'temporarily_unplannable', 'contract_unplannable']) {
+    const validated = validateWorkflowPlan(plan({ resolution, diagnosticClassification: 'fixture.' + resolution, nodes: [] }), { registry, contractValidator });
+    assert.equal(validated.plan.nodes.length, 0);
+  }
+  assert.throws(() => validateWorkflowPlan(plan({ nodes: [] }), { registry, contractValidator }),
+    (error) => error.code === 'P4_RUNTIME_PLAN_RESOLUTION_NODE_MISMATCH');
+});
+
+function fixture(run) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-workflow-plan-'));
+  const databasePath = path.join(root, 'shelfdeck.db');
+  let clock = 1700000001200;
+  const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => clock++ });
+  const unitOfWork = createSqliteUnitOfWork({ kernel });
+  const seed = createRepositoryDefinition({
+    repositoryId: 'plan_seed', owner: 'execution-foundation', schemaManifest,
+    statements: {
+      work: { kind: 'insert', tableId: 'fx_supporting_works', columns: [
+        'work_id', 'owner_domain', 'priority_class', 'state', 'idempotency_key', 'basis_digest'
+      ] },
+      attempt: { kind: 'insert', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'ordinal', 'basis_digest', 'state'] }
+    }
+  });
+  unitOfWork.execute([{
+    participantId: 'plan_seed', owner: 'execution-foundation', repositories: [seed], execute(context) {
+      const repository = context.repository('plan_seed');
+      repository.invoke('work', {
+        work_id: 'work-1', owner_domain: 'libra', priority_class: 'normal_foreground', state: 'admitted',
+        idempotency_key: 'work-key-1', basis_digest: 'a'.repeat(64)
+      });
+      repository.invoke('attempt', { attempt_id: 'attempt-1', work_id: 'work-1', ordinal: 1, basis_digest: 'a'.repeat(64), state: 'ready' });
+    }
+  }]);
+  const publisher = createWorkflowPlanPublisher({ schemaManifest, unitOfWork, registry, contractValidator });
+  try { return run({ publisher, databasePath }); }
+  finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
+}
+
+function rows(databasePath, table) {
+  const database = new Database(databasePath, { readonly: true });
+  try { return database.prepare('SELECT * FROM ' + table + ' ORDER BY rowid').all(); }
+  finally { database.close(); }
+}
+
+test('publisher atomically normalizes Plan, Nodes, Edges and initial Events with stable replay', () => {
+  fixture(({ publisher, databasePath }) => {
+    const first = publisher.publish(plan());
+    assert.equal(first.replayed, false);
+    assert.equal(publisher.publish(plan()).replayed, true);
+    assert.equal(rows(databasePath, 'fx_workflow_plans').length, 1);
+    assert.equal(rows(databasePath, 'fx_plan_nodes').length, 2);
+    assert.equal(rows(databasePath, 'fx_plan_edges').length, 1);
+    const events = rows(databasePath, 'fx_workflow_events');
+    assert.deepEqual(events.map((entry) => [entry.event_id, entry.state]), [['event-observe', 'ready'], ['event-commit', 'pending']]);
+    assert.equal(events[0].ready_at_ms !== null, true);
+    assert.equal(events[1].ready_at_ms, null);
+  });
+});
+
+test('different Plan for one Attempt conflicts and a failed publish leaves zero normalized facts', () => {
+  fixture(({ publisher, databasePath }) => {
+    publisher.publish(plan());
+    assert.throws(() => publisher.publish(plan({ planId: 'plan-2' })), (error) => error.code === 'P4_PLAN_ATTEMPT_ALREADY_PLANNED');
+    assert.equal(rows(databasePath, 'fx_workflow_plans').length, 1);
+  });
+  fixture(({ publisher, databasePath }) => {
+    assert.throws(() => publisher.publish(plan({ executionBasisDigest: 'c'.repeat(64) })),
+      (error) => error.code === 'P4_PLAN_ATTEMPT_FENCE_REJECTED');
+    for (const table of ['fx_workflow_plans', 'fx_plan_nodes', 'fx_plan_edges', 'fx_workflow_events']) {
+      assert.equal(rows(databasePath, table).length, 0, table);
+    }
+  });
+});
+
+test('Plan publication writes no Domain facts and source exposes no Planner execution or generic JSON graph store', () => {
+  fixture(({ publisher, databasePath }) => {
+    publisher.publish(plan());
+    for (const table of ['libra_runs', 'libra_subjects', 'arca_shelf_entries', 'proc_procurement_runs']) {
+      assert.equal(rows(databasePath, table).length, 0, table);
+    }
+  });
+  const source = fs.readFileSync(path.resolve(__dirname, '../../src/helix/foundation/execution/workflow-plan.js'), 'utf8');
+  for (const parts of [['planner', '.execute'], ['graph_', 'json'], ['flow', 'Kind'], ['action', 'Type']]) {
+    assert.equal(source.includes(parts.join('')), false, parts.join(''));
+  }
+});
