@@ -2,7 +2,7 @@
 
 Current phase: `P2 — Contract and Schema Baseline`
 
-Status: in progress；P2-00–P2-03 complete；P2-04 next；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P2-00–P2-04 complete；P2-05 next；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -78,8 +78,8 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 | P2-01 | SSOT extraction oracle and source map | complete | P2-00 |
 | P2-02 | Shared nominal type and envelope registry | complete | P2-01 |
 | P2-03 | 112 Capability immutable contract packages | complete | P2-01、P2-02 |
-| P2-04 | 96 Result family schema closure | next | P2-02、P2-03 |
-| P2-05 | 156 relational table contract inventory | pending | P2-01 |
+| P2-04 | 96 Result family schema closure | complete | P2-02、P2-03 |
+| P2-05 | 156 relational table contract inventory | next | P2-01 |
 | P2-06 | 18 canonical transaction and participant inventory | pending | P2-05 |
 | P2-07 | Cross-inventory contract verification harness | pending | P2-02–P2-06 |
 | P2-08 | P2 Phase Exit Audit and evidence freeze | pending | P2-00–P2-07 |
@@ -122,6 +122,11 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 - Every schema inherits the correct envelope and mandatory payload from §8.6.19.
 - `deferred|failed|fence_rejected` remain Outcome variants, never business Result variants.
 - Contract graph has zero unresolved `$ref` and zero undeclared output family.
+- Done: 96/96 Result inventory active；86 nominal Catalog Result schemas、9 direct shared Result types、one
+  `CapabilityOutcome` and three SSOT helper schemas are accounted for. Catalog inputs resolve through 26 bounded contracts and
+  59 accepted DTOs；191 referenced type IDs / zero unresolved refs. Result registry digest
+  `e5963ae477cd1181de935f92f09c1773279cafa4745ff10002fa82024505e004`；domain-input registry digest
+  `ac3bae51336b7ec7eda32a1f6dc19904ce6047989ba8cdd1fa4b253325deba69`.
 
 ### P2-05 156 relational table contract inventory
 

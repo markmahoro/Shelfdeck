@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards |
 | Current phase | P2 — Contract and Schema Baseline |
-| Current phase status | in progress；P2-00–P2-03 complete；P2-04 next |
+| Current phase status | in progress；P2-00–P2-04 complete；P2-05 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | `c52e67fa2b49c605d0971f2150238ea37c50816a` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p2` on `codex/helix-p2` |
-| Next action | P2-04 96 Result family schema and full `$ref` closure |
+| Next action | P2-05 156 relational table contract inventory |
 
 ## 2. Accepted implementation conclusion
 
@@ -79,8 +79,8 @@ P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 | P2-01 SSOT extraction oracle/source map | complete；112/96/156/18；17 shards；10 negative checks |
 | P2-02 Shared nominal type/envelope registry | complete；28 JSON Schema；registry digest `af6cb77b…` |
 | P2-03 112 Capability contract packages | complete；112 packages / 896 files；digest `ce353a4c…` |
-| P2-04 96 Result family closure | next；235 explicit pending refs to close from SSOT |
-| P2-05 156 table contract inventory | pending |
+| P2-04 96 Result family closure | complete；96/96 inventory；191 refs / 0 unresolved |
+| P2-05 156 table contract inventory | next |
 | P2-06 18 canonical transaction inventory | pending |
 | P2-07 Cross-inventory verification harness | pending |
 | P2-08 Phase Exit Audit | pending |
@@ -118,8 +118,10 @@ P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 
 ## 8. Next checkpoint
 
-P2-03已为112项Catalog ref建立唯一immutable v1 contract package，共896个合同文件；Capability inventory已激活，
-package aggregate digest为`ce353a4ccb712d56354412824ad7793265a176240240521f3f90a3f61b2d97ae`。Owner、Effect、named
-ports、Approval/Authorization、Fence和Resource Demand机器校验及累计architecture fixture均通过，未创建Executor。
-当前235个pending `$ref`被明确保留为P2-04输入，不能伪称闭包；下一检查点是从SSOT §8.6.19及相关合同完成96个
-Result family和domain input type闭包。没有需要用户决定的业务问题。
+P2-04已完成完整type graph闭包：96/96 Result inventory active，包含86个nominal Catalog Result、9个直接shared
+Result和`CapabilityOutcome`；另有3个SSOT helper schema。Catalog input由26个bounded contract和59个accepted DTO
+承载，不包含Store row、裸path、通用payload或Runtime authority。Result registry digest为
+`e5963ae477cd1181de935f92f09c1773279cafa4745ff10002fa82024505e004`，domain-input registry digest为
+`ac3bae51336b7ec7eda32a1f6dc19904ce6047989ba8cdd1fa4b253325deba69`；112个Capability共引用191个type ID，
+unresolved为0。Schema drift、open object、假parenthetical type、Outcome混入Result、raw path和missing ref反例均失败，
+累计architecture fixture通过。下一检查点是P2-05冻结156项relational table contract；不生成或执行DDL。没有需要用户决定的业务问题。
