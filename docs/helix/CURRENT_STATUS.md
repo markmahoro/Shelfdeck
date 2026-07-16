@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0 complete; P1 Local Implementation Gate open; P1-00–P1-03 complete; P1-04 next; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0 complete; P1 Local Implementation Gate open; P1-00–P1-04 complete; P1-05 next; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-16
 
@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phase | P0 — implementation gap audit and disposition |
 | Current phase | P1 — Clean Skeleton and Architecture Guards |
-| Current phase status | in progress；P1-00–P1-03 complete |
+| Current phase status | in progress；P1-00–P1-04 complete |
 | Implementation Gate | open for `Local implementation only / P1` |
 | Current allowed work | P1本地代码、unit/contract/isolated architecture fixture、文档同步 |
 | Integration baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p1` on `codex/helix-p1` |
-| Next action | P1-04 Import/dependency architecture guard |
+| Next action | P1-05 Forbidden legacy semantics guard |
 
 ## 2. Accepted implementation conclusion
 
@@ -63,13 +63,13 @@ P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引
 | P1-01 Clean physical package skeleton | complete；42 unique package markers |
 | P1-02 Domain public/internal boundary | complete；5 frozen public entries / 12 default-deny rules |
 | P1-03 Unique Composition Root shell | complete；fail-closed / zero import side effect |
-| P1-04 Import/dependency guard | next |
-| P1-05 Forbidden legacy semantics guard | pending |
+| P1-04 Import/dependency guard | complete；42 packages / 6 source files / 5 dependencies / 0 findings；9 positive/negative checks |
+| P1-05 Forbidden legacy semantics guard | next |
 | P1-06 Manifest/reuse-ledger framework | pending |
 | P1-07 Architecture verification harness | pending |
 | P1-08 Phase Exit Audit | pending |
 
-没有P1代码、测试或Runtime接线已经开始。
+P1代码和隔离architecture fixture已经开始；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 
 ## 5. Engineering governance state
 
@@ -104,6 +104,7 @@ P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引
 
 ## 8. Next checkpoint
 
-P1-03已完成：`composition/createHelixApplication.js`导入前后active handle/request均为0；调用会明确抛出
-`HELIX_COMPOSITION_NOT_IMPLEMENTED`，不返回伪Ready应用。旧`server.js/app.js`没有引用clean root。下一检查点是
-P1-04把P1-02 policy变成fail-closed静态门禁。
+P1-04已完成：`scripts/helix-architecture-check.js`只扫描`src/helix`，对跨Domain internal、未声明edge、
+clean→legacy路径逃逸、动态/别名`require`、未声明external module、root package源码和parse failure均fail closed；
+当前clean root为42 packages、6 source files、5 dependencies、0 findings，9项正反例通过。下一检查点是P1-05阻止
+历史业务语义以重命名、兼容字段或注释方式进入clean implementation。
