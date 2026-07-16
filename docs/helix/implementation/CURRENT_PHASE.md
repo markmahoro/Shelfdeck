@@ -2,7 +2,7 @@
 
 Current phase: `P2 — Contract and Schema Baseline`
 
-Status: in progress；P2-00–P2-05 complete；P2-06 next；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P2-00–P2-06 complete；P2-07 next；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -80,8 +80,8 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 | P2-03 | 112 Capability immutable contract packages | complete | P2-01、P2-02 |
 | P2-04 | 96 Result family schema closure | complete | P2-02、P2-03 |
 | P2-05 | 156 relational table contract inventory | complete | P2-01 |
-| P2-06 | 18 canonical transaction and participant inventory | next | P2-05 |
-| P2-07 | Cross-inventory contract verification harness | pending | P2-02–P2-06 |
+| P2-06 | 18 canonical transaction and participant inventory | complete | P2-05 |
+| P2-07 | Cross-inventory contract verification harness | next | P2-02–P2-06 |
 | P2-08 | P2 Phase Exit Audit and evidence freeze | pending | P2-00–P2-07 |
 
 ## 7. Work Package contracts
@@ -144,6 +144,10 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 - Record exact atomic fact set、Owner、Domain/Control/Foundation participants、required tables、CAS/fence、receipt/outbox and rollback invariant.
 - Cross-Domain Accepted writes receiving facts、Control and Outbox only；never upstream Store.
 - Crash fixture contract is declared for P3/P4 implementation, but no transaction executes in P2.
+- Done: 18/18 canonical transaction contracts active；10 Responsibility Control commits bind exact Domain、Material Control
+  and Foundation participants；19 crash-fixture bindings cover every transaction. Handoff upstream Store writes、Batch-before-Case
+  ordering and non-destructive Deregistration are machine-negative contracts. Inventory digest
+  `6e942ae353e6517632235d1ad4556f15173f8bb496b235c785d722575e851725`；no transaction executed.
 
 ### P2-07 Cross-inventory contract verification harness
 

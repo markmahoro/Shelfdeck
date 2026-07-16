@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards |
 | Current phase | P2 — Contract and Schema Baseline |
-| Current phase status | in progress；P2-00–P2-05 complete；P2-06 next |
+| Current phase status | in progress；P2-00–P2-06 complete；P2-07 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | `c52e67fa2b49c605d0971f2150238ea37c50816a` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p2` on `codex/helix-p2` |
-| Next action | P2-06 18 canonical transaction and participant inventory |
+| Next action | P2-07 cross-inventory contract verification harness |
 
 ## 2. Accepted implementation conclusion
 
@@ -81,8 +81,8 @@ P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 | P2-03 112 Capability contract packages | complete；112 packages / 896 files；digest `ce353a4c…` |
 | P2-04 96 Result family closure | complete；96/96 inventory；191 refs / 0 unresolved |
 | P2-05 156 table contract inventory | complete；156/156；148 inline FKs；30 JSON columns |
-| P2-06 18 canonical transaction inventory | next |
-| P2-07 Cross-inventory verification harness | pending |
+| P2-06 18 canonical transaction inventory | complete；10 Control commits；19 crash bindings |
+| P2-07 Cross-inventory verification harness | next |
 | P2-08 Phase Exit Audit | pending |
 
 ## 5. Engineering governance state
@@ -118,10 +118,10 @@ P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 
 ## 8. Next checkpoint
 
-P2-05已冻结156/156项relational table contract，按Foundation 23、Material Control 2、Procurement 13、Libra 31、
-Arca 54、Perception 7、People 10、Platform 16分属八个sole Owner。全部PK、148个逐表inline FK、30个JSON列及所有
-current revision pointer均机械闭合；FK统一`ON DELETE RESTRICT`，Foundation/Platform反向引用Domain与跨Business
-Domain FK反例均失败。两项逐表行未重复byte limit的JSON按SSOT §8.5.9分别固定为hot routing 16 KiB和non-hot draft
-64 KiB，并记录推导来源。Inventory contract digest为
-`90b5ecc43ba6dbfe59e3c36181d948f7df4b08139d39b0abacbf63017b364c88`；累计architecture fixture通过，未生成或
-执行DDL。下一检查点是P2-06冻结18项canonical transaction与participant。没有需要用户决定的业务问题。
+P2-06已冻结18/18项canonical transaction contract，其中10项Responsibility Control commit精确绑定Domain、
+Material Control与Foundation participant，并为全部事务绑定19项SSOT crash-window contract。每项合同固定write/read
+tables、dynamic Domain Fact selector、revision fence、Control CAS、commit marker、Outbox、rollback invariant和禁止路径。
+Handoff写上游Store、缺失Control participant、Batch阶段提前创建Case、Shelf Deregistration进入Delete路径等反例均失败。
+Inventory digest为`6e942ae353e6517632235d1ad4556f15173f8bb496b235c785d722575e851725`；累计architecture fixture通过，
+没有打开SQLite或执行事务。下一检查点是P2-07把112/96/156/18及全部ref/Owner/Effect/digest检查收敛到单一P2命令。
+没有需要用户决定的业务问题。
