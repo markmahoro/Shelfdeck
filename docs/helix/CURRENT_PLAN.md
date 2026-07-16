@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P5 — Platform and Integrations |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P5-00 next；P4 Exit Audit PASS |
-| Implementation baseline | P4 audited implementation `fa8debb37cf118e39bb769f82336ecc0c0a1f2a3`；exact phase closure to freeze in P5-00 |
-| Phase branch/worktree | P5 isolated branch/worktree to be created by P5-00 |
+| Status | in progress；P5-00 complete；P5-01 next；P4 Exit Audit PASS |
+| Implementation baseline | exact P4 phase closure `5dd0b7094ea35cc04c7ba931fd109467462d0af6` |
+| Phase branch/worktree | `codex/helix-p5` / `E:\my_project\emby_third_party-helix-p5` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P5-00 P4 closure and isolated P5 baseline receipt |
+| Next action | P5-01 Platform and Integration public nominal ports |
 
 ## 4. Master roadmap
 

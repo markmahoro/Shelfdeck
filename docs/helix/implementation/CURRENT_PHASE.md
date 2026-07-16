@@ -2,7 +2,7 @@
 
 Current phase: `P5 — Platform and Integrations`
 
-Status: in progress；P5-00 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P5-00 complete；P5-01 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -34,8 +34,8 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 | P0 code audit baseline | `4a16f0a94ef23fcf732843e9547bd7b724d9c19d` |
 | P4 audited implementation | `fa8debb37cf118e39bb769f82336ecc0c0a1f2a3` |
 | P4 Exit evidence | `evidence/P4_PHASE_EXIT_AUDIT_FA8DEBB3.md` / digest `3c3053d3…` |
-| P5 exact phase baseline | to be frozen by P5-00 from the P4 phase-closure commit |
-| Planned phase branch/worktree | `codex/helix-p5` / isolated sibling worktree |
+| P5 exact phase baseline | `5dd0b7094ea35cc04c7ba931fd109467462d0af6` |
+| Phase branch/worktree | `codex/helix-p5` / `E:\my_project\emby_third_party-helix-p5` |
 | Original workspace | `E:\my_project\emby_third_party` on `master`；dirty user work preserved |
 | Excluded | real credentials/providers/files/media/FFmpeg/Worker、product startup、API/UI、E2E、Docker、production、`media-desktop` |
 
@@ -61,8 +61,8 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
-| P5-00 | P4 closure and isolated P5 baseline receipt | next | P4 PASS |
-| P5-01 | Platform and Integration public nominal ports | pending | P5-00；P2 contracts |
+| P5-00 | P4 closure and isolated P5 baseline receipt | complete | P4 PASS |
+| P5-01 | Platform and Integration public nominal ports | next | P5-00；P2 contracts |
 | P5-02 | Secret Reference and least-authority credential resolver | pending | P5-01；P3 Persistence |
 | P5-03 | Mount Scope and Workspace Root registries | pending | P5-01–P5-02 |
 | P5-04 | Physical Material Identity and binding-health primitives | pending | P5-03 |
@@ -81,6 +81,12 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 - Freeze the exact P4 phase-closure commit and create an isolated P5 branch/worktree from it.
 - Re-run P4 Exit Audit and P3 regression in fresh checkout；verify original dirty workspace and `media-desktop` remain unchanged.
 - Record the exact baseline before Platform or Integration implementation starts.
+- Done: `codex/helix-clean` was fast-forwarded to exact P4 phase closure `5dd0b7094ea35cc04c7ba931fd109467462d0af6`，
+  and isolated `codex/helix-p5` / `E:\my_project\emby_third_party-helix-p5` was created from that commit. Fresh checkout reran
+  `P4_LOCAL_CROSS_RUNTIME_RECOVERY` with 51 architecture fixture files、7 Effect Classes and 31 cross-process crash scenarios，plus
+  P3 156 tables/72 indexes/19 partial unique and 18 transactions/132 crash points；all PASS with `prohibitedActionsRun=[]`.
+  Frozen P4 Exit Evidence still binds audited implementation `fa8debb3` and the docs-only closure adds no Runtime artifact. Original
+  dirty workspace and `media-desktop` remain unchanged；no P5 implementation started before this receipt.
 
 ### P5-01 Platform and Integration public nominal ports
 

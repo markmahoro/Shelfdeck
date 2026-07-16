@@ -13,12 +13,12 @@ Last updated: 2026-07-17
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation |
 | Current phase | P5 — Platform and Integrations |
-| Current phase status | in progress；P5-00 next；P4 Exit Audit PASS |
+| Current phase status | in progress；P5-00 complete；P5-01 next；P4 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
-| Integration baseline | P4 audited implementation `fa8debb37cf118e39bb769f82336ecc0c0a1f2a3`；exact closure to freeze in P5-00 |
-| Phase worktree | P5 isolated branch/worktree to be created by P5-00 |
-| Next action | P5-00 P4 closure and isolated P5 baseline receipt |
+| Integration baseline | exact P4 phase closure `5dd0b7094ea35cc04c7ba931fd109467462d0af6` |
+| Phase worktree | `E:\my_project\emby_third_party-helix-p5` on `codex/helix-p5` |
+| Next action | P5-01 Platform and Integration public nominal ports |
 
 ## 2. Accepted implementation conclusion
 
@@ -250,3 +250,8 @@ source-map aggregate精确匹配，旧Runtime、Domain/P5、API/UI、deployment�
 Evidence digest为`3c3053d37ffcc2836e5e07ae9fd73186bf0ddef8395c42163e227b74328a5827`，完整Evidence见
 `implementation/evidence/P4_PHASE_EXIT_AUDIT_FA8DEBB3.md`。P4已归档并自动打开P5；下一检查点是P5-00精确闭合提交与
 隔离P5 baseline receipt。真实Provider/FFmpeg/Worker/媒体副作用仍未授权。没有需要用户决定的业务问题。
+P5-00已完成：`codex/helix-clean`前移到精确P4 phase closure `5dd0b7094ea35cc04c7ba931fd109467462d0af6`，
+并从该点创建隔离`codex/helix-p5` / `E:\my_project\emby_third_party-helix-p5`。fresh checkout的P4 Runtime总门禁
+恢复51个架构fixture、7类Effect/31个跨进程crash scenario，P3回归恢复156表/72 index/19 partial unique与18 transaction/
+132 crash points，全部PASS且`prohibitedActionsRun=[]`。原dirty workspace及`media-desktop`保持不变。下一检查点是
+P5-01 Platform and Integration public nominal ports。没有需要用户决定的业务问题。
