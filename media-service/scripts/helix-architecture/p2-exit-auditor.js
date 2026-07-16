@@ -29,6 +29,9 @@ function digestValue(value) {
 function classifyChangedPath(relativePath) {
   const value = normalize(relativePath);
   if (ALLOWED_DOCS.has(value)) return { allowed: true, class: 'phase-documentation' };
+  if (value.startsWith('docs/helix/implementation/archive/') || value.startsWith('docs/helix/implementation/evidence/')) {
+    return { allowed: true, class: 'phase-documentation' };
+  }
   if (value.startsWith('media-service/src/helix/contracts/')) return { allowed: true, class: 'contract-artifact' };
   if (value.startsWith('media-service/scripts/helix-architecture/') || /^media-service\/scripts\/(?:helix-|materialize-helix-)/.test(value)) {
     return { allowed: true, class: 'contract-tooling' };
