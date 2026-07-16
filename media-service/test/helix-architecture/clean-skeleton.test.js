@@ -31,14 +31,14 @@ test('clean package IDs exactly match the accepted P1 physical skeleton', () => 
     'projections',
     'contracts',
     'contracts.manifests',
-    ...['execution', 'capability', 'control', 'persistence', 'effects', 'diagnostics']
+    ...['public', 'execution', 'capability', 'control', 'persistence', 'effects', 'diagnostics']
       .map((layer) => `foundation.${layer}`),
     ...domainNames.flatMap((domain) => domainLayers.map((layer) => `domains.${domain}.${layer}`))
   ]);
   const actual = new Set(discoverMarkers(helixRoot).map((filePath) =>
     JSON.parse(fs.readFileSync(filePath, 'utf8')).packageId
   ));
-  assert.equal(actual.size, 42);
+  assert.equal(actual.size, 43);
   assert.deepEqual([...actual].sort(), [...expected].sort());
 });
 
