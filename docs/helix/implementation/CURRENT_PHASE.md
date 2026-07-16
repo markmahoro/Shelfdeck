@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00–P4-06 complete；P4-07 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-07 complete；P4-08 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -74,8 +74,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | P4-04 | Immutable normalized Plan and DAG validator | complete | P4-02–P4-03 |
 | P4-05 | Work Supply Controller and bounded backpressure | complete | P4-03–P4-04 |
 | P4-06 | Work Scheduler、dependency readiness and technical lease | complete | P4-04–P4-05 |
-| P4-07 | Resource Governor、Profile Mapper and atomic Permit bundle | next | P4-05–P4-06 |
-| P4-08 | Event Runtime、Fence、Outcome/Result and Progress | pending | P4-02、P4-06–P4-07 |
+| P4-07 | Resource Governor、Profile Mapper and atomic Permit bundle | complete | P4-05–P4-06 |
+| P4-08 | Event Runtime、Fence、Outcome/Result and Progress | next | P4-02、P4-06–P4-07 |
 | P4-09 | Effect Journal and seven Effect-specific reconcilers | pending | P4-08；P3 atomic commits |
 | P4-10 | Retry、Timeout and declared Compensation | pending | P4-08–P4-09 |
 | P4-11 | Pressure Guard and persistent Circuit Breaker | pending | P4-05–P4-10 |
@@ -174,6 +174,12 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - One in-process Governor is the sole capacity Owner；multi-resource demand acquires atomically or acquires nothing.
 - One waiter per Event、bounded queue、durable resource defer with retryAt；all permits release in `finally` and disappear on restart.
 - Profile mapping changes only capacity/supply/weights，never Plan、priority、Outcome、Authorization or Control.
+- Done: commit `ff72c6cd` implements exact `default|full` Beta capacity maps for typed endpoint/volume/device/worker keys；unknown or
+  unvalidated resources have zero capacity，Provider and validated device limits are never exceeded，and SQLite/control/mutation remain
+  single-writer. The sole in-process Governor grants multi-key bundles atomically，maintains one waiter per Event，orders without cross-class
+  aging，does not revoke active Permits on Profile reduction，and releases through `finally`. Permit/waiter state is never durable；queue
+  hard-full alone atomically records `fx_resource_defer` plus Event `retryAt` using 5s/30s/2min/10min backoff. Twelve fixture groups，full
+  architecture gate and fresh detached-worktree gate PASS with no SSOT/schema/legacy Runtime change.
 
 ### P4-08 Event Runtime、Fence、Outcome/Result and Progress
 
