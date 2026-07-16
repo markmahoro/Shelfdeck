@@ -1,6 +1,8 @@
 {
   "schemaVersion": 1,
   "defaultInternalDecision": "deny",
+  "defaultExternalDecision": "deny",
+  "externalModuleRules": [],
   "externalDomainImport": "domains/{owner}/public/index.js",
   "domainOwners": [
     "procurement",
