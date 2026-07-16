@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline |
 | Current phase | P3 — Persistence and Atomic Foundation |
-| Current phase status | in progress；P3-00 next |
+| Current phase status | in progress；P3-00 complete；P3-01 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
-| Integration baseline | P2 audited closure `a735781010ee58c4119d93bb320bfe11bf1d4b7f`；exact closure recorded by P3-00 |
-| Phase worktree | P3-00 creates isolated `codex/helix-p3` worktree |
-| Next action | P3-00 isolated baseline receipt |
+| Integration baseline | P2 closure / P3 baseline `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
+| Phase worktree | `E:\my_project\emby_third_party-helix-p3` on `codex/helix-p3` |
+| Next action | P3-01 deterministic 156-table clean DDL compiler |
 
 ## 2. Accepted implementation conclusion
 
@@ -124,4 +124,7 @@ P2 Exit Audit已在fresh-worktree复现性修正后PASS并归档。审计闭合�
 contract files反向审计、findings=0。P3首次baseline发现并促成修正了被`release/` ignore遗漏的8-file Capability package；
 现在Exit Audit会拒绝任何物理存在但Git未纳管的contract artifact。
 P2未修改SSOT、未执行DDL/SQLite、未接startup、未触碰E2E/Docker/production/real media/`media-desktop`。下一检查点是
-P3-00把P2 closure快进到integration branch并建立隔离P3 baseline；随后才开始156-table DDL compiler。没有需要用户决定的业务问题。
+P3-00已完成：`codex/helix-clean`与隔离P3 worktree从精确闭合提交
+`e3b50f946956105b18ffcf0853c8c2a57ebb4db8`开始；fresh checkout P2 gate恢复112/96/156/18 PASS、191 refs / 0 unresolved，
+aggregate `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`。原dirty workspace与`media-desktop`
+保持不变。下一检查点是P3-01 deterministic 156-table DDL compiler；不连接SQLite、不接startup。没有需要用户决定的业务问题。

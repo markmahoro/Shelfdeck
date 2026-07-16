@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P3 — Persistence and Atomic Foundation |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P2 Exit Audit PASS；P3-00 next |
-| Implementation baseline | P3-00 records the exact P2 closure commit |
-| Phase branch/worktree | P3-00 creates isolated `codex/helix-p3` worktree |
+| Status | in progress；P3-00 complete；P3-01 next |
+| Implementation baseline | `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
+| Phase branch/worktree | `codex/helix-p3` / `E:\my_project\emby_third_party-helix-p3` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P3-00 isolated baseline receipt |
+| Next action | P3-01 deterministic 156-table clean DDL compiler |
 
 ## 4. Master roadmap
 

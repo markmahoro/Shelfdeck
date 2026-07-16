@@ -2,7 +2,7 @@
 
 Current phase: `P3 — Persistence and Atomic Foundation`
 
-Status: in progress；P3-00 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P3-00 complete；P3-01 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -34,9 +34,9 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 | --- | --- |
 | P0 code audit baseline | `4a16f0a94ef23fcf732843e9547bd7b724d9c19d` |
 | P2 audited closure | `a735781010ee58c4119d93bb320bfe11bf1d4b7f` |
-| P3 implementation baseline | P3-00 records the exact P2 closure commit |
+| P3 implementation baseline | `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
 | Integration branch | `codex/helix-clean` |
-| Phase branch/worktree | P3-00 creates isolated `codex/helix-p3` worktree |
+| Phase branch/worktree | `codex/helix-p3` / `E:\my_project\emby_third_party-helix-p3` |
 | Original workspace | `E:\my_project\emby_third_party` on `master`；dirty user work preserved |
 | Excluded | `media-desktop`、E2E、Docker/Canary、production、real media、legacy data migration |
 
@@ -66,8 +66,8 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
-| P3-00 | P2 closure and isolated P3 baseline receipt | next | P2 PASS |
-| P3-01 | Deterministic 156-table clean DDL compiler | pending | P3-00；P2 tables |
+| P3-00 | P2 closure and isolated P3 baseline receipt | complete | P2 PASS |
+| P3-01 | Deterministic 156-table clean DDL compiler | next | P3-00；P2 tables |
 | P3-02 | SQLite Kernel and clean schema generation gate | pending | P3-01 |
 | P3-03 | Owner-scoped Repository and Unit of Work boundaries | pending | P3-02 |
 | P3-04 | Commit Marker、Command Receipt and Audit foundation | pending | P3-03 |
@@ -85,6 +85,9 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 - Fast-forward P2 closure into `codex/helix-clean` and create clean P3 branch/worktree from the exact commit.
 - Re-run frozen P2 contract gate and verify original dirty workspace/`media-desktop` remain untouched.
 - Record exact baseline; no Persistence code starts before receipt PASS.
+- Done: `codex/helix-clean` and isolated P3 worktree start at exact closure
+  `e3b50f946956105b18ffcf0853c8c2a57ebb4db8`；fresh checkout P2 gate is 112/96/156/18 PASS，191 refs / 0 unresolved，
+  aggregate `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`；original dirty workspace unchanged.
 
 ### P3-01 Deterministic 156-table clean DDL compiler
 
