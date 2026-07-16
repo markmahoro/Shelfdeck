@@ -50,12 +50,18 @@ function compileStatement(statementId, statement, table) {
     });
     requireColumns(table, statement.setColumns, statementId);
     requireColumns(table, statement.keyColumns, statementId);
-    const parameters = [...statement.setColumns, ...statement.keyColumns];
+    const comparisons = statement.compareColumns || [];
+    for (const comparison of comparisons) {
+      if (!comparison || !IDENTIFIER.test(comparison.parameter || '')) fail('P3_REPOSITORY_INVALID_COMPARISON', 'CAS comparison requires a valid parameter.', { statementId });
+      requireColumns(table, [comparison.column], statementId);
+    }
+    const parameters = [...statement.setColumns, ...statement.keyColumns, ...comparisons.map((comparison) => comparison.parameter)];
     if (new Set(parameters).size !== parameters.length) fail('P3_REPOSITORY_OVERLAPPING_COLUMNS', 'SET and key columns cannot overlap.', { statementId });
     return {
       statementId, kind: statement.kind, tableId: table.tableId, parameters,
       sql: 'UPDATE ' + tableName + ' SET ' + statement.setColumns.map((column) => quote(column) + '=@' + column).join(', ') +
-        ' WHERE ' + statement.keyColumns.map((column) => quote(column) + '=@' + column).join(' AND ')
+        ' WHERE ' + [...statement.keyColumns.map((column) => quote(column) + '=@' + column),
+          ...comparisons.map((comparison) => quote(comparison.column) + '=@' + comparison.parameter)].join(' AND ')
     };
   }
   if (statement.kind === 'select-one' || statement.kind === 'select-all') {

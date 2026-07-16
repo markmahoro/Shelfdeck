@@ -171,6 +171,36 @@ function assertMessageConsistency(database) {
   if (ackWithoutInbox !== 0) fail('P3_SQLITE_ACK_WITHOUT_INBOX', 'Acknowledged Delivery lacks durable Inbox consumption.', { count: ackWithoutInbox });
 }
 
+function assertMaterialControlConsistency(database) {
+  const controls = database.prepare(
+    'SELECT material_key,mount_scope_id,inode,content_hash_algorithm,content_hash,owner_domain,owner_scope_type,owner_scope_id,control_revision,state FROM fx_material_controls'
+  ).all();
+  const revisionsStatement = database.prepare(
+    'SELECT revision,operation_kind,to_owner_domain,to_scope_type,to_scope_id FROM fx_material_control_revisions WHERE material_key=? ORDER BY revision'
+  );
+  for (const control of controls) {
+    const identity = {
+      mountScopeId: control.mount_scope_id,
+      inode: control.inode,
+      contentHashAlgorithm: control.content_hash_algorithm,
+      contentHash: control.content_hash
+    };
+    const identityJson = JSON.stringify(identity, Object.keys(identity).sort());
+    const revisions = revisionsStatement.all(control.material_key);
+    const latest = revisions[revisions.length - 1];
+    const sequenceValid = revisions.length === control.control_revision &&
+      revisions.every((revision, index) => revision.revision === index + 1);
+    const targetValid = control.state === 'active'
+      ? latest && latest.to_owner_domain === control.owner_domain && latest.to_scope_type === control.owner_scope_type && latest.to_scope_id === control.owner_scope_id
+      : latest && latest.operation_kind === 'release' && control.owner_domain === null && control.owner_scope_type === null && control.owner_scope_id === null;
+    if (control.content_hash_algorithm !== 'sha256' || digest(identityJson) !== control.material_key || !sequenceValid || !targetValid) {
+      fail('P3_SQLITE_MATERIAL_CONTROL_DRIFT', 'Current Material Control and append-only revision history are inconsistent.', {
+        materialKey: control.material_key
+      });
+    }
+  }
+}
+
 function assertIntegrity(database, manifest, expected) {
   const currentMarker = marker(database);
   if (currentMarker.generation !== GENERATION || currentMarker.schema_digest !== manifest.ddlDigest) {
@@ -191,6 +221,7 @@ function assertIntegrity(database, manifest, expected) {
   }
   assertGuardConsistency(database);
   assertMessageConsistency(database);
+  assertMaterialControlConsistency(database);
   return Object.freeze({
     generation: currentMarker.generation,
     schemaDigest: currentMarker.schema_digest,

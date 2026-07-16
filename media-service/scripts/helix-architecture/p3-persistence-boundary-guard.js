@@ -40,7 +40,7 @@ function checkPersistenceBoundaries(options) {
       code: 'P3_KERNEL_IMPORT_OUTSIDE_PERSISTENCE', file: relativePath,
       message: 'Clean packages outside Foundation Persistence cannot import SqliteKernel.'
     });
-    if (!RAW_SQL_FILES.has(relativePath) && /\b(?:INSERT\s+INTO|UPDATE\s+["a-z]|DELETE\s+FROM|SELECT\s+[\s\S]{0,120}\s+FROM|CREATE\s+(?:TABLE|INDEX)|DROP\s+(?:TABLE|INDEX)|ALTER\s+TABLE|PRAGMA\s+)/i.test(source)) {
+    if (!RAW_SQL_FILES.has(relativePath) && /['"`]\s*(?:INSERT\s+INTO|UPDATE\s+["a-z]|DELETE\s+FROM|SELECT\s+[\s\S]{0,120}\s+FROM|CREATE\s+(?:TABLE|INDEX)|DROP\s+(?:TABLE|INDEX)|ALTER\s+TABLE|PRAGMA\s+)/i.test(source)) {
       findings.push({
         code: 'P3_RAW_SQL_OUTSIDE_KERNEL_COMPILER', file: relativePath,
         message: 'Raw SQL is restricted to the DDL compiler, Kernel integrity gate, and structured Repository compiler.'
