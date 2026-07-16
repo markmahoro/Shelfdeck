@@ -116,3 +116,15 @@ test('safe retry keeps one durable intent for reuse by a later Event Attempt', a
   assert.equal(reused.effect_id, result.effect.effect_id);
   assert.equal(reused.event_attempt_id, 'event-attempt');
 }));
+
+test('deferred external identity is durable before effect-specific reconciliation and cannot be replaced', () => fixture(({ journal }) => {
+  const effect = journal.intend({ eventAttemptId: 'event-attempt', effectClass: 'external_request',
+    idempotencyKey: 'request-key', intentDigest: INTENT });
+  const externalReceipt = { receiptId: 'external-receipt', idempotencyKey: 'request-key', requestDigest: OUTPUT };
+  assert.equal(journal.noteExternalPending(effect.effect_id, externalReceipt).external_receipt_ref, 'external-receipt');
+  assert.equal(journal.requireReconcile(effect.effect_id).external_receipt_ref, 'external-receipt');
+  assert.throws(() => journal.noteExternalPending(effect.effect_id, { ...externalReceipt, receiptId: 'replacement' }),
+    { code: 'P4_EFFECT_EXTERNAL_RECEIPT_CONFLICT' });
+  assert.throws(() => journal.noteExternalPending(effect.effect_id, { ...externalReceipt, idempotencyKey: 'other' }),
+    { code: 'P4_EFFECT_EXTERNAL_RECEIPT_BINDING_MISMATCH' });
+}));

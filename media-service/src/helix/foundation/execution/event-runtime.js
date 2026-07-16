@@ -295,7 +295,8 @@ function createEventRuntime(options) {
         );
         const requiresJournal = entry.manifest.effectClass !== 'pure_observation';
         if (requiresJournal && (!options.effectJournal || typeof options.effectJournal.intend !== 'function' ||
-            typeof options.effectJournal.settle !== 'function' || typeof options.effectJournal.requireReconcile !== 'function')) fail(
+            typeof options.effectJournal.settle !== 'function' || typeof options.effectJournal.requireReconcile !== 'function' ||
+            typeof options.effectJournal.noteExternalPending !== 'function')) fail(
           'P4_EVENT_EFFECT_JOURNAL_REQUIRED', 'Every non-pure Event requires the Effect Journal before dispatch.'
         );
         const inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));
@@ -365,7 +366,12 @@ function createEventRuntime(options) {
             effectId: effect.effect_id, receipt: outcome.effectReceipt,
             scope: Object.freeze({ ownerDomain: inputs.ownerScope.domain, scopeType: inputs.ownerScope.processType, scopeId: inputs.ownerScope.processId })
           }));
-          else options.effectJournal.requireReconcile(effect.effect_id);
+          else {
+            if (outcome.kind === 'deferred' && outcome.externalReceipt !== undefined) {
+              options.effectJournal.noteExternalPending(effect.effect_id, outcome.externalReceipt);
+            }
+            options.effectJournal.requireReconcile(effect.effect_id);
+          }
         }
         resourceOutcome = outcome.kind;
         return complete(snapshot, attemptId, outcome);

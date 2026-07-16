@@ -98,6 +98,7 @@ function fixture(run, settings = {}) {
       intend(request) { journalCalls.push('intend'); return { effect_id: request.eventAttemptId,
         state: settings.effectIntentState || 'intended', event_attempt_id: settings.effectIntentAttemptId || request.eventAttemptId }; },
       async settle() { journalCalls.push('settle'); },
+      noteExternalPending() { journalCalls.push('external-receipt'); },
       requireReconcile() { journalCalls.push('reconcile'); }
     } }),
     executionInputProvider: { prepare: () => ({ ownerScope: { domain: 'libra', processType: 'libra_run', processId: 'run', objectRefs: [] },
@@ -211,6 +212,14 @@ test('non-pure deferred Outcome enters effect-specific reconciliation instead of
     assert.equal((await runtime.run({ schedulerLease: lease })).kind, 'deferred');
     assert.deepEqual(state().journalCalls, ['intend', 'reconcile']);
   }, { effectClass: 'external_request', outcome: { kind: 'deferred', reasonCode: 'PENDING', retryAfterMs: 1000, evidence: {} } });
+});
+
+test('external deferred Outcome journals typed external identity before reconciliation', async () => {
+  await fixture(async ({ runtime, lease, state }) => {
+    assert.equal((await runtime.run({ schedulerLease: lease })).kind, 'deferred');
+    assert.deepEqual(state().journalCalls, ['intend', 'external-receipt', 'reconcile']);
+  }, { effectClass: 'external_request', outcome: { kind: 'deferred', reasonCode: 'PENDING', retryAfterMs: 1000, evidence: {},
+    externalReceipt: { receiptId: 'external-receipt', idempotencyKey: 'event-attempt', requestDigest: HASH_A } } });
 });
 
 test('existing non-pure intent cannot re-enter ordinary dispatch even with the same idempotency key', async () => {

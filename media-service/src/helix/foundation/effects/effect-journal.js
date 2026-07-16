@@ -237,6 +237,32 @@ function createEffectJournal(options) {
     return Object.freeze(transition(effect, 'reconcile_required'));
   }
 
+  function noteExternalPending(effectId, receipt) {
+    const effect = read(text(effectId, 'effectId'));
+    if (!effect) fail('P4_EFFECT_NOT_FOUND', 'Effect intent does not exist.');
+    if (effect.effect_class !== 'external_request' || !receipt || receipt.idempotencyKey !== effect.idempotency_key) fail(
+      'P4_EFFECT_EXTERNAL_RECEIPT_BINDING_MISMATCH', 'External Job Receipt must bind the exact external_request intent.'
+    );
+    const receiptRef = text(receipt.receiptId, 'receiptId');
+    hash(receipt.requestDigest, 'requestDigest');
+    if (!['intended', 'reconcile_required'].includes(effect.state)) fail(
+      'P4_EFFECT_EXTERNAL_RECEIPT_STATE_INVALID', 'External Job Receipt cannot change a terminal or committed Effect.'
+    );
+    if (effect.external_receipt_ref !== null && effect.external_receipt_ref !== receiptRef) fail(
+      'P4_EFFECT_EXTERNAL_RECEIPT_CONFLICT', 'External request identity cannot be replaced during observation.'
+    );
+    const result = options.unitOfWork.execute([{ participantId: 'effect_journal_external_pending', owner: 'execution-foundation',
+      repositories: [repositories.effects], execute(context) {
+        return context.repository('effect_journal').invoke('transition', {
+          effect_id: effect.effect_id, expected_state: effect.state, state: effect.state,
+          external_receipt_ref: receiptRef, output_digest: effect.output_digest,
+          verified_at_ms: effect.verified_at_ms, updated_at_ms: context.commitTimeMs
+        });
+      } }]).effect_journal_external_pending;
+    if (result.changes !== 1) fail('P4_EFFECT_TRANSITION_RACE', 'Effect Journal changed before external receipt persistence.');
+    return Object.freeze(read(effect.effect_id));
+  }
+
   async function reconcile(effectId, registry) {
     const effect = read(text(effectId, 'effectId'));
     if (!effect) fail('P4_EFFECT_NOT_FOUND', 'Effect intent does not exist.');
@@ -252,7 +278,7 @@ function createEffectJournal(options) {
     return Object.freeze({ effect: Object.freeze(current), recovery: result });
   }
 
-  return Object.freeze({ intend, read, reconcile, requireReconcile, settle });
+  return Object.freeze({ intend, noteExternalPending, read, reconcile, requireReconcile, settle });
 }
 
 module.exports = Object.freeze({ EffectJournalError, createEffectJournal, effectIdentity });
