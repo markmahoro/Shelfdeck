@@ -7,6 +7,7 @@ const path = require('path');
 const { checkPackageBoundaries } = require('./helix-architecture/package-boundary-guard');
 const { checkForbiddenSemantics } = require('./helix-architecture/forbidden-semantic-guard');
 const { validateManifestSet } = require('./helix-architecture/manifest-validator');
+const { validateP2ContractBaseline } = require('./helix-architecture/p2-contract-baseline-validator');
 
 const serviceRoot = path.resolve(__dirname, '..');
 const repositoryRoot = path.resolve(serviceRoot, '..');
@@ -34,11 +35,15 @@ const semantic = checkForbiddenSemantics({
   policyPath: path.join(manifestDirectory, 'forbidden-semantic-policy.json')
 });
 const manifests = validateManifestSet({ rootPath, repositoryRoot });
+const contracts = validateP2ContractBaseline({
+  repositoryRoot,
+  contractsRoot: path.join(rootPath, 'contracts')
+});
 const fixturePassed = fixtureRun.status === 0;
 
 const result = {
-  ok: fixturePassed && dependency.ok && semantic.ok && manifests.ok,
-  scope: 'P1_LOCAL_ISOLATED_ARCHITECTURE_ONLY',
+  ok: fixturePassed && dependency.ok && semantic.ok && manifests.ok && contracts.ok,
+  scope: 'P2_LOCAL_ISOLATED_CONTRACT_BASELINE',
   fixture: {
     ok: fixturePassed,
     fileCount: testFiles.length,
@@ -65,6 +70,13 @@ const result = {
     inventories: manifests.manifests,
     aggregateDigest: manifests.aggregateDigest,
     findings: manifests.findings
+  },
+  contracts: {
+    ok: contracts.ok,
+    counts: contracts.counts,
+    componentDigests: contracts.componentDigests,
+    aggregateDigest: contracts.aggregateDigest,
+    findings: contracts.findings
   },
   prohibitedActionsRun: []
 };
