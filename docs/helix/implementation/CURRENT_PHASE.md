@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00–P4-04 complete；P4-05 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-05 complete；P4-06 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -72,8 +72,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | P4-02 | Exact Capability Registry and typed dispatcher gate | complete | P4-01；P2 Capability contracts |
 | P4-03 | Supporting Work admission and idempotent submission | complete | P4-01；P3 Persistence |
 | P4-04 | Immutable normalized Plan and DAG validator | complete | P4-02–P4-03 |
-| P4-05 | Work Supply Controller and bounded backpressure | next | P4-03–P4-04 |
-| P4-06 | Work Scheduler、dependency readiness and technical lease | pending | P4-04–P4-05 |
+| P4-05 | Work Supply Controller and bounded backpressure | complete | P4-03–P4-04 |
+| P4-06 | Work Scheduler、dependency readiness and technical lease | next | P4-04–P4-05 |
 | P4-07 | Resource Governor、Profile Mapper and atomic Permit bundle | pending | P4-05–P4-06 |
 | P4-08 | Event Runtime、Fence、Outcome/Result and Progress | pending | P4-02、P4-06–P4-07 |
 | P4-09 | Effect Journal and seven Effect-specific reconcilers | pending | P4-08；P3 atomic commits |
@@ -150,6 +150,12 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - Control only open Work、active Work Attempt and dispatch supply counts；do not plan、schedule or decide capacity.
 - Stable defer projection prevents queue oscillation；reserve progress for safety/handoff/control and minimum background work.
 - Backpressure never deletes Work、reverses Handoff or changes Business priority.
+- Done: commit `6e06a70f` evaluates only persisted eligible target、Work/Attempt/Event counts、Event Attempt history and Circuit
+  facts through a read-only scoped Foundation participant. Exact soft/hard caps return stable snapshot digests；soft pressure defers normal
+  supply while reserving safety/handoff lanes，hard cap blocks all new supply without deleting/changing facts，and background receives a
+  60-second minimum-progress lane only when no reserved Event is ready. Six fixture groups prove stable repeat decisions、target/Circuit
+  rejection、soft/hard behavior and no Planner/Capability/capacity/Business write. Full gate and fresh detached-worktree gate PASS；
+  per-resource competition remains explicitly owned by P4-07 Governor rather than guessed here.
 
 ### P4-06 Work Scheduler、dependency readiness and technical lease
 

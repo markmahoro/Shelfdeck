@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation |
 | Current phase | P4 — Execution and Recovery Foundation |
-| Current phase status | in progress；P4-00–P4-04 complete；P4-05 next；P3 Exit Audit PASS |
+| Current phase status | in progress；P4-00–P4-05 complete；P4-06 next；P3 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P3 phase closure `4a59356f3a89f1af38f594763aaaa0465e203b99` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p4` on `codex/helix-p4` |
-| Next action | P4-05 Work Supply Controller and bounded backpressure |
+| Next action | P4-06 Work Scheduler、dependency readiness and technical lease |
 
 ## 2. Accepted implementation conclusion
 
@@ -176,3 +176,7 @@ Work/Event/Circuit权威事实并原子写Work+typed Receipt；replay/digest con
 deterministic graph digest，DAG/Capability/schema/Effect/resource/Fence/output/approval/retry/timeout/compensation逐项fail closed；
 发布原子写Plan/Node/Edge/Event，root ready/dependent pending，同Attempt同图replay、异图冲突，零Domain写。6组专项、完整
 门禁及fresh detached worktree均PASS。下一检查点是P4-05 Work Supply Controller。没有需要用户决定的业务问题。
+P4-05已在`6e06a70f`完成：Supply Controller只读持久化target/Work/Attempt/Event/Circuit事实，soft/hard cap、
+safety/handoff reserved lane和60秒minimum background进展均返回稳定snapshot，不删改事实、不选Capability、不判断容量。
+6组专项、完整门禁及fresh detached worktree均PASS；per-resource竞争明确留给P4-07 Governor。下一检查点是P4-06
+Scheduler/dependency readiness/technical lease。没有需要用户决定的业务问题。
