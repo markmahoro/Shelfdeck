@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P2 — Contract and Schema Baseline |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P2-00–P2-06 complete；P2-07 next |
+| Status | in progress；P2-00–P2-07 complete；P2-08 next |
 | Implementation baseline | `c52e67fa2b49c605d0971f2150238ea37c50816a` |
 | Phase branch/worktree | `codex/helix-p2` / `E:\my_project\emby_third_party-helix-p2` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P2-07 cross-inventory contract verification harness |
+| Next action | P2-08 Phase Exit Audit and evidence freeze |
 
 ## 4. Master roadmap
 

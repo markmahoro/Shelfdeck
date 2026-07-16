@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards |
 | Current phase | P2 — Contract and Schema Baseline |
-| Current phase status | in progress；P2-00–P2-06 complete；P2-07 next |
+| Current phase status | in progress；P2-00–P2-07 complete；P2-08 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | `c52e67fa2b49c605d0971f2150238ea37c50816a` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p2` on `codex/helix-p2` |
-| Next action | P2-07 cross-inventory contract verification harness |
+| Next action | P2-08 Phase Exit Audit and evidence freeze |
 
 ## 2. Accepted implementation conclusion
 
@@ -82,8 +82,8 @@ P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 | P2-04 96 Result family closure | complete；96/96 inventory；191 refs / 0 unresolved |
 | P2-05 156 table contract inventory | complete；156/156；148 inline FKs；30 JSON columns |
 | P2-06 18 canonical transaction inventory | complete；10 Control commits；19 crash bindings |
-| P2-07 Cross-inventory verification harness | next |
-| P2-08 Phase Exit Audit | pending |
+| P2-07 Cross-inventory verification harness | complete；single P2 command；aggregate `ebbfda88…` |
+| P2-08 Phase Exit Audit | next |
 
 ## 5. Engineering governance state
 
@@ -118,10 +118,9 @@ P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
 
 ## 8. Next checkpoint
 
-P2-06已冻结18/18项canonical transaction contract，其中10项Responsibility Control commit精确绑定Domain、
-Material Control与Foundation participant，并为全部事务绑定19项SSOT crash-window contract。每项合同固定write/read
-tables、dynamic Domain Fact selector、revision fence、Control CAS、commit marker、Outbox、rollback invariant和禁止路径。
-Handoff写上游Store、缺失Control participant、Batch阶段提前创建Case、Shelf Deregistration进入Delete路径等反例均失败。
-Inventory digest为`6e942ae353e6517632235d1ad4556f15173f8bb496b235c785d722575e851725`；累计architecture fixture通过，
-没有打开SQLite或执行事务。下一检查点是P2-07把112/96/156/18及全部ref/Owner/Effect/digest检查收敛到单一P2命令。
-没有需要用户决定的业务问题。
+P2-07已将全部P1 architecture guard和P2 source/type/Capability/table/transaction validator收敛到
+`npm run test:helix-architecture`。命令报告scope `P2_LOCAL_ISOLATED_CONTRACT_BASELINE`，精确计数112/96/156/18、
+191 type refs / 0 unresolved，18个fixture文件全部通过；aggregate drift与CLI non-zero反例通过。P2 aggregate digest为
+`ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`。命令未启动Service、未打开DB、未创建Runtime
+数据、未绑定端口，也未读取credential/media root。下一检查点是P2-08从SSOT反向执行Exit Audit并冻结Evidence；
+只有PASS后才自动归档P2并打开P3。没有需要用户决定的业务问题。

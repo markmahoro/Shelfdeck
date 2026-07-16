@@ -2,7 +2,7 @@
 
 Current phase: `P2 — Contract and Schema Baseline`
 
-Status: in progress；P2-00–P2-06 complete；P2-07 next；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P2-00–P2-07 complete；P2-08 next；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -81,8 +81,8 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 | P2-04 | 96 Result family schema closure | complete | P2-02、P2-03 |
 | P2-05 | 156 relational table contract inventory | complete | P2-01 |
 | P2-06 | 18 canonical transaction and participant inventory | complete | P2-05 |
-| P2-07 | Cross-inventory contract verification harness | next | P2-02–P2-06 |
-| P2-08 | P2 Phase Exit Audit and evidence freeze | pending | P2-00–P2-07 |
+| P2-07 | Cross-inventory contract verification harness | complete | P2-02–P2-06 |
+| P2-08 | P2 Phase Exit Audit and evidence freeze | next | P2-00–P2-07 |
 
 ## 7. Work Package contracts
 
@@ -154,6 +154,10 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 - One local command checks 112/96/156/18 counts、unique IDs、all refs、Owner/prefix、Effect Class、handle restrictions and stable aggregate digest.
 - Every rule has positive and negative fixtures; parse/schema/reference failure returns non-zero.
 - Harness must not start service、open DB、create Runtime data、bind port or read credentials/media roots.
+- Done: `npm run test:helix-architecture` reports `P2_LOCAL_ISOLATED_CONTRACT_BASELINE` and validates all P1 guards plus
+  SSOT/source、type、Capability、table and transaction components in one process. Exact counts are 112/96/156/18，type refs
+  are 191/0 unresolved，and the frozen P2 aggregate digest is
+  `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`. Aggregate drift and CLI failure fixtures PASS.
 
 ### P2-08 P2 Phase Exit Audit and evidence freeze
 
