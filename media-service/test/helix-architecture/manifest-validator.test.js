@@ -41,7 +41,7 @@ test('validates the complete P1 framework and produces a stable aggregate digest
   const second = validateManifestSet({ rootPath: actualRoot, repositoryRoot });
   assert.equal(first.ok, true);
   assert.equal(first.ownerCount, 12);
-  assert.equal(first.packageCount, 43);
+  assert.equal(first.packageCount, 47);
   assert.equal(first.manifests.find((item) => item.manifestId === 'helix.legacy-reuse-ledger').entryCount, 62);
   assert.match(first.aggregateDigest, /^[a-f0-9]{64}$/);
   assert.equal(first.aggregateDigest, second.aggregateDigest);

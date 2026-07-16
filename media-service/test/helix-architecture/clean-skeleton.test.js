@@ -27,6 +27,10 @@ test('clean package IDs exactly match the accepted P1 physical skeleton', () => 
   const expected = new Set([
     'helix',
     'composition',
+    'platform.public',
+    'platform.model',
+    'platform.application',
+    'platform.persistence',
     'integrations',
     'projections',
     'contracts',
@@ -38,7 +42,7 @@ test('clean package IDs exactly match the accepted P1 physical skeleton', () => 
   const actual = new Set(discoverMarkers(helixRoot).map((filePath) =>
     JSON.parse(fs.readFileSync(filePath, 'utf8')).packageId
   ));
-  assert.equal(actual.size, 43);
+  assert.equal(actual.size, 47);
   assert.deepEqual([...actual].sort(), [...expected].sort());
 });
 
@@ -47,6 +51,17 @@ test('each Domain exposes one frozen public package identity', () => {
     const entry = require(path.join(helixRoot, 'domains', domain, 'public'));
     assert.deepEqual(entry, { PACKAGE_ID: `domains.${domain}.public` });
     assert.equal(Object.isFrozen(entry), true);
+  }
+});
+
+test('Platform is a required four-package technical owner with one frozen public entry', () => {
+  const platform = require(path.join(helixRoot, 'platform', 'public'));
+  assert.deepEqual(platform, { PACKAGE_ID: 'platform.public' });
+  assert.equal(Object.isFrozen(platform), true);
+  for (const layer of ['public', 'model', 'application', 'persistence']) {
+    const descriptor = JSON.parse(fs.readFileSync(path.join(helixRoot, 'platform', layer, 'package.boundary.json'), 'utf8'));
+    assert.equal(descriptor.packageId, `platform.${layer}`);
+    assert.equal(descriptor.owner, 'platform-settings');
   }
 });
 

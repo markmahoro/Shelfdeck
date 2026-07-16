@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(extraction_policy_id,revision)`；JSON上限`16 KiB`；immutable；Material Field引用精确revision而非可变配置",
       "source": {
         "section": "8.5.11",
-        "line": 7375,
+        "line": 7387,
         "lineDigest": "36fd631aed9069deb699167ea3bd49daf1283c8dfbf6fa4c9bdc514ae341019b"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(field_id,revision)`；`proc_material_fields.current_access_revision`显式FK；mount scope pair是Platform opaque technical ref",
       "source": {
         "section": "8.5.11",
-        "line": 7376,
+        "line": 7388,
         "lineDigest": "2ade6d735b0d5b69263b4587d06261fc99a7c37178ba5b2af3fd8348d9fe2c4a"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(field_id,access_revision,cursor_in,page_digest)`；`INDEX(field_id,completed,observed_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 7377,
+        "line": 7389,
         "lineDigest": "92391de60cbf7fe6e83cf0f564c01c05b734148ac969b9748a536978b45ab8cd"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`PK(field_id,material_key)`；Identity components unique within Field；Hash缓存只在mount/inode/size/mtime/ctime全部一致时有效；`INDEX(field_id,eligibility_state,control_projection,material_key)`；projection只供候选筛选，最终取得必须CAS `fx_material_controls`",
       "source": {
         "section": "8.5.11",
-        "line": 7378,
+        "line": 7390,
         "lineDigest": "e229c6feefa773aeff9946721ddd2e8aa84124e91a683178fbbc5f49eedbba17"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "相同`field_id+run_basis_digest`至多一个non-terminal Run；`retry_intent_id`为空或唯一引用一次性Intent；Supporting Work通过`owner_domain+process_type+process_id`关联；`INDEX(state,priority_class,created_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 7379,
+        "line": 7391,
         "lineDigest": "a899ec8f0aac3ca9b18aecb9c72a3cf2494bfe4e105f9d3f1f990082c348712f"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`UNIQUE(field_id,idempotency_key)`；同一failed Run/Basis至多一个open Intent；消费时重验当前Field/Material eligibility，不修改旧Run",
       "source": {
         "section": "8.5.11",
-        "line": 7380,
+        "line": 7392,
         "lineDigest": "26a07a47288fa898b664f56717126cd366290eb44cab41fbb618d250413158bc"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(procurement_run_id,material_key)`；同一Primary Identity不能属于两个仍可交付的Run/Candidate，由partial unique约束",
       "source": {
         "section": "8.5.11",
-        "line": 7381,
+        "line": 7393,
         "lineDigest": "d9efda9bcbc95c34e631da51aa508f45527c3d1fbcc23d897138201c876a2c2b"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "Identity Claim JSON上限`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`；published内容immutable；`INDEX(state,published_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 7382,
+        "line": 7394,
         "lineDigest": "302e6c4749531d3c07a8ee72ab20931158e0608b8d23c6879f8cc3ee4118c6d8"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`PK(candidate_package_id,claim_kind,claim_namespace,claim_key)`；仅Series；不存在row是合法粗入库；title/year/path/folder禁止编码为claim key",
       "source": {
         "section": "8.5.11",
-        "line": 7383,
+        "line": 7395,
         "lineDigest": "3cbfd04483d393cd3c6358ec63f8e8818cb46394b8f94bc509ce3ea9b796f3fd"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`PK(candidate_package_id,ordinal)`及`UNIQUE(candidate_package_id,material_key)`",
       "source": {
         "section": "8.5.11",
-        "line": 7384,
+        "line": 7396,
         "lineDigest": "608984244a7eb050290e26ff5ae1519a0e6b28292a0f2b5462106e761182b389"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(candidate_package_id,reference_id)`；Related不进入Material Control",
       "source": {
         "section": "8.5.11",
-        "line": 7385,
+        "line": 7397,
         "lineDigest": "b5d81abe6acd247dcc7d1cc8ba731fc274c3f9479e9d8379f48142977e7fade8"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer；`INDEX(state,offered_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 7386,
+        "line": 7398,
         "lineDigest": "65b00c677b93c57ad5badfab5af8fbb175b5a2386841af7e0262f4ca45181140"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`UNIQUE(offer_id)`；immutable；`season_extension`要求exactly one target且zero overlap；同一Candidate/Package digest只允许一个accepted Decision的partial unique index；Intake不升级为Business Process Root",
       "source": {
         "section": "8.5.11",
-        "line": 7387,
+        "line": 7399,
         "lineDigest": "9d57abf0e9b04a534422ff150d15fd434db9461fffe0f42842013f7cacc31c1c"
       }
     }

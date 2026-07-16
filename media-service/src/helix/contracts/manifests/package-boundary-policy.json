@@ -25,6 +25,7 @@
       "allow": [
         "domains.*.public",
         "foundation.*",
+        "platform.public",
         "integrations",
         "projections",
         "contracts",
@@ -47,6 +48,7 @@
         "domains.{owner}.persistence",
         "domains.*.public",
         "foundation.*",
+        "platform.public",
         "contracts"
       ]
     },
@@ -84,12 +86,45 @@
       "source": "foundation.*",
       "allow": [
         "foundation.*",
+        "platform.public",
+        "contracts"
+      ]
+    },
+    {
+      "source": "platform.public",
+      "allow": [
+        "platform.application",
+        "platform.model",
+        "contracts"
+      ]
+    },
+    {
+      "source": "platform.application",
+      "allow": [
+        "platform.model",
+        "platform.persistence",
+        "foundation.*",
+        "contracts"
+      ]
+    },
+    {
+      "source": "platform.model",
+      "allow": [
+        "contracts"
+      ]
+    },
+    {
+      "source": "platform.persistence",
+      "allow": [
+        "platform.model",
+        "foundation.persistence",
         "contracts"
       ]
     },
     {
       "source": "integrations",
       "allow": [
+        "platform.public",
         "contracts"
       ]
     },

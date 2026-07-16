@@ -18,9 +18,13 @@ const POLICY = Object.freeze({
   defaultExternalDecision: 'deny',
   externalModuleRules: [],
   rules: [
-    { source: 'composition', allow: ['domains.*.public'] },
+    { source: 'composition', allow: ['domains.*.public', 'platform.public'] },
     { source: 'domains.*.public', allow: ['domains.{owner}.application'] },
-    { source: 'domains.*.application', allow: ['domains.{owner}.public'] }
+    { source: 'domains.*.application', allow: ['domains.{owner}.public'] },
+    { source: 'platform.public', allow: ['platform.application', 'platform.model'] },
+    { source: 'platform.application', allow: ['platform.model', 'platform.persistence'] },
+    { source: 'platform.model', allow: [] },
+    { source: 'platform.persistence', allow: ['platform.model'] }
   ]
 });
 
@@ -47,11 +51,19 @@ function createFixture(source) {
   writePackage(rootPath, 'domains/procurement/application', 'domains.procurement.application', 'procurement');
   writePackage(rootPath, 'domains/libra/public', 'domains.libra.public', 'libra');
   writePackage(rootPath, 'domains/libra/application', 'domains.libra.application', 'libra');
+  writePackage(rootPath, 'platform/public', 'platform.public', 'platform-settings');
+  writePackage(rootPath, 'platform/model', 'platform.model', 'platform-settings');
+  writePackage(rootPath, 'platform/application', 'platform.application', 'platform-settings');
+  writePackage(rootPath, 'platform/persistence', 'platform.persistence', 'platform-settings');
   writeJson(policyPath, POLICY);
   fs.writeFileSync(path.join(rootPath, 'domains/procurement/public/index.js'), "'use strict';\n");
   fs.writeFileSync(path.join(rootPath, 'domains/procurement/application/index.js'), "'use strict';\n");
   fs.writeFileSync(path.join(rootPath, 'domains/libra/public/index.js'), "'use strict';\n");
   fs.writeFileSync(path.join(rootPath, 'domains/libra/application/index.js'), "'use strict';\n");
+  fs.writeFileSync(path.join(rootPath, 'platform/public/index.js'), "'use strict';\n");
+  fs.writeFileSync(path.join(rootPath, 'platform/model/index.js'), "'use strict';\n");
+  fs.writeFileSync(path.join(rootPath, 'platform/application/index.js'), "'use strict';\n");
+  fs.writeFileSync(path.join(rootPath, 'platform/persistence/index.js'), "'use strict';\n");
   fs.writeFileSync(path.join(rootPath, 'composition/index.js'), source);
   return { rootPath, policyPath };
 }
@@ -73,6 +85,13 @@ test('allows a declared dependency through a Domain public entry', () => {
   const result = runFixture("module.exports = require('../domains/procurement/public');\n");
   assert.equal(result.ok, true);
   assert.equal(result.dependenciesChecked, 1);
+});
+
+test('allows Platform public but rejects direct Platform internal imports', () => {
+  assert.equal(runFixture("module.exports = require('../platform/public');\n").ok, true);
+  const internal = runFixture("module.exports = require('../platform/persistence');\n");
+  assert.equal(internal.ok, false);
+  assert.ok(findingCodes(internal).includes('PACKAGE_DEPENDENCY_NOT_ALLOWED'));
 });
 
 test('rejects a cross-Domain internal import even when a broad package pattern could match', () => {

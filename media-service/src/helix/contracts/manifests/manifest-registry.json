@@ -7,7 +7,7 @@
   "status": "active",
   "ssotRefs": ["8.6", "8.8.3", "8.9", "10.10"],
   "distributedTargets": {
-    "packageBoundaries": 43
+    "packageBoundaries": 47
   },
   "manifests": [
     { "manifestId": "helix.inventory.capabilities", "kind": "capability-inventory", "relativePath": "capability-inventory.json", "targetCount": 112 },
