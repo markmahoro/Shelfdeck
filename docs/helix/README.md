@@ -1,6 +1,6 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: clean architecture accepted; final audit closed; P0 implementation gap audit complete; P1 planned; Implementation Gate closed; E2E, build and production paused.
+Status: clean architecture accepted; final audit closed; P0 and P1 complete; P1 archived; P2 not authorized; E2E, build and production paused.
 
 ## Architecture authority
 
@@ -21,8 +21,9 @@ Status: clean architecture accepted; final audit closed; P0 implementation gap a
 | `CURRENT_PLAN.md` | 唯一Master Plan；只维护Phase路线、依赖、Exit Gate、当前Phase指针和授权边界 |
 | `CURRENT_STATUS.md` | 当前Phase、Gate、Evidence、风险和安全状态；不保存详细执行计划 |
 | `ENGINEERING_PLAYBOOK.md` | 非Canonical长期工程规范；Work Package、Ready/Done、门禁、验证、Review、复用和停线规则 |
-| `implementation/CURRENT_PHASE.md` | 唯一活动Phase详细执行包；当前为P1，从属于Master Plan |
+| `implementation/CURRENT_PHASE.md` | 当前between-phase Gate Hold；P2获授权前不形成活动详细执行包 |
 | `implementation/evidence/IMPLEMENTATION_GAP_AUDIT_4a16f0a9.md` | 已关闭的`4a16f0a9`实现差距矩阵、处置与风险Evidence |
+| `implementation/evidence/P1_PHASE_EXIT_AUDIT_9a4d9b1f.md` | P1 Exit Audit、隔离验证结果、manifest digest和已知限制 |
 | `CAPABILITY_CONSERVATION.md` | 已完成的Level 7能力守恒Evidence；62项历史能力逐项映射，不覆盖SSOT |
 | `KAIROX_CAPABILITY_CATALOG.md` | 62项历史Capability目录快照；不定义clean Owner或调用方向 |
 | `acceptance/FLOWPLAN_BUSINESS_PARITY.md` | 旧Kairox FlowPlan复刻验收Evidence；不定义clean业务流程 |
@@ -45,6 +46,7 @@ ARCHITECTURE_REVIEW.md（仅追溯Architecture Review；非Canonical）
 ## Historical archives
 
 - `archive/pre-top-down-2026-07-14/`：Top-down SSOT之前的Helix架构、服务合同与Triage专题文档。
+- `implementation/archive/P1_CLEAN_SKELETON_AND_ARCHITECTURE_GUARDS.md`：已完成并冻结的P1执行包。
 - 组件专题归档：更早的架构、实施计划、切片和验收证据；不进入活动阅读顺序。
 
 归档文档保持原样以便追溯。它们不再是活动合同、活动计划或当前状态来源。
@@ -54,7 +56,7 @@ ARCHITECTURE_REVIEW.md（仅追溯Architecture Review；非Canonical）
 Helix实施文档采用“一份Master Plan + 一份Current Phase执行包”的结构：
 
 - `CURRENT_PLAN.md`保持精简，不吸收Work Package细节；
-- `implementation/CURRENT_PHASE.md`是唯一活动详细计划；
+- `implementation/CURRENT_PHASE.md`是唯一稳定Phase路径；Phase间可以是Gate Hold，获授权后才成为唯一活动详细计划；
 - 当前Phase通过Exit Gate后，执行包冻结到`implementation/archive/`，再为下一Phase重建稳定的Current Phase路径；
 - 审计、机械核对和验收结果进入`implementation/evidence/`，不能反向修改SSOT；
 - 禁止为并行组件、临时修复或单个Work Package创建第二份活动计划文档。

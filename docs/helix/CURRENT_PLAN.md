@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; P1 Local Implementation Gate open; P1 in progress; E2E, Docker, production, real-media side effects and `media-desktop` changes remain paused.
+Status: Levels 0–10 accepted; P0 and P1 complete; P2 not authorized; E2E, Docker, production, real-media side effects and `media-desktop` changes remain paused.
 
 Last updated: 2026-07-16
 
@@ -42,20 +42,20 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 
 | Field | Current value |
 | --- | --- |
-| Phase | P1 — Clean Skeleton and Architecture Guards |
-| Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P1-00–P1-07 complete |
+| Phase | none；between-phase hold before P2 |
+| Detailed packet | none；`implementation/CURRENT_PHASE.md` is a gate hold only |
+| Status | P1 complete and archived；P2 not authorized |
 | Implementation baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
 | Phase branch/worktree | `codex/helix-p1` / `E:\my_project\emby_third_party-helix-p1` |
-| Allowed now | P1本地代码、unit/contract/isolated architecture fixture、文档同步 |
-| Next action | P1-08 Phase Exit Audit and evidence freeze |
+| Allowed now | review P1 Evidence and decide P2 authorization |
+| Next action | user confirmation for one P2 detailed packet and P2 Local Implementation Gate |
 
 ## 4. Master roadmap
 
 | Phase | Outcome | Dependencies | Exit Gate summary |
 | --- | --- | --- | --- |
 | P0 Audit and disposition | `4a16f0a9`差距、旧模块处置、风险和clean-cut方向 | Level 0–10 accepted | **complete**；Evidence已冻结 |
-| P1 Clean skeleton and guards | 固定`src/helix/`、public/internal边界、唯一Root shell、机器架构门禁和manifest框架 | P0；Local Implementation Gate | clean→legacy import=0；跨域internal=0；旧Root未接线 |
+| P1 Clean skeleton and guards | 固定`src/helix/`、public/internal边界、唯一Root shell、机器架构门禁和manifest框架 | P0；Local Implementation Gate | **complete**；Exit Audit PASS；Evidence frozen |
 | P2 Contract and schema baseline | 112 Capability、96 Result、156 table合同与digest | P1 | 112/112、96/96、156/156机械审计通过 |
 | P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | canonical transaction全部“全成或全不成” |
 | P4 Execution and recovery foundation | Work/Plan/Event/Effect、Progress、Control Plane、Resource、Retry/Timeout/Circuit、startup recovery | P3 | 每种Effect crash window闭合；unknown Effect不供给普通Work |
@@ -110,7 +110,7 @@ P1 package/guards
 
 ## 7. Authorization boundaries
 
-当前已授权第1层`Local implementation`，且仅限P1。后续权限仍须逐层明确：
+第1层`Local implementation`的P1授权已经使用并关闭。P2及后续权限仍须逐层明确：
 
 1. Local implementation：本地代码、单元/合同/隔离fixture；
 2. Real-source E2E：明确来源和副作用范围；
@@ -125,4 +125,4 @@ P1 package/guards
 只有改变用户真实意图、可见业务结果、不可逆Authorization、Business Domain/Owner/Handoff或Object continuity的
 问题才提交用户。包结构、代码组织、测试工具、manifest格式、SQL实现和性能优化由工程内部在SSOT边界内决定。
 
-当前没有open business decision。当前下一决策只是是否打开`Local implementation only` Gate。
+当前没有open business decision。当前下一授权决策是是否允许形成P2详细执行包并打开P2的`Local implementation only` Gate。

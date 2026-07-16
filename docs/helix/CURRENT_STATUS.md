@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0 complete; P1 Local Implementation Gate open; P1-00–P1-07 complete; P1-08 next; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0 and P1 complete; P1 archived; P2 not authorized; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-16
 
@@ -11,14 +11,14 @@ Last updated: 2026-07-16
 | Architecture | `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` Level 0–10 accepted and final audit closed |
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
-| Completed phase | P0 — implementation gap audit and disposition |
-| Current phase | P1 — Clean Skeleton and Architecture Guards |
-| Current phase status | in progress；P1-00–P1-07 complete |
-| Implementation Gate | open for `Local implementation only / P1` |
-| Current allowed work | P1本地代码、unit/contract/isolated architecture fixture、文档同步 |
+| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards |
+| Current phase | none；between-phase hold before P2 |
+| Current phase status | P1 Exit Audit PASS；P2 not authorized |
+| Implementation Gate | closed；P1 authorization consumed |
+| Current allowed work | review P1 Evidence and decide whether to authorize P2 planning/local implementation |
 | Integration baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p1` on `codex/helix-p1` |
-| Next action | P1-08 Phase Exit Audit and evidence freeze |
+| Next action | user confirmation for P2 detailed packet and Local Implementation Gate |
 
 ## 2. Accepted implementation conclusion
 
@@ -53,9 +53,9 @@ clean Helix的业务核心、Persistence、Execution Foundation、Application Fa
 
 Audit result: `COMPLETE / CLEAN CORE REBUILD REQUIRED / ATOMIC REUSE ONLY / NO OPEN BUSINESS DECISION`。
 
-## 4. Current phase package
+## 4. Completed P1 package
 
-P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引：
+P1详细Work Package已归档到`implementation/archive/P1_CLEAN_SKELETON_AND_ARCHITECTURE_GUARDS.md`：
 
 | Work Package | Status |
 | --- | --- |
@@ -67,17 +67,17 @@ P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引
 | P1-05 Forbidden legacy semantics guard | complete；12 rule families / exact structured exemptions / 6 checks |
 | P1-06 Manifest/reuse-ledger framework | complete；10 Owners / 42 packages / 62 baseline locators / stable digest |
 | P1-07 Architecture verification harness | complete；single local command / 4 fixture files / JSON evidence |
-| P1-08 Phase Exit Audit | next |
+| P1-08 Phase Exit Audit | complete；PASS Evidence frozen |
 
-P1代码和隔离architecture fixture已经开始；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。
+P1已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runtime。P2 inventory仍是framework-only，不构成实现。
 
 ## 5. Engineering governance state
 
 - `CURRENT_PLAN.md`：精简Master Roadmap和授权边界；
 - `ENGINEERING_PLAYBOOK.md`：Ready/Done、Work Package、门禁、测试、Review、复用、Git和停线规则；
-- `implementation/CURRENT_PHASE.md`：唯一活动Phase详细执行包；
+- `implementation/CURRENT_PHASE.md`：当前between-phase Gate Hold；无活动详细执行包；
 - `implementation/evidence/`：冻结审计与验收Evidence；
-- `implementation/archive/`：Phase完成后保存冻结执行包，当前尚无归档。
+- `implementation/archive/`：保存已冻结的P1执行包。
 
 工程文档不能覆盖架构SSOT。任意时刻禁止出现第二份活动Phase详细计划。
 
@@ -85,12 +85,12 @@ P1代码和隔离architecture fixture已经开始；clean root仍未接入`serve
 
 - NAS ShelfDeck Docker `192.168.12.230:18080`保持生产边界，当前不接触；
 - 四库真实来源E2E保持停止；
-- 只运行P1 unit/contract/isolated architecture fixture；不运行E2E、Admin Web构建或Docker构建；
+- P1本地实现已停止；不运行P2实现、E2E、Admin Web构建或Docker构建；
 - 不部署、不初始化生产数据、不执行真实媒体副作用；
 - 当前旧`helixCleanState`/preflight不得用于clean切换或生产；
 - `media-desktop`继续排除并保留用户未提交修改；
 - 用户`media-service/package.json`分析入口和未跟踪分析脚本保持不变；
-- 实施开始后必须从批准baseline创建独立worktree，不能直接使用当前dirty工作区。
+- 未来P2若获授权，仍须使用隔离worktree，不能直接使用当前dirty工作区。
 
 ## 7. Open risks and blockers
 
@@ -100,11 +100,11 @@ P1代码和隔离architecture fixture已经开始；clean root仍未接入`serve
 | R0 | 原子复用携带错误Owner/Store/Material权限 | function-level ledger；0 whole-executor reuse |
 | R0 | 当前误导性clean-init造成数据破坏 | 封存；P13按Level 10完全重写 |
 | R1 | 后续为进度创建新旧混合路径 | Master dependency invariant和Phase Exit Audit |
-| active control | P1不得提前进入P2或接旧产品主路径 | Current Phase Non-goals与Exit Gate |
+| active control | P2未授权且clean root不得接旧产品主路径 | Current Phase Gate Hold与Master dependency invariant |
 
 ## 8. Next checkpoint
 
-P1-07已完成：`npm run test:helix-architecture`只运行4个隔离fixture文件和三类clean checker，输出
-`P1_LOCAL_ISOLATED_ARCHITECTURE_ONLY` JSON；结果`ok=true`，dependency/semantic/manifest findings均为0，
-`prohibitedActionsRun=[]`。没有运行旧服务测试、E2E、Admin build、Docker、端口、数据库或媒体副作用。下一检查点是
-P1-08从SSOT反向执行Phase Exit Audit并冻结Evidence；审计通过前P1不关闭、P2不启动。
+P1 Exit Audit已冻结在`implementation/evidence/P1_PHASE_EXIT_AUDIT_9a4d9b1f.md`，结果PASS。最终隔离验证
+`ok=true`，dependency/semantic/manifest findings均为0，aggregate digest为
+`8e9440e980a46eb82de9c263ab083ea0154208fd9d9cc4275d7c18bf0b6abf6e`。当前停止实施；下一检查点是用户是否授权
+形成唯一P2详细执行包并打开P2 Local Implementation Gate。
