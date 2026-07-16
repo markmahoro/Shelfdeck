@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0 complete; P1 Local Implementation Gate open; P1-00–P1-02 complete; P1-03 next; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0 complete; P1 Local Implementation Gate open; P1-00–P1-03 complete; P1-04 next; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-16
 
@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phase | P0 — implementation gap audit and disposition |
 | Current phase | P1 — Clean Skeleton and Architecture Guards |
-| Current phase status | in progress；P1-00–P1-02 complete |
+| Current phase status | in progress；P1-00–P1-03 complete |
 | Implementation Gate | open for `Local implementation only / P1` |
 | Current allowed work | P1本地代码、unit/contract/isolated architecture fixture、文档同步 |
 | Integration baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p1` on `codex/helix-p1` |
-| Next action | P1-03 Unique Composition Root shell |
+| Next action | P1-04 Import/dependency architecture guard |
 
 ## 2. Accepted implementation conclusion
 
@@ -62,8 +62,8 @@ P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引
 | P1-00 Isolated workspace and baseline receipt | complete |
 | P1-01 Clean physical package skeleton | complete；42 unique package markers |
 | P1-02 Domain public/internal boundary | complete；5 frozen public entries / 12 default-deny rules |
-| P1-03 Unique Composition Root shell | next |
-| P1-04 Import/dependency guard | pending |
+| P1-03 Unique Composition Root shell | complete；fail-closed / zero import side effect |
+| P1-04 Import/dependency guard | next |
 | P1-05 Forbidden legacy semantics guard | pending |
 | P1-06 Manifest/reuse-ledger framework | pending |
 | P1-07 Architecture verification harness | pending |
@@ -104,6 +104,6 @@ P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引
 
 ## 8. Next checkpoint
 
-P1-02已完成：五个Domain只有`public/index.js`入口，导出冻结的package identity；
-`package-boundary-policy.json`以default deny表达12类内部依赖规则。Node隔离检查确认5/5入口可导入并立即退出，
-没有Timer、DB、文件或网络动作。下一检查点是P1-03唯一Composition Root shell。
+P1-03已完成：`composition/createHelixApplication.js`导入前后active handle/request均为0；调用会明确抛出
+`HELIX_COMPOSITION_NOT_IMPLEMENTED`，不返回伪Ready应用。旧`server.js/app.js`没有引用clean root。下一检查点是
+P1-04把P1-02 policy变成fail-closed静态门禁。
