@@ -1,0 +1,243 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+const Database = require('better-sqlite3');
+const { createDomainCommitCoordinator, createDomainCommitRegistry } = require('../../src/helix/foundation/persistence/domain-commit-registry');
+const { digest } = require('../../src/helix/foundation/persistence/ddl-compiler');
+const { controlScopeDigest, materialKey } = require('../../src/helix/foundation/persistence/material-control');
+const { createRepositoryDefinition } = require('../../src/helix/foundation/persistence/owner-repository');
+const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
+const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+
+const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
+const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
+const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
+const factSchemaRef = 'helix://domains/libra/facts/SubjectCreated/v1';
+
+const subjects = createRepositoryDefinition({
+  repositoryId: 'subjects', owner: 'libra', schemaManifest,
+  statements: {
+    find: { kind: 'select-one', tableId: 'libra_subjects', columns: ['subject_id', 'status'], keyColumns: ['subject_id'] },
+    insert: { kind: 'insert', tableId: 'libra_subjects', columns: ['subject_id', 'structure_kind', 'status', 'created_at_ms'] }
+  }
+});
+
+function registration(owner = 'libra') {
+  return {
+    ownerDomain: 'libra', aggregateType: 'subject', factType: 'subject.created', factSchemaRef,
+    effectClass: 'domain_fact_commit', revisionFence: true,
+    createParticipant({ handle, payload }) {
+      return {
+        participantId: 'libra_subject_fact', owner, boundBusinessOwner: owner, repositories: [subjects],
+        execute(context) {
+          const repository = context.repository('subjects');
+          const existing = repository.invoke('find', { subject_id: handle.aggregateId });
+          if (handle.expectedRevision !== 0 || existing) {
+            const error = new Error('Domain revision fence failed');
+            error.code = 'TEST_DOMAIN_REVISION_CONFLICT';
+            throw error;
+          }
+          if (payload.subjectId !== handle.aggregateId || payload.structureKind !== 'movie') throw new Error('typed payload mismatch');
+          repository.invoke('insert', {
+            subject_id: payload.subjectId, structure_kind: payload.structureKind, status: 'active', created_at_ms: context.commitTimeMs
+          });
+          return Object.freeze({ subjectId: payload.subjectId, revision: 1 });
+        }
+      };
+    }
+  };
+}
+
+function fixture(run, registrations = [registration()]) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-domain-commit-'));
+  const databasePath = path.join(root, 'shelfdeck.db');
+  let clock = 1700000000600;
+  const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => clock++ });
+  const registry = createDomainCommitRegistry({ registrations });
+  const coordinator = createDomainCommitCoordinator({
+    schemaManifest, registry, unitOfWork: createSqliteUnitOfWork({ kernel })
+  });
+  try {
+    return run({ coordinator, databasePath, kernel, registry });
+  } finally {
+    kernel.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function payload(subjectId = 'subject-1') {
+  return { subjectId, structureKind: 'movie' };
+}
+
+function domainHandle(value = payload(), overrides = {}) {
+  return {
+    schemaRef: 'helix://contracts/types/DomainFactCommitHandle/v1', schemaVersion: 1,
+    handleId: overrides.handleId || 'handle-1', ownerDomain: overrides.ownerDomain || 'libra',
+    aggregateType: overrides.aggregateType || 'subject', aggregateId: overrides.aggregateId || value.subjectId,
+    factType: overrides.factType || 'subject.created', factSchemaRef: overrides.factSchemaRef || factSchemaRef,
+    expectedRevision: overrides.expectedRevision === undefined ? 0 : overrides.expectedRevision,
+    payloadDigest: overrides.payloadDigest || digest(JSON.stringify({ structureKind: value.structureKind, subjectId: value.subjectId })),
+    commitIdempotencyKey: overrides.commitIdempotencyKey || 'domain-key-1', eventFenceDigest: digest('event-fence')
+  };
+}
+
+function outbox(subjectId = 'subject-1') {
+  return [{
+    messageId: 'message-' + subjectId,
+    producerDomain: 'libra', messageKind: 'subject.created', aggregateType: 'subject', aggregateId: subjectId,
+    aggregateRevision: 1, dedupKey: subjectId + '/created', intendedConsumers: ['perception'],
+    payloadSchemaRef: 'helix://contracts/types/SubjectCreatedSignal/v1',
+    payload: { subjectId, subjectRevision: 1, factDigest: digest('fact-' + subjectId) }
+  }];
+}
+
+function request(value = payload(), overrides = {}) {
+  return {
+    handle: overrides.handle || domainHandle(value), payload: value,
+    commitMarker: {
+      commitMarker: overrides.commitMarker || 'marker-' + value.subjectId,
+      effectId: null,
+      commitDigest: overrides.commitDigest || digest('commit-' + value.subjectId)
+    },
+    outboxMessages: overrides.outboxMessages || outbox(value.subjectId),
+    control: overrides.control
+  };
+}
+
+function physicalIdentity(name) {
+  const identity = {
+    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion: 1,
+    mountScopeId: 'mount-1', inode: name, contentHashAlgorithm: 'sha256', contentHash: digest('content-' + name)
+  };
+  identity.materialKey = materialKey(identity);
+  return identity;
+}
+
+function controlRequest(change) {
+  return {
+    changes: [change],
+    handle: {
+      schemaRef: 'helix://contracts/types/ResponsibilityControlCommitHandle/v1', schemaVersion: 1,
+      handleId: 'control-handle', operationKind: 'acquire', ownerDomain: 'libra', processType: 'subject', processId: 'subject-1',
+      basisRef: { objectType: 'subject', objectId: 'subject-1', revision: 1, digest: digest('basis-ref') },
+      basisDigest: digest('basis'), canonicalFactSetDigest: digest('facts'), bindingSetDigest: digest('bindings'),
+      controlScopeDigest: controlScopeDigest([change]),
+      expectedControlRevisions: [{ materialKey: change.identity.materialKey, revision: change.expectedRevision }],
+      receiptContract: 'helix://contracts/types/TestControlReceipt/v1', eventFenceDigest: digest('control-fence')
+    }
+  };
+}
+
+test('builds a deterministic exact typed registration manifest', () => {
+  const first = createDomainCommitRegistry({ registrations: [registration()] });
+  const second = createDomainCommitRegistry({ registrations: [registration()] });
+  assert.equal(first.manifest.entryCount, 1);
+  assert.equal(first.manifest.registryDigest, second.manifest.registryDigest);
+  assert.deepEqual(first.manifest.entries[0], {
+    ownerDomain: 'libra', aggregateType: 'subject', factType: 'subject.created', factSchemaRef,
+    effectClass: 'domain_fact_commit', revisionFence: true
+  });
+  assert.throws(() => createDomainCommitRegistry({ registrations: [registration(), registration()] }),
+    (error) => error.code === 'P3_DOMAIN_COMMIT_DUPLICATE_REGISTRATION');
+  assert.throws(() => createDomainCommitRegistry({ registrations: [{ ...registration(), effectClass: 'generic_write' }] }),
+    (error) => error.code === 'P3_DOMAIN_COMMIT_EFFECT_CLASS_REQUIRED');
+  assert.throws(() => createDomainCommitRegistry({ registrations: [{ ...registration(), revisionFence: false }] }),
+    (error) => error.code === 'P3_DOMAIN_COMMIT_REVISION_FENCE_REQUIRED');
+});
+
+test('atomically coordinates typed Domain fact, Commit Marker, Outbox, and stable replay', () => {
+  fixture(({ coordinator, databasePath, kernel }) => {
+    const first = coordinator.execute(request());
+    assert.equal(first.replayed, false);
+    assert.deepEqual(first.domainResult, { subjectId: 'subject-1', revision: 1 });
+    assert.equal(first.outboxResult.length, 1);
+    const replay = coordinator.execute(request());
+    assert.equal(replay.replayed, true);
+    kernel.close();
+    const database = new Database(databasePath, { readonly: true });
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_outbox_deliveries').get().count, 1);
+    database.close();
+  });
+});
+
+test('rejects unregistered Owner/fact schema, payload drift, and wrong-Owner participant factory', () => {
+  fixture(({ registry }) => {
+    const value = payload();
+    assert.throws(() => registry.resolve(domainHandle(value, { factSchemaRef: 'helix://domains/libra/facts/Unknown/v1' }), value),
+      (error) => error.code === 'P3_DOMAIN_COMMIT_UNREGISTERED_FACT');
+    assert.throws(() => registry.resolve(domainHandle(value, { payloadDigest: digest('wrong') }), value),
+      (error) => error.code === 'P3_DOMAIN_COMMIT_PAYLOAD_DIGEST_MISMATCH');
+  });
+  fixture(({ registry }) => {
+    assert.throws(() => registry.resolve(domainHandle(payload()), payload()),
+      (error) => error.code === 'P3_DOMAIN_COMMIT_PARTICIPANT_OWNER_MISMATCH');
+  }, [registration('arca')]);
+});
+
+test('Domain revision fence failure leaves no marker or Outbox', () => {
+  fixture(({ coordinator, databasePath, kernel }) => {
+    const value = payload();
+    assert.throws(() => coordinator.execute(request(value, { handle: domainHandle(value, { expectedRevision: 1 }) })),
+      (error) => error.code === 'TEST_DOMAIN_REVISION_CONFLICT');
+    kernel.close();
+    const database = new Database(databasePath, { readonly: true });
+    for (const table of ['libra_subjects', 'fx_commit_markers', 'fx_outbox', 'fx_outbox_deliveries']) {
+      assert.equal(database.prepare('SELECT COUNT(*) count FROM ' + table).get().count, 0, table);
+    }
+    database.close();
+  });
+});
+
+test('same marker cannot replay a different signed aggregate commit', () => {
+  fixture(({ coordinator, databasePath, kernel }) => {
+    coordinator.execute(request());
+    const secondValue = payload('subject-2');
+    assert.throws(() => coordinator.execute(request(secondValue, {
+      handle: domainHandle(secondValue, { handleId: 'handle-2', commitIdempotencyKey: 'key-2' }),
+      commitMarker: 'marker-subject-1', commitDigest: digest('commit-subject-1'),
+      outboxMessages: outbox('subject-2')
+    })), (error) => error.code === 'P3_DOMAIN_COMMIT_MARKER_CONFLICT');
+    kernel.close();
+    const database = new Database(databasePath, { readonly: true });
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count, 1);
+    database.close();
+  });
+});
+
+test('coordinates optional Material Control and rolls back every participant on Control CAS failure', () => {
+  fixture(({ coordinator, databasePath, kernel }) => {
+    const identity = physicalIdentity('inode-domain-commit');
+    const validChange = {
+      action: 'acquire', identity, expectedRevision: 0, fromScope: null,
+      toScope: { ownerDomain: 'libra', scopeType: 'subject', scopeId: 'subject-1' }
+    };
+    const success = coordinator.execute(request(payload(), { control: controlRequest(validChange) }));
+    assert.equal(success.controlResult[0].revision, 1);
+    const secondValue = payload('subject-2');
+    const staleChange = {
+      action: 'acquire', identity: physicalIdentity('inode-stale'), expectedRevision: 1, fromScope: null,
+      toScope: { ownerDomain: 'libra', scopeType: 'subject', scopeId: 'subject-2' }
+    };
+    assert.throws(() => coordinator.execute(request(secondValue, {
+      handle: domainHandle(secondValue, { handleId: 'handle-2', commitIdempotencyKey: 'key-2' }),
+      commitMarker: 'marker-subject-2', commitDigest: digest('commit-subject-2'),
+      outboxMessages: outbox('subject-2'), control: controlRequest(staleChange)
+    })), (error) => error.code === 'P3_CONTROL_CAS_CONFLICT');
+    kernel.close();
+    const database = new Database(databasePath, { readonly: true });
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_material_controls').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count, 1);
+    database.close();
+  });
+});
