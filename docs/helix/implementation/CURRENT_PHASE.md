@@ -2,7 +2,7 @@
 
 Current phase: `P2 — Contract and Schema Baseline`
 
-Status: in progress；P2-00–P2-02 complete；P2-03 next；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P2-00–P2-03 complete；P2-04 next；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -77,8 +77,8 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 | P2-00 | Standing authorization and isolated baseline receipt | complete | P1 PASS |
 | P2-01 | SSOT extraction oracle and source map | complete | P2-00 |
 | P2-02 | Shared nominal type and envelope registry | complete | P2-01 |
-| P2-03 | 112 Capability immutable contract packages | next | P2-01、P2-02 |
-| P2-04 | 96 Result family schema closure | pending | P2-02、P2-03 |
+| P2-03 | 112 Capability immutable contract packages | complete | P2-01、P2-02 |
+| P2-04 | 96 Result family schema closure | next | P2-02、P2-03 |
 | P2-05 | 156 relational table contract inventory | pending | P2-01 |
 | P2-06 | 18 canonical transaction and participant inventory | pending | P2-05 |
 | P2-07 | Cross-inventory contract verification harness | pending | P2-02–P2-06 |
@@ -112,6 +112,9 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 - Manifest fixes Owner、Effect Class、named ports、schema refs、Fence、Resource、idempotency and optional Approval/Authorization.
 - Catalog summary input/output is translated to named typed ports without inventing Business decisions.
 - No Executor code or registration is created in P2.
+- Done: 112/112 Catalog refs materialized as 896 immutable contract files；Capability inventory active；package aggregate digest
+  `ce353a4ccb712d56354412824ad7793265a176240240521f3f90a3f61b2d97ae`；all package/manifest/architecture
+  fixtures PASS. The 235 intentionally unresolved domain/result refs are the explicit P2-04 input, not a closed graph claim.
 
 ### P2-04 96 Result family schema closure
 
