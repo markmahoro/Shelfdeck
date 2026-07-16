@@ -33,7 +33,8 @@ test('retains the exact P2 contract digest for every generated table trace', () 
 test('keeps checked-in DDL and trace manifest reproducible from frozen inputs', () => {
   const compiled = compileSchema(contracts);
   const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
-  assert.equal(fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8'), compiled.ddl);
+  const checkedInDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8').replaceAll('\r\n', '\n');
+  assert.equal(checkedInDdl, compiled.ddl);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8')), compiled.manifest);
 });
 
