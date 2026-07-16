@@ -2,7 +2,7 @@
 
 Current phase: `P2 — Contract and Schema Baseline`
 
-Status: in progress；P2-00–P2-04 complete；P2-05 next；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P2-00–P2-05 complete；P2-06 next；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -79,8 +79,8 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 | P2-02 | Shared nominal type and envelope registry | complete | P2-01 |
 | P2-03 | 112 Capability immutable contract packages | complete | P2-01、P2-02 |
 | P2-04 | 96 Result family schema closure | complete | P2-02、P2-03 |
-| P2-05 | 156 relational table contract inventory | next | P2-01 |
-| P2-06 | 18 canonical transaction and participant inventory | pending | P2-05 |
+| P2-05 | 156 relational table contract inventory | complete | P2-01 |
+| P2-06 | 18 canonical transaction and participant inventory | next | P2-05 |
 | P2-07 | Cross-inventory contract verification harness | pending | P2-02–P2-06 |
 | P2-08 | P2 Phase Exit Audit and evidence freeze | pending | P2-00–P2-07 |
 
@@ -134,6 +134,10 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 - Record sole Owner、prefix、columns、PK/FK、unique/partial unique、hot index、immutability、revision/current pointer、JSON schema/limit and delete restriction.
 - Foundation cannot FK to Domain；`platform_*` cannot reference Domain；`read_*` remains rebuildable and non-canonical.
 - P2 does not emit or execute migration SQL.
+- Done: 156/156 table contracts and inventory active across eight sole Owners；all PKs、148 inline FKs、30 JSON columns and
+  every current revision pointer close mechanically. Foundation/Platform reverse Domain FKs fail closed；all canonical FKs use
+  `ON DELETE RESTRICT`. Inventory contract digest
+  `90b5ecc43ba6dbfe59e3c36181d948f7df4b08139d39b0abacbf63017b364c88`. No DDL was emitted or executed.
 
 ### P2-06 18 canonical transaction and participant inventory
 
