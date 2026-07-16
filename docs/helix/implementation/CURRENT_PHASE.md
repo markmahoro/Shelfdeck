@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00 complete；P4-01 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-01 complete；P4-02 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -68,8 +68,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
 | P4-00 | P3 closure and isolated P4 baseline receipt | complete | P3 PASS |
-| P4-01 | Foundation public ports and runtime nominal contracts | next | P4-00 |
-| P4-02 | Exact Capability Registry and typed dispatcher gate | pending | P4-01；P2 Capability contracts |
+| P4-01 | Foundation public ports and runtime nominal contracts | complete | P4-00 |
+| P4-02 | Exact Capability Registry and typed dispatcher gate | next | P4-01；P2 Capability contracts |
 | P4-03 | Supporting Work admission and idempotent submission | pending | P4-01；P3 Persistence |
 | P4-04 | Immutable normalized Plan and DAG validator | pending | P4-02–P4-03 |
 | P4-05 | Work Supply Controller and bounded backpressure | pending | P4-03–P4-04 |
@@ -101,6 +101,13 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - Publish only Work Submission/Query、typed Registry provider、Command/Control and Foundation Health contracts.
 - Freeze Work/Attempt/Plan/Event/Progress/Outcome/Effect Journal nominal state machines and transition ownership.
 - Public package must not expose Repository、SQLite、Executor instance or `dispatch(name,payload)`.
+- Done: commit `4a9b5a59` closes the P1 skeleton gap by adding SSOT-required `foundation.public` as the 43rd guarded package，
+  exposing exactly seven frozen ports and rejecting missing/extra Repository、SQLite、Executor or generic dispatch methods. Runtime
+  contracts freeze the exact P2 Work/Attempt/Event/Effect/Defer/Circuit enums、four Plan Resolutions、five priority classes and seven
+  Effect Classes；tests derive those sets from the 156 table and 112 Capability contracts. Supporting Work Definition is exact、bounded、
+  owner-scoped and accepts only opaque dependency/material references，not preselected Capability/Executor/flow/path. Eight focused groups、
+  the complete 218-test architecture gate and fresh detached-worktree gate PASS；SSOT/P2 contract aggregate unchanged and no persistence/
+  Runtime behavior or product wiring entered the public package.
 
 ### P4-02 Exact Capability Registry and typed dispatcher gate
 
